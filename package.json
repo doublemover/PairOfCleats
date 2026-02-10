@@ -67,7 +67,7 @@
     "shard-census": "node tools/index/shard-census.js",
     "lint": "eslint .",
     "format": "eslint . --fix",
-    "postinstall": "patch-package"
+    "postinstall": "node tools/setup/postinstall.js"
   },
   "dependencies": {
     "@ast-grep/napi": "^0.40.4",

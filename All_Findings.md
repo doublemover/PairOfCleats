@@ -1502,3 +1502,392 @@ This document contains **new** issues found during a second-pass static review o
 - **[High] Python AST pool shutdown can strand queued/in-flight promises (hang/leak risk).**  
   *Files:* `src/lang/python/pool.js`
 
+---
+
+## Part 3 — Full Verification + Fix Matrix (2026-02-10)
+
+Method:
+- Re-verified each listed issue against current repository code.
+- Marked status as one of: `present`, `partially`, `fixed`, `not-reproducible`.
+- Added a best-fix recommendation for every item (including those that previously lacked one).
+
+### 3.1 Baseline A-D
+
+| Section | Finding short name | Status | Best fix |
+|---|---|---|---|
+| A | `index --help` dispatches build | present | In `bin/pairofcleats.js`, detect `index --help` and print index help (or pass `--help` through) instead of routing to `build_index.js`. |
+| A | Backend allowlist mismatch | present | Replace hardcoded router allowlist with `resolveBackendPolicy` (or include `memory`/`tantivy` to match supported backends). |
+| A | Router allowlist blocks real flags | present | Remove/rework `validateArgs` for delegated subcommands, or generate allowlist from subcommand schemas. |
+| A | `search.js` ignores `--` sentinel | present | Stop help/version scanning at `--` so literal query tokens like `--help` are not interpreted as flags. |
+| A | VS Code async `execFile` callback | present | Remove `async` callback usage; wrap with explicit promise handling and `try/finally` to always resolve progress UI. |
+| A | VS Code ignores `{ok:false}` payload | present | Treat `{ok:false}` and structured error payloads as errors, not empty result sets. |
+| A | Sublime `config dump` missing route | present | Add `config dump` route in `bin/pairofcleats.js` or update Sublime plugin to call routed command. |
+| A | `readFlagValue` ignores `--` | present | Stop scanning for values after `--`. |
+| A | `validateArgs` accepts empty values | present | Reject empty flag values (e.g., `--repo=`) as invalid input. |
+| A | VS Code uses embedded Node | present | Allow configurable Node binary path or prefer PATH `node`; warn on engine mismatch. |
+| A | Sublime runner output unbounded | present | Cap in-memory buffer or stream to file + tail in memory. |
+| A | Multi-root defaults to first workspace | present | Prefer active editor folder or prompt user when ambiguous. |
+| A | Help/version stream inconsistency | present | Standardize: help/version to stdout, errors to stderr. |
+| B | Config normalization drops schema keys | present | Expand normalization to include all schema-supported settings and add parity test against schema inventory. |
+| B | `cache.runtime` schema conflict | present | Add `cache.runtime` to schema or remove unsupported references from docs/code. |
+| B | Prototype pollution in deep merge | present | Guard `__proto__`, `constructor`, `prototype` keys (or use pollution-safe deep merge). |
+| B | Validator cache ineffective | present | Cache parsed schema/compiled validator at module scope (no per-call reparsing). |
+| B | Optional dep detection uses cwd | present | Resolve from repo root/tool root or use `require.resolve(..., { paths: [...] })`. |
+| B | `procConcurrency` capped at 4 | present | Remove redundant nested min; use intended cap policy (`Math.min(8, cpuCount)` or config-driven). |
+| B | Repo stats scan handle closure | present | Ensure directory handles close in `finally` on all early exits. |
+| B | Strict/case-sensitive env bool parsing | present | Normalize booleans case-insensitively and accept common forms (`1/0`, `true/false`, `yes/no`). |
+| B | Runtime envelope JSDoc mismatch | present | Correct JSDoc types to match implementation. |
+| C | Runtime not torn down on lock fail | present | Wrap lock acquisition path with guaranteed runtime teardown in `finally`. |
+| C | Lock handler calls `process.exit()` | present | Replace direct exits with abort/cancellation signaling and allow caller to own process termination. |
+| C | Build ID collision risk | present | Include milliseconds and/or random suffix in build ID. |
+| C | Shallow progress merge | present | Deep-merge progress object fields during debounced state patch merge. |
+| C | Build-state maps never pruned | present | Clear module-level maps after build completion; add capacity guards for long-lived modes. |
+| C | Lock handle close not in finally | present | Always close file handle in `finally` after open/write attempts. |
+| C | Delta log fire-and-forget race | present | Serialize delta writes through single queue and await flush at defined checkpoints. |
+| C | Stage2 queue dir coupled to embeddings | present | Introduce stage-specific queue config separate from embeddings queue path. |
+| C | Promotion path check case sensitivity | present | Use canonical path comparisons (`path.relative` + platform-aware case normalization). |
+| D | `normalizeRoot` undefined in watch | present | Define/import shared root-normalization helper in `src/index/build/watch.js`. |
+| D | Watch attempts retention unbounded | present | Cap attempts history per file and prune old entries eagerly. |
+| D | Minified detection inconsistent | present | Reuse same minified detection logic in discovery and watch paths. |
+| D | Root checks case-sensitive | present | Normalize case on case-insensitive platforms during containment checks. |
+| D | Symlink traversal not blocked early | partially | Ensure traversal-level symlink rejection (not just acceptance-level checks). |
+| D | Line-count off-by-one newline edge | present | Count trailing newline correctly; ensure max-line checks use same semantics everywhere. |
+
+### 3.2 Baseline E-H
+
+| Section | Finding short name | Status | Best fix |
+| --- | --- | --- | --- |
+| E | Tree-sitter token classification leaks/doesn’t reset | present | Ensure `tree.delete()` and `parser.reset()` run in `finally` for all paths in token classification. |
+| E | Per-file timing arrays unbounded | present | Cap or periodically flush timing arrays (ring buffer + aggregate stats). |
+| E | Empty catches hide failures | present | Replace empty catches with debug logs/metrics and single-flight warn-once. |
+| E | Python AST pool shutdown strands pending jobs | present | Resolve/reject all pending and in-flight jobs before worker kill on shutdown. |
+| E | Import-resolution cache writes non-atomic | present | Write temp + rename and quarantine corrupt files on parse failure. |
+| E | Tree-sitter byte-offset slicing mismatch | present | Use byte-aware slicing or convert byte offsets to code-unit offsets safely. |
+| E | Tree-sitter log-once sets unbounded | present | Cap/TTL log-once caches or scope to run lifecycle. |
+| E | Python chunkers endLine off-by-one | present | Use `end-1` for exclusive end offsets in line conversion. |
+| E | TypeScript chunkers endLine off-by-one | present | Use `end-1` for exclusive end offsets in line conversion. |
+| E | TypeScript parser cache unbounded | present | Add LRU/TTL eviction or run-scoped cache. |
+| E | Python worker readline close | present | Close readline interface on shutdown/worker exit paths. |
+| E | Python docmeta redundant returns fields | fixed | Keep only canonical return field (`returnType`) and remove duplicate return aliasing. |
+| E | Dead condition in runtime destroy | present | Remove unreachable comparison and simplify worker-pool teardown branch. |
+| F | Varint decode uses 32-bit ops | present | Replace with safe integer/BigInt decoding path and enforce bounds. |
+| F | Large allocation risk on corrupt count | present | Validate count plausibility before array allocation. |
+| F | Negative delta clamp hides corruption | present | Throw on negative deltas; do not silently clamp. |
+| F | Phrase separator mismatch | present | Standardize separator constant across tokenize/build/retrieval paths. |
+| F | Prefilter trigrams over-restrictive | present | Use less restrictive trigram generation for literal substring/regex cases. |
+| F | Postings merge can preserve duplicates | present | Dedupe after merge even for “already sorted” fast-paths. |
+| F | Filter-index hard-fails on missing lang | present | Treat missing language metadata as `unknown` and continue best-effort. |
+| F | Token-ID collision unmitigated | present | Add deterministic collision remediation strategy (salt/fallback token identity). |
+| F | Offsets decode trailing bytes ignored | present | Fail fast on trailing bytes and malformed offset length. |
+| G | Risk severity ignores `critical` in cross-file path | present | Add `critical` to severity rank map used by cross-file risk propagation. |
+| G | Interprocedural risk cycles waste budget | present | Improve visited key/cycle guard semantics independent of depth-only identity. |
+| G | Cross-file text cache memory spikes | present | Add bounded LRU by bytes + run-phase reset. |
+| G | Structural ingest hard-fails malformed output | present | Degrade to warning + skip malformed payload entries. |
+| G | Call summary dedupe too coarse | present | Include callsite/args hash in dedupe key. |
+| G | Type inference candidate explosion | partially | Add hard caps for union/object/key expansion and document truncation behavior. |
+| G | ESLint degradation lacks observability | partially | Emit structured diagnostics when lint unavailable/fails to initialize. |
+| G | Default normalizer duplicate condition | present | Remove redundant condition and add tiny regression test. |
+| G | Sources-only risk forced to low | present | Derive severity from sources when sinks absent. |
+| G | Risk regex flags fragility | fixed | Keep normalized safe-regex flags path and ensure all callsites use it. |
+| G | Tooling logger no backpressure | present | Add bounded async write queue (single consumer) for tooling logs. |
+| G | Tooling diagnostics unbounded | present | Dedupe + cap diagnostics per chunk/provider. |
+| G | lintChunk JSDoc mismatch | present | Update JSDoc/type contract to actual message shape. |
+| G | `averageCyclomatic` miscomputed | present | Compute true average from aggregate/functions count. |
+| G | `dedupeMatches` drops evidence | present | Dedupe by `(rule, location)` and keep bounded evidence list. |
+| H | Warned/validated sets unbounded | present | Replace with bounded LRU/TTL caches. |
+| H | Offsets readers ignore trailing bytes | present | Validate strict offsets shape and length before decode. |
+| H | Decompression allows >max boundary | present | Enforce strict max output bytes for decompression across codecs. |
+| H | Index presence checks miss compressed variants | present | Include `.jsonl.gz/.jsonl.zst` and compressed artifacts in presence checks. |
+| H | `resolveManifestMaxBytes` invalid return | present | Return safe default on invalid/non-positive input, never raw invalid value. |
+| H | `readJsonlRowAt` alloc before cap check | present | Validate row length before allocation/read. |
+| H | `readJsonlRowAt` repeated opens | present | Reuse handles/pool for batched random-access reads. |
+| H | Manifest index rebuilt each lookup | present | Cache indexed pieces map per manifest instance. |
+| H | `fd=0` close guard bug | present | Close with `fd !== null` guard. |
+| H | Varint no safe-integer enforcement | present | Enforce safe integer bounds; use BigInt where needed. |
+| H | `validatedOffsets` staleness/unbounded | present | Include mtime/size in cache key and cap cache size. |
+| H | `meta.parts` first-part-only for json/columnar | present | Support multi-part or explicitly fail if unsupported. |
+
+### 3.3 Baseline I-L
+
+| Section | Finding short name | Status | Best fix |
+| --- | --- | --- | --- |
+| I | SQLite compaction schema mismatch (`chunks_fts.mode`, `metaV2_json`) | present | Align compact tool insert columns with canonical SQLite schema and validate schema compatibility before compacting. |
+| I | SQLite replace backup hazard with stale backup | present | Always create fresh backup (rotated/timestamped) before replacing live DB. |
+| I | Runner `process.once('exit')` listener leak | present | Install once globally or unregister listener after each run completion. |
+| I | LMDB clear-before-write non-atomic | present | Build temp LMDB store and atomic swap on success; keep rollback backup. |
+| I | SQLite sidecar cleanup incomplete | present | Include `-wal`/`-shm` cleanup in all failure paths. |
+| I | Vector ANN query errors swallowed | present | Surface structured warning/error and metrics; optionally disable provider after repeated failures. |
+| I | LMDB map-full retry missing | present | Catch map-full, increase map size, retry with bounded attempts. |
+| I | Tantivy handle cache no eviction/close | present | Add LRU/TTL with explicit close on eviction. |
+| J | FTS bm25 weights misaligned | present | Generate weight list matching exact FTS columns; remove extra leading weight. |
+| J | Tantivy sparse backend unreachable from CLI normalization | present | Add explicit CLI/config surface for sparse backend selection and wire into pipeline. |
+| J | Bitmap→Set eager conversion memory blowup | present | Keep bitmap representation end-to-end or lazily adapt with size guards. |
+| J | Query-plan size accounting mismatch | present | Use same serialization format for accounting and persisted file. |
+| J | FTS token safety too strict | present | Escape/quote punctuation-heavy tokens instead of dropping them wholesale. |
+| J | Options normalization drift | present | Centralize normalization once and consume that canonical result across pipeline/output layers. |
+| K | Candidate-set contract mismatch across ANN paths | present | Normalize candidate-set interface (single abstraction helpers). |
+| K | LanceDB cache keeps rejected promises | present | Delete cache entry on rejection and retry with backoff/TTL. |
+| K | Embedding adapter mutates global cacheDir | present | Use scoped cacheDir or restore previous global after call; avoid process-global mutation. |
+| K | HNSW build stores all vectors in memory | present | Stream/vectorize ingestion in bounded batches. |
+| K | ANN errors swallowed across providers | present | Emit typed ANN failure diagnostics and fallback reason telemetry. |
+| L | CSR non-strict repair can corrupt adjacency | present | Reject or fully remap edges when node ordering repaired. |
+| L | Symbol seed traversal missing chunk neighbor enqueue | present | Ensure symbol-edge traversal enqueues chunk nodes consistently. |
+| L | Witness path schema invalid for symbol edges | present | Normalize witness edge refs to full typed refs (`type` included). |
+| L | GraphIndex mismatch uses object identity | present | Compare structural signature/hash rather than object identity. |
+| L | Inbound call-site evidence miss | present | Validate both edge orientations for evidence lookup. |
+| L | Architecture rule cache unbounded | present | Add bounded cache with eviction. |
+| L | Reverse CSR cache memory growth | present | Add bounds/eviction and clear on graph signature changes. |
+| L | Edge window merge complexity O(n·W) | present | Switch to k-way heap merge. |
+| L | Suggest-tests stores full trails O(N²) | present | Store parent pointers; reconstruct trails on demand. |
+| L | Unused prefix table utilities | present | Remove dead utilities or integrate with tested path. |
+
+### 3.4 Baseline M-O
+
+| Section | Finding short name | Status | Best fix |
+|---|---|---|---|
+| M | FD close check skips fd=0 | present | Close on `fd !== null`/`Number.isInteger(fd)` in context-pack and shared file helpers. |
+| M | Non-streaming chunk index lacks repoRoot | present | Pass `{ repoRoot }` into chunk index builder in non-streaming assembly path. |
+| M | Repo boundary check ignores symlink escapes | present | Realpath both root and file before boundary check; enforce realpath containment. |
+| M | Invalid primary.ref/range vs schema | present | Emit valid typed refs; include range only when fully numeric/valid; otherwise omit. |
+| M | Truncation misreported after maxBytes clamp | present | Track clamp and set truncation/diagnostic flag explicitly. |
+| M | Streaming seed resolution O(N) | present | Build index for chunk_uid_map lookups (offset map/cache). |
+| M | includeRisk stub returns empty flows | present | Implement risk integration or mark feature unavailable explicitly in output contract. |
+| M | Context-pack CLI over-loads graph artifacts | partially | Gate heavy graph artifacts behind explicit flags and demand-driven loading. |
+| N | Search schema/router mismatch (`path`/`paths`, `filter`) | present | Unify schema and router using shared request normalizer + schema derivation. |
+| N | SSE shutdown hang | present | Track sockets/streams and force-close before `server.close()` completion. |
+| N | Body size exceed still consumes request | present | Destroy/pause request and stop reading once size limit reached. |
+| N | Build pointer parse errors leave stale caches | present | Invalidate caches on parse failure and recover with clean pointer state. |
+| N | MCP queued cancellation unsupported | present | Track queued requests and support cancellation prior to execution. |
+| N | Queue writes non-atomic | present | Temp-write + rename for queue state files. |
+| N | Stale requeue stage-limited | present | Apply stale job recovery policy across all runnable stages. |
+| N | Lock can wedge if PID alive but hung | present | Add stale-age override even for live PID; configurable timeout. |
+| N | Subprocess logs fully buffered | present | Stream logs to file with bounded in-memory tail. |
+| N | Queue heartbeat rewrites create IO contention | present | Separate heartbeat state or batch writes with coarser cadence. |
+| N | Branch enforcement incomplete after clone | present | Enforce configured branch checkout/tracking before pull/sync. |
+| O | Placeholder contract tests overstate coverage | not-reproducible | Keep lanes free of placeholders; if placeholders exist, enforce explicit skip classification. |
+| O | Timeout kill path can still hang | present | Add secondary watchdog and hard timeout fallback. |
+| O | Tooling output capture unbounded | present | Switch to streaming logging and byte caps in tooling/test helpers. |
+| O | CI-lite placeholder test | present | Replace placeholder with real smoke assertions or quarantine in explicit placeholder lane. |
+| O | Log filename collision via truncation | present | Append stable short hash to sanitized IDs. |
+| O | Output size uses code units not bytes | present | Use byte-length accounting. |
+| O | Timeout termination details race/loss | present | Await termination promise before finalizing timeout result payload. |
+
+### 3.5 Part 2A + 2B (additional findings) verification
+
+| Finding (ID) | Status | Best fix recommendation |
+|---|---|---|
+| 2A C-H1 Queue persistence non-atomic + parse fallback drops jobs | present | Temp-write + atomic rename; quarantine corrupt queue file and fail loudly (do not silently reset). |
+| 2A C-H2 Delayed SIGKILL not canceled | present | Track timeout handle; clear on process exit/close. |
+| 2A C-M1 Background stage2 ignores `options.modes` | present | Pass explicit modes list to stage2 or disable detached stage2 when modes override is used. |
+| 2A C-M2 Stage2 background failure silent | present | Add startup/result handshake and explicit error logging/telemetry. |
+| 2A C-M3 Indexer service buffers full stdout/stderr | present | Stream logs to bounded files; keep small tail in memory only. |
+| 2A C-M4 Missing mode validation | present | Validate/dedupe allowed modes on entry. |
+| 2A C-L1 Dict signature path case sensitivity | present | Use platform-aware canonical path comparison. |
+| 2A E-H1 `normalizeRelPath` corrupts `..` | present | Only strip leading `./`; preserve `../` segments. |
+| 2A E-M1 Python imports miss relative forms | present | Extend parser to cover dotted relative imports. |
+| 2A E-M2 Case-collision nondeterminism | present | Detect collisions explicitly and apply deterministic collision policy. |
+| 2A E-M3 Import-resolution cache non-atomic | present | Temp-write + rename + quarantine bad cache files. |
+| 2A E-M4 Byte-splitting cost | present | Precompute byte offsets or shared byte-index map. |
+| 2A E-L1 YAML jobs indent heuristic fragile | present | Parse relative indentation from detected `jobs:` node depth. |
+| 2B C.1 Incremental reset orphan bundles | present | Delete/quarantine orphan bundles when reset occurs. |
+| 2B C.2 Manifest read failures swallowed | present | Log and quarantine corrupt manifest, then rebuild deterministically. |
+| 2B C.3 Manifest writes non-atomic | present | Atomic write strategy with backup/rollback. |
+| 2B C.4 Reuse reason text inverted | present | Correct reason string to match actual condition semantics. |
+| 2B C.5 Import cache persistence weak/non-atomic | present | Same atomic write + recovery/quarantine pattern. |
+| 2B E.1 Tree-sitter cache-key override collision risk | present | Combine cache-seed with file hash; never allow plain global override key. |
+| 2B E.2 WASM metric double-count | not-reproducible | Current runtime is native; if WASM returns, ensure metric increment occurs exactly once. |
+| 2B E.3 Tree-sitter init failures sticky | present | Clear sticky failure after cooldown/retry trigger. |
+| 2B E.4 TS accessor regex misses `get foo()` | present | Fix regex grouping to include `get\\s+` variant. |
+| 2B E.5 `byLanguage` override case sensitivity | fixed | Keys normalized lowercase in runtime path; keep regression test. |
+| 2B G.1 Risk split before caps | present | Enforce caps before full split or stream line scan until limit. |
+| 2B G.2 Interprocedural visited key lacks path identity | present | Include path identity/callsite fingerprint in visited key with bounds. |
+| 2B G.3 Conditional inference ignores `docmeta.paramNames` | present | Union `params` and `paramNames` when inferring parameter set. |
+| 2B G.4 ESLint instance global cache | present | Cache by `rootDir` and configure `cwd` per repo. |
+| 2B H.1 Offsets validation cache staleness | present | Include mtime/size/signature in cache key + bounded cache. |
+| 2B H.2 `.jsonl.gz/.zst` ignored in non-strict resolution | present | Resolve compressed variants in non-strict and strict fallback paths. |
+| 2B H.3 Directory mtime used for shard selection | present | Prefer shard/meta file mtimes; avoid coarse directory mtime proxy. |
+| 2B H.4 `readJsonlRowAt` alloc before cap | present | Validate row length before allocation/read. |
+| 2B J.1 Disk cache trim serialization mismatch | present | Use consistent serialization for accounting and persistence. |
+| 2B J.2 Query-plan writes non-atomic | present | Temp-write + rename for disk cache file. |
+| 2B J.3 Negation semantics flattened incorrectly | present | Preserve AST semantics; only flatten safe direct-not forms. |
+| 2B J.4 Index signature cache unbounded | present | Use bounded LRU and periodic stale-entry cleanup. |
+| 2B J.5 `excludeNeedleSet` unused | present | Remove dead code or wire into actual exclude evaluation path. |
+
+### 3.6 Conversation addendum verification (C/E/G/H/J/K/O)
+
+| Finding short name | Status | Best fix |
+| --- | --- | --- |
+| `startBuildHeartbeat` TDZ on timer | present | Initialize timer before use or guard clear with nullable handle. |
+| Watch compatibility key `entryCount=0` divergence | present | Compute from real discovery/cached count or remove entry-count dependency from watch keying. |
+| Awaited debounced build-state updates | present | Separate fire-and-forget progress updates from awaited critical checkpoints. |
+| lock.release handler detach conditional | present | Always detach handlers in `finally`, independent of unlink result. |
+| Stage2 SQLite requirement when deferred | fixed | Keep existing behavior and regression-test `allowSqlite=false` path. |
+| Stage4 `mode=all` wrong root on divergent roots | present | Split into per-mode stage4 when roots diverge. |
+| Stage4 multi-mode result overwrite | present | Return per-mode result map, not last-write-wins scalar. |
+| Stage3 embeddings without explicit/current build root | present | Fail fast if no resolvable index root. |
+| Watch lock backoff timeout mismatch | fixed/not-reproducible | Current lock API no longer has conflicting default timeout behavior. |
+| Stage checkpoint summary mutability leak | present | Return copy/frozen snapshot from summary builder. |
+| Build phase stuck in `running` on exception | present | Mark phase failed in catch/finally paths before rethrow. |
+| Non-watch promotion omits compatibility key | present | Pass compatibility key consistently for watch and non-watch promotion. |
+| Stage2 promotion before Stage3/4 completion | present | Promote only after final stage completion (or mark partial separately). |
+| Stage4 sqlite not reflected in build_state/current stage | present | Add explicit stage4 state/checkpoint updates and stage promotion metadata. |
+| Python/TS endLine exclusive offset bugs | present | Standardize exclusive-end conversion helper (`end-1`) and reuse. |
+| TypeScript cache unbounded | present | Add bounded eviction. |
+| Python pool shutdown promise stranding | present | Resolve/reject queued/inflight jobs on shutdown deterministically. |
+| Sources-only risk severity low | present | Derive from highest source severity. |
+| Tooling logger/diagnostics unbounded | present | Add bounded queues/dedupe caps. |
+| FD guard `if(fd)` bug in artifact readers | present | Use explicit numeric/null checks. |
+| Varint bounds missing | present | Enforce safe integer bounds / BigInt path. |
+| Sticky provider disable and cache growth in retrieval | present | Add TTL/backoff/reset-on-signature-change policies. |
+| `annType` mirrors `annSource` | present | Emit semantically correct ann type field and keep source separate. |
+| LanceDB/HNSW similarity semantics unclear | present | Define metric contract explicitly and normalize similarity conversion per backend metric. |
+| O section logging/timeout accounting issues | present | Hash log IDs, byte-account output, await timeout termination detail resolution. |
+
+---
+
+## Part 4 — High-level architectural diagnosis and class-level remediation
+
+### Recurring root causes
+
+1. Global state without lifecycle boundaries.
+- Many issues stem from module-level caches/flags/sets that never evict or reset.
+
+2. Non-atomic persistence patterns.
+- Queue, cache, manifest, and pointer writes repeatedly use direct write paths without temp+rename.
+
+3. Asynchronous side effects without backpressure or completion semantics.
+- Fire-and-forget logs/writes and detached flows lose ordering and diagnostic guarantees.
+
+4. Contract drift across boundaries.
+- CLI/API/MCP/schema/runtime and strict/non-strict loaders diverge silently over time.
+
+5. Inconsistent semantics in shared primitives.
+- Path normalization, end-offset handling, separator tokens, and similarity/score conversion vary across modules.
+
+### Class-level fixes (solve families of findings)
+
+1. Introduce a mandatory shared utility policy.
+- Path/root checks, FD handling, atomic writes, warn-once, cache management, and byte accounting must be centralized and imported, not duplicated.
+
+2. Enforce “atomic write by default”.
+- Provide one shared `atomicWriteJson/atomicWriteText` API and ban direct writes for state/cache/manifests.
+
+3. Standardize cache lifecycle contracts.
+- Every cache must declare: max entries/bytes, TTL, invalidation trigger, and shutdown cleanup.
+
+4. Add explicit process-lifecycle and shutdown contracts.
+- Long-lived services/watchers must drain/close queues, handles, workers, timers, and pending promises deterministically.
+
+5. Add cross-surface contract tests.
+- One parity suite each for CLI/API/MCP request normalization, artifact resolution strictness, ANN candidate-set contract, and stage progression/promotion timing.
+
+6. Add regression guardrails for known bug classes.
+- Lints/tests for: direct non-atomic writes, unbounded module-level maps/sets, raw `if (fd)` checks, duplicated normalization helpers, and pre-promotion partial-state updates.
+
+### Implementation planning coverage
+
+Execution plan for all six class-level remediations is tracked in `DUPEMAP.md`:
+- Coverage matrix: `DUPEMAP.md:114`
+- Guardrails implementation: `DUPEMAP.md:226`
+- Atomic write + cache/process lifecycle primitives: `DUPEMAP.md:301`
+- Artifact strictness parity coverage: `DUPEMAP.md:385`
+- ANN candidate-set contract coverage: `DUPEMAP.md:443`
+- Class-level closeout and acceptance gate: `DUPEMAP.md:746`, `DUPEMAP.md:790`
+
+---
+
+## Part 5 — `src/**` full-coverage expansion review (2026-02-09T20:33:21-05:00)
+
+### 5.1 Coverage accounting and parallel split
+
+- Baseline explicitly listed as reviewed in this document: `105` files under `src/**`.
+- Remaining not explicitly listed at start of this pass: `510` files under `src/**`.
+- Parallelized review split:
+1. Batch 1: 42 files
+2. Batch 2: 62 files
+3. Batch 3: 46 files
+4. Batch 4: 55 files
+5. Batch 5: 84 files
+6. Batch 6: 65 files
+7. Batch 7: 48 files
+8. Batch 8: 67 files
+9. Batch 9: 41 files
+- All nine batches reported `Reviewed files: N/N` with explicit confirmation that every file in each batch was inspected.
+- Full listing of the 510-file unreviewed set and per-batch file lists: `docs/tooling/src-review-unreviewed-batches-2026-02-10.md`.
+
+Coverage result:
+- `src/**` files reviewed at least once: `615/615` (100%).
+
+### 5.2 Confirmed findings from newly reviewed `src/**` files
+
+1. High — `src/index/build/artifacts/token-postings.js:29`
+- `resolvedShardSize` can become `NaN` when `tokenPostingsShardSize` is null/undefined; `Math.min` then preserves `NaN`, risking broken/non-terminating shard logic.
+- Best fix: normalize to finite positive default before `Math.min`, and guard with finite checks.
+
+2. Medium — `src/index/build/artifacts/repo-map.js:60`
+- Any missing `fileId` toggles `deltaEnabled=false`, disabling delta path globally even when most entries are valid.
+- Best fix: track `hasDeltaEntries` separately and disable only when no valid entries exist.
+
+3. Low — `src/index/build/artifacts/file-meta.js:127`
+- `files.includes(file)` inside map-key loop is O(n²).
+- Best fix: use a `Set` membership path.
+
+4. Medium — `src/index/build/watch/stability.js:18`
+- Off-by-one stability handling causes `checks=1` to behave like 2 checks.
+- Best fix: return stable after first signature when `requiredChecks===1` (or equivalent counter initialization fix).
+
+5. Medium — `src/index/build/vfs-manifest-collector.js:124`
+- Cleanup deletes shared `vfs_manifest.runs` directory, risking deletion of sibling collector artifacts.
+- Best fix: allocate collector-unique runs directory and only cleanup owned files/dir.
+
+6. Low — `src/index/build/tree-sitter-scheduler/lookup.js:27`
+- `missCache` is unbounded.
+- Best fix: add cap/eviction (LRU or bounded sentinel caching).
+
+7. Medium — `src/index/language-registry/registry-data.js:419`
+- `buildRelations` for simple-language collectors passes `{ imports }` object into `buildSimpleRelations` expecting an array, dropping import relations for multiple languages.
+- Best fix: pass array directly or update callee contract and implementation consistently.
+
+8. Medium — `src/index/callsite-id.js:4`
+- Falsy checks reject `0` line/column values (common 0-based positions), returning `null` IDs.
+- Best fix: use `Number.isFinite` checks and allow zero.
+
+9. Low — `src/index/tooling/vfs-index.js:12`
+- Lexicographic sort key on unpadded numeric offsets misorders values (`10` vs `2`).
+- Best fix: zero-pad numeric fields or use numeric sort comparator.
+
+10. Low — `src/index/tooling/pyright-provider.js:37`
+- Existence check can mark non-executable path as runnable.
+- Best fix: validate actual execution (`--version/--help`) rather than `existsSync` shortcut.
+
+11. Medium — `src/shared/json-stream/encode.js:20`
+- Recursive JSON encoder lacks cycle detection; circular input can stack-overflow.
+- Best fix: add `WeakSet` visited tracking and clear cycle failure mode.
+
+12. Medium — `src/shared/embeddings-cache/format.js:85`
+- `decodeVectorSection` does not ensure declared lengths fit buffer bounds.
+- Best fix: enforce `dataOffset + totalBytes <= buffer.length` and fail closed.
+
+13. Low — `src/shared/bloom.js:102`
+- Decode accepts mismatched byte-array lengths, risking silent false negatives.
+- Best fix: validate exact byte length (`ceil(bits/8)`) and reject/normalize invalid payloads.
+
+14. Medium — `src/lang/html.js:408`
+- On `parse5` throw, HTML chunk builder returns `null` even when tree-sitter chunks exist, dropping chunking.
+- Best fix: fall back to filtered tree-sitter chunks/heuristic on parse failure.
+
+15. Medium — `src/integrations/tooling/lsp/uris.js:21`
+- `decodeURIComponent` is unguarded; malformed `%` sequences can throw and abort flow.
+- Best fix: wrap decode in try/catch and return null/raw-safe fallback.
+
+16. Low — `src/storage/sqlite/build/pragmas.js:95`
+- Restore path captures `journal_mode`/`page_size` but does not restore them.
+- Best fix: restore captured values explicitly in `restoreBuildPragmas`.
+
+17. Medium — `src/map/isometric/client/map-data.js:28`
+- Member id `0` treated as falsy and skipped; edges/selection for id `0` can break.
+- Best fix: treat `0` as valid and normalize keying consistently.
+
+18. Low — `src/map/build-map.js:365`
+- Temp spill artifacts only cleaned on success path.
+- Best fix: enforce cleanup in `try/finally`.
