@@ -32,6 +32,8 @@ const VFS_COLD_START_DATA = 'vfs_cold_start.jsonl';
 const VFS_COLD_START_MAX_BYTES = 64 * 1024 * 1024;
 const VFS_COLD_START_MAX_AGE_DAYS = 7;
 const VFS_MANIFEST_HASH_MAX_BYTES = 64 * 1024 * 1024;
+const VFS_MANIFEST_INDEX_CACHE = new Map();
+const VFS_MANIFEST_INDEX_CACHE_MAX = 64;
 
 const encodeContainerPath = (value) => {
   const rawPath = value == null ? '' : String(value);
@@ -1099,8 +1101,16 @@ export const createVfsColdStartCache = async ({
  * @returns {Promise<Map<string,{virtualPath:string,offset:number,bytes:number}>>}
  */
 export const loadVfsManifestIndex = async ({ indexPath }) => {
+  const resolvedPath = path.resolve(String(indexPath || ''));
+  const stat = await fsPromises.stat(resolvedPath);
+  const cached = VFS_MANIFEST_INDEX_CACHE.get(resolvedPath) || null;
+  if (cached && cached.size === stat.size && cached.mtimeMs === stat.mtimeMs) {
+    VFS_MANIFEST_INDEX_CACHE.delete(resolvedPath);
+    VFS_MANIFEST_INDEX_CACHE.set(resolvedPath, cached);
+    return cached.map;
+  }
   const map = new Map();
-  const stream = fs.createReadStream(indexPath, { encoding: 'utf8' });
+  const stream = fs.createReadStream(resolvedPath, { encoding: 'utf8' });
   const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
   let lineNumber = 0;
   try {
@@ -1113,7 +1123,7 @@ export const loadVfsManifestIndex = async ({ indexPath }) => {
         entry = JSON.parse(trimmed);
       } catch (err) {
         const message = err?.message || 'JSON parse error';
-        throw new Error(`Invalid vfs_manifest index JSON at ${indexPath}:${lineNumber}: ${message}`);
+        throw new Error(`Invalid vfs_manifest index JSON at ${resolvedPath}:${lineNumber}: ${message}`);
       }
       if (!entry?.virtualPath) continue;
       map.set(entry.virtualPath, entry);
@@ -1121,6 +1131,16 @@ export const loadVfsManifestIndex = async ({ indexPath }) => {
   } finally {
     rl.close();
     stream.destroy();
+  }
+  VFS_MANIFEST_INDEX_CACHE.set(resolvedPath, {
+    size: stat.size,
+    mtimeMs: stat.mtimeMs,
+    map
+  });
+  while (VFS_MANIFEST_INDEX_CACHE.size > VFS_MANIFEST_INDEX_CACHE_MAX) {
+    const oldestKey = VFS_MANIFEST_INDEX_CACHE.keys().next().value;
+    if (oldestKey === undefined) break;
+    VFS_MANIFEST_INDEX_CACHE.delete(oldestKey);
   }
   return map;
 };
@@ -1146,9 +1166,11 @@ const coercePositiveInt = (value, fallback) => {
  */
 export const createVfsManifestOffsetReader = ({
   manifestPath,
-  maxBufferPoolEntries = 64
+  maxBufferPoolEntries = 64,
+  maxCoalesceBytes = 1024 * 1024
 }) => {
   const poolLimit = coercePositiveInt(maxBufferPoolEntries, 64);
+  const coalesceLimit = coercePositiveInt(maxCoalesceBytes, 1024 * 1024);
   const bufferPool = new Map();
   let pooledBuffers = 0;
   let handlePromise = null;
@@ -1157,6 +1179,8 @@ export const createVfsManifestOffsetReader = ({
     handleOpens: 0,
     readCalls: 0,
     batchCalls: 0,
+    coalescedReads: 0,
+    coalescedBytes: 0,
     bufferAllocations: 0,
     bufferReuses: 0
   };
@@ -1215,8 +1239,65 @@ export const createVfsManifestOffsetReader = ({
     const list = Array.isArray(requests) ? requests : [];
     stats.batchCalls += 1;
     const out = new Array(list.length).fill(null);
+    if (!list.length) return out;
+    const handle = await openHandle();
+    const normalized = [];
     for (let i = 0; i < list.length; i += 1) {
-      out[i] = await readAtOffset(list[i] || {});
+      const request = list[i] || {};
+      const offset = Number(request.offset);
+      const bytes = Number(request.bytes);
+      if (!Number.isFinite(offset) || !Number.isFinite(bytes) || bytes <= 0) continue;
+      normalized.push({
+        index: i,
+        offset,
+        bytes: Math.max(1, Math.floor(bytes))
+      });
+    }
+    normalized.sort((a, b) => a.offset - b.offset || a.index - b.index);
+    let cursor = 0;
+    while (cursor < normalized.length) {
+      const first = normalized[cursor];
+      const group = [first];
+      let groupStart = first.offset;
+      let groupEnd = first.offset + first.bytes;
+      cursor += 1;
+      while (cursor < normalized.length) {
+        const next = normalized[cursor];
+        const nextEnd = next.offset + next.bytes;
+        const mergedStart = Math.min(groupStart, next.offset);
+        const mergedEnd = Math.max(groupEnd, nextEnd);
+        const mergedBytes = mergedEnd - mergedStart;
+        if (mergedBytes > coalesceLimit) break;
+        group.push(next);
+        groupStart = mergedStart;
+        groupEnd = mergedEnd;
+        cursor += 1;
+      }
+      const readBytes = Math.max(0, groupEnd - groupStart);
+      if (!readBytes) continue;
+      const buffer = checkoutBuffer(readBytes);
+      if (!buffer) continue;
+      stats.readCalls += 1;
+      if (group.length > 1) {
+        stats.coalescedReads += 1;
+        stats.coalescedBytes += readBytes;
+      }
+      try {
+        const result = await handle.read(buffer, 0, readBytes, groupStart);
+        const bytesRead = result?.bytesRead || 0;
+        for (const request of group) {
+          const relativeStart = request.offset - groupStart;
+          const relativeEnd = relativeStart + request.bytes;
+          if (relativeStart < 0 || relativeEnd > bytesRead) {
+            out[request.index] = null;
+            continue;
+          }
+          const rowBuffer = buffer.subarray(relativeStart, relativeEnd);
+          out[request.index] = parseVfsManifestRowBuffer(rowBuffer, rowBuffer.length);
+        }
+      } finally {
+        checkinBuffer(buffer);
+      }
     }
     return out;
   };

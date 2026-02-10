@@ -281,13 +281,13 @@ Format:
 - Impact: Faster repeated index signature computation.
 - Risk: Avoid stale cache when parts mutate.
 
-19. Area: VFS index map cache
+19. [x] Area: VFS index map cache
 - Files: `src/index/tooling/vfs.js`
 - Opportunity: Cache parsed `.vfsidx` map by path+mtime.
 - Impact: Lower repeated load cost.
 - Risk: Small memory overhead.
 
-20. Area: VFS offset reader coalescing
+20. [x] Area: VFS offset reader coalescing
 - Files: `src/index/tooling/vfs.js`
 - Opportunity: Coalesce offset reads and use shared buffers.
 - Impact: Less random I/O.
