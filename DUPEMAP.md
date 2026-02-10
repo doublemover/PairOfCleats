@@ -60,7 +60,7 @@ Completed phases are appended to: `COMPLETED_PHASES.md`
 
 | Phase | Status | Scope |
 | --- | --- | --- |
-| D0 | [@] | Baseline mapping + execution kickoff (no new scanner tooling) |
+| D0 | [x] | Baseline mapping + execution kickoff (no new scanner tooling) |
 | D1 | [ ] | Shared primitive consolidation |
 | D2 | [ ] | JSONL merge + artifact writer scaffolding |
 | D4 | [ ] | ANN + API/MCP + search request normalization |
@@ -692,7 +692,7 @@ Rules:
 
 Phase documentation tasks:
 
-- [ ] Task D0.DOC: Update migration and guardrail docs.
+- [x] Task D0.DOC: Update migration and guardrail docs.
 Documents: `docs/tooling/dupemap-migration-manifest.json`, `DUPEMAP.md`, `All_Findings.md`, `docs/guides/commands.md`, `docs/config/inventory.json`, `docs/config/inventory.md`.
 
 - [ ] Task D1.DOC: Update shared primitive and lifecycle contract docs.
@@ -792,26 +792,27 @@ Details: Exception entry requires reason + expiry phase; no permanent exceptions
 
 ### Subphase D0.2 — Fix-first execution sequencing
 Tasks:
-- [ ] Task D0.2.a: Convert D0 plan from tooling-build to direct-fix execution.
+- [x] Task D0.2.a: Convert D0 plan from tooling-build to direct-fix execution.
 Details: No additional scanner or audit tools are added in D0.
-- [ ] Task D0.2.b: Keep remediation slices small and touchpoint-coupled.
+- [x] Task D0.2.b: Keep remediation slices small and touchpoint-coupled.
 Details: Prioritize high-severity and cross-cutting fixes first.
-- [ ] Task D0.2.c: Confirm each upcoming phase has concrete code/test/doc tasks before implementation.
+- [x] Task D0.2.c: Confirm each upcoming phase has concrete code/test/doc tasks before implementation.
 Details: Avoid generic “infra-first” work that does not fix findings directly.
 
 ### Subphase D0.3 — Existing-lane enforcement only
 Tasks:
-- [ ] Task D0.3.a: Use existing lane and targeted-test workflow as enforcement.
+- [x] Task D0.3.a: Use existing lane and targeted-test workflow as enforcement.
 Details: Fixes are validated through phase tests and existing CI lanes.
-- [ ] Task D0.3.b: Do not add new scanner/audit scripts as D0 deliverables.
+- [x] Task D0.3.b: Do not add new scanner/audit scripts as D0 deliverables.
 Details: Keep momentum on direct remediation.
 
 ### Tests
-- [ ] no new D0-specific tooling tests required
+- [x] no new D0-specific tooling tests required
 
 ### Exit criteria
-- [ ] Manifest exists and covers all known clusters.
-- [ ] D0 is explicitly configured for fix-first execution with no new scanner/audit tooling tasks.
+- [x] Manifest exists and covers all known clusters.
+- [x] D0 is explicitly configured for fix-first execution with no new scanner/audit tooling tasks.
+- [x] D0.DOC note (2026-02-09T20:54:16-05:00): no additional docs beyond `DUPEMAP.md` and `docs/tooling/dupemap-migration-manifest.json` required for this subphase conversion.
 
 ---
 
