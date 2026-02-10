@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-02-09T22:50:52.2093313-05:00",
+  "updatedAt": "2026-02-09T22:52:39.1297429-05:00",
   "clusters": [
     {
       "clusterId": "C01",
@@ -335,10 +335,10 @@
       "clusterId": "A04",
       "title": "Repo cache default duplication",
       "phase": "D4",
-      "status": "planned",
+      "status": "completed",
       "legacyPaths": [
-        "tools/api/server-config.js",
-        "tools/mcp/server-config.js"
+        "tools/api/router/cache.js",
+        "tools/mcp/repo.js"
       ],
       "canonicalPath": "tools/shared/repo-cache-config.js"
     }
@@ -374,7 +374,7 @@
     { "migrationId": "M028", "clusterId": "A01", "phase": "D2", "oldPathOrSymbol": "src/shared/json-stream.js::resolveJsonlExtension (duplicate body)", "newPathOrSymbol": "src/shared/json-stream.js::resolveJsonlExtension (single canonical body)", "status": "completed" },
     { "migrationId": "M029", "clusterId": "A02", "phase": "D4", "oldPathOrSymbol": "tools/mcp/tools/helpers.js::normalizeMetaFilters", "newPathOrSymbol": "tools/shared/search-request.js::normalizeMetaFilters", "status": "completed" },
     { "migrationId": "M030", "clusterId": "A03", "phase": "D7", "oldPathOrSymbol": "tools/bench/map/viewer-fps.js::startServer", "newPathOrSymbol": "tools/bench/map/shared.js::startServer", "status": "planned" },
-    { "migrationId": "M031", "clusterId": "A04", "phase": "D4", "oldPathOrSymbol": "tools/api/server-config.js::DEFAULT_CACHE_ROOT", "newPathOrSymbol": "tools/shared/repo-cache-config.js::DEFAULT_CACHE_ROOT", "status": "planned" },
+    { "migrationId": "M031", "clusterId": "A04", "phase": "D4", "oldPathOrSymbol": "tools/api/router/cache.js::normalizeCacheConfig + policy defaults", "newPathOrSymbol": "tools/shared/repo-cache-config.js::{normalizeCacheConfig,createRepoCacheManager}", "status": "completed" },
     { "migrationId": "M032", "clusterId": "C11", "phase": "D1", "oldPathOrSymbol": "src/index/scm/providers/jj.js::findJjRoot (manual walkup)", "newPathOrSymbol": "src/shared/fs/find-upwards.js::findUpwards", "status": "completed" },
     { "migrationId": "M033", "clusterId": "C11", "phase": "D1", "oldPathOrSymbol": "src/index/tooling/typescript-provider.js::findNearestConfig (manual walkup)", "newPathOrSymbol": "src/shared/fs/find-upwards.js::findUpwards", "status": "completed" },
     { "migrationId": "M034", "clusterId": "C11", "phase": "D1", "oldPathOrSymbol": "tools/dict-utils/paths/repo.js::findConfigRoot (manual walkup)", "newPathOrSymbol": "src/shared/fs/find-upwards.js::findUpwards", "status": "completed" },
@@ -436,7 +436,9 @@
     { "migrationId": "M090", "clusterId": "C08", "phase": "D4", "oldPathOrSymbol": "src/retrieval/pipeline.js::local embedding readiness check + pipeline ann-backends normalization import", "newPathOrSymbol": "src/retrieval/ann/utils.js::isEmbeddingReady + src/retrieval/ann/normalize-backend.js::resolveAnnOrder", "status": "completed" },
     { "migrationId": "M091", "clusterId": "C09", "phase": "D4", "oldPathOrSymbol": "tools/api/router/search.js::buildSearchParams local request normalization/argv mapping", "newPathOrSymbol": "tools/shared/search-request.js::buildSearchRequestArgs", "status": "completed" },
     { "migrationId": "M092", "clusterId": "C09", "phase": "D4", "oldPathOrSymbol": "tools/mcp/tools/search-args.js::buildMcpSearchArgs local argv mapping", "newPathOrSymbol": "tools/shared/search-request.js::buildSearchRequestArgs", "status": "completed" },
-    { "migrationId": "M093", "clusterId": "A02", "phase": "D4", "oldPathOrSymbol": "tools/api/validation.js::normalizeMetaFilters", "newPathOrSymbol": "tools/shared/search-request.js::normalizeMetaFilters", "status": "completed" }
+    { "migrationId": "M093", "clusterId": "A02", "phase": "D4", "oldPathOrSymbol": "tools/api/validation.js::normalizeMetaFilters", "newPathOrSymbol": "tools/shared/search-request.js::normalizeMetaFilters", "status": "completed" },
+    { "migrationId": "M094", "clusterId": "A04", "phase": "D4", "oldPathOrSymbol": "tools/mcp/repo.js::repo/index/sqlite cache policy defaults and manager lifecycle", "newPathOrSymbol": "tools/shared/repo-cache-config.js::createRepoCacheManager", "status": "completed" },
+    { "migrationId": "M095", "clusterId": "A04", "phase": "D4", "oldPathOrSymbol": "tools/api/router/cache.js::createRepoCacheManager", "newPathOrSymbol": "tools/shared/repo-cache-config.js::createRepoCacheManager", "status": "completed" }
   ],
   "banPatterns": [
     {
@@ -550,6 +552,13 @@
       "scope": "tools/api/**,tools/mcp/**",
       "pattern": "local search request argv builders or normalizeMetaFilters helper bodies",
       "replacement": "tools/shared/search-request.js::{buildSearchRequestArgs,normalizeMetaFilters}"
+    },
+    {
+      "banId": "B026",
+      "phase": "D4",
+      "scope": "tools/api/**,tools/mcp/**",
+      "pattern": "local repo cache policy defaults/manager lifecycle stacks for repo/index/sqlite caches",
+      "replacement": "tools/shared/repo-cache-config.js::createRepoCacheManager"
     }
   ],
   "exceptions": [],

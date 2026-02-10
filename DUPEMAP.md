@@ -1,6 +1,6 @@
 # DUPEMAP — Duplication Consolidation Execution Plan
 
-Last updated: 2026-02-09T22:50:52.2093313-05:00
+Last updated: 2026-02-09T22:52:39.1297429-05:00
 
 Purpose: remove all confirmed duplication clusters comprehensively, efficiently, and permanently.
 
@@ -63,7 +63,7 @@ Completed phases are appended to: `COMPLETED_PHASES.md`
 | D0 | [x] | Baseline mapping + execution kickoff (no new scanner tooling) |
 | D1 | [@] | Shared primitive consolidation |
 | D2 | [x] | JSONL merge + artifact writer scaffolding |
-| D4 | [@] | ANN + API/MCP + search request normalization |
+| D4 | [x] | ANN + API/MCP + search request normalization |
 | D5 | [ ] | Tooling + language parser/extractor consolidation |
 | D3 | [ ] | SQLite/LMDB/quantization/vocab consolidation |
 | D6 | [ ] | Chunking + risk + import resolution + map consolidation |
@@ -1125,16 +1125,25 @@ D4.2 status update (2026-02-09T22:50:52.2093313-05:00):
 
 ### Subphase D4.3 — Repo cache config parity
 Tasks:
-- [ ] Task D4.3.a: Consolidate default cache config values.
+- [x] Task D4.3.a: Consolidate default cache config values.
 Details: API and MCP read from same source.
-- [ ] Task D4.3.b: Consolidate cache manager behavior and normalization.
+- [x] Task D4.3.b: Consolidate cache manager behavior and normalization.
 Details: Keep explicit override behavior consistent.
+
+D4.3 status update (2026-02-09T22:52:39.1297429-05:00):
+- resolved: added canonical repo cache policy defaults/normalization + manager in `tools/shared/repo-cache-config.js`.
+- resolved: migrated API cache manager wrapper to shared manager (`tools/api/router/cache.js`).
+- resolved: migrated MCP repo cache manager behavior to shared manager (`tools/mcp/repo.js`) while preserving public MCP cache API (`getRepoCaches`, `refreshRepoCaches`, `clearRepoCaches`).
+- remaining: phase D4 complete.
+- severity snapshot: critical=0, high=0, medium=n/a, low=n/a for this dedupe-only subphase.
+- exceptions: none.
+- sweep results: `git grep -n -E "DEFAULT_CACHE|cacheConfig|normalizeCacheConfig" -- tools/api tools/mcp tools/shared`.
 
 ### Exhaustive sweeps
 - [x] `rg "normalizeAnnBackend|ann-backends|annBackend" src/retrieval`
 - [x] `rg "normalizeMetaFilters\(" tools/api tools/mcp`
 - [x] `rg "payload\.paths|payload\.path|payload\.filter" tools/api`
-- [ ] `rg "DEFAULT_CACHE|cacheConfig|normalizeCacheConfig" tools/api tools/mcp`
+- [x] `rg "DEFAULT_CACHE|cacheConfig|normalizeCacheConfig" tools/api tools/mcp`
 
 ### Tests
 - [x] `tests/retrieval/ann/ann-provider-gating-parity.test.js` (new)
@@ -1142,7 +1151,7 @@ Details: Keep explicit override behavior consistent.
 - [x] `tests/retrieval/ann/ann-candidate-set-contract.test.js` (new)
 - [x] `tests/tooling/api-mcp/search-request-parity.test.js` (new)
 - [x] `tests/tooling/api-mcp/meta-filter-normalization.test.js` (new)
-- [ ] `tests/tooling/api-mcp/repo-cache-config-parity.test.js` (new)
+- [x] `tests/tooling/api-mcp/repo-cache-config-parity.test.js` (new)
 - [x] existing API/MCP/ANN suites updated for canonical path
 
 ### Exit criteria
