@@ -1572,11 +1572,21 @@ D8.1 status update (2026-02-10T00:47:01.2399605-05:00):
 
 ### Subphase D8.2 — Download fetch helper consolidation
 Tasks:
-- [ ] Task D8.2.a: Implement shared redirect-aware fetch helper.
+- [x] Task D8.2.a: Implement shared redirect-aware fetch helper.
 Details: Include redirect limit, timeout, and deterministic error formatting.
-- [ ] Task D8.2.b: Migrate dict and extension download tooling.
+- [x] Task D8.2.b: Migrate dict and extension download tooling.
 Details: Preserve existing auth/env behavior.
-- [ ] Task D8.2.c: Remove local duplicated fetch/redirect loops.
+- [x] Task D8.2.c: Remove local duplicated fetch/redirect loops.
+
+D8.2 status update (2026-02-10T00:51:56.5012142-05:00):
+- resolved: added shared download fetch helper `tools/download/shared-fetch.js` with redirect handling, timeout support, bounded response-size checks, and deterministic request error formatting.
+- resolved: migrated `tools/download/dicts.js` and `tools/download/extensions.js` to use shared `fetchDownloadUrl` with existing caller headers/size behavior preserved and per-script policy passthrough.
+- resolved: extended shared download policy normalization in `tools/shared/download-utils.js` to include optional `timeoutMs` and `maxRedirects` inputs for download callsites.
+- resolved: added `tests/tooling/download/shared-fetch-contract.test.js` with `applyTestEnv()` and contract assertions for redirect follow, stream/buffer modes, maxBytes, missing redirect location, redirect loops, and timeout failures.
+- remaining: D8.3-D8.4 pending.
+- severity snapshot: critical=0, high=0, medium=n/a, low=n/a for this download-dedupe subphase.
+- exceptions: none.
+- sweep results: `rg --line-number "function requestUrl\\(|fetchDownloadUrl|shared-fetch" tools/download`.
 
 ### Subphase D8.3 — Final migration lock and docs sync
 Tasks:
@@ -1598,7 +1608,7 @@ Details: Map each remediation item to implemented helpers, migrated callsites, a
 
 ### Tests
 - [x] `tests/shared/validation/ajv-factory-contract.test.js` (new)
-- [ ] `tests/tooling/download/shared-fetch-contract.test.js` (new)
+- [x] `tests/tooling/download/shared-fetch-contract.test.js` (new)
 - [ ] `tests/indexing/build/stage-progression-contract.test.js` (new)
 - [ ] `tests/indexing/build/promotion-timing-contract.test.js` (new)
 - [ ] `tests/indexing/lifecycle/shutdown-drain-contract.test.js` (new)

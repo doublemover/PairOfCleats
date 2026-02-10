@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-02-10T00:47:01.2399605-05:00",
+  "updatedAt": "2026-02-10T00:51:56.5012142-05:00",
   "clusters": [
     {
       "clusterId": "C01",
@@ -407,6 +407,17 @@
         "tools/bench/map/build-map-streaming.js"
       ],
       "canonicalPath": "tools/bench/map/shared.js::resolveMapBenchInputs"
+    },
+    {
+      "clusterId": "A10",
+      "title": "Download redirect/request helper duplication",
+      "phase": "D8",
+      "status": "completed",
+      "legacyPaths": [
+        "tools/download/dicts.js",
+        "tools/download/extensions.js"
+      ],
+      "canonicalPath": "tools/download/shared-fetch.js::fetchDownloadUrl"
     }
   ],
   "migrations": [
@@ -540,7 +551,9 @@
     { "migrationId": "M128", "clusterId": "C26", "phase": "D8", "oldPathOrSymbol": "src/contracts/validators/build-state.js::local Ajv bootstrap + cloneSchema helper", "newPathOrSymbol": "src/shared/validation/ajv-factory.js::{createAjv,compileSchema}", "status": "completed" },
     { "migrationId": "M129", "clusterId": "C26", "phase": "D8", "oldPathOrSymbol": "src/contracts/validators/artifacts.js::local Ajv bootstrap + cloneSchema helper", "newPathOrSymbol": "src/shared/validation/ajv-factory.js::{createAjv,compileSchema}", "status": "completed" },
     { "migrationId": "M130", "clusterId": "C26", "phase": "D8", "oldPathOrSymbol": "src/contracts/validators/analysis.js::local Ajv bootstrap + repeated cloneSchema compile chain", "newPathOrSymbol": "src/shared/validation/ajv-factory.js::{createAjv,compileSchema}", "status": "completed" },
-    { "migrationId": "M131", "clusterId": "C26", "phase": "D8", "oldPathOrSymbol": "src/index/build/failure-taxonomy.js::local Ajv bootstrap", "newPathOrSymbol": "src/shared/validation/ajv-factory.js::{createAjv,compileSchema}", "status": "completed" }
+    { "migrationId": "M131", "clusterId": "C26", "phase": "D8", "oldPathOrSymbol": "src/index/build/failure-taxonomy.js::local Ajv bootstrap", "newPathOrSymbol": "src/shared/validation/ajv-factory.js::{createAjv,compileSchema}", "status": "completed" },
+    { "migrationId": "M132", "clusterId": "A10", "phase": "D8", "oldPathOrSymbol": "tools/download/dicts.js::requestUrl redirect/request loop", "newPathOrSymbol": "tools/download/shared-fetch.js::fetchDownloadUrl (stream mode)", "status": "completed" },
+    { "migrationId": "M133", "clusterId": "A10", "phase": "D8", "oldPathOrSymbol": "tools/download/extensions.js::requestUrl redirect/request loop + maxBytes body aggregation", "newPathOrSymbol": "tools/download/shared-fetch.js::fetchDownloadUrl (buffer mode)", "status": "completed" }
   ],
   "banPatterns": [
     {
@@ -801,6 +814,13 @@
       "scope": "src/**,tools/**",
       "pattern": "local Ajv bootstrap/compile stacks with ad-hoc cloneSchema helpers",
       "replacement": "src/shared/validation/ajv-factory.js::{createAjv,cloneJsonSchema,compileSchema}"
+    },
+    {
+      "banId": "B047",
+      "phase": "D8",
+      "scope": "tools/download/**",
+      "pattern": "tool-local requestUrl/fetch redirect loops for dictionary or extension downloads",
+      "replacement": "tools/download/shared-fetch.js::fetchDownloadUrl"
     }
   ],
   "exceptions": [],
