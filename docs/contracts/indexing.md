@@ -88,6 +88,7 @@ Key requirements:
 ## References
 - `docs/contracts/artifact-contract.md`
 - `docs/specs/metadata-schema-v2.md`
+- `docs/specs/unified-syntax-representation.md`
 - `docs/specs/scm-provider-contract.md`
 - `docs/sqlite/index-schema.md`
 
