@@ -16,6 +16,12 @@ const normalizeSchedulerTransport = (raw) => {
   if (value === 'disk' || value === 'shm') return value;
   return 'disk';
 };
+const normalizeSchedulerFormat = (raw) => {
+  if (typeof raw !== 'string') return 'jsonl';
+  const value = raw.trim().toLowerCase();
+  if (value === 'binary-v1' || value === 'jsonl') return value;
+  return 'jsonl';
+};
 const normalizePreloadMode = (raw) => {
   if (raw === true) return 'parallel';
   if (raw === false || raw === undefined || raw === null) return 'none';
@@ -103,7 +109,8 @@ export const resolveTreeSitterRuntime = (indexingConfig) => {
     treeSitterWorker: treeSitterConfig.worker || null,
     treeSitterScheduler: {
       transport: normalizeSchedulerTransport(treeSitterSchedulerConfig.transport),
-      sharedCache: treeSitterSchedulerConfig.sharedCache === true
+      sharedCache: treeSitterSchedulerConfig.sharedCache === true,
+      format: normalizeSchedulerFormat(treeSitterSchedulerConfig.format)
     },
     treeSitterCachePersistent,
     treeSitterCachePersistentDir

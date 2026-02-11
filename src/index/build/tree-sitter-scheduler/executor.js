@@ -3,6 +3,7 @@ import path from 'node:path';
 import { throwIfAborted } from '../../../shared/abort.js';
 import { toPosix } from '../../../shared/files.js';
 import { buildLineIndex, offsetToLine } from '../../../shared/lines.js';
+import { sha1 } from '../../../shared/hash.js';
 import { stringifyJsonValue } from '../../../shared/json-stream/encode.js';
 import { createJsonWriteStream, writeChunk } from '../../../shared/json-stream/streams.js';
 import { readTextFile, readTextFileWithHash } from '../../../shared/encoding.js';
@@ -81,6 +82,8 @@ export const executeTreeSitterSchedulerPlan = async ({
   }
 
   const treeSitterConfig = runtime?.languageOptions?.treeSitter || null;
+  const schedulerConfig = treeSitterConfig?.scheduler || {};
+  const schedulerFormat = schedulerConfig?.format === 'binary-v1' ? 'binary-v1' : 'jsonl';
   const strictTreeSitter = treeSitterConfig
     ? { ...treeSitterConfig, strict: true, worker: { enabled: false }, nativeOnly: true }
     : { enabled: false };
@@ -112,7 +115,7 @@ export const executeTreeSitterSchedulerPlan = async ({
 
     if (log) log(`[tree-sitter:schedule] ${grammarKey}: start mem=${formatMemoryUsage()}`);
 
-    const resultsPath = paths.resultsPathForGrammarKey(grammarKey);
+    const resultsPath = paths.resultsPathForGrammarKey(grammarKey, schedulerFormat);
     const indexPath = paths.resultsIndexPathForGrammarKey(grammarKey);
     const metaPath = paths.resultsMetaPathForGrammarKey(grammarKey);
     const { stream: resultsStream, done: resultsDone } = createJsonWriteStream(resultsPath, { atomic: true });
@@ -257,16 +260,29 @@ export const executeTreeSitterSchedulerPlan = async ({
         };
 
         const line = stringifyJsonValue(row);
-        const lineBytes = Buffer.byteLength(line, 'utf8') + 1;
-        await writeChunk(resultsStream, line);
-        await writeChunk(resultsStream, '\n');
+        const payload = Buffer.from(line, 'utf8');
+        const rowChecksum = sha1(line).slice(0, 16);
+        let lineBytes = payload.length;
+        if (schedulerFormat === 'binary-v1') {
+          const header = Buffer.allocUnsafe(4);
+          header.writeUInt32LE(payload.length, 0);
+          await writeChunk(resultsStream, header);
+          await writeChunk(resultsStream, payload);
+          lineBytes += 4;
+        } else {
+          await writeChunk(resultsStream, line);
+          await writeChunk(resultsStream, '\n');
+          lineBytes += 1;
+        }
 
         const idxEntry = {
           schemaVersion: '1.0.0',
           virtualPath,
           grammarKey,
           offset,
-          bytes: lineBytes
+          bytes: lineBytes,
+          format: schedulerFormat,
+          checksum: rowChecksum
         };
         await writeChunk(indexStream, stringifyJsonValue(idxEntry));
         await writeChunk(indexStream, '\n');

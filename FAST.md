@@ -398,7 +398,7 @@ Implementation policy for Sweep 3:
 - Rollout: `treeSitter.scheduler.transport=shm` experimental fallback to disk.
 - Target: Pursue only if disk handoff remains dominant after items 9 and 12.
 
-9. Area: Binary scheduler row encoding
+9. [x] Area: Binary scheduler row encoding
 - Files: `src/index/build/tree-sitter-scheduler/executor.js`, `src/index/build/tree-sitter-scheduler/lookup.js`, `src/index/tooling/vfs.js`
 - Decision: Implement binary row pages with stable schema/versioning and checksums.
 - Rollout: `treeSitter.scheduler.format=binary-v1`; dual-read with JSONL/page-json fallback.

@@ -1,8 +1,10 @@
 import fs from 'node:fs';
 import { compareStrings } from '../../../shared/sort.js';
 import { createLruCache } from '../../../shared/cache.js';
+import { sha1 } from '../../../shared/hash.js';
 import { readJsonlRows } from '../../../shared/merge.js';
 import {
+  parseBinaryJsonRowBuffer,
   createVfsManifestOffsetReader,
   readVfsManifestRowsAtOffsets
 } from '../../tooling/vfs.js';
@@ -38,12 +40,16 @@ export const createTreeSitterSchedulerLookup = ({
   const readersByManifestPath = new Map();
   const segmentMetaByGrammarKey = new Map(); // grammarKey -> Promise<Map<number, object>|null>
 
-  const getReaderForManifest = (manifestPath) => {
-    if (readersByManifestPath.has(manifestPath)) {
-      return readersByManifestPath.get(manifestPath);
+  const getReaderForManifest = (manifestPath, format = 'jsonl') => {
+    const key = `${manifestPath}|${format}`;
+    if (readersByManifestPath.has(key)) {
+      return readersByManifestPath.get(key);
     }
-    const reader = createVfsManifestOffsetReader({ manifestPath });
-    readersByManifestPath.set(manifestPath, reader);
+    const reader = createVfsManifestOffsetReader({
+      manifestPath,
+      parseRowBuffer: format === 'binary-v1' ? parseBinaryJsonRowBuffer : undefined
+    });
+    readersByManifestPath.set(key, reader);
     return reader;
   };
 
@@ -116,7 +122,7 @@ export const createTreeSitterSchedulerLookup = ({
     const keys = Array.isArray(virtualPaths) ? virtualPaths : [];
     if (!keys.length) return [];
     const rows = new Array(keys.length).fill(null);
-    const groups = new Map(); // manifestPath -> [{ index, entry }]
+    const groups = new Map(); // `${manifestPath}|${format}` -> { manifestPath, format, list }
 
     for (let i = 0; i < keys.length; i += 1) {
       const virtualPath = keys[i];
@@ -142,13 +148,18 @@ export const createTreeSitterSchedulerLookup = ({
         rows[i] = null;
         continue;
       }
-      const manifestPath = paths.resultsPathForGrammarKey(grammarKey);
-      if (!groups.has(manifestPath)) groups.set(manifestPath, []);
-      groups.get(manifestPath).push({ index: i, virtualPath, entry });
+      const format = entry?.format === 'binary-v1' ? 'binary-v1' : 'jsonl';
+      const manifestPath = paths.resultsPathForGrammarKey(grammarKey, format);
+      const groupKey = `${manifestPath}|${format}`;
+      if (!groups.has(groupKey)) {
+        groups.set(groupKey, { manifestPath, format, list: [] });
+      }
+      groups.get(groupKey).list.push({ index: i, virtualPath, entry });
     }
 
-    for (const [manifestPath, list] of groups.entries()) {
-      const reader = getReaderForManifest(manifestPath);
+    for (const group of groups.values()) {
+      const { manifestPath, format, list } = group;
+      const reader = getReaderForManifest(manifestPath, format);
       const grammarKey = list[0]?.entry?.grammarKey || null;
       const segmentMeta = grammarKey ? await loadSegmentMeta(grammarKey) : null;
       const requests = list.map(({ entry }) => ({
@@ -161,8 +172,18 @@ export const createTreeSitterSchedulerLookup = ({
         reader
       });
       for (let i = 0; i < list.length; i += 1) {
-        const { index: rowIndex, virtualPath } = list[i];
-        const row = hydrateRowWithSegmentMeta(loadedRows[i] || null, segmentMeta);
+        const { index: rowIndex, virtualPath, entry } = list[i];
+        const rawRow = loadedRows[i] || null;
+        if (rawRow && typeof entry?.checksum === 'string' && entry.checksum) {
+          const actualChecksum = sha1(JSON.stringify(rawRow)).slice(0, 16);
+          if (actualChecksum !== entry.checksum) {
+            throw new Error(
+              `[tree-sitter:schedule] row checksum mismatch for ${virtualPath}: ` +
+              `expected=${entry.checksum} actual=${actualChecksum}`
+            );
+          }
+        }
+        const row = hydrateRowWithSegmentMeta(rawRow, segmentMeta);
         rows[rowIndex] = row;
         if (row) {
           rowCache.set(virtualPath, row);

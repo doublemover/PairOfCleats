@@ -1152,6 +1152,16 @@ const parseVfsManifestRowBuffer = (buffer, bytesRead) => {
   return JSON.parse(line);
 };
 
+export const parseBinaryJsonRowBuffer = (buffer, bytesRead) => {
+  if (!buffer || !Number.isFinite(bytesRead) || bytesRead < 4) return null;
+  const payloadBytes = buffer.readUInt32LE(0);
+  if (!Number.isFinite(payloadBytes) || payloadBytes <= 0) return null;
+  if ((payloadBytes + 4) > bytesRead) return null;
+  const payload = buffer.subarray(4, 4 + payloadBytes).toString('utf8');
+  if (!payload) return null;
+  return JSON.parse(payload);
+};
+
 const coercePositiveInt = (value, fallback) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
@@ -1167,7 +1177,8 @@ const coercePositiveInt = (value, fallback) => {
 export const createVfsManifestOffsetReader = ({
   manifestPath,
   maxBufferPoolEntries = 64,
-  maxCoalesceBytes = 1024 * 1024
+  maxCoalesceBytes = 1024 * 1024,
+  parseRowBuffer = parseVfsManifestRowBuffer
 }) => {
   const poolLimit = coercePositiveInt(maxBufferPoolEntries, 64);
   const coalesceLimit = coercePositiveInt(maxCoalesceBytes, 1024 * 1024);
@@ -1229,7 +1240,7 @@ export const createVfsManifestOffsetReader = ({
     stats.readCalls += 1;
     try {
       const result = await handle.read(buffer, 0, expectedBytes, offset);
-      return parseVfsManifestRowBuffer(buffer, result?.bytesRead || 0);
+      return parseRowBuffer(buffer, result?.bytesRead || 0);
     } finally {
       checkinBuffer(buffer);
     }
@@ -1293,7 +1304,7 @@ export const createVfsManifestOffsetReader = ({
             continue;
           }
           const rowBuffer = buffer.subarray(relativeStart, relativeEnd);
-          out[request.index] = parseVfsManifestRowBuffer(rowBuffer, rowBuffer.length);
+          out[request.index] = parseRowBuffer(rowBuffer, rowBuffer.length);
         }
       } finally {
         checkinBuffer(buffer);
