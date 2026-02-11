@@ -532,13 +532,13 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
           throw new Error(`Missing index pieces for ${mode}.`);
         }
         const expectedDenseCount = resolveExpectedDenseCount(pieces?.denseVec);
-        const vectorRequiredForMode = vectorAnnEnabled
-          && (mode === 'code' || mode === 'prose' || mode === 'extracted-prose');
+        const modeSupportsDense = mode === 'code' || mode === 'prose' || mode === 'extracted-prose';
+        const denseArtifactsRequired = modeSupportsDense && expectedDenseCount > 0;
+        const vectorRequiredForMode = vectorAnnEnabled && modeSupportsDense;
         const bundleManifest = incrementalData?.manifest || null;
         let bundleSkipReason = null;
         if (hasIncrementalBundles
-          && vectorRequiredForMode
-          && expectedDenseCount > 0
+          && denseArtifactsRequired
           && bundleManifest?.bundleEmbeddings !== true) {
           const stageNote = bundleManifest.bundleEmbeddingStage
             ? ` (stage ${bundleManifest.bundleEmbeddingStage})`
@@ -683,7 +683,7 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
             batchSize: batchSizeOverride,
             stats: sqliteStats
           });
-          const missingDense = vectorRequiredForMode && expectedDenseCount > 0 && bundleResult?.denseCount === 0;
+          const missingDense = denseArtifactsRequired && bundleResult?.denseCount === 0;
           const bundleFailureReason = bundleResult?.reason || (missingDense ? 'bundles missing embeddings' : '');
           if (bundleFailureReason) {
             warn(`[sqlite] Incremental bundle build failed for ${mode}: ${bundleFailureReason}; falling back to artifacts.`);
