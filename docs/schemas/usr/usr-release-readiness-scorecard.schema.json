@@ -2,12 +2,25 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "usr/usr-release-readiness-scorecard.schema.json",
   "title": "usr-release-readiness-scorecard.schema.json",
-  "allOf": [{ "$ref": "./evidence-envelope.schema.json" }],
+  "allOf": [
+    {
+      "$ref": "./evidence-envelope.schema.json"
+    }
+  ],
   "type": "object",
   "properties": {
-    "artifactId": { "type": "string" },
-    "summary": { "type": "object" },
-    "rows": { "type": "array", "items": { "type": "object" } }
+    "artifactId": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "object"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    }
   },
-  "additionalProperties": true
+  "unevaluatedProperties": false
 }
