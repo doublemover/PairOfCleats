@@ -1,7 +1,7 @@
 # Spec -- USR Core Evidence, Gates, and Waiver Contract
 
 Status: Draft v2.0
-Last updated: 2026-02-11T07:35:00Z
+Last updated: 2026-02-11T08:35:00Z
 
 ## Purpose
 
@@ -11,11 +11,11 @@ Define deterministic gate evaluation from findings, evidence freshness, waiver s
 
 This contract absorbs:
 
-- `docs/specs/usr-evidence-catalog.md`
-- `docs/specs/usr-gate-evaluation-algorithm.md`
-- `docs/specs/usr-waiver-and-exception-contract.md`
-- `docs/specs/usr-waiver-request-template.md`
-- `docs/guides/usr-waiver-audit-checklist.md`
+- `usr-evidence-catalog.md` (legacy)
+- `usr-gate-evaluation-algorithm.md` (legacy)
+- `usr-waiver-and-exception-contract.md` (legacy)
+- `usr-waiver-request-template.md` (legacy)
+- `usr-waiver-audit-checklist.md` (legacy)
 
 ## Gate evaluation inputs
 
@@ -24,6 +24,17 @@ This contract absorbs:
 - diagnostics and reason-code rollups
 - evidence freshness metadata
 - waiver records
+
+Mandatory gate row fields:
+
+| Field | Required | Notes |
+| --- | --- | --- |
+| `gateId` | yes | Stable ID used in scorecards and audits. |
+| `severityClass` | yes | `blocking` or `advisory`. |
+| `predicate` | yes | Deterministic boolean expression over evidence. |
+| `requiredArtifacts` | yes | List of required artifact IDs. |
+| `freshnessPolicy` | yes | TTL and stale behavior. |
+| `waiverEligibility` | yes | Whether and how waiver can apply. |
 
 ## Deterministic gate algorithm
 
@@ -55,11 +66,24 @@ Waivers are invalid if:
 - missing approver metadata
 - applied to disallowed hard-block classes
 
+Waiver enforcement requirements:
+
+1. waiver IDs must be unique and immutable
+2. approver cannot equal requester for blocking waivers
+3. compensating controls must reference concrete evidence artifacts
+4. renewal requires fresh approval and updated justification
+
 ## Evidence freshness policy
 
 - each evidence artifact class has TTL
 - stale blocking evidence fails gate evaluation
 - stale advisory evidence produces warning and scorecard annotation
+
+Freshness classes:
+
+- `hard-ttl`: stale => blocking fail
+- `soft-ttl`: stale => advisory fail
+- `informational`: stale => scorecard note only
 
 ## Required outputs
 
@@ -82,6 +106,15 @@ Hard blocks include at minimum:
 - schema/invariant failures for blocking artifacts
 - critical security/risk gate failures
 - required operational drill failures
+
+## Acceptance criteria
+
+This contract is green only when:
+
+1. gate evaluation report includes all active gate IDs
+2. waiver report contains no invalid active waiver
+3. freshness policy evaluation has no blocking stale artifacts
+4. release readiness scorecard state equals deterministic max gate severity
 
 ## References
 

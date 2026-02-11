@@ -1,7 +1,7 @@
 # Spec -- USR Core Governance and Change Contract
 
 Status: Draft v2.0
-Last updated: 2026-02-11T07:35:00Z
+Last updated: 2026-02-11T08:35:00Z
 
 ## Purpose
 
@@ -11,21 +11,21 @@ Define ownership, change control, documentation lifecycle, and drift governance 
 
 This contract absorbs:
 
-- `docs/specs/usr-change-management-contract.md`
-- `docs/specs/usr-contract-drift-check-contract.md`
-- `docs/specs/usr-doc-lifecycle-policy.md`
-- `docs/specs/usr-doc-style-guide.md`
-- `docs/specs/usr-glossary.md`
-- `docs/specs/usr-implementation-playbook.md`
-- `docs/specs/usr-implementation-readiness-contract.md`
-- `docs/specs/usr-open-questions.md`
-- `docs/specs/usr-ownership-and-raci-contract.md`
-- `docs/specs/usr-rfc-template.md`
-- `docs/specs/usr-risk-register.md`
-- `docs/specs/usr-traceability-index.md`
-- `docs/specs/usr/README.md`
-- `docs/guides/usr-contract-enforcement.md`
-- `docs/guides/usr-new-language-onboarding.md`
+- `usr-change-management-contract.md` (legacy)
+- `usr-contract-drift-check-contract.md` (legacy)
+- `usr-doc-lifecycle-policy.md` (legacy)
+- `usr-doc-style-guide.md` (legacy)
+- `usr-glossary.md` (legacy)
+- `usr-implementation-playbook.md` (legacy)
+- `usr-implementation-readiness-contract.md` (legacy)
+- `usr-open-questions.md` (legacy)
+- `usr-ownership-and-raci-contract.md` (legacy)
+- `usr-rfc-template.md` (legacy)
+- `usr-risk-register.md` (legacy)
+- `usr-traceability-index.md` (legacy)
+- `usr/README.md` (legacy)
+- `usr-contract-enforcement.md` (legacy)
+- `usr-new-language-onboarding.md` (legacy)
 
 ## Ownership model
 
@@ -38,6 +38,16 @@ Each contract domain must have:
 
 Ownership metadata must be machine-readable and referenced by gate policies.
 
+Required ownership fields:
+
+| Field | Required | Notes |
+| --- | --- | --- |
+| `domainId` | yes | Contract domain key. |
+| `primaryOwner` | yes | Responsible approver for blocking changes. |
+| `backupOwner` | yes | Escalation backup. |
+| `reviewGroup` | yes | Minimum reviewer set. |
+| `escalationPolicy` | yes | Timeout/escalation thresholds. |
+
 ## Change classes
 
 - `additive`: new optional fields or scenarios
@@ -45,6 +55,12 @@ Ownership metadata must be machine-readable and referenced by gate policies.
 - `breaking`: incompatible schema/semantic changes
 
 All classes require RFC metadata; behavioral and breaking changes require rollout impact and matrix updates.
+
+Change-class gate requirements:
+
+- `additive`: advisory review + schema checks
+- `behavioral`: blocking review + conformance and compatibility reruns
+- `breaking`: release-train approval + migration protocol and cutover planning
 
 ## Mandatory change bundle
 
@@ -66,6 +82,12 @@ Drift checks must verify consistency across:
 - `docs/specs/usr-consolidation-coverage-matrix.md`
 - `TES_LAYN_ROADMAP.md`
 - `tests/lang/matrix/usr-*.json`
+
+Drift checks must also verify:
+
+1. contract references in roadmap appendices H/J/M
+2. consolidation mapping completeness in `usr-consolidation-coverage-matrix.md`
+3. no orphan blocking evidence artifacts without contract ownership
 
 ## Documentation lifecycle states
 
@@ -91,6 +113,8 @@ Open questions and risks must be tracked as structured tables with:
 - `usr-contract-drift-report.json`
 - `usr-change-management-log.json`
 - `usr-governance-readiness-summary.json`
+- `usr-contract-ownership-report.json`
+- `usr-rfc-change-impact-summary.json`
 
 ## References
 

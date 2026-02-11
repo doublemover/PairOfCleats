@@ -1,7 +1,7 @@
 # Spec -- USR Core Security, Risk, and Compliance Contract
 
 Status: Draft v2.0
-Last updated: 2026-02-11T07:40:00Z
+Last updated: 2026-02-11T08:35:00Z
 
 ## Purpose
 
@@ -11,13 +11,13 @@ Define threat/risk taxonomy, data governance policy, and compliance gates across
 
 This contract absorbs:
 
-- `docs/specs/usr-language-risk-contract.md`
-- `docs/specs/usr-security-and-data-governance-contract.md`
-- `docs/specs/usr-data-classification-contract.md`
-- `docs/specs/usr-threat-model-and-abuse-case-contract.md`
-- `docs/specs/usr-threat-response-playbook-catalog.md`
-- `docs/specs/usr-supply-chain-integrity-contract.md`
-- `docs/specs/usr-license-and-third-party-attribution-contract.md`
+- `usr-language-risk-contract.md` (legacy)
+- `usr-security-and-data-governance-contract.md` (legacy)
+- `usr-data-classification-contract.md` (legacy)
+- `usr-threat-model-and-abuse-case-contract.md` (legacy)
+- `usr-threat-response-playbook-catalog.md` (legacy)
+- `usr-supply-chain-integrity-contract.md` (legacy)
+- `usr-license-and-third-party-attribution-contract.md` (legacy)
 
 ## Risk taxonomy model
 
@@ -29,6 +29,17 @@ Per language/framework profile, risk coverage must define:
 - propagation boundaries
 - unsupported surfaces
 
+Risk row schema requirements:
+
+| Field | Required | Notes |
+| --- | --- | --- |
+| `scopeId` | yes | language or framework profile scope |
+| `sources` | yes | enumerated source classes |
+| `sinks` | yes | enumerated sink classes |
+| `sanitizers` | yes | enumerated sanitizer classes |
+| `propagationRules` | yes | required data/control propagation semantics |
+| `unsupportedRiskSurfaces` | yes | explicit unsupported classes with diagnostics |
+
 ## Data governance policy
 
 Data classes must define handling policy for:
@@ -39,6 +50,12 @@ Data classes must define handling policy for:
 - export/reporting
 
 Strict mode must fail closed for violations in protected classes.
+
+Data-class minimums:
+
+- class definitions must include confidentiality and handling policy
+- redaction policy must define deterministic masking format
+- export policy must define allowed destinations and controls
 
 ## Threat/abuse coverage
 
@@ -62,6 +79,13 @@ When interprocedural risk analysis is required by profile:
 - unresolved high-risk paths must be reported explicitly
 - blocking risk thresholds must feed gate evaluator
 
+Interprocedural mandatory controls:
+
+1. max traversal depth policy by profile
+2. confidence floor per propagation class
+3. unresolved high-severity path budget thresholds
+4. deterministic sink classification for unresolved candidates
+
 ## Required outputs
 
 - `usr-threat-model-coverage-report.json`
@@ -69,6 +93,8 @@ When interprocedural risk analysis is required by profile:
 - `usr-redaction-validation.json`
 - `usr-risk-coverage-summary.json`
 - `usr-supply-chain-integrity-report.json`
+- `usr-license-policy-evaluation.json`
+- `usr-interprocedural-gating-report.json`
 
 ## References
 
