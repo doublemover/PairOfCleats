@@ -1,6 +1,5 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
-import path from 'node:path';
 import { once } from 'node:events';
 import { Transform } from 'node:stream';
 import { createTempPath, replaceFile } from './atomic.js';
@@ -127,33 +126,8 @@ export const createJsonWriteStream = (filePath, options = {}) => {
       } catch {}
       return !fs.existsSync(target);
     };
-    const cleanupTempSiblings = async () => {
-      const basename = path.basename(filePath);
-      const ext = path.extname(filePath);
-      const dirs = new Set([
-        path.dirname(filePath),
-        path.dirname(targetPath)
-      ]);
-      for (const dir of dirs) {
-        let entries = [];
-        try {
-          entries = await fsPromises.readdir(dir);
-        } catch {
-          continue;
-        }
-        for (const entry of entries) {
-          if (!entry.includes('.tmp-')) continue;
-          const isFileScopedTemp = entry.startsWith(`${basename}.tmp-`);
-          const isCompactTemp = entry.startsWith('t.tmp-')
-            && (!ext || entry.endsWith(ext));
-          if (!isFileScopedTemp && !isCompactTemp) continue;
-          await retryRemovePath(path.join(dir, entry));
-        }
-      }
-    };
     await waitForClose(fileStream);
     await retryRemovePath(targetPath);
-    await cleanupTempSiblings();
     // Last guard: if the specific temp path still exists, keep retrying a bit
     // before letting callers observe stale ".tmp-" files.
     for (let attempt = 0; attempt < 10; attempt += 1) {
@@ -162,7 +136,6 @@ export const createJsonWriteStream = (filePath, options = {}) => {
       if (!fs.existsSync(targetPath)) break;
       await delay(Math.min(1000, 50 * (attempt + 1)));
     }
-    await cleanupTempSiblings();
   };
   const attachPipelineErrorHandlers = () => {
     const forwardToFile = (err) => {
