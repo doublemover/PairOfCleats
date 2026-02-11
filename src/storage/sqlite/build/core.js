@@ -35,6 +35,11 @@ const buildShortTempDbPath = (outPath) => {
   return path.join(os.tmpdir(), 'pairofcleats-sqlite', `${hash}-${process.pid}-${nonce}.db`);
 };
 
+const isSqliteCantOpen = (err) => (
+  err?.code === 'SQLITE_CANTOPEN'
+  || /unable to open database file/i.test(String(err?.message || ''))
+);
+
 const openDatabaseWithFallback = (Database, outPath) => {
   const resolvedOutPath = path.resolve(outPath);
   const candidates = [];
@@ -64,16 +69,32 @@ const openDatabaseWithFallback = (Database, outPath) => {
   }
   let lastError = null;
   for (const candidate of candidates) {
-    try {
-      fsSync.mkdirSync(path.dirname(candidate.dbPath || candidate.openPath), { recursive: true });
-      const db = new Database(candidate.openPath);
-      return {
-        db,
-        dbPath: candidate.dbPath,
-        promotePath: candidate.promotePath
-      };
-    } catch (err) {
-      lastError = err;
+    const maxAttempts = candidate.promotePath ? 4 : 2;
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      const resolvedCandidate = attempt === 0
+        ? candidate
+        : (candidate.promotePath
+            ? (() => {
+              const retryTemp = buildShortTempDbPath(resolvedOutPath);
+              return {
+                openPath: retryTemp,
+                dbPath: retryTemp,
+                promotePath: candidate.promotePath
+              };
+            })()
+            : candidate);
+      try {
+        fsSync.mkdirSync(path.dirname(resolvedCandidate.dbPath || resolvedCandidate.openPath), { recursive: true });
+        const db = new Database(resolvedCandidate.openPath);
+        return {
+          db,
+          dbPath: resolvedCandidate.dbPath,
+          promotePath: resolvedCandidate.promotePath
+        };
+      } catch (err) {
+        lastError = err;
+        if (!isSqliteCantOpen(err) || attempt >= maxAttempts - 1) break;
+      }
     }
   }
   throw lastError || new Error(`Unable to open sqlite database: ${outPath}`);
