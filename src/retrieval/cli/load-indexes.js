@@ -475,7 +475,11 @@ export async function loadSearchIndexes({
         strict,
         fallbackPath: targetPaths.metaPath || null
       });
-    } catch {}
+    } catch (err) {
+      if (strict) {
+        throw err;
+      }
+    }
     let lanceDir = null;
     try {
       lanceDir = resolveDirArtifactPath(dir, dirName, {
