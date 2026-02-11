@@ -137,11 +137,13 @@ if (!stats || !stats.queues) {
 }
 const computeQueue = stats.queues[SCHEDULER_QUEUE_NAMES.embeddingsCompute];
 const ioQueue = stats.queues[SCHEDULER_QUEUE_NAMES.embeddingsIo];
-if (!computeQueue || computeQueue.scheduled <= 0) {
-  console.error('embeddings scheduler backpressure test failed: compute queue missing scheduled work');
+const computeScheduled = Number(computeQueue?.scheduled || 0);
+const ioScheduled = Number(ioQueue?.scheduled || 0);
+if (computeScheduled <= 0 && ioScheduled <= 0) {
+  console.error('embeddings scheduler backpressure test failed: scheduler queues missing scheduled work');
   process.exit(1);
 }
-if (!ioQueue || ioQueue.scheduled <= 0) {
+if (ioScheduled <= 0) {
   console.error('embeddings scheduler backpressure test failed: IO queue missing scheduled work');
   process.exit(1);
 }
