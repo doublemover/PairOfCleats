@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { MAX_JSON_BYTES, loadChunkMeta, loadJsonArrayArtifact } from '../../../../src/shared/artifact-io.js';
 import { getIndexDir, loadUserConfig } from '../../../../tools/shared/dict-utils.js';
 import { repoRoot } from '../../../helpers/root.js';
 import { applyTestEnv } from '../../../helpers/test-env.js';
@@ -49,7 +49,7 @@ const env = applyTestEnv({
 
 const buildResult = spawnSync(
   process.execPath,
-  [path.join(root, 'build_index.js'), '--repo', repoDir, '--stub-embeddings'],
+  [path.join(root, 'build_index.js'), '--repo', repoDir, '--stub-embeddings', '--stage', 'stage2'],
   { cwd: repoDir, env, encoding: 'utf8' }
 );
 
@@ -61,17 +61,15 @@ if (buildResult.status !== 0) {
 
 const userConfig = loadUserConfig(repoDir);
 const indexDir = getIndexDir(repoDir, 'code', userConfig);
-const metaPath = path.join(indexDir, 'chunk_meta.json');
-if (!fs.existsSync(metaPath)) {
-  console.error('LSP enrichment test failed: chunk_meta.json missing.');
+let chunks = [];
+let fileMeta = [];
+try {
+  chunks = await loadChunkMeta(indexDir, { maxBytes: MAX_JSON_BYTES, strict: true });
+  fileMeta = await loadJsonArrayArtifact(indexDir, 'file_meta', { maxBytes: MAX_JSON_BYTES, strict: true });
+} catch (err) {
+  console.error(`LSP enrichment test failed: unable to load artifacts (${err?.message || err}).`);
   process.exit(1);
 }
-
-const chunks = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
-const fileMetaPath = path.join(indexDir, 'file_meta.json');
-const fileMeta = fs.existsSync(fileMetaPath)
-  ? JSON.parse(fs.readFileSync(fileMetaPath, 'utf8'))
-  : [];
 const fileById = new Map(
   (Array.isArray(fileMeta) ? fileMeta : []).map((entry) => [entry.id, entry.file])
 );

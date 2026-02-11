@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { MAX_JSON_BYTES, loadChunkMeta, loadJsonArrayArtifact } from '../../../../src/shared/artifact-io.js';
 import { getIndexDir, loadUserConfig } from '../../../../tools/shared/dict-utils.js';
 import { applyTestEnv } from '../../../helpers/test-env.js';
 
@@ -57,7 +57,14 @@ const env = applyTestEnv({
   }
 });
 
-const result = spawnSync(process.execPath, [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot], {
+const result = spawnSync(process.execPath, [
+  path.join(root, 'build_index.js'),
+  '--stub-embeddings',
+  '--stage',
+  'stage2',
+  '--repo',
+  repoRoot
+], {
   cwd: repoRoot,
   env,
   timeout: Number.isFinite(Number(process.env.PAIROFCLEATS_TEST_TIMEOUT_MS))
@@ -73,17 +80,15 @@ if (result.status !== 0) {
 
 const userConfig = loadUserConfig(repoRoot);
 const codeDir = getIndexDir(repoRoot, 'code', userConfig);
-const chunkMetaPath = path.join(codeDir, 'chunk_meta.json');
-if (!fs.existsSync(chunkMetaPath)) {
-  console.error(`Missing chunk meta at ${chunkMetaPath}`);
+let chunkMeta = [];
+let fileMeta = [];
+try {
+  chunkMeta = await loadChunkMeta(codeDir, { maxBytes: MAX_JSON_BYTES, strict: true });
+  fileMeta = await loadJsonArrayArtifact(codeDir, 'file_meta', { maxBytes: MAX_JSON_BYTES, strict: true });
+} catch (err) {
+  console.error(`Failed to load inference artifacts at ${codeDir}: ${err?.message || err}`);
   process.exit(1);
 }
-
-const chunkMeta = JSON.parse(fs.readFileSync(chunkMetaPath, 'utf8'));
-const fileMetaPath = path.join(codeDir, 'file_meta.json');
-const fileMeta = fs.existsSync(fileMetaPath)
-  ? JSON.parse(fs.readFileSync(fileMetaPath, 'utf8'))
-  : [];
 const fileById = new Map(
   (Array.isArray(fileMeta) ? fileMeta : []).map((entry) => [entry.id, entry.file])
 );
