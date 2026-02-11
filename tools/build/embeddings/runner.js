@@ -37,6 +37,7 @@ import {
   getMetricsDir,
   getRepoCacheRoot,
   getTriageConfig,
+  resolveIndexRoot,
   resolveSqlitePaths
 } from '../../shared/dict-utils.js';
 import {
@@ -339,7 +340,9 @@ export async function runBuildEmbeddingsWithConfig(config) {
 
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
   const repoCacheRootResolved = path.resolve(repoCacheRoot);
-  let activeIndexRoot = indexRoot;
+  let activeIndexRoot = indexRoot
+    ? path.resolve(indexRoot)
+    : resolveIndexRoot(root, userConfig, { mode: modes[0] || null });
   const normalizePath = (value) => {
     if (!value) return null;
     const normalized = path.resolve(value);

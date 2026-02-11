@@ -565,6 +565,12 @@ export function createSearchPipeline(context) {
               if (failureUntil > now) {
                 return false;
               }
+              // The preflight cooldown window expired. Clear both the preflight
+              // gate and any matching provider-level disable so we actually
+              // re-run provider.preflight on the next attempt.
+              if (state.disabledUntil <= now) {
+                state.disabledUntil = 0;
+              }
               state.preflight = null;
               state.preflightFailureUntil = 0;
               state.preflightCheckedAt = 0;
