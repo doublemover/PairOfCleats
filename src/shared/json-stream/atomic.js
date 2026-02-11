@@ -149,6 +149,15 @@ export const replaceFile = async (tempPath, finalPath, options = {}) => {
       return false;
     }
   };
+  /**
+   * Treat existing final output as committed only when it is either:
+   * - newly created during this replace attempt, or
+   * - freshly updated after replace started.
+   * Stale pre-existing finals (including stale .bak presence) must not be
+   * accepted as success when the temp file is missing.
+   *
+   * @returns {Promise<boolean>}
+   */
   const canTreatExistingFinalAsCommitted = async () => {
     if (!fs.existsSync(finalPath)) return false;
     if (!finalExistedAtStart) return true;

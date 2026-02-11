@@ -340,12 +340,21 @@ export async function runBuildEmbeddingsWithConfig(config) {
 
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
   const repoCacheRootResolved = path.resolve(repoCacheRoot);
-  const explicitIndexRoot = (() => {
-    if (typeof argv?.['index-root'] === 'string' && argv['index-root'].trim()) return true;
-    if (typeof argv?.indexRoot === 'string' && argv.indexRoot.trim()) return true;
-    if (!Array.isArray(rawArgv) || !rawArgv.length) return false;
-    return rawArgv.some((arg) => arg === '--index-root' || arg.startsWith('--index-root='));
-  })();
+  /**
+   * Detect whether the caller explicitly supplied an index root, which means
+   * we must fail fast on missing artifacts instead of auto-falling back.
+   *
+   * @param {Record<string, any>} parsedArgv
+   * @param {string[]|unknown} rawArgs
+   * @returns {boolean}
+   */
+  const hasExplicitIndexRootArg = (parsedArgv, rawArgs) => {
+    if (typeof parsedArgv?.['index-root'] === 'string' && parsedArgv['index-root'].trim()) return true;
+    if (typeof parsedArgv?.indexRoot === 'string' && parsedArgv.indexRoot.trim()) return true;
+    if (!Array.isArray(rawArgs) || !rawArgs.length) return false;
+    return rawArgs.some((arg) => arg === '--index-root' || arg.startsWith('--index-root='));
+  };
+  const explicitIndexRoot = hasExplicitIndexRootArg(argv, rawArgv);
   let activeIndexRoot = indexRoot
     ? path.resolve(indexRoot)
     : resolveIndexRoot(root, userConfig, { mode: modes[0] || null });
@@ -403,6 +412,13 @@ export async function runBuildEmbeddingsWithConfig(config) {
     candidates.sort((a, b) => b.mtimeMs - a.mtimeMs);
     return candidates[0]?.root || null;
   };
+  /**
+   * Resolve the effective root for a mode. Auto mode can fall back to current
+   * build/latest build; explicit --index-root always stays pinned to caller root.
+   *
+   * @param {string} mode
+   * @returns {string|null}
+   */
   const resolveModeIndexRoot = (mode) => {
     if (hasModeArtifacts(activeIndexRoot, mode)) return activeIndexRoot;
     if (explicitIndexRoot) return activeIndexRoot;
@@ -490,6 +506,18 @@ export async function runBuildEmbeddingsWithConfig(config) {
   const triageConfig = getTriageConfig(root, userConfig);
   const recordsDir = triageConfig.recordsDir;
   const buildStateTrackers = new Map();
+  /**
+   * Lazily initialize build-state tracking for each unique build root used by
+   * stage3 so mixed-root mode runs emit accurate heartbeat/phase markers.
+   *
+   * @param {string|null} buildRoot
+   * @returns {{
+   *   root:string,
+   *   hasBuildState:boolean,
+   *   runningMarked:boolean,
+   *   stopHeartbeat:() => void
+   * }|null}
+   */
   const ensureBuildStateTracker = (buildRoot) => {
     const key = normalizePath(buildRoot);
     if (!buildRoot || !key) return null;
@@ -527,6 +555,18 @@ export async function runBuildEmbeddingsWithConfig(config) {
   const cacheMaxAgeMs = Number.isFinite(cacheMaxAgeDays) ? Math.max(0, cacheMaxAgeDays) * 24 * 60 * 60 * 1000 : 0;
   const maintenanceConfig = normalizeEmbeddingsMaintenanceConfig(embeddingsConfig.maintenance || {});
   const queuedMaintenance = new Set();
+  /**
+   * Queue detached sqlite maintenance against the same mode-specific db root
+   * that stage3 just updated, avoiding maintenance drift across mixed roots.
+   *
+   * @param {{
+   *   mode:string,
+   *   denseCount:number,
+   *   modeIndexRoot:string|null,
+   *   sqlitePathsForMode?:{codePath?:string|null,prosePath?:string|null}|null
+   * }} input
+   * @returns {void}
+   */
   const queueBackgroundSqliteMaintenance = ({ mode, denseCount, modeIndexRoot, sqlitePathsForMode }) => {
     if (maintenanceConfig.background !== true || isTestingEnv()) return;
     if (mode !== 'code' && mode !== 'prose') return;

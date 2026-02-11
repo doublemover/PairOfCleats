@@ -30,6 +30,13 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const RETRYABLE_RM_CODES = new Set(['EBUSY', 'EPERM', 'EACCES', 'EMFILE', 'ENOTEMPTY']);
 let pendingDeleteCounter = 0;
 
+/**
+ * Build a target-scoped tombstone name used when direct deletion fails.
+ * Including the base file name prevents cleanup from touching unrelated files.
+ *
+ * @param {string} targetPath
+ * @returns {string}
+ */
 const createPendingDeletePath = (targetPath) => {
   pendingDeleteCounter = (pendingDeleteCounter + 1) >>> 0;
   const dir = path.dirname(targetPath);
@@ -67,6 +74,14 @@ const removePathWithRetry = async (target, {
   return !fs.existsSync(target);
 };
 
+/**
+ * Remove stale tombstones created for a single target path only.
+ * The matcher intentionally excludes generic `pending-delete-*` patterns
+ * to avoid deleting unrelated files that happen to share that prefix.
+ *
+ * @param {string} targetPath
+ * @returns {Promise<void>}
+ */
 const cleanupPendingDeleteTombstones = async (targetPath) => {
   try {
     const dir = path.dirname(targetPath);

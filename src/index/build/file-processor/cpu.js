@@ -29,6 +29,17 @@ import {
 
 const TREE_SITTER_LANG_IDS = new Set(TREE_SITTER_LANGUAGE_IDS);
 
+/**
+ * Merge scheduler-planned segments with comment/frontmatter extras while keeping
+ * the scheduler segment shape stable for VFS lookup and avoiding duplicate slices.
+ *
+ * @param {{
+ *   plannedSegments?: Array<object>|null,
+ *   extraSegments?: Array<object>|null,
+ *   relKey?: string|null
+ * }} input
+ * @returns {Array<object>}
+ */
 const mergePlannedSegmentsWithExtras = ({ plannedSegments, extraSegments, relKey }) => {
   const planned = Array.isArray(plannedSegments) ? plannedSegments : [];
   const extras = Array.isArray(extraSegments) ? extraSegments : [];

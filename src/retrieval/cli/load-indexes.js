@@ -478,6 +478,9 @@ export async function loadSearchIndexes({
     if (metaPresence?.error && !missingMetaEntry) {
       throw metaPresence.error;
     }
+    // In non-strict mode we intentionally attempt fallbackPath loads even when
+    // the manifest entry is missing, so legacy indexes without manifest entries
+    // can still surface LanceDB metadata if files exist on disk.
     if (!missingMetaEntry || !strict) {
       try {
         meta = await loadJsonObjectArtifact(dir, metaName, {
@@ -503,6 +506,8 @@ export async function loadSearchIndexes({
     if (dirPresence?.error && !missingDirEntry) {
       throw dirPresence.error;
     }
+    // Same compatibility rule as metadata: allow non-strict fallback path
+    // resolution without a manifest entry for legacy LanceDB directories.
     if (!missingDirEntry || !strict) {
       try {
         lanceDir = resolveDirArtifactPath(dir, dirName, {
