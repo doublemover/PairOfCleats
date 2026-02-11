@@ -554,7 +554,10 @@ export function createSearchPipeline(context) {
             && state.preflightCheckedAt
             && (now - state.preflightCheckedAt) <= PREFLIGHT_CACHE_TTL_MS
           ) {
-            return state.preflight === true;
+            if (state.preflight === true) return true;
+            // Failed preflight checks are only cacheable during provider cooldown.
+            // Once cooldown expires we must retry preflight to allow recovery.
+            if (state.disabledUntil > now) return false;
           }
           try {
             const result = await provider.preflight({

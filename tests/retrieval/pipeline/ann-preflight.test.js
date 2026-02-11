@@ -32,8 +32,8 @@ let results = [];
 let resultsAgain = [];
 try {
   results = await pipeline(idx, 'code', [0.1, 0.2]);
-  // Advance beyond provider cooldown window but within preflight cache TTL.
-  nowMs += 1500;
+  // Advance within provider cooldown window so failed preflight stays cached.
+  nowMs += 500;
   resultsAgain = await pipeline(idx, 'code', [0.1, 0.2]);
 } finally {
   Date.now = realDateNow;
