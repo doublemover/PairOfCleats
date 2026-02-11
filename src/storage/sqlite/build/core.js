@@ -15,6 +15,23 @@ const normalizeStatementStrategy = (value) => {
     : 'multi-row';
 };
 
+const openDatabaseWithFallback = (Database, outPath) => {
+  const resolvedOutPath = path.resolve(outPath);
+  const candidates = [resolvedOutPath];
+  if (process.platform === 'win32' && !resolvedOutPath.startsWith('\\\\?\\')) {
+    candidates.push(`\\\\?\\${resolvedOutPath}`);
+  }
+  let lastError = null;
+  for (const candidate of candidates) {
+    try {
+      return new Database(candidate);
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError || new Error(`Unable to open sqlite database: ${outPath}`);
+};
+
 /**
  * Build shared execution metadata and counters for sqlite artifact ingestion.
  * @param {{batchSize?:number,inputBytes?:number,statementStrategy?:string,stats?:object}} input
@@ -64,7 +81,7 @@ export const openSqliteBuildDatabase = ({
   useBuildPragmas = true
 }) => {
   fsSync.mkdirSync(path.dirname(outPath), { recursive: true });
-  const db = new Database(outPath);
+  const db = openDatabaseWithFallback(Database, outPath);
   if (batchStats) {
     const prepareStats = batchStats.prepare || (batchStats.prepare = {});
     if (!Number.isFinite(prepareStats.total)) prepareStats.total = 0;
