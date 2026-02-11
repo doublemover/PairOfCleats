@@ -175,7 +175,7 @@ export const writeLanceDbBackends = async ({
 
   try {
     for (const entry of entries) {
-      await writeLanceDbIndex({
+      let result = await writeLanceDbIndex({
         indexDir,
         variant: entry.variant,
         vectors: entry.vectors,
@@ -190,6 +190,27 @@ export const writeLanceDbBackends = async ({
         label: entry.label,
         logger
       });
+      // Keep isolate-by-default behavior, but recover in-process when isolate
+      // fails so stage3 does not end up with partial backend state.
+      if (result?.skipped && result.reason === 'isolate failed'
+        && Array.isArray(entry.vectors) && entry.vectors.length > 0) {
+        result = await writeLanceDbIndex({
+          indexDir,
+          variant: entry.variant,
+          vectors: entry.vectors,
+          vectorsPath: entry.vectorsPath,
+          dims,
+          modelId,
+          quantization,
+          scale,
+          normalize,
+          config: lanceConfig,
+          skipIsolate: true,
+          emitOutput: true,
+          label: entry.label,
+          logger
+        });
+      }
     }
   } catch (err) {
     warn(`[embeddings] ${mode}: failed to write LanceDB indexes: ${err?.message || err}`);

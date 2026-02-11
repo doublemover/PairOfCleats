@@ -122,6 +122,7 @@ const buildBatch = (vectors, start, end, idColumn, embeddingColumn, quantization
  * @param {number} params.scale
  * @param {boolean} params.normalize
  * @param {object} params.config
+ * @param {boolean} [params.skipIsolate]
  * @param {boolean} [params.emitOutput]
  * @param {string|null} [params.label]
  * @param {object} [params.logger]
@@ -138,6 +139,7 @@ export async function writeLanceDbIndex({
   scale,
   normalize,
   config,
+  skipIsolate = false,
   emitOutput = true,
   label = null,
   logger = console
@@ -158,7 +160,7 @@ export async function writeLanceDbIndex({
   if (!vectorsSource || !Number.isFinite(vectorsSource.count) || vectorsSource.count <= 0) {
     return { skipped: true, reason: 'empty' };
   }
-  if (shouldIsolateLanceDb(resolvedConfig, lanceEnv)) {
+  if (!skipIsolate && shouldIsolateLanceDb(resolvedConfig, lanceEnv)) {
     if (!vectorsPath) {
       return { skipped: true, reason: 'missing vectors path for isolate' };
     }
