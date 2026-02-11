@@ -1,6 +1,15 @@
+/**
+ * Create and return the sqlite insert statement set for one build pass.
+ * @param {any} db
+ * @param {{updateMode?:'full'|'incremental',stats?:object}} [options]
+ * @returns {object}
+ */
 export const createInsertStatements = (db, options = {}) => {
   const updateMode = options?.updateMode === 'full' ? 'full' : 'incremental';
   const insertClause = updateMode === 'full' ? 'INSERT' : 'INSERT OR REPLACE';
+  const tokenPostingsConflictClause = updateMode === 'full'
+    ? ' ON CONFLICT(mode, token_id, doc_id) DO UPDATE SET tf = token_postings.tf + excluded.tf'
+    : '';
   const stats = options?.stats && typeof options.stats === 'object' ? options.stats : null;
   if (stats) {
     stats.insertStatements = stats.insertStatements || {};
@@ -32,7 +41,7 @@ export const createInsertStatements = (db, options = {}) => {
     `${insertClause} INTO token_vocab (mode, token_id, token) VALUES (?, ?, ?)`
   );
   const insertTokenPosting = db.prepare(
-    `${insertClause} INTO token_postings (mode, token_id, doc_id, tf) VALUES (?, ?, ?, ?)`
+    `${insertClause} INTO token_postings (mode, token_id, doc_id, tf) VALUES (?, ?, ?, ?)${tokenPostingsConflictClause}`
   );
   const insertDocLength = db.prepare(
     `${insertClause} INTO doc_lengths (mode, doc_id, len) VALUES (?, ?, ?)`
@@ -66,6 +75,7 @@ export const createInsertStatements = (db, options = {}) => {
   );
 
   return {
+    insertClause,
     insertChunk,
     insertFts,
     insertTokenVocab,

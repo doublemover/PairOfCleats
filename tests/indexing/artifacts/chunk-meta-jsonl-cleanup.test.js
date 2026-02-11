@@ -32,7 +32,7 @@ const chunkMetaIterator = createChunkMetaIterator({
   tokenSampleSize: 0
 });
 
-const runWriter = async (chunkMetaPlan) => {
+const runWriter = async (chunkMetaPlan, { maxJsonBytes = null } = {}) => {
   const writes = [];
   const pieceEntries = [];
   const enqueueWrite = (label, job) => {
@@ -52,6 +52,7 @@ const runWriter = async (chunkMetaPlan) => {
     outDir,
     chunkMetaIterator,
     chunkMetaPlan,
+    ...(Number.isFinite(Number(maxJsonBytes)) ? { maxJsonBytes: Number(maxJsonBytes) } : {}),
     enqueueJsonArray,
     enqueueWrite,
     addPieceFile,
@@ -117,6 +118,50 @@ if (fs.existsSync(metaPath) || fs.existsSync(partsDir)) {
 const loadedJsonl = await loadChunkMeta(outDir);
 if (!Array.isArray(loadedJsonl) || loadedJsonl.length !== chunks.length) {
   console.error('Expected loadChunkMeta to read chunk_meta.jsonl.');
+  process.exit(1);
+}
+
+await runWriter({
+  chunkMetaStreaming: true,
+  chunkMetaUseJsonl: true,
+  chunkMetaUseShards: false,
+  chunkMetaShardSize: 100000,
+  chunkMetaCount: chunks.length
+}, { maxJsonBytes: 500 });
+
+if (!fs.existsSync(metaPath) || !fs.existsSync(partsDir)) {
+  console.error('Expected adaptive streaming chunk_meta to stay sharded when output exceeds max bytes.');
+  process.exit(1);
+}
+if (fs.existsSync(jsonlPath)) {
+  console.error('Did not expect chunk_meta.jsonl when adaptive streaming output exceeds max bytes.');
+  process.exit(1);
+}
+const loadedAdaptiveSharded = await loadChunkMeta(outDir);
+if (!Array.isArray(loadedAdaptiveSharded) || loadedAdaptiveSharded.length !== chunks.length) {
+  console.error('Expected loadChunkMeta to read adaptive streaming sharded chunk_meta.');
+  process.exit(1);
+}
+
+await runWriter({
+  chunkMetaStreaming: true,
+  chunkMetaUseJsonl: true,
+  chunkMetaUseShards: false,
+  chunkMetaShardSize: 100000,
+  chunkMetaCount: chunks.length
+}, { maxJsonBytes: 65536 });
+
+if (!fs.existsSync(jsonlPath)) {
+  console.error('Expected adaptive streaming chunk_meta to promote single-part output to chunk_meta.jsonl.');
+  process.exit(1);
+}
+if (fs.existsSync(metaPath) || fs.existsSync(partsDir)) {
+  console.error('Expected adaptive streaming chunk_meta sharded artifacts to be removed after promotion to chunk_meta.jsonl.');
+  process.exit(1);
+}
+const loadedAdaptivePromoted = await loadChunkMeta(outDir);
+if (!Array.isArray(loadedAdaptivePromoted) || loadedAdaptivePromoted.length !== chunks.length) {
+  console.error('Expected loadChunkMeta to read adaptive streaming promoted chunk_meta.jsonl.');
   process.exit(1);
 }
 

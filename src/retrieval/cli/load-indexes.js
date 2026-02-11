@@ -120,7 +120,7 @@ export async function loadSearchIndexes({
     || needsFilterIndex
     || needsFileRelations
   );
-  const lazyDenseVectorsEnabled = userConfig?.retrieval?.dense?.lazyLoad === true;
+  const lazyDenseVectorsEnabled = userConfig?.retrieval?.dense?.lazyLoad !== false;
 
   const proseIndexDir = runProse ? resolveIndexDir(rootDir, 'prose', userConfig) : null;
   const codeIndexDir = runCode ? resolveIndexDir(rootDir, 'code', userConfig) : null;

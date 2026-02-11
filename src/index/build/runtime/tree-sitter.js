@@ -17,16 +17,16 @@ const normalizeSchedulerTransport = (raw) => {
   return 'disk';
 };
 const normalizeSchedulerFormat = (raw) => {
-  if (typeof raw !== 'string') return 'jsonl';
+  if (typeof raw !== 'string') return 'binary-v1';
   const value = raw.trim().toLowerCase();
   if (value === 'binary-v1' || value === 'jsonl') return value;
-  return 'jsonl';
+  return 'binary-v1';
 };
 const normalizeSchedulerStore = (raw) => {
-  if (typeof raw !== 'string') return 'rows';
+  if (typeof raw !== 'string') return 'paged-json';
   const value = raw.trim().toLowerCase();
   if (value === 'paged-json' || value === 'rows') return value;
-  return 'rows';
+  return 'paged-json';
 };
 const normalizeSchedulerCodec = (raw) => {
   if (typeof raw !== 'string') return 'none';
@@ -55,6 +55,11 @@ const normalizePreloadMode = (raw) => {
   return 'none';
 };
 
+/**
+ * Resolve runtime tree-sitter caps and scheduler settings from indexing config.
+ * @param {object} indexingConfig
+ * @returns {object}
+ */
 export const resolveTreeSitterRuntime = (indexingConfig) => {
   const treeSitterConfig = indexingConfig.treeSitter || {};
   const treeSitterEnabled = treeSitterConfig.enabled !== false;
@@ -81,7 +86,7 @@ export const resolveTreeSitterRuntime = (indexingConfig) => {
     && typeof treeSitterConfig.scheduler === 'object'
     ? treeSitterConfig.scheduler
     : {};
-  const treeSitterCachePersistent = treeSitterConfig.cachePersistent === true;
+  const treeSitterCachePersistent = treeSitterConfig.cachePersistent !== false;
   const treeSitterCachePersistentDir = normalizeOptionalString(treeSitterConfig.cachePersistentDir);
   const treeSitterBatchByLanguage = treeSitterConfig.batchByLanguage !== false;
   const treeSitterBatchEmbeddedLanguages = treeSitterConfig.batchEmbeddedLanguages !== false;
@@ -132,6 +137,11 @@ export const resolveTreeSitterRuntime = (indexingConfig) => {
   };
 };
 
+/**
+ * Legacy preload hook (no-op): grammars now activate lazily in scheduler paths.
+ * @param {object} input
+ * @returns {Promise<number>}
+ */
 export const preloadTreeSitterRuntimeLanguages = async ({
   treeSitterEnabled,
   treeSitterLanguages: _treeSitterLanguages,

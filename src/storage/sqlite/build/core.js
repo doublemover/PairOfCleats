@@ -14,6 +14,11 @@ const normalizeStatementStrategy = (value) => {
     : 'multi-row';
 };
 
+/**
+ * Build shared execution metadata and counters for sqlite artifact ingestion.
+ * @param {{batchSize?:number,inputBytes?:number,statementStrategy?:string,stats?:object}} input
+ * @returns {{resolvedBatchSize:number,batchStats:object|null,resolvedStatementStrategy:string,recordBatch:function,recordTable:function}}
+ */
 export const createBuildExecutionContext = ({ batchSize, inputBytes, statementStrategy, stats }) => {
   const resolvedBatchSize = resolveSqliteBatchSize({ batchSize, inputBytes });
   const batchStats = stats && typeof stats === 'object' ? stats : null;
@@ -45,6 +50,11 @@ export const createBuildExecutionContext = ({ batchSize, inputBytes, statementSt
   };
 };
 
+/**
+ * Open and initialize the sqlite build database with tuned pragmas.
+ * @param {{Database:any,outPath:string,batchStats?:object,inputBytes?:number,useBuildPragmas?:boolean}} input
+ * @returns {{db:any,pragmaState:object|null}}
+ */
 export const openSqliteBuildDatabase = ({
   Database,
   outPath,
@@ -82,9 +92,18 @@ const createOptionalMultiRowInserter = (db, enabled, options) => (
   enabled ? createMultiRowInserter(db, options) : null
 );
 
+/**
+ * Create prepared/multi-row inserters for all sqlite output tables.
+ * @param {any} db
+ * @param {{batchStats?:object,resolvedStatementStrategy?:string}} input
+ * @returns {object}
+ */
 export const createSqliteBuildInsertContext = (db, { batchStats, resolvedStatementStrategy }) => {
   const statements = createInsertStatements(db, { updateMode: 'full', stats: batchStats });
-  const insertClause = batchStats?.insertStatements?.insertClause || 'INSERT OR REPLACE';
+  const insertClause = statements.insertClause || batchStats?.insertStatements?.insertClause || 'INSERT';
+  const tokenPostingsConflictClause = insertClause === 'INSERT'
+    ? 'ON CONFLICT(mode, token_id, doc_id) DO UPDATE SET tf = token_postings.tf + excluded.tf'
+    : '';
   const useMultiRow = resolvedStatementStrategy === 'multi-row';
   return {
     ...statements,
@@ -101,6 +120,9 @@ export const createSqliteBuildInsertContext = (db, { batchStats, resolvedStateme
       table: 'token_postings',
       columns: ['mode', 'token_id', 'doc_id', 'tf'],
       insertClause,
+      conflictClause: tokenPostingsConflictClause,
+      dedupeKeyIndices: [0, 1, 2],
+      dedupeSumIndex: 3,
       maxRows: 200,
       stats: batchStats
     }),
@@ -142,16 +164,34 @@ export const createSqliteBuildInsertContext = (db, { batchStats, resolvedStateme
   };
 };
 
+/**
+ * Begin a tracked sqlite transaction.
+ * @param {any} db
+ * @param {object} [batchStats]
+ * @returns {void}
+ */
 export const beginSqliteBuildTransaction = (db, batchStats) => {
   db.exec('BEGIN');
   if (batchStats?.transaction) batchStats.transaction.begin += 1;
 };
 
+/**
+ * Commit a tracked sqlite transaction.
+ * @param {any} db
+ * @param {object} [batchStats]
+ * @returns {void}
+ */
 export const commitSqliteBuildTransaction = (db, batchStats) => {
   db.exec('COMMIT');
   if (batchStats?.transaction) batchStats.transaction.commit += 1;
 };
 
+/**
+ * Roll back a tracked sqlite transaction when active.
+ * @param {any} db
+ * @param {object} [batchStats]
+ * @returns {void}
+ */
 export const rollbackSqliteBuildTransaction = (db, batchStats) => {
   if (!db?.inTransaction) return;
   try {
@@ -160,6 +200,11 @@ export const rollbackSqliteBuildTransaction = (db, batchStats) => {
   } catch {}
 };
 
+/**
+ * Run optimize/validate/checkpoint steps after write transaction completion.
+ * @param {object} input
+ * @returns {void}
+ */
 export const runSqliteBuildPostCommit = ({
   db,
   mode,
@@ -192,6 +237,11 @@ export const runSqliteBuildPostCommit = ({
   } catch {}
 };
 
+/**
+ * Close sqlite build db and clean sidecars when build fails.
+ * @param {{db:any,succeeded:boolean,pragmaState?:object|null,outPath:string,warn?:(err:Error)=>void}} input
+ * @returns {Promise<void>}
+ */
 export const closeSqliteBuildDatabase = async ({
   db,
   succeeded,

@@ -125,7 +125,7 @@ export async function runSearchSession({
     throw error;
   };
   throwIfAborted();
-  const annAdaptiveProviders = userConfig?.retrieval?.ann?.adaptiveProviders === true;
+  const annAdaptiveProviders = userConfig?.retrieval?.ann?.adaptiveProviders !== false;
   const searchPipeline = createSearchPipeline({
     useSqlite,
     sqliteFtsRequested,

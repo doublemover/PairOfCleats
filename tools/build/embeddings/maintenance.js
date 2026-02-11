@@ -6,16 +6,26 @@ const toFiniteNonNegative = (value, fallback) => {
   return parsed;
 };
 
+/**
+ * Normalize embeddings maintenance policy with safe defaults.
+ * @param {object} [raw]
+ * @returns {{background:boolean,sqliteWalMaxBytes:number,sqliteMinDbBytes:number,sqliteMinDenseCount:number}}
+ */
 export function normalizeEmbeddingsMaintenanceConfig(raw = {}) {
   const maintenance = raw && typeof raw === 'object' ? raw : {};
   return {
-    background: maintenance.background === true,
+    background: maintenance.background !== false,
     sqliteWalMaxBytes: toFiniteNonNegative(maintenance.sqliteWalMaxBytes, 128 * MB),
     sqliteMinDbBytes: toFiniteNonNegative(maintenance.sqliteMinDbBytes, 512 * MB),
     sqliteMinDenseCount: Math.floor(toFiniteNonNegative(maintenance.sqliteMinDenseCount, 100000))
   };
 }
 
+/**
+ * Decide whether maintenance should be queued based on current sqlite metrics.
+ * @param {{config:object,dbBytes:number,walBytes:number,denseCount:number}} input
+ * @returns {{queue:boolean,reason:'disabled'|'wal-threshold'|'db-and-dense-threshold'|'below-threshold'}}
+ */
 export function shouldQueueSqliteMaintenance({
   config,
   dbBytes,

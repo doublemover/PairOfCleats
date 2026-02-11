@@ -419,7 +419,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   const commentsConfig = normalizeCommentConfig(indexingConfig.comments || {});
   const chunkingConfig = indexingConfig.chunking || {};
   const tokenizationConfig = indexingConfig.tokenization || {};
-  const tokenizationFileStream = tokenizationConfig.fileStream === true;
+  const tokenizationFileStream = tokenizationConfig.fileStream !== false;
   const chunking = {
     maxBytes: normalizeLimit(chunkingConfig.maxBytes, null),
     maxLines: normalizeLimit(chunkingConfig.maxLines, null)

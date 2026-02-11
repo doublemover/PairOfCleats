@@ -372,6 +372,7 @@ export async function buildDatabaseFromArtifacts({
   try {
     const vectorAnn = prepareVectorAnnTable({ db, indexData: index, mode, vectorConfig });
     const {
+      insertClause,
       insertTokenVocab,
       insertTokenPosting,
       insertDocLength,
@@ -722,6 +723,9 @@ export async function buildDatabaseFromArtifacts({
       let tokenId = 0;
       let vocabRows = 0;
       let postingRows = 0;
+      const tokenPostingsConflictClause = insertClause === 'INSERT'
+        ? ' ON CONFLICT(mode, token_id, doc_id) DO UPDATE SET tf = token_postings.tf + excluded.tf'
+        : '';
       const vocabStart = performance.now();
       const postingStart = performance.now();
       for (const shardPath of sources.parts) {
@@ -736,7 +740,7 @@ export async function buildDatabaseFromArtifacts({
           ? db.prepare(`${insertClause} INTO token_vocab (mode, token_id, token) VALUES (?, ?, ?)`)
           : insertTokenVocab;
         const insertTokenPostingStmt = resolvedStatementStrategy === 'prepare-per-shard'
-          ? db.prepare(`${insertClause} INTO token_postings (mode, token_id, doc_id, tf) VALUES (?, ?, ?, ?)`)
+          ? db.prepare(`${insertClause} INTO token_postings (mode, token_id, doc_id, tf) VALUES (?, ?, ?, ?)${tokenPostingsConflictClause}`)
           : insertTokenPosting;
         if (insertTokenVocabMany) {
           const rows = [];

@@ -8,6 +8,7 @@ import {
 } from '../shared/dict-utils.js';
 import { normalizePostingsConfig } from '../shared/postings-config.js';
 import {
+  MAX_JSON_BYTES,
   loadChunkMeta,
   loadGraphRelations,
   loadJsonArrayArtifact,
@@ -55,6 +56,35 @@ import {
 } from './validate/checks.js';
 
 const SQLITE_META_V2_PARITY_SAMPLE = 10;
+const VALIDATION_ARTIFACT_MAX_CAP_BYTES = 1024 * 1024 * 1024; // 1 GiB safety cap
+const VALIDATION_ARTIFACT_HEADROOM_BYTES = 8 * 1024 * 1024; // absorb small metadata drift
+
+const resolveArtifactValidationMaxBytes = ({
+  manifest,
+  artifactNames,
+  baseMaxBytes = MAX_JSON_BYTES
+}) => {
+  let resolved = Number.isFinite(Number(baseMaxBytes))
+    ? Math.max(1, Math.floor(Number(baseMaxBytes)))
+    : MAX_JSON_BYTES;
+  const names = artifactNames instanceof Set
+    ? artifactNames
+    : new Set(Array.isArray(artifactNames) ? artifactNames : []);
+  if (!names.size) return resolved;
+  const pieces = Array.isArray(manifest?.pieces) ? manifest.pieces : [];
+  for (const piece of pieces) {
+    const name = typeof piece?.name === 'string' ? piece.name : '';
+    if (!names.has(name)) continue;
+    const bytes = Number(piece?.bytes);
+    if (!Number.isFinite(bytes) || bytes <= 0) continue;
+    const candidate = Math.min(
+      VALIDATION_ARTIFACT_MAX_CAP_BYTES,
+      Math.max(1, Math.floor(bytes + VALIDATION_ARTIFACT_HEADROOM_BYTES))
+    );
+    if (candidate > resolved) resolved = candidate;
+  }
+  return resolved;
+};
 
 const hashOrderingRows = (
   rows,
@@ -246,8 +276,20 @@ export async function validateIndexArtifacts(input = {}) {
     try {
       let chunkMeta = null;
       const indexState = readJsonArtifact('index_state', { required: strict });
+      const chunkMetaMaxBytes = resolveArtifactValidationMaxBytes({
+        manifest,
+        artifactNames: new Set([
+          'chunk_meta',
+          'chunk_meta_binary_columnar',
+          'chunk_meta_cold'
+        ])
+      });
       try {
-        chunkMeta = await loadChunkMeta(dir, { manifest, strict });
+        chunkMeta = await loadChunkMeta(dir, {
+          manifest,
+          strict,
+          maxBytes: chunkMetaMaxBytes
+        });
       } catch (err) {
         addIssue(report, mode, `chunk_meta load failed (${err?.code || err?.message || err})`, 'Rebuild index artifacts for this mode.');
         modeReport.ok = false;

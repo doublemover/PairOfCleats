@@ -236,7 +236,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
     return { jsonPath, metaPath, binPath, binMetaPath };
   };
   const lanceConfig = normalizeLanceDbConfig(embeddingsConfig.lancedb || {});
-  const binaryDenseVectors = embeddingsConfig.binaryDenseVectors === true;
+  const binaryDenseVectors = embeddingsConfig.binaryDenseVectors !== false;
   const hnswIsolateOverride = typeof embeddingsConfig?.hnsw?.isolate === 'boolean'
     ? embeddingsConfig.hnsw.isolate
     : null;

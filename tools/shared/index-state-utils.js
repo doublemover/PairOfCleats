@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
-import { readJson } from '../../src/storage/sqlite/utils.js';
+import { MAX_JSON_BYTES, readJsonFile } from '../../src/shared/artifact-io.js';
 import { writeJsonObjectFile } from '../../src/shared/json-stream.js';
 import { checksumFile } from '../../src/shared/hash.js';
 
@@ -15,13 +15,18 @@ export const updateIndexStateManifest = async (indexDir) => {
   if (!fsSync.existsSync(manifestPath)) return;
   let manifest = null;
   try {
-    manifest = readJson(manifestPath) || null;
+    manifest = readJsonFile(manifestPath, { maxBytes: MAX_JSON_BYTES }) || null;
   } catch {
     return;
   }
   if (!manifest || !Array.isArray(manifest.pieces)) return;
   const statePath = path.join(indexDir, 'index_state.json');
   if (!fsSync.existsSync(statePath)) return;
+  const targetIndex = manifest.pieces.findIndex((piece) => (
+    (piece?.path === 'index_state.json')
+    || (piece?.name === 'index_state')
+  ));
+  if (targetIndex < 0) return;
   let bytes = null;
   let checksum = null;
   let checksumAlgo = null;
@@ -32,17 +37,22 @@ export const updateIndexStateManifest = async (indexDir) => {
     checksum = result?.value || null;
     checksumAlgo = result?.algo || null;
   } catch {}
-  if (!bytes || !checksum) return;
-  const pieces = manifest.pieces.map((piece) => {
-    if (piece?.name !== 'index_state' || piece?.path !== 'index_state.json') {
-      return piece;
-    }
-    return {
-      ...piece,
-      bytes,
-      checksum: checksum && checksumAlgo ? `${checksumAlgo}:${checksum}` : piece.checksum
-    };
-  });
+  if (!Number.isFinite(Number(bytes)) || Number(bytes) < 0 || !checksum) return;
+  const nextChecksum = checksum && checksumAlgo ? `${checksumAlgo}:${checksum}` : null;
+  const current = manifest.pieces[targetIndex] || {};
+  if (current.path === 'index_state.json'
+    && Number(current.bytes) === Number(bytes)
+    && String(current.checksum || '') === String(nextChecksum || '')) {
+    return;
+  }
+  const pieces = [...manifest.pieces];
+  pieces[targetIndex] = {
+    ...current,
+    path: 'index_state.json',
+    name: current.name || 'index_state',
+    bytes,
+    checksum: nextChecksum || current.checksum || null
+  };
   const next = {
     ...manifest,
     updatedAt: new Date().toISOString(),

@@ -17,22 +17,52 @@ export const TOKEN_ID_META = {
   encoding: 'hex64'
 };
 
+/**
+ * Format a 64-bit hash value as zero-padded lowercase hex.
+ * @param {bigint} value
+ * @returns {string}
+ */
 export const formatHash64 = (value) => {
   const hex = value.toString(16);
   return hex.length >= 16 ? hex.slice(-16) : hex.padStart(16, '0');
 };
 
+/**
+ * Parse a hash-like value into an unsigned 64-bit bigint.
+ * @param {string|number|bigint} value
+ * @returns {bigint}
+ */
 export const parseHash64 = (value) => {
   if (typeof value === 'bigint') return value & MASK_64;
   if (typeof value === 'number' && Number.isFinite(value)) return BigInt(value) & MASK_64;
   if (typeof value === 'string') {
-    const trimmed = value.startsWith('0x') ? value.slice(2) : value;
-    if (!trimmed) return 0n;
-    return BigInt(`0x${trimmed}`) & MASK_64;
+    let text = value.trim();
+    if (!text) return 0n;
+    // Accept BigInt-literal-like strings observed in logs/serialized debug paths,
+    // e.g. "0xabc...n" / "123n", while never throwing on malformed fragments.
+    if (text.endsWith('n') || text.endsWith('N')) {
+      text = text.slice(0, -1).trim();
+    }
+    if (!text) return 0n;
+    const prefixed = text.startsWith('0x') || text.startsWith('0X');
+    const digits = prefixed ? text.slice(2) : text;
+    if (!digits) return 0n;
+    if (!/^[0-9a-fA-F]+$/.test(digits)) return 0n;
+    try {
+      return BigInt(`0x${digits}`) & MASK_64;
+    } catch {
+      return 0n;
+    }
   }
   return 0n;
 };
 
+/**
+ * Hash one token string to a deterministic unsigned 64-bit id.
+ * @param {string} token
+ * @param {bigint|number|string} [seed]
+ * @returns {bigint}
+ */
 export const hashTokenId64 = (token, seed = DEFAULT_TOKEN_ID_SEED) => {
   if (typeof token !== 'string' || !token) return 0n;
   let hash = FNV_OFFSET_BASIS ^ normalizeSeed(seed);
@@ -45,6 +75,12 @@ export const hashTokenId64 = (token, seed = DEFAULT_TOKEN_ID_SEED) => {
 
 // Hash multiple string-like parts without concatenating them into a single buffer.
 // Uses a 0-byte delimiter between parts to avoid ambiguity.
+/**
+ * Hash multiple token parts without allocating a concatenated string.
+ * @param {Array<string|number|bigint>} parts
+ * @param {bigint|number|string} [seed]
+ * @returns {bigint}
+ */
 export const hashTokenId64Parts = (parts, seed = DEFAULT_TOKEN_ID_SEED) => {
   if (!Array.isArray(parts) || parts.length === 0) return 0n;
   let hash = FNV_OFFSET_BASIS ^ normalizeSeed(seed);
@@ -64,6 +100,14 @@ export const hashTokenId64Parts = (parts, seed = DEFAULT_TOKEN_ID_SEED) => {
   return hash & MASK_64;
 };
 
+/**
+ * Hash a window of pre-hashed token ids without allocating a sliced array.
+ * @param {Array<string|number|bigint>} parts
+ * @param {number} [start]
+ * @param {number|null} [length]
+ * @param {bigint|number|string} [seed]
+ * @returns {bigint}
+ */
 export const hashTokenId64Window = (
   parts,
   start = 0,
@@ -89,6 +133,12 @@ export const hashTokenId64Window = (
   return hash & MASK_64;
 };
 
+/**
+ * Hash one token and return canonical 16-char hex id.
+ * @param {string} token
+ * @param {{seed?:bigint|number|string}} [options]
+ * @returns {string}
+ */
 export const hashTokenId = (token, { seed = DEFAULT_TOKEN_ID_SEED } = {}) => (
   formatHash64(hashTokenId64(token, seed))
 );
@@ -117,6 +167,9 @@ const hash64ToIndex = (value, mask) => {
   return Number(mixed);
 };
 
+/**
+ * Open-addressed hash map specialized for token-posting aggregation keyed by hash64.
+ */
 export class OpenAddressedTokenPostingMap {
   constructor({ initialCapacity = TYPED_MAP_DEFAULT_CAPACITY, maxLoad = TYPED_MAP_MAX_LOAD } = {}) {
     const capacity = normalizeTypedMapCapacity(initialCapacity);
@@ -281,4 +334,9 @@ export class OpenAddressedTokenPostingMap {
   }
 }
 
+/**
+ * Create a typed open-addressed posting map optimized for 64-bit token ids.
+ * @param {{initialCapacity?:number,maxLoad?:number}} [options]
+ * @returns {OpenAddressedTokenPostingMap}
+ */
 export const createTypedTokenPostingMap = (options = {}) => new OpenAddressedTokenPostingMap(options);

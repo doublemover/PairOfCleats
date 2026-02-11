@@ -144,11 +144,11 @@ export async function writeIndexArtifacts(input) {
   const chunkMetaFormatConfig = typeof artifactConfig.chunkMetaFormat === 'string'
     ? artifactConfig.chunkMetaFormat.toLowerCase()
     : null;
-  const binaryColumnarEnabled = artifactConfig.binaryColumnar === true;
+  const binaryColumnarEnabled = artifactConfig.binaryColumnar !== false;
   const chunkMetaBinaryColumnar = artifactConfig.chunkMetaBinaryColumnar === true
-    || binaryColumnarEnabled;
+    || (binaryColumnarEnabled && artifactConfig.chunkMetaBinaryColumnar !== false);
   const tokenPostingsBinaryColumnar = artifactConfig.tokenPostingsBinaryColumnar === true
-    || binaryColumnarEnabled;
+    || (binaryColumnarEnabled && artifactConfig.tokenPostingsBinaryColumnar !== false);
   const chunkMetaJsonlThreshold = Number.isFinite(Number(artifactConfig.chunkMetaJsonlThreshold))
     ? Math.max(0, Math.floor(Number(artifactConfig.chunkMetaJsonlThreshold)))
     : 200000;
@@ -158,7 +158,7 @@ export async function writeIndexArtifacts(input) {
   const indexerConfig = indexingConfig.indexer && typeof indexingConfig.indexer === 'object'
     ? indexingConfig.indexer
     : {};
-  const chunkMetaStreaming = indexerConfig.streamingChunks === true;
+  const chunkMetaStreaming = indexerConfig.streamingChunks !== false;
   const symbolArtifactsFormatConfig = typeof artifactConfig.symbolArtifactsFormat === 'string'
     ? artifactConfig.symbolArtifactsFormat.toLowerCase()
     : null;

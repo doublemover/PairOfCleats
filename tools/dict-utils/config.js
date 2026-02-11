@@ -257,6 +257,12 @@ function normalizeUserConfig(baseConfig) {
   if (isPlainObject(baseConfig.retrieval)) {
     const retrieval = baseConfig.retrieval;
     const normalizedRetrieval = {};
+    if (isPlainObject(retrieval.dense)) {
+      normalizedRetrieval.dense = retrieval.dense;
+    }
+    if (isPlainObject(retrieval.ann)) {
+      normalizedRetrieval.ann = retrieval.ann;
+    }
     if (isPlainObject(retrieval.graph)) {
       const graph = {};
       if (isPlainObject(retrieval.graph.caps)) graph.caps = retrieval.graph.caps;

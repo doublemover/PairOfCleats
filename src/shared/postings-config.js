@@ -88,8 +88,8 @@ export function normalizePostingsConfig(input = {}) {
   const chargramMaxDf = Number.isFinite(chargramMaxDfRaw)
     ? Math.max(0, Math.floor(chargramMaxDfRaw))
     : 0;
-  const phraseHash = cfg.phraseHash === true;
-  const typed = cfg.typed === true;
+  const phraseHash = cfg.phraseHash !== false;
+  const typed = cfg.typed !== false;
 
   return {
     enablePhraseNgrams,

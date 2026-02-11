@@ -41,13 +41,44 @@ export function dequantizeUint8ToFloat32(vec, minVal = -1, maxVal = 1, levels = 
 /**
  * Normalize a vector id to BigInt when possible.
  * @param {string|number|bigint} value
- * @returns {bigint|number|string}
+ * @returns {bigint}
  */
 export function toSqliteRowId(value) {
+  if (typeof value === 'bigint') return value;
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) return 0n;
+    return BigInt(Math.trunc(value));
+  }
+  if (typeof value === 'string') {
+    let text = value.trim();
+    if (!text) return 0n;
+    if (text.endsWith('n') || text.endsWith('N')) {
+      text = text.slice(0, -1).trim();
+    }
+    if (!text) return 0n;
+    if (/^[+-]?\d+$/.test(text)) {
+      try {
+        return BigInt(text);
+      } catch {
+        return 0n;
+      }
+    }
+    if (/^[+-]?0[xX][0-9a-fA-F]*$/.test(text)) {
+      const sign = text.startsWith('-') ? -1n : 1n;
+      const digits = text.replace(/^[+-]?0[xX]/, '');
+      if (!digits) return 0n;
+      try {
+        return sign * BigInt(`0x${digits}`);
+      } catch {
+        return 0n;
+      }
+    }
+    return 0n;
+  }
   try {
     return BigInt(value);
   } catch {
-    return value;
+    return 0n;
   }
 }
 

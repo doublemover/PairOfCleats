@@ -12,6 +12,7 @@ import {
   stripChunkMetaColdFields
 } from '../../../../shared/chunk-meta-cold.js';
 import {
+  replaceFile,
   writeJsonLinesFile,
   writeJsonLinesFileAsync,
   writeJsonLinesSharded,
@@ -234,6 +235,11 @@ const compareChunkMetaIdOnly = (a, b) => {
   return 0;
 };
 
+/**
+ * Return a stable permutation when chunk_meta rows are out of canonical order.
+ * @param {Array<object>} chunks
+ * @returns {number[]|null}
+ */
 export const resolveChunkMetaOrder = (chunks) => {
   if (!Array.isArray(chunks) || chunks.length <= 1) return null;
   let prev = chunks[0];
@@ -248,6 +254,11 @@ export const resolveChunkMetaOrder = (chunks) => {
   return null;
 };
 
+/**
+ * Return an id-ascending permutation for chunk_meta rows when ids are present but unsorted.
+ * @param {Array<object>} chunks
+ * @returns {number[]|null}
+ */
 export const resolveChunkMetaOrderById = (chunks) => {
   if (!Array.isArray(chunks) || chunks.length <= 1) return null;
   let prevId = null;
@@ -273,6 +284,11 @@ export const resolveChunkMetaOrderById = (chunks) => {
   });
 };
 
+/**
+ * Create a reusable chunk_meta iterator that can optionally emit trimming stats.
+ * @param {{chunks:Array<object>,fileIdByPath:Map<string,number>,resolvedTokenMode:string,tokenSampleSize:number,maxJsonBytes:number,order?:number[]|null}} input
+ * @returns {(start?:number,end?:number,trackStats?:boolean)=>IterableIterator<object>}
+ */
 export const createChunkMetaIterator = ({
   chunks,
   fileIdByPath,
@@ -432,6 +448,11 @@ const buildColumnarChunkMeta = (chunkMetaIterator, chunkMetaCount) => {
   };
 };
 
+/**
+ * Decide chunk_meta artifact mode/sharding based on estimated row size and limits.
+ * @param {{chunks:Array<object>,chunkMetaIterator:function,artifactMode:string,chunkMetaFormatConfig?:string|null,chunkMetaStreaming?:boolean,chunkMetaBinaryColumnar?:boolean,chunkMetaJsonlThreshold:number,chunkMetaShardSize:number,maxJsonBytes?:number}} input
+ * @returns {object}
+ */
 export const resolveChunkMetaPlan = ({
   chunks,
   chunkMetaIterator,
@@ -505,6 +526,11 @@ export const resolveChunkMetaPlan = ({
   };
 };
 
+/**
+ * Queue chunk_meta artifact writes for the resolved format plan.
+ * @param {object} input
+ * @returns {Promise<void>}
+ */
 export const enqueueChunkMetaArtifacts = async ({
   outDir,
   mode,
@@ -646,6 +672,7 @@ export const enqueueChunkMetaArtifacts = async ({
   let resolvedUseJsonl = chunkMetaUseJsonl;
   let resolvedUseShards = chunkMetaUseShards;
   let resolvedUseColumnar = chunkMetaUseColumnar;
+  let streamingAdaptiveSharding = false;
   let measured = null;
   let collected = null;
   let jsonlScan = null;
@@ -655,6 +682,12 @@ export const enqueueChunkMetaArtifacts = async ({
     resolvedUseJsonl = true;
     resolvedUseColumnar = false;
     resolvedUseShards = chunkMetaShardSize > 0 && chunkMetaCount > chunkMetaShardSize;
+    if (!resolvedUseShards) {
+      // Streaming mode avoids a full pre-scan, so force byte-bounded shard writes.
+      // If the output fits in a single part we promote it back to chunk_meta.jsonl.
+      resolvedUseShards = true;
+      streamingAdaptiveSharding = true;
+    }
   }
   if (!resolvedUseJsonl) {
     measured = chunkMetaCount
@@ -776,6 +809,7 @@ export const enqueueChunkMetaArtifacts = async ({
       extra: {
         format: resolvedUseShards ? 'jsonl-sharded' : 'jsonl',
         streaming: chunkMetaStreaming === true,
+        adaptiveSharding: streamingAdaptiveSharding,
         hotColdSplit: enableHotColdSplit,
         coldBytes: jsonlScan.coldJsonlBytes || 0,
         trimmedMetaV2,
@@ -981,6 +1015,42 @@ export const enqueueChunkMetaArtifacts = async ({
               gzipOptions,
               offsets: offsetsConfig
             });
+          const canPromoteFromSinglePart = streamingAdaptiveSharding
+            && !enableHotColdSplit
+            && result.parts.length === 1
+            && (
+              !offsetsPath
+              || (Array.isArray(result.offsets) && result.offsets.length === 1)
+            );
+          if (canPromoteFromSinglePart) {
+            const relPath = result.parts[0];
+            const absPath = path.join(outDir, fromPosix(relPath));
+            await replaceFile(absPath, jsonlPath);
+            if (offsetsPath && Array.isArray(result.offsets) && result.offsets[0]) {
+              const relOffsetPath = result.offsets[0];
+              const absOffsetPath = path.join(outDir, fromPosix(relOffsetPath));
+              await replaceFile(absOffsetPath, offsetsPath);
+            }
+            await removeArtifact(path.join(outDir, 'chunk_meta.parts'));
+            await removeArtifact(metaPath);
+            addPieceFile({
+              type: 'chunks',
+              name: 'chunk_meta',
+              format: 'jsonl',
+              count: chunkMetaCount,
+              compression: compression || null
+            }, jsonlPath);
+            if (offsetsPath) {
+              addPieceFile({
+                type: 'chunks',
+                name: 'chunk_meta_offsets',
+                format: 'bin',
+                count: chunkMetaCount
+              }, offsetsPath);
+            }
+            await cleanupCollected();
+            return;
+          }
           const parts = buildShardedPartEntries(result);
           const offsetsMeta = createOffsetsMeta({
             suffix: offsetsConfig?.suffix || null,

@@ -27,8 +27,11 @@ const normalizeInsertClause = (value) => {
  * @param {string} options.table
  * @param {string[]} options.columns
  * @param {string} [options.insertClause] - e.g. "INSERT" or "INSERT OR REPLACE"
+ * @param {string} [options.conflictClause] - optional trailing ON CONFLICT clause
  * @param {number} [options.maxVariables]
  * @param {number} [options.maxRows]
+ * @param {number[]} [options.dedupeKeyIndices] - column indexes that define row identity
+ * @param {number} [options.dedupeSumIndex] - numeric column index summed across deduped rows
  * @param {object} [options.stats]
  * @returns {(rows: any[][]) => void}
  */
@@ -42,6 +45,9 @@ export function createMultiRowInserter(db, options = {}) {
   if (!columns.length) throw new Error('[sqlite] createMultiRowInserter: columns are required.');
 
   const insertClause = normalizeInsertClause(options.insertClause);
+  const conflictClause = typeof options.conflictClause === 'string'
+    ? options.conflictClause.trim()
+    : '';
   const maxVariables = clampInt(
     Number(options.maxVariables) || DEFAULT_SQLITE_MAX_VARIABLES,
     1,
@@ -61,13 +67,24 @@ export function createMultiRowInserter(db, options = {}) {
 
   const placeholdersPerRow = `(${columns.map(() => '?').join(',')})`;
   const statementCache = new Map();
+  const dedupeKeyIndices = Array.isArray(options.dedupeKeyIndices)
+    ? options.dedupeKeyIndices
+      .map((value) => Number(value))
+      .filter((value) => Number.isInteger(value) && value >= 0 && value < columns.length)
+    : null;
+  const dedupeSumIndexRaw = Number(options.dedupeSumIndex);
+  const dedupeSumIndex = Number.isInteger(dedupeSumIndexRaw)
+    && dedupeSumIndexRaw >= 0
+    && dedupeSumIndexRaw < columns.length
+    ? dedupeSumIndexRaw
+    : null;
 
   const getStatement = (rowCount) => {
     const count = clampInt(rowCount, 1, maxRows);
     const cached = statementCache.get(count);
     if (cached) return cached;
     const placeholders = Array.from({ length: count }, () => placeholdersPerRow).join(',');
-    const sql = `${insertClause} INTO ${table} (${columns.join(',')}) VALUES ${placeholders}`;
+    const sql = `${insertClause} INTO ${table} (${columns.join(',')}) VALUES ${placeholders}${conflictClause ? ` ${conflictClause}` : ''}`;
     const stmt = db.prepare(sql);
     statementCache.set(count, stmt);
     if (tableStats) {
@@ -78,14 +95,47 @@ export function createMultiRowInserter(db, options = {}) {
 
   const insertRows = (rows) => {
     if (!rows || !rows.length) return;
+    const originalRowsLength = rows.length;
+    let sourceRows = rows;
+    if (dedupeKeyIndices && dedupeKeyIndices.length && dedupeSumIndex !== null && rows.length > 1) {
+      const deduped = [];
+      const byKey = new Map();
+      for (const row of rows) {
+        if (!Array.isArray(row) || row.length !== columns.length) {
+          throw new Error(
+            `[sqlite] createMultiRowInserter(${table}): row shape mismatch; ` +
+            `expected ${columns.length} values, got ${Array.isArray(row) ? row.length : typeof row}`
+          );
+        }
+        const key = dedupeKeyIndices.map((idx) => String(row[idx])).join('\u001f');
+        const seen = byKey.get(key);
+        if (seen === undefined) {
+          const next = row.slice();
+          const value = Number(next[dedupeSumIndex]);
+          next[dedupeSumIndex] = Number.isFinite(value) ? value : 0;
+          byKey.set(key, deduped.length);
+          deduped.push(next);
+          continue;
+        }
+        const merged = deduped[seen];
+        const current = Number(merged[dedupeSumIndex]);
+        const incoming = Number(row[dedupeSumIndex]);
+        merged[dedupeSumIndex] = (Number.isFinite(current) ? current : 0) + (Number.isFinite(incoming) ? incoming : 0);
+      }
+      sourceRows = deduped;
+    }
+    if (tableStats) {
+      tableStats.inputRows = (tableStats.inputRows || 0) + originalRowsLength;
+      tableStats.dedupedRows = (tableStats.dedupedRows || 0) + Math.max(0, originalRowsLength - sourceRows.length);
+    }
     let index = 0;
-    while (index < rows.length) {
-      const remaining = rows.length - index;
+    while (index < sourceRows.length) {
+      const remaining = sourceRows.length - index;
       const take = remaining >= maxRows ? maxRows : remaining;
       const stmt = getStatement(take);
       const params = [];
       for (let i = 0; i < take; i += 1) {
-        const row = rows[index + i];
+        const row = sourceRows[index + i];
         if (!Array.isArray(row) || row.length !== columns.length) {
           throw new Error(
             `[sqlite] createMultiRowInserter(${table}): row shape mismatch; ` +

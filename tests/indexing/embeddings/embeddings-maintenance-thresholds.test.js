@@ -6,18 +6,22 @@ import {
 } from '../../../tools/build/embeddings/maintenance.js';
 
 const defaults = normalizeEmbeddingsMaintenanceConfig({});
-assert.equal(defaults.background, false, 'expected maintenance background disabled by default');
+assert.equal(defaults.background, true, 'expected maintenance background enabled by default');
 assert.equal(defaults.sqliteWalMaxBytes, 128 * 1024 * 1024, 'expected default sqlite WAL threshold');
 assert.equal(defaults.sqliteMinDbBytes, 512 * 1024 * 1024, 'expected default sqlite db threshold');
 assert.equal(defaults.sqliteMinDenseCount, 100000, 'expected default dense count threshold');
 
-const disabled = shouldQueueSqliteMaintenance({
+const defaultThresholdTriggered = shouldQueueSqliteMaintenance({
   config: {},
   dbBytes: 9e9,
   walBytes: 9e9,
   denseCount: 9e9
 });
-assert.deepEqual(disabled, { queue: false, reason: 'disabled' }, 'expected disabled maintenance result');
+assert.deepEqual(
+  defaultThresholdTriggered,
+  { queue: true, reason: 'wal-threshold' },
+  'expected default thresholds to trigger maintenance'
+);
 
 const walTriggered = shouldQueueSqliteMaintenance({
   config: {
