@@ -7,7 +7,10 @@ const cacheRoot = path.join(process.cwd(), 'tests', '.cache', 'mcp-build-index')
 const sampleRepo = path.join(process.cwd(), 'tests', 'fixtures', 'sample');
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 
-const { send, readMessage, notifications, shutdown } = await startMcpServer({ cacheRoot });
+const { send, readMessage, notifications, shutdown } = await startMcpServer({
+  cacheRoot,
+  timeoutMs: 120000
+});
 
 try {
   send({

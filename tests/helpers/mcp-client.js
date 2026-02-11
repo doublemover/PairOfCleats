@@ -121,7 +121,8 @@ export const startMcpServer = async ({
   mode = null,
   transport = null,
   env = {},
-  args = []
+  args = [],
+  timeoutMs = 30000
 }) => {
   if (!cacheRoot) throw new Error('cacheRoot is required');
   await fsPromises.mkdir(cacheRoot, { recursive: true });
@@ -149,11 +150,14 @@ export const startMcpServer = async ({
     ? createLineReader(server.stdout)
     : createReader(server.stdout);
   const { readMessage, readAnyMessage, notifications } = reader;
+  const resolvedTimeoutMs = Number.isFinite(Number(timeoutMs))
+    ? Math.max(1000, Math.floor(Number(timeoutMs)))
+    : 30000;
   const timeout = setTimeout(() => {
     console.error('MCP server test timed out.');
     server.kill('SIGKILL');
     process.exit(1);
-  }, 30000);
+  }, resolvedTimeoutMs);
 
   const send = (payload) => {
     if (effectiveTransport === 'sdk') {
