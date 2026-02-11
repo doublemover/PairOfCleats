@@ -33,15 +33,39 @@ const createReader = (stream) => {
   const readRaw = async () => {
     const existing = tryRead();
     if (existing) return existing;
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const cleanup = () => {
+        stream.off('data', onData);
+        stream.off('end', onEnd);
+        stream.off('close', onEnd);
+        stream.off('error', onError);
+      };
       const onData = (chunk) => {
         buffer = Buffer.concat([buffer, chunk]);
         const parsed = tryRead();
         if (!parsed) return;
-        stream.off('data', onData);
+        if (settled) return;
+        settled = true;
+        cleanup();
         resolve(parsed);
       };
+      const onEnd = () => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(new Error('MCP server stream closed before a complete message was received.'));
+      };
+      const onError = (err) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(err);
+      };
       stream.on('data', onData);
+      stream.on('end', onEnd);
+      stream.on('close', onEnd);
+      stream.on('error', onError);
     });
   };
 
