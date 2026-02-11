@@ -15,6 +15,9 @@ const createTempToken = () => {
   return `${process.pid}-${hr}-${counter}-${random}`;
 };
 
+// Legacy Win32 APIs typically cap paths at 260 chars including the NUL terminator.
+const WINDOWS_PATH_BUDGET = 259;
+
 const waitForPath = async (targetPath, { attempts = 3, baseDelayMs = 10 } = {}) => {
   const resolvedAttempts = Number.isFinite(attempts) ? Math.max(1, Math.floor(attempts)) : 3;
   const resolvedBaseDelay = Number.isFinite(baseDelayMs) ? Math.max(1, Math.floor(baseDelayMs)) : 10;
@@ -39,7 +42,7 @@ export const createTempPath = (filePath) => {
   const token = createTempToken();
   const suffix = `.tmp-${token}`;
   const tempPath = `${filePath}${suffix}`;
-  if (process.platform !== 'win32' || tempPath.length <= 232) {
+  if (process.platform !== 'win32' || tempPath.length <= WINDOWS_PATH_BUDGET) {
     return tempPath;
   }
   const dir = path.dirname(filePath);
@@ -68,10 +71,8 @@ export const createTempPath = (filePath) => {
   };
 
   return (
-    buildCompactPath(232)
-    || buildCompactPath(240)
-    || buildCompactPathNoExt(232)
-    || buildCompactPathNoExt(240)
+    buildCompactPath(WINDOWS_PATH_BUDGET)
+    || buildCompactPathNoExt(WINDOWS_PATH_BUDGET)
     || tempPath
   );
 };
