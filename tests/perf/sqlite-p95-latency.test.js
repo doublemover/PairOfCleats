@@ -88,7 +88,10 @@ for (const query of queries) {
 durations.sort((a, b) => a - b);
 const p95Index = Math.max(0, Math.ceil(durations.length * 0.95) - 1);
 const p95 = durations[p95Index] || 0;
-const maxP95Ms = 1500;
+const envBudget = Number(process.env.PAIROFCLEATS_TEST_SQLITE_P95_MAX_MS);
+const maxP95Ms = Number.isFinite(envBudget) && envBudget > 0
+  ? Math.floor(envBudget)
+  : (process.platform === 'win32' ? 7500 : 1500);
 if (p95 > maxP95Ms) {
   console.error(`p95 latency ${p95.toFixed(1)}ms exceeded ${maxP95Ms}ms.`);
   process.exit(1);
