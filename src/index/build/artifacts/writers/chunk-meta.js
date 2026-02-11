@@ -1361,7 +1361,16 @@ export const enqueueChunkMetaArtifacts = async ({
     enqueueWrite(
       formatArtifactLabel(columnarPath),
       async () => {
-        await removeArtifact(path.join(outDir, 'chunk_meta.json'));
+        if (shouldWriteCompatChunkMetaJson) {
+          const compatRows = [];
+          for (const entry of chunkMetaIterator(0, chunkMetaCount, false)) {
+            compatRows.push(projectHotEntry(entry));
+          }
+          if (outOfOrder) compatRows.sort(compareChunkMetaIdOnly);
+          await writeJsonArrayFile(path.join(outDir, 'chunk_meta.json'), compatRows, { atomic: true });
+        } else {
+          await removeArtifact(path.join(outDir, 'chunk_meta.json'));
+        }
         await removeArtifact(path.join(outDir, 'chunk_meta.json.gz'));
         await removeArtifact(path.join(outDir, 'chunk_meta.json.zst'));
         const payload = buildColumnarChunkMeta(chunkMetaIterator, chunkMetaCount);
