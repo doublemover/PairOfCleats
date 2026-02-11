@@ -1,6 +1,6 @@
 # TES_LAYN_ROADMAP - USR-Aligned Language and Framework Execution Master Plan
 
-Last rewritten: 2026-02-11T00:45:00Z
+Last rewritten: 2026-02-11T01:05:00Z
 Branch: `LANGMANE`
 Document status: active master plan baseline v1.0
 
@@ -46,6 +46,7 @@ This roadmap is governed by these authoritative documents:
 - `docs/specs/usr-implementation-readiness-contract.md`
 - `docs/specs/usr-observability-and-slo-contract.md`
 - `docs/specs/usr-security-and-data-governance-contract.md`
+- `docs/specs/usr-audit-and-reporting-contract.md`
 - `docs/specs/metadata-schema-v2.md`
 - `docs/specs/identity-contract.md`
 - `docs/specs/identity-and-symbol-contracts.md`
@@ -571,6 +572,8 @@ If contradictions are found:
 - [ ] Emit implementation-readiness evidence scorecards and promotion blocker summaries.
 - [ ] Emit SLO budget compliance and alert evaluation dashboards.
 - [ ] Emit redaction/security gate compliance dashboards.
+- [ ] Validate section 30 report envelopes and row schemas per `docs/specs/usr-audit-and-reporting-contract.md`.
+- [ ] Emit automated section 31 scorecard artifact (`usr-release-readiness-scorecard.json`).
 
 ### 15.3 Maintenance
 
@@ -1255,6 +1258,7 @@ If contradictions are found:
 | `docs/specs/usr-implementation-readiness-contract.md` | promotion readiness domains, evidence, and blockers | 0, 9, 10, 15 |
 | `docs/specs/usr-observability-and-slo-contract.md` | lane/profile SLO budgets, alerts, and escalation policy | 8, 15 |
 | `docs/specs/usr-security-and-data-governance-contract.md` | redaction policy and strict security gate enforcement | 6, 14, 15 |
+| `docs/specs/usr-audit-and-reporting-contract.md` | required report envelopes, row schemas, and scorecard linkage | 10, 11, 12, 13, 14, 15 |
 | `docs/specs/usr/languages/<language-id>.md` | exhaustive per-language contract | 4, 7, 9, 11, 12 |
 
 ---
