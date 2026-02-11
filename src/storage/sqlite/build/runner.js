@@ -406,9 +406,14 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
       modeIndexDirs[mode] = resolveIndexDir(mode);
     }
     const indexPieces = {};
+    const indexPieceErrors = {};
     for (const mode of modeList) {
-      const pieces = await loadIndexPieces(modeIndexDirs[mode]);
-      if (pieces) indexPieces[mode] = pieces;
+      try {
+        const pieces = await loadIndexPieces(modeIndexDirs[mode]);
+        if (pieces) indexPieces[mode] = pieces;
+      } catch (err) {
+        indexPieceErrors[mode] = err;
+      }
     }
     const compactMode = argv.compact === true || (argv.compact == null && argv['no-compact'] !== true);
 
@@ -469,6 +474,17 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
       const workTask = taskFactory('Build', { stage: 'sqlite', mode });
       try {
         await fs.mkdir(outDir, { recursive: true });
+        const piecesLoadError = indexPieceErrors?.[mode];
+        if (piecesLoadError) {
+          const message = piecesLoadError?.message || String(piecesLoadError);
+          error(
+            `[sqlite:${mode}] Failed to load index pieces.` +
+            ` indexRoot=${indexRoot || '(none)'}` +
+            ` indexDir=${modeIndexDir || '(unresolved)'}` +
+            ` error=${message}`
+          );
+          throw new Error(`Failed to load index pieces for ${mode}: ${message}`);
+        }
         const pieces = indexPieces?.[mode];
         if (!pieces) {
           const indexDir = modeIndexDir || '(unresolved)';

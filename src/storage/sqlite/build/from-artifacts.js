@@ -767,6 +767,12 @@ export async function buildDatabaseFromArtifacts({
         const postings = Array.isArray(shard?.postings)
           ? shard.postings
           : (Array.isArray(shard?.arrays?.postings) ? shard.arrays.postings : []);
+        const postingCount = Math.min(postings.length, vocab.length);
+        if (postings.length > vocab.length) {
+          warn(
+            `[sqlite] token_postings shard has extra posting buckets (${postings.length} > ${vocab.length}); truncating extras.`
+          );
+        }
         const insertTokenVocabStmt = resolvedStatementStrategy === 'prepare-per-shard'
           ? db.prepare(`${insertClause} INTO token_vocab (mode, token_id, token) VALUES (?, ?, ?)`)
           : insertTokenVocab;
@@ -799,7 +805,7 @@ export async function buildDatabaseFromArtifacts({
         vocabRows += vocab.length;
         if (insertTokenPostingMany) {
           const rows = [];
-          for (let i = 0; i < postings.length; i += 1) {
+          for (let i = 0; i < postingCount; i += 1) {
             const posting = normalizeTfPostingRows(postings[i]);
             const postingTokenId = tokenId + i;
             for (const entry of posting) {
@@ -818,8 +824,8 @@ export async function buildDatabaseFromArtifacts({
             recordBatch('tokenPostingBatches');
           }
         } else {
-          for (let start = 0; start < postings.length; start += resolvedBatchSize) {
-            const end = Math.min(start + resolvedBatchSize, postings.length);
+          for (let start = 0; start < postingCount; start += resolvedBatchSize) {
+            const end = Math.min(start + resolvedBatchSize, postingCount);
             for (let i = start; i < end; i += 1) {
               const posting = normalizeTfPostingRows(postings[i]);
               const postingTokenId = tokenId + i;
