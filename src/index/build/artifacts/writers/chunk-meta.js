@@ -685,8 +685,10 @@ export const enqueueChunkMetaArtifacts = async ({
     if (!resolvedUseShards) {
       // Streaming mode avoids a full pre-scan, so force byte-bounded shard writes.
       // If the output fits in a single part we promote it back to chunk_meta.jsonl.
-      resolvedUseShards = true;
-      streamingAdaptiveSharding = true;
+      if (chunkMetaCount > 0) {
+        resolvedUseShards = true;
+        streamingAdaptiveSharding = true;
+      }
     }
   }
   if (!resolvedUseJsonl) {
