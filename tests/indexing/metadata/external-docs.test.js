@@ -58,7 +58,7 @@ const expectedUnscoped = 'https://www.npmjs.com/package/left-pad';
 const encodedScoped = 'https://www.npmjs.com/package/%40scope/pkg';
 
 const allDocs = files.flatMap((file) => file.externalDocs || []);
-const allowedHosts = new Set(['npmjs.com', 'pypi.org', 'pkg.go.dev']);
+const allowedHosts = new Set(['www.npmjs.com', 'npmjs.com', 'pypi.org', 'pkg.go.dev']);
 const isAllowedHost = (urlValue) => {
   let host = '';
   try {
