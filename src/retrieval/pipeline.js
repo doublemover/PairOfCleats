@@ -545,19 +545,21 @@ export function createSearchPipeline(context) {
 
         const ensureProviderPreflight = async (provider) => {
           if (!provider || typeof provider.preflight !== 'function') return true;
-          if (isProviderCoolingDown(provider, mode)) return false;
           const state = getProviderModeState(provider, mode);
           const now = Date.now();
-          if (
-            state
-            && state.preflight != null
-            && state.preflightCheckedAt
-            && (now - state.preflightCheckedAt) <= PREFLIGHT_CACHE_TTL_MS
-          ) {
-            if (state.preflight === true) return true;
-            // Failed preflight checks are only cacheable during provider cooldown.
-            // Once cooldown expires we must retry preflight to allow recovery.
-            if (state.disabledUntil > now) return false;
+          if (state) {
+            if (state.preflight === true) {
+              if (state.preflightCheckedAt && (now - state.preflightCheckedAt) <= PREFLIGHT_CACHE_TTL_MS) {
+                return true;
+              }
+            } else if (state.preflight === false) {
+              // Cache negative preflight results only during cooldown; retry once cooldown expires.
+              if (state.disabledUntil > now) return false;
+              state.preflight = null;
+              state.preflightCheckedAt = 0;
+            } else if (state.disabledUntil > now) {
+              return false;
+            }
           }
           try {
             const result = await provider.preflight({
@@ -567,9 +569,10 @@ export function createSearchPipeline(context) {
               signal
             });
             const ok = result !== false;
+            const checkedAt = Date.now();
             if (state) {
               state.preflight = ok;
-              state.preflightCheckedAt = now;
+              state.preflightCheckedAt = checkedAt;
             }
             if (!ok) {
               recordProviderFailure(provider, mode, 'preflight failed', { fromPreflight: true });
