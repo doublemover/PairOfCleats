@@ -229,6 +229,7 @@ export function createSearchPipeline(context) {
         failures: 0,
         disabledUntil: 0,
         preflight: null,
+        preflightFailureUntil: 0,
         preflightCheckedAt: 0,
         lastError: null,
         latencyEwmaMs: null,
@@ -257,8 +258,10 @@ export function createSearchPipeline(context) {
     if (fromPreflight) {
       state.preflight = false;
       state.preflightCheckedAt = now;
+      state.preflightFailureUntil = state.disabledUntil;
     } else {
       state.preflight = null;
+      state.preflightFailureUntil = 0;
       state.preflightCheckedAt = 0;
     }
   };
@@ -269,6 +272,7 @@ export function createSearchPipeline(context) {
     state.disabledUntil = 0;
     state.lastError = null;
     state.preflight = true;
+    state.preflightFailureUntil = 0;
     state.preflightCheckedAt = Date.now();
     if (Number.isFinite(Number(latencyMs)) && Number(latencyMs) >= 0) {
       const resolvedLatencyMs = Number(latencyMs);
@@ -558,10 +562,14 @@ export function createSearchPipeline(context) {
             } else if (state.preflight === false) {
               // Reuse failed preflight only while the provider is cooling down.
               // Once cooldown expires, force a fresh preflight probe.
-              if (state.disabledUntil > now) {
+              const failedUntil = Number.isFinite(Number(state.preflightFailureUntil))
+                ? Number(state.preflightFailureUntil)
+                : Number(state.disabledUntil || 0);
+              if (failedUntil > now) {
                 return false;
               }
               state.preflight = null;
+              state.preflightFailureUntil = 0;
               state.preflightCheckedAt = 0;
             } else if (state.disabledUntil > now) {
               return false;
