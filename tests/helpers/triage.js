@@ -4,6 +4,25 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const RETRYABLE_RM_CODES = new Set(['EBUSY', 'ENOTEMPTY', 'EPERM', 'EACCES', 'EMFILE', 'ENFILE']);
+const RM_RETRY_ATTEMPTS = 10;
+const RM_RETRY_BASE_DELAY_MS = 50;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const rmWithRetry = async (targetPath) => {
+  for (let attempt = 0; attempt < RM_RETRY_ATTEMPTS; attempt += 1) {
+    try {
+      await fsPromises.rm(targetPath, { recursive: true, force: true });
+      return;
+    } catch (err) {
+      if (!RETRYABLE_RM_CODES.has(err?.code) || attempt >= RM_RETRY_ATTEMPTS - 1) {
+        throw err;
+      }
+      await sleep(RM_RETRY_BASE_DELAY_MS * (attempt + 1));
+    }
+  }
+};
 
 export const getTriageContext = async ({ name }) => {
   const repoRoot = path.join(ROOT, 'tests', 'fixtures', 'sample');
@@ -18,7 +37,7 @@ export const getTriageContext = async ({ name }) => {
   if (traceArtifactIo) {
     console.log(`[triage-test] deleting cache root: ${cacheRoot}`);
   }
-  await fsPromises.rm(cacheRoot, { recursive: true, force: true });
+  await rmWithRetry(cacheRoot);
   if (traceArtifactIo) {
     console.log(`[triage-test] deleted cache root: ${cacheRoot}`);
   }
