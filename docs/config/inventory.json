@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-11T10:48:32.746Z",
+  "generatedAt": "2026-02-11T19:07:47.833Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2201,6 +2201,7 @@
         "tests/services/mcp/tool-search-defaults-and-filters.test.js",
         "tests/smoke/smoke-sqlite.test.js",
         "tests/storage/sqlite/ann/sqlite-ann-fallback.test.js",
+        "tests/tooling/script-coverage/runner.js",
         "tools/config/inventory.js"
       ]
     },
@@ -2461,7 +2462,6 @@
       "files": [
         "src/shared/env.js",
         "tests/helpers/triage.js",
-        "tests/tooling/triage/records-index-and-search.test.js",
         "tools/config/inventory.js"
       ]
     },

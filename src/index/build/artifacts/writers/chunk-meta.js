@@ -624,6 +624,7 @@ export const enqueueChunkMetaArtifacts = async ({
   stageCheckpoints
 }) => {
   const {
+    chunkMetaFormat,
     chunkMetaStreaming,
     chunkMetaUseJsonl,
     chunkMetaUseShards,
@@ -958,6 +959,8 @@ export const enqueueChunkMetaArtifacts = async ({
 
   const shouldWriteCompatChunkMetaJson = Boolean(
     resolvedUseJsonl
+    && !resolvedUseShards
+    && chunkMetaFormat !== 'jsonl'
     && (
       isTestingEnv()
       || (
