@@ -13,7 +13,21 @@ const encodeMessage = (payload) => {
 const createReader = (stream, { onActivity } = {}) => {
   let buffer = Buffer.alloc(0);
   const notifications = [];
+  const HEADER_PREFIX = Buffer.from('Content-Length:', 'utf8');
+  const MAX_GARBAGE_BYTES = 1024 * 1024;
+  const alignToHeader = () => {
+    const headerStart = buffer.indexOf(HEADER_PREFIX);
+    if (headerStart > 0) {
+      buffer = buffer.slice(headerStart);
+      return;
+    }
+    if (headerStart === -1 && buffer.length > MAX_GARBAGE_BYTES) {
+      // Prevent unbounded growth if non-protocol stdout is emitted.
+      buffer = buffer.slice(-HEADER_PREFIX.length);
+    }
+  };
   const tryRead = () => {
+    alignToHeader();
     const headerEnd = buffer.indexOf('\r\n\r\n');
     if (headerEnd === -1) return null;
     const header = buffer.slice(0, headerEnd).toString('utf8');
