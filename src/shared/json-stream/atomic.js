@@ -60,9 +60,18 @@ export const createTempPath = (filePath) => {
     return path.join(dir, `${name}${ext}`);
   };
 
+  const buildCompactPathNoExt = (maxLen) => {
+    const budget = maxLen - dir.length - 1;
+    if (budget < 4) return null;
+    const tokenBudget = Math.max(2, budget - 2);
+    return path.join(dir, `t-${compactToken.slice(0, tokenBudget)}`);
+  };
+
   return (
     buildCompactPath(232)
     || buildCompactPath(240)
+    || buildCompactPathNoExt(232)
+    || buildCompactPathNoExt(240)
     || tempPath
   );
 };
