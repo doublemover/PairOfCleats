@@ -83,6 +83,10 @@ export const replaceFile = async (tempPath, finalPath, options = {}) => {
   const keepBackup = options.keepBackup === true;
   const bakPath = getBakPath(finalPath);
   const finalExists = fs.existsSync(finalPath);
+  const isFreshFinal = async () => {
+    const stat = await safeStat(finalPath);
+    return Boolean(stat && stat.mtimeMs >= startedAt - 2000);
+  };
   let backupAvailable = fs.existsSync(bakPath);
   const restoreBackup = async () => {
     if (!backupAvailable) return false;
@@ -97,13 +101,14 @@ export const replaceFile = async (tempPath, finalPath, options = {}) => {
   };
   if (!(await waitForPath(tempPath, { attempts: 6, baseDelayMs: 10 }))) {
     if (fs.existsSync(finalPath)) {
-      if (!keepBackup && backupAvailable) {
-        try { await fsPromises.rm(bakPath, { force: true }); } catch {}
+      if (await isFreshFinal()) {
+        if (!keepBackup && backupAvailable) {
+          try { await fsPromises.rm(bakPath, { force: true }); } catch {}
+        }
+        return;
       }
-      return;
     }
-    const finalStat = await safeStat(finalPath);
-    if (finalStat && finalStat.mtimeMs >= startedAt - 2000) {
+    if (await isFreshFinal()) {
       return;
     }
     if (await restoreBackup()) return;
@@ -150,13 +155,14 @@ export const replaceFile = async (tempPath, finalPath, options = {}) => {
         return;
       }
       if (fs.existsSync(finalPath)) {
-        if (!keepBackup && backupAvailable) {
-          try { await fsPromises.rm(bakPath, { force: true }); } catch {}
+        if (await isFreshFinal()) {
+          if (!keepBackup && backupAvailable) {
+            try { await fsPromises.rm(bakPath, { force: true }); } catch {}
+          }
+          return;
         }
-        return;
       }
-      const finalStat = await safeStat(finalPath);
-      if (finalStat && finalStat.mtimeMs >= startedAt - 2000) {
+      if (await isFreshFinal()) {
         if (!keepBackup && backupAvailable) {
           try { await fsPromises.rm(bakPath, { force: true }); } catch {}
         }

@@ -111,19 +111,26 @@ export const createJsonWriteStream = (filePath, options = {}) => {
     await waitForClose(fileStream);
     // Windows can keep handles busy briefly after stream close under load/abort.
     // Give cleanup a wider retry window so atomic temp files are not leaked.
-    const maxAttempts = 12;
+    const maxAttempts = 20;
     for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
       try {
         await fsPromises.rm(targetPath, { force: true });
         return;
       } catch (err) {
-        if (err?.code === 'ENOENT') return;
-        if (!['EBUSY', 'EPERM', 'EACCES', 'EMFILE', 'ENOTEMPTY'].includes(err?.code)) {
+        if (err?.code === 'ENOENT') {
           return;
         }
-        await delay(Math.min(500, 25 * (attempt + 1)));
+        if (!['EBUSY', 'EPERM', 'EACCES', 'EMFILE', 'ENOTEMPTY'].includes(err?.code)) {
+          break;
+        }
+        await delay(Math.min(1000, 30 * (attempt + 1)));
       }
     }
+    // Final best-effort fallback for environments where rm() intermittently
+    // fails on recently closed file handles.
+    try {
+      await fsPromises.unlink(targetPath);
+    } catch {}
   };
   const attachPipelineErrorHandlers = () => {
     const forwardToFile = (err) => {
