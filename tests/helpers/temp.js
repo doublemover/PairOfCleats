@@ -22,7 +22,16 @@ export const rmDirRecursive = async (dirPath, { retries = 3, delayMs = 100 } = {
       });
       return;
     } catch (error) {
-      if (attempt >= resolvedRetries || !['EPERM', 'EBUSY', 'ENOTEMPTY', 'EMFILE', 'ENFILE'].includes(error?.code)) {
+      const retryable = ['EPERM', 'EBUSY', 'ENOTEMPTY', 'EMFILE', 'ENFILE'].includes(error?.code);
+      if (attempt >= resolvedRetries || !retryable) {
+        if (attempt >= resolvedRetries && retryable) {
+          const tombstone = `${dirPath}.pending-delete-${Date.now()}-${process.pid}`;
+          try {
+            await fsPromises.rename(dirPath, tombstone);
+            await fsPromises.rm(tombstone, { recursive: true, force: true });
+            return;
+          } catch {}
+        }
         throw error;
       }
       await wait(resolvedDelayMs * (attempt + 1));

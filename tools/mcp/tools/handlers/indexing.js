@@ -25,6 +25,22 @@ export async function buildIndex(args = {}, context = {}) {
   const buildSqlite = shouldUseSqlite;
   const useArtifacts = args.useArtifacts === true;
   const progress = typeof context.progress === 'function' ? context.progress : null;
+  const heartbeatIntervalMs = 15000;
+  const withHeartbeat = async (label, fn) => {
+    let timer = null;
+    if (progress) {
+      progress({ message: label, phase: 'start' });
+      timer = setInterval(() => {
+        progress({ message: `${label} (working)`, phase: 'progress' });
+      }, heartbeatIntervalMs);
+      timer.unref?.();
+    }
+    try {
+      return await fn();
+    } finally {
+      if (timer) clearInterval(timer);
+    }
+  };
 
   let restoredArtifacts = false;
   if (useArtifacts) {
@@ -32,32 +48,26 @@ export async function buildIndex(args = {}, context = {}) {
   }
 
   if (!restoredArtifacts) {
-    if (progress) {
-      progress({
-        message: `Building ${mode} index${incremental ? ' (incremental)' : ''}.`,
-        phase: 'start'
-      });
-    }
-    await coreBuildIndex(repoPath, {
-      mode,
-      incremental,
-      'stub-embeddings': stubEmbeddings,
-      sqlite: buildSqlite,
-      emitOutput: false
-    });
+    await withHeartbeat(
+      `Building ${mode} index${incremental ? ' (incremental)' : ''}.`,
+      () => coreBuildIndex(repoPath, {
+        mode,
+        incremental,
+        'stub-embeddings': stubEmbeddings,
+        sqlite: buildSqlite,
+        emitOutput: false
+      })
+    );
   }
 
   if (buildSqlite) {
-    if (progress) {
-      progress({
-        message: `Building SQLite index${incremental ? ' (incremental)' : ''}.`,
-        phase: 'start'
-      });
-    }
-    await coreBuildSqliteIndex(repoPath, {
-      incremental,
-      emitOutput: false
-    });
+    await withHeartbeat(
+      `Building SQLite index${incremental ? ' (incremental)' : ''}.`,
+      () => coreBuildSqliteIndex(repoPath, {
+        incremental,
+        emitOutput: false
+      })
+    );
   }
   if (progress) {
     progress({

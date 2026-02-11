@@ -27,6 +27,37 @@ const waitForClose = (stream) => {
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const RETRYABLE_RM_CODES = new Set(['EBUSY', 'EPERM', 'EACCES', 'EMFILE', 'ENOTEMPTY']);
+
+const removePathWithRetry = async (target, {
+  attempts = 20,
+  baseDelayMs = 30,
+  recursive = false
+} = {}) => {
+  const maxAttempts = Number.isFinite(Number(attempts)) ? Math.max(1, Math.floor(Number(attempts))) : 20;
+  const delayBase = Number.isFinite(Number(baseDelayMs)) ? Math.max(1, Math.floor(Number(baseDelayMs))) : 30;
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    try {
+      await fsPromises.rm(target, { force: true, recursive });
+      if (!fs.existsSync(target)) return true;
+    } catch (err) {
+      if (err?.code === 'ENOENT') return true;
+      if (!RETRYABLE_RM_CODES.has(err?.code)) {
+        break;
+      }
+    }
+    await delay(Math.min(1000, delayBase * (attempt + 1)));
+  }
+  if (!fs.existsSync(target)) return true;
+  const tombstone = `${target}.pending-delete-${Date.now()}-${process.pid}`;
+  try {
+    await fsPromises.rename(target, tombstone);
+    await fsPromises.rm(tombstone, { force: true, recursive: true });
+    if (!fs.existsSync(tombstone) && !fs.existsSync(target)) return true;
+  } catch {}
+  return !fs.existsSync(target);
+};
+
 const createExclusiveAtomicFileStream = (filePath, highWaterMark) => {
   let lastErr = null;
   for (let attempt = 0; attempt < 8; attempt += 1) {
@@ -106,34 +137,15 @@ export const createJsonWriteStream = (filePath, options = {}) => {
     return () => signal.removeEventListener('abort', handler);
   };
   const detachAbort = attachAbortHandler();
-  const retryRemovePath = async (target) => {
-    const maxAttempts = 20;
-    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-      try {
-        await fsPromises.rm(target, { force: true });
-        return !fs.existsSync(target);
-      } catch (err) {
-        if (err?.code === 'ENOENT') return true;
-        if (!['EBUSY', 'EPERM', 'EACCES', 'EMFILE', 'ENOTEMPTY'].includes(err?.code)) {
-          break;
-        }
-        await delay(Math.min(1000, 30 * (attempt + 1)));
-      }
-    }
-    try {
-      await fsPromises.unlink(target);
-    } catch {}
-    return !fs.existsSync(target);
-  };
   const removeTempFile = async () => {
     if (!atomic) return;
     await waitForClose(fileStream);
-    await retryRemovePath(targetPath);
+    await removePathWithRetry(targetPath, { recursive: false });
     // Last guard: if the specific temp path still exists, keep retrying a bit
     // before letting callers observe stale ".tmp-" files.
     for (let attempt = 0; attempt < 10; attempt += 1) {
       if (!fs.existsSync(targetPath)) break;
-      await retryRemovePath(targetPath);
+      await removePathWithRetry(targetPath, { recursive: false, attempts: 3, baseDelayMs: 50 });
       if (!fs.existsSync(targetPath)) break;
       await delay(Math.min(1000, 50 * (attempt + 1)));
     }
@@ -143,7 +155,7 @@ export const createJsonWriteStream = (filePath, options = {}) => {
       const tombstone = `${targetPath}.pending-delete-${Date.now()}-${process.pid}`;
       try {
         await fsPromises.rename(targetPath, tombstone);
-        await retryRemovePath(tombstone);
+        await removePathWithRetry(tombstone, { recursive: false, attempts: 6, baseDelayMs: 50 });
       } catch {}
     }
   };

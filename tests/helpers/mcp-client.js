@@ -10,7 +10,7 @@ const encodeMessage = (payload) => {
   return `Content-Length: ${Buffer.byteLength(json, 'utf8')}\r\n\r\n${json}`;
 };
 
-const createReader = (stream) => {
+const createReader = (stream, { onActivity } = {}) => {
   let buffer = Buffer.alloc(0);
   const notifications = [];
   const tryRead = () => {
@@ -42,12 +42,14 @@ const createReader = (stream) => {
         stream.off('error', onError);
       };
       const onData = (chunk) => {
+        onActivity?.();
         buffer = Buffer.concat([buffer, chunk]);
         const parsed = tryRead();
         if (!parsed) return;
         if (settled) return;
         settled = true;
         cleanup();
+        onActivity?.();
         resolve(parsed);
       };
       const onEnd = () => {
@@ -120,23 +122,29 @@ export const startMcpServer = async ({
     }
   });
 
-  const reader = createReader(server.stdout);
-  const { readMessage, readAnyMessage, notifications } = reader;
+  let timeout = null;
   const resolvedTimeoutMs = Number.isFinite(Number(timeoutMs))
     ? Math.max(1000, Math.floor(Number(timeoutMs)))
     : 30000;
-  const timeout = setTimeout(() => {
-    console.error('MCP server test timed out.');
-    server.kill('SIGKILL');
-    process.exit(1);
-  }, resolvedTimeoutMs);
+  const touchTimeout = () => {
+    if (!resolvedTimeoutMs) return;
+    if (timeout) clearTimeout(timeout);
+    timeout = setTimeout(() => {
+      console.error('MCP server test timed out.');
+      server.kill('SIGKILL');
+      process.exit(1);
+    }, resolvedTimeoutMs);
+  };
+  const reader = createReader(server.stdout, { onActivity: touchTimeout });
+  const { readMessage, readAnyMessage, notifications } = reader;
+  touchTimeout();
 
   const send = (payload) => {
     server.stdin.write(encodeMessage(payload));
   };
 
   const shutdown = async () => {
-    clearTimeout(timeout);
+    if (timeout) clearTimeout(timeout);
     server.stdin.end();
     server.kill('SIGTERM');
   };
