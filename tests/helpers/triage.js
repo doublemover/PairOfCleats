@@ -1,4 +1,5 @@
 import fsPromises from 'node:fs/promises';
+import fsSync from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -15,7 +16,7 @@ const rmWithRetry = async (targetPath) => {
     for (let i = 0; i < RM_RETRY_ATTEMPTS; i += 1) {
       try {
         await fsPromises.rm(tombstonePath, { recursive: true, force: true });
-        return true;
+        if (!fsSync.existsSync(tombstonePath)) return true;
       } catch (err) {
         if (!RETRYABLE_RM_CODES.has(err?.code)) break;
         const delayMs = Math.min(1000, RM_RETRY_BASE_DELAY_MS * (2 ** i));
@@ -27,7 +28,7 @@ const rmWithRetry = async (targetPath) => {
   for (let attempt = 0; attempt < RM_RETRY_ATTEMPTS; attempt += 1) {
     try {
       await fsPromises.rm(targetPath, { recursive: true, force: true });
-      return;
+      if (!fsSync.existsSync(targetPath)) return;
     } catch (err) {
       const isLastAttempt = attempt >= RM_RETRY_ATTEMPTS - 1;
       if (!RETRYABLE_RM_CODES.has(err?.code) || isLastAttempt) {
@@ -40,6 +41,7 @@ const rmWithRetry = async (targetPath) => {
             if (await removeTombstoneWithRetry(tombstone)) return;
           } catch {}
         }
+        if (!fsSync.existsSync(targetPath)) return;
         throw err;
       }
       const delayMs = Math.min(1000, RM_RETRY_BASE_DELAY_MS * (2 ** attempt));

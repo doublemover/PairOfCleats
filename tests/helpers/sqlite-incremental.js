@@ -1,4 +1,5 @@
 import fsPromises from 'node:fs/promises';
+import fsSync from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -17,7 +18,7 @@ const rmWithRetry = async (targetPath) => {
   for (let attempt = 0; attempt < MAX_RM_ATTEMPTS; attempt += 1) {
     try {
       await fsPromises.rm(targetPath, { recursive: true, force: true });
-      return;
+      if (!fsSync.existsSync(targetPath)) return;
     } catch (err) {
       lastError = err;
       if (!RETRYABLE_RM_CODES.has(err?.code)) break;
@@ -31,13 +32,14 @@ const rmWithRetry = async (targetPath) => {
     for (let attempt = 0; attempt < MAX_RM_ATTEMPTS; attempt += 1) {
       try {
         await fsPromises.rm(tombstone, { recursive: true, force: true });
-        return;
+        if (!fsSync.existsSync(tombstone)) return;
       } catch (err) {
         if (!RETRYABLE_RM_CODES.has(err?.code) || attempt >= MAX_RM_ATTEMPTS - 1) break;
         await sleep(100 * (attempt + 1));
       }
     }
   } catch {}
+  if (!fsSync.existsSync(targetPath)) return;
   if (lastError && !RETRYABLE_RM_CODES.has(lastError?.code)) {
     throw lastError;
   }
