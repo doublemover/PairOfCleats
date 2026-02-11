@@ -107,10 +107,11 @@ const cleanupPendingDeleteTombstones = async (targetPath) => {
 
 const createExclusiveAtomicFileStream = (filePath, highWaterMark) => {
   let lastErr = null;
+  let preferFallback = false;
   for (let attempt = 0; attempt < 8; attempt += 1) {
-    const tempPath = createTempPath(filePath);
-    fs.mkdirSync(path.dirname(tempPath), { recursive: true });
+    const tempPath = createTempPath(filePath, { preferFallback });
     try {
+      fs.mkdirSync(path.dirname(tempPath), { recursive: true });
       const fd = fs.openSync(tempPath, 'wx');
       const fileStream = fs.createWriteStream(tempPath, {
         fd,
@@ -121,6 +122,12 @@ const createExclusiveAtomicFileStream = (filePath, highWaterMark) => {
     } catch (err) {
       if (err?.code === 'EEXIST') {
         lastErr = err;
+        continue;
+      }
+      if (err?.code === 'EACCES' || err?.code === 'EPERM') {
+        lastErr = err;
+        // Retry with TEMP-based fallback paths after permission failures.
+        preferFallback = true;
         continue;
       }
       throw err;

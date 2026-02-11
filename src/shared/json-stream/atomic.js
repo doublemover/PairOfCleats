@@ -59,7 +59,8 @@ const safeStat = async (targetPath) => {
   }
 };
 
-export const createTempPath = (filePath) => {
+export const createTempPath = (filePath, options = {}) => {
+  const preferFallback = options?.preferFallback === true;
   const token = createTempToken();
   const suffix = `.tmp-${token}`;
   const tempPath = `${filePath}${suffix}`;
@@ -86,11 +87,31 @@ export const createTempPath = (filePath) => {
     return path.join(baseDir, `${name}${suffixExt}`);
   };
 
+  /**
+   * Return true when we can create files under the candidate directory.
+   * For non-existent directories, check the nearest existing ancestor.
+   */
+  const isCandidateDirWritable = (candidateDir) => {
+    if (typeof candidateDir !== 'string' || !candidateDir) return false;
+    let probe = candidateDir;
+    while (!fs.existsSync(probe)) {
+      const parent = path.dirname(probe);
+      if (!parent || parent === probe) return false;
+      probe = parent;
+    }
+    try {
+      fs.accessSync(probe, fs.constants.W_OK);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   const buildCompactPathInAncestors = (maxLen, withExt = true) => {
     let baseDir = dir;
     while (baseDir) {
       const candidate = buildCompactPathInDir(baseDir, maxLen, withExt);
-      if (candidate) return candidate;
+      if (candidate && isCandidateDirWritable(baseDir)) return candidate;
       const parent = path.dirname(baseDir);
       if (!parent || parent === baseDir) break;
       baseDir = parent;
@@ -102,16 +123,20 @@ export const createTempPath = (filePath) => {
     const suffixExt = withExt ? ext : '';
     const baseDir = path.join(process.env.TEMP || process.env.TMP || path.join(process.cwd(), '.tmp'), 'poc-atomic');
     const name = `t.tmp-${compactToken}`;
+    if (!isCandidateDirWritable(baseDir)) return null;
     return path.join(baseDir, `${name}${suffixExt}`);
   };
 
-  return (
-    buildCompactPathInAncestors(WINDOWS_PATH_BUDGET, true)
-    || buildCompactPathInAncestors(WINDOWS_PATH_BUDGET, false)
+  const compactCandidate = preferFallback
+    ? null
+    : (
+      buildCompactPathInAncestors(WINDOWS_PATH_BUDGET, true)
+      || buildCompactPathInAncestors(WINDOWS_PATH_BUDGET, false)
+    );
+  return compactCandidate
     || buildFallbackTempPath(true)
     || buildFallbackTempPath(false)
-    || tempPath
-  );
+    || tempPath;
 };
 
 const getBakPath = (filePath) => `${filePath}.bak`;
