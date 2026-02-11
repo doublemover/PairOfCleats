@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import { throwIfAborted } from '../../../shared/abort.js';
 import { toPosix } from '../../../shared/files.js';
 import { buildLineIndex, offsetToLine } from '../../../shared/lines.js';
@@ -84,6 +85,12 @@ export const executeTreeSitterSchedulerPlan = async ({
   const treeSitterConfig = runtime?.languageOptions?.treeSitter || null;
   const schedulerConfig = treeSitterConfig?.scheduler || {};
   const schedulerFormat = schedulerConfig?.format === 'binary-v1' ? 'binary-v1' : 'jsonl';
+  const schedulerStore = schedulerConfig?.store === 'paged-json' ? 'paged-json' : 'rows';
+  const schedulerPageCodec = schedulerConfig?.pageCodec === 'gzip' ? 'gzip' : 'none';
+  const schedulerPageSize = Number.isFinite(Number(schedulerConfig?.pageSize))
+    ? Math.max(8, Math.floor(Number(schedulerConfig.pageSize)))
+    : 128;
+  const resultsFormat = schedulerStore === 'paged-json' ? 'binary-v1' : schedulerFormat;
   const strictTreeSitter = treeSitterConfig
     ? { ...treeSitterConfig, strict: true, worker: { enabled: false }, nativeOnly: true }
     : { enabled: false };
@@ -115,12 +122,18 @@ export const executeTreeSitterSchedulerPlan = async ({
 
     if (log) log(`[tree-sitter:schedule] ${grammarKey}: start mem=${formatMemoryUsage()}`);
 
-    const resultsPath = paths.resultsPathForGrammarKey(grammarKey, schedulerFormat);
+    const resultsPath = paths.resultsPathForGrammarKey(grammarKey, resultsFormat);
     const indexPath = paths.resultsIndexPathForGrammarKey(grammarKey);
     const metaPath = paths.resultsMetaPathForGrammarKey(grammarKey);
+    const pageIndexPath = paths.resultsPageIndexPathForGrammarKey(grammarKey);
     const { stream: resultsStream, done: resultsDone } = createJsonWriteStream(resultsPath, { atomic: true });
     const { stream: indexStream, done: indexDone } = createJsonWriteStream(indexPath, { atomic: true });
     const { stream: metaStream, done: metaDone } = createJsonWriteStream(metaPath, { atomic: true });
+    const pageIndexRef = schedulerStore === 'paged-json'
+      ? createJsonWriteStream(pageIndexPath, { atomic: true })
+      : null;
+    const pageIndexStream = pageIndexRef?.stream || null;
+    const pageIndexDone = pageIndexRef?.done || null;
 
     let offset = 0;
     let wrote = 0;
@@ -130,6 +143,82 @@ export const executeTreeSitterSchedulerPlan = async ({
     let currentFileVersionSignature = null;
     const segmentMetaByKey = new Map();
     const segmentMetaRows = [];
+    let pageId = 0;
+    let pageRows = [];
+    let pageRowMeta = [];
+    const flushPage = async () => {
+      if (schedulerStore !== 'paged-json') return;
+      if (!pageRows.length) return;
+      const rowsJson = stringifyJsonValue(pageRows);
+      const rowPayload = Buffer.from(rowsJson, 'utf8');
+      const pageChecksum = sha1(rowsJson).slice(0, 16);
+      let pageRow = null;
+      if (schedulerPageCodec === 'gzip') {
+        const gz = zlib.gzipSync(rowPayload);
+        pageRow = {
+          schemaVersion: '1.0.0',
+          grammarKey,
+          pageId,
+          codec: 'gzip',
+          rowCount: pageRows.length,
+          checksum: pageChecksum,
+          data: gz.toString('base64')
+        };
+      } else {
+        pageRow = {
+          schemaVersion: '1.0.0',
+          grammarKey,
+          pageId,
+          codec: 'none',
+          rowCount: pageRows.length,
+          checksum: pageChecksum,
+          rows: pageRows
+        };
+      }
+      const pageJson = stringifyJsonValue(pageRow);
+      const payload = Buffer.from(pageJson, 'utf8');
+      const header = Buffer.allocUnsafe(4);
+      header.writeUInt32LE(payload.length, 0);
+      const pageBytes = payload.length + 4;
+      await writeChunk(resultsStream, header);
+      await writeChunk(resultsStream, payload);
+      if (pageIndexStream) {
+        const pageEntry = {
+          schemaVersion: '1.0.0',
+          grammarKey,
+          pageId,
+          offset,
+          bytes: pageBytes,
+          rowCount: pageRows.length,
+          codec: schedulerPageCodec,
+          checksum: pageChecksum
+        };
+        await writeChunk(pageIndexStream, stringifyJsonValue(pageEntry));
+        await writeChunk(pageIndexStream, '\n');
+      }
+      for (let i = 0; i < pageRowMeta.length; i += 1) {
+        const rowMeta = pageRowMeta[i];
+        const idxEntry = {
+          schemaVersion: '1.0.0',
+          virtualPath: rowMeta.virtualPath,
+          grammarKey,
+          store: 'paged-json',
+          format: 'page-v1',
+          page: pageId,
+          row: i,
+          checksum: rowMeta.checksum
+        };
+        await writeChunk(indexStream, stringifyJsonValue(idxEntry));
+        await writeChunk(indexStream, '\n');
+        index.set(rowMeta.virtualPath, idxEntry);
+      }
+      offset += pageBytes;
+      wrote += pageRows.length;
+      totalJobs += pageRows.length;
+      pageRows = [];
+      pageRowMeta = [];
+      pageId += 1;
+    };
 
     try {
       for (const job of jobs) {
@@ -260,38 +349,50 @@ export const executeTreeSitterSchedulerPlan = async ({
         };
 
         const line = stringifyJsonValue(row);
-        const payload = Buffer.from(line, 'utf8');
         const rowChecksum = sha1(line).slice(0, 16);
-        let lineBytes = payload.length;
-        if (schedulerFormat === 'binary-v1') {
-          const header = Buffer.allocUnsafe(4);
-          header.writeUInt32LE(payload.length, 0);
-          await writeChunk(resultsStream, header);
-          await writeChunk(resultsStream, payload);
-          lineBytes += 4;
+        if (schedulerStore === 'paged-json') {
+          pageRows.push(row);
+          pageRowMeta.push({
+            virtualPath,
+            checksum: rowChecksum
+          });
+          if (pageRows.length >= schedulerPageSize) {
+            await flushPage();
+          }
         } else {
-          await writeChunk(resultsStream, line);
-          await writeChunk(resultsStream, '\n');
-          lineBytes += 1;
+          const payload = Buffer.from(line, 'utf8');
+          let lineBytes = payload.length;
+          if (schedulerFormat === 'binary-v1') {
+            const header = Buffer.allocUnsafe(4);
+            header.writeUInt32LE(payload.length, 0);
+            await writeChunk(resultsStream, header);
+            await writeChunk(resultsStream, payload);
+            lineBytes += 4;
+          } else {
+            await writeChunk(resultsStream, line);
+            await writeChunk(resultsStream, '\n');
+            lineBytes += 1;
+          }
+
+          const idxEntry = {
+            schemaVersion: '1.0.0',
+            virtualPath,
+            grammarKey,
+            offset,
+            bytes: lineBytes,
+            format: schedulerFormat,
+            checksum: rowChecksum
+          };
+          await writeChunk(indexStream, stringifyJsonValue(idxEntry));
+          await writeChunk(indexStream, '\n');
+
+          index.set(virtualPath, idxEntry);
+          offset += lineBytes;
+          wrote += 1;
+          totalJobs += 1;
         }
-
-        const idxEntry = {
-          schemaVersion: '1.0.0',
-          virtualPath,
-          grammarKey,
-          offset,
-          bytes: lineBytes,
-          format: schedulerFormat,
-          checksum: rowChecksum
-        };
-        await writeChunk(indexStream, stringifyJsonValue(idxEntry));
-        await writeChunk(indexStream, '\n');
-
-        index.set(virtualPath, idxEntry);
-        offset += lineBytes;
-        wrote += 1;
-        totalJobs += 1;
       }
+      await flushPage();
       for (const metaRow of segmentMetaRows) {
         await writeChunk(metaStream, stringifyJsonValue(metaRow));
         await writeChunk(metaStream, '\n');
@@ -299,14 +400,19 @@ export const executeTreeSitterSchedulerPlan = async ({
       resultsStream.end();
       indexStream.end();
       metaStream.end();
-      await Promise.all([resultsDone, indexDone, metaDone]);
+      if (pageIndexStream) pageIndexStream.end();
+      await Promise.all(
+        [resultsDone, indexDone, metaDone, pageIndexDone].filter(Boolean)
+      );
     } catch (err) {
       try { resultsStream.destroy(err); } catch {}
       try { indexStream.destroy(err); } catch {}
       try { metaStream.destroy(err); } catch {}
+      try { pageIndexStream?.destroy?.(err); } catch {}
       try { await resultsDone; } catch {}
       try { await indexDone; } catch {}
       try { await metaDone; } catch {}
+      try { await pageIndexDone; } catch {}
       throw err;
     }
 

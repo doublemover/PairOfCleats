@@ -25,6 +25,7 @@ export const resolveTreeSitterSchedulerPaths = (indexDir) => {
       path.join(resultsDir, `${sanitizeKey(grammarKey)}${resolveResultsExt(format)}`)
     ),
     resultsIndexPathForGrammarKey: (grammarKey) => path.join(resultsDir, `${sanitizeKey(grammarKey)}.vfsidx`),
-    resultsMetaPathForGrammarKey: (grammarKey) => path.join(resultsDir, `${sanitizeKey(grammarKey)}.meta.jsonl`)
+    resultsMetaPathForGrammarKey: (grammarKey) => path.join(resultsDir, `${sanitizeKey(grammarKey)}.meta.jsonl`),
+    resultsPageIndexPathForGrammarKey: (grammarKey) => path.join(resultsDir, `${sanitizeKey(grammarKey)}.pages.vfsidx`)
   };
 };

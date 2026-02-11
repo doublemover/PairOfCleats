@@ -416,7 +416,7 @@ Implementation policy for Sweep 3:
 - Rollout: optional `treeSitter.scheduler.sharedCache=true` after correctness soak.
 - Target: only pursue if multi-process repeated lookup is a proven bottleneck.
 
-12. Area: Compressed result pages + 2-level index
+12. [x] Area: Compressed result pages + 2-level index
 - Files: `src/index/build/tree-sitter-scheduler/executor.js`, `src/index/build/tree-sitter-scheduler/lookup.js`
 - Decision: Introduce page store first (JSON rows in pages + page index), then add compression per-page.
 - Rollout: `treeSitter.scheduler.store=paged-json`; add `codec` metadata and checksum verification.

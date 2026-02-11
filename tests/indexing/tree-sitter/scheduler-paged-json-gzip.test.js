@@ -1,0 +1,92 @@
+#!/usr/bin/env node
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import zlib from 'node:zlib';
+import { sha1 } from '../../../src/shared/hash.js';
+import { createTreeSitterSchedulerLookup } from '../../../src/index/build/tree-sitter-scheduler/lookup.js';
+import { resolveTreeSitterSchedulerPaths } from '../../../src/index/build/tree-sitter-scheduler/paths.js';
+
+const root = process.cwd();
+const outDir = path.join(root, '.testCache', 'scheduler-paged-json-gzip', 'index-code');
+await fs.rm(outDir, { recursive: true, force: true });
+const paths = resolveTreeSitterSchedulerPaths(outDir);
+await fs.mkdir(paths.resultsDir, { recursive: true });
+
+const grammarKey = 'native:javascript';
+const rows = [
+  {
+    schemaVersion: '1.1.0',
+    virtualPath: '.poc-vfs/src/one.js#seg:one.js',
+    grammarKey,
+    segmentRef: 0,
+    chunks: [{ start: 0, end: 4, name: 'one', kind: 'FunctionDeclaration' }]
+  },
+  {
+    schemaVersion: '1.1.0',
+    virtualPath: '.poc-vfs/src/two.js#seg:two.js',
+    grammarKey,
+    segmentRef: 0,
+    chunks: [{ start: 0, end: 4, name: 'two', kind: 'FunctionDeclaration' }]
+  }
+];
+const rowsJson = JSON.stringify(rows);
+const pagePayload = {
+  schemaVersion: '1.0.0',
+  grammarKey,
+  pageId: 0,
+  codec: 'gzip',
+  rowCount: rows.length,
+  checksum: sha1(rowsJson).slice(0, 16),
+  data: zlib.gzipSync(Buffer.from(rowsJson, 'utf8')).toString('base64')
+};
+const pageJson = JSON.stringify(pagePayload);
+const pageBuffer = Buffer.from(pageJson, 'utf8');
+const header = Buffer.allocUnsafe(4);
+header.writeUInt32LE(pageBuffer.length, 0);
+const totalBytes = pageBuffer.length + 4;
+const resultsPath = paths.resultsPathForGrammarKey(grammarKey, 'binary-v1');
+await fs.writeFile(resultsPath, Buffer.concat([header, pageBuffer]));
+await fs.writeFile(
+  paths.resultsPageIndexPathForGrammarKey(grammarKey),
+  `${JSON.stringify({
+    schemaVersion: '1.0.0',
+    grammarKey,
+    pageId: 0,
+    offset: 0,
+    bytes: totalBytes,
+    rowCount: rows.length,
+    codec: 'gzip',
+    checksum: sha1(rowsJson).slice(0, 16)
+  })}\n`,
+  'utf8'
+);
+
+const index = new Map();
+for (let i = 0; i < rows.length; i += 1) {
+  const row = rows[i];
+  index.set(row.virtualPath, {
+    schemaVersion: '1.0.0',
+    virtualPath: row.virtualPath,
+    grammarKey,
+    store: 'paged-json',
+    format: 'page-v1',
+    page: 0,
+    row: i,
+    checksum: sha1(JSON.stringify(row)).slice(0, 16)
+  });
+}
+
+const lookup = createTreeSitterSchedulerLookup({ outDir, index });
+try {
+  const loaded = await lookup.loadRows(rows.map((row) => row.virtualPath));
+  assert.equal(loaded.length, rows.length, 'loaded rows length mismatch');
+  for (let i = 0; i < loaded.length; i += 1) {
+    assert.ok(loaded[i], `expected row ${i}`);
+    assert.equal(loaded[i].virtualPath, rows[i].virtualPath, `virtual path mismatch at ${i}`);
+  }
+} finally {
+  await lookup.close();
+}
+
+console.log('scheduler paged-json gzip test passed');

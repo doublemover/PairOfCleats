@@ -22,6 +22,18 @@ const normalizeSchedulerFormat = (raw) => {
   if (value === 'binary-v1' || value === 'jsonl') return value;
   return 'jsonl';
 };
+const normalizeSchedulerStore = (raw) => {
+  if (typeof raw !== 'string') return 'rows';
+  const value = raw.trim().toLowerCase();
+  if (value === 'paged-json' || value === 'rows') return value;
+  return 'rows';
+};
+const normalizeSchedulerCodec = (raw) => {
+  if (typeof raw !== 'string') return 'none';
+  const value = raw.trim().toLowerCase();
+  if (value === 'gzip' || value === 'none') return value;
+  return 'none';
+};
 const normalizePreloadMode = (raw) => {
   if (raw === true) return 'parallel';
   if (raw === false || raw === undefined || raw === null) return 'none';
@@ -110,7 +122,10 @@ export const resolveTreeSitterRuntime = (indexingConfig) => {
     treeSitterScheduler: {
       transport: normalizeSchedulerTransport(treeSitterSchedulerConfig.transport),
       sharedCache: treeSitterSchedulerConfig.sharedCache === true,
-      format: normalizeSchedulerFormat(treeSitterSchedulerConfig.format)
+      format: normalizeSchedulerFormat(treeSitterSchedulerConfig.format),
+      store: normalizeSchedulerStore(treeSitterSchedulerConfig.store),
+      pageCodec: normalizeSchedulerCodec(treeSitterSchedulerConfig.pageCodec),
+      pageSize: normalizeOptionalLimit(treeSitterSchedulerConfig.pageSize) || 128
     },
     treeSitterCachePersistent,
     treeSitterCachePersistentDir
