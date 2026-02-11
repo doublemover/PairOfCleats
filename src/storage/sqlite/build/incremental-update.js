@@ -49,6 +49,16 @@ class IncrementalSkipError extends Error {
   }
 }
 
+const resolveExpectedDenseCount = (denseVec) => {
+  if (!denseVec || typeof denseVec !== 'object') return 0;
+  const fromCount = Number(denseVec.count);
+  if (Number.isFinite(fromCount) && fromCount > 0) return Math.floor(fromCount);
+  const fromTotalRecords = Number(denseVec.totalRecords);
+  if (Number.isFinite(fromTotalRecords) && fromTotalRecords > 0) return Math.floor(fromTotalRecords);
+  if (Array.isArray(denseVec.vectors) && denseVec.vectors.length > 0) return denseVec.vectors.length;
+  return 0;
+};
+
 /**
  * Apply an incremental update to a sqlite index using bundle deltas.
  * @param {object} params
@@ -124,8 +134,10 @@ export async function incrementalUpdateDatabase({
     return { used: false, reason: 'sqlite db missing' };
   }
 
-  const expectedModel = expectedDense?.model || modelConfig.id || null;
-  const expectedDims = Number.isFinite(expectedDense?.dims) ? expectedDense.dims : null;
+  const expectedDenseCount = resolveExpectedDenseCount(expectedDense);
+  const expectedDenseRequired = expectedDenseCount > 0;
+  const expectedModel = expectedDenseRequired ? (expectedDense?.model || modelConfig.id || null) : null;
+  const expectedDims = expectedDenseRequired && Number.isFinite(expectedDense?.dims) ? expectedDense.dims : null;
 
   const useBuildPragmas = buildPragmas !== false;
   const db = new Database(outPath);
@@ -228,16 +240,17 @@ export async function incrementalUpdateDatabase({
     })
     : configQuantization;
   const quantization = dbDenseMeta ? dbQuantization : configQuantization;
-  if ((expectedModel || expectedDims !== null) && !dbDenseMeta) {
-    await finalize();
-    return { used: false, reason: 'dense metadata missing', ...changeSummary };
+  if (expectedDenseRequired && !dbDenseMeta) {
+    if (emitOutput) {
+      warn(`[sqlite] ${mode} incremental update: dense metadata missing; rebuilding dense_meta from incremental vectors.`);
+    }
   }
   if (expectedModel) {
-    if (!dbModel) {
+    if (dbDenseMeta && !dbModel) {
       await finalize();
       return { used: false, reason: 'dense metadata model missing', ...changeSummary };
     }
-    if (dbModel !== expectedModel) {
+    if (dbDenseMeta && dbModel !== expectedModel) {
       await finalize();
       return {
         used: false,
@@ -247,11 +260,11 @@ export async function incrementalUpdateDatabase({
     }
   }
   if (expectedDims !== null) {
-    if (dbDims === null) {
+    if (dbDenseMeta && dbDims === null) {
       await finalize();
       return { used: false, reason: 'dense metadata dims missing', ...changeSummary };
     }
-    if (dbDims !== expectedDims) {
+    if (dbDenseMeta && dbDims !== expectedDims) {
       await finalize();
       return {
         used: false,
