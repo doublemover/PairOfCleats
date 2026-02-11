@@ -126,11 +126,14 @@ export const executeTreeSitterSchedulerPlan = async ({
     const indexPath = paths.resultsIndexPathForGrammarKey(grammarKey);
     const metaPath = paths.resultsMetaPathForGrammarKey(grammarKey);
     const pageIndexPath = paths.resultsPageIndexPathForGrammarKey(grammarKey);
-    const { stream: resultsStream, done: resultsDone } = createJsonWriteStream(resultsPath, { atomic: true });
-    const { stream: indexStream, done: indexDone } = createJsonWriteStream(indexPath, { atomic: true });
-    const { stream: metaStream, done: metaDone } = createJsonWriteStream(metaPath, { atomic: true });
+    // Scheduler outputs are written inside a unique per-build directory and are
+    // consumed only after this subprocess completes. Avoid per-file atomic
+    // rename churn here to prevent Windows temp-path races under high fan-out.
+    const { stream: resultsStream, done: resultsDone } = createJsonWriteStream(resultsPath, { atomic: false });
+    const { stream: indexStream, done: indexDone } = createJsonWriteStream(indexPath, { atomic: false });
+    const { stream: metaStream, done: metaDone } = createJsonWriteStream(metaPath, { atomic: false });
     const pageIndexRef = schedulerStore === 'paged-json'
-      ? createJsonWriteStream(pageIndexPath, { atomic: true })
+      ? createJsonWriteStream(pageIndexPath, { atomic: false })
       : null;
     const pageIndexStream = pageIndexRef?.stream || null;
     const pageIndexDone = pageIndexRef?.done || null;
