@@ -8,23 +8,42 @@ import { collectOutput, extractSkipReason } from './run-logging.js';
 import { normalizeResult } from './run-results.js';
 
 const sanitizeId = (value) => value.replace(/[^a-z0-9-_]+/gi, '_').slice(0, 120) || 'test';
+const UINT32_RANGE = 0x1_0000_0000;
+const INT32_MAX = 0x7fffffff;
+const INT32_MIN = -0x80000000;
+const UINT32_MAX = 0xffffffff;
+const expandExitCodeAliases = (value) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return [];
+  const code = Math.trunc(numeric);
+  if (code < INT32_MIN || code > UINT32_MAX) return [code];
+  const unsigned = code < 0 ? code + UINT32_RANGE : code;
+  const signed = unsigned > INT32_MAX ? unsigned - UINT32_RANGE : unsigned;
+  return signed === unsigned ? [signed] : [signed, unsigned];
+};
+
 const normalizeRedoExitCodes = (value) => {
-  if (!value) return [];
+  const normalized = new Set();
+  if (!value) return normalized;
+  const append = (entry) => {
+    for (const code of expandExitCodeAliases(entry)) {
+      normalized.add(code);
+    }
+  };
   if (Array.isArray(value)) {
-    return value
-      .map((entry) => Number(entry))
-      .filter((entry) => Number.isFinite(entry));
+    for (const entry of value) {
+      append(entry);
+    }
+    return normalized;
   }
-  const single = Number(value);
-  return Number.isFinite(single) ? [single] : [];
+  append(value);
+  return normalized;
 };
 
 const isRedoExit = (result, redoExitCodes) => {
   const codes = normalizeRedoExitCodes(redoExitCodes);
-  if (!codes.length) return false;
-  return result.status === 'failed'
-    && !result.timedOut
-    && codes.includes(result.exitCode);
+  if (!codes.size || result.status !== 'failed' || result.timedOut) return false;
+  return expandExitCodeAliases(result.exitCode).some((code) => codes.has(code));
 };
 
 const resolveTimeoutOverride = (value) => {
