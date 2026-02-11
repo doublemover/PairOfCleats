@@ -37,14 +37,22 @@ const buildShellCommand = (command, args) => {
   return [command, ...resolvedArgs].map(quoteArg).join(' ');
 };
 
+const shouldUseCmdShell = (command) => {
+  if (process.platform !== 'win32') return false;
+  return /\.(cmd|bat)$/i.test(String(command ?? ''));
+};
+
 const resolveShellInvocation = (command, args) => {
-  const commandLine = buildShellCommand(command, args);
+  const resolvedCommand = String(command ?? '');
+  const resolvedArgs = Array.isArray(args) ? args.map((arg) => String(arg ?? '')) : [];
   if (process.platform === 'win32') {
+    const commandLine = buildShellCommand(resolvedCommand, resolvedArgs);
     return {
       command: process.env.ComSpec || 'cmd.exe',
       args: ['/d', '/s', '/c', commandLine]
     };
   }
+  const commandLine = buildShellCommand(resolvedCommand, resolvedArgs);
   return {
     command: process.env.SHELL || '/bin/sh',
     args: ['-lc', commandLine]
@@ -247,6 +255,9 @@ export function spawnSubprocess(command, args, options = {}) {
     const useShell = options.shell === true;
     const child = useShell
       ? (() => {
+        if (process.platform === 'win32' && !shouldUseCmdShell(command)) {
+          return spawn(command, args, { cwd: options.cwd, env: options.env, stdio, shell: false, detached });
+        }
         const invocation = resolveShellInvocation(command, args);
         return spawn(invocation.command, invocation.args, {
           cwd: options.cwd,
@@ -389,6 +400,16 @@ export function spawnSubprocessSync(command, args, options = {}) {
   const useShell = options.shell === true;
   const result = useShell
     ? (() => {
+      if (process.platform === 'win32' && !shouldUseCmdShell(command)) {
+        return spawnSync(command, args, {
+          cwd: options.cwd,
+          env: options.env,
+          stdio,
+          shell: false,
+          input: options.input,
+          encoding: captureStdout || captureStderr ? 'buffer' : undefined
+        });
+      }
       const invocation = resolveShellInvocation(command, args);
       return spawnSync(invocation.command, invocation.args, {
         cwd: options.cwd,
