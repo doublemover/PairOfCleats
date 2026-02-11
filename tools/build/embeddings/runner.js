@@ -32,6 +32,7 @@ import { fromPosix, toPosix } from '../../../src/shared/files.js';
 import { getEnvConfig, isTestingEnv } from '../../../src/shared/env.js';
 import { spawnSubprocess } from '../../../src/shared/subprocess.js';
 import {
+  getCurrentBuildInfo,
   getIndexDir,
   getMetricsDir,
   getRepoCacheRoot,
@@ -338,6 +339,16 @@ export async function runBuildEmbeddingsWithConfig(config) {
   ].filter(Boolean);
 
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
+  const repoCacheRootResolved = path.resolve(repoCacheRoot);
+  let activeIndexRoot = indexRoot;
+  if (activeIndexRoot && path.resolve(activeIndexRoot) === repoCacheRootResolved) {
+    const currentBuild = getCurrentBuildInfo(root, userConfig);
+    const promotedRoot = currentBuild?.activeRoot || currentBuild?.buildRoot || null;
+    if (promotedRoot && path.resolve(promotedRoot) !== repoCacheRootResolved) {
+      activeIndexRoot = promotedRoot;
+      log(`[embeddings] using active build root from current.json: ${activeIndexRoot}`);
+    }
+  }
   const metricsDir = getMetricsDir(root, userConfig);
   const envConfig = configEnv || getEnvConfig();
   const crashLogger = await createCrashLogger({
@@ -378,9 +389,9 @@ export async function runBuildEmbeddingsWithConfig(config) {
   });
   const triageConfig = getTriageConfig(root, userConfig);
   const recordsDir = triageConfig.recordsDir;
-  const buildStatePath = resolveBuildStatePath(indexRoot);
+  const buildStatePath = resolveBuildStatePath(activeIndexRoot);
   const hasBuildState = buildStatePath && fsSync.existsSync(buildStatePath);
-  setHeartbeat(hasBuildState ? startBuildHeartbeat(indexRoot, 'stage3') : () => {});
+  setHeartbeat(hasBuildState ? startBuildHeartbeat(activeIndexRoot, 'stage3') : () => {});
 
   const cacheScopeRaw = embeddingsConfig.cache?.scope;
   const cacheScope = typeof cacheScopeRaw === 'string' ? cacheScopeRaw.trim().toLowerCase() : '';
@@ -396,7 +407,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
   const cacheMaxAgeMs = Number.isFinite(cacheMaxAgeDays) ? Math.max(0, cacheMaxAgeDays) * 24 * 60 * 60 * 1000 : 0;
   const maintenanceConfig = normalizeEmbeddingsMaintenanceConfig(embeddingsConfig.maintenance || {});
   const queuedMaintenance = new Set();
-  const sqlitePaths = resolveSqlitePaths(root, userConfig, { indexRoot });
+  const sqlitePaths = resolveSqlitePaths(root, userConfig, { indexRoot: activeIndexRoot });
   const sqliteSharedDb = sqlitePaths?.codePath
     && sqlitePaths?.prosePath
     && path.resolve(sqlitePaths.codePath) === path.resolve(sqlitePaths.prosePath);
@@ -443,7 +454,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
   };
 
   if (hasBuildState) {
-    await markBuildPhase(indexRoot, 'stage3', 'running');
+    await markBuildPhase(activeIndexRoot, 'stage3', 'running');
   }
 
   const modeTask = display.task('Embeddings', { total: modes.length, stage: 'embeddings' });
@@ -466,7 +477,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
       let cacheMisses = 0;
       let cacheRejected = 0;
       let cacheFastRejects = 0;
-      const indexDir = getIndexDir(root, mode, userConfig, { indexRoot });
+      const indexDir = getIndexDir(root, mode, userConfig, { indexRoot: activeIndexRoot });
       const statePath = path.join(indexDir, 'index_state.json');
       logExpectedArtifacts(mode, indexDir, 'pre-stage3');
       const stateNow = new Date().toISOString();
@@ -586,10 +597,10 @@ export async function runBuildEmbeddingsWithConfig(config) {
         }
 
         stageCheckpoints = createStageCheckpointRecorder({
-          buildRoot: indexRoot,
+          buildRoot: activeIndexRoot,
           metricsDir,
           mode,
-          buildId: indexRoot ? path.basename(indexRoot) : null
+          buildId: activeIndexRoot ? path.basename(activeIndexRoot) : null
         });
         stageCheckpoints.record({
           stage: 'stage3',
@@ -1334,7 +1345,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
             Database,
             root,
             userConfig,
-            indexRoot,
+            indexRoot: activeIndexRoot,
             mode,
             vectors: mergedVectors,
             dims: finalDims,
@@ -1492,7 +1503,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
 
         const validation = await scheduleIo(() => validateIndexArtifacts({
           root,
-          indexRoot,
+          indexRoot: activeIndexRoot,
           modes: [mode],
           userConfig,
           sqliteEnabled: false
@@ -1592,7 +1603,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
     }
 
     if (hasBuildState) {
-      await markBuildPhase(indexRoot, 'stage3', 'done');
+      await markBuildPhase(activeIndexRoot, 'stage3', 'done');
     }
     return { modes, scheduler: scheduler?.stats?.(), writer: writerStatsByMode };
   } catch (err) {
