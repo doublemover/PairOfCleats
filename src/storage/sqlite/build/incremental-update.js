@@ -408,7 +408,10 @@ export async function incrementalUpdateDatabase({
   const maxRow = db.prepare('SELECT MAX(id) AS maxId FROM chunks WHERE mode = ?')
     .get(mode);
   let nextDocId = Number.isFinite(maxRow?.maxId) ? maxRow.maxId + 1 : 0;
-  const freeDocIds = [];
+  // Prefer ids freed by explicit file deletes before overflow ids from changed
+  // files so replacements are stable across incremental runs.
+  const freeDocIdsDeleted = [];
+  const freeDocIdsOverflow = [];
   let insertedChunks = 0;
 
   const vectorExtension = vectorConfig?.extension || {};
@@ -460,7 +463,7 @@ export async function incrementalUpdateDatabase({
       const docIds = entry?.ids || [];
       deleteDocIds(db, mode, docIds, vectorDeleteTargets);
       if (docIds.length) {
-        freeDocIds.push(...docIds);
+        freeDocIdsDeleted.push(...docIds);
       }
       db.prepare('DELETE FROM file_manifest WHERE mode = ? AND file = ?')
         .run(mode, normalizedFile);
@@ -546,13 +549,18 @@ export async function incrementalUpdateDatabase({
       const bundleEntry = bundles.get(normalizedFile);
       const bundle = bundleEntry?.bundle;
       let chunkCount = 0;
+      const isNewFile = reuseIds.length === 0;
       for (const chunk of bundle?.chunks || []) {
         let docId;
         if (reuseIndex < reuseIds.length) {
           docId = reuseIds[reuseIndex];
           reuseIndex += 1;
-        } else if (freeDocIds.length) {
-          docId = freeDocIds.pop();
+        } else if (isNewFile && freeDocIdsDeleted.length) {
+          docId = freeDocIdsDeleted.pop();
+        } else if (freeDocIdsOverflow.length) {
+          docId = freeDocIdsOverflow.pop();
+        } else if (freeDocIdsDeleted.length) {
+          docId = freeDocIdsDeleted.pop();
         } else {
           docId = nextDocId;
           nextDocId += 1;
@@ -671,7 +679,7 @@ export async function incrementalUpdateDatabase({
         insertedChunks += 1;
       }
       if (reuseIndex < reuseIds.length) {
-        freeDocIds.push(...reuseIds.slice(reuseIndex));
+        freeDocIdsOverflow.push(...reuseIds.slice(reuseIndex));
       }
 
       const manifestEntry = record.entry || bundleEntry?.entry || {};
