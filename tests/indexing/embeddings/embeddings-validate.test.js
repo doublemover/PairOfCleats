@@ -2,23 +2,28 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { validateIndexArtifacts } from '../../../src/index/validate.js';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
 const cacheRoot = path.join(root, '.testCache', 'embeddings-validate');
-const env = {
-  ...process.env,
-  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
-};
+const env = applyTestEnv({
+  cacheRoot,
+  embeddings: 'stub',
+  testConfig: {
+    indexing: {
+      scm: { provider: 'none' }
+    }
+  }
+});
 
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 
 const buildPath = path.join(root, 'build_index.js');
 const embeddingsPath = path.join(root, 'tools', 'build/embeddings.js');
-const validatePath = path.join(root, 'tools', 'index', 'validate.js');
 
 const run = (args, label) => {
   const result = spawnSync(process.execPath, args, { env, encoding: 'utf8' });
@@ -30,39 +35,33 @@ const run = (args, label) => {
   return result.stdout || '';
 };
 
-run([buildPath, '--stub-embeddings', '--repo', fixtureRoot], 'build index');
+run([buildPath, '--stub-embeddings', '--stage', 'stage2', '--repo', fixtureRoot], 'build index');
 run([embeddingsPath, '--stub-embeddings', '--repo', fixtureRoot], 'build embeddings');
-
-const validateResult = spawnSync(
-  process.execPath,
-  [validatePath, '--repo', fixtureRoot, '--json'],
-  { env, encoding: 'utf8' }
-);
-if (validateResult.status !== 0) {
-  console.error('Expected index-validate to pass after build-embeddings.');
-  if (validateResult.stderr) console.error(validateResult.stderr.trim());
-  process.exit(validateResult.status ?? 1);
-}
-let payload;
-try {
-  payload = JSON.parse(validateResult.stdout);
-} catch {
-  console.error('index-validate did not return valid JSON.');
-  process.exit(1);
-}
-if (!payload || payload.ok !== true) {
-  console.error('index-validate JSON payload missing ok=true.');
-  process.exit(1);
-}
 
 const previousCacheRoot = process.env.PAIROFCLEATS_CACHE_ROOT;
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 const userConfig = loadUserConfig(fixtureRoot);
 const codeDir = getIndexDir(fixtureRoot, 'code', userConfig);
+const indexRoot = path.dirname(codeDir);
 if (previousCacheRoot === undefined) {
   delete process.env.PAIROFCLEATS_CACHE_ROOT;
 } else {
   process.env.PAIROFCLEATS_CACHE_ROOT = previousCacheRoot;
+}
+const payload = await validateIndexArtifacts({
+  root: fixtureRoot,
+  indexRoot,
+  modes: ['code', 'prose', 'extracted-prose', 'records'],
+  userConfig,
+  sqliteEnabled: false,
+  strict: true
+});
+if (!payload || payload.ok !== true) {
+  console.error('Expected index validation to pass after build-embeddings.');
+  if (Array.isArray(payload?.issues) && payload.issues.length) {
+    payload.issues.slice(0, 10).forEach((issue) => console.error(`- ${issue}`));
+  }
+  process.exit(1);
 }
 const statePath = path.join(codeDir, 'index_state.json');
 let state;

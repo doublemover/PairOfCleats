@@ -178,6 +178,37 @@ const resolveTokenPostingsSources = (dir) => {
   return parts.length ? { metaPath, parts } : null;
 };
 
+const normalizeTfPostingRows = (posting) => {
+  if (!Array.isArray(posting) || posting.length <= 1) return Array.isArray(posting) ? posting : [];
+  let previousDocId = -1;
+  let alreadySortedUnique = true;
+  for (const entry of posting) {
+    if (!Array.isArray(entry) || entry.length < 2) continue;
+    const docIdRaw = Number(entry[0]);
+    if (!Number.isFinite(docIdRaw)) continue;
+    const docId = Math.max(0, Math.floor(docIdRaw));
+    if (docId <= previousDocId) {
+      alreadySortedUnique = false;
+      break;
+    }
+    previousDocId = docId;
+  }
+  if (alreadySortedUnique) return posting;
+  const merged = new Map();
+  for (const entry of posting) {
+    if (!Array.isArray(entry) || entry.length < 2) continue;
+    const docIdRaw = Number(entry[0]);
+    const tfRaw = Number(entry[1]);
+    if (!Number.isFinite(docIdRaw) || !Number.isFinite(tfRaw)) continue;
+    const docId = Math.max(0, Math.floor(docIdRaw));
+    const tf = Math.max(0, Math.floor(tfRaw));
+    if (!tf) continue;
+    merged.set(docId, (merged.get(docId) || 0) + tf);
+  }
+  if (!merged.size) return [];
+  return Array.from(merged.entries()).sort((a, b) => a[0] - b[0]);
+};
+
 const CHUNK_META_REQUIRED_KEYS = resolveJsonlRequiredKeys('chunk_meta');
 
 const readJsonLinesFile = async (
@@ -605,7 +636,7 @@ export async function buildDatabaseFromArtifacts({
       if (insertTokenPostingMany) {
         const rows = [];
         for (let tokenId = 0; tokenId < postings.length; tokenId += 1) {
-          const posting = postings[tokenId] || [];
+          const posting = normalizeTfPostingRows(postings[tokenId]);
           for (const entry of posting) {
             if (!entry) continue;
             rows.push([targetMode, tokenId, entry[0], entry[1]]);
@@ -625,7 +656,7 @@ export async function buildDatabaseFromArtifacts({
         for (let start = 0; start < postings.length; start += resolvedBatchSize) {
           const end = Math.min(start + resolvedBatchSize, postings.length);
           for (let tokenId = start; tokenId < end; tokenId += 1) {
-            const posting = postings[tokenId] || [];
+            const posting = normalizeTfPostingRows(postings[tokenId]);
             for (const entry of posting) {
               if (!entry) continue;
               insertTokenPosting.run(targetMode, tokenId, entry[0], entry[1]);
@@ -769,7 +800,7 @@ export async function buildDatabaseFromArtifacts({
         if (insertTokenPostingMany) {
           const rows = [];
           for (let i = 0; i < postings.length; i += 1) {
-            const posting = postings[i] || [];
+            const posting = normalizeTfPostingRows(postings[i]);
             const postingTokenId = tokenId + i;
             for (const entry of posting) {
               if (!entry) continue;
@@ -790,7 +821,7 @@ export async function buildDatabaseFromArtifacts({
           for (let start = 0; start < postings.length; start += resolvedBatchSize) {
             const end = Math.min(start + resolvedBatchSize, postings.length);
             for (let i = start; i < end; i += 1) {
-              const posting = postings[i] || [];
+              const posting = normalizeTfPostingRows(postings[i]);
               const postingTokenId = tokenId + i;
               for (const entry of posting) {
                 if (!entry) continue;

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-11T06:03:58.412Z",
+  "generatedAt": "2026-02-11T06:51:28.782Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -1795,7 +1795,6 @@
         "tests/indexing/determinism/chunkuid-determinism.test.js",
         "tests/indexing/embeddings/build/runtime-defaults.test.js",
         "tests/indexing/embeddings/embeddings-cache-identity.test.js",
-        "tests/indexing/embeddings/embeddings-validate.test.js",
         "tests/indexing/embeddings/manifest-embeddings-pieces.test.js",
         "tests/indexing/extracted-prose/extracted-prose.test.js",
         "tests/indexing/git/git-blame-range.test.js",

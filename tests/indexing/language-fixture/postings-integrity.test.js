@@ -1,6 +1,5 @@
 #!/usr/bin/env node
-import fs from 'node:fs';
-import path from 'node:path';
+import { loadTokenPostings } from '../../../src/shared/artifact-io.js';
 import { ensureFixtureIndex, loadFixtureIndexMeta } from '../../helpers/fixture-index.js';
 
 const { fixtureRoot, userConfig } = await ensureFixtureIndex({
@@ -33,31 +32,13 @@ const validateTokenPostings = (payload, label) => {
   }
 };
 
-const tokenPostingsPath = path.join(codeDir, 'token_postings.json');
-const tokenPostingsMetaPath = path.join(codeDir, 'token_postings.meta.json');
-
-if (fs.existsSync(tokenPostingsPath)) {
-  const tokenPostings = JSON.parse(fs.readFileSync(tokenPostingsPath, 'utf8'));
-  validateTokenPostings(tokenPostings, 'token_postings.json');
-} else if (fs.existsSync(tokenPostingsMetaPath)) {
-  const tokenMeta = JSON.parse(fs.readFileSync(tokenPostingsMetaPath, 'utf8'));
-  const parts = Array.isArray(tokenMeta?.fields?.parts) ? tokenMeta.fields.parts : [];
-  if (!parts.length) {
-    console.error('Token postings check failed: sharded metadata missing parts list.');
-    process.exit(1);
-  }
-  for (const part of parts) {
-    const partPath = path.join(codeDir, part);
-    if (!fs.existsSync(partPath)) {
-      console.error(`Token postings shard missing: ${partPath}`);
-      process.exit(1);
-    }
-    const shard = JSON.parse(fs.readFileSync(partPath, 'utf8'));
-    validateTokenPostings(shard, part);
-  }
-} else {
-  console.error('Token postings check failed: postings metadata not found.');
+let tokenPostings = null;
+try {
+  tokenPostings = loadTokenPostings(codeDir, { strict: true });
+} catch (err) {
+  console.error(`Token postings check failed: ${err?.message || err}`);
   process.exit(1);
 }
+validateTokenPostings(tokenPostings, 'token_postings');
 
 console.log('Language fixture token postings integrity ok.');

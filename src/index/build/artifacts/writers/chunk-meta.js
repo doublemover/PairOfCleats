@@ -147,6 +147,33 @@ const recordTrimmedFields = (stats, fields) => {
   }
 };
 
+const truncateUtf8ByBytes = (value, maxBytes) => {
+  if (typeof value !== 'string') return value;
+  if (!Number.isFinite(Number(maxBytes)) || maxBytes <= 0) return '';
+  const resolvedMax = Math.floor(Number(maxBytes));
+  if (Buffer.byteLength(value, 'utf8') <= resolvedMax) return value;
+  if (resolvedMax <= 3) return '.'.repeat(resolvedMax);
+  const suffix = '...';
+  const keepBytes = resolvedMax - Buffer.byteLength(suffix, 'utf8');
+  let low = 0;
+  let high = value.length;
+  while (low < high) {
+    const mid = Math.ceil((low + high) / 2);
+    const next = value.slice(0, mid);
+    if (Buffer.byteLength(next, 'utf8') <= keepBytes) {
+      low = mid;
+    } else {
+      high = mid - 1;
+    }
+  }
+  return `${value.slice(0, low)}${suffix}`;
+};
+
+const toFiniteOrNull = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
 const compactChunkMetaEntry = (entry, maxBytes, stats = null) => {
   const resolvedMax = Number.isFinite(Number(maxBytes)) ? Math.floor(Number(maxBytes)) : 0;
   if (!resolvedMax) return entry;
@@ -210,7 +237,53 @@ const compactChunkMetaEntry = (entry, maxBytes, stats = null) => {
     }
   }
   recordTrimmedFields(stats, droppedFields);
-  return trimmed;
+  if (fits(trimmed)) return trimmed;
+
+  recordTrimmedField(stats, 'fallback');
+  const fallback = {
+    id: toFiniteOrNull(trimmed.id),
+    start: toFiniteOrNull(trimmed.start),
+    end: toFiniteOrNull(trimmed.end),
+    startLine: toFiniteOrNull(trimmed.startLine),
+    endLine: toFiniteOrNull(trimmed.endLine),
+    file: trimmed.file ?? null,
+    fileId: toFiniteOrNull(trimmed.fileId),
+    ext: trimmed.ext ?? null,
+    lang: trimmed.lang ?? null,
+    kind: trimmed.kind ?? null,
+    name: trimmed.name ?? null,
+    chunkUid: trimmed.chunkUid ?? null,
+    chunkId: trimmed.chunkId ?? null,
+    virtualPath: trimmed.virtualPath ?? null
+  };
+  if (fits(fallback)) return fallback;
+
+  const textKeys = ['file', 'virtualPath', 'name', 'kind', 'ext', 'lang', 'chunkUid', 'chunkId'];
+  const perFieldBudget = Math.max(24, Math.floor((resolvedMax * 0.6) / textKeys.length));
+  for (const key of textKeys) {
+    if (typeof fallback[key] !== 'string') continue;
+    const next = truncateUtf8ByBytes(fallback[key], perFieldBudget);
+    if (next !== fallback[key]) recordTrimmedField(stats, key);
+    fallback[key] = next;
+  }
+  if (fits(fallback)) return fallback;
+
+  const dropOrder = textKeys
+    .map((key) => [key, Buffer.byteLength(String(fallback[key] || ''), 'utf8')])
+    .sort((a, b) => b[1] - a[1])
+    .map(([key]) => key);
+  for (const key of dropOrder) {
+    if (fallback[key] == null) continue;
+    fallback[key] = null;
+    recordTrimmedField(stats, key);
+    if (fits(fallback)) return fallback;
+  }
+
+  return {
+    id: toFiniteOrNull(entry?.id),
+    start: toFiniteOrNull(entry?.start),
+    end: toFiniteOrNull(entry?.end)
+  };
 };
 
 const getChunkMetaSortKey = (chunk) => ({
@@ -1306,9 +1379,9 @@ export const enqueueChunkMetaArtifacts = async ({
             format: 'binary-columnar-v1',
             rowEncoding: 'json-rows',
             count: frames.count,
-            data: path.posix.basename(binaryDataPath),
-            offsets: path.posix.basename(binaryOffsetsPath),
-            lengths: path.posix.basename(binaryLengthsPath),
+            data: path.basename(binaryDataPath),
+            offsets: path.basename(binaryOffsetsPath),
+            lengths: path.basename(binaryLengthsPath),
             orderingHash,
             orderingCount
           },

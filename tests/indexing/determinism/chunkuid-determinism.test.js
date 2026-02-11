@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
+import { MAX_JSON_BYTES, loadJsonArrayArtifactSync } from '../../../src/shared/artifact-io.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'chunkuid-determinism');
@@ -45,11 +45,14 @@ const loadChunkMap = (cacheRoot) => {
   process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
   const userConfig = loadUserConfig(repoRoot);
   const codeDir = getIndexDir(repoRoot, 'code', userConfig);
-  const chunkMeta = JSON.parse(fs.readFileSync(path.join(codeDir, 'chunk_meta.json'), 'utf8'));
-  const fileMetaPath = path.join(codeDir, 'file_meta.json');
-  const fileMeta = fs.existsSync(fileMetaPath)
-    ? JSON.parse(fs.readFileSync(fileMetaPath, 'utf8'))
-    : [];
+  const chunkMeta = loadJsonArrayArtifactSync(codeDir, 'chunk_meta', {
+    maxBytes: MAX_JSON_BYTES,
+    strict: true
+  });
+  const fileMeta = loadJsonArrayArtifactSync(codeDir, 'file_meta', {
+    maxBytes: MAX_JSON_BYTES,
+    strict: false
+  });
   const fileById = new Map(
     (Array.isArray(fileMeta) ? fileMeta : []).map((entry) => [entry.id, entry.file])
   );

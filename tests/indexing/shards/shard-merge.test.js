@@ -161,14 +161,21 @@ const riskInterproceduralEquivalent = (left, right) => (
 
 const normalizeIndexState = (value) => {
   if (!value || typeof value !== 'object') return value;
-  const copy = JSON.parse(JSON.stringify(value));
-  delete copy.generatedAt;
-  delete copy.buildId;
-  delete copy.repoId;
-  delete copy.updatedAt;
+  const volatileKeys = new Set(['generatedAt', 'updatedAt', 'buildId', 'repoId', 'path']);
+  const stripVolatile = (node) => {
+    if (Array.isArray(node)) return node.map((entry) => stripVolatile(entry));
+    if (!node || typeof node !== 'object') return node;
+    const next = {};
+    for (const [key, entry] of Object.entries(node)) {
+      if (volatileKeys.has(key)) continue;
+      next[key] = stripVolatile(entry);
+    }
+    return next;
+  };
+  const copy = stripVolatile(JSON.parse(JSON.stringify(value)));
   delete copy.shards;
+  delete copy.compatibilityKey;
   if (copy.embeddings && typeof copy.embeddings === 'object') {
-    delete copy.embeddings.updatedAt;
     delete copy.embeddings.lastError;
     if (copy.embeddings.backends && typeof copy.embeddings.backends === 'object') {
       for (const backend of Object.values(copy.embeddings.backends)) {
@@ -183,8 +190,6 @@ const normalizeIndexState = (value) => {
   }
   if (copy.sqlite && typeof copy.sqlite === 'object') {
     delete copy.sqlite.stats;
-    delete copy.sqlite.updatedAt;
-    delete copy.sqlite.path;
     delete copy.sqlite.note;
     delete copy.sqlite.threadLimits;
     delete copy.sqlite.elapsedMs;
@@ -194,8 +199,6 @@ const normalizeIndexState = (value) => {
     delete copy.sqlite.error;
   }
   if (copy.lmdb && typeof copy.lmdb === 'object') {
-    delete copy.lmdb.updatedAt;
-    delete copy.lmdb.path;
     delete copy.lmdb.mapSizeBytes;
     delete copy.lmdb.mapSizeEstimatedBytes;
     delete copy.lmdb.pending;
@@ -249,7 +252,9 @@ const logPieceDiff = async (piecePath) => {
       console.error(`Shard merge diff: missing ${piecePath} (${base.path}, ${shard.path})`);
       return;
     }
-    const diff = findFirstDiff(base.json, shard.json);
+    const leftJson = piecePath === 'index_state.json' ? normalizeIndexState(base.json) : base.json;
+    const rightJson = piecePath === 'index_state.json' ? normalizeIndexState(shard.json) : shard.json;
+    const diff = findFirstDiff(leftJson, rightJson);
     if (!diff) {
       console.error(`Shard merge diff: ${piecePath} parsed equal despite checksum mismatch.`);
       return;

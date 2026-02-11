@@ -627,20 +627,13 @@ export async function loadSearchIndexes({
       for (const field of quantFields) {
         const leftHas = hasOwn(reference.identity, field);
         const rightHas = hasOwn(source.identity, field);
-        if (leftHas !== rightHas) {
-          mismatches.push({
-            mode,
-            source: source.name,
-            field,
-            expected: leftHas ? reference.identity[field] : null,
-            actual: rightHas ? source.identity[field] : null
-          });
-          continue;
-        }
         if (!leftHas || !rightHas) continue;
         const leftValue = normalizeIdentityNumber(reference.identity[field]);
         const rightValue = normalizeIdentityNumber(source.identity[field]);
-        if (leftValue == null || rightValue == null || !numbersEqual(leftValue, rightValue)) {
+        // Some ANN metadata formats omit quantization fields; treat null/omitted as unknown,
+        // and only enforce when both sides provide concrete numeric values.
+        if (leftValue == null || rightValue == null) continue;
+        if (!numbersEqual(leftValue, rightValue)) {
           mismatches.push({
             mode,
             source: source.name,

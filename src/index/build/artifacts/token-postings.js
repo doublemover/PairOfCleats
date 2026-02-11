@@ -166,7 +166,7 @@ export async function enqueueTokenPostingsArtifacts({
             encoding: 'delta-varint',
             blockSize: packed.blockSize,
             vocabCount: postings.tokenVocab.length,
-            offsets: path.posix.basename(offsetsPath),
+            offsets: path.basename(offsetsPath),
             ...(tokenIdMeta ? { tokenId: tokenIdMeta } : {})
           },
           arrays: {
@@ -304,9 +304,9 @@ export async function enqueueTokenPostingsArtifacts({
             count: frames.count,
             avgDocLen: postings.avgDocLen,
             totalDocs: state.docLengths.length,
-            data: path.posix.basename(binaryDataPath),
-            offsets: path.posix.basename(binaryOffsetsPath),
-            lengths: path.posix.basename(binaryLengthsPath)
+            data: path.basename(binaryDataPath),
+            offsets: path.basename(binaryOffsetsPath),
+            lengths: path.basename(binaryLengthsPath)
           },
           arrays: {
             vocab: postings.tokenVocab,

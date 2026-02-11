@@ -5,7 +5,12 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { getIndexDir, getMetricsDir, getRepoCacheRoot, loadUserConfig, resolveSqlitePaths } from '../../tools/shared/dict-utils.js';
 import { hasIndexMeta } from '../../src/retrieval/cli/index-loader.js';
-import { MAX_JSON_BYTES, loadChunkMeta, readCompatibilityKey } from '../../src/shared/artifact-io.js';
+import {
+  MAX_JSON_BYTES,
+  loadChunkMeta,
+  loadJsonArrayArtifactSync,
+  readCompatibilityKey
+} from '../../src/shared/artifact-io.js';
 import { syncProcessEnv } from './test-env.js';
 import { isPlainObject, mergeConfig } from '../../src/shared/config.js';
 import { runSqliteBuild } from './sqlite-builder.js';
@@ -70,9 +75,10 @@ const hasChunkMeta = (dir) => hasIndexMeta(dir);
 
 const hasRiskTags = (codeDir) => {
   try {
-    const chunkMetaPath = path.join(codeDir, 'chunk_meta.json');
-    if (!fs.existsSync(chunkMetaPath)) return false;
-    const raw = JSON.parse(fs.readFileSync(chunkMetaPath, 'utf8'));
+    const raw = loadJsonArrayArtifactSync(codeDir, 'chunk_meta', {
+      maxBytes: MAX_JSON_BYTES,
+      strict: false
+    });
     return Array.isArray(raw) && raw.some((entry) => {
       const risk = entry?.metaV2?.risk || entry?.docmeta?.risk || null;
       if (!risk) return false;
@@ -179,32 +185,41 @@ export const ensureFixtureSqlite = async ({ fixtureRoot, userConfig, env }) => {
 
 export const loadFixtureIndexMeta = (fixtureRoot, userConfig) => {
   const codeDir = getIndexDir(fixtureRoot, 'code', userConfig);
-  const chunkMetaPath = path.join(codeDir, 'chunk_meta.json');
-  if (!fs.existsSync(chunkMetaPath)) {
-    console.error(`Missing chunk meta at ${chunkMetaPath}`);
+  let chunkMeta = [];
+  let fileMeta = [];
+  try {
+    chunkMeta = loadJsonArrayArtifactSync(codeDir, 'chunk_meta', {
+      maxBytes: MAX_JSON_BYTES,
+      strict: true
+    });
+    fileMeta = loadJsonArrayArtifactSync(codeDir, 'file_meta', {
+      maxBytes: MAX_JSON_BYTES,
+      strict: true
+    });
+  } catch (err) {
+    console.error(`Failed to load fixture index metadata at ${codeDir}: ${err?.message || err}`);
     process.exit(1);
   }
-  const chunkMeta = JSON.parse(fs.readFileSync(chunkMetaPath, 'utf8'));
-  const fileMetaPath = path.join(codeDir, 'file_meta.json');
-  const fileMeta = fs.existsSync(fileMetaPath)
-    ? JSON.parse(fs.readFileSync(fileMetaPath, 'utf8'))
-    : [];
   const fileById = new Map(
     (Array.isArray(fileMeta) ? fileMeta : []).map((entry) => [entry.id, entry.file])
   );
   const resolveChunkFile = (chunk) => chunk?.file || fileById.get(chunk?.fileId) || null;
-  const fileRelationsPath = path.join(codeDir, 'file_relations.json');
   let fileRelations = null;
-  if (fs.existsSync(fileRelationsPath)) {
-    try {
-      const raw = JSON.parse(fs.readFileSync(fileRelationsPath, 'utf8'));
-      if (Array.isArray(raw)) {
-        fileRelations = new Map();
-        raw.forEach((entry) => {
-          if (entry?.file) fileRelations.set(entry.file, entry.relations || null);
-        });
-      }
-    } catch {}
+  try {
+    const raw = loadJsonArrayArtifactSync(codeDir, 'file_relations', {
+      maxBytes: MAX_JSON_BYTES,
+      strict: false
+    });
+    if (Array.isArray(raw)) {
+      fileRelations = new Map();
+      raw.forEach((entry) => {
+        if (entry?.file) fileRelations.set(entry.file, entry.relations || null);
+      });
+    }
+  } catch {}
+  if (!Array.isArray(chunkMeta) || chunkMeta.length === 0) {
+    console.error(`Missing or empty chunk metadata for fixture index at ${codeDir}`);
+    process.exit(1);
   }
   const getFileRelations = (file) => (fileRelations?.get(file) || null);
   return {
