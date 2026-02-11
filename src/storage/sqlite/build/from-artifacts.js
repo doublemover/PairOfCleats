@@ -992,8 +992,13 @@ export async function buildDatabaseFromArtifacts({
 
     async function ingestDense(dense, targetMode) {
       const hasDenseArray = Array.isArray(dense?.vectors) && dense.vectors.length > 0;
+      const hasDenseBuffer = !!(
+        dense?.buffer
+        && ArrayBuffer.isView(dense.buffer)
+        && dense.buffer.BYTES_PER_ELEMENT === 1
+      );
       const hasDenseRows = typeof dense?.rows?.[Symbol.asyncIterator] === 'function';
-      if (!hasDenseArray && !hasDenseRows) return;
+      if (!hasDenseArray && !hasDenseRows && !hasDenseBuffer) return;
       let denseDims = Number.isFinite(dense?.dims)
         ? Number(dense.dims)
         : (hasDenseArray ? (dense.vectors.find((vec) => vec && vec.length)?.length || 0) : 0);
@@ -1076,6 +1081,21 @@ export async function buildDatabaseFromArtifacts({
           denseBatch.push({ docId, vec });
           if (denseBatch.length >= resolvedBatchSize) flush();
         }
+      } else if (hasDenseBuffer) {
+        const rowWidth = Number.isFinite(denseDims) && denseDims > 0 ? Math.floor(denseDims) : 0;
+        const buffer = dense.buffer;
+        const count = Number.isFinite(Number(dense?.count))
+          ? Math.max(0, Math.floor(Number(dense.count)))
+          : (rowWidth > 0 ? Math.floor(buffer.length / rowWidth) : 0);
+        if (rowWidth > 0 && count > 0) {
+          for (let docId = 0; docId < count; docId += 1) {
+            const start = docId * rowWidth;
+            const end = start + rowWidth;
+            if (end > buffer.length) break;
+            denseBatch.push({ docId, vec: buffer.subarray(start, end) });
+            if (denseBatch.length >= resolvedBatchSize) flush();
+          }
+        }
       } else if (hasDenseRows) {
         let docId = 0;
         for await (const entry of dense.rows) {
@@ -1095,6 +1115,7 @@ export async function buildDatabaseFromArtifacts({
       }
       recordTable('dense_vectors', denseRows, performance.now() - start);
       dense.vectors = null;
+      dense.buffer = null;
     }
 
     const ingestFileMetaRows = async (fileMetaSource) => {

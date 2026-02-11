@@ -227,24 +227,72 @@ export function loadOptionalMinhashRows(dir, { materialize = false } = {}) {
   })();
 }
 
-export function loadSqliteIndexOptionalArtifacts(dir, { modelId = null } = {}) {
-  const denseMeta = loadOptional(dir, 'dense_vectors_uint8.meta.json');
-  let denseVec = null;
-  if (denseMeta && typeof denseMeta === 'object') {
-    const totalRecords = Number.isFinite(Number(denseMeta.totalRecords))
-      ? Math.max(0, Math.floor(Number(denseMeta.totalRecords)))
-      : 0;
-    const hasParts = Array.isArray(denseMeta.parts) && denseMeta.parts.length > 0;
-    denseVec = {
-      ...denseMeta,
-      model: denseMeta.model || modelId || null,
-      ...(totalRecords > 0 && hasParts
-        ? { rows: loadOptionalArrayArtifactRows(dir, 'dense_vectors_uint8', { materialize: true }) }
-        : { vectors: [] })
+const loadOptionalDenseBinary = (dir, baseName, modelId) => {
+  if (!dir || !baseName) return null;
+  const metaPath = path.join(dir, `${baseName}.bin.meta.json`);
+  if (!fs.existsSync(metaPath)) return null;
+  let metaRaw = null;
+  try {
+    metaRaw = readJson(metaPath);
+  } catch {
+    return null;
+  }
+  const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
+  const relPath = typeof meta?.path === 'string' && meta.path
+    ? meta.path
+    : `${baseName}.bin`;
+  const binPath = path.join(dir, relPath);
+  if (!fs.existsSync(binPath)) return null;
+  const dims = Number.isFinite(Number(meta?.dims)) ? Math.max(0, Math.floor(Number(meta.dims))) : 0;
+  const count = Number.isFinite(Number(meta?.count)) ? Math.max(0, Math.floor(Number(meta.count))) : 0;
+  if (!dims || !count) return null;
+  try {
+    const buffer = fs.readFileSync(binPath);
+    const view = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+    const expectedBytes = dims * count;
+    if (view.length < expectedBytes) return null;
+    const rows = (async function* iterateRows() {
+      for (let docId = 0; docId < count; docId += 1) {
+        const start = docId * dims;
+        const end = start + dims;
+        yield { docId, vector: view.subarray(start, end) };
+      }
+    })();
+    return {
+      ...meta,
+      model: meta?.model || modelId || null,
+      dims,
+      count,
+      path: relPath,
+      buffer: view,
+      rows
     };
-  } else {
-    denseVec = loadOptional(dir, 'dense_vectors_uint8.json');
-    if (denseVec && !denseVec.model) denseVec.model = modelId || null;
+  } catch {
+    return null;
+  }
+};
+
+export function loadSqliteIndexOptionalArtifacts(dir, { modelId = null } = {}) {
+  const denseBinary = loadOptionalDenseBinary(dir, 'dense_vectors_uint8', modelId);
+  const denseMeta = denseBinary ? null : loadOptional(dir, 'dense_vectors_uint8.meta.json');
+  let denseVec = denseBinary;
+  if (!denseVec) {
+    if (denseMeta && typeof denseMeta === 'object') {
+      const totalRecords = Number.isFinite(Number(denseMeta.totalRecords))
+        ? Math.max(0, Math.floor(Number(denseMeta.totalRecords)))
+        : 0;
+      const hasParts = Array.isArray(denseMeta.parts) && denseMeta.parts.length > 0;
+      denseVec = {
+        ...denseMeta,
+        model: denseMeta.model || modelId || null,
+        ...(totalRecords > 0 && hasParts
+          ? { rows: loadOptionalArrayArtifactRows(dir, 'dense_vectors_uint8', { materialize: true }) }
+          : { vectors: [] })
+      };
+    } else {
+      denseVec = loadOptional(dir, 'dense_vectors_uint8.json');
+      if (denseVec && !denseVec.model) denseVec.model = modelId || null;
+    }
   }
   return {
     fileMeta: loadOptionalFileMetaRows(dir),

@@ -149,6 +149,39 @@ export async function loadIndex(dir, options) {
       throw err;
     }
   })();
+  const loadOptionalDenseBinary = async (artifactName, baseName) => {
+    const meta = await loadOptionalObject(
+      `${artifactName}_binary_meta`,
+      path.join(dir, `${baseName}.bin.meta.json`)
+    );
+    if (!meta || typeof meta !== 'object') return null;
+    const relPath = typeof meta.path === 'string' && meta.path
+      ? meta.path
+      : `${baseName}.bin`;
+    const absPath = path.join(dir, relPath);
+    if (!fsSync.existsSync(absPath)) return null;
+    try {
+      const buffer = fsSync.readFileSync(absPath);
+      const view = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+      const dims = Number.isFinite(Number(meta.dims))
+        ? Math.max(0, Math.floor(Number(meta.dims)))
+        : 0;
+      const count = Number.isFinite(Number(meta.count))
+        ? Math.max(0, Math.floor(Number(meta.count)))
+        : (dims > 0 ? Math.floor(view.length / dims) : 0);
+      if (!dims || !count || view.length < (dims * count)) return null;
+      return {
+        ...meta,
+        model: meta.model || modelIdDefault || null,
+        dims,
+        count,
+        path: relPath,
+        buffer: view
+      };
+    } catch {
+      return null;
+    }
+  };
   const chunkMeta = await loadChunkMeta(dir, {
     maxBytes: MAX_JSON_BYTES,
     manifest,
@@ -212,13 +245,22 @@ export async function loadIndex(dir, options) {
   const embeddingsState = indexState?.embeddings || null;
   const embeddingsReady = embeddingsState?.ready !== false && embeddingsState?.pending !== true;
   const denseVec = embeddingsReady && includeDense
-    ? await loadOptionalObject('dense_vectors', path.join(dir, 'dense_vectors_uint8.json'))
+    ? (
+      await loadOptionalDenseBinary('dense_vectors', 'dense_vectors_uint8')
+      || await loadOptionalObject('dense_vectors', path.join(dir, 'dense_vectors_uint8.json'))
+    )
     : null;
   const denseVecDoc = embeddingsReady && includeDense
-    ? await loadOptionalObject('dense_vectors_doc', path.join(dir, 'dense_vectors_doc_uint8.json'))
+    ? (
+      await loadOptionalDenseBinary('dense_vectors_doc', 'dense_vectors_doc_uint8')
+      || await loadOptionalObject('dense_vectors_doc', path.join(dir, 'dense_vectors_doc_uint8.json'))
+    )
     : null;
   const denseVecCode = embeddingsReady && includeDense
-    ? await loadOptionalObject('dense_vectors_code', path.join(dir, 'dense_vectors_code_uint8.json'))
+    ? (
+      await loadOptionalDenseBinary('dense_vectors_code', 'dense_vectors_code_uint8')
+      || await loadOptionalObject('dense_vectors_code', path.join(dir, 'dense_vectors_code_uint8.json'))
+    )
     : null;
   const sqliteVecMeta = embeddingsReady && includeDense
     ? await loadOptionalObject('dense_vectors_sqlite_vec_meta', path.join(dir, 'dense_vectors_sqlite_vec.meta.json'))

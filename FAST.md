@@ -422,7 +422,7 @@ Implementation policy for Sweep 3:
 - Rollout: `treeSitter.scheduler.store=paged-json`; add `codec` metadata and checksum verification.
 - Target: lower random I/O and faster lookup tail latency.
 
-13. Area: Zero-copy dense vector artifacts
+13. [x] Area: Zero-copy dense vector artifacts
 - Files: `tools/build/embeddings/runner.js`, `src/storage/sqlite/build/from-artifacts.js`, `src/storage/sqlite/utils.js`, `src/retrieval/rankers.js`
 - Decision: Add `dense_vectors_uint8.bin` plus meta describing dims/count/quantization; use direct typed-array views.
 - Rollout: `embeddings.binaryDenseVectors=true`; dual-read with current JSON artifacts.

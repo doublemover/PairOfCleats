@@ -273,7 +273,13 @@ export function rankMinhash(idx, tokens, topN, candidateSet = null) {
  */
 export function rankDenseVectors(idx, queryEmbedding, topN, candidateSet) {
   const vectors = idx.denseVec?.vectors;
-  if (!Array.isArray(vectors) || !vectors.length) return [];
+  const denseBuffer = idx.denseVec?.buffer;
+  const hasBuffer = !!(
+    denseBuffer
+    && ArrayBuffer.isView(denseBuffer)
+    && denseBuffer.BYTES_PER_ELEMENT === 1
+  );
+  if ((!Array.isArray(vectors) || !vectors.length) && !hasBuffer) return [];
   const rawQueryDims = Number(queryEmbedding?.length) || 0;
   const reportedDims = Number.isFinite(idx.denseVec?.dims) ? idx.denseVec.dims : rawQueryDims;
   const normalized = normalizeEmbeddingDims(queryEmbedding, reportedDims || null);
@@ -301,7 +307,12 @@ export function rankDenseVectors(idx, queryEmbedding, topN, candidateSet) {
   const scale = Number.isFinite(idx.denseVec?.scale)
     ? idx.denseVec.scale
     : (Number.isFinite(range) && range !== 0 ? (range / (levels - 1)) : (2 / 255));
-  const ids = candidateSet ? bitmapToArray(candidateSet) : vectors.map((_, i) => i);
+  const vectorCount = hasBuffer && dims > 0
+    ? Math.floor(denseBuffer.length / dims)
+    : vectors.length;
+  const ids = candidateSet
+    ? bitmapToArray(candidateSet)
+    : Array.from({ length: vectorCount }, (_, i) => i);
   const reducer = createTopKReducer({
     k: topN,
     buildPayload: (entry) => ({ idx: entry.id, sim: entry.score })
@@ -309,7 +320,15 @@ export function rankDenseVectors(idx, queryEmbedding, topN, candidateSet) {
   let order = 0;
 
   for (const id of ids) {
-    const vec = vectors[id];
+    let vec = null;
+    if (hasBuffer) {
+      const start = id * dims;
+      const end = start + dims;
+      if (start < 0 || end > denseBuffer.length) continue;
+      vec = denseBuffer.subarray(start, end);
+    } else {
+      vec = vectors[id];
+    }
     const isArrayLike = Array.isArray(vec) || ArrayBuffer.isView(vec);
     if (!isArrayLike || vec.length < dims) continue;
     let dot = 0;
