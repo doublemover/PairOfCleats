@@ -1,12 +1,12 @@
 # TES_LAYN_ROADMAP - USR-Aligned Language and Framework Execution Master Plan
 
-Last rewritten: 2026-02-11T02:40:00Z
+Last rewritten: 2026-02-11T03:30:00Z
 Branch: `LANGMANE`
-Document status: active master plan baseline v1.2
+Document status: active master plan baseline v1.3
 
 ## 0) Scope Reset
 
-This roadmap supersedes the previous test-heavy draft and is now tightly aligned to `docs/specs/unified-syntax-representation.md` (USR v1.2).
+This roadmap supersedes the previous test-heavy draft and is now tightly aligned to `docs/specs/unified-syntax-representation.md` (USR v1.3).
 
 Primary shifts in this rewrite:
 
@@ -53,6 +53,8 @@ This roadmap is governed by these authoritative documents:
 - `docs/specs/usr-performance-benchmark-contract.md`
 - `docs/specs/usr-threat-model-and-abuse-case-contract.md`
 - `docs/specs/usr-waiver-and-exception-contract.md`
+- `docs/specs/usr-quality-evaluation-contract.md`
+- `docs/specs/usr-operational-runbook-contract.md`
 - `docs/specs/metadata-schema-v2.md`
 - `docs/specs/identity-contract.md`
 - `docs/specs/identity-and-symbol-contracts.md`
@@ -210,6 +212,8 @@ If contradictions are found:
 - [x] Create `tests/lang/matrix/usr-benchmark-policy.json`.
 - [x] Create `tests/lang/matrix/usr-threat-model-matrix.json`.
 - [x] Create `tests/lang/matrix/usr-waiver-policy.json`.
+- [x] Create `tests/lang/matrix/usr-quality-gates.json`.
+- [x] Create `tests/lang/matrix/usr-operational-readiness-policy.json`.
 - [x] Add deterministic baseline generator `tools/usr/generate-usr-matrix-baselines.mjs` and matrix inventory doc `tests/lang/matrix/README.md`.
 - [ ] Keep decomposed catalog specs (`docs/specs/usr-*.md`) aligned with machine-readable registry schema keys.
 
@@ -1358,6 +1362,8 @@ If contradictions are found:
 | `docs/specs/usr-performance-benchmark-contract.md` | benchmark methodology, variance policy, and regression gating | 8, 9, 15 |
 | `docs/specs/usr-threat-model-and-abuse-case-contract.md` | threat taxonomy, abuse-case fixtures, and control-gap enforcement | 6, 14, 15 |
 | `docs/specs/usr-waiver-and-exception-contract.md` | waiver expiry, approver governance, and exception guardrails | 9, 15 |
+| `docs/specs/usr-quality-evaluation-contract.md` | quality metric thresholds, labeled-fixture policy, and regression evidence requirements | 8, 10, 11, 12, 13, 14, 15 |
+| `docs/specs/usr-operational-runbook-contract.md` | incident routing, rollback drill policy, and cutover runbook readiness controls | 9, 15 |
 | `docs/specs/usr/languages/<language-id>.md` | exhaustive per-language contract | 4, 7, 9, 11, 12 |
 
 ---

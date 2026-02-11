@@ -8,7 +8,7 @@ const repoRoot = path.resolve(__dirname, '..', '..');
 const matrixDir = path.join(repoRoot, 'tests', 'lang', 'matrix');
 
 const SCHEMA_VERSION = 'usr-registry-1.0.0';
-const GENERATED_AT = '2026-02-11T01:45:00Z';
+const GENERATED_AT = '2026-02-11T03:30:00Z';
 const GENERATED_BY = 'tools/usr/generate-usr-matrix-baselines.mjs';
 
 const CAPABILITIES = [
@@ -722,6 +722,22 @@ const waiverPolicy = [
   { id: 'waiver-temporary-parser-regression', waiverClass: 'temporary-parser-regression', scopeType: 'language', scopeId: 'perl', allowedUntil: '2026-03-20T00:00:00Z', approvers: ['language-perl', 'usr-architecture'], requiredCompensatingControls: ['usr-feature-flag-state.json', 'usr-waiver-expiry-report.json'], maxExtensions: 1, blocking: true }
 ].sort((a, b) => a.id.localeCompare(b.id));
 
+const qualityGates = [
+  { id: 'qg-framework-binding-f1', domain: 'framework-binding', scopeType: 'global', scopeId: 'global', metric: 'f1', thresholdOperator: '>=', thresholdValue: 0.92, fixtureSetId: 'framework-binding-goldens', blocking: true },
+  { id: 'qg-provenance-recall', domain: 'provenance', scopeType: 'global', scopeId: 'global', metric: 'recall', thresholdOperator: '>=', thresholdValue: 0.9, fixtureSetId: 'provenance-goldens', blocking: true },
+  { id: 'qg-resolution-precision-ts', domain: 'resolution', scopeType: 'language', scopeId: 'typescript', metric: 'precision', thresholdOperator: '>=', thresholdValue: 0.95, fixtureSetId: 'resolution-typescript-goldens', blocking: true },
+  { id: 'qg-risk-false-positive-js', domain: 'risk', scopeType: 'language', scopeId: 'javascript', metric: 'false-positive-rate', thresholdOperator: '<=', thresholdValue: 0.08, fixtureSetId: 'risk-javascript-goldens', blocking: false },
+  { id: 'qg-risk-recall-py', domain: 'risk', scopeType: 'language', scopeId: 'python', metric: 'recall', thresholdOperator: '>=', thresholdValue: 0.9, fixtureSetId: 'risk-python-goldens', blocking: true },
+  { id: 'qg-vue-template-binding-precision', domain: 'framework-binding', scopeType: 'framework', scopeId: 'vue', metric: 'precision', thresholdOperator: '>=', thresholdValue: 0.93, fixtureSetId: 'framework-vue-template-goldens', blocking: true }
+].sort((a, b) => a.id.localeCompare(b.id));
+
+const operationalReadinessPolicy = [
+  { id: 'ops-cutover-window', phase: 'cutover', runbookId: 'usr-cutover-runbook', severityClass: 'n/a', requiredRoles: ['usr-architecture', 'usr-operations', 'usr-release-manager'], requiredArtifacts: ['usr-release-readiness-scorecard.json', 'usr-waiver-active-report.json'], communicationChannels: ['release-bridge', 'status-page'], maxResponseMinutes: 15, maxRecoveryMinutes: 60, blocking: true },
+  { id: 'ops-incident-critical', phase: 'incident', runbookId: 'usr-incident-critical-runbook', severityClass: 'sev1', requiredRoles: ['usr-oncall-platform', 'usr-oncall-security'], requiredArtifacts: ['usr-incident-response-drill-report.json'], communicationChannels: ['incident-bridge', 'security-hotline'], maxResponseMinutes: 10, maxRecoveryMinutes: 120, blocking: true },
+  { id: 'ops-post-cutover-review', phase: 'post-cutover', runbookId: 'usr-post-cutover-review-runbook', severityClass: 'n/a', requiredRoles: ['usr-operations', 'usr-conformance'], requiredArtifacts: ['usr-observability-rollup.json', 'usr-quality-regression-report.json'], communicationChannels: ['release-review'], maxResponseMinutes: 60, maxRecoveryMinutes: 240, blocking: false },
+  { id: 'ops-pre-cutover-checklist', phase: 'pre-cutover', runbookId: 'usr-pre-cutover-checklist', severityClass: 'n/a', requiredRoles: ['usr-architecture', 'usr-rollout'], requiredArtifacts: ['usr-operational-readiness-validation.json', 'usr-rollback-drill-report.json'], communicationChannels: ['release-planning'], maxResponseMinutes: 30, maxRecoveryMinutes: 180, blocking: true }
+].sort((a, b) => a.id.localeCompare(b.id));
+
 function embeddingPolicyFor(languageId, family) {
   if (customEmbeddingPolicies[languageId]) {
     return customEmbeddingPolicies[languageId];
@@ -920,6 +936,8 @@ function main() {
   writeRegistry('usr-benchmark-policy', benchmarkPolicy);
   writeRegistry('usr-threat-model-matrix', threatModelMatrix);
   writeRegistry('usr-waiver-policy', waiverPolicy);
+  writeRegistry('usr-quality-gates', qualityGates);
+  writeRegistry('usr-operational-readiness-policy', operationalReadinessPolicy);
 }
 
 main();
