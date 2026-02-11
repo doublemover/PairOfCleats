@@ -1,7 +1,7 @@
 # Spec -- Unified Syntax Representation (USR)
 
-Status: Draft v1.3
-Last updated: 2026-02-11T03:30:00Z
+Status: Draft v1.4
+Last updated: 2026-02-11T04:25:00Z
 
 Applies to: PairOfCleats indexing pipeline, language registry, framework segmentation/extraction, graph/risk/query surfaces.
 
@@ -1346,28 +1346,12 @@ Before declaring full support complete, all items below MUST be true.
 - `docs/specs/identity-and-symbol-contracts.md`
 - `docs/specs/tooling-vfs-and-segment-routing.md`
 - `docs/specs/usr/README.md`
-- `docs/specs/usr-language-profile-catalog.md`
-- `docs/specs/usr-framework-profile-catalog.md`
-- `docs/specs/usr-normalization-mapping-contract.md`
-- `docs/specs/usr-resolution-and-linking-contract.md`
-- `docs/specs/usr-language-risk-contract.md`
-- `docs/specs/usr-conformance-and-fixture-contract.md`
-- `docs/specs/usr-rollout-and-migration-contract.md`
-- `docs/specs/usr-embedding-bridge-contract.md`
-- `docs/specs/usr-generated-provenance-contract.md`
-- `docs/specs/usr-registry-schema-contract.md`
-- `docs/specs/usr-implementation-readiness-contract.md`
-- `docs/specs/usr-observability-and-slo-contract.md`
-- `docs/specs/usr-security-and-data-governance-contract.md`
-- `docs/specs/usr-audit-and-reporting-contract.md`
-- `docs/specs/usr-runtime-config-contract.md`
-- `docs/specs/usr-failure-injection-and-resilience-contract.md`
-- `docs/specs/usr-fixture-governance-contract.md`
-- `docs/specs/usr-performance-benchmark-contract.md`
-- `docs/specs/usr-threat-model-and-abuse-case-contract.md`
-- `docs/specs/usr-waiver-and-exception-contract.md`
-- `docs/specs/usr-quality-evaluation-contract.md`
-- `docs/specs/usr-operational-runbook-contract.md`
+- `docs/specs/usr-*.md`
+- `docs/specs/usr/languages/*.md`
+- `docs/specs/usr-implementation-playbook.md`
+- `docs/specs/usr-evidence-catalog.md`
+- `docs/guides/usr-contract-enforcement.md`
+- `docs/guides/usr-new-language-onboarding.md`
 - `docs/contracts/public-artifact-surface.md`
 - `docs/contracts/artifact-schemas.md`
 - `docs/contracts/analysis-schemas.md`
@@ -3068,6 +3052,21 @@ Required behavior:
 - operational readiness policy MUST be machine-readable across pre-cutover, cutover, post-cutover, and incident phases.
 - blocking runbook rows MUST define required roles/artifacts and enforce response/recovery budgets.
 - incident-response and rollback-drill evidence MUST be emitted as promotion readiness inputs.
+
+## 51. Expanded contract suite governance (normative)
+
+USR implementation also requires the expanded decomposed contract suite under:
+
+- `docs/specs/usr-*.md`
+- `docs/specs/usr/languages/*.md`
+- `docs/specs/usr-implementation-playbook.md`
+- `docs/specs/usr-evidence-catalog.md`
+
+Required behavior:
+
+- every new decomposed contract MUST be reflected in roadmap traceability (Appendix H) and dependency ordering (Appendix J).
+- phase gates MUST classify each contract check as hard-block or advisory according to roadmap Appendix L.
+- evidence requirements for each active contract MUST be linked through `docs/specs/usr-evidence-catalog.md` and release scorecards.
 
 
 
