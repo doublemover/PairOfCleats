@@ -1317,6 +1317,9 @@ Before declaring full support complete, all items below MUST be true.
 - Every registry language has a maintained per-language contract under `docs/specs/usr/languages/`.
 - Embedded-language bridge rules are implemented for all multi-block/framework containers.
 - Generated/macro/transpiled provenance retention rules are enforced and conformance-tested.
+- Runtime configuration and feature-flag policies are machine-readable, validated, and enforced.
+- Blocking failure-injection scenarios are implemented, executed, and linked to recovery evidence.
+- Fixture and golden governance policies are machine-readable and enforced for blocking fixtures.
 
 ## 21. Immediate Integration Tasks
 
@@ -1325,6 +1328,10 @@ Before declaring full support complete, all items below MUST be true.
 3. Add conformance lane materialization from language/framework profile matrices.
 4. Wire capability-state assertions into phase gates before broad language lane rollout.
 5. Add migration mappers between USR entities and existing artifact surfaces.
+6. Add runtime config and feature-flag validators wired to strict-mode gate behavior.
+7. Add failure-injection harness lanes and blocking fault-scenario evaluators.
+8. Add fixture-governance validators and mutation-policy enforcement checks.
+9. Add audit/report schema validators for readiness, resilience, and fixture-governance outputs.
 
 ## 22. References
 
