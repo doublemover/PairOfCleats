@@ -391,32 +391,80 @@ export async function incrementalUpdateDatabase({
   } = statements;
 
   const existingIdsByFile = new Map();
+  const toFileKey = (value) => {
+    const normalized = normalizeFilePath(value);
+    if (!normalized) return null;
+    return process.platform === 'win32' ? normalized.toLowerCase() : normalized;
+  };
+  const readDocIdsForFile = db.prepare(
+    'SELECT id, file FROM chunks WHERE mode = ? AND file = ? ORDER BY id'
+  );
+  const readDocIdsForFileCaseFold = process.platform === 'win32'
+    ? db.prepare('SELECT id, file FROM chunks WHERE mode = ? AND lower(file) = ? ORDER BY id')
+    : null;
+  const recordExistingDocRows = (rows = []) => {
+    for (const row of rows) {
+      const fileKey = toFileKey(row?.file);
+      if (!fileKey) continue;
+      const entry = existingIdsByFile.get(fileKey) || { file: normalizeFilePath(row.file), ids: [] };
+      entry.ids.push(row.id);
+      existingIdsByFile.set(fileKey, entry);
+    }
+  };
+  const resolveExistingDocIds = (filePath) => {
+    const fileKey = toFileKey(filePath);
+    if (!fileKey) return [];
+    const cached = existingIdsByFile.get(fileKey);
+    if (cached) return cached.ids || [];
+    const exactRows = readDocIdsForFile.all(mode, normalizeFilePath(filePath));
+    if (exactRows.length) {
+      recordExistingDocRows(exactRows);
+      return existingIdsByFile.get(fileKey)?.ids || [];
+    }
+    if (readDocIdsForFileCaseFold) {
+      const foldedRows = readDocIdsForFileCaseFold.all(mode, fileKey);
+      if (foldedRows.length) {
+        recordExistingDocRows(foldedRows);
+        const resolved = existingIdsByFile.get(fileKey);
+        if (resolved?.ids?.length) return resolved.ids;
+      }
+    }
+    existingIdsByFile.set(fileKey, { file: normalizeFilePath(filePath), ids: [] });
+    return [];
+  };
   const targetFiles = new Set();
   for (const record of changed) {
-    if (record?.normalized) targetFiles.add(record.normalized);
+    const key = toFileKey(record?.normalized);
+    if (key) targetFiles.add(key);
   }
   for (const file of deleted) {
-    if (file) targetFiles.add(normalizeFilePath(file));
+    const key = toFileKey(file);
+    if (key) targetFiles.add(key);
   }
   const targetList = Array.from(targetFiles).filter(Boolean);
   const fileQueryBatch = Math.max(1, resolvedBatchSize);
   if (targetList.length) {
     for (const batch of chunkArray(targetList, fileQueryBatch)) {
-      const placeholders = batch.map(() => '?').join(',');
-      const stmt = db.prepare(
-        `SELECT id, file FROM chunks WHERE mode = ? AND file IN (${placeholders}) ORDER BY id`
-      );
-      const rows = stmt.all(mode, ...batch);
+      const rows = process.platform === 'win32'
+        ? (() => {
+          const placeholders = batch.map(() => '?').join(',');
+          const stmt = db.prepare(
+            `SELECT id, file FROM chunks WHERE mode = ? AND lower(file) IN (${placeholders}) ORDER BY id`
+          );
+          return stmt.all(mode, ...batch);
+        })()
+        : (() => {
+          const placeholders = batch.map(() => '?').join(',');
+          const stmt = db.prepare(
+            `SELECT id, file FROM chunks WHERE mode = ? AND file IN (${placeholders}) ORDER BY id`
+          );
+          return stmt.all(mode, ...batch);
+        })();
       recordBatch('existingChunkBatches');
       if (batchStats) {
         batchStats.existingChunkRows = (batchStats.existingChunkRows || 0) + rows.length;
       }
-      for (const row of rows) {
-        const normalized = normalizeFilePath(row.file);
-        const entry = existingIdsByFile.get(normalized) || { file: normalized, ids: [] };
-        entry.ids.push(row.id);
-        existingIdsByFile.set(normalized, entry);
-      }
+      recordExistingDocRows(rows);
     }
   }
 
@@ -474,8 +522,7 @@ export async function incrementalUpdateDatabase({
     for (const file of deleted) {
       const normalizedFile = normalizeFilePath(file);
       if (!normalizedFile) continue;
-      const entry = existingIdsByFile.get(normalizedFile);
-      const docIds = entry?.ids || [];
+      const docIds = resolveExistingDocIds(normalizedFile);
       deleteDocIds(db, mode, docIds, vectorDeleteTargets);
       if (docIds.length) {
         freeDocIdsDeleted.push(...docIds);
@@ -487,8 +534,7 @@ export async function incrementalUpdateDatabase({
     for (const record of changed) {
       const normalizedFile = record?.normalized;
       if (!normalizedFile) continue;
-      const entry = existingIdsByFile.get(normalizedFile);
-      const docIds = entry?.ids || [];
+      const docIds = resolveExistingDocIds(normalizedFile);
       deleteDocIds(db, mode, docIds, vectorDeleteTargets);
     }
 
@@ -566,8 +612,7 @@ export async function incrementalUpdateDatabase({
 
     for (const record of orderedChanged) {
       const normalizedFile = record.normalized;
-      const entry = existingIdsByFile.get(normalizedFile);
-      const reuseIds = entry?.ids || [];
+      const reuseIds = resolveExistingDocIds(normalizedFile);
       let reuseIndex = 0;
 
       const bundleEntry = bundles.get(normalizedFile);
