@@ -4,6 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { applyTestEnv } from '../../../helpers/test-env.js';
+import { loadChunkMeta, MAX_JSON_BYTES } from '../../../../src/shared/artifact-io.js';
 import { getIndexDir, loadUserConfig } from '../../../../tools/shared/dict-utils.js';
 
 const root = process.cwd();
@@ -32,8 +33,8 @@ if (result.status !== 0) {
 const userConfig = loadUserConfig(fixtureRoot);
 const codeDir = getIndexDir(fixtureRoot, 'code', userConfig);
 const proseDir = getIndexDir(fixtureRoot, 'prose', userConfig);
-const codeMeta = JSON.parse(fs.readFileSync(path.join(codeDir, 'chunk_meta.json'), 'utf8'));
-const proseMeta = JSON.parse(fs.readFileSync(path.join(proseDir, 'chunk_meta.json'), 'utf8'));
+const codeMeta = await loadChunkMeta(codeDir, { maxBytes: MAX_JSON_BYTES, strict: true });
+const proseMeta = await loadChunkMeta(proseDir, { maxBytes: MAX_JSON_BYTES, strict: true });
 const loadFileMap = (dir) => {
   const metaPath = path.join(dir, 'file_meta.json');
   if (!fs.existsSync(metaPath)) return new Map();

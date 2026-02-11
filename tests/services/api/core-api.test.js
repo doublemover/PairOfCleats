@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { buildIndex, search, status } from '../../../src/integrations/core/index.js';
+import { loadChunkMeta, MAX_JSON_BYTES } from '../../../src/shared/artifact-io.js';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 
 const root = process.cwd();
@@ -31,9 +32,9 @@ const userConfig = loadUserConfig(fixtureRoot);
 const indexDir = getIndexDir(fixtureRoot, 'code', userConfig);
 const extractedProseDir = getIndexDir(fixtureRoot, 'extracted-prose', userConfig);
 await fsPromises.rm(extractedProseDir, { recursive: true, force: true });
-const chunkPath = path.join(indexDir, 'chunk_meta.json');
-if (!fs.existsSync(chunkPath)) {
-  console.error(`Core API test failed: missing ${chunkPath}`);
+const chunkMeta = await loadChunkMeta(indexDir, { maxBytes: MAX_JSON_BYTES, strict: true }).catch(() => null);
+if (!Array.isArray(chunkMeta) || chunkMeta.length === 0) {
+  console.error(`Core API test failed: missing chunk_meta artifacts in ${indexDir}`);
   process.exit(1);
 }
 

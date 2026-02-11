@@ -3,6 +3,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { loadUserConfig, getIndexDir } from '../../../../tools/shared/dict-utils.js';
+import { loadChunkMeta, MAX_JSON_BYTES } from '../../../../src/shared/artifact-io.js';
 import { runSqliteBuild } from '../../../helpers/sqlite-builder.js';
 import { applyTestEnv } from '../../../helpers/test-env.js';
 
@@ -75,8 +76,7 @@ if (payload?.stats?.annExtension?.available?.code) {
 
 const userConfig = loadUserConfig(repoRoot);
 const indexDir = getIndexDir(repoRoot, 'code', userConfig);
-const chunkMetaPath = path.join(indexDir, 'chunk_meta.json');
-const chunkMeta = JSON.parse(await fsPromises.readFile(chunkMetaPath, 'utf8'));
+const chunkMeta = await loadChunkMeta(indexDir, { maxBytes: MAX_JSON_BYTES, strict: true });
 const maxId = Array.isArray(chunkMeta) ? chunkMeta.length - 1 : -1;
 for (const hit of hits) {
   if (!Number.isFinite(hit?.id) || hit.id < 0 || hit.id > maxId) {
