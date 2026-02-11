@@ -1,7 +1,7 @@
 # Spec -- USR Implementation Playbook
 
-Status: Draft v0.2
-Last updated: 2026-02-11T04:30:00Z
+Status: Draft v0.3
+Last updated: 2026-02-11T05:30:00Z
 
 ## 0. Purpose and scope
 
@@ -35,6 +35,7 @@ It is execution-focused and maps contract families to phase gates, required evid
 - language batch expansion
 - framework expansion and edge canonicalization closure
 - operational drills, scorecards, and release train cutover
+- testing policy and schema-catalog enforcement closure
 
 ## 2. Minimum implementation slice (normative)
 
@@ -77,3 +78,5 @@ Slice completion requires strict-mode green results for all blocking gates in th
 - `docs/specs/usr-evidence-catalog.md`
 - `docs/specs/usr-rollout-and-migration-contract.md`
 - `docs/specs/usr-operational-runbook-contract.md`
+- `docs/specs/usr-schema-artifact-catalog.md`
+- `docs/testing/usr-*.md`

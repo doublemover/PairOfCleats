@@ -1,7 +1,7 @@
 # Spec -- Unified Syntax Representation (USR)
 
-Status: Draft v1.4
-Last updated: 2026-02-11T04:25:00Z
+Status: Draft v1.5
+Last updated: 2026-02-11T05:20:00Z
 
 Applies to: PairOfCleats indexing pipeline, language registry, framework segmentation/extraction, graph/risk/query surfaces.
 
@@ -1348,10 +1348,13 @@ Before declaring full support complete, all items below MUST be true.
 - `docs/specs/usr/README.md`
 - `docs/specs/usr-*.md`
 - `docs/specs/usr/languages/*.md`
+- `docs/specs/usr/frameworks/*.md`
 - `docs/specs/usr-implementation-playbook.md`
 - `docs/specs/usr-evidence-catalog.md`
-- `docs/guides/usr-contract-enforcement.md`
-- `docs/guides/usr-new-language-onboarding.md`
+- `docs/specs/usr-schema-artifact-catalog.md`
+- `docs/guides/usr-*.md`
+- `docs/testing/usr-*.md`
+- `docs/schemas/usr/*.json`
 - `docs/contracts/public-artifact-surface.md`
 - `docs/contracts/artifact-schemas.md`
 - `docs/contracts/analysis-schemas.md`
@@ -3059,14 +3062,17 @@ USR implementation also requires the expanded decomposed contract suite under:
 
 - `docs/specs/usr-*.md`
 - `docs/specs/usr/languages/*.md`
+- `docs/specs/usr/frameworks/*.md`
 - `docs/specs/usr-implementation-playbook.md`
 - `docs/specs/usr-evidence-catalog.md`
+- `docs/specs/usr-schema-artifact-catalog.md`
 
 Required behavior:
 
 - every new decomposed contract MUST be reflected in roadmap traceability (Appendix H) and dependency ordering (Appendix J).
 - phase gates MUST classify each contract check as hard-block or advisory according to roadmap Appendix L.
 - evidence requirements for each active contract MUST be linked through `docs/specs/usr-evidence-catalog.md` and release scorecards.
+- evidence artifact schemas and testing policy docs MUST stay synchronized with contract catalogs and lane policies.
 
 
 

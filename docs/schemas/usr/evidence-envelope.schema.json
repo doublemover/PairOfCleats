@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "usr/evidence-envelope.schema.json",
+  "title": "USR Evidence Envelope",
+  "type": "object",
+  "required": ["schemaVersion", "artifactId", "generatedAt", "producerId", "scope"],
+  "properties": {
+    "schemaVersion": { "type": "string" },
+    "artifactId": { "type": "string" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "producerId": { "type": "string" },
+    "producerVersion": { "type": ["string", "null"] },
+    "scope": {
+      "type": "object",
+      "required": ["scopeType", "scopeId"],
+      "properties": {
+        "scopeType": { "enum": ["global", "lane", "language", "framework"] },
+        "scopeId": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "blockingFindings": { "type": "array", "items": { "type": "object" } },
+    "advisoryFindings": { "type": "array", "items": { "type": "object" } },
+    "evidenceRefs": { "type": "array", "items": { "type": "string" } }
+  },
+  "additionalProperties": true
+}

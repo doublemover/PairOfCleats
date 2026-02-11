@@ -1,12 +1,12 @@
 # TES_LAYN_ROADMAP - USR-Aligned Language and Framework Execution Master Plan
 
-Last rewritten: 2026-02-11T04:25:00Z
+Last rewritten: 2026-02-11T05:15:00Z
 Branch: `LANGMANE`
-Document status: active master plan baseline v1.4
+Document status: active master plan baseline v1.5
 
 ## 0) Scope Reset
 
-This roadmap supersedes the previous test-heavy draft and is now tightly aligned to `docs/specs/unified-syntax-representation.md` (USR v1.4).
+This roadmap supersedes the previous test-heavy draft and is now tightly aligned to `docs/specs/unified-syntax-representation.md` (USR v1.5).
 
 Primary shifts in this rewrite:
 
@@ -35,14 +35,17 @@ This roadmap is governed by these authoritative documents:
 - `docs/specs/usr/README.md`
 - `docs/specs/usr-*.md`
 - `docs/specs/usr/languages/*.md`
+- `docs/specs/usr/frameworks/*.md`
 - `docs/specs/usr-implementation-playbook.md`
 - `docs/specs/usr-evidence-catalog.md`
+- `docs/specs/usr-schema-artifact-catalog.md`
 - `docs/specs/metadata-schema-v2.md`
 - `docs/specs/identity-contract.md`
 - `docs/specs/identity-and-symbol-contracts.md`
 - `docs/specs/tooling-vfs-and-segment-routing.md`
-- `docs/guides/usr-contract-enforcement.md`
-- `docs/guides/usr-new-language-onboarding.md`
+- `docs/guides/usr-*.md`
+- `docs/testing/usr-*.md`
+- `docs/schemas/usr/*.json`
 - `docs/contracts/public-artifact-surface.md`
 - `docs/contracts/artifact-schemas.md`
 - `docs/contracts/analysis-schemas.md`
@@ -1332,26 +1335,36 @@ If contradictions are found:
 | `docs/specs/usr-component-lifecycle-contract.md` | component lifecycle | 0, 1, 3, 4, 5, 6, 10, 12, 13, 14 |
 | `docs/specs/usr-concurrency-and-async-semantics-contract.md` | concurrency and async semantics | 0, 1, 3, 4, 5, 6, 10, 12, 13, 14 |
 | `docs/specs/usr-conformance-and-fixture-contract.md` | conformance and fixture | 0, 7, 8, 10, 11, 12, 13, 14, 15 |
+| `docs/specs/usr-contract-drift-check-contract.md` | contract drift check | 0, 1, 10, 15 |
 | `docs/specs/usr-cross-parser-differential-contract.md` | cross parser differential | 0, 7, 8, 10, 11, 12, 13, 14, 15 |
 | `docs/specs/usr-data-classification-contract.md` | data classification | 0, 6, 10, 14, 15 |
 | `docs/specs/usr-determinism-and-reproducibility-contract.md` | determinism and reproducibility | 0, 10 |
-| `docs/specs/usr-diagnostics-lifecycle-contract.md` | diagnostics lifecycle | 0, 10 |
+| `docs/specs/usr-diagnostic-catalog.md` | diagnostic | 0, 6, 10, 14, 15 |
+| `docs/specs/usr-diagnostics-lifecycle-contract.md` | diagnostics lifecycle | 0, 6, 10, 14, 15 |
+| `docs/specs/usr-doc-lifecycle-policy.md` | documentation lifecycle | 0, 9, 10, 15 |
+| `docs/specs/usr-doc-style-guide.md` | documentation style guide | 0, 9, 10, 15 |
 | `docs/specs/usr-documentation-quality-contract.md` | documentation quality | 0, 7, 8, 9, 10, 11, 12, 13, 14, 15 |
+| `docs/specs/usr-embedded-language-matrix.md` | embedded language matrix | 0, 1, 3, 4, 5, 6, 10, 12, 13, 14 |
 | `docs/specs/usr-embedding-bridge-contract.md` | embedding and bridge | 0, 1, 3, 4, 5, 6, 10, 12, 13, 14 |
 | `docs/specs/usr-error-handling-semantics-contract.md` | error handling semantics | 0, 1, 3, 4, 5, 6, 10, 12, 13, 14 |
 | `docs/specs/usr-evidence-catalog.md` | evidence | 0, 9, 10, 15 |
 | `docs/specs/usr-failure-injection-and-resilience-contract.md` | failure injection and resilience | 0, 10 |
+| `docs/specs/usr-feature-flag-catalog.md` | feature flag | 0, 1, 10, 15 |
 | `docs/specs/usr-fixture-governance-contract.md` | fixture and golden governance | 0, 7, 8, 10, 11, 12, 13, 14, 15 |
+| `docs/specs/usr-framework-interactions.md` | framework interactions | 0, 1, 3, 4, 5, 6, 10, 12, 13, 14 |
 | `docs/specs/usr-framework-macro-transform-contract.md` | framework macro transform | 0, 1, 3, 4, 5, 6, 10, 12, 13, 14 |
 | `docs/specs/usr-framework-profile-catalog.md` | framework profile | 0, 1, 3, 4, 5, 6, 10, 12, 13, 14 |
 | `docs/specs/usr-fuzzing-and-property-testing-contract.md` | fuzzing and property testing | 0, 7, 8, 10, 11, 12, 13, 14, 15 |
+| `docs/specs/usr-gate-evaluation-algorithm.md` | gate evaluation algorithm | 0, 1, 10, 15 |
 | `docs/specs/usr-generated-provenance-contract.md` | generated and macro provenance | 0, 1, 3, 4, 5, 6, 10, 12, 13, 14 |
 | `docs/specs/usr-generics-and-polymorphism-contract.md` | generics and polymorphism | 0, 1, 3, 4, 5, 6, 10, 12, 13, 14 |
+| `docs/specs/usr-glossary.md` | glossary | 0, 9, 10, 15 |
 | `docs/specs/usr-golden-diff-and-triage-contract.md` | golden diff and triage | 0, 7, 8, 10, 11, 12, 13, 14, 15 |
 | `docs/specs/usr-identity-stability-contract.md` | identity stability | 0, 1, 3, 4, 5, 6, 10, 12, 13, 14 |
 | `docs/specs/usr-implementation-playbook.md` | implementation | 0, 9, 10, 15 |
 | `docs/specs/usr-implementation-readiness-contract.md` | implementation readiness | 0, 9, 10, 15 |
 | `docs/specs/usr-incremental-indexing-contract.md` | incremental indexing | 0, 1, 3, 4, 5, 6, 10, 12, 13, 14 |
+| `docs/specs/usr-lane-policy-catalog.md` | lane | 0, 7, 8, 10, 11, 12, 13, 14, 15 |
 | `docs/specs/usr-language-feature-coverage-contract.md` | language feature coverage | 0, 1, 3, 4, 5, 6, 10, 12, 13, 14 |
 | `docs/specs/usr-language-profile-catalog.md` | language profile | 0, 1, 3, 4, 5, 6, 10, 12, 13, 14 |
 | `docs/specs/usr-language-risk-contract.md` | language risk | 0, 10 |
@@ -1359,6 +1372,7 @@ If contradictions are found:
 | `docs/specs/usr-module-system-contract.md` | module system | 0, 1, 3, 4, 5, 6, 10, 12, 13, 14 |
 | `docs/specs/usr-normalization-mapping-contract.md` | normalization mapping | 0, 1, 3, 4, 5, 6, 10, 12, 13, 14 |
 | `docs/specs/usr-observability-and-slo-contract.md` | observability and slo | 0, 8, 9, 10, 15 |
+| `docs/specs/usr-open-questions.md` | open questions register | 0, 9, 10, 15 |
 | `docs/specs/usr-operational-runbook-contract.md` | operational runbook and incident response | 0, 9, 10, 15 |
 | `docs/specs/usr-ownership-and-raci-contract.md` | ownership and raci | 0, 9, 10, 15 |
 | `docs/specs/usr-packaging-and-artifact-layout-contract.md` | packaging and artifact layout | 0, 9, 10, 15 |
@@ -1367,14 +1381,18 @@ If contradictions are found:
 | `docs/specs/usr-preprocessor-and-conditional-compilation-contract.md` | preprocessor and conditional compilation | 0, 1, 3, 4, 5, 6, 10, 12, 13, 14 |
 | `docs/specs/usr-quality-evaluation-contract.md` | quality evaluation and accuracy gate | 0, 7, 8, 10, 11, 12, 13, 14, 15 |
 | `docs/specs/usr-query-semantics-contract.md` | query semantics | 0, 1, 3, 4, 5, 6, 10, 12, 13, 14 |
+| `docs/specs/usr-reason-code-catalog.md` | reason code | 0, 6, 10, 14, 15 |
 | `docs/specs/usr-registry-schema-contract.md` | registry schema and serialization | 0, 1, 10, 15 |
 | `docs/specs/usr-regression-budget-contract.md` | regression budget | 0, 7, 8, 10, 11, 12, 13, 14, 15 |
 | `docs/specs/usr-release-train-contract.md` | release train | 0, 9, 10, 15 |
 | `docs/specs/usr-resolution-and-linking-contract.md` | resolution and linking | 0, 1, 3, 4, 5, 6, 10, 12, 13, 14 |
 | `docs/specs/usr-resource-and-capacity-contract.md` | resource and capacity | 0, 8, 9, 10, 15 |
+| `docs/specs/usr-rfc-template.md` | rfc template | 0, 9, 10, 15 |
+| `docs/specs/usr-risk-register.md` | risk register | 0, 6, 10, 14, 15 |
 | `docs/specs/usr-rollout-and-migration-contract.md` | rollout and migration | 0, 9, 10, 15 |
 | `docs/specs/usr-routing-normalization-contract.md` | routing normalization | 0, 1, 3, 4, 5, 6, 10, 12, 13, 14 |
 | `docs/specs/usr-runtime-config-contract.md` | runtime configuration and feature-flag | 0, 9, 10, 15 |
+| `docs/specs/usr-schema-artifact-catalog.md` | schema and artifact | 0, 9, 10, 15 |
 | `docs/specs/usr-schema-evolution-and-versioning-contract.md` | schema evolution and versioning | 0, 9, 10, 15 |
 | `docs/specs/usr-security-and-data-governance-contract.md` | security and data governance | 0, 6, 10, 14, 15 |
 | `docs/specs/usr-ssr-csr-hydration-contract.md` | ssr csr hydration | 0, 1, 3, 4, 5, 6, 10, 12, 13, 14 |
@@ -1385,9 +1403,14 @@ If contradictions are found:
 | `docs/specs/usr-test-data-generation-contract.md` | test data generation | 0, 7, 8, 10, 11, 12, 13, 14, 15 |
 | `docs/specs/usr-threat-model-and-abuse-case-contract.md` | threat model and abuse-case coverage | 0, 6, 10, 14, 15 |
 | `docs/specs/usr-threat-response-playbook-catalog.md` | threat response | 0, 6, 10, 14, 15 |
+| `docs/specs/usr-traceability-index.md` | traceability index | 0, 9, 10, 15 |
+| `docs/specs/usr-transforms-stage-map.md` | transforms stage map | 0, 1, 3, 4, 5, 6, 10, 12, 13, 14 |
 | `docs/specs/usr-type-system-normalization-contract.md` | type system normalization | 0, 1, 3, 4, 5, 6, 10, 12, 13, 14 |
+| `docs/specs/usr-validation-cli-contract.md` | validation cli | 0, 1, 10, 15 |
 | `docs/specs/usr-waiver-and-exception-contract.md` | waiver and exception governance | 0, 9, 10, 15 |
+| `docs/specs/usr-waiver-request-template.md` | waiver request template | 0, 9, 10, 15 |
 | `docs/specs/usr/languages/<language-id>.md` | exhaustive per-language contract | 4, 7, 9, 11, 12 |
+| `docs/specs/usr/frameworks/<framework-id>.md` | exhaustive per-framework overlay contract | 5, 7, 9, 11, 13, 14 |
 
 ---
 
@@ -1422,6 +1445,14 @@ This appendix defines hard dependency ordering across the expanded USR contract 
 - `docs/specs/usr-change-management-contract.md`
 - `docs/specs/usr-documentation-quality-contract.md`
 - `docs/specs/usr-ownership-and-raci-contract.md`
+- `docs/specs/usr-contract-drift-check-contract.md`
+- `docs/specs/usr-validation-cli-contract.md`
+- `docs/specs/usr-gate-evaluation-algorithm.md`
+- `docs/specs/usr-schema-artifact-catalog.md`
+- `docs/specs/usr-diagnostic-catalog.md`
+- `docs/specs/usr-reason-code-catalog.md`
+- `docs/specs/usr-feature-flag-catalog.md`
+- `docs/specs/usr-lane-policy-catalog.md`
 
 ### J.2 Language and framework modeling layer
 
@@ -1439,6 +1470,9 @@ This appendix defines hard dependency ordering across the expanded USR contract 
 - `docs/specs/usr-styling-and-css-semantics-contract.md`
 - `docs/specs/usr-ssr-csr-hydration-contract.md`
 - `docs/specs/usr-framework-macro-transform-contract.md`
+- `docs/specs/usr-framework-interactions.md`
+- `docs/specs/usr-embedded-language-matrix.md`
+- `docs/specs/usr-transforms-stage-map.md`
 
 ### J.3 Resolution/identity/runtime behavior layer
 
@@ -1484,6 +1518,9 @@ This appendix defines hard dependency ordering across the expanded USR contract 
 - `docs/specs/usr-audit-and-reporting-contract.md`
 - `docs/specs/usr-evidence-catalog.md`
 - `docs/specs/usr-implementation-playbook.md`
+- `docs/specs/usr-traceability-index.md`
+- `docs/specs/usr-open-questions.md`
+- `docs/specs/usr-risk-register.md`
 
 ---
 
@@ -1537,14 +1574,26 @@ The minimum implementation slice for architecture proof is:
 Required supporting docs for implementation execution and governance:
 
 - `docs/specs/usr-evidence-catalog.md`
+- `docs/specs/usr-schema-artifact-catalog.md`
 - `docs/specs/usr-implementation-playbook.md`
+- `docs/specs/usr-traceability-index.md`
 - `docs/guides/usr-contract-enforcement.md`
 - `docs/guides/usr-new-language-onboarding.md`
+- `docs/guides/usr-cutover-runbook.md`
+- `docs/guides/usr-rollback-runbook.md`
+- `docs/guides/usr-release-checklist.md`
+- `docs/guides/usr-waiver-audit-checklist.md`
+- `docs/testing/usr-*.md`
+- `docs/schemas/usr/*.json`
 
 Roadmap enforcement requirements:
 
 - [ ] Every phase gate links to at least one concrete evidence artifact in `docs/specs/usr-evidence-catalog.md`.
+- [ ] Every blocking evidence artifact has an active schema in `docs/schemas/usr/*.json` and a row in `docs/specs/usr-schema-artifact-catalog.md`.
 - [ ] CI contract enforcement follows `docs/guides/usr-contract-enforcement.md`.
 - [ ] New language onboarding follows `docs/guides/usr-new-language-onboarding.md`.
+- [ ] Framework onboarding and interop expectations follow `docs/specs/usr/frameworks/*.md` and `docs/specs/usr-framework-interactions.md`.
+- [ ] Testing policy docs in `docs/testing/usr-*.md` stay synchronized with lane and conformance contracts.
 - [ ] Any contract addition/removal updates Appendix H traceability and Appendix J dependency graph in same change.
+
 
