@@ -470,7 +470,7 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
       const incrementalBundleCount = incrementalBundleDir && fsSync.existsSync(incrementalBundleDir)
         ? fsSync.readdirSync(incrementalBundleDir).filter((name) => !name.startsWith('.')).length
         : 0;
-      let hasIncrementalBundles = Boolean(
+      let hasIncrementalBundles = incrementalRequested && Boolean(
         incrementalData?.manifest
         && incrementalFileCount > 0
         && incrementalBundleCount > 0
