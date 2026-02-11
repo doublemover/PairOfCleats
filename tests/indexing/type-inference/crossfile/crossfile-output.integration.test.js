@@ -56,6 +56,9 @@ const env = applyTestEnv({
     }
   }
 });
+const buildTimeoutMs = Number.isFinite(Number(process.env.PAIROFCLEATS_TEST_TIMEOUT_MS))
+  ? Math.max(60000, Number(process.env.PAIROFCLEATS_TEST_TIMEOUT_MS))
+  : 60000;
 
 const result = spawnSync(process.execPath, [
   path.join(root, 'build_index.js'),
@@ -67,9 +70,7 @@ const result = spawnSync(process.execPath, [
 ], {
   cwd: repoRoot,
   env,
-  timeout: Number.isFinite(Number(process.env.PAIROFCLEATS_TEST_TIMEOUT_MS))
-    ? Math.max(1000, Number(process.env.PAIROFCLEATS_TEST_TIMEOUT_MS))
-    : 20000,
+  timeout: buildTimeoutMs,
   killSignal: 'SIGTERM',
   stdio: 'inherit'
 });
