@@ -558,10 +558,23 @@ export function createSearchPipeline(context) {
           const state = getProviderModeState(provider, mode);
           const now = Date.now();
           if (state) {
-            const inCooldown = state.disabledUntil > now;
             const failures = Number.isFinite(Number(state.failures))
               ? Math.max(0, Math.floor(Number(state.failures)))
               : 0;
+            if (state.preflight === false) {
+              const failureUntil = Number.isFinite(Number(state.preflightFailureUntil))
+                ? Number(state.preflightFailureUntil)
+                : 0;
+              if (failureUntil > now) {
+                return false;
+              }
+              state.preflight = null;
+              state.preflightFailureUntil = 0;
+              state.preflightCheckedAt = 0;
+            }
+            if (state.disabledUntil > now) {
+              return false;
+            }
             if (state.preflight === true) {
               // Reuse positive preflight only when the provider has no active
               // failure history. After cooldown expiry we force a fresh probe.
@@ -572,31 +585,9 @@ export function createSearchPipeline(context) {
               ) {
                 return true;
               }
-              if (inCooldown) {
-                return false;
-              }
-            } else if (state.preflight === false) {
-              // Reuse failed preflight only while the provider is cooling down.
-              // Once cooldown expires, force a fresh preflight probe.
-              const failedUntil = Math.max(
-                Number.isFinite(Number(state.preflightFailureUntil))
-                  ? Number(state.preflightFailureUntil)
-                  : 0,
-                Number.isFinite(Number(state.disabledUntil))
-                  ? Number(state.disabledUntil)
-                  : 0
-              );
-              if (failedUntil > now) {
-                return false;
-              }
               state.preflight = null;
               state.preflightFailureUntil = 0;
               state.preflightCheckedAt = 0;
-              if (inCooldown) {
-                return false;
-              }
-            } else if (inCooldown) {
-              return false;
             }
           }
           try {
