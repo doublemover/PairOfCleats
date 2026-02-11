@@ -575,15 +575,23 @@ export function createSearchPipeline(context) {
             } else if (state.preflight === false) {
               // Reuse failed preflight only while the provider is cooling down.
               // Once cooldown expires, force a fresh preflight probe.
-              const failedUntil = Number.isFinite(Number(state.preflightFailureUntil))
-                ? Number(state.preflightFailureUntil)
-                : Number(state.disabledUntil || 0);
+              const failedUntil = Math.max(
+                Number.isFinite(Number(state.preflightFailureUntil))
+                  ? Number(state.preflightFailureUntil)
+                  : 0,
+                Number.isFinite(Number(state.disabledUntil))
+                  ? Number(state.disabledUntil)
+                  : 0
+              );
               if (failedUntil > now) {
                 return false;
               }
               state.preflight = null;
               state.preflightFailureUntil = 0;
               state.preflightCheckedAt = 0;
+              if (inCooldown) {
+                return false;
+              }
             } else if (inCooldown) {
               return false;
             }
