@@ -70,7 +70,7 @@ export const createTempPath = (filePath, options = {}) => {
   const dir = path.dirname(filePath);
   const ext = path.extname(filePath);
   const compactToken = crypto
-    .createHash('sha1')
+    .createHash('sha256')
     .update(filePath)
     .update(':')
     .update(token)
