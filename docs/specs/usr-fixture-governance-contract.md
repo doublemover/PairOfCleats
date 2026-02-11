@@ -1,7 +1,7 @@
 # Spec -- USR Fixture and Golden Governance Contract
 
-Status: Draft v0.1
-Last updated: 2026-02-11T01:35:00Z
+Status: Draft v0.2
+Last updated: 2026-02-11T02:40:00Z
 
 ## 0. Purpose and scope
 

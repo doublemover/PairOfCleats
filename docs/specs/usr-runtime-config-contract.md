@@ -1,7 +1,7 @@
 # Spec -- USR Runtime Configuration and Feature-Flag Contract
 
-Status: Draft v0.1
-Last updated: 2026-02-11T01:35:00Z
+Status: Draft v0.2
+Last updated: 2026-02-11T02:40:00Z
 
 ## 0. Purpose and scope
 
@@ -112,3 +112,4 @@ Config key additions or behavior changes MUST update:
 - `docs/specs/usr-rollout-and-migration-contract.md`
 - `docs/specs/usr-implementation-readiness-contract.md`
 - `docs/specs/usr-registry-schema-contract.md`
+- `docs/specs/usr-waiver-and-exception-contract.md`

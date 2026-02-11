@@ -1,0 +1,103 @@
+{
+  "schemaVersion": "usr-registry-1.0.0",
+  "registryId": "usr-threat-model-matrix",
+  "generatedAt": "2026-02-11T01:45:00Z",
+  "generatedBy": "tools/usr/generate-usr-matrix-baselines.mjs",
+  "rows": [
+    {
+      "id": "threat-parser-supply-chain",
+      "threatClass": "parser-supply-chain",
+      "attackSurface": "parser",
+      "requiredControls": [
+        "security-gate-parser-lock",
+        "security-gate-unsafe-parser-feature"
+      ],
+      "requiredFixtures": [
+        "usr::failure-injection::parser-lock-001"
+      ],
+      "severity": "high",
+      "blocking": true
+    },
+    {
+      "id": "threat-path-traversal",
+      "threatClass": "path-traversal",
+      "attackSurface": "input",
+      "requiredControls": [
+        "security-gate-path-traversal"
+      ],
+      "requiredFixtures": [
+        "usr::failure-injection::security-gate-001"
+      ],
+      "severity": "critical",
+      "blocking": true
+    },
+    {
+      "id": "threat-reporting-exfiltration",
+      "threatClass": "reporting-exfiltration",
+      "attackSurface": "reporting",
+      "requiredControls": [
+        "security-gate-redaction-complete"
+      ],
+      "requiredFixtures": [
+        "usr::failure-injection::redaction-fail-001"
+      ],
+      "severity": "critical",
+      "blocking": true
+    },
+    {
+      "id": "threat-resource-exhaustion",
+      "threatClass": "resource-exhaustion",
+      "attackSurface": "runtime",
+      "requiredControls": [
+        "alert-memory-peak",
+        "alert-lane-duration"
+      ],
+      "requiredFixtures": [
+        "usr::failure-injection::resource-budget-001"
+      ],
+      "severity": "high",
+      "blocking": true
+    },
+    {
+      "id": "threat-schema-confusion",
+      "threatClass": "schema-confusion",
+      "attackSurface": "serialization",
+      "requiredControls": [
+        "security-gate-schema-no-extension"
+      ],
+      "requiredFixtures": [
+        "usr::backcompat::bc-003"
+      ],
+      "severity": "high",
+      "blocking": true
+    },
+    {
+      "id": "threat-sensitive-data-leakage",
+      "threatClass": "sensitive-data-leakage",
+      "attackSurface": "reporting",
+      "requiredControls": [
+        "redact-auth-token",
+        "redact-private-key",
+        "security-gate-redaction-complete"
+      ],
+      "requiredFixtures": [
+        "usr::failure-injection::redaction-fail-001"
+      ],
+      "severity": "critical",
+      "blocking": true
+    },
+    {
+      "id": "threat-untrusted-execution",
+      "threatClass": "untrusted-execution",
+      "attackSurface": "runtime",
+      "requiredControls": [
+        "security-gate-runtime-sandbox"
+      ],
+      "requiredFixtures": [
+        "usr::failure-injection::runtime-exec-001"
+      ],
+      "severity": "critical",
+      "blocking": true
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 # Spec -- USR Failure Injection and Resilience Contract
 
-Status: Draft v0.1
-Last updated: 2026-02-11T01:35:00Z
+Status: Draft v0.2
+Last updated: 2026-02-11T02:40:00Z
 
 ## 0. Purpose and scope
 
@@ -95,3 +95,5 @@ Any strict blocking scenario failure is release-blocking.
 - `docs/specs/usr-observability-and-slo-contract.md`
 - `docs/specs/usr-security-and-data-governance-contract.md`
 - `docs/specs/usr-registry-schema-contract.md`
+- `docs/specs/usr-threat-model-and-abuse-case-contract.md`
+- `docs/specs/usr-waiver-and-exception-contract.md`

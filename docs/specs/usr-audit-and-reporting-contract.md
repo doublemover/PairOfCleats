@@ -1,7 +1,7 @@
 # Spec -- USR Audit and Reporting Contract
 
-Status: Draft v0.2
-Last updated: 2026-02-11T01:55:00Z
+Status: Draft v0.3
+Last updated: 2026-02-11T02:40:00Z
 
 ## 0. Purpose and scope
 
@@ -150,6 +150,47 @@ type USRFixtureGovernanceValidationRowV1 = {
 };
 ```
 
+### 2.9 `usr-benchmark-regression-summary.json`
+
+```ts
+type USRBenchmarkRegressionRowV1 = {
+  benchmarkId: string;
+  laneId: string;
+  status: "pass" | "warn" | "fail";
+  variancePct: number;
+  p95DurationMs: number;
+  thresholdP95DurationMs: number;
+  blocking: boolean;
+};
+```
+
+### 2.10 `usr-threat-model-coverage.json`
+
+```ts
+type USRThreatModelCoverageRowV1 = {
+  threatId: string;
+  threatClass: string;
+  controlCoverage: number; // 0..1
+  fixtureCoverage: number; // 0..1
+  status: "pass" | "warn" | "fail";
+  blocking: boolean;
+};
+```
+
+### 2.11 `usr-waiver-active-report.json`
+
+```ts
+type USRWaiverActiveRowV1 = {
+  waiverId: string;
+  scopeType: "lane" | "phase" | "language" | "framework" | "artifact";
+  scopeId: string;
+  allowedUntil: string; // ISO 8601
+  expired: boolean;
+  approverValidation: "pass" | "fail";
+  blocking: boolean;
+};
+```
+
 ## 3. Cross-report invariants (normative)
 
 The following invariants MUST hold for each run:
@@ -160,6 +201,9 @@ The following invariants MUST hold for each run:
 - blocking failures in any required report MUST be reflected in release-readiness scorecard checks
 - failure-injection blocking scenario failures MUST be reflected in release-readiness scorecard checks
 - fixture-governance blocking validation failures MUST be reflected in release-readiness scorecard checks
+- benchmark blocking regression failures MUST be reflected in release-readiness scorecard checks
+- critical threat-model coverage failures MUST be reflected in release-readiness scorecard checks
+- waiver expiry or breach failures MUST be reflected in release-readiness scorecard checks
 
 ## 4. Deterministic ordering and serialization
 
@@ -204,3 +248,6 @@ type USRReleaseScorecardRowV1 = {
 - `docs/specs/usr-conformance-and-fixture-contract.md`
 - `docs/specs/usr-rollout-and-migration-contract.md`
 - `docs/specs/usr-registry-schema-contract.md`
+- `docs/specs/usr-performance-benchmark-contract.md`
+- `docs/specs/usr-threat-model-and-abuse-case-contract.md`
+- `docs/specs/usr-waiver-and-exception-contract.md`
