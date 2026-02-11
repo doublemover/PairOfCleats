@@ -2,6 +2,7 @@ import { ARTIFACT_SCHEMA_HASH } from '../../../contracts/registry.js';
 import { CHUNK_ID_ALGO_VERSION } from '../../../contracts/compatibility.js';
 import { sha1 } from '../../../shared/hash.js';
 import { stableStringifyForSignature } from '../../../shared/stable-json.js';
+import { MAX_JSON_BYTES } from '../../../shared/artifact-io/constants.js';
 
 export { ARTIFACT_SCHEMA_HASH };
 
@@ -23,6 +24,7 @@ export const buildIncrementalSignatureSummary = (payload, mode = null, tokenizat
 
 export const buildIncrementalSignaturePayload = (runtime, mode, tokenizationKey) => {
   const languageOptions = runtime.languageOptions || {};
+  const indexingConfig = runtime.indexingConfig || {};
   const derivedSchemaVersion = runtime.toolInfo?.version || null;
   const analysisPolicy = runtime.analysisPolicy || {};
   const riskAnalysisEnabled = typeof analysisPolicy?.risk?.enabled === 'boolean'
@@ -85,8 +87,8 @@ export const buildIncrementalSignaturePayload = (runtime, mode, tokenizationKey)
         summaryOnly: modeRiskInterproceduralSummaryOnly
       }
       : null,
-    riskRules: runtime.indexingConfig?.riskRules || null,
-    riskCaps: runtime.indexingConfig?.riskCaps || null,
+    riskRules: indexingConfig.riskRules || null,
+    riskCaps: indexingConfig.riskCaps || null,
     parsers: {
       javascript: languageOptions.javascript?.parser || null,
       javascriptFlow: languageOptions.javascript?.flow || null,
@@ -104,7 +106,7 @@ export const buildIncrementalSignaturePayload = (runtime, mode, tokenizationKey)
         byLanguage: languageOptions.treeSitter.byLanguage || {}
       }
       : { enabled: false },
-    importScan: runtime.indexingConfig?.importScan ?? null,
+    importScan: indexingConfig.importScan ?? null,
     yamlChunking: languageOptions.yamlChunking || null,
     kotlin: languageOptions.kotlin || null,
     chunkIdAlgoVersion: CHUNK_ID_ALGO_VERSION,
@@ -118,7 +120,13 @@ export const buildIncrementalSignaturePayload = (runtime, mode, tokenizationKey)
     },
     fileCaps: runtime.fileCaps,
     fileScan: runtime.fileScan,
-    incrementalBundleFormat: runtime.incrementalBundleFormat || null
+    incrementalBundleFormat: runtime.incrementalBundleFormat || null,
+    artifacts: {
+      maxJsonBytes: MAX_JSON_BYTES,
+      formats: indexingConfig.artifacts || null,
+      byteBudgets: indexingConfig.byteBudgets || indexingConfig.byteBudget || null,
+      indexer: indexingConfig.indexer || null
+    }
   };
 };
 
