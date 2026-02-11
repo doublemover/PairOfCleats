@@ -137,6 +137,15 @@ export const createJsonWriteStream = (filePath, options = {}) => {
       if (!fs.existsSync(targetPath)) break;
       await delay(Math.min(1000, 50 * (attempt + 1)));
     }
+    if (fs.existsSync(targetPath)) {
+      // Final fallback: tombstone + delete to avoid stale temp files
+      // when antivirus/indexers briefly hold the file handle on Windows.
+      const tombstone = `${targetPath}.pending-delete-${Date.now()}-${process.pid}`;
+      try {
+        await fsPromises.rename(targetPath, tombstone);
+        await retryRemovePath(tombstone);
+      } catch {}
+    }
   };
   const attachPipelineErrorHandlers = () => {
     const forwardToFile = (err) => {

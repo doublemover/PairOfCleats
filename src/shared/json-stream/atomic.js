@@ -18,6 +18,8 @@ const createTempToken = () => {
 // Keep headroom for sidecar paths (e.g. SQLite -wal/-journal suffixes) on Win32.
 const WINDOWS_PATH_BUDGET = 240;
 const MIN_COMPACT_TOKEN_CHARS = 12;
+const REPLACE_TEMP_WAIT_ATTEMPTS = 20;
+const REPLACE_TEMP_WAIT_BASE_DELAY_MS = 25;
 
 const waitForPath = async (targetPath, { attempts = 3, baseDelayMs = 10 } = {}) => {
   const resolvedAttempts = Number.isFinite(attempts) ? Math.max(1, Math.floor(attempts)) : 3;
@@ -117,7 +119,10 @@ export const replaceFile = async (tempPath, finalPath, options = {}) => {
       return false;
     }
   };
-  if (!(await waitForPath(tempPath, { attempts: 6, baseDelayMs: 10 }))) {
+  if (!(await waitForPath(tempPath, {
+    attempts: REPLACE_TEMP_WAIT_ATTEMPTS,
+    baseDelayMs: REPLACE_TEMP_WAIT_BASE_DELAY_MS
+  }))) {
     if (fs.existsSync(finalPath)) {
       if (await isFreshFinal()) {
         if (!keepBackup && backupAvailable) {
@@ -160,7 +165,10 @@ export const replaceFile = async (tempPath, finalPath, options = {}) => {
     }
   } catch (err) {
     if (err?.code === 'ENOENT') {
-      if (await waitForPath(tempPath, { attempts: 4, baseDelayMs: 10 })) {
+      if (await waitForPath(tempPath, {
+        attempts: REPLACE_TEMP_WAIT_ATTEMPTS,
+        baseDelayMs: REPLACE_TEMP_WAIT_BASE_DELAY_MS
+      })) {
         try {
           await fsPromises.rename(tempPath, finalPath);
         } catch (retryErr) {
