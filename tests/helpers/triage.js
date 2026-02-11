@@ -39,7 +39,8 @@ const rmWithRetry = async (targetPath) => {
 export const getTriageContext = async ({ name }) => {
   const repoRoot = path.join(ROOT, 'tests', 'fixtures', 'sample');
   const triageFixtureRoot = path.join(ROOT, 'tests', 'fixtures', 'triage');
-  const cacheRoot = path.join(ROOT, '.testCache', name);
+  const cacheRootBase = path.join(ROOT, '.testCache', name);
+  let cacheRoot = cacheRootBase;
   const traceArtifactIo = process.env.PAIROFCLEATS_TRACE_ARTIFACT_IO === '1';
   const testLogRoot = process.env.PAIROFCLEATS_TEST_LOG_DIR
     || process.env.npm_config_test_log_dir
@@ -47,9 +48,16 @@ export const getTriageContext = async ({ name }) => {
   const resolvedTestLogRoot = testLogRoot ? path.resolve(testLogRoot) : '';
 
   if (traceArtifactIo) {
-    console.log(`[triage-test] deleting cache root: ${cacheRoot}`);
+    console.log(`[triage-test] deleting cache root: ${cacheRootBase}`);
   }
-  await rmWithRetry(cacheRoot);
+  try {
+    await rmWithRetry(cacheRootBase);
+  } catch (err) {
+    cacheRoot = `${cacheRootBase}-${Date.now()}-${process.pid}`;
+    console.warn(
+      `[triage-test] cache cleanup failed (${err?.code || 'unknown'}); using isolated cache root: ${cacheRoot}`
+    );
+  }
   if (traceArtifactIo) {
     console.log(`[triage-test] deleted cache root: ${cacheRoot}`);
   }
