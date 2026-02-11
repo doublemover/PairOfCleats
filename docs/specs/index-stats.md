@@ -33,6 +33,8 @@ Inputs:
 - optional `--mode code|prose|extracted-prose|records`
 - `--verify` for required-artifact checks
 
+If `--mode` is omitted, report all modes in fixed order.
+
 ---
 
 ## 3. Data source rules
@@ -82,6 +84,11 @@ Per-mode fields:
 3. invalid/missing artifacts are returned as warnings/errors.
 
 No destructive behavior.
+
+Exit behavior:
+
+- exit `0` when no verify errors are found,
+- exit `1` when verify errors are present.
 
 ---
 

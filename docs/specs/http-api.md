@@ -32,6 +32,7 @@ This document defines API behavior only. CLI/MCP routes may expose the same sema
 ```json
 {
   "ok": false,
+  "backend": "api",
   "error": {
     "code": "ERR_CODE",
     "message": "Human readable error",
@@ -40,7 +41,18 @@ This document defines API behavior only. CLI/MCP routes may expose the same sema
 }
 ```
 
-### 2.3 Common error codes
+All error responses must use this envelope shape.
+
+### 2.3 Status codes
+
+- `200`: success response
+- `400`: invalid input / contract violation
+- `403`: allowlist or authorization failure
+- `404`: missing snapshot/diff/ref
+- `409`: cohort/config mismatch requiring explicit override
+- `500`: unexpected internal failure
+
+### 2.4 Common error codes
 
 - `ERR_INVALID_REQUEST`
 - `ERR_UNAUTHORIZED_REPO_ROOT`
@@ -110,6 +122,7 @@ Federated workspace search.
 
 - Always include `repoSetId`, `manifestHash`, cohort selection summary, and per-repo diagnostics.
 - Every hit includes `repoId`, `repoAlias`, `globalId`.
+- If both `workspaceId` and `workspacePath` are provided and resolve to different workspaces, fail with `ERR_INVALID_REQUEST`.
 
 ---
 

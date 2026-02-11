@@ -12,6 +12,13 @@
 
 Define stable default values and normalization rules for new roadmap features so behavior is predictable without custom config.
 
+Precedence order for resolved values:
+
+1. CLI flags
+2. environment overrides
+3. user config file
+4. defaults in this spec
+
 ---
 
 ## 2. Snapshot defaults (`indexing.snapshots.*`)
@@ -80,6 +87,8 @@ Normalization:
 1. Unknown keys in new config blocks must hard-fail in strict validation.
 2. Type mismatches hard-fail with actionable errors.
 3. Defaults are applied only after schema/type validation succeeds.
+
+No default in this spec should implicitly enable an experimental subsystem unless explicitly stated (`gc.enabled=false` remains the default).
 
 ---
 

@@ -141,6 +141,7 @@ Recommended: add a dedicated endpoint to avoid breaking single-repo search contr
 Rules:
 - The API layer MUST enforce the same repo-root allowlist constraints as single-repo mode (see `tools/api/router.js`) **for every repo root used**.
 - `workspaceId` is preferred; `workspacePath` may be accepted only when allowlisted.
+- If both `workspaceId` and `workspacePath` are present and resolve to different workspaces, fail with `ERR_INVALID_REQUEST`.
 - The response is always JSON.
 
 ---
@@ -249,7 +250,7 @@ Coordinator returns a single federated payload:
 
 ### 7.3 Steps (normative)
 
-1. Load and resolve workspace config via `loadWorkspaceConfig(workspacePath)`.
+1. Load and resolve workspace config via `workspaceId` (preferred) or allowlisted `workspacePath`.
 2. Generate or read workspace manifest via `generateWorkspaceManifest(configResolved)`.
 3. Apply selection rules (§6) to obtain `selectedRepos`.
 4. Apply cohort gating (Phase 15.4):
@@ -427,7 +428,7 @@ type FederatedSearchResponseV1 = {
     limits: { top: number, perRepoTop: number, concurrency: number },
     cohort?: {
       // see Phase 15.4 (compat gating)
-      byMode: Record<string, { cohortKey: string|null, excludedRepoIds: string[] }>
+      byMode: Record<string, { effectiveKey: string|null, excludedRepoIds: string[] }>
     }
   },
 
@@ -472,7 +473,12 @@ Return `ok=false` only when federation cannot proceed at all, e.g.:
 When `ok=false`, include:
 
 ```json
-{ "ok": false, "code": "<ERROR_CODE>", "message": "<human message>", "diagnostics": { "warnings": [], "errors": [] } }
+{
+  "ok": false,
+  "backend": "federated",
+  "error": { "code": "<ERROR_CODE>", "message": "<human message>", "details": {} },
+  "diagnostics": { "warnings": [], "errors": [] }
+}
 ```
 
 ---
@@ -484,7 +490,7 @@ When `ok=false`, include:
 Create:
 
 - `src/retrieval/federation/coordinator.js`
-  - `federatedSearch({ workspacePath, rawArgs, signal }): FederatedSearchResponseV1`
+  - `federatedSearch({ workspaceId, workspacePath, rawArgs, signal }): FederatedSearchResponseV1`
 - `src/retrieval/federation/select.js`
   - deterministic selection implementation (§6)
 - `src/retrieval/federation/merge.js`
@@ -538,5 +544,5 @@ Minimum tests required:
 5. **Partial failure**:
    - one repo missing index does not fail overall response; diagnostics include `missing_index`.
 6. **Cohort gating hook**:
-   - when two repos have different compatibilityKey for a mode, coordinator excludes one by default and records cohort meta.
+   - when two repos have different `effectiveKey` for a mode, coordinator excludes one by default and records cohort meta.
 

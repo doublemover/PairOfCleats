@@ -65,6 +65,11 @@ Allow:
 
 Unknown keys fail with `ERR_FEDERATED_COHORT_NOT_FOUND`.
 
+Rules:
+
+- `--cohort <key>` must resolve in every requested mode; otherwise fail.
+- `--cohort <mode>:<key>` only applies to that mode.
+
 ### 3.4 Unsafe mix policy
 
 `--allow-unsafe-mix` allows mixed cohorts and emits `WARN_FEDERATED_UNSAFE_MIXING`.
@@ -113,6 +118,7 @@ Example fragment:
 1. Cohort grouping is sorted by key before ranking.
 2. Repo lists inside each cohort are sorted by `repoId`.
 3. Diagnostics are sorted by `repoId`.
+4. `null` effective keys are always ranked last.
 
 ---
 

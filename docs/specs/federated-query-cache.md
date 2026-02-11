@@ -63,6 +63,8 @@ key = sha1(stableStringify(keyPayload))
   - fallback backend per mode
   - ann backend used per mode
   - unsafe-mix enabled flag
+- as-of identity:
+  - `asOf.identityHash` (when as-of targeting is used)
 
 Fields that must not influence key:
 
@@ -93,6 +95,8 @@ Fields that must not influence key:
 }
 ```
 
+`result` should contain the full federated response payload for deterministic replay.
+
 ---
 
 ## 5. Atomic writes and locking
@@ -115,6 +119,7 @@ Fields that must not influence key:
 - `repoSetId` mismatch
 - cache schema version mismatch
 - explicit key payload mismatch
+- as-of identity mismatch
 
 ### 6.3 Invalid build pointer handling
 
@@ -139,6 +144,8 @@ Config knobs:
 - `indexing.federation.queryCache.maxEntries`
 - `indexing.federation.queryCache.maxBytes`
 - `indexing.federation.queryCache.maxAgeDays`
+
+Expired entries must be removed opportunistically on read and always on write.
 
 ---
 

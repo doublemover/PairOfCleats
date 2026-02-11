@@ -23,6 +23,7 @@ Each layer has independent retention policy knobs and diagnostics.
 ## 2. CAS design (design gate required)
 
 CAS is only rolled out after design gate completion.
+Before rollout, GC must operate only on existing non-CAS cache surfaces.
 
 ### 2.1 CAS object identity
 
@@ -81,6 +82,7 @@ Delete only objects:
 - not in mark set
 - older than grace period
 - without active lease
+- inside `<cacheRoot>/cas` (never outside cache root)
 
 ### 4.3 Deletion order
 
@@ -125,6 +127,8 @@ Required outputs:
 - candidate delete count
 - skipped-by-lease count
 - deterministic sample of objects
+
+`--dry-run` must perform full mark/sweep planning and emit the same candidate list as a real run.
 
 ---
 

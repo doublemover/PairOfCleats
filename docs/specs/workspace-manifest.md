@@ -24,7 +24,7 @@ The manifest is the single authoritative input for:
 
 - federated search orchestration (Phase 15.3),
 - federated query caching (Phase 15.5),
-- later shared cache GC and CAS (Phase 15.5+).
+- later shared cache GC and CAS (Phase 15.6+).
 
 ---
 
@@ -248,7 +248,7 @@ SQLite signatures are included in `manifestHash` (see §6).
 - build pointer changes (new buildId or buildRoots),
 - index signatures change (file index artifacts),
 - sqlite db file changes,
-- compatibilityKey changes.
+- cohortKey / compatibilityKey changes.
 
 It MUST NOT change for display-only changes (name/alias/tags/priority/enabled).
 
@@ -273,7 +273,7 @@ core = {
     },
 
     indexes: {
-      // for each mode: { present, indexSignatureHash, compatibilityKey }
+      // for each mode: { present, indexSignatureHash, cohortKey, compatibilityKey, availabilityReason }
     },
 
     sqlite: {
@@ -315,9 +315,11 @@ Steps:
       2. Determine `indexDir = indexRoot ? path.join(indexRoot, `index-${mode}`) : null`.
       3. Determine `present = Boolean(indexDir && exists && isDirectory)`.
       4. If present, compute `indexSignatureHash` (see §5.1).
-      5. Compute `compatibilityKey`:
-         - read `<indexDir>/index_state.json` if present and parse `compatibilityKey`,
-         - else `compatibilityKey=null` and emit a warning.
+      5. Compute `cohortKey` and `compatibilityKey`:
+         - read `<indexDir>/index_state.json` if present and parse keys,
+         - if `cohortKey` missing, fallback remains `compatibilityKey`,
+         - if both missing, set `availabilityReason=compat-key-missing` and emit warning.
+      6. Set `availabilityReason` using the contract enum in §4.5.
    5. Resolve sqlite db paths using `resolveSqlitePaths(repoRootCanonical, userConfig)` from `tools/shared/dict-utils.js`.
       - Compute db signatures.
 
@@ -348,82 +350,16 @@ Examples:
 
 ---
 
-## 9. Example manifest (abbreviated)
+## 9. Implementation guidance
 
-```json
-{
-  "schemaVersion": 1,
-  "generatedAt": "2026-01-24T14:05:12.123Z",
-  "repoSetId": "ws1-2d2c0f0b0f3a2f...",
-  "manifestHash": "wm1-9a1c0e7f4d2d...",
-  "federationCacheRoot": "/abs/.poc-cache",
-  "workspace": {
-    "workspacePath": "/abs/workspaces/dev/.pairofcleats-workspace.jsonc",
-    "name": "Dev workspace",
-    "workspaceConfigHash": "wsc1-..."
-  },
-  "repos": [
-    {
-      "repoId": "PairOfCleats-main--a1b2c3d4e5f6",
-      "repoRootCanonical": "/abs/PairOfCleats-main",
-      "repoCacheRoot": "/abs/.poc-cache/repos/PairOfCleats-main--a1b2c3d4e5f6",
-      "alias": "poc",
-      "tags": ["core"],
-      "enabled": true,
-      "priority": 0,
-      "build": {
-        "currentJsonPath": "/abs/.poc-cache/repos/.../builds/current.json",
-        "currentJsonExists": true,
-        "currentJsonMtimeMs": 1737737112123,
-        "parseOk": true,
-        "buildId": "b20260124-1400",
-        "buildRoot": "/abs/.poc-cache/repos/.../builds/b20260124-1400",
-        "buildRoots": { "code": "/abs/.../builds/b20260124-1400" },
-        "modes": ["code"]
-      },
-      "indexes": {
-        "code": {
-          "mode": "code",
-          "indexRoot": "/abs/.../builds/b20260124-1400",
-          "indexDir": "/abs/.../builds/b20260124-1400/index-code",
-          "present": true,
-          "indexSignatureHash": "is1-...",
-          "compatibilityKey": "ck1-..."
-        },
-        "prose": { "mode": "prose", "indexRoot": null, "indexDir": null, "present": false, "indexSignatureHash": null, "compatibilityKey": null },
-        "extracted-prose": { "mode": "extracted-prose", "indexRoot": null, "indexDir": null, "present": false, "indexSignatureHash": null, "compatibilityKey": null },
-        "records": { "mode": "records", "indexRoot": null, "indexDir": null, "present": false, "indexSignatureHash": null, "compatibilityKey": null }
-      },
-      "sqlite": {
-        "dir": "/abs/.poc-cache/repos/.../index-sqlite",
-        "dbs": {
-          "code": { "path": "/abs/.../index-sqlite/code.index.db", "present": true, "fileSignature": "123456:1737737112000" },
-          "prose": { "path": "/abs/.../index-sqlite/prose.index.db", "present": false, "fileSignature": null },
-          "extracted-prose": { "path": null, "present": false, "fileSignature": null },
-          "records": { "path": "/abs/.../index-sqlite/records.index.db", "present": true, "fileSignature": "999:1737737000000" }
-        }
-      }
-    }
-  ],
-  "diagnostics": {
-    "warnings": [],
-    "errors": []
-  }
-}
-```
-
----
-
-## 10. Implementation guidance
-
-### 10.1 Suggested modules
+### 9.1 Suggested modules
 
 - `src/workspace/manifest.js`
   - `generateWorkspaceManifest(workspaceConfigResolved, options?): WorkspaceManifestV1`
   - `readWorkspaceManifest(path): WorkspaceManifestV1`
   - `computeManifestHash(manifestLike): string`
 
-### 10.2 Preferred existing helpers
+### 9.2 Preferred existing helpers
 
 - `getRepoCacheRoot`, `resolveSqlitePaths` -- `tools/shared/dict-utils.js`
 - `buildIndexSignature` -- `src/retrieval/index-cache.js`
@@ -433,7 +369,7 @@ Examples:
 
 ---
 
-## 11. Tests (must be automated)
+## 10. Tests (must be automated)
 
 1. Deterministic ordering: repos are sorted by repoId in manifest.
 2. Deterministic serialization: stableStringify output is byte-identical for same catalog state.
@@ -442,5 +378,5 @@ Examples:
 4. Index signature correctness:
    - chunk_meta present as `.jsonl` or `meta+parts` changes `indexSignatureHash`.
 5. SQLite signature changes invalidate `manifestHash`.
-6. Compatibility key propagation:
-   - if index_state.json includes compatibilityKey, manifest contains it.
+6. Cohort/compat propagation:
+   - if index_state.json includes `cohortKey` and/or `compatibilityKey`, manifest contains them correctly.
