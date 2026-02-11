@@ -30,6 +30,18 @@ export const applyTestEnv = ({
 } = {}) => {
   const env = { ...process.env };
   const deletedKeys = new Set();
+  const preservedTestKeys = new Set([
+    'PAIROFCLEATS_TEST_CACHE_SUFFIX',
+    'PAIROFCLEATS_TEST_LOG_SILENT',
+    'PAIROFCLEATS_TEST_ALLOW_MISSING_COMPAT_KEY',
+    'PAIROFCLEATS_TESTING'
+  ]);
+  for (const key of Object.keys(env)) {
+    if (!key.startsWith('PAIROFCLEATS_TEST_')) continue;
+    if (preservedTestKeys.has(key)) continue;
+    delete env[key];
+    deletedKeys.add(key);
+  }
   const removeKey = (key) => {
     delete env[key];
     if (key && key.startsWith('PAIROFCLEATS_')) deletedKeys.add(key);
@@ -47,14 +59,15 @@ export const applyTestEnv = ({
       env.PAIROFCLEATS_EMBEDDINGS = String(embeddings);
     }
   }
-  if (testConfig !== undefined) {
-    if (testConfig === null) {
-      removeKey('PAIROFCLEATS_TEST_CONFIG');
-    } else if (typeof testConfig === 'string') {
-      env.PAIROFCLEATS_TEST_CONFIG = testConfig;
-    } else {
-      env.PAIROFCLEATS_TEST_CONFIG = JSON.stringify(testConfig);
-    }
+  if (testConfig === undefined) {
+    // Prevent inherited runner/shell overrides from silently mutating test behavior.
+    removeKey('PAIROFCLEATS_TEST_CONFIG');
+  } else if (testConfig === null) {
+    removeKey('PAIROFCLEATS_TEST_CONFIG');
+  } else if (typeof testConfig === 'string') {
+    env.PAIROFCLEATS_TEST_CONFIG = testConfig;
+  } else {
+    env.PAIROFCLEATS_TEST_CONFIG = JSON.stringify(testConfig);
   }
   if (extraEnv && typeof extraEnv === 'object') {
     for (const [key, value] of Object.entries(extraEnv)) {

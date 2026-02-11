@@ -4,6 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getGitMeta } from '../../../src/index/git.js';
+import { rmDirRecursive } from '../../helpers/temp.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'churn-filter');
@@ -16,7 +17,7 @@ if (gitCheck.status !== 0) {
   process.exit(0);
 }
 
-await fsPromises.rm(tempRoot, { recursive: true, force: true });
+await rmDirRecursive(tempRoot, { retries: 8, delayMs: 150 });
 await fsPromises.mkdir(repoRoot, { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 

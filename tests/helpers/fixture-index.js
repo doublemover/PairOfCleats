@@ -12,6 +12,7 @@ import {
   readCompatibilityKey
 } from '../../src/shared/artifact-io.js';
 import { syncProcessEnv } from './test-env.js';
+import { rmDirRecursive } from './temp.js';
 import { isPlainObject, mergeConfig } from '../../src/shared/config.js';
 import { runSqliteBuild } from './sqlite-builder.js';
 
@@ -58,7 +59,15 @@ const createFixtureEnv = (cacheRoot, overrides = {}) => {
   const { PAIROFCLEATS_TEST_CONFIG: testConfigOverride, ...restOverrides } = overrides;
   const mergedTestConfig = mergeTestConfig(testConfigOverride);
   const env = {
-    ...process.env,
+    ...Object.fromEntries(
+      Object.entries(process.env).filter(([key]) => {
+        if (!key.startsWith('PAIROFCLEATS_TEST_')) return true;
+        return key === 'PAIROFCLEATS_TEST_CACHE_SUFFIX'
+          || key === 'PAIROFCLEATS_TEST_LOG_SILENT'
+          || key === 'PAIROFCLEATS_TEST_ALLOW_MISSING_COMPAT_KEY'
+          || key === 'PAIROFCLEATS_TESTING';
+      })
+    ),
     PAIROFCLEATS_TESTING: '1',
     PAIROFCLEATS_CACHE_ROOT: cacheRoot,
     PAIROFCLEATS_EMBEDDINGS: 'stub',
@@ -161,7 +170,7 @@ export const ensureFixtureIndex = async ({
     || (hasIndexMeta(recordsDir) && !await hasChunkUids(recordsDir));
   if (!hasCompatibleIndexes({ codeDir, proseDir, extractedProseDir }) || needsRiskTags || missingChunkUids) {
     const repoCacheRoot = getRepoCacheRoot(fixtureRoot, userConfig);
-    await fsPromises.rm(repoCacheRoot, { recursive: true, force: true });
+    await rmDirRecursive(repoCacheRoot, { retries: 8, delayMs: 150 });
     await ensureDir(repoCacheRoot);
     run(
       [path.join(ROOT, 'build_index.js'), '--stub-embeddings', '--repo', fixtureRoot],
