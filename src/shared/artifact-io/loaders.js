@@ -1297,6 +1297,17 @@ export const loadChunkMeta = async (
     });
     return mergeChunkMetaColdRows(rows, coldRows);
   };
+  const loadChunkMetaJsonlFallback = async () => {
+    const fallback = resolveJsonlFallbackSources(dir, 'chunk_meta');
+    if (!fallback?.paths?.length) return null;
+    const rows = await readJsonLinesArray(fallback.paths, {
+      maxBytes,
+      requiredKeys,
+      validationMode
+    });
+    const merged = await maybeMergeCold(rows);
+    return maybeInflatePackedTokenIds(merged, materializeTokenIds);
+  };
   if (preferBinaryColumnar) {
     const binaryRows = tryLoadChunkMetaBinaryColumnar(dir, { maxBytes });
     if (binaryRows) {
@@ -1362,19 +1373,33 @@ export const loadChunkMeta = async (
       if (sources.paths.length > 1) {
         throw new Error('Ambiguous JSON sources for chunk_meta');
       }
-      const rows = readJsonFile(sources.paths[0], { maxBytes });
-      const merged = await maybeMergeCold(rows);
-      return maybeInflatePackedTokenIds(merged, materializeTokenIds);
+      try {
+        const rows = readJsonFile(sources.paths[0], { maxBytes });
+        const merged = await maybeMergeCold(rows);
+        return maybeInflatePackedTokenIds(merged, materializeTokenIds);
+      } catch (err) {
+        if (err?.code !== 'ERR_JSON_TOO_LARGE') throw err;
+        const fallbackRows = await loadChunkMetaJsonlFallback();
+        if (fallbackRows) return fallbackRows;
+        throw err;
+      }
     }
     if (sources.format === 'columnar') {
       if (sources.paths.length > 1) {
         throw new Error('Ambiguous columnar sources for chunk_meta');
       }
-      const payload = readJsonFile(sources.paths[0], { maxBytes });
-      const inflated = inflateColumnarRows(payload);
-      if (!inflated) throw new Error('Invalid columnar chunk_meta payload');
-      const merged = await maybeMergeCold(inflated);
-      return maybeInflatePackedTokenIds(merged, materializeTokenIds);
+      try {
+        const payload = readJsonFile(sources.paths[0], { maxBytes });
+        const inflated = inflateColumnarRows(payload);
+        if (!inflated) throw new Error('Invalid columnar chunk_meta payload');
+        const merged = await maybeMergeCold(inflated);
+        return maybeInflatePackedTokenIds(merged, materializeTokenIds);
+      } catch (err) {
+        if (err?.code !== 'ERR_JSON_TOO_LARGE') throw err;
+        const fallbackRows = await loadChunkMetaJsonlFallback();
+        if (fallbackRows) return fallbackRows;
+        throw err;
+      }
     }
     if (sources.format === 'binary-columnar') {
       const binaryRows = tryLoadChunkMetaBinaryColumnar(dir, { maxBytes });
@@ -1413,9 +1438,16 @@ export const loadChunkMeta = async (
   }
   const jsonPath = path.join(dir, 'chunk_meta.json');
   if (existsOrBak(jsonPath)) {
-    const rows = readJsonFile(jsonPath, { maxBytes });
-    const merged = await maybeMergeCold(rows);
-    return maybeInflatePackedTokenIds(merged, materializeTokenIds);
+    try {
+      const rows = readJsonFile(jsonPath, { maxBytes });
+      const merged = await maybeMergeCold(rows);
+      return maybeInflatePackedTokenIds(merged, materializeTokenIds);
+    } catch (err) {
+      if (err?.code !== 'ERR_JSON_TOO_LARGE') throw err;
+      const fallbackRows = await loadChunkMetaJsonlFallback();
+      if (fallbackRows) return fallbackRows;
+      throw err;
+    }
   }
   throw new Error('Missing index artifact: chunk_meta.json');
 };
