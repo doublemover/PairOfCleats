@@ -53,7 +53,18 @@ const createCodeIndex = async ({ rootDir, compatibilityKey, denseDims, lanceDims
     mode: 'code',
     artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     compatibilityKey,
-    embeddings: { ready: true, pending: false }
+    embeddings: {
+      ready: true,
+      pending: false,
+      embeddingIdentity: {
+        dims: denseDims,
+        model: 'stub-model',
+        scale: 1,
+        minVal: -1,
+        maxVal: 1,
+        levels: 255
+      }
+    }
   };
   const fileLists = {
     generatedAt: new Date().toISOString(),
