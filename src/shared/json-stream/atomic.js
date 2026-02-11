@@ -15,8 +15,8 @@ const createTempToken = () => {
   return `${process.pid}-${hr}-${counter}-${random}`;
 };
 
-// Legacy Win32 APIs typically cap paths at 260 chars including the NUL terminator.
-const WINDOWS_PATH_BUDGET = 259;
+// Keep headroom for sidecar paths (e.g. SQLite -wal/-journal suffixes) on Win32.
+const WINDOWS_PATH_BUDGET = 240;
 
 const waitForPath = async (targetPath, { attempts = 3, baseDelayMs = 10 } = {}) => {
   const resolvedAttempts = Number.isFinite(attempts) ? Math.max(1, Math.floor(attempts)) : 3;
@@ -54,25 +54,39 @@ export const createTempPath = (filePath) => {
     .update(token)
     .digest('hex');
 
-  const buildCompactPath = (maxLen) => {
-    const budget = maxLen - dir.length - 1 - ext.length;
+  const buildCompactPathInDir = (baseDir, maxLen) => {
+    const budget = maxLen - baseDir.length - 1 - ext.length;
     // Keep at least "t-" + 4 chars so compact fallbacks stay unique.
     if (budget < 6) return null;
     const tokenBudget = Math.max(4, budget - 2);
     const name = `t-${compactToken.slice(0, tokenBudget)}`;
-    return path.join(dir, `${name}${ext}`);
+    return path.join(baseDir, `${name}${ext}`);
   };
 
-  const buildCompactPathNoExt = (maxLen) => {
-    const budget = maxLen - dir.length - 1;
+  const buildCompactPathNoExtInDir = (baseDir, maxLen) => {
+    const budget = maxLen - baseDir.length - 1;
     if (budget < 4) return null;
     const tokenBudget = Math.max(2, budget - 2);
-    return path.join(dir, `t-${compactToken.slice(0, tokenBudget)}`);
+    return path.join(baseDir, `t-${compactToken.slice(0, tokenBudget)}`);
+  };
+
+  const buildCompactPathInAncestors = (maxLen, withExt = true) => {
+    let baseDir = dir;
+    while (baseDir) {
+      const candidate = withExt
+        ? buildCompactPathInDir(baseDir, maxLen)
+        : buildCompactPathNoExtInDir(baseDir, maxLen);
+      if (candidate) return candidate;
+      const parent = path.dirname(baseDir);
+      if (!parent || parent === baseDir) break;
+      baseDir = parent;
+    }
+    return null;
   };
 
   return (
-    buildCompactPath(WINDOWS_PATH_BUDGET)
-    || buildCompactPathNoExt(WINDOWS_PATH_BUDGET)
+    buildCompactPathInAncestors(WINDOWS_PATH_BUDGET, true)
+    || buildCompactPathInAncestors(WINDOWS_PATH_BUDGET, false)
     || tempPath
   );
 };
