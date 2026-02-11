@@ -1,7 +1,7 @@
 # Spec -- USR Security and Data Governance Contract
 
-Status: Draft v0.1
-Last updated: 2026-02-10T08:35:00Z
+Status: Draft v0.2
+Last updated: 2026-02-11T02:40:00Z
 
 ## 0. Purpose and scope
 
@@ -15,6 +15,7 @@ Implementations MUST maintain:
 
 - `tests/lang/matrix/usr-redaction-rules.json`
 - `tests/lang/matrix/usr-security-gates.json`
+- `tests/lang/matrix/usr-threat-model-matrix.json`
 
 ## 2. Redaction rule schema (normative)
 
@@ -69,6 +70,8 @@ Required gate categories:
 - `usr-redaction-validation.json`
 - `usr-security-gate-results.json`
 - `usr-sensitive-surface-audit.json`
+- `usr-threat-model-coverage.json`
+- `usr-control-gap-report.json`
 
 ## 5. Fail-safe behavior policy
 
@@ -81,3 +84,4 @@ Required gate categories:
 - `docs/specs/unified-syntax-representation.md`
 - `docs/specs/usr-implementation-readiness-contract.md`
 - `docs/specs/usr-registry-schema-contract.md`
+- `docs/specs/usr-threat-model-and-abuse-case-contract.md`

@@ -1,7 +1,7 @@
 # Spec -- USR Registry Schema and Serialization Contract
 
-Status: Draft v0.4
-Last updated: 2026-02-11T01:55:00Z
+Status: Draft v0.5
+Last updated: 2026-02-11T02:35:00Z
 
 ## 0. Purpose and scope
 
@@ -34,6 +34,9 @@ Implementations MUST maintain and validate all files below:
 - `usr-runtime-config-policy.json`
 - `usr-failure-injection-matrix.json`
 - `usr-fixture-governance.json`
+- `usr-benchmark-policy.json`
+- `usr-threat-model-matrix.json`
+- `usr-waiver-policy.json`
 
 ## 2. Canonical wrappers and metadata
 
@@ -420,6 +423,69 @@ type USRFixtureGovernanceRowV1 = {
 };
 ```
 
+### 3.22 `usr-benchmark-policy.json`
+
+```ts
+type USRBenchmarkPolicyRowV1 = {
+  id: string;
+  laneId: string;
+  datasetClass: "smoke" | "language-batch" | "framework-overlay" | "mixed-repo";
+  hostClass: string;
+  warmupRuns: number;
+  measureRuns: number;
+  percentileTargets: {
+    p50DurationMs: number;
+    p95DurationMs: number;
+    p99DurationMs: number;
+  };
+  maxVariancePct: number;
+  maxPeakMemoryMb: number;
+  blocking: boolean;
+};
+```
+
+### 3.23 `usr-threat-model-matrix.json`
+
+```ts
+type USRThreatModelRowV1 = {
+  id: string;
+  threatClass:
+    | "path-traversal"
+    | "untrusted-execution"
+    | "sensitive-data-leakage"
+    | "schema-confusion"
+    | "parser-supply-chain"
+    | "resource-exhaustion"
+    | "reporting-exfiltration";
+  attackSurface: "input" | "parser" | "normalization" | "resolution" | "serialization" | "reporting" | "runtime";
+  requiredControls: string[];
+  requiredFixtures: string[];
+  severity: "low" | "medium" | "high" | "critical";
+  blocking: boolean;
+};
+```
+
+### 3.24 `usr-waiver-policy.json`
+
+```ts
+type USRWaiverPolicyRowV1 = {
+  id: string;
+  waiverClass:
+    | "benchmark-overrun"
+    | "non-strict-compat-warning"
+    | "temporary-parser-regression"
+    | "non-blocking-security-warning"
+    | "observability-gap";
+  scopeType: "lane" | "phase" | "language" | "framework" | "artifact";
+  scopeId: string;
+  allowedUntil: string; // ISO 8601
+  approvers: string[];
+  requiredCompensatingControls: string[];
+  maxExtensions: number;
+  blocking: boolean;
+};
+```
+
 ## 4. Canonical ordering policy
 
 Sorting MUST be stable and deterministic.
@@ -455,6 +521,9 @@ The following MUST hold:
 - runtime config policy keys MUST be unique and non-overlapping by canonical key path.
 - failure injection matrix MUST cover all required blocking fault classes.
 - fixture governance matrix profile IDs MUST resolve to language/framework profile registries.
+- benchmark policy rows MUST define positive warmup and measure run counts, and deterministic percentile targets.
+- threat-model rows MUST map every blocking security gate and critical threat class to at least one required fixture/control.
+- waiver policy rows MUST be time-bounded and MUST NOT include disallowed strict-security bypass classes.
 
 ## 6. Strict validation behavior
 
@@ -485,3 +554,6 @@ Required validation outputs:
 - `docs/specs/usr-runtime-config-contract.md`
 - `docs/specs/usr-failure-injection-and-resilience-contract.md`
 - `docs/specs/usr-fixture-governance-contract.md`
+- `docs/specs/usr-performance-benchmark-contract.md`
+- `docs/specs/usr-threat-model-and-abuse-case-contract.md`
+- `docs/specs/usr-waiver-and-exception-contract.md`

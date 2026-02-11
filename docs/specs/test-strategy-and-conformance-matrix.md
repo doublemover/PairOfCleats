@@ -392,6 +392,9 @@ Compatibility matrix policy:
 - Report outputs for compatibility and conformance lanes MUST satisfy `docs/specs/usr-audit-and-reporting-contract.md`.
 - Failure-injection strict blocking scenarios MUST run in CI and full matrices in CI-long/nightly per `docs/specs/usr-failure-injection-and-resilience-contract.md`.
 - Fixture ownership/mutation policy validations MUST run with conformance lanes per `docs/specs/usr-fixture-governance-contract.md`.
+- Blocking benchmark-regression policies MUST run in CI/CI-long per `docs/specs/usr-performance-benchmark-contract.md`.
+- Critical threat-model abuse-case policies MUST run in CI/CI-long per `docs/specs/usr-threat-model-and-abuse-case-contract.md`.
+- Waiver expiry and exception-governance checks MUST run in CI per `docs/specs/usr-waiver-and-exception-contract.md`.
 
 ---
 

@@ -1,7 +1,7 @@
 # Spec -- USR Rollout and Migration Contract
 
-Status: Draft v0.8
-Last updated: 2026-02-11T01:55:00Z
+Status: Draft v0.9
+Last updated: 2026-02-11T02:40:00Z
 
 ## 0. Purpose and scope
 
@@ -112,6 +112,9 @@ Required evidence artifacts:
 - `usr-runtime-config-validation.json`
 - `usr-failure-injection-results.json`
 - `usr-fixture-governance-validation.json`
+- `usr-benchmark-regression-summary.json`
+- `usr-threat-model-coverage.json`
+- `usr-waiver-active-report.json`
 
 Cutover approval requires:
 
@@ -152,5 +155,8 @@ Required rollback artifacts:
 - `docs/specs/usr-runtime-config-contract.md`
 - `docs/specs/usr-failure-injection-and-resilience-contract.md`
 - `docs/specs/usr-fixture-governance-contract.md`
+- `docs/specs/usr-performance-benchmark-contract.md`
+- `docs/specs/usr-threat-model-and-abuse-case-contract.md`
+- `docs/specs/usr-waiver-and-exception-contract.md`
 
 

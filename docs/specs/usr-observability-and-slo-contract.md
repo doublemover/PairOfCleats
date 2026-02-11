@@ -1,7 +1,7 @@
 # Spec -- USR Observability and SLO Contract
 
-Status: Draft v0.1
-Last updated: 2026-02-10T08:35:00Z
+Status: Draft v0.2
+Last updated: 2026-02-11T02:40:00Z
 
 ## 0. Purpose and scope
 
@@ -15,6 +15,7 @@ Implementations MUST maintain:
 
 - `tests/lang/matrix/usr-slo-budgets.json`
 - `tests/lang/matrix/usr-alert-policies.json`
+- `tests/lang/matrix/usr-benchmark-policy.json`
 
 ## 2. SLO budget schema (normative)
 
@@ -74,6 +75,8 @@ At minimum, reports/dashboards MUST include:
 - `usr-slo-budget-results.json`
 - `usr-alert-evaluations.json`
 - `usr-observability-rollup.json`
+- `usr-benchmark-results.json`
+- `usr-benchmark-regression-summary.json`
 
 ## 6. Promotion and blocking policy
 
@@ -86,3 +89,4 @@ At minimum, reports/dashboards MUST include:
 - `docs/specs/unified-syntax-representation.md`
 - `docs/specs/usr-implementation-readiness-contract.md`
 - `docs/specs/usr-rollout-and-migration-contract.md`
+- `docs/specs/usr-performance-benchmark-contract.md`

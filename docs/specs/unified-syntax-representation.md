@@ -1,7 +1,7 @@
 # Spec -- Unified Syntax Representation (USR)
 
-Status: Draft v1.1
-Last updated: 2026-02-11T01:55:00Z
+Status: Draft v1.2
+Last updated: 2026-02-11T02:40:00Z
 
 Applies to: PairOfCleats indexing pipeline, language registry, framework segmentation/extraction, graph/risk/query surfaces.
 
@@ -1320,6 +1320,9 @@ Before declaring full support complete, all items below MUST be true.
 - Runtime configuration and feature-flag policies are machine-readable, validated, and enforced.
 - Blocking failure-injection scenarios are implemented, executed, and linked to recovery evidence.
 - Fixture and golden governance policies are machine-readable and enforced for blocking fixtures.
+- Benchmark methodology policy is machine-readable and enforced for blocking performance lanes.
+- Threat-model and abuse-case coverage policy is machine-readable and enforced for critical threats.
+- Waiver and exception governance is machine-readable, time-bounded, and CI-enforced for expiry and scope.
 
 ## 21. Immediate Integration Tasks
 
@@ -1332,6 +1335,9 @@ Before declaring full support complete, all items below MUST be true.
 7. Add failure-injection harness lanes and blocking fault-scenario evaluators.
 8. Add fixture-governance validators and mutation-policy enforcement checks.
 9. Add audit/report schema validators for readiness, resilience, and fixture-governance outputs.
+10. Add benchmark-policy validators and regression gate evaluators for blocking lanes.
+11. Add threat-model and abuse-case validators with control-gap reporting.
+12. Add waiver-policy validators with expiry and approver-governance checks.
 
 ## 22. References
 
@@ -1357,6 +1363,9 @@ Before declaring full support complete, all items below MUST be true.
 - `docs/specs/usr-runtime-config-contract.md`
 - `docs/specs/usr-failure-injection-and-resilience-contract.md`
 - `docs/specs/usr-fixture-governance-contract.md`
+- `docs/specs/usr-performance-benchmark-contract.md`
+- `docs/specs/usr-threat-model-and-abuse-case-contract.md`
+- `docs/specs/usr-waiver-and-exception-contract.md`
 - `docs/contracts/public-artifact-surface.md`
 - `docs/contracts/artifact-schemas.md`
 - `docs/contracts/analysis-schemas.md`
@@ -1389,6 +1398,9 @@ Required files:
 - `tests/lang/matrix/usr-runtime-config-policy.json`
 - `tests/lang/matrix/usr-failure-injection-matrix.json`
 - `tests/lang/matrix/usr-fixture-governance.json`
+- `tests/lang/matrix/usr-benchmark-policy.json`
+- `tests/lang/matrix/usr-threat-model-matrix.json`
+- `tests/lang/matrix/usr-waiver-policy.json`
 
 Baseline generation inputs:
 
@@ -1405,6 +1417,9 @@ Registry drift policy:
 - runtime config policy keys MUST be unique and strict-mode behavior MUST be explicitly defined
 - failure-injection matrix MUST cover required blocking fault classes
 - fixture-governance rows MUST reference valid language/framework/cross-cutting profiles
+- benchmark policy rows MUST define deterministic warmup/measure methodology and variance bounds
+- threat-model matrix rows MUST cover critical threats and map to controls + abuse-case fixtures
+- waiver policy rows MUST be time-bounded, approver-governed, and validated for expiry in CI
 - unknown keys in registry JSON MUST fail strict schema validation
 - every registry language ID MUST have exactly one per-language contract file under `docs/specs/usr/languages/`
 - schema key changes in machine-readable registries MUST be accompanied by synchronized updates in decomposed contract docs
@@ -2987,6 +3002,42 @@ Required behavior:
 - fixture ownership, stability class, and mutation policy MUST be machine-readable and enforced.
 - blocking fixture and golden mutations MUST require governed review policy.
 - fixture-governance drift and ownership coverage MUST be reported.
+
+## 46. Performance benchmark methodology contract (normative)
+
+Decomposed contract:
+
+- `docs/specs/usr-performance-benchmark-contract.md`
+
+Required behavior:
+
+- benchmark methodology MUST define warmup and measured-run policy per lane/profile class.
+- variance and percentile thresholds MUST be machine-readable and enforced for blocking benchmark classes.
+- benchmark regressions MUST emit deterministic evidence outputs and gate promotion where configured.
+
+## 47. Threat model and abuse-case coverage contract (normative)
+
+Decomposed contract:
+
+- `docs/specs/usr-threat-model-and-abuse-case-contract.md`
+
+Required behavior:
+
+- critical threat classes and attack surfaces MUST be machine-readable and mapped to controls.
+- blocking threat rows MUST map to executable abuse-case fixtures.
+- control-gap evidence MUST be emitted and treated as release-readiness input.
+
+## 48. Waiver and exception governance contract (normative)
+
+Decomposed contract:
+
+- `docs/specs/usr-waiver-and-exception-contract.md`
+
+Required behavior:
+
+- waiver records MUST be time-bounded, approver-governed, and auditable.
+- expired waivers MUST fail CI for affected scopes.
+- waiver usage and breaches MUST be reflected in release-readiness scorecards.
 
 
 

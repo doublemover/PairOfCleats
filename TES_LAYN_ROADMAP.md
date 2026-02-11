@@ -1,12 +1,12 @@
 # TES_LAYN_ROADMAP - USR-Aligned Language and Framework Execution Master Plan
 
-Last rewritten: 2026-02-11T01:55:00Z
+Last rewritten: 2026-02-11T02:40:00Z
 Branch: `LANGMANE`
-Document status: active master plan baseline v1.1
+Document status: active master plan baseline v1.2
 
 ## 0) Scope Reset
 
-This roadmap supersedes the previous test-heavy draft and is now tightly aligned to `docs/specs/unified-syntax-representation.md` (USR v1.1).
+This roadmap supersedes the previous test-heavy draft and is now tightly aligned to `docs/specs/unified-syntax-representation.md` (USR v1.2).
 
 Primary shifts in this rewrite:
 
@@ -50,6 +50,9 @@ This roadmap is governed by these authoritative documents:
 - `docs/specs/usr-runtime-config-contract.md`
 - `docs/specs/usr-failure-injection-and-resilience-contract.md`
 - `docs/specs/usr-fixture-governance-contract.md`
+- `docs/specs/usr-performance-benchmark-contract.md`
+- `docs/specs/usr-threat-model-and-abuse-case-contract.md`
+- `docs/specs/usr-waiver-and-exception-contract.md`
 - `docs/specs/metadata-schema-v2.md`
 - `docs/specs/identity-contract.md`
 - `docs/specs/identity-and-symbol-contracts.md`
@@ -124,6 +127,9 @@ If contradictions are found:
 - [ ] USR section 43 runtime configuration and feature-flag contract is enforced with strict-mode validation.
 - [ ] USR section 44 failure injection and resilience contract is enforced with blocking strict fault scenarios.
 - [ ] USR section 45 fixture and golden governance contract is enforced with ownership and mutation policy controls.
+- [ ] USR section 46 performance benchmark methodology contract is enforced with deterministic methodology and regression gates.
+- [ ] USR section 47 threat model and abuse-case coverage contract is enforced with blocking threat/control fixture coverage.
+- [ ] USR section 48 waiver and exception governance contract is enforced with expiry and approver controls.
 - [ ] Decomposed USR contract suite (`docs/specs/usr*.md`) remains semantically aligned with umbrella USR spec.
 - [ ] Every registry language has a maintained per-language contract in `docs/specs/usr/languages/<language-id>.md`.
 - [ ] Machine-readable catalog/matrix files are synchronized with decomposed contracts and pass drift checks.
@@ -132,7 +138,7 @@ If contradictions are found:
 
 | Phase | Name | Track | Output |
 | --- | --- | --- | --- |
-| 0 | Program Governance and Contract Lock | Implementation | Traceable roadmap to USR v1.1 sections |
+| 0 | Program Governance and Contract Lock | Implementation | Traceable roadmap to USR v1.2 sections |
 | 1 | USR Registries and Schema Package | Implementation | machine-readable profile registries + validators |
 | 2 | Identity, Coordinates, and Integrity Enforcement | Implementation | canonical IDs/ranges/integrity enforcement |
 | 3 | Parser and Normalization Core | Implementation | deterministic parse and normalization engine |
@@ -201,6 +207,9 @@ If contradictions are found:
 - [x] Create `tests/lang/matrix/usr-runtime-config-policy.json`.
 - [x] Create `tests/lang/matrix/usr-failure-injection-matrix.json`.
 - [x] Create `tests/lang/matrix/usr-fixture-governance.json`.
+- [x] Create `tests/lang/matrix/usr-benchmark-policy.json`.
+- [x] Create `tests/lang/matrix/usr-threat-model-matrix.json`.
+- [x] Create `tests/lang/matrix/usr-waiver-policy.json`.
 - [x] Add deterministic baseline generator `tools/usr/generate-usr-matrix-baselines.mjs` and matrix inventory doc `tests/lang/matrix/README.md`.
 - [ ] Keep decomposed catalog specs (`docs/specs/usr-*.md`) aligned with machine-readable registry schema keys.
 
@@ -230,6 +239,9 @@ If contradictions are found:
 - [ ] Add runtime config policy schema drift tests and strict-mode behavior coverage checks.
 - [ ] Add failure-injection matrix completeness drift tests (required fault classes and blocking scenario coverage).
 - [ ] Add fixture-governance drift tests (fixture ID uniqueness, owner/reviewer completeness, profile linkage).
+- [ ] Add benchmark policy schema drift tests (warmup/measure/percentile/variance requirements and lane coverage).
+- [ ] Add threat-model matrix drift tests (critical threat/control/fixture mapping completeness).
+- [ ] Add waiver policy drift tests (expiry, approver, compensating-control, and disallowed-bypass checks).
 - [ ] Add matrix generator idempotence test (`node tools/usr/generate-usr-matrix-baselines.mjs` yields zero diff on clean repo).
 - [ ] Add diagnostic taxonomy drift test (section 12.1 baseline vs section 33.1 full taxonomy).
 - [ ] Add reason-code drift test (`attrs.resolution.reasonCode` values vs section 33.2).
@@ -383,6 +395,8 @@ If contradictions are found:
 - [ ] Implement deterministic redaction rules for diagnostics and attrs payloads.
 - [ ] Implement strict security gate enforcement for path safety and runtime identity.
 - [ ] Validate security audit artifact generation and gate blocking behavior.
+- [ ] Implement threat-model matrix mapping for critical threat classes, attack surfaces, controls, and abuse-case fixtures.
+- [ ] Validate threat/control coverage and control-gap report generation.
 
 ### 6.6 Exit criteria
 
@@ -390,6 +404,7 @@ If contradictions are found:
 - [ ] Capability transition diagnostics are correct and complete.
 - [ ] Embedded/provenance semantics are validated for required language/framework profiles.
 - [ ] Security and redaction semantics are validated for required profiles and lanes.
+- [ ] Critical threat-model coverage and abuse-case mappings are validated for required lanes.
 
 ---
 
@@ -439,6 +454,8 @@ If contradictions are found:
 - [ ] Add per-batch profiling and hotspot reporting.
 - [ ] Validate parser/runtime lock reproducibility and update budget for lock-file upgrades.
 - [ ] Materialize SLO budget and alert policy evaluations in CI outputs.
+- [ ] Enforce benchmark policy methodology (warmup/measure runs, percentile targets, variance budgets) for blocking lanes.
+- [ ] Materialize benchmark regression artifacts and promotion-gate evaluation.
 
 ### 8.4 Exit criteria
 
@@ -462,6 +479,9 @@ If contradictions are found:
 - [ ] Validate runtime config policy evidence and feature-flag state outputs are complete.
 - [ ] Validate blocking failure-injection evidence and recovery artifacts are complete.
 - [ ] Validate fixture-governance validation evidence for blocking fixture families is complete.
+- [ ] Validate benchmark policy evidence and regression/variance reports are complete for blocking lanes.
+- [ ] Validate threat-model coverage and abuse-case execution evidence are complete.
+- [ ] Validate waiver-policy evidence (active/expiry/breach reports) and approver controls are complete.
 
 ### 9.2 Go/No-Go decision
 
@@ -493,6 +513,9 @@ If contradictions are found:
 - [ ] Materialize section 43 runtime config/feature-flag validators and precedence checks.
 - [ ] Materialize section 44 failure-injection scenario evaluator and strict/non-strict outcome validators.
 - [ ] Materialize section 45 fixture-governance validators (owner/reviewer/mutation-policy).
+- [ ] Materialize section 46 benchmark methodology validators and regression threshold checks.
+- [ ] Materialize section 47 threat-model coverage and abuse-case mapping validators.
+- [ ] Materialize section 48 waiver-policy validators (expiry/approver/compensating-control constraints).
 - [ ] Materialize section 30 report envelope validators for all required audit outputs.
 
 ### 10.2 Lane wiring
@@ -504,7 +527,10 @@ If contradictions are found:
 - [ ] Add runtime-config validation lane and feature-flag conflict lane.
 - [ ] Add failure-injection strict blocking lane in CI and full scenario lane in CI-long/nightly.
 - [ ] Add fixture-governance validation lane and mutation-policy enforcement lane.
-- [ ] Add report-schema lane validating section 30/31/43/44/45 required report artifacts.
+- [ ] Add benchmark regression lane for blocking benchmark policy rows.
+- [ ] Add threat-model and abuse-case lane with critical threat coverage checks.
+- [ ] Add waiver-enforcement lane validating expiry and disallowed bypass conditions.
+- [ ] Add report-schema lane validating section 30/31/43/44/45/46/47/48 required report artifacts.
 
 ### 10.3 Exit criteria
 
@@ -574,6 +600,8 @@ If contradictions are found:
 - [ ] Validate strict security gate fail-closed behavior under unsafe-path and runtime-identity failures.
 - [ ] Validate blocking failure-injection scenarios for parser, mapping, serialization, security, and resource-budget fault classes.
 - [ ] Validate rollback trigger thresholds and recovery evidence for each blocking failure-injection class.
+- [ ] Validate threat-model abuse-case fixtures for critical threat classes and control mappings.
+- [ ] Validate waiver misuse prevention (expired waivers, missing approvers, disallowed strict-security bypass attempts).
 
 ### 14.3 Exit criteria
 
@@ -593,6 +621,9 @@ If contradictions are found:
 - [ ] Enforce section 43 runtime configuration strict-validation and disallowed-flag conflict policies.
 - [ ] Enforce section 44 failure-injection blocking scenario pass requirements.
 - [ ] Enforce section 45 fixture-governance blocking mutation policies and ownership checks.
+- [ ] Enforce section 46 benchmark methodology and regression threshold policies.
+- [ ] Enforce section 47 threat-model critical-coverage and abuse-case execution policies.
+- [ ] Enforce section 48 waiver expiry and approver-governance policies.
 
 ### 15.2 Reporting
 
@@ -610,6 +641,9 @@ If contradictions are found:
 - [ ] Emit runtime configuration and feature-flag state dashboards.
 - [ ] Emit failure-injection scenario pass/fail and recovery dashboards.
 - [ ] Emit fixture-governance coverage and mutation-policy compliance dashboards.
+- [ ] Emit benchmark regression and variance dashboards with lane/profile dimensions.
+- [ ] Emit threat-model coverage, abuse-case results, and control-gap dashboards.
+- [ ] Emit waiver active/expiry/breach dashboards and scorecard linkage.
 
 ### 15.3 Maintenance
 
@@ -621,6 +655,9 @@ If contradictions are found:
 - [ ] Enforce runtime config key and feature-flag policy update workflow in PR templates.
 - [ ] Enforce failure-injection matrix update workflow when new blocking failure classes are introduced.
 - [ ] Enforce fixture-governance owner/reviewer coverage checks for new blocking fixtures.
+- [ ] Enforce benchmark policy update workflow when SLO or lane thresholds change.
+- [ ] Enforce threat-model matrix update workflow when new security gates or attack surfaces are added.
+- [ ] Enforce waiver-policy update workflow and expiry review cadence in PR/release templates.
 
 ### 15.4 Exit criteria
 
@@ -667,6 +704,9 @@ If contradictions are found:
 | 43 | runtime configuration and feature-flag contract | 0, 1, 9, 15 |
 | 44 | failure injection and resilience contract | 8, 14, 15 |
 | 45 | fixture and golden governance contract | 7, 10, 11, 12, 13, 15 |
+| 46 | performance benchmark methodology contract | 8, 9, 15 |
+| 47 | threat model and abuse-case coverage contract | 6, 14, 15 |
+| 48 | waiver and exception governance contract | 9, 15 |
 
 ---
 
@@ -689,6 +729,9 @@ If contradictions are found:
 - [ ] runtime config policy matrix exists, validates, and defines strict-mode behavior for required keys.
 - [ ] failure-injection matrix exists, validates, and covers required blocking fault classes.
 - [ ] fixture-governance matrix exists, validates, and links blocking fixtures to owners/reviewers.
+- [ ] benchmark policy matrix exists, validates, and covers blocking lane benchmark classes.
+- [ ] threat-model matrix exists, validates, and maps critical threats to controls and fixtures.
+- [ ] waiver policy matrix exists, validates, and enforces time-bounded approver-governed waivers.
 - [ ] per-language contract existence and naming checks pass.
 
 ### Gate B1-B7 (language batch gates)
@@ -717,6 +760,9 @@ If contradictions are found:
 - [ ] strict security gates are green in CI.
 - [ ] strict blocking failure-injection scenarios are green in CI.
 - [ ] fixture-governance validation is green for blocking fixture families.
+- [ ] benchmark regression policy is green for blocking benchmark rows.
+- [ ] threat-model critical coverage and abuse-case lanes are green.
+- [ ] waiver expiry/breach enforcement checks are green.
 
 ---
 
@@ -1309,6 +1355,9 @@ If contradictions are found:
 | `docs/specs/usr-runtime-config-contract.md` | runtime config key policy, precedence, and feature-flag strictness | 0, 1, 9, 15 |
 | `docs/specs/usr-failure-injection-and-resilience-contract.md` | blocking fault matrix, fail-closed behavior, and recovery evidence | 8, 14, 15 |
 | `docs/specs/usr-fixture-governance-contract.md` | fixture ownership, mutation policy, and golden governance controls | 7, 10, 11, 12, 13, 15 |
+| `docs/specs/usr-performance-benchmark-contract.md` | benchmark methodology, variance policy, and regression gating | 8, 9, 15 |
+| `docs/specs/usr-threat-model-and-abuse-case-contract.md` | threat taxonomy, abuse-case fixtures, and control-gap enforcement | 6, 14, 15 |
+| `docs/specs/usr-waiver-and-exception-contract.md` | waiver expiry, approver governance, and exception guardrails | 9, 15 |
 | `docs/specs/usr/languages/<language-id>.md` | exhaustive per-language contract | 4, 7, 9, 11, 12 |
 
 ---
