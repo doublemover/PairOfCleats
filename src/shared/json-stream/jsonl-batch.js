@@ -288,6 +288,7 @@ export const createJsonlBatchWriter = (filePath, options = {}) => {
   let flushQueued = false;
   let closed = false;
   let failed = null;
+  let failPromise = null;
 
   const resolveDrain = () => {
     if (pendingBlocks !== 0) return;
@@ -309,19 +310,27 @@ export const createJsonlBatchWriter = (filePath, options = {}) => {
   );
 
   const fail = async (err) => {
-    if (failed) return;
-    failed = err || new Error('JSONL write failed');
-    closed = true;
-    if (semaphore) semaphore.abort(failed);
-    rejectDrain(failed);
-    ready.clear();
-    pendingBlocks = 0;
-    try { stream.destroy(failed); } catch {}
-    try { await done; } catch {}
-    if (ownedPool && compressionPool) {
-      await compressionPool.close();
-      compressionPool = null;
+    if (failPromise) {
+      await failPromise;
+      return;
     }
+    failPromise = (async () => {
+      if (!failed) {
+        failed = err || new Error('JSONL write failed');
+      }
+      closed = true;
+      if (semaphore) semaphore.abort(failed);
+      rejectDrain(failed);
+      ready.clear();
+      pendingBlocks = 0;
+      try { stream.destroy(failed); } catch {}
+      try { await done; } catch {}
+      if (ownedPool && compressionPool) {
+        await compressionPool.close();
+        compressionPool = null;
+      }
+    })();
+    await failPromise;
   };
 
   const flushReady = async () => {

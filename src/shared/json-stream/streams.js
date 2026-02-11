@@ -109,15 +109,19 @@ export const createJsonWriteStream = (filePath, options = {}) => {
   const removeTempFile = async () => {
     if (!atomic) return;
     await waitForClose(fileStream);
-    for (let attempt = 0; attempt < 3; attempt += 1) {
+    // Windows can keep handles busy briefly after stream close under load/abort.
+    // Give cleanup a wider retry window so atomic temp files are not leaked.
+    const maxAttempts = 12;
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
       try {
         await fsPromises.rm(targetPath, { force: true });
         return;
       } catch (err) {
-        if (!['EBUSY', 'EPERM', 'EACCES'].includes(err?.code)) {
+        if (err?.code === 'ENOENT') return;
+        if (!['EBUSY', 'EPERM', 'EACCES', 'EMFILE'].includes(err?.code)) {
           return;
         }
-        await delay(25 * (attempt + 1));
+        await delay(Math.min(500, 25 * (attempt + 1)));
       }
     }
   };
