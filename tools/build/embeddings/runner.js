@@ -340,6 +340,12 @@ export async function runBuildEmbeddingsWithConfig(config) {
 
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
   const repoCacheRootResolved = path.resolve(repoCacheRoot);
+  const explicitIndexRoot = (() => {
+    if (typeof argv?.['index-root'] === 'string' && argv['index-root'].trim()) return true;
+    if (typeof argv?.indexRoot === 'string' && argv.indexRoot.trim()) return true;
+    if (!Array.isArray(rawArgv) || !rawArgv.length) return false;
+    return rawArgv.some((arg) => arg === '--index-root' || arg.startsWith('--index-root='));
+  })();
   let activeIndexRoot = indexRoot
     ? path.resolve(indexRoot)
     : resolveIndexRoot(root, userConfig, { mode: modes[0] || null });
@@ -399,12 +405,13 @@ export async function runBuildEmbeddingsWithConfig(config) {
   };
   const resolveModeIndexRoot = (mode) => {
     if (hasModeArtifacts(activeIndexRoot, mode)) return activeIndexRoot;
+    if (explicitIndexRoot) return activeIndexRoot;
     const currentBuild = getCurrentBuildInfo(root, userConfig, { mode });
     const currentRoot = currentBuild?.activeRoot || currentBuild?.buildRoot || null;
     if (currentRoot && hasModeArtifacts(currentRoot, mode)) return currentRoot;
     return findLatestModeRoot(mode) || activeIndexRoot;
   };
-  if (activeIndexRoot) {
+  if (activeIndexRoot && !explicitIndexRoot) {
     const activeRootKey = normalizePath(activeIndexRoot);
     const underRepoCache = activeRootKey
       && repoCacheRootKey
@@ -428,7 +435,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
       }
     }
   }
-  if (activeIndexRoot && !hasModeArtifacts(activeIndexRoot, primaryMode)) {
+  if (!explicitIndexRoot && activeIndexRoot && !hasModeArtifacts(activeIndexRoot, primaryMode)) {
     const activeRootKey = normalizePath(activeIndexRoot);
     const allowLatestFallback = !activeRootKey
       || !fsSync.existsSync(activeIndexRoot)
@@ -571,6 +578,12 @@ export async function runBuildEmbeddingsWithConfig(config) {
       let cacheRejected = 0;
       let cacheFastRejects = 0;
       const modeIndexRoot = resolveModeIndexRoot(mode);
+      if (explicitIndexRoot && !hasModeArtifacts(modeIndexRoot, mode)) {
+        fail(
+          `Missing index artifacts for mode "${mode}" under explicit --index-root: ${modeIndexRoot}. ` +
+          'Run stage2 for that root/mode or choose the correct --index-root.'
+        );
+      }
       if (normalizePath(modeIndexRoot) !== normalizePath(activeIndexRoot)) {
         log(`[embeddings] ${mode}: using mode-specific index root: ${modeIndexRoot}`);
       }

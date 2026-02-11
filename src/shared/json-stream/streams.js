@@ -33,8 +33,9 @@ let pendingDeleteCounter = 0;
 const createPendingDeletePath = (targetPath) => {
   pendingDeleteCounter = (pendingDeleteCounter + 1) >>> 0;
   const dir = path.dirname(targetPath);
+  const base = path.basename(targetPath);
   const nonce = `${Date.now()}-${process.pid}-${pendingDeleteCounter.toString(16)}`;
-  return path.join(dir, `pending-delete-${nonce}`);
+  return path.join(dir, `pending-delete-${base}-${nonce}`);
 };
 
 const removePathWithRetry = async (target, {
@@ -72,14 +73,15 @@ const cleanupPendingDeleteTombstones = async (targetPath) => {
     const base = path.basename(targetPath);
     const legacyPrefix = `${base}.pending-delete-`;
     const globalPrefix = `pending-delete-${base}-`;
-    const genericPrefix = 'pending-delete-';
+    const legacyPrefixLower = legacyPrefix.toLowerCase();
+    const globalPrefixLower = globalPrefix.toLowerCase();
     const entries = await fsPromises.readdir(dir, { withFileTypes: true });
     const matches = entries
       .filter((entry) => {
         if (!entry?.isFile?.() || typeof entry.name !== 'string') return false;
-        return entry.name.startsWith(legacyPrefix)
-          || entry.name.startsWith(globalPrefix)
-          || entry.name.startsWith(genericPrefix);
+        const nameLower = entry.name.toLowerCase();
+        return nameLower.startsWith(legacyPrefixLower)
+          || nameLower.startsWith(globalPrefixLower);
       })
       .map((entry) => path.join(dir, entry.name));
     for (const tombstonePath of matches) {
