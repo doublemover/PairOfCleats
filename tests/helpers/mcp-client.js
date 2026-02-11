@@ -9,13 +9,11 @@ const encodeFramedMessage = (payload) => {
   const json = JSON.stringify(payload);
   return `Content-Length: ${Buffer.byteLength(json, 'utf8')}\r\n\r\n${json}`;
 };
-
 const encodeLineMessage = (payload) => `${JSON.stringify(payload)}\n`;
 
 const createReader = (stream, { onActivity } = {}) => {
   let buffer = Buffer.alloc(0);
   const notifications = [];
-  const HEADER_PREFIX = Buffer.from('Content-Length:', 'utf8');
   const MAX_GARBAGE_BYTES = 1024 * 1024;
   const trimLeadingWhitespace = () => {
     let offset = 0;
@@ -36,26 +34,27 @@ const createReader = (stream, { onActivity } = {}) => {
       trimLeadingWhitespace();
       if (!buffer.length) return null;
 
-      const headerStart = buffer.indexOf(HEADER_PREFIX);
-      if (headerStart === 0) {
-        const headerEnd = buffer.indexOf('\r\n\r\n');
-        if (headerEnd === -1) return null;
+      let headerEnd = buffer.indexOf('\r\n\r\n');
+      let headerBytes = 4;
+      if (headerEnd === -1) {
+        headerEnd = buffer.indexOf('\n\n');
+        headerBytes = 2;
+      }
+      if (headerEnd >= 0) {
         const header = buffer.slice(0, headerEnd).toString('utf8');
-        const match = header.match(/Content-Length:\s*(\d+)/i);
-        if (!match) {
-          buffer = buffer.slice(headerEnd + 4);
-          continue;
+        const match = header.match(/(?:^|\r?\n)\s*content-length\s*:\s*(\d+)\s*(?:\r?\n|$)/i);
+        if (match) {
+          const length = parseInt(match[1], 10);
+          const total = headerEnd + headerBytes + length;
+          if (buffer.length < total) return null;
+          const body = buffer.slice(headerEnd + headerBytes, total).toString('utf8');
+          buffer = buffer.slice(total);
+          return JSON.parse(body);
         }
-        const length = parseInt(match[1], 10);
-        const total = headerEnd + 4 + length;
-        if (buffer.length < total) return null;
-        const body = buffer.slice(headerEnd + 4, total).toString('utf8');
-        buffer = buffer.slice(total);
-        return JSON.parse(body);
       }
 
       const newlineIndex = buffer.indexOf('\n');
-      const shouldParseLine = newlineIndex !== -1 && (headerStart === -1 || newlineIndex < headerStart);
+      const shouldParseLine = newlineIndex !== -1 && (headerEnd === -1 || newlineIndex < headerEnd);
       if (shouldParseLine) {
         const line = buffer.slice(0, newlineIndex + 1).toString('utf8').trim();
         buffer = buffer.slice(newlineIndex + 1);
@@ -67,17 +66,17 @@ const createReader = (stream, { onActivity } = {}) => {
         }
       }
 
-      if (headerStart > 0) {
+      if (headerEnd >= 0) {
         // Keep waiting for either a newline-delimited message or a framed header.
-        if (headerStart > MAX_GARBAGE_BYTES) {
-          buffer = buffer.slice(headerStart);
+        if (headerEnd > MAX_GARBAGE_BYTES) {
+          buffer = buffer.slice(headerEnd);
         }
         return null;
       }
 
-      if (headerStart === -1 && buffer.length > MAX_GARBAGE_BYTES) {
+      if (buffer.length > MAX_GARBAGE_BYTES) {
         // Prevent unbounded growth if non-protocol stdout is emitted.
-        buffer = buffer.slice(-HEADER_PREFIX.length);
+        buffer = buffer.slice(-4096);
       }
       return null;
     }
@@ -190,7 +189,6 @@ export const startMcpServer = async ({
   const reader = createReader(server.stdout, { onActivity: touchTimeout });
   const { readMessage, readAnyMessage, notifications } = reader;
   touchTimeout();
-
   const send = (payload) => {
     if (transport === 'sdk') {
       server.stdin.write(encodeLineMessage(payload));

@@ -7,6 +7,14 @@ import {
 } from './helpers.js';
 
 export const mergeIndexInput = ({ input, dir, state, mergeState }) => {
+  if (Array.isArray(input.fileList) && input.fileList.length) {
+    const fileSet = new Set(Array.isArray(state.discoveredFiles) ? state.discoveredFiles : []);
+    for (const file of input.fileList) {
+      if (typeof file === 'string' && file) fileSet.add(file);
+    }
+    state.discoveredFiles = Array.from(fileSet).sort((a, b) => (a < b ? -1 : (a > b ? 1 : 0)));
+  }
+
   const chunks = Array.isArray(input.chunkMeta) ? input.chunkMeta : [];
   const docLengths = Array.isArray(input.tokenPostings?.docLengths)
     ? input.tokenPostings.docLengths

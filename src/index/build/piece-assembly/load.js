@@ -17,10 +17,12 @@ export const loadIndexArtifacts = async (dir, { strict = true } = {}) => {
   const fileMeta = await loadJsonArrayArtifact(dir, 'file_meta', { manifest, strict }).catch(() => null);
   const fileMetaById = new Map();
   const fileInfoByPath = new Map();
+  const fileList = [];
   if (Array.isArray(fileMeta)) {
     for (const entry of fileMeta) {
       if (entry && entry.id != null) fileMetaById.set(entry.id, entry);
       if (entry?.file) {
+        fileList.push(entry.file);
         const size = Number.isFinite(entry.size) ? entry.size : null;
         const hash = entry.hash || null;
         const hashAlgo = entry.hash_algo || entry.hashAlgo || null;
@@ -29,16 +31,14 @@ export const loadIndexArtifacts = async (dir, { strict = true } = {}) => {
         const encodingConfidence = Number.isFinite(entry.encodingConfidence)
           ? entry.encodingConfidence
           : null;
-        if (size !== null || hash || hashAlgo || encoding || encodingFallback !== null || encodingConfidence !== null) {
-          fileInfoByPath.set(entry.file, {
-            size,
-            hash,
-            hashAlgo,
-            encoding,
-            encodingFallback,
-            encodingConfidence
-          });
-        }
+        fileInfoByPath.set(entry.file, {
+          size,
+          hash,
+          hashAlgo,
+          encoding,
+          encodingFallback,
+          encodingConfidence
+        });
       }
     }
   }
@@ -83,7 +83,8 @@ export const loadIndexArtifacts = async (dir, { strict = true } = {}) => {
     riskFlows: await loadJsonArrayArtifact(dir, 'risk_flows', { manifest, strict }).catch(() => null),
     riskInterproceduralStats: readJsonOptional(dir, 'risk_interprocedural_stats.json'),
     indexState: readJsonOptional(dir, 'index_state.json'),
-    fileInfoByPath
+    fileInfoByPath,
+    fileList
   };
 };
 

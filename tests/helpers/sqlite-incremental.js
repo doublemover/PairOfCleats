@@ -2,6 +2,7 @@ import fsPromises from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { loadUserConfig, resolveSqlitePaths } from '../../tools/shared/dict-utils.js';
 import { applyTestEnv } from './test-env.js';
@@ -54,6 +55,16 @@ const stripMaxOldSpaceFlag = (options) => {
     .trim();
 };
 
+const compactLabel = (value, maxLen = 32) => {
+  const normalized = String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+  if (!normalized) return 'run';
+  return normalized.length > maxLen ? normalized.slice(0, maxLen) : normalized;
+};
+
 const run = (args, label, options) => {
   const result = spawnSync(process.execPath, args, options);
   if (result.status !== 0) {
@@ -69,8 +80,10 @@ export const setupIncrementalRepo = async ({ name }) => {
     ? process.env.PAIROFCLEATS_TEST_CACHE_SUFFIX.trim()
     : '';
   const scopedName = suffixRaw ? `${name}-${suffixRaw}` : name;
-  const uniqueSuffix = `${Date.now()}-${process.pid}-${Math.random().toString(16).slice(2, 8)}`;
-  const tempRoot = path.join(ROOT, '.testCache', 'sqlite-incremental', `${scopedName}-${uniqueSuffix}`);
+  const scopeHash = createHash('sha1').update(scopedName).digest('hex').slice(0, 8);
+  const runToken = `${Date.now().toString(36)}-${process.pid.toString(36)}`;
+  const label = compactLabel(name, 18);
+  const tempRoot = path.join(ROOT, '.testCache', 'sqlite-incremental', `${label}-${scopeHash}-${runToken}`);
   const repoRoot = path.join(tempRoot, 'repo');
   const cacheRoot = path.join(tempRoot, 'cache');
 

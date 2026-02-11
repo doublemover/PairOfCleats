@@ -1212,10 +1212,8 @@ export const enqueueChunkMetaArtifacts = async ({
             }
           }
           addPieceFile({ type: 'chunks', name: 'chunk_meta_meta', format: 'json' }, metaPath);
-          await writeCompatChunkMetaJson();
-          if (!shouldWriteCompatChunkMetaJson) {
-            await removeArtifact(compatJsonPath);
-          }
+          // Sharded outputs should never leave a chunk_meta.json alias behind.
+          await removeArtifact(compatJsonPath);
           await cleanupCollected();
         }
       );

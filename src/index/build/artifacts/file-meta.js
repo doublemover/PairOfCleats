@@ -120,19 +120,15 @@ export function buildFileMeta(state) {
     }
   }
   const discoveredFiles = Array.isArray(state?.discoveredFiles) ? state.discoveredFiles : null;
+  const fileInfoFiles = fileInfoByPath && typeof fileInfoByPath.keys === 'function'
+    ? Array.from(fileInfoByPath.keys())
+    : [];
   const files = discoveredFiles && discoveredFiles.length
     ? discoveredFiles.slice().sort(comparePaths)
-    : Array.from(fileDetails.keys()).sort(comparePaths);
-  const fileMembership = new Set(files);
-  if (fileInfoByPath && typeof fileInfoByPath.keys === 'function') {
-    const extraFiles = Array.from(fileInfoByPath.keys())
-      .filter((file) => !fileMembership.has(file))
-      .sort(comparePaths);
-    for (const file of extraFiles) {
-      files.push(file);
-      fileMembership.add(file);
-    }
-  }
+    : Array.from(new Set([
+      ...fileDetails.keys(),
+      ...fileInfoFiles
+    ])).sort(comparePaths);
   for (const file of files) {
     const entry = fileDetails.get(file) || { file, ext: fileExt(file) };
     const info = fileInfoByPath?.get?.(file) || null;
