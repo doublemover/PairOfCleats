@@ -372,11 +372,12 @@ export const processFileCpu = async (context) => {
   updateCrashStage('segments');
   try {
     const plannedSegments = (mustUseTreeSitterScheduler
-      && !extraSegments.length
       && typeof treeSitterScheduler?.loadPlannedSegments === 'function')
       ? treeSitterScheduler.loadPlannedSegments(relKey)
       : null;
     if (Array.isArray(plannedSegments) && plannedSegments.length) {
+      // Keep runtime segmentation aligned with the scheduler plan. Re-splitting by
+      // comment-derived extra segments can change virtual paths and miss scheduled rows.
       segments = plannedSegments;
       segmentsFromSchedulerPlan = true;
     } else {
