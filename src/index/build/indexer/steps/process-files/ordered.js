@@ -17,6 +17,7 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
     ? Math.max(0, Math.floor(options.bucketSize))
     : 0;
   const pending = new Map();
+  const completed = new Set();
   const startIndex = Number.isFinite(options.startIndex)
     ? Math.max(0, Math.floor(options.startIndex))
     : 0;
@@ -107,6 +108,7 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
       let advanced = false;
       while (skipped.has(nextIndex)) {
         skipped.delete(nextIndex);
+        completed.add(nextIndex);
         nextIndex += 1;
         noteAdvance();
         advanced = true;
@@ -117,6 +119,27 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
       if (expectedOrder.length) {
         const nextExpected = expectedOrder[expectedCursor];
         if (Number.isFinite(nextExpected) && nextExpected > nextIndex) {
+          let minPending = null;
+          if (pending.size) {
+            for (const key of pending.keys()) {
+              if (!Number.isFinite(key) || key < nextIndex) continue;
+              if (minPending == null || key < minPending) minPending = key;
+            }
+          }
+          if (Number.isFinite(minPending) && minPending < nextExpected) {
+            if (minPending > nextIndex) {
+              debugLog('[ordered] advancing to earliest pending index before expected gap', {
+                from: nextIndex,
+                to: minPending,
+                nextExpected
+              });
+              nextIndex = minPending;
+              noteAdvance();
+              advanced = true;
+              continue;
+            }
+            if (minPending === nextIndex) break;
+          }
           debugLog('[ordered] implicit gap skip', {
             from: nextIndex,
             to: nextExpected
@@ -211,16 +234,28 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
         .sort((a, b) => a - b);
       if (outOfOrder.length) {
         emitLog(
-          `[ordered] dropping ${outOfOrder.length} stale index(es) < ${nextIndex}: ${outOfOrder.slice(0, 5).join(', ')}${outOfOrder.length > 5 ? ' …' : ''}`,
+          `[ordered] flushing ${outOfOrder.length} late index(es) < ${nextIndex}: ${outOfOrder.slice(0, 5).join(', ')}${outOfOrder.length > 5 ? ' …' : ''}`,
           { kind: 'warning' }
         );
       }
       for (const key of outOfOrder) {
         const entry = pending.get(key);
         pending.delete(key);
-        // This index has already been advanced past. Appending now would
-        // make chunk/doc ids timing-dependent and can corrupt postings/sqlite.
-        entry?.resolve?.();
+        if (completed.has(key)) {
+          emitLog(`[ordered] dropping duplicate late result index ${key}`, { kind: 'warning' });
+          entry?.resolve?.();
+          continue;
+        }
+        try {
+          if (entry?.result) {
+            await handleFileResult(entry.result, state, entry.shardMeta);
+          }
+          completed.add(key);
+          entry?.resolve?.();
+        } catch (err) {
+          try { entry?.reject?.(err); } catch {}
+          throw err;
+        }
       }
     }
     const bucketUpperBound = bucketSize > 0
@@ -238,6 +273,7 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
         try { entry?.reject?.(err); } catch {}
         throw err;
       } finally {
+        completed.add(nextIndex);
         nextIndex += 1;
         noteAdvance();
         advancePastSkipped();
@@ -294,15 +330,17 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
       }
       if (Number.isFinite(orderIndex) && orderIndex < nextIndex) {
         noteSeen(orderIndex);
-        emitLog(`[ordered] dropping stale result index ${orderIndex} (< ${nextIndex})`, { kind: 'warning' });
-        debugLog('[ordered] enqueue stale-drop', {
+        if (completed.has(orderIndex)) {
+          emitLog(`[ordered] dropping duplicate stale result index ${orderIndex}`, { kind: 'warning' });
+          return Promise.resolve();
+        }
+        debugLog('[ordered] enqueue late', {
           orderIndex,
           nextIndex,
           pending: pending.size,
           expectedCount,
           seenCount
         });
-        return Promise.resolve();
       }
       noteSeen(index);
       if (pending.has(index)) {
@@ -347,7 +385,10 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
     skip(orderIndex) {
       if (aborted) return Promise.reject(new Error('Ordered appender aborted.'));
       const index = Number.isFinite(orderIndex) ? orderIndex : nextIndex;
-      if (index < nextIndex) return Promise.resolve();
+      if (index < nextIndex) {
+        completed.add(index);
+        return Promise.resolve();
+      }
       noteSeen(index);
       debugLog('[ordered] skip', {
         orderIndex,
@@ -361,6 +402,7 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
         const entry = pending.get(index);
         pending.delete(index);
         try { entry?.resolve?.(); } catch {}
+        completed.add(index);
       }
       skipped.add(index);
       // Ensure we advance if the skipped index is next up.

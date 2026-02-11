@@ -26,7 +26,7 @@ await appender.enqueue(0, { id: 'late-0' });
 
 assert.deepEqual(processed, [0, 1], 'stale result should not be appended once index advanced');
 assert.ok(
-  logs.some((message) => message.includes('dropping stale result index')),
+  logs.some((message) => message.includes('dropping duplicate stale result index')),
   'expected stale-drop warning log'
 );
 
