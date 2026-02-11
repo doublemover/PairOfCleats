@@ -1,0 +1,72 @@
+{
+  "schemaVersion": "usr-registry-1.0.0",
+  "registryId": "usr-benchmark-policy",
+  "generatedAt": "2026-02-11T01:45:00Z",
+  "generatedBy": "tools/usr/generate-usr-matrix-baselines.mjs",
+  "rows": [
+    {
+      "id": "bench-ci-smoke",
+      "laneId": "ci",
+      "datasetClass": "smoke",
+      "hostClass": "standard-ci",
+      "warmupRuns": 1,
+      "measureRuns": 5,
+      "percentileTargets": {
+        "p50DurationMs": 120000,
+        "p95DurationMs": 180000,
+        "p99DurationMs": 220000
+      },
+      "maxVariancePct": 12,
+      "maxPeakMemoryMb": 2048,
+      "blocking": true
+    },
+    {
+      "id": "bench-framework-overlay",
+      "laneId": "lang-framework-c4",
+      "datasetClass": "framework-overlay",
+      "hostClass": "standard-ci",
+      "warmupRuns": 1,
+      "measureRuns": 5,
+      "percentileTargets": {
+        "p50DurationMs": 300000,
+        "p95DurationMs": 450000,
+        "p99DurationMs": 540000
+      },
+      "maxVariancePct": 15,
+      "maxPeakMemoryMb": 4096,
+      "blocking": true
+    },
+    {
+      "id": "bench-lang-batch",
+      "laneId": "ci-long",
+      "datasetClass": "language-batch",
+      "hostClass": "standard-ci-long",
+      "warmupRuns": 1,
+      "measureRuns": 7,
+      "percentileTargets": {
+        "p50DurationMs": 600000,
+        "p95DurationMs": 900000,
+        "p99DurationMs": 1100000
+      },
+      "maxVariancePct": 18,
+      "maxPeakMemoryMb": 6144,
+      "blocking": true
+    },
+    {
+      "id": "bench-mixed-repo",
+      "laneId": "ci-long",
+      "datasetClass": "mixed-repo",
+      "hostClass": "standard-ci-long",
+      "warmupRuns": 2,
+      "measureRuns": 9,
+      "percentileTargets": {
+        "p50DurationMs": 900000,
+        "p95DurationMs": 1500000,
+        "p99DurationMs": 1800000
+      },
+      "maxVariancePct": 20,
+      "maxPeakMemoryMb": 8192,
+      "blocking": false
+    }
+  ]
+}

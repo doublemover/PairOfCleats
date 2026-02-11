@@ -1,0 +1,73 @@
+{
+  "schemaVersion": "usr-registry-1.0.0",
+  "registryId": "usr-waiver-policy",
+  "generatedAt": "2026-02-11T01:45:00Z",
+  "generatedBy": "tools/usr/generate-usr-matrix-baselines.mjs",
+  "rows": [
+    {
+      "id": "waiver-benchmark-overrun-ci-long",
+      "waiverClass": "benchmark-overrun",
+      "scopeType": "lane",
+      "scopeId": "ci-long",
+      "allowedUntil": "2026-04-01T00:00:00Z",
+      "approvers": [
+        "usr-architecture",
+        "usr-operations"
+      ],
+      "requiredCompensatingControls": [
+        "usr-benchmark-regression-summary.json"
+      ],
+      "maxExtensions": 1,
+      "blocking": true
+    },
+    {
+      "id": "waiver-non-strict-backcompat-warning",
+      "waiverClass": "non-strict-compat-warning",
+      "scopeType": "artifact",
+      "scopeId": "usr-backcompat-matrix-results",
+      "allowedUntil": "2026-04-01T00:00:00Z",
+      "approvers": [
+        "usr-rollout",
+        "usr-architecture"
+      ],
+      "requiredCompensatingControls": [
+        "usr-waiver-active-report.json"
+      ],
+      "maxExtensions": 2,
+      "blocking": true
+    },
+    {
+      "id": "waiver-observability-gap-temp",
+      "waiverClass": "observability-gap",
+      "scopeType": "phase",
+      "scopeId": "phase-10",
+      "allowedUntil": "2026-03-15T00:00:00Z",
+      "approvers": [
+        "usr-observability",
+        "usr-operations"
+      ],
+      "requiredCompensatingControls": [
+        "usr-observability-rollup.json"
+      ],
+      "maxExtensions": 1,
+      "blocking": false
+    },
+    {
+      "id": "waiver-temporary-parser-regression",
+      "waiverClass": "temporary-parser-regression",
+      "scopeType": "language",
+      "scopeId": "perl",
+      "allowedUntil": "2026-03-20T00:00:00Z",
+      "approvers": [
+        "language-perl",
+        "usr-architecture"
+      ],
+      "requiredCompensatingControls": [
+        "usr-feature-flag-state.json",
+        "usr-waiver-expiry-report.json"
+      ],
+      "maxExtensions": 1,
+      "blocking": true
+    }
+  ]
+}

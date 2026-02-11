@@ -1,7 +1,7 @@
 # Spec -- USR Implementation Readiness Contract
 
-Status: Draft v0.3
-Last updated: 2026-02-11T01:55:00Z
+Status: Draft v0.4
+Last updated: 2026-02-11T02:40:00Z
 
 ## 0. Purpose and scope
 
@@ -22,6 +22,9 @@ Implementation readiness MUST be demonstrated across all domains:
 7. ownership and escalation readiness
 8. runtime configuration and feature-flag readiness
 9. failure-injection and resilience readiness
+10. benchmark methodology readiness
+11. threat-model and abuse-case readiness
+12. waiver and exception governance readiness
 
 ## 2. Contract and schema readiness
 
@@ -78,12 +81,16 @@ Required:
 - blocking SLO budgets defined for required lanes and scopes
 - alert evaluation outputs generated and linked to escalation policy IDs
 - dashboard rollups include required observability dimensions
+- benchmark policy matrix validated with deterministic methodology and variance thresholds
+- benchmark regression outputs generated for blocking lanes
 
 Blocking artifact set:
 
 - `usr-slo-budget-results.json`
 - `usr-alert-evaluations.json`
 - `usr-observability-rollup.json`
+- `usr-benchmark-results.json`
+- `usr-benchmark-regression-summary.json`
 
 ## 6. Security and data-governance readiness
 
@@ -93,12 +100,15 @@ Required:
 - strict security gates configured as blocking
 - sensitive surface audit and redaction validations green
 - fail-closed behavior validated for strict gate failures
+- threat-model matrix validated and critical threat classes mapped to controls and abuse-case fixtures
 
 Blocking artifact set:
 
 - `usr-redaction-validation.json`
 - `usr-security-gate-results.json`
 - `usr-sensitive-surface-audit.json`
+- `usr-threat-model-coverage.json`
+- `usr-abuse-case-results.json`
 
 ## 7. Operational readiness
 
@@ -134,6 +144,9 @@ Blocking artifact set:
 - `usr-feature-flag-state.json`
 - `usr-failure-injection-results.json`
 - `usr-fixture-governance-validation.json`
+- `usr-waiver-active-report.json`
+- `usr-waiver-expiry-report.json`
+- `usr-waiver-breach-report.json`
 
 ## 9. Promotion criteria by phase
 
@@ -158,3 +171,6 @@ Missing mandatory evidence in any required domain is a promotion blocker.
 - `docs/specs/usr-runtime-config-contract.md`
 - `docs/specs/usr-failure-injection-and-resilience-contract.md`
 - `docs/specs/usr-fixture-governance-contract.md`
+- `docs/specs/usr-performance-benchmark-contract.md`
+- `docs/specs/usr-threat-model-and-abuse-case-contract.md`
+- `docs/specs/usr-waiver-and-exception-contract.md`

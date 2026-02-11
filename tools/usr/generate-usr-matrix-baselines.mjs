@@ -698,6 +698,30 @@ const fixtureGovernance = [
   { fixtureId: 'vue::template-binding::script-setup-001', profileType: 'framework', profileId: 'vue', conformanceLevels: ['C4'], families: ['framework-overlay', 'template-binding'], owner: 'framework-vue', reviewers: ['usr-architecture', 'usr-conformance'], stabilityClass: 'stable', mutationPolicy: 'require-review', goldenRequired: true, blocking: true }
 ].sort((a, b) => a.fixtureId.localeCompare(b.fixtureId));
 
+const benchmarkPolicy = [
+  { id: 'bench-ci-smoke', laneId: 'ci', datasetClass: 'smoke', hostClass: 'standard-ci', warmupRuns: 1, measureRuns: 5, percentileTargets: { p50DurationMs: 120000, p95DurationMs: 180000, p99DurationMs: 220000 }, maxVariancePct: 12, maxPeakMemoryMb: 2048, blocking: true },
+  { id: 'bench-framework-overlay', laneId: 'lang-framework-c4', datasetClass: 'framework-overlay', hostClass: 'standard-ci', warmupRuns: 1, measureRuns: 5, percentileTargets: { p50DurationMs: 300000, p95DurationMs: 450000, p99DurationMs: 540000 }, maxVariancePct: 15, maxPeakMemoryMb: 4096, blocking: true },
+  { id: 'bench-lang-batch', laneId: 'ci-long', datasetClass: 'language-batch', hostClass: 'standard-ci-long', warmupRuns: 1, measureRuns: 7, percentileTargets: { p50DurationMs: 600000, p95DurationMs: 900000, p99DurationMs: 1100000 }, maxVariancePct: 18, maxPeakMemoryMb: 6144, blocking: true },
+  { id: 'bench-mixed-repo', laneId: 'ci-long', datasetClass: 'mixed-repo', hostClass: 'standard-ci-long', warmupRuns: 2, measureRuns: 9, percentileTargets: { p50DurationMs: 900000, p95DurationMs: 1500000, p99DurationMs: 1800000 }, maxVariancePct: 20, maxPeakMemoryMb: 8192, blocking: false }
+].sort((a, b) => a.id.localeCompare(b.id));
+
+const threatModelMatrix = [
+  { id: 'threat-path-traversal', threatClass: 'path-traversal', attackSurface: 'input', requiredControls: ['security-gate-path-traversal'], requiredFixtures: ['usr::failure-injection::security-gate-001'], severity: 'critical', blocking: true },
+  { id: 'threat-parser-supply-chain', threatClass: 'parser-supply-chain', attackSurface: 'parser', requiredControls: ['security-gate-parser-lock', 'security-gate-unsafe-parser-feature'], requiredFixtures: ['usr::failure-injection::parser-lock-001'], severity: 'high', blocking: true },
+  { id: 'threat-reporting-exfiltration', threatClass: 'reporting-exfiltration', attackSurface: 'reporting', requiredControls: ['security-gate-redaction-complete'], requiredFixtures: ['usr::failure-injection::redaction-fail-001'], severity: 'critical', blocking: true },
+  { id: 'threat-resource-exhaustion', threatClass: 'resource-exhaustion', attackSurface: 'runtime', requiredControls: ['alert-memory-peak', 'alert-lane-duration'], requiredFixtures: ['usr::failure-injection::resource-budget-001'], severity: 'high', blocking: true },
+  { id: 'threat-schema-confusion', threatClass: 'schema-confusion', attackSurface: 'serialization', requiredControls: ['security-gate-schema-no-extension'], requiredFixtures: ['usr::backcompat::bc-003'], severity: 'high', blocking: true },
+  { id: 'threat-sensitive-data-leakage', threatClass: 'sensitive-data-leakage', attackSurface: 'reporting', requiredControls: ['redact-auth-token', 'redact-private-key', 'security-gate-redaction-complete'], requiredFixtures: ['usr::failure-injection::redaction-fail-001'], severity: 'critical', blocking: true },
+  { id: 'threat-untrusted-execution', threatClass: 'untrusted-execution', attackSurface: 'runtime', requiredControls: ['security-gate-runtime-sandbox'], requiredFixtures: ['usr::failure-injection::runtime-exec-001'], severity: 'critical', blocking: true }
+].sort((a, b) => a.id.localeCompare(b.id));
+
+const waiverPolicy = [
+  { id: 'waiver-benchmark-overrun-ci-long', waiverClass: 'benchmark-overrun', scopeType: 'lane', scopeId: 'ci-long', allowedUntil: '2026-04-01T00:00:00Z', approvers: ['usr-architecture', 'usr-operations'], requiredCompensatingControls: ['usr-benchmark-regression-summary.json'], maxExtensions: 1, blocking: true },
+  { id: 'waiver-non-strict-backcompat-warning', waiverClass: 'non-strict-compat-warning', scopeType: 'artifact', scopeId: 'usr-backcompat-matrix-results', allowedUntil: '2026-04-01T00:00:00Z', approvers: ['usr-rollout', 'usr-architecture'], requiredCompensatingControls: ['usr-waiver-active-report.json'], maxExtensions: 2, blocking: true },
+  { id: 'waiver-observability-gap-temp', waiverClass: 'observability-gap', scopeType: 'phase', scopeId: 'phase-10', allowedUntil: '2026-03-15T00:00:00Z', approvers: ['usr-observability', 'usr-operations'], requiredCompensatingControls: ['usr-observability-rollup.json'], maxExtensions: 1, blocking: false },
+  { id: 'waiver-temporary-parser-regression', waiverClass: 'temporary-parser-regression', scopeType: 'language', scopeId: 'perl', allowedUntil: '2026-03-20T00:00:00Z', approvers: ['language-perl', 'usr-architecture'], requiredCompensatingControls: ['usr-feature-flag-state.json', 'usr-waiver-expiry-report.json'], maxExtensions: 1, blocking: true }
+].sort((a, b) => a.id.localeCompare(b.id));
+
 function embeddingPolicyFor(languageId, family) {
   if (customEmbeddingPolicies[languageId]) {
     return customEmbeddingPolicies[languageId];
@@ -893,6 +917,9 @@ function main() {
   writeRegistry('usr-runtime-config-policy', runtimeConfigPolicy);
   writeRegistry('usr-failure-injection-matrix', failureInjectionMatrix);
   writeRegistry('usr-fixture-governance', fixtureGovernance);
+  writeRegistry('usr-benchmark-policy', benchmarkPolicy);
+  writeRegistry('usr-threat-model-matrix', threatModelMatrix);
+  writeRegistry('usr-waiver-policy', waiverPolicy);
 }
 
 main();
