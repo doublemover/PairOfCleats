@@ -38,13 +38,27 @@ const safeStat = async (targetPath) => {
 export const createTempPath = (filePath) => {
   const suffix = `.tmp-${createTempToken()}`;
   const tempPath = `${filePath}${suffix}`;
-  if (process.platform !== 'win32' || tempPath.length <= 240) {
+  if (process.platform !== 'win32' || tempPath.length <= 232) {
     return tempPath;
   }
   const dir = path.dirname(filePath);
-  const ext = path.extname(filePath) || '.bin';
-  const shortName = `.tmp-${crypto.randomBytes(5).toString('hex')}${ext}`;
-  return path.join(dir, shortName);
+  const ext = path.extname(filePath);
+  const randomToken = crypto.randomBytes(6).toString('hex');
+  const compactToken = `${(tempPathCounter >>> 0).toString(36)}${randomToken}`;
+
+  const buildCompactPath = (maxLen) => {
+    const budget = maxLen - dir.length - 1 - ext.length;
+    if (budget < 1) return null;
+    const tokenBudget = Math.max(0, budget - 1);
+    const token = tokenBudget > 0 ? compactToken.slice(0, tokenBudget) : '';
+    return path.join(dir, `t${token}${ext}`);
+  };
+
+  return (
+    buildCompactPath(232)
+    || buildCompactPath(240)
+    || path.join(dir, `t${ext}`)
+  );
 };
 
 const getBakPath = (filePath) => `${filePath}.bak`;

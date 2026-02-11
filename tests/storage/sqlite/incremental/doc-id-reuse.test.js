@@ -22,6 +22,7 @@ try {
 }
 
 const sqlitePaths = ensureSqlitePaths(repoRoot, userConfig);
+const initialIndexRoot = path.dirname(path.dirname(sqlitePaths.codePath));
 const dbBefore = new Database(sqlitePaths.codePath, { readonly: true });
 const deletedIds = dbBefore
   .prepare('SELECT id FROM chunks WHERE mode = ? AND file = ? ORDER BY id')
@@ -45,10 +46,13 @@ run(
   'build index (incremental)',
   { cwd: repoRoot, env, stdio: 'inherit' }
 );
-await runSqliteBuild(repoRoot, { incremental: true });
+await runSqliteBuild(repoRoot, {
+  mode: 'code',
+  incremental: true,
+  indexRoot: initialIndexRoot
+});
 
-const sqlitePathsAfter = ensureSqlitePaths(repoRoot, userConfig);
-const dbAfter = new Database(sqlitePathsAfter.codePath, { readonly: true });
+const dbAfter = new Database(sqlitePaths.codePath, { readonly: true });
 const newIds = dbAfter
   .prepare('SELECT id FROM chunks WHERE mode = ? AND file = ? ORDER BY id')
   .all('code', 'src/new-file.js')
