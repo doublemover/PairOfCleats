@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-11T06:51:28.782Z",
+  "generatedAt": "2026-02-11T09:30:00.137Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2163,6 +2163,7 @@
       "files": [
         "src/shared/env.js",
         "tests/helpers/fixture-index.js",
+        "tests/helpers/test-env.js",
         "tools/config/inventory.js"
       ]
     },
@@ -2180,6 +2181,7 @@
         "tests/helpers/fixture-index.js",
         "tests/helpers/sqlite-incremental.js",
         "tests/helpers/test-env-clear.test.js",
+        "tests/helpers/test-env.js",
         "tests/runner/run-execution.js",
         "tests/services/mcp/tool-search-defaults-and-filters.test.js",
         "tests/smoke/smoke-sqlite.test.js",
@@ -2237,6 +2239,7 @@
     {
       "name": "PAIROFCLEATS_TEST_LOG_SILENT",
       "files": [
+        "tests/helpers/fixture-index.js",
         "tests/helpers/test-env.js",
         "tools/config/inventory.js"
       ]

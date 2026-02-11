@@ -99,9 +99,26 @@ export async function compactDatabase(input) {
     logger.error(`[compact] ${mode} db missing required tables. Rebuild first.`);
     process.exit(1);
   }
+  const modeColumnByTable = new Map();
+  const tableHasModeColumn = (db, table) => {
+    if (modeColumnByTable.has(table)) return modeColumnByTable.get(table);
+    try {
+      const rows = db.prepare(`PRAGMA table_info(${table})`).all();
+      const hasMode = Array.isArray(rows)
+        && rows.some((row) => String(row?.name || '').toLowerCase() === 'mode');
+      modeColumnByTable.set(table, hasMode);
+      return hasMode;
+    } catch {
+      modeColumnByTable.set(table, false);
+      return false;
+    }
+  };
   const countRows = (db, table) => {
     try {
-      const row = db.prepare(`SELECT COUNT(*) AS total FROM ${table} WHERE mode = ?`).get(mode);
+      const hasMode = tableHasModeColumn(db, table);
+      const row = hasMode
+        ? db.prepare(`SELECT COUNT(*) AS total FROM ${table} WHERE mode = ?`).get(mode)
+        : db.prepare(`SELECT COUNT(*) AS total FROM ${table}`).get();
       return Number.isFinite(row?.total) ? row.total : 0;
     } catch {
       return 0;
