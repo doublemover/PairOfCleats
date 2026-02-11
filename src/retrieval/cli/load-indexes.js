@@ -468,28 +468,52 @@ export async function loadSearchIndexes({
       return idx.lancedb;
     }
     let meta = null;
-    try {
-      meta = await loadJsonObjectArtifact(dir, metaName, {
-        maxBytes: MAX_JSON_BYTES,
-        manifest,
-        strict,
-        fallbackPath: targetPaths.metaPath || null
-      });
-    } catch (err) {
-      if (strict) {
-        throw err;
+    const metaPresence = resolveArtifactPresence(dir, metaName, {
+      manifest,
+      maxBytes: MAX_JSON_BYTES,
+      strict
+    });
+    const missingMetaEntry = metaPresence?.error?.code === 'ERR_MANIFEST_MISSING'
+      || metaPresence?.format === 'missing';
+    if (metaPresence?.error && !missingMetaEntry) {
+      throw metaPresence.error;
+    }
+    if (!missingMetaEntry) {
+      try {
+        meta = await loadJsonObjectArtifact(dir, metaName, {
+          maxBytes: MAX_JSON_BYTES,
+          manifest,
+          strict,
+          fallbackPath: targetPaths.metaPath || null
+        });
+      } catch (err) {
+        if (strict) {
+          throw err;
+        }
       }
     }
     let lanceDir = null;
-    try {
-      lanceDir = resolveDirArtifactPath(dir, dirName, {
-        manifest,
-        strict,
-        fallbackPath: targetPaths.dir || null
-      });
-    } catch (err) {
-      if (err?.code !== 'ERR_MANIFEST_MISSING' && err?.code !== 'ERR_MANIFEST_INVALID') {
-        throw err;
+    const dirPresence = resolveArtifactPresence(dir, dirName, {
+      manifest,
+      maxBytes: MAX_JSON_BYTES,
+      strict
+    });
+    const missingDirEntry = dirPresence?.error?.code === 'ERR_MANIFEST_MISSING'
+      || dirPresence?.format === 'missing';
+    if (dirPresence?.error && !missingDirEntry) {
+      throw dirPresence.error;
+    }
+    if (!missingDirEntry) {
+      try {
+        lanceDir = resolveDirArtifactPath(dir, dirName, {
+          manifest,
+          strict,
+          fallbackPath: targetPaths.dir || null
+        });
+      } catch (err) {
+        if (err?.code !== 'ERR_MANIFEST_MISSING' && err?.code !== 'ERR_MANIFEST_INVALID') {
+          throw err;
+        }
       }
     }
     const available = Boolean(meta && lanceDir && fs.existsSync(lanceDir));
