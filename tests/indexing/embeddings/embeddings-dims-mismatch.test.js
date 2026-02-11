@@ -101,7 +101,7 @@ if (firstRun.status !== 0) {
   process.exit(firstRun.status ?? 1);
 }
 
-const cacheRootDir = path.join(cacheRoot, 'embeddings');
+const cacheRootDir = cacheRoot;
 const targetEntry = await loadCacheEntry(cacheRootDir, 8);
 if (!targetEntry?.cache) {
   console.error('embeddings dims mismatch test failed: no cache entries found');
