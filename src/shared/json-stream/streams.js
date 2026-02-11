@@ -27,6 +27,30 @@ const waitForClose = (stream) => {
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const createExclusiveAtomicFileStream = (filePath, highWaterMark) => {
+  let lastErr = null;
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const tempPath = createTempPath(filePath);
+    fs.mkdirSync(path.dirname(tempPath), { recursive: true });
+    try {
+      const fd = fs.openSync(tempPath, 'wx');
+      const fileStream = fs.createWriteStream(tempPath, {
+        fd,
+        autoClose: true,
+        ...(highWaterMark ? { highWaterMark } : {})
+      });
+      return { tempPath, fileStream };
+    } catch (err) {
+      if (err?.code === 'EEXIST') {
+        lastErr = err;
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr || new Error(`Failed to allocate unique atomic temp file for ${filePath}`);
+};
+
 const createByteCounter = (maxBytes, highWaterMark) => {
   let bytes = 0;
   let overLimit = false;
@@ -55,12 +79,17 @@ export const createJsonWriteStream = (filePath, options = {}) => {
   if (signal?.aborted) {
     throw createAbortError();
   }
-  const targetPath = atomic ? createTempPath(filePath) : filePath;
-  fs.mkdirSync(path.dirname(targetPath), { recursive: true });
-  const fileStream = fs.createWriteStream(
-    targetPath,
-    highWaterMark ? { highWaterMark } : undefined
-  );
+  const tempRef = atomic ? createExclusiveAtomicFileStream(filePath, highWaterMark) : null;
+  const targetPath = atomic ? tempRef.tempPath : filePath;
+  if (!atomic) {
+    fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+  }
+  const fileStream = atomic
+    ? tempRef.fileStream
+    : fs.createWriteStream(
+      targetPath,
+      highWaterMark ? { highWaterMark } : undefined
+    );
   const { counter, getBytes, isOverLimit } = createByteCounter(maxBytes, highWaterMark);
   let writer = null;
   let committed = false;
