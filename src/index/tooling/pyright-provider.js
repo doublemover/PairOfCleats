@@ -11,26 +11,9 @@ import { isAbsolutePathNative } from '../../shared/files.js';
 
 export const PYTHON_EXTS = ['.py', '.pyi'];
 
-const shouldUseShell = (cmd) => process.platform === 'win32' && /\.(cmd|bat)$/i.test(cmd);
-const quoteWindowsCmdArg = (value) => {
-  const text = String(value ?? '');
-  if (!text) return '""';
-  if (!/[\s"&|<>^();]/u.test(text)) return text;
-  return `"${text.replaceAll('"', '""')}"`;
-};
 const runProbeCommand = (cmd, args) => {
-  if (!shouldUseShell(cmd)) {
-    return execaSync(cmd, args, {
-      stdio: 'ignore',
-      reject: false
-    });
-  }
-  const commandLine = [cmd, ...(Array.isArray(args) ? args : [])]
-    .map(quoteWindowsCmdArg)
-    .join(' ');
-  return execaSync(commandLine, {
+  return execaSync(cmd, args, {
     stdio: 'ignore',
-    shell: true,
     reject: false
   });
 };
