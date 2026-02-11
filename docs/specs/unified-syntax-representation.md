@@ -1,7 +1,7 @@
 # Spec -- Unified Syntax Representation (USR)
 
-Status: Draft v1.0
-Last updated: 2026-02-11T01:05:00Z
+Status: Draft v1.1
+Last updated: 2026-02-11T01:55:00Z
 
 Applies to: PairOfCleats indexing pipeline, language registry, framework segmentation/extraction, graph/risk/query surfaces.
 
@@ -1277,6 +1277,7 @@ Required behavior:
 Normative decomposition:
 
 - `docs/specs/usr-security-and-data-governance-contract.md`
+- `docs/specs/usr-runtime-config-contract.md`
 
 ## 19. Versioning and Compatibility
 
@@ -1346,6 +1347,9 @@ Before declaring full support complete, all items below MUST be true.
 - `docs/specs/usr-observability-and-slo-contract.md`
 - `docs/specs/usr-security-and-data-governance-contract.md`
 - `docs/specs/usr-audit-and-reporting-contract.md`
+- `docs/specs/usr-runtime-config-contract.md`
+- `docs/specs/usr-failure-injection-and-resilience-contract.md`
+- `docs/specs/usr-fixture-governance-contract.md`
 - `docs/contracts/public-artifact-surface.md`
 - `docs/contracts/artifact-schemas.md`
 - `docs/contracts/analysis-schemas.md`
@@ -1375,6 +1379,9 @@ Required files:
 - `tests/lang/matrix/usr-alert-policies.json`
 - `tests/lang/matrix/usr-redaction-rules.json`
 - `tests/lang/matrix/usr-security-gates.json`
+- `tests/lang/matrix/usr-runtime-config-policy.json`
+- `tests/lang/matrix/usr-failure-injection-matrix.json`
+- `tests/lang/matrix/usr-fixture-governance.json`
 
 Baseline generation inputs:
 
@@ -1388,6 +1395,9 @@ Registry drift policy:
 - registry language IDs and `usr-language-embedding-policy.json` entries MUST be exact-set equal
 - framework profile IDs referenced by language profiles MUST exist in `usr-framework-profiles.json`
 - parser/runtime lock rows MUST cover all parser sources used by language/framework profiles
+- runtime config policy keys MUST be unique and strict-mode behavior MUST be explicitly defined
+- failure-injection matrix MUST cover required blocking fault classes
+- fixture-governance rows MUST reference valid language/framework/cross-cutting profiles
 - unknown keys in registry JSON MUST fail strict schema validation
 - every registry language ID MUST have exactly one per-language contract file under `docs/specs/usr/languages/`
 - schema key changes in machine-readable registries MUST be accompanied by synchronized updates in decomposed contract docs
@@ -2904,6 +2914,8 @@ Before implementation rollout phases may proceed, teams MUST satisfy readiness r
 - contract/schema validation
 - parser/runtime reproducibility
 - fixture/conformance readiness
+- runtime configuration and feature-flag readiness
+- failure-injection and resilience readiness
 - operational rollback/readiness
 - ownership/escalation readiness
 
@@ -2932,6 +2944,42 @@ Required behavior:
 - redaction and security gate policies MUST be machine-readable and validated in CI.
 - strict security gate failures MUST fail closed and block promotion.
 - security audit artifacts MUST be generated and linked from release readiness evidence.
+
+## 43. Runtime configuration and feature-flag contract (normative)
+
+Decomposed contract:
+
+- `docs/specs/usr-runtime-config-contract.md`
+
+Required behavior:
+
+- runtime configuration keys, defaults, and strict-mode behavior MUST be machine-readable and validated.
+- feature flags MUST declare rollout class, default state, and rollback semantics.
+- strict mode MUST reject disallowed or conflicting blocking configuration values.
+
+## 44. Failure injection and resilience contract (normative)
+
+Decomposed contract:
+
+- `docs/specs/usr-failure-injection-and-resilience-contract.md`
+
+Required behavior:
+
+- blocking failure-injection scenarios MUST run in strict lanes and fail closed when expected.
+- recovery and rollback evidence MUST be emitted for blocking fault classes.
+- failure-injection drift MUST be tracked as a release-readiness signal.
+
+## 45. Fixture and golden governance contract (normative)
+
+Decomposed contract:
+
+- `docs/specs/usr-fixture-governance-contract.md`
+
+Required behavior:
+
+- fixture ownership, stability class, and mutation policy MUST be machine-readable and enforced.
+- blocking fixture and golden mutations MUST require governed review policy.
+- fixture-governance drift and ownership coverage MUST be reported.
 
 
 
