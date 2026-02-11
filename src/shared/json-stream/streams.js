@@ -131,6 +131,26 @@ export const createJsonWriteStream = (filePath, options = {}) => {
     try {
       await fsPromises.unlink(targetPath);
     } catch {}
+    // Clean up stale temp siblings for the same target file only.
+    try {
+      const dir = path.dirname(filePath);
+      const tempPrefix = `${path.basename(filePath)}.tmp-`;
+      const entries = await fsPromises.readdir(dir);
+      for (const entry of entries) {
+        if (!entry.startsWith(tempPrefix)) continue;
+        const entryPath = path.join(dir, entry);
+        for (let attempt = 0; attempt < 6; attempt += 1) {
+          try {
+            await fsPromises.rm(entryPath, { force: true });
+            break;
+          } catch (err) {
+            if (err?.code === 'ENOENT') break;
+            if (!['EBUSY', 'EPERM', 'EACCES', 'EMFILE', 'ENOTEMPTY'].includes(err?.code)) break;
+            await delay(Math.min(600, 25 * (attempt + 1)));
+          }
+        }
+      }
+    } catch {}
     // Last guard: if the specific temp path still exists, keep retrying a bit
     // before letting callers observe stale ".tmp-" files.
     for (let attempt = 0; attempt < 10; attempt += 1) {
