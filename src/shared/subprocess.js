@@ -37,6 +37,20 @@ const buildShellCommand = (command, args) => {
   return [command, ...resolvedArgs].map(quoteArg).join(' ');
 };
 
+const resolveShellInvocation = (command, args) => {
+  const commandLine = buildShellCommand(command, args);
+  if (process.platform === 'win32') {
+    return {
+      command: process.env.ComSpec || 'cmd.exe',
+      args: ['/d', '/s', '/c', commandLine]
+    };
+  }
+  return {
+    command: process.env.SHELL || '/bin/sh',
+    args: ['-lc', commandLine]
+  };
+};
+
 export class SubprocessError extends Error {
   constructor(message, result, cause) {
     super(message);
@@ -232,7 +246,16 @@ export function spawnSubprocess(command, args, options = {}) {
     const stderrCollector = createCollector({ enabled: captureStderr, maxOutputBytes, encoding });
     const useShell = options.shell === true;
     const child = useShell
-      ? spawn(buildShellCommand(command, args), { cwd: options.cwd, env: options.env, stdio, shell: true, detached })
+      ? (() => {
+        const invocation = resolveShellInvocation(command, args);
+        return spawn(invocation.command, invocation.args, {
+          cwd: options.cwd,
+          env: options.env,
+          stdio,
+          shell: false,
+          detached
+        });
+      })()
       : spawn(command, args, { cwd: options.cwd, env: options.env, stdio, shell: false, detached });
     if (options.input != null && child.stdin) {
       try {
@@ -365,14 +388,17 @@ export function spawnSubprocessSync(command, args, options = {}) {
   const expectedExitCodes = resolveExpectedExitCodes(options.expectedExitCodes);
   const useShell = options.shell === true;
   const result = useShell
-    ? spawnSync(buildShellCommand(command, args), {
-      cwd: options.cwd,
-      env: options.env,
-      stdio,
-      shell: true,
-      input: options.input,
-      encoding: captureStdout || captureStderr ? 'buffer' : undefined
-    })
+    ? (() => {
+      const invocation = resolveShellInvocation(command, args);
+      return spawnSync(invocation.command, invocation.args, {
+        cwd: options.cwd,
+        env: options.env,
+        stdio,
+        shell: false,
+        input: options.input,
+        encoding: captureStdout || captureStderr ? 'buffer' : undefined
+      });
+    })()
     : spawnSync(command, args, {
       cwd: options.cwd,
       env: options.env,
