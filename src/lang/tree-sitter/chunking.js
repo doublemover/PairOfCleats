@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { buildLineIndex, offsetToLine } from '../../shared/lines.js';
 import { extractDocComment, sliceSignature } from '../shared.js';
 import {
@@ -197,6 +199,7 @@ function resolveTraversalBudget(options, resolvedId) {
 }
 
 const DEFAULT_CHUNK_CACHE_MAX_ENTRIES = 64;
+const CHUNK_CACHE_PERSISTENT_SCHEMA = '1.0.0';
 
 const buildChunkCacheSignature = (options, resolvedId) => {
   const config = options?.treeSitter || {};
@@ -263,6 +266,96 @@ const ensureChunkCache = (options) => {
   return { cache: treeSitterState.chunkCache, maxEntries };
 };
 
+const ensurePersistentChunkCacheRoot = (cacheRoot) => {
+  if (!cacheRoot || typeof cacheRoot !== 'string') return null;
+  if (treeSitterState.persistentChunkCacheRoot === cacheRoot) return cacheRoot;
+  treeSitterState.persistentChunkCacheRoot = cacheRoot;
+  treeSitterState.persistentChunkCacheMemo = new Map();
+  treeSitterState.persistentChunkCacheMisses = new Set();
+  return cacheRoot;
+};
+
+const resolvePersistentChunkCacheRoot = (options) => {
+  const cfg = options?.treeSitter || {};
+  if (cfg.cachePersistent !== true) return null;
+  const dir = typeof cfg.cachePersistentDir === 'string'
+    ? cfg.cachePersistentDir.trim()
+    : '';
+  if (!dir) return null;
+  return ensurePersistentChunkCacheRoot(path.resolve(dir));
+};
+
+const resolvePersistentChunkCachePath = (cacheRoot, key) => {
+  if (!cacheRoot || !key) return null;
+  const safeKey = String(key).replace(/[^a-zA-Z0-9._-]/g, '_');
+  const shard = safeKey.slice(0, 2) || '00';
+  return path.join(cacheRoot, shard, `${safeKey}.json`);
+};
+
+const readPersistentCachedChunks = (cacheRoot, key) => {
+  if (!cacheRoot || !key) return null;
+  const memo = treeSitterState.persistentChunkCacheMemo;
+  if (memo?.has(key)) {
+    bumpMetric('chunkCachePersistentHits', 1);
+    return cloneChunkList(memo.get(key));
+  }
+  const misses = treeSitterState.persistentChunkCacheMisses;
+  if (misses?.has(key)) {
+    bumpMetric('chunkCachePersistentMisses', 1);
+    return null;
+  }
+  const filePath = resolvePersistentChunkCachePath(cacheRoot, key);
+  if (!filePath || !fs.existsSync(filePath)) {
+    misses?.add?.(key);
+    bumpMetric('chunkCachePersistentMisses', 1);
+    return null;
+  }
+  try {
+    const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    if (!raw || raw.schemaVersion !== CHUNK_CACHE_PERSISTENT_SCHEMA || raw.cacheKey !== key) {
+      misses?.add?.(key);
+      bumpMetric('chunkCachePersistentMisses', 1);
+      return null;
+    }
+    const chunks = Array.isArray(raw.chunks) ? raw.chunks : null;
+    if (!chunks || !chunks.length) {
+      misses?.add?.(key);
+      bumpMetric('chunkCachePersistentMisses', 1);
+      return null;
+    }
+    memo?.set?.(key, chunks);
+    misses?.delete?.(key);
+    bumpMetric('chunkCachePersistentHits', 1);
+    return cloneChunkList(chunks);
+  } catch {
+    misses?.add?.(key);
+    bumpMetric('chunkCachePersistentErrors', 1);
+    return null;
+  }
+};
+
+const writePersistentCachedChunks = (cacheRoot, key, chunks) => {
+  if (!cacheRoot || !key || !Array.isArray(chunks) || !chunks.length) return;
+  const filePath = resolvePersistentChunkCachePath(cacheRoot, key);
+  if (!filePath) return;
+  try {
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    const tempPath = `${filePath}.${process.pid}.tmp`;
+    const payload = {
+      schemaVersion: CHUNK_CACHE_PERSISTENT_SCHEMA,
+      cacheKey: key,
+      chunks: cloneChunkList(chunks)
+    };
+    fs.writeFileSync(tempPath, JSON.stringify(payload), 'utf8');
+    fs.renameSync(tempPath, filePath);
+    treeSitterState.persistentChunkCacheMemo?.set?.(key, payload.chunks);
+    treeSitterState.persistentChunkCacheMisses?.delete?.(key);
+    bumpMetric('chunkCachePersistentWrites', 1);
+  } catch {
+    bumpMetric('chunkCachePersistentErrors', 1);
+  }
+};
+
 const cloneChunkList = (chunks) => chunks.map((chunk) => ({
   ...chunk,
   ...(chunk?.meta ? { meta: { ...chunk.meta } } : {})
@@ -290,6 +383,22 @@ const setCachedChunks = (cache, key, chunks, maxEntries) => {
     cache.delete(oldest);
     bumpMetric('chunkCacheEvictions', 1);
   }
+};
+
+const loadCachedChunks = ({ cache, key, cacheRoot = null }) => {
+  const cached = getCachedChunks(cache, key);
+  if (cached) return cached;
+  const persistent = readPersistentCachedChunks(cacheRoot, key);
+  if (persistent) {
+    setCachedChunks(cache, key, persistent, treeSitterState.chunkCacheMaxEntries || DEFAULT_CHUNK_CACHE_MAX_ENTRIES);
+    return persistent;
+  }
+  return null;
+};
+
+const storeCachedChunks = ({ cache, key, chunks, maxEntries, cacheRoot = null }) => {
+  setCachedChunks(cache, key, chunks, maxEntries);
+  writePersistentCachedChunks(cacheRoot, key, chunks);
 };
 
 function countLines(text) {
@@ -691,8 +800,13 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
   };
   const cacheKey = resolveChunkCacheKey(options, resolvedId);
   const cacheRef = cacheKey ? ensureChunkCache(options) : null;
+  const persistentCacheRoot = cacheKey ? resolvePersistentChunkCacheRoot(options) : null;
   if (cacheKey && cacheRef) {
-    const cached = getCachedChunks(cacheRef.cache, cacheKey);
+    const cached = loadCachedChunks({
+      cache: cacheRef.cache,
+      key: cacheKey,
+      cacheRoot: persistentCacheRoot
+    });
     if (cached) {
       recordMetrics();
       return cached;
@@ -828,7 +942,13 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
     if (queryResult?.usedQuery) {
       if (Array.isArray(queryResult.chunks) && queryResult.chunks.length) {
         if (cacheKey && cacheRef) {
-          setCachedChunks(cacheRef.cache, cacheKey, queryResult.chunks, cacheRef.maxEntries);
+          storeCachedChunks({
+            cache: cacheRef.cache,
+            key: cacheKey,
+            chunks: queryResult.chunks,
+            maxEntries: cacheRef.maxEntries,
+            cacheRoot: persistentCacheRoot
+          });
         }
         recordMetrics();
         return queryResult.chunks;
@@ -911,7 +1031,13 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
     }
 
     if (cacheKey && cacheRef) {
-      setCachedChunks(cacheRef.cache, cacheKey, traversalResult.chunks, cacheRef.maxEntries);
+      storeCachedChunks({
+        cache: cacheRef.cache,
+        key: cacheKey,
+        chunks: traversalResult.chunks,
+        maxEntries: cacheRef.maxEntries,
+        cacheRoot: persistentCacheRoot
+      });
     }
     recordMetrics();
     return traversalResult.chunks;
@@ -951,8 +1077,13 @@ export async function buildTreeSitterChunksAsync({ text, languageId, ext, option
 
   const cacheKey = resolveChunkCacheKey(options, resolvedId);
   const cacheRef = cacheKey ? ensureChunkCache(options) : null;
+  const persistentCacheRoot = cacheKey ? resolvePersistentChunkCacheRoot(options) : null;
   if (cacheKey && cacheRef) {
-    const cached = getCachedChunks(cacheRef.cache, cacheKey);
+    const cached = loadCachedChunks({
+      cache: cacheRef.cache,
+      key: cacheKey,
+      cacheRoot: persistentCacheRoot
+    });
     if (cached) return cached;
   }
 
@@ -993,7 +1124,13 @@ export async function buildTreeSitterChunksAsync({ text, languageId, ext, option
     const result = await pool.run(payload, runOptions);
     if (Array.isArray(result) && result.length) {
       if (cacheKey && cacheRef) {
-        setCachedChunks(cacheRef.cache, cacheKey, result, cacheRef.maxEntries);
+        storeCachedChunks({
+          cache: cacheRef.cache,
+          key: cacheKey,
+          chunks: result,
+          maxEntries: cacheRef.maxEntries,
+          cacheRoot: persistentCacheRoot
+        });
       }
       return result;
     }

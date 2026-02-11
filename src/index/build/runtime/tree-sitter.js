@@ -5,6 +5,11 @@ import {
 } from './caps.js';
 
 const DEFAULT_DEFER_MISSING_MAX = 2;
+const normalizeOptionalString = (value) => {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+};
 const normalizeSchedulerTransport = (raw) => {
   if (typeof raw !== 'string') return 'disk';
   const value = raw.trim().toLowerCase();
@@ -58,6 +63,8 @@ export const resolveTreeSitterRuntime = (indexingConfig) => {
     && typeof treeSitterConfig.scheduler === 'object'
     ? treeSitterConfig.scheduler
     : {};
+  const treeSitterCachePersistent = treeSitterConfig.cachePersistent === true;
+  const treeSitterCachePersistentDir = normalizeOptionalString(treeSitterConfig.cachePersistentDir);
   const treeSitterBatchByLanguage = treeSitterConfig.batchByLanguage !== false;
   const treeSitterBatchEmbeddedLanguages = treeSitterConfig.batchEmbeddedLanguages !== false;
   const treeSitterLanguagePasses = treeSitterConfig.languagePasses !== false;
@@ -97,7 +104,9 @@ export const resolveTreeSitterRuntime = (indexingConfig) => {
     treeSitterScheduler: {
       transport: normalizeSchedulerTransport(treeSitterSchedulerConfig.transport),
       sharedCache: treeSitterSchedulerConfig.sharedCache === true
-    }
+    },
+    treeSitterCachePersistent,
+    treeSitterCachePersistentDir
   };
 };
 

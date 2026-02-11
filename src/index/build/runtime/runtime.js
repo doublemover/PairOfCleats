@@ -441,8 +441,17 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     treeSitterDeferMissing,
     treeSitterDeferMissingMax,
     treeSitterWorker,
-    treeSitterScheduler
+    treeSitterScheduler,
+    treeSitterCachePersistent,
+    treeSitterCachePersistentDir
   } = resolveTreeSitterRuntime(indexingConfig);
+  const resolvedTreeSitterCachePersistentDir = treeSitterCachePersistent
+    ? (treeSitterCachePersistentDir
+      ? (isAbsolutePathNative(treeSitterCachePersistentDir)
+        ? treeSitterCachePersistentDir
+        : path.resolve(root, treeSitterCachePersistentDir))
+      : path.join(repoCacheRoot, 'tree-sitter-chunk-cache'))
+    : null;
   logInit('tree-sitter config', treeSitterStart);
   const applyTreeSitterJsCaps = (caps, maxBytes) => {
     if (!caps || !Number.isFinite(maxBytes) || maxBytes <= 0) return false;
@@ -852,6 +861,8 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
       languagePasses: treeSitterLanguagePasses,
       deferMissing: treeSitterDeferMissing,
       deferMissingMax: treeSitterDeferMissingMax,
+      cachePersistent: treeSitterCachePersistent,
+      cachePersistentDir: resolvedTreeSitterCachePersistentDir,
       worker: treeSitterWorker,
       scheduler: treeSitterScheduler || { transport: 'disk', sharedCache: false }
     },

@@ -374,7 +374,7 @@ Implementation policy for Sweep 3:
 - Rollout: `postings.typed=true`; dual-build parity with current postings writer.
 - Target: 40%+ postings memory reduction.
 
-5. Area: Persistent tree-sitter chunk cache
+5. [x] Area: Persistent tree-sitter chunk cache
 - Files: `src/lang/tree-sitter/chunking.js`, `src/lang/tree-sitter/state.js`
 - Decision: Persist chunk outputs keyed by `{contentHash, grammarKey, optionsSignature}` with strict invalidation and determinism checks.
 - Rollout: `treeSitter.cachePersistent=true`; reuse only when signature + hash match.
