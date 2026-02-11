@@ -44,9 +44,10 @@ const buildPlannedSegmentsByContainer = (groups) => {
   return byContainer;
 };
 
-const parseIndexRows = (text, indexPath) => {
+const parseIndexRows = (text, indexPath, { allowSkipInvalid = false, onWarn = null } = {}) => {
   const rows = new Map();
   const lines = String(text || '').split(/\r?\n/);
+  let skipped = 0;
   for (let lineNumber = 0; lineNumber < lines.length; lineNumber += 1) {
     const raw = lines[lineNumber];
     const trimmed = raw.trim();
@@ -62,16 +63,30 @@ const parseIndexRows = (text, indexPath) => {
       );
       parseErr.code = 'ERR_TREE_SITTER_INDEX_PARSE';
       parseErr.cause = err;
-      throw parseErr;
+      if (!allowSkipInvalid) {
+        throw parseErr;
+      }
+      skipped += 1;
+      if (typeof onWarn === 'function') {
+        onWarn(`${parseErr.message}; skipping row.`);
+      }
+      continue;
     }
     const virtualPath = row?.virtualPath || null;
     if (!virtualPath) continue;
     rows.set(virtualPath, row);
   }
+  if (allowSkipInvalid && skipped > 0 && rows.size === 0) {
+    const err = new Error(
+      `[tree-sitter:schedule] index parse recovery skipped ${skipped} row(s) but recovered 0 rows from ${indexPath}`
+    );
+    err.code = 'ERR_TREE_SITTER_INDEX_PARSE';
+    throw err;
+  }
   return rows;
 };
 
-const readIndexRowsWithRetry = async ({ indexPath, abortSignal = null }) => {
+const readIndexRowsWithRetry = async ({ indexPath, abortSignal = null, onWarn = null }) => {
   let lastError = null;
   for (let attempt = 0; attempt < INDEX_LOAD_RETRY_ATTEMPTS; attempt += 1) {
     throwIfAborted(abortSignal);
@@ -81,6 +96,10 @@ const readIndexRowsWithRetry = async ({ indexPath, abortSignal = null }) => {
     } catch (err) {
       lastError = err;
       const retryable = err?.code === 'ENOENT' || err?.code === 'ERR_TREE_SITTER_INDEX_PARSE';
+      if (retryable && attempt >= INDEX_LOAD_RETRY_ATTEMPTS - 1) {
+        const text = await fs.readFile(indexPath, 'utf8');
+        return parseIndexRows(text, indexPath, { allowSkipInvalid: true, onWarn });
+      }
       if (!retryable || attempt >= INDEX_LOAD_RETRY_ATTEMPTS - 1) {
         throw err;
       }
@@ -90,13 +109,13 @@ const readIndexRowsWithRetry = async ({ indexPath, abortSignal = null }) => {
   throw lastError || new Error(`[tree-sitter:schedule] failed to load index rows: ${indexPath}`);
 };
 
-const loadIndexEntries = async ({ grammarKeys, paths, abortSignal = null }) => {
+const loadIndexEntries = async ({ grammarKeys, paths, abortSignal = null, onWarn = null }) => {
   throwIfAborted(abortSignal);
   const index = new Map();
   for (const grammarKey of grammarKeys || []) {
     throwIfAborted(abortSignal);
     const indexPath = paths.resultsIndexPathForGrammarKey(grammarKey);
-    const rows = await readIndexRowsWithRetry({ indexPath, abortSignal });
+    const rows = await readIndexRowsWithRetry({ indexPath, abortSignal, onWarn });
     for (const [virtualPath, row] of rows.entries()) {
       throwIfAborted(abortSignal);
       index.set(virtualPath, row);
@@ -166,7 +185,14 @@ export const runTreeSitterScheduler = async ({
   const index = await loadIndexEntries({
     grammarKeys,
     paths: planResult.paths,
-    abortSignal
+    abortSignal,
+    onWarn: (message) => {
+      if (typeof log === 'function') {
+        log(message);
+      } else {
+        console.warn(message);
+      }
+    }
   });
   const lookup = createTreeSitterSchedulerLookup({
     outDir,
