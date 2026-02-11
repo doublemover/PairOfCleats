@@ -33,7 +33,9 @@ const env = {
   PAIROFCLEATS_TEST_CONFIG: JSON.stringify({
     sqlite: {
       vectorExtension: {
-        annMode: 'extension'
+        annMode: 'extension',
+        enabled: true,
+        path: extensionPath
       }
     }
   })
