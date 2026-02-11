@@ -32,7 +32,8 @@ export const createEmbeddingsScheduler = ({ argv, rawArgv, userConfig, envConfig
   const scheduler = createBuildScheduler(schedulerConfig);
   scheduler.registerQueues?.(schedulerConfig.queues);
 
-  const schedulerEnabled = scheduler.enabled && !scheduler.lowResourceMode;
+  const schedulerExplicitlyEnabled = envConfig?.schedulerEnabled === true || argv?.scheduler === true;
+  const schedulerEnabled = scheduler.enabled && (!scheduler.lowResourceMode || schedulerExplicitlyEnabled);
   const scheduleCompute = (fn) => scheduleWithFallback(
     scheduler,
     SCHEDULER_QUEUE_NAMES.embeddingsCompute,
