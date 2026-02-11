@@ -43,7 +43,7 @@ export async function buildIndex(args = {}, context = {}) {
       incremental,
       'stub-embeddings': stubEmbeddings,
       sqlite: buildSqlite,
-      emitOutput: true
+      emitOutput: false
     });
   }
 
@@ -56,7 +56,7 @@ export async function buildIndex(args = {}, context = {}) {
     }
     await coreBuildSqliteIndex(repoPath, {
       incremental,
-      emitOutput: true
+      emitOutput: false
     });
   }
   if (progress) {
@@ -94,7 +94,7 @@ export async function buildSqliteIndex(args = {}, context = {}) {
     codeDir: args.codeDir,
     proseDir: args.proseDir,
     out: args.out,
-    emitOutput: true,
+    emitOutput: false,
     exitOnError: false
   });
   clearRepoCaches(repoPath);
