@@ -144,6 +144,11 @@ export async function writeIndexArtifacts(input) {
   const chunkMetaFormatConfig = typeof artifactConfig.chunkMetaFormat === 'string'
     ? artifactConfig.chunkMetaFormat.toLowerCase()
     : null;
+  const binaryColumnarEnabled = artifactConfig.binaryColumnar === true;
+  const chunkMetaBinaryColumnar = artifactConfig.chunkMetaBinaryColumnar === true
+    || binaryColumnarEnabled;
+  const tokenPostingsBinaryColumnar = artifactConfig.tokenPostingsBinaryColumnar === true
+    || binaryColumnarEnabled;
   const chunkMetaJsonlThreshold = Number.isFinite(Number(artifactConfig.chunkMetaJsonlThreshold))
     ? Math.max(0, Math.floor(Number(artifactConfig.chunkMetaJsonlThreshold)))
     : 200000;
@@ -467,6 +472,7 @@ export async function writeIndexArtifacts(input) {
     chunkMetaIterator,
     artifactMode,
     chunkMetaFormatConfig,
+    chunkMetaBinaryColumnar,
     chunkMetaJsonlThreshold,
     chunkMetaShardSize,
     maxJsonBytes: chunkMetaMaxBytes
@@ -481,6 +487,7 @@ export async function writeIndexArtifacts(input) {
     tokenPostingsFormatConfig,
     tokenPostingsShardSize,
     tokenPostingsShardThreshold,
+    tokenPostingsBinaryColumnar,
     postings,
     maxJsonBytes: tokenPostingsMaxBytes,
     maxJsonBytesSoft: tokenPostingsMaxBytesSoft,
@@ -1068,6 +1075,7 @@ export async function writeIndexArtifacts(input) {
     tokenPostingsFormat,
     tokenPostingsUseShards,
     tokenPostingsShardSize,
+    tokenPostingsBinaryColumnar,
     tokenPostingsCompression,
     enqueueJsonObject,
     enqueueWrite,

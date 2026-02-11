@@ -3,6 +3,7 @@ import path from 'node:path';
 import { log } from '../../../../shared/progress.js';
 import { MAX_JSON_BYTES } from '../../../../shared/artifact-io.js';
 import { encodeVarint64List } from '../../../../shared/artifact-io/varint.js';
+import { encodeBinaryRowFrames } from '../../../../shared/artifact-io/binary-columnar.js';
 import { parseHash64 } from '../../../../shared/token-id.js';
 import { ensureDiskSpace, formatBytes } from '../../../../shared/disk-space.js';
 import { createOrderingHasher, stableOrderWithComparator } from '../../../../shared/order.js';
@@ -436,6 +437,7 @@ export const resolveChunkMetaPlan = ({
   chunkMetaIterator,
   artifactMode,
   chunkMetaFormatConfig,
+  chunkMetaBinaryColumnar = false,
   chunkMetaJsonlThreshold,
   chunkMetaShardSize,
   maxJsonBytes = MAX_JSON_BYTES
@@ -489,6 +491,7 @@ export const resolveChunkMetaPlan = ({
   return {
     chunkMetaCount,
     chunkMetaFormat,
+    chunkMetaBinaryColumnar: chunkMetaBinaryColumnar === true,
     chunkMetaUseJsonl,
     chunkMetaUseColumnar,
     chunkMetaUseShards,
@@ -516,6 +519,7 @@ export const enqueueChunkMetaArtifacts = async ({
     chunkMetaUseJsonl,
     chunkMetaUseShards,
     chunkMetaUseColumnar,
+    chunkMetaBinaryColumnar,
     chunkMetaShardSize,
     chunkMetaCount,
     maxJsonBytes: plannedMaxJsonBytes
@@ -801,6 +805,10 @@ export const enqueueChunkMetaArtifacts = async ({
   const coldJsonlPath = path.join(outDir, coldJsonlName);
   const coldOffsetsPath = offsetsConfig ? `${coldJsonlPath}.${offsetsConfig.suffix}` : null;
   const columnarPath = path.join(outDir, 'chunk_meta.columnar.json');
+  const binaryDataPath = path.join(outDir, 'chunk_meta.binary-columnar.bin');
+  const binaryOffsetsPath = path.join(outDir, 'chunk_meta.binary-columnar.offsets.bin');
+  const binaryLengthsPath = path.join(outDir, 'chunk_meta.binary-columnar.lengths.varint');
+  const binaryMetaPath = path.join(outDir, 'chunk_meta.binary-columnar.meta.json');
   const removeJsonlVariants = async () => removeArtifacts(
     buildJsonlVariantPaths({ outDir, baseName: 'chunk_meta', includeOffsets: true })
   );
@@ -835,6 +843,12 @@ export const enqueueChunkMetaArtifacts = async ({
     if (!resolvedUseColumnar) {
       await removeArtifact(columnarPath);
     }
+  }
+  if (!chunkMetaBinaryColumnar) {
+    await removeArtifact(binaryDataPath);
+    await removeArtifact(binaryOffsetsPath);
+    await removeArtifact(binaryLengthsPath);
+    await removeArtifact(binaryMetaPath);
   }
 
   if (resolvedUseJsonl) {
@@ -1154,6 +1168,78 @@ export const enqueueChunkMetaArtifacts = async ({
     enqueueJsonArray('chunk_meta', chunkMetaIterator(), {
       piece: { type: 'chunks', name: 'chunk_meta', count: chunkMetaCount }
     });
+  }
+  if (chunkMetaBinaryColumnar) {
+    enqueueWrite(
+      formatArtifactLabel(binaryMetaPath),
+      async () => {
+        const fileTable = [];
+        const fileRefByPath = new Map();
+        const rows = [];
+        for (const entry of chunkMetaIterator(0, chunkMetaCount, false)) {
+          const hotEntry = projectHotEntry(entry);
+          if (!hotEntry || typeof hotEntry !== 'object') continue;
+          const next = { ...hotEntry };
+          const file = typeof hotEntry.file === 'string' ? hotEntry.file : null;
+          if (file) {
+            let fileRef = fileRefByPath.get(file);
+            if (!Number.isInteger(fileRef)) {
+              fileRef = fileTable.length;
+              fileRefByPath.set(file, fileRef);
+              fileTable.push(file);
+            }
+            next.fileRef = fileRef;
+            delete next.file;
+          }
+          rows.push(next);
+        }
+        if (outOfOrder) rows.sort(compareChunkMetaIdOnly);
+        const rowPayloads = rows.map((row) => Buffer.from(JSON.stringify(row), 'utf8'));
+        const frames = encodeBinaryRowFrames(rowPayloads);
+        await fs.writeFile(binaryDataPath, frames.dataBuffer);
+        await fs.writeFile(binaryOffsetsPath, frames.offsetsBuffer);
+        await fs.writeFile(binaryLengthsPath, frames.lengthsBuffer);
+        await writeJsonObjectFile(binaryMetaPath, {
+          fields: {
+            format: 'binary-columnar-v1',
+            rowEncoding: 'json-rows',
+            count: frames.count,
+            data: path.posix.basename(binaryDataPath),
+            offsets: path.posix.basename(binaryOffsetsPath),
+            lengths: path.posix.basename(binaryLengthsPath),
+            orderingHash,
+            orderingCount
+          },
+          arrays: {
+            fileTable
+          },
+          atomic: true
+        });
+      }
+    );
+    addPieceFile({
+      type: 'chunks',
+      name: 'chunk_meta_binary_columnar',
+      format: 'binary-columnar',
+      count: chunkMetaCount
+    }, binaryDataPath);
+    addPieceFile({
+      type: 'chunks',
+      name: 'chunk_meta_binary_columnar_offsets',
+      format: 'binary',
+      count: chunkMetaCount
+    }, binaryOffsetsPath);
+    addPieceFile({
+      type: 'chunks',
+      name: 'chunk_meta_binary_columnar_lengths',
+      format: 'varint',
+      count: chunkMetaCount
+    }, binaryLengthsPath);
+    addPieceFile({
+      type: 'chunks',
+      name: 'chunk_meta_binary_columnar_meta',
+      format: 'json'
+    }, binaryMetaPath);
   }
   return { orderingHash, orderingCount };
 };

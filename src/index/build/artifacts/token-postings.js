@@ -4,6 +4,8 @@ import { writeJsonObjectFile } from '../../../shared/json-stream.js';
 import { TOKEN_ID_META } from '../../../shared/token-id.js';
 import { createTempPath, replaceFile } from '../../../shared/json-stream/atomic.js';
 import { DEFAULT_PACKED_BLOCK_SIZE, encodePackedOffsets, packTfPostings } from '../../../shared/packed-postings.js';
+import { encodeVarint64List } from '../../../shared/artifact-io/varint.js';
+import { encodeBinaryRowFrames } from '../../../shared/artifact-io/binary-columnar.js';
 import { estimatePostingsBytes, formatBytes } from './helpers.js';
 
 const normalizeTokenPostingsFormat = (value, artifactMode) => {
@@ -42,6 +44,7 @@ export function resolveTokenPostingsPlan({
   tokenPostingsFormatConfig,
   tokenPostingsShardSize,
   tokenPostingsShardThreshold,
+  tokenPostingsBinaryColumnar = false,
   postings,
   maxJsonBytes,
   maxJsonBytesSoft,
@@ -86,9 +89,29 @@ export function resolveTokenPostingsPlan({
     tokenPostingsFormat,
     tokenPostingsUseShards,
     tokenPostingsShardSize: resolvedShardSize,
+    tokenPostingsBinaryColumnar: tokenPostingsBinaryColumnar === true,
     tokenPostingsEstimate
   };
 }
+
+const encodePostingPairs = (posting) => {
+  const list = Array.isArray(posting) ? posting : [];
+  if (!list.length) return Buffer.alloc(0);
+  const values = [];
+  let prevDoc = 0;
+  for (const entry of list) {
+    if (!Array.isArray(entry) || entry.length < 2) continue;
+    const docIdRaw = Number(entry[0]);
+    const tfRaw = Number(entry[1]);
+    if (!Number.isFinite(docIdRaw) || !Number.isFinite(tfRaw)) continue;
+    const docId = Math.max(0, Math.floor(docIdRaw));
+    const tf = Math.max(0, Math.floor(tfRaw));
+    const delta = Math.max(0, docId - prevDoc);
+    values.push(delta, tf);
+    prevDoc = docId;
+  }
+  return encodeVarint64List(values);
+};
 
 export async function enqueueTokenPostingsArtifacts({
   outDir,
@@ -97,6 +120,7 @@ export async function enqueueTokenPostingsArtifacts({
   tokenPostingsFormat,
   tokenPostingsUseShards,
   tokenPostingsShardSize,
+  tokenPostingsBinaryColumnar = false,
   tokenPostingsCompression,
   enqueueJsonObject,
   enqueueWrite,
@@ -158,9 +182,7 @@ export async function enqueueTokenPostingsArtifacts({
 
   if (tokenPostingsFormat === 'packed') {
     await writePackedTokenPostings();
-    return;
-  }
-  if (tokenPostingsUseShards) {
+  } else if (tokenPostingsUseShards) {
     const shardsDir = path.join(outDir, 'token_postings.shards');
     const parts = [];
     const shardPlan = [];
@@ -251,5 +273,80 @@ export async function enqueueTokenPostingsArtifacts({
     }, {
       piece: { type: 'postings', name: 'token_postings', count: postings.tokenVocab.length }
     });
+  }
+
+  const binaryDataPath = path.join(outDir, 'token_postings.binary-columnar.bin');
+  const binaryOffsetsPath = path.join(outDir, 'token_postings.binary-columnar.offsets.bin');
+  const binaryLengthsPath = path.join(outDir, 'token_postings.binary-columnar.lengths.varint');
+  const binaryMetaPath = path.join(outDir, 'token_postings.binary-columnar.meta.json');
+  if (tokenPostingsBinaryColumnar) {
+    enqueueWrite(
+      formatArtifactLabel(binaryMetaPath),
+      async () => {
+        const rowPayloads = new Array(postings.tokenVocab.length);
+        for (let i = 0; i < postings.tokenVocab.length; i += 1) {
+          rowPayloads[i] = encodePostingPairs(postings.tokenPostingsList[i]);
+        }
+        const frames = encodeBinaryRowFrames(rowPayloads);
+        const dataTemp = createTempPath(binaryDataPath);
+        const offsetsTemp = createTempPath(binaryOffsetsPath);
+        const lengthsTemp = createTempPath(binaryLengthsPath);
+        await fs.writeFile(dataTemp, frames.dataBuffer);
+        await fs.writeFile(offsetsTemp, frames.offsetsBuffer);
+        await fs.writeFile(lengthsTemp, frames.lengthsBuffer);
+        await replaceFile(dataTemp, binaryDataPath);
+        await replaceFile(offsetsTemp, binaryOffsetsPath);
+        await replaceFile(lengthsTemp, binaryLengthsPath);
+        await writeJsonObjectFile(binaryMetaPath, {
+          fields: {
+            format: 'binary-columnar-v1',
+            rowEncoding: 'doc-delta-tf-varint',
+            count: frames.count,
+            avgDocLen: postings.avgDocLen,
+            totalDocs: state.docLengths.length,
+            data: path.posix.basename(binaryDataPath),
+            offsets: path.posix.basename(binaryOffsetsPath),
+            lengths: path.posix.basename(binaryLengthsPath)
+          },
+          arrays: {
+            vocab: postings.tokenVocab,
+            ...(vocabIds ? { vocabIds } : {}),
+            docLengths: state.docLengths
+          },
+          atomic: true
+        });
+      }
+    );
+    addPieceFile({
+      type: 'postings',
+      name: 'token_postings_binary_columnar',
+      format: 'binary-columnar',
+      count: postings.tokenVocab.length
+    }, binaryDataPath);
+    addPieceFile({
+      type: 'postings',
+      name: 'token_postings_binary_columnar_offsets',
+      format: 'binary'
+    }, binaryOffsetsPath);
+    addPieceFile({
+      type: 'postings',
+      name: 'token_postings_binary_columnar_lengths',
+      format: 'varint'
+    }, binaryLengthsPath);
+    addPieceFile({
+      type: 'postings',
+      name: 'token_postings_binary_columnar_meta',
+      format: 'json'
+    }, binaryMetaPath);
+  } else {
+    enqueueWrite(
+      formatArtifactLabel(binaryMetaPath),
+      async () => {
+        await fs.rm(binaryDataPath, { force: true });
+        await fs.rm(binaryOffsetsPath, { force: true });
+        await fs.rm(binaryLengthsPath, { force: true });
+        await fs.rm(binaryMetaPath, { force: true });
+      }
+    );
   }
 }

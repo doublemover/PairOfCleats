@@ -350,7 +350,7 @@ Implementation policy for Sweep 3:
 - Every binary/storage contract change is dual-read before dual-write, then default-flip.
 - Every step must include deterministic parity tests and benchmark deltas.
 
-1. Area: Binary columnar core artifacts
+1. [x] Area: Binary columnar core artifacts
 - Files: `src/index/build/artifacts/writers/chunk-meta.js`, `src/index/build/postings.js`, `src/shared/artifact-io/loaders.js`, `src/storage/sqlite/build/from-artifacts.js`
 - Decision: Add `binary-columnar` artifact mode for `chunk_meta` and postings with varint lengths, offsets, and string tables; keep packed postings as baseline.
 - Rollout: `artifacts.binaryColumnar=true`; dual-write with ordering hash/checksum parity; reader preference flipped only after parity soak.
