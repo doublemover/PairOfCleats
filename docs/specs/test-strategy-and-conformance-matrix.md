@@ -389,6 +389,7 @@ Compatibility matrix policy:
 - Non-strict compatibility scenarios are warning-level by default but MUST still emit explicit diagnostics and matrix reports.
 - Compatibility fixture IDs SHOULD follow `<language-or-framework>::<family>::<case-id>`.
 - Embedded-language and generated-provenance fixture families MUST be included for framework and transpiled/macro-heavy profiles.
+- Report outputs for compatibility and conformance lanes MUST satisfy `docs/specs/usr-audit-and-reporting-contract.md`.
 
 ---
 
