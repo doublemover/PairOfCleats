@@ -555,7 +555,9 @@ export function createSearchPipeline(context) {
             } else if (state.preflight === false) {
               // Reuse failed preflight only for the active cooldown window.
               // Once cooldown expires, force a fresh preflight probe.
-              const cooldownMs = resolveProviderBackoffMs(state.failures || 1);
+              // Keep probe retry cadence bounded so providers can recover
+              // quickly even if failure counters are elevated.
+              const cooldownMs = PROVIDER_RETRY_BASE_MS;
               const checkedAt = Number.isFinite(Number(state.preflightCheckedAt))
                 ? Number(state.preflightCheckedAt)
                 : 0;
