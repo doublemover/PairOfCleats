@@ -82,10 +82,15 @@ export const createTreeSitterSchedulerLookup = ({
       const metaPath = paths.resultsMetaPathForGrammarKey(grammarKey);
       if (!metaPath || !fs.existsSync(metaPath)) return null;
       const metaByRef = new Map();
-      for await (const row of readJsonlRows(metaPath)) {
-        const ref = Number(row?.segmentRef);
-        if (!Number.isFinite(ref) || ref < 0) continue;
-        metaByRef.set(ref, row);
+      try {
+        for await (const row of readJsonlRows(metaPath)) {
+          const ref = Number(row?.segmentRef);
+          if (!Number.isFinite(ref) || ref < 0) continue;
+          metaByRef.set(ref, row);
+        }
+      } catch (err) {
+        if (err?.code === 'ENOENT') return null;
+        throw err;
       }
       return metaByRef;
     })();
@@ -136,10 +141,17 @@ export const createTreeSitterSchedulerLookup = ({
       const pageIndexPath = paths.resultsPageIndexPathForGrammarKey(grammarKey);
       if (!pageIndexPath || !fs.existsSync(pageIndexPath)) return null;
       const map = new Map();
-      for await (const row of readJsonlRows(pageIndexPath)) {
-        const pageId = Number(row?.pageId);
-        if (!Number.isFinite(pageId) || pageId < 0) continue;
-        map.set(pageId, row);
+      try {
+        for await (const row of readJsonlRows(pageIndexPath)) {
+          const pageId = Number(row?.pageId);
+          if (!Number.isFinite(pageId) || pageId < 0) continue;
+          map.set(pageId, row);
+        }
+      } catch (err) {
+        // Atomic swap windows can briefly leave no page-index file. Fall back to
+        // per-row embedded page offsets instead of failing the whole build.
+        if (err?.code === 'ENOENT') return null;
+        throw err;
       }
       return map;
     })();
@@ -252,6 +264,7 @@ export const createTreeSitterSchedulerLookup = ({
       const pageIndex = await loadPageIndex(grammarKey);
       const reader = getReaderForManifest(manifestPath, 'binary-v1');
       const byPage = new Map();
+      const fallbackPageMetaByPage = new Map();
       for (const item of list) {
         const pageId = Number(item?.entry?.page);
         const rowIndex = Number(item?.entry?.row);
@@ -260,12 +273,23 @@ export const createTreeSitterSchedulerLookup = ({
         }
         if (!byPage.has(pageId)) byPage.set(pageId, []);
         byPage.get(pageId).push({ ...item, rowIndex });
+        const pageOffset = Number(item?.entry?.pageOffset);
+        const pageBytes = Number(item?.entry?.pageBytes);
+        if (Number.isFinite(pageOffset) && pageOffset >= 0 && Number.isFinite(pageBytes) && pageBytes > 0) {
+          if (!fallbackPageMetaByPage.has(pageId)) {
+            fallbackPageMetaByPage.set(pageId, {
+              offset: pageOffset,
+              bytes: pageBytes,
+              checksum: typeof item?.entry?.pageChecksum === 'string' ? item.entry.pageChecksum : null
+            });
+          }
+        }
       }
       const pageIds = Array.from(byPage.keys()).sort((a, b) => a - b);
       const pageRequests = [];
       const requestedPages = [];
       for (const pageId of pageIds) {
-        const pageMeta = pageIndex?.get?.(pageId) || null;
+        const pageMeta = pageIndex?.get?.(pageId) || fallbackPageMetaByPage.get(pageId) || null;
         if (!pageMeta) continue;
         pageRequests.push({
           offset: pageMeta.offset,

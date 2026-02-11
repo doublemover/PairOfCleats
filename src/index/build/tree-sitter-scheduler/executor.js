@@ -134,6 +134,11 @@ export const executeTreeSitterSchedulerPlan = async ({
       : null;
     const pageIndexStream = pageIndexRef?.stream || null;
     const pageIndexDone = pageIndexRef?.done || null;
+    // Attach handlers early so stream teardown rejections are always observed.
+    void resultsDone.catch(() => {});
+    void indexDone.catch(() => {});
+    void metaDone.catch(() => {});
+    if (pageIndexDone) void pageIndexDone.catch(() => {});
 
     let offset = 0;
     let wrote = 0;
@@ -206,7 +211,10 @@ export const executeTreeSitterSchedulerPlan = async ({
           format: 'page-v1',
           page: pageId,
           row: i,
-          checksum: rowMeta.checksum
+          checksum: rowMeta.checksum,
+          pageOffset: offset,
+          pageBytes,
+          pageChecksum
         };
         await writeChunk(indexStream, stringifyJsonValue(idxEntry));
         await writeChunk(indexStream, '\n');
