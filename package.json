@@ -91,7 +91,7 @@
     "aho-corasick": "^0.1.3",
     "ajv": "^8.17.1",
     "apache-arrow": "^21.1.0",
-    "better-sqlite3": "12.5.0",
+    "better-sqlite3": "12.6.2",
     "chardet": "^2.1.1",
     "chokidar": "^5.0.0",
     "cjs-module-lexer": "^2.2.0",
