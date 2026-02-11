@@ -2,17 +2,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { getTriageContext, run, runJson } from '../../helpers/triage.js';
-import { getRepoCacheRoot, loadUserConfig } from '../../../tools/shared/dict-utils.js';
-
-process.env.PAIROFCLEATS_TRACE_ARTIFACT_IO = '1';
+import { getCurrentBuildInfo, getRepoCacheRoot, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 
 const { root, repoRoot, triageFixtureRoot, env, writeTestLog } = await getTriageContext({
   name: 'triage-records-index'
 });
-const testEnv = {
-  ...env,
-  PAIROFCLEATS_TRACE_ARTIFACT_IO: '1'
-};
+const testEnv = { ...env };
 const userConfig = loadUserConfig(repoRoot);
 const cacheAwareConfig = {
   ...userConfig,
@@ -22,6 +17,14 @@ const cacheAwareConfig = {
   }
 };
 const resolveBuildRoot = (mode) => {
+  const buildInfo = getCurrentBuildInfo(repoRoot, cacheAwareConfig, { mode });
+  const activeRoot = buildInfo?.activeRoot || buildInfo?.buildRoot || null;
+  if (activeRoot && fs.existsSync(activeRoot)) {
+    return {
+      buildId: buildInfo?.buildId || path.basename(activeRoot),
+      buildRoot: activeRoot
+    };
+  }
   const repoCacheRoot = getRepoCacheRoot(repoRoot, cacheAwareConfig);
   const buildsRoot = path.join(repoCacheRoot, 'builds');
   const currentPath = path.join(buildsRoot, 'current.json');

@@ -85,6 +85,44 @@ export function getBuildsRoot(repoRoot, userConfig = null) {
   return path.join(getRepoCacheRoot(repoRoot, userConfig), 'builds');
 }
 
+const DEFAULT_BUILD_MODES = ['code', 'prose', 'extracted-prose', 'records'];
+
+const hasModeIndexDir = (rootPath, mode = null) => {
+  if (!rootPath || !fs.existsSync(rootPath)) return false;
+  if (typeof mode === 'string' && mode.trim()) {
+    return fs.existsSync(path.join(rootPath, `index-${mode.trim()}`));
+  }
+  for (const candidateMode of DEFAULT_BUILD_MODES) {
+    if (fs.existsSync(path.join(rootPath, `index-${candidateMode}`))) {
+      return true;
+    }
+  }
+  return false;
+};
+
+const findLatestBuildRootWithIndexes = (buildsRoot, mode = null) => {
+  if (!buildsRoot || !fs.existsSync(buildsRoot)) return null;
+  let entries = [];
+  try {
+    entries = fs.readdirSync(buildsRoot, { withFileTypes: true });
+  } catch {
+    return null;
+  }
+  const candidates = [];
+  for (const entry of entries) {
+    if (!entry?.isDirectory?.()) continue;
+    const candidateRoot = path.join(buildsRoot, entry.name);
+    if (!hasModeIndexDir(candidateRoot, mode)) continue;
+    let mtimeMs = 0;
+    try {
+      mtimeMs = Number(fs.statSync(candidateRoot).mtimeMs) || 0;
+    } catch {}
+    candidates.push({ root: candidateRoot, mtimeMs });
+  }
+  candidates.sort((a, b) => b.mtimeMs - a.mtimeMs);
+  return candidates[0]?.root || null;
+};
+
 /**
  * Resolve current build metadata for a repo, if present.
  * @param {string} repoRoot
@@ -166,6 +204,18 @@ export function getCurrentBuildInfo(repoRoot, userConfig = null, options = {}) {
       if (fs.existsSync(buildIdRoot)) {
         activeRoot = buildIdRoot;
       }
+    }
+    if (activeRoot && !hasModeIndexDir(activeRoot, preferredMode)) {
+      const buildIdRoot = buildId ? path.join(buildsRoot, buildId) : null;
+      if (buildIdRoot && hasModeIndexDir(buildIdRoot, preferredMode)) {
+        activeRoot = buildIdRoot;
+      } else {
+        const fallbackRoot = findLatestBuildRootWithIndexes(buildsRoot, preferredMode);
+        if (fallbackRoot) activeRoot = fallbackRoot;
+      }
+    }
+    if (buildRoot && !hasModeIndexDir(buildRoot, preferredMode) && hasModeIndexDir(activeRoot, preferredMode)) {
+      buildRoot = activeRoot;
     }
     const resolvedBuildId = buildId || (activeRoot ? path.basename(activeRoot) : null);
     if (!resolvedBuildId || !activeRoot || !fs.existsSync(activeRoot)) return null;
@@ -262,6 +312,15 @@ export function resolveIndexRoot(repoRoot, userConfig = null, options = {}) {
         }
       }
       if (!resolved) resolved = ensureExists(buildRoot);
+      if (resolved && !hasModeIndexDir(resolved, preferredMode)) {
+        const buildIdRoot = buildId ? path.join(buildsRoot, buildId) : null;
+        if (buildIdRoot && hasModeIndexDir(buildIdRoot, preferredMode)) {
+          resolved = buildIdRoot;
+        } else {
+          const fallbackRoot = findLatestBuildRootWithIndexes(buildsRoot, preferredMode);
+          if (fallbackRoot) resolved = fallbackRoot;
+        }
+      }
       if (resolved) return resolved;
     } catch {}
   }

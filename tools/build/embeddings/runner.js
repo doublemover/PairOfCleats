@@ -357,6 +357,29 @@ export async function runBuildEmbeddingsWithConfig(config) {
     }
     return false;
   };
+  const findLatestModeRoot = () => {
+    const buildsRoot = path.join(repoCacheRootResolved, 'builds');
+    if (!fsSync.existsSync(buildsRoot)) return null;
+    let entries = [];
+    try {
+      entries = fsSync.readdirSync(buildsRoot, { withFileTypes: true });
+    } catch {
+      return null;
+    }
+    const candidates = [];
+    for (const entry of entries) {
+      if (!entry?.isDirectory?.()) continue;
+      const candidateRoot = path.join(buildsRoot, entry.name);
+      if (!hasModeIndexDirs(candidateRoot)) continue;
+      let mtimeMs = 0;
+      try {
+        mtimeMs = Number(fsSync.statSync(candidateRoot).mtimeMs) || 0;
+      } catch {}
+      candidates.push({ root: candidateRoot, mtimeMs });
+    }
+    candidates.sort((a, b) => b.mtimeMs - a.mtimeMs);
+    return candidates[0]?.root || null;
+  };
   if (activeIndexRoot) {
     const activeRootKey = normalizePath(activeIndexRoot);
     const underRepoCache = activeRootKey
@@ -375,6 +398,13 @@ export async function runBuildEmbeddingsWithConfig(config) {
         activeIndexRoot = promotedRoot;
         log(`[embeddings] using active build root from current.json: ${activeIndexRoot}`);
       }
+    }
+  }
+  if (activeIndexRoot && !hasModeIndexDirs(activeIndexRoot)) {
+    const fallbackRoot = findLatestModeRoot();
+    if (fallbackRoot && normalizePath(fallbackRoot) !== normalizePath(activeIndexRoot)) {
+      activeIndexRoot = fallbackRoot;
+      log(`[embeddings] index root lacked mode artifacts; using latest build root: ${activeIndexRoot}`);
     }
   }
   const metricsDir = getMetricsDir(root, userConfig);
