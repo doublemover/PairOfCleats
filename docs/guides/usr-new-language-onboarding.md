@@ -1,61 +1,44 @@
 # USR New Language Onboarding Guide
 
-Last updated: 2026-02-11T04:25:00Z
+Last updated: 2026-02-11T07:25:00Z
 
 ## Purpose
 
-This guide defines the mandatory process for introducing a new language into USR coverage with deterministic, auditable behavior.
+Define mandatory steps for adding a registry language with deterministic, testable USR behavior.
 
-## Prerequisites
+## Preconditions
 
-- language is added to `src/index/language-registry/registry-data.js`
-- ownership is defined in `docs/specs/usr-ownership-and-raci-contract.md`
-- rollout plan is aligned to `docs/specs/usr-rollout-and-migration-contract.md`
+- language added to `src/index/language-registry/registry-data.js`
+- owner assigned per `docs/specs/usr-core-governance-change.md`
+- rollout plan defined per `docs/specs/usr-core-rollout-release-migration.md`
 
 ## Required specification updates
 
-1. add language contract:
-- `docs/specs/usr/languages/<language-id>.md`
-
-2. update catalog and mapping contracts:
-- `docs/specs/usr-language-profile-catalog.md`
-- `docs/specs/usr-normalization-mapping-contract.md`
-- `docs/specs/usr-resolution-and-linking-contract.md`
-- `docs/specs/usr-language-risk-contract.md`
-- any relevant type/module/concurrency/error contracts
-
-3. update roadmap:
-- `TES_LAYN_ROADMAP.md` language batch tasks
-- Appendix E conformance expectations
-- Appendix H traceability if new contract files were introduced
-
-## Required matrix updates
-
+1. Catalog updates
+- `docs/specs/usr-core-language-framework-catalog.md`
 - `tests/lang/matrix/usr-language-profiles.json`
-- `tests/lang/matrix/usr-language-version-policy.json`
-- `tests/lang/matrix/usr-language-embedding-policy.json`
 - `tests/lang/matrix/usr-capability-matrix.json`
-- `tests/lang/matrix/usr-conformance-levels.json`
-- additional domain matrices as required by language profile capabilities
 
-## Required fixture families
+2. Semantics updates
+- `docs/specs/usr-core-normalization-linking-identity.md`
+- raw-kind mapping, resolution ambiguity policy, identity stability constraints
 
-- parser normalization fixtures
-- symbol and identity fixtures
-- resolution and import/reference fixtures
-- risk fixtures (if C3 applies)
-- framework overlay fixtures (if C4 applies)
-- generated/embedding bridge fixtures where applicable
+3. Security/risk updates
+- `docs/specs/usr-core-security-risk-compliance.md`
+- risk source/sink/sanitizer coverage (if applicable)
+
+4. Test/conformance updates
+- `docs/specs/usr-core-quality-conformance-testing.md`
+- required fixture families, C-level targets, expected diagnostics
+
+5. Roadmap updates
+- `TES_LAYN_ROADMAP.md` language batch and gate sections
+- `docs/specs/usr-consolidation-coverage-matrix.md` if new normative scope is introduced
 
 ## Promotion gates
 
-- strict schema and invariant validation green
+- schema and invariant checks green
 - required conformance levels green
-- blocking quality/security/performance gates green
-- readiness scorecard updated with evidence links
-
-## Rollout expectations
-
-- start with shadow and dual-write mode where required
-- measure parity against full-build baseline
-- cut over only when blocking gates are green and no expired waivers exist
+- compatibility matrix scenarios green for impacted surfaces
+- blocking security/performance/quality gates green
+- release-readiness scorecard evidence updated

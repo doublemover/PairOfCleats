@@ -1,62 +1,43 @@
 # USR Contract Enforcement Guide
 
-Last updated: 2026-02-11T04:25:00Z
+Last updated: 2026-02-11T07:25:00Z
 
 ## Purpose
 
-This guide defines how CI and local validation enforce USR contract consistency across:
+Define CI/local enforcement for the consolidated USR contract model.
 
-- umbrella and decomposed specs
-- machine-readable matrix artifacts
-- roadmap traceability references
-- required evidence outputs
+## Required scope checks
 
-## Enforcement layers
+1. Contract set integrity
+- `docs/specs/unified-syntax-representation.md`
+- `docs/specs/usr/README.md`
+- all `docs/specs/usr-core-*.md`
+- `docs/specs/usr-consolidation-coverage-matrix.md`
 
-1. Reference drift checks
-- every `docs/specs/usr-*.md` file must be represented in:
-  - `docs/specs/usr/README.md`
-  - `docs/specs/unified-syntax-representation.md`
-  - `TES_LAYN_ROADMAP.md` Appendix H
+2. Matrix/schema integrity
+- required `tests/lang/matrix/usr-*.json` files exist and validate
+- required `docs/schemas/usr/*.json` files exist for blocking evidence artifacts
+- cross-registry invariants are enforced
 
-2. Matrix reference checks
-- every `tests/lang/matrix/usr-*.json` file must be referenced in:
-  - `docs/specs/usr-registry-schema-contract.md`
-  - `docs/specs/unified-syntax-representation.md`
-  - `TES_LAYN_ROADMAP.md` Phase 1 matrix inventory
+3. Roadmap/spec alignment
+- `TES_LAYN_ROADMAP.md` contract references resolve
+- roadmap phase gates reference current core contracts and evidence outputs
 
-3. Invariant checks
-- schema version consistency
-- deterministic ordering and canonical serialization
-- cross-registry foreign key invariants
-- strict enum/range validation
+## CI lanes
 
-4. Evidence checks
-- required reports from active blocking contracts must exist and be linked in scorecards
-- stale evidence must fail gating when TTL is exceeded
+- `ci-lite`: reference drift and schema shape checks
+- `ci`: blocking validators, conformance checks, and gate evaluation
+- `ci-long`: expanded compatibility matrix, drill checks, and stress/failure scenarios
 
-## CI policy
+## Failure protocol
 
-- `ci-lite`:
-  - reference drift checks
-  - schema shape checks
-- `ci`:
-  - strict matrix validators
-  - blocking quality/security/waiver gates
-- `ci-long`:
-  - expanded backcompat matrix
-  - drill, failure-injection, and long-running coverage checks
+1. classify as blocking or advisory
+2. attach failing contract IDs and artifact IDs
+3. assign owner and due date
+4. require waiver metadata for advisory carry-forward
 
-## Failure handling protocol
+## PR requirements
 
-1. classify the failure as hard-block or advisory
-2. attach failing artifact IDs and contract IDs
-3. assign owner and remediation ETA
-4. require waiver for advisory carry-forward beyond one release window
-
-## Required links in PRs
-
-- contract files modified
-- matrix files modified
-- validation command output summary
-- updated roadmap appendices affected by contract changes
+- list modified contracts and matrix/schema artifacts
+- include validation outputs and failed/passed gate summary
+- update roadmap and consolidation matrix when contract ownership changes

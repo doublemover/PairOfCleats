@@ -1,7 +1,7 @@
 # Spec -- Unified Syntax Representation (USR)
 
-Status: Draft v1.5
-Last updated: 2026-02-11T05:20:00Z
+Status: Draft v1.6
+Last updated: 2026-02-11T06:35:00Z
 
 Applies to: PairOfCleats indexing pipeline, language registry, framework segmentation/extraction, graph/risk/query surfaces.
 
@@ -46,13 +46,13 @@ USR introduces a canonical in-memory and persisted representation model that can
 USR is decomposed into focused contracts under:
 
 - `docs/specs/usr/README.md`
-- `docs/specs/usr-*.md`
-- `docs/specs/usr/languages/*.md`
+- `docs/specs/usr-core-*.md`
+- `docs/specs/usr-consolidation-coverage-matrix.md`
 
 Precedence:
 
 1. this umbrella USR spec
-2. decomposed contracts and per-language contracts
+2. consolidated core contracts and machine-readable matrices
 3. implementation/roadmap task documents
 
 If decomposed contracts diverge from umbrella requirements, the umbrella spec is authoritative and divergence is a release-blocking contract drift issue.
@@ -686,8 +686,8 @@ Every registry language ID MUST have a `USRLanguageProfile`.
 
 Normative decomposition:
 
-- `docs/specs/usr-language-profile-catalog.md`
-- `docs/specs/usr/languages/README.md`
+- `docs/specs/usr-core-language-framework-catalog.md`
+- `tests/lang/matrix/usr-language-profiles.json`
 
 ```ts
 type USRLanguageProfile = {
@@ -746,7 +746,7 @@ Framework profiles are overlays on top of language profiles. Each profile define
 
 Normative decomposition:
 
-- `docs/specs/usr-framework-profile-catalog.md`
+- `docs/specs/usr-core-language-framework-catalog.md`
 
 ### 10.1 React profile
 
@@ -924,7 +924,7 @@ Additional constraints:
 
 Normalization mapping decomposition:
 
-- `docs/specs/usr-normalization-mapping-contract.md`
+- `docs/specs/usr-core-normalization-linking-identity.md`
 
 USR pipeline stages MUST execute in deterministic order.
 
@@ -1011,7 +1011,7 @@ Any failure after step 1 MUST preserve segment outputs and emit degradation diag
 
 Resolution and linking decomposition:
 
-- `docs/specs/usr-resolution-and-linking-contract.md`
+- `docs/specs/usr-core-normalization-linking-identity.md`
 
 ### 12.1 Required diagnostic codes
 
@@ -1148,7 +1148,7 @@ USR is additive and maps to current surfaces.
 
 Conformance/fixture decomposition:
 
-- `docs/specs/usr-conformance-and-fixture-contract.md`
+- `docs/specs/usr-core-quality-conformance-testing.md`
 
 USR conformance has five levels.
 
@@ -1276,8 +1276,8 @@ Required behavior:
 
 Normative decomposition:
 
-- `docs/specs/usr-security-and-data-governance-contract.md`
-- `docs/specs/usr-runtime-config-contract.md`
+- `docs/specs/usr-core-security-risk-compliance.md`
+- `docs/specs/usr-core-normalization-linking-identity.md`
 
 ## 19. Versioning and Compatibility
 
@@ -1346,14 +1346,20 @@ Before declaring full support complete, all items below MUST be true.
 - `docs/specs/identity-and-symbol-contracts.md`
 - `docs/specs/tooling-vfs-and-segment-routing.md`
 - `docs/specs/usr/README.md`
-- `docs/specs/usr-*.md`
-- `docs/specs/usr/languages/*.md`
-- `docs/specs/usr/frameworks/*.md`
-- `docs/specs/usr-implementation-playbook.md`
-- `docs/specs/usr-evidence-catalog.md`
-- `docs/specs/usr-schema-artifact-catalog.md`
-- `docs/guides/usr-*.md`
-- `docs/testing/usr-*.md`
+- `docs/specs/usr-core-governance-change.md`
+- `docs/specs/usr-core-artifact-schema-catalog.md`
+- `docs/specs/usr-core-language-framework-catalog.md`
+- `docs/specs/usr-core-normalization-linking-identity.md`
+- `docs/specs/usr-core-pipeline-incremental-transforms.md`
+- `docs/specs/usr-core-quality-conformance-testing.md`
+- `docs/specs/usr-core-security-risk-compliance.md`
+- `docs/specs/usr-core-observability-performance-ops.md`
+- `docs/specs/usr-core-rollout-release-migration.md`
+- `docs/specs/usr-core-diagnostics-reasoncodes.md`
+- `docs/specs/usr-core-evidence-gates-waivers.md`
+- `docs/specs/usr-consolidation-coverage-matrix.md`
+- `docs/guides/usr-contract-enforcement.md`
+- `docs/guides/usr-new-language-onboarding.md`
 - `docs/schemas/usr/*.json`
 - `docs/contracts/public-artifact-surface.md`
 - `docs/contracts/artifact-schemas.md`
@@ -1396,7 +1402,7 @@ Required files:
 Baseline generation inputs:
 
 - `tools/usr/generate-usr-matrix-baselines.mjs`
-- `tests/lang/matrix/README.md`
+ - `tests/lang/matrix/README.md`
 
 Registry drift policy:
 
@@ -1465,7 +1471,7 @@ If a framework profile is inferred outside allowed applicability, producer MUST 
 
 Rollout decomposition:
 
-- `docs/specs/usr-rollout-and-migration-contract.md`
+- `docs/specs/usr-core-rollout-release-migration.md`
 
 USR rollout is phased and MUST pass gates in order.
 
@@ -1586,7 +1592,7 @@ Every conformance run SHOULD produce machine-readable audit artifacts.
 
 Normative decomposition:
 
-- `docs/specs/usr-audit-and-reporting-contract.md`
+- `docs/specs/usr-core-observability-performance-ops.md`
 
 Required report outputs:
 
@@ -2859,220 +2865,105 @@ Required governance behavior:
 - CI MUST fail when decomposed contract drift checks detect missing required references or mismatched key sets.
 - Release promotion MUST include evidence that umbrella and decomposed contract checks are both green.
 
-## 38. Embedded-language bridge contract (normative)
+## 38. Core Language/Framework Catalog Contract (normative)
 
-Decomposed contract:
+Decomposed core contract:
 
-- `docs/specs/usr-embedding-bridge-contract.md`
-
-USR MUST preserve deterministic bridge semantics whenever one document contains multiple language surfaces (for example `.vue`, `.svelte`, `.astro`, Razor, Angular template/style pairs, HTML with inline script/style).
+- `docs/specs/usr-core-language-framework-catalog.md`
 
 Required behavior:
 
-- producers MUST emit stable virtual segment identities for each embedded surface
-- cross-segment edges MUST include bridge evidence attrs (`bridgeType`, `sourceSegmentUid`, `targetSegmentUid`)
-- template to script symbol bindings MUST retain both template range and script range provenance
-- style scope ownership MUST resolve to canonical owner symbols or emit deterministic unresolved diagnostics
-- failure in one embedded surface MUST NOT suppress valid entities from sibling surfaces
+- language and framework profile expectations MUST remain machine-readable and deterministic.
+- embedded-language and cross-framework interaction behavior MUST be explicit and diagnosable.
 
-Required machine-readable matrix:
+## 39. Core Normalization/Linking/Identity Contract (normative)
 
-- `tests/lang/matrix/usr-embedding-bridge-cases.json`
+Decomposed core contract:
 
-Each case entry MUST include:
-
-- `id`
-- `containerKind`
-- `sourceLanguageId`
-- `targetLanguageId`
-- `requiredEdgeKinds`
-- `requiredDiagnostics`
-- `blocking`
-
-## 39. Generated/macro provenance contract (normative)
-
-Decomposed contract:
-
-- `docs/specs/usr-generated-provenance-contract.md`
-
-USR MUST preserve source provenance for generated, macro-expanded, transpiled, or compiler-synthesized artifacts.
+- `docs/specs/usr-core-normalization-linking-identity.md`
 
 Required behavior:
 
-- normalized entities derived from generated/macro/transpiled surfaces MUST carry provenance attrs (`provenanceKind`, `originPath`, `originRange`, `generatorKind`)
-- mappings from generated entities to original source coordinates MUST be deterministic and repeatable
-- when exact origin mapping is unavailable, producers MUST emit deterministic fallback diagnostics and downgrade confidence
-- downstream readers MUST be able to distinguish source-authored vs generated entities without heuristic inference
+- raw kinds MUST normalize deterministically with explicit unknown-kind diagnostics.
+- linking outcomes MUST be deterministic with ordered candidates and canonical reason codes.
+- identity stability and migration behavior MUST be enforced by policy.
 
-Required machine-readable matrix:
+## 40. Core Pipeline/Incremental/Transform Contract (normative)
 
-- `tests/lang/matrix/usr-generated-provenance-cases.json`
+Decomposed core contract:
 
-Each case entry MUST include:
-
-- `id`
-- `languageId`
-- `generationKind`
-- `mappingExpectation`
-- `requiredDiagnostics`
-- `blocking`
-
-## 40. Implementation readiness contract (normative)
-
-Decomposed contracts:
-
-- `docs/specs/usr-registry-schema-contract.md`
-- `docs/specs/usr-implementation-readiness-contract.md`
-
-Before implementation rollout phases may proceed, teams MUST satisfy readiness requirements across:
-
-- contract/schema validation
-- parser/runtime reproducibility
-- fixture/conformance readiness
-- runtime configuration and feature-flag readiness
-- failure-injection and resilience readiness
-- operational rollback/readiness
-- ownership/escalation readiness
-
-Phase promotion blockers and required evidence artifacts are defined by the implementation-readiness contract.
-
-## 41. Observability and SLO contract (normative)
-
-Decomposed contract:
-
-- `docs/specs/usr-observability-and-slo-contract.md`
+- `docs/specs/usr-core-pipeline-incremental-transforms.md`
 
 Required behavior:
 
-- blocking and non-blocking SLO budgets MUST be defined by lane/profile scope.
-- budget and alert policy evaluations MUST be emitted for every required lane run.
-- repeated warning-level budget breaches MUST escalate by policy.
+- stage IO contracts MUST be deterministic and provenance-preserving.
+- incremental execution MUST maintain parity with full-build behavior within configured bounds.
 
-## 42. Security and data governance contract (normative)
+## 41. Core Quality/Conformance/Testing Contract (normative)
 
-Decomposed contract:
+Decomposed core contract:
 
-- `docs/specs/usr-security-and-data-governance-contract.md`
-
-Required behavior:
-
-- redaction and security gate policies MUST be machine-readable and validated in CI.
-- strict security gate failures MUST fail closed and block promotion.
-- security audit artifacts MUST be generated and linked from release readiness evidence.
-
-## 43. Runtime configuration and feature-flag contract (normative)
-
-Decomposed contract:
-
-- `docs/specs/usr-runtime-config-contract.md`
+- `docs/specs/usr-core-quality-conformance-testing.md`
 
 Required behavior:
 
-- runtime configuration keys, defaults, and strict-mode behavior MUST be machine-readable and validated.
-- feature flags MUST declare rollout class, default state, and rollback semantics.
-- strict mode MUST reject disallowed or conflicting blocking configuration values.
+- conformance C-level assertions, fixture governance, and quality thresholds MUST be enforceable by CI lanes.
+- differential/fuzzing/golden policies MUST emit deterministic evidence and drift signals.
 
-## 44. Failure injection and resilience contract (normative)
+## 42. Core Security/Risk/Compliance Contract (normative)
 
-Decomposed contract:
+Decomposed core contract:
 
-- `docs/specs/usr-failure-injection-and-resilience-contract.md`
-
-Required behavior:
-
-- blocking failure-injection scenarios MUST run in strict lanes and fail closed when expected.
-- recovery and rollback evidence MUST be emitted for blocking fault classes.
-- failure-injection drift MUST be tracked as a release-readiness signal.
-
-## 45. Fixture and golden governance contract (normative)
-
-Decomposed contract:
-
-- `docs/specs/usr-fixture-governance-contract.md`
+- `docs/specs/usr-core-security-risk-compliance.md`
 
 Required behavior:
 
-- fixture ownership, stability class, and mutation policy MUST be machine-readable and enforced.
-- blocking fixture and golden mutations MUST require governed review policy.
-- fixture-governance drift and ownership coverage MUST be reported.
+- threat/risk/security controls MUST map to executable fixtures and blocking policies.
+- supply-chain/license/data-classification violations in blocking classes MUST fail promotion.
 
-## 46. Performance benchmark methodology contract (normative)
+## 43. Core Observability/Performance/Ops Contract (normative)
 
-Decomposed contract:
+Decomposed core contract:
 
-- `docs/specs/usr-performance-benchmark-contract.md`
-
-Required behavior:
-
-- benchmark methodology MUST define warmup and measured-run policy per lane/profile class.
-- variance and percentile thresholds MUST be machine-readable and enforced for blocking benchmark classes.
-- benchmark regressions MUST emit deterministic evidence outputs and gate promotion where configured.
-
-## 47. Threat model and abuse-case coverage contract (normative)
-
-Decomposed contract:
-
-- `docs/specs/usr-threat-model-and-abuse-case-contract.md`
+- `docs/specs/usr-core-observability-performance-ops.md`
 
 Required behavior:
 
-- critical threat classes and attack surfaces MUST be machine-readable and mapped to controls.
-- blocking threat rows MUST map to executable abuse-case fixtures.
-- control-gap evidence MUST be emitted and treated as release-readiness input.
+- SLO/alert/benchmark/resource budgets MUST be explicit, measurable, and escalation-governed.
 
-## 48. Waiver and exception governance contract (normative)
+## 44. Core Rollout/Release/Migration Contract (normative)
 
-Decomposed contract:
+Decomposed core contract:
 
-- `docs/specs/usr-waiver-and-exception-contract.md`
+- `docs/specs/usr-core-rollout-release-migration.md`
 
 Required behavior:
 
-- waiver records MUST be time-bounded, approver-governed, and auditable.
-- expired waivers MUST fail CI for affected scopes.
-- waiver usage and breaches MUST be reflected in release-readiness scorecards.
+- compatibility and rollout phases MUST be gate-controlled with operational readiness evidence.
 
-## 49. Quality evaluation and accuracy gate contract (normative)
+## 45. Core Diagnostics/Reason-Code Contract (normative)
 
-Decomposed contract:
+Decomposed core contract:
 
-- `docs/specs/usr-quality-evaluation-contract.md`
+- `docs/specs/usr-core-diagnostics-reasoncodes.md`
 
 Required behavior:
 
-- quality metrics (precision/recall/F1/FPR/FNR) MUST be machine-readable and scoped by language/framework/global domain.
-- blocking quality-threshold regressions MUST be release-blocking for configured rows.
-- quality regression and failure-sample artifacts MUST be emitted and linked in readiness scorecards.
+- diagnostic and reason-code taxonomies MUST be canonical, deterministic, and lifecycle-governed.
 
-## 50. Operational runbook and incident response contract (normative)
+## 46. Core Evidence/Gates/Waivers Contract (normative)
 
-Decomposed contract:
+Decomposed core contract:
 
-- `docs/specs/usr-operational-runbook-contract.md`
-
-Required behavior:
-
-- operational readiness policy MUST be machine-readable across pre-cutover, cutover, post-cutover, and incident phases.
-- blocking runbook rows MUST define required roles/artifacts and enforce response/recovery budgets.
-- incident-response and rollback-drill evidence MUST be emitted as promotion readiness inputs.
-
-## 51. Expanded contract suite governance (normative)
-
-USR implementation also requires the expanded decomposed contract suite under:
-
-- `docs/specs/usr-*.md`
-- `docs/specs/usr/languages/*.md`
-- `docs/specs/usr/frameworks/*.md`
-- `docs/specs/usr-implementation-playbook.md`
-- `docs/specs/usr-evidence-catalog.md`
-- `docs/specs/usr-schema-artifact-catalog.md`
+- `docs/specs/usr-core-evidence-gates-waivers.md`
+- `docs/specs/usr-core-artifact-schema-catalog.md`
+- `docs/specs/usr-core-governance-change.md`
 
 Required behavior:
 
-- every new decomposed contract MUST be reflected in roadmap traceability (Appendix H) and dependency ordering (Appendix J).
-- phase gates MUST classify each contract check as hard-block or advisory according to roadmap Appendix L.
-- evidence requirements for each active contract MUST be linked through `docs/specs/usr-evidence-catalog.md` and release scorecards.
-- evidence artifact schemas and testing policy docs MUST stay synchronized with contract catalogs and lane policies.
+- release gate computation MUST be deterministic from findings + policy + waiver + freshness inputs.
+- schema and evidence catalogs MUST stay synchronized with machine-readable artifacts.
+
 
 
 
