@@ -12,6 +12,35 @@ import { stableStringify } from '../../src/shared/stable-json.js';
 import { DEFAULT_DP_MAX_BY_FILE_COUNT } from './constants.js';
 import { resolveToolRoot } from './tool.js';
 
+const isPlainRecord = (value) => (
+  value != null
+  && typeof value === 'object'
+  && !Array.isArray(value)
+  && value.constructor === Object
+);
+
+const sanitizeForStableHash = (value, active = new WeakSet()) => {
+  if (Array.isArray(value)) {
+    return value.map((entry) => sanitizeForStableHash(entry, active));
+  }
+  if (!isPlainRecord(value)) return value;
+  if (active.has(value)) return '[Circular]';
+  active.add(value);
+  try {
+    const out = {};
+    for (const key of Object.keys(value)) {
+      try {
+        out[key] = sanitizeForStableHash(value[key], active);
+      } catch {
+        // Skip keys whose getters throw to keep config hashing resilient.
+      }
+    }
+    return out;
+  } finally {
+    active.delete(value);
+  }
+};
+
 /**
  * Load repo-local configuration from .pairofcleats.json.
  * @param {string} repoRoot
@@ -48,7 +77,7 @@ export function loadUserConfig(repoRoot) {
  */
 export function getEffectiveConfigHash(repoRoot, userConfig = null) {
   const cfg = userConfig || loadUserConfig(repoRoot);
-  const payload = { config: cfg };
+  const payload = { config: sanitizeForStableHash(cfg) };
   const json = stableStringify(payload);
   return crypto.createHash('sha1').update(json).digest('hex');
 }
