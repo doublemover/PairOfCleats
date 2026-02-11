@@ -189,23 +189,37 @@ export async function applyCrossFileInference({
     const text = await getFileText(chunk.file);
     return text.slice(chunk.start, chunk.end);
   };
+  const returnCallsByChunk = new WeakMap();
+  const getReturnCalls = async (chunk) => {
+    if (!chunk) return { calls: new Set(), news: new Set() };
+    const cached = returnCallsByChunk.get(chunk);
+    if (cached) return cached;
+    const chunkText = await getChunkText(chunk);
+    if (!chunkText || !chunkText.includes('return')) {
+      const empty = { calls: new Set(), news: new Set() };
+      returnCallsByChunk.set(chunk, empty);
+      return empty;
+    }
+    const parsed = extractReturnCalls(chunkText);
+    returnCallsByChunk.set(chunk, parsed);
+    return parsed;
+  };
 
   if (enableTypeInference) {
     for (const chunk of chunks) {
       if (!chunk) continue;
-      if (chunk.docmeta && chunk.docmeta.returnsValue) {
-        const chunkText = await getChunkText(chunk);
-        const { news: returnNews } = extractReturnCalls(chunkText);
-        for (const typeName of returnNews) {
-          if (addInferredReturn(chunk.docmeta, typeName, FLOW_SOURCE, FLOW_CONFIDENCE)) {
-            inferredReturns += 1;
-          }
-          const entry = chunk.chunkUid
-            ? entryByUid.get(chunk.chunkUid)
-            : entryByKey.get(`${chunk.file}::${chunk.name}`);
-          if (entry) {
-            entry.returnTypes = uniqueTypes([...(entry.returnTypes || []), typeName]);
-          }
+      const { news: returnNews } = await getReturnCalls(chunk);
+      if (!returnNews.size) continue;
+      if (!chunk.docmeta || typeof chunk.docmeta !== 'object') chunk.docmeta = {};
+      for (const typeName of returnNews) {
+        if (addInferredReturn(chunk.docmeta, typeName, FLOW_SOURCE, FLOW_CONFIDENCE)) {
+          inferredReturns += 1;
+        }
+        const entry = chunk.chunkUid
+          ? entryByUid.get(chunk.chunkUid)
+          : entryByKey.get(`${chunk.file}::${chunk.name}`);
+        if (entry) {
+          entry.returnTypes = uniqueTypes([...(entry.returnTypes || []), typeName]);
         }
       }
     }
@@ -434,27 +448,29 @@ export async function applyCrossFileInference({
       }
     }
 
-    if (enableTypeInference && chunk.docmeta && chunk.docmeta.returnsValue) {
-      const chunkText = await getChunkText(chunk);
-      const { calls: returnCalls } = extractReturnCalls(chunkText);
-      for (const callName of returnCalls) {
-        const symbolRef = resolveSymbolRef({
-          targetName: callName,
-          kindHint: null,
-          fromFile: chunk.file,
-          fileRelations,
-          symbolIndex: symbolResolver,
-          fileSet
-        });
-        if (!symbolRef?.resolved?.chunkUid) continue;
-        const entry = entryByUid.get(symbolRef.resolved.chunkUid);
-        const returnTypes = entry?.returnTypes || [];
-        if (!returnTypes.length) continue;
-        const hopCount = entry?.file !== chunk.file ? 1 : 0;
-        const confidence = confidenceForHop(hopCount);
-        for (const type of returnTypes) {
-          if (addInferredReturn(chunk.docmeta, type, FLOW_SOURCE, confidence)) {
-            inferredReturns += 1;
+    if (enableTypeInference) {
+      const { calls: returnCalls } = await getReturnCalls(chunk);
+      if (returnCalls.size) {
+        if (!chunk.docmeta || typeof chunk.docmeta !== 'object') chunk.docmeta = {};
+        for (const callName of returnCalls) {
+          const symbolRef = resolveSymbolRef({
+            targetName: callName,
+            kindHint: null,
+            fromFile: chunk.file,
+            fileRelations,
+            symbolIndex: symbolResolver,
+            fileSet
+          });
+          if (!symbolRef?.resolved?.chunkUid) continue;
+          const entry = entryByUid.get(symbolRef.resolved.chunkUid);
+          const returnTypes = entry?.returnTypes || [];
+          if (!returnTypes.length) continue;
+          const hopCount = entry?.file !== chunk.file ? 1 : 0;
+          const confidence = confidenceForHop(hopCount);
+          for (const type of returnTypes) {
+            if (addInferredReturn(chunk.docmeta, type, FLOW_SOURCE, confidence)) {
+              inferredReturns += 1;
+            }
           }
         }
       }
