@@ -46,22 +46,26 @@ export const normalizeAnnBackend = (
 };
 
 export const resolveAnnOrder = (value) => {
+  const defaultOrder = [
+    ANN_PROVIDER_IDS.LANCEDB,
+    ANN_PROVIDER_IDS.SQLITE_VECTOR,
+    ANN_PROVIDER_IDS.HNSW,
+    ANN_PROVIDER_IDS.DENSE
+  ];
+  const withFallback = (primary) => (
+    [primary, ...defaultOrder.filter((backend) => backend !== primary)]
+  );
   switch (normalizeAnnBackend(value, { defaultBackend: 'auto' })) {
     case ANN_PROVIDER_IDS.LANCEDB:
-      return [ANN_PROVIDER_IDS.LANCEDB];
+      return withFallback(ANN_PROVIDER_IDS.LANCEDB);
     case ANN_PROVIDER_IDS.SQLITE_VECTOR:
-      return [ANN_PROVIDER_IDS.SQLITE_VECTOR];
+      return withFallback(ANN_PROVIDER_IDS.SQLITE_VECTOR);
     case ANN_PROVIDER_IDS.HNSW:
-      return [ANN_PROVIDER_IDS.HNSW];
+      return withFallback(ANN_PROVIDER_IDS.HNSW);
     case ANN_PROVIDER_IDS.DENSE:
       return [ANN_PROVIDER_IDS.DENSE];
     case 'auto':
     default:
-      return [
-        ANN_PROVIDER_IDS.LANCEDB,
-        ANN_PROVIDER_IDS.SQLITE_VECTOR,
-        ANN_PROVIDER_IDS.HNSW,
-        ANN_PROVIDER_IDS.DENSE
-      ];
+      return defaultOrder;
   }
 };

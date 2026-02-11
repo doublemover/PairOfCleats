@@ -15,15 +15,19 @@ export function createDenseAnnProvider() {
         backendReady: hasDenseVectors(idx) || typeof idx?.loadDenseVectors === 'function'
       })
     ),
-    query: async ({ idx, embedding, topN, candidateSet, signal }) => {
+    query: ({ idx, embedding, topN, candidateSet, signal }) => {
+      // Fast-gate invalid/aborted queries before any async backend hydration.
+      if (!canRunAnnQuery({ signal, embedding, candidateSet, backendReady: true })) return [];
       let backendReady = hasDenseVectors(idx);
       if (!backendReady && typeof idx?.loadDenseVectors === 'function') {
-        await idx.loadDenseVectors();
-        backendReady = hasDenseVectors(idx);
+        return Promise.resolve(idx.loadDenseVectors()).then(() => {
+          const reloadedReady = hasDenseVectors(idx);
+          if (!canRunAnnQuery({ signal, embedding, candidateSet, backendReady: reloadedReady })) return [];
+          return rankDenseVectors(idx, embedding, topN, candidateSet);
+        });
       }
       if (!canRunAnnQuery({ signal, embedding, candidateSet, backendReady })) return [];
-      const hits = rankDenseVectors(idx, embedding, topN, candidateSet);
-      return hits;
+      return rankDenseVectors(idx, embedding, topN, candidateSet);
     }
   };
 }

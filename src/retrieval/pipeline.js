@@ -265,6 +265,8 @@ export function createSearchPipeline(context) {
     state.failures = 0;
     state.disabledUntil = 0;
     state.lastError = null;
+    state.preflight = true;
+    state.preflightCheckedAt = Date.now();
     if (Number.isFinite(Number(latencyMs)) && Number(latencyMs) >= 0) {
       const resolvedLatencyMs = Number(latencyMs);
       const prev = Number.isFinite(Number(state.latencyEwmaMs))
@@ -552,12 +554,7 @@ export function createSearchPipeline(context) {
             && state.preflightCheckedAt
             && (now - state.preflightCheckedAt) <= PREFLIGHT_CACHE_TTL_MS
           ) {
-            if (state.preflight === false && state.disabledUntil <= now) {
-              state.preflight = null;
-              state.preflightCheckedAt = 0;
-            } else {
-              return state.preflight === true;
-            }
+            return state.preflight === true;
           }
           try {
             const result = await provider.preflight({
