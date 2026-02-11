@@ -95,7 +95,13 @@ export const replaceFile = async (tempPath, finalPath, options = {}) => {
       return false;
     }
   };
-  if (!(await waitForPath(tempPath, { attempts: 4, baseDelayMs: 10 }))) {
+  if (!(await waitForPath(tempPath, { attempts: 6, baseDelayMs: 10 }))) {
+    if (fs.existsSync(finalPath)) {
+      if (!keepBackup && backupAvailable) {
+        try { await fsPromises.rm(bakPath, { force: true }); } catch {}
+      }
+      return;
+    }
     const finalStat = await safeStat(finalPath);
     if (finalStat && finalStat.mtimeMs >= startedAt - 2000) {
       return;
@@ -131,13 +137,19 @@ export const replaceFile = async (tempPath, finalPath, options = {}) => {
     }
   } catch (err) {
     if (err?.code === 'ENOENT') {
-      if (await waitForPath(tempPath, { attempts: 3, baseDelayMs: 10 })) {
+      if (await waitForPath(tempPath, { attempts: 4, baseDelayMs: 10 })) {
         try {
           await fsPromises.rename(tempPath, finalPath);
         } catch (retryErr) {
           await restoreBackup();
           throw retryErr;
         }
+        if (!keepBackup && backupAvailable) {
+          try { await fsPromises.rm(bakPath, { force: true }); } catch {}
+        }
+        return;
+      }
+      if (fs.existsSync(finalPath)) {
         if (!keepBackup && backupAvailable) {
           try { await fsPromises.rm(bakPath, { force: true }); } catch {}
         }

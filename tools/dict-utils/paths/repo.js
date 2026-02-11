@@ -108,9 +108,19 @@ export function getCurrentBuildInfo(repoRoot, userConfig = null, options = {}) {
       if (!normalized.startsWith(repoCacheResolved + path.sep) && normalized !== repoCacheResolved) return null;
       return normalized;
     };
-    const buildRoot = buildRootRaw
+    let buildRoot = buildRootRaw
       ? resolveRoot(buildRootRaw)
       : (buildId ? path.join(buildsRoot, buildId) : null);
+    if (
+      buildId
+      && buildRoot
+      && path.resolve(buildRoot) === repoCacheResolved
+    ) {
+      const buildIdRoot = path.join(buildsRoot, buildId);
+      if (fs.existsSync(buildIdRoot)) {
+        buildRoot = buildIdRoot;
+      }
+    }
     const buildRoots = {};
     if (data.buildRootsByMode && typeof data.buildRootsByMode === 'object' && !Array.isArray(data.buildRootsByMode)) {
       for (const [mode, value] of Object.entries(data.buildRootsByMode)) {
@@ -165,9 +175,19 @@ export function resolveIndexRoot(repoRoot, userConfig = null, options = {}) {
       };
       const buildRootRaw = typeof data.buildRoot === 'string' ? data.buildRoot : null;
       const buildId = typeof data.buildId === 'string' ? data.buildId : null;
-      const buildRoot = buildRootRaw
+      let buildRoot = buildRootRaw
         ? resolveRoot(buildRootRaw)
         : (buildId ? path.join(buildsRoot, buildId) : null);
+      if (
+        buildId
+        && buildRoot
+        && path.resolve(buildRoot) === repoCacheResolved
+      ) {
+        const buildIdRoot = path.join(buildsRoot, buildId);
+        if (fs.existsSync(buildIdRoot)) {
+          buildRoot = buildIdRoot;
+        }
+      }
       const buildRoots = {};
       if (data.buildRootsByMode && typeof data.buildRootsByMode === 'object' && !Array.isArray(data.buildRootsByMode)) {
         for (const [mode, value] of Object.entries(data.buildRootsByMode)) {

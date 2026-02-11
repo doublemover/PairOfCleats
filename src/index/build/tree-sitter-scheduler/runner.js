@@ -7,6 +7,10 @@ import { buildTreeSitterSchedulerPlan } from './plan.js';
 import { createTreeSitterSchedulerLookup } from './lookup.js';
 
 const SCHEDULER_EXEC_PATH = fileURLToPath(new URL('./subprocess-exec.js', import.meta.url));
+const INDEX_LOAD_RETRY_ATTEMPTS = 4;
+const INDEX_LOAD_RETRY_BASE_DELAY_MS = 15;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const buildPlannedSegmentsByContainer = (groups) => {
   const byContainer = new Map();
@@ -40,20 +44,61 @@ const buildPlannedSegmentsByContainer = (groups) => {
   return byContainer;
 };
 
+const parseIndexRows = (text, indexPath) => {
+  const rows = new Map();
+  const lines = String(text || '').split(/\r?\n/);
+  for (let lineNumber = 0; lineNumber < lines.length; lineNumber += 1) {
+    const raw = lines[lineNumber];
+    const trimmed = raw.trim();
+    if (!trimmed) continue;
+    let row = null;
+    try {
+      row = JSON.parse(trimmed);
+    } catch (err) {
+      const snippet = trimmed.slice(0, 120);
+      const parseErr = new Error(
+        `[tree-sitter:schedule] invalid index row in ${indexPath} at line ${lineNumber + 1}: ` +
+        `${err?.message || err}; row=${snippet}`
+      );
+      parseErr.code = 'ERR_TREE_SITTER_INDEX_PARSE';
+      parseErr.cause = err;
+      throw parseErr;
+    }
+    const virtualPath = row?.virtualPath || null;
+    if (!virtualPath) continue;
+    rows.set(virtualPath, row);
+  }
+  return rows;
+};
+
+const readIndexRowsWithRetry = async ({ indexPath, abortSignal = null }) => {
+  let lastError = null;
+  for (let attempt = 0; attempt < INDEX_LOAD_RETRY_ATTEMPTS; attempt += 1) {
+    throwIfAborted(abortSignal);
+    try {
+      const text = await fs.readFile(indexPath, 'utf8');
+      return parseIndexRows(text, indexPath);
+    } catch (err) {
+      lastError = err;
+      const retryable = err?.code === 'ENOENT' || err?.code === 'ERR_TREE_SITTER_INDEX_PARSE';
+      if (!retryable || attempt >= INDEX_LOAD_RETRY_ATTEMPTS - 1) {
+        throw err;
+      }
+      await sleep(INDEX_LOAD_RETRY_BASE_DELAY_MS * (attempt + 1));
+    }
+  }
+  throw lastError || new Error(`[tree-sitter:schedule] failed to load index rows: ${indexPath}`);
+};
+
 const loadIndexEntries = async ({ grammarKeys, paths, abortSignal = null }) => {
   throwIfAborted(abortSignal);
   const index = new Map();
   for (const grammarKey of grammarKeys || []) {
     throwIfAborted(abortSignal);
     const indexPath = paths.resultsIndexPathForGrammarKey(grammarKey);
-    const text = await fs.readFile(indexPath, 'utf8');
-    for (const line of text.split(/\r?\n/)) {
+    const rows = await readIndexRowsWithRetry({ indexPath, abortSignal });
+    for (const [virtualPath, row] of rows.entries()) {
       throwIfAborted(abortSignal);
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-      const row = JSON.parse(trimmed);
-      const virtualPath = row?.virtualPath || null;
-      if (!virtualPath) continue;
       index.set(virtualPath, row);
     }
   }

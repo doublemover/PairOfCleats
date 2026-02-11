@@ -118,7 +118,7 @@ export const createJsonWriteStream = (filePath, options = {}) => {
         return;
       } catch (err) {
         if (err?.code === 'ENOENT') return;
-        if (!['EBUSY', 'EPERM', 'EACCES', 'EMFILE'].includes(err?.code)) {
+        if (!['EBUSY', 'EPERM', 'EACCES', 'EMFILE', 'ENOTEMPTY'].includes(err?.code)) {
           return;
         }
         await delay(Math.min(500, 25 * (attempt + 1)));
