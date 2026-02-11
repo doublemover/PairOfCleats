@@ -51,15 +51,46 @@ const normalizeManifest = (raw) => {
   };
 };
 
+const normalizeJsonValue = (value) => {
+  if (Array.isArray(value)) return value.map((item) => normalizeJsonValue(item));
+  if (value && typeof value === 'object') {
+    const keys = Object.keys(value).sort((a, b) => a.localeCompare(b));
+    const out = {};
+    for (const key of keys) {
+      out[key] = normalizeJsonValue(value[key]);
+    }
+    return out;
+  }
+  return value;
+};
+
+const normalizeChunkMeta = (raw, chunkMetaPath) => {
+  if (!raw) return null;
+  try {
+    if (chunkMetaPath.endsWith('.jsonl')) {
+      const rows = raw
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((line) => JSON.parse(line));
+      return normalizeJsonValue(rows);
+    }
+    return normalizeJsonValue(JSON.parse(raw));
+  } catch {
+    return raw;
+  }
+};
+
 const readArtifacts = (indexDir) => {
   const manifestPath = path.join(indexDir, 'pieces', 'manifest.json');
   const chunkMetaJsonl = path.join(indexDir, 'chunk_meta.jsonl');
   const chunkMetaJson = path.join(indexDir, 'chunk_meta.json');
   const chunkMetaPath = fs.existsSync(chunkMetaJsonl) ? chunkMetaJsonl : chunkMetaJson;
   const manifestRaw = fs.existsSync(manifestPath) ? fs.readFileSync(manifestPath, 'utf8') : null;
+  const chunkMetaRaw = fs.existsSync(chunkMetaPath) ? fs.readFileSync(chunkMetaPath, 'utf8') : null;
   return {
     manifest: normalizeManifest(manifestRaw),
-    chunkMeta: fs.existsSync(chunkMetaPath) ? fs.readFileSync(chunkMetaPath, 'utf8') : null
+    chunkMeta: normalizeChunkMeta(chunkMetaRaw, chunkMetaPath)
   };
 };
 

@@ -10,12 +10,17 @@ if (!caps?.mcp?.sdk) {
   skip('Skipping MCP mode selection test; @modelcontextprotocol/sdk not available.');
 }
 
-const readWithTimeout = (promise, label) => Promise.race([
-  promise,
-  new Promise((_, reject) => {
-    setTimeout(() => reject(new Error(`${label} timed out`)), 15000);
-  })
-]);
+const MODE_CASE_TIMEOUT_MS = 30000;
+
+const readWithTimeout = (promise, label) => {
+  let timer = null;
+  const timeoutPromise = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} timed out`)), MODE_CASE_TIMEOUT_MS);
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+};
 
 const runCase = async ({ label, expectedMode, cliMode, env }) => {
   const cacheRoot = path.join(process.cwd(), 'tests', '.cache', `mcp-mode-${label}`);

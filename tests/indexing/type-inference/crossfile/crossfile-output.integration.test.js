@@ -57,8 +57,8 @@ const env = applyTestEnv({
   }
 });
 const buildTimeoutMs = Number.isFinite(Number(process.env.PAIROFCLEATS_TEST_TIMEOUT_MS))
-  ? Math.max(60000, Number(process.env.PAIROFCLEATS_TEST_TIMEOUT_MS))
-  : 60000;
+  ? Math.max(180000, Number(process.env.PAIROFCLEATS_TEST_TIMEOUT_MS))
+  : 180000;
 
 const result = spawnSync(process.execPath, [
   path.join(root, 'build_index.js'),

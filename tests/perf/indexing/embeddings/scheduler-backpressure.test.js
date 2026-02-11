@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import fsSync from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -74,8 +75,47 @@ const userConfig = loadUserConfig(repoRoot);
 const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
 await fsPromises.rm(path.join(repoCacheRoot, 'embeddings'), { recursive: true, force: true });
 await fsPromises.rm(path.join(tempRoot, 'embeddings'), { recursive: true, force: true });
-const current = getCurrentBuildInfo(repoRoot, userConfig);
-if (!current?.activeRoot) {
+const resolveActiveBuildRoot = async () => {
+  const current = getCurrentBuildInfo(repoRoot, userConfig);
+  const directCandidates = [
+    current?.activeRoot || null,
+    current?.buildRoot || null,
+    current?.buildId ? path.join(repoCacheRoot, 'builds', current.buildId) : null
+  ].filter((value, index, array) => (
+    typeof value === 'string'
+    && value.length > 0
+    && array.indexOf(value) === index
+  ));
+  for (const candidate of directCandidates) {
+    const codeDir = path.join(candidate, 'index-code');
+    if (fsSync.existsSync(codeDir)) return candidate;
+  }
+  const buildsRoot = path.join(repoCacheRoot, 'builds');
+  let entries = [];
+  try {
+    entries = await fsPromises.readdir(buildsRoot, { withFileTypes: true });
+  } catch {
+    return null;
+  }
+  const dirs = [];
+  for (const entry of entries) {
+    if (!entry?.isDirectory?.()) continue;
+    const buildRoot = path.join(buildsRoot, entry.name);
+    const codeDir = path.join(buildRoot, 'index-code');
+    if (!fsSync.existsSync(codeDir)) continue;
+    try {
+      const stat = await fsPromises.stat(buildRoot);
+      dirs.push({ buildRoot, mtimeMs: Number(stat.mtimeMs) || 0 });
+    } catch {
+      dirs.push({ buildRoot, mtimeMs: 0 });
+    }
+  }
+  dirs.sort((a, b) => b.mtimeMs - a.mtimeMs);
+  return dirs[0]?.buildRoot || null;
+};
+
+const activeBuildRoot = await resolveActiveBuildRoot();
+if (!activeBuildRoot) {
   console.error('embeddings scheduler backpressure test failed: missing active build root');
   process.exit(1);
 }
@@ -87,7 +127,7 @@ const config = parseBuildEmbeddingsArgs([
   '--repo',
   repoRoot,
   '--index-root',
-  current.activeRoot
+  activeBuildRoot
 ]);
 const result = await runBuildEmbeddingsWithConfig(config);
 const stats = result?.scheduler;
