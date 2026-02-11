@@ -1,9 +1,9 @@
 import { normalizeLimit, normalizeRatio, normalizeDepth } from './caps.js';
 
 export const formatBuildTimestamp = (date) => (
-  // Keep millisecond precision to avoid same-second build-id collisions under
-  // parallel test/build workloads.
-  date.toISOString().replace(/[-:.]/g, '')
+  // Keep second precision for shorter build roots on Windows path-length
+  // constrained environments.
+  date.toISOString().replace(/\.\d{3}Z$/, 'Z').replace(/[-:]/g, '')
 );
 
 export const buildFileScanConfig = (indexingConfig) => {

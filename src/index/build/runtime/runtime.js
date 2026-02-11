@@ -1,3 +1,4 @@
+import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -312,9 +313,19 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     || null;
   const scmHeadShort = scmHeadId ? String(scmHeadId).slice(0, 7) : 'noscm';
   const configHash8 = configHash ? configHash.slice(0, 8) : 'nohash';
-  const computedBuildId = `${formatBuildTimestamp(new Date())}_${scmHeadShort}_${configHash8}`;
+  const computedBuildIdBase = `${formatBuildTimestamp(new Date())}_${scmHeadShort}_${configHash8}`;
   const resolvedIndexRoot = indexRootOverride ? path.resolve(indexRootOverride) : null;
-  const buildRoot = resolvedIndexRoot || path.join(getBuildsRoot(root, userConfig), computedBuildId);
+  const buildsRoot = getBuildsRoot(root, userConfig);
+  let computedBuildId = computedBuildIdBase;
+  let buildRoot = resolvedIndexRoot || path.join(buildsRoot, computedBuildId);
+  if (!resolvedIndexRoot) {
+    let suffix = 1;
+    while (fsSync.existsSync(buildRoot)) {
+      computedBuildId = `${computedBuildIdBase}_${suffix.toString(36)}`;
+      buildRoot = path.join(buildsRoot, computedBuildId);
+      suffix += 1;
+    }
+  }
   const buildId = resolvedIndexRoot ? path.basename(buildRoot) : computedBuildId;
   if (buildRoot) {
     const suffix = resolvedIndexRoot ? ' (override)' : '';
