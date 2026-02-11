@@ -1,107 +1,67 @@
 # Phase 9 Spec -- Migration and Backward Compatibility
 
-Last updated: 2026-02-11T03:30:00Z
+Last updated: 2026-02-11T07:25:00Z
 
-This document is aligned with:
+## Alignment
 
-- `docs/specs/unified-syntax-representation.md` sections 19, 27, and 36
-- `docs/specs/unified-syntax-representation.md` sections 38, 39, and 50
-- `docs/specs/usr-rollout-and-migration-contract.md`
-- `docs/specs/usr-embedding-bridge-contract.md`
-- `docs/specs/usr-generated-provenance-contract.md`
-- `docs/specs/usr-registry-schema-contract.md`
-- `docs/specs/usr-implementation-readiness-contract.md`
-- `docs/specs/usr-observability-and-slo-contract.md`
-- `docs/specs/usr-security-and-data-governance-contract.md`
-- `docs/specs/usr-audit-and-reporting-contract.md`
-- `docs/specs/usr-runtime-config-contract.md`
-- `docs/specs/usr-failure-injection-and-resilience-contract.md`
-- `docs/specs/usr-fixture-governance-contract.md`
-- `docs/specs/usr-performance-benchmark-contract.md`
-- `docs/specs/usr-threat-model-and-abuse-case-contract.md`
-- `docs/specs/usr-waiver-and-exception-contract.md`
-- `docs/specs/usr-quality-evaluation-contract.md`
-- `docs/specs/usr-operational-runbook-contract.md`
+This migration contract aligns with:
 
-## Why a migration spec is necessary
-Phase 9 replaces several legacy join assumptions:
-- graph nodes keyed by `file::name`
-- cross-file linking that assumes uniqueness of a bare name
-- implicit "pick a winner" behaviors
+- `docs/specs/unified-syntax-representation.md` (sections 19, 27, 36)
+- `docs/specs/usr-core-rollout-release-migration.md`
+- `docs/specs/usr-core-normalization-linking-identity.md`
+- `docs/specs/usr-core-pipeline-incremental-transforms.md`
+- `docs/specs/usr-core-artifact-schema-catalog.md`
+- `docs/specs/usr-core-quality-conformance-testing.md`
+- `docs/specs/usr-core-observability-performance-ops.md`
+- `docs/specs/usr-core-security-risk-compliance.md`
+- `docs/specs/usr-core-evidence-gates-waivers.md`
+- `docs/specs/usr-core-governance-change.md`
 
-These changes must ship with explicit back-compat rules so older artifacts (or partially upgraded indexes) do not silently break.
+## Why this exists
+
+Phase 9 replaces legacy join behavior (`file::name`) with canonical identity/linking semantics and explicit compatibility gates.
 
 ## Compatibility model
-### Contract versions
-- Public symbol artifacts are versioned (schema version in their meta sidecars if sharded; otherwise in manifest entries).
-- Readers must support N-1 schema major, with adapters.
-- For USR payloads, compatibility is governed by `schemaVersion` and section 36 scenario classes (`BC-001` through `BC-012`).
 
-### Legacy fields retained (display-only)
-Phase 9 will preserve the legacy fields **only as evidence/display**:
-- `legacyKey = file::name`
-- raw name matches
-- leaf name matches
+- artifacts are schema-versioned
+- readers must support N-1 major compatibility policy via explicit adapters where allowed
+- strict and non-strict mode behavior must match USR compatibility classes (`BC-001` .. `BC-012`)
 
-But:
-- they must not be used as join keys in new code paths.
+## Strict mode
 
-### Partial-upgrade behavior
-If symbol artifacts are missing:
-- Graph building falls back to `chunkUid` nodes and emits edges only when endpoints can be identified by `chunkUid`.
-- Any name-only joins must be explicitly labeled as `status: unresolved` rather than guessed.
-
-### Strict mode
 Strict mode requires:
-- symbol artifacts present
-- no legacy name-only joins for cross-file edges
-- no unknown USR fields, unknown diagnostic codes, or unknown reason codes
-- canonical serialization and ID grammar compliance
 
-### Non-strict mode
-Non-strict mode allows:
-- additive namespaced fields through compatibility adapters
-- unknown minor-version additive fields with explicit compatibility diagnostics
+- canonical ID grammar compliance
+- no unknown schema fields
+- no unknown diagnostic or reason codes
+- no legacy name-only cross-file joins
 
-Non-strict mode does not allow:
-- major-version semantic mismatches
-- invalid ID grammar
-- broken endpoint constraints
+## Non-strict mode
 
-## Mandatory compatibility matrix linkage
+Non-strict mode allows additive minor fields through adapters with explicit compatibility diagnostics, but still rejects major semantic breaks.
 
-Phase 9 migration is not complete until the USR matrix artifact is present and green for required scenarios:
+## Required compatibility artifacts
 
-- Matrix source: `tests/lang/matrix/usr-backcompat-matrix.json`
-- Result artifact: `usr-backcompat-matrix-results.json`
-- Baseline classes: `BC-001` through `BC-012`
-- Expansion rules: producer/reader variant and fixture-profile pairwise expansion (USR section 36.7)
+- matrix source: `tests/lang/matrix/usr-backcompat-matrix.json`
+- result output: `usr-backcompat-matrix-results.json`
+- compatibility rollups: by scenario, language, framework profile, reader mode
 
-Release-blocking strict scenarios:
+## Release-blocking scenarios
 
 - `BC-001`, `BC-002`, `BC-003`, `BC-005`, `BC-006`, `BC-008`, `BC-009`, `BC-010`, `BC-012`
 
-Required migration evidence outputs:
+## Required migration evidence
 
 - `usr-backcompat-matrix-results.json`
-- `usr-conformance-summary.json` (for impacted lanes)
-- `usr-capability-state-transitions.json`
-- `usr-embedding-bridge-cases.json` validation report
-- `usr-generated-provenance-cases.json` validation report
+- `usr-conformance-summary.json`
+- `usr-operational-readiness-validation.json`
+- `usr-release-readiness-scorecard.json`
 
-## Deprecations
-After Phase 9, these patterns are deprecated:
-- `Map` keyed by `${file}::${name}` for anything cross-file.
-- `chunkIdByKey.set(file::name, ...)` without multi-mapping or ambiguity handling.
+## Rollout sequence
 
-## Rollout plan
-1. Land identity module + symbol artifacts behind a feature flag (`indexing.symbolIdentity=on`).
-2. Update graphs and cross-file linking to prefer symbol identity when present.
-3. Add strict validation gates and enable in CI for fixtures.
-4. Add USR backward-compat matrix lane and make strict scenarios blocking.
-5. Flip default on once metrics show acceptable ambiguity/unresolved rates and matrix pass thresholds are met.
+1. dual-write and shadow-read
+2. strict matrix checks enabled in CI
+3. parity thresholds met and sustained
+4. cutover with rollback drills validated
 
-Rollback requirement:
-
-- rollout MUST define one-step rollback to legacy read path with explicit rollback trigger thresholds.
-
+Rollback must be one-step and pre-documented.
