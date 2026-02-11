@@ -1,7 +1,7 @@
 # Spec -- USR Core Language and Framework Catalog Contract
 
 Status: Draft v2.0
-Last updated: 2026-02-11T07:40:00Z
+Last updated: 2026-02-11T08:20:00Z
 
 ## Purpose
 
@@ -11,12 +11,12 @@ Define consolidated language and framework profile obligations, including capabi
 
 This contract absorbs:
 
-- `docs/specs/usr-language-profile-catalog.md`
-- `docs/specs/usr-framework-profile-catalog.md`
-- `docs/specs/usr-language-feature-coverage-contract.md`
-- `docs/specs/usr-framework-interactions.md`
-- `docs/specs/usr-framework-macro-transform-contract.md`
-- `docs/specs/usr-embedded-language-matrix.md`
+- `usr-language-profile-catalog.md` (legacy)
+- `usr-framework-profile-catalog.md` (legacy)
+- `usr-language-feature-coverage-contract.md` (legacy)
+- `usr-framework-interactions.md` (legacy)
+- `usr-framework-macro-transform-contract.md` (legacy)
+- `usr-embedded-language-matrix.md` (legacy)
 - all legacy per-language and per-framework profile files under `docs/specs/usr/languages/*.md` and `docs/specs/usr/frameworks/*.md`
 
 ## Required profile artifacts
@@ -39,6 +39,19 @@ Each language row must define:
 - capability states (`supported`, `partial`, `unsupported`)
 - fallback behavior and required diagnostics
 - conformance target class (`C0`..`C4`)
+
+Required machine-readable row keys:
+
+| Key | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `languageId` | string | yes | Must match registry ID exactly. |
+| `parsers` | array | yes | Ordered by precedence; each entry includes parser ID and version policy. |
+| `requiredNodeKinds` | array | yes | Canonical normalized node kinds only. |
+| `requiredEdgeKinds` | array | yes | Canonical edge kinds only. |
+| `capabilities` | object | yes | Capability state per dimension. |
+| `fallbackPolicy` | object | yes | Degradation behavior, diagnostics, and fail-open/closed policy. |
+| `conformanceTarget` | string | yes | `C0`..`C4`. |
+| `riskProfile` | object | conditional | Required if C3 or higher. |
 
 ## Language batches (authoritative)
 
@@ -71,6 +84,19 @@ Each framework row must define:
 - style scope canonicalization behavior
 - SSR/CSR/hydration/island boundary behavior
 - fallback diagnostics for unsupported constructs
+
+Required machine-readable row keys:
+
+| Key | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `frameworkProfile` | string | yes | Canonical profile ID. |
+| `detectionPrecedence` | array | yes | Ordered detector list and tie-break policy. |
+| `segmentationRules` | object | yes | Script/template/style/frontmatter split policy. |
+| `routeSemantics` | object | yes | Route extraction + canonicalization policy. |
+| `templateBindingSemantics` | object | yes | Binding extraction and canonical edge attrs. |
+| `styleSemantics` | object | yes | Scope policy and edge attrs. |
+| `runtimeBoundarySemantics` | object | yes | SSR/CSR/hydration/island rules. |
+| `unsupportedBehavior` | object | yes | Diagnostic and fallback policy. |
 
 ## Framework canonicalization requirements
 
@@ -115,6 +141,18 @@ Embedded segments (`.vue`, `.svelte`, `.astro`, Angular template/style splits, S
 - bridge requirements between segments
 - fallback diagnostics for partial extraction
 
+Mandatory bridge fields for embedded segments:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| `bridgeId` | yes | Unique bridge scenario ID. |
+| `containerLanguageId` | yes | Physical file language. |
+| `embeddedLanguageId` | yes | Segment effective language. |
+| `entryEdgeKinds` | yes | Required edge kinds entering embedded segment. |
+| `exitEdgeKinds` | yes | Required edge kinds leaving embedded segment. |
+| `lossModes` | yes | Enumerated fidelity-loss classes. |
+| `fallbackReasonCodes` | yes | Deterministic diagnostics for unsupported bridge cases. |
+
 ## Capability-state obligations
 
 A profile marked `supported` must provide deterministic output with required entities and edges.
@@ -123,6 +161,13 @@ A profile marked `partial` must provide explicit missing-surface diagnostics.
 
 A profile marked `unsupported` must fail gracefully with deterministic diagnostics and no silent drops.
 
+Capability-state compliance rules:
+
+1. `supported` requires all mandatory entities and edge families for the declared profile scope.
+2. `partial` requires explicit missing-surface diagnostics and fallback semantics.
+3. `unsupported` requires deterministic diagnostic-only behavior with zero guessed semantic edges.
+4. state transitions (`unsupported` -> `partial` -> `supported`) require conformance evidence updates.
+
 ## Required outputs
 
 - `usr-language-profile-coverage.json`
@@ -130,8 +175,18 @@ A profile marked `unsupported` must fail gracefully with deterministic diagnosti
 - `usr-framework-edge-case-coverage.json`
 - `usr-embedded-language-coverage.json`
 
+## Acceptance criteria
+
+This contract is considered green only when:
+
+1. every registry language has a complete profile row with no missing required keys
+2. every required framework profile has complete route/template/style/runtime semantics rows
+3. framework edge-case coverage is complete for all mandatory families
+4. embedded-language bridge rows validate and corresponding fixtures pass target conformance levels
+
 ## References
 
 - `docs/specs/unified-syntax-representation.md`
 - `docs/specs/usr-core-normalization-linking-identity.md`
 - `docs/specs/usr-core-quality-conformance-testing.md`
+
