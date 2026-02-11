@@ -565,10 +565,11 @@ export async function runSearchSession({
     return value;
   };
   const requestedBackend = normalizeRequestedBackend(annBackend);
+  const explicitRequestedBackend = Boolean(requestedBackend && requestedBackend !== 'auto');
   let annBackendUsed = sqliteVectorActive
     ? 'sqlite-extension'
     : (lanceActive ? 'lancedb' : (hnswActive ? 'hnsw' : 'js'));
-  if (annActive && requestedBackend && requestedBackend !== 'auto') {
+  if (annActive && explicitRequestedBackend) {
     const requestedAvailable = (
       (requestedBackend === 'sqlite-extension' && sqliteVectorAvailable)
       || (requestedBackend === 'lancedb' && lanceAvailable)
@@ -578,6 +579,9 @@ export async function runSearchSession({
     if (requestedAvailable) {
       annBackendUsed = requestedBackend;
     }
+  }
+  if (explicitRequestedBackend) {
+    annBackendUsed = requestedBackend;
   }
 
   if (queryCacheEnabled && cacheKey) {

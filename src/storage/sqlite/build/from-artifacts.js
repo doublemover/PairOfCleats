@@ -390,7 +390,7 @@ export async function buildDatabaseFromArtifacts({
     : true;
   const useBuildPragmas = typeof buildPragmas === 'boolean' ? buildPragmas : defaultOptimize;
   const useOptimize = typeof optimize === 'boolean' ? optimize : defaultOptimize;
-  const { db, pragmaState } = openSqliteBuildDatabase({
+  const { db, pragmaState, dbPath, promotePath } = openSqliteBuildDatabase({
     Database,
     outPath: resolvedOutPath,
     batchStats,
@@ -1645,6 +1645,8 @@ export async function buildDatabaseFromArtifacts({
       db,
       succeeded,
       pragmaState,
+      dbPath,
+      promotePath,
       outPath: resolvedOutPath,
       warn: (err) => warn(`[sqlite] WAL checkpoint failed for ${mode}: ${err?.message || err}`)
     });

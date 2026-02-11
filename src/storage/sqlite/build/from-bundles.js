@@ -139,7 +139,7 @@ export async function buildDatabaseFromBundles({
 
   const useBuildPragmas = buildPragmas !== false;
   const useOptimize = optimize !== false;
-  const { db, pragmaState } = openSqliteBuildDatabase({
+  const { db, pragmaState, dbPath, promotePath } = openSqliteBuildDatabase({
     Database,
     outPath,
     batchStats,
@@ -629,6 +629,8 @@ export async function buildDatabaseFromBundles({
       db,
       succeeded,
       pragmaState,
+      dbPath,
+      promotePath,
       outPath,
       warn: (err) => warn(`[sqlite] WAL checkpoint failed for ${mode}: ${err?.message || err}`)
     });

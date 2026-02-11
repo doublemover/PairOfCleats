@@ -7,6 +7,7 @@ import { applyBuildPragmas, optimizeBuildDatabase, optimizeFtsTable, restoreBuil
 import { validateSqliteDatabase } from './validate.js';
 import { createInsertStatements } from './statements.js';
 import { createMultiRowInserter } from './multi-row.js';
+import { createTempPath, replaceFile } from '../../../shared/json-stream/atomic.js';
 
 const normalizeStatementStrategy = (value) => {
   const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
@@ -15,16 +16,49 @@ const normalizeStatementStrategy = (value) => {
     : 'multi-row';
 };
 
+const SQLITE_DB_PATH_SOFT_LIMIT = 240;
+const LONG_PATH_PREFIX = '\\\\?\\';
+
+const stripLongPathPrefix = (value) => (
+  typeof value === 'string' && value.startsWith(LONG_PATH_PREFIX)
+    ? value.slice(LONG_PATH_PREFIX.length)
+    : value
+);
+
+const toComparablePath = (value) => path.resolve(stripLongPathPrefix(value));
+
 const openDatabaseWithFallback = (Database, outPath) => {
   const resolvedOutPath = path.resolve(outPath);
-  const candidates = [resolvedOutPath];
-  if (process.platform === 'win32' && !resolvedOutPath.startsWith('\\\\?\\')) {
-    candidates.push(`\\\\?\\${resolvedOutPath}`);
+  const candidates = [];
+  const addCandidate = (openPath, dbPath = openPath, promotePath = null) => {
+    if (!openPath) return;
+    candidates.push({ openPath, dbPath, promotePath });
+  };
+  if (process.platform === 'win32') {
+    const needsCompactPath = resolvedOutPath.length > SQLITE_DB_PATH_SOFT_LIMIT;
+    if (needsCompactPath) {
+      const compactPath = createTempPath(resolvedOutPath);
+      if (compactPath && toComparablePath(compactPath) !== toComparablePath(resolvedOutPath)) {
+        addCandidate(compactPath, compactPath, resolvedOutPath);
+        addCandidate(`${LONG_PATH_PREFIX}${compactPath}`, compactPath, resolvedOutPath);
+      }
+    }
+    addCandidate(resolvedOutPath, resolvedOutPath, null);
+    if (!resolvedOutPath.startsWith(LONG_PATH_PREFIX)) {
+      addCandidate(`${LONG_PATH_PREFIX}${resolvedOutPath}`, resolvedOutPath, null);
+    }
+  } else {
+    addCandidate(resolvedOutPath, resolvedOutPath, null);
   }
   let lastError = null;
   for (const candidate of candidates) {
     try {
-      return new Database(candidate);
+      const db = new Database(candidate.openPath);
+      return {
+        db,
+        dbPath: candidate.dbPath,
+        promotePath: candidate.promotePath
+      };
     } catch (err) {
       lastError = err;
     }
@@ -71,7 +105,7 @@ export const createBuildExecutionContext = ({ batchSize, inputBytes, statementSt
 /**
  * Open and initialize the sqlite build database with tuned pragmas.
  * @param {{Database:any,outPath:string,batchStats?:object,inputBytes?:number,useBuildPragmas?:boolean}} input
- * @returns {{db:any,pragmaState:object|null}}
+ * @returns {{db:any,pragmaState:object|null,dbPath:string,promotePath:string|null}}
  */
 export const openSqliteBuildDatabase = ({
   Database,
@@ -81,7 +115,7 @@ export const openSqliteBuildDatabase = ({
   useBuildPragmas = true
 }) => {
   fsSync.mkdirSync(path.dirname(outPath), { recursive: true });
-  const db = openDatabaseWithFallback(Database, outPath);
+  const { db, dbPath, promotePath } = openDatabaseWithFallback(Database, outPath);
   if (batchStats) {
     const prepareStats = batchStats.prepare || (batchStats.prepare = {});
     if (!Number.isFinite(prepareStats.total)) prepareStats.total = 0;
@@ -104,7 +138,7 @@ export const openSqliteBuildDatabase = ({
     : null;
   db.exec(CREATE_TABLES_BASE_SQL);
   db.pragma(`user_version = ${SCHEMA_VERSION}`);
-  return { db, pragmaState };
+  return { db, pragmaState, dbPath, promotePath };
 };
 
 const createOptionalMultiRowInserter = (db, enabled, options) => (
@@ -258,7 +292,7 @@ export const runSqliteBuildPostCommit = ({
 
 /**
  * Close sqlite build db and clean sidecars when build fails.
- * @param {{db:any,succeeded:boolean,pragmaState?:object|null,outPath:string,warn?:(err:Error)=>void}} input
+ * @param {{db:any,succeeded:boolean,pragmaState?:object|null,outPath:string,dbPath?:string,promotePath?:string|null,warn?:(err:Error)=>void}} input
  * @returns {Promise<void>}
  */
 export const closeSqliteBuildDatabase = async ({
@@ -266,8 +300,18 @@ export const closeSqliteBuildDatabase = async ({
   succeeded,
   pragmaState,
   outPath,
+  dbPath = outPath,
+  promotePath = null,
   warn
 }) => {
+  const resolvedOutPath = toComparablePath(outPath);
+  const resolvedDbPath = toComparablePath(dbPath);
+  const resolvedPromotePath = promotePath ? toComparablePath(promotePath) : null;
+  const needsPromote = Boolean(
+    succeeded
+    && resolvedPromotePath
+    && resolvedDbPath !== resolvedPromotePath
+  );
   if (succeeded) {
     try {
       db.pragma('wal_checkpoint(TRUNCATE)');
@@ -281,10 +325,31 @@ export const closeSqliteBuildDatabase = async ({
     restoreBuildPragmas(db, pragmaState);
   }
   db.close();
+  if (needsPromote) {
+    try {
+      await removeSqliteSidecars(outPath);
+      await replaceFile(dbPath, outPath);
+    } catch (err) {
+      if (typeof warn === 'function') {
+        warn(err);
+      }
+      throw err;
+    } finally {
+      await removeSqliteSidecars(dbPath);
+    }
+  }
   if (!succeeded) {
     try {
       fsSync.rmSync(outPath, { force: true });
     } catch {}
+    if (resolvedDbPath !== resolvedOutPath) {
+      try {
+        fsSync.rmSync(dbPath, { force: true });
+      } catch {}
+    }
     await removeSqliteSidecars(outPath);
+    if (resolvedDbPath !== resolvedOutPath) {
+      await removeSqliteSidecars(dbPath);
+    }
   }
 };

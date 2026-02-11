@@ -13,6 +13,7 @@ import {
 } from '../../../../shared/chunk-meta-cold.js';
 import {
   replaceFile,
+  writeJsonArrayFile,
   writeJsonLinesFile,
   writeJsonLinesFileAsync,
   writeJsonLinesSharded,
@@ -40,6 +41,8 @@ const ORDER_BUCKET_TARGET = 64;
 const ORDER_BUCKET_MIN = 5000;
 const ORDER_BUFFER_BYTES = 4 * 1024 * 1024;
 const ORDER_BUFFER_ROWS = 5000;
+const COMPAT_CHUNK_META_JSON_MAX_BYTES = 8 * 1024 * 1024;
+const COMPAT_CHUNK_META_JSON_MAX_ROWS = 50000;
 
 const resolveOrderBucketSize = (total) => {
   if (!Number.isFinite(total) || total <= 0) return 0;
@@ -934,6 +937,7 @@ export const enqueueChunkMetaArtifacts = async ({
   const jsonlExtension = resolveJsonlExtension(compression);
   const jsonlName = `chunk_meta.${jsonlExtension}`;
   const jsonlPath = path.join(outDir, jsonlName);
+  const compatJsonPath = path.join(outDir, 'chunk_meta.json');
   const offsetsConfig = compression ? null : { suffix: 'offsets.bin' };
   const offsetsPath = offsetsConfig ? `${jsonlPath}.${offsetsConfig.suffix}` : null;
   const coldJsonlName = `chunk_meta_cold.${jsonlExtension}`;
@@ -951,8 +955,18 @@ export const enqueueChunkMetaArtifacts = async ({
     buildJsonlVariantPaths({ outDir, baseName: 'chunk_meta_cold', includeOffsets: true })
   );
 
+  const shouldWriteCompatChunkMetaJson = Boolean(
+    resolvedUseJsonl
+    && Number.isFinite(Number(chunkMetaCount))
+    && Number(chunkMetaCount) <= COMPAT_CHUNK_META_JSON_MAX_ROWS
+    && Number.isFinite(Number(jsonlScan?.totalJsonlBytes || 0))
+    && Number(jsonlScan?.totalJsonlBytes || 0) <= COMPAT_CHUNK_META_JSON_MAX_BYTES
+  );
+
   if (resolvedUseJsonl) {
-    await removeArtifact(path.join(outDir, 'chunk_meta.json'));
+    if (!shouldWriteCompatChunkMetaJson) {
+      await removeArtifact(path.join(outDir, 'chunk_meta.json'));
+    }
     await removeArtifact(path.join(outDir, 'chunk_meta.json.gz'));
     await removeArtifact(path.join(outDir, 'chunk_meta.json.zst'));
     await removeArtifact(columnarPath);
@@ -1047,6 +1061,19 @@ export const enqueueChunkMetaArtifacts = async ({
         items: mapRows(source.items, (entry) => projectColdEntry(entry))
       };
     };
+    const writeCompatChunkMetaJson = async () => {
+      if (!shouldWriteCompatChunkMetaJson) return;
+      const { items, itemsAsync } = createHotItemsSource();
+      if (itemsAsync) {
+        const materialized = [];
+        for await (const item of items) {
+          materialized.push(item);
+        }
+        await writeJsonArrayFile(compatJsonPath, materialized, { atomic: true });
+        return;
+      }
+      await writeJsonArrayFile(compatJsonPath, items, { atomic: true });
+    };
     let collectedCleaned = false;
     const cleanupCollected = async () => {
       if (collectedCleaned) return;
@@ -1122,6 +1149,7 @@ export const enqueueChunkMetaArtifacts = async ({
                 count: chunkMetaCount
               }, offsetsPath);
             }
+            await writeCompatChunkMetaJson();
             await cleanupCollected();
             return;
           }
@@ -1172,6 +1200,7 @@ export const enqueueChunkMetaArtifacts = async ({
             }
           }
           addPieceFile({ type: 'chunks', name: 'chunk_meta_meta', format: 'json' }, metaPath);
+          await writeCompatChunkMetaJson();
           await cleanupCollected();
         }
       );
@@ -1267,6 +1296,7 @@ export const enqueueChunkMetaArtifacts = async ({
               maxBytes: resolvedMaxJsonBytes
             }
           );
+          await writeCompatChunkMetaJson();
           await cleanupCollected();
         }
       );

@@ -108,59 +108,61 @@ export const createJsonWriteStream = (filePath, options = {}) => {
   const detachAbort = attachAbortHandler();
   const removeTempFile = async () => {
     if (!atomic) return;
-    await waitForClose(fileStream);
-    // Windows can keep handles busy briefly after stream close under load/abort.
-    // Give cleanup a wider retry window so atomic temp files are not leaked.
-    const maxAttempts = 20;
-    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-      try {
-        await fsPromises.rm(targetPath, { force: true });
-        return;
-      } catch (err) {
-        if (err?.code === 'ENOENT') {
-          return;
-        }
-        if (!['EBUSY', 'EPERM', 'EACCES', 'EMFILE', 'ENOTEMPTY'].includes(err?.code)) {
-          break;
-        }
-        await delay(Math.min(1000, 30 * (attempt + 1)));
-      }
-    }
-    // Final best-effort fallback for environments where rm() intermittently
-    // fails on recently closed file handles.
-    try {
-      await fsPromises.unlink(targetPath);
-    } catch {}
-    // Clean up stale temp siblings for the same target file only.
-    try {
-      const dir = path.dirname(filePath);
-      const tempPrefix = `${path.basename(filePath)}.tmp-`;
-      const entries = await fsPromises.readdir(dir);
-      for (const entry of entries) {
-        if (!entry.startsWith(tempPrefix)) continue;
-        const entryPath = path.join(dir, entry);
-        for (let attempt = 0; attempt < 6; attempt += 1) {
-          try {
-            await fsPromises.rm(entryPath, { force: true });
+    const retryRemovePath = async (target) => {
+      const maxAttempts = 20;
+      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        try {
+          await fsPromises.rm(target, { force: true });
+          return !fs.existsSync(target);
+        } catch (err) {
+          if (err?.code === 'ENOENT') return true;
+          if (!['EBUSY', 'EPERM', 'EACCES', 'EMFILE', 'ENOTEMPTY'].includes(err?.code)) {
             break;
-          } catch (err) {
-            if (err?.code === 'ENOENT') break;
-            if (!['EBUSY', 'EPERM', 'EACCES', 'EMFILE', 'ENOTEMPTY'].includes(err?.code)) break;
-            await delay(Math.min(600, 25 * (attempt + 1)));
           }
+          await delay(Math.min(1000, 30 * (attempt + 1)));
         }
       }
-    } catch {}
+      try {
+        await fsPromises.unlink(target);
+      } catch {}
+      return !fs.existsSync(target);
+    };
+    const cleanupTempSiblings = async () => {
+      const basename = path.basename(filePath);
+      const ext = path.extname(filePath);
+      const dirs = new Set([
+        path.dirname(filePath),
+        path.dirname(targetPath)
+      ]);
+      for (const dir of dirs) {
+        let entries = [];
+        try {
+          entries = await fsPromises.readdir(dir);
+        } catch {
+          continue;
+        }
+        for (const entry of entries) {
+          if (!entry.includes('.tmp-')) continue;
+          const isFileScopedTemp = entry.startsWith(`${basename}.tmp-`);
+          const isCompactTemp = entry.startsWith('t.tmp-')
+            && (!ext || entry.endsWith(ext));
+          if (!isFileScopedTemp && !isCompactTemp) continue;
+          await retryRemovePath(path.join(dir, entry));
+        }
+      }
+    };
+    await waitForClose(fileStream);
+    await retryRemovePath(targetPath);
+    await cleanupTempSiblings();
     // Last guard: if the specific temp path still exists, keep retrying a bit
     // before letting callers observe stale ".tmp-" files.
     for (let attempt = 0; attempt < 10; attempt += 1) {
       if (!fs.existsSync(targetPath)) break;
-      try {
-        await fsPromises.rm(targetPath, { force: true });
-      } catch {}
+      await retryRemovePath(targetPath);
       if (!fs.existsSync(targetPath)) break;
       await delay(Math.min(1000, 50 * (attempt + 1)));
     }
+    await cleanupTempSiblings();
   };
   const attachPipelineErrorHandlers = () => {
     const forwardToFile = (err) => {
