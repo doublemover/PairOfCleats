@@ -362,7 +362,7 @@ Implementation policy for Sweep 3:
 - Rollout: `indexer.streamingChunks=true`; compare counts/hashes against legacy path before default enablement.
 - Target: 40-70% lower peak heap on large builds.
 
-3. Area: File-level token stream reuse
+3. [x] Area: File-level token stream reuse
 - Files: `src/index/build/file-processor/process-chunks/index.js`, `src/index/build/tokenization.js`
 - Decision: Build one per-file token stream plus offsets, then map chunk ranges into it when token text is semantically identical to per-chunk tokenization.
 - Rollout: `tokenization.fileStream=true` gated by safe mode checks; fallback to per-chunk path.

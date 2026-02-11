@@ -418,6 +418,8 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   const segmentsConfig = normalizeSegmentsConfig(indexingConfig.segments || {});
   const commentsConfig = normalizeCommentConfig(indexingConfig.comments || {});
   const chunkingConfig = indexingConfig.chunking || {};
+  const tokenizationConfig = indexingConfig.tokenization || {};
+  const tokenizationFileStream = tokenizationConfig.fileStream === true;
   const chunking = {
     maxBytes: normalizeLimit(chunkingConfig.maxBytes, null),
     maxLines: normalizeLimit(chunkingConfig.maxLines, null)
@@ -825,6 +827,9 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     },
     embeddingBatchMultipliers,
     chunking,
+    tokenization: {
+      fileStream: tokenizationFileStream
+    },
     pythonAst: pythonAstRuntimeConfig,
     kotlin: {
       flowMaxBytes: kotlinFlowMaxBytes,

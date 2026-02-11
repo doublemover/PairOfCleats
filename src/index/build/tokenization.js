@@ -475,6 +475,79 @@ const normalizeToken = (value) => {
   return value;
 };
 
+const buildSequenceFromTokens = (tokens, seqBuffer = null) => {
+  if (!Array.isArray(tokens) || !tokens.length) return [];
+  let hasSynonyms = false;
+  for (let i = 0; i < tokens.length; i += 1) {
+    if (SYN[tokens[i]]) {
+      hasSynonyms = true;
+      break;
+    }
+  }
+  if (!hasSynonyms) {
+    return tokens.slice();
+  }
+  const seq = seqBuffer || [];
+  if (seqBuffer) seqBuffer.length = 0;
+  for (let i = 0; i < tokens.length; i += 1) {
+    const token = tokens[i];
+    seq.push(token);
+    if (SYN[token]) seq.push(SYN[token]);
+  }
+  return seqBuffer ? seq.slice() : seq;
+};
+
+export const createFileLineTokenStream = ({
+  text,
+  mode,
+  ext,
+  dictWords,
+  dictConfig
+}) => {
+  const lines = typeof text === 'string' ? text.split('\n') : [];
+  const lineTokens = new Array(lines.length);
+  const linePunctuationTokens = mode === 'code' ? new Array(lines.length) : null;
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    const built = buildTokenSequence({
+      text: line,
+      mode,
+      ext,
+      dictWords,
+      dictConfig,
+      includeCodePunctuation: false,
+      includeSeq: false
+    });
+    lineTokens[i] = Array.isArray(built?.tokens) ? built.tokens : [];
+    if (linePunctuationTokens) {
+      linePunctuationTokens[i] = extractPunctuationTokens(line);
+    }
+  }
+  return { lineTokens, linePunctuationTokens };
+};
+
+export const sliceFileLineTokenStream = ({ stream, startLine, endLine }) => {
+  const lineTokens = Array.isArray(stream?.lineTokens) ? stream.lineTokens : null;
+  if (!lineTokens) return null;
+  const linePunctuationTokens = Array.isArray(stream?.linePunctuationTokens)
+    ? stream.linePunctuationTokens
+    : null;
+  const start = Math.max(1, Math.floor(Number(startLine) || 1));
+  const end = Math.max(start, Math.floor(Number(endLine) || start));
+  const tokens = [];
+  for (let line = start; line <= end; line += 1) {
+    const list = lineTokens[line - 1];
+    if (Array.isArray(list) && list.length) tokens.push(...list);
+  }
+  if (linePunctuationTokens) {
+    for (let line = start; line <= end; line += 1) {
+      const list = linePunctuationTokens[line - 1];
+      if (Array.isArray(list) && list.length) tokens.push(...list);
+    }
+  }
+  return { tokens, seq: buildSequenceFromTokens(tokens) };
+};
+
 /**
  * Build tokens and optional synonym-expanded sequence for indexing.
  * @param {{text:string,mode:'code'|'prose',ext?:string,dictWords:Set<string>|{size:number,has:function},dictConfig:object,buffers?:object,includeSeq?:boolean}} input
@@ -487,6 +560,7 @@ export function buildTokenSequence({
   dictWords,
   dictConfig,
   buffers = null,
+  includeCodePunctuation = true,
   includeSeq = true
 }) {
   const useBuffers = !!buffers;
@@ -505,7 +579,7 @@ export function buildTokenSequence({
   for (const token of baseTokens) {
     scratch.push(normalizeToken(token));
   }
-  if (mode === 'code') {
+  if (mode === 'code' && includeCodePunctuation) {
     const punctuation = extractPunctuationTokens(text);
     for (const token of punctuation) scratch.push(token);
   }
@@ -531,34 +605,16 @@ export function buildTokenSequence({
     for (const token of working) tokensOut.push(token);
   }
 
-  let hasSynonyms = false;
-  if (includeSeq) {
-    for (const token of tokensOut) {
-      if (SYN[token]) {
-        hasSynonyms = true;
-        break;
-      }
-    }
-    if (hasSynonyms) {
-      for (const token of tokensOut) {
-        seqOut.push(token);
-        if (SYN[token]) seqOut.push(SYN[token]);
-      }
-    }
-  }
-
   // When buffers are supplied we still return cloned output arrays so callers
   // can retain per-chunk token lists without being mutated by the next chunk.
   const tokens = useBuffers ? tokensOut.slice() : tokensOut;
   if (!includeSeq) {
     return { tokens, seq: [] };
   }
-  if (!hasSynonyms) {
-    return { tokens, seq: tokens };
-  }
+  const seq = buildSequenceFromTokens(tokens, seqOut);
   return {
     tokens,
-    seq: useBuffers ? seqOut.slice() : seqOut
+    seq
   };
 }
 
@@ -611,18 +667,26 @@ const computeTokenStats = (tokens) => {
  * @returns {{tokens:string[],seq:string[],minhashSig:number[],stats:object}}
  */
 export function tokenizeChunkText(input) {
-  const { text, mode, ext, context, buffers = null, languageId = null } = input;
+  const { text, mode, ext, context, buffers = null, languageId = null, pretokenized = null } = input;
   const dictConfig = context?.dictConfig || {};
   const dictWords = resolveTokenDictWords({ context, mode, languageId });
-
-  const { tokens, seq } = buildTokenSequence({
-    text,
-    mode,
-    ext,
-    dictWords,
-    dictConfig,
-    buffers
-  });
+  const providedTokens = Array.isArray(pretokenized?.tokens) ? pretokenized.tokens : null;
+  const providedSeq = Array.isArray(pretokenized?.seq) ? pretokenized.seq : null;
+  const { tokens, seq } = providedTokens
+    ? {
+      tokens: providedTokens.slice(),
+      seq: providedSeq && providedSeq.length
+        ? providedSeq.slice()
+        : buildSequenceFromTokens(providedTokens)
+    }
+    : buildTokenSequence({
+      text,
+      mode,
+      ext,
+      dictWords,
+      dictConfig,
+      buffers
+    });
 
   const tokenIdsOut = buffers?.tokenIds || [];
   if (buffers?.tokenIds) tokenIdsOut.length = 0;

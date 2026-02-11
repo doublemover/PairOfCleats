@@ -5,8 +5,10 @@ import { getChunkAuthorsFromLines } from '../../../scm/annotate.js';
 import { isJsLike } from '../../../constants.js';
 import {
   classifyTokenBuckets,
+  createFileLineTokenStream,
   createTokenizationBuffers,
   resolveTokenDictWords,
+  sliceFileLineTokenStream,
   tokenizeChunkText
 } from '../../tokenization.js';
 import { assignCommentsToChunks } from '../chunk.js';
@@ -140,6 +142,8 @@ export const processChunks = async (context) => {
   const wantsFieldTokens = postingsConfig?.fielded !== false
     || postingsConfig?.chargramSource === 'fields'
     || postingsConfig?.phraseSource === 'fields';
+  const tokenizationFileStreamEnabled = languageOptions?.tokenization?.fileStream === true;
+  const fileTokenStreamCache = new Map();
   attachCallDetailsByChunkIndex(callIndex, sc);
   const useWorkerForTokens = tokenMode === 'code'
     && !workerState.tokenWorkerDisabled
@@ -384,8 +388,27 @@ export const processChunks = async (context) => {
     const fieldChargramTokens = null;
 
     let tokenPayload = null;
+    let pretokenized = null;
+    if (tokenizationFileStreamEnabled && tokenText === ctext) {
+      let tokenStream = fileTokenStreamCache.get(dictCacheKey);
+      if (!tokenStream) {
+        tokenStream = createFileLineTokenStream({
+          text,
+          mode: chunkMode,
+          ext: effectiveExt,
+          dictWords: dictWordsForChunk,
+          dictConfig
+        });
+        fileTokenStreamCache.set(dictCacheKey, tokenStream);
+      }
+      pretokenized = sliceFileLineTokenStream({
+        stream: tokenStream,
+        startLine,
+        endLine
+      });
+    }
     let usedWorkerTokenize = false;
-    if (runTokenize) {
+    if (runTokenize && !pretokenized) {
       try {
         const tokenStart = Date.now();
         updateCrashStage('tokenize-worker', { chunkIndex: ci });
@@ -447,6 +470,7 @@ export const processChunks = async (context) => {
         ext: effectiveExt,
         context: tokenContext,
         languageId: chunkLanguageId,
+        pretokenized,
         // chargramTokens is intentionally omitted (see note above).
         buffers: tokenBuffers
       });
