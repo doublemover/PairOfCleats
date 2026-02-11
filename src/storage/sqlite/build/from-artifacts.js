@@ -1637,7 +1637,7 @@ export async function buildDatabaseFromArtifacts({
       expected: validationStats,
       emitOutput,
       logger,
-      dbPath: resolvedOutPath,
+      dbPath,
       vectorAnnTable: vectorAnn?.tableName || vectorExtension.table || 'dense_vectors_ann',
       useOptimize,
       inputBytes,

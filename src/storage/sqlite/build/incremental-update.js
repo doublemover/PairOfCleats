@@ -605,8 +605,8 @@ export async function incrementalUpdateDatabase({
     const chargramIdMap = chargramVocab.map;
 
     const orderedChanged = [...changed].sort((a, b) => {
-      const aIds = existingIdsByFile.get(a?.normalized || '')?.ids || [];
-      const bIds = existingIdsByFile.get(b?.normalized || '')?.ids || [];
+      const aIds = existingIdsByFile.get(toFileKey(a?.normalized || ''))?.ids || [];
+      const bIds = existingIdsByFile.get(toFileKey(b?.normalized || ''))?.ids || [];
       const aIsNew = aIds.length === 0;
       const bIsNew = bIds.length === 0;
       if (aIsNew === bIsNew) return 0;

@@ -615,7 +615,7 @@ export async function buildDatabaseFromBundles({
       expected: validationStats,
       emitOutput,
       logger,
-      dbPath: outPath,
+      dbPath,
       vectorAnnTable: vectorAnnState?.table || vectorExtension.table || 'dense_vectors_ann',
       useOptimize,
       inputBytes,

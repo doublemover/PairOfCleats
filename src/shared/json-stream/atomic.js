@@ -151,7 +151,7 @@ export const replaceFile = async (tempPath, finalPath, options = {}) => {
   };
   const canTreatExistingFinalAsCommitted = async () => {
     if (!fs.existsSync(finalPath)) return false;
-    if (!finalExistedAtStart || backupAvailable) return true;
+    if (!finalExistedAtStart) return true;
     return isFreshFinal();
   };
   if (!(await waitForPath(tempPath, {

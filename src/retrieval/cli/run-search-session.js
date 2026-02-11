@@ -580,9 +580,6 @@ export async function runSearchSession({
       annBackendUsed = requestedBackend;
     }
   }
-  if (explicitRequestedBackend) {
-    annBackendUsed = requestedBackend;
-  }
 
   if (queryCacheEnabled && cacheKey) {
     if (!cacheData) cacheData = { version: 1, entries: [] };
