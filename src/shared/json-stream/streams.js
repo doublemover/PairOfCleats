@@ -30,8 +30,8 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const RETRYABLE_RM_CODES = new Set(['EBUSY', 'EPERM', 'EACCES', 'EMFILE', 'ENOTEMPTY']);
 
 const removePathWithRetry = async (target, {
-  attempts = 20,
-  baseDelayMs = 30,
+  attempts = 40,
+  baseDelayMs = 20,
   recursive = false
 } = {}) => {
   const maxAttempts = Number.isFinite(Number(attempts)) ? Math.max(1, Math.floor(Number(attempts))) : 20;
@@ -143,7 +143,7 @@ export const createJsonWriteStream = (filePath, options = {}) => {
     await removePathWithRetry(targetPath, { recursive: false });
     // Last guard: if the specific temp path still exists, keep retrying a bit
     // before letting callers observe stale ".tmp-" files.
-    for (let attempt = 0; attempt < 10; attempt += 1) {
+    for (let attempt = 0; attempt < 30; attempt += 1) {
       if (!fs.existsSync(targetPath)) break;
       await removePathWithRetry(targetPath, { recursive: false, attempts: 3, baseDelayMs: 50 });
       if (!fs.existsSync(targetPath)) break;
