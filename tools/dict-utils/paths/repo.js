@@ -86,14 +86,38 @@ export function getBuildsRoot(repoRoot, userConfig = null) {
 }
 
 const DEFAULT_BUILD_MODES = ['code', 'prose', 'extracted-prose', 'records'];
+const MODE_ARTIFACT_MARKERS = [
+  path.join('pieces', 'manifest.json'),
+  'chunk_meta.json',
+  'chunk_meta.json.gz',
+  'chunk_meta.json.zst',
+  'chunk_meta.jsonl',
+  'chunk_meta.jsonl.gz',
+  'chunk_meta.jsonl.zst',
+  'chunk_meta.meta.json',
+  'chunk_meta.parts',
+  'chunk_meta.columnar.json',
+  'chunk_meta.binary-columnar.meta.json'
+];
+
+const hasModeArtifacts = (rootPath, mode) => {
+  const indexDir = path.join(rootPath, `index-${mode}`);
+  if (!fs.existsSync(indexDir)) return false;
+  for (const marker of MODE_ARTIFACT_MARKERS) {
+    if (fs.existsSync(path.join(indexDir, marker))) {
+      return true;
+    }
+  }
+  return false;
+};
 
 const hasModeIndexDir = (rootPath, mode = null) => {
   if (!rootPath || !fs.existsSync(rootPath)) return false;
   if (typeof mode === 'string' && mode.trim()) {
-    return fs.existsSync(path.join(rootPath, `index-${mode.trim()}`));
+    return hasModeArtifacts(rootPath, mode.trim());
   }
   for (const candidateMode of DEFAULT_BUILD_MODES) {
-    if (fs.existsSync(path.join(rootPath, `index-${candidateMode}`))) {
+    if (hasModeArtifacts(rootPath, candidateMode)) {
       return true;
     }
   }

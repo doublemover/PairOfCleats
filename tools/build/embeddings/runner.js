@@ -377,8 +377,13 @@ export async function runBuildEmbeddingsWithConfig(config) {
       const hasPiecesManifest = fsSync.existsSync(path.join(indexDir, 'pieces', 'manifest.json'));
       const hasChunkMeta = (
         fsSync.existsSync(path.join(indexDir, 'chunk_meta.json'))
+        || fsSync.existsSync(path.join(indexDir, 'chunk_meta.json.gz'))
+        || fsSync.existsSync(path.join(indexDir, 'chunk_meta.json.zst'))
         || fsSync.existsSync(path.join(indexDir, 'chunk_meta.jsonl'))
+        || fsSync.existsSync(path.join(indexDir, 'chunk_meta.jsonl.gz'))
+        || fsSync.existsSync(path.join(indexDir, 'chunk_meta.jsonl.zst'))
         || fsSync.existsSync(path.join(indexDir, 'chunk_meta.meta.json'))
+        || fsSync.existsSync(path.join(indexDir, 'chunk_meta.parts'))
         || fsSync.existsSync(path.join(indexDir, 'chunk_meta.columnar.json'))
         || fsSync.existsSync(path.join(indexDir, 'chunk_meta.binary-columnar.meta.json'))
       );
