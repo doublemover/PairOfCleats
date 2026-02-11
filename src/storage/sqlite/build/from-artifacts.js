@@ -858,6 +858,7 @@ export async function buildDatabaseFromArtifacts({
       const vocabStart = performance.now();
       const postingStart = performance.now();
       const insertTx = db.transaction((batch) => {
+        const postingsByDoc = new Map();
         for (const entry of batch) {
           if (!entry) continue;
           const chunk = entry.chunk;
@@ -880,6 +881,16 @@ export async function buildDatabaseFromArtifacts({
               insertTokenVocab.run(targetMode, tokenId, token);
               tokenVocabRows += 1;
             }
+            let docPostings = postingsByDoc.get(docId);
+            if (!docPostings) {
+              docPostings = new Map();
+              postingsByDoc.set(docId, docPostings);
+            }
+            docPostings.set(tokenId, (docPostings.get(tokenId) || 0) + tf);
+          }
+        }
+        for (const [docId, docPostings] of postingsByDoc.entries()) {
+          for (const [tokenId, tf] of docPostings.entries()) {
             insertTokenPosting.run(targetMode, tokenId, docId, tf);
             tokenPostingRows += 1;
           }
