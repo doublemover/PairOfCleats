@@ -8,7 +8,7 @@ const repoRoot = path.resolve(__dirname, '..', '..');
 const matrixDir = path.join(repoRoot, 'tests', 'lang', 'matrix');
 
 const SCHEMA_VERSION = 'usr-registry-1.0.0';
-const GENERATED_AT = '2026-02-11T00:30:00Z';
+const GENERATED_AT = '2026-02-11T01:45:00Z';
 const GENERATED_BY = 'tools/usr/generate-usr-matrix-baselines.mjs';
 
 const CAPABILITIES = [
@@ -664,6 +664,40 @@ const securityGates = [
   { id: 'security-gate-unsafe-parser-feature', check: 'unsafe_parser_features_disabled', scope: 'parser', enforcement: 'strict', blocking: true }
 ].sort((a, b) => a.id.localeCompare(b.id));
 
+const runtimeConfigPolicy = [
+  { id: 'cfg-fallback-allow-heuristic', key: 'usr.fallback.allowHeuristic', valueType: 'boolean', defaultValue: true, rolloutClass: 'stable', strictModeBehavior: 'disallow', requiresRestart: false, blocking: true },
+  { id: 'cfg-framework-enable-overlays', key: 'usr.framework.enableOverlays', valueType: 'boolean', defaultValue: true, rolloutClass: 'stable', strictModeBehavior: 'disallow', requiresRestart: false, blocking: true },
+  { id: 'cfg-parser-max-segment-ms', key: 'usr.parser.maxSegmentMs', valueType: 'integer', defaultValue: 1500, minValue: 100, maxValue: 10000, rolloutClass: 'stable', strictModeBehavior: 'disallow', requiresRestart: false, blocking: true },
+  { id: 'cfg-parser-selection-mode', key: 'usr.parser.selectionMode', valueType: 'enum', defaultValue: 'deterministic', allowedValues: ['deterministic'], rolloutClass: 'stable', strictModeBehavior: 'disallow', requiresRestart: true, blocking: true },
+  { id: 'cfg-reporting-emit-raw-parser-kinds', key: 'usr.reporting.emitRawParserKinds', valueType: 'boolean', defaultValue: true, rolloutClass: 'stable', strictModeBehavior: 'warn-unknown', requiresRestart: false, blocking: false },
+  { id: 'cfg-risk-interprocedural-enabled', key: 'usr.risk.interproceduralEnabled', valueType: 'boolean', defaultValue: true, rolloutClass: 'stable', strictModeBehavior: 'disallow', requiresRestart: false, blocking: true },
+  { id: 'cfg-rollout-cutover-enabled', key: 'usr.rollout.cutoverEnabled', valueType: 'boolean', defaultValue: false, rolloutClass: 'migration-only', strictModeBehavior: 'disallow', requiresRestart: true, blocking: true },
+  { id: 'cfg-rollout-shadow-read-enabled', key: 'usr.rollout.shadowReadEnabled', valueType: 'boolean', defaultValue: true, rolloutClass: 'migration-only', strictModeBehavior: 'disallow', requiresRestart: false, blocking: true },
+  { id: 'cfg-strict-mode-enabled', key: 'usr.strictMode.enabled', valueType: 'boolean', defaultValue: true, rolloutClass: 'stable', strictModeBehavior: 'disallow', requiresRestart: false, blocking: true }
+].sort((a, b) => a.key.localeCompare(b.key));
+
+const failureInjectionMatrix = [
+  { id: 'fi-mapping-conflict', faultClass: 'mapping-conflict', injectionLayer: 'normalization', strictExpectedOutcome: 'fail-closed', nonStrictExpectedOutcome: 'degrade-with-diagnostics', requiredDiagnostics: ['USR-E-SCHEMA-VIOLATION'], requiredReasonCodes: ['resolution_conflict'], blocking: true },
+  { id: 'fi-parser-timeout', faultClass: 'parser-timeout', injectionLayer: 'parser', strictExpectedOutcome: 'degrade-with-diagnostics', nonStrictExpectedOutcome: 'degrade-with-diagnostics', requiredDiagnostics: ['USR-W-DEGRADED-CAPABILITY'], requiredReasonCodes: ['parser_timeout'], blocking: true },
+  { id: 'fi-parser-unavailable', faultClass: 'parser-unavailable', injectionLayer: 'parser', strictExpectedOutcome: 'degrade-with-diagnostics', nonStrictExpectedOutcome: 'degrade-with-diagnostics', requiredDiagnostics: ['USR-W-DEGRADED-CAPABILITY'], requiredReasonCodes: ['parser_unavailable'], blocking: true },
+  { id: 'fi-redaction-failure', faultClass: 'redaction-failure', injectionLayer: 'reporting', strictExpectedOutcome: 'fail-closed', nonStrictExpectedOutcome: 'degrade-with-diagnostics', requiredDiagnostics: ['USR-E-SECURITY-GATE-FAILED'], requiredReasonCodes: ['redaction_required'], blocking: true },
+  { id: 'fi-resource-budget-breach', faultClass: 'resource-budget-breach', injectionLayer: 'runtime', strictExpectedOutcome: 'fail-closed', nonStrictExpectedOutcome: 'degrade-with-diagnostics', requiredDiagnostics: ['USR-E-SLO-BUDGET-FAILED'], requiredReasonCodes: ['resource_budget_exceeded'], blocking: true },
+  { id: 'fi-resolution-ambiguity-overflow', faultClass: 'resolution-ambiguity-overflow', injectionLayer: 'resolution', strictExpectedOutcome: 'degrade-with-diagnostics', nonStrictExpectedOutcome: 'warn-only', requiredDiagnostics: ['USR-W-RESOLUTION-CANDIDATE-CAPPED'], requiredReasonCodes: ['candidate_cap_exceeded'], blocking: true },
+  { id: 'fi-security-gate-failure', faultClass: 'security-gate-failure', injectionLayer: 'runtime', strictExpectedOutcome: 'fail-closed', nonStrictExpectedOutcome: 'degrade-with-diagnostics', requiredDiagnostics: ['USR-E-SECURITY-GATE-FAILED'], requiredReasonCodes: ['security_gate_blocked'], blocking: true },
+  { id: 'fi-serialization-corruption', faultClass: 'serialization-corruption', injectionLayer: 'serialization', strictExpectedOutcome: 'fail-closed', nonStrictExpectedOutcome: 'degrade-with-diagnostics', requiredDiagnostics: ['USR-E-SCHEMA-VIOLATION'], requiredReasonCodes: ['serialization_invalid'] , blocking: true }
+].sort((a, b) => a.id.localeCompare(b.id));
+
+const fixtureGovernance = [
+  { fixtureId: 'angular::template-binding::input-output-001', profileType: 'framework', profileId: 'angular', conformanceLevels: ['C4'], families: ['framework-overlay', 'template-binding'], owner: 'framework-angular', reviewers: ['usr-architecture', 'usr-conformance'], stabilityClass: 'stable', mutationPolicy: 'require-review', goldenRequired: true, blocking: true },
+  { fixtureId: 'astro::hydration::island-001', profileType: 'framework', profileId: 'astro', conformanceLevels: ['C4'], families: ['framework-overlay', 'hydration'], owner: 'framework-astro', reviewers: ['usr-architecture', 'usr-conformance'], stabilityClass: 'stable', mutationPolicy: 'require-review', goldenRequired: true, blocking: true },
+  { fixtureId: 'javascript::normalization::jsx-element-001', profileType: 'language', profileId: 'javascript', conformanceLevels: ['C0', 'C1', 'C2'], families: ['normalization', 'golden'], owner: 'language-javascript', reviewers: ['usr-conformance'], stabilityClass: 'stable', mutationPolicy: 'require-review', goldenRequired: true, blocking: true },
+  { fixtureId: 'typescript::provenance::transpile-001', profileType: 'language', profileId: 'typescript', conformanceLevels: ['C2', 'C3', 'C4'], families: ['provenance', 'golden'], owner: 'language-typescript', reviewers: ['usr-conformance', 'usr-architecture'], stabilityClass: 'stable', mutationPolicy: 'require-rfc', goldenRequired: true, blocking: true },
+  { fixtureId: 'usr::backcompat::bc-003', profileType: 'cross-cutting', profileId: 'usr', conformanceLevels: ['C0', 'C1'], families: ['backcompat', 'negative'], owner: 'usr-rollout', reviewers: ['usr-architecture', 'usr-conformance'], stabilityClass: 'stable', mutationPolicy: 'require-rfc', goldenRequired: false, blocking: true },
+  { fixtureId: 'usr::failure-injection::security-gate-001', profileType: 'cross-cutting', profileId: 'usr', conformanceLevels: ['C1', 'C2'], families: ['failure-injection', 'security'], owner: 'usr-security', reviewers: ['usr-architecture', 'usr-security'], stabilityClass: 'volatile', mutationPolicy: 'require-review', goldenRequired: false, blocking: true },
+  { fixtureId: 'usr::resolution::ambiguous-cap-001', profileType: 'cross-cutting', profileId: 'usr', conformanceLevels: ['C1', 'C2'], families: ['resolution', 'ambiguity'], owner: 'usr-resolution', reviewers: ['usr-conformance'], stabilityClass: 'stable', mutationPolicy: 'allow-generated-refresh', goldenRequired: true, blocking: false },
+  { fixtureId: 'vue::template-binding::script-setup-001', profileType: 'framework', profileId: 'vue', conformanceLevels: ['C4'], families: ['framework-overlay', 'template-binding'], owner: 'framework-vue', reviewers: ['usr-architecture', 'usr-conformance'], stabilityClass: 'stable', mutationPolicy: 'require-review', goldenRequired: true, blocking: true }
+].sort((a, b) => a.fixtureId.localeCompare(b.fixtureId));
+
 function embeddingPolicyFor(languageId, family) {
   if (customEmbeddingPolicies[languageId]) {
     return customEmbeddingPolicies[languageId];
@@ -856,6 +890,9 @@ function main() {
   writeRegistry('usr-alert-policies', alertPolicies);
   writeRegistry('usr-redaction-rules', redactionRules);
   writeRegistry('usr-security-gates', securityGates);
+  writeRegistry('usr-runtime-config-policy', runtimeConfigPolicy);
+  writeRegistry('usr-failure-injection-matrix', failureInjectionMatrix);
+  writeRegistry('usr-fixture-governance', fixtureGovernance);
 }
 
 main();

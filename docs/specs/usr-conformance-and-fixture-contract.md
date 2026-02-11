@@ -1,7 +1,7 @@
 # Spec -- USR Conformance and Fixture Contract
 
-Status: Draft v0.7
-Last updated: 2026-02-11T01:05:00Z
+Status: Draft v0.8
+Last updated: 2026-02-11T01:55:00Z
 
 ## 0. Purpose and scope
 
@@ -73,6 +73,7 @@ Cross-language and generation requirements:
 
 - embedded-language bridge family (`usr-embedding-bridge-cases.json`)
 - generated/macro provenance family (`usr-generated-provenance-cases.json`)
+- fixture ownership and mutation policy coverage (`usr-fixture-governance.json`)
 
 Minimum fixture counts per language/profile:
 
@@ -154,6 +155,7 @@ Conformance fixtures MUST link to:
 - framework profiles (`usr-framework-profiles.json`)
 - parser/runtime locks (`usr-parser-runtime-lock.json`)
 - backcompat matrix (`usr-backcompat-matrix.json`)
+- fixture governance matrix (`usr-fixture-governance.json`)
 
 ## 7. Required triage metadata fields
 
@@ -183,5 +185,6 @@ Every conformance failure record MUST include:
 - `docs/specs/usr-observability-and-slo-contract.md`
 - `docs/specs/usr-security-and-data-governance-contract.md`
 - `docs/specs/usr-audit-and-reporting-contract.md`
+- `docs/specs/usr-fixture-governance-contract.md`
 
 

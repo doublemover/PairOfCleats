@@ -1,0 +1,120 @@
+{
+  "schemaVersion": "usr-registry-1.0.0",
+  "registryId": "usr-failure-injection-matrix",
+  "generatedAt": "2026-02-11T01:45:00Z",
+  "generatedBy": "tools/usr/generate-usr-matrix-baselines.mjs",
+  "rows": [
+    {
+      "id": "fi-mapping-conflict",
+      "faultClass": "mapping-conflict",
+      "injectionLayer": "normalization",
+      "strictExpectedOutcome": "fail-closed",
+      "nonStrictExpectedOutcome": "degrade-with-diagnostics",
+      "requiredDiagnostics": [
+        "USR-E-SCHEMA-VIOLATION"
+      ],
+      "requiredReasonCodes": [
+        "resolution_conflict"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "fi-parser-timeout",
+      "faultClass": "parser-timeout",
+      "injectionLayer": "parser",
+      "strictExpectedOutcome": "degrade-with-diagnostics",
+      "nonStrictExpectedOutcome": "degrade-with-diagnostics",
+      "requiredDiagnostics": [
+        "USR-W-DEGRADED-CAPABILITY"
+      ],
+      "requiredReasonCodes": [
+        "parser_timeout"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "fi-parser-unavailable",
+      "faultClass": "parser-unavailable",
+      "injectionLayer": "parser",
+      "strictExpectedOutcome": "degrade-with-diagnostics",
+      "nonStrictExpectedOutcome": "degrade-with-diagnostics",
+      "requiredDiagnostics": [
+        "USR-W-DEGRADED-CAPABILITY"
+      ],
+      "requiredReasonCodes": [
+        "parser_unavailable"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "fi-redaction-failure",
+      "faultClass": "redaction-failure",
+      "injectionLayer": "reporting",
+      "strictExpectedOutcome": "fail-closed",
+      "nonStrictExpectedOutcome": "degrade-with-diagnostics",
+      "requiredDiagnostics": [
+        "USR-E-SECURITY-GATE-FAILED"
+      ],
+      "requiredReasonCodes": [
+        "redaction_required"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "fi-resolution-ambiguity-overflow",
+      "faultClass": "resolution-ambiguity-overflow",
+      "injectionLayer": "resolution",
+      "strictExpectedOutcome": "degrade-with-diagnostics",
+      "nonStrictExpectedOutcome": "warn-only",
+      "requiredDiagnostics": [
+        "USR-W-RESOLUTION-CANDIDATE-CAPPED"
+      ],
+      "requiredReasonCodes": [
+        "candidate_cap_exceeded"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "fi-resource-budget-breach",
+      "faultClass": "resource-budget-breach",
+      "injectionLayer": "runtime",
+      "strictExpectedOutcome": "fail-closed",
+      "nonStrictExpectedOutcome": "degrade-with-diagnostics",
+      "requiredDiagnostics": [
+        "USR-E-SLO-BUDGET-FAILED"
+      ],
+      "requiredReasonCodes": [
+        "resource_budget_exceeded"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "fi-security-gate-failure",
+      "faultClass": "security-gate-failure",
+      "injectionLayer": "runtime",
+      "strictExpectedOutcome": "fail-closed",
+      "nonStrictExpectedOutcome": "degrade-with-diagnostics",
+      "requiredDiagnostics": [
+        "USR-E-SECURITY-GATE-FAILED"
+      ],
+      "requiredReasonCodes": [
+        "security_gate_blocked"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "fi-serialization-corruption",
+      "faultClass": "serialization-corruption",
+      "injectionLayer": "serialization",
+      "strictExpectedOutcome": "fail-closed",
+      "nonStrictExpectedOutcome": "degrade-with-diagnostics",
+      "requiredDiagnostics": [
+        "USR-E-SCHEMA-VIOLATION"
+      ],
+      "requiredReasonCodes": [
+        "serialization_invalid"
+      ],
+      "blocking": true
+    }
+  ]
+}

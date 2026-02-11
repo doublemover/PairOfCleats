@@ -1,0 +1,181 @@
+{
+  "schemaVersion": "usr-registry-1.0.0",
+  "registryId": "usr-fixture-governance",
+  "generatedAt": "2026-02-11T01:45:00Z",
+  "generatedBy": "tools/usr/generate-usr-matrix-baselines.mjs",
+  "rows": [
+    {
+      "fixtureId": "angular::template-binding::input-output-001",
+      "profileType": "framework",
+      "profileId": "angular",
+      "conformanceLevels": [
+        "C4"
+      ],
+      "families": [
+        "framework-overlay",
+        "template-binding"
+      ],
+      "owner": "framework-angular",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
+    },
+    {
+      "fixtureId": "astro::hydration::island-001",
+      "profileType": "framework",
+      "profileId": "astro",
+      "conformanceLevels": [
+        "C4"
+      ],
+      "families": [
+        "framework-overlay",
+        "hydration"
+      ],
+      "owner": "framework-astro",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
+    },
+    {
+      "fixtureId": "javascript::normalization::jsx-element-001",
+      "profileType": "language",
+      "profileId": "javascript",
+      "conformanceLevels": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "families": [
+        "normalization",
+        "golden"
+      ],
+      "owner": "language-javascript",
+      "reviewers": [
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
+    },
+    {
+      "fixtureId": "typescript::provenance::transpile-001",
+      "profileType": "language",
+      "profileId": "typescript",
+      "conformanceLevels": [
+        "C2",
+        "C3",
+        "C4"
+      ],
+      "families": [
+        "provenance",
+        "golden"
+      ],
+      "owner": "language-typescript",
+      "reviewers": [
+        "usr-conformance",
+        "usr-architecture"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-rfc",
+      "goldenRequired": true,
+      "blocking": true
+    },
+    {
+      "fixtureId": "usr::backcompat::bc-003",
+      "profileType": "cross-cutting",
+      "profileId": "usr",
+      "conformanceLevels": [
+        "C0",
+        "C1"
+      ],
+      "families": [
+        "backcompat",
+        "negative"
+      ],
+      "owner": "usr-rollout",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-rfc",
+      "goldenRequired": false,
+      "blocking": true
+    },
+    {
+      "fixtureId": "usr::failure-injection::security-gate-001",
+      "profileType": "cross-cutting",
+      "profileId": "usr",
+      "conformanceLevels": [
+        "C1",
+        "C2"
+      ],
+      "families": [
+        "failure-injection",
+        "security"
+      ],
+      "owner": "usr-security",
+      "reviewers": [
+        "usr-architecture",
+        "usr-security"
+      ],
+      "stabilityClass": "volatile",
+      "mutationPolicy": "require-review",
+      "goldenRequired": false,
+      "blocking": true
+    },
+    {
+      "fixtureId": "usr::resolution::ambiguous-cap-001",
+      "profileType": "cross-cutting",
+      "profileId": "usr",
+      "conformanceLevels": [
+        "C1",
+        "C2"
+      ],
+      "families": [
+        "resolution",
+        "ambiguity"
+      ],
+      "owner": "usr-resolution",
+      "reviewers": [
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "allow-generated-refresh",
+      "goldenRequired": true,
+      "blocking": false
+    },
+    {
+      "fixtureId": "vue::template-binding::script-setup-001",
+      "profileType": "framework",
+      "profileId": "vue",
+      "conformanceLevels": [
+        "C4"
+      ],
+      "families": [
+        "framework-overlay",
+        "template-binding"
+      ],
+      "owner": "framework-vue",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
+    }
+  ]
+}

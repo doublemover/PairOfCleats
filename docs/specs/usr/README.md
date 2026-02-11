@@ -1,7 +1,7 @@
 # USR Decomposed Contract Set
 
-Status: Draft v1.0
-Last updated: 2026-02-11T01:05:00Z
+Status: Draft v1.1
+Last updated: 2026-02-11T01:55:00Z
 
 This directory decomposes the monolithic USR spec into focused normative contract documents.
 
@@ -21,6 +21,9 @@ Primary contracts:
 - `docs/specs/usr-observability-and-slo-contract.md`
 - `docs/specs/usr-security-and-data-governance-contract.md`
 - `docs/specs/usr-audit-and-reporting-contract.md`
+- `docs/specs/usr-runtime-config-contract.md`
+- `docs/specs/usr-failure-injection-and-resilience-contract.md`
+- `docs/specs/usr-fixture-governance-contract.md`
 
 Per-language contracts:
 
@@ -49,5 +52,7 @@ Drift enforcement expectations:
 - parser/runtime lock matrix MUST stay synchronized with parser sources referenced by profiles and mappings
 - SLO/alert and redaction/security matrices MUST stay synchronized with blocking gate policies in roadmap and CI
 - report envelope and row schemas MUST stay synchronized with section 30 required report outputs
+- runtime config policy matrix MUST stay synchronized with rollout/strict-mode and feature-flag contract semantics
+- failure-injection and fixture-governance matrices MUST stay synchronized with failure-mode and conformance fixture coverage requirements
 
 

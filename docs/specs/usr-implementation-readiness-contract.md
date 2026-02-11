@@ -1,7 +1,7 @@
 # Spec -- USR Implementation Readiness Contract
 
 Status: Draft v0.3
-Last updated: 2026-02-11T01:05:00Z
+Last updated: 2026-02-11T01:55:00Z
 
 ## 0. Purpose and scope
 
@@ -20,6 +20,8 @@ Implementation readiness MUST be demonstrated across all domains:
 5. security and data-governance readiness
 6. operational readiness
 7. ownership and escalation readiness
+8. runtime configuration and feature-flag readiness
+9. failure-injection and resilience readiness
 
 ## 2. Contract and schema readiness
 
@@ -28,6 +30,7 @@ Required:
 - all decomposed contracts present and cross-referenced
 - all matrix files validated under registry-schema contract
 - matrix baseline regeneration is deterministic via `tools/usr/generate-usr-matrix-baselines.mjs`
+- runtime configuration policy matrix and strict-mode config behavior validated
 - strict validators implemented and wired into CI
 - contract drift checks passing on baseline branch
 
@@ -58,6 +61,7 @@ Required:
 - minimum fixture counts satisfied for required conformance levels
 - canonical example fixtures validated
 - bridge/provenance fixture families present for applicable profiles
+- fixture governance matrix rows cover blocking fixture families and owners/reviewers
 - deterministic rerun diff clean for required lanes
 
 Blocking artifact set:
@@ -104,6 +108,7 @@ Required:
 - incident response runbook linked and owners assigned
 - dashboard/report outputs configured and accessible
 - CI lane budgets and timeout budgets explicitly defined
+- blocking failure-injection scenarios executed with recovery evidence artifacts
 
 Blocking artifact set:
 
@@ -125,6 +130,10 @@ Blocking artifact set:
 - `usr-ownership-matrix.json`
 - `usr-escalation-policy.json`
 - `usr-release-sla-policy.json`
+- `usr-runtime-config-validation.json`
+- `usr-feature-flag-state.json`
+- `usr-failure-injection-results.json`
+- `usr-fixture-governance-validation.json`
 
 ## 9. Promotion criteria by phase
 
@@ -146,3 +155,6 @@ Missing mandatory evidence in any required domain is a promotion blocker.
 - `docs/specs/usr-observability-and-slo-contract.md`
 - `docs/specs/usr-security-and-data-governance-contract.md`
 - `docs/specs/usr-audit-and-reporting-contract.md`
+- `docs/specs/usr-runtime-config-contract.md`
+- `docs/specs/usr-failure-injection-and-resilience-contract.md`
+- `docs/specs/usr-fixture-governance-contract.md`

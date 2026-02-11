@@ -1,7 +1,7 @@
 # Spec -- USR Registry Schema and Serialization Contract
 
-Status: Draft v0.3
-Last updated: 2026-02-11T00:20:00Z
+Status: Draft v0.4
+Last updated: 2026-02-11T01:55:00Z
 
 ## 0. Purpose and scope
 
@@ -31,6 +31,9 @@ Implementations MUST maintain and validate all files below:
 - `usr-alert-policies.json`
 - `usr-redaction-rules.json`
 - `usr-security-gates.json`
+- `usr-runtime-config-policy.json`
+- `usr-failure-injection-matrix.json`
+- `usr-fixture-governance.json`
 
 ## 2. Canonical wrappers and metadata
 
@@ -358,6 +361,65 @@ type USRSecurityGateRowV1 = {
 };
 ```
 
+### 3.19 `usr-runtime-config-policy.json`
+
+```ts
+type USRRuntimeConfigPolicyRowV1 = {
+  id: string;
+  key: string;
+  valueType: "boolean" | "integer" | "number" | "string" | "enum" | "array" | "object";
+  defaultValue: string | number | boolean | null;
+  allowedValues?: Array<string | number | boolean>;
+  minValue?: number | null;
+  maxValue?: number | null;
+  rolloutClass: "stable" | "experimental" | "migration-only";
+  strictModeBehavior: "reject-unknown" | "warn-unknown" | "coerce" | "disallow";
+  requiresRestart: boolean;
+  blocking: boolean;
+};
+```
+
+### 3.20 `usr-failure-injection-matrix.json`
+
+```ts
+type USRFailureInjectionRowV1 = {
+  id: string;
+  faultClass:
+    | "parser-unavailable"
+    | "parser-timeout"
+    | "mapping-conflict"
+    | "resolution-ambiguity-overflow"
+    | "serialization-corruption"
+    | "security-gate-failure"
+    | "redaction-failure"
+    | "resource-budget-breach";
+  injectionLayer: "input" | "parser" | "normalization" | "resolution" | "serialization" | "reporting" | "runtime";
+  strictExpectedOutcome: "fail-closed" | "degrade-with-diagnostics";
+  nonStrictExpectedOutcome: "degrade-with-diagnostics" | "warn-only";
+  requiredDiagnostics: string[];
+  requiredReasonCodes: string[];
+  blocking: boolean;
+};
+```
+
+### 3.21 `usr-fixture-governance.json`
+
+```ts
+type USRFixtureGovernanceRowV1 = {
+  fixtureId: string;
+  profileType: "language" | "framework" | "cross-cutting";
+  profileId: string;
+  conformanceLevels: Array<"C0" | "C1" | "C2" | "C3" | "C4">;
+  families: string[];
+  owner: string;
+  reviewers: string[];
+  stabilityClass: "stable" | "volatile" | "experimental";
+  mutationPolicy: "require-rfc" | "require-review" | "allow-generated-refresh";
+  goldenRequired: boolean;
+  blocking: boolean;
+};
+```
+
 ## 4. Canonical ordering policy
 
 Sorting MUST be stable and deterministic.
@@ -390,6 +452,9 @@ The following MUST hold:
 - case IDs referenced by bridge/provenance/risk contracts MUST resolve to existing matrix rows.
 - SLO and alert policy matrices MUST cover all required lanes and blocking gate scopes.
 - security gate and redaction matrices MUST cover required security control classes.
+- runtime config policy keys MUST be unique and non-overlapping by canonical key path.
+- failure injection matrix MUST cover all required blocking fault classes.
+- fixture governance matrix profile IDs MUST resolve to language/framework profile registries.
 
 ## 6. Strict validation behavior
 
@@ -417,3 +482,6 @@ Required validation outputs:
 - `docs/specs/usr-conformance-and-fixture-contract.md`
 - `docs/specs/usr-observability-and-slo-contract.md`
 - `docs/specs/usr-security-and-data-governance-contract.md`
+- `docs/specs/usr-runtime-config-contract.md`
+- `docs/specs/usr-failure-injection-and-resilience-contract.md`
+- `docs/specs/usr-fixture-governance-contract.md`
