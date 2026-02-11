@@ -55,7 +55,19 @@ const makeChunk = (overrides) => ({
   ...overrides
 });
 
-const runWrite = async ({ chunks, indexState }) => {
+const runWrite = async ({ chunks, indexState, forceFilterIndexFailure = false }) => {
+  const userConfig = {
+    indexing: { scm: { provider: 'none' } }
+  };
+  if (forceFilterIndexFailure) {
+    Object.defineProperty(userConfig, 'search', {
+      enumerable: true,
+      configurable: true,
+      get() {
+        throw new Error('forced filter_index failure');
+      }
+    });
+  }
   const state = {
     ...baseState,
     chunks,
@@ -89,7 +101,7 @@ const runWrite = async ({ chunks, indexState }) => {
     dictSummary: null,
     timing,
     root: testRoot,
-    userConfig: { indexing: { scm: { provider: 'none' } } },
+    userConfig,
     incrementalEnabled: false,
     fileCounts: { candidates: state.discoveredFiles.length },
     perfProfile: null,
@@ -138,7 +150,8 @@ if (!payload1) fail('filter-index atomic swap test failed: failed to read filter
 // Run 2: force filter_index build to fail, ensure we keep previous artifact.
 await runWrite({
   chunks: [makeChunk({ lang: null, metaV2: {} })],
-  indexState: { ...indexState, generatedAt: new Date().toISOString() }
+  indexState: { ...indexState, generatedAt: new Date().toISOString() },
+  forceFilterIndexFailure: true
 });
 const manifest2 = await readPiecesManifest();
 const piece2 = findFilterIndexPiece(manifest2);
