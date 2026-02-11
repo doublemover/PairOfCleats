@@ -18,12 +18,12 @@ The **workspace manifest** is a deterministic, cacheable snapshot of:
 - where each repo's **current build** points (`buildId`, build roots),
 - which per-mode indexes are present,
 - per-mode **index signature hashes** (for cache invalidation),
-- per-mode **compatibility keys** (for cohort gating; see Phase 15.4).
+- per-mode **cohort/compatibility keys** (for cohort gating; see Phase 15.4).
 
 The manifest is the single authoritative input for:
 
 - federated search orchestration (Phase 15.3),
-- federated query caching (Phase 15.4),
+- federated query caching (Phase 15.5),
 - later shared cache GC and CAS (Phase 15.5+).
 
 ---
@@ -163,8 +163,16 @@ Each mode entry:
 | `indexDir` | string \| null | yes | `<indexRoot>/index-<mode>` if indexRoot present, else null. |
 | `present` | boolean | yes | Whether `indexDir` exists and is a directory. |
 | `indexSignatureHash` | string \| null | yes | `is1-...` signature hash if present else null. |
-| `compatibilityKey` | string \| null | yes | From index_state (Phase 15.4) or null if missing. |
+| `cohortKey` | string \| null | yes | Preferred key for federation cohorting (mode-scoped). |
+| `compatibilityKey` | string \| null | yes | Fallback key when `cohortKey` is missing. |
+| `availabilityReason` | string | yes | `present|missing-index-dir|missing-required-artifacts|invalid-pointer|compat-key-missing`. |
 | `details` | object | no | Optional structured diagnostic details. |
+
+Rules:
+
+- `cohortKey` is preferred; if absent, coordinator falls back to `compatibilityKey`.
+- When both keys are missing, set `availabilityReason=compat-key-missing`.
+- `availabilityReason=present` only when required artifacts exist for that mode.
 
 ### 4.6 `sqlite` object
 

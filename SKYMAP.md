@@ -77,7 +77,7 @@ Additional docs that MUST be updated if Phase 14 adds new behavior or config:
   - `docs/specs/index-refs-and-snapshots.md`
   - `docs/specs/index-diffs.md`
   - `docs/specs/as-of-retrieval-integration.md`
-  - `docs/specs/http-api.md` (if HTTP API endpoints are implemented)
+  - `docs/specs/http-api.md` (authoritative once API endpoints are implemented)
 
 - **Pointer snapshots** (cheap metadata references to validated builds).
 - **Frozen snapshots** (immutable, self-contained archival copies).
@@ -88,6 +88,26 @@ Additional docs that MUST be updated if Phase 14 adds new behavior or config:
 - [ ] “As‑of” retrieval can target a snapshot without fallback to live builds.
 - [ ] Diff artifacts are bounded, deterministic, and machine‑readable.
 - [ ] Snapshot/diff tooling surfaces are present in CLI/API.
+
+### Phase 14 Implementation Order (must follow)
+1. 14.1.1 IndexRef parsing and resolution.
+2. 14.1.3 Atomic writes + locking.
+3. 14.1.4 Path safety and privacy.
+4. 14.2 Pointer snapshots.
+5. 14.5 Retrieval integration (as-of).
+6. 14.4 Deterministic diff computation.
+7. 14.3 Frozen snapshots.
+8. 14.6 Optional HTTP API integration.
+
+### Phase 14 Non-negotiable invariants
+- [ ] Explicit refs/roots never silently fallback:
+  - [ ] `--as-of`, `--snapshot`, `--index-root`, explicit `build:<id>`, and explicit `snap:<id>` must fail fast when required artifacts are missing.
+- [ ] Contract-first rollout:
+  - [ ] Add/update schemas in `src/contracts/schemas/*`, validators, and registry before exposing new CLI/API/MCP surface.
+- [ ] Mode-aware root correctness:
+  - [ ] Any flow that can resolve per-mode roots must track build-state, maintenance, and telemetry against each selected mode root (no single-root assumptions).
+- [ ] Artifact presence checks must recognize compressed outputs:
+  - [ ] Presence checks for required artifacts must include uncompressed and compressed variants (`.json`, `.jsonl`, `.jsonl.gz`, `.jsonl.zst`, plus manifest-driven shard forms).
 
 
 ### 14.1 Snapshot & diff artifact surface (contracts, retention, safety)
@@ -155,17 +175,22 @@ Additional docs that MUST be updated if Phase 14 adds new behavior or config:
 - [ ] Integrate **validation gating semantics** into the contract:
   - [ ] Pointer snapshots may only reference builds that passed index validation (see Phase 14.2).
   - [ ] Frozen snapshots must be self-contained and re-validatable.
+- [ ] Enforce schema-first implementation sequence:
+  - [ ] Add artifact schemas + validators + contract registry bindings first.
+  - [ ] Wire writers/readers second.
+  - [ ] Expose CLI/API/MCP entrypoints only after schema validation paths are in place.
 
 Touchpoints:
 - `src/index/snapshots/**` (new)
 - `src/index/diffs/**` (new)
-  - `src/shared/artifact-schemas.js` (add AJV validators for `snapshots/manifest.json`, `diffs/manifest.json`, `diffs/*/inputs.json`, `diffs/*/summary.json`)
-  - `src/contracts/registry.js` (register new schemas)
-  - `src/contracts/schemas/*` (new snapshot/diff schemas)
-  - `docs/contracts/indexing.md`
-  - `docs/contracts/artifact-contract.md`
-  - `docs/specs/index-refs-and-snapshots.md`
-  - `docs/specs/index-diffs.md`
+- `src/shared/artifact-schemas.js` (add AJV validators for `snapshots/manifest.json`, `diffs/manifest.json`, `diffs/*/inputs.json`, `diffs/*/summary.json`)
+- `src/contracts/registry.js` (register new schemas)
+- `src/contracts/schemas/*` (new snapshot/diff schemas)
+- `src/contracts/validators/*` (new snapshot/diff validators)
+- `docs/contracts/indexing.md`
+- `docs/contracts/artifact-contract.md`
+- `docs/specs/index-refs-and-snapshots.md`
+- `docs/specs/index-diffs.md`
 
 #### Tests
 - [ ] `tests/unit/snapshots-registry.unit.js`
@@ -272,7 +297,8 @@ Touchpoints:
 - `src/index/snapshots/copy-pieces.js` (new; copy/hardlink logic)
 - `src/shared/artifact-io/manifest.js` (verify checksums + manifest parsing)
 - `src/shared/json-stream.js` (atomic JSON writes for frozen.json)
-- `src/shared/fs/atomic-replace.js` (if needed for atomic directory swaps)
+- `src/shared/json-stream/atomic.js` (atomic replace semantics for file writes)
+- `src/shared/json-stream/streams.js` (cleanup + tombstone handling for safe replacement)
 
 #### Tests
   - [ ] `tests/services/snapshot-freeze.test.js`
@@ -308,6 +334,7 @@ Touchpoints:
 
 - [ ] Implement deterministic diffing rules:
     - [ ] Define canonical event taxonomy + ordering key in the roadmap (type order + stable key fields).
+    - [ ] Version ordering semantics explicitly (e.g., `orderingSchema: "diff-events-v1"`) and persist this in `summary.json`.
     - [ ] Stable identity:
       - [ ] Files keyed by repo-relative path.
     - [ ] Chunks keyed by `metaV2.chunkId` (do **not** rely on numeric `chunk_meta.id`).
@@ -327,6 +354,7 @@ Touchpoints:
 - [ ] Sweep-driven hardening for incremental reuse/diff correctness (because this phase touches incremental state):
   - [ ] Before reusing an “unchanged” incremental build, verify required artifacts exist (use `pieces/manifest.json` as the authoritative inventory).
     - [ ] If any required piece is missing/corrupt, disable reuse and force rebuild.
+  - [ ] If explicit `--from`/`--to` refs resolve to roots missing required artifacts, fail with actionable errors (no fallback to latest/current).
   - [ ] Fast-path diff only when all `pieces/manifest.json` checksums and shard counts match (shard-aware; sum per-piece counts).
   - [ ] Ensure incremental cache invalidation is tied to a complete signature:
     - [ ] Include artifact schema hash + tool version + key feature flags in the incremental signature.
@@ -359,10 +387,12 @@ Touchpoints:
 
 ### 14.5 Retrieval + tooling integration: “as-of” snapshots and “what changed” surfaces
 
-- [ ] Add snapshot targeting to retrieval/search:
-  - [ ] Extend search CLI args with `--snapshot <snapshotId>` / `--as-of <snapshotId>`.
-  - [ ] Resolve snapshot → per-mode index roots via `snapshots/manifest.json`.
-  - [ ] Ensure `--snapshot` never leaks absolute paths (logs + JSON output must stay repo-relative).
+- [ ] Add as-of targeting to retrieval/search:
+  - [ ] Canonical flag is `--as-of <IndexRef>`.
+  - [ ] Keep `--snapshot <snapshotId>` as compatibility alias only (`--as-of snap:<id>` internally).
+  - [ ] Resolve as-of ref to per-mode index roots via `snapshots/manifest.json`.
+  - [ ] Ensure as-of references never leak absolute paths (logs + JSON output must stay repo-relative).
+  - [ ] Explicit as-of refs fail fast when required artifacts are missing (no fallback to latest/current).
 
 - [ ] Add diff surfacing commands for humans and tools:
   - [ ] `pairofcleats index diff list [--json]`
@@ -370,8 +400,9 @@ Touchpoints:
   - [ ] `pairofcleats index diff explain <diffId>` (human-oriented summary + top changed files)
 
 - [ ] Extend “secondary index builders” to support snapshots:
-  - [ ] SQLite build: accept `--snapshot <snapshotId>` / `--as-of <snapshotId>` and resolve it to `--index-root`.
+  - [ ] SQLite build: accept `--snapshot <snapshotId>` / `--as-of <IndexRef>` and resolve to `--index-root`.
     - [ ] Ensure the SQLite build can target frozen snapshots as well as pointer snapshots (as long as artifacts still exist).
+    - [ ] Explicit refs/roots fail fast when mode artifacts are missing (no silent cross-build fallback).
   - [ ] Validate tool: document `pairofcleats index validate --index-root <frozenSnapshotIndexRoot>` workflow (no new code required if `--index-root` already supported).
 
 - [ ] Add API surface (recommended):
@@ -385,12 +416,12 @@ Touchpoints:
   - [ ] Fix retrieval index signature calculation to account for sharded artifacts (see tests below) and include snapshot identity.
 
 Touchpoints:
-- `src/retrieval/cli-args.js` (add `--snapshot/--as-of`)
+- `src/retrieval/cli-args.js` (add `--as-of`; keep `--snapshot` compatibility alias)
 - `src/retrieval/cli.js` (thread snapshot option through)
 - `src/retrieval/cli-index.js` (resolve index dir via snapshot; update query cache signature)
 - `src/shared/artifact-io.js` (add signature helpers for sharded artifacts)
 - `bin/pairofcleats.js` (CLI wiring)
-- `tools/build/sqlite/cli.js` + `tools/build/sqlite/run.js` (add `--snapshot/--as-of`)
+- `tools/build/sqlite/runner.js` + `src/storage/sqlite/build/runner.js` (add `--as-of`/`--snapshot` handling with strict explicit-root behavior)
 - `tools/api/**` (if API endpoints added)
 - `src/retrieval/query-cache.js` + `src/retrieval/cli/run-search-session.js` (cache key composition + persistence)
 - `src/retrieval/index-cache.js` (index signature + snapshot awareness)
@@ -555,7 +586,7 @@ Tests:
 - [ ] `tests/services/snapshot-create.test.js`
 
 Optional API:
-- [ ] `tools/api/router/*` plus `docs/specs/http-api.md` if API endpoints are implemented.
+- [ ] `tools/api/router/*` plus `docs/specs/http-api.md` for request/response contracts.
 
 ---
 
@@ -602,26 +633,40 @@ Tests:
 
 ## 14.5 Retrieval integration (as-of)
 
-- [ ] Add `--as-of <IndexRef>` to search CLI args.
+- [ ] Canonical CLI/API contract:
+  - [ ] `--as-of <IndexRef>` is the canonical flag.
+  - [ ] `--snapshot <snapshotId>` remains a compatibility alias that is normalized to `--as-of snap:<id>`.
 - [ ] Default behavior unchanged when omitted; `--as-of latest` is equivalent to no flag.
 - [ ] Resolve AsOfContext in `src/retrieval/cli.js` and thread to index resolution.
+- [ ] Explicit refs/roots do not silently fallback:
+  - [ ] If requested `asOf` target cannot satisfy required artifact surface for selected mode(s), fail fast with actionable error.
+  - [ ] Only auto-resolved `latest` paths may use best-effort fallback logic.
 - [ ] Include `asOf.identityHash` in query cache keys.
 - [ ] Unify retrieval index signature computation to be shard-aware and include snapshot identity.
 - [ ] Enforce single-root policy for sqlite/lmdb as-of selection.
 - [ ] JSON output includes an `asOf` block (ref, identityHash, resolved summary).
 - [ ] Human output prints a single `[search] as-of: ...` line when `--as-of` is provided.
 - [ ] Telemetry includes `asOf.type` and short `identityHash`; never log raw paths.
+- [ ] Secondary builders honor as-of semantics:
+  - [ ] sqlite build/as-of flows must use the same resolver behavior and fallback rules as retrieval.
+  - [ ] as-of selection for build tooling must reject mixed-root contamination.
 
 Touchpoints:
 - `src/retrieval/cli-args.js`
 - `src/retrieval/cli.js`
 - `src/retrieval/cli-index.js`
 - `src/retrieval/index-cache.js#buildIndexSignature`
+- `src/retrieval/query-cache.js`
+- `src/retrieval/cli/run-search-session.js`
+- `tools/build/sqlite/runner.js`
+- `src/storage/sqlite/build/runner.js`
 
 Tests:
 - [ ] `tests/services/snapshot-query.test.js`
 - [ ] `tests/unit/retrieval-cache-key-asof.unit.js`
 - [ ] `tests/unit/retrieval-index-signature-shards.unit.js`
+- [ ] `tests/services/sqlite-build-snapshot.test.js`
+- [ ] `tests/services/asof-explicit-root-no-fallback.test.js`
 
 ---
 
@@ -630,7 +675,7 @@ Tests:
 - [ ] Extend `/search` to accept `asOf` and thread to `--as-of`.
 - [ ] Add snapshot and diff endpoints if UI parity is required.
 - [ ] Enforce allowed repo roots and never return absolute paths in responses.
-- [ ] Create `docs/specs/http-api.md` if HTTP endpoints are implemented.
+- [ ] Follow `docs/specs/http-api.md` for request/response schemas, error codes, redaction, and allowlisting behavior.
 
 Touchpoints:
 - `tools/api/router/search.js`
@@ -660,6 +705,25 @@ Enable first-class **workspace** workflows: index and query across **multiple re
 - [ ] Cohort gating prevents unsafe mixed‑version query plans.
 - [ ] Federated query cache is keyed and invalidated deterministically.
 
+### Phase 15 Implementation Order (must follow)
+1. 15.1 Workspace configuration, repo identity, and `repoSetId`.
+2. 15.2 Workspace manifest generation and workspace-aware build orchestration.
+3. 15.4 Compatibility gating and cohort policies.
+4. 15.3 Federated search orchestration (CLI/API/MCP).
+5. 15.5 Federated query caching and cache-key correctness.
+6. 15.7 Index stats reporter surfaces.
+7. 15.6 Shared caches, CAS, and GC (design gate first; implement last).
+
+### Phase 15 Non-negotiable invariants
+- [ ] Canonicalization must be centralized:
+  - [ ] Workspace loader, API router, MCP resolver, and cache keys all use one canonical repo identity pipeline.
+- [ ] Invalid build pointers are treated as missing pointers:
+  - [ ] Never preserve stale values from malformed `builds/current.json`.
+- [ ] Federated execution must be deterministic under partial failures:
+  - [ ] Keep successful repos, surface per-repo errors, and apply deterministic ordering to diagnostics and merged outputs.
+- [ ] Federated cache keys must reflect actual runtime behavior:
+  - [ ] Include requested knobs and effective backend/runtime selections to avoid cache pollution.
+
 ### Canonical specs and required updates
 
 Phase 15 MUST align with these authoritative docs:
@@ -667,11 +731,12 @@ Phase 15 MUST align with these authoritative docs:
 - `docs/specs/workspace-manifest.md`
 - `docs/specs/federated-search.md`
 - `docs/contracts/compatibility-key.md`
-
-Specs that must be drafted before implementation (authoritative once added):
-- `docs/specs/federation-cohorts.md` (from the cohort spec notes below)
-- `docs/specs/federated-query-cache.md` (federated cache keying + eviction policy)
-- `docs/specs/cache-cas-gc.md` (cache taxonomy, CAS layout, GC)
+- `docs/specs/federation-cohorts.md`
+- `docs/specs/federated-query-cache.md`
+- `docs/specs/cache-cas-gc.md`
+- `docs/specs/index-stats.md`
+- `docs/specs/http-api.md`
+- `docs/specs/config-defaults.md`
 
 Spec updates required in Phase 15:
 - Update `docs/specs/federated-search.md` to:
@@ -691,6 +756,7 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
   - [ ] Recommended convention: `.pairofcleats-workspace.jsonc`.
   - [ ] Parsing MUST use `src/shared/jsonc.js` (`readJsoncFile` / `parseJsoncText`).
   - [ ] Root MUST be an object; unknown keys MUST hard-fail at all object levels.
+  - [ ] Loader errors must be structured and actionable (`path`, `field`, `reason`, `hint`).
 
 - [ ] Resolve and canonicalize every repo entry deterministically.
   - [ ] Resolve `root`:
@@ -723,9 +789,12 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
 - [ ] Centralize identity/canonicalization helpers across all callers.
   - [ ] Any cache key that includes a repo path MUST use `repoRootCanonical`.
   - [ ] API server routing (`tools/api/router.js`), MCP repo resolution (`tools/mcp/repo.js`), CLI, and workspace loader MUST share the same canonicalization semantics.
+  - [ ] Add one integration-level helper entrypoint and ban local reimplementation of repo canonicalization in callers.
+  - [ ] Add win32-only canonicalization tests for mixed-case paths pointing to same repo root.
 
 **Touchpoints:**
-- `tools/shared/dict-utils.js` (repo root resolution, `getRepoId`, cache root helpers)
+- `tools/dict-utils/paths/repo.js` (canonicalization, `getRepoId`, build pointer helpers)
+- `tools/shared/dict-utils.js` (shared exports for CLI/API/MCP)
 - `src/shared/jsonc.js`, `src/shared/stable-json.js`, `src/shared/hash.js`
 - New (preferred): `src/workspace/config.js`
 
@@ -757,6 +826,12 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
     - [ ] compute `indexSignatureHash` as `is1-` + sha1(buildIndexSignature(indexDir))
     - [ ] read `cohortKey` (preferred) and `compatibilityKey` (fallback) from `<indexDir>/index_state.json` (warn if both missing)
   - [ ] Resolve sqlite artifacts and compute file signatures (`size:mtimeMs`) per spec.
+  - [ ] Persist per-mode availability reason codes:
+    - [ ] `present`
+    - [ ] `missing-index-dir`
+    - [ ] `missing-required-artifacts`
+    - [ ] `invalid-pointer`
+    - [ ] `compat-key-missing`
 
 - [ ] Compute and persist `manifestHash` (`wm1-...`) exactly per spec.
   - [ ] MUST change for search-relevant state changes (build pointer, index signature, sqlite changes, compatibilityKey/cohortKey).
@@ -775,6 +850,9 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
     - [ ] workspace config v1 supplies no per-repo build overrides
     - [ ] concurrency-limited repo builds (avoid “N repos × M threads” explosion)
   - [ ] Post-step: regenerate workspace manifest and emit `repoSetId` + `manifestHash`.
+  - [ ] Build fanout failure policy is deterministic:
+    - [ ] Continue other repos when one repo build fails unless strict mode is enabled.
+    - [ ] Persist structured build diagnostics in manifest generation output.
 
 - [ ] Optional debug tooling: cache inspection (“catalog”) commands.
   - [ ] If implemented, treat as debug tooling only; do not make federation correctness depend on scanning `<cacheRoot>/repos/*`.
@@ -809,6 +887,10 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
   - [ ] Fanout per-repo searches with bounded concurrency; reuse `indexCache` and `sqliteCache`.
   - [ ] Merge per-mode results with RRF and deterministic tie-breakers.
   - [ ] Emit federated response with stable serialization (`stableStringify`) and required meta fields.
+  - [ ] Define and implement partial-failure policy:
+    - [ ] Default: return successful repos + diagnostics for failed repos.
+    - [ ] Strict: fail request if any selected repo fails.
+    - [ ] Deterministic diagnostics ordering by `repoId`.
 
 - [ ] Output invariants (multi-repo unambiguity).
   - [ ] Every hit MUST include `repoId`, `repoAlias`, and `globalId = "${repoId}:${hit.id}"`.
@@ -829,7 +911,10 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
 - `src/integrations/core/index.js`
 - `tools/api/router.js`
 - `tools/mcp/server.js` / `tools/mcp/repo.js`
-- New (per spec): `src/retrieval/federation/{coordinator,select,merge,args}.js`
+- New (per spec): `src/retrieval/federation/coordinator.js`
+- New (per spec): `src/retrieval/federation/select.js`
+- New (per spec): `src/retrieval/federation/merge.js`
+- New (per spec): `src/retrieval/federation/args.js`
 
 **Tests**
 - [ ] `tests/retrieval/federation/search-multi-repo-basic.test.js`
@@ -843,7 +928,7 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
 ### 15.4 Compatibility gating (cohorts) + safe federation defaults
 
 > **Authoritative contract:** `docs/contracts/compatibility-key.md`
-> **Spec to draft:** `docs/specs/federation-cohorts.md`
+> **Authoritative spec:** `docs/specs/federation-cohorts.md`
 
 - [ ] Do not duplicate compatibility key computation.
   - [ ] Continue computing `compatibilityKey` at index time via `buildCompatibilityKey`.
@@ -858,6 +943,10 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
 - [ ] Implement cohort partitioning in the federation coordinator (per mode).
   - [ ] Partition repos by `effectiveKey = cohortKey ?? compatibilityKey ?? null`.
   - [ ] Default policy: choose highest-ranked cohort, exclude others, emit `WARN_FEDERATED_MULTI_COHORT`.
+  - [ ] Ranking must be deterministic and documented:
+    - [ ] prefer cohort with most repos
+    - [ ] tie-break by highest total priority
+    - [ ] final tie-break by lexical cohort key
   - [ ] Strict policy: error on multi-cohort (`ERR_FEDERATED_MULTI_COHORT`).
   - [ ] Explicit selection: `--cohort <key>` or `--cohort <mode>:<key>`.
   - [ ] Unsafe mixing: `--allow-unsafe-mix` with loud warning `WARN_FEDERATED_UNSAFE_MIXING`.
@@ -880,7 +969,7 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
 
 ### 15.5 Federated query caching + cache-key correctness + multi-repo bug fixes
 
-> **Spec to draft:** `docs/specs/federated-query-cache.md`
+> **Authoritative spec:** `docs/specs/federated-query-cache.md`
 
 - [ ] Introduce federated query cache storage under `federationCacheRoot`.
   - [ ] Location MUST be: `<federationCacheRoot>/federation/<repoSetId>/queryCache.json`.
@@ -894,6 +983,7 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
     - [ ] normalized selection (selected repo ids, includeDisabled, tags, repoFilter, explicit selects)
     - [ ] cohort decision inputs/outputs
     - [ ] normalized search request knobs that affect output (query, modes, filters, backend choices, ranking knobs)
+    - [ ] effective runtime choices that affect output (resolved ANN backend, fallback backend, compatibility gating outcome, per-mode backend overrides)
     - [ ] merge strategy and limits (`top`, `perRepoTop`, `rrfK`, concurrency)
   - [ ] Key payload serialization MUST use `stableStringify`.
 
@@ -924,7 +1014,7 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
 
 ### 15.6 Shared caches, CAS, GC, and scale-out ergonomics
 
-> **Spec to draft:** `docs/specs/cache-cas-gc.md`
+> **Authoritative spec:** `docs/specs/cache-cas-gc.md`
 
 - [ ] Make cache layers explicit and document them.
   - [ ] Global caches (models, tooling assets, dictionaries/wordlists)
@@ -934,6 +1024,11 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
 - [ ] (Design first) Introduce content-addressed storage (CAS) for expensive derived artifacts.
   - [ ] Define object identity (hashing), layout, and reference tracking.
   - [ ] Ensure deterministic, safe reuse across repos and workspaces.
+  - [ ] Define and implement a design gate before rollout:
+    - [ ] lease model for in-use objects
+    - [ ] mark-and-sweep reachability rules
+    - [ ] deletion safety conditions under concurrent index/search workloads
+    - [ ] recovery plan when GC is interrupted mid-run
 
 - [ ] Implement a manifest-driven GC tool.
   - [ ] `pairofcleats cache gc --dry-run`
@@ -946,7 +1041,7 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
 
 **Touchpoints:**
 - `src/shared/cache.js`
-- `tools/cache-gc.js`
+- `tools/index/cache-gc.js`
 - `tools/shared/dict-utils.js`
 - `docs/guides/commands.md`
 
@@ -960,13 +1055,14 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
 
 ### 15.7 Index stats reporter (single-shot + JSON)
 
-> **Spec to draft:** `docs/specs/index-stats.md`
+> **Authoritative spec:** `docs/specs/index-stats.md`
 
 - [ ] Add a dedicated index stats reporter tool.
   - [ ] CLI entrypoint: `pairofcleats index stats` (or `node tools/index/stats.js`).
   - [ ] Input: `--repo <path>` or `--index-dir <path>`, optional `--mode`.
   - [ ] Output: human summary + `--json` for structured output.
   - [ ] Must use `pieces/manifest.json` as the source of truth (manifest-first).
+  - [ ] Prefer extending `tools/index/report-artifacts.js` when feasible; create `tools/index/stats.js` only if dedicated UX/contract separation is required.
 
 - [ ] Report per-mode artifact stats with counts + bytes.
   - [ ] `chunk_meta` total rows, parts count, bytes per part.
@@ -986,7 +1082,8 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
   - [ ] Warn on missing or mismatched checksum/bytes.
 
 **Touchpoints:**
-- `tools/index/stats.js` (new)
+- `tools/index/report-artifacts.js` (extend existing artifact reporting surface)
+- `tools/index/stats.js` (new, optional if split command is chosen)
 - `tools/shared/dict-utils.js` (index root resolution)
 - `src/shared/artifact-io/manifest.js` (manifest parsing helpers)
 - `src/integrations/core/status.js` (optional reuse)
@@ -995,6 +1092,20 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
 - [ ] `tests/tooling/index-stats/index-stats-json.test.js`
 - [ ] `tests/tooling/index-stats/index-stats-missing-artifact.test.js`
 - [ ] `tests/tooling/index-stats/index-stats-aggregate.test.js`
+
+### Phase 14 + 15 cross-cutting hardening tests (mandatory)
+- [ ] `tests/services/snapshots/concurrent-registry-writers.test.js`
+  - [ ] Two writers contend on snapshot/diff manifests; verify lock behavior and readable artifacts after forced interruption.
+- [ ] `tests/shared/json-stream/atomic-stale-backup-protection.test.js`
+  - [ ] Stale backup/temp-missing scenarios must fail safely (no false success, no stale artifact acceptance).
+- [ ] `tests/services/embeddings/mode-root-divergence-maintenance.test.js`
+  - [ ] Per-mode root divergence updates build-state and sqlite maintenance against the correct mode roots.
+- [ ] `tests/services/indexing/compressed-artifact-presence.test.js`
+  - [ ] Presence checks accept valid compressed shard and compressed JSONL artifact forms.
+- [ ] `tests/workspace/windows-path-canonicalization-contract.test.js`
+  - [ ] Mixed-case path variants resolve to a single canonical repo identity and stable cache keys.
+- [ ] `tests/retrieval/federation/explicit-root-no-fallback.test.js`
+  - [ ] Explicit refs fail fast when artifacts are missing; no fallback to current/latest.
 
 ---
 

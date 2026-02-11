@@ -41,7 +41,7 @@ This spec defines the orchestration layer (selection → fanout → merge → re
 - **Workspace**: the resolved workspace config (Phase 15.1) and manifest (Phase 15.2).
 - **Selected repos**: repos after applying workspace selection rules.
 - **Fanout**: running per-repo search sessions concurrently.
-- **Cohort**: a group of repos whose index `compatibilityKey` matches for a given mode (Phase 15.4).
+- **Cohort**: a group of repos whose per-mode `effectiveKey = cohortKey ?? compatibilityKey ?? null` matches (Phase 15.4).
 - **Merge**: deterministic combination of per-repo ranked result lists into a single list per mode.
 
 ---
@@ -116,6 +116,7 @@ Recommended: add a dedicated endpoint to avoid breaking single-repo search contr
 
 ```json
 {
+  "workspaceId": "ws1-abc123",
   "workspacePath": "/abs/path/.pairofcleats-workspace.jsonc",
   "query": "risk:sql injection",
   "search": {
@@ -139,6 +140,7 @@ Recommended: add a dedicated endpoint to avoid breaking single-repo search contr
 
 Rules:
 - The API layer MUST enforce the same repo-root allowlist constraints as single-repo mode (see `tools/api/router.js`) **for every repo root used**.
+- `workspaceId` is preferred; `workspacePath` may be accepted only when allowlisted.
 - The response is always JSON.
 
 ---
@@ -251,7 +253,7 @@ Coordinator returns a single federated payload:
 2. Generate or read workspace manifest via `generateWorkspaceManifest(configResolved)`.
 3. Apply selection rules (§6) to obtain `selectedRepos`.
 4. Apply cohort gating (Phase 15.4):
-   - Partition selected repos per mode by `compatibilityKey`.
+   - Partition selected repos per mode by `effectiveKey = cohortKey ?? compatibilityKey ?? null`.
    - Choose the cohort to query per mode, per gating policy.
    - Record excluded repos/modes in diagnostics.
 5. Compute effective limits:
@@ -354,7 +356,7 @@ Every output hit MUST be augmented with:
 - `repoAlias` (nullable)
 - `globalId` = `${repoId}:${hit.id}`
 
-The response MAY also include `repoRootCanonical` at the repo-diagnostics level, but caches SHOULD avoid embedding absolute paths (see federated caching spec).
+The response MUST redact absolute paths by default. `repoRootCanonical` may only be returned when `debug.includePaths=true` and caller authorization allows it.
 
 ---
 
@@ -391,9 +393,12 @@ If a repo search throws:
   - `error.message`
 - Do not fail the entire request unless:
   - workspace config/manifest loading fails, OR
-  - **all** repos fail.
+  - **all** repos fail, OR
+  - strict failure mode is requested.
 
 If error code is `NO_INDEX`, status should be `missing_index` (non-fatal).
+
+Diagnostics arrays must be sorted deterministically by `(repoId, mode, code)`.
 
 ---
 
@@ -410,7 +415,7 @@ type FederatedSearchResponseV1 = {
   meta: {
     repoSetId: string,
     manifestHash: string,
-    workspace: { name: string, workspacePath?: string },
+    workspace: { name: string, workspaceId?: string, workspacePath?: string },
     selection: {
       selectedRepoIds: string[],    // sorted by repoId
       selectedRepos: Array<{ repoId: string, alias: string|null, priority: number, enabled: boolean }>,
