@@ -144,6 +144,11 @@ export function normalizeSearchOptions({
   if (annBackendRaw != null && !annBackend) {
     throw new Error(`Invalid --ann-backend "${annBackendRaw}". Use auto|lancedb|sqlite|hnsw|js.`);
   }
+  if (annBackend === 'hnsw') {
+    hnswConfig.enabled = true;
+  } else if (annBackend === 'lancedb') {
+    lancedbConfig.enabled = true;
+  }
 
   const scoreBlendConfig = searchConfig.scoreBlend || {};
   const scoreBlendEnabled = scoreBlendConfig.enabled === true;

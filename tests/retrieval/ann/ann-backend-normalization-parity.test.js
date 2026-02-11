@@ -17,9 +17,9 @@ assert.equal(normalizeAnnBackend('auto'), 'auto');
 assert.equal(normalizeAnnBackend('unknown'), 'lancedb');
 assert.equal(normalizeAnnBackend('unknown', { strict: true, defaultBackend: null }), null);
 
-assert.deepEqual(resolveAnnOrder('lancedb'), ['lancedb', 'sqlite-vector', 'hnsw', 'js']);
-assert.deepEqual(resolveAnnOrder('sqlite-vector'), ['sqlite-vector', 'lancedb', 'hnsw', 'js']);
-assert.deepEqual(resolveAnnOrder('hnsw'), ['hnsw', 'lancedb', 'sqlite-vector', 'js']);
+assert.deepEqual(resolveAnnOrder('lancedb'), ['lancedb']);
+assert.deepEqual(resolveAnnOrder('sqlite-vector'), ['sqlite-vector']);
+assert.deepEqual(resolveAnnOrder('hnsw'), ['hnsw']);
 assert.deepEqual(resolveAnnOrder('dense'), ['js']);
 assert.deepEqual(resolveAnnOrder('auto'), ['lancedb', 'sqlite-vector', 'hnsw', 'js']);
 
