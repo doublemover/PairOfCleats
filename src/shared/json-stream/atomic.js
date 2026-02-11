@@ -54,16 +54,28 @@ export const replaceFile = async (tempPath, finalPath, options = {}) => {
   const keepBackup = options.keepBackup === true;
   const bakPath = getBakPath(finalPath);
   const finalExists = fs.existsSync(finalPath);
+  let backupAvailable = fs.existsSync(bakPath);
+  const restoreBackup = async () => {
+    if (!backupAvailable) return false;
+    if (fs.existsSync(finalPath) || !fs.existsSync(bakPath)) return false;
+    try {
+      await fsPromises.rename(bakPath, finalPath);
+      backupAvailable = false;
+      return true;
+    } catch {
+      return false;
+    }
+  };
   if (!(await waitForPath(tempPath, { attempts: 4, baseDelayMs: 10 }))) {
     const finalStat = await safeStat(finalPath);
     if (finalStat && finalStat.mtimeMs >= startedAt - 2000) {
       return;
     }
+    if (await restoreBackup()) return;
     const err = new Error(`Temp file missing before replace: ${tempPath}`);
     err.code = 'ERR_TEMP_MISSING';
     throw err;
   }
-  let backupAvailable = fs.existsSync(bakPath);
   const copyFallback = async () => {
     try {
       await fsPromises.copyFile(tempPath, finalPath);
@@ -91,7 +103,12 @@ export const replaceFile = async (tempPath, finalPath, options = {}) => {
   } catch (err) {
     if (err?.code === 'ENOENT') {
       if (await waitForPath(tempPath, { attempts: 3, baseDelayMs: 10 })) {
-        await fsPromises.rename(tempPath, finalPath);
+        try {
+          await fsPromises.rename(tempPath, finalPath);
+        } catch (retryErr) {
+          await restoreBackup();
+          throw retryErr;
+        }
         if (!keepBackup && backupAvailable) {
           try { await fsPromises.rm(bakPath, { force: true }); } catch {}
         }
@@ -104,11 +121,13 @@ export const replaceFile = async (tempPath, finalPath, options = {}) => {
         }
         return;
       }
+      if (await restoreBackup()) return;
       const missingErr = new Error(`Temp file missing before replace: ${tempPath}`);
       missingErr.code = 'ERR_TEMP_MISSING';
       throw missingErr;
     }
     if (!['EEXIST', 'EPERM', 'ENOTEMPTY', 'EACCES', 'EXDEV'].includes(err?.code)) {
+      await restoreBackup();
       throw err;
     }
     if (!backupAvailable) {
@@ -125,6 +144,7 @@ export const replaceFile = async (tempPath, finalPath, options = {}) => {
       }
     } catch (renameErr) {
       if (await copyFallback()) return;
+      await restoreBackup();
       throw renameErr;
     }
   }
