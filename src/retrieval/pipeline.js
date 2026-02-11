@@ -553,10 +553,18 @@ export function createSearchPipeline(context) {
                 return true;
               }
             } else if (state.preflight === false) {
-              // Cache negative preflight results only during cooldown; retry once cooldown expires.
-              if (state.disabledUntil > now) return false;
+              // Reuse failed preflight only for the active cooldown window.
+              // Once cooldown expires, force a fresh preflight probe.
+              const cooldownMs = resolveProviderBackoffMs(state.failures || 1);
+              const checkedAt = Number.isFinite(Number(state.preflightCheckedAt))
+                ? Number(state.preflightCheckedAt)
+                : 0;
+              if (checkedAt > 0 && (now - checkedAt) < cooldownMs) {
+                return false;
+              }
               state.preflight = null;
               state.preflightCheckedAt = 0;
+              state.disabledUntil = 0;
             } else if (state.disabledUntil > now) {
               return false;
             }
@@ -637,7 +645,7 @@ export function createSearchPipeline(context) {
           for (const backend of orderedBackends) {
             const provider = providers.get(backend);
             if (!provider || typeof provider.query !== 'function') continue;
-            if (isProviderCoolingDown(provider, mode)) continue;
+            if (typeof provider.preflight !== 'function' && isProviderCoolingDown(provider, mode)) continue;
             if (!provider.isAvailable({ idx, mode, embedding: queryEmbedding })) continue;
             const preflightOk = await ensureProviderPreflight(provider);
             if (!preflightOk) continue;
