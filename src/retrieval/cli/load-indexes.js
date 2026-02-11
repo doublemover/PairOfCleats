@@ -478,7 +478,7 @@ export async function loadSearchIndexes({
     if (metaPresence?.error && !missingMetaEntry) {
       throw metaPresence.error;
     }
-    if (!missingMetaEntry) {
+    if (!missingMetaEntry || !strict) {
       try {
         meta = await loadJsonObjectArtifact(dir, metaName, {
           maxBytes: MAX_JSON_BYTES,
@@ -503,7 +503,7 @@ export async function loadSearchIndexes({
     if (dirPresence?.error && !missingDirEntry) {
       throw dirPresence.error;
     }
-    if (!missingDirEntry) {
+    if (!missingDirEntry || !strict) {
       try {
         lanceDir = resolveDirArtifactPath(dir, dirName, {
           manifest,

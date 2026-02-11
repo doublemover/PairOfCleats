@@ -1,4 +1,5 @@
 import { assignSegmentUids, chunkSegments, discoverSegments } from '../../segments.js';
+import { finalizeSegments } from '../../segments/finalize.js';
 import { getLanguageForFile } from '../../language-registry.js';
 import { toRepoPosixPath } from '../../scm/paths.js';
 import { buildLineAuthors } from '../../scm/annotate.js';
@@ -27,6 +28,31 @@ import {
 } from '../../segments/config.js';
 
 const TREE_SITTER_LANG_IDS = new Set(TREE_SITTER_LANGUAGE_IDS);
+
+const mergePlannedSegmentsWithExtras = ({ plannedSegments, extraSegments, relKey }) => {
+  const planned = Array.isArray(plannedSegments) ? plannedSegments : [];
+  const extras = Array.isArray(extraSegments) ? extraSegments : [];
+  if (!extras.length) return planned;
+  const merged = finalizeSegments([...planned, ...extras], relKey);
+  const deduped = [];
+  const seen = new Set();
+  for (const segment of merged) {
+    if (!segment) continue;
+    const key = [
+      segment.segmentId || '',
+      segment.start,
+      segment.end,
+      segment.type || '',
+      segment.languageId || '',
+      segment.parentSegmentId || '',
+      segment.embeddingContext || segment.meta?.embeddingContext || ''
+    ].join('|');
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(segment);
+  }
+  return deduped;
+};
 
 const countLines = (text) => {
   if (!text) return 0;
@@ -376,9 +402,13 @@ export const processFileCpu = async (context) => {
       ? treeSitterScheduler.loadPlannedSegments(relKey)
       : null;
     if (Array.isArray(plannedSegments) && plannedSegments.length) {
-      // Keep runtime segmentation aligned with the scheduler plan. Re-splitting by
-      // comment-derived extra segments can change virtual paths and miss scheduled rows.
-      segments = plannedSegments;
+      // Keep runtime segmentation aligned with the scheduler plan, while preserving
+      // comment-derived/extracted-prose extra segments for fallback chunking paths.
+      segments = mergePlannedSegmentsWithExtras({
+        plannedSegments,
+        extraSegments,
+        relKey
+      });
       segmentsFromSchedulerPlan = true;
     } else {
       segments = discoverSegments({
