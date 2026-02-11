@@ -211,22 +211,16 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
         .sort((a, b) => a - b);
       if (outOfOrder.length) {
         emitLog(
-          `[ordered] flushing ${outOfOrder.length} late index(es) < ${nextIndex}: ${outOfOrder.slice(0, 5).join(', ')}${outOfOrder.length > 5 ? ' …' : ''}`,
+          `[ordered] dropping ${outOfOrder.length} stale index(es) < ${nextIndex}: ${outOfOrder.slice(0, 5).join(', ')}${outOfOrder.length > 5 ? ' …' : ''}`,
           { kind: 'warning' }
         );
       }
       for (const key of outOfOrder) {
         const entry = pending.get(key);
         pending.delete(key);
-        try {
-          if (entry?.result) {
-            await handleFileResult(entry.result, state, entry.shardMeta);
-          }
-          entry?.resolve?.();
-        } catch (err) {
-          try { entry?.reject?.(err); } catch {}
-          throw err;
-        }
+        // This index has already been advanced past. Appending now would
+        // make chunk/doc ids timing-dependent and can corrupt postings/sqlite.
+        entry?.resolve?.();
       }
     }
     const bucketUpperBound = bucketSize > 0
@@ -300,14 +294,15 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
       }
       if (Number.isFinite(orderIndex) && orderIndex < nextIndex) {
         noteSeen(orderIndex);
-        debugLog('[ordered] enqueue immediate', {
+        emitLog(`[ordered] dropping stale result index ${orderIndex} (< ${nextIndex})`, { kind: 'warning' });
+        debugLog('[ordered] enqueue stale-drop', {
           orderIndex,
           nextIndex,
           pending: pending.size,
           expectedCount,
           seenCount
         });
-        return handleFileResult(result, state, shardMeta);
+        return Promise.resolve();
       }
       noteSeen(index);
       if (pending.has(index)) {
