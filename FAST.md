@@ -356,7 +356,7 @@ Implementation policy for Sweep 3:
 - Rollout: `artifacts.binaryColumnar=true`; dual-write with ordering hash/checksum parity; reader preference flipped only after parity soak.
 - Target: 2x+ load speedup and 40%+ lower load RSS.
 
-2. Area: Streaming chunk lifecycle
+2. [x] Area: Streaming chunk lifecycle
 - Files: `src/index/build/indexer/steps/process-files.js`, `src/index/build/state.js`, `src/index/build/postings.js`
 - Decision: Stream `chunk_meta` writes during processing and retain only minimal per-chunk stats needed by postings and quality signals.
 - Rollout: `indexer.streamingChunks=true`; compare counts/hashes against legacy path before default enablement.

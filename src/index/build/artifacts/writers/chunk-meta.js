@@ -437,6 +437,7 @@ export const resolveChunkMetaPlan = ({
   chunkMetaIterator,
   artifactMode,
   chunkMetaFormatConfig,
+  chunkMetaStreaming = false,
   chunkMetaBinaryColumnar = false,
   chunkMetaJsonlThreshold,
   chunkMetaShardSize,
@@ -454,6 +455,7 @@ export const resolveChunkMetaPlan = ({
       || (chunkMetaFormat === 'auto' && chunkMetaCount >= chunkMetaJsonlThreshold)
   );
   let resolvedShardSize = chunkMetaShardSize;
+  let estimatedJsonlBytes = 0;
   let chunkMetaUseShards = chunkMetaUseJsonl
     && resolvedShardSize > 0
     && chunkMetaCount > resolvedShardSize;
@@ -468,6 +470,7 @@ export const resolveChunkMetaPlan = ({
     if (sampled) {
       const avgBytes = sampledBytes / sampled;
       const estimatedBytes = avgBytes * chunkMetaCount;
+      estimatedJsonlBytes = estimatedBytes;
       if (estimatedBytes > maxJsonBytesSoft) {
         if (chunkMetaUseColumnar) {
           chunkMetaUseColumnar = false;
@@ -491,7 +494,9 @@ export const resolveChunkMetaPlan = ({
   return {
     chunkMetaCount,
     chunkMetaFormat,
+    chunkMetaStreaming: chunkMetaStreaming === true,
     chunkMetaBinaryColumnar: chunkMetaBinaryColumnar === true,
+    chunkMetaEstimatedJsonlBytes: estimatedJsonlBytes,
     chunkMetaUseJsonl,
     chunkMetaUseColumnar,
     chunkMetaUseShards,
@@ -516,10 +521,12 @@ export const enqueueChunkMetaArtifacts = async ({
   stageCheckpoints
 }) => {
   const {
+    chunkMetaStreaming,
     chunkMetaUseJsonl,
     chunkMetaUseShards,
     chunkMetaUseColumnar,
     chunkMetaBinaryColumnar,
+    chunkMetaEstimatedJsonlBytes,
     chunkMetaShardSize,
     chunkMetaCount,
     maxJsonBytes: plannedMaxJsonBytes
@@ -530,7 +537,7 @@ export const enqueueChunkMetaArtifacts = async ({
       await fs.rm(targetPath, { recursive: true, force: true });
     } catch {}
   };
-  let enableHotColdSplit = true;
+  let enableHotColdSplit = chunkMetaStreaming !== true;
   const projectHotEntry = (entry) => (
     enableHotColdSplit ? stripChunkMetaColdFields(entry) : entry
   );
@@ -644,6 +651,11 @@ export const enqueueChunkMetaArtifacts = async ({
   let jsonlScan = null;
   let outOfOrder = false;
   let firstOutOfOrder = null;
+  if (chunkMetaStreaming) {
+    resolvedUseJsonl = true;
+    resolvedUseColumnar = false;
+    resolvedUseShards = chunkMetaShardSize > 0 && chunkMetaCount > chunkMetaShardSize;
+  }
   if (!resolvedUseJsonl) {
     measured = chunkMetaCount
       ? measureChunkMeta()
@@ -659,7 +671,7 @@ export const enqueueChunkMetaArtifacts = async ({
     }
   }
 
-  if (resolvedUseJsonl) {
+  if (resolvedUseJsonl && !chunkMetaStreaming) {
     jsonlScan = scanChunkMeta();
     outOfOrder = !jsonlScan.ordered;
     firstOutOfOrder = jsonlScan.firstOutOfOrder;
@@ -705,6 +717,20 @@ export const enqueueChunkMetaArtifacts = async ({
       }
       collected = await collector.finalize();
     }
+  } else if (resolvedUseJsonl) {
+    jsonlScan = {
+      totalJsonlBytes: Number.isFinite(chunkMetaEstimatedJsonlBytes)
+        ? Math.max(0, Math.floor(chunkMetaEstimatedJsonlBytes))
+        : 0,
+      coldJsonlBytes: 0,
+      total: chunkMetaCount,
+      maxRowBytes: 0,
+      ordered: true,
+      firstOutOfOrder: null,
+      firstIdMismatch: null,
+      orderingHash: null,
+      orderingCount: chunkMetaCount
+    };
   }
 
   if (chunkMetaIterator.stats?.trimmedMetaV2) {
@@ -749,6 +775,7 @@ export const enqueueChunkMetaArtifacts = async ({
       droppedRows: 0,
       extra: {
         format: resolvedUseShards ? 'jsonl-sharded' : 'jsonl',
+        streaming: chunkMetaStreaming === true,
         hotColdSplit: enableHotColdSplit,
         coldBytes: jsonlScan.coldJsonlBytes || 0,
         trimmedMetaV2,
@@ -856,6 +883,9 @@ export const enqueueChunkMetaArtifacts = async ({
       log(`[chunk_meta] writing sharded JSONL -> ${path.join(outDir, 'chunk_meta.parts')}`);
     } else {
       log(`[chunk_meta] writing JSONL -> ${jsonlPath}`);
+    }
+    if (chunkMetaStreaming) {
+      log('[chunk_meta] streaming mode enabled (single-pass JSONL writer).');
     }
     if (enableHotColdSplit) {
       log('[chunk_meta] hot/cold split enabled for JSONL artifacts.');

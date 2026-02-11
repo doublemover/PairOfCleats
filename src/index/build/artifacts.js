@@ -155,6 +155,10 @@ export async function writeIndexArtifacts(input) {
   const chunkMetaShardSize = Number.isFinite(Number(artifactConfig.chunkMetaShardSize))
     ? Math.max(0, Math.floor(Number(artifactConfig.chunkMetaShardSize)))
     : 100000;
+  const indexerConfig = indexingConfig.indexer && typeof indexingConfig.indexer === 'object'
+    ? indexingConfig.indexer
+    : {};
+  const chunkMetaStreaming = indexerConfig.streamingChunks === true;
   const symbolArtifactsFormatConfig = typeof artifactConfig.symbolArtifactsFormat === 'string'
     ? artifactConfig.symbolArtifactsFormat.toLowerCase()
     : null;
@@ -472,6 +476,7 @@ export async function writeIndexArtifacts(input) {
     chunkMetaIterator,
     artifactMode,
     chunkMetaFormatConfig,
+    chunkMetaStreaming,
     chunkMetaBinaryColumnar,
     chunkMetaJsonlThreshold,
     chunkMetaShardSize,
