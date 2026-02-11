@@ -10,15 +10,22 @@ export const makeTempDir = async (prefix = 'pairofcleats-') => {
 };
 
 export const rmDirRecursive = async (dirPath, { retries = 3, delayMs = 100 } = {}) => {
-  for (let attempt = 0; attempt <= retries; attempt += 1) {
+  const resolvedRetries = Math.max(0, Math.floor(Number(retries) || 0));
+  const resolvedDelayMs = Math.max(1, Math.floor(Number(delayMs) || 1));
+  for (let attempt = 0; attempt <= resolvedRetries; attempt += 1) {
     try {
-      await fsPromises.rm(dirPath, { recursive: true, force: true });
+      await fsPromises.rm(dirPath, {
+        recursive: true,
+        force: true,
+        maxRetries: resolvedRetries,
+        retryDelay: resolvedDelayMs
+      });
       return;
     } catch (error) {
-      if (attempt >= retries || !['EPERM', 'EBUSY', 'ENOTEMPTY'].includes(error?.code)) {
+      if (attempt >= resolvedRetries || !['EPERM', 'EBUSY', 'ENOTEMPTY', 'EMFILE', 'ENFILE'].includes(error?.code)) {
         throw error;
       }
-      await wait(delayMs * (attempt + 1));
+      await wait(resolvedDelayMs * (attempt + 1));
     }
   }
 };
