@@ -1,6 +1,5 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
-import path from 'node:path';
 import { once } from 'node:events';
 import { Transform } from 'node:stream';
 import { createTempPath, replaceFile } from './atomic.js';
@@ -56,26 +55,6 @@ const removePathWithRetry = async (target, {
     if (!fs.existsSync(tombstone) && !fs.existsSync(target)) return true;
   } catch {}
   return !fs.existsSync(target);
-};
-
-const removeSiblingTempFiles = async (targetPath) => {
-  if (!targetPath || typeof targetPath !== 'string') return;
-  const dir = path.dirname(targetPath);
-  const base = path.basename(targetPath);
-  const prefix = `${base}.tmp-`;
-  let entries = [];
-  try {
-    entries = await fsPromises.readdir(dir, { withFileTypes: true });
-  } catch {
-    return;
-  }
-  for (const entry of entries) {
-    if (!entry?.isFile?.()) continue;
-    const name = entry.name || '';
-    if (!name.startsWith(prefix)) continue;
-    const abs = path.join(dir, name);
-    await removePathWithRetry(abs, { recursive: false, attempts: 10, baseDelayMs: 40 });
-  }
 };
 
 const createExclusiveAtomicFileStream = (filePath, highWaterMark) => {
@@ -178,9 +157,6 @@ export const createJsonWriteStream = (filePath, options = {}) => {
         await removePathWithRetry(tombstone, { recursive: false, attempts: 6, baseDelayMs: 50 });
       } catch {}
     }
-    // Best-effort cleanup for any orphan temp siblings that may remain after
-    // retries (e.g. interrupted writes with a different temp token).
-    await removeSiblingTempFiles(filePath);
   };
   const attachPipelineErrorHandlers = () => {
     const forwardToFile = (err) => {
