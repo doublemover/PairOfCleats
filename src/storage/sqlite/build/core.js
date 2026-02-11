@@ -48,11 +48,11 @@ const openDatabaseWithFallback = (Database, outPath) => {
     candidates.push({ openPath, dbPath, promotePath });
   };
   if (process.platform === 'win32') {
-    const needsCompactPath = resolvedOutPath.length > SQLITE_DB_PATH_SOFT_LIMIT;
-    const shortTempPath = buildShortTempDbPath(resolvedOutPath);
-    if (shortTempPath && toComparablePath(shortTempPath) !== toComparablePath(resolvedOutPath)) {
-      addCandidate(shortTempPath, shortTempPath, resolvedOutPath);
+    addCandidate(resolvedOutPath, resolvedOutPath, null);
+    if (!resolvedOutPath.startsWith(LONG_PATH_PREFIX)) {
+      addCandidate(`${LONG_PATH_PREFIX}${resolvedOutPath}`, resolvedOutPath, null);
     }
+    const needsCompactPath = resolvedOutPath.length > SQLITE_DB_PATH_SOFT_LIMIT;
     if (needsCompactPath) {
       const compactPath = createTempPath(resolvedOutPath);
       if (compactPath && toComparablePath(compactPath) !== toComparablePath(resolvedOutPath)) {
@@ -60,9 +60,9 @@ const openDatabaseWithFallback = (Database, outPath) => {
         addCandidate(`${LONG_PATH_PREFIX}${compactPath}`, compactPath, resolvedOutPath);
       }
     }
-    addCandidate(resolvedOutPath, resolvedOutPath, null);
-    if (!resolvedOutPath.startsWith(LONG_PATH_PREFIX)) {
-      addCandidate(`${LONG_PATH_PREFIX}${resolvedOutPath}`, resolvedOutPath, null);
+    const shortTempPath = buildShortTempDbPath(resolvedOutPath);
+    if (shortTempPath && toComparablePath(shortTempPath) !== toComparablePath(resolvedOutPath)) {
+      addCandidate(shortTempPath, shortTempPath, resolvedOutPath);
     }
   } else {
     addCandidate(resolvedOutPath, resolvedOutPath, null);
