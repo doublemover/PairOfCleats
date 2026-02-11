@@ -210,7 +210,7 @@ export function createBuildScheduler(input = {}) {
   const normalizeTokenPool = (value) => {
     const parsed = Math.floor(Number(value ?? 1));
     if (!Number.isFinite(parsed)) return 1;
-    return Math.max(0, parsed);
+    return Math.max(1, parsed);
   };
   let cpuTokens = normalizeTokenPool(input.cpuTokens);
   let ioTokens = normalizeTokenPool(input.ioTokens);
