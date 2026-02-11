@@ -1,7 +1,7 @@
 # Spec -- USR Core Normalization, Linking, and Identity Contract
 
 Status: Draft v2.0
-Last updated: 2026-02-11T07:40:00Z
+Last updated: 2026-02-11T08:20:00Z
 
 ## Purpose
 
@@ -11,23 +11,23 @@ Define deterministic mapping from raw parser/compiler outputs into canonical USR
 
 This contract absorbs:
 
-- `docs/specs/usr-normalization-mapping-contract.md`
-- `docs/specs/usr-resolution-and-linking-contract.md`
-- `docs/specs/usr-identity-stability-contract.md`
-- `docs/specs/usr-module-system-contract.md`
-- `docs/specs/usr-type-system-normalization-contract.md`
-- `docs/specs/usr-generics-and-polymorphism-contract.md`
-- `docs/specs/usr-query-semantics-contract.md`
-- `docs/specs/usr-routing-normalization-contract.md`
-- `docs/specs/usr-template-expression-binding-contract.md`
-- `docs/specs/usr-styling-and-css-semantics-contract.md`
-- `docs/specs/usr-state-management-integration-contract.md`
-- `docs/specs/usr-ssr-csr-hydration-contract.md`
-- `docs/specs/usr-runtime-config-contract.md`
-- `docs/specs/usr-embedding-bridge-contract.md`
-- `docs/specs/usr-component-lifecycle-contract.md`
-- `docs/specs/usr-concurrency-and-async-semantics-contract.md`
-- `docs/specs/usr-error-handling-semantics-contract.md`
+- `usr-normalization-mapping-contract.md` (legacy)
+- `usr-resolution-and-linking-contract.md` (legacy)
+- `usr-identity-stability-contract.md` (legacy)
+- `usr-module-system-contract.md` (legacy)
+- `usr-type-system-normalization-contract.md` (legacy)
+- `usr-generics-and-polymorphism-contract.md` (legacy)
+- `usr-query-semantics-contract.md` (legacy)
+- `usr-routing-normalization-contract.md` (legacy)
+- `usr-template-expression-binding-contract.md` (legacy)
+- `usr-styling-and-css-semantics-contract.md` (legacy)
+- `usr-state-management-integration-contract.md` (legacy)
+- `usr-ssr-csr-hydration-contract.md` (legacy)
+- `usr-runtime-config-contract.md` (legacy)
+- `usr-embedding-bridge-contract.md` (legacy)
+- `usr-component-lifecycle-contract.md` (legacy)
+- `usr-concurrency-and-async-semantics-contract.md` (legacy)
+- `usr-error-handling-semantics-contract.md` (legacy)
 
 ## Mapping rules
 
@@ -35,6 +35,13 @@ This contract absorbs:
 2. normalized kind must be from canonical taxonomy or `unknown`
 3. unknown kinds must emit deterministic diagnostics and reason codes
 4. mapping conflicts must fail deterministically with explicit conflict artifacts
+
+Deterministic mapping policy:
+
+1. parser output traversal order must be stable and explicitly defined
+2. mapping table precedence must be explicit and versioned
+3. ties between mapping candidates must resolve by deterministic precedence and lexical fallback
+4. unknown-kind passthrough must preserve `rawKind`, parser ID, and parser version
 
 ## Resolution state machine
 
@@ -51,6 +58,23 @@ State transition policy:
 - ambiguity thresholding must be explicit and profile-aware
 - reason code must be present for non-resolved outcomes
 
+Resolution candidate envelope requirements:
+
+| Field | Required | Notes |
+| --- | --- | --- |
+| `candidateUid` | yes | Target entity candidate ID. |
+| `candidateType` | yes | `document`, `segment`, `node`, or `symbol`. |
+| `confidence` | yes | 0..1 finite value. |
+| `rank` | yes | Deterministic integer rank. |
+| `evidence` | yes | Ordered evidence descriptors used for scoring. |
+| `rejectionReason` | conditional | Required for pruned candidates in debug reports. |
+
+Candidate ordering tie-break sequence:
+
+1. confidence descending
+2. evidence weight descending
+3. canonical UID lexical ascending
+
 ## Identity stability contract
 
 Identity classes (`docUid`, `segmentUid`, `nodeUid`, `symbolUid`, `edgeUid`) must satisfy:
@@ -59,6 +83,16 @@ Identity classes (`docUid`, `segmentUid`, `nodeUid`, `symbolUid`, `edgeUid`) mus
 - deterministic generation for identical inputs
 - controlled churn budgets between releases
 - explicit migration metadata when identity algorithm changes
+
+Identity churn budget policy:
+
+| Identity class | Baseline churn threshold | Blocking threshold |
+| --- | --- | --- |
+| `docUid` | 0% for unchanged files | >0% |
+| `segmentUid` | <=0.5% in unchanged fixtures | >1% |
+| `nodeUid` | <=2% in unchanged fixtures | >5% |
+| `symbolUid` | <=0.5% in unchanged fixtures | >1% |
+| `edgeUid` | <=2% in unchanged fixtures | >5% |
 
 ## Module/type/generic semantics
 
@@ -83,12 +117,20 @@ When extraction or linking fails under partial parsing or async resolution races
 - emit diagnostics with remediation class
 - do not emit guessed resolved links
 
+Additional failure semantics:
+
+1. adapter timeout must produce unresolved/ambiguous outcomes with deterministic reason codes
+2. partial AST or partial compiler output must retain all emitted edges as explicitly partial where relevant
+3. retries must not reorder successful candidate rankings for identical inputs
+
 ## Required outputs
 
 - `usr-node-kind-mapping-coverage.json`
 - `usr-resolution-outcome-distribution.json`
 - `usr-identity-stability-report.json`
 - `usr-linking-ambiguity-report.json`
+- `usr-normalization-conflict-report.json`
+- `usr-identity-churn-budget-report.json`
 
 ## Gate obligations
 
@@ -104,3 +146,4 @@ Blocking checks:
 - `docs/specs/unified-syntax-representation.md`
 - `docs/specs/usr-core-language-framework-catalog.md`
 - `docs/specs/usr-core-diagnostics-reasoncodes.md`
+

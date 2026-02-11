@@ -1,7 +1,7 @@
 # Spec -- USR Core Diagnostics and Reason-Code Contract
 
 Status: Draft v2.0
-Last updated: 2026-02-11T07:35:00Z
+Last updated: 2026-02-11T08:20:00Z
 
 ## Purpose
 
@@ -11,9 +11,9 @@ Define canonical diagnostic envelopes, reason-code taxonomy, lifecycle behavior,
 
 This contract absorbs:
 
-- `docs/specs/usr-diagnostic-catalog.md`
-- `docs/specs/usr-reason-code-catalog.md`
-- `docs/specs/usr-diagnostics-lifecycle-contract.md`
+- `usr-diagnostic-catalog.md` (legacy)
+- `usr-reason-code-catalog.md` (legacy)
+- `usr-diagnostics-lifecycle-contract.md` (legacy)
 
 ## Diagnostic identity and format
 
@@ -55,6 +55,17 @@ Taxonomy domains:
 - conformance/quality (`CONF-*`, `QUAL-*`)
 - operational gates (`GATE-*`, `WAIVER-*`)
 
+Reason-code row schema:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| `reasonCode` | yes | Canonical stable identifier. |
+| `domain` | yes | Taxonomy domain. |
+| `trigger` | yes | Deterministic trigger condition. |
+| `requiredFields` | yes | Required diagnostic envelope fields. |
+| `remediationClass` | yes | Routing class for triage. |
+| `blockingClass` | yes | `blocking` or `advisory`. |
+
 ## Lifecycle and recurrence
 
 Diagnostics lifecycle states:
@@ -86,6 +97,11 @@ Grouping dimensions must include:
 - phase
 - remediation class
 
+Recurrence escalation defaults:
+
+- same `reasonCode` in >=3 consecutive runs for same scope: promote advisory -> warning-severe
+- same blocking `reasonCode` unresolved in >=2 consecutive release lanes: force ownership escalation
+
 ## Remediation classes
 
 - `authoring`: source-level fix required
@@ -100,6 +116,8 @@ Grouping dimensions must include:
 - `usr-reason-code-catalog-validation.json`
 - `usr-diagnostics-lifecycle-summary.json`
 - `usr-diagnostic-recurrence-report.json`
+- `usr-reason-code-coverage-report.json`
+- `usr-remediation-routing-summary.json`
 
 ## Quality gates
 
@@ -111,3 +129,4 @@ Grouping dimensions must include:
 
 - `docs/specs/unified-syntax-representation.md`
 - `docs/specs/usr-core-evidence-gates-waivers.md`
+
