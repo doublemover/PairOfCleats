@@ -1,0 +1,350 @@
+{
+  "schemaVersion": "usr-registry-1.0.0",
+  "registryId": "usr-edge-kind-constraints",
+  "generatedAt": "2026-02-11T00:30:00Z",
+  "generatedBy": "tools/usr/generate-usr-matrix-baselines.mjs",
+  "rows": [
+    {
+      "edgeKind": "ast_parent",
+      "sourceEntityKinds": [
+        "node"
+      ],
+      "targetEntityKinds": [
+        "node"
+      ],
+      "requiredAttrs": [],
+      "optionalAttrs": [],
+      "blocking": true
+    },
+    {
+      "edgeKind": "calls",
+      "sourceEntityKinds": [
+        "node",
+        "symbol"
+      ],
+      "targetEntityKinds": [
+        "node",
+        "symbol"
+      ],
+      "requiredAttrs": [],
+      "optionalAttrs": [
+        "confidence"
+      ],
+      "blocking": true
+    },
+    {
+      "edgeKind": "contains",
+      "sourceEntityKinds": [
+        "document",
+        "node",
+        "segment"
+      ],
+      "targetEntityKinds": [
+        "node",
+        "segment",
+        "symbol"
+      ],
+      "requiredAttrs": [],
+      "optionalAttrs": [],
+      "blocking": true
+    },
+    {
+      "edgeKind": "control_next",
+      "sourceEntityKinds": [
+        "node"
+      ],
+      "targetEntityKinds": [
+        "node"
+      ],
+      "requiredAttrs": [],
+      "optionalAttrs": [
+        "branchType"
+      ],
+      "blocking": true
+    },
+    {
+      "edgeKind": "data_def_use",
+      "sourceEntityKinds": [
+        "node",
+        "symbol"
+      ],
+      "targetEntityKinds": [
+        "node",
+        "symbol"
+      ],
+      "requiredAttrs": [],
+      "optionalAttrs": [
+        "flowLabel"
+      ],
+      "blocking": true
+    },
+    {
+      "edgeKind": "declares",
+      "sourceEntityKinds": [
+        "node"
+      ],
+      "targetEntityKinds": [
+        "symbol"
+      ],
+      "requiredAttrs": [],
+      "optionalAttrs": [],
+      "blocking": true
+    },
+    {
+      "edgeKind": "defines",
+      "sourceEntityKinds": [
+        "node"
+      ],
+      "targetEntityKinds": [
+        "symbol"
+      ],
+      "requiredAttrs": [],
+      "optionalAttrs": [],
+      "blocking": true
+    },
+    {
+      "edgeKind": "exports",
+      "sourceEntityKinds": [
+        "node",
+        "symbol"
+      ],
+      "targetEntityKinds": [
+        "document",
+        "symbol"
+      ],
+      "requiredAttrs": [],
+      "optionalAttrs": [],
+      "blocking": true
+    },
+    {
+      "edgeKind": "extends",
+      "sourceEntityKinds": [
+        "symbol"
+      ],
+      "targetEntityKinds": [
+        "symbol"
+      ],
+      "requiredAttrs": [],
+      "optionalAttrs": [],
+      "blocking": true
+    },
+    {
+      "edgeKind": "hydration_boundary",
+      "sourceEntityKinds": [
+        "node",
+        "symbol"
+      ],
+      "targetEntityKinds": [
+        "node",
+        "symbol"
+      ],
+      "requiredAttrs": [
+        "runtimeSide"
+      ],
+      "optionalAttrs": [
+        "boundarySignal"
+      ],
+      "blocking": true
+    },
+    {
+      "edgeKind": "implements",
+      "sourceEntityKinds": [
+        "symbol"
+      ],
+      "targetEntityKinds": [
+        "symbol"
+      ],
+      "requiredAttrs": [],
+      "optionalAttrs": [],
+      "blocking": true
+    },
+    {
+      "edgeKind": "imports",
+      "sourceEntityKinds": [
+        "document",
+        "node",
+        "segment"
+      ],
+      "targetEntityKinds": [
+        "document",
+        "segment",
+        "symbol"
+      ],
+      "requiredAttrs": [],
+      "optionalAttrs": [
+        "importKind"
+      ],
+      "blocking": true
+    },
+    {
+      "edgeKind": "references",
+      "sourceEntityKinds": [
+        "node",
+        "symbol"
+      ],
+      "targetEntityKinds": [
+        "node",
+        "symbol"
+      ],
+      "requiredAttrs": [],
+      "optionalAttrs": [
+        "confidence"
+      ],
+      "blocking": true
+    },
+    {
+      "edgeKind": "risk_flow",
+      "sourceEntityKinds": [
+        "node",
+        "symbol"
+      ],
+      "targetEntityKinds": [
+        "node",
+        "symbol"
+      ],
+      "requiredAttrs": [
+        "riskClass"
+      ],
+      "optionalAttrs": [
+        "pathId"
+      ],
+      "blocking": true
+    },
+    {
+      "edgeKind": "risk_sink",
+      "sourceEntityKinds": [
+        "node",
+        "symbol"
+      ],
+      "targetEntityKinds": [
+        "node",
+        "symbol"
+      ],
+      "requiredAttrs": [
+        "riskClass"
+      ],
+      "optionalAttrs": [],
+      "blocking": true
+    },
+    {
+      "edgeKind": "risk_source",
+      "sourceEntityKinds": [
+        "node",
+        "symbol"
+      ],
+      "targetEntityKinds": [
+        "node",
+        "symbol"
+      ],
+      "requiredAttrs": [
+        "riskClass"
+      ],
+      "optionalAttrs": [],
+      "blocking": true
+    },
+    {
+      "edgeKind": "route_maps_to",
+      "sourceEntityKinds": [
+        "node",
+        "symbol"
+      ],
+      "targetEntityKinds": [
+        "document",
+        "symbol"
+      ],
+      "requiredAttrs": [
+        "routePattern",
+        "runtimeSide"
+      ],
+      "optionalAttrs": [
+        "httpMethod"
+      ],
+      "blocking": true
+    },
+    {
+      "edgeKind": "sanitizes",
+      "sourceEntityKinds": [
+        "node",
+        "symbol"
+      ],
+      "targetEntityKinds": [
+        "node",
+        "symbol"
+      ],
+      "requiredAttrs": [
+        "sanitizerClass"
+      ],
+      "optionalAttrs": [],
+      "blocking": true
+    },
+    {
+      "edgeKind": "style_scopes",
+      "sourceEntityKinds": [
+        "node",
+        "segment"
+      ],
+      "targetEntityKinds": [
+        "symbol"
+      ],
+      "requiredAttrs": [
+        "scopeKind"
+      ],
+      "optionalAttrs": [
+        "moduleName"
+      ],
+      "blocking": true
+    },
+    {
+      "edgeKind": "template_binds",
+      "sourceEntityKinds": [
+        "node",
+        "segment"
+      ],
+      "targetEntityKinds": [
+        "node",
+        "symbol"
+      ],
+      "requiredAttrs": [
+        "bindingKind"
+      ],
+      "optionalAttrs": [
+        "bridgeConfidence"
+      ],
+      "blocking": true
+    },
+    {
+      "edgeKind": "template_emits",
+      "sourceEntityKinds": [
+        "node",
+        "segment"
+      ],
+      "targetEntityKinds": [
+        "node",
+        "symbol"
+      ],
+      "requiredAttrs": [
+        "eventKind"
+      ],
+      "optionalAttrs": [
+        "bridgeConfidence"
+      ],
+      "blocking": true
+    },
+    {
+      "edgeKind": "uses_type",
+      "sourceEntityKinds": [
+        "node",
+        "symbol"
+      ],
+      "targetEntityKinds": [
+        "node",
+        "symbol"
+      ],
+      "requiredAttrs": [],
+      "optionalAttrs": [
+        "typeRole"
+      ],
+      "blocking": true
+    }
+  ]
+}

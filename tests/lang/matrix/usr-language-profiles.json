@@ -1,0 +1,2040 @@
+{
+  "schemaVersion": "usr-registry-1.0.0",
+  "registryId": "usr-language-profiles",
+  "generatedAt": "2026-02-11T00:30:00Z",
+  "generatedBy": "tools/usr/generate-usr-matrix-baselines.mjs",
+  "rows": [
+    {
+      "id": "clike",
+      "parserPreference": "hybrid",
+      "languageVersionPolicy": {
+        "minVersion": "c11-cpp17",
+        "maxVersion": null,
+        "dialects": [
+          "c",
+          "cpp"
+        ],
+        "featureFlags": [
+          "preprocessor",
+          "templates"
+        ]
+      },
+      "embeddingPolicy": {
+        "canHostEmbedded": false,
+        "canBeEmbedded": false,
+        "embeddedLanguageAllowlist": []
+      },
+      "requiredNodeKinds": [
+        "call_expr",
+        "function_decl",
+        "module_decl",
+        "type_alias_decl",
+        "variable_decl"
+      ],
+      "requiredEdgeKinds": [
+        "calls",
+        "defines",
+        "extends",
+        "implements",
+        "imports",
+        "references"
+      ],
+      "requiredCapabilities": {
+        "imports": "supported",
+        "relations": "supported",
+        "docmeta": "supported",
+        "ast": "supported",
+        "controlFlow": "supported",
+        "dataFlow": "supported",
+        "graphRelations": "supported",
+        "riskLocal": "supported",
+        "riskInterprocedural": "partial",
+        "symbolGraph": "supported"
+      },
+      "fallbackChain": [
+        "native-parser",
+        "tree-sitter",
+        "tooling",
+        "heuristic"
+      ],
+      "frameworkProfiles": [],
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "notes": "Baseline systems profile."
+    },
+    {
+      "id": "cmake",
+      "parserPreference": "tree-sitter",
+      "languageVersionPolicy": {
+        "minVersion": "3.25",
+        "maxVersion": null,
+        "dialects": [
+          "cmake"
+        ],
+        "featureFlags": [
+          "generator-expressions"
+        ]
+      },
+      "embeddingPolicy": {
+        "canHostEmbedded": false,
+        "canBeEmbedded": false,
+        "embeddedLanguageAllowlist": []
+      },
+      "requiredNodeKinds": [
+        "build_stmt",
+        "call_expr",
+        "variable_decl"
+      ],
+      "requiredEdgeKinds": [
+        "calls",
+        "contains",
+        "references"
+      ],
+      "requiredCapabilities": {
+        "imports": "unsupported",
+        "relations": "partial",
+        "docmeta": "supported",
+        "ast": "partial",
+        "controlFlow": "partial",
+        "dataFlow": "partial",
+        "graphRelations": "partial",
+        "riskLocal": "partial",
+        "riskInterprocedural": "unsupported",
+        "symbolGraph": "partial"
+      },
+      "fallbackChain": [
+        "tree-sitter",
+        "tooling",
+        "heuristic"
+      ],
+      "frameworkProfiles": [],
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "notes": "Baseline build-dsl profile."
+    },
+    {
+      "id": "csharp",
+      "parserPreference": "hybrid",
+      "languageVersionPolicy": {
+        "minVersion": "11",
+        "maxVersion": null,
+        "dialects": [
+          "csharp"
+        ],
+        "featureFlags": [
+          "nullable-reference-types",
+          "records"
+        ]
+      },
+      "embeddingPolicy": {
+        "canHostEmbedded": false,
+        "canBeEmbedded": false,
+        "embeddedLanguageAllowlist": []
+      },
+      "requiredNodeKinds": [
+        "class_decl",
+        "field_decl",
+        "interface_decl",
+        "method_decl",
+        "param_decl"
+      ],
+      "requiredEdgeKinds": [
+        "calls",
+        "defines",
+        "extends",
+        "implements",
+        "imports",
+        "references",
+        "uses_type"
+      ],
+      "requiredCapabilities": {
+        "imports": "supported",
+        "relations": "supported",
+        "docmeta": "supported",
+        "ast": "supported",
+        "controlFlow": "supported",
+        "dataFlow": "supported",
+        "graphRelations": "supported",
+        "riskLocal": "supported",
+        "riskInterprocedural": "partial",
+        "symbolGraph": "supported"
+      },
+      "fallbackChain": [
+        "native-parser",
+        "tree-sitter",
+        "tooling",
+        "heuristic"
+      ],
+      "frameworkProfiles": [],
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "notes": "Baseline managed profile."
+    },
+    {
+      "id": "css",
+      "parserPreference": "tree-sitter",
+      "languageVersionPolicy": {
+        "minVersion": "css3",
+        "maxVersion": null,
+        "dialects": [
+          "css",
+          "scss"
+        ],
+        "featureFlags": [
+          "modules",
+          "nesting"
+        ]
+      },
+      "embeddingPolicy": {
+        "canHostEmbedded": false,
+        "canBeEmbedded": true,
+        "embeddedLanguageAllowlist": []
+      },
+      "requiredNodeKinds": [
+        "css_rule",
+        "directive_expr",
+        "html_element",
+        "template_element"
+      ],
+      "requiredEdgeKinds": [
+        "contains",
+        "style_scopes",
+        "template_binds",
+        "template_emits"
+      ],
+      "requiredCapabilities": {
+        "imports": "unsupported",
+        "relations": "partial",
+        "docmeta": "supported",
+        "ast": "partial",
+        "controlFlow": "unsupported",
+        "dataFlow": "unsupported",
+        "graphRelations": "partial",
+        "riskLocal": "partial",
+        "riskInterprocedural": "unsupported",
+        "symbolGraph": "partial"
+      },
+      "fallbackChain": [
+        "tree-sitter",
+        "tooling",
+        "heuristic"
+      ],
+      "frameworkProfiles": [
+        "angular",
+        "astro",
+        "next",
+        "nuxt",
+        "react",
+        "svelte",
+        "sveltekit",
+        "vue"
+      ],
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "notes": "Baseline style profile."
+    },
+    {
+      "id": "dart",
+      "parserPreference": "hybrid",
+      "languageVersionPolicy": {
+        "minVersion": "3.0",
+        "maxVersion": null,
+        "dialects": [
+          "dart"
+        ],
+        "featureFlags": [
+          "null-safety",
+          "records"
+        ]
+      },
+      "embeddingPolicy": {
+        "canHostEmbedded": false,
+        "canBeEmbedded": false,
+        "embeddedLanguageAllowlist": []
+      },
+      "requiredNodeKinds": [
+        "class_decl",
+        "field_decl",
+        "interface_decl",
+        "method_decl",
+        "param_decl"
+      ],
+      "requiredEdgeKinds": [
+        "calls",
+        "defines",
+        "extends",
+        "implements",
+        "imports",
+        "references",
+        "uses_type"
+      ],
+      "requiredCapabilities": {
+        "imports": "supported",
+        "relations": "supported",
+        "docmeta": "supported",
+        "ast": "supported",
+        "controlFlow": "supported",
+        "dataFlow": "supported",
+        "graphRelations": "supported",
+        "riskLocal": "supported",
+        "riskInterprocedural": "partial",
+        "symbolGraph": "supported"
+      },
+      "fallbackChain": [
+        "native-parser",
+        "tree-sitter",
+        "tooling",
+        "heuristic"
+      ],
+      "frameworkProfiles": [],
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "notes": "Baseline managed profile."
+    },
+    {
+      "id": "dockerfile",
+      "parserPreference": "tree-sitter",
+      "languageVersionPolicy": {
+        "minVersion": "dockerfile-1.5",
+        "maxVersion": null,
+        "dialects": [
+          "dockerfile"
+        ],
+        "featureFlags": [
+          "multistage"
+        ]
+      },
+      "embeddingPolicy": {
+        "canHostEmbedded": false,
+        "canBeEmbedded": false,
+        "embeddedLanguageAllowlist": []
+      },
+      "requiredNodeKinds": [
+        "build_stmt",
+        "call_expr",
+        "variable_decl"
+      ],
+      "requiredEdgeKinds": [
+        "calls",
+        "contains",
+        "references"
+      ],
+      "requiredCapabilities": {
+        "imports": "unsupported",
+        "relations": "partial",
+        "docmeta": "supported",
+        "ast": "partial",
+        "controlFlow": "partial",
+        "dataFlow": "partial",
+        "graphRelations": "partial",
+        "riskLocal": "partial",
+        "riskInterprocedural": "unsupported",
+        "symbolGraph": "partial"
+      },
+      "fallbackChain": [
+        "tree-sitter",
+        "tooling",
+        "heuristic"
+      ],
+      "frameworkProfiles": [],
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "notes": "Baseline build-dsl profile."
+    },
+    {
+      "id": "go",
+      "parserPreference": "hybrid",
+      "languageVersionPolicy": {
+        "minVersion": "1.20",
+        "maxVersion": null,
+        "dialects": [
+          "go"
+        ],
+        "featureFlags": [
+          "generics",
+          "modules"
+        ]
+      },
+      "embeddingPolicy": {
+        "canHostEmbedded": false,
+        "canBeEmbedded": false,
+        "embeddedLanguageAllowlist": []
+      },
+      "requiredNodeKinds": [
+        "call_expr",
+        "function_decl",
+        "module_decl",
+        "type_alias_decl",
+        "variable_decl"
+      ],
+      "requiredEdgeKinds": [
+        "calls",
+        "defines",
+        "extends",
+        "implements",
+        "imports",
+        "references"
+      ],
+      "requiredCapabilities": {
+        "imports": "supported",
+        "relations": "supported",
+        "docmeta": "supported",
+        "ast": "supported",
+        "controlFlow": "supported",
+        "dataFlow": "supported",
+        "graphRelations": "supported",
+        "riskLocal": "supported",
+        "riskInterprocedural": "partial",
+        "symbolGraph": "supported"
+      },
+      "fallbackChain": [
+        "native-parser",
+        "tree-sitter",
+        "tooling",
+        "heuristic"
+      ],
+      "frameworkProfiles": [],
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "notes": "Baseline systems profile."
+    },
+    {
+      "id": "graphql",
+      "parserPreference": "tree-sitter",
+      "languageVersionPolicy": {
+        "minVersion": "2021-10",
+        "maxVersion": null,
+        "dialects": [
+          "graphql-query",
+          "graphql-schema"
+        ],
+        "featureFlags": [
+          "directives",
+          "fragments"
+        ]
+      },
+      "embeddingPolicy": {
+        "canHostEmbedded": false,
+        "canBeEmbedded": true,
+        "embeddedLanguageAllowlist": []
+      },
+      "requiredNodeKinds": [
+        "graphql_type_decl",
+        "interface_decl",
+        "sql_stmt",
+        "type_alias_decl"
+      ],
+      "requiredEdgeKinds": [
+        "contains",
+        "references",
+        "uses_type"
+      ],
+      "requiredCapabilities": {
+        "imports": "partial",
+        "relations": "supported",
+        "docmeta": "supported",
+        "ast": "supported",
+        "controlFlow": "unsupported",
+        "dataFlow": "unsupported",
+        "graphRelations": "supported",
+        "riskLocal": "partial",
+        "riskInterprocedural": "unsupported",
+        "symbolGraph": "supported"
+      },
+      "fallbackChain": [
+        "tree-sitter",
+        "tooling",
+        "heuristic"
+      ],
+      "frameworkProfiles": [],
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "notes": "Baseline data-interface profile."
+    },
+    {
+      "id": "groovy",
+      "parserPreference": "tree-sitter",
+      "languageVersionPolicy": {
+        "minVersion": "4.0",
+        "maxVersion": null,
+        "dialects": [
+          "groovy"
+        ],
+        "featureFlags": [
+          "ast-transforms"
+        ]
+      },
+      "embeddingPolicy": {
+        "canHostEmbedded": false,
+        "canBeEmbedded": false,
+        "embeddedLanguageAllowlist": []
+      },
+      "requiredNodeKinds": [
+        "class_decl",
+        "field_decl",
+        "interface_decl",
+        "method_decl",
+        "param_decl"
+      ],
+      "requiredEdgeKinds": [
+        "calls",
+        "defines",
+        "extends",
+        "implements",
+        "imports",
+        "references",
+        "uses_type"
+      ],
+      "requiredCapabilities": {
+        "imports": "supported",
+        "relations": "supported",
+        "docmeta": "supported",
+        "ast": "supported",
+        "controlFlow": "supported",
+        "dataFlow": "supported",
+        "graphRelations": "supported",
+        "riskLocal": "supported",
+        "riskInterprocedural": "partial",
+        "symbolGraph": "supported"
+      },
+      "fallbackChain": [
+        "tree-sitter",
+        "tooling",
+        "heuristic"
+      ],
+      "frameworkProfiles": [],
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "notes": "Baseline managed profile."
+    },
+    {
+      "id": "handlebars",
+      "parserPreference": "tree-sitter",
+      "languageVersionPolicy": {
+        "minVersion": "4.x",
+        "maxVersion": null,
+        "dialects": [
+          "handlebars"
+        ],
+        "featureFlags": [
+          "helpers",
+          "partials"
+        ]
+      },
+      "embeddingPolicy": {
+        "canHostEmbedded": true,
+        "canBeEmbedded": true,
+        "embeddedLanguageAllowlist": [
+          "css",
+          "html",
+          "javascript"
+        ]
+      },
+      "requiredNodeKinds": [
+        "css_rule",
+        "directive_expr",
+        "html_element",
+        "template_element"
+      ],
+      "requiredEdgeKinds": [
+        "contains",
+        "style_scopes",
+        "template_binds",
+        "template_emits"
+      ],
+      "requiredCapabilities": {
+        "imports": "partial",
+        "relations": "partial",
+        "docmeta": "supported",
+        "ast": "partial",
+        "controlFlow": "unsupported",
+        "dataFlow": "unsupported",
+        "graphRelations": "partial",
+        "riskLocal": "partial",
+        "riskInterprocedural": "unsupported",
+        "symbolGraph": "partial"
+      },
+      "fallbackChain": [
+        "tree-sitter",
+        "tooling",
+        "heuristic"
+      ],
+      "frameworkProfiles": [],
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "notes": "Baseline markup profile."
+    },
+    {
+      "id": "html",
+      "parserPreference": "tree-sitter",
+      "languageVersionPolicy": {
+        "minVersion": "html5",
+        "maxVersion": null,
+        "dialects": [
+          "html"
+        ],
+        "featureFlags": [
+          "custom-elements"
+        ]
+      },
+      "embeddingPolicy": {
+        "canHostEmbedded": true,
+        "canBeEmbedded": true,
+        "embeddedLanguageAllowlist": [
+          "css",
+          "handlebars",
+          "javascript",
+          "jinja",
+          "mustache",
+          "razor",
+          "typescript"
+        ]
+      },
+      "requiredNodeKinds": [
+        "css_rule",
+        "directive_expr",
+        "html_element",
+        "template_element"
+      ],
+      "requiredEdgeKinds": [
+        "contains",
+        "style_scopes",
+        "template_binds",
+        "template_emits"
+      ],
+      "requiredCapabilities": {
+        "imports": "partial",
+        "relations": "partial",
+        "docmeta": "supported",
+        "ast": "partial",
+        "controlFlow": "unsupported",
+        "dataFlow": "unsupported",
+        "graphRelations": "partial",
+        "riskLocal": "partial",
+        "riskInterprocedural": "unsupported",
+        "symbolGraph": "partial"
+      },
+      "fallbackChain": [
+        "tree-sitter",
+        "tooling",
+        "heuristic"
+      ],
+      "frameworkProfiles": [
+        "angular",
+        "astro",
+        "nuxt",
+        "svelte",
+        "sveltekit",
+        "vue"
+      ],
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "notes": "Baseline markup profile."
+    },
+    {
+      "id": "java",
+      "parserPreference": "hybrid",
+      "languageVersionPolicy": {
+        "minVersion": "17",
+        "maxVersion": null,
+        "dialects": [
+          "java"
+        ],
+        "featureFlags": [
+          "records",
+          "sealed-types"
+        ]
+      },
+      "embeddingPolicy": {
+        "canHostEmbedded": false,
+        "canBeEmbedded": false,
+        "embeddedLanguageAllowlist": []
+      },
+      "requiredNodeKinds": [
+        "class_decl",
+        "field_decl",
+        "interface_decl",
+        "method_decl",
+        "param_decl"
+      ],
+      "requiredEdgeKinds": [
+        "calls",
+        "defines",
+        "extends",
+        "implements",
+        "imports",
+        "references",
+        "uses_type"
+      ],
+      "requiredCapabilities": {
+        "imports": "supported",
+        "relations": "supported",
+        "docmeta": "supported",
+        "ast": "supported",
+        "controlFlow": "supported",
+        "dataFlow": "supported",
+        "graphRelations": "supported",
+        "riskLocal": "supported",
+        "riskInterprocedural": "partial",
+        "symbolGraph": "supported"
+      },
+      "fallbackChain": [
+        "native-parser",
+        "tree-sitter",
+        "tooling",
+        "heuristic"
+      ],
+      "frameworkProfiles": [],
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "notes": "Baseline managed profile."
+    },
+    {
+      "id": "javascript",
+      "parserPreference": "hybrid",
+      "languageVersionPolicy": {
+        "minVersion": "ecma-2020",
+        "maxVersion": null,
+        "dialects": [
+          "cjs",
+          "esm",
+          "jsx"
+        ],
+        "featureFlags": [
+          "jsx",
+          "top-level-await"
+        ]
+      },
+      "embeddingPolicy": {
+        "canHostEmbedded": true,
+        "canBeEmbedded": true,
+        "embeddedLanguageAllowlist": [
+          "css",
+          "graphql",
+          "html",
+          "sql"
+        ]
+      },
+      "requiredNodeKinds": [
+        "call_expr",
+        "class_decl",
+        "export_stmt",
+        "function_decl",
+        "import_stmt",
+        "module_decl"
+      ],
+      "requiredEdgeKinds": [
+        "calls",
+        "defines",
+        "exports",
+        "imports",
+        "references",
+        "uses_type"
+      ],
+      "requiredCapabilities": {
+        "imports": "supported",
+        "relations": "supported",
+        "docmeta": "supported",
+        "ast": "supported",
+        "controlFlow": "supported",
+        "dataFlow": "supported",
+        "graphRelations": "supported",
+        "riskLocal": "supported",
+        "riskInterprocedural": "partial",
+        "symbolGraph": "supported"
+      },
+      "fallbackChain": [
+        "native-parser",
+        "tree-sitter",
+        "tooling",
+        "heuristic"
+      ],
+      "frameworkProfiles": [
+        "next",
+        "react"
+      ],
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3",
+        "C4"
+      ],
+      "notes": "Baseline js-ts profile."
+    },
+    {
+      "id": "jinja",
+      "parserPreference": "tree-sitter",
+      "languageVersionPolicy": {
+        "minVersion": "3.1",
+        "maxVersion": null,
+        "dialects": [
+          "jinja2"
+        ],
+        "featureFlags": [
+          "filters",
+          "macros"
+        ]
+      },
+      "embeddingPolicy": {
+        "canHostEmbedded": true,
+        "canBeEmbedded": true,
+        "embeddedLanguageAllowlist": [
+          "css",
+          "html",
+          "javascript",
+          "typescript"
+        ]
+      },
+      "requiredNodeKinds": [
+        "css_rule",
+        "directive_expr",
+        "html_element",
+        "template_element"
+      ],
+      "requiredEdgeKinds": [
+        "contains",
+        "style_scopes",
+        "template_binds",
+        "template_emits"
+      ],
+      "requiredCapabilities": {
+        "imports": "partial",
+        "relations": "partial",
+        "docmeta": "supported",
+        "ast": "partial",
+        "controlFlow": "unsupported",
+        "dataFlow": "unsupported",
+        "graphRelations": "partial",
+        "riskLocal": "partial",
+        "riskInterprocedural": "unsupported",
+        "symbolGraph": "partial"
+      },
+      "fallbackChain": [
+        "tree-sitter",
+        "tooling",
+        "heuristic"
+      ],
+      "frameworkProfiles": [],
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "notes": "Baseline markup profile."
+    },
+    {
+      "id": "julia",
+      "parserPreference": "tree-sitter",
+      "languageVersionPolicy": {
+        "minVersion": "1.10",
+        "maxVersion": null,
+        "dialects": [
+          "julia"
+        ],
+        "featureFlags": [
+          "macros",
+          "multiple-dispatch"
+        ]
+      },
+      "embeddingPolicy": {
+        "canHostEmbedded": false,
+        "canBeEmbedded": false,
+        "embeddedLanguageAllowlist": []
+      },
+      "requiredNodeKinds": [
+        "call_expr",
+        "control_stmt",
+        "function_decl",
+        "variable_decl"
+      ],
+      "requiredEdgeKinds": [
+        "calls",
+        "contains",
+        "defines",
+        "imports",
+        "references"
+      ],
+      "requiredCapabilities": {
+        "imports": "supported",
+        "relations": "supported",
+        "docmeta": "supported",
+        "ast": "supported",
+        "controlFlow": "supported",
+        "dataFlow": "partial",
+        "graphRelations": "supported",
+        "riskLocal": "supported",
+        "riskInterprocedural": "partial",
+        "symbolGraph": "supported"
+      },
+      "fallbackChain": [
+        "tree-sitter",
+        "tooling",
+        "heuristic"
+      ],
+      "frameworkProfiles": [],
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "notes": "Baseline dynamic profile."
+    },
+    {
+      "id": "kotlin",
+      "parserPreference": "hybrid",
+      "languageVersionPolicy": {
+        "minVersion": "1.9",
+        "maxVersion": null,
+        "dialects": [
+          "kotlin"
+        ],
+        "featureFlags": [
+          "k2",
+          "suspend"
+        ]
+      },
+      "embeddingPolicy": {
+        "canHostEmbedded": false,
+        "canBeEmbedded": false,
+        "embeddedLanguageAllowlist": []
+      },
+      "requiredNodeKinds": [
+        "class_decl",
+        "field_decl",
+        "interface_decl",
+        "method_decl",
+        "param_decl"
+      ],
+      "requiredEdgeKinds": [
+        "calls",
+        "defines",
+        "extends",
+        "implements",
+        "imports",
+        "references",
+        "uses_type"
+      ],
+      "requiredCapabilities": {
+        "imports": "supported",
+        "relations": "supported",
+        "docmeta": "supported",
+        "ast": "supported",
+        "controlFlow": "supported",
+        "dataFlow": "supported",
+        "graphRelations": "supported",
+        "riskLocal": "supported",
+        "riskInterprocedural": "partial",
+        "symbolGraph": "supported"
+      },
+      "fallbackChain": [
+        "native-parser",
+        "tree-sitter",
+        "tooling",
+        "heuristic"
+      ],
+      "frameworkProfiles": [],
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "notes": "Baseline managed profile."
+    },
+    {
+      "id": "lua",
+      "parserPreference": "tree-sitter",
+      "languageVersionPolicy": {
+        "minVersion": "5.4",
+        "maxVersion": null,
+        "dialects": [
+          "lua"
+        ],
+        "featureFlags": [
+          "metatables"
+        ]
+      },
+      "embeddingPolicy": {
+        "canHostEmbedded": false,
+        "canBeEmbedded": false,
+        "embeddedLanguageAllowlist": []
+      },
+      "requiredNodeKinds": [
+        "call_expr",
+        "control_stmt",
+        "function_decl",
+        "variable_decl"
+      ],
+      "requiredEdgeKinds": [
+        "calls",
+        "contains",
+        "defines",
+        "imports",
+        "references"
+      ],
+      "requiredCapabilities": {
+        "imports": "supported",
+        "relations": "supported",
+        "docmeta": "supported",
+        "ast": "supported",
+        "controlFlow": "supported",
+        "dataFlow": "partial",
+        "graphRelations": "supported",
+        "riskLocal": "supported",
+        "riskInterprocedural": "partial",
+        "symbolGraph": "supported"
+      },
+      "fallbackChain": [
+        "tree-sitter",
+        "tooling",
+        "heuristic"
+      ],
+      "frameworkProfiles": [],
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "notes": "Baseline dynamic profile."
+    },
+    {
+      "id": "makefile",
+      "parserPreference": "tree-sitter",
+      "languageVersionPolicy": {
+        "minVersion": "gnu-make-4.4",
+        "maxVersion": null,
+        "dialects": [
+          "gnu-make"
+        ],
+        "featureFlags": [
+          "pattern-rules"
+        ]
+      },
+      "embeddingPolicy": {
+        "canHostEmbedded": false,
+        "canBeEmbedded": false,
+        "embeddedLanguageAllowlist": []
+      },
+      "requiredNodeKinds": [
+        "build_stmt",
+        "call_expr",
+        "variable_decl"
+      ],
+      "requiredEdgeKinds": [
+        "calls",
+        "contains",
+        "references"
+      ],
+      "requiredCapabilities": {
+        "imports": "unsupported",
+        "relations": "partial",
+        "docmeta": "supported",
+        "ast": "partial",
+        "controlFlow": "partial",
+        "dataFlow": "partial",
+        "graphRelations": "partial",
+        "riskLocal": "partial",
+        "riskInterprocedural": "unsupported",
+        "symbolGraph": "partial"
+      },
+      "fallbackChain": [
+        "tree-sitter",
+        "tooling",
+        "heuristic"
+      ],
+      "frameworkProfiles": [],
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "notes": "Baseline build-dsl profile."
+    },
+    {
+      "id": "mustache",
+      "parserPreference": "heuristic",
+      "languageVersionPolicy": {
+        "minVersion": "1.0",
+        "maxVersion": null,
+        "dialects": [
+          "mustache"
+        ],
+        "featureFlags": [
+          "partials"
+        ]
+      },
+      "embeddingPolicy": {
+        "canHostEmbedded": true,
+        "canBeEmbedded": true,
+        "embeddedLanguageAllowlist": [
+          "css",
+          "html",
+          "javascript"
+        ]
+      },
+      "requiredNodeKinds": [
+        "css_rule",
+        "directive_expr",
+        "html_element",
+        "template_element"
+      ],
+      "requiredEdgeKinds": [
+        "contains",
+        "style_scopes",
+        "template_binds",
+        "template_emits"
+      ],
+      "requiredCapabilities": {
+        "imports": "partial",
+        "relations": "partial",
+        "docmeta": "supported",
+        "ast": "partial",
+        "controlFlow": "unsupported",
+        "dataFlow": "unsupported",
+        "graphRelations": "partial",
+        "riskLocal": "partial",
+        "riskInterprocedural": "unsupported",
+        "symbolGraph": "partial"
+      },
+      "fallbackChain": [
+        "heuristic"
+      ],
+      "frameworkProfiles": [],
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "notes": "Baseline markup profile."
+    },
+    {
+      "id": "nix",
+      "parserPreference": "tree-sitter",
+      "languageVersionPolicy": {
+        "minVersion": "2.18",
+        "maxVersion": null,
+        "dialects": [
+          "nix"
+        ],
+        "featureFlags": [
+          "flakes"
+        ]
+      },
+      "embeddingPolicy": {
+        "canHostEmbedded": false,
+        "canBeEmbedded": false,
+        "embeddedLanguageAllowlist": []
+      },
+      "requiredNodeKinds": [
+        "build_stmt",
+        "call_expr",
+        "variable_decl"
+      ],
+      "requiredEdgeKinds": [
+        "calls",
+        "contains",
+        "references"
+      ],
+      "requiredCapabilities": {
+        "imports": "unsupported",
+        "relations": "partial",
+        "docmeta": "supported",
+        "ast": "partial",
+        "controlFlow": "partial",
+        "dataFlow": "partial",
+        "graphRelations": "partial",
+        "riskLocal": "partial",
+        "riskInterprocedural": "unsupported",
+        "symbolGraph": "partial"
+      },
+      "fallbackChain": [
+        "tree-sitter",
+        "tooling",
+        "heuristic"
+      ],
+      "frameworkProfiles": [],
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "notes": "Baseline build-dsl profile."
+    },
+    {
+      "id": "perl",
+      "parserPreference": "heuristic",
+      "languageVersionPolicy": {
+        "minVersion": "5.34",
+        "maxVersion": null,
+        "dialects": [
+          "perl5"
+        ],
+        "featureFlags": [
+          "regex-extended"
+        ]
+      },
+      "embeddingPolicy": {
+        "canHostEmbedded": false,
+        "canBeEmbedded": false,
+        "embeddedLanguageAllowlist": []
+      },
+      "requiredNodeKinds": [
+        "call_expr",
+        "control_stmt",
+        "function_decl",
+        "variable_decl"
+      ],
+      "requiredEdgeKinds": [
+        "calls",
+        "contains",
+        "defines",
+        "imports",
+        "references"
+      ],
+      "requiredCapabilities": {
+        "imports": "supported",
+        "relations": "supported",
+        "docmeta": "supported",
+        "ast": "supported",
+        "controlFlow": "supported",
+        "dataFlow": "partial",
+        "graphRelations": "supported",
+        "riskLocal": "supported",
+        "riskInterprocedural": "partial",
+        "symbolGraph": "supported"
+      },
+      "fallbackChain": [
+        "heuristic"
+      ],
+      "frameworkProfiles": [],
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "notes": "Baseline dynamic profile."
+    },
+    {
+      "id": "php",
+      "parserPreference": "tree-sitter",
+      "languageVersionPolicy": {
+        "minVersion": "8.1",
+        "maxVersion": null,
+        "dialects": [
+          "php"
+        ],
+        "featureFlags": [
+          "attributes",
+          "union-types"
+        ]
+      },
+      "embeddingPolicy": {
+        "canHostEmbedded": false,
+        "canBeEmbedded": false,
+        "embeddedLanguageAllowlist": []
+      },
+      "requiredNodeKinds": [
+        "call_expr",
+        "control_stmt",
+        "function_decl",
+        "variable_decl"
+      ],
+      "requiredEdgeKinds": [
+        "calls",
+        "contains",
+        "defines",
+        "imports",
+        "references"
+      ],
+      "requiredCapabilities": {
+        "imports": "supported",
+        "relations": "supported",
+        "docmeta": "supported",
+        "ast": "supported",
+        "controlFlow": "supported",
+        "dataFlow": "partial",
+        "graphRelations": "supported",
+        "riskLocal": "supported",
+        "riskInterprocedural": "partial",
+        "symbolGraph": "supported"
+      },
+      "fallbackChain": [
+        "tree-sitter",
+        "tooling",
+        "heuristic"
+      ],
+      "frameworkProfiles": [],
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "notes": "Baseline dynamic profile."
+    },
+    {
+      "id": "proto",
+      "parserPreference": "tree-sitter",
+      "languageVersionPolicy": {
+        "minVersion": "proto3",
+        "maxVersion": null,
+        "dialects": [
+          "proto3"
+        ],
+        "featureFlags": [
+          "imports",
+          "options"
+        ]
+      },
+      "embeddingPolicy": {
+        "canHostEmbedded": false,
+        "canBeEmbedded": true,
+        "embeddedLanguageAllowlist": []
+      },
+      "requiredNodeKinds": [
+        "graphql_type_decl",
+        "interface_decl",
+        "sql_stmt",
+        "type_alias_decl"
+      ],
+      "requiredEdgeKinds": [
+        "contains",
+        "references",
+        "uses_type"
+      ],
+      "requiredCapabilities": {
+        "imports": "partial",
+        "relations": "supported",
+        "docmeta": "supported",
+        "ast": "supported",
+        "controlFlow": "unsupported",
+        "dataFlow": "unsupported",
+        "graphRelations": "supported",
+        "riskLocal": "partial",
+        "riskInterprocedural": "unsupported",
+        "symbolGraph": "supported"
+      },
+      "fallbackChain": [
+        "tree-sitter",
+        "tooling",
+        "heuristic"
+      ],
+      "frameworkProfiles": [],
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "notes": "Baseline data-interface profile."
+    },
+    {
+      "id": "python",
+      "parserPreference": "hybrid",
+      "languageVersionPolicy": {
+        "minVersion": "3.8",
+        "maxVersion": null,
+        "dialects": [
+          "cpython"
+        ],
+        "featureFlags": [
+          "pattern-matching",
+          "type-hints"
+        ]
+      },
+      "embeddingPolicy": {
+        "canHostEmbedded": false,
+        "canBeEmbedded": false,
+        "embeddedLanguageAllowlist": []
+      },
+      "requiredNodeKinds": [
+        "call_expr",
+        "control_stmt",
+        "function_decl",
+        "variable_decl"
+      ],
+      "requiredEdgeKinds": [
+        "calls",
+        "contains",
+        "defines",
+        "imports",
+        "references"
+      ],
+      "requiredCapabilities": {
+        "imports": "supported",
+        "relations": "supported",
+        "docmeta": "supported",
+        "ast": "supported",
+        "controlFlow": "supported",
+        "dataFlow": "partial",
+        "graphRelations": "supported",
+        "riskLocal": "supported",
+        "riskInterprocedural": "partial",
+        "symbolGraph": "supported"
+      },
+      "fallbackChain": [
+        "native-parser",
+        "tree-sitter",
+        "tooling",
+        "heuristic"
+      ],
+      "frameworkProfiles": [],
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "notes": "Baseline dynamic profile."
+    },
+    {
+      "id": "r",
+      "parserPreference": "tree-sitter",
+      "languageVersionPolicy": {
+        "minVersion": "4.3",
+        "maxVersion": null,
+        "dialects": [
+          "r"
+        ],
+        "featureFlags": [
+          "tidy-eval"
+        ]
+      },
+      "embeddingPolicy": {
+        "canHostEmbedded": false,
+        "canBeEmbedded": false,
+        "embeddedLanguageAllowlist": []
+      },
+      "requiredNodeKinds": [
+        "call_expr",
+        "control_stmt",
+        "function_decl",
+        "variable_decl"
+      ],
+      "requiredEdgeKinds": [
+        "calls",
+        "contains",
+        "defines",
+        "imports",
+        "references"
+      ],
+      "requiredCapabilities": {
+        "imports": "supported",
+        "relations": "supported",
+        "docmeta": "supported",
+        "ast": "supported",
+        "controlFlow": "supported",
+        "dataFlow": "partial",
+        "graphRelations": "supported",
+        "riskLocal": "supported",
+        "riskInterprocedural": "partial",
+        "symbolGraph": "supported"
+      },
+      "fallbackChain": [
+        "tree-sitter",
+        "tooling",
+        "heuristic"
+      ],
+      "frameworkProfiles": [],
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "notes": "Baseline dynamic profile."
+    },
+    {
+      "id": "razor",
+      "parserPreference": "hybrid",
+      "languageVersionPolicy": {
+        "minVersion": "aspnetcore-8",
+        "maxVersion": null,
+        "dialects": [
+          "razor"
+        ],
+        "featureFlags": [
+          "model-binding",
+          "tag-helpers"
+        ]
+      },
+      "embeddingPolicy": {
+        "canHostEmbedded": true,
+        "canBeEmbedded": true,
+        "embeddedLanguageAllowlist": [
+          "csharp",
+          "css",
+          "html",
+          "javascript"
+        ]
+      },
+      "requiredNodeKinds": [
+        "css_rule",
+        "directive_expr",
+        "html_element",
+        "template_element"
+      ],
+      "requiredEdgeKinds": [
+        "contains",
+        "style_scopes",
+        "template_binds",
+        "template_emits"
+      ],
+      "requiredCapabilities": {
+        "imports": "partial",
+        "relations": "partial",
+        "docmeta": "supported",
+        "ast": "partial",
+        "controlFlow": "unsupported",
+        "dataFlow": "unsupported",
+        "graphRelations": "partial",
+        "riskLocal": "partial",
+        "riskInterprocedural": "unsupported",
+        "symbolGraph": "partial"
+      },
+      "fallbackChain": [
+        "native-parser",
+        "tree-sitter",
+        "tooling",
+        "heuristic"
+      ],
+      "frameworkProfiles": [],
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "notes": "Baseline markup profile."
+    },
+    {
+      "id": "ruby",
+      "parserPreference": "tree-sitter",
+      "languageVersionPolicy": {
+        "minVersion": "3.1",
+        "maxVersion": null,
+        "dialects": [
+          "ruby"
+        ],
+        "featureFlags": [
+          "pattern-matching"
+        ]
+      },
+      "embeddingPolicy": {
+        "canHostEmbedded": false,
+        "canBeEmbedded": false,
+        "embeddedLanguageAllowlist": []
+      },
+      "requiredNodeKinds": [
+        "call_expr",
+        "control_stmt",
+        "function_decl",
+        "variable_decl"
+      ],
+      "requiredEdgeKinds": [
+        "calls",
+        "contains",
+        "defines",
+        "imports",
+        "references"
+      ],
+      "requiredCapabilities": {
+        "imports": "supported",
+        "relations": "supported",
+        "docmeta": "supported",
+        "ast": "supported",
+        "controlFlow": "supported",
+        "dataFlow": "partial",
+        "graphRelations": "supported",
+        "riskLocal": "supported",
+        "riskInterprocedural": "partial",
+        "symbolGraph": "supported"
+      },
+      "fallbackChain": [
+        "tree-sitter",
+        "tooling",
+        "heuristic"
+      ],
+      "frameworkProfiles": [],
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "notes": "Baseline dynamic profile."
+    },
+    {
+      "id": "rust",
+      "parserPreference": "hybrid",
+      "languageVersionPolicy": {
+        "minVersion": "1.74",
+        "maxVersion": null,
+        "dialects": [
+          "rust"
+        ],
+        "featureFlags": [
+          "macros",
+          "traits"
+        ]
+      },
+      "embeddingPolicy": {
+        "canHostEmbedded": false,
+        "canBeEmbedded": false,
+        "embeddedLanguageAllowlist": []
+      },
+      "requiredNodeKinds": [
+        "call_expr",
+        "function_decl",
+        "module_decl",
+        "type_alias_decl",
+        "variable_decl"
+      ],
+      "requiredEdgeKinds": [
+        "calls",
+        "defines",
+        "extends",
+        "implements",
+        "imports",
+        "references"
+      ],
+      "requiredCapabilities": {
+        "imports": "supported",
+        "relations": "supported",
+        "docmeta": "supported",
+        "ast": "supported",
+        "controlFlow": "supported",
+        "dataFlow": "supported",
+        "graphRelations": "supported",
+        "riskLocal": "supported",
+        "riskInterprocedural": "partial",
+        "symbolGraph": "supported"
+      },
+      "fallbackChain": [
+        "native-parser",
+        "tree-sitter",
+        "tooling",
+        "heuristic"
+      ],
+      "frameworkProfiles": [],
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "notes": "Baseline systems profile."
+    },
+    {
+      "id": "scala",
+      "parserPreference": "tree-sitter",
+      "languageVersionPolicy": {
+        "minVersion": "3.3",
+        "maxVersion": null,
+        "dialects": [
+          "scala3"
+        ],
+        "featureFlags": [
+          "givens",
+          "opaque-types"
+        ]
+      },
+      "embeddingPolicy": {
+        "canHostEmbedded": false,
+        "canBeEmbedded": false,
+        "embeddedLanguageAllowlist": []
+      },
+      "requiredNodeKinds": [
+        "class_decl",
+        "field_decl",
+        "interface_decl",
+        "method_decl",
+        "param_decl"
+      ],
+      "requiredEdgeKinds": [
+        "calls",
+        "defines",
+        "extends",
+        "implements",
+        "imports",
+        "references",
+        "uses_type"
+      ],
+      "requiredCapabilities": {
+        "imports": "supported",
+        "relations": "supported",
+        "docmeta": "supported",
+        "ast": "supported",
+        "controlFlow": "supported",
+        "dataFlow": "supported",
+        "graphRelations": "supported",
+        "riskLocal": "supported",
+        "riskInterprocedural": "partial",
+        "symbolGraph": "supported"
+      },
+      "fallbackChain": [
+        "tree-sitter",
+        "tooling",
+        "heuristic"
+      ],
+      "frameworkProfiles": [],
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "notes": "Baseline managed profile."
+    },
+    {
+      "id": "shell",
+      "parserPreference": "hybrid",
+      "languageVersionPolicy": {
+        "minVersion": "bash-5",
+        "maxVersion": null,
+        "dialects": [
+          "bash",
+          "posix-sh"
+        ],
+        "featureFlags": [
+          "process-substitution"
+        ]
+      },
+      "embeddingPolicy": {
+        "canHostEmbedded": false,
+        "canBeEmbedded": false,
+        "embeddedLanguageAllowlist": []
+      },
+      "requiredNodeKinds": [
+        "call_expr",
+        "control_stmt",
+        "function_decl",
+        "variable_decl"
+      ],
+      "requiredEdgeKinds": [
+        "calls",
+        "contains",
+        "defines",
+        "imports",
+        "references"
+      ],
+      "requiredCapabilities": {
+        "imports": "supported",
+        "relations": "supported",
+        "docmeta": "supported",
+        "ast": "supported",
+        "controlFlow": "supported",
+        "dataFlow": "partial",
+        "graphRelations": "supported",
+        "riskLocal": "supported",
+        "riskInterprocedural": "partial",
+        "symbolGraph": "supported"
+      },
+      "fallbackChain": [
+        "native-parser",
+        "tree-sitter",
+        "tooling",
+        "heuristic"
+      ],
+      "frameworkProfiles": [],
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "notes": "Baseline dynamic profile."
+    },
+    {
+      "id": "sql",
+      "parserPreference": "hybrid",
+      "languageVersionPolicy": {
+        "minVersion": "sql-2016",
+        "maxVersion": null,
+        "dialects": [
+          "ansi-sql",
+          "postgresql",
+          "sqlite"
+        ],
+        "featureFlags": [
+          "cte",
+          "window-functions"
+        ]
+      },
+      "embeddingPolicy": {
+        "canHostEmbedded": false,
+        "canBeEmbedded": true,
+        "embeddedLanguageAllowlist": []
+      },
+      "requiredNodeKinds": [
+        "graphql_type_decl",
+        "interface_decl",
+        "sql_stmt",
+        "type_alias_decl"
+      ],
+      "requiredEdgeKinds": [
+        "contains",
+        "references",
+        "uses_type"
+      ],
+      "requiredCapabilities": {
+        "imports": "partial",
+        "relations": "supported",
+        "docmeta": "supported",
+        "ast": "supported",
+        "controlFlow": "unsupported",
+        "dataFlow": "unsupported",
+        "graphRelations": "supported",
+        "riskLocal": "partial",
+        "riskInterprocedural": "unsupported",
+        "symbolGraph": "supported"
+      },
+      "fallbackChain": [
+        "native-parser",
+        "tree-sitter",
+        "tooling",
+        "heuristic"
+      ],
+      "frameworkProfiles": [],
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "notes": "Baseline data-interface profile."
+    },
+    {
+      "id": "starlark",
+      "parserPreference": "tree-sitter",
+      "languageVersionPolicy": {
+        "minVersion": "1.0",
+        "maxVersion": null,
+        "dialects": [
+          "bazel-starlark"
+        ],
+        "featureFlags": [
+          "load",
+          "rule-macros"
+        ]
+      },
+      "embeddingPolicy": {
+        "canHostEmbedded": false,
+        "canBeEmbedded": false,
+        "embeddedLanguageAllowlist": []
+      },
+      "requiredNodeKinds": [
+        "build_stmt",
+        "call_expr",
+        "variable_decl"
+      ],
+      "requiredEdgeKinds": [
+        "calls",
+        "contains",
+        "references"
+      ],
+      "requiredCapabilities": {
+        "imports": "unsupported",
+        "relations": "partial",
+        "docmeta": "supported",
+        "ast": "partial",
+        "controlFlow": "partial",
+        "dataFlow": "partial",
+        "graphRelations": "partial",
+        "riskLocal": "partial",
+        "riskInterprocedural": "unsupported",
+        "symbolGraph": "partial"
+      },
+      "fallbackChain": [
+        "tree-sitter",
+        "tooling",
+        "heuristic"
+      ],
+      "frameworkProfiles": [],
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "notes": "Baseline build-dsl profile."
+    },
+    {
+      "id": "swift",
+      "parserPreference": "hybrid",
+      "languageVersionPolicy": {
+        "minVersion": "5.9",
+        "maxVersion": null,
+        "dialects": [
+          "swift"
+        ],
+        "featureFlags": [
+          "result-builders"
+        ]
+      },
+      "embeddingPolicy": {
+        "canHostEmbedded": false,
+        "canBeEmbedded": false,
+        "embeddedLanguageAllowlist": []
+      },
+      "requiredNodeKinds": [
+        "call_expr",
+        "function_decl",
+        "module_decl",
+        "type_alias_decl",
+        "variable_decl"
+      ],
+      "requiredEdgeKinds": [
+        "calls",
+        "defines",
+        "extends",
+        "implements",
+        "imports",
+        "references"
+      ],
+      "requiredCapabilities": {
+        "imports": "supported",
+        "relations": "supported",
+        "docmeta": "supported",
+        "ast": "supported",
+        "controlFlow": "supported",
+        "dataFlow": "supported",
+        "graphRelations": "supported",
+        "riskLocal": "supported",
+        "riskInterprocedural": "partial",
+        "symbolGraph": "supported"
+      },
+      "fallbackChain": [
+        "native-parser",
+        "tree-sitter",
+        "tooling",
+        "heuristic"
+      ],
+      "frameworkProfiles": [],
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "notes": "Baseline systems profile."
+    },
+    {
+      "id": "typescript",
+      "parserPreference": "hybrid",
+      "languageVersionPolicy": {
+        "minVersion": "5.0",
+        "maxVersion": null,
+        "dialects": [
+          "ts",
+          "tsx"
+        ],
+        "featureFlags": [
+          "decorators",
+          "jsx",
+          "project-references"
+        ]
+      },
+      "embeddingPolicy": {
+        "canHostEmbedded": true,
+        "canBeEmbedded": true,
+        "embeddedLanguageAllowlist": [
+          "css",
+          "graphql",
+          "html",
+          "sql"
+        ]
+      },
+      "requiredNodeKinds": [
+        "call_expr",
+        "class_decl",
+        "export_stmt",
+        "function_decl",
+        "import_stmt",
+        "module_decl"
+      ],
+      "requiredEdgeKinds": [
+        "calls",
+        "defines",
+        "exports",
+        "imports",
+        "references",
+        "uses_type"
+      ],
+      "requiredCapabilities": {
+        "imports": "supported",
+        "relations": "supported",
+        "docmeta": "supported",
+        "ast": "supported",
+        "controlFlow": "supported",
+        "dataFlow": "supported",
+        "graphRelations": "supported",
+        "riskLocal": "supported",
+        "riskInterprocedural": "partial",
+        "symbolGraph": "supported"
+      },
+      "fallbackChain": [
+        "native-parser",
+        "tree-sitter",
+        "tooling",
+        "heuristic"
+      ],
+      "frameworkProfiles": [
+        "angular",
+        "next",
+        "react"
+      ],
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3",
+        "C4"
+      ],
+      "notes": "Baseline js-ts profile."
+    }
+  ]
+}

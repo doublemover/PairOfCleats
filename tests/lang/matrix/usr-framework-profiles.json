@@ -1,0 +1,890 @@
+{
+  "schemaVersion": "usr-registry-1.0.0",
+  "registryId": "usr-framework-profiles",
+  "generatedAt": "2026-02-11T00:30:00Z",
+  "generatedBy": "tools/usr/generate-usr-matrix-baselines.mjs",
+  "rows": [
+    {
+      "id": "angular",
+      "detectionPrecedence": [
+        "config-override",
+        "angular-decorator-signals",
+        "angular-workspace-config",
+        "package-signatures",
+        "heuristic"
+      ],
+      "appliesToLanguages": [
+        "html",
+        "typescript"
+      ],
+      "segmentationRules": {
+        "blocks": [
+          "script",
+          "template",
+          "style"
+        ],
+        "ordering": [
+          "container-segmentation",
+          "virtual-documents",
+          "parse-blocks",
+          "emit-local-entities",
+          "emit-bridge-edges",
+          "route-style-hydration-enrichment"
+        ],
+        "crossBlockLinking": [
+          "component-template-bindings",
+          "template-style-scope-ownership"
+        ]
+      },
+      "bindingSemantics": {
+        "requiredEdgeKinds": [
+          "template_binds",
+          "template_emits",
+          "style_scopes",
+          "route_maps_to",
+          "hydration_boundary"
+        ],
+        "requiredAttrs": {
+          "template_binds": [
+            "bindingKind"
+          ],
+          "template_emits": [
+            "eventKind"
+          ],
+          "style_scopes": [
+            "scopeKind"
+          ],
+          "route_maps_to": [
+            "routePattern",
+            "runtimeSide"
+          ],
+          "hydration_boundary": [
+            "runtimeSide"
+          ]
+        }
+      },
+      "routeSemantics": {
+        "enabled": true,
+        "patternCanon": "bracket-form",
+        "runtimeSides": [
+          "client",
+          "server",
+          "universal",
+          "unknown"
+        ]
+      },
+      "hydrationSemantics": {
+        "required": true,
+        "boundarySignals": [
+          "ng-hydrate",
+          "universal-handoff"
+        ],
+        "ssrCsrModes": [
+          "ssr",
+          "csr",
+          "hybrid"
+        ]
+      },
+      "embeddedLanguageBridges": [
+        {
+          "sourceBlock": "script",
+          "targetBlock": "template",
+          "edgeKinds": [
+            "template_binds",
+            "template_emits"
+          ]
+        },
+        {
+          "sourceBlock": "template",
+          "targetBlock": "style",
+          "edgeKinds": [
+            "style_scopes"
+          ]
+        }
+      ],
+      "edgeCaseCaseIds": [
+        "angular-input-output-binding",
+        "angular-route-config-lazy",
+        "angular-template-style-encapsulation"
+      ],
+      "requiredConformance": [
+        "C4"
+      ]
+    },
+    {
+      "id": "astro",
+      "detectionPrecedence": [
+        "config-override",
+        "astro-file-signature",
+        "astro-config",
+        "package-signatures",
+        "heuristic"
+      ],
+      "appliesToLanguages": [
+        "css",
+        "html",
+        "javascript",
+        "typescript"
+      ],
+      "segmentationRules": {
+        "blocks": [
+          "frontmatter",
+          "template",
+          "style",
+          "island"
+        ],
+        "ordering": [
+          "container-segmentation",
+          "virtual-documents",
+          "parse-blocks",
+          "emit-local-entities",
+          "emit-bridge-edges",
+          "route-style-hydration-enrichment"
+        ],
+        "crossBlockLinking": [
+          "frontmatter-template-bridge",
+          "island-hydration-bridge"
+        ]
+      },
+      "bindingSemantics": {
+        "requiredEdgeKinds": [
+          "template_binds",
+          "template_emits",
+          "style_scopes",
+          "route_maps_to",
+          "hydration_boundary"
+        ],
+        "requiredAttrs": {
+          "template_binds": [
+            "bindingKind"
+          ],
+          "template_emits": [
+            "eventKind"
+          ],
+          "style_scopes": [
+            "scopeKind"
+          ],
+          "route_maps_to": [
+            "routePattern",
+            "runtimeSide"
+          ],
+          "hydration_boundary": [
+            "runtimeSide"
+          ]
+        }
+      },
+      "routeSemantics": {
+        "enabled": true,
+        "patternCanon": "bracket-form",
+        "runtimeSides": [
+          "client",
+          "server",
+          "universal",
+          "unknown"
+        ]
+      },
+      "hydrationSemantics": {
+        "required": true,
+        "boundarySignals": [
+          "client:load",
+          "client:idle",
+          "client:visible",
+          "client:media",
+          "client:only"
+        ],
+        "ssrCsrModes": [
+          "ssr",
+          "island",
+          "hybrid"
+        ]
+      },
+      "embeddedLanguageBridges": [
+        {
+          "sourceBlock": "frontmatter",
+          "targetBlock": "template",
+          "edgeKinds": [
+            "template_binds"
+          ]
+        },
+        {
+          "sourceBlock": "template",
+          "targetBlock": "style",
+          "edgeKinds": [
+            "style_scopes"
+          ]
+        }
+      ],
+      "edgeCaseCaseIds": [
+        "astro-frontmatter-template-bridge",
+        "astro-island-hydration",
+        "astro-route-collection"
+      ],
+      "requiredConformance": [
+        "C4"
+      ]
+    },
+    {
+      "id": "next",
+      "detectionPrecedence": [
+        "config-override",
+        "next-app-pages-conventions",
+        "next-config-signals",
+        "package-signatures",
+        "heuristic"
+      ],
+      "appliesToLanguages": [
+        "css",
+        "javascript",
+        "typescript"
+      ],
+      "segmentationRules": {
+        "blocks": [
+          "script",
+          "template",
+          "style",
+          "route"
+        ],
+        "ordering": [
+          "container-segmentation",
+          "virtual-documents",
+          "parse-blocks",
+          "emit-local-entities",
+          "emit-bridge-edges",
+          "route-style-hydration-enrichment"
+        ],
+        "crossBlockLinking": [
+          "server-client-boundary",
+          "route-component-binding"
+        ]
+      },
+      "bindingSemantics": {
+        "requiredEdgeKinds": [
+          "template_binds",
+          "template_emits",
+          "style_scopes",
+          "route_maps_to",
+          "hydration_boundary"
+        ],
+        "requiredAttrs": {
+          "template_binds": [
+            "bindingKind"
+          ],
+          "template_emits": [
+            "eventKind"
+          ],
+          "style_scopes": [
+            "scopeKind"
+          ],
+          "route_maps_to": [
+            "routePattern",
+            "runtimeSide"
+          ],
+          "hydration_boundary": [
+            "runtimeSide"
+          ]
+        }
+      },
+      "routeSemantics": {
+        "enabled": true,
+        "patternCanon": "bracket-form",
+        "runtimeSides": [
+          "client",
+          "server",
+          "universal",
+          "unknown"
+        ]
+      },
+      "hydrationSemantics": {
+        "required": true,
+        "boundarySignals": [
+          "use client",
+          "server-component-boundary"
+        ],
+        "ssrCsrModes": [
+          "ssr",
+          "csr",
+          "rsc",
+          "hybrid"
+        ]
+      },
+      "embeddedLanguageBridges": [
+        {
+          "sourceBlock": "route",
+          "targetBlock": "script",
+          "edgeKinds": [
+            "route_maps_to"
+          ]
+        },
+        {
+          "sourceBlock": "script",
+          "targetBlock": "style",
+          "edgeKinds": [
+            "style_scopes"
+          ]
+        }
+      ],
+      "edgeCaseCaseIds": [
+        "next-app-router-dynamic-segment",
+        "next-client-server-boundary",
+        "next-route-handler-runtime"
+      ],
+      "requiredConformance": [
+        "C4"
+      ]
+    },
+    {
+      "id": "nuxt",
+      "detectionPrecedence": [
+        "config-override",
+        "nuxt-config-signature",
+        "pages-server-conventions",
+        "package-signatures",
+        "heuristic"
+      ],
+      "appliesToLanguages": [
+        "css",
+        "html",
+        "javascript",
+        "typescript"
+      ],
+      "segmentationRules": {
+        "blocks": [
+          "template",
+          "script",
+          "style",
+          "route"
+        ],
+        "ordering": [
+          "container-segmentation",
+          "virtual-documents",
+          "parse-blocks",
+          "emit-local-entities",
+          "emit-bridge-edges",
+          "route-style-hydration-enrichment"
+        ],
+        "crossBlockLinking": [
+          "template-script-bridge",
+          "route-component-binding"
+        ]
+      },
+      "bindingSemantics": {
+        "requiredEdgeKinds": [
+          "template_binds",
+          "template_emits",
+          "style_scopes",
+          "route_maps_to",
+          "hydration_boundary"
+        ],
+        "requiredAttrs": {
+          "template_binds": [
+            "bindingKind"
+          ],
+          "template_emits": [
+            "eventKind"
+          ],
+          "style_scopes": [
+            "scopeKind"
+          ],
+          "route_maps_to": [
+            "routePattern",
+            "runtimeSide"
+          ],
+          "hydration_boundary": [
+            "runtimeSide"
+          ]
+        }
+      },
+      "routeSemantics": {
+        "enabled": true,
+        "patternCanon": "bracket-form",
+        "runtimeSides": [
+          "client",
+          "server",
+          "universal",
+          "unknown"
+        ]
+      },
+      "hydrationSemantics": {
+        "required": true,
+        "boundarySignals": [
+          "nuxt-client-only",
+          "suspense-boundary"
+        ],
+        "ssrCsrModes": [
+          "ssr",
+          "csr",
+          "universal"
+        ]
+      },
+      "embeddedLanguageBridges": [
+        {
+          "sourceBlock": "template",
+          "targetBlock": "script",
+          "edgeKinds": [
+            "template_binds",
+            "template_emits"
+          ]
+        },
+        {
+          "sourceBlock": "template",
+          "targetBlock": "style",
+          "edgeKinds": [
+            "style_scopes"
+          ]
+        }
+      ],
+      "edgeCaseCaseIds": [
+        "nuxt-pages-route-params",
+        "nuxt-server-route-mapping",
+        "nuxt-sfc-style-scope"
+      ],
+      "requiredConformance": [
+        "C4"
+      ]
+    },
+    {
+      "id": "react",
+      "detectionPrecedence": [
+        "config-override",
+        "jsx-tsx-signals",
+        "jsx-runtime-signals",
+        "package-signatures",
+        "heuristic"
+      ],
+      "appliesToLanguages": [
+        "css",
+        "javascript",
+        "typescript"
+      ],
+      "segmentationRules": {
+        "blocks": [
+          "script",
+          "template",
+          "style",
+          "route"
+        ],
+        "ordering": [
+          "container-segmentation",
+          "virtual-documents",
+          "parse-blocks",
+          "emit-local-entities",
+          "emit-bridge-edges",
+          "route-style-hydration-enrichment"
+        ],
+        "crossBlockLinking": [
+          "jsx-prop-binding",
+          "router-component-binding"
+        ]
+      },
+      "bindingSemantics": {
+        "requiredEdgeKinds": [
+          "template_binds",
+          "template_emits",
+          "style_scopes",
+          "route_maps_to",
+          "hydration_boundary"
+        ],
+        "requiredAttrs": {
+          "template_binds": [
+            "bindingKind"
+          ],
+          "template_emits": [
+            "eventKind"
+          ],
+          "style_scopes": [
+            "scopeKind"
+          ],
+          "route_maps_to": [
+            "routePattern",
+            "runtimeSide"
+          ],
+          "hydration_boundary": [
+            "runtimeSide"
+          ]
+        }
+      },
+      "routeSemantics": {
+        "enabled": true,
+        "patternCanon": "bracket-form",
+        "runtimeSides": [
+          "client",
+          "server",
+          "universal",
+          "unknown"
+        ]
+      },
+      "hydrationSemantics": {
+        "required": true,
+        "boundarySignals": [
+          "hydrateRoot",
+          "createRoot",
+          "server-render-boundary"
+        ],
+        "ssrCsrModes": [
+          "csr",
+          "ssr",
+          "hybrid"
+        ]
+      },
+      "embeddedLanguageBridges": [
+        {
+          "sourceBlock": "script",
+          "targetBlock": "template",
+          "edgeKinds": [
+            "template_binds",
+            "template_emits"
+          ]
+        },
+        {
+          "sourceBlock": "script",
+          "targetBlock": "style",
+          "edgeKinds": [
+            "style_scopes"
+          ]
+        }
+      ],
+      "edgeCaseCaseIds": [
+        "react-css-module-scope",
+        "react-hydration-boundary",
+        "react-route-dynamic"
+      ],
+      "requiredConformance": [
+        "C4"
+      ]
+    },
+    {
+      "id": "svelte",
+      "detectionPrecedence": [
+        "config-override",
+        "svelte-file-signature",
+        "compiler-signals",
+        "package-signatures",
+        "heuristic"
+      ],
+      "appliesToLanguages": [
+        "css",
+        "html",
+        "javascript",
+        "typescript"
+      ],
+      "segmentationRules": {
+        "blocks": [
+          "module-script",
+          "instance-script",
+          "template",
+          "style"
+        ],
+        "ordering": [
+          "container-segmentation",
+          "virtual-documents",
+          "parse-blocks",
+          "emit-local-entities",
+          "emit-bridge-edges",
+          "route-style-hydration-enrichment"
+        ],
+        "crossBlockLinking": [
+          "template-script-bridge",
+          "template-style-bridge"
+        ]
+      },
+      "bindingSemantics": {
+        "requiredEdgeKinds": [
+          "template_binds",
+          "template_emits",
+          "style_scopes",
+          "route_maps_to",
+          "hydration_boundary"
+        ],
+        "requiredAttrs": {
+          "template_binds": [
+            "bindingKind"
+          ],
+          "template_emits": [
+            "eventKind"
+          ],
+          "style_scopes": [
+            "scopeKind"
+          ],
+          "route_maps_to": [
+            "routePattern",
+            "runtimeSide"
+          ],
+          "hydration_boundary": [
+            "runtimeSide"
+          ]
+        }
+      },
+      "routeSemantics": {
+        "enabled": false,
+        "patternCanon": "bracket-form",
+        "runtimeSides": [
+          "client",
+          "server",
+          "universal",
+          "unknown"
+        ]
+      },
+      "hydrationSemantics": {
+        "required": true,
+        "boundarySignals": [
+          "hydrate",
+          "svelte-component-boundary"
+        ],
+        "ssrCsrModes": [
+          "ssr",
+          "csr",
+          "hybrid"
+        ]
+      },
+      "embeddedLanguageBridges": [
+        {
+          "sourceBlock": "template",
+          "targetBlock": "instance-script",
+          "edgeKinds": [
+            "template_binds",
+            "template_emits"
+          ]
+        },
+        {
+          "sourceBlock": "template",
+          "targetBlock": "style",
+          "edgeKinds": [
+            "style_scopes"
+          ]
+        }
+      ],
+      "edgeCaseCaseIds": [
+        "svelte-bind-and-event",
+        "svelte-slot-props",
+        "svelte-style-scope"
+      ],
+      "requiredConformance": [
+        "C4"
+      ]
+    },
+    {
+      "id": "sveltekit",
+      "detectionPrecedence": [
+        "config-override",
+        "sveltekit-route-conventions",
+        "kit-config-signals",
+        "package-signatures",
+        "heuristic"
+      ],
+      "appliesToLanguages": [
+        "css",
+        "html",
+        "javascript",
+        "typescript"
+      ],
+      "segmentationRules": {
+        "blocks": [
+          "module-script",
+          "instance-script",
+          "template",
+          "style",
+          "route"
+        ],
+        "ordering": [
+          "container-segmentation",
+          "virtual-documents",
+          "parse-blocks",
+          "emit-local-entities",
+          "emit-bridge-edges",
+          "route-style-hydration-enrichment"
+        ],
+        "crossBlockLinking": [
+          "route-load-binding",
+          "template-script-bridge"
+        ]
+      },
+      "bindingSemantics": {
+        "requiredEdgeKinds": [
+          "template_binds",
+          "template_emits",
+          "style_scopes",
+          "route_maps_to",
+          "hydration_boundary"
+        ],
+        "requiredAttrs": {
+          "template_binds": [
+            "bindingKind"
+          ],
+          "template_emits": [
+            "eventKind"
+          ],
+          "style_scopes": [
+            "scopeKind"
+          ],
+          "route_maps_to": [
+            "routePattern",
+            "runtimeSide"
+          ],
+          "hydration_boundary": [
+            "runtimeSide"
+          ]
+        }
+      },
+      "routeSemantics": {
+        "enabled": true,
+        "patternCanon": "bracket-form",
+        "runtimeSides": [
+          "client",
+          "server",
+          "universal",
+          "unknown"
+        ]
+      },
+      "hydrationSemantics": {
+        "required": true,
+        "boundarySignals": [
+          "csr",
+          "ssr",
+          "prerender"
+        ],
+        "ssrCsrModes": [
+          "ssr",
+          "csr",
+          "hybrid"
+        ]
+      },
+      "embeddedLanguageBridges": [
+        {
+          "sourceBlock": "route",
+          "targetBlock": "instance-script",
+          "edgeKinds": [
+            "route_maps_to",
+            "template_binds"
+          ]
+        },
+        {
+          "sourceBlock": "template",
+          "targetBlock": "style",
+          "edgeKinds": [
+            "style_scopes"
+          ]
+        }
+      ],
+      "edgeCaseCaseIds": [
+        "sveltekit-load-data-binding",
+        "sveltekit-route-param",
+        "sveltekit-server-action-route"
+      ],
+      "requiredConformance": [
+        "C4"
+      ]
+    },
+    {
+      "id": "vue",
+      "detectionPrecedence": [
+        "config-override",
+        "vue-sfc-signature",
+        "vue-compiler-metadata",
+        "package-signatures",
+        "heuristic"
+      ],
+      "appliesToLanguages": [
+        "css",
+        "html",
+        "javascript",
+        "typescript"
+      ],
+      "segmentationRules": {
+        "blocks": [
+          "template",
+          "script",
+          "script-setup",
+          "style",
+          "custom"
+        ],
+        "ordering": [
+          "container-segmentation",
+          "virtual-documents",
+          "parse-blocks",
+          "emit-local-entities",
+          "emit-bridge-edges",
+          "route-style-hydration-enrichment"
+        ],
+        "crossBlockLinking": [
+          "template-script-bridge",
+          "template-style-bridge"
+        ]
+      },
+      "bindingSemantics": {
+        "requiredEdgeKinds": [
+          "template_binds",
+          "template_emits",
+          "style_scopes",
+          "route_maps_to",
+          "hydration_boundary"
+        ],
+        "requiredAttrs": {
+          "template_binds": [
+            "bindingKind"
+          ],
+          "template_emits": [
+            "eventKind"
+          ],
+          "style_scopes": [
+            "scopeKind"
+          ],
+          "route_maps_to": [
+            "routePattern",
+            "runtimeSide"
+          ],
+          "hydration_boundary": [
+            "runtimeSide"
+          ]
+        }
+      },
+      "routeSemantics": {
+        "enabled": true,
+        "patternCanon": "bracket-form",
+        "runtimeSides": [
+          "client",
+          "server",
+          "universal",
+          "unknown"
+        ]
+      },
+      "hydrationSemantics": {
+        "required": true,
+        "boundarySignals": [
+          "suspense",
+          "teleport",
+          "async-component"
+        ],
+        "ssrCsrModes": [
+          "ssr",
+          "csr",
+          "universal"
+        ]
+      },
+      "embeddedLanguageBridges": [
+        {
+          "sourceBlock": "template",
+          "targetBlock": "script-setup",
+          "edgeKinds": [
+            "template_binds",
+            "template_emits"
+          ]
+        },
+        {
+          "sourceBlock": "template",
+          "targetBlock": "style",
+          "edgeKinds": [
+            "style_scopes"
+          ]
+        }
+      ],
+      "edgeCaseCaseIds": [
+        "vue-router-dynamic-param",
+        "vue-sfc-scoped-style",
+        "vue-sfc-script-setup-bindings"
+      ],
+      "requiredConformance": [
+        "C4"
+      ]
+    }
+  ]
+}

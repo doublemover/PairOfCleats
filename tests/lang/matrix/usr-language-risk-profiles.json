@@ -1,0 +1,1994 @@
+{
+  "schemaVersion": "usr-registry-1.0.0",
+  "registryId": "usr-language-risk-profiles",
+  "generatedAt": "2026-02-11T00:30:00Z",
+  "generatedBy": "tools/usr/generate-usr-matrix-baselines.mjs",
+  "rows": [
+    {
+      "languageId": "clike",
+      "frameworkProfile": null,
+      "required": {
+        "sources": [
+          "environment-input",
+          "external-input"
+        ],
+        "sinks": [
+          "command-exec",
+          "filesystem-write",
+          "network-egress"
+        ],
+        "sanitizers": [
+          "allowlist",
+          "context-escape",
+          "parameterization"
+        ]
+      },
+      "optional": {
+        "sources": [
+          "config-input"
+        ],
+        "sinks": [
+          "logging-sink"
+        ],
+        "sanitizers": [
+          "encoding-normalization"
+        ]
+      },
+      "unsupported": {
+        "sources": [],
+        "sinks": [],
+        "sanitizers": []
+      },
+      "capabilities": {
+        "riskLocal": "supported",
+        "riskInterprocedural": "partial"
+      },
+      "interproceduralGating": {
+        "enabledByDefault": true,
+        "minEvidenceKinds": [
+          "calls",
+          "references"
+        ],
+        "requiredCallLinkConfidence": 0.7
+      },
+      "severityPolicy": {
+        "levels": [
+          "info",
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "defaultLevel": "medium"
+      }
+    },
+    {
+      "languageId": "cmake",
+      "frameworkProfile": null,
+      "required": {
+        "sources": [
+          "template-input"
+        ],
+        "sinks": [
+          "template-render"
+        ],
+        "sanitizers": [
+          "allowlist",
+          "context-escape",
+          "parameterization"
+        ]
+      },
+      "optional": {
+        "sources": [
+          "config-input"
+        ],
+        "sinks": [
+          "logging-sink"
+        ],
+        "sanitizers": [
+          "encoding-normalization"
+        ]
+      },
+      "unsupported": {
+        "sources": [
+          "interprocedural-source"
+        ],
+        "sinks": [
+          "interprocedural-sink"
+        ],
+        "sanitizers": []
+      },
+      "capabilities": {
+        "riskLocal": "partial",
+        "riskInterprocedural": "unsupported"
+      },
+      "interproceduralGating": {
+        "enabledByDefault": false,
+        "minEvidenceKinds": [
+          "calls",
+          "references"
+        ],
+        "requiredCallLinkConfidence": 0.7
+      },
+      "severityPolicy": {
+        "levels": [
+          "info",
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "defaultLevel": "medium"
+      }
+    },
+    {
+      "languageId": "csharp",
+      "frameworkProfile": null,
+      "required": {
+        "sources": [
+          "environment-input",
+          "external-input"
+        ],
+        "sinks": [
+          "command-exec",
+          "filesystem-write",
+          "network-egress"
+        ],
+        "sanitizers": [
+          "allowlist",
+          "context-escape",
+          "parameterization"
+        ]
+      },
+      "optional": {
+        "sources": [
+          "config-input"
+        ],
+        "sinks": [
+          "logging-sink"
+        ],
+        "sanitizers": [
+          "encoding-normalization"
+        ]
+      },
+      "unsupported": {
+        "sources": [],
+        "sinks": [],
+        "sanitizers": []
+      },
+      "capabilities": {
+        "riskLocal": "supported",
+        "riskInterprocedural": "partial"
+      },
+      "interproceduralGating": {
+        "enabledByDefault": true,
+        "minEvidenceKinds": [
+          "calls",
+          "references"
+        ],
+        "requiredCallLinkConfidence": 0.7
+      },
+      "severityPolicy": {
+        "levels": [
+          "info",
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "defaultLevel": "medium"
+      }
+    },
+    {
+      "languageId": "css",
+      "frameworkProfile": null,
+      "required": {
+        "sources": [
+          "template-input"
+        ],
+        "sinks": [
+          "template-render"
+        ],
+        "sanitizers": [
+          "allowlist",
+          "context-escape",
+          "parameterization"
+        ]
+      },
+      "optional": {
+        "sources": [
+          "config-input"
+        ],
+        "sinks": [
+          "logging-sink"
+        ],
+        "sanitizers": [
+          "encoding-normalization"
+        ]
+      },
+      "unsupported": {
+        "sources": [
+          "interprocedural-source"
+        ],
+        "sinks": [
+          "interprocedural-sink"
+        ],
+        "sanitizers": []
+      },
+      "capabilities": {
+        "riskLocal": "partial",
+        "riskInterprocedural": "unsupported"
+      },
+      "interproceduralGating": {
+        "enabledByDefault": false,
+        "minEvidenceKinds": [
+          "calls",
+          "references"
+        ],
+        "requiredCallLinkConfidence": 0.7
+      },
+      "severityPolicy": {
+        "levels": [
+          "info",
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "defaultLevel": "medium"
+      }
+    },
+    {
+      "languageId": "dart",
+      "frameworkProfile": null,
+      "required": {
+        "sources": [
+          "environment-input",
+          "external-input"
+        ],
+        "sinks": [
+          "command-exec",
+          "filesystem-write",
+          "network-egress"
+        ],
+        "sanitizers": [
+          "allowlist",
+          "context-escape",
+          "parameterization"
+        ]
+      },
+      "optional": {
+        "sources": [
+          "config-input"
+        ],
+        "sinks": [
+          "logging-sink"
+        ],
+        "sanitizers": [
+          "encoding-normalization"
+        ]
+      },
+      "unsupported": {
+        "sources": [],
+        "sinks": [],
+        "sanitizers": []
+      },
+      "capabilities": {
+        "riskLocal": "supported",
+        "riskInterprocedural": "partial"
+      },
+      "interproceduralGating": {
+        "enabledByDefault": true,
+        "minEvidenceKinds": [
+          "calls",
+          "references"
+        ],
+        "requiredCallLinkConfidence": 0.7
+      },
+      "severityPolicy": {
+        "levels": [
+          "info",
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "defaultLevel": "medium"
+      }
+    },
+    {
+      "languageId": "dockerfile",
+      "frameworkProfile": null,
+      "required": {
+        "sources": [
+          "template-input"
+        ],
+        "sinks": [
+          "template-render"
+        ],
+        "sanitizers": [
+          "allowlist",
+          "context-escape",
+          "parameterization"
+        ]
+      },
+      "optional": {
+        "sources": [
+          "config-input"
+        ],
+        "sinks": [
+          "logging-sink"
+        ],
+        "sanitizers": [
+          "encoding-normalization"
+        ]
+      },
+      "unsupported": {
+        "sources": [
+          "interprocedural-source"
+        ],
+        "sinks": [
+          "interprocedural-sink"
+        ],
+        "sanitizers": []
+      },
+      "capabilities": {
+        "riskLocal": "partial",
+        "riskInterprocedural": "unsupported"
+      },
+      "interproceduralGating": {
+        "enabledByDefault": false,
+        "minEvidenceKinds": [
+          "calls",
+          "references"
+        ],
+        "requiredCallLinkConfidence": 0.7
+      },
+      "severityPolicy": {
+        "levels": [
+          "info",
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "defaultLevel": "medium"
+      }
+    },
+    {
+      "languageId": "go",
+      "frameworkProfile": null,
+      "required": {
+        "sources": [
+          "environment-input",
+          "external-input"
+        ],
+        "sinks": [
+          "command-exec",
+          "filesystem-write",
+          "network-egress"
+        ],
+        "sanitizers": [
+          "allowlist",
+          "context-escape",
+          "parameterization"
+        ]
+      },
+      "optional": {
+        "sources": [
+          "config-input"
+        ],
+        "sinks": [
+          "logging-sink"
+        ],
+        "sanitizers": [
+          "encoding-normalization"
+        ]
+      },
+      "unsupported": {
+        "sources": [],
+        "sinks": [],
+        "sanitizers": []
+      },
+      "capabilities": {
+        "riskLocal": "supported",
+        "riskInterprocedural": "partial"
+      },
+      "interproceduralGating": {
+        "enabledByDefault": true,
+        "minEvidenceKinds": [
+          "calls",
+          "references"
+        ],
+        "requiredCallLinkConfidence": 0.7
+      },
+      "severityPolicy": {
+        "levels": [
+          "info",
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "defaultLevel": "medium"
+      }
+    },
+    {
+      "languageId": "graphql",
+      "frameworkProfile": null,
+      "required": {
+        "sources": [
+          "template-input"
+        ],
+        "sinks": [
+          "template-render"
+        ],
+        "sanitizers": [
+          "allowlist",
+          "context-escape",
+          "parameterization"
+        ]
+      },
+      "optional": {
+        "sources": [
+          "config-input"
+        ],
+        "sinks": [
+          "logging-sink"
+        ],
+        "sanitizers": [
+          "encoding-normalization"
+        ]
+      },
+      "unsupported": {
+        "sources": [
+          "interprocedural-source"
+        ],
+        "sinks": [
+          "interprocedural-sink"
+        ],
+        "sanitizers": []
+      },
+      "capabilities": {
+        "riskLocal": "partial",
+        "riskInterprocedural": "unsupported"
+      },
+      "interproceduralGating": {
+        "enabledByDefault": false,
+        "minEvidenceKinds": [
+          "calls",
+          "references"
+        ],
+        "requiredCallLinkConfidence": 0.7
+      },
+      "severityPolicy": {
+        "levels": [
+          "info",
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "defaultLevel": "medium"
+      }
+    },
+    {
+      "languageId": "groovy",
+      "frameworkProfile": null,
+      "required": {
+        "sources": [
+          "environment-input",
+          "external-input"
+        ],
+        "sinks": [
+          "command-exec",
+          "filesystem-write",
+          "network-egress"
+        ],
+        "sanitizers": [
+          "allowlist",
+          "context-escape",
+          "parameterization"
+        ]
+      },
+      "optional": {
+        "sources": [
+          "config-input"
+        ],
+        "sinks": [
+          "logging-sink"
+        ],
+        "sanitizers": [
+          "encoding-normalization"
+        ]
+      },
+      "unsupported": {
+        "sources": [],
+        "sinks": [],
+        "sanitizers": []
+      },
+      "capabilities": {
+        "riskLocal": "supported",
+        "riskInterprocedural": "partial"
+      },
+      "interproceduralGating": {
+        "enabledByDefault": true,
+        "minEvidenceKinds": [
+          "calls",
+          "references"
+        ],
+        "requiredCallLinkConfidence": 0.7
+      },
+      "severityPolicy": {
+        "levels": [
+          "info",
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "defaultLevel": "medium"
+      }
+    },
+    {
+      "languageId": "handlebars",
+      "frameworkProfile": null,
+      "required": {
+        "sources": [
+          "template-input"
+        ],
+        "sinks": [
+          "template-render"
+        ],
+        "sanitizers": [
+          "allowlist",
+          "context-escape",
+          "parameterization"
+        ]
+      },
+      "optional": {
+        "sources": [
+          "config-input"
+        ],
+        "sinks": [
+          "logging-sink"
+        ],
+        "sanitizers": [
+          "encoding-normalization"
+        ]
+      },
+      "unsupported": {
+        "sources": [
+          "interprocedural-source"
+        ],
+        "sinks": [
+          "interprocedural-sink"
+        ],
+        "sanitizers": []
+      },
+      "capabilities": {
+        "riskLocal": "partial",
+        "riskInterprocedural": "unsupported"
+      },
+      "interproceduralGating": {
+        "enabledByDefault": false,
+        "minEvidenceKinds": [
+          "calls",
+          "references"
+        ],
+        "requiredCallLinkConfidence": 0.7
+      },
+      "severityPolicy": {
+        "levels": [
+          "info",
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "defaultLevel": "medium"
+      }
+    },
+    {
+      "languageId": "html",
+      "frameworkProfile": null,
+      "required": {
+        "sources": [
+          "template-input"
+        ],
+        "sinks": [
+          "template-render"
+        ],
+        "sanitizers": [
+          "allowlist",
+          "context-escape",
+          "parameterization"
+        ]
+      },
+      "optional": {
+        "sources": [
+          "config-input"
+        ],
+        "sinks": [
+          "logging-sink"
+        ],
+        "sanitizers": [
+          "encoding-normalization"
+        ]
+      },
+      "unsupported": {
+        "sources": [
+          "interprocedural-source"
+        ],
+        "sinks": [
+          "interprocedural-sink"
+        ],
+        "sanitizers": []
+      },
+      "capabilities": {
+        "riskLocal": "partial",
+        "riskInterprocedural": "unsupported"
+      },
+      "interproceduralGating": {
+        "enabledByDefault": false,
+        "minEvidenceKinds": [
+          "calls",
+          "references"
+        ],
+        "requiredCallLinkConfidence": 0.7
+      },
+      "severityPolicy": {
+        "levels": [
+          "info",
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "defaultLevel": "medium"
+      }
+    },
+    {
+      "languageId": "java",
+      "frameworkProfile": null,
+      "required": {
+        "sources": [
+          "environment-input",
+          "external-input"
+        ],
+        "sinks": [
+          "command-exec",
+          "filesystem-write",
+          "network-egress"
+        ],
+        "sanitizers": [
+          "allowlist",
+          "context-escape",
+          "parameterization"
+        ]
+      },
+      "optional": {
+        "sources": [
+          "config-input"
+        ],
+        "sinks": [
+          "logging-sink"
+        ],
+        "sanitizers": [
+          "encoding-normalization"
+        ]
+      },
+      "unsupported": {
+        "sources": [],
+        "sinks": [],
+        "sanitizers": []
+      },
+      "capabilities": {
+        "riskLocal": "supported",
+        "riskInterprocedural": "partial"
+      },
+      "interproceduralGating": {
+        "enabledByDefault": true,
+        "minEvidenceKinds": [
+          "calls",
+          "references"
+        ],
+        "requiredCallLinkConfidence": 0.7
+      },
+      "severityPolicy": {
+        "levels": [
+          "info",
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "defaultLevel": "medium"
+      }
+    },
+    {
+      "languageId": "javascript",
+      "frameworkProfile": null,
+      "required": {
+        "sources": [
+          "environment-input",
+          "external-input"
+        ],
+        "sinks": [
+          "command-exec",
+          "filesystem-write",
+          "network-egress"
+        ],
+        "sanitizers": [
+          "allowlist",
+          "context-escape",
+          "parameterization"
+        ]
+      },
+      "optional": {
+        "sources": [
+          "config-input"
+        ],
+        "sinks": [
+          "logging-sink"
+        ],
+        "sanitizers": [
+          "encoding-normalization"
+        ]
+      },
+      "unsupported": {
+        "sources": [],
+        "sinks": [],
+        "sanitizers": []
+      },
+      "capabilities": {
+        "riskLocal": "supported",
+        "riskInterprocedural": "partial"
+      },
+      "interproceduralGating": {
+        "enabledByDefault": true,
+        "minEvidenceKinds": [
+          "calls",
+          "references"
+        ],
+        "requiredCallLinkConfidence": 0.7
+      },
+      "severityPolicy": {
+        "levels": [
+          "info",
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "defaultLevel": "medium"
+      }
+    },
+    {
+      "languageId": "jinja",
+      "frameworkProfile": null,
+      "required": {
+        "sources": [
+          "template-input"
+        ],
+        "sinks": [
+          "template-render"
+        ],
+        "sanitizers": [
+          "allowlist",
+          "context-escape",
+          "parameterization"
+        ]
+      },
+      "optional": {
+        "sources": [
+          "config-input"
+        ],
+        "sinks": [
+          "logging-sink"
+        ],
+        "sanitizers": [
+          "encoding-normalization"
+        ]
+      },
+      "unsupported": {
+        "sources": [
+          "interprocedural-source"
+        ],
+        "sinks": [
+          "interprocedural-sink"
+        ],
+        "sanitizers": []
+      },
+      "capabilities": {
+        "riskLocal": "partial",
+        "riskInterprocedural": "unsupported"
+      },
+      "interproceduralGating": {
+        "enabledByDefault": false,
+        "minEvidenceKinds": [
+          "calls",
+          "references"
+        ],
+        "requiredCallLinkConfidence": 0.7
+      },
+      "severityPolicy": {
+        "levels": [
+          "info",
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "defaultLevel": "medium"
+      }
+    },
+    {
+      "languageId": "julia",
+      "frameworkProfile": null,
+      "required": {
+        "sources": [
+          "environment-input",
+          "external-input"
+        ],
+        "sinks": [
+          "command-exec",
+          "filesystem-write",
+          "network-egress"
+        ],
+        "sanitizers": [
+          "allowlist",
+          "context-escape",
+          "parameterization"
+        ]
+      },
+      "optional": {
+        "sources": [
+          "config-input"
+        ],
+        "sinks": [
+          "logging-sink"
+        ],
+        "sanitizers": [
+          "encoding-normalization"
+        ]
+      },
+      "unsupported": {
+        "sources": [],
+        "sinks": [],
+        "sanitizers": []
+      },
+      "capabilities": {
+        "riskLocal": "supported",
+        "riskInterprocedural": "partial"
+      },
+      "interproceduralGating": {
+        "enabledByDefault": true,
+        "minEvidenceKinds": [
+          "calls",
+          "references"
+        ],
+        "requiredCallLinkConfidence": 0.7
+      },
+      "severityPolicy": {
+        "levels": [
+          "info",
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "defaultLevel": "medium"
+      }
+    },
+    {
+      "languageId": "kotlin",
+      "frameworkProfile": null,
+      "required": {
+        "sources": [
+          "environment-input",
+          "external-input"
+        ],
+        "sinks": [
+          "command-exec",
+          "filesystem-write",
+          "network-egress"
+        ],
+        "sanitizers": [
+          "allowlist",
+          "context-escape",
+          "parameterization"
+        ]
+      },
+      "optional": {
+        "sources": [
+          "config-input"
+        ],
+        "sinks": [
+          "logging-sink"
+        ],
+        "sanitizers": [
+          "encoding-normalization"
+        ]
+      },
+      "unsupported": {
+        "sources": [],
+        "sinks": [],
+        "sanitizers": []
+      },
+      "capabilities": {
+        "riskLocal": "supported",
+        "riskInterprocedural": "partial"
+      },
+      "interproceduralGating": {
+        "enabledByDefault": true,
+        "minEvidenceKinds": [
+          "calls",
+          "references"
+        ],
+        "requiredCallLinkConfidence": 0.7
+      },
+      "severityPolicy": {
+        "levels": [
+          "info",
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "defaultLevel": "medium"
+      }
+    },
+    {
+      "languageId": "lua",
+      "frameworkProfile": null,
+      "required": {
+        "sources": [
+          "environment-input",
+          "external-input"
+        ],
+        "sinks": [
+          "command-exec",
+          "filesystem-write",
+          "network-egress"
+        ],
+        "sanitizers": [
+          "allowlist",
+          "context-escape",
+          "parameterization"
+        ]
+      },
+      "optional": {
+        "sources": [
+          "config-input"
+        ],
+        "sinks": [
+          "logging-sink"
+        ],
+        "sanitizers": [
+          "encoding-normalization"
+        ]
+      },
+      "unsupported": {
+        "sources": [],
+        "sinks": [],
+        "sanitizers": []
+      },
+      "capabilities": {
+        "riskLocal": "supported",
+        "riskInterprocedural": "partial"
+      },
+      "interproceduralGating": {
+        "enabledByDefault": true,
+        "minEvidenceKinds": [
+          "calls",
+          "references"
+        ],
+        "requiredCallLinkConfidence": 0.7
+      },
+      "severityPolicy": {
+        "levels": [
+          "info",
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "defaultLevel": "medium"
+      }
+    },
+    {
+      "languageId": "makefile",
+      "frameworkProfile": null,
+      "required": {
+        "sources": [
+          "template-input"
+        ],
+        "sinks": [
+          "template-render"
+        ],
+        "sanitizers": [
+          "allowlist",
+          "context-escape",
+          "parameterization"
+        ]
+      },
+      "optional": {
+        "sources": [
+          "config-input"
+        ],
+        "sinks": [
+          "logging-sink"
+        ],
+        "sanitizers": [
+          "encoding-normalization"
+        ]
+      },
+      "unsupported": {
+        "sources": [
+          "interprocedural-source"
+        ],
+        "sinks": [
+          "interprocedural-sink"
+        ],
+        "sanitizers": []
+      },
+      "capabilities": {
+        "riskLocal": "partial",
+        "riskInterprocedural": "unsupported"
+      },
+      "interproceduralGating": {
+        "enabledByDefault": false,
+        "minEvidenceKinds": [
+          "calls",
+          "references"
+        ],
+        "requiredCallLinkConfidence": 0.7
+      },
+      "severityPolicy": {
+        "levels": [
+          "info",
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "defaultLevel": "medium"
+      }
+    },
+    {
+      "languageId": "mustache",
+      "frameworkProfile": null,
+      "required": {
+        "sources": [
+          "template-input"
+        ],
+        "sinks": [
+          "template-render"
+        ],
+        "sanitizers": [
+          "allowlist",
+          "context-escape",
+          "parameterization"
+        ]
+      },
+      "optional": {
+        "sources": [
+          "config-input"
+        ],
+        "sinks": [
+          "logging-sink"
+        ],
+        "sanitizers": [
+          "encoding-normalization"
+        ]
+      },
+      "unsupported": {
+        "sources": [
+          "interprocedural-source"
+        ],
+        "sinks": [
+          "interprocedural-sink"
+        ],
+        "sanitizers": []
+      },
+      "capabilities": {
+        "riskLocal": "partial",
+        "riskInterprocedural": "unsupported"
+      },
+      "interproceduralGating": {
+        "enabledByDefault": false,
+        "minEvidenceKinds": [
+          "calls",
+          "references"
+        ],
+        "requiredCallLinkConfidence": 0.7
+      },
+      "severityPolicy": {
+        "levels": [
+          "info",
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "defaultLevel": "medium"
+      }
+    },
+    {
+      "languageId": "nix",
+      "frameworkProfile": null,
+      "required": {
+        "sources": [
+          "template-input"
+        ],
+        "sinks": [
+          "template-render"
+        ],
+        "sanitizers": [
+          "allowlist",
+          "context-escape",
+          "parameterization"
+        ]
+      },
+      "optional": {
+        "sources": [
+          "config-input"
+        ],
+        "sinks": [
+          "logging-sink"
+        ],
+        "sanitizers": [
+          "encoding-normalization"
+        ]
+      },
+      "unsupported": {
+        "sources": [
+          "interprocedural-source"
+        ],
+        "sinks": [
+          "interprocedural-sink"
+        ],
+        "sanitizers": []
+      },
+      "capabilities": {
+        "riskLocal": "partial",
+        "riskInterprocedural": "unsupported"
+      },
+      "interproceduralGating": {
+        "enabledByDefault": false,
+        "minEvidenceKinds": [
+          "calls",
+          "references"
+        ],
+        "requiredCallLinkConfidence": 0.7
+      },
+      "severityPolicy": {
+        "levels": [
+          "info",
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "defaultLevel": "medium"
+      }
+    },
+    {
+      "languageId": "perl",
+      "frameworkProfile": null,
+      "required": {
+        "sources": [
+          "environment-input",
+          "external-input"
+        ],
+        "sinks": [
+          "command-exec",
+          "filesystem-write",
+          "network-egress"
+        ],
+        "sanitizers": [
+          "allowlist",
+          "context-escape",
+          "parameterization"
+        ]
+      },
+      "optional": {
+        "sources": [
+          "config-input"
+        ],
+        "sinks": [
+          "logging-sink"
+        ],
+        "sanitizers": [
+          "encoding-normalization"
+        ]
+      },
+      "unsupported": {
+        "sources": [],
+        "sinks": [],
+        "sanitizers": []
+      },
+      "capabilities": {
+        "riskLocal": "supported",
+        "riskInterprocedural": "partial"
+      },
+      "interproceduralGating": {
+        "enabledByDefault": true,
+        "minEvidenceKinds": [
+          "calls",
+          "references"
+        ],
+        "requiredCallLinkConfidence": 0.7
+      },
+      "severityPolicy": {
+        "levels": [
+          "info",
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "defaultLevel": "medium"
+      }
+    },
+    {
+      "languageId": "php",
+      "frameworkProfile": null,
+      "required": {
+        "sources": [
+          "environment-input",
+          "external-input"
+        ],
+        "sinks": [
+          "command-exec",
+          "filesystem-write",
+          "network-egress"
+        ],
+        "sanitizers": [
+          "allowlist",
+          "context-escape",
+          "parameterization"
+        ]
+      },
+      "optional": {
+        "sources": [
+          "config-input"
+        ],
+        "sinks": [
+          "logging-sink"
+        ],
+        "sanitizers": [
+          "encoding-normalization"
+        ]
+      },
+      "unsupported": {
+        "sources": [],
+        "sinks": [],
+        "sanitizers": []
+      },
+      "capabilities": {
+        "riskLocal": "supported",
+        "riskInterprocedural": "partial"
+      },
+      "interproceduralGating": {
+        "enabledByDefault": true,
+        "minEvidenceKinds": [
+          "calls",
+          "references"
+        ],
+        "requiredCallLinkConfidence": 0.7
+      },
+      "severityPolicy": {
+        "levels": [
+          "info",
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "defaultLevel": "medium"
+      }
+    },
+    {
+      "languageId": "proto",
+      "frameworkProfile": null,
+      "required": {
+        "sources": [
+          "template-input"
+        ],
+        "sinks": [
+          "template-render"
+        ],
+        "sanitizers": [
+          "allowlist",
+          "context-escape",
+          "parameterization"
+        ]
+      },
+      "optional": {
+        "sources": [
+          "config-input"
+        ],
+        "sinks": [
+          "logging-sink"
+        ],
+        "sanitizers": [
+          "encoding-normalization"
+        ]
+      },
+      "unsupported": {
+        "sources": [
+          "interprocedural-source"
+        ],
+        "sinks": [
+          "interprocedural-sink"
+        ],
+        "sanitizers": []
+      },
+      "capabilities": {
+        "riskLocal": "partial",
+        "riskInterprocedural": "unsupported"
+      },
+      "interproceduralGating": {
+        "enabledByDefault": false,
+        "minEvidenceKinds": [
+          "calls",
+          "references"
+        ],
+        "requiredCallLinkConfidence": 0.7
+      },
+      "severityPolicy": {
+        "levels": [
+          "info",
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "defaultLevel": "medium"
+      }
+    },
+    {
+      "languageId": "python",
+      "frameworkProfile": null,
+      "required": {
+        "sources": [
+          "environment-input",
+          "external-input"
+        ],
+        "sinks": [
+          "command-exec",
+          "filesystem-write",
+          "network-egress"
+        ],
+        "sanitizers": [
+          "allowlist",
+          "context-escape",
+          "parameterization"
+        ]
+      },
+      "optional": {
+        "sources": [
+          "config-input"
+        ],
+        "sinks": [
+          "logging-sink"
+        ],
+        "sanitizers": [
+          "encoding-normalization"
+        ]
+      },
+      "unsupported": {
+        "sources": [],
+        "sinks": [],
+        "sanitizers": []
+      },
+      "capabilities": {
+        "riskLocal": "supported",
+        "riskInterprocedural": "partial"
+      },
+      "interproceduralGating": {
+        "enabledByDefault": true,
+        "minEvidenceKinds": [
+          "calls",
+          "references"
+        ],
+        "requiredCallLinkConfidence": 0.7
+      },
+      "severityPolicy": {
+        "levels": [
+          "info",
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "defaultLevel": "medium"
+      }
+    },
+    {
+      "languageId": "r",
+      "frameworkProfile": null,
+      "required": {
+        "sources": [
+          "environment-input",
+          "external-input"
+        ],
+        "sinks": [
+          "command-exec",
+          "filesystem-write",
+          "network-egress"
+        ],
+        "sanitizers": [
+          "allowlist",
+          "context-escape",
+          "parameterization"
+        ]
+      },
+      "optional": {
+        "sources": [
+          "config-input"
+        ],
+        "sinks": [
+          "logging-sink"
+        ],
+        "sanitizers": [
+          "encoding-normalization"
+        ]
+      },
+      "unsupported": {
+        "sources": [],
+        "sinks": [],
+        "sanitizers": []
+      },
+      "capabilities": {
+        "riskLocal": "supported",
+        "riskInterprocedural": "partial"
+      },
+      "interproceduralGating": {
+        "enabledByDefault": true,
+        "minEvidenceKinds": [
+          "calls",
+          "references"
+        ],
+        "requiredCallLinkConfidence": 0.7
+      },
+      "severityPolicy": {
+        "levels": [
+          "info",
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "defaultLevel": "medium"
+      }
+    },
+    {
+      "languageId": "razor",
+      "frameworkProfile": null,
+      "required": {
+        "sources": [
+          "template-input"
+        ],
+        "sinks": [
+          "template-render"
+        ],
+        "sanitizers": [
+          "allowlist",
+          "context-escape",
+          "parameterization"
+        ]
+      },
+      "optional": {
+        "sources": [
+          "config-input"
+        ],
+        "sinks": [
+          "logging-sink"
+        ],
+        "sanitizers": [
+          "encoding-normalization"
+        ]
+      },
+      "unsupported": {
+        "sources": [
+          "interprocedural-source"
+        ],
+        "sinks": [
+          "interprocedural-sink"
+        ],
+        "sanitizers": []
+      },
+      "capabilities": {
+        "riskLocal": "partial",
+        "riskInterprocedural": "unsupported"
+      },
+      "interproceduralGating": {
+        "enabledByDefault": false,
+        "minEvidenceKinds": [
+          "calls",
+          "references"
+        ],
+        "requiredCallLinkConfidence": 0.7
+      },
+      "severityPolicy": {
+        "levels": [
+          "info",
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "defaultLevel": "medium"
+      }
+    },
+    {
+      "languageId": "ruby",
+      "frameworkProfile": null,
+      "required": {
+        "sources": [
+          "environment-input",
+          "external-input"
+        ],
+        "sinks": [
+          "command-exec",
+          "filesystem-write",
+          "network-egress"
+        ],
+        "sanitizers": [
+          "allowlist",
+          "context-escape",
+          "parameterization"
+        ]
+      },
+      "optional": {
+        "sources": [
+          "config-input"
+        ],
+        "sinks": [
+          "logging-sink"
+        ],
+        "sanitizers": [
+          "encoding-normalization"
+        ]
+      },
+      "unsupported": {
+        "sources": [],
+        "sinks": [],
+        "sanitizers": []
+      },
+      "capabilities": {
+        "riskLocal": "supported",
+        "riskInterprocedural": "partial"
+      },
+      "interproceduralGating": {
+        "enabledByDefault": true,
+        "minEvidenceKinds": [
+          "calls",
+          "references"
+        ],
+        "requiredCallLinkConfidence": 0.7
+      },
+      "severityPolicy": {
+        "levels": [
+          "info",
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "defaultLevel": "medium"
+      }
+    },
+    {
+      "languageId": "rust",
+      "frameworkProfile": null,
+      "required": {
+        "sources": [
+          "environment-input",
+          "external-input"
+        ],
+        "sinks": [
+          "command-exec",
+          "filesystem-write",
+          "network-egress"
+        ],
+        "sanitizers": [
+          "allowlist",
+          "context-escape",
+          "parameterization"
+        ]
+      },
+      "optional": {
+        "sources": [
+          "config-input"
+        ],
+        "sinks": [
+          "logging-sink"
+        ],
+        "sanitizers": [
+          "encoding-normalization"
+        ]
+      },
+      "unsupported": {
+        "sources": [],
+        "sinks": [],
+        "sanitizers": []
+      },
+      "capabilities": {
+        "riskLocal": "supported",
+        "riskInterprocedural": "partial"
+      },
+      "interproceduralGating": {
+        "enabledByDefault": true,
+        "minEvidenceKinds": [
+          "calls",
+          "references"
+        ],
+        "requiredCallLinkConfidence": 0.7
+      },
+      "severityPolicy": {
+        "levels": [
+          "info",
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "defaultLevel": "medium"
+      }
+    },
+    {
+      "languageId": "scala",
+      "frameworkProfile": null,
+      "required": {
+        "sources": [
+          "environment-input",
+          "external-input"
+        ],
+        "sinks": [
+          "command-exec",
+          "filesystem-write",
+          "network-egress"
+        ],
+        "sanitizers": [
+          "allowlist",
+          "context-escape",
+          "parameterization"
+        ]
+      },
+      "optional": {
+        "sources": [
+          "config-input"
+        ],
+        "sinks": [
+          "logging-sink"
+        ],
+        "sanitizers": [
+          "encoding-normalization"
+        ]
+      },
+      "unsupported": {
+        "sources": [],
+        "sinks": [],
+        "sanitizers": []
+      },
+      "capabilities": {
+        "riskLocal": "supported",
+        "riskInterprocedural": "partial"
+      },
+      "interproceduralGating": {
+        "enabledByDefault": true,
+        "minEvidenceKinds": [
+          "calls",
+          "references"
+        ],
+        "requiredCallLinkConfidence": 0.7
+      },
+      "severityPolicy": {
+        "levels": [
+          "info",
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "defaultLevel": "medium"
+      }
+    },
+    {
+      "languageId": "shell",
+      "frameworkProfile": null,
+      "required": {
+        "sources": [
+          "environment-input",
+          "external-input"
+        ],
+        "sinks": [
+          "command-exec",
+          "filesystem-write",
+          "network-egress"
+        ],
+        "sanitizers": [
+          "allowlist",
+          "context-escape",
+          "parameterization"
+        ]
+      },
+      "optional": {
+        "sources": [
+          "config-input"
+        ],
+        "sinks": [
+          "logging-sink"
+        ],
+        "sanitizers": [
+          "encoding-normalization"
+        ]
+      },
+      "unsupported": {
+        "sources": [],
+        "sinks": [],
+        "sanitizers": []
+      },
+      "capabilities": {
+        "riskLocal": "supported",
+        "riskInterprocedural": "partial"
+      },
+      "interproceduralGating": {
+        "enabledByDefault": true,
+        "minEvidenceKinds": [
+          "calls",
+          "references"
+        ],
+        "requiredCallLinkConfidence": 0.7
+      },
+      "severityPolicy": {
+        "levels": [
+          "info",
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "defaultLevel": "medium"
+      }
+    },
+    {
+      "languageId": "sql",
+      "frameworkProfile": null,
+      "required": {
+        "sources": [
+          "template-input"
+        ],
+        "sinks": [
+          "template-render"
+        ],
+        "sanitizers": [
+          "allowlist",
+          "context-escape",
+          "parameterization"
+        ]
+      },
+      "optional": {
+        "sources": [
+          "config-input"
+        ],
+        "sinks": [
+          "logging-sink"
+        ],
+        "sanitizers": [
+          "encoding-normalization"
+        ]
+      },
+      "unsupported": {
+        "sources": [
+          "interprocedural-source"
+        ],
+        "sinks": [
+          "interprocedural-sink"
+        ],
+        "sanitizers": []
+      },
+      "capabilities": {
+        "riskLocal": "partial",
+        "riskInterprocedural": "unsupported"
+      },
+      "interproceduralGating": {
+        "enabledByDefault": false,
+        "minEvidenceKinds": [
+          "calls",
+          "references"
+        ],
+        "requiredCallLinkConfidence": 0.7
+      },
+      "severityPolicy": {
+        "levels": [
+          "info",
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "defaultLevel": "medium"
+      }
+    },
+    {
+      "languageId": "starlark",
+      "frameworkProfile": null,
+      "required": {
+        "sources": [
+          "template-input"
+        ],
+        "sinks": [
+          "template-render"
+        ],
+        "sanitizers": [
+          "allowlist",
+          "context-escape",
+          "parameterization"
+        ]
+      },
+      "optional": {
+        "sources": [
+          "config-input"
+        ],
+        "sinks": [
+          "logging-sink"
+        ],
+        "sanitizers": [
+          "encoding-normalization"
+        ]
+      },
+      "unsupported": {
+        "sources": [
+          "interprocedural-source"
+        ],
+        "sinks": [
+          "interprocedural-sink"
+        ],
+        "sanitizers": []
+      },
+      "capabilities": {
+        "riskLocal": "partial",
+        "riskInterprocedural": "unsupported"
+      },
+      "interproceduralGating": {
+        "enabledByDefault": false,
+        "minEvidenceKinds": [
+          "calls",
+          "references"
+        ],
+        "requiredCallLinkConfidence": 0.7
+      },
+      "severityPolicy": {
+        "levels": [
+          "info",
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "defaultLevel": "medium"
+      }
+    },
+    {
+      "languageId": "swift",
+      "frameworkProfile": null,
+      "required": {
+        "sources": [
+          "environment-input",
+          "external-input"
+        ],
+        "sinks": [
+          "command-exec",
+          "filesystem-write",
+          "network-egress"
+        ],
+        "sanitizers": [
+          "allowlist",
+          "context-escape",
+          "parameterization"
+        ]
+      },
+      "optional": {
+        "sources": [
+          "config-input"
+        ],
+        "sinks": [
+          "logging-sink"
+        ],
+        "sanitizers": [
+          "encoding-normalization"
+        ]
+      },
+      "unsupported": {
+        "sources": [],
+        "sinks": [],
+        "sanitizers": []
+      },
+      "capabilities": {
+        "riskLocal": "supported",
+        "riskInterprocedural": "partial"
+      },
+      "interproceduralGating": {
+        "enabledByDefault": true,
+        "minEvidenceKinds": [
+          "calls",
+          "references"
+        ],
+        "requiredCallLinkConfidence": 0.7
+      },
+      "severityPolicy": {
+        "levels": [
+          "info",
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "defaultLevel": "medium"
+      }
+    },
+    {
+      "languageId": "typescript",
+      "frameworkProfile": null,
+      "required": {
+        "sources": [
+          "environment-input",
+          "external-input"
+        ],
+        "sinks": [
+          "command-exec",
+          "filesystem-write",
+          "network-egress"
+        ],
+        "sanitizers": [
+          "allowlist",
+          "context-escape",
+          "parameterization"
+        ]
+      },
+      "optional": {
+        "sources": [
+          "config-input"
+        ],
+        "sinks": [
+          "logging-sink"
+        ],
+        "sanitizers": [
+          "encoding-normalization"
+        ]
+      },
+      "unsupported": {
+        "sources": [],
+        "sinks": [],
+        "sanitizers": []
+      },
+      "capabilities": {
+        "riskLocal": "supported",
+        "riskInterprocedural": "partial"
+      },
+      "interproceduralGating": {
+        "enabledByDefault": true,
+        "minEvidenceKinds": [
+          "calls",
+          "references"
+        ],
+        "requiredCallLinkConfidence": 0.7
+      },
+      "severityPolicy": {
+        "levels": [
+          "info",
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "defaultLevel": "medium"
+      }
+    }
+  ]
+}

@@ -1,0 +1,78 @@
+{
+  "schemaVersion": "usr-registry-1.0.0",
+  "registryId": "usr-alert-policies",
+  "generatedAt": "2026-02-11T00:30:00Z",
+  "generatedBy": "tools/usr/generate-usr-matrix-baselines.mjs",
+  "rows": [
+    {
+      "id": "alert-capability-downgrade-rate",
+      "metric": "capability_downgrade_rate",
+      "threshold": 0.01,
+      "comparator": ">",
+      "window": "7d",
+      "severity": "warning",
+      "escalationPolicyId": "usr-oncall-language",
+      "blocking": false
+    },
+    {
+      "id": "alert-critical-diagnostics",
+      "metric": "critical_diagnostic_count",
+      "threshold": 0,
+      "comparator": ">",
+      "window": "run",
+      "severity": "critical",
+      "escalationPolicyId": "usr-oncall-platform",
+      "blocking": true
+    },
+    {
+      "id": "alert-lane-duration",
+      "metric": "lane_duration_ms",
+      "threshold": 1200000,
+      "comparator": ">",
+      "window": "run",
+      "severity": "critical",
+      "escalationPolicyId": "usr-oncall-platform",
+      "blocking": true
+    },
+    {
+      "id": "alert-memory-peak",
+      "metric": "lane_peak_memory_mb",
+      "threshold": 4096,
+      "comparator": ">",
+      "window": "run",
+      "severity": "critical",
+      "escalationPolicyId": "usr-oncall-platform",
+      "blocking": true
+    },
+    {
+      "id": "alert-redaction-failure",
+      "metric": "redaction_failure_count",
+      "threshold": 0,
+      "comparator": ">",
+      "window": "run",
+      "severity": "critical",
+      "escalationPolicyId": "usr-oncall-security",
+      "blocking": true
+    },
+    {
+      "id": "alert-unknown-kind-rate",
+      "metric": "unknown_kind_rate",
+      "threshold": 0.02,
+      "comparator": ">",
+      "window": "run",
+      "severity": "critical",
+      "escalationPolicyId": "usr-oncall-language",
+      "blocking": true
+    },
+    {
+      "id": "alert-unresolved-rate",
+      "metric": "unresolved_reference_rate",
+      "threshold": 0.02,
+      "comparator": ">",
+      "window": "run",
+      "severity": "critical",
+      "escalationPolicyId": "usr-oncall-language",
+      "blocking": true
+    }
+  ]
+}

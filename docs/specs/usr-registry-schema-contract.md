@@ -1,11 +1,11 @@
 # Spec -- USR Registry Schema and Serialization Contract
 
-Status: Draft v0.2
-Last updated: 2026-02-10T08:35:00Z
+Status: Draft v0.3
+Last updated: 2026-02-11T00:20:00Z
 
 ## 0. Purpose and scope
 
-This document defines canonical machine-readable schema shapes, key constraints, and serialization rules for all USR registry/matrix files under `tests/lang/matrix/`.
+This document defines canonical machine-readable schema shapes, key constraints, and serialization rules for all USR registry and matrix files under `tests/lang/matrix/`.
 
 It decomposes `docs/specs/unified-syntax-representation.md` sections 23 and 24.
 
@@ -49,12 +49,40 @@ type USRRegistryFileV1<T> = {
 Rules:
 
 - `registryId` MUST match filename stem exactly.
+- `generatedBy` SHOULD reference a committed generator or writer entrypoint (current baseline: `tools/usr/generate-usr-matrix-baselines.mjs`).
 - `rows` MUST be deterministically sorted according to section 4.
 - unknown top-level keys are strict-mode errors.
 
 ## 3. Per-registry row minimum schema
 
-### 3.1 `usr-language-version-policy.json`
+### 3.1 `usr-language-profiles.json`
+
+```ts
+type USRLanguageProfileRowV1 = {
+  id: string;
+  parserPreference: "native" | "tree-sitter" | "hybrid" | "heuristic";
+  languageVersionPolicy: {
+    minVersion: string;
+    maxVersion: string | null;
+    dialects: string[];
+    featureFlags: string[];
+  };
+  embeddingPolicy: {
+    canHostEmbedded: boolean;
+    canBeEmbedded: boolean;
+    embeddedLanguageAllowlist: string[];
+  };
+  requiredNodeKinds: string[];
+  requiredEdgeKinds: string[];
+  requiredCapabilities: Record<string, "supported" | "partial" | "unsupported">;
+  fallbackChain: Array<"native-parser" | "tree-sitter" | "framework-compiler" | "tooling" | "heuristic">;
+  frameworkProfiles: string[];
+  requiredConformance: Array<"C0" | "C1" | "C2" | "C3" | "C4">;
+  notes?: string;
+};
+```
+
+### 3.2 `usr-language-version-policy.json`
 
 ```ts
 type USRLanguageVersionPolicyRowV1 = {
@@ -66,7 +94,7 @@ type USRLanguageVersionPolicyRowV1 = {
 };
 ```
 
-### 3.2 `usr-language-embedding-policy.json`
+### 3.3 `usr-language-embedding-policy.json`
 
 ```ts
 type USRLanguageEmbeddingPolicyRowV1 = {
@@ -77,7 +105,191 @@ type USRLanguageEmbeddingPolicyRowV1 = {
 };
 ```
 
-### 3.3 `usr-parser-runtime-lock.json`
+### 3.4 `usr-framework-profiles.json`
+
+```ts
+type USRFrameworkProfileRowV1 = {
+  id: "react" | "vue" | "next" | "nuxt" | "svelte" | "sveltekit" | "angular" | "astro";
+  detectionPrecedence: string[];
+  appliesToLanguages: string[];
+  segmentationRules: {
+    blocks: string[];
+    ordering: string[];
+    crossBlockLinking: string[];
+  };
+  bindingSemantics: {
+    requiredEdgeKinds: Array<"template_binds" | "template_emits" | "style_scopes" | "route_maps_to" | "hydration_boundary">;
+    requiredAttrs: Record<string, string[]>;
+  };
+  routeSemantics: {
+    enabled: boolean;
+    patternCanon: "bracket-form";
+    runtimeSides: Array<"server" | "client" | "universal" | "unknown">;
+  };
+  hydrationSemantics: {
+    required: boolean;
+    boundarySignals: string[];
+    ssrCsrModes: string[];
+  };
+  embeddedLanguageBridges: Array<{
+    sourceBlock: string;
+    targetBlock: string;
+    edgeKinds: string[];
+  }>;
+  edgeCaseCaseIds: string[];
+  requiredConformance: Array<"C4">;
+};
+```
+
+### 3.5 `usr-node-kind-mapping.json`
+
+```ts
+type USRNodeKindMappingRuleRowV1 = {
+  languageId: string; // registry language ID or "*"
+  parserSource: "native-parser" | "tree-sitter" | "framework-compiler" | "tooling" | "heuristic" | "*";
+  rawKind: string;
+  normalizedKind: string;
+  category: string;
+  confidence: number; // 0..1
+  priority: number; // >= 0
+  provenance: "parser" | "compiler" | "adapter" | "manual-policy";
+  languageVersionSelector?: string | null;
+  notes?: string;
+};
+```
+
+### 3.6 `usr-edge-kind-constraints.json`
+
+```ts
+type USREdgeKindConstraintRowV1 = {
+  edgeKind: string;
+  sourceEntityKinds: Array<"document" | "segment" | "node" | "symbol">;
+  targetEntityKinds: Array<"document" | "segment" | "node" | "symbol">;
+  requiredAttrs: string[];
+  optionalAttrs: string[];
+  blocking: boolean;
+};
+```
+
+### 3.7 `usr-capability-matrix.json`
+
+```ts
+type USRCapabilityMatrixRowV1 = {
+  languageId: string;
+  frameworkProfile: string | null;
+  capability: string;
+  state: "supported" | "partial" | "unsupported";
+  requiredConformance: Array<"C0" | "C1" | "C2" | "C3" | "C4">;
+  downgradeDiagnostics: string[];
+  blocking: boolean;
+};
+```
+
+### 3.8 `usr-conformance-levels.json`
+
+```ts
+type USRConformanceLevelRowV1 = {
+  profileType: "language" | "framework";
+  profileId: string;
+  requiredLevels: Array<"C0" | "C1" | "C2" | "C3" | "C4">;
+  blockingLevels: Array<"C0" | "C1" | "C2" | "C3" | "C4">;
+  requiredFixtureFamilies: string[];
+};
+```
+
+### 3.9 `usr-backcompat-matrix.json`
+
+```ts
+type USRBackcompatScenarioRowV1 = {
+  id: string; // BC-001..BC-012
+  producerVersion: string;
+  readerVersions: string[];
+  readerMode: "strict" | "non-strict";
+  fixtureFamily: string;
+  expectedOutcome: "accept" | "reject" | "accept-with-adapter";
+  requiredDiagnostics: string[];
+  blocking: boolean;
+};
+```
+
+### 3.10 `usr-framework-edge-cases.json`
+
+```ts
+type USRFrameworkEdgeCaseRowV1 = {
+  id: string;
+  frameworkProfile: "react" | "vue" | "next" | "nuxt" | "svelte" | "sveltekit" | "angular" | "astro";
+  category: "route" | "template" | "style" | "hydration" | "bridge";
+  requiredEdgeKinds: string[];
+  requiredDiagnostics: string[];
+  blocking: boolean;
+};
+```
+
+### 3.11 `usr-language-risk-profiles.json`
+
+```ts
+type USRLanguageRiskProfileRowV1 = {
+  languageId: string;
+  frameworkProfile?: string | null;
+  required: {
+    sources: string[];
+    sinks: string[];
+    sanitizers: string[];
+  };
+  optional: {
+    sources: string[];
+    sinks: string[];
+    sanitizers: string[];
+  };
+  unsupported: {
+    sources: string[];
+    sinks: string[];
+    sanitizers: string[];
+  };
+  capabilities: {
+    riskLocal: "supported" | "partial" | "unsupported";
+    riskInterprocedural: "supported" | "partial" | "unsupported";
+  };
+  interproceduralGating: {
+    enabledByDefault: boolean;
+    minEvidenceKinds: string[];
+    requiredCallLinkConfidence: number;
+  };
+  severityPolicy: {
+    levels: Array<"info" | "low" | "medium" | "high" | "critical">;
+    defaultLevel: "info" | "low" | "medium" | "high" | "critical";
+  };
+};
+```
+
+### 3.12 `usr-embedding-bridge-cases.json`
+
+```ts
+type USREmbeddingBridgeCaseRowV1 = {
+  id: string;
+  containerKind: string;
+  sourceLanguageId: string;
+  targetLanguageId: string;
+  requiredEdgeKinds: string[];
+  requiredDiagnostics: string[];
+  blocking: boolean;
+};
+```
+
+### 3.13 `usr-generated-provenance-cases.json`
+
+```ts
+type USRGeneratedProvenanceCaseRowV1 = {
+  id: string;
+  languageId: string;
+  generationKind: string;
+  mappingExpectation: "exact" | "approximate" | "missing";
+  requiredDiagnostics: string[];
+  blocking: boolean;
+};
+```
+
+### 3.14 `usr-parser-runtime-lock.json`
 
 ```ts
 type USRParserRuntimeLockRowV1 = {
@@ -87,11 +299,11 @@ type USRParserRuntimeLockRowV1 = {
   parserVersion: string;
   runtimeName: string | null;
   runtimeVersion: string | null;
-  lockReason: string; // deterministic reason/category
+  lockReason: string;
 };
 ```
 
-### 3.4 `usr-slo-budgets.json`
+### 3.15 `usr-slo-budgets.json`
 
 ```ts
 type USRSLOBudgetRowV1 = {
@@ -107,7 +319,7 @@ type USRSLOBudgetRowV1 = {
 };
 ```
 
-### 3.5 `usr-alert-policies.json`
+### 3.16 `usr-alert-policies.json`
 
 ```ts
 type USRAlertPolicyRowV1 = {
@@ -122,7 +334,7 @@ type USRAlertPolicyRowV1 = {
 };
 ```
 
-### 3.6 `usr-redaction-rules.json`
+### 3.17 `usr-redaction-rules.json`
 
 ```ts
 type USRRedactionRuleRowV1 = {
@@ -134,7 +346,7 @@ type USRRedactionRuleRowV1 = {
 };
 ```
 
-### 3.7 `usr-security-gates.json`
+### 3.18 `usr-security-gates.json`
 
 ```ts
 type USRSecurityGateRowV1 = {
@@ -152,13 +364,13 @@ Sorting MUST be stable and deterministic.
 
 Default row ordering:
 
-1. primary ID key lexical (`languageId`, `id`, or scenario id)
+1. primary ID key lexical (`languageId`, `id`, `edgeKind`, or `profileId`)
 2. secondary discriminator lexical (`frameworkProfile`, `parserSource`, `generationKind`) when present
 3. numeric priority ascending when present
 
 Array field ordering:
 
-- lexical ordering for identifiers/enums
+- lexical ordering for identifiers and enums unless contract-specific ordering is required
 - canonical conformance order for levels (`C0,C1,C2,C3,C4`)
 
 ## 5. Cross-registry invariants
@@ -169,21 +381,26 @@ The following MUST hold:
   - `usr-language-profiles.json`
   - `usr-language-version-policy.json`
   - `usr-language-embedding-policy.json`
-- framework IDs referenced by language/framework registries MUST exist in framework registry.
-- parser/runtime lock rows MUST cover all parser sources used by language/framework profiles.
-- case IDs referenced by framework/risk/bridge/provenance contracts MUST resolve to existing matrix rows.
-- SLO/alert policy matrices MUST cover all required lanes and blocking gate scopes.
+  - `usr-conformance-levels.json` rows with `profileType=language`
+- framework IDs referenced by language and framework registries MUST exist in `usr-framework-profiles.json`.
+- `edgeCaseCaseIds` declared in framework profiles MUST exactly resolve to rows in `usr-framework-edge-cases.json`.
+- parser/runtime lock rows MUST cover all parser sources used by language and framework profiles.
+- all capability rows MUST reference existing `languageId` and optional `frameworkProfile` keys.
+- all conformance level rows MUST be consistent with language/framework profile required conformance declarations.
+- case IDs referenced by bridge/provenance/risk contracts MUST resolve to existing matrix rows.
+- SLO and alert policy matrices MUST cover all required lanes and blocking gate scopes.
 - security gate and redaction matrices MUST cover required security control classes.
 
 ## 6. Strict validation behavior
 
 Strict validators MUST enforce:
 
-- schemaVersion exact match
+- `schemaVersion` exact match
 - required keys present
 - unknown keys rejected
 - enum values and numeric bounds validated
 - deterministic ordering checks on output
+- referential-integrity and exact-set invariants from section 5
 
 Required validation outputs:
 

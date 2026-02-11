@@ -1,7 +1,7 @@
 # Spec -- USR Implementation Readiness Contract
 
-Status: Draft v0.2
-Last updated: 2026-02-10T08:35:00Z
+Status: Draft v0.3
+Last updated: 2026-02-11T00:45:00Z
 
 ## 0. Purpose and scope
 
@@ -27,6 +27,7 @@ Required:
 
 - all decomposed contracts present and cross-referenced
 - all matrix files validated under registry-schema contract
+- matrix baseline regeneration is deterministic via `tools/usr/generate-usr-matrix-baselines.mjs`
 - strict validators implemented and wired into CI
 - contract drift checks passing on baseline branch
 

@@ -1,0 +1,248 @@
+{
+  "schemaVersion": "usr-registry-1.0.0",
+  "registryId": "usr-language-embedding-policy",
+  "generatedAt": "2026-02-11T00:30:00Z",
+  "generatedBy": "tools/usr/generate-usr-matrix-baselines.mjs",
+  "rows": [
+    {
+      "languageId": "clike",
+      "canHostEmbedded": false,
+      "canBeEmbedded": false,
+      "embeddedLanguageAllowlist": []
+    },
+    {
+      "languageId": "cmake",
+      "canHostEmbedded": false,
+      "canBeEmbedded": false,
+      "embeddedLanguageAllowlist": []
+    },
+    {
+      "languageId": "csharp",
+      "canHostEmbedded": false,
+      "canBeEmbedded": false,
+      "embeddedLanguageAllowlist": []
+    },
+    {
+      "languageId": "css",
+      "canHostEmbedded": false,
+      "canBeEmbedded": true,
+      "embeddedLanguageAllowlist": []
+    },
+    {
+      "languageId": "dart",
+      "canHostEmbedded": false,
+      "canBeEmbedded": false,
+      "embeddedLanguageAllowlist": []
+    },
+    {
+      "languageId": "dockerfile",
+      "canHostEmbedded": false,
+      "canBeEmbedded": false,
+      "embeddedLanguageAllowlist": []
+    },
+    {
+      "languageId": "go",
+      "canHostEmbedded": false,
+      "canBeEmbedded": false,
+      "embeddedLanguageAllowlist": []
+    },
+    {
+      "languageId": "graphql",
+      "canHostEmbedded": false,
+      "canBeEmbedded": true,
+      "embeddedLanguageAllowlist": []
+    },
+    {
+      "languageId": "groovy",
+      "canHostEmbedded": false,
+      "canBeEmbedded": false,
+      "embeddedLanguageAllowlist": []
+    },
+    {
+      "languageId": "handlebars",
+      "canHostEmbedded": true,
+      "canBeEmbedded": true,
+      "embeddedLanguageAllowlist": [
+        "css",
+        "html",
+        "javascript"
+      ]
+    },
+    {
+      "languageId": "html",
+      "canHostEmbedded": true,
+      "canBeEmbedded": true,
+      "embeddedLanguageAllowlist": [
+        "css",
+        "handlebars",
+        "javascript",
+        "jinja",
+        "mustache",
+        "razor",
+        "typescript"
+      ]
+    },
+    {
+      "languageId": "java",
+      "canHostEmbedded": false,
+      "canBeEmbedded": false,
+      "embeddedLanguageAllowlist": []
+    },
+    {
+      "languageId": "javascript",
+      "canHostEmbedded": true,
+      "canBeEmbedded": true,
+      "embeddedLanguageAllowlist": [
+        "css",
+        "graphql",
+        "html",
+        "sql"
+      ]
+    },
+    {
+      "languageId": "jinja",
+      "canHostEmbedded": true,
+      "canBeEmbedded": true,
+      "embeddedLanguageAllowlist": [
+        "css",
+        "html",
+        "javascript",
+        "typescript"
+      ]
+    },
+    {
+      "languageId": "julia",
+      "canHostEmbedded": false,
+      "canBeEmbedded": false,
+      "embeddedLanguageAllowlist": []
+    },
+    {
+      "languageId": "kotlin",
+      "canHostEmbedded": false,
+      "canBeEmbedded": false,
+      "embeddedLanguageAllowlist": []
+    },
+    {
+      "languageId": "lua",
+      "canHostEmbedded": false,
+      "canBeEmbedded": false,
+      "embeddedLanguageAllowlist": []
+    },
+    {
+      "languageId": "makefile",
+      "canHostEmbedded": false,
+      "canBeEmbedded": false,
+      "embeddedLanguageAllowlist": []
+    },
+    {
+      "languageId": "mustache",
+      "canHostEmbedded": true,
+      "canBeEmbedded": true,
+      "embeddedLanguageAllowlist": [
+        "css",
+        "html",
+        "javascript"
+      ]
+    },
+    {
+      "languageId": "nix",
+      "canHostEmbedded": false,
+      "canBeEmbedded": false,
+      "embeddedLanguageAllowlist": []
+    },
+    {
+      "languageId": "perl",
+      "canHostEmbedded": false,
+      "canBeEmbedded": false,
+      "embeddedLanguageAllowlist": []
+    },
+    {
+      "languageId": "php",
+      "canHostEmbedded": false,
+      "canBeEmbedded": false,
+      "embeddedLanguageAllowlist": []
+    },
+    {
+      "languageId": "proto",
+      "canHostEmbedded": false,
+      "canBeEmbedded": true,
+      "embeddedLanguageAllowlist": []
+    },
+    {
+      "languageId": "python",
+      "canHostEmbedded": false,
+      "canBeEmbedded": false,
+      "embeddedLanguageAllowlist": []
+    },
+    {
+      "languageId": "r",
+      "canHostEmbedded": false,
+      "canBeEmbedded": false,
+      "embeddedLanguageAllowlist": []
+    },
+    {
+      "languageId": "razor",
+      "canHostEmbedded": true,
+      "canBeEmbedded": true,
+      "embeddedLanguageAllowlist": [
+        "csharp",
+        "css",
+        "html",
+        "javascript"
+      ]
+    },
+    {
+      "languageId": "ruby",
+      "canHostEmbedded": false,
+      "canBeEmbedded": false,
+      "embeddedLanguageAllowlist": []
+    },
+    {
+      "languageId": "rust",
+      "canHostEmbedded": false,
+      "canBeEmbedded": false,
+      "embeddedLanguageAllowlist": []
+    },
+    {
+      "languageId": "scala",
+      "canHostEmbedded": false,
+      "canBeEmbedded": false,
+      "embeddedLanguageAllowlist": []
+    },
+    {
+      "languageId": "shell",
+      "canHostEmbedded": false,
+      "canBeEmbedded": false,
+      "embeddedLanguageAllowlist": []
+    },
+    {
+      "languageId": "sql",
+      "canHostEmbedded": false,
+      "canBeEmbedded": true,
+      "embeddedLanguageAllowlist": []
+    },
+    {
+      "languageId": "starlark",
+      "canHostEmbedded": false,
+      "canBeEmbedded": false,
+      "embeddedLanguageAllowlist": []
+    },
+    {
+      "languageId": "swift",
+      "canHostEmbedded": false,
+      "canBeEmbedded": false,
+      "embeddedLanguageAllowlist": []
+    },
+    {
+      "languageId": "typescript",
+      "canHostEmbedded": true,
+      "canBeEmbedded": true,
+      "embeddedLanguageAllowlist": [
+        "css",
+        "graphql",
+        "html",
+        "sql"
+      ]
+    }
+  ]
+}
