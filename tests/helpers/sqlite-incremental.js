@@ -28,8 +28,15 @@ const rmWithRetry = async (targetPath) => {
     await fsPromises.access(targetPath);
     const tombstone = `${targetPath}.pending-delete-${Date.now()}-${process.pid}`;
     await fsPromises.rename(targetPath, tombstone);
-    await fsPromises.rm(tombstone, { recursive: true, force: true });
-    return;
+    for (let attempt = 0; attempt < MAX_RM_ATTEMPTS; attempt += 1) {
+      try {
+        await fsPromises.rm(tombstone, { recursive: true, force: true });
+        return;
+      } catch (err) {
+        if (!RETRYABLE_RM_CODES.has(err?.code) || attempt >= MAX_RM_ATTEMPTS - 1) break;
+        await sleep(100 * (attempt + 1));
+      }
+    }
   } catch {}
   if (lastError && !RETRYABLE_RM_CODES.has(lastError?.code)) {
     throw lastError;

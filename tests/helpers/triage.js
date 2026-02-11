@@ -11,6 +11,19 @@ const RM_RETRY_BASE_DELAY_MS = 40;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const rmWithRetry = async (targetPath) => {
+  const removeTombstoneWithRetry = async (tombstonePath) => {
+    for (let i = 0; i < RM_RETRY_ATTEMPTS; i += 1) {
+      try {
+        await fsPromises.rm(tombstonePath, { recursive: true, force: true });
+        return true;
+      } catch (err) {
+        if (!RETRYABLE_RM_CODES.has(err?.code)) break;
+        const delayMs = Math.min(1000, RM_RETRY_BASE_DELAY_MS * (2 ** i));
+        await sleep(delayMs);
+      }
+    }
+    return false;
+  };
   for (let attempt = 0; attempt < RM_RETRY_ATTEMPTS; attempt += 1) {
     try {
       await fsPromises.rm(targetPath, { recursive: true, force: true });
@@ -24,8 +37,7 @@ const rmWithRetry = async (targetPath) => {
           const tombstone = `${targetPath}.pending-delete-${Date.now()}-${process.pid}`;
           try {
             await fsPromises.rename(targetPath, tombstone);
-            await fsPromises.rm(tombstone, { recursive: true, force: true });
-            return;
+            if (await removeTombstoneWithRetry(tombstone)) return;
           } catch {}
         }
         throw err;

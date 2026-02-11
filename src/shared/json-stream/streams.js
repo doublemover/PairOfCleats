@@ -73,6 +73,21 @@ const cleanupPendingDeleteTombstones = async (targetPath) => {
   } catch {}
 };
 
+const cleanupAtomicTempSiblings = async (finalPath) => {
+  try {
+    const dir = path.dirname(finalPath);
+    const base = path.basename(finalPath);
+    const prefix = `${base}.tmp-`;
+    const entries = await fsPromises.readdir(dir, { withFileTypes: true });
+    const tempPaths = entries
+      .filter((entry) => entry?.isFile?.() && typeof entry.name === 'string' && entry.name.startsWith(prefix))
+      .map((entry) => path.join(dir, entry.name));
+    for (const tempPath of tempPaths) {
+      await removePathWithRetry(tempPath, { recursive: false, attempts: 12, baseDelayMs: 30 });
+    }
+  } catch {}
+};
+
 const createExclusiveAtomicFileStream = (filePath, highWaterMark) => {
   let lastErr = null;
   for (let attempt = 0; attempt < 8; attempt += 1) {
@@ -174,6 +189,7 @@ export const createJsonWriteStream = (filePath, options = {}) => {
       } catch {}
     }
     await cleanupPendingDeleteTombstones(targetPath);
+    await cleanupAtomicTempSiblings(filePath);
   };
   const attachPipelineErrorHandlers = () => {
     const forwardToFile = (err) => {

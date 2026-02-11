@@ -28,8 +28,16 @@ export const rmDirRecursive = async (dirPath, { retries = 3, delayMs = 100 } = {
           const tombstone = `${dirPath}.pending-delete-${Date.now()}-${process.pid}`;
           try {
             await fsPromises.rename(dirPath, tombstone);
-            await fsPromises.rm(tombstone, { recursive: true, force: true });
-            return;
+            for (let cleanupAttempt = 0; cleanupAttempt <= resolvedRetries; cleanupAttempt += 1) {
+              try {
+                await fsPromises.rm(tombstone, { recursive: true, force: true });
+                return;
+              } catch (cleanupError) {
+                const cleanupRetryable = ['EPERM', 'EBUSY', 'ENOTEMPTY', 'EMFILE', 'ENFILE'].includes(cleanupError?.code);
+                if (cleanupAttempt >= resolvedRetries || !cleanupRetryable) break;
+                await wait(resolvedDelayMs * (cleanupAttempt + 1));
+              }
+            }
           } catch {}
         }
         throw error;
