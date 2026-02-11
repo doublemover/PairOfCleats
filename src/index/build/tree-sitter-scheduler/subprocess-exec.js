@@ -4,6 +4,11 @@ import { warmupNativeTreeSitterParsers } from '../../../lang/tree-sitter/native-
 import { resolveTreeSitterSchedulerPaths } from './paths.js';
 import { executeTreeSitterSchedulerPlan } from './executor.js';
 
+const JSONL_LOAD_RETRY_ATTEMPTS = 8;
+const JSONL_LOAD_RETRY_BASE_DELAY_MS = 25;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 const parseArgs = (argv) => {
   const out = {};
   for (let i = 0; i < argv.length; i += 1) {
@@ -29,15 +34,45 @@ const parseArgs = (argv) => {
   return out;
 };
 
-const loadJsonLines = async (filePath) => {
-  const text = await fs.readFile(filePath, 'utf8');
+const parseJsonLines = (text, filePath) => {
   const rows = [];
-  for (const line of text.split(/\r?\n/)) {
+  const lines = String(text || '').split(/\r?\n/);
+  for (let lineNumber = 0; lineNumber < lines.length; lineNumber += 1) {
+    const line = lines[lineNumber];
     const trimmed = line.trim();
     if (!trimmed) continue;
-    rows.push(JSON.parse(trimmed));
+    try {
+      rows.push(JSON.parse(trimmed));
+    } catch (err) {
+      const snippet = trimmed.slice(0, 120);
+      const parseErr = new Error(
+        `[tree-sitter:schedule] invalid jsonl row in ${filePath} at line ${lineNumber + 1}: ` +
+        `${err?.message || err}; row=${snippet}`
+      );
+      parseErr.code = 'ERR_TREE_SITTER_JSONL_PARSE';
+      parseErr.cause = err;
+      throw parseErr;
+    }
   }
   return rows;
+};
+
+const loadJsonLines = async (filePath) => {
+  let lastError = null;
+  for (let attempt = 0; attempt < JSONL_LOAD_RETRY_ATTEMPTS; attempt += 1) {
+    try {
+      const text = await fs.readFile(filePath, 'utf8');
+      return parseJsonLines(text, filePath);
+    } catch (err) {
+      lastError = err;
+      const retryable = err?.code === 'ENOENT' || err?.code === 'ERR_TREE_SITTER_JSONL_PARSE';
+      if (!retryable || attempt >= JSONL_LOAD_RETRY_ATTEMPTS - 1) {
+        throw err;
+      }
+      await sleep(JSONL_LOAD_RETRY_BASE_DELAY_MS * (attempt + 1));
+    }
+  }
+  throw lastError || new Error(`[tree-sitter:schedule] failed to load JSONL rows: ${filePath}`);
 };
 
 const main = async () => {
