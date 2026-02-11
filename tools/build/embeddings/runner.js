@@ -406,7 +406,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
       const activeRootCandidate = currentBuild?.activeRoot || null;
       const promotedRoot = hasModeArtifacts(buildRootCandidate)
         ? buildRootCandidate
-        : (hasModeArtifacts(activeRootCandidate) ? activeRootCandidate : (buildRootCandidate || activeRootCandidate || null));
+        : (hasModeArtifacts(activeRootCandidate) ? activeRootCandidate : null);
       const promotedRootKey = normalizePath(promotedRoot);
       if (promotedRoot && promotedRootKey && promotedRootKey !== activeRootKey) {
         activeIndexRoot = promotedRoot;
@@ -415,10 +415,17 @@ export async function runBuildEmbeddingsWithConfig(config) {
     }
   }
   if (activeIndexRoot && !hasModeArtifacts(activeIndexRoot)) {
-    const fallbackRoot = findLatestModeRoot();
-    if (fallbackRoot && normalizePath(fallbackRoot) !== normalizePath(activeIndexRoot)) {
-      activeIndexRoot = fallbackRoot;
-      log(`[embeddings] index root lacked mode artifacts; using latest build root: ${activeIndexRoot}`);
+    const activeRootKey = normalizePath(activeIndexRoot);
+    const allowLatestFallback = !activeRootKey
+      || !fsSync.existsSync(activeIndexRoot)
+      || activeRootKey === repoCacheRootKey
+      || activeRootKey === buildsRootKey;
+    if (allowLatestFallback) {
+      const fallbackRoot = findLatestModeRoot();
+      if (fallbackRoot && normalizePath(fallbackRoot) !== normalizePath(activeIndexRoot)) {
+        activeIndexRoot = fallbackRoot;
+        log(`[embeddings] index root lacked mode artifacts; using latest build root: ${activeIndexRoot}`);
+      }
     }
   }
   const metricsDir = getMetricsDir(root, userConfig);
