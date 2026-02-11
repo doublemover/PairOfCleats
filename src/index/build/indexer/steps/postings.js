@@ -170,6 +170,7 @@ export const buildIndexPostings = async ({ runtime, state }) => {
     fieldPostings: state.fieldPostings,
     fieldDocLengths: state.fieldDocLengths,
     phrasePost: state.phrasePost,
+    phrasePostHashBuckets: state.phrasePostHashBuckets,
     triPost: state.triPost,
     postingsConfig: runtime.postingsConfig,
     postingsGuard: state.postingsGuard,
@@ -201,6 +202,7 @@ export const buildIndexPostings = async ({ runtime, state }) => {
   }
   if (state?.tokenPostings?.clear) state.tokenPostings.clear();
   if (state?.phrasePost?.clear) state.phrasePost.clear();
+  if (state?.phrasePostHashBuckets?.clear) state.phrasePostHashBuckets.clear();
   if (state?.triPost?.clear) state.triPost.clear();
   if (state?.fieldPostings?.clear) state.fieldPostings.clear();
   if (state?.df?.clear) state.df.clear();

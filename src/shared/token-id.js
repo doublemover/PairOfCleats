@@ -64,6 +64,31 @@ export const hashTokenId64Parts = (parts, seed = DEFAULT_TOKEN_ID_SEED) => {
   return hash & MASK_64;
 };
 
+export const hashTokenId64Window = (
+  parts,
+  start = 0,
+  length = null,
+  seed = DEFAULT_TOKEN_ID_SEED
+) => {
+  if (!Array.isArray(parts) || !parts.length) return 0n;
+  const begin = Number.isFinite(Number(start)) ? Math.max(0, Math.floor(Number(start))) : 0;
+  if (begin >= parts.length) return 0n;
+  const size = Number.isFinite(Number(length))
+    ? Math.max(0, Math.floor(Number(length)))
+    : (parts.length - begin);
+  if (!size) return 0n;
+  const end = Math.min(parts.length, begin + size);
+  let hash = FNV_OFFSET_BASIS ^ normalizeSeed(seed);
+  for (let i = begin; i < end; i += 1) {
+    hash ^= parseHash64(parts[i]);
+    hash = (hash * FNV_PRIME) & MASK_64;
+    // Delimiter between parts.
+    hash ^= 0n;
+    hash = (hash * FNV_PRIME) & MASK_64;
+  }
+  return hash & MASK_64;
+};
+
 export const hashTokenId = (token, { seed = DEFAULT_TOKEN_ID_SEED } = {}) => (
   formatHash64(hashTokenId64(token, seed))
 );

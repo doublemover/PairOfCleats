@@ -1,7 +1,11 @@
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
 import { forEachRollingChargramHash } from '../../shared/chargram-hash.js';
 import { registerTokenIdInvariant } from '../../shared/invariants.js';
-import { createTypedTokenPostingMap } from '../../shared/token-id.js';
+import {
+  createTypedTokenPostingMap,
+  formatHash64,
+  hashTokenId64Window
+} from '../../shared/token-id.js';
 
 const DEFAULT_POSTINGS_CONFIG = normalizePostingsConfig();
 const TOKEN_RETENTION_MODES = new Set(['full', 'sample', 'none']);
@@ -125,6 +129,157 @@ function appendPhraseNgramsToPostingsMap(map, tokens, docId, minN, maxN, guard =
   }
 }
 
+const appendDocIdToPostingValue = (posting, docId) => {
+  if (posting == null) return docId;
+  if (typeof posting === 'number') {
+    return posting === docId ? posting : [posting, docId];
+  }
+  if (Array.isArray(posting)) {
+    const last = posting[posting.length - 1];
+    if (last !== docId) posting.push(docId);
+    return posting;
+  }
+  if (posting && typeof posting.add === 'function') {
+    posting.add(docId);
+    return posting;
+  }
+  return posting;
+};
+
+const phraseIdsEqual = (leftIds, rightIds, start) => {
+  if (!Array.isArray(leftIds) || !Array.isArray(rightIds)) return false;
+  if (!Number.isFinite(start) || start < 0) return false;
+  if ((start + leftIds.length) > rightIds.length) return false;
+  for (let i = 0; i < leftIds.length; i += 1) {
+    if (leftIds[i] !== rightIds[start + i]) return false;
+  }
+  return true;
+};
+
+function appendPhraseNgramsToHashBuckets({
+  bucketMap,
+  tokenIds,
+  docId,
+  minN,
+  maxN,
+  guard = null,
+  context = null,
+  state = null
+}) {
+  if (!bucketMap || typeof bucketMap.get !== 'function' || typeof bucketMap.set !== 'function') return;
+  if (!Array.isArray(tokenIds) || !tokenIds.length) return;
+  const min = Number.isFinite(minN) ? minN : 2;
+  const max = Number.isFinite(maxN) ? maxN : 4;
+  if (min < 1 || max < min) return;
+  const len = tokenIds.length;
+  if (len < min) return;
+  const maxSpan = Math.min(max, len);
+  let emitted = 0;
+  const maxPerChunk = guard?.maxPerChunk || 0;
+  for (let i = 0; i < len; i += 1) {
+    for (let n = min; n <= maxSpan; n += 1) {
+      if ((i + n) > len) break;
+      if (maxPerChunk && emitted >= maxPerChunk) {
+        if (guard) {
+          guard.truncatedChunks += 1;
+          recordGuardSample(guard, context);
+        }
+        return;
+      }
+      const hash = formatHash64(hashTokenId64Window(tokenIds, i, n));
+      const bucket = bucketMap.get(hash);
+      if (!bucket) {
+        if (guard?.maxUnique && Number(state?.phrasePostHashUnique || 0) >= guard.maxUnique) {
+          if (!guard.disabled) {
+            guard.disabled = true;
+            guard.reason = guard.reason || 'max-unique';
+            recordGuardSample(guard, context);
+          }
+          guard.dropped += 1;
+          emitted += 1;
+          continue;
+        }
+        bucketMap.set(hash, {
+          kind: 'single',
+          ids: tokenIds.slice(i, i + n),
+          posting: docId
+        });
+        if (state) {
+          state.phrasePostHashUnique = Number(state.phrasePostHashUnique || 0) + 1;
+          if (state.phraseHashStats && typeof state.phraseHashStats === 'object') {
+            state.phraseHashStats.buckets = bucketMap.size;
+          }
+        }
+        if (guard) {
+          guard.peakUnique = Math.max(guard.peakUnique || 0, Number(state?.phrasePostHashUnique || 0));
+        }
+        emitted += 1;
+        continue;
+      }
+      if (bucket.kind === 'single') {
+        if (phraseIdsEqual(bucket.ids, tokenIds, i)) {
+          bucket.posting = appendDocIdToPostingValue(bucket.posting, docId);
+        } else {
+          if (guard?.maxUnique && Number(state?.phrasePostHashUnique || 0) >= guard.maxUnique) {
+            if (!guard.disabled) {
+              guard.disabled = true;
+              guard.reason = guard.reason || 'max-unique';
+              recordGuardSample(guard, context);
+            }
+            guard.dropped += 1;
+            emitted += 1;
+            continue;
+          }
+          const prior = { ids: bucket.ids, posting: bucket.posting };
+          bucket.kind = 'collision';
+          bucket.entries = [
+            prior,
+            { ids: tokenIds.slice(i, i + n), posting: docId }
+          ];
+          delete bucket.ids;
+          delete bucket.posting;
+          if (state) {
+            state.phrasePostHashUnique = Number(state.phrasePostHashUnique || 0) + 1;
+            if (state.phraseHashStats && typeof state.phraseHashStats === 'object') {
+              state.phraseHashStats.collisions = Number(state.phraseHashStats.collisions || 0) + 1;
+            }
+          }
+        }
+        emitted += 1;
+        continue;
+      }
+      if (!Array.isArray(bucket.entries)) bucket.entries = [];
+      let matched = false;
+      for (const entry of bucket.entries) {
+        if (!phraseIdsEqual(entry?.ids, tokenIds, i)) continue;
+        entry.posting = appendDocIdToPostingValue(entry.posting, docId);
+        matched = true;
+        break;
+      }
+      if (!matched) {
+        if (guard?.maxUnique && Number(state?.phrasePostHashUnique || 0) >= guard.maxUnique) {
+          if (!guard.disabled) {
+            guard.disabled = true;
+            guard.reason = guard.reason || 'max-unique';
+            recordGuardSample(guard, context);
+          }
+          guard.dropped += 1;
+          emitted += 1;
+          continue;
+        }
+        bucket.entries.push({
+          ids: tokenIds.slice(i, i + n),
+          posting: docId
+        });
+        if (state) {
+          state.phrasePostHashUnique = Number(state.phrasePostHashUnique || 0) + 1;
+        }
+      }
+      emitted += 1;
+    }
+  }
+}
+
 function appendChargramsToSet(
   token,
   minN,
@@ -238,6 +393,12 @@ export function createIndexState(options = {}) {
     fieldTokens: [],
     triPost: new Map(),
     phrasePost: new Map(),
+    phrasePostHashBuckets: new Map(),
+    phrasePostHashUnique: 0,
+    phraseHashStats: {
+      collisions: 0,
+      buckets: 0
+    },
     discoveredFiles: [],
     discoveryHash: null,
     fileListHash: null,
@@ -347,6 +508,11 @@ export function appendChunk(
   const phraseMinN = phraseMinRaw <= phraseMaxRaw ? phraseMinRaw : phraseMaxRaw;
   const phraseMaxN = phraseMaxRaw >= phraseMinRaw ? phraseMaxRaw : phraseMinRaw;
   const phraseSource = config.phraseSource === 'full' ? 'full' : 'fields';
+  const phraseHashEnabled = config.phraseHash === true
+    && phraseSource === 'full'
+    && useTokenIds
+    && state?.phrasePostHashBuckets
+    && typeof state.phrasePostHashBuckets.set === 'function';
 
   const chargramEnabled = config.enableChargrams !== false;
   const fieldedEnabled = config.fielded !== false;
@@ -454,7 +620,18 @@ export function appendChunk(
   }
 
   if (phraseEnabled) {
-    if (phraseSource === 'full') {
+    if (phraseHashEnabled) {
+      appendPhraseNgramsToHashBuckets({
+        bucketMap: state.phrasePostHashBuckets,
+        tokenIds,
+        docId: chunkId,
+        minN: phraseMinN,
+        maxN: phraseMaxN,
+        guard: phraseGuard,
+        context: guardContext,
+        state
+      });
+    } else if (phraseSource === 'full') {
       appendPhraseNgramsToPostingsMap(
         state.phrasePost,
         seq,

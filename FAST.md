@@ -380,7 +380,7 @@ Implementation policy for Sweep 3:
 - Rollout: `treeSitter.cachePersistent=true`; reuse only when signature + hash match.
 - Target: 2-5x faster incremental tree-sitter stage for unchanged files.
 
-6. Area: Phrase n-gram rolling hashes
+6. [x] Area: Phrase n-gram rolling hashes
 - Files: `src/index/build/state.js`, `src/index/build/postings.js`
 - Decision: Replace phrase string concatenation with rolling token-id hash windows, with collision fallback checks.
 - Rollout: `postings.phraseHash=true`; dual-write phrase strings + hashes until collision telemetry stays clean.

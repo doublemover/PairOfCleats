@@ -58,6 +58,7 @@ export async function buildPostings(input) {
     fieldPostings,
     fieldDocLengths,
     phrasePost,
+    phrasePostHashBuckets = null,
     triPost,
     postingsConfig,
     postingsGuard = null,
@@ -97,6 +98,7 @@ export async function buildPostings(input) {
     ? Math.max(0, Math.floor(chargramSpillMaxBytesRaw))
     : 0;
   const fieldedEnabled = resolvedConfig.fielded !== false;
+  const phraseHashEnabled = resolvedConfig.phraseHash === true;
   const buildEmptyFieldPostings = () => {
     if (!fieldedEnabled) return null;
     const fields = {};
@@ -272,6 +274,37 @@ export async function buildPostings(input) {
       return delta || (a[1] - b[1]);
     });
     return next;
+  };
+  const phraseSeparator = '\u0001';
+  const resolvePhraseFromIds = (ids) => {
+    if (!Array.isArray(ids) || !ids.length) return '';
+    const parts = new Array(ids.length);
+    for (let i = 0; i < ids.length; i += 1) {
+      const id = ids[i];
+      const token = tokenIdMap?.get?.(id);
+      parts[i] = token || String(id);
+    }
+    return parts.join(phraseSeparator);
+  };
+  const collectPhraseEntriesFromHashBuckets = () => {
+    if (!phraseHashEnabled) return [];
+    if (!phrasePostHashBuckets || typeof phrasePostHashBuckets.entries !== 'function') return [];
+    const rows = [];
+    for (const [, bucket] of phrasePostHashBuckets.entries()) {
+      if (!bucket || typeof bucket !== 'object') continue;
+      if (bucket.kind === 'single') {
+        const phrase = resolvePhraseFromIds(bucket.ids);
+        if (phrase) rows.push([phrase, bucket.posting]);
+        continue;
+      }
+      if (Array.isArray(bucket.entries)) {
+        for (const entry of bucket.entries) {
+          const phrase = resolvePhraseFromIds(entry?.ids);
+          if (phrase) rows.push([phrase, entry?.posting]);
+        }
+      }
+    }
+    return rows;
   };
 
   let dims = 0;
@@ -488,7 +521,18 @@ export async function buildPostings(input) {
   // releasing the source Sets/Maps to keep peak RSS lower.
   let phraseVocab = [];
   let phrasePostings = [];
-  if (phraseEnabled && phrasePost && typeof phrasePost.keys === 'function') {
+  const phraseEntriesFromHash = collectPhraseEntriesFromHashBuckets();
+  if (phraseEnabled && phraseEntriesFromHash.length) {
+    const entries = phraseEntriesFromHash.sort((a, b) => sortStrings(a[0], b[0]));
+    phraseVocab = new Array(entries.length);
+    phrasePostings = new Array(entries.length);
+    for (let i = 0; i < entries.length; i += 1) {
+      const [key, posting] = entries[i];
+      phraseVocab[i] = key;
+      phrasePostings[i] = normalizeIdList(posting);
+    }
+    if (typeof phrasePostHashBuckets.clear === 'function') phrasePostHashBuckets.clear();
+  } else if (phraseEnabled && phrasePost && typeof phrasePost.keys === 'function') {
     const phraseShouldSpill = buildRoot
       && phraseSpillMaxBytes
       && shouldSpillByBytes(phrasePost, phraseSpillMaxBytes);

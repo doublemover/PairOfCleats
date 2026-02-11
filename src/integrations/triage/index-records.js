@@ -188,6 +188,7 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
     fieldPostings: state.fieldPostings,
     fieldDocLengths: state.fieldDocLengths,
     phrasePost: state.phrasePost,
+    phrasePostHashBuckets: state.phrasePostHashBuckets,
     triPost: state.triPost,
     postingsConfig,
     modelId: runtime.modelId,
