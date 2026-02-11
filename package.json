@@ -101,7 +101,7 @@
     "eslint": "9.39.2",
     "esprima": "4.0.1",
     "esquery": "^1.7.0",
-    "execa": "^8.0.1",
+    "execa": "^9.6.1",
     "fast-xml-parser": "^5.3.4",
     "fdir": "6.4.2",
     "fflate": "^0.8.2",
