@@ -1,7 +1,7 @@
 # Spec -- USR Implementation Readiness Contract
 
-Status: Draft v0.4
-Last updated: 2026-02-11T02:40:00Z
+Status: Draft v0.5
+Last updated: 2026-02-11T04:30:00Z
 
 ## 0. Purpose and scope
 
@@ -25,6 +25,13 @@ Implementation readiness MUST be demonstrated across all domains:
 10. benchmark methodology readiness
 11. threat-model and abuse-case readiness
 12. waiver and exception governance readiness
+13. query semantics readiness
+14. packaging and artifact layout readiness
+15. schema evolution and compatibility readiness
+16. parser adapter and differential readiness
+17. incremental indexing and identity stability readiness
+18. documentation quality and change-management readiness
+19. release-train and operational drill readiness
 
 ## 2. Contract and schema readiness
 
@@ -36,6 +43,7 @@ Required:
 - runtime configuration policy matrix and strict-mode config behavior validated
 - strict validators implemented and wired into CI
 - contract drift checks passing on baseline branch
+- schema-evolution policy and compatibility windows documented for active schema versions
 
 Blocking artifact set:
 
@@ -51,6 +59,8 @@ Required:
 - lock coverage includes every parser source used by profile rows
 - deterministic parser selection tests pass with pinned versions
 - upgrade procedure documented with impact analysis template
+- parser adapter SDK contract conformance checks are green
+- cross-parser differential drift is within configured budget
 
 Blocking artifact set:
 
@@ -66,12 +76,15 @@ Required:
 - bridge/provenance fixture families present for applicable profiles
 - fixture governance matrix rows cover blocking fixture families and owners/reviewers
 - deterministic rerun diff clean for required lanes
+- quality gate policy rows are configured for blocking domains and fixture sets
 
 Blocking artifact set:
 
 - `usr-fixture-minimum-coverage.json`
 - `usr-conformance-summary.json`
 - `usr-determinism-rerun-diff.json`
+- `usr-quality-evaluation-results.json`
+- `usr-quality-regression-report.json`
 
 ## 5. Observability and SLO readiness
 
@@ -119,12 +132,16 @@ Required:
 - dashboard/report outputs configured and accessible
 - CI lane budgets and timeout budgets explicitly defined
 - blocking failure-injection scenarios executed with recovery evidence artifacts
+- required operational-readiness policies and incident/rollback drills are green
 
 Blocking artifact set:
 
 - `usr-rollout-rollback-event.json` (simulation run)
 - `usr-operational-readiness-checklist.json`
 - `usr-lane-budget-baselines.json`
+- `usr-operational-readiness-validation.json`
+- `usr-incident-response-drill-report.json`
+- `usr-rollback-drill-report.json`
 
 ## 8. Ownership and escalation readiness
 
@@ -134,6 +151,8 @@ Required:
 - escalation chain documented for release-blocking regressions
 - SLA targets defined for release-blocking vs warning-level issues
 - on-call coverage declared for cutover windows
+- RACI map covers each decomposed contract and language batch owner
+- release train authority and no-cut policy documented
 
 Blocking artifact set:
 
@@ -147,6 +166,9 @@ Blocking artifact set:
 - `usr-waiver-active-report.json`
 - `usr-waiver-expiry-report.json`
 - `usr-waiver-breach-report.json`
+- `usr-change-management-log.json`
+- `usr-release-train-readiness.json`
+- `usr-documentation-drift-report.json`
 
 ## 9. Promotion criteria by phase
 
@@ -174,3 +196,14 @@ Missing mandatory evidence in any required domain is a promotion blocker.
 - `docs/specs/usr-performance-benchmark-contract.md`
 - `docs/specs/usr-threat-model-and-abuse-case-contract.md`
 - `docs/specs/usr-waiver-and-exception-contract.md`
+- `docs/specs/usr-query-semantics-contract.md`
+- `docs/specs/usr-packaging-and-artifact-layout-contract.md`
+- `docs/specs/usr-schema-evolution-and-versioning-contract.md`
+- `docs/specs/usr-parser-adapter-sdk-contract.md`
+- `docs/specs/usr-cross-parser-differential-contract.md`
+- `docs/specs/usr-incremental-indexing-contract.md`
+- `docs/specs/usr-identity-stability-contract.md`
+- `docs/specs/usr-change-management-contract.md`
+- `docs/specs/usr-documentation-quality-contract.md`
+- `docs/specs/usr-release-train-contract.md`
+- `docs/specs/usr-operational-runbook-contract.md`
