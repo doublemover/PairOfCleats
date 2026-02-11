@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-11T20:36:22.062Z",
+  "generatedAt": "2026-02-11T22:25:21.948Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2202,6 +2202,7 @@
         "tests/helpers/test-env-clear.test.js",
         "tests/helpers/test-env.js",
         "tests/run.js",
+        "tests/runner/harness/redo-target.test.js",
         "tests/runner/run-execution.js",
         "tests/services/mcp/tool-search-defaults-and-filters.test.js",
         "tests/smoke/smoke-sqlite.test.js",
@@ -3659,6 +3660,7 @@
         "file": "tools/build/compact-sqlite-index.js",
         "flags": [
           "dry-run",
+          "index-root",
           "keep-backup",
           "mode",
           "progress",
@@ -4422,13 +4424,14 @@
       },
       {
         "flag": "index-root",
-        "count": 10,
+        "count": 11,
         "files": [
           "tools/bench/map/build-map-memory.js",
           "tools/bench/map/build-map-streaming.js",
           "tools/bench/map/viewer-fps.js",
           "tools/bench/map/viewer-lod-stress.js",
           "tools/bench/query-generator.js",
+          "tools/build/compact-sqlite-index.js",
           "tools/build/embeddings/cli.js",
           "tools/build/lmdb-index.js",
           "tools/build/tantivy-index.js",
