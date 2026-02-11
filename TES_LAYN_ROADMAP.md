@@ -211,6 +211,8 @@ If contradictions are found:
 - [ ] Add `src/contracts/validators/usr.js`.
 - [ ] Add `src/contracts/validators/usr-matrix.js`.
 - [ ] Export all required USR schema constants.
+- [ ] Add strict matrix schemas and validators for `usr-runtime-config-policy.json`, `usr-failure-injection-matrix.json`, and `usr-fixture-governance.json`.
+- [ ] Add runtime config resolution validator enforcing precedence and strict-mode behavior contract.
 - [ ] Enforce strict ID grammar validation.
 - [ ] Enforce strict edge endpoint constraints.
 - [ ] Enforce strict diagnostic code/reason-code enum validation (USR section 33).
@@ -457,6 +459,9 @@ If contradictions are found:
 - [ ] Validate section 36 compatibility matrix readiness and blocking policy evidence.
 - [ ] Validate per-language contract approval checklists are complete for target rollout set.
 - [ ] Validate implementation-readiness contract evidence set is complete for promotion target phase.
+- [ ] Validate runtime config policy evidence and feature-flag state outputs are complete.
+- [ ] Validate blocking failure-injection evidence and recovery artifacts are complete.
+- [ ] Validate fixture-governance validation evidence for blocking fixture families is complete.
 
 ### 9.2 Go/No-Go decision
 
@@ -485,6 +490,10 @@ If contradictions are found:
 - [ ] Materialize section 38 embedded-language bridge validators.
 - [ ] Materialize section 39 generated/macro provenance validators.
 - [ ] Materialize section 40 implementation-readiness evidence validators and promotion blockers.
+- [ ] Materialize section 43 runtime config/feature-flag validators and precedence checks.
+- [ ] Materialize section 44 failure-injection scenario evaluator and strict/non-strict outcome validators.
+- [ ] Materialize section 45 fixture-governance validators (owner/reviewer/mutation-policy).
+- [ ] Materialize section 30 report envelope validators for all required audit outputs.
 
 ### 10.2 Lane wiring
 
@@ -492,6 +501,10 @@ If contradictions are found:
 - [ ] Add per-batch shards and deterministic order manifests.
 - [ ] Add diagnostics summary and transition reporting.
 - [ ] Add backward-compat matrix lane executing BC-001 through BC-012 scenario classes and pairwise expansion.
+- [ ] Add runtime-config validation lane and feature-flag conflict lane.
+- [ ] Add failure-injection strict blocking lane in CI and full scenario lane in CI-long/nightly.
+- [ ] Add fixture-governance validation lane and mutation-policy enforcement lane.
+- [ ] Add report-schema lane validating section 30/31/43/44/45 required report artifacts.
 
 ### 10.3 Exit criteria
 
@@ -605,6 +618,9 @@ If contradictions are found:
 - [ ] Enforce decomposed contract suite update workflow (`docs/specs/usr/README.md`) in doc-change PR templates.
 - [ ] Enforce per-language contract freshness checks and ownership rotation policy.
 - [ ] Enforce parser/runtime lock update workflow with impact and fallback evidence in PR templates.
+- [ ] Enforce runtime config key and feature-flag policy update workflow in PR templates.
+- [ ] Enforce failure-injection matrix update workflow when new blocking failure classes are introduced.
+- [ ] Enforce fixture-governance owner/reviewer coverage checks for new blocking fixtures.
 
 ### 15.4 Exit criteria
 
