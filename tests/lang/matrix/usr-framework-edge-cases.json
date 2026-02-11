@@ -1,0 +1,252 @@
+{
+  "schemaVersion": "usr-registry-1.0.0",
+  "registryId": "usr-framework-edge-cases",
+  "generatedAt": "2026-02-11T00:30:00Z",
+  "generatedBy": "tools/usr/generate-usr-matrix-baselines.mjs",
+  "rows": [
+    {
+      "id": "angular-input-output-binding",
+      "frameworkProfile": "angular",
+      "category": "template",
+      "requiredEdgeKinds": [
+        "template_binds",
+        "template_emits"
+      ],
+      "requiredDiagnostics": [],
+      "blocking": true
+    },
+    {
+      "id": "angular-route-config-lazy",
+      "frameworkProfile": "angular",
+      "category": "route",
+      "requiredEdgeKinds": [
+        "route_maps_to"
+      ],
+      "requiredDiagnostics": [],
+      "blocking": true
+    },
+    {
+      "id": "angular-template-style-encapsulation",
+      "frameworkProfile": "angular",
+      "category": "style",
+      "requiredEdgeKinds": [
+        "style_scopes"
+      ],
+      "requiredDiagnostics": [],
+      "blocking": true
+    },
+    {
+      "id": "astro-frontmatter-template-bridge",
+      "frameworkProfile": "astro",
+      "category": "bridge",
+      "requiredEdgeKinds": [
+        "template_binds"
+      ],
+      "requiredDiagnostics": [],
+      "blocking": true
+    },
+    {
+      "id": "astro-island-hydration",
+      "frameworkProfile": "astro",
+      "category": "hydration",
+      "requiredEdgeKinds": [
+        "hydration_boundary"
+      ],
+      "requiredDiagnostics": [],
+      "blocking": true
+    },
+    {
+      "id": "astro-route-collection",
+      "frameworkProfile": "astro",
+      "category": "route",
+      "requiredEdgeKinds": [
+        "route_maps_to"
+      ],
+      "requiredDiagnostics": [],
+      "blocking": true
+    },
+    {
+      "id": "next-app-router-dynamic-segment",
+      "frameworkProfile": "next",
+      "category": "route",
+      "requiredEdgeKinds": [
+        "route_maps_to"
+      ],
+      "requiredDiagnostics": [],
+      "blocking": true
+    },
+    {
+      "id": "next-client-server-boundary",
+      "frameworkProfile": "next",
+      "category": "hydration",
+      "requiredEdgeKinds": [
+        "hydration_boundary"
+      ],
+      "requiredDiagnostics": [],
+      "blocking": true
+    },
+    {
+      "id": "next-route-handler-runtime",
+      "frameworkProfile": "next",
+      "category": "route",
+      "requiredEdgeKinds": [
+        "route_maps_to"
+      ],
+      "requiredDiagnostics": [],
+      "blocking": true
+    },
+    {
+      "id": "nuxt-pages-route-params",
+      "frameworkProfile": "nuxt",
+      "category": "route",
+      "requiredEdgeKinds": [
+        "route_maps_to"
+      ],
+      "requiredDiagnostics": [],
+      "blocking": true
+    },
+    {
+      "id": "nuxt-server-route-mapping",
+      "frameworkProfile": "nuxt",
+      "category": "route",
+      "requiredEdgeKinds": [
+        "route_maps_to"
+      ],
+      "requiredDiagnostics": [],
+      "blocking": true
+    },
+    {
+      "id": "nuxt-sfc-style-scope",
+      "frameworkProfile": "nuxt",
+      "category": "style",
+      "requiredEdgeKinds": [
+        "style_scopes"
+      ],
+      "requiredDiagnostics": [],
+      "blocking": true
+    },
+    {
+      "id": "react-css-module-scope",
+      "frameworkProfile": "react",
+      "category": "style",
+      "requiredEdgeKinds": [
+        "style_scopes"
+      ],
+      "requiredDiagnostics": [],
+      "blocking": true
+    },
+    {
+      "id": "react-hydration-boundary",
+      "frameworkProfile": "react",
+      "category": "hydration",
+      "requiredEdgeKinds": [
+        "hydration_boundary"
+      ],
+      "requiredDiagnostics": [],
+      "blocking": true
+    },
+    {
+      "id": "react-route-dynamic",
+      "frameworkProfile": "react",
+      "category": "route",
+      "requiredEdgeKinds": [
+        "route_maps_to"
+      ],
+      "requiredDiagnostics": [],
+      "blocking": true
+    },
+    {
+      "id": "svelte-bind-and-event",
+      "frameworkProfile": "svelte",
+      "category": "template",
+      "requiredEdgeKinds": [
+        "template_binds",
+        "template_emits"
+      ],
+      "requiredDiagnostics": [],
+      "blocking": true
+    },
+    {
+      "id": "svelte-slot-props",
+      "frameworkProfile": "svelte",
+      "category": "template",
+      "requiredEdgeKinds": [
+        "template_binds"
+      ],
+      "requiredDiagnostics": [],
+      "blocking": true
+    },
+    {
+      "id": "svelte-style-scope",
+      "frameworkProfile": "svelte",
+      "category": "style",
+      "requiredEdgeKinds": [
+        "style_scopes"
+      ],
+      "requiredDiagnostics": [],
+      "blocking": true
+    },
+    {
+      "id": "sveltekit-load-data-binding",
+      "frameworkProfile": "sveltekit",
+      "category": "route",
+      "requiredEdgeKinds": [
+        "route_maps_to",
+        "template_binds"
+      ],
+      "requiredDiagnostics": [],
+      "blocking": true
+    },
+    {
+      "id": "sveltekit-route-param",
+      "frameworkProfile": "sveltekit",
+      "category": "route",
+      "requiredEdgeKinds": [
+        "route_maps_to"
+      ],
+      "requiredDiagnostics": [],
+      "blocking": true
+    },
+    {
+      "id": "sveltekit-server-action-route",
+      "frameworkProfile": "sveltekit",
+      "category": "route",
+      "requiredEdgeKinds": [
+        "route_maps_to"
+      ],
+      "requiredDiagnostics": [],
+      "blocking": true
+    },
+    {
+      "id": "vue-router-dynamic-param",
+      "frameworkProfile": "vue",
+      "category": "route",
+      "requiredEdgeKinds": [
+        "route_maps_to"
+      ],
+      "requiredDiagnostics": [],
+      "blocking": true
+    },
+    {
+      "id": "vue-sfc-scoped-style",
+      "frameworkProfile": "vue",
+      "category": "style",
+      "requiredEdgeKinds": [
+        "style_scopes"
+      ],
+      "requiredDiagnostics": [],
+      "blocking": true
+    },
+    {
+      "id": "vue-sfc-script-setup-bindings",
+      "frameworkProfile": "vue",
+      "category": "template",
+      "requiredEdgeKinds": [
+        "template_binds",
+        "template_emits"
+      ],
+      "requiredDiagnostics": [],
+      "blocking": true
+    }
+  ]
+}

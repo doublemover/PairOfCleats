@@ -1,0 +1,64 @@
+{
+  "schemaVersion": "usr-registry-1.0.0",
+  "registryId": "usr-security-gates",
+  "generatedAt": "2026-02-11T00:30:00Z",
+  "generatedBy": "tools/usr/generate-usr-matrix-baselines.mjs",
+  "rows": [
+    {
+      "id": "security-gate-parser-lock",
+      "check": "parser_runtime_versions_pinned",
+      "scope": "parser",
+      "enforcement": "strict",
+      "blocking": true
+    },
+    {
+      "id": "security-gate-path-traversal",
+      "check": "path_traversal_rejected",
+      "scope": "path",
+      "enforcement": "strict",
+      "blocking": true
+    },
+    {
+      "id": "security-gate-redaction-complete",
+      "check": "redaction_rules_applied",
+      "scope": "reporting",
+      "enforcement": "strict",
+      "blocking": true
+    },
+    {
+      "id": "security-gate-report-size-cap",
+      "check": "report_payload_size_within_cap",
+      "scope": "reporting",
+      "enforcement": "warn",
+      "blocking": false
+    },
+    {
+      "id": "security-gate-runtime-sandbox",
+      "check": "runtime_exec_disallowed",
+      "scope": "runtime",
+      "enforcement": "strict",
+      "blocking": true
+    },
+    {
+      "id": "security-gate-schema-no-extension",
+      "check": "strict_schema_unknown_keys_rejected",
+      "scope": "serialization",
+      "enforcement": "strict",
+      "blocking": true
+    },
+    {
+      "id": "security-gate-symlink-deny",
+      "check": "symlink_escape_denied",
+      "scope": "path",
+      "enforcement": "strict",
+      "blocking": true
+    },
+    {
+      "id": "security-gate-unsafe-parser-feature",
+      "check": "unsafe_parser_features_disabled",
+      "scope": "parser",
+      "enforcement": "strict",
+      "blocking": true
+    }
+  ]
+}

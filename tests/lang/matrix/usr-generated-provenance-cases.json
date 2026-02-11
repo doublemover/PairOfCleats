@@ -1,0 +1,102 @@
+{
+  "schemaVersion": "usr-registry-1.0.0",
+  "registryId": "usr-generated-provenance-cases",
+  "generatedAt": "2026-02-11T00:30:00Z",
+  "generatedBy": "tools/usr/generate-usr-matrix-baselines.mjs",
+  "rows": [
+    {
+      "id": "prov-angular-template-compiler",
+      "languageId": "typescript",
+      "generationKind": "framework-compiler",
+      "mappingExpectation": "approximate",
+      "requiredDiagnostics": [
+        "USR-W-PROVENANCE-APPROXIMATE"
+      ],
+      "blocking": false
+    },
+    {
+      "id": "prov-astro-island-generated",
+      "languageId": "javascript",
+      "generationKind": "framework-compiler",
+      "mappingExpectation": "approximate",
+      "requiredDiagnostics": [
+        "USR-W-PROVENANCE-APPROXIMATE"
+      ],
+      "blocking": false
+    },
+    {
+      "id": "prov-clike-preprocessor",
+      "languageId": "clike",
+      "generationKind": "macro",
+      "mappingExpectation": "approximate",
+      "requiredDiagnostics": [
+        "USR-W-PROVENANCE-APPROXIMATE"
+      ],
+      "blocking": false
+    },
+    {
+      "id": "prov-go-codegen",
+      "languageId": "go",
+      "generationKind": "codegen",
+      "mappingExpectation": "exact",
+      "requiredDiagnostics": [],
+      "blocking": true
+    },
+    {
+      "id": "prov-javascript-babel-output",
+      "languageId": "javascript",
+      "generationKind": "transpile",
+      "mappingExpectation": "approximate",
+      "requiredDiagnostics": [
+        "USR-W-PROVENANCE-APPROXIMATE"
+      ],
+      "blocking": false
+    },
+    {
+      "id": "prov-proto-stub-generated",
+      "languageId": "proto",
+      "generationKind": "codegen",
+      "mappingExpectation": "exact",
+      "requiredDiagnostics": [],
+      "blocking": true
+    },
+    {
+      "id": "prov-rust-macro-expand",
+      "languageId": "rust",
+      "generationKind": "macro",
+      "mappingExpectation": "approximate",
+      "requiredDiagnostics": [
+        "USR-W-PROVENANCE-APPROXIMATE"
+      ],
+      "blocking": false
+    },
+    {
+      "id": "prov-svelte-compiler-output",
+      "languageId": "typescript",
+      "generationKind": "framework-compiler",
+      "mappingExpectation": "approximate",
+      "requiredDiagnostics": [
+        "USR-W-PROVENANCE-APPROXIMATE"
+      ],
+      "blocking": false
+    },
+    {
+      "id": "prov-typescript-transpile-js",
+      "languageId": "typescript",
+      "generationKind": "transpile",
+      "mappingExpectation": "exact",
+      "requiredDiagnostics": [],
+      "blocking": true
+    },
+    {
+      "id": "prov-vue-sfc-compiler",
+      "languageId": "typescript",
+      "generationKind": "framework-compiler",
+      "mappingExpectation": "approximate",
+      "requiredDiagnostics": [
+        "USR-W-PROVENANCE-APPROXIMATE"
+      ],
+      "blocking": false
+    }
+  ]
+}

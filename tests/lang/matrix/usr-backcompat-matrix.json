@@ -1,0 +1,173 @@
+{
+  "schemaVersion": "usr-registry-1.0.0",
+  "registryId": "usr-backcompat-matrix",
+  "generatedAt": "2026-02-11T00:30:00Z",
+  "generatedBy": "tools/usr/generate-usr-matrix-baselines.mjs",
+  "rows": [
+    {
+      "id": "BC-001",
+      "producerVersion": "usr-1.0.0",
+      "readerVersions": [
+        "usr-1.0.0"
+      ],
+      "readerMode": "strict",
+      "fixtureFamily": "language-core",
+      "expectedOutcome": "accept",
+      "requiredDiagnostics": [],
+      "blocking": true
+    },
+    {
+      "id": "BC-002",
+      "producerVersion": "usr-1.0.0",
+      "readerVersions": [
+        "usr-1.1.0"
+      ],
+      "readerMode": "strict",
+      "fixtureFamily": "framework-overlay",
+      "expectedOutcome": "accept",
+      "requiredDiagnostics": [],
+      "blocking": true
+    },
+    {
+      "id": "BC-003",
+      "producerVersion": "usr-1.1.0",
+      "readerVersions": [
+        "usr-1.0.0"
+      ],
+      "readerMode": "strict",
+      "fixtureFamily": "language-core",
+      "expectedOutcome": "reject",
+      "requiredDiagnostics": [
+        "USR-E-SCHEMA-VIOLATION"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "BC-004",
+      "producerVersion": "usr-1.1.0",
+      "readerVersions": [
+        "usr-1.0.0"
+      ],
+      "readerMode": "non-strict",
+      "fixtureFamily": "language-core",
+      "expectedOutcome": "accept-with-adapter",
+      "requiredDiagnostics": [
+        "USR-W-BACKCOMPAT-ADAPTER"
+      ],
+      "blocking": false
+    },
+    {
+      "id": "BC-005",
+      "producerVersion": "usr-1.0.0",
+      "readerVersions": [
+        "usr-1.0.0",
+        "usr-1.1.0"
+      ],
+      "readerMode": "strict",
+      "fixtureFamily": "degraded-capability",
+      "expectedOutcome": "accept",
+      "requiredDiagnostics": [
+        "USR-W-DEGRADED-CAPABILITY"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "BC-006",
+      "producerVersion": "usr-1.1.0",
+      "readerVersions": [
+        "usr-1.0.0"
+      ],
+      "readerMode": "strict",
+      "fixtureFamily": "enum-change",
+      "expectedOutcome": "reject",
+      "requiredDiagnostics": [
+        "USR-E-SCHEMA-VIOLATION"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "BC-007",
+      "producerVersion": "usr-1.1.0",
+      "readerVersions": [
+        "usr-1.0.0"
+      ],
+      "readerMode": "non-strict",
+      "fixtureFamily": "enum-change",
+      "expectedOutcome": "accept-with-adapter",
+      "requiredDiagnostics": [
+        "USR-W-BACKCOMPAT-ADAPTER"
+      ],
+      "blocking": false
+    },
+    {
+      "id": "BC-008",
+      "producerVersion": "usr-1.1.0",
+      "readerVersions": [
+        "usr-1.0.0"
+      ],
+      "readerMode": "strict",
+      "fixtureFamily": "required-field-removal",
+      "expectedOutcome": "reject",
+      "requiredDiagnostics": [
+        "USR-E-SCHEMA-VIOLATION"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "BC-009",
+      "producerVersion": "usr-1.0.0",
+      "readerVersions": [
+        "usr-1.0.0"
+      ],
+      "readerMode": "strict",
+      "fixtureFamily": "coordinate-corruption",
+      "expectedOutcome": "reject",
+      "requiredDiagnostics": [
+        "USR-E-SCHEMA-VIOLATION"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "BC-010",
+      "producerVersion": "usr-1.1.0",
+      "readerVersions": [
+        "usr-1.0.0"
+      ],
+      "readerMode": "strict",
+      "fixtureFamily": "reason-code-expansion",
+      "expectedOutcome": "reject",
+      "requiredDiagnostics": [
+        "USR-E-SCHEMA-VIOLATION"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "BC-011",
+      "producerVersion": "usr-1.1.0",
+      "readerVersions": [
+        "usr-1.0.0"
+      ],
+      "readerMode": "non-strict",
+      "fixtureFamily": "reason-code-expansion",
+      "expectedOutcome": "accept-with-adapter",
+      "requiredDiagnostics": [
+        "USR-W-BACKCOMPAT-ADAPTER"
+      ],
+      "blocking": false
+    },
+    {
+      "id": "BC-012",
+      "producerVersion": "usr-1.0.0",
+      "readerVersions": [
+        "usr-1.0.0"
+      ],
+      "readerMode": "strict",
+      "fixtureFamily": "edge-endpoint-violation",
+      "expectedOutcome": "reject",
+      "requiredDiagnostics": [
+        "USR-E-EDGE-ENDPOINT-CONSTRAINT"
+      ],
+      "blocking": true
+    }
+  ]
+}

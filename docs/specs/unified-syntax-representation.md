@@ -1,7 +1,7 @@
 # Spec -- Unified Syntax Representation (USR)
 
-Status: Draft v0.9
-Last updated: 2026-02-10T08:35:00Z
+Status: Draft v1.0
+Last updated: 2026-02-11T00:45:00Z
 
 Applies to: PairOfCleats indexing pipeline, language registry, framework segmentation/extraction, graph/risk/query surfaces.
 
@@ -1374,6 +1374,11 @@ Required files:
 - `tests/lang/matrix/usr-alert-policies.json`
 - `tests/lang/matrix/usr-redaction-rules.json`
 - `tests/lang/matrix/usr-security-gates.json`
+
+Baseline generation inputs:
+
+- `tools/usr/generate-usr-matrix-baselines.mjs`
+- `tests/lang/matrix/README.md`
 
 Registry drift policy:
 

@@ -1,8 +1,8 @@
 # TES_LAYN_ROADMAP - USR-Aligned Language and Framework Execution Master Plan
 
-Last rewritten: 2026-02-10T08:35:00Z
+Last rewritten: 2026-02-11T00:45:00Z
 Branch: `LANGMANE`
-Document status: active master plan baseline v0.9 (all checkboxes intentionally unchecked)
+Document status: active master plan baseline v1.0
 
 ## 0) Scope Reset
 
@@ -173,24 +173,25 @@ If contradictions are found:
 
 ### 1.1 Machine-readable registries (USR section 23)
 
-- [ ] Create `tests/lang/matrix/usr-language-profiles.json`.
-- [ ] Create `tests/lang/matrix/usr-language-version-policy.json`.
-- [ ] Create `tests/lang/matrix/usr-language-embedding-policy.json`.
-- [ ] Create `tests/lang/matrix/usr-framework-profiles.json`.
-- [ ] Create `tests/lang/matrix/usr-node-kind-mapping.json`.
-- [ ] Create `tests/lang/matrix/usr-edge-kind-constraints.json`.
-- [ ] Create `tests/lang/matrix/usr-capability-matrix.json`.
-- [ ] Create `tests/lang/matrix/usr-conformance-levels.json`.
-- [ ] Create `tests/lang/matrix/usr-backcompat-matrix.json` (USR section 36.4).
-- [ ] Create `tests/lang/matrix/usr-framework-edge-cases.json`.
-- [ ] Create `tests/lang/matrix/usr-language-risk-profiles.json`.
-- [ ] Create `tests/lang/matrix/usr-embedding-bridge-cases.json`.
-- [ ] Create `tests/lang/matrix/usr-generated-provenance-cases.json`.
-- [ ] Create `tests/lang/matrix/usr-parser-runtime-lock.json`.
-- [ ] Create `tests/lang/matrix/usr-slo-budgets.json`.
-- [ ] Create `tests/lang/matrix/usr-alert-policies.json`.
-- [ ] Create `tests/lang/matrix/usr-redaction-rules.json`.
-- [ ] Create `tests/lang/matrix/usr-security-gates.json`.
+- [x] Create `tests/lang/matrix/usr-language-profiles.json`.
+- [x] Create `tests/lang/matrix/usr-language-version-policy.json`.
+- [x] Create `tests/lang/matrix/usr-language-embedding-policy.json`.
+- [x] Create `tests/lang/matrix/usr-framework-profiles.json`.
+- [x] Create `tests/lang/matrix/usr-node-kind-mapping.json`.
+- [x] Create `tests/lang/matrix/usr-edge-kind-constraints.json`.
+- [x] Create `tests/lang/matrix/usr-capability-matrix.json`.
+- [x] Create `tests/lang/matrix/usr-conformance-levels.json`.
+- [x] Create `tests/lang/matrix/usr-backcompat-matrix.json` (USR section 36.4).
+- [x] Create `tests/lang/matrix/usr-framework-edge-cases.json`.
+- [x] Create `tests/lang/matrix/usr-language-risk-profiles.json`.
+- [x] Create `tests/lang/matrix/usr-embedding-bridge-cases.json`.
+- [x] Create `tests/lang/matrix/usr-generated-provenance-cases.json`.
+- [x] Create `tests/lang/matrix/usr-parser-runtime-lock.json`.
+- [x] Create `tests/lang/matrix/usr-slo-budgets.json`.
+- [x] Create `tests/lang/matrix/usr-alert-policies.json`.
+- [x] Create `tests/lang/matrix/usr-redaction-rules.json`.
+- [x] Create `tests/lang/matrix/usr-security-gates.json`.
+- [x] Add deterministic baseline generator `tools/usr/generate-usr-matrix-baselines.mjs` and matrix inventory doc `tests/lang/matrix/README.md`.
 - [ ] Keep decomposed catalog specs (`docs/specs/usr-*.md`) aligned with machine-readable registry schema keys.
 
 ### 1.2 Schema and validator package (USR section 24)
@@ -214,6 +215,7 @@ If contradictions are found:
 - [ ] Add parser/runtime lock coverage drift test vs parser sources referenced by language/framework profiles.
 - [ ] Add SLO/alert policy schema drift tests and scope-coverage checks.
 - [ ] Add redaction/security gate schema drift tests and enforcement-level coverage checks.
+- [ ] Add matrix generator idempotence test (`node tools/usr/generate-usr-matrix-baselines.mjs` yields zero diff on clean repo).
 - [ ] Add diagnostic taxonomy drift test (section 12.1 baseline vs section 33.1 full taxonomy).
 - [ ] Add reason-code drift test (`attrs.resolution.reasonCode` values vs section 33.2).
 - [ ] Add per-language spec existence test: every registry language ID has exactly one `docs/specs/usr/languages/<language-id>.md`.
