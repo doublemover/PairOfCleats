@@ -256,12 +256,13 @@ export function createSearchPipeline(context) {
     if (!state) return;
     state.failures += 1;
     const now = Date.now();
-    state.disabledUntil = now + resolveProviderBackoffMs(state.failures);
+    const backoffMs = resolveProviderBackoffMs(state.failures);
+    state.disabledUntil = now + backoffMs;
     state.lastError = reason || state.lastError || null;
     if (fromPreflight) {
       state.preflight = false;
       state.preflightCheckedAt = now;
-      state.preflightFailureUntil = state.disabledUntil;
+      state.preflightFailureUntil = now + backoffMs;
     } else {
       state.preflight = null;
       state.preflightFailureUntil = 0;
@@ -559,13 +560,9 @@ export function createSearchPipeline(context) {
           const now = Date.now();
           if (state) {
             if (state.preflight === false) {
-              const explicitFailureUntil = Number.isFinite(Number(state.preflightFailureUntil))
+              const failureUntil = Number.isFinite(Number(state.preflightFailureUntil))
                 ? Number(state.preflightFailureUntil)
                 : 0;
-              const fallbackFailureUntil = state.preflightCheckedAt
-                ? (Number(state.preflightCheckedAt) + resolveProviderBackoffMs(state.failures))
-                : 0;
-              const failureUntil = Math.max(explicitFailureUntil, fallbackFailureUntil);
               if (failureUntil > now) {
                 return false;
               }

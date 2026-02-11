@@ -28,6 +28,14 @@ const waitForClose = (stream) => {
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const RETRYABLE_RM_CODES = new Set(['EBUSY', 'EPERM', 'EACCES', 'EMFILE', 'ENOTEMPTY']);
+let pendingDeleteCounter = 0;
+
+const createPendingDeletePath = (targetPath) => {
+  pendingDeleteCounter = (pendingDeleteCounter + 1) >>> 0;
+  const dir = path.dirname(targetPath);
+  const nonce = `${Date.now()}-${process.pid}-${pendingDeleteCounter.toString(16)}`;
+  return path.join(dir, `pending-delete-${nonce}`);
+};
 
 const removePathWithRetry = async (target, {
   attempts = 40,
@@ -49,7 +57,7 @@ const removePathWithRetry = async (target, {
     await delay(Math.min(1000, delayBase * (attempt + 1)));
   }
   if (!fs.existsSync(target)) return true;
-  const tombstone = `${target}.pending-delete-${Date.now()}-${process.pid}`;
+  const tombstone = createPendingDeletePath(target);
   try {
     await fsPromises.rename(target, tombstone);
     await fsPromises.rm(tombstone, { force: true, recursive: true });
@@ -62,36 +70,20 @@ const cleanupPendingDeleteTombstones = async (targetPath) => {
   try {
     const dir = path.dirname(targetPath);
     const base = path.basename(targetPath);
-    const prefix = `${base}.pending-delete-`;
+    const legacyPrefix = `${base}.pending-delete-`;
+    const globalPrefix = `pending-delete-${base}-`;
+    const genericPrefix = 'pending-delete-';
     const entries = await fsPromises.readdir(dir, { withFileTypes: true });
     const matches = entries
-      .filter((entry) => entry?.isFile?.() && typeof entry.name === 'string' && entry.name.startsWith(prefix))
+      .filter((entry) => {
+        if (!entry?.isFile?.() || typeof entry.name !== 'string') return false;
+        return entry.name.startsWith(legacyPrefix)
+          || entry.name.startsWith(globalPrefix)
+          || entry.name.startsWith(genericPrefix);
+      })
       .map((entry) => path.join(dir, entry.name));
     for (const tombstonePath of matches) {
       await removePathWithRetry(tombstonePath, { recursive: false, attempts: 10, baseDelayMs: 30 });
-    }
-  } catch {}
-};
-
-const cleanupAtomicTempSiblings = async (finalPath) => {
-  try {
-    const dir = path.dirname(finalPath);
-    const base = path.basename(finalPath);
-    const prefix = `${base}.tmp-`;
-    const ext = path.extname(base);
-    const compactPrefix = 't.tmp-';
-    const entries = await fsPromises.readdir(dir, { withFileTypes: true });
-    const tempPaths = entries
-      .filter((entry) => {
-        if (!entry?.isFile?.() || typeof entry.name !== 'string') return false;
-        if (entry.name.startsWith(prefix)) return true;
-        if (!entry.name.startsWith(compactPrefix)) return false;
-        if (!ext) return true;
-        return entry.name.endsWith(ext);
-      })
-      .map((entry) => path.join(dir, entry.name));
-    for (const tempPath of tempPaths) {
-      await removePathWithRetry(tempPath, { recursive: false, attempts: 12, baseDelayMs: 30 });
     }
   } catch {}
 };
@@ -190,14 +182,13 @@ export const createJsonWriteStream = (filePath, options = {}) => {
     if (fs.existsSync(targetPath)) {
       // Final fallback: tombstone + delete to avoid stale temp files
       // when antivirus/indexers briefly hold the file handle on Windows.
-      const tombstone = `${targetPath}.pending-delete-${Date.now()}-${process.pid}`;
+      const tombstone = createPendingDeletePath(targetPath);
       try {
         await fsPromises.rename(targetPath, tombstone);
         await removePathWithRetry(tombstone, { recursive: false, attempts: 6, baseDelayMs: 50 });
       } catch {}
     }
     await cleanupPendingDeleteTombstones(targetPath);
-    await cleanupAtomicTempSiblings(filePath);
   };
   const attachPipelineErrorHandlers = () => {
     const forwardToFile = (err) => {

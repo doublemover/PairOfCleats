@@ -310,6 +310,22 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
     }
     return counts;
   };
+  const hasVectorTableAtPath = (dbPath, tableName) => {
+    if (!dbPath || !tableName) return false;
+    let db = null;
+    try {
+      db = new Database(dbPath, { readonly: true });
+      return hasVectorTable(db, tableName);
+    } catch {
+      return false;
+    } finally {
+      if (db) {
+        try {
+          db.close();
+        } catch {}
+      }
+    }
+  };
   const resolveExpectedDenseCount = (denseVec) => {
     if (!denseVec || typeof denseVec !== 'object') return 0;
     const fields = denseVec.fields && typeof denseVec.fields === 'object' ? denseVec.fields : null;
@@ -747,7 +763,12 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
             stats: sqliteStats
           });
         }
-        const hadVectorTable = await hasVectorTable(Database, tempOutputPath);
+        const hadVectorTable = resolvedVectorConfig?.enabled === true
+          ? hasVectorTableAtPath(
+            tempOutputPath,
+            resolvedVectorConfig?.extension?.table || 'dense_vectors_ann'
+          )
+          : false;
         if (compactMode) {
           const compacted = await compactDatabase({
             dbPath: tempOutputPath,

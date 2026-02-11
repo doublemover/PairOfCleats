@@ -1159,6 +1159,9 @@ export const enqueueChunkMetaArtifacts = async ({
               }, offsetsPath);
             }
             await writeCompatChunkMetaJson();
+            if (!shouldWriteCompatChunkMetaJson) {
+              await removeArtifact(compatJsonPath);
+            }
             await cleanupCollected();
             return;
           }
@@ -1210,6 +1213,9 @@ export const enqueueChunkMetaArtifacts = async ({
           }
           addPieceFile({ type: 'chunks', name: 'chunk_meta_meta', format: 'json' }, metaPath);
           await writeCompatChunkMetaJson();
+          if (!shouldWriteCompatChunkMetaJson) {
+            await removeArtifact(compatJsonPath);
+          }
           await cleanupCollected();
         }
       );

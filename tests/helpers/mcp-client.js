@@ -5,43 +5,82 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
-const encodeMessage = (payload) => {
+const encodeFramedMessage = (payload) => {
   const json = JSON.stringify(payload);
   return `Content-Length: ${Buffer.byteLength(json, 'utf8')}\r\n\r\n${json}`;
 };
+
+const encodeLineMessage = (payload) => `${JSON.stringify(payload)}\n`;
 
 const createReader = (stream, { onActivity } = {}) => {
   let buffer = Buffer.alloc(0);
   const notifications = [];
   const HEADER_PREFIX = Buffer.from('Content-Length:', 'utf8');
   const MAX_GARBAGE_BYTES = 1024 * 1024;
-  const alignToHeader = () => {
-    const headerStart = buffer.indexOf(HEADER_PREFIX);
-    if (headerStart > 0) {
-      buffer = buffer.slice(headerStart);
-      return;
+  const trimLeadingWhitespace = () => {
+    let offset = 0;
+    while (offset < buffer.length) {
+      const byte = buffer[offset];
+      if (byte === 0x20 || byte === 0x09 || byte === 0x0d || byte === 0x0a) {
+        offset += 1;
+        continue;
+      }
+      break;
     }
-    if (headerStart === -1 && buffer.length > MAX_GARBAGE_BYTES) {
-      // Prevent unbounded growth if non-protocol stdout is emitted.
-      buffer = buffer.slice(-HEADER_PREFIX.length);
+    if (offset > 0) {
+      buffer = buffer.slice(offset);
     }
   };
   const tryRead = () => {
-    alignToHeader();
-    const headerEnd = buffer.indexOf('\r\n\r\n');
-    if (headerEnd === -1) return null;
-    const header = buffer.slice(0, headerEnd).toString('utf8');
-    const match = header.match(/Content-Length:\s*(\d+)/i);
-    if (!match) {
-      buffer = buffer.slice(headerEnd + 4);
+    while (true) {
+      trimLeadingWhitespace();
+      if (!buffer.length) return null;
+
+      const headerStart = buffer.indexOf(HEADER_PREFIX);
+      if (headerStart === 0) {
+        const headerEnd = buffer.indexOf('\r\n\r\n');
+        if (headerEnd === -1) return null;
+        const header = buffer.slice(0, headerEnd).toString('utf8');
+        const match = header.match(/Content-Length:\s*(\d+)/i);
+        if (!match) {
+          buffer = buffer.slice(headerEnd + 4);
+          continue;
+        }
+        const length = parseInt(match[1], 10);
+        const total = headerEnd + 4 + length;
+        if (buffer.length < total) return null;
+        const body = buffer.slice(headerEnd + 4, total).toString('utf8');
+        buffer = buffer.slice(total);
+        return JSON.parse(body);
+      }
+
+      const newlineIndex = buffer.indexOf('\n');
+      const shouldParseLine = newlineIndex !== -1 && (headerStart === -1 || newlineIndex < headerStart);
+      if (shouldParseLine) {
+        const line = buffer.slice(0, newlineIndex + 1).toString('utf8').trim();
+        buffer = buffer.slice(newlineIndex + 1);
+        if (!line) continue;
+        try {
+          return JSON.parse(line);
+        } catch {
+          continue;
+        }
+      }
+
+      if (headerStart > 0) {
+        // Keep waiting for either a newline-delimited message or a framed header.
+        if (headerStart > MAX_GARBAGE_BYTES) {
+          buffer = buffer.slice(headerStart);
+        }
+        return null;
+      }
+
+      if (headerStart === -1 && buffer.length > MAX_GARBAGE_BYTES) {
+        // Prevent unbounded growth if non-protocol stdout is emitted.
+        buffer = buffer.slice(-HEADER_PREFIX.length);
+      }
       return null;
     }
-    const length = parseInt(match[1], 10);
-    const total = headerEnd + 4 + length;
-    if (buffer.length < total) return null;
-    const body = buffer.slice(headerEnd + 4, total).toString('utf8');
-    buffer = buffer.slice(total);
-    return JSON.parse(body);
   };
 
   const readRaw = async () => {
@@ -153,7 +192,11 @@ export const startMcpServer = async ({
   touchTimeout();
 
   const send = (payload) => {
-    server.stdin.write(encodeMessage(payload));
+    if (transport === 'sdk') {
+      server.stdin.write(encodeLineMessage(payload));
+      return;
+    }
+    server.stdin.write(encodeFramedMessage(payload));
   };
 
   const shutdown = async () => {

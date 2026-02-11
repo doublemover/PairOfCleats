@@ -11,6 +11,7 @@ import {
   resolveBundleFormatFromName,
   writeBundleFile
 } from '../../shared/bundle-io.js';
+import { normalizeFilePath } from '../../shared/path-normalize.js';
 
 const summarizeSignatureDelta = (current, previous, limit = 5) => {
   if (!current || !previous) return null;
@@ -39,6 +40,11 @@ const isCoarseMtime = (mtimeMs) => (
 const shouldVerifyHash = (fileStat, cachedEntry) => (
   isCoarseMtime(fileStat?.mtimeMs) && !!cachedEntry?.hash
 );
+
+const normalizeIncrementalRelPath = (value) => {
+  const normalized = normalizeFilePath(value, { lower: process.platform === 'win32' });
+  return normalized.startsWith('./') ? normalized.slice(2) : normalized;
+};
 
 /**
  * Initialize incremental cache state for a mode.
@@ -400,8 +406,14 @@ export async function writeIncrementalBundle({
  */
 export async function pruneIncrementalManifest({ enabled, manifest, manifestPath, bundleDir, seenFiles }) {
   if (!enabled) return;
+  const seenNormalized = new Set(
+    Array.from(seenFiles || [])
+      .map((entry) => normalizeIncrementalRelPath(entry))
+      .filter(Boolean)
+  );
   for (const relKey of Object.keys(manifest.files)) {
-    if (seenFiles.has(relKey)) continue;
+    const normalizedRelKey = normalizeIncrementalRelPath(relKey);
+    if (seenNormalized.has(normalizedRelKey)) continue;
     const entry = manifest.files[relKey];
     if (entry?.bundle) {
       const bundlePath = path.join(bundleDir, entry.bundle);
@@ -435,21 +447,23 @@ export async function updateBundlesWithChunks({
   const chunkMap = new Map();
   for (const chunk of chunks) {
     if (!chunk?.file) continue;
-    const list = chunkMap.get(chunk.file) || [];
+    const fileKey = normalizeIncrementalRelPath(chunk.file);
+    const list = chunkMap.get(fileKey) || [];
     list.push(chunk);
-    chunkMap.set(chunk.file, list);
+    chunkMap.set(fileKey, list);
   }
   let bundleUpdates = 0;
   const resolvedBundleFormat = normalizeBundleFormat(bundleFormat || manifest?.bundleFormat);
   for (const [file, entry] of Object.entries(manifest.files || {})) {
+    const normalizedFile = normalizeIncrementalRelPath(file);
     const bundleName = entry?.bundle || resolveBundleFilename(file, resolvedBundleFormat);
-    const fileChunks = chunkMap.get(file);
+    const fileChunks = chunkMap.get(normalizedFile);
     if (!bundleName || !fileChunks) continue;
     let relations = null;
     if (fileRelations) {
       relations = typeof fileRelations.get === 'function'
-        ? (fileRelations.get(file) || null)
-        : (fileRelations[file] || null);
+        ? (fileRelations.get(normalizedFile) || fileRelations.get(file) || null)
+        : (fileRelations[normalizedFile] || fileRelations[file] || null);
     }
     const bundlePath = path.join(bundleDir, bundleName);
     let vfsManifestRows = null;

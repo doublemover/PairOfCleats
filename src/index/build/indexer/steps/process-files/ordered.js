@@ -160,6 +160,10 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
     if (seenCount < expectedCount) return;
     if (!pending.size) return;
     if (pending.has(nextIndex)) return;
+    if (flushing) {
+      flushRequested = true;
+      return;
+    }
     debugLog('[ordered] finalize reached expected count but nextIndex missing', {
       nextIndex,
       pending: pending.size,
@@ -262,8 +266,9 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
       ? (Math.floor(nextIndex / bucketSize) + 1) * bucketSize
       : Number.POSITIVE_INFINITY;
     while (pending.has(nextIndex) && nextIndex < bucketUpperBound) {
-      const entry = pending.get(nextIndex);
-      pending.delete(nextIndex);
+      const currentIndex = nextIndex;
+      const entry = pending.get(currentIndex);
+      pending.delete(currentIndex);
       try {
         if (entry?.result) {
           await handleFileResult(entry.result, state, entry.shardMeta);
@@ -273,8 +278,8 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
         try { entry?.reject?.(err); } catch {}
         throw err;
       } finally {
-        completed.add(nextIndex);
-        nextIndex += 1;
+        completed.add(currentIndex);
+        nextIndex = Math.max(nextIndex, currentIndex + 1);
         noteAdvance();
         advancePastSkipped();
       }

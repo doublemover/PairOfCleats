@@ -296,9 +296,9 @@ const normalizeDenseVectorPayload = (denseVec) => {
   return normalized;
 };
 
-export function loadSqliteIndexOptionalArtifacts(dir, { modelId = null } = {}) {
-  const denseBinary = loadOptionalDenseBinary(dir, 'dense_vectors_uint8', modelId);
-  const denseMeta = denseBinary ? null : loadOptional(dir, 'dense_vectors_uint8.meta.json');
+const loadDenseVectorArtifact = (dir, baseName, { modelId = null } = {}) => {
+  const denseBinary = loadOptionalDenseBinary(dir, baseName, modelId);
+  const denseMeta = denseBinary ? null : loadOptional(dir, `${baseName}.meta.json`);
   let denseVec = denseBinary;
   if (!denseVec) {
     if (denseMeta && typeof denseMeta === 'object') {
@@ -310,15 +310,28 @@ export function loadSqliteIndexOptionalArtifacts(dir, { modelId = null } = {}) {
         ...denseMeta,
         model: denseMeta.model || modelId || null,
         ...(totalRecords > 0 && hasParts
-          ? { rows: loadOptionalArrayArtifactRows(dir, 'dense_vectors_uint8', { materialize: true }) }
+          ? { rows: loadOptionalArrayArtifactRows(dir, baseName, { materialize: true }) }
           : { vectors: [] })
       };
     } else {
-      denseVec = loadOptional(dir, 'dense_vectors_uint8.json');
+      denseVec = loadOptional(dir, `${baseName}.json`);
       if (denseVec && !denseVec.model) denseVec.model = modelId || null;
     }
   }
-  denseVec = normalizeDenseVectorPayload(denseVec);
+  return normalizeDenseVectorPayload(denseVec);
+};
+
+export function loadSqliteIndexOptionalArtifacts(dir, { modelId = null } = {}) {
+  let denseVec = null;
+  const denseCandidates = [
+    'dense_vectors_uint8',
+    'dense_vectors_code_uint8',
+    'dense_vectors_doc_uint8'
+  ];
+  for (const baseName of denseCandidates) {
+    denseVec = loadDenseVectorArtifact(dir, baseName, { modelId });
+    if (denseVec) break;
+  }
   return {
     fileMeta: loadOptionalFileMetaRows(dir),
     minhash: loadOptionalMinhashRows(dir),

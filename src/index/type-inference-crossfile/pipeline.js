@@ -452,7 +452,31 @@ export async function applyCrossFileInference({
       const { calls: returnCalls } = await getReturnCalls(chunk);
       if (returnCalls.size) {
         if (!chunk.docmeta || typeof chunk.docmeta !== 'object') chunk.docmeta = {};
+        const resolvedViaSummaries = new Set();
+        if (callSummaries.length) {
+          for (const summary of callSummaries) {
+            const callName = typeof summary?.name === 'string' ? summary.name : null;
+            if (!callName || !returnCalls.has(callName)) continue;
+            const resolvedUid = summary?.resolvedCalleeChunkUid || summary?.targetChunkUid || null;
+            const resolvedChunk = resolvedUid ? chunkByUid.get(resolvedUid) : null;
+            const returnTypes = Array.isArray(summary?.returnTypes) && summary.returnTypes.length
+              ? summary.returnTypes
+              : (Array.isArray(entryByUid.get(resolvedUid)?.returnTypes)
+                ? entryByUid.get(resolvedUid).returnTypes
+                : []);
+            if (!returnTypes.length) continue;
+            resolvedViaSummaries.add(callName);
+            const hopCount = resolvedChunk?.file && resolvedChunk.file !== chunk.file ? 1 : 0;
+            const confidence = confidenceForHop(hopCount);
+            for (const type of returnTypes) {
+              if (addInferredReturn(chunk.docmeta, type, FLOW_SOURCE, confidence)) {
+                inferredReturns += 1;
+              }
+            }
+          }
+        }
         for (const callName of returnCalls) {
+          if (resolvedViaSummaries.has(callName)) continue;
           const symbolRef = resolveSymbolRef({
             targetName: callName,
             kindHint: null,

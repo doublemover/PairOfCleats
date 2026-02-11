@@ -350,11 +350,14 @@ export async function runBuildEmbeddingsWithConfig(config) {
   };
   const repoCacheRootKey = normalizePath(repoCacheRootResolved);
   const buildsRootKey = normalizePath(path.join(repoCacheRootResolved, 'builds'));
-  const hasModeArtifacts = (candidateRoot) => {
-    if (!candidateRoot || !Array.isArray(modes) || !modes.length) return false;
-    for (const mode of modes) {
-      if (typeof mode !== 'string' || !mode) continue;
-      const indexDir = path.join(candidateRoot, `index-${mode}`);
+  const hasModeArtifacts = (candidateRoot, mode = null) => {
+    if (!candidateRoot || !fsSync.existsSync(candidateRoot)) return false;
+    const candidateModes = mode
+      ? [mode]
+      : (Array.isArray(modes) && modes.length ? modes : ['code', 'prose', 'extracted-prose', 'records']);
+    for (const modeName of candidateModes) {
+      if (typeof modeName !== 'string' || !modeName) continue;
+      const indexDir = path.join(candidateRoot, `index-${modeName}`);
       if (!fsSync.existsSync(indexDir)) continue;
       const hasPiecesManifest = fsSync.existsSync(path.join(indexDir, 'pieces', 'manifest.json'));
       const hasChunkMeta = (
@@ -370,7 +373,8 @@ export async function runBuildEmbeddingsWithConfig(config) {
     }
     return false;
   };
-  const findLatestModeRoot = () => {
+  const primaryMode = typeof modes?.[0] === 'string' && modes[0] ? modes[0] : null;
+  const findLatestModeRoot = (mode = primaryMode) => {
     const buildsRoot = path.join(repoCacheRootResolved, 'builds');
     if (!fsSync.existsSync(buildsRoot)) return null;
     let entries = [];
@@ -383,7 +387,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
     for (const entry of entries) {
       if (!entry?.isDirectory?.()) continue;
       const candidateRoot = path.join(buildsRoot, entry.name);
-      if (!hasModeArtifacts(candidateRoot)) continue;
+      if (!hasModeArtifacts(candidateRoot, mode)) continue;
       let mtimeMs = 0;
       try {
         mtimeMs = Number(fsSync.statSync(candidateRoot).mtimeMs) || 0;
@@ -393,6 +397,13 @@ export async function runBuildEmbeddingsWithConfig(config) {
     candidates.sort((a, b) => b.mtimeMs - a.mtimeMs);
     return candidates[0]?.root || null;
   };
+  const resolveModeIndexRoot = (mode) => {
+    if (hasModeArtifacts(activeIndexRoot, mode)) return activeIndexRoot;
+    const currentBuild = getCurrentBuildInfo(root, userConfig, { mode });
+    const currentRoot = currentBuild?.activeRoot || currentBuild?.buildRoot || null;
+    if (currentRoot && hasModeArtifacts(currentRoot, mode)) return currentRoot;
+    return findLatestModeRoot(mode) || activeIndexRoot;
+  };
   if (activeIndexRoot) {
     const activeRootKey = normalizePath(activeIndexRoot);
     const underRepoCache = activeRootKey
@@ -401,15 +412,15 @@ export async function runBuildEmbeddingsWithConfig(config) {
     const needsCurrentBuildRoot = underRepoCache && (
       activeRootKey === repoCacheRootKey
       || activeRootKey === buildsRootKey
-      || !hasModeArtifacts(activeIndexRoot)
+      || !hasModeArtifacts(activeIndexRoot, primaryMode)
     );
     if (needsCurrentBuildRoot) {
       const currentBuild = getCurrentBuildInfo(root, userConfig, { mode: modes[0] || null });
       const buildRootCandidate = currentBuild?.buildRoot || null;
       const activeRootCandidate = currentBuild?.activeRoot || null;
-      const promotedRoot = hasModeArtifacts(buildRootCandidate)
+      const promotedRoot = hasModeArtifacts(buildRootCandidate, primaryMode)
         ? buildRootCandidate
-        : (hasModeArtifacts(activeRootCandidate) ? activeRootCandidate : null);
+        : (hasModeArtifacts(activeRootCandidate, primaryMode) ? activeRootCandidate : null);
       const promotedRootKey = normalizePath(promotedRoot);
       if (promotedRoot && promotedRootKey && promotedRootKey !== activeRootKey) {
         activeIndexRoot = promotedRoot;
@@ -417,14 +428,14 @@ export async function runBuildEmbeddingsWithConfig(config) {
       }
     }
   }
-  if (activeIndexRoot && !hasModeArtifacts(activeIndexRoot)) {
+  if (activeIndexRoot && !hasModeArtifacts(activeIndexRoot, primaryMode)) {
     const activeRootKey = normalizePath(activeIndexRoot);
     const allowLatestFallback = !activeRootKey
       || !fsSync.existsSync(activeIndexRoot)
       || activeRootKey === repoCacheRootKey
       || activeRootKey === buildsRootKey;
     if (allowLatestFallback) {
-      const fallbackRoot = findLatestModeRoot();
+      const fallbackRoot = findLatestModeRoot(primaryMode);
       if (fallbackRoot && normalizePath(fallbackRoot) !== normalizePath(activeIndexRoot)) {
         activeIndexRoot = fallbackRoot;
         log(`[embeddings] index root lacked mode artifacts; using latest build root: ${activeIndexRoot}`);
@@ -559,7 +570,11 @@ export async function runBuildEmbeddingsWithConfig(config) {
       let cacheMisses = 0;
       let cacheRejected = 0;
       let cacheFastRejects = 0;
-      const indexDir = getIndexDir(root, mode, userConfig, { indexRoot: activeIndexRoot });
+      const modeIndexRoot = resolveModeIndexRoot(mode);
+      if (normalizePath(modeIndexRoot) !== normalizePath(activeIndexRoot)) {
+        log(`[embeddings] ${mode}: using mode-specific index root: ${modeIndexRoot}`);
+      }
+      const indexDir = getIndexDir(root, mode, userConfig, { indexRoot: modeIndexRoot });
       const statePath = path.join(indexDir, 'index_state.json');
       logExpectedArtifacts(mode, indexDir, 'pre-stage3');
       const stateNow = new Date().toISOString();
@@ -679,10 +694,10 @@ export async function runBuildEmbeddingsWithConfig(config) {
         }
 
         stageCheckpoints = createStageCheckpointRecorder({
-          buildRoot: activeIndexRoot,
+          buildRoot: modeIndexRoot,
           metricsDir,
           mode,
-          buildId: activeIndexRoot ? path.basename(activeIndexRoot) : null
+          buildId: modeIndexRoot ? path.basename(modeIndexRoot) : null
         });
         stageCheckpoints.record({
           stage: 'stage3',
@@ -1427,7 +1442,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
             Database,
             root,
             userConfig,
-            indexRoot: activeIndexRoot,
+            indexRoot: modeIndexRoot,
             mode,
             vectors: mergedVectors,
             dims: finalDims,
@@ -1585,7 +1600,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
 
         const validation = await scheduleIo(() => validateIndexArtifacts({
           root,
-          indexRoot: activeIndexRoot,
+          indexRoot: modeIndexRoot,
           modes: [mode],
           userConfig,
           sqliteEnabled: false
