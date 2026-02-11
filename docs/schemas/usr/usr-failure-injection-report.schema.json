@@ -2,12 +2,25 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "usr/usr-failure-injection-report.schema.json",
   "title": "usr-failure-injection-report.schema.json",
-  "allOf": [{ "$ref": "./evidence-envelope.schema.json" }],
+  "allOf": [
+    {
+      "$ref": "./evidence-envelope.schema.json"
+    }
+  ],
   "type": "object",
   "properties": {
-    "artifactId": { "type": "string" },
-    "summary": { "type": "object" },
-    "rows": { "type": "array", "items": { "type": "object" } }
+    "artifactId": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "object"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    }
   },
-  "additionalProperties": true
+  "unevaluatedProperties": false
 }

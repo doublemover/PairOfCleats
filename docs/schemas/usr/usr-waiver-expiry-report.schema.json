@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "usr/usr-rollback-drill-report.schema.json",
-  "title": "usr-rollback-drill-report.schema.json",
+  "$id": "usr/usr-waiver-expiry-report.schema.json",
+  "title": "usr-waiver-expiry-report.schema.json",
   "allOf": [
     {
       "$ref": "./evidence-envelope.schema.json"
@@ -10,7 +10,8 @@
   "type": "object",
   "properties": {
     "artifactId": {
-      "type": "string"
+      "type": "string",
+      "const": "usr-waiver-expiry-report"
     },
     "summary": {
       "type": "object"

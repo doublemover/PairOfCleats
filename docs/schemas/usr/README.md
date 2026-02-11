@@ -1,6 +1,6 @@
 # USR Schema Index
 
-Last updated: 2026-02-11T07:25:00Z
+Last updated: 2026-02-11T09:15:00Z
 
 This directory contains JSON schemas for USR artifacts, reports, and gate evidence payloads.
 
@@ -16,3 +16,4 @@ Schema policy:
 - Every blocking evidence artifact must have an active schema.
 - Schema evolution must be backward-compatibility tested per rollout policy.
 - Schema IDs and versions must match matrix entries and validator outputs.
+- Shared envelope schema stays extension-safe for composed artifacts; strict unknown-key rejection is enforced at artifact schemas via `unevaluatedProperties: false`.
