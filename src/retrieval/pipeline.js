@@ -556,20 +556,13 @@ export function createSearchPipeline(context) {
                 return true;
               }
             } else if (state.preflight === false) {
-              // Reuse failed preflight only for the active cooldown window.
+              // Reuse failed preflight only while the provider is cooling down.
               // Once cooldown expires, force a fresh preflight probe.
-              // Keep probe retry cadence bounded so providers can recover
-              // quickly even if failure counters are elevated.
-              const cooldownMs = PROVIDER_RETRY_BASE_MS;
-              const checkedAt = Number.isFinite(Number(state.preflightCheckedAt))
-                ? Number(state.preflightCheckedAt)
-                : 0;
-              if (checkedAt > 0 && (now - checkedAt) < cooldownMs) {
+              if (state.disabledUntil > now) {
                 return false;
               }
               state.preflight = null;
               state.preflightCheckedAt = 0;
-              state.disabledUntil = 0;
             } else if (state.disabledUntil > now) {
               return false;
             }
