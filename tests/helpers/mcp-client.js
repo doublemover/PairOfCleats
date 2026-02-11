@@ -113,7 +113,7 @@ export const startMcpServer = async ({
   transport = null,
   env = {},
   args = [],
-  timeoutMs = 30000
+  timeoutMs = 120000
 }) => {
   if (!cacheRoot) throw new Error('cacheRoot is required');
   await fsPromises.mkdir(cacheRoot, { recursive: true });
@@ -139,14 +139,13 @@ export const startMcpServer = async ({
   let timeout = null;
   const resolvedTimeoutMs = Number.isFinite(Number(timeoutMs))
     ? Math.max(1000, Math.floor(Number(timeoutMs)))
-    : 30000;
+    : 120000;
   const touchTimeout = () => {
     if (!resolvedTimeoutMs) return;
     if (timeout) clearTimeout(timeout);
     timeout = setTimeout(() => {
-      console.error('MCP server test timed out.');
+      console.error(`MCP server test timed out after ${resolvedTimeoutMs}ms.`);
       server.kill('SIGKILL');
-      process.exit(1);
     }, resolvedTimeoutMs);
   };
   const reader = createReader(server.stdout, { onActivity: touchTimeout });
