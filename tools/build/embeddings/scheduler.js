@@ -32,23 +32,20 @@ export const createEmbeddingsScheduler = ({ argv, rawArgv, userConfig, envConfig
   const scheduler = createBuildScheduler(schedulerConfig);
   scheduler.registerQueues?.(schedulerConfig.queues);
 
-  const schedulerTokens = scheduler.stats?.().tokens || null;
   const schedulerEnabled = scheduler.enabled && !scheduler.lowResourceMode;
-  const canScheduleCompute = schedulerEnabled && (schedulerTokens?.cpu?.total ?? 0) > 0;
-  const canScheduleIo = schedulerEnabled && (schedulerTokens?.io?.total ?? 0) > 0;
   const scheduleCompute = (fn) => scheduleWithFallback(
     scheduler,
     SCHEDULER_QUEUE_NAMES.embeddingsCompute,
     { cpu: 1 },
     fn,
-    canScheduleCompute
+    schedulerEnabled
   );
   const scheduleIo = (fn) => scheduleWithFallback(
     scheduler,
     SCHEDULER_QUEUE_NAMES.embeddingsIo,
     { io: 1 },
     fn,
-    canScheduleIo
+    schedulerEnabled
   );
 
   return {
