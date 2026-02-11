@@ -20,6 +20,24 @@ const WINDOWS_PATH_BUDGET = 240;
 const MIN_COMPACT_TOKEN_CHARS = 12;
 const REPLACE_TEMP_WAIT_ATTEMPTS = 20;
 const REPLACE_TEMP_WAIT_BASE_DELAY_MS = 25;
+const LONG_PATH_PREFIX = '\\\\?\\';
+
+const stripLongPathPrefix = (value) => (
+  typeof value === 'string' && value.startsWith(LONG_PATH_PREFIX)
+    ? value.slice(LONG_PATH_PREFIX.length)
+    : value
+);
+
+const toComparablePath = (value) => path.resolve(stripLongPathPrefix(value));
+
+const areComparablePathsEqual = (left, right) => {
+  if (typeof left !== 'string' || typeof right !== 'string') return false;
+  try {
+    return toComparablePath(left) === toComparablePath(right);
+  } catch {
+    return false;
+  }
+};
 
 const waitForPath = async (targetPath, { attempts = 3, baseDelayMs = 10 } = {}) => {
   const resolvedAttempts = Number.isFinite(attempts) ? Math.max(1, Math.floor(attempts)) : 3;
@@ -105,7 +123,7 @@ export const replaceFile = async (tempPath, finalPath, options = {}) => {
   const isSamePath = (
     typeof tempPath === 'string'
     && typeof finalPath === 'string'
-    && toComparablePath(tempPath) === toComparablePath(finalPath)
+    && areComparablePathsEqual(tempPath, finalPath)
   );
   if (isSamePath) {
     if (fs.existsSync(finalPath)) return;
@@ -118,6 +136,7 @@ export const replaceFile = async (tempPath, finalPath, options = {}) => {
     const stat = await safeStat(finalPath);
     return Boolean(stat && stat.mtimeMs >= startedAt - 2000);
   };
+  const finalExistedAtStart = finalExists;
   let backupAvailable = fs.existsSync(bakPath);
   const restoreBackup = async () => {
     if (!backupAvailable) return false;
@@ -130,19 +149,19 @@ export const replaceFile = async (tempPath, finalPath, options = {}) => {
       return false;
     }
   };
+  const canTreatExistingFinalAsCommitted = async () => {
+    if (!fs.existsSync(finalPath)) return false;
+    if (!finalExistedAtStart || backupAvailable) return true;
+    return isFreshFinal();
+  };
   if (!(await waitForPath(tempPath, {
     attempts: REPLACE_TEMP_WAIT_ATTEMPTS,
     baseDelayMs: REPLACE_TEMP_WAIT_BASE_DELAY_MS
   }))) {
-    if (fs.existsSync(finalPath)) {
-      if (await isFreshFinal()) {
-        if (!keepBackup && backupAvailable) {
-          try { await fsPromises.rm(bakPath, { force: true }); } catch {}
-        }
-        return;
+    if (await canTreatExistingFinalAsCommitted()) {
+      if (!keepBackup && backupAvailable) {
+        try { await fsPromises.rm(bakPath, { force: true }); } catch {}
       }
-    }
-    if (await isFreshFinal()) {
       return;
     }
     if (await restoreBackup()) return;
@@ -191,15 +210,7 @@ export const replaceFile = async (tempPath, finalPath, options = {}) => {
         }
         return;
       }
-      if (fs.existsSync(finalPath)) {
-        if (await isFreshFinal()) {
-          if (!keepBackup && backupAvailable) {
-            try { await fsPromises.rm(bakPath, { force: true }); } catch {}
-          }
-          return;
-        }
-      }
-      if (await isFreshFinal()) {
+      if (await canTreatExistingFinalAsCommitted()) {
         if (!keepBackup && backupAvailable) {
           try { await fsPromises.rm(bakPath, { force: true }); } catch {}
         }

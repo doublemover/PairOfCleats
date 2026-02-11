@@ -78,9 +78,17 @@ const cleanupAtomicTempSiblings = async (finalPath) => {
     const dir = path.dirname(finalPath);
     const base = path.basename(finalPath);
     const prefix = `${base}.tmp-`;
+    const ext = path.extname(base);
+    const compactPrefix = 't.tmp-';
     const entries = await fsPromises.readdir(dir, { withFileTypes: true });
     const tempPaths = entries
-      .filter((entry) => entry?.isFile?.() && typeof entry.name === 'string' && entry.name.startsWith(prefix))
+      .filter((entry) => {
+        if (!entry?.isFile?.() || typeof entry.name !== 'string') return false;
+        if (entry.name.startsWith(prefix)) return true;
+        if (!entry.name.startsWith(compactPrefix)) return false;
+        if (!ext) return true;
+        return entry.name.endsWith(ext);
+      })
       .map((entry) => path.join(dir, entry.name));
     for (const tempPath of tempPaths) {
       await removePathWithRetry(tempPath, { recursive: false, attempts: 12, baseDelayMs: 30 });
