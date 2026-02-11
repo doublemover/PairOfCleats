@@ -1,7 +1,7 @@
 # Spec -- USR Evidence Catalog
 
-Status: Draft v0.2
-Last updated: 2026-02-11T04:30:00Z
+Status: Draft v0.3
+Last updated: 2026-02-11T05:30:00Z
 
 ## 0. Purpose and scope
 
@@ -72,4 +72,6 @@ Every evidence artifact MUST include:
 - `docs/specs/usr-implementation-readiness-contract.md`
 - `docs/specs/usr-release-train-contract.md`
 - `docs/specs/usr-waiver-and-exception-contract.md`
+- `docs/specs/usr-schema-artifact-catalog.md`
+- `docs/schemas/usr/*.json`
 - `TES_LAYN_ROADMAP.md`
