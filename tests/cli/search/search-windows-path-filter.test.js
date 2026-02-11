@@ -3,13 +3,14 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { rmDirRecursive } from '../../helpers/temp.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'windows-path-filter');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
-await fsPromises.rm(tempRoot, { recursive: true, force: true });
+await rmDirRecursive(tempRoot, { retries: 10, delayMs: 100 });
 await fsPromises.mkdir(path.join(repoRoot, 'src', 'nested'), { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 
