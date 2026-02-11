@@ -537,7 +537,7 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
         if (hasIncrementalBundles
           && vectorRequiredForMode
           && expectedDenseCount > 0
-          && bundleManifest?.bundleEmbeddings === false) {
+          && bundleManifest?.bundleEmbeddings !== true) {
           const stageNote = bundleManifest.bundleEmbeddingStage
             ? ` (stage ${bundleManifest.bundleEmbeddingStage})`
             : '';
