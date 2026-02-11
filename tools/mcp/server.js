@@ -21,7 +21,7 @@ const { toolDefs, schemaVersion, toolVersion, serverInfo, queueMax, maxBufferByt
   getMcpServerConfig(argv.repo ? path.resolve(argv.repo) : null);
 const capabilities = getCapabilities();
 const normalizeMode = (value) => (typeof value === 'string' ? value.trim().toLowerCase() : '');
-const cliMode = normalizeMode(argv['mcp-mode']);
+const cliMode = normalizeMode(argv['mcp-mode'] ?? argv.mcpMode);
 const envMode = normalizeMode(envConfig.mcpMode);
 const configMode = normalizeMode(userConfig?.mcp?.mode);
 const requestedMode = cliMode || envMode || configMode || 'legacy';
