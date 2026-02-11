@@ -562,6 +562,10 @@ export async function loadSearchIndexes({
   const validateEmbeddingIdentityForMode = (mode, idx) => {
     if (!idx) return [];
     const sources = [];
+    const stateIdentity = extractEmbeddingIdentity(idx?.state?.embeddings?.embeddingIdentity);
+    if (stateIdentity) {
+      sources.push({ name: 'index_state', identity: stateIdentity, disable: null });
+    }
     const denseIdentity = extractEmbeddingIdentity(idx.denseVec);
     if (denseIdentity) {
       sources.push({ name: 'dense_vectors', identity: denseIdentity, disable: null });
