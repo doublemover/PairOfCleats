@@ -16,7 +16,18 @@ const rmWithRetry = async (targetPath) => {
       await fsPromises.rm(targetPath, { recursive: true, force: true });
       return;
     } catch (err) {
-      if (!RETRYABLE_RM_CODES.has(err?.code) || attempt >= RM_RETRY_ATTEMPTS - 1) {
+      const isLastAttempt = attempt >= RM_RETRY_ATTEMPTS - 1;
+      if (!RETRYABLE_RM_CODES.has(err?.code) || isLastAttempt) {
+        if (isLastAttempt && RETRYABLE_RM_CODES.has(err?.code)) {
+          // Final fallback: detach the directory name and retry delete on the
+          // tombstoned path so active handles cannot recreate under the old path.
+          const tombstone = `${targetPath}.pending-delete-${Date.now()}-${process.pid}`;
+          try {
+            await fsPromises.rename(targetPath, tombstone);
+            await fsPromises.rm(tombstone, { recursive: true, force: true });
+            return;
+          } catch {}
+        }
         throw err;
       }
       const delayMs = Math.min(1000, RM_RETRY_BASE_DELAY_MS * (2 ** attempt));
