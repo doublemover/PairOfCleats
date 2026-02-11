@@ -550,11 +550,11 @@ export function createSearchPipeline(context) {
           const now = Date.now();
           if (
             state
-            && state.preflight === true
+            && state.preflight != null
             && state.preflightCheckedAt
             && (now - state.preflightCheckedAt) <= PREFLIGHT_CACHE_TTL_MS
           ) {
-            return true;
+            return state.preflight === true;
           }
           try {
             const result = await provider.preflight({
