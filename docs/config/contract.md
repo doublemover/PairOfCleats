@@ -303,6 +303,7 @@ tooling.vfs.tokenMode (string)
 - PAIROFCLEATS_STAGE -> stage
 - PAIROFCLEATS_SUMMARY_CACHE_MAX -> summaryCacheMax
 - PAIROFCLEATS_THREADS -> threads
+- PAIROFCLEATS_TRACE_ARTIFACT_IO -> traceArtifactIo
 - PAIROFCLEATS_VERBOSE -> verbose
 - PAIROFCLEATS_WATCHER_BACKEND -> watcherBackend
 - PAIROFCLEATS_WORKER_POOL -> workerPool

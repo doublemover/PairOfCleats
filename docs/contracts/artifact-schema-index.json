@@ -1,5 +1,5 @@
 {
-  "schemaHash": "499a787e66593d5c7604b2242d67fa0e4222d613",
+  "schemaHash": "630596fe7e2cb8dc0f8c031bc550e510c1f25e60",
   "artifacts": [
     {
       "artifact": "api_contracts",
@@ -116,6 +116,39 @@
         "metaV2",
         "name",
         "startLine"
+      ]
+    },
+    {
+      "artifact": "chunk_meta_cold",
+      "schemaVersion": null,
+      "requiredFields": [
+        "id"
+      ],
+      "optionalFields": [
+        "metaV2"
+      ]
+    },
+    {
+      "artifact": "chunk_meta_cold_meta",
+      "schemaVersion": {
+        "type": "string",
+        "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$"
+      },
+      "requiredFields": [
+        "artifact",
+        "compression",
+        "format",
+        "generatedAt",
+        "maxPartBytes",
+        "maxPartRecords",
+        "parts",
+        "schemaVersion",
+        "targetMaxBytes",
+        "totalBytes",
+        "totalRecords"
+      ],
+      "optionalFields": [
+        "extensions"
       ]
     },
     {

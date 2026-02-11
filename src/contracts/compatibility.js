@@ -8,15 +8,40 @@ const normalizeModes = (modes) => Array.from(new Set(modes || [])).sort();
 
 export const CHUNK_ID_ALGO_VERSION = 2;
 
+const VOLATILE_LANGUAGE_OPTION_KEYS = new Set([
+  'rootDir',
+  'repoRoot',
+  'sourceRoot',
+  'projectRoot',
+  'workspaceRoot',
+  'buildRoot',
+  'cachePersistentDir',
+  'cacheDir',
+  'cacheRoot',
+  'tempDir',
+  'tmpDir',
+  'workDir',
+  'outputDir',
+  'indexRoot'
+]);
+
+const sanitizeVolatileConfig = (value) => {
+  if (Array.isArray(value)) return value.map((entry) => sanitizeVolatileConfig(entry));
+  if (!value || typeof value !== 'object') return value;
+  const out = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (VOLATILE_LANGUAGE_OPTION_KEYS.has(key)) continue;
+    out[key] = sanitizeVolatileConfig(entry);
+  }
+  return out;
+};
+
 export const buildLanguagePolicyKey = (runtime) => {
-  const languageOptions = runtime?.languageOptions
-    ? { ...runtime.languageOptions }
-    : {};
-  if (languageOptions.rootDir) delete languageOptions.rootDir;
+  const languageOptions = sanitizeVolatileConfig(runtime?.languageOptions || {});
   const payload = {
-    segmentsConfig: runtime?.segmentsConfig || {},
+    segmentsConfig: sanitizeVolatileConfig(runtime?.segmentsConfig || {}),
     languageOptions,
-    commentsConfig: runtime?.commentsConfig || {}
+    commentsConfig: sanitizeVolatileConfig(runtime?.commentsConfig || {})
   };
   return sha1(stableStringify(payload));
 };
@@ -28,7 +53,7 @@ export const buildEmbeddingsKey = (runtime) => {
     modelId: runtime?.modelId || null,
     mode: runtime?.embeddingMode || null,
     provider: runtime?.embeddingProvider || null,
-    onnx: runtime?.embeddingOnnx || null,
+    onnx: sanitizeVolatileConfig(runtime?.embeddingOnnx || null),
     service: runtime?.embeddingService === true,
     stub: runtime?.useStubEmbeddings === true
   };
