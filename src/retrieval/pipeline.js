@@ -559,9 +559,13 @@ export function createSearchPipeline(context) {
           const now = Date.now();
           if (state) {
             if (state.preflight === false) {
-              const failureUntil = Number.isFinite(Number(state.preflightFailureUntil))
+              const explicitFailureUntil = Number.isFinite(Number(state.preflightFailureUntil))
                 ? Number(state.preflightFailureUntil)
                 : 0;
+              const fallbackFailureUntil = state.preflightCheckedAt
+                ? (Number(state.preflightCheckedAt) + resolveProviderBackoffMs(state.failures))
+                : 0;
+              const failureUntil = Math.max(explicitFailureUntil, fallbackFailureUntil);
               if (failureUntil > now) {
                 return false;
               }
