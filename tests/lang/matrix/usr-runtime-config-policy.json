@@ -1,0 +1,103 @@
+{
+  "schemaVersion": "usr-registry-1.0.0",
+  "registryId": "usr-runtime-config-policy",
+  "generatedAt": "2026-02-11T01:45:00Z",
+  "generatedBy": "tools/usr/generate-usr-matrix-baselines.mjs",
+  "rows": [
+    {
+      "id": "cfg-fallback-allow-heuristic",
+      "key": "usr.fallback.allowHeuristic",
+      "valueType": "boolean",
+      "defaultValue": true,
+      "rolloutClass": "stable",
+      "strictModeBehavior": "disallow",
+      "requiresRestart": false,
+      "blocking": true
+    },
+    {
+      "id": "cfg-framework-enable-overlays",
+      "key": "usr.framework.enableOverlays",
+      "valueType": "boolean",
+      "defaultValue": true,
+      "rolloutClass": "stable",
+      "strictModeBehavior": "disallow",
+      "requiresRestart": false,
+      "blocking": true
+    },
+    {
+      "id": "cfg-parser-max-segment-ms",
+      "key": "usr.parser.maxSegmentMs",
+      "valueType": "integer",
+      "defaultValue": 1500,
+      "minValue": 100,
+      "maxValue": 10000,
+      "rolloutClass": "stable",
+      "strictModeBehavior": "disallow",
+      "requiresRestart": false,
+      "blocking": true
+    },
+    {
+      "id": "cfg-parser-selection-mode",
+      "key": "usr.parser.selectionMode",
+      "valueType": "enum",
+      "defaultValue": "deterministic",
+      "allowedValues": [
+        "deterministic"
+      ],
+      "rolloutClass": "stable",
+      "strictModeBehavior": "disallow",
+      "requiresRestart": true,
+      "blocking": true
+    },
+    {
+      "id": "cfg-reporting-emit-raw-parser-kinds",
+      "key": "usr.reporting.emitRawParserKinds",
+      "valueType": "boolean",
+      "defaultValue": true,
+      "rolloutClass": "stable",
+      "strictModeBehavior": "warn-unknown",
+      "requiresRestart": false,
+      "blocking": false
+    },
+    {
+      "id": "cfg-risk-interprocedural-enabled",
+      "key": "usr.risk.interproceduralEnabled",
+      "valueType": "boolean",
+      "defaultValue": true,
+      "rolloutClass": "stable",
+      "strictModeBehavior": "disallow",
+      "requiresRestart": false,
+      "blocking": true
+    },
+    {
+      "id": "cfg-rollout-cutover-enabled",
+      "key": "usr.rollout.cutoverEnabled",
+      "valueType": "boolean",
+      "defaultValue": false,
+      "rolloutClass": "migration-only",
+      "strictModeBehavior": "disallow",
+      "requiresRestart": true,
+      "blocking": true
+    },
+    {
+      "id": "cfg-rollout-shadow-read-enabled",
+      "key": "usr.rollout.shadowReadEnabled",
+      "valueType": "boolean",
+      "defaultValue": true,
+      "rolloutClass": "migration-only",
+      "strictModeBehavior": "disallow",
+      "requiresRestart": false,
+      "blocking": true
+    },
+    {
+      "id": "cfg-strict-mode-enabled",
+      "key": "usr.strictMode.enabled",
+      "valueType": "boolean",
+      "defaultValue": true,
+      "rolloutClass": "stable",
+      "strictModeBehavior": "disallow",
+      "requiresRestart": false,
+      "blocking": true
+    }
+  ]
+}

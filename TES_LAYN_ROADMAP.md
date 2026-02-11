@@ -1,12 +1,12 @@
 # TES_LAYN_ROADMAP - USR-Aligned Language and Framework Execution Master Plan
 
-Last rewritten: 2026-02-11T01:05:00Z
+Last rewritten: 2026-02-11T01:55:00Z
 Branch: `LANGMANE`
-Document status: active master plan baseline v1.0
+Document status: active master plan baseline v1.1
 
 ## 0) Scope Reset
 
-This roadmap supersedes the previous test-heavy draft and is now tightly aligned to `docs/specs/unified-syntax-representation.md` (USR v0.9).
+This roadmap supersedes the previous test-heavy draft and is now tightly aligned to `docs/specs/unified-syntax-representation.md` (USR v1.1).
 
 Primary shifts in this rewrite:
 
@@ -47,6 +47,9 @@ This roadmap is governed by these authoritative documents:
 - `docs/specs/usr-observability-and-slo-contract.md`
 - `docs/specs/usr-security-and-data-governance-contract.md`
 - `docs/specs/usr-audit-and-reporting-contract.md`
+- `docs/specs/usr-runtime-config-contract.md`
+- `docs/specs/usr-failure-injection-and-resilience-contract.md`
+- `docs/specs/usr-fixture-governance-contract.md`
 - `docs/specs/metadata-schema-v2.md`
 - `docs/specs/identity-contract.md`
 - `docs/specs/identity-and-symbol-contracts.md`
@@ -118,6 +121,9 @@ If contradictions are found:
 - [ ] USR registry-schema contract is enforced for all `tests/lang/matrix` artifacts, including parser/runtime lock.
 - [ ] USR section 41 observability and SLO contract is enforced across required lanes.
 - [ ] USR section 42 security and data governance contract is enforced with fail-closed blocking semantics.
+- [ ] USR section 43 runtime configuration and feature-flag contract is enforced with strict-mode validation.
+- [ ] USR section 44 failure injection and resilience contract is enforced with blocking strict fault scenarios.
+- [ ] USR section 45 fixture and golden governance contract is enforced with ownership and mutation policy controls.
 - [ ] Decomposed USR contract suite (`docs/specs/usr*.md`) remains semantically aligned with umbrella USR spec.
 - [ ] Every registry language has a maintained per-language contract in `docs/specs/usr/languages/<language-id>.md`.
 - [ ] Machine-readable catalog/matrix files are synchronized with decomposed contracts and pass drift checks.
@@ -126,7 +132,7 @@ If contradictions are found:
 
 | Phase | Name | Track | Output |
 | --- | --- | --- | --- |
-| 0 | Program Governance and Contract Lock | Implementation | Traceable roadmap to USR v0.9 sections |
+| 0 | Program Governance and Contract Lock | Implementation | Traceable roadmap to USR v1.1 sections |
 | 1 | USR Registries and Schema Package | Implementation | machine-readable profile registries + validators |
 | 2 | Identity, Coordinates, and Integrity Enforcement | Implementation | canonical IDs/ranges/integrity enforcement |
 | 3 | Parser and Normalization Core | Implementation | deterministic parse and normalization engine |
@@ -192,6 +198,9 @@ If contradictions are found:
 - [x] Create `tests/lang/matrix/usr-alert-policies.json`.
 - [x] Create `tests/lang/matrix/usr-redaction-rules.json`.
 - [x] Create `tests/lang/matrix/usr-security-gates.json`.
+- [x] Create `tests/lang/matrix/usr-runtime-config-policy.json`.
+- [x] Create `tests/lang/matrix/usr-failure-injection-matrix.json`.
+- [x] Create `tests/lang/matrix/usr-fixture-governance.json`.
 - [x] Add deterministic baseline generator `tools/usr/generate-usr-matrix-baselines.mjs` and matrix inventory doc `tests/lang/matrix/README.md`.
 - [ ] Keep decomposed catalog specs (`docs/specs/usr-*.md`) aligned with machine-readable registry schema keys.
 
@@ -216,6 +225,9 @@ If contradictions are found:
 - [ ] Add parser/runtime lock coverage drift test vs parser sources referenced by language/framework profiles.
 - [ ] Add SLO/alert policy schema drift tests and scope-coverage checks.
 - [ ] Add redaction/security gate schema drift tests and enforcement-level coverage checks.
+- [ ] Add runtime config policy schema drift tests and strict-mode behavior coverage checks.
+- [ ] Add failure-injection matrix completeness drift tests (required fault classes and blocking scenario coverage).
+- [ ] Add fixture-governance drift tests (fixture ID uniqueness, owner/reviewer completeness, profile linkage).
 - [ ] Add matrix generator idempotence test (`node tools/usr/generate-usr-matrix-baselines.mjs` yields zero diff on clean repo).
 - [ ] Add diagnostic taxonomy drift test (section 12.1 baseline vs section 33.1 full taxonomy).
 - [ ] Add reason-code drift test (`attrs.resolution.reasonCode` values vs section 33.2).
@@ -390,6 +402,9 @@ If contradictions are found:
 - [ ] Materialize embedded-language bridge fixtures per USR section 38 matrix requirements.
 - [ ] Materialize generated/macro provenance fixtures per USR section 39 matrix requirements.
 - [ ] Ensure every per-language contract has concrete fixture ID mappings and fixture family coverage.
+- [ ] Add fixture-governance policy rows for every blocking fixture family and framework overlay fixture.
+- [ ] Add fixture ownership/reviewer assignment checks for all blocking fixtures.
+- [ ] Add fixture mutation-policy tags (`require-rfc|require-review|allow-generated-refresh`) and validate policy coverage.
 
 ### 7.2 Golden generation and review
 
@@ -544,6 +559,8 @@ If contradictions are found:
 - [ ] Validate partial extraction behavior with diagnostics.
 - [ ] Validate redaction fail-safe behavior under forced sensitive payload fixtures.
 - [ ] Validate strict security gate fail-closed behavior under unsafe-path and runtime-identity failures.
+- [ ] Validate blocking failure-injection scenarios for parser, mapping, serialization, security, and resource-budget fault classes.
+- [ ] Validate rollback trigger thresholds and recovery evidence for each blocking failure-injection class.
 
 ### 14.3 Exit criteria
 
@@ -560,6 +577,9 @@ If contradictions are found:
 - [ ] Enforce section 36 strict scenario blocking behavior and non-strict warning budgets.
 - [ ] Enforce section 41 SLO budget blocking policies and alert escalation behavior.
 - [ ] Enforce section 42 security gate fail-closed blocking policies.
+- [ ] Enforce section 43 runtime configuration strict-validation and disallowed-flag conflict policies.
+- [ ] Enforce section 44 failure-injection blocking scenario pass requirements.
+- [ ] Enforce section 45 fixture-governance blocking mutation policies and ownership checks.
 
 ### 15.2 Reporting
 
@@ -574,6 +594,9 @@ If contradictions are found:
 - [ ] Emit redaction/security gate compliance dashboards.
 - [ ] Validate section 30 report envelopes and row schemas per `docs/specs/usr-audit-and-reporting-contract.md`.
 - [ ] Emit automated section 31 scorecard artifact (`usr-release-readiness-scorecard.json`).
+- [ ] Emit runtime configuration and feature-flag state dashboards.
+- [ ] Emit failure-injection scenario pass/fail and recovery dashboards.
+- [ ] Emit fixture-governance coverage and mutation-policy compliance dashboards.
 
 ### 15.3 Maintenance
 
@@ -625,6 +648,9 @@ If contradictions are found:
 | 40 | implementation readiness contract | 0, 1, 9, 10, 15 |
 | 41 | observability and SLO contract | 8, 15 |
 | 42 | security and data governance contract | 6, 14, 15 |
+| 43 | runtime configuration and feature-flag contract | 0, 1, 9, 15 |
+| 44 | failure injection and resilience contract | 8, 14, 15 |
+| 45 | fixture and golden governance contract | 7, 10, 11, 12, 13, 15 |
 
 ---
 
@@ -644,6 +670,9 @@ If contradictions are found:
 - [ ] parser/runtime lock registry exists, validates, and covers parser sources referenced by language/framework profiles.
 - [ ] SLO budget/alert policy matrices exist, validate, and cover required lanes/scopes.
 - [ ] redaction/security gate matrices exist, validate, and cover required control classes.
+- [ ] runtime config policy matrix exists, validates, and defines strict-mode behavior for required keys.
+- [ ] failure-injection matrix exists, validates, and covers required blocking fault classes.
+- [ ] fixture-governance matrix exists, validates, and links blocking fixtures to owners/reviewers.
 - [ ] per-language contract existence and naming checks pass.
 
 ### Gate B1-B7 (language batch gates)
@@ -670,6 +699,8 @@ If contradictions are found:
 - [ ] implementation-readiness evidence validators are green for promotion target phase.
 - [ ] blocking SLO budgets are green for required lanes.
 - [ ] strict security gates are green in CI.
+- [ ] strict blocking failure-injection scenarios are green in CI.
+- [ ] fixture-governance validation is green for blocking fixture families.
 
 ---
 
@@ -1259,6 +1290,9 @@ If contradictions are found:
 | `docs/specs/usr-observability-and-slo-contract.md` | lane/profile SLO budgets, alerts, and escalation policy | 8, 15 |
 | `docs/specs/usr-security-and-data-governance-contract.md` | redaction policy and strict security gate enforcement | 6, 14, 15 |
 | `docs/specs/usr-audit-and-reporting-contract.md` | required report envelopes, row schemas, and scorecard linkage | 10, 11, 12, 13, 14, 15 |
+| `docs/specs/usr-runtime-config-contract.md` | runtime config key policy, precedence, and feature-flag strictness | 0, 1, 9, 15 |
+| `docs/specs/usr-failure-injection-and-resilience-contract.md` | blocking fault matrix, fail-closed behavior, and recovery evidence | 8, 14, 15 |
+| `docs/specs/usr-fixture-governance-contract.md` | fixture ownership, mutation policy, and golden governance controls | 7, 10, 11, 12, 13, 15 |
 | `docs/specs/usr/languages/<language-id>.md` | exhaustive per-language contract | 4, 7, 9, 11, 12 |
 
 ---

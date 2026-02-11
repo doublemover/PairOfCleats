@@ -390,6 +390,8 @@ Compatibility matrix policy:
 - Compatibility fixture IDs SHOULD follow `<language-or-framework>::<family>::<case-id>`.
 - Embedded-language and generated-provenance fixture families MUST be included for framework and transpiled/macro-heavy profiles.
 - Report outputs for compatibility and conformance lanes MUST satisfy `docs/specs/usr-audit-and-reporting-contract.md`.
+- Failure-injection strict blocking scenarios MUST run in CI and full matrices in CI-long/nightly per `docs/specs/usr-failure-injection-and-resilience-contract.md`.
+- Fixture ownership/mutation policy validations MUST run with conformance lanes per `docs/specs/usr-fixture-governance-contract.md`.
 
 ---
 

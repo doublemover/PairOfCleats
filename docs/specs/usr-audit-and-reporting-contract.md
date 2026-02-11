@@ -1,7 +1,7 @@
 # Spec -- USR Audit and Reporting Contract
 
-Status: Draft v0.1
-Last updated: 2026-02-11T01:05:00Z
+Status: Draft v0.2
+Last updated: 2026-02-11T01:55:00Z
 
 ## 0. Purpose and scope
 
@@ -112,6 +112,44 @@ type USRProfileCoverageRowV1 = {
 };
 ```
 
+### 2.6 `usr-runtime-config-validation.json`
+
+```ts
+type USRRuntimeConfigValidationRowV1 = {
+  key: string;
+  status: "pass" | "warn" | "fail";
+  strictModeBehavior: "reject-unknown" | "warn-unknown" | "coerce" | "disallow";
+  diagnosticCode: string | null;
+  blocking: boolean;
+};
+```
+
+### 2.7 `usr-failure-injection-results.json`
+
+```ts
+type USRFailureInjectionResultRowV1 = {
+  scenarioId: string;
+  faultClass: string;
+  strictOutcome: "pass" | "warn" | "fail";
+  nonStrictOutcome: "pass" | "warn" | "fail";
+  recoveryValidated: boolean;
+  blocking: boolean;
+};
+```
+
+### 2.8 `usr-fixture-governance-validation.json`
+
+```ts
+type USRFixtureGovernanceValidationRowV1 = {
+  fixtureId: string;
+  ownerAssigned: boolean;
+  reviewerQuorumMet: boolean;
+  mutationPolicyValid: boolean;
+  status: "pass" | "warn" | "fail";
+  blocking: boolean;
+};
+```
+
 ## 3. Cross-report invariants (normative)
 
 The following invariants MUST hold for each run:
@@ -120,6 +158,8 @@ The following invariants MUST hold for each run:
 - any `fail` row in `usr-determinism-rerun-diff.json` MUST drive parent report `status=fail`
 - capability downgrade rows (`supported -> partial|unsupported`) MUST map to at least one diagnostic-distribution row with matching diagnostic code
 - blocking failures in any required report MUST be reflected in release-readiness scorecard checks
+- failure-injection blocking scenario failures MUST be reflected in release-readiness scorecard checks
+- fixture-governance blocking validation failures MUST be reflected in release-readiness scorecard checks
 
 ## 4. Deterministic ordering and serialization
 
