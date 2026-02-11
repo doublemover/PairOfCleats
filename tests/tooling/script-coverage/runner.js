@@ -57,6 +57,9 @@ export const createCommandRunner = ({ retries, failureLogRoot }) => {
       if (!env.PAIROFCLEATS_TEST_LOG_DIR) {
         env.PAIROFCLEATS_TEST_LOG_DIR = failureLogRoot;
       }
+      if (!env.PAIROFCLEATS_TEST_CACHE_SUFFIX) {
+        env.PAIROFCLEATS_TEST_CACHE_SUFFIX = `${sanitizeLabel(label)}-a${attempt}-${process.pid}`;
+      }
       const result = spawnSync(cmd, args, {
         encoding: 'utf8',
         maxBuffer: 50 * 1024 * 1024,
