@@ -106,27 +106,47 @@ export const createJsonWriteStream = (filePath, options = {}) => {
     return () => signal.removeEventListener('abort', handler);
   };
   const detachAbort = attachAbortHandler();
+  const retryRemovePath = async (target) => {
+    const maxAttempts = 20;
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      try {
+        await fsPromises.rm(target, { force: true });
+        return !fs.existsSync(target);
+      } catch (err) {
+        if (err?.code === 'ENOENT') return true;
+        if (!['EBUSY', 'EPERM', 'EACCES', 'EMFILE', 'ENOTEMPTY'].includes(err?.code)) {
+          break;
+        }
+        await delay(Math.min(1000, 30 * (attempt + 1)));
+      }
+    }
+    try {
+      await fsPromises.unlink(target);
+    } catch {}
+    return !fs.existsSync(target);
+  };
+  const removeSiblingTempFiles = async () => {
+    if (!atomic) return;
+    const dir = path.dirname(filePath);
+    const base = path.basename(filePath);
+    const activeName = path.basename(targetPath);
+    const prefix = `${base}.tmp-`;
+    let entries = [];
+    try {
+      entries = await fsPromises.readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (!entry?.isFile?.()) continue;
+      if (entry.name === activeName) continue;
+      if (!entry.name.startsWith(prefix)) continue;
+      const candidate = path.join(dir, entry.name);
+      await retryRemovePath(candidate);
+    }
+  };
   const removeTempFile = async () => {
     if (!atomic) return;
-    const retryRemovePath = async (target) => {
-      const maxAttempts = 20;
-      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-        try {
-          await fsPromises.rm(target, { force: true });
-          return !fs.existsSync(target);
-        } catch (err) {
-          if (err?.code === 'ENOENT') return true;
-          if (!['EBUSY', 'EPERM', 'EACCES', 'EMFILE', 'ENOTEMPTY'].includes(err?.code)) {
-            break;
-          }
-          await delay(Math.min(1000, 30 * (attempt + 1)));
-        }
-      }
-      try {
-        await fsPromises.unlink(target);
-      } catch {}
-      return !fs.existsSync(target);
-    };
     await waitForClose(fileStream);
     await retryRemovePath(targetPath);
     // Last guard: if the specific temp path still exists, keep retrying a bit
@@ -137,6 +157,7 @@ export const createJsonWriteStream = (filePath, options = {}) => {
       if (!fs.existsSync(targetPath)) break;
       await delay(Math.min(1000, 50 * (attempt + 1)));
     }
+    await removeSiblingTempFiles();
   };
   const attachPipelineErrorHandlers = () => {
     const forwardToFile = (err) => {
