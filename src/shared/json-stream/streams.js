@@ -21,7 +21,7 @@ const waitForFinish = (stream, requireClose = false) => new Promise((resolve, re
 
 const waitForClose = (stream) => {
   if (!stream) return Promise.resolve();
-  if (stream.closed || stream.destroyed) return Promise.resolve();
+  if (stream.closed) return Promise.resolve();
   return once(stream, 'close').then(() => {}).catch(() => {});
 };
 
@@ -160,7 +160,7 @@ export const createJsonWriteStream = (filePath, options = {}) => {
         })
         .finally(async () => {
           if (atomic && !committed) {
-            try { await fsPromises.rm(targetPath, { force: true }); } catch {}
+            await removeTempFile();
           }
           detachAbort();
         })
@@ -193,7 +193,7 @@ export const createJsonWriteStream = (filePath, options = {}) => {
         })
         .finally(async () => {
           if (atomic && !committed) {
-            try { await fsPromises.rm(targetPath, { force: true }); } catch {}
+            await removeTempFile();
           }
           detachAbort();
         })
@@ -224,7 +224,7 @@ export const createJsonWriteStream = (filePath, options = {}) => {
       })
       .finally(async () => {
         if (atomic && !committed) {
-          try { await fsPromises.rm(targetPath, { force: true }); } catch {}
+          await removeTempFile();
         }
         detachAbort();
       })
