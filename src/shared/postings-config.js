@@ -13,6 +13,7 @@
  *   chargramMaxDf:number,
  *   chargramSource:string,
  *   phraseSource:string,
+ *   typed:boolean,
  *   fielded:boolean,
  *   tokenClassification:{enabled:boolean}
  * }}
@@ -86,6 +87,7 @@ export function normalizePostingsConfig(input = {}) {
   const chargramMaxDf = Number.isFinite(chargramMaxDfRaw)
     ? Math.max(0, Math.floor(chargramMaxDfRaw))
     : 0;
+  const typed = cfg.typed === true;
 
   return {
     enablePhraseNgrams,
@@ -99,6 +101,7 @@ export function normalizePostingsConfig(input = {}) {
     chargramSpillMaxUnique,
     chargramMaxDf,
     chargramSource,
+    typed,
     fielded,
     tokenClassification: {
       enabled: tokenClassificationEnabled

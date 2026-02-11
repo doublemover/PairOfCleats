@@ -35,7 +35,7 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
   log('\n📄  Scanning records ...');
   const timing = { start: Date.now() };
 
-  const state = createIndexState();
+  const state = createIndexState({ postingsConfig });
   const recordSources = [];
   const seenAbs = new Set();
   const discoveredEntries = Array.isArray(discovery?.entries) ? discovery.entries : [];

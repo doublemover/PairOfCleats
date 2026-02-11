@@ -158,7 +158,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     : null;
   crashLogger.updatePhase(`scan:${mode}`);
 
-  const state = createIndexState();
+  const state = createIndexState({ postingsConfig: runtime.postingsConfig });
   const cacheReporter = createCacheReporter({ enabled: runtime.verboseCache, log });
   const fileTextCache = createLruCache({
     name: 'fileText',

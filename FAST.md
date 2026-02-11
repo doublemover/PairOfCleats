@@ -368,7 +368,7 @@ Implementation policy for Sweep 3:
 - Rollout: `tokenization.fileStream=true` gated by safe mode checks; fallback to per-chunk path.
 - Target: 30%+ tokenization CPU reduction on high-chunk files.
 
-4. Area: Typed-array postings hash structures
+4. [x] Area: Typed-array postings hash structures
 - Files: `src/shared/token-id.js`, `src/index/build/state.js`, `src/index/build/postings.js`
 - Decision: Move postings internals to typed-array/open-addressed structures keyed by token ids; preserve external artifact compatibility until contract flip.
 - Rollout: `postings.typed=true`; dual-build parity with current postings writer.

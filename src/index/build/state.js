@@ -1,6 +1,7 @@
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
 import { forEachRollingChargramHash } from '../../shared/chargram-hash.js';
 import { registerTokenIdInvariant } from '../../shared/invariants.js';
+import { createTypedTokenPostingMap } from '../../shared/token-id.js';
 
 const DEFAULT_POSTINGS_CONFIG = normalizePostingsConfig();
 const TOKEN_RETENTION_MODES = new Set(['full', 'sample', 'none']);
@@ -204,11 +205,13 @@ export function applyTokenRetention(chunk, retention) {
  * Create the mutable state for index building.
  * @returns {object}
  */
-export function createIndexState() {
+export function createIndexState(options = {}) {
+  const postingsConfig = normalizePostingsConfig(options?.postingsConfig || {});
+  const useTypedTokenPostings = postingsConfig.typed === true;
   return {
     df: new Map(),
     chunks: [],
-    tokenPostings: new Map(),
+    tokenPostings: useTypedTokenPostings ? createTypedTokenPostingMap() : new Map(),
     tokenIdMap: new Map(),
     tokenIdCollisions: [],
     fieldPostings: {
@@ -268,6 +271,9 @@ export function createIndexState() {
     postingsGuard: {
       phrase: createGuardEntry('phrase', POSTINGS_GUARDS.phrase),
       chargram: createGuardEntry('chargram', POSTINGS_GUARDS.chargram)
+    },
+    features: {
+      postingsTyped: useTypedTokenPostings
     }
   };
 }
