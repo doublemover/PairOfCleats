@@ -54,28 +54,21 @@ export const createTempPath = (filePath) => {
     .update(token)
     .digest('hex');
 
-  const buildCompactPathInDir = (baseDir, maxLen) => {
-    const budget = maxLen - baseDir.length - 1 - ext.length;
-    // Keep at least "t-" + 4 chars so compact fallbacks stay unique.
-    if (budget < 6) return null;
-    const tokenBudget = Math.max(4, budget - 2);
-    const name = `t-${compactToken.slice(0, tokenBudget)}`;
-    return path.join(baseDir, `${name}${ext}`);
-  };
-
-  const buildCompactPathNoExtInDir = (baseDir, maxLen) => {
-    const budget = maxLen - baseDir.length - 1;
+  const buildCompactPathInDir = (baseDir, maxLen, withExt = true) => {
+    const suffixExt = withExt ? ext : '';
+    // Preserve the ".tmp-" marker so cleanup/discovery logic remains consistent.
+    const prefix = 't.tmp-';
+    const budget = maxLen - baseDir.length - 1 - prefix.length - suffixExt.length;
     if (budget < 4) return null;
-    const tokenBudget = Math.max(2, budget - 2);
-    return path.join(baseDir, `t-${compactToken.slice(0, tokenBudget)}`);
+    const tokenBudget = Math.max(4, Math.min(compactToken.length, budget));
+    const name = `${prefix}${compactToken.slice(0, tokenBudget)}`;
+    return path.join(baseDir, `${name}${suffixExt}`);
   };
 
   const buildCompactPathInAncestors = (maxLen, withExt = true) => {
     let baseDir = dir;
     while (baseDir) {
-      const candidate = withExt
-        ? buildCompactPathInDir(baseDir, maxLen)
-        : buildCompactPathNoExtInDir(baseDir, maxLen);
+      const candidate = buildCompactPathInDir(baseDir, maxLen, withExt);
       if (candidate) return candidate;
       const parent = path.dirname(baseDir);
       if (!parent || parent === baseDir) break;

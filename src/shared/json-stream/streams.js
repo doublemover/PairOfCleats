@@ -139,12 +139,30 @@ export const createJsonWriteStream = (filePath, options = {}) => {
       const entries = await fsPromises.readdir(dir);
       const tempPrefix = `${base}.tmp-`;
       for (const entry of entries) {
-        if (!entry.startsWith(tempPrefix)) continue;
-        try {
-          await fsPromises.rm(path.join(dir, entry), { force: true });
-        } catch {}
+        if (!entry.startsWith(tempPrefix) && !entry.includes('.tmp-')) continue;
+        const entryPath = path.join(dir, entry);
+        for (let attempt = 0; attempt < 8; attempt += 1) {
+          try {
+            await fsPromises.rm(entryPath, { force: true });
+            break;
+          } catch (err) {
+            if (err?.code === 'ENOENT') break;
+            if (!['EBUSY', 'EPERM', 'EACCES', 'EMFILE', 'ENOTEMPTY'].includes(err?.code)) break;
+            await delay(Math.min(800, 30 * (attempt + 1)));
+          }
+        }
       }
     } catch {}
+    // Last guard: if the specific temp path still exists, keep retrying a bit
+    // before letting callers observe stale ".tmp-" files.
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      if (!fs.existsSync(targetPath)) break;
+      try {
+        await fsPromises.rm(targetPath, { force: true });
+      } catch {}
+      if (!fs.existsSync(targetPath)) break;
+      await delay(Math.min(1000, 50 * (attempt + 1)));
+    }
   };
   const attachPipelineErrorHandlers = () => {
     const forwardToFile = (err) => {
