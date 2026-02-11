@@ -290,6 +290,15 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
     }
     return counts;
   };
+  const resolveExpectedDenseCount = (denseVec) => {
+    if (!denseVec || typeof denseVec !== 'object') return 0;
+    const fromCount = Number(denseVec.count);
+    if (Number.isFinite(fromCount) && fromCount > 0) return Math.floor(fromCount);
+    const fromTotalRecords = Number(denseVec.totalRecords);
+    if (Number.isFinite(fromTotalRecords) && fromTotalRecords > 0) return Math.floor(fromTotalRecords);
+    if (Array.isArray(denseVec.vectors) && denseVec.vectors.length > 0) return denseVec.vectors.length;
+    return 0;
+  };
   if (!Database) return bail('better-sqlite3 is required. Run npm install first.');
 
   try {
@@ -499,9 +508,7 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
           );
           throw new Error(`Missing index pieces for ${mode}.`);
         }
-        const expectedDenseCount = Number.isFinite(pieces?.denseVec?.vectors?.length)
-          ? pieces.denseVec.vectors.length
-          : 0;
+        const expectedDenseCount = resolveExpectedDenseCount(pieces?.denseVec);
         const vectorRequiredForMode = vectorAnnEnabled
           && (mode === 'code' || mode === 'prose' || mode === 'extracted-prose');
         const bundleManifest = incrementalData?.manifest || null;
