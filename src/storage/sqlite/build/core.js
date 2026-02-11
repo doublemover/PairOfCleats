@@ -31,8 +31,8 @@ const toComparablePath = (value) => path.resolve(stripLongPathPrefix(value));
 
 const buildShortTempDbPath = (outPath) => {
   const hash = crypto.createHash('sha1').update(String(outPath || '')).digest('hex').slice(0, 20);
-  const base = path.join(os.tmpdir(), 'pairofcleats-sqlite', `${hash}.db`);
-  return createTempPath(base);
+  const nonce = crypto.randomBytes(4).toString('hex');
+  return path.join(os.tmpdir(), 'pairofcleats-sqlite', `${hash}-${process.pid}-${nonce}.db`);
 };
 
 const openDatabaseWithFallback = (Database, outPath) => {
@@ -279,6 +279,7 @@ export const runSqliteBuildPostCommit = ({
   emitOutput,
   logger,
   dbPath,
+  vectorAnnTable,
   useOptimize,
   inputBytes,
   batchStats
@@ -293,7 +294,8 @@ export const runSqliteBuildPostCommit = ({
     expected,
     emitOutput,
     logger,
-    dbPath
+    dbPath,
+    vectorAnnTable
   });
   if (batchStats) {
     batchStats.validationMs = performance.now() - validationStart;

@@ -4,6 +4,19 @@ import { normalizeFilePath } from './utils.js';
 const SAFE_IDENTIFIER_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const isSafeIdentifier = (value) => SAFE_IDENTIFIER_RE.test(String(value || ''));
 
+const resolveDenseVectorDims = (dense) => {
+  if (!dense || typeof dense !== 'object') return 0;
+  const rawDims = dense.dims ?? dense.fields?.dims ?? dense.meta?.dims ?? null;
+  const dims = Number(rawDims);
+  if (Number.isFinite(dims) && dims > 0) return Math.floor(dims);
+  const vectors = dense.vectors ?? dense.arrays?.vectors;
+  if (Array.isArray(vectors)) {
+    const sample = vectors.find((vec) => vec && typeof vec.length === 'number');
+    return sample?.length || 0;
+  }
+  return 0;
+};
+
 /**
  * Normalize a chunk into the row shape stored in SQLite.
  * @param {object} chunk
@@ -96,7 +109,7 @@ export function prepareVectorAnnTable({ db, indexData, mode, vectorConfig }) {
     return null;
   }
   const dense = indexData?.denseVec;
-  const dims = dense?.dims || dense?.vectors?.find((vec) => vec && vec.length)?.length || 0;
+  const dims = resolveDenseVectorDims(dense);
   if (!Number.isFinite(dims) || dims <= 0) return null;
   const loadResult = vectorConfig.loadVectorExtension(db, vectorExtension, `sqlite ${mode}`);
   if (!loadResult.ok) {

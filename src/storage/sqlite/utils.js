@@ -97,7 +97,8 @@ export function hasRequiredTables(db, requiredTables) {
  */
 export function normalizeFilePath(value) {
   if (typeof value !== 'string') return null;
-  return normalizeFilePathShared(value);
+  const normalized = normalizeFilePathShared(value);
+  return normalized.startsWith('./') ? normalized.slice(2) : normalized;
 }
 
 /**
@@ -272,6 +273,29 @@ const loadOptionalDenseBinary = (dir, baseName, modelId) => {
   }
 };
 
+const normalizeDenseVectorPayload = (denseVec) => {
+  if (!denseVec || typeof denseVec !== 'object') return denseVec;
+  const fields = denseVec.fields && typeof denseVec.fields === 'object' ? denseVec.fields : null;
+  const arrays = denseVec.arrays && typeof denseVec.arrays === 'object' ? denseVec.arrays : null;
+  if (!fields && !arrays) return denseVec;
+  const vectors = Array.isArray(arrays?.vectors) ? arrays.vectors : denseVec.vectors;
+  const normalized = {
+    ...denseVec,
+    ...(fields || {})
+  };
+  if (vectors) normalized.vectors = vectors;
+  if (fields?.model && !normalized.model) normalized.model = fields.model;
+  if (fields?.scale != null && normalized.scale == null) normalized.scale = fields.scale;
+  if (fields?.minVal != null && normalized.minVal == null) normalized.minVal = fields.minVal;
+  if (fields?.maxVal != null && normalized.maxVal == null) normalized.maxVal = fields.maxVal;
+  if (fields?.levels != null && normalized.levels == null) normalized.levels = fields.levels;
+  if (fields?.dims != null && !Number.isFinite(Number(normalized.dims))) {
+    const dims = Number(fields.dims);
+    if (Number.isFinite(dims) && dims > 0) normalized.dims = dims;
+  }
+  return normalized;
+};
+
 export function loadSqliteIndexOptionalArtifacts(dir, { modelId = null } = {}) {
   const denseBinary = loadOptionalDenseBinary(dir, 'dense_vectors_uint8', modelId);
   const denseMeta = denseBinary ? null : loadOptional(dir, 'dense_vectors_uint8.meta.json');
@@ -294,6 +318,7 @@ export function loadSqliteIndexOptionalArtifacts(dir, { modelId = null } = {}) {
       if (denseVec && !denseVec.model) denseVec.model = modelId || null;
     }
   }
+  denseVec = normalizeDenseVectorPayload(denseVec);
   return {
     fileMeta: loadOptionalFileMetaRows(dir),
     minhash: loadOptionalMinhashRows(dir),

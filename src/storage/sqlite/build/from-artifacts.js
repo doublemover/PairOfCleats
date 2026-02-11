@@ -1043,6 +1043,15 @@ export async function buildDatabaseFromArtifacts({
     };
 
     async function ingestDense(dense, targetMode) {
+      if (dense?.fields || dense?.arrays) {
+        const fields = dense.fields && typeof dense.fields === 'object' ? dense.fields : null;
+        const arrays = dense.arrays && typeof dense.arrays === 'object' ? dense.arrays : null;
+        dense = {
+          ...dense,
+          ...(fields || {}),
+          vectors: dense.vectors ?? arrays?.vectors
+        };
+      }
       const hasDenseArray = Array.isArray(dense?.vectors) && dense.vectors.length > 0;
       const hasDenseBuffer = !!(
         dense?.buffer
@@ -1629,6 +1638,7 @@ export async function buildDatabaseFromArtifacts({
       emitOutput,
       logger,
       dbPath: resolvedOutPath,
+      vectorAnnTable: vectorAnn?.tableName || vectorExtension.table || 'dense_vectors_ann',
       useOptimize,
       inputBytes,
       batchStats

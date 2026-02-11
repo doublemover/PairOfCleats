@@ -51,11 +51,13 @@ class IncrementalSkipError extends Error {
 
 const resolveExpectedDenseCount = (denseVec) => {
   if (!denseVec || typeof denseVec !== 'object') return 0;
-  const fromCount = Number(denseVec.count);
+  const fields = denseVec.fields && typeof denseVec.fields === 'object' ? denseVec.fields : null;
+  const fromCount = Number(denseVec.count ?? fields?.count);
   if (Number.isFinite(fromCount) && fromCount > 0) return Math.floor(fromCount);
-  const fromTotalRecords = Number(denseVec.totalRecords);
+  const fromTotalRecords = Number(denseVec.totalRecords ?? fields?.totalRecords);
   if (Number.isFinite(fromTotalRecords) && fromTotalRecords > 0) return Math.floor(fromTotalRecords);
-  if (Array.isArray(denseVec.vectors) && denseVec.vectors.length > 0) return denseVec.vectors.length;
+  const vectors = denseVec.vectors ?? denseVec.arrays?.vectors;
+  if (Array.isArray(vectors) && vectors.length > 0) return vectors.length;
   return 0;
 };
 
