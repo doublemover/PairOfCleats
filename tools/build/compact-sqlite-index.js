@@ -497,6 +497,7 @@ if (isDirectRun) {
     options: {
       mode: { type: 'string', default: 'all' },
       repo: { type: 'string' },
+      'index-root': { type: 'string' },
       'dry-run': { type: 'boolean', default: false },
       'keep-backup': { type: 'boolean', default: false },
       progress: { type: 'string', default: 'auto' },
@@ -513,8 +514,11 @@ if (isDirectRun) {
   };
 
   const { repoRoot: root, userConfig } = resolveRepoConfig(argv.repo);
+  const indexRoot = typeof argv['index-root'] === 'string' && argv['index-root']
+    ? path.resolve(argv['index-root'])
+    : null;
   const vectorExtension = getVectorExtensionConfig(root, userConfig);
-  const sqlitePaths = resolveSqlitePaths(root, userConfig);
+  const sqlitePaths = resolveSqlitePaths(root, userConfig, { indexRoot });
 
   const modeArg = (argv.mode || 'all').toLowerCase();
   if (!['all', 'code', 'prose'].includes(modeArg)) {
@@ -541,7 +545,7 @@ if (isDirectRun) {
       vectorExtension,
       dryRun: argv['dry-run'],
       keepBackup: argv['keep-backup'],
-      indexDir: getIndexDir(root, target.mode, userConfig),
+      indexDir: getIndexDir(root, target.mode, userConfig, { indexRoot }),
       logger
     });
     completed += 1;

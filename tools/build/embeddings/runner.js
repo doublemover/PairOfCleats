@@ -489,9 +489,29 @@ export async function runBuildEmbeddingsWithConfig(config) {
   });
   const triageConfig = getTriageConfig(root, userConfig);
   const recordsDir = triageConfig.recordsDir;
-  const buildStatePath = resolveBuildStatePath(activeIndexRoot);
-  const hasBuildState = buildStatePath && fsSync.existsSync(buildStatePath);
-  setHeartbeat(hasBuildState ? startBuildHeartbeat(activeIndexRoot, 'stage3') : () => {});
+  const buildStateTrackers = new Map();
+  const ensureBuildStateTracker = (buildRoot) => {
+    const key = normalizePath(buildRoot);
+    if (!buildRoot || !key) return null;
+    if (buildStateTrackers.has(key)) return buildStateTrackers.get(key);
+    const buildStatePath = resolveBuildStatePath(buildRoot);
+    const hasBuildState = Boolean(buildStatePath && fsSync.existsSync(buildStatePath));
+    const tracker = {
+      root: buildRoot,
+      hasBuildState,
+      runningMarked: false,
+      stopHeartbeat: hasBuildState ? startBuildHeartbeat(buildRoot, 'stage3') : () => {}
+    };
+    buildStateTrackers.set(key, tracker);
+    return tracker;
+  };
+  setHeartbeat(() => {
+    for (const tracker of buildStateTrackers.values()) {
+      try {
+        tracker.stopHeartbeat?.();
+      } catch {}
+    }
+  });
 
   const cacheScopeRaw = embeddingsConfig.cache?.scope;
   const cacheScope = typeof cacheScopeRaw === 'string' ? cacheScopeRaw.trim().toLowerCase() : '';
@@ -507,14 +527,10 @@ export async function runBuildEmbeddingsWithConfig(config) {
   const cacheMaxAgeMs = Number.isFinite(cacheMaxAgeDays) ? Math.max(0, cacheMaxAgeDays) * 24 * 60 * 60 * 1000 : 0;
   const maintenanceConfig = normalizeEmbeddingsMaintenanceConfig(embeddingsConfig.maintenance || {});
   const queuedMaintenance = new Set();
-  const sqlitePaths = resolveSqlitePaths(root, userConfig, { indexRoot: activeIndexRoot });
-  const sqliteSharedDb = sqlitePaths?.codePath
-    && sqlitePaths?.prosePath
-    && path.resolve(sqlitePaths.codePath) === path.resolve(sqlitePaths.prosePath);
-  const queueBackgroundSqliteMaintenance = ({ mode, denseCount }) => {
+  const queueBackgroundSqliteMaintenance = ({ mode, denseCount, modeIndexRoot, sqlitePathsForMode }) => {
     if (maintenanceConfig.background !== true || isTestingEnv()) return;
     if (mode !== 'code' && mode !== 'prose') return;
-    const dbPath = mode === 'code' ? sqlitePaths?.codePath : sqlitePaths?.prosePath;
+    const dbPath = mode === 'code' ? sqlitePathsForMode?.codePath : sqlitePathsForMode?.prosePath;
     if (!dbPath || !fsSync.existsSync(dbPath)) return;
     const walPath = `${dbPath}-wal`;
     const dbBytes = Number(fsSync.statSync(dbPath).size) || 0;
@@ -536,6 +552,9 @@ export async function runBuildEmbeddingsWithConfig(config) {
       `(reason=${decision.reason}, dbBytes=${dbBytes}, walBytes=${walBytes}, denseCount=${denseCount}).`
     );
     const args = [COMPACT_SQLITE_SCRIPT, '--repo', root, '--mode', mode];
+    if (typeof modeIndexRoot === 'string' && modeIndexRoot) {
+      args.push('--index-root', modeIndexRoot);
+    }
     void spawnSubprocess(process.execPath, args, {
       cwd: root,
       env: process.env,
@@ -552,10 +571,6 @@ export async function runBuildEmbeddingsWithConfig(config) {
         queuedMaintenance.delete(key);
       });
   };
-
-  if (hasBuildState) {
-    await markBuildPhase(activeIndexRoot, 'stage3', 'running');
-  }
 
   const modeTask = display.task('Embeddings', { total: modes.length, stage: 'embeddings' });
   let completedModes = 0;
@@ -578,6 +593,11 @@ export async function runBuildEmbeddingsWithConfig(config) {
       let cacheRejected = 0;
       let cacheFastRejects = 0;
       const modeIndexRoot = resolveModeIndexRoot(mode);
+      const modeTracker = ensureBuildStateTracker(modeIndexRoot);
+      if (modeTracker?.hasBuildState && !modeTracker.runningMarked) {
+        await markBuildPhase(modeIndexRoot, 'stage3', 'running');
+        modeTracker.runningMarked = true;
+      }
       if (explicitIndexRoot && !hasModeArtifacts(modeIndexRoot, mode)) {
         fail(
           `Missing index artifacts for mode "${mode}" under explicit --index-root: ${modeIndexRoot}. ` +
@@ -1451,6 +1471,10 @@ export async function runBuildEmbeddingsWithConfig(config) {
 
         let sqliteVecState = { enabled: false, available: false };
         if (mode === 'code' || mode === 'prose') {
+          const sqlitePathsForMode = resolveSqlitePaths(root, userConfig, { indexRoot: modeIndexRoot });
+          const sqliteSharedDbForMode = sqlitePathsForMode?.codePath
+            && sqlitePathsForMode?.prosePath
+            && path.resolve(sqlitePathsForMode.codePath) === path.resolve(sqlitePathsForMode.prosePath);
           const sqliteResult = await scheduleIo(() => updateSqliteDense({
             Database,
             root,
@@ -1462,7 +1486,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
             scale: denseScale,
             modelId,
             quantization,
-            sharedDb: sqliteSharedDb,
+            sharedDb: sqliteSharedDbForMode,
             emitOutput: true,
             warnOnMissing: false,
             logger
@@ -1509,7 +1533,9 @@ export async function runBuildEmbeddingsWithConfig(config) {
           }
           queueBackgroundSqliteMaintenance({
             mode,
-            denseCount: Number.isFinite(sqliteResult?.count) ? Number(sqliteResult.count) : totalChunks
+            denseCount: Number.isFinite(sqliteResult?.count) ? Number(sqliteResult.count) : totalChunks,
+            modeIndexRoot,
+            sqlitePathsForMode
           });
         }
 
@@ -1712,8 +1738,9 @@ export async function runBuildEmbeddingsWithConfig(config) {
       }
     }
 
-    if (hasBuildState) {
-      await markBuildPhase(activeIndexRoot, 'stage3', 'done');
+    for (const tracker of buildStateTrackers.values()) {
+      if (!tracker?.hasBuildState || !tracker.runningMarked) continue;
+      await markBuildPhase(tracker.root, 'stage3', 'done');
     }
     return { modes, scheduler: scheduler?.stats?.(), writer: writerStatsByMode };
   } catch (err) {
