@@ -1,7 +1,7 @@
 # Spec -- USR Core Pipeline, Incremental, and Transform Contract
 
 Status: Draft v2.0
-Last updated: 2026-02-11T07:40:00Z
+Last updated: 2026-02-11T08:35:00Z
 
 ## Purpose
 
@@ -11,16 +11,16 @@ Define deterministic stage IO behavior, parser adapter obligations, incremental 
 
 This contract absorbs:
 
-- `docs/specs/usr-parser-adapter-sdk-contract.md`
-- `docs/specs/usr-transforms-stage-map.md`
-- `docs/specs/usr-incremental-indexing-contract.md`
-- `docs/specs/usr-generated-provenance-contract.md`
-- `docs/specs/usr-build-tooling-integration-contract.md`
-- `docs/specs/usr-preprocessor-and-conditional-compilation-contract.md`
-- `docs/specs/usr-determinism-and-reproducibility-contract.md`
-- `docs/specs/usr-failure-injection-and-resilience-contract.md`
-- `docs/specs/usr-packaging-and-artifact-layout-contract.md`
-- `docs/specs/usr-schema-evolution-and-versioning-contract.md`
+- `usr-parser-adapter-sdk-contract.md` (legacy)
+- `usr-transforms-stage-map.md` (legacy)
+- `usr-incremental-indexing-contract.md` (legacy)
+- `usr-generated-provenance-contract.md` (legacy)
+- `usr-build-tooling-integration-contract.md` (legacy)
+- `usr-preprocessor-and-conditional-compilation-contract.md` (legacy)
+- `usr-determinism-and-reproducibility-contract.md` (legacy)
+- `usr-failure-injection-and-resilience-contract.md` (legacy)
+- `usr-packaging-and-artifact-layout-contract.md` (legacy)
+- `usr-schema-evolution-and-versioning-contract.md` (legacy)
 
 ## Canonical stage chain
 
@@ -35,6 +35,16 @@ Required order:
 7. emit
 
 Each stage must declare input/output schema shape and failure behavior.
+
+Stage manifest requirements:
+
+| Field | Required | Notes |
+| --- | --- | --- |
+| `stageId` | yes | Stable stage identifier. |
+| `inputContracts` | yes | Expected artifact/input shapes. |
+| `outputContracts` | yes | Produced artifact/output shapes. |
+| `determinismClass` | yes | strict or bounded-delta. |
+| `failureModes` | yes | Declared failure classes and handling policy. |
 
 ## Parser adapter contract
 
@@ -52,6 +62,12 @@ Incremental runs must be compared against full runs for affected scopes:
 - same canonical identities where inputs unchanged
 - no missing required entities/edges
 - bounded allowed differences for non-deterministic metadata fields only
+
+Parity thresholds:
+
+- unchanged fixture scope: 100% identity parity required for `docUid` and `symbolUid`
+- changed fixture scope: no missing mandatory entities/edges versus full run
+- non-deterministic metadata deltas must remain within documented bounded fields only
 
 ## Generated/macro/transpile provenance
 
@@ -81,12 +97,20 @@ Required scenarios:
 
 Scenario outcomes must be deterministic and surfaced in evidence outputs.
 
+Resilience acceptance requirements:
+
+1. every required scenario class has at least one deterministic fixture
+2. scenario outcomes include reason codes and remediation classes
+3. retry behavior never changes deterministic ordering semantics for successful outputs
+
 ## Required outputs
 
 - `usr-transform-stage-metadata.json`
 - `usr-incremental-vs-full-parity.json`
 - `usr-generated-provenance-coverage.json`
 - `usr-failure-injection-report.json`
+- `usr-stage-contract-validation.json`
+- `usr-incremental-parity-threshold-report.json`
 
 ## References
 
