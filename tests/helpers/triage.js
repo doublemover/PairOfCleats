@@ -5,8 +5,8 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const RETRYABLE_RM_CODES = new Set(['EBUSY', 'ENOTEMPTY', 'EPERM', 'EACCES', 'EMFILE', 'ENFILE']);
-const RM_RETRY_ATTEMPTS = 10;
-const RM_RETRY_BASE_DELAY_MS = 50;
+const RM_RETRY_ATTEMPTS = 20;
+const RM_RETRY_BASE_DELAY_MS = 40;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -19,7 +19,8 @@ const rmWithRetry = async (targetPath) => {
       if (!RETRYABLE_RM_CODES.has(err?.code) || attempt >= RM_RETRY_ATTEMPTS - 1) {
         throw err;
       }
-      await sleep(RM_RETRY_BASE_DELAY_MS * (attempt + 1));
+      const delayMs = Math.min(1000, RM_RETRY_BASE_DELAY_MS * (2 ** attempt));
+      await sleep(delayMs);
     }
   }
 };
