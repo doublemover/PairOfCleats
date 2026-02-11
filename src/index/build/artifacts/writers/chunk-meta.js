@@ -751,8 +751,7 @@ export const enqueueChunkMetaArtifacts = async ({
   let jsonlScan = null;
   let outOfOrder = false;
   let firstOutOfOrder = null;
-  if (chunkMetaStreaming) {
-    resolvedUseJsonl = true;
+  if (chunkMetaStreaming && resolvedUseJsonl) {
     resolvedUseColumnar = false;
     resolvedUseShards = chunkMetaShardSize > 0 && chunkMetaCount > chunkMetaShardSize;
     if (!resolvedUseShards) {
