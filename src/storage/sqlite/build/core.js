@@ -1,4 +1,5 @@
 import fsSync from 'node:fs';
+import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { CREATE_TABLES_BASE_SQL, SCHEMA_VERSION } from '../schema.js';
 import { removeSqliteSidecars, resolveSqliteBatchSize, bumpSqliteBatchStat } from '../utils.js';
@@ -62,6 +63,7 @@ export const openSqliteBuildDatabase = ({
   inputBytes,
   useBuildPragmas = true
 }) => {
+  fsSync.mkdirSync(path.dirname(outPath), { recursive: true });
   const db = new Database(outPath);
   if (batchStats) {
     const prepareStats = batchStats.prepare || (batchStats.prepare = {});

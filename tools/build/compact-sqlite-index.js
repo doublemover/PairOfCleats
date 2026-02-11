@@ -161,8 +161,8 @@ export async function compactDatabase(input) {
   `);
 
   const insertFts = outDb.prepare(`
-    INSERT OR REPLACE INTO chunks_fts (rowid, mode, file, name, signature, kind, headline, doc, tokens)
-    VALUES (@id, @mode, @file, @name, @signature, @kind, @headline, @doc, @tokensText);
+    INSERT OR REPLACE INTO chunks_fts (rowid, file, name, signature, kind, headline, doc, tokens)
+    VALUES (@id, @file, @name, @signature, @kind, @headline, @doc, @tokensText);
   `);
 
   const insertTokenVocab = outDb.prepare(
@@ -244,7 +244,6 @@ export async function compactDatabase(input) {
       }
       insertFts.run({
         id: newId,
-        mode,
         file: normalizedFile,
         name: row.name,
         signature,
