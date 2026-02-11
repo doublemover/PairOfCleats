@@ -1,7 +1,7 @@
 # USR Language Contracts Index
 
-Status: Draft v0.6
-Last updated: 2026-02-10T08:15:00Z
+Status: Draft v0.7
+Last updated: 2026-02-11T05:20:00Z
 
 This index lists per-language USR contract documents.
 
@@ -65,6 +65,7 @@ Mandatory per-language completion requirements:
 | graphql | tree-sitter | C0,C1,C2 | none |
 
 ## Language files
+- docs/specs/usr/languages/TEMPLATE.md
 - docs/specs/usr/languages/javascript.md
 - docs/specs/usr/languages/typescript.md
 - docs/specs/usr/languages/python.md
