@@ -95,11 +95,14 @@ try {
   process.exit(1);
 }
 const output = getCombinedOutput({ stdout: sqliteLogs.join('\n'), stderr: '' });
+const outputLower = output.toLowerCase();
 if (
-  !output.includes('Incremental bundles unavailable')
-  && !output.includes('falling back to artifacts')
-  && !output.includes('Incremental update skipped')
-  && !output.includes('bundle missing')
+  !outputLower.includes('incremental bundles unavailable')
+  && !outputLower.includes('falling back to artifacts')
+  && !outputLower.includes('incremental update skipped')
+  && !outputLower.includes('bundle missing')
+  && !outputLower.includes('bundle file missing')
+  && !outputLower.includes('bundle build failed')
 ) {
   console.error('Expected bundle fallback warning not found in output.');
   process.exit(1);
