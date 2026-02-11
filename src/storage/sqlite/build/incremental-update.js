@@ -553,7 +553,16 @@ export async function incrementalUpdateDatabase({
     const phraseIdMap = phraseVocab.map;
     const chargramIdMap = chargramVocab.map;
 
-    for (const record of changed) {
+    const orderedChanged = [...changed].sort((a, b) => {
+      const aIds = existingIdsByFile.get(a?.normalized || '')?.ids || [];
+      const bIds = existingIdsByFile.get(b?.normalized || '')?.ids || [];
+      const aIsNew = aIds.length === 0;
+      const bIsNew = bIds.length === 0;
+      if (aIsNew === bIsNew) return 0;
+      return aIsNew ? -1 : 1;
+    });
+
+    for (const record of orderedChanged) {
       const normalizedFile = record.normalized;
       const entry = existingIdsByFile.get(normalizedFile);
       const reuseIds = entry?.ids || [];
