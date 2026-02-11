@@ -13,10 +13,23 @@ const scheduler = createBuildScheduler({
 
 const order = [];
 const tasks = [];
+let releaseLow = null;
 
 tasks.push(scheduler.schedule('low', { cpu: 1 }, async () => {
-  order.push('low-1');
+  order.push('low-start');
+  await new Promise((resolve) => {
+    releaseLow = resolve;
+  });
+  order.push('low-end');
 }));
+
+const tokenTotals = scheduler.stats()?.tokens || {};
+if (tokenTotals?.cpu?.total !== 1 || tokenTotals?.io?.total !== 1 || tokenTotals?.mem?.total !== 1) {
+  console.error('scheduler deterministic test failed: expected zero-token pools to clamp to 1');
+  process.exit(1);
+}
+
+await new Promise((resolve) => setTimeout(resolve, 5));
 
 tasks.push(scheduler.schedule('high', { cpu: 1 }, async () => {
   order.push('high-1');
@@ -27,14 +40,14 @@ tasks.push(scheduler.schedule('high', { cpu: 1 }, async () => {
 }));
 
 tasks.push(scheduler.schedule('low', { cpu: 1 }, async () => {
-  order.push('low-2');
+  order.push('low-tail');
 }));
 
-scheduler.setLimits({ cpuTokens: 1 });
+releaseLow();
 
 await Promise.all(tasks);
 
-const expected = ['high-1', 'high-2', 'low-1', 'low-2'];
+const expected = ['low-start', 'low-end', 'high-1', 'high-2', 'low-tail'];
 if (order.join(',') !== expected.join(',')) {
   console.error(`scheduler deterministic test failed: expected ${expected.join(',')} got ${order.join(',')}`);
   process.exit(1);

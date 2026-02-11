@@ -217,11 +217,26 @@ export function createSearchPipeline(context) {
   };
 
   const providerRuntimeState = new Map();
+  const unnamedProviderIdentity = new WeakMap();
+  let unnamedProviderCounter = 0;
   const resolveProviderStateKey = (provider, mode) => {
     const modeKey = typeof mode === 'string' && mode ? mode : 'unknown-mode';
-    const providerKey = typeof provider?.id === 'string' && provider.id
+    let providerKey = typeof provider?.id === 'string' && provider.id
       ? provider.id
-      : 'unknown-provider';
+      : '';
+    if (!providerKey) {
+      const providerType = typeof provider;
+      if (provider && (providerType === 'object' || providerType === 'function')) {
+        providerKey = unnamedProviderIdentity.get(provider) || '';
+        if (!providerKey) {
+          unnamedProviderCounter += 1;
+          providerKey = `unnamed-provider-${unnamedProviderCounter}`;
+          unnamedProviderIdentity.set(provider, providerKey);
+        }
+      } else {
+        providerKey = 'unknown-provider';
+      }
+    }
     return `${modeKey}:${providerKey}`;
   };
   const getProviderModeState = (provider, mode) => {

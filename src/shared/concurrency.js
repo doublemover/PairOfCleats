@@ -211,7 +211,8 @@ export function createBuildScheduler(input = {}) {
     if (value == null) return 1;
     const parsed = Math.floor(Number(value));
     if (!Number.isFinite(parsed)) return 1;
-    return Math.max(0, parsed);
+    // Zero-token pools deadlock queued work that requires that resource.
+    return Math.max(1, parsed);
   };
   let cpuTokens = normalizeTokenPool(input.cpuTokens);
   let ioTokens = normalizeTokenPool(input.ioTokens);
@@ -466,13 +467,13 @@ export function createBuildScheduler(input = {}) {
 
   const setLimits = (limits = {}) => {
     if (Number.isFinite(Number(limits.cpuTokens))) {
-      cpuTokens = Math.max(0, Math.floor(Number(limits.cpuTokens)));
+      cpuTokens = Math.max(1, Math.floor(Number(limits.cpuTokens)));
     }
     if (Number.isFinite(Number(limits.ioTokens))) {
-      ioTokens = Math.max(0, Math.floor(Number(limits.ioTokens)));
+      ioTokens = Math.max(1, Math.floor(Number(limits.ioTokens)));
     }
     if (Number.isFinite(Number(limits.memoryTokens))) {
-      memoryTokens = Math.max(0, Math.floor(Number(limits.memoryTokens)));
+      memoryTokens = Math.max(1, Math.floor(Number(limits.memoryTokens)));
     }
     tokens.cpu.total = cpuTokens;
     tokens.io.total = ioTokens;
