@@ -36,28 +36,34 @@ const safeStat = async (targetPath) => {
 };
 
 export const createTempPath = (filePath) => {
-  const suffix = `.tmp-${createTempToken()}`;
+  const token = createTempToken();
+  const suffix = `.tmp-${token}`;
   const tempPath = `${filePath}${suffix}`;
   if (process.platform !== 'win32' || tempPath.length <= 232) {
     return tempPath;
   }
   const dir = path.dirname(filePath);
   const ext = path.extname(filePath);
-  const randomToken = crypto.randomBytes(6).toString('hex');
-  const compactToken = `${(tempPathCounter >>> 0).toString(36)}${randomToken}`;
+  const compactToken = crypto
+    .createHash('sha1')
+    .update(filePath)
+    .update(':')
+    .update(token)
+    .digest('hex');
 
   const buildCompactPath = (maxLen) => {
     const budget = maxLen - dir.length - 1 - ext.length;
-    if (budget < 1) return null;
-    const tokenBudget = Math.max(0, budget - 1);
-    const token = tokenBudget > 0 ? compactToken.slice(0, tokenBudget) : '';
-    return path.join(dir, `t${token}${ext}`);
+    // Keep at least "t-" + 4 chars so compact fallbacks stay unique.
+    if (budget < 6) return null;
+    const tokenBudget = Math.max(4, budget - 2);
+    const name = `t-${compactToken.slice(0, tokenBudget)}`;
+    return path.join(dir, `${name}${ext}`);
   };
 
   return (
     buildCompactPath(232)
     || buildCompactPath(240)
-    || path.join(dir, `t${ext}`)
+    || tempPath
   );
 };
 
