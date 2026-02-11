@@ -65,8 +65,7 @@ const createFixtureEnv = (cacheRoot, overrides = {}) => {
         return key === 'PAIROFCLEATS_TEST_CACHE_SUFFIX'
           || key === 'PAIROFCLEATS_TEST_LOG_SILENT'
           || key === 'PAIROFCLEATS_TEST_ALLOW_MISSING_COMPAT_KEY'
-          || key === 'PAIROFCLEATS_TESTING'
-          || key === 'PAIROFCLEATS_TEST_CONFIG';
+          || key === 'PAIROFCLEATS_TESTING';
       })
     ),
     PAIROFCLEATS_TESTING: '1',

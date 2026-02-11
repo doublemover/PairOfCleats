@@ -34,8 +34,7 @@ export const applyTestEnv = ({
     'PAIROFCLEATS_TEST_CACHE_SUFFIX',
     'PAIROFCLEATS_TEST_LOG_SILENT',
     'PAIROFCLEATS_TEST_ALLOW_MISSING_COMPAT_KEY',
-    'PAIROFCLEATS_TESTING',
-    'PAIROFCLEATS_TEST_CONFIG'
+    'PAIROFCLEATS_TESTING'
   ]);
   for (const key of Object.keys(env)) {
     if (!key.startsWith('PAIROFCLEATS_TEST_')) continue;
@@ -61,7 +60,8 @@ export const applyTestEnv = ({
     }
   }
   if (testConfig === undefined) {
-    // Preserve inherited test config unless explicitly overridden by the caller.
+    // Prevent inherited runner/shell overrides from silently mutating test behavior.
+    removeKey('PAIROFCLEATS_TEST_CONFIG');
   } else if (testConfig === null) {
     removeKey('PAIROFCLEATS_TEST_CONFIG');
   } else if (typeof testConfig === 'string') {
