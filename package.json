@@ -93,7 +93,7 @@
     "apache-arrow": "^21.1.0",
     "better-sqlite3": "12.5.0",
     "chardet": "^2.1.1",
-    "chokidar": "^3.5.3",
+    "chokidar": "^5.0.0",
     "cjs-module-lexer": "^2.2.0",
     "dockerfile-ast": "^0.7.1",
     "es-module-lexer": "^2.0.0",
