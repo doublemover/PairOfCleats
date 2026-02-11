@@ -78,7 +78,7 @@ const createFixtureEnv = (cacheRoot, overrides = {}) => {
     PAIROFCLEATS_TESTING: '1',
     PAIROFCLEATS_CACHE_ROOT: cacheRoot,
     PAIROFCLEATS_EMBEDDINGS: 'stub',
-    PAIROFCLEATS_WORKER_POOL: 'auto',
+    PAIROFCLEATS_WORKER_POOL: 'off',
     PAIROFCLEATS_TEST_CONFIG: JSON.stringify(mergedTestConfig),
     ...restOverrides
   };
