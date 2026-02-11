@@ -540,7 +540,6 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
         const expectedDenseCount = resolveExpectedDenseCount(pieces?.denseVec);
         const modeSupportsDense = mode === 'code' || mode === 'prose' || mode === 'extracted-prose';
         const denseArtifactsRequired = modeSupportsDense && expectedDenseCount > 0;
-        const vectorRequiredForMode = vectorAnnEnabled && modeSupportsDense;
         const bundleManifest = incrementalData?.manifest || null;
         let bundleSkipReason = null;
         if (hasIncrementalBundles
@@ -556,15 +555,15 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
           bundleSkipReason = `bundle file missing (${missingBundleCount})`;
           hasIncrementalBundles = false;
         }
-        if (incrementalRequested && emitOutput && bundleSkipReason) {
-          const skipMessage = `[sqlite] Incremental bundles skipped for ${mode}: ${bundleSkipReason}.`;
-          if (bundleSkipReason.includes('bundle file missing')) {
+        if (incrementalRequested && emitOutput && !hasIncrementalBundles) {
+          const skipMessage = bundleSkipReason
+            ? `[sqlite] Incremental bundles skipped for ${mode}: ${bundleSkipReason}; falling back to artifacts.`
+            : '[sqlite] Incremental bundles unavailable; falling back to artifacts.';
+          if (bundleSkipReason?.includes('bundle file missing')) {
             warn(skipMessage);
           } else {
             log(skipMessage);
           }
-        } else if (incrementalRequested && !hasIncrementalBundles && emitOutput && incrementalData?.manifest) {
-          log('[sqlite] Incremental bundles unavailable; falling back to artifacts.');
         }
         resolvedInput = hasIncrementalBundles
           ? { source: 'incremental', bundleDir: incrementalBundleDir }
@@ -753,7 +752,7 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
           const compacted = await compactDatabase({
             dbPath: tempOutputPath,
             mode,
-            vectorExtension: vectorExtension,
+            vectorExtension: resolvedVectorConfig.extension,
             logger: externalLogger || { log, warn, error }
           });
           if (compacted) logDetails.push('compacted');
