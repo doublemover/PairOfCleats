@@ -551,7 +551,12 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
           hasIncrementalBundles = false;
         }
         if (incrementalRequested && emitOutput && bundleSkipReason) {
-          log(`[sqlite] Incremental bundles skipped for ${mode}: ${bundleSkipReason}.`);
+          const skipMessage = `[sqlite] Incremental bundles skipped for ${mode}: ${bundleSkipReason}.`;
+          if (bundleSkipReason.includes('bundle file missing')) {
+            warn(skipMessage);
+          } else {
+            log(skipMessage);
+          }
         } else if (incrementalRequested && !hasIncrementalBundles && emitOutput && incrementalData?.manifest) {
           log('[sqlite] Incremental bundles unavailable; falling back to artifacts.');
         }
