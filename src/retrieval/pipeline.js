@@ -563,15 +563,15 @@ export function createSearchPipeline(context) {
               const failureUntil = Number.isFinite(Number(state.preflightFailureUntil))
                 ? Number(state.preflightFailureUntil)
                 : 0;
-              if (failureUntil > now) {
+              const disabledUntil = Number.isFinite(Number(state.disabledUntil))
+                ? Number(state.disabledUntil)
+                : 0;
+              const blockedUntil = Math.max(failureUntil, disabledUntil);
+              if (blockedUntil > now) {
                 return false;
               }
-              // The preflight cooldown window expired. Clear both the preflight
-              // gate and any matching provider-level disable so we actually
-              // re-run provider.preflight on the next attempt.
-              if (state.disabledUntil <= now) {
-                state.disabledUntil = 0;
-              }
+              // Preflight cooldown fully expired; allow a fresh probe attempt.
+              state.disabledUntil = 0;
               state.preflight = null;
               state.preflightFailureUntil = 0;
               state.preflightCheckedAt = 0;
