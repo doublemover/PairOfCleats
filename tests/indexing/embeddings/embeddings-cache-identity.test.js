@@ -110,9 +110,9 @@ const findCacheEntry = (entries, predicate) => (
 
 runEmbeddings(8);
 
-const cacheDir = path.join(cacheRoot, 'embeddings');
-const firstIndexPaths = await findCacheIndexPaths(cacheDir);
-const firstEntries = await loadCacheEntries(cacheDir);
+const cacheScanRoot = cacheRoot;
+const firstIndexPaths = await findCacheIndexPaths(cacheScanRoot);
+const firstEntries = await loadCacheEntries(cacheScanRoot);
 if (!firstEntries.length) {
   console.error('embeddings cache identity test failed: missing cache files');
   process.exit(1);
@@ -170,7 +170,7 @@ if (!onnxIdentity?.onnx?.modelPath || !onnxIdentity?.onnx?.tokenizerId) {
 }
 
 runEmbeddings(12);
-const secondIndexPaths = await findCacheIndexPaths(cacheDir);
+const secondIndexPaths = await findCacheIndexPaths(cacheScanRoot);
 const firstSet = new Set(firstIndexPaths);
 const hasNew = secondIndexPaths.some((entry) => !firstSet.has(entry));
 if (!hasNew) {
