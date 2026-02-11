@@ -26,8 +26,12 @@ for (let i = 0; i < fileCount; i += 1) {
   await fsPromises.writeFile(path.join(repoRoot, `big-${i}.js`), content);
 }
 
+const inheritedEnv = { ...process.env };
+delete inheritedEnv.PAIROFCLEATS_TEST_CONFIG;
+delete inheritedEnv.PAIROFCLEATS_TEST_MAX_JSON_BYTES;
+
 const baseEnv = {
-  ...process.env,
+  ...inheritedEnv,
   PAIROFCLEATS_TESTING: '1',
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
   PAIROFCLEATS_EMBEDDINGS: 'stub',
@@ -46,6 +50,13 @@ const smallMaxConfig = {
   }
 };
 const runBuild = (label, envOverrides) => {
+  const env = { ...baseEnv, ...envOverrides };
+  if (!Object.prototype.hasOwnProperty.call(envOverrides || {}, 'PAIROFCLEATS_TEST_CONFIG')) {
+    delete env.PAIROFCLEATS_TEST_CONFIG;
+  }
+  if (!Object.prototype.hasOwnProperty.call(envOverrides || {}, 'PAIROFCLEATS_TEST_MAX_JSON_BYTES')) {
+    delete env.PAIROFCLEATS_TEST_MAX_JSON_BYTES;
+  }
   const result = spawnSync(
     process.execPath,
     [
@@ -60,7 +71,7 @@ const runBuild = (label, envOverrides) => {
       '--repo',
       repoRoot
     ],
-    { cwd: repoRoot, env: { ...baseEnv, ...envOverrides }, stdio: 'inherit' }
+    { cwd: repoRoot, env, stdio: 'inherit' }
   );
   if (result.status !== 0) {
     console.error(`Failed: build_index (${label})`);
@@ -164,7 +175,18 @@ if (fs.existsSync(path.join(jsonlFlatIndexDir, 'chunk_meta.json'))) {
   process.exit(1);
 }
 
-runBuild('artifact guardrails (large max)', { PAIROFCLEATS_TEST_MAX_JSON_BYTES: '52428800' });
+const largeMaxConfig = {
+  indexing: {
+    artifacts: {
+      chunkMetaFormat: 'json',
+      tokenPostingsFormat: 'json'
+    }
+  }
+};
+runBuild('artifact guardrails (large max)', {
+  PAIROFCLEATS_TEST_MAX_JSON_BYTES: '52428800',
+  PAIROFCLEATS_TEST_CONFIG: JSON.stringify(largeMaxConfig)
+});
 
 const nextIndexDir = getIndexDir(repoRoot, 'code', userConfig);
 const nextChunkMetaMeta = path.join(nextIndexDir, 'chunk_meta.meta.json');
