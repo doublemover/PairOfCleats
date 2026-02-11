@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { parseBuildEmbeddingsArgs } from '../../../../tools/build/embeddings/cli.js';
 import { runBuildEmbeddingsWithConfig } from '../../../../tools/build/embeddings/runner.js';
 import { SCHEDULER_QUEUE_NAMES } from '../../../../src/index/build/runtime/scheduler.js';
-import { resolveVersionedCacheRoot } from '../../../../src/shared/cache-roots.js';
+import { getRepoCacheRoot, loadUserConfig } from '../../../../tools/shared/dict-utils.js';
 import { applyTestEnv } from '../../../helpers/test-env.js';
 
 const root = process.cwd();
@@ -15,7 +15,6 @@ const repoRoot = path.join(tempRoot, 'repo');
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(repoRoot, { recursive: true });
 await fsPromises.writeFile(path.join(repoRoot, 'index.js'), 'export const answer = 42;\n');
-const versionedCacheRoot = resolveVersionedCacheRoot(tempRoot);
 
 applyTestEnv({
   cacheRoot: tempRoot,
@@ -66,8 +65,10 @@ if (buildResult.status !== 0) {
 }
 
 // Clear both modern (versioned) and legacy cache locations so this run cannot
-// bypass scheduler queues via cache hits.
-await fsPromises.rm(versionedCacheRoot, { recursive: true, force: true });
+// bypass scheduler queues via cache hits, but keep stage2 index artifacts intact.
+const userConfig = loadUserConfig(repoRoot);
+const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
+await fsPromises.rm(path.join(repoCacheRoot, 'embeddings'), { recursive: true, force: true });
 await fsPromises.rm(path.join(tempRoot, 'embeddings'), { recursive: true, force: true });
 
 const config = parseBuildEmbeddingsArgs([
