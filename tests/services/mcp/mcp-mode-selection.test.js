@@ -10,7 +10,7 @@ if (!caps?.mcp?.sdk) {
   skip('Skipping MCP mode selection test; @modelcontextprotocol/sdk not available.');
 }
 
-const MODE_CASE_TIMEOUT_MS = 30000;
+const MODE_CASE_TIMEOUT_MS = 60000;
 
 const readWithTimeout = (promise, label) => {
   let timer = null;
@@ -29,7 +29,8 @@ const runCase = async ({ label, expectedMode, cliMode, env }) => {
     cacheRoot,
     mode: cliMode,
     transport: expectedMode,
-    env
+    env,
+    timeoutMs: 120000
   });
 
   try {

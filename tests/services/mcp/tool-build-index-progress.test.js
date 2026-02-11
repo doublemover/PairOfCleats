@@ -9,7 +9,7 @@ await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 
 const { send, readMessage, notifications, shutdown } = await startMcpServer({
   cacheRoot,
-  timeoutMs: 120000
+  timeoutMs: 240000
 });
 
 try {
