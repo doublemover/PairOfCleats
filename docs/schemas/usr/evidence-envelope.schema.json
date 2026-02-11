@@ -23,5 +23,5 @@
     "advisoryFindings": { "type": "array", "items": { "type": "object" } },
     "evidenceRefs": { "type": "array", "items": { "type": "string" } }
   },
-  "additionalProperties": true
+  "additionalProperties": false
 }
