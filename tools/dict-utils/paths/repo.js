@@ -102,15 +102,30 @@ export function getCurrentBuildInfo(repoRoot, userConfig = null, options = {}) {
     const buildRootRaw = typeof data.buildRoot === 'string' ? data.buildRoot : null;
     const repoCacheResolved = path.resolve(repoCacheRoot);
     const resolveRoot = (value) => {
-      if (!value) return null;
-      const resolved = isAbsolutePathNative(value) ? value : path.join(repoCacheRoot, value);
-      const normalized = path.resolve(resolved);
-      if (!normalized.startsWith(repoCacheResolved + path.sep) && normalized !== repoCacheResolved) return null;
-      return normalized;
+      if (typeof value !== 'string') return null;
+      const trimmed = value.trim();
+      if (!trimmed) return null;
+      const candidates = isAbsolutePathNative(trimmed)
+        ? [trimmed]
+        : [
+          path.join(repoCacheRoot, trimmed),
+          path.join(buildsRoot, trimmed)
+        ];
+      for (const candidate of candidates) {
+        const normalized = path.resolve(candidate);
+        if (normalized === repoCacheResolved || normalized.startsWith(repoCacheResolved + path.sep)) {
+          return normalized;
+        }
+      }
+      return null;
     };
     let buildRoot = buildRootRaw
       ? resolveRoot(buildRootRaw)
       : (buildId ? path.join(buildsRoot, buildId) : null);
+    if (!buildRoot && buildId) {
+      const fromBuildId = resolveRoot(buildId);
+      if (fromBuildId) buildRoot = fromBuildId;
+    }
     if (
       buildId
       && buildRoot
@@ -142,7 +157,16 @@ export function getCurrentBuildInfo(repoRoot, userConfig = null, options = {}) {
     }
     const preferredMode = typeof options.mode === 'string' ? options.mode : null;
     const preferredRoot = preferredMode ? buildRoots[preferredMode] : null;
-    const activeRoot = preferredRoot || buildRoot || Object.values(buildRoots)[0] || null;
+    const firstExistingModeRoot = Object.values(buildRoots).find((candidate) => (
+      typeof candidate === 'string' && fs.existsSync(candidate)
+    )) || null;
+    let activeRoot = preferredRoot || buildRoot || firstExistingModeRoot || Object.values(buildRoots)[0] || null;
+    if ((!activeRoot || !fs.existsSync(activeRoot)) && buildId) {
+      const buildIdRoot = path.join(buildsRoot, buildId);
+      if (fs.existsSync(buildIdRoot)) {
+        activeRoot = buildIdRoot;
+      }
+    }
     const resolvedBuildId = buildId || (activeRoot ? path.basename(activeRoot) : null);
     if (!resolvedBuildId || !activeRoot || !fs.existsSync(activeRoot)) return null;
     return {
@@ -175,17 +199,32 @@ export function resolveIndexRoot(repoRoot, userConfig = null, options = {}) {
       const data = JSON.parse(fs.readFileSync(currentPath, 'utf8')) || {};
       const repoCacheResolved = path.resolve(repoCacheRoot);
       const resolveRoot = (value) => {
-        if (!value) return null;
-        const resolved = isAbsolutePathNative(value) ? value : path.join(repoCacheRoot, value);
-        const normalized = path.resolve(resolved);
-        if (!normalized.startsWith(repoCacheResolved + path.sep) && normalized !== repoCacheResolved) return null;
-        return normalized;
+        if (typeof value !== 'string') return null;
+        const trimmed = value.trim();
+        if (!trimmed) return null;
+        const candidates = isAbsolutePathNative(trimmed)
+          ? [trimmed]
+          : [
+            path.join(repoCacheRoot, trimmed),
+            path.join(buildsRoot, trimmed)
+          ];
+        for (const candidate of candidates) {
+          const normalized = path.resolve(candidate);
+          if (normalized === repoCacheResolved || normalized.startsWith(repoCacheResolved + path.sep)) {
+            return normalized;
+          }
+        }
+        return null;
       };
       const buildRootRaw = typeof data.buildRoot === 'string' ? data.buildRoot : null;
       const buildId = typeof data.buildId === 'string' ? data.buildId : null;
       let buildRoot = buildRootRaw
         ? resolveRoot(buildRootRaw)
         : (buildId ? path.join(buildsRoot, buildId) : null);
+      if (!buildRoot && buildId) {
+        const fromBuildId = resolveRoot(buildId);
+        if (fromBuildId) buildRoot = fromBuildId;
+      }
       if (
         buildId
         && buildRoot

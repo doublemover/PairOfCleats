@@ -340,12 +340,41 @@ export async function runBuildEmbeddingsWithConfig(config) {
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
   const repoCacheRootResolved = path.resolve(repoCacheRoot);
   let activeIndexRoot = indexRoot;
-  if (activeIndexRoot && path.resolve(activeIndexRoot) === repoCacheRootResolved) {
-    const currentBuild = getCurrentBuildInfo(root, userConfig);
-    const promotedRoot = currentBuild?.activeRoot || currentBuild?.buildRoot || null;
-    if (promotedRoot && path.resolve(promotedRoot) !== repoCacheRootResolved) {
-      activeIndexRoot = promotedRoot;
-      log(`[embeddings] using active build root from current.json: ${activeIndexRoot}`);
+  const normalizePath = (value) => {
+    if (!value) return null;
+    const normalized = path.resolve(value);
+    return process.platform === 'win32' ? normalized.toLowerCase() : normalized;
+  };
+  const repoCacheRootKey = normalizePath(repoCacheRootResolved);
+  const buildsRootKey = normalizePath(path.join(repoCacheRootResolved, 'builds'));
+  const hasModeIndexDirs = (candidateRoot) => {
+    if (!candidateRoot || !Array.isArray(modes) || !modes.length) return false;
+    for (const mode of modes) {
+      if (typeof mode !== 'string' || !mode) continue;
+      if (fsSync.existsSync(path.join(candidateRoot, `index-${mode}`))) {
+        return true;
+      }
+    }
+    return false;
+  };
+  if (activeIndexRoot) {
+    const activeRootKey = normalizePath(activeIndexRoot);
+    const underRepoCache = activeRootKey
+      && repoCacheRootKey
+      && (activeRootKey === repoCacheRootKey || activeRootKey.startsWith(`${repoCacheRootKey}${path.sep}`));
+    const needsCurrentBuildRoot = underRepoCache && (
+      activeRootKey === repoCacheRootKey
+      || activeRootKey === buildsRootKey
+      || !hasModeIndexDirs(activeIndexRoot)
+    );
+    if (needsCurrentBuildRoot) {
+      const currentBuild = getCurrentBuildInfo(root, userConfig, { mode: modes[0] || null });
+      const promotedRoot = currentBuild?.activeRoot || currentBuild?.buildRoot || null;
+      const promotedRootKey = normalizePath(promotedRoot);
+      if (promotedRoot && promotedRootKey && promotedRootKey !== activeRootKey) {
+        activeIndexRoot = promotedRoot;
+        log(`[embeddings] using active build root from current.json: ${activeIndexRoot}`);
+      }
     }
   }
   const metricsDir = getMetricsDir(root, userConfig);
