@@ -8,7 +8,7 @@ import { applyTestEnv } from './test-env.js';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const FIXTURE_ROOT = path.join(ROOT, 'tests', 'fixtures', 'sample');
 
-const RETRYABLE_RM_CODES = new Set(['EBUSY', 'ENOTEMPTY', 'EPERM', 'EACCES']);
+const RETRYABLE_RM_CODES = new Set(['EBUSY', 'ENOTEMPTY', 'EPERM', 'EACCES', 'EMFILE', 'ENFILE']);
 const MAX_RM_ATTEMPTS = 10;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -24,6 +24,13 @@ const rmWithRetry = async (targetPath) => {
       await sleep(100 * (attempt + 1));
     }
   }
+  try {
+    await fsPromises.access(targetPath);
+    const tombstone = `${targetPath}.pending-delete-${Date.now()}-${process.pid}`;
+    await fsPromises.rename(targetPath, tombstone);
+    await fsPromises.rm(tombstone, { recursive: true, force: true });
+    return;
+  } catch {}
   if (lastError && !RETRYABLE_RM_CODES.has(lastError?.code)) {
     throw lastError;
   }
@@ -53,7 +60,8 @@ export const setupIncrementalRepo = async ({ name }) => {
     ? process.env.PAIROFCLEATS_TEST_CACHE_SUFFIX.trim()
     : '';
   const scopedName = suffixRaw ? `${name}-${suffixRaw}` : name;
-  const tempRoot = path.join(ROOT, '.testCache', 'sqlite-incremental', scopedName);
+  const uniqueSuffix = `${Date.now()}-${process.pid}-${Math.random().toString(16).slice(2, 8)}`;
+  const tempRoot = path.join(ROOT, '.testCache', 'sqlite-incremental', `${scopedName}-${uniqueSuffix}`);
   const repoRoot = path.join(tempRoot, 'repo');
   const cacheRoot = path.join(tempRoot, 'cache');
 
