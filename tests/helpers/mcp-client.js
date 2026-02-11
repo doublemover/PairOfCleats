@@ -10,55 +10,6 @@ const encodeMessage = (payload) => {
   return `Content-Length: ${Buffer.byteLength(json, 'utf8')}\r\n\r\n${json}`;
 };
 
-const createLineReader = (stream) => {
-  let buffer = '';
-  const notifications = [];
-  const tryRead = () => {
-    const idx = buffer.indexOf('\n');
-    if (idx === -1) return null;
-    const line = buffer.slice(0, idx).trim();
-    buffer = buffer.slice(idx + 1);
-    if (!line) return null;
-    return JSON.parse(line);
-  };
-
-  const readRaw = async () => {
-    const existing = tryRead();
-    if (existing) return existing;
-    return new Promise((resolve) => {
-      const onData = (chunk) => {
-        buffer += chunk.toString('utf8');
-        const parsed = tryRead();
-        if (!parsed) return;
-        stream.off('data', onData);
-        resolve(parsed);
-      };
-      stream.on('data', onData);
-    });
-  };
-
-  const readAnyMessage = async () => {
-    const parsed = await readRaw();
-    if (parsed && parsed.method && parsed.id === undefined) {
-      notifications.push(parsed);
-    }
-    return parsed;
-  };
-
-  const readMessage = async () => {
-    while (true) {
-      const parsed = await readRaw();
-      if (parsed && parsed.method && parsed.id === undefined) {
-        notifications.push(parsed);
-        continue;
-      }
-      return parsed;
-    }
-  };
-
-  return { readMessage, readAnyMessage, notifications };
-};
-
 const createReader = (stream) => {
   let buffer = Buffer.alloc(0);
   const notifications = [];
@@ -145,10 +96,7 @@ export const startMcpServer = async ({
     }
   });
 
-  const effectiveTransport = transport || mode || 'legacy';
-  const reader = effectiveTransport === 'sdk'
-    ? createLineReader(server.stdout)
-    : createReader(server.stdout);
+  const reader = createReader(server.stdout);
   const { readMessage, readAnyMessage, notifications } = reader;
   const resolvedTimeoutMs = Number.isFinite(Number(timeoutMs))
     ? Math.max(1000, Math.floor(Number(timeoutMs)))
@@ -160,10 +108,6 @@ export const startMcpServer = async ({
   }, resolvedTimeoutMs);
 
   const send = (payload) => {
-    if (effectiveTransport === 'sdk') {
-      server.stdin.write(`${JSON.stringify(payload)}\n`);
-      return;
-    }
     server.stdin.write(encodeMessage(payload));
   };
 
