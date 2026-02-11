@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-11T19:07:47.833Z",
+  "generatedAt": "2026-02-11T20:36:22.062Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -27,6 +27,7 @@
       "watch"
     ],
     "knownEnvVars": [
+      "PAIROFCLEATS_ANN_BACKEND",
       "PAIROFCLEATS_API_TOKEN",
       "PAIROFCLEATS_BENCH_RUN",
       "PAIROFCLEATS_BUNDLE_THREADS",
@@ -41,6 +42,7 @@
       "PAIROFCLEATS_DISCOVERY_STAT_CONCURRENCY",
       "PAIROFCLEATS_DOC_EXTRACT",
       "PAIROFCLEATS_EMBEDDINGS",
+      "PAIROFCLEATS_ENV_ALLOWLIST",
       "PAIROFCLEATS_EXTENSIONS_DIR",
       "PAIROFCLEATS_FILE_CACHE_MAX",
       "PAIROFCLEATS_HOME",
@@ -94,6 +96,7 @@
       "PAIROFCLEATS_TEST_NODE_OPTIONS",
       "PAIROFCLEATS_TEST_PID_FILE",
       "PAIROFCLEATS_TEST_RETRIES",
+      "PAIROFCLEATS_TEST_SQLITE_P95_MAX_MS",
       "PAIROFCLEATS_TEST_TANTIVY",
       "PAIROFCLEATS_TEST_THREADS",
       "PAIROFCLEATS_TEST_TIMEOUT_MS",
@@ -1581,7 +1584,8 @@
     {
       "name": "PAIROFCLEATS_ANN_BACKEND",
       "files": [
-        "tests/helpers/test-env-clear.test.js"
+        "tests/helpers/test-env-clear.test.js",
+        "tools/config/inventory.js"
       ]
     },
     {
@@ -1864,7 +1868,8 @@
     {
       "name": "PAIROFCLEATS_ENV_ALLOWLIST",
       "files": [
-        "tests/run.js"
+        "tests/run.js",
+        "tools/config/inventory.js"
       ]
     },
     {
@@ -2314,7 +2319,8 @@
     {
       "name": "PAIROFCLEATS_TEST_SQLITE_P95_MAX_MS",
       "files": [
-        "tests/perf/sqlite-p95-latency.test.js"
+        "tests/perf/sqlite-p95-latency.test.js",
+        "tools/config/inventory.js"
       ]
     },
     {
@@ -2536,11 +2542,7 @@
   "envVarsPublic": [
     "PAIROFCLEATS_API_TOKEN"
   ],
-  "envVarsUnknown": [
-    "PAIROFCLEATS_ANN_BACKEND",
-    "PAIROFCLEATS_ENV_ALLOWLIST",
-    "PAIROFCLEATS_TEST_SQLITE_P95_MAX_MS"
-  ],
+  "envVarsUnknown": [],
   "cliFlags": {
     "totalFlags": 298,
     "publicFlags": [
