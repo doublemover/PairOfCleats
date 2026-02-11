@@ -391,6 +391,9 @@ export async function incrementalUpdateDatabase({
   } = statements;
 
   const existingIdsByFile = new Map();
+  const normalizedFileExpr = process.platform === 'win32'
+    ? "lower(replace(file, char(92), '/'))"
+    : 'file';
   const toFileKey = (value) => {
     const normalized = normalizeFilePath(value);
     if (!normalized) return null;
@@ -400,7 +403,7 @@ export async function incrementalUpdateDatabase({
     'SELECT id, file FROM chunks WHERE mode = ? AND file = ? ORDER BY id'
   );
   const readDocIdsForFileCaseFold = process.platform === 'win32'
-    ? db.prepare('SELECT id, file FROM chunks WHERE mode = ? AND lower(file) = ? ORDER BY id')
+    ? db.prepare(`SELECT id, file FROM chunks WHERE mode = ? AND ${normalizedFileExpr} = ? ORDER BY id`)
     : null;
   const recordExistingDocRows = (rows = []) => {
     for (const row of rows) {
@@ -449,7 +452,7 @@ export async function incrementalUpdateDatabase({
         ? (() => {
           const placeholders = batch.map(() => '?').join(',');
           const stmt = db.prepare(
-            `SELECT id, file FROM chunks WHERE mode = ? AND lower(file) IN (${placeholders}) ORDER BY id`
+            `SELECT id, file FROM chunks WHERE mode = ? AND ${normalizedFileExpr} IN (${placeholders}) ORDER BY id`
           );
           return stmt.all(mode, ...batch);
         })()
