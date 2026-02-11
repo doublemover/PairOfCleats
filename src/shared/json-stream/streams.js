@@ -131,6 +131,20 @@ export const createJsonWriteStream = (filePath, options = {}) => {
     try {
       await fsPromises.unlink(targetPath);
     } catch {}
+    // Clean up any stale atomic siblings for the same target file. This avoids
+    // leaked .tmp files when a prior abort path left a temp behind.
+    try {
+      const dir = path.dirname(targetPath);
+      const base = path.basename(filePath);
+      const entries = await fsPromises.readdir(dir);
+      const tempPrefix = `${base}.tmp-`;
+      for (const entry of entries) {
+        if (!entry.startsWith(tempPrefix)) continue;
+        try {
+          await fsPromises.rm(path.join(dir, entry), { force: true });
+        } catch {}
+      }
+    } catch {}
   };
   const attachPipelineErrorHandlers = () => {
     const forwardToFile = (err) => {
