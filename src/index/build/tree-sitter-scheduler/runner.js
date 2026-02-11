@@ -47,6 +47,31 @@ const buildPlannedSegmentsByContainer = (groups) => {
 const parseIndexRows = (text, indexPath) => {
   const rows = new Map();
   let invalidRows = 0;
+  const validateRow = (row) => {
+    if (!row || typeof row !== 'object') return false;
+    if (typeof row.virtualPath !== 'string' || !row.virtualPath) return false;
+    if (typeof row.grammarKey !== 'string' || !row.grammarKey) return false;
+    if (row.store === 'paged-json') {
+      const page = Number(row.page);
+      const item = Number(row.row);
+      const pageOffset = Number(row.pageOffset);
+      const pageBytes = Number(row.pageBytes);
+      return Number.isFinite(page)
+        && page >= 0
+        && Number.isFinite(item)
+        && item >= 0
+        && Number.isFinite(pageOffset)
+        && pageOffset >= 0
+        && Number.isFinite(pageBytes)
+        && pageBytes > 0;
+    }
+    const offset = Number(row.offset);
+    const bytes = Number(row.bytes);
+    return Number.isFinite(offset)
+      && offset >= 0
+      && Number.isFinite(bytes)
+      && bytes > 0;
+  };
   const lines = String(text || '').split(/\r?\n/);
   for (let lineNumber = 0; lineNumber < lines.length; lineNumber += 1) {
     const raw = lines[lineNumber];
@@ -56,36 +81,19 @@ const parseIndexRows = (text, indexPath) => {
     try {
       row = JSON.parse(trimmed);
     } catch (err) {
-      let repaired = null;
-      const objectStart = trimmed.indexOf('{');
-      if (objectStart >= 0) {
-        const objectEnd = trimmed.lastIndexOf('}');
-        if (objectEnd > objectStart) {
-          repaired = trimmed.slice(objectStart, objectEnd + 1);
-        } else {
-          repaired = trimmed.slice(objectStart);
-        }
-      } else if (trimmed.startsWith('"') || trimmed.startsWith(',')) {
-        repaired = `{${trimmed.replace(/^,/, '')}}`;
-      }
-      if (repaired) {
-        try {
-          row = JSON.parse(repaired);
-        } catch {
-          invalidRows += 1;
-          continue;
-        }
-      } else {
-        invalidRows += 1;
-        continue;
-      }
+      invalidRows += 1;
+      continue;
     }
-    const virtualPath = row?.virtualPath || null;
-    if (!virtualPath) continue;
-    rows.set(virtualPath, row);
+    if (!validateRow(row)) {
+      invalidRows += 1;
+      continue;
+    }
+    rows.set(row.virtualPath, row);
   }
-  if (!rows.size && invalidRows > 0) {
-    const err = new Error(`[tree-sitter:schedule] invalid index rows in ${indexPath}`);
+  if (invalidRows > 0) {
+    const err = new Error(
+      `[tree-sitter:schedule] invalid index rows in ${indexPath} (invalid=${invalidRows}, valid=${rows.size})`
+    );
     err.code = 'ERR_TREE_SITTER_INDEX_PARSE';
     throw err;
   }

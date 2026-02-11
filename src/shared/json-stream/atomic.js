@@ -102,6 +102,17 @@ export const replaceFile = async (tempPath, finalPath, options = {}) => {
   const startedAt = Date.now();
   const keepBackup = options.keepBackup === true;
   const bakPath = getBakPath(finalPath);
+  const isSamePath = (
+    typeof tempPath === 'string'
+    && typeof finalPath === 'string'
+    && toComparablePath(tempPath) === toComparablePath(finalPath)
+  );
+  if (isSamePath) {
+    if (fs.existsSync(finalPath)) return;
+    const err = new Error(`Temp file missing before replace: ${tempPath}`);
+    err.code = 'ERR_TEMP_MISSING';
+    throw err;
+  }
   const finalExists = fs.existsSync(finalPath);
   const isFreshFinal = async () => {
     const stat = await safeStat(finalPath);

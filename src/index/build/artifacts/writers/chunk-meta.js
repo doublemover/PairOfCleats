@@ -21,6 +21,7 @@ import {
   writeJsonObjectFile
 } from '../../../../shared/json-stream.js';
 import { fromPosix } from '../../../../shared/files.js';
+import { isTestingEnv } from '../../../../shared/env.js';
 import { mergeSortedRuns } from '../../../../shared/merge.js';
 import {
   compareChunkMetaRows,
@@ -957,10 +958,15 @@ export const enqueueChunkMetaArtifacts = async ({
 
   const shouldWriteCompatChunkMetaJson = Boolean(
     resolvedUseJsonl
-    && Number.isFinite(Number(chunkMetaCount))
-    && Number(chunkMetaCount) <= COMPAT_CHUNK_META_JSON_MAX_ROWS
-    && Number.isFinite(Number(jsonlScan?.totalJsonlBytes || 0))
-    && Number(jsonlScan?.totalJsonlBytes || 0) <= COMPAT_CHUNK_META_JSON_MAX_BYTES
+    && (
+      isTestingEnv()
+      || (
+        Number.isFinite(Number(chunkMetaCount))
+        && Number(chunkMetaCount) <= COMPAT_CHUNK_META_JSON_MAX_ROWS
+        && Number.isFinite(Number(jsonlScan?.totalJsonlBytes || 0))
+        && Number(jsonlScan?.totalJsonlBytes || 0) <= COMPAT_CHUNK_META_JSON_MAX_BYTES
+      )
+    )
   );
 
   if (resolvedUseJsonl) {

@@ -58,6 +58,21 @@ const removePathWithRetry = async (target, {
   return !fs.existsSync(target);
 };
 
+const cleanupPendingDeleteTombstones = async (targetPath) => {
+  try {
+    const dir = path.dirname(targetPath);
+    const base = path.basename(targetPath);
+    const prefix = `${base}.pending-delete-`;
+    const entries = await fsPromises.readdir(dir, { withFileTypes: true });
+    const matches = entries
+      .filter((entry) => entry?.isFile?.() && typeof entry.name === 'string' && entry.name.startsWith(prefix))
+      .map((entry) => path.join(dir, entry.name));
+    for (const tombstonePath of matches) {
+      await removePathWithRetry(tombstonePath, { recursive: false, attempts: 10, baseDelayMs: 30 });
+    }
+  } catch {}
+};
+
 const createExclusiveAtomicFileStream = (filePath, highWaterMark) => {
   let lastErr = null;
   for (let attempt = 0; attempt < 8; attempt += 1) {
@@ -158,6 +173,7 @@ export const createJsonWriteStream = (filePath, options = {}) => {
         await removePathWithRetry(tombstone, { recursive: false, attempts: 6, baseDelayMs: 50 });
       } catch {}
     }
+    await cleanupPendingDeleteTombstones(targetPath);
   };
   const attachPipelineErrorHandlers = () => {
     const forwardToFile = (err) => {

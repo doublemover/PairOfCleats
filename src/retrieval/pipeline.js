@@ -558,9 +558,6 @@ export function createSearchPipeline(context) {
           const state = getProviderModeState(provider, mode);
           const now = Date.now();
           if (state) {
-            const failures = Number.isFinite(Number(state.failures))
-              ? Math.max(0, Math.floor(Number(state.failures)))
-              : 0;
             if (state.preflight === false) {
               const failureUntil = Number.isFinite(Number(state.preflightFailureUntil))
                 ? Number(state.preflightFailureUntil)
@@ -576,11 +573,8 @@ export function createSearchPipeline(context) {
               return false;
             }
             if (state.preflight === true) {
-              // Reuse positive preflight only when the provider has no active
-              // failure history. After cooldown expiry we force a fresh probe.
               if (
-                failures === 0
-                && state.preflightCheckedAt
+                state.preflightCheckedAt
                 && (now - state.preflightCheckedAt) <= PREFLIGHT_CACHE_TTL_MS
               ) {
                 return true;

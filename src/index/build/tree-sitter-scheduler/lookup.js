@@ -152,25 +152,26 @@ export const createTreeSitterSchedulerLookup = ({
           try {
             row = JSON.parse(trimmed);
           } catch {
-            const start = trimmed.indexOf('{');
-            const end = trimmed.lastIndexOf('}');
-            if (start >= 0 && end > start) {
-              try {
-                row = JSON.parse(trimmed.slice(start, end + 1));
-              } catch {
-                invalidRows += 1;
-                continue;
-              }
-            } else {
-              invalidRows += 1;
-              continue;
-            }
+            invalidRows += 1;
+            continue;
           }
           const pageId = Number(row?.pageId);
-          if (!Number.isFinite(pageId) || pageId < 0) continue;
+          const offset = Number(row?.offset);
+          const bytes = Number(row?.bytes);
+          if (
+            !Number.isFinite(pageId)
+            || pageId < 0
+            || !Number.isFinite(offset)
+            || offset < 0
+            || !Number.isFinite(bytes)
+            || bytes <= 0
+          ) {
+            invalidRows += 1;
+            continue;
+          }
           map.set(pageId, row);
         }
-        if (!map.size && invalidRows > 0) {
+        if (invalidRows > 0) {
           const err = new Error(`[tree-sitter:schedule] invalid page index rows: ${pageIndexPath}`);
           err.code = 'ERR_TREE_SITTER_PAGE_INDEX_PARSE';
           throw err;

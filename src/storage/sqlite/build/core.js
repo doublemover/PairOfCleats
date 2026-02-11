@@ -74,15 +74,15 @@ const openDatabaseWithFallback = (Database, outPath) => {
       const resolvedCandidate = attempt === 0
         ? candidate
         : (candidate.promotePath
-            ? (() => {
-              const retryTemp = buildShortTempDbPath(resolvedOutPath);
-              return {
-                openPath: retryTemp,
-                dbPath: retryTemp,
-                promotePath: candidate.promotePath
-              };
-            })()
-            : candidate);
+          ? (() => {
+            const retryTemp = buildShortTempDbPath(resolvedOutPath);
+            return {
+              openPath: retryTemp,
+              dbPath: retryTemp,
+              promotePath: candidate.promotePath
+            };
+          })()
+          : candidate);
       try {
         fsSync.mkdirSync(path.dirname(resolvedCandidate.dbPath || resolvedCandidate.openPath), { recursive: true });
         const db = new Database(resolvedCandidate.openPath);
