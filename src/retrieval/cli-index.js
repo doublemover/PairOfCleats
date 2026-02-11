@@ -273,7 +273,7 @@ export async function loadIndex(dir, options) {
     ? 'dense_vectors_doc_hnsw_meta'
     : (hnswTarget === 'code' ? 'dense_vectors_code_hnsw_meta' : 'dense_vectors_hnsw_meta');
   const hnswPaths = resolveHnswPaths(dir, hnswTarget);
-  const hnswMeta = embeddingsReady && includeDense && includeHnsw && hnswConfig.enabled
+  const hnswMeta = embeddingsReady && includeHnsw && hnswConfig.enabled
     ? await loadOptionalObject(hnswMetaName, hnswPaths.metaPath)
     : null;
   let hnswIndex = null;
