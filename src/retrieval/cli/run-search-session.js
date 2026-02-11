@@ -554,9 +554,31 @@ export async function runSearchSession({
 
   const hnswActive = Object.values(hnswAnnUsed).some(Boolean);
   const lanceActive = Object.values(lanceAnnUsed).some(Boolean);
-  const annBackendUsed = vectorAnnEnabled && (vectorAnnUsed.code || vectorAnnUsed.prose)
+  const sqliteVectorActive = vectorAnnEnabled && Object.values(vectorAnnUsed).some(Boolean);
+  const hnswAvailable = Object.values(hnswAnnState || {}).some((state) => state?.available === true);
+  const lanceAvailable = Object.values(lanceAnnState || {}).some((state) => state?.available === true);
+  const sqliteVectorAvailable = vectorAnnEnabled
+    && Object.values(vectorAnnState || {}).some((state) => state?.available === true);
+  const normalizeRequestedBackend = (value) => {
+    if (value === 'sqlite-vector') return 'sqlite-extension';
+    if (value === 'dense') return 'js';
+    return value;
+  };
+  const requestedBackend = normalizeRequestedBackend(annBackend);
+  let annBackendUsed = sqliteVectorActive
     ? 'sqlite-extension'
     : (lanceActive ? 'lancedb' : (hnswActive ? 'hnsw' : 'js'));
+  if (annActive && requestedBackend && requestedBackend !== 'auto') {
+    const requestedAvailable = (
+      (requestedBackend === 'sqlite-extension' && sqliteVectorAvailable)
+      || (requestedBackend === 'lancedb' && lanceAvailable)
+      || (requestedBackend === 'hnsw' && hnswAvailable)
+      || (requestedBackend === 'js')
+    );
+    if (requestedAvailable) {
+      annBackendUsed = requestedBackend;
+    }
+  }
 
   if (queryCacheEnabled && cacheKey) {
     if (!cacheData) cacheData = { version: 1, entries: [] };
