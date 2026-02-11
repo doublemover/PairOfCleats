@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { loadChunkMeta, MAX_JSON_BYTES } from '../../../src/shared/artifact-io.js';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
@@ -69,12 +70,13 @@ if (buildResult.status !== 0) {
 
 const userConfig = loadUserConfig(repoRoot);
 const codeDir = getIndexDir(repoRoot, 'code', userConfig);
-const chunkMetaPath = path.join(codeDir, 'chunk_meta.json');
-if (!fs.existsSync(chunkMetaPath)) {
-  console.error('Missing chunk_meta.json for unicode test');
+let chunks = null;
+try {
+  chunks = await loadChunkMeta(codeDir, { maxBytes: MAX_JSON_BYTES, strict: true });
+} catch (err) {
+  console.error(`Failed to load chunk_meta for unicode test (${codeDir}):`, err?.message || err);
   process.exit(1);
 }
-const chunks = JSON.parse(await fsPromises.readFile(chunkMetaPath, 'utf8'));
 if (!Array.isArray(chunks) || !chunks.length) {
   console.error('No chunks found for unicode test');
   process.exit(1);
