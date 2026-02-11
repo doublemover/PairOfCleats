@@ -10,13 +10,19 @@ const restoreEnv = (key, value) => {
   }
 };
 
-const keys = ['PAIROFCLEATS_EMBEDDINGS', 'PAIROFCLEATS_TEST_CONFIG', 'PAIROFCLEATS_TEST_CACHE_SUFFIX'];
+const keys = [
+  'PAIROFCLEATS_EMBEDDINGS',
+  'PAIROFCLEATS_TEST_CONFIG',
+  'PAIROFCLEATS_TEST_CACHE_SUFFIX',
+  'PAIROFCLEATS_ANN_BACKEND'
+];
 const prev = Object.fromEntries(keys.map((key) => [key, snapshotEnv(key)]));
 
 try {
   process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
   process.env.PAIROFCLEATS_TEST_CONFIG = '{"ok":true}';
   process.env.PAIROFCLEATS_TEST_CACHE_SUFFIX = 'yes';
+  process.env.PAIROFCLEATS_ANN_BACKEND = 'lancedb';
 
   applyTestEnv({
     embeddings: null,
@@ -27,6 +33,7 @@ try {
   assert.equal(process.env.PAIROFCLEATS_EMBEDDINGS, undefined, 'embeddings should be cleared');
   assert.equal(process.env.PAIROFCLEATS_TEST_CONFIG, undefined, 'test config should be cleared');
   assert.equal(process.env.PAIROFCLEATS_TEST_CACHE_SUFFIX, undefined, 'extra env key should be cleared');
+  assert.equal(process.env.PAIROFCLEATS_ANN_BACKEND, undefined, 'non-test PAIROFCLEATS env should be cleared');
 
   console.log('test-env clear test passed');
 } finally {

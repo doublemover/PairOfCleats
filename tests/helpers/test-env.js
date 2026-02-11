@@ -30,15 +30,15 @@ export const applyTestEnv = ({
 } = {}) => {
   const env = { ...process.env };
   const deletedKeys = new Set();
-  const preservedTestKeys = new Set([
+  const preservedPairOfCleatsKeys = new Set([
     'PAIROFCLEATS_TEST_CACHE_SUFFIX',
     'PAIROFCLEATS_TEST_LOG_SILENT',
     'PAIROFCLEATS_TEST_ALLOW_MISSING_COMPAT_KEY',
     'PAIROFCLEATS_TESTING'
   ]);
   for (const key of Object.keys(env)) {
-    if (!key.startsWith('PAIROFCLEATS_TEST_')) continue;
-    if (preservedTestKeys.has(key)) continue;
+    if (!key.startsWith('PAIROFCLEATS_')) continue;
+    if (preservedPairOfCleatsKeys.has(key)) continue;
     delete env[key];
     deletedKeys.add(key);
   }

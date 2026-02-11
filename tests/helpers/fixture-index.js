@@ -58,16 +58,23 @@ const mergeTestConfig = (rawOverride) => {
 const createFixtureEnv = (cacheRoot, overrides = {}) => {
   const { PAIROFCLEATS_TEST_CONFIG: testConfigOverride, ...restOverrides } = overrides;
   const mergedTestConfig = mergeTestConfig(testConfigOverride);
+  const preservedPairOfCleatsKeys = new Set([
+    'PAIROFCLEATS_TEST_CACHE_SUFFIX',
+    'PAIROFCLEATS_TEST_LOG_SILENT',
+    'PAIROFCLEATS_TEST_ALLOW_MISSING_COMPAT_KEY',
+    'PAIROFCLEATS_TESTING'
+  ]);
+  const deletedKeys = new Set();
+  const baseEnv = Object.fromEntries(
+    Object.entries(process.env).filter(([key]) => {
+      if (!key.startsWith('PAIROFCLEATS_')) return true;
+      if (preservedPairOfCleatsKeys.has(key)) return true;
+      deletedKeys.add(key);
+      return false;
+    })
+  );
   const env = {
-    ...Object.fromEntries(
-      Object.entries(process.env).filter(([key]) => {
-        if (!key.startsWith('PAIROFCLEATS_TEST_')) return true;
-        return key === 'PAIROFCLEATS_TEST_CACHE_SUFFIX'
-          || key === 'PAIROFCLEATS_TEST_LOG_SILENT'
-          || key === 'PAIROFCLEATS_TEST_ALLOW_MISSING_COMPAT_KEY'
-          || key === 'PAIROFCLEATS_TESTING';
-      })
-    ),
+    ...baseEnv,
     PAIROFCLEATS_TESTING: '1',
     PAIROFCLEATS_CACHE_ROOT: cacheRoot,
     PAIROFCLEATS_EMBEDDINGS: 'stub',
@@ -75,8 +82,9 @@ const createFixtureEnv = (cacheRoot, overrides = {}) => {
     PAIROFCLEATS_TEST_CONFIG: JSON.stringify(mergedTestConfig),
     ...restOverrides
   };
-  const syncKeys = Object.keys(env).filter((key) => key.startsWith('PAIROFCLEATS_'));
-  syncProcessEnv(env, syncKeys);
+  const syncKeys = new Set(Object.keys(env).filter((key) => key.startsWith('PAIROFCLEATS_')));
+  for (const key of deletedKeys) syncKeys.add(key);
+  syncProcessEnv(env, Array.from(syncKeys), { clearMissing: true });
   return env;
 };
 

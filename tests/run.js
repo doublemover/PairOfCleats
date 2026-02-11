@@ -47,15 +47,17 @@ const SKIP_EXIT_CODE = 77;
 const REDO_EXIT_CODES = [3221226356, 3221225477];
 const DEFAULT_TIMEOUT_GRACE_MS = 2000;
 const DEFAULT_LOG_DIR = path.join(ROOT, '.testLogs');
-const INHERITED_TEST_ENV_ALLOWLIST = new Set([
+const INHERITED_PAIROFCLEATS_ENV_ALLOWLIST = new Set([
+  'PAIROFCLEATS_TEST_CACHE_SUFFIX',
+  'PAIROFCLEATS_TEST_ALLOW_MISSING_COMPAT_KEY',
   'PAIROFCLEATS_TEST_LOG_SILENT'
 ]);
 
-const scrubInheritedTestEnv = (env) => {
+const scrubInheritedPairOfCleatsEnv = (env) => {
   if (!env || typeof env !== 'object') return;
   for (const key of Object.keys(env)) {
-    if (!key.startsWith('PAIROFCLEATS_TEST_')) continue;
-    if (INHERITED_TEST_ENV_ALLOWLIST.has(key)) continue;
+    if (!key.startsWith('PAIROFCLEATS_')) continue;
+    if (INHERITED_PAIROFCLEATS_ENV_ALLOWLIST.has(key)) continue;
     delete env[key];
   }
 };
@@ -345,7 +347,7 @@ const main = async () => {
   }
 
   const baseEnv = { ...process.env };
-  scrubInheritedTestEnv(baseEnv);
+  scrubInheritedPairOfCleatsEnv(baseEnv);
   baseEnv.PAIROFCLEATS_TESTING = '1';
   if (!baseEnv.PAIROFCLEATS_CACHE_ROOT) {
     baseEnv.PAIROFCLEATS_CACHE_ROOT = path.join(ROOT, '.testCache');
