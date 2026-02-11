@@ -13,7 +13,7 @@ if (!caps?.mcp?.sdk) {
 const readWithTimeout = (promise, label) => Promise.race([
   promise,
   new Promise((_, reject) => {
-    setTimeout(() => reject(new Error(`${label} timed out`)), 5000);
+    setTimeout(() => reject(new Error(`${label} timed out`)), 15000);
   })
 ]);
 
