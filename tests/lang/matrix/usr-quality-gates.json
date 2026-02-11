@@ -1,0 +1,74 @@
+{
+  "schemaVersion": "usr-registry-1.0.0",
+  "registryId": "usr-quality-gates",
+  "generatedAt": "2026-02-11T03:30:00Z",
+  "generatedBy": "tools/usr/generate-usr-matrix-baselines.mjs",
+  "rows": [
+    {
+      "id": "qg-framework-binding-f1",
+      "domain": "framework-binding",
+      "scopeType": "global",
+      "scopeId": "global",
+      "metric": "f1",
+      "thresholdOperator": ">=",
+      "thresholdValue": 0.92,
+      "fixtureSetId": "framework-binding-goldens",
+      "blocking": true
+    },
+    {
+      "id": "qg-provenance-recall",
+      "domain": "provenance",
+      "scopeType": "global",
+      "scopeId": "global",
+      "metric": "recall",
+      "thresholdOperator": ">=",
+      "thresholdValue": 0.9,
+      "fixtureSetId": "provenance-goldens",
+      "blocking": true
+    },
+    {
+      "id": "qg-resolution-precision-ts",
+      "domain": "resolution",
+      "scopeType": "language",
+      "scopeId": "typescript",
+      "metric": "precision",
+      "thresholdOperator": ">=",
+      "thresholdValue": 0.95,
+      "fixtureSetId": "resolution-typescript-goldens",
+      "blocking": true
+    },
+    {
+      "id": "qg-risk-false-positive-js",
+      "domain": "risk",
+      "scopeType": "language",
+      "scopeId": "javascript",
+      "metric": "false-positive-rate",
+      "thresholdOperator": "<=",
+      "thresholdValue": 0.08,
+      "fixtureSetId": "risk-javascript-goldens",
+      "blocking": false
+    },
+    {
+      "id": "qg-risk-recall-py",
+      "domain": "risk",
+      "scopeType": "language",
+      "scopeId": "python",
+      "metric": "recall",
+      "thresholdOperator": ">=",
+      "thresholdValue": 0.9,
+      "fixtureSetId": "risk-python-goldens",
+      "blocking": true
+    },
+    {
+      "id": "qg-vue-template-binding-precision",
+      "domain": "framework-binding",
+      "scopeType": "framework",
+      "scopeId": "vue",
+      "metric": "precision",
+      "thresholdOperator": ">=",
+      "thresholdValue": 0.93,
+      "fixtureSetId": "framework-vue-template-goldens",
+      "blocking": true
+    }
+  ]
+}

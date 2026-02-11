@@ -1,7 +1,7 @@
 {
   "schemaVersion": "usr-registry-1.0.0",
   "registryId": "usr-framework-edge-cases",
-  "generatedAt": "2026-02-11T01:45:00Z",
+  "generatedAt": "2026-02-11T03:30:00Z",
   "generatedBy": "tools/usr/generate-usr-matrix-baselines.mjs",
   "rows": [
     {

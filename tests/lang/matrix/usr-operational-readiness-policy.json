@@ -1,0 +1,90 @@
+{
+  "schemaVersion": "usr-registry-1.0.0",
+  "registryId": "usr-operational-readiness-policy",
+  "generatedAt": "2026-02-11T03:30:00Z",
+  "generatedBy": "tools/usr/generate-usr-matrix-baselines.mjs",
+  "rows": [
+    {
+      "id": "ops-cutover-window",
+      "phase": "cutover",
+      "runbookId": "usr-cutover-runbook",
+      "severityClass": "n/a",
+      "requiredRoles": [
+        "usr-architecture",
+        "usr-operations",
+        "usr-release-manager"
+      ],
+      "requiredArtifacts": [
+        "usr-release-readiness-scorecard.json",
+        "usr-waiver-active-report.json"
+      ],
+      "communicationChannels": [
+        "release-bridge",
+        "status-page"
+      ],
+      "maxResponseMinutes": 15,
+      "maxRecoveryMinutes": 60,
+      "blocking": true
+    },
+    {
+      "id": "ops-incident-critical",
+      "phase": "incident",
+      "runbookId": "usr-incident-critical-runbook",
+      "severityClass": "sev1",
+      "requiredRoles": [
+        "usr-oncall-platform",
+        "usr-oncall-security"
+      ],
+      "requiredArtifacts": [
+        "usr-incident-response-drill-report.json"
+      ],
+      "communicationChannels": [
+        "incident-bridge",
+        "security-hotline"
+      ],
+      "maxResponseMinutes": 10,
+      "maxRecoveryMinutes": 120,
+      "blocking": true
+    },
+    {
+      "id": "ops-post-cutover-review",
+      "phase": "post-cutover",
+      "runbookId": "usr-post-cutover-review-runbook",
+      "severityClass": "n/a",
+      "requiredRoles": [
+        "usr-operations",
+        "usr-conformance"
+      ],
+      "requiredArtifacts": [
+        "usr-observability-rollup.json",
+        "usr-quality-regression-report.json"
+      ],
+      "communicationChannels": [
+        "release-review"
+      ],
+      "maxResponseMinutes": 60,
+      "maxRecoveryMinutes": 240,
+      "blocking": false
+    },
+    {
+      "id": "ops-pre-cutover-checklist",
+      "phase": "pre-cutover",
+      "runbookId": "usr-pre-cutover-checklist",
+      "severityClass": "n/a",
+      "requiredRoles": [
+        "usr-architecture",
+        "usr-rollout"
+      ],
+      "requiredArtifacts": [
+        "usr-operational-readiness-validation.json",
+        "usr-rollback-drill-report.json"
+      ],
+      "communicationChannels": [
+        "release-planning"
+      ],
+      "maxResponseMinutes": 30,
+      "maxRecoveryMinutes": 180,
+      "blocking": true
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 # Spec -- Unified Syntax Representation (USR)
 
-Status: Draft v1.2
-Last updated: 2026-02-11T02:40:00Z
+Status: Draft v1.3
+Last updated: 2026-02-11T03:30:00Z
 
 Applies to: PairOfCleats indexing pipeline, language registry, framework segmentation/extraction, graph/risk/query surfaces.
 
@@ -1366,6 +1366,8 @@ Before declaring full support complete, all items below MUST be true.
 - `docs/specs/usr-performance-benchmark-contract.md`
 - `docs/specs/usr-threat-model-and-abuse-case-contract.md`
 - `docs/specs/usr-waiver-and-exception-contract.md`
+- `docs/specs/usr-quality-evaluation-contract.md`
+- `docs/specs/usr-operational-runbook-contract.md`
 - `docs/contracts/public-artifact-surface.md`
 - `docs/contracts/artifact-schemas.md`
 - `docs/contracts/analysis-schemas.md`
@@ -1401,6 +1403,8 @@ Required files:
 - `tests/lang/matrix/usr-benchmark-policy.json`
 - `tests/lang/matrix/usr-threat-model-matrix.json`
 - `tests/lang/matrix/usr-waiver-policy.json`
+- `tests/lang/matrix/usr-quality-gates.json`
+- `tests/lang/matrix/usr-operational-readiness-policy.json`
 
 Baseline generation inputs:
 
@@ -1420,6 +1424,8 @@ Registry drift policy:
 - benchmark policy rows MUST define deterministic warmup/measure methodology and variance bounds
 - threat-model matrix rows MUST cover critical threats and map to controls + abuse-case fixtures
 - waiver policy rows MUST be time-bounded, approver-governed, and validated for expiry in CI
+- quality-gate rows MUST define deterministic fixture-set metric thresholds and blocking policy
+- operational-readiness rows MUST define runbook linkage, response/recovery budgets, and required roles
 - unknown keys in registry JSON MUST fail strict schema validation
 - every registry language ID MUST have exactly one per-language contract file under `docs/specs/usr/languages/`
 - schema key changes in machine-readable registries MUST be accompanied by synchronized updates in decomposed contract docs
@@ -3038,6 +3044,30 @@ Required behavior:
 - waiver records MUST be time-bounded, approver-governed, and auditable.
 - expired waivers MUST fail CI for affected scopes.
 - waiver usage and breaches MUST be reflected in release-readiness scorecards.
+
+## 49. Quality evaluation and accuracy gate contract (normative)
+
+Decomposed contract:
+
+- `docs/specs/usr-quality-evaluation-contract.md`
+
+Required behavior:
+
+- quality metrics (precision/recall/F1/FPR/FNR) MUST be machine-readable and scoped by language/framework/global domain.
+- blocking quality-threshold regressions MUST be release-blocking for configured rows.
+- quality regression and failure-sample artifacts MUST be emitted and linked in readiness scorecards.
+
+## 50. Operational runbook and incident response contract (normative)
+
+Decomposed contract:
+
+- `docs/specs/usr-operational-runbook-contract.md`
+
+Required behavior:
+
+- operational readiness policy MUST be machine-readable across pre-cutover, cutover, post-cutover, and incident phases.
+- blocking runbook rows MUST define required roles/artifacts and enforce response/recovery budgets.
+- incident-response and rollback-drill evidence MUST be emitted as promotion readiness inputs.
 
 
 
