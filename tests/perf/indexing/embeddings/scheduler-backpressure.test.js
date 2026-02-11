@@ -5,7 +5,11 @@ import { spawnSync } from 'node:child_process';
 import { parseBuildEmbeddingsArgs } from '../../../../tools/build/embeddings/cli.js';
 import { runBuildEmbeddingsWithConfig } from '../../../../tools/build/embeddings/runner.js';
 import { SCHEDULER_QUEUE_NAMES } from '../../../../src/index/build/runtime/scheduler.js';
-import { getRepoCacheRoot, loadUserConfig } from '../../../../tools/shared/dict-utils.js';
+import {
+  getCurrentBuildInfo,
+  getRepoCacheRoot,
+  loadUserConfig
+} from '../../../../tools/shared/dict-utils.js';
 import { applyTestEnv } from '../../../helpers/test-env.js';
 
 const root = process.cwd();
@@ -70,13 +74,20 @@ const userConfig = loadUserConfig(repoRoot);
 const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
 await fsPromises.rm(path.join(repoCacheRoot, 'embeddings'), { recursive: true, force: true });
 await fsPromises.rm(path.join(tempRoot, 'embeddings'), { recursive: true, force: true });
+const current = getCurrentBuildInfo(repoRoot, userConfig);
+if (!current?.activeRoot) {
+  console.error('embeddings scheduler backpressure test failed: missing active build root');
+  process.exit(1);
+}
 
 const config = parseBuildEmbeddingsArgs([
   '--stub-embeddings',
   '--mode',
   'code',
   '--repo',
-  repoRoot
+  repoRoot,
+  '--index-root',
+  current.activeRoot
 ]);
 const result = await runBuildEmbeddingsWithConfig(config);
 const stats = result?.scheduler;
