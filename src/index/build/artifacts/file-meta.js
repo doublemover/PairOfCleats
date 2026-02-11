@@ -80,6 +80,7 @@ export const buildFileMetaColumnar = (fileMeta) => {
 export function buildFileMeta(state) {
   const fileMeta = [];
   const fileIdByPath = new Map();
+  const comparePaths = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
   const fileInfoByPath = state?.fileInfoByPath;
   const fileDetailsByPath = state?.fileDetailsByPath;
   const fileDetails = new Map();
@@ -120,12 +121,14 @@ export function buildFileMeta(state) {
   }
   const discoveredFiles = Array.isArray(state?.discoveredFiles) ? state.discoveredFiles : null;
   const files = discoveredFiles && discoveredFiles.length
-    ? discoveredFiles.slice()
-    : Array.from(fileDetails.keys()).sort((a, b) => (a < b ? -1 : (a > b ? 1 : 0)));
+    ? discoveredFiles.slice().sort(comparePaths)
+    : Array.from(fileDetails.keys()).sort(comparePaths);
   const fileMembership = new Set(files);
   if (fileInfoByPath && typeof fileInfoByPath.keys === 'function') {
-    for (const file of fileInfoByPath.keys()) {
-      if (fileMembership.has(file)) continue;
+    const extraFiles = Array.from(fileInfoByPath.keys())
+      .filter((file) => !fileMembership.has(file))
+      .sort(comparePaths);
+    for (const file of extraFiles) {
       files.push(file);
       fileMembership.add(file);
     }
