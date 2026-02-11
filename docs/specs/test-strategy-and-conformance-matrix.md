@@ -18,6 +18,8 @@ USR decomposition linkage:
 - `docs/specs/usr-registry-schema-contract.md` is authoritative for machine-readable matrix schema and cross-registry invariants.
 - `docs/specs/usr-observability-and-slo-contract.md` is authoritative for budget metrics and alert policy evaluation.
 - `docs/specs/usr-security-and-data-governance-contract.md` is authoritative for redaction and strict security gate behavior.
+- `docs/specs/usr-quality-evaluation-contract.md` is authoritative for labeled quality metric thresholds and regression evidence policy.
+- `docs/specs/usr-operational-runbook-contract.md` is authoritative for incident/rollback drill requirements and operational readiness policy.
 
 Bench harness note:
 - Cross-phase perf/bench reporting is aggregated by `tools/bench/bench-runner.js` and validated by `docs/schemas/bench-runner-report.schema.json`.
@@ -395,6 +397,8 @@ Compatibility matrix policy:
 - Blocking benchmark-regression policies MUST run in CI/CI-long per `docs/specs/usr-performance-benchmark-contract.md`.
 - Critical threat-model abuse-case policies MUST run in CI/CI-long per `docs/specs/usr-threat-model-and-abuse-case-contract.md`.
 - Waiver expiry and exception-governance checks MUST run in CI per `docs/specs/usr-waiver-and-exception-contract.md`.
+- Blocking quality-gate threshold checks MUST run in CI/CI-long with deterministic fixture sets per `docs/specs/usr-quality-evaluation-contract.md`.
+- Operational-readiness drill and runbook-policy checks MUST run in CI-long/nightly and cutover lanes per `docs/specs/usr-operational-runbook-contract.md`.
 
 ---
 

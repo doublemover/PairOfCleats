@@ -1,7 +1,7 @@
 # Spec -- USR Registry Schema and Serialization Contract
 
-Status: Draft v0.5
-Last updated: 2026-02-11T02:35:00Z
+Status: Draft v0.7
+Last updated: 2026-02-11T03:30:00Z
 
 ## 0. Purpose and scope
 
@@ -37,6 +37,8 @@ Implementations MUST maintain and validate all files below:
 - `usr-benchmark-policy.json`
 - `usr-threat-model-matrix.json`
 - `usr-waiver-policy.json`
+- `usr-quality-gates.json`
+- `usr-operational-readiness-policy.json`
 
 ## 2. Canonical wrappers and metadata
 
@@ -486,6 +488,39 @@ type USRWaiverPolicyRowV1 = {
 };
 ```
 
+### 3.25 `usr-quality-gates.json`
+
+```ts
+type USRQualityGateRowV1 = {
+  id: string;
+  domain: "resolution" | "risk" | "framework-binding" | "provenance";
+  scopeType: "global" | "language" | "framework";
+  scopeId: string;
+  metric: "precision" | "recall" | "f1" | "false-positive-rate" | "false-negative-rate";
+  thresholdOperator: ">=" | "<=";
+  thresholdValue: number; // 0..1
+  fixtureSetId: string;
+  blocking: boolean;
+};
+```
+
+### 3.26 `usr-operational-readiness-policy.json`
+
+```ts
+type USROperationalReadinessRowV1 = {
+  id: string;
+  phase: "pre-cutover" | "cutover" | "post-cutover" | "incident";
+  runbookId: string;
+  severityClass: "sev1" | "sev2" | "sev3" | "n/a";
+  requiredRoles: string[];
+  requiredArtifacts: string[];
+  communicationChannels: string[];
+  maxResponseMinutes: number;
+  maxRecoveryMinutes: number;
+  blocking: boolean;
+};
+```
+
 ## 4. Canonical ordering policy
 
 Sorting MUST be stable and deterministic.
@@ -524,6 +559,8 @@ The following MUST hold:
 - benchmark policy rows MUST define positive warmup and measure run counts, and deterministic percentile targets.
 - threat-model rows MUST map every blocking security gate and critical threat class to at least one required fixture/control.
 - waiver policy rows MUST be time-bounded and MUST NOT include disallowed strict-security bypass classes.
+- quality-gate rows MUST use valid metric enums, operator/metric-compatible threshold operators, and `thresholdValue` within `[0,1]`.
+- operational-readiness policy rows MUST declare non-empty required roles, artifacts, and incident communication channels for blocking entries.
 
 ## 6. Strict validation behavior
 
@@ -557,3 +594,5 @@ Required validation outputs:
 - `docs/specs/usr-performance-benchmark-contract.md`
 - `docs/specs/usr-threat-model-and-abuse-case-contract.md`
 - `docs/specs/usr-waiver-and-exception-contract.md`
+- `docs/specs/usr-quality-evaluation-contract.md`
+- `docs/specs/usr-operational-runbook-contract.md`
