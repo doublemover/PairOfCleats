@@ -621,6 +621,7 @@ const parserRuntimeLocks = [
 
 const sloBudgets = [
   { laneId: 'ci', profileScope: 'global', scopeId: 'global', maxDurationMs: 1200000, maxMemoryMb: 4096, maxParserTimePerSegmentMs: 1500, maxUnknownKindRate: 0.02, maxUnresolvedRate: 0.02, blocking: true },
+  { laneId: 'ci-long', profileScope: 'global', scopeId: 'global', maxDurationMs: 2000000, maxMemoryMb: 8192, maxParserTimePerSegmentMs: 2000, maxUnknownKindRate: 0.02, maxUnresolvedRate: 0.02, blocking: true },
   { laneId: 'lang-batch-b1', profileScope: 'batch', scopeId: 'B1', maxDurationMs: 600000, maxMemoryMb: 3072, maxParserTimePerSegmentMs: 1200, maxUnknownKindRate: 0.015, maxUnresolvedRate: 0.015, blocking: true },
   { laneId: 'lang-batch-b2', profileScope: 'batch', scopeId: 'B2', maxDurationMs: 600000, maxMemoryMb: 3072, maxParserTimePerSegmentMs: 1200, maxUnknownKindRate: 0.015, maxUnresolvedRate: 0.015, blocking: true },
   { laneId: 'lang-batch-b3', profileScope: 'batch', scopeId: 'B3', maxDurationMs: 600000, maxMemoryMb: 3072, maxParserTimePerSegmentMs: 1200, maxUnknownKindRate: 0.015, maxUnresolvedRate: 0.015, blocking: true },
