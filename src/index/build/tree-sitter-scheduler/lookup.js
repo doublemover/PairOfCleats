@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import fsPromises from 'node:fs/promises';
 import zlib from 'node:zlib';
 import { compareStrings } from '../../../shared/sort.js';
 import { createLruCache } from '../../../shared/cache.js';
@@ -141,16 +142,47 @@ export const createTreeSitterSchedulerLookup = ({
       const pageIndexPath = paths.resultsPageIndexPathForGrammarKey(grammarKey);
       if (!pageIndexPath || !fs.existsSync(pageIndexPath)) return null;
       const map = new Map();
-      try {
-        for await (const row of readJsonlRows(pageIndexPath)) {
+      const parsePageIndexText = (text) => {
+        let invalidRows = 0;
+        const lines = String(text || '').split(/\r?\n/);
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          let row = null;
+          try {
+            row = JSON.parse(trimmed);
+          } catch {
+            const start = trimmed.indexOf('{');
+            const end = trimmed.lastIndexOf('}');
+            if (start >= 0 && end > start) {
+              try {
+                row = JSON.parse(trimmed.slice(start, end + 1));
+              } catch {
+                invalidRows += 1;
+                continue;
+              }
+            } else {
+              invalidRows += 1;
+              continue;
+            }
+          }
           const pageId = Number(row?.pageId);
           if (!Number.isFinite(pageId) || pageId < 0) continue;
           map.set(pageId, row);
         }
+        if (!map.size && invalidRows > 0) {
+          const err = new Error(`[tree-sitter:schedule] invalid page index rows: ${pageIndexPath}`);
+          err.code = 'ERR_TREE_SITTER_PAGE_INDEX_PARSE';
+          throw err;
+        }
+      };
+      try {
+        const text = await fsPromises.readFile(pageIndexPath, 'utf8');
+        parsePageIndexText(text);
       } catch (err) {
         // Atomic swap windows can briefly leave no page-index file. Fall back to
         // per-row embedded page offsets instead of failing the whole build.
-        if (err?.code === 'ENOENT') return null;
+        if (err?.code === 'ENOENT' || err?.code === 'ERR_TREE_SITTER_PAGE_INDEX_PARSE') return null;
         throw err;
       }
       return map;

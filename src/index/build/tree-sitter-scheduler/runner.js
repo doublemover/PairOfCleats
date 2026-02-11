@@ -46,6 +46,7 @@ const buildPlannedSegmentsByContainer = (groups) => {
 
 const parseIndexRows = (text, indexPath) => {
   const rows = new Map();
+  let invalidRows = 0;
   const lines = String(text || '').split(/\r?\n/);
   for (let lineNumber = 0; lineNumber < lines.length; lineNumber += 1) {
     const raw = lines[lineNumber];
@@ -55,18 +56,38 @@ const parseIndexRows = (text, indexPath) => {
     try {
       row = JSON.parse(trimmed);
     } catch (err) {
-      const snippet = trimmed.slice(0, 120);
-      const parseErr = new Error(
-        `[tree-sitter:schedule] invalid index row in ${indexPath} at line ${lineNumber + 1}: ` +
-        `${err?.message || err}; row=${snippet}`
-      );
-      parseErr.code = 'ERR_TREE_SITTER_INDEX_PARSE';
-      parseErr.cause = err;
-      throw parseErr;
+      let repaired = null;
+      const objectStart = trimmed.indexOf('{');
+      if (objectStart >= 0) {
+        const objectEnd = trimmed.lastIndexOf('}');
+        if (objectEnd > objectStart) {
+          repaired = trimmed.slice(objectStart, objectEnd + 1);
+        } else {
+          repaired = trimmed.slice(objectStart);
+        }
+      } else if (trimmed.startsWith('"') || trimmed.startsWith(',')) {
+        repaired = `{${trimmed.replace(/^,/, '')}}`;
+      }
+      if (repaired) {
+        try {
+          row = JSON.parse(repaired);
+        } catch {
+          invalidRows += 1;
+          continue;
+        }
+      } else {
+        invalidRows += 1;
+        continue;
+      }
     }
     const virtualPath = row?.virtualPath || null;
     if (!virtualPath) continue;
     rows.set(virtualPath, row);
+  }
+  if (!rows.size && invalidRows > 0) {
+    const err = new Error(`[tree-sitter:schedule] invalid index rows in ${indexPath}`);
+    err.code = 'ERR_TREE_SITTER_INDEX_PARSE';
+    throw err;
   }
   return rows;
 };

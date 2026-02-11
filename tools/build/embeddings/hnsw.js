@@ -148,18 +148,43 @@ export const createHnswBuilder = ({ enabled, config, totalChunks, mode, logger }
     const tempHnswPath = createTempPath(indexPath);
     try {
       index.writeIndexSync(tempHnswPath);
-      try {
-        traceLog(`[embeddings] ${mode}/hnsw: deleting backup ${indexPath}.bak`);
-        await fs.rm(`${indexPath}.bak`, { force: true });
-      } catch {}
-      traceLog(`[embeddings] ${mode}/hnsw: moving ${tempHnswPath} -> ${indexPath}`);
-      await replaceFile(tempHnswPath, indexPath, { keepBackup: true });
+      const hasTempIndex = fsSync.existsSync(tempHnswPath);
+      if (!hasTempIndex) {
+        // Some hnswlib builds can race temp visibility on Windows. Fall back
+        // to direct write instead of failing the whole backend.
+        traceLog(`[embeddings] ${mode}/hnsw: temp index missing after write; falling back to direct write.`);
+        index.writeIndexSync(indexPath);
+      } else {
+        try {
+          traceLog(`[embeddings] ${mode}/hnsw: deleting backup ${indexPath}.bak`);
+          await fs.rm(`${indexPath}.bak`, { force: true });
+        } catch {}
+        traceLog(`[embeddings] ${mode}/hnsw: moving ${tempHnswPath} -> ${indexPath}`);
+        await replaceFile(tempHnswPath, indexPath, { keepBackup: true });
+      }
     } catch (err) {
+      if (err?.code === 'ERR_TEMP_MISSING') {
+        try {
+          traceLog(`[embeddings] ${mode}/hnsw: retrying direct write after missing temp.`);
+          index.writeIndexSync(indexPath);
+        } catch (directErr) {
+          try {
+            traceLog(`[embeddings] ${mode}/hnsw: deleting temp ${tempHnswPath}`);
+            await fs.rm(tempHnswPath, { force: true });
+          } catch {}
+          throw directErr;
+        }
+      } else {
+        try {
+          traceLog(`[embeddings] ${mode}/hnsw: deleting temp ${tempHnswPath}`);
+          await fs.rm(tempHnswPath, { force: true });
+        } catch {}
+        throw err;
+      }
       try {
         traceLog(`[embeddings] ${mode}/hnsw: deleting temp ${tempHnswPath}`);
         await fs.rm(tempHnswPath, { force: true });
       } catch {}
-      throw err;
     }
     const hnswMeta = {
       version: 1,
