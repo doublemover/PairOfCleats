@@ -1,7 +1,7 @@
 # Spec -- USR Core Artifact and Schema Catalog
 
 Status: Draft v2.0
-Last updated: 2026-02-11T07:35:00Z
+Last updated: 2026-02-11T08:35:00Z
 
 ## Purpose
 
@@ -11,11 +11,11 @@ Define the canonical machine-readable registries, schema requirements, and valid
 
 This contract absorbs:
 
-- `docs/specs/usr-registry-schema-contract.md`
-- `docs/specs/usr-schema-artifact-catalog.md`
-- `docs/specs/usr-validation-cli-contract.md`
-- `docs/specs/usr-feature-flag-catalog.md`
-- `docs/specs/usr-lane-policy-catalog.md`
+- `usr-registry-schema-contract.md` (legacy)
+- `usr-schema-artifact-catalog.md` (legacy)
+- `usr-validation-cli-contract.md` (legacy)
+- `usr-feature-flag-catalog.md` (legacy)
+- `usr-lane-policy-catalog.md` (legacy)
 
 ## Required registries
 
@@ -36,6 +36,15 @@ The following registries are authoritative and must remain schema-validated:
 2. every `frameworkProfile` in framework edge-case matrices must exist in framework profiles
 3. every blocking gate row must define evidence artifact IDs and policy owner
 4. every enum value used by registries must exist in the corresponding schema
+
+Required registry row keys:
+
+| Registry | Mandatory keys |
+| --- | --- |
+| `usr-language-profiles.json` | `languageId`, `requiredNodeKinds`, `requiredEdgeKinds`, `conformanceTarget` |
+| `usr-framework-profiles.json` | `frameworkProfile`, `detectionPrecedence`, `routeSemantics`, `templateBindingSemantics`, `styleSemantics` |
+| `usr-capability-matrix.json` | `scopeId`, capability dimensions, state values, fallback policy reference |
+| `usr-backcompat-matrix.json` | `id`, `producerVersion`, `readerVersions`, `readerMode`, `expectedOutcome`, `blocking` |
 
 ## Evidence artifact envelope
 
@@ -85,6 +94,12 @@ Required CLI capabilities:
 - strict/non-strict profile execution
 - machine-readable JSON output
 
+CLI determinism requirements:
+
+1. identical inputs must produce byte-for-byte identical JSON output ordering
+2. all emitted timestamps must be in RFC 3339 UTC format
+3. exit code priority must be deterministic when both advisory and blocking failures exist
+
 ## Required outputs
 
 - `usr-registry-schema-validation.json`
@@ -99,6 +114,15 @@ Required CLI capabilities:
 - schema IDs/versions in `docs/schemas/usr/*.json` must match matrix entries
 - registry key additions/removals must update this contract and roadmap in the same change
 - validator must fail on unknown blocking artifact IDs
+
+## Acceptance criteria
+
+This contract is green only when:
+
+1. all required registries validate against active schemas
+2. cross-registry invariants pass with zero blocking failures
+3. validator output is deterministic across reruns
+4. lane and feature-flag policy catalogs are complete for active gates
 
 ## References
 
