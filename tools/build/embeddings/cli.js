@@ -69,8 +69,9 @@ export const parseBuildEmbeddingsArgs = (rawArgs = process.argv.slice(2)) => {
     : null;
 
   const modelConfig = getModelConfig(root, userConfig);
-  const indexRoot = argv['index-root']
-    ? path.resolve(argv['index-root'])
+  const cliIndexRoot = argv['index-root'] ?? argv.indexRoot;
+  const indexRoot = cliIndexRoot
+    ? path.resolve(cliIndexRoot)
     : resolveIndexRoot(root, userConfig);
 
   const embedModeRaw = (argv.mode || 'all').toLowerCase();
