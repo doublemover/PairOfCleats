@@ -347,11 +347,21 @@ export async function runBuildEmbeddingsWithConfig(config) {
   };
   const repoCacheRootKey = normalizePath(repoCacheRootResolved);
   const buildsRootKey = normalizePath(path.join(repoCacheRootResolved, 'builds'));
-  const hasModeIndexDirs = (candidateRoot) => {
+  const hasModeArtifacts = (candidateRoot) => {
     if (!candidateRoot || !Array.isArray(modes) || !modes.length) return false;
     for (const mode of modes) {
       if (typeof mode !== 'string' || !mode) continue;
-      if (fsSync.existsSync(path.join(candidateRoot, `index-${mode}`))) {
+      const indexDir = path.join(candidateRoot, `index-${mode}`);
+      if (!fsSync.existsSync(indexDir)) continue;
+      const hasPiecesManifest = fsSync.existsSync(path.join(indexDir, 'pieces', 'manifest.json'));
+      const hasChunkMeta = (
+        fsSync.existsSync(path.join(indexDir, 'chunk_meta.json'))
+        || fsSync.existsSync(path.join(indexDir, 'chunk_meta.jsonl'))
+        || fsSync.existsSync(path.join(indexDir, 'chunk_meta.meta.json'))
+        || fsSync.existsSync(path.join(indexDir, 'chunk_meta.columnar.json'))
+        || fsSync.existsSync(path.join(indexDir, 'chunk_meta.binary-columnar.meta.json'))
+      );
+      if (hasPiecesManifest || hasChunkMeta) {
         return true;
       }
     }
@@ -370,7 +380,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
     for (const entry of entries) {
       if (!entry?.isDirectory?.()) continue;
       const candidateRoot = path.join(buildsRoot, entry.name);
-      if (!hasModeIndexDirs(candidateRoot)) continue;
+      if (!hasModeArtifacts(candidateRoot)) continue;
       let mtimeMs = 0;
       try {
         mtimeMs = Number(fsSync.statSync(candidateRoot).mtimeMs) || 0;
@@ -388,11 +398,15 @@ export async function runBuildEmbeddingsWithConfig(config) {
     const needsCurrentBuildRoot = underRepoCache && (
       activeRootKey === repoCacheRootKey
       || activeRootKey === buildsRootKey
-      || !hasModeIndexDirs(activeIndexRoot)
+      || !hasModeArtifacts(activeIndexRoot)
     );
     if (needsCurrentBuildRoot) {
       const currentBuild = getCurrentBuildInfo(root, userConfig, { mode: modes[0] || null });
-      const promotedRoot = currentBuild?.activeRoot || currentBuild?.buildRoot || null;
+      const buildRootCandidate = currentBuild?.buildRoot || null;
+      const activeRootCandidate = currentBuild?.activeRoot || null;
+      const promotedRoot = hasModeArtifacts(buildRootCandidate)
+        ? buildRootCandidate
+        : (hasModeArtifacts(activeRootCandidate) ? activeRootCandidate : (buildRootCandidate || activeRootCandidate || null));
       const promotedRootKey = normalizePath(promotedRoot);
       if (promotedRoot && promotedRootKey && promotedRootKey !== activeRootKey) {
         activeIndexRoot = promotedRoot;
@@ -400,7 +414,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
       }
     }
   }
-  if (activeIndexRoot && !hasModeIndexDirs(activeIndexRoot)) {
+  if (activeIndexRoot && !hasModeArtifacts(activeIndexRoot)) {
     const fallbackRoot = findLatestModeRoot();
     if (fallbackRoot && normalizePath(fallbackRoot) !== normalizePath(activeIndexRoot)) {
       activeIndexRoot = fallbackRoot;

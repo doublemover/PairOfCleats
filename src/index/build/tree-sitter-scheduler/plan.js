@@ -108,12 +108,19 @@ export const buildTreeSitterSchedulerPlan = async ({
   const treeSitterOptions = { treeSitter: treeSitterConfig };
   const effectiveMode = mode;
 
+  const resolveEntrySortKey = (entry) => {
+    if (!entry) return '';
+    if (typeof entry === 'string') return toPosix(String(entry));
+    if (typeof entry?.rel === 'string' && entry.rel) return toPosix(entry.rel);
+    if (typeof entry?.abs === 'string' && entry.abs) {
+      return toPosix(path.relative(runtime.root, entry.abs));
+    }
+    const resolved = resolveEntryPaths(entry, runtime.root);
+    return resolved?.relKey ? toPosix(resolved.relKey) : '';
+  };
+
   const sortedEntries = Array.isArray(entries) ? entries.slice() : [];
-  sortedEntries.sort((a, b) => {
-    const aPath = (typeof a === 'string' ? a : a?.rel) || '';
-    const bPath = (typeof b === 'string' ? b : b?.rel) || '';
-    return compareStrings(String(aPath), String(bPath));
-  });
+  sortedEntries.sort((a, b) => compareStrings(resolveEntrySortKey(a), resolveEntrySortKey(b)));
 
   for (const entry of sortedEntries) {
     throwIfAborted(abortSignal);

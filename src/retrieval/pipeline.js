@@ -216,16 +216,19 @@ export function createSearchPipeline(context) {
     );
   };
 
-  const providerRuntimeState = new WeakMap();
+  const providerRuntimeState = new Map();
+  const resolveProviderStateKey = (provider, mode) => {
+    const modeKey = typeof mode === 'string' && mode ? mode : 'unknown-mode';
+    const providerKey = typeof provider?.id === 'string' && provider.id
+      ? provider.id
+      : 'unknown-provider';
+    return `${modeKey}:${providerKey}`;
+  };
   const getProviderModeState = (provider, mode) => {
     if (!provider || !mode) return null;
-    let modeStates = providerRuntimeState.get(provider);
-    if (!modeStates) {
-      modeStates = new Map();
-      providerRuntimeState.set(provider, modeStates);
-    }
-    if (!modeStates.has(mode)) {
-      modeStates.set(mode, {
+    const stateKey = resolveProviderStateKey(provider, mode);
+    if (!providerRuntimeState.has(stateKey)) {
+      providerRuntimeState.set(stateKey, {
         failures: 0,
         disabledUntil: 0,
         preflight: null,
@@ -236,7 +239,7 @@ export function createSearchPipeline(context) {
         latencySamples: 0
       });
     }
-    return modeStates.get(mode);
+    return providerRuntimeState.get(stateKey);
   };
   const resolveProviderBackoffMs = (failures) => {
     const count = Number.isFinite(Number(failures)) ? Math.max(0, Math.floor(Number(failures))) : 0;

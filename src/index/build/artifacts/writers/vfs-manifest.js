@@ -89,7 +89,9 @@ const writeVfsIndexForJsonl = async ({
 }) => {
   const stream = fs.createReadStream(jsonlPath, { encoding: 'utf8' });
   const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
-  const { stream: out, done } = createJsonWriteStream(indexPath, { atomic: true });
+  // Build output is already isolated per build root, so direct writes avoid
+  // extra atomic temp/rename churn on Windows long paths.
+  const { stream: out, done } = createJsonWriteStream(indexPath, { atomic: false });
   const bloom = bloomPath
     ? createBloomFilter({
       expectedEntries: Number.isFinite(Number(expectedEntries)) ? Math.max(1, Math.floor(Number(expectedEntries))) : 1,
@@ -135,7 +137,7 @@ const writeVfsIndexForJsonl = async ({
     if (bloom && bloomPath) {
       await writeJsonObjectFile(bloomPath, {
         fields: encodeBloomFilter(bloom),
-        atomic: true
+        atomic: false
       });
     }
   } catch (err) {
