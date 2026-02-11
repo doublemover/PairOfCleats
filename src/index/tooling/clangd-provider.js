@@ -13,13 +13,39 @@ export const CLIKE_EXTS = process.platform === 'darwin'
 
 const shouldUseShell = (cmd) => process.platform === 'win32' && /\.(cmd|bat)$/i.test(cmd);
 
-const canRunClangd = (cmd) => {
-  try {
-    const result = execaSync(cmd, ['--version'], {
+const quoteWindowsCmdArg = (value) => {
+  const text = String(value ?? '');
+  if (!text) return '""';
+  if (!/[\s"&|<>^();]/u.test(text)) return text;
+  return `"${text.replaceAll('"', '""')}"`;
+};
+
+const runProbeCommand = (cmd, args) => {
+  if (!shouldUseShell(cmd)) {
+    return execaSync(cmd, args, {
       stdio: 'ignore',
-      shell: shouldUseShell(cmd),
       reject: false
     });
+  }
+  const commandLine = [cmd, ...(Array.isArray(args) ? args : [])]
+    .map(quoteWindowsCmdArg)
+    .join(' ');
+  return execaSync(commandLine, {
+    stdio: 'ignore',
+    shell: true,
+    reject: false
+  });
+};
+
+const asFiniteNumber = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return null;
+  return parsed;
+};
+
+const canRunClangd = (cmd) => {
+  try {
+    const result = runProbeCommand(cmd, ['--version']);
     return result.exitCode === 0;
   } catch {
     return false;
@@ -127,6 +153,27 @@ const parseSignature = (detail, languageId, symbolName) => {
   return parseClikeSignature(trimmed, symbolName);
 };
 
+const createClangdStderrFilter = () => {
+  let suppressedIncludeCleaner = 0;
+  const includeCleanerPattern = /\bIncludeCleaner:\s+Failed to get an entry for resolved path '' from include <[^>]+>\s*:\s*no such file or directory\b/i;
+  return {
+    filter: (line) => {
+      if (includeCleanerPattern.test(String(line || ''))) {
+        suppressedIncludeCleaner += 1;
+        return null;
+      }
+      return line;
+    },
+    flush: (log) => {
+      if (!suppressedIncludeCleaner) return;
+      log(
+        `[tooling] clangd suppressed ${suppressedIncludeCleaner} IncludeCleaner stderr line(s); ` +
+        'missing include roots should be configured via compile_commands.json.'
+      );
+    }
+  };
+};
+
 export const createClangdProvider = () => ({
   id: 'clangd',
   version: '2.0.0',
@@ -184,25 +231,48 @@ export const createClangdProvider = () => ({
     // clangd is very chatty at info-level (e.g. missing compilation DB).
     // Keep stdout/stderr noise down during indexing runs.
     clangdArgs.push('--log=error');
+    clangdArgs.push('--background-index=false');
     if (compileCommandsDir) clangdArgs.push(`--compile-commands-dir=${compileCommandsDir}`);
-    const result = await collectLspTypes({
-      rootDir: ctx.repoRoot,
-      documents: docs,
-      targets,
-      log,
-      cmd: resolvedCmd,
-      args: clangdArgs,
-      timeoutMs: ctx?.toolingConfig?.timeoutMs || 15000,
-      retries: ctx?.toolingConfig?.maxRetries ?? 2,
-      breakerThreshold: ctx?.toolingConfig?.circuitBreakerThreshold ?? 3,
-      parseSignature,
-      strict: ctx?.strict !== false,
-      vfsRoot: ctx?.buildRoot || ctx.repoRoot,
-      vfsTokenMode: ctx?.toolingConfig?.vfs?.tokenMode,
-      vfsIoBatching: ctx?.toolingConfig?.vfs?.ioBatching,
-      vfsColdStartCache: ctx?.toolingConfig?.vfs?.coldStartCache,
-      indexDir: ctx?.buildRoot || null
-    });
+    const globalTimeoutMs = asFiniteNumber(ctx?.toolingConfig?.timeoutMs);
+    const providerTimeoutMs = asFiniteNumber(clangdConfig.timeoutMs);
+    const timeoutMs = Math.max(30000, Math.floor(providerTimeoutMs ?? globalTimeoutMs ?? 45000));
+    const retries = Number.isFinite(Number(clangdConfig.maxRetries))
+      ? Math.max(0, Math.floor(Number(clangdConfig.maxRetries)))
+      : (ctx?.toolingConfig?.maxRetries ?? 1);
+    const breakerThreshold = Number.isFinite(Number(clangdConfig.circuitBreakerThreshold))
+      ? Math.max(1, Math.floor(Number(clangdConfig.circuitBreakerThreshold)))
+      : (ctx?.toolingConfig?.circuitBreakerThreshold ?? 8);
+    const configuredDocSymbolTimeout = asFiniteNumber(clangdConfig.documentSymbolTimeoutMs);
+    const documentSymbolTimeoutMs = Math.max(
+      timeoutMs,
+      Math.floor(configuredDocSymbolTimeout ?? timeoutMs)
+    );
+    const clangdStderr = createClangdStderrFilter();
+    let result;
+    try {
+      result = await collectLspTypes({
+        rootDir: ctx.repoRoot,
+        documents: docs,
+        targets,
+        log,
+        cmd: resolvedCmd,
+        args: clangdArgs,
+        timeoutMs,
+        retries,
+        breakerThreshold,
+        documentSymbolTimeoutMs,
+        stderrFilter: clangdStderr.filter,
+        parseSignature,
+        strict: ctx?.strict !== false,
+        vfsRoot: ctx?.buildRoot || ctx.repoRoot,
+        vfsTokenMode: ctx?.toolingConfig?.vfs?.tokenMode,
+        vfsIoBatching: ctx?.toolingConfig?.vfs?.ioBatching,
+        vfsColdStartCache: ctx?.toolingConfig?.vfs?.coldStartCache,
+        indexDir: ctx?.buildRoot || null
+      });
+    } finally {
+      clangdStderr.flush(log);
+    }
     return {
       provider: { id: 'clangd', version: '2.0.0', configHash: this.getConfigHash(ctx) },
       byChunkUid: result.byChunkUid,

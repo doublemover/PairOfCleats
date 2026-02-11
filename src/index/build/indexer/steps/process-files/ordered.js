@@ -32,6 +32,20 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
   const expectedCount = Number.isFinite(options.expectedCount)
     ? Math.max(0, Math.floor(options.expectedCount))
     : null;
+  const expectedOrder = Array.isArray(options.expectedIndices)
+    ? Array.from(
+      new Set(
+        options.expectedIndices
+          .map((value) => Number(value))
+          .filter((value) => Number.isFinite(value))
+          .map((value) => Math.floor(value))
+      )
+    ).sort((a, b) => a - b)
+    : [];
+  let expectedCursor = 0;
+  while (expectedCursor < expectedOrder.length && expectedOrder[expectedCursor] < nextIndex) {
+    expectedCursor += 1;
+  }
   const seen = expectedCount != null ? new Set() : null;
   let seenCount = 0;
 
@@ -89,14 +103,36 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
   };
 
   const advancePastSkipped = () => {
-    while (skipped.has(nextIndex)) {
-      skipped.delete(nextIndex);
-      nextIndex += 1;
-      noteAdvance();
+    while (true) {
+      let advanced = false;
+      while (skipped.has(nextIndex)) {
+        skipped.delete(nextIndex);
+        nextIndex += 1;
+        noteAdvance();
+        advanced = true;
+      }
+      while (expectedCursor < expectedOrder.length && expectedOrder[expectedCursor] < nextIndex) {
+        expectedCursor += 1;
+      }
+      if (expectedOrder.length) {
+        const nextExpected = expectedOrder[expectedCursor];
+        if (Number.isFinite(nextExpected) && nextExpected > nextIndex) {
+          debugLog('[ordered] implicit gap skip', {
+            from: nextIndex,
+            to: nextExpected
+          });
+          nextIndex = nextExpected;
+          noteAdvance();
+          advanced = true;
+          continue;
+        }
+      }
+      if (!advanced) break;
     }
   };
 
   const maybeFinalize = () => {
+    advancePastSkipped();
     if (expectedCount == null) return;
     if (seenCount < expectedCount) return;
     if (!pending.size) return;
@@ -110,11 +146,31 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
     const keys = Array.from(pending.keys()).sort((a, b) => a - b);
     const minPending = keys[0];
     if (!Number.isFinite(minPending) || minPending <= nextIndex) return;
-    emitLog(
-      `[ordered] missing indices ${nextIndex}-${minPending - 1}; fast-forwarding to ${minPending}`,
-      { kind: 'warning' }
-    );
+    let expectedMissing = true;
+    if (expectedOrder.length) {
+      expectedMissing = false;
+      for (let i = expectedCursor; i < expectedOrder.length; i += 1) {
+        const candidate = expectedOrder[i];
+        if (candidate < nextIndex) continue;
+        if (candidate >= minPending) break;
+        if (seen?.has(candidate) || skipped.has(candidate) || pending.has(candidate)) continue;
+        expectedMissing = true;
+        break;
+      }
+    }
+    if (expectedMissing) {
+      emitLog(
+        `[ordered] missing indices ${nextIndex}-${minPending - 1}; fast-forwarding to ${minPending}`,
+        { kind: 'warning' }
+      );
+    } else {
+      debugLog('[ordered] fast-forward across implicit index gap', {
+        from: nextIndex,
+        to: minPending
+      });
+    }
     nextIndex = minPending;
+    noteAdvance();
     scheduleFlush().catch(() => {});
   };
 
@@ -317,6 +373,9 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
       scheduleStallCheck();
       maybeFinalize();
       return Promise.resolve();
+    },
+    peekNextIndex() {
+      return nextIndex;
     },
     abort
   };

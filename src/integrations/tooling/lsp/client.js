@@ -67,6 +67,7 @@ export function createLspClient(options) {
     log = () => {},
     onNotification,
     onRequest,
+    stderrFilter,
     maxBufferBytes,
     maxHeaderBytes,
     maxMessageBytes
@@ -228,8 +229,24 @@ export function createLspClient(options) {
     });
     child.stderr.on('data', (chunk) => {
       if (proc !== child || childGen !== generation) return;
-      const text = chunk.toString('utf8').trim();
-      if (text) log(`[lsp] ${text}`);
+      const text = chunk.toString('utf8');
+      if (!text) return;
+      const lines = text
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean);
+      for (const line of lines) {
+        let nextLine = line;
+        if (typeof stderrFilter === 'function') {
+          try {
+            const filtered = stderrFilter(nextLine);
+            if (!filtered) continue;
+            nextLine = String(filtered).trim();
+            if (!nextLine) continue;
+          } catch {}
+        }
+        log(`[lsp] ${nextLine}`);
+      }
     });
     child.on('error', (err) => {
       if (proc !== child || childGen !== generation) return;

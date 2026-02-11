@@ -189,6 +189,9 @@ export async function runBuildEmbeddingsWithConfig(config) {
     return { jsonPath, metaPath };
   };
   const lanceConfig = normalizeLanceDbConfig(embeddingsConfig.lancedb || {});
+  const hnswIsolateOverride = typeof embeddingsConfig?.hnsw?.isolate === 'boolean'
+    ? embeddingsConfig.hnsw.isolate
+    : null;
   const normalizeDenseVectorMode = (value) => {
     const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
     if (raw === 'code' || raw === 'doc' || raw === 'auto' || raw === 'merged') return raw;
@@ -569,7 +572,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
           code: resolveHnswPaths(indexDir, 'code')
         };
         const hnswIsolate = hnswConfig.enabled
-          ? (isTestingEnv() || process.platform === 'win32')
+          ? (hnswIsolateOverride ?? isTestingEnv())
           : false;
         const hnswEnabled = hnswConfig.enabled && !hnswIsolate;
         const hnswBuilders = hnswEnabled ? {

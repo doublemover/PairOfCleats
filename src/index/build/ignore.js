@@ -54,19 +54,28 @@ export async function buildIgnoreMatcher({ root, userConfig }) {
     const rel = normalizeRelative(path.relative(rootResolved, resolved));
     return { raw, resolved, rel };
   };
-  if (config.useGitignore) ignoreFiles.push('.gitignore');
-  if (config.usePairofcleatsIgnore) ignoreFiles.push('.pairofcleatsignore');
-  ignoreFiles.push(...config.ignoreFiles);
+  if (config.useGitignore) {
+    ignoreFiles.push({ path: '.gitignore', optional: true });
+  }
+  if (config.usePairofcleatsIgnore) {
+    ignoreFiles.push({ path: '.pairofcleatsignore', optional: true });
+  }
+  for (const value of config.ignoreFiles) {
+    ignoreFiles.push({ path: value, optional: false });
+  }
 
   const loadedFiles = [];
   for (const ignoreFile of ignoreFiles) {
-    const resolved = resolveIgnorePath(ignoreFile);
+    const resolved = resolveIgnorePath(ignoreFile?.path);
     if (!resolved) continue;
     try {
       const contents = await fs.readFile(resolved.resolved, 'utf8');
       ignoreMatcher.add(contents);
       loadedFiles.push(resolved.rel || resolved.raw);
     } catch (err) {
+      const code = String(err?.code || '').toUpperCase();
+      const missingOptional = ignoreFile?.optional === true && (code === 'ENOENT' || code === 'ENOTDIR');
+      if (missingOptional) continue;
       recordWarning({
         type: 'read-failed',
         file: resolved.rel || resolved.raw,

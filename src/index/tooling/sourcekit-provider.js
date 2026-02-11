@@ -20,6 +20,28 @@ const SOURCEKIT_DEFAULT_HOVER_DISABLE_AFTER_TIMEOUTS = 2;
 const SOURCEKIT_TOP_OFFENDER_LIMIT = 8;
 
 const shouldUseShell = (cmd) => process.platform === 'win32' && /\.(cmd|bat)$/i.test(cmd);
+const quoteWindowsCmdArg = (value) => {
+  const text = String(value ?? '');
+  if (!text) return '""';
+  if (!/[\s"&|<>^();]/u.test(text)) return text;
+  return `"${text.replaceAll('"', '""')}"`;
+};
+const runProbeCommand = (cmd, args) => {
+  if (!shouldUseShell(cmd)) {
+    return execaSync(cmd, args, {
+      stdio: 'ignore',
+      reject: false
+    });
+  }
+  const commandLine = [cmd, ...(Array.isArray(args) ? args : [])]
+    .map(quoteWindowsCmdArg)
+    .join(' ');
+  return execaSync(commandLine, {
+    stdio: 'ignore',
+    shell: true,
+    reject: false
+  });
+};
 
 const asFiniteNumber = (value) => {
   const parsed = Number(value);
@@ -33,11 +55,7 @@ const asFiniteInteger = (value) => {
 
 const canRunSourcekit = (cmd) => {
   try {
-    const result = execaSync(cmd, ['--help'], {
-      stdio: 'ignore',
-      shell: shouldUseShell(cmd),
-      reject: false
-    });
+    const result = runProbeCommand(cmd, ['--help']);
     return result.exitCode === 0;
   } catch {
     return false;

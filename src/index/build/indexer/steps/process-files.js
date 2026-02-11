@@ -166,6 +166,18 @@ export const processFiles = async ({
     }
     return Number.isFinite(minIndex) ? Math.max(0, Math.floor(minIndex)) : 0;
   })();
+  const expectedOrderIndices = (() => {
+    const out = new Set();
+    for (let i = 0; i < (entries?.length || 0); i += 1) {
+      const entry = entries[i];
+      const value = Number.isFinite(entry?.orderIndex)
+        ? entry.orderIndex
+        : (Number.isFinite(entry?.canonicalOrderIndex) ? entry.canonicalOrderIndex : i);
+      if (!Number.isFinite(value)) continue;
+      out.add(Math.floor(value));
+    }
+    return Array.from(out).sort((a, b) => a - b);
+  })();
   const applyFileResult = async (result, stateRef, shardMeta) => {
     if (!result) return;
     if (result.fileMetrics) {
@@ -232,7 +244,8 @@ export const processFiles = async ({
     (result, stateRef, shardMeta) => schedulePostings(() => applyFileResult(result, stateRef, shardMeta)),
     state,
     {
-      expectedCount: Array.isArray(entries) ? entries.length : null,
+      expectedCount: expectedOrderIndices.length || (Array.isArray(entries) ? entries.length : null),
+      expectedIndices: expectedOrderIndices,
       startIndex: startOrderIndex,
       bucketSize: coercePositiveInt(runtime?.stage1Queues?.ordered?.bucketSize)
         ?? Math.max(128, runtime.fileConcurrency * 32),
@@ -407,7 +420,16 @@ export const processFiles = async ({
               return orderedAppender.skip(orderIndex);
             }
             const payload = estimatePostingsPayload(result);
-            const reservation = await postingsQueue.reserve(payload);
+            const nextOrderedIndex = typeof orderedAppender.peekNextIndex === 'function'
+              ? orderedAppender.peekNextIndex()
+              : null;
+            const bypassBackpressure = Number.isFinite(nextOrderedIndex)
+              && Number.isFinite(orderIndex)
+              && orderIndex <= nextOrderedIndex;
+            const reservation = await postingsQueue.reserve({
+              ...payload,
+              bypass: bypassBackpressure
+            });
             return orderedAppender
               .enqueue(orderIndex, result, shardMeta)
               .finally(() => reservation.release());

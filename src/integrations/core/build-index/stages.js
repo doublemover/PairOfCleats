@@ -627,9 +627,9 @@ export const runStage = async (stage, context, { allowSqlite = true } = {}) => {
             });
           }
           if (validation.warnings?.length) {
-            defaultLogError('Index validation warnings (first 10):');
+            logLine('[warn] Index validation warnings (first 10):');
             validation.warnings.slice(0, 10).forEach((warning) => {
-              defaultLogError(`- ${warning}`);
+              logLine(`[warn] - ${warning}`);
             });
           }
         }

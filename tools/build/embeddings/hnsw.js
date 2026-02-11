@@ -328,11 +328,27 @@ export async function writeHnswIndex({
       const detail = typeof result.stderr === 'string' ? result.stderr.trim() : '';
       throw new Error(`HNSW isolate failed${detail ? `: ${detail}` : ''}`);
     }
-    let parsed = {};
-    try {
-      parsed = typeof result.stdout === 'string' ? JSON.parse(result.stdout) : {};
-    } catch {}
-    return parsed || { skipped: false };
+    const stdoutText = typeof result.stdout === 'string' ? result.stdout.trim() : '';
+    let parsed = null;
+    if (stdoutText) {
+      const lines = stdoutText
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean);
+      for (let i = lines.length - 1; i >= 0; i -= 1) {
+        try {
+          parsed = JSON.parse(lines[i]);
+          break;
+        } catch {}
+      }
+    }
+    if (!parsed || typeof parsed !== 'object') {
+      throw new Error('HNSW isolate returned invalid JSON output.');
+    }
+    if (parsed.skipped !== true && !Number.isFinite(Number(parsed.count))) {
+      throw new Error('HNSW isolate returned incomplete result payload.');
+    }
+    return parsed;
   }
   return writeHnswIndexInProcess({
     indexPath,

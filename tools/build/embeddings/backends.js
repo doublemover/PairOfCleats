@@ -24,6 +24,8 @@ export const writeHnswBackends = async ({
     code: null
   };
   if (!hnswConfig?.enabled) return results;
+  let isolateEnabled = hnswIsolate === true;
+  let isolateFailureMessage = null;
 
   const entries = [
     {
@@ -52,32 +54,77 @@ export const writeHnswBackends = async ({
   for (const entry of entries) {
     if (!entry.paths) continue;
     try {
-      if (hnswIsolate) {
-        results[entry.target] = await writeHnswIndex({
-          indexPath: entry.paths.indexPath,
-          metaPath: entry.paths.metaPath,
-          modelId,
-          dims,
-          quantization,
-          scale,
-          vectors: entry.vectors,
-          vectorsPath: entry.vectorsPath,
-          normalize,
-          config: hnswConfig,
-          isolate: true,
-          logger
-        });
+      if (isolateEnabled) {
+        try {
+          results[entry.target] = await writeHnswIndex({
+            indexPath: entry.paths.indexPath,
+            metaPath: entry.paths.metaPath,
+            modelId,
+            dims,
+            quantization,
+            scale,
+            vectors: entry.vectors,
+            vectorsPath: entry.vectorsPath,
+            normalize,
+            config: hnswConfig,
+            isolate: true,
+            logger
+          });
+        } catch (err) {
+          isolateEnabled = false;
+          isolateFailureMessage = err?.message || String(err);
+          warn(
+            `[embeddings] ${entry.label}: HNSW isolate failed; falling back to in-process writer ` +
+            `(${isolateFailureMessage}).`
+          );
+          results[entry.target] = await writeHnswIndex({
+            indexPath: entry.paths.indexPath,
+            metaPath: entry.paths.metaPath,
+            modelId,
+            dims,
+            quantization,
+            scale,
+            vectors: entry.vectors,
+            vectorsPath: entry.vectorsPath,
+            normalize,
+            config: hnswConfig,
+            isolate: false,
+            logger
+          });
+        }
       } else {
         const builder = hnswBuilders?.[entry.target];
-        if (!builder) continue;
-        results[entry.target] = await builder.writeIndex({
-          indexPath: entry.paths.indexPath,
-          metaPath: entry.paths.metaPath,
-          modelId,
-          dims,
-          quantization,
-          scale
-        });
+        if (builder) {
+          results[entry.target] = await builder.writeIndex({
+            indexPath: entry.paths.indexPath,
+            metaPath: entry.paths.metaPath,
+            modelId,
+            dims,
+            quantization,
+            scale
+          });
+        } else {
+          results[entry.target] = await writeHnswIndex({
+            indexPath: entry.paths.indexPath,
+            metaPath: entry.paths.metaPath,
+            modelId,
+            dims,
+            quantization,
+            scale,
+            vectors: entry.vectors,
+            vectorsPath: entry.vectorsPath,
+            normalize,
+            config: hnswConfig,
+            isolate: false,
+            logger
+          });
+          if (isolateFailureMessage) {
+            log(
+              `[embeddings] ${entry.label}: used in-process HNSW writer after isolate fallback ` +
+              `(${isolateFailureMessage}).`
+            );
+          }
+        }
       }
       if (results[entry.target] && !results[entry.target].skipped) {
         log(`[embeddings] ${entry.label}: wrote HNSW index (${results[entry.target].count} vectors).`);

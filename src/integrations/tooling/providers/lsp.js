@@ -315,7 +315,9 @@ export async function collectLspTypes({
   hoverDisableAfterTimeouts = null,
   maxDiagnosticUris = DEFAULT_MAX_DIAGNOSTIC_URIS,
   maxDiagnosticsPerUri = DEFAULT_MAX_DIAGNOSTICS_PER_URI,
-  maxDiagnosticsPerChunk = DEFAULT_MAX_DIAGNOSTICS_PER_CHUNK
+  maxDiagnosticsPerChunk = DEFAULT_MAX_DIAGNOSTICS_PER_CHUNK,
+  documentSymbolTimeoutMs = null,
+  stderrFilter = null
 }) {
   const resolvePositiveTimeout = (value) => {
     const parsed = Number(value);
@@ -323,6 +325,7 @@ export async function collectLspTypes({
     return Math.max(1000, Math.floor(parsed));
   };
   const resolvedHoverTimeout = resolvePositiveTimeout(hoverTimeoutMs);
+  const resolvedDocumentSymbolTimeout = resolvePositiveTimeout(documentSymbolTimeoutMs);
   const resolvedHoverMaxPerFile = toFiniteInt(hoverMaxPerFile, 0);
   const resolvedHoverDisableAfterTimeouts = toFiniteInt(hoverDisableAfterTimeouts, 1);
   const resolvedHoverKinds = normalizeHoverKinds(hoverSymbolKinds);
@@ -448,6 +451,7 @@ export async function collectLspTypes({
     args,
     cwd: rootDir,
     log,
+    stderrFilter,
     onNotification: (msg) => {
       if (!captureDiagnostics) return;
       if (msg?.method !== 'textDocument/publishDiagnostics') return;
@@ -566,7 +570,10 @@ export async function collectLspTypes({
           { textDocument: { uri } },
           { timeoutMs: guardTimeout }
         ),
-        { label: 'documentSymbol' }
+        {
+          label: 'documentSymbol',
+          ...(resolvedDocumentSymbolTimeout ? { timeoutOverride: resolvedDocumentSymbolTimeout } : {})
+        }
       );
     } catch (err) {
       log(`[index] ${cmd} documentSymbol failed (${doc.virtualPath}): ${err?.message || err}`);

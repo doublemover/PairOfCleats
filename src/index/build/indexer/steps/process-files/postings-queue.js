@@ -94,6 +94,7 @@ export const createPostingsQueue = ({
     backpressureByCount: 0,
     backpressureByRows: 0,
     backpressureByBytes: 0,
+    reserveBypassCount: 0,
     oversizeRows: 0,
     oversizeBytes: 0,
     pressureEvents: 0,
@@ -173,7 +174,7 @@ export const createPostingsQueue = ({
     return null;
   };
 
-  const reserve = async ({ rows = 1, bytes = 0 } = {}) => {
+  const reserve = async ({ rows = 1, bytes = 0, bypass = false } = {}) => {
     const payloadRows = Math.max(1, coerceNonNegativeInt(rows) ?? 1);
     const payloadBytes = Math.max(0, coerceNonNegativeInt(bytes) ?? 0);
     const oversizeRows = resolvedMaxPendingRows != null && payloadRows > resolvedMaxPendingRows;
@@ -184,38 +185,42 @@ export const createPostingsQueue = ({
       maxRows: oversizeRows ? payloadRows : resolvedMaxPendingRows,
       maxBytes: oversizeBytes ? payloadBytes : resolvedMaxPendingBytes
     };
-    let waited = false;
-    const waitStart = Date.now();
-    while (true) {
-      const limits = resolveLimits(payloadRows, payloadBytes, baseLimits);
-      const reason = resolveWaitReason(payloadRows, payloadBytes, limits);
-      if (!reason) break;
-      if (!waited) {
-        waited = true;
-        state.backpressureCount += 1;
-        if (reason === 'count') state.backpressureByCount += 1;
-        else if (reason === 'rows') state.backpressureByRows += 1;
-        else if (reason === 'bytes') state.backpressureByBytes += 1;
-        if (typeof log === 'function') {
-          const now = Date.now();
-          if (now - lastLogAt >= 5000) {
-            lastLogAt = now;
-            const countText = limits.maxCount != null ? `maxPending=${limits.maxCount}` : 'maxPending=∞';
-            const rowText = limits.maxRows != null ? `maxRows=${limits.maxRows}` : 'maxRows=∞';
-            const byteText = limits.maxBytes != null
-              ? `maxBytes=${(limits.maxBytes / MB).toFixed(1)}MB`
-              : 'maxBytes=∞';
-            log(`[postings] backpressure ${countText} ${rowText} ${byteText}.`);
+    if (!bypass) {
+      let waited = false;
+      const waitStart = Date.now();
+      while (true) {
+        const limits = resolveLimits(payloadRows, payloadBytes, baseLimits);
+        const reason = resolveWaitReason(payloadRows, payloadBytes, limits);
+        if (!reason) break;
+        if (!waited) {
+          waited = true;
+          state.backpressureCount += 1;
+          if (reason === 'count') state.backpressureByCount += 1;
+          else if (reason === 'rows') state.backpressureByRows += 1;
+          else if (reason === 'bytes') state.backpressureByBytes += 1;
+          if (typeof log === 'function') {
+            const now = Date.now();
+            if (now - lastLogAt >= 5000) {
+              lastLogAt = now;
+              const countText = limits.maxCount != null ? `maxPending=${limits.maxCount}` : 'maxPending=∞';
+              const rowText = limits.maxRows != null ? `maxRows=${limits.maxRows}` : 'maxRows=∞';
+              const byteText = limits.maxBytes != null
+                ? `maxBytes=${(limits.maxBytes / MB).toFixed(1)}MB`
+                : 'maxBytes=∞';
+              log(`[postings] backpressure ${countText} ${rowText} ${byteText}.`);
+            }
           }
         }
+        await new Promise((resolve) => waiters.push(resolve));
       }
-      await new Promise((resolve) => waiters.push(resolve));
-    }
-    if (waited) {
-      const waitMs = Math.max(0, Date.now() - waitStart);
-      state.backpressureWaitMs += waitMs;
-      state.backpressureMaxWaitMs = Math.max(state.backpressureMaxWaitMs, waitMs);
-      state.backpressureEvents += 1;
+      if (waited) {
+        const waitMs = Math.max(0, Date.now() - waitStart);
+        state.backpressureWaitMs += waitMs;
+        state.backpressureMaxWaitMs = Math.max(state.backpressureMaxWaitMs, waitMs);
+        state.backpressureEvents += 1;
+      }
+    } else {
+      state.reserveBypassCount += 1;
     }
     state.pending += 1;
     state.pendingRows += payloadRows;
@@ -254,7 +259,8 @@ export const createPostingsQueue = ({
       events: state.backpressureEvents,
       byCount: state.backpressureByCount,
       byRows: state.backpressureByRows,
-      byBytes: state.backpressureByBytes
+      byBytes: state.backpressureByBytes,
+      bypass: state.reserveBypassCount
     },
     payload: {
       samples: state.payloadSamples,
