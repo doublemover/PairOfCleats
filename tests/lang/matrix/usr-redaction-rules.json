@@ -1,0 +1,89 @@
+{
+  "schemaVersion": "usr-registry-1.0.0",
+  "registryId": "usr-redaction-rules",
+  "generatedAt": "2026-02-11T00:30:00Z",
+  "generatedBy": "tools/usr/generate-usr-matrix-baselines.mjs",
+  "rows": [
+    {
+      "id": "redact-auth-token",
+      "class": "auth-token",
+      "replacement": "[REDACTED_TOKEN]",
+      "appliesTo": [
+        "diagnostic.message",
+        "node.text",
+        "report.payload"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "redact-cookie",
+      "class": "cookie",
+      "replacement": "[REDACTED_COOKIE]",
+      "appliesTo": [
+        "diagnostic.message",
+        "report.payload"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "redact-email",
+      "class": "email",
+      "replacement": "[REDACTED_EMAIL]",
+      "appliesTo": [
+        "diagnostic.message",
+        "report.payload"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "redact-filepath",
+      "class": "filesystem-path-sensitive",
+      "replacement": "[REDACTED_PATH]",
+      "appliesTo": [
+        "diagnostic.message",
+        "report.payload"
+      ],
+      "blocking": false
+    },
+    {
+      "id": "redact-ipv4",
+      "class": "ip-address",
+      "replacement": "[REDACTED_IP]",
+      "appliesTo": [
+        "diagnostic.message",
+        "report.payload"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "redact-private-key",
+      "class": "private-key-material",
+      "replacement": "[REDACTED_KEY]",
+      "appliesTo": [
+        "diagnostic.message",
+        "report.payload"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "redact-session-id",
+      "class": "session-id",
+      "replacement": "[REDACTED_SESSION]",
+      "appliesTo": [
+        "diagnostic.message",
+        "report.payload"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "redact-url-secret-param",
+      "class": "url-secret-param",
+      "replacement": "[REDACTED_PARAM]",
+      "appliesTo": [
+        "diagnostic.message",
+        "report.payload"
+      ],
+      "blocking": true
+    }
+  ]
+}

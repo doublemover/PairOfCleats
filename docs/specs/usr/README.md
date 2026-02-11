@@ -1,7 +1,7 @@
 # USR Decomposed Contract Set
 
-Status: Draft v0.8
-Last updated: 2026-02-10T08:35:00Z
+Status: Draft v0.9
+Last updated: 2026-02-11T00:45:00Z
 
 This directory decomposes the monolithic USR spec into focused normative contract documents.
 
@@ -43,6 +43,7 @@ Drift enforcement expectations:
 
 - every contract file with prefix `usr-` under `docs/specs/` MUST be represented in roadmap traceability (`TES_LAYN_ROADMAP.md` Appendix H)
 - machine-readable matrix files referenced by child contracts MUST exist in Phase 1 registry inventory
+- machine-readable matrix files MUST be regenerable via `tools/usr/generate-usr-matrix-baselines.mjs`
 - language version/embedding policy matrices MUST stay key-synchronized with `usr-language-profiles.json`
 - parser/runtime lock matrix MUST stay synchronized with parser sources referenced by profiles and mappings
 - SLO/alert and redaction/security matrices MUST stay synchronized with blocking gate policies in roadmap and CI

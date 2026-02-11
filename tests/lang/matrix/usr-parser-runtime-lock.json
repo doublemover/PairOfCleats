@@ -1,0 +1,53 @@
+{
+  "schemaVersion": "usr-registry-1.0.0",
+  "registryId": "usr-parser-runtime-lock",
+  "generatedAt": "2026-02-11T00:30:00Z",
+  "generatedBy": "tools/usr/generate-usr-matrix-baselines.mjs",
+  "rows": [
+    {
+      "parserSource": "framework-compiler",
+      "languageId": "*",
+      "parserName": "framework-compiler-baseline",
+      "parserVersion": "1.0.0",
+      "runtimeName": "node",
+      "runtimeVersion": "20.x",
+      "lockReason": "framework-compiler-baseline"
+    },
+    {
+      "parserSource": "heuristic",
+      "languageId": "*",
+      "parserName": "heuristic-fallback-baseline",
+      "parserVersion": "1.0.0",
+      "runtimeName": "node",
+      "runtimeVersion": "20.x",
+      "lockReason": "fallback-safety-net"
+    },
+    {
+      "parserSource": "native-parser",
+      "languageId": "*",
+      "parserName": "native-parser-baseline",
+      "parserVersion": "1.0.0",
+      "runtimeName": "node",
+      "runtimeVersion": "20.x",
+      "lockReason": "primary-parser-lock"
+    },
+    {
+      "parserSource": "tooling",
+      "languageId": "*",
+      "parserName": "tooling-adapter-baseline",
+      "parserVersion": "1.0.0",
+      "runtimeName": "node",
+      "runtimeVersion": "20.x",
+      "lockReason": "tooling-adapter-lock"
+    },
+    {
+      "parserSource": "tree-sitter",
+      "languageId": "*",
+      "parserName": "tree-sitter-core",
+      "parserVersion": "0.22.0",
+      "runtimeName": "node-tree-sitter",
+      "runtimeVersion": "0.21.x",
+      "lockReason": "tree-sitter-lock"
+    }
+  ]
+}

@@ -1,0 +1,413 @@
+{
+  "schemaVersion": "usr-registry-1.0.0",
+  "registryId": "usr-language-version-policy",
+  "generatedAt": "2026-02-11T00:30:00Z",
+  "generatedBy": "tools/usr/generate-usr-matrix-baselines.mjs",
+  "rows": [
+    {
+      "languageId": "clike",
+      "minVersion": "c11-cpp17",
+      "maxVersion": null,
+      "dialects": [
+        "c",
+        "cpp"
+      ],
+      "featureFlags": [
+        "preprocessor",
+        "templates"
+      ]
+    },
+    {
+      "languageId": "cmake",
+      "minVersion": "3.25",
+      "maxVersion": null,
+      "dialects": [
+        "cmake"
+      ],
+      "featureFlags": [
+        "generator-expressions"
+      ]
+    },
+    {
+      "languageId": "csharp",
+      "minVersion": "11",
+      "maxVersion": null,
+      "dialects": [
+        "csharp"
+      ],
+      "featureFlags": [
+        "nullable-reference-types",
+        "records"
+      ]
+    },
+    {
+      "languageId": "css",
+      "minVersion": "css3",
+      "maxVersion": null,
+      "dialects": [
+        "css",
+        "scss"
+      ],
+      "featureFlags": [
+        "modules",
+        "nesting"
+      ]
+    },
+    {
+      "languageId": "dart",
+      "minVersion": "3.0",
+      "maxVersion": null,
+      "dialects": [
+        "dart"
+      ],
+      "featureFlags": [
+        "null-safety",
+        "records"
+      ]
+    },
+    {
+      "languageId": "dockerfile",
+      "minVersion": "dockerfile-1.5",
+      "maxVersion": null,
+      "dialects": [
+        "dockerfile"
+      ],
+      "featureFlags": [
+        "multistage"
+      ]
+    },
+    {
+      "languageId": "go",
+      "minVersion": "1.20",
+      "maxVersion": null,
+      "dialects": [
+        "go"
+      ],
+      "featureFlags": [
+        "generics",
+        "modules"
+      ]
+    },
+    {
+      "languageId": "graphql",
+      "minVersion": "2021-10",
+      "maxVersion": null,
+      "dialects": [
+        "graphql-query",
+        "graphql-schema"
+      ],
+      "featureFlags": [
+        "directives",
+        "fragments"
+      ]
+    },
+    {
+      "languageId": "groovy",
+      "minVersion": "4.0",
+      "maxVersion": null,
+      "dialects": [
+        "groovy"
+      ],
+      "featureFlags": [
+        "ast-transforms"
+      ]
+    },
+    {
+      "languageId": "handlebars",
+      "minVersion": "4.x",
+      "maxVersion": null,
+      "dialects": [
+        "handlebars"
+      ],
+      "featureFlags": [
+        "helpers",
+        "partials"
+      ]
+    },
+    {
+      "languageId": "html",
+      "minVersion": "html5",
+      "maxVersion": null,
+      "dialects": [
+        "html"
+      ],
+      "featureFlags": [
+        "custom-elements"
+      ]
+    },
+    {
+      "languageId": "java",
+      "minVersion": "17",
+      "maxVersion": null,
+      "dialects": [
+        "java"
+      ],
+      "featureFlags": [
+        "records",
+        "sealed-types"
+      ]
+    },
+    {
+      "languageId": "javascript",
+      "minVersion": "ecma-2020",
+      "maxVersion": null,
+      "dialects": [
+        "cjs",
+        "esm",
+        "jsx"
+      ],
+      "featureFlags": [
+        "jsx",
+        "top-level-await"
+      ]
+    },
+    {
+      "languageId": "jinja",
+      "minVersion": "3.1",
+      "maxVersion": null,
+      "dialects": [
+        "jinja2"
+      ],
+      "featureFlags": [
+        "filters",
+        "macros"
+      ]
+    },
+    {
+      "languageId": "julia",
+      "minVersion": "1.10",
+      "maxVersion": null,
+      "dialects": [
+        "julia"
+      ],
+      "featureFlags": [
+        "macros",
+        "multiple-dispatch"
+      ]
+    },
+    {
+      "languageId": "kotlin",
+      "minVersion": "1.9",
+      "maxVersion": null,
+      "dialects": [
+        "kotlin"
+      ],
+      "featureFlags": [
+        "k2",
+        "suspend"
+      ]
+    },
+    {
+      "languageId": "lua",
+      "minVersion": "5.4",
+      "maxVersion": null,
+      "dialects": [
+        "lua"
+      ],
+      "featureFlags": [
+        "metatables"
+      ]
+    },
+    {
+      "languageId": "makefile",
+      "minVersion": "gnu-make-4.4",
+      "maxVersion": null,
+      "dialects": [
+        "gnu-make"
+      ],
+      "featureFlags": [
+        "pattern-rules"
+      ]
+    },
+    {
+      "languageId": "mustache",
+      "minVersion": "1.0",
+      "maxVersion": null,
+      "dialects": [
+        "mustache"
+      ],
+      "featureFlags": [
+        "partials"
+      ]
+    },
+    {
+      "languageId": "nix",
+      "minVersion": "2.18",
+      "maxVersion": null,
+      "dialects": [
+        "nix"
+      ],
+      "featureFlags": [
+        "flakes"
+      ]
+    },
+    {
+      "languageId": "perl",
+      "minVersion": "5.34",
+      "maxVersion": null,
+      "dialects": [
+        "perl5"
+      ],
+      "featureFlags": [
+        "regex-extended"
+      ]
+    },
+    {
+      "languageId": "php",
+      "minVersion": "8.1",
+      "maxVersion": null,
+      "dialects": [
+        "php"
+      ],
+      "featureFlags": [
+        "attributes",
+        "union-types"
+      ]
+    },
+    {
+      "languageId": "proto",
+      "minVersion": "proto3",
+      "maxVersion": null,
+      "dialects": [
+        "proto3"
+      ],
+      "featureFlags": [
+        "imports",
+        "options"
+      ]
+    },
+    {
+      "languageId": "python",
+      "minVersion": "3.8",
+      "maxVersion": null,
+      "dialects": [
+        "cpython"
+      ],
+      "featureFlags": [
+        "pattern-matching",
+        "type-hints"
+      ]
+    },
+    {
+      "languageId": "r",
+      "minVersion": "4.3",
+      "maxVersion": null,
+      "dialects": [
+        "r"
+      ],
+      "featureFlags": [
+        "tidy-eval"
+      ]
+    },
+    {
+      "languageId": "razor",
+      "minVersion": "aspnetcore-8",
+      "maxVersion": null,
+      "dialects": [
+        "razor"
+      ],
+      "featureFlags": [
+        "model-binding",
+        "tag-helpers"
+      ]
+    },
+    {
+      "languageId": "ruby",
+      "minVersion": "3.1",
+      "maxVersion": null,
+      "dialects": [
+        "ruby"
+      ],
+      "featureFlags": [
+        "pattern-matching"
+      ]
+    },
+    {
+      "languageId": "rust",
+      "minVersion": "1.74",
+      "maxVersion": null,
+      "dialects": [
+        "rust"
+      ],
+      "featureFlags": [
+        "macros",
+        "traits"
+      ]
+    },
+    {
+      "languageId": "scala",
+      "minVersion": "3.3",
+      "maxVersion": null,
+      "dialects": [
+        "scala3"
+      ],
+      "featureFlags": [
+        "givens",
+        "opaque-types"
+      ]
+    },
+    {
+      "languageId": "shell",
+      "minVersion": "bash-5",
+      "maxVersion": null,
+      "dialects": [
+        "bash",
+        "posix-sh"
+      ],
+      "featureFlags": [
+        "process-substitution"
+      ]
+    },
+    {
+      "languageId": "sql",
+      "minVersion": "sql-2016",
+      "maxVersion": null,
+      "dialects": [
+        "ansi-sql",
+        "postgresql",
+        "sqlite"
+      ],
+      "featureFlags": [
+        "cte",
+        "window-functions"
+      ]
+    },
+    {
+      "languageId": "starlark",
+      "minVersion": "1.0",
+      "maxVersion": null,
+      "dialects": [
+        "bazel-starlark"
+      ],
+      "featureFlags": [
+        "load",
+        "rule-macros"
+      ]
+    },
+    {
+      "languageId": "swift",
+      "minVersion": "5.9",
+      "maxVersion": null,
+      "dialects": [
+        "swift"
+      ],
+      "featureFlags": [
+        "result-builders"
+      ]
+    },
+    {
+      "languageId": "typescript",
+      "minVersion": "5.0",
+      "maxVersion": null,
+      "dialects": [
+        "ts",
+        "tsx"
+      ],
+      "featureFlags": [
+        "decorators",
+        "jsx",
+        "project-references"
+      ]
+    }
+  ]
+}

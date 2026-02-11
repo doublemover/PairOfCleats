@@ -1,0 +1,896 @@
+{
+  "schemaVersion": "usr-registry-1.0.0",
+  "registryId": "usr-conformance-levels",
+  "generatedAt": "2026-02-11T00:30:00Z",
+  "generatedBy": "tools/usr/generate-usr-matrix-baselines.mjs",
+  "rows": [
+    {
+      "profileType": "framework",
+      "profileId": "angular",
+      "requiredLevels": [
+        "C4"
+      ],
+      "blockingLevels": [
+        "C4"
+      ],
+      "requiredFixtureFamilies": [
+        "framework-overlay",
+        "embedded-bridge",
+        "route-canonicalization",
+        "hydration"
+      ]
+    },
+    {
+      "profileType": "framework",
+      "profileId": "astro",
+      "requiredLevels": [
+        "C4"
+      ],
+      "blockingLevels": [
+        "C4"
+      ],
+      "requiredFixtureFamilies": [
+        "framework-overlay",
+        "embedded-bridge",
+        "route-canonicalization",
+        "hydration"
+      ]
+    },
+    {
+      "profileType": "framework",
+      "profileId": "next",
+      "requiredLevels": [
+        "C4"
+      ],
+      "blockingLevels": [
+        "C4"
+      ],
+      "requiredFixtureFamilies": [
+        "framework-overlay",
+        "embedded-bridge",
+        "route-canonicalization",
+        "hydration"
+      ]
+    },
+    {
+      "profileType": "framework",
+      "profileId": "nuxt",
+      "requiredLevels": [
+        "C4"
+      ],
+      "blockingLevels": [
+        "C4"
+      ],
+      "requiredFixtureFamilies": [
+        "framework-overlay",
+        "embedded-bridge",
+        "route-canonicalization",
+        "hydration"
+      ]
+    },
+    {
+      "profileType": "framework",
+      "profileId": "react",
+      "requiredLevels": [
+        "C4"
+      ],
+      "blockingLevels": [
+        "C4"
+      ],
+      "requiredFixtureFamilies": [
+        "framework-overlay",
+        "embedded-bridge",
+        "route-canonicalization",
+        "hydration"
+      ]
+    },
+    {
+      "profileType": "framework",
+      "profileId": "svelte",
+      "requiredLevels": [
+        "C4"
+      ],
+      "blockingLevels": [
+        "C4"
+      ],
+      "requiredFixtureFamilies": [
+        "framework-overlay",
+        "embedded-bridge",
+        "route-canonicalization",
+        "hydration"
+      ]
+    },
+    {
+      "profileType": "framework",
+      "profileId": "sveltekit",
+      "requiredLevels": [
+        "C4"
+      ],
+      "blockingLevels": [
+        "C4"
+      ],
+      "requiredFixtureFamilies": [
+        "framework-overlay",
+        "embedded-bridge",
+        "route-canonicalization",
+        "hydration"
+      ]
+    },
+    {
+      "profileType": "framework",
+      "profileId": "vue",
+      "requiredLevels": [
+        "C4"
+      ],
+      "blockingLevels": [
+        "C4"
+      ],
+      "requiredFixtureFamilies": [
+        "framework-overlay",
+        "embedded-bridge",
+        "route-canonicalization",
+        "hydration"
+      ]
+    },
+    {
+      "profileType": "language",
+      "profileId": "clike",
+      "requiredLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blockingLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "requiredFixtureFamilies": [
+        "golden",
+        "normalization",
+        "resolution",
+        "risk",
+        "framework-overlay"
+      ]
+    },
+    {
+      "profileType": "language",
+      "profileId": "cmake",
+      "requiredLevels": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blockingLevels": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "requiredFixtureFamilies": [
+        "golden",
+        "normalization",
+        "resolution",
+        "risk",
+        "framework-overlay"
+      ]
+    },
+    {
+      "profileType": "language",
+      "profileId": "csharp",
+      "requiredLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blockingLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "requiredFixtureFamilies": [
+        "golden",
+        "normalization",
+        "resolution",
+        "risk",
+        "framework-overlay"
+      ]
+    },
+    {
+      "profileType": "language",
+      "profileId": "css",
+      "requiredLevels": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blockingLevels": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "requiredFixtureFamilies": [
+        "golden",
+        "normalization",
+        "resolution",
+        "risk",
+        "framework-overlay"
+      ]
+    },
+    {
+      "profileType": "language",
+      "profileId": "dart",
+      "requiredLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blockingLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "requiredFixtureFamilies": [
+        "golden",
+        "normalization",
+        "resolution",
+        "risk",
+        "framework-overlay"
+      ]
+    },
+    {
+      "profileType": "language",
+      "profileId": "dockerfile",
+      "requiredLevels": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blockingLevels": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "requiredFixtureFamilies": [
+        "golden",
+        "normalization",
+        "resolution",
+        "risk",
+        "framework-overlay"
+      ]
+    },
+    {
+      "profileType": "language",
+      "profileId": "go",
+      "requiredLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blockingLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "requiredFixtureFamilies": [
+        "golden",
+        "normalization",
+        "resolution",
+        "risk",
+        "framework-overlay"
+      ]
+    },
+    {
+      "profileType": "language",
+      "profileId": "graphql",
+      "requiredLevels": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blockingLevels": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "requiredFixtureFamilies": [
+        "golden",
+        "normalization",
+        "resolution",
+        "risk",
+        "framework-overlay"
+      ]
+    },
+    {
+      "profileType": "language",
+      "profileId": "groovy",
+      "requiredLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blockingLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "requiredFixtureFamilies": [
+        "golden",
+        "normalization",
+        "resolution",
+        "risk",
+        "framework-overlay"
+      ]
+    },
+    {
+      "profileType": "language",
+      "profileId": "handlebars",
+      "requiredLevels": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blockingLevels": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "requiredFixtureFamilies": [
+        "golden",
+        "normalization",
+        "resolution",
+        "risk",
+        "framework-overlay"
+      ]
+    },
+    {
+      "profileType": "language",
+      "profileId": "html",
+      "requiredLevels": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blockingLevels": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "requiredFixtureFamilies": [
+        "golden",
+        "normalization",
+        "resolution",
+        "risk",
+        "framework-overlay"
+      ]
+    },
+    {
+      "profileType": "language",
+      "profileId": "java",
+      "requiredLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blockingLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "requiredFixtureFamilies": [
+        "golden",
+        "normalization",
+        "resolution",
+        "risk",
+        "framework-overlay"
+      ]
+    },
+    {
+      "profileType": "language",
+      "profileId": "javascript",
+      "requiredLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3",
+        "C4"
+      ],
+      "blockingLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3",
+        "C4"
+      ],
+      "requiredFixtureFamilies": [
+        "golden",
+        "normalization",
+        "resolution",
+        "risk",
+        "framework-overlay"
+      ]
+    },
+    {
+      "profileType": "language",
+      "profileId": "jinja",
+      "requiredLevels": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blockingLevels": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "requiredFixtureFamilies": [
+        "golden",
+        "normalization",
+        "resolution",
+        "risk",
+        "framework-overlay"
+      ]
+    },
+    {
+      "profileType": "language",
+      "profileId": "julia",
+      "requiredLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blockingLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "requiredFixtureFamilies": [
+        "golden",
+        "normalization",
+        "resolution",
+        "risk",
+        "framework-overlay"
+      ]
+    },
+    {
+      "profileType": "language",
+      "profileId": "kotlin",
+      "requiredLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blockingLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "requiredFixtureFamilies": [
+        "golden",
+        "normalization",
+        "resolution",
+        "risk",
+        "framework-overlay"
+      ]
+    },
+    {
+      "profileType": "language",
+      "profileId": "lua",
+      "requiredLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blockingLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "requiredFixtureFamilies": [
+        "golden",
+        "normalization",
+        "resolution",
+        "risk",
+        "framework-overlay"
+      ]
+    },
+    {
+      "profileType": "language",
+      "profileId": "makefile",
+      "requiredLevels": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blockingLevels": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "requiredFixtureFamilies": [
+        "golden",
+        "normalization",
+        "resolution",
+        "risk",
+        "framework-overlay"
+      ]
+    },
+    {
+      "profileType": "language",
+      "profileId": "mustache",
+      "requiredLevels": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blockingLevels": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "requiredFixtureFamilies": [
+        "golden",
+        "normalization",
+        "resolution",
+        "risk",
+        "framework-overlay"
+      ]
+    },
+    {
+      "profileType": "language",
+      "profileId": "nix",
+      "requiredLevels": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blockingLevels": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "requiredFixtureFamilies": [
+        "golden",
+        "normalization",
+        "resolution",
+        "risk",
+        "framework-overlay"
+      ]
+    },
+    {
+      "profileType": "language",
+      "profileId": "perl",
+      "requiredLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blockingLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "requiredFixtureFamilies": [
+        "golden",
+        "normalization",
+        "resolution",
+        "risk",
+        "framework-overlay"
+      ]
+    },
+    {
+      "profileType": "language",
+      "profileId": "php",
+      "requiredLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blockingLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "requiredFixtureFamilies": [
+        "golden",
+        "normalization",
+        "resolution",
+        "risk",
+        "framework-overlay"
+      ]
+    },
+    {
+      "profileType": "language",
+      "profileId": "proto",
+      "requiredLevels": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blockingLevels": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "requiredFixtureFamilies": [
+        "golden",
+        "normalization",
+        "resolution",
+        "risk",
+        "framework-overlay"
+      ]
+    },
+    {
+      "profileType": "language",
+      "profileId": "python",
+      "requiredLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blockingLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "requiredFixtureFamilies": [
+        "golden",
+        "normalization",
+        "resolution",
+        "risk",
+        "framework-overlay"
+      ]
+    },
+    {
+      "profileType": "language",
+      "profileId": "r",
+      "requiredLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blockingLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "requiredFixtureFamilies": [
+        "golden",
+        "normalization",
+        "resolution",
+        "risk",
+        "framework-overlay"
+      ]
+    },
+    {
+      "profileType": "language",
+      "profileId": "razor",
+      "requiredLevels": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "blockingLevels": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "requiredFixtureFamilies": [
+        "golden",
+        "normalization",
+        "resolution",
+        "risk",
+        "framework-overlay"
+      ]
+    },
+    {
+      "profileType": "language",
+      "profileId": "ruby",
+      "requiredLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blockingLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "requiredFixtureFamilies": [
+        "golden",
+        "normalization",
+        "resolution",
+        "risk",
+        "framework-overlay"
+      ]
+    },
+    {
+      "profileType": "language",
+      "profileId": "rust",
+      "requiredLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blockingLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "requiredFixtureFamilies": [
+        "golden",
+        "normalization",
+        "resolution",
+        "risk",
+        "framework-overlay"
+      ]
+    },
+    {
+      "profileType": "language",
+      "profileId": "scala",
+      "requiredLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blockingLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "requiredFixtureFamilies": [
+        "golden",
+        "normalization",
+        "resolution",
+        "risk",
+        "framework-overlay"
+      ]
+    },
+    {
+      "profileType": "language",
+      "profileId": "shell",
+      "requiredLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blockingLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "requiredFixtureFamilies": [
+        "golden",
+        "normalization",
+        "resolution",
+        "risk",
+        "framework-overlay"
+      ]
+    },
+    {
+      "profileType": "language",
+      "profileId": "sql",
+      "requiredLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blockingLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "requiredFixtureFamilies": [
+        "golden",
+        "normalization",
+        "resolution",
+        "risk",
+        "framework-overlay"
+      ]
+    },
+    {
+      "profileType": "language",
+      "profileId": "starlark",
+      "requiredLevels": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blockingLevels": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "requiredFixtureFamilies": [
+        "golden",
+        "normalization",
+        "resolution",
+        "risk",
+        "framework-overlay"
+      ]
+    },
+    {
+      "profileType": "language",
+      "profileId": "swift",
+      "requiredLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "blockingLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "requiredFixtureFamilies": [
+        "golden",
+        "normalization",
+        "resolution",
+        "risk",
+        "framework-overlay"
+      ]
+    },
+    {
+      "profileType": "language",
+      "profileId": "typescript",
+      "requiredLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3",
+        "C4"
+      ],
+      "blockingLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3",
+        "C4"
+      ],
+      "requiredFixtureFamilies": [
+        "golden",
+        "normalization",
+        "resolution",
+        "risk",
+        "framework-overlay"
+      ]
+    }
+  ]
+}

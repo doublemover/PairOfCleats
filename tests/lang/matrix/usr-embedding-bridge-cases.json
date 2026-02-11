@@ -1,0 +1,112 @@
+{
+  "schemaVersion": "usr-registry-1.0.0",
+  "registryId": "usr-embedding-bridge-cases",
+  "generatedAt": "2026-02-11T00:30:00Z",
+  "generatedBy": "tools/usr/generate-usr-matrix-baselines.mjs",
+  "rows": [
+    {
+      "id": "bridge-angular-component-template",
+      "containerKind": "angular-component",
+      "sourceLanguageId": "typescript",
+      "targetLanguageId": "html",
+      "requiredEdgeKinds": [
+        "template_binds",
+        "template_emits"
+      ],
+      "requiredDiagnostics": [],
+      "blocking": true
+    },
+    {
+      "id": "bridge-astro-frontmatter-template",
+      "containerKind": "astro",
+      "sourceLanguageId": "typescript",
+      "targetLanguageId": "html",
+      "requiredEdgeKinds": [
+        "template_binds"
+      ],
+      "requiredDiagnostics": [],
+      "blocking": true
+    },
+    {
+      "id": "bridge-astro-template-style",
+      "containerKind": "astro",
+      "sourceLanguageId": "html",
+      "targetLanguageId": "css",
+      "requiredEdgeKinds": [
+        "style_scopes"
+      ],
+      "requiredDiagnostics": [],
+      "blocking": true
+    },
+    {
+      "id": "bridge-html-inline-script",
+      "containerKind": "html-inline",
+      "sourceLanguageId": "html",
+      "targetLanguageId": "javascript",
+      "requiredEdgeKinds": [
+        "template_binds"
+      ],
+      "requiredDiagnostics": [
+        "USR-W-BRIDGE-PARTIAL"
+      ],
+      "blocking": false
+    },
+    {
+      "id": "bridge-razor-template-csharp",
+      "containerKind": "razor",
+      "sourceLanguageId": "razor",
+      "targetLanguageId": "csharp",
+      "requiredEdgeKinds": [
+        "template_binds"
+      ],
+      "requiredDiagnostics": [],
+      "blocking": true
+    },
+    {
+      "id": "bridge-svelte-template-style",
+      "containerKind": "svelte",
+      "sourceLanguageId": "html",
+      "targetLanguageId": "css",
+      "requiredEdgeKinds": [
+        "style_scopes"
+      ],
+      "requiredDiagnostics": [],
+      "blocking": true
+    },
+    {
+      "id": "bridge-svelte-template-typescript",
+      "containerKind": "svelte",
+      "sourceLanguageId": "html",
+      "targetLanguageId": "typescript",
+      "requiredEdgeKinds": [
+        "template_binds",
+        "template_emits"
+      ],
+      "requiredDiagnostics": [],
+      "blocking": true
+    },
+    {
+      "id": "bridge-vue-template-script",
+      "containerKind": "vue-sfc",
+      "sourceLanguageId": "html",
+      "targetLanguageId": "typescript",
+      "requiredEdgeKinds": [
+        "template_binds",
+        "template_emits"
+      ],
+      "requiredDiagnostics": [],
+      "blocking": true
+    },
+    {
+      "id": "bridge-vue-template-style",
+      "containerKind": "vue-sfc",
+      "sourceLanguageId": "html",
+      "targetLanguageId": "css",
+      "requiredEdgeKinds": [
+        "style_scopes"
+      ],
+      "requiredDiagnostics": [],
+      "blocking": true
+    }
+  ]
+}
