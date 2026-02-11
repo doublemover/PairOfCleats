@@ -26,7 +26,8 @@ import {
   ensureVectorTable,
   getVectorExtensionConfig,
   hasVectorTable,
-  loadVectorExtension
+  loadVectorExtension,
+  resolveVectorExtensionConfigForMode
 } from '../../../../tools/sqlite/vector-extension.js';
 import { compactDatabase } from '../../../../tools/build/compact-sqlite-index.js';
 import { loadIncrementalManifest } from '../incremental.js';
@@ -391,6 +392,11 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
       loadVectorExtension
     };
     const sqlitePaths = resolveSqlitePaths(root, userConfig, { indexRoot });
+    const sqliteSharedDb = Boolean(
+      sqlitePaths?.codePath
+      && sqlitePaths?.prosePath
+      && path.resolve(sqlitePaths.codePath) === path.resolve(sqlitePaths.prosePath)
+    );
     const outArg = argv.out || options.out || null;
     const { outPath, codeOutPath, proseOutPath, extractedProseOutPath, recordsOutPath } = resolveOutputPaths({
       modeArg,
@@ -563,8 +569,12 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
         resolvedInput = hasIncrementalBundles
           ? { source: 'incremental', bundleDir: incrementalBundleDir }
           : { source: 'artifacts', indexDir: modeIndexDir };
+        const modeVectorExtension = resolveVectorExtensionConfigForMode(vectorExtension, mode, {
+          sharedDb: sqliteSharedDb
+        });
         const resolvedVectorConfig = {
           ...vectorConfig,
+          extension: modeVectorExtension,
           enabled: vectorAnnEnabled && (mode === 'code' || mode === 'prose' || mode === 'extracted-prose')
         };
         stageCheckpoints.record({

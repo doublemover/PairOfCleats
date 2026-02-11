@@ -3,6 +3,10 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { loadUserConfig, resolveSqlitePaths } from '../../../../tools/shared/dict-utils.js';
+import {
+  getVectorExtensionConfig,
+  resolveVectorExtensionConfigForMode
+} from '../../../../tools/sqlite/vector-extension.js';
 import { requireSqliteVec } from '../../../helpers/optional-deps.js';
 import { runSqliteBuild } from '../../../helpers/sqlite-builder.js';
 
@@ -63,6 +67,16 @@ await runSqliteBuild(repoRoot);
 
 const userConfig = loadUserConfig(repoRoot);
 const sqlitePaths = resolveSqlitePaths(repoRoot, userConfig);
+const sqliteSharedDb = Boolean(
+  sqlitePaths?.codePath
+  && sqlitePaths?.prosePath
+  && path.resolve(sqlitePaths.codePath) === path.resolve(sqlitePaths.prosePath)
+);
+const vectorExtension = getVectorExtensionConfig(repoRoot, userConfig);
+const codeVectorExtension = resolveVectorExtensionConfigForMode(vectorExtension, 'code', {
+  sharedDb: sqliteSharedDb
+});
+const annTableName = codeVectorExtension?.table || 'dense_vectors_ann';
 
 let Database;
 try {
@@ -81,14 +95,14 @@ try {
 }
 const table = db.prepare(
   "SELECT name FROM sqlite_master WHERE type='table' AND name = ?"
-).get('dense_vectors_ann');
+).get(annTableName);
 if (!table) {
-  console.error('sqlite ann extension table missing: dense_vectors_ann');
+  console.error(`sqlite ann extension table missing: ${annTableName}`);
   process.exit(1);
 }
-const countRow = db.prepare('SELECT COUNT(*) AS count FROM dense_vectors_ann').get();
+const countRow = db.prepare(`SELECT COUNT(*) AS count FROM ${annTableName}`).get();
 if (!countRow?.count) {
-  console.error('sqlite ann extension table empty: dense_vectors_ann');
+  console.error(`sqlite ann extension table empty: ${annTableName}`);
   process.exit(1);
 }
 const denseCountBefore = db.prepare(
@@ -149,7 +163,7 @@ const denseCountAfter = dbAfter.prepare(
   'SELECT COUNT(*) AS count FROM dense_vectors WHERE mode = ?'
 ).get('code');
 const annCountAfter = dbAfter.prepare(
-  'SELECT COUNT(*) AS count FROM dense_vectors_ann'
+  `SELECT COUNT(*) AS count FROM ${annTableName}`
 ).get()?.count;
 if (Number(annCountAfter) !== Number(denseCountAfter?.count)) {
   console.error(`Dense vector count mismatch after incremental update: dense=${denseCountAfter?.count} ann=${annCountAfter}`);
@@ -160,7 +174,7 @@ if (denseCountBefore?.count && denseCountAfter?.count >= denseCountBefore.count)
   process.exit(1);
 }
 const orphanRow = dbAfter.prepare(
-  'SELECT COUNT(*) AS count FROM dense_vectors_ann WHERE rowid NOT IN (SELECT doc_id FROM dense_vectors WHERE mode = ?)'
+  `SELECT COUNT(*) AS count FROM ${annTableName} WHERE rowid NOT IN (SELECT doc_id FROM dense_vectors WHERE mode = ?)`
 ).get('code');
 if (orphanRow?.count) {
   console.error(`Found ${orphanRow.count} orphaned ann rows after deletion.`);
