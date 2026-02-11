@@ -384,7 +384,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
 
   const cacheScopeRaw = embeddingsConfig.cache?.scope;
   const cacheScope = typeof cacheScopeRaw === 'string' ? cacheScopeRaw.trim().toLowerCase() : '';
-  const resolvedCacheScope = (cacheScope === 'repo' || cacheScope === 'local') ? 'repo' : 'global';
+  const resolvedCacheScope = cacheScope === 'global' ? 'global' : 'repo';
   const cacheRoot = resolveCacheRoot({
     repoCacheRoot,
     cacheDirConfig: embeddingsConfig.cache?.dir,
