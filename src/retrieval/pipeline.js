@@ -179,7 +179,10 @@ export function createSearchPipeline(context) {
   });
 
   const annOrder = resolveAnnOrder(annBackend);
-  const adaptiveProvidersEnabled = annAdaptiveProviders === true;
+  const explicitAnnBackend = typeof annBackend === 'string'
+    && annBackend.trim().length > 0
+    && annBackend.trim().toLowerCase() !== 'auto';
+  const adaptiveProvidersEnabled = annAdaptiveProviders === true && !explicitAnnBackend;
   const buildAnnProviders = typeof createAnnProvidersInput === 'function'
     ? createAnnProvidersInput
     : () => new Map([
