@@ -47,7 +47,7 @@ import {
   normalizeDictSignaturePath
 } from './normalize.js';
 import { buildAnalysisPolicy } from './policy.js';
-import { buildFileScanConfig, buildShardConfig, formatBuildTimestamp } from './config.js';
+import { buildFileScanConfig, buildShardConfig, formatBuildNonce, formatBuildTimestamp } from './config.js';
 import { resolveEmbeddingRuntime } from './embeddings.js';
 import { createBuildScheduler } from '../../../shared/concurrency.js';
 import { resolveSchedulerConfig } from './scheduler.js';
@@ -313,7 +313,8 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     || null;
   const scmHeadShort = scmHeadId ? String(scmHeadId).slice(0, 7) : 'noscm';
   const configHash8 = configHash ? configHash.slice(0, 8) : 'nohash';
-  const computedBuildIdBase = `${formatBuildTimestamp(new Date())}_${scmHeadShort}_${configHash8}`;
+  const buildNonce = formatBuildNonce();
+  const computedBuildIdBase = `${formatBuildTimestamp(new Date())}_${buildNonce}_${scmHeadShort}_${configHash8}`;
   const resolvedIndexRoot = indexRootOverride ? path.resolve(indexRootOverride) : null;
   const buildsRoot = getBuildsRoot(root, userConfig);
   let computedBuildId = computedBuildIdBase;

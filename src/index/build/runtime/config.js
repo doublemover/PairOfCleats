@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { normalizeLimit, normalizeRatio, normalizeDepth } from './caps.js';
 
 export const formatBuildTimestamp = (date) => (
@@ -5,6 +6,13 @@ export const formatBuildTimestamp = (date) => (
   // constrained environments.
   date.toISOString().replace(/\.\d{3}Z$/, 'Z').replace(/[-:]/g, '')
 );
+
+export const formatBuildNonce = (bytes = 4) => {
+  const size = Number.isFinite(Number(bytes))
+    ? Math.max(2, Math.floor(Number(bytes)))
+    : 3;
+  return crypto.randomBytes(size).toString('hex');
+};
 
 export const buildFileScanConfig = (indexingConfig) => {
   const fileScanConfig = indexingConfig.fileScan || {};
