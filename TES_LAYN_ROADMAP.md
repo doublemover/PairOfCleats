@@ -1,6 +1,6 @@
 # TES_LAYN_ROADMAP - USR-Aligned Language and Framework Execution Master Plan
 
-Last rewritten: 2026-02-11T05:15:00Z
+Last rewritten: 2026-02-11T08:20:00Z
 Branch: `LANGMANE`
 Document status: active master plan baseline v1.5
 
@@ -208,7 +208,7 @@ If contradictions are found:
 - [x] Create `tests/lang/matrix/usr-quality-gates.json`.
 - [x] Create `tests/lang/matrix/usr-operational-readiness-policy.json`.
 - [x] Add deterministic baseline generator `tools/usr/generate-usr-matrix-baselines.mjs` and matrix inventory doc `tests/lang/matrix/README.md`.
-- [ ] Keep decomposed catalog specs (`docs/specs/usr-*.md`) aligned with machine-readable registry schema keys.
+- [ ] Keep consolidated core contracts (`docs/specs/usr-core-*.md`) aligned with machine-readable registry schema keys.
 
 ### 1.2 Schema and validator package (USR section 24)
 
@@ -1472,3 +1472,4 @@ Roadmap enforcement requirements:
 - [ ] Framework onboarding and interop expectations follow `docs/specs/usr-core-language-framework-catalog.md`.
 - [ ] Contract consolidation traceability is maintained in `docs/specs/usr-consolidation-coverage-matrix.md`.
 - [ ] Any contract addition/removal updates Appendix H traceability and Appendix J dependency graph in same change.
+
