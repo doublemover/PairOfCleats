@@ -1,5 +1,7 @@
 import fsSync from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { CREATE_TABLES_BASE_SQL, SCHEMA_VERSION } from '../schema.js';
 import { removeSqliteSidecars, resolveSqliteBatchSize, bumpSqliteBatchStat } from '../utils.js';
@@ -27,6 +29,12 @@ const stripLongPathPrefix = (value) => (
 
 const toComparablePath = (value) => path.resolve(stripLongPathPrefix(value));
 
+const buildShortTempDbPath = (outPath) => {
+  const hash = crypto.createHash('sha1').update(String(outPath || '')).digest('hex').slice(0, 20);
+  const base = path.join(os.tmpdir(), 'pairofcleats-sqlite', `${hash}.db`);
+  return createTempPath(base);
+};
+
 const openDatabaseWithFallback = (Database, outPath) => {
   const resolvedOutPath = path.resolve(outPath);
   const candidates = [];
@@ -42,6 +50,10 @@ const openDatabaseWithFallback = (Database, outPath) => {
         addCandidate(compactPath, compactPath, resolvedOutPath);
         addCandidate(`${LONG_PATH_PREFIX}${compactPath}`, compactPath, resolvedOutPath);
       }
+      const shortTempPath = buildShortTempDbPath(resolvedOutPath);
+      if (shortTempPath && toComparablePath(shortTempPath) !== toComparablePath(resolvedOutPath)) {
+        addCandidate(shortTempPath, shortTempPath, resolvedOutPath);
+      }
     }
     addCandidate(resolvedOutPath, resolvedOutPath, null);
     if (!resolvedOutPath.startsWith(LONG_PATH_PREFIX)) {
@@ -53,6 +65,7 @@ const openDatabaseWithFallback = (Database, outPath) => {
   let lastError = null;
   for (const candidate of candidates) {
     try {
+      fsSync.mkdirSync(path.dirname(candidate.dbPath || candidate.openPath), { recursive: true });
       const db = new Database(candidate.openPath);
       return {
         db,
