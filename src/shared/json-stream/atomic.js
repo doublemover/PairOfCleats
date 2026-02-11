@@ -17,6 +17,7 @@ const createTempToken = () => {
 
 // Keep headroom for sidecar paths (e.g. SQLite -wal/-journal suffixes) on Win32.
 const WINDOWS_PATH_BUDGET = 240;
+const MIN_COMPACT_TOKEN_CHARS = 12;
 
 const waitForPath = async (targetPath, { attempts = 3, baseDelayMs = 10 } = {}) => {
   const resolvedAttempts = Number.isFinite(attempts) ? Math.max(1, Math.floor(attempts)) : 3;
@@ -59,8 +60,8 @@ export const createTempPath = (filePath) => {
     // Preserve the ".tmp-" marker so cleanup/discovery logic remains consistent.
     const prefix = 't.tmp-';
     const budget = maxLen - baseDir.length - 1 - prefix.length - suffixExt.length;
-    if (budget < 4) return null;
-    const tokenBudget = Math.max(4, Math.min(compactToken.length, budget));
+    if (budget < MIN_COMPACT_TOKEN_CHARS) return null;
+    const tokenBudget = Math.min(compactToken.length, budget);
     const name = `${prefix}${compactToken.slice(0, tokenBudget)}`;
     return path.join(baseDir, `${name}${suffixExt}`);
   };
@@ -77,9 +78,18 @@ export const createTempPath = (filePath) => {
     return null;
   };
 
+  const buildFallbackTempPath = (withExt = true) => {
+    const suffixExt = withExt ? ext : '';
+    const baseDir = path.join(process.env.TEMP || process.env.TMP || path.join(process.cwd(), '.tmp'), 'poc-atomic');
+    const name = `t.tmp-${compactToken}`;
+    return path.join(baseDir, `${name}${suffixExt}`);
+  };
+
   return (
     buildCompactPathInAncestors(WINDOWS_PATH_BUDGET, true)
     || buildCompactPathInAncestors(WINDOWS_PATH_BUDGET, false)
+    || buildFallbackTempPath(true)
+    || buildFallbackTempPath(false)
     || tempPath
   );
 };

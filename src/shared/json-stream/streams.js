@@ -125,26 +125,6 @@ export const createJsonWriteStream = (filePath, options = {}) => {
     } catch {}
     return !fs.existsSync(target);
   };
-  const removeSiblingTempFiles = async () => {
-    if (!atomic) return;
-    const dir = path.dirname(filePath);
-    const base = path.basename(filePath);
-    const activeName = path.basename(targetPath);
-    const prefix = `${base}.tmp-`;
-    let entries = [];
-    try {
-      entries = await fsPromises.readdir(dir, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const entry of entries) {
-      if (!entry?.isFile?.()) continue;
-      if (entry.name === activeName) continue;
-      if (!entry.name.startsWith(prefix)) continue;
-      const candidate = path.join(dir, entry.name);
-      await retryRemovePath(candidate);
-    }
-  };
   const removeTempFile = async () => {
     if (!atomic) return;
     await waitForClose(fileStream);
@@ -157,7 +137,6 @@ export const createJsonWriteStream = (filePath, options = {}) => {
       if (!fs.existsSync(targetPath)) break;
       await delay(Math.min(1000, 50 * (attempt + 1)));
     }
-    await removeSiblingTempFiles();
   };
   const attachPipelineErrorHandlers = () => {
     const forwardToFile = (err) => {

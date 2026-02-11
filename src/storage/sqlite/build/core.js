@@ -44,15 +44,15 @@ const openDatabaseWithFallback = (Database, outPath) => {
   };
   if (process.platform === 'win32') {
     const needsCompactPath = resolvedOutPath.length > SQLITE_DB_PATH_SOFT_LIMIT;
+    const shortTempPath = buildShortTempDbPath(resolvedOutPath);
+    if (shortTempPath && toComparablePath(shortTempPath) !== toComparablePath(resolvedOutPath)) {
+      addCandidate(shortTempPath, shortTempPath, resolvedOutPath);
+    }
     if (needsCompactPath) {
       const compactPath = createTempPath(resolvedOutPath);
       if (compactPath && toComparablePath(compactPath) !== toComparablePath(resolvedOutPath)) {
         addCandidate(compactPath, compactPath, resolvedOutPath);
         addCandidate(`${LONG_PATH_PREFIX}${compactPath}`, compactPath, resolvedOutPath);
-      }
-      const shortTempPath = buildShortTempDbPath(resolvedOutPath);
-      if (shortTempPath && toComparablePath(shortTempPath) !== toComparablePath(resolvedOutPath)) {
-        addCandidate(shortTempPath, shortTempPath, resolvedOutPath);
       }
     }
     addCandidate(resolvedOutPath, resolvedOutPath, null);

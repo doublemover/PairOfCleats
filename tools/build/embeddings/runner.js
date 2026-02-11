@@ -17,7 +17,7 @@ import {
   MAX_JSON_BYTES
 } from '../../../src/shared/artifact-io.js';
 import { readTextFileWithHash } from '../../../src/shared/encoding.js';
-import { writeJsonLinesSharded, writeJsonObjectFile } from '../../../src/shared/json-stream.js';
+import { createTempPath, replaceFile, writeJsonLinesSharded, writeJsonObjectFile } from '../../../src/shared/json-stream.js';
 import { createCrashLogger } from '../../../src/index/build/crash-log.js';
 import { resolveHnswPaths, resolveHnswTarget } from '../../../src/shared/hnsw.js';
 import { normalizeLanceDbConfig, resolveLanceDbPaths, resolveLanceDbTarget } from '../../../src/shared/lancedb.js';
@@ -214,10 +214,9 @@ export async function runBuildEmbeddingsWithConfig(config) {
         }
       }
       binPath = path.join(indexDir, `${baseName}.bin`);
-      const tempBinPath = `${binPath}.tmp`;
+      const tempBinPath = createTempPath(binPath);
       await fs.writeFile(tempBinPath, bytes);
-      await fs.rm(binPath, { force: true });
-      await fs.rename(tempBinPath, binPath);
+      await replaceFile(tempBinPath, binPath);
       binMetaPath = path.join(indexDir, `${baseName}.bin.meta.json`);
       await writeJsonObjectFile(binMetaPath, {
         fields: {

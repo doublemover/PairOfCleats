@@ -143,8 +143,16 @@ export function getCurrentBuildInfo(repoRoot, userConfig = null, options = {}) {
     const preferredMode = typeof options.mode === 'string' ? options.mode : null;
     const preferredRoot = preferredMode ? buildRoots[preferredMode] : null;
     const activeRoot = preferredRoot || buildRoot || Object.values(buildRoots)[0] || null;
-    if (!buildId || !activeRoot || !fs.existsSync(activeRoot)) return null;
-    return { buildId, buildRoot: buildRoot || activeRoot, activeRoot, path: currentPath, data, buildRoots };
+    const resolvedBuildId = buildId || (activeRoot ? path.basename(activeRoot) : null);
+    if (!resolvedBuildId || !activeRoot || !fs.existsSync(activeRoot)) return null;
+    return {
+      buildId: resolvedBuildId,
+      buildRoot: buildRoot || activeRoot,
+      activeRoot,
+      path: currentPath,
+      data,
+      buildRoots
+    };
   } catch {
     return null;
   }

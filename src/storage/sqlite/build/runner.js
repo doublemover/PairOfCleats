@@ -55,6 +55,25 @@ const normalizeModeArg = (value) => {
   return 'all';
 };
 
+const countMissingBundleFiles = (incrementalData) => {
+  const bundleDir = incrementalData?.bundleDir;
+  const files = incrementalData?.manifest?.files;
+  if (!bundleDir || !files || typeof files !== 'object') return 0;
+  let missing = 0;
+  for (const entry of Object.values(files)) {
+    const bundleName = entry?.bundle;
+    if (!bundleName || typeof bundleName !== 'string') {
+      missing += 1;
+      continue;
+    }
+    const bundlePath = path.join(bundleDir, bundleName);
+    if (!fsSync.existsSync(bundlePath)) {
+      missing += 1;
+    }
+  }
+  return missing;
+};
+
 /**
  * Build sqlite indexes without CLI parsing.
  * @param {object} options
@@ -470,10 +489,12 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
       const incrementalBundleCount = incrementalBundleDir && fsSync.existsSync(incrementalBundleDir)
         ? fsSync.readdirSync(incrementalBundleDir).filter((name) => !name.startsWith('.')).length
         : 0;
+      const missingBundleCount = countMissingBundleFiles(incrementalData);
       let hasIncrementalBundles = incrementalRequested && Boolean(
         incrementalData?.manifest
         && incrementalFileCount > 0
         && incrementalBundleCount > 0
+        && missingBundleCount === 0
         && incrementalBundleDir
       );
       let resolvedInput = null;
@@ -523,6 +544,10 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
           bundleSkipReason = `bundles omit embeddings${stageNote}`;
           hasIncrementalBundles = false;
         }
+        if (missingBundleCount > 0) {
+          bundleSkipReason = `bundle file missing (${missingBundleCount})`;
+          hasIncrementalBundles = false;
+        }
         if (incrementalRequested && emitOutput && bundleSkipReason) {
           log(`[sqlite] Incremental bundles skipped for ${mode}: ${bundleSkipReason}.`);
         } else if (incrementalRequested && !hasIncrementalBundles && emitOutput && incrementalData?.manifest) {
@@ -543,11 +568,12 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
             incrementalBundles: hasIncrementalBundles ? 1 : 0,
             incrementalFiles: incrementalFileCount,
             incrementalBundlesCount: incrementalBundleCount,
+            missingBundles: missingBundleCount,
             inputSource: resolvedInput.source === 'incremental' ? 1 : 0
           }
         });
 
-        if (incrementalRequested && fsSync.existsSync(outputPath) && incrementalData?.manifest) {
+        if (incrementalRequested && fsSync.existsSync(outputPath) && incrementalData?.manifest && missingBundleCount === 0) {
           const updateResult = await incrementalUpdateDatabase({
             Database,
             outPath: outputPath,
@@ -625,6 +651,8 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
           if (emitOutput && updateResult?.used === false && updateResult.reason) {
             warn(`[sqlite] Incremental update skipped for ${mode}: ${updateResult.reason}.`);
           }
+        } else if (incrementalRequested && fsSync.existsSync(outputPath) && incrementalData?.manifest && missingBundleCount > 0) {
+          warn(`[sqlite] Incremental update skipped for ${mode}: bundle file missing (${missingBundleCount}).`);
         }
 
         tempOutputPath = createTempPath(outputPath);

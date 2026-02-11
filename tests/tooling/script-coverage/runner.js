@@ -3,6 +3,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { toPosix } from '../../../src/shared/files.js';
+import { rmDirRecursive } from '../../helpers/temp.js';
 
 export const resolveRetries = ({ argvRetries, envRetries, defaultRetries = 2 }) => {
   if (Number.isFinite(argvRetries)) return Math.max(0, argvRetries);
@@ -11,7 +12,7 @@ export const resolveRetries = ({ argvRetries, envRetries, defaultRetries = 2 }) 
 };
 
 export const prepareCoverageDirs = async ({ baseCacheRoot, repoCacheRoot, failureLogRoot }) => {
-  await fsPromises.rm(baseCacheRoot, { recursive: true, force: true });
+  await rmDirRecursive(baseCacheRoot, { retries: 8, delayMs: 100 });
   await fsPromises.mkdir(repoCacheRoot, { recursive: true });
   await fsPromises.mkdir(failureLogRoot, { recursive: true });
 };

@@ -137,7 +137,7 @@ export function normalizeSearchOptions({
     ? searchConfig.annDefault
     : null;
   const annEnabled = annFlagPresent ? argv.ann : (annDefault ?? policyAnn ?? true);
-  const annBackendRaw = argv['ann-backend'];
+  const annBackendRaw = argv['ann-backend'] ?? argv.annBackend;
   const annBackend = annBackendRaw == null
     ? 'lancedb'
     : normalizeAnnBackend(annBackendRaw, { strict: true, defaultBackend: null });
