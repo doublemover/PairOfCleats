@@ -308,6 +308,11 @@ const classifyTokensWithTreeSitter = ({
   };
 };
 
+/**
+ * Classify token list into identifier/keyword/operator/literal buckets.
+ * @param {{text:string,tokens:string[],languageId?:string,ext?:string,dictWords:Set<string>|{size:number,has:function},dictConfig:object,context?:object}} input
+ * @returns {{identifierTokens:string[],keywordTokens:string[],operatorTokens:string[],literalTokens:string[]}}
+ */
 export const classifyTokenBuckets = ({
   text,
   tokens,
@@ -497,6 +502,11 @@ const buildSequenceFromTokens = (tokens, seqBuffer = null) => {
   return seqBuffer ? seq.slice() : seq;
 };
 
+/**
+ * Pre-tokenize an entire file into per-line token arrays for cheap window slicing.
+ * @param {{text:string,mode:'code'|'prose',ext?:string,dictWords:Set<string>|{size:number,has:function},dictConfig:object}} input
+ * @returns {{lineTokens:string[][],linePunctuationTokens:string[][]|null}}
+ */
 export const createFileLineTokenStream = ({
   text,
   mode,
@@ -526,6 +536,11 @@ export const createFileLineTokenStream = ({
   return { lineTokens, linePunctuationTokens };
 };
 
+/**
+ * Slice a pre-tokenized file-line stream into one chunk token payload.
+ * @param {{stream:{lineTokens:string[][],linePunctuationTokens?:string[][]|null},startLine:number,endLine:number}} input
+ * @returns {{tokens:string[],seq:string[]}|null}
+ */
 export const sliceFileLineTokenStream = ({ stream, startLine, endLine }) => {
   const lineTokens = Array.isArray(stream?.lineTokens) ? stream.lineTokens : null;
   if (!lineTokens) return null;

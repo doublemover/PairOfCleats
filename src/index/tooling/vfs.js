@@ -1152,6 +1152,12 @@ const parseVfsManifestRowBuffer = (buffer, bytesRead) => {
   return JSON.parse(line);
 };
 
+/**
+ * Parse one binary-framed JSON row (u32 byte length prefix + utf8 payload).
+ * @param {Buffer} buffer
+ * @param {number} bytesRead
+ * @returns {object|null}
+ */
 export const parseBinaryJsonRowBuffer = (buffer, bytesRead) => {
   if (!buffer || !Number.isFinite(bytesRead) || bytesRead < 4) return null;
   const payloadBytes = buffer.readUInt32LE(0);

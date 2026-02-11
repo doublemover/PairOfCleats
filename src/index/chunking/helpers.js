@@ -1,5 +1,10 @@
 import { buildLineIndex } from '../../shared/lines.js';
 
+/**
+ * Build a zero-allocation-friendly line-start index when lines are already split.
+ * @param {string[]} lines
+ * @returns {number[]}
+ */
 export const buildLineIndexFromLines = (lines) => {
   if (!Array.isArray(lines) || !lines.length) return [0];
   const lineIndex = new Array(lines.length);
@@ -11,6 +16,13 @@ export const buildLineIndexFromLines = (lines) => {
   return lineIndex;
 };
 
+/**
+ * Convert heading line anchors into chunk ranges.
+ * @param {string} text
+ * @param {Array<{line:number,title?:string}>} headings
+ * @param {number[]|null} [lineIndex]
+ * @returns {Array<object>|null}
+ */
 export const buildChunksFromLineHeadings = (text, headings, lineIndex = null) => {
   if (!headings.length) return null;
   const resolvedLineIndex = Array.isArray(lineIndex) && lineIndex.length
@@ -34,6 +46,13 @@ export const buildChunksFromLineHeadings = (text, headings, lineIndex = null) =>
   return chunks;
 };
 
+/**
+ * Build section chunks from regex match boundaries.
+ * @param {string} text
+ * @param {Array<RegExpMatchArray>} matches
+ * @param {(rawTitle:string)=>string} [titleTransform]
+ * @returns {Array<object>|null}
+ */
 export const buildChunksFromMatches = (text, matches, titleTransform) => {
   const chunks = [];
   let previous = null;

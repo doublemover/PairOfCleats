@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-10T16:40:51.444Z",
+  "generatedAt": "2026-02-11T06:03:58.412Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -1724,6 +1724,7 @@
         "tests/tooling/triage/records-index-and-search.test.js",
         "tools/bench/index/postings-real.js",
         "tools/bench/index/scheduler-build.js",
+        "tools/bench/index/scheduler-store-format.js",
         "tools/ci/run-suite.js",
         "tools/config/inventory.js",
         "tools/reports/compare-models.js"
@@ -2029,6 +2030,7 @@
         "tests/perf/indexing/embeddings/scheduler-backpressure.test.js",
         "tests/perf/indexing/runtime/scheduler-no-output-regression.test.js",
         "tools/bench/index/scheduler-build.js",
+        "tools/bench/index/scheduler-store-format.js",
         "tools/config/inventory.js"
       ]
     },
@@ -2217,6 +2219,7 @@
         "tests/storage/lmdb/lmdb-report-artifacts.test.js",
         "tests/storage/sqlite/ann/sqlite-ann-extension.test.js",
         "tests/storage/sqlite/sqlite-auto-backend.test.js",
+        "tools/bench/index/scheduler-store-format.js",
         "tools/config/inventory.js"
       ]
     },
@@ -2244,6 +2247,7 @@
       "files": [
         "src/shared/env.js",
         "tests/indexing/artifacts/artifact-size-guardrails.test.js",
+        "tests/indexing/validate/index-validate-chunk-meta-large-manifest-budget.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -2346,6 +2350,7 @@
         "tests/indexing/risk/interprocedural/runtime-gating.test.js",
         "tests/indexing/runtime/two-stage-state.test.js",
         "tests/indexing/shards/shard-merge.test.js",
+        "tests/indexing/validate/index-validate-chunk-meta-large-manifest-budget.test.js",
         "tests/perf/baseline-artifacts.test.js",
         "tests/perf/bench/run.test.js",
         "tests/perf/sqlite-p95-latency.test.js",
@@ -2405,6 +2410,7 @@
         "tests/tooling/install/setup-index-detection.test.js",
         "tests/tooling/install/uninstall.test.js",
         "tests/tooling/reports/summary/summary-report-helpers.js",
+        "tools/bench/index/scheduler-store-format.js",
         "tools/ci/run-suite.js",
         "tools/config/contract-doc.js",
         "tools/config/inventory.js"
@@ -2812,6 +2818,15 @@
     "publicDetected": [],
     "publicUnknown": [],
     "byFile": [
+      {
+        "file": ".benchCache/scheduler-store-format/repos/baseline/generate.js",
+        "flags": [
+          "clean",
+          "count",
+          "out",
+          "seed"
+        ]
+      },
       {
         "file": "src/contracts/schemas/analysis.js",
         "flags": [
@@ -4273,8 +4288,9 @@
       },
       {
         "flag": "out",
-        "count": 38,
+        "count": 39,
         "files": [
+          ".benchCache/scheduler-store-format/repos/baseline/generate.js",
           "tests/fixtures/medium/generate.js",
           "tests/retrieval/parity/parity.test.js",
           "tests/tooling/fixtures/fixture-eval.test.js",
@@ -4352,8 +4368,9 @@
       },
       {
         "flag": "seed",
-        "count": 15,
+        "count": 16,
         "files": [
+          ".benchCache/scheduler-store-format/repos/baseline/generate.js",
           "src/integrations/tooling/context-pack.js",
           "src/integrations/tooling/graph-context.js",
           "src/integrations/tooling/impact.js",
@@ -4960,6 +4977,15 @@
         ]
       },
       {
+        "flag": "count",
+        "count": 3,
+        "files": [
+          ".benchCache/scheduler-store-format/repos/baseline/generate.js",
+          "tests/fixtures/medium/generate.js",
+          "tools/bench/query-generator.js"
+        ]
+      },
+      {
         "flag": "includeUsages",
         "count": 3,
         "files": [
@@ -5103,19 +5129,19 @@
         ]
       },
       {
+        "flag": "clean",
+        "count": 2,
+        "files": [
+          ".benchCache/scheduler-store-format/repos/baseline/generate.js",
+          "tests/fixtures/medium/generate.js"
+        ]
+      },
+      {
         "flag": "concurrency",
         "count": 2,
         "files": [
           "tools/bench/vfs/parallel-manifest-build.js",
           "tools/service/indexer-service.js"
-        ]
-      },
-      {
-        "flag": "count",
-        "count": 2,
-        "files": [
-          "tests/fixtures/medium/generate.js",
-          "tools/bench/query-generator.js"
         ]
       },
       {

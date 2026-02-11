@@ -13,6 +13,11 @@ const normalizeChunkLimit = (value) => {
   return limit > 0 ? limit : null;
 };
 
+/**
+ * Resolve optional chunk size caps from indexing context.
+ * @param {object} context
+ * @returns {{maxBytes:number|null,maxLines:number|null}}
+ */
 export const resolveChunkingLimits = (context) => {
   const raw = context?.chunking && typeof context.chunking === 'object'
     ? context.chunking
@@ -82,6 +87,14 @@ const byteLengthByRange = (text, start, end, metrics = null) => {
   return bytes;
 };
 
+/**
+ * Split a chunk into line-bounded windows.
+ * @param {object} chunk
+ * @param {string} text
+ * @param {number[]} lineIndex
+ * @param {number} maxLines
+ * @returns {object[]}
+ */
 export const splitChunkByLines = (chunk, text, lineIndex, maxLines) => {
   if (!lineIndex || !maxLines) return [chunk];
   const start = Number.isFinite(chunk.start) ? chunk.start : 0;
@@ -129,6 +142,15 @@ const resolveByteBoundary = (text, start, end, maxBytes, byteMetrics = null) => 
   return best;
 };
 
+/**
+ * Split a chunk into byte-bounded windows while preserving line metadata.
+ * @param {object} chunk
+ * @param {string} text
+ * @param {(() => number[])|number[]} resolveLineIndex
+ * @param {number} maxBytes
+ * @param {{text:string,prefix:Uint32Array}|null} [byteMetrics]
+ * @returns {object[]}
+ */
 export const splitChunkByBytes = (chunk, text, resolveLineIndex, maxBytes, byteMetrics = null) => {
   if (!maxBytes) return [chunk];
   const start = Number.isFinite(chunk.start) ? chunk.start : 0;
@@ -158,6 +180,13 @@ export const splitChunkByBytes = (chunk, text, resolveLineIndex, maxBytes, byteM
   return output.length ? output : [chunk];
 };
 
+/**
+ * Apply configured line/byte chunk caps with a byte-guardrail fallback.
+ * @param {Array<object>} chunks
+ * @param {string} text
+ * @param {object} context
+ * @returns {Array<object>}
+ */
 export const applyChunkingLimits = (chunks, text, context) => {
   if (!Array.isArray(chunks) || !chunks.length) return chunks;
   const { maxBytes, maxLines } = resolveChunkingLimits(context);

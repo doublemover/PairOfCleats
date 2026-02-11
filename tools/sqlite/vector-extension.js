@@ -221,6 +221,13 @@ export function resolveVectorExtensionPath(config) {
   return path.join(config.dir, config.provider, config.platformKey, config.filename);
 }
 
+/**
+ * Resolve vector table name for one mode (supports shared-db suffixing).
+ * @param {object} config
+ * @param {string} mode
+ * @param {{sharedDb?:boolean}} [options]
+ * @returns {string|null}
+ */
 export function resolveVectorTableName(config, mode, { sharedDb = false } = {}) {
   if (!config?.table) return null;
   if (!sharedDb || !mode) return config.table;
@@ -230,6 +237,13 @@ export function resolveVectorTableName(config, mode, { sharedDb = false } = {}) 
   return candidate;
 }
 
+/**
+ * Return per-mode vector extension config (reusing original when unchanged).
+ * @param {object} config
+ * @param {string} mode
+ * @param {{sharedDb?:boolean}} [options]
+ * @returns {object}
+ */
 export function resolveVectorExtensionConfigForMode(config, mode, { sharedDb = false } = {}) {
   if (!config) return config;
   const table = resolveVectorTableName(config, mode, { sharedDb });
@@ -265,10 +279,21 @@ const getLoadCacheKey = (config) => {
   }).key;
 };
 
+/**
+ * Check whether the loaded sqlite extension supports quantized ingest.
+ * @param {object} config
+ * @returns {boolean}
+ */
 export function supportsQuantizedIngest(config) {
   return config?.capabilities?.quantizedIngest === true;
 }
 
+/**
+ * Resolve ingest encoding for sqlite vectors from config + capabilities.
+ * @param {object} config
+ * @param {{preferQuantized?:boolean}} [options]
+ * @returns {'float32'|'quantized'}
+ */
 export function resolveVectorIngestEncoding(config, { preferQuantized = true } = {}) {
   if (!preferQuantized) return 'float32';
   const requested = normalizeIngestEncoding(config?.ingestEncoding);

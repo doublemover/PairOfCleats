@@ -13,6 +13,11 @@ export const CHUNK_META_COLD_FIELDS = Object.freeze([
   'chunkAuthors'
 ]);
 
+/**
+ * Remove cold fields from a chunk_meta row before writing the hot path artifact.
+ * @param {object} entry
+ * @returns {object}
+ */
 export const stripChunkMetaColdFields = (entry) => {
   if (!entry || typeof entry !== 'object') return entry;
   const hot = { ...entry };
@@ -24,6 +29,11 @@ export const stripChunkMetaColdFields = (entry) => {
   return hot;
 };
 
+/**
+ * Extract cold fields plus id from a chunk_meta row for sidecar storage.
+ * @param {object} entry
+ * @returns {object|null}
+ */
 export const extractChunkMetaColdFields = (entry) => {
   if (!entry || typeof entry !== 'object') return null;
   const id = Number(entry.id);
@@ -38,6 +48,12 @@ export const extractChunkMetaColdFields = (entry) => {
   return cold;
 };
 
+/**
+ * Rehydrate a hot chunk_meta row with cold sidecar fields.
+ * @param {object} hotEntry
+ * @param {object} coldEntry
+ * @returns {object}
+ */
 export const mergeChunkMetaColdFields = (hotEntry, coldEntry) => {
   if (!hotEntry || typeof hotEntry !== 'object') return hotEntry;
   if (!coldEntry || typeof coldEntry !== 'object') return hotEntry;

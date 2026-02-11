@@ -54,6 +54,11 @@ const readOffsetValue = (buffer, index) => {
   return Number(value);
 };
 
+/**
+ * Read an entire offsets sidecar into memory.
+ * @param {string} offsetsPath
+ * @returns {Promise<number[]>}
+ */
 export const readOffsetsFile = async (offsetsPath) => {
   const data = await fs.readFile(offsetsPath);
   const count = Math.floor(data.length / OFFSET_BYTES);
@@ -87,6 +92,13 @@ const readOffsetsAtWithHandle = async (handle, indexes) => {
   return out;
 };
 
+/**
+ * Read selected offset rows by index with a coalesced span read.
+ * @param {string} offsetsPath
+ * @param {number[]} indexes
+ * @param {{handle?:import('node:fs/promises').FileHandle|null}} [options]
+ * @returns {Promise<Map<number, number|null>>}
+ */
 export const readOffsetsAt = async (
   offsetsPath,
   indexes,
@@ -103,6 +115,13 @@ export const readOffsetsAt = async (
   }
 };
 
+/**
+ * Read one offset row by index.
+ * @param {string} offsetsPath
+ * @param {number} index
+ * @param {{handle?:import('node:fs/promises').FileHandle|null}} [options]
+ * @returns {Promise<number|null>}
+ */
 export const readOffsetAt = async (
   offsetsPath,
   index,
@@ -113,6 +132,12 @@ export const readOffsetAt = async (
   return offsets.get(index) ?? null;
 };
 
+/**
+ * Resolve row count from an offsets sidecar file.
+ * @param {string} offsetsPath
+ * @param {{handle?:import('node:fs/promises').FileHandle|null}} [options]
+ * @returns {Promise<number>}
+ */
 export const resolveOffsetsCount = async (
   offsetsPath,
   { handle = null } = {}
@@ -125,6 +150,14 @@ export const resolveOffsetsCount = async (
   return Math.floor(size / OFFSET_BYTES);
 };
 
+/**
+ * Read one JSONL row by index using its offsets sidecar.
+ * @param {string} jsonlPath
+ * @param {string} offsetsPath
+ * @param {number} index
+ * @param {{maxBytes?:number,requiredKeys?:string[]|null,metrics?:object|null}} [options]
+ * @returns {Promise<object|null>}
+ */
 export const readJsonlRowAt = async (
   jsonlPath,
   offsetsPath,
@@ -184,6 +217,14 @@ export const readJsonlRowAt = async (
   }
 };
 
+/**
+ * Read multiple JSONL rows by index using one shared offsets+data scan.
+ * @param {string} jsonlPath
+ * @param {string} offsetsPath
+ * @param {number[]} indexes
+ * @param {{maxBytes?:number,requiredKeys?:string[]|null,metrics?:object|null}} [options]
+ * @returns {Promise<Array<object|null>>}
+ */
 export const readJsonlRowsAt = async (
   jsonlPath,
   offsetsPath,
@@ -270,6 +311,12 @@ export const readJsonlRowsAt = async (
   }
 };
 
+/**
+ * Validate offset monotonicity and bounds against a JSONL source file.
+ * @param {string} jsonlPath
+ * @param {string} offsetsPath
+ * @returns {Promise<boolean>}
+ */
 export const validateOffsetsAgainstFile = async (jsonlPath, offsetsPath) => {
   const [offsets, jsonlStat, offsetsStat] = await Promise.all([
     readOffsetsFile(offsetsPath),

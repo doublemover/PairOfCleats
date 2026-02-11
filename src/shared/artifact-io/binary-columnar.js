@@ -11,6 +11,11 @@ const toSafeNonNegativeInt = (value, label) => {
   return parsed;
 };
 
+/**
+ * Encode numeric offsets as packed little-endian uint64 values.
+ * @param {Array<number>} offsets
+ * @returns {Buffer}
+ */
 export const encodeU64Offsets = (offsets) => {
   const list = Array.isArray(offsets) ? offsets : [];
   const buffer = Buffer.allocUnsafe(list.length * OFFSET_BYTES);
@@ -21,6 +26,11 @@ export const encodeU64Offsets = (offsets) => {
   return buffer;
 };
 
+/**
+ * Decode packed little-endian uint64 offsets into JS numbers.
+ * @param {Buffer|Uint8Array|ArrayBuffer} buffer
+ * @returns {number[]}
+ */
 export const decodeU64Offsets = (buffer) => {
   const bytes = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer || []);
   const count = Math.floor(bytes.length / OFFSET_BYTES);
@@ -35,6 +45,11 @@ export const decodeU64Offsets = (buffer) => {
   return offsets;
 };
 
+/**
+ * Build packed row-frame payload plus offset/length sidecars.
+ * @param {Array<Buffer|Uint8Array|string>} rowBuffers
+ * @returns {{count:number,dataBuffer:Buffer,offsets:number[],offsetsBuffer:Buffer,lengths:number[],lengthsBuffer:Buffer}}
+ */
 export const encodeBinaryRowFrames = (rowBuffers) => {
   const rows = Array.isArray(rowBuffers) ? rowBuffers : [];
   const offsets = new Array(rows.length);
@@ -60,6 +75,11 @@ export const encodeBinaryRowFrames = (rowBuffers) => {
   };
 };
 
+/**
+ * Decode varint64-packed row lengths into JS numbers.
+ * @param {Buffer|Uint8Array|ArrayBuffer} buffer
+ * @returns {number[]}
+ */
 export const decodeBinaryRowFrameLengths = (buffer) => {
   const decoded = decodeVarint64List(buffer);
   const lengths = new Array(decoded.length);
