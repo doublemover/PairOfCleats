@@ -114,6 +114,99 @@
       "blocking": true
     },
     {
+      "fixtureId": "usr::failure-injection::parser-lock-001",
+      "profileType": "cross-cutting",
+      "profileId": "usr",
+      "conformanceLevels": [
+        "C1",
+        "C2"
+      ],
+      "families": [
+        "failure-injection",
+        "security"
+      ],
+      "owner": "usr-security",
+      "reviewers": [
+        "usr-architecture",
+        "usr-security"
+      ],
+      "stabilityClass": "volatile",
+      "mutationPolicy": "require-review",
+      "goldenRequired": false,
+      "blocking": true
+    },
+    {
+      "fixtureId": "usr::failure-injection::redaction-fail-001",
+      "profileType": "cross-cutting",
+      "profileId": "usr",
+      "conformanceLevels": [
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "families": [
+        "failure-injection",
+        "security",
+        "reporting"
+      ],
+      "owner": "usr-security",
+      "reviewers": [
+        "usr-architecture",
+        "usr-security"
+      ],
+      "stabilityClass": "volatile",
+      "mutationPolicy": "require-review",
+      "goldenRequired": false,
+      "blocking": true
+    },
+    {
+      "fixtureId": "usr::failure-injection::resource-budget-001",
+      "profileType": "cross-cutting",
+      "profileId": "usr",
+      "conformanceLevels": [
+        "C1",
+        "C2"
+      ],
+      "families": [
+        "failure-injection",
+        "runtime",
+        "performance"
+      ],
+      "owner": "usr-observability",
+      "reviewers": [
+        "usr-architecture",
+        "usr-operations"
+      ],
+      "stabilityClass": "volatile",
+      "mutationPolicy": "require-review",
+      "goldenRequired": false,
+      "blocking": true
+    },
+    {
+      "fixtureId": "usr::failure-injection::runtime-exec-001",
+      "profileType": "cross-cutting",
+      "profileId": "usr",
+      "conformanceLevels": [
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "families": [
+        "failure-injection",
+        "runtime",
+        "security"
+      ],
+      "owner": "usr-security",
+      "reviewers": [
+        "usr-architecture",
+        "usr-security"
+      ],
+      "stabilityClass": "volatile",
+      "mutationPolicy": "require-review",
+      "goldenRequired": false,
+      "blocking": true
+    },
+    {
       "fixtureId": "usr::failure-injection::security-gate-001",
       "profileType": "cross-cutting",
       "profileId": "usr",

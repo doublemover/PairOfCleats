@@ -1,7 +1,7 @@
 # Spec -- USR Core Artifact and Schema Catalog
 
 Status: Draft v2.0
-Last updated: 2026-02-11T08:35:00Z
+Last updated: 2026-02-11T09:20:00Z
 
 ## Purpose
 
@@ -41,9 +41,9 @@ Required registry row keys:
 
 | Registry | Mandatory keys |
 | --- | --- |
-| `usr-language-profiles.json` | `languageId`, `requiredNodeKinds`, `requiredEdgeKinds`, `conformanceTarget` |
-| `usr-framework-profiles.json` | `frameworkProfile`, `detectionPrecedence`, `routeSemantics`, `templateBindingSemantics`, `styleSemantics` |
-| `usr-capability-matrix.json` | `scopeId`, capability dimensions, state values, fallback policy reference |
+| `usr-language-profiles.json` | `id`, `requiredNodeKinds`, `requiredEdgeKinds`, `requiredConformance` |
+| `usr-framework-profiles.json` | `id`, `detectionPrecedence`, `routeSemantics`, `bindingSemantics`, `segmentationRules` |
+| `usr-capability-matrix.json` | `languageId`, `frameworkProfile`, `capability`, `state`, `requiredConformance` |
 | `usr-backcompat-matrix.json` | `id`, `producerVersion`, `readerVersions`, `readerMode`, `expectedOutcome`, `blocking` |
 
 ## Evidence artifact envelope
