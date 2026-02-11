@@ -1,7 +1,7 @@
 # Spec -- USR Implementation Readiness Contract
 
 Status: Draft v0.3
-Last updated: 2026-02-11T00:45:00Z
+Last updated: 2026-02-11T01:05:00Z
 
 ## 0. Purpose and scope
 
@@ -145,3 +145,4 @@ Missing mandatory evidence in any required domain is a promotion blocker.
 - `docs/specs/usr-registry-schema-contract.md`
 - `docs/specs/usr-observability-and-slo-contract.md`
 - `docs/specs/usr-security-and-data-governance-contract.md`
+- `docs/specs/usr-audit-and-reporting-contract.md`

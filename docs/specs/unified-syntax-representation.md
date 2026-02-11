@@ -1,7 +1,7 @@
 # Spec -- Unified Syntax Representation (USR)
 
 Status: Draft v1.0
-Last updated: 2026-02-11T00:45:00Z
+Last updated: 2026-02-11T01:05:00Z
 
 Applies to: PairOfCleats indexing pipeline, language registry, framework segmentation/extraction, graph/risk/query surfaces.
 
@@ -1345,6 +1345,7 @@ Before declaring full support complete, all items below MUST be true.
 - `docs/specs/usr-implementation-readiness-contract.md`
 - `docs/specs/usr-observability-and-slo-contract.md`
 - `docs/specs/usr-security-and-data-governance-contract.md`
+- `docs/specs/usr-audit-and-reporting-contract.md`
 - `docs/contracts/public-artifact-surface.md`
 - `docs/contracts/artifact-schemas.md`
 - `docs/contracts/analysis-schemas.md`
@@ -1557,6 +1558,10 @@ Forbidden extension behavior:
 ## 30. Required audit artifacts and reports
 
 Every conformance run SHOULD produce machine-readable audit artifacts.
+
+Normative decomposition:
+
+- `docs/specs/usr-audit-and-reporting-contract.md`
 
 Required report outputs:
 

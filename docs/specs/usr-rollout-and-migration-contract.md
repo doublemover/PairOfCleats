@@ -1,7 +1,7 @@
 # Spec -- USR Rollout and Migration Contract
 
-Status: Draft v0.6
-Last updated: 2026-02-10T08:35:00Z
+Status: Draft v0.7
+Last updated: 2026-02-11T01:05:00Z
 
 ## 0. Purpose and scope
 
@@ -104,6 +104,8 @@ Required evidence artifacts:
 - `usr-conformance-summary.json`
 - `usr-backcompat-matrix-results.json`
 - `usr-capability-state-transitions.json`
+- `usr-diagnostic-distribution.json`
+- `usr-profile-coverage.json`
 - `usr-determinism-rerun-diff.json`
 - `usr-embedding-bridge-cases.json` validation report
 - `usr-generated-provenance-cases.json` validation report
@@ -143,5 +145,6 @@ Required rollback artifacts:
 - `docs/specs/usr-implementation-readiness-contract.md`
 - `docs/specs/usr-observability-and-slo-contract.md`
 - `docs/specs/usr-security-and-data-governance-contract.md`
+- `docs/specs/usr-audit-and-reporting-contract.md`
 
 
