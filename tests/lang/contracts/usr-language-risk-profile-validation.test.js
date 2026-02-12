@@ -29,12 +29,12 @@ const unsupportedInterproceduralNegative = validateUsrLanguageRiskProfileCoverag
     rows: (riskProfiles.rows || []).map((row) => (
       row.languageId === unsupportedInterproceduralRow.languageId
         ? {
-            ...row,
-            interproceduralGating: {
-              ...row.interproceduralGating,
-              enabledByDefault: true
-            }
+          ...row,
+          interproceduralGating: {
+            ...row.interproceduralGating,
+            enabledByDefault: true
           }
+        }
         : row
     ))
   }
@@ -53,12 +53,12 @@ const overlapNegative = validateUsrLanguageRiskProfileCoverage({
     rows: (riskProfiles.rows || []).map((row, index) => (
       index === 0
         ? {
-            ...row,
-            optional: {
-              ...row.optional,
-              sources: [...(row.optional?.sources || []), (row.required?.sources || [])[0]].filter(Boolean)
-            }
+          ...row,
+          optional: {
+            ...row.optional,
+            sources: [...(row.optional?.sources || []), (row.required?.sources || [])[0]].filter(Boolean)
           }
+        }
         : row
     ))
   }

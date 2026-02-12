@@ -375,13 +375,13 @@ export function buildUsrDiagnosticsTransitionReport({
     status,
     scope: scope && typeof scope === 'object'
       ? {
-          scopeType: typeof scope.scopeType === 'string' ? scope.scopeType : 'lane',
-          scopeId: typeof scope.scopeId === 'string' ? scope.scopeId : lane
-        }
+        scopeType: typeof scope.scopeType === 'string' ? scope.scopeType : 'lane',
+        scopeId: typeof scope.scopeId === 'string' ? scope.scopeId : lane
+      }
       : {
-          scopeType: 'lane',
-          scopeId: lane
-        },
+        scopeType: 'lane',
+        scopeId: lane
+      },
     summary: {
       rowCount: rows.length,
       diagnosticCount: canonicalDiagnostics.length,

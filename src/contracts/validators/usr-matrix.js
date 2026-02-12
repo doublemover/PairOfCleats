@@ -331,9 +331,9 @@ export function buildUsrFeatureFlagStateReport({
   const normalizedScope = (
     scope && typeof scope === 'object'
       ? {
-          scopeType: typeof scope.scopeType === 'string' ? scope.scopeType : 'global',
-          scopeId: typeof scope.scopeId === 'string' ? scope.scopeId : 'global'
-        }
+        scopeType: typeof scope.scopeType === 'string' ? scope.scopeType : 'global',
+        scopeId: typeof scope.scopeId === 'string' ? scope.scopeId : 'global'
+      }
       : { scopeType: 'global', scopeId: 'global' }
   );
 
@@ -626,9 +626,9 @@ export function buildUsrFailureInjectionReport({
   const normalizedScope = (
     scope && typeof scope === 'object'
       ? {
-          scopeType: typeof scope.scopeType === 'string' ? scope.scopeType : 'global',
-          scopeId: typeof scope.scopeId === 'string' ? scope.scopeId : 'global'
-        }
+        scopeType: typeof scope.scopeType === 'string' ? scope.scopeType : 'global',
+        scopeId: typeof scope.scopeId === 'string' ? scope.scopeId : 'global'
+      }
       : { scopeType: 'global', scopeId: 'global' }
   );
 
@@ -839,9 +839,9 @@ export function buildUsrFixtureGovernanceValidationReport({
   const normalizedScope = (
     scope && typeof scope === 'object'
       ? {
-          scopeType: typeof scope.scopeType === 'string' ? scope.scopeType : 'global',
-          scopeId: typeof scope.scopeId === 'string' ? scope.scopeId : 'global'
-        }
+        scopeType: typeof scope.scopeType === 'string' ? scope.scopeType : 'global',
+        scopeId: typeof scope.scopeId === 'string' ? scope.scopeId : 'global'
+      }
       : { scopeType: 'global', scopeId: 'global' }
   );
 
@@ -1160,9 +1160,9 @@ export function buildUsrBenchmarkRegressionReport({
   const normalizedScope = (
     scope && typeof scope === 'object'
       ? {
-          scopeType: typeof scope.scopeType === 'string' ? scope.scopeType : 'global',
-          scopeId: typeof scope.scopeId === 'string' ? scope.scopeId : 'global'
-        }
+        scopeType: typeof scope.scopeType === 'string' ? scope.scopeType : 'global',
+        scopeId: typeof scope.scopeId === 'string' ? scope.scopeId : 'global'
+      }
       : { scopeType: 'global', scopeId: 'global' }
   );
 
@@ -1589,9 +1589,9 @@ export function buildUsrObservabilityRollupReport({
     status,
     scope: scope && typeof scope === 'object'
       ? {
-          scopeType: typeof scope.scopeType === 'string' ? scope.scopeType : 'global',
-          scopeId: typeof scope.scopeId === 'string' ? scope.scopeId : 'global'
-        }
+        scopeType: typeof scope.scopeType === 'string' ? scope.scopeType : 'global',
+        scopeId: typeof scope.scopeId === 'string' ? scope.scopeId : 'global'
+      }
       : { scopeType: 'global', scopeId: 'global' },
     summary: {
       rowCount: rows.length,
@@ -2941,9 +2941,9 @@ export function buildUsrConformanceLevelSummaryReport({
   const normalizedScope = (
     scope && typeof scope === 'object'
       ? {
-          scopeType: typeof scope.scopeType === 'string' ? scope.scopeType : 'lane',
-          scopeId: typeof scope.scopeId === 'string' ? scope.scopeId : defaultLane
-        }
+        scopeType: typeof scope.scopeType === 'string' ? scope.scopeType : 'lane',
+        scopeId: typeof scope.scopeId === 'string' ? scope.scopeId : defaultLane
+      }
       : { scopeType: 'lane', scopeId: defaultLane }
   );
 
@@ -3588,9 +3588,9 @@ export function evaluateUsrOperationalReadiness({
 const normalizeReportScope = (scope, fallbackScopeType = 'lane', fallbackScopeId = 'ci') => (
   scope && typeof scope === 'object'
     ? {
-        scopeType: typeof scope.scopeType === 'string' ? scope.scopeType : fallbackScopeType,
-        scopeId: typeof scope.scopeId === 'string' ? scope.scopeId : fallbackScopeId
-      }
+      scopeType: typeof scope.scopeType === 'string' ? scope.scopeType : fallbackScopeType,
+      scopeId: typeof scope.scopeId === 'string' ? scope.scopeId : fallbackScopeId
+    }
     : { scopeType: fallbackScopeType, scopeId: fallbackScopeId }
 );
 
@@ -3934,9 +3934,9 @@ export function buildUsrBackcompatMatrixReport({
   const normalizedScope = (
     scope && typeof scope === 'object'
       ? {
-          scopeType: typeof scope.scopeType === 'string' ? scope.scopeType : 'global',
-          scopeId: typeof scope.scopeId === 'string' ? scope.scopeId : 'global'
-        }
+        scopeType: typeof scope.scopeType === 'string' ? scope.scopeType : 'global',
+        scopeId: typeof scope.scopeId === 'string' ? scope.scopeId : 'global'
+      }
       : { scopeType: 'global', scopeId: 'global' }
   );
 
@@ -4175,9 +4175,9 @@ export function buildUsrThreatModelCoverageReport({
   const normalizedScope = (
     scope && typeof scope === 'object'
       ? {
-          scopeType: typeof scope.scopeType === 'string' ? scope.scopeType : 'global',
-          scopeId: typeof scope.scopeId === 'string' ? scope.scopeId : 'global'
-        }
+        scopeType: typeof scope.scopeType === 'string' ? scope.scopeType : 'global',
+        scopeId: typeof scope.scopeId === 'string' ? scope.scopeId : 'global'
+      }
       : { scopeType: 'global', scopeId: 'global' }
   );
 
@@ -4510,9 +4510,9 @@ export function buildUsrWaiverActiveReport({
   const normalizedScope = (
     scope && typeof scope === 'object'
       ? {
-          scopeType: typeof scope.scopeType === 'string' ? scope.scopeType : 'global',
-          scopeId: typeof scope.scopeId === 'string' ? scope.scopeId : 'global'
-        }
+        scopeType: typeof scope.scopeType === 'string' ? scope.scopeType : 'global',
+        scopeId: typeof scope.scopeId === 'string' ? scope.scopeId : 'global'
+      }
       : { scopeType: 'global', scopeId: 'global' }
   );
 
@@ -4601,9 +4601,9 @@ export function buildUsrWaiverExpiryReport({
   const normalizedScope = (
     scope && typeof scope === 'object'
       ? {
-          scopeType: typeof scope.scopeType === 'string' ? scope.scopeType : 'global',
-          scopeId: typeof scope.scopeId === 'string' ? scope.scopeId : 'global'
-        }
+        scopeType: typeof scope.scopeType === 'string' ? scope.scopeType : 'global',
+        scopeId: typeof scope.scopeId === 'string' ? scope.scopeId : 'global'
+      }
       : { scopeType: 'global', scopeId: 'global' }
   );
 

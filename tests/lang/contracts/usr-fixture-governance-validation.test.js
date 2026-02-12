@@ -79,10 +79,10 @@ const invalidGovernance = {
   rows: rows.map((row, idx) => (
     idx === 0
       ? {
-          ...row,
-          owner: row.reviewers[0] || row.owner,
-          mutationPolicy: row.blocking ? 'allow-generated-refresh' : row.mutationPolicy
-        }
+        ...row,
+        owner: row.reviewers[0] || row.owner,
+        mutationPolicy: row.blocking ? 'allow-generated-refresh' : row.mutationPolicy
+      }
       : row
   ))
 };
