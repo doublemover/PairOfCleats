@@ -96,6 +96,80 @@ const searchRequestSchema = {
   }
 };
 
+const federatedSelectionSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    repos: stringListSchema,
+    select: stringListSchema,
+    tags: stringListSchema,
+    tag: stringListSchema,
+    repoFilter: stringListSchema,
+    'repo-filter': stringListSchema,
+    includeDisabled: { type: 'boolean' }
+  }
+};
+
+const federatedCohortSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    policy: { type: 'string', enum: ['default', 'strict'] },
+    cohort: stringListSchema,
+    allowUnsafeMix: { type: 'boolean' }
+  }
+};
+
+const federatedMergeSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    strategy: { type: 'string', enum: ['rrf'] },
+    rrfK: { type: 'integer', minimum: 1 }
+  }
+};
+
+const federatedLimitsSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    perRepoTop: { type: 'integer', minimum: 1 },
+    concurrency: { type: 'integer', minimum: 1 }
+  }
+};
+
+const federatedDebugSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    includePaths: { type: 'boolean' }
+  }
+};
+
+const federatedSearchSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['query'],
+  anyOf: [
+    { required: ['workspacePath'] },
+    { required: ['workspaceId'] }
+  ],
+  properties: {
+    workspacePath: { type: 'string', minLength: 1 },
+    workspaceId: { type: 'string', minLength: 1 },
+    query: { type: 'string', minLength: 1 },
+    search: { type: 'object' },
+    select: federatedSelectionSchema,
+    merge: federatedMergeSchema,
+    limits: federatedLimitsSchema,
+    cohorts: federatedCohortSchema,
+    cohort: stringListSchema,
+    allowUnsafeMix: { type: 'boolean' },
+    strict: { type: 'boolean' },
+    debug: federatedDebugSchema
+  }
+};
+
 const formatValidationErrors = (errors = []) => errors.map((err) => {
   const path = err.instancePath || '#';
   if (err.keyword === 'additionalProperties') {
@@ -114,5 +188,15 @@ export const createSearchValidator = () => {
     const valid = validateSearchRequest(payload);
     if (valid) return { ok: true };
     return { ok: false, errors: formatValidationErrors(validateSearchRequest.errors || []) };
+  };
+};
+
+export const createFederatedSearchValidator = () => {
+  const ajv = createAjv({ allErrors: false, strict: false });
+  const validateFederatedSearch = compileSchema(ajv, federatedSearchSchema);
+  return (payload) => {
+    const valid = validateFederatedSearch(payload);
+    if (valid) return { ok: true };
+    return { ok: false, errors: formatValidationErrors(validateFederatedSearch.errors || []) };
   };
 };

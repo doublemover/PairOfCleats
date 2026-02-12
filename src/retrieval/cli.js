@@ -18,6 +18,8 @@ import {
 import { queryVectorAnn } from '../../tools/sqlite/vector-extension.js';
 import { createError, ERROR_CODES, isErrorCode } from '../shared/error-codes.js';
 import { getSearchUsage, parseSearchArgs } from './cli-args.js';
+import { runFederatedSearch } from './federation/coordinator.js';
+import { parseFederatedCliRequest } from './federation/args.js';
 import { loadDictionary } from './cli-dictionary.js';
 import { getIndexSignature, resolveIndexDir } from './cli-index.js';
 import { isLmdbReady, isSqliteReady, loadIndexState } from './cli/index-state.js';
@@ -42,6 +44,7 @@ import { renderSearchOutput } from './cli/render.js';
 import { recordSearchArtifacts } from './cli/persist.js';
 import { DEFAULT_CODE_DICT_LANGUAGES, normalizeCodeDictLanguages } from '../shared/code-dictionaries.js';
 import { compileFilterPredicates } from './output/filters.js';
+import { stableStringify } from '../shared/stable-json.js';
 import {
   buildQueryPlanCacheKey,
   buildQueryPlanConfigSignature,
@@ -96,6 +99,40 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
 
   const jsonOutput = argv.json === true;
   const jsonCompact = argv.compact === true;
+  const workspacePath = typeof argv.workspace === 'string' ? argv.workspace.trim() : '';
+  if (workspacePath) {
+    try {
+      const federatedRequest = parseFederatedCliRequest(rawArgs);
+      const payload = await runFederatedSearch(federatedRequest, {
+        signal,
+        indexCache,
+        sqliteCache
+      });
+      if (emitOutput) {
+        process.stdout.write(`${stableStringify(payload)}\n`);
+      }
+      recordSearchMetrics('ok');
+      return payload;
+    } catch (err) {
+      recordSearchMetrics('error');
+      if (emitOutput && !err?.emitted) {
+        const code = isErrorCode(err?.code) ? err.code : (err?.code || ERROR_CODES.INTERNAL);
+        const message = err?.message || 'Federated search failed.';
+        const payload = {
+          ok: false,
+          backend: 'federated',
+          error: {
+            code,
+            message,
+            details: {}
+          }
+        };
+        process.stdout.write(`${stableStringify(payload)}\n`);
+      }
+      if (exitOnError) process.exit(1);
+      throw err;
+    }
+  }
   const rootOverride = options.root ? path.resolve(options.root) : null;
   const rootArg = rootOverride || (argv.repo ? path.resolve(argv.repo) : null);
   const rootDir = getRepoRoot(rootArg);

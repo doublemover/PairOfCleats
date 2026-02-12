@@ -3,7 +3,7 @@ import { cacheGc, cleanArtifacts, reportArtifacts } from './tools/handlers/artif
 import { runBootstrap } from './tools/handlers/bootstrap.js';
 import { downloadDictionaries, downloadExtensions, downloadModels, verifyExtensions } from './tools/handlers/downloads.js';
 import { buildIndex, buildSqliteIndex, compactSqliteIndex } from './tools/handlers/indexing.js';
-import { runSearch } from './tools/handlers/search.js';
+import { runSearch, runWorkspaceSearch } from './tools/handlers/search.js';
 import { triageContextPack, triageDecision, triageIngest } from './tools/handlers/triage.js';
 import { createError, ERROR_CODES } from '../../src/shared/error-codes.js';
 import { getTestEnvConfig } from '../../src/shared/env.js';
@@ -61,6 +61,7 @@ export const TOOL_HANDLERS = new Map([
   ['config_status', configStatus],
   ['build_index', buildIndex],
   ['search', runSearch],
+  ['search_workspace', runWorkspaceSearch],
   ['download_models', downloadModels],
   ['download_dictionaries', downloadDictionaries],
   ['download_extensions', downloadExtensions],

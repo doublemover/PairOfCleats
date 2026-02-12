@@ -688,9 +688,9 @@ Enable first-class **workspace** workflows: index and query across **multiple re
 - clear cache layering with an eventual content-addressed store (CAS) and manifest-driven garbage collection (GC)
 
 ### Phase 15 Acceptance (explicit)
-- [ ] Workspace config + manifest schemas are enforced and validated.
-- [ ] Federated search works across repo sets with deterministic ordering.
-- [ ] Cohort gating prevents unsafe mixed‑version query plans.
+- [x] Workspace config + manifest schemas are enforced and validated.
+- [x] Federated search works across repo sets with deterministic ordering.
+- [x] Cohort gating prevents unsafe mixed‑version query plans.
 - [ ] Federated query cache is keyed and invalidated deterministically.
 
 ### Phase 15 Implementation Order (must follow)
@@ -705,10 +705,10 @@ Enable first-class **workspace** workflows: index and query across **multiple re
 ### Phase 15 Non-negotiable invariants
 - [x] Canonicalization must be centralized:
   - [x] Workspace loader, API router, MCP resolver, and cache keys all use one canonical repo identity pipeline.
-- [ ] Invalid build pointers are treated as missing pointers:
-  - [ ] Never preserve stale values from malformed `builds/current.json`.
-- [ ] Federated execution must be deterministic under partial failures:
-  - [ ] Keep successful repos, surface per-repo errors, and apply deterministic ordering to diagnostics and merged outputs.
+- [x] Invalid build pointers are treated as missing pointers:
+  - [x] Never preserve stale values from malformed `builds/current.json`.
+- [x] Federated execution must be deterministic under partial failures:
+  - [x] Keep successful repos, surface per-repo errors, and apply deterministic ordering to diagnostics and merged outputs.
 - [ ] Federated cache keys must reflect actual runtime behavior:
   - [ ] Include requested knobs and effective backend/runtime selections to avoid cache pollution.
 
@@ -862,36 +862,36 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
 
 > **Authoritative spec:** `docs/specs/federated-search.md`
 
-- [ ] CLI: implement federated mode for search.
-  - [ ] `pairofcleats search --workspace <workspaceFile> "<query>" [searchFlags...] [workspaceFlags...]`
-  - [ ] Workspace flags (per spec): `--select`, `--tag`, `--repo-filter`, `--include-disabled`, `--merge`, `--top-per-repo`, `--concurrency`
-  - [ ] Forbidden combinations (per spec): if `--workspace` is present, `--repo` MUST error (`ERR_FEDERATED_REPO_FLAG_NOT_ALLOWED`).
+- [x] CLI: implement federated mode for search.
+  - [x] `pairofcleats search --workspace <workspaceFile> "<query>" [searchFlags...] [workspaceFlags...]`
+  - [x] Workspace flags (per spec): `--select`, `--tag`, `--repo-filter`, `--include-disabled`, `--merge`, `--top-per-repo`, `--concurrency`
+  - [x] Forbidden combinations (per spec): if `--workspace` is present, `--repo` MUST error (`ERR_FEDERATED_REPO_FLAG_NOT_ALLOWED`).
 
-- [ ] Implement a single federation coordinator used by CLI/API/MCP.
-  - [ ] Load workspace config (15.1) and manifest (15.2).
-  - [ ] Apply deterministic selection rules.
-  - [ ] Apply cohort gating hook (15.4).
-  - [ ] Derive `perRepoTop` and rewrite per-repo args.
-  - [ ] Fanout per-repo searches with bounded concurrency; reuse `indexCache` and `sqliteCache`.
-  - [ ] Merge per-mode results with RRF and deterministic tie-breakers.
-  - [ ] Emit federated response with stable serialization (`stableStringify`) and required meta fields.
-  - [ ] Define and implement partial-failure policy:
-    - [ ] Default: return successful repos + diagnostics for failed repos.
-    - [ ] Strict: fail request if any selected repo fails.
-    - [ ] Deterministic diagnostics ordering by `repoId`.
+- [x] Implement a single federation coordinator used by CLI/API/MCP.
+  - [x] Load workspace config (15.1) and manifest (15.2).
+  - [x] Apply deterministic selection rules.
+  - [x] Apply cohort gating hook (15.4).
+  - [x] Derive `perRepoTop` and rewrite per-repo args.
+  - [x] Fanout per-repo searches with bounded concurrency; reuse `indexCache` and `sqliteCache`.
+  - [x] Merge per-mode results with RRF and deterministic tie-breakers.
+  - [x] Emit federated response with stable serialization (`stableStringify`) and required meta fields.
+  - [x] Define and implement partial-failure policy:
+    - [x] Default: return successful repos + diagnostics for failed repos.
+    - [x] Strict: fail request if any selected repo fails.
+    - [x] Deterministic diagnostics ordering by `repoId`.
 
-- [ ] Output invariants (multi-repo unambiguity).
-  - [ ] Every hit MUST include `repoId`, `repoAlias`, and `globalId = "${repoId}:${hit.id}"`.
-  - [ ] Results must remain unambiguous even when `relPath` collides across repos.
+- [x] Output invariants (multi-repo unambiguity).
+  - [x] Every hit MUST include `repoId`, `repoAlias`, and `globalId = "${repoId}:${hit.id}"`.
+  - [x] Results must remain unambiguous even when `relPath` collides across repos.
 
-- [ ] API server: add `POST /search/federated` (recommended by spec).
-  - [ ] Enforce repo-root allowlist checks for every repo in the request.
-  - [ ] Apply workspacePath allowlisting and prefer workspaceId mapping.
-  - [ ] Default to redacting absolute paths unless `debug.includePaths=true`.
+- [x] API server: add `POST /search/federated` (recommended by spec).
+  - [x] Enforce repo-root allowlist checks for every repo in the request.
+  - [x] Apply workspacePath allowlisting and prefer workspaceId mapping.
+  - [x] Default to redacting absolute paths unless `debug.includePaths=true`.
 
-- [ ] MCP: add federated tool(s).
-  - [ ] Implement `search_workspace` tool with inputs matching the API request.
-  - [ ] Ensure output includes repo attribution and is stable JSON.
+- [x] MCP: add federated tool(s).
+  - [x] Implement `search_workspace` tool with inputs matching the API request.
+  - [x] Ensure output includes repo attribution and is stable JSON.
 
 **Touchpoints:**
 - `bin/pairofcleats.js` (CLI)
@@ -905,11 +905,11 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
 - New (per spec): `src/retrieval/federation/args.js`
 
 **Tests**
-- [ ] `tests/retrieval/federation/search-multi-repo-basic.test.js`
-- [ ] `tests/retrieval/federation/search-determinism.test.js` (byte-identical JSON)
-- [ ] `tests/retrieval/federation/repo-selection.test.js`
-- [ ] `tests/api/federated-search-workspace-allowlist.test.js`
-- [ ] `tests/api/federated-search-redacts-paths.test.js`
+- [x] `tests/retrieval/federation/search-multi-repo-basic.test.js`
+- [x] `tests/retrieval/federation/search-determinism.test.js` (byte-identical JSON)
+- [x] `tests/retrieval/federation/repo-selection.test.js`
+- [x] `tests/services/api/federated-search-workspace-allowlist.test.js`
+- [x] `tests/services/api/federated-search-redacts-paths.test.js`
 
 ---
 

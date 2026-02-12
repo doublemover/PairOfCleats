@@ -1,0 +1,12 @@
+id: indexing/incremental/incremental-reuse
+path: indexing/incremental/incremental-reuse.test.js
+attempt: 1
+status: failed
+exit: 1
+signal: null
+timedOut: false
+skipReason: 
+termination: 
+
+--- stderr ---
+incremental reuse test failed: expected reuse

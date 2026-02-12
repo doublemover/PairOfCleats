@@ -1,7 +1,11 @@
+import path from 'node:path';
 import { search, status } from '../../src/integrations/core/index.js';
-import { createSearchValidator } from './validation.js';
+import { runFederatedSearch } from '../../src/retrieval/federation/coordinator.js';
+import { loadWorkspaceConfig } from '../../src/workspace/config.js';
+import { createFederatedSearchValidator, createSearchValidator } from './validation.js';
 import { sendError, sendJson } from './response.js';
 import { ERROR_CODES } from '../../src/shared/error-codes.js';
+import { isWithinRoot, toRealPathSync } from '../shared/dict-utils.js';
 import { createSseResponder } from './sse.js';
 import { createAuthGuard } from './router/auth.js';
 import { createBodyParser } from './router/body.js';
@@ -42,6 +46,7 @@ export const createApiRouter = ({
   sqliteCache = {}
 }) => {
   const validateSearchPayload = createSearchValidator();
+  const validateFederatedPayload = createFederatedSearchValidator();
   const { resolveCorsHeaders } = createCorsResolver(cors);
   const { isAuthorized } = createAuthGuard(auth);
   const { parseJsonBody } = createBodyParser({ maxBodyBytes });
@@ -52,6 +57,42 @@ export const createApiRouter = ({
     indexCache,
     sqliteCache
   });
+  const canonicalAllowedRoots = [defaultRepo, ...allowedRepoRoots]
+    .filter((entry) => typeof entry === 'string' && entry.trim())
+    .map((entry) => toRealPathSync(path.resolve(entry)));
+  const isAllowedWorkspacePath = (workspacePath) => {
+    if (!canonicalAllowedRoots.length) return true;
+    const workspaceCanonical = toRealPathSync(workspacePath);
+    return canonicalAllowedRoots.some((root) => isWithinRoot(workspaceCanonical, root));
+  };
+
+  const resolveWorkspacePath = (payload) => {
+    const value = payload?.workspacePath;
+    if (typeof value !== 'string') return '';
+    const trimmed = value.trim();
+    if (!trimmed) return '';
+    return path.resolve(trimmed);
+  };
+
+  const ensureWorkspaceAllowlist = async (payload) => {
+    const resolvedWorkspacePath = resolveWorkspacePath(payload);
+    if (!resolvedWorkspacePath) {
+      throw new Error('Federated search requires workspacePath.');
+    }
+    if (!isAllowedWorkspacePath(resolvedWorkspacePath)) {
+      const err = new Error('Workspace path not permitted by server configuration.');
+      err.code = ERROR_CODES.FORBIDDEN;
+      throw err;
+    }
+    const workspaceConfig = loadWorkspaceConfig(resolvedWorkspacePath);
+    for (const repo of workspaceConfig.repos) {
+      await resolveRepo(repo.repoRootCanonical);
+    }
+    if (payload?.workspaceId && payload.workspaceId !== workspaceConfig.repoSetId) {
+      throw new Error('workspaceId does not match the provided workspacePath.');
+    }
+    return workspaceConfig;
+  };
 
 
 
@@ -177,6 +218,75 @@ export const createApiRouter = ({
         corsHeaders,
         resolveRepo
       })) {
+        return;
+      }
+
+      if (requestUrl.pathname === '/search/federated' && req.method === 'POST') {
+        const controller = new AbortController();
+        const abortRequest = () => controller.abort();
+        req.on('aborted', abortRequest);
+        res.on('close', abortRequest);
+        res.on('error', abortRequest);
+        let payload = null;
+        try {
+          payload = await parseJsonBody(req);
+        } catch (err) {
+          const status = err?.code === 'ERR_BODY_TOO_LARGE' ? 413
+            : err?.code === 'ERR_UNSUPPORTED_MEDIA_TYPE' ? 415
+              : 400;
+          sendError(
+            res,
+            status,
+            ERROR_CODES.INVALID_REQUEST,
+            err?.message || 'Invalid request body.',
+            {},
+            corsHeaders || {}
+          );
+          return;
+        }
+        const validation = validateFederatedPayload(payload);
+        if (!validation.ok) {
+          sendError(res, 400, ERROR_CODES.INVALID_REQUEST, 'Invalid federated search payload.', {
+            errors: validation.errors
+          }, corsHeaders || {});
+          return;
+        }
+        let workspaceConfig = null;
+        try {
+          workspaceConfig = await ensureWorkspaceAllowlist(payload);
+        } catch (err) {
+          const forbidden = err?.code === ERROR_CODES.FORBIDDEN
+            || String(err?.message || '').toLowerCase().includes('not permitted');
+          sendError(
+            res,
+            forbidden ? 403 : 400,
+            forbidden ? ERROR_CODES.FORBIDDEN : ERROR_CODES.INVALID_REQUEST,
+            err?.message || 'Invalid workspace request.',
+            {},
+            corsHeaders || {}
+          );
+          return;
+        }
+        try {
+          const result = await runFederatedSearch({
+            ...payload,
+            workspacePath: workspaceConfig.workspacePath
+          }, {
+            signal: controller.signal
+          });
+          sendJson(res, 200, result, corsHeaders || {});
+        } catch (err) {
+          if (req.aborted || res.writableEnded) return;
+          const isNoIndex = err?.code === ERROR_CODES.NO_INDEX;
+          sendError(
+            res,
+            isNoIndex ? 409 : 500,
+            isNoIndex ? ERROR_CODES.NO_INDEX : (err?.code || ERROR_CODES.INTERNAL),
+            err?.message || 'Federated search failed.',
+            { error: err?.message || String(err) },
+            corsHeaders || {}
+          );
+        }
         return;
       }
 

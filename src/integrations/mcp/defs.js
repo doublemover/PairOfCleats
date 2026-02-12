@@ -110,6 +110,63 @@ export function getToolDefs(defaultModelId) {
       }
     },
     {
+      name: 'search_workspace',
+      description: 'Run federated search across repos from a workspace configuration.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          workspacePath: { type: 'string', description: 'Workspace config path (.jsonc).' },
+          workspaceId: { type: 'string', description: 'Expected workspace repoSetId (optional cross-check).' },
+          query: { type: 'string' },
+          search: {
+            type: 'object',
+            description: 'Single-repo search knobs forwarded per repo (mode/top/backend/filter/etc).'
+          },
+          select: {
+            type: 'object',
+            properties: {
+              repos: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+              tags: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+              repoFilter: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+              includeDisabled: { type: 'boolean' }
+            }
+          },
+          merge: {
+            type: 'object',
+            properties: {
+              strategy: { type: 'string', enum: ['rrf'] },
+              rrfK: { type: 'number' }
+            }
+          },
+          limits: {
+            type: 'object',
+            properties: {
+              perRepoTop: { type: 'number' },
+              concurrency: { type: 'number' }
+            }
+          },
+          cohort: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+          cohorts: {
+            type: 'object',
+            properties: {
+              policy: { type: 'string', enum: ['default', 'strict'] },
+              cohort: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+              allowUnsafeMix: { type: 'boolean' }
+            }
+          },
+          allowUnsafeMix: { type: 'boolean' },
+          strict: { type: 'boolean' },
+          debug: {
+            type: 'object',
+            properties: {
+              includePaths: { type: 'boolean' }
+            }
+          }
+        },
+        required: ['workspacePath', 'query']
+      }
+    },
+    {
       name: 'triage_ingest',
       description: 'Ingest vulnerability findings into triage records.',
       inputSchema: {
