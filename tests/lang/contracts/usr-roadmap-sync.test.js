@@ -106,6 +106,7 @@ const requiredRoadmapAnchors = [
   '### N.6 Roadmap edit invariants',
   '### N.7 Traceability approval lock',
   '### N.8 Rollout authorization approval lock',
+  '### N.9 Appendix F.1 phase-promotion lock',
   '| Consolidated contract | Primary intent | Required phases | Required CI gates/lanes |',
   'appendices H/J/M/N'
 ];

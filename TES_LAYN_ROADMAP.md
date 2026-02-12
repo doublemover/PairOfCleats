@@ -1586,4 +1586,10 @@ Source artifacts: `tests/lang/matrix/usr-ownership-matrix.json` and `tests/lang/
 - The rollout lock must include an approval record ID, ISO 8601 timestamped decisions for `usr-architecture`, `usr-conformance`, and `usr-operations`, and explicit scope covering readiness report + rollout authorization checklist lines.
 - If the rollout lock is missing, downgraded to `pending`, or has a non-approved required role decision, Gate C rollout authorization checkboxes must remain unchecked until approval metadata is restored.
 
+### N.9 Appendix F.1 phase-promotion lock
+
+- Appendix F.1 phase checkboxes (`Complete Phase A` through `Complete Phase D`) must be promoted in strict order and never skipped.
+- `Complete Phase C` cannot be checked unless `Readiness report approved.` and `Test rollout authorized.` are checked.
+- `Complete Phase D` cannot be checked unless Gate C `all prior gates pass.` and `conformance rollout authorized.` are checked and rollout approval lock state is `approved`.
+
 
