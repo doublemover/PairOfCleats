@@ -1,7 +1,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { LRUCache } from 'lru-cache';
-import { getRepoCacheRoot, loadUserConfig } from './dict-utils.js';
+import { getRepoCacheRoot, loadUserConfig, resolveRepoRoot, toRealPathSync } from './dict-utils.js';
 import { createSqliteDbCache } from '../../src/retrieval/sqlite-cache.js';
 import { createIndexCache } from '../../src/retrieval/index-cache.js';
 import { incCacheEviction, setCacheSize } from '../../src/shared/metrics.js';
@@ -73,7 +73,7 @@ export const createRepoCacheManager = ({
   indexCache = {},
   sqliteCache = {}
 } = {}) => {
-  const resolvedDefaultRepo = defaultRepo || process.cwd();
+  const resolvedDefaultRepo = toRealPathSync(resolveRepoRoot(defaultRepo || process.cwd()));
   const defaults = createRepoCachePolicyDefaults({ namespace });
 
   const repoPolicy = resolveCachePolicy(repoCache, defaults.repo);
@@ -160,7 +160,10 @@ export const createRepoCacheManager = ({
     }
   };
 
-  const resolveRepoKey = (repoPath) => repoPath || resolvedDefaultRepo;
+  const resolveRepoKey = (repoPath) => {
+    const candidate = repoPath || resolvedDefaultRepo;
+    return toRealPathSync(resolveRepoRoot(candidate));
+  };
 
   const getRepoCaches = (repoPath) => {
     const key = resolveRepoKey(repoPath);

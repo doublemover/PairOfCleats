@@ -703,8 +703,8 @@ Enable first-class **workspace** workflows: index and query across **multiple re
 7. 15.6 Shared caches, CAS, and GC (design gate first; implement last).
 
 ### Phase 15 Non-negotiable invariants
-- [ ] Canonicalization must be centralized:
-  - [ ] Workspace loader, API router, MCP resolver, and cache keys all use one canonical repo identity pipeline.
+- [x] Canonicalization must be centralized:
+  - [x] Workspace loader, API router, MCP resolver, and cache keys all use one canonical repo identity pipeline.
 - [ ] Invalid build pointers are treated as missing pointers:
   - [ ] Never preserve stale values from malformed `builds/current.json`.
 - [ ] Federated execution must be deterministic under partial failures:
@@ -740,45 +740,45 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
 
 > **Authoritative spec:** `docs/specs/workspace-config.md`
 
-- [ ] Implement a strict workspace configuration loader (JSONC-first).
-  - [ ] Recommended convention: `.pairofcleats-workspace.jsonc`.
-  - [ ] Parsing MUST use `src/shared/jsonc.js` (`readJsoncFile` / `parseJsoncText`).
-  - [ ] Root MUST be an object; unknown keys MUST hard-fail at all object levels.
-  - [ ] Loader errors must be structured and actionable (`path`, `field`, `reason`, `hint`).
+- [x] Implement a strict workspace configuration loader (JSONC-first).
+  - [x] Recommended convention: `.pairofcleats-workspace.jsonc`.
+  - [x] Parsing MUST use `src/shared/jsonc.js` (`readJsoncFile` / `parseJsoncText`).
+  - [x] Root MUST be an object; unknown keys MUST hard-fail at all object levels.
+  - [x] Loader errors must be structured and actionable (`path`, `field`, `reason`, `hint`).
 
-- [ ] Resolve and canonicalize every repo entry deterministically.
-  - [ ] Resolve `root`:
-    - [ ] absolute paths allowed
-    - [ ] relative paths resolved from `workspaceDir`
-    - [ ] schemaVersion=1: do not accept registry/catalog ids
-  - [ ] Resolve to a repo root (not a subdir): `repoRootResolved = resolveRepoRoot(rootAbs)`.
-  - [ ] Canonicalize identity root: `repoRootCanonical = toRealPath(repoRootResolved)`; normalize win32 casing.
-  - [ ] Compute `repoId = getRepoId(repoRootCanonical)`.
+- [x] Resolve and canonicalize every repo entry deterministically.
+  - [x] Resolve `root`:
+    - [x] absolute paths allowed
+    - [x] relative paths resolved from `workspaceDir`
+    - [x] schemaVersion=1: do not accept registry/catalog ids
+  - [x] Resolve to a repo root (not a subdir): `repoRootResolved = resolveRepoRoot(rootAbs)`.
+  - [x] Canonicalize identity root: `repoRootCanonical = toRealPath(repoRootResolved)`; normalize win32 casing.
+  - [x] Compute `repoId = getRepoId(repoRootCanonical)`.
 
-- [ ] Normalize metadata deterministically.
-  - [ ] `alias`: trim; empty -> null; uniqueness is case-insensitive.
-  - [ ] `tags`: trim -> lowercase -> drop empties -> dedupe -> sort.
-  - [ ] `enabled`: boolean (default from `defaults.enabled`, else true).
-  - [ ] `priority`: integer (default from `defaults.priority`, else 0).
+- [x] Normalize metadata deterministically.
+  - [x] `alias`: trim; empty -> null; uniqueness is case-insensitive.
+  - [x] `tags`: trim -> lowercase -> drop empties -> dedupe -> sort.
+  - [x] `enabled`: boolean (default from `defaults.enabled`, else true).
+  - [x] `priority`: integer (default from `defaults.priority`, else 0).
 
-- [ ] Enforce uniqueness constraints (fail fast, actionable errors).
-  - [ ] No duplicate `repoRootCanonical`.
-  - [ ] No duplicate `repoId`.
-  - [ ] No duplicate alias (case-insensitive).
+- [x] Enforce uniqueness constraints (fail fast, actionable errors).
+  - [x] No duplicate `repoRootCanonical`.
+  - [x] No duplicate `repoId`.
+  - [x] No duplicate alias (case-insensitive).
 
-- [ ] Introduce stable workspace membership identity: `repoSetId`.
-  - [ ] Compute per spec (order-independent, excludes display fields):
-    - [ ] sorted list of `{ repoId, repoRootCanonical }`
-    - [ ] `repoSetId = "ws1-" + sha1(stableStringify({ v:1, schemaVersion:1, repos:[...] }))`
+- [x] Introduce stable workspace membership identity: `repoSetId`.
+  - [x] Compute per spec (order-independent, excludes display fields):
+    - [x] sorted list of `{ repoId, repoRootCanonical }`
+    - [x] `repoSetId = "ws1-" + sha1(stableStringify({ v:1, schemaVersion:1, repos:[...] }))`
   - [ ] `repoSetId` is used for:
     - [ ] workspace manifest pathing (15.2)
     - [ ] federated query cache directory naming (15.5)
 
-- [ ] Centralize identity/canonicalization helpers across all callers.
-  - [ ] Any cache key that includes a repo path MUST use `repoRootCanonical`.
-  - [ ] API server routing (`tools/api/router.js`), MCP repo resolution (`tools/mcp/repo.js`), CLI, and workspace loader MUST share the same canonicalization semantics.
-  - [ ] Add one integration-level helper entrypoint and ban local reimplementation of repo canonicalization in callers.
-  - [ ] Add win32-only canonicalization tests for mixed-case paths pointing to same repo root.
+- [x] Centralize identity/canonicalization helpers across all callers.
+  - [x] Any cache key that includes a repo path MUST use `repoRootCanonical`.
+  - [x] API server routing (`tools/api/router.js`), MCP repo resolution (`tools/mcp/repo.js`), CLI, and workspace loader MUST share the same canonicalization semantics.
+  - [x] Add one integration-level helper entrypoint and ban local reimplementation of repo canonicalization in callers.
+  - [x] Add win32-only canonicalization tests for mixed-case paths pointing to same repo root.
 
 **Touchpoints:**
 - `tools/dict-utils/paths/repo.js` (canonicalization, `getRepoId`, build pointer helpers)
@@ -787,10 +787,10 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
 - New (preferred): `src/workspace/config.js`
 
 **Tests**
-- [ ] `tests/workspace/config-parsing.test.js`
-- [ ] `tests/workspace/repo-set-id-determinism.test.js`
-- [ ] `tests/workspace/repo-canonicalization-dedup.test.js`
-- [ ] `tests/workspace/alias-uniqueness-and-tags-normalization.test.js`
+- [x] `tests/workspace/config-parsing.test.js`
+- [x] `tests/workspace/repo-set-id-determinism.test.js`
+- [x] `tests/workspace/repo-canonicalization-dedup.test.js`
+- [x] `tests/workspace/alias-uniqueness-and-tags-normalization.test.js`
 
 ---
 

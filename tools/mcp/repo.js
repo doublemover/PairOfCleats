@@ -17,6 +17,7 @@ import {
   getRepoId,
   loadUserConfig,
   resolveRepoRoot,
+  toRealPathSync,
   resolveSqlitePaths
 } from '../shared/dict-utils.js';
 import { getVectorExtensionConfig, resolveVectorExtensionPath } from '../sqlite/vector-extension.js';
@@ -49,15 +50,15 @@ export function resolveRepoPath(inputPath) {
   if (!fs.existsSync(base) || !fs.statSync(base).isDirectory()) {
     throw createError(ERROR_CODES.INVALID_REQUEST, `Repo path not found: ${base}`);
   }
-  return inputPath ? base : resolveRepoRoot(base);
+  return toRealPathSync(resolveRepoRoot(base));
 }
 
 const resolveConfigRoot = (args) => {
   const candidate = args?.repoPath ? path.resolve(String(args.repoPath)) : null;
   if (candidate && fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()) {
-    return resolveRepoRoot(candidate);
+    return toRealPathSync(resolveRepoRoot(candidate));
   }
-  return resolveRepoRoot(process.cwd());
+  return toRealPathSync(resolveRepoRoot(process.cwd()));
 };
 
 const resolveMcpConfig = (args) => {

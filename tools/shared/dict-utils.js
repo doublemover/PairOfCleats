@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { loadUserConfig } from '../dict-utils/config.js';
 import { resolveRepoRoot } from '../dict-utils/paths.js';
+import { toRealPathSync } from '../../src/workspace/identity.js';
 
 export { DEFAULT_MODEL_ID, DEFAULT_TRIAGE_PROMOTE_FIELDS } from '../dict-utils/constants.js';
 export { resolveToolRoot, getToolVersion } from '../dict-utils/tool.js';
@@ -41,6 +42,12 @@ export {
   resolveRuntimeEnv,
   resolveSqlitePaths
 } from '../dict-utils/paths.js';
+export {
+  isWithinRoot,
+  normalizeIdentityPath,
+  toRealPath,
+  toRealPathSync
+} from '../../src/workspace/identity.js';
 
 /**
  * Resolve repo root + user config from an optional repo argument.
@@ -50,7 +57,7 @@ export {
  */
 export function resolveRepoConfig(repoArg, cwd = process.cwd()) {
   const rootArg = repoArg ? path.resolve(repoArg) : null;
-  const repoRoot = rootArg || resolveRepoRoot(cwd);
+  const repoRoot = toRealPathSync(resolveRepoRoot(rootArg || cwd));
   const userConfig = loadUserConfig(repoRoot);
   return { repoRoot, userConfig, rootArg };
 }
@@ -63,5 +70,5 @@ export function resolveRepoConfig(repoArg, cwd = process.cwd()) {
  */
 export function resolveRepoRootArg(repoArg, cwd = process.cwd()) {
   const rootArg = repoArg ? path.resolve(repoArg) : null;
-  return rootArg || resolveRepoRoot(cwd);
+  return toRealPathSync(resolveRepoRoot(rootArg || cwd));
 }
