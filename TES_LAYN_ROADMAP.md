@@ -1,6 +1,6 @@
 # TES_LAYN_ROADMAP - USR-Aligned Language and Framework Execution Master Plan
 
-Last rewritten: 2026-02-12T23:00:47Z
+Last rewritten: 2026-02-12T23:11:01Z
 Branch: `usr-skyforge-primer`
 Document status: active master plan baseline v1.5
 
@@ -2009,5 +2009,107 @@ Source artifacts: `tests/lang/matrix/usr-ownership-matrix.json` and `tests/lang/
 - `Capability transition diagnostics are correct and complete.` cannot be checked unless diagnostics transition and phase-8 hardening validators remain present in `ci` and `ci-lite` lane manifests.
 - `Embedded/provenance semantics are validated for required language/framework profiles.` cannot be checked unless embedding/provenance validators remain present in `ci` and `ci-lite` lane manifests.
 - `Security and redaction semantics are validated for required profiles and lanes.` and `Critical threat-model coverage and abuse-case mappings are validated for required lanes.` cannot be checked unless security/threat validators remain present in `ci` and `ci-lite` lane manifests.
+
+---
+
+## Appendix O - Implementation Excellence Controls
+
+This appendix captures additional execution controls required to maximize implementation quality and reduce architecture drift.
+
+### O.1 Explicit non-goals and out-of-scope policy
+
+- [ ] Add normative non-goals appendix `docs/<new>/specs/usr-non-goals.md` (NEW) with prohibited implementation expansions.
+- [ ] Add CI check `tests/<new>/lang/contracts/usr-non-goals-policy-validation.test.js` (NEW) to ensure roadmap/spec links remain current.
+- [ ] Require every implementation PR to mark one of: `in-scope`, `boundary-case`, `out-of-scope escalation`.
+
+### O.2 Critical-path dependency graph for execution
+
+- [ ] Add machine-readable dependency graph `tests/<new>/lang/matrix/usr-phase-dependency-graph.json` (NEW) with `blockedBy` and `parallelizable` fields.
+- [ ] Add validator/report in `src/contracts/validators/usr-matrix.js` (`validateUsrPhaseDependencyGraph`, `buildUsrPhaseDependencyReport`, NEW).
+- [ ] Add lock test `tests/<new>/lang/contracts/usr-phase-dependency-graph-validation.test.js` (NEW).
+
+### O.3 Cross-language invariant registry
+
+- [ ] Add invariant registry `tests/<new>/lang/matrix/usr-cross-language-invariants.json` (NEW) covering identity, ordering, endpoint, and determinism invariants.
+- [ ] Add runtime invariant evaluator `src/index/usr/invariants.js` (NEW) and emit invariant report artifact `usr-invariant-report.json`.
+- [ ] Add conformance checks in `tests/<new>/conformance-c0/usr-cross-language-invariants.test.js` (NEW).
+
+### O.4 Unknown-kind and error budget policy by language
+
+- [ ] Add budget registry `tests/<new>/lang/matrix/usr-language-budget-policy.json` (NEW) with per-language unknown-kind/error thresholds.
+- [ ] Extend normalization validators to consume budget policy and fail on over-budget drift.
+- [ ] Emit budget burn-down artifact `usr-language-budget-rollup.json` and enforce in `observability` lane.
+
+### O.5 Parser/runtime version compatibility matrix
+
+- [ ] Add compatibility matrix `tests/<new>/lang/matrix/usr-parser-runtime-compatibility.json` (NEW) with min/max tested versions.
+- [ ] Add fail-closed guard in runtime init paths when parser/runtime versions are outside supported envelope.
+- [ ] Add contract test `tests/<new>/lang/contracts/usr-parser-runtime-compatibility-validation.test.js` (NEW).
+
+### O.6 Schema evolution and migration protocol
+
+- [ ] Add schema evolution contract `docs/<new>/specs/usr-schema-evolution-policy.md` (NEW) with additive/breaking/deprecation classes.
+- [ ] Add schema diff validator `tests/<new>/report-schema/usr-schema-evolution-policy-validation.test.js` (NEW).
+- [ ] Require migration artifact update for every breaking schema change in `usr-rollout` evidence set.
+
+### O.7 Dual-implementation parity protocol for high-risk features
+
+- [ ] Add parity protocol spec `docs/<new>/specs/usr-dual-implementation-parity.md` (NEW).
+- [ ] Add parity harness lane `tests/<new>/implementation-readiness/usr-dual-path-parity.test.js` (NEW).
+- [ ] Require parity evidence before enabling production cutover flags for high-risk features.
+
+### O.8 Fuzz/property-based testing program
+
+- [ ] Add fuzz corpus policy `tests/<new>/fixtures/usr/fuzz/README.md` (NEW) with minimum corpus sizes per language/framework.
+- [ ] Add fuzz runner `tools/usr/run-usr-fuzz.mjs` (NEW) and CI lane `tests/<new>/harness-core/usr-fuzz-validation.test.js` (NEW).
+- [ ] Add triage SLA metadata (`owner`, `openedAt`, `dueAt`) for fuzz failures.
+
+### O.9 Mutation-testing for contract validators and gates
+
+- [ ] Add mutation plan `docs/<new>/specs/usr-mutation-testing-policy.md` (NEW) and target list by validator function.
+- [ ] Add mutation lane `tests/<new>/harness-core/usr-validator-mutation-score.test.js` (NEW) with minimum score thresholds.
+- [ ] Block promotion when mutation score regresses below threshold without approved waiver.
+
+### O.10 Golden-change governance tiers
+
+- [ ] Add tiering policy `docs/<new>/specs/usr-golden-change-tier-policy.md` (NEW): auto-accept, reviewer-required, RFC-required.
+- [ ] Add golden classification metadata file `tests/<new>/fixtures/usr/goldens/usr-golden-tier-map.json` (NEW).
+- [ ] Add gate test `tests/<new>/fixture-governance/usr-golden-tier-policy-validation.test.js` (NEW).
+
+### O.11 Performance reproducibility contract
+
+- [ ] Add reproducibility policy `docs/<new>/specs/usr-performance-reproducibility.md` (NEW): host class, warmup/measures, variance envelope.
+- [ ] Add perf reproducibility validator `tests/<new>/benchmark-regression/usr-benchmark-reproducibility-validation.test.js` (NEW).
+- [ ] Emit reproducibility report artifact `usr-benchmark-reproducibility-report.json` for benchmark lanes.
+
+### O.12 Operational runbook and drill suite
+
+- [ ] Add runbook set `docs/<new>/runbooks/usr-cutover.md`, `usr-rollback.md`, `usr-incident.md` (NEW).
+- [ ] Add drill cadence policy and mandatory evidence mapping in rollout contract artifacts.
+- [ ] Add validation test `tests/<new>/implementation-readiness/usr-runbook-drill-validation.test.js` (NEW).
+
+### O.13 Data retention and PII classification policy
+
+- [ ] Add retention policy spec `docs/<new>/specs/usr-data-retention-classification.md` (NEW) with artifact class-to-retention mapping.
+- [ ] Add report envelope extension policy for PII classification tags.
+- [ ] Add enforcement lane test `tests/<new>/security-gates/usr-data-retention-classification-validation.test.js` (NEW).
+
+### O.14 Owner capacity and escalation SLA policy
+
+- [ ] Add owner/SLA registry `tests/<new>/lang/matrix/usr-owner-sla-policy.json` (NEW) with response and remediation windows.
+- [ ] Add enforcement in governance validators and release-readiness scorecard input set.
+- [ ] Add lock test `tests/<new>/lang/contracts/usr-owner-sla-policy-validation.test.js` (NEW).
+
+### O.15 Release readiness score formula
+
+- [ ] Add scoring policy `docs/<new>/specs/usr-release-readiness-formula.md` (NEW) with weighted dimensions and hard blockers.
+- [ ] Add score calculator in `src/contracts/validators/usr-matrix.js` (`buildUsrReleaseReadinessScorecard`) with explicit formula versioning.
+- [ ] Add score integrity test `tests/<new>/implementation-readiness/usr-release-readiness-formula-validation.test.js` (NEW).
+
+### O.16 Post-cutover stabilization and rollback trigger checklist
+
+- [ ] Add stabilization checklist `docs/<new>/specs/usr-post-cutover-stabilization.md` (NEW) with rollback trigger thresholds.
+- [ ] Add post-cutover report artifact `usr-post-cutover-stabilization-report.json` evaluation policy.
+- [ ] Add lock test `tests/<new>/lang/contracts/usr-post-cutover-stabilization-validation.test.js` (NEW).
 
 
