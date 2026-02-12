@@ -137,7 +137,13 @@ for (const row of nodeKindMapping.rows) {
 }
 
 // Strict matrix schema checks for all implemented registry schemas.
-for (const registryId of listUsrMatrixRegistryIds()) {
+const matrixRegistryIdsOnDisk = fs.readdirSync(matrixDir)
+  .filter((fileName) => fileName.endsWith('.json'))
+  .map((fileName) => fileName.slice(0, -'.json'.length));
+const schemaRegistryIds = listUsrMatrixRegistryIds();
+assertSameSet('tests/lang/matrix registry files vs schema validator registry IDs', matrixRegistryIdsOnDisk, schemaRegistryIds);
+
+for (const registryId of schemaRegistryIds) {
   const payload = loadRegistry(registryId);
   const result = validateUsrMatrixRegistry(registryId, payload);
   assert.equal(result.ok, true, `${registryId} should validate: ${result.errors.join('; ')}`);
