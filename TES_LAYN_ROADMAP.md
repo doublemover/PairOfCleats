@@ -1,6 +1,6 @@
 # TES_LAYN_ROADMAP - USR-Aligned Language and Framework Execution Master Plan
 
-Last rewritten: 2026-02-12T09:40:00Z
+Last rewritten: 2026-02-12T09:55:00Z
 Branch: `usr-skyforge-primer`
 Document status: active master plan baseline v1.5
 
@@ -517,7 +517,7 @@ If contradictions are found:
 
 ### 10.2 Lane wiring
 
-- [ ] Add conformance lane(s) per C0-C4.
+- [x] Add conformance lane(s) per C0-C4.
 - [ ] Add per-batch shards and deterministic order manifests.
 - [x] Add diagnostics summary and transition reporting.
 - [x] Add backward-compat matrix lane executing BC-001 through BC-012 scenario classes and pairwise expansion.

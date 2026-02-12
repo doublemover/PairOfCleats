@@ -11,7 +11,7 @@
     "worktrees"
   ],
   "excludedFiles": ["run.js"],
-  "knownLanes": ["smoke", "unit", "ci-lite", "ci-long", "integration", "services", "api", "storage", "perf", "mcp", "ci", "backcompat", "diagnostics-summary", "runtime-config", "failure-injection", "fixture-governance", "benchmark-regression", "threat-model", "waiver-enforcement", "report-schema"],
+  "knownLanes": ["smoke", "unit", "ci-lite", "ci-long", "integration", "services", "api", "storage", "perf", "mcp", "ci", "conformance-c0", "conformance-c1", "conformance-c2", "conformance-c3", "conformance-c4", "backcompat", "diagnostics-summary", "runtime-config", "failure-injection", "fixture-governance", "benchmark-regression", "threat-model", "waiver-enforcement", "report-schema"],
   "laneRules": [
     { "lane": "perf", "match": ["^perf/"] },
     { "lane": "ci-lite", "match": ["^ci-lite/"] },
@@ -20,6 +20,36 @@
     { "lane": "api", "match": ["^services/api/"] },
     { "lane": "services", "match": ["^services/"] },
     { "lane": "storage", "match": ["^storage/"] },
+    {
+      "lane": "conformance-c0",
+      "match": [
+        "^conformance-c0/"
+      ]
+    },
+    {
+      "lane": "conformance-c1",
+      "match": [
+        "^conformance-c1/"
+      ]
+    },
+    {
+      "lane": "conformance-c2",
+      "match": [
+        "^conformance-c2/"
+      ]
+    },
+    {
+      "lane": "conformance-c3",
+      "match": [
+        "^conformance-c3/"
+      ]
+    },
+    {
+      "lane": "conformance-c4",
+      "match": [
+        "^conformance-c4/"
+      ]
+    },
     {
       "lane": "backcompat",
       "match": [
