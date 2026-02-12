@@ -658,7 +658,7 @@ If contradictions are found:
 
 ### 15.4 Exit criteria
 
-- [ ] CI and maintenance controls are stable for ongoing development.
+- [x] CI and maintenance controls are stable for ongoing development.
 
 ---
 

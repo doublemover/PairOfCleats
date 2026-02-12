@@ -1,6 +1,6 @@
 # USR Contract Enforcement Guide
 
-Last updated: 2026-02-12T05:02:55Z
+Last updated: 2026-02-12T05:04:15Z
 
 ## Purpose
 
@@ -46,6 +46,7 @@ Define CI/local enforcement for the consolidated USR contract model.
 - waiver-policy enforcement (`tests/lang/contracts/usr-waiver-policy-validation.test.js`) validates section 48 expiry controls, approver governance, compensating-control artifact coverage, and disallowed strict-bypass classes
 - report-envelope enforcement (`tests/lang/contracts/usr-report-envelope-validation.test.js`) validates section 30 required audit envelope fields and strict unknown-key rejection across required report artifacts
 - PR/release template policy enforcement (`tests/lang/contracts/usr-pr-template-policy-validation.test.js`) validates required USR change-control checklist markers and contract/matrix references in `.github/pull_request_template.md` and `.github/release_template.md`, including waiver expiry-cadence release review
+- maintenance-controls stability enforcement (`tests/lang/contracts/usr-maintenance-controls-stability.test.js`) validates phase 15.3 closure, required maintenance validators in `ci`/`ci-lite`, and template-governance marker presence
 
 3. Roadmap/spec alignment
 - `TES_LAYN_ROADMAP.md` contract references resolve
