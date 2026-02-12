@@ -1,7 +1,7 @@
 # Spec -- USR Core Evidence, Gates, and Waiver Contract
 
 Status: Draft v2.0
-Last updated: 2026-02-11T08:35:00Z
+Last updated: 2026-02-12T05:17:00Z
 
 ## Purpose
 
@@ -91,6 +91,24 @@ Freshness classes:
 - `usr-waiver-active-report.json`
 - `usr-waiver-expiry-report.json`
 - `usr-release-readiness-scorecard.json`
+
+## Standard evidence artifacts consumed by gate predicates
+
+In addition to required outputs above, gate predicates and scorecards may consume these canonical evidence artifacts:
+
+- `usr-validation-report.json`
+- `usr-conformance-summary.json`
+- `usr-quality-evaluation-results.json`
+- `usr-observability-rollup.json`
+- `usr-feature-flag-state.json`
+- `usr-failure-injection-report.json`
+- `usr-benchmark-regression-summary.json`
+- `usr-threat-model-coverage-report.json`
+- `usr-waiver-active-report.json`
+- `usr-waiver-expiry-report.json`
+- `usr-backcompat-matrix-results.json`
+- `usr-operational-readiness-validation.json`
+- `usr-drift-report.json`
 
 ## Auditability requirements
 
