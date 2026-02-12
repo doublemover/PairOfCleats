@@ -249,7 +249,7 @@ If contradictions are found:
 
 - [x] USR registry files exist and validate.
 - [x] USR schema package exists and validates.
-- [ ] Drift tests pass in CI.
+- [x] Drift tests pass in CI.
 
 ---
 
