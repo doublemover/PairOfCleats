@@ -117,6 +117,7 @@ const requiredRoadmapAnchors = [
   '### N.17 Phase 15 exit-completion lock',
   '### N.18 Phase 15.2 reporting-integrity lock',
   '### N.19 Phase 15.1 CI gate-integrity lock',
+  '### N.20 Phase 15.3 maintenance-integrity lock',
   '| Consolidated contract | Primary intent | Required phases | Required CI gates/lanes |',
   'appendices H/J/M/N'
 ];
