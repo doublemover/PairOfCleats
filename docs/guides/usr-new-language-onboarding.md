@@ -1,6 +1,6 @@
 # USR New Language Onboarding Guide
 
-Last updated: 2026-02-11T07:25:00Z
+Last updated: 2026-02-12T05:16:00Z
 
 ## Purpose
 
@@ -17,6 +17,8 @@ Define mandatory steps for adding a registry language with deterministic, testab
 1. Catalog updates
 - `docs/specs/usr-core-language-framework-catalog.md`
 - `tests/lang/matrix/usr-language-profiles.json`
+- `tests/lang/matrix/usr-language-version-policy.json`
+- `tests/lang/matrix/usr-language-embedding-policy.json`
 - `tests/lang/matrix/usr-capability-matrix.json`
 
 2. Semantics updates
@@ -34,6 +36,11 @@ Define mandatory steps for adding a registry language with deterministic, testab
 5. Roadmap updates
 - `TES_LAYN_ROADMAP.md` language batch and gate sections
 - `docs/specs/usr-consolidation-coverage-matrix.md` if new normative scope is introduced
+
+6. Capability and interop declarations
+- capability states must be explicitly declared as `supported`, `partial`, or `unsupported`
+- framework interop expectations must be declared against `docs/specs/usr-core-language-framework-catalog.md`
+- if framework overlays are applicable, route/template/style canonicalization obligations must be linked to required fixture families
 
 ## Promotion gates
 
