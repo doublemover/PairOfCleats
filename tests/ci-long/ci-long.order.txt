@@ -79,6 +79,12 @@ tooling/download/shared-fetch-contract
 tooling/script-coverage/script-coverage-storage
 tooling/script-coverage/script-coverage-tools
 lang/contracts/typescript
+lang/contracts/usr-contract-enforcement
+lang/contracts/usr-roadmap-sync
+lang/contracts/usr-minimum-slice-harness
+lang/contracts/usr-language-contract-template
+shared/contracts/usr-schema-validators
+shared/contracts/usr-matrix-validators
 tooling/script-coverage/script-coverage-search
 tooling/script-coverage/script-coverage-fixtures
 lang/contracts/misc-buildfiles
