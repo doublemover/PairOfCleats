@@ -1,6 +1,6 @@
 # TES_LAYN_ROADMAP - USR-Aligned Language and Framework Execution Master Plan
 
-Last rewritten: 2026-02-12T06:46:23Z
+Last rewritten: 2026-02-12T23:00:47Z
 Branch: `usr-skyforge-primer`
 Document status: active master plan baseline v1.5
 
@@ -129,6 +129,31 @@ If contradictions are found:
 - [x] Every registry language has a maintained per-language contract in `docs/specs/usr/languages/<language-id>.md`.
 - [x] Machine-readable catalog/matrix files are synchronized with decomposed contracts and pass drift checks.
 
+### 5.1 Remaining gate implementation touchpoints (sections 5/6/7/8/11/12)
+
+- [ ] Coordinate normalization implementation sweep:
+  - [ ] `src/map/utils.js:5` (`normalizePath`) is promoted to the canonical path normalizer for all persisted USR/file refs.
+  - [ ] `src/index/build/file-processor.js` and `src/index/build/import-resolution.js` call the same normalizer before writing relation payloads.
+  - [ ] `src/contracts/validators/usr.js` adds strict path-shape checks used by `validateUsrReport()` and `validateUsrEvidenceEnvelope()`.
+- [ ] Null/empty/omission semantics sweep:
+  - [ ] Add a single policy helper `src/contracts/validators/usr-null-semantics.js` (NEW) and consume it from `src/contracts/validators/usr.js` and `src/contracts/validators/usr-matrix.js`.
+  - [ ] Add explicit schema examples in `docs/specs/unified-syntax-representation.md` and enforce with `tests/lang/contracts/usr-canonical-example-validation.test.js`.
+- [ ] Numeric normalization sweep:
+  - [ ] Centralize confidence normalization in `src/contracts/validators/usr.js` and reuse in `buildUsrDiagnosticsTransitionReport()` and `buildUsrBackcompatMatrixReport()`.
+  - [ ] Add negative fixtures (NaN/Infinity/out-of-range precision) in `tests/fixtures/usr/numeric-normalization/` (NEW).
+- [ ] Canonical ID grammar and collision handling sweep:
+  - [ ] Keep `validateUsrCanonicalId()` authoritative for ID format, and align `src/index/identity/chunk-uid.js` (`computeChunkUid`, `assignChunkUids`) plus `src/index/identity/symbol.js` (`buildSymbolIdentity`).
+  - [ ] Add collision regression cases in `tests/indexing/segments/segment-uid-derived.test.js` and new `tests/<new>/indexing/identity/usr-id-collision-policy.test.js` (NEW).
+- [ ] Entity and edge integrity sweep:
+  - [ ] Keep `validateUsrEdgeEndpoint()` and `validateUsrEdgeEndpoints()` authoritative; wire checks into index validation via `src/index/validate/checks.js`.
+  - [ ] Add strict malformed graph fixtures under `tests/fixtures/usr/integrity/` (NEW) with endpoint, orphan-node, and duplicate-identity failures.
+- [ ] Parser precedence + normalization mapping sweep:
+  - [ ] Define precedence registry in `tests/<new>/lang/matrix/usr-parser-precedence-policy.json` (NEW) and enforce in `tools/usr/generate-usr-matrix-baselines.mjs`.
+  - [ ] Keep normalization contract deterministic in `src/contracts/validators/usr-matrix.js` and add explicit unknown-kind budget enforcement by language.
+- [ ] Capability transition sweep:
+  - [ ] Keep transition taxonomy authoritative in `src/contracts/validators/usr.js` (`USR_CANONICAL_DIAGNOSTIC_CODES`, `validateUsrCapabilityTransition`, `resolveUsrDiagnosticRemediationClass`).
+  - [ ] Add scenario coverage in `tests/diagnostics/diagnostics-transition-validation.test.js` and `tests/lang/contracts/usr-phase8-hardening-readiness-validation.test.js`.
+
 ## 6) Phase Index (Implementation before Test Rollout)
 
 | Phase | Name | Track | Output |
@@ -149,6 +174,18 @@ If contradictions are found:
 | 13 | Framework Conformance C4 | Testing | framework profile enforcement |
 | 14 | Integration and Failure-Mode Enforcement | Testing | mixed-repo and recovery confidence |
 | 15 | CI Gates, Reporting, and Maintenance Operations | Ops | sustainable enforcement and change-control |
+
+### 6.1 Remaining-plan audit snapshot (2026-02-12T23:00:47Z)
+
+| Area | Remaining unchecked lines | Audit focus added in this revision |
+| --- | ---: | --- |
+| Global non-negotiable gates | 16 | Function/file-level touchpoints in section 5.1 |
+| Phase 2-7/9 implementation phases | 103 | New per-phase granular subtasks with runtime + validator + fixture/test hooks |
+| Appendix B gate checklists | 7 | Gate B/Gate C evidence-level subtask expansion |
+| Appendix C language task packs | 282 | Per-language touchpoint ledger + per-batch shared execution touchpoints |
+| Appendix D framework task packs | 66 | Framework touchpoint ledger + shared integration touchpoints |
+| Appendix F rollout gates | 4 | Phase A/B/C/D completion evidence subtasks |
+| Appendix I per-language DoD | 15 | DoD evaluator/report/test + lane gating subtasks |
 
 ---
 
@@ -280,6 +317,21 @@ If contradictions are found:
 - [ ] Strict validation rejects intentionally malformed identity/range payloads.
 - [ ] Deterministic reruns preserve ID sets and integrity outcomes.
 
+### 2.5 Implementation touchpoints and granular subtasks
+
+- [ ] Coordinate-space enforcement integration:
+  - [ ] Add coordinate normalization helper `src/index/usr/coordinates.js` (NEW) and use it from `src/index/build/file-processor/process-chunks/ids.js` (`buildChunkLineRanges`, `prepareChunkIds`).
+  - [ ] Wire coordinate normalization into `src/index/tooling/vfs.js` (`resolveEffectiveLanguageId`, `buildVfsManifestRowsForFile`) so virtual-doc coordinates and source coordinates remain consistent.
+  - [ ] Add strict invalid-range rejection in `src/contracts/validators/usr.js` and mirror in `src/contracts/schemas/usr.js`.
+- [ ] Identity determinism integration:
+  - [ ] Keep `src/index/identity/chunk-uid.js` (`computeChunkUid`, `assignChunkUids`, `buildIdentityVirtualPath`) as canonical UID producer.
+  - [ ] Align symbol IDs from `src/index/identity/symbol.js` (`buildSymbolIdentity`) with USR ID grammar and collision policy.
+  - [ ] Add deterministic collision replay test in `tests/indexing/segments/segment-uid-derived.test.js` plus new `tests/<new>/indexing/identity/usr-identity-determinism-rerun.test.js` (NEW).
+- [ ] Integrity constraint integration:
+  - [ ] Extend `src/contracts/validators/usr.js` (`validateUsrEdgeEndpoint`, `validateUsrEdgeEndpoints`) to enforce all section 7.11/8.5 endpoint and parent/containment invariants.
+  - [ ] Add index artifact-level checks in `src/index/validate/checks.js` (`validateChunkIdentity`, `validateMetaV2Equivalence`) for runtime parity.
+  - [ ] Add malformed fixture set `tests/fixtures/usr/integrity/` (NEW) and contract test `tests/<new>/lang/contracts/usr-identity-integrity-validation.test.js` (NEW).
+
 ---
 
 ## Phase 3 - Parser and Normalization Core
@@ -310,6 +362,21 @@ If contradictions are found:
 - [ ] Normalization mapping tests pass with deterministic snapshots.
 - [ ] Framework extraction ordering invariants pass for `.vue`, `.svelte`, `.astro`, Angular template surfaces.
 
+### 3.5 Implementation touchpoints and granular subtasks
+
+- [ ] Parser precedence matrix implementation:
+  - [ ] Add parser-precedence policy reader `src/index/usr/parser-precedence.js` (NEW) sourced from `tests/lang/matrix/usr-parser-runtime-lock.json` plus new `tests/<new>/lang/matrix/usr-parser-precedence-policy.json` (NEW).
+  - [ ] Integrate precedence checks into `src/index/build/file-processor.js` (`createFileProcessor`) and `src/index/build/file-processor/process-chunks/index.js` (`processChunks`).
+  - [ ] Add deterministic tie-break tests in `tests/<new>/lang/contracts/usr-parser-precedence-determinism.test.js` (NEW).
+- [ ] Normalization mapping implementation:
+  - [ ] Add runtime mapper `src/index/usr/normalization-map.js` (NEW) that consumes registry mapping tables and exposes `mapRawKindToUsrKind()`.
+  - [ ] Route all language adapters through mapper from `src/index/language-registry/registry-data.js` and enforce conflict rejection in `src/contracts/validators/usr-matrix.js`.
+  - [ ] Add unknown-kind budget and synonym collision tests under `tests/<new>/lang/contracts/usr-normalization-mapping-contract-validation.test.js` (NEW).
+- [ ] Framework extraction ordering implementation:
+  - [ ] Keep segmentation entry points authoritative in `src/index/segments/jsx.js` (`segmentJsx`) and `src/index/segments/vue.js` (`segmentVue`, `segmentSvelte`, `segmentAstro`).
+  - [ ] Add stage ordering guard in `src/index/build/indexer/pipeline.js` (`buildIndexForMode`) and `src/index/build/indexer/steps/process-files.js` (`processFiles`).
+  - [ ] Add late-stage failure retention checks in `tests/indexing/segments/segment-pipeline.test.js` and `tests/<new>/lang/contracts/usr-framework-extraction-ordering-validation.test.js` (NEW).
+
 ---
 
 ## Phase 4 - Batch Execution B1-B7 (Language Core)
@@ -332,6 +399,20 @@ If contradictions are found:
 
 - [ ] B1-B7 each have signed Gate evidence.
 - [ ] No language is missing a completed task pack.
+
+### 4.4 Batch execution touchpoints and granular subtasks
+
+- [ ] Batch orchestration controls:
+  - [ ] Add batch-progress ledger `tests/<new>/lang/matrix/usr-batch-progress.json` (NEW) and enforce via `tests/<new>/lang/contracts/usr-batch-progress-ledger-validation.test.js` (NEW).
+  - [ ] Extend lane manifests in `tests/batch-b1` through `tests/batch-b8` to require language-specific completion tests for every profile in Appendix C.
+  - [ ] Add deterministic batch signature report `usr-batch-gate-report.json` schema under `docs/<new>/schemas/usr/usr-batch-gate-report.schema.json` (NEW).
+- [ ] Evidence and gate-signoff workflow:
+  - [ ] Add gate signoff artifact `tests/<new>/lang/matrix/usr-gate-signoffs.json` (NEW) with role + timestamp + scope.
+  - [ ] Add validator in `src/contracts/validators/usr-matrix.js` (`validateUsrGateSignoffPolicy`, NEW) and report builder `buildUsrBatchGateReport` (NEW).
+  - [ ] Add lock tests wired into `tests/lang/contracts/usr-gate-b-language-batch-lock-validation.test.js`.
+- [ ] Degradation accounting and remediation flow:
+  - [ ] Enforce diagnostic/remediation mapping via `src/contracts/validators/usr.js` (`resolveUsrDiagnosticRemediationClass`) in batch reports.
+  - [ ] Add unresolved/partial capability budget report `usr-language-degradation-rollup.json` schema + validator (NEW).
 
 ---
 
@@ -359,6 +440,21 @@ If contradictions are found:
 
 - [ ] All framework profiles produce required entities/edges.
 - [ ] Framework diagnostics are deterministic and complete.
+
+### 5.4 Framework implementation touchpoints and granular subtasks
+
+- [ ] Framework runtime architecture:
+  - [ ] Add framework registry `src/index/frameworks/registry.js` (NEW) with deterministic profile selection and conflict resolution.
+  - [ ] Add profile handlers `src/index/frameworks/react.js`, `src/index/frameworks/vue.js`, `src/index/frameworks/next.js`, `src/index/frameworks/nuxt.js`, `src/index/frameworks/svelte.js`, `src/index/frameworks/sveltekit.js`, `src/index/frameworks/angular.js`, `src/index/frameworks/astro.js` (all NEW).
+  - [ ] Wire handlers into `src/index/build/file-processor/process-chunks/enrichment.js` (`buildChunkEnrichment`) after relation/flow stage but before risk/report shaping.
+- [ ] Canonical edge attr enforcement:
+  - [ ] Create shared canonicalization helper `src/index/frameworks/canonicalize.js` (NEW) for `route_maps_to`, `template_binds`, `style_scopes` attrs.
+  - [ ] Validate attrs through `src/contracts/validators/usr.js` + `src/contracts/schemas/usr.js` strict schema fields.
+  - [ ] Add per-framework fixture suites under `tests/fixtures/frameworks/<framework-id>/` (NEW for each framework).
+- [ ] Applicability and incomplete-profile behavior:
+  - [ ] Keep applicability source-of-truth in `tests/lang/matrix/usr-framework-profiles.json` and `tests/lang/matrix/usr-language-profiles.json`.
+  - [ ] Emit `USR-W-FRAMEWORK-PROFILE-INCOMPLETE` via dedicated helper `resolveFrameworkApplicabilityStatus()` in `src/contracts/validators/usr-matrix.js` (NEW).
+  - [ ] Add lane checks in `tests/conformance-c4` and `tests/lang/contracts/usr-framework-profile-matrix-sync-validation.test.js`.
 
 ---
 
@@ -403,6 +499,25 @@ If contradictions are found:
 - [ ] Security and redaction semantics are validated for required profiles and lanes.
 - [ ] Critical threat-model coverage and abuse-case mappings are validated for required lanes.
 
+### 6.7 Flow/risk/query touchpoints and granular subtasks
+
+- [ ] C2 flow semantics integration:
+  - [ ] Keep language flow entry points (`compute*Flow` in `src/lang/*.js`) deterministic and normalized through shared helper `src/lang/flow.js`.
+  - [ ] Enforce flow output shape in `src/contracts/schemas/usr.js` and test in `tests/conformance-c2`.
+- [ ] C3 risk semantics integration:
+  - [ ] Keep local risk detection in `src/index/risk.js` (`detectRiskSignals`) and cross-file risk in `src/index/risk-interprocedural/engine.js` (`computeInterproceduralRisk`).
+  - [ ] Add risk capability gating helper `src/index/risk/capability-gates.js` (NEW) for required/optional/unsupported behaviors.
+  - [ ] Validate taxonomy parity with `tests/lang/matrix/usr-language-risk-profiles.json` in `tests/lang/contracts/usr-language-risk-profile-validation.test.js`.
+- [ ] Query/filter determinism integration:
+  - [ ] Enforce language/framework-aware filters in `src/retrieval/filters.js` (`normalizeLangFilter`, `parseMetaFilters`) and ranking tie-break rules in `src/retrieval/pipeline.js`.
+  - [ ] Add deterministic replay fixtures in `tests/<new>/retrieval/filters/usr-framework-language-semantics.test.js` (NEW).
+- [ ] Embedded/provenance integration:
+  - [ ] Keep bridge coverage authoritative in `validateUsrEmbeddingBridgeCoverage()` and provenance coverage in `validateUsrGeneratedProvenanceCoverage()` in `src/contracts/validators/usr-matrix.js`.
+  - [ ] Add downgrade reason-code contract tests in `tests/lang/contracts/usr-bridge-provenance-dashboard-validation.test.js` and new `tests/<new>/lang/contracts/usr-provenance-downgrade-reasoncodes.test.js` (NEW).
+- [ ] Security/governance integration:
+  - [ ] Keep redaction/security gate enforcement in `validateUsrSecurityGateControls()` and `buildUsrSecurityGateValidationReport()`.
+  - [ ] Add threat/control gap evaluator parity checks in `validateUsrThreatModelCoverage()` and `buildUsrThreatModelCoverageReport()`.
+
 ---
 
 ## Phase 7 - Fixture and Golden Corpus Expansion
@@ -430,6 +545,19 @@ If contradictions are found:
 
 - [x] Every language and framework has exhaustive fixture coverage evidence.
 - [x] Golden diffs are deterministic on rerun.
+
+### 7.4 Remaining fixture/golden hardening touchpoints
+
+- [ ] Fixture expansion implementation:
+  - [ ] Add per-language fixture index files under `tests/fixtures/usr/languages/<language-id>/index.json` (NEW) with positive/negative/malformed/cap/mixed tags.
+  - [ ] Add framework fixture indexes under `tests/fixtures/usr/frameworks/<framework-id>/index.json` (NEW).
+  - [ ] Add fixture index validator `tests/<new>/lang/contracts/usr-fixture-index-coverage-validation.test.js` (NEW).
+- [ ] Canonical example bundle implementation:
+  - [ ] Add generated canonical bundles under `tests/fixtures/usr/canonical/minimal/` and `tests/fixtures/usr/canonical/maximal/` (NEW).
+  - [ ] Add bundle generator script `tools/usr/generate-usr-canonical-bundles.mjs` (NEW).
+- [ ] Golden regeneration implementation:
+  - [ ] Add deterministic golden writer `tools/usr/generate-usr-goldens.mjs` (NEW) with stable sort and checksum metadata.
+  - [ ] Add golden drift lane `tests/<new>/fixture-governance/usr-golden-drift-validation.test.js` (NEW) wired into `fixture-governance` lane.
 
 ---
 
@@ -496,6 +624,18 @@ If contradictions are found:
 
 - [ ] Readiness report approved.
 - [ ] Test rollout authorized.
+
+### 9.4 Readiness sign-off touchpoints and granular subtasks
+
+- [ ] Completion evidence materialization:
+  - [ ] Add readiness evidence aggregator `tools/usr/generate-usr-readiness-evidence.mjs` (NEW) that consumes all phase evidence artifacts from Appendix M.
+  - [ ] Emit `usr-operational-readiness-validation.json` and `usr-release-readiness-scorecard.json` in a single deterministic run.
+- [ ] Per-language approval closure:
+  - [ ] Add checklist parser helper `tests/<new>/lang/contracts/usr-language-approval-checklist-validation.test.js` (NEW) to enforce `docs/specs/usr/languages/*.md` completion before promotion.
+  - [ ] Ensure each language checklist row includes owner, evidence artifact IDs, and ISO timestamp fields.
+- [ ] Authorization workflow:
+  - [ ] Keep rollout authorization source-of-truth in `docs/specs/usr-rollout-approval-lock.md` and validate with `tests/lang/contracts/usr-rollout-approval-lock-validation.test.js`.
+  - [ ] Add readiness signature matrix `tests/<new>/lang/matrix/usr-readiness-approvals.json` (NEW) and strict validator/report pair in `src/contracts/validators/usr-matrix.js` (NEW).
 
 ---
 
@@ -740,10 +880,20 @@ If contradictions are found:
 ### Gate B1-B7 (language batch gates)
 
 - [ ] all language task packs in batch completed.
+  - [ ] For each language in batch, Appendix C task checklist has zero unchecked items.
+  - [ ] Batch evidence artifact `usr-batch-gate-report.json` includes language-by-language completion map.
 - [ ] C0/C1 checks pass for batch languages.
+  - [ ] Lane execution evidence from `conformance-c0` and `conformance-c1` includes every language in batch.
+  - [ ] Failures are linked to fixture IDs and diagnostic codes.
 - [ ] determinism checks pass for batch languages.
+  - [ ] Determinism reruns use same run inputs and produce byte-stable summaries.
+  - [ ] Determinism evidence references `usr-observability-rollup.json` and batch-specific diff report.
 - [ ] known degradations recorded with diagnostic codes.
+  - [ ] Every partial/unsupported capability has reason code + remediation class + owner.
+  - [ ] Degradation records are emitted into `usr-language-degradation-rollup.json` (NEW).
 - [ ] diagnostic severity/code alignment checks pass for language batch fixtures.
+  - [ ] Canonical code membership validated in strict mode.
+  - [ ] Severity class and remediation routing validated in diagnostics summary lane.
 
 ### Gate B8 (cross-batch integration)
 
@@ -754,8 +904,12 @@ If contradictions are found:
 ### Gate C (test rollout)
 
 - [ ] all prior gates pass.
+  - [ ] Gate A, B1-B7, B8 all green with signed evidence rows.
+  - [ ] No blocking waiver present without valid expiry and compensating controls.
 - [x] harness and lanes materialized.
 - [ ] conformance rollout authorized.
+  - [ ] `docs/specs/usr-rollout-approval-lock.md` is `Approval state: approved`.
+  - [ ] Phase 9.3 readiness lines are checked and evidence artifacts are fresh.
 - [x] backward-compat matrix strict scenarios are green in CI.
 - [x] decomposed contract drift checks are green in CI.
 - [x] implementation-readiness evidence validators are green for promotion target phase.
@@ -771,7 +925,66 @@ If contradictions are found:
 
 ## Appendix C - Exhaustive Per-Language Task Packs by Batch
 
+### C.0 Execution protocol for every unchecked language task
+
+- [ ] For each language task line below, implementation PR must include:
+  - [ ] Runtime code touchpoint updates (function-level references in PR summary).
+  - [ ] Matrix row updates in `tests/lang/matrix/usr-language-profiles.json`, `tests/lang/matrix/usr-language-version-policy.json`, and `tests/lang/matrix/usr-language-embedding-policy.json`.
+  - [ ] Fixture index updates under `tests/fixtures/usr/languages/<language-id>/index.json` (NEW) and concrete fixture files.
+  - [ ] Batch lane coverage test updates in `tests/batch-b*/` and `tests/lang/contracts/`.
+  - [ ] Evidence artifact refresh for conformance + degradations + readiness.
+- [ ] Every language implementation must define these concrete surfaces before checking any line complete:
+  - [ ] Chunk extraction, relation extraction, docmeta extraction, and flow/risk semantics (as applicable by required C-level).
+  - [ ] Unknown-kind and unsupported capability diagnostics with canonical reason codes.
+  - [ ] Deterministic ordering guarantees and stable IDs for reruns.
+
+### C.0.1 Language touchpoint ledger (current state + required creation work)
+
+| Language | Current runtime touchpoints | Required implementation touchpoints | Required new files/artifacts |
+| --- | --- | --- | --- |
+| `javascript` | `src/index/language-registry/registry-data.js:92`; `src/lang/javascript.js` | Expand `parseJavaScriptAst`, `buildCodeRelations`, `extractDocMeta`; wire C2/C3 semantics through `src/lang/flow.js` + risk engine | `tests/<new>/fixtures/usr/languages/javascript/index.json` (NEW), `tests/<new>/batch-b1/javascript-usr-taskpack.test.js` (NEW) |
+| `typescript` | `src/index/language-registry/registry-data.js:123`; `src/lang/typescript.js` + `src/lang/typescript/*.js` | Expand TS type/value dual-space mapping and `collectTypeScriptImports` + `buildTypeScriptRelations` strictness | `tests/<new>/fixtures/usr/languages/typescript/index.json` (NEW), `tests/<new>/batch-b1/typescript-usr-taskpack.test.js` (NEW) |
+| `python` | `src/index/language-registry/registry-data.js:159`; `src/lang/python.js` + `src/lang/python/*.js` | Harden AST/heuristic fallback, import relation fidelity, async/generator flow mapping | `tests/<new>/fixtures/usr/languages/python/index.json` (NEW), `tests/<new>/batch-b4/python-usr-taskpack.test.js` (NEW) |
+| `clike` | `src/index/language-registry/registry-data.js:194`; `src/lang/clike.js` | Expand preprocessing/macro semantics and C/C++/ObjC differentiation with deterministic fallback | `tests/<new>/fixtures/usr/languages/clike/index.json` (NEW), `tests/<new>/batch-b2/clike-usr-taskpack.test.js` (NEW) |
+| `go` | `src/index/language-registry/registry-data.js:203`; `src/lang/go.js` | Expand goroutine/channel flow and module replacement semantics in relations | `tests/<new>/fixtures/usr/languages/go/index.json` (NEW), `tests/<new>/batch-b2/go-usr-taskpack.test.js` (NEW) |
+| `java` | `src/index/language-registry/registry-data.js:217`; `src/lang/java.js` | Expand inheritance/override chains and try-with-resources/switch-expression flow | `tests/<new>/fixtures/usr/languages/java/index.json` (NEW), `tests/<new>/batch-b3/java-usr-taskpack.test.js` (NEW) |
+| `csharp` | `src/index/language-registry/registry-data.js:231`; `src/lang/csharp.js` | Expand partial/source-generated boundaries, extension methods, and LINQ flow modeling | `tests/<new>/fixtures/usr/languages/csharp/index.json` (NEW), `tests/<new>/batch-b3/csharp-usr-taskpack.test.js` (NEW) |
+| `kotlin` | `src/index/language-registry/registry-data.js:245`; `src/lang/kotlin.js` | Expand coroutine/suspend flow and extension receiver relation surfaces | `tests/<new>/fixtures/usr/languages/kotlin/index.json` (NEW), `tests/<new>/batch-b3/kotlin-usr-taskpack.test.js` (NEW) |
+| `ruby` | `src/index/language-registry/registry-data.js:259`; `src/lang/ruby.js` | Expand dynamic dispatch hints + metaprogramming diagnostics with bounded confidence | `tests/<new>/fixtures/usr/languages/ruby/index.json` (NEW), `tests/<new>/batch-b4/ruby-usr-taskpack.test.js` (NEW) |
+| `php` | `src/index/language-registry/registry-data.js:273`; `src/lang/php.js` | Expand mixed PHP/HTML segmentation linkage and trait/magic method normalization | `tests/<new>/fixtures/usr/languages/php/index.json` (NEW), `tests/<new>/batch-b4/php-usr-taskpack.test.js` (NEW) |
+| `html` | `src/index/language-registry/registry-data.js:287`; `src/lang/html.js` | Expand embedded script/style/template binding edges and malformed DOM recovery diagnostics | `tests/<new>/fixtures/usr/languages/html/index.json` (NEW), `tests/<new>/batch-b5/html-usr-taskpack.test.js` (NEW) |
+| `css` | `src/index/language-registry/registry-data.js:302`; `src/lang/css.js` | Expand style scope/model semantics and parser fallback coverage | `tests/<new>/fixtures/usr/languages/css/index.json` (NEW), `tests/<new>/batch-b5/css-usr-taskpack.test.js` (NEW) |
+| `lua` | `src/index/language-registry/registry-data.js:316`; `src/lang/lua.js` | Expand coroutine/table mutation flow and dynamic module load diagnostics | `tests/<new>/fixtures/usr/languages/lua/index.json` (NEW), `tests/<new>/batch-b4/lua-usr-taskpack.test.js` (NEW) |
+| `sql` | `src/index/language-registry/registry-data.js:330`; `src/lang/sql.js` | Expand multi-dialect normalization and cross-file SQL include relation mapping | `tests/<new>/fixtures/usr/languages/sql/index.json` (NEW), `tests/<new>/batch-b6/sql-usr-taskpack.test.js` (NEW) |
+| `perl` | `src/index/language-registry/registry-data.js:360`; `src/lang/perl.js` | Expand regex/eval-heavy flow + dynamic module loading hints | `tests/<new>/fixtures/usr/languages/perl/index.json` (NEW), `tests/<new>/batch-b4/perl-usr-taskpack.test.js` (NEW) |
+| `shell` | `src/index/language-registry/registry-data.js:374`; `src/lang/shell.js` | Expand pipeline/subshell/trap flow and sourcing edge diagnostics | `tests/<new>/fixtures/usr/languages/shell/index.json` (NEW), `tests/<new>/batch-b4/shell-usr-taskpack.test.js` (NEW) |
+| `rust` | `src/index/language-registry/registry-data.js:388`; `src/lang/rust.js` | Expand macro/trait/lifetime mapping with deterministic macro-degradation diagnostics | `tests/<new>/fixtures/usr/languages/rust/index.json` (NEW), `tests/<new>/batch-b2/rust-usr-taskpack.test.js` (NEW) |
+| `swift` | `src/index/language-registry/registry-data.js:402`; `src/lang/swift.js` | Expand protocol/extension/actor semantics and async throwing flow | `tests/<new>/fixtures/usr/languages/swift/index.json` (NEW), `tests/<new>/batch-b2/swift-usr-taskpack.test.js` (NEW) |
+| `cmake` | `src/index/language-registry/registry-data.js:416`; `collectCmakeImports()` only | Replace simple import-only path with full adapter `buildCmakeChunks`/`buildCmakeRelations`/`computeCmakeFlow` | `src/lang/cmake.js` (NEW), `tests/<new>/fixtures/usr/languages/cmake/index.json` (NEW), `tests/<new>/batch-b7/cmake-usr-taskpack.test.js` (NEW) |
+| `starlark` | `src/index/language-registry/registry-data.js:423`; `collectStarlarkImports()` only | Implement full Starlark adapter and rule/load graph modeling | `src/lang/starlark.js` (NEW), fixture index + batch tests (NEW) |
+| `nix` | `src/index/language-registry/registry-data.js:430`; `collectNixImports()` only | Implement full Nix adapter for attrset/function/import semantics | `src/lang/nix.js` (NEW), fixture index + batch tests (NEW) |
+| `dart` | `src/index/language-registry/registry-data.js:437`; `collectDartImports()` only | Implement full Dart adapter (library/part, null safety, async flow) | `src/lang/dart.js` (NEW), fixture index + batch tests (NEW) |
+| `scala` | `src/index/language-registry/registry-data.js:444`; `collectScalaImports()` only | Implement full Scala adapter for 2/3 syntax, givens/implicits, mixins | `src/lang/scala.js` (NEW), fixture index + batch tests (NEW) |
+| `groovy` | `src/index/language-registry/registry-data.js:451`; `collectGroovyImports()` only | Implement full Groovy adapter (script/class hybrid + DSL semantics) | `src/lang/groovy.js` (NEW), fixture index + batch tests (NEW) |
+| `r` | `src/index/language-registry/registry-data.js:458`; `collectRImports()` only | Implement full R adapter for NSE-aware heuristics and package/source relations | `src/lang/r.js` (NEW), fixture index + batch tests (NEW) |
+| `julia` | `src/index/language-registry/registry-data.js:465`; `collectJuliaImports()` only | Implement full Julia adapter for module/macro/multiple-dispatch semantics | `src/lang/julia.js` (NEW), fixture index + batch tests (NEW) |
+| `handlebars` | `src/index/language-registry/registry-data.js:472`; `collectHandlebarsImports()` only | Implement template-aware adapter for blocks/helpers/partials/binds | `src/lang/handlebars.js` (NEW), fixture index + batch tests (NEW) |
+| `mustache` | `src/index/language-registry/registry-data.js:479`; `collectMustacheImports()` only | Implement section/inverted/partial-aware adapter with binding edges | `src/lang/mustache.js` (NEW), fixture index + batch tests (NEW) |
+| `jinja` | `src/index/language-registry/registry-data.js:486`; `collectJinjaImports()` only | Implement inheritance/macro/filter-aware adapter and diagnostics | `src/lang/jinja.js` (NEW), fixture index + batch tests (NEW) |
+| `razor` | `src/index/language-registry/registry-data.js:493`; `collectRazorImports()` only | Implement mixed markup/code adapter with directive boundary handling | `src/lang/razor.js` (NEW), fixture index + batch tests (NEW) |
+| `proto` | `src/index/language-registry/registry-data.js:500`; `collectProtoImports()` only | Implement schema adapter for messages/services/options/type refs | `src/lang/proto.js` (NEW), fixture index + batch tests (NEW) |
+| `makefile` | `src/index/language-registry/registry-data.js:507`; `collectMakefileImports()` only | Implement target/rule/variable adapter with include dependency graph | `src/lang/makefile.js` (NEW), fixture index + batch tests (NEW) |
+| `dockerfile` | `src/index/language-registry/registry-data.js:514`; `collectDockerfileImports()` only | Implement instruction/stage adapter with `COPY --from` and base-image edges | `src/lang/dockerfile.js` (NEW), fixture index + batch tests (NEW) |
+| `graphql` | `src/index/language-registry/registry-data.js:521`; `collectGraphqlImports()` only | Implement SDL/operations adapter with fragment/type-reference linking | `src/lang/graphql.js` (NEW), fixture index + batch tests (NEW) |
+
 ### Batch B1 - JS/TS and Framework Core
+
+#### B1 shared touchpoints (applies to JS + TS task lines)
+
+- [ ] Keep registry wiring in `src/index/language-registry/registry-data.js:92` and `src/index/language-registry/registry-data.js:123` synchronized with matrix profile requirements.
+- [ ] Keep parsing/relations in `src/lang/javascript.js` and `src/lang/typescript.js` authoritative for core chunk and relation semantics.
+- [ ] Keep framework-entry segmentation deterministic through `src/index/segments/jsx.js` and `src/index/segments/vue.js`.
+- [ ] Add/maintain B1 lane evidence tests under `tests/batch-b1/` plus conformance coverage in `tests/conformance-c0` through `tests/conformance-c4`.
 
 #### javascript
 
@@ -796,6 +1009,13 @@ If contradictions are found:
 - [ ] Require conformance levels C0, C1, C2, C3, and C4 (through framework overlays).
 
 ### Batch B2 - Systems Languages
+
+#### B2 shared touchpoints (applies to clike/go/rust/swift task lines)
+
+- [ ] Keep registry wiring in `src/index/language-registry/registry-data.js:194`, `:203`, `:388`, and `:402` synchronized with profile requirements.
+- [ ] Keep language adapters `src/lang/clike.js`, `src/lang/go.js`, `src/lang/rust.js`, `src/lang/swift.js` deterministic for chunk/relation/flow surfaces.
+- [ ] Keep import linking semantics aligned with `resolveImportLinks()` in `src/index/build/import-resolution.js` for include/module edges.
+- [ ] Add/maintain B2 lane evidence tests under `tests/batch-b2/` and risk coverage checks where C3 is required.
 
 #### clike
 
@@ -842,6 +1062,13 @@ If contradictions are found:
 - [ ] Require conformance levels C0, C1, C2, C3.
 
 ### Batch B3 - Managed OO Languages
+
+#### B3 shared touchpoints (applies to java/csharp/kotlin/scala/groovy/dart task lines)
+
+- [ ] Keep full adapters (`src/lang/java.js`, `src/lang/csharp.js`, `src/lang/kotlin.js`) and NEW adapters (`src/lang/scala.js`, `src/lang/groovy.js`, `src/lang/dart.js`) aligned with registry rows.
+- [ ] Keep type/value symbol identity behavior aligned with `buildSymbolIdentity()` in `src/index/identity/symbol.js`.
+- [ ] Keep OO inheritance/interface/override edge semantics aligned with normalization contract and matrix profile declarations.
+- [ ] Add/maintain B3 lane evidence tests under `tests/batch-b3/` and C2/C3 conformance lanes where required.
 
 #### java
 
@@ -910,6 +1137,13 @@ If contradictions are found:
 - [ ] Require conformance levels C0, C1, C2, C3.
 
 ### Batch B4 - Dynamic and Scripting Languages
+
+#### B4 shared touchpoints (applies to python/ruby/php/lua/perl/shell/r/julia task lines)
+
+- [ ] Keep existing adapters (`src/lang/python.js`, `src/lang/ruby.js`, `src/lang/php.js`, `src/lang/lua.js`, `src/lang/perl.js`, `src/lang/shell.js`) aligned with profile rows.
+- [ ] Add NEW adapters (`src/lang/r.js`, `src/lang/julia.js`) and remove import-collector-only fallback for those languages.
+- [ ] Keep risk + dynamic-execution detection aligned with `detectRiskSignals()` and cross-file risk engine where C3 applies.
+- [ ] Add/maintain B4 lane evidence tests under `tests/batch-b4/` and dynamic/fallback degradation fixtures.
 
 #### python
 
@@ -1001,6 +1235,13 @@ If contradictions are found:
 
 ### Batch B5 - Markup, Style, and Templates
 
+#### B5 shared touchpoints (applies to html/css/handlebars/mustache/jinja/razor task lines)
+
+- [ ] Keep existing adapters (`src/lang/html.js`, `src/lang/css.js`) and segmentation helpers (`src/index/segments/vue.js`) aligned with framework/template expectations.
+- [ ] Add NEW adapters (`src/lang/handlebars.js`, `src/lang/mustache.js`, `src/lang/jinja.js`, `src/lang/razor.js`) to replace import-only behavior.
+- [ ] Keep template binding edge attrs synchronized with framework canonicalization contract and C4 lane assertions.
+- [ ] Add/maintain B5 lane evidence tests under `tests/batch-b5/` and malformed template boundary fixtures.
+
 #### html
 
 - [ ] Implement markup node normalization for nested DOM structures, attributes, and inline script/style boundaries.
@@ -1061,6 +1302,13 @@ If contradictions are found:
 
 ### Batch B6 - Data and Interface DSLs
 
+#### B6 shared touchpoints (applies to sql/proto/graphql task lines)
+
+- [ ] Keep SQL adapter (`src/lang/sql.js`) aligned with dialect matrix requirements.
+- [ ] Add NEW adapters (`src/lang/proto.js`, `src/lang/graphql.js`) to replace import-only behavior in `registry-data.js:500` and `registry-data.js:521`.
+- [ ] Keep schema/reference diagnostics wired into canonical diagnostic taxonomy and reason codes.
+- [ ] Add/maintain B6 lane evidence tests under `tests/batch-b6/` and parser fallback fixtures per DSL.
+
 #### sql
 
 - [ ] Implement statement-level normalization for DDL, DML, CTEs, window functions, and dialect-sensitive constructs.
@@ -1093,6 +1341,13 @@ If contradictions are found:
 - [ ] Require conformance levels C0, C1, C2 where AST support exists.
 
 ### Batch B7 - Build and Infra DSLs
+
+#### B7 shared touchpoints (applies to cmake/starlark/nix/makefile/dockerfile task lines)
+
+- [ ] Replace import-only entries in `registry-data.js:416-521` with full adapters for build/infra DSLs.
+- [ ] Add NEW adapters (`src/lang/cmake.js`, `src/lang/starlark.js`, `src/lang/nix.js`, `src/lang/makefile.js`, `src/lang/dockerfile.js`).
+- [ ] Keep dependency edge extraction aligned with `resolveImportLinks()` where path resolution applies and with language-specific resolvers otherwise.
+- [ ] Add/maintain B7 lane evidence tests under `tests/batch-b7/` and malformed DSL fixture sets.
 
 #### cmake
 
@@ -1142,6 +1397,40 @@ If contradictions are found:
 ---
 
 ## Appendix D - Exhaustive Framework Profile Task Packs (C4)
+
+### D.0 Execution protocol for every unchecked framework task
+
+- [ ] Each framework task completion requires:
+  - [ ] Framework profile runtime handler update (or creation) with deterministic output ordering.
+  - [ ] Matrix synchronization for `usr-framework-profiles.json` and `usr-framework-edge-cases.json`.
+  - [ ] Framework fixture index + route/template/style edge-case fixtures.
+  - [ ] C4 lane validation updates under `tests/conformance-c4` and `tests/lang/contracts/`.
+  - [ ] Bridge/provenance/security/risk evidence refresh where framework supports those surfaces.
+
+### D.0.1 Framework touchpoint ledger (current state + required creation work)
+
+| Framework | Current runtime touchpoints | Required implementation touchpoints | Required new files/artifacts |
+| --- | --- | --- | --- |
+| `react` | JSX segmentation in `src/index/segments/jsx.js` (`segmentJsx`) | Add full React overlay handler for component/hook/prop/SSR semantics and canonical edge attrs | `src/index/frameworks/react.js` (NEW), `tests/<new>/fixtures/usr/frameworks/react/index.json` (NEW), `tests/<new>/conformance-c4/react-usr-c4.test.js` (NEW) |
+| `vue` | SFC segmentation in `src/index/segments/vue.js` (`segmentVue`) | Add Vue overlay handler for directives, emits/props, style scoping, route/template/style canonicalization | `src/index/frameworks/vue.js` (NEW), fixture index + C4 tests (NEW) |
+| `next` | No dedicated runtime overlay; currently JS/TS + JSX only | Add Next overlay for app/pages router, API routes, server/client boundaries, hydration edges | `src/index/frameworks/next.js` (NEW), fixture index + C4 tests (NEW) |
+| `nuxt` | No dedicated runtime overlay; currently Vue segmentation only | Add Nuxt overlay for pages/server API/routes + universal code boundaries | `src/index/frameworks/nuxt.js` (NEW), fixture index + C4 tests (NEW) |
+| `svelte` | `.svelte` segmentation in `src/index/segments/vue.js` (`segmentSvelte`) | Add Svelte overlay for binding semantics, style scoping, component/template linkage | `src/index/frameworks/svelte.js` (NEW), fixture index + C4 tests (NEW) |
+| `sveltekit` | No dedicated route overlay; only Svelte segmentation baseline | Add SvelteKit overlay for `+page/+layout/+server` route and boundary semantics | `src/index/frameworks/sveltekit.js` (NEW), fixture index + C4 tests (NEW) |
+| `angular` | No dedicated runtime overlay currently | Add Angular overlay for decorators, template binds, standalone/module routing and style/template URL linking | `src/index/frameworks/angular.js` (NEW), fixture index + C4 tests (NEW) |
+| `astro` | `.astro` segmentation in `src/index/segments/vue.js` (`segmentAstro`) | Add Astro overlay for frontmatter/template binding bridge, islands, route semantics | `src/index/frameworks/astro.js` (NEW), fixture index + C4 tests (NEW) |
+
+### D.1 Shared framework integration touchpoints
+
+- [ ] Add framework dispatcher to file-processing runtime:
+  - [ ] Integrate framework registry in `src/index/build/file-processor/process-chunks/enrichment.js`.
+  - [ ] Preserve deterministic ordering with `src/graph/ordering.js` (`compareGraphNodes`, `compareGraphEdges`).
+- [ ] Add framework report shaping and schema validation:
+  - [ ] Extend `src/contracts/schemas/usr.js` for framework edge attrs where required.
+  - [ ] Extend `src/contracts/validators/usr-matrix.js` for profile applicability and edge-case completion checks.
+- [ ] Add framework fixture and lane enforcement:
+  - [ ] Add fixture indexes under `tests/fixtures/usr/frameworks/<framework-id>/index.json`.
+  - [ ] Add C4 lane tests under `tests/conformance-c4/` for route/template/style canonicalization and conflict behavior.
 
 ### react
 
@@ -1285,9 +1574,17 @@ If contradictions are found:
 ### F.1 Rollout gates (USR section 26)
 
 - [ ] Complete Phase A schema and registry readiness.
+  - [ ] Gate A checklist is fully green and signed in `usr-gate-signoffs.json`.
+  - [ ] Schema registry coverage reaches 100% for blocking evidence artifacts.
 - [ ] Complete Phase B dual-write parity validation.
+  - [ ] Dual-write report `usr-backcompat-matrix-results.json` contains strict + non-strict scenario outcomes.
+  - [ ] Legacy vs USR reader parity thresholds in `usr-operational-readiness-policy.json` are green.
 - [ ] Complete Phase C USR-backed production path validation.
+  - [ ] `usr-operational-readiness-validation.json` has zero blocking findings.
+  - [ ] Runtime config/security/failure-injection/threat/waiver lanes all green.
 - [ ] Complete Phase D full conformance enforcement.
+  - [ ] C0/C1/C2/C3/C4 lanes are all green without blocking waivers.
+  - [ ] `conformance rollout authorized` remains checked with approved lock.
 
 ### F.2 Backward compatibility and deprecation (USR section 27)
 
@@ -1371,6 +1668,13 @@ A language profile is implementation-complete only when all items below are true
 - [ ] Embedded-language bridge behavior is implemented or explicitly non-applicable with evidence.
 - [ ] Unknown-kind budget for the language is within allowed threshold and reported.
 - [ ] All degradations and unsupported capabilities are explicitly declared and mapped to diagnostics/reason codes.
+
+### I.1 Definition-of-done enforcement touchpoints
+
+- [ ] Add DoD evaluator `tools/usr/evaluate-language-dod.mjs` (NEW) that computes completion from matrix rows + fixture indexes + lane evidence.
+- [ ] Add schema `docs/<new>/schemas/usr/usr-language-dod-report.schema.json` (NEW) and report artifact `usr-language-dod-report.json`.
+- [ ] Add contract test `tests/<new>/lang/contracts/usr-language-dod-validation.test.js` (NEW) enforcing exact alignment between Appendix I, per-language contract files, and matrix rows.
+- [ ] Add CI lane hook `implementation-readiness` to block promotion when any target language DoD item is unmet.
 
 ---
 
@@ -1705,4 +2009,5 @@ Source artifacts: `tests/lang/matrix/usr-ownership-matrix.json` and `tests/lang/
 - `Capability transition diagnostics are correct and complete.` cannot be checked unless diagnostics transition and phase-8 hardening validators remain present in `ci` and `ci-lite` lane manifests.
 - `Embedded/provenance semantics are validated for required language/framework profiles.` cannot be checked unless embedding/provenance validators remain present in `ci` and `ci-lite` lane manifests.
 - `Security and redaction semantics are validated for required profiles and lanes.` and `Critical threat-model coverage and abuse-case mappings are validated for required lanes.` cannot be checked unless security/threat validators remain present in `ci` and `ci-lite` lane manifests.
+
 
