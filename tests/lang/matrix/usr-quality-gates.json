@@ -16,6 +16,17 @@
       "blocking": true
     },
     {
+      "id": "qg-min-slice-typescript-vue",
+      "domain": "minimum-slice",
+      "scopeType": "framework",
+      "scopeId": "vue",
+      "metric": "pass-rate",
+      "thresholdOperator": ">=",
+      "thresholdValue": 1,
+      "fixtureSetId": "minimum-slice-typescript-vue",
+      "blocking": true
+    },
+    {
       "id": "qg-provenance-recall",
       "domain": "provenance",
       "scopeType": "global",
