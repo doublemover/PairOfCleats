@@ -57,10 +57,32 @@ const REDACTABLE_PATH_FIELDS = new Set([
   'indexRoot',
   'indexDir'
 ]);
+const REDACTABLE_PATH_TOKEN_FIELDS = new Set([
+  'message'
+]);
 
 const isAbsoluteLike = (value) => (
   path.isAbsolute(value) || /^[A-Za-z]:[\\/]/.test(value) || /^\\\\/.test(value)
 );
+
+const trimBoundaryPunctuation = (value) => (
+  String(value || '').replace(/^[('"`\[{]+|[)\]'"`},.;:!?]+$/g, '')
+);
+
+/**
+ * Redact absolute path tokens embedded in human-readable diagnostic text.
+ *
+ * This is intentionally narrower than blanket string redaction and is only
+ * applied to known message-like fields so snippets/hit content remain intact.
+ *
+ * @param {string} value
+ * @returns {string}
+ */
+const redactEmbeddedPathTokens = (value) => String(value || '').replace(/\S+/g, (token) => {
+  const candidate = trimBoundaryPunctuation(token);
+  if (!candidate || !isAbsoluteLike(candidate)) return token;
+  return token.replace(candidate, '<redacted>');
+});
 
 const resolveRequestedModes = (modeValue) => {
   const mode = typeof modeValue === 'string' ? modeValue.trim().toLowerCase() : '';
@@ -88,18 +110,21 @@ const resolveRequestedModes = (modeValue) => {
  */
 const sanitizeObjectPaths = (value, context = {}) => {
   const isPathField = context.isPathField === true;
+  const redactPathTokens = context.redactPathTokens === true;
   if (Array.isArray(value)) {
-    return value.map((entry) => sanitizeObjectPaths(entry, { isPathField }));
+    return value.map((entry) => sanitizeObjectPaths(entry, { isPathField, redactPathTokens }));
   }
   if (typeof value === 'string') {
     if (isPathField && isAbsoluteLike(value)) return '<redacted>';
+    if (redactPathTokens) return redactEmbeddedPathTokens(value);
     return value;
   }
   if (!value || typeof value !== 'object') return value;
   const out = {};
   for (const [key, entry] of Object.entries(value)) {
     out[key] = sanitizeObjectPaths(entry, {
-      isPathField: REDACTABLE_PATH_FIELDS.has(key)
+      isPathField: REDACTABLE_PATH_FIELDS.has(key),
+      redactPathTokens: REDACTABLE_PATH_TOKEN_FIELDS.has(key)
     });
   }
   return out;
