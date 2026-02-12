@@ -44,7 +44,7 @@ const validateTemplatePolicies = ({ templateLabel, templatePath, requiredHeader,
   }
 
   const templateRefs = new Set(
-    [...templateText.matchAll(/`((?:docs|tests|src)\/[^`]+?)`/g)].map((match) => match[1])
+    [...templateText.matchAll(/`((?:docs|tests|src)\/[^`]+?|TES_LAYN_ROADMAP\.md)`/g)].map((match) => match[1])
   );
 
   for (const ref of templateRefs) {
@@ -69,6 +69,13 @@ validateTemplatePolicies({
     {
       marker: 'usr-policy:decomposed-workflow',
       requiredRefs: [
+        'docs/specs/usr-consolidation-coverage-matrix.md'
+      ]
+    },
+    {
+      marker: 'usr-policy:appendix-sync',
+      requiredRefs: [
+        'TES_LAYN_ROADMAP.md',
         'docs/specs/usr-consolidation-coverage-matrix.md'
       ]
     },

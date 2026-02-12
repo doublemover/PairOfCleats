@@ -1471,7 +1471,7 @@ Roadmap enforcement requirements:
 - [x] New language onboarding follows `docs/guides/usr-new-language-onboarding.md`.
 - [x] Framework onboarding and interop expectations follow `docs/specs/usr-core-language-framework-catalog.md`.
 - [x] Contract consolidation traceability is maintained in `docs/specs/usr-consolidation-coverage-matrix.md`.
-- [ ] Any contract addition/removal updates Appendix H traceability, Appendix J dependency graph, and Appendix N governance lock in same change.
+- [x] Any contract addition/removal updates Appendix H traceability, Appendix J dependency graph, and Appendix N governance lock in same change.
 
 ### M.1 Phase-to-gate evidence artifact map
 
