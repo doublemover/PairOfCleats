@@ -7,7 +7,8 @@ export const FEDERATION_COHORT_WARNINGS = Object.freeze({
 
 export const FEDERATION_COHORT_ERRORS = Object.freeze({
   MULTI_COHORT: 'ERR_FEDERATED_MULTI_COHORT',
-  COHORT_NOT_FOUND: 'ERR_FEDERATED_COHORT_NOT_FOUND'
+  COHORT_NOT_FOUND: 'ERR_FEDERATED_COHORT_NOT_FOUND',
+  INVALID_SELECTOR: 'ERR_FEDERATED_INVALID_COHORT_SELECTOR'
 });
 
 const normalizeString = (value) => {
@@ -61,6 +62,18 @@ const isRepoSelectableForMode = (repo, mode) => {
   return true;
 };
 
+/**
+ * Create a client-input cohort selector error with stable federated code.
+ *
+ * @param {string} message
+ * @returns {Error}
+ */
+const createInvalidSelectorError = (message) => {
+  const err = new Error(message);
+  err.code = FEDERATION_COHORT_ERRORS.INVALID_SELECTOR;
+  return err;
+};
+
 const parseCohortSelectors = (cohortSelectors) => {
   const selectors = Array.isArray(cohortSelectors)
     ? cohortSelectors
@@ -75,7 +88,7 @@ const parseCohortSelectors = (cohortSelectors) => {
       const mode = token.slice(0, separator).trim();
       const key = token.slice(separator + 1).trim();
       if (!KNOWN_MODES.has(mode) || !key) {
-        throw new Error(`Invalid cohort selector "${token}". Use <key> or <mode>:<key>.`);
+        throw createInvalidSelectorError(`Invalid cohort selector "${token}". Use <key> or <mode>:<key>.`);
       }
       modeSelections.set(mode, key);
       continue;
@@ -83,7 +96,7 @@ const parseCohortSelectors = (cohortSelectors) => {
     globalSelections.add(token);
   }
   if (globalSelections.size > 1) {
-    throw new Error('Multiple global cohort selectors are not supported in one request.');
+    throw createInvalidSelectorError('Multiple global cohort selectors are not supported in one request.');
   }
   const global = globalSelections.size ? Array.from(globalSelections)[0] : null;
   return { global, modeSelections };

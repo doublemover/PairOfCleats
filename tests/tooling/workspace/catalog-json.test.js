@@ -72,5 +72,10 @@ assert.ok(payload.repos[0]?.pointer, 'expected pointer/build metadata for repo')
 assert.equal(payload.repos[0]?.pointer?.buildId, 'build-1');
 assert.equal(payload.repos[0]?.pointer?.parseOk, true);
 assert.equal(typeof payload.repos[0]?.pointer?.currentJsonPath, 'string');
+assert.equal(
+  toRealPathSync(payload.repos[0]?.repoCacheRoot),
+  toRealPathSync(repoCacheRoot),
+  'catalog should report repo-specific cache roots'
+);
 
 console.log('workspace catalog json test passed');

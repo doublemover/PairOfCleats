@@ -7,7 +7,7 @@ import { checksumFile } from '../../src/shared/hash.js';
 import { formatBytes } from '../../src/shared/disk-space.js';
 import { loadPiecesManifest } from '../../src/shared/artifact-io.js';
 import { fromPosix } from '../../src/shared/files.js';
-import { getRepoId, loadUserConfig, resolveIndexRoot, resolveRepoRoot } from '../shared/dict-utils.js';
+import { getRepoId, loadUserConfig, resolveIndexRoot, resolveRepoRootArg } from '../shared/dict-utils.js';
 
 const MODE_ORDER = ['code', 'prose', 'extracted-prose', 'records'];
 const SCHEMA_VERSION = 1;
@@ -100,7 +100,9 @@ const selectModeDirs = () => {
       modes
     };
   }
-  const repoRoot = resolveRepoRoot(String(argv.repo));
+  // Preserve explicit --repo paths as provided by the caller instead of
+  // resolving to enclosing git/config roots.
+  const repoRoot = resolveRepoRootArg(String(argv.repo));
   const userConfig = loadUserConfig(repoRoot);
   const indexRoot = resolveIndexRoot(repoRoot, userConfig, {});
   const modes = collectModeDirsFromRoot(indexRoot, modeFilter);

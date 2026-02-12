@@ -45,7 +45,9 @@ const main = async () => {
         priority: Number(repo.priority || 0),
         tags: Array.isArray(repo.tags) ? repo.tags : [],
         repoRootCanonical: repo.repoRootCanonical,
-        repoCacheRoot: getRepoCacheRoot(repo.repoRootCanonical),
+        // Prefer manifest-derived cache roots so repo-local cache.root overrides
+        // are reflected in catalog output.
+        repoCacheRoot: manifestRepo.repoCacheRoot || getRepoCacheRoot(repo.repoRootCanonical),
         pointer: manifestRepo.build || null,
         modes
       };
