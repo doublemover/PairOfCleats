@@ -504,20 +504,20 @@ Tests:
 
 ### 14.1.2 Snapshot/diff artifact surface (contracts)
 
-- [ ] Define artifacts exactly per spec:
-  - [ ] `snapshots/manifest.json`
-  - [ ] `snapshots/<id>/snapshot.json`
-  - [ ] `snapshots/<id>/frozen.json`
-  - [ ] `diffs/manifest.json`
-  - [ ] `diffs/<diffId>/inputs.json`
-  - [ ] `diffs/<diffId>/summary.json`
-  - [ ] `diffs/<diffId>/events.jsonl`
-- [ ] Define `inputs.json` schema fields explicitly (canonical refs, mode list, allowMismatch, identityHash).
-- [ ] Update public docs to match schema:
-  - [ ] `docs/contracts/indexing.md`
-  - [ ] `docs/contracts/artifact-contract.md`
-  - [ ] `docs/specs/index-refs-and-snapshots.md`
-  - [ ] `docs/specs/index-diffs.md`
+- [x] Define artifacts exactly per spec:
+  - [x] `snapshots/manifest.json`
+  - [x] `snapshots/<id>/snapshot.json`
+  - [x] `snapshots/<id>/frozen.json`
+  - [x] `diffs/manifest.json`
+  - [x] `diffs/<diffId>/inputs.json`
+  - [x] `diffs/<diffId>/summary.json`
+  - [x] `diffs/<diffId>/events.jsonl`
+- [x] Define `inputs.json` schema fields explicitly (canonical refs, mode list, allowMismatch, identityHash).
+- [x] Update public docs to match schema:
+  - [x] `docs/contracts/indexing.md`
+  - [x] `docs/contracts/artifact-contract.md`
+  - [x] `docs/specs/index-refs-and-snapshots.md`
+  - [x] `docs/specs/index-diffs.md`
 
 Touchpoints:
 - `src/contracts/schemas/*` (new snapshot/diff schemas)
@@ -525,8 +525,8 @@ Touchpoints:
 - `src/contracts/registry.js`
 
 Tests:
-- [ ] `tests/unit/snapshots-contracts.unit.js`
-- [ ] `tests/unit/diffs-contracts.unit.js`
+- [x] `tests/indexing/contracts/snapshots-contracts.test.js`
+- [x] `tests/indexing/contracts/diffs-contracts.test.js`
 
 ### 14.1.3 Atomic writes + locking
 

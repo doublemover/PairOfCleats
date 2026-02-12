@@ -297,6 +297,7 @@ Rules:
 - `snapshots` is a map `snapshotId -> SnapshotEntrySummary`.
 - `tags` is a reverse index `tag -> [snapshotId...]` (most recent first).
 - `hasFrozen` MUST be updated to `true` when frozen.json exists and freeze completes.
+- Contract schema key: `snapshots_manifest` (see `src/contracts/schemas/artifacts.js`).
 
 ### 5.3 `snapshot.json` schema (immutable after create)
 ```json
@@ -341,6 +342,7 @@ Rules:
 Notes:
 - `buildRootsByMode` MUST be repoCacheRoot-relative paths (posix-ish separators).
 - `repoRootHash` is optional but recommended: store `sha1(path.resolve(repoRoot))` to correlate snapshots without leaking absolute paths.
+- Contract schema key: `snapshot_record` (see `src/contracts/schemas/artifacts.js`).
 
 ### 5.4 `frozen.json` schema (immutable after freeze)
 ```json
@@ -368,6 +370,7 @@ Notes:
 Rules:
 - `frozenRoot` MUST be repoCacheRoot-relative.
 - `verification.ok` MUST be `true` only when the checks pass.
+- Contract schema key: `snapshot_frozen` (see `src/contracts/schemas/artifacts.js`).
 
 ---
 

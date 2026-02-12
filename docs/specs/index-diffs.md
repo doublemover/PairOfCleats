@@ -89,6 +89,7 @@ repoCacheRoot/
 Rules:
 - The manifest is an index for listing and quick summaries only.
 - The full canonical truth for a diff run is `inputs.json` + `summary.json`.
+- Contract schema key: `diffs_manifest` (see `src/contracts/schemas/artifacts.js`).
 
 ---
 
@@ -184,8 +185,12 @@ Top-level:
 }
 ```
 
+Contract schema key: `diff_summary` (see `src/contracts/schemas/artifacts.js`).
+
 ### 4.2 `events.jsonl`
 Each line is a JSON object event.
+
+`inputs.json` contract schema key: `diff_inputs` (see `src/contracts/schemas/artifacts.js`).
 
 Event kinds:
 - File:

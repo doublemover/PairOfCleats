@@ -1,5 +1,5 @@
 {
-  "schemaHash": "630596fe7e2cb8dc0f8c031bc550e510c1f25e60",
+  "schemaHash": "8e5649421ac9515e17135890970035c6e6f374b4",
   "artifacts": [
     {
       "artifact": "api_contracts",
@@ -406,6 +406,51 @@
       ]
     },
     {
+      "artifact": "diff_inputs",
+      "schemaVersion": null,
+      "requiredFields": [
+        "allowMismatch",
+        "createdAt",
+        "from",
+        "id",
+        "identityHash",
+        "modes",
+        "to"
+      ],
+      "optionalFields": [
+        "fromConfigHash",
+        "fromToolVersion",
+        "toConfigHash",
+        "toToolVersion"
+      ]
+    },
+    {
+      "artifact": "diff_summary",
+      "schemaVersion": null,
+      "requiredFields": [
+        "createdAt",
+        "from",
+        "id",
+        "modes",
+        "to"
+      ],
+      "optionalFields": [
+        "limits",
+        "totals",
+        "truncated"
+      ]
+    },
+    {
+      "artifact": "diffs_manifest",
+      "schemaVersion": null,
+      "requiredFields": [
+        "diffs",
+        "updatedAt",
+        "version"
+      ],
+      "optionalFields": []
+    },
+    {
       "artifact": "field_postings",
       "schemaVersion": null,
       "requiredFields": [
@@ -754,6 +799,48 @@
       "optionalFields": [
         "extensions"
       ]
+    },
+    {
+      "artifact": "snapshot_frozen",
+      "schemaVersion": null,
+      "requiredFields": [
+        "frozenAt",
+        "frozenRoot",
+        "included",
+        "method",
+        "snapshotId",
+        "verification",
+        "version"
+      ],
+      "optionalFields": []
+    },
+    {
+      "artifact": "snapshot_record",
+      "schemaVersion": null,
+      "requiredFields": [
+        "createdAt",
+        "kind",
+        "pointer",
+        "snapshotId",
+        "tags",
+        "version"
+      ],
+      "optionalFields": [
+        "label",
+        "notes",
+        "provenance"
+      ]
+    },
+    {
+      "artifact": "snapshots_manifest",
+      "schemaVersion": null,
+      "requiredFields": [
+        "snapshots",
+        "tags",
+        "updatedAt",
+        "version"
+      ],
+      "optionalFields": []
     },
     {
       "artifact": "symbol_edges",
