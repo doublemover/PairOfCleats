@@ -1,7 +1,7 @@
 # Spec -- USR Core Rollout, Release, and Migration Contract
 
 Status: Draft v2.0
-Last updated: 2026-02-11T08:20:00Z
+Last updated: 2026-02-12T05:39:00Z
 
 ## Purpose
 
@@ -39,6 +39,19 @@ Phase gate minimums:
 | `cutover` | no blocking waivers expired, no-cut checks clear | production validation window complete |
 | `post-cutover stabilization` | cutover complete | churn/regression metrics within thresholds |
 
+### Roadmap phase mapping (A/B/C/D)
+
+Appendix F.1 in `TES_LAYN_ROADMAP.md` maps rollout implementation milestones onto the lifecycle phases above.
+
+| Roadmap phase | Required scope | Blocking evidence bundle |
+| --- | --- | --- |
+| Phase A (schema and registry readiness) | schema + registry validation + drift checks green | `usr-validation-report.json`, `usr-drift-report.json` |
+| Phase B (dual-write parity validation) | parity checks between legacy outputs and USR-derived outputs | `usr-backcompat-matrix-results.json`, `usr-validation-report.json` |
+| Phase C (USR-backed production path validation) | USR-backed internals with compatibility outputs retained | `usr-operational-readiness-validation.json`, `usr-release-readiness-scorecard.json`, `usr-observability-rollup.json` |
+| Phase D (full conformance enforcement) | required conformance levels C0-C4 (profile-dependent) green in required lanes | `usr-conformance-summary.json`, `usr-quality-evaluation-results.json`, `usr-release-readiness-scorecard.json` |
+
+Rollout phases MUST be promoted in order A -> B -> C -> D; phase skipping is forbidden without explicit Tier 3 exception approval and rollback evidence.
+
 ## Compatibility policy
 
 Compatibility enforcement must use:
@@ -48,6 +61,12 @@ Compatibility enforcement must use:
 - strict and non-strict reader profiles
 
 Strict scenario failures in blocking classes are release-blocking.
+
+Legacy-output retention requirements:
+
+- legacy artifact outputs MUST remain emitted until Phase B parity and Phase C readiness evidence are both approved
+- Phase C cannot mark complete if legacy compatibility outputs are removed or materially degraded
+- any proposal to remove legacy outputs before Phase D requires Tier 3 approval and explicit rollback playbook updates
 
 No-cut triggers:
 
@@ -88,6 +107,17 @@ Rollback must also include:
 - maximum rollback decision window
 - post-rollback validation checklist
 
+## Deprecation and archival protocol
+
+Any USR deprecation MUST satisfy all of the following before merge:
+
+- deprecated/superseded doc moved under `docs/archived/`
+- archived doc begins with a DEPRECATED header block
+- DEPRECATED block includes canonical replacement, reason, date, and PR/commit metadata
+- migration and parity evidence references included when deprecation affects artifact semantics or outputs
+
+Deprecation changes are blocking until archival metadata requirements are met and linked from PR governance checklist controls.
+
 ## Required outputs
 
 - `usr-backcompat-matrix-results.json`
@@ -102,4 +132,5 @@ Rollback must also include:
 
 - `docs/specs/usr-core-evidence-gates-waivers.md`
 - `docs/specs/usr-core-observability-performance-ops.md`
+- `docs/archived/README.md`
 

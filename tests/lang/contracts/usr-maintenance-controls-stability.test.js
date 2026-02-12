@@ -31,6 +31,9 @@ const extractSection = (text, startMarker, endMarker) => {
 const maintenanceSection = extractSection(roadmapText, '### 15.3 Maintenance', '### 15.4 Exit criteria');
 assert.equal(/- \[ \] /.test(maintenanceSection), false, 'phase 15.3 maintenance checklist must not contain unchecked items');
 
+const backwardCompatSection = extractSection(roadmapText, '### F.2 Backward compatibility and deprecation (USR section 27)', '### F.3 Change-control (USR section 28)');
+assert.equal(/- \[ \] /.test(backwardCompatSection), false, 'appendix F.2 backward-compat/deprecation checklist must not contain unchecked items');
+
 const changeControlSection = extractSection(roadmapText, '### F.3 Change-control (USR section 28)', '### F.4 Extension policy (USR section 29)');
 assert.equal(/- \[ \] /.test(changeControlSection), false, 'appendix F.3 change-control checklist must not contain unchecked items');
 
@@ -70,6 +73,7 @@ const requiredCiTests = [
   'lang/contracts/usr-f5-hard-requirements-validation',
   'lang/contracts/usr-f6-sync-requirements-validation',
   'lang/contracts/usr-rollout-migration-policy-validation',
+  'lang/contracts/usr-rollout-phase-gate-validation',
   'lang/contracts/usr-archival-deprecation-policy-validation',
   'backcompat/backcompat-matrix-validation',
   'lang/contracts/usr-runtime-config-feature-flag-validation',
