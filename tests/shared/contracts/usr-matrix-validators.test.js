@@ -9,7 +9,9 @@ import {
   resolveUsrRuntimeConfig,
   validateUsrRuntimeConfigResolution,
   validateUsrFeatureFlagConflicts,
-  buildUsrFeatureFlagStateReport
+  buildUsrFeatureFlagStateReport,
+  evaluateUsrFailureInjectionScenarios,
+  buildUsrFailureInjectionReport
 } from '../../../src/contracts/validators/usr-matrix.js';
 import { validateUsrReport } from '../../../src/contracts/validators/usr.js';
 
@@ -173,6 +175,70 @@ const featureFlagStateConflict = buildUsrFeatureFlagStateReport({
 });
 assert.equal(featureFlagStateConflict.ok, false, 'feature-flag state report must fail strict-mode conflicting flags');
 assert.equal(featureFlagStateConflict.payload.status, 'fail', 'feature-flag conflict report must carry fail status');
+const failureInjectionMatrixPath = path.join(matrixDir, 'usr-failure-injection-matrix.json');
+const failureInjectionMatrix = JSON.parse(fs.readFileSync(failureInjectionMatrixPath, 'utf8'));
+
+const strictScenarioResults = Object.fromEntries((failureInjectionMatrix.rows || []).map((row) => [
+  row.id,
+  {
+    outcome: row.strictExpectedOutcome,
+    diagnostics: row.requiredDiagnostics,
+    reasonCodes: row.requiredReasonCodes,
+    recoveryEvidence: [`recovery-${row.id}`]
+  }
+]));
+
+const nonStrictScenarioResults = Object.fromEntries((failureInjectionMatrix.rows || []).map((row) => [
+  row.id,
+  {
+    outcome: row.nonStrictExpectedOutcome,
+    diagnostics: row.requiredDiagnostics,
+    reasonCodes: row.requiredReasonCodes,
+    recoveryEvidence: [`recovery-${row.id}`]
+  }
+]));
+
+const failureEvaluation = evaluateUsrFailureInjectionScenarios({
+  matrixPayload: failureInjectionMatrix,
+  strictScenarioResults,
+  nonStrictScenarioResults,
+  strictEnum: true
+});
+assert.equal(failureEvaluation.ok, true, `failure-injection scenario evaluation should pass: ${failureEvaluation.errors.join('; ')}`);
+assert.equal(failureEvaluation.rows.length, failureInjectionMatrix.rows.length, 'failure-injection scenario evaluator rows must match matrix row count');
+
+const failureReport = buildUsrFailureInjectionReport({
+  matrixPayload: failureInjectionMatrix,
+  strictScenarioResults,
+  nonStrictScenarioResults,
+  strictMode: true,
+  runId: 'run-usr-failure-injection-report-001',
+  lane: 'ci'
+});
+assert.equal(failureReport.ok, true, `failure-injection report should pass: ${failureReport.errors.join('; ')}`);
+const failureReportValidation = validateUsrReport('usr-failure-injection-report', failureReport.payload);
+assert.equal(failureReportValidation.ok, true, `failure-injection report payload must validate: ${failureReportValidation.errors.join('; ')}`);
+
+const strictMismatchResults = {
+  ...strictScenarioResults,
+  'fi-parser-timeout': {
+    ...strictScenarioResults['fi-parser-timeout'],
+    outcome: 'fail-closed'
+  }
+};
+const mismatchEvaluation = evaluateUsrFailureInjectionScenarios({
+  matrixPayload: failureInjectionMatrix,
+  strictScenarioResults: strictMismatchResults,
+  nonStrictScenarioResults,
+  strictEnum: true
+});
+assert.equal(mismatchEvaluation.ok, false, 'failure-injection evaluator must fail on strict outcome mismatches');
+assert.equal(mismatchEvaluation.errors.some((msg) => msg.includes('fi-parser-timeout')), true, 'failure-injection evaluator must include mismatching scenario ID in errors');
 console.log('usr matrix validator tests passed');
+
+
+
+
+
 
 

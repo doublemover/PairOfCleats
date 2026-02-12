@@ -76,6 +76,7 @@ lang/contracts/usr-embedding-bridge-validation
 lang/contracts/usr-generated-provenance-validation
 lang/contracts/usr-implementation-readiness-validation
 lang/contracts/usr-runtime-config-feature-flag-validation
+lang/contracts/usr-failure-injection-validation
 shared/contracts/usr-schema-validators
 shared/contracts/usr-matrix-validators
 retrieval/filters/query-syntax/phrases-and-scorebreakdown
