@@ -11,7 +11,7 @@
     "worktrees"
   ],
   "excludedFiles": ["run.js"],
-  "knownLanes": ["smoke", "unit", "ci-lite", "ci-long", "integration", "services", "api", "storage", "perf", "mcp", "ci", "conformance-c0", "conformance-c1", "conformance-c2", "conformance-c3", "conformance-c4", "backcompat", "diagnostics-summary", "runtime-config", "failure-injection", "fixture-governance", "benchmark-regression", "threat-model", "waiver-enforcement", "report-schema", "implementation-readiness", "harness-core", "canonical-example", "decomposed-drift", "batch-b0", "batch-b1", "batch-b2", "batch-b3", "batch-b4", "batch-b5", "batch-b6", "batch-b7", "batch-b8"],
+  "knownLanes": ["smoke", "unit", "ci-lite", "ci-long", "integration", "services", "api", "storage", "perf", "mcp", "ci", "conformance-c0", "conformance-c1", "conformance-c2", "conformance-c3", "conformance-c4", "backcompat", "diagnostics-summary", "runtime-config", "failure-injection", "fixture-governance", "benchmark-regression", "threat-model", "waiver-enforcement", "report-schema", "implementation-readiness", "observability", "harness-core", "canonical-example", "decomposed-drift", "batch-b0", "batch-b1", "batch-b2", "batch-b3", "batch-b4", "batch-b5", "batch-b6", "batch-b7", "batch-b8"],
   "laneRules": [
     { "lane": "perf", "match": ["^perf/"] },
     { "lane": "ci-lite", "match": ["^ci-lite/"] },
@@ -108,6 +108,12 @@
       "lane": "implementation-readiness",
       "match": [
         "^implementation-readiness/"
+      ]
+    },
+    {
+      "lane": "observability",
+      "match": [
+        "^observability/"
       ]
     },
     {

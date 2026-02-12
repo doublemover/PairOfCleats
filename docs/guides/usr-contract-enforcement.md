@@ -1,6 +1,6 @@
 # USR Contract Enforcement Guide
 
-Last updated: 2026-02-12T16:00:00Z
+Last updated: 2026-02-12T04:28:26Z
 
 ## Purpose
 
@@ -33,6 +33,7 @@ Define CI/local enforcement for the consolidated USR contract model.
 - C4 framework-profile conformance enforcement (`tests/lang/contracts/usr-c4-baseline-validation.test.js`) validates C4 required/blocking level coverage for framework-required language profiles and report generation
 - diagnostic remediation-routing enforcement (`tests/lang/contracts/usr-diagnostic-remediation-routing-validation.test.js`) validates strict diagnostic taxonomy routing to section 33.4 remediation classes
 - implementation readiness enforcement (`tests/lang/contracts/usr-implementation-readiness-validation.test.js`) validates section 40 operational-readiness and quality-gate schema invariants, evidence-schema coverage, promotion blockers for C0/C1 rollout, C2/C3 deep conformance, and C4 framework conformance readiness, and report emission for `usr-operational-readiness-validation` / `usr-release-readiness-scorecard`
+- observability rollup enforcement (`tests/lang/contracts/usr-observability-rollup-validation.test.js`) validates section 41 SLO budget and alert-policy evaluations, blocking-threshold behavior, and `usr-observability-rollup` report emission
 - runtime config and feature-flag enforcement (`tests/lang/contracts/usr-runtime-config-feature-flag-validation.test.js`) validates section 43 precedence resolution, strict-mode policy behavior, and disallowed feature-flag conflicts
 - failure-injection enforcement (`tests/lang/contracts/usr-failure-injection-validation.test.js`) validates section 44 strict/non-strict scenario outcomes, required diagnostics/reason codes, and recovery-evidence coverage
 - fixture-governance enforcement (`tests/lang/contracts/usr-fixture-governance-validation.test.js`) validates section 45 owner/reviewer/mutation-policy controls for blocking fixture families
@@ -65,6 +66,7 @@ Define CI/local enforcement for the consolidated USR contract model.
 - `waiver-enforcement`: focused waiver-policy expiry/bypass governance checks (`tests/waiver-enforcement/waiver-policy-governance.test.js`)
 - `report-schema`: focused section 30/31/43/44/45/46/47/48 report-envelope/audit artifact validation (`tests/report-schema/report-schema-audit-contracts.test.js`)
 - `implementation-readiness`: focused section 40 operational-readiness policy, quality-gate, conformance-promotion, and readiness-scorecard enforcement (`tests/implementation-readiness/implementation-readiness-validation.test.js`)
+- `observability`: focused section 41 SLO budget and alert-policy rollup enforcement (`tests/observability/observability-rollup-validation.test.js`)
 - `harness-core`: focused section 6.7/8.5/12.3 harness checks for canonical IDs, edge endpoints, capability transitions, strict diagnostic/reason validation, and section 33.4 remediation routing (`tests/harness-core/harness-core-validation.test.js`)
 - `canonical-example`: focused section 34 canonical-example fixture bundle validation (`tests/canonical-example/canonical-example-validation.test.js`)
 - `decomposed-drift`: focused decomposed-contract drift and roadmap alignment validation (`tests/decomposed-drift/decomposed-drift-validation.test.js`)
