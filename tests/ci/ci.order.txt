@@ -74,6 +74,7 @@ lang/contracts/usr-canonical-example-validation
 lang/contracts/usr-framework-canonicalization
 lang/contracts/usr-embedding-bridge-validation
 lang/contracts/usr-generated-provenance-validation
+lang/contracts/usr-implementation-readiness-validation
 shared/contracts/usr-schema-validators
 shared/contracts/usr-matrix-validators
 retrieval/filters/query-syntax/phrases-and-scorebreakdown

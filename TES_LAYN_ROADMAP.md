@@ -506,7 +506,7 @@ If contradictions are found:
 - [ ] Materialize decomposed contract drift checks (language/profile/mapping/resolution/risk/conformance/rollout/embedding/provenance/registry/readiness/observability/security contracts).
 - [x] Materialize section 38 embedded-language bridge validators.
 - [x] Materialize section 39 generated/macro provenance validators.
-- [ ] Materialize section 40 implementation-readiness evidence validators and promotion blockers.
+- [x] Materialize section 40 implementation-readiness evidence validators and promotion blockers.
 - [ ] Materialize section 43 runtime config/feature-flag validators and precedence checks.
 - [ ] Materialize section 44 failure-injection scenario evaluator and strict/non-strict outcome validators.
 - [ ] Materialize section 45 fixture-governance validators (owner/reviewer/mutation-policy).
@@ -1472,3 +1472,4 @@ Roadmap enforcement requirements:
 - [ ] Framework onboarding and interop expectations follow `docs/specs/usr-core-language-framework-catalog.md`.
 - [ ] Contract consolidation traceability is maintained in `docs/specs/usr-consolidation-coverage-matrix.md`.
 - [ ] Any contract addition/removal updates Appendix H traceability and Appendix J dependency graph in same change.
+
