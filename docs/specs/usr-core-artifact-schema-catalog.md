@@ -1,7 +1,7 @@
 # Spec -- USR Core Artifact and Schema Catalog
 
 Status: Draft v2.0
-Last updated: 2026-02-12T01:20:00Z
+Last updated: 2026-02-12T05:18:42Z
 
 ## Purpose
 
@@ -114,6 +114,25 @@ CLI determinism requirements:
 - `usr-evidence-freshness-report.json`
 - `usr-feature-flag-policy-evaluation.json`
 - `usr-lane-policy-evaluation.json`
+
+## Blocking evidence artifact schema coverage
+
+| Artifact ID | Required schema file | Coverage class |
+| --- | --- | --- |
+| `usr-conformance-summary` | `docs/schemas/usr/usr-conformance-summary.schema.json` | required audit report |
+| `usr-validation-report` | `docs/schemas/usr/usr-validation-report.schema.json` | required audit report |
+| `usr-release-readiness-scorecard` | `docs/schemas/usr/usr-release-readiness-scorecard.schema.json` | required audit report |
+| `usr-feature-flag-state` | `docs/schemas/usr/usr-feature-flag-state.schema.json` | required audit report |
+| `usr-failure-injection-report` | `docs/schemas/usr/usr-failure-injection-report.schema.json` | required audit report |
+| `usr-benchmark-regression-summary` | `docs/schemas/usr/usr-benchmark-regression-summary.schema.json` | required audit report |
+| `usr-threat-model-coverage-report` | `docs/schemas/usr/usr-threat-model-coverage-report.schema.json` | required audit report |
+| `usr-waiver-active-report` | `docs/schemas/usr/usr-waiver-active-report.schema.json` | required audit report |
+| `usr-waiver-expiry-report` | `docs/schemas/usr/usr-waiver-expiry-report.schema.json` | required audit report |
+| `usr-observability-rollup` | `docs/schemas/usr/usr-observability-rollup.schema.json` | blocking gate evidence |
+| `usr-operational-readiness-validation` | `docs/schemas/usr/usr-operational-readiness-validation.schema.json` | blocking gate evidence |
+| `usr-backcompat-matrix-results` | `docs/schemas/usr/usr-backcompat-matrix-results.schema.json` | compatibility blocking evidence |
+| `usr-quality-evaluation-results` | `docs/schemas/usr/usr-quality-evaluation-results.schema.json` | quality blocking evidence |
+| `usr-drift-report` | `docs/schemas/usr/usr-drift-report.schema.json` | drift blocking evidence |
 
 ## Drift prevention
 

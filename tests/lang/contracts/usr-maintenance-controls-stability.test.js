@@ -33,6 +33,7 @@ assert.equal(/- \[ \] /.test(maintenanceSection), false, 'phase 15.3 maintenance
 
 const appendixMSection = extractSection(roadmapText, 'Roadmap enforcement requirements:', '## Appendix N - Phase 0 Governance Lock Artifacts');
 assert.equal(appendixMSection.includes('- [x] Every phase gate links to at least one concrete evidence artifact in `docs/specs/usr-core-evidence-gates-waivers.md`.'), true, 'appendix M must mark phase-to-evidence linkage requirement complete');
+assert.equal(appendixMSection.includes('- [x] Every blocking evidence artifact has an active schema in `docs/schemas/usr/*.json` and a row in `docs/specs/usr-core-artifact-schema-catalog.md`.'), true, 'appendix M must mark blocking evidence schema-catalog coverage requirement complete');
 assert.equal(appendixMSection.includes('### M.1 Phase-to-gate evidence artifact map'), true, 'appendix M must include phase-to-gate evidence artifact map section');
 assert.equal(appendixMSection.includes('| 0 | `usr-validation-report.json`, `usr-drift-report.json` |'), true, 'appendix M evidence map must include phase 0 artifact mapping');
 assert.equal(appendixMSection.includes('| 15 | `usr-release-readiness-scorecard.json`, `usr-waiver-expiry-report.json`, `usr-observability-rollup.json` |'), true, 'appendix M evidence map must include phase 15 artifact mapping');
@@ -44,6 +45,7 @@ assert.equal(appendixMSection.includes('- [x] Contract consolidation traceabilit
 const requiredCiTests = [
   'lang/contracts/usr-contract-enforcement',
   'lang/contracts/usr-core-artifact-schema-catalog-alignment',
+  'lang/contracts/usr-blocking-evidence-schema-catalog-validation',
   'lang/contracts/usr-onboarding-policy-validation',
   'lang/contracts/usr-roadmap-sync',
   'lang/contracts/usr-pr-template-policy-validation',

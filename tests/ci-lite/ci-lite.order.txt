@@ -330,6 +330,7 @@ shared/contracts/usr-schema-validators
 shared/contracts/usr-matrix-validators
 lang/contracts/usr-contract-enforcement
 lang/contracts/usr-core-artifact-schema-catalog-alignment
+lang/contracts/usr-blocking-evidence-schema-catalog-validation
 lang/contracts/usr-onboarding-policy-validation
 lang/contracts/usr-roadmap-sync
 lang/contracts/usr-pr-template-policy-validation
