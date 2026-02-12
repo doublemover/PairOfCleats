@@ -608,11 +608,12 @@ const generatedProvenanceCases = [
 ].sort((a, b) => a.id.localeCompare(b.id));
 
 const parserRuntimeLocks = [
-  { parserSource: 'framework-compiler', languageId: '*', parserName: 'framework-compiler-baseline', parserVersion: '1.0.0', runtimeName: 'node', runtimeVersion: '20.x', lockReason: 'framework-compiler-baseline' },
-  { parserSource: 'heuristic', languageId: '*', parserName: 'heuristic-fallback-baseline', parserVersion: '1.0.0', runtimeName: 'node', runtimeVersion: '20.x', lockReason: 'fallback-safety-net' },
-  { parserSource: 'native-parser', languageId: '*', parserName: 'native-parser-baseline', parserVersion: '1.0.0', runtimeName: 'node', runtimeVersion: '20.x', lockReason: 'primary-parser-lock' },
-  { parserSource: 'tooling', languageId: '*', parserName: 'tooling-adapter-baseline', parserVersion: '1.0.0', runtimeName: 'node', runtimeVersion: '20.x', lockReason: 'tooling-adapter-lock' },
-  { parserSource: 'tree-sitter', languageId: '*', parserName: 'tree-sitter-core', parserVersion: '0.22.0', runtimeName: 'node-tree-sitter', runtimeVersion: '0.21.x', lockReason: 'tree-sitter-lock' }
+  { parserSource: 'framework-compiler', languageId: '*', parserName: 'framework-compiler-baseline', parserVersion: '1.0.0', runtimeName: 'node', runtimeVersion: '20.x', lockReason: 'framework-compiler-baseline', maxUpgradeBudgetDays: 45 },
+  { parserSource: 'heuristic', languageId: '*', parserName: 'heuristic-fallback-baseline', parserVersion: '1.0.0', runtimeName: 'node', runtimeVersion: '20.x', lockReason: 'fallback-safety-net', maxUpgradeBudgetDays: 90 },
+  { parserSource: 'hybrid', languageId: '*', parserName: 'hybrid-parser-baseline', parserVersion: '1.0.0', runtimeName: 'node', runtimeVersion: '20.x', lockReason: 'hybrid-chain-lock', maxUpgradeBudgetDays: 75 },
+  { parserSource: 'native-parser', languageId: '*', parserName: 'native-parser-baseline', parserVersion: '1.0.0', runtimeName: 'node', runtimeVersion: '20.x', lockReason: 'primary-parser-lock', maxUpgradeBudgetDays: 30 },
+  { parserSource: 'tooling', languageId: '*', parserName: 'tooling-adapter-baseline', parserVersion: '1.0.0', runtimeName: 'node', runtimeVersion: '20.x', lockReason: 'tooling-adapter-lock', maxUpgradeBudgetDays: 60 },
+  { parserSource: 'tree-sitter', languageId: '*', parserName: 'tree-sitter-core', parserVersion: '0.22.0', runtimeName: 'node-tree-sitter', runtimeVersion: '0.21.x', lockReason: 'tree-sitter-lock', maxUpgradeBudgetDays: 30 }
 ].sort((a, b) => {
   if (a.parserSource !== b.parserSource) return a.parserSource.localeCompare(b.parserSource);
   return a.languageId.localeCompare(b.languageId);

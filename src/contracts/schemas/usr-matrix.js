@@ -179,7 +179,7 @@ export const USR_MATRIX_ROW_SCHEMAS = Object.freeze({
   'usr-parser-runtime-lock': {
     type: 'object',
     additionalProperties: false,
-    required: ['parserSource', 'languageId', 'parserName', 'parserVersion', 'runtimeName', 'runtimeVersion', 'lockReason'],
+    required: ['parserSource', 'languageId', 'parserName', 'parserVersion', 'runtimeName', 'runtimeVersion', 'lockReason', 'maxUpgradeBudgetDays'],
     properties: {
       parserSource: STRING,
       languageId: STRING,
@@ -187,7 +187,8 @@ export const USR_MATRIX_ROW_SCHEMAS = Object.freeze({
       parserVersion: STRING,
       runtimeName: STRING,
       runtimeVersion: STRING,
-      lockReason: STRING
+      lockReason: STRING,
+      maxUpgradeBudgetDays: { type: 'integer', minimum: 1 }
     }
   },
   'usr-language-batch-shards': {

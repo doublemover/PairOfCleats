@@ -67,6 +67,7 @@ cli/build-index/build-index-all
 retrieval/cache/query-cache-extracted-prose
 lang/rust/prose-rust-exclusion
 lang/contracts/usr-contract-enforcement
+lang/contracts/usr-parser-runtime-lock-reproducibility-validation
 lang/contracts/usr-core-artifact-schema-catalog-alignment
 lang/contracts/usr-blocking-evidence-schema-catalog-validation
 lang/contracts/usr-change-tier-policy-validation
