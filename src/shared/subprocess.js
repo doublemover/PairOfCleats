@@ -37,9 +37,22 @@ const buildShellCommand = (command, args) => {
   return [command, ...resolvedArgs].map(quoteArg).join(' ');
 };
 
-const shouldUseCmdShell = (command) => {
+const isWindowsAbsolutePath = (value) => /^[A-Za-z]:[\\/]/.test(value) || /^\\\\/.test(value);
+
+const shouldBypassCmdShell = (command) => {
   if (process.platform !== 'win32') return false;
-  return /\.(cmd|bat)$/i.test(String(command ?? ''));
+  const text = String(command ?? '').trim();
+  if (!text) return false;
+  const lowered = text.toLowerCase();
+  // Batch scripts and extensionless commands should continue to route through
+  // cmd.exe so PATHEXT/built-ins (for example `npm`, `dir`) resolve as users expect.
+  if (/\.(cmd|bat)$/i.test(lowered)) return false;
+  const hasPathSep = /[\\/]/.test(text);
+  const hasKnownExecutableExt = /\.(exe|com)$/i.test(lowered);
+  if (hasKnownExecutableExt) return true;
+  if (isWindowsAbsolutePath(text)) return true;
+  if (hasPathSep) return false;
+  return false;
 };
 
 const resolveShellInvocation = (command, args) => {
@@ -255,7 +268,7 @@ export function spawnSubprocess(command, args, options = {}) {
     const useShell = options.shell === true;
     const child = useShell
       ? (() => {
-        if (process.platform === 'win32' && !shouldUseCmdShell(command)) {
+        if (process.platform === 'win32' && shouldBypassCmdShell(command)) {
           return spawn(command, args, { cwd: options.cwd, env: options.env, stdio, shell: false, detached });
         }
         const invocation = resolveShellInvocation(command, args);
@@ -400,7 +413,7 @@ export function spawnSubprocessSync(command, args, options = {}) {
   const useShell = options.shell === true;
   const result = useShell
     ? (() => {
-      if (process.platform === 'win32' && !shouldUseCmdShell(command)) {
+      if (process.platform === 'win32' && shouldBypassCmdShell(command)) {
         return spawnSync(command, args, {
           cwd: options.cwd,
           env: options.env,
