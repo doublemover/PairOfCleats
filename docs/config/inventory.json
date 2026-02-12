@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-12T05:09:56.990Z",
+  "generatedAt": "2026-02-12T12:47:58.286Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2442,6 +2442,7 @@
         "tests/services/api-search-asof.test.js",
         "tests/services/api/federated-search-redacts-paths.test.js",
         "tests/services/api/federated-search-workspace-allowlist.test.js",
+        "tests/services/api/federated-search-workspaceid-validation.test.js",
         "tests/services/asof-explicit-root-no-fallback.test.js",
         "tests/services/embeddings/mode-root-divergence-maintenance.test.js",
         "tests/services/index-diff.test.js",

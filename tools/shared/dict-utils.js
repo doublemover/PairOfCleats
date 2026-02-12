@@ -57,7 +57,9 @@ export {
  */
 export function resolveRepoConfig(repoArg, cwd = process.cwd()) {
   const rootArg = repoArg ? path.resolve(repoArg) : null;
-  const repoRoot = toRealPathSync(resolveRepoRoot(rootArg || cwd));
+  const repoRoot = rootArg
+    ? toRealPathSync(rootArg)
+    : toRealPathSync(resolveRepoRoot(cwd));
   const userConfig = loadUserConfig(repoRoot);
   return { repoRoot, userConfig, rootArg };
 }
@@ -70,5 +72,7 @@ export function resolveRepoConfig(repoArg, cwd = process.cwd()) {
  */
 export function resolveRepoRootArg(repoArg, cwd = process.cwd()) {
   const rootArg = repoArg ? path.resolve(repoArg) : null;
-  return toRealPathSync(resolveRepoRoot(rootArg || cwd));
+  return rootArg
+    ? toRealPathSync(rootArg)
+    : toRealPathSync(resolveRepoRoot(cwd));
 }

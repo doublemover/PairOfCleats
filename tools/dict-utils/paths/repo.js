@@ -38,7 +38,10 @@ export function resolveRepoRoot(startPath = process.cwd()) {
 }
 
 export function getRepoRoot(repoRoot = null, startPath = process.cwd()) {
-  return toRealPathSync(resolveRepoRoot(repoRoot || startPath));
+  if (repoRoot) {
+    return toRealPathSync(path.resolve(repoRoot));
+  }
+  return toRealPathSync(resolveRepoRoot(startPath));
 }
 
 function resolveGitRoot(startPath) {
