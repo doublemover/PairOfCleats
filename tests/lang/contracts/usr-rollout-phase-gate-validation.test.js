@@ -49,7 +49,8 @@ const requiredRoadmapAnchors = [
   '### N.8 Rollout authorization approval lock',
   '### N.9 Appendix F.1 phase-promotion lock',
   '### N.10 Phase 9 readiness authorization lock',
-  '### N.11 Gate B1-B7 language-batch completion lock'
+  '### N.11 Gate B1-B7 language-batch completion lock',
+  '### N.12 Phase 9.1 readiness-audit completion lock'
 ];
 for (const anchor of requiredRoadmapAnchors) {
   assert.equal(roadmapText.includes(anchor), true, `roadmap missing rollout/deprecation anchor: ${anchor}`);
@@ -92,6 +93,7 @@ const requiredCrossPhaseTests = [
   'lang/contracts/usr-rollout-approval-lock-validation',
   'lang/contracts/usr-rollout-f1-checklist-validation',
   'lang/contracts/usr-phase9-readiness-authorization-lock-validation',
+  'lang/contracts/usr-phase9-readiness-audit-lock-validation',
   'lang/contracts/usr-gate-b-language-batch-lock-validation',
   'lang/contracts/usr-archival-deprecation-policy-validation',
   'lang/contracts/usr-pr-template-policy-validation'

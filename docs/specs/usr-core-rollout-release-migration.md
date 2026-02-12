@@ -1,7 +1,7 @@
 # Spec -- USR Core Rollout, Release, and Migration Contract
 
 Status: Draft v2.0
-Last updated: 2026-02-12T07:34:39Z
+Last updated: 2026-02-12T07:36:33Z
 
 ## Purpose
 
@@ -129,6 +129,12 @@ Gate B1-B7 language-batch completion lock requirements:
 - `C0/C1 checks pass for batch languages.` cannot be checked unless Phase 11 exit criterion `All languages pass required C0/C1 checks.` is checked.
 - `determinism checks pass for batch languages.` cannot be checked unless Phase 8 exit criterion `Determinism checks pass under repeated runs.` is checked.
 - `known degradations recorded with diagnostic codes.` and `diagnostic severity/code alignment checks pass for language batch fixtures.` require diagnostic/reason-code contracts and CI severity/reason-code validators to remain active.
+
+Phase 9.1 readiness-audit completion lock requirements:
+
+- `Validate completion evidence for all B1-B7 task packs.` cannot be checked while Gate B1-B7 or Gate B8 checklist lines remain unchecked.
+- `Validate per-language contract approval checklists are complete for target rollout set.` cannot be checked while any file in `docs/specs/usr/languages/*.md` contains unchecked approval checklist lines.
+- If either Phase 9.1 lock line regresses to unchecked dependencies, `Readiness report approved.` and `Test rollout authorized.` must be reopened.
 
 ## Rollback policy
 

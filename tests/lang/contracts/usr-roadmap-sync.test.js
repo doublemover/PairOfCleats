@@ -109,6 +109,7 @@ const requiredRoadmapAnchors = [
   '### N.9 Appendix F.1 phase-promotion lock',
   '### N.10 Phase 9 readiness authorization lock',
   '### N.11 Gate B1-B7 language-batch completion lock',
+  '### N.12 Phase 9.1 readiness-audit completion lock',
   '| Consolidated contract | Primary intent | Required phases | Required CI gates/lanes |',
   'appendices H/J/M/N'
 ];
