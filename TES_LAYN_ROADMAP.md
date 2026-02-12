@@ -748,7 +748,7 @@ If contradictions are found:
 ### Gate B8 (cross-batch integration)
 
 - [x] mixed-repo integration checks pass.
-- [ ] cross-batch regressions resolved.
+- [x] cross-batch regressions resolved.
 - [x] cross-language canonical example bundle coherence checks pass.
 
 ### Gate C (test rollout)
