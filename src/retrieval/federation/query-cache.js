@@ -60,6 +60,10 @@ const normalizeSelection = (selection = {}) => ({
   explicitSelects: normalizeStringList(selection.explicitSelects)
 });
 
+const normalizeWorkspace = (workspace = {}) => ({
+  configHash: typeof workspace?.configHash === 'string' ? workspace.configHash : null
+});
+
 const normalizeCohorts = (cohorts = {}, cohortSelectors = []) => {
   const excludedInput = cohorts?.excluded && typeof cohorts.excluded === 'object'
     ? cohorts.excluded
@@ -94,6 +98,7 @@ export const buildFederatedQueryCacheKeyPayload = ({
   repoSetId,
   manifestHash,
   query,
+  workspace,
   selection,
   cohorts,
   cohortSelectors = [],
@@ -105,6 +110,7 @@ export const buildFederatedQueryCacheKeyPayload = ({
   v: 1,
   repoSetId: repoSetId || null,
   manifestHash: manifestHash || null,
+  workspace: normalizeWorkspace(workspace),
   selection: normalizeSelection(selection),
   cohorts: normalizeCohorts(cohorts, cohortSelectors),
   search: sortObjectDeep({

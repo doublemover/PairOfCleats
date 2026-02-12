@@ -93,11 +93,25 @@ const normalizeTop = (value, fallback = 10) => {
   return Math.max(1, Math.floor(parsed));
 };
 
+/**
+ * Detect compact short-form top flags (for example `-n10`).
+ *
+ * @param {string} token
+ * @returns {boolean}
+ */
+const isCompactTopFlag = (token) => /^-n\d+$/.test(token);
+
 const detectTopFlagCount = (rawArgs) => {
   const { options } = splitAtEndOfOptions(rawArgs);
   return options.reduce((count, token) => {
     const current = String(token || '');
-    if (current === '--top' || current === '-n' || current.startsWith('--top=') || current.startsWith('-n=')) {
+    if (
+      current === '--top'
+      || current === '-n'
+      || current.startsWith('--top=')
+      || current.startsWith('-n=')
+      || isCompactTopFlag(current)
+    ) {
       return count + 1;
     }
     return count;
@@ -113,7 +127,7 @@ const removeTopFlags = (rawArgs) => {
       i += 1;
       continue;
     }
-    if (token.startsWith('--top=') || token.startsWith('-n=')) continue;
+    if (token.startsWith('--top=') || token.startsWith('-n=') || isCompactTopFlag(token)) continue;
     out.push(token);
   }
   return [...out, ...positional];

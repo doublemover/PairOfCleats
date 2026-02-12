@@ -325,10 +325,12 @@ export const createApiRouter = ({
           };
           const result = await runFederatedSearch({
             ...payload,
-            workspacePath: workspaceConfig.workspacePath
+            workspacePath: workspaceConfig.workspacePath,
+            workspaceConfig
           }, {
             signal: controller.signal,
-            resolveRepoCaches: resolveFederatedRepoCaches
+            resolveRepoCaches: resolveFederatedRepoCaches,
+            trustedWorkspaceConfig: true
           });
           sendJson(res, 200, result, corsHeaders || {});
         } catch (err) {

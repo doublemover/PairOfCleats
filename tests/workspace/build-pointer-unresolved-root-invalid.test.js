@@ -21,11 +21,19 @@ await fs.writeFile(path.join(repoRoot, '.pairofcleats.json'), JSON.stringify({
 const repoCacheRoot = getRepoCacheRoot(toRealPathSync(repoRoot));
 const externalBuildRoot = path.join(tempRoot, 'external-build');
 const externalCodeDir = path.join(externalBuildRoot, 'index-code');
+const localBuildRoot = path.join(repoCacheRoot, 'builds', 'build-external');
+const localCodeDir = path.join(localBuildRoot, 'index-code');
 await fs.mkdir(externalCodeDir, { recursive: true });
 await fs.writeFile(path.join(externalCodeDir, 'chunk_meta.json'), '[]', 'utf8');
 await fs.writeFile(path.join(externalCodeDir, 'token_postings.json'), '{}', 'utf8');
 await fs.writeFile(path.join(externalCodeDir, 'index_state.json'), JSON.stringify({
   compatibilityKey: 'compat-external'
+}), 'utf8');
+await fs.mkdir(localCodeDir, { recursive: true });
+await fs.writeFile(path.join(localCodeDir, 'chunk_meta.json'), '[]', 'utf8');
+await fs.writeFile(path.join(localCodeDir, 'token_postings.json'), '{}', 'utf8');
+await fs.writeFile(path.join(localCodeDir, 'index_state.json'), JSON.stringify({
+  compatibilityKey: 'compat-local'
 }), 'utf8');
 
 await fs.mkdir(path.join(repoCacheRoot, 'builds'), { recursive: true });
@@ -48,6 +56,7 @@ assert.equal(repo.build.parseOk, true, 'current.json should parse');
 assert.equal(repo.build.buildRoot, null, 'unresolved buildRoot should be treated as invalid');
 assert.equal(repo.indexes.code.availabilityReason, 'invalid-pointer');
 assert.equal(repo.indexes.code.indexSignatureHash, null, 'invalid build pointer should not load external index signatures');
+assert.equal(repo.indexes.code.present, false, 'invalid pointer should not fall back to same-buildId local indexes');
 assert.ok(
   manifest.diagnostics.warnings.some((entry) => entry.code === 'WARN_WORKSPACE_INVALID_BUILD_POINTER'),
   'expected unresolved buildRoot warning'

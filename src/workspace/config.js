@@ -16,6 +16,7 @@ export const WORKSPACE_ERROR_CODES = Object.freeze({
   SCHEMA_VERSION: 'ERR_WORKSPACE_SCHEMA_VERSION',
   REPOS_EMPTY: 'ERR_WORKSPACE_REPOS_EMPTY',
   REPO_ROOT_NOT_FOUND: 'ERR_WORKSPACE_REPO_ROOT_NOT_FOUND',
+  REPO_ROOT_NOT_DIRECTORY: 'ERR_WORKSPACE_REPO_ROOT_NOT_DIRECTORY',
   DUPLICATE_REPO_ROOT: 'ERR_WORKSPACE_DUPLICATE_REPO_ROOT',
   DUPLICATE_REPO_ID: 'ERR_WORKSPACE_DUPLICATE_REPO_ID',
   DUPLICATE_ALIAS: 'ERR_WORKSPACE_DUPLICATE_ALIAS',
@@ -306,6 +307,25 @@ export const resolveRepoEntry = (workspaceDir, repoEntry, index, {
         field: 'root',
         reason: 'missing',
         hint: 'Create the path or fix the root value in the workspace file.'
+      }
+    ));
+    return null;
+  }
+  let rootStat = null;
+  try {
+    rootStat = fs.statSync(rootAbs);
+  } catch {
+    rootStat = null;
+  }
+  if (!rootStat?.isDirectory?.()) {
+    issues.push(createWorkspaceIssue(
+      WORKSPACE_ERROR_CODES.REPO_ROOT_NOT_DIRECTORY,
+      `Workspace repo root must be a directory: ${rootAbs}`,
+      {
+        path: `${entryPath}.root`,
+        field: 'root',
+        reason: 'not-directory',
+        hint: 'Point root at a repository directory, not a file path.'
       }
     ));
     return null;

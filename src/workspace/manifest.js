@@ -85,6 +85,12 @@ const modePath = (entry, mode) => (
   entry?.indexes && entry.indexes[mode] ? entry.indexes[mode] : null
 );
 
+const normalizePathBoundaryValue = (value) => {
+  const canonical = toRealPathSync(path.resolve(String(value || '')));
+  if (process.platform === 'win32') return canonical.toLowerCase();
+  return canonical;
+};
+
 /**
  * Resolve a build pointer root only if it remains within the repo cache root.
  *
@@ -101,7 +107,7 @@ const resolvePointerRoot = (value, repoCacheRoot, buildsRoot) => {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
   if (!trimmed) return null;
-  const repoCacheResolved = path.resolve(repoCacheRoot);
+  const repoCacheResolved = normalizePathBoundaryValue(repoCacheRoot);
   const candidates = isAbsolutePathNative(trimmed)
     ? [trimmed]
     : [
@@ -109,9 +115,10 @@ const resolvePointerRoot = (value, repoCacheRoot, buildsRoot) => {
       path.join(buildsRoot, trimmed)
     ];
   for (const candidate of candidates) {
-    const normalized = path.resolve(candidate);
-    if (normalized === repoCacheResolved || normalized.startsWith(repoCacheResolved + path.sep)) {
-      return normalized;
+    const resolvedCandidate = path.resolve(candidate);
+    const normalized = normalizePathBoundaryValue(resolvedCandidate);
+    if (normalized === repoCacheResolved || normalized.startsWith(`${repoCacheResolved}${path.sep}`)) {
+      return resolvedCandidate;
     }
   }
   return null;
@@ -154,9 +161,9 @@ const buildEmptyPointerState = (currentJsonPath) => ({
  * Load and normalize build pointer metadata for one repo's current build.
  *
  * Precedence:
- * 1) use `getCurrentBuildInfo()` when available (authoritative resolver),
- * 2) otherwise parse `builds/current.json` with strict in-repo-cache pointer
- *    validation.
+ * 1) validate `builds/current.json` pointer bounds (reject out-of-cache roots),
+ * 2) use `getCurrentBuildInfo()` when available (authoritative resolver),
+ * 3) otherwise use parsed `current.json` data directly.
  *
  * Any parse failure or out-of-bound buildRoot marks the pointer invalid and
  * returns an empty/cleared pointer state, so manifest generation remains
@@ -208,24 +215,11 @@ const readBuildPointerState = async ({ repoId, repoRootCanonical, repoCacheRoot,
     ? data.modes.filter((mode) => typeof mode === 'string' && mode.trim())
     : [];
   pointer.modes = Array.from(new Set(parsedModes.map((mode) => mode.trim())));
-
-  const currentInfo = getCurrentBuildInfo(repoRootCanonical, userConfig) || null;
-  if (currentInfo) {
-    pointer.buildId = normalizeString(currentInfo.buildId);
-    pointer.buildRoot = currentInfo.buildRoot ? toRealPathSync(currentInfo.buildRoot) : null;
-    for (const [mode, rootValue] of Object.entries(ensureObject(currentInfo.buildRoots))) {
-      const normalized = normalizeString(rootValue);
-      if (!normalized) continue;
-      pointer.buildRoots[mode] = toRealPathSync(normalized);
-    }
-    if (!pointer.modes.length) {
-      pointer.modes = Object.keys(pointer.buildRoots).sort();
-    }
-    return pointer;
-  }
-
   pointer.buildId = normalizeString(data.buildId);
   const buildRootRaw = normalizeString(data.buildRoot);
+
+  // Reject malformed/escaped buildRoot pointers before resolver fallback can
+  // substitute a local build directory for the same buildId.
   if (buildRootRaw) {
     const resolvedBuildRoot = resolvePointerRoot(buildRootRaw, repoCacheRoot, buildsRoot);
     if (!resolvedBuildRoot) {
@@ -243,7 +237,24 @@ const readBuildPointerState = async ({ repoId, repoRootCanonical, repoCacheRoot,
       return pointer;
     }
     pointer.buildRoot = toRealPathSync(resolvedBuildRoot);
-  } else {
+  }
+
+  const currentInfo = getCurrentBuildInfo(repoRootCanonical, userConfig) || null;
+  if (currentInfo) {
+    pointer.buildId = normalizeString(currentInfo.buildId) || pointer.buildId;
+    pointer.buildRoot = currentInfo.buildRoot ? toRealPathSync(currentInfo.buildRoot) : pointer.buildRoot;
+    for (const [mode, rootValue] of Object.entries(ensureObject(currentInfo.buildRoots))) {
+      const normalized = normalizeString(rootValue);
+      if (!normalized) continue;
+      pointer.buildRoots[mode] = toRealPathSync(normalized);
+    }
+    if (!pointer.modes.length) {
+      pointer.modes = Object.keys(pointer.buildRoots).sort();
+    }
+    return pointer;
+  }
+
+  if (!buildRootRaw) {
     pointer.buildRoot = pointer.buildId ? toRealPathSync(path.join(buildsRoot, pointer.buildId)) : null;
   }
 

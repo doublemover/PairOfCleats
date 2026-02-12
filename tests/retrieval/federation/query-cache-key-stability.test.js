@@ -10,6 +10,9 @@ const payloadA = buildFederatedQueryCacheKeyPayload({
   repoSetId: 'ws1-demo',
   manifestHash: 'wm1-alpha',
   query: 'greet',
+  workspace: {
+    configHash: 'wsc1-alpha'
+  },
   selection: {
     selectedRepoIds: ['repo-b', 'repo-a'],
     selectedRepoPriorities: ['repo-b:5', 'repo-a:10'],
@@ -50,6 +53,9 @@ const payloadB = buildFederatedQueryCacheKeyPayload({
   repoSetId: 'ws1-demo',
   manifestHash: 'wm1-alpha',
   query: 'greet',
+  workspace: {
+    configHash: 'wsc1-alpha'
+  },
   selection: {
     selectedRepoIds: ['repo-a', 'repo-b'],
     selectedRepoPriorities: ['repo-a:10', 'repo-b:5'],
@@ -105,6 +111,19 @@ assert.notEqual(
   keyA.keyHash,
   keyC.keyHash,
   'repo priority changes should invalidate federated cache keys'
+);
+
+const payloadD = buildFederatedQueryCacheKeyPayload({
+  ...payloadA,
+  workspace: {
+    configHash: 'wsc1-beta'
+  }
+});
+const keyD = buildFederatedQueryCacheKey(payloadD);
+assert.notEqual(
+  keyA.keyHash,
+  keyD.keyHash,
+  'workspace metadata hash changes should invalidate federated cache keys'
 );
 
 console.log('federated query cache key stability test passed');

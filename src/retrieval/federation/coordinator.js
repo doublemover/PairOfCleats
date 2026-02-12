@@ -5,6 +5,7 @@ import { stableStringify } from '../../shared/stable-json.js';
 import { createIndexCache } from '../index-cache.js';
 import { createSqliteDbCache } from '../sqlite-cache.js';
 import { loadWorkspaceConfig } from '../../workspace/config.js';
+import { toRealPathSync } from '../../workspace/identity.js';
 import { generateWorkspaceManifest } from '../../workspace/manifest.js';
 import { buildPerRepoArgsFromCli, buildPerRepoArgsFromRequest } from './args.js';
 import { selectFederationCohorts } from './cohorts.js';
@@ -184,12 +185,50 @@ const toStableResponse = (response, includePaths) => {
   return JSON.parse(stableStringify(response));
 };
 
+/**
+ * Resolve workspace config for a federated request.
+ *
+ * API hosts can pass a prevalidated config snapshot (trustedWorkspaceConfig)
+ * to avoid time-of-check/time-of-use reload races between allowlist checks and
+ * search execution.
+ *
+ * @param {any} request
+ * @param {any} context
+ * @returns {any}
+ */
+const resolveWorkspaceConfig = (request, context) => {
+  const trustedWorkspaceConfig = context?.trustedWorkspaceConfig === true
+    && request?.workspaceConfig
+    && typeof request.workspaceConfig === 'object'
+    && !Array.isArray(request.workspaceConfig)
+    ? request.workspaceConfig
+    : null;
+  if (!trustedWorkspaceConfig) {
+    const workspacePath = pickWorkspaceSource(request);
+    return loadWorkspaceConfig(workspacePath);
+  }
+  const requestWorkspacePath = typeof request?.workspacePath === 'string'
+    ? request.workspacePath.trim()
+    : '';
+  const trustedWorkspacePath = typeof trustedWorkspaceConfig.workspacePath === 'string'
+    ? trustedWorkspaceConfig.workspacePath.trim()
+    : '';
+  if (requestWorkspacePath && trustedWorkspacePath) {
+    if (toRealPathSync(path.resolve(requestWorkspacePath)) !== toRealPathSync(path.resolve(trustedWorkspacePath))) {
+      throw createError(
+        ERROR_CODES.INVALID_REQUEST,
+        'workspacePath does not match the provided workspace configuration.'
+      );
+    }
+  }
+  return trustedWorkspaceConfig;
+};
+
 export const runFederatedSearch = async (request = {}, context = {}) => {
   const query = String(request.query || '').trim();
   if (!query) throw createError(ERROR_CODES.INVALID_REQUEST, 'Query is required.');
 
-  const workspacePath = pickWorkspaceSource(request);
-  const workspaceConfig = loadWorkspaceConfig(workspacePath);
+  const workspaceConfig = resolveWorkspaceConfig(request, context);
   if (request.workspaceId && request.workspaceId !== workspaceConfig.repoSetId) {
     throw createError(ERROR_CODES.INVALID_REQUEST, 'workspaceId does not match the provided workspacePath.');
   }
@@ -255,6 +294,9 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
     repoSetId: workspaceConfig.repoSetId,
     manifestHash: manifest.manifestHash,
     query,
+    workspace: {
+      configHash: workspaceConfig.workspaceConfigHash || null
+    },
     selection: {
       selectedRepoIds: selection.selectedRepoIds,
       // Include priority in the selection fingerprint so cache hits cannot reuse
