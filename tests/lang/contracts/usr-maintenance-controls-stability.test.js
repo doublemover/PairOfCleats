@@ -31,6 +31,10 @@ const extractSection = (text, startMarker, endMarker) => {
 const maintenanceSection = extractSection(roadmapText, '### 15.3 Maintenance', '### 15.4 Exit criteria');
 assert.equal(/- \[ \] /.test(maintenanceSection), false, 'phase 15.3 maintenance checklist must not contain unchecked items');
 
+const appendixMSection = extractSection(roadmapText, 'Roadmap enforcement requirements:', '## Appendix N - Phase 0 Governance Lock Artifacts');
+assert.equal(appendixMSection.includes('- [x] CI contract enforcement follows `docs/guides/usr-contract-enforcement.md`.'), true, 'appendix M must mark CI contract enforcement requirement complete');
+assert.equal(appendixMSection.includes('- [x] Contract consolidation traceability is maintained in `docs/specs/usr-consolidation-coverage-matrix.md`.'), true, 'appendix M must mark consolidation traceability requirement complete');
+
 const requiredCiTests = [
   'lang/contracts/usr-contract-enforcement',
   'lang/contracts/usr-core-artifact-schema-catalog-alignment',
