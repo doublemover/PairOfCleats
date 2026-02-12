@@ -121,7 +121,7 @@ If contradictions are found:
 - [ ] USR section 42 security and data governance contract is enforced with fail-closed blocking semantics.
 - [x] USR section 43 runtime configuration and feature-flag contract is enforced with strict-mode validation.
 - [x] USR section 44 failure injection and resilience contract is enforced with blocking strict fault scenarios.
-- [ ] USR section 45 fixture and golden governance contract is enforced with ownership and mutation policy controls.
+- [x] USR section 45 fixture and golden governance contract is enforced with ownership and mutation policy controls.
 - [ ] USR section 46 performance benchmark methodology contract is enforced with deterministic methodology and regression gates.
 - [ ] USR section 47 threat model and abuse-case coverage contract is enforced with blocking threat/control fixture coverage.
 - [ ] USR section 48 waiver and exception governance contract is enforced with expiry and approver controls.
@@ -475,7 +475,7 @@ If contradictions are found:
 - [ ] Validate implementation-readiness contract evidence set is complete for promotion target phase.
 - [x] Validate runtime config policy evidence and feature-flag state outputs are complete.
 - [x] Validate blocking failure-injection evidence and recovery artifacts are complete.
-- [ ] Validate fixture-governance validation evidence for blocking fixture families is complete.
+- [x] Validate fixture-governance validation evidence for blocking fixture families is complete.
 - [ ] Validate benchmark policy evidence and regression/variance reports are complete for blocking lanes.
 - [ ] Validate threat-model coverage and abuse-case execution evidence are complete.
 - [ ] Validate waiver-policy evidence (active/expiry/breach reports) and approver controls are complete.
@@ -509,7 +509,7 @@ If contradictions are found:
 - [x] Materialize section 40 implementation-readiness evidence validators and promotion blockers.
 - [x] Materialize section 43 runtime config/feature-flag validators and precedence checks.
 - [x] Materialize section 44 failure-injection scenario evaluator and strict/non-strict outcome validators.
-- [ ] Materialize section 45 fixture-governance validators (owner/reviewer/mutation-policy).
+- [x] Materialize section 45 fixture-governance validators (owner/reviewer/mutation-policy).
 - [ ] Materialize section 46 benchmark methodology validators and regression threshold checks.
 - [ ] Materialize section 47 threat-model coverage and abuse-case mapping validators.
 - [ ] Materialize section 48 waiver-policy validators (expiry/approver/compensating-control constraints).
