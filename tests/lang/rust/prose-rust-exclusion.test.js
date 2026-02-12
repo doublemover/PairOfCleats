@@ -3,12 +3,13 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { loadChunkMeta, readJsonFile } from '../../../src/shared/artifact-io.js';
-import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
+import { getIndexDir, loadUserConfig, toRealPathSync } from '../../../tools/shared/dict-utils.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'prose-rust-exclusion');
-const repoRoot = path.join(tempRoot, 'repo');
+const repoRootRaw = path.join(tempRoot, 'repo');
+const repoRoot = toRealPathSync(repoRootRaw);
 const srcDir = path.join(repoRoot, 'src');
 const docsDir = path.join(repoRoot, 'docs');
 
