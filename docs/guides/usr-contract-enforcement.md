@@ -1,6 +1,6 @@
 # USR Contract Enforcement Guide
 
-Last updated: 2026-02-11T07:25:00Z
+Last updated: 2026-02-12T03:15:00Z
 
 ## Purpose
 
@@ -18,6 +18,7 @@ Define CI/local enforcement for the consolidated USR contract model.
 - required `tests/lang/matrix/usr-*.json` files exist and validate
 - required `docs/schemas/usr/*.json` files exist for blocking evidence artifacts
 - cross-registry invariants are enforced
+- minimum-slice harness (`tests/lang/contracts/usr-minimum-slice-harness.test.js`) validates executable TypeScript+Vue slice contracts
 
 3. Roadmap/spec alignment
 - `TES_LAYN_ROADMAP.md` contract references resolve
