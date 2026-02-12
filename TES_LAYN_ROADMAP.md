@@ -626,7 +626,7 @@ If contradictions are found:
 
 - [ ] Emit language-level conformance dashboards.
 - [ ] Emit framework-level conformance dashboards.
-- [ ] Emit capability transition and degradation reports.
+- [x] Emit capability transition and degradation reports.
 - [x] Emit compatibility matrix rollups including required section 36.8 dimensions.
 - [ ] Emit embedded-language bridge coverage and failure dashboards.
 - [ ] Emit generated/macro provenance coverage and confidence-downgrade dashboards.
