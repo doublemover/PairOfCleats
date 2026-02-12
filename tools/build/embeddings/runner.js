@@ -287,6 +287,56 @@ export async function runBuildEmbeddingsWithConfig(config) {
       logArtifactLocation(mode, `${stageLabel}:${entry.label}`, entry.path);
     }
   };
+  const BACKEND_ARTIFACT_RELATIVE_PATHS = [
+    'dense_vectors_hnsw.bin',
+    'dense_vectors_hnsw.meta.json',
+    'dense_vectors_doc_hnsw.bin',
+    'dense_vectors_doc_hnsw.meta.json',
+    'dense_vectors_code_hnsw.bin',
+    'dense_vectors_code_hnsw.meta.json',
+    'dense_vectors.lancedb',
+    'dense_vectors.lancedb.meta.json',
+    'dense_vectors_doc.lancedb',
+    'dense_vectors_doc.lancedb.meta.json',
+    'dense_vectors_code.lancedb',
+    'dense_vectors_code.lancedb.meta.json'
+  ];
+  /**
+   * Promote backend-only artifacts from a staging directory into the active
+   * index directory. Stage3 uses this to isolate backend writers from the core
+   * stage2 artifact surface and then copy only ANN outputs back.
+   *
+   * @param {{stageDir:string,indexDir:string}} input
+   * @returns {Promise<void>}
+   */
+  const promoteBackendArtifacts = async ({ stageDir, indexDir }) => {
+    for (const relPath of BACKEND_ARTIFACT_RELATIVE_PATHS) {
+      const sourcePath = path.join(stageDir, relPath);
+      if (!fsSync.existsSync(sourcePath)) continue;
+      const targetPath = path.join(indexDir, relPath);
+      await fs.mkdir(path.dirname(targetPath), { recursive: true });
+      const stat = await fs.lstat(sourcePath).catch(() => null);
+      if (!stat) continue;
+      await fs.rm(targetPath, { recursive: true, force: true });
+      if (stat.isDirectory()) {
+        try {
+          await fs.rename(sourcePath, targetPath);
+        } catch (err) {
+          if (!['EXDEV', 'EPERM', 'EACCES'].includes(err?.code)) throw err;
+          await fs.cp(sourcePath, targetPath, { recursive: true, force: true });
+          await fs.rm(sourcePath, { recursive: true, force: true });
+        }
+      } else {
+        try {
+          await fs.rename(sourcePath, targetPath);
+        } catch (err) {
+          if (!['EXDEV', 'EPERM', 'EACCES'].includes(err?.code)) throw err;
+          await fs.copyFile(sourcePath, targetPath);
+          await fs.rm(sourcePath, { force: true });
+        }
+      }
+    }
+  };
 
   if (embeddingsConfig.enabled === false || resolvedEmbeddingMode === 'off') {
     error('Embeddings disabled; skipping build-embeddings.');
@@ -800,11 +850,6 @@ export async function runBuildEmbeddingsWithConfig(config) {
             }
           }
         });
-        const hnswPaths = {
-          merged: resolveHnswPaths(indexDir, 'merged'),
-          doc: resolveHnswPaths(indexDir, 'doc'),
-          code: resolveHnswPaths(indexDir, 'code')
-        };
         const hnswIsolate = hnswConfig.enabled
           ? (hnswIsolateOverride ?? isTestingEnv())
           : false;
@@ -1481,38 +1526,57 @@ export async function runBuildEmbeddingsWithConfig(config) {
         logArtifactLocation(mode, 'dense_vectors_doc_uint8', docVectorsPath);
         logArtifactLocation(mode, 'dense_vectors_code_uint8', codeVectorsPath);
 
-        Object.assign(hnswResults, await scheduleIo(() => writeHnswBackends({
-          mode,
-          hnswConfig,
-          hnswIsolate,
-          hnswBuilders,
-          hnswPaths,
-          vectors: { merged: mergedVectors, doc: docVectors, code: codeVectors },
-          vectorsPaths: { merged: mergedVectorsPath, doc: docVectorsPath, code: codeVectorsPath },
-          modelId,
-          dims: finalDims,
-          quantization,
-          scale: denseScale,
-          normalize: embeddingNormalize,
-          logger,
-          log,
-          warn
-        })));
+        const backendStageRoot = path.join(modeIndexRoot || indexDir, '.embeddings-backend-staging');
+        const backendStageDir = path.join(backendStageRoot, `index-${mode}`);
+        await scheduleIo(async () => {
+          await fs.rm(backendStageDir, { recursive: true, force: true });
+          await fs.mkdir(backendStageDir, { recursive: true });
+        });
+        const stagedHnswPaths = {
+          merged: resolveHnswPaths(backendStageDir, 'merged'),
+          doc: resolveHnswPaths(backendStageDir, 'doc'),
+          code: resolveHnswPaths(backendStageDir, 'code')
+        };
+        try {
+          Object.assign(hnswResults, await scheduleIo(() => writeHnswBackends({
+            mode,
+            hnswConfig,
+            hnswIsolate,
+            hnswBuilders,
+            hnswPaths: stagedHnswPaths,
+            vectors: { merged: mergedVectors, doc: docVectors, code: codeVectors },
+            vectorsPaths: { merged: mergedVectorsPath, doc: docVectorsPath, code: codeVectorsPath },
+            modelId,
+            dims: finalDims,
+            quantization,
+            scale: denseScale,
+            normalize: embeddingNormalize,
+            logger,
+            log,
+            warn
+          })));
 
-        await scheduleIo(() => writeLanceDbBackends({
-          mode,
-          indexDir,
-          lanceConfig,
-          vectors: { merged: mergedVectors, doc: docVectors, code: codeVectors },
-          vectorsPaths: { merged: mergedVectorsPath, doc: docVectorsPath, code: codeVectorsPath },
-          dims: finalDims,
-          modelId,
-          quantization,
-          scale: denseScale,
-          normalize: embeddingNormalize,
-          logger,
-          warn
-        }));
+          await scheduleIo(() => writeLanceDbBackends({
+            mode,
+            indexDir: backendStageDir,
+            lanceConfig,
+            vectors: { merged: mergedVectors, doc: docVectors, code: codeVectors },
+            vectorsPaths: { merged: mergedVectorsPath, doc: docVectorsPath, code: codeVectorsPath },
+            dims: finalDims,
+            modelId,
+            quantization,
+            scale: denseScale,
+            normalize: embeddingNormalize,
+            logger,
+            warn
+          }));
+          await scheduleIo(() => promoteBackendArtifacts({
+            stageDir: backendStageDir,
+            indexDir
+          }));
+        } finally {
+          await scheduleIo(() => fs.rm(backendStageDir, { recursive: true, force: true }));
+        }
 
         let sqliteVecState = { enabled: false, available: false };
         if (mode === 'code' || mode === 'prose') {
