@@ -667,7 +667,7 @@ export function buildUsrFailureInjectionReport({
     ok: evaluation.ok,
     errors: evaluation.errors,
     warnings: evaluation.warnings,
-    rows: evaluation.rows,
+    rows,
     payload
   };
 }
@@ -879,7 +879,7 @@ export function buildUsrFixtureGovernanceValidationReport({
     ok: validation.ok,
     errors: validation.errors,
     warnings: validation.warnings,
-    rows: validation.rows,
+    rows,
     payload
   };
 }
@@ -1200,7 +1200,7 @@ export function buildUsrBenchmarkRegressionReport({
     ok: evaluation.ok,
     errors: evaluation.errors,
     warnings: evaluation.warnings,
-    rows: evaluation.rows,
+    rows,
     payload
   };
 }
@@ -1624,7 +1624,7 @@ export function buildUsrObservabilityRollupReport({
     ok: evaluation.ok,
     errors: evaluation.errors,
     warnings: evaluation.warnings,
-    rows: evaluation.rows,
+    rows,
     payload
   };
 }
@@ -1890,7 +1890,7 @@ export function buildUsrSecurityGateValidationReport({
     ok: evaluation.ok,
     errors: evaluation.errors,
     warnings: evaluation.warnings,
-    rows: evaluation.rows,
+    rows,
     payload
   };
 }
@@ -2057,7 +2057,7 @@ export function buildUsrEmbeddingBridgeCoverageReport({
     ok: evaluation.ok,
     errors: evaluation.errors,
     warnings: evaluation.warnings,
-    rows: evaluation.rows,
+    rows,
     payload
   };
 }
@@ -2236,7 +2236,7 @@ export function buildUsrGeneratedProvenanceCoverageReport({
     ok: evaluation.ok,
     errors: evaluation.errors,
     warnings: evaluation.warnings,
-    rows: evaluation.rows,
+    rows,
     payload
   };
 }
@@ -2982,7 +2982,7 @@ export function buildUsrConformanceLevelSummaryReport({
     ok: evaluation.ok,
     errors: evaluation.errors,
     warnings: evaluation.warnings,
-    rows: evaluation.rows,
+    rows,
     payload
   };
 }
@@ -3585,6 +3585,10 @@ export function evaluateUsrOperationalReadiness({
   };
 }
 
+/**
+ * Normalizes report scope values so builders always emit a valid scope envelope,
+ * even when callers omit scope or pass partial scope objects.
+ */
 const normalizeReportScope = (scope, fallbackScopeType = 'lane', fallbackScopeId = 'ci') => (
   scope && typeof scope === 'object'
     ? {
@@ -3666,7 +3670,7 @@ export function buildUsrOperationalReadinessValidationReport({
     blockers: evaluation.blockers,
     errors: evaluation.errors,
     warnings: evaluation.warnings,
-    rows: evaluation.rows,
+    rows,
     payload
   };
 }
@@ -3975,7 +3979,7 @@ export function buildUsrBackcompatMatrixReport({
     ok: validation.ok,
     errors: validation.errors,
     warnings: validation.warnings,
-    rows: validation.rows,
+    rows,
     payload
   };
 }
@@ -4217,7 +4221,7 @@ export function buildUsrThreatModelCoverageReport({
     ok: validation.ok,
     errors: validation.errors,
     warnings: validation.warnings,
-    rows: validation.rows,
+    rows,
     payload
   };
 }
@@ -4642,7 +4646,7 @@ export function buildUsrWaiverExpiryReport({
     ok: validation.ok,
     errors: validation.errors,
     warnings: validation.warnings,
-    rows: validation.rows,
+    rows,
     payload
   };
 }
@@ -4657,6 +4661,7 @@ export function validateUsrRuntimeConfigResolution(options = {}) {
     appliedByKey: resolved.appliedByKey
   };
 }
+
 
 
 
