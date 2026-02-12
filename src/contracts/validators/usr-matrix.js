@@ -2542,6 +2542,340 @@ export function buildUsrConformanceLevelSummaryReport({
   };
 }
 
+const CONFORMANCE_DASHBOARD_LEVELS = Object.freeze(['C0', 'C1', 'C2', 'C3', 'C4']);
+
+const buildConformanceCoverageMapByLevel = ({
+  languageProfilesPayload,
+  conformanceLevelsPayload,
+  knownLanes = [],
+  levels = CONFORMANCE_DASHBOARD_LEVELS
+} = {}) => {
+  const coverageByLevel = new Map();
+  const errors = [];
+  const warnings = [];
+
+  for (const level of levels) {
+    const evaluation = validateUsrConformanceLevelCoverage({
+      targetLevel: level,
+      languageProfilesPayload,
+      conformanceLevelsPayload,
+      knownLanes
+    });
+
+    coverageByLevel.set(level, {
+      evaluation,
+      rowsByProfileId: new Map((evaluation.rows || []).map((row) => [row.profileId, row]))
+    });
+
+    if (evaluation.errors.length > 0) {
+      errors.push(...evaluation.errors.map((message) => `${level} ${message}`));
+    }
+    if (evaluation.warnings.length > 0) {
+      warnings.push(...evaluation.warnings.map((message) => `${level} ${message}`));
+    }
+  }
+
+  return {
+    coverageByLevel,
+    errors,
+    warnings
+  };
+};
+
+export function buildUsrLanguageConformanceDashboardReport({
+  languageProfilesPayload,
+  conformanceLevelsPayload,
+  knownLanes = [],
+  generatedAt = new Date().toISOString(),
+  producerId = 'usr-language-conformance-dashboard',
+  producerVersion = null,
+  runId = 'run-usr-language-conformance-dashboard',
+  lane = 'ci',
+  buildId = null,
+  scope = { scopeType: 'lane', scopeId: 'ci' }
+} = {}) {
+  const languageValidation = validateUsrMatrixRegistry('usr-language-profiles', languageProfilesPayload);
+  if (!languageValidation.ok) {
+    return {
+      ok: false,
+      errors: Object.freeze([...languageValidation.errors]),
+      warnings: Object.freeze([]),
+      rows: Object.freeze([]),
+      payload: null
+    };
+  }
+
+  const conformanceValidation = validateUsrMatrixRegistry('usr-conformance-levels', conformanceLevelsPayload);
+  if (!conformanceValidation.ok) {
+    return {
+      ok: false,
+      errors: Object.freeze([...conformanceValidation.errors]),
+      warnings: Object.freeze([]),
+      rows: Object.freeze([]),
+      payload: null
+    };
+  }
+
+  const { coverageByLevel, errors, warnings } = buildConformanceCoverageMapByLevel({
+    languageProfilesPayload,
+    conformanceLevelsPayload,
+    knownLanes,
+    levels: CONFORMANCE_DASHBOARD_LEVELS
+  });
+
+  const languageRows = Array.isArray(languageProfilesPayload?.rows) ? languageProfilesPayload.rows : [];
+  const rows = [];
+
+  for (const languageRow of languageRows) {
+    const rowErrors = [];
+    const rowWarnings = [];
+    const requiredLevels = asStringArray(languageRow.requiredConformance);
+    const levelStatus = {};
+
+    for (const level of CONFORMANCE_DASHBOARD_LEVELS) {
+      const coverage = coverageByLevel.get(level);
+      const coverageRow = coverage?.rowsByProfileId?.get(languageRow.id) || null;
+      if (!coverageRow) {
+        rowErrors.push(`missing conformance coverage row for level ${level}`);
+        levelStatus[level] = {
+          requiresLevel: requiredLevels.includes(level),
+          pass: false,
+          hasCoverageRow: false
+        };
+        continue;
+      }
+
+      levelStatus[level] = {
+        requiresLevel: coverageRow.requiresLevel,
+        pass: coverageRow.pass,
+        hasCoverageRow: true
+      };
+
+      if (requiredLevels.includes(level) && !coverageRow.pass) {
+        rowErrors.push(`required level ${level} is failing`);
+      }
+
+      if (coverageRow.warnings.length > 0) {
+        rowWarnings.push(...coverageRow.warnings.map((message) => `${level} ${message}`));
+      }
+    }
+
+    if (rowErrors.length > 0) {
+      errors.push(...rowErrors.map((message) => `${languageRow.id} ${message}`));
+    }
+    if (rowWarnings.length > 0) {
+      warnings.push(...rowWarnings.map((message) => `${languageRow.id} ${message}`));
+    }
+
+    rows.push({
+      rowType: 'language-conformance-dashboard',
+      profileId: languageRow.id,
+      requiredLevels,
+      frameworkProfiles: asStringArray(languageRow.frameworkProfiles),
+      levelStatus,
+      pass: rowErrors.length === 0,
+      errors: Object.freeze([...rowErrors]),
+      warnings: Object.freeze([...rowWarnings])
+    });
+  }
+
+  const status = errors.length > 0
+    ? 'fail'
+    : (warnings.length > 0 ? 'warn' : 'pass');
+
+  const payload = {
+    schemaVersion: 'usr-1.0.0',
+    artifactId: 'usr-conformance-summary',
+    generatedAt,
+    producerId,
+    producerVersion,
+    runId,
+    lane,
+    buildId,
+    status,
+    scope: normalizeReportScope(scope, 'lane', lane),
+    summary: {
+      dashboard: 'language-conformance',
+      profileCount: rows.length,
+      passCount: rows.filter((row) => row.pass).length,
+      failCount: rows.filter((row) => !row.pass).length,
+      warningCount: warnings.length,
+      errorCount: errors.length,
+      levelCoverage: Object.fromEntries(CONFORMANCE_DASHBOARD_LEVELS.map((level) => {
+        const requiredCount = rows.filter((row) => asStringArray(row.requiredLevels).includes(level)).length;
+        const passingRequiredCount = rows.filter((row) => asStringArray(row.requiredLevels).includes(level) && row.levelStatus[level]?.pass).length;
+        return [level, { requiredCount, passingRequiredCount }];
+      }))
+    },
+    blockingFindings: errors.map((message) => ({
+      class: 'conformance',
+      message
+    })),
+    advisoryFindings: warnings.map((message) => ({
+      class: 'conformance',
+      message
+    })),
+    rows
+  };
+
+  return {
+    ok: errors.length === 0,
+    errors: Object.freeze([...errors]),
+    warnings: Object.freeze([...warnings]),
+    rows: Object.freeze(rows),
+    payload
+  };
+}
+
+export function buildUsrFrameworkConformanceDashboardReport({
+  frameworkProfilesPayload,
+  languageProfilesPayload,
+  conformanceLevelsPayload,
+  knownLanes = [],
+  generatedAt = new Date().toISOString(),
+  producerId = 'usr-framework-conformance-dashboard',
+  producerVersion = null,
+  runId = 'run-usr-framework-conformance-dashboard',
+  lane = 'ci',
+  buildId = null,
+  scope = { scopeType: 'lane', scopeId: 'ci' }
+} = {}) {
+  const frameworkValidation = validateUsrMatrixRegistry('usr-framework-profiles', frameworkProfilesPayload);
+  if (!frameworkValidation.ok) {
+    return {
+      ok: false,
+      errors: Object.freeze([...frameworkValidation.errors]),
+      warnings: Object.freeze([]),
+      rows: Object.freeze([]),
+      payload: null
+    };
+  }
+
+  const languageValidation = validateUsrMatrixRegistry('usr-language-profiles', languageProfilesPayload);
+  if (!languageValidation.ok) {
+    return {
+      ok: false,
+      errors: Object.freeze([...languageValidation.errors]),
+      warnings: Object.freeze([]),
+      rows: Object.freeze([]),
+      payload: null
+    };
+  }
+
+  const c4Coverage = validateUsrConformanceLevelCoverage({
+    targetLevel: 'C4',
+    languageProfilesPayload,
+    conformanceLevelsPayload,
+    knownLanes
+  });
+
+  const errors = [...c4Coverage.errors.map((message) => `C4 ${message}`)];
+  const warnings = [...c4Coverage.warnings.map((message) => `C4 ${message}`)];
+  const rows = [];
+
+  const frameworkRows = Array.isArray(frameworkProfilesPayload?.rows) ? frameworkProfilesPayload.rows : [];
+  const languageRows = Array.isArray(languageProfilesPayload?.rows) ? languageProfilesPayload.rows : [];
+  const languageById = new Map(languageRows.map((row) => [row.id, row]));
+  const c4ByLanguageId = new Map((c4Coverage.rows || []).map((row) => [row.profileId, row]));
+
+  for (const frameworkRow of frameworkRows) {
+    const rowErrors = [];
+    const rowWarnings = [];
+    const appliesToLanguages = asStringArray(frameworkRow.appliesToLanguages);
+    const failingLanguages = [];
+
+    if (appliesToLanguages.length === 0) {
+      rowErrors.push('appliesToLanguages must not be empty');
+    }
+
+    for (const languageId of appliesToLanguages) {
+      const languageRow = languageById.get(languageId);
+      if (!languageRow) {
+        rowErrors.push(`unknown language in appliesToLanguages: ${languageId}`);
+        continue;
+      }
+
+      const languageFrameworkProfiles = asStringArray(languageRow.frameworkProfiles);
+      if (!languageFrameworkProfiles.includes(frameworkRow.id)) {
+        rowErrors.push(`inverse language frameworkProfiles linkage is missing for ${languageId}`);
+      }
+
+      const coverageRow = c4ByLanguageId.get(languageId);
+      if (!coverageRow) {
+        rowErrors.push(`missing C4 coverage row for ${languageId}`);
+        failingLanguages.push(languageId);
+        continue;
+      }
+
+      if (coverageRow.requiresLevel && !coverageRow.pass) {
+        rowErrors.push(`C4 required coverage is failing for ${languageId}`);
+        failingLanguages.push(languageId);
+      } else if (!coverageRow.requiresLevel) {
+        rowWarnings.push(`language ${languageId} does not require C4 despite framework applicability`);
+      }
+    }
+
+    if (rowErrors.length > 0) {
+      errors.push(...rowErrors.map((message) => `${frameworkRow.id} ${message}`));
+    }
+    if (rowWarnings.length > 0) {
+      warnings.push(...rowWarnings.map((message) => `${frameworkRow.id} ${message}`));
+    }
+
+    rows.push({
+      rowType: 'framework-conformance-dashboard',
+      profileId: frameworkRow.id,
+      appliesToLanguages,
+      failingLanguages: sortedStrings(failingLanguages),
+      pass: rowErrors.length === 0,
+      errors: Object.freeze([...rowErrors]),
+      warnings: Object.freeze([...rowWarnings])
+    });
+  }
+
+  const status = errors.length > 0
+    ? 'fail'
+    : (warnings.length > 0 ? 'warn' : 'pass');
+
+  const payload = {
+    schemaVersion: 'usr-1.0.0',
+    artifactId: 'usr-conformance-summary',
+    generatedAt,
+    producerId,
+    producerVersion,
+    runId,
+    lane,
+    buildId,
+    status,
+    scope: normalizeReportScope(scope, 'lane', lane),
+    summary: {
+      dashboard: 'framework-conformance',
+      profileCount: rows.length,
+      passCount: rows.filter((row) => row.pass).length,
+      failCount: rows.filter((row) => !row.pass).length,
+      warningCount: warnings.length,
+      errorCount: errors.length
+    },
+    blockingFindings: errors.map((message) => ({
+      class: 'framework-conformance',
+      message
+    })),
+    advisoryFindings: warnings.map((message) => ({
+      class: 'framework-conformance',
+      message
+    })),
+    rows
+  };
+
+  return {
+    ok: errors.length === 0,
+    errors: Object.freeze([...errors]),
+    warnings: Object.freeze([...warnings]),
+    rows: Object.freeze(rows),
+    payload
+  };
+}
+
 const TEST_ROLLOUT_LEVELS = Object.freeze(['C0', 'C1']);
 const DEEP_CONFORMANCE_LEVELS = Object.freeze(['C2', 'C3']);
 const FRAMEWORK_CONFORMANCE_LEVELS = Object.freeze(['C4']);

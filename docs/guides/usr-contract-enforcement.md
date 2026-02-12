@@ -1,6 +1,6 @@
 # USR Contract Enforcement Guide
 
-Last updated: 2026-02-12T04:43:34Z
+Last updated: 2026-02-12T04:49:12Z
 
 ## Purpose
 
@@ -31,6 +31,7 @@ Define CI/local enforcement for the consolidated USR contract model.
 - C2/C3 deep-profile conformance enforcement (`tests/lang/contracts/usr-c2-baseline-validation.test.js`, `tests/lang/contracts/usr-c3-baseline-validation.test.js`) validates C2/C3 required/blocking level coverage for eligible language profiles and report generation
 - language risk-profile conformance enforcement (`tests/lang/contracts/usr-language-risk-profile-validation.test.js`) validates machine-readable risk source/sink/sanitizer taxonomy coverage and interprocedural gating invariants
 - C4 framework-profile conformance enforcement (`tests/lang/contracts/usr-c4-baseline-validation.test.js`) validates C4 required/blocking level coverage for framework-required language profiles and report generation
+- conformance dashboard enforcement (`tests/lang/contracts/usr-conformance-dashboard-validation.test.js`) validates section 15.2 language/framework conformance dashboard emission and summary-report schema invariants
 - diagnostic remediation-routing enforcement (`tests/lang/contracts/usr-diagnostic-remediation-routing-validation.test.js`) validates strict diagnostic taxonomy routing to section 33.4 remediation classes
 - implementation readiness enforcement (`tests/lang/contracts/usr-implementation-readiness-validation.test.js`) validates section 40 operational-readiness and quality-gate schema invariants, evidence-schema coverage, promotion blockers for C0/C1 rollout, C2/C3 deep conformance, and C4 framework conformance readiness, and report emission for `usr-operational-readiness-validation` / `usr-release-readiness-scorecard`
 - observability rollup enforcement (`tests/lang/contracts/usr-observability-rollup-validation.test.js`) validates section 41 SLO budget and alert-policy evaluations, blocking-threshold behavior, and `usr-observability-rollup` report emission

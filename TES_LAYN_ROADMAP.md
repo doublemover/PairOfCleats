@@ -624,8 +624,8 @@ If contradictions are found:
 
 ### 15.2 Reporting
 
-- [ ] Emit language-level conformance dashboards.
-- [ ] Emit framework-level conformance dashboards.
+- [x] Emit language-level conformance dashboards.
+- [x] Emit framework-level conformance dashboards.
 - [x] Emit capability transition and degradation reports.
 - [x] Emit compatibility matrix rollups including required section 36.8 dimensions.
 - [ ] Emit embedded-language bridge coverage and failure dashboards.
