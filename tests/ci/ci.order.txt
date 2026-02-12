@@ -66,6 +66,12 @@ indexing/metrics/index-metrics-options
 cli/build-index/build-index-all
 retrieval/cache/query-cache-extracted-prose
 lang/rust/prose-rust-exclusion
+lang/contracts/usr-contract-enforcement
+lang/contracts/usr-roadmap-sync
+lang/contracts/usr-minimum-slice-harness
+lang/contracts/usr-language-contract-template
+shared/contracts/usr-schema-validators
+shared/contracts/usr-matrix-validators
 retrieval/filters/query-syntax/phrases-and-scorebreakdown
 indexing/tree-sitter/js-tree-sitter-maxbytes
 indexing/risk/interprocedural/artifacts-written
