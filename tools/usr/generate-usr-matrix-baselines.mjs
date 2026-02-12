@@ -742,6 +742,22 @@ const operationalReadinessPolicy = [
   { id: 'ops-pre-cutover-checklist', phase: 'pre-cutover', runbookId: 'usr-pre-cutover-checklist', severityClass: 'n/a', requiredRoles: ['usr-architecture', 'usr-rollout'], requiredArtifacts: ['usr-operational-readiness-validation.json', 'usr-rollback-drill-report.json'], communicationChannels: ['release-planning'], maxResponseMinutes: 30, maxRecoveryMinutes: 180, blocking: true }
 ].sort((a, b) => a.id.localeCompare(b.id));
 
+const ownershipMatrix = [
+  { id: 'own-core-artifacts', domain: 'artifact-schema-catalog', ownerRole: 'usr-architecture', backupOwnerRole: 'usr-conformance', escalationPolicyId: 'esc-contract-conflict', evidenceArtifacts: ['usr-validation-report.json'], blocking: true },
+  { id: 'own-diagnostics-taxonomy', domain: 'diagnostics-reasoncodes', ownerRole: 'usr-conformance', backupOwnerRole: 'usr-architecture', escalationPolicyId: 'esc-taxonomy-drift', evidenceArtifacts: ['usr-validation-report.json', 'usr-conformance-summary.json'], blocking: true },
+  { id: 'own-framework-profiles', domain: 'language-framework-catalog', ownerRole: 'usr-framework', backupOwnerRole: 'usr-architecture', escalationPolicyId: 'esc-framework-contract-conflict', evidenceArtifacts: ['usr-conformance-summary.json', 'usr-quality-evaluation-results.json'], blocking: true },
+  { id: 'own-security-governance', domain: 'security-risk-compliance', ownerRole: 'usr-security', backupOwnerRole: 'usr-operations', escalationPolicyId: 'esc-security-gate-failure', evidenceArtifacts: ['usr-threat-model-coverage-report.json', 'usr-failure-injection-report.json'], blocking: true },
+  { id: 'own-observability-slo', domain: 'observability-performance-ops', ownerRole: 'usr-observability', backupOwnerRole: 'usr-operations', escalationPolicyId: 'esc-slo-budget-breach', evidenceArtifacts: ['usr-observability-rollup.json', 'usr-benchmark-summary.json'], blocking: true }
+].sort((a, b) => a.id.localeCompare(b.id));
+
+const escalationPolicy = [
+  { id: 'esc-contract-conflict', triggerClass: 'contract-conflict', severity: 'high', requiredApprovers: ['usr-architecture', 'usr-release-manager'], maxAckMinutes: 60, maxResolutionMinutes: 240, autoBlockPromotion: true },
+  { id: 'esc-framework-contract-conflict', triggerClass: 'framework-conflict', severity: 'high', requiredApprovers: ['usr-framework', 'usr-architecture'], maxAckMinutes: 45, maxResolutionMinutes: 180, autoBlockPromotion: true },
+  { id: 'esc-security-gate-failure', triggerClass: 'security-gate-failure', severity: 'critical', requiredApprovers: ['usr-security', 'usr-oncall-platform'], maxAckMinutes: 15, maxResolutionMinutes: 120, autoBlockPromotion: true },
+  { id: 'esc-slo-budget-breach', triggerClass: 'slo-budget-breach', severity: 'high', requiredApprovers: ['usr-observability', 'usr-operations'], maxAckMinutes: 30, maxResolutionMinutes: 180, autoBlockPromotion: true },
+  { id: 'esc-taxonomy-drift', triggerClass: 'taxonomy-drift', severity: 'medium', requiredApprovers: ['usr-conformance', 'usr-architecture'], maxAckMinutes: 120, maxResolutionMinutes: 720, autoBlockPromotion: false }
+].sort((a, b) => a.id.localeCompare(b.id));
+
 function embeddingPolicyFor(languageId, family) {
   if (customEmbeddingPolicies[languageId]) {
     return customEmbeddingPolicies[languageId];
@@ -993,6 +1009,8 @@ function main() {
   writeRegistry('usr-waiver-policy', waiverPolicy);
   writeRegistry('usr-quality-gates', qualityGates);
   writeRegistry('usr-operational-readiness-policy', operationalReadinessPolicy);
+  writeRegistry('usr-ownership-matrix', ownershipMatrix);
+  writeRegistry('usr-escalation-policy', escalationPolicy);
 }
 
 main();

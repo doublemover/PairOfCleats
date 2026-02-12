@@ -1,7 +1,7 @@
 # Spec -- USR Core Artifact and Schema Catalog
 
 Status: Draft v2.0
-Last updated: 2026-02-12T00:35:00Z
+Last updated: 2026-02-12T01:20:00Z
 
 ## Purpose
 
@@ -29,6 +29,8 @@ The following registries are authoritative and must remain schema-validated:
 - `tests/lang/matrix/usr-backcompat-matrix.json`
 - `tests/lang/matrix/usr-quality-gates.json`
 - `tests/lang/matrix/usr-waiver-policy.json`
+- `tests/lang/matrix/usr-ownership-matrix.json`
+- `tests/lang/matrix/usr-escalation-policy.json`
 
 ## Registry invariants
 
@@ -36,6 +38,7 @@ The following registries are authoritative and must remain schema-validated:
 2. every `frameworkProfile` in framework edge-case matrices must exist in framework profiles
 3. every blocking gate row must define evidence artifact IDs and policy owner
 4. every enum value used by registries must exist in the corresponding schema
+5. every ownership row must reference a valid escalation policy row
 
 Required registry row keys:
 
