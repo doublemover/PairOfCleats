@@ -1296,9 +1296,9 @@ If contradictions are found:
 
 ### F.4 Extension policy (USR section 29)
 
-- [ ] Enforce namespaced extension usage.
-- [ ] Disallow extension overrides of canonical required semantics.
-- [ ] Validate extension determinism in CI.
+- [x] Enforce namespaced extension usage.
+- [x] Disallow extension overrides of canonical required semantics.
+- [x] Validate extension determinism in CI.
 
 ### F.5 Diagnostics/examples/canonicalization/backcompat hard requirements (USR sections 33-36)
 
