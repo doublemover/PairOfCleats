@@ -103,7 +103,13 @@ if (observabilityLine === 'checked') {
 }
 
 if (securityLine === 'checked') {
-  assertTestsPresent(['lang/contracts/usr-security-gate-validation'], 'phase 15.1 section-42 lock');
+  assertTestsPresent(
+    [
+      'lang/contracts/usr-security-gate-validation',
+      'lang/contracts/usr-phase6-exit-lock-validation'
+    ],
+    'phase 15.1 section-42 lock'
+  );
 }
 
 if (runtimeConfigLine === 'checked') {
@@ -144,7 +150,13 @@ if (benchmarkLine === 'checked') {
 }
 
 if (threatModelLine === 'checked') {
-  assertTestsPresent(['lang/contracts/usr-threat-model-coverage-validation'], 'phase 15.1 section-47 lock');
+  assertTestsPresent(
+    [
+      'lang/contracts/usr-threat-model-coverage-validation',
+      'lang/contracts/usr-phase6-exit-lock-validation'
+    ],
+    'phase 15.1 section-47 lock'
+  );
 }
 
 if (waiverLine === 'checked') {

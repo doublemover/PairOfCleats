@@ -102,6 +102,7 @@ assertTestInCiOrders('lang/contracts/usr-phase15-ci-gate-lock-validation', 'F.6.
 assertTestInCiOrders('lang/contracts/usr-phase15-reporting-lock-validation', 'F.6.5');
 assertTestInCiOrders('lang/contracts/usr-phase15-maintenance-lock-validation', 'F.6.5');
 assertTestInCiOrders('lang/contracts/usr-phase15-exit-lock-validation', 'F.6.5');
+assertTestInCiOrders('lang/contracts/usr-phase6-exit-lock-validation', 'F.6.5');
 assertTestInCiOrders('lang/contracts/usr-phase7-exit-lock-validation', 'F.6.5');
 assertTestInCiOrders('lang/contracts/usr-phase8-hardening-readiness-validation', 'F.6.5');
 assertTestInCiOrders('lang/contracts/usr-phase8-exit-lock-validation', 'F.6.5');

@@ -1699,3 +1699,10 @@ Source artifacts: `tests/lang/matrix/usr-ownership-matrix.json` and `tests/lang/
 - `Golden diffs are deterministic on rerun.` cannot be checked unless fixture-golden and phase-8 determinism validators remain present in `ci` and `ci-lite` lane manifests.
 - If any Phase 7.3 fixture/golden exit line regresses to unchecked, Phase 8.4 determinism and Phase 9.1 fixture-evidence checklist lines must be reopened.
 
+### N.26 Phase 6.6 semantics exit-integrity lock
+
+- `C2/C3 requirements pass for required profiles.` cannot be checked unless C2/C3 and language-risk validators remain present in `ci` and `ci-lite` lane manifests.
+- `Capability transition diagnostics are correct and complete.` cannot be checked unless diagnostics transition and phase-8 hardening validators remain present in `ci` and `ci-lite` lane manifests.
+- `Embedded/provenance semantics are validated for required language/framework profiles.` cannot be checked unless embedding/provenance validators remain present in `ci` and `ci-lite` lane manifests.
+- `Security and redaction semantics are validated for required profiles and lanes.` and `Critical threat-model coverage and abuse-case mappings are validated for required lanes.` cannot be checked unless security/threat validators remain present in `ci` and `ci-lite` lane manifests.
+
