@@ -2,9 +2,8 @@
 import { runUsrConformanceLevelBaselineValidation } from './usr-conformance-level-baseline.js';
 
 runUsrConformanceLevelBaselineValidation({
-  targetLevel: 'C1',
-  lane: 'conformance-c1',
-  requireAllProfiles: true
+  targetLevel: 'C3',
+  lane: 'conformance-c3'
 });
 
-console.log('usr C1 baseline validation checks passed');
+console.log('usr C3 baseline validation checks passed');

@@ -19,7 +19,19 @@ const loadRegistry = (registryId) => {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
 };
 
-export const runUsrConformanceLevelBaselineValidation = ({ targetLevel, lane }) => {
+const CONFORMANCE_LEVEL_TO_LANE = Object.freeze({
+  C0: 'conformance-c0',
+  C1: 'conformance-c1',
+  C2: 'conformance-c2',
+  C3: 'conformance-c3',
+  C4: 'conformance-c4'
+});
+
+export const runUsrConformanceLevelBaselineValidation = ({
+  targetLevel,
+  lane,
+  requireAllProfiles = false
+}) => {
   const languageProfiles = loadRegistry('usr-language-profiles');
   const conformanceLevels = loadRegistry('usr-conformance-levels');
   const runRules = loadRunRules({ root: repoRoot });
@@ -34,7 +46,11 @@ export const runUsrConformanceLevelBaselineValidation = ({ targetLevel, lane }) 
   assert.equal(coverage.ok, true, `${targetLevel} conformance coverage should pass: ${coverage.errors.join('; ')}`);
 
   const requiredRows = coverage.rows.filter((row) => row.requiresLevel);
-  assert.equal(requiredRows.length, languageProfiles.rows.length, `${targetLevel} should be required for every language profile`);
+  if (requireAllProfiles) {
+    assert.equal(requiredRows.length, languageProfiles.rows.length, `${targetLevel} should be required for every language profile`);
+  } else {
+    assert.equal(requiredRows.length > 0, true, `${targetLevel} should be required for at least one language profile`);
+  }
   assert.equal(requiredRows.every((row) => row.pass), true, `${targetLevel} required rows should pass`);
 
   const report = buildUsrConformanceLevelSummaryReport({
@@ -51,7 +67,7 @@ export const runUsrConformanceLevelBaselineValidation = ({ targetLevel, lane }) 
   const reportValidation = validateUsrReport('usr-conformance-summary', report.payload);
   assert.equal(reportValidation.ok, true, `${targetLevel} conformance summary payload must validate: ${reportValidation.errors.join('; ')}`);
 
-  const expectedLane = targetLevel === 'C0' ? 'conformance-c0' : (targetLevel === 'C1' ? 'conformance-c1' : lane);
+  const expectedLane = CONFORMANCE_LEVEL_TO_LANE[targetLevel] || lane;
   const missingLaneCoverage = validateUsrConformanceLevelCoverage({
     targetLevel,
     languageProfilesPayload: languageProfiles,
