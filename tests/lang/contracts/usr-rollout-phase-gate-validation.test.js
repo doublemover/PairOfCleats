@@ -113,6 +113,7 @@ const requiredCrossPhaseTests = [
   'lang/contracts/usr-phase15-reporting-lock-validation',
   'lang/contracts/usr-phase15-maintenance-lock-validation',
   'lang/contracts/usr-phase15-exit-lock-validation',
+  'lang/contracts/usr-governance-lock-suite-validation',
   'lang/contracts/usr-archival-deprecation-policy-validation',
   'lang/contracts/usr-pr-template-policy-validation'
 ];

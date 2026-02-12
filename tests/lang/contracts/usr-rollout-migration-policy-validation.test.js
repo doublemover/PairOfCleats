@@ -116,6 +116,7 @@ const requiredCiTests = [
   'lang/contracts/usr-phase15-reporting-lock-validation',
   'lang/contracts/usr-phase15-maintenance-lock-validation',
   'lang/contracts/usr-phase15-exit-lock-validation',
+  'lang/contracts/usr-governance-lock-suite-validation',
   'lang/contracts/usr-rollout-approval-lock-validation',
   'lang/contracts/usr-runtime-config-feature-flag-validation',
   'lang/contracts/usr-implementation-readiness-validation',
