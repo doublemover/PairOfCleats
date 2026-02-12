@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { extractSection } from './usr-lock-test-utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -17,14 +18,6 @@ const unifiedSpecText = fs.readFileSync(unifiedSpecPath, 'utf8');
 const prTemplateText = fs.readFileSync(prTemplatePath, 'utf8');
 const securityGates = JSON.parse(fs.readFileSync(securityGatesPath, 'utf8'));
 const threatModel = JSON.parse(fs.readFileSync(threatModelPath, 'utf8'));
-
-const extractSection = (text, startMarker, endMarker) => {
-  const start = text.indexOf(startMarker);
-  assert.notEqual(start, -1, `missing section start marker: ${startMarker}`);
-  const end = text.indexOf(endMarker, start);
-  assert.notEqual(end, -1, `missing section end marker: ${endMarker}`);
-  return text.slice(start, end);
-};
 
 const getSectionForMarker = (text, marker) => {
   const markerToken = `<!-- ${marker} -->`;
