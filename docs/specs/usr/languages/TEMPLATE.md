@@ -1,7 +1,7 @@
 # USR Language Contract -- <language-id>
 
 Status: Draft v0.1
-Last updated: 2026-02-12T05:57:28Z
+Last updated: 2026-02-12T06:15:48Z
 Owner role: <owner-role>
 Backup owner role: <backup-owner-role>
 Review cadence days: <review-cadence-days>
@@ -23,6 +23,8 @@ Language ID: <language-id>
 ## 11. Required fixture minimums and evidence
 ## 12. Required profile deltas before implementation-complete
 ## 13. Required fixture ID mapping
+- `<language-id>::baseline::coverage-001`
+
 ## 14. Approval checklist
 - [ ] Owner-role review completed.
 - [ ] Backup-owner review completed.

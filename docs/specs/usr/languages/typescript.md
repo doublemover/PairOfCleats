@@ -1,7 +1,7 @@
 # USR Language Contract: typescript
 
 Status: Draft v1.0
-Last updated: 2026-02-12T05:57:28Z
+Last updated: 2026-02-12T06:15:48Z
 Owner role: usr-framework
 Backup owner role: usr-architecture
 Review cadence days: 90
@@ -41,6 +41,13 @@ Normative language contract for `typescript` under USR.
 ## Change control
 
 Any Tier 2/Tier 3 change must update this file and synchronized matrix/fixture evidence.
+
+## Required fixture ID mappings
+
+- `typescript::baseline::coverage-001`
+- `typescript::minimum-slice::vue-module-001`
+- `typescript::provenance::transpile-001`
+
 ## Approval checklist
 
 - [ ] Owner-role review completed.
@@ -55,6 +62,9 @@ Any Tier 2/Tier 3 change must update this file and synchronized matrix/fixture e
 - `usr-quality-evaluation-results.json` includes required conformance-level evidence.
 - `usr-validation-report.json` strict validation output captures this profile's fixture scope.
 - `usr-drift-report.json` confirms language-contract and matrix synchronization.
+
+
+
 
 
 

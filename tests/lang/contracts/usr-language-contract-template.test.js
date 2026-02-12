@@ -21,6 +21,7 @@ const requiredSections = [
   '## Required edge kinds',
   '## Capability baseline',
   '## Change control',
+  '## Required fixture ID mappings',
   '## Approval checklist',
   '## Completion evidence artifacts'
 ];
@@ -40,6 +41,14 @@ for (const row of languageProfiles.rows || []) {
   assert.equal(text.includes('tests/lang/matrix/usr-language-profiles.json'), true, `language contract must reference usr-language-profiles matrix: ${languageId}`);
   assert.equal(text.includes('tests/lang/matrix/usr-language-version-policy.json'), true, `language contract must reference usr-language-version-policy matrix: ${languageId}`);
   assert.equal(text.includes('tests/lang/matrix/usr-language-embedding-policy.json'), true, `language contract must reference usr-language-embedding-policy matrix: ${languageId}`);
+
+  const fixtureMappingSectionStart = text.indexOf('## Required fixture ID mappings');
+  assert.notEqual(fixtureMappingSectionStart, -1, `language contract missing fixture ID mapping section: ${languageId}`);
+  const fixtureMappingSectionEnd = text.indexOf('\n## ', fixtureMappingSectionStart + 1);
+  const fixtureMappingSection = fixtureMappingSectionEnd === -1
+    ? text.slice(fixtureMappingSectionStart)
+    : text.slice(fixtureMappingSectionStart, fixtureMappingSectionEnd);
+  assert.equal(/`[^`]+`/.test(fixtureMappingSection), true, `language contract fixture ID mapping section must include at least one fixture ID: ${languageId}`);
 
   for (const checklistLine of [
     '- [ ] Owner-role review completed.',

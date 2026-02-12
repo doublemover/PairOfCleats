@@ -1,6 +1,6 @@
 # TES_LAYN_ROADMAP - USR-Aligned Language and Framework Execution Master Plan
 
-Last rewritten: 2026-02-12T06:11:38Z
+Last rewritten: 2026-02-12T06:15:48Z
 Branch: `usr-skyforge-primer`
 Document status: active master plan baseline v1.5
 
@@ -415,7 +415,7 @@ If contradictions are found:
 - [x] Materialize framework edge-case fixtures per USR section 35.11 checklist.
 - [x] Materialize embedded-language bridge fixtures per USR section 38 matrix requirements.
 - [x] Materialize generated/macro provenance fixtures per USR section 39 matrix requirements.
-- [ ] Ensure every per-language contract has concrete fixture ID mappings and fixture family coverage.
+- [x] Ensure every per-language contract has concrete fixture ID mappings and fixture family coverage.
 - [x] Add fixture-governance policy rows for every blocking fixture family and framework overlay fixture.
 - [ ] Add fixture ownership/reviewer assignment checks for all blocking fixtures.
 - [ ] Add fixture mutation-policy tags (`require-rfc|require-review|allow-generated-refresh`) and validate policy coverage.

@@ -1,7 +1,7 @@
 # USR Language Authoring
 
 Status: Draft v1.1
-Last updated: 2026-02-12T05:57:28Z
+Last updated: 2026-02-12T06:15:48Z
 
 Language behavior is primarily specified in:
 
@@ -19,6 +19,7 @@ Any language extension document must define:
 - resolution/linking expectations and known ambiguity classes
 - risk source/sink/sanitizer expectations where applicable
 - conformance fixture family requirements and acceptance thresholds
+- required fixture ID mapping section linked to blocking language fixture-governance rows
 - phase-9-oriented approval checklist section with owner/backup signoff and matrix-link verification
 - completion evidence artifact section mapping required report IDs to language-level conformance scope
 
