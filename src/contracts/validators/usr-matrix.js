@@ -1535,6 +1535,223 @@ export function validateUsrMatrixDrivenHarnessCoverage({
   };
 }
 
+const CONFORMANCE_LEVEL_TO_LANE = Object.freeze({
+  C0: 'conformance-c0',
+  C1: 'conformance-c1',
+  C2: 'conformance-c2',
+  C3: 'conformance-c3',
+  C4: 'conformance-c4'
+});
+
+export function validateUsrConformanceLevelCoverage({
+  targetLevel,
+  languageProfilesPayload,
+  conformanceLevelsPayload,
+  knownLanes = []
+} = {}) {
+  const level = typeof targetLevel === 'string' ? targetLevel : '';
+  if (!Object.prototype.hasOwnProperty.call(CONFORMANCE_LEVEL_TO_LANE, level)) {
+    return {
+      ok: false,
+      errors: Object.freeze([`unsupported target conformance level: ${targetLevel}`]),
+      warnings: Object.freeze([]),
+      rows: Object.freeze([])
+    };
+  }
+
+  const languageValidation = validateUsrMatrixRegistry('usr-language-profiles', languageProfilesPayload);
+  if (!languageValidation.ok) {
+    return {
+      ok: false,
+      errors: Object.freeze([...languageValidation.errors]),
+      warnings: Object.freeze([]),
+      rows: Object.freeze([])
+    };
+  }
+
+  const conformanceValidation = validateUsrMatrixRegistry('usr-conformance-levels', conformanceLevelsPayload);
+  if (!conformanceValidation.ok) {
+    return {
+      ok: false,
+      errors: Object.freeze([...conformanceValidation.errors]),
+      warnings: Object.freeze([]),
+      rows: Object.freeze([])
+    };
+  }
+
+  const errors = [];
+  const warnings = [];
+  const rows = [];
+
+  const knownLaneSet = new Set(asStringArray(knownLanes));
+  const expectedLane = CONFORMANCE_LEVEL_TO_LANE[level];
+  if (knownLaneSet.size > 0 && !knownLaneSet.has(expectedLane)) {
+    errors.push(`missing lane for conformance level ${level}: ${expectedLane}`);
+  }
+
+  const languageRows = Array.isArray(languageProfilesPayload?.rows) ? languageProfilesPayload.rows : [];
+  const conformanceRows = Array.isArray(conformanceLevelsPayload?.rows) ? conformanceLevelsPayload.rows : [];
+
+  const languageConformanceRows = conformanceRows.filter((row) => row.profileType === 'language');
+  const conformanceByLanguageId = new Map(languageConformanceRows.map((row) => [row.profileId, row]));
+
+  for (const languageRow of languageRows) {
+    const rowErrors = [];
+    const rowWarnings = [];
+
+    const requiresLevel = asStringArray(languageRow.requiredConformance).includes(level);
+    const conformanceRow = conformanceByLanguageId.get(languageRow.id);
+    if (!conformanceRow) {
+      rowErrors.push('missing conformance-levels row for language profile');
+      errors.push(...rowErrors.map((message) => `${languageRow.id} ${message}`));
+      rows.push({
+        profileId: languageRow.id,
+        targetLevel: level,
+        requiresLevel,
+        hasConformanceRow: false,
+        pass: false,
+        errors: Object.freeze([...rowErrors]),
+        warnings: Object.freeze([...rowWarnings])
+      });
+      continue;
+    }
+
+    const requiredLevels = asStringArray(conformanceRow.requiredLevels);
+    const blockingLevels = asStringArray(conformanceRow.blockingLevels);
+    const requiredFixtureFamilies = asStringArray(conformanceRow.requiredFixtureFamilies);
+
+    if (requiresLevel && !requiredLevels.includes(level)) {
+      rowErrors.push(`requiredLevels missing target level ${level}`);
+    }
+
+    if (requiresLevel && !blockingLevels.includes(level)) {
+      rowErrors.push(`blockingLevels missing target level ${level}`);
+    }
+
+    if (requiresLevel && requiredFixtureFamilies.length === 0) {
+      rowErrors.push('requiredFixtureFamilies must not be empty for required level');
+    }
+
+    if (requiresLevel && !requiredFixtureFamilies.includes('golden')) {
+      rowWarnings.push('requiredFixtureFamilies should include golden for deterministic conformance evidence');
+    }
+
+    if (requiresLevel && level === 'C1' && !requiredFixtureFamilies.includes('resolution')) {
+      rowWarnings.push('requiredFixtureFamilies should include resolution for C1 baseline evidence');
+    }
+
+    if (rowErrors.length > 0) {
+      errors.push(...rowErrors.map((message) => `${languageRow.id} ${message}`));
+    }
+
+    if (rowWarnings.length > 0) {
+      warnings.push(...rowWarnings.map((message) => `${languageRow.id} ${message}`));
+    }
+
+    rows.push({
+      profileId: languageRow.id,
+      targetLevel: level,
+      requiresLevel,
+      hasConformanceRow: true,
+      pass: rowErrors.length === 0,
+      errors: Object.freeze([...rowErrors]),
+      warnings: Object.freeze([...rowWarnings])
+    });
+  }
+
+  return {
+    ok: errors.length === 0,
+    errors: Object.freeze([...errors]),
+    warnings: Object.freeze([...warnings]),
+    rows: Object.freeze(rows)
+  };
+}
+
+export function buildUsrConformanceLevelSummaryReport({
+  targetLevel,
+  languageProfilesPayload,
+  conformanceLevelsPayload,
+  knownLanes = [],
+  generatedAt = new Date().toISOString(),
+  producerId = 'usr-conformance-level-validator',
+  producerVersion = null,
+  runId = 'run-usr-conformance-level-summary',
+  lane,
+  buildId = null,
+  scope = { scopeType: 'lane', scopeId: 'global' }
+} = {}) {
+  const level = typeof targetLevel === 'string' ? targetLevel : '';
+  const defaultLane = CONFORMANCE_LEVEL_TO_LANE[level] || 'ci';
+  const evaluation = validateUsrConformanceLevelCoverage({
+    targetLevel: level,
+    languageProfilesPayload,
+    conformanceLevelsPayload,
+    knownLanes
+  });
+
+  const rows = evaluation.rows.map((row) => ({
+    profileId: row.profileId,
+    targetLevel: row.targetLevel,
+    requiresLevel: row.requiresLevel,
+    hasConformanceRow: row.hasConformanceRow,
+    pass: row.pass,
+    errors: row.errors,
+    warnings: row.warnings
+  }));
+
+  const status = evaluation.errors.length > 0
+    ? 'fail'
+    : (evaluation.warnings.length > 0 ? 'warn' : 'pass');
+
+  const normalizedScope = (
+    scope && typeof scope === 'object'
+      ? {
+          scopeType: typeof scope.scopeType === 'string' ? scope.scopeType : 'lane',
+          scopeId: typeof scope.scopeId === 'string' ? scope.scopeId : defaultLane
+        }
+      : { scopeType: 'lane', scopeId: defaultLane }
+  );
+
+  const payload = {
+    schemaVersion: 'usr-1.0.0',
+    artifactId: 'usr-conformance-summary',
+    generatedAt,
+    producerId,
+    producerVersion,
+    runId,
+    lane: typeof lane === 'string' && lane.trim() ? lane : defaultLane,
+    buildId,
+    status,
+    scope: normalizedScope,
+    summary: {
+      targetLevel: level,
+      profileCount: rows.length,
+      requiredProfileCount: rows.filter((row) => row.requiresLevel).length,
+      passCount: rows.filter((row) => row.pass).length,
+      failCount: rows.filter((row) => !row.pass).length,
+      warningCount: evaluation.warnings.length,
+      errorCount: evaluation.errors.length
+    },
+    blockingFindings: evaluation.errors.map((message) => ({
+      class: 'conformance',
+      message
+    })),
+    advisoryFindings: evaluation.warnings.map((message) => ({
+      class: 'conformance',
+      message
+    })),
+    rows
+  };
+
+  return {
+    ok: evaluation.ok,
+    errors: evaluation.errors,
+    warnings: evaluation.warnings,
+    rows: evaluation.rows,
+    payload
+  };
+}
+
 const USR_VERSION_PATTERN = /^usr-\d+\.\d+\.\d+$/;
 const REQUIRED_BACKCOMPAT_IDS = Object.freeze(
   new Set(Array.from({ length: 12 }, (_, index) => `BC-${String(index + 1).padStart(3, '0')}`))
