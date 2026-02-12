@@ -2,6 +2,7 @@ import path from 'node:path';
 import { search, status } from '../../src/integrations/core/index.js';
 import { runFederatedSearch } from '../../src/retrieval/federation/coordinator.js';
 import { loadWorkspaceConfig } from '../../src/workspace/config.js';
+import { resolveFederationCacheRoot } from '../../src/workspace/manifest.js';
 import { createFederatedSearchValidator, createSearchValidator } from './validation.js';
 import { sendError, sendJson } from './response.js';
 import { ERROR_CODES } from '../../src/shared/error-codes.js';
@@ -108,6 +109,12 @@ export const createApiRouter = ({
     const workspaceConfig = loadWorkspaceConfig(resolvedWorkspacePath);
     for (const repo of workspaceConfig.repos) {
       await resolveRepo(repo.repoRootCanonical);
+    }
+    const federationCacheRoot = resolveFederationCacheRoot(workspaceConfig);
+    if (!isAllowedWorkspacePath(federationCacheRoot)) {
+      const err = new Error('Workspace cache root not permitted by server configuration.');
+      err.code = ERROR_CODES.FORBIDDEN;
+      throw err;
     }
     if (payload?.workspaceId && payload.workspaceId !== workspaceConfig.repoSetId) {
       throw new Error('workspaceId does not match the provided workspacePath.');
@@ -317,7 +324,7 @@ export const createApiRouter = ({
           sendJson(res, 200, result, corsHeaders || {});
         } catch (err) {
           if (req.aborted || res.writableEnded) return;
-          const isNoIndex = err?.code === ERROR_CODES.NO_INDEX;
+          const isNoIndex = isNoIndexError(err);
           const isClientError = isFederatedClientError(err);
           sendError(
             res,

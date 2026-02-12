@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { runFederatedSearch } from '../../../src/retrieval/federation/coordinator.js';
+import { getRepoCacheRoot } from '../../../tools/shared/dict-utils.js';
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-fed-redact-fields-'));
 const cacheRoot = path.join(tempRoot, 'cache');
@@ -22,6 +23,22 @@ await fs.writeFile(workspacePath, `{
   ]
 }`, 'utf8');
 
+const repoCacheRoot = getRepoCacheRoot(repoRoot);
+const buildRoot = path.join(repoCacheRoot, 'builds', 'test-build');
+const codeIndexDir = path.join(buildRoot, 'index-code');
+await fs.mkdir(path.join(repoCacheRoot, 'builds'), { recursive: true });
+await fs.mkdir(codeIndexDir, { recursive: true });
+await fs.writeFile(path.join(repoCacheRoot, 'builds', 'current.json'), JSON.stringify({
+  buildId: 'test-build',
+  buildRoot,
+  modes: ['code']
+}, null, 2), 'utf8');
+await fs.writeFile(path.join(codeIndexDir, 'chunk_meta.json'), '[]', 'utf8');
+await fs.writeFile(path.join(codeIndexDir, 'token_postings.json'), '{}', 'utf8');
+await fs.writeFile(path.join(codeIndexDir, 'index_state.json'), JSON.stringify({
+  compatibilityKey: 'compat-test'
+}, null, 2), 'utf8');
+
 const literalSnippet = 'C:\\snippet\\literal text should survive redaction';
 const absoluteFilePath = path.join(repoRoot, 'src', 'app.js');
 let searchCalls = 0;
@@ -29,6 +46,7 @@ let searchCalls = 0;
 const request = {
   workspacePath,
   query: 'redaction-scope',
+  select: [repoRoot],
   search: {
     mode: 'code',
     top: 5
@@ -61,7 +79,9 @@ const second = await runFederatedSearch(request, { searchFn });
 assert.equal(searchCalls, 1, 'second request should reuse federated cache');
 assert.equal(first.code[0]?.file, '<redacted>', 'absolute file path field should be redacted');
 assert.equal(first.code[0]?.snippet, literalSnippet, 'non-path snippet content should not be redacted');
+assert.equal(first.meta?.selection?.explicitSelects?.[0], '<redacted>', 'absolute explicit select path should be redacted');
 assert.equal(second.code[0]?.file, '<redacted>', 'cached file field should remain redacted');
 assert.equal(second.code[0]?.snippet, literalSnippet, 'cached snippet should preserve original content');
+assert.equal(second.meta?.selection?.explicitSelects?.[0], '<redacted>', 'cached explicit select path should remain redacted');
 
 console.log('federation path redaction field scope test passed');

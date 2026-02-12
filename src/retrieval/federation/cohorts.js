@@ -142,16 +142,21 @@ export const selectFederationCohorts = ({
   const excluded = {};
 
   for (const mode of requestedModes) {
+    const explicitKey = selectors.modeSelections.get(mode) || selectors.global;
     const bucketMap = buildBucketMap(repos, mode);
     const ranked = rankCohorts(bucketMap);
     if (!ranked.length) {
+      if (explicitKey) {
+        const err = new Error(`Requested cohort "${explicitKey}" not found for mode "${mode}".`);
+        err.code = FEDERATION_COHORT_ERRORS.COHORT_NOT_FOUND;
+        throw err;
+      }
       modeSelections[mode] = null;
       selectedReposByMode[mode] = [];
       excluded[mode] = [];
       continue;
     }
 
-    const explicitKey = selectors.modeSelections.get(mode) || selectors.global;
     if (explicitKey) {
       const match = ranked.find((entry) => entry.key === explicitKey);
       if (!match) {

@@ -41,6 +41,7 @@ const REDACTABLE_PATH_FIELDS = new Set([
   'repoPath',
   'repoRoot',
   'repoRootCanonical',
+  'explicitSelects',
   'file',
   'path',
   'cacheRoot',
