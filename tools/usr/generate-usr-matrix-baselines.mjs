@@ -36,7 +36,7 @@ const languageBaselines = [
   { id: 'ruby', family: 'dynamic', parserPreference: 'tree-sitter', requiredConformance: ['C0', 'C1', 'C2', 'C3'], frameworkProfiles: [], minVersion: '3.1', dialects: ['ruby'], featureFlags: ['pattern-matching'] },
   { id: 'php', family: 'dynamic', parserPreference: 'tree-sitter', requiredConformance: ['C0', 'C1', 'C2', 'C3'], frameworkProfiles: [], minVersion: '8.1', dialects: ['php'], featureFlags: ['attributes', 'union-types'] },
   { id: 'html', family: 'markup', parserPreference: 'tree-sitter', requiredConformance: ['C0', 'C1', 'C4'], frameworkProfiles: ['angular', 'astro', 'nuxt', 'svelte', 'sveltekit', 'vue'], minVersion: 'html5', dialects: ['html'], featureFlags: ['custom-elements'] },
-  { id: 'css', family: 'style', parserPreference: 'tree-sitter', requiredConformance: ['C0', 'C1', 'C4'], frameworkProfiles: ['angular', 'astro', 'next', 'nuxt', 'react', 'svelte', 'sveltekit', 'vue'], minVersion: 'css3', dialects: ['css', 'scss'], featureFlags: ['modules', 'nesting'] },
+  { id: 'css', family: 'style', parserPreference: 'tree-sitter', requiredConformance: ['C0', 'C1', 'C4'], frameworkProfiles: ['astro', 'nuxt', 'svelte', 'sveltekit', 'vue'], minVersion: 'css3', dialects: ['css', 'scss'], featureFlags: ['modules', 'nesting'] },
   { id: 'lua', family: 'dynamic', parserPreference: 'tree-sitter', requiredConformance: ['C0', 'C1', 'C2', 'C3'], frameworkProfiles: [], minVersion: '5.4', dialects: ['lua'], featureFlags: ['metatables'] },
   { id: 'sql', family: 'data-interface', parserPreference: 'hybrid', requiredConformance: ['C0', 'C1', 'C2', 'C3'], frameworkProfiles: [], minVersion: 'sql-2016', dialects: ['ansi-sql', 'postgresql', 'sqlite'], featureFlags: ['cte', 'window-functions'] },
   { id: 'perl', family: 'dynamic', parserPreference: 'heuristic', requiredConformance: ['C0', 'C1', 'C2', 'C3'], frameworkProfiles: [], minVersion: '5.34', dialects: ['perl5'], featureFlags: ['regex-extended'] },
@@ -914,7 +914,25 @@ function ensureDir() {
   fs.mkdirSync(matrixDir, { recursive: true });
 }
 
+function assertLanguageFrameworkApplicability() {
+  const appliesByFramework = new Map(
+    frameworkProfiles.map((profile) => [profile.id, new Set(profile.appliesToLanguages)])
+  );
+  for (const language of languageBaselines) {
+    for (const frameworkId of language.frameworkProfiles) {
+      const applies = appliesByFramework.get(frameworkId);
+      if (!applies) {
+        throw new Error(`Unknown framework profile in language baseline: language=${language.id} framework=${frameworkId}`);
+      }
+      if (!applies.has(language.id)) {
+        throw new Error(`Inconsistent language/framework applicability: language=${language.id} framework=${frameworkId}`);
+      }
+    }
+  }
+}
+
 function main() {
+  assertLanguageFrameworkApplicability();
   ensureDir();
   const languageProfiles = languageProfileRows();
   writeRegistry('usr-language-profiles', languageProfiles);
