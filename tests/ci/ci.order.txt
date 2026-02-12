@@ -68,6 +68,7 @@ retrieval/cache/query-cache-extracted-prose
 lang/rust/prose-rust-exclusion
 lang/contracts/usr-contract-enforcement
 lang/contracts/usr-roadmap-sync
+lang/contracts/usr-pr-template-policy-validation
 lang/contracts/usr-minimum-slice-harness
 lang/contracts/usr-language-contract-template
 lang/contracts/usr-language-batch-shards-validation
