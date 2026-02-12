@@ -1,0 +1,68 @@
+{
+  "schemaVersion": "usr-registry-1.0.0",
+  "registryId": "usr-escalation-policy",
+  "generatedAt": "2026-02-11T03:30:00Z",
+  "generatedBy": "tools/usr/generate-usr-matrix-baselines.mjs",
+  "rows": [
+    {
+      "id": "esc-contract-conflict",
+      "triggerClass": "contract-conflict",
+      "severity": "high",
+      "requiredApprovers": [
+        "usr-architecture",
+        "usr-release-manager"
+      ],
+      "maxAckMinutes": 60,
+      "maxResolutionMinutes": 240,
+      "autoBlockPromotion": true
+    },
+    {
+      "id": "esc-framework-contract-conflict",
+      "triggerClass": "framework-conflict",
+      "severity": "high",
+      "requiredApprovers": [
+        "usr-framework",
+        "usr-architecture"
+      ],
+      "maxAckMinutes": 45,
+      "maxResolutionMinutes": 180,
+      "autoBlockPromotion": true
+    },
+    {
+      "id": "esc-security-gate-failure",
+      "triggerClass": "security-gate-failure",
+      "severity": "critical",
+      "requiredApprovers": [
+        "usr-security",
+        "usr-oncall-platform"
+      ],
+      "maxAckMinutes": 15,
+      "maxResolutionMinutes": 120,
+      "autoBlockPromotion": true
+    },
+    {
+      "id": "esc-slo-budget-breach",
+      "triggerClass": "slo-budget-breach",
+      "severity": "high",
+      "requiredApprovers": [
+        "usr-observability",
+        "usr-operations"
+      ],
+      "maxAckMinutes": 30,
+      "maxResolutionMinutes": 180,
+      "autoBlockPromotion": true
+    },
+    {
+      "id": "esc-taxonomy-drift",
+      "triggerClass": "taxonomy-drift",
+      "severity": "medium",
+      "requiredApprovers": [
+        "usr-conformance",
+        "usr-architecture"
+      ],
+      "maxAckMinutes": 120,
+      "maxResolutionMinutes": 720,
+      "autoBlockPromotion": false
+    }
+  ]
+}
