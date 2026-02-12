@@ -1,6 +1,6 @@
 # USR Contract Enforcement Guide
 
-Last updated: 2026-02-12T06:07:50Z
+Last updated: 2026-02-12T06:11:38Z
 
 ## Purpose
 
@@ -57,6 +57,7 @@ Define CI/local enforcement for the consolidated USR contract model.
 - runtime config and feature-flag enforcement (`tests/lang/contracts/usr-runtime-config-feature-flag-validation.test.js`) validates section 43 precedence resolution, strict-mode policy behavior, and disallowed feature-flag conflicts
 - failure-injection enforcement (`tests/lang/contracts/usr-failure-injection-validation.test.js`) validates section 44 strict/non-strict scenario outcomes, required diagnostics/reason codes, and recovery-evidence coverage
 - fixture-governance enforcement (`tests/lang/contracts/usr-fixture-governance-validation.test.js`) validates section 45 owner/reviewer/mutation-policy controls for blocking fixture families
+- fixture-governance coverage-floor enforcement (`tests/lang/contracts/usr-fixture-governance-coverage-floor-validation.test.js`) validates blocking fixture coverage for every language/framework profile, required conformance levels, and semantic family expectations
 - benchmark-policy enforcement (`tests/lang/contracts/usr-benchmark-policy-validation.test.js`) validates section 46 methodology controls, lane/SLO alignment, and blocking regression thresholds
 - threat-model coverage enforcement (`tests/lang/contracts/usr-threat-model-coverage-validation.test.js`) validates section 47 threat/control/fixture mappings and control-gap detection for critical threats
 - waiver-policy enforcement (`tests/lang/contracts/usr-waiver-policy-validation.test.js`) validates section 48 expiry controls, approver governance, compensating-control artifact coverage, and disallowed strict-bypass classes

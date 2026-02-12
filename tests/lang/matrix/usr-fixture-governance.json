@@ -5,6 +5,30 @@
   "generatedBy": "tools/usr/generate-usr-matrix-baselines.mjs",
   "rows": [
     {
+      "fixtureId": "angular::framework-overlay::baseline-001",
+      "profileType": "framework",
+      "profileId": "angular",
+      "conformanceLevels": [
+        "C4"
+      ],
+      "families": [
+        "framework-overlay",
+        "hydration",
+        "route-semantics",
+        "style-scope",
+        "template-binding"
+      ],
+      "owner": "framework-angular",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
+    },
+    {
       "fixtureId": "angular::template-binding::input-output-001",
       "profileType": "framework",
       "profileId": "angular",
@@ -16,6 +40,30 @@
         "template-binding"
       ],
       "owner": "framework-angular",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
+    },
+    {
+      "fixtureId": "astro::framework-overlay::baseline-001",
+      "profileType": "framework",
+      "profileId": "astro",
+      "conformanceLevels": [
+        "C4"
+      ],
+      "families": [
+        "framework-overlay",
+        "hydration",
+        "route-semantics",
+        "style-scope",
+        "template-binding"
+      ],
+      "owner": "framework-astro",
       "reviewers": [
         "usr-architecture",
         "usr-conformance"
@@ -47,6 +95,334 @@
       "blocking": true
     },
     {
+      "fixtureId": "clike::baseline::coverage-001",
+      "profileType": "language",
+      "profileId": "clike",
+      "conformanceLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "families": [
+        "golden",
+        "language-baseline",
+        "risk",
+        "semantic-flow"
+      ],
+      "owner": "language-clike",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
+    },
+    {
+      "fixtureId": "cmake::baseline::coverage-001",
+      "profileType": "language",
+      "profileId": "cmake",
+      "conformanceLevels": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "families": [
+        "golden",
+        "language-baseline",
+        "semantic-flow"
+      ],
+      "owner": "language-cmake",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
+    },
+    {
+      "fixtureId": "csharp::baseline::coverage-001",
+      "profileType": "language",
+      "profileId": "csharp",
+      "conformanceLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "families": [
+        "golden",
+        "language-baseline",
+        "risk",
+        "semantic-flow"
+      ],
+      "owner": "language-csharp",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
+    },
+    {
+      "fixtureId": "css::baseline::coverage-001",
+      "profileType": "language",
+      "profileId": "css",
+      "conformanceLevels": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "families": [
+        "framework-overlay",
+        "golden",
+        "language-baseline"
+      ],
+      "owner": "language-css",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
+    },
+    {
+      "fixtureId": "dart::baseline::coverage-001",
+      "profileType": "language",
+      "profileId": "dart",
+      "conformanceLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "families": [
+        "golden",
+        "language-baseline",
+        "risk",
+        "semantic-flow"
+      ],
+      "owner": "language-dart",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
+    },
+    {
+      "fixtureId": "dockerfile::baseline::coverage-001",
+      "profileType": "language",
+      "profileId": "dockerfile",
+      "conformanceLevels": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "families": [
+        "golden",
+        "language-baseline",
+        "semantic-flow"
+      ],
+      "owner": "language-dockerfile",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
+    },
+    {
+      "fixtureId": "go::baseline::coverage-001",
+      "profileType": "language",
+      "profileId": "go",
+      "conformanceLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "families": [
+        "golden",
+        "language-baseline",
+        "risk",
+        "semantic-flow"
+      ],
+      "owner": "language-go",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
+    },
+    {
+      "fixtureId": "graphql::baseline::coverage-001",
+      "profileType": "language",
+      "profileId": "graphql",
+      "conformanceLevels": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "families": [
+        "golden",
+        "language-baseline",
+        "semantic-flow"
+      ],
+      "owner": "language-graphql",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
+    },
+    {
+      "fixtureId": "groovy::baseline::coverage-001",
+      "profileType": "language",
+      "profileId": "groovy",
+      "conformanceLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "families": [
+        "golden",
+        "language-baseline",
+        "risk",
+        "semantic-flow"
+      ],
+      "owner": "language-groovy",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
+    },
+    {
+      "fixtureId": "handlebars::baseline::coverage-001",
+      "profileType": "language",
+      "profileId": "handlebars",
+      "conformanceLevels": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "families": [
+        "framework-overlay",
+        "golden",
+        "language-baseline"
+      ],
+      "owner": "language-handlebars",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
+    },
+    {
+      "fixtureId": "html::baseline::coverage-001",
+      "profileType": "language",
+      "profileId": "html",
+      "conformanceLevels": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "families": [
+        "framework-overlay",
+        "golden",
+        "language-baseline"
+      ],
+      "owner": "language-html",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
+    },
+    {
+      "fixtureId": "java::baseline::coverage-001",
+      "profileType": "language",
+      "profileId": "java",
+      "conformanceLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "families": [
+        "golden",
+        "language-baseline",
+        "risk",
+        "semantic-flow"
+      ],
+      "owner": "language-java",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
+    },
+    {
+      "fixtureId": "javascript::baseline::coverage-001",
+      "profileType": "language",
+      "profileId": "javascript",
+      "conformanceLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3",
+        "C4"
+      ],
+      "families": [
+        "framework-overlay",
+        "golden",
+        "language-baseline",
+        "risk",
+        "semantic-flow"
+      ],
+      "owner": "language-javascript",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
+    },
+    {
       "fixtureId": "javascript::normalization::jsx-element-001",
       "profileType": "language",
       "profileId": "javascript",
@@ -61,6 +437,659 @@
       ],
       "owner": "language-javascript",
       "reviewers": [
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
+    },
+    {
+      "fixtureId": "jinja::baseline::coverage-001",
+      "profileType": "language",
+      "profileId": "jinja",
+      "conformanceLevels": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "families": [
+        "framework-overlay",
+        "golden",
+        "language-baseline"
+      ],
+      "owner": "language-jinja",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
+    },
+    {
+      "fixtureId": "julia::baseline::coverage-001",
+      "profileType": "language",
+      "profileId": "julia",
+      "conformanceLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "families": [
+        "golden",
+        "language-baseline",
+        "risk",
+        "semantic-flow"
+      ],
+      "owner": "language-julia",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
+    },
+    {
+      "fixtureId": "kotlin::baseline::coverage-001",
+      "profileType": "language",
+      "profileId": "kotlin",
+      "conformanceLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "families": [
+        "golden",
+        "language-baseline",
+        "risk",
+        "semantic-flow"
+      ],
+      "owner": "language-kotlin",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
+    },
+    {
+      "fixtureId": "lua::baseline::coverage-001",
+      "profileType": "language",
+      "profileId": "lua",
+      "conformanceLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "families": [
+        "golden",
+        "language-baseline",
+        "risk",
+        "semantic-flow"
+      ],
+      "owner": "language-lua",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
+    },
+    {
+      "fixtureId": "makefile::baseline::coverage-001",
+      "profileType": "language",
+      "profileId": "makefile",
+      "conformanceLevels": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "families": [
+        "golden",
+        "language-baseline",
+        "semantic-flow"
+      ],
+      "owner": "language-makefile",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
+    },
+    {
+      "fixtureId": "mustache::baseline::coverage-001",
+      "profileType": "language",
+      "profileId": "mustache",
+      "conformanceLevels": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "families": [
+        "framework-overlay",
+        "golden",
+        "language-baseline"
+      ],
+      "owner": "language-mustache",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
+    },
+    {
+      "fixtureId": "next::framework-overlay::baseline-001",
+      "profileType": "framework",
+      "profileId": "next",
+      "conformanceLevels": [
+        "C4"
+      ],
+      "families": [
+        "framework-overlay",
+        "hydration",
+        "route-semantics",
+        "style-scope",
+        "template-binding"
+      ],
+      "owner": "framework-next",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
+    },
+    {
+      "fixtureId": "nix::baseline::coverage-001",
+      "profileType": "language",
+      "profileId": "nix",
+      "conformanceLevels": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "families": [
+        "golden",
+        "language-baseline",
+        "semantic-flow"
+      ],
+      "owner": "language-nix",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
+    },
+    {
+      "fixtureId": "nuxt::framework-overlay::baseline-001",
+      "profileType": "framework",
+      "profileId": "nuxt",
+      "conformanceLevels": [
+        "C4"
+      ],
+      "families": [
+        "framework-overlay",
+        "hydration",
+        "route-semantics",
+        "style-scope",
+        "template-binding"
+      ],
+      "owner": "framework-nuxt",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
+    },
+    {
+      "fixtureId": "perl::baseline::coverage-001",
+      "profileType": "language",
+      "profileId": "perl",
+      "conformanceLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "families": [
+        "golden",
+        "language-baseline",
+        "risk",
+        "semantic-flow"
+      ],
+      "owner": "language-perl",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
+    },
+    {
+      "fixtureId": "php::baseline::coverage-001",
+      "profileType": "language",
+      "profileId": "php",
+      "conformanceLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "families": [
+        "golden",
+        "language-baseline",
+        "risk",
+        "semantic-flow"
+      ],
+      "owner": "language-php",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
+    },
+    {
+      "fixtureId": "proto::baseline::coverage-001",
+      "profileType": "language",
+      "profileId": "proto",
+      "conformanceLevels": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "families": [
+        "golden",
+        "language-baseline",
+        "semantic-flow"
+      ],
+      "owner": "language-proto",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
+    },
+    {
+      "fixtureId": "python::baseline::coverage-001",
+      "profileType": "language",
+      "profileId": "python",
+      "conformanceLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "families": [
+        "golden",
+        "language-baseline",
+        "risk",
+        "semantic-flow"
+      ],
+      "owner": "language-python",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
+    },
+    {
+      "fixtureId": "r::baseline::coverage-001",
+      "profileType": "language",
+      "profileId": "r",
+      "conformanceLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "families": [
+        "golden",
+        "language-baseline",
+        "risk",
+        "semantic-flow"
+      ],
+      "owner": "language-r",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
+    },
+    {
+      "fixtureId": "razor::baseline::coverage-001",
+      "profileType": "language",
+      "profileId": "razor",
+      "conformanceLevels": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "families": [
+        "framework-overlay",
+        "golden",
+        "language-baseline"
+      ],
+      "owner": "language-razor",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
+    },
+    {
+      "fixtureId": "react::framework-overlay::baseline-001",
+      "profileType": "framework",
+      "profileId": "react",
+      "conformanceLevels": [
+        "C4"
+      ],
+      "families": [
+        "framework-overlay",
+        "hydration",
+        "route-semantics",
+        "style-scope",
+        "template-binding"
+      ],
+      "owner": "framework-react",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
+    },
+    {
+      "fixtureId": "ruby::baseline::coverage-001",
+      "profileType": "language",
+      "profileId": "ruby",
+      "conformanceLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "families": [
+        "golden",
+        "language-baseline",
+        "risk",
+        "semantic-flow"
+      ],
+      "owner": "language-ruby",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
+    },
+    {
+      "fixtureId": "rust::baseline::coverage-001",
+      "profileType": "language",
+      "profileId": "rust",
+      "conformanceLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "families": [
+        "golden",
+        "language-baseline",
+        "risk",
+        "semantic-flow"
+      ],
+      "owner": "language-rust",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
+    },
+    {
+      "fixtureId": "scala::baseline::coverage-001",
+      "profileType": "language",
+      "profileId": "scala",
+      "conformanceLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "families": [
+        "golden",
+        "language-baseline",
+        "risk",
+        "semantic-flow"
+      ],
+      "owner": "language-scala",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
+    },
+    {
+      "fixtureId": "shell::baseline::coverage-001",
+      "profileType": "language",
+      "profileId": "shell",
+      "conformanceLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "families": [
+        "golden",
+        "language-baseline",
+        "risk",
+        "semantic-flow"
+      ],
+      "owner": "language-shell",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
+    },
+    {
+      "fixtureId": "sql::baseline::coverage-001",
+      "profileType": "language",
+      "profileId": "sql",
+      "conformanceLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "families": [
+        "golden",
+        "language-baseline",
+        "risk",
+        "semantic-flow"
+      ],
+      "owner": "language-sql",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
+    },
+    {
+      "fixtureId": "starlark::baseline::coverage-001",
+      "profileType": "language",
+      "profileId": "starlark",
+      "conformanceLevels": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "families": [
+        "golden",
+        "language-baseline",
+        "semantic-flow"
+      ],
+      "owner": "language-starlark",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
+    },
+    {
+      "fixtureId": "svelte::framework-overlay::baseline-001",
+      "profileType": "framework",
+      "profileId": "svelte",
+      "conformanceLevels": [
+        "C4"
+      ],
+      "families": [
+        "framework-overlay",
+        "hydration",
+        "style-scope",
+        "template-binding"
+      ],
+      "owner": "framework-svelte",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
+    },
+    {
+      "fixtureId": "sveltekit::framework-overlay::baseline-001",
+      "profileType": "framework",
+      "profileId": "sveltekit",
+      "conformanceLevels": [
+        "C4"
+      ],
+      "families": [
+        "framework-overlay",
+        "hydration",
+        "route-semantics",
+        "style-scope",
+        "template-binding"
+      ],
+      "owner": "framework-sveltekit",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
+    },
+    {
+      "fixtureId": "swift::baseline::coverage-001",
+      "profileType": "language",
+      "profileId": "swift",
+      "conformanceLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "families": [
+        "golden",
+        "language-baseline",
+        "risk",
+        "semantic-flow"
+      ],
+      "owner": "language-swift",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
+    },
+    {
+      "fixtureId": "typescript::baseline::coverage-001",
+      "profileType": "language",
+      "profileId": "typescript",
+      "conformanceLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3",
+        "C4"
+      ],
+      "families": [
+        "framework-overlay",
+        "golden",
+        "language-baseline",
+        "risk",
+        "semantic-flow"
+      ],
+      "owner": "language-typescript",
+      "reviewers": [
+        "usr-architecture",
         "usr-conformance"
       ],
       "stabilityClass": "stable",
@@ -274,6 +1303,30 @@
       "mutationPolicy": "allow-generated-refresh",
       "goldenRequired": true,
       "blocking": false
+    },
+    {
+      "fixtureId": "vue::framework-overlay::baseline-001",
+      "profileType": "framework",
+      "profileId": "vue",
+      "conformanceLevels": [
+        "C4"
+      ],
+      "families": [
+        "framework-overlay",
+        "hydration",
+        "route-semantics",
+        "style-scope",
+        "template-binding"
+      ],
+      "owner": "framework-vue",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
     },
     {
       "fixtureId": "vue::minimum-slice::template-style-001",

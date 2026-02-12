@@ -90,6 +90,7 @@ const requiredCiTests = [
   'lang/contracts/usr-runtime-config-feature-flag-validation',
   'lang/contracts/usr-failure-injection-validation',
   'lang/contracts/usr-fixture-governance-validation',
+  'lang/contracts/usr-fixture-governance-coverage-floor-validation',
   'lang/contracts/usr-benchmark-policy-validation',
   'lang/contracts/usr-threat-model-coverage-validation',
   'lang/contracts/usr-waiver-policy-validation',
