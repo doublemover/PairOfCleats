@@ -11,7 +11,7 @@
     "worktrees"
   ],
   "excludedFiles": ["run.js"],
-  "knownLanes": ["smoke", "unit", "ci-lite", "ci-long", "integration", "services", "api", "storage", "perf", "mcp", "ci"],
+  "knownLanes": ["smoke", "unit", "ci-lite", "ci-long", "integration", "services", "api", "storage", "perf", "mcp", "ci", "waiver-enforcement", "report-schema"],
   "laneRules": [
     { "lane": "perf", "match": ["^perf/"] },
     { "lane": "ci-lite", "match": ["^ci-lite/"] },
@@ -20,6 +20,18 @@
     { "lane": "api", "match": ["^services/api/"] },
     { "lane": "services", "match": ["^services/"] },
     { "lane": "storage", "match": ["^storage/"] },
+    {
+      "lane": "waiver-enforcement",
+      "match": [
+        "^waiver-enforcement/"
+      ]
+    },
+    {
+      "lane": "report-schema",
+      "match": [
+        "^report-schema/"
+      ]
+    },
     {
       "lane": "unit",
       "match": [
