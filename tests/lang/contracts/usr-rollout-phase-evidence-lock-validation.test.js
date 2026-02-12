@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { assertTestsPresent, checklistLineState, extractSection, hasUnchecked } from './usr-lock-test-utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -17,23 +18,6 @@ const roadmapText = fs.readFileSync(roadmapPath, 'utf8');
 const rolloutSpecText = fs.readFileSync(rolloutSpecPath, 'utf8');
 const ciOrderText = fs.readFileSync(ciOrderPath, 'utf8');
 const ciLiteOrderText = fs.readFileSync(ciLiteOrderPath, 'utf8');
-
-const extractSection = (text, startMarker, endMarker) => {
-  const start = text.indexOf(startMarker);
-  assert.notEqual(start, -1, `missing section start marker: ${startMarker}`);
-  const end = text.indexOf(endMarker, start);
-  assert.notEqual(end, -1, `missing section end marker: ${endMarker}`);
-  return text.slice(start, end);
-};
-
-const checklistLineState = (section, label) => {
-  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  if (new RegExp(`^- \\[x\\] ${escaped}$`, 'm').test(section)) return 'checked';
-  if (new RegExp(`^- \\[ \\] ${escaped}$`, 'm').test(section)) return 'unchecked';
-  assert.fail(`missing checklist line: ${label}`);
-};
-
-const hasUnchecked = (section) => /- \[ \] /.test(section);
 
 const f1Section = extractSection(
   roadmapText,
@@ -114,14 +98,16 @@ for (const fragment of [
 
 assert.equal(roadmapText.includes('### N.14 Appendix F.1 phase-evidence lock'), true, 'roadmap must include Appendix N.14 F.1 phase-evidence lock policy');
 
-for (const testId of [
-  'lang/contracts/usr-rollout-phase-evidence-lock-validation',
-  'lang/contracts/usr-rollout-f1-checklist-validation',
-  'lang/contracts/usr-gate-c-authorization-chain-validation',
-  'lang/contracts/usr-rollout-phase-gate-validation'
-]) {
-  assert.equal(ciOrderText.includes(testId), true, `ci order missing F.1 phase-evidence lock validator coverage: ${testId}`);
-  assert.equal(ciLiteOrderText.includes(testId), true, `ci-lite order missing F.1 phase-evidence lock validator coverage: ${testId}`);
-}
+assertTestsPresent(
+  [
+    'lang/contracts/usr-rollout-phase-evidence-lock-validation',
+    'lang/contracts/usr-rollout-f1-checklist-validation',
+    'lang/contracts/usr-gate-c-authorization-chain-validation',
+    'lang/contracts/usr-rollout-phase-gate-validation'
+  ],
+  'F.1 phase-evidence lock validator coverage',
+  ciOrderText,
+  ciLiteOrderText
+);
 
 console.log('usr rollout phase-evidence lock validation checks passed');

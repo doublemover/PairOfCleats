@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { extractSection, hasUnchecked } from './usr-lock-test-utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,31 +21,23 @@ const ciLiteOrderText = fs.readFileSync(ciLiteOrderPath, 'utf8');
 const prTemplateText = fs.readFileSync(prTemplatePath, 'utf8');
 const releaseTemplateText = fs.readFileSync(releaseTemplatePath, 'utf8');
 
-const extractSection = (text, startMarker, endMarker) => {
-  const start = text.indexOf(startMarker);
-  assert.notEqual(start, -1, `missing section start marker: ${startMarker}`);
-  const end = text.indexOf(endMarker, start);
-  assert.notEqual(end, -1, `missing section end marker: ${endMarker}`);
-  return text.slice(start, end);
-};
-
 const maintenanceSection = extractSection(roadmapText, '### 15.3 Maintenance', '### 15.4 Exit criteria');
-assert.equal(/- \[ \] /.test(maintenanceSection), false, 'phase 15.3 maintenance checklist must not contain unchecked items');
+assert.equal(hasUnchecked(maintenanceSection), false, 'phase 15.3 maintenance checklist must not contain unchecked items');
 
 const backwardCompatSection = extractSection(roadmapText, '### F.2 Backward compatibility and deprecation (USR section 27)', '### F.3 Change-control (USR section 28)');
-assert.equal(/- \[ \] /.test(backwardCompatSection), false, 'appendix F.2 backward-compat/deprecation checklist must not contain unchecked items');
+assert.equal(hasUnchecked(backwardCompatSection), false, 'appendix F.2 backward-compat/deprecation checklist must not contain unchecked items');
 
 const changeControlSection = extractSection(roadmapText, '### F.3 Change-control (USR section 28)', '### F.4 Extension policy (USR section 29)');
-assert.equal(/- \[ \] /.test(changeControlSection), false, 'appendix F.3 change-control checklist must not contain unchecked items');
+assert.equal(hasUnchecked(changeControlSection), false, 'appendix F.3 change-control checklist must not contain unchecked items');
 
 const extensionPolicySection = extractSection(roadmapText, '### F.4 Extension policy (USR section 29)', '### F.5 Diagnostics/examples/canonicalization/backcompat hard requirements (USR sections 33-36)');
-assert.equal(/- \[ \] /.test(extensionPolicySection), false, 'appendix F.4 extension-policy checklist must not contain unchecked items');
+assert.equal(hasUnchecked(extensionPolicySection), false, 'appendix F.4 extension-policy checklist must not contain unchecked items');
 
 const f5HardRequirementsSection = extractSection(roadmapText, '### F.5 Diagnostics/examples/canonicalization/backcompat hard requirements (USR sections 33-36)', '### F.6 Decomposed contract synchronization requirements');
-assert.equal(/- \[ \] /.test(f5HardRequirementsSection), false, 'appendix F.5 hard-requirements checklist must not contain unchecked items');
+assert.equal(hasUnchecked(f5HardRequirementsSection), false, 'appendix F.5 hard-requirements checklist must not contain unchecked items');
 
 const f6SyncRequirementsSection = extractSection(roadmapText, '### F.6 Decomposed contract synchronization requirements', '---');
-assert.equal(/- \[ \] /.test(f6SyncRequirementsSection), false, 'appendix F.6 synchronization checklist must not contain unchecked items');
+assert.equal(hasUnchecked(f6SyncRequirementsSection), false, 'appendix F.6 synchronization checklist must not contain unchecked items');
 
 const phaseSevenFixtureSection = extractSection(roadmapText, '### 7.1 Fixture completeness', '### 7.2 Golden generation and review');
 assert.equal(phaseSevenFixtureSection.includes('- [x] Ensure every per-language contract has concrete fixture ID mappings and fixture family coverage.'), true, 'phase 7.1 must retain per-language fixture ID mapping coverage control');
