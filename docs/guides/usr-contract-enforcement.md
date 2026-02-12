@@ -1,6 +1,6 @@
 # USR Contract Enforcement Guide
 
-Last updated: 2026-02-12T12:20:00Z
+Last updated: 2026-02-12T12:35:00Z
 
 ## Purpose
 
@@ -26,6 +26,7 @@ Define CI/local enforcement for the consolidated USR contract model.
 - generated provenance fixture enforcement (`tests/lang/contracts/usr-generated-provenance-validation.test.js`) validates section 39 generated/macro/transpile provenance mapping expectations and diagnostics
 - language batch shard enforcement (`tests/lang/contracts/usr-language-batch-shards-validation.test.js`) validates section 4/phase-10 batch partition coverage, deterministic language assignment, and lane manifest path consistency
 - matrix-driven harness coverage enforcement (`tests/lang/contracts/usr-matrix-driven-harness-validation.test.js`) validates profile-wide lane/fixture/batch coverage for every language and framework profile
+- diagnostic remediation-routing enforcement (`tests/lang/contracts/usr-diagnostic-remediation-routing-validation.test.js`) validates strict diagnostic taxonomy routing to section 33.4 remediation classes
 - implementation readiness enforcement (`tests/lang/contracts/usr-implementation-readiness-validation.test.js`) validates section 40 operational-readiness policy invariants, evidence-schema coverage, and promotion blocker logic
 - runtime config and feature-flag enforcement (`tests/lang/contracts/usr-runtime-config-feature-flag-validation.test.js`) validates section 43 precedence resolution, strict-mode policy behavior, and disallowed feature-flag conflicts
 - failure-injection enforcement (`tests/lang/contracts/usr-failure-injection-validation.test.js`) validates section 44 strict/non-strict scenario outcomes, required diagnostics/reason codes, and recovery-evidence coverage
@@ -58,7 +59,7 @@ Define CI/local enforcement for the consolidated USR contract model.
 - `threat-model`: focused section 47 threat/control/fixture coverage enforcement (`tests/threat-model/threat-model-validation.test.js`)
 - `waiver-enforcement`: focused waiver-policy expiry/bypass governance checks (`tests/waiver-enforcement/waiver-policy-governance.test.js`)
 - `report-schema`: focused section 30/31/43/44/45/46/47/48 report-envelope/audit artifact validation (`tests/report-schema/report-schema-audit-contracts.test.js`)
-- `harness-core`: focused section 6.7/8.5/12.3 harness checks for canonical IDs, edge endpoints, capability transitions, and strict diagnostic/reason validation (`tests/harness-core/harness-core-validation.test.js`)
+- `harness-core`: focused section 6.7/8.5/12.3 harness checks for canonical IDs, edge endpoints, capability transitions, strict diagnostic/reason validation, and section 33.4 remediation routing (`tests/harness-core/harness-core-validation.test.js`)
 - `canonical-example`: focused section 34 canonical-example fixture bundle validation (`tests/canonical-example/canonical-example-validation.test.js`)
 - `decomposed-drift`: focused decomposed-contract drift and roadmap alignment validation (`tests/decomposed-drift/decomposed-drift-validation.test.js`)
 - `batch-b0`: focused foundation shard validation and deterministic order manifest checks (`tests/batch-b0/batch-b0-validation.test.js`)

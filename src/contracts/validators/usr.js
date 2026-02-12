@@ -72,6 +72,35 @@ export const USR_CANONICAL_REASON_CODES = Object.freeze(new Set([
   'USR-R-SERIALIZATION-INVALID'
 ]));
 
+export const USR_DIAGNOSTIC_REMEDIATION_CLASS_BY_CODE = Object.freeze({
+  'USR-E-PARSER-UNAVAILABLE': 'parser-runtime',
+  'USR-E-PARSER-FAILED': 'parser-runtime',
+  'USR-E-SEGMENT-INVALID-RANGE': 'graph-integrity',
+  'USR-E-SCHEMA-VIOLATION': 'schema-contract',
+  'USR-E-CAPABILITY-LOST': 'capability-state',
+  'USR-E-ID-GRAMMAR-VIOLATION': 'schema-contract',
+  'USR-E-EDGE-ENDPOINT-INVALID': 'graph-integrity',
+  'USR-E-EDGE-ENDPOINT-CONSTRAINT': 'graph-integrity',
+  'USR-E-RANGE-MAPPING-FAILED': 'graph-integrity',
+  'USR-E-DETERMINISM-DRIFT': 'schema-contract',
+  'USR-E-PROFILE-CONFLICT': 'framework-overlay',
+  'USR-E-SECURITY-GATE-FAILED': 'ops-security-gates',
+  'USR-E-SLO-BUDGET-FAILED': 'ops-security-gates',
+  'USR-E-SERIALIZATION-NONCANONICAL': 'schema-contract',
+  'USR-W-PARTIAL-PARSE': 'parser-runtime',
+  'USR-W-CAPABILITY-DOWNGRADED': 'capability-state',
+  'USR-W-FRAMEWORK-PROFILE-INCOMPLETE': 'framework-overlay',
+  'USR-W-REFERENCE-AMBIGUOUS': 'graph-integrity',
+  'USR-W-RESOLUTION-CANDIDATE-CAPPED': 'graph-integrity',
+  'USR-W-HEURISTIC-BINDING': 'graph-integrity',
+  'USR-W-TRUNCATED-FLOW': 'analysis-caps',
+  'USR-W-CANONICALIZATION-FALLBACK': 'analysis-caps',
+  'USR-W-BACKCOMPAT-ADAPTER': 'analysis-caps',
+  'USR-I-FALLBACK-HEURISTIC': 'analysis-caps',
+  'USR-I-LEGACY-ADAPTER-APPLIED': 'analysis-caps',
+  'USR-I-COMPAT-MINOR-IGNORED': 'analysis-caps'
+});
+
 export const USR_CANONICAL_ID_PATTERNS = Object.freeze({
   docUid: '^doc64:v1:[a-f0-9]{16}$',
   segmentUid: '^segu:v1:[a-f0-9]{16}$',
@@ -304,6 +333,28 @@ export function validateUsrReasonCode(reasonCode, { strictEnum = true } = {}) {
     return { ok: false, errors: [`unknown reason code: ${reasonCode}`] };
   }
   return { ok: true, errors: [] };
+}
+
+export function resolveUsrDiagnosticRemediationClass(code, { strictEnum = true } = {}) {
+  const diagnosticValidation = validateUsrDiagnosticCode(code, { strictEnum });
+  if (!diagnosticValidation.ok) {
+    return { ok: false, remediationClass: null, errors: [...diagnosticValidation.errors] };
+  }
+
+  const remediationClass = USR_DIAGNOSTIC_REMEDIATION_CLASS_BY_CODE[code] || null;
+  if (typeof remediationClass !== 'string' || remediationClass.length === 0) {
+    return {
+      ok: false,
+      remediationClass: null,
+      errors: [`missing remediation-class mapping for diagnostic code: ${code}`]
+    };
+  }
+
+  return {
+    ok: true,
+    remediationClass,
+    errors: []
+  };
 }
 
 export function validateUsrEdgeEndpoint(edge, edgeKindConstraints) {
