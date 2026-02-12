@@ -501,7 +501,7 @@ If contradictions are found:
 - [x] Materialize ID grammar checks in harness.
 - [x] Materialize edge endpoint constraint checks in harness.
 - [x] Materialize capability state machine checks in harness.
-- [ ] Materialize diagnostic code/reason-code strict validators and remediation-class routing checks.
+- [x] Materialize diagnostic code/reason-code strict validators and remediation-class routing checks.
 - [x] Materialize canonical example bundle validator lane for section 34 references.
 - [x] Materialize decomposed contract drift checks (language/profile/mapping/resolution/risk/conformance/rollout/embedding/provenance/registry/readiness/observability/security contracts).
 - [x] Materialize section 38 embedded-language bridge validators.
