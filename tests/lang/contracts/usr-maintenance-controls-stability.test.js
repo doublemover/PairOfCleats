@@ -32,6 +32,10 @@ const maintenanceSection = extractSection(roadmapText, '### 15.3 Maintenance', '
 assert.equal(/- \[ \] /.test(maintenanceSection), false, 'phase 15.3 maintenance checklist must not contain unchecked items');
 
 const appendixMSection = extractSection(roadmapText, 'Roadmap enforcement requirements:', '## Appendix N - Phase 0 Governance Lock Artifacts');
+assert.equal(appendixMSection.includes('- [x] Every phase gate links to at least one concrete evidence artifact in `docs/specs/usr-core-evidence-gates-waivers.md`.'), true, 'appendix M must mark phase-to-evidence linkage requirement complete');
+assert.equal(appendixMSection.includes('### M.1 Phase-to-gate evidence artifact map'), true, 'appendix M must include phase-to-gate evidence artifact map section');
+assert.equal(appendixMSection.includes('| 0 | `usr-validation-report.json`, `usr-drift-report.json` |'), true, 'appendix M evidence map must include phase 0 artifact mapping');
+assert.equal(appendixMSection.includes('| 15 | `usr-release-readiness-scorecard.json`, `usr-waiver-expiry-report.json`, `usr-observability-rollup.json` |'), true, 'appendix M evidence map must include phase 15 artifact mapping');
 assert.equal(appendixMSection.includes('- [x] CI contract enforcement follows `docs/guides/usr-contract-enforcement.md`.'), true, 'appendix M must mark CI contract enforcement requirement complete');
 assert.equal(appendixMSection.includes('- [x] New language onboarding follows `docs/guides/usr-new-language-onboarding.md`.'), true, 'appendix M must mark new-language onboarding requirement complete');
 assert.equal(appendixMSection.includes('- [x] Framework onboarding and interop expectations follow `docs/specs/usr-core-language-framework-catalog.md`.'), true, 'appendix M must mark framework interop onboarding requirement complete');

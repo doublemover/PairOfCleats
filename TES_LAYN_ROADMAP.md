@@ -1465,13 +1465,34 @@ Required supporting docs for implementation execution and governance:
 
 Roadmap enforcement requirements:
 
-- [ ] Every phase gate links to at least one concrete evidence artifact in `docs/specs/usr-core-evidence-gates-waivers.md`.
+- [x] Every phase gate links to at least one concrete evidence artifact in `docs/specs/usr-core-evidence-gates-waivers.md`.
 - [ ] Every blocking evidence artifact has an active schema in `docs/schemas/usr/*.json` and a row in `docs/specs/usr-core-artifact-schema-catalog.md`.
 - [x] CI contract enforcement follows `docs/guides/usr-contract-enforcement.md`.
 - [x] New language onboarding follows `docs/guides/usr-new-language-onboarding.md`.
 - [x] Framework onboarding and interop expectations follow `docs/specs/usr-core-language-framework-catalog.md`.
 - [x] Contract consolidation traceability is maintained in `docs/specs/usr-consolidation-coverage-matrix.md`.
 - [ ] Any contract addition/removal updates Appendix H traceability, Appendix J dependency graph, and Appendix N governance lock in same change.
+
+### M.1 Phase-to-gate evidence artifact map
+
+| Phase | Required evidence artifact(s) |
+| --- | --- |
+| 0 | `usr-validation-report.json`, `usr-drift-report.json` |
+| 1 | `usr-validation-report.json`, `usr-drift-report.json` |
+| 2 | `usr-validation-report.json` |
+| 3 | `usr-validation-report.json` |
+| 4 | `usr-conformance-summary.json` |
+| 5 | `usr-conformance-summary.json`, `usr-quality-evaluation-results.json` |
+| 6 | `usr-quality-evaluation-results.json`, `usr-threat-model-coverage-report.json` |
+| 7 | `usr-quality-evaluation-results.json` |
+| 8 | `usr-benchmark-regression-summary.json`, `usr-observability-rollup.json` |
+| 9 | `usr-operational-readiness-validation.json`, `usr-release-readiness-scorecard.json` |
+| 10 | `usr-validation-report.json`, `usr-conformance-summary.json` |
+| 11 | `usr-conformance-summary.json` |
+| 12 | `usr-conformance-summary.json`, `usr-quality-evaluation-results.json` |
+| 13 | `usr-conformance-summary.json` |
+| 14 | `usr-failure-injection-report.json`, `usr-threat-model-coverage-report.json`, `usr-waiver-active-report.json` |
+| 15 | `usr-release-readiness-scorecard.json`, `usr-waiver-expiry-report.json`, `usr-observability-rollup.json` |
 
 ---
 
