@@ -100,7 +100,9 @@ export const createApiRouter = ({
    * Validate federated workspace inputs against server path allowlists.
    *
    * This enforces both repo roots and the resolved federated cache root so
-   * manifest/query-cache writes cannot escape configured allowed roots.
+   * manifest/query-cache writes cannot escape configured allowed roots. The
+   * returned workspace config snapshot is then passed into the federated
+   * coordinator as trusted input to avoid a post-validation reload race.
    *
    * @param {any} payload
    * @returns {Promise<any>}

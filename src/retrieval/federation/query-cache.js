@@ -60,6 +60,16 @@ const normalizeSelection = (selection = {}) => ({
   explicitSelects: normalizeStringList(selection.explicitSelects)
 });
 
+/**
+ * Normalize workspace metadata used for federated cache-key hashing.
+ *
+ * `configHash` captures workspace display metadata (name/alias/tags/priority),
+ * so cache entries are invalidated when response metadata can change even if
+ * index-manifest signatures are unchanged.
+ *
+ * @param {any} [workspace]
+ * @returns {{configHash: string|null}}
+ */
 const normalizeWorkspace = (workspace = {}) => ({
   configHash: typeof workspace?.configHash === 'string' ? workspace.configHash : null
 });

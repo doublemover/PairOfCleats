@@ -85,6 +85,15 @@ const modePath = (entry, mode) => (
   entry?.indexes && entry.indexes[mode] ? entry.indexes[mode] : null
 );
 
+/**
+ * Canonicalize a filesystem path for boundary/prefix comparisons.
+ *
+ * Windows boundary checks are case-insensitive, so we lower-case canonical
+ * paths to avoid false invalid-pointer rejections when path casing differs.
+ *
+ * @param {string} value
+ * @returns {string}
+ */
 const normalizePathBoundaryValue = (value) => {
   const canonical = toRealPathSync(path.resolve(String(value || '')));
   if (process.platform === 'win32') return canonical.toLowerCase();
