@@ -49,6 +49,7 @@ assert.equal(/- \[ \] /.test(f6SyncRequirementsSection), false, 'appendix F.6 sy
 const phaseSevenFixtureSection = extractSection(roadmapText, '### 7.1 Fixture completeness', '### 7.2 Golden generation and review');
 assert.equal(phaseSevenFixtureSection.includes('- [x] Ensure every per-language contract has concrete fixture ID mappings and fixture family coverage.'), true, 'phase 7.1 must retain per-language fixture ID mapping coverage control');
 assert.equal(phaseSevenFixtureSection.includes('- [x] Enforce fixture-governance coverage floor for every language/framework profile across required conformance levels and semantic families.'), true, 'phase 7.1 must retain fixture-governance coverage floor control');
+assert.equal(phaseSevenFixtureSection.includes('- [x] Add fixture ownership/reviewer assignment checks for all blocking fixtures.'), true, 'phase 7.1 must retain blocking fixture ownership/reviewer coverage control');
 assert.equal(phaseSevenFixtureSection.includes('- [x] Add fixture mutation-policy tags (`require-rfc|require-review|allow-generated-refresh`) and validate policy coverage.'), true, 'phase 7.1 must retain fixture mutation-policy coverage control');
 
 const phaseSevenGoldenSection = extractSection(roadmapText, '### 7.2 Golden generation and review', '### 7.3 Exit criteria');

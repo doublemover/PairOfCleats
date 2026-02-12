@@ -1,6 +1,6 @@
 # USR Contract Enforcement Guide
 
-Last updated: 2026-02-12T06:27:03Z
+Last updated: 2026-02-12T06:29:00Z
 
 ## Purpose
 
@@ -56,7 +56,7 @@ Define CI/local enforcement for the consolidated USR contract model.
 - security-gate compliance enforcement (`tests/lang/contracts/usr-security-gate-validation.test.js`) validates section 42 security-gate and redaction policy controls, strict fail-closed behavior for blocking controls, and validation-report emission
 - runtime config and feature-flag enforcement (`tests/lang/contracts/usr-runtime-config-feature-flag-validation.test.js`) validates section 43 precedence resolution, strict-mode policy behavior, and disallowed feature-flag conflicts
 - failure-injection enforcement (`tests/lang/contracts/usr-failure-injection-validation.test.js`) validates section 44 strict/non-strict scenario outcomes, required diagnostics/reason codes, and recovery-evidence coverage
-- fixture-governance enforcement (`tests/lang/contracts/usr-fixture-governance-validation.test.js`) validates section 45 owner/reviewer/mutation-policy controls and roadmap linkage tags (`appendix-c:*`, `appendix-d:*`) for blocking fixture families
+- fixture-governance enforcement (`tests/lang/contracts/usr-fixture-governance-validation.test.js`) validates section 45 owner/reviewer/mutation-policy controls, blocking-row ownership/reviewer assignment constraints, and roadmap linkage tags (`appendix-c:*`, `appendix-d:*`) for blocking fixture families
 - fixture mutation-policy coverage enforcement (`tests/lang/contracts/usr-fixture-mutation-policy-coverage-validation.test.js`) validates full policy-class coverage (`require-rfc`, `require-review`, `allow-generated-refresh`) and baseline/non-blocking policy safety constraints
 - fixture-governance coverage-floor enforcement (`tests/lang/contracts/usr-fixture-governance-coverage-floor-validation.test.js`) validates blocking fixture coverage for every language/framework profile, required conformance levels, semantic family expectations, and roadmap task-pack linkage coverage
 - benchmark-policy enforcement (`tests/lang/contracts/usr-benchmark-policy-validation.test.js`) validates section 46 methodology controls, lane/SLO alignment, and blocking regression thresholds
