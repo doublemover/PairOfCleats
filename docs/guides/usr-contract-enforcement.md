@@ -27,8 +27,8 @@ Define CI/local enforcement for the consolidated USR contract model.
 
 ## CI lanes
 
-- `ci-lite`: reference drift and schema shape checks
-- `ci`: blocking validators, conformance checks, and gate evaluation
+- `ci-lite`: reference drift and schema shape checks (includes USR schema/matrix and language-contract harness checks)
+- `ci`: blocking validators, conformance checks, and gate evaluation (includes full USR contract enforcement suite)
 - `ci-long`: expanded compatibility matrix, drill checks, and stress/failure scenarios
 
 ## Failure protocol
