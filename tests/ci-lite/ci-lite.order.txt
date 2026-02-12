@@ -361,6 +361,7 @@ lang/contracts/usr-benchmark-policy-validation
 lang/contracts/usr-threat-model-coverage-validation
 lang/contracts/usr-waiver-policy-validation
 lang/contracts/usr-report-envelope-validation
+decomposed-drift/decomposed-drift-validation
 diagnostics/diagnostics-transition-validation
 indexing/contracts/schema-registry-single-source
 indexing/git/git-meta
