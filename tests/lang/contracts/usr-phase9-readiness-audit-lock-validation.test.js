@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { assertTestsPresent, checklistLineState, extractSection, hasUnchecked } from './usr-lock-test-utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,23 +19,6 @@ const roadmapText = fs.readFileSync(roadmapPath, 'utf8');
 const rolloutSpecText = fs.readFileSync(rolloutSpecPath, 'utf8');
 const ciOrderText = fs.readFileSync(ciOrderPath, 'utf8');
 const ciLiteOrderText = fs.readFileSync(ciLiteOrderPath, 'utf8');
-
-const extractSection = (text, startMarker, endMarker) => {
-  const start = text.indexOf(startMarker);
-  assert.notEqual(start, -1, `missing section start marker: ${startMarker}`);
-  const end = text.indexOf(endMarker, start);
-  assert.notEqual(end, -1, `missing section end marker: ${endMarker}`);
-  return text.slice(start, end);
-};
-
-const checklistLineState = (section, label) => {
-  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  if (new RegExp(`^- \\[x\\] ${escaped}$`, 'm').test(section)) return 'checked';
-  if (new RegExp(`^- \\[ \\] ${escaped}$`, 'm').test(section)) return 'unchecked';
-  assert.fail(`missing checklist line: ${label}`);
-};
-
-const hasUnchecked = (section) => /- \[ \] /.test(section);
 
 const phase91Section = extractSection(roadmapText, '### 9.1 Readiness audit', '### 9.2 Go/No-Go decision');
 const phase93Section = extractSection(roadmapText, '### 9.3 Exit criteria', '## Phase 10 - Harness and Lane Materialization');
@@ -84,15 +68,17 @@ for (const fragment of [
 
 assert.equal(roadmapText.includes('### N.12 Phase 9.1 readiness-audit completion lock'), true, 'roadmap must include Appendix N.12 phase-9.1 readiness-audit lock policy');
 
-for (const testId of [
-  'lang/contracts/usr-phase9-readiness-audit-lock-validation',
-  'lang/contracts/usr-phase9-readiness-authorization-lock-validation',
-  'lang/contracts/usr-gate-c-authorization-chain-validation',
-  'lang/contracts/usr-gate-b-language-batch-lock-validation',
-  'lang/contracts/usr-rollout-f1-checklist-validation'
-]) {
-  assert.equal(ciOrderText.includes(testId), true, `ci order missing phase-9.1 readiness lock validator coverage: ${testId}`);
-  assert.equal(ciLiteOrderText.includes(testId), true, `ci-lite order missing phase-9.1 readiness lock validator coverage: ${testId}`);
-}
+assertTestsPresent(
+  [
+    'lang/contracts/usr-phase9-readiness-audit-lock-validation',
+    'lang/contracts/usr-phase9-readiness-authorization-lock-validation',
+    'lang/contracts/usr-gate-c-authorization-chain-validation',
+    'lang/contracts/usr-gate-b-language-batch-lock-validation',
+    'lang/contracts/usr-rollout-f1-checklist-validation'
+  ],
+  'phase-9.1 readiness lock validator coverage',
+  ciOrderText,
+  ciLiteOrderText
+);
 
 console.log('usr phase 9.1 readiness-audit lock validation checks passed');

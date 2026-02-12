@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { listUsrReportIds } from '../../../src/contracts/validators/usr.js';
+import { assertTestsPresent, extractSection } from './usr-lock-test-utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,14 +21,6 @@ const ciOrderText = fs.readFileSync(ciOrderPath, 'utf8');
 const ciLiteOrderText = fs.readFileSync(ciLiteOrderPath, 'utf8');
 const artifactCatalogText = fs.readFileSync(artifactCatalogPath, 'utf8');
 const evidenceGatesText = fs.readFileSync(evidenceGatesPath, 'utf8');
-
-const extractSection = (text, startMarker, endMarker) => {
-  const start = text.indexOf(startMarker);
-  assert.notEqual(start, -1, `missing section start marker: ${startMarker}`);
-  const end = text.indexOf(endMarker, start);
-  assert.notEqual(end, -1, `missing section end marker: ${endMarker}`);
-  return text.slice(start, end);
-};
 
 const phaseNineReadinessSection = extractSection(roadmapText, '### 9.1 Readiness audit', '### 9.2 Go/No-Go decision');
 
@@ -49,23 +42,25 @@ for (const checkedLine of [
 const appendixMSection = extractSection(roadmapText, '### M.1 Phase-to-gate evidence artifact map', '## Appendix N - Phase 0 Governance Lock Artifacts');
 assert.equal(appendixMSection.includes('| 9 | `usr-operational-readiness-validation.json`, `usr-release-readiness-scorecard.json` |'), true, 'appendix M must include phase 9 evidence artifact mapping');
 
-for (const testId of [
-  'backcompat/backcompat-matrix-validation',
-  'lang/contracts/usr-framework-contract-matrix-sync-validation',
-  'lang/contracts/usr-conformance-matrix-readiness-by-language-validation',
-  'lang/contracts/usr-implementation-readiness-validation',
-  'lang/contracts/usr-runtime-config-feature-flag-validation',
-  'lang/contracts/usr-failure-injection-validation',
-  'lang/contracts/usr-failure-injection-recovery-threshold-validation',
-  'lang/contracts/usr-fixture-governance-validation',
-  'lang/contracts/usr-fixture-governance-coverage-floor-validation',
-  'lang/contracts/usr-benchmark-policy-validation',
-  'lang/contracts/usr-threat-model-coverage-validation',
-  'lang/contracts/usr-waiver-policy-validation'
-]) {
-  assert.equal(ciOrderText.includes(testId), true, `ci order missing phase 9 readiness validator: ${testId}`);
-  assert.equal(ciLiteOrderText.includes(testId), true, `ci-lite order missing phase 9 readiness validator: ${testId}`);
-}
+assertTestsPresent(
+  [
+    'backcompat/backcompat-matrix-validation',
+    'lang/contracts/usr-framework-contract-matrix-sync-validation',
+    'lang/contracts/usr-conformance-matrix-readiness-by-language-validation',
+    'lang/contracts/usr-implementation-readiness-validation',
+    'lang/contracts/usr-runtime-config-feature-flag-validation',
+    'lang/contracts/usr-failure-injection-validation',
+    'lang/contracts/usr-failure-injection-recovery-threshold-validation',
+    'lang/contracts/usr-fixture-governance-validation',
+    'lang/contracts/usr-fixture-governance-coverage-floor-validation',
+    'lang/contracts/usr-benchmark-policy-validation',
+    'lang/contracts/usr-threat-model-coverage-validation',
+    'lang/contracts/usr-waiver-policy-validation'
+  ],
+  'phase 9 readiness validator',
+  ciOrderText,
+  ciLiteOrderText
+);
 
 const reportIds = new Set(listUsrReportIds());
 const requiredArtifactIds = [
