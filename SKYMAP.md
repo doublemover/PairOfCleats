@@ -481,16 +481,16 @@ Roadmap guidance MUST NOT redefine JSON schemas, file layouts, or event formats.
 
 ### 14.1.1 IndexRef parsing and resolution
 
-- [ ] Implement `src/index/index-ref.js`:
-  - [ ] `parseIndexRef(ref)` to normalize and validate per spec.
-  - [ ] `resolveIndexRef({ repoRoot, userConfig, requestedModes, preferFrozen, allowMissingModes })`:
-    - [ ] `latest` -> `builds/current.json` promotion data.
-    - [ ] `build:<id>` -> repo cache build root.
-    - [ ] `snap:<id>` -> snapshot registry with `preferFrozen`.
-    - [ ] `tag:<tag>` -> tag reverse index (deterministic latest-first).
-    - [ ] `path:<path>` -> in-memory only (do not persist; identity uses `pathHash`).
-  - [ ] `identityHash = sha1(stableStringify(identity))`.
-  - [ ] Hard invariant: `identity` must contain no absolute paths.
+- [x] Implement `src/index/index-ref.js`:
+  - [x] `parseIndexRef(ref)` to normalize and validate per spec.
+  - [x] `resolveIndexRef({ repoRoot, userConfig, requestedModes, preferFrozen, allowMissingModes })`:
+    - [x] `latest` -> `builds/current.json` promotion data.
+    - [x] `build:<id>` -> repo cache build root.
+    - [x] `snap:<id>` -> snapshot registry with `preferFrozen`.
+    - [x] `tag:<tag>` -> tag reverse index (deterministic latest-first).
+    - [x] `path:<path>` -> in-memory only (do not persist; identity uses `pathHash`).
+  - [x] `identityHash = sha1(stableStringify(identity))`.
+  - [x] Hard invariant: `identity` must contain no absolute paths.
 
 Touchpoints:
 - `src/index/index-ref.js` (new)
@@ -500,7 +500,7 @@ Touchpoints:
 - `tools/dict-utils/*` (repo cache root + current build info helpers)
 
 Tests:
-- [ ] `tests/unit/index-ref.unit.js` (parse + identityHash stability + tag ordering + path redaction)
+- [x] `tests/shared/index-ref.test.js` (parse + identityHash stability + tag ordering + path redaction)
 
 ### 14.1.2 Snapshot/diff artifact surface (contracts)
 
