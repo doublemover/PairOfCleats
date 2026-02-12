@@ -357,8 +357,10 @@ tooling.vfs.tokenMode (string)
 ### search / pairofcleats search
 
 - --alias
+- --allow-unsafe-mix
 - --ann
 - --ann-backend
+- --as-of
 - --async
 - --author
 - --awaits
@@ -374,14 +376,18 @@ tooling.vfs.tokenMode (string)
 - --case-tokens
 - --chunk-author
 - --churn
+- --cohort
 - --comments
 - --compact
+- --concurrency
 - --continues
+- --debug-include-paths
 - --decorator
 - --dense-vector-mode
 - --explain
 - --ext
 - --extends
+- --federated-strict
 - --file
 - --filter
 - --fts-profile
@@ -392,12 +398,14 @@ tooling.vfs.tokenMode (string)
 - --graph-ranking-seed-k
 - --graph-ranking-seeds
 - --import
+- --include-disabled
 - --inferred-type
 - --json
 - --lang
 - --lint
 - --loops
 - --matched
+- --merge
 - --meta
 - --meta-json
 - --mode
@@ -411,6 +419,7 @@ tooling.vfs.tokenMode (string)
 - --path
 - --reads
 - --repo
+- --repo-filter
 - --return-type
 - --returns
 - --risk
@@ -419,18 +428,24 @@ tooling.vfs.tokenMode (string)
 - --risk-sink
 - --risk-source
 - --risk-tag
+- --rrf-k
+- --select
 - --signature
+- --snapshot
 - --stats
 - --struct-pack
 - --struct-rule
 - --struct-tag
 - --stub-embeddings
+- --tag
 - --throws
 - --top
+- --top-per-repo
 - --type
 - --uses
 - --visibility
 - --why
+- --workspace
 - --writes
 
 Notes:

@@ -1,22 +1,31 @@
 #!/usr/bin/env node
+import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
-import { ensureFixtureIndex } from '../../helpers/fixture-index.js';
 import { startApiServer } from '../../helpers/api-server.js';
 
-const cacheName = 'api-no-index';
-const cacheRoot = path.join(process.cwd(), 'tests', '.cache', cacheName);
+process.env.PAIROFCLEATS_TESTING = '1';
+
+const cacheRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-api-no-index-'));
+const defaultRepo = path.join(cacheRoot, 'default');
 const emptyRepo = path.join(cacheRoot, 'empty');
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
+await fsPromises.mkdir(defaultRepo, { recursive: true });
 await fsPromises.mkdir(emptyRepo, { recursive: true });
+await fsPromises.writeFile(path.join(defaultRepo, '.pairofcleats.json'), JSON.stringify({
+  cache: { root: cacheRoot }
+}, null, 2), 'utf8');
 
-const { fixtureRoot, env } = await ensureFixtureIndex({
-  fixtureName: 'sample',
-  cacheName
-});
+const env = {
+  ...process.env,
+  PAIROFCLEATS_TESTING: '1',
+  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
+  PAIROFCLEATS_EMBEDDINGS: '0'
+};
 
 const { serverInfo, requestJson, stop } = await startApiServer({
-  repoRoot: fixtureRoot,
+  repoRoot: defaultRepo,
   allowedRoots: [emptyRepo],
   env
 });
@@ -26,14 +35,11 @@ try {
     repoPath: emptyRepo,
     query: 'return'
   }, serverInfo);
-  if (noIndex.status !== 409 || noIndex.body?.code !== 'NO_INDEX') {
-    throw new Error('api-server should return NO_INDEX when indexes are missing');
-  }
-} catch (err) {
-  console.error(err?.message || err);
-  process.exit(1);
+  assert.equal(noIndex.status, 409);
+  assert.equal(noIndex.body?.code, 'NO_INDEX');
 } finally {
   await stop();
+  await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 }
 
 console.log('API no-index response ok.');

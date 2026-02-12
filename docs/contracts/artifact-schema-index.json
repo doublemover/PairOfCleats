@@ -1,5 +1,5 @@
 {
-  "schemaHash": "8e5649421ac9515e17135890970035c6e6f374b4",
+  "schemaHash": "a066ef37b5aa31032210a59e0ee6f2e95b4ba2dc",
   "artifacts": [
     {
       "artifact": "api_contracts",
@@ -609,6 +609,7 @@
       "optionalFields": [
         "assembled",
         "buildId",
+        "cohortKey",
         "compatibilityKey",
         "embeddings",
         "enrichment",

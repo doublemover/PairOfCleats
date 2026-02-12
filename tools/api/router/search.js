@@ -151,6 +151,7 @@ export const buildSearchPayloadFromQuery = (searchParams) => {
 
 export const isNoIndexError = (err) => {
   if (!err) return false;
+  if (err.code === 'NO_INDEX') return true;
   if (err.code === 'ERR_INDEX_NOT_FOUND') return true;
   const message = String(err.message || '').toLowerCase();
   return message.includes('index not found') || message.includes('build index');
