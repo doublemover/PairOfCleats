@@ -155,8 +155,8 @@ export const createRepoCacheManager = ({
       }
       entry.buildId = nextBuildId;
     } catch {
+      resetRepoEntry(entry);
       entry.buildId = null;
-      entry.buildPointerMtimeMs = null;
     }
   };
 

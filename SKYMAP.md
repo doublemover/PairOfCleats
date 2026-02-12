@@ -691,7 +691,7 @@ Enable first-class **workspace** workflows: index and query across **multiple re
 - [x] Workspace config + manifest schemas are enforced and validated.
 - [x] Federated search works across repo sets with deterministic ordering.
 - [x] Cohort gating prevents unsafe mixed‑version query plans.
-- [ ] Federated query cache is keyed and invalidated deterministically.
+- [x] Federated query cache is keyed and invalidated deterministically.
 
 ### Phase 15 Implementation Order (must follow)
 1. 15.1 Workspace configuration, repo identity, and `repoSetId`.
@@ -709,8 +709,8 @@ Enable first-class **workspace** workflows: index and query across **multiple re
   - [x] Never preserve stale values from malformed `builds/current.json`.
 - [x] Federated execution must be deterministic under partial failures:
   - [x] Keep successful repos, surface per-repo errors, and apply deterministic ordering to diagnostics and merged outputs.
-- [ ] Federated cache keys must reflect actual runtime behavior:
-  - [ ] Include requested knobs and effective backend/runtime selections to avoid cache pollution.
+- [x] Federated cache keys must reflect actual runtime behavior:
+  - [x] Include requested knobs and effective backend/runtime selections to avoid cache pollution.
 
 ### Canonical specs and required updates
 
@@ -770,9 +770,9 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
   - [x] Compute per spec (order-independent, excludes display fields):
     - [x] sorted list of `{ repoId, repoRootCanonical }`
     - [x] `repoSetId = "ws1-" + sha1(stableStringify({ v:1, schemaVersion:1, repos:[...] }))`
-  - [ ] `repoSetId` is used for:
+  - [x] `repoSetId` is used for:
     - [x] workspace manifest pathing (15.2)
-    - [ ] federated query cache directory naming (15.5)
+    - [x] federated query cache directory naming (15.5)
 
 - [x] Centralize identity/canonicalization helpers across all callers.
   - [x] Any cache key that includes a repo path MUST use `repoRootCanonical`.
@@ -959,30 +959,30 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
 
 > **Authoritative spec:** `docs/specs/federated-query-cache.md`
 
-- [ ] Introduce federated query cache storage under `federationCacheRoot`.
-  - [ ] Location MUST be: `<federationCacheRoot>/federation/<repoSetId>/queryCache.json`.
-  - [ ] Writes MUST be atomic; tolerate concurrent readers and avoid file corruption.
-  - [ ] Eviction MUST be deterministic.
+- [x] Introduce federated query cache storage under `federationCacheRoot`.
+  - [x] Location MUST be: `<federationCacheRoot>/federation/<repoSetId>/queryCache.json`.
+  - [x] Writes MUST be atomic; tolerate concurrent readers and avoid file corruption.
+  - [x] Eviction MUST be deterministic.
 
-- [ ] Cache keying MUST be complete and stable.
-  - [ ] Cache key MUST include (directly or via `manifestHash`):
-    - [ ] `repoSetId`
-    - [ ] `manifestHash` (primary invalidator)
-    - [ ] normalized selection (selected repo ids, includeDisabled, tags, repoFilter, explicit selects)
-    - [ ] cohort decision inputs/outputs
-    - [ ] normalized search request knobs that affect output (query, modes, filters, backend choices, ranking knobs)
-    - [ ] effective runtime choices that affect output (resolved ANN backend, fallback backend, compatibility gating outcome, per-mode backend overrides)
-    - [ ] merge strategy and limits (`top`, `perRepoTop`, `rrfK`, concurrency)
-  - [ ] Key payload serialization MUST use `stableStringify`.
+- [x] Cache keying MUST be complete and stable.
+  - [x] Cache key MUST include (directly or via `manifestHash`):
+    - [x] `repoSetId`
+    - [x] `manifestHash` (primary invalidator)
+    - [x] normalized selection (selected repo ids, includeDisabled, tags, repoFilter, explicit selects)
+    - [x] cohort decision inputs/outputs
+    - [x] normalized search request knobs that affect output (query, modes, filters, backend choices, ranking knobs)
+    - [x] effective runtime choices that affect output (resolved ANN backend, fallback backend, compatibility gating outcome, per-mode backend overrides)
+    - [x] merge strategy and limits (`top`, `perRepoTop`, `rrfK`, concurrency)
+  - [x] Key payload serialization MUST use `stableStringify`.
 
-- [ ] Stop duplicating or weakening index signature logic.
-  - [ ] For federation invalidation, prefer `manifestHash` rather than ad hoc per-repo signatures.
-  - [ ] For per-repo cache invalidation, use `buildIndexSignature` (not bespoke partial signatures).
+- [x] Stop duplicating or weakening index signature logic.
+  - [x] For federation invalidation, prefer `manifestHash` rather than ad hoc per-repo signatures.
+  - [x] For per-repo cache invalidation, use `buildIndexSignature` (not bespoke partial signatures).
 
-- [ ] Canonicalize repo-path keyed caches everywhere federation touches.
-  - [ ] API server repo cache keys MUST use `repoRootCanonical`.
-  - [ ] MCP repo cache keys MUST canonicalize subdir inputs to the repo root.
-  - [ ] If `builds/current.json` is invalid JSON, clear build id and caches rather than keeping stale state.
+- [x] Canonicalize repo-path keyed caches everywhere federation touches.
+  - [x] API server repo cache keys MUST use `repoRootCanonical`.
+  - [x] MCP repo cache keys MUST canonicalize subdir inputs to the repo root.
+  - [x] If `builds/current.json` is invalid JSON, clear build id and caches rather than keeping stale state.
 
 **Touchpoints:**
 - `src/retrieval/index-cache.js`
@@ -993,10 +993,10 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
 - `tools/shared/dict-utils.js`
 
 **Tests**
-- [ ] `tests/retrieval/federation/query-cache-key-stability.test.js`
-- [ ] `tests/retrieval/federation/query-cache-invalidation-via-manifesthash.test.js`
-- [ ] `tests/retrieval/federation/mcp-repo-canonicalization.test.js`
-- [ ] `tests/retrieval/federation/build-pointer-invalid-clears-cache.test.js`
+- [x] `tests/retrieval/federation/query-cache-key-stability.test.js`
+- [x] `tests/retrieval/federation/query-cache-invalidation-via-manifesthash.test.js`
+- [x] `tests/retrieval/federation/mcp-repo-canonicalization.test.js`
+- [x] `tests/retrieval/federation/build-pointer-invalid-clears-cache.test.js`
 
 ---
 

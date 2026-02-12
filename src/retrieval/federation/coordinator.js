@@ -9,6 +9,15 @@ import { generateWorkspaceManifest } from '../../workspace/manifest.js';
 import { buildPerRepoArgsFromCli, buildPerRepoArgsFromRequest } from './args.js';
 import { selectFederationCohorts } from './cohorts.js';
 import { mergeFederatedResults } from './merge.js';
+import {
+  buildFederatedQueryCacheKey,
+  buildFederatedQueryCacheKeyPayload,
+  findFederatedQueryCacheEntry,
+  loadFederatedQueryCache,
+  persistFederatedQueryCache,
+  touchFederatedQueryCacheEntry,
+  upsertFederatedQueryCacheEntry
+} from './query-cache.js';
 import { selectWorkspaceRepos } from './select.js';
 
 const MODE_PAYLOAD_KEYS = Object.freeze({
@@ -69,6 +78,13 @@ const sortDiagnostics = (entries) => entries.slice().sort((a, b) => (
 ));
 
 export const applyCohortPolicy = (input) => selectFederationCohorts(input);
+
+const resolveFederatedQueryCachePath = (manifest, repoSetId) => path.join(
+  manifest.federationCacheRoot,
+  'federation',
+  repoSetId,
+  'queryCache.json'
+);
 
 const toStableResponse = (response, includePaths) => {
   if (!includePaths) {
@@ -131,6 +147,76 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
       search: request.search || {},
       perRepoTop
     });
+  const cohortSelectors = request.cohort || request.cohorts?.cohort || [];
+  const cachePath = resolveFederatedQueryCachePath(manifest, workspaceConfig.repoSetId);
+  const cachePolicy = {
+    ...context.federatedCachePolicy
+  };
+  const cacheKeyPayload = buildFederatedQueryCacheKeyPayload({
+    repoSetId: workspaceConfig.repoSetId,
+    manifestHash: manifest.manifestHash,
+    query,
+    selection: {
+      selectedRepoIds: selection.selectedRepoIds,
+      includeDisabled: selection.selectionMeta?.includeDisabled === true,
+      tags: selection.selectionMeta?.tags || [],
+      repoFilter: selection.selectionMeta?.repoFilter || [],
+      explicitSelects: selection.selectionMeta?.explicitSelects || []
+    },
+    cohorts: cohortResult,
+    cohortSelectors,
+    search: {
+      ...(request.search || {}),
+      mode: request.search?.mode || request.mode || null,
+      top: topN
+    },
+    merge: {
+      strategy: request.merge?.strategy || 'rrf',
+      rrfK
+    },
+    limits: {
+      top: topN,
+      perRepoTop,
+      concurrency
+    },
+    runtime: {
+      perRepoArgs,
+      requestedBackend: request.search?.backend || request.backend || null,
+      requestedAnn: request.search?.ann ?? request.ann ?? null,
+      debugIncludePaths: includePaths === true
+    }
+  });
+  const cacheKeyInfo = buildFederatedQueryCacheKey(cacheKeyPayload);
+  let cacheData = await loadFederatedQueryCache({
+    cachePath,
+    repoSetId: workspaceConfig.repoSetId
+  });
+  const cachedEntry = findFederatedQueryCacheEntry(cacheData, {
+    keyHash: cacheKeyInfo.keyHash,
+    manifestHash: manifest.manifestHash
+  });
+  if (cachedEntry?.result) {
+    touchFederatedQueryCacheEntry(cacheData, cacheKeyInfo.keyHash);
+    try {
+      await persistFederatedQueryCache({ cachePath, cache: cacheData });
+    } catch {}
+    return JSON.parse(stableStringify(cachedEntry.result));
+  }
+  const persistCachedResult = async (result) => {
+    try {
+      upsertFederatedQueryCacheEntry(cacheData, {
+        keyHash: cacheKeyInfo.keyHash,
+        keyPayloadHash: cacheKeyInfo.keyPayloadHash,
+        manifestHash: manifest.manifestHash,
+        result,
+        policy: cachePolicy
+      });
+      await persistFederatedQueryCache({
+        cachePath,
+        cache: cacheData
+      });
+    } catch {}
+  };
 
   const indexCache = context.indexCache || createIndexCache();
   const sqliteCache = context.sqliteCache || createSqliteDbCache();
@@ -179,7 +265,9 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
       repos: [],
       warnings: [...selection.warnings, ...(cohortResult.warnings || [])]
     };
-    return toStableResponse(emptyResponse, includePaths);
+    const stable = toStableResponse(emptyResponse, includePaths);
+    await persistCachedResult(stable);
+    return stable;
   }
 
   let cursor = 0;
@@ -291,5 +379,7 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
     warnings: [...selection.warnings, ...(cohortResult.warnings || [])]
   };
 
-  return toStableResponse(response, includePaths);
+  const stable = toStableResponse(response, includePaths);
+  await persistCachedResult(stable);
+  return stable;
 };
