@@ -1290,9 +1290,9 @@ If contradictions are found:
 
 ### F.3 Change-control (USR section 28)
 
-- [ ] Add Tier 1/Tier 2/Tier 3 change classification checklist to PR workflow.
-- [ ] Enforce required reviewer thresholds by tier.
-- [ ] Enforce required updates to registries/schemas/tests for Tier 2 and Tier 3 changes.
+- [x] Add Tier 1/Tier 2/Tier 3 change classification checklist to PR workflow.
+- [x] Enforce required reviewer thresholds by tier.
+- [x] Enforce required updates to registries/schemas/tests for Tier 2 and Tier 3 changes.
 
 ### F.4 Extension policy (USR section 29)
 

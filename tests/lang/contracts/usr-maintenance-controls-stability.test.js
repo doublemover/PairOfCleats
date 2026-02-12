@@ -31,6 +31,9 @@ const extractSection = (text, startMarker, endMarker) => {
 const maintenanceSection = extractSection(roadmapText, '### 15.3 Maintenance', '### 15.4 Exit criteria');
 assert.equal(/- \[ \] /.test(maintenanceSection), false, 'phase 15.3 maintenance checklist must not contain unchecked items');
 
+const changeControlSection = extractSection(roadmapText, '### F.3 Change-control (USR section 28)', '### F.4 Extension policy (USR section 29)');
+assert.equal(/- \[ \] /.test(changeControlSection), false, 'appendix F.3 change-control checklist must not contain unchecked items');
+
 const appendixMSection = extractSection(roadmapText, 'Roadmap enforcement requirements:', '## Appendix N - Phase 0 Governance Lock Artifacts');
 assert.equal(appendixMSection.includes('- [x] Every phase gate links to at least one concrete evidence artifact in `docs/specs/usr-core-evidence-gates-waivers.md`.'), true, 'appendix M must mark phase-to-evidence linkage requirement complete');
 assert.equal(appendixMSection.includes('- [x] Every blocking evidence artifact has an active schema in `docs/schemas/usr/*.json` and a row in `docs/specs/usr-core-artifact-schema-catalog.md`.'), true, 'appendix M must mark blocking evidence schema-catalog coverage requirement complete');
@@ -46,6 +49,7 @@ const requiredCiTests = [
   'lang/contracts/usr-contract-enforcement',
   'lang/contracts/usr-core-artifact-schema-catalog-alignment',
   'lang/contracts/usr-blocking-evidence-schema-catalog-validation',
+  'lang/contracts/usr-change-tier-policy-validation',
   'lang/contracts/usr-onboarding-policy-validation',
   'lang/contracts/usr-roadmap-sync',
   'lang/contracts/usr-pr-template-policy-validation',
@@ -68,6 +72,7 @@ for (const testId of requiredCiTests) {
 const requiredPrMarkers = [
   'usr-policy:change-control',
   'usr-policy:decomposed-workflow',
+  'usr-policy:change-tiering',
   'usr-policy:appendix-sync',
   'usr-policy:registry-drift',
   'usr-policy:parser-lock',
