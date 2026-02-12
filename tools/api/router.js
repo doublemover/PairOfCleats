@@ -66,7 +66,7 @@ export const createApiRouter = ({
     return canonicalAllowedRoots.some((root) => isWithinRoot(workspaceCanonical, root));
   };
 
-const resolveWorkspacePath = (payload) => {
+  const resolveWorkspacePath = (payload) => {
     const value = payload?.workspacePath;
     if (typeof value !== 'string') return '';
     const trimmed = value.trim();
