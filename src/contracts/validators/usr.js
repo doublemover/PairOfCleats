@@ -295,6 +295,120 @@ export function validateUsrCapabilityTransition(payload, { strictReasonCode = tr
   return { ok: true, errors: [] };
 }
 
+export function buildUsrDiagnosticsTransitionReport({
+  diagnostics = [],
+  reasonCodes = [],
+  transitions = [],
+  strictEnum = true,
+  strictReasonCode = true,
+  generatedAt = new Date().toISOString(),
+  producerId = 'usr-diagnostics-transition-builder',
+  producerVersion = null,
+  runId = 'run-usr-diagnostics-transition',
+  lane = 'diagnostics-summary',
+  buildId = null,
+  scope = { scopeType: 'lane', scopeId: 'diagnostics-summary' }
+} = {}) {
+  const errors = [];
+  const warnings = [];
+  const rows = [];
+
+  const canonicalDiagnostics = [...new Set((Array.isArray(diagnostics) ? diagnostics : []).filter((value) => typeof value === 'string'))];
+  const canonicalReasonCodes = [...new Set((Array.isArray(reasonCodes) ? reasonCodes : []).filter((value) => typeof value === 'string'))];
+  const canonicalTransitions = Array.isArray(transitions) ? transitions : [];
+
+  for (const code of canonicalDiagnostics) {
+    const validation = validateUsrDiagnosticCode(code, { strictEnum });
+    if (!validation.ok) {
+      errors.push(...validation.errors.map((message) => `${code} ${message}`));
+    }
+    rows.push({
+      rowType: 'diagnostic-code',
+      id: code,
+      pass: validation.ok,
+      errors: Object.freeze([...validation.errors])
+    });
+  }
+
+  for (const reasonCode of canonicalReasonCodes) {
+    const validation = validateUsrReasonCode(reasonCode, { strictEnum });
+    if (!validation.ok) {
+      errors.push(...validation.errors.map((message) => `${reasonCode} ${message}`));
+    }
+    rows.push({
+      rowType: 'reason-code',
+      id: reasonCode,
+      pass: validation.ok,
+      errors: Object.freeze([...validation.errors])
+    });
+  }
+
+  for (let index = 0; index < canonicalTransitions.length; index += 1) {
+    const transition = canonicalTransitions[index];
+    const validation = validateUsrCapabilityTransition(transition, { strictReasonCode });
+    if (!validation.ok) {
+      errors.push(...validation.errors.map((message) => `transition[${index}] ${message}`));
+    }
+    rows.push({
+      rowType: 'capability-transition',
+      id: `transition-${index + 1}`,
+      from: transition?.from ?? null,
+      to: transition?.to ?? null,
+      diagnostic: transition?.diagnostic ?? null,
+      reasonCode: transition?.reasonCode ?? null,
+      pass: validation.ok,
+      errors: Object.freeze([...validation.errors])
+    });
+  }
+
+  const status = errors.length > 0 ? 'fail' : 'pass';
+
+  const payload = {
+    schemaVersion: 'usr-1.0.0',
+    artifactId: 'usr-validation-report',
+    generatedAt,
+    producerId,
+    producerVersion,
+    runId,
+    lane,
+    buildId,
+    status,
+    scope: scope && typeof scope === 'object'
+      ? {
+          scopeType: typeof scope.scopeType === 'string' ? scope.scopeType : 'lane',
+          scopeId: typeof scope.scopeId === 'string' ? scope.scopeId : lane
+        }
+      : {
+          scopeType: 'lane',
+          scopeId: lane
+        },
+    summary: {
+      rowCount: rows.length,
+      diagnosticCount: canonicalDiagnostics.length,
+      reasonCodeCount: canonicalReasonCodes.length,
+      transitionChecks: canonicalTransitions.length,
+      passCount: rows.filter((row) => row.pass).length,
+      failCount: rows.filter((row) => !row.pass).length,
+      errorCount: errors.length,
+      warningCount: warnings.length
+    },
+    blockingFindings: errors.map((message) => ({
+      class: 'diagnostics-transition',
+      message
+    })),
+    advisoryFindings: [],
+    rows
+  };
+
+  return {
+    ok: errors.length === 0,
+    errors: Object.freeze([...errors]),
+    warnings: Object.freeze([...warnings]),
+    rows: Object.freeze(rows),
+    payload
+  };
+}
+
 export function validateUsrCanonicalId(idType, value) {
   const regex = USR_CANONICAL_ID_REGEX[idType];
   if (!regex) {

@@ -10,6 +10,7 @@ import {
   validateUsrRequiredAuditReports,
   USR_REQUIRED_AUDIT_REPORT_IDS,
   validateUsrCapabilityTransition,
+  buildUsrDiagnosticsTransitionReport,
   validateUsrCanonicalId,
   validateUsrDiagnosticCode,
   validateUsrReasonCode,
@@ -134,6 +135,38 @@ const transitionUnknownReason = validateUsrCapabilityTransition({
   reasonCode: 'USR-R-UNKNOWN-REASON'
 });
 assert.equal(transitionUnknownReason.ok, false, 'capability transition with unknown reason code must fail');
+
+const diagnosticsTransitionReport = buildUsrDiagnosticsTransitionReport({
+  diagnostics: ['USR-E-PARSER-FAILED', 'USR-W-CAPABILITY-DOWNGRADED'],
+  reasonCodes: ['USR-R-PARSER-TIMEOUT'],
+  transitions: [
+    {
+      from: 'supported',
+      to: 'partial',
+      diagnostic: 'USR-W-CAPABILITY-DOWNGRADED',
+      reasonCode: 'USR-R-PARSER-TIMEOUT'
+    }
+  ],
+  runId: 'run-usr-diagnostics-transition-001',
+  lane: 'diagnostics-summary'
+});
+assert.equal(diagnosticsTransitionReport.ok, true, `diagnostics transition report should pass: ${diagnosticsTransitionReport.errors.join('; ')}`);
+const diagnosticsTransitionReportValidation = validateUsrReport('usr-validation-report', diagnosticsTransitionReport.payload);
+assert.equal(diagnosticsTransitionReportValidation.ok, true, `diagnostics transition report payload should validate: ${diagnosticsTransitionReportValidation.errors.join('; ')}`);
+
+const diagnosticsTransitionReportNegative = buildUsrDiagnosticsTransitionReport({
+  diagnostics: ['USR-E-NOT-IN-TAXONOMY'],
+  transitions: [
+    {
+      from: 'supported',
+      to: 'unsupported',
+      diagnostic: 'USR-W-DEGRADED-CAPABILITY'
+    }
+  ],
+  runId: 'run-usr-diagnostics-transition-002',
+  lane: 'diagnostics-summary'
+});
+assert.equal(diagnosticsTransitionReportNegative.ok, false, 'diagnostics transition report should fail for invalid diagnostic transitions');
 
 const validEdge = {
   edgeUid: 'edge64:v1:0011aa22bb33cc44',

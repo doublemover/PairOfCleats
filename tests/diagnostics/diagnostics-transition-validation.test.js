@@ -7,6 +7,7 @@ import {
   validateUsrDiagnosticCode,
   validateUsrReasonCode,
   validateUsrCapabilityTransition,
+  buildUsrDiagnosticsTransitionReport,
   validateUsrReport
 } from '../../src/contracts/validators/usr.js';
 
@@ -51,28 +52,44 @@ const transitionFail = validateUsrCapabilityTransition({
 });
 assert.equal(transitionFail.ok, false, 'invalid capability transition diagnostic must fail strict transition validation');
 
-const diagnosticsReport = {
-  schemaVersion: 'usr-1.0.0',
-  artifactId: 'usr-validation-report',
-  generatedAt: '2026-02-12T09:40:00Z',
-  producerId: 'usr-diagnostics-summary-lane',
+const diagnosticsReport = buildUsrDiagnosticsTransitionReport({
+  diagnostics: [...requiredDiagnostics],
+  reasonCodes: [...requiredReasons],
+  transitions: [
+    {
+      from: 'supported',
+      to: 'partial',
+      diagnostic: 'USR-W-CAPABILITY-DOWNGRADED',
+      reasonCode: 'USR-R-PARSER-TIMEOUT'
+    },
+    {
+      from: 'partial',
+      to: 'unsupported',
+      diagnostic: 'USR-E-CAPABILITY-LOST',
+      reasonCode: 'USR-R-PARSER-UNAVAILABLE'
+    }
+  ],
   runId: 'run-usr-diagnostics-summary-001',
-  lane: 'diagnostics-summary',
-  buildId: null,
-  status: 'pass',
-  scope: {
-    scopeType: 'lane',
-    scopeId: 'diagnostics-summary'
-  },
-  summary: {
-    diagnosticCount: requiredDiagnostics.size,
-    reasonCodeCount: requiredReasons.size,
-    transitionChecks: 2
-  },
-  rows: []
-};
+  producerId: 'usr-diagnostics-summary-lane',
+  lane: 'diagnostics-summary'
+});
+assert.equal(diagnosticsReport.ok, true, `diagnostics transition report should pass: ${diagnosticsReport.errors.join('; ')}`);
 
-const diagnosticsReportValidation = validateUsrReport('usr-validation-report', diagnosticsReport);
+const diagnosticsReportValidation = validateUsrReport('usr-validation-report', diagnosticsReport.payload);
 assert.equal(diagnosticsReportValidation.ok, true, `diagnostics summary validation report must satisfy envelope requirements: ${diagnosticsReportValidation.errors.join('; ')}`);
+
+const diagnosticsReportNegative = buildUsrDiagnosticsTransitionReport({
+  diagnostics: ['USR-E-NOT-IN-TAXONOMY'],
+  transitions: [
+    {
+      from: 'supported',
+      to: 'unsupported',
+      diagnostic: 'USR-W-DEGRADED-CAPABILITY'
+    }
+  ],
+  runId: 'run-usr-diagnostics-summary-002',
+  lane: 'diagnostics-summary'
+});
+assert.equal(diagnosticsReportNegative.ok, false, 'diagnostics transition report must fail on unknown diagnostic or invalid transition codes');
 
 console.log('diagnostics transition validation checks passed');
