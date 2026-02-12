@@ -27,7 +27,15 @@ for (const row of rows) {
   assert.equal(typeof row.owner === 'string' && row.owner.length > 0, true, `fixture-governance row owner must be non-empty: ${row.fixtureId}`);
   assert.equal(Array.isArray(row.reviewers) && row.reviewers.length > 0, true, `fixture-governance row reviewers must be non-empty: ${row.fixtureId}`);
   assert.equal(Array.isArray(row.families) && row.families.length > 0, true, `fixture-governance row families must be non-empty: ${row.fixtureId}`);
+  assert.equal(Array.isArray(row.roadmapTags) && row.roadmapTags.length > 0, true, `fixture-governance row roadmapTags must be non-empty: ${row.fixtureId}`);
   assert.equal(Array.isArray(row.conformanceLevels) && row.conformanceLevels.length > 0, true, `fixture-governance row conformanceLevels must be non-empty: ${row.fixtureId}`);
+
+  if (row.profileType === 'language') {
+    assert.equal(row.roadmapTags.includes(`appendix-c:${row.profileId}`), true, `language fixture row must include appendix-c roadmap tag: ${row.fixtureId}`);
+  }
+  if (row.profileType === 'framework') {
+    assert.equal(row.roadmapTags.includes(`appendix-d:${row.profileId}`), true, `framework fixture row must include appendix-d roadmap tag: ${row.fixtureId}`);
+  }
 }
 
 const blockingRows = rows.filter((row) => row.blocking === true);

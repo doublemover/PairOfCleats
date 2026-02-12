@@ -64,13 +64,14 @@ export const USR_MATRIX_ROW_SCHEMAS = Object.freeze({
   'usr-fixture-governance': {
     type: 'object',
     additionalProperties: false,
-    required: ['fixtureId', 'profileType', 'profileId', 'conformanceLevels', 'families', 'owner', 'reviewers', 'stabilityClass', 'mutationPolicy', 'goldenRequired', 'blocking'],
+    required: ['fixtureId', 'profileType', 'profileId', 'conformanceLevels', 'families', 'roadmapTags', 'owner', 'reviewers', 'stabilityClass', 'mutationPolicy', 'goldenRequired', 'blocking'],
     properties: {
       fixtureId: STRING,
       profileType: { type: 'string', enum: ['language', 'framework', 'cross-cutting'] },
       profileId: STRING,
       conformanceLevels: stringArray,
       families: stringArray,
+      roadmapTags: stringArray,
       owner: STRING,
       reviewers: stringArray,
       stabilityClass: { type: 'string', enum: ['stable', 'volatile'] },

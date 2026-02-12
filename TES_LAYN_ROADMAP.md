@@ -1,6 +1,6 @@
 # TES_LAYN_ROADMAP - USR-Aligned Language and Framework Execution Master Plan
 
-Last rewritten: 2026-02-12T06:15:48Z
+Last rewritten: 2026-02-12T06:24:31Z
 Branch: `usr-skyforge-primer`
 Document status: active master plan baseline v1.5
 
@@ -424,7 +424,7 @@ If contradictions are found:
 ### 7.2 Golden generation and review
 
 - [ ] Regenerate deterministic goldens for USR entities and mapped artifacts.
-- [ ] Add fixture-to-roadmap linkage tags for every language and framework task pack.
+- [x] Add fixture-to-roadmap linkage tags for every language and framework task pack.
 
 ### 7.3 Exit criteria
 

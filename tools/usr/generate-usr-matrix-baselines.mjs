@@ -687,6 +687,30 @@ const failureInjectionMatrix = [
   { id: 'fi-serialization-corruption', faultClass: 'serialization-corruption', injectionLayer: 'serialization', strictExpectedOutcome: 'fail-closed', nonStrictExpectedOutcome: 'degrade-with-diagnostics', requiredDiagnostics: ['USR-E-SCHEMA-VIOLATION'], requiredReasonCodes: ['USR-R-SERIALIZATION-INVALID'] , blocking: true }
 ].sort((a, b) => a.id.localeCompare(b.id));
 
+function roadmapTagsForFixture(row) {
+  const tags = new Set(['phase-7']);
+
+  if (row.profileType === 'language') {
+    tags.add('phase-4');
+    tags.add(`appendix-c:${row.profileId}`);
+  } else if (row.profileType === 'framework') {
+    tags.add('phase-5');
+    tags.add(`appendix-d:${row.profileId}`);
+  } else {
+    tags.add('phase-9');
+  }
+
+  const families = new Set(row.families || []);
+  if (families.has('failure-injection')) tags.add('phase-14');
+  if (families.has('framework-overlay')) tags.add('phase-5');
+  if (families.has('backcompat')) tags.add('phase-10');
+  if (families.has('risk')) tags.add('phase-6');
+  if (families.has('semantic-flow')) tags.add('phase-6');
+  if (families.has('performance')) tags.add('phase-8');
+
+  return [...tags].sort();
+}
+
 const generatedLanguageFixtureGovernance = languageBaselines
   .map((base) => {
     const families = ['language-baseline', 'golden'];
@@ -752,7 +776,12 @@ const fixtureGovernance = [
   { fixtureId: 'usr::resolution::ambiguous-cap-001', profileType: 'cross-cutting', profileId: 'usr', conformanceLevels: ['C1', 'C2'], families: ['resolution', 'ambiguity'], owner: 'usr-resolution', reviewers: ['usr-conformance'], stabilityClass: 'stable', mutationPolicy: 'allow-generated-refresh', goldenRequired: true, blocking: false },
   { fixtureId: 'vue::minimum-slice::template-style-001', profileType: 'framework', profileId: 'vue', conformanceLevels: ['C4'], families: ['minimum-slice', 'framework-overlay', 'template-binding', 'style-scope'], owner: 'framework-vue', reviewers: ['usr-architecture', 'usr-conformance'], stabilityClass: 'stable', mutationPolicy: 'require-review', goldenRequired: true, blocking: true },
   { fixtureId: 'vue::template-binding::script-setup-001', profileType: 'framework', profileId: 'vue', conformanceLevels: ['C4'], families: ['framework-overlay', 'template-binding'], owner: 'framework-vue', reviewers: ['usr-architecture', 'usr-conformance'], stabilityClass: 'stable', mutationPolicy: 'require-review', goldenRequired: true, blocking: true }
-].sort((a, b) => a.fixtureId.localeCompare(b.fixtureId));
+]
+  .map((row) => ({
+    ...row,
+    roadmapTags: roadmapTagsForFixture(row)
+  }))
+  .sort((a, b) => a.fixtureId.localeCompare(b.fixtureId));
 
 const benchmarkPolicy = [
   { id: 'bench-ci-smoke', laneId: 'ci', datasetClass: 'smoke', hostClass: 'standard-ci', warmupRuns: 1, measureRuns: 5, percentileTargets: { p50DurationMs: 120000, p95DurationMs: 180000, p99DurationMs: 220000 }, maxVariancePct: 12, maxPeakMemoryMb: 2048, blocking: true },
