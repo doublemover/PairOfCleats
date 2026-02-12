@@ -114,6 +114,7 @@ const requiredRoadmapAnchors = [
   '### N.14 Appendix F.1 phase-evidence lock',
   '### N.15 Phase 9.2 go/no-go decision lock',
   '### N.16 Gate C evidence-completeness lock',
+  '### N.17 Phase 15 exit-completion lock',
   '| Consolidated contract | Primary intent | Required phases | Required CI gates/lanes |',
   'appendices H/J/M/N'
 ];

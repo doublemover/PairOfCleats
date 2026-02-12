@@ -94,6 +94,7 @@ assertExists('tests/lang/matrix/usr-slo-budgets.json', 'F.6.5 SLO budget matrix'
 assertExists('tests/lang/matrix/usr-security-gates.json', 'F.6.5 security gate matrix');
 assertExists('tests/lang/matrix/usr-threat-model-matrix.json', 'F.6.5 threat model matrix');
 assertTestInCiOrders('lang/contracts/usr-observability-rollup-validation', 'F.6.5');
+assertTestInCiOrders('lang/contracts/usr-phase15-exit-lock-validation', 'F.6.5');
 assertTestInCiOrders('lang/contracts/usr-phase8-hardening-readiness-validation', 'F.6.5');
 assertTestInCiOrders('lang/contracts/usr-fixture-golden-readiness-validation', 'F.6.5');
 assertTestInCiOrders('lang/contracts/usr-benchmark-policy-validation', 'F.6.5');

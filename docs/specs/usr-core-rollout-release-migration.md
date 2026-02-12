@@ -1,7 +1,7 @@
 # Spec -- USR Core Rollout, Release, and Migration Contract
 
 Status: Draft v2.0
-Last updated: 2026-02-12T07:46:16Z
+Last updated: 2026-02-12T07:49:17Z
 
 ## Purpose
 
@@ -162,6 +162,12 @@ Gate C evidence-completeness lock requirements:
 - `all prior gates pass.` cannot be checked unless every Gate C evidence line (backcompat, drift, implementation-readiness, SLO, security, failure-injection, fixture-governance, benchmark, threat-model, waiver) is checked.
 - If `all prior gates pass.` regresses to unchecked, `conformance rollout authorized.` and Appendix F.1 `Complete Phase D full conformance enforcement.` must remain unchecked until Gate C evidence is restored.
 - If any required Gate C evidence line regresses to unchecked, readiness and rollout authorization lines must be reopened.
+
+Phase 15 exit-completion lock requirements:
+
+- `CI and maintenance controls are stable for ongoing development.` cannot be checked unless every checklist line in sections 15.1, 15.2, and 15.3 is checked.
+- Phase 15 exit cannot be checked unless required maintenance/rollout/report-schema validators remain present in `ci` and `ci-lite` lane order manifests.
+- If any Phase 15 prerequisite control regresses to unchecked, Phase 15 exit must be reopened and release-readiness promotion must remain blocked.
 
 ## Rollback policy
 
