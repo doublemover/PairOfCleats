@@ -131,7 +131,7 @@ export const USR_REPORT_SCHEMA_DEFS = Object.freeze({
 
 export const USR_DIAGNOSTIC_CODE_SCHEMA = {
   type: 'string',
-  pattern: '^USR-[EWR]-[A-Z0-9-]+$'
+  pattern: '^USR-[EWI]-[A-Z0-9-]+$'
 };
 
 export const USR_REASON_CODE_SCHEMA = {

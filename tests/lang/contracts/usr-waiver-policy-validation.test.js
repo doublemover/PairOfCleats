@@ -43,6 +43,7 @@ const activeReport = buildUsrWaiverActiveReport({
   producerId: 'usr-waiver-policy-harness'
 });
 assert.equal(activeReport.ok, true, `waiver active report should pass: ${activeReport.errors.join('; ')}`);
+assert.deepEqual(activeReport.rows, activeReport.payload.rows, 'waiver active report return rows must mirror payload rows');
 const activeReportValidation = validateUsrReport('usr-waiver-active-report', activeReport.payload);
 assert.equal(activeReportValidation.ok, true, `waiver active report payload must validate: ${activeReportValidation.errors.join('; ')}`);
 

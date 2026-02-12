@@ -489,6 +489,7 @@ export function evaluateUsrFailureInjectionScenarios({
 
     const requiredDiagnostics = asStringArray(row.requiredDiagnostics);
     const requiredReasonCodes = asStringArray(row.requiredReasonCodes);
+    const requiredRecoveryArtifacts = asStringArray(row.requiredRecoveryArtifacts);
 
     const strictDiagnostics = asStringArray(strictObserved?.diagnostics);
     const strictReasonCodes = asStringArray(strictObserved?.reasonCodes);
@@ -521,6 +522,15 @@ export function evaluateUsrFailureInjectionScenarios({
       }
       if (nonStrictRecoveryEvidence.length === 0) {
         rowErrors.push('non-strict recoveryEvidence missing for blocking scenario');
+      }
+
+      for (const requiredArtifact of requiredRecoveryArtifacts) {
+        if (!strictRecoveryEvidence.includes(requiredArtifact)) {
+          rowErrors.push(`strict recoveryEvidence missing required artifact ${requiredArtifact}`);
+        }
+        if (!nonStrictRecoveryEvidence.includes(requiredArtifact)) {
+          rowErrors.push(`non-strict recoveryEvidence missing required artifact ${requiredArtifact}`);
+        }
       }
     }
 
@@ -4542,7 +4552,7 @@ export function buildUsrWaiverActiveReport({
     ok: validation.ok,
     errors: validation.errors,
     warnings: validation.warnings,
-    rows: validation.rows,
+    rows,
     payload
   };
 }
