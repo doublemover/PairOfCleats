@@ -13,6 +13,30 @@ const ajv = createAjv({
   strict: true
 });
 
+const EDGE_ENDPOINT_ENTITY_TO_ID_TYPE = Object.freeze({
+  document: 'docUid',
+  segment: 'segmentUid',
+  node: 'nodeUid',
+  symbol: 'symbolUid'
+});
+
+export const USR_CANONICAL_ID_PATTERNS = Object.freeze({
+  docUid: '^doc64:v1:[a-f0-9]{16}$',
+  segmentUid: '^segu:v1:[a-f0-9]{16}$',
+  nodeUid: '^n64:v1:[a-f0-9]{16}$',
+  symbolUid: '^symu:v1:[a-z0-9:_\\-.]+$',
+  edgeUid: '^edge64:v1:[a-f0-9]{16}$',
+  routeUid: '^route64:v1:[a-f0-9]{16}$',
+  scopeUid: '^scope64:v1:[a-f0-9]{16}$',
+  diagnosticUid: '^diag64:v1:[a-f0-9]{16}$'
+});
+
+const USR_CANONICAL_ID_REGEX = Object.freeze(
+  Object.fromEntries(
+    Object.entries(USR_CANONICAL_ID_PATTERNS).map(([idType, pattern]) => [idType, new RegExp(pattern)])
+  )
+);
+
 const formatError = (error) => {
   const path = error.instancePath || '/';
   const message = error.message || 'schema error';
@@ -22,6 +46,51 @@ const formatError = (error) => {
 const formatErrors = (validator) => (
   validator.errors ? validator.errors.map(formatError) : []
 );
+
+const normalizeEdgeKindConstraintRows = (edgeKindConstraints) => {
+  if (Array.isArray(edgeKindConstraints)) {
+    return edgeKindConstraints;
+  }
+  if (Array.isArray(edgeKindConstraints?.rows)) {
+    return edgeKindConstraints.rows;
+  }
+  return [];
+};
+
+const buildEdgeKindConstraintMap = (edgeKindConstraints) => new Map(
+  normalizeEdgeKindConstraintRows(edgeKindConstraints)
+    .filter((row) => row && typeof row === 'object' && typeof row.edgeKind === 'string')
+    .map((row) => [row.edgeKind, row])
+);
+
+const validateEdgeEndpointRef = ({ label, ref, allowedEntities, errors }) => {
+  if (!ref || typeof ref !== 'object') {
+    errors.push(`${label} ref must be an object`);
+    return;
+  }
+
+  const entity = ref.entity;
+  if (typeof entity !== 'string') {
+    errors.push(`${label}.entity must be a string`);
+    return;
+  }
+
+  if (Array.isArray(allowedEntities) && !allowedEntities.includes(entity)) {
+    errors.push(`${label}.entity=${entity} not allowed by edge-kind constraints`);
+  }
+
+  const uid = ref.uid;
+  const idType = EDGE_ENDPOINT_ENTITY_TO_ID_TYPE[entity];
+  if (!idType) {
+    errors.push(`${label}.entity=${entity} has no canonical ID mapping`);
+    return;
+  }
+
+  const uidResult = validateUsrCanonicalId(idType, uid);
+  if (!uidResult.ok) {
+    errors.push(...uidResult.errors.map((error) => `${label}.uid ${error}`));
+  }
+};
 
 export const USR_VALIDATORS = Object.freeze(
   Object.fromEntries(
@@ -64,4 +133,100 @@ export function validateUsrReport(artifactId, payload) {
 export function validateUsrCapabilityTransition(payload) {
   const ok = Boolean(CAPABILITY_TRANSITION_VALIDATOR(payload));
   return { ok, errors: ok ? [] : formatErrors(CAPABILITY_TRANSITION_VALIDATOR) };
+}
+
+export function validateUsrCanonicalId(idType, value) {
+  const regex = USR_CANONICAL_ID_REGEX[idType];
+  if (!regex) {
+    return { ok: false, errors: [`unknown canonical ID type: ${idType}`] };
+  }
+  if (typeof value !== 'string') {
+    return { ok: false, errors: [`${idType} must be a string`] };
+  }
+  if (!regex.test(value)) {
+    return { ok: false, errors: [`${idType} does not match canonical grammar`] };
+  }
+  return { ok: true, errors: [] };
+}
+
+export function validateUsrEdgeEndpoint(edge, edgeKindConstraints) {
+  const errors = [];
+  if (!edge || typeof edge !== 'object') {
+    return { ok: false, errors: ['edge must be an object'] };
+  }
+
+  const edgeUidResult = validateUsrCanonicalId('edgeUid', edge.edgeUid);
+  if (!edgeUidResult.ok) {
+    errors.push(...edgeUidResult.errors.map((error) => `edgeUid ${error}`));
+  }
+
+  const edgeKind = typeof edge.kind === 'string'
+    ? edge.kind
+    : (typeof edge.edgeKind === 'string' ? edge.edgeKind : null);
+  if (!edgeKind) {
+    errors.push('edge kind must be provided as edge.kind or edge.edgeKind');
+    return { ok: false, errors };
+  }
+
+  const constraintsByKind = buildEdgeKindConstraintMap(edgeKindConstraints);
+  const constraint = constraintsByKind.get(edgeKind);
+  if (!constraint) {
+    errors.push(`edge kind not present in constraint table: ${edgeKind}`);
+    return { ok: false, errors };
+  }
+
+  const source = edge.source ?? null;
+  const target = edge.target ?? null;
+  if (edge.status === 'resolved') {
+    if (!source) {
+      errors.push('resolved edge must include source ref');
+    }
+    if (!target) {
+      errors.push('resolved edge must include target ref');
+    }
+  }
+
+  if (source) {
+    validateEdgeEndpointRef({
+      label: 'source',
+      ref: source,
+      allowedEntities: constraint.sourceEntityKinds,
+      errors
+    });
+  }
+
+  if (target) {
+    validateEdgeEndpointRef({
+      label: 'target',
+      ref: target,
+      allowedEntities: constraint.targetEntityKinds,
+      errors
+    });
+  }
+
+  if (source && target && source.entity === target.entity && source.uid === target.uid) {
+    if (edgeKind !== 'ast_parent') {
+      errors.push(`self-edge is only allowed for ast_parent; received ${edgeKind}`);
+    } else if (typeof edge?.attrs?.selfLoopReason !== 'string' || edge.attrs.selfLoopReason.trim() === '') {
+      errors.push('ast_parent self-edge requires attrs.selfLoopReason');
+    }
+  }
+
+  return { ok: errors.length === 0, errors };
+}
+
+export function validateUsrEdgeEndpoints(edges, edgeKindConstraints) {
+  if (!Array.isArray(edges)) {
+    return { ok: false, errors: ['edges must be an array'] };
+  }
+
+  const errors = [];
+  edges.forEach((edge, index) => {
+    const result = validateUsrEdgeEndpoint(edge, edgeKindConstraints);
+    if (!result.ok) {
+      errors.push(...result.errors.map((error) => `edge[${index}] ${error}`));
+    }
+  });
+
+  return { ok: errors.length === 0, errors };
 }
