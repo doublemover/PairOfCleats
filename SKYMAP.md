@@ -1004,28 +1004,28 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
 
 > **Authoritative spec:** `docs/specs/cache-cas-gc.md`
 
-- [ ] Make cache layers explicit and document them.
-  - [ ] Global caches (models, tooling assets, dictionaries/wordlists)
-  - [ ] Repo-scoped caches (index builds, sqlite artifacts)
-  - [ ] Workspace-scoped caches (workspace manifest, federated query cache)
+- [x] Make cache layers explicit and document them.
+  - [x] Global caches (models, tooling assets, dictionaries/wordlists)
+  - [x] Repo-scoped caches (index builds, sqlite artifacts)
+  - [x] Workspace-scoped caches (workspace manifest, federated query cache)
 
-- [ ] (Design first) Introduce content-addressed storage (CAS) for expensive derived artifacts.
-  - [ ] Define object identity (hashing), layout, and reference tracking.
-  - [ ] Ensure deterministic, safe reuse across repos and workspaces.
-  - [ ] Define and implement a design gate before rollout:
-    - [ ] lease model for in-use objects
-    - [ ] mark-and-sweep reachability rules
-    - [ ] deletion safety conditions under concurrent index/search workloads
-    - [ ] recovery plan when GC is interrupted mid-run
+- [x] (Design first) Introduce content-addressed storage (CAS) for expensive derived artifacts.
+  - [x] Define object identity (hashing), layout, and reference tracking.
+  - [x] Ensure deterministic, safe reuse across repos and workspaces.
+  - [x] Define and implement a design gate before rollout:
+    - [x] lease model for in-use objects
+    - [x] mark-and-sweep reachability rules
+    - [x] deletion safety conditions under concurrent index/search workloads
+    - [x] recovery plan when GC is interrupted mid-run
 
-- [ ] Implement a manifest-driven GC tool.
-  - [ ] `pairofcleats cache gc --dry-run`
-  - [ ] Preserve any objects reachable from active manifests/snapshots; delete unreferenced objects deterministically.
-  - [ ] Be safe under concurrency (do not delete objects currently in use).
+- [x] Implement a manifest-driven GC tool.
+  - [x] `pairofcleats cache gc --dry-run`
+  - [x] Preserve any objects reachable from active manifests/snapshots; delete unreferenced objects deterministically.
+  - [x] Be safe under concurrency (do not delete objects currently in use).
 
-- [ ] Scale-out controls.
-  - [ ] Concurrency limits for multi-repo indexing and federated fanout search.
-  - [ ] Memory remains bounded under “N repos × large query” workloads.
+- [x] Scale-out controls.
+  - [x] Concurrency limits for multi-repo indexing and federated fanout search.
+  - [x] Memory remains bounded under “N repos × large query” workloads.
 
 **Touchpoints:**
 - `src/shared/cache.js`
@@ -1034,10 +1034,10 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
 - `docs/guides/commands.md`
 
 **Tests**
-- [ ] `tests/indexing/cache/workspace-global-cache-reuse.test.js`
-- [ ] `tests/indexing/cache/cas-reuse-across-repos.test.js`
-- [ ] `tests/tooling/cache/cache-gc-preserves-manifest-referenced.test.js`
-- [ ] `tests/indexing/cache/workspace-concurrency-limits.test.js`
+- [x] `tests/indexing/cache/workspace-global-cache-reuse.test.js`
+- [x] `tests/indexing/cache/cas-reuse-across-repos.test.js`
+- [x] `tests/tooling/cache/cache-gc-preserves-manifest-referenced.test.js`
+- [x] `tests/indexing/cache/workspace-concurrency-limits.test.js`
 
 ---
 

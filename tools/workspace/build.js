@@ -7,6 +7,7 @@ import { spawnSubprocess } from '../../src/shared/subprocess.js';
 
 const TOOL_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const BUILD_INDEX_SCRIPT = path.join(TOOL_ROOT, 'build_index.js');
+const MAX_WORKSPACE_BUILD_CONCURRENCY = 32;
 
 const parseRawWorkspaceBuildArgs = (rawArgs) => {
   const buildArgs = [];
@@ -44,7 +45,7 @@ const parseRawWorkspaceBuildArgs = (rawArgs) => {
       if (!Number.isFinite(parsed) || parsed < 1) {
         throw new Error(`Invalid --concurrency value: ${concurrencyValue.value}`);
       }
-      concurrency = Math.max(1, Math.floor(parsed));
+      concurrency = Math.min(MAX_WORKSPACE_BUILD_CONCURRENCY, Math.max(1, Math.floor(parsed)));
       i += concurrencyValue.skip;
       continue;
     }

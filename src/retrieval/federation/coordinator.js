@@ -26,6 +26,9 @@ const MODE_PAYLOAD_KEYS = Object.freeze({
   'extracted-prose': 'extractedProse',
   records: 'records'
 });
+const MAX_FEDERATED_TOP = 500;
+const MAX_FEDERATED_PER_REPO_TOP = 1000;
+const MAX_FEDERATED_CONCURRENCY = 32;
 
 const isAbsoluteLike = (value) => (
   path.isAbsolute(value) || /^[A-Za-z]:[\\/]/.test(value) || /^\\\\/.test(value)
@@ -66,10 +69,10 @@ const pickWorkspaceSource = (request) => {
   return workspacePath;
 };
 
-const coerceNumber = (value, fallback, min = 1) => {
+const coerceNumber = (value, fallback, min = 1, max = Number.POSITIVE_INFINITY) => {
   const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return fallback;
-  return Math.max(min, Math.floor(parsed));
+  const base = Number.isFinite(parsed) ? Math.floor(parsed) : fallback;
+  return Math.min(max, Math.max(min, base));
 };
 
 const sortDiagnostics = (entries) => entries.slice().sort((a, b) => (
@@ -130,13 +133,19 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
     requestedModes.flatMap((mode) => (selectedByMode[mode] || []).map((repo) => repo.repoId))
   )).sort((a, b) => a.localeCompare(b));
 
-  const topN = coerceNumber(request.search?.top ?? request.top, 10, 1);
+  const topN = coerceNumber(request.search?.top ?? request.top, 10, 1, MAX_FEDERATED_TOP);
   const perRepoTop = coerceNumber(
     request.limits?.perRepoTop ?? request.perRepoTop,
     Math.min(Math.max(topN * 2, topN), 50),
-    1
+    1,
+    MAX_FEDERATED_PER_REPO_TOP
   );
-  const concurrency = coerceNumber(request.limits?.concurrency ?? request.concurrency, 4, 1);
+  const concurrency = coerceNumber(
+    request.limits?.concurrency ?? request.concurrency,
+    4,
+    1,
+    MAX_FEDERATED_CONCURRENCY
+  );
   const rrfK = coerceNumber(request.merge?.rrfK ?? request.rrfK, 60, 1);
   const includePaths = request.debug?.includePaths === true;
 

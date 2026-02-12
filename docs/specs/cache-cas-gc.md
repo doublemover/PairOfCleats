@@ -4,7 +4,7 @@
 
 - **Spec version:** 1
 - **Audience:** contributors implementing shared cache, CAS, and GC behavior.
-- **Implementation status:** planned (design-gated).
+- **Implementation status:** implemented baseline (design-gated CAS + manifest-driven GC planner).
 
 ---
 

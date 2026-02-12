@@ -218,13 +218,42 @@ function resolveCommand(primary, rest) {
   if (primary === 'cache') {
     const sub = rest.shift();
     if (!sub || isHelpCommand(sub)) {
-      console.error('cache requires a subcommand: clear');
+      console.error('cache requires a subcommand: clear, gc');
       printHelp();
       process.exit(1);
     }
     if (sub === 'clear') {
       validateArgs(rest, ['all', 'force', 'cache-root'], ['cache-root']);
       return { script: 'tools/cache/clear-cache.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'gc') {
+      validateArgs(
+        rest,
+        [
+          'apply',
+          'dry-run',
+          'json',
+          'cache-root',
+          'grace-days',
+          'max-deletes',
+          'concurrency',
+          'max-bytes',
+          'max-gb',
+          'max-age-days',
+          'repo'
+        ],
+        [
+          'cache-root',
+          'grace-days',
+          'max-deletes',
+          'concurrency',
+          'max-bytes',
+          'max-gb',
+          'max-age-days',
+          'repo'
+        ]
+      );
+      return { script: 'tools/index/cache-gc.js', extraArgs: [], args: rest };
     }
     console.error(`Unknown cache subcommand: ${sub}`);
     printHelp();
@@ -825,6 +854,10 @@ Service:
 
 Tooling:
   tooling doctor          Inspect tooling availability and config
+
+Cache:
+  cache clear             Remove cache data safely
+  cache gc                Run cache GC planner (CAS + legacy quota mode)
 
 LMDB:
   lmdb build              Build LMDB indexes
