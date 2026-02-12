@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { assertTestsPresent, checklistLineState, extractSection, hasUnchecked } from './usr-lock-test-utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,23 +19,6 @@ const roadmapText = fs.readFileSync(roadmapPath, 'utf8');
 const rolloutSpecText = fs.readFileSync(rolloutSpecPath, 'utf8');
 const ciOrderText = fs.readFileSync(ciOrderPath, 'utf8');
 const ciLiteOrderText = fs.readFileSync(ciLiteOrderPath, 'utf8');
-
-const extractSection = (text, startMarker, endMarker) => {
-  const start = text.indexOf(startMarker);
-  assert.notEqual(start, -1, `missing section start marker: ${startMarker}`);
-  const end = text.indexOf(endMarker, start);
-  assert.notEqual(end, -1, `missing section end marker: ${endMarker}`);
-  return text.slice(start, end);
-};
-
-const checklistLineState = (section, label) => {
-  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  if (new RegExp(`^- \\[x\\] ${escaped}$`, 'm').test(section)) return 'checked';
-  if (new RegExp(`^- \\[ \\] ${escaped}$`, 'm').test(section)) return 'unchecked';
-  assert.fail(`missing checklist line: ${label}`);
-};
-
-const hasUnchecked = (section) => /- \[ \] /.test(section);
 
 const gateB1Section = extractSection(roadmapText, '### Gate B1-B7 (language batch gates)', '### Gate B8 (cross-batch integration)');
 const appendixCSection = extractSection(roadmapText, '## Appendix C - Exhaustive Per-Language Task Packs by Batch', '## Appendix D - Exhaustive Framework Profile Task Packs (C4)');
@@ -63,14 +47,16 @@ if (determinismChecksPass === 'checked') {
 
 if (knownDegradationsRecorded === 'checked' || severityAlignmentChecksPass === 'checked') {
   assert.equal(fs.existsSync(diagnosticsSpecPath), true, 'diagnostic lock requires diagnostics/reason-codes contract document');
-  for (const testId of [
-    'lang/contracts/usr-contract-enforcement',
-    'lang/contracts/usr-diagnostic-remediation-routing-validation',
-    'lang/contracts/usr-canonical-example-validation'
-  ]) {
-    assert.equal(ciOrderText.includes(testId), true, `ci order missing diagnostic lock validator: ${testId}`);
-    assert.equal(ciLiteOrderText.includes(testId), true, `ci-lite order missing diagnostic lock validator: ${testId}`);
-  }
+  assertTestsPresent(
+    [
+      'lang/contracts/usr-contract-enforcement',
+      'lang/contracts/usr-diagnostic-remediation-routing-validation',
+      'lang/contracts/usr-canonical-example-validation'
+    ],
+    'diagnostic lock validator',
+    ciOrderText,
+    ciLiteOrderText
+  );
 }
 
 for (const fragment of [
@@ -83,15 +69,17 @@ for (const fragment of [
 
 assert.equal(roadmapText.includes('### N.11 Gate B1-B7 language-batch completion lock'), true, 'roadmap must include Appendix N.11 Gate B1-B7 completion lock policy');
 
-for (const testId of [
-  'lang/contracts/usr-gate-b-language-batch-lock-validation',
-  'lang/contracts/usr-phase8-exit-lock-validation',
-  'lang/contracts/usr-phase9-readiness-audit-lock-validation',
-  'lang/contracts/usr-phase9-readiness-authorization-lock-validation',
-  'lang/contracts/usr-gate-c-prereq-lock-validation'
-]) {
-  assert.equal(ciOrderText.includes(testId), true, `ci order missing Gate B lock validator coverage: ${testId}`);
-  assert.equal(ciLiteOrderText.includes(testId), true, `ci-lite order missing Gate B lock validator coverage: ${testId}`);
-}
+assertTestsPresent(
+  [
+    'lang/contracts/usr-gate-b-language-batch-lock-validation',
+    'lang/contracts/usr-phase8-exit-lock-validation',
+    'lang/contracts/usr-phase9-readiness-audit-lock-validation',
+    'lang/contracts/usr-phase9-readiness-authorization-lock-validation',
+    'lang/contracts/usr-gate-c-prereq-lock-validation'
+  ],
+  'Gate B lock validator coverage',
+  ciOrderText,
+  ciLiteOrderText
+);
 
 console.log('usr Gate B1-B7 language-batch lock validation checks passed');
