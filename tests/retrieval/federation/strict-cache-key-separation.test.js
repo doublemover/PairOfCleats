@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createError, ERROR_CODES } from '../../../src/shared/error-codes.js';
 import { runFederatedSearch } from '../../../src/retrieval/federation/coordinator.js';
+import { getRepoCacheRoot } from '../../../tools/shared/dict-utils.js';
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-fed-strict-cache-key-'));
 const cacheRoot = path.join(tempRoot, 'cache');
@@ -12,11 +13,28 @@ const repoA = path.join(tempRoot, 'repo-a');
 const repoB = path.join(tempRoot, 'repo-b');
 const workspacePath = path.join(tempRoot, '.pairofcleats-workspace.jsonc');
 
-const writeRepo = async (repoRoot) => {
+const writeRepo = async (repoRoot, modes = ['code']) => {
   await fs.mkdir(repoRoot, { recursive: true });
   await fs.writeFile(path.join(repoRoot, '.pairofcleats.json'), JSON.stringify({
     cache: { root: cacheRoot }
   }, null, 2), 'utf8');
+  const repoCacheRoot = getRepoCacheRoot(repoRoot);
+  const buildRoot = path.join(repoCacheRoot, 'builds', 'test-build');
+  await fs.mkdir(path.join(repoCacheRoot, 'builds'), { recursive: true });
+  await fs.writeFile(path.join(repoCacheRoot, 'builds', 'current.json'), JSON.stringify({
+    buildId: 'test-build',
+    buildRoot,
+    modes
+  }, null, 2), 'utf8');
+  for (const mode of modes) {
+    const indexDir = path.join(buildRoot, `index-${mode}`);
+    await fs.mkdir(indexDir, { recursive: true });
+    await fs.writeFile(path.join(indexDir, 'chunk_meta.json'), '[]', 'utf8');
+    await fs.writeFile(path.join(indexDir, 'token_postings.json'), '{}', 'utf8');
+    await fs.writeFile(path.join(indexDir, 'index_state.json'), JSON.stringify({
+      compatibilityKey: `compat-${mode}`
+    }, null, 2), 'utf8');
+  }
 };
 
 await writeRepo(repoA);

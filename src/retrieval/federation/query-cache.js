@@ -31,8 +31,29 @@ const sortObjectDeep = (value) => {
   return out;
 };
 
+/**
+ * Normalize selector input for cache-key hashing.
+ *
+ * `selectedRepoPriorities` uses `repoId:priority` tokens so workspace priority
+ * updates invalidate cached federated ordering even when repo ids are unchanged.
+ *
+ * @param {any} [selection]
+ * @returns {{
+ *   selectedRepoIds: string[],
+ *   selectedRepoPriorities: string[],
+ *   includeDisabled: boolean,
+ *   tags: string[],
+ *   repoFilter: string[],
+ *   explicitSelects: string[]
+ * }}
+ */
 const normalizeSelection = (selection = {}) => ({
   selectedRepoIds: normalizeStringList(selection.selectedRepoIds),
+  selectedRepoPriorities: normalizeStringList(
+    Array.isArray(selection.selectedRepoPriorities)
+      ? selection.selectedRepoPriorities
+      : []
+  ),
   includeDisabled: selection.includeDisabled === true,
   tags: normalizeStringList(selection.tags),
   repoFilter: normalizeStringList(selection.repoFilter),

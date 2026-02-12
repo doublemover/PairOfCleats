@@ -257,6 +257,11 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
     query,
     selection: {
       selectedRepoIds: selection.selectedRepoIds,
+      // Include priority in the selection fingerprint so cache hits cannot reuse
+      // stale ranking when workspace priorities change without index changes.
+      selectedRepoPriorities: selection.selectedRepos.map((repo) => (
+        `${repo.repoId}:${Number(repo.priority || 0)}`
+      )),
       includeDisabled: selection.selectionMeta?.includeDisabled === true,
       tags: selection.selectionMeta?.tags || [],
       repoFilter: selection.selectionMeta?.repoFilter || [],

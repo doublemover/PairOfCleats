@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { parseFederatedCliRequest } from '../../../src/retrieval/federation/args.js';
 import { runFederatedSearch } from '../../../src/retrieval/federation/coordinator.js';
+import { getRepoCacheRoot } from '../../../tools/shared/dict-utils.js';
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-fed-rawargs-mode-'));
 const cacheRoot = path.join(tempRoot, 'cache');
@@ -14,6 +15,20 @@ const workspacePath = path.join(tempRoot, '.pairofcleats-workspace.jsonc');
 await fs.mkdir(repoRoot, { recursive: true });
 await fs.writeFile(path.join(repoRoot, '.pairofcleats.json'), JSON.stringify({
   cache: { root: cacheRoot }
+}, null, 2), 'utf8');
+const repoCacheRoot = getRepoCacheRoot(repoRoot);
+const buildRoot = path.join(repoCacheRoot, 'builds', 'test-build');
+const recordsIndexDir = path.join(buildRoot, 'index-records');
+await fs.mkdir(recordsIndexDir, { recursive: true });
+await fs.writeFile(path.join(repoCacheRoot, 'builds', 'current.json'), JSON.stringify({
+  buildId: 'test-build',
+  buildRoot,
+  modes: ['records']
+}, null, 2), 'utf8');
+await fs.writeFile(path.join(recordsIndexDir, 'chunk_meta.json'), '[]', 'utf8');
+await fs.writeFile(path.join(recordsIndexDir, 'token_postings.json'), '{}', 'utf8');
+await fs.writeFile(path.join(recordsIndexDir, 'index_state.json'), JSON.stringify({
+  compatibilityKey: 'compat-records'
 }, null, 2), 'utf8');
 await fs.writeFile(workspacePath, `{
   "schemaVersion": 1,

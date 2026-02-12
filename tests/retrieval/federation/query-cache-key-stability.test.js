@@ -12,6 +12,7 @@ const payloadA = buildFederatedQueryCacheKeyPayload({
   query: 'greet',
   selection: {
     selectedRepoIds: ['repo-b', 'repo-a'],
+    selectedRepoPriorities: ['repo-b:5', 'repo-a:10'],
     includeDisabled: false,
     tags: ['service', 'api'],
     repoFilter: ['repo-*', 'svc-*'],
@@ -51,6 +52,7 @@ const payloadB = buildFederatedQueryCacheKeyPayload({
   query: 'greet',
   selection: {
     selectedRepoIds: ['repo-a', 'repo-b'],
+    selectedRepoPriorities: ['repo-a:10', 'repo-b:5'],
     includeDisabled: false,
     tags: ['api', 'service'],
     repoFilter: ['svc-*', 'repo-*'],
@@ -90,5 +92,19 @@ const keyB = buildFederatedQueryCacheKey(payloadB);
 assert.equal(stableStringify(payloadA), stableStringify(payloadB), 'normalized key payload should be byte-stable');
 assert.equal(keyA.keyHash, keyB.keyHash, 'equivalent payloads should generate identical cache keys');
 assert.equal(keyA.keyPayloadHash, keyB.keyPayloadHash, 'equivalent payloads should generate identical payload hashes');
+
+const payloadC = buildFederatedQueryCacheKeyPayload({
+  ...payloadA,
+  selection: {
+    ...payloadA.selection,
+    selectedRepoPriorities: ['repo-a:2', 'repo-b:1']
+  }
+});
+const keyC = buildFederatedQueryCacheKey(payloadC);
+assert.notEqual(
+  keyA.keyHash,
+  keyC.keyHash,
+  'repo priority changes should invalidate federated cache keys'
+);
 
 console.log('federated query cache key stability test passed');
