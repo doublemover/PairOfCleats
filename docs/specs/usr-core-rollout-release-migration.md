@@ -1,7 +1,7 @@
 # Spec -- USR Core Rollout, Release, and Migration Contract
 
 Status: Draft v2.0
-Last updated: 2026-02-12T05:43:49Z
+Last updated: 2026-02-12T07:28:52Z
 
 ## Purpose
 
@@ -109,6 +109,13 @@ Rollout authorization lock requirements:
 - rollout approval lock state is tracked in `docs/specs/usr-rollout-approval-lock.md`
 - Gate C rollout authorization cannot be checked unless the lock state is `approved`
 - required role decisions (`usr-architecture`, `usr-conformance`, `usr-operations`) must be explicitly recorded with ISO 8601 timestamps
+
+Appendix F.1 checklist promotion lock requirements:
+
+- Phase A can only be checked after Gate A checklist is fully checked.
+- Phase B can only be checked after Phase A is checked and Phase B parity evidence remains green.
+- Phase C can only be checked after Phase A and Phase B are checked, `Readiness report approved.` is checked, and `Test rollout authorized.` is checked.
+- Phase D can only be checked after Phase A/B/C are checked, Gate C `all prior gates pass.` and `conformance rollout authorized.` are checked, and rollout approval lock state is `approved`.
 
 ## Rollback policy
 
