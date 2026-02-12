@@ -67,7 +67,7 @@
       "fixtureFamily": "degraded-capability",
       "expectedOutcome": "accept",
       "requiredDiagnostics": [
-        "USR-W-DEGRADED-CAPABILITY"
+        "USR-W-CAPABILITY-DOWNGRADED"
       ],
       "blocking": true
     },
