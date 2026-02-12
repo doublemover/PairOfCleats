@@ -341,6 +341,7 @@ lang/contracts/usr-roadmap-sync
 lang/contracts/usr-traceability-approval-validation
 lang/contracts/usr-pr-template-policy-validation
 lang/contracts/usr-maintenance-controls-stability
+lang/contracts/usr-phase15-reporting-lock-validation
 lang/contracts/usr-phase15-exit-lock-validation
 lang/contracts/usr-minimum-slice-harness
 lang/contracts/usr-language-contract-template
