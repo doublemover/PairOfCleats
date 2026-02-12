@@ -59,6 +59,10 @@ function resolveCommand(primary, rest) {
     if (sub === 'validate') {
       return { script: 'tools/index/validate.js', extraArgs: [], args: rest };
     }
+    if (sub === 'stats') {
+      validateArgs(rest, ['repo', 'index-dir', 'mode', 'json', 'verify'], ['repo', 'index-dir', 'mode']);
+      return { script: 'tools/index/stats.js', extraArgs: [], args: rest };
+    }
     if (sub === 'snapshot') {
       validateArgs(
         rest,
@@ -803,6 +807,7 @@ Index:
   index build             Build file-backed indexes
   index watch             Watch and rebuild indexes incrementally
   index validate          Validate index artifacts
+  index stats             Report per-mode manifest-driven index artifact stats
   index snapshot          Manage index snapshots (create/list/show/rm/freeze/gc)
   index diff              Compute/list/show/explain/prune index diffs
 

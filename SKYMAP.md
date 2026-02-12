@@ -1045,29 +1045,29 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
 
 > **Authoritative spec:** `docs/specs/index-stats.md`
 
-- [ ] Add a dedicated index stats reporter tool.
-  - [ ] CLI entrypoint: `pairofcleats index stats` (or `node tools/index/stats.js`).
-  - [ ] Input: `--repo <path>` or `--index-dir <path>`, optional `--mode`.
-  - [ ] Output: human summary + `--json` for structured output.
-  - [ ] Must use `pieces/manifest.json` as the source of truth (manifest-first).
-  - [ ] Prefer extending `tools/index/report-artifacts.js` when feasible; create `tools/index/stats.js` only if dedicated UX/contract separation is required.
+- [x] Add a dedicated index stats reporter tool.
+  - [x] CLI entrypoint: `pairofcleats index stats` (or `node tools/index/stats.js`).
+  - [x] Input: `--repo <path>` or `--index-dir <path>`, optional `--mode`.
+  - [x] Output: human summary + `--json` for structured output.
+  - [x] Must use `pieces/manifest.json` as the source of truth (manifest-first).
+  - [x] Prefer extending `tools/index/report-artifacts.js` when feasible; create `tools/index/stats.js` only if dedicated UX/contract separation is required.
 
-- [ ] Report per-mode artifact stats with counts + bytes.
-  - [ ] `chunk_meta` total rows, parts count, bytes per part.
-  - [ ] `token_postings`, `phrase_ngrams`, `chargram_postings` counts + bytes.
-  - [ ] `symbols`, `symbol_occurrences`, `symbol_edges` counts + bytes.
-  - [ ] `graph_relations` rows + bytes; `call_sites` rows + bytes.
-  - [ ] embeddings (dense vectors, hnsw, lancedb): count + bytes where present.
+- [x] Report per-mode artifact stats with counts + bytes.
+  - [x] `chunk_meta` total rows, parts count, bytes per part.
+  - [x] `token_postings`, `phrase_ngrams`, `chargram_postings` counts + bytes.
+  - [x] `symbols`, `symbol_occurrences`, `symbol_edges` counts + bytes.
+  - [x] `graph_relations` rows + bytes; `call_sites` rows + bytes.
+  - [x] embeddings (dense vectors, hnsw, lancedb): count + bytes where present.
 
-- [ ] Report index-level summary.
-  - [ ] Total chunk count (per mode + aggregate).
-  - [ ] Total file count (from `file_meta` or manifest counts).
-  - [ ] Manifest compatibility key + build id + artifact surface version.
-  - [ ] Size totals by artifact family (chunks, postings, symbols, relations, embeddings).
+- [x] Report index-level summary.
+  - [x] Total chunk count (per mode + aggregate).
+  - [x] Total file count (from `file_meta` or manifest counts).
+  - [x] Manifest compatibility key + build id + artifact surface version.
+  - [x] Size totals by artifact family (chunks, postings, symbols, relations, embeddings).
 
-- [ ] Add a lightweight “missing/invalid” validator mode.
-  - [ ] `--verify` checks required artifacts exist and sizes match manifest.
-  - [ ] Warn on missing or mismatched checksum/bytes.
+- [x] Add a lightweight “missing/invalid” validator mode.
+  - [x] `--verify` checks required artifacts exist and sizes match manifest.
+  - [x] Warn on missing or mismatched checksum/bytes.
 
 **Touchpoints:**
 - `tools/index/report-artifacts.js` (extend existing artifact reporting surface)
@@ -1077,9 +1077,9 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
 - `src/integrations/core/status.js` (optional reuse)
 
 **Tests**
-- [ ] `tests/tooling/index-stats/index-stats-json.test.js`
-- [ ] `tests/tooling/index-stats/index-stats-missing-artifact.test.js`
-- [ ] `tests/tooling/index-stats/index-stats-aggregate.test.js`
+- [x] `tests/tooling/index-stats/index-stats-json.test.js`
+- [x] `tests/tooling/index-stats/index-stats-missing-artifact.test.js`
+- [x] `tests/tooling/index-stats/index-stats-aggregate.test.js`
 
 ### Phase 14 + 15 cross-cutting hardening tests (mandatory)
 - [ ] `tests/services/snapshots/concurrent-registry-writers.test.js`
