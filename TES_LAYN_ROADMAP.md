@@ -1667,3 +1667,9 @@ Source artifacts: `tests/lang/matrix/usr-ownership-matrix.json` and `tests/lang/
 - `Enforce waiver-policy update workflow and expiry review cadence in PR/release templates.` cannot be checked unless waiver-policy and PR/release template validators remain present in required CI lanes.
 - If any Phase 15.3 maintenance prerequisite regresses, Phase 15 exit must be reopened.
 
+### N.21 Phase 14.3 integration/failure exit lock
+
+- `Integration and failure-mode suites pass.` cannot be checked unless every checklist line in sections 14.1 and 14.2 is checked.
+- Phase 14.3 exit cannot be checked unless mixed-repo integration, failure-injection, failure-mode-suite, and security-gate validators remain present in `ci` and `ci-lite` lane manifests.
+- If any Phase 14.1/14.2 prerequisite control regresses to unchecked, Phase 14.3 exit must be reopened.
+
