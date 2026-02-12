@@ -218,9 +218,9 @@ If contradictions are found:
 - [x] Add `src/contracts/validators/usr-matrix.js`.
 - [x] Export all required USR schema constants.
 - [x] Add strict matrix schemas and validators for `usr-runtime-config-policy.json`, `usr-failure-injection-matrix.json`, and `usr-fixture-governance.json`.
-- [ ] Add runtime config resolution validator enforcing precedence and strict-mode behavior contract.
-- [ ] Enforce strict ID grammar validation.
-- [ ] Enforce strict edge endpoint constraints.
+- [x] Add runtime config resolution validator enforcing precedence and strict-mode behavior contract.
+- [x] Enforce strict ID grammar validation.
+- [x] Enforce strict edge endpoint constraints.
 - [ ] Enforce strict diagnostic code/reason-code enum validation (USR section 33).
 - [ ] Enforce strict canonical example fixture validation rules (USR section 34.11).
 

@@ -1,10 +1,22 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   validateUsrEvidenceEnvelope,
   validateUsrReport,
-  validateUsrCapabilityTransition
+  validateUsrCapabilityTransition,
+  validateUsrCanonicalId,
+  validateUsrEdgeEndpoint,
+  validateUsrEdgeEndpoints
 } from '../../../src/contracts/validators/usr.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const repoRoot = path.resolve(__dirname, '..', '..', '..');
+const edgeConstraintPath = path.join(repoRoot, 'tests', 'lang', 'matrix', 'usr-edge-kind-constraints.json');
+const edgeConstraintRegistry = JSON.parse(fs.readFileSync(edgeConstraintPath, 'utf8'));
 
 const envelope = {
   schemaVersion: 'usr-1.0.0',
@@ -61,5 +73,69 @@ const transitionBad = validateUsrCapabilityTransition({
   diagnostic: 'USR-W-DEGRADED-CAPABILITY'
 });
 assert.equal(transitionBad.ok, false, 'non-canonical diagnostic must fail');
+
+const canonicalDocIdOk = validateUsrCanonicalId('docUid', 'doc64:v1:0123abc456def789');
+assert.equal(canonicalDocIdOk.ok, true, `canonical docUid should pass: ${canonicalDocIdOk.errors.join('; ')}`);
+
+const canonicalDocIdBad = validateUsrCanonicalId('docUid', 'doc64:v1:not-hex');
+assert.equal(canonicalDocIdBad.ok, false, 'invalid docUid grammar must fail');
+
+const validEdge = {
+  edgeUid: 'edge64:v1:0011aa22bb33cc44',
+  kind: 'calls',
+  status: 'resolved',
+  source: {
+    entity: 'node',
+    uid: 'n64:v1:1111aa22bb33cc44'
+  },
+  target: {
+    entity: 'symbol',
+    uid: 'symu:v1:pkg:module:callable'
+  },
+  attrs: {}
+};
+const validEdgeResult = validateUsrEdgeEndpoint(validEdge, edgeConstraintRegistry);
+assert.equal(validEdgeResult.ok, true, `valid edge endpoints should pass: ${validEdgeResult.errors.join('; ')}`);
+
+const invalidEdgeEntity = {
+  ...validEdge,
+  source: {
+    entity: 'document',
+    uid: 'doc64:v1:1111aa22bb33cc44'
+  }
+};
+const invalidEntityResult = validateUsrEdgeEndpoint(invalidEdgeEntity, edgeConstraintRegistry);
+assert.equal(invalidEntityResult.ok, false, 'edge with invalid source entity for kind must fail');
+
+const invalidEdgeUid = {
+  ...validEdge,
+  edgeUid: 'edge64:v1:invalid'
+};
+const invalidEdgeUidResult = validateUsrEdgeEndpoint(invalidEdgeUid, edgeConstraintRegistry);
+assert.equal(invalidEdgeUidResult.ok, false, 'edge with invalid edgeUid grammar must fail');
+
+const resolvedWithoutTarget = {
+  ...validEdge,
+  target: null
+};
+const resolvedWithoutTargetResult = validateUsrEdgeEndpoint(resolvedWithoutTarget, edgeConstraintRegistry);
+assert.equal(resolvedWithoutTargetResult.ok, false, 'resolved edge without target must fail');
+
+const invalidSelfEdge = {
+  ...validEdge,
+  source: {
+    entity: 'node',
+    uid: 'n64:v1:1111aa22bb33cc44'
+  },
+  target: {
+    entity: 'node',
+    uid: 'n64:v1:1111aa22bb33cc44'
+  }
+};
+const invalidSelfEdgeResult = validateUsrEdgeEndpoint(invalidSelfEdge, edgeConstraintRegistry);
+assert.equal(invalidSelfEdgeResult.ok, false, 'self-edge must be rejected for non-ast_parent kinds');
+
+const edgeBatchResult = validateUsrEdgeEndpoints([validEdge, invalidEdgeEntity], edgeConstraintRegistry);
+assert.equal(edgeBatchResult.ok, false, 'edge batch validation should fail when any edge violates endpoint constraints');
 
 console.log('usr schema validator tests passed');
