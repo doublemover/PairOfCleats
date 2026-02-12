@@ -1309,11 +1309,11 @@ If contradictions are found:
 
 ### F.6 Decomposed contract synchronization requirements
 
-- [ ] Keep umbrella USR spec and decomposed contract suite synchronized on every Tier 2/Tier 3 change.
-- [ ] Keep per-language contracts synchronized with language/profile matrix rows.
-- [ ] Keep framework and risk contracts synchronized with fixture and conformance lane implementations.
-- [ ] Keep registry schema and implementation-readiness contracts synchronized with CI validators and promotion policies.
-- [ ] Keep observability/SLO and security-governance contracts synchronized with CI dashboards and blocking gate policies.
+- [x] Keep umbrella USR spec and decomposed contract suite synchronized on every Tier 2/Tier 3 change.
+- [x] Keep per-language contracts synchronized with language/profile matrix rows.
+- [x] Keep framework and risk contracts synchronized with fixture and conformance lane implementations.
+- [x] Keep registry schema and implementation-readiness contracts synchronized with CI validators and promotion policies.
+- [x] Keep observability/SLO and security-governance contracts synchronized with CI dashboards and blocking gate policies.
 
 ---
 

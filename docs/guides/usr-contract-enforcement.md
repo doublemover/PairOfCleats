@@ -1,6 +1,6 @@
 # USR Contract Enforcement Guide
 
-Last updated: 2026-02-12T05:30:54Z
+Last updated: 2026-02-12T05:33:22Z
 
 ## Purpose
 
@@ -34,6 +34,7 @@ Define CI/local enforcement for the consolidated USR contract model.
 - change-tier policy enforcement (`tests/lang/contracts/usr-change-tier-policy-validation.test.js`) validates Tier 1/2/3 workflow, reviewer threshold requirements, and Tier 2/3 update obligations in governance docs and PR template policy markers
 - extension policy enforcement (`tests/lang/contracts/usr-extension-policy-validation.test.js`) validates section 29 namespaced-extension constraints, canonical override prohibitions, deterministic extension requirements, and schema-confusion gate linkage
 - F.5 hard-requirements enforcement (`tests/lang/contracts/usr-f5-hard-requirements-validation.test.js`) validates sections 33-36 anchors, CI execution hooks, and backcompat matrix/report coverage constraints
+- F.6 synchronization enforcement (`tests/lang/contracts/usr-f6-sync-requirements-validation.test.js`) validates decomposed contract sync requirements across language/framework/risk/schema/readiness/ops governance controls
 - C0/C1 baseline conformance enforcement (`tests/lang/contracts/usr-c0-baseline-validation.test.js`, `tests/lang/contracts/usr-c1-baseline-validation.test.js`) validates C0/C1 required/blocking level coverage for all language profiles and report generation
 - C2/C3 deep-profile conformance enforcement (`tests/lang/contracts/usr-c2-baseline-validation.test.js`, `tests/lang/contracts/usr-c3-baseline-validation.test.js`) validates C2/C3 required/blocking level coverage for eligible language profiles and report generation
 - language risk-profile conformance enforcement (`tests/lang/contracts/usr-language-risk-profile-validation.test.js`) validates machine-readable risk source/sink/sanitizer taxonomy coverage and interprocedural gating invariants
