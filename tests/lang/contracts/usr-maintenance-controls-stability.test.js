@@ -37,6 +37,9 @@ assert.equal(/- \[ \] /.test(changeControlSection), false, 'appendix F.3 change-
 const extensionPolicySection = extractSection(roadmapText, '### F.4 Extension policy (USR section 29)', '### F.5 Diagnostics/examples/canonicalization/backcompat hard requirements (USR sections 33-36)');
 assert.equal(/- \[ \] /.test(extensionPolicySection), false, 'appendix F.4 extension-policy checklist must not contain unchecked items');
 
+const f5HardRequirementsSection = extractSection(roadmapText, '### F.5 Diagnostics/examples/canonicalization/backcompat hard requirements (USR sections 33-36)', '### F.6 Decomposed contract synchronization requirements');
+assert.equal(/- \[ \] /.test(f5HardRequirementsSection), false, 'appendix F.5 hard-requirements checklist must not contain unchecked items');
+
 const appendixMSection = extractSection(roadmapText, 'Roadmap enforcement requirements:', '## Appendix N - Phase 0 Governance Lock Artifacts');
 assert.equal(appendixMSection.includes('- [x] Every phase gate links to at least one concrete evidence artifact in `docs/specs/usr-core-evidence-gates-waivers.md`.'), true, 'appendix M must mark phase-to-evidence linkage requirement complete');
 assert.equal(appendixMSection.includes('- [x] Every blocking evidence artifact has an active schema in `docs/schemas/usr/*.json` and a row in `docs/specs/usr-core-artifact-schema-catalog.md`.'), true, 'appendix M must mark blocking evidence schema-catalog coverage requirement complete');
@@ -58,6 +61,11 @@ const requiredCiTests = [
   'lang/contracts/usr-roadmap-sync',
   'lang/contracts/usr-pr-template-policy-validation',
   'lang/contracts/usr-language-contract-freshness-validation',
+  'lang/contracts/usr-diagnostic-remediation-routing-validation',
+  'lang/contracts/usr-canonical-example-validation',
+  'lang/contracts/usr-framework-canonicalization',
+  'lang/contracts/usr-f5-hard-requirements-validation',
+  'backcompat/backcompat-matrix-validation',
   'lang/contracts/usr-runtime-config-feature-flag-validation',
   'lang/contracts/usr-failure-injection-validation',
   'lang/contracts/usr-fixture-governance-validation',
