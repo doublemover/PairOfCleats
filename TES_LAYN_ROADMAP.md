@@ -412,7 +412,7 @@ If contradictions are found:
 - [ ] Expand fixture inventories per language to include positive, negative, malformed, cap-triggering, and mixed cases.
 - [ ] Expand framework fixtures for all profile-specific edge cases.
 - [ ] Materialize canonical example bundles matching USR section 34 minimal/maximal entities with cross-entity coherence checks.
-- [ ] Materialize framework edge-case fixtures per USR section 35.11 checklist.
+- [x] Materialize framework edge-case fixtures per USR section 35.11 checklist.
 - [ ] Materialize embedded-language bridge fixtures per USR section 38 matrix requirements.
 - [ ] Materialize generated/macro provenance fixtures per USR section 39 matrix requirements.
 - [ ] Ensure every per-language contract has concrete fixture ID mappings and fixture family coverage.

@@ -71,6 +71,7 @@ lang/contracts/usr-roadmap-sync
 lang/contracts/usr-minimum-slice-harness
 lang/contracts/usr-language-contract-template
 lang/contracts/usr-canonical-example-validation
+lang/contracts/usr-framework-canonicalization
 shared/contracts/usr-schema-validators
 shared/contracts/usr-matrix-validators
 retrieval/filters/query-syntax/phrases-and-scorebreakdown
