@@ -590,7 +590,6 @@
           "template_binds",
           "template_emits",
           "style_scopes",
-          "route_maps_to",
           "hydration_boundary"
         ],
         "requiredAttrs": {
@@ -602,10 +601,6 @@
           ],
           "style_scopes": [
             "scopeKind"
-          ],
-          "route_maps_to": [
-            "routePattern",
-            "runtimeSide"
           ],
           "hydration_boundary": [
             "runtimeSide"
