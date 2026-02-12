@@ -76,6 +76,7 @@ lang/contracts/usr-c0-baseline-validation
 lang/contracts/usr-c1-baseline-validation
 lang/contracts/usr-c2-baseline-validation
 lang/contracts/usr-c3-baseline-validation
+lang/contracts/usr-c4-baseline-validation
 lang/contracts/usr-diagnostic-remediation-routing-validation
 lang/contracts/usr-canonical-example-validation
 lang/contracts/usr-framework-canonicalization
