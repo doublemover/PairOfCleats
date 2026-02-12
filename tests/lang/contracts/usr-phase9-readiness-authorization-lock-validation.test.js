@@ -70,6 +70,7 @@ for (const fragment of [
 assert.equal(roadmapText.includes('### N.10 Phase 9 readiness authorization lock'), true, 'roadmap must include Appendix N.10 phase-9 readiness lock policy');
 
 for (const testId of [
+  'lang/contracts/usr-phase9-gonogo-decision-lock-validation',
   'lang/contracts/usr-phase9-readiness-authorization-lock-validation',
   'lang/contracts/usr-phase9-readiness-audit-lock-validation',
   'lang/contracts/usr-rollout-f1-checklist-validation',
