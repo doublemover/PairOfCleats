@@ -329,6 +329,7 @@ shared/contracts/phase11-schemas-validate
 shared/contracts/usr-schema-validators
 shared/contracts/usr-matrix-validators
 lang/contracts/usr-contract-enforcement
+lang/contracts/usr-parser-runtime-lock-reproducibility-validation
 lang/contracts/usr-core-artifact-schema-catalog-alignment
 lang/contracts/usr-blocking-evidence-schema-catalog-validation
 lang/contracts/usr-change-tier-policy-validation
