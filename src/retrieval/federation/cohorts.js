@@ -106,8 +106,9 @@ const rankCohorts = (bucketMap) => (
 
 const buildBucketMap = (repos, mode) => {
   const buckets = new Map();
-  for (const repo of repos) {
-    if (!isRepoSelectableForMode(repo, mode)) continue;
+  const selectableRepos = repos.filter((repo) => isRepoSelectableForMode(repo, mode));
+  const cohortCandidates = selectableRepos.length ? selectableRepos : repos;
+  for (const repo of cohortCandidates) {
     const key = resolveEffectiveCohortKey(repo, mode);
     if (!buckets.has(key)) buckets.set(key, []);
     buckets.get(key).push(repo);
