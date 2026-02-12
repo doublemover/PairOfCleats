@@ -29,6 +29,17 @@ const MODE_PAYLOAD_KEYS = Object.freeze({
 const MAX_FEDERATED_TOP = 500;
 const MAX_FEDERATED_PER_REPO_TOP = 1000;
 const MAX_FEDERATED_CONCURRENCY = 32;
+const REDACTABLE_PATH_FIELDS = new Set([
+  'workspacePath',
+  'repoPath',
+  'repoRoot',
+  'repoRootCanonical',
+  'file',
+  'path',
+  'cacheRoot',
+  'buildRoot',
+  'indexRoot'
+]);
 
 const isAbsoluteLike = (value) => (
   path.isAbsolute(value) || /^[A-Za-z]:[\\/]/.test(value) || /^\\\\/.test(value)
@@ -47,16 +58,21 @@ const resolveRequestedModes = (modeValue) => {
   return ['code', 'prose', 'extracted-prose'];
 };
 
-const sanitizeObjectPaths = (value) => {
-  if (Array.isArray(value)) return value.map((entry) => sanitizeObjectPaths(entry));
+const sanitizeObjectPaths = (value, context = {}) => {
+  const isPathField = context.isPathField === true;
+  if (Array.isArray(value)) {
+    return value.map((entry) => sanitizeObjectPaths(entry, { isPathField }));
+  }
+  if (typeof value === 'string') {
+    if (isPathField && isAbsoluteLike(value)) return '<redacted>';
+    return value;
+  }
   if (!value || typeof value !== 'object') return value;
   const out = {};
   for (const [key, entry] of Object.entries(value)) {
-    if (typeof entry === 'string' && isAbsoluteLike(entry)) {
-      out[key] = '<redacted>';
-      continue;
-    }
-    out[key] = sanitizeObjectPaths(entry);
+    out[key] = sanitizeObjectPaths(entry, {
+      isPathField: REDACTABLE_PATH_FIELDS.has(key)
+    });
   }
   return out;
 };

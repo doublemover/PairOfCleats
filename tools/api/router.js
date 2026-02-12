@@ -66,12 +66,23 @@ export const createApiRouter = ({
     return canonicalAllowedRoots.some((root) => isWithinRoot(workspaceCanonical, root));
   };
 
-  const resolveWorkspacePath = (payload) => {
+const resolveWorkspacePath = (payload) => {
     const value = payload?.workspacePath;
     if (typeof value !== 'string') return '';
     const trimmed = value.trim();
     if (!trimmed) return '';
     return path.resolve(trimmed);
+  };
+
+  const isFederatedClientError = (err) => {
+    if (!err) return false;
+    if (err.code === ERROR_CODES.INVALID_REQUEST) return true;
+    if (typeof err.code === 'string' && err.code.startsWith('ERR_FEDERATED_')) return true;
+    const message = String(err.message || '').toLowerCase();
+    return message.includes('invalid cohort selector')
+      || message.includes('multiple global cohort selectors')
+      || message.includes('requested cohort')
+      || message.includes('multiple cohorts detected');
   };
 
   const ensureWorkspaceAllowlist = async (payload) => {
@@ -278,10 +289,11 @@ export const createApiRouter = ({
         } catch (err) {
           if (req.aborted || res.writableEnded) return;
           const isNoIndex = err?.code === ERROR_CODES.NO_INDEX;
+          const isClientError = isFederatedClientError(err);
           sendError(
             res,
-            isNoIndex ? 409 : 500,
-            isNoIndex ? ERROR_CODES.NO_INDEX : (err?.code || ERROR_CODES.INTERNAL),
+            isNoIndex ? 409 : isClientError ? 400 : 500,
+            isNoIndex ? ERROR_CODES.NO_INDEX : isClientError ? ERROR_CODES.INVALID_REQUEST : (err?.code || ERROR_CODES.INTERNAL),
             err?.message || 'Federated search failed.',
             { error: err?.message || String(err) },
             corsHeaders || {}
