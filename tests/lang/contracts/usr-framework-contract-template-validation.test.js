@@ -61,6 +61,15 @@ assert.equal(/## 10\. Completion evidence artifacts/i.test(readmeText), true, 'f
 
 const frameworkDocs = fs.readdirSync(frameworkDocDir)
   .filter((name) => name.endsWith('.md') && name !== 'README.md' && name !== 'TEMPLATE.md');
+const frameworkDocIds = new Set(frameworkDocs.map((name) => name.replace(/\.md$/, '')));
+
+for (const frameworkId of frameworkProfileIds) {
+  assert.equal(
+    frameworkDocIds.has(frameworkId),
+    true,
+    `framework profile is missing contract doc: ${frameworkId}`
+  );
+}
 
 for (const fileName of frameworkDocs) {
   const frameworkId = fileName.replace(/\.md$/, '');
