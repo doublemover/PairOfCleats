@@ -628,8 +628,8 @@ If contradictions are found:
 - [x] Emit framework-level conformance dashboards.
 - [x] Emit capability transition and degradation reports.
 - [x] Emit compatibility matrix rollups including required section 36.8 dimensions.
-- [ ] Emit embedded-language bridge coverage and failure dashboards.
-- [ ] Emit generated/macro provenance coverage and confidence-downgrade dashboards.
+- [x] Emit embedded-language bridge coverage and failure dashboards.
+- [x] Emit generated/macro provenance coverage and confidence-downgrade dashboards.
 - [x] Emit implementation-readiness evidence scorecards and promotion blocker summaries.
 - [x] Emit SLO budget compliance and alert evaluation dashboards.
 - [x] Emit redaction/security gate compliance dashboards.
