@@ -352,6 +352,7 @@ lang/contracts/usr-conformance-dashboard-validation
 lang/contracts/usr-diagnostic-remediation-routing-validation
 lang/contracts/usr-canonical-example-validation
 lang/contracts/usr-framework-canonicalization
+lang/contracts/usr-f5-hard-requirements-validation
 lang/contracts/usr-embedding-bridge-validation
 lang/contracts/usr-generated-provenance-validation
 lang/contracts/usr-bridge-provenance-dashboard-validation
@@ -365,6 +366,7 @@ lang/contracts/usr-benchmark-policy-validation
 lang/contracts/usr-threat-model-coverage-validation
 lang/contracts/usr-waiver-policy-validation
 lang/contracts/usr-report-envelope-validation
+backcompat/backcompat-matrix-validation
 decomposed-drift/decomposed-drift-validation
 diagnostics/diagnostics-transition-validation
 indexing/contracts/schema-registry-single-source

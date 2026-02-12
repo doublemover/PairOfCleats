@@ -90,6 +90,7 @@ lang/contracts/usr-conformance-dashboard-validation
 lang/contracts/usr-diagnostic-remediation-routing-validation
 lang/contracts/usr-canonical-example-validation
 lang/contracts/usr-framework-canonicalization
+lang/contracts/usr-f5-hard-requirements-validation
 lang/contracts/usr-embedding-bridge-validation
 lang/contracts/usr-generated-provenance-validation
 lang/contracts/usr-bridge-provenance-dashboard-validation

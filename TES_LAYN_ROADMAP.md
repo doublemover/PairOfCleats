@@ -1302,10 +1302,10 @@ If contradictions are found:
 
 ### F.5 Diagnostics/examples/canonicalization/backcompat hard requirements (USR sections 33-36)
 
-- [ ] Enforce section 33 diagnostic and reason-code taxonomy in strict validators and reporting.
-- [ ] Keep section 34 canonical JSON examples synchronized with executable fixture bundles.
-- [ ] Enforce section 35 route/template/style canonical attrs and framework edge-case checklist in C4 lanes.
-- [ ] Enforce section 36 compatibility matrix execution, pairwise expansion, and reporting dimensions in CI.
+- [x] Enforce section 33 diagnostic and reason-code taxonomy in strict validators and reporting.
+- [x] Keep section 34 canonical JSON examples synchronized with executable fixture bundles.
+- [x] Enforce section 35 route/template/style canonical attrs and framework edge-case checklist in C4 lanes.
+- [x] Enforce section 36 compatibility matrix execution, pairwise expansion, and reporting dimensions in CI.
 
 ### F.6 Decomposed contract synchronization requirements
 
