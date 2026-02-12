@@ -44,10 +44,10 @@ Required registry row keys:
 
 | Registry | Mandatory keys |
 | --- | --- |
-| `usr-language-profiles.json` | `id`, `requiredNodeKinds`, `requiredEdgeKinds`, `requiredConformance` |
-| `usr-framework-profiles.json` | `id`, `detectionPrecedence`, `routeSemantics`, `bindingSemantics`, `segmentationRules` |
-| `usr-capability-matrix.json` | `languageId`, `frameworkProfile`, `capability`, `state`, `requiredConformance` |
-| `usr-backcompat-matrix.json` | `id`, `producerVersion`, `readerVersions`, `readerMode`, `expectedOutcome`, `blocking` |
+| `usr-language-profiles.json` | `id`, `parserPreference`, `requiredNodeKinds`, `requiredEdgeKinds`, `requiredCapabilities`, `fallbackChain`, `frameworkProfiles`, `requiredConformance` |
+| `usr-framework-profiles.json` | `id`, `detectionPrecedence`, `appliesToLanguages`, `segmentationRules`, `bindingSemantics`, `routeSemantics`, `hydrationSemantics`, `embeddedLanguageBridges`, `edgeCaseCaseIds`, `requiredConformance` |
+| `usr-capability-matrix.json` | `languageId`, `frameworkProfile`, `capability`, `state`, `requiredConformance`, `downgradeDiagnostics`, `blocking` |
+| `usr-backcompat-matrix.json` | `id`, `producerVersion`, `readerVersions`, `readerMode`, `fixtureFamily`, `expectedOutcome`, `requiredDiagnostics`, `blocking` |
 
 ## Evidence artifact envelope
 
