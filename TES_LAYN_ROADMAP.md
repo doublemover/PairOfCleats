@@ -1680,3 +1680,9 @@ Source artifacts: `tests/lang/matrix/usr-ownership-matrix.json` and `tests/lang/
 - `All required framework profiles pass C4 checks.` cannot be checked unless C4 baseline validators remain present in `ci` and `ci-lite` lane manifests.
 - If any Phase 11.3/12.3/13.2 conformance exit line regresses to unchecked, corresponding Phase 9.2 go/no-go checklist lines must be reopened.
 
+### N.23 Phase 10.3 harness exit-integrity lock
+
+- `Harness can execute matrix-driven checks for all languages/frameworks.` cannot be checked unless matrix-driven harness and lane materialization validators remain present in `ci` and `ci-lite` lane manifests.
+- `Lane ordering and sharding are deterministic.` cannot be checked unless shard partition and lane materialization validators remain present in `ci` and `ci-lite` lane manifests.
+- If any Phase 10.3 harness exit line regresses to unchecked, Phase 11.3/12.3/13.2 conformance exit lines must be reopened.
+
