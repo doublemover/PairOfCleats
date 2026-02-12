@@ -118,6 +118,7 @@ const requiredCiTests = [
   'lang/contracts/usr-gate-b-language-batch-lock-validation',
   'lang/contracts/usr-rollout-approval-lock-validation',
   'lang/contracts/usr-gate-c-prereq-lock-validation',
+  'lang/contracts/usr-gate-c-authorization-chain-validation',
   'lang/contracts/usr-archival-deprecation-policy-validation',
   'backcompat/backcompat-matrix-validation',
   'lang/contracts/usr-runtime-config-feature-flag-validation',
