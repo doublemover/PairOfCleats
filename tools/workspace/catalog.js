@@ -46,7 +46,7 @@ const main = async () => {
         tags: Array.isArray(repo.tags) ? repo.tags : [],
         repoRootCanonical: repo.repoRootCanonical,
         repoCacheRoot: getRepoCacheRoot(repo.repoRootCanonical),
-        pointer: manifestRepo.pointer || null,
+        pointer: manifestRepo.build || null,
         modes
       };
     });
@@ -58,7 +58,7 @@ const main = async () => {
     workspaceName: workspaceConfig.name || null,
     repoSetId: workspaceConfig.repoSetId,
     cacheRoots: {
-      federationCacheRoot: workspaceConfig.federationCacheRoot,
+      federationCacheRoot: manifest.federationCacheRoot || null,
       workspaceManifestPath: manifestPath
     },
     manifest: {
