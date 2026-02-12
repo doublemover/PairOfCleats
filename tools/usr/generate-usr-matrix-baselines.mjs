@@ -25,8 +25,8 @@ const CAPABILITIES = [
 ];
 
 const languageBaselines = [
-  { id: 'javascript', family: 'js-ts', parserPreference: 'hybrid', requiredConformance: ['C0', 'C1', 'C2', 'C3', 'C4'], frameworkProfiles: ['astro', 'next', 'react'], minVersion: 'ecma-2020', dialects: ['cjs', 'esm', 'jsx'], featureFlags: ['jsx', 'top-level-await'] },
-  { id: 'typescript', family: 'js-ts', parserPreference: 'hybrid', requiredConformance: ['C0', 'C1', 'C2', 'C3', 'C4'], frameworkProfiles: ['angular', 'astro', 'next', 'react'], minVersion: '5.0', dialects: ['ts', 'tsx'], featureFlags: ['decorators', 'jsx', 'project-references'] },
+  { id: 'javascript', family: 'js-ts', parserPreference: 'hybrid', requiredConformance: ['C0', 'C1', 'C2', 'C3', 'C4'], frameworkProfiles: ['astro', 'next', 'nuxt', 'react', 'svelte', 'sveltekit', 'vue'], minVersion: 'ecma-2020', dialects: ['cjs', 'esm', 'jsx'], featureFlags: ['jsx', 'top-level-await'] },
+  { id: 'typescript', family: 'js-ts', parserPreference: 'hybrid', requiredConformance: ['C0', 'C1', 'C2', 'C3', 'C4'], frameworkProfiles: ['angular', 'astro', 'next', 'nuxt', 'react', 'svelte', 'sveltekit', 'vue'], minVersion: '5.0', dialects: ['ts', 'tsx'], featureFlags: ['decorators', 'jsx', 'project-references'] },
   { id: 'python', family: 'dynamic', parserPreference: 'hybrid', requiredConformance: ['C0', 'C1', 'C2', 'C3'], frameworkProfiles: [], minVersion: '3.8', dialects: ['cpython'], featureFlags: ['pattern-matching', 'type-hints'] },
   { id: 'clike', family: 'systems', parserPreference: 'hybrid', requiredConformance: ['C0', 'C1', 'C2', 'C3'], frameworkProfiles: [], minVersion: 'c11-cpp17', dialects: ['c', 'cpp'], featureFlags: ['preprocessor', 'templates'] },
   { id: 'go', family: 'systems', parserPreference: 'hybrid', requiredConformance: ['C0', 'C1', 'C2', 'C3'], frameworkProfiles: [], minVersion: '1.20', dialects: ['go'], featureFlags: ['generics', 'modules'] },
@@ -918,6 +918,10 @@ function assertLanguageFrameworkApplicability() {
   const appliesByFramework = new Map(
     frameworkProfiles.map((profile) => [profile.id, new Set(profile.appliesToLanguages)])
   );
+  const frameworksByLanguage = new Map(
+    languageBaselines.map((language) => [language.id, new Set(language.frameworkProfiles)])
+  );
+
   for (const language of languageBaselines) {
     for (const frameworkId of language.frameworkProfiles) {
       const applies = appliesByFramework.get(frameworkId);
@@ -926,6 +930,18 @@ function assertLanguageFrameworkApplicability() {
       }
       if (!applies.has(language.id)) {
         throw new Error(`Inconsistent language/framework applicability: language=${language.id} framework=${frameworkId}`);
+      }
+    }
+  }
+
+  for (const framework of frameworkProfiles) {
+    for (const languageId of framework.appliesToLanguages) {
+      const frameworkSet = frameworksByLanguage.get(languageId);
+      if (!frameworkSet) {
+        throw new Error(`Unknown language in framework applicability: framework=${framework.id} language=${languageId}`);
+      }
+      if (!frameworkSet.has(framework.id)) {
+        throw new Error(`Missing framework in language baseline: framework=${framework.id} language=${languageId}`);
       }
     }
   }

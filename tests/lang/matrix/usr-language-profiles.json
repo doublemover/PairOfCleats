@@ -791,7 +791,11 @@
       "frameworkProfiles": [
         "astro",
         "next",
-        "react"
+        "nuxt",
+        "react",
+        "svelte",
+        "sveltekit",
+        "vue"
       ],
       "requiredConformance": [
         "C0",
@@ -2024,7 +2028,11 @@
         "angular",
         "astro",
         "next",
-        "react"
+        "nuxt",
+        "react",
+        "svelte",
+        "sveltekit",
+        "vue"
       ],
       "requiredConformance": [
         "C0",

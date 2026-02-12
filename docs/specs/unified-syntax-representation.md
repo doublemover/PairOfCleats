@@ -705,8 +705,8 @@ type USRLanguageProfile = {
 
 | Language ID | Parser Preference | Required Categories | Required Edge Kinds | Framework Profiles |
 | --- | --- | --- | --- | --- |
-| javascript | hybrid | module, callable, expression, template | imports, calls, references, template_binds | react, next, astro |
-| typescript | hybrid | module, type, callable, expression, template | imports, calls, references, uses_type, template_binds | react, next, angular, astro |
+| javascript | hybrid | module, callable, expression, template | imports, calls, references, template_binds | astro, next, nuxt, react, svelte, sveltekit, vue |
+| typescript | hybrid | module, type, callable, expression, template | imports, calls, references, uses_type, template_binds | angular, astro, next, nuxt, react, svelte, sveltekit, vue |
 | python | native/hybrid | module, callable, type, control | imports, calls, references | none |
 | clike | tree-sitter/hybrid | module, callable, type, control | imports, calls, references | none |
 | go | native/hybrid | module, callable, type, control | imports, calls, references | none |
@@ -715,8 +715,8 @@ type USRLanguageProfile = {
 | kotlin | tree-sitter/hybrid | module, callable, type, control | imports, calls, references, extends, implements | none |
 | ruby | tree-sitter/hybrid | module, callable, type | imports, calls, references | none |
 | php | tree-sitter/hybrid | module, callable, type | imports, calls, references | none |
-| html | tree-sitter/hybrid | markup, template | contains, references | vue, angular, astro |
-| css | tree-sitter/hybrid | style | contains, style_scopes | vue, svelte, react, angular, astro |
+| html | tree-sitter/hybrid | markup, template | contains, references | angular, astro, nuxt, svelte, sveltekit, vue |
+| css | tree-sitter/hybrid | style | contains, style_scopes | astro, nuxt, svelte, sveltekit, vue |
 | lua | tree-sitter/hybrid | module, callable, expression | imports, calls, references | none |
 | sql | tree-sitter/hybrid | query | references | none |
 | perl | tree-sitter/hybrid | module, callable, expression | imports, calls, references | none |
