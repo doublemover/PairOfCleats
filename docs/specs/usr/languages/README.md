@@ -1,7 +1,7 @@
 # USR Language Authoring
 
 Status: Draft v1.1
-Last updated: 2026-02-11T07:25:00Z
+Last updated: 2026-02-12T05:05:00Z
 
 Language behavior is primarily specified in:
 
@@ -11,6 +11,8 @@ Use `docs/specs/usr/languages/TEMPLATE.md` only for exceptional language deep-di
 
 Any language extension document must define:
 
+- owner role and backup owner role matching `tests/lang/matrix/usr-ownership-matrix.json` language-framework governance
+- review cadence days, last reviewed timestamp, and explicit ownership rotation policy
 - required normalized node kinds and edge kinds
 - capability states and fallback behavior
 - raw-kind to normalized-kind mapping constraints

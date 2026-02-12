@@ -71,6 +71,7 @@ lang/contracts/usr-roadmap-sync
 lang/contracts/usr-pr-template-policy-validation
 lang/contracts/usr-minimum-slice-harness
 lang/contracts/usr-language-contract-template
+lang/contracts/usr-language-contract-freshness-validation
 lang/contracts/usr-language-batch-shards-validation
 lang/contracts/usr-matrix-driven-harness-validation
 lang/contracts/usr-c0-baseline-validation
