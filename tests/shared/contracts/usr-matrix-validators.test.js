@@ -17,6 +17,8 @@ import {
   validateUsrBenchmarkMethodology,
   evaluateUsrBenchmarkRegression,
   buildUsrBenchmarkRegressionReport,
+  validateUsrSecurityGateControls,
+  buildUsrSecurityGateValidationReport,
   validateUsrLanguageBatchShards,
   validateUsrMatrixDrivenHarnessCoverage,
   validateUsrConformanceLevelCoverage,
@@ -564,6 +566,49 @@ const alertPoliciesPath = path.join(matrixDir, 'usr-alert-policies.json');
 const alertPolicies = JSON.parse(fs.readFileSync(alertPoliciesPath, 'utf8'));
 const redactionRulesPath = path.join(matrixDir, 'usr-redaction-rules.json');
 const redactionRules = JSON.parse(fs.readFileSync(redactionRulesPath, 'utf8'));
+
+const securityGateResults = Object.fromEntries((securityGates.rows || []).map((row) => [
+  row.check,
+  { pass: true }
+]));
+const redactionRuleResults = Object.fromEntries((redactionRules.rows || []).map((row) => [
+  row.class,
+  { pass: true, misses: 0 }
+]));
+
+const securityGateValidation = validateUsrSecurityGateControls({
+  securityGatesPayload: securityGates,
+  redactionRulesPayload: redactionRules,
+  gateResults: securityGateResults,
+  redactionResults: redactionRuleResults
+});
+assert.equal(securityGateValidation.ok, true, `security-gate control validation should pass: ${securityGateValidation.errors.join('; ')}`);
+
+const securityGateReport = buildUsrSecurityGateValidationReport({
+  securityGatesPayload: securityGates,
+  redactionRulesPayload: redactionRules,
+  gateResults: securityGateResults,
+  redactionResults: redactionRuleResults,
+  runId: 'run-usr-security-gate-validation-001',
+  lane: 'ci'
+});
+assert.equal(securityGateReport.ok, true, `security-gate validation report should pass: ${securityGateReport.errors.join('; ')}`);
+const securityGateReportValidation = validateUsrReport('usr-validation-report', securityGateReport.payload);
+assert.equal(securityGateReportValidation.ok, true, `security-gate validation report payload must validate: ${securityGateReportValidation.errors.join('; ')}`);
+
+const securityGateNegative = validateUsrSecurityGateControls({
+  securityGatesPayload: securityGates,
+  redactionRulesPayload: redactionRules,
+  gateResults: {
+    ...securityGateResults,
+    runtime_exec_disallowed: { pass: false }
+  },
+  redactionResults: {
+    ...redactionRuleResults,
+    'private-key-material': { pass: false, misses: 1 }
+  }
+});
+assert.equal(securityGateNegative.ok, false, 'security-gate control validation must fail on blocking gate or redaction failures');
 
 const threatCoverage = validateUsrThreatModelCoverage({
   threatModelPayload: threatModel,

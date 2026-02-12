@@ -1530,6 +1530,272 @@ export function buildUsrObservabilityRollupReport({
   };
 }
 
+const normalizeObservedResultMap = (observedResults, keyField = 'id') => {
+  if (observedResults instanceof Map) {
+    return new Map(observedResults.entries());
+  }
+
+  if (Array.isArray(observedResults)) {
+    return new Map(
+      observedResults
+        .filter((row) => row && typeof row === 'object' && typeof row[keyField] === 'string')
+        .map((row) => [row[keyField], row])
+    );
+  }
+
+  if (observedResults && typeof observedResults === 'object') {
+    return new Map(Object.entries(observedResults));
+  }
+
+  return new Map();
+};
+
+const resolveObservedGatePass = (observed) => {
+  if (typeof observed === 'boolean') {
+    return observed;
+  }
+
+  if (observed && typeof observed === 'object') {
+    if (typeof observed.pass === 'boolean') {
+      return observed.pass;
+    }
+    if (typeof observed.status === 'string') {
+      return observed.status.toLowerCase() === 'pass';
+    }
+  }
+
+  return null;
+};
+
+const resolveObservedRedactionResult = (observed) => {
+  if (typeof observed === 'boolean') {
+    return {
+      pass: observed,
+      misses: observed ? 0 : null
+    };
+  }
+
+  if (observed && typeof observed === 'object') {
+    if (typeof observed.pass === 'boolean') {
+      return {
+        pass: observed.pass,
+        misses: Number.isFinite(observed.misses) ? observed.misses : null
+      };
+    }
+
+    if (Number.isFinite(observed.misses)) {
+      return {
+        pass: observed.misses <= 0,
+        misses: observed.misses
+      };
+    }
+  }
+
+  return {
+    pass: null,
+    misses: null
+  };
+};
+
+export function validateUsrSecurityGateControls({
+  securityGatesPayload,
+  redactionRulesPayload,
+  gateResults = {},
+  redactionResults = {}
+} = {}) {
+  const securityValidation = validateUsrMatrixRegistry('usr-security-gates', securityGatesPayload);
+  if (!securityValidation.ok) {
+    return {
+      ok: false,
+      errors: Object.freeze([...securityValidation.errors]),
+      warnings: Object.freeze([]),
+      rows: Object.freeze([])
+    };
+  }
+
+  const redactionValidation = validateUsrMatrixRegistry('usr-redaction-rules', redactionRulesPayload);
+  if (!redactionValidation.ok) {
+    return {
+      ok: false,
+      errors: Object.freeze([...redactionValidation.errors]),
+      warnings: Object.freeze([]),
+      rows: Object.freeze([])
+    };
+  }
+
+  const errors = [];
+  const warnings = [];
+  const rows = [];
+
+  const securityRows = Array.isArray(securityGatesPayload?.rows) ? securityGatesPayload.rows : [];
+  const redactionRows = Array.isArray(redactionRulesPayload?.rows) ? redactionRulesPayload.rows : [];
+  const gateResultMap = normalizeObservedResultMap(gateResults, 'id');
+  const redactionResultMap = normalizeObservedResultMap(redactionResults, 'id');
+
+  for (const row of securityRows) {
+    const rowErrors = [];
+    const rowWarnings = [];
+    const observed = gateResultMap.get(row.id) ?? gateResultMap.get(row.check) ?? null;
+    const observedPass = resolveObservedGatePass(observed);
+    const treatAsBlocking = Boolean(row.blocking || row.enforcement === 'strict');
+
+    if (observedPass === null) {
+      const message = `missing security-gate result for ${row.id} (${row.check})`;
+      if (treatAsBlocking) {
+        rowErrors.push(message);
+      } else {
+        rowWarnings.push(message);
+      }
+    } else if (!observedPass) {
+      const message = `security-gate failed for ${row.id} (${row.check})`;
+      if (treatAsBlocking) {
+        rowErrors.push(message);
+      } else {
+        rowWarnings.push(message);
+      }
+    }
+
+    if (rowErrors.length > 0) {
+      errors.push(...rowErrors);
+    }
+    if (rowWarnings.length > 0) {
+      warnings.push(...rowWarnings);
+    }
+
+    rows.push({
+      rowType: 'security-gate',
+      id: row.id,
+      check: row.check,
+      scope: row.scope,
+      enforcement: row.enforcement,
+      blocking: treatAsBlocking,
+      pass: rowErrors.length === 0,
+      errors: Object.freeze([...rowErrors]),
+      warnings: Object.freeze([...rowWarnings])
+    });
+  }
+
+  for (const row of redactionRows) {
+    const rowErrors = [];
+    const rowWarnings = [];
+    const observed = redactionResultMap.get(row.id) ?? redactionResultMap.get(row.class) ?? null;
+    const { pass: observedPass, misses } = resolveObservedRedactionResult(observed);
+
+    if (observedPass === null) {
+      const message = `missing redaction result for ${row.id} (${row.class})`;
+      if (row.blocking) {
+        rowErrors.push(message);
+      } else {
+        rowWarnings.push(message);
+      }
+    } else if (!observedPass) {
+      const suffix = Number.isFinite(misses) ? ` misses=${misses}` : '';
+      const message = `redaction rule failed for ${row.id} (${row.class})${suffix}`;
+      if (row.blocking) {
+        rowErrors.push(message);
+      } else {
+        rowWarnings.push(message);
+      }
+    }
+
+    if (rowErrors.length > 0) {
+      errors.push(...rowErrors);
+    }
+    if (rowWarnings.length > 0) {
+      warnings.push(...rowWarnings);
+    }
+
+    rows.push({
+      rowType: 'redaction-rule',
+      id: row.id,
+      class: row.class,
+      blocking: Boolean(row.blocking),
+      pass: rowErrors.length === 0,
+      misses: Number.isFinite(misses) ? misses : null,
+      errors: Object.freeze([...rowErrors]),
+      warnings: Object.freeze([...rowWarnings])
+    });
+  }
+
+  return {
+    ok: errors.length === 0,
+    errors: Object.freeze([...errors]),
+    warnings: Object.freeze([...warnings]),
+    rows: Object.freeze(rows)
+  };
+}
+
+export function buildUsrSecurityGateValidationReport({
+  securityGatesPayload,
+  redactionRulesPayload,
+  gateResults = {},
+  redactionResults = {},
+  generatedAt = new Date().toISOString(),
+  producerId = 'usr-security-gate-validator',
+  producerVersion = null,
+  runId = 'run-usr-security-gate-validation',
+  lane = 'ci',
+  buildId = null,
+  scope = { scopeType: 'lane', scopeId: 'ci' }
+} = {}) {
+  const evaluation = validateUsrSecurityGateControls({
+    securityGatesPayload,
+    redactionRulesPayload,
+    gateResults,
+    redactionResults
+  });
+
+  const status = evaluation.errors.length > 0
+    ? 'fail'
+    : (evaluation.warnings.length > 0 ? 'warn' : 'pass');
+
+  const rows = evaluation.rows.map((row) => ({
+    ...row,
+    errors: row.errors,
+    warnings: row.warnings
+  }));
+
+  const payload = {
+    schemaVersion: 'usr-1.0.0',
+    artifactId: 'usr-validation-report',
+    generatedAt,
+    producerId,
+    producerVersion,
+    runId,
+    lane,
+    buildId,
+    status,
+    scope: normalizeReportScope(scope, 'lane', lane),
+    summary: {
+      rowCount: rows.length,
+      securityGateRowCount: rows.filter((row) => row.rowType === 'security-gate').length,
+      redactionRuleRowCount: rows.filter((row) => row.rowType === 'redaction-rule').length,
+      passCount: rows.filter((row) => row.pass).length,
+      failCount: rows.filter((row) => !row.pass).length,
+      blockingFailureCount: rows.filter((row) => row.blocking && !row.pass).length,
+      warningCount: evaluation.warnings.length,
+      errorCount: evaluation.errors.length
+    },
+    blockingFindings: evaluation.errors.map((message) => ({
+      class: 'security-gate',
+      message
+    })),
+    advisoryFindings: evaluation.warnings.map((message) => ({
+      class: 'security-gate',
+      message
+    })),
+    rows
+  };
+
+  return {
+    ok: evaluation.ok,
+    errors: evaluation.errors,
+    warnings: evaluation.warnings,
+    rows: evaluation.rows,
+    payload
+  };
+}
+
 const BATCH_SHARD_ID_ORDER = Object.freeze(['B0', 'B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8']);
 const REQUIRED_BATCH_SHARD_IDS = Object.freeze(new Set(BATCH_SHARD_ID_ORDER));
 const LANGUAGE_BATCH_IDS = Object.freeze(new Set(['B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7']));
