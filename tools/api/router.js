@@ -74,6 +74,16 @@ export const createApiRouter = ({
     return path.resolve(trimmed);
   };
 
+  /**
+   * Classify federated failures caused by client input that passed schema shape
+   * validation but failed semantic checks (for example cohort selector issues).
+   *
+   * These must map to HTTP 400 instead of 500 so callers can distinguish
+   * retryable server faults from request fixes.
+   *
+   * @param {any} err
+   * @returns {boolean}
+   */
   const isFederatedClientError = (err) => {
     if (!err) return false;
     if (err.code === ERROR_CODES.INVALID_REQUEST) return true;

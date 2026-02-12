@@ -29,6 +29,13 @@ const MODE_PAYLOAD_KEYS = Object.freeze({
 const MAX_FEDERATED_TOP = 500;
 const MAX_FEDERATED_PER_REPO_TOP = 1000;
 const MAX_FEDERATED_CONCURRENCY = 32;
+/**
+ * Response keys that may legitimately contain filesystem paths and should be
+ * redacted when debug includePaths is disabled.
+ *
+ * We intentionally avoid blanket redaction of "absolute-like" strings because
+ * those may be user-visible hit text/snippets, not paths.
+ */
 const REDACTABLE_PATH_FIELDS = new Set([
   'workspacePath',
   'repoPath',
@@ -58,6 +65,17 @@ const resolveRequestedModes = (modeValue) => {
   return ['code', 'prose', 'extracted-prose'];
 };
 
+/**
+ * Redact absolute path values only for known path-bearing keys.
+ *
+ * The redaction context is inherited through arrays (list of paths) and reset
+ * per object property lookup so non-path fields are never redacted solely
+ * based on string shape.
+ *
+ * @param {unknown} value
+ * @param {{isPathField?: boolean}} [context]
+ * @returns {unknown}
+ */
 const sanitizeObjectPaths = (value, context = {}) => {
   const isPathField = context.isPathField === true;
   if (Array.isArray(value)) {
@@ -98,6 +116,21 @@ const sortDiagnostics = (entries) => entries.slice().sort((a, b) => (
 
 export const applyCohortPolicy = (input) => selectFederationCohorts(input);
 
+/**
+ * Merge federated hits independently per mode after applying cohort selection.
+ *
+ * This prevents excluded repos in one mode from consuming global merge slots
+ * (topN) that should belong to repos selected for that mode.
+ *
+ * @param {{
+ *   perRepoResults?: Array<{repoId:string,repoAlias?:string|null,priority?:number,result?:Record<string, unknown>}>,
+ *   selectedReposByMode?: Record<string, Array<{repoId:string}>>,
+ *   topN?: number,
+ *   perRepoTop?: number,
+ *   rrfK?: number
+ * }} [input]
+ * @returns {{code:any[], prose:any[], extractedProse:any[], records:any[]}}
+ */
 export const mergeFederatedResultsByMode = ({
   perRepoResults = [],
   selectedReposByMode = {},

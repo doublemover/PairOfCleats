@@ -85,6 +85,18 @@ const modePath = (entry, mode) => (
   entry?.indexes && entry.indexes[mode] ? entry.indexes[mode] : null
 );
 
+/**
+ * Resolve a build pointer root only if it remains within the repo cache root.
+ *
+ * Supports both absolute pointers and relative pointers (resolved against
+ * repo cache root and builds root). Returns null when the pointer escapes the
+ * allowed repo cache boundary.
+ *
+ * @param {string} value
+ * @param {string} repoCacheRoot
+ * @param {string} buildsRoot
+ * @returns {string|null}
+ */
 const resolvePointerRoot = (value, repoCacheRoot, buildsRoot) => {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
@@ -138,6 +150,37 @@ const buildEmptyPointerState = (currentJsonPath) => ({
   modes: []
 });
 
+/**
+ * Load and normalize build pointer metadata for one repo's current build.
+ *
+ * Precedence:
+ * 1) use `getCurrentBuildInfo()` when available (authoritative resolver),
+ * 2) otherwise parse `builds/current.json` with strict in-repo-cache pointer
+ *    validation.
+ *
+ * Any parse failure or out-of-bound buildRoot marks the pointer invalid and
+ * returns an empty/cleared pointer state, so manifest generation remains
+ * deterministic and does not consume external build directories.
+ *
+ * @param {{
+ *   repoId:string,
+ *   repoRootCanonical:string,
+ *   repoCacheRoot:string,
+ *   userConfig:any,
+ *   diagnostics:{warnings:any[],errors:any[]}
+ * }} input
+ * @returns {Promise<{
+ *   currentJsonPath:string,
+ *   currentJsonExists:boolean,
+ *   currentJsonMtimeMs:number|null,
+ *   parseOk:boolean,
+ *   invalidPointer:boolean,
+ *   buildId:string|null,
+ *   buildRoot:string|null,
+ *   buildRoots:Record<string,string>,
+ *   modes:string[]
+ * }>}
+ */
 const readBuildPointerState = async ({ repoId, repoRootCanonical, repoCacheRoot, userConfig, diagnostics }) => {
   const buildsRoot = path.join(repoCacheRoot, 'builds');
   const currentJsonPath = path.join(buildsRoot, 'current.json');
