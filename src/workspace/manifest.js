@@ -133,6 +133,38 @@ const resolvePointerRoot = (value, repoCacheRoot, buildsRoot) => {
   return null;
 };
 
+/**
+ * Resolve a buildId pointer strictly under `<repoCacheRoot>/builds`.
+ *
+ * Unlike general buildRoot pointers, buildId fallback must not probe arbitrary
+ * repo-cache-relative paths (`<repoCacheRoot>/<buildId>`). It is constrained to
+ * the builds directory so malformed identifiers cannot redirect manifest reads.
+ *
+ * @param {string} buildId
+ * @param {string} repoCacheRoot
+ * @param {string} buildsRoot
+ * @returns {string|null}
+ */
+const resolveBuildIdRoot = (buildId, repoCacheRoot, buildsRoot) => {
+  const id = normalizeString(buildId);
+  if (!id) return null;
+  if (isAbsolutePathNative(id)) return null;
+  const candidate = path.resolve(buildsRoot, id);
+  const normalizedCandidate = normalizePathBoundaryValue(candidate);
+  const normalizedRepoCacheRoot = normalizePathBoundaryValue(repoCacheRoot);
+  const normalizedBuildsRoot = normalizePathBoundaryValue(buildsRoot);
+  const inRepoCache = (
+    normalizedCandidate === normalizedRepoCacheRoot
+    || normalizedCandidate.startsWith(`${normalizedRepoCacheRoot}${path.sep}`)
+  );
+  const inBuildsRoot = (
+    normalizedCandidate === normalizedBuildsRoot
+    || normalizedCandidate.startsWith(`${normalizedBuildsRoot}${path.sep}`)
+  );
+  if (!inRepoCache || !inBuildsRoot) return null;
+  return candidate;
+};
+
 const signatureFromStat = (stat) => (
   stat ? `${stat.size}:${stat.mtimeMs}` : null
 );
@@ -252,8 +284,9 @@ const readBuildPointerState = async ({ repoId, repoRootCanonical, repoCacheRoot,
     }
     pointer.buildRoot = toRealPathSync(resolvedBuildRoot);
   }
+  let resolvedBuildIdRoot = null;
   if (!buildRootRaw && pointer.buildId) {
-    const resolvedBuildIdRoot = resolvePointerRoot(pointer.buildId, repoCacheRoot, buildsRoot);
+    resolvedBuildIdRoot = resolveBuildIdRoot(pointer.buildId, repoCacheRoot, buildsRoot);
     if (!resolvedBuildIdRoot) {
       return invalidatePointer(
         `Invalid build pointer at ${currentJsonPath}: buildId points outside repo cache (${pointer.buildId}).`
@@ -287,8 +320,8 @@ const readBuildPointerState = async ({ repoId, repoRootCanonical, repoCacheRoot,
   }
 
   if (!buildRootRaw) {
-    pointer.buildRoot = pointer.buildId
-      ? toRealPathSync(resolvePointerRoot(pointer.buildId, repoCacheRoot, buildsRoot))
+    pointer.buildRoot = resolvedBuildIdRoot
+      ? toRealPathSync(resolvedBuildIdRoot)
       : null;
   }
 
