@@ -1,6 +1,6 @@
 # USR Contract Enforcement Guide
 
-Last updated: 2026-02-12T08:17:12Z
+Last updated: 2026-02-12T08:22:17Z
 
 ## Purpose
 
@@ -56,6 +56,7 @@ Define CI/local enforcement for the consolidated USR contract model.
 - phase 15.1 CI-gate lock enforcement (`tests/lang/contracts/usr-phase15-ci-gate-lock-validation.test.js`) validates section 15.1 checklist state against Gate A/B/C, C0-C4 conformance, and sections 36/41/42/43/44/45/46/47/48 validator coverage in blocking lanes
 - phase 15.2 reporting-integrity lock enforcement (`tests/lang/contracts/usr-phase15-reporting-lock-validation.test.js`) validates reporting checklist state against section 30/31 report schema requirements and required report/policy validator coverage in blocking lanes
 - governance lock-suite integrity enforcement (`tests/lang/contracts/usr-governance-lock-suite-validation.test.js`) validates Appendix N lock anchor-to-test mapping and required CI/CI-lite + guide coverage for every governance lock validator
+- phase 6.6 semantics exit-integrity lock enforcement (`tests/lang/contracts/usr-phase6-exit-lock-validation.test.js`) validates phase 6.6 semantics exit state against C2/C3/risk/capability/provenance/security/threat validator coverage
 - phase 7.3 fixture/golden exit-integrity lock enforcement (`tests/lang/contracts/usr-phase7-exit-lock-validation.test.js`) validates phase 7.3 fixture/golden exit state against fixture coverage/golden determinism validator coverage and downstream phase reopening behavior
 - phase 8.4 hardening exit-integrity lock enforcement (`tests/lang/contracts/usr-phase8-exit-lock-validation.test.js`) validates phase 8.4 hardening exit state against determinism/cap/SLO validator coverage and Gate B/Gate C checklist reopening behavior
 - phase 10.3 harness exit-integrity lock enforcement (`tests/lang/contracts/usr-phase10-harness-exit-lock-validation.test.js`) validates phase 10.3 exit state against matrix-driven harness/shard determinism validator coverage and conformance-exit reopening behavior

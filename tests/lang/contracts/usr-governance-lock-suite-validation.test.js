@@ -37,7 +37,8 @@ const lockRows = [
   { anchor: '### N.22 Phase 11-13 conformance exit-integrity lock', testId: 'lang/contracts/usr-conformance-phase-exit-lock-validation' },
   { anchor: '### N.23 Phase 10.3 harness exit-integrity lock', testId: 'lang/contracts/usr-phase10-harness-exit-lock-validation' },
   { anchor: '### N.24 Phase 8.4 hardening exit-integrity lock', testId: 'lang/contracts/usr-phase8-exit-lock-validation' },
-  { anchor: '### N.25 Phase 7.3 fixture/golden exit-integrity lock', testId: 'lang/contracts/usr-phase7-exit-lock-validation' }
+  { anchor: '### N.25 Phase 7.3 fixture/golden exit-integrity lock', testId: 'lang/contracts/usr-phase7-exit-lock-validation' },
+  { anchor: '### N.26 Phase 6.6 semantics exit-integrity lock', testId: 'lang/contracts/usr-phase6-exit-lock-validation' }
 ];
 
 const expectedAnchors = new Set(lockRows.map((row) => row.anchor));
