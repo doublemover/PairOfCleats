@@ -792,6 +792,7 @@
         "heuristic"
       ],
       "frameworkProfiles": [
+        "astro",
         "next",
         "react"
       ],
@@ -2024,6 +2025,7 @@
       ],
       "frameworkProfiles": [
         "angular",
+        "astro",
         "next",
         "react"
       ],

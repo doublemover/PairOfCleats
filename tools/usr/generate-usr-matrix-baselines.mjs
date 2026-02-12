@@ -25,8 +25,8 @@ const CAPABILITIES = [
 ];
 
 const languageBaselines = [
-  { id: 'javascript', family: 'js-ts', parserPreference: 'hybrid', requiredConformance: ['C0', 'C1', 'C2', 'C3', 'C4'], frameworkProfiles: ['next', 'react'], minVersion: 'ecma-2020', dialects: ['cjs', 'esm', 'jsx'], featureFlags: ['jsx', 'top-level-await'] },
-  { id: 'typescript', family: 'js-ts', parserPreference: 'hybrid', requiredConformance: ['C0', 'C1', 'C2', 'C3', 'C4'], frameworkProfiles: ['angular', 'next', 'react'], minVersion: '5.0', dialects: ['ts', 'tsx'], featureFlags: ['decorators', 'jsx', 'project-references'] },
+  { id: 'javascript', family: 'js-ts', parserPreference: 'hybrid', requiredConformance: ['C0', 'C1', 'C2', 'C3', 'C4'], frameworkProfiles: ['astro', 'next', 'react'], minVersion: 'ecma-2020', dialects: ['cjs', 'esm', 'jsx'], featureFlags: ['jsx', 'top-level-await'] },
+  { id: 'typescript', family: 'js-ts', parserPreference: 'hybrid', requiredConformance: ['C0', 'C1', 'C2', 'C3', 'C4'], frameworkProfiles: ['angular', 'astro', 'next', 'react'], minVersion: '5.0', dialects: ['ts', 'tsx'], featureFlags: ['decorators', 'jsx', 'project-references'] },
   { id: 'python', family: 'dynamic', parserPreference: 'hybrid', requiredConformance: ['C0', 'C1', 'C2', 'C3'], frameworkProfiles: [], minVersion: '3.8', dialects: ['cpython'], featureFlags: ['pattern-matching', 'type-hints'] },
   { id: 'clike', family: 'systems', parserPreference: 'hybrid', requiredConformance: ['C0', 'C1', 'C2', 'C3'], frameworkProfiles: [], minVersion: 'c11-cpp17', dialects: ['c', 'cpp'], featureFlags: ['preprocessor', 'templates'] },
   { id: 'go', family: 'systems', parserPreference: 'hybrid', requiredConformance: ['C0', 'C1', 'C2', 'C3'], frameworkProfiles: [], minVersion: '1.20', dialects: ['go'], featureFlags: ['generics', 'modules'] },
@@ -279,7 +279,7 @@ const frameworkProfiles = [
   {
     id: 'next',
     detectionPrecedence: ['config-override', 'next-app-pages-conventions', 'next-config-signals', 'package-signatures', 'heuristic'],
-    appliesToLanguages: ['css', 'javascript', 'typescript'],
+    appliesToLanguages: ['javascript', 'typescript'],
     segmentationRules: {
       blocks: ['script', 'template', 'style', 'route'],
       ordering: ['container-segmentation', 'virtual-documents', 'parse-blocks', 'emit-local-entities', 'emit-bridge-edges', 'route-style-hydration-enrichment'],
@@ -351,7 +351,7 @@ const frameworkProfiles = [
   {
     id: 'react',
     detectionPrecedence: ['config-override', 'jsx-tsx-signals', 'jsx-runtime-signals', 'package-signatures', 'heuristic'],
-    appliesToLanguages: ['css', 'javascript', 'typescript'],
+    appliesToLanguages: ['javascript', 'typescript'],
     segmentationRules: {
       blocks: ['script', 'template', 'style', 'route'],
       ordering: ['container-segmentation', 'virtual-documents', 'parse-blocks', 'emit-local-entities', 'emit-bridge-edges', 'route-style-hydration-enrichment'],
@@ -573,7 +573,7 @@ const backcompatMatrix = [
   { id: 'BC-002', producerVersion: 'usr-1.0.0', readerVersions: ['usr-1.1.0'], readerMode: 'strict', fixtureFamily: 'framework-overlay', expectedOutcome: 'accept', requiredDiagnostics: [], blocking: true },
   { id: 'BC-003', producerVersion: 'usr-1.1.0', readerVersions: ['usr-1.0.0'], readerMode: 'strict', fixtureFamily: 'language-core', expectedOutcome: 'reject', requiredDiagnostics: ['USR-E-SCHEMA-VIOLATION'], blocking: true },
   { id: 'BC-004', producerVersion: 'usr-1.1.0', readerVersions: ['usr-1.0.0'], readerMode: 'non-strict', fixtureFamily: 'language-core', expectedOutcome: 'accept-with-adapter', requiredDiagnostics: ['USR-W-BACKCOMPAT-ADAPTER'], blocking: false },
-  { id: 'BC-005', producerVersion: 'usr-1.0.0', readerVersions: ['usr-1.0.0', 'usr-1.1.0'], readerMode: 'strict', fixtureFamily: 'degraded-capability', expectedOutcome: 'accept', requiredDiagnostics: ['USR-W-DEGRADED-CAPABILITY'], blocking: true },
+  { id: 'BC-005', producerVersion: 'usr-1.0.0', readerVersions: ['usr-1.0.0', 'usr-1.1.0'], readerMode: 'strict', fixtureFamily: 'degraded-capability', expectedOutcome: 'accept', requiredDiagnostics: ['USR-W-CAPABILITY-DOWNGRADED'], blocking: true },
   { id: 'BC-006', producerVersion: 'usr-1.1.0', readerVersions: ['usr-1.0.0'], readerMode: 'strict', fixtureFamily: 'enum-change', expectedOutcome: 'reject', requiredDiagnostics: ['USR-E-SCHEMA-VIOLATION'], blocking: true },
   { id: 'BC-007', producerVersion: 'usr-1.1.0', readerVersions: ['usr-1.0.0'], readerMode: 'non-strict', fixtureFamily: 'enum-change', expectedOutcome: 'accept-with-adapter', requiredDiagnostics: ['USR-W-BACKCOMPAT-ADAPTER'], blocking: false },
   { id: 'BC-008', producerVersion: 'usr-1.1.0', readerVersions: ['usr-1.0.0'], readerMode: 'strict', fixtureFamily: 'required-field-removal', expectedOutcome: 'reject', requiredDiagnostics: ['USR-E-SCHEMA-VIOLATION'], blocking: true },
@@ -679,8 +679,8 @@ const runtimeConfigPolicy = [
 
 const failureInjectionMatrix = [
   { id: 'fi-mapping-conflict', faultClass: 'mapping-conflict', injectionLayer: 'normalization', strictExpectedOutcome: 'fail-closed', nonStrictExpectedOutcome: 'degrade-with-diagnostics', requiredDiagnostics: ['USR-E-SCHEMA-VIOLATION'], requiredReasonCodes: ['resolution_conflict'], blocking: true },
-  { id: 'fi-parser-timeout', faultClass: 'parser-timeout', injectionLayer: 'parser', strictExpectedOutcome: 'degrade-with-diagnostics', nonStrictExpectedOutcome: 'degrade-with-diagnostics', requiredDiagnostics: ['USR-W-DEGRADED-CAPABILITY'], requiredReasonCodes: ['parser_timeout'], blocking: true },
-  { id: 'fi-parser-unavailable', faultClass: 'parser-unavailable', injectionLayer: 'parser', strictExpectedOutcome: 'degrade-with-diagnostics', nonStrictExpectedOutcome: 'degrade-with-diagnostics', requiredDiagnostics: ['USR-W-DEGRADED-CAPABILITY'], requiredReasonCodes: ['parser_unavailable'], blocking: true },
+  { id: 'fi-parser-timeout', faultClass: 'parser-timeout', injectionLayer: 'parser', strictExpectedOutcome: 'degrade-with-diagnostics', nonStrictExpectedOutcome: 'degrade-with-diagnostics', requiredDiagnostics: ['USR-W-CAPABILITY-DOWNGRADED'], requiredReasonCodes: ['parser_timeout'], blocking: true },
+  { id: 'fi-parser-unavailable', faultClass: 'parser-unavailable', injectionLayer: 'parser', strictExpectedOutcome: 'degrade-with-diagnostics', nonStrictExpectedOutcome: 'degrade-with-diagnostics', requiredDiagnostics: ['USR-E-CAPABILITY-LOST'], requiredReasonCodes: ['parser_unavailable'], blocking: true },
   { id: 'fi-redaction-failure', faultClass: 'redaction-failure', injectionLayer: 'reporting', strictExpectedOutcome: 'fail-closed', nonStrictExpectedOutcome: 'degrade-with-diagnostics', requiredDiagnostics: ['USR-E-SECURITY-GATE-FAILED'], requiredReasonCodes: ['redaction_required'], blocking: true },
   { id: 'fi-resource-budget-breach', faultClass: 'resource-budget-breach', injectionLayer: 'runtime', strictExpectedOutcome: 'fail-closed', nonStrictExpectedOutcome: 'degrade-with-diagnostics', requiredDiagnostics: ['USR-E-SLO-BUDGET-FAILED'], requiredReasonCodes: ['resource_budget_exceeded'], blocking: true },
   { id: 'fi-resolution-ambiguity-overflow', faultClass: 'resolution-ambiguity-overflow', injectionLayer: 'resolution', strictExpectedOutcome: 'degrade-with-diagnostics', nonStrictExpectedOutcome: 'warn-only', requiredDiagnostics: ['USR-W-RESOLUTION-CANDIDATE-CAPPED'], requiredReasonCodes: ['candidate_cap_exceeded'], blocking: true },
@@ -824,7 +824,7 @@ function capabilityRows(profileRows) {
         capability,
         state,
         requiredConformance: [...profile.requiredConformance],
-        downgradeDiagnostics: state === 'supported' ? [] : [state === 'partial' ? 'USR-W-DEGRADED-CAPABILITY' : 'USR-W-CAPABILITY-UNSUPPORTED'],
+        downgradeDiagnostics: state === 'supported' ? [] : [state === 'partial' ? 'USR-W-CAPABILITY-DOWNGRADED' : 'USR-E-CAPABILITY-LOST'],
         blocking: state === 'unsupported' && ['ast', 'docmeta', 'symbolGraph'].includes(capability)
       });
     }

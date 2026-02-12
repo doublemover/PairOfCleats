@@ -25,7 +25,7 @@
       "strictExpectedOutcome": "degrade-with-diagnostics",
       "nonStrictExpectedOutcome": "degrade-with-diagnostics",
       "requiredDiagnostics": [
-        "USR-W-DEGRADED-CAPABILITY"
+        "USR-W-CAPABILITY-DOWNGRADED"
       ],
       "requiredReasonCodes": [
         "parser_timeout"
@@ -39,7 +39,7 @@
       "strictExpectedOutcome": "degrade-with-diagnostics",
       "nonStrictExpectedOutcome": "degrade-with-diagnostics",
       "requiredDiagnostics": [
-        "USR-W-DEGRADED-CAPABILITY"
+        "USR-E-CAPABILITY-LOST"
       ],
       "requiredReasonCodes": [
         "parser_unavailable"
