@@ -112,7 +112,7 @@ If contradictions are found:
 - [ ] USR section 33 diagnostic and resolution reason-code taxonomy is fully implemented and strict-validated.
 - [ ] USR section 34 canonical JSON examples are mirrored by executable fixture bundles and validator checks.
 - [ ] USR section 35 per-framework route/template/style canonicalization rules are enforced in framework profiles.
-- [ ] USR section 36 backward-compat matrix is implemented in CI with blocking/non-blocking behavior parity.
+- [x] USR section 36 backward-compat matrix is implemented in CI with blocking/non-blocking behavior parity.
 - [ ] USR section 38 embedded-language bridge requirements are implemented for all container/virtual-doc frameworks.
 - [ ] USR section 39 generated/macro provenance requirements are implemented and validated.
 - [ ] USR section 40 implementation-readiness requirements are complete before promotion gates.
@@ -470,7 +470,7 @@ If contradictions are found:
 - [ ] Validate completion evidence for all B1-B7 task packs.
 - [ ] Validate framework profile completion evidence.
 - [ ] Validate conformance matrix readiness by language.
-- [ ] Validate section 36 compatibility matrix readiness and blocking policy evidence.
+- [x] Validate section 36 compatibility matrix readiness and blocking policy evidence.
 - [ ] Validate per-language contract approval checklists are complete for target rollout set.
 - [ ] Validate implementation-readiness contract evidence set is complete for promotion target phase.
 - [x] Validate runtime config policy evidence and feature-flag state outputs are complete.
@@ -612,7 +612,7 @@ If contradictions are found:
 
 - [ ] Enforce Gate A, B1-B8, and C gates in CI.
 - [ ] Enforce C0-C4 conformance lane required checks.
-- [ ] Enforce section 36 strict scenario blocking behavior and non-strict warning budgets.
+- [x] Enforce section 36 strict scenario blocking behavior and non-strict warning budgets.
 - [x] Enforce section 41 SLO budget blocking policies and alert escalation behavior.
 - [x] Enforce section 42 security gate fail-closed blocking policies.
 - [x] Enforce section 43 runtime configuration strict-validation and disallowed-flag conflict policies.
@@ -627,7 +627,7 @@ If contradictions are found:
 - [ ] Emit language-level conformance dashboards.
 - [ ] Emit framework-level conformance dashboards.
 - [ ] Emit capability transition and degradation reports.
-- [ ] Emit compatibility matrix rollups including required section 36.8 dimensions.
+- [x] Emit compatibility matrix rollups including required section 36.8 dimensions.
 - [ ] Emit embedded-language bridge coverage and failure dashboards.
 - [ ] Emit generated/macro provenance coverage and confidence-downgrade dashboards.
 - [x] Emit implementation-readiness evidence scorecards and promotion blocker summaries.
@@ -716,7 +716,7 @@ If contradictions are found:
 - [ ] USR matrix schema/validator package implemented and enforced.
 - [ ] registry drift checks pass.
 - [ ] diagnostic/reason-code taxonomy validators implemented and passing.
-- [ ] compatibility matrix registry (`usr-backcompat-matrix.json`) exists and validates.
+- [x] compatibility matrix registry (`usr-backcompat-matrix.json`) exists and validates.
 - [ ] framework edge-case and language risk matrix registries exist and validate.
 - [ ] embedded-language bridge and generated provenance matrix registries exist and validate.
 - [ ] language version and embedding policy matrices exist, validate, and stay key-synchronized with language profiles.
@@ -750,7 +750,7 @@ If contradictions are found:
 - [ ] all prior gates pass.
 - [ ] harness and lanes materialized.
 - [ ] conformance rollout authorized.
-- [ ] backward-compat matrix strict scenarios are green in CI.
+- [x] backward-compat matrix strict scenarios are green in CI.
 - [ ] decomposed contract drift checks are green in CI.
 - [ ] implementation-readiness evidence validators are green for promotion target phase.
 - [ ] blocking SLO budgets are green for required lanes.
