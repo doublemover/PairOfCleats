@@ -615,11 +615,11 @@ If contradictions are found:
 - [ ] Enforce section 36 strict scenario blocking behavior and non-strict warning budgets.
 - [x] Enforce section 41 SLO budget blocking policies and alert escalation behavior.
 - [ ] Enforce section 42 security gate fail-closed blocking policies.
-- [ ] Enforce section 43 runtime configuration strict-validation and disallowed-flag conflict policies.
-- [ ] Enforce section 44 failure-injection blocking scenario pass requirements.
-- [ ] Enforce section 45 fixture-governance blocking mutation policies and ownership checks.
-- [ ] Enforce section 46 benchmark methodology and regression threshold policies.
-- [ ] Enforce section 47 threat-model critical-coverage and abuse-case execution policies.
+- [x] Enforce section 43 runtime configuration strict-validation and disallowed-flag conflict policies.
+- [x] Enforce section 44 failure-injection blocking scenario pass requirements.
+- [x] Enforce section 45 fixture-governance blocking mutation policies and ownership checks.
+- [x] Enforce section 46 benchmark methodology and regression threshold policies.
+- [x] Enforce section 47 threat-model critical-coverage and abuse-case execution policies.
 - [x] Enforce section 48 waiver expiry and approver-governance policies.
 
 ### 15.2 Reporting
@@ -635,12 +635,12 @@ If contradictions are found:
 - [ ] Emit redaction/security gate compliance dashboards.
 - [x] Validate section 30 report envelopes and row schemas per `docs/specs/usr-core-observability-performance-ops.md`.
 - [x] Emit automated section 31 scorecard artifact (`usr-release-readiness-scorecard.json`).
-- [ ] Emit runtime configuration and feature-flag state dashboards.
-- [ ] Emit failure-injection scenario pass/fail and recovery dashboards.
-- [ ] Emit fixture-governance coverage and mutation-policy compliance dashboards.
-- [ ] Emit benchmark regression and variance dashboards with lane/profile dimensions.
-- [ ] Emit threat-model coverage, abuse-case results, and control-gap dashboards.
-- [ ] Emit waiver active/expiry/breach dashboards and scorecard linkage.
+- [x] Emit runtime configuration and feature-flag state dashboards.
+- [x] Emit failure-injection scenario pass/fail and recovery dashboards.
+- [x] Emit fixture-governance coverage and mutation-policy compliance dashboards.
+- [x] Emit benchmark regression and variance dashboards with lane/profile dimensions.
+- [x] Emit threat-model coverage, abuse-case results, and control-gap dashboards.
+- [x] Emit waiver active/expiry/breach dashboards and scorecard linkage.
 
 ### 15.3 Maintenance
 
