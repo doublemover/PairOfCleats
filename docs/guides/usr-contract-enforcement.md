@@ -1,6 +1,6 @@
 # USR Contract Enforcement Guide
 
-Last updated: 2026-02-12T04:36:13Z
+Last updated: 2026-02-12T04:43:34Z
 
 ## Purpose
 
@@ -50,7 +50,7 @@ Define CI/local enforcement for the consolidated USR contract model.
 ## CI lanes
 
 - `ci-lite`: reference drift and schema shape checks (includes USR schema/matrix and language-contract harness checks)
-- `ci`: blocking validators, conformance checks, and gate evaluation (includes full USR contract enforcement suite)
+- `ci`: blocking validators, conformance checks, and gate evaluation (includes full USR contract enforcement suite plus Gate A/B1-B8/C shard checks via `batch-b0..batch-b8`, `conformance-c0..conformance-c4`, `backcompat`, `harness-core`, and `decomposed-drift`)
 - `ci-long`: expanded compatibility matrix, drill checks, and stress/failure scenarios
 - `conformance-c0`: focused C0 baseline harness coverage (`tests/conformance-c0/conformance-c0-validation.test.js`) including language-wide C0 matrix validation
 - `conformance-c1`: focused C1 baseline contract enforcement (`tests/conformance-c1/conformance-c1-validation.test.js`) including language-wide C1 matrix validation
