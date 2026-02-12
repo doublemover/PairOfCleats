@@ -82,6 +82,7 @@ assertTestInCiOrders('lang/contracts/usr-phase9-gonogo-decision-lock-validation'
 assertTestInCiOrders('lang/contracts/usr-phase9-readiness-authorization-lock-validation', 'F.6.4');
 assertTestInCiOrders('lang/contracts/usr-phase9-readiness-audit-lock-validation', 'F.6.4');
 assertTestInCiOrders('lang/contracts/usr-gate-b-language-batch-lock-validation', 'F.6.4');
+assertTestInCiOrders('lang/contracts/usr-gate-c-evidence-completeness-lock-validation', 'F.6.4');
 assertTestInCiOrders('lang/contracts/usr-gate-c-authorization-chain-validation', 'F.6.4');
 assertTestInCiOrders('lang/contracts/usr-rollout-approval-lock-validation', 'F.6.4');
 assertTestInCiOrders('lang/contracts/usr-implementation-readiness-validation', 'F.6.4');

@@ -1632,3 +1632,9 @@ Source artifacts: `tests/lang/matrix/usr-ownership-matrix.json` and `tests/lang/
 - `Block framework conformance if C4 profile prerequisites are missing.` cannot be checked unless Phase 13.2 exit criterion is checked and C4 baseline conformance lane validators remain in required CI lanes.
 - If any Phase 9.2 go/no-go line regresses to unchecked prerequisites, readiness authorization lines in Phase 9.3 must be reopened.
 
+### N.16 Gate C evidence-completeness lock
+
+- `all prior gates pass.` cannot be checked unless every Gate C evidence line (backcompat, drift, implementation-readiness, SLO, security, failure-injection, fixture-governance, benchmark, threat-model, waiver) is checked.
+- If `all prior gates pass.` regresses to unchecked, `conformance rollout authorized.` and Appendix F.1 `Complete Phase D full conformance enforcement.` must remain unchecked until Gate C evidence is restored.
+- If any required Gate C evidence line regresses to unchecked, readiness and rollout authorization lines must be reopened.
+

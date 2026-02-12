@@ -1,7 +1,7 @@
 # Spec -- USR Core Rollout, Release, and Migration Contract
 
 Status: Draft v2.0
-Last updated: 2026-02-12T07:44:11Z
+Last updated: 2026-02-12T07:46:16Z
 
 ## Purpose
 
@@ -156,6 +156,12 @@ Phase 9.2 go/no-go decision lock requirements:
 - `Block deep conformance if C2/C3 prerequisites are missing.` cannot be checked unless Phase 12.3 exit criterion is checked and C2/C3 baseline conformance lane validators remain in required CI lanes.
 - `Block framework conformance if C4 profile prerequisites are missing.` cannot be checked unless Phase 13.2 exit criterion is checked and C4 baseline conformance lane validators remain in required CI lanes.
 - If any Phase 9.2 go/no-go line regresses to unchecked prerequisites, `Readiness report approved.` and `Test rollout authorized.` must be reopened.
+
+Gate C evidence-completeness lock requirements:
+
+- `all prior gates pass.` cannot be checked unless every Gate C evidence line (backcompat, drift, implementation-readiness, SLO, security, failure-injection, fixture-governance, benchmark, threat-model, waiver) is checked.
+- If `all prior gates pass.` regresses to unchecked, `conformance rollout authorized.` and Appendix F.1 `Complete Phase D full conformance enforcement.` must remain unchecked until Gate C evidence is restored.
+- If any required Gate C evidence line regresses to unchecked, readiness and rollout authorization lines must be reopened.
 
 ## Rollback policy
 
