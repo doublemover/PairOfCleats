@@ -25,6 +25,11 @@ const requiredRolloutSpecFragments = [
   'Phase C (USR-backed production path validation)',
   'Phase D (full conformance enforcement)',
   'Rollout phases MUST be promoted in order A -> B -> C -> D',
+  '### Phase-to-CI gate mapping',
+  'Phase A | `lang/contracts/usr-contract-enforcement`',
+  'Phase B | `backcompat/backcompat-matrix-validation`',
+  'Phase C | `lang/contracts/usr-implementation-readiness-validation`',
+  'Phase D | `lang/contracts/usr-c0-baseline-validation`',
   'Legacy-output retention requirements:',
   'legacy artifact outputs MUST remain emitted until Phase B parity and Phase C readiness evidence are both approved',
   '## Deprecation and archival protocol',
@@ -44,18 +49,47 @@ for (const anchor of requiredRoadmapAnchors) {
   assert.equal(roadmapText.includes(anchor), true, `roadmap missing rollout/deprecation anchor: ${anchor}`);
 }
 
-const requiredCiTests = [
-  'lang/contracts/usr-rollout-migration-policy-validation',
-  'lang/contracts/usr-rollout-phase-gate-validation',
+const requiredCiTestsByPhase = {
+  phaseA: [
+    'lang/contracts/usr-contract-enforcement',
+    'shared/contracts/usr-schema-validators',
+    'shared/contracts/usr-matrix-validators',
+    'decomposed-drift/decomposed-drift-validation'
+  ],
+  phaseB: [
+    'backcompat/backcompat-matrix-validation',
+    'lang/contracts/usr-rollout-migration-policy-validation',
+    'lang/contracts/usr-rollout-phase-gate-validation'
+  ],
+  phaseC: [
+    'lang/contracts/usr-implementation-readiness-validation',
+    'lang/contracts/usr-observability-rollup-validation',
+    'lang/contracts/usr-security-gate-validation'
+  ],
+  phaseD: [
+    'lang/contracts/usr-c0-baseline-validation',
+    'lang/contracts/usr-c1-baseline-validation',
+    'lang/contracts/usr-c2-baseline-validation',
+    'lang/contracts/usr-c3-baseline-validation',
+    'lang/contracts/usr-c4-baseline-validation'
+  ]
+};
+
+for (const [phaseId, testIds] of Object.entries(requiredCiTestsByPhase)) {
+  for (const testId of testIds) {
+    assert.equal(ciOrderText.includes(testId), true, `ci order missing ${phaseId} rollout gate test: ${testId}`);
+    assert.equal(ciLiteOrderText.includes(testId), true, `ci-lite order missing ${phaseId} rollout gate test: ${testId}`);
+  }
+}
+
+const requiredCrossPhaseTests = [
   'lang/contracts/usr-archival-deprecation-policy-validation',
-  'lang/contracts/usr-pr-template-policy-validation',
-  'lang/contracts/usr-implementation-readiness-validation',
-  'backcompat/backcompat-matrix-validation'
+  'lang/contracts/usr-pr-template-policy-validation'
 ];
 
-for (const testId of requiredCiTests) {
-  assert.equal(ciOrderText.includes(testId), true, `ci order missing rollout phase/deprecation validator: ${testId}`);
-  assert.equal(ciLiteOrderText.includes(testId), true, `ci-lite order missing rollout phase/deprecation validator: ${testId}`);
+for (const testId of requiredCrossPhaseTests) {
+  assert.equal(ciOrderText.includes(testId), true, `ci order missing rollout/deprecation governance test: ${testId}`);
+  assert.equal(ciLiteOrderText.includes(testId), true, `ci-lite order missing rollout/deprecation governance test: ${testId}`);
 }
 
 console.log('usr rollout phase-gate validation checks passed');
