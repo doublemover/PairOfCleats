@@ -76,8 +76,10 @@ for (const fragment of [
 
 assert.equal(roadmapText.includes('### N.17 Phase 15 exit-completion lock'), true, 'roadmap must include Appendix N.17 phase-15 exit-completion lock policy');
 assert.equal(roadmapText.includes('### N.18 Phase 15.2 reporting-integrity lock'), true, 'roadmap must include Appendix N.18 phase-15.2 reporting-integrity lock policy');
+assert.equal(roadmapText.includes('### N.19 Phase 15.1 CI gate-integrity lock'), true, 'roadmap must include Appendix N.19 phase-15.1 CI-gate lock policy');
 
 for (const testId of [
+  'lang/contracts/usr-phase15-ci-gate-lock-validation',
   'lang/contracts/usr-phase15-reporting-lock-validation',
   'lang/contracts/usr-phase15-exit-lock-validation',
   'lang/contracts/usr-maintenance-controls-stability',

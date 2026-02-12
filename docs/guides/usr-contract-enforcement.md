@@ -1,6 +1,6 @@
 # USR Contract Enforcement Guide
 
-Last updated: 2026-02-12T06:46:23Z
+Last updated: 2026-02-12T07:58:13Z
 
 ## Purpose
 
@@ -53,6 +53,7 @@ Define CI/local enforcement for the consolidated USR contract model.
 - Gate C prerequisite lock enforcement (`tests/lang/contracts/usr-gate-c-prereq-lock-validation.test.js`) enforces roadmap-state ordering so rollout authorization cannot be checked before prior gate checklist completion
 - Gate C evidence-completeness lock enforcement (`tests/lang/contracts/usr-gate-c-evidence-completeness-lock-validation.test.js`) validates Gate C evidence checklist completeness before prior-gate pass and rollout authorization state promotion
 - Gate C conformance-authorization chain enforcement (`tests/lang/contracts/usr-gate-c-authorization-chain-validation.test.js`) validates Gate C rollout authorization dependency chain across Gate C, Phase 9 exit criteria, Appendix F.1 phase state, and rollout approval-lock state
+- phase 15.1 CI-gate lock enforcement (`tests/lang/contracts/usr-phase15-ci-gate-lock-validation.test.js`) validates section 15.1 checklist state against Gate A/B/C, C0-C4 conformance, and sections 36/41/42/43/44/45/46/47/48 validator coverage in blocking lanes
 - phase 15.2 reporting-integrity lock enforcement (`tests/lang/contracts/usr-phase15-reporting-lock-validation.test.js`) validates reporting checklist state against section 30/31 report schema requirements and required report/policy validator coverage in blocking lanes
 - phase 15 exit-completion lock enforcement (`tests/lang/contracts/usr-phase15-exit-lock-validation.test.js`) validates section 15.4 completion state against 15.1/15.2/15.3 checklist stability and required maintenance/rollout/report-schema CI validator coverage
 - archival/deprecation policy enforcement (`tests/lang/contracts/usr-archival-deprecation-policy-validation.test.js`) validates required DEPRECATED header metadata for archived USR specs and CI policy hook coverage
