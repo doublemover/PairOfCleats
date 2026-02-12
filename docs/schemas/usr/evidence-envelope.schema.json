@@ -8,7 +8,11 @@
     "artifactId",
     "generatedAt",
     "producerId",
-    "scope"
+    "scope",
+    "runId",
+    "lane",
+    "buildId",
+    "status"
   ],
   "properties": {
     "schemaVersion": {
@@ -68,6 +72,21 @@
       "items": {
         "type": "string"
       }
+    },
+    "runId": {
+      "type": "string"
+    },
+    "lane": {
+      "type": "string"
+    },
+    "buildId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "status": {
+      "type": "string"
     }
   }
 }
