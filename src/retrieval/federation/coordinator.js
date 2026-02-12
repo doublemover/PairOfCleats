@@ -310,11 +310,28 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
     } catch {}
   };
 
-  const indexCache = context.indexCache || createIndexCache();
-  const sqliteCache = context.sqliteCache || createSqliteDbCache();
+  /**
+   * Optional cache resolver supplied by long-lived hosts (API/MCP) to reuse
+   * per-repo cache instances across federated requests.
+   *
+   * Signature: `(repoRootCanonical: string) => Promise<{indexCache?:object, sqliteCache?:object}>`
+   */
+  const resolveRepoCaches = typeof context.resolveRepoCaches === 'function'
+    ? context.resolveRepoCaches
+    : null;
+  let sharedCaches = null;
+  const getSharedCaches = () => {
+    if (sharedCaches) return sharedCaches;
+    sharedCaches = {
+      indexCache: context.indexCache || createIndexCache(),
+      sqliteCache: context.sqliteCache || createSqliteDbCache()
+    };
+    return sharedCaches;
+  };
   const searchFn = typeof context.searchFn === 'function' ? context.searchFn : coreSearch;
   const diagnostics = [];
   const perRepoResults = [];
+  const perRepoErrors = [];
   const repoMap = new Map(workspaceConfig.repos.map((repo) => [repo.repoId, repo]));
 
   if (!activeRepoIds.length) {
@@ -371,13 +388,18 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
       const repo = repoMap.get(repoId);
       if (!repo) continue;
       try {
+        let repoCaches = null;
+        if (resolveRepoCaches) {
+          repoCaches = await resolveRepoCaches(repo.repoRootCanonical);
+        }
+        const fallbackCaches = getSharedCaches();
         const result = await searchFn(repo.repoRootCanonical, {
           args: perRepoArgs,
           query: perRepoQuery,
           emitOutput: false,
           exitOnError: false,
-          indexCache,
-          sqliteCache,
+          indexCache: repoCaches?.indexCache || fallbackCaches.indexCache,
+          sqliteCache: repoCaches?.sqliteCache || fallbackCaches.sqliteCache,
           signal: context.signal || null
         });
         perRepoResults.push({
@@ -388,6 +410,10 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
         });
         diagnostics.push({ repoId: repo.repoId, status: 'ok' });
       } catch (error) {
+        perRepoErrors.push({
+          repoId: repo.repoId,
+          error
+        });
         diagnostics.push({
           repoId: repo.repoId,
           status: error?.code === ERROR_CODES.NO_INDEX ? 'missing_index' : 'error',
@@ -415,6 +441,17 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
   }
 
   if (!perRepoResults.length) {
+    const firstNonNoIndex = perRepoErrors.find((entry) => entry?.error?.code !== ERROR_CODES.NO_INDEX);
+    if (firstNonNoIndex?.error) {
+      const underlying = firstNonNoIndex.error;
+      if (underlying instanceof Error || (underlying && typeof underlying === 'object')) {
+        throw underlying;
+      }
+      throw createError(
+        ERROR_CODES.INTERNAL,
+        `Federated search failed for ${firstNonNoIndex.repoId}: ${String(underlying)}`
+      );
+    }
     throw createError(ERROR_CODES.NO_INDEX, 'Federated search failed: no repositories produced results.');
   }
 

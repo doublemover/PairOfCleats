@@ -289,11 +289,30 @@ export const createApiRouter = ({
           return;
         }
         try {
+          const federatedRepoCaches = new Map();
+          /**
+           * Reuse API-managed per-repo caches for federated requests so repeated
+           * /search/federated calls avoid reopening index/sqlite resources.
+           *
+           * @param {string} repoPath
+           * @returns {Promise<{indexCache:any, sqliteCache:any}>}
+           */
+          const resolveFederatedRepoCaches = async (repoPath) => {
+            const repoKey = toRealPathSync(path.resolve(repoPath));
+            let entry = federatedRepoCaches.get(repoKey);
+            if (!entry) {
+              entry = getRepoCaches(repoKey);
+              federatedRepoCaches.set(repoKey, entry);
+            }
+            await refreshBuildPointer(entry);
+            return entry;
+          };
           const result = await runFederatedSearch({
             ...payload,
             workspacePath: workspaceConfig.workspacePath
           }, {
-            signal: controller.signal
+            signal: controller.signal,
+            resolveRepoCaches: resolveFederatedRepoCaches
           });
           sendJson(res, 200, result, corsHeaders || {});
         } catch (err) {
