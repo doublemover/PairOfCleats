@@ -32,6 +32,35 @@ export const resolveEffectiveCohortKey = (repo, mode) => {
   return cohortKey || compatibilityKey || null;
 };
 
+/**
+ * Return whether a repo should participate in cohort selection for one mode.
+ *
+ * Repos without explicit availability metadata are treated as eligible so
+ * existing lightweight fixtures and legacy callers keep previous behavior.
+ *
+ * @param {any} repo
+ * @param {string} mode
+ * @returns {boolean}
+ */
+const isRepoSelectableForMode = (repo, mode) => {
+  const modeState = repo?.indexes?.[mode];
+  if (!modeState || typeof modeState !== 'object' || Array.isArray(modeState)) {
+    return true;
+  }
+  const hasPresent = Object.prototype.hasOwnProperty.call(modeState, 'present');
+  const availabilityReason = normalizeString(modeState.availabilityReason);
+  if (!hasPresent && !availabilityReason) {
+    return true;
+  }
+  if (availabilityReason && availabilityReason !== 'present') {
+    return false;
+  }
+  if (hasPresent && modeState.present !== true) {
+    return false;
+  }
+  return true;
+};
+
 const parseCohortSelectors = (cohortSelectors) => {
   const selectors = Array.isArray(cohortSelectors)
     ? cohortSelectors
@@ -78,6 +107,7 @@ const rankCohorts = (bucketMap) => (
 const buildBucketMap = (repos, mode) => {
   const buckets = new Map();
   for (const repo of repos) {
+    if (!isRepoSelectableForMode(repo, mode)) continue;
     const key = resolveEffectiveCohortKey(repo, mode);
     if (!buckets.has(key)) buckets.set(key, []);
     buckets.get(key).push(repo);

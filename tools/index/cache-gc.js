@@ -325,7 +325,8 @@ const runCasManifestGc = async ({ cacheRoot, gcConfig }) => {
       skippedByLease.push(candidateBase);
       continue;
     }
-    if (lastAccessedMs > cutoffMs && createdMs > cutoffMs) {
+    const newestActivityMs = Math.max(createdMs || 0, lastAccessedMs || 0);
+    if (newestActivityMs > cutoffMs) {
       continue;
     }
     candidates.push(candidateBase);
