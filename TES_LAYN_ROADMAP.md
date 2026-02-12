@@ -591,8 +591,8 @@ If contradictions are found:
 
 ### 14.1 Mixed-repo integration
 
-- [ ] Validate cross-language and cross-framework relation coherence.
-- [ ] Validate route/template/API/data boundary flows.
+- [x] Validate cross-language and cross-framework relation coherence.
+- [x] Validate route/template/API/data boundary flows.
 
 ### 14.2 Failure-mode validation
 

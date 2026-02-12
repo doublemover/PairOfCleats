@@ -1582,6 +1582,74 @@
       ]
     },
     {
+      "fixtureId": "usr::integration::cross-language-framework-001",
+      "profileType": "cross-cutting",
+      "profileId": "usr",
+      "conformanceLevels": [
+        "C1",
+        "C2",
+        "C4"
+      ],
+      "families": [
+        "integration",
+        "semantic-flow",
+        "framework-overlay",
+        "route-semantics",
+        "template-binding",
+        "style-scope"
+      ],
+      "owner": "usr-conformance",
+      "reviewers": [
+        "usr-architecture",
+        "usr-framework"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true,
+      "roadmapTags": [
+        "phase-14",
+        "phase-5",
+        "phase-6",
+        "phase-7",
+        "phase-9"
+      ]
+    },
+    {
+      "fixtureId": "usr::integration::route-template-api-data-001",
+      "profileType": "cross-cutting",
+      "profileId": "usr",
+      "conformanceLevels": [
+        "C1",
+        "C2",
+        "C3",
+        "C4"
+      ],
+      "families": [
+        "integration",
+        "semantic-flow",
+        "route-semantics",
+        "template-binding",
+        "api-boundary",
+        "data-boundary"
+      ],
+      "owner": "usr-conformance",
+      "reviewers": [
+        "usr-architecture",
+        "usr-security"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true,
+      "roadmapTags": [
+        "phase-14",
+        "phase-6",
+        "phase-7",
+        "phase-9"
+      ]
+    },
+    {
       "fixtureId": "usr::resolution::ambiguous-cap-001",
       "profileType": "cross-cutting",
       "profileId": "usr",
