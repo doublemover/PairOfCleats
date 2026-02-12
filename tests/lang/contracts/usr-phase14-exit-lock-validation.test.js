@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { assertTestsPresent, checklistLineState, extractSection, hasUnchecked } from './usr-lock-test-utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,29 +19,6 @@ const rolloutSpecText = fs.readFileSync(rolloutSpecPath, 'utf8');
 const ciOrderText = fs.readFileSync(ciOrderPath, 'utf8');
 const ciLiteOrderText = fs.readFileSync(ciLiteOrderPath, 'utf8');
 
-const extractSection = (text, startMarker, endMarker) => {
-  const start = text.indexOf(startMarker);
-  assert.notEqual(start, -1, `missing section start marker: ${startMarker}`);
-  const end = text.indexOf(endMarker, start);
-  assert.notEqual(end, -1, `missing section end marker: ${endMarker}`);
-  return text.slice(start, end);
-};
-
-const checklistLineState = (section, label) => {
-  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  if (new RegExp(`^- \\[x\\] ${escaped}$`, 'm').test(section)) return 'checked';
-  if (new RegExp(`^- \\[ \\] ${escaped}$`, 'm').test(section)) return 'unchecked';
-  assert.fail(`missing checklist line: ${label}`);
-};
-
-const hasUnchecked = (section) => /- \[ \] /.test(section);
-
-const assertTestsPresent = (testIds, context) => {
-  for (const testId of testIds) {
-    assert.equal(ciOrderText.includes(testId), true, `ci order missing ${context} dependency: ${testId}`);
-    assert.equal(ciLiteOrderText.includes(testId), true, `ci-lite order missing ${context} dependency: ${testId}`);
-  }
-};
 
 const phase141Section = extractSection(roadmapText, '### 14.1 Mixed-repo integration', '### 14.2 Failure-mode validation');
 const phase142Section = extractSection(roadmapText, '### 14.2 Failure-mode validation', '### 14.3 Exit criteria');
@@ -60,7 +38,9 @@ if (phase14Exit === 'checked') {
       'lang/contracts/usr-failure-mode-suite-validation',
       'lang/contracts/usr-security-gate-validation'
     ],
-    'phase 14.3 integration/failure exit lock'
+    'phase 14.3 integration/failure exit lock',
+    ciOrderText,
+    ciLiteOrderText
   );
 }
 
@@ -86,7 +66,9 @@ assertTestsPresent(
     'lang/contracts/usr-security-gate-validation',
     'lang/contracts/usr-rollout-migration-policy-validation'
   ],
-  'phase 14.3 integration/failure lock umbrella'
+  'phase 14.3 integration/failure lock umbrella',
+  ciOrderText,
+  ciLiteOrderText
 );
 
 console.log('usr phase 14.3 integration/failure exit lock validation checks passed');

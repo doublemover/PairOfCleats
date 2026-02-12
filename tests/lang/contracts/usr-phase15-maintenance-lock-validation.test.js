@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { assertTestsPresent, checklistLineState, extractSection, hasUnchecked } from './usr-lock-test-utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,29 +19,6 @@ const rolloutSpecText = fs.readFileSync(rolloutSpecPath, 'utf8');
 const ciOrderText = fs.readFileSync(ciOrderPath, 'utf8');
 const ciLiteOrderText = fs.readFileSync(ciLiteOrderPath, 'utf8');
 
-const extractSection = (text, startMarker, endMarker) => {
-  const start = text.indexOf(startMarker);
-  assert.notEqual(start, -1, `missing section start marker: ${startMarker}`);
-  const end = text.indexOf(endMarker, start);
-  assert.notEqual(end, -1, `missing section end marker: ${endMarker}`);
-  return text.slice(start, end);
-};
-
-const checklistLineState = (section, label) => {
-  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  if (new RegExp(`^- \\[x\\] ${escaped}$`, 'm').test(section)) return 'checked';
-  if (new RegExp(`^- \\[ \\] ${escaped}$`, 'm').test(section)) return 'unchecked';
-  assert.fail(`missing checklist line: ${label}`);
-};
-
-const hasUnchecked = (section) => /- \[ \] /.test(section);
-
-const assertTestsPresent = (testIds, context) => {
-  for (const testId of testIds) {
-    assert.equal(ciOrderText.includes(testId), true, `ci order missing ${context} dependency: ${testId}`);
-    assert.equal(ciLiteOrderText.includes(testId), true, `ci-lite order missing ${context} dependency: ${testId}`);
-  }
-};
 
 const phase153Section = extractSection(roadmapText, '### 15.3 Maintenance', '### 15.4 Exit criteria');
 const phase154Section = extractSection(roadmapText, '### 15.4 Exit criteria', '---\n\n## Appendix A - USR Spec to Roadmap Traceability');
@@ -64,7 +42,9 @@ if (changeControlLine === 'checked') {
       'lang/contracts/usr-pr-template-policy-validation',
       'lang/contracts/usr-change-tier-policy-validation'
     ],
-    'phase 15.3 change-control lock'
+    'phase 15.3 change-control lock',
+    ciOrderText,
+    ciLiteOrderText
   );
 }
 
@@ -74,7 +54,9 @@ if (registryDriftLine === 'checked') {
       'lang/contracts/usr-contract-enforcement',
       'decomposed-drift/decomposed-drift-validation'
     ],
-    'phase 15.3 registry-drift lock'
+    'phase 15.3 registry-drift lock',
+    ciOrderText,
+    ciLiteOrderText
   );
 }
 
@@ -84,7 +66,9 @@ if (decomposedWorkflowLine === 'checked') {
       'lang/contracts/usr-pr-template-policy-validation',
       'lang/contracts/usr-f6-sync-requirements-validation'
     ],
-    'phase 15.3 decomposed-workflow lock'
+    'phase 15.3 decomposed-workflow lock',
+    ciOrderText,
+    ciLiteOrderText
   );
 }
 
@@ -94,14 +78,18 @@ if (contractFreshnessLine === 'checked') {
       'lang/contracts/usr-language-contract-freshness-validation',
       'lang/contracts/usr-framework-contract-freshness-validation'
     ],
-    'phase 15.3 contract-freshness lock'
+    'phase 15.3 contract-freshness lock',
+    ciOrderText,
+    ciLiteOrderText
   );
 }
 
 if (parserRuntimeLine === 'checked') {
   assertTestsPresent(
     ['lang/contracts/usr-parser-runtime-lock-reproducibility-validation'],
-    'phase 15.3 parser-runtime lock'
+    'phase 15.3 parser-runtime lock',
+    ciOrderText,
+    ciLiteOrderText
   );
 }
 
@@ -111,7 +99,9 @@ if (runtimeConfigLine === 'checked') {
       'lang/contracts/usr-runtime-config-feature-flag-validation',
       'lang/contracts/usr-pr-template-policy-validation'
     ],
-    'phase 15.3 runtime-config policy lock'
+    'phase 15.3 runtime-config policy lock',
+    ciOrderText,
+    ciLiteOrderText
   );
 }
 
@@ -121,7 +111,9 @@ if (failureInjectionLine === 'checked') {
       'lang/contracts/usr-failure-injection-validation',
       'lang/contracts/usr-failure-mode-suite-validation'
     ],
-    'phase 15.3 failure-injection workflow lock'
+    'phase 15.3 failure-injection workflow lock',
+    ciOrderText,
+    ciLiteOrderText
   );
 }
 
@@ -131,7 +123,9 @@ if (fixtureGovernanceLine === 'checked') {
       'lang/contracts/usr-fixture-governance-validation',
       'lang/contracts/usr-fixture-governance-coverage-floor-validation'
     ],
-    'phase 15.3 fixture-governance lock'
+    'phase 15.3 fixture-governance lock',
+    ciOrderText,
+    ciLiteOrderText
   );
 }
 
@@ -141,12 +135,19 @@ if (benchmarkLine === 'checked') {
       'lang/contracts/usr-benchmark-policy-validation',
       'lang/contracts/usr-cross-batch-regression-resolution-validation'
     ],
-    'phase 15.3 benchmark-policy lock'
+    'phase 15.3 benchmark-policy lock',
+    ciOrderText,
+    ciLiteOrderText
   );
 }
 
 if (threatModelLine === 'checked') {
-  assertTestsPresent(['lang/contracts/usr-threat-model-coverage-validation'], 'phase 15.3 threat-model lock');
+  assertTestsPresent(
+    ['lang/contracts/usr-threat-model-coverage-validation'],
+    'phase 15.3 threat-model lock',
+    ciOrderText,
+    ciLiteOrderText
+  );
 }
 
 if (waiverLine === 'checked') {
@@ -155,7 +156,9 @@ if (waiverLine === 'checked') {
       'lang/contracts/usr-waiver-policy-validation',
       'lang/contracts/usr-pr-template-policy-validation'
     ],
-    'phase 15.3 waiver-policy lock'
+    'phase 15.3 waiver-policy lock',
+    ciOrderText,
+    ciLiteOrderText
   );
 }
 
@@ -182,7 +185,9 @@ assertTestsPresent(
     'lang/contracts/usr-pr-template-policy-validation',
     'lang/contracts/usr-rollout-migration-policy-validation'
   ],
-  'phase 15.3 maintenance lock umbrella'
+  'phase 15.3 maintenance lock umbrella',
+  ciOrderText,
+  ciLiteOrderText
 );
 
 console.log('usr phase 15.3 maintenance lock validation checks passed');

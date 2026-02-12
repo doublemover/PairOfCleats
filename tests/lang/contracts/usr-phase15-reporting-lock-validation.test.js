@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { assertTestsPresent, checklistLineState, extractSection, hasUnchecked } from './usr-lock-test-utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,23 +19,6 @@ const roadmapText = fs.readFileSync(roadmapPath, 'utf8');
 const rolloutSpecText = fs.readFileSync(rolloutSpecPath, 'utf8');
 const ciOrderText = fs.readFileSync(ciOrderPath, 'utf8');
 const ciLiteOrderText = fs.readFileSync(ciLiteOrderPath, 'utf8');
-
-const extractSection = (text, startMarker, endMarker) => {
-  const start = text.indexOf(startMarker);
-  assert.notEqual(start, -1, `missing section start marker: ${startMarker}`);
-  const end = text.indexOf(endMarker, start);
-  assert.notEqual(end, -1, `missing section end marker: ${endMarker}`);
-  return text.slice(start, end);
-};
-
-const checklistLineState = (section, label) => {
-  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  if (new RegExp(`^- \\[x\\] ${escaped}$`, 'm').test(section)) return 'checked';
-  if (new RegExp(`^- \\[ \\] ${escaped}$`, 'm').test(section)) return 'unchecked';
-  assert.fail(`missing checklist line: ${label}`);
-};
-
-const hasUnchecked = (section) => /- \[ \] /.test(section);
 
 const phase152Section = extractSection(roadmapText, '### 15.2 Reporting', '### 15.3 Maintenance');
 const phase154Section = extractSection(roadmapText, '### 15.4 Exit criteria', '---\n\n## Appendix A - USR Spec to Roadmap Traceability');
@@ -101,13 +85,6 @@ const capabilityTransitionReport = checklistLineState(
   'Emit capability transition and degradation reports.'
 );
 
-const assertTestsPresent = (testIds, context) => {
-  for (const testId of testIds) {
-    assert.equal(ciOrderText.includes(testId), true, `ci order missing ${context} dependency: ${testId}`);
-    assert.equal(ciLiteOrderText.includes(testId), true, `ci-lite order missing ${context} dependency: ${testId}`);
-  }
-};
-
 if (section30Validation === 'checked') {
   assertTestsPresent(
     [
@@ -115,7 +92,9 @@ if (section30Validation === 'checked') {
       'lang/contracts/usr-report-schema-file-coverage-validation',
       'lang/contracts/usr-doc-schema-contract-validation'
     ],
-    'phase 15.2 section-30 reporting lock'
+    'phase 15.2 section-30 reporting lock',
+    ciOrderText,
+    ciLiteOrderText
   );
 }
 
@@ -126,12 +105,14 @@ if (section31Scorecard === 'checked') {
       'lang/contracts/usr-implementation-readiness-validation',
       'lang/contracts/usr-phase15-reporting-lock-validation'
     ],
-    'phase 15.2 section-31 scorecard lock'
+    'phase 15.2 section-31 scorecard lock',
+    ciOrderText,
+    ciLiteOrderText
   );
 }
 
 if (runtimeDashboard === 'checked') {
-  assertTestsPresent(['lang/contracts/usr-runtime-config-feature-flag-validation'], 'phase 15.2 runtime dashboard lock');
+  assertTestsPresent(['lang/contracts/usr-runtime-config-feature-flag-validation'], 'phase 15.2 runtime dashboard lock', ciOrderText, ciLiteOrderText);
 }
 
 if (failureDashboard === 'checked') {
@@ -141,7 +122,9 @@ if (failureDashboard === 'checked') {
       'lang/contracts/usr-failure-injection-recovery-threshold-validation',
       'lang/contracts/usr-failure-mode-suite-validation'
     ],
-    'phase 15.2 failure dashboard lock'
+    'phase 15.2 failure dashboard lock',
+    ciOrderText,
+    ciLiteOrderText
   );
 }
 
@@ -152,7 +135,9 @@ if (fixtureDashboard === 'checked') {
       'lang/contracts/usr-fixture-mutation-policy-coverage-validation',
       'lang/contracts/usr-fixture-golden-readiness-validation'
     ],
-    'phase 15.2 fixture dashboard lock'
+    'phase 15.2 fixture dashboard lock',
+    ciOrderText,
+    ciLiteOrderText
   );
 }
 
@@ -162,20 +147,22 @@ if (benchmarkDashboard === 'checked') {
       'lang/contracts/usr-benchmark-policy-validation',
       'lang/contracts/usr-cross-batch-regression-resolution-validation'
     ],
-    'phase 15.2 benchmark dashboard lock'
+    'phase 15.2 benchmark dashboard lock',
+    ciOrderText,
+    ciLiteOrderText
   );
 }
 
 if (threatDashboard === 'checked') {
-  assertTestsPresent(['lang/contracts/usr-threat-model-coverage-validation'], 'phase 15.2 threat dashboard lock');
+  assertTestsPresent(['lang/contracts/usr-threat-model-coverage-validation'], 'phase 15.2 threat dashboard lock', ciOrderText, ciLiteOrderText);
 }
 
 if (waiverDashboard === 'checked') {
-  assertTestsPresent(['lang/contracts/usr-waiver-policy-validation'], 'phase 15.2 waiver dashboard lock');
+  assertTestsPresent(['lang/contracts/usr-waiver-policy-validation'], 'phase 15.2 waiver dashboard lock', ciOrderText, ciLiteOrderText);
 }
 
 if (conformanceDashboard === 'checked') {
-  assertTestsPresent(['lang/contracts/usr-conformance-dashboard-validation'], 'phase 15.2 conformance dashboard lock');
+  assertTestsPresent(['lang/contracts/usr-conformance-dashboard-validation'], 'phase 15.2 conformance dashboard lock', ciOrderText, ciLiteOrderText);
 }
 
 if (bridgeDashboard === 'checked') {
@@ -184,7 +171,9 @@ if (bridgeDashboard === 'checked') {
       'lang/contracts/usr-embedding-bridge-validation',
       'lang/contracts/usr-bridge-provenance-dashboard-validation'
     ],
-    'phase 15.2 embedded bridge dashboard lock'
+    'phase 15.2 embedded bridge dashboard lock',
+    ciOrderText,
+    ciLiteOrderText
   );
 }
 
@@ -194,24 +183,26 @@ if (provenanceDashboard === 'checked') {
       'lang/contracts/usr-generated-provenance-validation',
       'lang/contracts/usr-bridge-provenance-dashboard-validation'
     ],
-    'phase 15.2 generated provenance dashboard lock'
+    'phase 15.2 generated provenance dashboard lock',
+    ciOrderText,
+    ciLiteOrderText
   );
 }
 
 if (observabilityDashboard === 'checked') {
-  assertTestsPresent(['lang/contracts/usr-observability-rollup-validation'], 'phase 15.2 observability dashboard lock');
+  assertTestsPresent(['lang/contracts/usr-observability-rollup-validation'], 'phase 15.2 observability dashboard lock', ciOrderText, ciLiteOrderText);
 }
 
 if (securityDashboard === 'checked') {
-  assertTestsPresent(['lang/contracts/usr-security-gate-validation'], 'phase 15.2 security dashboard lock');
+  assertTestsPresent(['lang/contracts/usr-security-gate-validation'], 'phase 15.2 security dashboard lock', ciOrderText, ciLiteOrderText);
 }
 
 if (backcompatRollup === 'checked') {
-  assertTestsPresent(['backcompat/backcompat-matrix-validation'], 'phase 15.2 backcompat rollup lock');
+  assertTestsPresent(['backcompat/backcompat-matrix-validation'], 'phase 15.2 backcompat rollup lock', ciOrderText, ciLiteOrderText);
 }
 
 if (capabilityTransitionReport === 'checked') {
-  assertTestsPresent(['lang/contracts/usr-phase8-hardening-readiness-validation'], 'phase 15.2 capability-transition reporting lock');
+  assertTestsPresent(['lang/contracts/usr-phase8-hardening-readiness-validation'], 'phase 15.2 capability-transition reporting lock', ciOrderText, ciLiteOrderText);
 }
 
 if (hasUnchecked(phase152Section) && phase15Exit === 'checked') {
@@ -235,7 +226,9 @@ assertTestsPresent(
     'lang/contracts/usr-rollout-migration-policy-validation',
     'lang/contracts/usr-rollout-phase-gate-validation'
   ],
-  'phase 15.2 reporting lock umbrella'
+  'phase 15.2 reporting lock umbrella',
+  ciOrderText,
+  ciLiteOrderText
 );
 
 console.log('usr phase 15.2 reporting lock validation checks passed');
