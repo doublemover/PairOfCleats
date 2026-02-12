@@ -21,6 +21,7 @@ import {
   validateUsrMatrixDrivenHarnessCoverage,
   validateUsrConformanceLevelCoverage,
   buildUsrConformanceLevelSummaryReport,
+  validateUsrLanguageRiskProfileCoverage,
   evaluateUsrConformancePromotionReadiness,
   validateUsrBackcompatMatrixCoverage,
   buildUsrBackcompatMatrixReport,
@@ -416,6 +417,34 @@ const matrixDrivenNegative = validateUsrMatrixDrivenHarnessCoverage({
 });
 assert.equal(matrixDrivenNegative.ok, true, 'matrix-driven coverage with dropped C4 should remain non-blocking and emit warning');
 assert.equal(matrixDrivenNegative.warnings.some((message) => message.includes('javascript')), true, 'matrix-driven warning should surface profile coverage downgrade');
+
+const languageRiskProfilesPath = path.join(matrixDir, 'usr-language-risk-profiles.json');
+const languageRiskProfiles = JSON.parse(fs.readFileSync(languageRiskProfilesPath, 'utf8'));
+
+const languageRiskCoverage = validateUsrLanguageRiskProfileCoverage({
+  languageProfilesPayload: languageProfiles,
+  languageRiskProfilesPayload: languageRiskProfiles
+});
+assert.equal(languageRiskCoverage.ok, true, `language risk profile coverage should pass: ${languageRiskCoverage.errors.join('; ')}`);
+
+const languageRiskCoverageNegative = validateUsrLanguageRiskProfileCoverage({
+  languageProfilesPayload: languageProfiles,
+  languageRiskProfilesPayload: {
+    ...languageRiskProfiles,
+    rows: (languageRiskProfiles.rows || []).map((row, index) => (
+      index === 0
+        ? {
+            ...row,
+            optional: {
+              ...row.optional,
+              sinks: [...(row.optional?.sinks || []), (row.required?.sinks || [])[0]].filter(Boolean)
+            }
+          }
+        : row
+    ))
+  }
+});
+assert.equal(languageRiskCoverageNegative.ok, false, 'language risk profile coverage must fail on overlapping risk taxonomies');
 
 const conformanceLevelsPath = path.join(matrixDir, 'usr-conformance-levels.json');
 const conformanceLevels = JSON.parse(fs.readFileSync(conformanceLevelsPath, 'utf8'));
