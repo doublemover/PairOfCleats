@@ -1644,3 +1644,10 @@ Source artifacts: `tests/lang/matrix/usr-ownership-matrix.json` and `tests/lang/
 - Phase 15 exit cannot be checked unless required maintenance/rollout/report-schema validators remain present in `ci` and `ci-lite` lane order manifests.
 - If any Phase 15 prerequisite control regresses to unchecked, Phase 15 exit must be reopened and release-readiness promotion must remain blocked.
 
+### N.18 Phase 15.2 reporting-integrity lock
+
+- `Validate section 30 report envelopes and row schemas per docs/specs/usr-core-observability-performance-ops.md.` cannot be checked unless report envelope/schema contract validators remain present in required CI lanes.
+- `Emit automated section 31 scorecard artifact (usr-release-readiness-scorecard.json).` cannot be checked unless the scorecard schema exists and implementation-readiness validators remain present in required CI lanes.
+- Reporting lines for runtime config, failure-injection, fixture governance, benchmark, threat-model, and waiver dashboards cannot be checked unless corresponding policy validators remain present in required CI lanes.
+- If any Phase 15.2 reporting-integrity prerequisite regresses, Phase 15 exit must be reopened.
+
