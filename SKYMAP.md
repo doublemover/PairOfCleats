@@ -1,24 +1,5 @@
 # SKYMAP
 
-## Purpose
-This document defines the recommended execution order for FUTUREROADMAP work so phases land in a dependency-safe sequence with minimal rework.
-
-## Scope normalization
-- Canonical execution phases are:
-  - Phase 14
-  - Phase 15
-  - Phase 16
-  - Phase 17
-  - Phase 18
-  - Phase 19
-  - Phase 20
-- New cross-cutting engine tracks added by SKYMAP:
-  - Track IQ: Retrieval quality and intelligence loop
-  - Track OP: Performance, throughput, and reliability/SLO enforcement
-- `Phase 14 Augmentations` is treated as the authoritative breakdown for Phase 14.
-- `WHAT IF WE DIDNT NEED SHOES` (Subphases A-E) is an optional acceleration track.
-- Appendix content (`LEXI`, `HAWKTUI`, old Phase 1-6) is historical/reference material and should not be executed as separate roadmap streams.
-
 ## Phase goals (why each exists)
 - Phase 14: snapshot + diff primitives (`as-of` querying, deterministic change artifacts).
 - Phase 15: multi-repo federation (workspace identity, manifests, gated federated search, cache model).
@@ -574,14 +555,14 @@ Tests:
 
 ## 14.2 Pointer snapshots
 
-- [ ] Implement `pairofcleats index snapshot create`:
-  - [ ] Acquire index lock.
-  - [ ] Resolve `latest` via IndexRef resolver.
-  - [ ] Require `build_state.json.validation.ok === true` for all selected modes.
-  - [ ] Define authoritative validation signal + precedence (build_state.validation vs report file vs on-demand run); fail if conflicting.
-  - [ ] Write `snapshot.json` atomically, then update manifest with tag index.
-- [ ] Implement `snapshot list/show/prune`.
-- [ ] Ensure tag reverse index is deterministic.
+- [x] Implement `pairofcleats index snapshot create`:
+  - [x] Acquire index lock.
+  - [x] Resolve `latest` via IndexRef resolver.
+  - [x] Require `build_state.json.validation.ok === true` for all selected modes.
+  - [x] Define authoritative validation signal + precedence (build_state.validation vs report file vs on-demand run); fail if conflicting.
+  - [x] Write `snapshot.json` atomically, then update manifest with tag index.
+- [x] Implement `snapshot list/show/prune`.
+- [x] Ensure tag reverse index is deterministic.
 
 Touchpoints:
 - `tools/index-snapshot.js`
@@ -590,7 +571,7 @@ Touchpoints:
 - `bin/pairofcleats.js` (CLI wiring)
 
 Tests:
-- [ ] `tests/services/snapshot-create.test.js`
+- [x] `tests/services/snapshot-create.test.js`
 
 Optional API:
 - [ ] `tools/api/router/*` plus `docs/specs/http-api.md` for request/response contracts.

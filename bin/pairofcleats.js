@@ -59,6 +59,35 @@ function resolveCommand(primary, rest) {
     if (sub === 'validate') {
       return { script: 'tools/index/validate.js', extraArgs: [], args: rest };
     }
+    if (sub === 'snapshot') {
+      validateArgs(
+        rest,
+        [
+          'repo',
+          'modes',
+          'id',
+          'label',
+          'tags',
+          'tag',
+          'wait-ms',
+          'max-pointer-snapshots',
+          'dry-run',
+          'force',
+          'json'
+        ],
+        [
+          'repo',
+          'modes',
+          'id',
+          'label',
+          'tags',
+          'tag',
+          'wait-ms',
+          'max-pointer-snapshots'
+        ]
+      );
+      return { script: 'tools/index-snapshot.js', extraArgs: [], args: rest };
+    }
     return { script: 'build_index.js', extraArgs: [], args: [sub, ...rest] };
   }
   if (primary === 'search') {
@@ -669,6 +698,7 @@ Index:
   index build             Build file-backed indexes
   index watch             Watch and rebuild indexes incrementally
   index validate          Validate index artifacts
+  index snapshot          Manage index snapshots (create/list/show/rm)
 
 Search:
   search "<query>"         Query indexed data
