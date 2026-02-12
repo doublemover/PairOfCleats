@@ -4,6 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { resolveVersionedCacheRoot } from '../../../src/shared/cache-roots.js';
+import { rmDirRecursive } from '../../helpers/temp.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'query-cache');
@@ -12,7 +13,7 @@ const cacheRoot = path.join(tempRoot, 'cache');
 const cacheRootResolved = resolveVersionedCacheRoot(cacheRoot);
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
 
-await fsPromises.rm(tempRoot, { recursive: true, force: true });
+await rmDirRecursive(tempRoot, { retries: 6, delayMs: 120 });
 await fsPromises.mkdir(repoRoot, { recursive: true });
 await fsPromises.cp(fixtureRoot, repoRoot, { recursive: true });
 
