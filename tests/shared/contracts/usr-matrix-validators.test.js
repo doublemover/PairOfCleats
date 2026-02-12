@@ -13,7 +13,10 @@ import {
   evaluateUsrFailureInjectionScenarios,
   buildUsrFailureInjectionReport,
   validateUsrFixtureGovernanceControls,
-  buildUsrFixtureGovernanceValidationReport
+  buildUsrFixtureGovernanceValidationReport,
+  validateUsrBenchmarkMethodology,
+  evaluateUsrBenchmarkRegression,
+  buildUsrBenchmarkRegressionReport
 } from '../../../src/contracts/validators/usr-matrix.js';
 import { validateUsrReport } from '../../../src/contracts/validators/usr.js';
 
@@ -30,7 +33,9 @@ const requiredRegistries = [
   'usr-framework-profiles',
   'usr-capability-matrix',
   'usr-ownership-matrix',
-  'usr-escalation-policy'
+  'usr-escalation-policy',
+  'usr-benchmark-policy',
+  'usr-slo-budgets'
 ];
 
 for (const registryId of requiredRegistries) {
@@ -269,7 +274,63 @@ const fixtureGovernanceNegativeValidation = validateUsrFixtureGovernanceControls
   fixtureGovernancePayload: fixtureGovernanceNegative
 });
 assert.equal(fixtureGovernanceNegativeValidation.ok, false, 'fixture-governance controls must fail when owner/reviewer separation or mutation policy rules are violated');
+const benchmarkPolicyPath = path.join(matrixDir, 'usr-benchmark-policy.json');
+const benchmarkPolicy = JSON.parse(fs.readFileSync(benchmarkPolicyPath, 'utf8'));
+const sloBudgetsPath = path.join(matrixDir, 'usr-slo-budgets.json');
+const sloBudgets = JSON.parse(fs.readFileSync(sloBudgetsPath, 'utf8'));
+
+const benchmarkMethodology = validateUsrBenchmarkMethodology({
+  benchmarkPolicyPayload: benchmarkPolicy,
+  sloBudgetsPayload: sloBudgets
+});
+assert.equal(benchmarkMethodology.ok, true, `benchmark methodology validation should pass: ${benchmarkMethodology.errors.join('; ')}`);
+
+const observedBenchmarkResults = Object.fromEntries((benchmarkPolicy.rows || []).map((row) => [
+  row.id,
+  {
+    p50DurationMs: Math.max(1, row.percentileTargets.p50DurationMs - 10),
+    p95DurationMs: Math.max(1, row.percentileTargets.p95DurationMs - 10),
+    p99DurationMs: Math.max(1, row.percentileTargets.p99DurationMs - 10),
+    variancePct: Math.max(0, row.maxVariancePct - 1),
+    peakMemoryMb: Math.max(1, row.maxPeakMemoryMb - 8)
+  }
+]));
+
+const benchmarkRegression = evaluateUsrBenchmarkRegression({
+  benchmarkPolicyPayload: benchmarkPolicy,
+  sloBudgetsPayload: sloBudgets,
+  observedResults: observedBenchmarkResults
+});
+assert.equal(benchmarkRegression.ok, true, `benchmark regression evaluation should pass: ${benchmarkRegression.errors.join('; ')}`);
+
+const benchmarkReport = buildUsrBenchmarkRegressionReport({
+  benchmarkPolicyPayload: benchmarkPolicy,
+  sloBudgetsPayload: sloBudgets,
+  observedResults: observedBenchmarkResults,
+  runId: 'run-usr-benchmark-regression-001',
+  lane: 'ci'
+});
+assert.equal(benchmarkReport.ok, true, `benchmark regression report should pass: ${benchmarkReport.errors.join('; ')}`);
+const benchmarkReportValidation = validateUsrReport('usr-benchmark-regression-summary', benchmarkReport.payload);
+assert.equal(benchmarkReportValidation.ok, true, `benchmark regression report payload must validate: ${benchmarkReportValidation.errors.join('; ')}`);
+
+const blockingBenchmarkId = (benchmarkPolicy.rows || []).find((row) => row.blocking)?.id;
+const benchmarkRegressionNegative = evaluateUsrBenchmarkRegression({
+  benchmarkPolicyPayload: benchmarkPolicy,
+  sloBudgetsPayload: sloBudgets,
+  observedResults: {
+    ...observedBenchmarkResults,
+    [blockingBenchmarkId]: {
+      ...observedBenchmarkResults[blockingBenchmarkId],
+      p95DurationMs: observedBenchmarkResults[blockingBenchmarkId].p95DurationMs + 50000
+    }
+  }
+});
+assert.equal(benchmarkRegressionNegative.ok, false, 'benchmark regression evaluation must fail when blocking benchmark thresholds are exceeded');
 console.log('usr matrix validator tests passed');
+
+
+
 
 
 
