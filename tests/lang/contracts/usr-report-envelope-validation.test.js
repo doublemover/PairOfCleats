@@ -45,6 +45,22 @@ for (const artifactId of USR_REQUIRED_AUDIT_REPORT_IDS) {
   assert.equal(reportValidation.ok, true, `required audit report payload should validate: ${artifactId} ${reportValidation.errors.join('; ')}`);
 }
 
+const rolloutReportArtifacts = [
+  'usr-release-train-readiness',
+  'usr-no-cut-decision-log',
+  'usr-post-cutover-stabilization-report'
+];
+for (const artifactId of rolloutReportArtifacts) {
+  const rolloutPayload = {
+    ...baseEnvelope,
+    artifactId,
+    summary: { artifactId, rowCount: 0 },
+    rows: []
+  };
+  const rolloutValidation = validateUsrReport(artifactId, rolloutPayload);
+  assert.equal(rolloutValidation.ok, true, `rollout report payload should validate: ${artifactId} ${rolloutValidation.errors.join('; ')}`);
+}
+
 const missingRunIdReport = {
   ...requiredAuditReports['usr-release-readiness-scorecard']
 };

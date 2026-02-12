@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "usr/usr-post-cutover-stabilization-report.schema.json",
+  "title": "usr-post-cutover-stabilization-report.schema.json",
+  "allOf": [
+    {
+      "$ref": "./evidence-envelope.schema.json"
+    }
+  ],
+  "type": "object",
+  "properties": {
+    "artifactId": {
+      "type": "string",
+      "const": "usr-post-cutover-stabilization-report"
+    },
+    "summary": {
+      "type": "object"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    }
+  },
+  "unevaluatedProperties": false,
+  "required": [
+    "artifactId",
+    "summary",
+    "rows"
+  ]
+}
