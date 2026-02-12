@@ -435,6 +435,14 @@ const c3Coverage = validateUsrConformanceLevelCoverage({
 });
 assert.equal(c3Coverage.ok, true, `C3 conformance coverage should pass: ${c3Coverage.errors.join('; ')}`);
 
+const c4Coverage = validateUsrConformanceLevelCoverage({
+  targetLevel: 'C4',
+  languageProfilesPayload: languageProfiles,
+  conformanceLevelsPayload: conformanceLevels,
+  knownLanes: knownConformanceLanes
+});
+assert.equal(c4Coverage.ok, true, `C4 conformance coverage should pass: ${c4Coverage.errors.join('; ')}`);
+
 const c0Report = buildUsrConformanceLevelSummaryReport({
   targetLevel: 'C0',
   languageProfilesPayload: languageProfiles,

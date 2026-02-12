@@ -572,12 +572,12 @@ If contradictions are found:
 
 ### 13.1 C4 execution
 
-- [ ] Execute C4 checks for React, Vue, Next, Nuxt, Svelte/SvelteKit, Angular, Astro.
-- [ ] Execute section 35 canonicalization checks for route/template/style edges and edge-case fixtures across all framework profiles.
+- [x] Execute C4 checks for React, Vue, Next, Nuxt, Svelte/SvelteKit, Angular, Astro.
+- [x] Execute section 35 canonicalization checks for route/template/style edges and edge-case fixtures across all framework profiles.
 
 ### 13.2 Exit criteria
 
-- [ ] All required framework profiles pass C4 checks.
+- [x] All required framework profiles pass C4 checks.
 
 ---
 
