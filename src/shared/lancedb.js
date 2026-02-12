@@ -21,11 +21,17 @@ const normalizeMetric = (value) => {
   return METRICS.has(trimmed) ? trimmed : 'cosine';
 };
 
+const normalizeOptionalBoolean = (value) => {
+  if (typeof value !== 'boolean') return null;
+  return value;
+};
+
 export function normalizeLanceDbConfig(raw = {}) {
   if (raw === false) return { enabled: false };
   const config = raw && typeof raw === 'object' ? raw : {};
   return {
     enabled: config.enabled !== false,
+    isolate: normalizeOptionalBoolean(config.isolate),
     table: normalizeText(config.table, 'vectors'),
     embeddingColumn: normalizeText(config.embeddingColumn, 'vector'),
     idColumn: normalizeText(config.idColumn, 'id'),
