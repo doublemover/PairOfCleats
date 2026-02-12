@@ -233,7 +233,6 @@
         "heuristic"
       ],
       "appliesToLanguages": [
-        "css",
         "javascript",
         "typescript"
       ],
@@ -452,7 +451,6 @@
         "heuristic"
       ],
       "appliesToLanguages": [
-        "css",
         "javascript",
         "typescript"
       ],
