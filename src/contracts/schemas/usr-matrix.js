@@ -272,6 +272,75 @@ export const USR_MATRIX_ROW_SCHEMAS = Object.freeze({
       maxUnresolvedRate: { type: 'number', minimum: 0, maximum: 1 },
       blocking: BOOL
     }
+  },
+  'usr-security-gates': {
+    type: 'object',
+    additionalProperties: false,
+    required: ['id', 'check', 'scope', 'enforcement', 'blocking'],
+    properties: {
+      id: STRING,
+      check: STRING,
+      scope: STRING,
+      enforcement: STRING,
+      blocking: BOOL
+    }
+  },
+  'usr-alert-policies': {
+    type: 'object',
+    additionalProperties: false,
+    required: ['id', 'metric', 'threshold', 'comparator', 'window', 'severity', 'escalationPolicyId', 'blocking'],
+    properties: {
+      id: STRING,
+      metric: STRING,
+      threshold: { type: 'number' },
+      comparator: STRING,
+      window: STRING,
+      severity: STRING,
+      escalationPolicyId: STRING,
+      blocking: BOOL
+    }
+  },
+  'usr-redaction-rules': {
+    type: 'object',
+    additionalProperties: false,
+    required: ['id', 'class', 'replacement', 'appliesTo', 'blocking'],
+    properties: {
+      id: STRING,
+      class: STRING,
+      replacement: STRING,
+      appliesTo: stringArray,
+      blocking: BOOL
+    }
+  },
+  'usr-threat-model-matrix': {
+    type: 'object',
+    additionalProperties: false,
+    required: ['id', 'threatClass', 'attackSurface', 'requiredControls', 'requiredFixtures', 'severity', 'blocking'],
+    properties: {
+      id: STRING,
+      threatClass: STRING,
+      attackSurface: STRING,
+      requiredControls: stringArray,
+      requiredFixtures: stringArray,
+      severity: { type: 'string', enum: ['medium', 'high', 'critical'] },
+      blocking: BOOL
+    }
+  },
+  'usr-waiver-policy': {
+    type: 'object',
+    additionalProperties: false,
+    required: ['id', 'waiverClass', 'scopeType', 'scopeId', 'allowedUntil', 'approvers', 'requiredCompensatingControls', 'maxExtensions', 'blocking'],
+    properties: {
+      id: STRING,
+      waiverClass: STRING,
+      scopeType: STRING,
+      scopeId: STRING,
+      allowedUntil: STRING,
+      approvers: stringArray,
+      requiredCompensatingControls: stringArray,
+      maxExtensions: { type: 'integer', minimum: 0 },
+      blocking: BOOL
+    }
   }
 });
 
@@ -280,4 +349,5 @@ export const USR_MATRIX_SCHEMA_DEFS = Object.freeze(
     Object.entries(USR_MATRIX_ROW_SCHEMAS).map(([registryId, rowSchema]) => [registryId, registryEnvelope(registryId, rowSchema)])
   )
 );
+
 

@@ -123,7 +123,7 @@ If contradictions are found:
 - [x] USR section 44 failure injection and resilience contract is enforced with blocking strict fault scenarios.
 - [x] USR section 45 fixture and golden governance contract is enforced with ownership and mutation policy controls.
 - [x] USR section 46 performance benchmark methodology contract is enforced with deterministic methodology and regression gates.
-- [ ] USR section 47 threat model and abuse-case coverage contract is enforced with blocking threat/control fixture coverage.
+- [x] USR section 47 threat model and abuse-case coverage contract is enforced with blocking threat/control fixture coverage.
 - [ ] USR section 48 waiver and exception governance contract is enforced with expiry and approver controls.
 - [ ] Decomposed USR contract suite (`docs/specs/usr*.md`) remains semantically aligned with umbrella USR spec.
 - [ ] Every registry language has a maintained per-language contract in `docs/specs/usr/languages/<language-id>.md`.
@@ -477,7 +477,7 @@ If contradictions are found:
 - [x] Validate blocking failure-injection evidence and recovery artifacts are complete.
 - [x] Validate fixture-governance validation evidence for blocking fixture families is complete.
 - [x] Validate benchmark policy evidence and regression/variance reports are complete for blocking lanes.
-- [ ] Validate threat-model coverage and abuse-case execution evidence are complete.
+- [x] Validate threat-model coverage and abuse-case execution evidence are complete.
 - [ ] Validate waiver-policy evidence (active/expiry/breach reports) and approver controls are complete.
 
 ### 9.2 Go/No-Go decision
@@ -511,7 +511,7 @@ If contradictions are found:
 - [x] Materialize section 44 failure-injection scenario evaluator and strict/non-strict outcome validators.
 - [x] Materialize section 45 fixture-governance validators (owner/reviewer/mutation-policy).
 - [x] Materialize section 46 benchmark methodology validators and regression threshold checks.
-- [ ] Materialize section 47 threat-model coverage and abuse-case mapping validators.
+- [x] Materialize section 47 threat-model coverage and abuse-case mapping validators.
 - [ ] Materialize section 48 waiver-policy validators (expiry/approver/compensating-control constraints).
 - [ ] Materialize section 30 report envelope validators for all required audit outputs.
 
@@ -1472,3 +1472,4 @@ Roadmap enforcement requirements:
 - [ ] Framework onboarding and interop expectations follow `docs/specs/usr-core-language-framework-catalog.md`.
 - [ ] Contract consolidation traceability is maintained in `docs/specs/usr-consolidation-coverage-matrix.md`.
 - [ ] Any contract addition/removal updates Appendix H traceability and Appendix J dependency graph in same change.
+

@@ -16,7 +16,9 @@ import {
   buildUsrFixtureGovernanceValidationReport,
   validateUsrBenchmarkMethodology,
   evaluateUsrBenchmarkRegression,
-  buildUsrBenchmarkRegressionReport
+  buildUsrBenchmarkRegressionReport,
+  validateUsrThreatModelCoverage,
+  buildUsrThreatModelCoverageReport
 } from '../../../src/contracts/validators/usr-matrix.js';
 import { validateUsrReport } from '../../../src/contracts/validators/usr.js';
 
@@ -35,7 +37,12 @@ const requiredRegistries = [
   'usr-ownership-matrix',
   'usr-escalation-policy',
   'usr-benchmark-policy',
-  'usr-slo-budgets'
+  'usr-slo-budgets',
+  'usr-security-gates',
+  'usr-alert-policies',
+  'usr-redaction-rules',
+  'usr-threat-model-matrix',
+  'usr-waiver-policy'
 ];
 
 for (const registryId of requiredRegistries) {
@@ -327,7 +334,52 @@ const benchmarkRegressionNegative = evaluateUsrBenchmarkRegression({
   }
 });
 assert.equal(benchmarkRegressionNegative.ok, false, 'benchmark regression evaluation must fail when blocking benchmark thresholds are exceeded');
+const threatModelPath = path.join(matrixDir, 'usr-threat-model-matrix.json');
+const threatModel = JSON.parse(fs.readFileSync(threatModelPath, 'utf8'));
+const securityGatesPath = path.join(matrixDir, 'usr-security-gates.json');
+const securityGates = JSON.parse(fs.readFileSync(securityGatesPath, 'utf8'));
+const alertPoliciesPath = path.join(matrixDir, 'usr-alert-policies.json');
+const alertPolicies = JSON.parse(fs.readFileSync(alertPoliciesPath, 'utf8'));
+const redactionRulesPath = path.join(matrixDir, 'usr-redaction-rules.json');
+const redactionRules = JSON.parse(fs.readFileSync(redactionRulesPath, 'utf8'));
+
+const threatCoverage = validateUsrThreatModelCoverage({
+  threatModelPayload: threatModel,
+  fixtureGovernancePayload: fixtureGovernance,
+  securityGatesPayload: securityGates,
+  alertPoliciesPayload: alertPolicies,
+  redactionRulesPayload: redactionRules
+});
+assert.equal(threatCoverage.ok, true, `threat-model coverage validation should pass: ${threatCoverage.errors.join('; ')}`);
+
+const threatCoverageReport = buildUsrThreatModelCoverageReport({
+  threatModelPayload: threatModel,
+  fixtureGovernancePayload: fixtureGovernance,
+  securityGatesPayload: securityGates,
+  alertPoliciesPayload: alertPolicies,
+  redactionRulesPayload: redactionRules,
+  runId: 'run-usr-threat-model-coverage-001',
+  lane: 'ci'
+});
+assert.equal(threatCoverageReport.ok, true, `threat-model coverage report should pass: ${threatCoverageReport.errors.join('; ')}`);
+const threatCoverageReportValidation = validateUsrReport('usr-threat-model-coverage-report', threatCoverageReport.payload);
+assert.equal(threatCoverageReportValidation.ok, true, `threat-model coverage report payload must validate: ${threatCoverageReportValidation.errors.join('; ')}`);
+
+const threatCoverageNegative = validateUsrThreatModelCoverage({
+  threatModelPayload: threatModel,
+  fixtureGovernancePayload: fixtureGovernance,
+  securityGatesPayload: {
+    ...securityGates,
+    rows: (securityGates.rows || []).filter((row) => row.id !== 'security-gate-parser-lock')
+  },
+  alertPoliciesPayload: alertPolicies,
+  redactionRulesPayload: redactionRules
+});
+assert.equal(threatCoverageNegative.ok, false, 'threat-model coverage validation must fail when required controls are missing');
 console.log('usr matrix validator tests passed');
+
+
+
 
 
 
