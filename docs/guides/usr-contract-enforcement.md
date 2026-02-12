@@ -1,6 +1,6 @@
 # USR Contract Enforcement Guide
 
-Last updated: 2026-02-12T08:11:17Z
+Last updated: 2026-02-12T08:14:16Z
 
 ## Purpose
 
@@ -56,6 +56,7 @@ Define CI/local enforcement for the consolidated USR contract model.
 - phase 15.1 CI-gate lock enforcement (`tests/lang/contracts/usr-phase15-ci-gate-lock-validation.test.js`) validates section 15.1 checklist state against Gate A/B/C, C0-C4 conformance, and sections 36/41/42/43/44/45/46/47/48 validator coverage in blocking lanes
 - phase 15.2 reporting-integrity lock enforcement (`tests/lang/contracts/usr-phase15-reporting-lock-validation.test.js`) validates reporting checklist state against section 30/31 report schema requirements and required report/policy validator coverage in blocking lanes
 - governance lock-suite integrity enforcement (`tests/lang/contracts/usr-governance-lock-suite-validation.test.js`) validates Appendix N lock anchor-to-test mapping and required CI/CI-lite + guide coverage for every governance lock validator
+- phase 8.4 hardening exit-integrity lock enforcement (`tests/lang/contracts/usr-phase8-exit-lock-validation.test.js`) validates phase 8.4 hardening exit state against determinism/cap/SLO validator coverage and Gate B/Gate C checklist reopening behavior
 - phase 10.3 harness exit-integrity lock enforcement (`tests/lang/contracts/usr-phase10-harness-exit-lock-validation.test.js`) validates phase 10.3 exit state against matrix-driven harness/shard determinism validator coverage and conformance-exit reopening behavior
 - phase 11-13 conformance exit-integrity lock enforcement (`tests/lang/contracts/usr-conformance-phase-exit-lock-validation.test.js`) validates phase 11.3/12.3/13.2 conformance exit state against C0/C1/C2/C3/C4 validator coverage and phase 9.2 go/no-go reopening behavior
 - phase 14.3 integration/failure exit lock enforcement (`tests/lang/contracts/usr-phase14-exit-lock-validation.test.js`) validates section 14.3 exit state against 14.1/14.2 checklist stability and required integration/failure/security validator coverage in blocking lanes

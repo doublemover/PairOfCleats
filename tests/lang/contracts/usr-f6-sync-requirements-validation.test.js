@@ -103,6 +103,7 @@ assertTestInCiOrders('lang/contracts/usr-phase15-reporting-lock-validation', 'F.
 assertTestInCiOrders('lang/contracts/usr-phase15-maintenance-lock-validation', 'F.6.5');
 assertTestInCiOrders('lang/contracts/usr-phase15-exit-lock-validation', 'F.6.5');
 assertTestInCiOrders('lang/contracts/usr-phase8-hardening-readiness-validation', 'F.6.5');
+assertTestInCiOrders('lang/contracts/usr-phase8-exit-lock-validation', 'F.6.5');
 assertTestInCiOrders('lang/contracts/usr-fixture-golden-readiness-validation', 'F.6.5');
 assertTestInCiOrders('lang/contracts/usr-benchmark-policy-validation', 'F.6.5');
 assertTestInCiOrders('lang/contracts/usr-cross-batch-regression-resolution-validation', 'F.6.5');
