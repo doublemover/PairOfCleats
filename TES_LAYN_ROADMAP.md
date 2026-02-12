@@ -428,8 +428,8 @@ If contradictions are found:
 
 ### 7.3 Exit criteria
 
-- [ ] Every language and framework has exhaustive fixture coverage evidence.
-- [ ] Golden diffs are deterministic on rerun.
+- [x] Every language and framework has exhaustive fixture coverage evidence.
+- [x] Golden diffs are deterministic on rerun.
 
 ---
 
