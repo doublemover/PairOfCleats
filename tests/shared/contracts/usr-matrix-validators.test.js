@@ -18,6 +18,7 @@ import {
   evaluateUsrBenchmarkRegression,
   buildUsrBenchmarkRegressionReport,
   validateUsrLanguageBatchShards,
+  validateUsrMatrixDrivenHarnessCoverage,
   validateUsrBackcompatMatrixCoverage,
   buildUsrBackcompatMatrixReport,
   validateUsrThreatModelCoverage,
@@ -366,6 +367,34 @@ const batchShardsNegative = validateUsrLanguageBatchShards({
   languageProfilesPayload: languageProfiles
 });
 assert.equal(batchShardsNegative.ok, false, 'language batch shard validation must fail when languageIds are not deterministic');
+
+const frameworkProfilesPath = path.join(matrixDir, 'usr-framework-profiles.json');
+const frameworkProfiles = JSON.parse(fs.readFileSync(frameworkProfilesPath, 'utf8'));
+const matrixDrivenCoverage = validateUsrMatrixDrivenHarnessCoverage({
+  languageProfilesPayload: languageProfiles,
+  frameworkProfilesPayload: frameworkProfiles,
+  fixtureGovernancePayload: fixtureGovernance,
+  batchShardsPayload: batchShards,
+  knownLanes: ['conformance-c0', 'conformance-c1', 'conformance-c2', 'conformance-c3', 'conformance-c4']
+});
+assert.equal(matrixDrivenCoverage.ok, true, `matrix-driven harness coverage should pass: ${matrixDrivenCoverage.errors.join('; ')}`);
+
+const matrixDrivenNegative = validateUsrMatrixDrivenHarnessCoverage({
+  languageProfilesPayload: {
+    ...languageProfiles,
+    rows: (languageProfiles.rows || []).map((row) => (
+      row.id === 'javascript'
+        ? { ...row, requiredConformance: (row.requiredConformance || []).filter((level) => level !== 'C4') }
+        : row
+    ))
+  },
+  frameworkProfilesPayload: frameworkProfiles,
+  fixtureGovernancePayload: fixtureGovernance,
+  batchShardsPayload: batchShards,
+  knownLanes: ['conformance-c0', 'conformance-c1', 'conformance-c2', 'conformance-c3', 'conformance-c4']
+});
+assert.equal(matrixDrivenNegative.ok, true, 'matrix-driven coverage with dropped C4 should remain non-blocking and emit warning');
+assert.equal(matrixDrivenNegative.warnings.some((message) => message.includes('javascript')), true, 'matrix-driven warning should surface profile coverage downgrade');
 
 const backcompatMatrixPath = path.join(matrixDir, 'usr-backcompat-matrix.json');
 const backcompatMatrix = JSON.parse(fs.readFileSync(backcompatMatrixPath, 'utf8'));

@@ -531,7 +531,7 @@ If contradictions are found:
 
 ### 10.3 Exit criteria
 
-- [ ] Harness can execute matrix-driven checks for all languages/frameworks.
+- [x] Harness can execute matrix-driven checks for all languages/frameworks.
 - [x] Lane ordering and sharding are deterministic.
 
 ---
