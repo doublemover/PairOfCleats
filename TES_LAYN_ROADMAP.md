@@ -1605,3 +1605,9 @@ Source artifacts: `tests/lang/matrix/usr-ownership-matrix.json` and `tests/lang/
 - `determinism checks pass for batch languages.` cannot be checked unless Phase 8 exit criterion `Determinism checks pass under repeated runs.` is checked.
 - `known degradations recorded with diagnostic codes.` and `diagnostic severity/code alignment checks pass for language batch fixtures.` cannot be checked unless diagnostic/reason-code contracts remain present and CI validators for severity/reason-code enforcement stay in required lanes.
 
+### N.12 Phase 9.1 readiness-audit completion lock
+
+- `Validate completion evidence for all B1-B7 task packs.` cannot be checked while Gate B1-B7 or Gate B8 checklist blocks remain unchecked.
+- `Validate per-language contract approval checklists are complete for target rollout set.` cannot be checked while any file in `docs/specs/usr/languages/*.md` still contains unchecked approval checklist lines.
+- If either Phase 9.1 lock line regresses to unchecked dependencies, readiness authorization lines in Phase 9.3 must be reopened until evidence is restored.
+
