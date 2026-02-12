@@ -1,7 +1,7 @@
 # USR Language Contract -- <language-id>
 
 Status: Draft v0.1
-Last updated: 2026-02-12T05:05:00Z
+Last updated: 2026-02-12T05:57:28Z
 Owner role: <owner-role>
 Backup owner role: <backup-owner-role>
 Review cadence days: <review-cadence-days>
@@ -24,4 +24,14 @@ Language ID: <language-id>
 ## 12. Required profile deltas before implementation-complete
 ## 13. Required fixture ID mapping
 ## 14. Approval checklist
+- [ ] Owner-role review completed.
+- [ ] Backup-owner review completed.
+- [ ] Matrix linkage verified against language/version/embedding registries.
+- [ ] Required fixture families assigned with concrete fixture IDs.
+- [ ] Required conformance levels mapped to executable lanes.
+
 ## 15. Completion evidence artifacts
+- `usr-conformance-summary.json` language row updated for this profile.
+- `usr-quality-evaluation-results.json` includes required conformance-level evidence.
+- `usr-validation-report.json` strict validation output captures this profile's fixture scope.
+- `usr-drift-report.json` confirms language-contract and matrix synchronization.

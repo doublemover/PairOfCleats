@@ -20,7 +20,9 @@ const requiredSections = [
   '## Required node kinds',
   '## Required edge kinds',
   '## Capability baseline',
-  '## Change control'
+  '## Change control',
+  '## Approval checklist',
+  '## Completion evidence artifacts'
 ];
 
 for (const row of languageProfiles.rows || []) {
@@ -38,6 +40,25 @@ for (const row of languageProfiles.rows || []) {
   assert.equal(text.includes('tests/lang/matrix/usr-language-profiles.json'), true, `language contract must reference usr-language-profiles matrix: ${languageId}`);
   assert.equal(text.includes('tests/lang/matrix/usr-language-version-policy.json'), true, `language contract must reference usr-language-version-policy matrix: ${languageId}`);
   assert.equal(text.includes('tests/lang/matrix/usr-language-embedding-policy.json'), true, `language contract must reference usr-language-embedding-policy matrix: ${languageId}`);
+
+  for (const checklistLine of [
+    '- [ ] Owner-role review completed.',
+    '- [ ] Backup-owner review completed.',
+    '- [ ] Matrix linkage verified against language/version/embedding registries.',
+    '- [ ] Required fixture families assigned with concrete fixture IDs.',
+    '- [ ] Required conformance levels mapped to executable lanes.'
+  ]) {
+    assert.equal(text.includes(checklistLine), true, `language contract missing approval checklist item (${languageId}): ${checklistLine}`);
+  }
+
+  for (const evidenceArtifact of [
+    '`usr-conformance-summary.json`',
+    '`usr-quality-evaluation-results.json`',
+    '`usr-validation-report.json`',
+    '`usr-drift-report.json`'
+  ]) {
+    assert.equal(text.includes(evidenceArtifact), true, `language contract missing completion evidence artifact (${languageId}): ${evidenceArtifact}`);
+  }
 }
 
 console.log('usr language contract template checks passed');
