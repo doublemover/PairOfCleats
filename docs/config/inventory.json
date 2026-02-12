@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-12T19:51:45.560Z",
+  "generatedAt": "2026-02-12T20:42:23.473Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2476,6 +2476,7 @@
         "tests/storage/sqlite/sqlite-missing-dep.test.js",
         "tests/storage/vector-extension/vector-extension-missing.test.js",
         "tests/tooling/cache/cache-gc-preserves-manifest-referenced.test.js",
+        "tests/tooling/cache/cache-gc-preserves-recent-access.test.js",
         "tests/tooling/dict-utils/paths-builds-root.test.js",
         "tests/tooling/fixtures/fixture-empty.test.js",
         "tests/tooling/index-stats/index-stats-aggregate.test.js",

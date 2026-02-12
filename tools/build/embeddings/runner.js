@@ -317,8 +317,8 @@ export async function runBuildEmbeddingsWithConfig(config) {
       await fs.mkdir(path.dirname(targetPath), { recursive: true });
       const stat = await fs.lstat(sourcePath).catch(() => null);
       if (!stat) continue;
-      await fs.rm(targetPath, { recursive: true, force: true });
       if (stat.isDirectory()) {
+        await fs.rm(targetPath, { recursive: true, force: true });
         try {
           await fs.rename(sourcePath, targetPath);
         } catch (err) {
@@ -328,12 +328,9 @@ export async function runBuildEmbeddingsWithConfig(config) {
         }
       } else {
         try {
-          await fs.rename(sourcePath, targetPath);
-        } catch (err) {
-          if (!['EXDEV', 'EPERM', 'EACCES'].includes(err?.code)) throw err;
-          await fs.copyFile(sourcePath, targetPath);
-          await fs.rm(sourcePath, { force: true });
-        }
+          await fs.rm(`${targetPath}.bak`, { force: true });
+        } catch {}
+        await replaceFile(sourcePath, targetPath, { keepBackup: true });
       }
     }
   };
