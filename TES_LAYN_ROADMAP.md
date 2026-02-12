@@ -1,6 +1,6 @@
 # TES_LAYN_ROADMAP - USR-Aligned Language and Framework Execution Master Plan
 
-Last rewritten: 2026-02-12T09:10:00Z
+Last rewritten: 2026-02-12T09:30:00Z
 Branch: `usr-skyforge-primer`
 Document status: active master plan baseline v1.5
 
@@ -520,7 +520,7 @@ If contradictions are found:
 - [ ] Add conformance lane(s) per C0-C4.
 - [ ] Add per-batch shards and deterministic order manifests.
 - [ ] Add diagnostics summary and transition reporting.
-- [ ] Add backward-compat matrix lane executing BC-001 through BC-012 scenario classes and pairwise expansion.
+- [x] Add backward-compat matrix lane executing BC-001 through BC-012 scenario classes and pairwise expansion.
 - [x] Add runtime-config validation lane and feature-flag conflict lane.
 - [x] Add failure-injection strict blocking lane in CI and full scenario lane in CI-long/nightly.
 - [x] Add fixture-governance validation lane and mutation-policy enforcement lane.

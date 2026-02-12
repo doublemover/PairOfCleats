@@ -203,6 +203,21 @@ export const USR_MATRIX_ROW_SCHEMAS = Object.freeze({
       blocking: BOOL
     }
   },
+  'usr-backcompat-matrix': {
+    type: 'object',
+    additionalProperties: false,
+    required: ['id', 'producerVersion', 'readerVersions', 'readerMode', 'fixtureFamily', 'expectedOutcome', 'requiredDiagnostics', 'blocking'],
+    properties: {
+      id: STRING,
+      producerVersion: STRING,
+      readerVersions: stringArray,
+      readerMode: { type: 'string', enum: ['strict', 'non-strict'] },
+      fixtureFamily: STRING,
+      expectedOutcome: { type: 'string', enum: ['accept', 'reject', 'accept-with-adapter'] },
+      requiredDiagnostics: stringArray,
+      blocking: BOOL
+    }
+  },
   'usr-ownership-matrix': {
     type: 'object',
     additionalProperties: false,

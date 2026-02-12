@@ -17,6 +17,8 @@ import {
   validateUsrBenchmarkMethodology,
   evaluateUsrBenchmarkRegression,
   buildUsrBenchmarkRegressionReport,
+  validateUsrBackcompatMatrixCoverage,
+  buildUsrBackcompatMatrixReport,
   validateUsrThreatModelCoverage,
   buildUsrThreatModelCoverageReport,
   validateUsrWaiverPolicyControls,
@@ -37,6 +39,7 @@ const requiredRegistries = [
   'usr-language-profiles',
   'usr-framework-profiles',
   'usr-capability-matrix',
+  'usr-backcompat-matrix',
   'usr-ownership-matrix',
   'usr-escalation-policy',
   'usr-benchmark-policy',
@@ -337,6 +340,35 @@ const benchmarkRegressionNegative = evaluateUsrBenchmarkRegression({
   }
 });
 assert.equal(benchmarkRegressionNegative.ok, false, 'benchmark regression evaluation must fail when blocking benchmark thresholds are exceeded');
+
+const backcompatMatrixPath = path.join(matrixDir, 'usr-backcompat-matrix.json');
+const backcompatMatrix = JSON.parse(fs.readFileSync(backcompatMatrixPath, 'utf8'));
+
+const backcompatValidation = validateUsrBackcompatMatrixCoverage({
+  backcompatMatrixPayload: backcompatMatrix,
+  strictEnum: true
+});
+assert.equal(backcompatValidation.ok, true, `backcompat matrix coverage should pass: ${backcompatValidation.errors.join('; ')}`);
+
+const backcompatReport = buildUsrBackcompatMatrixReport({
+  backcompatMatrixPayload: backcompatMatrix,
+  strictEnum: true,
+  runId: 'run-usr-backcompat-matrix-results-001',
+  lane: 'ci'
+});
+assert.equal(backcompatReport.ok, true, `backcompat matrix report should pass: ${backcompatReport.errors.join('; ')}`);
+const backcompatReportValidation = validateUsrReport('usr-backcompat-matrix-results', backcompatReport.payload);
+assert.equal(backcompatReportValidation.ok, true, `backcompat matrix report payload must validate: ${backcompatReportValidation.errors.join('; ')}`);
+
+const backcompatNegative = validateUsrBackcompatMatrixCoverage({
+  backcompatMatrixPayload: {
+    ...backcompatMatrix,
+    rows: (backcompatMatrix.rows || []).filter((row) => row.id !== 'BC-012')
+  },
+  strictEnum: true
+});
+assert.equal(backcompatNegative.ok, false, 'backcompat matrix coverage must fail when required BC scenarios are missing');
+
 const threatModelPath = path.join(matrixDir, 'usr-threat-model-matrix.json');
 const threatModel = JSON.parse(fs.readFileSync(threatModelPath, 'utf8'));
 const securityGatesPath = path.join(matrixDir, 'usr-security-gates.json');
