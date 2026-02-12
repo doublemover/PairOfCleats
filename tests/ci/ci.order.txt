@@ -73,6 +73,7 @@ lang/contracts/usr-change-tier-policy-validation
 lang/contracts/usr-extension-policy-validation
 lang/contracts/usr-onboarding-policy-validation
 lang/contracts/usr-roadmap-sync
+lang/contracts/usr-traceability-approval-validation
 lang/contracts/usr-pr-template-policy-validation
 lang/contracts/usr-maintenance-controls-stability
 lang/contracts/usr-minimum-slice-harness
