@@ -49,7 +49,7 @@ export const USR_MATRIX_ROW_SCHEMAS = Object.freeze({
   'usr-failure-injection-matrix': {
     type: 'object',
     additionalProperties: false,
-    required: ['id', 'faultClass', 'injectionLayer', 'strictExpectedOutcome', 'nonStrictExpectedOutcome', 'requiredDiagnostics', 'requiredReasonCodes', 'blocking'],
+    required: ['id', 'faultClass', 'injectionLayer', 'strictExpectedOutcome', 'nonStrictExpectedOutcome', 'requiredDiagnostics', 'requiredReasonCodes', 'rollbackTriggerConsecutiveFailures', 'requiredRecoveryArtifacts', 'blocking'],
     properties: {
       id: STRING,
       faultClass: STRING,
@@ -58,6 +58,8 @@ export const USR_MATRIX_ROW_SCHEMAS = Object.freeze({
       nonStrictExpectedOutcome: STRING,
       requiredDiagnostics: stringArray,
       requiredReasonCodes: stringArray,
+      rollbackTriggerConsecutiveFailures: { type: 'integer', minimum: 1 },
+      requiredRecoveryArtifacts: stringArray,
       blocking: BOOL
     }
   },

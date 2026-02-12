@@ -84,6 +84,8 @@ assertExists('tests/lang/matrix/usr-threat-model-matrix.json', 'F.6.5 threat mod
 assertTestInCiOrders('lang/contracts/usr-observability-rollup-validation', 'F.6.5');
 assertTestInCiOrders('lang/contracts/usr-benchmark-policy-validation', 'F.6.5');
 assertTestInCiOrders('lang/contracts/usr-security-gate-validation', 'F.6.5');
+assertTestInCiOrders('lang/contracts/usr-failure-injection-validation', 'F.6.5');
+assertTestInCiOrders('lang/contracts/usr-failure-injection-recovery-threshold-validation', 'F.6.5');
 assertTestInCiOrders('lang/contracts/usr-threat-model-coverage-validation', 'F.6.5');
 
 console.log('usr F.6 synchronization requirements validation checks passed');

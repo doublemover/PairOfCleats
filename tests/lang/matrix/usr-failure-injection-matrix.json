@@ -16,6 +16,11 @@
       "requiredReasonCodes": [
         "USR-R-RESOLUTION-CONFLICT"
       ],
+      "rollbackTriggerConsecutiveFailures": 1,
+      "requiredRecoveryArtifacts": [
+        "usr-failure-injection-report.json",
+        "usr-rollback-drill-report.json"
+      ],
       "blocking": true
     },
     {
@@ -29,6 +34,11 @@
       ],
       "requiredReasonCodes": [
         "USR-R-PARSER-TIMEOUT"
+      ],
+      "rollbackTriggerConsecutiveFailures": 2,
+      "requiredRecoveryArtifacts": [
+        "usr-failure-injection-report.json",
+        "usr-rollback-drill-report.json"
       ],
       "blocking": true
     },
@@ -44,6 +54,11 @@
       "requiredReasonCodes": [
         "USR-R-PARSER-UNAVAILABLE"
       ],
+      "rollbackTriggerConsecutiveFailures": 1,
+      "requiredRecoveryArtifacts": [
+        "usr-failure-injection-report.json",
+        "usr-rollback-drill-report.json"
+      ],
       "blocking": true
     },
     {
@@ -57,6 +72,11 @@
       ],
       "requiredReasonCodes": [
         "USR-R-REDACTION-REQUIRED"
+      ],
+      "rollbackTriggerConsecutiveFailures": 1,
+      "requiredRecoveryArtifacts": [
+        "usr-failure-injection-report.json",
+        "usr-rollback-drill-report.json"
       ],
       "blocking": true
     },
@@ -72,6 +92,11 @@
       "requiredReasonCodes": [
         "USR-R-CANDIDATE-CAP-EXCEEDED"
       ],
+      "rollbackTriggerConsecutiveFailures": 3,
+      "requiredRecoveryArtifacts": [
+        "usr-failure-injection-report.json",
+        "usr-rollback-drill-report.json"
+      ],
       "blocking": true
     },
     {
@@ -85,6 +110,11 @@
       ],
       "requiredReasonCodes": [
         "USR-R-RESOURCE-BUDGET-EXCEEDED"
+      ],
+      "rollbackTriggerConsecutiveFailures": 1,
+      "requiredRecoveryArtifacts": [
+        "usr-failure-injection-report.json",
+        "usr-rollback-drill-report.json"
       ],
       "blocking": true
     },
@@ -100,6 +130,11 @@
       "requiredReasonCodes": [
         "USR-R-SECURITY-GATE-BLOCKED"
       ],
+      "rollbackTriggerConsecutiveFailures": 1,
+      "requiredRecoveryArtifacts": [
+        "usr-failure-injection-report.json",
+        "usr-rollback-drill-report.json"
+      ],
       "blocking": true
     },
     {
@@ -113,6 +148,11 @@
       ],
       "requiredReasonCodes": [
         "USR-R-SERIALIZATION-INVALID"
+      ],
+      "rollbackTriggerConsecutiveFailures": 1,
+      "requiredRecoveryArtifacts": [
+        "usr-failure-injection-report.json",
+        "usr-rollback-drill-report.json"
       ],
       "blocking": true
     }

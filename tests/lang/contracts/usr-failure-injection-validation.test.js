@@ -18,6 +18,7 @@ const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..', '..', '..');
 
 const matrixPath = path.join(repoRoot, 'tests', 'lang', 'matrix', 'usr-failure-injection-matrix.json');
+const schemaDir = path.join(repoRoot, 'docs', 'schemas', 'usr');
 const matrix = JSON.parse(fs.readFileSync(matrixPath, 'utf8'));
 const matrixRows = Array.isArray(matrix.rows) ? matrix.rows : [];
 
@@ -41,6 +42,16 @@ for (const faultClass of requiredFaultClasses) {
 
 for (const row of matrixRows) {
   assert.equal(row.blocking, true, `failure-injection row must be blocking for current contract surface: ${row.id}`);
+  assert.equal(Number.isInteger(row.rollbackTriggerConsecutiveFailures), true, `rollbackTriggerConsecutiveFailures must be integer: ${row.id}`);
+  assert.equal(row.rollbackTriggerConsecutiveFailures >= 1, true, `rollbackTriggerConsecutiveFailures must be >= 1: ${row.id}`);
+  const recoveryArtifacts = Array.isArray(row.requiredRecoveryArtifacts) ? row.requiredRecoveryArtifacts : [];
+  assert.equal(recoveryArtifacts.length > 0, true, `requiredRecoveryArtifacts must be non-empty: ${row.id}`);
+  assert.equal(recoveryArtifacts.includes('usr-failure-injection-report.json'), true, `requiredRecoveryArtifacts must include usr-failure-injection-report.json: ${row.id}`);
+  assert.equal(recoveryArtifacts.includes('usr-rollback-drill-report.json'), true, `requiredRecoveryArtifacts must include usr-rollback-drill-report.json: ${row.id}`);
+  for (const artifactFileName of recoveryArtifacts) {
+    const schemaPath = path.join(schemaDir, `${artifactFileName.replace(/\.json$/, '')}.schema.json`);
+    assert.equal(fs.existsSync(schemaPath), true, `required recovery artifact schema missing: ${artifactFileName} (${row.id})`);
+  }
   for (const diagnostic of row.requiredDiagnostics || []) {
     const diagnosticValidation = validateUsrDiagnosticCode(diagnostic, { strictEnum: true });
     assert.equal(diagnosticValidation.ok, true, `${row.id} required diagnostic must be canonical: ${diagnosticValidation.errors.join('; ')}`);
