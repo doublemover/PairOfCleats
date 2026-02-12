@@ -93,6 +93,7 @@ const requiredPrMarkers = [
   'usr-policy:change-tiering',
   'usr-policy:extension-policy',
   'usr-policy:appendix-sync',
+  'usr-policy:deprecation-archive',
   'usr-policy:registry-drift',
   'usr-policy:parser-lock',
   'usr-policy:runtime-config',
