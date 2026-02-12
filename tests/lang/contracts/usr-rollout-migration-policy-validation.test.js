@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { listUsrReportIds } from '../../../src/contracts/validators/usr.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -42,6 +43,25 @@ assert.equal(rolloutSpecText.includes('`tests/lang/matrix/usr-backcompat-matrix.
 assert.equal(rolloutSpecText.includes('`usr-operational-readiness-validation.json`'), true, 'rollout spec must require operational readiness report output');
 assert.equal(rolloutSpecText.includes('`usr-backcompat-matrix-results.json`'), true, 'rollout spec must require backcompat results output');
 
+const requiredOutputArtifactIds = [
+  'usr-backcompat-matrix-results',
+  'usr-operational-readiness-validation',
+  'usr-incident-response-drill-report',
+  'usr-rollback-drill-report',
+  'usr-release-train-readiness',
+  'usr-no-cut-decision-log',
+  'usr-post-cutover-stabilization-report'
+];
+
+const reportIds = new Set(listUsrReportIds());
+for (const artifactId of requiredOutputArtifactIds) {
+  assert.equal(rolloutSpecText.includes(`\`${artifactId}.json\``), true, `rollout spec required outputs must include artifact: ${artifactId}.json`);
+  assert.equal(reportIds.has(artifactId), true, `rollout required output must have registered report schema validator: ${artifactId}`);
+
+  const schemaPath = path.join(repoRoot, 'docs', 'schemas', 'usr', `${artifactId}.schema.json`);
+  assert.equal(fs.existsSync(schemaPath), true, `rollout required output must have schema file: docs/schemas/usr/${artifactId}.schema.json`);
+}
+
 const runtimeRows = Array.isArray(runtimeConfig.rows) ? runtimeConfig.rows : [];
 assert.equal(runtimeRows.length > 0, true, 'runtime-config policy must define config rows');
 
@@ -59,6 +79,7 @@ for (const phase of ['pre-cutover', 'cutover', 'incident', 'post-cutover']) {
 
 const requiredCiTests = [
   'lang/contracts/usr-rollout-migration-policy-validation',
+  'lang/contracts/usr-rollout-phase-gate-validation',
   'lang/contracts/usr-runtime-config-feature-flag-validation',
   'lang/contracts/usr-implementation-readiness-validation',
   'backcompat/backcompat-matrix-validation'

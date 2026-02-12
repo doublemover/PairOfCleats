@@ -1,7 +1,7 @@
 # Spec -- USR Core Artifact and Schema Catalog
 
 Status: Draft v2.0
-Last updated: 2026-02-12T05:18:42Z
+Last updated: 2026-02-12T05:45:00Z
 
 ## Purpose
 
@@ -133,6 +133,9 @@ CLI determinism requirements:
 | `usr-backcompat-matrix-results` | `docs/schemas/usr/usr-backcompat-matrix-results.schema.json` | compatibility blocking evidence |
 | `usr-quality-evaluation-results` | `docs/schemas/usr/usr-quality-evaluation-results.schema.json` | quality blocking evidence |
 | `usr-drift-report` | `docs/schemas/usr/usr-drift-report.schema.json` | drift blocking evidence |
+| `usr-release-train-readiness` | `docs/schemas/usr/usr-release-train-readiness.schema.json` | rollout blocking evidence |
+| `usr-no-cut-decision-log` | `docs/schemas/usr/usr-no-cut-decision-log.schema.json` | rollout blocking evidence |
+| `usr-post-cutover-stabilization-report` | `docs/schemas/usr/usr-post-cutover-stabilization-report.schema.json` | rollout blocking evidence |
 
 ## Drift prevention
 

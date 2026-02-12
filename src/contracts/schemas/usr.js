@@ -121,6 +121,9 @@ export const USR_REPORT_SCHEMA_DEFS = Object.freeze({
   'usr-operational-readiness-validation': reportSchema('usr-operational-readiness-validation'),
   'usr-backcompat-matrix-results': reportSchema('usr-backcompat-matrix-results'),
   'usr-drift-report': reportSchema('usr-drift-report'),
+  'usr-release-train-readiness': reportSchema('usr-release-train-readiness'),
+  'usr-no-cut-decision-log': reportSchema('usr-no-cut-decision-log'),
+  'usr-post-cutover-stabilization-report': reportSchema('usr-post-cutover-stabilization-report'),
   'usr-rollback-drill-report': reportSchema('usr-rollback-drill-report'),
   'usr-incident-response-drill-report': reportSchema('usr-incident-response-drill-report'),
   'usr-feature-flag-state': reportSchema('usr-feature-flag-state')
