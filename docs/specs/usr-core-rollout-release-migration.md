@@ -1,7 +1,7 @@
 # Spec -- USR Core Rollout, Release, and Migration Contract
 
 Status: Draft v2.0
-Last updated: 2026-02-12T05:39:00Z
+Last updated: 2026-02-12T05:43:49Z
 
 ## Purpose
 
@@ -51,6 +51,17 @@ Appendix F.1 in `TES_LAYN_ROADMAP.md` maps rollout implementation milestones ont
 | Phase D (full conformance enforcement) | required conformance levels C0-C4 (profile-dependent) green in required lanes | `usr-conformance-summary.json`, `usr-quality-evaluation-results.json`, `usr-release-readiness-scorecard.json` |
 
 Rollout phases MUST be promoted in order A -> B -> C -> D; phase skipping is forbidden without explicit Tier 3 exception approval and rollback evidence.
+
+### Phase-to-CI gate mapping
+
+Each roadmap phase maps to a minimum CI gate bundle that must remain active in both `ci` and `ci-lite` lanes.
+
+| Roadmap phase | Minimum CI gate bundle |
+| --- | --- |
+| Phase A | `lang/contracts/usr-contract-enforcement`, `shared/contracts/usr-schema-validators`, `shared/contracts/usr-matrix-validators`, `decomposed-drift/decomposed-drift-validation` |
+| Phase B | `backcompat/backcompat-matrix-validation`, `lang/contracts/usr-rollout-migration-policy-validation`, `lang/contracts/usr-rollout-phase-gate-validation` |
+| Phase C | `lang/contracts/usr-implementation-readiness-validation`, `lang/contracts/usr-observability-rollup-validation`, `lang/contracts/usr-security-gate-validation` |
+| Phase D | `lang/contracts/usr-c0-baseline-validation`, `lang/contracts/usr-c1-baseline-validation`, `lang/contracts/usr-c2-baseline-validation`, `lang/contracts/usr-c3-baseline-validation`, `lang/contracts/usr-c4-baseline-validation` |
 
 ## Compatibility policy
 
