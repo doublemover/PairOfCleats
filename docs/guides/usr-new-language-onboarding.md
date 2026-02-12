@@ -1,6 +1,6 @@
 # USR New Language Onboarding Guide
 
-Last updated: 2026-02-12T05:16:00Z
+Last updated: 2026-02-12T05:57:28Z
 
 ## Purpose
 
@@ -41,6 +41,7 @@ Define mandatory steps for adding a registry language with deterministic, testab
 - capability states must be explicitly declared as `supported`, `partial`, or `unsupported`
 - framework interop expectations must be declared against `docs/specs/usr-core-language-framework-catalog.md`
 - if framework overlays are applicable, route/template/style canonicalization obligations must be linked to required fixture families
+- per-language contract under `docs/specs/usr/languages/<language-id>.md` must include `## Approval checklist` and `## Completion evidence artifacts` sections
 
 ## Promotion gates
 

@@ -32,5 +32,7 @@ for (const ref of requiredRefs) {
 assert.equal(/`supported`, `partial`, or `unsupported`/i.test(onboardingText), true, 'onboarding guide must require explicit capability state declarations');
 assert.equal(/framework interop expectations/i.test(onboardingText), true, 'onboarding guide must require framework interop expectations');
 assert.equal(/route\/template\/style canonicalization obligations/i.test(onboardingText), true, 'onboarding guide must require route/template/style canonicalization obligations for applicable framework overlays');
+assert.equal(/## Approval checklist/i.test(onboardingText), true, 'onboarding guide must require per-language approval checklist section');
+assert.equal(/## Completion evidence artifacts/i.test(onboardingText), true, 'onboarding guide must require per-language completion evidence artifact section');
 
 console.log('usr onboarding policy validation checks passed');
