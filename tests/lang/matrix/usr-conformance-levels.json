@@ -96,7 +96,6 @@
       "requiredFixtureFamilies": [
         "framework-overlay",
         "embedded-bridge",
-        "route-canonicalization",
         "hydration"
       ]
     },
@@ -151,8 +150,7 @@
         "golden",
         "normalization",
         "resolution",
-        "risk",
-        "framework-overlay"
+        "risk"
       ]
     },
     {
@@ -172,8 +170,7 @@
         "golden",
         "normalization",
         "resolution",
-        "risk",
-        "framework-overlay"
+        "risk"
       ]
     },
     {
@@ -195,8 +192,7 @@
         "golden",
         "normalization",
         "resolution",
-        "risk",
-        "framework-overlay"
+        "risk"
       ]
     },
     {
@@ -239,8 +235,7 @@
         "golden",
         "normalization",
         "resolution",
-        "risk",
-        "framework-overlay"
+        "risk"
       ]
     },
     {
@@ -260,8 +255,7 @@
         "golden",
         "normalization",
         "resolution",
-        "risk",
-        "framework-overlay"
+        "risk"
       ]
     },
     {
@@ -283,8 +277,7 @@
         "golden",
         "normalization",
         "resolution",
-        "risk",
-        "framework-overlay"
+        "risk"
       ]
     },
     {
@@ -304,8 +297,7 @@
         "golden",
         "normalization",
         "resolution",
-        "risk",
-        "framework-overlay"
+        "risk"
       ]
     },
     {
@@ -327,8 +319,7 @@
         "golden",
         "normalization",
         "resolution",
-        "risk",
-        "framework-overlay"
+        "risk"
       ]
     },
     {
@@ -348,8 +339,7 @@
         "golden",
         "normalization",
         "resolution",
-        "risk",
-        "framework-overlay"
+        "risk"
       ]
     },
     {
@@ -392,8 +382,7 @@
         "golden",
         "normalization",
         "resolution",
-        "risk",
-        "framework-overlay"
+        "risk"
       ]
     },
     {
@@ -438,8 +427,7 @@
         "golden",
         "normalization",
         "resolution",
-        "risk",
-        "framework-overlay"
+        "risk"
       ]
     },
     {
@@ -461,8 +449,7 @@
         "golden",
         "normalization",
         "resolution",
-        "risk",
-        "framework-overlay"
+        "risk"
       ]
     },
     {
@@ -484,8 +471,7 @@
         "golden",
         "normalization",
         "resolution",
-        "risk",
-        "framework-overlay"
+        "risk"
       ]
     },
     {
@@ -507,8 +493,7 @@
         "golden",
         "normalization",
         "resolution",
-        "risk",
-        "framework-overlay"
+        "risk"
       ]
     },
     {
@@ -528,8 +513,7 @@
         "golden",
         "normalization",
         "resolution",
-        "risk",
-        "framework-overlay"
+        "risk"
       ]
     },
     {
@@ -549,8 +533,7 @@
         "golden",
         "normalization",
         "resolution",
-        "risk",
-        "framework-overlay"
+        "risk"
       ]
     },
     {
@@ -570,8 +553,7 @@
         "golden",
         "normalization",
         "resolution",
-        "risk",
-        "framework-overlay"
+        "risk"
       ]
     },
     {
@@ -593,8 +575,7 @@
         "golden",
         "normalization",
         "resolution",
-        "risk",
-        "framework-overlay"
+        "risk"
       ]
     },
     {
@@ -616,8 +597,7 @@
         "golden",
         "normalization",
         "resolution",
-        "risk",
-        "framework-overlay"
+        "risk"
       ]
     },
     {
@@ -637,8 +617,7 @@
         "golden",
         "normalization",
         "resolution",
-        "risk",
-        "framework-overlay"
+        "risk"
       ]
     },
     {
@@ -660,8 +639,7 @@
         "golden",
         "normalization",
         "resolution",
-        "risk",
-        "framework-overlay"
+        "risk"
       ]
     },
     {
@@ -683,8 +661,7 @@
         "golden",
         "normalization",
         "resolution",
-        "risk",
-        "framework-overlay"
+        "risk"
       ]
     },
     {
@@ -704,8 +681,7 @@
         "golden",
         "normalization",
         "resolution",
-        "risk",
-        "framework-overlay"
+        "risk"
       ]
     },
     {
@@ -727,8 +703,7 @@
         "golden",
         "normalization",
         "resolution",
-        "risk",
-        "framework-overlay"
+        "risk"
       ]
     },
     {
@@ -750,8 +725,7 @@
         "golden",
         "normalization",
         "resolution",
-        "risk",
-        "framework-overlay"
+        "risk"
       ]
     },
     {
@@ -773,8 +747,7 @@
         "golden",
         "normalization",
         "resolution",
-        "risk",
-        "framework-overlay"
+        "risk"
       ]
     },
     {
@@ -796,8 +769,7 @@
         "golden",
         "normalization",
         "resolution",
-        "risk",
-        "framework-overlay"
+        "risk"
       ]
     },
     {
@@ -819,8 +791,7 @@
         "golden",
         "normalization",
         "resolution",
-        "risk",
-        "framework-overlay"
+        "risk"
       ]
     },
     {
@@ -840,8 +811,7 @@
         "golden",
         "normalization",
         "resolution",
-        "risk",
-        "framework-overlay"
+        "risk"
       ]
     },
     {
@@ -863,8 +833,7 @@
         "golden",
         "normalization",
         "resolution",
-        "risk",
-        "framework-overlay"
+        "risk"
       ]
     },
     {

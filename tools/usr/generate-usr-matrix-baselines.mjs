@@ -394,12 +394,11 @@ const frameworkProfiles = [
       crossBlockLinking: ['template-script-bridge', 'template-style-bridge']
     },
     bindingSemantics: {
-      requiredEdgeKinds: ['template_binds', 'template_emits', 'style_scopes', 'route_maps_to', 'hydration_boundary'],
+      requiredEdgeKinds: ['template_binds', 'template_emits', 'style_scopes', 'hydration_boundary'],
       requiredAttrs: {
         template_binds: ['bindingKind'],
         template_emits: ['eventKind'],
         style_scopes: ['scopeKind'],
-        route_maps_to: ['routePattern', 'runtimeSide'],
         hydration_boundary: ['runtimeSide']
       }
     },
@@ -836,20 +835,37 @@ function capabilityRows(profileRows) {
 }
 
 function conformanceRows(profileRows) {
-  const languageRows = profileRows.map((profile) => ({
-    profileType: 'language',
-    profileId: profile.id,
-    requiredLevels: [...profile.requiredConformance],
-    blockingLevels: [...profile.requiredConformance],
-    requiredFixtureFamilies: ['golden', 'normalization', 'resolution', 'risk', 'framework-overlay']
-  }));
-  const frameworkRows = frameworkProfiles.map((profile) => ({
-    profileType: 'framework',
-    profileId: profile.id,
-    requiredLevels: ['C4'],
-    blockingLevels: ['C4'],
-    requiredFixtureFamilies: ['framework-overlay', 'embedded-bridge', 'route-canonicalization', 'hydration']
-  }));
+  const languageRows = profileRows.map((profile) => {
+    const requiredFixtureFamilies = ['golden', 'normalization', 'resolution', 'risk'];
+    if ((profile.frameworkProfiles || []).length > 0) {
+      requiredFixtureFamilies.push('framework-overlay');
+    }
+    return {
+      profileType: 'language',
+      profileId: profile.id,
+      requiredLevels: [...profile.requiredConformance],
+      blockingLevels: [...profile.requiredConformance],
+      requiredFixtureFamilies
+    };
+  });
+
+  const frameworkRows = frameworkProfiles.map((profile) => {
+    const requiredFixtureFamilies = ['framework-overlay', 'embedded-bridge'];
+    if (profile.routeSemantics?.enabled) {
+      requiredFixtureFamilies.push('route-canonicalization');
+    }
+    if (profile.hydrationSemantics?.required) {
+      requiredFixtureFamilies.push('hydration');
+    }
+    return {
+      profileType: 'framework',
+      profileId: profile.id,
+      requiredLevels: ['C4'],
+      blockingLevels: ['C4'],
+      requiredFixtureFamilies
+    };
+  });
+
   return [...languageRows, ...frameworkRows].sort((a, b) => {
     if (a.profileType !== b.profileType) return a.profileType.localeCompare(b.profileType);
     return a.profileId.localeCompare(b.profileId);
