@@ -80,8 +80,14 @@ assert.equal(searchCalls, 1, 'second request should reuse federated cache');
 assert.equal(first.code[0]?.file, '<redacted>', 'absolute file path field should be redacted');
 assert.equal(first.code[0]?.snippet, literalSnippet, 'non-path snippet content should not be redacted');
 assert.equal(first.meta?.selection?.explicitSelects?.[0], '<redacted>', 'absolute explicit select path should be redacted');
+assert.equal(first.meta?.cohorts?.selectedReposByMode?.code?.[0]?.rootAbs, '<redacted>', 'cohort rootAbs should be redacted');
+assert.equal(first.meta?.cohorts?.selectedReposByMode?.code?.[0]?.repoRootResolved, '<redacted>', 'cohort repoRootResolved should be redacted');
+assert.equal(first.meta?.cohorts?.selectedReposByMode?.code?.[0]?.indexes?.code?.indexDir, '<redacted>', 'cohort indexDir should be redacted');
 assert.equal(second.code[0]?.file, '<redacted>', 'cached file field should remain redacted');
 assert.equal(second.code[0]?.snippet, literalSnippet, 'cached snippet should preserve original content');
 assert.equal(second.meta?.selection?.explicitSelects?.[0], '<redacted>', 'cached explicit select path should remain redacted');
+assert.equal(second.meta?.cohorts?.selectedReposByMode?.code?.[0]?.rootAbs, '<redacted>', 'cached cohort rootAbs should remain redacted');
+assert.equal(second.meta?.cohorts?.selectedReposByMode?.code?.[0]?.repoRootResolved, '<redacted>', 'cached cohort repoRootResolved should remain redacted');
+assert.equal(second.meta?.cohorts?.selectedReposByMode?.code?.[0]?.indexes?.code?.indexDir, '<redacted>', 'cached cohort indexDir should remain redacted');
 
 console.log('federation path redaction field scope test passed');

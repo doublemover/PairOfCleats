@@ -31,6 +31,21 @@ const normalizeList = (value) => {
   return [String(value).trim()].filter(Boolean);
 };
 
+const normalizeMode = (value) => {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed || null;
+  }
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      if (typeof entry !== 'string') continue;
+      const trimmed = entry.trim();
+      if (trimmed) return trimmed;
+    }
+  }
+  return null;
+};
+
 const splitAtEndOfOptions = (rawArgs) => {
   const markerIndex = rawArgs.findIndex((token) => String(token || '') === '--');
   if (markerIndex < 0) {
@@ -174,11 +189,13 @@ export const parseFederatedCliRequest = (rawArgs = []) => {
   const top = normalizeTop(argv.top ?? argv.n, 10);
   const perRepoTop = normalizeTop(argv['top-per-repo'], Math.min(Math.max(top * 2, top), 50));
   const concurrency = normalizeTop(argv.concurrency, 4);
+  const mode = normalizeMode(argv.mode);
 
   return {
     workspacePath,
     query,
     rawArgs: rawArgs.slice(),
+    mode,
     top,
     perRepoTop,
     concurrency,

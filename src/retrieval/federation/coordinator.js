@@ -38,15 +38,22 @@ const MAX_FEDERATED_CONCURRENCY = 32;
  */
 const REDACTABLE_PATH_FIELDS = new Set([
   'workspacePath',
+  'workspaceDir',
+  'workspaceManifestPath',
+  'federationCacheRoot',
   'repoPath',
   'repoRoot',
+  'repoRootResolved',
   'repoRootCanonical',
+  'rootAbs',
+  'repoCacheRoot',
   'explicitSelects',
   'file',
   'path',
   'cacheRoot',
   'buildRoot',
-  'indexRoot'
+  'indexRoot',
+  'indexDir'
 ]);
 
 const isAbsoluteLike = (value) => (
