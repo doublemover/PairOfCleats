@@ -13,6 +13,7 @@ const rolloutSpecPath = path.join(repoRoot, 'docs', 'specs', 'usr-core-rollout-r
 const runtimeConfigPath = path.join(repoRoot, 'tests', 'lang', 'matrix', 'usr-runtime-config-policy.json');
 const operationalReadinessPath = path.join(repoRoot, 'tests', 'lang', 'matrix', 'usr-operational-readiness-policy.json');
 const evidenceGatesSpecPath = path.join(repoRoot, 'docs', 'specs', 'usr-core-evidence-gates-waivers.md');
+const rolloutApprovalLockPath = path.join(repoRoot, 'docs', 'specs', 'usr-rollout-approval-lock.md');
 const ciOrderPath = path.join(repoRoot, 'tests', 'ci', 'ci.order.txt');
 const ciLiteOrderPath = path.join(repoRoot, 'tests', 'ci-lite', 'ci-lite.order.txt');
 
@@ -20,6 +21,7 @@ const rolloutSpecText = fs.readFileSync(rolloutSpecPath, 'utf8');
 const runtimeConfig = JSON.parse(fs.readFileSync(runtimeConfigPath, 'utf8'));
 const operationalReadiness = JSON.parse(fs.readFileSync(operationalReadinessPath, 'utf8'));
 const evidenceGatesSpecText = fs.readFileSync(evidenceGatesSpecPath, 'utf8');
+const rolloutApprovalLockText = fs.readFileSync(rolloutApprovalLockPath, 'utf8');
 const ciOrderText = fs.readFileSync(ciOrderPath, 'utf8');
 const ciLiteOrderText = fs.readFileSync(ciLiteOrderPath, 'utf8');
 
@@ -44,6 +46,8 @@ for (const anchor of requiredSpecAnchors) {
 assert.equal(rolloutSpecText.includes('`tests/lang/matrix/usr-backcompat-matrix.json`'), true, 'rollout spec must reference backcompat matrix artifact');
 assert.equal(rolloutSpecText.includes('`usr-operational-readiness-validation.json`'), true, 'rollout spec must require operational readiness report output');
 assert.equal(rolloutSpecText.includes('`usr-backcompat-matrix-results.json`'), true, 'rollout spec must require backcompat results output');
+assert.equal(rolloutSpecText.includes('`docs/specs/usr-rollout-approval-lock.md`'), true, 'rollout spec must reference rollout approval lock contract');
+assert.equal(/^Approval state:\s+`(pending|approved)`$/m.test(rolloutApprovalLockText), true, 'rollout approval lock must declare pending|approved state');
 
 const requiredOutputArtifactIds = [
   'usr-backcompat-matrix-results',
@@ -86,6 +90,7 @@ for (const phase of ['pre-cutover', 'cutover', 'incident', 'post-cutover']) {
 const requiredCiTests = [
   'lang/contracts/usr-rollout-migration-policy-validation',
   'lang/contracts/usr-rollout-phase-gate-validation',
+  'lang/contracts/usr-rollout-approval-lock-validation',
   'lang/contracts/usr-runtime-config-feature-flag-validation',
   'lang/contracts/usr-implementation-readiness-validation',
   'backcompat/backcompat-matrix-validation'

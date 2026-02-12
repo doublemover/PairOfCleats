@@ -70,11 +70,13 @@ assertTestInCiOrders('lang/contracts/usr-language-risk-profile-validation', 'F.6
 
 // F.6.4 registry schema and readiness synchronization.
 assertExists('docs/specs/usr-core-artifact-schema-catalog.md', 'F.6.4 artifact/schema catalog');
+assertExists('docs/specs/usr-rollout-approval-lock.md', 'F.6.4 rollout approval lock contract');
 assertExists('tests/lang/matrix/usr-operational-readiness-policy.json', 'F.6.4 operational readiness policy matrix');
 assertExists('tests/lang/matrix/usr-quality-gates.json', 'F.6.4 quality-gate matrix');
 assertTestInCiOrders('lang/contracts/usr-core-artifact-schema-catalog-alignment', 'F.6.4');
 assertTestInCiOrders('lang/contracts/usr-gate-a-registry-readiness-validation', 'F.6.4');
 assertTestInCiOrders('lang/contracts/usr-harness-lane-materialization-validation', 'F.6.4');
+assertTestInCiOrders('lang/contracts/usr-rollout-approval-lock-validation', 'F.6.4');
 assertTestInCiOrders('lang/contracts/usr-implementation-readiness-validation', 'F.6.4');
 
 // F.6.5 observability/SLO and security-governance synchronization.

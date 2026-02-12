@@ -104,6 +104,12 @@ Release train rows must define:
 - owner approvals
 - no-cut decision thresholds
 
+Rollout authorization lock requirements:
+
+- rollout approval lock state is tracked in `docs/specs/usr-rollout-approval-lock.md`
+- Gate C rollout authorization cannot be checked unless the lock state is `approved`
+- required role decisions (`usr-architecture`, `usr-conformance`, `usr-operations`) must be explicitly recorded with ISO 8601 timestamps
+
 ## Rollback policy
 
 Rollback must provide:
@@ -143,5 +149,6 @@ Deprecation changes are blocking until archival metadata requirements are met an
 
 - `docs/specs/usr-core-evidence-gates-waivers.md`
 - `docs/specs/usr-core-observability-performance-ops.md`
+- `docs/specs/usr-rollout-approval-lock.md`
 - `docs/archived/README.md`
 

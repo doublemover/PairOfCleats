@@ -36,6 +36,7 @@ const requiredSyncDocs = [
   'docs/specs/usr-core-normalization-linking-identity.md',
   'docs/specs/usr-core-security-risk-compliance.md',
   'docs/specs/usr-core-observability-performance-ops.md',
+  'docs/specs/usr-rollout-approval-lock.md',
   'docs/guides/usr-contract-enforcement.md',
   'docs/specs/usr/minimum-slice/typescript-vue.md'
 ];
@@ -104,6 +105,7 @@ const requiredRoadmapAnchors = [
   '### N.5 Planning guardrails and evidence policy',
   '### N.6 Roadmap edit invariants',
   '### N.7 Traceability approval lock',
+  '### N.8 Rollout authorization approval lock',
   '| Consolidated contract | Primary intent | Required phases | Required CI gates/lanes |',
   'appendices H/J/M/N'
 ];

@@ -26,6 +26,8 @@ const requiredRolloutSpecFragments = [
   'Phase D (full conformance enforcement)',
   'Rollout phases MUST be promoted in order A -> B -> C -> D',
   '### Phase-to-CI gate mapping',
+  'Rollout authorization lock requirements:',
+  'Gate C rollout authorization cannot be checked unless the lock state is `approved`',
   'Phase A | `lang/contracts/usr-contract-enforcement`',
   'Phase B | `backcompat/backcompat-matrix-validation`',
   'Phase C | `lang/contracts/usr-implementation-readiness-validation`',
@@ -43,7 +45,8 @@ for (const fragment of requiredRolloutSpecFragments) {
 
 const requiredRoadmapAnchors = [
   '### F.1 Rollout gates (USR section 26)',
-  '### F.2 Backward compatibility and deprecation (USR section 27)'
+  '### F.2 Backward compatibility and deprecation (USR section 27)',
+  '### N.8 Rollout authorization approval lock'
 ];
 for (const anchor of requiredRoadmapAnchors) {
   assert.equal(roadmapText.includes(anchor), true, `roadmap missing rollout/deprecation anchor: ${anchor}`);
@@ -83,6 +86,7 @@ for (const [phaseId, testIds] of Object.entries(requiredCiTestsByPhase)) {
 }
 
 const requiredCrossPhaseTests = [
+  'lang/contracts/usr-rollout-approval-lock-validation',
   'lang/contracts/usr-archival-deprecation-policy-validation',
   'lang/contracts/usr-pr-template-policy-validation'
 ];
