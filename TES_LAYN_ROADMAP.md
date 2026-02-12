@@ -1285,8 +1285,8 @@ If contradictions are found:
 
 ### F.2 Backward compatibility and deprecation (USR section 27)
 
-- [ ] Keep legacy artifact outputs until parity and migration evidence are approved.
-- [ ] For any deprecation, create archive doc entry with canonical replacement and reason.
+- [x] Keep legacy artifact outputs until parity and migration evidence are approved.
+- [x] For any deprecation, create archive doc entry with canonical replacement and reason.
 
 ### F.3 Change-control (USR section 28)
 
