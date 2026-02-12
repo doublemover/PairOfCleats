@@ -1,6 +1,6 @@
 # TES_LAYN_ROADMAP - USR-Aligned Language and Framework Execution Master Plan
 
-Last rewritten: 2026-02-12T06:36:15Z
+Last rewritten: 2026-02-12T06:37:44Z
 Branch: `usr-skyforge-primer`
 Document status: active master plan baseline v1.5
 
@@ -448,7 +448,7 @@ If contradictions are found:
 
 ### 8.3 Performance thresholds
 
-- [ ] Define per-batch runtime/memory thresholds.
+- [x] Define per-batch runtime/memory thresholds.
 - [ ] Add per-batch profiling and hotspot reporting.
 - [x] Validate parser/runtime lock reproducibility and update budget for lock-file upgrades.
 - [x] Materialize SLO budget and alert policy evaluations in CI outputs.

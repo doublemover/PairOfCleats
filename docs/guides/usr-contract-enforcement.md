@@ -1,6 +1,6 @@
 # USR Contract Enforcement Guide
 
-Last updated: 2026-02-12T06:36:15Z
+Last updated: 2026-02-12T06:37:44Z
 
 ## Purpose
 
@@ -55,6 +55,7 @@ Define CI/local enforcement for the consolidated USR contract model.
 - conformance matrix readiness-by-language enforcement (`tests/lang/contracts/usr-conformance-matrix-readiness-by-language-validation.test.js`) validates per-language conformance-row completeness, level parity with language profiles, blocking-level parity, and required fixture-family/lane readiness invariants
 - phase-9 readiness evidence enforcement (`tests/lang/contracts/usr-phase9-readiness-evidence-validation.test.js`) validates checked readiness controls against CI validator coverage and required artifact/report schema/catalog references
 - observability rollup enforcement (`tests/lang/contracts/usr-observability-rollup-validation.test.js`) validates section 41 SLO budget and alert-policy evaluations, blocking-threshold behavior, and `usr-observability-rollup` report emission
+- batch SLO threshold coverage enforcement (`tests/lang/contracts/usr-batch-slo-threshold-coverage-validation.test.js`) validates per-batch (`B1`-`B7`) runtime/memory threshold coverage and blocking lane policy invariants in `usr-slo-budgets.json`
 - security-gate compliance enforcement (`tests/lang/contracts/usr-security-gate-validation.test.js`) validates section 42 security-gate and redaction policy controls, strict fail-closed behavior for blocking controls, and validation-report emission
 - runtime config and feature-flag enforcement (`tests/lang/contracts/usr-runtime-config-feature-flag-validation.test.js`) validates section 43 precedence resolution, strict-mode policy behavior, and disallowed feature-flag conflicts
 - failure-injection enforcement (`tests/lang/contracts/usr-failure-injection-validation.test.js`) validates section 44 strict/non-strict scenario outcomes, required diagnostics/reason codes, and recovery-evidence coverage
