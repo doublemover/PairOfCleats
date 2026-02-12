@@ -107,6 +107,7 @@ const requiredCiTests = [
   'lang/contracts/usr-conformance-matrix-readiness-by-language-validation',
   'lang/contracts/usr-phase9-readiness-evidence-validation',
   'lang/contracts/usr-batch-slo-threshold-coverage-validation',
+  'lang/contracts/usr-phase8-hardening-readiness-validation',
   'lang/contracts/usr-f5-hard-requirements-validation',
   'lang/contracts/usr-f6-sync-requirements-validation',
   'lang/contracts/usr-rollout-migration-policy-validation',
