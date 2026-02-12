@@ -78,6 +78,7 @@ lang/contracts/usr-implementation-readiness-validation
 lang/contracts/usr-runtime-config-feature-flag-validation
 lang/contracts/usr-failure-injection-validation
 lang/contracts/usr-fixture-governance-validation
+lang/contracts/usr-benchmark-policy-validation
 shared/contracts/usr-schema-validators
 shared/contracts/usr-matrix-validators
 retrieval/filters/query-syntax/phrases-and-scorebreakdown

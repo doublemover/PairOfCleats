@@ -230,6 +230,48 @@ export const USR_MATRIX_ROW_SCHEMAS = Object.freeze({
       maxResolutionMinutes: { type: 'integer', minimum: 1 },
       autoBlockPromotion: BOOL
     }
+  },
+  'usr-benchmark-policy': {
+    type: 'object',
+    additionalProperties: false,
+    required: ['id', 'laneId', 'datasetClass', 'hostClass', 'warmupRuns', 'measureRuns', 'percentileTargets', 'maxVariancePct', 'maxPeakMemoryMb', 'blocking'],
+    properties: {
+      id: STRING,
+      laneId: STRING,
+      datasetClass: STRING,
+      hostClass: STRING,
+      warmupRuns: { type: 'integer', minimum: 0 },
+      measureRuns: { type: 'integer', minimum: 1 },
+      percentileTargets: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['p50DurationMs', 'p95DurationMs', 'p99DurationMs'],
+        properties: {
+          p50DurationMs: { type: 'integer', minimum: 1 },
+          p95DurationMs: { type: 'integer', minimum: 1 },
+          p99DurationMs: { type: 'integer', minimum: 1 }
+        }
+      },
+      maxVariancePct: { type: 'number', minimum: 0 },
+      maxPeakMemoryMb: { type: 'integer', minimum: 1 },
+      blocking: BOOL
+    }
+  },
+  'usr-slo-budgets': {
+    type: 'object',
+    additionalProperties: false,
+    required: ['laneId', 'profileScope', 'scopeId', 'maxDurationMs', 'maxMemoryMb', 'maxParserTimePerSegmentMs', 'maxUnknownKindRate', 'maxUnresolvedRate', 'blocking'],
+    properties: {
+      laneId: STRING,
+      profileScope: STRING,
+      scopeId: STRING,
+      maxDurationMs: { type: 'integer', minimum: 1 },
+      maxMemoryMb: { type: 'integer', minimum: 1 },
+      maxParserTimePerSegmentMs: { type: 'integer', minimum: 1 },
+      maxUnknownKindRate: { type: 'number', minimum: 0, maximum: 1 },
+      maxUnresolvedRate: { type: 'number', minimum: 0, maximum: 1 },
+      blocking: BOOL
+    }
   }
 });
 
@@ -238,3 +280,4 @@ export const USR_MATRIX_SCHEMA_DEFS = Object.freeze(
     Object.entries(USR_MATRIX_ROW_SCHEMAS).map(([registryId, rowSchema]) => [registryId, registryEnvelope(registryId, rowSchema)])
   )
 );
+
