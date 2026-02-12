@@ -43,6 +43,22 @@ assert.equal(blockingRows.length > 0, true, 'fixture-governance matrix must cont
 assert.equal(blockingRows.some((row) => row.families.includes('framework-overlay')), true, 'fixture-governance matrix must include blocking framework-overlay coverage');
 assert.equal(blockingRows.some((row) => row.families.includes('failure-injection')), true, 'fixture-governance matrix must include blocking failure-injection coverage');
 
+const expectedOwnerPrefixByProfileType = {
+  language: 'language-',
+  framework: 'framework-',
+  'cross-cutting': 'usr-'
+};
+for (const row of blockingRows) {
+  const expectedPrefix = expectedOwnerPrefixByProfileType[row.profileType];
+  if (expectedPrefix) {
+    assert.equal(row.owner.startsWith(expectedPrefix), true, `blocking fixture row owner prefix mismatch: ${row.fixtureId}`);
+  }
+
+  const independentReviewers = (row.reviewers || []).filter((reviewer) => reviewer !== row.owner);
+  assert.equal(independentReviewers.length > 0, true, `blocking fixture row must include independent reviewer: ${row.fixtureId}`);
+  assert.equal((row.reviewers || []).some((reviewer) => reviewer === 'usr-architecture' || reviewer === 'usr-conformance'), true, `blocking fixture row must include governance reviewer coverage: ${row.fixtureId}`);
+}
+
 const controls = validateUsrFixtureGovernanceControls({
   fixtureGovernancePayload: fixtureGovernance
 });

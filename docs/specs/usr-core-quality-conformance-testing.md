@@ -1,7 +1,7 @@
 # Spec -- USR Core Quality, Conformance, and Testing Contract
 
 Status: Draft v2.1
-Last updated: 2026-02-12T06:24:47Z
+Last updated: 2026-02-12T06:29:00Z
 
 ## Purpose
 
@@ -69,6 +69,7 @@ Fixture governance row requirements:
 - every active framework profile must have at least one blocking fixture-governance row
 - coverage across fixture-governance rows must include every required conformance level declared by the covered profile
 - framework rows must include semantic families implied by required edge kinds (`template-binding`, `style-scope`, `route-semantics`, `hydration`)
+- blocking rows must include owner/reviewer assignments with at least one reviewer distinct from owner and governance reviewer coverage (`usr-architecture` or `usr-conformance`)
 - language rows must include `appendix-c:<language-id>` in `roadmapTags`; framework rows must include `appendix-d:<framework-id>` in `roadmapTags`
 
 ## Golden policy

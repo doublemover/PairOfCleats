@@ -706,6 +706,25 @@ export function validateUsrFixtureGovernanceControls({
       rowWarnings.push('owner also appears in reviewers list');
     }
 
+    if (row.blocking === true && reviewers.filter((reviewer) => reviewer !== row.owner).length === 0) {
+      rowErrors.push('blocking fixture rows must include at least one reviewer distinct from owner');
+    }
+
+    if (row.blocking === true) {
+      const expectedOwnerPrefixByProfileType = {
+        language: 'language-',
+        framework: 'framework-',
+        'cross-cutting': 'usr-'
+      };
+      const expectedPrefix = expectedOwnerPrefixByProfileType[row.profileType];
+      if (expectedPrefix && !String(row.owner || '').startsWith(expectedPrefix)) {
+        rowErrors.push(`blocking fixture row owner must use prefix ${expectedPrefix}`);
+      }
+      if (!reviewers.some((reviewer) => reviewer === 'usr-architecture' || reviewer === 'usr-conformance')) {
+        rowErrors.push('blocking fixture rows must include usr-architecture or usr-conformance reviewer coverage');
+      }
+    }
+
     const families = asStringArray(row.families);
     if (families.length === 0) {
       rowErrors.push('families must include at least one fixture family');
