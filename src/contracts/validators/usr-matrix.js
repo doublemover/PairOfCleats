@@ -1344,6 +1344,197 @@ export function validateUsrLanguageBatchShards({
   };
 }
 
+const CONFORMANCE_LANE_BY_LEVEL = Object.freeze({
+  C0: 'conformance-c0',
+  C1: 'conformance-c1',
+  C2: 'conformance-c2',
+  C3: 'conformance-c3',
+  C4: 'conformance-c4'
+});
+
+export function validateUsrMatrixDrivenHarnessCoverage({
+  languageProfilesPayload,
+  frameworkProfilesPayload,
+  fixtureGovernancePayload,
+  batchShardsPayload,
+  knownLanes = []
+} = {}) {
+  const languageValidation = validateUsrMatrixRegistry('usr-language-profiles', languageProfilesPayload);
+  if (!languageValidation.ok) {
+    return {
+      ok: false,
+      errors: Object.freeze([...languageValidation.errors]),
+      warnings: Object.freeze([]),
+      rows: Object.freeze([])
+    };
+  }
+
+  const frameworkValidation = validateUsrMatrixRegistry('usr-framework-profiles', frameworkProfilesPayload);
+  if (!frameworkValidation.ok) {
+    return {
+      ok: false,
+      errors: Object.freeze([...frameworkValidation.errors]),
+      warnings: Object.freeze([]),
+      rows: Object.freeze([])
+    };
+  }
+
+  const fixtureValidation = validateUsrMatrixRegistry('usr-fixture-governance', fixtureGovernancePayload);
+  if (!fixtureValidation.ok) {
+    return {
+      ok: false,
+      errors: Object.freeze([...fixtureValidation.errors]),
+      warnings: Object.freeze([]),
+      rows: Object.freeze([])
+    };
+  }
+
+  const batchValidation = validateUsrLanguageBatchShards({
+    batchShardsPayload,
+    languageProfilesPayload
+  });
+  if (!batchValidation.ok) {
+    return {
+      ok: false,
+      errors: Object.freeze([...batchValidation.errors]),
+      warnings: Object.freeze([...batchValidation.warnings]),
+      rows: Object.freeze([])
+    };
+  }
+
+  const errors = [];
+  const warnings = [];
+  const rows = [];
+
+  const languageRows = Array.isArray(languageProfilesPayload?.rows) ? languageProfilesPayload.rows : [];
+  const frameworkRows = Array.isArray(frameworkProfilesPayload?.rows) ? frameworkProfilesPayload.rows : [];
+  const fixtureRows = Array.isArray(fixtureGovernancePayload?.rows) ? fixtureGovernancePayload.rows : [];
+  const batchRows = Array.isArray(batchShardsPayload?.rows) ? batchShardsPayload.rows : [];
+
+  const knownLaneSet = new Set(asStringArray(knownLanes));
+  const languageById = new Map(languageRows.map((row) => [row.id, row]));
+  const languageFixtureIds = new Set(
+    fixtureRows
+      .filter((row) => row.profileType === 'language')
+      .map((row) => row.profileId)
+  );
+  const frameworkFixtureIds = new Set(
+    fixtureRows
+      .filter((row) => row.profileType === 'framework')
+      .map((row) => row.profileId)
+  );
+
+  const batchByLanguageId = new Map();
+  for (const batchRow of batchRows) {
+    if (batchRow.scopeType !== 'language-batch') {
+      continue;
+    }
+    for (const languageId of asStringArray(batchRow.languageIds)) {
+      batchByLanguageId.set(languageId, batchRow.id);
+    }
+  }
+
+  for (const languageRow of languageRows) {
+    const rowErrors = [];
+    const rowWarnings = [];
+
+    if (!batchByLanguageId.has(languageRow.id)) {
+      rowErrors.push('language profile is missing language-batch shard assignment');
+    }
+
+    if (!languageFixtureIds.has(languageRow.id)) {
+      rowWarnings.push('language profile is missing fixture-governance coverage');
+    }
+
+    const requiredConformance = asStringArray(languageRow.requiredConformance);
+    if (requiredConformance.length === 0) {
+      rowErrors.push('language profile requiredConformance must not be empty');
+    }
+
+    for (const conformanceLevel of requiredConformance) {
+      const expectedLane = CONFORMANCE_LANE_BY_LEVEL[conformanceLevel];
+      if (!expectedLane) {
+        rowErrors.push(`unsupported requiredConformance level: ${conformanceLevel}`);
+        continue;
+      }
+      if (knownLaneSet.size > 0 && !knownLaneSet.has(expectedLane)) {
+        rowErrors.push(`missing lane for requiredConformance ${conformanceLevel}: ${expectedLane}`);
+      }
+    }
+
+    if (asStringArray(languageRow.frameworkProfiles).length > 0 && !requiredConformance.includes('C4')) {
+      rowWarnings.push('language profile with framework overlays should include C4 conformance requirement');
+    }
+
+    if (rowErrors.length > 0) {
+      errors.push(...rowErrors.map((message) => `${languageRow.id} ${message}`));
+    }
+    if (rowWarnings.length > 0) {
+      warnings.push(...rowWarnings.map((message) => `${languageRow.id} ${message}`));
+    }
+
+    rows.push({
+      profileType: 'language',
+      profileId: languageRow.id,
+      batchId: batchByLanguageId.get(languageRow.id) || null,
+      hasFixtureCoverage: languageFixtureIds.has(languageRow.id),
+      pass: rowErrors.length === 0,
+      errors: Object.freeze([...rowErrors]),
+      warnings: Object.freeze([...rowWarnings])
+    });
+  }
+
+  for (const frameworkRow of frameworkRows) {
+    const rowErrors = [];
+    const rowWarnings = [];
+
+    const appliesToLanguages = asStringArray(frameworkRow.appliesToLanguages);
+    if (appliesToLanguages.length === 0) {
+      rowErrors.push('framework profile appliesToLanguages must not be empty');
+    }
+
+    if (!frameworkFixtureIds.has(frameworkRow.id)) {
+      rowWarnings.push('framework profile is missing fixture-governance coverage');
+    }
+
+    for (const languageId of appliesToLanguages) {
+      const languageRow = languageById.get(languageId);
+      if (!languageRow) {
+        rowErrors.push(`framework appliesToLanguages references unknown language: ${languageId}`);
+        continue;
+      }
+      const languageFrameworks = asStringArray(languageRow.frameworkProfiles);
+      if (!languageFrameworks.includes(frameworkRow.id)) {
+        rowErrors.push(`framework mapping missing inverse language profile linkage: ${languageId}`);
+      }
+    }
+
+    if (rowErrors.length > 0) {
+      errors.push(...rowErrors.map((message) => `${frameworkRow.id} ${message}`));
+    }
+    if (rowWarnings.length > 0) {
+      warnings.push(...rowWarnings.map((message) => `${frameworkRow.id} ${message}`));
+    }
+
+    rows.push({
+      profileType: 'framework',
+      profileId: frameworkRow.id,
+      batchId: null,
+      hasFixtureCoverage: frameworkFixtureIds.has(frameworkRow.id),
+      pass: rowErrors.length === 0,
+      errors: Object.freeze([...rowErrors]),
+      warnings: Object.freeze([...rowWarnings])
+    });
+  }
+
+  return {
+    ok: errors.length === 0,
+    errors: Object.freeze([...errors]),
+    warnings: Object.freeze([...warnings]),
+    rows: Object.freeze(rows)
+  };
+}
+
 const USR_VERSION_PATTERN = /^usr-\d+\.\d+\.\d+$/;
 const REQUIRED_BACKCOMPAT_IDS = Object.freeze(
   new Set(Array.from({ length: 12 }, (_, index) => `BC-${String(index + 1).padStart(3, '0')}`))
