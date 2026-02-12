@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { search as coreSearch } from '../../integrations/core/index.js';
 import { createError, ERROR_CODES } from '../../shared/error-codes.js';
+import { isAbortError } from '../../shared/abort.js';
 import { stableStringify } from '../../shared/stable-json.js';
 import { createIndexCache } from '../index-cache.js';
 import { createSqliteDbCache } from '../sqlite-cache.js';
@@ -122,6 +123,14 @@ const sortDiagnostics = (entries) => entries.slice().sort((a, b) => (
   String(a?.repoId || '').localeCompare(String(b?.repoId || ''))
   || String(a?.status || '').localeCompare(String(b?.status || ''))
 ));
+
+const isFederatedAbortError = (error, signal = null) => (
+  isAbortError(error)
+  || error?.code === ERROR_CODES.CANCELLED
+  || error?.code === 'ERR_ABORTED'
+  || error?.cancelled === true
+  || signal?.aborted === true
+);
 
 export const applyCohortPolicy = (input) => selectFederationCohorts(input);
 
@@ -465,19 +474,20 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
         });
         diagnostics.push({ repoId: repo.repoId, status: 'ok' });
       } catch (error) {
+        const aborted = isFederatedAbortError(error, context.signal);
         perRepoErrors.push({
           repoId: repo.repoId,
           error
         });
         diagnostics.push({
           repoId: repo.repoId,
-          status: error?.code === ERROR_CODES.NO_INDEX ? 'missing_index' : 'error',
+          status: aborted ? 'cancelled' : error?.code === ERROR_CODES.NO_INDEX ? 'missing_index' : 'error',
           error: {
             code: error?.code || ERROR_CODES.INTERNAL,
             message: error?.message || String(error)
           }
         });
-        if (strictFailures) {
+        if (strictFailures || aborted) {
           throw error;
         }
       }
@@ -487,6 +497,9 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
   try {
     await Promise.all(workers);
   } catch (error) {
+    if (isFederatedAbortError(error, context.signal)) {
+      throw error;
+    }
     const strictError = createError(
       ERROR_CODES.INTERNAL,
       `Federated search failed in strict mode: ${error?.message || error}`
