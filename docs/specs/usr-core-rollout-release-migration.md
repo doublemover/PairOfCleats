@@ -184,6 +184,14 @@ Phase 15.1 CI gate-integrity lock requirements:
 - `Enforce section 36 strict scenario blocking behavior and non-strict warning budgets.` cannot be checked unless `backcompat/backcompat-matrix-validation` remains present in required CI lanes.
 - If any Phase 15.1 CI-gate prerequisite regresses, Phase 15 exit must be reopened.
 
+Phase 15.3 maintenance-integrity lock requirements:
+
+- Each Phase 15.3 maintenance checklist line can be checked only if its corresponding governance validators remain present in `ci` and `ci-lite` lane manifests.
+- `Enforce USR spec change-control policy linkage in PR templates.` cannot be checked unless PR template policy and change-tier validators remain present in required CI lanes.
+- `Enforce parser/runtime lock update workflow with impact and fallback evidence in PR templates.` cannot be checked unless parser/runtime lock reproducibility validators remain present in required CI lanes.
+- `Enforce waiver-policy update workflow and expiry review cadence in PR/release templates.` cannot be checked unless waiver-policy and PR/release template validators remain present in required CI lanes.
+- If any Phase 15.3 maintenance prerequisite regresses, Phase 15 exit must be reopened.
+
 ## Rollback policy
 
 Rollback must provide:

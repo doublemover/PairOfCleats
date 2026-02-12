@@ -46,6 +46,7 @@ const requiredSpecAnchors = [
   'Phase 15 exit-completion lock requirements:',
   'Phase 15.2 reporting-integrity lock requirements:',
   'Phase 15.1 CI gate-integrity lock requirements:',
+  'Phase 15.3 maintenance-integrity lock requirements:',
   '## Rollback policy',
   '## Required outputs'
 ];
@@ -111,6 +112,7 @@ const requiredCiTests = [
   'lang/contracts/usr-gate-c-authorization-chain-validation',
   'lang/contracts/usr-phase15-ci-gate-lock-validation',
   'lang/contracts/usr-phase15-reporting-lock-validation',
+  'lang/contracts/usr-phase15-maintenance-lock-validation',
   'lang/contracts/usr-phase15-exit-lock-validation',
   'lang/contracts/usr-rollout-approval-lock-validation',
   'lang/contracts/usr-runtime-config-feature-flag-validation',
