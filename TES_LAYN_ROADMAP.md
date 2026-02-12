@@ -1,6 +1,6 @@
 # TES_LAYN_ROADMAP - USR-Aligned Language and Framework Execution Master Plan
 
-Last rewritten: 2026-02-12T06:24:31Z
+Last rewritten: 2026-02-12T06:27:03Z
 Branch: `usr-skyforge-primer`
 Document status: active master plan baseline v1.5
 
@@ -418,7 +418,7 @@ If contradictions are found:
 - [x] Ensure every per-language contract has concrete fixture ID mappings and fixture family coverage.
 - [x] Add fixture-governance policy rows for every blocking fixture family and framework overlay fixture.
 - [ ] Add fixture ownership/reviewer assignment checks for all blocking fixtures.
-- [ ] Add fixture mutation-policy tags (`require-rfc|require-review|allow-generated-refresh`) and validate policy coverage.
+- [x] Add fixture mutation-policy tags (`require-rfc|require-review|allow-generated-refresh`) and validate policy coverage.
 - [x] Enforce fixture-governance coverage floor for every language/framework profile across required conformance levels and semantic families.
 
 ### 7.2 Golden generation and review
