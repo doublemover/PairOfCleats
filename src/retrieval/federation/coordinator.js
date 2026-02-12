@@ -144,6 +144,17 @@ const coerceNumber = (value, fallback, min = 1, max = Number.POSITIVE_INFINITY) 
   return Math.min(max, Math.max(min, base));
 };
 
+/**
+ * Resolve explicit repo-select tokens from federated request input.
+ *
+ * Accepts string/array selector forms and object forms with `repos`/`select`.
+ * Non-selector objects (for example `{ includeDisabled: true }`) resolve to an
+ * empty list so selection metadata/cache keys do not contain coerced
+ * `[object Object]` artifacts.
+ *
+ * @param {unknown} selectInput
+ * @returns {string|string[]}
+ */
 const resolveSelectTokens = (selectInput) => {
   if (typeof selectInput === 'string' || Array.isArray(selectInput)) return selectInput;
   if (!selectInput || typeof selectInput !== 'object') return [];
