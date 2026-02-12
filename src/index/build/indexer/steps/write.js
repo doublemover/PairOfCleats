@@ -139,6 +139,7 @@ export const writeIndexArtifactsForMode = async ({
       generatedAt: new Date().toISOString(),
       artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
       compatibilityKey: runtime.compatibilityKey || null,
+      cohortKey: runtime.cohortKeys?.[mode] || runtime.compatibilityKey || null,
       buildId: runtime.buildId || null,
       repoId: runtime.repoId || null,
       mode,

@@ -202,6 +202,7 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
     generatedAt: new Date().toISOString(),
     artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     compatibilityKey: runtime.compatibilityKey || null,
+    cohortKey: runtime.cohortKeys?.records || runtime.compatibilityKey || null,
     buildId: runtime.buildId || null,
     repoId: runtime.repoId || null,
     mode: 'records',

@@ -74,3 +74,21 @@ export const buildCompatibilityKey = ({ runtime, modes, tokenizationKeys }) => {
   };
   return sha1(stableStringify(payload));
 };
+
+export const buildCohortKey = ({ runtime, mode, tokenizationKeys }) => {
+  const parsed = parseSemver(ARTIFACT_SURFACE_VERSION);
+  const normalizedMode = typeof mode === 'string' ? mode.trim() : '';
+  const payload = {
+    artifactSurfaceMajor: parsed?.major ?? null,
+    schemaHash: ARTIFACT_SCHEMA_HASH,
+    tokenizationKey: normalizedMode
+      ? (tokenizationKeys?.[normalizedMode] || null)
+      : null,
+    embeddingsKey: buildEmbeddingsKey(runtime),
+    languagePolicyKey: buildLanguagePolicyKey(runtime),
+    chunkIdAlgoVersion: CHUNK_ID_ALGO_VERSION,
+    sqliteSchemaVersion: SQLITE_SCHEMA_VERSION,
+    mode: normalizedMode || null
+  };
+  return sha1(stableStringify(payload));
+};

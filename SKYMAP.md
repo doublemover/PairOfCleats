@@ -918,28 +918,28 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
 > **Authoritative contract:** `docs/contracts/compatibility-key.md`
 > **Authoritative spec:** `docs/specs/federation-cohorts.md`
 
-- [ ] Do not duplicate compatibility key computation.
-  - [ ] Continue computing `compatibilityKey` at index time via `buildCompatibilityKey`.
-  - [ ] Ensure it is persisted to `index_state.json` (and `pieces/manifest.json` where relevant).
+- [x] Do not duplicate compatibility key computation.
+  - [x] Continue computing `compatibilityKey` at index time via `buildCompatibilityKey`.
+  - [x] Ensure it is persisted to `index_state.json` (and `pieces/manifest.json` where relevant).
 
-- [ ] Add a federation-specific `cohortKey` (mode-scoped) and persist it.
-  - [ ] Compute `cohortKey` per mode from the same input family as `compatibilityKey`, but scoped so it does not change merely because other modes were built.
-  - [ ] Persist `cohortKey` into `<indexDir>/index_state.json` alongside `compatibilityKey`.
-  - [ ] Back-compat: if `cohortKey` is absent, federation uses `compatibilityKey`.
-  - [ ] Update workspace manifest generation (15.2) to read `cohortKey` and include it per mode.
+- [x] Add a federation-specific `cohortKey` (mode-scoped) and persist it.
+  - [x] Compute `cohortKey` per mode from the same input family as `compatibilityKey`, but scoped so it does not change merely because other modes were built.
+  - [x] Persist `cohortKey` into `<indexDir>/index_state.json` alongside `compatibilityKey`.
+  - [x] Back-compat: if `cohortKey` is absent, federation uses `compatibilityKey`.
+  - [x] Update workspace manifest generation (15.2) to read `cohortKey` and include it per mode.
 
-- [ ] Implement cohort partitioning in the federation coordinator (per mode).
-  - [ ] Partition repos by `effectiveKey = cohortKey ?? compatibilityKey ?? null`.
-  - [ ] Default policy: choose highest-ranked cohort, exclude others, emit `WARN_FEDERATED_MULTI_COHORT`.
-  - [ ] Ranking must be deterministic and documented:
-    - [ ] prefer cohort with most repos
-    - [ ] tie-break by highest total priority
-    - [ ] final tie-break by lexical cohort key
-  - [ ] Strict policy: error on multi-cohort (`ERR_FEDERATED_MULTI_COHORT`).
-  - [ ] Explicit selection: `--cohort <key>` or `--cohort <mode>:<key>`.
-  - [ ] Unsafe mixing: `--allow-unsafe-mix` with loud warning `WARN_FEDERATED_UNSAFE_MIXING`.
+- [x] Implement cohort partitioning in the federation coordinator (per mode).
+  - [x] Partition repos by `effectiveKey = cohortKey ?? compatibilityKey ?? null`.
+  - [x] Default policy: choose highest-ranked cohort, exclude others, emit `WARN_FEDERATED_MULTI_COHORT`.
+  - [x] Ranking must be deterministic and documented:
+    - [x] prefer cohort with most repos
+    - [x] tie-break by highest total priority
+    - [x] final tie-break by lexical cohort key
+  - [x] Strict policy: error on multi-cohort (`ERR_FEDERATED_MULTI_COHORT`).
+  - [x] Explicit selection: `--cohort <key>` or `--cohort <mode>:<key>`.
+  - [x] Unsafe mixing: `--allow-unsafe-mix` with loud warning `WARN_FEDERATED_UNSAFE_MIXING`.
 
-- [ ] Update `docs/specs/workspace-manifest.md` and `docs/specs/federated-search.md` to reflect cohortKey (fallback to compatibilityKey).
+- [x] Update `docs/specs/workspace-manifest.md` and `docs/specs/federated-search.md` to reflect cohortKey (fallback to compatibilityKey).
 
 **Touchpoints:**
 - `src/contracts/compatibility.js`
@@ -949,9 +949,9 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
 - `src/workspace/manifest.js`
 
 **Tests**
-- [ ] `tests/retrieval/federation/compat-cohort-defaults.test.js`
-- [ ] `tests/retrieval/federation/compat-cohort-determinism.test.js`
-- [ ] `tests/retrieval/federation/compat-cohort-explicit-selection.test.js`
+- [x] `tests/retrieval/federation/compat-cohort-defaults.test.js`
+- [x] `tests/retrieval/federation/compat-cohort-determinism.test.js`
+- [x] `tests/retrieval/federation/compat-cohort-explicit-selection.test.js`
 
 ---
 
