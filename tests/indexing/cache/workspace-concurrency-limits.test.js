@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { runFederatedSearch } from '../../../src/retrieval/federation/coordinator.js';
+import { getRepoCacheRoot } from '../../../tools/shared/dict-utils.js';
 
 process.env.PAIROFCLEATS_TESTING = '1';
 
@@ -19,6 +20,20 @@ for (let i = 0; i < repoCount; i += 1) {
   await fs.mkdir(repoRoot, { recursive: true });
   await fs.writeFile(path.join(repoRoot, '.pairofcleats.json'), JSON.stringify({
     cache: { root: cacheRoot }
+  }, null, 2), 'utf8');
+  const repoCacheRoot = getRepoCacheRoot(repoRoot);
+  const buildRoot = path.join(repoCacheRoot, 'builds', 'test-build');
+  const codeIndexDir = path.join(buildRoot, 'index-code');
+  await fs.mkdir(codeIndexDir, { recursive: true });
+  await fs.writeFile(path.join(repoCacheRoot, 'builds', 'current.json'), JSON.stringify({
+    buildId: 'test-build',
+    buildRoot,
+    modes: ['code']
+  }, null, 2), 'utf8');
+  await fs.writeFile(path.join(codeIndexDir, 'chunk_meta.json'), '[]', 'utf8');
+  await fs.writeFile(path.join(codeIndexDir, 'token_postings.json'), '{}', 'utf8');
+  await fs.writeFile(path.join(codeIndexDir, 'index_state.json'), JSON.stringify({
+    compatibilityKey: 'compat-concurrency'
   }, null, 2), 'utf8');
 }
 
