@@ -70,6 +70,7 @@ const requiredCiTests = [
   'lang/contracts/usr-f5-hard-requirements-validation',
   'lang/contracts/usr-f6-sync-requirements-validation',
   'lang/contracts/usr-rollout-migration-policy-validation',
+  'lang/contracts/usr-archival-deprecation-policy-validation',
   'backcompat/backcompat-matrix-validation',
   'lang/contracts/usr-runtime-config-feature-flag-validation',
   'lang/contracts/usr-failure-injection-validation',
