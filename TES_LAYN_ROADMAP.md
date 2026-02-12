@@ -1466,7 +1466,7 @@ Required supporting docs for implementation execution and governance:
 Roadmap enforcement requirements:
 
 - [x] Every phase gate links to at least one concrete evidence artifact in `docs/specs/usr-core-evidence-gates-waivers.md`.
-- [ ] Every blocking evidence artifact has an active schema in `docs/schemas/usr/*.json` and a row in `docs/specs/usr-core-artifact-schema-catalog.md`.
+- [x] Every blocking evidence artifact has an active schema in `docs/schemas/usr/*.json` and a row in `docs/specs/usr-core-artifact-schema-catalog.md`.
 - [x] CI contract enforcement follows `docs/guides/usr-contract-enforcement.md`.
 - [x] New language onboarding follows `docs/guides/usr-new-language-onboarding.md`.
 - [x] Framework onboarding and interop expectations follow `docs/specs/usr-core-language-framework-catalog.md`.
