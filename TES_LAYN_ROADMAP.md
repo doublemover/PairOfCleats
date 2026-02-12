@@ -221,7 +221,7 @@ If contradictions are found:
 - [x] Add runtime config resolution validator enforcing precedence and strict-mode behavior contract.
 - [x] Enforce strict ID grammar validation.
 - [x] Enforce strict edge endpoint constraints.
-- [ ] Enforce strict diagnostic code/reason-code enum validation (USR section 33).
+- [x] Enforce strict diagnostic code/reason-code enum validation (USR section 33).
 - [ ] Enforce strict canonical example fixture validation rules (USR section 34.11).
 
 ### 1.3 Drift and completeness checks
