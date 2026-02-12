@@ -10,6 +10,7 @@ import {
   removeSnapshot,
   showSnapshot
 } from '../src/index/snapshots/create.js';
+import { freezeSnapshot, gcSnapshots } from '../src/index/snapshots/freeze.js';
 
 const parseTags = (value, repeated = []) => {
   const csv = String(value || '')
@@ -77,6 +78,89 @@ export async function runSnapshotCli(rawArgs = process.argv.slice(2)) {
           process.stderr.write(
             `Created snapshot ${result.snapshotId} (${result.modes.join(', ')})\n`
           );
+        }
+      } catch (err) {
+        emitError(err, argv.json === true);
+        process.exitCode = 1;
+      }
+    }
+  );
+
+  parser.command(
+    'freeze <snapshotId>',
+    'Freeze a pointer snapshot into immutable frozen roots',
+    (command) => command
+      .positional('snapshotId', { type: 'string', demandOption: true })
+      .option('repo', { type: 'string' })
+      .option('modes', { type: 'string' })
+      .option('method', { type: 'string', default: 'hardlink' })
+      .option('verify', { type: 'boolean', default: true })
+      .option('include-sqlite', { type: 'string', default: 'auto' })
+      .option('include-lmdb', { type: 'boolean', default: false })
+      .option('wait-ms', { type: 'number', default: 0 })
+      .option('json', { type: 'boolean', default: false }),
+    async (argv) => {
+      try {
+        const { repoRoot, userConfig } = resolveRepoConfig(argv.repo);
+        const result = await freezeSnapshot({
+          repoRoot,
+          userConfig,
+          snapshotId: argv.snapshotId,
+          modes: argv.modes,
+          method: argv.method,
+          verify: argv.verify !== false,
+          includeSqlite: argv['include-sqlite'],
+          includeLmdb: argv['include-lmdb'] === true,
+          waitMs: argv['wait-ms']
+        });
+        if (argv.json) {
+          emitJson({ ok: true, freeze: result });
+        } else if (result.alreadyFrozen) {
+          process.stderr.write(`Snapshot ${result.snapshotId} already frozen\n`);
+        } else {
+          process.stderr.write(
+            `Frozen snapshot ${result.snapshotId} (${result.modes.join(', ')})\n`
+          );
+        }
+      } catch (err) {
+        emitError(err, argv.json === true);
+        process.exitCode = 1;
+      }
+    }
+  );
+
+  parser.command(
+    'gc',
+    'Garbage-collect old snapshots with protected-tag safety',
+    (command) => command
+      .option('repo', { type: 'string' })
+      .option('keep-pointer', { type: 'number', default: 50 })
+      .option('keep-frozen', { type: 'number', default: 20 })
+      .option('keep-tags', { type: 'string', default: 'release/*,release' })
+      .option('max-age-days', { type: 'number' })
+      .option('staging-max-age-hours', { type: 'number', default: 24 })
+      .option('wait-ms', { type: 'number', default: 0 })
+      .option('dry-run', { type: 'boolean', default: false })
+      .option('json', { type: 'boolean', default: false }),
+    async (argv) => {
+      try {
+        const { repoRoot, userConfig } = resolveRepoConfig(argv.repo);
+        const result = await gcSnapshots({
+          repoRoot,
+          userConfig,
+          keepPointer: argv['keep-pointer'],
+          keepFrozen: argv['keep-frozen'],
+          keepTags: argv['keep-tags'],
+          maxAgeDays: argv['max-age-days'],
+          stagingMaxAgeHours: argv['staging-max-age-hours'],
+          waitMs: argv['wait-ms'],
+          dryRun: argv['dry-run'] === true
+        });
+        if (argv.json) {
+          emitJson({ ok: true, gc: result });
+        } else {
+          const prefix = result.dryRun ? '[dry-run] ' : '';
+          process.stderr.write(`${prefix}GC removed ${result.removed.length} snapshot(s)\n`);
         }
       } catch (err) {
         emitError(err, argv.json === true);

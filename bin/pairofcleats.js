@@ -64,12 +64,21 @@ function resolveCommand(primary, rest) {
         rest,
         [
           'repo',
+          'snapshot',
           'modes',
           'id',
           'label',
+          'notes',
           'tags',
           'tag',
+          'method',
+          'include-sqlite',
           'wait-ms',
+          'keep-frozen',
+          'keep-pointer',
+          'keep-tags',
+          'max-age-days',
+          'staging-max-age-hours',
           'max-pointer-snapshots',
           'dry-run',
           'force',
@@ -77,12 +86,23 @@ function resolveCommand(primary, rest) {
         ],
         [
           'repo',
+          'snapshot',
           'modes',
           'id',
           'label',
+          'notes',
           'tags',
           'tag',
+          'method',
+          'verify',
+          'include-sqlite',
+          'include-lmdb',
           'wait-ms',
+          'keep-frozen',
+          'keep-pointer',
+          'keep-tags',
+          'max-age-days',
+          'staging-max-age-hours',
           'max-pointer-snapshots'
         ]
       );
@@ -698,7 +718,7 @@ Index:
   index build             Build file-backed indexes
   index watch             Watch and rebuild indexes incrementally
   index validate          Validate index artifacts
-  index snapshot          Manage index snapshots (create/list/show/rm)
+  index snapshot          Manage index snapshots (create/list/show/rm/freeze/gc)
 
 Search:
   search "<query>"         Query indexed data

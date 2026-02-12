@@ -580,11 +580,11 @@ Optional API:
 
 ## 14.3 Frozen snapshots
 
-- [ ] Implement `snapshot freeze`:
-  - [ ] Create `frozen.staging-*` then hardlink/copy artifacts listed in `pieces/manifest.json`.
-  - [ ] Verify checksums; on success rename staging -> `frozen/` and write `frozen.json`.
-  - [ ] Update manifest `hasFrozen=true`.
-- [ ] Stale staging cleanup and idempotency behavior.
+- [x] Implement `snapshot freeze`:
+  - [x] Create `frozen.staging-*` then hardlink/copy artifacts listed in `pieces/manifest.json`.
+  - [x] Verify checksums; on success rename staging -> `frozen/` and write `frozen.json`.
+  - [x] Update manifest `hasFrozen=true`.
+- [x] Stale staging cleanup and idempotency behavior.
 
 Touchpoints:
 - `src/index/snapshots/freeze.js`
@@ -592,7 +592,7 @@ Touchpoints:
 - `src/shared/hash.js` (checksum)
 
 Tests:
-- [ ] `tests/services/snapshot-freeze.test.js`
+- [x] `tests/services/snapshot-freeze.test.js`
 
 ---
 
