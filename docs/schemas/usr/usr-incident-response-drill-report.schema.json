@@ -22,5 +22,10 @@
       }
     }
   },
-  "unevaluatedProperties": false
+  "unevaluatedProperties": false,
+  "required": [
+    "artifactId",
+    "summary",
+    "rows"
+  ]
 }

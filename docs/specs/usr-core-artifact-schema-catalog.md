@@ -1,7 +1,7 @@
 # Spec -- USR Core Artifact and Schema Catalog
 
 Status: Draft v2.0
-Last updated: 2026-02-11T09:20:00Z
+Last updated: 2026-02-12T00:35:00Z
 
 ## Purpose
 
@@ -54,7 +54,10 @@ All blocking evidence artifacts must include:
 - `artifactId`
 - `generatedAt`
 - `producerId`
+- `runId`
 - `lane`
+- `buildId` (or null for non-build harness runs)
+- `status`
 - `scope`
 - `summary`
 
