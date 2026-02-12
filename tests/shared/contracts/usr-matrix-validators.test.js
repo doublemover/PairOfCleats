@@ -17,6 +17,8 @@ import {
   validateUsrBenchmarkMethodology,
   evaluateUsrBenchmarkRegression,
   buildUsrBenchmarkRegressionReport,
+  evaluateUsrObservabilityRollup,
+  buildUsrObservabilityRollupReport,
   validateUsrSecurityGateControls,
   buildUsrSecurityGateValidationReport,
   validateUsrLanguageBatchShards,
@@ -367,6 +369,54 @@ const benchmarkRegressionNegative = evaluateUsrBenchmarkRegression({
   }
 });
 assert.equal(benchmarkRegressionNegative.ok, false, 'benchmark regression evaluation must fail when blocking benchmark thresholds are exceeded');
+
+const observabilityAlertPoliciesPath = path.join(matrixDir, 'usr-alert-policies.json');
+const observabilityAlertPolicies = JSON.parse(fs.readFileSync(observabilityAlertPoliciesPath, 'utf8'));
+const observedLaneMetrics = Object.fromEntries((sloBudgets.rows || []).map((row) => [
+  row.laneId,
+  {
+    durationMs: Math.max(1, Math.min(row.maxDurationMs - 1, 1190000)),
+    peakMemoryMb: Math.max(1, Math.min(row.maxMemoryMb - 1, 4000)),
+    parserTimePerSegmentMs: Math.max(1, row.maxParserTimePerSegmentMs - 1),
+    unknownKindRate: Math.max(0, Math.min(0.01, row.maxUnknownKindRate / 2)),
+    unresolvedRate: Math.max(0, Math.min(0.01, row.maxUnresolvedRate / 2)),
+    capabilityDowngradeRate: 0,
+    criticalDiagnosticCount: 0,
+    redactionFailureCount: 0
+  }
+]));
+
+const observabilityRollup = evaluateUsrObservabilityRollup({
+  sloBudgetsPayload: sloBudgets,
+  alertPoliciesPayload: observabilityAlertPolicies,
+  observedLaneMetrics
+});
+assert.equal(observabilityRollup.ok, true, `observability rollup should pass: ${observabilityRollup.errors.join('; ')}`);
+
+const observabilityReport = buildUsrObservabilityRollupReport({
+  sloBudgetsPayload: sloBudgets,
+  alertPoliciesPayload: observabilityAlertPolicies,
+  observedLaneMetrics,
+  runId: 'run-usr-observability-rollup-001',
+  lane: 'ci'
+});
+assert.equal(observabilityReport.ok, true, `observability rollup report should pass: ${observabilityReport.errors.join('; ')}`);
+const observabilityReportValidation = validateUsrReport('usr-observability-rollup', observabilityReport.payload);
+assert.equal(observabilityReportValidation.ok, true, `observability rollup report payload must validate: ${observabilityReportValidation.errors.join('; ')}`);
+
+const observabilityNegative = evaluateUsrObservabilityRollup({
+  sloBudgetsPayload: sloBudgets,
+  alertPoliciesPayload: observabilityAlertPolicies,
+  observedLaneMetrics: {
+    ...observedLaneMetrics,
+    [sloBudgets.rows[0].laneId]: {
+      ...observedLaneMetrics[sloBudgets.rows[0].laneId],
+      unknownKindRate: sloBudgets.rows[0].maxUnknownKindRate + 0.01,
+      redactionFailureCount: 1
+    }
+  }
+});
+assert.equal(observabilityNegative.ok, false, 'observability rollup must fail on blocking SLO/alert threshold breaches');
 
 const languageProfilesPath = path.join(matrixDir, 'usr-language-profiles.json');
 const languageProfiles = JSON.parse(fs.readFileSync(languageProfilesPath, 'utf8'));
