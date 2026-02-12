@@ -57,6 +57,7 @@ assert.equal(phaseSevenGoldenSection.includes('- [x] Add fixture-to-roadmap link
 
 const phaseEightPerformanceSection = extractSection(roadmapText, '### 8.3 Performance thresholds', '### 8.4 Exit criteria');
 assert.equal(phaseEightPerformanceSection.includes('- [x] Define per-batch runtime/memory thresholds.'), true, 'phase 8.3 must retain per-batch runtime/memory threshold control');
+assert.equal(phaseEightPerformanceSection.includes('- [x] Add per-batch profiling and hotspot reporting.'), true, 'phase 8.3 must retain per-batch profiling/hotspot control');
 assert.equal(phaseEightPerformanceSection.includes('- [x] Validate parser/runtime lock reproducibility and update budget for lock-file upgrades.'), true, 'phase 8.3 must retain parser/runtime lock reproducibility and upgrade-budget control');
 assert.equal(phaseEightPerformanceSection.includes('- [x] Enforce benchmark policy methodology (warmup/measure runs, percentile targets, variance budgets) for blocking lanes.'), true, 'phase 8.3 must retain benchmark methodology enforcement control');
 assert.equal(phaseEightPerformanceSection.includes('- [x] Materialize benchmark regression artifacts and promotion-gate evaluation.'), true, 'phase 8.3 must retain benchmark regression artifact/promotion control');

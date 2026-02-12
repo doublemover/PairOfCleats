@@ -38,6 +38,7 @@ const evaluation = evaluateUsrObservabilityRollup({
 assert.equal(evaluation.ok, true, `observability rollup evaluation should pass: ${evaluation.errors.join('; ')}`);
 assert.equal(evaluation.rows.some((row) => row.rowType === 'slo-budget'), true, 'observability rollup should emit slo-budget rows');
 assert.equal(evaluation.rows.some((row) => row.rowType === 'alert-evaluation'), true, 'observability rollup should emit alert-evaluation rows');
+assert.equal(evaluation.rows.some((row) => row.rowType === 'batch-hotspot'), true, 'observability rollup should emit batch-hotspot rows');
 
 const rollupReport = buildUsrObservabilityRollupReport({
   sloBudgetsPayload: sloBudgets,
@@ -48,6 +49,11 @@ const rollupReport = buildUsrObservabilityRollupReport({
   producerId: 'usr-observability-rollup-harness'
 });
 assert.equal(rollupReport.ok, true, `observability rollup report should pass: ${rollupReport.errors.join('; ')}`);
+assert.equal(Number.isInteger(rollupReport.payload.summary.batchHotspotRowCount), true, 'observability rollup summary must include batchHotspotRowCount');
+assert.equal(rollupReport.payload.summary.batchHotspotRowCount > 0, true, 'observability rollup summary must include batch hotspot rows');
+assert.equal(Number.isInteger(rollupReport.payload.summary.durationHotspotCount), true, 'observability rollup summary must include durationHotspotCount');
+assert.equal(Number.isInteger(rollupReport.payload.summary.memoryHotspotCount), true, 'observability rollup summary must include memoryHotspotCount');
+assert.equal(Number.isInteger(rollupReport.payload.summary.parserTimeHotspotCount), true, 'observability rollup summary must include parserTimeHotspotCount');
 const reportValidation = validateUsrReport('usr-observability-rollup', rollupReport.payload);
 assert.equal(reportValidation.ok, true, `observability rollup report payload must validate: ${reportValidation.errors.join('; ')}`);
 
