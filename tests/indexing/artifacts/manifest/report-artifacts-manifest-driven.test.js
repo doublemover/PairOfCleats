@@ -3,15 +3,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { getStatus } from '../../../../src/integrations/core/status.js';
-import { getIndexDir, loadUserConfig } from '../../../../tools/shared/dict-utils.js';
+import { getIndexDir, getRepoRoot, loadUserConfig } from '../../../../tools/shared/dict-utils.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../../src/contracts/versioning.js';
+import { makeTempDir, rmDirRecursive } from '../../../helpers/temp.js';
 
-const root = process.cwd();
-const cacheRoot = path.join(root, '.testCache', 'report-artifacts-manifest');
-await fs.rm(cacheRoot, { recursive: true, force: true });
-await fs.mkdir(cacheRoot, { recursive: true });
-
-const repoRoot = path.join(cacheRoot, 'repo');
+const cacheRoot = await makeTempDir('pairofcleats-report-artifacts-manifest-');
+const repoRootInput = path.join(cacheRoot, 'repo');
+const repoRoot = getRepoRoot(repoRootInput);
 await fs.mkdir(repoRoot, { recursive: true });
 
 const prevCacheRoot = process.env.PAIROFCLEATS_CACHE_ROOT;
@@ -56,4 +54,5 @@ if (prevCacheRoot === undefined) {
 } else {
   process.env.PAIROFCLEATS_CACHE_ROOT = prevCacheRoot;
 }
+await rmDirRecursive(cacheRoot);
 
