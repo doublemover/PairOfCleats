@@ -63,6 +63,7 @@ assertExists('tests/lang/matrix/usr-framework-edge-cases.json', 'F.6.3 framework
 assertExists('tests/lang/matrix/usr-language-risk-profiles.json', 'F.6.3 language risk profile matrix');
 const frameworkRows = Array.isArray(frameworkProfiles.rows) ? frameworkProfiles.rows : [];
 assert.equal(frameworkRows.length > 0, true, 'F.6.3 framework profile registry must contain rows');
+assertTestInCiOrders('lang/contracts/usr-framework-contract-freshness-validation', 'F.6.3');
 assertTestInCiOrders('lang/contracts/usr-framework-canonicalization', 'F.6.3');
 assertTestInCiOrders('lang/contracts/usr-language-risk-profile-validation', 'F.6.3');
 
