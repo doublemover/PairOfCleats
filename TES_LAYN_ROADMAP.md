@@ -1625,3 +1625,10 @@ Source artifacts: `tests/lang/matrix/usr-ownership-matrix.json` and `tests/lang/
 - `Complete Phase C USR-backed production path validation.` cannot be checked unless Gate C operational/security/performance/threat/waiver evidence lines remain checked.
 - `Complete Phase D full conformance enforcement.` cannot be checked unless Phase 11.3, Phase 12.3, and Phase 13.2 exit criteria are checked and Gate C `conformance rollout authorized.` is checked.
 
+### N.15 Phase 9.2 go/no-go decision lock
+
+- `Block test rollout if any language lacks C0/C1 readiness.` cannot be checked unless Phase 11.3 exit criterion is checked and C0/C1 baseline conformance lane validators remain in required CI lanes.
+- `Block deep conformance if C2/C3 prerequisites are missing.` cannot be checked unless Phase 12.3 exit criterion is checked and C2/C3 baseline conformance lane validators remain in required CI lanes.
+- `Block framework conformance if C4 profile prerequisites are missing.` cannot be checked unless Phase 13.2 exit criterion is checked and C4 baseline conformance lane validators remain in required CI lanes.
+- If any Phase 9.2 go/no-go line regresses to unchecked prerequisites, readiness authorization lines in Phase 9.3 must be reopened.
+

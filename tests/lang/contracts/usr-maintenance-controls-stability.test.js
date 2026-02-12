@@ -114,6 +114,7 @@ const requiredCiTests = [
   'lang/contracts/usr-rollout-phase-gate-validation',
   'lang/contracts/usr-rollout-f1-checklist-validation',
   'lang/contracts/usr-rollout-phase-evidence-lock-validation',
+  'lang/contracts/usr-phase9-gonogo-decision-lock-validation',
   'lang/contracts/usr-phase9-readiness-authorization-lock-validation',
   'lang/contracts/usr-phase9-readiness-audit-lock-validation',
   'lang/contracts/usr-gate-b-language-batch-lock-validation',
