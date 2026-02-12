@@ -81,6 +81,12 @@ for (const registryId of requiredRegistries) {
   assert.equal(registryIds.includes(registryId), true, `expected validator registry list to include ${registryId}`);
 }
 
+const matrixRegistryIdsOnDisk = fs.readdirSync(matrixDir)
+  .filter((fileName) => fileName.endsWith('.json'))
+  .map((fileName) => fileName.slice(0, -'.json'.length))
+  .sort();
+assert.deepEqual([...registryIds].sort(), matrixRegistryIdsOnDisk, 'USR matrix validator registry IDs must exactly match tests/lang/matrix JSON registry files');
+
 const runtimePolicyPath = path.join(matrixDir, 'usr-runtime-config-policy.json');
 const runtimePolicy = JSON.parse(fs.readFileSync(runtimePolicyPath, 'utf8'));
 const negative = {
