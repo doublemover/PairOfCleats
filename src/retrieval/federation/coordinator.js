@@ -144,6 +144,14 @@ const coerceNumber = (value, fallback, min = 1, max = Number.POSITIVE_INFINITY) 
   return Math.min(max, Math.max(min, base));
 };
 
+const resolveSelectTokens = (selectInput) => {
+  if (typeof selectInput === 'string' || Array.isArray(selectInput)) return selectInput;
+  if (!selectInput || typeof selectInput !== 'object') return [];
+  if (typeof selectInput.repos === 'string' || Array.isArray(selectInput.repos)) return selectInput.repos;
+  if (typeof selectInput.select === 'string' || Array.isArray(selectInput.select)) return selectInput.select;
+  return [];
+};
+
 const sortDiagnostics = (entries) => entries.slice().sort((a, b) => (
   String(a?.repoId || '').localeCompare(String(b?.repoId || ''))
   || String(a?.status || '').localeCompare(String(b?.status || ''))
@@ -272,7 +280,7 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
   const requestedModes = resolveRequestedModes(request.search?.mode || request.mode);
   const selection = selectWorkspaceRepos({
     workspaceConfig,
-    select: request.select?.repos || request.select?.select || request.select,
+    select: resolveSelectTokens(request.select),
     tag: request.select?.tags ?? request.select?.tag ?? request.tags ?? request.tag,
     repoFilter: request.select?.repoFilter ?? request.select?.['repo-filter'] ?? request.repoFilter ?? request['repo-filter'],
     includeDisabled: request.select?.includeDisabled === true || request.includeDisabled === true
@@ -294,11 +302,11 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
     requestedModes.flatMap((mode) => (selectedByMode[mode] || []).map((repo) => repo.repoId))
   )).sort((a, b) => a.localeCompare(b));
 
-  const topN = coerceNumber(request.search?.top ?? request.top, 10, 1, MAX_FEDERATED_TOP);
+  const topN = coerceNumber(request.search?.top ?? request.top, 10, 0, MAX_FEDERATED_TOP);
   const perRepoTop = coerceNumber(
     request.limits?.perRepoTop ?? request.perRepoTop,
     Math.min(Math.max(topN * 2, topN), 50),
-    1,
+    0,
     MAX_FEDERATED_PER_REPO_TOP
   );
   const concurrency = coerceNumber(

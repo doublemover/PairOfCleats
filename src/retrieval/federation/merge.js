@@ -52,7 +52,7 @@ export const mergeFederatedResults = ({
     let insertIndex = 0;
     for (const repoResult of perRepoResults) {
       const hits = Array.isArray(repoResult?.result?.[payloadKey])
-        ? repoResult.result[payloadKey].slice(0, Math.max(1, perRepoTop))
+        ? repoResult.result[payloadKey].slice(0, Math.max(0, perRepoTop))
         : [];
       for (let i = 0; i < hits.length; i += 1) {
         const hit = hits[i];

@@ -87,10 +87,16 @@ const removeFlagPair = (rawArgs, name) => {
   return [...output, ...positional];
 };
 
-const normalizeTop = (value, fallback = 10) => {
+const normalizePositiveInt = (value, fallback = 10) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
   return Math.max(1, Math.floor(parsed));
+};
+
+const normalizeNonNegativeInt = (value, fallback = 10) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return fallback;
+  return Math.max(0, Math.floor(parsed));
 };
 
 /**
@@ -210,9 +216,9 @@ export const parseFederatedCliRequest = (rawArgs = []) => {
     throw error;
   }
 
-  const top = normalizeTop(argv.top ?? argv.n, 10);
-  const perRepoTop = normalizeTop(argv['top-per-repo'], Math.min(Math.max(top * 2, top), 50));
-  const concurrency = normalizeTop(argv.concurrency, 4);
+  const top = normalizeNonNegativeInt(argv.top ?? argv.n, 10);
+  const perRepoTop = normalizeNonNegativeInt(argv['top-per-repo'], Math.min(Math.max(top * 2, top), 50));
+  const concurrency = normalizePositiveInt(argv.concurrency, 4);
   const mode = normalizeMode(argv.mode);
 
   return {
@@ -225,7 +231,7 @@ export const parseFederatedCliRequest = (rawArgs = []) => {
     concurrency,
     merge: {
       strategy: typeof argv.merge === 'string' ? argv.merge.trim().toLowerCase() : 'rrf',
-      rrfK: normalizeTop(argv['rrf-k'], 60)
+      rrfK: normalizePositiveInt(argv['rrf-k'], 60)
     },
     select: {
       repos: normalizeList(argv.select),
