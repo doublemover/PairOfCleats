@@ -1,6 +1,6 @@
 # USR Contract Enforcement Guide
 
-Last updated: 2026-02-12T09:20:00Z
+Last updated: 2026-02-12T09:40:00Z
 
 ## Purpose
 
@@ -43,6 +43,7 @@ Define CI/local enforcement for the consolidated USR contract model.
 - `ci`: blocking validators, conformance checks, and gate evaluation (includes full USR contract enforcement suite)
 - `ci-long`: expanded compatibility matrix, drill checks, and stress/failure scenarios
 - `backcompat`: focused section 36 compatibility matrix contract coverage (`tests/backcompat/backcompat-matrix-validation.test.js`)
+- `diagnostics-summary`: focused diagnostic taxonomy strictness and capability-transition reporting checks (`tests/diagnostics/diagnostics-transition-validation.test.js`)
 - `runtime-config`: focused section 43 runtime config and feature-flag conflict enforcement (`tests/runtime-config/runtime-config-validation.test.js`)
 - `failure-injection`: focused section 44 strict/non-strict failure scenario enforcement (`tests/failure-injection/failure-injection-validation.test.js`)
 - `fixture-governance`: focused section 45 owner/reviewer/mutation-policy enforcement (`tests/fixture-governance/fixture-governance-validation.test.js`)

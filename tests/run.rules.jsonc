@@ -11,7 +11,7 @@
     "worktrees"
   ],
   "excludedFiles": ["run.js"],
-  "knownLanes": ["smoke", "unit", "ci-lite", "ci-long", "integration", "services", "api", "storage", "perf", "mcp", "ci", "backcompat", "runtime-config", "failure-injection", "fixture-governance", "benchmark-regression", "threat-model", "waiver-enforcement", "report-schema"],
+  "knownLanes": ["smoke", "unit", "ci-lite", "ci-long", "integration", "services", "api", "storage", "perf", "mcp", "ci", "backcompat", "diagnostics-summary", "runtime-config", "failure-injection", "fixture-governance", "benchmark-regression", "threat-model", "waiver-enforcement", "report-schema"],
   "laneRules": [
     { "lane": "perf", "match": ["^perf/"] },
     { "lane": "ci-lite", "match": ["^ci-lite/"] },
@@ -24,6 +24,12 @@
       "lane": "backcompat",
       "match": [
         "^backcompat/"
+      ]
+    },
+    {
+      "lane": "diagnostics-summary",
+      "match": [
+        "^diagnostics/"
       ]
     },
     {
