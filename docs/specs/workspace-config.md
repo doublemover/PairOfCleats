@@ -16,7 +16,7 @@ This spec is written to be *implementation-ready* in the existing PairOfCleats N
 
 1. Define a **workspace configuration file** that enumerates multiple repositories.
 2. Resolve each repo entry to a **canonical repo root**:
-   - must resolve subdirectories/files to the repo root (via existing repo-root detection),
+   - must resolve subdirectories to the repo root (via existing repo-root detection),
    - should resolve symlinks when possible (realpath),
    - must normalize Windows casing consistently.
 3. Compute:
@@ -110,7 +110,7 @@ Rationale:
 
 | Field | Type | Required | Default | Meaning |
 |---|---:|---:|---:|---|
-| `root` | string | yes | -- | Path to repo (dir or file). Relative paths are resolved from `workspaceDir`. |
+| `root` | string | yes | -- | Path to repo directory. Relative paths are resolved from `workspaceDir`. |
 | `alias` | string \| null | no | `null` | Human-friendly stable label; must be unique (case-insensitive). |
 | `enabled` | boolean | no | `defaults.enabled` | Excluded by default from "all repos" selection; explicit selection may still include. |
 | `priority` | integer | no | `defaults.priority` | Display/merge tie-breaker (after rank). |
@@ -146,15 +146,17 @@ For each repo entry:
    - Else: `rootAbs = path.resolve(workspaceDir, root)`
 2. `rootAbs` **MUST exist on disk** (`fs.existsSync(rootAbs)`), else error:
    - `ERR_WORKSPACE_REPO_ROOT_NOT_FOUND`
-3. Resolve repo root (not subdir):
+3. `rootAbs` **MUST be a directory** (`fs.statSync(rootAbs).isDirectory()`), else error:
+   - `ERR_WORKSPACE_REPO_ROOT_NOT_DIRECTORY`
+4. Resolve repo root (not subdir):
    - `repoRootResolved = resolveRepoRoot(rootAbs)`
    - `repoRootResolved` **MUST** be a non-empty string and **MUST exist**.
-4. Canonicalize:
+5. Canonicalize:
    - `repoRootCanonical = toRealPath(repoRootResolved)` (see §5.5)
    - `repoRootCanonical` **MUST** be non-empty.
 
 Notes:
-- `root` may point at a file *inside* the repo. This is supported: `resolveRepoRoot` will walk upward.
+- `root` must point at a directory (repo root or subdirectory inside the repo).
 - If `resolveRepoRoot` returns the input path unchanged but that is not an actual repo root (no `.git` / no `.pairofcleats.json` found), this is still acceptable for schemaVersion=1. The repo is treated as a "directory repo" rooted at that path.
 
 ### 5.4 String normalization
@@ -358,6 +360,7 @@ Required error codes:
 | `ERR_WORKSPACE_SCHEMA_VERSION` | schemaVersion missing/unsupported | include supported versions |
 | `ERR_WORKSPACE_REPOS_EMPTY` | repos missing/empty | instruct to add at least one repo |
 | `ERR_WORKSPACE_REPO_ROOT_NOT_FOUND` | repo `rootAbs` missing | include repo index + root |
+| `ERR_WORKSPACE_REPO_ROOT_NOT_DIRECTORY` | repo `rootAbs` is not a directory | include repo index + root |
 | `ERR_WORKSPACE_DUPLICATE_REPO_ROOT` | duplicate canonical root | include both entries |
 | `ERR_WORKSPACE_DUPLICATE_REPO_ID` | repoId collision | include both entries |
 | `ERR_WORKSPACE_DUPLICATE_ALIAS` | alias collision | include both entries + alias |
@@ -392,13 +395,14 @@ Use these existing utilities:
 Minimum required tests:
 
 1. **Relative root resolution**: repo paths relative to workspaceDir resolve correctly.
-2. **Subdir/file roots**: pointing at a subdir/file resolves to repo root via `resolveRepoRoot`.
-3. **Realpath dedupe**: two roots that differ only by symlink normalize to same canonical root → error.
-4. **Windows case normalization**: `C:\Repo` and `c:\repo` dedupe (simulated via normalizePath).
-5. **repoSetId determinism**:
+2. **Subdir roots**: pointing at a subdir resolves to repo root via `resolveRepoRoot`.
+3. **File roots rejected**: pointing `root` at a regular file fails with `ERR_WORKSPACE_REPO_ROOT_NOT_DIRECTORY`.
+4. **Realpath dedupe**: two roots that differ only by symlink normalize to same canonical root → error.
+5. **Windows case normalization**: `C:\Repo` and `c:\repo` dedupe (simulated via normalizePath).
+6. **repoSetId determinism**:
    - same membership different order produces same repoSetId.
-6. **Alias uniqueness**: case-insensitive.
-7. **Tag normalization**: trims, lowercase, dedupe, sorted.
+7. **Alias uniqueness**: case-insensitive.
+8. **Tag normalization**: trims, lowercase, dedupe, sorted.
 
 ---
 

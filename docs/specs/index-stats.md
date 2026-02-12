@@ -33,6 +33,11 @@ Inputs:
 - optional `--mode code|prose|extracted-prose|records`
 - `--verify` for required-artifact checks
 
+Path semantics:
+
+- When `--repo` is provided, the implementation must honor that explicit path as the repo root input for cache/index resolution.
+- Do not silently rewrite `--repo` to a detected parent git root.
+
 If `--mode` is omitted, report all modes in fixed order.
 
 ---

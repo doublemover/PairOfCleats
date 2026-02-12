@@ -140,8 +140,12 @@ Recommended: add a dedicated endpoint to avoid breaking single-repo search contr
 
 Rules:
 - The API layer MUST enforce the same repo-root allowlist constraints as single-repo mode (see `tools/api/router.js`) **for every repo root used**.
-- `workspaceId` is preferred; `workspacePath` may be accepted only when allowlisted.
+- `workspacePath` is required and must pass server allowlist validation.
+- `workspaceId` is optional and acts as a cross-check against the resolved workspace config.
 - If both `workspaceId` and `workspacePath` are present and resolve to different workspaces, fail with `ERR_INVALID_REQUEST`.
+- Selection aliases accepted by API validation:
+  - `select.tags` or `select.tag`
+  - `select.repoFilter` or `select["repo-filter"]`
 - The response is always JSON.
 
 ---
@@ -358,6 +362,7 @@ Every output hit MUST be augmented with:
 - `globalId` = `${repoId}:${hit.id}`
 
 The response MUST redact absolute paths by default. `repoRootCanonical` may only be returned when `debug.includePaths=true` and caller authorization allows it.
+Redaction is scoped to known path-bearing fields; non-path content (for example snippets) must not be redacted solely because it looks path-like.
 
 ---
 
@@ -396,6 +401,10 @@ If a repo search throws:
   - workspace config/manifest loading fails, OR
   - **all** repos fail, OR
   - strict failure mode is requested.
+- Abort/cancel errors MUST fail the request immediately (even in non-strict mode).
+- When all repos fail in non-strict mode:
+  - if any failure is non-`NO_INDEX`, propagate the first such underlying error,
+  - otherwise return `NO_INDEX`.
 
 If error code is `NO_INDEX`, status should be `missing_index` (non-fatal).
 

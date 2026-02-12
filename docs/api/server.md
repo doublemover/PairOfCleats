@@ -118,6 +118,32 @@ Errors:
 - `500 INTERNAL` for unexpected failures.
 Error payloads include `{ ok: false, code, message }` plus optional `errors` (validation) or `error` (internal detail).
 
+### `POST /search/federated`
+Executes workspace federated search and returns a merged JSON payload.
+
+Payload schema:
+- Validated by `validateFederatedPayload` in `tools/api/validation.js`.
+- Unknown keys are rejected (`additionalProperties: false`).
+
+Required:
+- `query` (string, non-empty)
+- `workspacePath` (string, non-empty, allowlisted)
+
+Optional:
+- `workspaceId` (must match resolved workspace `repoSetId` when provided)
+- `search`, `select`, `merge`, `limits`, `cohorts`, `cohort`, `strict`, `debug`
+- Selection aliases accepted: `select.tag`, `select.tags`, `select.repoFilter`, `select["repo-filter"]`
+
+Response:
+- `200` with federated payload (`backend: "federated"` plus per-mode hits and repo diagnostics).
+
+Errors:
+- `400 INVALID_REQUEST` for payload validation or semantic client errors (for example invalid cohort selectors).
+- `401 UNAUTHORIZED` for missing/invalid auth.
+- `403 FORBIDDEN` for disallowed workspace path/repo roots/federation cache root.
+- `409 NO_INDEX` when federated execution has no usable indexes.
+- `500 INTERNAL` for unexpected server failures.
+
 ### `POST /search/stream`
 Runs a search and streams progress/results as SSE events. The request payload
 matches `/search`.

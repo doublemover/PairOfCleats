@@ -4,7 +4,7 @@
 
 - **Spec version:** 1
 - **Audience:** contributors implementing federated cache keying/invalidation.
-- **Implementation status:** planned.
+- **Implementation status:** implemented.
 
 ---
 
@@ -26,6 +26,7 @@ Cache file location:
 2. Key composition is deterministic and complete.
 3. Keys do not include absolute paths.
 4. Explicit request differences that can change results must change cache keys.
+5. Responses with per-repo fanout failures (partial non-strict results) must not be cached.
 
 ---
 
@@ -43,10 +44,13 @@ key = sha1(stableStringify(keyPayload))
 - `manifestHash`
 - normalized selection:
   - selected repo ids
+  - selected repo priorities (`repoId:priority`) for deterministic tie-break invalidation
   - includeDisabled
   - tags
   - repoFilter
   - explicit selects
+- workspace metadata hash:
+  - `workspace.configHash` (workspace display/selection metadata fingerprint)
 - cohort decision:
   - policy
   - explicit selections
@@ -59,10 +63,10 @@ key = sha1(stableStringify(keyPayload))
   - top/perRepoTop
   - merge strategy
 - runtime-effective choices:
-  - resolved backend per mode
-  - fallback backend per mode
-  - ann backend used per mode
-  - unsafe-mix enabled flag
+  - rewritten per-repo args (after federated flag stripping/top rewriting)
+  - requested backend / ann knobs
+  - `strict` mode flag
+  - `debugIncludePaths`
 - as-of identity:
   - `asOf.identityHash` (when as-of targeting is used)
 
@@ -105,6 +109,15 @@ Fields that must not influence key:
 2. Write to temp file in same directory.
 3. Atomic replace.
 4. On read corruption: treat cache as empty and rewrite on next successful write.
+
+## 5.1 Cache eligibility
+
+1. Cache writes are allowed for:
+   - successful full fanout responses (no per-repo errors), and
+   - deterministic empty-selection responses.
+2. Cache writes are skipped for:
+   - non-strict partial responses with one or more repo failures,
+   - aborted/cancelled requests.
 
 ---
 
@@ -151,12 +164,10 @@ Expired entries must be removed opportunistically on read and always on write.
 
 ## 8. Touchpoints
 
-- `src/retrieval/query-cache.js`
-- `src/retrieval/index-cache.js`
-- `src/retrieval/federation/coordinator.js` (new)
+- `src/retrieval/federation/query-cache.js`
+- `src/retrieval/federation/coordinator.js`
 - `tools/api/router.js`
-- `tools/mcp/repo.js`
-- `tools/dict-utils/paths/repo.js`
+- `src/workspace/manifest.js`
 
 ---
 
@@ -164,5 +175,6 @@ Expired entries must be removed opportunistically on read and always on write.
 
 - `tests/retrieval/federation/query-cache-key-stability.test.js`
 - `tests/retrieval/federation/query-cache-invalidation-via-manifesthash.test.js`
-- `tests/retrieval/federation/query-cache-runtime-backend-keying.test.js`
 - `tests/retrieval/federation/build-pointer-invalid-clears-cache.test.js`
+- `tests/retrieval/federation/strict-cache-key-separation.test.js`
+- `tests/retrieval/federation/partial-failures-not-cached.test.js`
