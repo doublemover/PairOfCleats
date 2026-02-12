@@ -572,6 +572,9 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
   };
 
   const stable = toStableResponse(response, includePaths);
-  await persistCachedResult(stable);
+  // Avoid pinning degraded non-strict responses when any repo failed during fanout.
+  if (!perRepoErrors.length) {
+    await persistCachedResult(stable);
+  }
   return stable;
 };
