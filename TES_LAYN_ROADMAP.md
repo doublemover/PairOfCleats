@@ -717,25 +717,25 @@ If contradictions are found:
 
 ### Gate A (B0 contracts/registries)
 
-- [ ] USR registry JSON files created and schema-validated.
-- [ ] USR schema/validator package implemented.
-- [ ] USR matrix schema/validator package implemented and enforced.
-- [ ] registry drift checks pass.
-- [ ] diagnostic/reason-code taxonomy validators implemented and passing.
+- [x] USR registry JSON files created and schema-validated.
+- [x] USR schema/validator package implemented.
+- [x] USR matrix schema/validator package implemented and enforced.
+- [x] registry drift checks pass.
+- [x] diagnostic/reason-code taxonomy validators implemented and passing.
 - [x] compatibility matrix registry (`usr-backcompat-matrix.json`) exists and validates.
-- [ ] framework edge-case and language risk matrix registries exist and validate.
-- [ ] embedded-language bridge and generated provenance matrix registries exist and validate.
-- [ ] language version and embedding policy matrices exist, validate, and stay key-synchronized with language profiles.
-- [ ] parser/runtime lock registry exists, validates, and covers parser sources referenced by language/framework profiles.
-- [ ] SLO budget/alert policy matrices exist, validate, and cover required lanes/scopes.
-- [ ] redaction/security gate matrices exist, validate, and cover required control classes.
-- [ ] runtime config policy matrix exists, validates, and defines strict-mode behavior for required keys.
-- [ ] failure-injection matrix exists, validates, and covers required blocking fault classes.
-- [ ] fixture-governance matrix exists, validates, and links blocking fixtures to owners/reviewers.
-- [ ] benchmark policy matrix exists, validates, and covers blocking lane benchmark classes.
-- [ ] threat-model matrix exists, validates, and maps critical threats to controls and fixtures.
-- [ ] waiver policy matrix exists, validates, and enforces time-bounded approver-governed waivers.
-- [ ] per-language contract existence and naming checks pass.
+- [x] framework edge-case and language risk matrix registries exist and validate.
+- [x] embedded-language bridge and generated provenance matrix registries exist and validate.
+- [x] language version and embedding policy matrices exist, validate, and stay key-synchronized with language profiles.
+- [x] parser/runtime lock registry exists, validates, and covers parser sources referenced by language/framework profiles.
+- [x] SLO budget/alert policy matrices exist, validate, and cover required lanes/scopes.
+- [x] redaction/security gate matrices exist, validate, and cover required control classes.
+- [x] runtime config policy matrix exists, validates, and defines strict-mode behavior for required keys.
+- [x] failure-injection matrix exists, validates, and covers required blocking fault classes.
+- [x] fixture-governance matrix exists, validates, and links blocking fixtures to owners/reviewers.
+- [x] benchmark policy matrix exists, validates, and covers blocking lane benchmark classes.
+- [x] threat-model matrix exists, validates, and maps critical threats to controls and fixtures.
+- [x] waiver policy matrix exists, validates, and enforces time-bounded approver-governed waivers.
+- [x] per-language contract existence and naming checks pass.
 
 ### Gate B1-B7 (language batch gates)
 
@@ -757,15 +757,15 @@ If contradictions are found:
 - [ ] harness and lanes materialized.
 - [ ] conformance rollout authorized.
 - [x] backward-compat matrix strict scenarios are green in CI.
-- [ ] decomposed contract drift checks are green in CI.
-- [ ] implementation-readiness evidence validators are green for promotion target phase.
-- [ ] blocking SLO budgets are green for required lanes.
-- [ ] strict security gates are green in CI.
-- [ ] strict blocking failure-injection scenarios are green in CI.
-- [ ] fixture-governance validation is green for blocking fixture families.
-- [ ] benchmark regression policy is green for blocking benchmark rows.
-- [ ] threat-model critical coverage and abuse-case lanes are green.
-- [ ] waiver expiry/breach enforcement checks are green.
+- [x] decomposed contract drift checks are green in CI.
+- [x] implementation-readiness evidence validators are green for promotion target phase.
+- [x] blocking SLO budgets are green for required lanes.
+- [x] strict security gates are green in CI.
+- [x] strict blocking failure-injection scenarios are green in CI.
+- [x] fixture-governance validation is green for blocking fixture families.
+- [x] benchmark regression policy is green for blocking benchmark rows.
+- [x] threat-model critical coverage and abuse-case lanes are green.
+- [x] waiver expiry/breach enforcement checks are green.
 
 ---
 
