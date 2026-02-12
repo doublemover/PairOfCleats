@@ -14938,14 +14938,22 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
   - [x] Two writers contend on snapshot/diff manifests; verify lock behavior and readable artifacts after forced interruption.
 - [x] `tests/shared/json-stream/atomic-stale-backup-protection.test.js`
   - [x] Stale backup/temp-missing scenarios must fail safely (no false success, no stale artifact acceptance).
+  - 2026-02-11T23:27:26.9329303-05:00 attempt 1: merged stale-backup and restore scenarios reused one backup path and failed cleanup assertion.
+  - 2026-02-11T23:27:26.9329303-05:00 attempt 2: isolated second scenario onto a dedicated final/backup path; test passed.
 - [x] `tests/services/embeddings/mode-root-divergence-maintenance.test.js`
   - [x] Per-mode root divergence updates build-state and sqlite maintenance against the correct mode roots.
+  - 2026-02-11T23:27:26.9329303-05:00 attempt 1: strict callsite regex mismatched multiline argument formatting.
+  - 2026-02-11T23:27:26.9329303-05:00 attempt 2: relaxed multiline regex to assert required fields irrespective of intermediate formatting; test passed.
 - [x] `tests/services/indexing/compressed-artifact-presence.test.js`
   - [x] Presence checks accept valid compressed shard and compressed JSONL artifact forms.
 - [x] `tests/workspace/windows-path-canonicalization-contract.test.js`
   - [x] Mixed-case path variants resolve to a single canonical repo identity and stable cache keys.
+  - 2026-02-11T23:27:26.9329303-05:00 attempt 1: duplicate-path assertion expected outdated error text.
+  - 2026-02-11T23:27:26.9329303-05:00 attempt 2: updated assertion to `Duplicate canonical repo root`; test passed.
 - [x] `tests/retrieval/federation/explicit-root-no-fallback.test.js`
   - [x] Explicit refs fail fast when artifacts are missing; no fallback to current/latest.
+  - 2026-02-11T23:27:26.9329303-05:00 attempt 1: fixture-driven federated CLI variant exceeded 30s (cancelled per test policy).
+  - 2026-02-11T23:27:26.9329303-05:00 attempt 2: switched to fast `resolveIndexRef` explicit snapshot-root contract plus latest fallback check; test passed.
 
 ---
 
