@@ -654,7 +654,7 @@ If contradictions are found:
 - [x] Enforce fixture-governance owner/reviewer coverage checks for new blocking fixtures.
 - [x] Enforce benchmark policy update workflow when SLO or lane thresholds change.
 - [x] Enforce threat-model matrix update workflow when new security gates or attack surfaces are added.
-- [ ] Enforce waiver-policy update workflow and expiry review cadence in PR/release templates.
+- [x] Enforce waiver-policy update workflow and expiry review cadence in PR/release templates.
 
 ### 15.4 Exit criteria
 
