@@ -3,17 +3,18 @@ import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { getCurrentBuildInfo, loadUserConfig } from '../../../tools/shared/dict-utils.js';
+import { getCurrentBuildInfo, loadUserConfig, toRealPathSync } from '../../../tools/shared/dict-utils.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 
 const tempRoot = await makeTempDir('poc-scm-noscm-buildid-');
-const repoRoot = path.join(tempRoot, 'repo');
+const repoRootRaw = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 
 try {
-  await fsPromises.mkdir(repoRoot, { recursive: true });
+  await fsPromises.mkdir(repoRootRaw, { recursive: true });
   await fsPromises.mkdir(cacheRoot, { recursive: true });
+  const repoRoot = toRealPathSync(repoRootRaw);
 
   const filePath = path.join(repoRoot, 'alpha.js');
   await fsPromises.writeFile(filePath, 'export const alpha = 1;\n');
