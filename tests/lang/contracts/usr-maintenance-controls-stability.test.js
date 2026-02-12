@@ -64,6 +64,7 @@ assert.equal(phaseEightPerformanceSection.includes('- [x] Materialize benchmark 
 
 const phaseNineReadinessSection = extractSection(roadmapText, '### 9.1 Readiness audit', '### 9.2 Go/No-Go decision');
 assert.equal(phaseNineReadinessSection.includes('- [x] Materialize framework extension contract template governance and CI enforcement controls.'), true, 'phase 9.1 must retain framework contract governance scaffold control');
+assert.equal(phaseNineReadinessSection.includes('- [x] Validate framework profile completion evidence.'), true, 'phase 9.1 must retain framework profile completion evidence control');
 assert.equal(phaseNineReadinessSection.includes('- [x] Enforce language-contract vs language-profile matrix exact-set synchronization for conformance/framework/node/edge declarations.'), true, 'phase 9.1 must retain language contract matrix-sync governance control');
 assert.equal(phaseNineReadinessSection.includes('- [x] Materialize per-language approval checklist and completion evidence scaffolding in `docs/specs/usr/languages/*.md`.'), true, 'phase 9.1 must retain per-language approval/evidence scaffold control');
 assert.equal(phaseNineReadinessSection.includes('- [x] Validate implementation-readiness contract evidence set is complete for promotion target phase.'), true, 'phase 9.1 must retain implementation-readiness evidence coverage control');
@@ -98,6 +99,7 @@ const requiredCiTests = [
   'lang/contracts/usr-diagnostic-remediation-routing-validation',
   'lang/contracts/usr-canonical-example-validation',
   'lang/contracts/usr-framework-canonicalization',
+  'lang/contracts/usr-framework-contract-matrix-sync-validation',
   'lang/contracts/usr-framework-profile-matrix-sync-validation',
   'lang/contracts/usr-conformance-matrix-readiness-by-language-validation',
   'lang/contracts/usr-phase9-readiness-evidence-validation',
