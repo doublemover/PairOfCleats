@@ -5,7 +5,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   validateUsrMatrixRegistry,
-  listUsrMatrixRegistryIds
+  listUsrMatrixRegistryIds,
+  resolveUsrRuntimeConfig,
+  validateUsrRuntimeConfigResolution
 } from '../../../src/contracts/validators/usr-matrix.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -44,5 +46,64 @@ const negative = {
 };
 const negativeResult = validateUsrMatrixRegistry('usr-runtime-config-policy', negative);
 assert.equal(negativeResult.ok, false, 'unknown row key must fail strict matrix validation');
+
+const runtimeResolution = resolveUsrRuntimeConfig({
+  policyPayload: runtimePolicy,
+  strictMode: true,
+  layers: {
+    policyFile: {
+      'usr.parser.maxSegmentMs': 1800,
+      'usr.framework.enableOverlays': false
+    },
+    env: {
+      'usr.parser.maxSegmentMs': '2000',
+      'usr.framework.enableOverlays': 'true'
+    },
+    argv: {
+      'usr.parser.maxSegmentMs': 2500
+    }
+  }
+});
+assert.equal(runtimeResolution.ok, true, `runtime resolution should pass: ${runtimeResolution.errors.join('; ')}`);
+assert.equal(runtimeResolution.values['usr.parser.maxSegmentMs'], 2500, 'argv layer must win precedence');
+assert.equal(runtimeResolution.values['usr.framework.enableOverlays'], true, 'env must override policy-file for boolean values');
+assert.equal(runtimeResolution.appliedByKey['usr.parser.maxSegmentMs'], 'argv', 'expected argv source tracking');
+assert.equal(runtimeResolution.appliedByKey['usr.framework.enableOverlays'], 'env', 'expected env source tracking');
+
+const runtimeStrictFailure = validateUsrRuntimeConfigResolution({
+  policyPayload: runtimePolicy,
+  strictMode: true,
+  layers: {
+    env: {
+      'usr.parser.maxSegmentMs': '50000'
+    }
+  }
+});
+assert.equal(runtimeStrictFailure.ok, false, 'strict disallow violation should fail');
+assert.equal(runtimeStrictFailure.errors.some((msg) => msg.includes('usr.parser.maxSegmentMs')), true, 'strict error should reference failing key');
+
+const runtimeWarningOnly = validateUsrRuntimeConfigResolution({
+  policyPayload: runtimePolicy,
+  strictMode: true,
+  layers: {
+    env: {
+      'usr.reporting.emitRawParserKinds': 'maybe'
+    }
+  }
+});
+assert.equal(runtimeWarningOnly.ok, true, 'warn-unknown strict behavior should not fail resolution');
+assert.equal(runtimeWarningOnly.warnings.some((msg) => msg.includes('usr.reporting.emitRawParserKinds')), true, 'warn-only row should emit warning');
+
+const runtimeUnknownKey = validateUsrRuntimeConfigResolution({
+  policyPayload: runtimePolicy,
+  strictMode: false,
+  layers: {
+    argv: {
+      'usr.unknown.key': true
+    }
+  }
+});
+assert.equal(runtimeUnknownKey.ok, true, 'unknown keys should be warnings in non-strict mode');
+assert.equal(runtimeUnknownKey.warnings.some((msg) => msg.includes('usr.unknown.key')), true, 'unknown key should be surfaced as warning');
 
 console.log('usr matrix validator tests passed');
