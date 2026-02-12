@@ -84,6 +84,7 @@ lang/contracts/usr-canonical-example-validation
 lang/contracts/usr-framework-canonicalization
 lang/contracts/usr-embedding-bridge-validation
 lang/contracts/usr-generated-provenance-validation
+lang/contracts/usr-bridge-provenance-dashboard-validation
 lang/contracts/usr-implementation-readiness-validation
 lang/contracts/usr-observability-rollup-validation
 lang/contracts/usr-security-gate-validation
