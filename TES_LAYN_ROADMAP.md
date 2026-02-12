@@ -1651,3 +1651,11 @@ Source artifacts: `tests/lang/matrix/usr-ownership-matrix.json` and `tests/lang/
 - Reporting lines for runtime config, failure-injection, fixture governance, benchmark, threat-model, and waiver dashboards cannot be checked unless corresponding policy validators remain present in required CI lanes.
 - If any Phase 15.2 reporting-integrity prerequisite regresses, Phase 15 exit must be reopened.
 
+### N.19 Phase 15.1 CI gate-integrity lock
+
+- Each Phase 15.1 CI-gate checklist line can be checked only if its corresponding enforcement validators remain present in `ci` and `ci-lite` lane manifests.
+- `Enforce Gate A, B1-B8, and C gates in CI.` cannot be checked unless Gate A/B/C lock validators remain present in required CI lanes.
+- `Enforce C0-C4 conformance lane required checks.` cannot be checked unless C0/C1/C2/C3/C4 baseline validators are present in required CI lanes.
+- `Enforce section 36 strict scenario blocking behavior and non-strict warning budgets.` cannot be checked unless `backcompat/backcompat-matrix-validation` remains present in required CI lanes.
+- If any Phase 15.1 CI-gate prerequisite regresses, Phase 15 exit must be reopened.
+
