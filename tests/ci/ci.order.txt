@@ -80,6 +80,7 @@ lang/contracts/usr-traceability-approval-validation
 lang/contracts/usr-pr-template-policy-validation
 lang/contracts/usr-maintenance-controls-stability
 lang/contracts/usr-governance-lock-suite-validation
+lang/contracts/usr-conformance-phase-exit-lock-validation
 lang/contracts/usr-phase14-exit-lock-validation
 lang/contracts/usr-phase15-ci-gate-lock-validation
 lang/contracts/usr-phase15-reporting-lock-validation

@@ -1673,3 +1673,10 @@ Source artifacts: `tests/lang/matrix/usr-ownership-matrix.json` and `tests/lang/
 - Phase 14.3 exit cannot be checked unless mixed-repo integration, failure-injection, failure-mode-suite, and security-gate validators remain present in `ci` and `ci-lite` lane manifests.
 - If any Phase 14.1/14.2 prerequisite control regresses to unchecked, Phase 14.3 exit must be reopened.
 
+### N.22 Phase 11-13 conformance exit-integrity lock
+
+- `All languages pass required C0/C1 checks.` cannot be checked unless C0/C1 baseline validators remain present in `ci` and `ci-lite` lane manifests.
+- `Required C2/C3 profile checks pass.` cannot be checked unless C2/C3 baseline validators remain present in `ci` and `ci-lite` lane manifests.
+- `All required framework profiles pass C4 checks.` cannot be checked unless C4 baseline validators remain present in `ci` and `ci-lite` lane manifests.
+- If any Phase 11.3/12.3/13.2 conformance exit line regresses to unchecked, corresponding Phase 9.2 go/no-go checklist lines must be reopened.
+

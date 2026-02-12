@@ -80,6 +80,7 @@ assertTestInCiOrders('lang/contracts/usr-harness-lane-materialization-validation
 assertTestInCiOrders('lang/contracts/usr-rollout-f1-checklist-validation', 'F.6.4');
 assertTestInCiOrders('lang/contracts/usr-rollout-phase-evidence-lock-validation', 'F.6.4');
 assertTestInCiOrders('lang/contracts/usr-phase9-gonogo-decision-lock-validation', 'F.6.4');
+assertTestInCiOrders('lang/contracts/usr-conformance-phase-exit-lock-validation', 'F.6.4');
 assertTestInCiOrders('lang/contracts/usr-phase9-readiness-authorization-lock-validation', 'F.6.4');
 assertTestInCiOrders('lang/contracts/usr-phase9-readiness-audit-lock-validation', 'F.6.4');
 assertTestInCiOrders('lang/contracts/usr-gate-b-language-batch-lock-validation', 'F.6.4');

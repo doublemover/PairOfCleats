@@ -90,6 +90,7 @@ assert.equal(roadmapText.includes('### N.15 Phase 9.2 go/no-go decision lock'), 
 
 for (const testId of [
   'lang/contracts/usr-phase9-gonogo-decision-lock-validation',
+  'lang/contracts/usr-conformance-phase-exit-lock-validation',
   'lang/contracts/usr-phase9-readiness-authorization-lock-validation',
   'lang/contracts/usr-rollout-phase-gate-validation',
   'lang/contracts/usr-rollout-migration-policy-validation'

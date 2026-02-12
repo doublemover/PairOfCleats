@@ -157,6 +157,13 @@ Phase 9.2 go/no-go decision lock requirements:
 - `Block framework conformance if C4 profile prerequisites are missing.` cannot be checked unless Phase 13.2 exit criterion is checked and C4 baseline conformance lane validators remain in required CI lanes.
 - If any Phase 9.2 go/no-go line regresses to unchecked prerequisites, `Readiness report approved.` and `Test rollout authorized.` must be reopened.
 
+Phase 11-13 conformance exit-integrity lock requirements:
+
+- `All languages pass required C0/C1 checks.` cannot be checked unless C0/C1 baseline validators remain present in `ci` and `ci-lite` lane manifests.
+- `Required C2/C3 profile checks pass.` cannot be checked unless C2/C3 baseline validators remain present in `ci` and `ci-lite` lane manifests.
+- `All required framework profiles pass C4 checks.` cannot be checked unless C4 baseline validators remain present in `ci` and `ci-lite` lane manifests.
+- If any Phase 11.3/12.3/13.2 conformance exit line regresses to unchecked, corresponding Phase 9.2 go/no-go checklist lines must be reopened.
+
 Gate C evidence-completeness lock requirements:
 
 - `all prior gates pass.` cannot be checked unless every Gate C evidence line (backcompat, drift, implementation-readiness, SLO, security, failure-injection, fixture-governance, benchmark, threat-model, waiver) is checked.
