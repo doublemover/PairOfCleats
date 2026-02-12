@@ -95,7 +95,8 @@ if (observabilityLine === 'checked') {
   assertTestsPresent(
     [
       'lang/contracts/usr-observability-rollup-validation',
-      'lang/contracts/usr-batch-slo-threshold-coverage-validation'
+      'lang/contracts/usr-batch-slo-threshold-coverage-validation',
+      'lang/contracts/usr-phase8-exit-lock-validation'
     ],
     'phase 15.1 section-41 lock'
   );

@@ -170,6 +170,13 @@ Phase 10.3 harness exit-integrity lock requirements:
 - `Lane ordering and sharding are deterministic.` cannot be checked unless shard partition and lane materialization validators remain present in `ci` and `ci-lite` lane manifests.
 - If any Phase 10.3 harness exit line regresses to unchecked, Phase 11.3/12.3/13.2 conformance exit lines must be reopened.
 
+Phase 8.4 hardening exit-integrity lock requirements:
+
+- `Determinism checks pass under repeated runs.` cannot be checked unless phase-8 hardening/determinism validators remain present in `ci` and `ci-lite` lane manifests.
+- `Cap-trigger tests pass with expected diagnostics.` cannot be checked unless cap-trigger diagnostics/failure validators remain present in `ci` and `ci-lite` lane manifests.
+- `Runtime thresholds meet target envelopes.` and `Blocking SLO budgets are met for required lanes.` cannot be checked unless SLO threshold and observability validators remain present in `ci` and `ci-lite` lane manifests.
+- If any Phase 8.4 hardening exit line regresses to unchecked, Gate B1-B7 determinism and Gate C blocking-SLO checklist lines must be reopened.
+
 Gate C evidence-completeness lock requirements:
 
 - `all prior gates pass.` cannot be checked unless every Gate C evidence line (backcompat, drift, implementation-readiness, SLO, security, failure-injection, fixture-governance, benchmark, threat-model, waiver) is checked.

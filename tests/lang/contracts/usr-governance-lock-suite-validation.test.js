@@ -35,7 +35,8 @@ const lockRows = [
   { anchor: '### N.20 Phase 15.3 maintenance-integrity lock', testId: 'lang/contracts/usr-phase15-maintenance-lock-validation' },
   { anchor: '### N.21 Phase 14.3 integration/failure exit lock', testId: 'lang/contracts/usr-phase14-exit-lock-validation' },
   { anchor: '### N.22 Phase 11-13 conformance exit-integrity lock', testId: 'lang/contracts/usr-conformance-phase-exit-lock-validation' },
-  { anchor: '### N.23 Phase 10.3 harness exit-integrity lock', testId: 'lang/contracts/usr-phase10-harness-exit-lock-validation' }
+  { anchor: '### N.23 Phase 10.3 harness exit-integrity lock', testId: 'lang/contracts/usr-phase10-harness-exit-lock-validation' },
+  { anchor: '### N.24 Phase 8.4 hardening exit-integrity lock', testId: 'lang/contracts/usr-phase8-exit-lock-validation' }
 ];
 
 const expectedAnchors = new Set(lockRows.map((row) => row.anchor));
