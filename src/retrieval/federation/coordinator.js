@@ -156,6 +156,7 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
       search: request.search || {},
       perRepoTop
     });
+  const perRepoQuery = request.rawArgs ? '' : query;
   const cohortSelectors = request.cohort || request.cohorts?.cohort || [];
   const cachePath = resolveFederatedQueryCachePath(manifest, workspaceConfig.repoSetId);
   const cachePolicy = {
@@ -291,7 +292,7 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
       try {
         const result = await searchFn(repo.repoRootCanonical, {
           args: perRepoArgs,
-          query,
+          query: perRepoQuery,
           emitOutput: false,
           exitOnError: false,
           indexCache,

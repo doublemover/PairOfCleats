@@ -149,11 +149,7 @@ const federatedDebugSchema = {
 const federatedSearchSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['query'],
-  anyOf: [
-    { required: ['workspacePath'] },
-    { required: ['workspaceId'] }
-  ],
+  required: ['query', 'workspacePath'],
   properties: {
     workspacePath: { type: 'string', minLength: 1 },
     workspaceId: { type: 'string', minLength: 1 },
