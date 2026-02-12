@@ -243,7 +243,7 @@ If contradictions are found:
 - [x] Add diagnostic taxonomy drift test (section 12.1 baseline vs section 33.1 full taxonomy).
 - [x] Add reason-code drift test (`attrs.resolution.reasonCode` values vs section 33.2).
 - [x] Add per-language spec existence test: every registry language ID has exactly one `docs/specs/usr/languages/<language-id>.md`.
-- [ ] Add decomposed-contract cross-reference consistency test: required contract links are present and valid.
+- [x] Add decomposed-contract cross-reference consistency test: required contract links are present and valid.
 
 ### 1.4 Exit criteria
 

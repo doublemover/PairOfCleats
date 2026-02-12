@@ -45,4 +45,53 @@ for (const rel of requiredSyncDocs) {
   assert.equal(fs.existsSync(fullPath), true, `required sync document missing: ${rel}`);
 }
 
+const extractDocRefs = (text) => new Set(
+  [...text.matchAll(docRefRegex)].map((match) => match[1])
+);
+
+const decomposedContractRefs = [
+  {
+    doc: 'docs/specs/usr-core-artifact-schema-catalog.md',
+    requiredRefs: [
+      'docs/specs/unified-syntax-representation.md',
+      'docs/specs/usr-core-evidence-gates-waivers.md',
+      'docs/schemas/usr/README.md'
+    ]
+  },
+  {
+    doc: 'docs/specs/usr-core-governance-change.md',
+    requiredRefs: [
+      'docs/specs/usr-consolidation-coverage-matrix.md',
+      'docs/specs/usr-core-rollout-release-migration.md'
+    ]
+  },
+  {
+    doc: 'docs/specs/usr-core-language-framework-catalog.md',
+    requiredRefs: [
+      'docs/specs/unified-syntax-representation.md',
+      'tests/lang/matrix/usr-language-profiles.json',
+      'tests/lang/matrix/usr-framework-profiles.json'
+    ]
+  },
+  {
+    doc: 'docs/specs/usr-core-diagnostics-reasoncodes.md',
+    requiredRefs: [
+      'docs/specs/unified-syntax-representation.md',
+      'docs/specs/usr-core-evidence-gates-waivers.md'
+    ]
+  }
+];
+
+for (const contract of decomposedContractRefs) {
+  const docPath = path.join(repoRoot, contract.doc.replace(/\//g, path.sep));
+  assert.equal(fs.existsSync(docPath), true, `decomposed contract doc missing: ${contract.doc}`);
+  const text = fs.readFileSync(docPath, 'utf8');
+  const refs = extractDocRefs(text);
+  for (const requiredRef of contract.requiredRefs) {
+    assert.equal(refs.has(requiredRef), true, `decomposed contract reference missing: ${contract.doc} -> ${requiredRef}`);
+    const refPath = path.join(repoRoot, requiredRef.replace(/\//g, path.sep));
+    assert.equal(fs.existsSync(refPath), true, `decomposed contract reference path missing: ${requiredRef}`);
+  }
+}
+
 console.log('usr roadmap sync checks passed');
