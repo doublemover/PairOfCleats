@@ -1,6 +1,6 @@
 # TES_LAYN_ROADMAP - USR-Aligned Language and Framework Execution Master Plan
 
-Last rewritten: 2026-02-12T06:04:13Z
+Last rewritten: 2026-02-12T06:07:50Z
 Branch: `usr-skyforge-primer`
 Document status: active master plan baseline v1.5
 
@@ -483,6 +483,7 @@ If contradictions are found:
 - [x] Validate benchmark policy evidence and regression/variance reports are complete for blocking lanes.
 - [x] Validate threat-model coverage and abuse-case execution evidence are complete.
 - [x] Validate waiver-policy evidence (active/expiry/breach reports) and approver controls are complete.
+- [x] Enforce phase-9 readiness evidence gate coverage across CI validators and required report artifacts.
 
 ### 9.2 Go/No-Go decision
 

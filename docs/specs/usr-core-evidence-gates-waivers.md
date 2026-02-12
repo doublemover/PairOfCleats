@@ -1,7 +1,7 @@
 # Spec -- USR Core Evidence, Gates, and Waiver Contract
 
 Status: Draft v2.0
-Last updated: 2026-02-12T05:46:30Z
+Last updated: 2026-02-12T06:07:50Z
 
 ## Purpose
 
@@ -102,6 +102,8 @@ In addition to required outputs above, gate predicates and scorecards may consum
 - `usr-observability-rollup.json`
 - `usr-feature-flag-state.json`
 - `usr-failure-injection-report.json`
+- `usr-rollback-drill-report.json`
+- `usr-benchmark-summary.json`
 - `usr-benchmark-regression-summary.json`
 - `usr-threat-model-coverage-report.json`
 - `usr-waiver-active-report.json`

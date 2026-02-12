@@ -365,6 +365,7 @@ lang/contracts/usr-embedding-bridge-validation
 lang/contracts/usr-generated-provenance-validation
 lang/contracts/usr-bridge-provenance-dashboard-validation
 lang/contracts/usr-implementation-readiness-validation
+lang/contracts/usr-phase9-readiness-evidence-validation
 lang/contracts/usr-observability-rollup-validation
 lang/contracts/usr-security-gate-validation
 lang/contracts/usr-runtime-config-feature-flag-validation

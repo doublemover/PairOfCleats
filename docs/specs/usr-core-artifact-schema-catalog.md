@@ -1,7 +1,7 @@
 # Spec -- USR Core Artifact and Schema Catalog
 
 Status: Draft v2.0
-Last updated: 2026-02-12T05:45:00Z
+Last updated: 2026-02-12T06:07:50Z
 
 ## Purpose
 
@@ -124,6 +124,8 @@ CLI determinism requirements:
 | `usr-release-readiness-scorecard` | `docs/schemas/usr/usr-release-readiness-scorecard.schema.json` | required audit report |
 | `usr-feature-flag-state` | `docs/schemas/usr/usr-feature-flag-state.schema.json` | required audit report |
 | `usr-failure-injection-report` | `docs/schemas/usr/usr-failure-injection-report.schema.json` | required audit report |
+| `usr-rollback-drill-report` | `docs/schemas/usr/usr-rollback-drill-report.schema.json` | required recovery evidence |
+| `usr-benchmark-summary` | `docs/schemas/usr/usr-benchmark-summary.schema.json` | required benchmark evidence |
 | `usr-benchmark-regression-summary` | `docs/schemas/usr/usr-benchmark-regression-summary.schema.json` | required audit report |
 | `usr-threat-model-coverage-report` | `docs/schemas/usr/usr-threat-model-coverage-report.schema.json` | required audit report |
 | `usr-waiver-active-report` | `docs/schemas/usr/usr-waiver-active-report.schema.json` | required audit report |
