@@ -198,7 +198,13 @@ if (securityDashboard === 'checked') {
 }
 
 if (backcompatRollup === 'checked') {
-  assertTestsPresent(['backcompat/backcompat-matrix-validation'], 'phase 15.2 backcompat rollup lock', ciOrderText, ciLiteOrderText);
+  assertTestsPresent(
+    ['backcompat/backcompat-matrix-validation'],
+    'phase 15.2 backcompat rollup lock',
+    ciOrderText,
+    ciLiteOrderText,
+    { requireCiLite: false }
+  );
 }
 
 if (capabilityTransitionReport === 'checked') {

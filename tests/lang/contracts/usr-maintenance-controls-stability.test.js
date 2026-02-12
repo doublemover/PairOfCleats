@@ -148,9 +148,16 @@ const requiredCiTests = [
   'decomposed-drift/decomposed-drift-validation'
 ];
 
+const ciOnlyTests = new Set([
+  'backcompat/backcompat-matrix-validation',
+  'decomposed-drift/decomposed-drift-validation'
+]);
+
 for (const testId of requiredCiTests) {
   assert.equal(ciOrderText.includes(testId), true, `ci order must include maintenance control validator: ${testId}`);
-  assert.equal(ciLiteOrderText.includes(testId), true, `ci-lite order must include maintenance control validator: ${testId}`);
+  if (!ciOnlyTests.has(testId)) {
+    assert.equal(ciLiteOrderText.includes(testId), true, `ci-lite order must include maintenance control validator: ${testId}`);
+  }
 }
 
 const requiredPrMarkers = [

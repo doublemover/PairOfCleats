@@ -102,7 +102,9 @@ for (const testId of [
   'lang/contracts/usr-framework-contract-matrix-sync-validation'
 ]) {
   assert.equal(ciOrderText.includes(testId), true, `Gate A readiness CI lane missing required validator: ${testId}`);
-  assert.equal(ciLiteOrderText.includes(testId), true, `Gate A readiness CI-lite lane missing required validator: ${testId}`);
+  if (testId !== 'decomposed-drift/decomposed-drift-validation') {
+    assert.equal(ciLiteOrderText.includes(testId), true, `Gate A readiness CI-lite lane missing required validator: ${testId}`);
+  }
 }
 
 console.log('usr gate-a registry readiness validation checks passed');

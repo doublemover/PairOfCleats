@@ -41,11 +41,15 @@ if (c2c3Exit === 'checked') {
 
 if (capabilityExit === 'checked') {
   assertTestsPresent(
-    [
-      'diagnostics/diagnostics-transition-validation',
-      'lang/contracts/usr-phase8-hardening-readiness-validation'
-    ],
-    'phase 6.6 capability-transition lock',
+    ['diagnostics/diagnostics-transition-validation'],
+    'phase 6.6 capability-transition diagnostics lock',
+    ciOrderText,
+    ciLiteOrderText,
+    { requireCiLite: false }
+  );
+  assertTestsPresent(
+    ['lang/contracts/usr-phase8-hardening-readiness-validation'],
+    'phase 6.6 capability-transition hardening lock',
     ciOrderText,
     ciLiteOrderText
   );

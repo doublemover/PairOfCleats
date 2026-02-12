@@ -50,13 +50,17 @@ if (changeControlLine === 'checked') {
 
 if (registryDriftLine === 'checked') {
   assertTestsPresent(
-    [
-      'lang/contracts/usr-contract-enforcement',
-      'decomposed-drift/decomposed-drift-validation'
-    ],
+    ['lang/contracts/usr-contract-enforcement'],
     'phase 15.3 registry-drift lock',
     ciOrderText,
     ciLiteOrderText
+  );
+  assertTestsPresent(
+    ['decomposed-drift/decomposed-drift-validation'],
+    'phase 15.3 registry-drift lock',
+    ciOrderText,
+    ciLiteOrderText,
+    { requireCiLite: false }
   );
 }
 

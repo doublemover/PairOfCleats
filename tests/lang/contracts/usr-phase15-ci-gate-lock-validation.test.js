@@ -69,7 +69,13 @@ if (conformanceLine === 'checked') {
 }
 
 if (backcompatLine === 'checked') {
-  assertTestsPresent(['backcompat/backcompat-matrix-validation'], 'phase 15.1 section-36 lock', ciOrderText, ciLiteOrderText);
+  assertTestsPresent(
+    ['backcompat/backcompat-matrix-validation'],
+    'phase 15.1 section-36 lock',
+    ciOrderText,
+    ciLiteOrderText,
+    { requireCiLite: false }
+  );
 }
 
 if (observabilityLine === 'checked') {

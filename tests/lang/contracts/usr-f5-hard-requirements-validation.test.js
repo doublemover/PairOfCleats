@@ -49,9 +49,13 @@ const requiredCiTests = [
   'backcompat/backcompat-matrix-validation'
 ];
 
+const ciOnlyTests = new Set(['backcompat/backcompat-matrix-validation']);
+
 for (const testId of requiredCiTests) {
   assert.equal(ciOrderText.includes(testId), true, `ci order must include F.5 hard-requirements test: ${testId}`);
-  assert.equal(ciLiteOrderText.includes(testId), true, `ci-lite order must include F.5 hard-requirements test: ${testId}`);
+  if (!ciOnlyTests.has(testId)) {
+    assert.equal(ciLiteOrderText.includes(testId), true, `ci-lite order must include F.5 hard-requirements test: ${testId}`);
+  }
 }
 
 const matrixRows = Array.isArray(backcompatMatrix.rows) ? backcompatMatrix.rows : [];

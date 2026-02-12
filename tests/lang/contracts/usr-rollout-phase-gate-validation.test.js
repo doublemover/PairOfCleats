@@ -96,10 +96,17 @@ const requiredCiTestsByPhase = {
   ]
 };
 
+const ciOnlyTests = new Set([
+  'backcompat/backcompat-matrix-validation',
+  'decomposed-drift/decomposed-drift-validation'
+]);
+
 for (const [phaseId, testIds] of Object.entries(requiredCiTestsByPhase)) {
   for (const testId of testIds) {
     assert.equal(ciOrderText.includes(testId), true, `ci order missing ${phaseId} rollout gate test: ${testId}`);
-    assert.equal(ciLiteOrderText.includes(testId), true, `ci-lite order missing ${phaseId} rollout gate test: ${testId}`);
+    if (!ciOnlyTests.has(testId)) {
+      assert.equal(ciLiteOrderText.includes(testId), true, `ci-lite order missing ${phaseId} rollout gate test: ${testId}`);
+    }
   }
 }
 

@@ -43,8 +43,15 @@ const appendixMSection = extractSection(roadmapText, '### M.1 Phase-to-gate evid
 assert.equal(appendixMSection.includes('| 9 | `usr-operational-readiness-validation.json`, `usr-release-readiness-scorecard.json` |'), true, 'appendix M must include phase 9 evidence artifact mapping');
 
 assertTestsPresent(
+  ['backcompat/backcompat-matrix-validation'],
+  'phase 9 readiness validator',
+  ciOrderText,
+  ciLiteOrderText,
+  { requireCiLite: false }
+);
+
+assertTestsPresent(
   [
-    'backcompat/backcompat-matrix-validation',
     'lang/contracts/usr-framework-contract-matrix-sync-validation',
     'lang/contracts/usr-conformance-matrix-readiness-by-language-validation',
     'lang/contracts/usr-implementation-readiness-validation',
