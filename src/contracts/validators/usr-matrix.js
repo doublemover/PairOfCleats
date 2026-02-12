@@ -1279,7 +1279,12 @@ export function evaluateUsrObservabilityRollup({
         blocking: row.blocking
       });
       if (durationOk && observed.durationMs > row.maxDurationMs) {
-        rowErrors.push(`durationMs exceeds slo maxDurationMs: ${observed.durationMs} > ${row.maxDurationMs}`);
+        const message = `durationMs exceeds slo maxDurationMs: ${observed.durationMs} > ${row.maxDurationMs}`;
+        if (row.blocking) {
+          rowErrors.push(message);
+        } else {
+          rowWarnings.push(message);
+        }
       }
 
       const memoryOk = validateObservedNumber({
@@ -1290,7 +1295,12 @@ export function evaluateUsrObservabilityRollup({
         blocking: row.blocking
       });
       if (memoryOk && observed.peakMemoryMb > row.maxMemoryMb) {
-        rowErrors.push(`peakMemoryMb exceeds slo maxMemoryMb: ${observed.peakMemoryMb} > ${row.maxMemoryMb}`);
+        const message = `peakMemoryMb exceeds slo maxMemoryMb: ${observed.peakMemoryMb} > ${row.maxMemoryMb}`;
+        if (row.blocking) {
+          rowErrors.push(message);
+        } else {
+          rowWarnings.push(message);
+        }
       }
 
       const parserOk = validateObservedNumber({
@@ -1301,7 +1311,12 @@ export function evaluateUsrObservabilityRollup({
         blocking: row.blocking
       });
       if (parserOk && observed.parserTimePerSegmentMs > row.maxParserTimePerSegmentMs) {
-        rowErrors.push(`parserTimePerSegmentMs exceeds slo maxParserTimePerSegmentMs: ${observed.parserTimePerSegmentMs} > ${row.maxParserTimePerSegmentMs}`);
+        const message = `parserTimePerSegmentMs exceeds slo maxParserTimePerSegmentMs: ${observed.parserTimePerSegmentMs} > ${row.maxParserTimePerSegmentMs}`;
+        if (row.blocking) {
+          rowErrors.push(message);
+        } else {
+          rowWarnings.push(message);
+        }
       }
 
       const unknownKindOk = validateObservedNumber({
@@ -1312,7 +1327,12 @@ export function evaluateUsrObservabilityRollup({
         blocking: row.blocking
       });
       if (unknownKindOk && observed.unknownKindRate > row.maxUnknownKindRate) {
-        rowErrors.push(`unknownKindRate exceeds slo maxUnknownKindRate: ${observed.unknownKindRate} > ${row.maxUnknownKindRate}`);
+        const message = `unknownKindRate exceeds slo maxUnknownKindRate: ${observed.unknownKindRate} > ${row.maxUnknownKindRate}`;
+        if (row.blocking) {
+          rowErrors.push(message);
+        } else {
+          rowWarnings.push(message);
+        }
       }
 
       const unresolvedOk = validateObservedNumber({
@@ -1323,7 +1343,12 @@ export function evaluateUsrObservabilityRollup({
         blocking: row.blocking
       });
       if (unresolvedOk && observed.unresolvedRate > row.maxUnresolvedRate) {
-        rowErrors.push(`unresolvedRate exceeds slo maxUnresolvedRate: ${observed.unresolvedRate} > ${row.maxUnresolvedRate}`);
+        const message = `unresolvedRate exceeds slo maxUnresolvedRate: ${observed.unresolvedRate} > ${row.maxUnresolvedRate}`;
+        if (row.blocking) {
+          rowErrors.push(message);
+        } else {
+          rowWarnings.push(message);
+        }
       }
     }
 
