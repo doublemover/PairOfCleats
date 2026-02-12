@@ -1,7 +1,7 @@
 # Spec -- USR Core Rollout, Release, and Migration Contract
 
 Status: Draft v2.0
-Last updated: 2026-02-12T07:36:33Z
+Last updated: 2026-02-12T07:39:55Z
 
 ## Purpose
 
@@ -135,6 +135,13 @@ Phase 9.1 readiness-audit completion lock requirements:
 - `Validate completion evidence for all B1-B7 task packs.` cannot be checked while Gate B1-B7 or Gate B8 checklist lines remain unchecked.
 - `Validate per-language contract approval checklists are complete for target rollout set.` cannot be checked while any file in `docs/specs/usr/languages/*.md` contains unchecked approval checklist lines.
 - If either Phase 9.1 lock line regresses to unchecked dependencies, `Readiness report approved.` and `Test rollout authorized.` must be reopened.
+
+Gate C conformance-authorization chain lock requirements:
+
+- `conformance rollout authorized.` cannot be checked unless `all prior gates pass.` and `harness and lanes materialized.` are checked in Gate C.
+- `conformance rollout authorized.` cannot be checked unless `Readiness report approved.` and `Test rollout authorized.` are checked in Phase 9.3.
+- `conformance rollout authorized.` cannot be checked unless Appendix F.1 `Complete Phase A`, `Complete Phase B`, and `Complete Phase C` are checked and rollout approval lock state is `approved`.
+- If Gate C conformance authorization is checked, no blocking checklist line in Gate C may remain unchecked.
 
 ## Rollback policy
 

@@ -1611,3 +1611,10 @@ Source artifacts: `tests/lang/matrix/usr-ownership-matrix.json` and `tests/lang/
 - `Validate per-language contract approval checklists are complete for target rollout set.` cannot be checked while any file in `docs/specs/usr/languages/*.md` still contains unchecked approval checklist lines.
 - If either Phase 9.1 lock line regresses to unchecked dependencies, readiness authorization lines in Phase 9.3 must be reopened until evidence is restored.
 
+### N.13 Gate C conformance-authorization chain lock
+
+- `conformance rollout authorized.` cannot be checked unless `all prior gates pass.` and `harness and lanes materialized.` are checked in Gate C.
+- `conformance rollout authorized.` cannot be checked unless `Readiness report approved.` and `Test rollout authorized.` are checked in Phase 9.3.
+- `conformance rollout authorized.` cannot be checked unless Appendix F.1 `Complete Phase A`, `Complete Phase B`, and `Complete Phase C` are checked and rollout approval lock state is `approved`.
+- If Gate C conformance authorization is checked, no blocking checklist line in Gate C may remain unchecked.
+
