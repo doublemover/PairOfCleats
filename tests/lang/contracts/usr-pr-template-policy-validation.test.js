@@ -73,6 +73,19 @@ validateTemplatePolicies({
       ]
     },
     {
+      marker: 'usr-policy:change-tiering',
+      requiredRefs: [
+        'docs/specs/usr-core-governance-change.md'
+      ],
+      requiredFragments: [
+        'Tier 1',
+        'Tier 2',
+        'Tier 3',
+        'reviewer threshold',
+        'registry/schema/test updates'
+      ]
+    },
+    {
       marker: 'usr-policy:appendix-sync',
       requiredRefs: [
         'TES_LAYN_ROADMAP.md',
