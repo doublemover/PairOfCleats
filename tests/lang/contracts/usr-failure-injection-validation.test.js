@@ -68,7 +68,7 @@ const strictScenarioResults = Object.fromEntries(matrixRows.map((row) => [
     outcome: row.strictExpectedOutcome,
     diagnostics: row.requiredDiagnostics,
     reasonCodes: row.requiredReasonCodes,
-    recoveryEvidence: [`recovery-${row.id}`]
+    recoveryEvidence: Array.from(new Set([...(row.requiredRecoveryArtifacts || []), `recovery-${row.id}`]))
   }
 ]));
 
@@ -78,7 +78,7 @@ const nonStrictScenarioResults = Object.fromEntries(matrixRows.map((row) => [
     outcome: row.nonStrictExpectedOutcome,
     diagnostics: row.requiredDiagnostics,
     reasonCodes: row.requiredReasonCodes,
-    recoveryEvidence: [`recovery-${row.id}`]
+    recoveryEvidence: Array.from(new Set([...(row.requiredRecoveryArtifacts || []), `recovery-${row.id}`]))
   }
 ]));
 

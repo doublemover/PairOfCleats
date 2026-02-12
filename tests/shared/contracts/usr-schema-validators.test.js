@@ -17,6 +17,9 @@ import {
   validateUsrEdgeEndpoint,
   validateUsrEdgeEndpoints
 } from '../../../src/contracts/validators/usr.js';
+import {
+  USR_DIAGNOSTIC_CODE_SCHEMA
+} from '../../../src/contracts/schemas/usr.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -118,6 +121,10 @@ assert.equal(canonicalDocIdBad.ok, false, 'invalid docUid grammar must fail');
 
 const diagnosticCodeOk = validateUsrDiagnosticCode('USR-E-PARSER-FAILED');
 assert.equal(diagnosticCodeOk.ok, true, `canonical diagnostic code should pass: ${diagnosticCodeOk.errors.join('; ')}`);
+
+const diagnosticSchemaPattern = new RegExp(USR_DIAGNOSTIC_CODE_SCHEMA.pattern);
+assert.equal(diagnosticSchemaPattern.test('USR-I-CANONICALIZATION-DEGRADED'), true, 'diagnostic schema pattern must allow informational USR-I-* diagnostics');
+assert.equal(diagnosticSchemaPattern.test('USR-R-NOT-A-DIAGNOSTIC'), false, 'diagnostic schema pattern must reject USR-R-* reason codes');
 
 const diagnosticCodeUnknown = validateUsrDiagnosticCode('USR-E-NOT-IN-TAXONOMY');
 assert.equal(diagnosticCodeUnknown.ok, false, 'unknown diagnostic code must fail strict enum validation');

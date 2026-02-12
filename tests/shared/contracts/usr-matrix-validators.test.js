@@ -233,7 +233,7 @@ const strictScenarioResults = Object.fromEntries((failureInjectionMatrix.rows ||
     outcome: row.strictExpectedOutcome,
     diagnostics: row.requiredDiagnostics,
     reasonCodes: row.requiredReasonCodes,
-    recoveryEvidence: [`recovery-${row.id}`]
+    recoveryEvidence: Array.from(new Set([...(row.requiredRecoveryArtifacts || []), `recovery-${row.id}`]))
   }
 ]));
 
@@ -243,7 +243,7 @@ const nonStrictScenarioResults = Object.fromEntries((failureInjectionMatrix.rows
     outcome: row.nonStrictExpectedOutcome,
     diagnostics: row.requiredDiagnostics,
     reasonCodes: row.requiredReasonCodes,
-    recoveryEvidence: [`recovery-${row.id}`]
+    recoveryEvidence: Array.from(new Set([...(row.requiredRecoveryArtifacts || []), `recovery-${row.id}`]))
   }
 ]));
 
@@ -283,6 +283,28 @@ const mismatchEvaluation = evaluateUsrFailureInjectionScenarios({
 });
 assert.equal(mismatchEvaluation.ok, false, 'failure-injection evaluator must fail on strict outcome mismatches');
 assert.equal(mismatchEvaluation.errors.some((msg) => msg.includes('fi-parser-timeout')), true, 'failure-injection evaluator must include mismatching scenario ID in errors');
+
+const artifactMissingScenarioId = (failureInjectionMatrix.rows || [])[0]?.id;
+const artifactMissingResult = evaluateUsrFailureInjectionScenarios({
+  matrixPayload: failureInjectionMatrix,
+  strictScenarioResults: {
+    ...strictScenarioResults,
+    [artifactMissingScenarioId]: {
+      ...strictScenarioResults[artifactMissingScenarioId],
+      recoveryEvidence: ['not-required.json']
+    }
+  },
+  nonStrictScenarioResults: {
+    ...nonStrictScenarioResults,
+    [artifactMissingScenarioId]: {
+      ...nonStrictScenarioResults[artifactMissingScenarioId],
+      recoveryEvidence: ['not-required.json']
+    }
+  },
+  strictEnum: true
+});
+assert.equal(artifactMissingResult.ok, false, 'failure-injection evaluator must fail when required recovery artifacts are not present in observed evidence');
+assert.equal(artifactMissingResult.errors.some((msg) => msg.includes('missing required artifact')), true, 'failure-injection evaluator must report missing required recovery artifacts');
 const fixtureGovernancePath = path.join(matrixDir, 'usr-fixture-governance.json');
 const fixtureGovernance = JSON.parse(fs.readFileSync(fixtureGovernancePath, 'utf8'));
 
@@ -720,8 +742,28 @@ const waiverActiveReport = buildUsrWaiverActiveReport({
   lane: 'ci'
 });
 assert.equal(waiverActiveReport.ok, true, `waiver active report should pass: ${waiverActiveReport.errors.join('; ')}`);
+assert.deepEqual(waiverActiveReport.rows, waiverActiveReport.payload.rows, 'waiver active report API rows must match payload rows');
 const waiverActiveReportValidation = validateUsrReport('usr-waiver-active-report', waiverActiveReport.payload);
 assert.equal(waiverActiveReportValidation.ok, true, `waiver active report payload must validate: ${waiverActiveReportValidation.errors.join('; ')}`);
+
+const waiverActiveWithExpiredRow = buildUsrWaiverActiveReport({
+  waiverPolicyPayload: {
+    ...waiverPolicy,
+    rows: (waiverPolicy.rows || []).map((row) => (
+      row.id === 'waiver-observability-gap-temp'
+        ? { ...row, allowedUntil: '2026-01-01T00:00:00Z' }
+        : row
+    ))
+  },
+  ownershipMatrixPayload: ownershipMatrix,
+  escalationPolicyPayload: escalationPolicy,
+  evaluationTime: '2026-02-12T00:00:00Z',
+  strictMode: false,
+  runId: 'run-usr-waiver-active-report-002',
+  lane: 'ci'
+});
+assert.equal(waiverActiveWithExpiredRow.rows.some((row) => row.id === 'waiver-observability-gap-temp'), false, 'waiver active report rows must exclude expired waivers');
+assert.deepEqual(waiverActiveWithExpiredRow.rows, waiverActiveWithExpiredRow.payload.rows, 'waiver active report return rows must remain aligned with payload rows after expiry filtering');
 
 const waiverExpiryReport = buildUsrWaiverExpiryReport({
   waiverPolicyPayload: waiverPolicy,
