@@ -86,6 +86,17 @@ validateTemplatePolicies({
       ]
     },
     {
+      marker: 'usr-policy:extension-policy',
+      requiredRefs: [
+        'docs/specs/unified-syntax-representation.md'
+      ],
+      requiredFragments: [
+        'namespaced extension keys',
+        'no canonical required-semantic overrides',
+        'deterministic extension output ordering/values'
+      ]
+    },
+    {
       marker: 'usr-policy:appendix-sync',
       requiredRefs: [
         'TES_LAYN_ROADMAP.md',
