@@ -1592,4 +1592,9 @@ Source artifacts: `tests/lang/matrix/usr-ownership-matrix.json` and `tests/lang/
 - `Complete Phase C` cannot be checked unless `Readiness report approved.` and `Test rollout authorized.` are checked.
 - `Complete Phase D` cannot be checked unless Gate C `all prior gates pass.` and `conformance rollout authorized.` are checked and rollout approval lock state is `approved`.
 
+### N.10 Phase 9 readiness authorization lock
+
+- `Readiness report approved.` cannot be checked while any item in Phase 9.1 (`Readiness audit`) or Phase 9.2 (`Go/No-Go decision`) is unchecked.
+- `Test rollout authorized.` cannot be checked unless `Readiness report approved.` is checked and Gate B1-B7 checklist has no unchecked items.
+- If Gate B8 mixed-repo/cross-batch coherence controls regress to unchecked, readiness and test-rollout authorization lines must be reopened until evidence is restored.
 

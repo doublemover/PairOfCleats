@@ -36,6 +36,7 @@ const requiredSpecAnchors = [
   'BC-001` through `BC-012',
   '## Operational readiness requirements',
   'Appendix F.1 checklist promotion lock requirements:',
+  'Phase 9 readiness authorization lock requirements:',
   '## Rollback policy',
   '## Required outputs'
 ];
@@ -92,6 +93,7 @@ const requiredCiTests = [
   'lang/contracts/usr-rollout-migration-policy-validation',
   'lang/contracts/usr-rollout-phase-gate-validation',
   'lang/contracts/usr-rollout-f1-checklist-validation',
+  'lang/contracts/usr-phase9-readiness-authorization-lock-validation',
   'lang/contracts/usr-rollout-approval-lock-validation',
   'lang/contracts/usr-runtime-config-feature-flag-validation',
   'lang/contracts/usr-implementation-readiness-validation',

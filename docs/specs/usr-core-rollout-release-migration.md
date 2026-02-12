@@ -1,7 +1,7 @@
 # Spec -- USR Core Rollout, Release, and Migration Contract
 
 Status: Draft v2.0
-Last updated: 2026-02-12T07:28:52Z
+Last updated: 2026-02-12T07:31:25Z
 
 ## Purpose
 
@@ -116,6 +116,12 @@ Appendix F.1 checklist promotion lock requirements:
 - Phase B can only be checked after Phase A is checked and Phase B parity evidence remains green.
 - Phase C can only be checked after Phase A and Phase B are checked, `Readiness report approved.` is checked, and `Test rollout authorized.` is checked.
 - Phase D can only be checked after Phase A/B/C are checked, Gate C `all prior gates pass.` and `conformance rollout authorized.` are checked, and rollout approval lock state is `approved`.
+
+Phase 9 readiness authorization lock requirements:
+
+- `Readiness report approved.` cannot be checked while any item in Phase 9.1 (`Readiness audit`) or Phase 9.2 (`Go/No-Go decision`) is unchecked.
+- `Test rollout authorized.` cannot be checked unless `Readiness report approved.` is checked and Gate B1-B7 checklist has no unchecked items.
+- If Gate B8 mixed-repo/cross-batch coherence controls regress, readiness and test-rollout authorization lines must be reopened.
 
 ## Rollback policy
 
