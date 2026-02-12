@@ -118,6 +118,7 @@ for (const testId of [
   'lang/contracts/usr-gate-c-prereq-lock-validation',
   'lang/contracts/usr-rollout-approval-lock-validation',
   'lang/contracts/usr-rollout-f1-checklist-validation',
+  'lang/contracts/usr-rollout-phase-evidence-lock-validation',
   'lang/contracts/usr-phase9-readiness-authorization-lock-validation'
 ]) {
   assert.equal(ciOrderText.includes(testId), true, `ci order missing Gate C conformance-chain validator coverage: ${testId}`);

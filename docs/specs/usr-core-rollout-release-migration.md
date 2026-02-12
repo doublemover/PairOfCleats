@@ -1,7 +1,7 @@
 # Spec -- USR Core Rollout, Release, and Migration Contract
 
 Status: Draft v2.0
-Last updated: 2026-02-12T07:39:55Z
+Last updated: 2026-02-12T07:42:00Z
 
 ## Purpose
 
@@ -142,6 +142,13 @@ Gate C conformance-authorization chain lock requirements:
 - `conformance rollout authorized.` cannot be checked unless `Readiness report approved.` and `Test rollout authorized.` are checked in Phase 9.3.
 - `conformance rollout authorized.` cannot be checked unless Appendix F.1 `Complete Phase A`, `Complete Phase B`, and `Complete Phase C` are checked and rollout approval lock state is `approved`.
 - If Gate C conformance authorization is checked, no blocking checklist line in Gate C may remain unchecked.
+
+Appendix F.1 phase-evidence lock requirements:
+
+- `Complete Phase A schema and registry readiness.` cannot be checked while Gate A contains unchecked checklist lines.
+- `Complete Phase B dual-write parity validation.` cannot be checked unless Gate C `backward-compat matrix strict scenarios are green in CI.` is checked.
+- `Complete Phase C USR-backed production path validation.` cannot be checked unless Gate C operational/security/performance/threat/waiver evidence lines remain checked.
+- `Complete Phase D full conformance enforcement.` cannot be checked unless Phase 11.3, Phase 12.3, and Phase 13.2 exit criteria are checked and Gate C `conformance rollout authorized.` is checked.
 
 ## Rollback policy
 

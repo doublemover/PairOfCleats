@@ -111,6 +111,7 @@ const requiredRoadmapAnchors = [
   '### N.11 Gate B1-B7 language-batch completion lock',
   '### N.12 Phase 9.1 readiness-audit completion lock',
   '### N.13 Gate C conformance-authorization chain lock',
+  '### N.14 Appendix F.1 phase-evidence lock',
   '| Consolidated contract | Primary intent | Required phases | Required CI gates/lanes |',
   'appendices H/J/M/N'
 ];
