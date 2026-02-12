@@ -1,6 +1,6 @@
 # USR Contract Enforcement Guide
 
-Last updated: 2026-02-12T05:04:15Z
+Last updated: 2026-02-12T05:10:37Z
 
 ## Purpose
 
@@ -29,6 +29,7 @@ Define CI/local enforcement for the consolidated USR contract model.
 - bridge/provenance dashboard enforcement (`tests/lang/contracts/usr-bridge-provenance-dashboard-validation.test.js`) validates section 15.2 coverage dashboard emission for embedded-language bridge and generated-provenance fixtures
 - language batch shard enforcement (`tests/lang/contracts/usr-language-batch-shards-validation.test.js`) validates section 4/phase-10 batch partition coverage, deterministic language assignment, and lane manifest path consistency
 - matrix-driven harness coverage enforcement (`tests/lang/contracts/usr-matrix-driven-harness-validation.test.js`) validates profile-wide lane/fixture/batch coverage for every language and framework profile
+- core artifact-schema catalog alignment enforcement (`tests/lang/contracts/usr-core-artifact-schema-catalog-alignment.test.js`) validates mandatory-key tables in `docs/specs/usr-core-artifact-schema-catalog.md` against active matrix schema-required keys
 - C0/C1 baseline conformance enforcement (`tests/lang/contracts/usr-c0-baseline-validation.test.js`, `tests/lang/contracts/usr-c1-baseline-validation.test.js`) validates C0/C1 required/blocking level coverage for all language profiles and report generation
 - C2/C3 deep-profile conformance enforcement (`tests/lang/contracts/usr-c2-baseline-validation.test.js`, `tests/lang/contracts/usr-c3-baseline-validation.test.js`) validates C2/C3 required/blocking level coverage for eligible language profiles and report generation
 - language risk-profile conformance enforcement (`tests/lang/contracts/usr-language-risk-profile-validation.test.js`) validates machine-readable risk source/sink/sanitizer taxonomy coverage and interprocedural gating invariants

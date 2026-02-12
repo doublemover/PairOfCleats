@@ -208,7 +208,7 @@ If contradictions are found:
 - [x] Create `tests/lang/matrix/usr-quality-gates.json`.
 - [x] Create `tests/lang/matrix/usr-operational-readiness-policy.json`.
 - [x] Add deterministic baseline generator `tools/usr/generate-usr-matrix-baselines.mjs` and matrix inventory doc `tests/lang/matrix/README.md`.
-- [ ] Keep consolidated core contracts (`docs/specs/usr-core-*.md`) aligned with machine-readable registry schema keys.
+- [x] Keep consolidated core contracts (`docs/specs/usr-core-*.md`) aligned with machine-readable registry schema keys.
 
 ### 1.2 Schema and validator package (USR section 24)
 
