@@ -530,16 +530,17 @@ Tests:
 
 ### 14.1.3 Atomic writes + locking
 
-- [ ] Use index lock for snapshot/diff writes.
-- [ ] Write JSON atomically (temp + rename) with stable JSON output.
-- [ ] Clean up stale `frozen.staging-*` directories (default 24h).
+- [x] Use index lock for snapshot/diff writes.
+- [x] Write JSON atomically (temp + rename) with stable JSON output.
+- [x] Clean up stale `frozen.staging-*` directories (default 24h).
 
 Touchpoints:
 - `src/index/build/lock.js#acquireIndexLock`
 - `src/shared/json-stream.js#writeJsonObjectFile`
 
 Tests:
-- [ ] `tests/unit/snapshots-registry.unit.js` (atomic update + readability after simulated failure)
+- [x] `tests/shared/snapshots-registry.test.js` (atomic update + readability after simulated failure)
+- [x] `tests/shared/diffs-registry.test.js` (lock-gated diff registry atomic writes)
 
 ### 14.1.4 Path safety and privacy
 
