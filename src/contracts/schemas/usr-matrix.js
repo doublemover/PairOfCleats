@@ -1,0 +1,240 @@
+const STRING = { type: 'string' };
+const BOOL = { type: 'boolean' };
+
+const stringArray = {
+  type: 'array',
+  items: STRING
+};
+
+const registryEnvelope = (registryId, rowSchema) => ({
+  $schema: 'https://json-schema.org/draft/2020-12/schema',
+  title: `${registryId}.json`,
+  type: 'object',
+  additionalProperties: false,
+  required: ['schemaVersion', 'registryId', 'generatedAt', 'generatedBy', 'rows'],
+  properties: {
+    schemaVersion: { type: 'string', const: 'usr-registry-1.0.0' },
+    registryId: { type: 'string', const: registryId },
+    generatedAt: STRING,
+    generatedBy: STRING,
+    rows: {
+      type: 'array',
+      items: rowSchema
+    }
+  }
+});
+
+export const USR_MATRIX_ROW_SCHEMAS = Object.freeze({
+  'usr-runtime-config-policy': {
+    type: 'object',
+    additionalProperties: false,
+    required: ['id', 'key', 'valueType', 'defaultValue', 'rolloutClass', 'strictModeBehavior', 'requiresRestart', 'blocking'],
+    properties: {
+      id: STRING,
+      key: STRING,
+      valueType: { type: 'string', enum: ['boolean', 'integer', 'enum'] },
+      defaultValue: {},
+      minValue: { type: ['number', 'null'] },
+      maxValue: { type: ['number', 'null'] },
+      allowedValues: {
+        type: ['array', 'null'],
+        items: STRING
+      },
+      rolloutClass: STRING,
+      strictModeBehavior: STRING,
+      requiresRestart: BOOL,
+      blocking: BOOL
+    }
+  },
+  'usr-failure-injection-matrix': {
+    type: 'object',
+    additionalProperties: false,
+    required: ['id', 'faultClass', 'injectionLayer', 'strictExpectedOutcome', 'nonStrictExpectedOutcome', 'requiredDiagnostics', 'requiredReasonCodes', 'blocking'],
+    properties: {
+      id: STRING,
+      faultClass: STRING,
+      injectionLayer: STRING,
+      strictExpectedOutcome: STRING,
+      nonStrictExpectedOutcome: STRING,
+      requiredDiagnostics: stringArray,
+      requiredReasonCodes: stringArray,
+      blocking: BOOL
+    }
+  },
+  'usr-fixture-governance': {
+    type: 'object',
+    additionalProperties: false,
+    required: ['fixtureId', 'profileType', 'profileId', 'conformanceLevels', 'families', 'owner', 'reviewers', 'stabilityClass', 'mutationPolicy', 'goldenRequired', 'blocking'],
+    properties: {
+      fixtureId: STRING,
+      profileType: { type: 'string', enum: ['language', 'framework', 'cross-cutting'] },
+      profileId: STRING,
+      conformanceLevels: stringArray,
+      families: stringArray,
+      owner: STRING,
+      reviewers: stringArray,
+      stabilityClass: { type: 'string', enum: ['stable', 'volatile'] },
+      mutationPolicy: { type: 'string', enum: ['require-rfc', 'require-review', 'allow-generated-refresh'] },
+      goldenRequired: BOOL,
+      blocking: BOOL
+    }
+  },
+  'usr-language-profiles': {
+    type: 'object',
+    additionalProperties: false,
+    required: ['id', 'parserPreference', 'requiredNodeKinds', 'requiredEdgeKinds', 'requiredCapabilities', 'fallbackChain', 'frameworkProfiles', 'requiredConformance'],
+    properties: {
+      id: STRING,
+      parserPreference: STRING,
+      languageVersionPolicy: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['minVersion', 'maxVersion', 'dialects', 'featureFlags'],
+        properties: {
+          minVersion: STRING,
+          maxVersion: { type: ['string', 'null'] },
+          dialects: stringArray,
+          featureFlags: stringArray
+        }
+      },
+      embeddingPolicy: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['canHostEmbedded', 'canBeEmbedded', 'embeddedLanguageAllowlist'],
+        properties: {
+          canHostEmbedded: BOOL,
+          canBeEmbedded: BOOL,
+          embeddedLanguageAllowlist: stringArray
+        }
+      },
+      requiredNodeKinds: stringArray,
+      requiredEdgeKinds: stringArray,
+      requiredCapabilities: {
+        type: 'object',
+        additionalProperties: {
+          type: 'string',
+          enum: ['supported', 'partial', 'unsupported']
+        }
+      },
+      fallbackChain: stringArray,
+      frameworkProfiles: stringArray,
+      requiredConformance: stringArray,
+      notes: STRING
+    }
+  },
+  'usr-framework-profiles': {
+    type: 'object',
+    additionalProperties: false,
+    required: ['id', 'detectionPrecedence', 'appliesToLanguages', 'segmentationRules', 'bindingSemantics', 'routeSemantics', 'hydrationSemantics', 'embeddedLanguageBridges', 'edgeCaseCaseIds', 'requiredConformance'],
+    properties: {
+      id: STRING,
+      detectionPrecedence: stringArray,
+      appliesToLanguages: stringArray,
+      segmentationRules: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['blocks', 'ordering', 'crossBlockLinking'],
+        properties: {
+          blocks: stringArray,
+          ordering: stringArray,
+          crossBlockLinking: stringArray
+        }
+      },
+      bindingSemantics: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['requiredEdgeKinds', 'requiredAttrs'],
+        properties: {
+          requiredEdgeKinds: stringArray,
+          requiredAttrs: {
+            type: 'object',
+            additionalProperties: stringArray
+          }
+        }
+      },
+      routeSemantics: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['enabled', 'patternCanon', 'runtimeSides'],
+        properties: {
+          enabled: BOOL,
+          patternCanon: STRING,
+          runtimeSides: stringArray
+        }
+      },
+      hydrationSemantics: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['required', 'boundarySignals', 'ssrCsrModes'],
+        properties: {
+          required: BOOL,
+          boundarySignals: stringArray,
+          ssrCsrModes: stringArray
+        }
+      },
+      embeddedLanguageBridges: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['sourceBlock', 'targetBlock', 'edgeKinds'],
+          properties: {
+            sourceBlock: STRING,
+            targetBlock: STRING,
+            edgeKinds: stringArray
+          }
+        }
+      },
+      edgeCaseCaseIds: stringArray,
+      requiredConformance: stringArray
+    }
+  },
+  'usr-capability-matrix': {
+    type: 'object',
+    additionalProperties: false,
+    required: ['languageId', 'frameworkProfile', 'capability', 'state', 'requiredConformance', 'downgradeDiagnostics', 'blocking'],
+    properties: {
+      languageId: STRING,
+      frameworkProfile: { type: ['string', 'null'] },
+      capability: STRING,
+      state: { type: 'string', enum: ['supported', 'partial', 'unsupported'] },
+      requiredConformance: stringArray,
+      downgradeDiagnostics: stringArray,
+      blocking: BOOL
+    }
+  },
+  'usr-ownership-matrix': {
+    type: 'object',
+    additionalProperties: false,
+    required: ['id', 'domain', 'ownerRole', 'backupOwnerRole', 'escalationPolicyId', 'evidenceArtifacts', 'blocking'],
+    properties: {
+      id: STRING,
+      domain: STRING,
+      ownerRole: STRING,
+      backupOwnerRole: STRING,
+      escalationPolicyId: STRING,
+      evidenceArtifacts: stringArray,
+      blocking: BOOL
+    }
+  },
+  'usr-escalation-policy': {
+    type: 'object',
+    additionalProperties: false,
+    required: ['id', 'triggerClass', 'severity', 'requiredApprovers', 'maxAckMinutes', 'maxResolutionMinutes', 'autoBlockPromotion'],
+    properties: {
+      id: STRING,
+      triggerClass: STRING,
+      severity: { type: 'string', enum: ['medium', 'high', 'critical'] },
+      requiredApprovers: stringArray,
+      maxAckMinutes: { type: 'integer', minimum: 1 },
+      maxResolutionMinutes: { type: 'integer', minimum: 1 },
+      autoBlockPromotion: BOOL
+    }
+  }
+});
+
+export const USR_MATRIX_SCHEMA_DEFS = Object.freeze(
+  Object.fromEntries(
+    Object.entries(USR_MATRIX_ROW_SCHEMAS).map(([registryId, rowSchema]) => [registryId, registryEnvelope(registryId, rowSchema)])
+  )
+);
