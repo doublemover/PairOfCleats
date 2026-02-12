@@ -32,6 +32,7 @@ const extractSection = (text, startMarker, endMarker) => {
 const phaseNineReadinessSection = extractSection(roadmapText, '### 9.1 Readiness audit', '### 9.2 Go/No-Go decision');
 
 for (const checkedLine of [
+  '- [x] Validate conformance matrix readiness by language.',
   '- [x] Validate section 36 compatibility matrix readiness and blocking policy evidence.',
   '- [x] Validate runtime config policy evidence and feature-flag state outputs are complete.',
   '- [x] Validate blocking failure-injection evidence and recovery artifacts are complete.',
@@ -48,6 +49,7 @@ assert.equal(appendixMSection.includes('| 9 | `usr-operational-readiness-validat
 
 for (const testId of [
   'backcompat/backcompat-matrix-validation',
+  'lang/contracts/usr-conformance-matrix-readiness-by-language-validation',
   'lang/contracts/usr-runtime-config-feature-flag-validation',
   'lang/contracts/usr-failure-injection-validation',
   'lang/contracts/usr-fixture-governance-validation',

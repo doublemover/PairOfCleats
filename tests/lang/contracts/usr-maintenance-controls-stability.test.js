@@ -89,6 +89,7 @@ const requiredCiTests = [
   'lang/contracts/usr-canonical-example-validation',
   'lang/contracts/usr-framework-canonicalization',
   'lang/contracts/usr-framework-profile-matrix-sync-validation',
+  'lang/contracts/usr-conformance-matrix-readiness-by-language-validation',
   'lang/contracts/usr-phase9-readiness-evidence-validation',
   'lang/contracts/usr-f5-hard-requirements-validation',
   'lang/contracts/usr-f6-sync-requirements-validation',
