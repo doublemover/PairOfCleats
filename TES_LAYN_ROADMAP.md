@@ -747,14 +747,14 @@ If contradictions are found:
 
 ### Gate B8 (cross-batch integration)
 
-- [ ] mixed-repo integration checks pass.
+- [x] mixed-repo integration checks pass.
 - [ ] cross-batch regressions resolved.
 - [ ] cross-language canonical example bundle coherence checks pass.
 
 ### Gate C (test rollout)
 
 - [ ] all prior gates pass.
-- [ ] harness and lanes materialized.
+- [x] harness and lanes materialized.
 - [ ] conformance rollout authorized.
 - [x] backward-compat matrix strict scenarios are green in CI.
 - [x] decomposed contract drift checks are green in CI.

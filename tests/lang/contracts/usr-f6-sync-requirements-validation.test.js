@@ -74,6 +74,7 @@ assertExists('tests/lang/matrix/usr-operational-readiness-policy.json', 'F.6.4 o
 assertExists('tests/lang/matrix/usr-quality-gates.json', 'F.6.4 quality-gate matrix');
 assertTestInCiOrders('lang/contracts/usr-core-artifact-schema-catalog-alignment', 'F.6.4');
 assertTestInCiOrders('lang/contracts/usr-gate-a-registry-readiness-validation', 'F.6.4');
+assertTestInCiOrders('lang/contracts/usr-harness-lane-materialization-validation', 'F.6.4');
 assertTestInCiOrders('lang/contracts/usr-implementation-readiness-validation', 'F.6.4');
 
 // F.6.5 observability/SLO and security-governance synchronization.
