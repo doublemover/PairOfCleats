@@ -167,11 +167,19 @@ export function buildSearchRequestArgs(payload = {}, {
   }
 
   const mode = toStringValue(payload.mode);
+  const asOf = toStringValue(payload.asOf);
+  const snapshotId = toStringValue(payload.snapshotId);
+  const snapshot = toStringValue(payload.snapshot) || snapshotId;
   const backend = toStringValue(payload.backend);
   const ann = typeof payload.ann === 'boolean' ? payload.ann : null;
   const top = normalizeOptionalNumber(payload.top, { min: topMin });
   const contextLines = normalizeOptionalNumber(payload.context, { min: 0 });
 
+  if (asOf) {
+    searchArgs.push('--as-of', asOf);
+  } else if (snapshot) {
+    searchArgs.push('--snapshot', snapshot);
+  }
   if (mode && !(omitModeBoth && mode === 'both')) {
     searchArgs.push('--mode', mode);
   }

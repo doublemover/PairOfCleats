@@ -574,7 +574,7 @@ Tests:
 - [x] `tests/services/snapshot-create.test.js`
 
 Optional API:
-- [ ] `tools/api/router/*` plus `docs/specs/http-api.md` for request/response contracts.
+- [x] `tools/api/router/*` plus `docs/specs/http-api.md` for request/response contracts.
 
 ---
 
@@ -660,10 +660,10 @@ Tests:
 
 ## 14.6 Optional HTTP API integration
 
-- [ ] Extend `/search` to accept `asOf` and thread to `--as-of`.
-- [ ] Add snapshot and diff endpoints if UI parity is required.
-- [ ] Enforce allowed repo roots and never return absolute paths in responses.
-- [ ] Follow `docs/specs/http-api.md` for request/response schemas, error codes, redaction, and allowlisting behavior.
+- [x] Extend `/search` to accept `asOf` and thread to `--as-of`.
+- [x] Add snapshot and diff endpoints if UI parity is required.
+- [x] Enforce allowed repo roots and never return absolute paths in responses.
+- [x] Follow `docs/specs/http-api.md` for request/response schemas, error codes, redaction, and allowlisting behavior.
 
 Touchpoints:
 - `tools/api/router/search.js`
@@ -673,7 +673,7 @@ Touchpoints:
 - `docs/specs/http-api.md`
 
 Tests:
-- [ ] `tests/services/api-search-asof.test.js` (if API is added)
+- [x] `tests/services/api-search-asof.test.js` (if API is added)
 
 ## Phase 15 — Federation & Multi-Repo (Workspaces, Manifests, Federated Search)
 

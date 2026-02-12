@@ -1,3 +1,5 @@
+import { redactAbsolutePaths } from './redact.js';
+
 /**
  * Write a JSON payload to the HTTP response.
  * @param {import('node:http').ServerResponse} res
@@ -6,7 +8,7 @@
  * @param {object} [headers]
  */
 export const sendJson = (res, statusCode, payload, headers = {}) => {
-  const body = JSON.stringify(payload);
+  const body = JSON.stringify(redactAbsolutePaths(payload));
   res.writeHead(statusCode, {
     'Content-Type': 'application/json; charset=utf-8',
     'Content-Length': Buffer.byteLength(body),

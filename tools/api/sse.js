@@ -1,3 +1,5 @@
+import { redactAbsolutePaths } from './redact.js';
+
 /**
  * Write SSE headers for streaming responses.
  * @param {import('node:http').IncomingMessage} req
@@ -54,7 +56,7 @@ export const createSseResponder = (req, res, options = {}) => {
       if (closed || res.writableEnded || res.destroyed) return false;
       const ok = await writeChunk(`event: ${event}\n`);
       if (!ok) return false;
-      return writeChunk(`data: ${JSON.stringify(payload)}\n\n`);
+      return writeChunk(`data: ${JSON.stringify(redactAbsolutePaths(payload))}\n\n`);
     },
     end() {
       if (closed || res.writableEnded || res.destroyed) return;

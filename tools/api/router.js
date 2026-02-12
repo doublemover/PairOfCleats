@@ -8,7 +8,9 @@ import { createBodyParser } from './router/body.js';
 import { createRepoCacheManager } from './router/cache.js';
 import { createCorsResolver } from './router/cors.js';
 import { createRepoResolver } from './router/paths.js';
-import { buildSearchParams, isNoIndexError } from './router/search.js';
+import { handleIndexDiffsRoute } from './router/index-diffs.js';
+import { handleIndexSnapshotsRoute } from './router/index-snapshots.js';
+import { buildSearchParams, buildSearchPayloadFromQuery, isNoIndexError } from './router/search.js';
 
 /**
  * Create an API router for the HTTP server.
@@ -115,11 +117,11 @@ export const createApiRouter = ({
           return;
         }
         await sse.sendHeaders();
-        await sse.sendEvent('start', { ok: true, repo: repoPath });
+        await sse.sendEvent('start', { ok: true });
         try {
           const payload = await status(repoPath);
           if (!sse.isClosed()) {
-            await sse.sendEvent('result', { ok: true, repo: repoPath, status: payload });
+            await sse.sendEvent('result', { ok: true, status: payload });
             await sse.sendEvent('done', { ok: true });
           }
         } catch (err) {
@@ -146,11 +148,97 @@ export const createApiRouter = ({
         }
         try {
           const payload = await status(repoPath);
-          sendJson(res, 200, { ok: true, repo: repoPath, status: payload }, corsHeaders || {});
+          sendJson(res, 200, { ok: true, status: payload }, corsHeaders || {});
         } catch (err) {
           sendError(res, 500, ERROR_CODES.INTERNAL, 'Failed to collect status.', {
             error: err?.message || String(err)
           }, corsHeaders || {});
+        }
+        return;
+      }
+
+      if (await handleIndexSnapshotsRoute({
+        req,
+        res,
+        requestUrl,
+        pathname: requestUrl.pathname,
+        corsHeaders,
+        resolveRepo,
+        parseJsonBody
+      })) {
+        return;
+      }
+
+      if (await handleIndexDiffsRoute({
+        req,
+        res,
+        requestUrl,
+        pathname: requestUrl.pathname,
+        corsHeaders,
+        resolveRepo
+      })) {
+        return;
+      }
+
+      if (requestUrl.pathname === '/search' && req.method === 'GET') {
+        const controller = new AbortController();
+        const payload = buildSearchPayloadFromQuery(requestUrl.searchParams);
+        const validation = validateSearchPayload(payload);
+        if (!validation.ok) {
+          sendError(res, 400, ERROR_CODES.INVALID_REQUEST, 'Invalid search payload.', {
+            errors: validation.errors
+          }, corsHeaders || {});
+          return;
+        }
+        let repoPath = '';
+        try {
+          repoPath = await resolveRepo(payload?.repoPath || payload?.repo);
+        } catch (err) {
+          const code = err?.code === ERROR_CODES.FORBIDDEN ? ERROR_CODES.FORBIDDEN : ERROR_CODES.INVALID_REQUEST;
+          const status = err?.code === ERROR_CODES.FORBIDDEN ? 403 : 400;
+          sendError(res, status, code, err?.message || 'Invalid repo path.', {}, corsHeaders || {});
+          return;
+        }
+        const searchParams = buildSearchParams(repoPath, payload || {}, defaultOutput);
+        if (!searchParams.ok) {
+          sendError(
+            res,
+            400,
+            ERROR_CODES.INVALID_REQUEST,
+            searchParams.message || 'Invalid search payload.',
+            {},
+            corsHeaders || {}
+          );
+          return;
+        }
+        try {
+          const caches = getRepoCaches(repoPath);
+          await refreshBuildPointer(caches);
+          const body = await search(repoPath, {
+            args: searchParams.args,
+            query: searchParams.query,
+            emitOutput: false,
+            exitOnError: false,
+            indexCache: caches.indexCache,
+            sqliteCache: caches.sqliteCache,
+            signal: controller.signal
+          });
+          sendJson(res, 200, { ok: true, result: body }, corsHeaders || {});
+        } catch (err) {
+          if (isNoIndexError(err)) {
+            sendError(res, 409, ERROR_CODES.NO_INDEX, err?.message || 'Index not found.', {
+              error: err?.message || String(err)
+            }, corsHeaders || {});
+            return;
+          }
+          sendError(
+            res,
+            500,
+            ERROR_CODES.INTERNAL,
+            'Search failed.',
+            { error: err?.message || String(err) },
+            corsHeaders || {}
+          );
         }
         return;
       }
@@ -225,7 +313,7 @@ export const createApiRouter = ({
             signal: controller.signal
           });
           if (!sse.isClosed()) {
-            await sse.sendEvent('result', { ok: true, repo: repoPath, result: body });
+            await sse.sendEvent('result', { ok: true, result: body });
             await sse.sendEvent('done', { ok: true });
           }
         } catch (err) {
@@ -308,7 +396,7 @@ export const createApiRouter = ({
             sqliteCache: caches.sqliteCache,
             signal: controller.signal
           });
-          sendJson(res, 200, { ok: true, repo: repoPath, result: body }, corsHeaders || {});
+          sendJson(res, 200, { ok: true, result: body }, corsHeaders || {});
         } catch (err) {
           if (req.aborted || res.writableEnded) return;
           if (isNoIndexError(err)) {

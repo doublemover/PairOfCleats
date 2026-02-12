@@ -171,6 +171,10 @@ try {
   if (!statusResult?.data?.status?.repo?.root) {
     throw new Error('status stream missing repo payload');
   }
+  const statusBody = JSON.stringify(statusResult.data || {});
+  if (statusBody.includes(fixtureRoot) || statusBody.includes(cacheRoot)) {
+    throw new Error('status stream leaked absolute paths');
+  }
 
   const searchEvents = await readSse('POST', '/search/stream', { query: 'return', mode: 'code' });
   const searchResult = searchEvents.find((evt) => evt.event === 'result');
@@ -184,6 +188,10 @@ try {
   const followResult = followUp.find((evt) => evt.event === 'result');
   if (!followResult?.data?.status?.repo?.root) {
     throw new Error('stream abort should not break subsequent requests');
+  }
+  const followBody = JSON.stringify(followResult.data || {});
+  if (followBody.includes(fixtureRoot) || followBody.includes(cacheRoot)) {
+    throw new Error('follow-up status stream leaked absolute paths');
   }
 } catch (err) {
   console.error(err?.message || err);
