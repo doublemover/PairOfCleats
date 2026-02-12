@@ -122,6 +122,73 @@ export const USR_MATRIX_ROW_SCHEMAS = Object.freeze({
       notes: STRING
     }
   },
+  'usr-language-version-policy': {
+    type: 'object',
+    additionalProperties: false,
+    required: ['languageId', 'minVersion', 'maxVersion', 'dialects', 'featureFlags'],
+    properties: {
+      languageId: STRING,
+      minVersion: STRING,
+      maxVersion: { type: ['string', 'null'] },
+      dialects: stringArray,
+      featureFlags: stringArray
+    }
+  },
+  'usr-language-embedding-policy': {
+    type: 'object',
+    additionalProperties: false,
+    required: ['languageId', 'canHostEmbedded', 'canBeEmbedded', 'embeddedLanguageAllowlist'],
+    properties: {
+      languageId: STRING,
+      canHostEmbedded: BOOL,
+      canBeEmbedded: BOOL,
+      embeddedLanguageAllowlist: stringArray
+    }
+  },
+  'usr-node-kind-mapping': {
+    type: 'object',
+    additionalProperties: false,
+    required: ['languageId', 'parserSource', 'rawKind', 'normalizedKind', 'category', 'confidence', 'priority', 'provenance', 'languageVersionSelector', 'notes'],
+    properties: {
+      languageId: STRING,
+      parserSource: STRING,
+      rawKind: STRING,
+      normalizedKind: STRING,
+      category: STRING,
+      confidence: { type: 'number', minimum: 0, maximum: 1 },
+      priority: { type: 'integer', minimum: 0 },
+      provenance: STRING,
+      languageVersionSelector: { type: ['string', 'null'] },
+      notes: STRING
+    }
+  },
+  'usr-edge-kind-constraints': {
+    type: 'object',
+    additionalProperties: false,
+    required: ['edgeKind', 'sourceEntityKinds', 'targetEntityKinds', 'requiredAttrs', 'optionalAttrs', 'blocking'],
+    properties: {
+      edgeKind: STRING,
+      sourceEntityKinds: stringArray,
+      targetEntityKinds: stringArray,
+      requiredAttrs: stringArray,
+      optionalAttrs: stringArray,
+      blocking: BOOL
+    }
+  },
+  'usr-parser-runtime-lock': {
+    type: 'object',
+    additionalProperties: false,
+    required: ['parserSource', 'languageId', 'parserName', 'parserVersion', 'runtimeName', 'runtimeVersion', 'lockReason'],
+    properties: {
+      parserSource: STRING,
+      languageId: STRING,
+      parserName: STRING,
+      parserVersion: STRING,
+      runtimeName: STRING,
+      runtimeVersion: STRING,
+      lockReason: STRING
+    }
+  },
   'usr-language-batch-shards': {
     type: 'object',
     additionalProperties: false,
@@ -204,6 +271,113 @@ export const USR_MATRIX_ROW_SCHEMAS = Object.freeze({
       },
       edgeCaseCaseIds: stringArray,
       requiredConformance: stringArray
+    }
+  },
+  'usr-framework-edge-cases': {
+    type: 'object',
+    additionalProperties: false,
+    required: ['id', 'frameworkProfile', 'category', 'requiredEdgeKinds', 'requiredDiagnostics', 'blocking'],
+    properties: {
+      id: STRING,
+      frameworkProfile: STRING,
+      category: STRING,
+      requiredEdgeKinds: stringArray,
+      requiredDiagnostics: stringArray,
+      blocking: BOOL
+    }
+  },
+  'usr-embedding-bridge-cases': {
+    type: 'object',
+    additionalProperties: false,
+    required: ['id', 'containerKind', 'sourceLanguageId', 'targetLanguageId', 'requiredEdgeKinds', 'requiredDiagnostics', 'blocking'],
+    properties: {
+      id: STRING,
+      containerKind: STRING,
+      sourceLanguageId: STRING,
+      targetLanguageId: STRING,
+      requiredEdgeKinds: stringArray,
+      requiredDiagnostics: stringArray,
+      blocking: BOOL
+    }
+  },
+  'usr-generated-provenance-cases': {
+    type: 'object',
+    additionalProperties: false,
+    required: ['id', 'languageId', 'generationKind', 'mappingExpectation', 'requiredDiagnostics', 'blocking'],
+    properties: {
+      id: STRING,
+      languageId: STRING,
+      generationKind: STRING,
+      mappingExpectation: { type: 'string', enum: ['exact', 'approximate', 'missing'] },
+      requiredDiagnostics: stringArray,
+      blocking: BOOL
+    }
+  },
+  'usr-language-risk-profiles': {
+    type: 'object',
+    additionalProperties: false,
+    required: ['languageId', 'frameworkProfile', 'required', 'optional', 'unsupported', 'capabilities', 'interproceduralGating', 'severityPolicy'],
+    properties: {
+      languageId: STRING,
+      frameworkProfile: { type: ['string', 'null'] },
+      required: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['sources', 'sinks', 'sanitizers'],
+        properties: {
+          sources: stringArray,
+          sinks: stringArray,
+          sanitizers: stringArray
+        }
+      },
+      optional: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['sources', 'sinks', 'sanitizers'],
+        properties: {
+          sources: stringArray,
+          sinks: stringArray,
+          sanitizers: stringArray
+        }
+      },
+      unsupported: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['sources', 'sinks', 'sanitizers'],
+        properties: {
+          sources: stringArray,
+          sinks: stringArray,
+          sanitizers: stringArray
+        }
+      },
+      capabilities: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['riskLocal', 'riskInterprocedural'],
+        properties: {
+          riskLocal: { type: 'string', enum: ['supported', 'partial', 'unsupported'] },
+          riskInterprocedural: { type: 'string', enum: ['supported', 'partial', 'unsupported'] }
+        }
+      },
+      interproceduralGating: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['enabledByDefault', 'minEvidenceKinds', 'requiredCallLinkConfidence'],
+        properties: {
+          enabledByDefault: BOOL,
+          minEvidenceKinds: stringArray,
+          requiredCallLinkConfidence: { type: 'number', minimum: 0, maximum: 1 }
+        }
+      },
+      severityPolicy: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['levels', 'defaultLevel'],
+        properties: {
+          levels: stringArray,
+          defaultLevel: STRING
+        }
+      }
     }
   },
   'usr-capability-matrix': {
