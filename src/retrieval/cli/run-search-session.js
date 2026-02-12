@@ -98,6 +98,10 @@ export async function runSearchSession({
   backendLabel,
   resolvedDenseVectorMode,
   intentInfo,
+  asOfContext = null,
+  indexDirByMode = null,
+  indexBaseRootByMode = null,
+  explicitRef = false,
   signal,
   stageTracker
 }) {
@@ -181,7 +185,7 @@ export async function runSearchSession({
   const cacheDir = queryCacheDir || metricsDir;
   const queryCachePath = path.join(cacheDir, 'queryCache.json');
   if (queryCacheEnabled) {
-    const signature = getIndexSignature({
+    const signature = await getIndexSignature({
       useSqlite,
       backendLabel,
       sqliteCodePath,
@@ -190,7 +194,11 @@ export async function runSearchSession({
       runExtractedProse,
       includeExtractedProse: extractedProseLoaded || commentsEnabled,
       root: rootDir,
-      userConfig
+      userConfig,
+      indexDirByMode,
+      indexBaseRootByMode,
+      explicitRef,
+      asOfContext
     });
     cacheSignature = JSON.stringify(signature);
     const cacheKeyInfo = buildQueryCacheKey({
@@ -231,7 +239,13 @@ export async function runSearchSession({
         respectFilters: contextExpansionRespectFilters
       },
       graphRanking: graphRankingConfig || null,
-      filters: cacheFilters
+      filters: cacheFilters,
+      asOf: asOfContext
+        ? {
+          ref: asOfContext.ref || null,
+          identityHash: asOfContext.identityHash || null
+        }
+        : null
     });
     cacheKey = cacheKeyInfo.key;
     cacheData = loadQueryCache(queryCachePath);

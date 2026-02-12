@@ -102,7 +102,10 @@ export async function loadSearchIndexes({
   loadIndexFromSqlite,
   loadIndexFromLmdb,
   resolvedDenseVectorMode,
-  requiredArtifacts
+  requiredArtifacts,
+  indexDirByMode = null,
+  indexBaseRootByMode = null,
+  explicitRef = false
 }) {
   const sqliteLazyChunks = sqliteFtsRequested && !filtersActive;
   const sqliteContextChunks = contextExpansionEnabled ? true : !sqliteLazyChunks;
@@ -124,17 +127,22 @@ export async function loadSearchIndexes({
     || needsFileRelations
   );
   const lazyDenseVectorsEnabled = userConfig?.retrieval?.dense?.lazyLoad !== false;
+  const resolveOptions = {
+    indexDirByMode,
+    indexBaseRootByMode,
+    explicitRef
+  };
 
-  const proseIndexDir = runProse ? resolveIndexDir(rootDir, 'prose', userConfig) : null;
-  const codeIndexDir = runCode ? resolveIndexDir(rootDir, 'code', userConfig) : null;
+  const proseIndexDir = runProse ? resolveIndexDir(rootDir, 'prose', userConfig, resolveOptions) : null;
+  const codeIndexDir = runCode ? resolveIndexDir(rootDir, 'code', userConfig, resolveOptions) : null;
   const proseDir = runProse && !useSqlite
-    ? requireIndexDir(rootDir, 'prose', userConfig, { emitOutput, exitOnError })
+    ? requireIndexDir(rootDir, 'prose', userConfig, { emitOutput, exitOnError, resolveOptions })
     : proseIndexDir;
   const codeDir = runCode && !useSqlite
-    ? requireIndexDir(rootDir, 'code', userConfig, { emitOutput, exitOnError })
+    ? requireIndexDir(rootDir, 'code', userConfig, { emitOutput, exitOnError, resolveOptions })
     : codeIndexDir;
   const recordsDir = runRecords
-    ? requireIndexDir(rootDir, 'records', userConfig, { emitOutput, exitOnError })
+    ? requireIndexDir(rootDir, 'records', userConfig, { emitOutput, exitOnError, resolveOptions })
     : null;
 
   const resolvedTantivyConfig = normalizeTantivyConfig(tantivyConfig || userConfig.tantivy || {});
@@ -210,9 +218,22 @@ export async function loadSearchIndexes({
   let resolvedLoadExtractedProse = runExtractedProse || loadExtractedProse;
   if (resolvedLoadExtractedProse) {
     if (resolvedRunExtractedProse && (searchMode === 'extracted-prose' || searchMode === 'default')) {
-      extractedProseDir = requireIndexDir(rootDir, 'extracted-prose', userConfig, { emitOutput, exitOnError });
+      extractedProseDir = requireIndexDir(rootDir, 'extracted-prose', userConfig, {
+        emitOutput,
+        exitOnError,
+        resolveOptions
+      });
     } else {
-      extractedProseDir = resolveIndexDir(rootDir, 'extracted-prose', userConfig);
+      try {
+        extractedProseDir = resolveIndexDir(rootDir, 'extracted-prose', userConfig, resolveOptions);
+      } catch (error) {
+        if (error?.code !== 'NO_INDEX') throw error;
+        // Optional comment-join path: explicit as-of refs should not hard-fail when extracted-prose
+        // was not requested and is unavailable for the selected snapshot/build.
+        resolvedRunExtractedProse = false;
+        resolvedLoadExtractedProse = false;
+        extractedProseDir = null;
+      }
       if (!hasIndexMeta(extractedProseDir)) {
         if (resolvedRunExtractedProse && emitOutput) {
           console.warn('[search] extracted-prose index not found; skipping.');
@@ -388,10 +409,10 @@ export async function loadSearchIndexes({
     attachDenseVectorLoader(idxCode, 'code', codeIndexDir);
     idxCode.indexDir = codeIndexDir;
     if ((useSqlite || useLmdb) && needsFileRelations && !idxCode.fileRelations) {
-      idxCode.fileRelations = loadFileRelations(rootDir, userConfig, 'code');
+      idxCode.fileRelations = loadFileRelations(rootDir, userConfig, 'code', { resolveOptions });
     }
     if ((useSqlite || useLmdb) && needsRepoMap && !idxCode.repoMap) {
-      idxCode.repoMap = loadRepoMap(rootDir, userConfig, 'code');
+      idxCode.repoMap = loadRepoMap(rootDir, userConfig, 'code', { resolveOptions });
     }
   }
   if (runProse) {
@@ -402,10 +423,10 @@ export async function loadSearchIndexes({
     attachDenseVectorLoader(idxProse, 'prose', proseIndexDir);
     idxProse.indexDir = proseIndexDir;
     if ((useSqlite || useLmdb) && needsFileRelations && !idxProse.fileRelations) {
-      idxProse.fileRelations = loadFileRelations(rootDir, userConfig, 'prose');
+      idxProse.fileRelations = loadFileRelations(rootDir, userConfig, 'prose', { resolveOptions });
     }
     if ((useSqlite || useLmdb) && needsRepoMap && !idxProse.repoMap) {
-      idxProse.repoMap = loadRepoMap(rootDir, userConfig, 'prose');
+      idxProse.repoMap = loadRepoMap(rootDir, userConfig, 'prose', { resolveOptions });
     }
   }
   if (resolvedLoadExtractedProse) {
@@ -420,10 +441,10 @@ export async function loadSearchIndexes({
     attachDenseVectorLoader(idxExtractedProse, 'extracted-prose', extractedProseDir);
     idxExtractedProse.indexDir = extractedProseDir;
     if (needsFileRelations && !idxExtractedProse.fileRelations) {
-      idxExtractedProse.fileRelations = loadFileRelations(rootDir, userConfig, 'extracted-prose');
+      idxExtractedProse.fileRelations = loadFileRelations(rootDir, userConfig, 'extracted-prose', { resolveOptions });
     }
     if (needsRepoMap && !idxExtractedProse.repoMap) {
-      idxExtractedProse.repoMap = loadRepoMap(rootDir, userConfig, 'extracted-prose');
+      idxExtractedProse.repoMap = loadRepoMap(rootDir, userConfig, 'extracted-prose', { resolveOptions });
     }
   }
 

@@ -17,6 +17,8 @@ export async function buildSqliteIndex(repoRoot, options = {}) {
     compact: options.compact === true,
     out: options.out || null,
     indexRoot: options.indexRoot || null,
+    asOf: options.asOf || null,
+    snapshot: options.snapshot || null,
     codeDir: options.codeDir || null,
     proseDir: options.proseDir || null,
     extractedProseDir: options.extractedProseDir || null,

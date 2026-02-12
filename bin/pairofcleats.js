@@ -594,7 +594,7 @@ function resolveCommand(primary, rest) {
       process.exit(1);
     }
     if (sub === 'build') {
-      validateArgs(rest, ['repo', 'mode'], ['repo', 'mode']);
+      validateArgs(rest, ['repo', 'mode', 'index-root', 'as-of', 'snapshot', 'validate'], ['repo', 'mode', 'index-root', 'as-of', 'snapshot']);
       return { script: 'tools/build/lmdb-index.js', extraArgs: [], args: rest };
     }
     console.error(`Unknown lmdb subcommand: ${sub}`);
@@ -769,7 +769,7 @@ Index:
   index watch             Watch and rebuild indexes incrementally
   index validate          Validate index artifacts
   index snapshot          Manage index snapshots (create/list/show/rm/freeze/gc)
-  index diff              Compute/list/show/prune index diffs
+  index diff              Compute/list/show/explain/prune index diffs
 
 Search:
   search "<query>"         Query indexed data

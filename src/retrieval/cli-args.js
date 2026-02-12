@@ -26,6 +26,8 @@ export function parseSearchArgs(rawArgs) {
 
   const options = {
     repo: { type: 'string' },
+    'as-of': { type: 'string' },
+    snapshot: { type: 'string' },
     mode: { type: 'string' },
     top: { type: 'number', default: 5 },
     json: { type: 'boolean', default: false, describe: 'emit JSON output (no stats unless --stats/--explain)' },
@@ -126,6 +128,8 @@ export function getSearchUsage() {
     '',
     'Options:',
     '  --repo <path>',
+    '  --as-of <IndexRef>',
+    '  --snapshot <snapshotId> (compatibility alias for --as-of snap:<id>)',
     '  --mode code|prose|extracted-prose|records|both|all',
     '  --top N',
     '  --json (compact JSON; stats only with --stats or --explain)',

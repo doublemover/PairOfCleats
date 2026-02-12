@@ -21,11 +21,12 @@ import { getSearchUsage, parseSearchArgs } from './cli-args.js';
 import { loadDictionary } from './cli-dictionary.js';
 import { getIndexSignature, resolveIndexDir } from './cli-index.js';
 import { isLmdbReady, isSqliteReady, loadIndexState } from './cli/index-state.js';
+import { resolveAsOfContext, resolveSingleRootForModes } from '../index/as-of.js';
 import { configureOutputCaches } from './output.js';
 import { createSearchTelemetry } from './cli/telemetry.js';
 import { getMissingFlagMessages, resolveIndexedFileCount } from './cli/options.js';
 import { evaluateAutoSqliteThresholds, resolveIndexStats } from './cli/auto-sqlite.js';
-import { hasLmdbStore } from './cli/index-loader.js';
+import { hasIndexMeta, hasLmdbStore } from './cli/index-loader.js';
 import { applyBranchFilter } from './cli/branch-filter.js';
 import { createBackendContext } from './cli/backend-context.js';
 import { color } from './cli/ansi.js';
@@ -231,6 +232,57 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       return bail(getSearchUsage(), 1, ERROR_CODES.INVALID_REQUEST);
     }
 
+    const asOfRequestedModes = [];
+    if (runCode) asOfRequestedModes.push('code');
+    if (runProse) asOfRequestedModes.push('prose');
+    if (runRecords) asOfRequestedModes.push('records');
+    if ((searchMode === 'extracted-prose' || searchMode === 'all') && !asOfRequestedModes.includes('extracted-prose')) {
+      asOfRequestedModes.push('extracted-prose');
+    }
+    let asOfContext = null;
+    try {
+      asOfContext = resolveAsOfContext({
+        repoRoot: rootDir,
+        userConfig,
+        requestedModes: asOfRequestedModes,
+        asOf: argv['as-of'],
+        snapshot: argv.snapshot,
+        preferFrozen: true,
+        allowMissingModesForLatest: true
+      });
+    } catch (err) {
+      return bail(err?.message || 'Invalid --as-of value.', 1, err?.code || ERROR_CODES.INVALID_REQUEST);
+    }
+    const indexResolveOptions = asOfContext?.strict
+      ? {
+        indexDirByMode: asOfContext.indexDirByMode,
+        indexBaseRootByMode: asOfContext.indexBaseRootByMode,
+        explicitRef: true
+      }
+      : {};
+    const resolveSearchIndexDir = (mode) => resolveIndexDir(rootDir, mode, userConfig, indexResolveOptions);
+    if (asOfContext?.strict) {
+      for (const mode of asOfRequestedModes) {
+        let modeDir = null;
+        try {
+          modeDir = resolveSearchIndexDir(mode);
+        } catch (err) {
+          return bail(
+            err?.message || `[search] ${mode} index is unavailable for --as-of ${asOfContext.ref}.`,
+            1,
+            err?.code || ERROR_CODES.NO_INDEX
+          );
+        }
+        if (!hasIndexMeta(modeDir)) {
+          return bail(
+            `[search] ${mode} index not found at ${modeDir} for --as-of ${asOfContext.ref}.`,
+            1,
+            ERROR_CODES.NO_INDEX
+          );
+        }
+      }
+    }
+
     telemetry.setMode(searchMode);
     telemetry.setAnn(annEnabled ? 'on' : 'off');
 
@@ -246,23 +298,48 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     const needsProse = runProse;
     const needsSqlite = runCode || runProse;
     const vectorAnnEnabled = annEnabled && vectorExtension.enabled;
+    const dbModeSelection = [];
+    if (needsCode) dbModeSelection.push('code');
+    if (needsProse) dbModeSelection.push('prose');
+    const sqliteRootSelection = resolveSingleRootForModes(
+      asOfContext?.strict ? asOfContext.indexBaseRootByMode : null,
+      dbModeSelection
+    );
+    const lmdbRootSelection = resolveSingleRootForModes(
+      asOfContext?.strict ? asOfContext.indexBaseRootByMode : null,
+      dbModeSelection
+    );
+    const sqliteRootsMixed = Boolean(asOfContext?.strict && dbModeSelection.length > 1 && sqliteRootSelection.mixed);
+    const lmdbRootsMixed = Boolean(asOfContext?.strict && dbModeSelection.length > 1 && lmdbRootSelection.mixed);
 
-    const lmdbPaths = resolveLmdbPaths(rootDir, userConfig);
+    const lmdbPaths = resolveLmdbPaths(
+      rootDir,
+      userConfig,
+      lmdbRootSelection.root ? { indexRoot: lmdbRootSelection.root } : {}
+    );
     const lmdbCodePath = lmdbPaths.codePath;
     const lmdbProsePath = lmdbPaths.prosePath;
-    const sqlitePaths = resolveSqlitePaths(rootDir, userConfig);
+    const sqlitePaths = resolveSqlitePaths(
+      rootDir,
+      userConfig,
+      sqliteRootSelection.root ? { indexRoot: sqliteRootSelection.root } : {}
+    );
     const sqliteCodePath = sqlitePaths.codePath;
     const sqliteProsePath = sqlitePaths.prosePath;
 
-    const sqliteStateCode = needsCode ? loadIndexState(rootDir, userConfig, 'code') : null;
-    const sqliteStateProse = needsProse ? loadIndexState(rootDir, userConfig, 'prose') : null;
-    const sqliteCodeAvailable = fsSync.existsSync(sqliteCodePath) && isSqliteReady(sqliteStateCode);
-    const sqliteProseAvailable = fsSync.existsSync(sqliteProsePath) && isSqliteReady(sqliteStateProse);
+    const sqliteStateCode = needsCode
+      ? loadIndexState(rootDir, userConfig, 'code', { resolveOptions: indexResolveOptions })
+      : null;
+    const sqliteStateProse = needsProse
+      ? loadIndexState(rootDir, userConfig, 'prose', { resolveOptions: indexResolveOptions })
+      : null;
+    const sqliteCodeAvailable = !sqliteRootsMixed && fsSync.existsSync(sqliteCodePath) && isSqliteReady(sqliteStateCode);
+    const sqliteProseAvailable = !sqliteRootsMixed && fsSync.existsSync(sqliteProsePath) && isSqliteReady(sqliteStateProse);
     const sqliteAvailable = (!needsCode || sqliteCodeAvailable) && (!needsProse || sqliteProseAvailable);
     const lmdbStateCode = sqliteStateCode;
     const lmdbStateProse = sqliteStateProse;
-    const lmdbCodeAvailable = hasLmdbStore(lmdbCodePath) && isLmdbReady(lmdbStateCode);
-    const lmdbProseAvailable = hasLmdbStore(lmdbProsePath) && isLmdbReady(lmdbStateProse);
+    const lmdbCodeAvailable = !lmdbRootsMixed && hasLmdbStore(lmdbCodePath) && isLmdbReady(lmdbStateCode);
+    const lmdbProseAvailable = !lmdbRootsMixed && hasLmdbStore(lmdbProsePath) && isLmdbReady(lmdbStateProse);
     const lmdbAvailable = (!needsCode || lmdbCodeAvailable) && (!needsProse || lmdbProseAvailable);
 
     const autoChunkThreshold = Number.isFinite(sqliteAutoChunkThreshold)
@@ -276,18 +353,30 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     let autoSqliteAllowed = true;
     let autoSqliteReason = null;
     if (autoThresholdsEnabled && autoBackendRequested && sqliteAvailable && needsSqlite) {
+      const collectStats = (mode) => {
+        try {
+          return resolveIndexStats(resolveSearchIndexDir(mode));
+        } catch {
+          return null;
+        }
+      };
       const stats = [];
       if (runCode) {
-        stats.push({ mode: 'code', ...resolveIndexStats(resolveIndexDir(rootDir, 'code', userConfig)) });
+        const resolved = collectStats('code');
+        if (resolved) stats.push({ mode: 'code', ...resolved });
       }
       if (runProse) {
-        stats.push({ mode: 'prose', ...resolveIndexStats(resolveIndexDir(rootDir, 'prose', userConfig)) });
+        const resolved = collectStats('prose');
+        if (resolved) stats.push({ mode: 'prose', ...resolved });
       }
       if (runExtractedProseRaw) {
-        stats.push({
-          mode: 'extracted-prose',
-          ...resolveIndexStats(resolveIndexDir(rootDir, 'extracted-prose', userConfig))
-        });
+        const resolved = collectStats('extracted-prose');
+        if (resolved) {
+          stats.push({
+            mode: 'extracted-prose',
+            ...resolved
+          });
+        }
       }
       const evaluation = evaluateAutoSqliteThresholds({
         stats,
@@ -331,6 +420,32 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       backendForcedLmdb,
       backendForcedTantivy
     } = backendSelection;
+    if (sqliteRootsMixed) {
+      if (backendForcedSqlite) {
+        return bail(
+          `[search] --backend sqlite cannot be used with --as-of ${asOfContext.ref}: code/prose resolve to different index roots.`,
+          1,
+          ERROR_CODES.INVALID_REQUEST
+        );
+      }
+      if (emitOutput && autoBackendRequested) {
+        console.warn('[search] sqlite backend disabled: explicit as-of target resolves code/prose to different roots.');
+      }
+      useSqliteSelection = false;
+    }
+    if (lmdbRootsMixed) {
+      if (backendForcedLmdb) {
+        return bail(
+          `[search] --backend lmdb cannot be used with --as-of ${asOfContext.ref}: code/prose resolve to different index roots.`,
+          1,
+          ERROR_CODES.INVALID_REQUEST
+        );
+      }
+      if (emitOutput && autoBackendRequested) {
+        console.warn('[search] lmdb backend disabled: explicit as-of target resolves code/prose to different roots.');
+      }
+      useLmdbSelection = false;
+    }
     if (!autoSqliteAllowed && autoBackendRequested && useSqliteSelection && !backendForcedSqlite) {
       useSqliteSelection = false;
       useLmdbSelection = false;
@@ -484,8 +599,8 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     if (planConfigSignature) {
       queryPlanCache.resetIfConfigChanged(planConfigSignature);
     }
-    const planIndexSignature = planConfigSignature
-      ? buildQueryPlanIndexSignature(getIndexSignature({
+    const planIndexSignaturePayload = planConfigSignature
+      ? await getIndexSignature({
         useSqlite,
         backendLabel,
         sqliteCodePath,
@@ -494,8 +609,15 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
         runExtractedProse: runExtractedProseRaw,
         includeExtractedProse: runExtractedProseRaw || joinComments,
         root: rootDir,
-        userConfig
-      }))
+        userConfig,
+        indexDirByMode: asOfContext?.strict ? asOfContext.indexDirByMode : null,
+        indexBaseRootByMode: asOfContext?.strict ? asOfContext.indexBaseRootByMode : null,
+        explicitRef: asOfContext?.strict === true,
+        asOfContext
+      })
+      : null;
+    const planIndexSignature = planConfigSignature
+      ? buildQueryPlanIndexSignature(planIndexSignaturePayload)
       : null;
     const planCacheKeyInfo = planConfigSignature
       ? buildQueryPlanCacheKey({
@@ -631,7 +753,10 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       loadIndexFromLmdb,
       resolvedDenseVectorMode: queryPlan.resolvedDenseVectorMode,
       loadExtractedProse: joinComments,
-      requiredArtifacts
+      requiredArtifacts,
+      indexDirByMode: asOfContext?.strict ? asOfContext.indexDirByMode : null,
+      indexBaseRootByMode: asOfContext?.strict ? asOfContext.indexBaseRootByMode : null,
+      explicitRef: asOfContext?.strict === true
     });
     stageTracker.record('startup.indexes', indexesStart, { mode: 'all' });
     throwIfAborted();
@@ -733,6 +858,10 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       backendLabel,
       resolvedDenseVectorMode: queryPlan.resolvedDenseVectorMode,
       intentInfo: queryPlan.intentInfo,
+      asOfContext,
+      indexDirByMode: asOfContext?.strict ? asOfContext.indexDirByMode : null,
+      indexBaseRootByMode: asOfContext?.strict ? asOfContext.indexBaseRootByMode : null,
+      explicitRef: asOfContext?.strict === true,
       signal,
       stageTracker
     });
@@ -795,7 +924,8 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       showMatched,
       verboseCache,
       elapsedMs,
-      stageTracker
+      stageTracker,
+      asOfContext
     });
 
     await recordSearchArtifacts({
@@ -807,7 +937,13 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       codeHits: searchResult.codeHits,
       recordHits: searchResult.recordHits,
       elapsedMs,
-      cacheHit: searchResult.cache.hit
+      cacheHit: searchResult.cache.hit,
+      asOf: asOfContext
+        ? {
+          type: asOfContext.type || 'latest',
+          identityHash: asOfContext.identityHash || null
+        }
+        : null
     });
 
     recordSearchMetrics('ok');

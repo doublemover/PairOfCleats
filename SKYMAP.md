@@ -621,23 +621,23 @@ Tests:
 
 ## 14.5 Retrieval integration (as-of)
 
-- [ ] Canonical CLI/API contract:
-  - [ ] `--as-of <IndexRef>` is the canonical flag.
-  - [ ] `--snapshot <snapshotId>` remains a compatibility alias that is normalized to `--as-of snap:<id>`.
-- [ ] Default behavior unchanged when omitted; `--as-of latest` is equivalent to no flag.
-- [ ] Resolve AsOfContext in `src/retrieval/cli.js` and thread to index resolution.
-- [ ] Explicit refs/roots do not silently fallback:
-  - [ ] If requested `asOf` target cannot satisfy required artifact surface for selected mode(s), fail fast with actionable error.
-  - [ ] Only auto-resolved `latest` paths may use best-effort fallback logic.
-- [ ] Include `asOf.identityHash` in query cache keys.
-- [ ] Unify retrieval index signature computation to be shard-aware and include snapshot identity.
-- [ ] Enforce single-root policy for sqlite/lmdb as-of selection.
-- [ ] JSON output includes an `asOf` block (ref, identityHash, resolved summary).
-- [ ] Human output prints a single `[search] as-of: ...` line when `--as-of` is provided.
-- [ ] Telemetry includes `asOf.type` and short `identityHash`; never log raw paths.
-- [ ] Secondary builders honor as-of semantics:
-  - [ ] sqlite build/as-of flows must use the same resolver behavior and fallback rules as retrieval.
-  - [ ] as-of selection for build tooling must reject mixed-root contamination.
+- [x] Canonical CLI/API contract:
+  - [x] `--as-of <IndexRef>` is the canonical flag.
+  - [x] `--snapshot <snapshotId>` remains a compatibility alias that is normalized to `--as-of snap:<id>`.
+- [x] Default behavior unchanged when omitted; `--as-of latest` is equivalent to no flag.
+- [x] Resolve AsOfContext in `src/retrieval/cli.js` and thread to index resolution.
+- [x] Explicit refs/roots do not silently fallback:
+  - [x] If requested `asOf` target cannot satisfy required artifact surface for selected mode(s), fail fast with actionable error.
+  - [x] Only auto-resolved `latest` paths may use best-effort fallback logic.
+- [x] Include `asOf.identityHash` in query cache keys.
+- [x] Unify retrieval index signature computation to be shard-aware and include snapshot identity.
+- [x] Enforce single-root policy for sqlite/lmdb as-of selection.
+- [x] JSON output includes an `asOf` block (ref, identityHash, resolved summary).
+- [x] Human output prints a single `[search] as-of: ...` line when `--as-of` is provided.
+- [x] Telemetry includes `asOf.type` and short `identityHash`; never log raw paths.
+- [x] Secondary builders honor as-of semantics:
+  - [x] sqlite build/as-of flows must use the same resolver behavior and fallback rules as retrieval.
+  - [x] as-of selection for build tooling must reject mixed-root contamination.
 
 Touchpoints:
 - `src/retrieval/cli-args.js`
@@ -650,11 +650,11 @@ Touchpoints:
 - `src/storage/sqlite/build/runner.js`
 
 Tests:
-- [ ] `tests/services/snapshot-query.test.js`
-- [ ] `tests/unit/retrieval-cache-key-asof.unit.js`
-- [ ] `tests/unit/retrieval-index-signature-shards.unit.js`
-- [ ] `tests/services/sqlite-build-snapshot.test.js`
-- [ ] `tests/services/asof-explicit-root-no-fallback.test.js`
+- [x] `tests/services/snapshot-query.test.js`
+- [x] `tests/unit/retrieval-cache-key-asof.unit.js`
+- [x] `tests/unit/retrieval-index-signature-shards.unit.js`
+- [x] `tests/services/sqlite-build-snapshot.test.js`
+- [x] `tests/services/asof-explicit-root-no-fallback.test.js`
 
 ---
 

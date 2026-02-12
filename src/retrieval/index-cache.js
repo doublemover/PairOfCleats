@@ -223,9 +223,6 @@ export async function buildIndexSignature(dir) {
     setCachedSignature(cacheKey, signature);
     return signature;
   }
-  const cacheKey = `${dir}|fallback`;
-  const cached = getCachedSignature(cacheKey);
-  if (cached) return cached;
   const [chunkMetaSig, tokenPostingsSig, fileRelationsSig, repoMapSig, ...fileSigs] = await Promise.all([
     chunkMetaSignature(dir),
     tokenPostingsSignature(dir),
@@ -244,7 +241,6 @@ export async function buildIndexSignature(dir) {
     repoMapSig,
     ...fileSigs
   ].join('|');
-  setCachedSignature(cacheKey, signature);
   return signature;
 }
 

@@ -10,7 +10,8 @@ export async function recordSearchArtifacts({
   codeHits,
   recordHits,
   elapsedMs,
-  cacheHit
+  cacheHit,
+  asOf = null
 }) {
   try {
     const metricsPath = path.join(metricsDir, 'metrics.json');
@@ -47,7 +48,11 @@ export async function recordSearchArtifacts({
         codeFiles: codeHits.length,
         recordFiles: recordHits.length,
         ms: elapsedMs,
-        cached: cacheHit
+        cached: cacheHit,
+        asOfType: asOf?.type || null,
+        asOfIdentity: asOf?.identityHash
+          ? String(asOf.identityHash).slice(0, 8)
+          : null
       }) + '\n'
     );
 

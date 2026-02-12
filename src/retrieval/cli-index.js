@@ -4,6 +4,7 @@ import { buildLocalCacheKey } from '../shared/cache-key.js';
 import { getIndexDir } from '../../tools/shared/dict-utils.js';
 import { buildFilterIndex, hydrateFilterIndex } from './filter-index.js';
 import { createError, ERROR_CODES } from '../shared/error-codes.js';
+import { buildIndexSignature } from './index-cache.js';
 import {
   MAX_JSON_BYTES,
   loadChunkMeta,
@@ -16,60 +17,6 @@ import {
   resolveBinaryArtifactPath
 } from '../shared/artifact-io.js';
 import { loadHnswIndex, normalizeHnswConfig, resolveHnswPaths, resolveHnswTarget } from '../shared/hnsw.js';
-
-const PARTS_SIGNATURE_CACHE = new Map();
-const PARTS_SIGNATURE_CACHE_MAX = 256;
-
-const touchPartsSignatureCache = (partsDir) => {
-  const cached = PARTS_SIGNATURE_CACHE.get(partsDir);
-  if (!cached) return null;
-  PARTS_SIGNATURE_CACHE.delete(partsDir);
-  PARTS_SIGNATURE_CACHE.set(partsDir, cached);
-  return cached;
-};
-
-const setPartsSignatureCache = (partsDir, payload) => {
-  PARTS_SIGNATURE_CACHE.set(partsDir, payload);
-  while (PARTS_SIGNATURE_CACHE.size > PARTS_SIGNATURE_CACHE_MAX) {
-    const oldest = PARTS_SIGNATURE_CACHE.keys().next().value;
-    if (oldest === undefined) break;
-    PARTS_SIGNATURE_CACHE.delete(oldest);
-  }
-};
-
-const getPartsSignature = (partsDir, fileSignature) => {
-  let dirStat;
-  try {
-    dirStat = fsSync.statSync(partsDir);
-  } catch {
-    return null;
-  }
-  const cached = touchPartsSignatureCache(partsDir);
-  if (
-    cached
-    && cached.size === dirStat.size
-    && cached.mtimeMs === dirStat.mtimeMs
-  ) {
-    return cached.signature;
-  }
-  let signature = null;
-  try {
-    const entries = fsSync.readdirSync(partsDir).sort();
-    if (entries.length) {
-      signature = entries
-        .map((entry) => fileSignature(path.join(partsDir, entry)) || 'missing')
-        .join(',');
-    }
-  } catch {
-    signature = null;
-  }
-  setPartsSignatureCache(partsDir, {
-    size: dirStat.size,
-    mtimeMs: dirStat.mtimeMs,
-    signature
-  });
-  return signature;
-};
 
 /**
  * Load file-backed index artifacts from a directory.
@@ -365,7 +312,22 @@ export async function loadIndex(dir, options) {
  * @param {object} userConfig
  * @returns {string}
  */
-export function resolveIndexDir(root, mode, userConfig) {
+export function resolveIndexDir(root, mode, userConfig, options = {}) {
+  const explicitDir = typeof options?.indexDirByMode?.[mode] === 'string'
+    ? path.resolve(options.indexDirByMode[mode])
+    : null;
+  if (explicitDir) return explicitDir;
+  const explicitBaseRoot = typeof options?.indexBaseRootByMode?.[mode] === 'string'
+    ? path.resolve(options.indexBaseRootByMode[mode])
+    : null;
+  if (explicitBaseRoot) return path.join(explicitBaseRoot, `index-${mode}`);
+  const hasExplicitRef = Boolean(
+    options?.explicitRef === true
+    && (options?.indexDirByMode || options?.indexBaseRootByMode)
+  );
+  if (hasExplicitRef) {
+    throw createError(ERROR_CODES.NO_INDEX, `[search] ${mode} index is unavailable for explicit as-of target.`);
+  }
   const cached = getIndexDir(root, mode, userConfig);
   const cachedMeta = path.join(cached, 'chunk_meta.json');
   const cachedMetaJsonl = path.join(cached, 'chunk_meta.jsonl');
@@ -399,7 +361,7 @@ export function resolveIndexDir(root, mode, userConfig) {
  * @returns {string}
  */
 export function requireIndexDir(root, mode, userConfig, options = {}) {
-  const dir = resolveIndexDir(root, mode, userConfig);
+  const dir = resolveIndexDir(root, mode, userConfig, options?.resolveOptions || {});
   const metaPath = path.join(dir, 'chunk_meta.json');
   const metaJsonlPath = path.join(dir, 'chunk_meta.jsonl');
   const metaPartsPath = path.join(dir, 'chunk_meta.meta.json');
@@ -439,7 +401,7 @@ export function buildQueryCacheKey(payload) {
  * @param {object} options
  * @returns {object}
  */
-export function getIndexSignature(options) {
+export async function getIndexSignature(options) {
   const {
     useSqlite,
     backendLabel,
@@ -449,24 +411,22 @@ export function getIndexSignature(options) {
     runExtractedProse,
     includeExtractedProse,
     root,
-    userConfig
+    userConfig,
+    indexDirByMode = null,
+    indexBaseRootByMode = null,
+    explicitRef = false,
+    asOfContext = null
   } = options;
-  const pathExistsCache = new Map();
-  const pathExists = (target) => {
-    if (pathExistsCache.has(target)) return pathExistsCache.get(target);
-    const exists = fsSync.existsSync(target);
-    pathExistsCache.set(target, exists);
-    return exists;
-  };
   const fileSignature = (filePath) => {
     try {
-      let statPath = filePath;
-      if (!pathExists(statPath) && filePath.endsWith('.json')) {
+      if (!filePath) return null;
+      let statPath = path.resolve(filePath);
+      if (!fsSync.existsSync(statPath) && statPath.endsWith('.json')) {
         const zstPath = `${filePath}.zst`;
         const gzPath = `${filePath}.gz`;
-        if (pathExists(zstPath)) {
+        if (fsSync.existsSync(zstPath)) {
           statPath = zstPath;
-        } else if (pathExists(gzPath)) {
+        } else if (fsSync.existsSync(gzPath)) {
           statPath = gzPath;
         }
       }
@@ -476,124 +436,53 @@ export function getIndexSignature(options) {
       return null;
     }
   };
-  const jsonlArtifactSignature = (dirPath, baseName) => {
-    const jsonPath = path.join(dirPath, `${baseName}.json`);
-    const jsonSig = fileSignature(jsonPath);
-    if (jsonSig) return jsonSig;
-    const jsonlPath = path.join(dirPath, `${baseName}.jsonl`);
-    const jsonlSig = fileSignature(jsonlPath);
-    if (jsonlSig) return jsonlSig;
-    const metaPath = path.join(dirPath, `${baseName}.meta.json`);
-    const metaSig = fileSignature(metaPath);
-    const partsDir = path.join(dirPath, `${baseName}.parts`);
-    if (metaSig) return metaSig;
-    if (pathExists(partsDir)) return getPartsSignature(partsDir, fileSignature);
-    return null;
+  const resolveOptions = {
+    indexDirByMode,
+    indexBaseRootByMode,
+    explicitRef
   };
-
+  const safeResolveModeDir = (mode) => {
+    try {
+      return resolveIndexDir(root, mode, userConfig, resolveOptions);
+    } catch {
+      return null;
+    }
+  };
   const needsExtractedProse = includeExtractedProse ?? runExtractedProse;
-  const extractedProseDir = needsExtractedProse
-    ? resolveIndexDir(root, 'extracted-prose', userConfig)
+  const modeDirs = {
+    code: safeResolveModeDir('code'),
+    prose: safeResolveModeDir('prose'),
+    'extracted-prose': needsExtractedProse ? safeResolveModeDir('extracted-prose') : null,
+    records: runRecords ? safeResolveModeDir('records') : null
+  };
+  const modeSignatures = {};
+  await Promise.all(
+    Object.entries(modeDirs).map(async ([mode, dir]) => {
+      modeSignatures[mode] = dir ? await buildIndexSignature(dir) : null;
+    })
+  );
+  const asOfSignature = asOfContext
+    ? {
+      ref: asOfContext.ref || null,
+      identityHash: asOfContext.identityHash || null,
+      type: asOfContext.type || null
+    }
     : null;
-  const extractedProseMeta = extractedProseDir
-    ? jsonlArtifactSignature(extractedProseDir, 'chunk_meta')
-    : null;
-  const extractedProseDense = extractedProseDir ? path.join(extractedProseDir, 'dense_vectors_uint8.json') : null;
-  const extractedProseHnswMeta = extractedProseDir ? path.join(extractedProseDir, 'dense_vectors_hnsw.meta.json') : null;
-  const extractedProseHnswIndex = extractedProseDir ? path.join(extractedProseDir, 'dense_vectors_hnsw.bin') : null;
-  const extractedProseLanceMeta = extractedProseDir ? path.join(extractedProseDir, 'dense_vectors.lancedb.meta.json') : null;
-  const extractedProseLanceDocMeta = extractedProseDir ? path.join(extractedProseDir, 'dense_vectors_doc.lancedb.meta.json') : null;
-  const extractedProseLanceCodeMeta = extractedProseDir ? path.join(extractedProseDir, 'dense_vectors_code.lancedb.meta.json') : null;
 
   if (useSqlite) {
-    const codeDir = resolveIndexDir(root, 'code', userConfig);
-    const proseDir = resolveIndexDir(root, 'prose', userConfig);
-    const codeRelations = jsonlArtifactSignature(codeDir, 'file_relations');
-    const proseRelations = jsonlArtifactSignature(proseDir, 'file_relations');
-    const codeLanceMeta = path.join(codeDir, 'dense_vectors.lancedb.meta.json');
-    const codeLanceDocMeta = path.join(codeDir, 'dense_vectors_doc.lancedb.meta.json');
-    const codeLanceCodeMeta = path.join(codeDir, 'dense_vectors_code.lancedb.meta.json');
-    const proseLanceMeta = path.join(proseDir, 'dense_vectors.lancedb.meta.json');
-    const proseLanceDocMeta = path.join(proseDir, 'dense_vectors_doc.lancedb.meta.json');
-    const proseLanceCodeMeta = path.join(proseDir, 'dense_vectors_code.lancedb.meta.json');
-    const recordDir = runRecords ? resolveIndexDir(root, 'records', userConfig) : null;
-    const recordMeta = recordDir ? jsonlArtifactSignature(recordDir, 'chunk_meta') : null;
-    const recordDense = recordDir ? path.join(recordDir, 'dense_vectors_uint8.json') : null;
     return {
       backend: backendLabel,
-      code: fileSignature(sqliteCodePath),
-      prose: fileSignature(sqliteProsePath),
-      codeRelations,
-      proseRelations,
-      codeLanceMeta: fileSignature(codeLanceMeta),
-      codeLanceDocMeta: fileSignature(codeLanceDocMeta),
-      codeLanceCodeMeta: fileSignature(codeLanceCodeMeta),
-      proseLanceMeta: fileSignature(proseLanceMeta),
-      proseLanceDocMeta: fileSignature(proseLanceDocMeta),
-      proseLanceCodeMeta: fileSignature(proseLanceCodeMeta),
-      extractedProse: extractedProseMeta,
-      extractedProseDense: extractedProseDense ? fileSignature(extractedProseDense) : null,
-      extractedProseHnswMeta: extractedProseHnswMeta ? fileSignature(extractedProseHnswMeta) : null,
-      extractedProseHnswIndex: extractedProseHnswIndex ? fileSignature(extractedProseHnswIndex) : null,
-      extractedProseLanceMeta: extractedProseLanceMeta ? fileSignature(extractedProseLanceMeta) : null,
-      extractedProseLanceDocMeta: extractedProseLanceDocMeta ? fileSignature(extractedProseLanceDocMeta) : null,
-      extractedProseLanceCodeMeta: extractedProseLanceCodeMeta ? fileSignature(extractedProseLanceCodeMeta) : null,
-      records: recordMeta,
-      recordsDense: recordDense ? fileSignature(recordDense) : null
+      asOf: asOfSignature,
+      sqlite: {
+        code: fileSignature(sqliteCodePath),
+        prose: fileSignature(sqliteProsePath)
+      },
+      modes: modeSignatures
     };
   }
-
-  const codeDir = resolveIndexDir(root, 'code', userConfig);
-  const proseDir = resolveIndexDir(root, 'prose', userConfig);
-  const codeMeta = jsonlArtifactSignature(codeDir, 'chunk_meta');
-  const proseMeta = jsonlArtifactSignature(proseDir, 'chunk_meta');
-  const codeDense = path.join(codeDir, 'dense_vectors_uint8.json');
-  const proseDense = path.join(proseDir, 'dense_vectors_uint8.json');
-  const codeHnswMeta = path.join(codeDir, 'dense_vectors_hnsw.meta.json');
-  const codeHnswIndex = path.join(codeDir, 'dense_vectors_hnsw.bin');
-  const proseHnswMeta = path.join(proseDir, 'dense_vectors_hnsw.meta.json');
-  const proseHnswIndex = path.join(proseDir, 'dense_vectors_hnsw.bin');
-  const codeLanceMeta = path.join(codeDir, 'dense_vectors.lancedb.meta.json');
-  const codeLanceDocMeta = path.join(codeDir, 'dense_vectors_doc.lancedb.meta.json');
-  const codeLanceCodeMeta = path.join(codeDir, 'dense_vectors_code.lancedb.meta.json');
-  const proseLanceMeta = path.join(proseDir, 'dense_vectors.lancedb.meta.json');
-  const proseLanceDocMeta = path.join(proseDir, 'dense_vectors_doc.lancedb.meta.json');
-  const proseLanceCodeMeta = path.join(proseDir, 'dense_vectors_code.lancedb.meta.json');
-  const codeRelations = jsonlArtifactSignature(codeDir, 'file_relations');
-  const proseRelations = jsonlArtifactSignature(proseDir, 'file_relations');
-  const recordDir = runRecords ? resolveIndexDir(root, 'records', userConfig) : null;
-  const recordMeta = recordDir ? jsonlArtifactSignature(recordDir, 'chunk_meta') : null;
-  const recordDense = recordDir ? path.join(recordDir, 'dense_vectors_uint8.json') : null;
-  const recordHnswMeta = recordDir ? path.join(recordDir, 'dense_vectors_hnsw.meta.json') : null;
-  const recordHnswIndex = recordDir ? path.join(recordDir, 'dense_vectors_hnsw.bin') : null;
   return {
     backend: backendLabel,
-    code: codeMeta,
-    prose: proseMeta,
-    codeDense: fileSignature(codeDense),
-    proseDense: fileSignature(proseDense),
-    codeHnswMeta: fileSignature(codeHnswMeta),
-    codeHnswIndex: fileSignature(codeHnswIndex),
-    proseHnswMeta: fileSignature(proseHnswMeta),
-    proseHnswIndex: fileSignature(proseHnswIndex),
-    codeLanceMeta: fileSignature(codeLanceMeta),
-    codeLanceDocMeta: fileSignature(codeLanceDocMeta),
-    codeLanceCodeMeta: fileSignature(codeLanceCodeMeta),
-    proseLanceMeta: fileSignature(proseLanceMeta),
-    proseLanceDocMeta: fileSignature(proseLanceDocMeta),
-    proseLanceCodeMeta: fileSignature(proseLanceCodeMeta),
-    codeRelations,
-    proseRelations,
-    extractedProse: extractedProseMeta,
-    extractedProseDense: extractedProseDense ? fileSignature(extractedProseDense) : null,
-    extractedProseHnswMeta: extractedProseHnswMeta ? fileSignature(extractedProseHnswMeta) : null,
-    extractedProseHnswIndex: extractedProseHnswIndex ? fileSignature(extractedProseHnswIndex) : null,
-    extractedProseLanceMeta: extractedProseLanceMeta ? fileSignature(extractedProseLanceMeta) : null,
-    extractedProseLanceDocMeta: extractedProseLanceDocMeta ? fileSignature(extractedProseLanceDocMeta) : null,
-    extractedProseLanceCodeMeta: extractedProseLanceCodeMeta ? fileSignature(extractedProseLanceCodeMeta) : null,
-    records: recordMeta,
-    recordsDense: recordDense ? fileSignature(recordDense) : null,
-    recordsHnswMeta: recordHnswMeta ? fileSignature(recordHnswMeta) : null,
-    recordsHnswIndex: recordHnswIndex ? fileSignature(recordHnswIndex) : null
+    asOf: asOfSignature,
+    modes: modeSignatures
   };
 }

@@ -16,6 +16,7 @@ import { writeJsonObjectFile } from '../../src/shared/json-stream.js';
 import { updateIndexStateManifest } from '../shared/index-state-utils.js';
 import { LMDB_ARTIFACT_KEYS, LMDB_META_KEYS, LMDB_SCHEMA_VERSION } from '../../src/storage/lmdb/schema.js';
 import { getIndexDir, getMetricsDir, resolveIndexRoot, resolveLmdbPaths, resolveRepoConfig } from '../shared/dict-utils.js';
+import { resolveAsOfContext, resolveSingleRootForModes } from '../../src/index/as-of.js';
 import { Packr } from 'msgpackr';
 
 const require = createRequire(import.meta.url);
@@ -30,6 +31,8 @@ const argv = createCli({
     mode: { type: 'string', default: 'all' },
     repo: { type: 'string' },
     'index-root': { type: 'string' },
+    'as-of': { type: 'string' },
+    snapshot: { type: 'string' },
     validate: { type: 'boolean', default: false },
     progress: { type: 'string', default: 'auto' },
     verbose: { type: 'boolean', default: false },
@@ -51,11 +54,39 @@ if (!open) {
 }
 
 const validateArtifacts = argv.validate === true;
+const buildModeRaw = String(argv.mode || 'all').trim().toLowerCase();
+const buildMode = buildModeRaw === 'both' ? 'all' : buildModeRaw;
+const supportedModes = ['code', 'prose'];
+const modes = buildMode === 'all' ? supportedModes : [buildMode];
 
 const { repoRoot: root, userConfig } = resolveRepoConfig(argv.repo);
+const asOfRequested = (
+  (typeof argv['as-of'] === 'string' && argv['as-of'].trim())
+  || (typeof argv.snapshot === 'string' && argv.snapshot.trim())
+);
+const asOfContext = asOfRequested
+  ? resolveAsOfContext({
+    repoRoot: root,
+    userConfig,
+    requestedModes: modes,
+    asOf: argv['as-of'],
+    snapshot: argv.snapshot,
+    preferFrozen: true,
+    allowMissingModesForLatest: false
+  })
+  : null;
+const asOfRootSelection = asOfContext?.provided
+  ? resolveSingleRootForModes(asOfContext.indexBaseRootByMode, modes)
+  : { roots: [], root: null, mixed: false };
+if (asOfContext?.strict && modes.length > 1 && asOfRootSelection.mixed) {
+  fail(
+    `[lmdb] --as-of ${asOfContext.ref} resolves to multiple index roots for selected modes. ` +
+    'Select a single mode.'
+  );
+}
 const indexRoot = argv['index-root']
   ? path.resolve(argv['index-root'])
-  : resolveIndexRoot(root, userConfig);
+  : (asOfRootSelection.root ? path.resolve(asOfRootSelection.root) : resolveIndexRoot(root, userConfig));
 const lmdbPaths = resolveLmdbPaths(root, userConfig, { indexRoot });
 const metricsDir = getMetricsDir(root, userConfig);
 
@@ -103,10 +134,6 @@ const updateLmdbState = async (indexDir, patch) => {
   return state;
 };
 
-const buildModeRaw = String(argv.mode || 'all').trim().toLowerCase();
-const buildMode = buildModeRaw === 'both' ? 'all' : buildModeRaw;
-const supportedModes = ['code', 'prose'];
-const modes = buildMode === 'all' ? supportedModes : [buildMode];
 const modeTask = display.task('LMDB', { total: modes.length, stage: 'lmdb' });
 let completedModes = 0;
 
@@ -288,7 +315,12 @@ for (const mode of modes) {
     fail(`Invalid mode: ${mode}. LMDB supports code|prose|all.`);
   }
   modeTask.set(completedModes, modes.length, { message: `building ${mode}` });
-  const indexDir = getIndexDir(root, mode, userConfig, { indexRoot });
+  const indexDir = asOfContext?.provided
+    ? asOfContext.indexDirByMode?.[mode] || null
+    : getIndexDir(root, mode, userConfig, { indexRoot });
+  if (asOfContext?.strict && !indexDir) {
+    fail(`[lmdb] ${mode} index is unavailable for --as-of ${asOfContext.ref}.`, 2);
+  }
   if (validateArtifacts) {
     validateRequiredArtifacts(indexDir, mode);
   }

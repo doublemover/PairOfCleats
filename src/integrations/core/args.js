@@ -28,6 +28,8 @@ export const buildRawArgs = (options = {}) => {
 
 export const buildSearchArgs = (params = {}) => {
   const args = [];
+  pushFlag(args, 'as-of', params.asOf);
+  pushFlag(args, 'snapshot', params.snapshot);
   pushFlag(args, 'mode', params.mode);
   pushFlag(args, 'backend', params.backend);
   pushFlag(args, 'ann', params.ann);

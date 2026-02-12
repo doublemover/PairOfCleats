@@ -37,6 +37,7 @@ import { buildDatabaseFromBundles } from './from-bundles.js';
 import { incrementalUpdateDatabase } from './incremental-update.js';
 import { SCHEMA_VERSION } from '../schema.js';
 import { resolveOutputPaths } from './output-paths.js';
+import { resolveAsOfContext, resolveSingleRootForModes } from '../../../index/as-of.js';
 
 export const normalizeValidateMode = (value) => {
   if (value === false || value == null) return 'off';
@@ -84,6 +85,8 @@ const countMissingBundleFiles = (incrementalData) => {
  * @param {boolean} [options.compact]
  * @param {string} [options.out]
  * @param {string} [options.indexRoot]
+ * @param {string} [options.asOf]
+ * @param {string} [options.snapshot]
  * @param {string} [options.codeDir]
  * @param {string} [options.proseDir]
  * @param {string} [options.extractedProseDir]
@@ -112,6 +115,8 @@ export async function buildSqliteIndex(options = {}) {
     validate: validateMode,
     out: options.out || null,
     'index-root': options.indexRoot || null,
+    'as-of': options.asOf || null,
+    snapshot: options.snapshot || null,
     'code-dir': options.codeDir || null,
     'prose-dir': options.proseDir || null,
     'extracted-prose-dir': options.extractedProseDir || null,
@@ -347,11 +352,41 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
     const envConfig = getEnvConfig();
     const userConfig = runtime?.userConfig || options.userConfig || loadUserConfig(root);
     const metricsDir = options.metricsDir || getMetricsDir(root, userConfig);
+    const modeList = modeArg === 'all'
+      ? ['code', 'prose', 'extracted-prose', 'records']
+      : [modeArg];
+    const asOfRequested = (
+      (typeof argv['as-of'] === 'string' && argv['as-of'].trim())
+      || (typeof argv.snapshot === 'string' && argv.snapshot.trim())
+    );
+    const asOfContext = asOfRequested
+      ? resolveAsOfContext({
+        repoRoot: root,
+        userConfig,
+        requestedModes: modeList,
+        asOf: argv['as-of'],
+        snapshot: argv.snapshot,
+        preferFrozen: true,
+        allowMissingModesForLatest: false
+      })
+      : null;
+    const asOfRootSelection = asOfContext?.provided
+      ? resolveSingleRootForModes(asOfContext.indexBaseRootByMode, modeList)
+      : { roots: [], root: null, mixed: false };
+    if (asOfContext?.strict && modeList.length > 1 && asOfRootSelection.mixed) {
+      return bail(
+        `[sqlite] --as-of ${asOfContext.ref} resolves to multiple index roots for selected modes. ` +
+        'Select a single mode or pass explicit --*-dir overrides.'
+      );
+    }
+    const asOfIndexRoot = asOfContext?.provided && asOfRootSelection.root
+      ? path.resolve(asOfRootSelection.root)
+      : null;
     const indexRoot = argv['index-root']
       ? path.resolve(argv['index-root'])
       : (options.indexRoot
         ? path.resolve(options.indexRoot)
-        : (runtime?.buildRoot ? path.resolve(runtime.buildRoot) : resolveIndexRoot(root, userConfig)));
+        : (asOfIndexRoot || (runtime?.buildRoot ? path.resolve(runtime.buildRoot) : resolveIndexRoot(root, userConfig))));
     const buildStatePath = resolveBuildStatePath(indexRoot);
     const hasBuildState = buildStatePath && fsSync.existsSync(buildStatePath);
     stopHeartbeat = hasBuildState ? startBuildHeartbeat(indexRoot, 'stage4') : () => {};
@@ -423,17 +458,32 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
     const explicitDirs = {
       code: argv['code-dir']
         ? path.resolve(argv['code-dir'])
-        : (options.codeDir ? path.resolve(options.codeDir) : null),
+        : (options.codeDir
+          ? path.resolve(options.codeDir)
+          : (asOfContext?.provided ? asOfContext.indexDirByMode?.code || null : null)),
       prose: argv['prose-dir']
         ? path.resolve(argv['prose-dir'])
-        : (options.proseDir ? path.resolve(options.proseDir) : null),
+        : (options.proseDir
+          ? path.resolve(options.proseDir)
+          : (asOfContext?.provided ? asOfContext.indexDirByMode?.prose || null : null)),
       'extracted-prose': argv['extracted-prose-dir']
         ? path.resolve(argv['extracted-prose-dir'])
-        : (options.extractedProseDir ? path.resolve(options.extractedProseDir) : null),
+        : (options.extractedProseDir
+          ? path.resolve(options.extractedProseDir)
+          : (asOfContext?.provided ? asOfContext.indexDirByMode?.['extracted-prose'] || null : null)),
       records: argv['records-dir']
         ? path.resolve(argv['records-dir'])
-        : (options.recordsDir ? path.resolve(options.recordsDir) : null)
+        : (options.recordsDir
+          ? path.resolve(options.recordsDir)
+          : (asOfContext?.provided ? asOfContext.indexDirByMode?.records || null : null))
     };
+    if (asOfContext?.strict) {
+      for (const mode of modeList) {
+        if (!explicitDirs[mode]) {
+          return bail(`[sqlite] ${mode} index is unavailable for --as-of ${asOfContext.ref}.`);
+        }
+      }
+    }
     const resolveIndexDir = (mode) => (
       explicitDirs[mode] || getIndexDir(root, mode, userConfig, { indexRoot })
     );
@@ -444,9 +494,6 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
     const batchSizeOverride = Number.isFinite(requestedBatchSize) && requestedBatchSize > 0
       ? Math.floor(requestedBatchSize)
       : null;
-    const modeList = modeArg === 'all'
-      ? ['code', 'prose', 'extracted-prose', 'records']
-      : [modeArg];
     const modeOutputPaths = {
       code: codeOutPath,
       prose: proseOutPath,
