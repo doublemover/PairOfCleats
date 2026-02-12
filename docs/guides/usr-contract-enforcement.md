@@ -1,6 +1,6 @@
 # USR Contract Enforcement Guide
 
-Last updated: 2026-02-12T06:01:19Z
+Last updated: 2026-02-12T06:04:13Z
 
 ## Purpose
 
@@ -26,6 +26,7 @@ Define CI/local enforcement for the consolidated USR contract model.
 - language contract freshness and rotation enforcement (`tests/lang/contracts/usr-language-contract-freshness-validation.test.js`) validates owner-role alignment to governance policy, review cadence freshness, and explicit ownership rotation metadata
 - canonical example bundle enforcement (`tests/lang/contracts/usr-canonical-example-validation.test.js`) validates section 34.11 fixture checklist and cross-entity coherence
 - framework canonicalization fixture enforcement (`tests/lang/contracts/usr-framework-canonicalization.test.js`) validates section 35 canonical attrs plus framework edge-case checklist coverage
+- framework profile matrix-sync enforcement (`tests/lang/contracts/usr-framework-profile-matrix-sync-validation.test.js`) validates framework applicability, edge-case linkage, and route/hydration/binding semantic coherence across framework registries
 - embedding bridge fixture enforcement (`tests/lang/contracts/usr-embedding-bridge-validation.test.js`) validates bridge-case matrix coverage, bridge metadata fields, and section 38 bridge edge obligations
 - generated provenance fixture enforcement (`tests/lang/contracts/usr-generated-provenance-validation.test.js`) validates section 39 generated/macro/transpile provenance mapping expectations and diagnostics
 - bridge/provenance dashboard enforcement (`tests/lang/contracts/usr-bridge-provenance-dashboard-validation.test.js`) validates section 15.2 coverage dashboard emission for embedded-language bridge and generated-provenance fixtures

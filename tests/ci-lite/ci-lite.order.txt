@@ -355,6 +355,7 @@ lang/contracts/usr-conformance-dashboard-validation
 lang/contracts/usr-diagnostic-remediation-routing-validation
 lang/contracts/usr-canonical-example-validation
 lang/contracts/usr-framework-canonicalization
+lang/contracts/usr-framework-profile-matrix-sync-validation
 lang/contracts/usr-f5-hard-requirements-validation
 lang/contracts/usr-f6-sync-requirements-validation
 lang/contracts/usr-rollout-migration-policy-validation
