@@ -1,6 +1,6 @@
 # TES_LAYN_ROADMAP - USR-Aligned Language and Framework Execution Master Plan
 
-Last rewritten: 2026-02-12T02:25:00Z
+Last rewritten: 2026-02-12T08:25:00Z
 Branch: `usr-skyforge-primer`
 Document status: active master plan baseline v1.5
 
@@ -124,7 +124,7 @@ If contradictions are found:
 - [x] USR section 45 fixture and golden governance contract is enforced with ownership and mutation policy controls.
 - [x] USR section 46 performance benchmark methodology contract is enforced with deterministic methodology and regression gates.
 - [x] USR section 47 threat model and abuse-case coverage contract is enforced with blocking threat/control fixture coverage.
-- [ ] USR section 48 waiver and exception governance contract is enforced with expiry and approver controls.
+- [x] USR section 48 waiver and exception governance contract is enforced with expiry and approver controls.
 - [ ] Decomposed USR contract suite (`docs/specs/usr*.md`) remains semantically aligned with umbrella USR spec.
 - [ ] Every registry language has a maintained per-language contract in `docs/specs/usr/languages/<language-id>.md`.
 - [ ] Machine-readable catalog/matrix files are synchronized with decomposed contracts and pass drift checks.
@@ -478,7 +478,7 @@ If contradictions are found:
 - [x] Validate fixture-governance validation evidence for blocking fixture families is complete.
 - [x] Validate benchmark policy evidence and regression/variance reports are complete for blocking lanes.
 - [x] Validate threat-model coverage and abuse-case execution evidence are complete.
-- [ ] Validate waiver-policy evidence (active/expiry/breach reports) and approver controls are complete.
+- [x] Validate waiver-policy evidence (active/expiry/breach reports) and approver controls are complete.
 
 ### 9.2 Go/No-Go decision
 
@@ -512,7 +512,7 @@ If contradictions are found:
 - [x] Materialize section 45 fixture-governance validators (owner/reviewer/mutation-policy).
 - [x] Materialize section 46 benchmark methodology validators and regression threshold checks.
 - [x] Materialize section 47 threat-model coverage and abuse-case mapping validators.
-- [ ] Materialize section 48 waiver-policy validators (expiry/approver/compensating-control constraints).
+- [x] Materialize section 48 waiver-policy validators (expiry/approver/compensating-control constraints).
 - [ ] Materialize section 30 report envelope validators for all required audit outputs.
 
 ### 10.2 Lane wiring
@@ -620,7 +620,7 @@ If contradictions are found:
 - [ ] Enforce section 45 fixture-governance blocking mutation policies and ownership checks.
 - [ ] Enforce section 46 benchmark methodology and regression threshold policies.
 - [ ] Enforce section 47 threat-model critical-coverage and abuse-case execution policies.
-- [ ] Enforce section 48 waiver expiry and approver-governance policies.
+- [x] Enforce section 48 waiver expiry and approver-governance policies.
 
 ### 15.2 Reporting
 
