@@ -335,6 +335,7 @@ lang/contracts/usr-language-contract-template
 lang/contracts/usr-canonical-example-validation
 lang/contracts/usr-framework-canonicalization
 lang/contracts/usr-embedding-bridge-validation
+lang/contracts/usr-generated-provenance-validation
 indexing/contracts/schema-registry-single-source
 indexing/git/git-meta
 retrieval/graph/context-pack-basic

@@ -1,0 +1,228 @@
+{
+  "schemaVersion": "usr-1.0.0",
+  "fixtureId": "usr-generated-provenance-bundle-v1",
+  "rows": [
+    {
+      "provenanceCaseId": "prov-angular-template-compiler",
+      "languageId": "typescript",
+      "generationKind": "framework-compiler",
+      "mappingExpectation": "approximate",
+      "provenance": [
+        {
+          "sourceDocUid": "doc64:v1:b100000000000101",
+          "generatedDocUid": "doc64:v1:b100000000000201",
+          "sourceNodeUid": "n64:v1:b100000000000301",
+          "generatedNodeUid": "n64:v1:b100000000000401",
+          "mappingQuality": "approximate",
+          "generated": true,
+          "confidence": 0.68
+        }
+      ],
+      "diagnostics": [
+        {
+          "code": "USR-W-PROVENANCE-APPROXIMATE",
+          "severity": "warning",
+          "reasonCode": "USR-R-HEURISTIC-ONLY"
+        }
+      ]
+    },
+    {
+      "provenanceCaseId": "prov-astro-island-generated",
+      "languageId": "javascript",
+      "generationKind": "framework-compiler",
+      "mappingExpectation": "approximate",
+      "provenance": [
+        {
+          "sourceDocUid": "doc64:v1:b200000000000101",
+          "generatedDocUid": "doc64:v1:b200000000000201",
+          "sourceNodeUid": "n64:v1:b200000000000301",
+          "generatedNodeUid": "n64:v1:b200000000000401",
+          "mappingQuality": "approximate",
+          "generated": true,
+          "confidence": 0.71
+        }
+      ],
+      "diagnostics": [
+        {
+          "code": "USR-W-PROVENANCE-APPROXIMATE",
+          "severity": "warning",
+          "reasonCode": "USR-R-FRAMEWORK-VIRTUAL-BINDING"
+        }
+      ]
+    },
+    {
+      "provenanceCaseId": "prov-clike-preprocessor",
+      "languageId": "clike",
+      "generationKind": "macro",
+      "mappingExpectation": "approximate",
+      "provenance": [
+        {
+          "sourceDocUid": "doc64:v1:b300000000000101",
+          "generatedDocUid": "doc64:v1:b300000000000201",
+          "sourceNodeUid": "n64:v1:b300000000000301",
+          "generatedNodeUid": "n64:v1:b300000000000401",
+          "mappingQuality": "approximate",
+          "generated": true,
+          "confidence": 0.64
+        }
+      ],
+      "diagnostics": [
+        {
+          "code": "USR-W-PROVENANCE-APPROXIMATE",
+          "severity": "warning",
+          "reasonCode": "USR-R-HEURISTIC-ONLY"
+        }
+      ]
+    },
+    {
+      "provenanceCaseId": "prov-go-codegen",
+      "languageId": "go",
+      "generationKind": "codegen",
+      "mappingExpectation": "exact",
+      "provenance": [
+        {
+          "sourceDocUid": "doc64:v1:b400000000000101",
+          "generatedDocUid": "doc64:v1:b400000000000201",
+          "sourceNodeUid": "n64:v1:b400000000000301",
+          "generatedNodeUid": "n64:v1:b400000000000401",
+          "mappingQuality": "exact",
+          "generated": true,
+          "confidence": 0.97
+        }
+      ],
+      "diagnostics": []
+    },
+    {
+      "provenanceCaseId": "prov-javascript-babel-output",
+      "languageId": "javascript",
+      "generationKind": "transpile",
+      "mappingExpectation": "approximate",
+      "provenance": [
+        {
+          "sourceDocUid": "doc64:v1:b500000000000101",
+          "generatedDocUid": "doc64:v1:b500000000000201",
+          "sourceNodeUid": "n64:v1:b500000000000301",
+          "generatedNodeUid": "n64:v1:b500000000000401",
+          "mappingQuality": "approximate",
+          "generated": true,
+          "confidence": 0.75
+        }
+      ],
+      "diagnostics": [
+        {
+          "code": "USR-W-PROVENANCE-APPROXIMATE",
+          "severity": "warning",
+          "reasonCode": "USR-R-HEURISTIC-ONLY"
+        }
+      ]
+    },
+    {
+      "provenanceCaseId": "prov-proto-stub-generated",
+      "languageId": "proto",
+      "generationKind": "codegen",
+      "mappingExpectation": "exact",
+      "provenance": [
+        {
+          "sourceDocUid": "doc64:v1:b600000000000101",
+          "generatedDocUid": "doc64:v1:b600000000000201",
+          "sourceNodeUid": "n64:v1:b600000000000301",
+          "generatedNodeUid": "n64:v1:b600000000000401",
+          "mappingQuality": "exact",
+          "generated": true,
+          "confidence": 0.96
+        }
+      ],
+      "diagnostics": []
+    },
+    {
+      "provenanceCaseId": "prov-rust-macro-expand",
+      "languageId": "rust",
+      "generationKind": "macro",
+      "mappingExpectation": "approximate",
+      "provenance": [
+        {
+          "sourceDocUid": "doc64:v1:b700000000000101",
+          "generatedDocUid": "doc64:v1:b700000000000201",
+          "sourceNodeUid": "n64:v1:b700000000000301",
+          "generatedNodeUid": "n64:v1:b700000000000401",
+          "mappingQuality": "approximate",
+          "generated": true,
+          "confidence": 0.66
+        }
+      ],
+      "diagnostics": [
+        {
+          "code": "USR-W-PROVENANCE-APPROXIMATE",
+          "severity": "warning",
+          "reasonCode": "USR-R-HEURISTIC-ONLY"
+        }
+      ]
+    },
+    {
+      "provenanceCaseId": "prov-svelte-compiler-output",
+      "languageId": "typescript",
+      "generationKind": "framework-compiler",
+      "mappingExpectation": "approximate",
+      "provenance": [
+        {
+          "sourceDocUid": "doc64:v1:b800000000000101",
+          "generatedDocUid": "doc64:v1:b800000000000201",
+          "sourceNodeUid": "n64:v1:b800000000000301",
+          "generatedNodeUid": "n64:v1:b800000000000401",
+          "mappingQuality": "approximate",
+          "generated": true,
+          "confidence": 0.7
+        }
+      ],
+      "diagnostics": [
+        {
+          "code": "USR-W-PROVENANCE-APPROXIMATE",
+          "severity": "warning",
+          "reasonCode": "USR-R-FRAMEWORK-VIRTUAL-BINDING"
+        }
+      ]
+    },
+    {
+      "provenanceCaseId": "prov-typescript-transpile-js",
+      "languageId": "typescript",
+      "generationKind": "transpile",
+      "mappingExpectation": "exact",
+      "provenance": [
+        {
+          "sourceDocUid": "doc64:v1:b900000000000101",
+          "generatedDocUid": "doc64:v1:b900000000000201",
+          "sourceNodeUid": "n64:v1:b900000000000301",
+          "generatedNodeUid": "n64:v1:b900000000000401",
+          "mappingQuality": "exact",
+          "generated": true,
+          "confidence": 0.98
+        }
+      ],
+      "diagnostics": []
+    },
+    {
+      "provenanceCaseId": "prov-vue-sfc-compiler",
+      "languageId": "typescript",
+      "generationKind": "framework-compiler",
+      "mappingExpectation": "approximate",
+      "provenance": [
+        {
+          "sourceDocUid": "doc64:v1:ba00000000000101",
+          "generatedDocUid": "doc64:v1:ba00000000000201",
+          "sourceNodeUid": "n64:v1:ba00000000000301",
+          "generatedNodeUid": "n64:v1:ba00000000000401",
+          "mappingQuality": "approximate",
+          "generated": true,
+          "confidence": 0.72
+        }
+      ],
+      "diagnostics": [
+        {
+          "code": "USR-W-PROVENANCE-APPROXIMATE",
+          "severity": "warning",
+          "reasonCode": "USR-R-FRAMEWORK-VIRTUAL-BINDING"
+        }
+      ]
+    }
+  ]
+}
