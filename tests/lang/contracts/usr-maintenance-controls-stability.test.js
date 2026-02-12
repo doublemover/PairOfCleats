@@ -92,6 +92,7 @@ const requiredCiTests = [
   'lang/contracts/usr-traceability-approval-validation',
   'lang/contracts/usr-pr-template-policy-validation',
   'lang/contracts/usr-framework-contract-template-validation',
+  'lang/contracts/usr-framework-contract-freshness-validation',
   'lang/contracts/usr-language-contract-matrix-sync-validation',
   'lang/contracts/usr-language-contract-freshness-validation',
   'lang/contracts/usr-diagnostic-remediation-routing-validation',
