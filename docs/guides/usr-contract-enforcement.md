@@ -1,6 +1,6 @@
 # USR Contract Enforcement Guide
 
-Last updated: 2026-02-12T05:59:43Z
+Last updated: 2026-02-12T06:01:19Z
 
 ## Purpose
 
@@ -20,6 +20,7 @@ Define CI/local enforcement for the consolidated USR contract model.
 - required `docs/schemas/usr/*.json` files exist for blocking evidence artifacts
 - cross-registry invariants are enforced
 - minimum-slice harness (`tests/lang/contracts/usr-minimum-slice-harness.test.js`) validates executable TypeScript+Vue slice contracts
+- framework contract template enforcement (`tests/lang/contracts/usr-framework-contract-template-validation.test.js`) validates framework deep-dive template governance, approval checklist controls, and completion-evidence artifact requirements
 - language contract template enforcement (`tests/lang/contracts/usr-language-contract-template.test.js`) validates per-language contract structure, matrix linkage, approval checklist controls, and completion-evidence artifact coverage
 - language contract matrix-sync enforcement (`tests/lang/contracts/usr-language-contract-matrix-sync-validation.test.js`) validates exact-set equality between per-language contract conformance/framework/node/edge declarations and `usr-language-profiles.json`
 - language contract freshness and rotation enforcement (`tests/lang/contracts/usr-language-contract-freshness-validation.test.js`) validates owner-role alignment to governance policy, review cadence freshness, and explicit ownership rotation metadata

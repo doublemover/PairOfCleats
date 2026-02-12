@@ -1,6 +1,6 @@
 # TES_LAYN_ROADMAP - USR-Aligned Language and Framework Execution Master Plan
 
-Last rewritten: 2026-02-12T05:59:43Z
+Last rewritten: 2026-02-12T06:01:19Z
 Branch: `usr-skyforge-primer`
 Document status: active master plan baseline v1.5
 
@@ -469,6 +469,7 @@ If contradictions are found:
 
 - [ ] Validate completion evidence for all B1-B7 task packs.
 - [ ] Validate framework profile completion evidence.
+- [x] Materialize framework extension contract template governance and CI enforcement controls.
 - [ ] Validate conformance matrix readiness by language.
 - [x] Enforce language-contract vs language-profile matrix exact-set synchronization for conformance/framework/node/edge declarations.
 - [x] Validate section 36 compatibility matrix readiness and blocking policy evidence.
