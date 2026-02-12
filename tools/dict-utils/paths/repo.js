@@ -8,7 +8,7 @@ import { spawnSync } from 'node:child_process';
 import { getCacheRoot, loadUserConfig } from '../config.js';
 
 export function getRepoId(repoRoot) {
-  const resolved = path.resolve(repoRoot);
+  const resolved = toRealPathSync(path.resolve(repoRoot));
   const base = path.basename(resolved);
   const normalized = String(base || 'repo')
     .toLowerCase()

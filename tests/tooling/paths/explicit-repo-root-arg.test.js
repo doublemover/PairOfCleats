@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { getRepoRoot, resolveRepoConfig, resolveRepoRootArg, toRealPathSync } from '../../../tools/shared/dict-utils.js';
+import { getRepoId, getRepoRoot, resolveRepoConfig, resolveRepoRootArg, toRealPathSync } from '../../../tools/shared/dict-utils.js';
 
 const gitCheck = spawnSync('git', ['--version'], { encoding: 'utf8' });
 if (gitCheck.status !== 0) {
@@ -37,5 +37,15 @@ assert.equal(resolveRepoConfig(nestedRoot).repoRoot, expectedExplicit, 'resolveR
 
 const expectedImplicit = toRealPathSync(tempRoot);
 assert.equal(resolveRepoRootArg(null, nestedRoot), expectedImplicit, 'implicit repo root should still follow git toplevel');
+
+if (process.platform === 'win32') {
+  const variantUpper = nestedRoot.replace(/[a-z]/g, (ch) => ch.toUpperCase());
+  const variantLower = nestedRoot.replace(/[A-Z]/g, (ch) => ch.toLowerCase());
+  assert.equal(
+    getRepoId(variantUpper),
+    getRepoId(variantLower),
+    'repo id should be stable across Windows path casing variants'
+  );
+}
 
 console.log('explicit repo root arg test passed');
