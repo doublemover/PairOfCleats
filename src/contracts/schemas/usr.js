@@ -133,7 +133,7 @@ export const USR_DIAGNOSTIC_CODE_SCHEMA = {
 
 export const USR_REASON_CODE_SCHEMA = {
   type: 'string',
-  pattern: '^[a-z][a-z0-9_]*$'
+  pattern: '^USR-R-[A-Z0-9-]+$'
 };
 
 export const USR_CAPABILITY_STATE_SCHEMA = {

@@ -240,8 +240,8 @@ If contradictions are found:
 - [x] Add threat-model matrix drift tests (critical threat/control/fixture mapping completeness).
 - [x] Add waiver policy drift tests (expiry, approver, compensating-control, and disallowed-bypass checks).
 - [x] Add matrix generator idempotence test (`node tools/usr/generate-usr-matrix-baselines.mjs` yields zero diff on clean repo).
-- [ ] Add diagnostic taxonomy drift test (section 12.1 baseline vs section 33.1 full taxonomy).
-- [ ] Add reason-code drift test (`attrs.resolution.reasonCode` values vs section 33.2).
+- [x] Add diagnostic taxonomy drift test (section 12.1 baseline vs section 33.1 full taxonomy).
+- [x] Add reason-code drift test (`attrs.resolution.reasonCode` values vs section 33.2).
 - [x] Add per-language spec existence test: every registry language ID has exactly one `docs/specs/usr/languages/<language-id>.md`.
 - [ ] Add decomposed-contract cross-reference consistency test: required contract links are present and valid.
 

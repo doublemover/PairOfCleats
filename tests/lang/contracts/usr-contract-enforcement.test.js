@@ -25,6 +25,18 @@ const assertSameSet = (label, left, right) => {
   assert.deepEqual(a, b, `${label} mismatch\nleft=${JSON.stringify(a)}\nright=${JSON.stringify(b)}`);
 };
 
+const extractSection = (text, startMarker, endMarker) => {
+  const start = text.indexOf(startMarker);
+  assert.notEqual(start, -1, `missing section start marker: ${startMarker}`);
+  const end = text.indexOf(endMarker, start);
+  assert.notEqual(end, -1, `missing section end marker: ${endMarker}`);
+  return text.slice(start, end);
+};
+
+const extractCodeSet = (text, pattern) => new Set(
+  [...text.matchAll(pattern)].map((match) => match[1])
+);
+
 const languageProfiles = loadRegistry('usr-language-profiles');
 const frameworkProfiles = loadRegistry('usr-framework-profiles');
 const languageVersionPolicy = loadRegistry('usr-language-version-policy');
@@ -43,6 +55,29 @@ const ownershipMatrix = loadRegistry('usr-ownership-matrix');
 const escalationPolicy = loadRegistry('usr-escalation-policy');
 const nodeKindMapping = loadRegistry('usr-node-kind-mapping');
 const parserRuntimeLock = loadRegistry('usr-parser-runtime-lock');
+
+const unifiedSpecPath = path.join(repoRoot, 'docs', 'specs', 'unified-syntax-representation.md');
+const unifiedSpecText = fs.readFileSync(unifiedSpecPath, 'utf8');
+const section121 = extractSection(unifiedSpecText, '### 12.1 Required diagnostic codes', '### 12.2');
+const section331 = extractSection(unifiedSpecText, '### 33.1 Diagnostic code taxonomy', '### 33.2');
+const section332 = extractSection(unifiedSpecText, '### 33.2 Resolution envelope reason code taxonomy', '### 33.3');
+
+const baselineDiagnosticCodes = extractCodeSet(section121, /`(USR-[EWI]-[A-Z0-9-]+)`/g);
+const canonicalDiagnosticCodes = extractCodeSet(section331, /`(USR-[EWI]-[A-Z0-9-]+)`/g);
+for (const code of baselineDiagnosticCodes) {
+  assert.equal(canonicalDiagnosticCodes.has(code), true, `section 12.1 diagnostic missing from section 33.1 taxonomy: ${code}`);
+}
+
+const canonicalReasonCodes = extractCodeSet(section332, /`(USR-R-[A-Z0-9-]+)`/g);
+const failureInjectionReasonCodes = new Set(failureInjectionMatrix.rows.flatMap((row) => row.requiredReasonCodes || []));
+for (const reasonCode of failureInjectionReasonCodes) {
+  assert.equal(canonicalReasonCodes.has(reasonCode), true, `failure injection reason code missing from section 33.2 taxonomy: ${reasonCode}`);
+}
+
+const failureInjectionDiagnostics = new Set(failureInjectionMatrix.rows.flatMap((row) => row.requiredDiagnostics || []));
+for (const diagnosticCode of failureInjectionDiagnostics) {
+  assert.equal(canonicalDiagnosticCodes.has(diagnosticCode), true, `failure injection diagnostic missing from section 33.1 taxonomy: ${diagnosticCode}`);
+}
 
 // Drift checks: language ID sets.
 const registryLanguageIds = new Set(LANGUAGE_REGISTRY.map((entry) => entry.id));

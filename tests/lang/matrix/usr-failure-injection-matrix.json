@@ -14,7 +14,7 @@
         "USR-E-SCHEMA-VIOLATION"
       ],
       "requiredReasonCodes": [
-        "resolution_conflict"
+        "USR-R-RESOLUTION-CONFLICT"
       ],
       "blocking": true
     },
@@ -28,7 +28,7 @@
         "USR-W-CAPABILITY-DOWNGRADED"
       ],
       "requiredReasonCodes": [
-        "parser_timeout"
+        "USR-R-PARSER-TIMEOUT"
       ],
       "blocking": true
     },
@@ -42,7 +42,7 @@
         "USR-E-CAPABILITY-LOST"
       ],
       "requiredReasonCodes": [
-        "parser_unavailable"
+        "USR-R-PARSER-UNAVAILABLE"
       ],
       "blocking": true
     },
@@ -56,7 +56,7 @@
         "USR-E-SECURITY-GATE-FAILED"
       ],
       "requiredReasonCodes": [
-        "redaction_required"
+        "USR-R-REDACTION-REQUIRED"
       ],
       "blocking": true
     },
@@ -70,7 +70,7 @@
         "USR-W-RESOLUTION-CANDIDATE-CAPPED"
       ],
       "requiredReasonCodes": [
-        "candidate_cap_exceeded"
+        "USR-R-CANDIDATE-CAP-EXCEEDED"
       ],
       "blocking": true
     },
@@ -84,7 +84,7 @@
         "USR-E-SLO-BUDGET-FAILED"
       ],
       "requiredReasonCodes": [
-        "resource_budget_exceeded"
+        "USR-R-RESOURCE-BUDGET-EXCEEDED"
       ],
       "blocking": true
     },
@@ -98,7 +98,7 @@
         "USR-E-SECURITY-GATE-FAILED"
       ],
       "requiredReasonCodes": [
-        "security_gate_blocked"
+        "USR-R-SECURITY-GATE-BLOCKED"
       ],
       "blocking": true
     },
@@ -112,7 +112,7 @@
         "USR-E-SCHEMA-VIOLATION"
       ],
       "requiredReasonCodes": [
-        "serialization_invalid"
+        "USR-R-SERIALIZATION-INVALID"
       ],
       "blocking": true
     }

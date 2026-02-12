@@ -63,7 +63,7 @@ const transitionOk = validateUsrCapabilityTransition({
   from: 'supported',
   to: 'partial',
   diagnostic: 'USR-W-CAPABILITY-DOWNGRADED',
-  reasonCode: 'parser_timeout'
+  reasonCode: 'USR-R-PARSER-TIMEOUT'
 });
 assert.equal(transitionOk.ok, true, `valid capability transition should pass: ${transitionOk.errors.join('; ')}`);
 
