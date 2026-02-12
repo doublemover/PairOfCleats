@@ -164,6 +164,12 @@ Phase 11-13 conformance exit-integrity lock requirements:
 - `All required framework profiles pass C4 checks.` cannot be checked unless C4 baseline validators remain present in `ci` and `ci-lite` lane manifests.
 - If any Phase 11.3/12.3/13.2 conformance exit line regresses to unchecked, corresponding Phase 9.2 go/no-go checklist lines must be reopened.
 
+Phase 10.3 harness exit-integrity lock requirements:
+
+- `Harness can execute matrix-driven checks for all languages/frameworks.` cannot be checked unless matrix-driven harness and lane materialization validators remain present in `ci` and `ci-lite` lane manifests.
+- `Lane ordering and sharding are deterministic.` cannot be checked unless shard partition and lane materialization validators remain present in `ci` and `ci-lite` lane manifests.
+- If any Phase 10.3 harness exit line regresses to unchecked, Phase 11.3/12.3/13.2 conformance exit lines must be reopened.
+
 Gate C evidence-completeness lock requirements:
 
 - `all prior gates pass.` cannot be checked unless every Gate C evidence line (backcompat, drift, implementation-readiness, SLO, security, failure-injection, fixture-governance, benchmark, threat-model, waiver) is checked.
