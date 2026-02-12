@@ -1,7 +1,12 @@
 # USR Language Contract: kotlin
 
 Status: Draft v1.0
-Last updated: 2026-02-12T01:45:00Z
+Last updated: 2026-02-12T05:05:00Z
+Owner role: usr-framework
+Backup owner role: usr-architecture
+Review cadence days: 90
+Last reviewed: 2026-02-12T05:05:00Z
+Rotation policy: rotate primary reviewer assignment between owner and backup every review cycle.
 
 ## Scope
 

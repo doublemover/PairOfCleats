@@ -1,7 +1,12 @@
 # USR Language Contract -- <language-id>
 
 Status: Draft v0.1
-Last updated: 2026-02-11T05:05:00Z
+Last updated: 2026-02-12T05:05:00Z
+Owner role: <owner-role>
+Backup owner role: <backup-owner-role>
+Review cadence days: <review-cadence-days>
+Last reviewed: <iso-8601-timestamp>
+Rotation policy: rotate primary reviewer assignment between owner and backup every review cycle.
 Language ID: <language-id>
 
 ## 0. Scope

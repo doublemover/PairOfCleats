@@ -647,7 +647,7 @@ If contradictions are found:
 - [x] Enforce USR spec change-control policy linkage in PR templates.
 - [x] Enforce registry drift checks for language/framework profile files.
 - [x] Enforce decomposed contract suite update workflow (`docs/specs/usr/README.md`) in doc-change PR templates.
-- [ ] Enforce per-language contract freshness checks and ownership rotation policy.
+- [x] Enforce per-language contract freshness checks and ownership rotation policy.
 - [x] Enforce parser/runtime lock update workflow with impact and fallback evidence in PR templates.
 - [x] Enforce runtime config key and feature-flag policy update workflow in PR templates.
 - [x] Enforce failure-injection matrix update workflow when new blocking failure classes are introduced.
