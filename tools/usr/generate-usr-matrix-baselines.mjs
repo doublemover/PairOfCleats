@@ -687,7 +687,57 @@ const failureInjectionMatrix = [
   { id: 'fi-serialization-corruption', faultClass: 'serialization-corruption', injectionLayer: 'serialization', strictExpectedOutcome: 'fail-closed', nonStrictExpectedOutcome: 'degrade-with-diagnostics', requiredDiagnostics: ['USR-E-SCHEMA-VIOLATION'], requiredReasonCodes: ['USR-R-SERIALIZATION-INVALID'] , blocking: true }
 ].sort((a, b) => a.id.localeCompare(b.id));
 
+const generatedLanguageFixtureGovernance = languageBaselines
+  .map((base) => {
+    const families = ['language-baseline', 'golden'];
+    if (base.requiredConformance.includes('C2')) families.push('semantic-flow');
+    if (base.requiredConformance.includes('C3')) families.push('risk');
+    if (base.requiredConformance.includes('C4')) families.push('framework-overlay');
+
+    return {
+      fixtureId: `${base.id}::baseline::coverage-001`,
+      profileType: 'language',
+      profileId: base.id,
+      conformanceLevels: [...base.requiredConformance],
+      families: [...new Set(families)].sort(),
+      owner: `language-${base.id}`,
+      reviewers: ['usr-architecture', 'usr-conformance'],
+      stabilityClass: 'stable',
+      mutationPolicy: 'require-review',
+      goldenRequired: true,
+      blocking: true
+    };
+  })
+  .sort((a, b) => a.fixtureId.localeCompare(b.fixtureId));
+
+const generatedFrameworkFixtureGovernance = frameworkProfiles
+  .map((profile) => {
+    const requiredEdgeKinds = new Set(profile?.bindingSemantics?.requiredEdgeKinds || []);
+    const families = ['framework-overlay'];
+    if (requiredEdgeKinds.has('template_binds') || requiredEdgeKinds.has('template_emits')) families.push('template-binding');
+    if (requiredEdgeKinds.has('style_scopes')) families.push('style-scope');
+    if (requiredEdgeKinds.has('route_maps_to')) families.push('route-semantics');
+    if (requiredEdgeKinds.has('hydration_boundary')) families.push('hydration');
+
+    return {
+      fixtureId: `${profile.id}::framework-overlay::baseline-001`,
+      profileType: 'framework',
+      profileId: profile.id,
+      conformanceLevels: [...(profile.requiredConformance || ['C4'])],
+      families: [...new Set(families)].sort(),
+      owner: `framework-${profile.id}`,
+      reviewers: ['usr-architecture', 'usr-conformance'],
+      stabilityClass: 'stable',
+      mutationPolicy: 'require-review',
+      goldenRequired: true,
+      blocking: true
+    };
+  })
+  .sort((a, b) => a.fixtureId.localeCompare(b.fixtureId));
+
 const fixtureGovernance = [
+  ...generatedLanguageFixtureGovernance,
+  ...generatedFrameworkFixtureGovernance,
   { fixtureId: 'angular::template-binding::input-output-001', profileType: 'framework', profileId: 'angular', conformanceLevels: ['C4'], families: ['framework-overlay', 'template-binding'], owner: 'framework-angular', reviewers: ['usr-architecture', 'usr-conformance'], stabilityClass: 'stable', mutationPolicy: 'require-review', goldenRequired: true, blocking: true },
   { fixtureId: 'astro::hydration::island-001', profileType: 'framework', profileId: 'astro', conformanceLevels: ['C4'], families: ['framework-overlay', 'hydration'], owner: 'framework-astro', reviewers: ['usr-architecture', 'usr-conformance'], stabilityClass: 'stable', mutationPolicy: 'require-review', goldenRequired: true, blocking: true },
   { fixtureId: 'javascript::normalization::jsx-element-001', profileType: 'language', profileId: 'javascript', conformanceLevels: ['C0', 'C1', 'C2'], families: ['normalization', 'golden'], owner: 'language-javascript', reviewers: ['usr-conformance'], stabilityClass: 'stable', mutationPolicy: 'require-review', goldenRequired: true, blocking: true },
