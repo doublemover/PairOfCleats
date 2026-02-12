@@ -92,6 +92,7 @@ lang/contracts/usr-canonical-example-validation
 lang/contracts/usr-framework-canonicalization
 lang/contracts/usr-f5-hard-requirements-validation
 lang/contracts/usr-f6-sync-requirements-validation
+lang/contracts/usr-rollout-migration-policy-validation
 lang/contracts/usr-embedding-bridge-validation
 lang/contracts/usr-generated-provenance-validation
 lang/contracts/usr-bridge-provenance-dashboard-validation
