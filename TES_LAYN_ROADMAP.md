@@ -125,7 +125,7 @@ If contradictions are found:
 - [x] USR section 46 performance benchmark methodology contract is enforced with deterministic methodology and regression gates.
 - [x] USR section 47 threat model and abuse-case coverage contract is enforced with blocking threat/control fixture coverage.
 - [x] USR section 48 waiver and exception governance contract is enforced with expiry and approver controls.
-- [ ] Decomposed USR contract suite (`docs/specs/usr*.md`) remains semantically aligned with umbrella USR spec.
+- [x] Decomposed USR contract suite (`docs/specs/usr*.md`) remains semantically aligned with umbrella USR spec.
 - [x] Every registry language has a maintained per-language contract in `docs/specs/usr/languages/<language-id>.md`.
 - [x] Machine-readable catalog/matrix files are synchronized with decomposed contracts and pass drift checks.
 
