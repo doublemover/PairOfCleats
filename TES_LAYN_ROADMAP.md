@@ -2112,4 +2112,81 @@ This appendix captures additional execution controls required to maximize implem
 - [ ] Add post-cutover report artifact `usr-post-cutover-stabilization-report.json` evaluation policy.
 - [ ] Add lock test `tests/<new>/lang/contracts/usr-post-cutover-stabilization-validation.test.js` (NEW).
 
+### O.17 Appendix O execution order and tranche plan
+
+- [ ] Execute Appendix O in strict tranche order:
+  - [ ] Tranche T0 (architecture safety baseline): O.2, O.3, O.4, O.5.
+  - [ ] Tranche T1 (change/migration safety): O.6, O.7, O.10, O.15.
+  - [ ] Tranche T2 (test rigor hardening): O.8, O.9, O.11.
+  - [ ] Tranche T3 (operational governance): O.12, O.13, O.14, O.16.
+  - [ ] Tranche T4 (scope discipline): O.1.
+- [ ] Promotion rule between tranches:
+  - [ ] No tranche can start with unresolved blocking diagnostics from prior tranche artifacts.
+  - [ ] Tranche completion requires deterministic rerun evidence and zero unresolved schema drift.
+
+### O.18 Task packet contract (required metadata per roadmap task)
+
+- [ ] Add task-packet schema `docs/<new>/schemas/usr-task-packet.schema.json` (NEW).
+- [ ] Require each unchecked roadmap item to have a task packet containing:
+  - [ ] `taskId`, `phase`, `ownerRole`, `priority`, `blockedBy`, `parallelizable`, `riskClass`.
+  - [ ] `codeTouchpoints` (file + function names, e.g. `src/index/build/indexer/pipeline.js::buildIndexForMode`, `src/index/build/file-processor.js::createFileProcessor`, `src/index/build/file-processor/process-chunks/index.js::processChunks`).
+  - [ ] `contractTouchpoints` (validator/schema functions, e.g. `validateUsrMatrixRegistry`, `validateUsrReport`, `validateUsrCapabilityTransition`).
+  - [ ] `fixtureIds`, `lanes`, `requiredEvidenceArtifacts`, `exitAssertions`.
+- [ ] Add task-packet linter `tests/<new>/lang/contracts/usr-task-packet-validation.test.js` (NEW).
+
+### O.19 Definition-of-ready (DoR) matrix per implementation task
+
+- [ ] A task is `ready` only when all are true:
+  - [ ] Matrix profile rows exist and pass strict validation for target scope.
+  - [ ] Required fixtures exist (or are explicitly staged in same PR) with deterministic IDs.
+  - [ ] Affected validator/schema functions are identified and linked in task packet.
+  - [ ] Blocking dependencies (`blockedBy`) are all closed.
+- [ ] Add DoR gate evaluator `tests/<new>/implementation-readiness/usr-task-dor-validation.test.js` (NEW).
+
+### O.20 Definition-of-done (DoD) matrix per implementation task
+
+- [ ] A task is `done` only when all are true:
+  - [ ] Runtime outputs are deterministic across at least two identical reruns.
+  - [ ] Required lanes pass with no blocking waivers.
+  - [ ] Evidence artifacts are generated, schema-valid, and freshness-compliant.
+  - [ ] Degradation paths (if any) are explicitly diagnosed and reason-coded.
+- [ ] Add DoD gate evaluator `tests/<new>/implementation-readiness/usr-task-dod-validation.test.js` (NEW).
+
+### O.21 Risk register and mitigation protocol for implementation tasks
+
+- [ ] Add risk register `tests/<new>/lang/matrix/usr-implementation-risk-register.json` (NEW) with:
+  - [ ] `riskId`, `taskId`, `probability`, `impact`, `detectionSignal`, `mitigationPlan`, `owner`, `reviewBy`.
+  - [ ] Explicit mapping to required evidence artifact for closure.
+- [ ] Add risk burn-down report `usr-implementation-risk-burndown.json` and validator (NEW).
+- [ ] Block tranche promotion when any `high` impact risk lacks an active mitigation artifact.
+
+### O.22 PR review and sign-off protocol (implementation quality)
+
+- [ ] Add review checklist contract `docs/<new>/specs/usr-implementation-review-policy.md` (NEW).
+- [ ] Require each implementation PR to include:
+  - [ ] touched runtime functions list;
+  - [ ] touched validators/schemas list;
+  - [ ] fixture and lane deltas;
+  - [ ] expected diagnostic/reason-code deltas;
+  - [ ] rollback impact statement.
+- [ ] Add enforcement test `tests/<new>/lang/contracts/usr-implementation-review-policy-validation.test.js` (NEW).
+
+### O.23 Decision-log protocol for architecture-significant changes
+
+- [ ] Add decision log index `docs/<new>/decisions/usr/README.md` (NEW).
+- [ ] Require ADR-style entries for Tier 2/Tier 3 decisions with:
+  - [ ] context, alternatives, chosen design, consequence, migration plan, and deprecation impact.
+  - [ ] mappings to roadmap tasks and matrix artifacts.
+- [ ] Add policy validator `tests/<new>/decomposed-drift/usr-decision-log-linkage-validation.test.js` (NEW).
+
+### O.24 Planning quality score and completeness threshold
+
+- [ ] Add planning scorecard artifact `usr-planning-quality-scorecard.json` (NEW) with weighted dimensions:
+  - [ ] touchpoint specificity,
+  - [ ] fixture/test/evidence completeness,
+  - [ ] dependency clarity,
+  - [ ] risk and rollback readiness,
+  - [ ] operational runbook completeness.
+- [ ] Add minimum passing threshold for implementation kickoff (e.g., `>= 0.90`) and fail-closed enforcement.
+- [ ] Add score validation test `tests/<new>/implementation-readiness/usr-planning-quality-scorecard-validation.test.js` (NEW).
 
