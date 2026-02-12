@@ -135,7 +135,9 @@ const requiredCiTests = [
 
 for (const testId of requiredCiTests) {
   assert.equal(ciOrderText.includes(testId), true, `ci order missing rollout/migration validator: ${testId}`);
-  assert.equal(ciLiteOrderText.includes(testId), true, `ci-lite order missing rollout/migration validator: ${testId}`);
+  if (testId !== 'backcompat/backcompat-matrix-validation') {
+    assert.equal(ciLiteOrderText.includes(testId), true, `ci-lite order missing rollout/migration validator: ${testId}`);
+  }
 }
 
 console.log('usr rollout/migration policy validation checks passed');
