@@ -1314,6 +1314,7 @@ export const ARTIFACT_SCHEMA_DEFS = {
       updatedAt: nullableString,
       artifactSurfaceVersion: semverString,
       compatibilityKey: nullableString,
+      cohortKey: nullableString,
       repoId: nullableString,
       buildId: nullableString,
       mode: { type: 'string' },
