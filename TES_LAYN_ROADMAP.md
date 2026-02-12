@@ -1,6 +1,6 @@
 # TES_LAYN_ROADMAP - USR-Aligned Language and Framework Execution Master Plan
 
-Last rewritten: 2026-02-12T06:31:12Z
+Last rewritten: 2026-02-12T06:32:07Z
 Branch: `usr-skyforge-primer`
 Document status: active master plan baseline v1.5
 
@@ -452,8 +452,8 @@ If contradictions are found:
 - [ ] Add per-batch profiling and hotspot reporting.
 - [ ] Validate parser/runtime lock reproducibility and update budget for lock-file upgrades.
 - [x] Materialize SLO budget and alert policy evaluations in CI outputs.
-- [ ] Enforce benchmark policy methodology (warmup/measure runs, percentile targets, variance budgets) for blocking lanes.
-- [ ] Materialize benchmark regression artifacts and promotion-gate evaluation.
+- [x] Enforce benchmark policy methodology (warmup/measure runs, percentile targets, variance budgets) for blocking lanes.
+- [x] Materialize benchmark regression artifacts and promotion-gate evaluation.
 
 ### 8.4 Exit criteria
 
