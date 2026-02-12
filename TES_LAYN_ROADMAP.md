@@ -1,7 +1,7 @@
 # TES_LAYN_ROADMAP - USR-Aligned Language and Framework Execution Master Plan
 
-Last rewritten: 2026-02-11T08:20:00Z
-Branch: `LANGMANE`
+Last rewritten: 2026-02-12T02:25:00Z
+Branch: `usr-skyforge-primer`
 Document status: active master plan baseline v1.5
 
 ## 0) Scope Reset
@@ -159,7 +159,7 @@ If contradictions are found:
 - [ ] Add a traceability matrix linking USR sections 5 through 36 to roadmap tasks.
 - [ ] Add decomposition traceability matrix mapping each `docs/specs/usr*.md` contract to roadmap phases and CI gates.
 - [ ] Define owner role per USR section group (identity, schema, framework, conformance, operations).
-- [ ] Define ownership matrix artifact (`usr-ownership-matrix.json`) and escalation artifact (`usr-escalation-policy.json`) requirements.
+- [x] Define ownership matrix artifact (`usr-ownership-matrix.json`) and escalation artifact (`usr-escalation-policy.json`) requirements.
 - [ ] Define escalation path for contract conflicts between USR and existing artifact contracts.
 - [ ] Define requirement that all future roadmap edits preserve exact language registry coverage.
 
@@ -212,12 +212,12 @@ If contradictions are found:
 
 ### 1.2 Schema and validator package (USR section 24)
 
-- [ ] Add `src/contracts/schemas/usr.js`.
-- [ ] Add `src/contracts/schemas/usr-matrix.js`.
-- [ ] Add `src/contracts/validators/usr.js`.
-- [ ] Add `src/contracts/validators/usr-matrix.js`.
-- [ ] Export all required USR schema constants.
-- [ ] Add strict matrix schemas and validators for `usr-runtime-config-policy.json`, `usr-failure-injection-matrix.json`, and `usr-fixture-governance.json`.
+- [x] Add `src/contracts/schemas/usr.js`.
+- [x] Add `src/contracts/schemas/usr-matrix.js`.
+- [x] Add `src/contracts/validators/usr.js`.
+- [x] Add `src/contracts/validators/usr-matrix.js`.
+- [x] Export all required USR schema constants.
+- [x] Add strict matrix schemas and validators for `usr-runtime-config-policy.json`, `usr-failure-injection-matrix.json`, and `usr-fixture-governance.json`.
 - [ ] Add runtime config resolution validator enforcing precedence and strict-mode behavior contract.
 - [ ] Enforce strict ID grammar validation.
 - [ ] Enforce strict edge endpoint constraints.
@@ -226,29 +226,29 @@ If contradictions are found:
 
 ### 1.3 Drift and completeness checks
 
-- [ ] Add registry drift test: language registry IDs vs `usr-language-profiles.json` exact-set equality.
-- [ ] Add version/embedding policy drift test: language IDs vs `usr-language-version-policy.json` and `usr-language-embedding-policy.json` exact-set equality.
-- [ ] Add framework profile referential integrity test.
-- [ ] Add unknown-key strictness test for all USR matrix files.
-- [ ] Add parser/runtime lock coverage drift test vs parser sources referenced by language/framework profiles.
-- [ ] Add SLO/alert policy schema drift tests and scope-coverage checks.
-- [ ] Add redaction/security gate schema drift tests and enforcement-level coverage checks.
-- [ ] Add runtime config policy schema drift tests and strict-mode behavior coverage checks.
-- [ ] Add failure-injection matrix completeness drift tests (required fault classes and blocking scenario coverage).
-- [ ] Add fixture-governance drift tests (fixture ID uniqueness, owner/reviewer completeness, profile linkage).
-- [ ] Add benchmark policy schema drift tests (warmup/measure/percentile/variance requirements and lane coverage).
-- [ ] Add threat-model matrix drift tests (critical threat/control/fixture mapping completeness).
-- [ ] Add waiver policy drift tests (expiry, approver, compensating-control, and disallowed-bypass checks).
-- [ ] Add matrix generator idempotence test (`node tools/usr/generate-usr-matrix-baselines.mjs` yields zero diff on clean repo).
+- [x] Add registry drift test: language registry IDs vs `usr-language-profiles.json` exact-set equality.
+- [x] Add version/embedding policy drift test: language IDs vs `usr-language-version-policy.json` and `usr-language-embedding-policy.json` exact-set equality.
+- [x] Add framework profile referential integrity test.
+- [x] Add unknown-key strictness test for all USR matrix files.
+- [x] Add parser/runtime lock coverage drift test vs parser sources referenced by language/framework profiles.
+- [x] Add SLO/alert policy schema drift tests and scope-coverage checks.
+- [x] Add redaction/security gate schema drift tests and enforcement-level coverage checks.
+- [x] Add runtime config policy schema drift tests and strict-mode behavior coverage checks.
+- [x] Add failure-injection matrix completeness drift tests (required fault classes and blocking scenario coverage).
+- [x] Add fixture-governance drift tests (fixture ID uniqueness, owner/reviewer completeness, profile linkage).
+- [x] Add benchmark policy schema drift tests (warmup/measure/percentile/variance requirements and lane coverage).
+- [x] Add threat-model matrix drift tests (critical threat/control/fixture mapping completeness).
+- [x] Add waiver policy drift tests (expiry, approver, compensating-control, and disallowed-bypass checks).
+- [x] Add matrix generator idempotence test (`node tools/usr/generate-usr-matrix-baselines.mjs` yields zero diff on clean repo).
 - [ ] Add diagnostic taxonomy drift test (section 12.1 baseline vs section 33.1 full taxonomy).
 - [ ] Add reason-code drift test (`attrs.resolution.reasonCode` values vs section 33.2).
-- [ ] Add per-language spec existence test: every registry language ID has exactly one `docs/specs/usr/languages/<language-id>.md`.
+- [x] Add per-language spec existence test: every registry language ID has exactly one `docs/specs/usr/languages/<language-id>.md`.
 - [ ] Add decomposed-contract cross-reference consistency test: required contract links are present and valid.
 
 ### 1.4 Exit criteria
 
-- [ ] USR registry files exist and validate.
-- [ ] USR schema package exists and validates.
+- [x] USR registry files exist and validate.
+- [x] USR schema package exists and validates.
 - [ ] Drift tests pass in CI.
 
 ---
