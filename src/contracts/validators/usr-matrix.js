@@ -3766,7 +3766,7 @@ export function buildUsrReleaseReadinessScorecard({
     blockers: evaluation.blockers,
     errors: evaluation.errors,
     warnings: evaluation.warnings,
-    rows: evaluation.rows,
+    rows,
     payload
   };
 }
