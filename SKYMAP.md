@@ -544,10 +544,10 @@ Tests:
 
 ### 14.1.4 Path safety and privacy
 
-- [ ] Persist only repo-cache-relative paths.
-- [ ] Reject absolute paths or traversal (`..`).
-- [ ] Persisted artifacts must not leak absolute paths.
-- [ ] Define redaction behavior for `path:` refs and any persisted output fields (hash + placeholder; no raw absolute paths).
+- [x] Persist only repo-cache-relative paths.
+- [x] Reject absolute paths or traversal (`..`).
+- [x] Persisted artifacts must not leak absolute paths.
+- [x] Define redaction behavior for `path:` refs and any persisted output fields (hash + placeholder; no raw absolute paths).
 
 Touchpoints:
 - `src/index/validate/paths.js#isManifestPathSafe`
@@ -555,7 +555,7 @@ Touchpoints:
 - `src/index/index-ref.js` (path: refs redaction)
 
 Tests:
-- [ ] `tests/unit/no-path-leak.unit.js`
+- [x] `tests/shared/no-path-leak.test.js`
 
 ### 14.1.5 Retention defaults (optional)
 

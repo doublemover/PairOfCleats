@@ -451,6 +451,29 @@ export function parseIndexRef(ref) {
   throw invalidRequest(`Invalid IndexRef prefix "${prefix}".`);
 }
 
+export function redactIndexRefForPersistence(refOrParsed, options = {}) {
+  const parsed = typeof refOrParsed === 'string' ? parseIndexRef(refOrParsed) : refOrParsed;
+  if (!parsed || typeof parsed !== 'object' || typeof parsed.kind !== 'string') {
+    throw invalidRequest('Invalid IndexRef payload for persistence.');
+  }
+  if (parsed.kind !== 'path') {
+    return {
+      ref: parsed.canonical,
+      redacted: false,
+      pathHash: null
+    };
+  }
+  if (options.persistUnsafe !== true) {
+    throw invalidRequest('Path refs cannot be persisted without --persist-unsafe.');
+  }
+  const pathHash = sha1(path.resolve(parsed.path));
+  return {
+    ref: 'path:<redacted>',
+    redacted: true,
+    pathHash
+  };
+}
+
 export function resolveIndexRef(input = {}) {
   const {
     ref = 'latest',
@@ -530,4 +553,3 @@ export function resolveIndexRef(input = {}) {
     warnings
   });
 }
-

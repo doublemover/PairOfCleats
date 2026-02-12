@@ -3,8 +3,10 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { acquireIndexLock } from '../build/lock.js';
 import { createError, ERROR_CODES } from '../../shared/error-codes.js';
+import { isAbsolutePathAny, toPosix } from '../../shared/files.js';
 import { atomicWriteText } from '../../shared/io/atomic-write.js';
 import { stableStringify } from '../../shared/stable-json.js';
+import { isManifestPathSafe } from '../validate/paths.js';
 
 const SNAPSHOTS_DIR = 'snapshots';
 const SNAPSHOT_ID_RE = /^snap-[A-Za-z0-9._-]+$/;
@@ -31,6 +33,74 @@ const ensureSnapshotId = (snapshotId) => {
   if (typeof snapshotId !== 'string' || !SNAPSHOT_ID_RE.test(snapshotId)) {
     throw invalidRequest(`Invalid snapshot id: ${snapshotId}`);
   }
+};
+
+const deepClone = (value) => JSON.parse(JSON.stringify(value));
+
+const assertNoAbsolutePathLeak = (value, cursor = '$') => {
+  if (typeof value === 'string') {
+    if (isAbsolutePathAny(value)) {
+      throw invalidRequest(`Absolute path leak at ${cursor}.`);
+    }
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i += 1) {
+      assertNoAbsolutePathLeak(value[i], `${cursor}[${i}]`);
+    }
+    return;
+  }
+  if (!isObject(value)) return;
+  for (const [key, entry] of Object.entries(value)) {
+    assertNoAbsolutePathLeak(entry, `${cursor}.${key}`);
+  }
+};
+
+const normalizeRelativePath = (value, label) => {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw invalidRequest(`${label} must be a non-empty path string.`);
+  }
+  const normalized = toPosix(value.trim());
+  if (!isManifestPathSafe(normalized)) {
+    throw invalidRequest(`${label} must be repo-cache-relative and traversal-safe.`);
+  }
+  return normalized;
+};
+
+const sanitizeSnapshotManifest = (manifest) => {
+  const next = deepClone(manifest);
+  assertNoAbsolutePathLeak(next);
+  return next;
+};
+
+const sanitizeSnapshotRecord = (snapshotJson) => {
+  const next = deepClone(snapshotJson);
+  const pointer = isObject(next.pointer) ? next.pointer : null;
+  if (pointer && isObject(pointer.buildRootsByMode)) {
+    for (const [mode, entry] of Object.entries(pointer.buildRootsByMode)) {
+      pointer.buildRootsByMode[mode] = normalizeRelativePath(
+        entry,
+        `pointer.buildRootsByMode.${mode}`
+      );
+    }
+  }
+  if (pointer && typeof pointer.buildRoot === 'string') {
+    pointer.buildRoot = normalizeRelativePath(pointer.buildRoot, 'pointer.buildRoot');
+  }
+  if (typeof next.buildRoot === 'string') {
+    next.buildRoot = normalizeRelativePath(next.buildRoot, 'buildRoot');
+  }
+  assertNoAbsolutePathLeak(next);
+  return next;
+};
+
+const sanitizeFrozenRecord = (frozenJson) => {
+  const next = deepClone(frozenJson);
+  if (typeof next.frozenRoot === 'string') {
+    next.frozenRoot = normalizeRelativePath(next.frozenRoot, 'frozenRoot');
+  }
+  assertNoAbsolutePathLeak(next);
+  return next;
 };
 
 const readJsonObject = (filePath, fallback = null) => {
@@ -97,10 +167,11 @@ export const writeSnapshotsManifest = async (repoCacheRoot, manifest, options = 
   if (!isObject(manifest)) {
     throw invalidRequest('Snapshot manifest must be an object.');
   }
+  const sanitized = sanitizeSnapshotManifest(manifest);
   return withIndexLock(repoCacheRoot, options, async () => {
     const manifestPath = resolveManifestPath(repoCacheRoot);
     await fsPromises.mkdir(path.dirname(manifestPath), { recursive: true });
-    await writeStableJson(manifestPath, manifest);
+    await writeStableJson(manifestPath, sanitized);
     return manifestPath;
   });
 };
@@ -110,10 +181,11 @@ export const writeSnapshot = async (repoCacheRoot, snapshotId, snapshotJson, opt
   if (!isObject(snapshotJson)) {
     throw invalidRequest('snapshot.json payload must be an object.');
   }
+  const sanitized = sanitizeSnapshotRecord(snapshotJson);
   return withIndexLock(repoCacheRoot, options, async () => {
     const snapshotPath = resolveSnapshotPath(repoCacheRoot, snapshotId);
     await fsPromises.mkdir(path.dirname(snapshotPath), { recursive: true });
-    await writeStableJson(snapshotPath, snapshotJson);
+    await writeStableJson(snapshotPath, sanitized);
     return snapshotPath;
   });
 };
@@ -123,10 +195,11 @@ export const writeFrozen = async (repoCacheRoot, snapshotId, frozenJson, options
   if (!isObject(frozenJson)) {
     throw invalidRequest('frozen.json payload must be an object.');
   }
+  const sanitized = sanitizeFrozenRecord(frozenJson);
   return withIndexLock(repoCacheRoot, options, async () => {
     const frozenPath = resolveFrozenPath(repoCacheRoot, snapshotId);
     await fsPromises.mkdir(path.dirname(frozenPath), { recursive: true });
-    await writeStableJson(frozenPath, frozenJson);
+    await writeStableJson(frozenPath, sanitized);
     return frozenPath;
   });
 };
@@ -182,4 +255,3 @@ export const cleanupStaleFrozenStagingDirs = async (repoCacheRoot, options = {})
     };
   });
 };
-
