@@ -14,12 +14,18 @@ const ciLiteOrderPath = path.join(repoRoot, 'tests', 'ci-lite', 'ci-lite.order.t
 
 const ciOrderText = fs.readFileSync(ciOrderPath, 'utf8');
 const ciLiteOrderText = fs.readFileSync(ciLiteOrderPath, 'utf8');
+const prTemplatePath = path.join(repoRoot, '.github', 'pull_request_template.md');
+const prTemplateText = fs.readFileSync(prTemplatePath, 'utf8');
 
 const requiredTestId = 'lang/contracts/usr-archival-deprecation-policy-validation';
 assert.equal(ciOrderText.includes(requiredTestId), true, `ci order missing archival/deprecation validator: ${requiredTestId}`);
 assert.equal(ciLiteOrderText.includes(requiredTestId), true, `ci-lite order missing archival/deprecation validator: ${requiredTestId}`);
 
 assert.equal(fs.existsSync(archivedRoot), true, 'docs/archived directory must exist');
+
+assert.equal(prTemplateText.includes('<!-- usr-policy:deprecation-archive -->'), true, 'PR template must include deprecation-archive policy marker');
+assert.equal(prTemplateText.includes('`docs/archived/`'), true, 'deprecation-archive checklist must reference docs/archived path');
+assert.equal(/DEPRECATED header/i.test(prTemplateText), true, 'deprecation-archive checklist must require DEPRECATED header metadata');
 
 const collectMarkdownFiles = (dir) => {
   const entries = fs.readdirSync(dir, { withFileTypes: true });

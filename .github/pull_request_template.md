@@ -12,6 +12,8 @@
 - [ ] If this PR introduces extension fields or extension-processing behavior, I enforced section 29 in `docs/specs/unified-syntax-representation.md`: namespaced extension keys only, no canonical required-semantic overrides, and deterministic extension output ordering/values.
 <!-- usr-policy:appendix-sync -->
 - [ ] If this PR adds/removes consolidated contracts, I updated Appendix H/J/N in `TES_LAYN_ROADMAP.md` and synchronization links in `docs/specs/usr-consolidation-coverage-matrix.md`.
+<!-- usr-policy:deprecation-archive -->
+- [ ] If this PR deprecates or supersedes a USR spec, I moved the retired doc to `docs/archived/` (see `docs/archived/README.md`) and added a DEPRECATED header block with canonical replacement, reason, date, and PR/commit metadata.
 <!-- usr-policy:registry-drift -->
 - [ ] If this PR changes language/framework registries, I updated corresponding `docs/specs/usr/languages/*.md` or `docs/specs/usr/frameworks/*.md` contracts.
 <!-- usr-policy:parser-lock -->

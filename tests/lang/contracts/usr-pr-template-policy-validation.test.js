@@ -104,6 +104,19 @@ validateTemplatePolicies({
       ]
     },
     {
+      marker: 'usr-policy:deprecation-archive',
+      requiredRefs: [
+        'docs/archived/README.md'
+      ],
+      requiredFragments: [
+        'DEPRECATED header',
+        'canonical replacement',
+        'reason',
+        'date',
+        'PR/commit'
+      ]
+    },
+    {
       marker: 'usr-policy:registry-drift',
       requiredRefs: [
         'docs/specs/usr/languages/*.md',
