@@ -112,6 +112,7 @@ const requiredCiTests = [
   'backcompat/backcompat-matrix-validation',
   'lang/contracts/usr-runtime-config-feature-flag-validation',
   'lang/contracts/usr-failure-injection-validation',
+  'lang/contracts/usr-failure-injection-recovery-threshold-validation',
   'lang/contracts/usr-fixture-governance-validation',
   'lang/contracts/usr-fixture-mutation-policy-coverage-validation',
   'lang/contracts/usr-fixture-governance-coverage-floor-validation',
