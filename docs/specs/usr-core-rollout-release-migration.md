@@ -163,6 +163,12 @@ Gate C evidence-completeness lock requirements:
 - If `all prior gates pass.` regresses to unchecked, `conformance rollout authorized.` and Appendix F.1 `Complete Phase D full conformance enforcement.` must remain unchecked until Gate C evidence is restored.
 - If any required Gate C evidence line regresses to unchecked, readiness and rollout authorization lines must be reopened.
 
+Phase 14.3 integration/failure exit lock requirements:
+
+- `Integration and failure-mode suites pass.` cannot be checked unless every checklist line in sections 14.1 and 14.2 is checked.
+- Phase 14.3 exit cannot be checked unless mixed-repo integration, failure-injection, failure-mode-suite, and security-gate validators remain present in `ci` and `ci-lite` lane manifests.
+- If any Phase 14.1/14.2 prerequisite control regresses to unchecked, Phase 14.3 exit must be reopened.
+
 Phase 15 exit-completion lock requirements:
 
 - `CI and maintenance controls are stable for ongoing development.` cannot be checked unless every checklist line in sections 15.1, 15.2, and 15.3 is checked.
