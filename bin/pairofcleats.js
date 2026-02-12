@@ -168,6 +168,41 @@ function resolveCommand(primary, rest) {
     }
     return { script: 'search.js', extraArgs: [], args: rest };
   }
+  if (primary === 'workspace') {
+    const sub = rest.shift();
+    if (!sub || isHelpCommand(sub)) {
+      console.error('workspace requires a subcommand: manifest, status, build');
+      printHelp();
+      process.exit(1);
+    }
+    if (sub === 'manifest') {
+      validateArgs(rest, ['workspace', 'json'], ['workspace']);
+      return { script: 'tools/workspace/manifest.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'status') {
+      validateArgs(rest, ['workspace', 'json'], ['workspace']);
+      return { script: 'tools/workspace/status.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'build') {
+      const buildFlags = Object.keys(INDEX_BUILD_OPTIONS).filter((flag) => flag !== 'repo');
+      const allowed = Array.from(new Set([
+        'workspace',
+        'concurrency',
+        'strict',
+        'include-disabled',
+        'json',
+        ...buildFlags
+      ]));
+      const buildValueFlags = buildFlags.filter((flag) => (
+        INDEX_BUILD_OPTIONS[flag]?.type && INDEX_BUILD_OPTIONS[flag].type !== 'boolean'
+      ));
+      validateArgs(rest, allowed, ['workspace', 'concurrency', ...buildValueFlags]);
+      return { script: 'tools/workspace/build.js', extraArgs: [], args: rest };
+    }
+    console.error(`Unknown workspace subcommand: ${sub}`);
+    printHelp();
+    process.exit(1);
+  }
   if (primary === 'setup') {
     validateArgs(rest, [], []);
     return { script: 'tools/setup/setup.js', extraArgs: [], args: rest };
@@ -773,6 +808,11 @@ Index:
 
 Search:
   search "<query>"         Query indexed data
+
+Workspace:
+  workspace manifest       Generate/refresh workspace manifest
+  workspace status         Show workspace repo/mode index availability
+  workspace build          Build indexes across workspace repos
 
 Service:
   service api             Run local HTTP JSON API

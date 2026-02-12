@@ -771,7 +771,7 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
     - [x] sorted list of `{ repoId, repoRootCanonical }`
     - [x] `repoSetId = "ws1-" + sha1(stableStringify({ v:1, schemaVersion:1, repos:[...] }))`
   - [ ] `repoSetId` is used for:
-    - [ ] workspace manifest pathing (15.2)
+    - [x] workspace manifest pathing (15.2)
     - [ ] federated query cache directory naming (15.5)
 
 - [x] Centralize identity/canonicalization helpers across all callers.
@@ -798,49 +798,49 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
 
 > **Authoritative spec:** `docs/specs/workspace-manifest.md`
 
-- [ ] Implement deterministic workspace manifest generation (schemaVersion = 1).
-  - [ ] Resolve `federationCacheRoot` per spec:
+- [x] Implement deterministic workspace manifest generation (schemaVersion = 1).
+  - [x] Resolve `federationCacheRoot` per spec:
     - workspace `cacheRoot` (resolved absolute or relative to `workspaceDir`) else `getCacheRoot()`.
-  - [ ] Write atomically to:
+  - [x] Write atomically to:
     - `<federationCacheRoot>/federation/<repoSetId>/workspace_manifest.json`.
-  - [ ] Serialize with `stableStringify` so the file is byte-stable for unchanged state.
+  - [x] Serialize with `stableStringify` so the file is byte-stable for unchanged state.
 
-- [ ] Populate manifest entries per repo (sorted by `repoId`).
-  - [ ] Resolve per-repo config and compute `repoCacheRoot`.
-  - [ ] Read build pointer: `<repoCacheRoot>/builds/current.json`.
-    - [ ] invalid/unreadable JSON MUST be treated as missing pointer (do not preserve stale values).
-  - [ ] For each mode in `{code, prose, extracted-prose, records}`:
-    - [ ] derive `indexDir` from the build roots
-    - [ ] compute `indexSignatureHash` as `is1-` + sha1(buildIndexSignature(indexDir))
-    - [ ] read `cohortKey` (preferred) and `compatibilityKey` (fallback) from `<indexDir>/index_state.json` (warn if both missing)
-  - [ ] Resolve sqlite artifacts and compute file signatures (`size:mtimeMs`) per spec.
-  - [ ] Persist per-mode availability reason codes:
-    - [ ] `present`
-    - [ ] `missing-index-dir`
-    - [ ] `missing-required-artifacts`
-    - [ ] `invalid-pointer`
-    - [ ] `compat-key-missing`
+- [x] Populate manifest entries per repo (sorted by `repoId`).
+  - [x] Resolve per-repo config and compute `repoCacheRoot`.
+  - [x] Read build pointer: `<repoCacheRoot>/builds/current.json`.
+    - [x] invalid/unreadable JSON MUST be treated as missing pointer (do not preserve stale values).
+  - [x] For each mode in `{code, prose, extracted-prose, records}`:
+    - [x] derive `indexDir` from the build roots
+    - [x] compute `indexSignatureHash` as `is1-` + sha1(buildIndexSignature(indexDir))
+    - [x] read `cohortKey` (preferred) and `compatibilityKey` (fallback) from `<indexDir>/index_state.json` (warn if both missing)
+  - [x] Resolve sqlite artifacts and compute file signatures (`size:mtimeMs`) per spec.
+  - [x] Persist per-mode availability reason codes:
+    - [x] `present`
+    - [x] `missing-index-dir`
+    - [x] `missing-required-artifacts`
+    - [x] `invalid-pointer`
+    - [x] `compat-key-missing`
 
-- [ ] Compute and persist `manifestHash` (`wm1-...`) exactly per spec.
-  - [ ] MUST change for search-relevant state changes (build pointer, index signature, sqlite changes, compatibilityKey/cohortKey).
-  - [ ] MUST NOT change for display-only edits (alias/tags/enabled/priority/name).
+- [x] Compute and persist `manifestHash` (`wm1-...`) exactly per spec.
+  - [x] MUST change for search-relevant state changes (build pointer, index signature, sqlite changes, compatibilityKey/cohortKey).
+  - [x] MUST NOT change for display-only edits (alias/tags/enabled/priority/name).
 
-- [ ] CLI ergonomics: add explicit manifest commands.
-  - [ ] `pairofcleats workspace manifest --workspace <path>` (generate/refresh and print path + hashes)
-  - [ ] `pairofcleats workspace status --workspace <path>` (human-readable per-repo/mode availability)
+- [x] CLI ergonomics: add explicit manifest commands.
+  - [x] `pairofcleats workspace manifest --workspace <path>` (generate/refresh and print path + hashes)
+  - [x] `pairofcleats workspace status --workspace <path>` (human-readable per-repo/mode availability)
 
-- [ ] Workspace-aware build orchestration (multi-repo indexing).
-  - [ ] Add a workspace build entrypoint:
+- [x] Workspace-aware build orchestration (multi-repo indexing).
+  - [x] Add a workspace build entrypoint:
     - [ ] either `pairofcleats index build --workspace <path> ...`
-    - [ ] or `pairofcleats workspace build ...`
-  - [ ] Requirements:
-    - [ ] each repo’s `.pairofcleats.json` is applied (repo-local cache roots, ignore rules, etc.)
-    - [ ] workspace config v1 supplies no per-repo build overrides
-    - [ ] concurrency-limited repo builds (avoid “N repos × M threads” explosion)
-  - [ ] Post-step: regenerate workspace manifest and emit `repoSetId` + `manifestHash`.
-  - [ ] Build fanout failure policy is deterministic:
-    - [ ] Continue other repos when one repo build fails unless strict mode is enabled.
-    - [ ] Persist structured build diagnostics in manifest generation output.
+    - [x] or `pairofcleats workspace build ...`
+  - [x] Requirements:
+    - [x] each repo’s `.pairofcleats.json` is applied (repo-local cache roots, ignore rules, etc.)
+    - [x] workspace config v1 supplies no per-repo build overrides
+    - [x] concurrency-limited repo builds (avoid “N repos × M threads” explosion)
+  - [x] Post-step: regenerate workspace manifest and emit `repoSetId` + `manifestHash`.
+  - [x] Build fanout failure policy is deterministic:
+    - [x] Continue other repos when one repo build fails unless strict mode is enabled.
+    - [x] Persist structured build diagnostics in manifest generation output.
 
 - [ ] Optional debug tooling: cache inspection (“catalog”) commands.
   - [ ] If implemented, treat as debug tooling only; do not make federation correctness depend on scanning `<cacheRoot>/repos/*`.
@@ -851,10 +851,10 @@ Additional docs that MUST be updated if Phase 15 adds new behavior or config:
 - New (preferred): `src/workspace/manifest.js`
 
 **Tests**
-- [ ] `tests/workspace/manifest-determinism.test.js`
-- [ ] `tests/workspace/manifest-hash-invalidation.test.js`
-- [ ] `tests/workspace/build-pointer-invalid-treated-missing.test.js`
-- [ ] `tests/workspace/index-signature-sharded-variants.test.js`
+- [x] `tests/workspace/manifest-determinism.test.js`
+- [x] `tests/workspace/manifest-hash-invalidation.test.js`
+- [x] `tests/workspace/build-pointer-invalid-treated-missing.test.js`
+- [x] `tests/workspace/index-signature-sharded-variants.test.js`
 
 ---
 
