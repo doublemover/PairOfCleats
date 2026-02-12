@@ -118,7 +118,7 @@ If contradictions are found:
 - [ ] USR section 40 implementation-readiness requirements are complete before promotion gates.
 - [x] USR registry-schema contract is enforced for all `tests/lang/matrix` artifacts, including parser/runtime lock.
 - [x] USR section 41 observability and SLO contract is enforced across required lanes.
-- [ ] USR section 42 security and data governance contract is enforced with fail-closed blocking semantics.
+- [x] USR section 42 security and data governance contract is enforced with fail-closed blocking semantics.
 - [x] USR section 43 runtime configuration and feature-flag contract is enforced with strict-mode validation.
 - [x] USR section 44 failure injection and resilience contract is enforced with blocking strict fault scenarios.
 - [x] USR section 45 fixture and golden governance contract is enforced with ownership and mutation policy controls.
@@ -614,7 +614,7 @@ If contradictions are found:
 - [ ] Enforce C0-C4 conformance lane required checks.
 - [ ] Enforce section 36 strict scenario blocking behavior and non-strict warning budgets.
 - [x] Enforce section 41 SLO budget blocking policies and alert escalation behavior.
-- [ ] Enforce section 42 security gate fail-closed blocking policies.
+- [x] Enforce section 42 security gate fail-closed blocking policies.
 - [x] Enforce section 43 runtime configuration strict-validation and disallowed-flag conflict policies.
 - [x] Enforce section 44 failure-injection blocking scenario pass requirements.
 - [x] Enforce section 45 fixture-governance blocking mutation policies and ownership checks.
@@ -632,7 +632,7 @@ If contradictions are found:
 - [ ] Emit generated/macro provenance coverage and confidence-downgrade dashboards.
 - [x] Emit implementation-readiness evidence scorecards and promotion blocker summaries.
 - [x] Emit SLO budget compliance and alert evaluation dashboards.
-- [ ] Emit redaction/security gate compliance dashboards.
+- [x] Emit redaction/security gate compliance dashboards.
 - [x] Validate section 30 report envelopes and row schemas per `docs/specs/usr-core-observability-performance-ops.md`.
 - [x] Emit automated section 31 scorecard artifact (`usr-release-readiness-scorecard.json`).
 - [x] Emit runtime configuration and feature-flag state dashboards.
