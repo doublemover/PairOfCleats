@@ -231,11 +231,8 @@
         "heuristic"
       ],
       "frameworkProfiles": [
-        "angular",
         "astro",
-        "next",
         "nuxt",
-        "react",
         "svelte",
         "sveltekit",
         "vue"
