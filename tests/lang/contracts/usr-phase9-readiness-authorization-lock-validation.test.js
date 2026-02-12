@@ -75,6 +75,7 @@ for (const testId of [
   'lang/contracts/usr-phase9-readiness-audit-lock-validation',
   'lang/contracts/usr-rollout-f1-checklist-validation',
   'lang/contracts/usr-gate-b-language-batch-lock-validation',
+  'lang/contracts/usr-gate-c-evidence-completeness-lock-validation',
   'lang/contracts/usr-gate-c-authorization-chain-validation',
   'lang/contracts/usr-rollout-approval-lock-validation',
   'lang/contracts/usr-gate-c-prereq-lock-validation'

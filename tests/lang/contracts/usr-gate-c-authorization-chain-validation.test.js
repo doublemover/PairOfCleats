@@ -116,6 +116,7 @@ assert.equal(roadmapText.includes('### N.13 Gate C conformance-authorization cha
 for (const testId of [
   'lang/contracts/usr-gate-c-authorization-chain-validation',
   'lang/contracts/usr-gate-c-prereq-lock-validation',
+  'lang/contracts/usr-gate-c-evidence-completeness-lock-validation',
   'lang/contracts/usr-rollout-approval-lock-validation',
   'lang/contracts/usr-rollout-f1-checklist-validation',
   'lang/contracts/usr-rollout-phase-evidence-lock-validation',

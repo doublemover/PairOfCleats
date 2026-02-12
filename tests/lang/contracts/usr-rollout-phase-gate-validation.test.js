@@ -53,7 +53,8 @@ const requiredRoadmapAnchors = [
   '### N.12 Phase 9.1 readiness-audit completion lock',
   '### N.13 Gate C conformance-authorization chain lock',
   '### N.14 Appendix F.1 phase-evidence lock',
-  '### N.15 Phase 9.2 go/no-go decision lock'
+  '### N.15 Phase 9.2 go/no-go decision lock',
+  '### N.16 Gate C evidence-completeness lock'
 ];
 for (const anchor of requiredRoadmapAnchors) {
   assert.equal(roadmapText.includes(anchor), true, `roadmap missing rollout/deprecation anchor: ${anchor}`);
@@ -100,6 +101,7 @@ const requiredCrossPhaseTests = [
   'lang/contracts/usr-phase9-readiness-authorization-lock-validation',
   'lang/contracts/usr-phase9-readiness-audit-lock-validation',
   'lang/contracts/usr-gate-b-language-batch-lock-validation',
+  'lang/contracts/usr-gate-c-evidence-completeness-lock-validation',
   'lang/contracts/usr-gate-c-authorization-chain-validation',
   'lang/contracts/usr-archival-deprecation-policy-validation',
   'lang/contracts/usr-pr-template-policy-validation'

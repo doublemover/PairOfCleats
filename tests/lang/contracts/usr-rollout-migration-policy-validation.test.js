@@ -42,6 +42,7 @@ const requiredSpecAnchors = [
   'Gate C conformance-authorization chain lock requirements:',
   'Appendix F.1 phase-evidence lock requirements:',
   'Phase 9.2 go/no-go decision lock requirements:',
+  'Gate C evidence-completeness lock requirements:',
   '## Rollback policy',
   '## Required outputs'
 ];
@@ -103,6 +104,7 @@ const requiredCiTests = [
   'lang/contracts/usr-phase9-readiness-authorization-lock-validation',
   'lang/contracts/usr-phase9-readiness-audit-lock-validation',
   'lang/contracts/usr-gate-b-language-batch-lock-validation',
+  'lang/contracts/usr-gate-c-evidence-completeness-lock-validation',
   'lang/contracts/usr-gate-c-authorization-chain-validation',
   'lang/contracts/usr-rollout-approval-lock-validation',
   'lang/contracts/usr-runtime-config-feature-flag-validation',
