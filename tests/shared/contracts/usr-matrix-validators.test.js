@@ -21,6 +21,7 @@ import {
   validateUsrMatrixDrivenHarnessCoverage,
   validateUsrConformanceLevelCoverage,
   buildUsrConformanceLevelSummaryReport,
+  evaluateUsrConformancePromotionReadiness,
   validateUsrBackcompatMatrixCoverage,
   buildUsrBackcompatMatrixReport,
   validateUsrThreatModelCoverage,
@@ -53,6 +54,8 @@ const requiredRegistries = [
   'usr-security-gates',
   'usr-alert-policies',
   'usr-redaction-rules',
+  'usr-quality-gates',
+  'usr-operational-readiness-policy',
   'usr-threat-model-matrix',
   'usr-waiver-policy'
 ];
@@ -442,6 +445,24 @@ const c4Coverage = validateUsrConformanceLevelCoverage({
   knownLanes: knownConformanceLanes
 });
 assert.equal(c4Coverage.ok, true, `C4 conformance coverage should pass: ${c4Coverage.errors.join('; ')}`);
+
+const promotionReadiness = evaluateUsrConformancePromotionReadiness({
+  languageProfilesPayload: languageProfiles,
+  conformanceLevelsPayload: conformanceLevels,
+  knownLanes: knownConformanceLanes
+});
+assert.equal(promotionReadiness.ok, true, `promotion readiness should pass: ${promotionReadiness.blockers.join('; ')}`);
+assert.equal(promotionReadiness.readiness.testRolloutBlocked, false, 'promotion readiness should not block test rollout for baseline data');
+assert.equal(promotionReadiness.readiness.deepConformanceBlocked, false, 'promotion readiness should not block deep conformance for baseline data');
+assert.equal(promotionReadiness.readiness.frameworkConformanceBlocked, false, 'promotion readiness should not block framework conformance for baseline data');
+
+const missingC4PromotionReadiness = evaluateUsrConformancePromotionReadiness({
+  languageProfilesPayload: languageProfiles,
+  conformanceLevelsPayload: conformanceLevels,
+  knownLanes: knownConformanceLanes.filter((laneId) => laneId !== 'conformance-c4')
+});
+assert.equal(missingC4PromotionReadiness.ok, false, 'promotion readiness should fail when conformance-c4 lane coverage is missing');
+assert.equal(missingC4PromotionReadiness.readiness.frameworkConformanceBlocked, true, 'missing conformance-c4 lane should block framework readiness');
 
 const c0Report = buildUsrConformanceLevelSummaryReport({
   targetLevel: 'C0',
