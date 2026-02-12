@@ -69,6 +69,11 @@ for (const frameworkId of frameworkProfileIds) {
     true,
     `framework profile is missing contract doc: ${frameworkId}`
   );
+  assert.equal(
+    readmeText.includes(`docs/specs/usr/frameworks/${frameworkId}.md`),
+    true,
+    `framework README must index framework contract doc: ${frameworkId}`
+  );
 }
 
 for (const fileName of frameworkDocs) {
