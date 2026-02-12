@@ -2,6 +2,7 @@ import path from 'node:path';
 import { search as coreSearch } from '../../integrations/core/index.js';
 import { createError, ERROR_CODES } from '../../shared/error-codes.js';
 import { isAbortError } from '../../shared/abort.js';
+import { normalizeOptionalInt } from '../../shared/limits.js';
 import { stableStringify } from '../../shared/stable-json.js';
 import { createIndexCache } from '../index-cache.js';
 import { createSqliteDbCache } from '../sqlite-cache.js';
@@ -139,8 +140,8 @@ const pickWorkspaceSource = (request) => {
 };
 
 const coerceNumber = (value, fallback, min = 1, max = Number.POSITIVE_INFINITY) => {
-  const parsed = Number(value);
-  const base = Number.isFinite(parsed) ? Math.floor(parsed) : fallback;
+  const parsed = normalizeOptionalInt(value);
+  const base = parsed == null ? fallback : parsed;
   return Math.min(max, Math.max(min, base));
 };
 

@@ -1,5 +1,6 @@
 import { parseSearchArgs } from '../cli-args.js';
 import { createError, ERROR_CODES } from '../../shared/error-codes.js';
+import { normalizeNonNegativeInt, normalizePositiveInt } from '../../shared/limits.js';
 import { buildSearchRequestArgs } from '../../../tools/shared/search-request.js';
 
 const WORKSPACE_VALUE_FLAGS = new Set([
@@ -85,35 +86,6 @@ const removeFlagPair = (rawArgs, name) => {
     output.push(token);
   }
   return [...output, ...positional];
-};
-
-/**
- * Normalize an integer input to a strictly positive value.
- *
- * @param {unknown} value
- * @param {number} [fallback=10]
- * @returns {number}
- */
-const normalizePositiveInt = (value, fallback = 10) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
-  return Math.max(1, Math.floor(parsed));
-};
-
-/**
- * Normalize an integer input to a non-negative value.
- *
- * Used for top limits where explicit `0` must be preserved (for example
- * federated `--top 0`), instead of silently coercing to a default.
- *
- * @param {unknown} value
- * @param {number} [fallback=10]
- * @returns {number}
- */
-const normalizeNonNegativeInt = (value, fallback = 10) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed < 0) return fallback;
-  return Math.max(0, Math.floor(parsed));
 };
 
 /**
