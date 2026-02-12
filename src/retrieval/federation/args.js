@@ -31,6 +31,16 @@ const normalizeList = (value) => {
   return [String(value).trim()].filter(Boolean);
 };
 
+/**
+ * Normalize CLI `--mode` input to a single non-empty token.
+ *
+ * Yargs may surface repeated flags as arrays; for federated requests we keep
+ * the first provided non-empty mode value and let downstream mode resolution
+ * validate/normalize it.
+ *
+ * @param {unknown} value
+ * @returns {string|null}
+ */
 const normalizeMode = (value) => {
   if (typeof value === 'string') {
     const trimmed = value.trim();

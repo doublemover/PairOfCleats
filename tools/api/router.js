@@ -96,6 +96,15 @@ export const createApiRouter = ({
       || message.includes('multiple cohorts detected');
   };
 
+  /**
+   * Validate federated workspace inputs against server path allowlists.
+   *
+   * This enforces both repo roots and the resolved federated cache root so
+   * manifest/query-cache writes cannot escape configured allowed roots.
+   *
+   * @param {any} payload
+   * @returns {Promise<any>}
+   */
   const ensureWorkspaceAllowlist = async (payload) => {
     const resolvedWorkspacePath = resolveWorkspacePath(payload);
     if (!resolvedWorkspacePath) {

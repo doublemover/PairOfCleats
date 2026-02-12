@@ -104,6 +104,17 @@ const rankCohorts = (bucketMap) => (
     ))
 );
 
+/**
+ * Build cohort buckets for one mode.
+ *
+ * Prefer repos that are explicitly available for the mode, but when none are
+ * available (common in lightweight/mock test fixtures) fall back to all repos
+ * so federated fanout and selector semantics remain deterministic.
+ *
+ * @param {Array<any>} repos
+ * @param {string} mode
+ * @returns {Map<string|null, Array<any>>}
+ */
 const buildBucketMap = (repos, mode) => {
   const buckets = new Map();
   const selectableRepos = repos.filter((repo) => isRepoSelectableForMode(repo, mode));
