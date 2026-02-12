@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { extractHeadingSection } from './usr-lock-test-utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -14,15 +15,6 @@ const languageDocDir = path.join(repoRoot, 'docs', 'specs', 'usr', 'languages');
 
 const languageProfiles = JSON.parse(fs.readFileSync(languageProfilesPath, 'utf8'));
 const fixtureGovernance = JSON.parse(fs.readFileSync(fixtureGovernancePath, 'utf8'));
-
-const extractSection = (text, heading) => {
-  const marker = `## ${heading}`;
-  const start = text.indexOf(marker);
-  assert.notEqual(start, -1, `missing section marker: ${marker}`);
-  const fromMarker = text.slice(start + marker.length);
-  const nextSectionIndex = fromMarker.search(/\n##\s+/);
-  return nextSectionIndex === -1 ? fromMarker : fromMarker.slice(0, nextSectionIndex);
-};
 
 const extractBacktickedTokens = (text) => {
   const tokens = [];
@@ -48,11 +40,11 @@ for (const row of languageProfiles.rows || []) {
 
   const docText = fs.readFileSync(docPath, 'utf8');
 
-  const conformanceSection = extractSection(docText, 'Required conformance levels');
-  const frameworkSection = extractSection(docText, 'Required framework profiles');
-  const nodeKindsSection = extractSection(docText, 'Required node kinds');
-  const edgeKindsSection = extractSection(docText, 'Required edge kinds');
-  const fixtureIdMappingsSection = extractSection(docText, 'Required fixture ID mappings');
+  const conformanceSection = extractHeadingSection(docText, 'Required conformance levels');
+  const frameworkSection = extractHeadingSection(docText, 'Required framework profiles');
+  const nodeKindsSection = extractHeadingSection(docText, 'Required node kinds');
+  const edgeKindsSection = extractHeadingSection(docText, 'Required edge kinds');
+  const fixtureIdMappingsSection = extractHeadingSection(docText, 'Required fixture ID mappings');
 
   const expectedConformance = sortedUnique(row.requiredConformance || []);
   const actualConformance = sortedUnique(extractBacktickedTokens(conformanceSection));
