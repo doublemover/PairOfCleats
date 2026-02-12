@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { listUsrReportIds, USR_REQUIRED_AUDIT_REPORT_IDS } from '../../../src/contracts/validators/usr.js';
+import { extractSection } from './usr-lock-test-utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -11,14 +12,6 @@ const repoRoot = path.resolve(__dirname, '..', '..', '..');
 
 const catalogPath = path.join(repoRoot, 'docs', 'specs', 'usr-core-artifact-schema-catalog.md');
 const catalogText = fs.readFileSync(catalogPath, 'utf8');
-
-const extractSection = (text, startMarker, endMarker) => {
-  const start = text.indexOf(startMarker);
-  assert.notEqual(start, -1, `missing section start marker: ${startMarker}`);
-  const end = text.indexOf(endMarker, start);
-  assert.notEqual(end, -1, `missing section end marker: ${endMarker}`);
-  return text.slice(start, end);
-};
 
 const section = extractSection(
   catalogText,

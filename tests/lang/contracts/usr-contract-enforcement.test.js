@@ -5,6 +5,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { LANGUAGE_REGISTRY } from '../../../src/index/language-registry/registry-data.js';
+import { extractSection } from './usr-lock-test-utils.js';
 import { validateUsrMatrixRegistry, listUsrMatrixRegistryIds } from '../../../src/contracts/validators/usr-matrix.js';
 import { validateUsrReport } from '../../../src/contracts/validators/usr.js';
 
@@ -23,14 +24,6 @@ const assertSameSet = (label, left, right) => {
   const a = [...left].sort();
   const b = [...right].sort();
   assert.deepEqual(a, b, `${label} mismatch\nleft=${JSON.stringify(a)}\nright=${JSON.stringify(b)}`);
-};
-
-const extractSection = (text, startMarker, endMarker) => {
-  const start = text.indexOf(startMarker);
-  assert.notEqual(start, -1, `missing section start marker: ${startMarker}`);
-  const end = text.indexOf(endMarker, start);
-  assert.notEqual(end, -1, `missing section end marker: ${endMarker}`);
-  return text.slice(start, end);
 };
 
 const extractCodeSet = (text, pattern) => new Set(
