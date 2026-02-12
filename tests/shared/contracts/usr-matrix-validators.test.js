@@ -7,8 +7,11 @@ import {
   validateUsrMatrixRegistry,
   listUsrMatrixRegistryIds,
   resolveUsrRuntimeConfig,
-  validateUsrRuntimeConfigResolution
+  validateUsrRuntimeConfigResolution,
+  validateUsrFeatureFlagConflicts,
+  buildUsrFeatureFlagStateReport
 } from '../../../src/contracts/validators/usr-matrix.js';
+import { validateUsrReport } from '../../../src/contracts/validators/usr.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -106,4 +109,70 @@ const runtimeUnknownKey = validateUsrRuntimeConfigResolution({
 assert.equal(runtimeUnknownKey.ok, true, 'unknown keys should be warnings in non-strict mode');
 assert.equal(runtimeUnknownKey.warnings.some((msg) => msg.includes('usr.unknown.key')), true, 'unknown key should be surfaced as warning');
 
+const strictFeatureFlagConflict = validateUsrFeatureFlagConflicts({
+  values: {
+    'usr.rollout.cutoverEnabled': true,
+    'usr.rollout.shadowReadEnabled': true,
+    'usr.strictMode.enabled': true
+  },
+  strictMode: true
+});
+assert.equal(strictFeatureFlagConflict.ok, false, 'strict feature-flag conflict must fail');
+assert.equal(strictFeatureFlagConflict.errors.some((msg) => msg.includes('usr.rollout.cutoverEnabled')), true, 'strict conflict must report cutover/shadow conflict');
+
+const nonStrictFeatureFlagConflict = validateUsrFeatureFlagConflicts({
+  values: {
+    'usr.rollout.cutoverEnabled': true,
+    'usr.rollout.shadowReadEnabled': true,
+    'usr.strictMode.enabled': true
+  },
+  strictMode: false
+});
+assert.equal(nonStrictFeatureFlagConflict.ok, true, 'non-strict feature-flag conflict should downgrade to warning');
+assert.equal(nonStrictFeatureFlagConflict.warnings.some((msg) => msg.includes('usr.rollout.cutoverEnabled')), true, 'non-strict conflict warning must mention conflicting flags');
+
+const featureFlagState = buildUsrFeatureFlagStateReport({
+  policyPayload: runtimePolicy,
+  strictMode: true,
+  layers: {
+    policyFile: {
+      'usr.parser.maxSegmentMs': 1800,
+      'usr.framework.enableOverlays': false
+    },
+    env: {
+      'usr.parser.maxSegmentMs': '2200'
+    },
+    argv: {
+      'usr.parser.maxSegmentMs': 2500,
+      'usr.rollout.cutoverEnabled': false,
+      'usr.rollout.shadowReadEnabled': true
+    }
+  },
+  runId: 'run-usr-feature-flag-state-001',
+  lane: 'ci-lite',
+  producerId: 'usr-matrix-validator-tests'
+});
+assert.equal(featureFlagState.ok, true, `feature-flag state report should succeed: ${featureFlagState.errors.join('; ')}`);
+assert.equal(featureFlagState.values['usr.parser.maxSegmentMs'], 2500, 'feature-flag state report must preserve runtime precedence resolution');
+assert.equal(featureFlagState.appliedByKey['usr.parser.maxSegmentMs'], 'argv', 'feature-flag state report must preserve runtime source attribution');
+assert.equal(featureFlagState.payload.rows.length, runtimePolicy.rows.length, 'feature-flag state rows must cover every runtime policy key');
+const featureFlagReportValidation = validateUsrReport('usr-feature-flag-state', featureFlagState.payload);
+assert.equal(featureFlagReportValidation.ok, true, `feature-flag state payload must validate: ${featureFlagReportValidation.errors.join('; ')}`);
+
+const featureFlagStateConflict = buildUsrFeatureFlagStateReport({
+  policyPayload: runtimePolicy,
+  strictMode: true,
+  layers: {
+    argv: {
+      'usr.rollout.cutoverEnabled': true,
+      'usr.rollout.shadowReadEnabled': true
+    }
+  },
+  runId: 'run-usr-feature-flag-state-002',
+  lane: 'ci'
+});
+assert.equal(featureFlagStateConflict.ok, false, 'feature-flag state report must fail strict-mode conflicting flags');
+assert.equal(featureFlagStateConflict.payload.status, 'fail', 'feature-flag conflict report must carry fail status');
 console.log('usr matrix validator tests passed');
+
+
