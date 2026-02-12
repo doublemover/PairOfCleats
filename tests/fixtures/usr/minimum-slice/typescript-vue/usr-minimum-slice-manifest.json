@@ -1,0 +1,25 @@
+{
+  "sliceId": "minimum-slice-typescript-vue",
+  "schemaVersion": "usr-1.0.0",
+  "languageProfiles": [
+    "typescript"
+  ],
+  "frameworkProfiles": [
+    "vue"
+  ],
+  "fixtureIds": [
+    "typescript::minimum-slice::vue-module-001",
+    "vue::minimum-slice::template-style-001"
+  ],
+  "entrypoints": [
+    "src/main.ts",
+    "src/App.vue"
+  ],
+  "requiredReports": [
+    "usr-conformance-summary.json",
+    "usr-validation-report.json",
+    "usr-quality-evaluation-results.json",
+    "usr-threat-model-coverage-report.json",
+    "usr-release-readiness-scorecard.json"
+  ]
+}

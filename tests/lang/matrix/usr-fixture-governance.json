@@ -69,6 +69,32 @@
       "blocking": true
     },
     {
+      "fixtureId": "typescript::minimum-slice::vue-module-001",
+      "profileType": "language",
+      "profileId": "typescript",
+      "conformanceLevels": [
+        "C0",
+        "C1",
+        "C2",
+        "C3",
+        "C4"
+      ],
+      "families": [
+        "minimum-slice",
+        "golden",
+        "framework-overlay"
+      ],
+      "owner": "language-typescript",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
+    },
+    {
       "fixtureId": "typescript::provenance::transpile-001",
       "profileType": "language",
       "profileId": "typescript",
@@ -248,6 +274,29 @@
       "mutationPolicy": "allow-generated-refresh",
       "goldenRequired": true,
       "blocking": false
+    },
+    {
+      "fixtureId": "vue::minimum-slice::template-style-001",
+      "profileType": "framework",
+      "profileId": "vue",
+      "conformanceLevels": [
+        "C4"
+      ],
+      "families": [
+        "minimum-slice",
+        "framework-overlay",
+        "template-binding",
+        "style-scope"
+      ],
+      "owner": "framework-vue",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true
     },
     {
       "fixtureId": "vue::template-binding::script-setup-001",
