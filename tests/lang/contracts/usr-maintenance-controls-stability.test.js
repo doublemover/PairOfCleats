@@ -55,6 +55,10 @@ assert.equal(phaseSevenFixtureSection.includes('- [x] Add fixture mutation-polic
 const phaseSevenGoldenSection = extractSection(roadmapText, '### 7.2 Golden generation and review', '### 7.3 Exit criteria');
 assert.equal(phaseSevenGoldenSection.includes('- [x] Add fixture-to-roadmap linkage tags for every language and framework task pack.'), true, 'phase 7.2 must retain fixture-to-roadmap linkage control');
 
+const phaseEightPerformanceSection = extractSection(roadmapText, '### 8.3 Performance thresholds', '### 8.4 Exit criteria');
+assert.equal(phaseEightPerformanceSection.includes('- [x] Enforce benchmark policy methodology (warmup/measure runs, percentile targets, variance budgets) for blocking lanes.'), true, 'phase 8.3 must retain benchmark methodology enforcement control');
+assert.equal(phaseEightPerformanceSection.includes('- [x] Materialize benchmark regression artifacts and promotion-gate evaluation.'), true, 'phase 8.3 must retain benchmark regression artifact/promotion control');
+
 const phaseNineReadinessSection = extractSection(roadmapText, '### 9.1 Readiness audit', '### 9.2 Go/No-Go decision');
 assert.equal(phaseNineReadinessSection.includes('- [x] Materialize framework extension contract template governance and CI enforcement controls.'), true, 'phase 9.1 must retain framework contract governance scaffold control');
 assert.equal(phaseNineReadinessSection.includes('- [x] Enforce language-contract vs language-profile matrix exact-set synchronization for conformance/framework/node/edge declarations.'), true, 'phase 9.1 must retain language contract matrix-sync governance control');
