@@ -65,6 +65,7 @@ const requiredCiTests = [
   'lang/contracts/usr-extension-policy-validation',
   'lang/contracts/usr-onboarding-policy-validation',
   'lang/contracts/usr-roadmap-sync',
+  'lang/contracts/usr-traceability-approval-validation',
   'lang/contracts/usr-pr-template-policy-validation',
   'lang/contracts/usr-language-contract-freshness-validation',
   'lang/contracts/usr-diagnostic-remediation-routing-validation',

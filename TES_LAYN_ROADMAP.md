@@ -1,6 +1,6 @@
 # TES_LAYN_ROADMAP - USR-Aligned Language and Framework Execution Master Plan
 
-Last rewritten: 2026-02-12T09:55:00Z
+Last rewritten: 2026-02-12T05:53:57Z
 Branch: `usr-skyforge-primer`
 Document status: active master plan baseline v1.5
 
@@ -171,7 +171,7 @@ If contradictions are found:
 
 ### 0.3 Exit criteria
 
-- [ ] USR traceability matrix drafted and approved.
+- [x] USR traceability matrix drafted and approved.
 - [x] Batch ownership map complete.
 - [x] Gate definition and evidence templates ready.
 
@@ -1567,5 +1567,11 @@ Source artifacts: `tests/lang/matrix/usr-ownership-matrix.json` and `tests/lang/
 - Any Tier 2/Tier 3 contract change must update impacted matrix rows, validator enforcement, and roadmap appendix mappings in the same PR.
 - Appendix H, Appendix J, Appendix M, and this appendix must remain synchronized whenever contract scope or CI gate ownership changes.
 - Any change that affects CI gate behavior must update `docs/guides/usr-contract-enforcement.md` and corresponding lane order files.
+
+### N.7 Traceability approval lock
+
+- Traceability approval is authoritative only when `docs/specs/usr-consolidation-coverage-matrix.md` remains in `Status: Approved` state and includes a current approval lock record.
+- The approval lock must include an approval record ID, ISO 8601 approval timestamp, and explicit decisions for `usr-architecture`, `usr-conformance`, and `usr-operations`.
+- If the lock is missing or downgraded to draft, Phase 0.3 is considered not satisfied and must be reopened until approval metadata is restored.
 
 

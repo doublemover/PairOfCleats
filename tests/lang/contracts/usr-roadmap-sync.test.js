@@ -103,6 +103,7 @@ const requiredRoadmapAnchors = [
   '### N.4 Contract conflict escalation path',
   '### N.5 Planning guardrails and evidence policy',
   '### N.6 Roadmap edit invariants',
+  '### N.7 Traceability approval lock',
   '| Consolidated contract | Primary intent | Required phases | Required CI gates/lanes |',
   'appendices H/J/M/N'
 ];
