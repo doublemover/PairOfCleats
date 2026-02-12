@@ -31,12 +31,27 @@ const normalizeList = (value) => {
   return [String(value).trim()].filter(Boolean);
 };
 
+const splitAtEndOfOptions = (rawArgs) => {
+  const markerIndex = rawArgs.findIndex((token) => String(token || '') === '--');
+  if (markerIndex < 0) {
+    return {
+      options: rawArgs.slice(),
+      positional: []
+    };
+  }
+  return {
+    options: rawArgs.slice(0, markerIndex),
+    positional: rawArgs.slice(markerIndex)
+  };
+};
+
 const removeFlagPair = (rawArgs, name) => {
+  const { options, positional } = splitAtEndOfOptions(rawArgs);
   const output = [];
-  for (let i = 0; i < rawArgs.length; i += 1) {
-    const token = String(rawArgs[i] || '');
+  for (let i = 0; i < options.length; i += 1) {
+    const token = String(options[i] || '');
     if (token === `--${name}`) {
-      if (WORKSPACE_VALUE_FLAGS.has(name) && i + 1 < rawArgs.length) {
+      if (WORKSPACE_VALUE_FLAGS.has(name) && i + 1 < options.length) {
         i += 1;
       }
       continue;
@@ -44,7 +59,7 @@ const removeFlagPair = (rawArgs, name) => {
     if (token.startsWith(`--${name}=`)) continue;
     output.push(token);
   }
-  return output;
+  return [...output, ...positional];
 };
 
 const normalizeTop = (value, fallback = 10) => {
@@ -53,18 +68,22 @@ const normalizeTop = (value, fallback = 10) => {
   return Math.max(1, Math.floor(parsed));
 };
 
-const detectTopFlagCount = (rawArgs) => rawArgs.reduce((count, token) => {
+const detectTopFlagCount = (rawArgs) => {
+  const { options } = splitAtEndOfOptions(rawArgs);
+  return options.reduce((count, token) => {
   const current = String(token || '');
   if (current === '--top' || current === '-n' || current.startsWith('--top=') || current.startsWith('-n=')) {
     return count + 1;
   }
   return count;
-}, 0);
+  }, 0);
+};
 
 const removeTopFlags = (rawArgs) => {
+  const { options, positional } = splitAtEndOfOptions(rawArgs);
   const out = [];
-  for (let i = 0; i < rawArgs.length; i += 1) {
-    const token = String(rawArgs[i] || '');
+  for (let i = 0; i < options.length; i += 1) {
+    const token = String(options[i] || '');
     if (token === '--top' || token === '-n') {
       i += 1;
       continue;
@@ -72,12 +91,18 @@ const removeTopFlags = (rawArgs) => {
     if (token.startsWith('--top=') || token.startsWith('-n=')) continue;
     out.push(token);
   }
-  return out;
+  return [...out, ...positional];
 };
 
 const ensureJsonFlag = (rawArgs) => {
-  if (rawArgs.some((token) => token === '--json' || token.startsWith('--json='))) return rawArgs.slice();
-  return [...rawArgs, '--json'];
+  const { options, positional } = splitAtEndOfOptions(rawArgs);
+  if (options.some((token) => token === '--json' || token.startsWith('--json='))) return rawArgs.slice();
+  return [...options, '--json', ...positional];
+};
+
+const appendTopFlag = (rawArgs, perRepoTop) => {
+  const { options, positional } = splitAtEndOfOptions(rawArgs);
+  return [...options, '--top', String(perRepoTop), ...positional];
 };
 
 export const buildPerRepoArgsFromCli = ({
@@ -97,8 +122,7 @@ export const buildPerRepoArgsFromCli = ({
   }
   args = removeTopFlags(args);
   args = ensureJsonFlag(args);
-  args.push('--top', String(perRepoTop));
-  return args;
+  return appendTopFlag(args, perRepoTop);
 };
 
 export const buildPerRepoArgsFromRequest = ({
