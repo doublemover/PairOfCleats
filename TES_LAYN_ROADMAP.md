@@ -106,16 +106,16 @@ If contradictions are found:
 - [ ] USR section 11.3 parser precedence matrix is implemented deterministically.
 - [ ] USR section 11.4 normalization mapping is table-driven and deterministic.
 - [ ] USR section 12.3 capability state machine transitions are validated.
-- [ ] USR section 16.4 determinism pass criteria are part of CI gates.
-- [ ] USR section 17 performance/resource requirements are enforced via blocking SLO budgets.
-- [ ] USR section 18 security/safety requirements are enforced via strict security gates and redaction policy.
-- [ ] USR section 33 diagnostic and resolution reason-code taxonomy is fully implemented and strict-validated.
-- [ ] USR section 34 canonical JSON examples are mirrored by executable fixture bundles and validator checks.
-- [ ] USR section 35 per-framework route/template/style canonicalization rules are enforced in framework profiles.
+- [x] USR section 16.4 determinism pass criteria are part of CI gates.
+- [x] USR section 17 performance/resource requirements are enforced via blocking SLO budgets.
+- [x] USR section 18 security/safety requirements are enforced via strict security gates and redaction policy.
+- [x] USR section 33 diagnostic and resolution reason-code taxonomy is fully implemented and strict-validated.
+- [x] USR section 34 canonical JSON examples are mirrored by executable fixture bundles and validator checks.
+- [x] USR section 35 per-framework route/template/style canonicalization rules are enforced in framework profiles.
 - [x] USR section 36 backward-compat matrix is implemented in CI with blocking/non-blocking behavior parity.
-- [ ] USR section 38 embedded-language bridge requirements are implemented for all container/virtual-doc frameworks.
-- [ ] USR section 39 generated/macro provenance requirements are implemented and validated.
-- [ ] USR section 40 implementation-readiness requirements are complete before promotion gates.
+- [x] USR section 38 embedded-language bridge requirements are implemented for all container/virtual-doc frameworks.
+- [x] USR section 39 generated/macro provenance requirements are implemented and validated.
+- [x] USR section 40 implementation-readiness requirements are complete before promotion gates.
 - [x] USR registry-schema contract is enforced for all `tests/lang/matrix` artifacts, including parser/runtime lock.
 - [x] USR section 41 observability and SLO contract is enforced across required lanes.
 - [x] USR section 42 security and data governance contract is enforced with fail-closed blocking semantics.
