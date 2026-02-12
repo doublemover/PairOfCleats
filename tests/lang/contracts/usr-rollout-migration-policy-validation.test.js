@@ -12,12 +12,14 @@ const repoRoot = path.resolve(__dirname, '..', '..', '..');
 const rolloutSpecPath = path.join(repoRoot, 'docs', 'specs', 'usr-core-rollout-release-migration.md');
 const runtimeConfigPath = path.join(repoRoot, 'tests', 'lang', 'matrix', 'usr-runtime-config-policy.json');
 const operationalReadinessPath = path.join(repoRoot, 'tests', 'lang', 'matrix', 'usr-operational-readiness-policy.json');
+const evidenceGatesSpecPath = path.join(repoRoot, 'docs', 'specs', 'usr-core-evidence-gates-waivers.md');
 const ciOrderPath = path.join(repoRoot, 'tests', 'ci', 'ci.order.txt');
 const ciLiteOrderPath = path.join(repoRoot, 'tests', 'ci-lite', 'ci-lite.order.txt');
 
 const rolloutSpecText = fs.readFileSync(rolloutSpecPath, 'utf8');
 const runtimeConfig = JSON.parse(fs.readFileSync(runtimeConfigPath, 'utf8'));
 const operationalReadiness = JSON.parse(fs.readFileSync(operationalReadinessPath, 'utf8'));
+const evidenceGatesSpecText = fs.readFileSync(evidenceGatesSpecPath, 'utf8');
 const ciOrderText = fs.readFileSync(ciOrderPath, 'utf8');
 const ciLiteOrderText = fs.readFileSync(ciLiteOrderPath, 'utf8');
 
@@ -60,6 +62,10 @@ for (const artifactId of requiredOutputArtifactIds) {
 
   const schemaPath = path.join(repoRoot, 'docs', 'schemas', 'usr', `${artifactId}.schema.json`);
   assert.equal(fs.existsSync(schemaPath), true, `rollout required output must have schema file: docs/schemas/usr/${artifactId}.schema.json`);
+}
+
+for (const artifactId of ['usr-release-train-readiness', 'usr-no-cut-decision-log', 'usr-post-cutover-stabilization-report']) {
+  assert.equal(evidenceGatesSpecText.includes(`\`${artifactId}.json\``), true, `evidence-gates spec must include rollout artifact in standard evidence set: ${artifactId}.json`);
 }
 
 const runtimeRows = Array.isArray(runtimeConfig.rows) ? runtimeConfig.rows : [];

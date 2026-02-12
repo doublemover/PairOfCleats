@@ -1,7 +1,7 @@
 # Spec -- USR Core Evidence, Gates, and Waiver Contract
 
 Status: Draft v2.0
-Last updated: 2026-02-12T05:17:00Z
+Last updated: 2026-02-12T05:46:30Z
 
 ## Purpose
 
@@ -108,6 +108,9 @@ In addition to required outputs above, gate predicates and scorecards may consum
 - `usr-waiver-expiry-report.json`
 - `usr-backcompat-matrix-results.json`
 - `usr-operational-readiness-validation.json`
+- `usr-release-train-readiness.json`
+- `usr-no-cut-decision-log.json`
+- `usr-post-cutover-stabilization-report.json`
 - `usr-drift-report.json`
 
 ## Auditability requirements
@@ -124,6 +127,7 @@ Hard blocks include at minimum:
 - schema/invariant failures for blocking artifacts
 - critical security/risk gate failures
 - required operational drill failures
+- rollout no-cut decisions marked blocking without approved compensating controls
 
 ## Acceptance criteria
 
