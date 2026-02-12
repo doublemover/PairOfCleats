@@ -10,7 +10,8 @@
   "type": "object",
   "properties": {
     "artifactId": {
-      "type": "string"
+      "type": "string",
+      "const": "usr-backcompat-matrix-results"
     },
     "summary": {
       "type": "object"

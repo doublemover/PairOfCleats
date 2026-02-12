@@ -84,6 +84,7 @@ const requiredCiTests = [
   'lang/contracts/usr-waiver-policy-validation',
   'lang/contracts/usr-report-envelope-validation',
   'lang/contracts/usr-report-schema-file-coverage-validation',
+  'lang/contracts/usr-doc-schema-contract-validation',
   'decomposed-drift/decomposed-drift-validation'
 ];
 
