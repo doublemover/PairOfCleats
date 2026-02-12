@@ -56,6 +56,7 @@ const phaseSevenGoldenSection = extractSection(roadmapText, '### 7.2 Golden gene
 assert.equal(phaseSevenGoldenSection.includes('- [x] Add fixture-to-roadmap linkage tags for every language and framework task pack.'), true, 'phase 7.2 must retain fixture-to-roadmap linkage control');
 
 const phaseEightPerformanceSection = extractSection(roadmapText, '### 8.3 Performance thresholds', '### 8.4 Exit criteria');
+assert.equal(phaseEightPerformanceSection.includes('- [x] Define per-batch runtime/memory thresholds.'), true, 'phase 8.3 must retain per-batch runtime/memory threshold control');
 assert.equal(phaseEightPerformanceSection.includes('- [x] Validate parser/runtime lock reproducibility and update budget for lock-file upgrades.'), true, 'phase 8.3 must retain parser/runtime lock reproducibility and upgrade-budget control');
 assert.equal(phaseEightPerformanceSection.includes('- [x] Enforce benchmark policy methodology (warmup/measure runs, percentile targets, variance budgets) for blocking lanes.'), true, 'phase 8.3 must retain benchmark methodology enforcement control');
 assert.equal(phaseEightPerformanceSection.includes('- [x] Materialize benchmark regression artifacts and promotion-gate evaluation.'), true, 'phase 8.3 must retain benchmark regression artifact/promotion control');
@@ -98,6 +99,7 @@ const requiredCiTests = [
   'lang/contracts/usr-framework-profile-matrix-sync-validation',
   'lang/contracts/usr-conformance-matrix-readiness-by-language-validation',
   'lang/contracts/usr-phase9-readiness-evidence-validation',
+  'lang/contracts/usr-batch-slo-threshold-coverage-validation',
   'lang/contracts/usr-f5-hard-requirements-validation',
   'lang/contracts/usr-f6-sync-requirements-validation',
   'lang/contracts/usr-rollout-migration-policy-validation',
