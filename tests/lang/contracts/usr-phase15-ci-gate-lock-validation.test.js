@@ -80,7 +80,8 @@ if (conformanceLine === 'checked') {
       'lang/contracts/usr-c1-baseline-validation',
       'lang/contracts/usr-c2-baseline-validation',
       'lang/contracts/usr-c3-baseline-validation',
-      'lang/contracts/usr-c4-baseline-validation'
+      'lang/contracts/usr-c4-baseline-validation',
+      'lang/contracts/usr-conformance-phase-exit-lock-validation'
     ],
     'phase 15.1 C0-C4 lock'
   );
@@ -166,6 +167,7 @@ assert.equal(roadmapText.includes('### N.19 Phase 15.1 CI gate-integrity lock'),
 assertTestsPresent(
   [
     'lang/contracts/usr-phase15-ci-gate-lock-validation',
+    'lang/contracts/usr-conformance-phase-exit-lock-validation',
     'lang/contracts/usr-phase15-reporting-lock-validation',
     'lang/contracts/usr-phase15-exit-lock-validation',
     'lang/contracts/usr-rollout-phase-gate-validation',
