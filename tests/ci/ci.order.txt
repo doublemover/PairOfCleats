@@ -108,6 +108,7 @@ lang/contracts/usr-benchmark-policy-validation
 lang/contracts/usr-threat-model-coverage-validation
 lang/contracts/usr-waiver-policy-validation
 lang/contracts/usr-report-envelope-validation
+lang/contracts/usr-report-schema-file-coverage-validation
 diagnostics/diagnostics-transition-validation
 batch-b0/batch-b0-validation
 batch-b1/batch-b1-validation
