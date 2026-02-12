@@ -1,6 +1,6 @@
 # USR Contract Enforcement Guide
 
-Last updated: 2026-02-12T09:40:00Z
+Last updated: 2026-02-12T09:55:00Z
 
 ## Purpose
 
@@ -42,6 +42,11 @@ Define CI/local enforcement for the consolidated USR contract model.
 - `ci-lite`: reference drift and schema shape checks (includes USR schema/matrix and language-contract harness checks)
 - `ci`: blocking validators, conformance checks, and gate evaluation (includes full USR contract enforcement suite)
 - `ci-long`: expanded compatibility matrix, drill checks, and stress/failure scenarios
+- `conformance-c0`: focused C0 baseline harness coverage (`tests/conformance-c0/conformance-c0-validation.test.js`)
+- `conformance-c1`: focused C1 baseline contract enforcement (`tests/conformance-c1/conformance-c1-validation.test.js`)
+- `conformance-c2`: focused C2 embedded/provenance semantic coverage (`tests/conformance-c2/conformance-c2-validation.test.js`)
+- `conformance-c3`: focused C3 failure/risk/fixture governance coverage (`tests/conformance-c3/conformance-c3-validation.test.js`)
+- `conformance-c4`: focused C4 framework-profile conformance coverage (`tests/conformance-c4/conformance-c4-validation.test.js`)
 - `backcompat`: focused section 36 compatibility matrix contract coverage (`tests/backcompat/backcompat-matrix-validation.test.js`)
 - `diagnostics-summary`: focused diagnostic taxonomy strictness and capability-transition reporting checks (`tests/diagnostics/diagnostics-transition-validation.test.js`)
 - `runtime-config`: focused section 43 runtime config and feature-flag conflict enforcement (`tests/runtime-config/runtime-config-validation.test.js`)
