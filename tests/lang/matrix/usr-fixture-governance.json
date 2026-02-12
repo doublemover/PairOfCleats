@@ -26,7 +26,12 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-d:angular",
+        "phase-5",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "angular::template-binding::input-output-001",
@@ -47,7 +52,12 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-d:angular",
+        "phase-5",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "astro::framework-overlay::baseline-001",
@@ -71,7 +81,12 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-d:astro",
+        "phase-5",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "astro::hydration::island-001",
@@ -92,7 +107,12 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-d:astro",
+        "phase-5",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "clike::baseline::coverage-001",
@@ -118,7 +138,13 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:clike",
+        "phase-4",
+        "phase-6",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "cmake::baseline::coverage-001",
@@ -142,7 +168,13 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:cmake",
+        "phase-4",
+        "phase-6",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "csharp::baseline::coverage-001",
@@ -168,7 +200,13 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:csharp",
+        "phase-4",
+        "phase-6",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "css::baseline::coverage-001",
@@ -192,7 +230,13 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:css",
+        "phase-4",
+        "phase-5",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "dart::baseline::coverage-001",
@@ -218,7 +262,13 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:dart",
+        "phase-4",
+        "phase-6",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "dockerfile::baseline::coverage-001",
@@ -242,7 +292,13 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:dockerfile",
+        "phase-4",
+        "phase-6",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "go::baseline::coverage-001",
@@ -268,7 +324,13 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:go",
+        "phase-4",
+        "phase-6",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "graphql::baseline::coverage-001",
@@ -292,7 +354,13 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:graphql",
+        "phase-4",
+        "phase-6",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "groovy::baseline::coverage-001",
@@ -318,7 +386,13 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:groovy",
+        "phase-4",
+        "phase-6",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "handlebars::baseline::coverage-001",
@@ -342,7 +416,13 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:handlebars",
+        "phase-4",
+        "phase-5",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "html::baseline::coverage-001",
@@ -366,7 +446,13 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:html",
+        "phase-4",
+        "phase-5",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "java::baseline::coverage-001",
@@ -392,7 +478,13 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:java",
+        "phase-4",
+        "phase-6",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "javascript::baseline::coverage-001",
@@ -420,7 +512,14 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:javascript",
+        "phase-4",
+        "phase-5",
+        "phase-6",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "javascript::normalization::jsx-element-001",
@@ -442,7 +541,12 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:javascript",
+        "phase-4",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "jinja::baseline::coverage-001",
@@ -466,7 +570,13 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:jinja",
+        "phase-4",
+        "phase-5",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "julia::baseline::coverage-001",
@@ -492,7 +602,13 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:julia",
+        "phase-4",
+        "phase-6",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "kotlin::baseline::coverage-001",
@@ -518,7 +634,13 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:kotlin",
+        "phase-4",
+        "phase-6",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "lua::baseline::coverage-001",
@@ -544,7 +666,13 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:lua",
+        "phase-4",
+        "phase-6",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "makefile::baseline::coverage-001",
@@ -568,7 +696,13 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:makefile",
+        "phase-4",
+        "phase-6",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "mustache::baseline::coverage-001",
@@ -592,7 +726,13 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:mustache",
+        "phase-4",
+        "phase-5",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "next::framework-overlay::baseline-001",
@@ -616,7 +756,12 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-d:next",
+        "phase-5",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "nix::baseline::coverage-001",
@@ -640,7 +785,13 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:nix",
+        "phase-4",
+        "phase-6",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "nuxt::framework-overlay::baseline-001",
@@ -664,7 +815,12 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-d:nuxt",
+        "phase-5",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "perl::baseline::coverage-001",
@@ -690,7 +846,13 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:perl",
+        "phase-4",
+        "phase-6",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "php::baseline::coverage-001",
@@ -716,7 +878,13 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:php",
+        "phase-4",
+        "phase-6",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "proto::baseline::coverage-001",
@@ -740,7 +908,13 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:proto",
+        "phase-4",
+        "phase-6",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "python::baseline::coverage-001",
@@ -766,7 +940,13 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:python",
+        "phase-4",
+        "phase-6",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "r::baseline::coverage-001",
@@ -792,7 +972,13 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:r",
+        "phase-4",
+        "phase-6",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "razor::baseline::coverage-001",
@@ -816,7 +1002,13 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:razor",
+        "phase-4",
+        "phase-5",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "react::framework-overlay::baseline-001",
@@ -840,7 +1032,12 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-d:react",
+        "phase-5",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "ruby::baseline::coverage-001",
@@ -866,7 +1063,13 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:ruby",
+        "phase-4",
+        "phase-6",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "rust::baseline::coverage-001",
@@ -892,7 +1095,13 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:rust",
+        "phase-4",
+        "phase-6",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "scala::baseline::coverage-001",
@@ -918,7 +1127,13 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:scala",
+        "phase-4",
+        "phase-6",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "shell::baseline::coverage-001",
@@ -944,7 +1159,13 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:shell",
+        "phase-4",
+        "phase-6",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "sql::baseline::coverage-001",
@@ -970,7 +1191,13 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:sql",
+        "phase-4",
+        "phase-6",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "starlark::baseline::coverage-001",
@@ -994,7 +1221,13 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:starlark",
+        "phase-4",
+        "phase-6",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "svelte::framework-overlay::baseline-001",
@@ -1017,7 +1250,12 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-d:svelte",
+        "phase-5",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "sveltekit::framework-overlay::baseline-001",
@@ -1041,7 +1279,12 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-d:sveltekit",
+        "phase-5",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "swift::baseline::coverage-001",
@@ -1067,7 +1310,13 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:swift",
+        "phase-4",
+        "phase-6",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "typescript::baseline::coverage-001",
@@ -1095,7 +1344,14 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:typescript",
+        "phase-4",
+        "phase-5",
+        "phase-6",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "typescript::minimum-slice::vue-module-001",
@@ -1121,7 +1377,13 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:typescript",
+        "phase-4",
+        "phase-5",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "typescript::provenance::transpile-001",
@@ -1144,7 +1406,12 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-rfc",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:typescript",
+        "phase-4",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "usr::backcompat::bc-003",
@@ -1166,7 +1433,12 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-rfc",
       "goldenRequired": false,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "phase-10",
+        "phase-7",
+        "phase-9"
+      ]
     },
     {
       "fixtureId": "usr::failure-injection::parser-lock-001",
@@ -1188,7 +1460,12 @@
       "stabilityClass": "volatile",
       "mutationPolicy": "require-review",
       "goldenRequired": false,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "phase-14",
+        "phase-7",
+        "phase-9"
+      ]
     },
     {
       "fixtureId": "usr::failure-injection::redaction-fail-001",
@@ -1212,7 +1489,12 @@
       "stabilityClass": "volatile",
       "mutationPolicy": "require-review",
       "goldenRequired": false,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "phase-14",
+        "phase-7",
+        "phase-9"
+      ]
     },
     {
       "fixtureId": "usr::failure-injection::resource-budget-001",
@@ -1235,7 +1517,13 @@
       "stabilityClass": "volatile",
       "mutationPolicy": "require-review",
       "goldenRequired": false,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "phase-14",
+        "phase-7",
+        "phase-8",
+        "phase-9"
+      ]
     },
     {
       "fixtureId": "usr::failure-injection::runtime-exec-001",
@@ -1259,7 +1547,12 @@
       "stabilityClass": "volatile",
       "mutationPolicy": "require-review",
       "goldenRequired": false,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "phase-14",
+        "phase-7",
+        "phase-9"
+      ]
     },
     {
       "fixtureId": "usr::failure-injection::security-gate-001",
@@ -1281,7 +1574,12 @@
       "stabilityClass": "volatile",
       "mutationPolicy": "require-review",
       "goldenRequired": false,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "phase-14",
+        "phase-7",
+        "phase-9"
+      ]
     },
     {
       "fixtureId": "usr::resolution::ambiguous-cap-001",
@@ -1302,7 +1600,11 @@
       "stabilityClass": "stable",
       "mutationPolicy": "allow-generated-refresh",
       "goldenRequired": true,
-      "blocking": false
+      "blocking": false,
+      "roadmapTags": [
+        "phase-7",
+        "phase-9"
+      ]
     },
     {
       "fixtureId": "vue::framework-overlay::baseline-001",
@@ -1326,7 +1628,12 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-d:vue",
+        "phase-5",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "vue::minimum-slice::template-style-001",
@@ -1349,7 +1656,12 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-d:vue",
+        "phase-5",
+        "phase-7"
+      ]
     },
     {
       "fixtureId": "vue::template-binding::script-setup-001",
@@ -1370,7 +1682,12 @@
       "stabilityClass": "stable",
       "mutationPolicy": "require-review",
       "goldenRequired": true,
-      "blocking": true
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-d:vue",
+        "phase-5",
+        "phase-7"
+      ]
     }
   ]
 }

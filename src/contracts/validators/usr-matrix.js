@@ -711,6 +711,19 @@ export function validateUsrFixtureGovernanceControls({
       rowErrors.push('families must include at least one fixture family');
     }
 
+    const roadmapTags = asStringArray(row.roadmapTags);
+    if (roadmapTags.length === 0) {
+      rowErrors.push('roadmapTags must include at least one roadmap linkage tag');
+    }
+
+    if (row.profileType === 'language' && !roadmapTags.includes(`appendix-c:${row.profileId}`)) {
+      rowErrors.push(`language fixture rows must include appendix-c linkage tag for profile: appendix-c:${row.profileId}`);
+    }
+
+    if (row.profileType === 'framework' && !roadmapTags.includes(`appendix-d:${row.profileId}`)) {
+      rowErrors.push(`framework fixture rows must include appendix-d linkage tag for profile: appendix-d:${row.profileId}`);
+    }
+
     const conformanceLevels = asStringArray(row.conformanceLevels);
     if (conformanceLevels.length === 0) {
       rowErrors.push('conformanceLevels must include at least one level');

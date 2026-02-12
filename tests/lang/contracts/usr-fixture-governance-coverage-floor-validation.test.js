@@ -46,6 +46,7 @@ for (const language of languageRows) {
   }
 
   assert.equal(profileRows.some((row) => (row.families || []).includes('golden')), true, `language fixture coverage must include golden family: ${language.id}`);
+  assert.equal(profileRows.some((row) => (row.roadmapTags || []).includes(`appendix-c:${language.id}`)), true, `language fixture coverage must include appendix-c roadmap linkage: ${language.id}`);
 }
 
 for (const framework of frameworkRows) {
@@ -73,6 +74,8 @@ for (const framework of frameworkRows) {
   if (requiredEdgeKinds.has('hydration_boundary')) {
     assert.equal(familyCoverage.has('hydration'), true, `framework fixture coverage must include hydration family: ${framework.id}`);
   }
+
+  assert.equal(profileRows.some((row) => (row.roadmapTags || []).includes(`appendix-d:${framework.id}`)), true, `framework fixture coverage must include appendix-d roadmap linkage: ${framework.id}`);
 }
 
 console.log('usr fixture-governance coverage-floor validation checks passed');
