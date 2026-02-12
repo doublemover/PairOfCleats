@@ -482,9 +482,9 @@ If contradictions are found:
 
 ### 9.2 Go/No-Go decision
 
-- [ ] Block test rollout if any language lacks C0/C1 readiness.
-- [ ] Block deep conformance if C2/C3 prerequisites are missing.
-- [ ] Block framework conformance if C4 profile prerequisites are missing.
+- [x] Block test rollout if any language lacks C0/C1 readiness.
+- [x] Block deep conformance if C2/C3 prerequisites are missing.
+- [x] Block framework conformance if C4 profile prerequisites are missing.
 
 ### 9.3 Exit criteria
 

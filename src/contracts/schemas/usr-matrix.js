@@ -356,6 +356,39 @@ export const USR_MATRIX_ROW_SCHEMAS = Object.freeze({
       blocking: BOOL
     }
   },
+  'usr-quality-gates': {
+    type: 'object',
+    additionalProperties: false,
+    required: ['id', 'domain', 'scopeType', 'scopeId', 'metric', 'thresholdOperator', 'thresholdValue', 'fixtureSetId', 'blocking'],
+    properties: {
+      id: STRING,
+      domain: STRING,
+      scopeType: { type: 'string', enum: ['global', 'language', 'framework'] },
+      scopeId: STRING,
+      metric: STRING,
+      thresholdOperator: { type: 'string', enum: ['>=', '<=', '>', '<', '=='] },
+      thresholdValue: { type: 'number' },
+      fixtureSetId: STRING,
+      blocking: BOOL
+    }
+  },
+  'usr-operational-readiness-policy': {
+    type: 'object',
+    additionalProperties: false,
+    required: ['id', 'phase', 'runbookId', 'severityClass', 'requiredRoles', 'requiredArtifacts', 'communicationChannels', 'maxResponseMinutes', 'maxRecoveryMinutes', 'blocking'],
+    properties: {
+      id: STRING,
+      phase: { type: 'string', enum: ['pre-cutover', 'cutover', 'incident', 'post-cutover'] },
+      runbookId: STRING,
+      severityClass: STRING,
+      requiredRoles: stringArray,
+      requiredArtifacts: stringArray,
+      communicationChannels: stringArray,
+      maxResponseMinutes: { type: 'integer', minimum: 1 },
+      maxRecoveryMinutes: { type: 'integer', minimum: 1 },
+      blocking: BOOL
+    }
+  },
   'usr-threat-model-matrix': {
     type: 'object',
     additionalProperties: false,

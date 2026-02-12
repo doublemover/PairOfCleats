@@ -3,6 +3,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  validateUsrMatrixRegistry,
+  evaluateUsrConformancePromotionReadiness
+} from '../../../src/contracts/validators/usr-matrix.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -10,11 +14,21 @@ const repoRoot = path.resolve(__dirname, '..', '..', '..');
 
 const operationalReadinessPath = path.join(repoRoot, 'tests', 'lang', 'matrix', 'usr-operational-readiness-policy.json');
 const qualityGatesPath = path.join(repoRoot, 'tests', 'lang', 'matrix', 'usr-quality-gates.json');
+const languageProfilesPath = path.join(repoRoot, 'tests', 'lang', 'matrix', 'usr-language-profiles.json');
+const conformanceLevelsPath = path.join(repoRoot, 'tests', 'lang', 'matrix', 'usr-conformance-levels.json');
 const schemaDir = path.join(repoRoot, 'docs', 'schemas', 'usr');
+const knownConformanceLanes = ['conformance-c0', 'conformance-c1', 'conformance-c2', 'conformance-c3', 'conformance-c4'];
 
 const operationalReadiness = JSON.parse(fs.readFileSync(operationalReadinessPath, 'utf8'));
 const qualityGates = JSON.parse(fs.readFileSync(qualityGatesPath, 'utf8'));
+const languageProfiles = JSON.parse(fs.readFileSync(languageProfilesPath, 'utf8'));
+const conformanceLevels = JSON.parse(fs.readFileSync(conformanceLevelsPath, 'utf8'));
 
+const operationalSchemaValidation = validateUsrMatrixRegistry('usr-operational-readiness-policy', operationalReadiness);
+assert.equal(operationalSchemaValidation.ok, true, `operational readiness matrix should validate: ${operationalSchemaValidation.errors.join('; ')}`);
+
+const qualitySchemaValidation = validateUsrMatrixRegistry('usr-quality-gates', qualityGates);
+assert.equal(qualitySchemaValidation.ok, true, `quality gates matrix should validate: ${qualitySchemaValidation.errors.join('; ')}`);
 
 const operationalRows = Array.isArray(operationalReadiness.rows) ? operationalReadiness.rows : [];
 assert.equal(operationalRows.length > 0, true, 'operational readiness policy must contain rows');
@@ -81,29 +95,68 @@ for (const row of qualityRows) {
   assert.equal(['>=', '<=', '>', '<', '=='].includes(row.thresholdOperator), true, `quality gate ${row.id} thresholdOperator must be a recognized operator`);
 }
 
-const evaluatePromotionBlockers = ({ missingArtifacts = [], failingBlockingGateIds = [] } = {}) => {
-  const blockers = [
-    ...missingArtifacts.map((artifact) => `missing-artifact:${artifact}`),
-    ...failingBlockingGateIds.map((gateId) => `failing-gate:${gateId}`)
-  ];
-  return {
-    blocked: blockers.length > 0,
-    blockers
-  };
-};
-
-const baselineEvaluation = evaluatePromotionBlockers({
+const baselineEvaluation = evaluateUsrConformancePromotionReadiness({
+  languageProfilesPayload: languageProfiles,
+  conformanceLevelsPayload: conformanceLevels,
+  knownLanes: knownConformanceLanes,
   missingArtifacts: missingArtifactSchemas,
   failingBlockingGateIds: []
 });
 assert.equal(baselineEvaluation.blocked, false, `baseline implementation-readiness promotion should be unblocked: ${baselineEvaluation.blockers.join(', ')}`);
+assert.equal(baselineEvaluation.readiness.testRolloutBlocked, false, 'baseline implementation readiness should not block C0/C1 test rollout');
+assert.equal(baselineEvaluation.readiness.deepConformanceBlocked, false, 'baseline implementation readiness should not block C2/C3 deep conformance');
+assert.equal(baselineEvaluation.readiness.frameworkConformanceBlocked, false, 'baseline implementation readiness should not block C4 framework conformance');
 
-const simulatedFailureEvaluation = evaluatePromotionBlockers({
+const simulatedFailureEvaluation = evaluateUsrConformancePromotionReadiness({
+  languageProfilesPayload: languageProfiles,
+  conformanceLevelsPayload: conformanceLevels,
+  knownLanes: knownConformanceLanes,
   missingArtifacts: [],
   failingBlockingGateIds: [blockingQualityRows[0].id]
 });
 assert.equal(simulatedFailureEvaluation.blocked, true, 'promotion blocker evaluator must block when a blocking gate fails');
 assert.equal(simulatedFailureEvaluation.blockers[0].startsWith('failing-gate:'), true, 'promotion blocker reason must include failing gate ID');
+
+const missingC0Readiness = evaluateUsrConformancePromotionReadiness({
+  languageProfilesPayload: languageProfiles,
+  conformanceLevelsPayload: {
+    ...conformanceLevels,
+    rows: (conformanceLevels.rows || []).map((row) => (
+      row.profileType === 'language' && row.profileId === 'javascript'
+        ? { ...row, requiredLevels: (row.requiredLevels || []).filter((level) => level !== 'C0') }
+        : row
+    ))
+  },
+  knownLanes: knownConformanceLanes
+});
+assert.equal(missingC0Readiness.blocked, true, 'missing C0 requirements must block test rollout readiness');
+assert.equal(missingC0Readiness.readiness.testRolloutBlocked, true, 'missing C0 requirements must set testRolloutBlocked=true');
+assert.equal(missingC0Readiness.blockers.some((reason) => reason.startsWith('missing-test-rollout-readiness:C0')), true, 'missing C0 blocker reason must be present');
+
+const missingC2Readiness = evaluateUsrConformancePromotionReadiness({
+  languageProfilesPayload: languageProfiles,
+  conformanceLevelsPayload: {
+    ...conformanceLevels,
+    rows: (conformanceLevels.rows || []).map((row) => (
+      row.profileType === 'language' && row.profileId === 'javascript'
+        ? { ...row, requiredLevels: (row.requiredLevels || []).filter((level) => level !== 'C2') }
+        : row
+    ))
+  },
+  knownLanes: knownConformanceLanes
+});
+assert.equal(missingC2Readiness.blocked, true, 'missing C2 requirements must block deep conformance readiness');
+assert.equal(missingC2Readiness.readiness.deepConformanceBlocked, true, 'missing C2 requirements must set deepConformanceBlocked=true');
+assert.equal(missingC2Readiness.blockers.some((reason) => reason.startsWith('missing-deep-conformance-readiness:C2')), true, 'missing C2 blocker reason must be present');
+
+const missingC4LaneReadiness = evaluateUsrConformancePromotionReadiness({
+  languageProfilesPayload: languageProfiles,
+  conformanceLevelsPayload: conformanceLevels,
+  knownLanes: knownConformanceLanes.filter((laneId) => laneId !== 'conformance-c4')
+});
+assert.equal(missingC4LaneReadiness.blocked, true, 'missing conformance-c4 lane must block framework conformance readiness');
+assert.equal(missingC4LaneReadiness.readiness.frameworkConformanceBlocked, true, 'missing conformance-c4 lane must set frameworkConformanceBlocked=true');
+assert.equal(missingC4LaneReadiness.blockers.some((reason) => reason.startsWith('missing-framework-conformance-readiness:C4')), true, 'missing C4 lane blocker reason must be present');
 
 console.log('usr implementation readiness validation checks passed');
 
