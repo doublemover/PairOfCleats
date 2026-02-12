@@ -122,6 +122,7 @@ const requiredRoadmapAnchors = [
   '### N.22 Phase 11-13 conformance exit-integrity lock',
   '### N.23 Phase 10.3 harness exit-integrity lock',
   '### N.24 Phase 8.4 hardening exit-integrity lock',
+  '### N.25 Phase 7.3 fixture/golden exit-integrity lock',
   '| Consolidated contract | Primary intent | Required phases | Required CI gates/lanes |',
   'appendices H/J/M/N'
 ];

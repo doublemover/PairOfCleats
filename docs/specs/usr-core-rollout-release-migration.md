@@ -177,6 +177,12 @@ Phase 8.4 hardening exit-integrity lock requirements:
 - `Runtime thresholds meet target envelopes.` and `Blocking SLO budgets are met for required lanes.` cannot be checked unless SLO threshold and observability validators remain present in `ci` and `ci-lite` lane manifests.
 - If any Phase 8.4 hardening exit line regresses to unchecked, Gate B1-B7 determinism and Gate C blocking-SLO checklist lines must be reopened.
 
+Phase 7.3 fixture/golden exit-integrity lock requirements:
+
+- `Every language and framework has exhaustive fixture coverage evidence.` cannot be checked unless fixture governance/coverage-floor/golden validators remain present in `ci` and `ci-lite` lane manifests.
+- `Golden diffs are deterministic on rerun.` cannot be checked unless fixture-golden and phase-8 determinism validators remain present in `ci` and `ci-lite` lane manifests.
+- If any Phase 7.3 fixture/golden exit line regresses to unchecked, Phase 8.4 determinism and Phase 9.1 fixture-evidence checklist lines must be reopened.
+
 Gate C evidence-completeness lock requirements:
 
 - `all prior gates pass.` cannot be checked unless every Gate C evidence line (backcompat, drift, implementation-readiness, SLO, security, failure-injection, fixture-governance, benchmark, threat-model, waiver) is checked.
