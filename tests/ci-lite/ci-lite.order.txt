@@ -342,6 +342,7 @@ lang/contracts/usr-failure-injection-validation
 lang/contracts/usr-fixture-governance-validation
 lang/contracts/usr-benchmark-policy-validation
 lang/contracts/usr-threat-model-coverage-validation
+lang/contracts/usr-waiver-policy-validation
 indexing/contracts/schema-registry-single-source
 indexing/git/git-meta
 retrieval/graph/context-pack-basic

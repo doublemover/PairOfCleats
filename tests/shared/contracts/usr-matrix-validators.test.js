@@ -18,7 +18,10 @@ import {
   evaluateUsrBenchmarkRegression,
   buildUsrBenchmarkRegressionReport,
   validateUsrThreatModelCoverage,
-  buildUsrThreatModelCoverageReport
+  buildUsrThreatModelCoverageReport,
+  validateUsrWaiverPolicyControls,
+  buildUsrWaiverActiveReport,
+  buildUsrWaiverExpiryReport
 } from '../../../src/contracts/validators/usr-matrix.js';
 import { validateUsrReport } from '../../../src/contracts/validators/usr.js';
 
@@ -376,6 +379,66 @@ const threatCoverageNegative = validateUsrThreatModelCoverage({
   redactionRulesPayload: redactionRules
 });
 assert.equal(threatCoverageNegative.ok, false, 'threat-model coverage validation must fail when required controls are missing');
+
+const waiverPolicyPath = path.join(matrixDir, 'usr-waiver-policy.json');
+const waiverPolicy = JSON.parse(fs.readFileSync(waiverPolicyPath, 'utf8'));
+const ownershipMatrixPath = path.join(matrixDir, 'usr-ownership-matrix.json');
+const ownershipMatrix = JSON.parse(fs.readFileSync(ownershipMatrixPath, 'utf8'));
+const escalationPolicyPath = path.join(matrixDir, 'usr-escalation-policy.json');
+const escalationPolicy = JSON.parse(fs.readFileSync(escalationPolicyPath, 'utf8'));
+
+const waiverValidation = validateUsrWaiverPolicyControls({
+  waiverPolicyPayload: waiverPolicy,
+  ownershipMatrixPayload: ownershipMatrix,
+  escalationPolicyPayload: escalationPolicy,
+  evaluationTime: '2026-02-12T00:00:00Z',
+  strictMode: true
+});
+assert.equal(waiverValidation.ok, true, `waiver-policy controls should pass: ${waiverValidation.errors.join('; ')}`);
+
+const waiverActiveReport = buildUsrWaiverActiveReport({
+  waiverPolicyPayload: waiverPolicy,
+  ownershipMatrixPayload: ownershipMatrix,
+  escalationPolicyPayload: escalationPolicy,
+  evaluationTime: '2026-02-12T00:00:00Z',
+  strictMode: true,
+  runId: 'run-usr-waiver-active-report-001',
+  lane: 'ci'
+});
+assert.equal(waiverActiveReport.ok, true, `waiver active report should pass: ${waiverActiveReport.errors.join('; ')}`);
+const waiverActiveReportValidation = validateUsrReport('usr-waiver-active-report', waiverActiveReport.payload);
+assert.equal(waiverActiveReportValidation.ok, true, `waiver active report payload must validate: ${waiverActiveReportValidation.errors.join('; ')}`);
+
+const waiverExpiryReport = buildUsrWaiverExpiryReport({
+  waiverPolicyPayload: waiverPolicy,
+  ownershipMatrixPayload: ownershipMatrix,
+  escalationPolicyPayload: escalationPolicy,
+  evaluationTime: '2026-02-12T00:00:00Z',
+  strictMode: true,
+  runId: 'run-usr-waiver-expiry-report-001',
+  lane: 'ci'
+});
+assert.equal(waiverExpiryReport.ok, true, `waiver expiry report should pass: ${waiverExpiryReport.errors.join('; ')}`);
+const waiverExpiryReportValidation = validateUsrReport('usr-waiver-expiry-report', waiverExpiryReport.payload);
+assert.equal(waiverExpiryReportValidation.ok, true, `waiver expiry report payload must validate: ${waiverExpiryReportValidation.errors.join('; ')}`);
+
+const waiverExpiredNegative = validateUsrWaiverPolicyControls({
+  waiverPolicyPayload: {
+    ...waiverPolicy,
+    rows: (waiverPolicy.rows || []).map((row, idx) => (
+      idx === 0
+        ? { ...row, allowedUntil: '2026-01-01T00:00:00Z' }
+        : row
+    ))
+  },
+  ownershipMatrixPayload: ownershipMatrix,
+  escalationPolicyPayload: escalationPolicy,
+  evaluationTime: '2026-02-12T00:00:00Z',
+  strictMode: true
+});
+assert.equal(waiverExpiredNegative.ok, false, 'waiver-policy controls must fail when blocking waivers are expired');
+assert.equal(waiverExpiredNegative.errors.some((msg) => msg.includes('waiver-benchmark-overrun-ci-long')), true, 'waiver-policy expiration errors must include affected waiver row id');
+
 console.log('usr matrix validator tests passed');
 
 
