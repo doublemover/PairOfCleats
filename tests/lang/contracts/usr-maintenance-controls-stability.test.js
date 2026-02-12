@@ -95,6 +95,7 @@ const requiredCiTests = [
   'lang/contracts/usr-traceability-approval-validation',
   'lang/contracts/usr-pr-template-policy-validation',
   'lang/contracts/usr-governance-lock-suite-validation',
+  'lang/contracts/usr-phase7-exit-lock-validation',
   'lang/contracts/usr-phase8-exit-lock-validation',
   'lang/contracts/usr-phase10-harness-exit-lock-validation',
   'lang/contracts/usr-conformance-phase-exit-lock-validation',

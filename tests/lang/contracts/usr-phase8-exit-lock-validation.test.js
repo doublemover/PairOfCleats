@@ -115,6 +115,7 @@ assert.equal(roadmapText.includes('### N.24 Phase 8.4 hardening exit-integrity l
 
 assertTestsPresent(
   [
+    'lang/contracts/usr-phase7-exit-lock-validation',
     'lang/contracts/usr-phase8-exit-lock-validation',
     'lang/contracts/usr-phase8-hardening-readiness-validation',
     'lang/contracts/usr-gate-b-language-batch-lock-validation',

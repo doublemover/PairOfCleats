@@ -62,7 +62,8 @@ const requiredRoadmapAnchors = [
   '### N.21 Phase 14.3 integration/failure exit lock',
   '### N.22 Phase 11-13 conformance exit-integrity lock',
   '### N.23 Phase 10.3 harness exit-integrity lock',
-  '### N.24 Phase 8.4 hardening exit-integrity lock'
+  '### N.24 Phase 8.4 hardening exit-integrity lock',
+  '### N.25 Phase 7.3 fixture/golden exit-integrity lock'
 ];
 for (const anchor of requiredRoadmapAnchors) {
   assert.equal(roadmapText.includes(anchor), true, `roadmap missing rollout/deprecation anchor: ${anchor}`);
@@ -111,6 +112,7 @@ const requiredCrossPhaseTests = [
   'lang/contracts/usr-gate-b-language-batch-lock-validation',
   'lang/contracts/usr-gate-c-evidence-completeness-lock-validation',
   'lang/contracts/usr-gate-c-authorization-chain-validation',
+  'lang/contracts/usr-phase7-exit-lock-validation',
   'lang/contracts/usr-phase8-exit-lock-validation',
   'lang/contracts/usr-phase10-harness-exit-lock-validation',
   'lang/contracts/usr-conformance-phase-exit-lock-validation',

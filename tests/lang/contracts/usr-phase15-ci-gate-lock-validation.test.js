@@ -126,7 +126,8 @@ if (fixtureGovernanceLine === 'checked') {
     [
       'lang/contracts/usr-fixture-governance-validation',
       'lang/contracts/usr-fixture-mutation-policy-coverage-validation',
-      'lang/contracts/usr-fixture-governance-coverage-floor-validation'
+      'lang/contracts/usr-fixture-governance-coverage-floor-validation',
+      'lang/contracts/usr-phase7-exit-lock-validation'
     ],
     'phase 15.1 section-45 lock'
   );
