@@ -33,6 +33,7 @@ assert.equal(/- \[ \] /.test(maintenanceSection), false, 'phase 15.3 maintenance
 
 const requiredCiTests = [
   'lang/contracts/usr-contract-enforcement',
+  'lang/contracts/usr-core-artifact-schema-catalog-alignment',
   'lang/contracts/usr-roadmap-sync',
   'lang/contracts/usr-pr-template-policy-validation',
   'lang/contracts/usr-language-contract-freshness-validation',
