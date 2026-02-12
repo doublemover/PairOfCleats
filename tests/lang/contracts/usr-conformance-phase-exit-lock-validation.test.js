@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { assertTestsPresent, checklistLineState, extractSection } from './usr-lock-test-utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,27 +19,6 @@ const rolloutSpecText = fs.readFileSync(rolloutSpecPath, 'utf8');
 const ciOrderText = fs.readFileSync(ciOrderPath, 'utf8');
 const ciLiteOrderText = fs.readFileSync(ciLiteOrderPath, 'utf8');
 
-const extractSection = (text, startMarker, endMarker) => {
-  const start = text.indexOf(startMarker);
-  assert.notEqual(start, -1, `missing section start marker: ${startMarker}`);
-  const end = text.indexOf(endMarker, start);
-  assert.notEqual(end, -1, `missing section end marker: ${endMarker}`);
-  return text.slice(start, end);
-};
-
-const checklistLineState = (section, label) => {
-  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  if (new RegExp(`^- \\[x\\] ${escaped}$`, 'm').test(section)) return 'checked';
-  if (new RegExp(`^- \\[ \\] ${escaped}$`, 'm').test(section)) return 'unchecked';
-  assert.fail(`missing checklist line: ${label}`);
-};
-
-const assertTestsPresent = (testIds, context) => {
-  for (const testId of testIds) {
-    assert.equal(ciOrderText.includes(testId), true, `ci order missing ${context} dependency: ${testId}`);
-    assert.equal(ciLiteOrderText.includes(testId), true, `ci-lite order missing ${context} dependency: ${testId}`);
-  }
-};
 
 const phase92Section = extractSection(roadmapText, '### 9.2 Go/No-Go decision', '### 9.3 Exit criteria');
 const phase113Section = extractSection(roadmapText, '### 11.3 Exit criteria', '## Phase 12 - Deep Conformance C2/C3');
@@ -59,7 +39,9 @@ if (phase11Exit === 'checked') {
       'lang/contracts/usr-c0-baseline-validation',
       'lang/contracts/usr-c1-baseline-validation'
     ],
-    'phase 11.3 conformance-exit lock'
+    'phase 11.3 conformance-exit lock',
+    ciOrderText,
+    ciLiteOrderText
   );
 }
 
@@ -69,14 +51,18 @@ if (phase12Exit === 'checked') {
       'lang/contracts/usr-c2-baseline-validation',
       'lang/contracts/usr-c3-baseline-validation'
     ],
-    'phase 12.3 conformance-exit lock'
+    'phase 12.3 conformance-exit lock',
+    ciOrderText,
+    ciLiteOrderText
   );
 }
 
 if (phase13Exit === 'checked') {
   assertTestsPresent(
     ['lang/contracts/usr-c4-baseline-validation'],
-    'phase 13.2 conformance-exit lock'
+    'phase 13.2 conformance-exit lock',
+    ciOrderText,
+    ciLiteOrderText
   );
 }
 
@@ -113,7 +99,9 @@ assertTestsPresent(
     'lang/contracts/usr-c3-baseline-validation',
     'lang/contracts/usr-c4-baseline-validation'
   ],
-  'conformance phase-exit lock umbrella'
+  'conformance phase-exit lock umbrella',
+  ciOrderText,
+  ciLiteOrderText
 );
 
 console.log('usr conformance phase-exit lock validation checks passed');

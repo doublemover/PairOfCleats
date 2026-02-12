@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { assertTestsPresent, checklistLineState, extractSection } from './usr-lock-test-utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,27 +19,6 @@ const rolloutSpecText = fs.readFileSync(rolloutSpecPath, 'utf8');
 const ciOrderText = fs.readFileSync(ciOrderPath, 'utf8');
 const ciLiteOrderText = fs.readFileSync(ciLiteOrderPath, 'utf8');
 
-const extractSection = (text, startMarker, endMarker) => {
-  const start = text.indexOf(startMarker);
-  assert.notEqual(start, -1, `missing section start marker: ${startMarker}`);
-  const end = text.indexOf(endMarker, start);
-  assert.notEqual(end, -1, `missing section end marker: ${endMarker}`);
-  return text.slice(start, end);
-};
-
-const checklistLineState = (section, label) => {
-  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  if (new RegExp(`^- \\[x\\] ${escaped}$`, 'm').test(section)) return 'checked';
-  if (new RegExp(`^- \\[ \\] ${escaped}$`, 'm').test(section)) return 'unchecked';
-  assert.fail(`missing checklist line: ${label}`);
-};
-
-const assertTestsPresent = (testIds, context) => {
-  for (const testId of testIds) {
-    assert.equal(ciOrderText.includes(testId), true, `ci order missing ${context} dependency: ${testId}`);
-    assert.equal(ciLiteOrderText.includes(testId), true, `ci-lite order missing ${context} dependency: ${testId}`);
-  }
-};
 
 const phase103Section = extractSection(roadmapText, '### 10.3 Exit criteria', '---\n\n## Phase 11 - Baseline Conformance C0/C1');
 const phase113Section = extractSection(roadmapText, '### 11.3 Exit criteria', '## Phase 12 - Deep Conformance C2/C3');
@@ -58,7 +38,9 @@ if (harnessCoverageLine === 'checked') {
       'lang/contracts/usr-matrix-driven-harness-validation',
       'lang/contracts/usr-harness-lane-materialization-validation'
     ],
-    'phase 10.3 harness-coverage lock'
+    'phase 10.3 harness-coverage lock',
+    ciOrderText,
+    ciLiteOrderText
   );
 }
 
@@ -68,7 +50,9 @@ if (shardDeterminismLine === 'checked') {
       'lang/contracts/usr-language-batch-shards-validation',
       'lang/contracts/usr-harness-lane-materialization-validation'
     ],
-    'phase 10.3 shard-determinism lock'
+    'phase 10.3 shard-determinism lock',
+    ciOrderText,
+    ciLiteOrderText
   );
 }
 
@@ -94,7 +78,9 @@ assertTestsPresent(
     'lang/contracts/usr-language-batch-shards-validation',
     'lang/contracts/usr-harness-lane-materialization-validation'
   ],
-  'phase 10.3 harness-exit lock umbrella'
+  'phase 10.3 harness-exit lock umbrella',
+  ciOrderText,
+  ciLiteOrderText
 );
 
 console.log('usr phase 10.3 harness exit lock validation checks passed');

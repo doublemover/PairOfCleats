@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { assertTestsPresent, checklistLineState, extractSection } from './usr-lock-test-utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,27 +19,6 @@ const rolloutSpecText = fs.readFileSync(rolloutSpecPath, 'utf8');
 const ciOrderText = fs.readFileSync(ciOrderPath, 'utf8');
 const ciLiteOrderText = fs.readFileSync(ciLiteOrderPath, 'utf8');
 
-const extractSection = (text, startMarker, endMarker) => {
-  const start = text.indexOf(startMarker);
-  assert.notEqual(start, -1, `missing section start marker: ${startMarker}`);
-  const end = text.indexOf(endMarker, start);
-  assert.notEqual(end, -1, `missing section end marker: ${endMarker}`);
-  return text.slice(start, end);
-};
-
-const checklistLineState = (section, label) => {
-  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  if (new RegExp(`^- \\[x\\] ${escaped}$`, 'm').test(section)) return 'checked';
-  if (new RegExp(`^- \\[ \\] ${escaped}$`, 'm').test(section)) return 'unchecked';
-  assert.fail(`missing checklist line: ${label}`);
-};
-
-const assertTestsPresent = (testIds, context) => {
-  for (const testId of testIds) {
-    assert.equal(ciOrderText.includes(testId), true, `ci order missing ${context} dependency: ${testId}`);
-    assert.equal(ciLiteOrderText.includes(testId), true, `ci-lite order missing ${context} dependency: ${testId}`);
-  }
-};
 
 const phase84Section = extractSection(roadmapText, '### 8.4 Exit criteria', '---\n\n## Phase 9 - Pre-Test Readiness and Batch Sign-Off');
 const gateBSection = extractSection(roadmapText, '### Gate B1-B7 (language batch gates)', '### Gate B8 (cross-batch integration)');
@@ -58,7 +38,9 @@ if (determinismLine === 'checked') {
       'lang/contracts/usr-phase8-hardening-readiness-validation',
       'lang/contracts/usr-batch-slo-threshold-coverage-validation'
     ],
-    'phase 8.4 determinism lock'
+    'phase 8.4 determinism lock',
+    ciOrderText,
+    ciLiteOrderText
   );
 }
 
@@ -69,7 +51,9 @@ if (capLine === 'checked') {
       'lang/contracts/usr-failure-injection-validation',
       'lang/contracts/usr-failure-mode-suite-validation'
     ],
-    'phase 8.4 cap-trigger lock'
+    'phase 8.4 cap-trigger lock',
+    ciOrderText,
+    ciLiteOrderText
   );
 }
 
@@ -80,7 +64,9 @@ if (runtimeThresholdsLine === 'checked') {
       'lang/contracts/usr-observability-rollup-validation',
       'lang/contracts/usr-benchmark-policy-validation'
     ],
-    'phase 8.4 runtime-threshold lock'
+    'phase 8.4 runtime-threshold lock',
+    ciOrderText,
+    ciLiteOrderText
   );
 }
 
@@ -90,7 +76,9 @@ if (blockingSloLine === 'checked') {
       'lang/contracts/usr-batch-slo-threshold-coverage-validation',
       'lang/contracts/usr-observability-rollup-validation'
     ],
-    'phase 8.4 blocking-SLO lock'
+    'phase 8.4 blocking-SLO lock',
+    ciOrderText,
+    ciLiteOrderText
   );
 }
 
@@ -122,7 +110,9 @@ assertTestsPresent(
     'lang/contracts/usr-observability-rollup-validation',
     'lang/contracts/usr-batch-slo-threshold-coverage-validation'
   ],
-  'phase 8.4 hardening-exit lock umbrella'
+  'phase 8.4 hardening-exit lock umbrella',
+  ciOrderText,
+  ciLiteOrderText
 );
 
 console.log('usr phase 8.4 hardening exit lock validation checks passed');

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { assertTestsPresent, checklistLineState, extractSection } from './usr-lock-test-utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,27 +19,6 @@ const rolloutSpecText = fs.readFileSync(rolloutSpecPath, 'utf8');
 const ciOrderText = fs.readFileSync(ciOrderPath, 'utf8');
 const ciLiteOrderText = fs.readFileSync(ciLiteOrderPath, 'utf8');
 
-const extractSection = (text, startMarker, endMarker) => {
-  const start = text.indexOf(startMarker);
-  assert.notEqual(start, -1, `missing section start marker: ${startMarker}`);
-  const end = text.indexOf(endMarker, start);
-  assert.notEqual(end, -1, `missing section end marker: ${endMarker}`);
-  return text.slice(start, end);
-};
-
-const checklistLineState = (section, label) => {
-  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  if (new RegExp(`^- \\[x\\] ${escaped}$`, 'm').test(section)) return 'checked';
-  if (new RegExp(`^- \\[ \\] ${escaped}$`, 'm').test(section)) return 'unchecked';
-  assert.fail(`missing checklist line: ${label}`);
-};
-
-const assertTestsPresent = (testIds, context) => {
-  for (const testId of testIds) {
-    assert.equal(ciOrderText.includes(testId), true, `ci order missing ${context} dependency: ${testId}`);
-    assert.equal(ciLiteOrderText.includes(testId), true, `ci-lite order missing ${context} dependency: ${testId}`);
-  }
-};
 
 const phase73Section = extractSection(roadmapText, '### 7.3 Exit criteria', '---\n\n## Phase 8 - Determinism, Caps, and Performance Hardening');
 const phase84Section = extractSection(roadmapText, '### 8.4 Exit criteria', '---\n\n## Phase 9 - Pre-Test Readiness and Batch Sign-Off');
@@ -57,7 +37,9 @@ if (fixtureCoverageExit === 'checked') {
       'lang/contracts/usr-fixture-governance-coverage-floor-validation',
       'lang/contracts/usr-fixture-golden-readiness-validation'
     ],
-    'phase 7.3 fixture-coverage lock'
+    'phase 7.3 fixture-coverage lock',
+    ciOrderText,
+    ciLiteOrderText
   );
 }
 
@@ -67,7 +49,9 @@ if (goldenDeterminismExit === 'checked') {
       'lang/contracts/usr-fixture-golden-readiness-validation',
       'lang/contracts/usr-phase8-hardening-readiness-validation'
     ],
-    'phase 7.3 golden-determinism lock'
+    'phase 7.3 golden-determinism lock',
+    ciOrderText,
+    ciLiteOrderText
   );
 }
 
@@ -98,7 +82,9 @@ assertTestsPresent(
     'lang/contracts/usr-fixture-golden-readiness-validation',
     'lang/contracts/usr-phase8-hardening-readiness-validation'
   ],
-  'phase 7.3 fixture/golden lock umbrella'
+  'phase 7.3 fixture/golden lock umbrella',
+  ciOrderText,
+  ciLiteOrderText
 );
 
 console.log('usr phase 7.3 fixture/golden exit lock validation checks passed');
