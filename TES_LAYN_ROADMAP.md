@@ -1580,4 +1580,10 @@ Source artifacts: `tests/lang/matrix/usr-ownership-matrix.json` and `tests/lang/
 - The approval lock must include an approval record ID, ISO 8601 approval timestamp, and explicit decisions for `usr-architecture`, `usr-conformance`, and `usr-operations`.
 - If the lock is missing or downgraded to draft, Phase 0.3 is considered not satisfied and must be reopened until approval metadata is restored.
 
+### N.8 Rollout authorization approval lock
+
+- Rollout authorization is authoritative only when `docs/specs/usr-rollout-approval-lock.md` exists and declares an `Approval state` of `approved`.
+- The rollout lock must include an approval record ID, ISO 8601 timestamped decisions for `usr-architecture`, `usr-conformance`, and `usr-operations`, and explicit scope covering readiness report + rollout authorization checklist lines.
+- If the rollout lock is missing, downgraded to `pending`, or has a non-approved required role decision, Gate C rollout authorization checkboxes must remain unchecked until approval metadata is restored.
+
 
