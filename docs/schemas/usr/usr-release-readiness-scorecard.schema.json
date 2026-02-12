@@ -10,22 +10,180 @@
   "type": "object",
   "properties": {
     "artifactId": {
-      "type": "string"
+      "type": "string",
+      "const": "usr-release-readiness-scorecard"
     },
     "summary": {
-      "type": "object"
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "blocked",
+        "blockerCount",
+        "errorCount",
+        "warningCount",
+        "readiness",
+        "conformanceByLevel"
+      ],
+      "properties": {
+        "blocked": {
+          "type": "boolean"
+        },
+        "blockerCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "errorCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "warningCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "readiness": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "testRolloutBlocked",
+            "deepConformanceBlocked",
+            "frameworkConformanceBlocked"
+          ],
+          "properties": {
+            "testRolloutBlocked": {
+              "type": "boolean"
+            },
+            "deepConformanceBlocked": {
+              "type": "boolean"
+            },
+            "frameworkConformanceBlocked": {
+              "type": "boolean"
+            }
+          }
+        },
+        "conformanceByLevel": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "level",
+              "requiredProfileCount",
+              "failingRequiredProfileCount",
+              "errorCount",
+              "warningCount",
+              "pass"
+            ],
+            "properties": {
+              "level": {
+                "type": "string"
+              },
+              "requiredProfileCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "failingRequiredProfileCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "errorCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "warningCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "pass": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      }
     },
     "rows": {
       "type": "array",
       "items": {
-        "type": "object"
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "rowType",
+              "id",
+              "pass",
+              "blocked"
+            ],
+            "properties": {
+              "rowType": {
+                "type": "string",
+                "const": "readiness-dimension"
+              },
+              "id": {
+                "type": "string",
+                "enum": [
+                  "test-rollout",
+                  "deep-conformance",
+                  "framework-conformance"
+                ]
+              },
+              "pass": {
+                "type": "boolean"
+              },
+              "blocked": {
+                "type": "boolean"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "rowType",
+              "id",
+              "pass",
+              "requiredProfileCount",
+              "failingRequiredProfileCount",
+              "errorCount",
+              "warningCount"
+            ],
+            "properties": {
+              "rowType": {
+                "type": "string",
+                "const": "conformance-level"
+              },
+              "id": {
+                "type": "string"
+              },
+              "pass": {
+                "type": "boolean"
+              },
+              "requiredProfileCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "failingRequiredProfileCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "errorCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "warningCount": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        ]
       }
     }
   },
-  "unevaluatedProperties": false,
   "required": [
     "artifactId",
     "summary",
     "rows"
-  ]
+  ],
+  "unevaluatedProperties": false
 }
