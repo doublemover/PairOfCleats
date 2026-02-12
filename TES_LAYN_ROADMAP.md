@@ -117,7 +117,7 @@ If contradictions are found:
 - [ ] USR section 39 generated/macro provenance requirements are implemented and validated.
 - [ ] USR section 40 implementation-readiness requirements are complete before promotion gates.
 - [x] USR registry-schema contract is enforced for all `tests/lang/matrix` artifacts, including parser/runtime lock.
-- [ ] USR section 41 observability and SLO contract is enforced across required lanes.
+- [x] USR section 41 observability and SLO contract is enforced across required lanes.
 - [ ] USR section 42 security and data governance contract is enforced with fail-closed blocking semantics.
 - [x] USR section 43 runtime configuration and feature-flag contract is enforced with strict-mode validation.
 - [x] USR section 44 failure injection and resilience contract is enforced with blocking strict fault scenarios.
@@ -450,7 +450,7 @@ If contradictions are found:
 - [ ] Define per-batch runtime/memory thresholds.
 - [ ] Add per-batch profiling and hotspot reporting.
 - [ ] Validate parser/runtime lock reproducibility and update budget for lock-file upgrades.
-- [ ] Materialize SLO budget and alert policy evaluations in CI outputs.
+- [x] Materialize SLO budget and alert policy evaluations in CI outputs.
 - [ ] Enforce benchmark policy methodology (warmup/measure runs, percentile targets, variance budgets) for blocking lanes.
 - [ ] Materialize benchmark regression artifacts and promotion-gate evaluation.
 
@@ -631,7 +631,7 @@ If contradictions are found:
 - [ ] Emit embedded-language bridge coverage and failure dashboards.
 - [ ] Emit generated/macro provenance coverage and confidence-downgrade dashboards.
 - [x] Emit implementation-readiness evidence scorecards and promotion blocker summaries.
-- [ ] Emit SLO budget compliance and alert evaluation dashboards.
+- [x] Emit SLO budget compliance and alert evaluation dashboards.
 - [ ] Emit redaction/security gate compliance dashboards.
 - [x] Validate section 30 report envelopes and row schemas per `docs/specs/usr-core-observability-performance-ops.md`.
 - [x] Emit automated section 31 scorecard artifact (`usr-release-readiness-scorecard.json`).
