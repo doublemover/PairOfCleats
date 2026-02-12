@@ -245,6 +245,135 @@ export function resolveUsrRuntimeConfig({
   };
 }
 
+
+export function validateUsrFeatureFlagConflicts({
+  values = {},
+  strictMode = true
+} = {}) {
+  const errors = [];
+  const warnings = [];
+
+  const addConflict = (message) => {
+    if (strictMode) {
+      errors.push(message);
+    } else {
+      warnings.push(message);
+    }
+  };
+
+  const cutoverEnabled = values['usr.rollout.cutoverEnabled'] === true;
+  const shadowReadEnabled = values['usr.rollout.shadowReadEnabled'] === true;
+  if (cutoverEnabled && shadowReadEnabled) {
+    addConflict('disallowed feature-flag conflict: usr.rollout.cutoverEnabled and usr.rollout.shadowReadEnabled cannot both be true');
+  }
+
+  if (strictMode && values['usr.strictMode.enabled'] === false) {
+    errors.push('disallowed feature-flag value in strict mode: usr.strictMode.enabled cannot be false');
+  }
+
+  return {
+    ok: errors.length === 0,
+    errors: Object.freeze([...errors]),
+    warnings: Object.freeze([...warnings])
+  };
+}
+
+export function buildUsrFeatureFlagStateReport({
+  policyPayload,
+  layers = {},
+  strictMode = true,
+  generatedAt = new Date().toISOString(),
+  producerId = 'usr-runtime-config-validator',
+  producerVersion = null,
+  runId = 'run-usr-feature-flag-state',
+  lane = 'ci',
+  buildId = null,
+  scope = { scopeType: 'global', scopeId: 'global' }
+} = {}) {
+  const resolved = resolveUsrRuntimeConfig({
+    policyPayload,
+    layers,
+    strictMode
+  });
+
+  const conflictValidation = validateUsrFeatureFlagConflicts({
+    values: resolved.values,
+    strictMode
+  });
+
+  const errors = [
+    ...resolved.errors,
+    ...conflictValidation.errors
+  ];
+  const warnings = [
+    ...resolved.warnings,
+    ...conflictValidation.warnings
+  ];
+
+  const policyRows = Array.isArray(policyPayload?.rows) ? policyPayload.rows : [];
+  const rows = policyRows.map((row) => ({
+    id: row.id,
+    key: row.key,
+    value: resolved.values[row.key],
+    source: resolved.appliedByKey[row.key] || 'default',
+    valueType: row.valueType,
+    rolloutClass: row.rolloutClass,
+    strictModeBehavior: row.strictModeBehavior,
+    requiresRestart: Boolean(row.requiresRestart),
+    blocking: Boolean(row.blocking)
+  }));
+
+  const normalizedScope = (
+    scope && typeof scope === 'object'
+      ? {
+          scopeType: typeof scope.scopeType === 'string' ? scope.scopeType : 'global',
+          scopeId: typeof scope.scopeId === 'string' ? scope.scopeId : 'global'
+        }
+      : { scopeType: 'global', scopeId: 'global' }
+  );
+
+  const status = errors.length > 0
+    ? 'fail'
+    : (warnings.length > 0 ? 'warn' : 'pass');
+
+  const payload = {
+    schemaVersion: 'usr-1.0.0',
+    artifactId: 'usr-feature-flag-state',
+    generatedAt,
+    producerId,
+    producerVersion,
+    runId,
+    lane,
+    buildId,
+    status,
+    scope: normalizedScope,
+    summary: {
+      strictMode,
+      keyCount: rows.length,
+      errorCount: errors.length,
+      warningCount: warnings.length,
+      conflictCount: conflictValidation.errors.length + conflictValidation.warnings.length
+    },
+    blockingFindings: errors.map((message) => ({
+      class: 'runtime-config',
+      message
+    })),
+    advisoryFindings: warnings.map((message) => ({
+      class: 'runtime-config',
+      message
+    })),
+    rows
+  };
+
+  return {
+    ok: errors.length === 0,
+    errors: Object.freeze([...errors]),
+    warnings: Object.freeze([...warnings]),
+    values: resolved.values,
+    appliedByKey: resolved.appliedByKey,
+    payload
+  };
+}
 export function validateUsrRuntimeConfigResolution(options = {}) {
   const resolved = resolveUsrRuntimeConfig(options);
   return {
@@ -255,3 +384,4 @@ export function validateUsrRuntimeConfigResolution(options = {}) {
     appliedByKey: resolved.appliedByKey
   };
 }
+

@@ -1,6 +1,6 @@
 # USR Contract Enforcement Guide
 
-Last updated: 2026-02-12T05:20:00Z
+Last updated: 2026-02-12T05:45:00Z
 
 ## Purpose
 
@@ -25,6 +25,7 @@ Define CI/local enforcement for the consolidated USR contract model.
 - embedding bridge fixture enforcement (`tests/lang/contracts/usr-embedding-bridge-validation.test.js`) validates bridge-case matrix coverage, bridge metadata fields, and section 38 bridge edge obligations
 - generated provenance fixture enforcement (`tests/lang/contracts/usr-generated-provenance-validation.test.js`) validates section 39 generated/macro/transpile provenance mapping expectations and diagnostics
 - implementation readiness enforcement (`tests/lang/contracts/usr-implementation-readiness-validation.test.js`) validates section 40 operational-readiness policy invariants, evidence-schema coverage, and promotion blocker logic
+- runtime config and feature-flag enforcement (`tests/lang/contracts/usr-runtime-config-feature-flag-validation.test.js`) validates section 43 precedence resolution, strict-mode policy behavior, and disallowed feature-flag conflicts
 
 3. Roadmap/spec alignment
 - `TES_LAYN_ROADMAP.md` contract references resolve
@@ -48,4 +49,3 @@ Define CI/local enforcement for the consolidated USR contract model.
 - list modified contracts and matrix/schema artifacts
 - include validation outputs and failed/passed gate summary
 - update roadmap and consolidation matrix when contract ownership changes
-

@@ -119,7 +119,7 @@ If contradictions are found:
 - [ ] USR registry-schema contract is enforced for all `tests/lang/matrix` artifacts, including parser/runtime lock.
 - [ ] USR section 41 observability and SLO contract is enforced across required lanes.
 - [ ] USR section 42 security and data governance contract is enforced with fail-closed blocking semantics.
-- [ ] USR section 43 runtime configuration and feature-flag contract is enforced with strict-mode validation.
+- [x] USR section 43 runtime configuration and feature-flag contract is enforced with strict-mode validation.
 - [ ] USR section 44 failure injection and resilience contract is enforced with blocking strict fault scenarios.
 - [ ] USR section 45 fixture and golden governance contract is enforced with ownership and mutation policy controls.
 - [ ] USR section 46 performance benchmark methodology contract is enforced with deterministic methodology and regression gates.
@@ -473,7 +473,7 @@ If contradictions are found:
 - [ ] Validate section 36 compatibility matrix readiness and blocking policy evidence.
 - [ ] Validate per-language contract approval checklists are complete for target rollout set.
 - [ ] Validate implementation-readiness contract evidence set is complete for promotion target phase.
-- [ ] Validate runtime config policy evidence and feature-flag state outputs are complete.
+- [x] Validate runtime config policy evidence and feature-flag state outputs are complete.
 - [ ] Validate blocking failure-injection evidence and recovery artifacts are complete.
 - [ ] Validate fixture-governance validation evidence for blocking fixture families is complete.
 - [ ] Validate benchmark policy evidence and regression/variance reports are complete for blocking lanes.
@@ -507,7 +507,7 @@ If contradictions are found:
 - [x] Materialize section 38 embedded-language bridge validators.
 - [x] Materialize section 39 generated/macro provenance validators.
 - [x] Materialize section 40 implementation-readiness evidence validators and promotion blockers.
-- [ ] Materialize section 43 runtime config/feature-flag validators and precedence checks.
+- [x] Materialize section 43 runtime config/feature-flag validators and precedence checks.
 - [ ] Materialize section 44 failure-injection scenario evaluator and strict/non-strict outcome validators.
 - [ ] Materialize section 45 fixture-governance validators (owner/reviewer/mutation-policy).
 - [ ] Materialize section 46 benchmark methodology validators and regression threshold checks.
@@ -1472,4 +1472,3 @@ Roadmap enforcement requirements:
 - [ ] Framework onboarding and interop expectations follow `docs/specs/usr-core-language-framework-catalog.md`.
 - [ ] Contract consolidation traceability is maintained in `docs/specs/usr-consolidation-coverage-matrix.md`.
 - [ ] Any contract addition/removal updates Appendix H traceability and Appendix J dependency graph in same change.
-
