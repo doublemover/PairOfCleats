@@ -98,6 +98,37 @@ const sortDiagnostics = (entries) => entries.slice().sort((a, b) => (
 
 export const applyCohortPolicy = (input) => selectFederationCohorts(input);
 
+export const mergeFederatedResultsByMode = ({
+  perRepoResults = [],
+  selectedReposByMode = {},
+  topN = 10,
+  perRepoTop = 20,
+  rrfK = 60
+} = {}) => {
+  const mergedByMode = {
+    code: [],
+    prose: [],
+    extractedProse: [],
+    records: []
+  };
+  for (const [mode, payloadKey] of Object.entries(MODE_PAYLOAD_KEYS)) {
+    const selectedRepoIds = new Set((selectedReposByMode[mode] || []).map((repo) => repo.repoId));
+    if (!selectedRepoIds.size) {
+      mergedByMode[payloadKey] = [];
+      continue;
+    }
+    const scopedPerRepoResults = perRepoResults.filter((entry) => selectedRepoIds.has(entry.repoId));
+    const scopedMerged = mergeFederatedResults({
+      perRepoResults: scopedPerRepoResults,
+      topN,
+      perRepoTop,
+      rrfK
+    });
+    mergedByMode[payloadKey] = scopedMerged[payloadKey] || [];
+  }
+  return mergedByMode;
+};
+
 const resolveFederatedQueryCachePath = (manifest, repoSetId) => path.join(
   manifest.federationCacheRoot,
   'federation',
@@ -164,6 +195,7 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
   );
   const rrfK = coerceNumber(request.merge?.rrfK ?? request.rrfK, 60, 1);
   const includePaths = request.debug?.includePaths === true;
+  const strictFailures = request.strict === true;
 
   const perRepoArgs = request.rawArgs
     ? buildPerRepoArgsFromCli({ rawArgs: request.rawArgs, perRepoTop })
@@ -209,7 +241,8 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
       perRepoArgs,
       requestedBackend: request.search?.backend || request.backend || null,
       requestedAnn: request.search?.ann ?? request.ann ?? null,
-      debugIncludePaths: includePaths === true
+      debugIncludePaths: includePaths === true,
+      strict: strictFailures === true
     }
   });
   const cacheKeyInfo = buildFederatedQueryCacheKey(cacheKeyPayload);
@@ -247,7 +280,6 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
   const indexCache = context.indexCache || createIndexCache();
   const sqliteCache = context.sqliteCache || createSqliteDbCache();
   const searchFn = typeof context.searchFn === 'function' ? context.searchFn : coreSearch;
-  const strictFailures = request.strict === true;
   const diagnostics = [];
   const perRepoResults = [];
   const repoMap = new Map(workspaceConfig.repos.map((repo) => [repo.repoId, repo]));
@@ -353,17 +385,13 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
     throw createError(ERROR_CODES.NO_INDEX, 'Federated search failed: no repositories produced results.');
   }
 
-  const merged = mergeFederatedResults({
+  const merged = mergeFederatedResultsByMode({
     perRepoResults,
+    selectedReposByMode: selectedByMode,
     topN,
     perRepoTop,
     rrfK
   });
-
-  for (const [mode, payloadKey] of Object.entries(MODE_PAYLOAD_KEYS)) {
-    const selectedRepoIds = new Set((selectedByMode[mode] || []).map((repo) => repo.repoId));
-    merged[payloadKey] = (merged[payloadKey] || []).filter((hit) => selectedRepoIds.has(hit.repoId));
-  }
 
   const workspaceMeta = {
     name: workspaceConfig.name || '',

@@ -183,9 +183,26 @@ const readBuildPointerState = async ({ repoId, repoRootCanonical, repoCacheRoot,
 
   pointer.buildId = normalizeString(data.buildId);
   const buildRootRaw = normalizeString(data.buildRoot);
-  pointer.buildRoot = buildRootRaw
-    ? toRealPathSync(resolvePointerRoot(buildRootRaw, repoCacheRoot, buildsRoot) || buildRootRaw)
-    : (pointer.buildId ? toRealPathSync(path.join(buildsRoot, pointer.buildId)) : null);
+  if (buildRootRaw) {
+    const resolvedBuildRoot = resolvePointerRoot(buildRootRaw, repoCacheRoot, buildsRoot);
+    if (!resolvedBuildRoot) {
+      pointer.invalidPointer = true;
+      pointer.buildId = null;
+      pointer.buildRoot = null;
+      pointer.buildRoots = {};
+      pointer.modes = [];
+      diagnostics.warnings.push({
+        code: 'WARN_WORKSPACE_INVALID_BUILD_POINTER',
+        repoId,
+        mode: null,
+        message: `Invalid build pointer at ${currentJsonPath}: buildRoot points outside repo cache (${buildRootRaw}).`
+      });
+      return pointer;
+    }
+    pointer.buildRoot = toRealPathSync(resolvedBuildRoot);
+  } else {
+    pointer.buildRoot = pointer.buildId ? toRealPathSync(path.join(buildsRoot, pointer.buildId)) : null;
+  }
 
   const buildRootsInput = ensureObject(data.buildRootsByMode?.constructor === Object ? data.buildRootsByMode : data.buildRoots);
   for (const [mode, value] of Object.entries(buildRootsInput)) {
