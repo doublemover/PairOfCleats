@@ -45,6 +45,7 @@ assertExists('docs/specs/unified-syntax-representation.md', 'F.6.1 umbrella cont
 assertExists('docs/specs/usr-consolidation-coverage-matrix.md', 'F.6.1 decomposed contract map');
 assertTestInCiOrders('lang/contracts/usr-pr-template-policy-validation', 'F.6.1');
 assertTestInCiOrders('lang/contracts/usr-roadmap-sync', 'F.6.1');
+assertTestInCiOrders('lang/contracts/usr-governance-lock-suite-validation', 'F.6.1');
 
 // F.6.2 per-language contract synchronization.
 assertExists('docs/specs/usr/languages', 'F.6.2 language contract directory');
