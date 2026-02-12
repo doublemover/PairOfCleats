@@ -326,6 +326,12 @@ indexing/contracts/additional-properties-policy
 indexing/contracts/call-sites-schema
 indexing/contracts/index-compatibility-key-enforced-on-load
 shared/contracts/phase11-schemas-validate
+shared/contracts/usr-schema-validators
+shared/contracts/usr-matrix-validators
+lang/contracts/usr-contract-enforcement
+lang/contracts/usr-roadmap-sync
+lang/contracts/usr-minimum-slice-harness
+lang/contracts/usr-language-contract-template
 indexing/contracts/schema-registry-single-source
 indexing/git/git-meta
 retrieval/graph/context-pack-basic
