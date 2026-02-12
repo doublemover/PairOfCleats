@@ -111,6 +111,7 @@ const requiredCiTests = [
   'lang/contracts/usr-f5-hard-requirements-validation',
   'lang/contracts/usr-f6-sync-requirements-validation',
   'lang/contracts/usr-rollout-migration-policy-validation',
+  'lang/contracts/usr-phase15-exit-lock-validation',
   'lang/contracts/usr-rollout-phase-gate-validation',
   'lang/contracts/usr-rollout-f1-checklist-validation',
   'lang/contracts/usr-rollout-phase-evidence-lock-validation',
