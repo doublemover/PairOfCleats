@@ -71,11 +71,11 @@ const normalizeTop = (value, fallback = 10) => {
 const detectTopFlagCount = (rawArgs) => {
   const { options } = splitAtEndOfOptions(rawArgs);
   return options.reduce((count, token) => {
-  const current = String(token || '');
-  if (current === '--top' || current === '-n' || current.startsWith('--top=') || current.startsWith('-n=')) {
-    return count + 1;
-  }
-  return count;
+    const current = String(token || '');
+    if (current === '--top' || current === '-n' || current.startsWith('--top=') || current.startsWith('-n=')) {
+      return count + 1;
+    }
+    return count;
   }, 0);
 };
 
