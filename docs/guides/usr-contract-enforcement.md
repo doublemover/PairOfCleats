@@ -1,6 +1,6 @@
 # USR Contract Enforcement Guide
 
-Last updated: 2026-02-12T15:25:00Z
+Last updated: 2026-02-12T15:35:00Z
 
 ## Purpose
 
@@ -63,6 +63,7 @@ Define CI/local enforcement for the consolidated USR contract model.
 - `threat-model`: focused section 47 threat/control/fixture coverage enforcement (`tests/threat-model/threat-model-validation.test.js`)
 - `waiver-enforcement`: focused waiver-policy expiry/bypass governance checks (`tests/waiver-enforcement/waiver-policy-governance.test.js`)
 - `report-schema`: focused section 30/31/43/44/45/46/47/48 report-envelope/audit artifact validation (`tests/report-schema/report-schema-audit-contracts.test.js`)
+- `implementation-readiness`: focused section 40 operational-readiness policy, quality-gate, conformance-promotion, and readiness-scorecard enforcement (`tests/implementation-readiness/implementation-readiness-validation.test.js`)
 - `harness-core`: focused section 6.7/8.5/12.3 harness checks for canonical IDs, edge endpoints, capability transitions, strict diagnostic/reason validation, and section 33.4 remediation routing (`tests/harness-core/harness-core-validation.test.js`)
 - `canonical-example`: focused section 34 canonical-example fixture bundle validation (`tests/canonical-example/canonical-example-validation.test.js`)
 - `decomposed-drift`: focused decomposed-contract drift and roadmap alignment validation (`tests/decomposed-drift/decomposed-drift-validation.test.js`)
