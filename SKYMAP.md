@@ -69,10 +69,10 @@ Additional docs that MUST be updated if Phase 14 adds new behavior or config:
 - **Diff artifacts** (bounded, deterministic change sets + summaries).
 
 ### Phase 14 Acceptance (explicit)
-- [ ] Snapshot artifacts are schema‑valid and deterministic across runs.
-- [ ] “As‑of” retrieval can target a snapshot without fallback to live builds.
-- [ ] Diff artifacts are bounded, deterministic, and machine‑readable.
-- [ ] Snapshot/diff tooling surfaces are present in CLI/API.
+- [x] Snapshot artifacts are schema‑valid and deterministic across runs.
+- [x] “As‑of” retrieval can target a snapshot without fallback to live builds.
+- [x] Diff artifacts are bounded, deterministic, and machine‑readable.
+- [x] Snapshot/diff tooling surfaces are present in CLI/API.
 
 ### Phase 14 Implementation Order (must follow)
 1. 14.1.1 IndexRef parsing and resolution.
