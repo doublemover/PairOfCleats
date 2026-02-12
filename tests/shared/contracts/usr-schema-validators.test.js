@@ -8,6 +8,8 @@ import {
   validateUsrReport,
   validateUsrCapabilityTransition,
   validateUsrCanonicalId,
+  validateUsrDiagnosticCode,
+  validateUsrReasonCode,
   validateUsrEdgeEndpoint,
   validateUsrEdgeEndpoints
 } from '../../../src/contracts/validators/usr.js';
@@ -79,6 +81,26 @@ assert.equal(canonicalDocIdOk.ok, true, `canonical docUid should pass: ${canonic
 
 const canonicalDocIdBad = validateUsrCanonicalId('docUid', 'doc64:v1:not-hex');
 assert.equal(canonicalDocIdBad.ok, false, 'invalid docUid grammar must fail');
+
+const diagnosticCodeOk = validateUsrDiagnosticCode('USR-E-PARSER-FAILED');
+assert.equal(diagnosticCodeOk.ok, true, `canonical diagnostic code should pass: ${diagnosticCodeOk.errors.join('; ')}`);
+
+const diagnosticCodeUnknown = validateUsrDiagnosticCode('USR-E-NOT-IN-TAXONOMY');
+assert.equal(diagnosticCodeUnknown.ok, false, 'unknown diagnostic code must fail strict enum validation');
+
+const reasonCodeOk = validateUsrReasonCode('USR-R-MULTIPLE-CANDIDATES');
+assert.equal(reasonCodeOk.ok, true, `canonical reason code should pass: ${reasonCodeOk.errors.join('; ')}`);
+
+const reasonCodeUnknown = validateUsrReasonCode('USR-R-UNKNOWN-REASON');
+assert.equal(reasonCodeUnknown.ok, false, 'unknown reason code must fail strict enum validation');
+
+const transitionUnknownReason = validateUsrCapabilityTransition({
+  from: 'supported',
+  to: 'partial',
+  diagnostic: 'USR-W-CAPABILITY-DOWNGRADED',
+  reasonCode: 'USR-R-UNKNOWN-REASON'
+});
+assert.equal(transitionUnknownReason.ok, false, 'capability transition with unknown reason code must fail');
 
 const validEdge = {
   edgeUid: 'edge64:v1:0011aa22bb33cc44',

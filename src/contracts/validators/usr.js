@@ -20,6 +20,56 @@ const EDGE_ENDPOINT_ENTITY_TO_ID_TYPE = Object.freeze({
   symbol: 'symbolUid'
 });
 
+export const USR_CANONICAL_DIAGNOSTIC_CODES = Object.freeze(new Set([
+  'USR-E-PARSER-UNAVAILABLE',
+  'USR-E-PARSER-FAILED',
+  'USR-E-SEGMENT-INVALID-RANGE',
+  'USR-E-SCHEMA-VIOLATION',
+  'USR-E-CAPABILITY-LOST',
+  'USR-E-ID-GRAMMAR-VIOLATION',
+  'USR-E-EDGE-ENDPOINT-INVALID',
+  'USR-E-RANGE-MAPPING-FAILED',
+  'USR-E-DETERMINISM-DRIFT',
+  'USR-E-PROFILE-CONFLICT',
+  'USR-E-SECURITY-GATE-FAILED',
+  'USR-E-SLO-BUDGET-FAILED',
+  'USR-E-SERIALIZATION-NONCANONICAL',
+  'USR-W-PARTIAL-PARSE',
+  'USR-W-CAPABILITY-DOWNGRADED',
+  'USR-W-FRAMEWORK-PROFILE-INCOMPLETE',
+  'USR-W-REFERENCE-AMBIGUOUS',
+  'USR-W-RESOLUTION-CANDIDATE-CAPPED',
+  'USR-W-HEURISTIC-BINDING',
+  'USR-W-TRUNCATED-FLOW',
+  'USR-W-CANONICALIZATION-FALLBACK',
+  'USR-I-FALLBACK-HEURISTIC',
+  'USR-I-LEGACY-ADAPTER-APPLIED',
+  'USR-I-COMPAT-MINOR-IGNORED'
+]));
+
+export const USR_CANONICAL_REASON_CODES = Object.freeze(new Set([
+  'USR-R-NAME-NOT-FOUND',
+  'USR-R-MULTIPLE-CANDIDATES',
+  'USR-R-SCOPE-MISMATCH',
+  'USR-R-TYPE-MISMATCH',
+  'USR-R-MODULE-NOT-LOADED',
+  'USR-R-PARSER-TIMEOUT',
+  'USR-R-PARSER-UNAVAILABLE',
+  'USR-R-DYNAMIC-DISPATCH',
+  'USR-R-FRAMEWORK-VIRTUAL-BINDING',
+  'USR-R-ROUTE-PATTERN-CONFLICT',
+  'USR-R-TEMPLATE-SLOT-LATE-BIND',
+  'USR-R-STYLE-SCOPE-UNKNOWN',
+  'USR-R-CROSS-LANG-BRIDGE-PARTIAL',
+  'USR-R-HEURISTIC-ONLY',
+  'USR-R-RESOLUTION-CONFLICT',
+  'USR-R-REDACTION-REQUIRED',
+  'USR-R-CANDIDATE-CAP-EXCEEDED',
+  'USR-R-RESOURCE-BUDGET-EXCEEDED',
+  'USR-R-SECURITY-GATE-BLOCKED',
+  'USR-R-SERIALIZATION-INVALID'
+]));
+
 export const USR_CANONICAL_ID_PATTERNS = Object.freeze({
   docUid: '^doc64:v1:[a-f0-9]{16}$',
   segmentUid: '^segu:v1:[a-f0-9]{16}$',
@@ -130,9 +180,21 @@ export function validateUsrReport(artifactId, payload) {
   return { ok, errors: ok ? [] : formatErrors(validator) };
 }
 
-export function validateUsrCapabilityTransition(payload) {
+export function validateUsrCapabilityTransition(payload, { strictReasonCode = true } = {}) {
   const ok = Boolean(CAPABILITY_TRANSITION_VALIDATOR(payload));
-  return { ok, errors: ok ? [] : formatErrors(CAPABILITY_TRANSITION_VALIDATOR) };
+  const errors = ok ? [] : formatErrors(CAPABILITY_TRANSITION_VALIDATOR);
+  if (!ok) {
+    return { ok: false, errors };
+  }
+
+  if (payload?.reasonCode != null) {
+    const reasonValidation = validateUsrReasonCode(payload.reasonCode, { strictEnum: strictReasonCode });
+    if (!reasonValidation.ok) {
+      return { ok: false, errors: [...reasonValidation.errors] };
+    }
+  }
+
+  return { ok: true, errors: [] };
 }
 
 export function validateUsrCanonicalId(idType, value) {
@@ -145,6 +207,32 @@ export function validateUsrCanonicalId(idType, value) {
   }
   if (!regex.test(value)) {
     return { ok: false, errors: [`${idType} does not match canonical grammar`] };
+  }
+  return { ok: true, errors: [] };
+}
+
+export function validateUsrDiagnosticCode(code, { strictEnum = true } = {}) {
+  if (typeof code !== 'string') {
+    return { ok: false, errors: ['diagnostic code must be a string'] };
+  }
+  if (!/^USR-[EWI]-[A-Z0-9-]+$/.test(code)) {
+    return { ok: false, errors: ['diagnostic code does not match canonical grammar'] };
+  }
+  if (strictEnum && !USR_CANONICAL_DIAGNOSTIC_CODES.has(code)) {
+    return { ok: false, errors: [`unknown diagnostic code: ${code}`] };
+  }
+  return { ok: true, errors: [] };
+}
+
+export function validateUsrReasonCode(reasonCode, { strictEnum = true } = {}) {
+  if (typeof reasonCode !== 'string') {
+    return { ok: false, errors: ['reason code must be a string'] };
+  }
+  if (!/^USR-R-[A-Z0-9-]+$/.test(reasonCode)) {
+    return { ok: false, errors: ['reason code does not match canonical grammar'] };
+  }
+  if (strictEnum && !USR_CANONICAL_REASON_CODES.has(reasonCode)) {
+    return { ok: false, errors: [`unknown reason code: ${reasonCode}`] };
   }
   return { ok: true, errors: [] };
 }
