@@ -46,6 +46,11 @@ assert.equal(/- \[ \] /.test(f5HardRequirementsSection), false, 'appendix F.5 ha
 const f6SyncRequirementsSection = extractSection(roadmapText, '### F.6 Decomposed contract synchronization requirements', '---');
 assert.equal(/- \[ \] /.test(f6SyncRequirementsSection), false, 'appendix F.6 synchronization checklist must not contain unchecked items');
 
+const phaseNineReadinessSection = extractSection(roadmapText, '### 9.1 Readiness audit', '### 9.2 Go/No-Go decision');
+assert.equal(phaseNineReadinessSection.includes('- [x] Materialize framework extension contract template governance and CI enforcement controls.'), true, 'phase 9.1 must retain framework contract governance scaffold control');
+assert.equal(phaseNineReadinessSection.includes('- [x] Enforce language-contract vs language-profile matrix exact-set synchronization for conformance/framework/node/edge declarations.'), true, 'phase 9.1 must retain language contract matrix-sync governance control');
+assert.equal(phaseNineReadinessSection.includes('- [x] Materialize per-language approval checklist and completion evidence scaffolding in `docs/specs/usr/languages/*.md`.'), true, 'phase 9.1 must retain per-language approval/evidence scaffold control');
+
 const appendixMSection = extractSection(roadmapText, 'Roadmap enforcement requirements:', '## Appendix N - Phase 0 Governance Lock Artifacts');
 assert.equal(appendixMSection.includes('- [x] Every phase gate links to at least one concrete evidence artifact in `docs/specs/usr-core-evidence-gates-waivers.md`.'), true, 'appendix M must mark phase-to-evidence linkage requirement complete');
 assert.equal(appendixMSection.includes('- [x] Every blocking evidence artifact has an active schema in `docs/schemas/usr/*.json` and a row in `docs/specs/usr-core-artifact-schema-catalog.md`.'), true, 'appendix M must mark blocking evidence schema-catalog coverage requirement complete');
