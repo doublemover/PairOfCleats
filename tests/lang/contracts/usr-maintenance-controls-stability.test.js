@@ -63,6 +63,7 @@ const phaseNineReadinessSection = extractSection(roadmapText, '### 9.1 Readiness
 assert.equal(phaseNineReadinessSection.includes('- [x] Materialize framework extension contract template governance and CI enforcement controls.'), true, 'phase 9.1 must retain framework contract governance scaffold control');
 assert.equal(phaseNineReadinessSection.includes('- [x] Enforce language-contract vs language-profile matrix exact-set synchronization for conformance/framework/node/edge declarations.'), true, 'phase 9.1 must retain language contract matrix-sync governance control');
 assert.equal(phaseNineReadinessSection.includes('- [x] Materialize per-language approval checklist and completion evidence scaffolding in `docs/specs/usr/languages/*.md`.'), true, 'phase 9.1 must retain per-language approval/evidence scaffold control');
+assert.equal(phaseNineReadinessSection.includes('- [x] Validate implementation-readiness contract evidence set is complete for promotion target phase.'), true, 'phase 9.1 must retain implementation-readiness evidence coverage control');
 assert.equal(phaseNineReadinessSection.includes('- [x] Enforce phase-9 readiness evidence gate coverage across CI validators and required report artifacts.'), true, 'phase 9.1 must retain phase-9 readiness evidence gate control');
 
 const appendixMSection = extractSection(roadmapText, 'Roadmap enforcement requirements:', '## Appendix N - Phase 0 Governance Lock Artifacts');
