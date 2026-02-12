@@ -11,7 +11,9 @@ import {
   validateUsrFeatureFlagConflicts,
   buildUsrFeatureFlagStateReport,
   evaluateUsrFailureInjectionScenarios,
-  buildUsrFailureInjectionReport
+  buildUsrFailureInjectionReport,
+  validateUsrFixtureGovernanceControls,
+  buildUsrFixtureGovernanceValidationReport
 } from '../../../src/contracts/validators/usr-matrix.js';
 import { validateUsrReport } from '../../../src/contracts/validators/usr.js';
 
@@ -234,7 +236,42 @@ const mismatchEvaluation = evaluateUsrFailureInjectionScenarios({
 });
 assert.equal(mismatchEvaluation.ok, false, 'failure-injection evaluator must fail on strict outcome mismatches');
 assert.equal(mismatchEvaluation.errors.some((msg) => msg.includes('fi-parser-timeout')), true, 'failure-injection evaluator must include mismatching scenario ID in errors');
+const fixtureGovernancePath = path.join(matrixDir, 'usr-fixture-governance.json');
+const fixtureGovernance = JSON.parse(fs.readFileSync(fixtureGovernancePath, 'utf8'));
+
+const fixtureGovernanceValidation = validateUsrFixtureGovernanceControls({
+  fixtureGovernancePayload: fixtureGovernance
+});
+assert.equal(fixtureGovernanceValidation.ok, true, `fixture-governance controls should pass: ${fixtureGovernanceValidation.errors.join('; ')}`);
+
+const fixtureGovernanceReport = buildUsrFixtureGovernanceValidationReport({
+  fixtureGovernancePayload: fixtureGovernance,
+  runId: 'run-usr-fixture-governance-validation-001',
+  lane: 'ci'
+});
+assert.equal(fixtureGovernanceReport.ok, true, `fixture-governance report should pass: ${fixtureGovernanceReport.errors.join('; ')}`);
+const fixtureGovernanceReportValidation = validateUsrReport('usr-validation-report', fixtureGovernanceReport.payload);
+assert.equal(fixtureGovernanceReportValidation.ok, true, `fixture-governance report payload must validate: ${fixtureGovernanceReportValidation.errors.join('; ')}`);
+
+const fixtureGovernanceNegative = {
+  ...fixtureGovernance,
+  rows: (fixtureGovernance.rows || []).map((row, idx) => (
+    idx === 0
+      ? {
+          ...row,
+          owner: row.reviewers[0] || row.owner,
+          mutationPolicy: row.blocking ? 'allow-generated-refresh' : row.mutationPolicy
+        }
+      : row
+  ))
+};
+const fixtureGovernanceNegativeValidation = validateUsrFixtureGovernanceControls({
+  fixtureGovernancePayload: fixtureGovernanceNegative
+});
+assert.equal(fixtureGovernanceNegativeValidation.ok, false, 'fixture-governance controls must fail when owner/reviewer separation or mutation policy rules are violated');
 console.log('usr matrix validator tests passed');
+
+
 
 
 
