@@ -4,7 +4,14 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { getEnvConfig } from '../../src/shared/env.js';
-import { getCacheRoot, getRepoCacheRoot, resolveLmdbPaths, resolveRepoConfig, resolveSqlitePaths } from '../shared/dict-utils.js';
+import {
+  getCacheRoot,
+  getRepoCacheRoot,
+  loadUserConfig,
+  resolveLmdbPaths,
+  resolveRepoConfig,
+  resolveSqlitePaths
+} from '../shared/dict-utils.js';
 import { isInside, isRootPath } from '../shared/path-utils.js';
 
 const argv = createCli({
@@ -16,7 +23,11 @@ const argv = createCli({
   }
 }).parse();
 
-const { repoRoot: root, userConfig } = resolveRepoConfig(argv.repo);
+const explicitRepoArg = typeof argv.repo === 'string' && argv.repo.trim().length > 0;
+const explicitRepoRoot = explicitRepoArg ? path.resolve(argv.repo) : null;
+const { repoRoot: inferredRoot, userConfig: inferredConfig } = resolveRepoConfig(argv.repo);
+const root = explicitRepoRoot || inferredRoot;
+const userConfig = explicitRepoRoot ? loadUserConfig(root) : inferredConfig;
 const envConfig = getEnvConfig();
 const cacheRoot = (userConfig.cache && userConfig.cache.root) || envConfig.cacheRoot || getCacheRoot();
 const repoCacheRoot = getRepoCacheRoot(root, userConfig);
