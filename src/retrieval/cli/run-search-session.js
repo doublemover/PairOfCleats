@@ -19,6 +19,7 @@ import { filterChunks } from '../output.js';
 import { runSearchByMode } from './search-runner.js';
 import { resolveStubDims } from '../../shared/embedding.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
+import { stableStringifyForSignature } from '../../shared/stable-json.js';
 
 export async function runSearchSession({
   rootDir,
@@ -200,7 +201,7 @@ export async function runSearchSession({
       explicitRef,
       asOfContext
     });
-    cacheSignature = JSON.stringify(signature);
+    cacheSignature = stableStringifyForSignature(signature);
     const cacheKeyInfo = buildQueryCacheKey({
       query,
       backend: backendLabel,

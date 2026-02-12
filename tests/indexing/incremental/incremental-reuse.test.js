@@ -20,6 +20,7 @@ const pieceManifest = {
 };
 await fs.writeFile(path.join(outDir, 'index_state.json'), JSON.stringify(indexState));
 await fs.writeFile(path.join(outDir, 'pieces', 'manifest.json'), JSON.stringify(pieceManifest));
+await fs.writeFile(path.join(outDir, 'chunk_meta.json'), '[]', 'utf8');
 
 const entries = [
   { rel: 'src/a.js', stat: { size: 10, mtimeMs: 123 } },
