@@ -1,6 +1,6 @@
 # USR Contract Enforcement Guide
 
-Last updated: 2026-02-12T07:15:00Z
+Last updated: 2026-02-12T07:45:00Z
 
 ## Purpose
 
@@ -29,6 +29,7 @@ Define CI/local enforcement for the consolidated USR contract model.
 - failure-injection enforcement (`tests/lang/contracts/usr-failure-injection-validation.test.js`) validates section 44 strict/non-strict scenario outcomes, required diagnostics/reason codes, and recovery-evidence coverage
 - fixture-governance enforcement (`tests/lang/contracts/usr-fixture-governance-validation.test.js`) validates section 45 owner/reviewer/mutation-policy controls for blocking fixture families
 - benchmark-policy enforcement (`tests/lang/contracts/usr-benchmark-policy-validation.test.js`) validates section 46 methodology controls, lane/SLO alignment, and blocking regression thresholds
+- threat-model coverage enforcement (`tests/lang/contracts/usr-threat-model-coverage-validation.test.js`) validates section 47 threat/control/fixture mappings and control-gap detection for critical threats
 
 3. Roadmap/spec alignment
 - `TES_LAYN_ROADMAP.md` contract references resolve

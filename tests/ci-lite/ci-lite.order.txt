@@ -341,6 +341,7 @@ lang/contracts/usr-runtime-config-feature-flag-validation
 lang/contracts/usr-failure-injection-validation
 lang/contracts/usr-fixture-governance-validation
 lang/contracts/usr-benchmark-policy-validation
+lang/contracts/usr-threat-model-coverage-validation
 indexing/contracts/schema-registry-single-source
 indexing/git/git-meta
 retrieval/graph/context-pack-basic
