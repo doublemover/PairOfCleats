@@ -43,6 +43,7 @@ for (const anchor of requiredSectionAnchors) {
 const requiredCiTests = [
   'lang/contracts/usr-diagnostic-remediation-routing-validation',
   'lang/contracts/usr-canonical-example-validation',
+  'lang/contracts/usr-cross-language-canonical-bundle-coherence-validation',
   'lang/contracts/usr-framework-canonicalization',
   'lang/contracts/usr-f5-hard-requirements-validation',
   'backcompat/backcompat-matrix-validation'

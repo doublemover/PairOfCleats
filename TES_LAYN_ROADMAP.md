@@ -749,7 +749,7 @@ If contradictions are found:
 
 - [x] mixed-repo integration checks pass.
 - [ ] cross-batch regressions resolved.
-- [ ] cross-language canonical example bundle coherence checks pass.
+- [x] cross-language canonical example bundle coherence checks pass.
 
 ### Gate C (test rollout)
 
