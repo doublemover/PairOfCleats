@@ -644,16 +644,16 @@ If contradictions are found:
 
 ### 15.3 Maintenance
 
-- [ ] Enforce USR spec change-control policy linkage in PR templates.
-- [ ] Enforce registry drift checks for language/framework profile files.
-- [ ] Enforce decomposed contract suite update workflow (`docs/specs/usr/README.md`) in doc-change PR templates.
+- [x] Enforce USR spec change-control policy linkage in PR templates.
+- [x] Enforce registry drift checks for language/framework profile files.
+- [x] Enforce decomposed contract suite update workflow (`docs/specs/usr/README.md`) in doc-change PR templates.
 - [ ] Enforce per-language contract freshness checks and ownership rotation policy.
-- [ ] Enforce parser/runtime lock update workflow with impact and fallback evidence in PR templates.
-- [ ] Enforce runtime config key and feature-flag policy update workflow in PR templates.
-- [ ] Enforce failure-injection matrix update workflow when new blocking failure classes are introduced.
-- [ ] Enforce fixture-governance owner/reviewer coverage checks for new blocking fixtures.
-- [ ] Enforce benchmark policy update workflow when SLO or lane thresholds change.
-- [ ] Enforce threat-model matrix update workflow when new security gates or attack surfaces are added.
+- [x] Enforce parser/runtime lock update workflow with impact and fallback evidence in PR templates.
+- [x] Enforce runtime config key and feature-flag policy update workflow in PR templates.
+- [x] Enforce failure-injection matrix update workflow when new blocking failure classes are introduced.
+- [x] Enforce fixture-governance owner/reviewer coverage checks for new blocking fixtures.
+- [x] Enforce benchmark policy update workflow when SLO or lane thresholds change.
+- [x] Enforce threat-model matrix update workflow when new security gates or attack surfaces are added.
 - [ ] Enforce waiver-policy update workflow and expiry review cadence in PR/release templates.
 
 ### 15.4 Exit criteria
