@@ -1478,6 +1478,59 @@ export function evaluateUsrObservabilityRollup({
     }
   }
 
+  const batchHotspotRows = sloRows
+    .filter((row) => row.profileScope === 'batch')
+    .map((row) => {
+      const observed = metricsByLane.get(row.laneId) || {};
+      const durationMs = Number.isFinite(observed.durationMs) ? observed.durationMs : null;
+      const peakMemoryMb = Number.isFinite(observed.peakMemoryMb) ? observed.peakMemoryMb : null;
+      const parserTimePerSegmentMs = Number.isFinite(observed.parserTimePerSegmentMs) ? observed.parserTimePerSegmentMs : null;
+      return {
+        rowType: 'batch-hotspot',
+        id: `hotspot::${row.laneId}`,
+        laneId: row.laneId,
+        scopeId: row.scopeId,
+        durationMs,
+        peakMemoryMb,
+        parserTimePerSegmentMs,
+        durationRank: null,
+        memoryRank: null,
+        parserTimeRank: null,
+        isDurationHotspot: false,
+        isMemoryHotspot: false,
+        isParserTimeHotspot: false,
+        blocking: false,
+        pass: true,
+        errors: Object.freeze([]),
+        warnings: Object.freeze([])
+      };
+    })
+    .sort((a, b) => a.laneId.localeCompare(b.laneId));
+
+  const assignRank = (key, rankKey, hotspotFlag) => {
+    const ranked = [...batchHotspotRows]
+      .filter((row) => Number.isFinite(row[key]))
+      .sort((a, b) => {
+        if (b[key] !== a[key]) return b[key] - a[key];
+        return a.laneId.localeCompare(b.laneId);
+      });
+
+    ranked.forEach((row, index) => {
+      row[rankKey] = index + 1;
+      row[hotspotFlag] = index < 3;
+    });
+  };
+
+  assignRank('durationMs', 'durationRank', 'isDurationHotspot');
+  assignRank('peakMemoryMb', 'memoryRank', 'isMemoryHotspot');
+  assignRank('parserTimePerSegmentMs', 'parserTimeRank', 'isParserTimeHotspot');
+
+  rows.push(...batchHotspotRows.map((row) => ({
+    ...row,
+    errors: row.errors,
+    warnings: row.warnings
+  })));
+
   return {
     ok: errors.length === 0,
     errors: Object.freeze([...errors]),
@@ -1534,6 +1587,10 @@ export function buildUsrObservabilityRollupReport({
       rowCount: rows.length,
       sloBudgetRowCount: rows.filter((row) => row.rowType === 'slo-budget').length,
       alertEvaluationRowCount: rows.filter((row) => row.rowType === 'alert-evaluation').length,
+      batchHotspotRowCount: rows.filter((row) => row.rowType === 'batch-hotspot').length,
+      durationHotspotCount: rows.filter((row) => row.rowType === 'batch-hotspot' && row.isDurationHotspot).length,
+      memoryHotspotCount: rows.filter((row) => row.rowType === 'batch-hotspot' && row.isMemoryHotspot).length,
+      parserTimeHotspotCount: rows.filter((row) => row.rowType === 'batch-hotspot' && row.isParserTimeHotspot).length,
       passCount: rows.filter((row) => row.pass).length,
       failCount: rows.filter((row) => !row.pass).length,
       blockingFailureCount: rows.filter((row) => row.blocking && !row.pass).length,
