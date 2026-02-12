@@ -126,8 +126,8 @@ If contradictions are found:
 - [x] USR section 47 threat model and abuse-case coverage contract is enforced with blocking threat/control fixture coverage.
 - [x] USR section 48 waiver and exception governance contract is enforced with expiry and approver controls.
 - [ ] Decomposed USR contract suite (`docs/specs/usr*.md`) remains semantically aligned with umbrella USR spec.
-- [ ] Every registry language has a maintained per-language contract in `docs/specs/usr/languages/<language-id>.md`.
-- [ ] Machine-readable catalog/matrix files are synchronized with decomposed contracts and pass drift checks.
+- [x] Every registry language has a maintained per-language contract in `docs/specs/usr/languages/<language-id>.md`.
+- [x] Machine-readable catalog/matrix files are synchronized with decomposed contracts and pass drift checks.
 
 ## 6) Phase Index (Implementation before Test Rollout)
 
@@ -156,24 +156,24 @@ If contradictions are found:
 
 ### 0.1 USR traceability
 
-- [ ] Add a traceability matrix linking USR sections 5 through 36 to roadmap tasks.
-- [ ] Add decomposition traceability matrix mapping each `docs/specs/usr*.md` contract to roadmap phases and CI gates.
-- [ ] Define owner role per USR section group (identity, schema, framework, conformance, operations).
+- [x] Add a traceability matrix linking USR sections 5 through 36 to roadmap tasks.
+- [x] Add decomposition traceability matrix mapping each `docs/specs/usr*.md` contract to roadmap phases and CI gates.
+- [x] Define owner role per USR section group (identity, schema, framework, conformance, operations).
 - [x] Define ownership matrix artifact (`usr-ownership-matrix.json`) and escalation artifact (`usr-escalation-policy.json`) requirements.
-- [ ] Define escalation path for contract conflicts between USR and existing artifact contracts.
-- [ ] Define requirement that all future roadmap edits preserve exact language registry coverage.
+- [x] Define escalation path for contract conflicts between USR and existing artifact contracts.
+- [x] Define requirement that all future roadmap edits preserve exact language registry coverage.
 
 ### 0.2 Planning guardrails
 
-- [ ] Disallow advancing any batch without Gate criteria evidence.
-- [ ] Require deterministic rerun evidence for any phase marked complete.
-- [ ] Require explicit partial/unsupported capability declarations before test phase promotion.
+- [x] Disallow advancing any batch without Gate criteria evidence.
+- [x] Require deterministic rerun evidence for any phase marked complete.
+- [x] Require explicit partial/unsupported capability declarations before test phase promotion.
 
 ### 0.3 Exit criteria
 
 - [ ] USR traceability matrix drafted and approved.
-- [ ] Batch ownership map complete.
-- [ ] Gate definition and evidence templates ready.
+- [x] Batch ownership map complete.
+- [x] Gate definition and evidence templates ready.
 
 ---
 
@@ -1333,20 +1333,20 @@ If contradictions are found:
 
 ## Appendix H - Decomposed Contract Workstream Traceability
 
-| Consolidated contract | Primary intent | Required phases |
-| --- | --- | --- |
-| `docs/specs/usr-core-governance-change.md` | governance, ownership, drift, RFC/change workflow | 0, 9, 10, 15 |
-| `docs/specs/usr-core-artifact-schema-catalog.md` | registries, schema contracts, validator and lane policy | 0, 1, 10, 15 |
-| `docs/specs/usr-core-language-framework-catalog.md` | language/framework profiles, embeddings, route/template/style edge cases | 0, 1, 3, 4, 5, 6, 10, 12, 13, 14 |
-| `docs/specs/usr-core-normalization-linking-identity.md` | kind mapping, resolution, identity, module/type/query semantics | 0, 1, 3, 4, 5, 6, 10, 12, 13, 14 |
-| `docs/specs/usr-core-pipeline-incremental-transforms.md` | stage chain, adapters, provenance, incremental/full parity, resilience | 0, 1, 3, 4, 5, 6, 10, 12, 13, 14 |
-| `docs/specs/usr-core-quality-conformance-testing.md` | C0-C4, fixture governance, differential/fuzzing/golden policy | 0, 7, 8, 10, 11, 12, 13, 14, 15 |
-| `docs/specs/usr-core-security-risk-compliance.md` | language/framework risk taxonomy, threat model, compliance gates | 0, 6, 10, 14, 15 |
-| `docs/specs/usr-core-observability-performance-ops.md` | SLO, benchmark, capacity, audit reporting | 0, 8, 9, 10, 15 |
-| `docs/specs/usr-core-rollout-release-migration.md` | compatibility matrix policy, release/cutover/rollback controls | 0, 9, 10, 15 |
-| `docs/specs/usr-core-diagnostics-reasoncodes.md` | diagnostic envelopes, reason-code taxonomy, lifecycle | 0, 6, 10, 14, 15 |
-| `docs/specs/usr-core-evidence-gates-waivers.md` | gate evaluation, evidence freshness, waiver governance | 0, 9, 10, 15 |
-| `docs/specs/usr-consolidation-coverage-matrix.md` | legacy-to-core merge traceability | 0, 10, 15 |
+| Consolidated contract | Primary intent | Required phases | Required CI gates/lanes |
+| --- | --- | --- | --- |
+| `docs/specs/usr-core-governance-change.md` | governance, ownership, drift, RFC/change workflow | 0, 9, 10, 15 | `ci-lite`, `ci`, `decomposed-drift`, `lang/contracts/usr-roadmap-sync`, `lang/contracts/usr-maintenance-controls-stability` |
+| `docs/specs/usr-core-artifact-schema-catalog.md` | registries, schema contracts, validator and lane policy | 0, 1, 10, 15 | `ci-lite`, `ci`, `report-schema`, `harness-core`, `lang/contracts/usr-contract-enforcement` |
+| `docs/specs/usr-core-language-framework-catalog.md` | language/framework profiles, embeddings, route/template/style edge cases | 0, 1, 3, 4, 5, 6, 10, 12, 13, 14 | `batch-b1..batch-b8`, `conformance-c4`, `lang/contracts/usr-framework-canonicalization`, `lang/contracts/usr-language-contract-freshness-validation` |
+| `docs/specs/usr-core-normalization-linking-identity.md` | kind mapping, resolution, identity, module/type/query semantics | 0, 1, 3, 4, 5, 6, 10, 12, 13, 14 | `harness-core`, `batch-b0..batch-b8`, `conformance-c2`, `conformance-c3` |
+| `docs/specs/usr-core-pipeline-incremental-transforms.md` | stage chain, adapters, provenance, incremental/full parity, resilience | 0, 1, 3, 4, 5, 6, 10, 12, 13, 14 | `batch-b1..batch-b8`, `conformance-c2`, `conformance-c3`, `backcompat` |
+| `docs/specs/usr-core-quality-conformance-testing.md` | C0-C4, fixture governance, differential/fuzzing/golden policy | 0, 7, 8, 10, 11, 12, 13, 14, 15 | `conformance-c0..conformance-c4`, `fixture-governance`, `benchmark-regression`, `lang/contracts/usr-matrix-driven-harness-validation` |
+| `docs/specs/usr-core-security-risk-compliance.md` | language/framework risk taxonomy, threat model, compliance gates | 0, 6, 10, 14, 15 | `security-gates`, `threat-model`, `waiver-enforcement`, `lang/contracts/usr-language-risk-profile-validation` |
+| `docs/specs/usr-core-observability-performance-ops.md` | SLO, benchmark, capacity, audit reporting | 0, 8, 9, 10, 15 | `observability`, `benchmark-regression`, `diagnostics-summary`, `lang/contracts/usr-observability-rollup-validation` |
+| `docs/specs/usr-core-rollout-release-migration.md` | compatibility matrix policy, release/cutover/rollback controls | 0, 9, 10, 15 | `backcompat`, `report-schema`, `implementation-readiness` |
+| `docs/specs/usr-core-diagnostics-reasoncodes.md` | diagnostic envelopes, reason-code taxonomy, lifecycle | 0, 6, 10, 14, 15 | `diagnostics-summary`, `harness-core`, `lang/contracts/usr-diagnostic-remediation-routing-validation` |
+| `docs/specs/usr-core-evidence-gates-waivers.md` | gate evaluation, evidence freshness, waiver governance | 0, 9, 10, 15 | `waiver-enforcement`, `report-schema`, `lang/contracts/usr-pr-template-policy-validation` |
+| `docs/specs/usr-consolidation-coverage-matrix.md` | legacy-to-core merge traceability | 0, 10, 15 | `decomposed-drift`, `lang/contracts/usr-roadmap-sync` |
 
 ---
 
@@ -1398,7 +1398,7 @@ This appendix defines hard dependency ordering across the consolidated USR contr
 
 - `docs/specs/usr-consolidation-coverage-matrix.md`
 - `docs/guides/usr-contract-enforcement.md`
-- `TES_LAYN_ROADMAP.md` appendices H/J/M
+- `TES_LAYN_ROADMAP.md` appendices H/J/M/N
 
 ---
 
@@ -1471,6 +1471,80 @@ Roadmap enforcement requirements:
 - [ ] New language onboarding follows `docs/guides/usr-new-language-onboarding.md`.
 - [ ] Framework onboarding and interop expectations follow `docs/specs/usr-core-language-framework-catalog.md`.
 - [ ] Contract consolidation traceability is maintained in `docs/specs/usr-consolidation-coverage-matrix.md`.
-- [ ] Any contract addition/removal updates Appendix H traceability and Appendix J dependency graph in same change.
+- [ ] Any contract addition/removal updates Appendix H traceability, Appendix J dependency graph, and Appendix N governance lock in same change.
+
+---
+
+## Appendix N - Phase 0 Governance Lock Artifacts
+
+### N.1 USR section-to-task traceability anchors (sections 5 through 36)
+
+The canonical section map is Appendix A. Task anchors below are required when updating those sections:
+
+| USR section | Required roadmap task anchors |
+| --- | --- |
+| 5.4, 5.5, 5.6 | Phase 2.1 coordinate enforcement tasks |
+| 6.7 | Phase 2.2 identity enforcement tasks |
+| 7.11, 8.5 | Phase 2.3 integrity constraints and endpoint checks |
+| 11.3, 11.4, 11.5 | Phase 3.1-3.3 parser, normalization, extraction ordering |
+| 12.3 | Phase 6.2 capability transitions and diagnostic semantics |
+| 16.4 | Phase 8 determinism hardening and Phase 11-13 conformance gates |
+| 17 | Phase 8 resource hardening and Phase 15 observability/SLO enforcement |
+| 18 | Phase 6.5 security semantics and Phase 14-15 security gates |
+| 23, 24 | Phase 1 registry/schema package and validator ownership |
+| 25 | Phase 5 framework applicability enforcement |
+| 26, 27, 28, 29 | Appendix F rollout, deprecation, change-control, extension policy tasks |
+| 30, 31 | Phase 15 reporting and readiness scorecard outputs |
+| 33 | Phase 1/6/10 diagnostic taxonomy + remediation routing |
+| 34, 35 | Phase 7 fixture corpus + framework canonicalization execution |
+| 36 | Phase 15 compatibility matrix CI enforcement |
+
+### N.2 Section-group ownership and escalation mapping
+
+| Section group | Primary owner role | Backup owner role | Escalation policy |
+| --- | --- | --- | --- |
+| identity/normalization/integrity (5-12) | `usr-architecture` | `usr-conformance` | `esc-contract-conflict` |
+| language/framework catalog and overlays (23-25, 35) | `usr-framework` | `usr-architecture` | `esc-framework-contract-conflict` |
+| diagnostics/reasoning/conformance policy (16, 33, 34, 36) | `usr-conformance` | `usr-architecture` | `esc-taxonomy-drift` |
+| security/risk/waiver governance (18, 47, 48) | `usr-security` | `usr-operations` | `esc-security-gate-failure` |
+| observability/performance/release operations (17, 30, 31, 41, 46) | `usr-observability` | `usr-operations` | `esc-slo-budget-breach` |
+
+Source artifacts: `tests/lang/matrix/usr-ownership-matrix.json` and `tests/lang/matrix/usr-escalation-policy.json`.
+
+### N.3 Batch ownership map
+
+| Batch | Primary owner role | Backup owner role |
+| --- | --- | --- |
+| B0 | `usr-architecture` | `usr-conformance` |
+| B1 | `usr-framework` | `usr-architecture` |
+| B2 | `usr-conformance` | `usr-architecture` |
+| B3 | `usr-conformance` | `usr-architecture` |
+| B4 | `usr-conformance` | `usr-architecture` |
+| B5 | `usr-framework` | `usr-conformance` |
+| B6 | `usr-conformance` | `usr-architecture` |
+| B7 | `usr-operations` | `usr-architecture` |
+| B8 | `usr-architecture` | `usr-operations` |
+
+### N.4 Contract conflict escalation path
+
+1. Detect contradiction between `docs/specs/unified-syntax-representation.md` and any decomposed contract, matrix row, or validator behavior.
+2. Freeze advancement for affected batch/phase gates and mark the item as blocked.
+3. Open escalation using the mapped policy ID from section N.2 and attach failing evidence artifacts.
+4. Resolve through owner + backup owner review; blocking policies require required approvers in `usr-escalation-policy.json`.
+5. Merge reconciled spec/matrix/validator updates in one change with roadmap + appendix linkage updates.
+
+### N.5 Planning guardrails and evidence policy
+
+- Batch advancement is prohibited unless required gate evidence artifacts are present and schema-valid.
+- Any phase completion checkbox requires deterministic rerun evidence with stable run IDs and zero drift deltas.
+- Promotion into testing phases requires explicit declarations for `supported`, `partial`, and `unsupported` capabilities with diagnostic coverage.
+- Required evidence templates and gate logic are defined in `docs/specs/usr-core-evidence-gates-waivers.md` and `docs/specs/usr-core-artifact-schema-catalog.md`.
+
+### N.6 Roadmap edit invariants
+
+- Roadmap edits must preserve exact language coverage parity with `src/index/language-registry/registry-data.js`, `tests/lang/matrix/usr-language-profiles.json`, and per-language contracts under `docs/specs/usr/languages/*.md`.
+- Any Tier 2/Tier 3 contract change must update impacted matrix rows, validator enforcement, and roadmap appendix mappings in the same PR.
+- Appendix H, Appendix J, Appendix M, and this appendix must remain synchronized whenever contract scope or CI gate ownership changes.
+- Any change that affects CI gate behavior must update `docs/guides/usr-contract-enforcement.md` and corresponding lane order files.
 
 

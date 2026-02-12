@@ -94,4 +94,31 @@ for (const contract of decomposedContractRefs) {
   }
 }
 
+// Governance lock appendix and decomposed CI-gate mapping anchors must remain present.
+const requiredRoadmapAnchors = [
+  '## Appendix N - Phase 0 Governance Lock Artifacts',
+  '### N.1 USR section-to-task traceability anchors (sections 5 through 36)',
+  '### N.2 Section-group ownership and escalation mapping',
+  '### N.3 Batch ownership map',
+  '### N.4 Contract conflict escalation path',
+  '### N.5 Planning guardrails and evidence policy',
+  '### N.6 Roadmap edit invariants',
+  '| Consolidated contract | Primary intent | Required phases | Required CI gates/lanes |',
+  'appendices H/J/M/N'
+];
+
+for (const anchor of requiredRoadmapAnchors) {
+  assert.equal(roadmapText.includes(anchor), true, `roadmap missing governance/decomposition anchor: ${anchor}`);
+}
+
+const requiredGovernanceRefs = [
+  'tests/lang/matrix/usr-ownership-matrix.json',
+  'tests/lang/matrix/usr-escalation-policy.json',
+  'src/index/language-registry/registry-data.js'
+];
+
+for (const ref of requiredGovernanceRefs) {
+  assert.equal(roadmapText.includes(`\`${ref}\``), true, `roadmap missing required governance reference: ${ref}`);
+}
+
 console.log('usr roadmap sync checks passed');
