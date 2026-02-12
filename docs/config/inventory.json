@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-12T02:18:13.312Z",
+  "generatedAt": "2026-02-12T05:09:56.990Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -1697,6 +1697,7 @@
         "tests/services/api-search-asof.test.js",
         "tests/services/api/api-server-stream.test.js",
         "tests/services/api/core-api.test.js",
+        "tests/services/api/federated-search-redacts-paths.test.js",
         "tests/services/mcp/mcp-robustness.test.js",
         "tests/services/mcp/mcp-schema.test.js",
         "tests/services/mcp/sdk-mode.test.js",
@@ -2370,6 +2371,9 @@
         "tests/indexer/call-sites/call-sites-emit-artifacts-none.test.js",
         "tests/indexer/call-sites/call-sites-empty-required.test.js",
         "tests/indexing/artifacts/artifact-size-guardrails.test.js",
+        "tests/indexing/cache/cas-reuse-across-repos.test.js",
+        "tests/indexing/cache/workspace-concurrency-limits.test.js",
+        "tests/indexing/cache/workspace-global-cache-reuse.test.js",
         "tests/indexing/chunking/comment-join.test.js",
         "tests/indexing/contracts/diffs-contracts.test.js",
         "tests/indexing/contracts/golden-surface-suite.test.js",
@@ -2404,6 +2408,7 @@
         "tests/retrieval/backend/retrieval-strict-manifest-embeddings.test.js",
         "tests/retrieval/cache/query-cache-signature-sharded-chunk-meta.test.js",
         "tests/retrieval/cache/query-cache.test.js",
+        "tests/retrieval/federation/explicit-root-no-fallback.test.js",
         "tests/retrieval/parity/parity.test.js",
         "tests/retrieval/pipeline/ann-lazy-import.test.js",
         "tests/retrieval/pipeline/artifact-gating-deps.test.js",
@@ -2435,16 +2440,22 @@
         "tests/run.js",
         "tests/runner/all.js",
         "tests/services/api-search-asof.test.js",
+        "tests/services/api/federated-search-redacts-paths.test.js",
+        "tests/services/api/federated-search-workspace-allowlist.test.js",
         "tests/services/asof-explicit-root-no-fallback.test.js",
+        "tests/services/embeddings/mode-root-divergence-maintenance.test.js",
         "tests/services/index-diff.test.js",
+        "tests/services/indexing/compressed-artifact-presence.test.js",
         "tests/services/mcp/mcp-robustness.test.js",
         "tests/services/mcp/mcp-schema.test.js",
         "tests/services/mcp/sdk-mode.test.js",
         "tests/services/snapshot-create.test.js",
         "tests/services/snapshot-freeze.test.js",
         "tests/services/snapshot-query.test.js",
+        "tests/services/snapshots/concurrent-registry-writers.test.js",
         "tests/services/sqlite-build-snapshot.test.js",
         "tests/shared/diffs-registry.test.js",
+        "tests/shared/json-stream/atomic-stale-backup-protection.test.js",
         "tests/shared/logging/stdout-contract.test.js",
         "tests/shared/no-path-leak.test.js",
         "tests/shared/snapshots-registry.test.js",
@@ -2459,12 +2470,17 @@
         "tests/storage/sqlite/sqlite-incremental-no-change.test.js",
         "tests/storage/sqlite/sqlite-missing-dep.test.js",
         "tests/storage/vector-extension/vector-extension-missing.test.js",
+        "tests/tooling/cache/cache-gc-preserves-manifest-referenced.test.js",
         "tests/tooling/dict-utils/paths-builds-root.test.js",
         "tests/tooling/fixtures/fixture-empty.test.js",
+        "tests/tooling/index-stats/index-stats-aggregate.test.js",
+        "tests/tooling/index-stats/index-stats-json.test.js",
+        "tests/tooling/index-stats/index-stats-missing-artifact.test.js",
         "tests/tooling/install/setup-index-detection.test.js",
         "tests/tooling/install/uninstall.test.js",
         "tests/tooling/reports/summary/summary-report-helpers.js",
         "tests/unit/retrieval-index-signature-shards.unit.js",
+        "tests/workspace/windows-path-canonicalization-contract.test.js",
         "tools/bench/index/scheduler-store-format.js",
         "tools/ci/run-suite.js",
         "tools/config/contract-doc.js",
@@ -2570,7 +2586,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 304,
+    "totalFlags": 310,
     "publicFlags": [
       "backend",
       "host",
@@ -2589,6 +2605,7 @@
       "ann",
       "ann-mode",
       "ann-modes",
+      "apply",
       "arch",
       "args",
       "artifactDir",
@@ -2671,6 +2688,7 @@
       "frame-budget",
       "from",
       "global",
+      "grace-days",
       "graphFixture",
       "graphs",
       "groups",
@@ -2690,6 +2708,7 @@
       "includeUsages",
       "incremental",
       "index",
+      "index-dir",
       "index-root",
       "input",
       "inputs",
@@ -2719,6 +2738,7 @@
       "max-age-days",
       "max-body-bytes",
       "max-bytes",
+      "max-deletes",
       "max-delta",
       "max-edges",
       "max-files",
@@ -2869,12 +2889,14 @@
       "validate",
       "validate-config",
       "verbose",
+      "verify",
       "wasd-acceleration",
       "wasd-drag",
       "wasd-max-speed",
       "wasd-sensitivity",
       "windowBytes",
       "with-sqlite",
+      "workspace",
       "write-report",
       "yes",
       "zoom-sensitivity"
@@ -3892,10 +3914,15 @@
       {
         "file": "tools/index/cache-gc.js",
         "flags": [
+          "apply",
+          "cache-root",
+          "concurrency",
           "dry-run",
+          "grace-days",
           "json",
           "max-age-days",
           "max-bytes",
+          "max-deletes",
           "max-gb",
           "repo"
         ]
@@ -3932,6 +3959,16 @@
         "flags": [
           "bench",
           "repo"
+        ]
+      },
+      {
+        "file": "tools/index/stats.js",
+        "flags": [
+          "index-dir",
+          "json",
+          "mode",
+          "repo",
+          "verify"
         ]
       },
       {
@@ -4243,12 +4280,33 @@
           "source",
           "stub-embeddings"
         ]
+      },
+      {
+        "file": "tools/workspace/catalog.js",
+        "flags": [
+          "json",
+          "workspace"
+        ]
+      },
+      {
+        "file": "tools/workspace/manifest.js",
+        "flags": [
+          "json",
+          "workspace"
+        ]
+      },
+      {
+        "file": "tools/workspace/status.js",
+        "flags": [
+          "json",
+          "workspace"
+        ]
       }
     ],
     "duplicated": [
       {
         "flag": "repo",
-        "count": 58,
+        "count": 59,
         "files": [
           "src/integrations/tooling/api-contracts.js",
           "src/integrations/tooling/architecture-check.js",
@@ -4287,6 +4345,7 @@
           "tools/index/compact-pieces.js",
           "tools/index/report-artifacts.js",
           "tools/index/shard-census.js",
+          "tools/index/stats.js",
           "tools/index/validate.js",
           "tools/ingest/ctags.js",
           "tools/ingest/gtags.js",
@@ -4312,7 +4371,7 @@
       },
       {
         "flag": "json",
-        "count": 46,
+        "count": 50,
         "files": [
           "src/integrations/tooling/api-contracts.js",
           "src/integrations/tooling/architecture-check.js",
@@ -4346,6 +4405,7 @@
           "tools/config/validate.js",
           "tools/index/cache-gc.js",
           "tools/index/report-artifacts.js",
+          "tools/index/stats.js",
           "tools/index/validate.js",
           "tools/ingest/ctags.js",
           "tools/ingest/gtags.js",
@@ -4359,7 +4419,10 @@
           "tools/sqlite/verify-extensions.js",
           "tools/tooling/detect.js",
           "tools/tooling/doctor.js",
-          "tools/tooling/install.js"
+          "tools/tooling/install.js",
+          "tools/workspace/catalog.js",
+          "tools/workspace/manifest.js",
+          "tools/workspace/status.js"
         ]
       },
       {
@@ -4409,7 +4472,7 @@
       },
       {
         "flag": "mode",
-        "count": 29,
+        "count": 30,
         "files": [
           "tests/map/map-build-determinism.test.js",
           "tests/map/map-build-heap-guard.test.js",
@@ -4435,6 +4498,7 @@
           "tools/build/tantivy-index.js",
           "tools/index/assemble-pieces.js",
           "tools/index/compact-pieces.js",
+          "tools/index/stats.js",
           "tools/index/validate.js",
           "tools/reports/combined-summary.js",
           "tools/reports/compare-models.js",
@@ -4857,6 +4921,16 @@
         ]
       },
       {
+        "flag": "cache-root",
+        "count": 4,
+        "files": [
+          "tests/tooling/script-coverage/script-coverage.runner.js",
+          "tools/cache/clear-cache.js",
+          "tools/index/cache-gc.js",
+          "tools/reports/compare-models.js"
+        ]
+      },
+      {
         "flag": "dir",
         "count": 4,
         "files": [
@@ -5036,12 +5110,12 @@
         ]
       },
       {
-        "flag": "cache-root",
+        "flag": "concurrency",
         "count": 3,
         "files": [
-          "tests/tooling/script-coverage/script-coverage.runner.js",
-          "tools/cache/clear-cache.js",
-          "tools/reports/compare-models.js"
+          "tools/bench/vfs/parallel-manifest-build.js",
+          "tools/index/cache-gc.js",
+          "tools/service/indexer-service.js"
         ]
       },
       {
@@ -5123,6 +5197,15 @@
           "tools/bench/vfs/coalesce-docs.js",
           "tools/bench/vfs/parallel-manifest-build.js",
           "tools/bench/vfs/segment-hash-cache.js"
+        ]
+      },
+      {
+        "flag": "workspace",
+        "count": 3,
+        "files": [
+          "tools/workspace/catalog.js",
+          "tools/workspace/manifest.js",
+          "tools/workspace/status.js"
         ]
       },
       {
@@ -5211,14 +5294,6 @@
         "files": [
           ".benchCache/scheduler-store-format/repos/baseline/generate.js",
           "tests/fixtures/medium/generate.js"
-        ]
-      },
-      {
-        "flag": "concurrency",
-        "count": 2,
-        "files": [
-          "tools/bench/vfs/parallel-manifest-build.js",
-          "tools/service/indexer-service.js"
         ]
       },
       {
