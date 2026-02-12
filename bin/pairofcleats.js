@@ -51,6 +51,22 @@ function resolveCommand(primary, rest) {
       return { script: 'build_index.js', extraArgs: [], args: rest };
     }
     if (sub === 'build') {
+      if (readFlagValue(rest, 'workspace')) {
+        const buildFlags = Object.keys(INDEX_BUILD_OPTIONS).filter((flag) => flag !== 'repo');
+        const allowed = Array.from(new Set([
+          'workspace',
+          'concurrency',
+          'strict',
+          'include-disabled',
+          'json',
+          ...buildFlags
+        ]));
+        const buildValueFlags = buildFlags.filter((flag) => (
+          INDEX_BUILD_OPTIONS[flag]?.type && INDEX_BUILD_OPTIONS[flag].type !== 'boolean'
+        ));
+        validateArgs(rest, allowed, ['workspace', 'concurrency', ...buildValueFlags]);
+        return { script: 'tools/workspace/build.js', extraArgs: [], args: rest };
+      }
       return { script: 'build_index.js', extraArgs: [], args: rest };
     }
     if (sub === 'watch') {
@@ -175,7 +191,7 @@ function resolveCommand(primary, rest) {
   if (primary === 'workspace') {
     const sub = rest.shift();
     if (!sub || isHelpCommand(sub)) {
-      console.error('workspace requires a subcommand: manifest, status, build');
+      console.error('workspace requires a subcommand: manifest, status, build, catalog');
       printHelp();
       process.exit(1);
     }
@@ -202,6 +218,10 @@ function resolveCommand(primary, rest) {
       ));
       validateArgs(rest, allowed, ['workspace', 'concurrency', ...buildValueFlags]);
       return { script: 'tools/workspace/build.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'catalog') {
+      validateArgs(rest, ['workspace', 'json'], ['workspace']);
+      return { script: 'tools/workspace/catalog.js', extraArgs: [], args: rest };
     }
     console.error(`Unknown workspace subcommand: ${sub}`);
     printHelp();
@@ -847,6 +867,7 @@ Workspace:
   workspace manifest       Generate/refresh workspace manifest
   workspace status         Show workspace repo/mode index availability
   workspace build          Build indexes across workspace repos
+  workspace catalog        Inspect workspace cache/manifests (debug)
 
 Service:
   service api             Run local HTTP JSON API
