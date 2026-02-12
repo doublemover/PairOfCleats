@@ -1,6 +1,6 @@
 # USR Contract Enforcement Guide
 
-Last updated: 2026-02-12T11:45:00Z
+Last updated: 2026-02-12T12:05:00Z
 
 ## Purpose
 
@@ -58,6 +58,7 @@ Define CI/local enforcement for the consolidated USR contract model.
 - `threat-model`: focused section 47 threat/control/fixture coverage enforcement (`tests/threat-model/threat-model-validation.test.js`)
 - `waiver-enforcement`: focused waiver-policy expiry/bypass governance checks (`tests/waiver-enforcement/waiver-policy-governance.test.js`)
 - `report-schema`: focused section 30/31/43/44/45/46/47/48 report-envelope/audit artifact validation (`tests/report-schema/report-schema-audit-contracts.test.js`)
+- `harness-core`: focused section 6.7/8.5/12.3 harness checks for canonical IDs, edge endpoints, capability transitions, and strict diagnostic/reason validation (`tests/harness-core/harness-core-validation.test.js`)
 - `batch-b0`: focused foundation shard validation and deterministic order manifest checks (`tests/batch-b0/batch-b0-validation.test.js`)
 - `batch-b1`: focused JS/TS shard validation and deterministic order manifest checks (`tests/batch-b1/batch-b1-validation.test.js`)
 - `batch-b2`: focused systems-language shard validation and deterministic order manifest checks (`tests/batch-b2/batch-b2-validation.test.js`)
