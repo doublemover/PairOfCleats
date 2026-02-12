@@ -3,17 +3,18 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { getIndexDir, getMetricsDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
+import { getIndexDir, getMetricsDir, loadUserConfig, toRealPathSync } from '../../../tools/shared/dict-utils.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'file-line-guard');
-const repoRoot = path.join(tempRoot, 'repo');
+const repoRootRaw = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
-await fsPromises.mkdir(repoRoot, { recursive: true });
+await fsPromises.mkdir(repoRootRaw, { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
+const repoRoot = toRealPathSync(repoRootRaw);
 
 const largePath = path.join(repoRoot, 'too_many_lines.js');
 const smallPath = path.join(repoRoot, 'ok.js');
