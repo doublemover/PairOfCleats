@@ -20,6 +20,7 @@ Define CI/local enforcement for the consolidated USR contract model.
 - cross-registry invariants are enforced
 - minimum-slice harness (`tests/lang/contracts/usr-minimum-slice-harness.test.js`) validates executable TypeScript+Vue slice contracts
 - language contract template enforcement (`tests/lang/contracts/usr-language-contract-template.test.js`) validates per-language contract structure and matrix linkage
+- canonical example bundle enforcement (`tests/lang/contracts/usr-canonical-example-validation.test.js`) validates section 34.11 fixture checklist and cross-entity coherence
 
 3. Roadmap/spec alignment
 - `TES_LAYN_ROADMAP.md` contract references resolve

@@ -332,6 +332,7 @@ lang/contracts/usr-contract-enforcement
 lang/contracts/usr-roadmap-sync
 lang/contracts/usr-minimum-slice-harness
 lang/contracts/usr-language-contract-template
+lang/contracts/usr-canonical-example-validation
 indexing/contracts/schema-registry-single-source
 indexing/git/git-meta
 retrieval/graph/context-pack-basic
