@@ -46,6 +46,10 @@ assert.equal(/- \[ \] /.test(f5HardRequirementsSection), false, 'appendix F.5 ha
 const f6SyncRequirementsSection = extractSection(roadmapText, '### F.6 Decomposed contract synchronization requirements', '---');
 assert.equal(/- \[ \] /.test(f6SyncRequirementsSection), false, 'appendix F.6 synchronization checklist must not contain unchecked items');
 
+const phaseSevenFixtureSection = extractSection(roadmapText, '### 7.1 Fixture completeness', '### 7.2 Golden generation and review');
+assert.equal(phaseSevenFixtureSection.includes('- [x] Ensure every per-language contract has concrete fixture ID mappings and fixture family coverage.'), true, 'phase 7.1 must retain per-language fixture ID mapping coverage control');
+assert.equal(phaseSevenFixtureSection.includes('- [x] Enforce fixture-governance coverage floor for every language/framework profile across required conformance levels and semantic families.'), true, 'phase 7.1 must retain fixture-governance coverage floor control');
+
 const phaseNineReadinessSection = extractSection(roadmapText, '### 9.1 Readiness audit', '### 9.2 Go/No-Go decision');
 assert.equal(phaseNineReadinessSection.includes('- [x] Materialize framework extension contract template governance and CI enforcement controls.'), true, 'phase 9.1 must retain framework contract governance scaffold control');
 assert.equal(phaseNineReadinessSection.includes('- [x] Enforce language-contract vs language-profile matrix exact-set synchronization for conformance/framework/node/edge declarations.'), true, 'phase 9.1 must retain language contract matrix-sync governance control');

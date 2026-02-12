@@ -9,9 +9,11 @@ const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..', '..', '..');
 
 const languageProfilesPath = path.join(repoRoot, 'tests', 'lang', 'matrix', 'usr-language-profiles.json');
+const fixtureGovernancePath = path.join(repoRoot, 'tests', 'lang', 'matrix', 'usr-fixture-governance.json');
 const languageDocDir = path.join(repoRoot, 'docs', 'specs', 'usr', 'languages');
 
 const languageProfiles = JSON.parse(fs.readFileSync(languageProfilesPath, 'utf8'));
+const fixtureGovernance = JSON.parse(fs.readFileSync(fixtureGovernancePath, 'utf8'));
 
 const extractSection = (text, heading) => {
   const marker = `## ${heading}`;
@@ -32,6 +34,13 @@ const extractBacktickedTokens = (text) => {
 
 const sortedUnique = (values) => [...new Set(values)].sort();
 
+const blockingFixtureIdsByLanguage = new Map();
+for (const fixtureRow of fixtureGovernance.rows || []) {
+  if (fixtureRow.profileType !== 'language' || fixtureRow.blocking !== true) continue;
+  if (!blockingFixtureIdsByLanguage.has(fixtureRow.profileId)) blockingFixtureIdsByLanguage.set(fixtureRow.profileId, []);
+  blockingFixtureIdsByLanguage.get(fixtureRow.profileId).push(fixtureRow.fixtureId);
+}
+
 for (const row of languageProfiles.rows || []) {
   const languageId = row.id;
   const docPath = path.join(languageDocDir, `${languageId}.md`);
@@ -43,6 +52,7 @@ for (const row of languageProfiles.rows || []) {
   const frameworkSection = extractSection(docText, 'Required framework profiles');
   const nodeKindsSection = extractSection(docText, 'Required node kinds');
   const edgeKindsSection = extractSection(docText, 'Required edge kinds');
+  const fixtureIdMappingsSection = extractSection(docText, 'Required fixture ID mappings');
 
   const expectedConformance = sortedUnique(row.requiredConformance || []);
   const actualConformance = sortedUnique(extractBacktickedTokens(conformanceSection));
@@ -64,6 +74,11 @@ for (const row of languageProfiles.rows || []) {
   const expectedEdgeKinds = sortedUnique(row.requiredEdgeKinds || []);
   const actualEdgeKinds = sortedUnique(extractBacktickedTokens(edgeKindsSection));
   assert.deepEqual(actualEdgeKinds, expectedEdgeKinds, `requiredEdgeKinds mismatch for ${languageId}`);
+
+  const expectedFixtureIds = sortedUnique(blockingFixtureIdsByLanguage.get(languageId) || []);
+  assert.equal(expectedFixtureIds.length > 0, true, `blocking language fixture coverage missing from usr-fixture-governance: ${languageId}`);
+  const actualFixtureIds = sortedUnique(extractBacktickedTokens(fixtureIdMappingsSection));
+  assert.deepEqual(actualFixtureIds, expectedFixtureIds, `required fixture ID mapping mismatch for ${languageId}`);
 }
 
 console.log('usr language contract matrix sync validation checks passed');
