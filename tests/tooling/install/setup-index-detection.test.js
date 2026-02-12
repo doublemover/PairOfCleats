@@ -2,23 +2,22 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
+import { getIndexDir, loadUserConfig, toRealPathSync } from '../../../tools/shared/dict-utils.js';
+import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'setup-index-detection');
-const repoRoot = path.join(tempRoot, 'repo');
+const tempRoot = await makeTempDir('pairofcleats-setup-index-detection-');
+const repoRootRaw = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
-await fsPromises.rm(tempRoot, { recursive: true, force: true });
-await fsPromises.mkdir(repoRoot, { recursive: true });
+await fsPromises.mkdir(repoRootRaw, { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
+const repoRoot = toRealPathSync(repoRootRaw);
+const prevTesting = process.env.PAIROFCLEATS_TESTING;
+const prevCacheRoot = process.env.PAIROFCLEATS_CACHE_ROOT;
 process.env.PAIROFCLEATS_TESTING = '1';
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
-
-await fsPromises.writeFile(path.join(repoRoot, 'README.md'), 'setup detection fixture\n');
-
-const userConfig = loadUserConfig(repoRoot);
-const codeIndexDir = getIndexDir(repoRoot, 'code', userConfig);
+let codeIndexDir = '';
 
 async function resetIndexDir() {
   await fsPromises.rm(codeIndexDir, { recursive: true, force: true });
@@ -64,90 +63,108 @@ function runSetup(label) {
   return payload;
 }
 
-const scenarios = [
-  {
-    label: 'chunk_meta.json',
-    build: async () => {
-      await fsPromises.writeFile(path.join(codeIndexDir, 'chunk_meta.json'), '[]');
+try {
+  await fsPromises.writeFile(path.join(repoRoot, 'README.md'), 'setup detection fixture\n');
+
+  const userConfig = loadUserConfig(repoRoot);
+  codeIndexDir = getIndexDir(repoRoot, 'code', userConfig);
+
+  const scenarios = [
+    {
+      label: 'chunk_meta.json',
+      build: async () => {
+        await fsPromises.writeFile(path.join(codeIndexDir, 'chunk_meta.json'), '[]');
+      },
+      expectReady: true
     },
-    expectReady: true
-  },
-  {
-    label: 'chunk_meta.jsonl',
-    build: async () => {
-      await fsPromises.writeFile(path.join(codeIndexDir, 'chunk_meta.jsonl'), '{}\n');
+    {
+      label: 'chunk_meta.jsonl',
+      build: async () => {
+        await fsPromises.writeFile(path.join(codeIndexDir, 'chunk_meta.jsonl'), '{}\n');
+      },
+      expectReady: true
     },
-    expectReady: true
-  },
-  {
-    label: 'chunk_meta.meta.json + parts',
-    build: async () => {
-      const partsDir = path.join(codeIndexDir, 'chunk_meta.parts');
-      await fsPromises.mkdir(partsDir, { recursive: true });
-      const partName = 'chunk_meta.part-00000.jsonl';
-      const partPath = path.join(partsDir, partName);
-      await fsPromises.writeFile(partPath, '{}\n');
-      const partStat = await fsPromises.stat(partPath);
-      const meta = {
-        schemaVersion: '0.0.1',
-        artifact: 'chunk_meta',
-        format: 'jsonl-sharded',
-        generatedAt: new Date().toISOString(),
-        compression: 'none',
-        totalRecords: 1,
-        totalBytes: partStat.size,
-        maxPartRecords: 1,
-        maxPartBytes: partStat.size,
-        targetMaxBytes: null,
-        parts: [{
-          path: path.posix.join('chunk_meta.parts', partName),
-          records: 1,
-          bytes: partStat.size
-        }]
-      };
-      await fsPromises.writeFile(
-        path.join(codeIndexDir, 'chunk_meta.meta.json'),
-        JSON.stringify(meta, null, 2)
-      );
-    },
-    expectReady: true
-  },
-  {
-    label: 'chunk_meta.meta.json without parts',
-    build: async () => {
-      await fsPromises.writeFile(
-        path.join(codeIndexDir, 'chunk_meta.meta.json'),
-        JSON.stringify({
+    {
+      label: 'chunk_meta.meta.json + parts',
+      build: async () => {
+        const partsDir = path.join(codeIndexDir, 'chunk_meta.parts');
+        await fsPromises.mkdir(partsDir, { recursive: true });
+        const partName = 'chunk_meta.part-00000.jsonl';
+        const partPath = path.join(partsDir, partName);
+        await fsPromises.writeFile(partPath, '{}\n');
+        const partStat = await fsPromises.stat(partPath);
+        const meta = {
           schemaVersion: '0.0.1',
           artifact: 'chunk_meta',
           format: 'jsonl-sharded',
           generatedAt: new Date().toISOString(),
           compression: 'none',
-          totalRecords: 0,
-          totalBytes: 0,
-          maxPartRecords: 0,
-          maxPartBytes: 0,
+          totalRecords: 1,
+          totalBytes: partStat.size,
+          maxPartRecords: 1,
+          maxPartBytes: partStat.size,
           targetMaxBytes: null,
-          parts: []
-        }, null, 2)
-      );
+          parts: [{
+            path: path.posix.join('chunk_meta.parts', partName),
+            records: 1,
+            bytes: partStat.size
+          }]
+        };
+        await fsPromises.writeFile(
+          path.join(codeIndexDir, 'chunk_meta.meta.json'),
+          JSON.stringify(meta, null, 2)
+        );
+      },
+      expectReady: true
     },
-    expectReady: false
-  }
-];
+    {
+      label: 'chunk_meta.meta.json without parts',
+      build: async () => {
+        await fsPromises.writeFile(
+          path.join(codeIndexDir, 'chunk_meta.meta.json'),
+          JSON.stringify({
+            schemaVersion: '0.0.1',
+            artifact: 'chunk_meta',
+            format: 'jsonl-sharded',
+            generatedAt: new Date().toISOString(),
+            compression: 'none',
+            totalRecords: 0,
+            totalBytes: 0,
+            maxPartRecords: 0,
+            maxPartBytes: 0,
+            targetMaxBytes: null,
+            parts: []
+          }, null, 2)
+        );
+      },
+      expectReady: false
+    }
+  ];
 
-for (const scenario of scenarios) {
-  await resetIndexDir();
-  await scenario.build();
-  const payload = runSetup(scenario.label);
-  const ready = payload?.steps?.index?.ready === true;
-  if (ready !== scenario.expectReady) {
-    console.error(
-      `setup index detection failed: ${scenario.label} expected ready=${scenario.expectReady}, got ${ready}`
-    );
-    process.exit(1);
+  for (const scenario of scenarios) {
+    await resetIndexDir();
+    await scenario.build();
+    const payload = runSetup(scenario.label);
+    const ready = payload?.steps?.index?.ready === true;
+    if (ready !== scenario.expectReady) {
+      console.error(
+        `setup index detection failed: ${scenario.label} expected ready=${scenario.expectReady}, got ${ready}`
+      );
+      process.exit(1);
+    }
   }
+  console.log('setup index detection tests passed');
+} finally {
+  if (prevTesting === undefined) {
+    delete process.env.PAIROFCLEATS_TESTING;
+  } else {
+    process.env.PAIROFCLEATS_TESTING = prevTesting;
+  }
+  if (prevCacheRoot === undefined) {
+    delete process.env.PAIROFCLEATS_CACHE_ROOT;
+  } else {
+    process.env.PAIROFCLEATS_CACHE_ROOT = prevCacheRoot;
+  }
+  await rmDirRecursive(tempRoot);
 }
-
-console.log('setup index detection tests passed');
 
