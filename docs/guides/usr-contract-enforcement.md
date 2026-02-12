@@ -1,6 +1,6 @@
 # USR Contract Enforcement Guide
 
-Last updated: 2026-02-12T09:00:00Z
+Last updated: 2026-02-12T09:10:00Z
 
 ## Purpose
 
@@ -42,6 +42,11 @@ Define CI/local enforcement for the consolidated USR contract model.
 - `ci-lite`: reference drift and schema shape checks (includes USR schema/matrix and language-contract harness checks)
 - `ci`: blocking validators, conformance checks, and gate evaluation (includes full USR contract enforcement suite)
 - `ci-long`: expanded compatibility matrix, drill checks, and stress/failure scenarios
+- `runtime-config`: focused section 43 runtime config and feature-flag conflict enforcement (`tests/runtime-config/runtime-config-validation.test.js`)
+- `failure-injection`: focused section 44 strict/non-strict failure scenario enforcement (`tests/failure-injection/failure-injection-validation.test.js`)
+- `fixture-governance`: focused section 45 owner/reviewer/mutation-policy enforcement (`tests/fixture-governance/fixture-governance-validation.test.js`)
+- `benchmark-regression`: focused section 46 benchmark methodology and threshold enforcement (`tests/benchmark-regression/benchmark-regression-validation.test.js`)
+- `threat-model`: focused section 47 threat/control/fixture coverage enforcement (`tests/threat-model/threat-model-validation.test.js`)
 - `waiver-enforcement`: focused waiver-policy expiry/bypass governance checks (`tests/waiver-enforcement/waiver-policy-governance.test.js`)
 - `report-schema`: focused section 30/31/43/44/45/46/47/48 report-envelope/audit artifact validation (`tests/report-schema/report-schema-audit-contracts.test.js`)
 
