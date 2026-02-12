@@ -1,6 +1,6 @@
 # TES_LAYN_ROADMAP - USR-Aligned Language and Framework Execution Master Plan
 
-Last rewritten: 2026-02-12T08:45:00Z
+Last rewritten: 2026-02-12T09:00:00Z
 Branch: `usr-skyforge-primer`
 Document status: active master plan baseline v1.5
 
@@ -526,8 +526,8 @@ If contradictions are found:
 - [ ] Add fixture-governance validation lane and mutation-policy enforcement lane.
 - [ ] Add benchmark regression lane for blocking benchmark policy rows.
 - [ ] Add threat-model and abuse-case lane with critical threat coverage checks.
-- [ ] Add waiver-enforcement lane validating expiry and disallowed bypass conditions.
-- [ ] Add report-schema lane validating section 30/31/43/44/45/46/47/48 required report artifacts.
+- [x] Add waiver-enforcement lane validating expiry and disallowed bypass conditions.
+- [x] Add report-schema lane validating section 30/31/43/44/45/46/47/48 required report artifacts.
 
 ### 10.3 Exit criteria
 

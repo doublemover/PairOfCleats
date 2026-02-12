@@ -1,6 +1,6 @@
 # USR Contract Enforcement Guide
 
-Last updated: 2026-02-12T08:45:00Z
+Last updated: 2026-02-12T09:00:00Z
 
 ## Purpose
 
@@ -42,6 +42,8 @@ Define CI/local enforcement for the consolidated USR contract model.
 - `ci-lite`: reference drift and schema shape checks (includes USR schema/matrix and language-contract harness checks)
 - `ci`: blocking validators, conformance checks, and gate evaluation (includes full USR contract enforcement suite)
 - `ci-long`: expanded compatibility matrix, drill checks, and stress/failure scenarios
+- `waiver-enforcement`: focused waiver-policy expiry/bypass governance checks (`tests/waiver-enforcement/waiver-policy-governance.test.js`)
+- `report-schema`: focused section 30/31/43/44/45/46/47/48 report-envelope/audit artifact validation (`tests/report-schema/report-schema-audit-contracts.test.js`)
 
 ## Failure protocol
 
