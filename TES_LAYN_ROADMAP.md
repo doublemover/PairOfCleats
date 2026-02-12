@@ -1598,3 +1598,10 @@ Source artifacts: `tests/lang/matrix/usr-ownership-matrix.json` and `tests/lang/
 - `Test rollout authorized.` cannot be checked unless `Readiness report approved.` is checked and Gate B1-B7 checklist has no unchecked items.
 - If Gate B8 mixed-repo/cross-batch coherence controls regress to unchecked, readiness and test-rollout authorization lines must be reopened until evidence is restored.
 
+### N.11 Gate B1-B7 language-batch completion lock
+
+- `all language task packs in batch completed.` cannot be checked while Appendix C contains any unchecked language task-pack checklist item.
+- `C0/C1 checks pass for batch languages.` cannot be checked unless Phase 11 exit criterion `All languages pass required C0/C1 checks.` is checked.
+- `determinism checks pass for batch languages.` cannot be checked unless Phase 8 exit criterion `Determinism checks pass under repeated runs.` is checked.
+- `known degradations recorded with diagnostic codes.` and `diagnostic severity/code alignment checks pass for language batch fixtures.` cannot be checked unless diagnostic/reason-code contracts remain present and CI validators for severity/reason-code enforcement stay in required lanes.
+
