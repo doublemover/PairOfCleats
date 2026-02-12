@@ -437,14 +437,14 @@ If contradictions are found:
 
 ### 8.1 Deterministic outputs
 
-- [ ] Enforce deterministic ordering rules for all USR entities.
-- [ ] Enforce deterministic serialization for persisted USR artifacts.
+- [x] Enforce deterministic ordering rules for all USR entities.
+- [x] Enforce deterministic serialization for persisted USR artifacts.
 
 ### 8.2 Caps and truncation behavior
 
-- [ ] Enforce parser/node/edge/path caps per policy.
-- [ ] Emit truncation diagnostics and maintain schema validity under caps.
-- [ ] Enforce diagnostics taxonomy severity/code alignment under cap-triggered degradation.
+- [x] Enforce parser/node/edge/path caps per policy.
+- [x] Emit truncation diagnostics and maintain schema validity under caps.
+- [x] Enforce diagnostics taxonomy severity/code alignment under cap-triggered degradation.
 
 ### 8.3 Performance thresholds
 
@@ -457,10 +457,10 @@ If contradictions are found:
 
 ### 8.4 Exit criteria
 
-- [ ] Determinism checks pass under repeated runs.
-- [ ] Cap-trigger tests pass with expected diagnostics.
-- [ ] Runtime thresholds meet target envelopes.
-- [ ] Blocking SLO budgets are met for required lanes.
+- [x] Determinism checks pass under repeated runs.
+- [x] Cap-trigger tests pass with expected diagnostics.
+- [x] Runtime thresholds meet target envelopes.
+- [x] Blocking SLO budgets are met for required lanes.
 
 ---
 
