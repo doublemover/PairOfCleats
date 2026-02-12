@@ -226,36 +226,59 @@ const readBuildPointerState = async ({ repoId, repoRootCanonical, repoCacheRoot,
   pointer.modes = Array.from(new Set(parsedModes.map((mode) => mode.trim())));
   pointer.buildId = normalizeString(data.buildId);
   const buildRootRaw = normalizeString(data.buildRoot);
+  const invalidatePointer = (message) => {
+    pointer.invalidPointer = true;
+    pointer.buildId = null;
+    pointer.buildRoot = null;
+    pointer.buildRoots = {};
+    pointer.modes = [];
+    diagnostics.warnings.push({
+      code: 'WARN_WORKSPACE_INVALID_BUILD_POINTER',
+      repoId,
+      mode: null,
+      message
+    });
+    return pointer;
+  };
 
   // Reject malformed/escaped buildRoot pointers before resolver fallback can
   // substitute a local build directory for the same buildId.
   if (buildRootRaw) {
     const resolvedBuildRoot = resolvePointerRoot(buildRootRaw, repoCacheRoot, buildsRoot);
     if (!resolvedBuildRoot) {
-      pointer.invalidPointer = true;
-      pointer.buildId = null;
-      pointer.buildRoot = null;
-      pointer.buildRoots = {};
-      pointer.modes = [];
-      diagnostics.warnings.push({
-        code: 'WARN_WORKSPACE_INVALID_BUILD_POINTER',
-        repoId,
-        mode: null,
-        message: `Invalid build pointer at ${currentJsonPath}: buildRoot points outside repo cache (${buildRootRaw}).`
-      });
-      return pointer;
+      return invalidatePointer(
+        `Invalid build pointer at ${currentJsonPath}: buildRoot points outside repo cache (${buildRootRaw}).`
+      );
     }
     pointer.buildRoot = toRealPathSync(resolvedBuildRoot);
+  }
+  if (!buildRootRaw && pointer.buildId) {
+    const resolvedBuildIdRoot = resolvePointerRoot(pointer.buildId, repoCacheRoot, buildsRoot);
+    if (!resolvedBuildIdRoot) {
+      return invalidatePointer(
+        `Invalid build pointer at ${currentJsonPath}: buildId points outside repo cache (${pointer.buildId}).`
+      );
+    }
   }
 
   const currentInfo = getCurrentBuildInfo(repoRootCanonical, userConfig) || null;
   if (currentInfo) {
     pointer.buildId = normalizeString(currentInfo.buildId) || pointer.buildId;
-    pointer.buildRoot = currentInfo.buildRoot ? toRealPathSync(currentInfo.buildRoot) : pointer.buildRoot;
+    if (currentInfo.buildRoot) {
+      const resolvedCurrentBuildRoot = resolvePointerRoot(currentInfo.buildRoot, repoCacheRoot, buildsRoot);
+      if (!resolvedCurrentBuildRoot) {
+        return invalidatePointer(
+          `Invalid build pointer at ${currentJsonPath}: resolved buildRoot escaped repo cache (${currentInfo.buildRoot}).`
+        );
+      }
+      pointer.buildRoot = toRealPathSync(resolvedCurrentBuildRoot);
+    }
     for (const [mode, rootValue] of Object.entries(ensureObject(currentInfo.buildRoots))) {
       const normalized = normalizeString(rootValue);
       if (!normalized) continue;
-      pointer.buildRoots[mode] = toRealPathSync(normalized);
+      const resolved = resolvePointerRoot(normalized, repoCacheRoot, buildsRoot);
+      if (!resolved) continue;
+      pointer.buildRoots[mode] = toRealPathSync(resolved);
     }
     if (!pointer.modes.length) {
       pointer.modes = Object.keys(pointer.buildRoots).sort();
@@ -264,7 +287,9 @@ const readBuildPointerState = async ({ repoId, repoRootCanonical, repoCacheRoot,
   }
 
   if (!buildRootRaw) {
-    pointer.buildRoot = pointer.buildId ? toRealPathSync(path.join(buildsRoot, pointer.buildId)) : null;
+    pointer.buildRoot = pointer.buildId
+      ? toRealPathSync(resolvePointerRoot(pointer.buildId, repoCacheRoot, buildsRoot))
+      : null;
   }
 
   const buildRootsInput = ensureObject(data.buildRootsByMode?.constructor === Object ? data.buildRootsByMode : data.buildRoots);
