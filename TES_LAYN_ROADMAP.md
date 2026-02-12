@@ -613,7 +613,7 @@ If contradictions are found:
 - [ ] Enforce Gate A, B1-B8, and C gates in CI.
 - [ ] Enforce C0-C4 conformance lane required checks.
 - [ ] Enforce section 36 strict scenario blocking behavior and non-strict warning budgets.
-- [ ] Enforce section 41 SLO budget blocking policies and alert escalation behavior.
+- [x] Enforce section 41 SLO budget blocking policies and alert escalation behavior.
 - [ ] Enforce section 42 security gate fail-closed blocking policies.
 - [ ] Enforce section 43 runtime configuration strict-validation and disallowed-flag conflict policies.
 - [ ] Enforce section 44 failure-injection blocking scenario pass requirements.

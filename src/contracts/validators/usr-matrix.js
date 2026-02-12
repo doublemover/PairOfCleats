@@ -1163,6 +1163,348 @@ export function buildUsrBenchmarkRegressionReport({
   };
 }
 
+const OBSERVABILITY_METRIC_SELECTORS = Object.freeze({
+  capability_downgrade_rate: (metrics) => metrics.capabilityDowngradeRate,
+  critical_diagnostic_count: (metrics) => metrics.criticalDiagnosticCount,
+  lane_duration_ms: (metrics) => metrics.durationMs,
+  lane_peak_memory_mb: (metrics) => metrics.peakMemoryMb,
+  redaction_failure_count: (metrics) => metrics.redactionFailureCount,
+  unknown_kind_rate: (metrics) => metrics.unknownKindRate,
+  unresolved_reference_rate: (metrics) => metrics.unresolvedRate
+});
+
+const compareByOperator = ({ left, operator, right }) => {
+  if (operator === '>') {
+    return left > right;
+  }
+  if (operator === '>=') {
+    return left >= right;
+  }
+  if (operator === '<') {
+    return left < right;
+  }
+  if (operator === '<=') {
+    return left <= right;
+  }
+  if (operator === '==') {
+    return left === right;
+  }
+  return false;
+};
+
+const normalizeObservabilityLaneMetrics = (observedLaneMetrics) => {
+  if (Array.isArray(observedLaneMetrics)) {
+    return new Map(
+      observedLaneMetrics
+        .filter((row) => row && typeof row === 'object' && typeof row.laneId === 'string')
+        .map((row) => [row.laneId, row])
+    );
+  }
+
+  if (observedLaneMetrics && typeof observedLaneMetrics === 'object') {
+    return new Map(
+      Object.entries(observedLaneMetrics)
+        .filter(([, value]) => value && typeof value === 'object')
+        .map(([laneId, value]) => [laneId, { laneId, ...value }])
+    );
+  }
+
+  return new Map();
+};
+
+const validateObservedNumber = ({ value, field, rowErrors, rowWarnings, blocking }) => {
+  if (Number.isFinite(value)) {
+    return true;
+  }
+  const message = `observed metric missing or non-numeric: ${field}`;
+  if (blocking) {
+    rowErrors.push(message);
+  } else {
+    rowWarnings.push(message);
+  }
+  return false;
+};
+
+export function evaluateUsrObservabilityRollup({
+  sloBudgetsPayload,
+  alertPoliciesPayload,
+  observedLaneMetrics = {}
+} = {}) {
+  const sloValidation = validateUsrMatrixRegistry('usr-slo-budgets', sloBudgetsPayload);
+  if (!sloValidation.ok) {
+    return {
+      ok: false,
+      errors: Object.freeze([...sloValidation.errors]),
+      warnings: Object.freeze([]),
+      rows: Object.freeze([])
+    };
+  }
+
+  const alertValidation = validateUsrMatrixRegistry('usr-alert-policies', alertPoliciesPayload);
+  if (!alertValidation.ok) {
+    return {
+      ok: false,
+      errors: Object.freeze([...alertValidation.errors]),
+      warnings: Object.freeze([]),
+      rows: Object.freeze([])
+    };
+  }
+
+  const errors = [];
+  const warnings = [];
+  const rows = [];
+
+  const sloRows = Array.isArray(sloBudgetsPayload?.rows) ? sloBudgetsPayload.rows : [];
+  const alertRows = Array.isArray(alertPoliciesPayload?.rows) ? alertPoliciesPayload.rows : [];
+  const metricsByLane = normalizeObservabilityLaneMetrics(observedLaneMetrics);
+
+  for (const row of sloRows) {
+    const rowErrors = [];
+    const rowWarnings = [];
+    const observed = metricsByLane.get(row.laneId) || null;
+
+    if (!observed) {
+      const message = `missing observed lane metrics for laneId=${row.laneId}`;
+      if (row.blocking) {
+        rowErrors.push(message);
+      } else {
+        rowWarnings.push(message);
+      }
+    } else {
+      const durationOk = validateObservedNumber({
+        value: observed.durationMs,
+        field: 'durationMs',
+        rowErrors,
+        rowWarnings,
+        blocking: row.blocking
+      });
+      if (durationOk && observed.durationMs > row.maxDurationMs) {
+        rowErrors.push(`durationMs exceeds slo maxDurationMs: ${observed.durationMs} > ${row.maxDurationMs}`);
+      }
+
+      const memoryOk = validateObservedNumber({
+        value: observed.peakMemoryMb,
+        field: 'peakMemoryMb',
+        rowErrors,
+        rowWarnings,
+        blocking: row.blocking
+      });
+      if (memoryOk && observed.peakMemoryMb > row.maxMemoryMb) {
+        rowErrors.push(`peakMemoryMb exceeds slo maxMemoryMb: ${observed.peakMemoryMb} > ${row.maxMemoryMb}`);
+      }
+
+      const parserOk = validateObservedNumber({
+        value: observed.parserTimePerSegmentMs,
+        field: 'parserTimePerSegmentMs',
+        rowErrors,
+        rowWarnings,
+        blocking: row.blocking
+      });
+      if (parserOk && observed.parserTimePerSegmentMs > row.maxParserTimePerSegmentMs) {
+        rowErrors.push(`parserTimePerSegmentMs exceeds slo maxParserTimePerSegmentMs: ${observed.parserTimePerSegmentMs} > ${row.maxParserTimePerSegmentMs}`);
+      }
+
+      const unknownKindOk = validateObservedNumber({
+        value: observed.unknownKindRate,
+        field: 'unknownKindRate',
+        rowErrors,
+        rowWarnings,
+        blocking: row.blocking
+      });
+      if (unknownKindOk && observed.unknownKindRate > row.maxUnknownKindRate) {
+        rowErrors.push(`unknownKindRate exceeds slo maxUnknownKindRate: ${observed.unknownKindRate} > ${row.maxUnknownKindRate}`);
+      }
+
+      const unresolvedOk = validateObservedNumber({
+        value: observed.unresolvedRate,
+        field: 'unresolvedRate',
+        rowErrors,
+        rowWarnings,
+        blocking: row.blocking
+      });
+      if (unresolvedOk && observed.unresolvedRate > row.maxUnresolvedRate) {
+        rowErrors.push(`unresolvedRate exceeds slo maxUnresolvedRate: ${observed.unresolvedRate} > ${row.maxUnresolvedRate}`);
+      }
+    }
+
+    if (rowErrors.length > 0) {
+      errors.push(...rowErrors.map((message) => `${row.laneId} ${message}`));
+    }
+    if (rowWarnings.length > 0) {
+      warnings.push(...rowWarnings.map((message) => `${row.laneId} ${message}`));
+    }
+
+    rows.push({
+      rowType: 'slo-budget',
+      laneId: row.laneId,
+      scopeId: row.scopeId,
+      blocking: Boolean(row.blocking),
+      pass: rowErrors.length === 0,
+      errors: Object.freeze([...rowErrors]),
+      warnings: Object.freeze([...rowWarnings])
+    });
+  }
+
+  for (const [laneId] of metricsByLane.entries()) {
+    if (!sloRows.some((row) => row.laneId === laneId)) {
+      warnings.push(`observed lane metrics without matching slo budget row: ${laneId}`);
+    }
+  }
+
+  for (const alert of alertRows) {
+    const metricSelector = OBSERVABILITY_METRIC_SELECTORS[alert.metric];
+    if (!metricSelector) {
+      const message = `unsupported alert metric mapping: ${alert.metric}`;
+      if (alert.blocking) {
+        errors.push(message);
+      } else {
+        warnings.push(message);
+      }
+      continue;
+    }
+
+    for (const [laneId, observed] of metricsByLane.entries()) {
+      const rowErrors = [];
+      const rowWarnings = [];
+      const observedValue = metricSelector(observed);
+      const numeric = Number.isFinite(observedValue);
+      let triggered = false;
+
+      if (!numeric) {
+        const message = `observed metric missing or non-numeric for alert ${alert.id}: ${alert.metric}`;
+        if (alert.blocking) {
+          rowErrors.push(message);
+        } else {
+          rowWarnings.push(message);
+        }
+      } else {
+        triggered = compareByOperator({
+          left: observedValue,
+          operator: alert.comparator,
+          right: alert.threshold
+        });
+
+        if (triggered) {
+          const message = `alert triggered ${alert.metric} ${alert.comparator} ${alert.threshold} (observed=${observedValue})`;
+          if (alert.blocking) {
+            rowErrors.push(message);
+          } else {
+            rowWarnings.push(message);
+          }
+        }
+      }
+
+      if (rowErrors.length > 0) {
+        errors.push(...rowErrors.map((message) => `${alert.id} ${laneId} ${message}`));
+      }
+      if (rowWarnings.length > 0) {
+        warnings.push(...rowWarnings.map((message) => `${alert.id} ${laneId} ${message}`));
+      }
+
+      rows.push({
+        rowType: 'alert-evaluation',
+        id: `${alert.id}::${laneId}`,
+        alertId: alert.id,
+        laneId,
+        metric: alert.metric,
+        comparator: alert.comparator,
+        threshold: alert.threshold,
+        observedValue: numeric ? observedValue : null,
+        severity: alert.severity,
+        escalationPolicyId: alert.escalationPolicyId,
+        blocking: Boolean(alert.blocking),
+        triggered,
+        pass: rowErrors.length === 0,
+        errors: Object.freeze([...rowErrors]),
+        warnings: Object.freeze([...rowWarnings])
+      });
+    }
+  }
+
+  return {
+    ok: errors.length === 0,
+    errors: Object.freeze([...errors]),
+    warnings: Object.freeze([...warnings]),
+    rows: Object.freeze(rows)
+  };
+}
+
+export function buildUsrObservabilityRollupReport({
+  sloBudgetsPayload,
+  alertPoliciesPayload,
+  observedLaneMetrics = {},
+  generatedAt = new Date().toISOString(),
+  producerId = 'usr-observability-rollup-evaluator',
+  producerVersion = null,
+  runId = 'run-usr-observability-rollup',
+  lane = 'ci',
+  buildId = null,
+  scope = { scopeType: 'global', scopeId: 'global' }
+} = {}) {
+  const evaluation = evaluateUsrObservabilityRollup({
+    sloBudgetsPayload,
+    alertPoliciesPayload,
+    observedLaneMetrics
+  });
+
+  const status = evaluation.errors.length > 0
+    ? 'fail'
+    : (evaluation.warnings.length > 0 ? 'warn' : 'pass');
+
+  const rows = evaluation.rows.map((row) => ({
+    ...row,
+    errors: row.errors,
+    warnings: row.warnings
+  }));
+
+  const payload = {
+    schemaVersion: 'usr-1.0.0',
+    artifactId: 'usr-observability-rollup',
+    generatedAt,
+    producerId,
+    producerVersion,
+    runId,
+    lane,
+    buildId,
+    status,
+    scope: scope && typeof scope === 'object'
+      ? {
+          scopeType: typeof scope.scopeType === 'string' ? scope.scopeType : 'global',
+          scopeId: typeof scope.scopeId === 'string' ? scope.scopeId : 'global'
+        }
+      : { scopeType: 'global', scopeId: 'global' },
+    summary: {
+      rowCount: rows.length,
+      sloBudgetRowCount: rows.filter((row) => row.rowType === 'slo-budget').length,
+      alertEvaluationRowCount: rows.filter((row) => row.rowType === 'alert-evaluation').length,
+      passCount: rows.filter((row) => row.pass).length,
+      failCount: rows.filter((row) => !row.pass).length,
+      blockingFailureCount: rows.filter((row) => row.blocking && !row.pass).length,
+      alertTriggerCount: rows.filter((row) => row.rowType === 'alert-evaluation' && row.triggered).length,
+      blockingAlertTriggerCount: rows.filter((row) => row.rowType === 'alert-evaluation' && row.blocking && row.triggered).length,
+      warningCount: evaluation.warnings.length,
+      errorCount: evaluation.errors.length
+    },
+    blockingFindings: evaluation.errors.map((message) => ({
+      class: 'observability',
+      message
+    })),
+    advisoryFindings: evaluation.warnings.map((message) => ({
+      class: 'observability',
+      message
+    })),
+    rows
+  };
+
+  return {
+    ok: evaluation.ok,
+    errors: evaluation.errors,
+    warnings: evaluation.warnings,
+    rows: evaluation.rows,
+    payload
+  };
+}
+
 const BATCH_SHARD_ID_ORDER = Object.freeze(['B0', 'B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8']);
 const REQUIRED_BATCH_SHARD_IDS = Object.freeze(new Set(BATCH_SHARD_ID_ORDER));
 const LANGUAGE_BATCH_IDS = Object.freeze(new Set(['B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7']));
