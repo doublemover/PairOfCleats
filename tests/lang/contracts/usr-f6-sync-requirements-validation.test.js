@@ -85,6 +85,7 @@ assertExists('tests/lang/matrix/usr-security-gates.json', 'F.6.5 security gate m
 assertExists('tests/lang/matrix/usr-threat-model-matrix.json', 'F.6.5 threat model matrix');
 assertTestInCiOrders('lang/contracts/usr-observability-rollup-validation', 'F.6.5');
 assertTestInCiOrders('lang/contracts/usr-benchmark-policy-validation', 'F.6.5');
+assertTestInCiOrders('lang/contracts/usr-cross-batch-regression-resolution-validation', 'F.6.5');
 assertTestInCiOrders('lang/contracts/usr-security-gate-validation', 'F.6.5');
 assertTestInCiOrders('lang/contracts/usr-failure-injection-validation', 'F.6.5');
 assertTestInCiOrders('lang/contracts/usr-failure-injection-recovery-threshold-validation', 'F.6.5');
