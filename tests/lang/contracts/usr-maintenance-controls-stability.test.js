@@ -86,6 +86,7 @@ const requiredCiTests = [
   'lang/contracts/usr-parser-runtime-lock-reproducibility-validation',
   'lang/contracts/usr-core-artifact-schema-catalog-alignment',
   'lang/contracts/usr-gate-a-registry-readiness-validation',
+  'lang/contracts/usr-harness-lane-materialization-validation',
   'lang/contracts/usr-blocking-evidence-schema-catalog-validation',
   'lang/contracts/usr-change-tier-policy-validation',
   'lang/contracts/usr-extension-policy-validation',
