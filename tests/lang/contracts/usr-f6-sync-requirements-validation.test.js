@@ -77,6 +77,7 @@ assertTestInCiOrders('lang/contracts/usr-core-artifact-schema-catalog-alignment'
 assertTestInCiOrders('lang/contracts/usr-gate-a-registry-readiness-validation', 'F.6.4');
 assertTestInCiOrders('lang/contracts/usr-harness-lane-materialization-validation', 'F.6.4');
 assertTestInCiOrders('lang/contracts/usr-rollout-f1-checklist-validation', 'F.6.4');
+assertTestInCiOrders('lang/contracts/usr-rollout-phase-evidence-lock-validation', 'F.6.4');
 assertTestInCiOrders('lang/contracts/usr-phase9-readiness-authorization-lock-validation', 'F.6.4');
 assertTestInCiOrders('lang/contracts/usr-phase9-readiness-audit-lock-validation', 'F.6.4');
 assertTestInCiOrders('lang/contracts/usr-gate-b-language-batch-lock-validation', 'F.6.4');

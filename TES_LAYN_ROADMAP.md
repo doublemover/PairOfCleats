@@ -1618,3 +1618,10 @@ Source artifacts: `tests/lang/matrix/usr-ownership-matrix.json` and `tests/lang/
 - `conformance rollout authorized.` cannot be checked unless Appendix F.1 `Complete Phase A`, `Complete Phase B`, and `Complete Phase C` are checked and rollout approval lock state is `approved`.
 - If Gate C conformance authorization is checked, no blocking checklist line in Gate C may remain unchecked.
 
+### N.14 Appendix F.1 phase-evidence lock
+
+- `Complete Phase A schema and registry readiness.` cannot be checked while Gate A contains unchecked checklist lines.
+- `Complete Phase B dual-write parity validation.` cannot be checked unless Gate C `backward-compat matrix strict scenarios are green in CI.` is checked.
+- `Complete Phase C USR-backed production path validation.` cannot be checked unless Gate C operational/security/performance/threat/waiver evidence lines remain checked.
+- `Complete Phase D full conformance enforcement.` cannot be checked unless Phase 11.3, Phase 12.3, and Phase 13.2 exit criteria are checked and Gate C `conformance rollout authorized.` is checked.
+
