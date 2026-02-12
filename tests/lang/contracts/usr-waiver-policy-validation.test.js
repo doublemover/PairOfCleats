@@ -94,4 +94,21 @@ const expiredBlockingValidation = validateUsrWaiverPolicyControls({
 assert.equal(expiredBlockingValidation.ok, false, 'waiver-policy validation must fail on expired blocking waivers');
 assert.equal(expiredBlockingValidation.errors.some((msg) => msg.includes('waiver-benchmark-overrun-ci-long')), true, 'expired waiver validation errors must include affected waiver row id');
 
+const missingApproversValidation = validateUsrWaiverPolicyControls({
+  waiverPolicyPayload: {
+    ...waiverPolicy,
+    rows: (waiverPolicy.rows || []).map((row, idx) => (
+      idx === 0
+        ? { ...row, approvers: [] }
+        : row
+    ))
+  },
+  ownershipMatrixPayload: ownershipMatrix,
+  escalationPolicyPayload: escalationPolicy,
+  evaluationTime: '2026-02-12T00:00:00Z',
+  strictMode: true
+});
+assert.equal(missingApproversValidation.ok, false, 'waiver-policy validation must fail when waiver approvers are missing');
+assert.equal(missingApproversValidation.errors.some((msg) => msg.includes('waiver-benchmark-overrun-ci-long')), true, 'missing approvers validation errors must include affected waiver row id');
+
 console.log('usr waiver policy validation checks passed');

@@ -601,10 +601,10 @@ If contradictions are found:
 - [ ] Validate partial extraction behavior with diagnostics.
 - [ ] Validate redaction fail-safe behavior under forced sensitive payload fixtures.
 - [ ] Validate strict security gate fail-closed behavior under unsafe-path and runtime-identity failures.
-- [ ] Validate blocking failure-injection scenarios for parser, mapping, serialization, security, and resource-budget fault classes.
-- [ ] Validate rollback trigger thresholds and recovery evidence for each blocking failure-injection class.
-- [ ] Validate threat-model abuse-case fixtures for critical threat classes and control mappings.
-- [ ] Validate waiver misuse prevention (expired waivers, missing approvers, disallowed strict-security bypass attempts).
+- [x] Validate blocking failure-injection scenarios for parser, mapping, serialization, security, and resource-budget fault classes.
+- [x] Validate rollback trigger thresholds and recovery evidence for each blocking failure-injection class.
+- [x] Validate threat-model abuse-case fixtures for critical threat classes and control mappings.
+- [x] Validate waiver misuse prevention (expired waivers, missing approvers, disallowed strict-security bypass attempts).
 
 ### 14.3 Exit criteria
 
