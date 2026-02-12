@@ -6,6 +6,8 @@
 - [ ] If this PR changes behavior, I linked impacted sections in `docs/specs/unified-syntax-representation.md` and the decomposed map in `docs/specs/usr/README.md`.
 <!-- usr-policy:decomposed-workflow -->
 - [ ] If this PR changes USR docs/contracts, I updated `docs/specs/usr-consolidation-coverage-matrix.md` and aligned roadmap references.
+<!-- usr-policy:appendix-sync -->
+- [ ] If this PR adds/removes consolidated contracts, I updated Appendix H/J/N in `TES_LAYN_ROADMAP.md` and synchronization links in `docs/specs/usr-consolidation-coverage-matrix.md`.
 <!-- usr-policy:registry-drift -->
 - [ ] If this PR changes language/framework registries, I updated corresponding `docs/specs/usr/languages/*.md` or `docs/specs/usr/frameworks/*.md` contracts.
 <!-- usr-policy:parser-lock -->

@@ -68,6 +68,7 @@ for (const testId of requiredCiTests) {
 const requiredPrMarkers = [
   'usr-policy:change-control',
   'usr-policy:decomposed-workflow',
+  'usr-policy:appendix-sync',
   'usr-policy:registry-drift',
   'usr-policy:parser-lock',
   'usr-policy:runtime-config',
