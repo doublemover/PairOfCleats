@@ -556,15 +556,15 @@ If contradictions are found:
 
 ### 12.1 C2 deep semantics
 
-- [ ] Execute C2 checks for languages requiring AST/flow.
+- [x] Execute C2 checks for languages requiring AST/flow.
 
 ### 12.2 C3 risk semantics
 
-- [ ] Execute C3 checks for languages requiring risk coverage.
+- [x] Execute C3 checks for languages requiring risk coverage.
 
 ### 12.3 Exit criteria
 
-- [ ] Required C2/C3 profile checks pass.
+- [x] Required C2/C3 profile checks pass.
 
 ---
 
@@ -1472,4 +1472,5 @@ Roadmap enforcement requirements:
 - [ ] Framework onboarding and interop expectations follow `docs/specs/usr-core-language-framework-catalog.md`.
 - [ ] Contract consolidation traceability is maintained in `docs/specs/usr-consolidation-coverage-matrix.md`.
 - [ ] Any contract addition/removal updates Appendix H traceability and Appendix J dependency graph in same change.
+
 
