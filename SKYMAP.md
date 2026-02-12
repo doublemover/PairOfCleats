@@ -33,19 +33,23 @@ This document defines the recommended execution order for FUTUREROADMAP work so 
 ## Recommended execution order
 
 ### Wave 1: Snapshot and federation foundation
-1. Phase 14.1.1-14.1.5
-2. Phase 14.2
-3. Phase 14.3
-4. Phase 14.4
-5. Phase 14.5
-6. Phase 14.6 (only if API parity is required now)
-7. Phase 15.1
-8. Phase 15.2
-9. Phase 15.4
-10. Phase 15.3
-11. Phase 15.5
-12. Phase 15.6
-13. Phase 15.7
+1. Phase 14.1.1
+2. Phase 14.1.2
+3. Phase 14.1.3
+4. Phase 14.1.4
+5. Phase 14.1.5 (optional defaults/config only)
+6. Phase 14.2
+7. Phase 14.3
+8. Phase 14.4
+9. Phase 14.5
+10. Phase 14.6 (only if API parity is required now)
+11. Phase 15.1
+12. Phase 15.2
+13. Phase 15.4
+14. Phase 15.3
+15. Phase 15.5
+16. Phase 15.6
+17. Phase 15.7
 
 Why first:
 - Phase 14 + 15 establish identity, manifests, cache invalidation, and deterministic multi-repo retrieval surfaces other phases can rely on.
@@ -91,13 +95,15 @@ Additional docs that MUST be updated if Phase 14 adds new behavior or config:
 
 ### Phase 14 Implementation Order (must follow)
 1. 14.1.1 IndexRef parsing and resolution.
-2. 14.1.3 Atomic writes + locking.
-3. 14.1.4 Path safety and privacy.
-4. 14.2 Pointer snapshots.
-5. 14.5 Retrieval integration (as-of).
-6. 14.4 Deterministic diff computation.
+2. 14.1.2 Snapshot/diff artifact contracts + schemas/validators.
+3. 14.1.3 Atomic writes + locking.
+4. 14.1.4 Path safety and privacy.
+5. 14.1.5 Retention defaults/config wiring (optional; only if implemented).
+6. 14.2 Pointer snapshots.
 7. 14.3 Frozen snapshots.
-8. 14.6 Optional HTTP API integration.
+8. 14.4 Deterministic diff computation.
+9. 14.5 Retrieval integration (as-of).
+10. 14.6 Optional HTTP API integration.
 
 ### Phase 14 Non-negotiable invariants
 - [ ] Explicit refs/roots never silently fallback:
