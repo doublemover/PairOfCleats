@@ -596,11 +596,11 @@ If contradictions are found:
 
 ### 14.2 Failure-mode validation
 
-- [ ] Validate parser failure recovery paths.
-- [ ] Validate schema mismatch behavior.
-- [ ] Validate partial extraction behavior with diagnostics.
-- [ ] Validate redaction fail-safe behavior under forced sensitive payload fixtures.
-- [ ] Validate strict security gate fail-closed behavior under unsafe-path and runtime-identity failures.
+- [x] Validate parser failure recovery paths.
+- [x] Validate schema mismatch behavior.
+- [x] Validate partial extraction behavior with diagnostics.
+- [x] Validate redaction fail-safe behavior under forced sensitive payload fixtures.
+- [x] Validate strict security gate fail-closed behavior under unsafe-path and runtime-identity failures.
 - [x] Validate blocking failure-injection scenarios for parser, mapping, serialization, security, and resource-budget fault classes.
 - [x] Validate rollback trigger thresholds and recovery evidence for each blocking failure-injection class.
 - [x] Validate threat-model abuse-case fixtures for critical threat classes and control mappings.
@@ -608,7 +608,7 @@ If contradictions are found:
 
 ### 14.3 Exit criteria
 
-- [ ] Integration and failure-mode suites pass.
+- [x] Integration and failure-mode suites pass.
 
 ---
 
