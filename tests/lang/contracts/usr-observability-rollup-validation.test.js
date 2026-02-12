@@ -51,6 +51,27 @@ assert.equal(rollupReport.ok, true, `observability rollup report should pass: ${
 const reportValidation = validateUsrReport('usr-observability-rollup', rollupReport.payload);
 assert.equal(reportValidation.ok, true, `observability rollup report payload must validate: ${reportValidation.errors.join('; ')}`);
 
+const advisorySloBudgets = {
+  ...sloBudgets,
+  rows: (sloBudgets.rows || []).map((row, index) => (index === 0 ? { ...row, blocking: false } : row))
+};
+const advisoryLaneId = advisorySloBudgets.rows[0]?.laneId;
+const advisoryObservedMetrics = {
+  ...observedLaneMetrics,
+  [advisoryLaneId]: {
+    ...observedLaneMetrics[advisoryLaneId],
+    parserTimePerSegmentMs: advisorySloBudgets.rows[0].maxParserTimePerSegmentMs + 10
+  }
+};
+const advisoryEvaluation = evaluateUsrObservabilityRollup({
+  sloBudgetsPayload: advisorySloBudgets,
+  alertPoliciesPayload: alertPolicies,
+  observedLaneMetrics: advisoryObservedMetrics
+});
+assert.equal(advisoryEvaluation.ok, true, 'non-blocking SLO threshold breaches should not fail observability rollup');
+assert.equal(advisoryEvaluation.errors.length, 0, 'non-blocking SLO threshold breaches should not emit blocking errors');
+assert.equal(advisoryEvaluation.warnings.some((message) => message.includes(advisoryLaneId)), true, 'non-blocking SLO threshold breaches should emit advisory warnings');
+
 const thresholdBreachLaneId = (sloBudgets.rows || [])[0]?.laneId;
 const failingObservedMetrics = {
   ...observedLaneMetrics,
