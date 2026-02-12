@@ -1,0 +1,333 @@
+{
+  "schemaVersion": "usr-1.0.0",
+  "fixtureId": "usr-embedding-bridge-bundle-v1",
+  "rows": [
+    {
+      "bridgeCaseId": "bridge-angular-component-template",
+      "containerKind": "angular-component",
+      "sourceLanguageId": "typescript",
+      "targetLanguageId": "html",
+      "bridgeStatus": "supported",
+      "bridgeMetadata": {
+        "bridgeId": "bridge-angular-component-template",
+        "containerLanguageId": "typescript",
+        "embeddedLanguageId": "html",
+        "entryEdgeKinds": ["template_binds", "template_emits"],
+        "exitEdgeKinds": ["template_binds", "template_emits"],
+        "lossModes": [],
+        "fallbackReasonCodes": []
+      },
+      "edges": [
+        {
+          "edgeUid": "edge64:v1:a100000000000001",
+          "kind": "template_binds",
+          "status": "resolved",
+          "source": { "entity": "segment", "uid": "segu:v1:a100000000000101" },
+          "target": { "entity": "symbol", "uid": "symu:v1:angular:userid" },
+          "attrs": {
+            "bindingKind": "directive",
+            "bindingName": "userId",
+            "bridgeId": "bridge-angular-component-template",
+            "bridgeConfidence": 0.94
+          }
+        },
+        {
+          "edgeUid": "edge64:v1:a100000000000002",
+          "kind": "template_emits",
+          "status": "resolved",
+          "source": { "entity": "segment", "uid": "segu:v1:a100000000000102" },
+          "target": { "entity": "symbol", "uid": "symu:v1:angular:userchange" },
+          "attrs": {
+            "eventKind": "output",
+            "bridgeId": "bridge-angular-component-template",
+            "bridgeConfidence": 0.92
+          }
+        }
+      ],
+      "diagnostics": []
+    },
+    {
+      "bridgeCaseId": "bridge-astro-frontmatter-template",
+      "containerKind": "astro",
+      "sourceLanguageId": "typescript",
+      "targetLanguageId": "html",
+      "bridgeStatus": "supported",
+      "bridgeMetadata": {
+        "bridgeId": "bridge-astro-frontmatter-template",
+        "containerLanguageId": "typescript",
+        "embeddedLanguageId": "html",
+        "entryEdgeKinds": ["template_binds"],
+        "exitEdgeKinds": ["template_binds"],
+        "lossModes": [],
+        "fallbackReasonCodes": []
+      },
+      "edges": [
+        {
+          "edgeUid": "edge64:v1:a200000000000001",
+          "kind": "template_binds",
+          "status": "resolved",
+          "source": { "entity": "segment", "uid": "segu:v1:a200000000000101" },
+          "target": { "entity": "symbol", "uid": "symu:v1:astro:paramslug" },
+          "attrs": {
+            "bindingKind": "frontmatter-binding",
+            "bindingName": "Astro.params.slug",
+            "bridgeId": "bridge-astro-frontmatter-template",
+            "bridgeConfidence": 0.9
+          }
+        }
+      ],
+      "diagnostics": []
+    },
+    {
+      "bridgeCaseId": "bridge-astro-template-style",
+      "containerKind": "astro",
+      "sourceLanguageId": "html",
+      "targetLanguageId": "css",
+      "bridgeStatus": "supported",
+      "bridgeMetadata": {
+        "bridgeId": "bridge-astro-template-style",
+        "containerLanguageId": "html",
+        "embeddedLanguageId": "css",
+        "entryEdgeKinds": ["style_scopes"],
+        "exitEdgeKinds": ["style_scopes"],
+        "lossModes": [],
+        "fallbackReasonCodes": []
+      },
+      "edges": [
+        {
+          "edgeUid": "edge64:v1:a300000000000001",
+          "kind": "style_scopes",
+          "status": "resolved",
+          "source": { "entity": "segment", "uid": "segu:v1:a300000000000101" },
+          "target": { "entity": "symbol", "uid": "symu:v1:astro:docspage" },
+          "attrs": {
+            "scopeKind": "scoped",
+            "bridgeId": "bridge-astro-template-style",
+            "bridgeConfidence": 0.93
+          }
+        }
+      ],
+      "diagnostics": []
+    },
+    {
+      "bridgeCaseId": "bridge-html-inline-script",
+      "containerKind": "html-inline",
+      "sourceLanguageId": "html",
+      "targetLanguageId": "javascript",
+      "bridgeStatus": "partial",
+      "bridgeMetadata": {
+        "bridgeId": "bridge-html-inline-script",
+        "containerLanguageId": "html",
+        "embeddedLanguageId": "javascript",
+        "entryEdgeKinds": ["template_binds"],
+        "exitEdgeKinds": ["template_binds"],
+        "lossModes": ["runtime-eval-unmodeled"],
+        "fallbackReasonCodes": ["USR-R-CROSS-LANG-BRIDGE-PARTIAL"]
+      },
+      "edges": [
+        {
+          "edgeUid": "edge64:v1:a400000000000001",
+          "kind": "template_binds",
+          "status": "ambiguous",
+          "source": { "entity": "segment", "uid": "segu:v1:a400000000000101" },
+          "target": { "entity": "symbol", "uid": "symu:v1:html:windowlocation" },
+          "attrs": {
+            "bindingKind": "inline-script-binding",
+            "bindingName": "window.location",
+            "bridgeId": "bridge-html-inline-script",
+            "bridgeConfidence": 0.51
+          }
+        }
+      ],
+      "diagnostics": [
+        {
+          "code": "USR-W-BRIDGE-PARTIAL",
+          "severity": "warning",
+          "reasonCode": "USR-R-CROSS-LANG-BRIDGE-PARTIAL"
+        }
+      ]
+    },
+    {
+      "bridgeCaseId": "bridge-razor-template-csharp",
+      "containerKind": "razor",
+      "sourceLanguageId": "razor",
+      "targetLanguageId": "csharp",
+      "bridgeStatus": "supported",
+      "bridgeMetadata": {
+        "bridgeId": "bridge-razor-template-csharp",
+        "containerLanguageId": "razor",
+        "embeddedLanguageId": "csharp",
+        "entryEdgeKinds": ["template_binds"],
+        "exitEdgeKinds": ["template_binds"],
+        "lossModes": [],
+        "fallbackReasonCodes": []
+      },
+      "edges": [
+        {
+          "edgeUid": "edge64:v1:a500000000000001",
+          "kind": "template_binds",
+          "status": "resolved",
+          "source": { "entity": "segment", "uid": "segu:v1:a500000000000101" },
+          "target": { "entity": "symbol", "uid": "symu:v1:razor:modeluserid" },
+          "attrs": {
+            "bindingKind": "template-expression",
+            "bindingName": "Model.UserId",
+            "bridgeId": "bridge-razor-template-csharp",
+            "bridgeConfidence": 0.95
+          }
+        }
+      ],
+      "diagnostics": []
+    },
+    {
+      "bridgeCaseId": "bridge-svelte-template-style",
+      "containerKind": "svelte",
+      "sourceLanguageId": "html",
+      "targetLanguageId": "css",
+      "bridgeStatus": "supported",
+      "bridgeMetadata": {
+        "bridgeId": "bridge-svelte-template-style",
+        "containerLanguageId": "html",
+        "embeddedLanguageId": "css",
+        "entryEdgeKinds": ["style_scopes"],
+        "exitEdgeKinds": ["style_scopes"],
+        "lossModes": [],
+        "fallbackReasonCodes": []
+      },
+      "edges": [
+        {
+          "edgeUid": "edge64:v1:a600000000000001",
+          "kind": "style_scopes",
+          "status": "resolved",
+          "source": { "entity": "segment", "uid": "segu:v1:a600000000000101" },
+          "target": { "entity": "symbol", "uid": "symu:v1:svelte:usercard" },
+          "attrs": {
+            "scopeKind": "scoped",
+            "bridgeId": "bridge-svelte-template-style",
+            "bridgeConfidence": 0.94
+          }
+        }
+      ],
+      "diagnostics": []
+    },
+    {
+      "bridgeCaseId": "bridge-svelte-template-typescript",
+      "containerKind": "svelte",
+      "sourceLanguageId": "html",
+      "targetLanguageId": "typescript",
+      "bridgeStatus": "supported",
+      "bridgeMetadata": {
+        "bridgeId": "bridge-svelte-template-typescript",
+        "containerLanguageId": "html",
+        "embeddedLanguageId": "typescript",
+        "entryEdgeKinds": ["template_binds", "template_emits"],
+        "exitEdgeKinds": ["template_binds", "template_emits"],
+        "lossModes": [],
+        "fallbackReasonCodes": []
+      },
+      "edges": [
+        {
+          "edgeUid": "edge64:v1:a700000000000001",
+          "kind": "template_binds",
+          "status": "resolved",
+          "source": { "entity": "segment", "uid": "segu:v1:a700000000000101" },
+          "target": { "entity": "symbol", "uid": "symu:v1:svelte:uservalue" },
+          "attrs": {
+            "bindingKind": "directive",
+            "bindingName": "user",
+            "bridgeId": "bridge-svelte-template-typescript",
+            "bridgeConfidence": 0.9
+          }
+        },
+        {
+          "edgeUid": "edge64:v1:a700000000000002",
+          "kind": "template_emits",
+          "status": "resolved",
+          "source": { "entity": "segment", "uid": "segu:v1:a700000000000102" },
+          "target": { "entity": "symbol", "uid": "symu:v1:svelte:onchange" },
+          "attrs": {
+            "eventKind": "directive-event",
+            "bridgeId": "bridge-svelte-template-typescript",
+            "bridgeConfidence": 0.89
+          }
+        }
+      ],
+      "diagnostics": []
+    },
+    {
+      "bridgeCaseId": "bridge-vue-template-script",
+      "containerKind": "vue-sfc",
+      "sourceLanguageId": "html",
+      "targetLanguageId": "typescript",
+      "bridgeStatus": "supported",
+      "bridgeMetadata": {
+        "bridgeId": "bridge-vue-template-script",
+        "containerLanguageId": "html",
+        "embeddedLanguageId": "typescript",
+        "entryEdgeKinds": ["template_binds", "template_emits"],
+        "exitEdgeKinds": ["template_binds", "template_emits"],
+        "lossModes": [],
+        "fallbackReasonCodes": []
+      },
+      "edges": [
+        {
+          "edgeUid": "edge64:v1:a800000000000001",
+          "kind": "template_binds",
+          "status": "resolved",
+          "source": { "entity": "segment", "uid": "segu:v1:a800000000000101" },
+          "target": { "entity": "symbol", "uid": "symu:v1:vue:userid" },
+          "attrs": {
+            "bindingKind": "directive",
+            "bindingName": "userId",
+            "bridgeId": "bridge-vue-template-script",
+            "bridgeConfidence": 0.94
+          }
+        },
+        {
+          "edgeUid": "edge64:v1:a800000000000002",
+          "kind": "template_emits",
+          "status": "resolved",
+          "source": { "entity": "segment", "uid": "segu:v1:a800000000000102" },
+          "target": { "entity": "symbol", "uid": "symu:v1:vue:updateuserid" },
+          "attrs": {
+            "eventKind": "emit",
+            "bridgeId": "bridge-vue-template-script",
+            "bridgeConfidence": 0.93
+          }
+        }
+      ],
+      "diagnostics": []
+    },
+    {
+      "bridgeCaseId": "bridge-vue-template-style",
+      "containerKind": "vue-sfc",
+      "sourceLanguageId": "html",
+      "targetLanguageId": "css",
+      "bridgeStatus": "supported",
+      "bridgeMetadata": {
+        "bridgeId": "bridge-vue-template-style",
+        "containerLanguageId": "html",
+        "embeddedLanguageId": "css",
+        "entryEdgeKinds": ["style_scopes"],
+        "exitEdgeKinds": ["style_scopes"],
+        "lossModes": [],
+        "fallbackReasonCodes": []
+      },
+      "edges": [
+        {
+          "edgeUid": "edge64:v1:a900000000000001",
+          "kind": "style_scopes",
+          "status": "resolved",
+          "source": { "entity": "segment", "uid": "segu:v1:a900000000000101" },
+          "target": { "entity": "symbol", "uid": "symu:v1:vue:userdetails" },
+          "attrs": {
+            "scopeKind": "scoped",
+            "bridgeId": "bridge-vue-template-style",
+            "bridgeConfidence": 0.95
+          }
+        }
+      ],
+      "diagnostics": []
+    }
+  ]
+}
