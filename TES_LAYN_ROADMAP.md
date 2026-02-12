@@ -414,7 +414,7 @@ If contradictions are found:
 - [ ] Materialize canonical example bundles matching USR section 34 minimal/maximal entities with cross-entity coherence checks.
 - [x] Materialize framework edge-case fixtures per USR section 35.11 checklist.
 - [x] Materialize embedded-language bridge fixtures per USR section 38 matrix requirements.
-- [ ] Materialize generated/macro provenance fixtures per USR section 39 matrix requirements.
+- [x] Materialize generated/macro provenance fixtures per USR section 39 matrix requirements.
 - [ ] Ensure every per-language contract has concrete fixture ID mappings and fixture family coverage.
 - [ ] Add fixture-governance policy rows for every blocking fixture family and framework overlay fixture.
 - [ ] Add fixture ownership/reviewer assignment checks for all blocking fixtures.
@@ -505,7 +505,7 @@ If contradictions are found:
 - [ ] Materialize canonical example bundle validator lane for section 34 references.
 - [ ] Materialize decomposed contract drift checks (language/profile/mapping/resolution/risk/conformance/rollout/embedding/provenance/registry/readiness/observability/security contracts).
 - [x] Materialize section 38 embedded-language bridge validators.
-- [ ] Materialize section 39 generated/macro provenance validators.
+- [x] Materialize section 39 generated/macro provenance validators.
 - [ ] Materialize section 40 implementation-readiness evidence validators and promotion blockers.
 - [ ] Materialize section 43 runtime config/feature-flag validators and precedence checks.
 - [ ] Materialize section 44 failure-injection scenario evaluator and strict/non-strict outcome validators.
@@ -1472,5 +1472,3 @@ Roadmap enforcement requirements:
 - [ ] Framework onboarding and interop expectations follow `docs/specs/usr-core-language-framework-catalog.md`.
 - [ ] Contract consolidation traceability is maintained in `docs/specs/usr-consolidation-coverage-matrix.md`.
 - [ ] Any contract addition/removal updates Appendix H traceability and Appendix J dependency graph in same change.
-
-
