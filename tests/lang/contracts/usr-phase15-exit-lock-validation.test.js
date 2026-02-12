@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { assertTestsPresent, checklistLineState, extractSection, hasUnchecked } from './usr-lock-test-utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,23 +19,6 @@ const rolloutSpecText = fs.readFileSync(rolloutSpecPath, 'utf8');
 const ciOrderText = fs.readFileSync(ciOrderPath, 'utf8');
 const ciLiteOrderText = fs.readFileSync(ciLiteOrderPath, 'utf8');
 
-const extractSection = (text, startMarker, endMarker) => {
-  const start = text.indexOf(startMarker);
-  assert.notEqual(start, -1, `missing section start marker: ${startMarker}`);
-  const end = text.indexOf(endMarker, start);
-  assert.notEqual(end, -1, `missing section end marker: ${endMarker}`);
-  return text.slice(start, end);
-};
-
-const checklistLineState = (section, label) => {
-  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  if (new RegExp(`^- \\[x\\] ${escaped}$`, 'm').test(section)) return 'checked';
-  if (new RegExp(`^- \\[ \\] ${escaped}$`, 'm').test(section)) return 'unchecked';
-  assert.fail(`missing checklist line: ${label}`);
-};
-
-const hasUnchecked = (section) => /- \[ \] /.test(section);
-
 const phase151Section = extractSection(roadmapText, '### 15.1 CI gates', '### 15.2 Reporting');
 const phase152Section = extractSection(roadmapText, '### 15.2 Reporting', '### 15.3 Maintenance');
 const phase153Section = extractSection(roadmapText, '### 15.3 Maintenance', '### 15.4 Exit criteria');
@@ -47,18 +31,20 @@ if (phase15Exit === 'checked') {
   assert.equal(hasUnchecked(phase152Section), false, 'phase 15 exit cannot be checked while section 15.2 has unchecked items');
   assert.equal(hasUnchecked(phase153Section), false, 'phase 15 exit cannot be checked while section 15.3 has unchecked items');
 
-  for (const testId of [
-    'lang/contracts/usr-maintenance-controls-stability',
-    'lang/contracts/usr-rollout-migration-policy-validation',
-    'lang/contracts/usr-rollout-phase-gate-validation',
-    'lang/contracts/usr-phase15-reporting-lock-validation',
-    'lang/contracts/usr-phase15-exit-lock-validation',
-    'lang/contracts/usr-report-schema-file-coverage-validation',
-    'lang/contracts/usr-doc-schema-contract-validation'
-  ]) {
-    assert.equal(ciOrderText.includes(testId), true, `ci order missing phase-15 exit lock validator dependency: ${testId}`);
-    assert.equal(ciLiteOrderText.includes(testId), true, `ci-lite order missing phase-15 exit lock validator dependency: ${testId}`);
-  }
+  assertTestsPresent(
+    [
+      'lang/contracts/usr-maintenance-controls-stability',
+      'lang/contracts/usr-rollout-migration-policy-validation',
+      'lang/contracts/usr-rollout-phase-gate-validation',
+      'lang/contracts/usr-phase15-reporting-lock-validation',
+      'lang/contracts/usr-phase15-exit-lock-validation',
+      'lang/contracts/usr-report-schema-file-coverage-validation',
+      'lang/contracts/usr-doc-schema-contract-validation'
+    ],
+    'phase-15 exit lock validator',
+    ciOrderText,
+    ciLiteOrderText
+  );
 }
 
 if ((hasUnchecked(phase151Section) || hasUnchecked(phase152Section) || hasUnchecked(phase153Section)) && phase15Exit === 'checked') {
@@ -80,17 +66,19 @@ assert.equal(roadmapText.includes('### N.18 Phase 15.2 reporting-integrity lock'
 assert.equal(roadmapText.includes('### N.19 Phase 15.1 CI gate-integrity lock'), true, 'roadmap must include Appendix N.19 phase-15.1 CI-gate lock policy');
 assert.equal(roadmapText.includes('### N.20 Phase 15.3 maintenance-integrity lock'), true, 'roadmap must include Appendix N.20 phase-15.3 maintenance lock policy');
 
-for (const testId of [
-  'lang/contracts/usr-phase15-ci-gate-lock-validation',
-  'lang/contracts/usr-phase15-reporting-lock-validation',
-  'lang/contracts/usr-phase15-maintenance-lock-validation',
-  'lang/contracts/usr-phase15-exit-lock-validation',
-  'lang/contracts/usr-maintenance-controls-stability',
-  'lang/contracts/usr-rollout-phase-gate-validation',
-  'lang/contracts/usr-rollout-migration-policy-validation'
-]) {
-  assert.equal(ciOrderText.includes(testId), true, `ci order missing phase-15 exit lock validator coverage: ${testId}`);
-  assert.equal(ciLiteOrderText.includes(testId), true, `ci-lite order missing phase-15 exit lock validator coverage: ${testId}`);
-}
+assertTestsPresent(
+  [
+    'lang/contracts/usr-phase15-ci-gate-lock-validation',
+    'lang/contracts/usr-phase15-reporting-lock-validation',
+    'lang/contracts/usr-phase15-maintenance-lock-validation',
+    'lang/contracts/usr-phase15-exit-lock-validation',
+    'lang/contracts/usr-maintenance-controls-stability',
+    'lang/contracts/usr-rollout-phase-gate-validation',
+    'lang/contracts/usr-rollout-migration-policy-validation'
+  ],
+  'phase-15 exit lock validator coverage',
+  ciOrderText,
+  ciLiteOrderText
+);
 
 console.log('usr phase 15 exit lock validation checks passed');
