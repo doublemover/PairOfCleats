@@ -10,22 +10,168 @@
   "type": "object",
   "properties": {
     "artifactId": {
-      "type": "string"
+      "type": "string",
+      "const": "usr-operational-readiness-validation"
     },
     "summary": {
-      "type": "object"
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "blocked",
+        "blockerCount",
+        "errorCount",
+        "warningCount",
+        "rowCount",
+        "operationalPhaseRowCount",
+        "qualityGateRowCount",
+        "readiness",
+        "conformanceByLevel"
+      ],
+      "properties": {
+        "blocked": {
+          "type": "boolean"
+        },
+        "blockerCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "errorCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "warningCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rowCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "operationalPhaseRowCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "qualityGateRowCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "readiness": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "testRolloutBlocked",
+            "deepConformanceBlocked",
+            "frameworkConformanceBlocked"
+          ],
+          "properties": {
+            "testRolloutBlocked": {
+              "type": "boolean"
+            },
+            "deepConformanceBlocked": {
+              "type": "boolean"
+            },
+            "frameworkConformanceBlocked": {
+              "type": "boolean"
+            }
+          }
+        },
+        "conformanceByLevel": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "level",
+              "requiredProfileCount",
+              "failingRequiredProfileCount",
+              "errorCount",
+              "warningCount",
+              "pass"
+            ],
+            "properties": {
+              "level": {
+                "type": "string"
+              },
+              "requiredProfileCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "failingRequiredProfileCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "errorCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "warningCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "pass": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      }
     },
     "rows": {
       "type": "array",
       "items": {
-        "type": "object"
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "rowType",
+          "id",
+          "blocking",
+          "pass",
+          "errors",
+          "warnings"
+        ],
+        "properties": {
+          "rowType": {
+            "type": "string",
+            "enum": [
+              "operational-phase",
+              "quality-gate"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "phase": {
+            "type": "string"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "blocking": {
+            "type": "boolean"
+          },
+          "pass": {
+            "type": "boolean"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
       }
     }
   },
-  "unevaluatedProperties": false,
   "required": [
     "artifactId",
     "summary",
     "rows"
-  ]
+  ],
+  "unevaluatedProperties": false
 }

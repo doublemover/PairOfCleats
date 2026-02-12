@@ -634,7 +634,7 @@ If contradictions are found:
 - [ ] Emit SLO budget compliance and alert evaluation dashboards.
 - [ ] Emit redaction/security gate compliance dashboards.
 - [x] Validate section 30 report envelopes and row schemas per `docs/specs/usr-core-observability-performance-ops.md`.
-- [ ] Emit automated section 31 scorecard artifact (`usr-release-readiness-scorecard.json`).
+- [x] Emit automated section 31 scorecard artifact (`usr-release-readiness-scorecard.json`).
 - [ ] Emit runtime configuration and feature-flag state dashboards.
 - [ ] Emit failure-injection scenario pass/fail and recovery dashboards.
 - [ ] Emit fixture-governance coverage and mutation-policy compliance dashboards.
