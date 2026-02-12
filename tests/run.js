@@ -47,6 +47,20 @@ const SKIP_EXIT_CODE = 77;
 const REDO_EXIT_CODES = [3221226356, 3221225477];
 const DEFAULT_TIMEOUT_GRACE_MS = 2000;
 const DEFAULT_LOG_DIR = path.join(ROOT, '.testLogs');
+const ORDERED_LANES = new Set([
+  'ci-lite',
+  'ci',
+  'ci-long',
+  'batch-b0',
+  'batch-b1',
+  'batch-b2',
+  'batch-b3',
+  'batch-b4',
+  'batch-b5',
+  'batch-b6',
+  'batch-b7',
+  'batch-b8'
+]);
 const INHERITED_PAIROFCLEATS_ENV_ALLOWLIST = new Set([
   'PAIROFCLEATS_TEST_API_STARTUP_TIMEOUT_MS',
   'PAIROFCLEATS_TEST_CACHE_SUFFIX',
@@ -111,6 +125,14 @@ const main = async () => {
   const isCiLiteOnly = requestedLanes.length === 1 && requestedLanes[0] === 'ci-lite';
   const isCiOnly = requestedLanes.length === 1 && requestedLanes[0] === 'ci';
   const isCiLongOnly = requestedLanes.length === 1 && requestedLanes[0] === 'ci-long';
+  const orderedLane = (() => {
+    const normalized = requestedLanes.filter((lane) => lane && lane !== 'all');
+    if (normalized.length !== 1) {
+      return '';
+    }
+    const lane = normalized[0];
+    return ORDERED_LANES.has(lane) ? lane : '';
+  })();
   if (requestedLanes.includes('ci-long') && !tagInclude.includes('long')) {
     tagInclude.push('long');
   }
@@ -190,9 +212,9 @@ const main = async () => {
 
   let selection = null;
 
-  if (isCiLiteOnly || isCiOnly || isCiLongOnly) {
-    const orderLane = isCiLiteOnly ? 'ci-lite' : (isCiLongOnly ? 'ci-long' : 'ci');
-    const orderPath = path.join(TESTS_DIR, orderLane, `${orderLane}.order.txt`);
+  if (orderedLane) {
+    const orderPath = path.join(TESTS_DIR, orderedLane, `${orderedLane}.order.txt`);
+    const orderLane = orderedLane;
     let orderRaw = '';
     try {
       orderRaw = await fsPromises.readFile(orderPath, 'utf8');
@@ -270,7 +292,7 @@ const main = async () => {
     process.exit(2);
   }
 
-  if (!isCiLiteOnly && !isCiOnly && !isCiLongOnly) {
+  if (!orderedLane) {
     selection = selection.slice().sort((a, b) => a.id.localeCompare(b.id));
   }
 

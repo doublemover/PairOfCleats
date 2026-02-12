@@ -122,6 +122,23 @@ export const USR_MATRIX_ROW_SCHEMAS = Object.freeze({
       notes: STRING
     }
   },
+  'usr-language-batch-shards': {
+    type: 'object',
+    additionalProperties: false,
+    required: ['id', 'laneId', 'sequence', 'scopeType', 'languageIds', 'dependsOn', 'orderManifest', 'gateId', 'requiredConformance'],
+    properties: {
+      id: STRING,
+      laneId: STRING,
+      sequence: { type: 'integer', minimum: 0 },
+      scopeType: { type: 'string', enum: ['foundation', 'language-batch', 'integration'] },
+      languageIds: stringArray,
+      dependsOn: stringArray,
+      orderManifest: STRING,
+      gateId: STRING,
+      requiredConformance: stringArray,
+      notes: STRING
+    }
+  },
   'usr-framework-profiles': {
     type: 'object',
     additionalProperties: false,
