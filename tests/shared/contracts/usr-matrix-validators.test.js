@@ -327,10 +327,10 @@ const fixtureGovernanceNegative = {
   rows: (fixtureGovernance.rows || []).map((row, idx) => (
     idx === 0
       ? {
-          ...row,
-          owner: row.reviewers[0] || row.owner,
-          mutationPolicy: row.blocking ? 'allow-generated-refresh' : row.mutationPolicy
-        }
+        ...row,
+        owner: row.reviewers[0] || row.owner,
+        mutationPolicy: row.blocking ? 'allow-generated-refresh' : row.mutationPolicy
+      }
       : row
   ))
 };
@@ -508,12 +508,12 @@ const languageRiskCoverageNegative = validateUsrLanguageRiskProfileCoverage({
     rows: (languageRiskProfiles.rows || []).map((row, index) => (
       index === 0
         ? {
-            ...row,
-            optional: {
-              ...row.optional,
-              sinks: [...(row.optional?.sinks || []), (row.required?.sinks || [])[0]].filter(Boolean)
-            }
+          ...row,
+          optional: {
+            ...row.optional,
+            sinks: [...(row.optional?.sinks || []), (row.required?.sinks || [])[0]].filter(Boolean)
           }
+        }
         : row
     ))
   }
