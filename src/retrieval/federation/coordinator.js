@@ -112,8 +112,8 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
   const selection = selectWorkspaceRepos({
     workspaceConfig,
     select: request.select?.repos || request.select?.select || request.select,
-    tag: request.select?.tags || request.tags || request.tag,
-    repoFilter: request.select?.repoFilter || request.repoFilter,
+    tag: request.select?.tags ?? request.select?.tag ?? request.tags ?? request.tag,
+    repoFilter: request.select?.repoFilter ?? request.select?.['repo-filter'] ?? request.repoFilter ?? request['repo-filter'],
     includeDisabled: request.select?.includeDisabled === true || request.includeDisabled === true
   });
 
