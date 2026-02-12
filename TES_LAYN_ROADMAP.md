@@ -610,7 +610,7 @@ If contradictions are found:
 
 ### 15.1 CI gates
 
-- [ ] Enforce Gate A, B1-B8, and C gates in CI.
+- [x] Enforce Gate A, B1-B8, and C gates in CI.
 - [x] Enforce C0-C4 conformance lane required checks.
 - [x] Enforce section 36 strict scenario blocking behavior and non-strict warning budgets.
 - [x] Enforce section 41 SLO budget blocking policies and alert escalation behavior.
