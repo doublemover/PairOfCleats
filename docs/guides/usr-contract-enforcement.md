@@ -100,6 +100,7 @@ Define CI/local enforcement for the consolidated USR contract model.
 - report-envelope enforcement (`tests/lang/contracts/usr-report-envelope-validation.test.js`) validates section 30 required audit envelope fields and strict unknown-key rejection across required report artifacts
 - PR/release template policy enforcement (`tests/lang/contracts/usr-pr-template-policy-validation.test.js`) validates required USR change-control checklist markers and contract/matrix references in `.github/pull_request_template.md` and `.github/release_template.md`, including waiver expiry-cadence release review
 - maintenance-controls stability enforcement (`tests/lang/contracts/usr-maintenance-controls-stability.test.js`) validates phase 15.3 closure, required maintenance validators in `ci`/`ci-lite`, and template-governance marker presence
+- lock-helper adoption enforcement (`tests/lang/contracts/usr-lock-helper-adoption-validation.test.js`) prevents reintroduction of duplicated lock/helper primitives across `tests/lang/contracts/usr-*.test.js`
 - onboarding policy enforcement (`tests/lang/contracts/usr-onboarding-policy-validation.test.js`) validates new-language onboarding and framework-interop requirements in `docs/guides/usr-new-language-onboarding.md`
 
 3. Roadmap/spec alignment
