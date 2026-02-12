@@ -1,6 +1,6 @@
 # USR Contract Enforcement Guide
 
-Last updated: 2026-02-12T06:04:13Z
+Last updated: 2026-02-12T06:07:50Z
 
 ## Purpose
 
@@ -51,6 +51,7 @@ Define CI/local enforcement for the consolidated USR contract model.
 - conformance dashboard enforcement (`tests/lang/contracts/usr-conformance-dashboard-validation.test.js`) validates section 15.2 language/framework conformance dashboard emission and summary-report schema invariants
 - diagnostic remediation-routing enforcement (`tests/lang/contracts/usr-diagnostic-remediation-routing-validation.test.js`) validates strict diagnostic taxonomy routing to section 33.4 remediation classes
 - implementation readiness enforcement (`tests/lang/contracts/usr-implementation-readiness-validation.test.js`) validates section 40 operational-readiness and quality-gate schema invariants, evidence-schema coverage, promotion blockers for C0/C1 rollout, C2/C3 deep conformance, and C4 framework conformance readiness, and report emission for `usr-operational-readiness-validation` / `usr-release-readiness-scorecard`
+- phase-9 readiness evidence enforcement (`tests/lang/contracts/usr-phase9-readiness-evidence-validation.test.js`) validates checked readiness controls against CI validator coverage and required artifact/report schema/catalog references
 - observability rollup enforcement (`tests/lang/contracts/usr-observability-rollup-validation.test.js`) validates section 41 SLO budget and alert-policy evaluations, blocking-threshold behavior, and `usr-observability-rollup` report emission
 - security-gate compliance enforcement (`tests/lang/contracts/usr-security-gate-validation.test.js`) validates section 42 security-gate and redaction policy controls, strict fail-closed behavior for blocking controls, and validation-report emission
 - runtime config and feature-flag enforcement (`tests/lang/contracts/usr-runtime-config-feature-flag-validation.test.js`) validates section 43 precedence resolution, strict-mode policy behavior, and disallowed feature-flag conflicts

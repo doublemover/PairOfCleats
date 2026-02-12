@@ -50,6 +50,7 @@ const phaseNineReadinessSection = extractSection(roadmapText, '### 9.1 Readiness
 assert.equal(phaseNineReadinessSection.includes('- [x] Materialize framework extension contract template governance and CI enforcement controls.'), true, 'phase 9.1 must retain framework contract governance scaffold control');
 assert.equal(phaseNineReadinessSection.includes('- [x] Enforce language-contract vs language-profile matrix exact-set synchronization for conformance/framework/node/edge declarations.'), true, 'phase 9.1 must retain language contract matrix-sync governance control');
 assert.equal(phaseNineReadinessSection.includes('- [x] Materialize per-language approval checklist and completion evidence scaffolding in `docs/specs/usr/languages/*.md`.'), true, 'phase 9.1 must retain per-language approval/evidence scaffold control');
+assert.equal(phaseNineReadinessSection.includes('- [x] Enforce phase-9 readiness evidence gate coverage across CI validators and required report artifacts.'), true, 'phase 9.1 must retain phase-9 readiness evidence gate control');
 
 const appendixMSection = extractSection(roadmapText, 'Roadmap enforcement requirements:', '## Appendix N - Phase 0 Governance Lock Artifacts');
 assert.equal(appendixMSection.includes('- [x] Every phase gate links to at least one concrete evidence artifact in `docs/specs/usr-core-evidence-gates-waivers.md`.'), true, 'appendix M must mark phase-to-evidence linkage requirement complete');
@@ -79,6 +80,7 @@ const requiredCiTests = [
   'lang/contracts/usr-canonical-example-validation',
   'lang/contracts/usr-framework-canonicalization',
   'lang/contracts/usr-framework-profile-matrix-sync-validation',
+  'lang/contracts/usr-phase9-readiness-evidence-validation',
   'lang/contracts/usr-f5-hard-requirements-validation',
   'lang/contracts/usr-f6-sync-requirements-validation',
   'lang/contracts/usr-rollout-migration-policy-validation',
