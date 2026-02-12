@@ -5,7 +5,7 @@ Last updated: 2026-02-12T06:15:48Z
 Owner role: usr-framework
 Backup owner role: usr-architecture
 Review cadence days: 90
-Last reviewed: 2026-02-12T05:05:00Z
+Last reviewed: 2026-02-12T06:15:48Z
 Rotation policy: rotate primary reviewer assignment between owner and backup every review cycle.
 
 ## Scope
