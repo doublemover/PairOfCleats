@@ -220,6 +220,18 @@ export const USR_MATRIX_ROW_SCHEMAS = Object.freeze({
       blocking: BOOL
     }
   },
+  'usr-conformance-levels': {
+    type: 'object',
+    additionalProperties: false,
+    required: ['profileType', 'profileId', 'requiredLevels', 'blockingLevels', 'requiredFixtureFamilies'],
+    properties: {
+      profileType: { type: 'string', enum: ['language', 'framework'] },
+      profileId: STRING,
+      requiredLevels: stringArray,
+      blockingLevels: stringArray,
+      requiredFixtureFamilies: stringArray
+    }
+  },
   'usr-backcompat-matrix': {
     type: 'object',
     additionalProperties: false,

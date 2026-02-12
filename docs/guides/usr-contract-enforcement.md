@@ -1,6 +1,6 @@
 # USR Contract Enforcement Guide
 
-Last updated: 2026-02-12T12:35:00Z
+Last updated: 2026-02-12T13:05:00Z
 
 ## Purpose
 
@@ -26,6 +26,7 @@ Define CI/local enforcement for the consolidated USR contract model.
 - generated provenance fixture enforcement (`tests/lang/contracts/usr-generated-provenance-validation.test.js`) validates section 39 generated/macro/transpile provenance mapping expectations and diagnostics
 - language batch shard enforcement (`tests/lang/contracts/usr-language-batch-shards-validation.test.js`) validates section 4/phase-10 batch partition coverage, deterministic language assignment, and lane manifest path consistency
 - matrix-driven harness coverage enforcement (`tests/lang/contracts/usr-matrix-driven-harness-validation.test.js`) validates profile-wide lane/fixture/batch coverage for every language and framework profile
+- C0/C1 baseline conformance enforcement (`tests/lang/contracts/usr-c0-baseline-validation.test.js`, `tests/lang/contracts/usr-c1-baseline-validation.test.js`) validates C0/C1 required/blocking level coverage for all language profiles and report generation
 - diagnostic remediation-routing enforcement (`tests/lang/contracts/usr-diagnostic-remediation-routing-validation.test.js`) validates strict diagnostic taxonomy routing to section 33.4 remediation classes
 - implementation readiness enforcement (`tests/lang/contracts/usr-implementation-readiness-validation.test.js`) validates section 40 operational-readiness policy invariants, evidence-schema coverage, and promotion blocker logic
 - runtime config and feature-flag enforcement (`tests/lang/contracts/usr-runtime-config-feature-flag-validation.test.js`) validates section 43 precedence resolution, strict-mode policy behavior, and disallowed feature-flag conflicts
@@ -45,8 +46,8 @@ Define CI/local enforcement for the consolidated USR contract model.
 - `ci-lite`: reference drift and schema shape checks (includes USR schema/matrix and language-contract harness checks)
 - `ci`: blocking validators, conformance checks, and gate evaluation (includes full USR contract enforcement suite)
 - `ci-long`: expanded compatibility matrix, drill checks, and stress/failure scenarios
-- `conformance-c0`: focused C0 baseline harness coverage (`tests/conformance-c0/conformance-c0-validation.test.js`)
-- `conformance-c1`: focused C1 baseline contract enforcement (`tests/conformance-c1/conformance-c1-validation.test.js`)
+- `conformance-c0`: focused C0 baseline harness coverage (`tests/conformance-c0/conformance-c0-validation.test.js`) including language-wide C0 matrix validation
+- `conformance-c1`: focused C1 baseline contract enforcement (`tests/conformance-c1/conformance-c1-validation.test.js`) including language-wide C1 matrix validation
 - `conformance-c2`: focused C2 embedded/provenance semantic coverage (`tests/conformance-c2/conformance-c2-validation.test.js`)
 - `conformance-c3`: focused C3 failure/risk/fixture governance coverage (`tests/conformance-c3/conformance-c3-validation.test.js`)
 - `conformance-c4`: focused C4 framework-profile conformance coverage (`tests/conformance-c4/conformance-c4-validation.test.js`)

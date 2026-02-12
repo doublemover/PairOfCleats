@@ -42,6 +42,7 @@ const frameworkProfiles = loadRegistry('usr-framework-profiles');
 const languageVersionPolicy = loadRegistry('usr-language-version-policy');
 const languageEmbeddingPolicy = loadRegistry('usr-language-embedding-policy');
 const runtimeConfigPolicy = loadRegistry('usr-runtime-config-policy');
+const conformanceLevels = loadRegistry('usr-conformance-levels');
 const failureInjectionMatrix = loadRegistry('usr-failure-injection-matrix');
 const fixtureGovernance = loadRegistry('usr-fixture-governance');
 const benchmarkPolicy = loadRegistry('usr-benchmark-policy');
@@ -103,6 +104,17 @@ for (const frameworkRow of frameworkProfiles.rows) {
     assert.equal(Boolean(languageSet), true, `framework appliesToLanguages references unknown language: ${frameworkRow.id} -> ${languageId}`);
     assert.equal(languageSet.has(frameworkRow.id), true, `framework->language mapping missing inverse language->framework mapping: ${frameworkRow.id} -> ${languageId}`);
   }
+}
+
+// C0/C1 baseline conformance coverage across all languages.
+const conformanceByProfile = new Map((conformanceLevels.rows || []).map((row) => [`${row.profileType}:${row.profileId}`, row]));
+for (const row of languageProfiles.rows) {
+  const conformanceRow = conformanceByProfile.get(`language:${row.id}`);
+  assert.equal(Boolean(conformanceRow), true, `missing conformance-level row for language profile: ${row.id}`);
+  assert.equal((conformanceRow.requiredLevels || []).includes('C0'), true, `language conformance row must include C0: ${row.id}`);
+  assert.equal((conformanceRow.requiredLevels || []).includes('C1'), true, `language conformance row must include C1: ${row.id}`);
+  assert.equal((conformanceRow.blockingLevels || []).includes('C0'), true, `language conformance row must block on C0: ${row.id}`);
+  assert.equal((conformanceRow.blockingLevels || []).includes('C1'), true, `language conformance row must block on C1: ${row.id}`);
 }
 
 // Parser/runtime lock coverage for all parser sources used by language fallback chains.

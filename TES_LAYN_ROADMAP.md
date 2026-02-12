@@ -540,15 +540,15 @@ If contradictions are found:
 
 ### 11.1 C0 baseline
 
-- [ ] Execute C0 checks for all language profiles.
+- [x] Execute C0 checks for all language profiles.
 
 ### 11.2 C1 baseline
 
-- [ ] Execute C1 checks for all language profiles.
+- [x] Execute C1 checks for all language profiles.
 
 ### 11.3 Exit criteria
 
-- [ ] All languages pass required C0/C1 checks.
+- [x] All languages pass required C0/C1 checks.
 
 ---
 

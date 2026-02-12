@@ -19,6 +19,8 @@ import {
   buildUsrBenchmarkRegressionReport,
   validateUsrLanguageBatchShards,
   validateUsrMatrixDrivenHarnessCoverage,
+  validateUsrConformanceLevelCoverage,
+  buildUsrConformanceLevelSummaryReport,
   validateUsrBackcompatMatrixCoverage,
   buildUsrBackcompatMatrixReport,
   validateUsrThreatModelCoverage,
@@ -41,6 +43,7 @@ const requiredRegistries = [
   'usr-language-profiles',
   'usr-language-batch-shards',
   'usr-framework-profiles',
+  'usr-conformance-levels',
   'usr-capability-matrix',
   'usr-backcompat-matrix',
   'usr-ownership-matrix',
@@ -395,6 +398,46 @@ const matrixDrivenNegative = validateUsrMatrixDrivenHarnessCoverage({
 });
 assert.equal(matrixDrivenNegative.ok, true, 'matrix-driven coverage with dropped C4 should remain non-blocking and emit warning');
 assert.equal(matrixDrivenNegative.warnings.some((message) => message.includes('javascript')), true, 'matrix-driven warning should surface profile coverage downgrade');
+
+const conformanceLevelsPath = path.join(matrixDir, 'usr-conformance-levels.json');
+const conformanceLevels = JSON.parse(fs.readFileSync(conformanceLevelsPath, 'utf8'));
+const knownConformanceLanes = ['conformance-c0', 'conformance-c1', 'conformance-c2', 'conformance-c3', 'conformance-c4'];
+
+const c0Coverage = validateUsrConformanceLevelCoverage({
+  targetLevel: 'C0',
+  languageProfilesPayload: languageProfiles,
+  conformanceLevelsPayload: conformanceLevels,
+  knownLanes: knownConformanceLanes
+});
+assert.equal(c0Coverage.ok, true, `C0 conformance coverage should pass: ${c0Coverage.errors.join('; ')}`);
+
+const c1Coverage = validateUsrConformanceLevelCoverage({
+  targetLevel: 'C1',
+  languageProfilesPayload: languageProfiles,
+  conformanceLevelsPayload: conformanceLevels,
+  knownLanes: knownConformanceLanes
+});
+assert.equal(c1Coverage.ok, true, `C1 conformance coverage should pass: ${c1Coverage.errors.join('; ')}`);
+
+const c0Report = buildUsrConformanceLevelSummaryReport({
+  targetLevel: 'C0',
+  languageProfilesPayload: languageProfiles,
+  conformanceLevelsPayload: conformanceLevels,
+  knownLanes: knownConformanceLanes,
+  lane: 'conformance-c0',
+  runId: 'run-usr-conformance-c0-001'
+});
+assert.equal(c0Report.ok, true, `C0 conformance report should pass: ${c0Report.errors.join('; ')}`);
+const c0ReportValidation = validateUsrReport('usr-conformance-summary', c0Report.payload);
+assert.equal(c0ReportValidation.ok, true, `C0 conformance summary report must validate: ${c0ReportValidation.errors.join('; ')}`);
+
+const missingC0Lane = validateUsrConformanceLevelCoverage({
+  targetLevel: 'C0',
+  languageProfilesPayload: languageProfiles,
+  conformanceLevelsPayload: conformanceLevels,
+  knownLanes: knownConformanceLanes.filter((laneId) => laneId !== 'conformance-c0')
+});
+assert.equal(missingC0Lane.ok, false, 'C0 conformance coverage should fail when conformance-c0 lane is missing');
 
 const backcompatMatrixPath = path.join(matrixDir, 'usr-backcompat-matrix.json');
 const backcompatMatrix = JSON.parse(fs.readFileSync(backcompatMatrixPath, 'utf8'));
