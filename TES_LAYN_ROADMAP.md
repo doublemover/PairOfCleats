@@ -1468,8 +1468,8 @@ Roadmap enforcement requirements:
 - [ ] Every phase gate links to at least one concrete evidence artifact in `docs/specs/usr-core-evidence-gates-waivers.md`.
 - [ ] Every blocking evidence artifact has an active schema in `docs/schemas/usr/*.json` and a row in `docs/specs/usr-core-artifact-schema-catalog.md`.
 - [x] CI contract enforcement follows `docs/guides/usr-contract-enforcement.md`.
-- [ ] New language onboarding follows `docs/guides/usr-new-language-onboarding.md`.
-- [ ] Framework onboarding and interop expectations follow `docs/specs/usr-core-language-framework-catalog.md`.
+- [x] New language onboarding follows `docs/guides/usr-new-language-onboarding.md`.
+- [x] Framework onboarding and interop expectations follow `docs/specs/usr-core-language-framework-catalog.md`.
 - [x] Contract consolidation traceability is maintained in `docs/specs/usr-consolidation-coverage-matrix.md`.
 - [ ] Any contract addition/removal updates Appendix H traceability, Appendix J dependency graph, and Appendix N governance lock in same change.
 

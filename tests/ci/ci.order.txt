@@ -68,6 +68,7 @@ retrieval/cache/query-cache-extracted-prose
 lang/rust/prose-rust-exclusion
 lang/contracts/usr-contract-enforcement
 lang/contracts/usr-core-artifact-schema-catalog-alignment
+lang/contracts/usr-onboarding-policy-validation
 lang/contracts/usr-roadmap-sync
 lang/contracts/usr-pr-template-policy-validation
 lang/contracts/usr-maintenance-controls-stability

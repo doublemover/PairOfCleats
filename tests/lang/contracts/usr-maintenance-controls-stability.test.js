@@ -33,11 +33,14 @@ assert.equal(/- \[ \] /.test(maintenanceSection), false, 'phase 15.3 maintenance
 
 const appendixMSection = extractSection(roadmapText, 'Roadmap enforcement requirements:', '## Appendix N - Phase 0 Governance Lock Artifacts');
 assert.equal(appendixMSection.includes('- [x] CI contract enforcement follows `docs/guides/usr-contract-enforcement.md`.'), true, 'appendix M must mark CI contract enforcement requirement complete');
+assert.equal(appendixMSection.includes('- [x] New language onboarding follows `docs/guides/usr-new-language-onboarding.md`.'), true, 'appendix M must mark new-language onboarding requirement complete');
+assert.equal(appendixMSection.includes('- [x] Framework onboarding and interop expectations follow `docs/specs/usr-core-language-framework-catalog.md`.'), true, 'appendix M must mark framework interop onboarding requirement complete');
 assert.equal(appendixMSection.includes('- [x] Contract consolidation traceability is maintained in `docs/specs/usr-consolidation-coverage-matrix.md`.'), true, 'appendix M must mark consolidation traceability requirement complete');
 
 const requiredCiTests = [
   'lang/contracts/usr-contract-enforcement',
   'lang/contracts/usr-core-artifact-schema-catalog-alignment',
+  'lang/contracts/usr-onboarding-policy-validation',
   'lang/contracts/usr-roadmap-sync',
   'lang/contracts/usr-pr-template-policy-validation',
   'lang/contracts/usr-language-contract-freshness-validation',
