@@ -1,6 +1,6 @@
 # USR Contract Enforcement Guide
 
-Last updated: 2026-02-12T05:48:50Z
+Last updated: 2026-02-12T05:52:08Z
 
 ## Purpose
 
@@ -39,6 +39,7 @@ Define CI/local enforcement for the consolidated USR contract model.
 - rollout phase-gate enforcement (`tests/lang/contracts/usr-rollout-phase-gate-validation.test.js`) validates A/B/C/D roadmap phase mapping, legacy-output retention policy, and rollout/deprecation CI execution hooks
 - archival/deprecation policy enforcement (`tests/lang/contracts/usr-archival-deprecation-policy-validation.test.js`) validates required DEPRECATED header metadata for archived USR specs and CI policy hook coverage
 - report schema file coverage enforcement (`tests/lang/contracts/usr-report-schema-file-coverage-validation.test.js`) validates one-to-one coverage between registered USR report validators and `docs/schemas/usr/*.schema.json` files
+- doc schema contract enforcement (`tests/lang/contracts/usr-doc-schema-contract-validation.test.js`) validates envelope composition, artifactId const mapping, required payload fields, and strict unknown-key rejection across doc schemas
 - C0/C1 baseline conformance enforcement (`tests/lang/contracts/usr-c0-baseline-validation.test.js`, `tests/lang/contracts/usr-c1-baseline-validation.test.js`) validates C0/C1 required/blocking level coverage for all language profiles and report generation
 - C2/C3 deep-profile conformance enforcement (`tests/lang/contracts/usr-c2-baseline-validation.test.js`, `tests/lang/contracts/usr-c3-baseline-validation.test.js`) validates C2/C3 required/blocking level coverage for eligible language profiles and report generation
 - language risk-profile conformance enforcement (`tests/lang/contracts/usr-language-risk-profile-validation.test.js`) validates machine-readable risk source/sink/sanitizer taxonomy coverage and interprocedural gating invariants
