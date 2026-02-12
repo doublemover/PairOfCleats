@@ -17,6 +17,7 @@ import {
   validateUsrBenchmarkMethodology,
   evaluateUsrBenchmarkRegression,
   buildUsrBenchmarkRegressionReport,
+  validateUsrLanguageBatchShards,
   validateUsrBackcompatMatrixCoverage,
   buildUsrBackcompatMatrixReport,
   validateUsrThreatModelCoverage,
@@ -37,6 +38,7 @@ const requiredRegistries = [
   'usr-failure-injection-matrix',
   'usr-fixture-governance',
   'usr-language-profiles',
+  'usr-language-batch-shards',
   'usr-framework-profiles',
   'usr-capability-matrix',
   'usr-backcompat-matrix',
@@ -340,6 +342,30 @@ const benchmarkRegressionNegative = evaluateUsrBenchmarkRegression({
   }
 });
 assert.equal(benchmarkRegressionNegative.ok, false, 'benchmark regression evaluation must fail when blocking benchmark thresholds are exceeded');
+
+const languageProfilesPath = path.join(matrixDir, 'usr-language-profiles.json');
+const languageProfiles = JSON.parse(fs.readFileSync(languageProfilesPath, 'utf8'));
+const batchShardsPath = path.join(matrixDir, 'usr-language-batch-shards.json');
+const batchShards = JSON.parse(fs.readFileSync(batchShardsPath, 'utf8'));
+
+const batchShardsValidation = validateUsrLanguageBatchShards({
+  batchShardsPayload: batchShards,
+  languageProfilesPayload: languageProfiles
+});
+assert.equal(batchShardsValidation.ok, true, `language batch shard validation should pass: ${batchShardsValidation.errors.join('; ')}`);
+
+const batchShardsNegative = validateUsrLanguageBatchShards({
+  batchShardsPayload: {
+    ...batchShards,
+    rows: (batchShards.rows || []).map((row) => (
+      row.id === 'B1'
+        ? { ...row, languageIds: [...row.languageIds].reverse() }
+        : row
+    ))
+  },
+  languageProfilesPayload: languageProfiles
+});
+assert.equal(batchShardsNegative.ok, false, 'language batch shard validation must fail when languageIds are not deterministic');
 
 const backcompatMatrixPath = path.join(matrixDir, 'usr-backcompat-matrix.json');
 const backcompatMatrix = JSON.parse(fs.readFileSync(backcompatMatrixPath, 'utf8'));

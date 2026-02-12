@@ -518,7 +518,7 @@ If contradictions are found:
 ### 10.2 Lane wiring
 
 - [x] Add conformance lane(s) per C0-C4.
-- [ ] Add per-batch shards and deterministic order manifests.
+- [x] Add per-batch shards and deterministic order manifests.
 - [x] Add diagnostics summary and transition reporting.
 - [x] Add backward-compat matrix lane executing BC-001 through BC-012 scenario classes and pairwise expansion.
 - [x] Add runtime-config validation lane and feature-flag conflict lane.
@@ -532,7 +532,7 @@ If contradictions are found:
 ### 10.3 Exit criteria
 
 - [ ] Harness can execute matrix-driven checks for all languages/frameworks.
-- [ ] Lane ordering and sharding are deterministic.
+- [x] Lane ordering and sharding are deterministic.
 
 ---
 

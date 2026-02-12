@@ -1,0 +1,222 @@
+{
+  "schemaVersion": "usr-registry-1.0.0",
+  "registryId": "usr-language-batch-shards",
+  "generatedAt": "2026-02-12T10:45:00Z",
+  "generatedBy": "manual",
+  "rows": [
+    {
+      "id": "B0",
+      "laneId": "batch-b0",
+      "sequence": 0,
+      "scopeType": "foundation",
+      "languageIds": [],
+      "dependsOn": [],
+      "orderManifest": "tests/batch-b0/batch-b0.order.txt",
+      "gateId": "Gate A",
+      "requiredConformance": [
+        "C0",
+        "C1"
+      ],
+      "notes": "Foundation contract and harness readiness shard."
+    },
+    {
+      "id": "B1",
+      "laneId": "batch-b1",
+      "sequence": 1,
+      "scopeType": "language-batch",
+      "languageIds": [
+        "javascript",
+        "typescript"
+      ],
+      "dependsOn": [
+        "B0"
+      ],
+      "orderManifest": "tests/batch-b1/batch-b1.order.txt",
+      "gateId": "Gate B1",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3",
+        "C4"
+      ],
+      "notes": "JS/TS core and framework overlay baseline shard."
+    },
+    {
+      "id": "B2",
+      "laneId": "batch-b2",
+      "sequence": 2,
+      "scopeType": "language-batch",
+      "languageIds": [
+        "clike",
+        "go",
+        "rust",
+        "swift"
+      ],
+      "dependsOn": [
+        "B1"
+      ],
+      "orderManifest": "tests/batch-b2/batch-b2.order.txt",
+      "gateId": "Gate B2",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "notes": "Systems-language AST/flow/risk shard."
+    },
+    {
+      "id": "B3",
+      "laneId": "batch-b3",
+      "sequence": 3,
+      "scopeType": "language-batch",
+      "languageIds": [
+        "csharp",
+        "dart",
+        "groovy",
+        "java",
+        "kotlin",
+        "scala"
+      ],
+      "dependsOn": [
+        "B1"
+      ],
+      "orderManifest": "tests/batch-b3/batch-b3.order.txt",
+      "gateId": "Gate B3",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "notes": "Managed OO language shard."
+    },
+    {
+      "id": "B4",
+      "laneId": "batch-b4",
+      "sequence": 4,
+      "scopeType": "language-batch",
+      "languageIds": [
+        "julia",
+        "lua",
+        "perl",
+        "php",
+        "python",
+        "r",
+        "ruby",
+        "shell"
+      ],
+      "dependsOn": [
+        "B1"
+      ],
+      "orderManifest": "tests/batch-b4/batch-b4.order.txt",
+      "gateId": "Gate B4",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "notes": "Dynamic and scripting language shard."
+    },
+    {
+      "id": "B5",
+      "laneId": "batch-b5",
+      "sequence": 5,
+      "scopeType": "language-batch",
+      "languageIds": [
+        "css",
+        "handlebars",
+        "html",
+        "jinja",
+        "mustache",
+        "razor"
+      ],
+      "dependsOn": [
+        "B1"
+      ],
+      "orderManifest": "tests/batch-b5/batch-b5.order.txt",
+      "gateId": "Gate B5",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C4"
+      ],
+      "notes": "Markup/style/template shard."
+    },
+    {
+      "id": "B6",
+      "laneId": "batch-b6",
+      "sequence": 6,
+      "scopeType": "language-batch",
+      "languageIds": [
+        "graphql",
+        "proto",
+        "sql"
+      ],
+      "dependsOn": [
+        "B1"
+      ],
+      "orderManifest": "tests/batch-b6/batch-b6.order.txt",
+      "gateId": "Gate B6",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "notes": "Data and interface DSL shard."
+    },
+    {
+      "id": "B7",
+      "laneId": "batch-b7",
+      "sequence": 7,
+      "scopeType": "language-batch",
+      "languageIds": [
+        "cmake",
+        "dockerfile",
+        "makefile",
+        "nix",
+        "starlark"
+      ],
+      "dependsOn": [
+        "B1"
+      ],
+      "orderManifest": "tests/batch-b7/batch-b7.order.txt",
+      "gateId": "Gate B7",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "notes": "Build and infra DSL shard."
+    },
+    {
+      "id": "B8",
+      "laneId": "batch-b8",
+      "sequence": 8,
+      "scopeType": "integration",
+      "languageIds": [],
+      "dependsOn": [
+        "B1",
+        "B2",
+        "B3",
+        "B4",
+        "B5",
+        "B6",
+        "B7"
+      ],
+      "orderManifest": "tests/batch-b8/batch-b8.order.txt",
+      "gateId": "Gate C",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2",
+        "C3",
+        "C4"
+      ],
+      "notes": "Cross-batch integration and regression shard."
+    }
+  ]
+}
