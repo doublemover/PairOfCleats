@@ -12,6 +12,15 @@ const languageProfilesPath = path.join(repoRoot, 'tests', 'lang', 'matrix', 'usr
 const languageProfiles = JSON.parse(fs.readFileSync(languageProfilesPath, 'utf8'));
 const languageDocDir = path.join(repoRoot, 'docs', 'specs', 'usr', 'languages');
 
+const languageIds = new Set((languageProfiles.rows || []).map((row) => row.id));
+const languageDocs = fs.readdirSync(languageDocDir)
+  .filter((name) => name.endsWith('.md') && name !== 'README.md' && name !== 'TEMPLATE.md');
+
+for (const fileName of languageDocs) {
+  const languageId = fileName.replace(/\.md$/, '');
+  assert.equal(languageIds.has(languageId), true, `language contract file has unknown language ID: ${languageId}`);
+}
+
 const requiredSections = [
   '## Scope',
   '## Machine-readable linkage',
