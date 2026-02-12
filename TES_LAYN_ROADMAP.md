@@ -116,7 +116,7 @@ If contradictions are found:
 - [ ] USR section 38 embedded-language bridge requirements are implemented for all container/virtual-doc frameworks.
 - [ ] USR section 39 generated/macro provenance requirements are implemented and validated.
 - [ ] USR section 40 implementation-readiness requirements are complete before promotion gates.
-- [ ] USR registry-schema contract is enforced for all `tests/lang/matrix` artifacts, including parser/runtime lock.
+- [x] USR registry-schema contract is enforced for all `tests/lang/matrix` artifacts, including parser/runtime lock.
 - [ ] USR section 41 observability and SLO contract is enforced across required lanes.
 - [ ] USR section 42 security and data governance contract is enforced with fail-closed blocking semantics.
 - [x] USR section 43 runtime configuration and feature-flag contract is enforced with strict-mode validation.

@@ -1,6 +1,6 @@
 # USR Contract Enforcement Guide
 
-Last updated: 2026-02-12T14:40:00Z
+Last updated: 2026-02-12T15:05:00Z
 
 ## Purpose
 
@@ -16,6 +16,7 @@ Define CI/local enforcement for the consolidated USR contract model.
 
 2. Matrix/schema integrity
 - required `tests/lang/matrix/usr-*.json` files exist and validate
+- full matrix schema coverage is enforced for every registry under `tests/lang/matrix` via `listUsrMatrixRegistryIds()` / `validateUsrMatrixRegistry(...)`
 - required `docs/schemas/usr/*.json` files exist for blocking evidence artifacts
 - cross-registry invariants are enforced
 - minimum-slice harness (`tests/lang/contracts/usr-minimum-slice-harness.test.js`) validates executable TypeScript+Vue slice contracts
