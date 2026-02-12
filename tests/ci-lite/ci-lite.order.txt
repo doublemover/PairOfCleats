@@ -367,6 +367,7 @@ lang/contracts/usr-f6-sync-requirements-validation
 lang/contracts/usr-rollout-migration-policy-validation
 lang/contracts/usr-rollout-phase-gate-validation
 lang/contracts/usr-rollout-f1-checklist-validation
+lang/contracts/usr-phase9-readiness-authorization-lock-validation
 lang/contracts/usr-rollout-approval-lock-validation
 lang/contracts/usr-gate-c-prereq-lock-validation
 lang/contracts/usr-archival-deprecation-policy-validation
