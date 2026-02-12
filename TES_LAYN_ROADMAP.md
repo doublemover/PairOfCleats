@@ -222,7 +222,7 @@ If contradictions are found:
 - [x] Enforce strict ID grammar validation.
 - [x] Enforce strict edge endpoint constraints.
 - [x] Enforce strict diagnostic code/reason-code enum validation (USR section 33).
-- [ ] Enforce strict canonical example fixture validation rules (USR section 34.11).
+- [x] Enforce strict canonical example fixture validation rules (USR section 34.11).
 
 ### 1.3 Drift and completeness checks
 

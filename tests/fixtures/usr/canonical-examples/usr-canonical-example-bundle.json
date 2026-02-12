@@ -1,0 +1,98 @@
+{
+  "schemaVersion": "usr-1.0.0",
+  "bundleId": "usr-canonical-example-bundle-v1",
+  "documents": [
+    {
+      "docUid": "doc64:v1:1a2b3c4d5e6f7788",
+      "fileRelPath": "src/main.ts",
+      "effectiveLanguageId": "typescript"
+    }
+  ],
+  "segments": [
+    {
+      "segmentUid": "segu:v1:1122334455667788",
+      "docUid": "doc64:v1:1a2b3c4d5e6f7788",
+      "segmentKind": "file"
+    }
+  ],
+  "nodes": [
+    {
+      "nodeUid": "n64:v1:1111aa22bb33cc44",
+      "docUid": "doc64:v1:1a2b3c4d5e6f7788",
+      "segmentUid": "segu:v1:1122334455667788",
+      "kind": "function_decl"
+    }
+  ],
+  "symbols": [
+    {
+      "symbolUid": "symu:v1:typescript:src.main.ts:main",
+      "declarationDocUid": "doc64:v1:1a2b3c4d5e6f7788",
+      "declarationNodeUid": "n64:v1:1111aa22bb33cc44"
+    }
+  ],
+  "edges": [
+    {
+      "edgeUid": "edge64:v1:0011aa22bb33cc44",
+      "kind": "calls",
+      "status": "resolved",
+      "source": {
+        "entity": "node",
+        "uid": "n64:v1:1111aa22bb33cc44"
+      },
+      "target": {
+        "entity": "symbol",
+        "uid": "symu:v1:typescript:src.main.ts:main"
+      },
+      "attrs": {
+        "confidence": 0.95
+      }
+    }
+  ],
+  "flowPaths": [
+    {
+      "nodeRefs": [
+        {
+          "entity": "node",
+          "uid": "n64:v1:1111aa22bb33cc44"
+        },
+        {
+          "entity": "symbol",
+          "uid": "symu:v1:typescript:src.main.ts:main"
+        }
+      ],
+      "edgeRefs": [
+        "edge64:v1:0011aa22bb33cc44"
+      ],
+      "truncated": false,
+      "truncationReason": null
+    }
+  ],
+  "routes": [
+    {
+      "routeUid": "route64:v1:aaaabbbbccccdddd",
+      "segmentUid": "segu:v1:1122334455667788",
+      "symbolUid": "symu:v1:typescript:src.main.ts:main",
+      "pattern": "/"
+    }
+  ],
+  "styleScopes": [
+    {
+      "scopeUid": "scope64:v1:1234abcd5678ef90",
+      "segmentUid": "segu:v1:1122334455667788",
+      "ownerSymbolUid": "symu:v1:typescript:src.main.ts:main",
+      "scopeType": "scoped"
+    }
+  ],
+  "diagnostics": [
+    {
+      "diagnosticUid": "diag64:v1:9999aaaabbbbcccc",
+      "code": "USR-W-REFERENCE-AMBIGUOUS",
+      "severity": "warning",
+      "phase": "relate",
+      "message": "Reference 'main' matched multiple candidates.",
+      "docUid": "doc64:v1:1a2b3c4d5e6f7788",
+      "segmentUid": "segu:v1:1122334455667788",
+      "nodeUid": "n64:v1:1111aa22bb33cc44"
+    }
+  ]
+}
