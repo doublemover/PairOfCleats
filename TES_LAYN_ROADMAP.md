@@ -630,7 +630,7 @@ If contradictions are found:
 - [ ] Emit compatibility matrix rollups including required section 36.8 dimensions.
 - [ ] Emit embedded-language bridge coverage and failure dashboards.
 - [ ] Emit generated/macro provenance coverage and confidence-downgrade dashboards.
-- [ ] Emit implementation-readiness evidence scorecards and promotion blocker summaries.
+- [x] Emit implementation-readiness evidence scorecards and promotion blocker summaries.
 - [ ] Emit SLO budget compliance and alert evaluation dashboards.
 - [ ] Emit redaction/security gate compliance dashboards.
 - [x] Validate section 30 report envelopes and row schemas per `docs/specs/usr-core-observability-performance-ops.md`.
