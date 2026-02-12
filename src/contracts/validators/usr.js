@@ -157,6 +157,18 @@ const REPORT_VALIDATORS = Object.freeze(
 const EVIDENCE_ENVELOPE_VALIDATOR = compileSchema(ajv, USR_EVIDENCE_ENVELOPE_SCHEMA);
 const CAPABILITY_TRANSITION_VALIDATOR = compileSchema(ajv, USR_CAPABILITY_TRANSITION_SCHEMA);
 
+export const USR_REQUIRED_AUDIT_REPORT_IDS = Object.freeze([
+  'usr-conformance-summary',
+  'usr-validation-report',
+  'usr-release-readiness-scorecard',
+  'usr-feature-flag-state',
+  'usr-failure-injection-report',
+  'usr-benchmark-regression-summary',
+  'usr-threat-model-coverage-report',
+  'usr-waiver-active-report',
+  'usr-waiver-expiry-report'
+]);
+
 export function validateUsrSchema(name, payload) {
   const validator = USR_VALIDATORS[name];
   if (!validator) {
@@ -178,6 +190,61 @@ export function validateUsrReport(artifactId, payload) {
   }
   const ok = Boolean(validator(payload));
   return { ok, errors: ok ? [] : formatErrors(validator) };
+}
+
+export function listUsrReportIds() {
+  return Object.freeze([...Object.keys(REPORT_VALIDATORS)].sort());
+}
+
+const getReportPayload = (reportsByArtifactId, artifactId) => {
+  if (!reportsByArtifactId || typeof reportsByArtifactId !== 'object') {
+    return undefined;
+  }
+  if (reportsByArtifactId instanceof Map) {
+    return reportsByArtifactId.get(artifactId);
+  }
+  return reportsByArtifactId[artifactId];
+};
+
+export function validateUsrRequiredAuditReports(
+  reportsByArtifactId,
+  { requiredArtifactIds = USR_REQUIRED_AUDIT_REPORT_IDS } = {}
+) {
+  const errors = [];
+  const rows = [];
+
+  for (const artifactId of requiredArtifactIds) {
+    const payload = getReportPayload(reportsByArtifactId, artifactId);
+    if (payload == null) {
+      const message = `missing required audit report payload: ${artifactId}`;
+      errors.push(message);
+      rows.push({
+        artifactId,
+        present: false,
+        pass: false,
+        errors: Object.freeze([message])
+      });
+      continue;
+    }
+
+    const validation = validateUsrReport(artifactId, payload);
+    if (!validation.ok) {
+      errors.push(...validation.errors.map((error) => `${artifactId} ${error}`));
+    }
+
+    rows.push({
+      artifactId,
+      present: true,
+      pass: validation.ok,
+      errors: Object.freeze([...validation.errors])
+    });
+  }
+
+  return {
+    ok: errors.length === 0,
+    errors: Object.freeze([...errors]),
+    rows: Object.freeze(rows)
+  };
 }
 
 export function validateUsrCapabilityTransition(payload, { strictReasonCode = true } = {}) {

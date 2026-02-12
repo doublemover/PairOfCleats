@@ -1,6 +1,6 @@
 # TES_LAYN_ROADMAP - USR-Aligned Language and Framework Execution Master Plan
 
-Last rewritten: 2026-02-12T08:25:00Z
+Last rewritten: 2026-02-12T08:45:00Z
 Branch: `usr-skyforge-primer`
 Document status: active master plan baseline v1.5
 
@@ -513,7 +513,7 @@ If contradictions are found:
 - [x] Materialize section 46 benchmark methodology validators and regression threshold checks.
 - [x] Materialize section 47 threat-model coverage and abuse-case mapping validators.
 - [x] Materialize section 48 waiver-policy validators (expiry/approver/compensating-control constraints).
-- [ ] Materialize section 30 report envelope validators for all required audit outputs.
+- [x] Materialize section 30 report envelope validators for all required audit outputs.
 
 ### 10.2 Lane wiring
 
@@ -633,7 +633,7 @@ If contradictions are found:
 - [ ] Emit implementation-readiness evidence scorecards and promotion blocker summaries.
 - [ ] Emit SLO budget compliance and alert evaluation dashboards.
 - [ ] Emit redaction/security gate compliance dashboards.
-- [ ] Validate section 30 report envelopes and row schemas per `docs/specs/usr-core-observability-performance-ops.md`.
+- [x] Validate section 30 report envelopes and row schemas per `docs/specs/usr-core-observability-performance-ops.md`.
 - [ ] Emit automated section 31 scorecard artifact (`usr-release-readiness-scorecard.json`).
 - [ ] Emit runtime configuration and feature-flag state dashboards.
 - [ ] Emit failure-injection scenario pass/fail and recovery dashboards.

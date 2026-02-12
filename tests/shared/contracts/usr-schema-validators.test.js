@@ -6,6 +6,9 @@ import { fileURLToPath } from 'node:url';
 import {
   validateUsrEvidenceEnvelope,
   validateUsrReport,
+  listUsrReportIds,
+  validateUsrRequiredAuditReports,
+  USR_REQUIRED_AUDIT_REPORT_IDS,
   validateUsrCapabilityTransition,
   validateUsrCanonicalId,
   validateUsrDiagnosticCode,
@@ -60,6 +63,36 @@ const reportMissingRows = { ...report };
 delete reportMissingRows.rows;
 const missingRowsResult = validateUsrReport('usr-conformance-summary', reportMissingRows);
 assert.equal(missingRowsResult.ok, false, 'report missing rows must fail');
+
+const reportSchemaIds = listUsrReportIds();
+for (const requiredArtifactId of USR_REQUIRED_AUDIT_REPORT_IDS) {
+  assert.equal(reportSchemaIds.includes(requiredArtifactId), true, `required audit report schema must be registered: ${requiredArtifactId}`);
+}
+
+const requiredAuditReports = Object.fromEntries(
+  USR_REQUIRED_AUDIT_REPORT_IDS.map((artifactId) => [artifactId, {
+    ...envelope,
+    artifactId,
+    summary: { artifactId },
+    rows: []
+  }])
+);
+
+const requiredAuditValidation = validateUsrRequiredAuditReports(requiredAuditReports);
+assert.equal(requiredAuditValidation.ok, true, `required audit report set should validate: ${requiredAuditValidation.errors.join('; ')}`);
+
+const missingAuditReportValidation = validateUsrRequiredAuditReports({
+  ...requiredAuditReports,
+  'usr-waiver-expiry-report': undefined
+});
+assert.equal(missingAuditReportValidation.ok, false, 'missing required audit report payload must fail');
+
+const reportWithUnknownKey = {
+  ...requiredAuditReports['usr-validation-report'],
+  unexpectedTopLevelKey: true
+};
+const reportWithUnknownKeyResult = validateUsrReport('usr-validation-report', reportWithUnknownKey);
+assert.equal(reportWithUnknownKeyResult.ok, false, 'report with unknown top-level key must fail strict report schema validation');
 
 const transitionOk = validateUsrCapabilityTransition({
   from: 'supported',
