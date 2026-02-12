@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { extractHeadingSection } from './usr-lock-test-utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -14,15 +15,6 @@ const frameworkDocDir = path.join(repoRoot, 'docs', 'specs', 'usr', 'frameworks'
 
 const frameworkProfiles = JSON.parse(fs.readFileSync(frameworkProfilesPath, 'utf8'));
 const fixtureGovernance = JSON.parse(fs.readFileSync(fixtureGovernancePath, 'utf8'));
-
-const extractSection = (text, heading) => {
-  const marker = `## ${heading}`;
-  const start = text.indexOf(marker);
-  assert.notEqual(start, -1, `missing section marker: ${marker}`);
-  const fromMarker = text.slice(start + marker.length);
-  const nextSectionIndex = fromMarker.search(/\n##\s+/);
-  return nextSectionIndex === -1 ? fromMarker : fromMarker.slice(0, nextSectionIndex);
-};
 
 const extractBacktickedTokens = (text) => {
   const tokens = [];
@@ -57,9 +49,9 @@ for (const row of frameworkProfiles.rows || []) {
 
   const docText = fs.readFileSync(docPath, 'utf8');
 
-  const detectionSection = extractSection(docText, '1. Detection and precedence');
-  const templateBindingSection = extractSection(docText, '3. Template/binding semantics');
-  const fixtureEvidenceSection = extractSection(docText, '8. Required fixtures and evidence');
+  const detectionSection = extractHeadingSection(docText, '1. Detection and precedence');
+  const templateBindingSection = extractHeadingSection(docText, '3. Template/binding semantics');
+  const fixtureEvidenceSection = extractHeadingSection(docText, '8. Required fixtures and evidence');
 
   const expectedAppliesToLanguages = sortedUnique(row.appliesToLanguages || []);
   const actualAppliesToLanguages = sortedUnique(extractLineTokens(detectionSection, 'appliesToLanguages', frameworkId));

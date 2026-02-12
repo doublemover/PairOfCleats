@@ -8,6 +8,15 @@ export const extractSection = (text, startMarker, endMarker) => {
   return text.slice(start, end);
 };
 
+export const extractHeadingSection = (text, heading) => {
+  const marker = `## ${heading}`;
+  const start = text.indexOf(marker);
+  assert.notEqual(start, -1, `missing section marker: ${marker}`);
+  const fromMarker = text.slice(start + marker.length);
+  const nextSectionIndex = fromMarker.search(/\n##\s+/);
+  return nextSectionIndex === -1 ? fromMarker : fromMarker.slice(0, nextSectionIndex);
+};
+
 export const checklistLineState = (section, label) => {
   const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   if (new RegExp(`^- \\[x\\] ${escaped}$`, 'm').test(section)) return 'checked';
