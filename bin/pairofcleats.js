@@ -108,6 +108,56 @@ function resolveCommand(primary, rest) {
       );
       return { script: 'tools/index-snapshot.js', extraArgs: [], args: rest };
     }
+    if (sub === 'diff') {
+      validateArgs(
+        rest,
+        [
+          'repo',
+          'from',
+          'to',
+          'modes',
+          'mode',
+          'max-changed-files',
+          'max-chunks-per-file',
+          'max-events',
+          'max-bytes',
+          'include-relations',
+          'detect-renames',
+          'allow-mismatch',
+          'persist',
+          'persist-unsafe',
+          'diff',
+          'format',
+          'max-diffs',
+          'retain-days',
+          'wait-ms',
+          'dry-run',
+          'json',
+          'compact'
+        ],
+        [
+          'repo',
+          'from',
+          'to',
+          'modes',
+          'mode',
+          'max-changed-files',
+          'max-chunks-per-file',
+          'max-events',
+          'max-bytes',
+          'include-relations',
+          'detect-renames',
+          'allow-mismatch',
+          'persist',
+          'diff',
+          'format',
+          'max-diffs',
+          'retain-days',
+          'wait-ms'
+        ]
+      );
+      return { script: 'tools/index-diff.js', extraArgs: [], args: rest };
+    }
     return { script: 'build_index.js', extraArgs: [], args: [sub, ...rest] };
   }
   if (primary === 'search') {
@@ -719,6 +769,7 @@ Index:
   index watch             Watch and rebuild indexes incrementally
   index validate          Validate index artifacts
   index snapshot          Manage index snapshots (create/list/show/rm/freeze/gc)
+  index diff              Compute/list/show/prune index diffs
 
 Search:
   search "<query>"         Query indexed data

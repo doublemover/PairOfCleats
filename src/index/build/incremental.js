@@ -198,6 +198,26 @@ export async function shouldReuseIncrementalIndex({
   if (!Array.isArray(pieceManifest?.pieces) || pieceManifest.pieces.length === 0) {
     return fail('piece manifest empty');
   }
+  const outRoot = path.resolve(outDir);
+  for (const piece of pieceManifest.pieces) {
+    const relPath = typeof piece?.path === 'string' ? piece.path : null;
+    if (!relPath) {
+      return fail('piece manifest missing path');
+    }
+    const resolvedPath = path.resolve(outDir, relPath);
+    const withinOutDir = process.platform === 'win32'
+      ? (
+        resolvedPath.toLowerCase() === outRoot.toLowerCase()
+        || resolvedPath.toLowerCase().startsWith(`${outRoot.toLowerCase()}${path.sep}`)
+      )
+      : (resolvedPath === outRoot || resolvedPath.startsWith(`${outRoot}${path.sep}`));
+    if (!withinOutDir) {
+      return fail('piece manifest path escapes output dir');
+    }
+    if (!fsSync.existsSync(resolvedPath)) {
+      return fail(`piece missing: ${relPath}`);
+    }
+  }
   const entryKeys = new Set();
   for (const entry of entries) {
     if (entry?.rel) entryKeys.add(entry.rel);

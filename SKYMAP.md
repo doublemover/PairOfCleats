@@ -598,13 +598,13 @@ Tests:
 
 ## 14.4 Deterministic diff computation
 
-- [ ] Implement `pairofcleats index diff compute/show/list/prune`.
-- [ ] Deterministic diffId from canonical inputs.
-- [ ] Persist `inputs.json`, `summary.json`, and bounded `events.jsonl`.
-- [ ] Define canonical event taxonomy + ordering key (type order + stable key fields).
-- [ ] Fast-path only if pieces manifests match in a shard-aware way (all checksums + summed counts).
-- [ ] Deterministic ordering (mode order + per-mode sort).
-- [ ] Truncation behavior deterministic and documented in summary.
+- [x] Implement `pairofcleats index diff compute/show/list/prune`.
+- [x] Deterministic diffId from canonical inputs.
+- [x] Persist `inputs.json`, `summary.json`, and bounded `events.jsonl`.
+- [x] Define canonical event taxonomy + ordering key (type order + stable key fields).
+- [x] Fast-path only if pieces manifests match in a shard-aware way (all checksums + summed counts).
+- [x] Deterministic ordering (mode order + per-mode sort).
+- [x] Truncation behavior deterministic and documented in summary.
 
 Touchpoints:
 - `tools/index-diff.js`
@@ -614,8 +614,8 @@ Touchpoints:
 - `src/index/build/incremental.js` (reuse validation + signature binding)
 
 Tests:
-- [ ] `tests/services/index-diff.test.js`
-- [ ] `tests/indexer/incremental/index-reuse-validation.test.js`
+- [x] `tests/services/index-diff.test.js`
+- [x] `tests/indexer/incremental/index-reuse-validation.test.js`
 
 ---
 
