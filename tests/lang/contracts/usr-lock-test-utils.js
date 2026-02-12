@@ -1,18 +1,24 @@
 import assert from 'node:assert/strict';
 
+const normalizeNewlines = (value) => String(value ?? '').replace(/\r\n?/g, '\n');
+
 export const extractSection = (text, startMarker, endMarker) => {
-  const start = text.indexOf(startMarker);
+  const normalizedText = normalizeNewlines(text);
+  const normalizedStartMarker = normalizeNewlines(startMarker);
+  const normalizedEndMarker = normalizeNewlines(endMarker);
+  const start = normalizedText.indexOf(normalizedStartMarker);
   assert.notEqual(start, -1, `missing section start marker: ${startMarker}`);
-  const end = text.indexOf(endMarker, start);
+  const end = normalizedText.indexOf(normalizedEndMarker, start);
   assert.notEqual(end, -1, `missing section end marker: ${endMarker}`);
-  return text.slice(start, end);
+  return normalizedText.slice(start, end);
 };
 
 export const extractHeadingSection = (text, heading) => {
+  const normalizedText = normalizeNewlines(text);
   const marker = `## ${heading}`;
-  const start = text.indexOf(marker);
+  const start = normalizedText.indexOf(marker);
   assert.notEqual(start, -1, `missing section marker: ${marker}`);
-  const fromMarker = text.slice(start + marker.length);
+  const fromMarker = normalizedText.slice(start + marker.length);
   const nextSectionIndex = fromMarker.search(/\n##\s+/);
   return nextSectionIndex === -1 ? fromMarker : fromMarker.slice(0, nextSectionIndex);
 };
