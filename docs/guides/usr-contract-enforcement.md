@@ -1,6 +1,6 @@
 # USR Contract Enforcement Guide
 
-Last updated: 2026-02-12T03:15:00Z
+Last updated: 2026-02-12T04:05:00Z
 
 ## Purpose
 
@@ -21,6 +21,7 @@ Define CI/local enforcement for the consolidated USR contract model.
 - minimum-slice harness (`tests/lang/contracts/usr-minimum-slice-harness.test.js`) validates executable TypeScript+Vue slice contracts
 - language contract template enforcement (`tests/lang/contracts/usr-language-contract-template.test.js`) validates per-language contract structure and matrix linkage
 - canonical example bundle enforcement (`tests/lang/contracts/usr-canonical-example-validation.test.js`) validates section 34.11 fixture checklist and cross-entity coherence
+- framework canonicalization fixture enforcement (`tests/lang/contracts/usr-framework-canonicalization.test.js`) validates section 35 canonical attrs plus framework edge-case checklist coverage
 
 3. Roadmap/spec alignment
 - `TES_LAYN_ROADMAP.md` contract references resolve
@@ -44,3 +45,4 @@ Define CI/local enforcement for the consolidated USR contract model.
 - list modified contracts and matrix/schema artifacts
 - include validation outputs and failed/passed gate summary
 - update roadmap and consolidation matrix when contract ownership changes
+
