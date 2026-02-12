@@ -1,6 +1,6 @@
 # USR Contract Enforcement Guide
 
-Last updated: 2026-02-12T15:05:00Z
+Last updated: 2026-02-12T15:25:00Z
 
 ## Purpose
 
@@ -31,7 +31,7 @@ Define CI/local enforcement for the consolidated USR contract model.
 - C2/C3 deep-profile conformance enforcement (`tests/lang/contracts/usr-c2-baseline-validation.test.js`, `tests/lang/contracts/usr-c3-baseline-validation.test.js`) validates C2/C3 required/blocking level coverage for eligible language profiles and report generation
 - C4 framework-profile conformance enforcement (`tests/lang/contracts/usr-c4-baseline-validation.test.js`) validates C4 required/blocking level coverage for framework-required language profiles and report generation
 - diagnostic remediation-routing enforcement (`tests/lang/contracts/usr-diagnostic-remediation-routing-validation.test.js`) validates strict diagnostic taxonomy routing to section 33.4 remediation classes
-- implementation readiness enforcement (`tests/lang/contracts/usr-implementation-readiness-validation.test.js`) validates section 40 operational-readiness and quality-gate schema invariants, evidence-schema coverage, and promotion blockers for C0/C1 rollout, C2/C3 deep conformance, and C4 framework conformance readiness
+- implementation readiness enforcement (`tests/lang/contracts/usr-implementation-readiness-validation.test.js`) validates section 40 operational-readiness and quality-gate schema invariants, evidence-schema coverage, promotion blockers for C0/C1 rollout, C2/C3 deep conformance, and C4 framework conformance readiness, and report emission for `usr-operational-readiness-validation` / `usr-release-readiness-scorecard`
 - runtime config and feature-flag enforcement (`tests/lang/contracts/usr-runtime-config-feature-flag-validation.test.js`) validates section 43 precedence resolution, strict-mode policy behavior, and disallowed feature-flag conflicts
 - failure-injection enforcement (`tests/lang/contracts/usr-failure-injection-validation.test.js`) validates section 44 strict/non-strict scenario outcomes, required diagnostics/reason codes, and recovery-evidence coverage
 - fixture-governance enforcement (`tests/lang/contracts/usr-fixture-governance-validation.test.js`) validates section 45 owner/reviewer/mutation-policy controls for blocking fixture families

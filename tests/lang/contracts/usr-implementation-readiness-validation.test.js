@@ -5,8 +5,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   validateUsrMatrixRegistry,
-  evaluateUsrConformancePromotionReadiness
+  evaluateUsrConformancePromotionReadiness,
+  buildUsrOperationalReadinessValidationReport,
+  buildUsrReleaseReadinessScorecard
 } from '../../../src/contracts/validators/usr-matrix.js';
+import { validateUsrReport } from '../../../src/contracts/validators/usr.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -107,6 +110,34 @@ assert.equal(baselineEvaluation.readiness.testRolloutBlocked, false, 'baseline i
 assert.equal(baselineEvaluation.readiness.deepConformanceBlocked, false, 'baseline implementation readiness should not block C2/C3 deep conformance');
 assert.equal(baselineEvaluation.readiness.frameworkConformanceBlocked, false, 'baseline implementation readiness should not block C4 framework conformance');
 
+const operationalReadinessReport = buildUsrOperationalReadinessValidationReport({
+  operationalReadinessPolicyPayload: operationalReadiness,
+  qualityGatesPayload: qualityGates,
+  languageProfilesPayload: languageProfiles,
+  conformanceLevelsPayload: conformanceLevels,
+  knownLanes: knownConformanceLanes,
+  missingArtifactSchemas,
+  runId: 'run-usr-operational-readiness-validation-001',
+  lane: 'ci'
+});
+assert.equal(operationalReadinessReport.ok, true, `operational readiness report should pass: ${operationalReadinessReport.errors.join('; ')}`);
+const operationalReadinessReportValidation = validateUsrReport('usr-operational-readiness-validation', operationalReadinessReport.payload);
+assert.equal(operationalReadinessReportValidation.ok, true, `operational readiness report payload must validate: ${operationalReadinessReportValidation.errors.join('; ')}`);
+
+const releaseReadinessScorecard = buildUsrReleaseReadinessScorecard({
+  operationalReadinessPolicyPayload: operationalReadiness,
+  qualityGatesPayload: qualityGates,
+  languageProfilesPayload: languageProfiles,
+  conformanceLevelsPayload: conformanceLevels,
+  knownLanes: knownConformanceLanes,
+  missingArtifactSchemas,
+  runId: 'run-usr-release-readiness-scorecard-001',
+  lane: 'ci'
+});
+assert.equal(releaseReadinessScorecard.ok, true, `release readiness scorecard should pass: ${releaseReadinessScorecard.errors.join('; ')}`);
+const releaseReadinessScorecardValidation = validateUsrReport('usr-release-readiness-scorecard', releaseReadinessScorecard.payload);
+assert.equal(releaseReadinessScorecardValidation.ok, true, `release readiness scorecard payload must validate: ${releaseReadinessScorecardValidation.errors.join('; ')}`);
+
 const simulatedFailureEvaluation = evaluateUsrConformancePromotionReadiness({
   languageProfilesPayload: languageProfiles,
   conformanceLevelsPayload: conformanceLevels,
@@ -116,6 +147,20 @@ const simulatedFailureEvaluation = evaluateUsrConformancePromotionReadiness({
 });
 assert.equal(simulatedFailureEvaluation.blocked, true, 'promotion blocker evaluator must block when a blocking gate fails');
 assert.equal(simulatedFailureEvaluation.blockers[0].startsWith('failing-gate:'), true, 'promotion blocker reason must include failing gate ID');
+
+const simulatedFailureScorecard = buildUsrReleaseReadinessScorecard({
+  operationalReadinessPolicyPayload: operationalReadiness,
+  qualityGatesPayload: qualityGates,
+  languageProfilesPayload: languageProfiles,
+  conformanceLevelsPayload: conformanceLevels,
+  knownLanes: knownConformanceLanes,
+  missingArtifactSchemas: [],
+  failingBlockingGateIds: [blockingQualityRows[0].id],
+  runId: 'run-usr-release-readiness-scorecard-002',
+  lane: 'ci'
+});
+assert.equal(simulatedFailureScorecard.ok, false, 'release readiness scorecard must fail when a blocking quality gate fails');
+assert.equal(simulatedFailureScorecard.payload.status, 'fail', 'failing release readiness scorecard must carry fail status');
 
 const missingC0Readiness = evaluateUsrConformancePromotionReadiness({
   languageProfilesPayload: languageProfiles,
