@@ -65,18 +65,29 @@ const resolveCacheScopedPath = (repoCacheRoot, buildsRoot, value, label) => {
     return null;
   }
   const trimmed = value.trim();
-  const candidates = isAbsolutePathAny(trimmed)
-    ? [trimmed]
-    : [
+  const candidates = (() => {
+    if (isAbsolutePathAny(trimmed)) return [trimmed];
+    // build-id-style pointers should prefer <repoCacheRoot>/builds/<buildId>.
+    if (BUILD_ID_RE.test(trimmed)) {
+      return [
+        path.join(buildsRoot, trimmed),
+        path.join(repoCacheRoot, trimmed)
+      ];
+    }
+    return [
       path.join(repoCacheRoot, trimmed),
       path.join(buildsRoot, trimmed)
     ];
+  })();
+  let sawScopedCandidate = false;
   for (const candidate of candidates) {
     const resolved = path.resolve(candidate);
     if (withinRoot(repoCacheRoot, resolved)) {
-      return resolved;
+      sawScopedCandidate = true;
+      if (fs.existsSync(resolved)) return resolved;
     }
   }
+  if (sawScopedCandidate) return null;
   throw invalidRequest(`${label} escapes repo cache root: ${trimmed}`);
 };
 
@@ -177,10 +188,13 @@ const resolveLatest = ({
       ? current.buildRootsByMode
       : {});
   const defaultRoot = typeof current.buildRoot === 'string' ? current.buildRoot : null;
+  const currentBuildId = (typeof current.buildId === 'string' && BUILD_ID_RE.test(current.buildId.trim()))
+    ? current.buildId.trim()
+    : null;
   const indexBaseRootByMode = {};
 
   for (const mode of modes) {
-    const modeRootRaw = buildRoots[mode] ?? defaultRoot;
+    const modeRootRaw = buildRoots[mode] ?? defaultRoot ?? currentBuildId;
     if (!modeRootRaw) {
       if (allowMissingModes) {
         warnings.push(`Missing build root for ${mode}`);
