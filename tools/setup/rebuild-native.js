@@ -42,6 +42,7 @@ const OPTIONAL_NATIVE_PACKAGES = [
 const root = process.cwd();
 const requireFromRoot = createRequire(path.join(root, 'package.json'));
 const verifyOnly = process.argv.includes('--verify');
+const repairOnly = process.argv.includes('--repair');
 
 const resolveNodeModulesPath = (pkgName) => (
   path.join(root, 'node_modules', ...pkgName.split('/'))
@@ -98,29 +99,82 @@ const probePackage = async (pkgName) => {
   }
 };
 
-const verifyRequiredPackages = async () => {
-  let failures = 0;
+const getRequiredPackageFailures = async ({ label = 'verify:native' } = {}) => {
+  const failures = [];
 
   for (const pkgName of REQUIRED_NATIVE_PACKAGES) {
     if (!isInstalled(pkgName)) {
-      console.error(`[verify:native] required package is missing: ${pkgName}`);
-      failures += 1;
+      console.error(`[${label}] required package is missing: ${pkgName}`);
+      failures.push({
+        pkgName,
+        missing: true,
+        message: 'required package is missing'
+      });
       continue;
     }
 
     const result = await probePackage(pkgName);
     if (!result.ok) {
-      console.error(`[verify:native] required package is not loadable (${pkgName}): ${result.message}`);
-      failures += 1;
+      console.error(`[${label}] required package is not loadable (${pkgName}): ${result.message}`);
+      failures.push({
+        pkgName,
+        missing: false,
+        message: result.message || 'required package is not loadable'
+      });
     }
   }
 
-  if (failures > 0) {
-    console.error(`[verify:native] failed with ${failures} required package failure(s).`);
+  return failures;
+};
+
+const verifyRequiredPackages = async () => {
+  const failures = await getRequiredPackageFailures({ label: 'verify:native' });
+
+  if (failures.length > 0) {
+    console.error(`[verify:native] failed with ${failures.length} required package failure(s).`);
     process.exit(1);
   }
 
   console.error('[verify:native] all required packages are loadable.');
+};
+
+const repairRequiredPackages = async () => {
+  const failures = await getRequiredPackageFailures({ label: 'repair:native' });
+  if (failures.length === 0) {
+    console.error('[repair:native] no required package repairs needed.');
+    return;
+  }
+
+  let repairFailures = 0;
+
+  for (const failure of failures) {
+    if (failure.missing) {
+      console.error(`[repair:native] cannot rebuild missing required package: ${failure.pkgName}`);
+      repairFailures += 1;
+      continue;
+    }
+
+    console.error(`[repair:native] rebuilding required package: ${failure.pkgName}`);
+    const rebuildResult = rebuildPackage(failure.pkgName);
+    if (!rebuildResult.ok) {
+      console.error(`[repair:native] failed required package ${failure.pkgName}: ${rebuildResult.message}`);
+      repairFailures += 1;
+      continue;
+    }
+
+    const probeResult = await probePackage(failure.pkgName);
+    if (!probeResult.ok) {
+      console.error(`[repair:native] required package still not loadable (${failure.pkgName}): ${probeResult.message}`);
+      repairFailures += 1;
+    }
+  }
+
+  if (repairFailures > 0) {
+    console.error(`[repair:native] failed with ${repairFailures} required package repair failure(s).`);
+    process.exit(1);
+  }
+
+  console.error(`[repair:native] repaired ${failures.length} required package(s).`);
 };
 
 let requiredFailures = 0;
@@ -128,6 +182,11 @@ let optionalFailures = 0;
 
 if (verifyOnly) {
   await verifyRequiredPackages();
+  process.exit(0);
+}
+
+if (repairOnly) {
+  await repairRequiredPackages();
   process.exit(0);
 }
 

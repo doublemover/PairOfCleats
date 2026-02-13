@@ -51,8 +51,8 @@ jobs:
           else
             echo "node_modules cache hit; verifying native modules."
             if ! npm run verify:native; then
-              echo "native verification failed; running rebuild:native."
-              npm run rebuild:native
+              echo "native verification failed; running targeted repair:native."
+              npm run repair:native
             fi
           fi
           node -v

@@ -93,8 +93,8 @@ jobs:
           else
             echo "node_modules cache hit; verifying native modules."
             if ! npm run verify:native; then
-              echo "native verification failed; running rebuild:native."
-              npm run rebuild:native
+              echo "native verification failed; running targeted repair:native."
+              npm run repair:native
             fi
           fi
           node -v
@@ -163,8 +163,8 @@ jobs:
             Write-Host 'node_modules cache hit; verifying native modules.'
             npm run verify:native
             if ($LASTEXITCODE -ne 0) {
-              Write-Host 'native verification failed; running rebuild:native.'
-              npm run rebuild:native
+              Write-Host 'native verification failed; running targeted repair:native.'
+              npm run repair:native
               if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             }
           }
@@ -225,8 +225,8 @@ jobs:
           else
             echo "node_modules cache hit; verifying native modules."
             if ! npm run verify:native; then
-              echo "native verification failed; running rebuild:native."
-              npm run rebuild:native
+              echo "native verification failed; running targeted repair:native."
+              npm run repair:native
             fi
           fi
           node -v
