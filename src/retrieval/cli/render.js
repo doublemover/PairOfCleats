@@ -10,6 +10,7 @@ export function renderSearchOutput({
   rootDir,
   backendLabel,
   backendPolicyInfo,
+  routingPolicy = null,
   runCode,
   runProse,
   runExtractedProse,
@@ -109,6 +110,7 @@ export function renderSearchOutput({
       annMode: vectorAnnActive ? 'extension' : vectorExtension.annMode,
       annBackend,
       backendPolicy: backendPolicyInfo,
+      routingPolicy,
       annExtension: vectorAnnEnabled ? {
         provider: vectorExtension.provider,
         table: vectorExtension.table,
@@ -184,6 +186,7 @@ export function renderSearchOutput({
       fieldWeights
     };
     payload.stats.contextExpansion = contextExpansionStats;
+    payload.stats.routing = routingPolicy;
   }
 
   if (emitOutput && jsonOutput) {

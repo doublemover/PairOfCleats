@@ -435,27 +435,27 @@ Version metadata for extracted documents with stable forward/backward behavior.
 Make routing and FTS query compilation deterministic, explainable, and safe.
 
 #### Tasks
-- [ ] Routing defaults:
-  - [ ] prose and extracted-prose -> SQLite FTS
-  - [ ] code -> sparse/postings
-  - [ ] overrides are explicit and visible in `--explain`
-- [ ] Enforce routing model:
-  - [ ] desired policy and actual availability are separate
-  - [ ] deterministic fallback order is fixed and documented
-- [ ] FTS query compilation:
-  - [ ] compile from query AST (or validated parsed representation)
-  - [ ] escape punctuation and keywords safely
-  - [ ] emit final `MATCH` string in explain
-- [ ] Provider variant precedence (fixed):
-  1. [ ] if explicit `--fts-trigram`, use trigram
-  2. [ ] else if query contains CJK/emoji or substring mode, use trigram
-  3. [ ] else if Latin script and stemming override enabled, use porter
-  4. [ ] else use `unicode61 remove_diacritics 2`
-  5. [ ] apply NFKC normalized query path when normalization changes input and include reason in explain
-- [ ] Merge multi-variant results deterministically:
-  - [ ] primary by fused score descending
-  - [ ] tie-break by `chunkUid` ascending
-- [ ] Missing FTS tables must return controlled availability outcomes, not throw.
+- [x] Routing defaults:
+  - [x] prose and extracted-prose -> SQLite FTS
+  - [x] code -> sparse/postings
+  - [x] overrides are explicit and visible in `--explain`
+- [x] Enforce routing model:
+  - [x] desired policy and actual availability are separate
+  - [x] deterministic fallback order is fixed and documented
+- [x] FTS query compilation:
+  - [x] compile from query AST (or validated parsed representation)
+  - [x] escape punctuation and keywords safely
+  - [x] emit final `MATCH` string in explain
+- [x] Provider variant precedence (fixed):
+  1. [x] if explicit `--fts-trigram`, use trigram
+  2. [x] else if query contains CJK/emoji or substring mode, use trigram
+  3. [x] else if Latin script and stemming override enabled, use porter
+  4. [x] else use `unicode61 remove_diacritics 2`
+  5. [x] apply NFKC normalized query path when normalization changes input and include reason in explain
+- [x] Merge multi-variant results deterministically:
+  - [x] primary by fused score descending
+  - [x] tie-break by `chunkUid` ascending
+- [x] Missing FTS tables must return controlled availability outcomes, not throw.
 
 #### Touchpoints
 - `src/retrieval/pipeline.js`
@@ -467,16 +467,16 @@ Make routing and FTS query compilation deterministic, explainable, and safe.
 - `docs/specs/prose-routing.md`
 
 #### Tests
-- [ ] `tests/retrieval/backend/search-routing-policy.test.js`
-  - [ ] Prose defaults to FTS and code defaults to sparse/postings with clear explain trace.
-- [ ] `tests/retrieval/query/sqlite-fts-query-escape.test.js`
-  - [ ] Escaping prevents operator injection and preserves literal punctuation intent.
-- [ ] `tests/retrieval/backend/fts-tokenizer-config.test.js`
-  - [ ] Tokenizer variant config and diacritic behavior match documented defaults.
-- [ ] `tests/retrieval/backend/fts-missing-table-fallback.test.js`
-  - [ ] Missing table path returns controlled availability outcome (no throw).
-- [ ] `tests/retrieval/backend/fts-variant-selection-precedence.test.js`
-  - [ ] Variant selection order follows the documented precedence table exactly.
+- [x] `tests/retrieval/backend/search-routing-policy.test.js`
+  - [x] Prose defaults to FTS and code defaults to sparse/postings with clear explain trace.
+- [x] `tests/retrieval/query/sqlite-fts-query-escape.test.js`
+  - [x] Escaping prevents operator injection and preserves literal punctuation intent.
+- [x] `tests/retrieval/backend/fts-tokenizer-config.test.js`
+  - [x] Tokenizer variant config and diacritic behavior match documented defaults.
+- [x] `tests/retrieval/backend/fts-missing-table-fallback.test.js`
+  - [x] Missing table path returns controlled availability outcome (no throw).
+- [x] `tests/retrieval/backend/fts-variant-selection-precedence.test.js`
+  - [x] Variant selection order follows the documented precedence table exactly.
 
 ### 17.6 Retrieval helper correctness hardening
 

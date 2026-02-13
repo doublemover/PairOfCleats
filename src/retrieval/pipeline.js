@@ -20,6 +20,7 @@ import { applyGraphRanking } from './pipeline/graph-ranking.js';
 import { createCandidatePool } from './pipeline/candidate-pool.js';
 import { createScoreBufferPool } from './pipeline/score-buffer.js';
 import { createTopKReducer } from './pipeline/topk.js';
+import { compileFtsMatchQuery } from './fts-query.js';
 
 const SQLITE_IN_LIMIT = 900;
 const MAX_POOL_ENTRIES = 50000;
@@ -46,6 +47,7 @@ export function createSearchPipeline(context) {
     bm25B,
     fieldWeights,
     postingsConfig,
+    query,
     queryTokens,
     queryAst,
     phraseNgramSet,
@@ -63,6 +65,8 @@ export function createSearchPipeline(context) {
     scoreBlend,
     minhashMaxDocs,
     sparseBackend,
+    sqliteFtsRoutingByMode,
+    sqliteFtsVariantConfig,
     vectorAnnState,
     vectorAnnUsed,
     hnswAnnState,
@@ -356,7 +360,23 @@ export function createSearchPipeline(context) {
   return async function runSearch(idx, mode, queryEmbedding) {
     throwIfAborted();
     const meta = idx.chunkMeta;
-    const sqliteEnabledForMode = useSqlite && (mode === 'code' || mode === 'prose');
+    const sqliteEnabledForMode = useSqlite && (
+      mode === 'code'
+      || mode === 'prose'
+      || mode === 'extracted-prose'
+    );
+    const sqliteRouteByMode = sqliteFtsRoutingByMode?.byMode?.[mode] || null;
+    const sqliteFtsDesiredForMode = sqliteRouteByMode
+      ? sqliteRouteByMode.desired === 'fts'
+      : sqliteFtsRequested;
+    const sqliteFtsCompilation = compileFtsMatchQuery({
+      queryAst,
+      queryTokens,
+      query,
+      explicitTrigram: sqliteFtsVariantConfig?.explicitTrigram === true,
+      substringMode: sqliteFtsVariantConfig?.substringMode === true,
+      stemmingEnabled: sqliteFtsVariantConfig?.stemming === true
+    });
     const filtersEnabled = typeof filtersActive === 'boolean'
       ? filtersActive
       : hasActiveFilters(filters);
@@ -457,7 +477,9 @@ export function createSearchPipeline(context) {
           : null;
         const sqliteFtsCanPushdown = !!(sqliteFtsAllowed && sqliteFtsAllowed.size <= SQLITE_IN_LIMIT);
         const sqliteFtsEligible = sqliteEnabledForMode
-        && sqliteFtsRequested
+        && sqliteFtsDesiredForMode
+        && typeof sqliteFtsCompilation.match === 'string'
+        && sqliteFtsCompilation.match.trim().length > 0
         && (typeof sqliteHasFts !== 'function' || sqliteHasFts(mode))
         && (!filtersEnabled || sqliteFtsCanPushdown);
         const wantsTantivy = normalizedSparseBackend === 'tantivy';
@@ -487,6 +509,7 @@ export function createSearchPipeline(context) {
           const ftsResult = sqliteFtsProvider.search({
             idx,
             queryTokens,
+            ftsMatch: sqliteFtsCompilation.match,
             mode,
             topN: expandedTopN,
             allowedIds: sqliteFtsCanPushdown ? sqliteFtsAllowed : null
@@ -521,6 +544,31 @@ export function createSearchPipeline(context) {
           allowed: allowedIdx ? allowedCount : null,
           candidates: candidates ? candidates.size : null,
           bmHits: bmHits.length
+        };
+        const sqliteRoutingReason = !sqliteEnabledForMode
+          ? 'sqlite_unavailable'
+          : !sqliteFtsDesiredForMode
+            ? 'mode_routed_to_sparse'
+            : !sqliteFtsCompilation.match
+              ? 'empty_fts_match'
+              : (typeof sqliteHasFts === 'function' && !sqliteHasFts(mode))
+                ? 'fts_table_unavailable'
+                : (filtersEnabled && !sqliteFtsCanPushdown)
+                  ? 'filters_require_pushdown'
+                  : 'fts_selected';
+        candidateMetrics.routing = {
+          mode,
+          sqliteEnabledForMode,
+          sqliteFtsDesired: sqliteFtsDesiredForMode,
+          reason: sqliteRoutingReason,
+          route: sqliteRouteByMode || null
+        };
+        candidateMetrics.fts = {
+          match: sqliteFtsCompilation.match,
+          variant: sqliteFtsCompilation.variant,
+          tokenizer: sqliteFtsCompilation.tokenizer,
+          reasonPath: sqliteFtsCompilation.reasonPath,
+          normalizedChanged: sqliteFtsCompilation.normalizedChanged
         };
         candidateMetrics.sqliteFtsUsed = sqliteFtsUsed;
         candidateMetrics.sparseType = sparseType;
@@ -855,10 +903,15 @@ export function createSearchPipeline(context) {
               normalized: sparseTypeValue === 'fts' ? sqliteFtsNormalize : null,
               weights: sparseTypeValue === 'fts' ? sqliteFtsWeights : null,
               profile: sparseTypeValue === 'fts' ? sqliteFtsProfile : null,
+              match: sparseTypeValue === 'fts' ? sqliteFtsCompilation.match : null,
+              variant: sparseTypeValue === 'fts' ? sqliteFtsCompilation.variant : null,
+              tokenizer: sparseTypeValue === 'fts' ? sqliteFtsCompilation.tokenizer : null,
+              variantReason: sparseTypeValue === 'fts' ? sqliteFtsCompilation.reasonPath : null,
+              normalizedQueryChanged: sparseTypeValue === 'fts' ? sqliteFtsCompilation.normalizedChanged : null,
               fielded: fieldWeightsEnabled || false,
               k1: sparseTypeValue && sparseTypeValue !== 'fts' ? bm25K1 : null,
               b: sparseTypeValue && sparseTypeValue !== 'fts' ? bm25B : null,
-              ftsFallback: sqliteFtsRequested ? !sqliteFtsUsed : false
+              ftsFallback: sqliteFtsDesiredForMode ? !sqliteFtsUsed : false
             } : null,
             ann: annScore != null ? {
               score: annScore,

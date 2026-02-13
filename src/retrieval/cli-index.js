@@ -407,6 +407,7 @@ export async function getIndexSignature(options) {
     backendLabel,
     sqliteCodePath,
     sqliteProsePath,
+    sqliteExtractedProsePath,
     runRecords,
     runExtractedProse,
     includeExtractedProse,
@@ -475,7 +476,8 @@ export async function getIndexSignature(options) {
       asOf: asOfSignature,
       sqlite: {
         code: fileSignature(sqliteCodePath),
-        prose: fileSignature(sqliteProsePath)
+        prose: fileSignature(sqliteProsePath),
+        extractedProse: needsExtractedProse ? fileSignature(sqliteExtractedProsePath) : null
       },
       modes: modeSignatures
     };

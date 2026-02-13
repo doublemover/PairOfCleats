@@ -489,13 +489,29 @@ export function createSqliteHelpers(options) {
    * @param {Set<number>|null} [allowedIds]
    * @returns {Array<{idx:number,score:number}>}
    */
-  function rankSqliteFts(idx, queryTokens, mode, topN, normalizeScores = false, allowedIds = null) {
+  function rankSqliteFts(
+    idx,
+    queryTokens,
+    mode,
+    topN,
+    normalizeScores = false,
+    allowedIds = null,
+    options = {}
+  ) {
     const db = getDb(mode);
-    if (!db || !queryTokens.length) return [];
+    if (!db) return [];
     if (allowedIds && allowedIds.size === 0) return [];
+    if (!hasFtsTable(mode)) return [];
+    const explicitMatch = typeof options?.ftsMatch === 'string'
+      ? options.ftsMatch.trim()
+      : '';
+    if (!explicitMatch && !queryTokens.length) return [];
     const ftsTokens = queryTokens.filter((token) => FTS_TOKEN_SAFE.test(token));
-    if (!ftsTokens.length) return [];
-    const ftsQuery = ftsTokens.join(' ');
+    const fallbackMatch = ftsTokens.length
+      ? ftsTokens.map((token) => `"${token}"`).join(' AND ')
+      : '';
+    const ftsQuery = explicitMatch || fallbackMatch;
+    if (!ftsQuery) return [];
     const bm25Expr = buildFtsBm25Expr(sqliteFtsWeights);
     const allowedList = allowedIds && allowedIds.size ? Array.from(allowedIds) : null;
     const canPushdown = !!(allowedList && allowedList.length <= SQLITE_IN_LIMIT);
@@ -505,14 +521,19 @@ export function createSqliteHelpers(options) {
     const params = canPushdown
       ? [ftsQuery, mode, ...allowedList, topN]
       : [ftsQuery, mode, topN];
-    const rows = db.prepare(
-      `SELECT chunks_fts.rowid AS id, ${bm25Expr} AS score, chunks.weight AS weight
-       FROM chunks_fts
-       JOIN chunks ON chunks.id = chunks_fts.rowid
-       WHERE chunks_fts MATCH ? AND chunks.mode = ?
-       ${allowedClause}
-       ORDER BY score ASC, chunks_fts.rowid ASC LIMIT ?`
-    ).all(...params);
+    let rows = [];
+    try {
+      rows = db.prepare(
+        `SELECT chunks_fts.rowid AS id, ${bm25Expr} AS score, chunks.weight AS weight
+         FROM chunks_fts
+         JOIN chunks ON chunks.id = chunks_fts.rowid
+         WHERE chunks_fts MATCH ? AND chunks.mode = ?
+         ${allowedClause}
+         ORDER BY score ASC, chunks_fts.rowid ASC LIMIT ?`
+      ).all(...params);
+    } catch {
+      return [];
+    }
     const rawScores = rows.map((row) => -row.score);
     let min = 0;
     let max = 0;

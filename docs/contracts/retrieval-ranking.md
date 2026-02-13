@@ -30,6 +30,16 @@ Phase 11 adds:
 - `symbol`: definition/export boosts (when available)
 - `phrase`: phrase/chargram boosts (when available)
 
+#### Phase 17: Prose FTS explain additions
+When SQLite FTS is selected for prose modes and explain is enabled, hits SHOULD include:
+
+- `scoreBreakdown.sparse.match`: compiled FTS5 `MATCH` string.
+- `scoreBreakdown.sparse.variant`: selected tokenizer variant (`trigram|porter|unicode61`).
+- `scoreBreakdown.sparse.tokenizer`: tokenizer config label.
+- `scoreBreakdown.sparse.variantReason`: precedence reason path.
+- `scoreBreakdown.sparse.normalizedQueryChanged`: whether NFKC changed the query.
+- `scoreBreakdown.sparse.ftsFallback`: true when desired FTS routing fell back to sparse.
+
 #### Phase 11: Graph ranking breakdown (optional)
 When graph ranking is enabled and explain is requested, hits SHOULD include:
 
@@ -45,6 +55,10 @@ Graph ranking MUST NOT change membership (see below).
 
 ### `--explain` and `--why`
 These flags must render identical content and differ only in presentation.
+
+Phase 17 also requires routing visibility in explain stats:
+- `stats.routingPolicy`
+- `stats.routing`
 
 ---
 

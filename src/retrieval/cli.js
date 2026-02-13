@@ -255,6 +255,8 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       sqliteFtsNormalize,
       sqliteFtsProfile,
       sqliteFtsWeights,
+      sqliteFtsTrigram,
+      sqliteFtsStemming,
       fieldWeightsConfig,
       explain,
       denseVectorMode,
@@ -333,11 +335,14 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
 
     const needsCode = runCode;
     const needsProse = runProse;
-    const needsSqlite = runCode || runProse;
+    const needsExtractedProse = runExtractedProseRaw;
+    const requiresExtractedProse = searchMode === 'extracted-prose';
+    const needsSqlite = runCode || runProse || runExtractedProseRaw;
     const vectorAnnEnabled = annEnabled && vectorExtension.enabled;
     const dbModeSelection = [];
     if (needsCode) dbModeSelection.push('code');
     if (needsProse) dbModeSelection.push('prose');
+    if (needsExtractedProse) dbModeSelection.push('extracted-prose');
     const sqliteRootSelection = resolveSingleRootForModes(
       asOfContext?.strict ? asOfContext.indexBaseRootByMode : null,
       dbModeSelection
@@ -363,6 +368,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     );
     const sqliteCodePath = sqlitePaths.codePath;
     const sqliteProsePath = sqlitePaths.prosePath;
+    const sqliteExtractedProsePath = sqlitePaths.extractedProsePath;
 
     const sqliteStateCode = needsCode
       ? loadIndexState(rootDir, userConfig, 'code', { resolveOptions: indexResolveOptions })
@@ -370,14 +376,25 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     const sqliteStateProse = needsProse
       ? loadIndexState(rootDir, userConfig, 'prose', { resolveOptions: indexResolveOptions })
       : null;
+    const sqliteStateExtractedProse = needsExtractedProse
+      ? loadIndexState(rootDir, userConfig, 'extracted-prose', { resolveOptions: indexResolveOptions })
+      : null;
     const sqliteCodeAvailable = !sqliteRootsMixed && fsSync.existsSync(sqliteCodePath) && isSqliteReady(sqliteStateCode);
     const sqliteProseAvailable = !sqliteRootsMixed && fsSync.existsSync(sqliteProsePath) && isSqliteReady(sqliteStateProse);
-    const sqliteAvailable = (!needsCode || sqliteCodeAvailable) && (!needsProse || sqliteProseAvailable);
+    const sqliteExtractedProseAvailable = !sqliteRootsMixed
+      && fsSync.existsSync(sqliteExtractedProsePath)
+      && isSqliteReady(sqliteStateExtractedProse);
+    const sqliteAvailable = (!needsCode || sqliteCodeAvailable)
+      && (!needsProse || sqliteProseAvailable)
+      && (!requiresExtractedProse || sqliteExtractedProseAvailable);
+    const loadExtractedProseSqlite = needsExtractedProse && sqliteExtractedProseAvailable;
     const lmdbStateCode = sqliteStateCode;
     const lmdbStateProse = sqliteStateProse;
     const lmdbCodeAvailable = !lmdbRootsMixed && hasLmdbStore(lmdbCodePath) && isLmdbReady(lmdbStateCode);
     const lmdbProseAvailable = !lmdbRootsMixed && hasLmdbStore(lmdbProsePath) && isLmdbReady(lmdbStateProse);
-    const lmdbAvailable = (!needsCode || lmdbCodeAvailable) && (!needsProse || lmdbProseAvailable);
+    const lmdbAvailable = !needsExtractedProse
+      && (!needsCode || lmdbCodeAvailable)
+      && (!needsProse || lmdbProseAvailable);
 
     const autoChunkThreshold = Number.isFinite(sqliteAutoChunkThreshold)
       ? Math.max(0, Math.floor(sqliteAutoChunkThreshold))
@@ -431,8 +448,10 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       sqliteAvailable,
       sqliteCodeAvailable,
       sqliteProseAvailable,
+      sqliteExtractedProseAvailable,
       sqliteCodePath,
       sqliteProsePath,
+      sqliteExtractedProsePath,
       lmdbAvailable,
       lmdbCodeAvailable,
       lmdbProseAvailable,
@@ -441,6 +460,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       needsSqlite,
       needsCode,
       needsProse,
+      needsExtractedProse: requiresExtractedProse,
       defaultBackend: policy?.retrieval?.backend || 'sqlite',
       onWarn: console.warn
     });
@@ -502,8 +522,10 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       useLmdb: useLmdbSelection,
       needsCode,
       needsProse,
+      needsExtractedProse: loadExtractedProseSqlite,
       sqliteCodePath,
       sqliteProsePath,
+      sqliteExtractedProsePath,
       sqliteFtsRequested: sqliteFtsEnabled,
       backendForcedSqlite,
       backendForcedLmdb,
@@ -513,7 +535,8 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       dbCache: sqliteCache,
       sqliteStates: {
         code: sqliteStateCode,
-        prose: sqliteStateProse
+        prose: sqliteStateProse,
+        'extracted-prose': sqliteStateExtractedProse
       },
       lmdbCodePath,
       lmdbProsePath,
@@ -642,6 +665,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
         backendLabel,
         sqliteCodePath,
         sqliteProsePath,
+        sqliteExtractedProsePath,
         runRecords,
         runExtractedProse: runExtractedProseRaw,
         includeExtractedProse: runExtractedProseRaw || joinComments,
@@ -783,7 +807,8 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       tantivyConfig,
       indexStates: {
         code: sqliteStateCode || null,
-        prose: sqliteStateProse || null
+        prose: sqliteStateProse || null,
+        'extracted-prose': sqliteStateExtractedProse || null
       },
       strict,
       loadIndexFromSqlite,
@@ -838,8 +863,11 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       sqliteFtsNormalize,
       sqliteFtsProfile,
       sqliteFtsWeights,
+      sqliteFtsTrigram,
+      sqliteFtsStemming,
       sqliteCodePath,
       sqliteProsePath,
+      sqliteExtractedProsePath,
       bm25K1,
       bm25B,
       fieldWeights: queryPlan.fieldWeights,
@@ -915,6 +943,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       rootDir,
       backendLabel,
       backendPolicyInfo,
+      routingPolicy: searchResult.routingPolicy || null,
       runCode,
       runProse,
       runExtractedProse,

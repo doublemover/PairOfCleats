@@ -368,10 +368,17 @@ export async function loadSearchIndexes({
     }) : await loadIndexCachedLocal(proseDir, loadOptions, 'prose')))
     : { ...EMPTY_INDEX };
   const idxExtractedProse = resolvedLoadExtractedProse
-    ? await loadIndexCachedLocal(extractedProseDir, {
-      ...loadOptions,
-      includeHnsw: annActive && resolvedRunExtractedProse
-    }, 'extracted-prose')
+    ? (useSqlite
+      ? loadIndexFromSqlite('extracted-prose', {
+        includeDense: needsAnnArtifacts && !lazyDenseVectorsEnabled,
+        includeMinhash: needsAnnArtifacts,
+        includeChunks: sqliteContextChunks,
+        includeFilterIndex: needsFilterIndex
+      })
+      : await loadIndexCachedLocal(extractedProseDir, {
+        ...loadOptions,
+        includeHnsw: annActive && resolvedRunExtractedProse
+      }, 'extracted-prose'))
     : { ...EMPTY_INDEX };
   const idxCode = runCode
     ? (useSqlite ? loadIndexFromSqlite('code', {
