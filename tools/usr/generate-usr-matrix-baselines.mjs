@@ -1064,7 +1064,8 @@ function assertRegistryMatches(registryId, rows) {
   const filePath = path.join(matrixDir, `${registryId}.json`);
   if (!fs.existsSync(filePath)) return `missing file: ${filePath}`;
   const current = fs.readFileSync(filePath, 'utf8');
-  return current === expected ? null : `drift: ${registryId}`;
+  const normalizeEol = (text) => String(text || '').replace(/\r\n?/g, '\n');
+  return normalizeEol(current) === normalizeEol(expected) ? null : `drift: ${registryId}`;
 }
 
 function ensureDir() {
