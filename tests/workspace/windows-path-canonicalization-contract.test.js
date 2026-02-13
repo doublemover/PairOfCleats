@@ -17,6 +17,11 @@ await fs.writeFile(path.join(repoRoot, '.pairofcleats.json'), JSON.stringify({
 }, null, 2), 'utf8');
 
 const repoVariant = repoRoot.replace('RepoCase', 'REPOCASE');
+try {
+  await fs.access(repoVariant);
+} catch {
+  await fs.symlink(repoRoot, repoVariant, 'dir');
+}
 const workspaceA = path.join(tempRoot, 'workspace-a.jsonc');
 const workspaceB = path.join(tempRoot, 'workspace-b.jsonc');
 await fs.writeFile(workspaceA, JSON.stringify({
