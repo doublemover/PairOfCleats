@@ -52,12 +52,48 @@ const isInstalled = (pkgName) => fs.existsSync(resolveNodeModulesPath(pkgName));
 
 const rebuildPackage = (pkgName, { buildFromSource = false } = {}) => {
   const args = ['rebuild', pkgName];
-  if (buildFromSource) args.push('--build-from-source');
+  const env = {
+    ...process.env,
+    npm_config_ignore_scripts: 'false'
+  };
+  if (buildFromSource) {
+    env.npm_config_build_from_source = 'true';
+  }
 
   const result = spawnSync('npm', args, {
     cwd: root,
     stdio: 'inherit',
-    shell: process.platform === 'win32'
+    shell: process.platform === 'win32',
+    env
+  });
+
+  if (result.error) {
+    return {
+      ok: false,
+      message: result.error.message
+    };
+  }
+
+  return {
+    ok: result.status === 0,
+    message: result.status === 0 ? null : `exit ${result.status ?? 'unknown'}`
+  };
+};
+
+const runPackageInstallScript = (pkgName, { buildFromSource = false } = {}) => {
+  const env = {
+    ...process.env,
+    npm_config_ignore_scripts: 'false'
+  };
+  if (buildFromSource) {
+    env.npm_config_build_from_source = 'true';
+  }
+
+  const result = spawnSync('npm', ['run', 'install', '--if-present'], {
+    cwd: resolveNodeModulesPath(pkgName),
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
+    env
   });
 
   if (result.error) {
@@ -177,8 +213,19 @@ const repairRequiredPackages = async () => {
 
       const sourceProbeResult = await probePackage(failure.pkgName);
       if (!sourceProbeResult.ok) {
-        console.error(`[repair:native] required package still not loadable (${failure.pkgName}) after source rebuild: ${sourceProbeResult.message}`);
-        repairFailures += 1;
+        console.error(`[repair:native] required package still not loadable (${failure.pkgName}) after source rebuild; running package install script.`);
+        const installScriptResult = runPackageInstallScript(failure.pkgName, { buildFromSource: true });
+        if (!installScriptResult.ok) {
+          console.error(`[repair:native] package install script failed for ${failure.pkgName}: ${installScriptResult.message}`);
+          repairFailures += 1;
+          continue;
+        }
+
+        const installProbeResult = await probePackage(failure.pkgName);
+        if (!installProbeResult.ok) {
+          console.error(`[repair:native] required package still not loadable (${failure.pkgName}) after package install script: ${installProbeResult.message}`);
+          repairFailures += 1;
+        }
       }
     }
   }
