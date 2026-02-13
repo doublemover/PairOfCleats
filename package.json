@@ -15,6 +15,7 @@
     "bootstrap:ci": "npm ci --ignore-scripts && npm run patch && npm run rebuild:native",
     "patch": "patch-package --exclude \"a^\"",
     "rebuild:native": "node tools/setup/rebuild-native.js",
+    "verify:native": "node tools/setup/rebuild-native.js --verify",
     "build-index": "node build_index.js",
     "watch-index": "node build_index.js --watch",
     "search": "node search.js",

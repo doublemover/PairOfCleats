@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 
 const REQUIRED_NATIVE_PACKAGES = [
   'tree-sitter',
@@ -39,6 +40,8 @@ const OPTIONAL_NATIVE_PACKAGES = [
 ];
 
 const root = process.cwd();
+const requireFromRoot = createRequire(path.join(root, 'package.json'));
+const verifyOnly = process.argv.includes('--verify');
 
 const resolveNodeModulesPath = (pkgName) => (
   path.join(root, 'node_modules', ...pkgName.split('/'))
@@ -66,8 +69,62 @@ const rebuildPackage = (pkgName) => {
   };
 };
 
+const probePackage = async (pkgName) => {
+  try {
+    requireFromRoot(pkgName);
+    return { ok: true, message: null };
+  } catch (error) {
+    if (error?.code === 'ERR_REQUIRE_ESM') {
+      try {
+        await import(pkgName);
+        return { ok: true, message: null };
+      } catch (importError) {
+        return {
+          ok: false,
+          message: importError?.message || `failed to import ${pkgName}`
+        };
+      }
+    }
+
+    return {
+      ok: false,
+      message: error?.message || `failed to require ${pkgName}`
+    };
+  }
+};
+
+const verifyRequiredPackages = async () => {
+  let failures = 0;
+
+  for (const pkgName of REQUIRED_NATIVE_PACKAGES) {
+    if (!isInstalled(pkgName)) {
+      console.error(`[verify:native] required package is missing: ${pkgName}`);
+      failures += 1;
+      continue;
+    }
+
+    const result = await probePackage(pkgName);
+    if (!result.ok) {
+      console.error(`[verify:native] required package is not loadable (${pkgName}): ${result.message}`);
+      failures += 1;
+    }
+  }
+
+  if (failures > 0) {
+    console.error(`[verify:native] failed with ${failures} required package failure(s).`);
+    process.exit(1);
+  }
+
+  console.error('[verify:native] all required packages are loadable.');
+};
+
 let requiredFailures = 0;
 let optionalFailures = 0;
+
+if (verifyOnly) {
+  await verifyRequiredPackages();
+  process.exit(0);
+}
 
 for (const pkgName of REQUIRED_NATIVE_PACKAGES) {
   if (!isInstalled(pkgName)) {

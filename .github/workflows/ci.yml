@@ -23,6 +23,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '24.13.0'
+          cache: npm
 
       - name: Restore PairOfCleats cache
         uses: actions/cache@v4
@@ -46,8 +47,11 @@ jobs:
           if [ "${{ steps.node-modules-cache.outputs.cache-hit }}" != "true" ]; then
             npm run bootstrap:ci
           else
-            echo "node_modules cache hit; verifying native modules via rebuild:native."
-            npm run rebuild:native
+            echo "node_modules cache hit; verifying native modules."
+            if ! npm run verify:native; then
+              echo "native verification failed; running rebuild:native."
+              npm run rebuild:native
+            fi
           fi
           node -v
           npm -v
@@ -110,8 +114,13 @@ jobs:
           if ('${{ steps.node-modules-cache.outputs.cache-hit }}' -ne 'true') {
             npm run bootstrap:ci
           } else {
-            Write-Host 'node_modules cache hit; verifying native modules via rebuild:native.'
-            npm run rebuild:native
+            Write-Host 'node_modules cache hit; verifying native modules.'
+            npm run verify:native
+            if ($LASTEXITCODE -ne 0) {
+              Write-Host 'native verification failed; running rebuild:native.'
+              npm run rebuild:native
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            }
           }
           node -v
           npm -v
@@ -166,8 +175,11 @@ jobs:
           if [ "${{ steps.node-modules-cache.outputs.cache-hit }}" != "true" ]; then
             npm run bootstrap:ci
           else
-            echo "node_modules cache hit; verifying native modules via rebuild:native."
-            npm run rebuild:native
+            echo "node_modules cache hit; verifying native modules."
+            if ! npm run verify:native; then
+              echo "native verification failed; running rebuild:native."
+              npm run rebuild:native
+            fi
           fi
           node -v
           npm -v
