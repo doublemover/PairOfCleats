@@ -17,7 +17,8 @@
     {
       "lane": "ci-long",
       "match": [
-        "^lang/contracts/(go|javascript|misc-buildfiles|python|sql|typescript)$"
+        "^lang/contracts/(go|javascript|misc-buildfiles|python|sql|typescript)$",
+        "^indexing/contracts/golden-surface-suite$"
       ]
     },
     {

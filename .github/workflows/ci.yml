@@ -54,7 +54,7 @@ jobs:
 
       - name: Gate lane
         run: |
-          node tests/run.js --lane gate --tag long --timeout-ms 600000 --allow-timeouts --junit .testLogs/junit-gate.xml --log-dir .testLogs
+          node tests/run.js --lane gate --allow-timeouts --junit .testLogs/junit-gate.xml --log-dir .testLogs
 
       - name: Upload gate artifacts
         if: failure()

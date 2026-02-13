@@ -100,6 +100,7 @@ const main = async () => {
   const resolveLaneDefaultTimeout = (lanes) => {
     const laneDefaults = new Map([
       ['ci-lite', 15000],
+      ['gate', 15000],
       ['ci', 60000],
       ['ci-long', 240000]
     ]);
@@ -109,6 +110,7 @@ const main = async () => {
     }
     if (normalized.includes('ci-long')) return laneDefaults.get('ci-long');
     if (normalized.includes('ci')) return laneDefaults.get('ci');
+    if (normalized.includes('gate')) return laneDefaults.get('gate');
     if (normalized.includes('ci-lite')) return laneDefaults.get('ci-lite');
     return DEFAULT_TIMEOUT_MS;
   };
