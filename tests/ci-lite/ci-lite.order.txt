@@ -205,7 +205,6 @@ indexing/tree-sitter/tree-sitter-timeout-disable
 retrieval/filters/lang-filter
 context-pack/contracts/context-pack-determinism
 retrieval/pipeline/filter-bitmap-shortcircuit
-indexing/policy/script-surface-policy
 indexing/vfs/vfs-compaction-atomic-swap
 indexing/ordering/ordered-appender-stale-drop
 shared/cache/cache-lru

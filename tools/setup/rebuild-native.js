@@ -71,17 +71,22 @@ const rebuildPackage = (pkgName) => {
 
 const probePackage = async (pkgName) => {
   try {
-    requireFromRoot(pkgName);
+    await import(pkgName);
     return { ok: true, message: null };
   } catch (error) {
-    if (error?.code === 'ERR_REQUIRE_ESM') {
+    if (
+      error?.code === 'ERR_MODULE_NOT_FOUND'
+      || error?.code === 'ERR_UNSUPPORTED_DIR_IMPORT'
+      || error?.code === 'ERR_PACKAGE_PATH_NOT_EXPORTED'
+      || error?.code === 'ERR_UNKNOWN_FILE_EXTENSION'
+    ) {
       try {
-        await import(pkgName);
+        requireFromRoot(pkgName);
         return { ok: true, message: null };
       } catch (importError) {
         return {
           ok: false,
-          message: importError?.message || `failed to import ${pkgName}`
+          message: importError?.message || `failed to require ${pkgName}`
         };
       }
     }

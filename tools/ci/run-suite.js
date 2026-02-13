@@ -21,6 +21,7 @@ const parseArgs = () => {
     .scriptName('pairofcleats ci-suite')
     .option('mode', { type: 'string', default: 'ci', choices: ['ci', 'nightly'] })
     .option('lane', { type: 'string', default: '' })
+    .option('skip-prechecks', { type: 'boolean', default: false })
     .option('dry-run', { type: 'boolean', default: false })
     .option('junit', { type: 'string', default: DEFAULT_JUNIT })
     .option('diagnostics', { type: 'string', default: DEFAULT_DIAGNOSTICS })
@@ -129,10 +130,16 @@ const main = async () => {
     console.error(`Cache root: ${cacheRootPath}`);
   }
 
+  const precheckSteps = argv['skip-prechecks']
+    ? []
+    : [
+      { label: 'Lint', command: npmCommand, args: [...npmPrefix, 'run', 'lint'] },
+      { label: 'Config budget', command: npmCommand, args: [...npmPrefix, 'run', 'config:budget'] },
+      { label: 'Env usage guardrail', command: npmCommand, args: [...npmPrefix, 'run', 'env:check'] }
+    ];
+
   const steps = [
-    { label: 'Lint', command: npmCommand, args: [...npmPrefix, 'run', 'lint'] },
-    { label: 'Config budget', command: npmCommand, args: [...npmPrefix, 'run', 'config:budget'] },
-    { label: 'Env usage guardrail', command: npmCommand, args: [...npmPrefix, 'run', 'env:check'] },
+    ...precheckSteps,
     {
       label: 'Capability gate',
       command: process.execPath,
