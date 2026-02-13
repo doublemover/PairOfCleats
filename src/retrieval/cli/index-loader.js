@@ -82,9 +82,9 @@ export function resolveDenseVector(idx, mode, denseVectorMode) {
   return idx.denseVec || null;
 }
 
-export function loadFileRelations(rootDir, userConfig, mode) {
+export function loadFileRelations(rootDir, userConfig, mode, options = {}) {
   try {
-    const dir = resolveIndexDir(rootDir, mode, userConfig);
+    const dir = resolveIndexDir(rootDir, mode, userConfig, options.resolveOptions || {});
     const raw = loadJsonArrayArtifactSync(dir, 'file_relations', { maxBytes: MAX_JSON_BYTES });
     if (!Array.isArray(raw)) return null;
     const map = new Map();
@@ -98,9 +98,9 @@ export function loadFileRelations(rootDir, userConfig, mode) {
   }
 }
 
-export function loadRepoMap(rootDir, userConfig, mode) {
+export function loadRepoMap(rootDir, userConfig, mode, options = {}) {
   try {
-    const dir = resolveIndexDir(rootDir, mode, userConfig);
+    const dir = resolveIndexDir(rootDir, mode, userConfig, options.resolveOptions || {});
     const raw = loadJsonArrayArtifactSync(dir, 'repo_map', { maxBytes: MAX_JSON_BYTES });
     return Array.isArray(raw) ? raw : null;
   } catch {

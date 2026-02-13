@@ -1,7 +1,7 @@
 # USR Language Authoring
 
 Status: Draft v1.1
-Last updated: 2026-02-11T07:25:00Z
+Last updated: 2026-02-12T06:15:48Z
 
 Language behavior is primarily specified in:
 
@@ -11,12 +11,17 @@ Use `docs/specs/usr/languages/TEMPLATE.md` only for exceptional language deep-di
 
 Any language extension document must define:
 
+- owner role and backup owner role matching `tests/lang/matrix/usr-ownership-matrix.json` language-framework governance
+- review cadence days, last reviewed timestamp, and explicit ownership rotation policy
 - required normalized node kinds and edge kinds
 - capability states and fallback behavior
 - raw-kind to normalized-kind mapping constraints
 - resolution/linking expectations and known ambiguity classes
 - risk source/sink/sanitizer expectations where applicable
 - conformance fixture family requirements and acceptance thresholds
+- required fixture ID mapping section linked to blocking language fixture-governance rows
+- phase-9-oriented approval checklist section with owner/backup signoff and matrix-link verification
+- completion evidence artifact section mapping required report IDs to language-level conformance scope
 
 Parent contracts:
 

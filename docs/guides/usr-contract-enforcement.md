@@ -1,6 +1,6 @@
 # USR Contract Enforcement Guide
 
-Last updated: 2026-02-11T07:25:00Z
+Last updated: 2026-02-12T08:22:17Z
 
 ## Purpose
 
@@ -16,8 +16,92 @@ Define CI/local enforcement for the consolidated USR contract model.
 
 2. Matrix/schema integrity
 - required `tests/lang/matrix/usr-*.json` files exist and validate
+- full matrix schema coverage is enforced for every registry under `tests/lang/matrix` via `listUsrMatrixRegistryIds()` / `validateUsrMatrixRegistry(...)`
 - required `docs/schemas/usr/*.json` files exist for blocking evidence artifacts
 - cross-registry invariants are enforced
+- minimum-slice harness (`tests/unified-syntax-representation/lang/contracts/minimum-slice-harness.test.js`) validates executable TypeScript+Vue slice contracts
+- framework contract template enforcement (`tests/unified-syntax-representation/lang/contracts/framework-contract-template-validation.test.js`) validates framework deep-dive template governance, approval checklist controls, and completion-evidence artifact requirements
+- framework contract freshness and rotation enforcement (`tests/unified-syntax-representation/lang/contracts/framework-contract-freshness-validation.test.js`) validates owner-role alignment to governance policy, review cadence freshness, and explicit ownership rotation metadata
+- language contract template enforcement (`tests/unified-syntax-representation/lang/contracts/language-contract-template.test.js`) validates per-language contract structure, matrix linkage, approval checklist controls, and completion-evidence artifact coverage
+- language contract matrix-sync enforcement (`tests/unified-syntax-representation/lang/contracts/language-contract-matrix-sync-validation.test.js`) validates exact-set equality between per-language contract conformance/framework/node/edge declarations and `usr-language-profiles.json`, plus blocking fixture-ID mapping parity against `usr-fixture-governance.json`
+- parser/runtime lock reproducibility enforcement (`tests/unified-syntax-representation/lang/contracts/parser-runtime-lock-reproducibility-validation.test.js`) validates deterministic parser-lock ordering, referenced parser-source coverage, and lock upgrade-budget invariants
+- language contract freshness and rotation enforcement (`tests/unified-syntax-representation/lang/contracts/language-contract-freshness-validation.test.js`) validates owner-role alignment to governance policy, review cadence freshness, and explicit ownership rotation metadata
+- canonical example bundle enforcement (`tests/unified-syntax-representation/lang/contracts/canonical-example-validation.test.js`) validates section 34.11 fixture checklist and cross-entity coherence
+- framework canonicalization fixture enforcement (`tests/unified-syntax-representation/lang/contracts/framework-canonicalization.test.js`) validates section 35 canonical attrs plus framework edge-case checklist coverage
+- framework contract matrix-sync enforcement (`tests/unified-syntax-representation/lang/contracts/framework-contract-matrix-sync-validation.test.js`) validates framework contract appliesTo/edge-case/conformance and blocking fixture evidence parity against framework profile and fixture-governance registries
+- framework profile matrix-sync enforcement (`tests/unified-syntax-representation/lang/contracts/framework-profile-matrix-sync-validation.test.js`) validates framework applicability, edge-case linkage, and route/hydration/binding semantic coherence across framework registries
+- embedding bridge fixture enforcement (`tests/unified-syntax-representation/lang/contracts/embedding-bridge-validation.test.js`) validates bridge-case matrix coverage, bridge metadata fields, and section 38 bridge edge obligations
+- generated provenance fixture enforcement (`tests/unified-syntax-representation/lang/contracts/generated-provenance-validation.test.js`) validates section 39 generated/macro/transpile provenance mapping expectations and diagnostics
+- bridge/provenance dashboard enforcement (`tests/unified-syntax-representation/lang/contracts/bridge-provenance-dashboard-validation.test.js`) validates section 15.2 coverage dashboard emission for embedded-language bridge and generated-provenance fixtures
+- language batch shard enforcement (`tests/unified-syntax-representation/lang/contracts/language-batch-shards-validation.test.js`) validates section 4/phase-10 batch partition coverage, deterministic language assignment, and lane manifest path consistency
+- matrix-driven harness coverage enforcement (`tests/unified-syntax-representation/lang/contracts/matrix-driven-harness-validation.test.js`) validates profile-wide lane/fixture/batch coverage for every language and framework profile
+- core artifact-schema catalog alignment enforcement (`tests/unified-syntax-representation/lang/contracts/core-artifact-schema-catalog-alignment.test.js`) validates mandatory-key tables in `docs/specs/usr-core-artifact-schema-catalog.md` against active matrix schema-required keys
+- blocking evidence schema catalog enforcement (`tests/unified-syntax-representation/lang/contracts/blocking-evidence-schema-catalog-validation.test.js`) validates blocking evidence artifact rows in `docs/specs/usr-core-artifact-schema-catalog.md` against active report schema registry and required-audit artifact set
+- change-tier policy enforcement (`tests/unified-syntax-representation/lang/contracts/change-tier-policy-validation.test.js`) validates Tier 1/2/3 workflow, reviewer threshold requirements, and Tier 2/3 update obligations in governance docs and PR template policy markers
+- extension policy enforcement (`tests/unified-syntax-representation/lang/contracts/extension-policy-validation.test.js`) validates section 29 namespaced-extension constraints, canonical override prohibitions, deterministic extension requirements, and schema-confusion gate linkage
+- F.5 hard-requirements enforcement (`tests/unified-syntax-representation/lang/contracts/f5-hard-requirements-validation.test.js`) validates sections 33-36 anchors, CI execution hooks, and backcompat matrix/report coverage constraints
+- F.6 synchronization enforcement (`tests/unified-syntax-representation/lang/contracts/f6-sync-requirements-validation.test.js`) validates decomposed contract sync requirements across language/framework/risk/schema/readiness/ops governance controls
+- rollout/migration policy enforcement (`tests/unified-syntax-representation/lang/contracts/rollout-migration-policy-validation.test.js`) validates rollout phase gates, runtime rollout flags, readiness-phase coverage, CI hook coverage, and rollout-approval lock contract linkage
+- rollout phase-gate enforcement (`tests/unified-syntax-representation/lang/contracts/rollout-gate-validation.test.js`) validates A/B/C/D roadmap phase mapping, legacy-output retention policy, and rollout/deprecation CI execution hooks
+- rollout Appendix F.1 checklist lock enforcement (`tests/unified-syntax-representation/lang/contracts/rollout-f1-checklist-validation.test.js`) validates strict A->B->C->D promotion ordering and readiness/Gate C checklist preconditions for Phase C and Phase D completion lines
+- rollout Appendix F.1 phase-evidence lock enforcement (`tests/unified-syntax-representation/lang/contracts/rollout-evidence-lock-validation.test.js`) validates A/B/C/D phase checklist state against concrete gate-evidence and phase-exit checklist dependencies
+- phase 9.2 go/no-go decision lock enforcement (`tests/unified-syntax-representation/lang/contracts/gonogo-decision-lock-validation.test.js`) validates go/no-go checklist lock dependencies against Phase 11/12/13 exit criteria and conformance lane validator coverage
+- phase 9 readiness authorization lock enforcement (`tests/unified-syntax-representation/lang/contracts/readiness-authorization-lock-validation.test.js`) validates readiness/test-rollout checklist gating against Phase 9.1/9.2 completion state and Gate B1-B8 regression behavior
+- phase 9.1 readiness-audit completion lock enforcement (`tests/unified-syntax-representation/lang/contracts/readiness-audit-lock-validation.test.js`) validates readiness-audit checklist lock dependencies against Gate B state and per-language approval checklist completion state
+- Gate B1-B7 language-batch completion lock enforcement (`tests/unified-syntax-representation/lang/contracts/gate-b-language-batch-lock-validation.test.js`) validates batch-gate checklist state against Appendix C completion state, Phase 8/11 exit criteria dependencies, and diagnostic enforcement lane requirements
+- rollout approval-lock enforcement (`tests/unified-syntax-representation/lang/contracts/rollout-approval-lock-validation.test.js`) validates rollout approval lock metadata, required role decision rows, and checklist-state gating for readiness and rollout authorization lines
+- Gate C prerequisite lock enforcement (`tests/unified-syntax-representation/lang/contracts/gate-prerequisite-lock-validation.test.js`) enforces roadmap-state ordering so rollout authorization cannot be checked before prior gate checklist completion
+- Gate C evidence-completeness lock enforcement (`tests/unified-syntax-representation/lang/contracts/gate-c-evidence-completeness-lock-validation.test.js`) validates Gate C evidence checklist completeness before prior-gate pass and rollout authorization state promotion
+- Gate C conformance-authorization chain enforcement (`tests/unified-syntax-representation/lang/contracts/gate-c-authorization-chain-validation.test.js`) validates Gate C rollout authorization dependency chain across Gate C, Phase 9 exit criteria, Appendix F.1 phase state, and rollout approval-lock state
+- phase 15.1 CI-gate lock enforcement (`tests/unified-syntax-representation/lang/contracts/ci-gate-lock-validation.test.js`) validates section 15.1 checklist state against Gate A/B/C, C0-C4 conformance, and sections 36/41/42/43/44/45/46/47/48 validator coverage in blocking lanes
+- phase 15.2 reporting-integrity lock enforcement (`tests/unified-syntax-representation/lang/contracts/reporting-lock-validation.test.js`) validates reporting checklist state against section 30/31 report schema requirements and required report/policy validator coverage in blocking lanes
+- governance lock-suite integrity enforcement (`tests/unified-syntax-representation/lang/contracts/governance-lock-suite-validation.test.js`) validates Appendix N lock anchor-to-test mapping and required CI/CI-lite + guide coverage for every governance lock validator
+- phase 6.6 semantics exit-integrity lock enforcement (`tests/unified-syntax-representation/lang/contracts/semantics-exit-lock-validation.test.js`) validates phase 6.6 semantics exit state against C2/C3/risk/capability/provenance/security/threat validator coverage
+- phase 7.3 fixture/golden exit-integrity lock enforcement (`tests/unified-syntax-representation/lang/contracts/fixture-golden-exit-lock-validation.test.js`) validates phase 7.3 fixture/golden exit state against fixture coverage/golden determinism validator coverage and downstream phase reopening behavior
+- phase 8.4 hardening exit-integrity lock enforcement (`tests/unified-syntax-representation/lang/contracts/hardening-exit-lock-validation.test.js`) validates phase 8.4 hardening exit state against determinism/cap/SLO validator coverage and Gate B/Gate C checklist reopening behavior
+- phase 10.3 harness exit-integrity lock enforcement (`tests/unified-syntax-representation/lang/contracts/harness-exit-lock-validation.test.js`) validates phase 10.3 exit state against matrix-driven harness/shard determinism validator coverage and conformance-exit reopening behavior
+- phase 11-13 conformance exit-integrity lock enforcement (`tests/unified-syntax-representation/lang/contracts/conformance-exit-lock-validation.test.js`) validates phase 11.3/12.3/13.2 conformance exit state against C0/C1/C2/C3/C4 validator coverage and phase 9.2 go/no-go reopening behavior
+- phase 14.3 integration/failure exit lock enforcement (`tests/unified-syntax-representation/lang/contracts/integration-failure-exit-lock-validation.test.js`) validates section 14.3 exit state against 14.1/14.2 checklist stability and required integration/failure/security validator coverage in blocking lanes
+- phase 15.3 maintenance-integrity lock enforcement (`tests/unified-syntax-representation/lang/contracts/maintenance-lock-validation.test.js`) validates section 15.3 checklist state against change-control/template/governance validator coverage in blocking lanes
+- phase 15 exit-completion lock enforcement (`tests/unified-syntax-representation/lang/contracts/rollout-exit-lock-validation.test.js`) validates section 15.4 completion state against 15.1/15.2/15.3 checklist stability and required maintenance/rollout/report-schema CI validator coverage
+- archival/deprecation policy enforcement (`tests/unified-syntax-representation/lang/contracts/archival-deprecation-policy-validation.test.js`) validates required DEPRECATED header metadata for archived USR specs and CI policy hook coverage
+- report schema file coverage enforcement (`tests/unified-syntax-representation/lang/contracts/report-schema-file-coverage-validation.test.js`) validates one-to-one coverage between registered USR report validators and `docs/schemas/usr/*.schema.json` files
+- doc schema contract enforcement (`tests/unified-syntax-representation/lang/contracts/doc-schema-contract-validation.test.js`) validates envelope composition, artifactId const mapping, required payload fields, and strict unknown-key rejection across doc schemas
+- traceability approval lock enforcement (`tests/unified-syntax-representation/lang/contracts/traceability-approval-validation.test.js`) validates phase 0.3 closure requirements against approved consolidation-traceability metadata and roadmap appendix N.7 lock policy
+- C0/C1 baseline conformance enforcement (`tests/unified-syntax-representation/lang/contracts/foundation-baseline-validation.test.js`, `tests/unified-syntax-representation/lang/contracts/contract-enforcement-baseline-validation.test.js`) validates C0/C1 required/blocking level coverage for all language profiles and report generation
+- C2/C3 deep-profile conformance enforcement (`tests/unified-syntax-representation/lang/contracts/embedding-provenance-baseline-validation.test.js`, `tests/unified-syntax-representation/lang/contracts/risk-fixture-governance-baseline-validation.test.js`) validates C2/C3 required/blocking level coverage for eligible language profiles and report generation
+- language risk-profile conformance enforcement (`tests/unified-syntax-representation/lang/contracts/language-risk-profile-validation.test.js`) validates machine-readable risk source/sink/sanitizer taxonomy coverage and interprocedural gating invariants
+- C4 framework-profile conformance enforcement (`tests/unified-syntax-representation/lang/contracts/framework-canonicalization-baseline-validation.test.js`) validates C4 required/blocking level coverage for framework-required language profiles and report generation
+- conformance dashboard enforcement (`tests/unified-syntax-representation/lang/contracts/conformance-dashboard-validation.test.js`) validates section 15.2 language/framework conformance dashboard emission and summary-report schema invariants
+- diagnostic remediation-routing enforcement (`tests/unified-syntax-representation/lang/contracts/diagnostic-remediation-routing-validation.test.js`) validates strict diagnostic taxonomy routing to section 33.4 remediation classes
+- cross-language canonical bundle coherence enforcement (`tests/unified-syntax-representation/lang/contracts/cross-language-canonical-bundle-coherence-validation.test.js`) validates multi-language canonical example bundle coverage and coherent cross-language relation edges for Appendix B8 bundle checks
+- implementation readiness enforcement (`tests/unified-syntax-representation/lang/contracts/implementation-readiness-validation.test.js`) validates section 40 operational-readiness and quality-gate schema invariants, evidence-schema coverage, promotion blockers for C0/C1 rollout, C2/C3 deep conformance, and C4 framework conformance readiness, and report emission for `usr-operational-readiness-validation` / `usr-release-readiness-scorecard`
+- conformance matrix readiness-by-language enforcement (`tests/unified-syntax-representation/lang/contracts/conformance-matrix-readiness-by-language-validation.test.js`) validates per-language conformance-row completeness, level parity with language profiles, blocking-level parity, and required fixture-family/lane readiness invariants
+- Gate A registry readiness enforcement (`tests/unified-syntax-representation/lang/contracts/gate-a-registry-readiness-validation.test.js`) validates required Gate A matrix registries/schema coverage, language-version/embedding key synchronization, strict diagnostic/reason-code taxonomy validation hooks, and CI drift/contract validator anchors
+- harness-lane materialization enforcement (`tests/unified-syntax-representation/lang/contracts/harness-lane-materialization-validation.test.js`) validates contract-lane to harness-lane mappings (`lang-*` -> runnable lanes), required lane presence in `tests/run.rules.jsonc`, and CI lane order materialization files
+- phase-9 readiness evidence enforcement (`tests/unified-syntax-representation/lang/contracts/readiness-evidence-validation.test.js`) validates checked readiness controls against CI validator coverage and required artifact/report schema/catalog references
+- observability rollup enforcement (`tests/unified-syntax-representation/lang/contracts/observability-rollup-validation.test.js`) validates section 41 SLO budget and alert-policy evaluations, blocking-threshold behavior, deterministic per-batch hotspot reporting, and `usr-observability-rollup` report emission
+- batch SLO threshold coverage enforcement (`tests/unified-syntax-representation/lang/contracts/batch-slo-threshold-coverage-validation.test.js`) validates per-batch (`B1`-`B7`) runtime/memory threshold coverage and blocking lane policy invariants in `usr-slo-budgets.json`
+- phase-8 hardening readiness enforcement (`tests/unified-syntax-representation/lang/contracts/hardening-readiness-validation.test.js`) validates deterministic matrix ordering/serialization invariants, cap-trigger diagnostic/remediation expectations, and blocking SLO coverage for required lanes
+- security-gate compliance enforcement (`tests/unified-syntax-representation/lang/contracts/security-gate-validation.test.js`) validates section 42 security-gate and redaction policy controls, strict fail-closed behavior for blocking controls, and validation-report emission
+- runtime config and feature-flag enforcement (`tests/unified-syntax-representation/lang/contracts/runtime-config-feature-flag-validation.test.js`) validates section 43 precedence resolution, strict-mode policy behavior, and disallowed feature-flag conflicts
+- failure-injection enforcement (`tests/unified-syntax-representation/lang/contracts/failure-injection-validation.test.js`) validates section 44 strict/non-strict scenario outcomes, required diagnostics/reason codes, and recovery-evidence coverage
+- failure-injection recovery-threshold enforcement (`tests/unified-syntax-representation/lang/contracts/failure-injection-recovery-threshold-validation.test.js`) validates rollback trigger thresholds, required recovery artifacts, and rollback-drill evidence coverage for blocking fault classes
+- failure-mode suite enforcement (`tests/unified-syntax-representation/lang/contracts/failure-mode-suite-validation.test.js`) validates phase 14.2 parser-recovery, schema-mismatch, partial-extraction, redaction fail-safe, and strict security gate fail-closed invariants across failure-injection/security/threat matrices
+- mixed-repo integration enforcement (`tests/unified-syntax-representation/lang/contracts/mixed-repo-integration-validation.test.js`) validates phase 14.1 cross-language/cross-framework fixture coverage and route/template/API/data boundary fixture families for blocking mixed-repo integration scenarios
+- fixture-governance enforcement (`tests/unified-syntax-representation/lang/contracts/fixture-governance-validation.test.js`) validates section 45 owner/reviewer/mutation-policy controls, blocking-row ownership/reviewer assignment constraints, and roadmap linkage tags (`appendix-c:*`, `appendix-d:*`) for blocking fixture families
+- fixture mutation-policy coverage enforcement (`tests/unified-syntax-representation/lang/contracts/fixture-mutation-policy-coverage-validation.test.js`) validates full policy-class coverage (`require-rfc`, `require-review`, `allow-generated-refresh`) and baseline/non-blocking policy safety constraints
+- fixture-governance coverage-floor enforcement (`tests/unified-syntax-representation/lang/contracts/fixture-governance-coverage-floor-validation.test.js`) validates blocking fixture coverage for every language/framework profile, required conformance levels, semantic family expectations, and roadmap task-pack linkage coverage
+- fixture/golden readiness enforcement (`tests/unified-syntax-representation/lang/contracts/fixture-golden-readiness-validation.test.js`) validates exhaustive blocking fixture evidence per language/framework profile and deterministic serialization hashes for canonical/framework/embedding/provenance golden bundles
+- benchmark-policy enforcement (`tests/unified-syntax-representation/lang/contracts/benchmark-policy-validation.test.js`) validates section 46 methodology controls, lane/SLO alignment, and blocking regression thresholds
+- cross-batch regression-resolution enforcement (`tests/unified-syntax-representation/lang/contracts/cross-batch-regression-resolution-validation.test.js`) validates B8 integration shard regression expectations, mixed-repo/language-batch benchmark readiness, and baseline benchmark regression pass criteria
+- threat-model coverage enforcement (`tests/unified-syntax-representation/lang/contracts/threat-model-coverage-validation.test.js`) validates section 47 threat/control/fixture mappings and control-gap detection for critical threats
+- waiver-policy enforcement (`tests/unified-syntax-representation/lang/contracts/waiver-policy-validation.test.js`) validates section 48 expiry controls, approver governance, compensating-control artifact coverage, and disallowed strict-bypass classes
+- report-envelope enforcement (`tests/unified-syntax-representation/lang/contracts/report-envelope-validation.test.js`) validates section 30 required audit envelope fields and strict unknown-key rejection across required report artifacts
+- PR/release template policy enforcement (`tests/unified-syntax-representation/lang/contracts/pr-template-policy-validation.test.js`) validates required USR change-control checklist markers and contract/matrix references in `.github/pull_request_template.md` and `.github/release_template.md`, including waiver expiry-cadence release review
+- maintenance-controls stability enforcement (`tests/unified-syntax-representation/lang/contracts/maintenance-controls-stability.test.js`) validates phase 15.3 closure, required maintenance validators in `gate`, and template-governance marker presence
+- lock-helper adoption enforcement (`tests/unified-syntax-representation/lang/contracts/lock-helper-adoption-validation.test.js`) prevents reintroduction of duplicated lock/helper primitives across `tests/unified-syntax-representation/lang/contracts/*.test.js`
+- onboarding policy enforcement (`tests/unified-syntax-representation/lang/contracts/onboarding-policy-validation.test.js`) validates new-language onboarding and framework-interop requirements in `docs/guides/usr-new-language-onboarding.md`
 
 3. Roadmap/spec alignment
 - `TES_LAYN_ROADMAP.md` contract references resolve
@@ -25,9 +109,17 @@ Define CI/local enforcement for the consolidated USR contract model.
 
 ## CI lanes
 
-- `ci-lite`: reference drift and schema shape checks
-- `ci`: blocking validators, conformance checks, and gate evaluation
-- `ci-long`: expanded compatibility matrix, drill checks, and stress/failure scenarios
+- `ci-lite`: fastest stability checks and selected conformance wrappers.
+- `ci`: standard CI lane for broad functional coverage.
+- `ci-long`: long-running matrix, stress, and compatibility checks.
+- `gate`: contract/conformance enforcement lane for:
+  - `tests/unified-syntax-representation/**`
+  - `tests/contracts/**`
+  - `tests/conformance/**`
+  - `tests/report-schema/report-schema-audit-contracts.test.js`
+  - `tests/benchmarks/regressions/**`
+  - `tests/fixtures/governance/**`
+- focused specialist lanes retained outside gate: `backcompat`, `diagnostics-summary`, and `decomposed-drift`.
 
 ## Failure protocol
 
@@ -41,3 +133,5 @@ Define CI/local enforcement for the consolidated USR contract model.
 - list modified contracts and matrix/schema artifacts
 - include validation outputs and failed/passed gate summary
 - update roadmap and consolidation matrix when contract ownership changes
+
+

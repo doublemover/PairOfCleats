@@ -1,9 +1,17 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { getIndexDir, getMetricsDir, getRepoCacheRoot, loadUserConfig, resolveSqlitePaths } from '../../tools/shared/dict-utils.js';
+import {
+  getIndexDir,
+  getMetricsDir,
+  getRepoCacheRoot,
+  loadUserConfig,
+  resolveSqlitePaths,
+  toRealPathSync
+} from '../../tools/shared/dict-utils.js';
 import { hasIndexMeta } from '../../src/retrieval/cli/index-loader.js';
 import {
   MAX_JSON_BYTES,
@@ -29,6 +37,19 @@ const resolveCacheName = (baseName) => {
   if (!suffixRaw) return baseName;
   if (baseName.endsWith(`-${suffixRaw}`)) return baseName;
   return `${baseName}-${suffixRaw}`;
+};
+
+const normalizeRepoSlug = (repoRoot) => String(path.basename(path.resolve(repoRoot)) || 'repo')
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, '-')
+  .replace(/^-+|-+$/g, '')
+  .slice(0, 24) || 'repo';
+
+const getLegacyPrefixedRepoId = (repoRoot) => {
+  const resolved = path.resolve(repoRoot);
+  const prefix = normalizeRepoSlug(resolved);
+  const hash = crypto.createHash('sha1').update(resolved).digest('hex').slice(0, 12);
+  return `${prefix}-${hash}`;
 };
 
 const DEFAULT_TEST_CONFIG = {
@@ -160,7 +181,8 @@ export const ensureFixtureIndex = async ({
   requireRiskTags = false
 } = {}) => {
   if (!fixtureName) throw new Error('fixtureName is required');
-  const fixtureRoot = path.join(ROOT, 'tests', 'fixtures', fixtureName);
+  const fixtureRootRaw = path.join(ROOT, 'tests', 'fixtures', fixtureName);
+  const fixtureRoot = toRealPathSync(fixtureRootRaw);
   const cacheRoot = path.join(ROOT, '.testCache', resolveCacheName(cacheName));
   await ensureDir(cacheRoot);
   process.env.PAIROFCLEATS_TESTING = '1';
@@ -178,6 +200,16 @@ export const ensureFixtureIndex = async ({
     || (hasIndexMeta(recordsDir) && !await hasChunkUids(recordsDir));
   if (!hasCompatibleIndexes({ codeDir, proseDir, extractedProseDir }) || needsRiskTags || missingChunkUids) {
     const repoCacheRoot = getRepoCacheRoot(fixtureRoot, userConfig);
+    const reposRoot = path.dirname(repoCacheRoot);
+    const legacyRoots = new Set([
+      path.join(reposRoot, getLegacyPrefixedRepoId(fixtureRootRaw)),
+      path.join(reposRoot, getLegacyPrefixedRepoId(fixtureRoot))
+    ]);
+    for (const legacyRoot of legacyRoots) {
+      if (legacyRoot !== repoCacheRoot) {
+        await rmDirRecursive(legacyRoot, { retries: 8, delayMs: 150 });
+      }
+    }
     await rmDirRecursive(repoCacheRoot, { retries: 8, delayMs: 150 });
     await ensureDir(repoCacheRoot);
     run(

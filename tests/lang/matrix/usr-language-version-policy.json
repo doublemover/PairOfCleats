@@ -1,8 +1,6 @@
 {
   "schemaVersion": "usr-registry-1.0.0",
   "registryId": "usr-language-version-policy",
-  "generatedAt": "2026-02-11T03:30:00Z",
-  "generatedBy": "tools/usr/generate-usr-matrix-baselines.mjs",
   "rows": [
     {
       "languageId": "clike",

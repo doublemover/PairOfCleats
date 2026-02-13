@@ -1,7 +1,7 @@
 # Spec -- USR Core Quality, Conformance, and Testing Contract
 
-Status: Draft v2.0
-Last updated: 2026-02-11T08:20:00Z
+Status: Draft v2.1
+Last updated: 2026-02-12T06:29:00Z
 
 ## Purpose
 
@@ -62,6 +62,15 @@ Fixture family completeness policy:
 2. every case must define deterministic fixture ID and expected diagnostics
 3. every family must define blocking/advisory classification per lane
 4. fixture mutations must preserve historical baseline provenance
+
+Fixture governance row requirements:
+
+- every active language profile must have at least one blocking fixture-governance row
+- every active framework profile must have at least one blocking fixture-governance row
+- coverage across fixture-governance rows must include every required conformance level declared by the covered profile
+- framework rows must include semantic families implied by required edge kinds (`template-binding`, `style-scope`, `route-semantics`, `hydration`)
+- blocking rows must include owner/reviewer assignments with at least one reviewer distinct from owner and governance reviewer coverage (`usr-architecture` or `usr-conformance`)
+- language rows must include `appendix-c:<language-id>` in `roadmapTags`; framework rows must include `appendix-d:<framework-id>` in `roadmapTags`
 
 ## Golden policy
 

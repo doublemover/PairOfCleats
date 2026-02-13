@@ -3,13 +3,13 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { makeTempDir } from '../../helpers/temp.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'search-contract');
+const tempRoot = await makeTempDir('pairofcleats-search-contract-');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
-await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(repoRoot, { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 

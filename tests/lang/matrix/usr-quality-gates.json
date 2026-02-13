@@ -1,8 +1,6 @@
 {
   "schemaVersion": "usr-registry-1.0.0",
   "registryId": "usr-quality-gates",
-  "generatedAt": "2026-02-11T03:30:00Z",
-  "generatedBy": "tools/usr/generate-usr-matrix-baselines.mjs",
   "rows": [
     {
       "id": "qg-framework-binding-f1",
@@ -13,6 +11,17 @@
       "thresholdOperator": ">=",
       "thresholdValue": 0.92,
       "fixtureSetId": "framework-binding-goldens",
+      "blocking": true
+    },
+    {
+      "id": "qg-min-slice-typescript-vue",
+      "domain": "minimum-slice",
+      "scopeType": "framework",
+      "scopeId": "vue",
+      "metric": "pass-rate",
+      "thresholdOperator": ">=",
+      "thresholdValue": 1,
+      "fixtureSetId": "minimum-slice-typescript-vue",
       "blocking": true
     },
     {

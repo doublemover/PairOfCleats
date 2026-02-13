@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-11T22:25:21.948Z",
+  "generatedAt": "2026-02-13T04:38:50.290Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -85,6 +85,7 @@
       "PAIROFCLEATS_TESTING",
       "PAIROFCLEATS_TEST_ALLOW_MISSING_COMPAT_KEY",
       "PAIROFCLEATS_TEST_ALLOW_TIMEOUT_TARGET",
+      "PAIROFCLEATS_TEST_API_STARTUP_TIMEOUT_MS",
       "PAIROFCLEATS_TEST_CACHE_SUFFIX",
       "PAIROFCLEATS_TEST_CODE_MAP_BUDGET_MS",
       "PAIROFCLEATS_TEST_CONFIG",
@@ -120,6 +121,21 @@
       "indexing.artifacts.tokenPostingsShardSize",
       "indexing.artifacts.tokenPostingsShardThreshold",
       "indexing.concurrency",
+      "indexing.diffs.compute.detectRenames",
+      "indexing.diffs.compute.includeRelations",
+      "indexing.diffs.compute.maxBytes",
+      "indexing.diffs.compute.maxChangedFiles",
+      "indexing.diffs.compute.maxChunksPerFile",
+      "indexing.diffs.compute.maxEvents",
+      "indexing.diffs.compute.modes",
+      "indexing.diffs.compute.persist",
+      "indexing.diffs.compute.persistEvents",
+      "indexing.diffs.keep",
+      "indexing.diffs.maxAgeDays",
+      "indexing.diffs.maxBytes",
+      "indexing.diffs.maxDiffs",
+      "indexing.diffs.maxEvents",
+      "indexing.diffs.retainDays",
       "indexing.embeddings.cache.dir",
       "indexing.embeddings.cache.maxAgeDays",
       "indexing.embeddings.cache.maxGb",
@@ -188,6 +204,15 @@
       "indexing.scm.maxConcurrentProcesses",
       "indexing.scm.provider",
       "indexing.scm.timeoutMs",
+      "indexing.snapshots.keepFrozen",
+      "indexing.snapshots.keepPointer",
+      "indexing.snapshots.keepTags",
+      "indexing.snapshots.maxAgeDays",
+      "indexing.snapshots.maxFrozenSnapshots",
+      "indexing.snapshots.maxPointerSnapshots",
+      "indexing.snapshots.protectedTagGlobs",
+      "indexing.snapshots.retainDays",
+      "indexing.snapshots.stagingMaxAgeHours",
       "mcp.maxBufferBytes",
       "mcp.mode",
       "mcp.queueMax",
@@ -303,8 +328,8 @@
   },
   "configSchema": {
     "path": "docs/config/schema.json",
-    "totalKeys": 236,
-    "leafKeys": 189,
+    "totalKeys": 263,
+    "leafKeys": 213,
     "topLevel": [
       {
         "key": "cache",
@@ -312,7 +337,7 @@
       },
       {
         "key": "indexing",
-        "count": 104
+        "count": 131
       },
       {
         "key": "mcp",
@@ -417,6 +442,91 @@
     },
     {
       "path": "indexing.concurrency",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.diffs",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.diffs.compute",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.diffs.compute.detectRenames",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.diffs.compute.includeRelations",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.diffs.compute.maxBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.diffs.compute.maxChangedFiles",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.diffs.compute.maxChunksPerFile",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.diffs.compute.maxEvents",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.diffs.compute.modes",
+      "type": null,
+      "enum": null
+    },
+    {
+      "path": "indexing.diffs.compute.persist",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.diffs.compute.persistEvents",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.diffs.keep",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.diffs.maxAgeDays",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.diffs.maxBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.diffs.maxDiffs",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.diffs.maxEvents",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.diffs.retainDays",
       "type": "number",
       "enum": null
     },
@@ -901,6 +1011,56 @@
     },
     {
       "path": "indexing.scm.timeoutMs",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.snapshots",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.snapshots.keepFrozen",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.snapshots.keepPointer",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.snapshots.keepTags",
+      "type": null,
+      "enum": null
+    },
+    {
+      "path": "indexing.snapshots.maxAgeDays",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.snapshots.maxFrozenSnapshots",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.snapshots.maxPointerSnapshots",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.snapshots.protectedTagGlobs",
+      "type": null,
+      "enum": null
+    },
+    {
+      "path": "indexing.snapshots.retainDays",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.snapshots.stagingMaxAgeHours",
       "type": "number",
       "enum": null
     },
@@ -1694,11 +1854,16 @@
         "tests/retrieval/parity/parity.test.js",
         "tests/retrieval/ranking/fielded-bm25.test.js",
         "tests/run.js",
+        "tests/services/api-search-asof.test.js",
         "tests/services/api/api-server-stream.test.js",
         "tests/services/api/core-api.test.js",
+        "tests/services/api/federated-search-redacts-paths.test.js",
+        "tests/services/api/no-index.test.js",
         "tests/services/mcp/mcp-robustness.test.js",
         "tests/services/mcp/mcp-schema.test.js",
         "tests/services/mcp/sdk-mode.test.js",
+        "tests/services/snapshot-query.test.js",
+        "tests/services/sqlite-build-snapshot.test.js",
         "tests/shared/cache/cache-gc.test.js",
         "tests/shared/cache/cache-migration.test.js",
         "tests/shared/cache/cache-root-versioning.test.js",
@@ -1725,6 +1890,7 @@
         "tests/tooling/fixtures/fixture-empty.test.js",
         "tests/tooling/fixtures/fixture-eval.test.js",
         "tests/tooling/fixtures/fixture-parity.test.js",
+        "tests/tooling/index-stats/index-stats-explicit-repo-path.test.js",
         "tests/tooling/install/setup-index-detection.test.js",
         "tests/tooling/install/setup.test.js",
         "tests/tooling/install/uninstall.test.js",
@@ -1833,8 +1999,12 @@
         "tests/retrieval/filters/churn-filter.test.js",
         "tests/retrieval/parity/parity.test.js",
         "tests/retrieval/ranking/fielded-bm25.test.js",
+        "tests/services/api-search-asof.test.js",
         "tests/services/api/api-server-stream.test.js",
         "tests/services/api/core-api.test.js",
+        "tests/services/api/no-index.test.js",
+        "tests/services/snapshot-query.test.js",
+        "tests/services/sqlite-build-snapshot.test.js",
         "tests/shared/encoding/encoding-fallback.test.js",
         "tests/shared/subprocess/subprocess-quoting.test.js",
         "tests/smoke/e2e-smoke.test.js",
@@ -2195,6 +2365,16 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_TEST_API_STARTUP_TIMEOUT_MS",
+      "files": [
+        "tests/helpers/api-server.js",
+        "tests/helpers/test-env.js",
+        "tests/run.js",
+        "tests/services/api/api-server-stream.test.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_TEST_CACHE_SUFFIX",
       "files": [
         "tests/helpers/fixture-index.js",
@@ -2237,8 +2417,11 @@
         "tests/indexing/shards/shard-merge.test.js",
         "tests/retrieval/cache/query-cache.test.js",
         "tests/retrieval/filters/types.test.js",
+        "tests/services/api-search-asof.test.js",
         "tests/services/mcp/mcp-mode-selection.test.js",
         "tests/services/mcp/tool-search-defaults-and-filters.test.js",
+        "tests/services/snapshot-query.test.js",
+        "tests/services/sqlite-build-snapshot.test.js",
         "tests/storage/lmdb/lmdb-report-artifacts.test.js",
         "tests/storage/sqlite/ann/sqlite-ann-extension.test.js",
         "tests/storage/sqlite/sqlite-auto-backend.test.js",
@@ -2361,11 +2544,16 @@
         "tests/indexer/call-sites/call-sites-emit-artifacts-none.test.js",
         "tests/indexer/call-sites/call-sites-empty-required.test.js",
         "tests/indexing/artifacts/artifact-size-guardrails.test.js",
+        "tests/indexing/cache/cas-reuse-across-repos.test.js",
+        "tests/indexing/cache/workspace-concurrency-limits.test.js",
+        "tests/indexing/cache/workspace-global-cache-reuse.test.js",
         "tests/indexing/chunking/comment-join.test.js",
+        "tests/indexing/contracts/diffs-contracts.test.js",
         "tests/indexing/contracts/golden-surface-suite.test.js",
         "tests/indexing/contracts/index-compatibility-key-enforced-on-load.test.js",
         "tests/indexing/contracts/index-compatibility-key-federation-block.test.js",
         "tests/indexing/contracts/loader-matrix-parity.test.js",
+        "tests/indexing/contracts/snapshots-contracts.test.js",
         "tests/indexing/determinism/chunkuid-determinism.test.js",
         "tests/indexing/embeddings/build/args-parsing.test.js",
         "tests/indexing/embeddings/build/runtime-defaults.test.js",
@@ -2393,6 +2581,7 @@
         "tests/retrieval/backend/retrieval-strict-manifest-embeddings.test.js",
         "tests/retrieval/cache/query-cache-signature-sharded-chunk-meta.test.js",
         "tests/retrieval/cache/query-cache.test.js",
+        "tests/retrieval/federation/explicit-root-no-fallback.test.js",
         "tests/retrieval/parity/parity.test.js",
         "tests/retrieval/pipeline/ann-lazy-import.test.js",
         "tests/retrieval/pipeline/artifact-gating-deps.test.js",
@@ -2423,10 +2612,33 @@
         "tests/retrieval/pipeline/topk-tie-break.test.js",
         "tests/run.js",
         "tests/runner/all.js",
+        "tests/services/api-search-asof.test.js",
+        "tests/services/api/federated-search-cache-root-allowlist.test.js",
+        "tests/services/api/federated-search-cache-root-symlink-escape.test.js",
+        "tests/services/api/federated-search-client-errors.test.js",
+        "tests/services/api/federated-search-per-repo-top-zero.test.js",
+        "tests/services/api/federated-search-redacts-paths.test.js",
+        "tests/services/api/federated-search-repo-root-directory-validation.test.js",
+        "tests/services/api/federated-search-workspace-allowlist.test.js",
+        "tests/services/api/federated-search-workspaceid-validation.test.js",
+        "tests/services/api/no-index.test.js",
+        "tests/services/asof-explicit-root-no-fallback.test.js",
+        "tests/services/embeddings/mode-root-divergence-maintenance.test.js",
+        "tests/services/index-diff.test.js",
+        "tests/services/indexing/compressed-artifact-presence.test.js",
         "tests/services/mcp/mcp-robustness.test.js",
         "tests/services/mcp/mcp-schema.test.js",
         "tests/services/mcp/sdk-mode.test.js",
+        "tests/services/snapshot-create.test.js",
+        "tests/services/snapshot-freeze.test.js",
+        "tests/services/snapshot-query.test.js",
+        "tests/services/snapshots/concurrent-registry-writers.test.js",
+        "tests/services/sqlite-build-snapshot.test.js",
+        "tests/shared/diffs-registry.test.js",
+        "tests/shared/json-stream/atomic-stale-backup-protection.test.js",
         "tests/shared/logging/stdout-contract.test.js",
+        "tests/shared/no-path-leak.test.js",
+        "tests/shared/snapshots-registry.test.js",
         "tests/smoke/tantivy-smoke.test.js",
         "tests/storage/lmdb/lmdb-backend.test.js",
         "tests/storage/lmdb/lmdb-corruption.test.js",
@@ -2438,11 +2650,20 @@
         "tests/storage/sqlite/sqlite-incremental-no-change.test.js",
         "tests/storage/sqlite/sqlite-missing-dep.test.js",
         "tests/storage/vector-extension/vector-extension-missing.test.js",
+        "tests/tooling/cache/cache-gc-preserves-manifest-referenced.test.js",
+        "tests/tooling/cache/cache-gc-preserves-recent-access.test.js",
         "tests/tooling/dict-utils/paths-builds-root.test.js",
         "tests/tooling/fixtures/fixture-empty.test.js",
+        "tests/tooling/index-stats/index-stats-aggregate.test.js",
+        "tests/tooling/index-stats/index-stats-explicit-repo-path.test.js",
+        "tests/tooling/index-stats/index-stats-json.test.js",
+        "tests/tooling/index-stats/index-stats-missing-artifact.test.js",
         "tests/tooling/install/setup-index-detection.test.js",
         "tests/tooling/install/uninstall.test.js",
         "tests/tooling/reports/summary/summary-report-helpers.js",
+        "tests/tooling/workspace/catalog-json.test.js",
+        "tests/unit/retrieval-index-signature-shards.unit.js",
+        "tests/workspace/windows-path-canonicalization-contract.test.js",
         "tools/bench/index/scheduler-store-format.js",
         "tools/ci/run-suite.js",
         "tools/config/contract-doc.js",
@@ -2526,6 +2747,9 @@
         "tests/indexing/tree-sitter/js-tree-sitter-maxbytes.test.js",
         "tests/perf/sqlite-p95-latency.test.js",
         "tests/retrieval/ann/hnsw-ann.test.js",
+        "tests/services/api-search-asof.test.js",
+        "tests/services/snapshot-query.test.js",
+        "tests/services/sqlite-build-snapshot.test.js",
         "tests/shared/encoding/encoding-fallback.test.js",
         "tests/storage/sqlite/sqlite-incremental-no-change.test.js",
         "tools/ci/run-suite.js",
@@ -2545,7 +2769,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 298,
+    "totalFlags": 310,
     "publicFlags": [
       "backend",
       "host",
@@ -2564,9 +2788,11 @@
       "ann",
       "ann-mode",
       "ann-modes",
+      "apply",
       "arch",
       "args",
       "artifactDir",
+      "as-of",
       "auth-token",
       "avg",
       "avgBytes",
@@ -2602,6 +2828,7 @@
       "dataset",
       "depth",
       "destination",
+      "detectRenames",
       "dict",
       "dims",
       "dir",
@@ -2644,6 +2871,7 @@
       "frame-budget",
       "from",
       "global",
+      "grace-days",
       "graphFixture",
       "graphs",
       "groups",
@@ -2657,11 +2885,13 @@
       "includeGraph",
       "includeImports",
       "includePaths",
+      "includeRelations",
       "includeRisk",
       "includeTypes",
       "includeUsages",
       "incremental",
       "index",
+      "index-dir",
       "index-root",
       "input",
       "inputs",
@@ -2691,6 +2921,7 @@
       "max-age-days",
       "max-body-bytes",
       "max-bytes",
+      "max-deletes",
       "max-delta",
       "max-edges",
       "max-files",
@@ -2700,6 +2931,8 @@
       "maxCalls",
       "maxCallsPerSymbol",
       "maxCandidates",
+      "maxChangedFiles",
+      "maxChunksPerFile",
       "maxDepth",
       "maxEdgeBytes",
       "maxEdges",
@@ -2808,6 +3041,7 @@
       "skip-sqlite",
       "skip-tooling",
       "skip-validate",
+      "snapshot",
       "sort",
       "source",
       "source-rule",
@@ -2838,12 +3072,14 @@
       "validate",
       "validate-config",
       "verbose",
+      "verify",
       "wasd-acceleration",
       "wasd-drag",
       "wasd-max-speed",
       "wasd-sensitivity",
       "windowBytes",
       "with-sqlite",
+      "workspace",
       "write-report",
       "yes",
       "zoom-sensitivity"
@@ -2867,6 +3103,15 @@
           "properties",
           "required",
           "type"
+        ]
+      },
+      {
+        "file": "src/index/diffs/compute.js",
+        "flags": [
+          "detectRenames",
+          "includeRelations",
+          "maxChangedFiles",
+          "maxChunksPerFile"
         ]
       },
       {
@@ -3128,7 +3373,7 @@
         ]
       },
       {
-        "file": "tests/perf/indexing/validate/phase-usage-checklist.test.js",
+        "file": "tests/perf/indexing/validate/stage-usage-checklist.test.js",
         "flags": [
           "mode"
         ]
@@ -3215,7 +3460,7 @@
         ]
       },
       {
-        "file": "tests/shared/contracts/phase11-schemas-validate.test.js",
+        "file": "tests/shared/contracts/analysis-schemas-validate.test.js",
         "flags": [
           "caps",
           "failOnWarn",
@@ -3686,11 +3931,13 @@
       {
         "file": "tools/build/lmdb-index.js",
         "flags": [
+          "as-of",
           "index-root",
           "mode",
           "progress",
           "quiet",
           "repo",
+          "snapshot",
           "validate",
           "verbose"
         ]
@@ -3850,10 +4097,15 @@
       {
         "file": "tools/index/cache-gc.js",
         "flags": [
+          "apply",
+          "cache-root",
+          "concurrency",
           "dry-run",
+          "grace-days",
           "json",
           "max-age-days",
           "max-bytes",
+          "max-deletes",
           "max-gb",
           "repo"
         ]
@@ -3890,6 +4142,16 @@
         "flags": [
           "bench",
           "repo"
+        ]
+      },
+      {
+        "file": "tools/index/stats.js",
+        "flags": [
+          "index-dir",
+          "json",
+          "mode",
+          "repo",
+          "verify"
         ]
       },
       {
@@ -4201,12 +4463,33 @@
           "source",
           "stub-embeddings"
         ]
+      },
+      {
+        "file": "tools/workspace/catalog.js",
+        "flags": [
+          "json",
+          "workspace"
+        ]
+      },
+      {
+        "file": "tools/workspace/manifest.js",
+        "flags": [
+          "json",
+          "workspace"
+        ]
+      },
+      {
+        "file": "tools/workspace/status.js",
+        "flags": [
+          "json",
+          "workspace"
+        ]
       }
     ],
     "duplicated": [
       {
         "flag": "repo",
-        "count": 58,
+        "count": 59,
         "files": [
           "src/integrations/tooling/api-contracts.js",
           "src/integrations/tooling/architecture-check.js",
@@ -4245,6 +4528,7 @@
           "tools/index/compact-pieces.js",
           "tools/index/report-artifacts.js",
           "tools/index/shard-census.js",
+          "tools/index/stats.js",
           "tools/index/validate.js",
           "tools/ingest/ctags.js",
           "tools/ingest/gtags.js",
@@ -4270,7 +4554,7 @@
       },
       {
         "flag": "json",
-        "count": 46,
+        "count": 50,
         "files": [
           "src/integrations/tooling/api-contracts.js",
           "src/integrations/tooling/architecture-check.js",
@@ -4304,6 +4588,7 @@
           "tools/config/validate.js",
           "tools/index/cache-gc.js",
           "tools/index/report-artifacts.js",
+          "tools/index/stats.js",
           "tools/index/validate.js",
           "tools/ingest/ctags.js",
           "tools/ingest/gtags.js",
@@ -4317,7 +4602,10 @@
           "tools/sqlite/verify-extensions.js",
           "tools/tooling/detect.js",
           "tools/tooling/doctor.js",
-          "tools/tooling/install.js"
+          "tools/tooling/install.js",
+          "tools/workspace/catalog.js",
+          "tools/workspace/manifest.js",
+          "tools/workspace/status.js"
         ]
       },
       {
@@ -4367,13 +4655,13 @@
       },
       {
         "flag": "mode",
-        "count": 29,
+        "count": 30,
         "files": [
           "tests/map/map-build-determinism.test.js",
           "tests/map/map-build-heap-guard.test.js",
           "tests/map/map-build-streaming.test.js",
           "tests/map/map-edge-aggregate-stability.test.js",
-          "tests/perf/indexing/validate/phase-usage-checklist.test.js",
+          "tests/perf/indexing/validate/stage-usage-checklist.test.js",
           "tools/bench/graph/context-pack-latency.js",
           "tools/bench/graph/neighborhood-cache.js",
           "tools/bench/graph/neighborhood-index-dir.js",
@@ -4393,6 +4681,7 @@
           "tools/build/tantivy-index.js",
           "tools/index/assemble-pieces.js",
           "tools/index/compact-pieces.js",
+          "tools/index/stats.js",
           "tools/index/validate.js",
           "tools/reports/combined-summary.js",
           "tools/reports/compare-models.js",
@@ -4815,6 +5104,16 @@
         ]
       },
       {
+        "flag": "cache-root",
+        "count": 4,
+        "files": [
+          "tests/tooling/script-coverage/script-coverage.runner.js",
+          "tools/cache/clear-cache.js",
+          "tools/index/cache-gc.js",
+          "tools/reports/compare-models.js"
+        ]
+      },
+      {
         "flag": "dir",
         "count": 4,
         "files": [
@@ -4994,12 +5293,12 @@
         ]
       },
       {
-        "flag": "cache-root",
+        "flag": "concurrency",
         "count": 3,
         "files": [
-          "tests/tooling/script-coverage/script-coverage.runner.js",
-          "tools/cache/clear-cache.js",
-          "tools/reports/compare-models.js"
+          "tools/bench/vfs/parallel-manifest-build.js",
+          "tools/index/cache-gc.js",
+          "tools/service/indexer-service.js"
         ]
       },
       {
@@ -5084,6 +5383,15 @@
         ]
       },
       {
+        "flag": "workspace",
+        "count": 3,
+        "files": [
+          "tools/workspace/catalog.js",
+          "tools/workspace/manifest.js",
+          "tools/workspace/status.js"
+        ]
+      },
+      {
         "flag": "arch",
         "count": 2,
         "files": [
@@ -5136,7 +5444,7 @@
         "count": 2,
         "files": [
           "src/integrations/tooling/api-contracts.js",
-          "tests/shared/contracts/phase11-schemas-validate.test.js"
+          "tests/shared/contracts/analysis-schemas-validate.test.js"
         ]
       },
       {
@@ -5169,14 +5477,6 @@
         "files": [
           ".benchCache/scheduler-store-format/repos/baseline/generate.js",
           "tests/fixtures/medium/generate.js"
-        ]
-      },
-      {
-        "flag": "concurrency",
-        "count": 2,
-        "files": [
-          "tools/bench/vfs/parallel-manifest-build.js",
-          "tools/service/indexer-service.js"
         ]
       },
       {
@@ -5256,7 +5556,7 @@
         "count": 2,
         "files": [
           "src/integrations/tooling/api-contracts.js",
-          "tests/shared/contracts/phase11-schemas-validate.test.js"
+          "tests/shared/contracts/analysis-schemas-validate.test.js"
         ]
       },
       {
@@ -5368,7 +5668,7 @@
         "count": 2,
         "files": [
           "src/integrations/tooling/api-contracts.js",
-          "tests/shared/contracts/phase11-schemas-validate.test.js"
+          "tests/shared/contracts/analysis-schemas-validate.test.js"
         ]
       },
       {
@@ -5577,6 +5877,8 @@
       "src/map/isometric/client/ui.js",
       "src/retrieval/cli-args.js",
       "src/retrieval/cli/run-search-session.js",
+      "src/retrieval/federation/args.js",
+      "src/retrieval/federation/coordinator.js",
       "src/shared/cli-options.js",
       "src/shared/cli.js",
       "tests/indexing/tree-sitter/tree-sitter-chunk-cache-reuse.test.js",

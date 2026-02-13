@@ -1,3 +1,5 @@
+import { splitNormalizedLines } from '../../src/shared/eol.js';
+
 export const DEFAULT_TEST_ENV_KEYS = [
   'PAIROFCLEATS_TESTING',
   'PAIROFCLEATS_CACHE_ROOT',
@@ -31,6 +33,7 @@ export const applyTestEnv = ({
   const env = { ...process.env };
   const deletedKeys = new Set();
   const preservedPairOfCleatsKeys = new Set([
+    'PAIROFCLEATS_TEST_API_STARTUP_TIMEOUT_MS',
     'PAIROFCLEATS_TEST_CACHE_SUFFIX',
     'PAIROFCLEATS_TEST_LOG_SILENT',
     'PAIROFCLEATS_TEST_ALLOW_MISSING_COMPAT_KEY',
@@ -108,7 +111,7 @@ export const attachSilentLogging = (child, label = null) => {
         process.stderr.write(text);
         return;
       }
-      const lines = text.split(/\r?\n/);
+      const lines = splitNormalizedLines(text);
       for (let i = 0; i < lines.length; i += 1) {
         const line = lines[i];
         if (!line && i === lines.length - 1) continue;

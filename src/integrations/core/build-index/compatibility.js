@@ -1,4 +1,4 @@
-import { buildCompatibilityKey } from '../../../contracts/compatibility.js';
+import { buildCompatibilityKey, buildCohortKey } from '../../../contracts/compatibility.js';
 import { buildTokenizationKey } from '../../../index/build/indexer/signatures.js';
 import { applyAdaptiveDictConfig } from '../../../../tools/shared/dict-utils.js';
 
@@ -19,5 +19,10 @@ export const computeCompatibilityKey = ({ runtime, modes, sharedDiscovery }) => 
   }
   runtime.tokenizationKeys = tokenizationKeys;
   runtime.compatibilityKey = buildCompatibilityKey({ runtime, modes, tokenizationKeys });
+  const cohortKeys = {};
+  for (const modeItem of modes) {
+    cohortKeys[modeItem] = buildCohortKey({ runtime, mode: modeItem, tokenizationKeys });
+  }
+  runtime.cohortKeys = cohortKeys;
   return tokenizationKeys;
 };

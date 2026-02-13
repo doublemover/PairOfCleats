@@ -1,4 +1,5 @@
 import { createSchedulerQueueAdapter, createTaskQueues } from '../../../shared/concurrency.js';
+import { logLine } from '../../../shared/progress.js';
 import { SCHEDULER_QUEUE_NAMES } from './scheduler.js';
 import { resolveThreadLimits } from '../../../shared/threads.js';
 import { createIndexerWorkerPools, resolveWorkerPoolConfig } from '../worker-pool.js';
@@ -31,15 +32,17 @@ export const resolveThreadLimitsConfig = ({ argv, rawArgv, envConfig, indexingCo
     ? Math.floor(effectiveUvRaw)
     : null;
   if (effectiveUvThreadpoolSize && ioConcurrency > effectiveUvThreadpoolSize * 2) {
-    console.warn(
+    const warning =
       `[threads] ioConcurrency=${ioConcurrency} exceeds UV_THREADPOOL_SIZE=${effectiveUvThreadpoolSize}. `
-        + 'Consider aligning runtime.uvThreadpoolSize/UV_THREADPOOL_SIZE with your I/O concurrency for best throughput.'
-    );
+      + 'Consider aligning runtime.uvThreadpoolSize/UV_THREADPOOL_SIZE with your I/O concurrency for best throughput.';
+    if (typeof log === 'function') log(`[warn] ${warning}`);
+    else logLine(warning, { kind: 'warning' });
   } else if (!effectiveUvThreadpoolSize && envConfig.verbose && ioConcurrency >= 16) {
-    console.warn(
+    const warning =
       `[threads] ioConcurrency=${ioConcurrency} with default UV threadpool. `
-        + 'Consider setting runtime.uvThreadpoolSize (or UV_THREADPOOL_SIZE) for I/O-heavy indexing.'
-    );
+      + 'Consider setting runtime.uvThreadpoolSize (or UV_THREADPOOL_SIZE) for I/O-heavy indexing.';
+    if (typeof log === 'function') log(`[warn] ${warning}`);
+    else logLine(warning, { kind: 'warning' });
   }
 
   if (envConfig.verbose) {

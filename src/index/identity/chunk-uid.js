@@ -1,12 +1,13 @@
 import { checksumString } from '../../shared/hash.js';
 import { toPosix } from '../../shared/files.js';
+import { normalizeEol } from '../../shared/eol.js';
 
 export const PRE_CONTEXT_CHARS = 128;
 export const POST_CONTEXT_CHARS = 128;
 export const ESCALATION_CONTEXT_CHARS = 1024;
 export const MAX_COLLISION_PASSES = 2;
 
-export const normalizeForUid = (value) => String(value || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+export const normalizeForUid = (value) => normalizeEol(value || '');
 
 const normalizeHash = (value) => {
   if (!value) return null;

@@ -167,11 +167,28 @@ export function buildSearchRequestArgs(payload = {}, {
   }
 
   const mode = toStringValue(payload.mode);
+  const asOf = toStringValue(payload.asOf);
+  const snapshot = toStringValue(payload.snapshot);
+  const snapshotId = toStringValue(payload.snapshotId);
+  // Historical selectors are mutually exclusive. Reject ambiguous requests
+  // instead of silently preferring one reference over another.
+  if (asOf && (snapshot || snapshotId)) {
+    return { ok: false, message: 'Cannot combine asOf with snapshot/snapshotId.' };
+  }
+  if (snapshot && snapshotId && snapshot !== snapshotId) {
+    return { ok: false, message: 'snapshot and snapshotId conflict; provide only one reference.' };
+  }
+  const resolvedSnapshot = snapshot || snapshotId;
   const backend = toStringValue(payload.backend);
   const ann = typeof payload.ann === 'boolean' ? payload.ann : null;
   const top = normalizeOptionalNumber(payload.top, { min: topMin });
   const contextLines = normalizeOptionalNumber(payload.context, { min: 0 });
 
+  if (asOf) {
+    searchArgs.push('--as-of', asOf);
+  } else if (resolvedSnapshot) {
+    searchArgs.push('--snapshot', resolvedSnapshot);
+  }
   if (mode && !(omitModeBoth && mode === 'both')) {
     searchArgs.push('--mode', mode);
   }

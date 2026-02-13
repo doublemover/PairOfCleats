@@ -1,0 +1,65 @@
+{
+  "schemaVersion": "usr-registry-1.0.0",
+  "registryId": "usr-ownership-matrix",
+  "rows": [
+    {
+      "id": "own-core-artifacts",
+      "domain": "artifact-schema-catalog",
+      "ownerRole": "usr-architecture",
+      "backupOwnerRole": "usr-conformance",
+      "escalationPolicyId": "esc-contract-conflict",
+      "evidenceArtifacts": [
+        "usr-validation-report.json"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "own-diagnostics-taxonomy",
+      "domain": "diagnostics-reasoncodes",
+      "ownerRole": "usr-conformance",
+      "backupOwnerRole": "usr-architecture",
+      "escalationPolicyId": "esc-taxonomy-drift",
+      "evidenceArtifacts": [
+        "usr-validation-report.json",
+        "usr-conformance-summary.json"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "own-framework-profiles",
+      "domain": "language-framework-catalog",
+      "ownerRole": "usr-framework",
+      "backupOwnerRole": "usr-architecture",
+      "escalationPolicyId": "esc-framework-contract-conflict",
+      "evidenceArtifacts": [
+        "usr-conformance-summary.json",
+        "usr-quality-evaluation-results.json"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "own-observability-slo",
+      "domain": "observability-performance-ops",
+      "ownerRole": "usr-observability",
+      "backupOwnerRole": "usr-operations",
+      "escalationPolicyId": "esc-slo-budget-breach",
+      "evidenceArtifacts": [
+        "usr-observability-rollup.json",
+        "usr-benchmark-summary.json"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "own-security-governance",
+      "domain": "security-risk-compliance",
+      "ownerRole": "usr-security",
+      "backupOwnerRole": "usr-operations",
+      "escalationPolicyId": "esc-security-gate-failure",
+      "evidenceArtifacts": [
+        "usr-threat-model-coverage-report.json",
+        "usr-failure-injection-report.json"
+      ],
+      "blocking": true
+    }
+  ]
+}

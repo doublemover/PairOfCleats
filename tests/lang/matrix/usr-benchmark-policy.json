@@ -1,8 +1,6 @@
 {
   "schemaVersion": "usr-registry-1.0.0",
   "registryId": "usr-benchmark-policy",
-  "generatedAt": "2026-02-11T03:30:00Z",
-  "generatedBy": "tools/usr/generate-usr-matrix-baselines.mjs",
   "rows": [
     {
       "id": "bench-ci-smoke",
@@ -22,7 +20,7 @@
     },
     {
       "id": "bench-framework-overlay",
-      "laneId": "lang-framework-c4",
+      "laneId": "lang-framework-canonicalization",
       "datasetClass": "framework-overlay",
       "hostClass": "standard-ci",
       "warmupRuns": 1,

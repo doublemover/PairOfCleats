@@ -51,6 +51,10 @@ try {
   if (!status.body?.ok || !status.body.status?.repo?.root) {
     throw new Error('api-server /status response missing repo info');
   }
+  const statusBody = JSON.stringify(status.body);
+  if (statusBody.includes(fixtureRoot) || statusBody.includes(cacheRoot)) {
+    throw new Error('api-server /status response leaked absolute paths');
+  }
 } catch (err) {
   console.error(err?.message || err);
   process.exit(1);

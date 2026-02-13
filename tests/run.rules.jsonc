@@ -1,6 +1,5 @@
 {
   "excludedDirs": [
-    "fixtures",
     "helpers",
     ".testLogs",
     ".testCache",
@@ -8,18 +7,61 @@
     ".cache",
     ".worktrees",
     "worktree",
-    "worktrees"
+    "worktrees",
+    "suggest-tests"
   ],
   "excludedFiles": ["run.js"],
-  "knownLanes": ["smoke", "unit", "ci-lite", "ci-long", "integration", "services", "api", "storage", "perf", "mcp", "ci"],
+  "knownLanes": ["smoke", "unit", "ci-lite", "ci-long", "integration", "services", "api", "storage", "perf", "mcp", "ci", "gate", "backcompat", "diagnostics-summary", "decomposed-drift"],
   "laneRules": [
     { "lane": "perf", "match": ["^perf/"] },
+    {
+      "lane": "ci-long",
+      "match": [
+        "^lang/contracts/(go|javascript|misc-buildfiles|python|sql|typescript)$",
+        "^indexing/contracts/golden-surface-suite$"
+      ]
+    },
+    {
+      "lane": "gate",
+      "match": [
+        "^unified-syntax-representation/",
+        "^contracts/",
+        "^conformance/",
+        "^report-schema/report-schema-audit-contracts$",
+        "^benchmarks/regressions/",
+        "^fixtures/governance/",
+        "^backcompat/",
+        "^diagnostics/diagnostics-transition-validation$",
+        "^indexing/policy/",
+        "^indexing/contracts/",
+        "^tooling/api-contracts/",
+        "^ci/capability-gate\\.smoke$"
+      ]
+    },
     { "lane": "ci-lite", "match": ["^ci-lite/"] },
     { "lane": "smoke", "match": ["^smoke/"] },
     { "lane": "mcp", "match": ["^services/mcp/"] },
     { "lane": "api", "match": ["^services/api/"] },
     { "lane": "services", "match": ["^services/"] },
     { "lane": "storage", "match": ["^storage/"] },
+    {
+      "lane": "backcompat",
+      "match": [
+        "^backcompat/"
+      ]
+    },
+    {
+      "lane": "diagnostics-summary",
+      "match": [
+        "^diagnostics/"
+      ]
+    },
+    {
+      "lane": "decomposed-drift",
+      "match": [
+        "^decomposed-drift/"
+      ]
+    },
     {
       "lane": "unit",
       "match": [
@@ -58,11 +100,11 @@
         "^lang/fixtures-sample/python-metadata$",
         "^lang/fixtures-sample/rust-metadata$",
         "^lang/fixtures-sample/swift-metadata$",
+        "^lang/contracts/(go|javascript|misc-buildfiles|python|sql|typescript)$",
         "^retrieval/contracts/compact-json$",
         "^retrieval/contracts/result-shape$",
         "^retrieval/filters/ext-path$",
         "^retrieval/filters/type-signature-decorator$",
-        "^lang/contracts/python$",
         "(^|/)parity$",
         "(^|/)fixture-parity$",
         "(^|/)fixture-eval$",
@@ -81,13 +123,8 @@
         "^retrieval/filters/risk$",
         "^retrieval/filters/types$",
         "(^|/)retrieval-strict-manifest-embeddings$",
-        "^lang/contracts/misc-buildfiles$",
         "^retrieval/filters/control-flow$",
         "^retrieval/filters/file-selector$",
-        "^lang/contracts/go$",
-        "^lang/contracts/sql$",
-        "^lang/contracts/javascript$",
-        "^lang/contracts/typescript$",
         "(^|/)summary-report$",
         "(^|/)hnsw-ann$",
         "^indexing/language-fixture/postings-integrity$",

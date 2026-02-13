@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import { logLine } from '../progress.js';
 import { MAX_JSON_BYTES } from './constants.js';
 import { existsOrBak, readShardFiles, resolveArtifactMtime, resolveDirMtime } from './fs.js';
 import { fromPosix } from '../files.js';
@@ -52,8 +53,9 @@ const warnNonStrictJsonFallback = (dir, name) => {
   const key = `${dir}:${name}`;
   if (warnedNonStrictJsonFallback.has(key)) return;
   warnedNonStrictJsonFallback.add(key);
-  console.warn(
-    `[manifest] Non-strict mode: ${name} missing from manifest; using legacy JSON path (${dir}).`
+  logLine(
+    `[manifest] Non-strict mode: ${name} missing from manifest; using legacy JSON path (${dir}).`,
+    { kind: 'warning' }
   );
 };
 
@@ -61,9 +63,10 @@ const warnMaterializeFallback = (dir, name, format) => {
   const key = `${dir}:${name}:${format}`;
   if (warnedMaterializeFallback.has(key)) return;
   warnedMaterializeFallback.add(key);
-  console.warn(
+  logLine(
     `[manifest] Streaming fallback: ${name} uses ${format}; ` +
-    'materialized read may be required for full validation.'
+    'materialized read may be required for full validation.',
+    { kind: 'warning' }
   );
 };
 

@@ -3,15 +3,14 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { MAX_JSON_BYTES, loadChunkMeta, loadJsonArrayArtifact } from '../../../src/shared/artifact-io.js';
-import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
+import { getCurrentBuildInfo, getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { makeTempDir } from '../../helpers/temp.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'metav2-finalization-crossfile');
+const tempRoot = await makeTempDir('pairofcleats-metav2-finalization-');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
-
-await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(path.join(repoRoot, 'src'), { recursive: true });
 
 await fsPromises.writeFile(
@@ -72,15 +71,22 @@ const result = spawnSync(process.execPath, [
   env,
   timeout: buildTimeoutMs,
   killSignal: 'SIGTERM',
-  stdio: 'inherit'
+  encoding: 'utf8'
 });
 if (result.status !== 0) {
+  if (result.stdout) console.error(result.stdout);
+  if (result.stderr) console.error(result.stderr);
   console.error('metaV2 finalization test failed: build_index failed.');
   process.exit(result.status ?? 1);
 }
 
 const userConfig = loadUserConfig(repoRoot);
-const codeDir = getIndexDir(repoRoot, 'code', userConfig);
+const buildOutput = `${result.stderr || ''}\n${result.stdout || ''}`;
+const buildRootMatch = buildOutput.match(/^\[init\] build root:\s*(.+)$/m);
+const buildRootFromOutput = buildRootMatch?.[1]?.trim() || null;
+const currentBuild = getCurrentBuildInfo(repoRoot, userConfig, { mode: 'code' });
+const indexRoot = buildRootFromOutput || currentBuild?.activeRoot || currentBuild?.buildRoot || null;
+const codeDir = getIndexDir(repoRoot, 'code', userConfig, indexRoot ? { indexRoot } : {});
 let chunkMeta = [];
 let fileMeta = [];
 try {

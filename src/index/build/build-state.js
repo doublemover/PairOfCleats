@@ -6,6 +6,7 @@ import { atomicWriteJson, atomicWriteText } from '../../shared/io/atomic-write.j
 import { sha1 } from '../../shared/hash.js';
 import { estimateJsonBytes } from '../../shared/cache.js';
 import { createLifecycleRegistry } from '../../shared/lifecycle/registry.js';
+import { logLine } from '../../shared/progress.js';
 
 const STATE_FILE = 'build_state.json';
 const STATE_PROGRESS_FILE = 'build_state.progress.json';
@@ -334,7 +335,7 @@ const recordStateError = (buildRoot, err) => {
   stateErrors.set(key, next);
   trimStateMap(stateErrors, { skipActive: true });
   // Surface the failure without crashing the build.
-  console.warn(`[build_state] ${message}`);
+  logLine(`[build_state] ${message}`, { kind: 'warning' });
 };
 
 const compressRotatedLog = async (filePath) => {

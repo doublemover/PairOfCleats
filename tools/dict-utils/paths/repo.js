@@ -2,12 +2,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { isAbsolutePathNative } from '../../../src/shared/files.js';
 import { findUpwards } from '../../../src/shared/fs/find-upwards.js';
+import { toRealPathSync } from '../../../src/workspace/identity.js';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { getCacheRoot, loadUserConfig } from '../config.js';
 
 export function getRepoId(repoRoot) {
-  const resolved = path.resolve(repoRoot);
+  const resolved = toRealPathSync(path.resolve(repoRoot));
   const base = path.basename(resolved);
   const normalized = String(base || 'repo')
     .toLowerCase()
@@ -37,8 +38,10 @@ export function resolveRepoRoot(startPath = process.cwd()) {
 }
 
 export function getRepoRoot(repoRoot = null, startPath = process.cwd()) {
-  if (repoRoot) return path.resolve(repoRoot);
-  return resolveRepoRoot(startPath);
+  if (repoRoot) {
+    return toRealPathSync(path.resolve(repoRoot));
+  }
+  return toRealPathSync(resolveRepoRoot(startPath));
 }
 
 function resolveGitRoot(startPath) {

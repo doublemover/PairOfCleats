@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { getCurrentBuildInfo, getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
+import { getCurrentBuildInfo, getIndexDir, loadUserConfig, toRealPathSync } from '../../../tools/shared/dict-utils.js';
 import { loadJsonArrayArtifact } from '../../../src/shared/artifact-io.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
@@ -15,8 +15,9 @@ if (gitCheck.status !== 0) {
 }
 
 const tempRoot = await makeTempDir('poc-scm-git-provider-');
-const repoRoot = path.join(tempRoot, 'repo');
+const repoRootRaw = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
+let repoRoot = repoRootRaw;
 
 const runGit = (args, label) => {
   const result = spawnSync('git', args, { cwd: repoRoot, encoding: 'utf8' });
@@ -28,8 +29,9 @@ const runGit = (args, label) => {
 };
 
 try {
-  await fsPromises.mkdir(repoRoot, { recursive: true });
+  await fsPromises.mkdir(repoRootRaw, { recursive: true });
   await fsPromises.mkdir(cacheRoot, { recursive: true });
+  repoRoot = toRealPathSync(repoRootRaw);
 
   runGit(['init'], 'git init');
   runGit(['config', 'user.email', 'alpha@example.com'], 'git config email');

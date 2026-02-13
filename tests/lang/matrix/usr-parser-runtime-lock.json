@@ -1,8 +1,6 @@
 {
   "schemaVersion": "usr-registry-1.0.0",
   "registryId": "usr-parser-runtime-lock",
-  "generatedAt": "2026-02-11T03:30:00Z",
-  "generatedBy": "tools/usr/generate-usr-matrix-baselines.mjs",
   "rows": [
     {
       "parserSource": "framework-compiler",
@@ -11,7 +9,8 @@
       "parserVersion": "1.0.0",
       "runtimeName": "node",
       "runtimeVersion": "20.x",
-      "lockReason": "framework-compiler-baseline"
+      "lockReason": "framework-compiler-baseline",
+      "maxUpgradeBudgetDays": 45
     },
     {
       "parserSource": "heuristic",
@@ -20,7 +19,18 @@
       "parserVersion": "1.0.0",
       "runtimeName": "node",
       "runtimeVersion": "20.x",
-      "lockReason": "fallback-safety-net"
+      "lockReason": "fallback-safety-net",
+      "maxUpgradeBudgetDays": 90
+    },
+    {
+      "parserSource": "hybrid",
+      "languageId": "*",
+      "parserName": "hybrid-parser-baseline",
+      "parserVersion": "1.0.0",
+      "runtimeName": "node",
+      "runtimeVersion": "20.x",
+      "lockReason": "hybrid-chain-lock",
+      "maxUpgradeBudgetDays": 75
     },
     {
       "parserSource": "native-parser",
@@ -29,7 +39,8 @@
       "parserVersion": "1.0.0",
       "runtimeName": "node",
       "runtimeVersion": "20.x",
-      "lockReason": "primary-parser-lock"
+      "lockReason": "primary-parser-lock",
+      "maxUpgradeBudgetDays": 30
     },
     {
       "parserSource": "tooling",
@@ -38,7 +49,8 @@
       "parserVersion": "1.0.0",
       "runtimeName": "node",
       "runtimeVersion": "20.x",
-      "lockReason": "tooling-adapter-lock"
+      "lockReason": "tooling-adapter-lock",
+      "maxUpgradeBudgetDays": 60
     },
     {
       "parserSource": "tree-sitter",
@@ -47,7 +59,8 @@
       "parserVersion": "0.22.0",
       "runtimeName": "node-tree-sitter",
       "runtimeVersion": "0.21.x",
-      "lockReason": "tree-sitter-lock"
+      "lockReason": "tree-sitter-lock",
+      "maxUpgradeBudgetDays": 30
     }
   ]
 }

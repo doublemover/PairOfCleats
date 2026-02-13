@@ -5,6 +5,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getRepoId } from '../../../tools/shared/dict-utils.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { rmDirRecursive } from '../../helpers/temp.js';
 import { resolveVersionedCacheRoot } from '../../../src/shared/cache-roots.js';
 
 const root = process.cwd();
@@ -14,7 +15,7 @@ const cacheRoot = path.join(tempRoot, 'cache');
 const cacheRootResolved = resolveVersionedCacheRoot(cacheRoot);
 const srcDir = path.join(repoRoot, 'src');
 
-await fsPromises.rm(tempRoot, { recursive: true, force: true });
+await rmDirRecursive(tempRoot, { retries: 6, delayMs: 120 });
 await fsPromises.mkdir(srcDir, { recursive: true });
 
 const commentText = 'extracted-prose cache sentinel';

@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { getEffectiveConfigHash, getMetricsDir, getToolVersion } from '../../../shared/dict-utils.js';
 import { writeJsonObjectFile } from '../../../shared/json-stream.js';
+import { logLine } from '../../../shared/progress.js';
 
 export const writeIndexMetrics = async ({
   root,
@@ -141,6 +142,6 @@ export const writeIndexMetrics = async ({
     }
   } catch (err) {
     const message = err?.message || String(err);
-    console.warn(`[metrics] Failed to write metrics for ${mode}: ${message}`);
+    logLine(`[metrics] Failed to write metrics for ${mode}: ${message}`, { kind: 'warning' });
   }
 };

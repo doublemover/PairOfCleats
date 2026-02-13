@@ -135,6 +135,48 @@ function normalizeUserConfig(baseConfig) {
       if (isPlainObject(indexing.graph.caps)) graph.caps = indexing.graph.caps;
       if (Object.keys(graph).length) normalizedIndexing.graph = graph;
     }
+    if (isPlainObject(indexing.snapshots)) {
+      const snapshots = {};
+      if (indexing.snapshots.keepPointer !== undefined) {
+        snapshots.keepPointer = indexing.snapshots.keepPointer;
+      }
+      if (indexing.snapshots.keepFrozen !== undefined) {
+        snapshots.keepFrozen = indexing.snapshots.keepFrozen;
+      }
+      if (indexing.snapshots.maxAgeDays !== undefined) {
+        snapshots.maxAgeDays = indexing.snapshots.maxAgeDays;
+      }
+      if (indexing.snapshots.protectedTagGlobs !== undefined) {
+        snapshots.protectedTagGlobs = indexing.snapshots.protectedTagGlobs;
+      }
+      if (indexing.snapshots.stagingMaxAgeHours !== undefined) {
+        snapshots.stagingMaxAgeHours = indexing.snapshots.stagingMaxAgeHours;
+      }
+      if (indexing.snapshots.maxPointerSnapshots !== undefined) {
+        snapshots.maxPointerSnapshots = indexing.snapshots.maxPointerSnapshots;
+      }
+      if (indexing.snapshots.maxFrozenSnapshots !== undefined) {
+        snapshots.maxFrozenSnapshots = indexing.snapshots.maxFrozenSnapshots;
+      }
+      if (indexing.snapshots.retainDays !== undefined) {
+        snapshots.retainDays = indexing.snapshots.retainDays;
+      }
+      if (indexing.snapshots.keepTags !== undefined) {
+        snapshots.keepTags = indexing.snapshots.keepTags;
+      }
+      if (Object.keys(snapshots).length) normalizedIndexing.snapshots = snapshots;
+    }
+    if (isPlainObject(indexing.diffs)) {
+      const diffs = {};
+      if (indexing.diffs.keep !== undefined) diffs.keep = indexing.diffs.keep;
+      if (indexing.diffs.maxAgeDays !== undefined) diffs.maxAgeDays = indexing.diffs.maxAgeDays;
+      if (indexing.diffs.compute !== undefined) diffs.compute = indexing.diffs.compute;
+      if (indexing.diffs.maxDiffs !== undefined) diffs.maxDiffs = indexing.diffs.maxDiffs;
+      if (indexing.diffs.retainDays !== undefined) diffs.retainDays = indexing.diffs.retainDays;
+      if (indexing.diffs.maxEvents !== undefined) diffs.maxEvents = indexing.diffs.maxEvents;
+      if (indexing.diffs.maxBytes !== undefined) diffs.maxBytes = indexing.diffs.maxBytes;
+      if (Object.keys(diffs).length) normalizedIndexing.diffs = diffs;
+    }
     if (indexing.treeSitter) normalizedIndexing.treeSitter = indexing.treeSitter;
     if (indexing.fileFilters) normalizedIndexing.fileFilters = indexing.fileFilters;
     if (Object.keys(normalizedIndexing).length) normalized.indexing = normalizedIndexing;

@@ -1,15 +1,44 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { equalsIgnoringEol } from '../../src/shared/eol.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..', '..');
-const matrixDir = path.join(repoRoot, 'tests', 'lang', 'matrix');
+const DEFAULT_MATRIX_DIR = path.join(repoRoot, 'tests', 'lang', 'matrix');
 
 const SCHEMA_VERSION = 'usr-registry-1.0.0';
-const GENERATED_AT = '2026-02-11T03:30:00Z';
-const GENERATED_BY = 'tools/usr/generate-usr-matrix-baselines.mjs';
+function parseGeneratorOptions(argv = process.argv.slice(2)) {
+  let matrixDir = DEFAULT_MATRIX_DIR;
+  let checkMode = false;
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = String(argv[i] || '');
+    if (arg === '--check') {
+      checkMode = true;
+      continue;
+    }
+    if (arg === '--out-dir') {
+      const value = String(argv[i + 1] || '');
+      if (!value || value.startsWith('-')) {
+        throw new Error('Missing value for --out-dir');
+      }
+      matrixDir = path.resolve(value);
+      i += 1;
+      continue;
+    }
+    if (arg.startsWith('--out-dir=')) {
+      const value = arg.slice('--out-dir='.length);
+      if (!value) throw new Error('Missing value for --out-dir');
+      matrixDir = path.resolve(value);
+      continue;
+    }
+    throw new Error(`Unknown argument: ${arg}`);
+  }
+  return { matrixDir, checkMode };
+}
+
+const { matrixDir, checkMode } = parseGeneratorOptions();
 
 const CAPABILITIES = [
   'imports',
@@ -608,11 +637,12 @@ const generatedProvenanceCases = [
 ].sort((a, b) => a.id.localeCompare(b.id));
 
 const parserRuntimeLocks = [
-  { parserSource: 'framework-compiler', languageId: '*', parserName: 'framework-compiler-baseline', parserVersion: '1.0.0', runtimeName: 'node', runtimeVersion: '20.x', lockReason: 'framework-compiler-baseline' },
-  { parserSource: 'heuristic', languageId: '*', parserName: 'heuristic-fallback-baseline', parserVersion: '1.0.0', runtimeName: 'node', runtimeVersion: '20.x', lockReason: 'fallback-safety-net' },
-  { parserSource: 'native-parser', languageId: '*', parserName: 'native-parser-baseline', parserVersion: '1.0.0', runtimeName: 'node', runtimeVersion: '20.x', lockReason: 'primary-parser-lock' },
-  { parserSource: 'tooling', languageId: '*', parserName: 'tooling-adapter-baseline', parserVersion: '1.0.0', runtimeName: 'node', runtimeVersion: '20.x', lockReason: 'tooling-adapter-lock' },
-  { parserSource: 'tree-sitter', languageId: '*', parserName: 'tree-sitter-core', parserVersion: '0.22.0', runtimeName: 'node-tree-sitter', runtimeVersion: '0.21.x', lockReason: 'tree-sitter-lock' }
+  { parserSource: 'framework-compiler', languageId: '*', parserName: 'framework-compiler-baseline', parserVersion: '1.0.0', runtimeName: 'node', runtimeVersion: '20.x', lockReason: 'framework-compiler-baseline', maxUpgradeBudgetDays: 45 },
+  { parserSource: 'heuristic', languageId: '*', parserName: 'heuristic-fallback-baseline', parserVersion: '1.0.0', runtimeName: 'node', runtimeVersion: '20.x', lockReason: 'fallback-safety-net', maxUpgradeBudgetDays: 90 },
+  { parserSource: 'hybrid', languageId: '*', parserName: 'hybrid-parser-baseline', parserVersion: '1.0.0', runtimeName: 'node', runtimeVersion: '20.x', lockReason: 'hybrid-chain-lock', maxUpgradeBudgetDays: 75 },
+  { parserSource: 'native-parser', languageId: '*', parserName: 'native-parser-baseline', parserVersion: '1.0.0', runtimeName: 'node', runtimeVersion: '20.x', lockReason: 'primary-parser-lock', maxUpgradeBudgetDays: 30 },
+  { parserSource: 'tooling', languageId: '*', parserName: 'tooling-adapter-baseline', parserVersion: '1.0.0', runtimeName: 'node', runtimeVersion: '20.x', lockReason: 'tooling-adapter-lock', maxUpgradeBudgetDays: 60 },
+  { parserSource: 'tree-sitter', languageId: '*', parserName: 'tree-sitter-core', parserVersion: '0.22.0', runtimeName: 'node-tree-sitter', runtimeVersion: '0.21.x', lockReason: 'tree-sitter-lock', maxUpgradeBudgetDays: 30 }
 ].sort((a, b) => {
   if (a.parserSource !== b.parserSource) return a.parserSource.localeCompare(b.parserSource);
   return a.languageId.localeCompare(b.languageId);
@@ -621,14 +651,14 @@ const parserRuntimeLocks = [
 const sloBudgets = [
   { laneId: 'ci', profileScope: 'global', scopeId: 'global', maxDurationMs: 1200000, maxMemoryMb: 4096, maxParserTimePerSegmentMs: 1500, maxUnknownKindRate: 0.02, maxUnresolvedRate: 0.02, blocking: true },
   { laneId: 'ci-long', profileScope: 'global', scopeId: 'global', maxDurationMs: 2000000, maxMemoryMb: 8192, maxParserTimePerSegmentMs: 2000, maxUnknownKindRate: 0.02, maxUnresolvedRate: 0.02, blocking: true },
-  { laneId: 'lang-batch-b1', profileScope: 'batch', scopeId: 'B1', maxDurationMs: 600000, maxMemoryMb: 3072, maxParserTimePerSegmentMs: 1200, maxUnknownKindRate: 0.015, maxUnresolvedRate: 0.015, blocking: true },
-  { laneId: 'lang-batch-b2', profileScope: 'batch', scopeId: 'B2', maxDurationMs: 600000, maxMemoryMb: 3072, maxParserTimePerSegmentMs: 1200, maxUnknownKindRate: 0.015, maxUnresolvedRate: 0.015, blocking: true },
-  { laneId: 'lang-batch-b3', profileScope: 'batch', scopeId: 'B3', maxDurationMs: 600000, maxMemoryMb: 3072, maxParserTimePerSegmentMs: 1200, maxUnknownKindRate: 0.015, maxUnresolvedRate: 0.015, blocking: true },
-  { laneId: 'lang-batch-b4', profileScope: 'batch', scopeId: 'B4', maxDurationMs: 600000, maxMemoryMb: 3072, maxParserTimePerSegmentMs: 1200, maxUnknownKindRate: 0.015, maxUnresolvedRate: 0.015, blocking: true },
-  { laneId: 'lang-batch-b5', profileScope: 'batch', scopeId: 'B5', maxDurationMs: 600000, maxMemoryMb: 3072, maxParserTimePerSegmentMs: 1200, maxUnknownKindRate: 0.015, maxUnresolvedRate: 0.015, blocking: true },
-  { laneId: 'lang-batch-b6', profileScope: 'batch', scopeId: 'B6', maxDurationMs: 600000, maxMemoryMb: 3072, maxParserTimePerSegmentMs: 1200, maxUnknownKindRate: 0.015, maxUnresolvedRate: 0.015, blocking: true },
-  { laneId: 'lang-batch-b7', profileScope: 'batch', scopeId: 'B7', maxDurationMs: 600000, maxMemoryMb: 3072, maxParserTimePerSegmentMs: 1200, maxUnknownKindRate: 0.015, maxUnresolvedRate: 0.015, blocking: true },
-  { laneId: 'lang-framework-c4', profileScope: 'framework', scopeId: 'C4', maxDurationMs: 900000, maxMemoryMb: 4096, maxParserTimePerSegmentMs: 1500, maxUnknownKindRate: 0.02, maxUnresolvedRate: 0.02, blocking: true },
+  { laneId: 'lang-batch-javascript-typescript', profileScope: 'batch', scopeId: 'B1', maxDurationMs: 600000, maxMemoryMb: 3072, maxParserTimePerSegmentMs: 1200, maxUnknownKindRate: 0.015, maxUnresolvedRate: 0.015, blocking: true },
+  { laneId: 'lang-batch-systems-languages', profileScope: 'batch', scopeId: 'B2', maxDurationMs: 600000, maxMemoryMb: 3072, maxParserTimePerSegmentMs: 1200, maxUnknownKindRate: 0.015, maxUnresolvedRate: 0.015, blocking: true },
+  { laneId: 'lang-batch-managed-languages', profileScope: 'batch', scopeId: 'B3', maxDurationMs: 600000, maxMemoryMb: 3072, maxParserTimePerSegmentMs: 1200, maxUnknownKindRate: 0.015, maxUnresolvedRate: 0.015, blocking: true },
+  { laneId: 'lang-batch-dynamic-languages', profileScope: 'batch', scopeId: 'B4', maxDurationMs: 600000, maxMemoryMb: 3072, maxParserTimePerSegmentMs: 1200, maxUnknownKindRate: 0.015, maxUnresolvedRate: 0.015, blocking: true },
+  { laneId: 'lang-batch-markup-style-template', profileScope: 'batch', scopeId: 'B5', maxDurationMs: 600000, maxMemoryMb: 3072, maxParserTimePerSegmentMs: 1200, maxUnknownKindRate: 0.015, maxUnresolvedRate: 0.015, blocking: true },
+  { laneId: 'lang-batch-data-interface-dsl', profileScope: 'batch', scopeId: 'B6', maxDurationMs: 600000, maxMemoryMb: 3072, maxParserTimePerSegmentMs: 1200, maxUnknownKindRate: 0.015, maxUnresolvedRate: 0.015, blocking: true },
+  { laneId: 'lang-batch-build-infra-dsl', profileScope: 'batch', scopeId: 'B7', maxDurationMs: 600000, maxMemoryMb: 3072, maxParserTimePerSegmentMs: 1200, maxUnknownKindRate: 0.015, maxUnresolvedRate: 0.015, blocking: true },
+  { laneId: 'lang-framework-canonicalization', profileScope: 'framework', scopeId: 'C4', maxDurationMs: 900000, maxMemoryMb: 4096, maxParserTimePerSegmentMs: 1500, maxUnknownKindRate: 0.02, maxUnresolvedRate: 0.02, blocking: true },
   { laneId: 'lang-smoke', profileScope: 'global', scopeId: 'global', maxDurationMs: 180000, maxMemoryMb: 2048, maxParserTimePerSegmentMs: 800, maxUnknownKindRate: 0.03, maxUnresolvedRate: 0.03, blocking: true }
 ].sort((a, b) => a.laneId.localeCompare(b.laneId));
 
@@ -677,34 +707,118 @@ const runtimeConfigPolicy = [
 ].sort((a, b) => a.key.localeCompare(b.key));
 
 const failureInjectionMatrix = [
-  { id: 'fi-mapping-conflict', faultClass: 'mapping-conflict', injectionLayer: 'normalization', strictExpectedOutcome: 'fail-closed', nonStrictExpectedOutcome: 'degrade-with-diagnostics', requiredDiagnostics: ['USR-E-SCHEMA-VIOLATION'], requiredReasonCodes: ['resolution_conflict'], blocking: true },
-  { id: 'fi-parser-timeout', faultClass: 'parser-timeout', injectionLayer: 'parser', strictExpectedOutcome: 'degrade-with-diagnostics', nonStrictExpectedOutcome: 'degrade-with-diagnostics', requiredDiagnostics: ['USR-W-CAPABILITY-DOWNGRADED'], requiredReasonCodes: ['parser_timeout'], blocking: true },
-  { id: 'fi-parser-unavailable', faultClass: 'parser-unavailable', injectionLayer: 'parser', strictExpectedOutcome: 'degrade-with-diagnostics', nonStrictExpectedOutcome: 'degrade-with-diagnostics', requiredDiagnostics: ['USR-E-CAPABILITY-LOST'], requiredReasonCodes: ['parser_unavailable'], blocking: true },
-  { id: 'fi-redaction-failure', faultClass: 'redaction-failure', injectionLayer: 'reporting', strictExpectedOutcome: 'fail-closed', nonStrictExpectedOutcome: 'degrade-with-diagnostics', requiredDiagnostics: ['USR-E-SECURITY-GATE-FAILED'], requiredReasonCodes: ['redaction_required'], blocking: true },
-  { id: 'fi-resource-budget-breach', faultClass: 'resource-budget-breach', injectionLayer: 'runtime', strictExpectedOutcome: 'fail-closed', nonStrictExpectedOutcome: 'degrade-with-diagnostics', requiredDiagnostics: ['USR-E-SLO-BUDGET-FAILED'], requiredReasonCodes: ['resource_budget_exceeded'], blocking: true },
-  { id: 'fi-resolution-ambiguity-overflow', faultClass: 'resolution-ambiguity-overflow', injectionLayer: 'resolution', strictExpectedOutcome: 'degrade-with-diagnostics', nonStrictExpectedOutcome: 'warn-only', requiredDiagnostics: ['USR-W-RESOLUTION-CANDIDATE-CAPPED'], requiredReasonCodes: ['candidate_cap_exceeded'], blocking: true },
-  { id: 'fi-security-gate-failure', faultClass: 'security-gate-failure', injectionLayer: 'runtime', strictExpectedOutcome: 'fail-closed', nonStrictExpectedOutcome: 'degrade-with-diagnostics', requiredDiagnostics: ['USR-E-SECURITY-GATE-FAILED'], requiredReasonCodes: ['security_gate_blocked'], blocking: true },
-  { id: 'fi-serialization-corruption', faultClass: 'serialization-corruption', injectionLayer: 'serialization', strictExpectedOutcome: 'fail-closed', nonStrictExpectedOutcome: 'degrade-with-diagnostics', requiredDiagnostics: ['USR-E-SCHEMA-VIOLATION'], requiredReasonCodes: ['serialization_invalid'] , blocking: true }
+  { id: 'fi-mapping-conflict', faultClass: 'mapping-conflict', injectionLayer: 'normalization', strictExpectedOutcome: 'fail-closed', nonStrictExpectedOutcome: 'degrade-with-diagnostics', requiredDiagnostics: ['USR-E-SCHEMA-VIOLATION'], requiredReasonCodes: ['USR-R-RESOLUTION-CONFLICT'], rollbackTriggerConsecutiveFailures: 1, requiredRecoveryArtifacts: ['usr-failure-injection-report.json', 'usr-rollback-drill-report.json'], blocking: true },
+  { id: 'fi-parser-timeout', faultClass: 'parser-timeout', injectionLayer: 'parser', strictExpectedOutcome: 'degrade-with-diagnostics', nonStrictExpectedOutcome: 'degrade-with-diagnostics', requiredDiagnostics: ['USR-W-CAPABILITY-DOWNGRADED'], requiredReasonCodes: ['USR-R-PARSER-TIMEOUT'], rollbackTriggerConsecutiveFailures: 2, requiredRecoveryArtifacts: ['usr-failure-injection-report.json', 'usr-rollback-drill-report.json'], blocking: true },
+  { id: 'fi-parser-unavailable', faultClass: 'parser-unavailable', injectionLayer: 'parser', strictExpectedOutcome: 'degrade-with-diagnostics', nonStrictExpectedOutcome: 'degrade-with-diagnostics', requiredDiagnostics: ['USR-E-CAPABILITY-LOST'], requiredReasonCodes: ['USR-R-PARSER-UNAVAILABLE'], rollbackTriggerConsecutiveFailures: 1, requiredRecoveryArtifacts: ['usr-failure-injection-report.json', 'usr-rollback-drill-report.json'], blocking: true },
+  { id: 'fi-redaction-failure', faultClass: 'redaction-failure', injectionLayer: 'reporting', strictExpectedOutcome: 'fail-closed', nonStrictExpectedOutcome: 'degrade-with-diagnostics', requiredDiagnostics: ['USR-E-SECURITY-GATE-FAILED'], requiredReasonCodes: ['USR-R-REDACTION-REQUIRED'], rollbackTriggerConsecutiveFailures: 1, requiredRecoveryArtifacts: ['usr-failure-injection-report.json', 'usr-rollback-drill-report.json'], blocking: true },
+  { id: 'fi-resource-budget-breach', faultClass: 'resource-budget-breach', injectionLayer: 'runtime', strictExpectedOutcome: 'fail-closed', nonStrictExpectedOutcome: 'degrade-with-diagnostics', requiredDiagnostics: ['USR-E-SLO-BUDGET-FAILED'], requiredReasonCodes: ['USR-R-RESOURCE-BUDGET-EXCEEDED'], rollbackTriggerConsecutiveFailures: 1, requiredRecoveryArtifacts: ['usr-failure-injection-report.json', 'usr-rollback-drill-report.json'], blocking: true },
+  { id: 'fi-resolution-ambiguity-overflow', faultClass: 'resolution-ambiguity-overflow', injectionLayer: 'resolution', strictExpectedOutcome: 'degrade-with-diagnostics', nonStrictExpectedOutcome: 'warn-only', requiredDiagnostics: ['USR-W-RESOLUTION-CANDIDATE-CAPPED'], requiredReasonCodes: ['USR-R-CANDIDATE-CAP-EXCEEDED'], rollbackTriggerConsecutiveFailures: 3, requiredRecoveryArtifacts: ['usr-failure-injection-report.json', 'usr-rollback-drill-report.json'], blocking: true },
+  { id: 'fi-security-gate-failure', faultClass: 'security-gate-failure', injectionLayer: 'runtime', strictExpectedOutcome: 'fail-closed', nonStrictExpectedOutcome: 'degrade-with-diagnostics', requiredDiagnostics: ['USR-E-SECURITY-GATE-FAILED'], requiredReasonCodes: ['USR-R-SECURITY-GATE-BLOCKED'], rollbackTriggerConsecutiveFailures: 1, requiredRecoveryArtifacts: ['usr-failure-injection-report.json', 'usr-rollback-drill-report.json'], blocking: true },
+  { id: 'fi-serialization-corruption', faultClass: 'serialization-corruption', injectionLayer: 'serialization', strictExpectedOutcome: 'fail-closed', nonStrictExpectedOutcome: 'degrade-with-diagnostics', requiredDiagnostics: ['USR-E-SCHEMA-VIOLATION'], requiredReasonCodes: ['USR-R-SERIALIZATION-INVALID'], rollbackTriggerConsecutiveFailures: 1, requiredRecoveryArtifacts: ['usr-failure-injection-report.json', 'usr-rollback-drill-report.json'], blocking: true }
 ].sort((a, b) => a.id.localeCompare(b.id));
 
+function roadmapTagsForFixture(row) {
+  const tags = new Set(['phase-7']);
+
+  if (row.profileType === 'language') {
+    tags.add('phase-4');
+    tags.add(`appendix-c:${row.profileId}`);
+  } else if (row.profileType === 'framework') {
+    tags.add('phase-5');
+    tags.add(`appendix-d:${row.profileId}`);
+  } else {
+    tags.add('phase-9');
+  }
+
+  const families = new Set(row.families || []);
+  if (families.has('failure-injection')) tags.add('phase-14');
+  if (families.has('integration') || families.has('api-boundary') || families.has('data-boundary')) tags.add('phase-14');
+  if (families.has('framework-overlay')) tags.add('phase-5');
+  if (families.has('backcompat')) tags.add('phase-10');
+  if (families.has('risk')) tags.add('phase-6');
+  if (families.has('semantic-flow')) tags.add('phase-6');
+  if (families.has('performance')) tags.add('phase-8');
+
+  return [...tags].sort();
+}
+
+const generatedLanguageFixtureGovernance = languageBaselines
+  .map((base) => {
+    const families = ['language-baseline', 'golden'];
+    if (base.requiredConformance.includes('C2')) families.push('semantic-flow');
+    if (base.requiredConformance.includes('C3')) families.push('risk');
+    if (base.requiredConformance.includes('C4')) families.push('framework-overlay');
+
+    return {
+      fixtureId: `${base.id}::baseline::coverage-001`,
+      profileType: 'language',
+      profileId: base.id,
+      conformanceLevels: [...base.requiredConformance],
+      families: [...new Set(families)].sort(),
+      owner: `language-${base.id}`,
+      reviewers: ['usr-architecture', 'usr-conformance'],
+      stabilityClass: 'stable',
+      mutationPolicy: 'require-review',
+      goldenRequired: true,
+      blocking: true
+    };
+  })
+  .sort((a, b) => a.fixtureId.localeCompare(b.fixtureId));
+
+const generatedFrameworkFixtureGovernance = frameworkProfiles
+  .map((profile) => {
+    const requiredEdgeKinds = new Set(profile?.bindingSemantics?.requiredEdgeKinds || []);
+    const families = ['framework-overlay'];
+    if (requiredEdgeKinds.has('template_binds') || requiredEdgeKinds.has('template_emits')) families.push('template-binding');
+    if (requiredEdgeKinds.has('style_scopes')) families.push('style-scope');
+    if (requiredEdgeKinds.has('route_maps_to')) families.push('route-semantics');
+    if (requiredEdgeKinds.has('hydration_boundary')) families.push('hydration');
+
+    return {
+      fixtureId: `${profile.id}::framework-overlay::baseline-001`,
+      profileType: 'framework',
+      profileId: profile.id,
+      conformanceLevels: [...(profile.requiredConformance || ['C4'])],
+      families: [...new Set(families)].sort(),
+      owner: `framework-${profile.id}`,
+      reviewers: ['usr-architecture', 'usr-conformance'],
+      stabilityClass: 'stable',
+      mutationPolicy: 'require-review',
+      goldenRequired: true,
+      blocking: true
+    };
+  })
+  .sort((a, b) => a.fixtureId.localeCompare(b.fixtureId));
+
 const fixtureGovernance = [
+  ...generatedLanguageFixtureGovernance,
+  ...generatedFrameworkFixtureGovernance,
   { fixtureId: 'angular::template-binding::input-output-001', profileType: 'framework', profileId: 'angular', conformanceLevels: ['C4'], families: ['framework-overlay', 'template-binding'], owner: 'framework-angular', reviewers: ['usr-architecture', 'usr-conformance'], stabilityClass: 'stable', mutationPolicy: 'require-review', goldenRequired: true, blocking: true },
   { fixtureId: 'astro::hydration::island-001', profileType: 'framework', profileId: 'astro', conformanceLevels: ['C4'], families: ['framework-overlay', 'hydration'], owner: 'framework-astro', reviewers: ['usr-architecture', 'usr-conformance'], stabilityClass: 'stable', mutationPolicy: 'require-review', goldenRequired: true, blocking: true },
   { fixtureId: 'javascript::normalization::jsx-element-001', profileType: 'language', profileId: 'javascript', conformanceLevels: ['C0', 'C1', 'C2'], families: ['normalization', 'golden'], owner: 'language-javascript', reviewers: ['usr-conformance'], stabilityClass: 'stable', mutationPolicy: 'require-review', goldenRequired: true, blocking: true },
   { fixtureId: 'typescript::provenance::transpile-001', profileType: 'language', profileId: 'typescript', conformanceLevels: ['C2', 'C3', 'C4'], families: ['provenance', 'golden'], owner: 'language-typescript', reviewers: ['usr-conformance', 'usr-architecture'], stabilityClass: 'stable', mutationPolicy: 'require-rfc', goldenRequired: true, blocking: true },
+  { fixtureId: 'typescript::minimum-slice::vue-module-001', profileType: 'language', profileId: 'typescript', conformanceLevels: ['C0', 'C1', 'C2', 'C3', 'C4'], families: ['minimum-slice', 'golden', 'framework-overlay'], owner: 'language-typescript', reviewers: ['usr-architecture', 'usr-conformance'], stabilityClass: 'stable', mutationPolicy: 'require-review', goldenRequired: true, blocking: true },
   { fixtureId: 'usr::backcompat::bc-003', profileType: 'cross-cutting', profileId: 'usr', conformanceLevels: ['C0', 'C1'], families: ['backcompat', 'negative'], owner: 'usr-rollout', reviewers: ['usr-architecture', 'usr-conformance'], stabilityClass: 'stable', mutationPolicy: 'require-rfc', goldenRequired: false, blocking: true },
+  { fixtureId: 'usr::integration::cross-language-framework-001', profileType: 'cross-cutting', profileId: 'usr', conformanceLevels: ['C1', 'C2', 'C4'], families: ['integration', 'semantic-flow', 'framework-overlay', 'route-semantics', 'template-binding', 'style-scope'], owner: 'usr-conformance', reviewers: ['usr-architecture', 'usr-framework'], stabilityClass: 'stable', mutationPolicy: 'require-review', goldenRequired: true, blocking: true },
+  { fixtureId: 'usr::integration::route-template-api-data-001', profileType: 'cross-cutting', profileId: 'usr', conformanceLevels: ['C1', 'C2', 'C3', 'C4'], families: ['integration', 'semantic-flow', 'route-semantics', 'template-binding', 'api-boundary', 'data-boundary'], owner: 'usr-conformance', reviewers: ['usr-architecture', 'usr-security'], stabilityClass: 'stable', mutationPolicy: 'require-review', goldenRequired: true, blocking: true },
   { fixtureId: 'usr::failure-injection::parser-lock-001', profileType: 'cross-cutting', profileId: 'usr', conformanceLevels: ['C1', 'C2'], families: ['failure-injection', 'security'], owner: 'usr-security', reviewers: ['usr-architecture', 'usr-security'], stabilityClass: 'volatile', mutationPolicy: 'require-review', goldenRequired: false, blocking: true },
   { fixtureId: 'usr::failure-injection::redaction-fail-001', profileType: 'cross-cutting', profileId: 'usr', conformanceLevels: ['C1', 'C2', 'C3'], families: ['failure-injection', 'security', 'reporting'], owner: 'usr-security', reviewers: ['usr-architecture', 'usr-security'], stabilityClass: 'volatile', mutationPolicy: 'require-review', goldenRequired: false, blocking: true },
   { fixtureId: 'usr::failure-injection::resource-budget-001', profileType: 'cross-cutting', profileId: 'usr', conformanceLevels: ['C1', 'C2'], families: ['failure-injection', 'runtime', 'performance'], owner: 'usr-observability', reviewers: ['usr-architecture', 'usr-operations'], stabilityClass: 'volatile', mutationPolicy: 'require-review', goldenRequired: false, blocking: true },
   { fixtureId: 'usr::failure-injection::runtime-exec-001', profileType: 'cross-cutting', profileId: 'usr', conformanceLevels: ['C1', 'C2', 'C3'], families: ['failure-injection', 'runtime', 'security'], owner: 'usr-security', reviewers: ['usr-architecture', 'usr-security'], stabilityClass: 'volatile', mutationPolicy: 'require-review', goldenRequired: false, blocking: true },
   { fixtureId: 'usr::failure-injection::security-gate-001', profileType: 'cross-cutting', profileId: 'usr', conformanceLevels: ['C1', 'C2'], families: ['failure-injection', 'security'], owner: 'usr-security', reviewers: ['usr-architecture', 'usr-security'], stabilityClass: 'volatile', mutationPolicy: 'require-review', goldenRequired: false, blocking: true },
   { fixtureId: 'usr::resolution::ambiguous-cap-001', profileType: 'cross-cutting', profileId: 'usr', conformanceLevels: ['C1', 'C2'], families: ['resolution', 'ambiguity'], owner: 'usr-resolution', reviewers: ['usr-conformance'], stabilityClass: 'stable', mutationPolicy: 'allow-generated-refresh', goldenRequired: true, blocking: false },
+  { fixtureId: 'vue::minimum-slice::template-style-001', profileType: 'framework', profileId: 'vue', conformanceLevels: ['C4'], families: ['minimum-slice', 'framework-overlay', 'template-binding', 'style-scope'], owner: 'framework-vue', reviewers: ['usr-architecture', 'usr-conformance'], stabilityClass: 'stable', mutationPolicy: 'require-review', goldenRequired: true, blocking: true },
   { fixtureId: 'vue::template-binding::script-setup-001', profileType: 'framework', profileId: 'vue', conformanceLevels: ['C4'], families: ['framework-overlay', 'template-binding'], owner: 'framework-vue', reviewers: ['usr-architecture', 'usr-conformance'], stabilityClass: 'stable', mutationPolicy: 'require-review', goldenRequired: true, blocking: true }
-].sort((a, b) => a.fixtureId.localeCompare(b.fixtureId));
+]
+  .map((row) => ({
+    ...row,
+    roadmapTags: roadmapTagsForFixture(row)
+  }))
+  .sort((a, b) => a.fixtureId.localeCompare(b.fixtureId));
 
 const benchmarkPolicy = [
   { id: 'bench-ci-smoke', laneId: 'ci', datasetClass: 'smoke', hostClass: 'standard-ci', warmupRuns: 1, measureRuns: 5, percentileTargets: { p50DurationMs: 120000, p95DurationMs: 180000, p99DurationMs: 220000 }, maxVariancePct: 12, maxPeakMemoryMb: 2048, blocking: true },
-  { id: 'bench-framework-overlay', laneId: 'lang-framework-c4', datasetClass: 'framework-overlay', hostClass: 'standard-ci', warmupRuns: 1, measureRuns: 5, percentileTargets: { p50DurationMs: 300000, p95DurationMs: 450000, p99DurationMs: 540000 }, maxVariancePct: 15, maxPeakMemoryMb: 4096, blocking: true },
+  { id: 'bench-framework-overlay', laneId: 'lang-framework-canonicalization', datasetClass: 'framework-overlay', hostClass: 'standard-ci', warmupRuns: 1, measureRuns: 5, percentileTargets: { p50DurationMs: 300000, p95DurationMs: 450000, p99DurationMs: 540000 }, maxVariancePct: 15, maxPeakMemoryMb: 4096, blocking: true },
   { id: 'bench-lang-batch', laneId: 'ci-long', datasetClass: 'language-batch', hostClass: 'standard-ci-long', warmupRuns: 1, measureRuns: 7, percentileTargets: { p50DurationMs: 600000, p95DurationMs: 900000, p99DurationMs: 1100000 }, maxVariancePct: 18, maxPeakMemoryMb: 6144, blocking: true },
   { id: 'bench-mixed-repo', laneId: 'ci-long', datasetClass: 'mixed-repo', hostClass: 'standard-ci-long', warmupRuns: 2, measureRuns: 9, percentileTargets: { p50DurationMs: 900000, p95DurationMs: 1500000, p99DurationMs: 1800000 }, maxVariancePct: 20, maxPeakMemoryMb: 8192, blocking: false }
 ].sort((a, b) => a.id.localeCompare(b.id));
@@ -732,7 +846,8 @@ const qualityGates = [
   { id: 'qg-resolution-precision-ts', domain: 'resolution', scopeType: 'language', scopeId: 'typescript', metric: 'precision', thresholdOperator: '>=', thresholdValue: 0.95, fixtureSetId: 'resolution-typescript-goldens', blocking: true },
   { id: 'qg-risk-false-positive-js', domain: 'risk', scopeType: 'language', scopeId: 'javascript', metric: 'false-positive-rate', thresholdOperator: '<=', thresholdValue: 0.08, fixtureSetId: 'risk-javascript-goldens', blocking: false },
   { id: 'qg-risk-recall-py', domain: 'risk', scopeType: 'language', scopeId: 'python', metric: 'recall', thresholdOperator: '>=', thresholdValue: 0.9, fixtureSetId: 'risk-python-goldens', blocking: true },
-  { id: 'qg-vue-template-binding-precision', domain: 'framework-binding', scopeType: 'framework', scopeId: 'vue', metric: 'precision', thresholdOperator: '>=', thresholdValue: 0.93, fixtureSetId: 'framework-vue-template-goldens', blocking: true }
+  { id: 'qg-vue-template-binding-precision', domain: 'framework-binding', scopeType: 'framework', scopeId: 'vue', metric: 'precision', thresholdOperator: '>=', thresholdValue: 0.93, fixtureSetId: 'framework-vue-template-goldens', blocking: true },
+  { id: 'qg-min-slice-typescript-vue', domain: 'minimum-slice', scopeType: 'framework', scopeId: 'vue', metric: 'pass-rate', thresholdOperator: '>=', thresholdValue: 1.0, fixtureSetId: 'minimum-slice-typescript-vue', blocking: true }
 ].sort((a, b) => a.id.localeCompare(b.id));
 
 const operationalReadinessPolicy = [
@@ -740,6 +855,22 @@ const operationalReadinessPolicy = [
   { id: 'ops-incident-critical', phase: 'incident', runbookId: 'usr-incident-critical-runbook', severityClass: 'sev1', requiredRoles: ['usr-oncall-platform', 'usr-oncall-security'], requiredArtifacts: ['usr-incident-response-drill-report.json'], communicationChannels: ['incident-bridge', 'security-hotline'], maxResponseMinutes: 10, maxRecoveryMinutes: 120, blocking: true },
   { id: 'ops-post-cutover-review', phase: 'post-cutover', runbookId: 'usr-post-cutover-review-runbook', severityClass: 'n/a', requiredRoles: ['usr-operations', 'usr-conformance'], requiredArtifacts: ['usr-observability-rollup.json', 'usr-quality-regression-report.json'], communicationChannels: ['release-review'], maxResponseMinutes: 60, maxRecoveryMinutes: 240, blocking: false },
   { id: 'ops-pre-cutover-checklist', phase: 'pre-cutover', runbookId: 'usr-pre-cutover-checklist', severityClass: 'n/a', requiredRoles: ['usr-architecture', 'usr-rollout'], requiredArtifacts: ['usr-operational-readiness-validation.json', 'usr-rollback-drill-report.json'], communicationChannels: ['release-planning'], maxResponseMinutes: 30, maxRecoveryMinutes: 180, blocking: true }
+].sort((a, b) => a.id.localeCompare(b.id));
+
+const ownershipMatrix = [
+  { id: 'own-core-artifacts', domain: 'artifact-schema-catalog', ownerRole: 'usr-architecture', backupOwnerRole: 'usr-conformance', escalationPolicyId: 'esc-contract-conflict', evidenceArtifacts: ['usr-validation-report.json'], blocking: true },
+  { id: 'own-diagnostics-taxonomy', domain: 'diagnostics-reasoncodes', ownerRole: 'usr-conformance', backupOwnerRole: 'usr-architecture', escalationPolicyId: 'esc-taxonomy-drift', evidenceArtifacts: ['usr-validation-report.json', 'usr-conformance-summary.json'], blocking: true },
+  { id: 'own-framework-profiles', domain: 'language-framework-catalog', ownerRole: 'usr-framework', backupOwnerRole: 'usr-architecture', escalationPolicyId: 'esc-framework-contract-conflict', evidenceArtifacts: ['usr-conformance-summary.json', 'usr-quality-evaluation-results.json'], blocking: true },
+  { id: 'own-security-governance', domain: 'security-risk-compliance', ownerRole: 'usr-security', backupOwnerRole: 'usr-operations', escalationPolicyId: 'esc-security-gate-failure', evidenceArtifacts: ['usr-threat-model-coverage-report.json', 'usr-failure-injection-report.json'], blocking: true },
+  { id: 'own-observability-slo', domain: 'observability-performance-ops', ownerRole: 'usr-observability', backupOwnerRole: 'usr-operations', escalationPolicyId: 'esc-slo-budget-breach', evidenceArtifacts: ['usr-observability-rollup.json', 'usr-benchmark-summary.json'], blocking: true }
+].sort((a, b) => a.id.localeCompare(b.id));
+
+const escalationPolicy = [
+  { id: 'esc-contract-conflict', triggerClass: 'contract-conflict', severity: 'high', requiredApprovers: ['usr-architecture', 'usr-release-manager'], maxAckMinutes: 60, maxResolutionMinutes: 240, autoBlockPromotion: true },
+  { id: 'esc-framework-contract-conflict', triggerClass: 'framework-conflict', severity: 'high', requiredApprovers: ['usr-framework', 'usr-architecture'], maxAckMinutes: 45, maxResolutionMinutes: 180, autoBlockPromotion: true },
+  { id: 'esc-security-gate-failure', triggerClass: 'security-gate-failure', severity: 'critical', requiredApprovers: ['usr-security', 'usr-oncall-platform'], maxAckMinutes: 15, maxResolutionMinutes: 120, autoBlockPromotion: true },
+  { id: 'esc-slo-budget-breach', triggerClass: 'slo-budget-breach', severity: 'high', requiredApprovers: ['usr-observability', 'usr-operations'], maxAckMinutes: 30, maxResolutionMinutes: 180, autoBlockPromotion: true },
+  { id: 'esc-taxonomy-drift', triggerClass: 'taxonomy-drift', severity: 'medium', requiredApprovers: ['usr-conformance', 'usr-architecture'], maxAckMinutes: 120, maxResolutionMinutes: 720, autoBlockPromotion: false }
 ].sort((a, b) => a.id.localeCompare(b.id));
 
 function embeddingPolicyFor(languageId, family) {
@@ -914,16 +1045,27 @@ function riskRows() {
     .sort((a, b) => a.languageId.localeCompare(b.languageId));
 }
 
-function writeRegistry(registryId, rows) {
-  const payload = {
+function buildRegistryPayload(registryId, rows) {
+  return {
     schemaVersion: SCHEMA_VERSION,
     registryId,
-    generatedAt: GENERATED_AT,
-    generatedBy: GENERATED_BY,
     rows
   };
+}
+
+function writeRegistry(registryId, rows) {
+  const payload = buildRegistryPayload(registryId, rows);
   const filePath = path.join(matrixDir, `${registryId}.json`);
   fs.writeFileSync(filePath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
+}
+
+function assertRegistryMatches(registryId, rows) {
+  const payload = buildRegistryPayload(registryId, rows);
+  const expected = `${JSON.stringify(payload, null, 2)}\n`;
+  const filePath = path.join(matrixDir, `${registryId}.json`);
+  if (!fs.existsSync(filePath)) return `missing file: ${filePath}`;
+  const current = fs.readFileSync(filePath, 'utf8');
+  return equalsIgnoringEol(current, expected) ? null : `drift: ${registryId}`;
 }
 
 function ensureDir() {
@@ -967,32 +1109,50 @@ function main() {
   assertLanguageFrameworkApplicability();
   ensureDir();
   const languageProfiles = languageProfileRows();
-  writeRegistry('usr-language-profiles', languageProfiles);
-  writeRegistry('usr-language-version-policy', languageVersionPolicyRows());
-  writeRegistry('usr-language-embedding-policy', languageEmbeddingPolicyRows());
-  writeRegistry('usr-framework-profiles', frameworkProfiles);
-  writeRegistry('usr-node-kind-mapping', nodeKindMappings);
-  writeRegistry('usr-edge-kind-constraints', edgeKindConstraints);
-  writeRegistry('usr-capability-matrix', capabilityRows(languageProfiles));
-  writeRegistry('usr-conformance-levels', conformanceRows(languageProfiles));
-  writeRegistry('usr-backcompat-matrix', backcompatMatrix);
-  writeRegistry('usr-framework-edge-cases', frameworkEdgeCases);
-  writeRegistry('usr-language-risk-profiles', riskRows());
-  writeRegistry('usr-embedding-bridge-cases', embeddingBridgeCases);
-  writeRegistry('usr-generated-provenance-cases', generatedProvenanceCases);
-  writeRegistry('usr-parser-runtime-lock', parserRuntimeLocks);
-  writeRegistry('usr-slo-budgets', sloBudgets);
-  writeRegistry('usr-alert-policies', alertPolicies);
-  writeRegistry('usr-redaction-rules', redactionRules);
-  writeRegistry('usr-security-gates', securityGates);
-  writeRegistry('usr-runtime-config-policy', runtimeConfigPolicy);
-  writeRegistry('usr-failure-injection-matrix', failureInjectionMatrix);
-  writeRegistry('usr-fixture-governance', fixtureGovernance);
-  writeRegistry('usr-benchmark-policy', benchmarkPolicy);
-  writeRegistry('usr-threat-model-matrix', threatModelMatrix);
-  writeRegistry('usr-waiver-policy', waiverPolicy);
-  writeRegistry('usr-quality-gates', qualityGates);
-  writeRegistry('usr-operational-readiness-policy', operationalReadinessPolicy);
+  const registries = [
+    ['usr-language-profiles', languageProfiles],
+    ['usr-language-version-policy', languageVersionPolicyRows()],
+    ['usr-language-embedding-policy', languageEmbeddingPolicyRows()],
+    ['usr-framework-profiles', frameworkProfiles],
+    ['usr-node-kind-mapping', nodeKindMappings],
+    ['usr-edge-kind-constraints', edgeKindConstraints],
+    ['usr-capability-matrix', capabilityRows(languageProfiles)],
+    ['usr-conformance-levels', conformanceRows(languageProfiles)],
+    ['usr-backcompat-matrix', backcompatMatrix],
+    ['usr-framework-edge-cases', frameworkEdgeCases],
+    ['usr-language-risk-profiles', riskRows()],
+    ['usr-embedding-bridge-cases', embeddingBridgeCases],
+    ['usr-generated-provenance-cases', generatedProvenanceCases],
+    ['usr-parser-runtime-lock', parserRuntimeLocks],
+    ['usr-slo-budgets', sloBudgets],
+    ['usr-alert-policies', alertPolicies],
+    ['usr-redaction-rules', redactionRules],
+    ['usr-security-gates', securityGates],
+    ['usr-runtime-config-policy', runtimeConfigPolicy],
+    ['usr-failure-injection-matrix', failureInjectionMatrix],
+    ['usr-fixture-governance', fixtureGovernance],
+    ['usr-benchmark-policy', benchmarkPolicy],
+    ['usr-threat-model-matrix', threatModelMatrix],
+    ['usr-waiver-policy', waiverPolicy],
+    ['usr-quality-gates', qualityGates],
+    ['usr-operational-readiness-policy', operationalReadinessPolicy],
+    ['usr-ownership-matrix', ownershipMatrix],
+    ['usr-escalation-policy', escalationPolicy]
+  ];
+  if (checkMode) {
+    const drift = [];
+    for (const [registryId, rows] of registries) {
+      const issue = assertRegistryMatches(registryId, rows);
+      if (issue) drift.push(issue);
+    }
+    if (drift.length > 0) {
+      throw new Error(`USR matrix baseline drift detected:\n${drift.join('\n')}`);
+    }
+    return;
+  }
+  for (const [registryId, rows] of registries) {
+    writeRegistry(registryId, rows);
+  }
 }
 
 main();

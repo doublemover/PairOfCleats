@@ -3,6 +3,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { toPosix } from '../../../src/shared/files.js';
+import { normalizeEol } from '../../../src/shared/eol.js';
 import { rmDirRecursive } from '../../helpers/temp.js';
 
 export const resolveRetries = ({ argvRetries, envRetries, defaultRetries = 2 }) => {
@@ -46,7 +47,7 @@ export const createCommandRunner = ({ retries, failureLogRoot }) => {
     const normalizeOutput = (value) => {
       if (!value) return '';
       let text = String(value);
-      text = text.replace(/\r\n/g, '\n');
+      text = normalizeEol(text);
       text = text.replace(/\n{3,}/g, '\n\n');
       text = text.replace(/^\n+/, '\n');
       return text;

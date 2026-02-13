@@ -61,9 +61,10 @@ const resolveVectorsSource = (vectorsPath) => {
 
 const shouldIsolateLanceDb = (config, env) => {
   if (env?.child) return false;
+  if (config?.isolate === false) return false;
   if (config?.isolate === true) return true;
   if (env?.isolate) return true;
-  return isTestingEnv();
+  return false;
 };
 
 const createTable = async (db, tableName, rows) => {

@@ -4,7 +4,7 @@
 
 - **Spec version:** 1
 - **Audience:** PairOfCleats contributors implementing HTTP surfaces for snapshots, diffs, as-of search, and federated search.
-- **Implementation status:** planned.
+- **Implementation status:** partial (Phase 14.6 single-repo surfaces implemented; federation pending).
 
 This document defines API behavior only. CLI/MCP routes may expose the same semantics, but the HTTP contract here is authoritative for request/response shape, path redaction, and error behavior.
 

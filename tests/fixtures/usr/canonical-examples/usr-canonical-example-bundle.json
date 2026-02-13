@@ -1,0 +1,191 @@
+{
+  "schemaVersion": "usr-1.0.0",
+  "bundleId": "usr-canonical-example-bundle-v1",
+  "documents": [
+    {
+      "docUid": "doc64:v1:1a2b3c4d5e6f7788",
+      "fileRelPath": "src/main.ts",
+      "effectiveLanguageId": "typescript"
+    },
+    {
+      "docUid": "doc64:v1:8899aabbccddeeff",
+      "fileRelPath": "src/widget.js",
+      "effectiveLanguageId": "javascript"
+    }
+  ],
+  "segments": [
+    {
+      "segmentUid": "segu:v1:1122334455667788",
+      "docUid": "doc64:v1:1a2b3c4d5e6f7788",
+      "segmentKind": "file"
+    },
+    {
+      "segmentUid": "segu:v1:99aabbccddeeff00",
+      "docUid": "doc64:v1:8899aabbccddeeff",
+      "segmentKind": "file"
+    }
+  ],
+  "nodes": [
+    {
+      "nodeUid": "n64:v1:1111aa22bb33cc44",
+      "docUid": "doc64:v1:1a2b3c4d5e6f7788",
+      "segmentUid": "segu:v1:1122334455667788",
+      "kind": "function_decl"
+    },
+    {
+      "nodeUid": "n64:v1:5555dd66ee77ff88",
+      "docUid": "doc64:v1:8899aabbccddeeff",
+      "segmentUid": "segu:v1:99aabbccddeeff00",
+      "kind": "function_decl"
+    }
+  ],
+  "symbols": [
+    {
+      "symbolUid": "symu:v1:typescript:src.main.ts:main",
+      "declarationDocUid": "doc64:v1:1a2b3c4d5e6f7788",
+      "declarationNodeUid": "n64:v1:1111aa22bb33cc44"
+    },
+    {
+      "symbolUid": "symu:v1:javascript:src.widget.js:renderwidget",
+      "declarationDocUid": "doc64:v1:8899aabbccddeeff",
+      "declarationNodeUid": "n64:v1:5555dd66ee77ff88"
+    }
+  ],
+  "edges": [
+    {
+      "edgeUid": "edge64:v1:0011aa22bb33cc44",
+      "kind": "calls",
+      "status": "resolved",
+      "source": {
+        "entity": "node",
+        "uid": "n64:v1:1111aa22bb33cc44"
+      },
+      "target": {
+        "entity": "symbol",
+        "uid": "symu:v1:typescript:src.main.ts:main"
+      },
+      "attrs": {
+        "confidence": 0.95
+      }
+    },
+    {
+      "edgeUid": "edge64:v1:2233cc44dd55ee66",
+      "kind": "imports",
+      "status": "resolved",
+      "source": {
+        "entity": "document",
+        "uid": "doc64:v1:1a2b3c4d5e6f7788"
+      },
+      "target": {
+        "entity": "document",
+        "uid": "doc64:v1:8899aabbccddeeff"
+      },
+      "attrs": {
+        "importKind": "value"
+      }
+    },
+    {
+      "edgeUid": "edge64:v1:3344dd55ee66ff77",
+      "kind": "calls",
+      "status": "resolved",
+      "source": {
+        "entity": "node",
+        "uid": "n64:v1:1111aa22bb33cc44"
+      },
+      "target": {
+        "entity": "symbol",
+        "uid": "symu:v1:javascript:src.widget.js:renderwidget"
+      },
+      "attrs": {
+        "confidence": 0.82
+      }
+    }
+  ],
+  "flowPaths": [
+    {
+      "nodeRefs": [
+        {
+          "entity": "node",
+          "uid": "n64:v1:1111aa22bb33cc44"
+        },
+        {
+          "entity": "symbol",
+          "uid": "symu:v1:typescript:src.main.ts:main"
+        }
+      ],
+      "edgeRefs": [
+        "edge64:v1:0011aa22bb33cc44"
+      ],
+      "truncated": false,
+      "truncationReason": null
+    },
+    {
+      "nodeRefs": [
+        {
+          "entity": "node",
+          "uid": "n64:v1:1111aa22bb33cc44"
+        },
+        {
+          "entity": "symbol",
+          "uid": "symu:v1:javascript:src.widget.js:renderwidget"
+        }
+      ],
+      "edgeRefs": [
+        "edge64:v1:2233cc44dd55ee66",
+        "edge64:v1:3344dd55ee66ff77"
+      ],
+      "truncated": false,
+      "truncationReason": null
+    }
+  ],
+  "routes": [
+    {
+      "routeUid": "route64:v1:aaaabbbbccccdddd",
+      "segmentUid": "segu:v1:1122334455667788",
+      "symbolUid": "symu:v1:typescript:src.main.ts:main",
+      "pattern": "/"
+    },
+    {
+      "routeUid": "route64:v1:1111222233334444",
+      "segmentUid": "segu:v1:99aabbccddeeff00",
+      "symbolUid": "symu:v1:javascript:src.widget.js:renderwidget",
+      "pattern": "/widget"
+    }
+  ],
+  "styleScopes": [
+    {
+      "scopeUid": "scope64:v1:1234abcd5678ef90",
+      "segmentUid": "segu:v1:1122334455667788",
+      "ownerSymbolUid": "symu:v1:typescript:src.main.ts:main",
+      "scopeType": "scoped"
+    },
+    {
+      "scopeUid": "scope64:v1:0987fedc6543ba21",
+      "segmentUid": "segu:v1:99aabbccddeeff00",
+      "ownerSymbolUid": "symu:v1:javascript:src.widget.js:renderwidget",
+      "scopeType": "global"
+    }
+  ],
+  "diagnostics": [
+    {
+      "diagnosticUid": "diag64:v1:9999aaaabbbbcccc",
+      "code": "USR-W-REFERENCE-AMBIGUOUS",
+      "severity": "warning",
+      "phase": "relate",
+      "message": "Reference 'main' matched multiple candidates.",
+      "docUid": "doc64:v1:1a2b3c4d5e6f7788",
+      "segmentUid": "segu:v1:1122334455667788",
+      "nodeUid": "n64:v1:1111aa22bb33cc44"
+    },
+    {
+      "diagnosticUid": "diag64:v1:aaaabbbbccccdddd",
+      "code": "USR-W-CAPABILITY-DOWNGRADED",
+      "severity": "warning",
+      "phase": "normalize",
+      "message": "Cross-language relation confidence degraded due hybrid module boundary.",
+      "docUid": "doc64:v1:8899aabbccddeeff",
+      "segmentUid": "segu:v1:99aabbccddeeff00",
+      "nodeUid": "n64:v1:5555dd66ee77ff88"
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 # Spec -- USR Core Artifact and Schema Catalog
 
 Status: Draft v2.0
-Last updated: 2026-02-12T00:35:00Z
+Last updated: 2026-02-12T06:07:50Z
 
 ## Purpose
 
@@ -29,6 +29,8 @@ The following registries are authoritative and must remain schema-validated:
 - `tests/lang/matrix/usr-backcompat-matrix.json`
 - `tests/lang/matrix/usr-quality-gates.json`
 - `tests/lang/matrix/usr-waiver-policy.json`
+- `tests/lang/matrix/usr-ownership-matrix.json`
+- `tests/lang/matrix/usr-escalation-policy.json`
 
 ## Registry invariants
 
@@ -36,15 +38,16 @@ The following registries are authoritative and must remain schema-validated:
 2. every `frameworkProfile` in framework edge-case matrices must exist in framework profiles
 3. every blocking gate row must define evidence artifact IDs and policy owner
 4. every enum value used by registries must exist in the corresponding schema
+5. every ownership row must reference a valid escalation policy row
 
 Required registry row keys:
 
 | Registry | Mandatory keys |
 | --- | --- |
-| `usr-language-profiles.json` | `id`, `requiredNodeKinds`, `requiredEdgeKinds`, `requiredConformance` |
-| `usr-framework-profiles.json` | `id`, `detectionPrecedence`, `routeSemantics`, `bindingSemantics`, `segmentationRules` |
-| `usr-capability-matrix.json` | `languageId`, `frameworkProfile`, `capability`, `state`, `requiredConformance` |
-| `usr-backcompat-matrix.json` | `id`, `producerVersion`, `readerVersions`, `readerMode`, `expectedOutcome`, `blocking` |
+| `usr-language-profiles.json` | `id`, `parserPreference`, `requiredNodeKinds`, `requiredEdgeKinds`, `requiredCapabilities`, `fallbackChain`, `frameworkProfiles`, `requiredConformance` |
+| `usr-framework-profiles.json` | `id`, `detectionPrecedence`, `appliesToLanguages`, `segmentationRules`, `bindingSemantics`, `routeSemantics`, `hydrationSemantics`, `embeddedLanguageBridges`, `edgeCaseCaseIds`, `requiredConformance` |
+| `usr-capability-matrix.json` | `languageId`, `frameworkProfile`, `capability`, `state`, `requiredConformance`, `downgradeDiagnostics`, `blocking` |
+| `usr-backcompat-matrix.json` | `id`, `producerVersion`, `readerVersions`, `readerMode`, `fixtureFamily`, `expectedOutcome`, `requiredDiagnostics`, `blocking` |
 
 ## Evidence artifact envelope
 
@@ -111,6 +114,30 @@ CLI determinism requirements:
 - `usr-evidence-freshness-report.json`
 - `usr-feature-flag-policy-evaluation.json`
 - `usr-lane-policy-evaluation.json`
+
+## Blocking evidence artifact schema coverage
+
+| Artifact ID | Required schema file | Coverage class |
+| --- | --- | --- |
+| `usr-conformance-summary` | `docs/schemas/usr/usr-conformance-summary.schema.json` | required audit report |
+| `usr-validation-report` | `docs/schemas/usr/usr-validation-report.schema.json` | required audit report |
+| `usr-release-readiness-scorecard` | `docs/schemas/usr/usr-release-readiness-scorecard.schema.json` | required audit report |
+| `usr-feature-flag-state` | `docs/schemas/usr/usr-feature-flag-state.schema.json` | required audit report |
+| `usr-failure-injection-report` | `docs/schemas/usr/usr-failure-injection-report.schema.json` | required audit report |
+| `usr-rollback-drill-report` | `docs/schemas/usr/usr-rollback-drill-report.schema.json` | required recovery evidence |
+| `usr-benchmark-summary` | `docs/schemas/usr/usr-benchmark-summary.schema.json` | required benchmark evidence |
+| `usr-benchmark-regression-summary` | `docs/schemas/usr/usr-benchmark-regression-summary.schema.json` | required audit report |
+| `usr-threat-model-coverage-report` | `docs/schemas/usr/usr-threat-model-coverage-report.schema.json` | required audit report |
+| `usr-waiver-active-report` | `docs/schemas/usr/usr-waiver-active-report.schema.json` | required audit report |
+| `usr-waiver-expiry-report` | `docs/schemas/usr/usr-waiver-expiry-report.schema.json` | required audit report |
+| `usr-observability-rollup` | `docs/schemas/usr/usr-observability-rollup.schema.json` | blocking gate evidence |
+| `usr-operational-readiness-validation` | `docs/schemas/usr/usr-operational-readiness-validation.schema.json` | blocking gate evidence |
+| `usr-backcompat-matrix-results` | `docs/schemas/usr/usr-backcompat-matrix-results.schema.json` | compatibility blocking evidence |
+| `usr-quality-evaluation-results` | `docs/schemas/usr/usr-quality-evaluation-results.schema.json` | quality blocking evidence |
+| `usr-drift-report` | `docs/schemas/usr/usr-drift-report.schema.json` | drift blocking evidence |
+| `usr-release-train-readiness` | `docs/schemas/usr/usr-release-train-readiness.schema.json` | rollout blocking evidence |
+| `usr-no-cut-decision-log` | `docs/schemas/usr/usr-no-cut-decision-log.schema.json` | rollout blocking evidence |
+| `usr-post-cutover-stabilization-report` | `docs/schemas/usr/usr-post-cutover-stabilization-report.schema.json` | rollout blocking evidence |
 
 ## Drift prevention
 

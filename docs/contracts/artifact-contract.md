@@ -24,6 +24,32 @@ Artifacts live under the per-repo cache and are promoted atomically via a curren
 `buildId` format: `YYYYMMDDTHHMMSSZ_<scmHeadShort|noscm>_<configHash8>`.
 `scmHeadShort` is derived from the provider head (git commit short SHA, jj changeId when available).
 
+## Snapshot and diff artifacts (Phase 14)
+
+Snapshot and diff artifacts live alongside builds under each repo cache root:
+
+```
+<cache>/repos/<repoId>/
+  snapshots/
+    manifest.json
+    <snapshotId>/snapshot.json
+    <snapshotId>/frozen.json
+    <snapshotId>/frozen/
+  diffs/
+    manifest.json
+    <diffId>/inputs.json
+    <diffId>/summary.json
+    <diffId>/events.jsonl
+```
+
+Schema keys in `src/contracts/schemas/artifacts.js`:
+- `snapshots_manifest`
+- `snapshot_record`
+- `snapshot_frozen`
+- `diffs_manifest`
+- `diff_inputs`
+- `diff_summary`
+
 ## Core artifacts (per mode)
 
 Each `index-<mode>/` directory contains:

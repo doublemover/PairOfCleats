@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { writeJsonObjectFile } from '../../shared/json-stream.js';
+import { logLine } from '../../shared/progress.js';
 import { updateBuildState } from './build-state.js';
 
 const STAGE_CHECKPOINT_VERSION = 1;
@@ -143,7 +144,7 @@ export const createStageCheckpointRecorder = ({
           }
         });
       } catch (err) {
-        console.warn(`[metrics] Failed to update build state checkpoints: ${err?.message || err}`);
+        logLine(`[metrics] Failed to update build state checkpoints: ${err?.message || err}`, { kind: 'warning' });
       }
     }
     if (metricsDir) {
@@ -156,7 +157,7 @@ export const createStageCheckpointRecorder = ({
         await fs.mkdir(metricsDir, { recursive: true });
         await writeJsonObjectFile(path.join(metricsDir, fileName), { fields: summary, atomic: true });
       } catch (err) {
-        console.warn(`[metrics] Failed to write stage checkpoints: ${err?.message || err}`);
+        logLine(`[metrics] Failed to write stage checkpoints: ${err?.message || err}`, { kind: 'warning' });
       }
     }
     return summary;

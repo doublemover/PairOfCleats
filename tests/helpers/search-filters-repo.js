@@ -61,8 +61,9 @@ export const ensureSearchFiltersRepo = async () => {
     return null;
   }
   const tempRoot = path.join(ROOT, '.testCache', 'search-filters');
-  const repoRoot = path.join(tempRoot, `repo-${process.pid}`);
-  const cacheRoot = path.join(tempRoot, `cache-${process.pid}`);
+  const runSuffix = `${Date.now()}-${process.pid}-${Math.random().toString(16).slice(2, 8)}`;
+  const repoRoot = path.join(tempRoot, `repo-${runSuffix}`);
+  const cacheRoot = path.join(tempRoot, `cache-${runSuffix}`);
   await fsPromises.mkdir(repoRoot, { recursive: true });
   await fsPromises.mkdir(cacheRoot, { recursive: true });
 

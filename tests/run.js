@@ -47,7 +47,13 @@ const SKIP_EXIT_CODE = 77;
 const REDO_EXIT_CODES = [3221226356, 3221225477];
 const DEFAULT_TIMEOUT_GRACE_MS = 2000;
 const DEFAULT_LOG_DIR = path.join(ROOT, '.testLogs');
+const ORDERED_LANES = new Set([
+  'ci-lite',
+  'ci',
+  'ci-long'
+]);
 const INHERITED_PAIROFCLEATS_ENV_ALLOWLIST = new Set([
+  'PAIROFCLEATS_TEST_API_STARTUP_TIMEOUT_MS',
   'PAIROFCLEATS_TEST_CACHE_SUFFIX',
   'PAIROFCLEATS_TEST_ALLOW_MISSING_COMPAT_KEY',
   'PAIROFCLEATS_TEST_LOG_SILENT',
@@ -91,9 +97,20 @@ const main = async () => {
     );
   } catch {}
 
+  /**
+   * Resolve the default timeout from requested lanes.
+   *
+   * Precedence matters when multiple lanes are selected: we bias toward the
+   * slowest lane profile first (`ci-long` > `ci` > `gate` > `ci-lite`) so
+   * mixed-lane invocations don't inherit an undersized timeout.
+   *
+   * @param {string[]} lanes
+   * @returns {number}
+   */
   const resolveLaneDefaultTimeout = (lanes) => {
     const laneDefaults = new Map([
       ['ci-lite', 15000],
+      ['gate', 15000],
       ['ci', 60000],
       ['ci-long', 240000]
     ]);
@@ -103,6 +120,7 @@ const main = async () => {
     }
     if (normalized.includes('ci-long')) return laneDefaults.get('ci-long');
     if (normalized.includes('ci')) return laneDefaults.get('ci');
+    if (normalized.includes('gate')) return laneDefaults.get('gate');
     if (normalized.includes('ci-lite')) return laneDefaults.get('ci-lite');
     return DEFAULT_TIMEOUT_MS;
   };
@@ -110,6 +128,14 @@ const main = async () => {
   const isCiLiteOnly = requestedLanes.length === 1 && requestedLanes[0] === 'ci-lite';
   const isCiOnly = requestedLanes.length === 1 && requestedLanes[0] === 'ci';
   const isCiLongOnly = requestedLanes.length === 1 && requestedLanes[0] === 'ci-long';
+  const orderedLane = (() => {
+    const normalized = requestedLanes.filter((lane) => lane && lane !== 'all');
+    if (normalized.length !== 1) {
+      return '';
+    }
+    const lane = normalized[0];
+    return ORDERED_LANES.has(lane) ? lane : '';
+  })();
   if (requestedLanes.includes('ci-long') && !tagInclude.includes('long')) {
     tagInclude.push('long');
   }
@@ -189,9 +215,9 @@ const main = async () => {
 
   let selection = null;
 
-  if (isCiLiteOnly || isCiOnly || isCiLongOnly) {
-    const orderLane = isCiLiteOnly ? 'ci-lite' : (isCiLongOnly ? 'ci-long' : 'ci');
-    const orderPath = path.join(TESTS_DIR, orderLane, `${orderLane}.order.txt`);
+  if (orderedLane) {
+    const orderPath = path.join(TESTS_DIR, orderedLane, `${orderedLane}.order.txt`);
+    const orderLane = orderedLane;
     let orderRaw = '';
     try {
       orderRaw = await fsPromises.readFile(orderPath, 'utf8');
@@ -269,7 +295,7 @@ const main = async () => {
     process.exit(2);
   }
 
-  if (!isCiLiteOnly && !isCiOnly && !isCiLongOnly) {
+  if (!orderedLane) {
     selection = selection.slice().sort((a, b) => a.id.localeCompare(b.id));
   }
 

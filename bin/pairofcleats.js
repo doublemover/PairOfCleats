@@ -51,6 +51,22 @@ function resolveCommand(primary, rest) {
       return { script: 'build_index.js', extraArgs: [], args: rest };
     }
     if (sub === 'build') {
+      if (readFlagValue(rest, 'workspace')) {
+        const buildFlags = Object.keys(INDEX_BUILD_OPTIONS).filter((flag) => flag !== 'repo');
+        const allowed = Array.from(new Set([
+          'workspace',
+          'concurrency',
+          'strict',
+          'include-disabled',
+          'json',
+          ...buildFlags
+        ]));
+        const buildValueFlags = buildFlags.filter((flag) => (
+          INDEX_BUILD_OPTIONS[flag]?.type && INDEX_BUILD_OPTIONS[flag].type !== 'boolean'
+        ));
+        validateArgs(rest, allowed, ['workspace', 'concurrency', ...buildValueFlags]);
+        return { script: 'tools/workspace/build.js', extraArgs: [], args: rest };
+      }
       return { script: 'build_index.js', extraArgs: [], args: rest };
     }
     if (sub === 'watch') {
@@ -58,6 +74,105 @@ function resolveCommand(primary, rest) {
     }
     if (sub === 'validate') {
       return { script: 'tools/index/validate.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'stats') {
+      validateArgs(rest, ['repo', 'index-dir', 'mode', 'json', 'verify'], ['repo', 'index-dir', 'mode']);
+      return { script: 'tools/index/stats.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'snapshot') {
+      validateArgs(
+        rest,
+        [
+          'repo',
+          'snapshot',
+          'modes',
+          'id',
+          'label',
+          'notes',
+          'tags',
+          'tag',
+          'method',
+          'verify',
+          'include-sqlite',
+          'include-lmdb',
+          'wait-ms',
+          'keep-frozen',
+          'keep-pointer',
+          'keep-tags',
+          'max-age-days',
+          'staging-max-age-hours',
+          'max-pointer-snapshots',
+          'dry-run',
+          'force',
+          'json'
+        ],
+        [
+          'repo',
+          'snapshot',
+          'modes',
+          'id',
+          'label',
+          'notes',
+          'tags',
+          'tag',
+          'method',
+          'include-sqlite',
+          'wait-ms',
+          'keep-frozen',
+          'keep-pointer',
+          'keep-tags',
+          'max-age-days',
+          'staging-max-age-hours',
+          'max-pointer-snapshots'
+        ]
+      );
+      return { script: 'tools/index-snapshot.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'diff') {
+      validateArgs(
+        rest,
+        [
+          'repo',
+          'from',
+          'to',
+          'modes',
+          'mode',
+          'max-changed-files',
+          'max-chunks-per-file',
+          'max-events',
+          'max-bytes',
+          'include-relations',
+          'detect-renames',
+          'allow-mismatch',
+          'persist',
+          'persist-unsafe',
+          'diff',
+          'format',
+          'max-diffs',
+          'retain-days',
+          'wait-ms',
+          'dry-run',
+          'json',
+          'compact'
+        ],
+        [
+          'repo',
+          'from',
+          'to',
+          'modes',
+          'mode',
+          'max-changed-files',
+          'max-chunks-per-file',
+          'max-events',
+          'max-bytes',
+          'diff',
+          'format',
+          'max-diffs',
+          'retain-days',
+          'wait-ms'
+        ]
+      );
+      return { script: 'tools/index-diff.js', extraArgs: [], args: rest };
     }
     return { script: 'build_index.js', extraArgs: [], args: [sub, ...rest] };
   }
@@ -68,6 +183,45 @@ function resolveCommand(primary, rest) {
       process.exit(1);
     }
     return { script: 'search.js', extraArgs: [], args: rest };
+  }
+  if (primary === 'workspace') {
+    const sub = rest.shift();
+    if (!sub || isHelpCommand(sub)) {
+      console.error('workspace requires a subcommand: manifest, status, build, catalog');
+      printHelp();
+      process.exit(1);
+    }
+    if (sub === 'manifest') {
+      validateArgs(rest, ['workspace', 'json'], ['workspace']);
+      return { script: 'tools/workspace/manifest.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'status') {
+      validateArgs(rest, ['workspace', 'json'], ['workspace']);
+      return { script: 'tools/workspace/status.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'build') {
+      const buildFlags = Object.keys(INDEX_BUILD_OPTIONS).filter((flag) => flag !== 'repo');
+      const allowed = Array.from(new Set([
+        'workspace',
+        'concurrency',
+        'strict',
+        'include-disabled',
+        'json',
+        ...buildFlags
+      ]));
+      const buildValueFlags = buildFlags.filter((flag) => (
+        INDEX_BUILD_OPTIONS[flag]?.type && INDEX_BUILD_OPTIONS[flag].type !== 'boolean'
+      ));
+      validateArgs(rest, allowed, ['workspace', 'concurrency', ...buildValueFlags]);
+      return { script: 'tools/workspace/build.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'catalog') {
+      validateArgs(rest, ['workspace', 'json'], ['workspace']);
+      return { script: 'tools/workspace/catalog.js', extraArgs: [], args: rest };
+    }
+    console.error(`Unknown workspace subcommand: ${sub}`);
+    printHelp();
+    process.exit(1);
   }
   if (primary === 'setup') {
     validateArgs(rest, [], []);
@@ -80,13 +234,42 @@ function resolveCommand(primary, rest) {
   if (primary === 'cache') {
     const sub = rest.shift();
     if (!sub || isHelpCommand(sub)) {
-      console.error('cache requires a subcommand: clear');
+      console.error('cache requires a subcommand: clear, gc');
       printHelp();
       process.exit(1);
     }
     if (sub === 'clear') {
       validateArgs(rest, ['all', 'force', 'cache-root'], ['cache-root']);
       return { script: 'tools/cache/clear-cache.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'gc') {
+      validateArgs(
+        rest,
+        [
+          'apply',
+          'dry-run',
+          'json',
+          'cache-root',
+          'grace-days',
+          'max-deletes',
+          'concurrency',
+          'max-bytes',
+          'max-gb',
+          'max-age-days',
+          'repo'
+        ],
+        [
+          'cache-root',
+          'grace-days',
+          'max-deletes',
+          'concurrency',
+          'max-bytes',
+          'max-gb',
+          'max-age-days',
+          'repo'
+        ]
+      );
+      return { script: 'tools/index/cache-gc.js', extraArgs: [], args: rest };
     }
     console.error(`Unknown cache subcommand: ${sub}`);
     printHelp();
@@ -495,7 +678,7 @@ function resolveCommand(primary, rest) {
       process.exit(1);
     }
     if (sub === 'build') {
-      validateArgs(rest, ['repo', 'mode'], ['repo', 'mode']);
+      validateArgs(rest, ['repo', 'mode', 'index-root', 'as-of', 'snapshot', 'validate'], ['repo', 'mode', 'index-root', 'as-of', 'snapshot']);
       return { script: 'tools/build/lmdb-index.js', extraArgs: [], args: rest };
     }
     console.error(`Unknown lmdb subcommand: ${sub}`);
@@ -669,9 +852,18 @@ Index:
   index build             Build file-backed indexes
   index watch             Watch and rebuild indexes incrementally
   index validate          Validate index artifacts
+  index stats             Report per-mode manifest-driven index artifact stats
+  index snapshot          Manage index snapshots (create/list/show/rm/freeze/gc)
+  index diff              Compute/list/show/explain/prune index diffs
 
 Search:
   search "<query>"         Query indexed data
+
+Workspace:
+  workspace manifest       Generate/refresh workspace manifest
+  workspace status         Show workspace repo/mode index availability
+  workspace build          Build indexes across workspace repos
+  workspace catalog        Inspect workspace cache/manifests (debug)
 
 Service:
   service api             Run local HTTP JSON API
@@ -679,6 +871,10 @@ Service:
 
 Tooling:
   tooling doctor          Inspect tooling availability and config
+
+Cache:
+  cache clear             Remove cache data safely
+  cache gc                Run cache GC planner (CAS + legacy quota mode)
 
 LMDB:
   lmdb build              Build LMDB indexes

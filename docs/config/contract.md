@@ -33,6 +33,23 @@ indexing.artifacts.tokenPostingsFormat (string)
 indexing.artifacts.tokenPostingsShardSize (number)
 indexing.artifacts.tokenPostingsShardThreshold (number)
 indexing.concurrency (number)
+indexing.diffs (object)
+indexing.diffs.compute (object)
+indexing.diffs.compute.detectRenames (boolean)
+indexing.diffs.compute.includeRelations (boolean)
+indexing.diffs.compute.maxBytes (number)
+indexing.diffs.compute.maxChangedFiles (number)
+indexing.diffs.compute.maxChunksPerFile (number)
+indexing.diffs.compute.maxEvents (number)
+indexing.diffs.compute.modes
+indexing.diffs.compute.persist (boolean)
+indexing.diffs.compute.persistEvents (boolean)
+indexing.diffs.keep (number)
+indexing.diffs.maxAgeDays (number)
+indexing.diffs.maxBytes (number)
+indexing.diffs.maxDiffs (number)
+indexing.diffs.maxEvents (number)
+indexing.diffs.retainDays (number)
 indexing.embeddings (object)
 indexing.embeddings.cache (object)
 indexing.embeddings.cache.dir (string)
@@ -126,6 +143,16 @@ indexing.scm.jj.snapshotWorkingCopy (boolean)
 indexing.scm.maxConcurrentProcesses (number)
 indexing.scm.provider (string) enum=auto|git|jj|none
 indexing.scm.timeoutMs (number)
+indexing.snapshots (object)
+indexing.snapshots.keepFrozen (number)
+indexing.snapshots.keepPointer (number)
+indexing.snapshots.keepTags
+indexing.snapshots.maxAgeDays (number)
+indexing.snapshots.maxFrozenSnapshots (number)
+indexing.snapshots.maxPointerSnapshots (number)
+indexing.snapshots.protectedTagGlobs
+indexing.snapshots.retainDays (number)
+indexing.snapshots.stagingMaxAgeHours (number)
 mcp (object)
 mcp.maxBufferBytes (number)
 mcp.mode (string) enum=legacy|sdk|auto
@@ -357,8 +384,10 @@ tooling.vfs.tokenMode (string)
 ### search / pairofcleats search
 
 - --alias
+- --allow-unsafe-mix
 - --ann
 - --ann-backend
+- --as-of
 - --async
 - --author
 - --awaits
@@ -374,14 +403,18 @@ tooling.vfs.tokenMode (string)
 - --case-tokens
 - --chunk-author
 - --churn
+- --cohort
 - --comments
 - --compact
+- --concurrency
 - --continues
+- --debug-include-paths
 - --decorator
 - --dense-vector-mode
 - --explain
 - --ext
 - --extends
+- --federated-strict
 - --file
 - --filter
 - --fts-profile
@@ -392,12 +425,14 @@ tooling.vfs.tokenMode (string)
 - --graph-ranking-seed-k
 - --graph-ranking-seeds
 - --import
+- --include-disabled
 - --inferred-type
 - --json
 - --lang
 - --lint
 - --loops
 - --matched
+- --merge
 - --meta
 - --meta-json
 - --mode
@@ -411,6 +446,7 @@ tooling.vfs.tokenMode (string)
 - --path
 - --reads
 - --repo
+- --repo-filter
 - --return-type
 - --returns
 - --risk
@@ -419,18 +455,24 @@ tooling.vfs.tokenMode (string)
 - --risk-sink
 - --risk-source
 - --risk-tag
+- --rrf-k
+- --select
 - --signature
+- --snapshot
 - --stats
 - --struct-pack
 - --struct-rule
 - --struct-tag
 - --stub-embeddings
+- --tag
 - --throws
 - --top
+- --top-per-repo
 - --type
 - --uses
 - --visibility
 - --why
+- --workspace
 - --writes
 
 Notes:

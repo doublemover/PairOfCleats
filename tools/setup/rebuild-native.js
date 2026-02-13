@@ -5,7 +5,24 @@ import { spawnSync } from 'node:child_process';
 
 const REQUIRED_NATIVE_PACKAGES = [
   'tree-sitter',
+  'tree-sitter-c',
+  'tree-sitter-c-sharp',
+  'tree-sitter-cpp',
+  'tree-sitter-css',
+  'tree-sitter-go',
+  'tree-sitter-html',
+  'tree-sitter-java',
+  'tree-sitter-javascript',
+  'tree-sitter-json',
+  'tree-sitter-kotlin',
+  'tree-sitter-objc',
+  'tree-sitter-python',
+  'tree-sitter-rust',
   'tree-sitter-swift',
+  'tree-sitter-typescript',
+  '@tree-sitter-grammars/tree-sitter-markdown',
+  '@tree-sitter-grammars/tree-sitter-toml',
+  '@tree-sitter-grammars/tree-sitter-yaml',
   'better-sqlite3',
   'hnswlib-node',
   'onnxruntime-node',
@@ -22,6 +39,8 @@ const OPTIONAL_NATIVE_PACKAGES = [
 ];
 
 const root = process.cwd();
+const verifyOnly = process.argv.includes('--verify');
+const repairOnly = process.argv.includes('--repair');
 
 const resolveNodeModulesPath = (pkgName) => (
   path.join(root, 'node_modules', ...pkgName.split('/'))
@@ -29,11 +48,21 @@ const resolveNodeModulesPath = (pkgName) => (
 
 const isInstalled = (pkgName) => fs.existsSync(resolveNodeModulesPath(pkgName));
 
-const rebuildPackage = (pkgName) => {
-  const result = spawnSync('npm', ['rebuild', pkgName], {
+const rebuildPackage = (pkgName, { buildFromSource = false } = {}) => {
+  const args = ['rebuild', pkgName];
+  const env = {
+    ...process.env,
+    npm_config_ignore_scripts: 'false'
+  };
+  if (buildFromSource) {
+    env.npm_config_build_from_source = 'true';
+  }
+
+  const result = spawnSync('npm', args, {
     cwd: root,
     stdio: 'inherit',
-    shell: process.platform === 'win32'
+    shell: process.platform === 'win32',
+    env
   });
 
   if (result.error) {
@@ -49,8 +78,185 @@ const rebuildPackage = (pkgName) => {
   };
 };
 
+const runPackageInstallScript = (pkgName, { buildFromSource = false } = {}) => {
+  const env = {
+    ...process.env,
+    npm_config_ignore_scripts: 'false'
+  };
+  if (buildFromSource) {
+    env.npm_config_build_from_source = 'true';
+  }
+
+  const result = spawnSync('npm', ['run', 'install', '--if-present'], {
+    cwd: resolveNodeModulesPath(pkgName),
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
+    env
+  });
+
+  if (result.error) {
+    return {
+      ok: false,
+      message: result.error.message
+    };
+  }
+
+  return {
+    ok: result.status === 0,
+    message: result.status === 0 ? null : `exit ${result.status ?? 'unknown'}`
+  };
+};
+
+const probePackage = async (pkgName) => {
+  const probeScript = `
+    const pkg = process.argv[1];
+    (async () => {
+      try {
+        await import(pkg);
+        process.exit(0);
+      } catch (importErr) {
+        try {
+          require(pkg);
+          process.exit(0);
+        } catch (requireErr) {
+          const message = (requireErr && requireErr.message)
+            || (importErr && importErr.message)
+            || 'failed to load package';
+          console.error(message);
+          process.exit(1);
+        }
+      }
+    })();
+  `.trim();
+
+  const result = spawnSync(process.execPath, ['-e', probeScript, pkgName], {
+    cwd: root,
+    encoding: 'utf8'
+  });
+
+  if (result.status === 0) {
+    return { ok: true, message: null };
+  }
+
+  const message = (result.stderr || result.stdout || '').trim();
+  return {
+    ok: false,
+    message: message || `failed to load ${pkgName}`
+  };
+};
+
+const getRequiredPackageFailures = async ({ label = 'verify:native' } = {}) => {
+  const failures = [];
+
+  for (const pkgName of REQUIRED_NATIVE_PACKAGES) {
+    if (!isInstalled(pkgName)) {
+      console.error(`[${label}] required package is missing: ${pkgName}`);
+      failures.push({
+        pkgName,
+        missing: true,
+        message: 'required package is missing'
+      });
+      continue;
+    }
+
+    const result = await probePackage(pkgName);
+    if (!result.ok) {
+      console.error(`[${label}] required package is not loadable (${pkgName}): ${result.message}`);
+      failures.push({
+        pkgName,
+        missing: false,
+        message: result.message || 'required package is not loadable'
+      });
+    }
+  }
+
+  return failures;
+};
+
+const verifyRequiredPackages = async () => {
+  const failures = await getRequiredPackageFailures({ label: 'verify:native' });
+
+  if (failures.length > 0) {
+    console.error(`[verify:native] failed with ${failures.length} required package failure(s).`);
+    process.exit(1);
+  }
+
+  console.error('[verify:native] all required packages are loadable.');
+};
+
+const repairRequiredPackages = async () => {
+  const failures = await getRequiredPackageFailures({ label: 'repair:native' });
+  if (failures.length === 0) {
+    console.error('[repair:native] no required package repairs needed.');
+    return;
+  }
+
+  let repairFailures = 0;
+
+  for (const failure of failures) {
+    if (failure.missing) {
+      console.error(`[repair:native] cannot rebuild missing required package: ${failure.pkgName}`);
+      repairFailures += 1;
+      continue;
+    }
+
+    console.error(`[repair:native] rebuilding required package: ${failure.pkgName}`);
+    const rebuildResult = rebuildPackage(failure.pkgName);
+    if (!rebuildResult.ok) {
+      console.error(`[repair:native] failed required package ${failure.pkgName}: ${rebuildResult.message}`);
+      repairFailures += 1;
+      continue;
+    }
+
+    const probeResult = await probePackage(failure.pkgName);
+    if (!probeResult.ok) {
+      console.error(`[repair:native] required package still not loadable (${failure.pkgName}) after rebuild; retrying from source.`);
+      const sourceRebuildResult = rebuildPackage(failure.pkgName, { buildFromSource: true });
+      if (!sourceRebuildResult.ok) {
+        console.error(`[repair:native] source rebuild failed required package ${failure.pkgName}: ${sourceRebuildResult.message}`);
+        repairFailures += 1;
+        continue;
+      }
+
+      const sourceProbeResult = await probePackage(failure.pkgName);
+      if (!sourceProbeResult.ok) {
+        console.error(`[repair:native] required package still not loadable (${failure.pkgName}) after source rebuild; running package install script.`);
+        const installScriptResult = runPackageInstallScript(failure.pkgName, { buildFromSource: true });
+        if (!installScriptResult.ok) {
+          console.error(`[repair:native] package install script failed for ${failure.pkgName}: ${installScriptResult.message}`);
+          repairFailures += 1;
+          continue;
+        }
+
+        const installProbeResult = await probePackage(failure.pkgName);
+        if (!installProbeResult.ok) {
+          console.error(`[repair:native] required package still not loadable (${failure.pkgName}) after package install script: ${installProbeResult.message}`);
+          repairFailures += 1;
+        }
+      }
+    }
+  }
+
+  if (repairFailures > 0) {
+    console.error(`[repair:native] failed with ${repairFailures} required package repair failure(s).`);
+    process.exit(1);
+  }
+
+  console.error(`[repair:native] repaired ${failures.length} required package(s).`);
+};
+
 let requiredFailures = 0;
 let optionalFailures = 0;
+
+if (verifyOnly) {
+  await verifyRequiredPackages();
+  process.exit(0);
+}
+
+if (repairOnly) {
+  await repairRequiredPackages();
+  process.exit(0);
+}
 
 for (const pkgName of REQUIRED_NATIVE_PACKAGES) {
   if (!isInstalled(pkgName)) {

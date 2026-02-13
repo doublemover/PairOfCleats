@@ -23,7 +23,7 @@ Use this checklist when adding a new language or container format.
 
 ## Tests and guardrails
 - Add fixtures under `tests/fixtures/languages/src/`.
-- Extend `tests/lang/contracts/*.test.js` (and `tests/indexing/language-fixture/*.test.js`) to assert chunk coverage.
+- Extend `tests/unified-syntax-representation/lang/contracts/*.test.js` (and `tests/indexing/language-fixture/*.test.js`) to assert chunk coverage.
 - Add perf guard tests (max bytes/lines) when parsing or relations are expensive.
 
 ## Benchmarks
@@ -33,3 +33,4 @@ Use this checklist when adding a new language or container format.
 ## Validation
 - Run `pairofcleats test --match lang/contracts` (or target the specific contract test).
 - Run `node tools/bench/language-repos.js --list` to confirm the matrix entry appears.
+

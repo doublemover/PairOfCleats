@@ -3,18 +3,19 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
+import { getIndexDir, loadUserConfig, toRealPathSync } from '../../../tools/shared/dict-utils.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'import-links');
-const repoRoot = path.join(tempRoot, 'repo');
+const repoRootRaw = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
-await fsPromises.mkdir(path.join(repoRoot, 'src', 'a'), { recursive: true });
-await fsPromises.mkdir(path.join(repoRoot, 'src', 'b'), { recursive: true });
+await fsPromises.mkdir(path.join(repoRootRaw, 'src', 'a'), { recursive: true });
+await fsPromises.mkdir(path.join(repoRootRaw, 'src', 'b'), { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
+const repoRoot = toRealPathSync(repoRootRaw);
 
 await fsPromises.writeFile(path.join(repoRoot, 'src', 'a', 'index.js'), "import './utils';\n");
 await fsPromises.writeFile(path.join(repoRoot, 'src', 'a', 'utils.js'), 'export const a = 1;\n');

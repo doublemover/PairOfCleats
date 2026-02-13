@@ -4,7 +4,7 @@
 
 - **Spec version:** 1
 - **Audience:** contributors implementing cohort gating for federated search.
-- **Implementation status:** planned.
+- **Implementation status:** implemented.
 
 ---
 
@@ -64,11 +64,13 @@ Allow:
 - `--cohort <mode>:<key>`
 
 Unknown keys fail with `ERR_FEDERATED_COHORT_NOT_FOUND`.
+Malformed selectors fail with `ERR_FEDERATED_INVALID_COHORT_SELECTOR`.
 
 Rules:
 
 - `--cohort <key>` must resolve in every requested mode; otherwise fail.
 - `--cohort <mode>:<key>` only applies to that mode.
+- Multiple global selectors in one request (for example `--cohort a --cohort b`) are invalid and fail with `ERR_FEDERATED_INVALID_COHORT_SELECTOR`.
 
 ### 3.4 Unsafe mix policy
 
@@ -110,6 +112,8 @@ Example fragment:
 1. If `cohortKey` is missing, fallback to `compatibilityKey`.
 2. If both missing, set `effectiveKey = null` and include diagnostic warning.
 3. Existing single-repo searches are unaffected.
+4. Repos with explicit unavailable mode state (`present:false` or `availabilityReason != "present"`) are excluded from cohort bucket selection for that mode.
+5. If every repo is unavailable for a mode, that mode selects no repos (empty selection) instead of forcing a `null` cohort winner.
 
 ---
 
@@ -138,3 +142,4 @@ Example fragment:
 - `tests/retrieval/federation/compat-cohort-determinism.test.js`
 - `tests/retrieval/federation/compat-cohort-explicit-selection.test.js`
 - `tests/retrieval/federation/compat-cohort-strict-error.test.js`
+- `tests/retrieval/federation/compat-cohort-all-unavailable-empty-selection.test.js`

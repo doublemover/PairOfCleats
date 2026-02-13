@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
 import { splitCsv } from './run-discovery.js';
+import { splitNormalizedLines } from '../../src/shared/eol.js';
 
 export const mergeNodeOptions = (base, extra) => {
   const baseText = typeof base === 'string' ? base.trim() : '';
@@ -64,7 +65,7 @@ export const resolvePhysicalCores = () => {
       try {
         const output = execSync('lscpu -p=CORE,SOCKET', { encoding: 'utf8', timeout: 3000 });
         const cores = new Set();
-        output.split(/\r?\n/).forEach((line) => {
+        splitNormalizedLines(output).forEach((line) => {
           if (!line || line.startsWith('#')) return;
           cores.add(line.trim());
         });
@@ -73,7 +74,7 @@ export const resolvePhysicalCores = () => {
       try {
         const logicalOutput = execSync('lscpu -p=CPU', { encoding: 'utf8', timeout: 3000 });
         const logicalCores = new Set();
-        logicalOutput.split(/\r?\n/).forEach((line) => {
+        splitNormalizedLines(logicalOutput).forEach((line) => {
           if (!line || line.startsWith('#')) return;
           logicalCores.add(line.trim());
         });
@@ -96,7 +97,7 @@ export const resolvePhysicalCores = () => {
           const corePairs = new Set();
           let physicalId = null;
           let coreId = null;
-          cpuinfo.split(/\r?\n/).forEach((line) => {
+          splitNormalizedLines(cpuinfo).forEach((line) => {
             if (!line.trim()) {
               if (physicalId !== null && coreId !== null) {
                 corePairs.add(`${physicalId}:${coreId}`);

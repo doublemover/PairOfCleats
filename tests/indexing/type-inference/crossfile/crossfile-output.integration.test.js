@@ -3,16 +3,17 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { MAX_JSON_BYTES, loadChunkMeta, loadJsonArrayArtifact } from '../../../../src/shared/artifact-io.js';
-import { getIndexDir, loadUserConfig } from '../../../../tools/shared/dict-utils.js';
+import { getIndexDir, loadUserConfig, toRealPathSync } from '../../../../tools/shared/dict-utils.js';
 import { applyTestEnv } from '../../../helpers/test-env.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'type-inference-crossfile-integration');
-const repoRoot = path.join(tempRoot, 'repo');
+const repoRootRaw = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
-await fsPromises.mkdir(path.join(repoRoot, 'src'), { recursive: true });
+await fsPromises.mkdir(path.join(repoRootRaw, 'src'), { recursive: true });
+const repoRoot = toRealPathSync(repoRootRaw);
 
 await fsPromises.writeFile(
   path.join(repoRoot, 'src', 'creator.js'),

@@ -101,6 +101,8 @@ export async function buildSqliteIndex(args = {}, context = {}) {
     mode: args.mode,
     incremental: args.incremental === true,
     compact: args.compact === true,
+    asOf: args.asOf,
+    snapshot: args.snapshot,
     codeDir: args.codeDir,
     proseDir: args.proseDir,
     out: args.out,

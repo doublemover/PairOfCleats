@@ -3,12 +3,13 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
+import { getIndexDir, loadUserConfig, toRealPathSync } from '../../../tools/shared/dict-utils.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'js-tree-sitter-maxbytes');
-const repoRoot = path.join(tempRoot, 'repo');
+const repoRootRaw = path.join(tempRoot, 'repo');
+const repoRoot = toRealPathSync(repoRootRaw);
 const srcDir = path.join(repoRoot, 'src');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
@@ -63,7 +64,15 @@ if (!fs.existsSync(fileListsPath)) {
 }
 const fileLists = JSON.parse(fs.readFileSync(fileListsPath, 'utf8'));
 const skipped = Array.isArray(fileLists?.skipped?.sample) ? fileLists.skipped.sample : [];
-const skippedEntry = skipped.find((entry) => path.resolve(entry.file) === path.resolve(bigFilePath));
+const bigFileCanonical = toRealPathSync(bigFilePath);
+const skippedEntry = skipped.find((entry) => {
+  if (!entry?.file || typeof entry.file !== 'string') return false;
+  try {
+    return toRealPathSync(entry.file) === bigFileCanonical;
+  } catch {
+    return path.resolve(entry.file).toLowerCase() === path.resolve(bigFilePath).toLowerCase();
+  }
+});
 if (!skippedEntry) {
   console.error('JS tree-sitter maxBytes test failed: expected skip entry missing.');
   process.exit(1);

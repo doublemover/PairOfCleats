@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-import { loadUserConfig, getIndexDir } from '../../../tools/shared/dict-utils.js';
+import { loadUserConfig, getCurrentBuildInfo, getIndexDir } from '../../../tools/shared/dict-utils.js';
 import { loadJsonArrayArtifact } from '../../../src/shared/artifact-io.js';
 import { copyFixtureToTemp } from '../../helpers/fixtures.js';
 import { repoRoot } from '../../helpers/root.js';
@@ -21,6 +21,17 @@ const TEST_CONFIG = {
     artifactCompression: { enabled: false },
     riskInterprocedural: { enabled: true }
   }
+};
+
+const resolveCodeDir = (fixtureRoot, userConfig, result) => {
+  const output = `${result?.stderr || ''}\n${result?.stdout || ''}`;
+  const buildRootMatch = output.match(/^\[init\] build root:\s*(.+)$/m);
+  let indexRoot = buildRootMatch?.[1]?.trim() || null;
+  if (!indexRoot) {
+    const current = getCurrentBuildInfo(fixtureRoot, userConfig, { mode: 'code' });
+    indexRoot = current?.activeRoot || current?.buildRoot || null;
+  }
+  return getIndexDir(fixtureRoot, 'code', userConfig, indexRoot ? { indexRoot } : {});
 };
 
 const buildOnce = async (fixtureRoot) => {
@@ -55,7 +66,7 @@ const buildOnce = async (fixtureRoot) => {
   syncProcessEnv(env);
   try {
     const userConfig = loadUserConfig(fixtureRoot);
-    const codeDir = getIndexDir(fixtureRoot, 'code', userConfig);
+    const codeDir = resolveCodeDir(fixtureRoot, userConfig, result);
     return { cacheRoot, codeDir };
   } finally {
     syncProcessEnv(prevEnv);

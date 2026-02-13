@@ -38,6 +38,10 @@ const setup = async () => {
       pieces: [{ name: 'chunk_meta', path: 'chunk_meta.json', format: 'json' }]
     })
   );
+  await fs.writeFile(
+    path.join(outDir, 'chunk_meta.json'),
+    JSON.stringify([{ id: 0, file: 'src/a.js', start: 0, end: 1 }])
+  );
 };
 
 const run = async () => {

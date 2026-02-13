@@ -47,6 +47,7 @@ export function renderSearchOutput({
   verboseCache,
   elapsedMs,
   stageTracker,
+  asOfContext = null,
   streamJson = false
 }) {
   const outputStart = stageTracker?.mark?.();
@@ -84,6 +85,13 @@ export function renderSearchOutput({
     code: jsonCompact ? codeHitsFinal.map((hit) => compactHit(hit, explain)) : sanitize(codeHitsFinal),
     records: jsonCompact ? recordHitsFinal.map((hit) => compactHit(hit, explain)) : sanitize(recordHitsFinal)
   };
+  if (asOfContext) {
+    payload.asOf = {
+      ref: asOfContext.ref || 'latest',
+      identityHash: asOfContext.identityHash || null,
+      resolved: asOfContext.summary || { type: asOfContext.type || 'latest' }
+    };
+  }
 
   if (outputStart) {
     stageTracker?.record?.('output', outputStart, { mode: 'all' });
@@ -146,6 +154,13 @@ export function renderSearchOutput({
         hit: cacheInfo.hit,
         key: cacheInfo.key
       },
+      asOf: asOfContext
+        ? {
+          ref: asOfContext.ref || 'latest',
+          type: asOfContext.type || 'latest',
+          identityHash: asOfContext.identityHashShort || String(asOfContext.identityHash || '').slice(0, 8) || null
+        }
+        : null,
       memory: memory
         ? {
           rss: memory.rss,
@@ -197,6 +212,10 @@ export function renderSearchOutput({
       writeArray(payload.code);
       out.write(',\"records\":');
       writeArray(payload.records);
+      if (payload.asOf) {
+        out.write(',\"asOf\":');
+        out.write(JSON.stringify(payload.asOf));
+      }
       if (payload.stats) {
         out.write(',\"stats\":');
         out.write(JSON.stringify(payload.stats));
@@ -208,6 +227,10 @@ export function renderSearchOutput({
   }
 
   if (emitOutput && !jsonOutput) {
+    if (asOfContext?.provided) {
+      const shortHash = asOfContext.identityHashShort || String(asOfContext.identityHash || '').slice(0, 8);
+      console.error(`[search] as-of: ${asOfContext.ref || 'latest'} (identity ${shortHash})`);
+    }
     const makeSectionHeader = (label) => {
       const bar = '─';
       const width = 94;

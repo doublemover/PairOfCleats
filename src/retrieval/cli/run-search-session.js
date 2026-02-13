@@ -19,6 +19,7 @@ import { filterChunks } from '../output.js';
 import { runSearchByMode } from './search-runner.js';
 import { resolveStubDims } from '../../shared/embedding.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
+import { stableStringifyForSignature } from '../../shared/stable-json.js';
 
 export async function runSearchSession({
   rootDir,
@@ -98,6 +99,10 @@ export async function runSearchSession({
   backendLabel,
   resolvedDenseVectorMode,
   intentInfo,
+  asOfContext = null,
+  indexDirByMode = null,
+  indexBaseRootByMode = null,
+  explicitRef = false,
   signal,
   stageTracker
 }) {
@@ -181,7 +186,7 @@ export async function runSearchSession({
   const cacheDir = queryCacheDir || metricsDir;
   const queryCachePath = path.join(cacheDir, 'queryCache.json');
   if (queryCacheEnabled) {
-    const signature = getIndexSignature({
+    const signature = await getIndexSignature({
       useSqlite,
       backendLabel,
       sqliteCodePath,
@@ -190,9 +195,13 @@ export async function runSearchSession({
       runExtractedProse,
       includeExtractedProse: extractedProseLoaded || commentsEnabled,
       root: rootDir,
-      userConfig
+      userConfig,
+      indexDirByMode,
+      indexBaseRootByMode,
+      explicitRef,
+      asOfContext
     });
-    cacheSignature = JSON.stringify(signature);
+    cacheSignature = stableStringifyForSignature(signature);
     const cacheKeyInfo = buildQueryCacheKey({
       query,
       backend: backendLabel,
@@ -231,7 +240,13 @@ export async function runSearchSession({
         respectFilters: contextExpansionRespectFilters
       },
       graphRanking: graphRankingConfig || null,
-      filters: cacheFilters
+      filters: cacheFilters,
+      asOf: asOfContext
+        ? {
+          ref: asOfContext.ref || null,
+          identityHash: asOfContext.identityHash || null
+        }
+        : null
     });
     cacheKey = cacheKeyInfo.key;
     cacheData = loadQueryCache(queryCachePath);

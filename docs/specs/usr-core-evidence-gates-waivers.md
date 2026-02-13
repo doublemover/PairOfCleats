@@ -1,7 +1,7 @@
 # Spec -- USR Core Evidence, Gates, and Waiver Contract
 
 Status: Draft v2.0
-Last updated: 2026-02-11T08:35:00Z
+Last updated: 2026-02-12T06:07:50Z
 
 ## Purpose
 
@@ -92,6 +92,29 @@ Freshness classes:
 - `usr-waiver-expiry-report.json`
 - `usr-release-readiness-scorecard.json`
 
+## Standard evidence artifacts consumed by gate predicates
+
+In addition to required outputs above, gate predicates and scorecards may consume these canonical evidence artifacts:
+
+- `usr-validation-report.json`
+- `usr-conformance-summary.json`
+- `usr-quality-evaluation-results.json`
+- `usr-observability-rollup.json`
+- `usr-feature-flag-state.json`
+- `usr-failure-injection-report.json`
+- `usr-rollback-drill-report.json`
+- `usr-benchmark-summary.json`
+- `usr-benchmark-regression-summary.json`
+- `usr-threat-model-coverage-report.json`
+- `usr-waiver-active-report.json`
+- `usr-waiver-expiry-report.json`
+- `usr-backcompat-matrix-results.json`
+- `usr-operational-readiness-validation.json`
+- `usr-release-train-readiness.json`
+- `usr-no-cut-decision-log.json`
+- `usr-post-cutover-stabilization-report.json`
+- `usr-drift-report.json`
+
 ## Auditability requirements
 
 - gate results must include evaluated policy row IDs
@@ -106,6 +129,7 @@ Hard blocks include at minimum:
 - schema/invariant failures for blocking artifacts
 - critical security/risk gate failures
 - required operational drill failures
+- rollout no-cut decisions marked blocking without approved compensating controls
 
 ## Acceptance criteria
 

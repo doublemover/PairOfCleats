@@ -39,6 +39,10 @@ Optional (feature/config driven):
   - `vfs_path_map.jsonl` (optional, or sharded `vfs_path_map.meta.json` + `vfs_path_map.parts/`).
   - `vfs_manifest.vfsidx` and `vfs_manifest.vfsbloom.json` (optional index/bloom sidecars).
 
+Phase 14 snapshot/diff surfaces:
+- `snapshots/manifest.json`, `snapshots/<snapshotId>/snapshot.json`, `snapshots/<snapshotId>/frozen.json`
+- `diffs/manifest.json`, `diffs/<diffId>/inputs.json`, `diffs/<diffId>/summary.json`, `diffs/<diffId>/events.jsonl`
+
 ## Format precedence
 - If a pieces manifest is present and strict mode is enabled, loaders follow the manifest and treat missing entries as errors.
 - `chunk_meta` (non-strict): if both `chunk_meta.meta.json` + `chunk_meta.parts/` and `chunk_meta.jsonl` exist, the newer mtime wins; otherwise use whichever exists, falling back to `chunk_meta.columnar.json` and then `chunk_meta.json`.

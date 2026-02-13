@@ -6,6 +6,10 @@ permissions:
 on:
   workflow_dispatch:
 
+concurrency:
+  group: ci-long-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   ci-long:
     name: ci-long
@@ -21,6 +25,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '24.13.0'
+          cache: npm
 
       - name: Restore PairOfCleats cache
         uses: actions/cache@v4
@@ -28,14 +33,17 @@ jobs:
           path: |
             .ci-cache/pairofcleats/models
             .ci-cache/pairofcleats/dictionaries
-          key: pairofcleats-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          key: pairofcleats-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ github.run_id }}
+          restore-keys: |
+            pairofcleats-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
+            pairofcleats-cache-${{ runner.os }}-
 
       - name: Restore node_modules cache
         id: node-modules-cache
         uses: actions/cache@v4
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-24.13.0-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-24.13.0-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
 
       - name: Install deps and report versions
         shell: bash
@@ -44,7 +52,11 @@ jobs:
           if [ "${{ steps.node-modules-cache.outputs.cache-hit }}" != "true" ]; then
             npm run bootstrap:ci
           else
-            echo "node_modules cache hit; using cached patched dependencies and skipping native rebuild."
+            echo "node_modules cache hit; verifying native modules."
+            if ! npm run verify:native; then
+              echo "native verification failed; running targeted repair:native."
+              npm run repair:native
+            fi
           fi
           node -v
           npm -v
@@ -59,10 +71,10 @@ jobs:
         run: |
           $cacheRoot = node -e "const fs=require('fs');const payload=JSON.parse(fs.readFileSync('.diagnostics/cache-root.json','utf8'));process.stdout.write(payload.cacheRoot);"
           $env:PAIROFCLEATS_CACHE_ROOT = $cacheRoot
-          node tools/index/cache-gc.js --max-age-days 3 --max-bytes 52428800 --repo .
+          node tools/index/cache-gc.js --apply --grace-days 3 --max-deletes 200 --repo .
 
       - name: Upload test artifacts
-        if: always()
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: ci-long-artifacts-ubuntu
@@ -70,3 +82,4 @@ jobs:
             .testLogs/**
             .diagnostics/**
           if-no-files-found: ignore
+          compression-level: 0

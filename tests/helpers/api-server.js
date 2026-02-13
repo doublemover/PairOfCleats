@@ -15,7 +15,8 @@ export const startApiServer = async ({
   maxBodyBytes = null,
   allowUnauthenticated = false,
   corsAllowedOrigins = [],
-  corsAllowAny = false
+  corsAllowAny = false,
+  startupTimeoutMs = null
 }) => {
   const serverPath = path.join(ROOT, 'tools', 'api', 'server.js');
   const args = [
@@ -48,18 +49,52 @@ export const startApiServer = async ({
   const server = spawn(process.execPath, args, { env, stdio: ['ignore', 'pipe', 'pipe'] });
   attachSilentLogging(server, 'api-server');
 
+  const resolvedStartupTimeoutMs = startupTimeoutMs !== null
+    && startupTimeoutMs !== undefined
+    && Number.isFinite(Number(startupTimeoutMs))
+    ? Math.max(1000, Math.floor(Number(startupTimeoutMs)))
+    : Number.isFinite(Number(process.env.PAIROFCLEATS_TEST_API_STARTUP_TIMEOUT_MS))
+      ? Math.max(1000, Math.floor(Number(process.env.PAIROFCLEATS_TEST_API_STARTUP_TIMEOUT_MS)))
+      : 30000;
+
   const readStartup = async () => {
     const rl = readline.createInterface({ input: server.stdout });
     return await new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        rl.close();
-        reject(new Error('api-server startup timed out'));
-      }, 10000);
-      rl.once('line', (line) => {
+      let settled = false;
+      const cleanup = () => {
         clearTimeout(timeout);
-        rl.close();
+        server.off('exit', handleExitBeforeStartup);
+        server.off('error', handleStartupError);
+        try {
+          rl.close();
+        } catch {
+          // ignore close race; readline may already be closed
+        }
+      };
+      const fail = (err) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(err);
+      };
+      const succeed = (line) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
         resolve(line);
-      });
+      };
+      const handleExitBeforeStartup = (code, signal) => {
+        fail(new Error(`api-server exited before startup (code=${code ?? 'null'}, signal=${signal ?? 'null'})`));
+      };
+      const handleStartupError = (err) => {
+        fail(err instanceof Error ? err : new Error(String(err)));
+      };
+      const timeout = setTimeout(() => {
+        fail(new Error(`api-server startup timed out after ${resolvedStartupTimeoutMs}ms`));
+      }, resolvedStartupTimeoutMs);
+      rl.once('line', succeed);
+      server.once('exit', handleExitBeforeStartup);
+      server.once('error', handleStartupError);
     });
   };
 

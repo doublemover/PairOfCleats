@@ -3,18 +3,19 @@ import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { getCurrentBuildInfo, getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
+import { getCurrentBuildInfo, getIndexDir, loadUserConfig, toRealPathSync } from '../../../tools/shared/dict-utils.js';
 import { loadJsonArrayArtifact } from '../../../src/shared/artifact-io.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 
 const tempRoot = await makeTempDir('poc-scm-none-provider-');
-const repoRoot = path.join(tempRoot, 'repo');
+const repoRootRaw = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 
 try {
-  await fsPromises.mkdir(repoRoot, { recursive: true });
+  await fsPromises.mkdir(repoRootRaw, { recursive: true });
   await fsPromises.mkdir(cacheRoot, { recursive: true });
+  const repoRoot = toRealPathSync(repoRootRaw);
 
   const trackedFile = path.join(repoRoot, 'alpha.js');
   await fsPromises.writeFile(trackedFile, 'export const alpha = 1;\n');

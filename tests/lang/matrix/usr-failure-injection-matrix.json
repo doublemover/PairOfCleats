@@ -1,8 +1,6 @@
 {
   "schemaVersion": "usr-registry-1.0.0",
   "registryId": "usr-failure-injection-matrix",
-  "generatedAt": "2026-02-11T03:30:00Z",
-  "generatedBy": "tools/usr/generate-usr-matrix-baselines.mjs",
   "rows": [
     {
       "id": "fi-mapping-conflict",
@@ -14,7 +12,12 @@
         "USR-E-SCHEMA-VIOLATION"
       ],
       "requiredReasonCodes": [
-        "resolution_conflict"
+        "USR-R-RESOLUTION-CONFLICT"
+      ],
+      "rollbackTriggerConsecutiveFailures": 1,
+      "requiredRecoveryArtifacts": [
+        "usr-failure-injection-report.json",
+        "usr-rollback-drill-report.json"
       ],
       "blocking": true
     },
@@ -28,7 +31,12 @@
         "USR-W-CAPABILITY-DOWNGRADED"
       ],
       "requiredReasonCodes": [
-        "parser_timeout"
+        "USR-R-PARSER-TIMEOUT"
+      ],
+      "rollbackTriggerConsecutiveFailures": 2,
+      "requiredRecoveryArtifacts": [
+        "usr-failure-injection-report.json",
+        "usr-rollback-drill-report.json"
       ],
       "blocking": true
     },
@@ -42,7 +50,12 @@
         "USR-E-CAPABILITY-LOST"
       ],
       "requiredReasonCodes": [
-        "parser_unavailable"
+        "USR-R-PARSER-UNAVAILABLE"
+      ],
+      "rollbackTriggerConsecutiveFailures": 1,
+      "requiredRecoveryArtifacts": [
+        "usr-failure-injection-report.json",
+        "usr-rollback-drill-report.json"
       ],
       "blocking": true
     },
@@ -56,7 +69,12 @@
         "USR-E-SECURITY-GATE-FAILED"
       ],
       "requiredReasonCodes": [
-        "redaction_required"
+        "USR-R-REDACTION-REQUIRED"
+      ],
+      "rollbackTriggerConsecutiveFailures": 1,
+      "requiredRecoveryArtifacts": [
+        "usr-failure-injection-report.json",
+        "usr-rollback-drill-report.json"
       ],
       "blocking": true
     },
@@ -70,7 +88,12 @@
         "USR-W-RESOLUTION-CANDIDATE-CAPPED"
       ],
       "requiredReasonCodes": [
-        "candidate_cap_exceeded"
+        "USR-R-CANDIDATE-CAP-EXCEEDED"
+      ],
+      "rollbackTriggerConsecutiveFailures": 3,
+      "requiredRecoveryArtifacts": [
+        "usr-failure-injection-report.json",
+        "usr-rollback-drill-report.json"
       ],
       "blocking": true
     },
@@ -84,7 +107,12 @@
         "USR-E-SLO-BUDGET-FAILED"
       ],
       "requiredReasonCodes": [
-        "resource_budget_exceeded"
+        "USR-R-RESOURCE-BUDGET-EXCEEDED"
+      ],
+      "rollbackTriggerConsecutiveFailures": 1,
+      "requiredRecoveryArtifacts": [
+        "usr-failure-injection-report.json",
+        "usr-rollback-drill-report.json"
       ],
       "blocking": true
     },
@@ -98,7 +126,12 @@
         "USR-E-SECURITY-GATE-FAILED"
       ],
       "requiredReasonCodes": [
-        "security_gate_blocked"
+        "USR-R-SECURITY-GATE-BLOCKED"
+      ],
+      "rollbackTriggerConsecutiveFailures": 1,
+      "requiredRecoveryArtifacts": [
+        "usr-failure-injection-report.json",
+        "usr-rollback-drill-report.json"
       ],
       "blocking": true
     },
@@ -112,7 +145,12 @@
         "USR-E-SCHEMA-VIOLATION"
       ],
       "requiredReasonCodes": [
-        "serialization_invalid"
+        "USR-R-SERIALIZATION-INVALID"
+      ],
+      "rollbackTriggerConsecutiveFailures": 1,
+      "requiredRecoveryArtifacts": [
+        "usr-failure-injection-report.json",
+        "usr-rollback-drill-report.json"
       ],
       "blocking": true
     }

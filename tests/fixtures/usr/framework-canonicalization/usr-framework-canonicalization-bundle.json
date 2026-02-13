@@ -1,0 +1,379 @@
+{
+  "schemaVersion": "usr-1.0.0",
+  "fixtureId": "usr-framework-canonicalization-bundle-v1",
+  "rows": [
+    {
+      "frameworkProfile": "angular",
+      "coveredEdgeCaseIds": [
+        "angular-input-output-binding",
+        "angular-route-config-lazy",
+        "angular-template-style-encapsulation"
+      ],
+      "edges": [
+        {
+          "edgeUid": "edge64:v1:1111111111110001",
+          "kind": "route_maps_to",
+          "frameworkProfile": "angular",
+          "status": "resolved",
+          "source": { "entity": "node", "uid": "n64:v1:1111111111111001" },
+          "target": { "entity": "symbol", "uid": "symu:v1:angular:userscomponent" },
+          "attrs": {
+            "routePattern": "users/[id]",
+            "router": "angular-router",
+            "runtimeSide": "universal"
+          }
+        },
+        {
+          "edgeUid": "edge64:v1:1111111111110002",
+          "kind": "template_binds",
+          "frameworkProfile": "angular",
+          "status": "resolved",
+          "source": { "entity": "node", "uid": "n64:v1:1111111111111002" },
+          "target": { "entity": "symbol", "uid": "symu:v1:angular:userid" },
+          "attrs": {
+            "bindingKind": "directive",
+            "bindingName": "userId",
+            "directive": "ngmodel"
+          }
+        },
+        {
+          "edgeUid": "edge64:v1:1111111111110003",
+          "kind": "style_scopes",
+          "frameworkProfile": "angular",
+          "status": "resolved",
+          "source": { "entity": "segment", "uid": "segu:v1:1111111111111003" },
+          "target": { "entity": "symbol", "uid": "symu:v1:angular:userscomponent" },
+          "attrs": {
+            "scopeKind": "component",
+            "scopeType": "shadow",
+            "styleSystem": "component-styles"
+          }
+        }
+      ]
+    },
+    {
+      "frameworkProfile": "astro",
+      "coveredEdgeCaseIds": [
+        "astro-frontmatter-template-bridge",
+        "astro-island-hydration",
+        "astro-route-collection"
+      ],
+      "edges": [
+        {
+          "edgeUid": "edge64:v1:2222222222220001",
+          "kind": "route_maps_to",
+          "frameworkProfile": "astro",
+          "status": "resolved",
+          "source": { "entity": "node", "uid": "n64:v1:2222222222221001" },
+          "target": { "entity": "document", "uid": "doc64:v1:2222222222221004" },
+          "attrs": {
+            "routePattern": "/docs/[...slug]",
+            "router": "file-system",
+            "runtimeSide": "server"
+          }
+        },
+        {
+          "edgeUid": "edge64:v1:2222222222220002",
+          "kind": "template_binds",
+          "frameworkProfile": "astro",
+          "status": "resolved",
+          "source": { "entity": "node", "uid": "n64:v1:2222222222221002" },
+          "target": { "entity": "symbol", "uid": "symu:v1:astro:paramslug" },
+          "attrs": {
+            "bindingKind": "frontmatter-binding",
+            "bindingName": "astro.params.slug"
+          }
+        },
+        {
+          "edgeUid": "edge64:v1:2222222222220003",
+          "kind": "style_scopes",
+          "frameworkProfile": "astro",
+          "status": "resolved",
+          "source": { "entity": "segment", "uid": "segu:v1:2222222222221003" },
+          "target": { "entity": "symbol", "uid": "symu:v1:astro:docspage" },
+          "attrs": {
+            "scopeKind": "scoped",
+            "scopeType": "scoped",
+            "styleSystem": "scoped-by-default"
+          }
+        }
+      ]
+    },
+    {
+      "frameworkProfile": "next",
+      "coveredEdgeCaseIds": [
+        "next-app-router-dynamic-segment",
+        "next-client-server-boundary",
+        "next-route-handler-runtime"
+      ],
+      "edges": [
+        {
+          "edgeUid": "edge64:v1:3333333333330001",
+          "kind": "route_maps_to",
+          "frameworkProfile": "next",
+          "status": "resolved",
+          "source": { "entity": "node", "uid": "n64:v1:3333333333331001" },
+          "target": { "entity": "document", "uid": "doc64:v1:3333333333331004" },
+          "attrs": {
+            "routePattern": "/blog/[slug]",
+            "router": "app-router",
+            "runtimeSide": "server"
+          }
+        },
+        {
+          "edgeUid": "edge64:v1:3333333333330002",
+          "kind": "template_binds",
+          "frameworkProfile": "next",
+          "status": "resolved",
+          "source": { "entity": "node", "uid": "n64:v1:3333333333331002" },
+          "target": { "entity": "symbol", "uid": "symu:v1:next:paramsslug" },
+          "attrs": {
+            "bindingKind": "prop",
+            "bindingName": "params.slug"
+          }
+        },
+        {
+          "edgeUid": "edge64:v1:3333333333330003",
+          "kind": "style_scopes",
+          "frameworkProfile": "next",
+          "status": "resolved",
+          "source": { "entity": "segment", "uid": "segu:v1:3333333333331003" },
+          "target": { "entity": "symbol", "uid": "symu:v1:next:blogpage" },
+          "attrs": {
+            "scopeKind": "module",
+            "scopeType": "module",
+            "styleSystem": "css-modules"
+          }
+        }
+      ]
+    },
+    {
+      "frameworkProfile": "nuxt",
+      "coveredEdgeCaseIds": [
+        "nuxt-pages-route-params",
+        "nuxt-server-route-mapping",
+        "nuxt-sfc-style-scope"
+      ],
+      "edges": [
+        {
+          "edgeUid": "edge64:v1:4444444444440001",
+          "kind": "route_maps_to",
+          "frameworkProfile": "nuxt",
+          "status": "resolved",
+          "source": { "entity": "node", "uid": "n64:v1:4444444444441001" },
+          "target": { "entity": "symbol", "uid": "symu:v1:nuxt:userspage" },
+          "attrs": {
+            "routePattern": "/users/[id]",
+            "router": "file-system",
+            "runtimeSide": "universal"
+          }
+        },
+        {
+          "edgeUid": "edge64:v1:4444444444440002",
+          "kind": "template_binds",
+          "frameworkProfile": "nuxt",
+          "status": "resolved",
+          "source": { "entity": "node", "uid": "n64:v1:4444444444441002" },
+          "target": { "entity": "symbol", "uid": "symu:v1:nuxt:routeparamsid" },
+          "attrs": {
+            "bindingKind": "composable",
+            "bindingName": "route.params.id"
+          }
+        },
+        {
+          "edgeUid": "edge64:v1:4444444444440003",
+          "kind": "style_scopes",
+          "frameworkProfile": "nuxt",
+          "status": "resolved",
+          "source": { "entity": "segment", "uid": "segu:v1:4444444444441003" },
+          "target": { "entity": "symbol", "uid": "symu:v1:nuxt:userspage" },
+          "attrs": {
+            "scopeKind": "scoped",
+            "scopeType": "scoped",
+            "styleSystem": "sfc-style"
+          }
+        }
+      ]
+    },
+    {
+      "frameworkProfile": "react",
+      "coveredEdgeCaseIds": [
+        "react-css-module-scope",
+        "react-hydration-boundary",
+        "react-route-dynamic"
+      ],
+      "edges": [
+        {
+          "edgeUid": "edge64:v1:5555555555550001",
+          "kind": "route_maps_to",
+          "frameworkProfile": "react",
+          "status": "resolved",
+          "source": { "entity": "node", "uid": "n64:v1:5555555555551001" },
+          "target": { "entity": "symbol", "uid": "symu:v1:react:dashboardpage" },
+          "attrs": {
+            "routePattern": "/dashboard",
+            "router": "react-router",
+            "runtimeSide": "client"
+          }
+        },
+        {
+          "edgeUid": "edge64:v1:5555555555550002",
+          "kind": "template_binds",
+          "frameworkProfile": "react",
+          "status": "resolved",
+          "source": { "entity": "node", "uid": "n64:v1:5555555555551002" },
+          "target": { "entity": "symbol", "uid": "symu:v1:react:userprop" },
+          "attrs": {
+            "bindingKind": "prop",
+            "bindingName": "user"
+          }
+        },
+        {
+          "edgeUid": "edge64:v1:5555555555550003",
+          "kind": "style_scopes",
+          "frameworkProfile": "react",
+          "status": "resolved",
+          "source": { "entity": "segment", "uid": "segu:v1:5555555555551003" },
+          "target": { "entity": "symbol", "uid": "symu:v1:react:usercard" },
+          "attrs": {
+            "scopeKind": "module",
+            "scopeType": "module",
+            "styleSystem": "css-modules"
+          }
+        }
+      ]
+    },
+    {
+      "frameworkProfile": "svelte",
+      "coveredEdgeCaseIds": [
+        "svelte-bind-and-event",
+        "svelte-slot-props",
+        "svelte-style-scope"
+      ],
+      "edges": [
+        {
+          "edgeUid": "edge64:v1:6666666666660002",
+          "kind": "template_binds",
+          "frameworkProfile": "svelte",
+          "status": "resolved",
+          "source": { "entity": "node", "uid": "n64:v1:6666666666661002" },
+          "target": { "entity": "symbol", "uid": "symu:v1:svelte:uservalue" },
+          "attrs": {
+            "bindingKind": "directive",
+            "bindingName": "user"
+          }
+        },
+        {
+          "edgeUid": "edge64:v1:6666666666660003",
+          "kind": "style_scopes",
+          "frameworkProfile": "svelte",
+          "status": "resolved",
+          "source": { "entity": "segment", "uid": "segu:v1:6666666666661003" },
+          "target": { "entity": "symbol", "uid": "symu:v1:svelte:usercard" },
+          "attrs": {
+            "scopeKind": "scoped",
+            "scopeType": "scoped",
+            "styleSystem": "compiled-scoping"
+          }
+        }
+      ]
+    },
+    {
+      "frameworkProfile": "sveltekit",
+      "coveredEdgeCaseIds": [
+        "sveltekit-load-data-binding",
+        "sveltekit-route-param",
+        "sveltekit-server-action-route"
+      ],
+      "edges": [
+        {
+          "edgeUid": "edge64:v1:7777777777770001",
+          "kind": "route_maps_to",
+          "frameworkProfile": "sveltekit",
+          "status": "resolved",
+          "source": { "entity": "node", "uid": "n64:v1:7777777777771001" },
+          "target": { "entity": "document", "uid": "doc64:v1:7777777777771004" },
+          "attrs": {
+            "routePattern": "/products/[sku]",
+            "router": "file-system",
+            "runtimeSide": "universal"
+          }
+        },
+        {
+          "edgeUid": "edge64:v1:7777777777770002",
+          "kind": "template_binds",
+          "frameworkProfile": "sveltekit",
+          "status": "resolved",
+          "source": { "entity": "node", "uid": "n64:v1:7777777777771002" },
+          "target": { "entity": "symbol", "uid": "symu:v1:sveltekit:dataproduct" },
+          "attrs": {
+            "bindingKind": "data-prop",
+            "bindingName": "data.product"
+          }
+        },
+        {
+          "edgeUid": "edge64:v1:7777777777770003",
+          "kind": "style_scopes",
+          "frameworkProfile": "sveltekit",
+          "status": "resolved",
+          "source": { "entity": "segment", "uid": "segu:v1:7777777777771003" },
+          "target": { "entity": "symbol", "uid": "symu:v1:sveltekit:productspage" },
+          "attrs": {
+            "scopeKind": "scoped",
+            "scopeType": "scoped",
+            "styleSystem": "compiled-scoping"
+          }
+        }
+      ]
+    },
+    {
+      "frameworkProfile": "vue",
+      "coveredEdgeCaseIds": [
+        "vue-router-dynamic-param",
+        "vue-sfc-scoped-style",
+        "vue-sfc-script-setup-bindings"
+      ],
+      "edges": [
+        {
+          "edgeUid": "edge64:v1:8888888888880001",
+          "kind": "route_maps_to",
+          "frameworkProfile": "vue",
+          "status": "resolved",
+          "source": { "entity": "node", "uid": "n64:v1:8888888888881001" },
+          "target": { "entity": "symbol", "uid": "symu:v1:vue:userdetails" },
+          "attrs": {
+            "routePattern": "/users/[id]",
+            "router": "vue-router",
+            "runtimeSide": "client"
+          }
+        },
+        {
+          "edgeUid": "edge64:v1:8888888888880002",
+          "kind": "template_binds",
+          "frameworkProfile": "vue",
+          "status": "resolved",
+          "source": { "entity": "node", "uid": "n64:v1:8888888888881002" },
+          "target": { "entity": "symbol", "uid": "symu:v1:vue:userid" },
+          "attrs": {
+            "bindingKind": "directive",
+            "bindingName": "userId",
+            "directive": "v-model"
+          }
+        },
+        {
+          "edgeUid": "edge64:v1:8888888888880003",
+          "kind": "style_scopes",
+          "frameworkProfile": "vue",
+          "status": "resolved",
+          "source": { "entity": "segment", "uid": "segu:v1:8888888888881003" },
+          "target": { "entity": "symbol", "uid": "symu:v1:vue:userdetails" },
+          "attrs": {
+            "scopeKind": "scoped",
+            "scopeType": "scoped",
+            "styleSystem": "sfc-style"
+          }
+        }
+      ]
+    }
+  ]
+}

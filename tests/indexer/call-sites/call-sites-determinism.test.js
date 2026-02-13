@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-import { loadUserConfig, getIndexDir } from '../../../tools/shared/dict-utils.js';
+import { loadUserConfig, getCurrentBuildInfo, getIndexDir } from '../../../tools/shared/dict-utils.js';
 import { loadJsonArrayArtifact } from '../../../src/shared/artifact-io.js';
 
 import { copyFixtureToTemp } from '../../helpers/fixtures.js';
@@ -25,6 +25,17 @@ const readCallSiteLines = async (codeDir) => {
   const callSites = await loadJsonArrayArtifact(codeDir, 'call_sites', { strict: true });
   assert.ok(Array.isArray(callSites) && callSites.length > 0, 'fixture must emit call_sites rows');
   return callSites.map((row) => JSON.stringify(row));
+};
+
+const resolveCodeDir = (fixtureRoot, userConfig, result) => {
+  const output = `${result?.stderr || ''}\n${result?.stdout || ''}`;
+  const buildRootMatch = output.match(/^\[init\] build root:\s*(.+)$/m);
+  let indexRoot = buildRootMatch?.[1]?.trim() || null;
+  if (!indexRoot) {
+    const current = getCurrentBuildInfo(fixtureRoot, userConfig, { mode: 'code' });
+    indexRoot = current?.activeRoot || current?.buildRoot || null;
+  }
+  return getIndexDir(fixtureRoot, 'code', userConfig, indexRoot ? { indexRoot } : {});
 };
 
 const buildOnce = async (fixtureRoot, { label }) => {
@@ -60,7 +71,7 @@ const buildOnce = async (fixtureRoot, { label }) => {
 
   try {
     const userConfig = loadUserConfig(fixtureRoot);
-    const codeDir = getIndexDir(fixtureRoot, 'code', userConfig);
+    const codeDir = resolveCodeDir(fixtureRoot, userConfig, result);
     const lines = await readCallSiteLines(codeDir);
     return { cacheRoot, codeDir, lines };
   } finally {

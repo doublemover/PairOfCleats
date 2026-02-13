@@ -34,6 +34,8 @@ function printHelp() {
 Common options:
   --mode <code|prose|records|extracted-prose|default>
   --repo <path>
+  --as-of <IndexRef>
+  --snapshot <snapshotId>
   --backend <auto|sqlite|sqlite-fts|lmdb>
   --json
   --compact
