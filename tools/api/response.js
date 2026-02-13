@@ -8,7 +8,7 @@ import { redactAbsolutePaths } from './redact.js';
  * @param {object} [headers]
  */
 export const sendJson = (res, statusCode, payload, headers = {}) => {
-  const body = JSON.stringify(redactAbsolutePaths(payload));
+  const body = JSON.stringify(payload);
   res.writeHead(statusCode, {
     'Content-Type': 'application/json; charset=utf-8',
     'Content-Length': Buffer.byteLength(body),
@@ -28,5 +28,5 @@ export const sendJson = (res, statusCode, payload, headers = {}) => {
  */
 export const sendError = (res, statusCode, code, message, details = {}, headers = {}) => {
   const { code: ignored, ...rest } = details || {};
-  sendJson(res, statusCode, { ok: false, code, message, ...rest }, headers);
+  sendJson(res, statusCode, redactAbsolutePaths({ ok: false, code, message, ...rest }), headers);
 };
