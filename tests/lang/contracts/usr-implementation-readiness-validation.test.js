@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { loadRunRules } from '../../runner/run-config.js';
+import { resolveConformanceLaneId } from '../../../src/contracts/validators/conformance-lanes.js';
 import {
   validateUsrMatrixRegistry,
   evaluateUsrConformancePromotionReadiness,
@@ -10,17 +12,22 @@ import {
   buildUsrReleaseReadinessScorecard
 } from '../../../src/contracts/validators/usr-matrix.js';
 import { validateUsrReport } from '../../../src/contracts/validators/usr.js';
+import { resolveCurrentTestLane } from '../../helpers/lane-resolution.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..', '..', '..');
+const reportLane = resolveCurrentTestLane({ repoRoot, testFilePath: __filename });
 
 const operationalReadinessPath = path.join(repoRoot, 'tests', 'lang', 'matrix', 'usr-operational-readiness-policy.json');
 const qualityGatesPath = path.join(repoRoot, 'tests', 'lang', 'matrix', 'usr-quality-gates.json');
 const languageProfilesPath = path.join(repoRoot, 'tests', 'lang', 'matrix', 'usr-language-profiles.json');
 const conformanceLevelsPath = path.join(repoRoot, 'tests', 'lang', 'matrix', 'usr-conformance-levels.json');
 const schemaDir = path.join(repoRoot, 'docs', 'schemas', 'usr');
-const knownConformanceLanes = ['conformance-foundation-baseline', 'conformance-contract-enforcement', 'conformance-embedding-provenance', 'conformance-risk-fixture-governance', 'conformance-framework-canonicalization'];
+const runRules = loadRunRules({ root: repoRoot });
+const conformanceLaneId = resolveConformanceLaneId(Array.from(runRules.knownLanes || []));
+assert.equal(Boolean(conformanceLaneId), true, 'conformance lane must be discoverable from run rules');
+const knownConformanceLanes = [conformanceLaneId];
 
 const operationalReadiness = JSON.parse(fs.readFileSync(operationalReadinessPath, 'utf8'));
 const qualityGates = JSON.parse(fs.readFileSync(qualityGatesPath, 'utf8'));
@@ -118,7 +125,7 @@ const operationalReadinessReport = buildUsrOperationalReadinessValidationReport(
   knownLanes: knownConformanceLanes,
   missingArtifactSchemas,
   runId: 'run-usr-operational-readiness-validation-001',
-  lane: 'ci'
+  lane: reportLane
 });
 assert.equal(operationalReadinessReport.ok, true, `operational readiness report should pass: ${operationalReadinessReport.errors.join('; ')}`);
 const operationalReadinessReportValidation = validateUsrReport('usr-operational-readiness-validation', operationalReadinessReport.payload);
@@ -132,7 +139,7 @@ const releaseReadinessScorecard = buildUsrReleaseReadinessScorecard({
   knownLanes: knownConformanceLanes,
   missingArtifactSchemas,
   runId: 'run-usr-release-readiness-scorecard-001',
-  lane: 'ci'
+  lane: reportLane
 });
 assert.equal(releaseReadinessScorecard.ok, true, `release readiness scorecard should pass: ${releaseReadinessScorecard.errors.join('; ')}`);
 const releaseReadinessScorecardValidation = validateUsrReport('usr-release-readiness-scorecard', releaseReadinessScorecard.payload);
@@ -157,7 +164,7 @@ const simulatedFailureScorecard = buildUsrReleaseReadinessScorecard({
   missingArtifactSchemas: [],
   failingBlockingGateIds: [blockingQualityRows[0].id],
   runId: 'run-usr-release-readiness-scorecard-002',
-  lane: 'ci'
+  lane: reportLane
 });
 assert.equal(simulatedFailureScorecard.ok, false, 'release readiness scorecard must fail when a blocking quality gate fails');
 assert.equal(simulatedFailureScorecard.payload.status, 'fail', 'failing release readiness scorecard must carry fail status');
@@ -197,10 +204,10 @@ assert.equal(missingC2Readiness.blockers.some((reason) => reason.startsWith('mis
 const missingC4LaneReadiness = evaluateUsrConformancePromotionReadiness({
   languageProfilesPayload: languageProfiles,
   conformanceLevelsPayload: conformanceLevels,
-  knownLanes: knownConformanceLanes.filter((laneId) => laneId !== 'conformance-framework-canonicalization')
+  knownLanes: knownConformanceLanes.filter((laneId) => laneId !== conformanceLaneId)
 });
-assert.equal(missingC4LaneReadiness.blocked, true, 'missing conformance-framework-canonicalization lane must block framework conformance readiness');
-assert.equal(missingC4LaneReadiness.readiness.frameworkConformanceBlocked, true, 'missing conformance-framework-canonicalization lane must set frameworkConformanceBlocked=true');
+assert.equal(missingC4LaneReadiness.blocked, true, 'missing conformance lane must block framework conformance readiness');
+assert.equal(missingC4LaneReadiness.readiness.frameworkConformanceBlocked, true, 'missing conformance lane must set frameworkConformanceBlocked=true');
 assert.equal(missingC4LaneReadiness.blockers.some((reason) => reason.startsWith('missing-framework-conformance-readiness:C4')), true, 'missing C4 lane blocker reason must be present');
 
 console.log('usr implementation readiness validation checks passed');

@@ -8,10 +8,12 @@ import {
   buildUsrObservabilityRollupReport
 } from '../../../src/contracts/validators/usr-matrix.js';
 import { validateUsrReport } from '../../../src/contracts/validators/usr.js';
+import { resolveCurrentTestLane } from '../../helpers/lane-resolution.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..', '..', '..');
+const reportLane = resolveCurrentTestLane({ repoRoot, testFilePath: __filename });
 
 const sloBudgets = JSON.parse(fs.readFileSync(path.join(repoRoot, 'tests', 'lang', 'matrix', 'usr-slo-budgets.json'), 'utf8'));
 const alertPolicies = JSON.parse(fs.readFileSync(path.join(repoRoot, 'tests', 'lang', 'matrix', 'usr-alert-policies.json'), 'utf8'));
@@ -45,7 +47,7 @@ const rollupReport = buildUsrObservabilityRollupReport({
   alertPoliciesPayload: alertPolicies,
   observedLaneMetrics,
   runId: 'run-usr-observability-rollup-001',
-  lane: 'ci',
+  lane: reportLane,
   producerId: 'usr-observability-rollup-harness'
 });
 assert.equal(rollupReport.ok, true, `observability rollup report should pass: ${rollupReport.errors.join('; ')}`);

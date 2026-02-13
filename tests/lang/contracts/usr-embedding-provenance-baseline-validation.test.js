@@ -2,8 +2,7 @@
 import { runUsrConformanceLevelBaselineValidation } from './usr-conformance-level-baseline.js';
 
 runUsrConformanceLevelBaselineValidation({
-  targetLevel: 'C2',
-  lane: 'conformance-embedding-provenance'
+  targetLevel: 'C2'
 });
 
 console.log('usr C2 baseline validation checks passed');

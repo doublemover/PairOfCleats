@@ -9,10 +9,12 @@ import {
   buildUsrWaiverExpiryReport
 } from '../../../src/contracts/validators/usr-matrix.js';
 import { validateUsrReport } from '../../../src/contracts/validators/usr.js';
+import { resolveCurrentTestLane } from '../../helpers/lane-resolution.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..', '..', '..');
+const reportLane = resolveCurrentTestLane({ repoRoot, testFilePath: __filename });
 
 const waiverPolicyPath = path.join(repoRoot, 'tests', 'lang', 'matrix', 'usr-waiver-policy.json');
 const waiverPolicy = JSON.parse(fs.readFileSync(waiverPolicyPath, 'utf8'));
@@ -39,7 +41,7 @@ const activeReport = buildUsrWaiverActiveReport({
   evaluationTime: '2026-02-12T00:00:00Z',
   strictMode: true,
   runId: 'run-usr-waiver-active-report-001',
-  lane: 'ci',
+  lane: reportLane,
   producerId: 'usr-waiver-policy-harness'
 });
 assert.equal(activeReport.ok, true, `waiver active report should pass: ${activeReport.errors.join('; ')}`);
@@ -54,7 +56,7 @@ const expiryReport = buildUsrWaiverExpiryReport({
   evaluationTime: '2026-02-12T00:00:00Z',
   strictMode: true,
   runId: 'run-usr-waiver-expiry-report-001',
-  lane: 'ci',
+  lane: reportLane,
   producerId: 'usr-waiver-policy-harness'
 });
 assert.equal(expiryReport.ok, true, `waiver expiry report should pass: ${expiryReport.errors.join('; ')}`);

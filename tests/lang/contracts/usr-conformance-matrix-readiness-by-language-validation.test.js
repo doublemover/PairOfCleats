@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { loadRunRules } from '../../runner/run-config.js';
+import { resolveConformanceLaneId } from '../../../src/contracts/validators/conformance-lanes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -36,13 +38,10 @@ for (const row of conformanceRows) {
   assert.equal(languageIds.has(row.profileId), true, `conformance-level row references unknown language profile: ${row.profileId}`);
 }
 
-const requiredLaneByLevel = {
-  C0: 'conformance-foundation-baseline',
-  C1: 'conformance-contract-enforcement',
-  C2: 'conformance-embedding-provenance',
-  C3: 'conformance-risk-fixture-governance',
-  C4: 'conformance-framework-canonicalization'
-};
+const runRules = loadRunRules({ root: repoRoot });
+const conformanceLaneId = resolveConformanceLaneId(Array.from(runRules.knownLanes || []));
+assert.equal(Boolean(conformanceLaneId), true, 'conformance lane must be discoverable from run rules');
+const supportedConformanceLevels = new Set(['C0', 'C1', 'C2', 'C3', 'C4']);
 
 for (const languageRow of languageRows) {
   const conformanceRow = conformanceByLanguage.get(languageRow.id);
@@ -67,7 +66,7 @@ for (const languageRow of languageRows) {
   }
 
   for (const level of requiredLevels) {
-    assert.equal(Boolean(requiredLaneByLevel[level]), true, `language conformance row contains unsupported level ${level}: ${languageRow.id}`);
+    assert.equal(supportedConformanceLevels.has(level), true, `language conformance row contains unsupported level ${level}: ${languageRow.id}`);
   }
 }
 

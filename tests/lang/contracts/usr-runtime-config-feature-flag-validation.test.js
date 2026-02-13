@@ -8,10 +8,12 @@ import {
   buildUsrFeatureFlagStateReport
 } from '../../../src/contracts/validators/usr-matrix.js';
 import { validateUsrReport } from '../../../src/contracts/validators/usr.js';
+import { resolveCurrentTestLane } from '../../helpers/lane-resolution.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..', '..', '..');
+const reportLane = resolveCurrentTestLane({ repoRoot, testFilePath: __filename });
 
 const runtimePolicyPath = path.join(repoRoot, 'tests', 'lang', 'matrix', 'usr-runtime-config-policy.json');
 const runtimePolicy = JSON.parse(fs.readFileSync(runtimePolicyPath, 'utf8'));
@@ -89,7 +91,7 @@ const strictConflict = buildUsrFeatureFlagStateReport({
     }
   },
   runId: 'run-usr-runtime-feature-flag-002',
-  lane: 'ci'
+  lane: reportLane
 });
 assert.equal(strictConflict.ok, false, 'strict runtime feature-flag conflict must fail');
 assert.equal(strictConflict.payload.status, 'fail', 'strict runtime feature-flag conflict payload must carry fail status');

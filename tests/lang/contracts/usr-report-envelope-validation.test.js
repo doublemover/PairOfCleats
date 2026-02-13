@@ -1,11 +1,19 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { resolveCurrentTestLane } from '../../helpers/lane-resolution.js';
 import {
   validateUsrReport,
   validateUsrRequiredAuditReports,
   USR_REQUIRED_AUDIT_REPORT_IDS,
   listUsrReportIds
 } from '../../../src/contracts/validators/usr.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const repoRoot = path.resolve(__dirname, '..', '..', '..');
+const reportLane = resolveCurrentTestLane({ repoRoot, testFilePath: __filename });
 
 const reportSchemaIds = listUsrReportIds();
 for (const artifactId of USR_REQUIRED_AUDIT_REPORT_IDS) {
@@ -17,12 +25,12 @@ const baseEnvelope = {
   generatedAt: '2026-02-12T08:30:00Z',
   producerId: 'usr-report-envelope-harness',
   runId: 'run-usr-report-envelope-001',
-  lane: 'ci',
+  lane: reportLane,
   buildId: null,
   status: 'pass',
   scope: {
     scopeType: 'lane',
-    scopeId: 'ci'
+    scopeId: reportLane
   },
   blockingFindings: [],
   advisoryFindings: []

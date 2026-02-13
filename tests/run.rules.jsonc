@@ -11,45 +11,25 @@
     "worktrees"
   ],
   "excludedFiles": ["run.js"],
-  "knownLanes": ["smoke", "unit", "ci-lite", "ci-long", "integration", "services", "api", "storage", "perf", "mcp", "ci", "conformance-foundation-baseline", "conformance-contract-enforcement", "conformance-embedding-provenance", "conformance-risk-fixture-governance", "conformance-framework-canonicalization", "backcompat", "diagnostics-summary", "runtime-config", "failure-injection", "fixture-governance", "benchmark-regression", "threat-model", "waiver-enforcement", "report-schema", "implementation-readiness", "observability", "security-gates", "harness-core", "canonical-example", "decomposed-drift", "batch-foundation", "batch-javascript-typescript", "batch-systems-languages", "batch-managed-languages", "batch-dynamic-languages", "batch-markup-style-template", "batch-data-interface-dsl", "batch-build-infra-dsl", "batch-cross-batch-integration"],
+  "knownLanes": ["smoke", "unit", "ci-lite", "ci-long", "integration", "services", "api", "storage", "perf", "mcp", "ci", "gate", "backcompat", "diagnostics-summary", "runtime-config", "failure-injection", "fixture-governance", "benchmark-regression", "threat-model", "waiver-enforcement", "implementation-readiness", "observability", "security-gates", "harness-core", "canonical-example", "decomposed-drift", "batch-foundation", "batch-javascript-typescript", "batch-systems-languages", "batch-managed-languages", "batch-dynamic-languages", "batch-markup-style-template", "batch-data-interface-dsl", "batch-build-infra-dsl", "batch-cross-batch-integration"],
   "laneRules": [
     { "lane": "perf", "match": ["^perf/"] },
+    {
+      "lane": "gate",
+      "match": [
+        "^lang/contracts/",
+        "^shared/contracts/",
+        "^contracts/",
+        "^conformance-",
+        "^report-schema/report-schema-audit-contracts$"
+      ]
+    },
     { "lane": "ci-lite", "match": ["^ci-lite/"] },
     { "lane": "smoke", "match": ["^smoke/"] },
     { "lane": "mcp", "match": ["^services/mcp/"] },
     { "lane": "api", "match": ["^services/api/"] },
     { "lane": "services", "match": ["^services/"] },
     { "lane": "storage", "match": ["^storage/"] },
-    {
-      "lane": "conformance-foundation-baseline",
-      "match": [
-        "^conformance-foundation-baseline/"
-      ]
-    },
-    {
-      "lane": "conformance-contract-enforcement",
-      "match": [
-        "^conformance-contract-enforcement/"
-      ]
-    },
-    {
-      "lane": "conformance-embedding-provenance",
-      "match": [
-        "^conformance-embedding-provenance/"
-      ]
-    },
-    {
-      "lane": "conformance-risk-fixture-governance",
-      "match": [
-        "^conformance-risk-fixture-governance/"
-      ]
-    },
-    {
-      "lane": "conformance-framework-canonicalization",
-      "match": [
-        "^conformance-framework-canonicalization/"
-      ]
-    },
     {
       "lane": "backcompat",
       "match": [
@@ -96,12 +76,6 @@
       "lane": "waiver-enforcement",
       "match": [
         "^waiver-enforcement/"
-      ]
-    },
-    {
-      "lane": "report-schema",
-      "match": [
-        "^report-schema/"
       ]
     },
     {
@@ -236,7 +210,6 @@
         "^retrieval/contracts/result-shape$",
         "^retrieval/filters/ext-path$",
         "^retrieval/filters/type-signature-decorator$",
-        "^lang/contracts/python$",
         "(^|/)parity$",
         "(^|/)fixture-parity$",
         "(^|/)fixture-eval$",
@@ -255,13 +228,8 @@
         "^retrieval/filters/risk$",
         "^retrieval/filters/types$",
         "(^|/)retrieval-strict-manifest-embeddings$",
-        "^lang/contracts/misc-buildfiles$",
         "^retrieval/filters/control-flow$",
         "^retrieval/filters/file-selector$",
-        "^lang/contracts/go$",
-        "^lang/contracts/sql$",
-        "^lang/contracts/javascript$",
-        "^lang/contracts/typescript$",
         "(^|/)summary-report$",
         "(^|/)hnsw-ann$",
         "^indexing/language-fixture/postings-integrity$",

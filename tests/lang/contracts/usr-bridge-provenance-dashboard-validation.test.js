@@ -10,10 +10,12 @@ import {
   buildUsrGeneratedProvenanceCoverageReport
 } from '../../../src/contracts/validators/usr-matrix.js';
 import { validateUsrReport } from '../../../src/contracts/validators/usr.js';
+import { resolveCurrentTestLane } from '../../helpers/lane-resolution.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..', '..', '..');
+const reportLane = resolveCurrentTestLane({ repoRoot, testFilePath: __filename });
 
 const bridgeCases = JSON.parse(
   fs.readFileSync(path.join(repoRoot, 'tests', 'lang', 'matrix', 'usr-embedding-bridge-cases.json'), 'utf8')
@@ -38,7 +40,7 @@ const bridgeCoverageReport = buildUsrEmbeddingBridgeCoverageReport({
   bridgeCasesPayload: bridgeCases,
   bridgeBundlePayload: bridgeBundle,
   runId: 'run-usr-embedding-bridge-coverage-001',
-  lane: 'ci',
+  lane: reportLane,
   producerId: 'usr-embedding-bridge-dashboard-harness'
 });
 assert.equal(bridgeCoverageReport.ok, true, `embedding bridge coverage report should pass: ${bridgeCoverageReport.errors.join('; ')}`);
@@ -64,7 +66,7 @@ const provenanceCoverageReport = buildUsrGeneratedProvenanceCoverageReport({
   provenanceCasesPayload: provenanceCases,
   provenanceBundlePayload: provenanceBundle,
   runId: 'run-usr-generated-provenance-coverage-001',
-  lane: 'ci',
+  lane: reportLane,
   producerId: 'usr-generated-provenance-dashboard-harness'
 });
 assert.equal(provenanceCoverageReport.ok, true, `generated provenance coverage report should pass: ${provenanceCoverageReport.errors.join('; ')}`);

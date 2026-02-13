@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { resolveCurrentTestLane } from '../../helpers/lane-resolution.js';
 import {
   evaluateUsrFailureInjectionScenarios,
   buildUsrFailureInjectionReport
@@ -16,6 +17,7 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..', '..', '..');
+const reportLane = resolveCurrentTestLane({ repoRoot, testFilePath: __filename });
 
 const matrixPath = path.join(repoRoot, 'tests', 'lang', 'matrix', 'usr-failure-injection-matrix.json');
 const schemaDir = path.join(repoRoot, 'docs', 'schemas', 'usr');
@@ -97,7 +99,7 @@ const failureReport = buildUsrFailureInjectionReport({
   nonStrictScenarioResults,
   strictMode: true,
   runId: 'run-usr-failure-injection-001',
-  lane: 'ci',
+  lane: reportLane,
   producerId: 'usr-failure-injection-harness'
 });
 assert.equal(failureReport.ok, true, `failure-injection report should pass: ${failureReport.errors.join('; ')}`);
@@ -128,7 +130,7 @@ const mismatchReport = buildUsrFailureInjectionReport({
   nonStrictScenarioResults,
   strictMode: true,
   runId: 'run-usr-failure-injection-002',
-  lane: 'ci'
+  lane: reportLane
 });
 assert.equal(mismatchReport.ok, false, 'failure-injection report should fail when strict scenario outcomes drift');
 assert.equal(mismatchReport.payload.status, 'fail', 'failure-injection mismatch report must emit fail status');

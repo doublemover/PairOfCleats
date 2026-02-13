@@ -8,10 +8,12 @@ import {
   buildUsrSecurityGateValidationReport
 } from '../../../src/contracts/validators/usr-matrix.js';
 import { validateUsrReport } from '../../../src/contracts/validators/usr.js';
+import { resolveCurrentTestLane } from '../../helpers/lane-resolution.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..', '..', '..');
+const reportLane = resolveCurrentTestLane({ repoRoot, testFilePath: __filename });
 
 const securityGates = JSON.parse(
   fs.readFileSync(path.join(repoRoot, 'tests', 'lang', 'matrix', 'usr-security-gates.json'), 'utf8')
@@ -45,7 +47,7 @@ const validationReport = buildUsrSecurityGateValidationReport({
   gateResults,
   redactionResults,
   runId: 'run-usr-security-gate-validation-001',
-  lane: 'ci',
+  lane: reportLane,
   producerId: 'usr-security-gate-harness'
 });
 assert.equal(validationReport.ok, true, `security-gate validation report should pass: ${validationReport.errors.join('; ')}`);

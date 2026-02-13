@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { resolveCurrentTestLane } from '../../helpers/lane-resolution.js';
 import {
   validateUsrEvidenceEnvelope,
   validateUsrReport,
@@ -24,6 +25,7 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..', '..', '..');
+const reportLane = resolveCurrentTestLane({ repoRoot, testFilePath: __filename });
 const edgeConstraintPath = path.join(repoRoot, 'tests', 'lang', 'matrix', 'usr-edge-kind-constraints.json');
 const edgeConstraintRegistry = JSON.parse(fs.readFileSync(edgeConstraintPath, 'utf8'));
 
@@ -33,12 +35,12 @@ const envelope = {
   generatedAt: '2026-02-12T01:00:00Z',
   producerId: 'usr-contract-tests',
   runId: 'run-usr-contract-001',
-  lane: 'ci',
+  lane: reportLane,
   buildId: null,
   status: 'pass',
   scope: {
     scopeType: 'lane',
-    scopeId: 'ci'
+    scopeId: reportLane
   },
   blockingFindings: [],
   advisoryFindings: [],

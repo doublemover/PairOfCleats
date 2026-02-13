@@ -8,10 +8,12 @@ import { LANGUAGE_REGISTRY } from '../../../src/index/language-registry/registry
 import { extractSection } from './usr-lock-test-utils.js';
 import { validateUsrMatrixRegistry, listUsrMatrixRegistryIds } from '../../../src/contracts/validators/usr-matrix.js';
 import { validateUsrReport } from '../../../src/contracts/validators/usr.js';
+import { resolveCurrentTestLane } from '../../helpers/lane-resolution.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..', '..', '..');
+const reportLane = resolveCurrentTestLane({ repoRoot, testFilePath: __filename });
 const matrixDir = path.join(repoRoot, 'tests', 'lang', 'matrix');
 const languageSpecDir = path.join(repoRoot, 'docs', 'specs', 'usr', 'languages');
 
@@ -217,10 +219,10 @@ const harnessReport = {
   generatedAt: '2026-02-12T00:00:00Z',
   producerId: 'usr-contract-enforcement-test',
   runId: 'run-contract-enforcement-001',
-  lane: 'ci',
+  lane: reportLane,
   buildId: null,
   status: 'pass',
-  scope: { scopeType: 'lane', scopeId: 'ci' },
+  scope: { scopeType: 'lane', scopeId: reportLane },
   summary: { checks: 1, failures: 0 },
   rows: []
 };

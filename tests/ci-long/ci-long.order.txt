@@ -74,12 +74,6 @@ retrieval/filters/types
 smoke/smoke-section1
 retrieval/filters/risk
 indexing/incremental/incremental-cache-signature
-lang/contracts/typescript
-lang/contracts/sql
-lang/contracts/python
-lang/contracts/go
-lang/contracts/misc-buildfiles
-lang/contracts/javascript
 indexing/piece-assembly/piece-assembly
 storage/sqlite/incremental/file-manifest-updates
 storage/sqlite/sqlite-sidecar-cleanup

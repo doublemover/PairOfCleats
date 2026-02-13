@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { loadRunRules } from '../../runner/run-config.js';
 import {
   validateUsrMatrixRegistry,
   listUsrMatrixRegistryIds,
@@ -35,12 +36,20 @@ import {
   buildUsrWaiverActiveReport,
   buildUsrWaiverExpiryReport
 } from '../../../src/contracts/validators/usr-matrix.js';
+import { resolveConformanceLaneId } from '../../../src/contracts/validators/conformance-lanes.js';
 import { validateUsrReport } from '../../../src/contracts/validators/usr.js';
+import { resolveCurrentTestLane } from '../../helpers/lane-resolution.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..', '..', '..');
+const reportLane = resolveCurrentTestLane({ repoRoot, testFilePath: __filename });
 const matrixDir = path.join(repoRoot, 'tests', 'lang', 'matrix');
+const runRules = loadRunRules({ root: repoRoot });
+const knownLanes = Array.from(runRules.knownLanes || []);
+const conformanceLaneId = resolveConformanceLaneId(knownLanes);
+assert.equal(Boolean(conformanceLaneId), true, 'conformance lane must be discoverable from run rules');
+const knownConformanceLanes = [conformanceLaneId];
 
 const requiredRegistries = [
   'usr-runtime-config-policy',
@@ -220,7 +229,7 @@ const featureFlagStateConflict = buildUsrFeatureFlagStateReport({
     }
   },
   runId: 'run-usr-feature-flag-state-002',
-  lane: 'ci'
+  lane: reportLane
 });
 assert.equal(featureFlagStateConflict.ok, false, 'feature-flag state report must fail strict-mode conflicting flags');
 assert.equal(featureFlagStateConflict.payload.status, 'fail', 'feature-flag conflict report must carry fail status');
@@ -262,7 +271,7 @@ const failureReport = buildUsrFailureInjectionReport({
   nonStrictScenarioResults,
   strictMode: true,
   runId: 'run-usr-failure-injection-report-001',
-  lane: 'ci'
+  lane: reportLane
 });
 assert.equal(failureReport.ok, true, `failure-injection report should pass: ${failureReport.errors.join('; ')}`);
 const failureReportValidation = validateUsrReport('usr-failure-injection-report', failureReport.payload);
@@ -316,7 +325,7 @@ assert.equal(fixtureGovernanceValidation.ok, true, `fixture-governance controls 
 const fixtureGovernanceReport = buildUsrFixtureGovernanceValidationReport({
   fixtureGovernancePayload: fixtureGovernance,
   runId: 'run-usr-fixture-governance-validation-001',
-  lane: 'ci'
+  lane: reportLane
 });
 assert.equal(fixtureGovernanceReport.ok, true, `fixture-governance report should pass: ${fixtureGovernanceReport.errors.join('; ')}`);
 const fixtureGovernanceReportValidation = validateUsrReport('usr-validation-report', fixtureGovernanceReport.payload);
@@ -372,7 +381,7 @@ const benchmarkReport = buildUsrBenchmarkRegressionReport({
   sloBudgetsPayload: sloBudgets,
   observedResults: observedBenchmarkResults,
   runId: 'run-usr-benchmark-regression-001',
-  lane: 'ci'
+  lane: reportLane
 });
 assert.equal(benchmarkReport.ok, true, `benchmark regression report should pass: ${benchmarkReport.errors.join('; ')}`);
 const benchmarkReportValidation = validateUsrReport('usr-benchmark-regression-summary', benchmarkReport.payload);
@@ -420,7 +429,7 @@ const observabilityReport = buildUsrObservabilityRollupReport({
   alertPoliciesPayload: observabilityAlertPolicies,
   observedLaneMetrics,
   runId: 'run-usr-observability-rollup-001',
-  lane: 'ci'
+  lane: reportLane
 });
 assert.equal(observabilityReport.ok, true, `observability rollup report should pass: ${observabilityReport.errors.join('; ')}`);
 const observabilityReportValidation = validateUsrReport('usr-observability-rollup', observabilityReport.payload);
@@ -471,7 +480,7 @@ const matrixDrivenCoverage = validateUsrMatrixDrivenHarnessCoverage({
   frameworkProfilesPayload: frameworkProfiles,
   fixtureGovernancePayload: fixtureGovernance,
   batchShardsPayload: batchShards,
-  knownLanes: ['conformance-foundation-baseline', 'conformance-contract-enforcement', 'conformance-embedding-provenance', 'conformance-risk-fixture-governance', 'conformance-framework-canonicalization']
+  knownLanes: knownConformanceLanes
 });
 assert.equal(matrixDrivenCoverage.ok, true, `matrix-driven harness coverage should pass: ${matrixDrivenCoverage.errors.join('; ')}`);
 
@@ -487,7 +496,7 @@ const matrixDrivenNegative = validateUsrMatrixDrivenHarnessCoverage({
   frameworkProfilesPayload: frameworkProfiles,
   fixtureGovernancePayload: fixtureGovernance,
   batchShardsPayload: batchShards,
-  knownLanes: ['conformance-foundation-baseline', 'conformance-contract-enforcement', 'conformance-embedding-provenance', 'conformance-risk-fixture-governance', 'conformance-framework-canonicalization']
+  knownLanes: knownConformanceLanes
 });
 assert.equal(matrixDrivenNegative.ok, true, 'matrix-driven coverage with dropped C4 should remain non-blocking and emit warning');
 assert.equal(matrixDrivenNegative.warnings.some((message) => message.includes('javascript')), true, 'matrix-driven warning should surface profile coverage downgrade');
@@ -522,7 +531,6 @@ assert.equal(languageRiskCoverageNegative.ok, false, 'language risk profile cove
 
 const conformanceLevelsPath = path.join(matrixDir, 'usr-conformance-levels.json');
 const conformanceLevels = JSON.parse(fs.readFileSync(conformanceLevelsPath, 'utf8'));
-const knownConformanceLanes = ['conformance-foundation-baseline', 'conformance-contract-enforcement', 'conformance-embedding-provenance', 'conformance-risk-fixture-governance', 'conformance-framework-canonicalization'];
 
 const c0Coverage = validateUsrConformanceLevelCoverage({
   targetLevel: 'C0',
@@ -577,18 +585,18 @@ assert.equal(promotionReadiness.readiness.frameworkConformanceBlocked, false, 'p
 const missingC4PromotionReadiness = evaluateUsrConformancePromotionReadiness({
   languageProfilesPayload: languageProfiles,
   conformanceLevelsPayload: conformanceLevels,
-  knownLanes: knownConformanceLanes.filter((laneId) => laneId !== 'conformance-framework-canonicalization')
+  knownLanes: knownConformanceLanes.filter((laneId) => laneId !== conformanceLaneId)
 });
-assert.equal(missingC4PromotionReadiness.ok, false, 'promotion readiness should fail when conformance-framework-canonicalization lane coverage is missing');
-assert.equal(missingC4PromotionReadiness.readiness.frameworkConformanceBlocked, true, 'missing conformance-framework-canonicalization lane should block framework readiness');
+assert.equal(missingC4PromotionReadiness.ok, false, 'promotion readiness should fail when conformance lane coverage is missing');
+assert.equal(missingC4PromotionReadiness.readiness.frameworkConformanceBlocked, true, 'missing conformance lane should block framework readiness');
 
 const c0Report = buildUsrConformanceLevelSummaryReport({
   targetLevel: 'C0',
   languageProfilesPayload: languageProfiles,
   conformanceLevelsPayload: conformanceLevels,
   knownLanes: knownConformanceLanes,
-  lane: 'conformance-foundation-baseline',
-  runId: 'run-usr-conformance-foundation-baseline-001'
+  lane: conformanceLaneId,
+  runId: 'run-usr-conformance-baseline-001'
 });
 assert.equal(c0Report.ok, true, `C0 conformance report should pass: ${c0Report.errors.join('; ')}`);
 const c0ReportValidation = validateUsrReport('usr-conformance-summary', c0Report.payload);
@@ -598,9 +606,9 @@ const missingC0Lane = validateUsrConformanceLevelCoverage({
   targetLevel: 'C0',
   languageProfilesPayload: languageProfiles,
   conformanceLevelsPayload: conformanceLevels,
-  knownLanes: knownConformanceLanes.filter((laneId) => laneId !== 'conformance-foundation-baseline')
+  knownLanes: knownConformanceLanes.filter((laneId) => laneId !== conformanceLaneId)
 });
-assert.equal(missingC0Lane.ok, false, 'C0 conformance coverage should fail when conformance-foundation-baseline lane is missing');
+assert.equal(missingC0Lane.ok, false, 'C0 conformance coverage should fail when conformance lane is missing');
 
 const backcompatMatrixPath = path.join(matrixDir, 'usr-backcompat-matrix.json');
 const backcompatMatrix = JSON.parse(fs.readFileSync(backcompatMatrixPath, 'utf8'));
@@ -615,7 +623,7 @@ const backcompatReport = buildUsrBackcompatMatrixReport({
   backcompatMatrixPayload: backcompatMatrix,
   strictEnum: true,
   runId: 'run-usr-backcompat-matrix-results-001',
-  lane: 'ci'
+  lane: reportLane
 });
 assert.equal(backcompatReport.ok, true, `backcompat matrix report should pass: ${backcompatReport.errors.join('; ')}`);
 const backcompatReportValidation = validateUsrReport('usr-backcompat-matrix-results', backcompatReport.payload);
@@ -662,7 +670,7 @@ const securityGateReport = buildUsrSecurityGateValidationReport({
   gateResults: securityGateResults,
   redactionResults: redactionRuleResults,
   runId: 'run-usr-security-gate-validation-001',
-  lane: 'ci'
+  lane: reportLane
 });
 assert.equal(securityGateReport.ok, true, `security-gate validation report should pass: ${securityGateReport.errors.join('; ')}`);
 const securityGateReportValidation = validateUsrReport('usr-validation-report', securityGateReport.payload);
@@ -698,7 +706,7 @@ const threatCoverageReport = buildUsrThreatModelCoverageReport({
   alertPoliciesPayload: alertPolicies,
   redactionRulesPayload: redactionRules,
   runId: 'run-usr-threat-model-coverage-001',
-  lane: 'ci'
+  lane: reportLane
 });
 assert.equal(threatCoverageReport.ok, true, `threat-model coverage report should pass: ${threatCoverageReport.errors.join('; ')}`);
 const threatCoverageReportValidation = validateUsrReport('usr-threat-model-coverage-report', threatCoverageReport.payload);
@@ -739,7 +747,7 @@ const waiverActiveReport = buildUsrWaiverActiveReport({
   evaluationTime: '2026-02-12T00:00:00Z',
   strictMode: true,
   runId: 'run-usr-waiver-active-report-001',
-  lane: 'ci'
+  lane: reportLane
 });
 assert.equal(waiverActiveReport.ok, true, `waiver active report should pass: ${waiverActiveReport.errors.join('; ')}`);
 assert.deepEqual(waiverActiveReport.rows, waiverActiveReport.payload.rows, 'waiver active report API rows must match payload rows');
@@ -760,7 +768,7 @@ const waiverActiveWithExpiredRow = buildUsrWaiverActiveReport({
   evaluationTime: '2026-02-12T00:00:00Z',
   strictMode: false,
   runId: 'run-usr-waiver-active-report-002',
-  lane: 'ci'
+  lane: reportLane
 });
 assert.equal(waiverActiveWithExpiredRow.rows.some((row) => row.id === 'waiver-observability-gap-temp'), false, 'waiver active report rows must exclude expired waivers');
 assert.deepEqual(waiverActiveWithExpiredRow.rows, waiverActiveWithExpiredRow.payload.rows, 'waiver active report return rows must remain aligned with payload rows after expiry filtering');
@@ -772,7 +780,7 @@ const waiverExpiryReport = buildUsrWaiverExpiryReport({
   evaluationTime: '2026-02-12T00:00:00Z',
   strictMode: true,
   runId: 'run-usr-waiver-expiry-report-001',
-  lane: 'ci'
+  lane: reportLane
 });
 assert.equal(waiverExpiryReport.ok, true, `waiver expiry report should pass: ${waiverExpiryReport.errors.join('; ')}`);
 const waiverExpiryReportValidation = validateUsrReport('usr-waiver-expiry-report', waiverExpiryReport.payload);

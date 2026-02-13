@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadRunRules } from '../../runner/run-config.js';
+import { resolveConformanceLaneId } from '../../../src/contracts/validators/conformance-lanes.js';
 import { validateUsrMatrixDrivenHarnessCoverage } from '../../../src/contracts/validators/usr-matrix.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -22,6 +23,8 @@ const batchShards = JSON.parse(fs.readFileSync(batchShardsPath, 'utf8'));
 
 const runRules = loadRunRules({ root: repoRoot });
 const knownLanes = Array.from(runRules.knownLanes || []);
+const conformanceLaneId = resolveConformanceLaneId(knownLanes);
+assert.equal(Boolean(conformanceLaneId), true, 'conformance lane must be discoverable from run rules');
 
 const validation = validateUsrMatrixDrivenHarnessCoverage({
   languageProfilesPayload: languageProfiles,
@@ -42,11 +45,11 @@ const missingConformanceLane = validateUsrMatrixDrivenHarnessCoverage({
   frameworkProfilesPayload: frameworkProfiles,
   fixtureGovernancePayload: fixtureGovernance,
   batchShardsPayload: batchShards,
-  knownLanes: knownLanes.filter((laneId) => laneId !== 'conformance-framework-canonicalization')
+  knownLanes: knownLanes.filter((laneId) => laneId !== conformanceLaneId)
 });
 assert.equal(missingConformanceLane.ok, false, 'matrix-driven harness coverage should fail when required conformance lanes are unavailable');
 assert.equal(
-  missingConformanceLane.errors.some((message) => message.includes('conformance-framework-canonicalization')),
+  missingConformanceLane.errors.some((message) => message.includes(String(conformanceLaneId))),
   true,
   'matrix-driven harness coverage failure should identify the missing required conformance lane'
 );

@@ -8,6 +8,10 @@ import {
   validateUsrDiagnosticCode,
   validateUsrReasonCode
 } from './usr.js';
+import {
+  CONFORMANCE_LEVELS,
+  buildConformanceLaneByLevel
+} from './conformance-lanes.js';
 
 const ajv = createAjv({
   dialect: '2020',
@@ -2433,14 +2437,6 @@ export function validateUsrLanguageBatchShards({
   };
 }
 
-const CONFORMANCE_LANE_BY_LEVEL = Object.freeze({
-  C0: 'conformance-foundation-baseline',
-  C1: 'conformance-contract-enforcement',
-  C2: 'conformance-embedding-provenance',
-  C3: 'conformance-risk-fixture-governance',
-  C4: 'conformance-framework-canonicalization'
-});
-
 export function validateUsrMatrixDrivenHarnessCoverage({
   languageProfilesPayload,
   frameworkProfilesPayload,
@@ -2501,6 +2497,7 @@ export function validateUsrMatrixDrivenHarnessCoverage({
   const batchRows = Array.isArray(batchShardsPayload?.rows) ? batchShardsPayload.rows : [];
 
   const knownLaneSet = new Set(asStringArray(knownLanes));
+  const conformanceLaneByLevel = buildConformanceLaneByLevel(knownLanes);
   const languageById = new Map(languageRows.map((row) => [row.id, row]));
   const languageFixtureIds = new Set(
     fixtureRows
@@ -2541,7 +2538,7 @@ export function validateUsrMatrixDrivenHarnessCoverage({
     }
 
     for (const conformanceLevel of requiredConformance) {
-      const expectedLane = CONFORMANCE_LANE_BY_LEVEL[conformanceLevel];
+      const expectedLane = conformanceLaneByLevel[conformanceLevel];
       if (!expectedLane) {
         rowErrors.push(`unsupported requiredConformance level: ${conformanceLevel}`);
         continue;
@@ -2624,14 +2621,6 @@ export function validateUsrMatrixDrivenHarnessCoverage({
   };
 }
 
-const CONFORMANCE_LEVEL_TO_LANE = Object.freeze({
-  C0: 'conformance-foundation-baseline',
-  C1: 'conformance-contract-enforcement',
-  C2: 'conformance-embedding-provenance',
-  C3: 'conformance-risk-fixture-governance',
-  C4: 'conformance-framework-canonicalization'
-});
-
 export function validateUsrConformanceLevelCoverage({
   targetLevel,
   languageProfilesPayload,
@@ -2639,7 +2628,7 @@ export function validateUsrConformanceLevelCoverage({
   knownLanes = []
 } = {}) {
   const level = typeof targetLevel === 'string' ? targetLevel : '';
-  if (!Object.prototype.hasOwnProperty.call(CONFORMANCE_LEVEL_TO_LANE, level)) {
+  if (!CONFORMANCE_LEVELS.includes(level)) {
     return {
       ok: false,
       errors: Object.freeze([`unsupported target conformance level: ${targetLevel}`]),
@@ -2673,7 +2662,8 @@ export function validateUsrConformanceLevelCoverage({
   const rows = [];
 
   const knownLaneSet = new Set(asStringArray(knownLanes));
-  const expectedLane = CONFORMANCE_LEVEL_TO_LANE[level];
+  const conformanceLaneByLevel = buildConformanceLaneByLevel(knownLanes);
+  const expectedLane = conformanceLaneByLevel[level];
   if (knownLaneSet.size > 0 && !knownLaneSet.has(expectedLane)) {
     errors.push(`missing lane for conformance level ${level}: ${expectedLane}`);
   }
@@ -2927,7 +2917,8 @@ export function buildUsrConformanceLevelSummaryReport({
   scope = { scopeType: 'lane', scopeId: 'global' }
 } = {}) {
   const level = typeof targetLevel === 'string' ? targetLevel : '';
-  const defaultLane = CONFORMANCE_LEVEL_TO_LANE[level] || 'ci';
+  const conformanceLaneByLevel = buildConformanceLaneByLevel(knownLanes);
+  const defaultLane = conformanceLaneByLevel[level] || 'ci';
   const evaluation = validateUsrConformanceLevelCoverage({
     targetLevel: level,
     languageProfilesPayload,

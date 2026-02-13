@@ -9,10 +9,12 @@ import {
   buildUsrBenchmarkRegressionReport
 } from '../../../src/contracts/validators/usr-matrix.js';
 import { validateUsrReport } from '../../../src/contracts/validators/usr.js';
+import { resolveCurrentTestLane } from '../../helpers/lane-resolution.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..', '..', '..');
+const reportLane = resolveCurrentTestLane({ repoRoot, testFilePath: __filename });
 
 const benchmarkPolicyPath = path.join(repoRoot, 'tests', 'lang', 'matrix', 'usr-benchmark-policy.json');
 const benchmarkPolicy = JSON.parse(fs.readFileSync(benchmarkPolicyPath, 'utf8'));
@@ -66,7 +68,7 @@ const regressionReport = buildUsrBenchmarkRegressionReport({
   sloBudgetsPayload: sloBudgets,
   observedResults,
   runId: 'run-usr-benchmark-policy-001',
-  lane: 'ci',
+  lane: reportLane,
   producerId: 'usr-benchmark-policy-harness'
 });
 assert.equal(regressionReport.ok, true, `benchmark regression report should pass: ${regressionReport.errors.join('; ')}`);

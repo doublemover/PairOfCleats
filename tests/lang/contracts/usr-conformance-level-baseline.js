@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadRunRules } from '../../runner/run-config.js';
+import { resolveConformanceLaneId } from '../../../src/contracts/validators/conformance-lanes.js';
 import {
   validateUsrConformanceLevelCoverage,
   buildUsrConformanceLevelSummaryReport
@@ -19,14 +20,6 @@ const loadRegistry = (registryId) => {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
 };
 
-const CONFORMANCE_LEVEL_TO_LANE = Object.freeze({
-  C0: 'conformance-foundation-baseline',
-  C1: 'conformance-contract-enforcement',
-  C2: 'conformance-embedding-provenance',
-  C3: 'conformance-risk-fixture-governance',
-  C4: 'conformance-framework-canonicalization'
-});
-
 export const runUsrConformanceLevelBaselineValidation = ({
   targetLevel,
   lane,
@@ -36,6 +29,11 @@ export const runUsrConformanceLevelBaselineValidation = ({
   const conformanceLevels = loadRegistry('usr-conformance-levels');
   const runRules = loadRunRules({ root: repoRoot });
   const knownLanes = Array.from(runRules.knownLanes || []);
+  const conformanceLane = resolveConformanceLaneId(knownLanes);
+  assert.equal(Boolean(conformanceLane), true, 'conformance lane must be discoverable from run rules');
+  const resolvedLane = typeof lane === 'string' && lane.trim()
+    ? lane
+    : (conformanceLane || 'ci');
 
   const coverage = validateUsrConformanceLevelCoverage({
     targetLevel,
@@ -58,7 +56,7 @@ export const runUsrConformanceLevelBaselineValidation = ({
     languageProfilesPayload: languageProfiles,
     conformanceLevelsPayload: conformanceLevels,
     knownLanes,
-    lane,
+    lane: resolvedLane,
     runId: `run-usr-${String(targetLevel).toLowerCase()}-baseline-001`,
     producerId: 'usr-conformance-level-baseline-tests'
   });
@@ -67,7 +65,7 @@ export const runUsrConformanceLevelBaselineValidation = ({
   const reportValidation = validateUsrReport('usr-conformance-summary', report.payload);
   assert.equal(reportValidation.ok, true, `${targetLevel} conformance summary payload must validate: ${reportValidation.errors.join('; ')}`);
 
-  const expectedLane = CONFORMANCE_LEVEL_TO_LANE[targetLevel] || lane;
+  const expectedLane = conformanceLane || resolvedLane;
   const missingLaneCoverage = validateUsrConformanceLevelCoverage({
     targetLevel,
     languageProfilesPayload: languageProfiles,

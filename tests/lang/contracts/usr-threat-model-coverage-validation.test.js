@@ -8,10 +8,12 @@ import {
   buildUsrThreatModelCoverageReport
 } from '../../../src/contracts/validators/usr-matrix.js';
 import { validateUsrReport } from '../../../src/contracts/validators/usr.js';
+import { resolveCurrentTestLane } from '../../helpers/lane-resolution.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..', '..', '..');
+const reportLane = resolveCurrentTestLane({ repoRoot, testFilePath: __filename });
 
 const threatModelPath = path.join(repoRoot, 'tests', 'lang', 'matrix', 'usr-threat-model-matrix.json');
 const threatModel = JSON.parse(fs.readFileSync(threatModelPath, 'utf8'));
@@ -57,7 +59,7 @@ const coverageReport = buildUsrThreatModelCoverageReport({
   alertPoliciesPayload: alertPolicies,
   redactionRulesPayload: redactionRules,
   runId: 'run-usr-threat-model-coverage-001',
-  lane: 'ci',
+  lane: reportLane,
   producerId: 'usr-threat-model-harness'
 });
 assert.equal(coverageReport.ok, true, `threat-model coverage report should pass: ${coverageReport.errors.join('; ')}`);
