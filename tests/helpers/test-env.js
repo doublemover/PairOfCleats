@@ -31,6 +31,7 @@ export const applyTestEnv = ({
   const env = { ...process.env };
   const deletedKeys = new Set();
   const preservedPairOfCleatsKeys = new Set([
+    'PAIROFCLEATS_TEST_API_STARTUP_TIMEOUT_MS',
     'PAIROFCLEATS_TEST_CACHE_SUFFIX',
     'PAIROFCLEATS_TEST_LOG_SILENT',
     'PAIROFCLEATS_TEST_ALLOW_MISSING_COMPAT_KEY',
