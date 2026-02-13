@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-13T01:23:37.144Z",
+  "generatedAt": "2026-02-13T04:38:50.290Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -121,6 +121,21 @@
       "indexing.artifacts.tokenPostingsShardSize",
       "indexing.artifacts.tokenPostingsShardThreshold",
       "indexing.concurrency",
+      "indexing.diffs.compute.detectRenames",
+      "indexing.diffs.compute.includeRelations",
+      "indexing.diffs.compute.maxBytes",
+      "indexing.diffs.compute.maxChangedFiles",
+      "indexing.diffs.compute.maxChunksPerFile",
+      "indexing.diffs.compute.maxEvents",
+      "indexing.diffs.compute.modes",
+      "indexing.diffs.compute.persist",
+      "indexing.diffs.compute.persistEvents",
+      "indexing.diffs.keep",
+      "indexing.diffs.maxAgeDays",
+      "indexing.diffs.maxBytes",
+      "indexing.diffs.maxDiffs",
+      "indexing.diffs.maxEvents",
+      "indexing.diffs.retainDays",
       "indexing.embeddings.cache.dir",
       "indexing.embeddings.cache.maxAgeDays",
       "indexing.embeddings.cache.maxGb",
@@ -189,6 +204,15 @@
       "indexing.scm.maxConcurrentProcesses",
       "indexing.scm.provider",
       "indexing.scm.timeoutMs",
+      "indexing.snapshots.keepFrozen",
+      "indexing.snapshots.keepPointer",
+      "indexing.snapshots.keepTags",
+      "indexing.snapshots.maxAgeDays",
+      "indexing.snapshots.maxFrozenSnapshots",
+      "indexing.snapshots.maxPointerSnapshots",
+      "indexing.snapshots.protectedTagGlobs",
+      "indexing.snapshots.retainDays",
+      "indexing.snapshots.stagingMaxAgeHours",
       "mcp.maxBufferBytes",
       "mcp.mode",
       "mcp.queueMax",
@@ -304,8 +328,8 @@
   },
   "configSchema": {
     "path": "docs/config/schema.json",
-    "totalKeys": 236,
-    "leafKeys": 189,
+    "totalKeys": 263,
+    "leafKeys": 213,
     "topLevel": [
       {
         "key": "cache",
@@ -313,7 +337,7 @@
       },
       {
         "key": "indexing",
-        "count": 104
+        "count": 131
       },
       {
         "key": "mcp",
@@ -418,6 +442,91 @@
     },
     {
       "path": "indexing.concurrency",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.diffs",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.diffs.compute",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.diffs.compute.detectRenames",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.diffs.compute.includeRelations",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.diffs.compute.maxBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.diffs.compute.maxChangedFiles",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.diffs.compute.maxChunksPerFile",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.diffs.compute.maxEvents",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.diffs.compute.modes",
+      "type": null,
+      "enum": null
+    },
+    {
+      "path": "indexing.diffs.compute.persist",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.diffs.compute.persistEvents",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.diffs.keep",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.diffs.maxAgeDays",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.diffs.maxBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.diffs.maxDiffs",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.diffs.maxEvents",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.diffs.retainDays",
       "type": "number",
       "enum": null
     },
@@ -902,6 +1011,56 @@
     },
     {
       "path": "indexing.scm.timeoutMs",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.snapshots",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.snapshots.keepFrozen",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.snapshots.keepPointer",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.snapshots.keepTags",
+      "type": null,
+      "enum": null
+    },
+    {
+      "path": "indexing.snapshots.maxAgeDays",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.snapshots.maxFrozenSnapshots",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.snapshots.maxPointerSnapshots",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.snapshots.protectedTagGlobs",
+      "type": null,
+      "enum": null
+    },
+    {
+      "path": "indexing.snapshots.retainDays",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.snapshots.stagingMaxAgeHours",
       "type": "number",
       "enum": null
     },

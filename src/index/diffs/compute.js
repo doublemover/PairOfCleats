@@ -984,7 +984,10 @@ export const listDiffs = ({
   modes = []
 } = {}) => {
   const repoCacheRoot = getRepoCacheRoot(path.resolve(repoRoot), userConfig);
-  const selectedModes = normalizeModes(modes);
+  const hasModeFilter = Array.isArray(modes)
+    ? modes.some((mode) => String(mode ?? '').trim().length > 0)
+    : (typeof modes === 'string' ? modes.trim().length > 0 : false);
+  const selectedModes = hasModeFilter ? normalizeModes(modes) : [];
   const manifest = loadDiffsManifest(repoCacheRoot);
   const entries = sortDiffEntries(Object.values(manifest.diffs || {}));
   if (!selectedModes.length) return entries;

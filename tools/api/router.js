@@ -353,6 +353,10 @@ export const createApiRouter = ({
 
       if (requestUrl.pathname === '/search' && req.method === 'GET') {
         const controller = new AbortController();
+        const abortRequest = () => controller.abort();
+        req.on('aborted', abortRequest);
+        res.on('close', abortRequest);
+        res.on('error', abortRequest);
         const payload = buildSearchPayloadFromQuery(requestUrl.searchParams);
         const validation = validateSearchPayload(payload);
         if (!validation.ok) {
@@ -396,6 +400,7 @@ export const createApiRouter = ({
           });
           sendJson(res, 200, { ok: true, result: body }, corsHeaders || {});
         } catch (err) {
+          if (req.aborted || res.writableEnded || controller.signal.aborted) return;
           if (isNoIndexError(err)) {
             sendError(res, 409, ERROR_CODES.NO_INDEX, err?.message || 'Index not found.', {
               error: err?.message || String(err)
