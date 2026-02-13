@@ -25,53 +25,9 @@
       "blocking": true
     },
     {
-      "laneId": "lang-batch-javascript-typescript",
+      "laneId": "lang-batch-build-infra-dsl",
       "profileScope": "batch",
-      "scopeId": "B1",
-      "maxDurationMs": 600000,
-      "maxMemoryMb": 3072,
-      "maxParserTimePerSegmentMs": 1200,
-      "maxUnknownKindRate": 0.015,
-      "maxUnresolvedRate": 0.015,
-      "blocking": true
-    },
-    {
-      "laneId": "lang-batch-systems-languages",
-      "profileScope": "batch",
-      "scopeId": "B2",
-      "maxDurationMs": 600000,
-      "maxMemoryMb": 3072,
-      "maxParserTimePerSegmentMs": 1200,
-      "maxUnknownKindRate": 0.015,
-      "maxUnresolvedRate": 0.015,
-      "blocking": true
-    },
-    {
-      "laneId": "lang-batch-managed-languages",
-      "profileScope": "batch",
-      "scopeId": "B3",
-      "maxDurationMs": 600000,
-      "maxMemoryMb": 3072,
-      "maxParserTimePerSegmentMs": 1200,
-      "maxUnknownKindRate": 0.015,
-      "maxUnresolvedRate": 0.015,
-      "blocking": true
-    },
-    {
-      "laneId": "lang-batch-dynamic-languages",
-      "profileScope": "batch",
-      "scopeId": "B4",
-      "maxDurationMs": 600000,
-      "maxMemoryMb": 3072,
-      "maxParserTimePerSegmentMs": 1200,
-      "maxUnknownKindRate": 0.015,
-      "maxUnresolvedRate": 0.015,
-      "blocking": true
-    },
-    {
-      "laneId": "lang-batch-markup-style-template",
-      "profileScope": "batch",
-      "scopeId": "B5",
+      "scopeId": "B7",
       "maxDurationMs": 600000,
       "maxMemoryMb": 3072,
       "maxParserTimePerSegmentMs": 1200,
@@ -91,9 +47,53 @@
       "blocking": true
     },
     {
-      "laneId": "lang-batch-build-infra-dsl",
+      "laneId": "lang-batch-dynamic-languages",
       "profileScope": "batch",
-      "scopeId": "B7",
+      "scopeId": "B4",
+      "maxDurationMs": 600000,
+      "maxMemoryMb": 3072,
+      "maxParserTimePerSegmentMs": 1200,
+      "maxUnknownKindRate": 0.015,
+      "maxUnresolvedRate": 0.015,
+      "blocking": true
+    },
+    {
+      "laneId": "lang-batch-javascript-typescript",
+      "profileScope": "batch",
+      "scopeId": "B1",
+      "maxDurationMs": 600000,
+      "maxMemoryMb": 3072,
+      "maxParserTimePerSegmentMs": 1200,
+      "maxUnknownKindRate": 0.015,
+      "maxUnresolvedRate": 0.015,
+      "blocking": true
+    },
+    {
+      "laneId": "lang-batch-managed-languages",
+      "profileScope": "batch",
+      "scopeId": "B3",
+      "maxDurationMs": 600000,
+      "maxMemoryMb": 3072,
+      "maxParserTimePerSegmentMs": 1200,
+      "maxUnknownKindRate": 0.015,
+      "maxUnresolvedRate": 0.015,
+      "blocking": true
+    },
+    {
+      "laneId": "lang-batch-markup-style-template",
+      "profileScope": "batch",
+      "scopeId": "B5",
+      "maxDurationMs": 600000,
+      "maxMemoryMb": 3072,
+      "maxParserTimePerSegmentMs": 1200,
+      "maxUnknownKindRate": 0.015,
+      "maxUnresolvedRate": 0.015,
+      "blocking": true
+    },
+    {
+      "laneId": "lang-batch-systems-languages",
+      "profileScope": "batch",
+      "scopeId": "B2",
       "maxDurationMs": 600000,
       "maxMemoryMb": 3072,
       "maxParserTimePerSegmentMs": 1200,

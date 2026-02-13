@@ -2244,6 +2244,17 @@ export function buildUsrGeneratedProvenanceCoverageReport({
 const BATCH_SHARD_ID_ORDER = Object.freeze(['B0', 'B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8']);
 const REQUIRED_BATCH_SHARD_IDS = Object.freeze(new Set(BATCH_SHARD_ID_ORDER));
 const LANGUAGE_BATCH_IDS = Object.freeze(new Set(['B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7']));
+const BATCH_SEQUENCE_LANE_IDS = Object.freeze([
+  'batch-foundation',
+  'batch-javascript-typescript',
+  'batch-systems-languages',
+  'batch-managed-languages',
+  'batch-dynamic-languages',
+  'batch-markup-style-template',
+  'batch-data-interface-dsl',
+  'batch-build-infra-dsl',
+  'batch-cross-batch-integration'
+]);
 const BATCH_DEPENDENCIES = Object.freeze({
   B0: [],
   B1: ['B0'],
@@ -2318,7 +2329,7 @@ export function validateUsrLanguageBatchShards({
     }
     batchById.set(row.id, row);
 
-    const expectedLaneId = `batch-b${row.sequence}`;
+    const expectedLaneId = BATCH_SEQUENCE_LANE_IDS[row.sequence] || `batch-b${row.sequence}`;
     if (row.laneId !== expectedLaneId) {
       rowErrors.push(`laneId must match sequence mapping: expected ${expectedLaneId}`);
     }

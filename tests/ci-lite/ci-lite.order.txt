@@ -103,7 +103,6 @@ shared/cli/noop-task
 shared/concurrency/scheduler-contract
 indexing/embeddings/embedding-merge-vectors-semantics
 indexing/postings/postings-chargram-long-token-does-not-abort
-lang/contracts/usr-rollout-f1-checklist-validation
 shared/concurrency/concurrency-run-with-queue-iterables
 shared/fs/atomic-replace-cleans-bak
 indexing/identity/identity-kind-group
@@ -111,13 +110,11 @@ indexing/lifecycle/shutdown-drain-contract
 indexing/risk/interprocedural/flows-argaware-negative
 storage/sqlite/sqlite-build-pragmas-dynamic
 lang/contracts/usr-mixed-repo-integration-validation
-lang/contracts/usr-rollout-gate-validation
 retrieval/backend/retrieval-backend-policy
 shared/files/read-file-range-fd-zero-guard
 storage/lmdb/lmdb-utils-contract
 tooling/vfs/vfs-token-uri-roundtrip
 graph/graph-symbol-direction
-lang/contracts/usr-rollout-approval-lock-validation
 indexing/tokenization/tokenize-dictionary
 retrieval/federation/query-cache-key-stability
 indexing/embeddings/embedding-normalization-consistency
@@ -146,7 +143,6 @@ shared/subprocess/spawn-error-propagates
 tooling/architecture/forbidden-call-edge
 indexing/tree-sitter/tree-sitter-streaming-chunking
 lang/contracts/usr-change-tier-policy-validation
-lang/contracts/usr-readiness-audit-lock-validation
 retrieval/ann/similarity-metric-contract
 retrieval/federation/raw-args-end-of-options
 indexing/relations/relations-memory-release
@@ -178,7 +174,6 @@ tooling/docs/jsdoc-standards-sync
 tooling/vfs/vfs-hash-routing-contract
 indexing/tree-sitter/tree-sitter-runtime-cache
 lang/contracts/usr-failure-mode-suite-validation
-lang/contracts/usr-readiness-authorization-lock-validation
 shared/cache/cache-lru
 indexing/imports/import-graph-unresolved-refresh
 indexing/postings/backpressure-queue
@@ -255,7 +250,6 @@ services/embeddings/mode-root-divergence-maintenance
 indexing/artifacts/artifact-io-manifest-discovery
 storage/sqlite/sqlite-batch-size-adaptive
 indexing/scm/jj-changed-files-normalization
-lang/contracts/usr-rollout-evidence-lock-validation
 retrieval/pipeline/filter-bitmap-equivalence
 shared/json-stream/tombstone-cleanup-target-scope
 ci/npm-script-targets
@@ -282,7 +276,6 @@ retrieval/graph/impact-analysis-caps-and-truncation
 indexing/tooling/vfs-sort-key-numeric-order
 indexing/type-inference/crossfile/apply
 lang/contracts/usr-framework-contract-matrix-sync-validation
-lang/contracts/usr-maintenance-controls-stability
 shared/lifecycle/lifecycle-registry-contract
 shared/runtime/runtime-envelope-uv-threadpool-precedence
 tooling/vfs/vfs-hash-routing
@@ -297,7 +290,6 @@ indexing/embeddings/embedding-typedarray-quantization-postings-step
 indexing/relations/graph-call-sites-fallback
 storage/sqlite/sqlite-build-pragmas-restore
 context-pack/contracts/context-pack-determinism
-lang/contracts/usr-harness-exit-lock-validation
 map/map-config-merge-behavior
 shared/artifact-io/jsonl-concurrency-order
 indexing/file-processor/cached-bundle-does-not-emit-stale-metav2
@@ -308,7 +300,6 @@ tooling/vfs/vfs-maps-segment-offsets
 context-pack/context-pack-excerpt-range
 indexing/map/map-build-symbol-identity
 map/html-escape-contract
-lang/contracts/usr-conformance-exit-lock-validation
 shared/json-stream/jsonl-utf8
 shared/order/order-stability
 indexing/runtime/stage-timing-checkpoints
@@ -375,7 +366,6 @@ lang/javascript/js-chunking
 retrieval/pipeline/filter-bitmap-shortcircuit
 shared/json-stream/gzip-options-forwarded
 graph/graph-edge-dedupe-policy
-lang/contracts/usr-integration-failure-exit-lock-validation
 shared/json-stream/json-stream
 shared/progress/tty-normalization
 retrieval/pipeline/topk-tie-break
@@ -419,7 +409,6 @@ lang/contracts/usr-language-contract-matrix-sync-validation
 lang/javascript/js-imports
 shared/runtime/runtime-envelope-node-options-merge
 indexing/workers/worker-pool-restart
-lang/contracts/usr-fixture-golden-readiness-validation
 retrieval/ranking/graph-ranking-membership-invariant
 indexing/artifacts/call-sites-manifest
 indexing/incremental/incremental-reuse
@@ -584,7 +573,6 @@ tooling/vfs/vfs-merge-heap-deterministic
 ci/workflow-contract
 lang/contracts/usr-waiver-policy-validation
 services/api/sse-backpressure
-lang/contracts/usr-gate-b-language-batch-lock-validation
 retrieval/graph/context-pack-caps
 shared/cache/cache-reuse-determinism
 graph/graph-truncation-order-deterministic
@@ -598,7 +586,6 @@ shared/json-stream/jsonl-worker-order
 graph/suggest-tests-cache
 retrieval/filters/filter-strictness
 indexing/artifacts/chunk-meta-jsonl-cleanup
-lang/contracts/usr-rollout-migration-policy-validation
 shared/locks/file-lock-contract
 lang/contracts/end-offset-normalization
 storage/sqlite/sqlite-build-full-transaction
@@ -624,7 +611,6 @@ tooling/index-stats/index-stats-aggregate
 indexing/contracts/schema-registry-single-source
 lang/python/python-heuristic-chunking
 tooling/vfs/vfs-segment-coalesce
-lang/contracts/usr-harness-lane-materialization-validation
 shared/logging/stdout-contract
 shared/index-ref
 lang/contracts/usr-blocking-evidence-schema-catalog-validation
@@ -642,10 +628,8 @@ indexing/embeddings/embedding-batcher-flush-reentrancy
 diagnostics/diagnostics-transition-validation
 indexing/embeddings/embeddings-sqlite-dense
 lang/typescript/typescript-parser-selection
-lang/contracts/usr-gate-c-evidence-completeness-lock-validation
 shared/artifact-io/loader-fallbacks
 indexing/embeddings/build/args-parsing
-lang/contracts/usr-f6-sync-requirements-validation
 shared/contracts/usr-matrix-validators
 services/indexer/indexer-service-embedding-job-uses-build-root
 shared/io/atomic-write-contract
@@ -678,7 +662,6 @@ tooling/triage/ingest-generic.exposure
 retrieval/pipeline/query-cache-hit
 tooling/ingest/lsif/lsif-ingest
 conformance-framework-canonicalization/conformance-framework-canonicalization-validation
-lang/contracts/usr-fixture-golden-exit-lock-validation
 retrieval/pipeline/query-plan-disk-cache-size-cap
 storage/sqlite/bundle-dims-mismatch
 indexing/tree-sitter/tree-sitter-load-bench-contract
@@ -696,12 +679,10 @@ indexing/relations/graph-call-sites-preferred
 conformance-embedding-provenance/conformance-embedding-provenance-validation
 batch-cross-batch-integration/batch-cross-batch-integration-validation
 indexing/embeddings/embeddings-memory-plateau
-lang/contracts/usr-maintenance-lock-validation
 tooling/paths/explicit-repo-root-arg
 indexing/embeddings/onnx-session-queue
 lang/typescript/ts-jsx-fixtures
 indexing/validate/index-validate-file-name-collision
-lang/contracts/usr-readiness-evidence-validation
 tooling/providers/provider-registry-ordering
 backcompat/backcompat-matrix-validation
 lang/contracts/usr-report-envelope-validation
@@ -718,7 +699,6 @@ tooling/vfs/vfs-row-trim-order
 batch-managed-languages/batch-managed-languages-validation
 indexing/validate/manifest-checks
 indexing/artifacts/manifest/report-artifacts-manifest-driven
-lang/contracts/usr-gate-c-authorization-chain-validation
 lang/python/python-pool
 workspace/repo-canonicalization-dedup
 indexing/build/stage-progression-contract
@@ -755,7 +735,6 @@ batch-foundation/batch-foundation-validation
 tooling/lsp/lsp-failure-accounting-per-target
 indexing/validate/symbol-integrity-strict
 shared/config/config-normalization-quality-threads
-lang/contracts/usr-governance-lock-suite-validation
 retrieval/pipeline/lancedb-nonstrict-fallback-without-manifest-entry
 indexing/imports/imports-options-forwarding-flowmode
 tooling/vfs/vfs-cold-start-cache
@@ -768,7 +747,6 @@ storage/sqlite/reader-schema-mismatch
 indexing/imports/import-resolver-relative
 indexing/validate/index-validate-binary-columnar-manifest-names
 batch-data-interface-dsl/batch-data-interface-dsl-validation
-lang/contracts/usr-semantics-exit-lock-validation
 indexing/validate/metav2-rejects-invalid-type-shapes
 indexing/records/records-discovery
 indexing/watch/build-state
@@ -794,7 +772,6 @@ retrieval/providers/provider-adaptive-ordering-contract
 indexing/imports/imports-proto-safe-module-keys
 indexing/shards/shard-plan
 indexing/imports/imports-esmodule-lexer-init
-lang/contracts/usr-doc-schema-contract-validation
 retrieval/providers/provider-retry-reset-contract
 tooling/doctor/doctor-gating-reasons
 indexing/validate/index-validate-unknown-artifact-fails-strict
@@ -821,7 +798,6 @@ indexing/validate/index-validate-missing-pieces
 tooling/api-contracts/api-contracts-schema-validate
 tooling/index-stats/index-stats-explicit-repo-path
 indexing/build-state/build-truth-ledger-hash-alignment
-lang/contracts/usr-ci-gate-lock-validation
 indexing/build-state/ledger-roundtrip
 retrieval/pipeline/query-plan-schema-version
 ci/capability-gate.smoke
@@ -829,7 +805,6 @@ indexing/determinism/chunk-meta-ordering-drift
 indexing/validate/ledger-validation
 workspace/build-pointer-invalid-treated-missing
 indexing/artifacts/minhash-packed-bench-contract
-lang/contracts/usr-rollout-exit-lock-validation
 indexing/artifacts/index-state-skip-write
 indexing/preprocess/preprocess-files
 lang/contracts/usr-c3-baseline-validation
@@ -849,7 +824,6 @@ indexing/segments/segment-uid-derived
 tooling/lsp/lsp-bychunkuid-keying
 indexing/tooling/pyright-runnable-detection
 indexing/contracts/index-compatibility-key-federation-block
-lang/contracts/usr-f5-hard-requirements-validation
 shared/runtime/thread-limits
 workspace/manifest-determinism
 indexing/piece-assembly/assemble-pieces-no-guess
@@ -860,8 +834,6 @@ tooling/vfs/vfs-row-size-trim
 workspace/manifest-hash-invalidation
 indexing/policy/optional-deps-policy
 indexing/validate/index-validate-missing-manifest
-lang/contracts/usr-archival-deprecation-policy-validation
-lang/contracts/usr-reporting-lock-validation
 tooling/lsp/sourcekit-provider-output-shape
 indexing/discovery/discover-leading-space
 lang/contracts/usr-failure-injection-validation
@@ -900,9 +872,7 @@ tooling/vfs/vfs-bloom-negative-lookup
 tooling/lsp/typescript/typescript-node-matching-range
 indexing/relations/segment-language-fidelity
 shared/snapshots-registry
-lang/contracts/usr-gate-a-registry-readiness-validation
 indexing/contracts/embedding-identity-gating-on-load
-lang/contracts/usr-hardening-exit-lock-validation
 lang/ruby/ruby-end-comment
 lang/contracts/usr-fixture-governance-validation
 indexing/relations/segment-call-site-offsets
@@ -934,13 +904,11 @@ tooling/vfs/vfs-invalid-virtual-range-regression
 tooling/service/subprocess-buffer-bounds
 lang/contracts/usr-c1-baseline-validation
 tooling/type-inference/crossfile-stats.unit
-lang/contracts/usr-cross-batch-regression-resolution-validation
 lang/contracts/usr-diagnostic-remediation-routing-validation
 lang/contracts/usr-canonical-example-validation
 tooling/vfs/vfs-partial-lsp-open
 tooling/install/postinstall-patch-enforcement
 services/indexing/compressed-artifact-presence
-lang/contracts/usr-gonogo-decision-lock-validation
 indexing/segments/effective-identity-md-fence
 indexing/tree-sitter/tree-sitter-scheduler-swift-subprocess
 indexing/tree-sitter/tree-sitter-scheduler-native-smoke

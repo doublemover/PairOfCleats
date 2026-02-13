@@ -6,7 +6,7 @@ import { repoRoot } from '../../helpers/root.js';
 const ROOT = repoRoot();
 const runnerPath = path.join(ROOT, 'tests', 'run.js');
 
-const result = spawnSync(process.execPath, [runnerPath, '--match', 'harness/skip-target', '--json'], {
+const result = spawnSync(process.execPath, [runnerPath, '--lane', 'all', '--match', 'runner/harness/skip-target', '--json'], {
   encoding: 'utf8'
 });
 
