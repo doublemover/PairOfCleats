@@ -1,6 +1,6 @@
 # USR New Language Onboarding Guide
 
-Last updated: 2026-02-12T06:15:48Z
+Last updated: 2026-02-13T09:58:25Z
 
 ## Purpose
 
@@ -34,7 +34,9 @@ Define mandatory steps for adding a registry language with deterministic, testab
 - required fixture families, C-level targets, expected diagnostics
 
 5. Roadmap updates
-- `TES_LAYN_ROADMAP.md` language batch and gate sections
+- `TES_LAYN_ROADMAP.md` phase/gate status
+- `TES_LAYN_EXECUTION_PACKS.md` affected language batch pack
+- `TES_LAYN_GOVERNANCE.md` only when gate/lock/evidence policy changes
 - `docs/specs/usr-consolidation-coverage-matrix.md` if new normative scope is introduced
 
 6. Capability and interop declarations

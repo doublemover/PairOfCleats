@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-13T04:38:50.290Z",
+  "generatedAt": "2026-02-13T09:48:13.009Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -3088,15 +3088,6 @@
     "publicUnknown": [],
     "byFile": [
       {
-        "file": ".benchCache/scheduler-store-format/repos/baseline/generate.js",
-        "flags": [
-          "clean",
-          "count",
-          "out",
-          "seed"
-        ]
-      },
-      {
         "file": "src/contracts/schemas/analysis.js",
         "flags": [
           "additionalProperties",
@@ -4610,9 +4601,8 @@
       },
       {
         "flag": "out",
-        "count": 39,
+        "count": 38,
         "files": [
-          ".benchCache/scheduler-store-format/repos/baseline/generate.js",
           "tests/fixtures/medium/generate.js",
           "tests/retrieval/parity/parity.test.js",
           "tests/tooling/fixtures/fixture-eval.test.js",
@@ -4691,9 +4681,8 @@
       },
       {
         "flag": "seed",
-        "count": 16,
+        "count": 15,
         "files": [
-          ".benchCache/scheduler-store-format/repos/baseline/generate.js",
           "src/integrations/tooling/context-pack.js",
           "src/integrations/tooling/graph-context.js",
           "src/integrations/tooling/impact.js",
@@ -5311,15 +5300,6 @@
         ]
       },
       {
-        "flag": "count",
-        "count": 3,
-        "files": [
-          ".benchCache/scheduler-store-format/repos/baseline/generate.js",
-          "tests/fixtures/medium/generate.js",
-          "tools/bench/query-generator.js"
-        ]
-      },
-      {
         "flag": "includeUsages",
         "count": 3,
         "files": [
@@ -5472,11 +5452,11 @@
         ]
       },
       {
-        "flag": "clean",
+        "flag": "count",
         "count": 2,
         "files": [
-          ".benchCache/scheduler-store-format/repos/baseline/generate.js",
-          "tests/fixtures/medium/generate.js"
+          "tests/fixtures/medium/generate.js",
+          "tools/bench/query-generator.js"
         ]
       },
       {
