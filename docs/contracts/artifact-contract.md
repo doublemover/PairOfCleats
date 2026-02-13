@@ -118,6 +118,14 @@ Each `index-<mode>/` directory contains:
 - Embeddings cache entries are stored out-of-band under the OS cache root and are not part of the build artifact surface. They are safe to delete and are rebuilt on demand.
 - `index_state.json`
   - Build feature flags + stage metadata for the mode.
+  - Includes profile contract:
+    - `profile.id` (`default|vector_only`)
+    - `profile.schemaVersion` (`1`)
+  - Includes artifact contract:
+    - `artifacts.schemaVersion` (`1`)
+    - `artifacts.present` (artifact availability map)
+    - `artifacts.omitted` (sorted omitted list)
+    - `artifacts.requiredForSearch` (profile-derived required set)
 - `.filelists.json`
   - Scan summary (sampled file lists).
 - `pieces/manifest.json`

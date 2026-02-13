@@ -1,0 +1,35 @@
+#!/usr/bin/env node
+import fsPromises from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { loadUserConfig } from '../../../tools/shared/dict-utils.js';
+
+const tempRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'poc-index-profile-'));
+const configPath = path.join(tempRoot, '.pairofcleats.json');
+
+try {
+  await fsPromises.writeFile(
+    configPath,
+    JSON.stringify({ indexing: { profile: 'vector-only' } }, null, 2),
+    'utf8'
+  );
+  let failed = false;
+  try {
+    loadUserConfig(tempRoot);
+  } catch (err) {
+    failed = true;
+    const message = String(err?.message || '');
+    if (!message.includes('profile')) {
+      console.error('Expected indexing.profile config error to mention profile.');
+      process.exit(1);
+    }
+  }
+  if (!failed) {
+    console.error('Expected invalid indexing.profile config to be rejected.');
+    process.exit(1);
+  }
+} finally {
+  await fsPromises.rm(tempRoot, { recursive: true, force: true });
+}
+
+console.log('indexing-profile config rejection test passed');

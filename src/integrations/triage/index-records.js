@@ -8,9 +8,11 @@ import { createIndexState, appendChunk } from '../../index/build/state.js';
 import { buildPostings } from '../../index/build/postings.js';
 import { writeIndexArtifacts } from '../../index/build/artifacts.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
+import { buildIndexProfileState } from '../../contracts/index-profile.js';
 import { buildChunkId } from '../../index/chunk-id.js';
 import { assignChunkUids } from '../../index/identity/chunk-uid.js';
 import { getLanguageForFile } from '../../index/language-registry.js';
+import { buildIndexStateArtifactsBlock } from '../../index/build/index-state-profile.js';
 import { toPosix } from '../../shared/files.js';
 import { extractNgrams, splitId, splitWordsWithDict, stem } from '../../shared/tokenize.js';
 import { forEachRollingChargramHash } from '../../shared/chargram-hash.js';
@@ -198,9 +200,17 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
     embeddingsEnabled: runtime.embeddingEnabled
   });
 
+  const profile = buildIndexProfileState(runtime.profile?.id || runtime.indexingConfig?.profile);
+  const artifacts = buildIndexStateArtifactsBlock({
+    profileId: profile.id,
+    mode: 'records',
+    embeddingsEnabled: runtime.embeddingEnabled || runtime.embeddingService,
+    postingsConfig
+  });
   const indexState = {
     generatedAt: new Date().toISOString(),
     artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
+    profile,
     compatibilityKey: runtime.compatibilityKey || null,
     cohortKey: runtime.cohortKeys?.records || runtime.compatibilityKey || null,
     buildId: runtime.buildId || null,
@@ -228,7 +238,8 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
       : { enabled: false },
     enrichment: runtime.twoStage?.enabled
       ? { enabled: true, pending: runtime.stage === 'stage1', stage: runtime.stage || null }
-      : { enabled: false }
+      : { enabled: false },
+    artifacts
   };
 
   throwIfAborted(abortSignal);

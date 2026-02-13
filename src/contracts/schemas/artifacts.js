@@ -1420,6 +1420,15 @@ export const ARTIFACT_SCHEMA_DEFS = {
       generatedAt: { type: 'string' },
       updatedAt: nullableString,
       artifactSurfaceVersion: semverString,
+      profile: {
+        type: 'object',
+        required: ['id', 'schemaVersion'],
+        properties: {
+          id: { type: 'string', enum: ['default', 'vector_only'] },
+          schemaVersion: { type: 'number', const: 1 }
+        },
+        additionalProperties: false
+      },
       compatibilityKey: nullableString,
       cohortKey: nullableString,
       repoId: nullableString,
@@ -1434,6 +1443,26 @@ export const ARTIFACT_SCHEMA_DEFS = {
       filterIndex: { type: 'object', additionalProperties: true },
       sqlite: { type: 'object', additionalProperties: true },
       lmdb: { type: 'object', additionalProperties: true },
+      artifacts: {
+        type: 'object',
+        required: ['schemaVersion', 'present', 'omitted', 'requiredForSearch'],
+        properties: {
+          schemaVersion: { type: 'number', const: 1 },
+          present: {
+            type: 'object',
+            additionalProperties: { type: 'boolean' }
+          },
+          omitted: {
+            type: 'array',
+            items: { type: 'string' }
+          },
+          requiredForSearch: {
+            type: 'array',
+            items: { type: 'string' }
+          }
+        },
+        additionalProperties: false
+      },
       riskInterprocedural: {
         type: 'object',
         required: ['enabled', 'summaryOnly', 'emitArtifacts'],

@@ -7,6 +7,12 @@
 - Stage4 (sqlite): sqlite index build plus optional ANN tables.
 - Modes: `code`, `prose`, `extracted-prose`, `records`. Mode `all` builds the enabled set.
 
+## Index profiles
+- `indexing.profile` is a validated enum: `default | vector_only` (default `default`).
+- `index_state.json` records `profile.id` and `profile.schemaVersion=1`.
+- `index_state.json` also records `artifacts` (`schemaVersion`, `present`, `omitted`, `requiredForSearch`) to make profile-specific search requirements explicit.
+- Canonical profile examples: `docs/specs/vector-only-profile.md`.
+
 ## Mode semantics
 - `code` indexes code bodies + structural metadata; comments are not indexed as searchable text and only reference extracted-prose spans.
 - `prose` indexes documentation/prose files (Markdown, text, etc.). Comments inside prose files remain part of prose.

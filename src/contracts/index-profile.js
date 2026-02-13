@@ -1,0 +1,58 @@
+export const INDEX_PROFILE_DEFAULT = 'default';
+export const INDEX_PROFILE_VECTOR_ONLY = 'vector_only';
+export const INDEX_PROFILE_SCHEMA_VERSION = 1;
+export const INDEX_STATE_ARTIFACTS_SCHEMA_VERSION = 1;
+
+export const INDEX_PROFILE_IDS = Object.freeze([
+  INDEX_PROFILE_DEFAULT,
+  INDEX_PROFILE_VECTOR_ONLY
+]);
+
+const INDEX_PROFILE_SET = new Set(INDEX_PROFILE_IDS);
+
+const REQUIRED_ARTIFACTS_BY_PROFILE = Object.freeze({
+  [INDEX_PROFILE_DEFAULT]: Object.freeze([
+    'chunk_meta',
+    'token_postings',
+    'index_state',
+    'filelists'
+  ]),
+  [INDEX_PROFILE_VECTOR_ONLY]: Object.freeze([
+    'chunk_meta',
+    'dense_vectors',
+    'index_state',
+    'filelists'
+  ])
+});
+
+const normalizeString = (value) => (
+  typeof value === 'string' ? value.trim().toLowerCase() : ''
+);
+
+export const isKnownIndexProfileId = (value) => INDEX_PROFILE_SET.has(normalizeString(value));
+
+export const assertKnownIndexProfileId = (value, fieldName = 'indexing.profile') => {
+  const normalized = normalizeString(value);
+  if (!normalized) return INDEX_PROFILE_DEFAULT;
+  if (INDEX_PROFILE_SET.has(normalized)) return normalized;
+  throw new Error(
+    `${fieldName} must be one of: ${INDEX_PROFILE_IDS.join(', ')}. Received: ${String(value)}`
+  );
+};
+
+export const normalizeIndexProfileId = (value, fallback = INDEX_PROFILE_DEFAULT) => {
+  const normalized = normalizeString(value);
+  if (!normalized) return fallback;
+  if (!INDEX_PROFILE_SET.has(normalized)) return fallback;
+  return normalized;
+};
+
+export const buildIndexProfileState = (profileId) => ({
+  id: assertKnownIndexProfileId(profileId, 'profile.id'),
+  schemaVersion: INDEX_PROFILE_SCHEMA_VERSION
+});
+
+export const resolveRequiredArtifactsForProfile = (profileId) => {
+  const resolved = normalizeIndexProfileId(profileId, INDEX_PROFILE_DEFAULT);
+  return [...(REQUIRED_ARTIFACTS_BY_PROFILE[resolved] || REQUIRED_ARTIFACTS_BY_PROFILE[INDEX_PROFILE_DEFAULT])];
+};

@@ -7,6 +7,11 @@ import { sha1 } from '../../shared/hash.js';
 import { estimateJsonBytes } from '../../shared/cache.js';
 import { createLifecycleRegistry } from '../../shared/lifecycle/registry.js';
 import { logLine } from '../../shared/progress.js';
+import {
+  INDEX_PROFILE_DEFAULT,
+  INDEX_PROFILE_SCHEMA_VERSION,
+  normalizeIndexProfileId
+} from '../../contracts/index-profile.js';
 
 const STATE_FILE = 'build_state.json';
 const STATE_PROGRESS_FILE = 'build_state.progress.json';
@@ -724,7 +729,8 @@ export async function initBuildState({
   configHash,
   toolVersion,
   repoProvenance,
-  signatureVersion
+  signatureVersion,
+  profile = null
 }) {
   if (!buildRoot) return null;
   const statePath = resolveStatePath(buildRoot);
@@ -747,6 +753,12 @@ export async function initBuildState({
     },
     signatureVersion: signatureVersion ?? null,
     configHash: configHash || null,
+    profile: {
+      id: normalizeIndexProfileId(profile?.id, INDEX_PROFILE_DEFAULT),
+      schemaVersion: Number.isFinite(Number(profile?.schemaVersion))
+        ? Math.max(1, Math.floor(Number(profile.schemaVersion)))
+        : INDEX_PROFILE_SCHEMA_VERSION
+    },
     repo: repoProvenance || null,
     phases: {},
     progress: {}

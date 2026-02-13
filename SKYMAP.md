@@ -609,19 +609,19 @@ Support a true vector-only profile that builds and searches without sparse artif
 Define strict on-disk contract for profile and artifact presence.
 
 #### Tasks
-- [ ] Add config enum `indexing.profile: default | vector_only` (default `default`).
-- [ ] Reject unknown profile values during config normalization.
-- [ ] Add `profile` block in `index_state.json`:
-  - [ ] `profile.id`
-  - [ ] `profile.schemaVersion = 1`
-- [ ] Add `artifacts` block in `index_state.json`:
-  - [ ] `schemaVersion = 1`
-  - [ ] `present` map
-  - [ ] `omitted` array
-  - [ ] `requiredForSearch` array
-- [ ] Add canonical JSON examples for both profiles in docs.
-- [ ] Include profile block in build-state/build reports for traceability.
-- [ ] Include `profile.id` and `profile.schemaVersion` in compatibility and signature keys.
+- [x] Add config enum `indexing.profile: default | vector_only` (default `default`).
+- [x] Reject unknown profile values during config normalization.
+- [x] Add `profile` block in `index_state.json`:
+  - [x] `profile.id`
+  - [x] `profile.schemaVersion = 1`
+- [x] Add `artifacts` block in `index_state.json`:
+  - [x] `schemaVersion = 1`
+  - [x] `present` map
+  - [x] `omitted` array
+  - [x] `requiredForSearch` array
+- [x] Add canonical JSON examples for both profiles in docs.
+- [x] Include profile block in build-state/build reports for traceability.
+- [x] Include `profile.id` and `profile.schemaVersion` in compatibility and signature keys.
 
 #### Touchpoints
 - `docs/config/schema.json`
@@ -633,9 +633,9 @@ Define strict on-disk contract for profile and artifact presence.
 - `src/contracts/validators/artifacts.js`
 
 #### Tests
-- [ ] `tests/indexing/contracts/profile-index-state-contract.test.js`
-- [ ] `tests/indexing/contracts/profile-artifacts-present-omitted-consistency.test.js`
-- [ ] `tests/indexing/contracts/profile-index-state-has-required-artifacts.test.js`
+- [x] `tests/indexing/contracts/profile-index-state-contract.test.js`
+- [x] `tests/indexing/contracts/profile-artifacts-present-omitted-consistency.test.js`
+- [x] `tests/indexing/contracts/profile-index-state-has-required-artifacts.test.js`
 
 ### 18.2 Build gating, sparse omission, and safe cleanup
 
