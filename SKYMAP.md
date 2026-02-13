@@ -318,25 +318,25 @@ Implement PDF/DOCX extractors as optional capabilities with deterministic typed 
 Provide deterministic page/paragraph-aware chunking with explicit budgets and stable anchors.
 
 #### Tasks
-- [ ] Add `src/index/chunking/formats/pdf.js`:
-  - [ ] default one chunk per page
-  - [ ] deterministic adjacent page grouping for tiny pages
-  - [ ] segment provenance `{ type:'pdf', pageStart, pageEnd, anchor }`
-- [ ] Add `src/index/chunking/formats/docx.js`:
-  - [ ] group paragraphs by budget
-  - [ ] deterministic tiny paragraph merges
-  - [ ] preserve heading boundaries when style is present
-  - [ ] segment provenance `{ type:'docx', paragraphStart, paragraphEnd, headingPath?, anchor }`
-  - [ ] explicit boundary labels when merged
-- [ ] Add deterministic adaptive splitting for oversized segments.
-- [ ] Publish hard defaults:
-  - [ ] `maxCharsPerChunk = 2400`
-  - [ ] `minCharsPerChunk = 400`
-  - [ ] `maxTokensPerChunk = 700` (if token budget path is active)
-- [ ] Define anchor algorithm exactly:
-  - [ ] `anchor = "<type>:<start>-<end>:<sha256(normalizedTextSlice).slice(0,12)>"`
-  - [ ] same input always produces same anchor cross-platform.
-- [ ] Optimize limit logic in `src/index/chunking/limits.js` to avoid quadratic behavior.
+- [x] Add `src/index/chunking/formats/pdf.js`:
+  - [x] default one chunk per page
+  - [x] deterministic adjacent page grouping for tiny pages
+  - [x] segment provenance `{ type:'pdf', pageStart, pageEnd, anchor }`
+- [x] Add `src/index/chunking/formats/docx.js`:
+  - [x] group paragraphs by budget
+  - [x] deterministic tiny paragraph merges
+  - [x] preserve heading boundaries when style is present
+  - [x] segment provenance `{ type:'docx', paragraphStart, paragraphEnd, headingPath?, anchor }`
+  - [x] explicit boundary labels when merged
+- [x] Add deterministic adaptive splitting for oversized segments.
+- [x] Publish hard defaults:
+  - [x] `maxCharsPerChunk = 2400`
+  - [x] `minCharsPerChunk = 400`
+  - [x] `maxTokensPerChunk = 700` (if token budget path is active)
+- [x] Define anchor algorithm exactly:
+  - [x] `anchor = "<type>:<start>-<end>:<sha256(normalizedTextSlice).slice(0,12)>"`
+  - [x] same input always produces same anchor cross-platform.
+- [x] Optimize limit logic in `src/index/chunking/limits.js` to avoid quadratic behavior.
 
 #### Touchpoints
 - `src/index/chunking/formats/pdf.js` (new)
@@ -345,10 +345,10 @@ Provide deterministic page/paragraph-aware chunking with explicit budgets and st
 - `docs/specs/document-extraction.md`
 
 #### Tests
-- [ ] `tests/indexing/chunking/pdf-chunking-deterministic.test.js`
-- [ ] `tests/indexing/chunking/docx-chunking-deterministic.test.js`
-- [ ] `tests/indexing/chunking/document-anchor-stability.test.js`
-- [ ] `tests/perf/chunking/chunking-limits-large-input.test.js`
+- [x] `tests/indexing/chunking/pdf-chunking-deterministic.test.js`
+- [x] `tests/indexing/chunking/docx-chunking-deterministic.test.js`
+- [x] `tests/indexing/chunking/document-anchor-stability.test.js`
+- [x] `tests/perf/chunking/chunking-limits-large-input.test.js`
 
 ### 17.3 Build pipeline integration and extraction report contract
 
