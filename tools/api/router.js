@@ -364,7 +364,13 @@ export const createApiRouter = ({
         req.on('aborted', abortRequest);
         res.on('close', abortRequest);
         res.on('error', abortRequest);
-        const payload = buildSearchPayloadFromQuery(requestUrl.searchParams);
+        const { payload, errors: queryErrors } = buildSearchPayloadFromQuery(requestUrl.searchParams);
+        if (Array.isArray(queryErrors) && queryErrors.length) {
+          sendError(res, 400, ERROR_CODES.INVALID_REQUEST, 'Invalid search payload.', {
+            errors: queryErrors
+          }, corsHeaders || {});
+          return;
+        }
         const validation = validateSearchPayload(payload);
         if (!validation.ok) {
           sendError(res, 400, ERROR_CODES.INVALID_REQUEST, 'Invalid search payload.', {

@@ -28,13 +28,32 @@ const parseBoolean = (value) => {
   return null;
 };
 
-const parseInteger = (value) => {
-  if (typeof value === 'number' && Number.isFinite(value)) return Math.floor(value);
-  if (typeof value !== 'string') return null;
-  const normalized = value.trim();
-  if (!normalized) return null;
-  const parsed = Number.parseInt(normalized, 10);
-  return Number.isFinite(parsed) ? parsed : null;
+const parseStrictIntegerQueryParam = (searchParams, key) => {
+  if (!searchParams.has(key)) {
+    return { ok: true, present: false, value: null, key };
+  }
+  const raw = searchParams.get(key);
+  const normalized = String(raw ?? '').trim();
+  if (!normalized || !/^-?\d+$/.test(normalized)) {
+    return {
+      ok: false,
+      present: true,
+      value: null,
+      key,
+      message: `${key} must be an integer.`
+    };
+  }
+  const parsed = Number(normalized);
+  if (!Number.isSafeInteger(parsed)) {
+    return {
+      ok: false,
+      present: true,
+      value: null,
+      key,
+      message: `${key} must be a safe integer.`
+    };
+  }
+  return { ok: true, present: true, value: parsed, key };
 };
 
 const getString = (searchParams, ...keys) => {
@@ -61,6 +80,7 @@ const getStringList = (searchParams, ...keys) => {
 
 export const buildSearchPayloadFromQuery = (searchParams) => {
   const payload = {};
+  const errors = [];
   const query = getString(searchParams, 'q', 'query');
   if (query) payload.query = query;
 
@@ -82,11 +102,13 @@ export const buildSearchPayloadFromQuery = (searchParams) => {
   const backend = getString(searchParams, 'backend');
   if (backend) payload.backend = backend;
 
-  const top = parseInteger(searchParams.get('top'));
-  if (top != null) payload.top = top;
+  const top = parseStrictIntegerQueryParam(searchParams, 'top');
+  if (!top.ok) errors.push({ path: 'top', message: top.message });
+  else if (top.present) payload.top = top.value;
 
-  const context = parseInteger(searchParams.get('context'));
-  if (context != null) payload.context = context;
+  const context = parseStrictIntegerQueryParam(searchParams, 'context');
+  if (!context.ok) errors.push({ path: 'context', message: context.message });
+  else if (context.present) payload.context = context.value;
 
   const ann = parseBoolean(searchParams.get('ann'));
   if (ann != null) payload.ann = ann;
@@ -99,8 +121,9 @@ export const buildSearchPayloadFromQuery = (searchParams) => {
 
   const integerKeys = ['branchesMin', 'loopsMin', 'breaksMin', 'continuesMin', 'churnMin', 'modifiedSince'];
   for (const key of integerKeys) {
-    const parsed = parseInteger(searchParams.get(key));
-    if (parsed != null) payload[key] = parsed;
+    const parsed = parseStrictIntegerQueryParam(searchParams, key);
+    if (!parsed.ok) errors.push({ path: key, message: parsed.message });
+    else if (parsed.present) payload[key] = parsed.value;
   }
 
   const stringKeys = [
@@ -146,7 +169,7 @@ export const buildSearchPayloadFromQuery = (searchParams) => {
   const extList = getStringList(searchParams, 'ext');
   if (extList != null) payload.ext = extList;
 
-  return payload;
+  return { payload, errors };
 };
 
 export const isNoIndexError = (err) => {

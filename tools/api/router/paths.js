@@ -39,10 +39,11 @@ export const createRepoResolver = ({ defaultRepo, allowedRepoRoots = [] }) => {
     }
     const resolvedRoot = value ? resolveRepoRoot(candidateCanonical) : candidateCanonical;
     const resolvedCanonical = await toRealPath(resolvedRoot);
-    if (value && !isAllowedRepoPath(resolvedCanonical)) {
-      const err = new Error('Resolved repo root not permitted by server configuration.');
-      err.code = ERROR_CODES.FORBIDDEN;
-      throw err;
+    if (value) {
+      if (isAllowedRepoPath(resolvedCanonical)) return resolvedCanonical;
+      // Preserve explicit allowlisted subdirectory requests when their VCS root
+      // sits above the configured allowlist boundary (for example monorepos).
+      return candidateCanonical;
     }
     return resolvedCanonical;
   };
