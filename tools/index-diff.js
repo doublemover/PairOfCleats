@@ -33,6 +33,115 @@ const normalizeBoolean = (value, fallback = false) => {
   return fallback;
 };
 
+const DEFAULT_DIFF_RETENTION = Object.freeze({
+  keep: 50,
+  maxAgeDays: 30
+});
+
+const DEFAULT_DIFF_COMPUTE = Object.freeze({
+  modes: ['code'],
+  detectRenames: true,
+  includeRelations: true,
+  maxChangedFiles: 200,
+  maxChunksPerFile: 500,
+  maxEvents: 20000,
+  maxBytes: 2 * 1024 * 1024,
+  persist: true
+});
+
+const normalizeNumber = (value, fallback, minimum = 0) => {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return fallback;
+  return Math.max(minimum, Math.floor(num));
+};
+
+const normalizeModes = (value, fallback = DEFAULT_DIFF_COMPUTE.modes) => {
+  const raw = Array.isArray(value)
+    ? value
+    : String(value || '')
+      .split(',')
+      .map((token) => token.trim())
+      .filter(Boolean);
+  const selected = raw.length ? raw : fallback;
+  const deduped = [];
+  for (const mode of selected) {
+    const normalized = String(mode || '').trim().toLowerCase();
+    if (!normalized || deduped.includes(normalized)) continue;
+    deduped.push(normalized);
+  }
+  return deduped.length ? deduped : [...DEFAULT_DIFF_COMPUTE.modes];
+};
+
+const resolveDiffDefaults = (userConfig) => {
+  const diffs = (
+    userConfig
+    && userConfig.indexing
+    && typeof userConfig.indexing === 'object'
+    && !Array.isArray(userConfig.indexing)
+    && userConfig.indexing.diffs
+    && typeof userConfig.indexing.diffs === 'object'
+    && !Array.isArray(userConfig.indexing.diffs)
+  )
+    ? userConfig.indexing.diffs
+    : null;
+  if (!diffs) {
+    return {
+      keep: DEFAULT_DIFF_RETENTION.keep,
+      maxAgeDays: DEFAULT_DIFF_RETENTION.maxAgeDays,
+      compute: { ...DEFAULT_DIFF_COMPUTE, modes: [...DEFAULT_DIFF_COMPUTE.modes] }
+    };
+  }
+  const compute = (
+    diffs.compute
+    && typeof diffs.compute === 'object'
+    && !Array.isArray(diffs.compute)
+  )
+    ? diffs.compute
+    : {};
+  return {
+    keep: normalizeNumber(
+      diffs.keep ?? diffs.maxDiffs,
+      DEFAULT_DIFF_RETENTION.keep
+    ),
+    maxAgeDays: normalizeNumber(
+      diffs.maxAgeDays ?? diffs.retainDays,
+      DEFAULT_DIFF_RETENTION.maxAgeDays
+    ),
+    compute: {
+      modes: normalizeModes(compute.modes),
+      detectRenames: normalizeBoolean(compute.detectRenames, DEFAULT_DIFF_COMPUTE.detectRenames),
+      includeRelations: normalizeBoolean(
+        compute.includeRelations,
+        DEFAULT_DIFF_COMPUTE.includeRelations
+      ),
+      maxChangedFiles: normalizeNumber(
+        compute.maxChangedFiles,
+        DEFAULT_DIFF_COMPUTE.maxChangedFiles,
+        1
+      ),
+      maxChunksPerFile: normalizeNumber(
+        compute.maxChunksPerFile,
+        DEFAULT_DIFF_COMPUTE.maxChunksPerFile,
+        1
+      ),
+      maxEvents: normalizeNumber(
+        compute.maxEvents ?? diffs.maxEvents,
+        DEFAULT_DIFF_COMPUTE.maxEvents,
+        1
+      ),
+      maxBytes: normalizeNumber(
+        compute.maxBytes ?? diffs.maxBytes,
+        DEFAULT_DIFF_COMPUTE.maxBytes,
+        1
+      ),
+      persist: normalizeBoolean(
+        compute.persist ?? compute.persistEvents,
+        DEFAULT_DIFF_COMPUTE.persist
+      )
+    }
+  };
+};
+
 const buildExplainPayload = ({ diffId, summary, events }) => {
   const byFile = new Map();
   for (const event of Array.isArray(events) ? events : []) {
@@ -83,15 +192,15 @@ export async function runDiffCli(rawArgs = process.argv.slice(2)) {
       .option('repo', { type: 'string' })
       .option('from', { type: 'string', demandOption: true })
       .option('to', { type: 'string', demandOption: true })
-      .option('modes', { type: 'string', default: 'code' })
-      .option('detect-renames', { type: 'boolean', default: true })
-      .option('include-relations', { type: 'boolean', default: true })
+      .option('modes', { type: 'string' })
+      .option('detect-renames', { type: 'boolean' })
+      .option('include-relations', { type: 'boolean' })
       .option('allow-mismatch', { type: 'boolean', default: false })
-      .option('max-changed-files', { type: 'number', default: 200 })
-      .option('max-chunks-per-file', { type: 'number', default: 500 })
-      .option('max-events', { type: 'number', default: 20000 })
-      .option('max-bytes', { type: 'number', default: 2 * 1024 * 1024 })
-      .option('persist', { type: 'boolean', default: true })
+      .option('max-changed-files', { type: 'number' })
+      .option('max-chunks-per-file', { type: 'number' })
+      .option('max-events', { type: 'number' })
+      .option('max-bytes', { type: 'number' })
+      .option('persist', { type: 'boolean' })
       .option('persist-unsafe', { type: 'boolean', default: false })
       .option('wait-ms', { type: 'number', default: 0 })
       .option('dry-run', { type: 'boolean', default: false })
@@ -99,20 +208,27 @@ export async function runDiffCli(rawArgs = process.argv.slice(2)) {
     async (argv) => {
       try {
         const { repoRoot, userConfig } = resolveRepoConfig(argv.repo);
+        const diffDefaults = resolveDiffDefaults(userConfig);
         const result = await computeIndexDiff({
           repoRoot,
           userConfig,
           from: argv.from,
           to: argv.to,
-          modes: argv.modes,
-          detectRenames: normalizeBoolean(argv['detect-renames'], true),
-          includeRelations: normalizeBoolean(argv['include-relations'], true),
+          modes: argv.modes ?? diffDefaults.compute.modes.join(','),
+          detectRenames: normalizeBoolean(
+            argv['detect-renames'],
+            diffDefaults.compute.detectRenames
+          ),
+          includeRelations: normalizeBoolean(
+            argv['include-relations'],
+            diffDefaults.compute.includeRelations
+          ),
           allowMismatch: normalizeBoolean(argv['allow-mismatch'], false),
-          maxChangedFiles: argv['max-changed-files'],
-          maxChunksPerFile: argv['max-chunks-per-file'],
-          maxEvents: argv['max-events'],
-          maxBytes: argv['max-bytes'],
-          persist: normalizeBoolean(argv.persist, true),
+          maxChangedFiles: argv['max-changed-files'] ?? diffDefaults.compute.maxChangedFiles,
+          maxChunksPerFile: argv['max-chunks-per-file'] ?? diffDefaults.compute.maxChunksPerFile,
+          maxEvents: argv['max-events'] ?? diffDefaults.compute.maxEvents,
+          maxBytes: argv['max-bytes'] ?? diffDefaults.compute.maxBytes,
+          persist: normalizeBoolean(argv.persist, diffDefaults.compute.persist),
           persistUnsafe: normalizeBoolean(argv['persist-unsafe'], false),
           waitMs: argv['wait-ms'],
           dryRun: argv['dry-run'] === true
@@ -250,19 +366,20 @@ export async function runDiffCli(rawArgs = process.argv.slice(2)) {
     'Prune persisted diffs by retention policy',
     (command) => command
       .option('repo', { type: 'string' })
-      .option('max-diffs', { type: 'number', default: 50 })
-      .option('retain-days', { type: 'number', default: 30 })
+      .option('max-diffs', { type: 'number' })
+      .option('retain-days', { type: 'number' })
       .option('wait-ms', { type: 'number', default: 0 })
       .option('dry-run', { type: 'boolean', default: false })
       .option('json', { type: 'boolean', default: false }),
     async (argv) => {
       try {
         const { repoRoot, userConfig } = resolveRepoConfig(argv.repo);
+        const diffDefaults = resolveDiffDefaults(userConfig);
         const result = await pruneDiffs({
           repoRoot,
           userConfig,
-          maxDiffs: argv['max-diffs'],
-          retainDays: argv['retain-days'],
+          maxDiffs: argv['max-diffs'] ?? diffDefaults.keep,
+          retainDays: argv['retain-days'] ?? diffDefaults.maxAgeDays,
           waitMs: argv['wait-ms'],
           dryRun: argv['dry-run'] === true
         });

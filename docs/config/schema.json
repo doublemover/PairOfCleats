@@ -455,6 +455,38 @@
             }
           }
         },
+        "diffs": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "keep": { "type": "number" },
+            "maxAgeDays": { "type": "number" },
+            "maxDiffs": { "type": "number" },
+            "retainDays": { "type": "number" },
+            "maxEvents": { "type": "number" },
+            "maxBytes": { "type": "number" },
+            "compute": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "modes": {
+                  "anyOf": [
+                    { "type": "string" },
+                    { "type": "array", "items": { "type": "string" } }
+                  ]
+                },
+                "detectRenames": { "type": "boolean" },
+                "includeRelations": { "type": "boolean" },
+                "maxChangedFiles": { "type": "number" },
+                "maxChunksPerFile": { "type": "number" },
+                "maxEvents": { "type": "number" },
+                "maxBytes": { "type": "number" },
+                "persist": { "type": "boolean" },
+                "persistEvents": { "type": "boolean" }
+              }
+            }
+          }
+        },
         "riskInterprocedural": {
           "type": "object",
           "additionalProperties": false,

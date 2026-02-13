@@ -465,13 +465,13 @@ Roadmap guidance MUST NOT redefine JSON schemas, file layouts, or event formats.
 
 ## Current implementation status (authoritative)
 
-- Last updated: 2026-02-13T00:00:00Z
-- Completed: Phase 14 implementation tracks `14.1.1` through `14.6`.
-- Remaining work: `14.1.5 Retention defaults (optional)` only.
+- Last updated: 2026-02-13T03:00:00Z
+- Completed: Phase 14 implementation tracks `14.1.1` through `14.6`, including optional `14.1.5`.
+- Remaining work: none for Phase 14.
 - Remaining optional items:
   - [x] Create/follow `docs/specs/config-defaults.md` for retention defaults.
   - [x] Define `indexing.snapshots.keepPointer`, `keepFrozen`, `maxAgeDays`, `protectedTagGlobs`, `stagingMaxAgeHours` defaults.
-  - [ ] Define `indexing.diffs.keep`, `maxAgeDays`, and `indexing.diffs.compute.*` defaults.
+  - [x] Define `indexing.diffs.keep`, `maxAgeDays`, and `indexing.diffs.compute.*` defaults.
 
 ## 14.1 Foundations (IndexRef + artifact contracts + safety)
 
@@ -557,8 +557,8 @@ Tests:
 
 - [x] If implementing config defaults, create and follow `docs/specs/config-defaults.md`:
   - [x] `indexing.snapshots.keepPointer`, `keepFrozen`, `maxAgeDays`, `protectedTagGlobs`, `stagingMaxAgeHours`
-  - [ ] `indexing.diffs.keep`, `maxAgeDays`
-  - [ ] `indexing.diffs.compute.*` (modes, bounds, persist)
+  - [x] `indexing.diffs.keep`, `maxAgeDays`
+  - [x] `indexing.diffs.compute.*` (modes, bounds, persist)
 
   Touchpoints:
   - `docs/config/schema.json`
