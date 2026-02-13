@@ -3,7 +3,7 @@ import { runUsrConformanceLevelBaselineValidation } from './usr-conformance-leve
 
 runUsrConformanceLevelBaselineValidation({
   targetLevel: 'C2',
-  lane: 'conformance-c2'
+  lane: 'conformance-embedding-provenance'
 });
 
 console.log('usr C2 baseline validation checks passed');

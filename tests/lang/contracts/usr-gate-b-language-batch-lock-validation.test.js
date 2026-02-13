@@ -72,9 +72,9 @@ assert.equal(roadmapText.includes('### N.11 Gate B1-B7 language-batch completion
 assertTestsPresent(
   [
     'lang/contracts/usr-gate-b-language-batch-lock-validation',
-    'lang/contracts/usr-phase8-exit-lock-validation',
-    'lang/contracts/usr-phase9-readiness-audit-lock-validation',
-    'lang/contracts/usr-phase9-readiness-authorization-lock-validation',
+    'lang/contracts/usr-hardening-exit-lock-validation',
+    'lang/contracts/usr-readiness-audit-lock-validation',
+    'lang/contracts/usr-readiness-authorization-lock-validation',
     'lang/contracts/usr-gate-c-prereq-lock-validation'
   ],
   'Gate B lock validator coverage',

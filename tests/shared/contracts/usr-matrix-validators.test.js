@@ -471,7 +471,7 @@ const matrixDrivenCoverage = validateUsrMatrixDrivenHarnessCoverage({
   frameworkProfilesPayload: frameworkProfiles,
   fixtureGovernancePayload: fixtureGovernance,
   batchShardsPayload: batchShards,
-  knownLanes: ['conformance-c0', 'conformance-c1', 'conformance-c2', 'conformance-c3', 'conformance-c4']
+  knownLanes: ['conformance-foundation-baseline', 'conformance-contract-enforcement', 'conformance-embedding-provenance', 'conformance-risk-fixture-governance', 'conformance-framework-canonicalization']
 });
 assert.equal(matrixDrivenCoverage.ok, true, `matrix-driven harness coverage should pass: ${matrixDrivenCoverage.errors.join('; ')}`);
 
@@ -487,7 +487,7 @@ const matrixDrivenNegative = validateUsrMatrixDrivenHarnessCoverage({
   frameworkProfilesPayload: frameworkProfiles,
   fixtureGovernancePayload: fixtureGovernance,
   batchShardsPayload: batchShards,
-  knownLanes: ['conformance-c0', 'conformance-c1', 'conformance-c2', 'conformance-c3', 'conformance-c4']
+  knownLanes: ['conformance-foundation-baseline', 'conformance-contract-enforcement', 'conformance-embedding-provenance', 'conformance-risk-fixture-governance', 'conformance-framework-canonicalization']
 });
 assert.equal(matrixDrivenNegative.ok, true, 'matrix-driven coverage with dropped C4 should remain non-blocking and emit warning');
 assert.equal(matrixDrivenNegative.warnings.some((message) => message.includes('javascript')), true, 'matrix-driven warning should surface profile coverage downgrade');
@@ -522,7 +522,7 @@ assert.equal(languageRiskCoverageNegative.ok, false, 'language risk profile cove
 
 const conformanceLevelsPath = path.join(matrixDir, 'usr-conformance-levels.json');
 const conformanceLevels = JSON.parse(fs.readFileSync(conformanceLevelsPath, 'utf8'));
-const knownConformanceLanes = ['conformance-c0', 'conformance-c1', 'conformance-c2', 'conformance-c3', 'conformance-c4'];
+const knownConformanceLanes = ['conformance-foundation-baseline', 'conformance-contract-enforcement', 'conformance-embedding-provenance', 'conformance-risk-fixture-governance', 'conformance-framework-canonicalization'];
 
 const c0Coverage = validateUsrConformanceLevelCoverage({
   targetLevel: 'C0',
@@ -577,18 +577,18 @@ assert.equal(promotionReadiness.readiness.frameworkConformanceBlocked, false, 'p
 const missingC4PromotionReadiness = evaluateUsrConformancePromotionReadiness({
   languageProfilesPayload: languageProfiles,
   conformanceLevelsPayload: conformanceLevels,
-  knownLanes: knownConformanceLanes.filter((laneId) => laneId !== 'conformance-c4')
+  knownLanes: knownConformanceLanes.filter((laneId) => laneId !== 'conformance-framework-canonicalization')
 });
-assert.equal(missingC4PromotionReadiness.ok, false, 'promotion readiness should fail when conformance-c4 lane coverage is missing');
-assert.equal(missingC4PromotionReadiness.readiness.frameworkConformanceBlocked, true, 'missing conformance-c4 lane should block framework readiness');
+assert.equal(missingC4PromotionReadiness.ok, false, 'promotion readiness should fail when conformance-framework-canonicalization lane coverage is missing');
+assert.equal(missingC4PromotionReadiness.readiness.frameworkConformanceBlocked, true, 'missing conformance-framework-canonicalization lane should block framework readiness');
 
 const c0Report = buildUsrConformanceLevelSummaryReport({
   targetLevel: 'C0',
   languageProfilesPayload: languageProfiles,
   conformanceLevelsPayload: conformanceLevels,
   knownLanes: knownConformanceLanes,
-  lane: 'conformance-c0',
-  runId: 'run-usr-conformance-c0-001'
+  lane: 'conformance-foundation-baseline',
+  runId: 'run-usr-conformance-foundation-baseline-001'
 });
 assert.equal(c0Report.ok, true, `C0 conformance report should pass: ${c0Report.errors.join('; ')}`);
 const c0ReportValidation = validateUsrReport('usr-conformance-summary', c0Report.payload);
@@ -598,9 +598,9 @@ const missingC0Lane = validateUsrConformanceLevelCoverage({
   targetLevel: 'C0',
   languageProfilesPayload: languageProfiles,
   conformanceLevelsPayload: conformanceLevels,
-  knownLanes: knownConformanceLanes.filter((laneId) => laneId !== 'conformance-c0')
+  knownLanes: knownConformanceLanes.filter((laneId) => laneId !== 'conformance-foundation-baseline')
 });
-assert.equal(missingC0Lane.ok, false, 'C0 conformance coverage should fail when conformance-c0 lane is missing');
+assert.equal(missingC0Lane.ok, false, 'C0 conformance coverage should fail when conformance-foundation-baseline lane is missing');
 
 const backcompatMatrixPath = path.join(matrixDir, 'usr-backcompat-matrix.json');
 const backcompatMatrix = JSON.parse(fs.readFileSync(backcompatMatrixPath, 'utf8'));

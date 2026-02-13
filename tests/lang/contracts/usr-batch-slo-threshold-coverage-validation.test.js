@@ -27,13 +27,13 @@ for (const row of rows) {
 }
 
 const requiredBatchRows = [
-  { laneId: 'lang-batch-b1', scopeId: 'B1' },
-  { laneId: 'lang-batch-b2', scopeId: 'B2' },
-  { laneId: 'lang-batch-b3', scopeId: 'B3' },
-  { laneId: 'lang-batch-b4', scopeId: 'B4' },
-  { laneId: 'lang-batch-b5', scopeId: 'B5' },
-  { laneId: 'lang-batch-b6', scopeId: 'B6' },
-  { laneId: 'lang-batch-b7', scopeId: 'B7' }
+  { laneId: 'lang-batch-javascript-typescript', scopeId: 'B1' },
+  { laneId: 'lang-batch-systems-languages', scopeId: 'B2' },
+  { laneId: 'lang-batch-managed-languages', scopeId: 'B3' },
+  { laneId: 'lang-batch-dynamic-languages', scopeId: 'B4' },
+  { laneId: 'lang-batch-markup-style-template', scopeId: 'B5' },
+  { laneId: 'lang-batch-data-interface-dsl', scopeId: 'B6' },
+  { laneId: 'lang-batch-build-infra-dsl', scopeId: 'B7' }
 ];
 
 for (const requiredRow of requiredBatchRows) {

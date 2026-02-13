@@ -20,11 +20,11 @@ const loadRegistry = (registryId) => {
 };
 
 const CONFORMANCE_LEVEL_TO_LANE = Object.freeze({
-  C0: 'conformance-c0',
-  C1: 'conformance-c1',
-  C2: 'conformance-c2',
-  C3: 'conformance-c3',
-  C4: 'conformance-c4'
+  C0: 'conformance-foundation-baseline',
+  C1: 'conformance-contract-enforcement',
+  C2: 'conformance-embedding-provenance',
+  C3: 'conformance-risk-fixture-governance',
+  C4: 'conformance-framework-canonicalization'
 });
 
 export const runUsrConformanceLevelBaselineValidation = ({

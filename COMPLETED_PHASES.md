@@ -4982,7 +4982,7 @@ Turn graph and identity primitives into **safe, bounded, deterministic** product
   - injectable date/time for CI to avoid `<date>` path drift
 
 #### Tests
-- [x] `tests/shared/contracts/phase11-schemas-validate.test.js`
+- [x] `tests/shared/contracts/analysis-schemas-validate.test.js`
   - Validate representative payload fixtures against each Phase 11 schema.
 
 ---
@@ -13885,7 +13885,7 @@ Tasks:
 - [x] Task 16.15.1.p: Verify Phase 15 usage (index_state/file_meta/minhash paths).
 
 Tests:
-- [x] `tests/perf/indexing/validate/phase-usage-checklist.test.js` (perf lane) (new)
+- [x] `tests/perf/indexing/validate/stage-usage-checklist.test.js` (perf lane) (new)
 
 ### Subphase 16.15.2 -- Bench Harness
 Parallel: Can run alongside 16.15.1; ensure bench harness exists before validating outputs.
@@ -14027,7 +14027,7 @@ Finish the missing implementation, tests, and docs called out in `SWEETREPORT.md
 - [x] `tests/storage/sqlite/sqlite-chunk-meta-streaming.test.js` (perf lane) (new)
 - [x] `tests/retrieval/graph/context-pack-seed-indexing.test.js` (perf lane) (new)
 - [x] `tests/perf/tooling/bench/per-bench-output-schema.test.js` (perf lane) (new)
-- [x] `tests/perf/indexing/validate/phase-usage-checklist.test.js` (perf lane) (update)
+- [x] `tests/perf/indexing/validate/stage-usage-checklist.test.js` (perf lane) (update)
 
 ---
 

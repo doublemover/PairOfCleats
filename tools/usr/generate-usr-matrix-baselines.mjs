@@ -650,14 +650,14 @@ const parserRuntimeLocks = [
 const sloBudgets = [
   { laneId: 'ci', profileScope: 'global', scopeId: 'global', maxDurationMs: 1200000, maxMemoryMb: 4096, maxParserTimePerSegmentMs: 1500, maxUnknownKindRate: 0.02, maxUnresolvedRate: 0.02, blocking: true },
   { laneId: 'ci-long', profileScope: 'global', scopeId: 'global', maxDurationMs: 2000000, maxMemoryMb: 8192, maxParserTimePerSegmentMs: 2000, maxUnknownKindRate: 0.02, maxUnresolvedRate: 0.02, blocking: true },
-  { laneId: 'lang-batch-b1', profileScope: 'batch', scopeId: 'B1', maxDurationMs: 600000, maxMemoryMb: 3072, maxParserTimePerSegmentMs: 1200, maxUnknownKindRate: 0.015, maxUnresolvedRate: 0.015, blocking: true },
-  { laneId: 'lang-batch-b2', profileScope: 'batch', scopeId: 'B2', maxDurationMs: 600000, maxMemoryMb: 3072, maxParserTimePerSegmentMs: 1200, maxUnknownKindRate: 0.015, maxUnresolvedRate: 0.015, blocking: true },
-  { laneId: 'lang-batch-b3', profileScope: 'batch', scopeId: 'B3', maxDurationMs: 600000, maxMemoryMb: 3072, maxParserTimePerSegmentMs: 1200, maxUnknownKindRate: 0.015, maxUnresolvedRate: 0.015, blocking: true },
-  { laneId: 'lang-batch-b4', profileScope: 'batch', scopeId: 'B4', maxDurationMs: 600000, maxMemoryMb: 3072, maxParserTimePerSegmentMs: 1200, maxUnknownKindRate: 0.015, maxUnresolvedRate: 0.015, blocking: true },
-  { laneId: 'lang-batch-b5', profileScope: 'batch', scopeId: 'B5', maxDurationMs: 600000, maxMemoryMb: 3072, maxParserTimePerSegmentMs: 1200, maxUnknownKindRate: 0.015, maxUnresolvedRate: 0.015, blocking: true },
-  { laneId: 'lang-batch-b6', profileScope: 'batch', scopeId: 'B6', maxDurationMs: 600000, maxMemoryMb: 3072, maxParserTimePerSegmentMs: 1200, maxUnknownKindRate: 0.015, maxUnresolvedRate: 0.015, blocking: true },
-  { laneId: 'lang-batch-b7', profileScope: 'batch', scopeId: 'B7', maxDurationMs: 600000, maxMemoryMb: 3072, maxParserTimePerSegmentMs: 1200, maxUnknownKindRate: 0.015, maxUnresolvedRate: 0.015, blocking: true },
-  { laneId: 'lang-framework-c4', profileScope: 'framework', scopeId: 'C4', maxDurationMs: 900000, maxMemoryMb: 4096, maxParserTimePerSegmentMs: 1500, maxUnknownKindRate: 0.02, maxUnresolvedRate: 0.02, blocking: true },
+  { laneId: 'lang-batch-javascript-typescript', profileScope: 'batch', scopeId: 'B1', maxDurationMs: 600000, maxMemoryMb: 3072, maxParserTimePerSegmentMs: 1200, maxUnknownKindRate: 0.015, maxUnresolvedRate: 0.015, blocking: true },
+  { laneId: 'lang-batch-systems-languages', profileScope: 'batch', scopeId: 'B2', maxDurationMs: 600000, maxMemoryMb: 3072, maxParserTimePerSegmentMs: 1200, maxUnknownKindRate: 0.015, maxUnresolvedRate: 0.015, blocking: true },
+  { laneId: 'lang-batch-managed-languages', profileScope: 'batch', scopeId: 'B3', maxDurationMs: 600000, maxMemoryMb: 3072, maxParserTimePerSegmentMs: 1200, maxUnknownKindRate: 0.015, maxUnresolvedRate: 0.015, blocking: true },
+  { laneId: 'lang-batch-dynamic-languages', profileScope: 'batch', scopeId: 'B4', maxDurationMs: 600000, maxMemoryMb: 3072, maxParserTimePerSegmentMs: 1200, maxUnknownKindRate: 0.015, maxUnresolvedRate: 0.015, blocking: true },
+  { laneId: 'lang-batch-markup-style-template', profileScope: 'batch', scopeId: 'B5', maxDurationMs: 600000, maxMemoryMb: 3072, maxParserTimePerSegmentMs: 1200, maxUnknownKindRate: 0.015, maxUnresolvedRate: 0.015, blocking: true },
+  { laneId: 'lang-batch-data-interface-dsl', profileScope: 'batch', scopeId: 'B6', maxDurationMs: 600000, maxMemoryMb: 3072, maxParserTimePerSegmentMs: 1200, maxUnknownKindRate: 0.015, maxUnresolvedRate: 0.015, blocking: true },
+  { laneId: 'lang-batch-build-infra-dsl', profileScope: 'batch', scopeId: 'B7', maxDurationMs: 600000, maxMemoryMb: 3072, maxParserTimePerSegmentMs: 1200, maxUnknownKindRate: 0.015, maxUnresolvedRate: 0.015, blocking: true },
+  { laneId: 'lang-framework-canonicalization', profileScope: 'framework', scopeId: 'C4', maxDurationMs: 900000, maxMemoryMb: 4096, maxParserTimePerSegmentMs: 1500, maxUnknownKindRate: 0.02, maxUnresolvedRate: 0.02, blocking: true },
   { laneId: 'lang-smoke', profileScope: 'global', scopeId: 'global', maxDurationMs: 180000, maxMemoryMb: 2048, maxParserTimePerSegmentMs: 800, maxUnknownKindRate: 0.03, maxUnresolvedRate: 0.03, blocking: true }
 ].sort((a, b) => a.laneId.localeCompare(b.laneId));
 
@@ -817,7 +817,7 @@ const fixtureGovernance = [
 
 const benchmarkPolicy = [
   { id: 'bench-ci-smoke', laneId: 'ci', datasetClass: 'smoke', hostClass: 'standard-ci', warmupRuns: 1, measureRuns: 5, percentileTargets: { p50DurationMs: 120000, p95DurationMs: 180000, p99DurationMs: 220000 }, maxVariancePct: 12, maxPeakMemoryMb: 2048, blocking: true },
-  { id: 'bench-framework-overlay', laneId: 'lang-framework-c4', datasetClass: 'framework-overlay', hostClass: 'standard-ci', warmupRuns: 1, measureRuns: 5, percentileTargets: { p50DurationMs: 300000, p95DurationMs: 450000, p99DurationMs: 540000 }, maxVariancePct: 15, maxPeakMemoryMb: 4096, blocking: true },
+  { id: 'bench-framework-overlay', laneId: 'lang-framework-canonicalization', datasetClass: 'framework-overlay', hostClass: 'standard-ci', warmupRuns: 1, measureRuns: 5, percentileTargets: { p50DurationMs: 300000, p95DurationMs: 450000, p99DurationMs: 540000 }, maxVariancePct: 15, maxPeakMemoryMb: 4096, blocking: true },
   { id: 'bench-lang-batch', laneId: 'ci-long', datasetClass: 'language-batch', hostClass: 'standard-ci-long', warmupRuns: 1, measureRuns: 7, percentileTargets: { p50DurationMs: 600000, p95DurationMs: 900000, p99DurationMs: 1100000 }, maxVariancePct: 18, maxPeakMemoryMb: 6144, blocking: true },
   { id: 'bench-mixed-repo', laneId: 'ci-long', datasetClass: 'mixed-repo', hostClass: 'standard-ci-long', warmupRuns: 2, measureRuns: 9, percentileTargets: { p50DurationMs: 900000, p95DurationMs: 1500000, p99DurationMs: 1800000 }, maxVariancePct: 20, maxPeakMemoryMb: 8192, blocking: false }
 ].sort((a, b) => a.id.localeCompare(b.id));

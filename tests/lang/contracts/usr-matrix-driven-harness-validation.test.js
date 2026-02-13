@@ -42,11 +42,11 @@ const missingConformanceLane = validateUsrMatrixDrivenHarnessCoverage({
   frameworkProfilesPayload: frameworkProfiles,
   fixtureGovernancePayload: fixtureGovernance,
   batchShardsPayload: batchShards,
-  knownLanes: knownLanes.filter((laneId) => laneId !== 'conformance-c4')
+  knownLanes: knownLanes.filter((laneId) => laneId !== 'conformance-framework-canonicalization')
 });
 assert.equal(missingConformanceLane.ok, false, 'matrix-driven harness coverage should fail when required conformance lanes are unavailable');
 assert.equal(
-  missingConformanceLane.errors.some((message) => message.includes('conformance-c4')),
+  missingConformanceLane.errors.some((message) => message.includes('conformance-framework-canonicalization')),
   true,
   'matrix-driven harness coverage failure should identify the missing required conformance lane'
 );

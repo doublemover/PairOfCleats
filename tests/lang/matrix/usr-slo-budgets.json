@@ -25,7 +25,7 @@
       "blocking": true
     },
     {
-      "laneId": "lang-batch-b1",
+      "laneId": "lang-batch-javascript-typescript",
       "profileScope": "batch",
       "scopeId": "B1",
       "maxDurationMs": 600000,
@@ -36,7 +36,7 @@
       "blocking": true
     },
     {
-      "laneId": "lang-batch-b2",
+      "laneId": "lang-batch-systems-languages",
       "profileScope": "batch",
       "scopeId": "B2",
       "maxDurationMs": 600000,
@@ -47,7 +47,7 @@
       "blocking": true
     },
     {
-      "laneId": "lang-batch-b3",
+      "laneId": "lang-batch-managed-languages",
       "profileScope": "batch",
       "scopeId": "B3",
       "maxDurationMs": 600000,
@@ -58,7 +58,7 @@
       "blocking": true
     },
     {
-      "laneId": "lang-batch-b4",
+      "laneId": "lang-batch-dynamic-languages",
       "profileScope": "batch",
       "scopeId": "B4",
       "maxDurationMs": 600000,
@@ -69,7 +69,7 @@
       "blocking": true
     },
     {
-      "laneId": "lang-batch-b5",
+      "laneId": "lang-batch-markup-style-template",
       "profileScope": "batch",
       "scopeId": "B5",
       "maxDurationMs": 600000,
@@ -80,7 +80,7 @@
       "blocking": true
     },
     {
-      "laneId": "lang-batch-b6",
+      "laneId": "lang-batch-data-interface-dsl",
       "profileScope": "batch",
       "scopeId": "B6",
       "maxDurationMs": 600000,
@@ -91,7 +91,7 @@
       "blocking": true
     },
     {
-      "laneId": "lang-batch-b7",
+      "laneId": "lang-batch-build-infra-dsl",
       "profileScope": "batch",
       "scopeId": "B7",
       "maxDurationMs": 600000,
@@ -102,7 +102,7 @@
       "blocking": true
     },
     {
-      "laneId": "lang-framework-c4",
+      "laneId": "lang-framework-canonicalization",
       "profileScope": "framework",
       "scopeId": "C4",
       "maxDurationMs": 900000,

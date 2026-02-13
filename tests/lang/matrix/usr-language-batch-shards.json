@@ -4,12 +4,12 @@
   "rows": [
     {
       "id": "B0",
-      "laneId": "batch-b0",
+      "laneId": "batch-foundation",
       "sequence": 0,
       "scopeType": "foundation",
       "languageIds": [],
       "dependsOn": [],
-      "orderManifest": "tests/batch-b0/batch-b0.order.txt",
+      "orderManifest": "tests/batch-foundation/batch-foundation.order.txt",
       "gateId": "Gate A",
       "requiredConformance": [
         "C0",
@@ -19,7 +19,7 @@
     },
     {
       "id": "B1",
-      "laneId": "batch-b1",
+      "laneId": "batch-javascript-typescript",
       "sequence": 1,
       "scopeType": "language-batch",
       "languageIds": [
@@ -29,7 +29,7 @@
       "dependsOn": [
         "B0"
       ],
-      "orderManifest": "tests/batch-b1/batch-b1.order.txt",
+      "orderManifest": "tests/batch-javascript-typescript/batch-javascript-typescript.order.txt",
       "gateId": "Gate B1",
       "requiredConformance": [
         "C0",
@@ -42,7 +42,7 @@
     },
     {
       "id": "B2",
-      "laneId": "batch-b2",
+      "laneId": "batch-systems-languages",
       "sequence": 2,
       "scopeType": "language-batch",
       "languageIds": [
@@ -54,7 +54,7 @@
       "dependsOn": [
         "B1"
       ],
-      "orderManifest": "tests/batch-b2/batch-b2.order.txt",
+      "orderManifest": "tests/batch-systems-languages/batch-systems-languages.order.txt",
       "gateId": "Gate B2",
       "requiredConformance": [
         "C0",
@@ -66,7 +66,7 @@
     },
     {
       "id": "B3",
-      "laneId": "batch-b3",
+      "laneId": "batch-managed-languages",
       "sequence": 3,
       "scopeType": "language-batch",
       "languageIds": [
@@ -80,7 +80,7 @@
       "dependsOn": [
         "B1"
       ],
-      "orderManifest": "tests/batch-b3/batch-b3.order.txt",
+      "orderManifest": "tests/batch-managed-languages/batch-managed-languages.order.txt",
       "gateId": "Gate B3",
       "requiredConformance": [
         "C0",
@@ -92,7 +92,7 @@
     },
     {
       "id": "B4",
-      "laneId": "batch-b4",
+      "laneId": "batch-dynamic-languages",
       "sequence": 4,
       "scopeType": "language-batch",
       "languageIds": [
@@ -108,7 +108,7 @@
       "dependsOn": [
         "B1"
       ],
-      "orderManifest": "tests/batch-b4/batch-b4.order.txt",
+      "orderManifest": "tests/batch-dynamic-languages/batch-dynamic-languages.order.txt",
       "gateId": "Gate B4",
       "requiredConformance": [
         "C0",
@@ -120,7 +120,7 @@
     },
     {
       "id": "B5",
-      "laneId": "batch-b5",
+      "laneId": "batch-markup-style-template",
       "sequence": 5,
       "scopeType": "language-batch",
       "languageIds": [
@@ -134,7 +134,7 @@
       "dependsOn": [
         "B1"
       ],
-      "orderManifest": "tests/batch-b5/batch-b5.order.txt",
+      "orderManifest": "tests/batch-markup-style-template/batch-markup-style-template.order.txt",
       "gateId": "Gate B5",
       "requiredConformance": [
         "C0",
@@ -145,7 +145,7 @@
     },
     {
       "id": "B6",
-      "laneId": "batch-b6",
+      "laneId": "batch-data-interface-dsl",
       "sequence": 6,
       "scopeType": "language-batch",
       "languageIds": [
@@ -156,7 +156,7 @@
       "dependsOn": [
         "B1"
       ],
-      "orderManifest": "tests/batch-b6/batch-b6.order.txt",
+      "orderManifest": "tests/batch-data-interface-dsl/batch-data-interface-dsl.order.txt",
       "gateId": "Gate B6",
       "requiredConformance": [
         "C0",
@@ -168,7 +168,7 @@
     },
     {
       "id": "B7",
-      "laneId": "batch-b7",
+      "laneId": "batch-build-infra-dsl",
       "sequence": 7,
       "scopeType": "language-batch",
       "languageIds": [
@@ -181,7 +181,7 @@
       "dependsOn": [
         "B1"
       ],
-      "orderManifest": "tests/batch-b7/batch-b7.order.txt",
+      "orderManifest": "tests/batch-build-infra-dsl/batch-build-infra-dsl.order.txt",
       "gateId": "Gate B7",
       "requiredConformance": [
         "C0",
@@ -192,7 +192,7 @@
     },
     {
       "id": "B8",
-      "laneId": "batch-b8",
+      "laneId": "batch-cross-batch-integration",
       "sequence": 8,
       "scopeType": "integration",
       "languageIds": [],
@@ -205,7 +205,7 @@
         "B6",
         "B7"
       ],
-      "orderManifest": "tests/batch-b8/batch-b8.order.txt",
+      "orderManifest": "tests/batch-cross-batch-integration/batch-cross-batch-integration.order.txt",
       "gateId": "Gate C",
       "requiredConformance": [
         "C0",

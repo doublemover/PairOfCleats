@@ -3,7 +3,7 @@ import { runUsrConformanceLevelBaselineValidation } from './usr-conformance-leve
 
 runUsrConformanceLevelBaselineValidation({
   targetLevel: 'C4',
-  lane: 'conformance-c4'
+  lane: 'conformance-framework-canonicalization'
 });
 
 console.log('usr C4 baseline validation checks passed');

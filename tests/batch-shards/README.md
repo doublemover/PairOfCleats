@@ -10,15 +10,15 @@ This directory holds shared assertions for roadmap phase-10 batch lane sharding.
 
 Each batch lane has a required deterministic order file:
 
-- `tests/batch-b0/batch-b0.order.txt`
-- `tests/batch-b1/batch-b1.order.txt`
-- `tests/batch-b2/batch-b2.order.txt`
-- `tests/batch-b3/batch-b3.order.txt`
-- `tests/batch-b4/batch-b4.order.txt`
-- `tests/batch-b5/batch-b5.order.txt`
-- `tests/batch-b6/batch-b6.order.txt`
-- `tests/batch-b7/batch-b7.order.txt`
-- `tests/batch-b8/batch-b8.order.txt`
+- `tests/batch-foundation/batch-foundation.order.txt`
+- `tests/batch-javascript-typescript/batch-javascript-typescript.order.txt`
+- `tests/batch-systems-languages/batch-systems-languages.order.txt`
+- `tests/batch-managed-languages/batch-managed-languages.order.txt`
+- `tests/batch-dynamic-languages/batch-dynamic-languages.order.txt`
+- `tests/batch-markup-style-template/batch-markup-style-template.order.txt`
+- `tests/batch-data-interface-dsl/batch-data-interface-dsl.order.txt`
+- `tests/batch-build-infra-dsl/batch-build-infra-dsl.order.txt`
+- `tests/batch-cross-batch-integration/batch-cross-batch-integration.order.txt`
 
 Batch lane tests call `tests/batch-shards/assert-batch-shard.js` to validate:
 

@@ -3214,7 +3214,7 @@
         ]
       },
       {
-        "file": "tests/perf/indexing/validate/phase-usage-checklist.test.js",
+        "file": "tests/perf/indexing/validate/stage-usage-checklist.test.js",
         "flags": [
           "mode"
         ]
@@ -3301,7 +3301,7 @@
         ]
       },
       {
-        "file": "tests/shared/contracts/phase11-schemas-validate.test.js",
+        "file": "tests/shared/contracts/analysis-schemas-validate.test.js",
         "flags": [
           "caps",
           "failOnWarn",
@@ -4502,7 +4502,7 @@
           "tests/map/map-build-heap-guard.test.js",
           "tests/map/map-build-streaming.test.js",
           "tests/map/map-edge-aggregate-stability.test.js",
-          "tests/perf/indexing/validate/phase-usage-checklist.test.js",
+          "tests/perf/indexing/validate/stage-usage-checklist.test.js",
           "tools/bench/graph/context-pack-latency.js",
           "tools/bench/graph/neighborhood-cache.js",
           "tools/bench/graph/neighborhood-index-dir.js",
@@ -5285,7 +5285,7 @@
         "count": 2,
         "files": [
           "src/integrations/tooling/api-contracts.js",
-          "tests/shared/contracts/phase11-schemas-validate.test.js"
+          "tests/shared/contracts/analysis-schemas-validate.test.js"
         ]
       },
       {
@@ -5397,7 +5397,7 @@
         "count": 2,
         "files": [
           "src/integrations/tooling/api-contracts.js",
-          "tests/shared/contracts/phase11-schemas-validate.test.js"
+          "tests/shared/contracts/analysis-schemas-validate.test.js"
         ]
       },
       {
@@ -5509,7 +5509,7 @@
         "count": 2,
         "files": [
           "src/integrations/tooling/api-contracts.js",
-          "tests/shared/contracts/phase11-schemas-validate.test.js"
+          "tests/shared/contracts/analysis-schemas-validate.test.js"
         ]
       },
       {

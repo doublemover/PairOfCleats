@@ -51,15 +51,15 @@ const ORDERED_LANES = new Set([
   'ci-lite',
   'ci',
   'ci-long',
-  'batch-b0',
-  'batch-b1',
-  'batch-b2',
-  'batch-b3',
-  'batch-b4',
-  'batch-b5',
-  'batch-b6',
-  'batch-b7',
-  'batch-b8'
+  'batch-foundation',
+  'batch-javascript-typescript',
+  'batch-systems-languages',
+  'batch-managed-languages',
+  'batch-dynamic-languages',
+  'batch-markup-style-template',
+  'batch-data-interface-dsl',
+  'batch-build-infra-dsl',
+  'batch-cross-batch-integration'
 ]);
 const INHERITED_PAIROFCLEATS_ENV_ALLOWLIST = new Set([
   'PAIROFCLEATS_TEST_API_STARTUP_TIMEOUT_MS',

@@ -104,8 +104,8 @@ assertTestsPresent(
     'lang/contracts/usr-gate-c-evidence-completeness-lock-validation',
     'lang/contracts/usr-rollout-approval-lock-validation',
     'lang/contracts/usr-rollout-f1-checklist-validation',
-    'lang/contracts/usr-rollout-phase-evidence-lock-validation',
-    'lang/contracts/usr-phase9-readiness-authorization-lock-validation'
+    'lang/contracts/usr-rollout-evidence-lock-validation',
+    'lang/contracts/usr-readiness-authorization-lock-validation'
   ],
   'Gate C conformance-chain validator coverage',
   ciOrderText,

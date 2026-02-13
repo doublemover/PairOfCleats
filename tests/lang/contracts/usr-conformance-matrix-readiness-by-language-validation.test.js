@@ -37,11 +37,11 @@ for (const row of conformanceRows) {
 }
 
 const requiredLaneByLevel = {
-  C0: 'conformance-c0',
-  C1: 'conformance-c1',
-  C2: 'conformance-c2',
-  C3: 'conformance-c3',
-  C4: 'conformance-c4'
+  C0: 'conformance-foundation-baseline',
+  C1: 'conformance-contract-enforcement',
+  C2: 'conformance-embedding-provenance',
+  C3: 'conformance-risk-fixture-governance',
+  C4: 'conformance-framework-canonicalization'
 };
 
 for (const languageRow of languageRows) {

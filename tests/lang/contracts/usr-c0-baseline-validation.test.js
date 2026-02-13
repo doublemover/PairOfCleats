@@ -3,7 +3,7 @@ import { runUsrConformanceLevelBaselineValidation } from './usr-conformance-leve
 
 runUsrConformanceLevelBaselineValidation({
   targetLevel: 'C0',
-  lane: 'conformance-c0',
+  lane: 'conformance-foundation-baseline',
   requireAllProfiles: true
 });
 

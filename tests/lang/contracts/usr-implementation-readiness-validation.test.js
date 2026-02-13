@@ -20,7 +20,7 @@ const qualityGatesPath = path.join(repoRoot, 'tests', 'lang', 'matrix', 'usr-qua
 const languageProfilesPath = path.join(repoRoot, 'tests', 'lang', 'matrix', 'usr-language-profiles.json');
 const conformanceLevelsPath = path.join(repoRoot, 'tests', 'lang', 'matrix', 'usr-conformance-levels.json');
 const schemaDir = path.join(repoRoot, 'docs', 'schemas', 'usr');
-const knownConformanceLanes = ['conformance-c0', 'conformance-c1', 'conformance-c2', 'conformance-c3', 'conformance-c4'];
+const knownConformanceLanes = ['conformance-foundation-baseline', 'conformance-contract-enforcement', 'conformance-embedding-provenance', 'conformance-risk-fixture-governance', 'conformance-framework-canonicalization'];
 
 const operationalReadiness = JSON.parse(fs.readFileSync(operationalReadinessPath, 'utf8'));
 const qualityGates = JSON.parse(fs.readFileSync(qualityGatesPath, 'utf8'));
@@ -197,10 +197,10 @@ assert.equal(missingC2Readiness.blockers.some((reason) => reason.startsWith('mis
 const missingC4LaneReadiness = evaluateUsrConformancePromotionReadiness({
   languageProfilesPayload: languageProfiles,
   conformanceLevelsPayload: conformanceLevels,
-  knownLanes: knownConformanceLanes.filter((laneId) => laneId !== 'conformance-c4')
+  knownLanes: knownConformanceLanes.filter((laneId) => laneId !== 'conformance-framework-canonicalization')
 });
-assert.equal(missingC4LaneReadiness.blocked, true, 'missing conformance-c4 lane must block framework conformance readiness');
-assert.equal(missingC4LaneReadiness.readiness.frameworkConformanceBlocked, true, 'missing conformance-c4 lane must set frameworkConformanceBlocked=true');
+assert.equal(missingC4LaneReadiness.blocked, true, 'missing conformance-framework-canonicalization lane must block framework conformance readiness');
+assert.equal(missingC4LaneReadiness.readiness.frameworkConformanceBlocked, true, 'missing conformance-framework-canonicalization lane must set frameworkConformanceBlocked=true');
 assert.equal(missingC4LaneReadiness.blockers.some((reason) => reason.startsWith('missing-framework-conformance-readiness:C4')), true, 'missing C4 lane blocker reason must be present');
 
 console.log('usr implementation readiness validation checks passed');

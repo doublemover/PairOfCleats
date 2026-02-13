@@ -20,7 +20,7 @@
     },
     {
       "id": "bench-framework-overlay",
-      "laneId": "lang-framework-c4",
+      "laneId": "lang-framework-canonicalization",
       "datasetClass": "framework-overlay",
       "hostClass": "standard-ci",
       "warmupRuns": 1,

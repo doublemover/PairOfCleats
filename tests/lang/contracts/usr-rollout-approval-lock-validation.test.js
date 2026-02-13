@@ -68,7 +68,7 @@ if (approvalState === 'pending') {
 
 for (const testId of [
   'lang/contracts/usr-rollout-migration-policy-validation',
-  'lang/contracts/usr-rollout-phase-gate-validation',
+  'lang/contracts/usr-rollout-gate-validation',
   'lang/contracts/usr-gate-c-authorization-chain-validation',
   'lang/contracts/usr-rollout-approval-lock-validation'
 ]) {

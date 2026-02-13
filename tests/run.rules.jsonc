@@ -11,7 +11,7 @@
     "worktrees"
   ],
   "excludedFiles": ["run.js"],
-  "knownLanes": ["smoke", "unit", "ci-lite", "ci-long", "integration", "services", "api", "storage", "perf", "mcp", "ci", "conformance-c0", "conformance-c1", "conformance-c2", "conformance-c3", "conformance-c4", "backcompat", "diagnostics-summary", "runtime-config", "failure-injection", "fixture-governance", "benchmark-regression", "threat-model", "waiver-enforcement", "report-schema", "implementation-readiness", "observability", "security-gates", "harness-core", "canonical-example", "decomposed-drift", "batch-b0", "batch-b1", "batch-b2", "batch-b3", "batch-b4", "batch-b5", "batch-b6", "batch-b7", "batch-b8"],
+  "knownLanes": ["smoke", "unit", "ci-lite", "ci-long", "integration", "services", "api", "storage", "perf", "mcp", "ci", "conformance-foundation-baseline", "conformance-contract-enforcement", "conformance-embedding-provenance", "conformance-risk-fixture-governance", "conformance-framework-canonicalization", "backcompat", "diagnostics-summary", "runtime-config", "failure-injection", "fixture-governance", "benchmark-regression", "threat-model", "waiver-enforcement", "report-schema", "implementation-readiness", "observability", "security-gates", "harness-core", "canonical-example", "decomposed-drift", "batch-foundation", "batch-javascript-typescript", "batch-systems-languages", "batch-managed-languages", "batch-dynamic-languages", "batch-markup-style-template", "batch-data-interface-dsl", "batch-build-infra-dsl", "batch-cross-batch-integration"],
   "laneRules": [
     { "lane": "perf", "match": ["^perf/"] },
     { "lane": "ci-lite", "match": ["^ci-lite/"] },
@@ -21,33 +21,33 @@
     { "lane": "services", "match": ["^services/"] },
     { "lane": "storage", "match": ["^storage/"] },
     {
-      "lane": "conformance-c0",
+      "lane": "conformance-foundation-baseline",
       "match": [
-        "^conformance-c0/"
+        "^conformance-foundation-baseline/"
       ]
     },
     {
-      "lane": "conformance-c1",
+      "lane": "conformance-contract-enforcement",
       "match": [
-        "^conformance-c1/"
+        "^conformance-contract-enforcement/"
       ]
     },
     {
-      "lane": "conformance-c2",
+      "lane": "conformance-embedding-provenance",
       "match": [
-        "^conformance-c2/"
+        "^conformance-embedding-provenance/"
       ]
     },
     {
-      "lane": "conformance-c3",
+      "lane": "conformance-risk-fixture-governance",
       "match": [
-        "^conformance-c3/"
+        "^conformance-risk-fixture-governance/"
       ]
     },
     {
-      "lane": "conformance-c4",
+      "lane": "conformance-framework-canonicalization",
       "match": [
-        "^conformance-c4/"
+        "^conformance-framework-canonicalization/"
       ]
     },
     {
@@ -141,57 +141,57 @@
       ]
     },
     {
-      "lane": "batch-b0",
+      "lane": "batch-foundation",
       "match": [
-        "^batch-b0/"
+        "^batch-foundation/"
       ]
     },
     {
-      "lane": "batch-b1",
+      "lane": "batch-javascript-typescript",
       "match": [
-        "^batch-b1/"
+        "^batch-javascript-typescript/"
       ]
     },
     {
-      "lane": "batch-b2",
+      "lane": "batch-systems-languages",
       "match": [
-        "^batch-b2/"
+        "^batch-systems-languages/"
       ]
     },
     {
-      "lane": "batch-b3",
+      "lane": "batch-managed-languages",
       "match": [
-        "^batch-b3/"
+        "^batch-managed-languages/"
       ]
     },
     {
-      "lane": "batch-b4",
+      "lane": "batch-dynamic-languages",
       "match": [
-        "^batch-b4/"
+        "^batch-dynamic-languages/"
       ]
     },
     {
-      "lane": "batch-b5",
+      "lane": "batch-markup-style-template",
       "match": [
-        "^batch-b5/"
+        "^batch-markup-style-template/"
       ]
     },
     {
-      "lane": "batch-b6",
+      "lane": "batch-data-interface-dsl",
       "match": [
-        "^batch-b6/"
+        "^batch-data-interface-dsl/"
       ]
     },
     {
-      "lane": "batch-b7",
+      "lane": "batch-build-infra-dsl",
       "match": [
-        "^batch-b7/"
+        "^batch-build-infra-dsl/"
       ]
     },
     {
-      "lane": "batch-b8",
+      "lane": "batch-cross-batch-integration",
       "match": [
-        "^batch-b8/"
+        "^batch-cross-batch-integration/"
       ]
     },
     {

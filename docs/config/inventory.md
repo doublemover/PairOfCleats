@@ -367,7 +367,7 @@ mode
 
 mode
 
-### tests/perf/indexing/validate/phase-usage-checklist.test.js
+### tests/perf/indexing/validate/stage-usage-checklist.test.js
 
 mode
 
@@ -403,7 +403,7 @@ log-dir, retries, skip-bench, skip-script-coverage
 
 focus, include, onlyExported, scope
 
-### tests/shared/contracts/phase11-schemas-validate.test.js
+### tests/shared/contracts/analysis-schemas-validate.test.js
 
 caps, failOnWarn, onlyExports
 

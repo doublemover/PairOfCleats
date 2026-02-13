@@ -3,7 +3,7 @@ import { runUsrConformanceLevelBaselineValidation } from './usr-conformance-leve
 
 runUsrConformanceLevelBaselineValidation({
   targetLevel: 'C3',
-  lane: 'conformance-c3'
+  lane: 'conformance-risk-fixture-governance'
 });
 
 console.log('usr C3 baseline validation checks passed');

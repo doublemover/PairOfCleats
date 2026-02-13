@@ -100,8 +100,8 @@ assert.equal(roadmapText.includes('### N.9 Appendix F.1 phase-promotion lock'), 
 assertTestsPresent(
   [
     'lang/contracts/usr-rollout-f1-checklist-validation',
-    'lang/contracts/usr-rollout-phase-evidence-lock-validation',
-    'lang/contracts/usr-rollout-phase-gate-validation',
+    'lang/contracts/usr-rollout-evidence-lock-validation',
+    'lang/contracts/usr-rollout-gate-validation',
     'lang/contracts/usr-rollout-approval-lock-validation'
   ],
   'rollout F.1 checklist governance test',

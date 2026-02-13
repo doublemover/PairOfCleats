@@ -23,7 +23,7 @@ const conformanceLevels = JSON.parse(
   fs.readFileSync(path.join(repoRoot, 'tests', 'lang', 'matrix', 'usr-conformance-levels.json'), 'utf8')
 );
 
-const knownConformanceLanes = ['conformance-c0', 'conformance-c1', 'conformance-c2', 'conformance-c3', 'conformance-c4'];
+const knownConformanceLanes = ['conformance-foundation-baseline', 'conformance-contract-enforcement', 'conformance-embedding-provenance', 'conformance-risk-fixture-governance', 'conformance-framework-canonicalization'];
 
 const languageDashboard = buildUsrLanguageConformanceDashboardReport({
   languageProfilesPayload: languageProfiles,
@@ -55,7 +55,7 @@ assert.equal(frameworkDashboardValidation.ok, true, `framework conformance dashb
 const languageDashboardNegative = buildUsrLanguageConformanceDashboardReport({
   languageProfilesPayload: languageProfiles,
   conformanceLevelsPayload: conformanceLevels,
-  knownLanes: knownConformanceLanes.filter((laneId) => laneId !== 'conformance-c1'),
+  knownLanes: knownConformanceLanes.filter((laneId) => laneId !== 'conformance-contract-enforcement'),
   runId: 'run-usr-language-conformance-dashboard-002',
   lane: 'ci'
 });
@@ -65,7 +65,7 @@ const frameworkDashboardNegative = buildUsrFrameworkConformanceDashboardReport({
   frameworkProfilesPayload: frameworkProfiles,
   languageProfilesPayload: languageProfiles,
   conformanceLevelsPayload: conformanceLevels,
-  knownLanes: knownConformanceLanes.filter((laneId) => laneId !== 'conformance-c4'),
+  knownLanes: knownConformanceLanes.filter((laneId) => laneId !== 'conformance-framework-canonicalization'),
   runId: 'run-usr-framework-conformance-dashboard-002',
   lane: 'ci'
 });

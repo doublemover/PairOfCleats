@@ -3,7 +3,7 @@ import { runUsrConformanceLevelBaselineValidation } from './usr-conformance-leve
 
 runUsrConformanceLevelBaselineValidation({
   targetLevel: 'C1',
-  lane: 'conformance-c1',
+  lane: 'conformance-contract-enforcement',
   requireAllProfiles: true
 });
 
