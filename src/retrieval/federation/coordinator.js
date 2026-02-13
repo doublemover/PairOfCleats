@@ -29,6 +29,14 @@ const MODE_PAYLOAD_KEYS = Object.freeze({
   'extracted-prose': 'extractedProse',
   records: 'records'
 });
+const MODE_FLAG_COVERAGE = Object.freeze({
+  code: ['code'],
+  prose: ['prose', 'extracted-prose'],
+  'extracted-prose': ['extracted-prose'],
+  records: ['records'],
+  both: ['code', 'prose', 'extracted-prose'],
+  all: ['code', 'prose', 'extracted-prose', 'records']
+});
 const MAX_FEDERATED_TOP = 500;
 const MAX_FEDERATED_PER_REPO_TOP = 1000;
 const MAX_FEDERATED_CONCURRENCY = 32;
@@ -96,6 +104,88 @@ const resolveRequestedModes = (modeValue) => {
   if (mode === 'extracted-prose') return ['extracted-prose'];
   if (mode === 'records') return ['records'];
   return ['code', 'prose', 'extracted-prose'];
+};
+
+const splitAtEndOfOptions = (args) => {
+  const markerIndex = args.findIndex((token) => String(token || '') === '--');
+  if (markerIndex < 0) {
+    return {
+      options: args.slice(),
+      positional: []
+    };
+  }
+  return {
+    options: args.slice(0, markerIndex),
+    positional: args.slice(markerIndex)
+  };
+};
+
+const removeModeFlag = (args) => {
+  const { options, positional } = splitAtEndOfOptions(args);
+  const output = [];
+  for (let i = 0; i < options.length; i += 1) {
+    const token = String(options[i] || '');
+    if (token === '--mode') {
+      if (i + 1 < options.length) i += 1;
+      continue;
+    }
+    if (token.startsWith('--mode=')) continue;
+    output.push(token);
+  }
+  return [...output, ...positional];
+};
+
+/**
+ * Apply a per-repo mode override to prebuilt federated per-repo args.
+ *
+ * @param {string[]} args
+ * @param {string|null} modeFlag
+ * @returns {string[]}
+ */
+const applyModeOverride = (args, modeFlag) => {
+  const withoutMode = removeModeFlag(args);
+  if (!modeFlag) return withoutMode;
+  const { options, positional } = splitAtEndOfOptions(withoutMode);
+  return [...options, '--mode', modeFlag, ...positional];
+};
+
+/**
+ * Build one or more per-repo mode calls needed to satisfy a repo's eligible
+ * mode set while avoiding known-unavailable modes.
+ *
+ * @param {string[]} eligibleModes
+ * @returns {Array<{modeFlag:string,modesCovered:Set<string>}>}
+ */
+const buildRepoModePlans = (eligibleModes = []) => {
+  const eligible = new Set(eligibleModes);
+  if (!eligible.size) return [];
+  const has = (mode) => eligible.has(mode);
+  if (has('code') && has('prose') && has('extracted-prose') && has('records')) {
+    return [{ modeFlag: 'all', modesCovered: new Set(MODE_FLAG_COVERAGE.all) }];
+  }
+  if (has('code') && has('prose') && has('extracted-prose') && !has('records')) {
+    return [{ modeFlag: 'both', modesCovered: new Set(MODE_FLAG_COVERAGE.both) }];
+  }
+  if (!has('code') && has('prose') && has('extracted-prose') && !has('records')) {
+    return [{ modeFlag: 'prose', modesCovered: new Set(MODE_FLAG_COVERAGE.prose) }];
+  }
+  const plans = [];
+  if (has('code')) {
+    plans.push({ modeFlag: 'code', modesCovered: new Set(MODE_FLAG_COVERAGE.code) });
+  }
+  if (has('prose') || has('extracted-prose')) {
+    if (has('prose') && has('extracted-prose')) {
+      plans.push({ modeFlag: 'prose', modesCovered: new Set(MODE_FLAG_COVERAGE.prose) });
+    } else if (has('extracted-prose')) {
+      plans.push({ modeFlag: 'extracted-prose', modesCovered: new Set(MODE_FLAG_COVERAGE['extracted-prose']) });
+    } else {
+      plans.push({ modeFlag: 'prose', modesCovered: new Set(['prose']) });
+    }
+  }
+  if (has('records')) {
+    plans.push({ modeFlag: 'records', modesCovered: new Set(MODE_FLAG_COVERAGE.records) });
+  }
+  return plans;
 };
 
 /**
@@ -310,6 +400,16 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
   });
 
   const selectedByMode = cohortResult.selectedReposByMode || {};
+  const repoEligibleModesById = new Map();
+  for (const mode of requestedModes) {
+    for (const repo of selectedByMode[mode] || []) {
+      if (!repo?.repoId) continue;
+      if (!repoEligibleModesById.has(repo.repoId)) {
+        repoEligibleModesById.set(repo.repoId, new Set());
+      }
+      repoEligibleModesById.get(repo.repoId).add(mode);
+    }
+  }
   const activeRepoIds = Array.from(new Set(
     requestedModes.flatMap((mode) => (selectedByMode[mode] || []).map((repo) => repo.repoId))
   )).sort((a, b) => a.localeCompare(b));
@@ -331,7 +431,7 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
   const includePaths = request.debug?.includePaths === true;
   const strictFailures = request.strict === true;
 
-  const perRepoArgs = request.rawArgs
+  const basePerRepoArgs = request.rawArgs
     ? buildPerRepoArgsFromCli({ rawArgs: request.rawArgs, perRepoTop })
     : buildPerRepoArgsFromRequest({
       query,
@@ -380,7 +480,7 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
       concurrency
     },
     runtime: {
-      perRepoArgs,
+      perRepoArgs: basePerRepoArgs,
       requestedBackend: request.search?.backend || request.backend || null,
       requestedAnn: request.search?.ann ?? request.ann ?? null,
       debugIncludePaths: includePaths === true,
@@ -502,39 +602,77 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
           repoCaches = await resolveRepoCaches(repo.repoRootCanonical);
         }
         const fallbackCaches = getSharedCaches();
-        const result = await searchFn(repo.repoRootCanonical, {
-          args: perRepoArgs,
-          query: perRepoQuery,
-          emitOutput: false,
-          exitOnError: false,
-          indexCache: repoCaches?.indexCache || fallbackCaches.indexCache,
-          sqliteCache: repoCaches?.sqliteCache || fallbackCaches.sqliteCache,
-          signal: context.signal || null
-        });
+        let callSucceeded = false;
+        const repoModePlan = buildRepoModePlans(
+          Array.from(repoEligibleModesById.get(repo.repoId) || [])
+        );
+        const modePlans = repoModePlan.length
+          ? repoModePlan
+          : [{ modeFlag: null, modesCovered: new Set(requestedModes) }];
+        const combined = {
+          backend: 'federated',
+          code: [],
+          prose: [],
+          extractedProse: [],
+          records: []
+        };
+        let firstRepoError = null;
+        for (const plan of modePlans) {
+          const repoArgs = applyModeOverride(basePerRepoArgs, plan.modeFlag);
+          try {
+            const result = await searchFn(repo.repoRootCanonical, {
+              args: repoArgs,
+              query: perRepoQuery,
+              emitOutput: false,
+              exitOnError: false,
+              indexCache: repoCaches?.indexCache || fallbackCaches.indexCache,
+              sqliteCache: repoCaches?.sqliteCache || fallbackCaches.sqliteCache,
+              signal: context.signal || null
+            });
+            if (result?.backend) combined.backend = result.backend;
+            for (const mode of plan.modesCovered) {
+              const key = MODE_PAYLOAD_KEYS[mode];
+              if (!key) continue;
+              const hits = Array.isArray(result?.[key]) ? result[key] : [];
+              if (hits.length) combined[key].push(...hits);
+            }
+            callSucceeded = true;
+          } catch (error) {
+            const aborted = isFederatedAbortError(error, context.signal);
+            perRepoErrors.push({
+              repoId: repo.repoId,
+              error
+            });
+            if (!firstRepoError) firstRepoError = error;
+            if (strictFailures || aborted) {
+              throw error;
+            }
+          }
+        }
+        if (!callSucceeded) {
+          const error = firstRepoError || createError(
+            ERROR_CODES.NO_INDEX,
+            `Federated search failed for ${repo.repoId}: no eligible mode call succeeded.`
+          );
+          diagnostics.push({
+            repoId: repo.repoId,
+            status: error?.code === ERROR_CODES.NO_INDEX ? 'missing_index' : 'error',
+            error: {
+              code: error?.code || ERROR_CODES.INTERNAL,
+              message: error?.message || String(error)
+            }
+          });
+          continue;
+        }
         perRepoResults.push({
           repoId: repo.repoId,
           repoAlias: repo.alias,
           priority: repo.priority || 0,
-          result
+          result: combined
         });
         diagnostics.push({ repoId: repo.repoId, status: 'ok' });
       } catch (error) {
-        const aborted = isFederatedAbortError(error, context.signal);
-        perRepoErrors.push({
-          repoId: repo.repoId,
-          error
-        });
-        diagnostics.push({
-          repoId: repo.repoId,
-          status: aborted ? 'cancelled' : error?.code === ERROR_CODES.NO_INDEX ? 'missing_index' : 'error',
-          error: {
-            code: error?.code || ERROR_CODES.INTERNAL,
-            message: error?.message || String(error)
-          }
-        });
-        if (strictFailures || aborted) {
-          throw error;
-        }
+        throw error;
       }
     }
   });
