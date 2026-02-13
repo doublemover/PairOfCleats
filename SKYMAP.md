@@ -37,7 +37,12 @@ Why first:
 
 ---
 
-## Phase 14 — Incremental Diffing & Snapshots (Time Travel, Regression Debugging)
+## Phase 14 — Reference specification (non-tracking)
+
+> This section is retained as the detailed Phase 14 specification reference.
+> It is intentionally **non-tracking**: checkbox state here is not authoritative for project status.
+> Authoritative status and remaining work are tracked below in "Current implementation status (authoritative)" and in sections `14.1`–`14.6`.
+
 
 ### Objective
 
@@ -69,10 +74,10 @@ Additional docs that MUST be updated if Phase 14 adds new behavior or config:
 - **Diff artifacts** (bounded, deterministic change sets + summaries).
 
 ### Phase 14 Acceptance (explicit)
-- [x] Snapshot artifacts are schema‑valid and deterministic across runs.
-- [x] “As‑of” retrieval can target a snapshot without fallback to live builds.
-- [x] Diff artifacts are bounded, deterministic, and machine‑readable.
-- [x] Snapshot/diff tooling surfaces are present in CLI/API.
+- Snapshot artifacts are schema‑valid and deterministic across runs.
+- “As‑of” retrieval can target a snapshot without fallback to live builds.
+- Diff artifacts are bounded, deterministic, and machine‑readable.
+- Snapshot/diff tooling surfaces are present in CLI/API.
 
 ### Phase 14 Implementation Order (must follow)
 1. 14.1.1 IndexRef parsing and resolution.
@@ -87,85 +92,85 @@ Additional docs that MUST be updated if Phase 14 adds new behavior or config:
 10. 14.6 Optional HTTP API integration.
 
 ### Phase 14 Non-negotiable invariants
-- [ ] Explicit refs/roots never silently fallback:
-  - [ ] `--as-of`, `--snapshot`, `--index-root`, explicit `build:<id>`, and explicit `snap:<id>` must fail fast when required artifacts are missing.
-- [ ] Contract-first rollout:
-  - [ ] Add/update schemas in `src/contracts/schemas/*`, validators, and registry before exposing new CLI/API/MCP surface.
-- [ ] Mode-aware root correctness:
-  - [ ] Any flow that can resolve per-mode roots must track build-state, maintenance, and telemetry against each selected mode root (no single-root assumptions).
-- [ ] Artifact presence checks must recognize compressed outputs:
-  - [ ] Presence checks for required artifacts must include uncompressed and compressed variants (`.json`, `.jsonl`, `.jsonl.gz`, `.jsonl.zst`, plus manifest-driven shard forms).
+- Explicit refs/roots never silently fallback:
+  - `--as-of`, `--snapshot`, `--index-root`, explicit `build:<id>`, and explicit `snap:<id>` must fail fast when required artifacts are missing.
+- Contract-first rollout:
+  - Add/update schemas in `src/contracts/schemas/*`, validators, and registry before exposing new CLI/API/MCP surface.
+- Mode-aware root correctness:
+  - Any flow that can resolve per-mode roots must track build-state, maintenance, and telemetry against each selected mode root (no single-root assumptions).
+- Artifact presence checks must recognize compressed outputs:
+  - Presence checks for required artifacts must include uncompressed and compressed variants (`.json`, `.jsonl`, `.jsonl.gz`, `.jsonl.zst`, plus manifest-driven shard forms).
 
 
 ### 14.1 Snapshot & diff artifact surface (contracts, retention, safety)
 
-- [ ] Define the on-disk **public artifact surface** under each repo cache root:
-  - [ ] `snapshots/manifest.json` — snapshot registry (authoritative index of snapshots)
-  - [ ] `snapshots/<snapshotId>/snapshot.json` — immutable per-snapshot metadata record
-  - [ ] `snapshots/<snapshotId>/frozen.json` — immutable freeze metadata record (when frozen)
-  - [ ] `snapshots/<snapshotId>/frozen/index-<mode>/...` — frozen snapshot index roots (immutable copies)
-  - [ ] `diffs/manifest.json` — diff registry (authoritative index of diffs)
-  - [ ] `diffs/<diffId>/inputs.json` — canonical diff input identity (always present)
-  - [ ] `diffs/<diffId>/summary.json` — bounded diff summary (always present)
-  - [ ] `diffs/<diffId>/events.jsonl` — bounded event stream (may be truncated)
+- Define the on-disk **public artifact surface** under each repo cache root:
+  - `snapshots/manifest.json` — snapshot registry (authoritative index of snapshots)
+  - `snapshots/<snapshotId>/snapshot.json` — immutable per-snapshot metadata record
+  - `snapshots/<snapshotId>/frozen.json` — immutable freeze metadata record (when frozen)
+  - `snapshots/<snapshotId>/frozen/index-<mode>/...` — frozen snapshot index roots (immutable copies)
+  - `diffs/manifest.json` — diff registry (authoritative index of diffs)
+  - `diffs/<diffId>/inputs.json` — canonical diff input identity (always present)
+  - `diffs/<diffId>/summary.json` — bounded diff summary (always present)
+  - `diffs/<diffId>/events.jsonl` — bounded event stream (may be truncated)
 
-- [ ] Standardize **ID + naming rules**:
-  - [ ] Snapshot IDs: `snap-YYYYMMDD-HHMMSS-<shortid>` (default) plus optional user `label`
-  - [ ] Diff IDs: `diff_<sha256><shortid>` (default)
-  - [ ] Ensure IDs are filesystem-safe.
-  - [ ] Ensure deterministic ordering for registry output (sort by `createdAt`, then `id`).
+- Standardize **ID + naming rules**:
+  - Snapshot IDs: `snap-YYYYMMDD-HHMMSS-<shortid>` (default) plus optional user `label`
+  - Diff IDs: `diff_<sha256><shortid>` (default)
+  - Ensure IDs are filesystem-safe.
+  - Ensure deterministic ordering for registry output (sort by `createdAt`, then `id`).
 
-- [ ] Define snapshot registry entry schema (minimum fields):
-  - [ ] `id`, `type` (`pointer` | `frozen`), `createdAt`
-  - [ ] `label` (nullable), `tags` (string[])
-  - [ ] `buildId` (from `build_state.json`), `configHash`, `toolVersion`
-  - [ ] `buildRoot` (repo-cache-relative path), plus `modeBuildRoots` map (`mode -> repo-cache-relative index root`)
-  - [ ] `repoProvenance` (best-effort: SCM provider + revision/branch if available)
-  - [ ] `integritySummary` (best-effort counts + size estimates + `validatedAt` timestamp)
-  - [ ] `hasFrozen` + `frozenAt` (when frozen)
-  - [ ] `frozenFromBuildId` (optional, when frozen snapshot derives from pointer)
-  - [ ] future-proof fields (schema allows but does not require): `workspaceId`, `namespaceKey`
+- Define snapshot registry entry schema (minimum fields):
+  - `id`, `type` (`pointer` | `frozen`), `createdAt`
+  - `label` (nullable), `tags` (string[])
+  - `buildId` (from `build_state.json`), `configHash`, `toolVersion`
+  - `buildRoot` (repo-cache-relative path), plus `modeBuildRoots` map (`mode -> repo-cache-relative index root`)
+  - `repoProvenance` (best-effort: SCM provider + revision/branch if available)
+  - `integritySummary` (best-effort counts + size estimates + `validatedAt` timestamp)
+  - `hasFrozen` + `frozenAt` (when frozen)
+  - `frozenFromBuildId` (optional, when frozen snapshot derives from pointer)
+  - future-proof fields (schema allows but does not require): `workspaceId`, `namespaceKey`
     - Defer multi-repo/workspace orchestration to **Phase 15 — Federation & Multi-Repo**.
 
-  - [ ] Define diff registry entry schema (minimum fields):
-    - [ ] `id`, `createdAt`, `from` + `to` refs (snapshotId/buildId/indexRootRef), `modes`
-    - [ ] `summaryPath` and optional `eventsPath`
-    - [ ] `truncated` flag + truncation metadata (`maxEvents`, `maxBytes`)
-    - [ ] `compat` block capturing `from.configHash` vs `to.configHash` and `toolVersion` mismatches.
-- [ ] Define `diffs/<diffId>/inputs.json` schema (minimum fields):
-  - [ ] `id`, `createdAt`, `from`, `to`, `modes`, `allowMismatch`
-  - [ ] `identityHash` of canonical inputs (deterministic)
-  - [ ] `from.configHash`/`to.configHash`, `from.toolVersion`/`to.toolVersion` (for audit)
-  - [ ] Specify identity hash inputs explicitly (fields included/excluded; createdAt/tags/labels excluded).
+  - Define diff registry entry schema (minimum fields):
+    - `id`, `createdAt`, `from` + `to` refs (snapshotId/buildId/indexRootRef), `modes`
+    - `summaryPath` and optional `eventsPath`
+    - `truncated` flag + truncation metadata (`maxEvents`, `maxBytes`)
+    - `compat` block capturing `from.configHash` vs `to.configHash` and `toolVersion` mismatches.
+- Define `diffs/<diffId>/inputs.json` schema (minimum fields):
+  - `id`, `createdAt`, `from`, `to`, `modes`, `allowMismatch`
+  - `identityHash` of canonical inputs (deterministic)
+  - `from.configHash`/`to.configHash`, `from.toolVersion`/`to.toolVersion` (for audit)
+  - Specify identity hash inputs explicitly (fields included/excluded; createdAt/tags/labels excluded).
 
-- [ ] Make registries **atomic and crash-safe**:
-  - [ ] Use atomic write (temp + rename) and stable JSON output.
-  - [ ] Avoid partial registry writes leaving corrupt JSON (registry must always be readable or rolled back).
-  - [ ] If using per-snapshot `snapshots/<id>/snapshot.json`, write it first, then append to `snapshots/manifest.json`.
+- Make registries **atomic and crash-safe**:
+  - Use atomic write (temp + rename) and stable JSON output.
+  - Avoid partial registry writes leaving corrupt JSON (registry must always be readable or rolled back).
+  - If using per-snapshot `snapshots/<id>/snapshot.json`, write it first, then append to `snapshots/manifest.json`.
 
-- [ ] Add **retention policy knobs** (defaults tuned for safety):
-  - [ ] `indexing.snapshots.maxPointerSnapshots` (default: 25)
-  - [ ] `indexing.snapshots.maxFrozenSnapshots` (default: 10)
-  - [ ] `indexing.snapshots.retainDays` (default: 30)
-  - [ ] `indexing.diffs.maxDiffs` (default: 50)
-  - [ ] `indexing.diffs.retainDays` (default: 30)
-  - [ ] `indexing.diffs.maxEvents` / `indexing.diffs.maxBytes` (bounded output)
-  - [ ] Retention must respect tags (e.g., `release` is never deleted automatically).
+- Add **retention policy knobs** (defaults tuned for safety):
+  - `indexing.snapshots.maxPointerSnapshots` (default: 25)
+  - `indexing.snapshots.maxFrozenSnapshots` (default: 10)
+  - `indexing.snapshots.retainDays` (default: 30)
+  - `indexing.diffs.maxDiffs` (default: 50)
+  - `indexing.diffs.retainDays` (default: 30)
+  - `indexing.diffs.maxEvents` / `indexing.diffs.maxBytes` (bounded output)
+  - Retention must respect tags (e.g., `release` is never deleted automatically).
 
-- [ ] Enforce **path safety** for all snapshot/diff paths:
-  - [ ] Treat all registry paths as repo-cache-relative.
-  - [ ] Refuse any `buildRoot` / `modeBuildRoots` values that escape the repo cache root (no `..`, no absolute paths).
-  - [ ] Refuse snapshot/diff output dirs if they escape the repo cache root.
-  - [ ] Define redaction rules for `path:` refs and output fields (persist hash + redacted placeholder; never persist raw absolute paths).
-  - [ ] Define error codes for snapshot/diff failures (validation missing, path escape, mismatch without allow, unknown ref).
+- Enforce **path safety** for all snapshot/diff paths:
+  - Treat all registry paths as repo-cache-relative.
+  - Refuse any `buildRoot` / `modeBuildRoots` values that escape the repo cache root (no `..`, no absolute paths).
+  - Refuse snapshot/diff output dirs if they escape the repo cache root.
+  - Define redaction rules for `path:` refs and output fields (persist hash + redacted placeholder; never persist raw absolute paths).
+  - Define error codes for snapshot/diff failures (validation missing, path escape, mismatch without allow, unknown ref).
 
-- [ ] Integrate **validation gating semantics** into the contract:
-  - [ ] Pointer snapshots may only reference builds that passed index validation (see Phase 14.2).
-  - [ ] Frozen snapshots must be self-contained and re-validatable.
-- [ ] Enforce schema-first implementation sequence:
-  - [ ] Add artifact schemas + validators + contract registry bindings first.
-  - [ ] Wire writers/readers second.
-  - [ ] Expose CLI/API/MCP entrypoints only after schema validation paths are in place.
+- Integrate **validation gating semantics** into the contract:
+  - Pointer snapshots may only reference builds that passed index validation (see Phase 14.2).
+  - Frozen snapshots must be self-contained and re-validatable.
+- Enforce schema-first implementation sequence:
+  - Add artifact schemas + validators + contract registry bindings first.
+  - Wire writers/readers second.
+  - Expose CLI/API/MCP entrypoints only after schema validation paths are in place.
 
 Touchpoints:
 - `src/index/snapshots/**` (new)
@@ -180,55 +185,55 @@ Touchpoints:
 - `docs/specs/index-diffs.md`
 
 #### Tests
-- [ ] `tests/unit/snapshots-registry.unit.js`
-  - [ ] Registry schema validation (valid/invalid cases)
-  - [ ] Atomic update behavior (simulate interrupted write; registry remains readable)
-  - [ ] Path safety (reject absolute paths and `..` traversal)
-  - [ ] Deterministic ordering (`createdAt`, then `id`)
-  - [ ] Tag reverse index is stable + deterministic
-  - [ ] Retention honors protected tags (e.g., `release`)
-- [ ] `tests/unit/diffs-registry.unit.js`
-  - [ ] Schema validation + bounded/truncation metadata correctness
-  - [ ] Registry ordering is deterministic
+- `tests/unit/snapshots-registry.unit.js`
+  - Registry schema validation (valid/invalid cases)
+  - Atomic update behavior (simulate interrupted write; registry remains readable)
+  - Path safety (reject absolute paths and `..` traversal)
+  - Deterministic ordering (`createdAt`, then `id`)
+  - Tag reverse index is stable + deterministic
+  - Retention honors protected tags (e.g., `release`)
+- `tests/unit/diffs-registry.unit.js`
+  - Schema validation + bounded/truncation metadata correctness
+  - Registry ordering is deterministic
 
 
 ### 14.2 Pointer snapshots (creation, validation gating, CLI/API)
 
-- [ ] Implement pointer snapshot creation:
-  - [ ] Resolve repo cache root and current build roots from `builds/current.json`.
-  - [ ] Load `build_state.json` from the current build root (for `buildId`, `configHash`, `toolVersion`, and provenance).
-  - [ ] Require a successful artifact validation signal before snapshotting:
-    - [ ] Preferred: consume a persisted validation report if present.
-    - [ ] Otherwise: run validation on-demand against each mode index root.
-    - [ ] Define authoritative validation signal + precedence (build_state.validation vs report file vs on-demand run); fail if conflicting.
-  - [ ] Refuse snapshot creation when builds are incomplete:
-    - [ ] If an index mode is missing required artifacts, fail.
-    - [ ] If embeddings/risk passes are still pending for a mode, fail.
-    - [ ] No allow-incomplete override in Phase 14 (must align with spec).
-  - [ ] Materialize snapshot entry with:
-    - [ ] `buildRoot` + `modeBuildRoots` captured as **repo-cache-relative** paths.
-    - [ ] `integritySummary` populated from validation output + minimal artifact counts.
-  - [ ] Write immutable per-snapshot metadata:
-    - [ ] `snapshots/<snapshotId>/snapshot.json` (write atomically).
-    - [ ] Keep the registry entry minimal and link to the per-snapshot record if desired.
-  - [ ] Append entry to `snapshots/manifest.json` atomically.
-  - [ ] Apply retention after creation (delete oldest pointer snapshots unless tagged).
+- Implement pointer snapshot creation:
+  - Resolve repo cache root and current build roots from `builds/current.json`.
+  - Load `build_state.json` from the current build root (for `buildId`, `configHash`, `toolVersion`, and provenance).
+  - Require a successful artifact validation signal before snapshotting:
+    - Preferred: consume a persisted validation report if present.
+    - Otherwise: run validation on-demand against each mode index root.
+    - Define authoritative validation signal + precedence (build_state.validation vs report file vs on-demand run); fail if conflicting.
+  - Refuse snapshot creation when builds are incomplete:
+    - If an index mode is missing required artifacts, fail.
+    - If embeddings/risk passes are still pending for a mode, fail.
+    - No allow-incomplete override in Phase 14 (must align with spec).
+  - Materialize snapshot entry with:
+    - `buildRoot` + `modeBuildRoots` captured as **repo-cache-relative** paths.
+    - `integritySummary` populated from validation output + minimal artifact counts.
+  - Write immutable per-snapshot metadata:
+    - `snapshots/<snapshotId>/snapshot.json` (write atomically).
+    - Keep the registry entry minimal and link to the per-snapshot record if desired.
+  - Append entry to `snapshots/manifest.json` atomically.
+  - Apply retention after creation (delete oldest pointer snapshots unless tagged).
 
-- [ ] Add CLI surface:
-  - [ ] `pairofcleats index snapshot create [--label <label>] [--tags <csv>] [--modes <csv>]`
-  - [ ] `pairofcleats index snapshot list [--json]`
-  - [ ] `pairofcleats index snapshot show <snapshotId> [--json]`
-  - [ ] `pairofcleats index snapshot rm <snapshotId> [--force]`
+- Add CLI surface:
+  - `pairofcleats index snapshot create [--label <label>] [--tags <csv>] [--modes <csv>]`
+  - `pairofcleats index snapshot list [--json]`
+  - `pairofcleats index snapshot show <snapshotId> [--json]`
+  - `pairofcleats index snapshot rm <snapshotId> [--force]`
 
-- [ ] Add API surface (recommended for UI/MCP parity):
-  - [ ] `GET /index/snapshots` (list)
-  - [ ] `GET /index/snapshots/:id` (show)
-  - [ ] `POST /index/snapshots` (create)
-  - [ ] Ensure endpoints never expose absolute filesystem paths.
+- Add API surface (recommended for UI/MCP parity):
+  - `GET /index/snapshots` (list)
+  - `GET /index/snapshots/:id` (show)
+  - `POST /index/snapshots` (create)
+  - Ensure endpoints never expose absolute filesystem paths.
 
-- [ ] Sweep-driven hardening for snapshot creation:
-  - [ ] When reading `builds/current.json`, treat any buildRoot that escapes repo cache root as **invalid** and refuse snapshotting.
-  - [ ] Ensure snapshot manifest writes are atomic and do not corrupt on crash.
+- Sweep-driven hardening for snapshot creation:
+  - When reading `builds/current.json`, treat any buildRoot that escapes repo cache root as **invalid** and refuse snapshotting.
+  - Ensure snapshot manifest writes are atomic and do not corrupt on crash.
 
 Touchpoints:
 - `bin/pairofcleats.js` (new subcommands)
@@ -243,40 +248,40 @@ Touchpoints:
 - `tools/api/**` (if API endpoints added)
 
 #### Tests
-  - [ ] `tests/services/snapshot-create.test.js`
-  - [ ] Build an index; create a pointer snapshot; assert registry entry exists and references current build.
-  - [ ] Fail creation when artifacts are missing or validation fails.
-  - [ ] Fail creation when `build_state.json` is missing or `validation.ok !== true`.
-  - [ ] No allow-incomplete override: ensure creation fails when validation missing even with flags.
-  - [ ] `--modes` subset only snapshots those modes.
-  - [ ] Retention deletes oldest untagged pointer snapshots.
+  - `tests/services/snapshot-create.test.js`
+  - Build an index; create a pointer snapshot; assert registry entry exists and references current build.
+  - Fail creation when artifacts are missing or validation fails.
+  - Fail creation when `build_state.json` is missing or `validation.ok !== true`.
+  - No allow-incomplete override: ensure creation fails when validation missing even with flags.
+  - `--modes` subset only snapshots those modes.
+  - Retention deletes oldest untagged pointer snapshots.
 
 
 ### 14.3 Frozen snapshots (immutable copies + integrity verification)
 
-- [ ] Implement snapshot freeze operation:
-  - [ ] `pairofcleats index snapshot freeze <snapshotId>`
-  - [ ] Preconditions:
-    - [ ] Snapshot exists and is `pointer` (or already `frozen` → no-op / error depending on flags).
-    - [ ] Referenced build roots exist and are readable.
-  - [ ] Copy the snapshot’s index artifacts into:
-    - [ ] `snapshots/<snapshotId>/frozen/index-<mode>/...`
-  - [ ] Copy strategy:
-    - [ ] Use `pieces/manifest.json` from each mode’s index root as the authoritative list of files to copy.
-    - [ ] Prefer hardlinking (same filesystem) when safe; otherwise copy bytes.
-    - [ ] Always copy metadata (`index_state.json`, `pieces/manifest.json`, and any required build metadata files).
-  - [ ] Integrity verification:
-    - [ ] Verify copied pieces against `pieces/manifest.json` checksums.
-    - [ ] Re-run index validation against the frozen index roots.
-  - [ ] Atomicity:
-    - [ ] Freeze into a temp directory and rename into place only after verification.
-  - [ ] Update `snapshots/manifest.json`:
-    - [ ] Flip `type` to `frozen`.
-    - [ ] Update `buildRoot` / `modeBuildRoots` to point at the frozen roots.
-    - [ ] Preserve the original `buildId` / provenance; record `frozenFromBuildId` if useful.
+- Implement snapshot freeze operation:
+  - `pairofcleats index snapshot freeze <snapshotId>`
+  - Preconditions:
+    - Snapshot exists and is `pointer` (or already `frozen` → no-op / error depending on flags).
+    - Referenced build roots exist and are readable.
+  - Copy the snapshot’s index artifacts into:
+    - `snapshots/<snapshotId>/frozen/index-<mode>/...`
+  - Copy strategy:
+    - Use `pieces/manifest.json` from each mode’s index root as the authoritative list of files to copy.
+    - Prefer hardlinking (same filesystem) when safe; otherwise copy bytes.
+    - Always copy metadata (`index_state.json`, `pieces/manifest.json`, and any required build metadata files).
+  - Integrity verification:
+    - Verify copied pieces against `pieces/manifest.json` checksums.
+    - Re-run index validation against the frozen index roots.
+  - Atomicity:
+    - Freeze into a temp directory and rename into place only after verification.
+  - Update `snapshots/manifest.json`:
+    - Flip `type` to `frozen`.
+    - Update `buildRoot` / `modeBuildRoots` to point at the frozen roots.
+    - Preserve the original `buildId` / provenance; record `frozenFromBuildId` if useful.
 
-- [ ] Add supporting maintenance commands:
-  - [ ] `pairofcleats index snapshot gc [--dry-run]` (enforce retention; never delete `release`-tagged snapshots)
+- Add supporting maintenance commands:
+  - `pairofcleats index snapshot gc [--dry-run]` (enforce retention; never delete `release`-tagged snapshots)
 
 Touchpoints:
 - `tools/index-snapshot.js` (freeze + gc)
@@ -288,64 +293,64 @@ Touchpoints:
 - `src/shared/json-stream/streams.js` (cleanup + tombstone handling for safe replacement)
 
 #### Tests
-  - [ ] `tests/services/snapshot-freeze.test.js`
-  - [ ] Create pointer snapshot → freeze → validate frozen index roots succeed.
-  - [ ] Ensure freeze is atomic (simulate failure mid-copy → no partial frozen dir is considered valid).
-  - [ ] Ensure frozen snapshot remains usable after deleting the original build root.
-  - [ ] Validate checksum mismatch fails freeze and leaves no finalized frozen dir.
-  - [ ] Hardlink vs copy behavior (same filesystem vs cross-device).
+  - `tests/services/snapshot-freeze.test.js`
+  - Create pointer snapshot → freeze → validate frozen index roots succeed.
+  - Ensure freeze is atomic (simulate failure mid-copy → no partial frozen dir is considered valid).
+  - Ensure frozen snapshot remains usable after deleting the original build root.
+  - Validate checksum mismatch fails freeze and leaves no finalized frozen dir.
+  - Hardlink vs copy behavior (same filesystem vs cross-device).
 
 
 ### 14.4 Deterministic diff computation (bounded, machine-readable)
 
-- [ ] Implement diff computation between two index states:
-  - [ ] CLI: `pairofcleats index diff --from <snapshotId|buildId|path> --to <snapshotId|buildId|path> [--modes <csv>]`
-  - [ ] Resolve `from` and `to` to per-mode index roots (snapshot pointer, snapshot frozen, or explicit indexRoot).
-  - [ ] Refuse or annotate mismatches:
-    - [ ] If `configHash` differs, require `--allow-mismatch` or mark output as “non-comparable”.
-    - [ ] If `toolVersion` differs, annotate (diff still possible but less trustworthy).
+- Implement diff computation between two index states:
+  - CLI: `pairofcleats index diff --from <snapshotId|buildId|path> --to <snapshotId|buildId|path> [--modes <csv>]`
+  - Resolve `from` and `to` to per-mode index roots (snapshot pointer, snapshot frozen, or explicit indexRoot).
+  - Refuse or annotate mismatches:
+    - If `configHash` differs, require `--allow-mismatch` or mark output as “non-comparable”.
+    - If `toolVersion` differs, annotate (diff still possible but less trustworthy).
 
-  - [ ] Define diff output formats:
-    - [ ] Always write `diffs/<diffId>/inputs.json` (canonical input identity + mode selection).
-    - [ ] Always write `diffs/<diffId>/summary.json` (bounded):
-    - [ ] counts of adds/removes/changes by category
-    - [ ] `truncated` boolean + reason
-    - [ ] `from`/`to` metadata (snapshot IDs, build IDs, createdAt)
-  - [ ] Optionally write `diffs/<diffId>/events.jsonl` (bounded stream):
-    - [ ] `file_added | file_removed | file_changed` (path + old/new hash)
-    - [ ] `chunk_added | chunk_removed | chunk_changed`:
-      - [ ] stable `chunkId` from `metaV2.chunkId`
-      - [ ] minimal before/after summary (`file`, `segment`, `kind`, `name`, `start/end`), plus optional `semanticSig` (hash of normalized docmeta/metaV2 subset)
-    - [ ] `graph_edge_added | graph_edge_removed` (graph name + from/to node IDs)
-    - [ ] Allow future event types (symbols/contracts/risk) without breaking old readers.
+  - Define diff output formats:
+    - Always write `diffs/<diffId>/inputs.json` (canonical input identity + mode selection).
+    - Always write `diffs/<diffId>/summary.json` (bounded):
+    - counts of adds/removes/changes by category
+    - `truncated` boolean + reason
+    - `from`/`to` metadata (snapshot IDs, build IDs, createdAt)
+  - Optionally write `diffs/<diffId>/events.jsonl` (bounded stream):
+    - `file_added | file_removed | file_changed` (path + old/new hash)
+    - `chunk_added | chunk_removed | chunk_changed`:
+      - stable `chunkId` from `metaV2.chunkId`
+      - minimal before/after summary (`file`, `segment`, `kind`, `name`, `start/end`), plus optional `semanticSig` (hash of normalized docmeta/metaV2 subset)
+    - `graph_edge_added | graph_edge_removed` (graph name + from/to node IDs)
+    - Allow future event types (symbols/contracts/risk) without breaking old readers.
 
-- [ ] Implement deterministic diffing rules:
-    - [ ] Define canonical event taxonomy + ordering key in the roadmap (type order + stable key fields).
-    - [ ] Version ordering semantics explicitly (e.g., `orderingSchema: "diff-events-v1"`) and persist this in `summary.json`.
-    - [ ] Stable identity:
-      - [ ] Files keyed by repo-relative path.
-    - [ ] Chunks keyed by `metaV2.chunkId` (do **not** rely on numeric `chunk_meta.id`).
-    - [ ] Graph edges keyed by `(graph, fromId, toId)`.
-  - [ ] Stable ordering:
-    - [ ] Sort events by `(type, key)` so repeated runs produce byte-identical outputs.
-  - [ ] Boundedness:
-    - [ ] Enforce `indexing.diffs.maxEvents` and `indexing.diffs.maxBytes`.
-    - [ ] If exceeded, stop emitting events and mark summary as truncated; include category counts.
+- Implement deterministic diffing rules:
+    - Define canonical event taxonomy + ordering key in the roadmap (type order + stable key fields).
+    - Version ordering semantics explicitly (e.g., `orderingSchema: "diff-events-v1"`) and persist this in `summary.json`.
+    - Stable identity:
+      - Files keyed by repo-relative path.
+    - Chunks keyed by `metaV2.chunkId` (do **not** rely on numeric `chunk_meta.id`).
+    - Graph edges keyed by `(graph, fromId, toId)`.
+  - Stable ordering:
+    - Sort events by `(type, key)` so repeated runs produce byte-identical outputs.
+  - Boundedness:
+    - Enforce `indexing.diffs.maxEvents` and `indexing.diffs.maxBytes`.
+    - If exceeded, stop emitting events and mark summary as truncated; include category counts.
 
-- [ ] Integrate diff generation into incremental build:
-  - [ ] After a successful build+promotion, compute a diff vs the previous “latest” snapshot/build.
-  - [ ] Use incremental state (manifest) to compute file-level changes in O(changed) where possible.
-  - [ ] Emit diffs only after strict validation passes (so diffs don’t encode broken builds).
-  - [ ] Store the diff under `diffs/<diffId>/...` and append to `diffs/manifest.json` (do **not** mix diffs into buildRoot without a strong reason).
+- Integrate diff generation into incremental build:
+  - After a successful build+promotion, compute a diff vs the previous “latest” snapshot/build.
+  - Use incremental state (manifest) to compute file-level changes in O(changed) where possible.
+  - Emit diffs only after strict validation passes (so diffs don’t encode broken builds).
+  - Store the diff under `diffs/<diffId>/...` and append to `diffs/manifest.json` (do **not** mix diffs into buildRoot without a strong reason).
 
-- [ ] Sweep-driven hardening for incremental reuse/diff correctness (because this phase touches incremental state):
-  - [ ] Before reusing an “unchanged” incremental build, verify required artifacts exist (use `pieces/manifest.json` as the authoritative inventory).
-    - [ ] If any required piece is missing/corrupt, disable reuse and force rebuild.
-  - [ ] If explicit `--from`/`--to` refs resolve to roots missing required artifacts, fail with actionable errors (no fallback to latest/current).
-  - [ ] Fast-path diff only when all `pieces/manifest.json` checksums and shard counts match (shard-aware; sum per-piece counts).
-  - [ ] Ensure incremental cache invalidation is tied to a complete signature:
-    - [ ] Include artifact schema hash + tool version + key feature flags in the incremental signature.
-    - [ ] Include diff/snapshot emission toggles so changing these settings invalidates reuse.
+- Sweep-driven hardening for incremental reuse/diff correctness (because this phase touches incremental state):
+  - Before reusing an “unchanged” incremental build, verify required artifacts exist (use `pieces/manifest.json` as the authoritative inventory).
+    - If any required piece is missing/corrupt, disable reuse and force rebuild.
+  - If explicit `--from`/`--to` refs resolve to roots missing required artifacts, fail with actionable errors (no fallback to latest/current).
+  - Fast-path diff only when all `pieces/manifest.json` checksums and shard counts match (shard-aware; sum per-piece counts).
+  - Ensure incremental cache invalidation is tied to a complete signature:
+    - Include artifact schema hash + tool version + key feature flags in the incremental signature.
+    - Include diff/snapshot emission toggles so changing these settings invalidates reuse.
 
 Touchpoints:
 - `tools/index-diff.js` (new CLI implementation)
@@ -359,48 +364,48 @@ Touchpoints:
 - `src/shared/stable-json.js` + `src/shared/hash.js` (diffId stability)
 
 #### Tests
-  - [ ] `tests/services/index-diff.test.js`
-  - [ ] Build snapshot A; modify repo; build snapshot B; compute diff A→B.
-  - [ ] Assert file_changed appears for modified file.
-  - [ ] Assert chunk changes use `metaV2.chunkId` and are stable across runs.
-  - [ ] Assert ordering is deterministic (byte-identical `events.jsonl`).
-  - [ ] Assert truncation behavior when `maxEvents` is set low.
-  - [ ] Assert diffId deterministic for identical inputs (same IDs + same mode selection).
-  - [ ] Assert configHash mismatch requires explicit allow/flag and is annotated.
-  - [ ] Assert toolVersion mismatch is annotated (diff still produced).
-  - [ ] `tests/indexer/incremental/index-reuse-validation.test.js`
-  - [ ] Corrupt/remove a required artifact and verify incremental reuse is refused.
+  - `tests/services/index-diff.test.js`
+  - Build snapshot A; modify repo; build snapshot B; compute diff A→B.
+  - Assert file_changed appears for modified file.
+  - Assert chunk changes use `metaV2.chunkId` and are stable across runs.
+  - Assert ordering is deterministic (byte-identical `events.jsonl`).
+  - Assert truncation behavior when `maxEvents` is set low.
+  - Assert diffId deterministic for identical inputs (same IDs + same mode selection).
+  - Assert configHash mismatch requires explicit allow/flag and is annotated.
+  - Assert toolVersion mismatch is annotated (diff still produced).
+  - `tests/indexer/incremental/index-reuse-validation.test.js`
+  - Corrupt/remove a required artifact and verify incremental reuse is refused.
 
 
 ### 14.5 Retrieval + tooling integration: “as-of” snapshots and “what changed” surfaces
 
-- [ ] Add as-of targeting to retrieval/search:
-  - [ ] Canonical flag is `--as-of <IndexRef>`.
-  - [ ] Keep `--snapshot <snapshotId>` as compatibility alias only (`--as-of snap:<id>` internally).
-  - [ ] Resolve as-of ref to per-mode index roots via `snapshots/manifest.json`.
-  - [ ] Ensure as-of references never leak absolute paths (logs + JSON output must stay repo-relative).
-  - [ ] Explicit as-of refs fail fast when required artifacts are missing (no fallback to latest/current).
+- Add as-of targeting to retrieval/search:
+  - Canonical flag is `--as-of <IndexRef>`.
+  - Keep `--snapshot <snapshotId>` as compatibility alias only (`--as-of snap:<id>` internally).
+  - Resolve as-of ref to per-mode index roots via `snapshots/manifest.json`.
+  - Ensure as-of references never leak absolute paths (logs + JSON output must stay repo-relative).
+  - Explicit as-of refs fail fast when required artifacts are missing (no fallback to latest/current).
 
-- [ ] Add diff surfacing commands for humans and tools:
-  - [ ] `pairofcleats index diff list [--json]`
-  - [ ] `pairofcleats index diff show <diffId> [--format summary|jsonl]`
-  - [ ] `pairofcleats index diff explain <diffId>` (human-oriented summary + top changed files)
+- Add diff surfacing commands for humans and tools:
+  - `pairofcleats index diff list [--json]`
+  - `pairofcleats index diff show <diffId> [--format summary|jsonl]`
+  - `pairofcleats index diff explain <diffId>` (human-oriented summary + top changed files)
 
-- [ ] Extend “secondary index builders” to support snapshots:
-  - [ ] SQLite build: accept `--snapshot <snapshotId>` / `--as-of <IndexRef>` and resolve to `--index-root`.
-    - [ ] Ensure the SQLite build can target frozen snapshots as well as pointer snapshots (as long as artifacts still exist).
-    - [ ] Explicit refs/roots fail fast when mode artifacts are missing (no silent cross-build fallback).
-  - [ ] Validate tool: document `pairofcleats index validate --index-root <frozenSnapshotIndexRoot>` workflow (no new code required if `--index-root` already supported).
+- Extend “secondary index builders” to support snapshots:
+  - SQLite build: accept `--snapshot <snapshotId>` / `--as-of <IndexRef>` and resolve to `--index-root`.
+    - Ensure the SQLite build can target frozen snapshots as well as pointer snapshots (as long as artifacts still exist).
+    - Explicit refs/roots fail fast when mode artifacts are missing (no silent cross-build fallback).
+  - Validate tool: document `pairofcleats index validate --index-root <frozenSnapshotIndexRoot>` workflow (no new code required if `--index-root` already supported).
 
-- [ ] Add API surface (recommended):
-  - [ ] `GET /index/diffs` (list)
-  - [ ] `GET /index/diffs/:id` (summary)
-  - [ ] `GET /index/diffs/:id/events` (JSONL stream; bounded)
-  - [ ] `GET /search?snapshotId=...` (search “as-of” a snapshot)
+- Add API surface (recommended):
+  - `GET /index/diffs` (list)
+  - `GET /index/diffs/:id` (summary)
+  - `GET /index/diffs/:id/events` (JSONL stream; bounded)
+  - `GET /search?snapshotId=...` (search “as-of” a snapshot)
 
-- [ ] Sweep-driven hardening for retrieval caching (because this phase touches retrieval index selection):
-  - [ ] Ensure query cache keys include `asOf.identityHash` (or resolved buildId) so results cannot bleed across snapshots.
-  - [ ] Fix retrieval index signature calculation to account for sharded artifacts (see tests below) and include snapshot identity.
+- Sweep-driven hardening for retrieval caching (because this phase touches retrieval index selection):
+  - Ensure query cache keys include `asOf.identityHash` (or resolved buildId) so results cannot bleed across snapshots.
+  - Fix retrieval index signature calculation to account for sharded artifacts (see tests below) and include snapshot identity.
 
 Touchpoints:
 - `src/retrieval/cli-args.js` (add `--as-of`; keep `--snapshot` compatibility alias)
@@ -416,19 +421,19 @@ Touchpoints:
 - `docs/guides/commands.md` (CLI docs)
 
 #### Tests
-  - [ ] `tests/services/snapshot-query.test.js`
-  - [ ] Build snapshot A; modify repo; build snapshot B.
-  - [ ] Run the same query against `--snapshot A` and `--snapshot B`; assert results differ as expected.
-  - [ ] Assert “latest” continues to resolve to the current build when no snapshot is provided.
-- [ ] `tests/unit/retrieval-index-signature-shards.unit.js`
-  - [ ] Create a fake index dir with `chunk_meta.meta.json` + `chunk_meta.parts/*`.
-  - [ ] Assert the index signature changes when any shard changes.
-  - [ ] `tests/services/sqlite-build-snapshot.test.js`
-  - [ ] Build snapshot A.
-  - [ ] Run `pairofcleats lmdb build` / `pairofcleats sqlite build` equivalents with `--snapshot A`.
-  - [ ] Assert output DB is produced and corresponds to that snapshot’s artifacts.
-  - [ ] `tests/unit/retrieval-cache-key-asof.unit.js`
-    - [ ] Cache key includes `asOf.identityHash` or resolved buildId.
+  - `tests/services/snapshot-query.test.js`
+  - Build snapshot A; modify repo; build snapshot B.
+  - Run the same query against `--snapshot A` and `--snapshot B`; assert results differ as expected.
+  - Assert “latest” continues to resolve to the current build when no snapshot is provided.
+- `tests/unit/retrieval-index-signature-shards.unit.js`
+  - Create a fake index dir with `chunk_meta.meta.json` + `chunk_meta.parts/*`.
+  - Assert the index signature changes when any shard changes.
+  - `tests/services/sqlite-build-snapshot.test.js`
+  - Build snapshot A.
+  - Run `pairofcleats lmdb build` / `pairofcleats sqlite build` equivalents with `--snapshot A`.
+  - Assert output DB is produced and corresponds to that snapshot’s artifacts.
+  - `tests/unit/retrieval-cache-key-asof.unit.js`
+    - Cache key includes `asOf.identityHash` or resolved buildId.
 
 ---
 
@@ -457,6 +462,16 @@ Roadmap guidance MUST NOT redefine JSON schemas, file layouts, or event formats.
 - **Path privacy**: never persist absolute paths; `path:` refs may not be persisted unless `--persist-unsafe`, and must be redacted.
 
 ---
+
+## Current implementation status (authoritative)
+
+- Last updated: 2026-02-13T00:00:00Z
+- Completed: Phase 14 implementation tracks `14.1.1` through `14.6`.
+- Remaining work: `14.1.5 Retention defaults (optional)` only.
+- Remaining optional items:
+  - [ ] Create/follow `docs/specs/config-defaults.md` for retention defaults.
+  - [ ] Define `indexing.snapshots.keepPointer`, `keepFrozen`, `maxAgeDays`, `protectedTagGlobs`, `stagingMaxAgeHours` defaults.
+  - [ ] Define `indexing.diffs.keep`, `maxAgeDays`, and `indexing.diffs.compute.*` defaults.
 
 ## 14.1 Foundations (IndexRef + artifact contracts + safety)
 

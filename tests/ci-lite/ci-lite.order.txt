@@ -72,7 +72,7 @@ graph/graph-lazy-edge-load
 shared/cache/cache-root-versioning
 lang/contracts/usr-mixed-repo-integration-validation
 lang/javascript/js-relations
-lang/contracts/usr-gate-c-prereq-lock-validation
+lang/contracts/usr-gate-prerequisite-lock-validation
 lang/contracts/usr-framework-profile-matrix-sync-validation
 shared/fs/atomic-replace-cross-device-fallback
 indexing/postings/postings-doc-only-missing-doc-is-zero
@@ -671,7 +671,7 @@ tooling/providers/provider-registry-ordering
 diagnostics/diagnostics-transition-validation
 indexing/cache/workspace-global-cache-reuse
 storage/sqlite/build/args-parsing
-lang/contracts/usr-c0-baseline-validation
+lang/contracts/usr-foundation-baseline-validation
 storage/sqlite/sqlite-build-bench-contract
 services/index-diff
 shared/safe-regex/input-length-cap
@@ -749,7 +749,7 @@ storage/embeddings/embeddings-backend-resilience
 shared/config/config-normalization-quality-threads
 shared/abort/abort-propagates-to-queues
 indexing/policy/analysis-policy-schema
-lang/contracts/usr-c2-baseline-validation
+lang/contracts/usr-embedding-provenance-baseline-validation
 indexing/validate/index-validate-sharded-meta-consistency
 shared/index-ref
 tooling/lsp/lsp-restart-generation-safety
@@ -789,7 +789,7 @@ indexing/risk/interprocedural/stats-effective-config
 retrieval/cache/index-cache
 batch-build-infra-dsl/batch-build-infra-dsl-validation
 indexing/git/git-meta
-lang/contracts/usr-c3-baseline-validation
+lang/contracts/usr-risk-fixture-governance-baseline-validation
 lang/contracts/usr-embedding-bridge-validation
 indexing/embeddings/build/explicit-index-root-missing-mode-fails-fast
 lang/registry/collectors
@@ -797,7 +797,7 @@ lang/contracts/usr-failure-injection-validation
 indexing/contracts/schema-registry-single-source
 tooling/api-contracts/api-contracts-basic
 retrieval/ann/lancedb-candidate-filtering
-lang/contracts/usr-c1-baseline-validation
+lang/contracts/usr-contract-enforcement-baseline-validation
 indexing/discovery/discover-leading-space
 tooling/type-inference/crossfile-stats.unit
 storage/sqlite/sqlite-chunk-meta-streaming
@@ -902,7 +902,7 @@ indexing/build-state/build-truth-ledger-hash-alignment
 indexing/watch/build-state
 batch-data-interface-dsl/batch-data-interface-dsl-validation
 indexing/discovery/discover
-lang/contracts/usr-c4-baseline-validation
+lang/contracts/usr-framework-canonicalization-baseline-validation
 indexing/piece-assembly/assemble-pieces-no-guess
 indexing/relations/segment-language-fidelity
 indexing/imports/imports-esmodule-lexer-init
@@ -967,3 +967,4 @@ indexing/file-processor/unsupported-language-skip
 runner/harness/timings-ledger
 indexing/file-processor/skip
 tooling/lsp/typescript-provider-output-shape
+

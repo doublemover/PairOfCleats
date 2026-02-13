@@ -61,7 +61,7 @@ Each roadmap phase maps to a minimum CI gate bundle that must remain active in b
 | Phase A | `lang/contracts/usr-contract-enforcement`, `shared/contracts/usr-schema-validators`, `shared/contracts/usr-matrix-validators`, `decomposed-drift/decomposed-drift-validation` |
 | Phase B | `backcompat/backcompat-matrix-validation`, `lang/contracts/usr-rollout-migration-policy-validation`, `lang/contracts/usr-rollout-gate-validation` |
 | Phase C | `lang/contracts/usr-implementation-readiness-validation`, `lang/contracts/usr-observability-rollup-validation`, `lang/contracts/usr-security-gate-validation` |
-| Phase D | `lang/contracts/usr-c0-baseline-validation`, `lang/contracts/usr-c1-baseline-validation`, `lang/contracts/usr-c2-baseline-validation`, `lang/contracts/usr-c3-baseline-validation`, `lang/contracts/usr-c4-baseline-validation` |
+| Phase D | `lang/contracts/usr-foundation-baseline-validation`, `lang/contracts/usr-contract-enforcement-baseline-validation`, `lang/contracts/usr-embedding-provenance-baseline-validation`, `lang/contracts/usr-risk-fixture-governance-baseline-validation`, `lang/contracts/usr-framework-canonicalization-baseline-validation` |
 
 ## Compatibility policy
 
@@ -272,4 +272,5 @@ Deprecation changes are blocking until archival metadata requirements are met an
 - `docs/specs/usr-core-observability-performance-ops.md`
 - `docs/specs/usr-rollout-approval-lock.md`
 - `docs/archived/README.md`
+
 
