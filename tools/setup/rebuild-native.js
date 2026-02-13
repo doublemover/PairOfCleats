@@ -2,7 +2,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { createRequire } from 'node:module';
 
 const REQUIRED_NATIVE_PACKAGES = [
   'tree-sitter',
@@ -40,7 +39,6 @@ const OPTIONAL_NATIVE_PACKAGES = [
 ];
 
 const root = process.cwd();
-const requireFromRoot = createRequire(path.join(root, 'package.json'));
 const verifyOnly = process.argv.includes('--verify');
 const repairOnly = process.argv.includes('--repair');
 
@@ -110,32 +108,41 @@ const runPackageInstallScript = (pkgName, { buildFromSource = false } = {}) => {
 };
 
 const probePackage = async (pkgName) => {
-  try {
-    await import(pkgName);
-    return { ok: true, message: null };
-  } catch (error) {
-    if (
-      error?.code === 'ERR_MODULE_NOT_FOUND'
-      || error?.code === 'ERR_UNSUPPORTED_DIR_IMPORT'
-      || error?.code === 'ERR_PACKAGE_PATH_NOT_EXPORTED'
-      || error?.code === 'ERR_UNKNOWN_FILE_EXTENSION'
-    ) {
+  const probeScript = `
+    const pkg = process.argv[1];
+    (async () => {
       try {
-        requireFromRoot(pkgName);
-        return { ok: true, message: null };
-      } catch (importError) {
-        return {
-          ok: false,
-          message: importError?.message || `failed to require ${pkgName}`
-        };
+        await import(pkg);
+        process.exit(0);
+      } catch (importErr) {
+        try {
+          require(pkg);
+          process.exit(0);
+        } catch (requireErr) {
+          const message = (requireErr && requireErr.message)
+            || (importErr && importErr.message)
+            || 'failed to load package';
+          console.error(message);
+          process.exit(1);
+        }
       }
-    }
+    })();
+  `.trim();
 
-    return {
-      ok: false,
-      message: error?.message || `failed to require ${pkgName}`
-    };
+  const result = spawnSync(process.execPath, ['-e', probeScript, pkgName], {
+    cwd: root,
+    encoding: 'utf8'
+  });
+
+  if (result.status === 0) {
+    return { ok: true, message: null };
   }
+
+  const message = (result.stderr || result.stdout || '').trim();
+  return {
+    ok: false,
+    message: message || `failed to load ${pkgName}`
+  };
 };
 
 const getRequiredPackageFailures = async ({ label = 'verify:native' } = {}) => {
