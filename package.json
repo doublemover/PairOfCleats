@@ -100,7 +100,7 @@
     "dockerfile-ast": "^0.7.1",
     "es-module-lexer": "^2.0.0",
     "escomplex": "2.0.0-alpha",
-    "eslint": "9.39.2",
+    "eslint": "10.0.0",
     "esprima": "4.0.1",
     "esquery": "^1.7.0",
     "execa": "^9.6.1",
