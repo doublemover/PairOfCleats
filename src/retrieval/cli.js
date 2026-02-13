@@ -991,6 +991,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       verboseCache,
       elapsedMs,
       stageTracker,
+      outputBudget: userConfig?.search?.outputBudget || null,
       asOfContext
     });
 

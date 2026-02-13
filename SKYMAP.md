@@ -546,15 +546,15 @@ Fix intent and boolean semantics without regressions and make behavior explainab
 Stabilize output schemas and keep CI harnesses aligned with declared command surfaces.
 
 #### Tasks
-- [ ] Standardize `scoreBreakdown` shape across providers.
-- [ ] Add `scoreBreakdown.schemaVersion`.
-- [ ] Enforce one shared output budget policy (`maxBytes`, `maxFields`, `maxExplainItems`).
-- [ ] Ensure explain includes:
-  - [ ] routing decision and reason path
-  - [ ] compiled FTS `MATCH` string
-  - [ ] provider variants used
-  - [ ] capability gating outcomes
-- [ ] Move script-coverage drift work into a dedicated tooling lane and align `covers` entries with `package.json`.
+- [x] Standardize `scoreBreakdown` shape across providers.
+- [x] Add `scoreBreakdown.schemaVersion`.
+- [x] Enforce one shared output budget policy (`maxBytes`, `maxFields`, `maxExplainItems`).
+- [x] Ensure explain includes:
+  - [x] routing decision and reason path
+  - [x] compiled FTS `MATCH` string
+  - [x] provider variants used
+  - [x] capability gating outcomes
+- [x] Move script-coverage drift work into a dedicated tooling lane and align `covers` entries with `package.json`.
 
 #### Touchpoints
 - `src/retrieval/output/*`
@@ -563,11 +563,11 @@ Stabilize output schemas and keep CI harnesses aligned with declared command sur
 - `docs/testing/truth-table.md`
 
 #### Tests
-- [ ] `tests/retrieval/contracts/score-breakdown-contract-parity.test.js`
-- [ ] `tests/retrieval/contracts/score-breakdown-snapshots.test.js`
-- [ ] `tests/retrieval/contracts/score-breakdown-budget-limits.test.js`
-- [ ] `tests/retrieval/output/explain-output-includes-routing-and-fts-match.test.js`
-- [ ] `tests/tooling/script-coverage/harness-parity.test.js`
+- [x] `tests/retrieval/contracts/score-breakdown-contract-parity.test.js`
+- [x] `tests/retrieval/contracts/score-breakdown-snapshots.test.js`
+- [x] `tests/retrieval/contracts/score-breakdown-budget-limits.test.js`
+- [x] `tests/retrieval/output/explain-output-includes-routing-and-fts-match.test.js`
+- [x] `tests/tooling/script-coverage/harness-parity.test.js`
 
 ---
 

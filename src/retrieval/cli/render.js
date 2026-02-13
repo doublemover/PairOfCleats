@@ -1,5 +1,6 @@
 import { compactHit } from './render-output.js';
 import { formatFullChunk, formatShortChunk, getOutputCacheReporter } from '../output.js';
+import { applyOutputBudgetPolicy, normalizeOutputBudgetPolicy } from '../output/score-breakdown.js';
 
 export function renderSearchOutput({
   emitOutput,
@@ -48,6 +49,7 @@ export function renderSearchOutput({
   verboseCache,
   elapsedMs,
   stageTracker,
+  outputBudget = null,
   asOfContext = null,
   streamJson = false
 }) {
@@ -156,6 +158,13 @@ export function renderSearchOutput({
         hit: cacheInfo.hit,
         key: cacheInfo.key
       },
+      capabilities: {
+        routing: routingPolicy,
+        ann: {
+          extensionEnabled: vectorAnnEnabled,
+          extensionAvailable: vectorAnnState
+        }
+      },
       asOf: asOfContext
         ? {
           ref: asOfContext.ref || 'latest',
@@ -189,11 +198,14 @@ export function renderSearchOutput({
     payload.stats.routing = routingPolicy;
   }
 
+  const budgetPolicy = normalizeOutputBudgetPolicy(outputBudget);
+  const outputPayload = applyOutputBudgetPolicy(payload, budgetPolicy);
+
   if (emitOutput && jsonOutput) {
-    const totalHits = payload.prose.length
-      + payload.extractedProse.length
-      + payload.code.length
-      + payload.records.length;
+    const totalHits = outputPayload.prose.length
+      + outputPayload.extractedProse.length
+      + outputPayload.code.length
+      + outputPayload.records.length;
     const shouldStream = streamJson || totalHits >= 500;
     if (shouldStream) {
       const out = process.stdout;
@@ -206,26 +218,26 @@ export function renderSearchOutput({
         out.write(']');
       };
       out.write('{');
-      out.write(`\"backend\":${JSON.stringify(payload.backend)}`);
+      out.write(`\"backend\":${JSON.stringify(outputPayload.backend)}`);
       out.write(',\"prose\":');
-      writeArray(payload.prose);
+      writeArray(outputPayload.prose);
       out.write(',\"extractedProse\":');
-      writeArray(payload.extractedProse);
+      writeArray(outputPayload.extractedProse);
       out.write(',\"code\":');
-      writeArray(payload.code);
+      writeArray(outputPayload.code);
       out.write(',\"records\":');
-      writeArray(payload.records);
-      if (payload.asOf) {
+      writeArray(outputPayload.records);
+      if (outputPayload.asOf) {
         out.write(',\"asOf\":');
-        out.write(JSON.stringify(payload.asOf));
+        out.write(JSON.stringify(outputPayload.asOf));
       }
-      if (payload.stats) {
+      if (outputPayload.stats) {
         out.write(',\"stats\":');
-        out.write(JSON.stringify(payload.stats));
+        out.write(JSON.stringify(outputPayload.stats));
       }
       out.write('}\n');
     } else {
-      console.log(JSON.stringify(payload));
+      console.log(JSON.stringify(outputPayload));
     }
   }
 
@@ -441,5 +453,5 @@ export function renderSearchOutput({
     outputCacheReporter.report();
   }
 
-  return payload;
+  return outputPayload;
 }

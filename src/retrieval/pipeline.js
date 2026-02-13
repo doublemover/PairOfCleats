@@ -21,6 +21,7 @@ import { createCandidatePool } from './pipeline/candidate-pool.js';
 import { createScoreBufferPool } from './pipeline/score-buffer.js';
 import { createTopKReducer } from './pipeline/topk.js';
 import { compileFtsMatchQuery } from './fts-query.js';
+import { createScoreBreakdown } from './output/score-breakdown.js';
 
 const SQLITE_IN_LIMIT = 900;
 const MAX_POOL_ENTRIES = 50000;
@@ -917,42 +918,44 @@ export function createSearchPipeline(context) {
               boost: symbolBoost
             };
           }
-          const scoreBreakdown = explain ? {
-            sparse: sparseScore != null ? {
-              type: sparseTypeValue,
-              score: sparseScore,
-              normalized: sparseTypeValue === 'fts' ? sqliteFtsNormalize : null,
-              weights: sparseTypeValue === 'fts' ? sqliteFtsWeights : null,
-              profile: sparseTypeValue === 'fts' ? sqliteFtsProfile : null,
-              match: sparseTypeValue === 'fts' ? sqliteFtsCompilation.match : null,
-              variant: sparseTypeValue === 'fts' ? sqliteFtsCompilation.variant : null,
-              tokenizer: sparseTypeValue === 'fts' ? sqliteFtsCompilation.tokenizer : null,
-              variantReason: sparseTypeValue === 'fts' ? sqliteFtsCompilation.reasonPath : null,
-              normalizedQueryChanged: sparseTypeValue === 'fts' ? sqliteFtsCompilation.normalizedChanged : null,
-              availabilityCode: sqliteFtsUnavailable?.code || null,
-              availabilityReason: sqliteFtsUnavailable?.reason || null,
-              fielded: fieldWeightsEnabled || false,
-              k1: sparseTypeValue && sparseTypeValue !== 'fts' ? bm25K1 : null,
-              b: sparseTypeValue && sparseTypeValue !== 'fts' ? bm25B : null,
-              ftsFallback: sqliteFtsDesiredForMode ? !sqliteFtsUsed : false
-            } : null,
-            ann: annScore != null ? {
-              score: annScore,
-              source: entry.annSource || null
-            } : null,
-            rrf: useRrf ? blendInfo : null,
-            phrase: phraseNgramSet ? {
-              matches: phraseMatches,
-              boost: phraseBoost,
-              factor: phraseFactor
-            } : null,
-            symbol: symbolInfo,
-            blend: blendEnabled && !useRrf ? blendInfo : null,
-            selected: {
-              type: scoreType,
-              score
-            }
-          } : null;
+          const scoreBreakdown = explain
+            ? createScoreBreakdown({
+              sparse: sparseScore != null ? {
+                type: sparseTypeValue,
+                score: sparseScore,
+                normalized: sparseTypeValue === 'fts' ? sqliteFtsNormalize : null,
+                weights: sparseTypeValue === 'fts' ? sqliteFtsWeights : null,
+                profile: sparseTypeValue === 'fts' ? sqliteFtsProfile : null,
+                match: sparseTypeValue === 'fts' ? sqliteFtsCompilation.match : null,
+                variant: sparseTypeValue === 'fts' ? sqliteFtsCompilation.variant : null,
+                tokenizer: sparseTypeValue === 'fts' ? sqliteFtsCompilation.tokenizer : null,
+                variantReason: sparseTypeValue === 'fts' ? sqliteFtsCompilation.reasonPath : null,
+                normalizedQueryChanged: sparseTypeValue === 'fts' ? sqliteFtsCompilation.normalizedChanged : null,
+                availabilityCode: sqliteFtsUnavailable?.code || null,
+                availabilityReason: sqliteFtsUnavailable?.reason || null,
+                fielded: fieldWeightsEnabled || false,
+                k1: sparseTypeValue && sparseTypeValue !== 'fts' ? bm25K1 : null,
+                b: sparseTypeValue && sparseTypeValue !== 'fts' ? bm25B : null,
+                ftsFallback: sqliteFtsDesiredForMode ? !sqliteFtsUsed : false
+              } : null,
+              ann: annScore != null ? {
+                score: annScore,
+                source: entry.annSource || null
+              } : null,
+              rrf: useRrf ? blendInfo : null,
+              phrase: phraseNgramSet ? {
+                matches: phraseMatches,
+                boost: phraseBoost,
+                factor: phraseFactor
+              } : null,
+              symbol: symbolInfo,
+              blend: blendEnabled && !useRrf ? blendInfo : null,
+              selected: {
+                type: scoreType,
+                score
+              }
+            })
+            : null;
           const payload = {
             idx: idxVal,
             score,

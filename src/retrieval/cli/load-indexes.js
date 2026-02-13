@@ -367,19 +367,29 @@ export async function loadSearchIndexes({
       includeFilterIndex: needsFilterIndex
     }) : await loadIndexCachedLocal(proseDir, loadOptions, 'prose')))
     : { ...EMPTY_INDEX };
-  const idxExtractedProse = resolvedLoadExtractedProse
-    ? (useSqlite
-      ? loadIndexFromSqlite('extracted-prose', {
-        includeDense: needsAnnArtifacts && !lazyDenseVectorsEnabled,
-        includeMinhash: needsAnnArtifacts,
-        includeChunks: sqliteContextChunks,
-        includeFilterIndex: needsFilterIndex
-      })
-      : await loadIndexCachedLocal(extractedProseDir, {
+  let idxExtractedProse = { ...EMPTY_INDEX };
+  if (resolvedLoadExtractedProse) {
+    if (useSqlite) {
+      try {
+        idxExtractedProse = loadIndexFromSqlite('extracted-prose', {
+          includeDense: needsAnnArtifacts && !lazyDenseVectorsEnabled,
+          includeMinhash: needsAnnArtifacts,
+          includeChunks: sqliteContextChunks,
+          includeFilterIndex: needsFilterIndex
+        });
+      } catch {
+        idxExtractedProse = await loadIndexCachedLocal(extractedProseDir, {
+          ...loadOptions,
+          includeHnsw: annActive && resolvedRunExtractedProse
+        }, 'extracted-prose');
+      }
+    } else {
+      idxExtractedProse = await loadIndexCachedLocal(extractedProseDir, {
         ...loadOptions,
         includeHnsw: annActive && resolvedRunExtractedProse
-      }, 'extracted-prose'))
-    : { ...EMPTY_INDEX };
+      }, 'extracted-prose');
+    }
+  }
   const idxCode = runCode
     ? (useSqlite ? loadIndexFromSqlite('code', {
       includeDense: needsAnnArtifacts && !lazyDenseVectorsEnabled,

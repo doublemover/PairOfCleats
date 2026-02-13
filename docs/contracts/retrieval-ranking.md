@@ -29,6 +29,7 @@ Phase 11 adds:
 - `blend`: blended score details when enabled
 - `symbol`: definition/export boosts (when available)
 - `phrase`: phrase/chargram boosts (when available)
+- `schemaVersion`: score breakdown schema version (`1`)
 
 #### Phase 17: Prose FTS explain additions
 When SQLite FTS is selected for prose modes and explain is enabled, hits SHOULD include:
@@ -40,6 +41,7 @@ When SQLite FTS is selected for prose modes and explain is enabled, hits SHOULD 
 - `scoreBreakdown.sparse.normalizedQueryChanged`: whether NFKC changed the query.
 - `scoreBreakdown.sparse.ftsFallback`: true when desired FTS routing fell back to sparse.
 - Controlled unavailability diagnostics use code `retrieval_fts_unavailable`.
+- Output budgets enforce shared limits for explain payloads (`maxBytes`, `maxFields`, `maxExplainItems`).
 
 #### Phase 11: Graph ranking breakdown (optional)
 When graph ranking is enabled and explain is requested, hits SHOULD include:
