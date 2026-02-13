@@ -145,3 +145,17 @@ Read-time behavior:
 Recommended migration path:
 1. Rebuild indexes with current tooling so profile/artifact blocks are materialized on disk.
 2. Avoid long-term `--allow-unsafe-mix` use; align all active modes/repositories to one profile cohort before removing overrides.
+
+## Optional vector-only analysis shortcuts (build-time)
+
+`indexing.vectorOnly` supports optional shortcut flags:
+- `disableImportGraph` (default `true` when `profile=vector_only`)
+- `disableCrossFileInference` (default `true` when `profile=vector_only`)
+
+Behavior:
+- These only apply to `profile=vector_only`.
+- Set either flag to `false` to opt out and keep the corresponding analysis pass enabled.
+
+Build-report transparency:
+- Build state records per-mode shortcut choices under `analysisShortcuts[mode]`.
+- `index_state.json` records resolved shortcut choices under `features.vectorOnlyShortcuts`.

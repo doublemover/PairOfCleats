@@ -184,7 +184,8 @@ export const writeIndexArtifactsForMode = async ({
           : runtime.typeInferenceCrossFileEnabled,
         gitBlame: typeof runtime.analysisPolicy?.git?.blame === 'boolean'
           ? runtime.analysisPolicy.git.blame
-          : runtime.gitBlameEnabled
+          : runtime.gitBlameEnabled,
+        vectorOnlyShortcuts: state.vectorOnlyShortcuts || null
       },
       shards: runtime.shards?.enabled
         ? { enabled: true, plan: shardSummary }

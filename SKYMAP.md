@@ -741,13 +741,16 @@ Handle old indexes and mixed-profile cohorts deterministically.
 Optionally reduce build time for vector-only workflows while preserving transparency.
 
 #### Tasks
-- [ ] Add policy flags to disable expensive analysis passes when `profile=vector_only`.
-- [ ] Keep each disabled feature opt-outable and report choices in build report.
-- [ ] Keep this subphase non-blocking to core phase exit.
+- [x] Add policy flags to disable expensive analysis passes when `profile=vector_only`.
+- [x] Keep each disabled feature opt-outable and report choices in build report.
+- [x] Keep this subphase non-blocking to core phase exit.
 
 #### Touchpoints
 - `src/index/build/indexer/pipeline.js`
 - `docs/config/*`
+
+#### Tests
+- [x] `tests/indexing/postings/vector-only-analysis-shortcuts-policy.test.js`
 
 ---
 
