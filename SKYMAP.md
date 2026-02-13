@@ -356,25 +356,25 @@ Provide deterministic page/paragraph-aware chunking with explicit budgets and st
 Integrate extraction as a deterministic pre-index stage with explicit diagnostics and artifact reporting.
 
 #### Tasks
-- [ ] Discovery gating:
-  - [ ] only include `.pdf`/`.docx` when `indexing.documentExtraction.enabled=true`
-  - [ ] if enabled but unavailable, record typed skip diagnostics
-- [ ] Treat extraction as explicit pre-index stage before chunking.
-- [ ] Route extractable binaries away from generic binary skip logic.
-- [ ] File processing flow must:
-  - [ ] hash raw bytes
-  - [ ] extract units
-  - [ ] create stable joined text with offset mapping
-  - [ ] chunk through document format chunkers
-  - [ ] emit `segment` provenance
-  - [ ] ensure chunk IDs cannot collide with code chunk IDs
-- [ ] Emit `extraction_report.json` with schema version:
-  - [ ] counts by status
-  - [ ] per-file status and reason
-  - [ ] extractor versions
-  - [ ] `extractionIdentityHash`
-- [ ] Define identity formula and publish it:
-  - [ ] `extractionIdentityHash = sha256(bytesHash + extractorVersion + normalizationPolicy + chunkerVersion + extractionConfigDigest)`
+- [x] Discovery gating:
+  - [x] only include `.pdf`/`.docx` when `indexing.documentExtraction.enabled=true`
+  - [x] if enabled but unavailable, record typed skip diagnostics
+- [x] Treat extraction as explicit pre-index stage before chunking.
+- [x] Route extractable binaries away from generic binary skip logic.
+- [x] File processing flow must:
+  - [x] hash raw bytes
+  - [x] extract units
+  - [x] create stable joined text with offset mapping
+  - [x] chunk through document format chunkers
+  - [x] emit `segment` provenance
+  - [x] ensure chunk IDs cannot collide with code chunk IDs
+- [x] Emit `extraction_report.json` with schema version:
+  - [x] counts by status
+  - [x] per-file status and reason
+  - [x] extractor versions
+  - [x] `extractionIdentityHash`
+- [x] Define identity formula and publish it:
+  - [x] `extractionIdentityHash = sha256(bytesHash + extractorVersion + normalizationPolicy + chunkerVersion + extractionConfigDigest)`
 
 #### Touchpoints
 - `src/index/build/discover.js`
@@ -388,12 +388,12 @@ Integrate extraction as a deterministic pre-index stage with explicit diagnostic
 - `docs/specs/document-extraction.md`
 
 #### Tests
-- [ ] `tests/indexing/extracted-prose/documents-included-when-available.test.js`
-- [ ] `tests/indexing/extracted-prose/documents-skipped-when-unavailable.test.js`
-- [ ] `tests/indexing/extracted-prose/document-extraction-outcomes-recorded.test.js`
-- [ ] `tests/indexing/extracted-prose/extraction-report.test.js`
-- [ ] `tests/indexing/extracted-prose/document-bytes-hash-stable.test.js`
-- [ ] `tests/indexing/extracted-prose/document-chunk-id-no-collision.test.js`
+- [x] `tests/indexing/extracted-prose/documents-included-when-available.test.js`
+- [x] `tests/indexing/extracted-prose/documents-skipped-when-unavailable.test.js`
+- [x] `tests/indexing/extracted-prose/document-extraction-outcomes-recorded.test.js`
+- [x] `tests/indexing/extracted-prose/extraction-report.test.js`
+- [x] `tests/indexing/extracted-prose/document-bytes-hash-stable.test.js`
+- [x] `tests/indexing/extracted-prose/document-chunk-id-no-collision.test.js`
 
 ### 17.4 `metaV2` and `chunk_meta` contract updates
 
