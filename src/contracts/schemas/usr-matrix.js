@@ -11,12 +11,10 @@ const registryEnvelope = (registryId, rowSchema) => ({
   title: `${registryId}.json`,
   type: 'object',
   additionalProperties: false,
-  required: ['schemaVersion', 'registryId', 'generatedAt', 'generatedBy', 'rows'],
+  required: ['schemaVersion', 'registryId', 'rows'],
   properties: {
     schemaVersion: { type: 'string', const: 'usr-registry-1.0.0' },
     registryId: { type: 'string', const: registryId },
-    generatedAt: STRING,
-    generatedBy: STRING,
     rows: {
       type: 'array',
       items: rowSchema

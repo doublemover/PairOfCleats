@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-13T00:06:20.591Z",
+  "generatedAt": "2026-02-13T01:23:37.144Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2455,7 +2455,9 @@
         "tests/runner/all.js",
         "tests/services/api-search-asof.test.js",
         "tests/services/api/federated-search-cache-root-allowlist.test.js",
+        "tests/services/api/federated-search-cache-root-symlink-escape.test.js",
         "tests/services/api/federated-search-client-errors.test.js",
+        "tests/services/api/federated-search-per-repo-top-zero.test.js",
         "tests/services/api/federated-search-redacts-paths.test.js",
         "tests/services/api/federated-search-repo-root-directory-validation.test.js",
         "tests/services/api/federated-search-workspace-allowlist.test.js",
@@ -5717,6 +5719,7 @@
       "src/retrieval/cli-args.js",
       "src/retrieval/cli/run-search-session.js",
       "src/retrieval/federation/args.js",
+      "src/retrieval/federation/coordinator.js",
       "src/shared/cli-options.js",
       "src/shared/cli.js",
       "tests/indexing/tree-sitter/tree-sitter-chunk-cache-reuse.test.js",

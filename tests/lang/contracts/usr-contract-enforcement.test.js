@@ -227,16 +227,10 @@ const harnessReport = {
 const harnessReportResult = validateUsrReport('usr-validation-report', harnessReport);
 assert.equal(harnessReportResult.ok, true, `harness report must validate: ${harnessReportResult.errors.join('; ')}`);
 
-// Generator idempotence: regeneration must not add matrix drift relative to pre-run state.
-const diffBefore = execFileSync('git', ['diff', '--name-only', '--', 'tests/lang/matrix'], {
+// Generator idempotence: verify canonical baselines are current without rewriting files.
+execFileSync('node', ['tools/usr/generate-usr-matrix-baselines.mjs', '--check'], {
   cwd: repoRoot,
-  encoding: 'utf8'
-}).trim();
-execFileSync('node', ['tools/usr/generate-usr-matrix-baselines.mjs'], { cwd: repoRoot, stdio: 'pipe' });
-const diffAfter = execFileSync('git', ['diff', '--name-only', '--', 'tests/lang/matrix'], {
-  cwd: repoRoot,
-  encoding: 'utf8'
-}).trim();
-assert.equal(diffAfter, diffBefore, `matrix generator must be idempotent; drift delta detected:\nbefore=${diffBefore || '<clean>'}\nafter=${diffAfter || '<clean>'}`);
+  stdio: 'pipe'
+});
 
 console.log('usr contract enforcement checks passed');

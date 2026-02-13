@@ -5,11 +5,39 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..', '..');
-const matrixDir = path.join(repoRoot, 'tests', 'lang', 'matrix');
+const DEFAULT_MATRIX_DIR = path.join(repoRoot, 'tests', 'lang', 'matrix');
 
 const SCHEMA_VERSION = 'usr-registry-1.0.0';
-const GENERATED_AT = '2026-02-11T03:30:00Z';
-const GENERATED_BY = 'tools/usr/generate-usr-matrix-baselines.mjs';
+function parseGeneratorOptions(argv = process.argv.slice(2)) {
+  let matrixDir = DEFAULT_MATRIX_DIR;
+  let checkMode = false;
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = String(argv[i] || '');
+    if (arg === '--check') {
+      checkMode = true;
+      continue;
+    }
+    if (arg === '--out-dir') {
+      const value = String(argv[i + 1] || '');
+      if (!value || value.startsWith('-')) {
+        throw new Error('Missing value for --out-dir');
+      }
+      matrixDir = path.resolve(value);
+      i += 1;
+      continue;
+    }
+    if (arg.startsWith('--out-dir=')) {
+      const value = arg.slice('--out-dir='.length);
+      if (!value) throw new Error('Missing value for --out-dir');
+      matrixDir = path.resolve(value);
+      continue;
+    }
+    throw new Error(`Unknown argument: ${arg}`);
+  }
+  return { matrixDir, checkMode };
+}
+
+const { matrixDir, checkMode } = parseGeneratorOptions();
 
 const CAPABILITIES = [
   'imports',
@@ -1016,16 +1044,27 @@ function riskRows() {
     .sort((a, b) => a.languageId.localeCompare(b.languageId));
 }
 
-function writeRegistry(registryId, rows) {
-  const payload = {
+function buildRegistryPayload(registryId, rows) {
+  return {
     schemaVersion: SCHEMA_VERSION,
     registryId,
-    generatedAt: GENERATED_AT,
-    generatedBy: GENERATED_BY,
     rows
   };
+}
+
+function writeRegistry(registryId, rows) {
+  const payload = buildRegistryPayload(registryId, rows);
   const filePath = path.join(matrixDir, `${registryId}.json`);
   fs.writeFileSync(filePath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
+}
+
+function assertRegistryMatches(registryId, rows) {
+  const payload = buildRegistryPayload(registryId, rows);
+  const expected = `${JSON.stringify(payload, null, 2)}\n`;
+  const filePath = path.join(matrixDir, `${registryId}.json`);
+  if (!fs.existsSync(filePath)) return `missing file: ${filePath}`;
+  const current = fs.readFileSync(filePath, 'utf8');
+  return current === expected ? null : `drift: ${registryId}`;
 }
 
 function ensureDir() {
@@ -1069,34 +1108,50 @@ function main() {
   assertLanguageFrameworkApplicability();
   ensureDir();
   const languageProfiles = languageProfileRows();
-  writeRegistry('usr-language-profiles', languageProfiles);
-  writeRegistry('usr-language-version-policy', languageVersionPolicyRows());
-  writeRegistry('usr-language-embedding-policy', languageEmbeddingPolicyRows());
-  writeRegistry('usr-framework-profiles', frameworkProfiles);
-  writeRegistry('usr-node-kind-mapping', nodeKindMappings);
-  writeRegistry('usr-edge-kind-constraints', edgeKindConstraints);
-  writeRegistry('usr-capability-matrix', capabilityRows(languageProfiles));
-  writeRegistry('usr-conformance-levels', conformanceRows(languageProfiles));
-  writeRegistry('usr-backcompat-matrix', backcompatMatrix);
-  writeRegistry('usr-framework-edge-cases', frameworkEdgeCases);
-  writeRegistry('usr-language-risk-profiles', riskRows());
-  writeRegistry('usr-embedding-bridge-cases', embeddingBridgeCases);
-  writeRegistry('usr-generated-provenance-cases', generatedProvenanceCases);
-  writeRegistry('usr-parser-runtime-lock', parserRuntimeLocks);
-  writeRegistry('usr-slo-budgets', sloBudgets);
-  writeRegistry('usr-alert-policies', alertPolicies);
-  writeRegistry('usr-redaction-rules', redactionRules);
-  writeRegistry('usr-security-gates', securityGates);
-  writeRegistry('usr-runtime-config-policy', runtimeConfigPolicy);
-  writeRegistry('usr-failure-injection-matrix', failureInjectionMatrix);
-  writeRegistry('usr-fixture-governance', fixtureGovernance);
-  writeRegistry('usr-benchmark-policy', benchmarkPolicy);
-  writeRegistry('usr-threat-model-matrix', threatModelMatrix);
-  writeRegistry('usr-waiver-policy', waiverPolicy);
-  writeRegistry('usr-quality-gates', qualityGates);
-  writeRegistry('usr-operational-readiness-policy', operationalReadinessPolicy);
-  writeRegistry('usr-ownership-matrix', ownershipMatrix);
-  writeRegistry('usr-escalation-policy', escalationPolicy);
+  const registries = [
+    ['usr-language-profiles', languageProfiles],
+    ['usr-language-version-policy', languageVersionPolicyRows()],
+    ['usr-language-embedding-policy', languageEmbeddingPolicyRows()],
+    ['usr-framework-profiles', frameworkProfiles],
+    ['usr-node-kind-mapping', nodeKindMappings],
+    ['usr-edge-kind-constraints', edgeKindConstraints],
+    ['usr-capability-matrix', capabilityRows(languageProfiles)],
+    ['usr-conformance-levels', conformanceRows(languageProfiles)],
+    ['usr-backcompat-matrix', backcompatMatrix],
+    ['usr-framework-edge-cases', frameworkEdgeCases],
+    ['usr-language-risk-profiles', riskRows()],
+    ['usr-embedding-bridge-cases', embeddingBridgeCases],
+    ['usr-generated-provenance-cases', generatedProvenanceCases],
+    ['usr-parser-runtime-lock', parserRuntimeLocks],
+    ['usr-slo-budgets', sloBudgets],
+    ['usr-alert-policies', alertPolicies],
+    ['usr-redaction-rules', redactionRules],
+    ['usr-security-gates', securityGates],
+    ['usr-runtime-config-policy', runtimeConfigPolicy],
+    ['usr-failure-injection-matrix', failureInjectionMatrix],
+    ['usr-fixture-governance', fixtureGovernance],
+    ['usr-benchmark-policy', benchmarkPolicy],
+    ['usr-threat-model-matrix', threatModelMatrix],
+    ['usr-waiver-policy', waiverPolicy],
+    ['usr-quality-gates', qualityGates],
+    ['usr-operational-readiness-policy', operationalReadinessPolicy],
+    ['usr-ownership-matrix', ownershipMatrix],
+    ['usr-escalation-policy', escalationPolicy]
+  ];
+  if (checkMode) {
+    const drift = [];
+    for (const [registryId, rows] of registries) {
+      const issue = assertRegistryMatches(registryId, rows);
+      if (issue) drift.push(issue);
+    }
+    if (drift.length > 0) {
+      throw new Error(`USR matrix baseline drift detected:\n${drift.join('\n')}`);
+    }
+    return;
+  }
+  for (const [registryId, rows] of registries) {
+    writeRegistry(registryId, rows);
+  }
 }
 
 main();

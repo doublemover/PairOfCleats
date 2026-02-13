@@ -1,8 +1,6 @@
 {
   "schemaVersion": "usr-registry-1.0.0",
   "registryId": "usr-language-batch-shards",
-  "generatedAt": "2026-02-12T10:45:00Z",
-  "generatedBy": "manual",
   "rows": [
     {
       "id": "B0",
