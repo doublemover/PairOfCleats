@@ -22,6 +22,8 @@ import { createScoreBufferPool } from './pipeline/score-buffer.js';
 import { createTopKReducer } from './pipeline/topk.js';
 import { compileFtsMatchQuery } from './fts-query.js';
 import { createScoreBreakdown } from './output/score-breakdown.js';
+import { resolveSparseRequiredTables, RETRIEVAL_SPARSE_UNAVAILABLE_CODE } from './sparse/requirements.js';
+import { INDEX_PROFILE_VECTOR_ONLY } from '../contracts/index-profile.js';
 
 const SQLITE_IN_LIMIT = 900;
 const MAX_POOL_ENTRIES = 50000;
@@ -32,6 +34,7 @@ const ANN_ADAPTIVE_FAILURE_PENALTY_MS = 5000;
 const ANN_ADAPTIVE_PREFLIGHT_PENALTY_MS = 10000;
 const ANN_ADAPTIVE_LATENCY_ALPHA = 0.25;
 const FTS_UNAVAILABLE_CODE = 'retrieval_fts_unavailable';
+const VECTOR_REQUIRED_CODE = 'retrieval_vector_required';
 
 /**
  * Create a search pipeline runner bound to a shared context.
@@ -81,6 +84,8 @@ export function createSearchPipeline(context) {
     rankSqliteFts,
     rankVectorAnnSqlite,
     sqliteHasFts,
+    sqliteHasTable,
+    profilePolicyByMode,
     signal,
     rrf,
     graphRankingConfig,
@@ -351,6 +356,24 @@ export function createSearchPipeline(context) {
     if (!annSource) return null;
     return annSource === 'minhash' ? 'minhash' : 'vector';
   };
+  const emitSparseUnavailable = (diagnostics, reason, mode, extra = {}) => {
+    if (!Array.isArray(diagnostics)) return;
+    diagnostics.push({
+      code: RETRIEVAL_SPARSE_UNAVAILABLE_CODE,
+      reason,
+      mode,
+      ...extra
+    });
+  };
+  const checkRequiredTables = (mode, tables) => {
+    if (!Array.isArray(tables) || !tables.length) return [];
+    if (typeof sqliteHasTable !== 'function') return [];
+    const missing = [];
+    for (const tableName of tables) {
+      if (!sqliteHasTable(mode, tableName)) missing.push(tableName);
+    }
+    return missing;
+  };
 
   /**
    * Execute the full search pipeline for a mode.
@@ -362,6 +385,11 @@ export function createSearchPipeline(context) {
   return async function runSearch(idx, mode, queryEmbedding) {
     throwIfAborted();
     const meta = idx.chunkMeta;
+    const modeProfilePolicy = profilePolicyByMode?.[mode] && typeof profilePolicyByMode[mode] === 'object'
+      ? profilePolicyByMode[mode]
+      : null;
+    const profileId = modeProfilePolicy?.profileId || idx?.state?.profile?.id || null;
+    const vectorOnlyProfile = profileId === INDEX_PROFILE_VECTOR_ONLY;
     const sqliteEnabledForMode = useSqlite && (
       mode === 'code'
       || mode === 'prose'
@@ -476,17 +504,38 @@ export function createSearchPipeline(context) {
         let sqliteFtsUsed = false;
         const sqliteFtsDiagnostics = [];
         let sqliteFtsOverfetch = null;
+        const sparseDeniedByProfile = vectorOnlyProfile === true;
         const sqliteFtsAllowed = allowedIdx && allowedCount
           ? (allowedCount <= SQLITE_IN_LIMIT ? ensureAllowedSet(allowedIdx) : null)
           : null;
         const sqliteFtsCanPushdown = !!(sqliteFtsAllowed && sqliteFtsAllowed.size <= SQLITE_IN_LIMIT);
+        const sqliteFtsRequiredTables = typeof sqliteFtsProvider.requireTables === 'function'
+          ? sqliteFtsProvider.requireTables({ postingsConfig })
+          : ['chunks_fts'];
+        const sqliteFtsMissingTables = sqliteEnabledForMode
+          ? checkRequiredTables(mode, sqliteFtsRequiredTables)
+          : [];
         const sqliteFtsEligible = sqliteEnabledForMode
+        && !sparseDeniedByProfile
         && sqliteFtsDesiredForMode
         && typeof sqliteFtsCompilation.match === 'string'
         && sqliteFtsCompilation.match.trim().length > 0
+        && sqliteFtsMissingTables.length === 0
         && (typeof sqliteHasFts !== 'function' || sqliteHasFts(mode))
         && (!filtersEnabled || sqliteFtsCanPushdown);
         const wantsTantivy = normalizedSparseBackend === 'tantivy';
+        const sparseRequiredTables = sqliteEnabledForMode
+          ? resolveSparseRequiredTables(postingsConfig)
+          : [];
+        const sparseMissingTables = sqliteEnabledForMode
+          ? checkRequiredTables(mode, sparseRequiredTables)
+          : [];
+        if (sqliteFtsMissingTables.length) {
+          emitSparseUnavailable(sqliteFtsDiagnostics, 'missing_required_tables', mode, {
+            provider: sqliteFtsProvider.id || 'sqlite-fts',
+            missingTables: sqliteFtsMissingTables
+          });
+        }
         const buildCandidatesFromHits = (hits) => {
           if (!hits || !hits.length) return null;
           const set = candidatePool.acquire();
@@ -496,7 +545,13 @@ export function createSearchPipeline(context) {
           trackReleaseSet(set);
           return set;
         };
-        if (wantsTantivy) {
+        if (sparseDeniedByProfile) {
+          emitSparseUnavailable(sqliteFtsDiagnostics, 'profile_vector_only', mode, {
+            profileId,
+            guidance: 'Vector-only indexes require ANN-capable retrieval providers.'
+          });
+          sparseType = 'none';
+        } else if (wantsTantivy) {
           const tantivyResult = tantivyProvider.search({
             idx,
             queryTokens,
@@ -533,24 +588,40 @@ export function createSearchPipeline(context) {
             candidates = buildCandidatesFromHits(bmHits);
           }
         }
-        if (!bmHits.length && !wantsTantivy) {
-          const tokenIndexOverride = sqliteEnabledForMode ? getTokenIndexForQuery(queryTokens, mode) : null;
-          candidates = buildCandidateSet(idx, queryTokens, mode);
-          trackReleaseSet(candidates);
-          const bm25Result = bm25Provider.search({
-            idx,
-            queryTokens,
-            mode,
-            topN: expandedTopN,
-            allowedIds: allowedIdx,
-            fieldWeights,
-            k1: bm25K1,
-            b: bm25B,
-            tokenIndexOverride
-          });
-          bmHits = bm25Result.hits;
-          sparseType = bm25Result.type;
-          sqliteFtsUsed = false;
+        if (!bmHits.length && !wantsTantivy && !sparseDeniedByProfile) {
+          if (sparseMissingTables.length) {
+            emitSparseUnavailable(sqliteFtsDiagnostics, 'missing_required_tables', mode, {
+              provider: bm25Provider.id || 'js-bm25',
+              missingTables: sparseMissingTables
+            });
+            sparseType = 'none';
+          } else {
+            try {
+              const tokenIndexOverride = sqliteEnabledForMode ? getTokenIndexForQuery(queryTokens, mode) : null;
+              candidates = buildCandidateSet(idx, queryTokens, mode);
+              trackReleaseSet(candidates);
+              const bm25Result = bm25Provider.search({
+                idx,
+                queryTokens,
+                mode,
+                topN: expandedTopN,
+                allowedIds: allowedIdx,
+                fieldWeights,
+                k1: bm25K1,
+                b: bm25B,
+                tokenIndexOverride
+              });
+              bmHits = bm25Result.hits;
+              sparseType = bm25Result.type;
+              sqliteFtsUsed = false;
+            } catch (error) {
+              emitSparseUnavailable(sqliteFtsDiagnostics, 'provider_error', mode, {
+                provider: bm25Provider.id || 'js-bm25',
+                message: String(error?.message || error)
+              });
+              sparseType = 'none';
+            }
+          }
         }
         candidateMetrics.counts = {
           allowed: allowedIdx ? allowedCount : null,
@@ -562,22 +633,28 @@ export function createSearchPipeline(context) {
         );
         const sqliteRoutingReason = !sqliteEnabledForMode
           ? 'sqlite_unavailable'
-          : !sqliteFtsDesiredForMode
-            ? 'mode_routed_to_sparse'
-            : !sqliteFtsCompilation.match
-              ? 'empty_fts_match'
-              : (typeof sqliteHasFts === 'function' && !sqliteHasFts(mode))
-                ? 'fts_table_unavailable'
-                : (filtersEnabled && !sqliteFtsCanPushdown)
-                  ? 'filters_require_pushdown'
-                  : (unavailableDiagnostic
-                    ? FTS_UNAVAILABLE_CODE
-                    : 'fts_selected');
+          : sparseDeniedByProfile
+            ? 'profile_vector_only_sparse_unavailable'
+            : !sqliteFtsDesiredForMode
+              ? 'mode_routed_to_sparse'
+              : !sqliteFtsCompilation.match
+                ? 'empty_fts_match'
+                : sqliteFtsMissingTables.length > 0
+                  ? 'fts_missing_required_tables'
+                  : (typeof sqliteHasFts === 'function' && !sqliteHasFts(mode))
+                    ? 'fts_table_unavailable'
+                    : (filtersEnabled && !sqliteFtsCanPushdown)
+                      ? 'filters_require_pushdown'
+                      : (unavailableDiagnostic
+                        ? FTS_UNAVAILABLE_CODE
+                        : 'fts_selected');
         candidateMetrics.routing = {
           mode,
           sqliteEnabledForMode,
           sqliteFtsDesired: sqliteFtsDesiredForMode,
           reason: sqliteRoutingReason,
+          profileId,
+          sparseDeniedByProfile,
           route: sqliteRouteByMode || null
         };
         candidateMetrics.fts = {
@@ -591,12 +668,34 @@ export function createSearchPipeline(context) {
         };
         candidateMetrics.sqliteFtsUsed = sqliteFtsUsed;
         candidateMetrics.sparseType = sparseType;
+        candidateMetrics.profile = {
+          id: profileId,
+          sparseDenied: sparseDeniedByProfile,
+          sparseFallbackAllowed: modeProfilePolicy?.allowSparseFallback === true
+        };
         return { candidates, bmHits, sparseType, sqliteFtsUsed, sqliteFtsDiagnostics };
       });
       let { candidates, bmHits, sparseType, sqliteFtsUsed, sqliteFtsDiagnostics } = candidateResult;
       const sqliteFtsUnavailable = Array.isArray(sqliteFtsDiagnostics)
         ? sqliteFtsDiagnostics.find((entry) => entry?.code === FTS_UNAVAILABLE_CODE)
         : null;
+      const sparseUnavailable = Array.isArray(sqliteFtsDiagnostics)
+        ? sqliteFtsDiagnostics.find((entry) => entry?.code === RETRIEVAL_SPARSE_UNAVAILABLE_CODE)
+        : null;
+      if (!annEnabled && !vectorOnlyProfile && sparseUnavailable) {
+        throw createError(
+          ERROR_CODES.CAPABILITY_MISSING,
+          'Sparse retrieval backend is unavailable for this query. ' +
+            'Rebuild sparse artifacts or enable ANN search.',
+          {
+            reasonCode: RETRIEVAL_SPARSE_UNAVAILABLE_CODE,
+            reason: sparseUnavailable.reason || 'sparse_unavailable',
+            mode,
+            profileId,
+            missingTables: sparseUnavailable.missingTables || null
+          }
+        );
+      }
 
       // MinHash (embedding) ANN, if requested
       const annMetrics = {};
@@ -606,6 +705,19 @@ export function createSearchPipeline(context) {
         let warned = false;
 
         if (!annEnabled) {
+          if (vectorOnlyProfile) {
+            throw createError(
+              ERROR_CODES.INVALID_REQUEST,
+              'Sparse-only retrieval is not allowed for indexing.profile=vector_only. ' +
+                'Re-run without sparse-only mode or pass --allow-sparse-fallback to permit ANN fallback.',
+              {
+                reasonCode: 'retrieval_profile_mismatch',
+                reason: 'sparse_requested_against_vector_only',
+                mode,
+                profileId
+              }
+            );
+          }
           annMetrics.vectorActive = false;
           annMetrics.hits = 0;
           annMetrics.source = null;
@@ -798,6 +910,24 @@ export function createSearchPipeline(context) {
         annMetrics.warned = warned;
         annMetrics.candidates = annCandidateBase ? annCandidateBase.size : null;
         annMetrics.providerAvailable = providerAvailable;
+        annMetrics.profileId = profileId;
+        annMetrics.vectorOnlyProfile = vectorOnlyProfile;
+
+        if (vectorOnlyProfile && !annHits.length) {
+          throw createError(
+            ERROR_CODES.CAPABILITY_MISSING,
+            `Vector-only search requires ANN/vector providers for mode "${mode}", but none were available. ` +
+              'Rebuild embeddings and ensure at least one ANN provider is configured.',
+            {
+              reasonCode: VECTOR_REQUIRED_CODE,
+              reason: 'ann_provider_unavailable',
+              mode,
+              profileId,
+              providerAvailable,
+              vectorActive
+            }
+          );
+        }
 
         return { annHits, annSource };
       });
@@ -933,6 +1063,7 @@ export function createSearchPipeline(context) {
                 normalizedQueryChanged: sparseTypeValue === 'fts' ? sqliteFtsCompilation.normalizedChanged : null,
                 availabilityCode: sqliteFtsUnavailable?.code || null,
                 availabilityReason: sqliteFtsUnavailable?.reason || null,
+                indexProfile: profileId || null,
                 fielded: fieldWeightsEnabled || false,
                 k1: sparseTypeValue && sparseTypeValue !== 'fts' ? bm25K1 : null,
                 b: sparseTypeValue && sparseTypeValue !== 'fts' ? bm25B : null,

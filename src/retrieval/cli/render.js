@@ -36,6 +36,7 @@ export function renderSearchOutput({
   embeddingProvider,
   embeddingOnnx,
   cacheInfo,
+  profileInfo = null,
   intentInfo,
   resolvedDenseVectorMode,
   fieldWeights,
@@ -158,6 +159,7 @@ export function renderSearchOutput({
         hit: cacheInfo.hit,
         key: cacheInfo.key
       },
+      profile: profileInfo,
       capabilities: {
         routing: routingPolicy,
         ann: {

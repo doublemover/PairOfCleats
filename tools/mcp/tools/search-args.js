@@ -17,6 +17,7 @@ const HANDLED_FIELDS = new Set([
   'backend',
   'output',
   'ann',
+  'allowSparseFallback',
   'top',
   'context',
   'type',

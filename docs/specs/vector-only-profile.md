@@ -92,3 +92,39 @@
 - `vector_only` rejects builds when embeddings are explicitly disabled (`indexing.embeddings.enabled=false`).
 - Missing doc embedding marker convention remains unchanged:
   - doc-missing marker is a shared zero-length typed array (`Uint8Array(0)`).
+
+## Query-time routing policy (`vector_only`)
+- Search loads profile policy from each selected mode before retrieval starts.
+- For `vector_only` modes:
+  - ANN-capable providers are selected by default.
+  - Sparse providers are marked unavailable with explicit diagnostics (never silently treated as healthy).
+- Sparse-only requests against `vector_only` are rejected by default:
+  - controlled error code: `INVALID_REQUEST`
+  - reasonCode: `retrieval_profile_mismatch`
+  - guidance: re-run with ANN enabled or pass sparse fallback override.
+
+## Sparse fallback override contract
+- CLI: `--allow-sparse-fallback`
+- API: `allowSparseFallback` query/body boolean
+- MCP tool `search`: `allowSparseFallback` boolean
+- Behavior:
+  - only affects requests that explicitly force sparse-only behavior.
+  - when set, sparse-only requests on `vector_only` are converted into ANN fallback instead of hard-failing.
+  - override usage is surfaced as warnings in explain/stats output.
+
+## Provider boundary checks and controlled errors
+- Sparse providers declare required tables at provider boundary (`requireTables`).
+- Missing sparse tables are reported as controlled capability errors, not runtime exceptions:
+  - code: `CAPABILITY_MISSING`
+  - reasonCode: `retrieval_sparse_unavailable`
+- `vector_only` with ANN unavailable returns:
+  - code: `CAPABILITY_MISSING`
+  - reasonCode: `retrieval_vector_required`
+
+## Explain and stats surface
+- Explain stats include profile policy metadata under `stats.profile`:
+  - `byMode[mode].profileId`
+  - `byMode[mode].vectorOnly`
+  - `warnings[]`
+- Per-hit score breakdown includes sparse profile context:
+  - `scoreBreakdown.sparse.indexProfile`

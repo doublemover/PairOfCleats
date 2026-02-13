@@ -1,6 +1,6 @@
 import { getToolVersion } from '../../shared/dict-utils.js';
 
-export const MCP_SCHEMA_VERSION = '1.0.0';
+export const MCP_SCHEMA_VERSION = '1.1.0';
 
 /**
  * Build MCP tool definitions for the server.
@@ -57,6 +57,7 @@ export function getToolDefs(defaultModelId) {
           backend: { type: 'string', enum: ['memory', 'sqlite', 'sqlite-fts'] },
           output: { type: 'string', enum: ['compact', 'full'], description: 'Return compact JSON (default) or full payload.' },
           ann: { type: 'boolean', description: 'Enable ANN re-ranking (default uses config).' },
+          allowSparseFallback: { type: 'boolean', description: 'Allow ANN fallback when sparse-only is requested but sparse is unavailable.' },
           top: { type: 'number', description: 'Top N results.' },
           context: { type: 'number', description: 'Context lines.' },
           type: { type: 'string', description: 'Filter by chunk kind/type.' },

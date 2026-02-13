@@ -678,15 +678,15 @@ Make query-time behavior profile-aware with one clear policy and explicit overri
 - Explicit override is `--allow-sparse-fallback` / `allowSparseFallback`.
 
 #### Tasks
-- [ ] Load profile early in retrieval path.
-- [ ] If index profile is `vector_only`:
-  - [ ] choose ANN/vector providers by default
-  - [ ] mark sparse providers unavailable
-- [ ] If user requests sparse-only behavior against vector-only:
-  - [ ] return controlled error with rebuild guidance
-- [ ] Add provider boundary table checks (`requireTables`) and controlled errors.
-- [ ] Ensure CLI/API/MCP policy parity for reject/override behavior.
-- [ ] Surface profile and mismatch details in explain output.
+- [x] Load profile early in retrieval path.
+- [x] If index profile is `vector_only`:
+  - [x] choose ANN/vector providers by default
+  - [x] mark sparse providers unavailable
+- [x] If user requests sparse-only behavior against vector-only:
+  - [x] return controlled error with rebuild guidance
+- [x] Add provider boundary table checks (`requireTables`) and controlled errors.
+- [x] Ensure CLI/API/MCP policy parity for reject/override behavior.
+- [x] Surface profile and mismatch details in explain output.
 
 #### Touchpoints
 - `src/retrieval/pipeline.js`
@@ -700,14 +700,14 @@ Make query-time behavior profile-aware with one clear policy and explicit overri
 - `docs/specs/vector-only-profile.md`
 
 #### Tests
-- [ ] `tests/retrieval/backend/vector-only-search-requires-ann.test.js`
-  - [ ] Vector-only index selects ANN path by default and errors if ANN provider unavailable.
-- [ ] `tests/retrieval/backend/vector-only-rejects-sparse-mode.test.js`
-  - [ ] Sparse-dependent mode is rejected by default with actionable guidance.
-- [ ] `tests/retrieval/backend/sqlite-missing-sparse-tables-is-controlled-error.test.js`
-  - [ ] Missing sparse tables return controlled mismatch error, not an exception crash.
-- [ ] `tests/retrieval/output/explain-vector-only-warnings.test.js`
-  - [ ] Explain output includes profile, mismatch reason, and override guidance.
+- [x] `tests/retrieval/backend/vector-only-search-requires-ann.test.js`
+  - [x] Vector-only index selects ANN path by default and errors if ANN provider unavailable.
+- [x] `tests/retrieval/backend/vector-only-rejects-sparse-mode.test.js`
+  - [x] Sparse-dependent mode is rejected by default with actionable guidance.
+- [x] `tests/retrieval/backend/sqlite-missing-sparse-tables-is-controlled-error.test.js`
+  - [x] Missing sparse tables return controlled mismatch error, not an exception crash.
+- [x] `tests/retrieval/output/explain-vector-only-warnings.test.js`
+  - [x] Explain output includes profile, mismatch reason, and override guidance.
 
 ### 18.4 Legacy migration and federation compatibility
 

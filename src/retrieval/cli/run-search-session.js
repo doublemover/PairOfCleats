@@ -83,6 +83,9 @@ export async function runSearchSession({
   rankSqliteFts,
   rankVectorAnnSqlite,
   sqliteHasFts,
+  sqliteHasTable,
+  profilePolicyByMode = null,
+  profileWarnings = [],
   idxProse,
   idxExtractedProse,
   idxCode,
@@ -194,6 +197,8 @@ export async function runSearchSession({
     rankSqliteFts,
     rankVectorAnnSqlite,
     sqliteHasFts,
+    sqliteHasTable,
+    profilePolicyByMode,
     signal
   });
   throwIfAborted();
@@ -637,6 +642,10 @@ export async function runSearchSession({
     recordExpanded,
     contextExpansionStats,
     annBackend: annBackendUsed,
+    profile: {
+      byMode: profilePolicyByMode || null,
+      warnings: Array.isArray(profileWarnings) ? profileWarnings : []
+    },
     cache: {
       enabled: queryCacheEnabled,
       hit: cacheHit,
