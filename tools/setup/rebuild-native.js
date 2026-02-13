@@ -50,8 +50,11 @@ const resolveNodeModulesPath = (pkgName) => (
 
 const isInstalled = (pkgName) => fs.existsSync(resolveNodeModulesPath(pkgName));
 
-const rebuildPackage = (pkgName) => {
-  const result = spawnSync('npm', ['rebuild', pkgName], {
+const rebuildPackage = (pkgName, { buildFromSource = false } = {}) => {
+  const args = ['rebuild', pkgName];
+  if (buildFromSource) args.push('--build-from-source');
+
+  const result = spawnSync('npm', args, {
     cwd: root,
     stdio: 'inherit',
     shell: process.platform === 'win32'
@@ -164,8 +167,19 @@ const repairRequiredPackages = async () => {
 
     const probeResult = await probePackage(failure.pkgName);
     if (!probeResult.ok) {
-      console.error(`[repair:native] required package still not loadable (${failure.pkgName}): ${probeResult.message}`);
-      repairFailures += 1;
+      console.error(`[repair:native] required package still not loadable (${failure.pkgName}) after rebuild; retrying from source.`);
+      const sourceRebuildResult = rebuildPackage(failure.pkgName, { buildFromSource: true });
+      if (!sourceRebuildResult.ok) {
+        console.error(`[repair:native] source rebuild failed required package ${failure.pkgName}: ${sourceRebuildResult.message}`);
+        repairFailures += 1;
+        continue;
+      }
+
+      const sourceProbeResult = await probePackage(failure.pkgName);
+      if (!sourceProbeResult.ok) {
+        console.error(`[repair:native] required package still not loadable (${failure.pkgName}) after source rebuild: ${sourceProbeResult.message}`);
+        repairFailures += 1;
+      }
     }
   }
 
