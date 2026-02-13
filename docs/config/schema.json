@@ -430,6 +430,31 @@
             }
           }
         },
+        "snapshots": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "keepPointer": { "type": "number" },
+            "keepFrozen": { "type": "number" },
+            "maxAgeDays": { "type": "number" },
+            "protectedTagGlobs": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "array", "items": { "type": "string" } }
+              ]
+            },
+            "stagingMaxAgeHours": { "type": "number" },
+            "maxPointerSnapshots": { "type": "number" },
+            "maxFrozenSnapshots": { "type": "number" },
+            "retainDays": { "type": "number" },
+            "keepTags": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "array", "items": { "type": "string" } }
+              ]
+            }
+          }
+        },
         "riskInterprocedural": {
           "type": "object",
           "additionalProperties": false,

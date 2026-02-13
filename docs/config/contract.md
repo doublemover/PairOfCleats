@@ -126,6 +126,16 @@ indexing.scm.jj.snapshotWorkingCopy (boolean)
 indexing.scm.maxConcurrentProcesses (number)
 indexing.scm.provider (string) enum=auto|git|jj|none
 indexing.scm.timeoutMs (number)
+indexing.snapshots (object)
+indexing.snapshots.keepFrozen (number)
+indexing.snapshots.keepPointer (number)
+indexing.snapshots.keepTags
+indexing.snapshots.maxAgeDays (number)
+indexing.snapshots.maxFrozenSnapshots (number)
+indexing.snapshots.maxPointerSnapshots (number)
+indexing.snapshots.protectedTagGlobs
+indexing.snapshots.retainDays (number)
+indexing.snapshots.stagingMaxAgeHours (number)
 mcp (object)
 mcp.maxBufferBytes (number)
 mcp.mode (string) enum=legacy|sdk|auto

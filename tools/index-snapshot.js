@@ -21,6 +21,79 @@ const parseTags = (value, repeated = []) => {
   return all;
 };
 
+const DEFAULT_SNAPSHOT_RETENTION = Object.freeze({
+  keepPointer: 25,
+  keepFrozen: 10,
+  maxAgeDays: 30,
+  protectedTagGlobs: ['release', 'keep-*'],
+  stagingMaxAgeHours: 24
+});
+
+const normalizeNumber = (value, fallback, minimum = 0) => {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return fallback;
+  return Math.max(minimum, Math.floor(num));
+};
+
+const normalizeTagGlobs = (value, fallback) => {
+  const raw = Array.isArray(value)
+    ? value
+    : String(value || '')
+      .split(',')
+      .map((token) => token.trim())
+      .filter(Boolean);
+  const selected = raw.length ? raw : fallback;
+  const deduped = [];
+  for (const tag of selected) {
+    const normalized = String(tag || '').trim();
+    if (!normalized || deduped.includes(normalized)) continue;
+    deduped.push(normalized);
+  }
+  return deduped.length ? deduped : [...fallback];
+};
+
+const resolveSnapshotDefaults = (userConfig) => {
+  const snapshots = (
+    userConfig
+    && userConfig.indexing
+    && typeof userConfig.indexing === 'object'
+    && !Array.isArray(userConfig.indexing)
+    && userConfig.indexing.snapshots
+    && typeof userConfig.indexing.snapshots === 'object'
+    && !Array.isArray(userConfig.indexing.snapshots)
+  )
+    ? userConfig.indexing.snapshots
+    : null;
+  if (!snapshots) {
+    return {
+      ...DEFAULT_SNAPSHOT_RETENTION,
+      protectedTagGlobs: [...DEFAULT_SNAPSHOT_RETENTION.protectedTagGlobs]
+    };
+  }
+  return {
+    keepPointer: normalizeNumber(
+      snapshots.keepPointer ?? snapshots.maxPointerSnapshots,
+      DEFAULT_SNAPSHOT_RETENTION.keepPointer
+    ),
+    keepFrozen: normalizeNumber(
+      snapshots.keepFrozen ?? snapshots.maxFrozenSnapshots,
+      DEFAULT_SNAPSHOT_RETENTION.keepFrozen
+    ),
+    maxAgeDays: normalizeNumber(
+      snapshots.maxAgeDays ?? snapshots.retainDays,
+      DEFAULT_SNAPSHOT_RETENTION.maxAgeDays
+    ),
+    protectedTagGlobs: normalizeTagGlobs(
+      snapshots.protectedTagGlobs ?? snapshots.keepTags,
+      DEFAULT_SNAPSHOT_RETENTION.protectedTagGlobs
+    ),
+    stagingMaxAgeHours: normalizeNumber(
+      snapshots.stagingMaxAgeHours,
+      DEFAULT_SNAPSHOT_RETENTION.stagingMaxAgeHours
+    )
+  };
+};
+
 const emitJson = (payload) => {
   process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
 };
@@ -57,11 +130,12 @@ export async function runSnapshotCli(rawArgs = process.argv.slice(2)) {
       .option('tags', { type: 'string' })
       .option('tag', { type: 'array', string: true })
       .option('wait-ms', { type: 'number', default: 0 })
-      .option('max-pointer-snapshots', { type: 'number', default: 25 })
+      .option('max-pointer-snapshots', { type: 'number' })
       .option('json', { type: 'boolean', default: false }),
     async (argv) => {
       try {
         const { repoRoot, userConfig } = resolveRepoConfig(argv.repo);
+        const snapshotDefaults = resolveSnapshotDefaults(userConfig);
         const result = await createPointerSnapshot({
           repoRoot,
           userConfig,
@@ -70,7 +144,7 @@ export async function runSnapshotCli(rawArgs = process.argv.slice(2)) {
           label: argv.label,
           snapshotId: argv.id,
           waitMs: argv['wait-ms'],
-          maxPointerSnapshots: argv['max-pointer-snapshots']
+          maxPointerSnapshots: argv['max-pointer-snapshots'] ?? snapshotDefaults.keepPointer
         });
         if (argv.json) {
           emitJson({ ok: true, snapshot: result });
@@ -134,25 +208,28 @@ export async function runSnapshotCli(rawArgs = process.argv.slice(2)) {
     'Garbage-collect old snapshots with protected-tag safety',
     (command) => command
       .option('repo', { type: 'string' })
-      .option('keep-pointer', { type: 'number', default: 50 })
-      .option('keep-frozen', { type: 'number', default: 20 })
-      .option('keep-tags', { type: 'string', default: 'release/*,release' })
+      .option('keep-pointer', { type: 'number' })
+      .option('keep-frozen', { type: 'number' })
+      .option('keep-tags', { type: 'string' })
       .option('max-age-days', { type: 'number' })
-      .option('staging-max-age-hours', { type: 'number', default: 24 })
+      .option('staging-max-age-hours', { type: 'number' })
       .option('wait-ms', { type: 'number', default: 0 })
       .option('dry-run', { type: 'boolean', default: false })
       .option('json', { type: 'boolean', default: false }),
     async (argv) => {
       try {
         const { repoRoot, userConfig } = resolveRepoConfig(argv.repo);
+        const snapshotDefaults = resolveSnapshotDefaults(userConfig);
         const result = await gcSnapshots({
           repoRoot,
           userConfig,
-          keepPointer: argv['keep-pointer'],
-          keepFrozen: argv['keep-frozen'],
-          keepTags: argv['keep-tags'],
-          maxAgeDays: argv['max-age-days'],
-          stagingMaxAgeHours: argv['staging-max-age-hours'],
+          keepPointer: argv['keep-pointer'] ?? snapshotDefaults.keepPointer,
+          keepFrozen: argv['keep-frozen'] ?? snapshotDefaults.keepFrozen,
+          keepTags: argv['keep-tags'] ?? snapshotDefaults.protectedTagGlobs.join(','),
+          maxAgeDays: argv['max-age-days'] ?? snapshotDefaults.maxAgeDays,
+          stagingMaxAgeHours: (
+            argv['staging-max-age-hours'] ?? snapshotDefaults.stagingMaxAgeHours
+          ),
           waitMs: argv['wait-ms'],
           dryRun: argv['dry-run'] === true
         });
@@ -174,17 +251,18 @@ export async function runSnapshotCli(rawArgs = process.argv.slice(2)) {
     'Prune old untagged pointer snapshots',
     (command) => command
       .option('repo', { type: 'string' })
-      .option('max-pointer-snapshots', { type: 'number', default: 25 })
+      .option('max-pointer-snapshots', { type: 'number' })
       .option('wait-ms', { type: 'number', default: 0 })
       .option('dry-run', { type: 'boolean', default: false })
       .option('json', { type: 'boolean', default: false }),
     async (argv) => {
       try {
         const { repoRoot, userConfig } = resolveRepoConfig(argv.repo);
+        const snapshotDefaults = resolveSnapshotDefaults(userConfig);
         const result = await pruneSnapshots({
           repoRoot,
           userConfig,
-          maxPointerSnapshots: argv['max-pointer-snapshots'],
+          maxPointerSnapshots: argv['max-pointer-snapshots'] ?? snapshotDefaults.keepPointer,
           waitMs: argv['wait-ms'],
           dryRun: argv['dry-run'] === true
         });

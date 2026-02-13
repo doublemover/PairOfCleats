@@ -470,7 +470,7 @@ Roadmap guidance MUST NOT redefine JSON schemas, file layouts, or event formats.
 - Remaining work: `14.1.5 Retention defaults (optional)` only.
 - Remaining optional items:
   - [x] Create/follow `docs/specs/config-defaults.md` for retention defaults.
-  - [ ] Define `indexing.snapshots.keepPointer`, `keepFrozen`, `maxAgeDays`, `protectedTagGlobs`, `stagingMaxAgeHours` defaults.
+  - [x] Define `indexing.snapshots.keepPointer`, `keepFrozen`, `maxAgeDays`, `protectedTagGlobs`, `stagingMaxAgeHours` defaults.
   - [ ] Define `indexing.diffs.keep`, `maxAgeDays`, and `indexing.diffs.compute.*` defaults.
 
 ## 14.1 Foundations (IndexRef + artifact contracts + safety)
@@ -556,7 +556,7 @@ Tests:
 ### 14.1.5 Retention defaults (optional)
 
 - [x] If implementing config defaults, create and follow `docs/specs/config-defaults.md`:
-  - [ ] `indexing.snapshots.keepPointer`, `keepFrozen`, `maxAgeDays`, `protectedTagGlobs`, `stagingMaxAgeHours`
+  - [x] `indexing.snapshots.keepPointer`, `keepFrozen`, `maxAgeDays`, `protectedTagGlobs`, `stagingMaxAgeHours`
   - [ ] `indexing.diffs.keep`, `maxAgeDays`
   - [ ] `indexing.diffs.compute.*` (modes, bounds, persist)
 
