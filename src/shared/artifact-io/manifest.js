@@ -6,6 +6,7 @@ import { readJsonFile } from './json.js';
 import { readCache, writeCache } from './cache.js';
 import { getTestEnvConfig } from '../env.js';
 import { fromPosix, isAbsolutePathNative, toPosix } from '../files.js';
+import { logLine } from '../progress.js';
 
 const MIN_MANIFEST_BYTES = 64 * 1024;
 const warnedMissingCompat = new Set();
@@ -42,7 +43,7 @@ const warnUnsafePath = (dir, relPath, reason) => {
   const key = `${dir}:${relPath}:${reason}`;
   if (warnedUnsafePaths.has(key)) return;
   warnedUnsafePaths.add(key);
-  console.warn(`[manifest] Non-strict mode: skipping unsafe path (${reason}): ${relPath}`);
+  logLine(`[manifest] Non-strict mode: skipping unsafe path (${reason}): ${relPath}`, { kind: 'warning' });
 };
 
 const resolveManifestMaxBytes = (maxBytes, { strict = true } = {}) => {
@@ -104,8 +105,9 @@ export const loadPiecesManifest = (dir, { maxBytes = MAX_JSON_BYTES, strict = tr
     }
     if (!warnedMissingManifest.has(manifestPath)) {
       warnedMissingManifest.add(manifestPath);
-      console.warn(
-        `[manifest] Non-strict mode: missing pieces manifest; falling back to legacy paths (${manifestPath}).`
+      logLine(
+        `[manifest] Non-strict mode: missing pieces manifest; falling back to legacy paths (${manifestPath}).`,
+        { kind: 'warning' }
       );
     }
     return null;
@@ -150,7 +152,7 @@ export const readCompatibilityKey = (dir, { maxBytes = MAX_JSON_BYTES, strict = 
       if (allowMissingInTests) {
         if (!warnedMissingCompat.has(dir)) {
           warnedMissingCompat.add(dir);
-          console.warn(`Missing compatibilityKey for index; continuing because tests allow missing keys: ${dir}`);
+          logLine(`Missing compatibilityKey for index; continuing because tests allow missing keys: ${dir}`, { kind: 'warning' });
         }
         return { key: null, source: null };
       }
@@ -163,8 +165,9 @@ export const readCompatibilityKey = (dir, { maxBytes = MAX_JSON_BYTES, strict = 
   const stateKey = normalizeCompatibilityKey(state?.compatibilityKey);
   if (stateKey) {
     if (manifest && strict) {
-      console.warn(
-        `Pieces manifest missing compatibilityKey; falling back to index_state.json (${path.join(dir, 'pieces', 'manifest.json')}).`
+      logLine(
+        `Pieces manifest missing compatibilityKey; falling back to index_state.json (${path.join(dir, 'pieces', 'manifest.json')}).`,
+        { kind: 'warning' }
       );
     }
     return { key: stateKey, source: 'index_state' };
@@ -173,7 +176,7 @@ export const readCompatibilityKey = (dir, { maxBytes = MAX_JSON_BYTES, strict = 
     if (allowMissingInTests) {
       if (!warnedMissingCompat.has(dir)) {
         warnedMissingCompat.add(dir);
-        console.warn(`Missing compatibilityKey for index; continuing because tests allow missing keys: ${dir}`);
+        logLine(`Missing compatibilityKey for index; continuing because tests allow missing keys: ${dir}`, { kind: 'warning' });
       }
       return { key: null, source: null };
     }
@@ -379,8 +382,9 @@ const warnNonStrictFallback = (dir, name) => {
   const key = `${dir}:${name}`;
   if (warnedNonStrictFallback.has(key)) return;
   warnedNonStrictFallback.add(key);
-  console.warn(
-    `[manifest] Non-strict mode: ${name} missing from manifest; using legacy path (${dir}).`
+  logLine(
+    `[manifest] Non-strict mode: ${name} missing from manifest; using legacy path (${dir}).`,
+    { kind: 'warning' }
   );
 };
 

@@ -66,15 +66,15 @@ export const createProcessRunner = ({
     if (!paths.length) return;
     if (paths.length === 1) {
       const only = paths[0];
-      console.error(`Log: ${only}`);
-      console.error(only);
+      appendLog(`Log: ${only}`);
+      appendLog(only);
       writeLog(`${prefix} Log: ${only}`);
       writeLog(`${prefix} ${only}`);
       return;
     }
     const joined = paths.join(' ');
-    console.error(`Logs: ${joined}`);
-    paths.forEach((entry) => console.error(entry));
+    appendLog(`Logs: ${joined}`);
+    paths.forEach((entry) => appendLog(entry));
     writeLog(`${prefix} Logs: ${joined}`);
     paths.forEach((entry) => writeLog(`${prefix} ${entry}`));
   };
@@ -119,16 +119,16 @@ export const createProcessRunner = ({
       if (code === 0) {
         return { ok: true };
       }
-      console.error(`Failed: ${label}`);
+      appendLog(`Failed: ${label}`);
       writeLog(`[error] Failed: ${label}`);
       emitLogPaths('[error]');
       if (logHistory.length) {
-        console.error('Last log lines:');
-        logHistory.slice(-10).forEach((line) => console.error(`- ${line}`));    
+        appendLog('Last log lines:');
+        logHistory.slice(-10).forEach((line) => appendLog(`- ${line}`));
         logHistory.slice(-10).forEach((line) => writeLog(`[error] ${line}`));   
       }
       if (logHistory.some((line) => line.toLowerCase().includes('filename too long'))) {
-        console.error('Hint: On Windows, enable long paths and set `git config --global core.longpaths true` or use a shorter --root path.');
+        appendLog('Hint: On Windows, enable long paths and set `git config --global core.longpaths true` or use a shorter --root path.');
         writeLog('[hint] Enable Windows long paths and set `git config --global core.longpaths true` or use a shorter --root path.');
       }
       if (!continueOnError) {
@@ -140,11 +140,11 @@ export const createProcessRunner = ({
       const message = err?.message || err;
       writeLog(`[error] ${label} spawn failed: ${message}`);
       clearActiveChild({ pid: err?.result?.pid ?? null });
-      console.error(`Failed: ${label}`);
+      appendLog(`Failed: ${label}`);
       emitLogPaths('[error]');
       if (logHistory.length) {
-        console.error('Last log lines:');
-        logHistory.slice(-10).forEach((line) => console.error(`- ${line}`));    
+        appendLog('Last log lines:');
+        logHistory.slice(-10).forEach((line) => appendLog(`- ${line}`));
         logHistory.slice(-10).forEach((line) => writeLog(`[error] ${line}`));   
       }
       if (!continueOnError) {

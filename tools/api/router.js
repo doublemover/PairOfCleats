@@ -58,9 +58,16 @@ export const createApiRouter = ({
     indexCache,
     sqliteCache
   });
-  const canonicalAllowedRoots = [defaultRepo, ...allowedRepoRoots]
+  const canonicalConfiguredAllowedRoots = [defaultRepo, ...allowedRepoRoots]
     .filter((entry) => typeof entry === 'string' && entry.trim())
     .map((entry) => toRealPathSync(path.resolve(entry)));
+  const canonicalExplicitAllowedRoots = allowedRepoRoots
+    .filter((entry) => typeof entry === 'string' && entry.trim())
+    .map((entry) => toRealPathSync(path.resolve(entry)));
+  const canonicalAllowedRoots = Array.from(new Set([
+    ...canonicalConfiguredAllowedRoots,
+    ...(canonicalExplicitAllowedRoots.length ? [] : [resolveFederationCacheRoot(null)])
+  ]));
   const isAllowedWorkspacePath = (workspacePath) => {
     if (!canonicalAllowedRoots.length) return true;
     const workspaceCanonical = toRealPathSync(workspacePath);

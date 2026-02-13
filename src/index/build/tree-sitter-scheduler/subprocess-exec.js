@@ -8,6 +8,12 @@ const JSONL_LOAD_RETRY_ATTEMPTS = 8;
 const JSONL_LOAD_RETRY_BASE_DELAY_MS = 25;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const emitLine = (message, stream = process.stderr) => {
+  stream.write(`${String(message)}\n`);
+};
+const emitInfo = (message) => emitLine(message, process.stdout);
+const emitWarn = (message) => emitLine(message, process.stderr);
+const emitError = (message) => emitLine(message, process.stderr);
 
 const parseArgs = (argv) => {
   const out = {};
@@ -80,7 +86,7 @@ const main = async () => {
   const outDir = args.outDir;
   const grammarKeyFilter = args.grammarKey || null;
   if (!outDir) {
-    console.error('[tree-sitter:schedule] missing --outDir');
+    emitError('[tree-sitter:schedule] missing --outDir');
     process.exit(2);
   }
 
@@ -127,10 +133,10 @@ const main = async () => {
     if (warmupLanguages.length) {
       const warmup = warmupNativeTreeSitterParsers(warmupLanguages, {
         treeSitter: treeSitterConfig,
-        log: console.log
+        log: emitInfo
       });
       if (warmup.failed.length) {
-        console.warn(
+        emitWarn(
           `[tree-sitter:schedule] warmup failed for ${warmup.failed.length} language(s): ${warmup.failed.join(', ')}`
         );
       }
@@ -142,12 +148,12 @@ const main = async () => {
     runtime,
     groups,
     outDir,
-    log: console.log
+    log: emitInfo
   });
 };
 
 main().catch((err) => {
   const message = err?.message || String(err);
-  console.error(`[tree-sitter:schedule] exec failed: ${message}`);
+  emitError(`[tree-sitter:schedule] exec failed: ${message}`);
   process.exit(1);
 });
