@@ -9,6 +9,27 @@ import {
   resolveRequiredArtifactsForProfile
 } from '../../contracts/index-profile.js';
 
+export const LEGACY_PROFILE_NORMALIZATION_WARNING = (
+  'Legacy index_state.json missing profile metadata; normalizing to profile.id=default. ' +
+  'Rebuild indexes to persist profile metadata.'
+);
+
+let legacyProfileWarningEmitted = false;
+
+const emitLegacyProfileWarningOnce = (onCompatibilityWarning) => {
+  if (legacyProfileWarningEmitted) return;
+  legacyProfileWarningEmitted = true;
+  if (typeof onCompatibilityWarning === 'function') {
+    onCompatibilityWarning(LEGACY_PROFILE_NORMALIZATION_WARNING);
+    return;
+  }
+  console.warn(`[search] ${LEGACY_PROFILE_NORMALIZATION_WARNING}`);
+};
+
+export const resetLegacyProfileNormalizationWarningForTests = () => {
+  legacyProfileWarningEmitted = false;
+};
+
 export const normalizeIndexStateProfile = (state) => {
   const rawProfile = state?.profile && typeof state.profile === 'object'
     ? state.profile
@@ -55,8 +76,12 @@ export const normalizeIndexStateArtifacts = (state, profileId) => {
   };
 };
 
-export const normalizeLoadedIndexState = (state) => {
+export const normalizeLoadedIndexState = (state, options = {}) => {
   if (!state || typeof state !== 'object' || Array.isArray(state)) return state;
+  const hasProfileBlock = state.profile && typeof state.profile === 'object';
+  if (!hasProfileBlock) {
+    emitLegacyProfileWarningOnce(options.onCompatibilityWarning);
+  }
   const profile = normalizeIndexStateProfile(state);
   const artifacts = normalizeIndexStateArtifacts(state, profile.id);
   return {
@@ -72,7 +97,7 @@ export const loadIndexState = (rootDir, userConfig, mode, options = {}) => {
     const statePath = path.join(dir, 'index_state.json');
     if (!fsSync.existsSync(statePath)) return null;
     const parsed = JSON.parse(fsSync.readFileSync(statePath, 'utf8'));
-    return normalizeLoadedIndexState(parsed);
+    return normalizeLoadedIndexState(parsed, options);
   } catch {
     return null;
   }

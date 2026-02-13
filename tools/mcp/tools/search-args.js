@@ -18,6 +18,7 @@ const HANDLED_FIELDS = new Set([
   'output',
   'ann',
   'allowSparseFallback',
+  'allowUnsafeMix',
   'top',
   'context',
   'type',

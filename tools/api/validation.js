@@ -42,6 +42,7 @@ const searchRequestSchema = {
     backend: { type: 'string', enum: ['auto', 'memory', 'sqlite', 'sqlite-fts', 'lmdb'] },
     ann: { type: 'boolean' },
     allowSparseFallback: { type: 'boolean' },
+    allowUnsafeMix: { type: 'boolean' },
     top: { type: 'integer', minimum: 0 },
     context: { type: 'integer', minimum: 0 },
     type: { type: 'string' },

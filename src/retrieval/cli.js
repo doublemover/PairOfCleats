@@ -281,6 +281,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       fieldWeightsConfig,
       explain,
       allowSparseFallback,
+      allowUnsafeMix,
       denseVectorMode,
       strict,
       backendArg,
@@ -363,6 +364,13 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     let annEnabledEffective = annEnabled;
     let vectorAnnEnabled = false;
     const profileWarnings = [];
+    const profileWarningSet = new Set();
+    const addProfileWarning = (warning) => {
+      const text = typeof warning === 'string' ? warning.trim() : '';
+      if (!text || profileWarningSet.has(text)) return;
+      profileWarningSet.add(text);
+      profileWarnings.push(text);
+    };
     const dbModeSelection = [];
     if (needsCode) dbModeSelection.push('code');
     if (needsProse) dbModeSelection.push('prose');
@@ -395,16 +403,28 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     const sqliteExtractedProsePath = sqlitePaths.extractedProsePath;
 
     const sqliteStateCode = needsCode
-      ? loadIndexState(rootDir, userConfig, 'code', { resolveOptions: indexResolveOptions })
+      ? loadIndexState(rootDir, userConfig, 'code', {
+        resolveOptions: indexResolveOptions,
+        onCompatibilityWarning: addProfileWarning
+      })
       : null;
     const sqliteStateProse = needsProse
-      ? loadIndexState(rootDir, userConfig, 'prose', { resolveOptions: indexResolveOptions })
+      ? loadIndexState(rootDir, userConfig, 'prose', {
+        resolveOptions: indexResolveOptions,
+        onCompatibilityWarning: addProfileWarning
+      })
       : null;
     const sqliteStateExtractedProse = needsExtractedProse
-      ? loadIndexState(rootDir, userConfig, 'extracted-prose', { resolveOptions: indexResolveOptions })
+      ? loadIndexState(rootDir, userConfig, 'extracted-prose', {
+        resolveOptions: indexResolveOptions,
+        onCompatibilityWarning: addProfileWarning
+      })
       : null;
     const sqliteStateRecords = runRecords
-      ? loadIndexState(rootDir, userConfig, 'records', { resolveOptions: indexResolveOptions })
+      ? loadIndexState(rootDir, userConfig, 'records', {
+        resolveOptions: indexResolveOptions,
+        onCompatibilityWarning: addProfileWarning
+      })
       : null;
     const indexStateByMode = {
       code: sqliteStateCode,
@@ -430,6 +450,26 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       };
     }
     const vectorOnlyModes = selectedModes.filter((mode) => profilePolicyByMode[mode]?.vectorOnly === true);
+    const profileModes = selectedModes
+      .map((mode) => ({ mode, profileId: profilePolicyByMode[mode]?.profileId || INDEX_PROFILE_DEFAULT }))
+      .filter((entry) => typeof entry.profileId === 'string' && entry.profileId);
+    const uniqueProfileIds = Array.from(new Set(profileModes.map((entry) => entry.profileId)));
+    if (uniqueProfileIds.length > 1) {
+      const details = profileModes
+        .map((entry) => `${entry.mode}:${entry.profileId}`)
+        .join(', ');
+      if (allowUnsafeMix !== true) {
+        return bail(
+          `[search] retrieval_profile_mismatch: mixed index profiles detected (${details}). ` +
+            'Rebuild indexes to a single profile or pass --allow-unsafe-mix to override.',
+          1,
+          ERROR_CODES.INVALID_REQUEST
+        );
+      }
+      addProfileWarning(
+        `Unsafe mixed-profile cohort override enabled (--allow-unsafe-mix): ${details}.`
+      );
+    }
     const sparseOnlyRequested = scoreMode === 'sparse' || (annFlagPresent && annEnabled === false);
     if (vectorOnlyModes.length && sparseOnlyRequested) {
       if (allowSparseFallback !== true) {
@@ -441,13 +481,13 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
           ERROR_CODES.INVALID_REQUEST
         );
       }
-      profileWarnings.push(
+      addProfileWarning(
         `Sparse-only request overridden for vector_only mode(s): ${vectorOnlyModes.join(', ')}. ANN fallback was used.`
       );
       annEnabledEffective = true;
     }
     if (vectorOnlyModes.length && annEnabledEffective !== true) {
-      profileWarnings.push(
+      addProfileWarning(
         `Forcing ANN on for vector_only mode(s): ${vectorOnlyModes.join(', ')}. Sparse providers are unavailable.`
       );
       annEnabledEffective = true;
@@ -921,6 +961,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       loadIndexFromLmdb,
       resolvedDenseVectorMode: queryPlan.resolvedDenseVectorMode,
       loadExtractedProse: joinComments,
+      allowUnsafeMix,
       requiredArtifacts,
       indexDirByMode: asOfContext?.strict ? asOfContext.indexDirByMode : null,
       indexBaseRootByMode: asOfContext?.strict ? asOfContext.indexBaseRootByMode : null,

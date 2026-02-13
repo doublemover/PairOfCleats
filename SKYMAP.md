@@ -715,13 +715,13 @@ Make query-time behavior profile-aware with one clear policy and explicit overri
 Handle old indexes and mixed-profile cohorts deterministically.
 
 #### Tasks
-- [ ] Legacy index without profile block:
-  - [ ] normalize to `default` at read time
-  - [ ] emit compatibility warning once per process
-- [ ] Mixed profile cohorts:
-  - [ ] reject by default
-- [ ] allow only with explicit opt-in and explain warning
-- [ ] Publish migration guide from old index_state shapes.
+- [x] Legacy index without profile block:
+  - [x] normalize to `default` at read time
+  - [x] emit compatibility warning once per process
+- [x] Mixed profile cohorts:
+  - [x] reject by default
+- [x] allow only with explicit opt-in and explain warning
+- [x] Publish migration guide from old index_state shapes.
 
 #### Touchpoints
 - `src/retrieval/cli/index-loader.js`
@@ -731,9 +731,9 @@ Handle old indexes and mixed-profile cohorts deterministically.
 - `docs/specs/federation-cohorts.md`
 
 #### Tests
-- [ ] `tests/retrieval/backend/vector-only-compatibility-key-mismatch.test.js`
-- [ ] `tests/retrieval/backend/legacy-index-without-profile-normalizes-default.test.js`
-- [ ] `tests/retrieval/backend/mixed-profile-cohort-opt-in.test.js`
+- [x] `tests/retrieval/backend/vector-only-compatibility-key-mismatch.test.js`
+- [x] `tests/retrieval/backend/legacy-index-without-profile-normalizes-default.test.js`
+- [x] `tests/retrieval/backend/mixed-profile-cohort-opt-in.test.js`
 
 ### 18.5 Optional analysis shortcuts for vector-only builds (stretch)
 

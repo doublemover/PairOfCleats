@@ -34,6 +34,7 @@ export const buildSearchArgs = (params = {}) => {
   pushFlag(args, 'backend', params.backend);
   pushFlag(args, 'ann', params.ann);
   pushFlag(args, 'allow-sparse-fallback', params.allowSparseFallback);
+  pushFlag(args, 'allow-unsafe-mix', params.allowUnsafeMix);
   pushFlag(args, 'ann-backend', params.annBackend);
   pushFlag(args, 'json', params.json);
   pushFlag(args, 'explain', params.explain);

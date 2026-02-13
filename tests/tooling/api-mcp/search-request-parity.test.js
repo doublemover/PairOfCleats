@@ -31,6 +31,7 @@ const payload = {
   backend: 'sqlite',
   ann: true,
   allowSparseFallback: true,
+  allowUnsafeMix: true,
   top: 5,
   context: 2,
   type: 'function',

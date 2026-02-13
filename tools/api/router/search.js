@@ -155,7 +155,7 @@ export const buildSearchPayloadFromQuery = (searchParams) => {
   if (!ann.ok) errors.push({ path: 'ann', message: ann.message });
   else if (ann.present) payload.ann = ann.value;
 
-  const booleanKeys = ['case', 'caseFile', 'caseTokens', 'lint', 'async', 'generator', 'returns', 'allowSparseFallback'];
+  const booleanKeys = ['case', 'caseFile', 'caseTokens', 'lint', 'async', 'generator', 'returns', 'allowSparseFallback', 'allowUnsafeMix'];
   for (const key of booleanKeys) {
     const parsed = parseStrictBooleanQueryParam(searchParams, key);
     if (!parsed.ok) errors.push({ path: key, message: parsed.message });

@@ -128,3 +128,20 @@
   - `warnings[]`
 - Per-hit score breakdown includes sparse profile context:
   - `scoreBreakdown.sparse.indexProfile`
+
+## Migration guide: legacy `index_state.json` shapes
+
+Legacy indexes built before profile/artifact schema rollout may omit:
+- `profile`
+- `artifacts`
+
+Read-time behavior:
+- missing `profile` normalizes to:
+  - `profile.id = "default"`
+  - `profile.schemaVersion = 1`
+- missing `artifacts` normalizes to schema-derived defaults for the resolved profile.
+- a one-time compatibility warning is emitted per process when profile metadata is missing.
+
+Recommended migration path:
+1. Rebuild indexes with current tooling so profile/artifact blocks are materialized on disk.
+2. Avoid long-term `--allow-unsafe-mix` use; align all active modes/repositories to one profile cohort before removing overrides.
