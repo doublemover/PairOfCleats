@@ -133,7 +133,7 @@ const federatedLimitsSchema = {
   type: 'object',
   additionalProperties: false,
   properties: {
-    perRepoTop: { type: 'integer', minimum: 1 },
+    perRepoTop: { type: 'integer', minimum: 0 },
     concurrency: { type: 'integer', minimum: 1 }
   }
 };
