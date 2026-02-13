@@ -208,7 +208,8 @@ export const processFileCpu = async (context) => {
     && baseTreeSitterConfig?.languagePasses === false
     ? { ...(baseTreeSitterConfig || {}), allowedLanguages }
     : baseTreeSitterConfig;
-  const resolvedSegmentsConfig = mode === 'extracted-prose'
+  const extractedDocumentFile = documentExtraction && typeof documentExtraction === 'object';
+  const resolvedSegmentsConfig = mode === 'extracted-prose' && !extractedDocumentFile
     ? { ...normalizedSegmentsConfig, onlyExtras: true }
     : normalizedSegmentsConfig;
   const treeSitterEnabled = treeSitterConfig?.enabled !== false && mode === 'code';
@@ -264,7 +265,7 @@ export const processFileCpu = async (context) => {
   fileLanguageId = lang?.id || null;
   const allowUnknownLanguage = mode === 'prose'
     || mode === 'extracted-prose'
-    || (documentExtraction && typeof documentExtraction === 'object');
+    || extractedDocumentFile;
   if (!lang && languageOptions?.skipUnknownLanguages && !allowUnknownLanguage) {
     return {
       chunks: [],
@@ -458,7 +459,7 @@ export const processFileCpu = async (context) => {
     ...languageContext,
     yamlChunking: languageOptions?.yamlChunking,
     chunking: languageOptions?.chunking,
-    documentExtraction: documentExtraction && typeof documentExtraction === 'object'
+    documentExtraction: extractedDocumentFile
       ? documentExtraction
       : null,
     javascript: languageOptions?.javascript,

@@ -109,6 +109,7 @@ export const processChunks = async (context) => {
   updateCrashStage('process-chunks:start', { totalChunks: sc.length, languageId: containerLanguageId });
 
   const strictIdentity = analysisPolicy?.identity?.strict !== false;
+  const chunkUidNamespaceKey = mode === 'extracted-prose' ? 'repo:extracted-prose' : 'repo';
   let chunkLineRanges = [];
   let vfsManifestRows = null;
   try {
@@ -116,6 +117,7 @@ export const processChunks = async (context) => {
       chunks: sc,
       text,
       relKey,
+      namespaceKey: chunkUidNamespaceKey,
       containerExt,
       containerLanguageId,
       lineIndex,

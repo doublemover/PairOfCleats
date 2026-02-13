@@ -55,6 +55,7 @@ const buildPdfChunk = ({ text, pageUnits, startOffset, endOffset, windowIndex = 
     end: pageRange.end,
     textSlice: slice
   });
+  const segmentUid = `segdoc:v1:${anchor}`;
   return {
     start: startOffset,
     end: endOffset,
@@ -64,7 +65,11 @@ const buildPdfChunk = ({ text, pageUnits, startOffset, endOffset, windowIndex = 
     kind: 'Section',
     meta: {},
     segment: {
+      segmentId: segmentUid,
+      segmentUid,
       type: 'pdf',
+      start: startOffset,
+      end: endOffset,
       pageStart: pageRange.start,
       pageEnd: pageRange.end,
       anchor,
@@ -84,6 +89,7 @@ export const chunkPdfDocument = (text, context = null) => {
       end: 1,
       textSlice: value
     });
+    const segmentUid = `segdoc:v1:${anchor}`;
     return [{
       start: 0,
       end: value.length,
@@ -91,7 +97,11 @@ export const chunkPdfDocument = (text, context = null) => {
       kind: 'Section',
       meta: {},
       segment: {
+        segmentId: segmentUid,
+        segmentUid,
         type: 'pdf',
+        start: 0,
+        end: value.length,
         pageStart: 1,
         pageEnd: 1,
         anchor

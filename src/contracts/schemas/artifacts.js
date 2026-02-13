@@ -409,6 +409,112 @@ const fileListsSchema = {
   additionalProperties: false
 };
 
+const extractionReportExtractor = {
+  type: ['object', 'null'],
+  properties: {
+    name: nullableString,
+    version: nullableString,
+    target: nullableString
+  },
+  additionalProperties: false
+};
+
+const extractionReportFile = {
+  type: 'object',
+  required: [
+    'file',
+    'sourceType',
+    'status',
+    'reason',
+    'extractor',
+    'sourceBytesHash',
+    'sourceBytesHashAlgo',
+    'normalizationPolicy',
+    'chunkerVersion',
+    'extractionConfigDigest',
+    'extractionIdentityHash',
+    'unitCounts',
+    'warnings'
+  ],
+  properties: {
+    file: { type: 'string' },
+    sourceType: { type: 'string', enum: ['pdf', 'docx'] },
+    status: { type: 'string', enum: ['ok', 'skipped'] },
+    reason: nullableString,
+    extractor: extractionReportExtractor,
+    sourceBytesHash: nullableString,
+    sourceBytesHashAlgo: nullableString,
+    normalizationPolicy: nullableString,
+    chunkerVersion: nullableString,
+    extractionConfigDigest: { type: 'string' },
+    extractionIdentityHash: nullableString,
+    unitCounts: {
+      anyOf: [
+        {
+          type: 'object',
+          required: ['pages', 'paragraphs', 'totalUnits'],
+          properties: {
+            pages: intId,
+            paragraphs: intId,
+            totalUnits: intId
+          },
+          additionalProperties: false
+        },
+        { type: 'null' }
+      ]
+    },
+    warnings: { type: 'array', items: { type: 'string' } }
+  },
+  additionalProperties: false
+};
+
+const extractionReportSchema = {
+  type: 'object',
+  required: [
+    'schemaVersion',
+    'mode',
+    'generatedAt',
+    'chunkerVersion',
+    'extractionConfigDigest',
+    'counts',
+    'extractors',
+    'files'
+  ],
+  properties: {
+    schemaVersion: posInt,
+    mode: { type: 'string', const: 'extracted-prose' },
+    generatedAt: { type: 'string' },
+    chunkerVersion: { type: 'string' },
+    extractionConfigDigest: { type: 'string' },
+    counts: {
+      type: 'object',
+      required: ['total', 'ok', 'skipped', 'byReason'],
+      properties: {
+        total: intId,
+        ok: intId,
+        skipped: intId,
+        byReason: { type: 'object', additionalProperties: intId }
+      },
+      additionalProperties: false
+    },
+    extractors: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['name', 'version', 'target'],
+        properties: {
+          name: nullableString,
+          version: nullableString,
+          target: nullableString
+        },
+        additionalProperties: false
+      }
+    },
+    files: { type: 'array', items: extractionReportFile }
+  },
+  additionalProperties: false
+};
+
 const shardedJsonlPart = {
   type: 'object',
   required: ['path', 'records', 'bytes'],
@@ -1285,6 +1391,7 @@ export const ARTIFACT_SCHEMA_DEFS = {
     additionalProperties: true
   },
   filelists: fileListsSchema,
+  extraction_report: extractionReportSchema,
   pieces_manifest: {
     type: 'object',
     required: ['version', 'artifactSurfaceVersion', 'pieces'],

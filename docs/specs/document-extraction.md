@@ -51,3 +51,16 @@
   - normalize repeated horizontal whitespace to single spaces
   - trim leading/trailing whitespace
 - Same normalized input must produce the same anchor across platforms.
+
+## Extraction report artifact
+- Path: `extraction_report.json` in extracted-prose index output.
+- `schemaVersion = 1`.
+- Includes:
+  - counts by status (`ok`, `skipped`) and `byReason`.
+  - per-file extraction status and reason.
+  - extractor identity (`name`, `version`, `target`).
+  - `sourceBytesHash` and `extractionIdentityHash`.
+
+## Extraction identity hash formula
+- `extractionIdentityHash = sha256(bytesHash + "|" + extractorVersion + "|" + normalizationPolicy + "|" + chunkerVersion + "|" + extractionConfigDigest)`
+- `extractionConfigDigest = sha256(stableStringify(indexing.documentExtraction))`

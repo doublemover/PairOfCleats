@@ -110,6 +110,7 @@ const buildDocxChunk = ({
     end: paragraphRange.end,
     textSlice: slice
   });
+  const segmentUid = `segdoc:v1:${anchor}`;
   const merged = paragraphRange.start !== paragraphRange.end;
   return {
     start: startOffset,
@@ -120,7 +121,11 @@ const buildDocxChunk = ({
     kind: 'Section',
     meta: {},
     segment: {
+      segmentId: segmentUid,
+      segmentUid,
       type: 'docx',
+      start: startOffset,
+      end: endOffset,
       paragraphStart: paragraphRange.start,
       paragraphEnd: paragraphRange.end,
       ...(Array.isArray(headingPath) && headingPath.length ? { headingPath } : {}),
@@ -142,6 +147,7 @@ export const chunkDocxDocument = (text, context = null) => {
       end: 1,
       textSlice: value
     });
+    const segmentUid = `segdoc:v1:${anchor}`;
     return [{
       start: 0,
       end: value.length,
@@ -149,7 +155,11 @@ export const chunkDocxDocument = (text, context = null) => {
       kind: 'Section',
       meta: {},
       segment: {
+        segmentId: segmentUid,
+        segmentUid,
         type: 'docx',
+        start: 0,
+        end: value.length,
         paragraphStart: 1,
         paragraphEnd: 1,
         anchor
