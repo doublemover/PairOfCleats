@@ -484,32 +484,32 @@ Make routing and FTS query compilation deterministic, explainable, and safe.
 Fix helper-level correctness risks with explicit bounds and deterministic behavior.
 
 #### Tasks
-- [ ] Every fix must include a regression test.
-- [ ] `rankSqliteFts()` allowed ID correctness:
-  - [ ] support adaptive overfetch and/or chunked pushdown
-  - [ ] ensure true top-N among allowed IDs
-  - [ ] enforce hard caps:
-    - [ ] `overfetchRowCap = max(5000, 10 * topN)`
-    - [ ] `overfetchTimeBudgetMs = 150`
-- [ ] Ranking correctness:
-  - [ ] apply weighting before final limit
-  - [ ] publish stable tie-break rules
-- [ ] `unpackUint32()` alignment safety:
-  - [ ] use aligned copy or `DataView` path on unaligned buffers
-- [ ] Missing table handling:
-  - [ ] controlled error/warning code `retrieval_fts_unavailable`
-  - [ ] no throws past provider boundary
+- [x] Every fix must include a regression test.
+- [x] `rankSqliteFts()` allowed ID correctness:
+  - [x] support adaptive overfetch and/or chunked pushdown
+  - [x] ensure true top-N among allowed IDs
+  - [x] enforce hard caps:
+    - [x] `overfetchRowCap = max(5000, 10 * topN)`
+    - [x] `overfetchTimeBudgetMs = 150`
+- [x] Ranking correctness:
+  - [x] apply weighting before final limit
+  - [x] publish stable tie-break rules
+- [x] `unpackUint32()` alignment safety:
+  - [x] use aligned copy or `DataView` path on unaligned buffers
+- [x] Missing table handling:
+  - [x] controlled error/warning code `retrieval_fts_unavailable`
+  - [x] no throws past provider boundary
 
 #### Touchpoints
 - `src/retrieval/sqlite-helpers.js`
 - `src/retrieval/output/explain.js`
 
 #### Tests
-- [ ] `tests/retrieval/backend/rankSqliteFts-allowedIds-correctness.test.js`
-- [ ] `tests/retrieval/backend/rankSqliteFts-weight-before-limit.test.js`
-- [ ] `tests/retrieval/backend/rankSqliteFts-missing-table-is-controlled-error.test.js`
-- [ ] `tests/retrieval/backend/unpackUint32-buffer-alignment.test.js`
-- [ ] `tests/retrieval/backend/rankSqliteFts-overfetch-cap-budget.test.js`
+- [x] `tests/retrieval/backend/rankSqliteFts-allowedIds-correctness.test.js`
+- [x] `tests/retrieval/backend/rankSqliteFts-weight-before-limit.test.js`
+- [x] `tests/retrieval/backend/rankSqliteFts-missing-table-is-controlled-error.test.js`
+- [x] `tests/retrieval/backend/unpackUint32-buffer-alignment.test.js`
+- [x] `tests/retrieval/backend/rankSqliteFts-overfetch-cap-budget.test.js`
 
 ### 17.7 Query intent and boolean semantics
 

@@ -30,6 +30,7 @@ const PREFLIGHT_CACHE_TTL_MS = 30000;
 const ANN_ADAPTIVE_FAILURE_PENALTY_MS = 5000;
 const ANN_ADAPTIVE_PREFLIGHT_PENALTY_MS = 10000;
 const ANN_ADAPTIVE_LATENCY_ALPHA = 0.25;
+const FTS_UNAVAILABLE_CODE = 'retrieval_fts_unavailable';
 
 /**
  * Create a search pipeline runner bound to a shared context.
@@ -472,6 +473,8 @@ export function createSearchPipeline(context) {
         let bmHits = [];
         let sparseType = fieldWeightsEnabled ? 'bm25-fielded' : 'bm25';
         let sqliteFtsUsed = false;
+        const sqliteFtsDiagnostics = [];
+        let sqliteFtsOverfetch = null;
         const sqliteFtsAllowed = allowedIdx && allowedCount
           ? (allowedCount <= SQLITE_IN_LIMIT ? ensureAllowedSet(allowedIdx) : null)
           : null;
@@ -512,7 +515,15 @@ export function createSearchPipeline(context) {
             ftsMatch: sqliteFtsCompilation.match,
             mode,
             topN: expandedTopN,
-            allowedIds: sqliteFtsCanPushdown ? sqliteFtsAllowed : null
+            allowedIds: sqliteFtsCanPushdown ? sqliteFtsAllowed : null,
+            onDiagnostic: (diagnostic) => {
+              if (!diagnostic || typeof diagnostic !== 'object') return;
+              sqliteFtsDiagnostics.push(diagnostic);
+            },
+            onOverfetch: (stats) => {
+              if (!stats || typeof stats !== 'object') return;
+              sqliteFtsOverfetch = stats;
+            }
           });
           bmHits = ftsResult.hits;
           sqliteFtsUsed = bmHits.length > 0;
@@ -545,6 +556,9 @@ export function createSearchPipeline(context) {
           candidates: candidates ? candidates.size : null,
           bmHits: bmHits.length
         };
+        const unavailableDiagnostic = sqliteFtsDiagnostics.find(
+          (entry) => entry?.code === FTS_UNAVAILABLE_CODE
+        );
         const sqliteRoutingReason = !sqliteEnabledForMode
           ? 'sqlite_unavailable'
           : !sqliteFtsDesiredForMode
@@ -555,7 +569,9 @@ export function createSearchPipeline(context) {
                 ? 'fts_table_unavailable'
                 : (filtersEnabled && !sqliteFtsCanPushdown)
                   ? 'filters_require_pushdown'
-                  : 'fts_selected';
+                  : (unavailableDiagnostic
+                    ? FTS_UNAVAILABLE_CODE
+                    : 'fts_selected');
         candidateMetrics.routing = {
           mode,
           sqliteEnabledForMode,
@@ -568,13 +584,18 @@ export function createSearchPipeline(context) {
           variant: sqliteFtsCompilation.variant,
           tokenizer: sqliteFtsCompilation.tokenizer,
           reasonPath: sqliteFtsCompilation.reasonPath,
-          normalizedChanged: sqliteFtsCompilation.normalizedChanged
+          normalizedChanged: sqliteFtsCompilation.normalizedChanged,
+          diagnostics: sqliteFtsDiagnostics,
+          overfetch: sqliteFtsOverfetch
         };
         candidateMetrics.sqliteFtsUsed = sqliteFtsUsed;
         candidateMetrics.sparseType = sparseType;
-        return { candidates, bmHits, sparseType, sqliteFtsUsed };
+        return { candidates, bmHits, sparseType, sqliteFtsUsed, sqliteFtsDiagnostics };
       });
-      let { candidates, bmHits, sparseType, sqliteFtsUsed } = candidateResult;
+      let { candidates, bmHits, sparseType, sqliteFtsUsed, sqliteFtsDiagnostics } = candidateResult;
+      const sqliteFtsUnavailable = Array.isArray(sqliteFtsDiagnostics)
+        ? sqliteFtsDiagnostics.find((entry) => entry?.code === FTS_UNAVAILABLE_CODE)
+        : null;
 
       // MinHash (embedding) ANN, if requested
       const annMetrics = {};
@@ -908,6 +929,8 @@ export function createSearchPipeline(context) {
               tokenizer: sparseTypeValue === 'fts' ? sqliteFtsCompilation.tokenizer : null,
               variantReason: sparseTypeValue === 'fts' ? sqliteFtsCompilation.reasonPath : null,
               normalizedQueryChanged: sparseTypeValue === 'fts' ? sqliteFtsCompilation.normalizedChanged : null,
+              availabilityCode: sqliteFtsUnavailable?.code || null,
+              availabilityReason: sqliteFtsUnavailable?.reason || null,
               fielded: fieldWeightsEnabled || false,
               k1: sparseTypeValue && sparseTypeValue !== 'fts' ? bm25K1 : null,
               b: sparseTypeValue && sparseTypeValue !== 'fts' ? bm25B : null,

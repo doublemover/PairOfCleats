@@ -39,6 +39,7 @@ When SQLite FTS is selected for prose modes and explain is enabled, hits SHOULD 
 - `scoreBreakdown.sparse.variantReason`: precedence reason path.
 - `scoreBreakdown.sparse.normalizedQueryChanged`: whether NFKC changed the query.
 - `scoreBreakdown.sparse.ftsFallback`: true when desired FTS routing fell back to sparse.
+- Controlled unavailability diagnostics use code `retrieval_fts_unavailable`.
 
 #### Phase 11: Graph ranking breakdown (optional)
 When graph ranking is enabled and explain is requested, hits SHOULD include:

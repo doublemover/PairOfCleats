@@ -44,4 +44,11 @@
 
 ## Missing FTS table behavior
 - Missing or unavailable FTS tables do not throw past provider boundaries.
-- Retrieval returns controlled availability outcomes and falls back to sparse/postings when possible.
+- Retrieval emits controlled availability diagnostics with code `retrieval_fts_unavailable` and falls back to sparse/postings when possible.
+
+## Retrieval helper bounds
+- `rankSqliteFts` applies weighting before final top-N truncation.
+- Stable tie-break is `idx` ascending when weighted scores are equal.
+- Overfetch bounds are fixed defaults:
+  - `overfetchRowCap = max(5000, 10 * topN)`
+  - `overfetchTimeBudgetMs = 150`
