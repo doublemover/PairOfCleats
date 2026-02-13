@@ -94,3 +94,12 @@ tooling/triage/context-pack
 smoke/smoke-embeddings
 smoke/smoke-sqlite
 indexing/incremental/incremental-tokenization-cache
+tooling/reports/summary/summary-report-compare-memory
+tooling/reports/summary/summary-report-compare-sqlite
+indexing/extracted-prose/extracted-prose
+indexing/determinism/symbol-artifact-determinism
+indexing/imports/prose-skip-imports
+indexing/embeddings/embeddings-validate
+indexing/chunking/comment-join
+cli/general/repo-root
+tooling/reports/summary/summary-report
