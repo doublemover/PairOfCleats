@@ -4,7 +4,7 @@
 
 - **Spec version:** 1
 - **Audience:** contributors adding config-backed behavior in snapshot/diff/federation features.
-- **Implementation status:** planned.
+- **Implementation status:** implemented.
 
 ---
 
@@ -23,9 +23,9 @@ Precedence order for resolved values:
 
 ## 2. Snapshot defaults (`indexing.snapshots.*`)
 
-- `maxPointerSnapshots`: `25`
-- `maxFrozenSnapshots`: `10`
-- `retainDays`: `30`
+- `keepPointer`: `25`
+- `keepFrozen`: `10`
+- `maxAgeDays`: `30`
 - `stagingMaxAgeHours`: `24`
 - `protectedTagGlobs`: `["release", "keep-*"]`
 
@@ -39,17 +39,21 @@ Normalization:
 
 ## 3. Diff defaults (`indexing.diffs.*`)
 
-- `maxDiffs`: `50`
-- `retainDays`: `30`
-- `maxEvents`: `25000`
-- `maxBytes`: `134217728` (128 MiB)
-- `compute.modes`: `["code", "prose", "extracted-prose", "records"]`
-- `compute.persistEvents`: `true`
+- `keep`: `50`
+- `maxAgeDays`: `30`
+- `compute.modes`: `["code"]`
+- `compute.detectRenames`: `true`
+- `compute.includeRelations`: `true`
+- `compute.maxChangedFiles`: `200`
+- `compute.maxChunksPerFile`: `500`
+- `compute.maxEvents`: `20000`
+- `compute.maxBytes`: `2097152` (2 MiB)
+- `compute.persist`: `true`
 
 Normalization:
 
-- `maxEvents`, `maxBytes`, `maxDiffs` clamp to `>= 1`
-- empty mode lists fallback to full default mode set
+- `keep`, `maxAgeDays`, `compute.maxChangedFiles`, `compute.maxChunksPerFile`, `compute.maxEvents`, `compute.maxBytes` clamp to `>= 1`
+- empty mode lists fallback to `["code"]`
 
 ---
 
