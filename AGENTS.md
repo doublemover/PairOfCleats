@@ -37,7 +37,6 @@
 ## Script Policy References
 - `docs/tooling/script-inventory.json` (generated inventory)
 - `docs/guides/commands.md` (generated commands list)
-- `tests/indexing/policy/script-surface-policy.test.js` (inventory enforcement)
 
 ## Spec deprecation + archival process
 - Move deprecated or superseded spec docs to `docs/archived/` (do not delete them).
@@ -56,7 +55,7 @@
 
 ## Testing Guidelines
 - Primary runner: `node tests/run.js`.
-- Lanes: `node tests/run.js --lane smoke`, `--lane unit`, `--lane integration`, `--lane services`, `--lane storage`, `--lane perf`, `--lane ci`.
+- Lanes: `node tests/run.js --lane smoke`, `--lane unit`, `--lane ci-lite`, `--lane ci`, `--lane ci-long`, `--lane gate`, `--lane services`, `--lane api`, `--lane storage`, `--lane perf`, `--lane mcp`, `--lane backcompat`, `--lane diagnostics-summary`.
 - List tests: `node tests/run.js --list`.
 - Tests are plain Node scripts; add new tests under `tests/` and follow existing naming patterns.
 - If a test runs longer than 30 seconds, cancel it and move on to the next test
@@ -78,3 +77,4 @@
 - When all tasks in a phase are complete and concerns addressed: 
 	- Remove that phase and append it to `COMPLETED_PHASES.md` blindly
 	- Do not look inside `COMPLETED_PHASES.md` or worry about ordering, it is a dump file.
+

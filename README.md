@@ -192,6 +192,7 @@ Run a lane:
 node tests/run.js --lane ci-lite
 node tests/run.js --lane ci
 node tests/run.js --lane ci-long
+node tests/run.js --lane gate
 ```
 
 Run with parallel jobs and timing outputs:
@@ -251,4 +252,5 @@ Testing and reliability:
 ## License
 
 License not yet specified in this repository.
+
 

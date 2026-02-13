@@ -54,14 +54,14 @@ Rollout phases MUST be promoted in order A -> B -> C -> D; phase skipping is for
 
 ### Phase-to-CI gate mapping
 
-Each roadmap phase maps to a minimum CI gate bundle that must remain active in both `ci` and `ci-lite` lanes.
+Each roadmap phase maps to a minimum CI gate bundle that must remain active in the `gate` lane.
 
 | Roadmap phase | Minimum CI gate bundle |
 | --- | --- |
-| Phase A | `lang/contracts/usr-contract-enforcement`, `shared/contracts/usr-schema-validators`, `shared/contracts/usr-matrix-validators`, `decomposed-drift/decomposed-drift-validation` |
-| Phase B | `backcompat/backcompat-matrix-validation`, `lang/contracts/usr-rollout-migration-policy-validation`, `lang/contracts/usr-rollout-gate-validation` |
-| Phase C | `lang/contracts/usr-implementation-readiness-validation`, `lang/contracts/usr-observability-rollup-validation`, `lang/contracts/usr-security-gate-validation` |
-| Phase D | `lang/contracts/usr-foundation-baseline-validation`, `lang/contracts/usr-contract-enforcement-baseline-validation`, `lang/contracts/usr-embedding-provenance-baseline-validation`, `lang/contracts/usr-risk-fixture-governance-baseline-validation`, `lang/contracts/usr-framework-canonicalization-baseline-validation` |
+| Phase A | `unified-syntax-representation/lang/contracts/contract-enforcement`, `unified-syntax-representation/shared/contracts/schema-validators`, `unified-syntax-representation/shared/contracts/matrix-validators` |
+| Phase B | `backcompat/backcompat-matrix-validation`, `unified-syntax-representation/lang/contracts/rollout-migration-policy-validation`, `unified-syntax-representation/lang/contracts/rollout-gate-validation` |
+| Phase C | `unified-syntax-representation/lang/contracts/implementation-readiness-validation`, `unified-syntax-representation/lang/contracts/observability-rollup-validation`, `unified-syntax-representation/lang/contracts/security-gate-validation` |
+| Phase D | `unified-syntax-representation/lang/contracts/foundation-baseline-validation`, `unified-syntax-representation/lang/contracts/contract-enforcement-baseline-validation`, `unified-syntax-representation/lang/contracts/embedding-provenance-baseline-validation`, `unified-syntax-representation/lang/contracts/risk-fixture-governance-baseline-validation`, `unified-syntax-representation/lang/contracts/framework-canonicalization-baseline-validation` |
 
 ## Compatibility policy
 
@@ -159,36 +159,36 @@ Phase 9.2 go/no-go decision lock requirements:
 
 Phase 11-13 conformance exit-integrity lock requirements:
 
-- `All languages pass required C0/C1 checks.` cannot be checked unless C0/C1 baseline validators remain present in `ci` and `ci-lite` lane manifests.
-- `Required C2/C3 profile checks pass.` cannot be checked unless C2/C3 baseline validators remain present in `ci` and `ci-lite` lane manifests.
-- `All required framework profiles pass C4 checks.` cannot be checked unless C4 baseline validators remain present in `ci` and `ci-lite` lane manifests.
+- `All languages pass required C0/C1 checks.` cannot be checked unless C0/C1 baseline validators remain present in the `gate` lane manifest.
+- `Required C2/C3 profile checks pass.` cannot be checked unless C2/C3 baseline validators remain present in the `gate` lane manifest.
+- `All required framework profiles pass C4 checks.` cannot be checked unless C4 baseline validators remain present in the `gate` lane manifest.
 - If any Phase 11.3/12.3/13.2 conformance exit line regresses to unchecked, corresponding Phase 9.2 go/no-go checklist lines must be reopened.
 
 Phase 10.3 harness exit-integrity lock requirements:
 
-- `Harness can execute matrix-driven checks for all languages/frameworks.` cannot be checked unless matrix-driven harness and lane materialization validators remain present in `ci` and `ci-lite` lane manifests.
-- `Lane ordering and sharding are deterministic.` cannot be checked unless shard partition and lane materialization validators remain present in `ci` and `ci-lite` lane manifests.
+- `Harness can execute matrix-driven checks for all languages/frameworks.` cannot be checked unless matrix-driven harness and lane materialization validators remain present in the `gate` lane manifest.
+- `Lane ordering and sharding are deterministic.` cannot be checked unless shard partition and lane materialization validators remain present in the `gate` lane manifest.
 - If any Phase 10.3 harness exit line regresses to unchecked, Phase 11.3/12.3/13.2 conformance exit lines must be reopened.
 
 Phase 8.4 hardening exit-integrity lock requirements:
 
-- `Determinism checks pass under repeated runs.` cannot be checked unless phase-8 hardening/determinism validators remain present in `ci` and `ci-lite` lane manifests.
-- `Cap-trigger tests pass with expected diagnostics.` cannot be checked unless cap-trigger diagnostics/failure validators remain present in `ci` and `ci-lite` lane manifests.
-- `Runtime thresholds meet target envelopes.` and `Blocking SLO budgets are met for required lanes.` cannot be checked unless SLO threshold and observability validators remain present in `ci` and `ci-lite` lane manifests.
+- `Determinism checks pass under repeated runs.` cannot be checked unless phase-8 hardening/determinism validators remain present in the `gate` lane manifest.
+- `Cap-trigger tests pass with expected diagnostics.` cannot be checked unless cap-trigger diagnostics/failure validators remain present in the `gate` lane manifest.
+- `Runtime thresholds meet target envelopes.` and `Blocking SLO budgets are met for required lanes.` cannot be checked unless SLO threshold and observability validators remain present in the `gate` lane manifest.
 - If any Phase 8.4 hardening exit line regresses to unchecked, Gate B1-B7 determinism and Gate C blocking-SLO checklist lines must be reopened.
 
 Phase 7.3 fixture/golden exit-integrity lock requirements:
 
-- `Every language and framework has exhaustive fixture coverage evidence.` cannot be checked unless fixture governance/coverage-floor/golden validators remain present in `ci` and `ci-lite` lane manifests.
-- `Golden diffs are deterministic on rerun.` cannot be checked unless fixture-golden and phase-8 determinism validators remain present in `ci` and `ci-lite` lane manifests.
+- `Every language and framework has exhaustive fixture coverage evidence.` cannot be checked unless fixture governance/coverage-floor/golden validators remain present in the `gate` lane manifest.
+- `Golden diffs are deterministic on rerun.` cannot be checked unless fixture-golden and phase-8 determinism validators remain present in the `gate` lane manifest.
 - If any Phase 7.3 fixture/golden exit line regresses to unchecked, Phase 8.4 determinism and Phase 9.1 fixture-evidence checklist lines must be reopened.
 
 Phase 6.6 semantics exit-integrity lock requirements:
 
-- `C2/C3 requirements pass for required profiles.` cannot be checked unless C2/C3 and language-risk validators remain present in `ci` and `ci-lite` lane manifests.
-- `Capability transition diagnostics are correct and complete.` cannot be checked unless diagnostics transition and phase-8 hardening validators remain present in `ci` and `ci-lite` lane manifests.
-- `Embedded/provenance semantics are validated for required language/framework profiles.` cannot be checked unless embedding/provenance validators remain present in `ci` and `ci-lite` lane manifests.
-- `Security and redaction semantics are validated for required profiles and lanes.` and `Critical threat-model coverage and abuse-case mappings are validated for required lanes.` cannot be checked unless security/threat validators remain present in `ci` and `ci-lite` lane manifests.
+- `C2/C3 requirements pass for required profiles.` cannot be checked unless C2/C3 and language-risk validators remain present in the `gate` lane manifest.
+- `Capability transition diagnostics are correct and complete.` cannot be checked unless diagnostics transition and phase-8 hardening validators remain present in the `gate` lane manifest.
+- `Embedded/provenance semantics are validated for required language/framework profiles.` cannot be checked unless embedding/provenance validators remain present in the `gate` lane manifest.
+- `Security and redaction semantics are validated for required profiles and lanes.` and `Critical threat-model coverage and abuse-case mappings are validated for required lanes.` cannot be checked unless security/threat validators remain present in the `gate` lane manifest.
 
 Gate C evidence-completeness lock requirements:
 
@@ -199,13 +199,13 @@ Gate C evidence-completeness lock requirements:
 Phase 14.3 integration/failure exit lock requirements:
 
 - `Integration and failure-mode suites pass.` cannot be checked unless every checklist line in sections 14.1 and 14.2 is checked.
-- Phase 14.3 exit cannot be checked unless mixed-repo integration, failure-injection, failure-mode-suite, and security-gate validators remain present in `ci` and `ci-lite` lane manifests.
+- Phase 14.3 exit cannot be checked unless mixed-repo integration, failure-injection, failure-mode-suite, and security-gate validators remain present in the `gate` lane manifest.
 - If any Phase 14.1/14.2 prerequisite control regresses to unchecked, Phase 14.3 exit must be reopened.
 
 Phase 15 exit-completion lock requirements:
 
 - `CI and maintenance controls are stable for ongoing development.` cannot be checked unless every checklist line in sections 15.1, 15.2, and 15.3 is checked.
-- Phase 15 exit cannot be checked unless required maintenance/rollout/report-schema validators remain present in `ci` and `ci-lite` lane order manifests.
+- Phase 15 exit cannot be checked unless required maintenance/rollout/report-schema validators remain present in the `gate` lane order manifest.
 - If any Phase 15 prerequisite control regresses to unchecked, Phase 15 exit must be reopened and release-readiness promotion must remain blocked.
 
 Phase 15.2 reporting-integrity lock requirements:
@@ -217,7 +217,7 @@ Phase 15.2 reporting-integrity lock requirements:
 
 Phase 15.1 CI gate-integrity lock requirements:
 
-- Each Phase 15.1 CI-gate checklist line can be checked only if its corresponding enforcement validators remain present in `ci` and `ci-lite` lane manifests.
+- Each Phase 15.1 CI-gate checklist line can be checked only if its corresponding enforcement validators remain present in the `gate` lane manifest.
 - `Enforce Gate A, B1-B8, and C gates in CI.` cannot be checked unless Gate A/B/C lock validators remain present in required CI lanes.
 - `Enforce C0-C4 conformance lane required checks.` cannot be checked unless C0/C1/C2/C3/C4 baseline validators are present in required CI lanes.
 - `Enforce section 36 strict scenario blocking behavior and non-strict warning budgets.` cannot be checked unless `backcompat/backcompat-matrix-validation` remains present in required CI lanes.
@@ -225,7 +225,7 @@ Phase 15.1 CI gate-integrity lock requirements:
 
 Phase 15.3 maintenance-integrity lock requirements:
 
-- Each Phase 15.3 maintenance checklist line can be checked only if its corresponding governance validators remain present in `ci` and `ci-lite` lane manifests.
+- Each Phase 15.3 maintenance checklist line can be checked only if its corresponding governance validators remain present in the `gate` lane manifest.
 - `Enforce USR spec change-control policy linkage in PR templates.` cannot be checked unless PR template policy and change-tier validators remain present in required CI lanes.
 - `Enforce parser/runtime lock update workflow with impact and fallback evidence in PR templates.` cannot be checked unless parser/runtime lock reproducibility validators remain present in required CI lanes.
 - `Enforce waiver-policy update workflow and expiry review cadence in PR/release templates.` cannot be checked unless waiver-policy and PR/release template validators remain present in required CI lanes.
@@ -272,5 +272,6 @@ Deprecation changes are blocking until archival metadata requirements are met an
 - `docs/specs/usr-core-observability-performance-ops.md`
 - `docs/specs/usr-rollout-approval-lock.md`
 - `docs/archived/README.md`
+
 
 

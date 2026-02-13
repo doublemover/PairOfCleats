@@ -65,7 +65,7 @@ Sizes below are approximate (filesystem block sizes) and are used only to priori
 
 | File | Approx. size | What it currently mixes | Recommended action |
 |---|---:|---|---|
-| `tests/lang/contracts/*.test.js` (split suite) | 32 KB | index build, postings validation, search filters, per-language AST/docmeta assertions, risk flow assertions | Split completed across `tests/indexing/language-fixture/*.test.js`, `tests/retrieval/filters/*.test.js`, and `tests/lang/contracts/*.test.js` |
+| `tests/unified-syntax-representation/lang/contracts/*.test.js` (split suite) | 32 KB | index build, postings validation, search filters, per-language AST/docmeta assertions, risk flow assertions | Split completed across `tests/indexing/language-fixture/*.test.js`, `tests/retrieval/filters/*.test.js`, and `tests/unified-syntax-representation/lang/contracts/*.test.js` |
 | `tests/perf/bench/run.test.js` | 24 KB | benchmark harness + correctness self-checks + build orchestration | **Move to `perf/`** and split scenarios |
 | `tests/indexing/fixtures/*.test.js` (split suite) | 18 KB | fixture generation, artifact presence, minhash checks, search invariants, compact json shape, language-specific assertions | Split completed across `tests/indexing/fixtures/*.test.js`, `tests/retrieval/contracts/*.test.js`, `tests/retrieval/filters/*.test.js`, and `tests/lang/fixtures-sample/*.test.js` |
 | `tests/retrieval/parity/parity.test.js` | 13 KB | cross-backend parity runner + reporting + thresholds | Keep as tool-like test; optionally split reporting |
@@ -380,3 +380,4 @@ Once the large scripts above are decomposed, the remainder of the test suite can
 - The largest multi-domain scripts are split so failures point to a subsystem.
 - CI can run `ci-lite` for PRs and `ci` (+ storage/perf) for nightly with clear logs and minimal flake.
 - The test tree communicates intent through folder structure and ids.
+
