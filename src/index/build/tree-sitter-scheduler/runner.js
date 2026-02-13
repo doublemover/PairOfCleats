@@ -12,6 +12,27 @@ const INDEX_LOAD_RETRY_BASE_DELAY_MS = 25;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const createLineBuffer = (onLine) => {
+  let buffer = '';
+  return {
+    push(text) {
+      buffer += String(text || '');
+      const lines = buffer.split(/\r?\n/);
+      buffer = lines.pop() || '';
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        onLine(trimmed);
+      }
+    },
+    flush() {
+      const trimmed = buffer.trim();
+      if (trimmed) onLine(trimmed);
+      buffer = '';
+    }
+  };
+};
+
 const buildPlannedSegmentsByContainer = (groups) => {
   const byContainer = new Map();
   const seen = new Map();
@@ -179,15 +200,25 @@ export const runTreeSitterScheduler = async ({
     if (log) {
       log(`[tree-sitter:schedule] exec 1/1: ${grammarKeys.join(', ')}`);
     }
-    await spawnSubprocess(process.execPath, [SCHEDULER_EXEC_PATH, '--outDir', outDir], {
-      cwd: runtime?.root || undefined,
-      env: runtimeEnv,
-      stdio: 'inherit',
-      shell: false,
-      signal: abortSignal,
-      killTree: true,
-      rejectOnNonZeroExit: true
-    });
+    const streamLogs = typeof log === 'function';
+    const stdoutBuffer = streamLogs ? createLineBuffer((line) => log(line)) : null;
+    const stderrBuffer = streamLogs ? createLineBuffer((line) => log(line)) : null;
+    try {
+      await spawnSubprocess(process.execPath, [SCHEDULER_EXEC_PATH, '--outDir', outDir], {
+        cwd: runtime?.root || undefined,
+        env: runtimeEnv,
+        stdio: streamLogs ? ['ignore', 'pipe', 'pipe'] : 'inherit',
+        shell: false,
+        signal: abortSignal,
+        killTree: true,
+        rejectOnNonZeroExit: true,
+        onStdout: streamLogs ? (chunk) => stdoutBuffer.push(chunk) : null,
+        onStderr: streamLogs ? (chunk) => stderrBuffer.push(chunk) : null
+      });
+    } finally {
+      stdoutBuffer?.flush();
+      stderrBuffer?.flush();
+    }
     throwIfAborted(abortSignal);
   }
 
