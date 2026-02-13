@@ -599,7 +599,27 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
       try {
         let repoCaches = null;
         if (resolveRepoCaches) {
-          repoCaches = await resolveRepoCaches(repo.repoRootCanonical);
+          try {
+            repoCaches = await resolveRepoCaches(repo.repoRootCanonical);
+          } catch (error) {
+            const aborted = isFederatedAbortError(error, context.signal);
+            perRepoErrors.push({
+              repoId: repo.repoId,
+              error
+            });
+            if (strictFailures || aborted) {
+              throw error;
+            }
+            diagnostics.push({
+              repoId: repo.repoId,
+              status: error?.code === ERROR_CODES.NO_INDEX ? 'missing_index' : 'error',
+              error: {
+                code: error?.code || ERROR_CODES.INTERNAL,
+                message: error?.message || String(error)
+              }
+            });
+            continue;
+          }
         }
         const fallbackCaches = getSharedCaches();
         let callSucceeded = false;
