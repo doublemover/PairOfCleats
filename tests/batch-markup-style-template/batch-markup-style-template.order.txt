@@ -1,1 +1,0 @@
-batch-markup-style-template/batch-markup-style-template-validation

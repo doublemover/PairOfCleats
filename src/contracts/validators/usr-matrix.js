@@ -2248,16 +2248,43 @@ export function buildUsrGeneratedProvenanceCoverageReport({
 const BATCH_SHARD_ID_ORDER = Object.freeze(['B0', 'B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8']);
 const REQUIRED_BATCH_SHARD_IDS = Object.freeze(new Set(BATCH_SHARD_ID_ORDER));
 const LANGUAGE_BATCH_IDS = Object.freeze(new Set(['B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7']));
-const BATCH_SEQUENCE_LANE_IDS = Object.freeze([
-  'batch-foundation',
-  'batch-javascript-typescript',
-  'batch-systems-languages',
-  'batch-managed-languages',
-  'batch-dynamic-languages',
-  'batch-markup-style-template',
-  'batch-data-interface-dsl',
-  'batch-build-infra-dsl',
-  'batch-cross-batch-integration'
+const BATCH_SEQUENCE_SHARD_DEFINITIONS = Object.freeze([
+  Object.freeze({
+    laneId: 'conformance-shard-foundation',
+    orderManifest: 'tests/conformance/language-shards/foundation/foundation.order.txt'
+  }),
+  Object.freeze({
+    laneId: 'conformance-shard-javascript-typescript',
+    orderManifest: 'tests/conformance/language-shards/javascript-typescript/javascript-typescript.order.txt'
+  }),
+  Object.freeze({
+    laneId: 'conformance-shard-systems-languages',
+    orderManifest: 'tests/conformance/language-shards/systems-languages/systems-languages.order.txt'
+  }),
+  Object.freeze({
+    laneId: 'conformance-shard-managed-languages',
+    orderManifest: 'tests/conformance/language-shards/managed-languages/managed-languages.order.txt'
+  }),
+  Object.freeze({
+    laneId: 'conformance-shard-dynamic-languages',
+    orderManifest: 'tests/conformance/language-shards/dynamic-languages/dynamic-languages.order.txt'
+  }),
+  Object.freeze({
+    laneId: 'conformance-shard-markup-style-template',
+    orderManifest: 'tests/conformance/language-shards/markup-style-template/markup-style-template.order.txt'
+  }),
+  Object.freeze({
+    laneId: 'conformance-shard-data-interface-dsl',
+    orderManifest: 'tests/conformance/language-shards/data-interface-dsl/data-interface-dsl.order.txt'
+  }),
+  Object.freeze({
+    laneId: 'conformance-shard-build-infra-dsl',
+    orderManifest: 'tests/conformance/language-shards/build-infra-dsl/build-infra-dsl.order.txt'
+  }),
+  Object.freeze({
+    laneId: 'conformance-shard-cross-language-integration',
+    orderManifest: 'tests/conformance/language-shards/cross-language-integration/cross-language-integration.order.txt'
+  })
 ]);
 const BATCH_DEPENDENCIES = Object.freeze({
   B0: [],
@@ -2333,12 +2360,14 @@ export function validateUsrLanguageBatchShards({
     }
     batchById.set(row.id, row);
 
-    const expectedLaneId = BATCH_SEQUENCE_LANE_IDS[row.sequence] || `batch-b${row.sequence}`;
+    const expectedShardDefinition = BATCH_SEQUENCE_SHARD_DEFINITIONS[row.sequence];
+    const expectedLaneId = expectedShardDefinition?.laneId || `conformance-shard-b${row.sequence}`;
     if (row.laneId !== expectedLaneId) {
       rowErrors.push(`laneId must match sequence mapping: expected ${expectedLaneId}`);
     }
 
-    const expectedOrderManifest = `tests/${row.laneId}/${row.laneId}.order.txt`;
+    const expectedOrderManifest = expectedShardDefinition?.orderManifest
+      || `tests/${row.laneId}/${row.laneId}.order.txt`;
     if (row.orderManifest !== expectedOrderManifest) {
       rowErrors.push(`orderManifest must match lane path: expected ${expectedOrderManifest}`);
     }

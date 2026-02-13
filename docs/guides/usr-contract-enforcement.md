@@ -109,38 +109,17 @@ Define CI/local enforcement for the consolidated USR contract model.
 
 ## CI lanes
 
-- `ci-lite`: reference drift and schema shape checks (includes USR schema/matrix, language-contract harness checks, and `decomposed-drift/decomposed-drift-validation`)
-- `ci`: blocking validators, conformance checks, and gate evaluation (includes full USR contract enforcement suite plus Gate A/B1-B8/C shard checks via `batch-foundation..batch-cross-batch-integration`, `conformance-foundation-baseline..conformance-framework-canonicalization`, `backcompat`, `harness-core`, and `decomposed-drift`)
-- `ci-long`: expanded compatibility matrix, drill checks, and stress/failure scenarios
-- `conformance-foundation-baseline`: focused C0 baseline harness coverage (`tests/conformance-foundation-baseline/conformance-foundation-baseline-validation.test.js`) including language-wide C0 matrix validation
-- `conformance-contract-enforcement`: focused C1 baseline contract enforcement (`tests/conformance-contract-enforcement/conformance-contract-enforcement-validation.test.js`) including language-wide C1 matrix validation
-- `conformance-embedding-provenance`: focused C2 embedded/provenance semantic coverage (`tests/conformance-embedding-provenance/conformance-embedding-provenance-validation.test.js`) including language-wide C2 eligibility matrix validation
-- `conformance-risk-fixture-governance`: focused C3 failure/risk/fixture governance coverage (`tests/conformance-risk-fixture-governance/conformance-risk-fixture-governance-validation.test.js`) including language-wide C3 eligibility matrix validation and risk-profile taxonomy/gating validation
-- `conformance-framework-canonicalization`: focused C4 framework-profile conformance coverage (`tests/conformance-framework-canonicalization/conformance-framework-canonicalization-validation.test.js`) including language-wide C4 eligibility matrix validation
-- `backcompat`: focused section 36 compatibility matrix contract coverage (`tests/backcompat/backcompat-matrix-validation.test.js`)
-- `diagnostics-summary`: focused diagnostic taxonomy strictness and capability-transition reporting checks (`tests/diagnostics/diagnostics-transition-validation.test.js`)
-- `runtime-config`: focused section 43 runtime config and feature-flag conflict enforcement (`tests/runtime-config/runtime-config-validation.test.js`)
-- `failure-injection`: focused section 44 strict/non-strict failure scenario enforcement (`tests/failure-injection/failure-injection-validation.test.js`)
-- `fixture-governance`: focused section 45 owner/reviewer/mutation-policy enforcement (`tests/fixture-governance/fixture-governance-validation.test.js`)
-- `benchmark-regression`: focused section 46 benchmark methodology and threshold enforcement (`tests/benchmark-regression/benchmark-regression-validation.test.js`)
-- `threat-model`: focused section 47 threat/control/fixture coverage enforcement (`tests/threat-model/threat-model-validation.test.js`)
-- `waiver-enforcement`: focused waiver-policy expiry/bypass governance checks (`tests/waiver-enforcement/waiver-policy-governance.test.js`)
-- `report-schema`: focused section 30/31/43/44/45/46/47/48 report-envelope/audit artifact validation (`tests/report-schema/report-schema-audit-contracts.test.js`)
-- `implementation-readiness`: focused section 40 operational-readiness policy, quality-gate, conformance-promotion, and readiness-scorecard enforcement (`tests/implementation-readiness/implementation-readiness-validation.test.js`)
-- `observability`: focused section 41 SLO budget and alert-policy rollup enforcement (`tests/observability/observability-rollup-validation.test.js`)
-- `security-gates`: focused section 42 security-gate and redaction-policy compliance enforcement (`tests/security-gates/security-gates-validation.test.js`)
-- `harness-core`: focused section 6.7/8.5/12.3 harness checks for canonical IDs, edge endpoints, capability transitions, strict diagnostic/reason validation, and section 33.4 remediation routing (`tests/harness-core/harness-core-validation.test.js`)
-- `canonical-example`: focused section 34 canonical-example fixture bundle validation (`tests/canonical-example/canonical-example-validation.test.js`)
-- `decomposed-drift`: focused decomposed-contract drift and roadmap alignment validation (`tests/decomposed-drift/decomposed-drift-validation.test.js`)
-- `batch-foundation`: focused foundation shard validation and deterministic order manifest checks (`tests/batch-foundation/batch-foundation-validation.test.js`)
-- `batch-javascript-typescript`: focused JS/TS shard validation and deterministic order manifest checks (`tests/batch-javascript-typescript/batch-javascript-typescript-validation.test.js`)
-- `batch-systems-languages`: focused systems-language shard validation and deterministic order manifest checks (`tests/batch-systems-languages/batch-systems-languages-validation.test.js`)
-- `batch-managed-languages`: focused managed-language shard validation and deterministic order manifest checks (`tests/batch-managed-languages/batch-managed-languages-validation.test.js`)
-- `batch-dynamic-languages`: focused dynamic-language shard validation and deterministic order manifest checks (`tests/batch-dynamic-languages/batch-dynamic-languages-validation.test.js`)
-- `batch-markup-style-template`: focused markup/style/template shard validation and deterministic order manifest checks (`tests/batch-markup-style-template/batch-markup-style-template-validation.test.js`)
-- `batch-data-interface-dsl`: focused data/interface DSL shard validation and deterministic order manifest checks (`tests/batch-data-interface-dsl/batch-data-interface-dsl-validation.test.js`)
-- `batch-build-infra-dsl`: focused build/infra DSL shard validation and deterministic order manifest checks (`tests/batch-build-infra-dsl/batch-build-infra-dsl-validation.test.js`)
-- `batch-cross-batch-integration`: focused cross-batch integration shard validation and deterministic order manifest checks (`tests/batch-cross-batch-integration/batch-cross-batch-integration-validation.test.js`)
+- `ci-lite`: fastest stability checks and selected conformance wrappers.
+- `ci`: standard CI lane for broad functional coverage.
+- `ci-long`: long-running matrix, stress, and compatibility checks.
+- `gate`: contract/conformance enforcement lane for:
+  - `tests/unified-syntax-representation/**`
+  - `tests/contracts/**`
+  - `tests/conformance/**`
+  - `tests/report-schema/report-schema-audit-contracts.test.js`
+  - `tests/benchmarks/regressions/**`
+  - `tests/fixtures/governance/**`
+- focused specialist lanes retained outside gate: `backcompat`, `diagnostics-summary`, and `decomposed-drift`.
 
 ## Failure protocol
 

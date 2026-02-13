@@ -11,7 +11,7 @@ export const resolveConformanceLaneId = (knownLanes = []) => {
   const gateLane = lanes.find((laneId) => /(^|-)gate($|-)/.test(laneId));
   if (gateLane) return gateLane;
   const conformanceLane = lanes.find((laneId) => laneId.startsWith('conformance-'));
-  return conformanceLane || null;
+  return conformanceLane || 'gate';
 };
 
 export const buildConformanceLaneByLevel = (knownLanes = []) => {
@@ -20,4 +20,3 @@ export const buildConformanceLaneByLevel = (knownLanes = []) => {
     Object.fromEntries(CONFORMANCE_LEVELS.map((level) => [level, laneId]))
   );
 };
-

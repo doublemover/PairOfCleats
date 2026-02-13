@@ -1,1 +1,1 @@
-const cafe = "café";
+const cafe = "cafï¿½";

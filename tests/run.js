@@ -50,16 +50,7 @@ const DEFAULT_LOG_DIR = path.join(ROOT, '.testLogs');
 const ORDERED_LANES = new Set([
   'ci-lite',
   'ci',
-  'ci-long',
-  'batch-foundation',
-  'batch-javascript-typescript',
-  'batch-systems-languages',
-  'batch-managed-languages',
-  'batch-dynamic-languages',
-  'batch-markup-style-template',
-  'batch-data-interface-dsl',
-  'batch-build-infra-dsl',
-  'batch-cross-batch-integration'
+  'ci-long'
 ]);
 const INHERITED_PAIROFCLEATS_ENV_ALLOWLIST = new Set([
   'PAIROFCLEATS_TEST_API_STARTUP_TIMEOUT_MS',

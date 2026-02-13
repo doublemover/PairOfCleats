@@ -97,3 +97,9 @@ indexing/embeddings/embeddings-validate
 indexing/chunking/comment-join
 cli/general/repo-root
 tooling/reports/summary/summary-report
+lang/contracts/go
+lang/contracts/javascript
+lang/contracts/misc-buildfiles
+lang/contracts/python
+lang/contracts/sql
+lang/contracts/typescript
