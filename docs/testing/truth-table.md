@@ -110,6 +110,12 @@ This document maps user-visible behavior to implementation, configuration switch
   - Tests: `tests/cli/search/search-explain-symbol.test.js`, `tests/cli/search/search-rrf.test.js`, `tests/retrieval/contracts/result-shape.test.js`, `tests/retrieval/filters/query-syntax/phrases-and-scorebreakdown.test.js`.
   - Limitations: explain output is only available for JSON/human modes that emit it.
 
+- Claim: query parsing is grammar-first with recoverable fallback; unary `-` supports optional whitespace and standalone `-` is invalid.
+  - Implementation: `src/retrieval/query.js` (`parseQueryInput`, `parseQueryWithFallback`), `src/retrieval/cli/query-plan.js` (parser fallback wiring), `src/retrieval/query-intent.js` (intent fallback reason output).
+  - Config: n/a.
+  - Tests: `tests/retrieval/query/boolean-unary-not-whitespace.test.js`, `tests/retrieval/query/query-intent-path-heuristics.test.js`, `tests/retrieval/query/boolean-inventory-vs-semantics.test.js`, `tests/retrieval/query/golden-query-corpus.test.js`.
+  - Limitations: phrase escaping is quote-delimited only; backslash escapes are treated as literal text.
+
 - Claim: ranking blends BM25 + ANN with optional RRF; ANN backends are exercised by sqlite, HNSW, and LanceDB tests.
   - Implementation: `src/retrieval/pipeline.js` (`mergeRanked`, `blendRanked`), `src/retrieval/rankers.js` (`rankDenseVectors`), `src/shared/hnsw.js` (`loadHnswIndex`).
   - Config: `search.bm25.*`, `search.scoreBlend.*`, `search.rrf.*`, `search.annDefault`; CLI `--ann`.

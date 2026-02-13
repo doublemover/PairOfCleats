@@ -517,16 +517,16 @@ Fix helper-level correctness risks with explicit bounds and deterministic behavi
 Fix intent and boolean semantics without regressions and make behavior explainable.
 
 #### Tasks
-- [ ] Replace slash-only path heuristic with explicit path-like features.
-- [ ] Treat URLs as URL intent, not path intent.
-- [ ] Prefer grammar-first parse; fallback heuristics only on parser failure.
-- [ ] Emit final intent and fallback reason in explain.
-- [ ] Boolean parsing semantics:
-  - [ ] unary `-` acts as NOT with whitespace
-  - [ ] standalone `-` returns parse error
-  - [ ] phrase escaping behavior is explicitly documented
-  - [ ] inventory token lists cannot be mistaken as semantic constraints
-- [ ] Add a golden query corpus and lock behavior snapshots.
+- [x] Replace slash-only path heuristic with explicit path-like features.
+- [x] Treat URLs as URL intent, not path intent.
+- [x] Prefer grammar-first parse; fallback heuristics only on parser failure.
+- [x] Emit final intent and fallback reason in explain.
+- [x] Boolean parsing semantics:
+  - [x] unary `-` acts as NOT with whitespace
+  - [x] standalone `-` returns parse error
+  - [x] phrase escaping behavior is explicitly documented
+  - [x] inventory token lists cannot be mistaken as semantic constraints
+- [x] Add a golden query corpus and lock behavior snapshots.
 
 #### Touchpoints
 - `src/retrieval/query-intent.js`
@@ -535,10 +535,10 @@ Fix intent and boolean semantics without regressions and make behavior explainab
 - `tests/retrieval/query/golden/` (new)
 
 #### Tests
-- [ ] `tests/retrieval/query/query-intent-path-heuristics.test.js`
-- [ ] `tests/retrieval/query/boolean-unary-not-whitespace.test.js`
-- [ ] `tests/retrieval/query/boolean-inventory-vs-semantics.test.js`
-- [ ] `tests/retrieval/query/golden-query-corpus.test.js`
+- [x] `tests/retrieval/query/query-intent-path-heuristics.test.js`
+- [x] `tests/retrieval/query/boolean-unary-not-whitespace.test.js`
+- [x] `tests/retrieval/query/boolean-inventory-vs-semantics.test.js`
+- [x] `tests/retrieval/query/golden-query-corpus.test.js`
 
 ### 17.8 Output contract parity and tooling harness alignment
 
