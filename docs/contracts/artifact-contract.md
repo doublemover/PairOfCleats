@@ -126,6 +126,11 @@ Each `index-<mode>/` directory contains:
     - `artifacts.present` (artifact availability map)
     - `artifacts.omitted` (sorted omitted list)
     - `artifacts.requiredForSearch` (profile-derived required set)
+  - Includes cleanup report extension:
+    - `extensions.artifactCleanup.schemaVersion` (`1`)
+    - `extensions.artifactCleanup.profileId`
+    - `extensions.artifactCleanup.allowlistOnly`
+    - `extensions.artifactCleanup.actions[]` with removed path + recursive flag
 - `.filelists.json`
   - Scan summary (sampled file lists).
 - `pieces/manifest.json`

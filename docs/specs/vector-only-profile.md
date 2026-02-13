@@ -72,3 +72,23 @@
 ## Compatibility and signatures
 - Compatibility/cohort payloads include `profile.id` and `profile.schemaVersion`.
 - Incremental signature payload includes `profile.id` and `profile.schemaVersion`.
+
+## Build-time gating (`vector_only`)
+- Tokenization/postings sparse emission paths are disabled.
+- Sparse artifact denylist is strict for vector-only output:
+  - `token_postings*`
+  - `phrase_ngrams*`
+  - `chargram_postings*`
+  - `field_postings*`
+  - `field_tokens*`
+  - `vocab_order*`
+  - `minhash_signatures*`
+- Cleanup policy is allowlist-only:
+  - only known sparse artifact filenames/directories in managed `outDir` may be removed
+  - unknown files/directories are never recursively deleted
+- Cleanup actions are recorded in build output under `index_state.extensions.artifactCleanup`.
+
+## Embeddings requirement
+- `vector_only` rejects builds when embeddings are explicitly disabled (`indexing.embeddings.enabled=false`).
+- Missing doc embedding marker convention remains unchanged:
+  - doc-missing marker is a shared zero-length typed array (`Uint8Array(0)`).

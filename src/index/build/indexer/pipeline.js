@@ -13,6 +13,7 @@ import { createStageCheckpointRecorder } from '../stage-checkpoints.js';
 import { createIndexState } from '../state.js';
 import { enqueueEmbeddingJob } from './embedding-queue.js';
 import { getTreeSitterStats, resetTreeSitterStats } from '../../../lang/tree-sitter.js';
+import { INDEX_PROFILE_VECTOR_ONLY } from '../../../contracts/index-profile.js';
 import { SCHEDULER_QUEUE_NAMES } from '../runtime/scheduler.js';
 import {
   SIGNATURE_VERSION,
@@ -46,8 +47,12 @@ const resolveAnalysisFlags = (runtime) => {
 
 const buildFeatureSettings = (runtime, mode) => {
   const analysisFlags = resolveAnalysisFlags(runtime);
+  const profileId = runtime?.profile?.id || runtime?.indexingConfig?.profile || 'default';
+  const vectorOnly = profileId === INDEX_PROFILE_VECTOR_ONLY;
   return {
-    tokenize: true,
+    profileId,
+    tokenize: !vectorOnly,
+    postings: !vectorOnly,
     embeddings: runtime.embeddingEnabled || runtime.embeddingService,
     gitBlame: analysisFlags.gitBlame,
     pythonAst: runtime.languageOptions?.pythonAst?.enabled !== false && mode === 'code',
@@ -293,6 +298,14 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   const runtimeRef = dictConfig === runtime.dictConfig
     ? runtime
     : { ...runtime, dictConfig };
+  const vectorOnlyProfile = runtimeRef?.profile?.id === INDEX_PROFILE_VECTOR_ONLY;
+  const embeddingsConfigured = runtimeRef?.userConfig?.indexing?.embeddings?.enabled !== false;
+  if (vectorOnlyProfile && runtimeRef.embeddingEnabled !== true && embeddingsConfigured !== true) {
+    throw new Error(
+      'indexing.profile=vector_only requires embeddings to be available during index build. ' +
+      'Enable inline/stub embeddings and rebuild.'
+    );
+  }
   const tokenizationKey = buildTokenizationKey(runtimeRef, mode);
   const cacheSignature = buildIncrementalSignature(runtimeRef, mode, tokenizationKey);
   const cacheSignatureSummary = buildIncrementalSignatureSummary(runtimeRef, mode, tokenizationKey);

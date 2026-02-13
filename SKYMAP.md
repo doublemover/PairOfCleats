@@ -643,15 +643,15 @@ Define strict on-disk contract for profile and artifact presence.
 Skip sparse generation cleanly for vector-only builds and remove stale sparse outputs safely.
 
 #### Tasks
-- [ ] Thread `profile.id` through pipeline feature settings.
-- [ ] In `vector_only`, disable tokenize/postings stages.
-- [ ] Reject vector-only build when embeddings are unavailable.
-- [ ] Enforce strict denylist for sparse artifacts in vector-only output.
-- [ ] Safe cleanup policy:
-  - [ ] only delete allowlisted sparse artifact filenames in managed outDir
-  - [ ] never recursively delete unknown files
-  - [ ] log cleanup actions in build report
-- [ ] Preserve missing embedding marker convention (zero-length typed array).
+- [x] Thread `profile.id` through pipeline feature settings.
+- [x] In `vector_only`, disable tokenize/postings stages.
+- [x] Reject vector-only build when embeddings are unavailable.
+- [x] Enforce strict denylist for sparse artifacts in vector-only output.
+- [x] Safe cleanup policy:
+  - [x] only delete allowlisted sparse artifact filenames in managed outDir
+  - [x] never recursively delete unknown files
+  - [x] log cleanup actions in build report
+- [x] Preserve missing embedding marker convention (zero-length typed array).
 
 #### Touchpoints
 - `src/index/build/indexer/pipeline.js`
@@ -663,10 +663,10 @@ Skip sparse generation cleanly for vector-only builds and remove stale sparse ou
 - `src/index/validate/artifacts.js`
 
 #### Tests
-- [ ] `tests/indexing/postings/vector-only-does-not-emit-sparse.test.js`
-- [ ] `tests/indexing/postings/vector-only-switching-cleans-stale-sparse.test.js`
-- [ ] `tests/indexing/postings/vector-only-missing-embeddings-is-error.test.js`
-- [ ] `tests/indexing/postings/vector-only-cleanup-allowlist-safety.test.js`
+- [x] `tests/indexing/postings/vector-only-does-not-emit-sparse.test.js`
+- [x] `tests/indexing/postings/vector-only-switching-cleans-stale-sparse.test.js`
+- [x] `tests/indexing/postings/vector-only-missing-embeddings-is-error.test.js`
+- [x] `tests/indexing/postings/vector-only-cleanup-allowlist-safety.test.js`
 
 ### 18.3 Search routing and strict mismatch policy
 
