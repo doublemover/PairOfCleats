@@ -27,6 +27,22 @@ const parseBoolean = (value) => {
   if (normalized === 'false' || normalized === '0' || normalized === 'no') return false;
   return null;
 };
+const parseStrictBooleanQueryParam = (searchParams, key) => {
+  if (!searchParams.has(key)) {
+    return { ok: true, present: false, value: null, key };
+  }
+  const parsed = parseBoolean(searchParams.get(key));
+  if (parsed == null) {
+    return {
+      ok: false,
+      present: true,
+      value: null,
+      key,
+      message: `${key} must be a boolean.`
+    };
+  }
+  return { ok: true, present: true, value: parsed, key };
+};
 
 const parseStrictIntegerQueryParam = (searchParams, key) => {
   if (!searchParams.has(key)) {
@@ -110,13 +126,15 @@ export const buildSearchPayloadFromQuery = (searchParams) => {
   if (!context.ok) errors.push({ path: 'context', message: context.message });
   else if (context.present) payload.context = context.value;
 
-  const ann = parseBoolean(searchParams.get('ann'));
-  if (ann != null) payload.ann = ann;
+  const ann = parseStrictBooleanQueryParam(searchParams, 'ann');
+  if (!ann.ok) errors.push({ path: 'ann', message: ann.message });
+  else if (ann.present) payload.ann = ann.value;
 
   const booleanKeys = ['case', 'caseFile', 'caseTokens', 'lint', 'async', 'generator', 'returns'];
   for (const key of booleanKeys) {
-    const parsed = parseBoolean(searchParams.get(key));
-    if (parsed != null) payload[key] = parsed;
+    const parsed = parseStrictBooleanQueryParam(searchParams, key);
+    if (!parsed.ok) errors.push({ path: key, message: parsed.message });
+    else if (parsed.present) payload[key] = parsed.value;
   }
 
   const integerKeys = ['branchesMin', 'loopsMin', 'breaksMin', 'continuesMin', 'churnMin', 'modifiedSince'];
