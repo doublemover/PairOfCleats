@@ -160,6 +160,7 @@ export const splitChunkByBytes = (chunk, text, resolveLineIndex, maxBytes, byteM
   if (bytes <= maxBytes) return [chunk];
   const output = [];
   let cursor = start;
+  let hi = start;
   let lineIndex = null;
   const ensureLineIndex = () => {
     if (lineIndex) return lineIndex;
@@ -170,6 +171,27 @@ export const splitChunkByBytes = (chunk, text, resolveLineIndex, maxBytes, byteM
     }
     return lineIndex;
   };
+  const canUseLinearWindowScan = Boolean(
+    byteMetrics
+    && byteMetrics.text === text
+    && byteMetrics.prefix
+  );
+  if (canUseLinearWindowScan) {
+    while (cursor < end) {
+      if (hi < cursor + 1) hi = cursor + 1;
+      while (hi <= end && byteLengthByRange(text, cursor, hi, byteMetrics) <= maxBytes) {
+        hi += 1;
+      }
+      let safeNext = hi - 1;
+      if (safeNext <= cursor) {
+        safeNext = Math.min(cursor + 1, end);
+      }
+      output.push(buildChunkWithRange(chunk, cursor, safeNext, ensureLineIndex()));
+      if (safeNext <= cursor) break;
+      cursor = safeNext;
+    }
+    return output.length ? output : [chunk];
+  }
   while (cursor < end) {
     const next = resolveByteBoundary(text, cursor, end, maxBytes, byteMetrics);
     const safeNext = next > cursor ? next : Math.min(cursor + 1, end);

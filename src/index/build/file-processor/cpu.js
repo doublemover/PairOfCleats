@@ -458,6 +458,9 @@ export const processFileCpu = async (context) => {
     ...languageContext,
     yamlChunking: languageOptions?.yamlChunking,
     chunking: languageOptions?.chunking,
+    documentExtraction: documentExtraction && typeof documentExtraction === 'object'
+      ? documentExtraction
+      : null,
     javascript: languageOptions?.javascript,
     typescript: languageOptions?.typescript,
     // Tree-sitter chunking is handled by the global scheduler. Prevent per-file
