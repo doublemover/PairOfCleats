@@ -1,6 +1,7 @@
 import { runCommand } from '../../shared/cli-utils.js';
 import { spawnSubprocess } from '../../../src/shared/subprocess.js';
 import { parseProgressEventLine } from '../../../src/shared/cli/progress-events.js';
+import { normalizeEol } from '../../../src/shared/eol.js';
 
 export const createProcessRunner = ({
   appendLog,
@@ -98,7 +99,7 @@ export const createProcessRunner = ({
     };
     const handleChunk = (chunk, key) => {
       const text = carry[key] + chunk.toString('utf8');
-      const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      const normalized = normalizeEol(text);
       const parts = normalized.split('\n');
       carry[key] = parts.pop() || '';
       for (const line of parts) handleLine(line);

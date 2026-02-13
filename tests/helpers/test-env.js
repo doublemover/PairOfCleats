@@ -1,3 +1,5 @@
+import { splitNormalizedLines } from '../../src/shared/eol.js';
+
 export const DEFAULT_TEST_ENV_KEYS = [
   'PAIROFCLEATS_TESTING',
   'PAIROFCLEATS_CACHE_ROOT',
@@ -109,7 +111,7 @@ export const attachSilentLogging = (child, label = null) => {
         process.stderr.write(text);
         return;
       }
-      const lines = text.split(/\r?\n/);
+      const lines = splitNormalizedLines(text);
       for (let i = 0; i < lines.length; i += 1) {
         const line = lines[i];
         if (!line && i === lines.length - 1) continue;

@@ -2,6 +2,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { buildInventory } from '../../../tools/config/inventory.js';
+import { normalizeEol } from '../../../src/shared/eol.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'config-inventory-sync');
@@ -25,8 +26,7 @@ const stripGeneratedAt = (payload) => {
   return clone;
 };
 
-const normalizeMd = (text) => text
-  .replace(/\r\n/g, '\n')
+const normalizeMd = (text) => normalizeEol(text)
   .replace(/^Generated: .*$/m, 'Generated: <timestamp>')
   .trim();
 

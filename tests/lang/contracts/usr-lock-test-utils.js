@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
+import { normalizeEol } from '../../../src/shared/eol.js';
 
-const normalizeNewlines = (value) => String(value ?? '').replace(/\r\n?/g, '\n');
+const normalizeNewlines = normalizeEol;
 
 export const extractSection = (text, startMarker, endMarker) => {
   const normalizedText = normalizeNewlines(text);

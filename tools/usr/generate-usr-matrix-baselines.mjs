@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { equalsIgnoringEol } from '../../src/shared/eol.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1064,8 +1065,7 @@ function assertRegistryMatches(registryId, rows) {
   const filePath = path.join(matrixDir, `${registryId}.json`);
   if (!fs.existsSync(filePath)) return `missing file: ${filePath}`;
   const current = fs.readFileSync(filePath, 'utf8');
-  const normalizeEol = (text) => String(text || '').replace(/\r\n?/g, '\n');
-  return normalizeEol(current) === normalizeEol(expected) ? null : `drift: ${registryId}`;
+  return equalsIgnoringEol(current, expected) ? null : `drift: ${registryId}`;
 }
 
 function ensureDir() {

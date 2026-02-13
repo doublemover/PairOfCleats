@@ -1,3 +1,5 @@
+import { normalizeEol } from '../../src/shared/eol.js';
+
 const NODE_ERROR_LINE = /(?:AssertionError|TypeError|ReferenceError|SyntaxError|RangeError|Error \[ERR_|node:internal|Error:)/;
 const OUTPUT_SNIPPET_MAX_LINES = 7;
 
@@ -12,8 +14,8 @@ const clampOutputLines = (lines, limit = OUTPUT_SNIPPET_MAX_LINES) => {
 export const extractSkipReason = (stdout, stderr) => {
   const pickLine = (text) => {
     if (!text) return '';
-    return text
-      .split(/\r?\n/)
+    return normalizeEol(text)
+      .split('\n')
       .map((line) => line.trim())
       .find(Boolean) || '';
   };
@@ -39,7 +41,7 @@ export const collectOutput = (stream, limit, onChunk) => {
 
 export const extractOutputLines = (text, ignorePatterns = []) => {
   if (!text) return [];
-  const normalized = text.replace(/\r\n/g, '\n');
+  const normalized = normalizeEol(text);
   const lines = normalized.split('\n');
   if (lines.length && lines[lines.length - 1] === '') lines.pop();
   return lines

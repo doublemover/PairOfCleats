@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateUsrLanguageBatchShards } from '../../src/contracts/validators/usr-matrix.js';
+import { splitNormalizedLines } from '../../src/shared/eol.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -14,8 +15,7 @@ const batchShardsPath = path.join(matrixDir, 'usr-language-batch-shards.json');
 
 const readOrderManifest = (orderManifestPath) => {
   const text = fs.readFileSync(orderManifestPath, 'utf8');
-  return text
-    .split(/\r?\n/)
+  return splitNormalizedLines(text)
     .map((line) => line.trim())
     .filter((line) => line && !line.startsWith('#'));
 };
