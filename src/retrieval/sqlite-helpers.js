@@ -6,6 +6,7 @@ import { fetchVocabRows as fetchSqliteVocabRows } from '../storage/sqlite/vocab.
 import { parseArrayField, parseJson } from './query-cache.js';
 import { buildFtsBm25Expr } from './fts.js';
 import { buildFilterIndex } from './filter-index.js';
+import { normalizeMetaV2ForRead } from '../shared/meta-v2.js';
 
 const SQLITE_IN_LIMIT = 900;
 const FTS_TOKEN_SAFE = /^[\p{L}\p{N}_]+$/u;
@@ -121,6 +122,7 @@ export function createSqliteHelpers(options) {
     } else {
       metaV2 = row.metaV2_json;
     }
+    metaV2 = normalizeMetaV2ForRead(metaV2);
     if (metaV2?.chunkId && row.chunk_id && metaV2.chunkId !== row.chunk_id) {
       throw new Error(`[sqlite] metaV2.chunkId mismatch for chunk ${row.id ?? 'unknown'}`);
     }

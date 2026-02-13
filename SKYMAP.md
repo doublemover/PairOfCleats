@@ -18,14 +18,34 @@
   - Readers must ignore unknown forward fields.
   - Writers must bump versioned schema fields when shape meaning changes.
 
+## Feature definition standards
+- Every feature task must explicitly state:
+  - behavior change
+  - deterministic constraints (ordering/identity/output shape)
+  - fallback and failure behavior (including reason/error codes when applicable)
+  - config/docs/contracts that must change with code
+- Avoid ambiguous language like `optimize`, `fast`, or `improve` without naming the exact mechanism.
+- Tasks that introduce knobs must define defaults and safe bounds in the same subphase.
+
+## Test definition standards
+- Every test listed in this roadmap must validate:
+  - setup/fixture (including capability gating when relevant)
+  - expected behavior/result shape
+  - determinism or parity (same input -> same output)
+- For error/fallback features, tests must assert the explicit reason/error code.
+- Conditional tests must assert deterministic skip behavior and skip reason.
+- Throughput-focused tests should use fixed fixtures and simple before/after stage checks; avoid heavyweight benchmarking as a gate.
+- If a test item has no sub-bullets, it still inherits these requirements.
+
 ## Ordered execution map
 1. Phase 16 - Release and platform baseline.
 2. Phase 17 - Document ingestion and prose retrieval correctness.
 3. Phase 18 - Vector-only index profile and strict compatibility.
 4. Phase 19 - Lexicon-aware retrieval enrichment and ANN safety.
-5. Phase 20 - Terminal-owned TUI and supervisor architecture.
-6. Track IQ - Intent-aware retrieval and confidence.
-7. Track OP - Operational reliability basics.
+5. Phase 20 - Index build and embedding throughput fast path.
+6. Phase 21 - Terminal-owned TUI and supervisor architecture.
+7. Track IQ - Intent-aware retrieval and confidence.
+8. Track OP - Operational reliability basics.
 
 ---
 
@@ -251,27 +271,27 @@ Deliver deterministic PDF/DOCX ingestion and safe prose routing with strict cont
 Implement PDF/DOCX extractors as optional capabilities with deterministic typed outputs.
 
 #### Tasks
-- [ ] Add `src/index/extractors/pdf.js`:
-  - [ ] `extractPdf({ filePath, buffer }) -> { ok:true, pages:[{ pageNumber, text }], warnings:[] } | { ok:false, reason, warnings:[] }`
-- [ ] Add `src/index/extractors/docx.js`:
-  - [ ] `extractDocx({ filePath, buffer }) -> { ok:true, paragraphs:[{ index, text, style? }], warnings:[] } | { ok:false, reason, warnings:[] }`
-- [ ] Optional dependency loading policy:
-  - [ ] PDF load order: `pdfjs-dist/legacy/build/pdf.js|pdf.mjs`, then `pdfjs-dist/build/pdf.js`, then `pdfjs-dist`.
-  - [ ] DOCX load order: `mammoth` primary, `docx` fallback.
-- [ ] Capability checks must confirm real loadability, not only package presence.
-- [ ] Normalize extracted units:
-  - [ ] newline normalization to `\n`
-  - [ ] deterministic whitespace policy
-  - [ ] deterministic ordering
-- [ ] Add extraction security guards:
-  - [ ] `maxBytesPerFile` default `64MB`
-  - [ ] `maxPages` default `5000`
-  - [ ] `extractTimeoutMs` default `15000`
-  - [ ] explicit reason codes (`unsupported_encrypted`, `unsupported_scanned`, `oversize`, `extract_timeout`, `missing_dependency`, `extract_failed`)
-- [ ] Record extractor identity details in build state:
-  - [ ] extractor name and version
-  - [ ] source bytes hash
-  - [ ] unit counts
+- [x] Add `src/index/extractors/pdf.js`:
+  - [x] `extractPdf({ filePath, buffer }) -> { ok:true, pages:[{ pageNumber, text }], warnings:[] } | { ok:false, reason, warnings:[] }`
+- [x] Add `src/index/extractors/docx.js`:
+  - [x] `extractDocx({ filePath, buffer }) -> { ok:true, paragraphs:[{ index, text, style? }], warnings:[] } | { ok:false, reason, warnings:[] }`
+- [x] Optional dependency loading policy:
+  - [x] PDF load order: `pdfjs-dist/legacy/build/pdf.js|pdf.mjs`, then `pdfjs-dist/build/pdf.js`, then `pdfjs-dist`.
+  - [x] DOCX load order: `mammoth` primary, `docx` fallback.
+- [x] Capability checks must confirm real loadability, not only package presence.
+- [x] Normalize extracted units:
+  - [x] newline normalization to `\n`
+  - [x] deterministic whitespace policy
+  - [x] deterministic ordering
+- [x] Add extraction security guards:
+  - [x] `maxBytesPerFile` default `64MB`
+  - [x] `maxPages` default `5000`
+  - [x] `extractTimeoutMs` default `15000`
+  - [x] explicit reason codes (`unsupported_encrypted`, `unsupported_scanned`, `oversize`, `extract_timeout`, `missing_dependency`, `extract_failed`)
+- [x] Record extractor identity details in build state:
+  - [x] extractor name and version
+  - [x] source bytes hash
+  - [x] unit counts
 
 #### Touchpoints
 - `src/index/extractors/pdf.js` (new)
@@ -284,13 +304,13 @@ Implement PDF/DOCX extractors as optional capabilities with deterministic typed 
 - `src/contracts/validators/build-state.js`
 
 #### Tests
-- [ ] `tests/indexing/extracted-prose/pdf-missing-dep-skips.test.js`
-- [ ] `tests/indexing/extracted-prose/docx-missing-dep-skips.test.js`
-- [ ] `tests/indexing/extracted-prose/pdf-smoke.test.js` (conditional)
-- [ ] `tests/indexing/extracted-prose/docx-smoke.test.js` (conditional)
-- [ ] `tests/indexing/extracted-prose/document-extractor-version-recorded.test.js`
-- [ ] `tests/indexing/extracted-prose/document-extraction-checksums-and-counts.test.js`
-- [ ] `tests/indexing/extracted-prose/document-security-guardrails.test.js`
+- [x] `tests/indexing/extracted-prose/pdf-missing-dep-skips.test.js`
+- [x] `tests/indexing/extracted-prose/docx-missing-dep-skips.test.js`
+- [x] `tests/indexing/extracted-prose/pdf-smoke.test.js` (conditional)
+- [x] `tests/indexing/extracted-prose/docx-smoke.test.js` (conditional)
+- [x] `tests/indexing/extracted-prose/document-extractor-version-recorded.test.js`
+- [x] `tests/indexing/extracted-prose/document-extraction-checksums-and-counts.test.js`
+- [x] `tests/indexing/extracted-prose/document-security-guardrails.test.js`
 
 ### 17.2 Deterministic chunking and anchor contract
 
@@ -381,19 +401,19 @@ Integrate extraction as a deterministic pre-index stage with explicit diagnostic
 Version metadata for extracted documents with stable forward/backward behavior.
 
 #### Tasks
-- [ ] Extend metadata with `segment` block:
-  - [ ] `sourceType: 'pdf'|'docx'`
-  - [ ] `pageStart/pageEnd` (PDF)
-  - [ ] `paragraphStart/paragraphEnd` (DOCX)
-  - [ ] optional `headingPath`
-  - [ ] optional `windowIndex`
-  - [ ] required stable `anchor`
-- [ ] Set `metaV2.schemaVersion = 3`.
-- [ ] Ensure `chunk_meta.jsonl` parity between artifact and SQLite-backed paths.
-- [ ] Reader behavior contract:
-  - [ ] readers ignore unknown fields
-  - [ ] versioned normalization for old shapes
-  - [ ] publish compatibility examples in docs
+- [x] Extend metadata with `segment` block:
+  - [x] `sourceType: 'pdf'|'docx'`
+  - [x] `pageStart/pageEnd` (PDF)
+  - [x] `paragraphStart/paragraphEnd` (DOCX)
+  - [x] optional `headingPath`
+  - [x] optional `windowIndex`
+  - [x] required stable `anchor`
+- [x] Set `metaV2.schemaVersion = 3`.
+- [x] Ensure `chunk_meta.jsonl` parity between artifact and SQLite-backed paths.
+- [x] Reader behavior contract:
+  - [x] readers ignore unknown fields
+  - [x] versioned normalization for old shapes
+  - [x] publish compatibility examples in docs
 
 #### Touchpoints
 - `src/index/metadata-v2.js`
@@ -404,10 +424,10 @@ Version metadata for extracted documents with stable forward/backward behavior.
 - `docs/contracts/artifact-contract.md`
 
 #### Tests
-- [ ] `tests/indexing/metav2/metaV2-extracted-doc.test.js`
-- [ ] `tests/indexing/metav2/metaV2-unknown-fields-ignored.test.js`
-- [ ] `tests/services/sqlite-hydration-metaV2-parity.test.js`
-- [ ] `tests/indexing/metav2/metaV2-backcompat-v2-reader.test.js`
+- [x] `tests/indexing/metav2/metaV2-extracted-doc.test.js`
+- [x] `tests/indexing/metav2/metaV2-unknown-fields-ignored.test.js`
+- [x] `tests/services/sqlite-hydration-metaV2-parity.test.js`
+- [x] `tests/indexing/metav2/metaV2-backcompat-v2-reader.test.js`
 
 ### 17.5 Prose routing defaults and FTS AST compilation
 
@@ -448,10 +468,15 @@ Make routing and FTS query compilation deterministic, explainable, and safe.
 
 #### Tests
 - [ ] `tests/retrieval/backend/search-routing-policy.test.js`
+  - [ ] Prose defaults to FTS and code defaults to sparse/postings with clear explain trace.
 - [ ] `tests/retrieval/query/sqlite-fts-query-escape.test.js`
+  - [ ] Escaping prevents operator injection and preserves literal punctuation intent.
 - [ ] `tests/retrieval/backend/fts-tokenizer-config.test.js`
+  - [ ] Tokenizer variant config and diacritic behavior match documented defaults.
 - [ ] `tests/retrieval/backend/fts-missing-table-fallback.test.js`
+  - [ ] Missing table path returns controlled availability outcome (no throw).
 - [ ] `tests/retrieval/backend/fts-variant-selection-precedence.test.js`
+  - [ ] Variant selection order follows the documented precedence table exactly.
 
 ### 17.6 Retrieval helper correctness hardening
 
@@ -676,9 +701,13 @@ Make query-time behavior profile-aware with one clear policy and explicit overri
 
 #### Tests
 - [ ] `tests/retrieval/backend/vector-only-search-requires-ann.test.js`
+  - [ ] Vector-only index selects ANN path by default and errors if ANN provider unavailable.
 - [ ] `tests/retrieval/backend/vector-only-rejects-sparse-mode.test.js`
+  - [ ] Sparse-dependent mode is rejected by default with actionable guidance.
 - [ ] `tests/retrieval/backend/sqlite-missing-sparse-tables-is-controlled-error.test.js`
+  - [ ] Missing sparse tables return controlled mismatch error, not an exception crash.
 - [ ] `tests/retrieval/output/explain-vector-only-warnings.test.js`
+  - [ ] Explain output includes profile, mismatch reason, and override guidance.
 
 ### 18.4 Legacy migration and federation compatibility
 
@@ -970,12 +999,261 @@ Make lexicon and candidate-policy behavior transparent and easy to enable safely
 
 #### Tests
 - [ ] `tests/retrieval/explain-includes-relation-boost.test.js`
+  - [ ] Explain includes relation boost fields, units, and bounded token lists.
 - [ ] `tests/retrieval/explain-includes-ann-policy.test.js`
+  - [ ] Explain includes ANN candidate policy input/output and reason code.
 - [ ] `tests/indexing/logging/lexicon-filter-counts.test.js`
+  - [ ] Build logs include deterministic per-file relation filtering counters when enabled.
 
 ---
 
-## Phase 20 - Terminal-Owned TUI and Supervisor Architecture
+## Phase 20 - Index Build and Embedding Throughput Fast Path
+
+### Objective
+Make index builds and embedding generation significantly faster through straightforward, low-risk hot-path optimizations.
+
+### Non-goals
+- Changing retrieval semantics or ranking contracts.
+- Introducing non-deterministic output ordering.
+- Adding heavy benchmark infrastructure as a prerequisite for shipping.
+
+### Execution style for this phase
+- Prioritize obvious wins with direct code-path reductions (less repeated work, less sync I/O, less serialization churn).
+- Validate with lightweight regression and stage-duration smoke checks on fixed fixtures.
+
+### Exit criteria
+- Tree-sitter and file-processing hot paths avoid repeated segmentation and serial planning I/O.
+- Discovery and incremental paths stop unnecessary crawl/read work early.
+- Embedding pipeline improves throughput by removing avoidable serialization/queue bottlenecks.
+- Artifact write path reduces repeated serialization and under-utilized write concurrency.
+- Build-state/checkpoint persistence no longer rewrites large payloads unnecessarily.
+- Import-resolution and postings-merge paths reuse warm-build state where safe.
+
+### Docs that must be updated
+- `docs/perf/indexing-stage-audit.md`
+- `docs/perf/index-artifact-pipelines.md`
+- `docs/perf/shared-io-serialization.md`
+- `docs/specs/build-scheduler.md`
+- `docs/specs/artifact-io-pipeline.md`
+- `docs/specs/embeddings-cache.md`
+- `docs/specs/spimi-spill.md`
+- `docs/specs/large-file-caps-strategy.md`
+- `docs/specs/build-state-integrity.md`
+- `docs/guides/perfplan-execution.md`
+- `docs/guides/commands.md`
+- `docs/config/schema.json` and `docs/config/contract.md` (if new tuning knobs are added)
+
+### 20.1 Scheduler and segmentation reuse
+
+#### Objective
+Remove duplicate tree-sitter segmentation work and reduce serial planning I/O in the scheduler path.
+
+#### Tasks
+- [ ] In `processFileCpu`, prefer scheduler-planned segments when available; only fall back to `discoverSegments` when missing or hash-stale.
+- [ ] Keep segment UID assignment deterministic after planned-segment reuse.
+- [ ] Parallelize `buildTreeSitterSchedulerPlan` per-file `lstat/readTextFileWithHash` work with bounded concurrency.
+- [ ] Keep planner output ordering deterministic (`plan.jobs` and index ordering unchanged).
+
+#### Touchpoints
+- `src/index/build/file-processor/cpu.js`
+- `src/index/build/tree-sitter-scheduler/plan.js`
+- `src/index/build/tree-sitter-scheduler/runner.js`
+- `src/index/build/runtime/hash.js`
+
+#### Tests
+- [ ] `tests/indexing/scheduler/planned-segments-reuse-without-rediscovery.test.js`
+  - [ ] Fixture with scheduler-provided segments verifies `discoverSegments` path is not used.
+  - [ ] Chunk boundaries/IDs and metadata remain identical to baseline output.
+- [ ] `tests/indexing/scheduler/plan-parallel-io-deterministic-order.test.js`
+  - [ ] Planner output (`plan.jobs`, file order, signatures) matches sequential mode exactly.
+  - [ ] Parallel mode preserves deterministic job ordering across repeated runs.
+
+### 20.2 Discovery and incremental read dedupe
+
+#### Objective
+Stop wasted file-system and read/hash work in discovery and incremental cache lookup flows.
+
+#### Tasks
+- [ ] Abort discovery crawl as soon as `maxFiles` is satisfied (do not continue full repository traversal).
+- [ ] Emit a stable limit reason code (`max_files_reached`) when early-abort is triggered.
+- [ ] Share single-file `buffer/hash` between cached bundle and cached imports lookup to avoid duplicate reads.
+- [ ] Add streaming truncation path in file reads so oversized files can be capped without full in-memory materialization.
+- [ ] Keep skip/limit diagnostics deterministic when early abort paths are active.
+
+#### Touchpoints
+- `src/index/build/discover.js`
+- `src/index/build/incremental.js`
+- `src/index/build/file-processor/read.js`
+- `src/index/build/file-scan.js`
+
+#### Tests
+- [ ] `tests/indexing/discovery/max-files-abort-crawl.test.js`
+  - [ ] With low `maxFiles`, crawler exits early and does not traverse remaining tree.
+  - [ ] Skip diagnostics record deterministic limit reason code `max_files_reached`.
+- [ ] `tests/indexing/incremental/shared-buffer-hash-for-imports-and-bundle.test.js`
+  - [ ] Same file is read once when both bundle/import cache checks require hash.
+  - [ ] Import outputs and cache hits remain identical to legacy behavior.
+- [ ] `tests/indexing/read/streaming-truncation-byte-cap.test.js`
+  - [ ] Streaming-cap path returns the same truncated text as non-streaming baseline.
+  - [ ] Memory usage path avoids full-file materialization for oversized fixture.
+
+### 20.3 Embedding pipeline fast path
+
+#### Objective
+Increase embedding throughput by parallelizing independent batches and removing cache/write-path bottlenecks.
+
+#### Tasks
+- [ ] Dispatch code and doc embedding batches concurrently where backends advertise safe parallelism; otherwise keep deterministic serial path.
+- [ ] Add compact cache-entry fingerprint to avoid decompressing full payloads just to compare chunk hashes.
+- [ ] Reuse shard append handles during cache flushes to avoid repeated open/stat/close cycles.
+- [ ] Move heavy encoding off the writer queue critical section (queue should gate disk I/O, not compression CPU time).
+- [ ] Keep embedding cache identity and determinism unchanged.
+
+#### Touchpoints
+- `tools/build/embeddings/batch.js`
+- `tools/build/embeddings/runner.js`
+- `tools/build/embeddings/cache.js`
+- `src/index/build/embedding-batch.js`
+- `src/index/build/indexer/embedding-queue.js`
+- `src/shared/embeddings-cache/*`
+
+#### Tests
+- [ ] `tests/embeddings/pipeline/code-doc-batches-parallel-dispatch.test.js`
+  - [ ] Code/doc batch dispatches overlap in time when backend supports concurrency.
+  - [ ] Result ordering and embedding identity remain deterministic.
+- [ ] `tests/embeddings/cache/fingerprint-short-circuit-avoids-decompress.test.js`
+  - [ ] Fingerprint mismatch bypasses full payload decompress/read path.
+  - [ ] Cache miss/hit decisions remain correct for unchanged hashes.
+- [ ] `tests/embeddings/cache/shard-append-handle-reuse.test.js`
+  - [ ] Shard appends reuse handles within a flush window (no per-entry reopen loop).
+  - [ ] Final shard contents and index pointers remain valid and deterministic.
+- [ ] `tests/embeddings/pipeline/writer-queue-encode-off-critical-path.test.js`
+  - [ ] Encoding occurs outside queue-gated disk write section.
+  - [ ] Queue drains correctly with no lost writes or ordering drift.
+
+### 20.4 Postings and chunking compute reuse
+
+#### Objective
+Cut repeated serialization/splitting/allocation work in postings and chunking paths.
+
+#### Tasks
+- [ ] Replace per-file payload size estimation by full `JSON.stringify` with precomputed postings payload metadata.
+- [ ] Hoist line/byte index computation so chunk format handlers reuse shared indexes instead of rebuilding repeatedly.
+- [ ] Reduce per-chunk quantization allocation churn by pooling/reuse where safe and deterministic.
+- [ ] Keep retention semantics unchanged while moving quantization/retention work earlier when possible.
+
+#### Touchpoints
+- `src/index/build/indexer/steps/process-files/postings-queue.js`
+- `src/index/build/file-processor/process-chunks/index.js`
+- `src/index/chunking/dispatch.js`
+- `src/index/chunking/limits.js`
+- `src/index/build/indexer/steps/postings.js`
+
+#### Tests
+- [ ] `tests/indexing/postings/payload-estimation-uses-precomputed-metadata.test.js`
+  - [ ] Metadata path avoids fallback stringify estimation when metadata is present.
+  - [ ] Reserved rows/bytes accounting matches legacy semantics.
+- [ ] `tests/indexing/chunking/shared-line-index-reuse-deterministic.test.js`
+  - [ ] Shared line/byte index path preserves chunk boundaries/anchors exactly.
+  - [ ] Repeated runs produce identical chunk IDs and ordering.
+- [ ] `tests/indexing/postings/quantization-buffer-reuse-no-drift.test.js`
+  - [ ] Reused/pool buffers produce byte-identical quantized vectors to baseline.
+  - [ ] No drift in downstream ranking inputs from quantization reuse.
+
+### 20.5 Artifact write throughput and serialization fanout
+
+#### Objective
+Increase artifact write throughput by reducing repeated serialization and better utilizing available I/O concurrency.
+
+#### Tasks
+- [ ] Replace hard-capped artifact write concurrency with dynamic default based on available parallelism (`min(availableParallelism, 16)`), with optional config override.
+- [ ] Validate override bounds (`1..32`) and reject invalid values with a controlled config error.
+- [ ] Serialize `chunk_meta` rows once and fan out to hot/cold/compat/binary outputs from a shared stream.
+- [ ] Expand cached JSONL row reuse to avoid repeated stringify for the same row across outputs.
+- [ ] Preserve deterministic artifact ordering and checksums.
+
+#### Touchpoints
+- `src/index/build/artifacts.js`
+- `src/index/build/artifacts/writer.js`
+- `src/index/build/artifacts/writers/chunk-meta.js`
+- `src/shared/artifact-io/jsonl.js`
+- `src/shared/json-stream/*`
+
+#### Tests
+- [ ] `tests/indexing/artifacts/dynamic-write-concurrency-preserves-order.test.js`
+  - [ ] Different write concurrency settings produce identical artifact manifest ordering.
+  - [ ] Checksums remain identical for same inputs.
+- [ ] `tests/indexing/artifacts/artifact-write-concurrency-config-validation.test.js`
+  - [ ] Invalid override values outside `1..32` fail with controlled config error.
+- [ ] `tests/indexing/artifacts/chunk-meta-single-pass-fanout-parity.test.js`
+  - [ ] Single-pass fanout outputs match legacy multi-pass outputs byte-for-byte.
+  - [ ] Hot/cold/compat/binary sinks stay mutually consistent.
+- [ ] `tests/indexing/artifacts/chunk-meta-cached-jsonl-reuse.test.js`
+  - [ ] Cached JSONL row reuse path avoids repeat stringify for same row.
+  - [ ] Emitted JSONL remains valid and deterministic.
+
+### 20.6 Build-state and checkpoint I/O slimming
+
+#### Objective
+Reduce large repeated atomic rewrites in long-running builds.
+
+#### Tasks
+- [ ] Move heavy `stageCheckpoints` payloads into dedicated sidecar/checkpoint files so `build_state.json` stays lightweight.
+- [ ] Update checkpoint recorder to write changed slices instead of full combined snapshots.
+- [ ] Keep the same crash-recovery semantics and deterministic state reconstruction.
+- [ ] Use a stable sidecar naming/version convention (`stage_checkpoints.v1.*`) for forward compatibility.
+
+#### Touchpoints
+- `src/index/build/build-state.js`
+- `src/index/build/stage-checkpoints.js`
+- `src/index/build/stage-checkpoints/` (new folder)
+- `src/index/build/state.js`
+
+#### Tests
+- [ ] `tests/indexing/state/build-state-lightweight-main-file.test.js`
+  - [ ] Main `build_state.json` excludes heavy checkpoint payload sections.
+  - [ ] Sidecar checkpoint files contain required checkpoint content.
+- [ ] `tests/indexing/state/checkpoint-slice-write-and-recover.test.js`
+  - [ ] Slice updates reconstruct full checkpoint state deterministically after reload.
+  - [ ] Crash-recovery behavior matches previous correctness guarantees.
+- [ ] `tests/indexing/state/checkpoint-sidecar-naming-versioned.test.js`
+  - [ ] Sidecar files follow stable `stage_checkpoints.v1.*` naming convention.
+
+### 20.7 Import-resolution and postings-merge warm-build reuse
+
+#### Objective
+Reuse warm-build metadata for import lookup and spill-merge planning to avoid repeated expensive setup work.
+
+#### Tasks
+- [ ] Persist and reuse import lookup structures (`fileSet`/trie/index) between compatible builds using an explicit compatibility fingerprint.
+- [ ] Replace repeated synchronous existence/stat checks with batched async metadata lookups where safe.
+- [ ] Persist spill-merge planner metadata/checkpoint hints and reuse when inputs are unchanged.
+- [ ] Keep merge output deterministic and equivalent to cold planner behavior.
+
+#### Touchpoints
+- `src/index/build/import-resolution.js`
+- `src/index/build/import-resolution-cache.js`
+- `src/index/build/postings.js`
+- `src/index/build/indexer/steps/relations.js`
+- `tools/bench/index/import-resolution-graph.js`
+- `tools/bench/index/postings-real.js`
+
+#### Tests
+- [ ] `tests/indexing/imports/warm-lookup-structure-reuse.test.js`
+  - [ ] Warm run reuses persisted import lookup structures when compatible.
+  - [ ] Import resolution output remains identical to cold rebuild output.
+- [ ] `tests/indexing/imports/async-fs-memo-parity.test.js`
+  - [ ] Async metadata lookup path matches sync memoized decision parity.
+  - [ ] Path existence and resolution outcomes remain deterministic.
+- [ ] `tests/indexing/imports/lookup-fingerprint-compatibility-gate.test.js`
+  - [ ] Lookup structure reuse occurs only when compatibility fingerprint matches.
+- [ ] `tests/indexing/postings/spill-merge-planner-metadata-reuse.test.js`
+  - [ ] Reused planner metadata path is taken when inputs are unchanged.
+  - [ ] Postings output and merge ordering match cold planner baseline.
+
+---
+
+## Phase 21 - Terminal-Owned TUI and Supervisor Architecture
 
 ### Objective
 Deliver a terminal-owned TUI and supervisor model with protocol v2, deterministic orchestration, and cancellation guarantees.
@@ -1000,7 +1278,7 @@ Deliver a terminal-owned TUI and supervisor model with protocol v2, deterministi
 - `docs/contracts/search-contract.md`
 - `docs/contracts/mcp-api.md`
 
-### 20.1 Protocol v2 contract
+### 21.1 Protocol v2 contract
 
 #### Tasks
 - [ ] Define message schema with `schemaVersion`.
@@ -1016,9 +1294,11 @@ Deliver a terminal-owned TUI and supervisor model with protocol v2, deterministi
 
 #### Tests
 - [ ] `tests/tui/protocol-v2-schema.test.js`
+  - [ ] Valid protocol envelopes parse against schema; invalid envelopes fail with stable reason codes.
 - [ ] `tests/tui/protocol-v2-ordering.test.js`
+  - [ ] Request/response event ordering contract is preserved across repeated runs.
 
-### 20.2 Supervisor lifecycle model
+### 21.2 Supervisor lifecycle model
 
 #### Tasks
 - [ ] Implement supervisor states (`idle`, `running`, `cancelling`, `failed`, `completed`).
@@ -1034,9 +1314,11 @@ Deliver a terminal-owned TUI and supervisor model with protocol v2, deterministi
 
 #### Tests
 - [ ] `tests/tui/supervisor-lifecycle-state-machine.test.js`
+  - [ ] State transitions follow allowed graph (`idle -> running -> ...`) with no illegal edges.
 - [ ] `tests/tui/supervisor-retry-policy.test.js`
+  - [ ] Recoverable failures retry with configured policy; terminal failures stop deterministically.
 
-### 20.3 Cancellation and deadlines
+### 21.3 Cancellation and deadlines
 
 #### Tasks
 - [ ] Propagate cancellation tokens and deadlines through all stages.
@@ -1050,8 +1332,9 @@ Deliver a terminal-owned TUI and supervisor model with protocol v2, deterministi
 
 #### Tests
 - [ ] `tests/tui/cancel-propagation.test.js`
+  - [ ] Cancellation reaches all active stages and marks outputs as partial consistently.
 
-### 20.4 TUI rendering and responsiveness
+### 21.4 TUI rendering and responsiveness
 
 #### Tasks
 - [ ] Keep rendering on main terminal loop; move heavy compute off UI path.
@@ -1066,9 +1349,11 @@ Deliver a terminal-owned TUI and supervisor model with protocol v2, deterministi
 
 #### Tests
 - [ ] `tests/tui/rendering/responsiveness-under-load.test.js`
+  - [ ] Rendering loop continues updating while background work is active.
 - [ ] `tests/tui/rendering/partial-stream-order.test.js`
+  - [ ] Streamed partial output order is deterministic for identical event sequences.
 
-### 20.5 Observability and replay
+### 21.5 Observability and replay
 
 #### Tasks
 - [ ] Add request/session IDs across supervisor and worker stages.
@@ -1083,7 +1368,9 @@ Deliver a terminal-owned TUI and supervisor model with protocol v2, deterministi
 
 #### Tests
 - [ ] `tests/tui/observability/session-correlation.test.js`
+  - [ ] Session/request IDs are present and consistent across emitted events.
 - [ ] `tests/tui/observability/replay-determinism.test.js`
+  - [ ] Replay of recorded events reproduces the same rendered sequence.
 
 ---
 
@@ -1110,27 +1397,37 @@ Incrementally improve intent understanding, multi-hop expansion, confidence esti
 ### IQ.1 Intent confidence calibration
 - [ ] Add calibrated confidence outputs per intent class.
 - [ ] Add abstain/uncertain state for low-confidence cases.
-- [ ] Tests: `tests/retrieval/intent/intent-confidence-calibration.test.js`
+- [ ] `tests/retrieval/intent/intent-confidence-calibration.test.js`
+  - [ ] Confidence buckets are calibrated against fixture truth labels.
+  - [ ] Low-confidence queries trigger abstain path deterministically.
 
 ### IQ.2 Multi-hop expansion policy
 - [ ] Define bounded expansion depth/width defaults.
 - [ ] Add deterministic stop conditions.
-- [ ] Tests: `tests/retrieval/expansion/multihop-bounded-policy.test.js`
+- [ ] `tests/retrieval/expansion/multihop-bounded-policy.test.js`
+  - [ ] Expansion never exceeds configured depth/width bounds.
+  - [ ] Same seed query produces identical expansion graph/order.
 
 ### IQ.3 Trust and confidence surfacing
 - [ ] Add trust signals to explain payload with versioned schema.
 - [ ] Add confidence bucket definitions (`low`, `medium`, `high`).
-- [ ] Tests: `tests/retrieval/explain/confidence-surface-contract.test.js`
+- [ ] `tests/retrieval/explain/confidence-surface-contract.test.js`
+  - [ ] Explain payload includes required trust/confidence fields with schema version.
+  - [ ] Unknown forward fields are ignored by readers without parse failure.
 
 ### IQ.4 Bundle-style result assembly
 - [ ] Define bundle grouping and ordering contract.
 - [ ] Add deterministic tie-breakers across bundles.
-- [ ] Tests: `tests/retrieval/output/bundle-assembly-deterministic.test.js`
+- [ ] `tests/retrieval/output/bundle-assembly-deterministic.test.js`
+  - [ ] Bundle membership and ordering are stable across repeated runs.
+  - [ ] Tie-break rules are applied consistently for equal-score cases.
 
 ### IQ.5 Evaluation harness
 - [ ] Add small fixed fixtures that catch obvious IQ regressions.
 - [ ] Keep a lightweight regression test lane for IQ behavior.
-- [ ] Tests: `tests/retrieval/eval/iq-regression-smoke.test.js`
+- [ ] `tests/retrieval/eval/iq-regression-smoke.test.js`
+  - [ ] Fixture suite catches confidence/expansion/bundle regressions in one lane.
+  - [ ] Lane output is deterministic and stable enough for CI gating.
 
 ---
 
@@ -1157,27 +1454,37 @@ Keep runtime behavior stable and failure handling clear without adding heavy ope
 ### OP.1 Health checks and clear logs
 - [ ] Add practical health checks for core indexing and retrieval paths.
 - [ ] Ensure logs clearly identify failure type and likely next action.
-- [ ] Tests: `tests/ops/health-check-contract.test.js`
+- [ ] `tests/ops/health-check-contract.test.js`
+  - [ ] Health checks surface pass/fail state with stable machine-readable codes.
+  - [ ] Log output contains actionable reason and component context.
 
 ### OP.2 Failure injection harness
 - [ ] Add deterministic failure injection for indexing and retrieval hot paths.
 - [ ] Classify failures as retriable/non-retriable.
-- [ ] Tests: `tests/ops/failure-injection/retrieval-hotpath.test.js`
+- [ ] `tests/ops/failure-injection/retrieval-hotpath.test.js`
+  - [ ] Injected failures map to expected retriable/non-retriable classes.
+  - [ ] Recovery path behavior matches documented policy.
 
 ### OP.3 Stable defaults and guardrails
 - [ ] Keep operational defaults conservative and explicit.
 - [ ] Add guardrails for risky config combinations.
-- [ ] Tests: `tests/ops/config/guardrails.test.js`
+- [ ] `tests/ops/config/guardrails.test.js`
+  - [ ] Invalid or risky combinations are rejected with clear error codes.
+  - [ ] Safe defaults remain unchanged when optional knobs are absent.
 
 ### OP.4 Release blocking essentials
 - [ ] Keep only essential reliability checks as release blockers.
 - [ ] Document owner and override path for each blocker.
-- [ ] Tests: `tests/ops/release-gates/essential-blockers.test.js`
+- [ ] `tests/ops/release-gates/essential-blockers.test.js`
+  - [ ] Required blockers fail release-check when missing/failing.
+  - [ ] Override path requires explicit marker and is audit-visible.
 
 ### OP.5 Basic resource visibility
 - [ ] Add lightweight visibility for memory and index size growth.
 - [ ] Emit warnings for obviously abnormal growth.
-- [ ] Tests: `tests/ops/resources/basic-growth-warning.test.js`
+- [ ] `tests/ops/resources/basic-growth-warning.test.js`
+  - [ ] Resource growth warnings trigger on controlled abnormal fixtures.
+  - [ ] Normal fixture runs stay below warning thresholds.
 
 ---
 
@@ -1219,6 +1526,8 @@ Evaluate optional native/WASM acceleration for hot paths with strict correctness
 
 #### Tests
 - [ ] `tests/retrieval/native/feasibility-parity-harness.test.js`
+  - [ ] Harness verifies native and JS paths return equivalent ranked outputs on seed fixtures.
+  - [ ] Capability detection falls back to JS path without behavior drift.
 
 ### Subphase A - Native bitmap engine
 
@@ -1235,7 +1544,9 @@ Evaluate optional native/WASM acceleration for hot paths with strict correctness
 
 #### Tests
 - [ ] `tests/retrieval/native/bitmap-equivalence.test.js`
+  - [ ] Native bitmap set operations (`and/or/andNot`) match JS results exactly.
 - [ ] `tests/retrieval/native/capability-fallback.test.js`
+  - [ ] Missing native module triggers JS fallback with identical observable behavior.
 
 ### Subphase B - Native top-K and score accumulation
 
@@ -1252,8 +1563,11 @@ Evaluate optional native/WASM acceleration for hot paths with strict correctness
 
 #### Tests
 - [ ] `tests/retrieval/native/topk-equivalence.test.js`
+  - [ ] Native top-k output ordering matches JS baseline including tie-breaks.
 - [ ] `tests/retrieval/native/topk-adversarial-tie-parity.test.js`
+  - [ ] Adversarial equal-score fixtures preserve deterministic tie ordering.
 - [ ] `tests/retrieval/native/capability-fallback.test.js`
+  - [ ] Fallback path parity holds for top-k and score accumulation.
 
 ### Subphase C - ANN acceleration and preflight
 
@@ -1273,8 +1587,11 @@ Evaluate optional native/WASM acceleration for hot paths with strict correctness
 
 #### Tests
 - [ ] `tests/retrieval/native/ann-equivalence.test.js`
+  - [ ] ANN candidate/output parity matches JS backend for same index/query fixtures.
 - [ ] `tests/retrieval/native/ann-preflight-error-taxonomy.test.js`
+  - [ ] Preflight rejects invalid configs with exact taxonomy codes.
 - [ ] `tests/retrieval/native/capability-fallback.test.js`
+  - [ ] ANN path falls back cleanly when native backend is unavailable.
 
 ### Subphase D - Worker-thread pipeline offload
 
@@ -1291,7 +1608,9 @@ Evaluate optional native/WASM acceleration for hot paths with strict correctness
 
 #### Tests
 - [ ] `tests/retrieval/native/worker-offload-equivalence.test.js`
+  - [ ] Worker-offloaded pipeline returns same outputs/order as single-thread baseline.
 - [ ] `tests/retrieval/native/worker-cancel.test.js`
+  - [ ] Cancellation propagates across worker boundaries and halts work deterministically.
 
 ### Subphase E - Build and release strategy
 
@@ -1309,6 +1628,7 @@ Evaluate optional native/WASM acceleration for hot paths with strict correctness
 
 #### Tests
 - [ ] `tests/retrieval/native/capability-fallback.test.js`
+  - [ ] Build/install-time missing native toolchains keep default JS path functional.
 
 ---
 

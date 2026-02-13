@@ -57,6 +57,16 @@ Each `index-<mode>/` directory contains:
 - `chunk_meta.json` (or `chunk_meta.jsonl`, or sharded `chunk_meta.parts/` + `chunk_meta.meta.json`, or `chunk_meta.columnar.json`)
   - Array/JSONL of chunk metadata entries.
   - Each entry includes `id`, `fileId`, `start`, `end`, `startLine`, `endLine`, `kind`, `name`, plus optional metadata.
+  - `metaV2` compatibility contract:
+    - Current writer shape is `metaV2.schemaVersion = 3`.
+    - `metaV2.segment` may include document fields for extracted prose:
+      - `sourceType` (`pdf` or `docx`)
+      - `pageStart` / `pageEnd` (PDF)
+      - `paragraphStart` / `paragraphEnd` (DOCX)
+      - `headingPath` (optional array)
+      - `windowIndex` (optional integer)
+      - `anchor` (stable deterministic anchor string)
+    - Readers normalize missing `schemaVersion` to legacy v2 semantics and must tolerate unknown forward fields.
   - Columnar form (`chunk_meta.columnar.json`) stores a `{ format: "columnar", columns, arrays, length }` payload that inflates to the same row schema.
   - Sharded JSONL meta (`chunk_meta.meta.json`) uses the jsonl-sharded schema:
     - `schemaVersion`, `artifact`, `format: jsonl-sharded`, `generatedAt`, `compression`
