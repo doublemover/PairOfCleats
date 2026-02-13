@@ -75,7 +75,10 @@ jobs:
           path: |
             .ci-cache/pairofcleats/models
             .ci-cache/pairofcleats/dictionaries
-          key: pairofcleats-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          key: pairofcleats-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ github.run_id }}
+          restore-keys: |
+            pairofcleats-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
+            pairofcleats-cache-${{ runner.os }}-
 
       - name: Restore node_modules cache
         id: node-modules-cache
@@ -110,7 +113,7 @@ jobs:
         run: |
           $cacheRoot = node -e "const fs=require('fs');const payload=JSON.parse(fs.readFileSync('.diagnostics/cache-root.json','utf8'));process.stdout.write(payload.cacheRoot);"
           $env:PAIROFCLEATS_CACHE_ROOT = $cacheRoot
-          node tools/index/cache-gc.js --max-age-days 3 --max-bytes 52428800 --repo .
+          node tools/index/cache-gc.js --apply --grace-days 3 --max-deletes 200 --repo .
 
       - name: Upload test artifacts
         if: failure()
@@ -144,7 +147,10 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .ci-cache/pairofcleats
-          key: pairofcleats-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          key: pairofcleats-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ github.run_id }}
+          restore-keys: |
+            pairofcleats-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
+            pairofcleats-cache-${{ runner.os }}-
 
       - name: Restore node_modules cache
         id: node-modules-cache
@@ -207,7 +213,10 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .ci-cache/pairofcleats
-          key: pairofcleats-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          key: pairofcleats-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ github.run_id }}
+          restore-keys: |
+            pairofcleats-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
+            pairofcleats-cache-${{ runner.os }}-
 
       - name: Restore node_modules cache
         id: node-modules-cache
