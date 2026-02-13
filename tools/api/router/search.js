@@ -27,6 +27,17 @@ const parseBoolean = (value) => {
   if (normalized === 'false' || normalized === '0' || normalized === 'no') return false;
   return null;
 };
+/**
+ * Parse a boolean query parameter strictly while distinguishing absent values
+ * from malformed values.
+ *
+ * This is used by GET /search so invalid booleans return 400 instead of being
+ * silently dropped before schema validation.
+ *
+ * @param {URLSearchParams} searchParams
+ * @param {string} key
+ * @returns {{ok:boolean,present:boolean,value:boolean|null,key:string,message?:string}}
+ */
 const parseStrictBooleanQueryParam = (searchParams, key) => {
   if (!searchParams.has(key)) {
     return { ok: true, present: false, value: null, key };
@@ -44,6 +55,14 @@ const parseStrictBooleanQueryParam = (searchParams, key) => {
   return { ok: true, present: true, value: parsed, key };
 };
 
+/**
+ * Parse an integer query parameter strictly while distinguishing absent values
+ * from malformed values.
+ *
+ * @param {URLSearchParams} searchParams
+ * @param {string} key
+ * @returns {{ok:boolean,present:boolean,value:number|null,key:string,message?:string}}
+ */
 const parseStrictIntegerQueryParam = (searchParams, key) => {
   if (!searchParams.has(key)) {
     return { ok: true, present: false, value: null, key };
@@ -94,6 +113,12 @@ const getStringList = (searchParams, ...keys) => {
   return values.length === 1 ? values[0] : values;
 };
 
+/**
+ * Build a search payload from URL query params and collect parse-time errors.
+ *
+ * @param {URLSearchParams} searchParams
+ * @returns {{payload: Record<string, any>, errors: Array<{path:string,message:string}>}}
+ */
 export const buildSearchPayloadFromQuery = (searchParams) => {
   const payload = {};
   const errors = [];

@@ -25,6 +25,19 @@ const handleRepoResolveError = (res, err, corsHeaders) => {
   sendError(res, status, code, err?.message || 'Invalid repo path.', {}, corsHeaders || {});
 };
 
+/**
+ * Parse JSON body and emit a consistent error response on parse failure.
+ *
+ * Returns an explicit status object so callers can distinguish:
+ * - parse failure already handled (`ok:false`)
+ * - successfully parsed `null` payload (`ok:true`, `payload:null`)
+ *
+ * @param {import('node:http').IncomingMessage} req
+ * @param {import('node:http').ServerResponse} res
+ * @param {(req: import('node:http').IncomingMessage) => Promise<any>} parseJsonBody
+ * @param {object} corsHeaders
+ * @returns {Promise<{ok:boolean,payload:any}>}
+ */
 const parseBodyOrError = async (req, res, parseJsonBody, corsHeaders) => {
   try {
     return { ok: true, payload: await parseJsonBody(req) };

@@ -60,6 +60,19 @@ const normalizeRequestedModes = (requestedModes) => {
   return resolved;
 };
 
+/**
+ * Resolve a build root candidate under the repo cache boundary.
+ *
+ * For relative values, resolution prefers `<repoCacheRoot>/builds/<id>` when
+ * the token looks like a build id, and only accepts candidates that both stay
+ * within the repo cache scope and currently exist.
+ *
+ * @param {string} repoCacheRoot
+ * @param {string} buildsRoot
+ * @param {string} value
+ * @param {string} label
+ * @returns {string|null}
+ */
 const resolveCacheScopedPath = (repoCacheRoot, buildsRoot, value, label) => {
   if (typeof value !== 'string' || !value.trim()) {
     return null;

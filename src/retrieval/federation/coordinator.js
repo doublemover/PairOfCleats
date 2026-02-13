@@ -602,6 +602,9 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
           try {
             repoCaches = await resolveRepoCaches(repo.repoRootCanonical);
           } catch (error) {
+            // Cache resolver failures are repo-scoped faults. In non-strict mode
+            // we downgrade them to diagnostics so one stale/broken repo does not
+            // abort the full federated fanout.
             const aborted = isFederatedAbortError(error, context.signal);
             perRepoErrors.push({
               repoId: repo.repoId,

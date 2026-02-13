@@ -14,6 +14,11 @@ export const createRepoResolver = ({ defaultRepo, allowedRepoRoots = [] }) => {
 
   /**
    * Resolve and validate a repo path.
+   *
+   * For explicit repo inputs, we resolve VCS root when possible, but preserve
+   * the validated explicit path when the discovered VCS root sits above the
+   * configured allowlist boundary (common in monorepos with nested allowlists).
+   *
    * @param {string|null|undefined} value
    * @returns {string}
    */
