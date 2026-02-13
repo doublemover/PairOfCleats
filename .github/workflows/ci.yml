@@ -8,10 +8,58 @@ on:
     branches: [main]
   pull_request:
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  gate:
+    name: gate
+    runs-on: ubuntu-latest
+    env:
+      PAIROFCLEATS_EMBEDDINGS: stub
+      PAIROFCLEATS_CACHE_ROOT: .ci-cache/pairofcleats
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.13.0'
+          cache: npm
+
+      - name: Restore node_modules cache
+        id: node-modules-cache
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-24.13.0-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
+
+      - name: Install deps
+        shell: bash
+        run: |
+          if [ "${{ steps.node-modules-cache.outputs.cache-hit }}" != "true" ]; then
+            npm run bootstrap:ci
+          else
+            if ! npm run verify:native; then
+              npm run rebuild:native
+            fi
+          fi
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Config budget
+        run: npm run config:budget
+
+      - name: Env usage guardrail
+        run: npm run env:check
+
   ubuntu:
     name: ubuntu
     runs-on: ubuntu-latest
+    needs: gate
     env:
       PAIROFCLEATS_EMBEDDINGS: stub
       PAIROFCLEATS_CACHE_ROOT: .ci-cache/pairofcleats
@@ -69,7 +117,7 @@ jobs:
           node tools/index/cache-gc.js --max-age-days 3 --max-bytes 52428800 --repo .
 
       - name: Upload test artifacts
-        if: always()
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: ci-artifacts-ubuntu
@@ -77,10 +125,12 @@ jobs:
             .testLogs/**
             .diagnostics/**
           if-no-files-found: ignore
+          compression-level: 0
 
   windows:
     name: windows
     runs-on: windows-latest
+    needs: gate
     env:
       PAIROFCLEATS_EMBEDDINGS: stub
       PAIROFCLEATS_CACHE_ROOT: .ci-cache/pairofcleats
@@ -130,7 +180,7 @@ jobs:
           node tools/ci/run-suite.js --mode ci
 
       - name: Upload test artifacts
-        if: always()
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: ci-artifacts-windows
@@ -138,10 +188,12 @@ jobs:
             .testLogs/**
             .diagnostics/**
           if-no-files-found: ignore
+          compression-level: 0
 
   macos:
     name: macos
     runs-on: macos-latest
+    needs: gate
     env:
       PAIROFCLEATS_EMBEDDINGS: stub
       PAIROFCLEATS_CACHE_ROOT: .ci-cache/pairofcleats
@@ -189,7 +241,7 @@ jobs:
           node tools/ci/run-suite.js --mode ci
 
       - name: Upload test artifacts
-        if: always()
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: ci-artifacts-macos
@@ -197,3 +249,4 @@ jobs:
             .testLogs/**
             .diagnostics/**
           if-no-files-found: ignore
+          compression-level: 0
