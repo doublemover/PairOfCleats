@@ -11,778 +11,1489 @@
 - Track IQ: intent-aware retrieval, multi-hop expansion, trust/confidence, and bundle-style result assembly.
 - Track OP: deterministic SLOs, failure injection, adaptive performance policies, and release blocking reliability gates.
 
-## Recommended execution order
-
-### Wave 1: Snapshot and federation foundation
-1. Phase 14.1.1
-2. Phase 14.1.2
-3. Phase 14.1.3
-4. Phase 14.1.4
-5. Phase 14.1.5 (optional defaults/config only)
-6. Phase 14.2
-7. Phase 14.3
-8. Phase 14.4
-9. Phase 14.5
-10. Phase 14.6 (only if API parity is required now)
-11. Phase 15.1
-12. Phase 15.2
-13. Phase 15.4
-14. Phase 15.3
-15. Phase 15.5
-16. Phase 15.6
-17. Phase 15.7
-
-Why first:
-- Phase 14 + 15 establish identity, manifests, cache invalidation, and deterministic multi-repo retrieval surfaces other phases can rely on.
-
 ---
 
-## Phase 14 — Reference specification (non-tracking)
-
-> This section is retained as the detailed Phase 14 specification reference.
-> It is intentionally **non-tracking**: checkbox state here is not authoritative for project status.
-> Authoritative status and remaining work are tracked below in "Current implementation status (authoritative)" and in sections `14.1`–`14.6`.
-
+## Phase 16 — Prose Ingestion + Retrieval Routing Correctness (PDF/DOCX + FTS policy)
 
 ### Objective
 
-Introduce **first-class snapshot & diff artifacts** so we can:
+Deliver first-class document ingestion (PDF + DOCX) and prose retrieval correctness:
 
-- Query indexes **“as-of” a prior build** (time-travel).
-- Generate deterministic **“what changed”** artifacts between two index states.
-- Support regression debugging, release auditing, and safe incremental reuse.
+- PDF/DOCX can be ingested (when optional deps exist) into deterministic, segment-aware prose chunks.
+- When deps are missing or extraction fails, the index build remains green and reports explicit, per-file skip reasons.
+- Prose/extracted-prose routes deterministically to SQLite FTS with safe, explainable query compilation; code routes to sparse/postings.
+- Retrieval helpers are hardened so constraints (`allowedIds`), weighting, and table availability cannot silently produce wrong or under-filled results.
 
-This phase establishes:
+Note: vector-only indexing profile work is handled in **Phase 17 — Vector-Only Index Profile (Embeddings-First)**.
 
-> **Authoritative spec**: the on-disk layout, ID conventions, and resolution rules for this phase are already refined in:
-> - `docs/specs/index-refs-and-snapshots.md` (snapshot registry + IndexRef)
-> - `docs/specs/index-diffs.md` (diff schemas + deterministic event stream)
->
-> This roadmap section must stay aligned with those specs (notably: snapshot IDs are `snap-*` and diff IDs are `diff_*`).
+Additional docs that MUST be updated if Phase 16 adds new behavior or config:
+- `docs/contracts/indexing.md` + `docs/contracts/artifact-contract.md` (metaV2 + chunk_meta contract surface)
+- `docs/config/schema.json` + `docs/config/contract.md` + `docs/config/inventory.md` + `docs/config/inventory-notes.md`
+- `docs/guides/commands.md` (new flags for extraction/routing)
+- `docs/testing/truth-table.md` (optional-deps + skip policy)
+- `docs/specs/document-extraction.md` (new; extraction contract + failure semantics)
+- `docs/specs/prose-routing.md` (new; routing defaults + FTS explain contract)
 
-Additional docs that MUST be updated if Phase 14 adds new behavior or config:
-  - `docs/contracts/indexing.md` + `docs/contracts/artifact-contract.md` (public artifact surface)
-  - `docs/config/schema.json` + `docs/config/contract.md` + `docs/config/inventory.md` + `docs/config/inventory-notes.md`
-  - `docs/guides/commands.md` (new CLI flags/subcommands)
-  - `docs/specs/index-refs-and-snapshots.md`
-  - `docs/specs/index-diffs.md`
-  - `docs/specs/as-of-retrieval-integration.md`
-  - `docs/specs/http-api.md` (authoritative once API endpoints are implemented)
+### 16.1 Optional-dependency document extractors (PDF/DOCX) with deterministic structured output
 
-- **Pointer snapshots** (cheap metadata references to validated builds).
-- **Frozen snapshots** (immutable, self-contained archival copies).
-- **Diff artifacts** (bounded, deterministic change sets + summaries).
+- [ ] Add extractor modules that return structured units (do not pre-join into one giant string):
+  - [ ] `src/index/extractors/pdf.js` (new)
+    - [ ] `extractPdf({ filePath, buffer }) -> { ok:true, pages:[{ pageNumber, text }], warnings:[] } | { ok:false, reason, warnings:[] }`
+  - [ ] `src/index/extractors/docx.js` (new)
+    - [ ] `extractDocx({ filePath, buffer }) -> { ok:true, paragraphs:[{ index, text, style? }], warnings:[] } | { ok:false, reason, warnings:[] }`
+  - [ ] Normalize extracted text units:
+    - [ ] normalize newlines to `\n`
+    - [ ] collapse excessive whitespace but preserve paragraph boundaries
+    - [ ] preserve deterministic ordering (page order, paragraph order)
+  - [ ] Record extractor version, source checksum (bytes hash), and page/paragraph counts in build-state/extraction report.
 
-### Phase 14 Acceptance (explicit)
-- Snapshot artifacts are schema‑valid and deterministic across runs.
-- “As‑of” retrieval can target a snapshot without fallback to live builds.
-- Diff artifacts are bounded, deterministic, and machine‑readable.
-- Snapshot/diff tooling surfaces are present in CLI/API.
+- [ ] Implement optional-dep loading via `tryImport` (preferred) with conservative fallbacks:
+  - [ ] PDF: try `pdfjs-dist/legacy/build/pdf.js|pdf.mjs`, then `pdfjs-dist/build/pdf.js`, then `pdfjs-dist`.
+  - [ ] DOCX: `mammoth` preferred, `docx` as a documented fallback.
 
-### Phase 14 Implementation Order (must follow)
-1. 14.1.1 IndexRef parsing and resolution.
-2. 14.1.2 Snapshot/diff artifact contracts + schemas/validators.
-3. 14.1.3 Atomic writes + locking.
-4. 14.1.4 Path safety and privacy.
-5. 14.1.5 Retention defaults/config wiring (optional; only if implemented).
-6. 14.2 Pointer snapshots.
-7. 14.3 Frozen snapshots.
-8. 14.4 Deterministic diff computation.
-9. 14.5 Retrieval integration (as-of).
-10. 14.6 Optional HTTP API integration.
+- [ ] Capability gating must match real loadability:
+  - [ ] Extend `src/shared/capabilities.js` so `capabilities.extractors.pdf/docx` reflects whether the extractor modules can successfully load a working implementation (including ESM/subpath cases).
+  - [ ] Ensure capability checks do not treat “package installed but unusable entrypoint” as available.
 
-### Phase 14 Non-negotiable invariants
-- Explicit refs/roots never silently fallback:
-  - `--as-of`, `--snapshot`, `--index-root`, explicit `build:<id>`, and explicit `snap:<id>` must fail fast when required artifacts are missing.
-- Contract-first rollout:
-  - Add/update schemas in `src/contracts/schemas/*`, validators, and registry before exposing new CLI/API/MCP surface.
-- Mode-aware root correctness:
-  - Any flow that can resolve per-mode roots must track build-state, maintenance, and telemetry against each selected mode root (no single-root assumptions).
-- Artifact presence checks must recognize compressed outputs:
-  - Presence checks for required artifacts must include uncompressed and compressed variants (`.json`, `.jsonl`, `.jsonl.gz`, `.jsonl.zst`, plus manifest-driven shard forms).
-
-
-### 14.1 Snapshot & diff artifact surface (contracts, retention, safety)
-
-- Define the on-disk **public artifact surface** under each repo cache root:
-  - `snapshots/manifest.json` — snapshot registry (authoritative index of snapshots)
-  - `snapshots/<snapshotId>/snapshot.json` — immutable per-snapshot metadata record
-  - `snapshots/<snapshotId>/frozen.json` — immutable freeze metadata record (when frozen)
-  - `snapshots/<snapshotId>/frozen/index-<mode>/...` — frozen snapshot index roots (immutable copies)
-  - `diffs/manifest.json` — diff registry (authoritative index of diffs)
-  - `diffs/<diffId>/inputs.json` — canonical diff input identity (always present)
-  - `diffs/<diffId>/summary.json` — bounded diff summary (always present)
-  - `diffs/<diffId>/events.jsonl` — bounded event stream (may be truncated)
-
-- Standardize **ID + naming rules**:
-  - Snapshot IDs: `snap-YYYYMMDD-HHMMSS-<shortid>` (default) plus optional user `label`
-  - Diff IDs: `diff_<sha256><shortid>` (default)
-  - Ensure IDs are filesystem-safe.
-  - Ensure deterministic ordering for registry output (sort by `createdAt`, then `id`).
-
-- Define snapshot registry entry schema (minimum fields):
-  - `id`, `type` (`pointer` | `frozen`), `createdAt`
-  - `label` (nullable), `tags` (string[])
-  - `buildId` (from `build_state.json`), `configHash`, `toolVersion`
-  - `buildRoot` (repo-cache-relative path), plus `modeBuildRoots` map (`mode -> repo-cache-relative index root`)
-  - `repoProvenance` (best-effort: SCM provider + revision/branch if available)
-  - `integritySummary` (best-effort counts + size estimates + `validatedAt` timestamp)
-  - `hasFrozen` + `frozenAt` (when frozen)
-  - `frozenFromBuildId` (optional, when frozen snapshot derives from pointer)
-  - future-proof fields (schema allows but does not require): `workspaceId`, `namespaceKey`
-    - Defer multi-repo/workspace orchestration to **Phase 15 — Federation & Multi-Repo**.
-
-  - Define diff registry entry schema (minimum fields):
-    - `id`, `createdAt`, `from` + `to` refs (snapshotId/buildId/indexRootRef), `modes`
-    - `summaryPath` and optional `eventsPath`
-    - `truncated` flag + truncation metadata (`maxEvents`, `maxBytes`)
-    - `compat` block capturing `from.configHash` vs `to.configHash` and `toolVersion` mismatches.
-- Define `diffs/<diffId>/inputs.json` schema (minimum fields):
-  - `id`, `createdAt`, `from`, `to`, `modes`, `allowMismatch`
-  - `identityHash` of canonical inputs (deterministic)
-  - `from.configHash`/`to.configHash`, `from.toolVersion`/`to.toolVersion` (for audit)
-  - Specify identity hash inputs explicitly (fields included/excluded; createdAt/tags/labels excluded).
-
-- Make registries **atomic and crash-safe**:
-  - Use atomic write (temp + rename) and stable JSON output.
-  - Avoid partial registry writes leaving corrupt JSON (registry must always be readable or rolled back).
-  - If using per-snapshot `snapshots/<id>/snapshot.json`, write it first, then append to `snapshots/manifest.json`.
-
-- Add **retention policy knobs** (defaults tuned for safety):
-  - `indexing.snapshots.maxPointerSnapshots` (default: 25)
-  - `indexing.snapshots.maxFrozenSnapshots` (default: 10)
-  - `indexing.snapshots.retainDays` (default: 30)
-  - `indexing.diffs.maxDiffs` (default: 50)
-  - `indexing.diffs.retainDays` (default: 30)
-  - `indexing.diffs.maxEvents` / `indexing.diffs.maxBytes` (bounded output)
-  - Retention must respect tags (e.g., `release` is never deleted automatically).
-
-- Enforce **path safety** for all snapshot/diff paths:
-  - Treat all registry paths as repo-cache-relative.
-  - Refuse any `buildRoot` / `modeBuildRoots` values that escape the repo cache root (no `..`, no absolute paths).
-  - Refuse snapshot/diff output dirs if they escape the repo cache root.
-  - Define redaction rules for `path:` refs and output fields (persist hash + redacted placeholder; never persist raw absolute paths).
-  - Define error codes for snapshot/diff failures (validation missing, path escape, mismatch without allow, unknown ref).
-
-- Integrate **validation gating semantics** into the contract:
-  - Pointer snapshots may only reference builds that passed index validation (see Phase 14.2).
-  - Frozen snapshots must be self-contained and re-validatable.
-- Enforce schema-first implementation sequence:
-  - Add artifact schemas + validators + contract registry bindings first.
-  - Wire writers/readers second.
-  - Expose CLI/API/MCP entrypoints only after schema validation paths are in place.
+- [ ] Failure behavior must be per-file and non-fatal:
+  - [ ] Extractor failures must be caught and converted into a typed `{ ok:false, reason }` result.
+  - [ ] Record per-file extraction failures into build state (see 16.3) with actionable messaging.
 
 Touchpoints:
-- `src/index/snapshots/**` (new)
-- `src/index/diffs/**` (new)
-- `src/shared/artifact-schemas.js` (add AJV validators for `snapshots/manifest.json`, `diffs/manifest.json`, `diffs/*/inputs.json`, `diffs/*/summary.json`)
-- `src/contracts/registry.js` (register new schemas)
-- `src/contracts/schemas/*` (new snapshot/diff schemas)
-- `src/contracts/validators/*` (new snapshot/diff validators)
-- `docs/contracts/indexing.md`
+- `src/index/extractors/pdf.js` (new)
+- `src/index/extractors/docx.js` (new)
+- `src/shared/capabilities.js`
+- `src/shared/optional-deps.js` (tryImport/tryRequire behavior for optional deps)
+- Refactor/reuse logic from `tools/bench/micro/extractors.js` into the runtime extractors (bench remains a consumer).
+- `docs/specs/document-extraction.md` (new; extractor contract + failure semantics)
+ - `src/index/build/build-state.js` (record extractor versions + capability flags)
+ - `src/contracts/schemas/build-state.js` + `src/contracts/validators/build-state.js`
+
+#### Tests
+- [ ] `tests/indexing/extracted-prose/pdf-missing-dep-skips.test.js`
+  - [ ] When PDF capability is false, extraction path is skipped cleanly and build remains green.
+- [ ] `tests/indexing/extracted-prose/docx-missing-dep-skips.test.js`
+  - [ ] When DOCX capability is false, extraction path is skipped cleanly and build remains green.
+- [ ] `tests/indexing/extracted-prose/pdf-smoke.test.js` (conditional; only when deps available)
+  - [ ] Extract a fixture PDF and assert known phrase is present.
+- [ ] `tests/indexing/extracted-prose/docx-smoke.test.js` (conditional; only when deps available)
+  - [ ] Extract a fixture DOCX and assert known phrase is present.
+ - [ ] `tests/indexing/extracted-prose/document-extractor-version-recorded.test.js`
+   - [ ] Build-state records extractor version/capability info when extraction is enabled.
+- [ ] `tests/indexing/extracted-prose/document-extraction-checksums-and-counts.test.js`
+
+---
+
+### 16.2 Deterministic doc chunking (page/paragraph aware) + doc-mode limits that scale to large files
+
+- [ ] Add deterministic chunkers for extracted documents:
+  - [ ] `src/index/chunking/formats/pdf.js` (new)
+    - [ ] Default: one chunk per page.
+    - [ ] If a page is tiny, allow deterministic grouping (e.g., group adjacent pages up to a budget).
+    - [ ] Each chunk carries provenance: `{ type:'pdf', pageStart, pageEnd, anchor }`.
+  - [ ] `src/index/chunking/formats/docx.js` (new)
+    - [ ] Group paragraphs into chunks by max character/token budget.
+    - [ ] Merge tiny paragraphs into neighbors up to a minimum size threshold (deterministic).
+    - [ ] Preserve heading boundaries when style information is available.
+    - [ ] Each chunk carries provenance: `{ type:'docx', paragraphStart, paragraphEnd, headingPath?, anchor }`.
+    - [ ] If multiple paragraph boundaries are merged, include explicit boundary labels so chunk provenance is unambiguous.
+
+- [ ] Support adaptive splitting for “hot” or unexpectedly large segments without breaking stability:
+  - [ ] If a page/section/window exceeds caps, split into deterministic subsegments with stable sub-anchors (no run-to-run drift).
+
+- [ ] Sweep-driven performance hardening for chunking limits (because PDF/DOCX can create very large blobs):
+  - [ ] Update `src/index/chunking/limits.js` so byte-boundary resolution is not quadratic on large inputs.
+  - [ ] Avoid building full `lineIndex` unless line-based truncation is requested.
+
+Touchpoints:
+- `src/index/chunking/formats/pdf.js` (new)
+- `src/index/chunking/formats/docx.js` (new)
+- `src/index/chunking/limits.js`
+- `docs/specs/document-extraction.md` (chunking contract + anchors)
+
+#### Tests
+- [ ] `tests/indexing/chunking/pdf-chunking-deterministic.test.js`
+  - [ ] Two-page fixture; assert stable chunk count, anchors, and page ranges across repeated runs.
+- [ ] `tests/indexing/chunking/docx-chunking-deterministic.test.js`
+  - [ ] Multi-paragraph fixture; assert stable chunk grouping and heading boundary behavior.
+- [ ] `tests/perf/chunking/chunking-limits-large-input.test.js`
+  - [ ] Regression guard: chunking limits on a large string must complete within a bounded time.
+
+### 16.3 Integrate extraction into indexing build (discovery, skip logic, file processing, state)
+
+- [ ] Discovery gating:
+  - [ ] Update `src/index/build/discover.js` so `.pdf`/`.docx` are only considered when `indexing.documentExtraction.enabled === true`.
+  - [ ] If enabled but deps missing: record explicit “skipped due to capability” diagnostics (do not silently ignore).
+
+- [ ] Treat extraction as a **pre-index stage** with an explicit error policy:
+  - [ ] Produce per-file extraction results before chunking.
+  - [ ] Fail/skip decisions must be deterministic and recorded in diagnostics.
+
+- [ ] Binary skip exceptions:
+  - [ ] Update `src/index/build/file-processor/skip.js` to treat `.pdf`/`.docx` as extractable binaries when extraction is enabled, routing them to extractors instead of skipping.
+
+- [ ] File processing routing:
+  - [ ] Update `src/index/build/file-processor.js` (and `src/index/build/file-processor/assemble.js` as needed) to:
+    - [ ] hash on raw bytes (caching correctness even if extraction changes)
+    - [ ] extract structured units
+    - [ ] build a deterministic joined text representation with a stable offset mapping
+    - [ ] chunk via the dedicated pdf/docx chunkers
+    - [ ] emit chunks with `segment` provenance and `lang:'prose'` (or a dedicated document language marker)
+    - [ ] ensure chunk identity cannot collide with code chunks (segment markers must be part of identity)
+
+- [ ] Record per-file extraction outcomes:
+  - [ ] Success: record page/paragraph counts and warnings.
+  - [ ] Failure/skip: record reason (`missing_dependency`, `extract_failed`, `oversize`, etc.) and include actionable guidance.
+- [ ] Emit a lightweight `extraction_report.json` per build (counts + per-file status + extractor versions) for audit/regression.
+  - [ ] Include `extractionIdentityHash` (bytes hash + extractor version + normalization policy) in the report.
+
+- [ ] Chunking dispatch registration:
+  - [ ] Update `src/index/chunking/dispatch.js` to route `.pdf`/`.docx` through the document chunkers under the same gating.
+
+Touchpoints:
+- `src/index/build/discover.js`
+- `src/index/build/file-processor/skip.js`
+- `src/index/build/file-processor.js`
+- `src/index/build/file-processor/assemble.js`
+- `src/index/chunking/dispatch.js`
+- `docs/specs/document-extraction.md` (gating + skip reasons)
+- `src/index/build/build-state.js` (record extraction outcomes)
+- `src/contracts/schemas/build-state.js`
+- `src/contracts/validators/build-state.js`
+ - `src/index/build/artifacts.js` (emit extraction_report)
+ - `src/contracts/schemas/artifacts.js` + `src/contracts/validators/artifacts.js`
+
+#### Tests
+- [ ] `tests/indexing/extracted-prose/documents-included-when-available.test.js` (conditional; when deps available)
+  - [ ] Build fixture containing a sample PDF and DOCX; assert chunks exist with `segment.type:'pdf'|'docx'` and searchable text is present.
+- [ ] `tests/indexing/extracted-prose/documents-skipped-when-unavailable.test.js`
+  - [ ] Force capabilities off; build succeeds; skipped docs are reported deterministically with reasons.
+- [ ] `tests/indexing/extracted-prose/document-extraction-outcomes-recorded.test.js`
+  - [ ] Fail/skip reasons are recorded in build_state and are stable across runs.
+- [ ] `tests/indexing/extracted-prose/extraction-report.test.js`
+  - [ ] Report is emitted, schema-valid, and deterministic for the same inputs.
+  - [ ] `extractionIdentityHash` changes when extractor version or normalization policy changes.
+- [ ] `tests/indexing/extracted-prose/document-bytes-hash-stable.test.js`
+  - [ ] Ensure caching identity remains tied to bytes + extractor version/config.
+- [ ] `tests/indexing/extracted-prose/document-chunk-id-no-collision.test.js`
+  - [ ] Document chunks must not collide with code chunk identities for identical text.
+
+### 16.4 metaV2 and chunk_meta contract extensions for extracted documents
+
+- [ ] Extend metaV2 for extracted docs in `src/index/metadata-v2.js`:
+  - [ ] Add a `document` (or `segment`) block with provenance fields:
+    - `sourceType: 'pdf'|'docx'`
+    - `pageStart/pageEnd` (PDF)
+    - `paragraphStart/paragraphEnd` (DOCX)
+    - optional `headingPath`, `windowIndex`, and a stable `anchor` for citation.
+- [ ] Ensure `chunk_meta.jsonl` includes these fields and that output is backend-independent (artifact vs SQLite).
+- [ ] If metaV2 is versioned, bump schema version (or add one) and provide backward-compatible normalization.
+- [ ] Guard new fields behind a schema version and require forward-compat behavior (unknown fields ignored by readers).
+
+Touchpoints:
+- `src/index/metadata-v2.js`
+- `src/index/build/file-processor/assemble.js`
+- Retrieval loaders that depend on metaV2 (for parity checks)
+- `src/contracts/schemas/artifacts.js` (metaV2 + chunk_meta contract updates)
+- `src/contracts/validators/artifacts.js`
 - `docs/contracts/artifact-contract.md`
-- `docs/specs/index-refs-and-snapshots.md`
-- `docs/specs/index-diffs.md`
 
 #### Tests
-- `tests/unit/snapshots-registry.unit.js`
-  - Registry schema validation (valid/invalid cases)
-  - Atomic update behavior (simulate interrupted write; registry remains readable)
-  - Path safety (reject absolute paths and `..` traversal)
-  - Deterministic ordering (`createdAt`, then `id`)
-  - Tag reverse index is stable + deterministic
-  - Retention honors protected tags (e.g., `release`)
-- `tests/unit/diffs-registry.unit.js`
-  - Schema validation + bounded/truncation metadata correctness
-  - Registry ordering is deterministic
+- [ ] `tests/indexing/metav2/metaV2-extracted-doc.test.js`
+  - [ ] Verify extracted-doc schema fields are present, typed, and deterministic.
+- [ ] `tests/indexing/metav2/metaV2-unknown-fields-ignored.test.js`
+  - [ ] Readers ignore unknown fields and still parse required fields deterministically.
+- [ ] `tests/services/sqlite-hydration-metaV2-parity.test.js`
+  - [ ] Build an index; load hits via artifact-backed and SQLite-backed paths; assert canonical metaV2 fields match for extracted docs.
 
+### 16.5 Prose retrieval routing defaults + FTS query compilation correctness (explainable, deterministic)
 
-### 14.2 Pointer snapshots (creation, validation gating, CLI/API)
+- [ ] Enforce routing defaults:
+  - [ ] `prose` / `extracted-prose` → SQLite FTS by default.
+  - [ ] `code` → sparse/postings by default.
+  - [ ] Overrides select requested providers and are reflected in `--explain` output.
+  - [ ] Publish a routing decision table (query type × provider availability × override) in `docs/specs/prose-routing.md`.
+  - [ ] `--explain` must log the chosen provider and the decision path (default vs override vs fallback).
+  - [ ] Separate routing policy (desired provider) from availability (actual provider); define deterministic fallback order.
 
-- Implement pointer snapshot creation:
-  - Resolve repo cache root and current build roots from `builds/current.json`.
-  - Load `build_state.json` from the current build root (for `buildId`, `configHash`, `toolVersion`, and provenance).
-  - Require a successful artifact validation signal before snapshotting:
-    - Preferred: consume a persisted validation report if present.
-    - Otherwise: run validation on-demand against each mode index root.
-    - Define authoritative validation signal + precedence (build_state.validation vs report file vs on-demand run); fail if conflicting.
-  - Refuse snapshot creation when builds are incomplete:
-    - If an index mode is missing required artifacts, fail.
-    - If embeddings/risk passes are still pending for a mode, fail.
-    - No allow-incomplete override in Phase 14 (must align with spec).
-  - Materialize snapshot entry with:
-    - `buildRoot` + `modeBuildRoots` captured as **repo-cache-relative** paths.
-    - `integritySummary` populated from validation output + minimal artifact counts.
-  - Write immutable per-snapshot metadata:
-    - `snapshots/<snapshotId>/snapshot.json` (write atomically).
-    - Keep the registry entry minimal and link to the per-snapshot record if desired.
-  - Append entry to `snapshots/manifest.json` atomically.
-  - Apply retention after creation (delete oldest pointer snapshots unless tagged).
+- [ ] Make FTS query compilation AST-driven for prose routes:
+  - [ ] Generate the FTS5 `MATCH` string from the raw query (or parsed boolean AST).
+  - [ ] Quote/escape terms so punctuation (`-`, `:`, `\"`, `*`) and keywords (`NEAR`, etc.) are not interpreted as operators unintentionally.
+  - [ ] Include the final compiled `MATCH` string and provider choice in `--explain`.
 
-- Add CLI surface:
-  - `pairofcleats index snapshot create [--label <label>] [--tags <csv>] [--modes <csv>]`
-  - `pairofcleats index snapshot list [--json]`
-  - `pairofcleats index snapshot show <snapshotId> [--json]`
-  - `pairofcleats index snapshot rm <snapshotId> [--force]`
+- [ ] Provider variants and deterministic selection (conditional and explicit):
+  - [ ] Default: `unicode61 remove_diacritics 2` variant.
+  - [ ] Conditional: porter variant for Latin-script stemming use-cases.
+  - [ ] Conditional: trigram variant for substring/CJK/emoji fallback behind `--fts-trigram` until benchmarks are complete.
+  - [ ] Conditional: NFKC-normalized variant when normalization changes the query.
+  - [ ] Merge provider result sets deterministically by `chunkUid` with stable tie-breaking.
 
-- Add API surface (recommended for UI/MCP parity):
-  - `GET /index/snapshots` (list)
-  - `GET /index/snapshots/:id` (show)
-  - `POST /index/snapshots` (create)
-  - Ensure endpoints never expose absolute filesystem paths.
-
-- Sweep-driven hardening for snapshot creation:
-  - When reading `builds/current.json`, treat any buildRoot that escapes repo cache root as **invalid** and refuse snapshotting.
-  - Ensure snapshot manifest writes are atomic and do not corrupt on crash.
+- [ ] Enforce capability gating at provider boundaries (never throw):
+  - [ ] If FTS tables are missing, providers return “unavailable” results and the router selects an alternative or returns a deterministic warning.
 
 Touchpoints:
-- `bin/pairofcleats.js` (new subcommands)
-- `tools/index-snapshot.js` (new CLI implementation)
-- `src/index/snapshots/registry.js` (new)
-- `src/index/snapshots/validate-source.js` (new: shared logic to validate a build root before snapshotting)
-- `src/index/build/build-state.js` (read validation flags + build metadata)
-- `src/contracts/schemas/build-state.js` + `src/contracts/validators/build-state.js`
-- `src/index/validate.js` + `src/index/validate/*` (on-demand validation)
-- `tools/index/validate.js` (if snapshot create invokes CLI validation)
-- `docs/guides/commands.md` (CLI surface)
-- `tools/api/**` (if API endpoints added)
+- `src/retrieval/pipeline.js`
+- `src/retrieval/query.js` / `src/retrieval/query-parse.js`
+- `src/retrieval/sqlite-helpers.js`
+- `src/retrieval/sqlite-cache.js`
+- `docs/specs/prose-routing.md` (routing defaults + FTS explain contract)
+ - `src/retrieval/output/explain.js` (routing + MATCH string output)
 
 #### Tests
-  - `tests/services/snapshot-create.test.js`
-  - Build an index; create a pointer snapshot; assert registry entry exists and references current build.
-  - Fail creation when artifacts are missing or validation fails.
-  - Fail creation when `build_state.json` is missing or `validation.ok !== true`.
-  - No allow-incomplete override: ensure creation fails when validation missing even with flags.
-  - `--modes` subset only snapshots those modes.
-  - Retention deletes oldest untagged pointer snapshots.
+- [ ] `tests/retrieval/backend/search-routing-policy.test.js`
+  - [ ] Prose defaults to FTS; code defaults to postings; overrides behave deterministically and are explained.
+- [ ] `tests/retrieval/query/sqlite-fts-query-escape.test.js`
+  - [ ] Punctuation cannot inject operators; the compiled `MATCH` string is stable and safe.
+- [ ] `tests/retrieval/backend/fts-tokenizer-config.test.js`
+  - [ ] Assert baseline tokenizer uses diacritic-insensitive configuration; include a diacritic recall fixture.
+ - [ ] `tests/retrieval/backend/fts-missing-table-fallback.test.js`
+   - [ ] Missing FTS tables returns a controlled “unavailable” result with a warning (no throw).
 
+### 16.6 Sweep-driven correctness fixes in retrieval helpers touched by prose FTS routing
 
-### 14.3 Frozen snapshots (immutable copies + integrity verification)
+- [ ] Every fix in this sweep must ship with a regression test (no fix-only changes).
 
-- Implement snapshot freeze operation:
-  - `pairofcleats index snapshot freeze <snapshotId>`
-  - Preconditions:
-    - Snapshot exists and is `pointer` (or already `frozen` → no-op / error depending on flags).
-    - Referenced build roots exist and are readable.
-  - Copy the snapshot’s index artifacts into:
-    - `snapshots/<snapshotId>/frozen/index-<mode>/...`
-  - Copy strategy:
-    - Use `pieces/manifest.json` from each mode’s index root as the authoritative list of files to copy.
-    - Prefer hardlinking (same filesystem) when safe; otherwise copy bytes.
-    - Always copy metadata (`index_state.json`, `pieces/manifest.json`, and any required build metadata files).
-  - Integrity verification:
-    - Verify copied pieces against `pieces/manifest.json` checksums.
-    - Re-run index validation against the frozen index roots.
-  - Atomicity:
-    - Freeze into a temp directory and rename into place only after verification.
-  - Update `snapshots/manifest.json`:
-    - Flip `type` to `frozen`.
-    - Update `buildRoot` / `modeBuildRoots` to point at the frozen roots.
-    - Preserve the original `buildId` / provenance; record `frozenFromBuildId` if useful.
+- [ ] Fix `rankSqliteFts()` correctness for `allowedIds`:
+  - [ ] When `allowedIds` is too large for a single `IN (...)`, implement adaptive overfetch (or chunked pushdown) until:
+    - [ ] `topN` hits remain after filtering, or
+    - [ ] a hard cap/time budget is hit.
+  - [ ] Ensure results are the true “top-N among allowed IDs” (do not allow disallowed IDs to occupy limited slots).
 
-- Add supporting maintenance commands:
-  - `pairofcleats index snapshot gc [--dry-run]` (enforce retention; never delete `release`-tagged snapshots)
+- [ ] Fix weighting and LIMIT-order correctness in FTS ranking:
+  - [ ] If `chunks.weight` is part of ranking, incorporate it into ordering before applying `LIMIT` (or fetch enough rows to make post-weighting safe).
+  - [ ] Add stable tie-breaking rules and make them part of the contract.
+
+- [ ] Fix `unpackUint32()` alignment safety:
+  - [ ] Avoid constructing a `Uint32Array` view on an unaligned Buffer slice.
+  - [ ] When needed, copy to an aligned `ArrayBuffer` (or decode via `DataView`) before reading.
+
+- [ ] Ensure helper-level capability guards are enforced:
+  - [ ] If `chunks_fts` is missing, `rankSqliteFts` returns `[]` or a controlled “unavailable” result (not throw).
 
 Touchpoints:
-- `tools/index-snapshot.js` (freeze + gc)
-- `src/index/snapshots/freeze.js` (new)
-- `src/index/snapshots/copy-pieces.js` (new; copy/hardlink logic)
-- `src/shared/artifact-io/manifest.js` (verify checksums + manifest parsing)
-- `src/shared/json-stream.js` (atomic JSON writes for frozen.json)
-- `src/shared/json-stream/atomic.js` (atomic replace semantics for file writes)
-- `src/shared/json-stream/streams.js` (cleanup + tombstone handling for safe replacement)
+- `src/retrieval/sqlite-helpers.js`
+ - `src/retrieval/output/explain.js` (surface fallback/overfetch decisions)
 
 #### Tests
-  - `tests/services/snapshot-freeze.test.js`
-  - Create pointer snapshot → freeze → validate frozen index roots succeed.
-  - Ensure freeze is atomic (simulate failure mid-copy → no partial frozen dir is considered valid).
-  - Ensure frozen snapshot remains usable after deleting the original build root.
-  - Validate checksum mismatch fails freeze and leaves no finalized frozen dir.
-  - Hardlink vs copy behavior (same filesystem vs cross-device).
+- [ ] `tests/retrieval/backend/rankSqliteFts-allowedIds-correctness.test.js`
+- [ ] `tests/retrieval/backend/rankSqliteFts-weight-before-limit.test.js`
+ - [ ] `tests/retrieval/backend/rankSqliteFts-missing-table-is-controlled-error.test.js`
+- [ ] `tests/retrieval/backend/unpackUint32-buffer-alignment.test.js`
 
+### 16.7 Query intent classification + boolean parsing semantics (route-aware, non-regressing)
 
-### 14.4 Deterministic diff computation (bounded, machine-readable)
+- [ ] Fix path-intent misclassification so routing is reliable:
+  - [ ] Replace the “any slash/backslash implies path” heuristic with more discriminating signals:
+    - [ ] require path-like segments (multiple separators, dot-extensions, `./` / `../`, drive roots), and
+    - [ ] treat URLs separately so prose queries containing `https://...` do not get path-biased.
+  - [ ] Keep intent scoring explainable and stable.
+  - [ ] Prefer grammar-first parsing; only fall back to heuristic tokenization on parse failure.
+  - [ ] Emit the final intent classification (and any fallback reason) in `--explain`.
 
-- Implement diff computation between two index states:
-  - CLI: `pairofcleats index diff --from <snapshotId|buildId|path> --to <snapshotId|buildId|path> [--modes <csv>]`
-  - Resolve `from` and `to` to per-mode index roots (snapshot pointer, snapshot frozen, or explicit indexRoot).
-  - Refuse or annotate mismatches:
-    - If `configHash` differs, require `--allow-mismatch` or mark output as “non-comparable”.
-    - If `toolVersion` differs, annotate (diff still possible but less trustworthy).
-
-  - Define diff output formats:
-    - Always write `diffs/<diffId>/inputs.json` (canonical input identity + mode selection).
-    - Always write `diffs/<diffId>/summary.json` (bounded):
-    - counts of adds/removes/changes by category
-    - `truncated` boolean + reason
-    - `from`/`to` metadata (snapshot IDs, build IDs, createdAt)
-  - Optionally write `diffs/<diffId>/events.jsonl` (bounded stream):
-    - `file_added | file_removed | file_changed` (path + old/new hash)
-    - `chunk_added | chunk_removed | chunk_changed`:
-      - stable `chunkId` from `metaV2.chunkId`
-      - minimal before/after summary (`file`, `segment`, `kind`, `name`, `start/end`), plus optional `semanticSig` (hash of normalized docmeta/metaV2 subset)
-    - `graph_edge_added | graph_edge_removed` (graph name + from/to node IDs)
-    - Allow future event types (symbols/contracts/risk) without breaking old readers.
-
-- Implement deterministic diffing rules:
-    - Define canonical event taxonomy + ordering key in the roadmap (type order + stable key fields).
-    - Version ordering semantics explicitly (e.g., `orderingSchema: "diff-events-v1"`) and persist this in `summary.json`.
-    - Stable identity:
-      - Files keyed by repo-relative path.
-    - Chunks keyed by `metaV2.chunkId` (do **not** rely on numeric `chunk_meta.id`).
-    - Graph edges keyed by `(graph, fromId, toId)`.
-  - Stable ordering:
-    - Sort events by `(type, key)` so repeated runs produce byte-identical outputs.
-  - Boundedness:
-    - Enforce `indexing.diffs.maxEvents` and `indexing.diffs.maxBytes`.
-    - If exceeded, stop emitting events and mark summary as truncated; include category counts.
-
-- Integrate diff generation into incremental build:
-  - After a successful build+promotion, compute a diff vs the previous “latest” snapshot/build.
-  - Use incremental state (manifest) to compute file-level changes in O(changed) where possible.
-  - Emit diffs only after strict validation passes (so diffs don’t encode broken builds).
-  - Store the diff under `diffs/<diffId>/...` and append to `diffs/manifest.json` (do **not** mix diffs into buildRoot without a strong reason).
-
-- Sweep-driven hardening for incremental reuse/diff correctness (because this phase touches incremental state):
-  - Before reusing an “unchanged” incremental build, verify required artifacts exist (use `pieces/manifest.json` as the authoritative inventory).
-    - If any required piece is missing/corrupt, disable reuse and force rebuild.
-  - If explicit `--from`/`--to` refs resolve to roots missing required artifacts, fail with actionable errors (no fallback to latest/current).
-  - Fast-path diff only when all `pieces/manifest.json` checksums and shard counts match (shard-aware; sum per-piece counts).
-  - Ensure incremental cache invalidation is tied to a complete signature:
-    - Include artifact schema hash + tool version + key feature flags in the incremental signature.
-    - Include diff/snapshot emission toggles so changing these settings invalidates reuse.
+- [ ] Harden boolean parsing semantics to support FTS compilation and future strict evaluation:
+  - [ ] Treat unary `-` as NOT even with whitespace (e.g., `- foo`, `- "phrase"`), or reject standalone `-` with a parse error.
+  - [ ] Ensure phrase parsing behavior is explicit (either implement minimal escaping or formally document “no escaping”).
+  - [ ] Prevent flattened token inventories from being mistaken for semantic constraints:
+    - [ ] rename inventory lists (or attach an explicit `inventoryOnly` marker) so downstream code cannot accidentally erase boolean semantics.
 
 Touchpoints:
-- `tools/index-diff.js` (new CLI implementation)
-- `src/index/diffs/compute.js` (new)
-- `src/index/diffs/events.js` (new; event schema helpers + deterministic ordering)
-- `src/index/diffs/registry.js` (new)
-- `src/index/build/incremental.js` (reuse validation + signature binding improvements)
-- `src/index/build/indexer/steps/incremental.js` (optional: emit diffs post-build)
-- `src/index/index-ref.js` (IndexRef parsing + resolution for diff inputs)
-- `src/shared/json-stream.js` (events.jsonl writing + truncation bounds)
-- `src/shared/stable-json.js` + `src/shared/hash.js` (diffId stability)
+- `src/retrieval/query-intent.js`
+- `src/retrieval/query.js`
 
 #### Tests
-  - `tests/services/index-diff.test.js`
-  - Build snapshot A; modify repo; build snapshot B; compute diff A→B.
-  - Assert file_changed appears for modified file.
-  - Assert chunk changes use `metaV2.chunkId` and are stable across runs.
-  - Assert ordering is deterministic (byte-identical `events.jsonl`).
-  - Assert truncation behavior when `maxEvents` is set low.
-  - Assert diffId deterministic for identical inputs (same IDs + same mode selection).
-  - Assert configHash mismatch requires explicit allow/flag and is annotated.
-  - Assert toolVersion mismatch is annotated (diff still produced).
-  - `tests/indexer/incremental/index-reuse-validation.test.js`
-  - Corrupt/remove a required artifact and verify incremental reuse is refused.
+- [ ] `tests/retrieval/query/query-intent-path-heuristics.test.js`
+- [ ] `tests/retrieval/query/boolean-unary-not-whitespace.test.js`
+- [ ] `tests/retrieval/query/boolean-inventory-vs-semantics.test.js`
 
+### 16.8 Retrieval output shaping: `scoreBreakdown` consistency + explain fidelity, plus harness drift repair
 
-### 14.5 Retrieval + tooling integration: “as-of” snapshots and “what changed” surfaces
+- [ ] Resolve `scoreBreakdown` contract inconsistencies:
+  - [ ] Standardize field names and nesting across providers (SQLite FTS, postings, vector) so consumers do not need provider-specific logic.
+  - [ ] Ensure verbosity/output size is governed by a single budget policy (max bytes/fields/explain items).
+  - [ ] Add a schema version for `scoreBreakdown` and require all providers to emit it.
 
-- Add as-of targeting to retrieval/search:
-  - Canonical flag is `--as-of <IndexRef>`.
-  - Keep `--snapshot <snapshotId>` as compatibility alias only (`--as-of snap:<id>` internally).
-  - Resolve as-of ref to per-mode index roots via `snapshots/manifest.json`.
-  - Ensure as-of references never leak absolute paths (logs + JSON output must stay repo-relative).
-  - Explicit as-of refs fail fast when required artifacts are missing (no fallback to latest/current).
+- [ ] Ensure `--explain` is complete and deterministic:
+  - [ ] Explain must include:
+    - routing decision
+    - compiled FTS `MATCH` string for prose routes
+    - provider variants used and thresholds
+    - capability gating decisions when features are unavailable
 
-- Add diff surfacing commands for humans and tools:
-  - `pairofcleats index diff list [--json]`
-  - `pairofcleats index diff show <diffId> [--format summary|jsonl]`
-  - `pairofcleats index diff explain <diffId>` (human-oriented summary + top changed files)
-
-- Extend “secondary index builders” to support snapshots:
-  - SQLite build: accept `--snapshot <snapshotId>` / `--as-of <IndexRef>` and resolve to `--index-root`.
-    - Ensure the SQLite build can target frozen snapshots as well as pointer snapshots (as long as artifacts still exist).
-    - Explicit refs/roots fail fast when mode artifacts are missing (no silent cross-build fallback).
-  - Validate tool: document `pairofcleats index validate --index-root <frozenSnapshotIndexRoot>` workflow (no new code required if `--index-root` already supported).
-
-- Add API surface (recommended):
-  - `GET /index/diffs` (list)
-  - `GET /index/diffs/:id` (summary)
-  - `GET /index/diffs/:id/events` (JSONL stream; bounded)
-  - `GET /search?snapshotId=...` (search “as-of” a snapshot)
-
-- Sweep-driven hardening for retrieval caching (because this phase touches retrieval index selection):
-  - Ensure query cache keys include `asOf.identityHash` (or resolved buildId) so results cannot bleed across snapshots.
-  - Fix retrieval index signature calculation to account for sharded artifacts (see tests below) and include snapshot identity.
+- [ ] Repair script-coverage harness drift affecting CI signal quality:
+  - [ ] Align `tests/tooling/script-coverage/actions.test.js` `covers` entries with actual `package.json` scripts.
+  - [ ] Ensure `tests/tooling/script-coverage/report.test.js` does not fail with `unknownCovers` for legitimate cases.
 
 Touchpoints:
-- `src/retrieval/cli-args.js` (add `--as-of`; keep `--snapshot` compatibility alias)
-- `src/retrieval/cli.js` (thread snapshot option through)
-- `src/retrieval/cli-index.js` (resolve index dir via snapshot; update query cache signature)
-- `src/shared/artifact-io.js` (add signature helpers for sharded artifacts)
-- `bin/pairofcleats.js` (CLI wiring)
-- `tools/build/sqlite/runner.js` + `src/storage/sqlite/build/runner.js` (add `--as-of`/`--snapshot` handling with strict explicit-root behavior)
-- `tools/api/**` (if API endpoints added)
-- `src/retrieval/query-cache.js` + `src/retrieval/cli/run-search-session.js` (cache key composition + persistence)
-- `src/retrieval/index-cache.js` (index signature + snapshot awareness)
-- `src/retrieval/output/explain.js` (optional: surface as-of identity in explain)
-- `docs/guides/commands.md` (CLI docs)
+- `src/retrieval/output/*`
+- `tests/tooling/script-coverage/*`
+- `package.json`
+- `docs/testing/truth-table.md` (optional-deps + skip policy alignment)
 
 #### Tests
-  - `tests/services/snapshot-query.test.js`
-  - Build snapshot A; modify repo; build snapshot B.
-  - Run the same query against `--snapshot A` and `--snapshot B`; assert results differ as expected.
-  - Assert “latest” continues to resolve to the current build when no snapshot is provided.
-- `tests/unit/retrieval-index-signature-shards.unit.js`
-  - Create a fake index dir with `chunk_meta.meta.json` + `chunk_meta.parts/*`.
-  - Assert the index signature changes when any shard changes.
-  - `tests/services/sqlite-build-snapshot.test.js`
-  - Build snapshot A.
-  - Run `pairofcleats lmdb build` / `pairofcleats sqlite build` equivalents with `--snapshot A`.
-  - Assert output DB is produced and corresponds to that snapshot’s artifacts.
-  - `tests/unit/retrieval-cache-key-asof.unit.js`
-    - Cache key includes `asOf.identityHash` or resolved buildId.
+- [ ] `tests/retrieval/contracts/score-breakdown-contract-parity.test.js`
+- [ ] `tests/retrieval/contracts/score-breakdown-snapshots.test.js`
+  - [ ] Snapshot `scoreBreakdown` for each backend to lock the schema shape.
+- [ ] `tests/retrieval/output/explain-output-includes-routing-and-fts-match.test.js`
+- [ ] `tests/tooling/script-coverage/harness-parity.test.js`
+ - [ ] `tests/retrieval/contracts/score-breakdown-budget-limits.test.js`
+
+
 
 ---
 
-## Phase 14 Augmentations (authoritative alignment + implementation breakdown)
+## Phase 17 — Vector-Only Profile (Build + Search Without Sparse Postings)
 
-This section augments the copied roadmap above to align it with the authoritative Phase 14 specs under `docs/specs/`. Where items conflict, the guidance here takes precedence.
+> This is the **canonical merged phase** for the previously overlapping “Phase 17” and “Phase 18” drafts.  
+> Goal: a *vector-only* index that can be built and queried **without** sparse/token/postings artifacts.
 
-### Canonical specs and no-drift rule
+### Objective
 
-Phase 14 MUST follow these docs as the source of truth for formats and semantics:
+Enable an indexing profile that is:
 
-- `docs/specs/index-refs-and-snapshots.md`
-- `docs/specs/index-diffs.md`
-- `docs/specs/as-of-retrieval-integration.md`
-- `docs/specs/implementation-checklist.md`
+- **Embeddings-first**: dense vectors are the primary (and optionally only) retrieval substrate.
+- **Sparse-free**: skips generation and storage of sparse token postings (and any derived sparse artifacts).
+- **Strict and explicit**: search refuses to “pretend” sparse exists; mismatched modes are hard errors with actionable messages.
+- **Artifact-consistent**: switching profiles cannot leave stale sparse artifacts that accidentally affect search.
 
-Roadmap guidance MUST NOT redefine JSON schemas, file layouts, or event formats. It should only add task decomposition, touchpoints, and tests.
+This is especially valuable for:
+- huge corpora where sparse artifacts dominate disk/time,
+- doc-heavy or mixed corpora where ANN is the primary workflow,
+- environments where you want fast/cheap rebuilds and can accept ANN-only recall.
 
-### Corrections to the copied roadmap (must align with specs)
-
-- **Diff events filename**: use `diffs/<diffId>/events.jsonl` (not `index_diff.jsonl`).
-- **Snapshot files**: include `snapshots/<id>/snapshot.json` and `snapshots/<id>/frozen.json` per spec. Frozen data lives under `snapshots/<id>/frozen/`.
-- **Diff inputs**: persist `diffs/<diffId>/inputs.json` in addition to `summary.json` and `events.jsonl`.
-- **No allow-incomplete in Phase 14**: snapshot creation MUST fail if validation is missing or false.
-- **IndexRef parsing**: canonical refs are `latest | build:<id> | snap:<id> | tag:<tag> | path:<path>` with case normalization.
-- **Path privacy**: never persist absolute paths; `path:` refs may not be persisted unless `--persist-unsafe`, and must be redacted.
+Additional docs that MUST be updated if Phase 17 adds new behavior or config:
+- `docs/contracts/indexing.md` + `docs/contracts/artifact-contract.md` + `docs/contracts/artifact-schemas.md`
+- `docs/config/schema.json` + `docs/config/contract.md` + `docs/config/inventory.md`
+- `docs/guides/commands.md` (new flags / routing semantics)
+- `docs/specs/vector-only-profile.md` (new; profile contract + search behavior)
 
 ---
 
-## Current implementation status (authoritative)
+### Exit criteria (must all be true)
 
-- Last updated: 2026-02-13T03:00:00Z
-- Completed: Phase 14 implementation tracks `14.1.1` through `14.6`, including optional `14.1.5`.
-- Remaining work: none for Phase 14.
-- Remaining optional items:
-  - [x] Create/follow `docs/specs/config-defaults.md` for retention defaults.
-  - [x] Define `indexing.snapshots.keepPointer`, `keepFrozen`, `maxAgeDays`, `protectedTagGlobs`, `stagingMaxAgeHours` defaults.
-  - [x] Define `indexing.diffs.keep`, `maxAgeDays`, and `indexing.diffs.compute.*` defaults.
+- [ ] Config supports `indexing.profile: "default" | "vector_only"` (default: `"default"`).
+- [ ] `vector_only` builds succeed end-to-end and **do not emit** sparse artifacts (tokens/postings/minhash/etc).
+- [ ] Search against a `vector_only` index:
+  - [ ] requires an ANN-capable provider (or explicit `--ann`), and
+  - [ ] rejects token/sparse-dependent features with a clear error (not silent degradation).
+- [ ] `index_state.json` records the profile and a machine-readable “artifact presence” manifest with a schema version.
+- [ ] SQLite-backed retrieval cannot crash on missing sparse tables; it either:
+  - [ ] uses a vector-only schema, or
+  - [ ] detects missing tables and returns a controlled “profile mismatch / artifact missing” error.
+- [ ] Tests cover: profile switching cleanup, ANN-only search, and “mismatch is an error” behavior.
 
-## 14.1 Foundations (IndexRef + artifact contracts + safety)
+---
 
-### 14.1.1 IndexRef parsing and resolution
+### Phase 17.1 — Profile contract + build-state / index-state schema
 
-- [x] Implement `src/index/index-ref.js`:
-  - [x] `parseIndexRef(ref)` to normalize and validate per spec.
-  - [x] `resolveIndexRef({ repoRoot, userConfig, requestedModes, preferFrozen, allowMissingModes })`:
-    - [x] `latest` -> `builds/current.json` promotion data.
-    - [x] `build:<id>` -> repo cache build root.
-    - [x] `snap:<id>` -> snapshot registry with `preferFrozen`.
-    - [x] `tag:<tag>` -> tag reverse index (deterministic latest-first).
-    - [x] `path:<path>` -> in-memory only (do not persist; identity uses `pathHash`).
-  - [x] `identityHash = sha1(stableStringify(identity))`.
-  - [x] Hard invariant: `identity` must contain no absolute paths.
+- [ ] Add and normalize config:
+  - [ ] `indexing.profile` (string enum): `default | vector_only`
+  - [ ] Default behavior: absent ⇒ `default`
+  - [ ] Reject unknown values (fail-fast in config normalization)
 
-Touchpoints:
-- `src/index/index-ref.js` (new)
-- `src/shared/stable-json.js#stableStringify`
-- `src/shared/hash.js#sha1`
-- `src/shared/error-codes.js#createError`
-- `tools/dict-utils/*` (repo cache root + current build info helpers)
+- [ ] Define the canonical on-disk contract in `index_state.json`:
 
-Tests:
-- [x] `tests/shared/index-ref.test.js` (parse + identityHash stability + tag ordering + path redaction)
+  - [ ] Add a `profile` block (versioned):
+    - [ ] `profile.id: "default" | "vector_only"`
+    - [ ] `profile.schemaVersion: 1`
+  - [ ] Record the same profile block in build-state/build reports for traceability.
+- [ ] Add an `artifacts` presence block (versioned) so loaders can reason about what exists:
+    - [ ] `artifacts.schemaVersion: 1`
+    - [ ] `artifacts.present: { [artifactName]: true }` (only list artifacts that exist)
+    - [ ] `artifacts.omitted: string[]` (explicit omissions for the selected profile)
+    - [ ] `artifacts.requiredForSearch: string[]` (profile-specific minimum set)
 
-### 14.1.2 Snapshot/diff artifact surface (contracts)
+  - [ ] Add a build-time invariant:
+    - [ ] If `profile.id === "vector_only"`, then `token_postings*`, `token_vocab`, `token_stats`, `minhash*`, and any sparse-only artifacts MUST NOT be present.
+  - [ ] Define a strict vector_only artifact contract and validation rules (explicit allowlist/denylist).
 
-- [x] Define artifacts exactly per spec:
-  - [x] `snapshots/manifest.json`
-  - [x] `snapshots/<id>/snapshot.json`
-  - [x] `snapshots/<id>/frozen.json`
-  - [x] `diffs/manifest.json`
-  - [x] `diffs/<diffId>/inputs.json`
-  - [x] `diffs/<diffId>/summary.json`
-  - [x] `diffs/<diffId>/events.jsonl`
-- [x] Define `inputs.json` schema fields explicitly (canonical refs, mode list, allowMismatch, identityHash).
-- [x] Update public docs to match schema:
-  - [x] `docs/contracts/indexing.md`
-  - [x] `docs/contracts/artifact-contract.md`
-  - [x] `docs/specs/index-refs-and-snapshots.md`
-  - [x] `docs/specs/index-diffs.md`
+- [ ] Ensure build signatures include profile:
+  - [ ] signature/caching keys must incorporate `profile.id` so switching profiles forces a rebuild.
+  - [ ] compatibilityKey (and/or cohortKey) must include `profile.id` and `profile.schemaVersion` to prevent mixing vector_only and default indexes.
 
 Touchpoints:
-- `src/contracts/schemas/*` (new snapshot/diff schemas)
-- `src/contracts/validators/*`
+- `docs/config/schema.json`
+- `src/index/build/runtime/runtime.js` (read + normalize `indexing.profile`)
+- `src/index/build/indexer/signatures.js` (include profile in signature)
+- `src/index/build/artifacts.js` (index_state emission + artifacts presence block)
+- `src/retrieval/cli/index-state.js` (surface profile + artifacts in `index_status`)
+- `src/contracts/schemas/artifacts.js` (index_state contract updates)
+- `src/contracts/validators/artifacts.js`
+ - `src/index/validate/index-validate.js` (enforce vector_only artifact allowlist/denylist)
+
+#### Tests
+- [ ] `tests/indexing/contracts/profile-index-state-contract.test.js`
+  - [ ] Build tiny index with each profile and assert `index_state.json.profile` + `index_state.json.artifacts` satisfy schema invariants.
+- [ ] `tests/indexing/contracts/profile-artifacts-present-omitted-consistency.test.js`
+  - [ ] `artifacts.present` and `artifacts.omitted` are disjoint and consistent with profile.
+- [ ] `tests/indexing/contracts/profile-index-state-has-required-artifacts.test.js`
+  - [ ] `artifacts.requiredForSearch` is populated and profile-consistent.
+ - [ ] `tests/indexing/validate/vector-only-artifact-contract.test.js`
+   - [ ] Validation fails if any sparse artifacts are present in vector_only builds.
+
+---
+
+### Phase 17.2 — Build pipeline gating (skip sparse generation cleanly)
+
+- [ ] Thread `profile.id` into the indexer pipeline and feature settings:
+  - [ ] In `vector_only`, set `featureSettings.tokenize = false` (and ensure all downstream steps respect it)
+  - [ ] Ensure embeddings remain enabled/allowed (vector-only without vectors should be rejected at build time unless explicitly configured to “index without vectors”)
+
+- [ ] Skip sparse stages when `vector_only`:
+  - [ ] Do not run `buildIndexPostings()` (or make it a no-op) when tokenize=false.
+  - [ ] Do not write sparse artifacts in `writeIndexArtifactsForMode()` / `src/index/build/artifacts.js`.
+  - [ ] Hard-fail the build if any forbidden sparse artifacts are detected in the output directory.
+
+- [ ] Cleanup/consistency when switching profiles:
+  - [ ] When building `vector_only`, proactively remove any prior sparse artifacts in the target output dir so stale files cannot be accidentally loaded.
+  - [ ] When building `default`, ensure sparse artifacts are emitted normally (and any vector-only-only special casing does not regress).
+
+- [ ] Ensure “missing doc embedding” representation stays stable:
+  - [ ] Continue using the existing **zero-length typed array** convention for missing vectors.
+  - [ ] Add a regression test so future refactors don’t reintroduce `null`/NaN drift.
+
+Touchpoints:
+- `src/index/build/indexer/pipeline.js` (profile → feature gating)
+- `src/index/build/indexer/steps/postings.js` (skip when tokenize=false)
+- `src/index/build/indexer/steps/write.js` + `src/index/build/artifacts.js` (omit sparse artifacts)
+- `src/index/build/file-processor/embeddings.js` (missing-doc marker regression)
+- `src/contracts/validators/artifacts.js` (validate artifacts.present/omitted consistency)
+
+#### Tests
+- [ ] `tests/indexing/postings/vector-only-does-not-emit-sparse.test.js`
+  - [ ] Assert absence of `token_postings*`, `token_vocab*`, `token_stats*`, `minhash*`.
+- [ ] `tests/indexing/postings/vector-only-switching-cleans-stale-sparse.test.js`
+  - [ ] Build default, then vector_only into same outDir; assert sparse artifacts removed.
+ - [ ] `tests/indexing/postings/vector-only-missing-embeddings-is-error.test.js`
+   - [ ] Building vector_only without embeddings enabled fails with a clear error.
+
+---
+
+### Phase 17.3 — Search routing + strict profile compatibility
+
+- [ ] Load and enforce `index_state.json.profile` at query time:
+  - [ ] If the index is `vector_only`:
+    - [ ] default router must choose ANN/vector provider(s)
+    - [ ] sparse/postings providers must be disabled/unavailable
+  - [ ] If a caller explicitly requests sparse-only behavior against vector_only:
+    - [ ] return a controlled error with guidance (“rebuild with indexing.profile=default”)
+
+- [ ] Token-dependent query features must be explicit:
+  - [ ] If a query requests phrase/boolean constraints that require token inventory:
+    - [ ] either (a) reject with error, or (b) degrade with a warning and set `explain.warnings[]` (pick one policy and make it part of the contract)
+  - [ ] Choose and document the policy (reject vs warn) and make it consistent across CLI/API/MCP.
+  - [ ] Default policy should be **reject**; allow fallback only with an explicit `--allow-sparse-fallback` / `allowSparseFallback` override.
+
+- [ ] SQLite helper hardening for profile-aware operation:
+  - [ ] Add a lightweight `requireTables(db, names[])` helper used at provider boundaries.
+  - [ ] Providers must check required tables for their mode and return an actionable “tables missing” error (not throw).
+
+Touchpoints:
+- `src/retrieval/pipeline.js` (router)
+- `src/retrieval/index-load.js` (ensure index_state loaded early)
+- `src/retrieval/sqlite-helpers.js` (table guards)
+- `src/retrieval/providers/*` (respect profile + missing-table outcomes)
+- `src/retrieval/output/explain.js` (surface profile + warnings)
+- `docs/specs/vector-only-profile.md` (routing + mismatch policy)
+ - `src/retrieval/output/format.js` (error/warning rendering)
+
+#### Tests
+- [ ] `tests/retrieval/backend/vector-only-search-requires-ann.test.js`
+- [ ] `tests/retrieval/backend/vector-only-rejects-sparse-mode.test.js`
+- [ ] `tests/retrieval/backend/sqlite-missing-sparse-tables-is-controlled-error.test.js`
+- [ ] `tests/retrieval/output/explain-vector-only-warnings.test.js`
+ - [ ] `tests/retrieval/backend/vector-only-compatibility-key-mismatch.test.js`
+   - [ ] Mixed profile indexes are rejected unless explicitly allowed (federation/cohort gating).
+
+---
+
+### Phase 17.4 — Optional: “analysis policy shortcuts” for vector-only builds (stretch)
+
+This is explicitly optional, but worth considering because it is where most build time goes for code-heavy repos.
+
+- [ ] Add a documented policy switch: when `indexing.profile=vector_only`, default `analysisPolicy` can disable:
+  - [ ] type inference
+  - [ ] risk analysis
+  - [ ] expensive cross-file passes
+  - [ ] (optionally) lint/complexity stages
+- [ ] Make these *opt-outable* (users can re-enable per setting).
+  - [ ] Record any disabled analysis features in the build report for transparency.
+
+Touchpoints:
+- `src/index/build/indexer/pipeline.js` (feature flags)
+- `docs/config/` (document defaults and overrides)
+
+## Phase 18 — Distribution & Platform Hardening (Release Matrix, Packaging, and Optional Python)
+
+### Objective
+Make PairOfCleats releasable and operable across supported platforms by defining a **release target matrix**, adding a **deterministic release smoke-check**, hardening **cross-platform path handling**, and producing **reproducible editor/plugin packages** (Sublime + VS Code) with CI gates.
+
+This phase also standardizes how Python-dependent tests and tooling behave when Python is missing: they must **skip cleanly** (without producing “false red” CI failures), while still failing when Python is present but the test is genuinely broken.
+
+Additional docs that MUST be updated if Phase 18 adds new behavior or config:
+- `docs/guides/release-discipline.md`
+- `docs/guides/commands.md` (release-check + packaging commands)
+- `docs/guides/editor-integration.md`
+- `docs/guides/service-mode.md`
+- `docs/config/schema.json` + `docs/config/contract.md` (if new config flags are added)
+
+### Exit Criteria
+- A documented release target matrix exists (platform × Node version × optional dependencies policy).
+- A deterministic `release-check` smoke run exists and is runnable locally and in CI, and it validates:
+  - `pairofcleats --version`
+  - `pairofcleats index build` + `index validate`
+  - a basic `search` against a fixture repo
+  - presence/packaging sanity of editor integrations (when enabled)
+- Cross-platform “paths with spaces” (and Windows path semantics) have regression tests, and the audited commands pass.
+- Sublime packaging is reproducible and validated by tests (structure + version stamping).
+- VS Code extension packaging is reproducible and validated by tests (or explicitly gated as non-blocking if the packaging toolchain is absent).
+- Python-dependent tests pass on machines without Python (skipped) and still enforce Python syntax correctness when Python is present.
+
+---
+
+
+## Phase 19 — Lexicon-Aware Relations + Retrieval Enrichment (Phase 11.9 consolidation)
+
+### Objective
+Deliver lexicon-aware build-time relation filtering, retrieval-time relation boosts, and chargram enrichment with ANN candidate safety. The phase provides a strict contract surface (schemas, config, explain output), deterministic behavior, and conservative defaults that can be safely enabled in production.
+
+### Goals
+- Canonical per-language lexicon assets and a cached loader with deterministic normalization.
+- Build-time relation filtering to remove keyword/literal noise without altering imports/exports.
+- Retrieval-time relation boosts (boost-only) with explain output and bounded, deterministic token lists.
+- Chargram enrichment and ANN/minhash candidate safety policy with consistent explain reasons.
+- Signature and config surfaces updated so incremental caches and CI stay correct.
+
+### Non-goals
+- Non-ASCII keyword support (explicitly deferred to a v2 lexicon format).
+- Any change to semantic meaning of relations (boost-only, no filtering at retrieval time).
+- Any change to ANN ranking semantics beyond safe candidate-set selection.
+
+### Implementation upgrades applied (LEXI review)
+- Retrieval scoring must wire through `src/retrieval/pipeline.js` and `src/retrieval/pipeline/candidates.js` (not ad-hoc sites).
+- Query token source is `buildQueryPlan(...)` from `src/retrieval/cli/query-plan.js`; do not recompute tokens.
+- Any ANN candidate knobs must be explicitly added to config schema + normalize-options.
+- Relation filtering must preserve stable ordering and avoid over-filtering JS-like property names; use conservative keyword sets or per-language allowlists.
+- Stopword lists must be fail-open; missing or invalid lexicon files must not fail builds.
+
+### Additional docs/specs that MUST be updated
+- `docs/config/schema.json` + `docs/config/contract.md` + `docs/config/inventory.*`
+- `docs/specs/language-lexicon-wordlists.md`
+- `docs/specs/lexicon-relations-filtering.md`
+- `docs/specs/lexicon-retrieval-boosts.md`
+- `docs/specs/chargram-enrichment-and-ann-fallback.md`
+- `docs/contracts/artifact-contract.md` (explain payload surface and schema references)
+
+### Authoritative details (must be preserved)
+
+#### Lexicon wordlist format (v1)
+- Required fields: `formatVersion` (const 1), `languageId`, `keywords[]`, `literals[]`.
+- Optional fields: `types[]`, `builtins[]`, `modules[]`, `notes[]`.
+- File layout: `src/lang/lexicon/wordlists/_generic.json` and `src/lang/lexicon/wordlists/<languageId>.json`.
+- Normalization: lowercase, trim, ASCII-only, non-empty, dedupe. Sort on disk; loader must normalize regardless.
+- Derived stopword domains:
+  - `relations = keywords ∪ literals`
+  - `ranking = keywords ∪ literals ∪ types ∪ builtins`
+  - `chargrams = keywords ∪ literals` (optionally extended by config)
+- Loader is fail-open with `_generic` fallback and a single structured warning on schema failures.
+
+#### Lexicon schema requirements
+- `language-lexicon-wordlist.schema.json` v1:
+  - `additionalProperties=false`
+  - `formatVersion` const 1
+  - arrays of strings (minLength 1)
+- Register schema in `src/contracts/registry.js` if validation is enforced at load time.
+
+#### Relations filtering (build-time)
+- Filter only `usages`, `calls`, `callDetails`, `callDetailsWithRange` (imports/exports unchanged in v1).
+- `extractSymbolBaseName` separators: `.`, `::`, `->`, `#`, `/`; trim trailing `()`, `;`, `,`.
+- Preserve stable order; optional stable de-dupe (keep first occurrence).
+
+#### Retrieval relation boosts
+- Signal tokens derive from `buildQueryPlan(...)` output (pipeline plan, not recompute).
+- Per-hit stopword filtering in ranking domain; case-folding respects `caseTokens`.
+- Scoring: `boost = min(maxBoost, callMatches*perCall + usageMatches*perUse)`.
+- Explain payload includes `relationBoost` with bounded, deterministic token lists.
+
+#### Chargram enrichment + ANN candidate policy
+- Allowed `chargramFields`: `name`, `signature`, `doc`, `comment`, `body` (default `name,doc`).
+- Optional `chargramStopwords` uses lexicon `chargrams` domain.
+- Candidate policy rules (deterministic):
+  - `null` candidates -> null (full ANN)
+  - empty set -> empty set (no ANN hits)
+  - too large -> null
+  - too small with no filters -> null
+  - filtersActive + allowedIdx -> allowedIdx
+  - otherwise -> candidates
+- Explain `annCandidatePolicy` includes `inputSize`, `output`, and `reason`:
+  `noCandidates`, `tooLarge`, `tooSmallNoFilters`, `filtersActiveAllowedIdx`, `ok`.
+
+### Feature flags + defaults (v1)
+- Lexicon loader: enabled by default; fail-open on missing/invalid files.
+- Relation filtering: enabled only at `quality=max` unless explicitly enabled in config.
+- Relation boosts: disabled by default; must be explicitly enabled.
+- Chargram enrichment: disabled by default; must be explicitly enabled.
+- ANN/minhash candidate safety policy: always on (safety), explain output opt-in.
+- Global off-switch: `indexing.lexicon.enabled=false`.
+
+### Contract surface (versioned)
+- Lexicon wordlists are schema-versioned JSON, validated on load.
+- Explain output adds `relationBoost` and `annCandidatePolicy` with a versioned explain schema.
+- Config schema explicitly includes lexicon + ANN candidate keys, documented in config inventory.
+
+### Performance guardrails
+- Relation filtering is O(n) over relations, no per-token regex or substring scans.
+- Avoid new allocations in inner loops; reuse buffers where possible.
+- Relation boost matching bounded by query token count.
+
+### Compatibility: cache/signature impact
+- Build signature inputs must include lexicon config (stopword policies), chargram fields/stopwords, and ANN candidate knobs.
+- Bump `SIGNATURE_VERSION` if signature shape changes.
+
+### 19.0 — Cross-cutting setup and contracts
+
+#### Goals
+- Establish the lexicon contract, schema, and config surfaces.
+- Align config/CLI/doc surfaces with the current codebase.
+
+#### Touchpoints
+- `src/lang/` (new lexicon module)
+- `src/shared/postings-config.js` (new fields)
+- `src/retrieval/cli/normalize-options.js` (ANN candidate config knobs)
+- `src/retrieval/cli/query-plan.js` (query token source for boosts)
+- `src/retrieval/output/explain.js` + `src/retrieval/output/format.js`
+- `src/index/build/indexer/signatures.js` (incremental signature inputs)
+- `docs/config/schema.json`, `docs/config/contract.md`, `docs/config/inventory.*`
+- `docs/specs/*` (lexicon + retrieval specs)
 - `src/contracts/registry.js`
+- `src/contracts/schemas/*` + `src/contracts/validators/*`
 
-Tests:
-- [x] `tests/indexing/contracts/snapshots-contracts.test.js`
-- [x] `tests/indexing/contracts/diffs-contracts.test.js`
+#### Tasks
+- [ ] Decide canonical location for lexicon spec files (recommend `docs/specs/lexicon-*.md`).
+- [ ] Add/extend config schema entries for:
+  - `indexing.postings.chargramFields`
+  - `indexing.postings.chargramStopwords`
+  - `retrieval.annCandidateCap`
+  - `retrieval.annCandidateMinDocCount`
+  - `retrieval.annCandidateMaxDocCount`
+  - `retrieval.relationBoost` (if exposed; otherwise document as quality-gated internal)
+- [ ] Document defaults and quality gating in `docs/config/contract.md`.
+- [ ] Update config inventory docs after schema changes.
+- [ ] Update build signature inputs to include lexicon + postings config.
+- [ ] Add an explicit global off switch: `indexing.lexicon.enabled=false`.
+- [ ] Define and document versioning rules for lexicon wordlists and explain schema changes.
+- [ ] Add lexicon validation tooling:
+  - `tools/lexicon/validate.js` (schema validation for all wordlists)
+  - `tools/lexicon/report.js` (coverage stats: missing languages, token counts)
+  - `npm run lexicon:validate` and `npm run lexicon:report`
+  - optional CI check for `lexicon:validate`
+- [ ] Add v2 note in `docs/specs/language-lexicon-wordlists.md` to explicitly defer non-ASCII keywords.
 
-### 14.1.3 Atomic writes + locking
-
-- [x] Use index lock for snapshot/diff writes.
-- [x] Write JSON atomically (temp + rename) with stable JSON output.
-- [x] Clean up stale `frozen.staging-*` directories (default 24h).
-
-Touchpoints:
-- `src/index/build/lock.js#acquireIndexLock`
-- `src/shared/json-stream.js#writeJsonObjectFile`
-
-Tests:
-- [x] `tests/shared/snapshots-registry.test.js` (atomic update + readability after simulated failure)
-- [x] `tests/shared/diffs-registry.test.js` (lock-gated diff registry atomic writes)
-
-### 14.1.4 Path safety and privacy
-
-- [x] Persist only repo-cache-relative paths.
-- [x] Reject absolute paths or traversal (`..`).
-- [x] Persisted artifacts must not leak absolute paths.
-- [x] Define redaction behavior for `path:` refs and any persisted output fields (hash + placeholder; no raw absolute paths).
-
-Touchpoints:
-- `src/index/validate/paths.js#isManifestPathSafe`
-- `src/shared/files.js#toPosix`
-- `src/index/index-ref.js` (path: refs redaction)
-
-Tests:
-- [x] `tests/shared/no-path-leak.test.js`
-
-### 14.1.5 Retention defaults (optional)
-
-- [x] If implementing config defaults, create and follow `docs/specs/config-defaults.md`:
-  - [x] `indexing.snapshots.keepPointer`, `keepFrozen`, `maxAgeDays`, `protectedTagGlobs`, `stagingMaxAgeHours`
-  - [x] `indexing.diffs.keep`, `maxAgeDays`
-  - [x] `indexing.diffs.compute.*` (modes, bounds, persist)
-
-  Touchpoints:
-  - `docs/config/schema.json`
-  - `docs/config/contract.md`
-  - `docs/config/inventory.md`
-  - `tools/dict-utils/config.js#normalizeUserConfig`
+#### Tests
+- [ ] `tests/config/` schema drift tests updated if config schema changes.
+- [ ] `tests/indexer/incremental/signature-lexicon-config.test.js`
+- [ ] `tests/config/config-inventory-lexicon-keys.test.js`
+- [ ] `tests/config/config-defaults-lexicon-flags.test.js`
+- [ ] `tests/lexicon/lexicon-tool-validate.test.js`
+- [ ] `tests/lexicon/lexicon-report.test.js`
 
 ---
 
-## 14.2 Pointer snapshots
+### 19.1 — Language lexicon assets and loader
 
-- [x] Implement `pairofcleats index snapshot create`:
-  - [x] Acquire index lock.
-  - [x] Resolve `latest` via IndexRef resolver.
-  - [x] Require `build_state.json.validation.ok === true` for all selected modes.
-  - [x] Define authoritative validation signal + precedence (build_state.validation vs report file vs on-demand run); fail if conflicting.
-  - [x] Write `snapshot.json` atomically, then update manifest with tag index.
-- [x] Implement `snapshot list/show/prune`.
-- [x] Ensure tag reverse index is deterministic.
+#### Objective
+Provide a standardized lexicon for all language registry ids, with a cached loader and derived stopword sets.
 
-Touchpoints:
-- `tools/index-snapshot.js`
-- `src/index/snapshots/registry.js`
-- `src/index/snapshots/create.js` (or command module)
-- `bin/pairofcleats.js` (CLI wiring)
+#### Touchpoints
+- New:
+  - `src/lang/lexicon/index.js`
+  - `src/lang/lexicon/load.js`
+  - `src/lang/lexicon/normalize.js`
+  - `src/lang/lexicon/wordlists/_generic.json`
+  - `src/lang/lexicon/wordlists/<languageId>.json`
+  - `docs/specs/language-lexicon-wordlists.md`
+  - `docs/schemas/language-lexicon-wordlist.schema.json`
+- Existing registry:
+  - `src/index/language-registry/registry-data.js`
 
-Tests:
-- [x] `tests/services/snapshot-create.test.js`
+#### Tasks
+- [ ] Implement lexicon module:
+  - [ ] `getLanguageLexicon(languageId, { allowFallback })`
+  - [ ] `isLexiconStopword(languageId, token, domain)` for `relations|ranking|chargrams`
+  - [ ] `extractSymbolBaseName(name)` shared helper
+  - Must split on `.`, `::`, `->`, `#`, `/` and trim trailing `()`, `;`, `,`
+  - [ ] Expose per-language overrides in lexicon JSON (allowlists/exclusions for relations stopwords)
+- [ ] Loader behavior:
+  - [ ] Use `import.meta.url` to resolve wordlist directory
+  - [ ] Cache in `Map<languageId, LanguageLexicon>`
+  - [ ] Fail-open: missing or invalid => `_generic`
+  - [ ] Emit a single structured warning on invalid lexicon files
+- [ ] Loader is deterministic: stable ordering, no locale-sensitive transforms
+- [ ] Add schema validation for each wordlist file
+  - [ ] Register schema in `src/contracts/registry.js` and validate on load
+- [ ] Add lexicon files for each language id in the registry; keep v1 conservative (keywords + literals only)
+  - For JS/TS, keep keywords conservative to avoid filtering property names
 
-Optional API:
-- [x] `tools/api/router/*` plus `docs/specs/http-api.md` for request/response contracts.
-
----
-
-## 14.3 Frozen snapshots
-
-- [x] Implement `snapshot freeze`:
-  - [x] Create `frozen.staging-*` then hardlink/copy artifacts listed in `pieces/manifest.json`.
-  - [x] Verify checksums; on success rename staging -> `frozen/` and write `frozen.json`.
-  - [x] Update manifest `hasFrozen=true`.
-- [x] Stale staging cleanup and idempotency behavior.
-
-Touchpoints:
-- `src/index/snapshots/freeze.js`
-- `src/index/snapshots/copy-pieces.js`
-- `src/shared/hash.js` (checksum)
-
-Tests:
-- [x] `tests/services/snapshot-freeze.test.js`
-
----
-
-## 14.4 Deterministic diff computation
-
-- [x] Implement `pairofcleats index diff compute/show/list/prune`.
-- [x] Deterministic diffId from canonical inputs.
-- [x] Persist `inputs.json`, `summary.json`, and bounded `events.jsonl`.
-- [x] Define canonical event taxonomy + ordering key (type order + stable key fields).
-- [x] Fast-path only if pieces manifests match in a shard-aware way (all checksums + summed counts).
-- [x] Deterministic ordering (mode order + per-mode sort).
-- [x] Truncation behavior deterministic and documented in summary.
-
-Touchpoints:
-- `tools/index-diff.js`
-- `src/index/diffs/compute.js`
-- `src/index/diffs/events.js`
-- `src/index/diffs/registry.js`
-- `src/index/build/incremental.js` (reuse validation + signature binding)
-
-Tests:
-- [x] `tests/services/index-diff.test.js`
-- [x] `tests/indexer/incremental/index-reuse-validation.test.js`
+#### Tests
+- [ ] `tests/lexicon/lexicon-schema.test.js`
+- [ ] `tests/lexicon/lexicon-loads-all-languages.test.js`
+- [ ] `tests/lexicon/lexicon-stopwords.test.js`
+- [ ] `tests/lexicon/lexicon-fallback.test.js`
+- [ ] `tests/lexicon/extract-symbol-base-name.test.js`
+- [ ] `tests/lexicon/lexicon-ascii-only.test.js`
+- [ ] `tests/lexicon/lexicon-per-language-overrides.test.js`
 
 ---
 
-## 14.5 Retrieval integration (as-of)
+### 19.2 — Build-time lexicon-aware relation filtering
 
-- [x] Canonical CLI/API contract:
-  - [x] `--as-of <IndexRef>` is the canonical flag.
-  - [x] `--snapshot <snapshotId>` remains a compatibility alias that is normalized to `--as-of snap:<id>`.
-- [x] Default behavior unchanged when omitted; `--as-of latest` is equivalent to no flag.
-- [x] Resolve AsOfContext in `src/retrieval/cli.js` and thread to index resolution.
-- [x] Explicit refs/roots do not silently fallback:
-  - [x] If requested `asOf` target cannot satisfy required artifact surface for selected mode(s), fail fast with actionable error.
-  - [x] Only auto-resolved `latest` paths may use best-effort fallback logic.
-- [x] Include `asOf.identityHash` in query cache keys.
-- [x] Unify retrieval index signature computation to be shard-aware and include snapshot identity.
-- [x] Enforce single-root policy for sqlite/lmdb as-of selection.
-- [x] JSON output includes an `asOf` block (ref, identityHash, resolved summary).
-- [x] Human output prints a single `[search] as-of: ...` line when `--as-of` is provided.
-- [x] Telemetry includes `asOf.type` and short `identityHash`; never log raw paths.
-- [x] Secondary builders honor as-of semantics:
-  - [x] sqlite build/as-of flows must use the same resolver behavior and fallback rules as retrieval.
-  - [x] as-of selection for build tooling must reject mixed-root contamination.
+#### Objective
+Filter `rawRelations` before building `file_relations` and `callIndex`, using lexicon stopwords for relations.
 
-Touchpoints:
-- `src/retrieval/cli-args.js`
-- `src/retrieval/cli.js`
-- `src/retrieval/cli-index.js`
-- `src/retrieval/index-cache.js#buildIndexSignature`
-- `src/retrieval/query-cache.js`
-- `src/retrieval/cli/run-search-session.js`
-- `tools/build/sqlite/runner.js`
-- `src/storage/sqlite/build/runner.js`
+#### Touchpoints
+- `src/index/build/file-processor/cpu.js`
+- `src/index/build/file-processor/relations.js`
+  - `buildFileRelations(rawRelations, relKey)`
+  - `buildCallIndex(rawRelations)`
+- `src/index/build/file-processor/process-chunks.js`
+- `src/retrieval/output/filters.js`
+- New:
+  - `src/index/build/file-processor/lexicon-relations-filter.js`
 
-Tests:
-- [x] `tests/services/snapshot-query.test.js`
-- [x] `tests/unit/retrieval-cache-key-asof.unit.js`
-- [x] `tests/unit/retrieval-index-signature-shards.unit.js`
-- [x] `tests/services/sqlite-build-snapshot.test.js`
-- [x] `tests/services/asof-explicit-root-no-fallback.test.js`
+#### Tasks
+- [ ] Implement `filterRawRelationsWithLexicon(rawRelations, { languageId, lexicon, config, log })`.
+- [ ] Apply filtering immediately before relation building in `cpu.js`.
+- [ ] Filtering rules:
+  - `usages`: drop tokens in `lexicon.stopwords.relations`
+  - `calls`/`callDetails`/`callDetailsWithRange`: drop entries if `extractSymbolBaseName(callee)` is a stopword
+  - Preserve stable ordering; de-dupe only if required
+- [ ] Fail-open if lexicon missing or disabled.
+- [ ] Add per-language override mechanism (drop keywords/literals/builtins/types separately).
+- [ ] Ensure cached bundles are compatible:
+  - If cached bundles bypass filtering, ensure signature invalidation covers lexicon changes.
+- [ ] Make stable ordering a formal contract requirement (document + test).
+
+#### Tests
+- [ ] `tests/file-processor/lexicon-relations-filter.test.js`
+- [ ] `tests/retrieval/uses-and-calls-filters-respect-lexicon.test.js`
+- [ ] `tests/file-processor/lexicon-relations-filter-ordering.test.js`
+- [ ] `tests/file-processor/lexicon-relations-filter-keyword-property.test.js`
+- [ ] `tests/file-processor/lexicon-relations-filter-no-imports.test.js`
+- [ ] `tests/file-processor/lexicon-relations-filter-determinism.test.js`
 
 ---
 
-## 14.6 Optional HTTP API integration
+### 19.3 — Retrieval-time lexicon-aware relation boosts
 
-- [x] Extend `/search` to accept `asOf` and thread to `--as-of`.
-- [x] Add snapshot and diff endpoints if UI parity is required.
-- [x] Enforce allowed repo roots and never return absolute paths in responses.
-- [x] Follow `docs/specs/http-api.md` for request/response schemas, error codes, redaction, and allowlisting behavior.
+#### Objective
+Add boost-only ranking based on calls/usages aligned with query tokens, excluding lexicon stopwords.
 
-Touchpoints:
-- `tools/api/router/search.js`
-- `tools/api/router/index-snapshots.js` (new)
-- `tools/api/router/index-diffs.js` (new)
-- `tools/api/validation.js` (schema updates for new params)
-- `docs/specs/http-api.md`
+#### Touchpoints
+- `src/retrieval/pipeline.js`
+- `src/retrieval/cli/query-plan.js`
+- New:
+  - `src/retrieval/scoring/relation-boost.js`
 
-Tests:
-- [x] `tests/services/api-search-asof.test.js` (if API is added)
+#### Tasks
+- [ ] Implement `computeRelationBoost({ chunk, fileRelations, queryTokens, lexicon, config })`.
+- [ ] Wire into scoring in `src/retrieval/pipeline.js`:
+  - Add `relationBoost` alongside existing boosts
+  - Ensure boost-only (no filtering)
+  - Provide explain payload when `--explain`
+- [ ] Gate by quality or config (default off).
+- [ ] Ensure query token source uses `buildQueryPlan(...)` output (no recompute).
+- [ ] Define case-folding behavior in relation to `caseTokens` and `caseFile`.
+- [ ] Add explain schema snippet documenting `relationBoost` fields and units.
 
-## Optional performance acceleration track (run after Wave 2 baseline)
-- Subphase A
-- Subphase B
-- Subphase C
-- Subphase D
-- Subphase E
+#### Tests
+- [ ] `tests/retrieval/relation-boost.test.js`
+- [ ] `tests/retrieval/relation-boost-does-not-filter.test.js`
+- [ ] `tests/retrieval/explain-includes-relation-boost.test.js`
+- [ ] `tests/retrieval/relation-boost-case-folding.test.js`
+- [ ] `tests/retrieval/relation-boost-stopword-elision.test.js`
 
-Placement guidance:
-- Start only after Phase 16/17 correctness baselines and parity tests are stable.
-- Keep behind capability detection and strict JS fallback parity.
-- Fold distribution concerns into Phase 18 and/or Subphase E outputs.
-- Require objective perf gates before default enablement:
-  - p50/p95 query latency improvement
-  - build throughput improvement
-  - no quality regression in replay suite
+---
 
-## Cross-phase gates (do not skip)
-- Deterministic identity:
-  - Repo/path identity, index refs, manifest hashing, and cache keys must be canonical before adding higher-level orchestration.
-- Contract-first:
-  - Any schema/config/explain surface change must ship with docs/contracts updates in the same phase.
-- Compatibility gating:
-  - Cohort/profile compatibility checks must be in place before mixed-repo/mixed-profile federation is treated as production-ready.
-- Bounded behavior:
-  - Concurrency, cancellation, and cache growth must remain bounded as federation/TUI layers are introduced.
-- Quality loop:
-  - Every major retrieval/indexing change must be validated against a replay suite with tracked quality metrics.
-- SLO discipline:
-  - Every lane/release must enforce budgets for latency, error rate, and determinism drift.
-- Release closeout:
-  - Full release packaging should occur after core behavior settles to avoid churn in artifact/release contracts.
+### 19.4 — Chargram enrichment and ANN candidate safety
 
-## Track IQ: Codebase Intelligence Enhancements
+#### Objective
+Allow optional chargram enrichment without recall loss, and enforce candidate set safety in ANN/minhash.
 
-### IQ.1 Intent-aware routing and scoring
-- Add query intent classes (`api-discovery`, `bugfix`, `refactor`, `test-impact`, `ownership`, `security`).
-- Route backend/weights/candidate strategy by intent.
-- Require explain output to include intent and route decision.
+#### Touchpoints
+- `src/shared/postings-config.js`
+- `src/index/build/state.js` (chargram generation from fieldTokens)
+- `src/retrieval/pipeline/candidates.js`
+- `src/retrieval/pipeline.js`
+- New:
+  - `src/retrieval/scoring/ann-candidate-policy.js`
 
-### IQ.2 Multi-hop retrieval
-- Add bounded second-hop expansion from symbol/call/import graph.
-- Add novelty/citation-aware reranking so repeated chunks are down-ranked.
-- Keep deterministic tie-breakers and hard hop/candidate caps.
+#### Tasks
+- [ ] Extend `normalizePostingsConfig` to support `chargramFields` + `chargramStopwords` with defaults.
+- [ ] Update chargram tokenization in `appendChunk(...)` to use `chargramFields` and optional lexicon stopword filtering.
+- [ ] Implement `resolveAnnCandidateSet(...)` and apply to ANN and minhash candidate selection:
+  - Use `annCandidateCap`, `annCandidateMinDocCount`, `annCandidateMaxDocCount`
+  - Ensure filtersActive + allowedIdx behavior is preserved
+- [ ] Emit explain payload for candidate policy decisions with deterministic `reason` codes.
+- [ ] Ensure ANN/minhash use the same candidate policy (no divergence).
+- [ ] Add a shared policy contract for `resolveAnnCandidateSet` and reuse in both paths.
 
-### IQ.3 Task-pack results
-- Add a pack mode that groups related outputs:
-  - code entrypoints
-  - dependent call chain
-  - impacted tests
-  - relevant configs/docs
-- Emit stable pack schema in JSON output.
+#### Tests
+- [ ] `tests/postings/chargram-fields.test.js`
+- [ ] `tests/retrieval/ann-candidate-policy.test.js`
+- [ ] `tests/retrieval/ann-candidate-policy-explain.test.js`
+- [ ] `tests/postings/chargram-stopwords.test.js`
+- [ ] `tests/retrieval/ann-candidate-policy-minhash-parity.test.js`
+- [ ] `tests/retrieval/ann-candidate-policy-allowedIdx.test.js`
+- [ ] `tests/retrieval/ann-candidate-policy-contract.test.js`
 
-### IQ.4 Confidence and trust signals
-- Add confidence score per result and per response.
-- Include signal agreement factors (sparse/dense/graph/metadata consistency).
-- Surface low-confidence reasons in explain output.
+---
 
-### IQ.5 Quality feedback loop
-- Build replay benchmark from anonymized real queries.
-- Track precision/coverage metrics and regression thresholds.
-- Make quality gates mandatory for retrieval/ranking changes.
+### 19.5 — Observability, tuning, and rollout
 
-## Track OP: Throughput, Reliability, Robustness
+#### Objective
+Make filtering/boosting behavior transparent and safe to tune.
 
-### OP.1 SLO contracts
-- Define SLOs for:
-  - index build throughput
-  - query p50/p95 latency
-  - query success/error rates
-  - deterministic output drift
-- Wire SLO checks into CI and release checks.
+#### Touchpoints
+- `src/index/build/file-processor/cpu.js` (logging/counters)
+- `src/retrieval/pipeline.js` (explain payload)
+- `src/shared/auto-policy.js` (quality-based defaults)
+- `docs/testing/truth-table.md` (quality gating + defaults)
 
-### OP.2 Failure-aware degradation
-- Define deterministic fallback ladder when providers/backends fail.
-- Ensure degrade path preserves correctness and emits explicit warnings.
+#### Tasks
+- [ ] Emit structured per-file counts for relations filtering (calls/usages dropped).
+- [ ] Add `relationBoost` + `annCandidatePolicy` to explain output.
+- [ ] Gate new features behind `quality=max` by default (unless explicit config enables).
+- [ ] Add a compact summary line to build logs when lexicon filtering is active (opt-in via verbose).
+- [ ] Add a lexicon status section to explain output when enabled (source file + version + domain counts).
 
-### OP.3 Fault injection
-- Add tests for partial writes, lock contention, cancellation races, backend unavailability, and stale/corrupt artifacts.
-- Require recovery behavior contracts and crash-safe resumption.
+#### Tests
+- [ ] `tests/retrieval/explain-includes-relation-boost.test.js`
+- [ ] `tests/retrieval/explain-includes-ann-policy.test.js`
+- [ ] `tests/indexing/logging/lexicon-filter-counts.test.js`
 
-### OP.4 Adaptive orchestration
-- Add bounded auto-tuning for provider order, ANN caps, and candidate limits using live telemetry.
-- Keep deterministic policy snapshots to avoid uncontrolled drift.
+---
 
-### OP.5 Release gating
-- Block release on:
-  - quality replay regressions
-  - SLO budget breaches
-  - unresolved reliability/fault-injection failures
+### Proposed phase order (19.x)
+1) 19.0 – Setup + contracts (config schema + docs + lexicon schema + tooling).
+2) 19.1 – Lexicon loader + wordlists.
+3) 19.2 – Build-time relations filtering.
+4) 19.4 – Chargram enrichment + ANN candidate safety.
+5) 19.3 – Retrieval relation boosts.
+6) 19.5 – Observability + rollout gating.
 
-## Practical execution notes
-- Use this SKYMAP ordering when scheduling batches; do not run appendix phases as separate workstreams.
-- If parallelizing, split along independent tracks noted in Phase 20 and keep contract-owning changes serialized.
-- Re-run docs/config inventory sync checks at each wave boundary to prevent drift.
-- Use FAST.md opportunities as implementation backlog for Track OP, prioritized by impact/risk and protected by replay + SLO gates.
+---
+
+## WHAT IF WE DIDNT NEED SHOES
+
+This is an optional, high-impact exploration track that assumes we can add native or WASM-accelerated components to substantially improve retrieval and indexing performance beyond what is feasible in JS alone. Everything here must have clean fallbacks and must never change functional semantics.
+
+### Objective
+
+Identify and integrate optional native/WASM accelerators for the heaviest hot paths (bitmap filtering, top-K ranking, ANN scoring, and search pipeline orchestration) with strict correctness parity and deterministic behavior.
+
+### Goals
+
+- Reduce query latency by offloading hot loops to native/WASM implementations.
+- Reduce GC pressure by using typed buffers and shared memory arenas.
+- Preserve identical results vs. JS baseline (deterministic ordering and tie-breaking).
+- Provide clean capability detection and full JS fallback paths.
+
+### Non-goals
+
+- Making native/WASM dependencies mandatory.
+- Changing ranking, filtering, or ANN semantics.
+- Replacing existing on-disk index formats.
+
+### Files to modify (exhaustive for this section)
+
+- `src/retrieval/bitmap.js`
+- `src/retrieval/filters.js`
+- `src/retrieval/filter-index.js`
+- `src/retrieval/pipeline/candidates.js`
+- `src/retrieval/pipeline/fusion.js`
+- `src/retrieval/pipeline/graph-ranking.js`
+- `src/retrieval/rankers.js`
+- `src/retrieval/ann/providers/*`
+- `src/shared/native-accel.js` (new)
+- `src/shared/capabilities.js` (new or extend)
+- `tools/build-native.js` (new)
+- `package.json` (optional deps + build scripts)
+- `docs/perf/native-accel.md` (new)
+- `docs/specs/native-accel.md` (new)
+- `tests/retrieval/native/bitmap-equivalence.test.js` (new)
+- `tests/retrieval/native/topk-equivalence.test.js` (new)
+- `tests/retrieval/native/ann-equivalence.test.js` (new)
+- `tests/retrieval/native/capability-fallback.test.js` (new)
+- `tests/retrieval/native/perf-baseline.test.js` (new, opt-in)
+
+### Docs/specs to add or update
+
+- `docs/perf/native-accel.md` (new; performance goals, measurement harness, rollout policy)
+- `docs/specs/native-accel.md` (new; interfaces, ABI, fallback behavior, capability detection)
+- `docs/guides/commands.md` (add optional build steps for native accel)
+
+### Subphase A — Native Bitmap Engine (Roaring/Bitset)
+
+#### Goals
+
+- Replace large `Set`-based allowlists with roaring bitmap or bitset operations.
+- Keep JS bitmap code path as the default fallback.
+
+#### Non-goals
+
+- Changing filter semantics or storage format.
+
+#### Touchpoints
+
+- `src/retrieval/bitmap.js`
+- `src/retrieval/filters.js`
+- `src/retrieval/filter-index.js`
+- `src/shared/native-accel.js` (new)
+- `docs/specs/native-accel.md`
+
+#### Tasks
+
+- [ ] Add optional native bitmap module (Node-API addon or WASM) with `and/or/andNot` operations.
+- [ ] Implement capability detection and a stable JS fallback shim.
+- [ ] Ensure deterministic iteration order when converting back to arrays.
+- [ ] Add large-scale bitmap microbenchmarks and memory usage comparisons.
+
+#### Tests
+
+- [ ] `tests/retrieval/native/bitmap-equivalence.test.js`
+- [ ] `tests/retrieval/native/capability-fallback.test.js`
+
+#### Acceptance
+
+- [ ] Bitmap operations match JS results exactly.
+- [ ] Large filter queries show measurable speedup without semantic changes.
+
+---
+
+### Subphase B — Native Top‑K Selection + Score Accumulation
+
+#### Goals
+
+- Replace full-array sorts with native top‑K selection.
+- Accumulate scores in native buffers to reduce GC pressure.
+
+#### Non-goals
+
+- Changing ranking behavior or ordering rules.
+
+#### Touchpoints
+
+- `src/retrieval/pipeline/candidates.js`
+- `src/retrieval/pipeline/fusion.js`
+- `src/retrieval/rankers.js`
+- `src/shared/native-accel.js` (new)
+- `docs/specs/native-accel.md`
+
+#### Tasks
+
+- [ ] Add a native top‑K selection module with stable tie‑breaking.
+- [ ] Add native score accumulation for BM25 + ANN fusion.
+- [ ] Implement typed array exchange or shared memory blocks for scores and ids.
+- [ ] Provide a pure JS fallback with identical semantics.
+
+#### Tests
+
+- [ ] `tests/retrieval/native/topk-equivalence.test.js`
+- [ ] `tests/retrieval/native/capability-fallback.test.js`
+
+#### Acceptance
+
+- [ ] Top‑K selection matches JS ordering within deterministic tie rules.
+- [ ] Reduced memory overhead vs. full sorting for large candidate sets.
+
+---
+
+### Subphase C — ANN Acceleration + Preflight
+
+#### Goals
+
+- Accelerate ANN scoring and filtering using native/WASM backends.
+- Avoid slow failure paths with explicit preflight checks.
+
+#### Non-goals
+
+- Replacing existing ANN index formats or configurations.
+
+#### Touchpoints
+
+- `src/retrieval/ann/providers/*`
+- `src/retrieval/pipeline/ann-backends.js`
+- `src/shared/native-accel.js`
+- `docs/specs/native-accel.md`
+
+#### Tasks
+
+- [ ] Add optional ANN scoring backend with feature flags and compatibility checks.
+- [ ] Implement preflight capability checks (dims, space, index metadata).
+- [ ] Add JS fallback with identical retrieval semantics.
+
+#### Tests
+
+- [ ] `tests/retrieval/native/ann-equivalence.test.js`
+- [ ] `tests/retrieval/native/capability-fallback.test.js`
+
+#### Acceptance
+
+- [ ] ANN output parity with JS baseline.
+- [ ] Preflight avoids slow retries and confusing failures.
+
+---
+
+### Subphase D — Worker‑Thread Pipeline Offload
+
+#### Goals
+
+- Move heavy query stages to worker threads with shared buffers.
+- Keep main thread responsive for CLI output and cancellation.
+
+#### Non-goals
+
+- Changing CLI UX or query semantics.
+
+#### Touchpoints
+
+- `src/retrieval/pipeline.js`
+- `src/retrieval/pipeline/candidates.js`
+- `src/retrieval/pipeline/fusion.js`
+- `src/retrieval/pipeline/graph-ranking.js`
+- `src/retrieval/output/format.js`
+- `src/shared/worker-pool.js` (new or extend)
+- `docs/specs/native-accel.md`
+
+#### Tasks
+
+- [ ] Introduce a worker-pool for retrieval compute stages.
+- [ ] Use shared memory arenas for candidates and scores when safe.
+- [ ] Add cancellation and timeout propagation.
+- [ ] Keep output formatting on main thread with streaming results.
+
+#### Tests
+
+- [ ] `tests/retrieval/native/worker-offload-equivalence.test.js` (new)
+- [ ] `tests/retrieval/native/worker-cancel.test.js` (new)
+
+#### Acceptance
+
+- [ ] Worker-offloaded pipeline matches results and ordering.
+- [ ] Main-thread responsiveness improves under heavy queries.
+
+---
+
+### Subphase E — Build + Release Strategy for Native/WASM
+
+#### Goals
+
+- Provide reproducible builds for native/WASM components.
+- Ensure opt-in installation with clear diagnostics.
+
+#### Non-goals
+
+- Mandatory native dependencies in all environments.
+
+#### Touchpoints
+
+- `tools/build-native.js` (new)
+- `package.json`
+- `docs/perf/native-accel.md`
+- `docs/specs/native-accel.md`
+- CI pipelines (add optional native build step)
+
+#### Tasks
+
+- [ ] Add optional build step that produces platform-specific artifacts.
+- [ ] Add capability detection and explicit logging for native availability.
+- [ ] Document troubleshooting and fallback rules.
+
+#### Tests
+
+- [ ] `tests/retrieval/native/capability-fallback.test.js`
+- [ ] `tests/retrieval/native/perf-baseline.test.js` (opt-in)
+
+#### Acceptance
+
+- [ ] Native/WASM acceleration is optional, deterministic, and easy to diagnose.
+- [ ] JS fallbacks always function without feature loss.
+
+---
+
+
+## Appendix A — LEXI (verbatim)
+
+# LEXI
+
+This document consolidates the Phase 11.9 lexicon specs into a complete, repo-aligned implementation plan with granular tasks, tests, and touchpoints. The draft spec content has been absorbed here; future/lexi drafts can be removed once this plan is the single source of truth.
+
+---
+
+## Evaluation Notes (by document)
+
+These notes assume the Phase 11.9 specs are promoted into `docs/specs/` (see 11.9.0 tasks). Any discrepancies should be resolved in those canonical docs first, then reflected here.
+
+### phase-11.9-lexicon-aware-relations-and-retrieval-enrichment.md
+- Well structured and matches repo architecture; touchpoints listed are mostly accurate.
+- Adjustments needed:
+  - `src/retrieval/pipeline.js` is the actual scoring entrypoint; any new boost/candidate policy work should be wired there and in `src/retrieval/pipeline/candidates.js` (for candidate set building).
+  - Retrieval options parsing for ANN candidate controls is not currently exposed in `src/retrieval/cli/normalize-options.js`; the phase should include parsing and config schema updates if these knobs are to be configurable.
+  - Relation filtering should explicitly preserve stable ordering and avoid filtering builtins/types by default (already stated); for JS-like languages where keywords can be property names, limit keyword lists to safe identifiers or add per-language allowlists.
+
+### spec-language-lexicon-wordlists.md
+- Solid and conservative; aligns with a fail-open loader.
+- Ambiguity: "ASCII only" is safe but may exclude keywords for some languages (e.g., localized keywords). This should be explicit as a v1 constraint with a future v2 note.
+- Add a clearer contract for `extractSymbolBaseName` and document separators ordering (consistent with relations spec).
+- Ensure the canonical wordlist format includes `formatVersion`, `languageId`, and required arrays, with a strict schema (additionalProperties=false).
+
+### spec-lexicon-relations-filtering.md
+- Correct placement and safety constraints.
+- Ambiguity: Should filtering also apply to `rawRelations.imports/exports`? The spec says no; keep it explicit and add a note that only usages/calls/callDetails/callDetailsWithRange are filtered in v1.
+- Recommend adding per-language overrides for stopword sets (e.g., JS keyword subset) to avoid over-filtering.
+
+### spec-lexicon-retrieval-boosts.md
+- Good; boost-only with clear explain payload.
+- Adjustment: query token source is `src/retrieval/cli/query-plan.js`, but the actual tokens are available in the pipeline context. Wire from existing query plan rather than recomputing.
+- Clarify whether `queryTokens` are case-folded using `caseTokens` (current pipeline has `caseTokens` and `caseFile` flags).
+
+### spec-chargram-enrichment-and-ann-fallback.md
+- Matches current architecture.
+- Adjustment: `annCandidateMinDocCount` and related knobs are not currently parsed or surfaced; add explicit config plumbing and schema updates in this phase.
+- Candidate policy should be shared between ANN and minhash fallbacks (currently the pipeline reuses `annCandidateBase` for minhash); the policy should be applied consistently.
+
+---
+
+## Spec Extracts to Carry Forward (Authoritative Details)
+
+These are the non-negotiable details that must be preserved when the Phase 11.9 specs are promoted into `docs/specs/` and implemented.
+
+### Lexicon wordlist format (v1)
+- Required fields: `formatVersion` (const 1), `languageId`, `keywords[]`, `literals[]`.
+- Optional fields: `types[]`, `builtins[]`, `modules[]`, `notes[]`.
+- File layout: `src/lang/lexicon/wordlists/_generic.json` and `src/lang/lexicon/wordlists/<languageId>.json` (languageId must match registry id).
+- Normalization rules: lowercase, trim, ASCII-only, non-empty, dedupe. Sort on disk, but loader must normalize regardless.
+- Derived stopword domains:
+  - `relations = keywords ∪ literals`
+  - `ranking = keywords ∪ literals ∪ types ∪ builtins`
+  - `chargrams = keywords ∪ literals` (optionally extended to types/builtins when chargramStopwords is enabled)
+- Fail-open loader with `_generic` fallback and one-time warnings on schema failures.
+
+### Lexicon schema requirements
+- `language-lexicon-wordlist.schema.json` v1:
+  - `additionalProperties=false`
+  - `formatVersion` const 1
+  - arrays of strings (minLength 1) for wordlist fields
+- The schema must be registered under `src/contracts/registry.js` if validation is enforced at load time.
+
+### Relations filtering (build-time)
+- Filter only `usages`, `calls`, `callDetails`, `callDetailsWithRange` (not imports/exports in v1).
+- `extractSymbolBaseName` separators (split, take last non-empty): `.`, `::`, `->`, `#`, `/`.
+- Trim trailing `()`, `;`, `,` from base name.
+- Preserve stable order; optional stable de-dupe (keep first occurrence).
+
+### Retrieval relation boosts
+- Signal tokens derive from `buildQueryPlan(...)` output (use pipeline query plan, not recompute).
+- Per-hit stopword filtering in ranking domain; case-folding must respect `caseTokens`.
+- Scoring: `boost = min(maxBoost, callMatches*perCall + usageMatches*perUse)` with small defaults.
+- Explain output includes `relationBoost` with bounded token lists and deterministic ordering/truncation.
+
+### Chargram enrichment + ANN candidate policy
+- Allowed `chargramFields`: `name`, `signature`, `doc`, `comment`, `body` (default `name,doc`).
+- Optional `chargramStopwords` uses lexicon `chargrams` domain for token filtering.
+- Candidate policy rules (deterministic):
+  - `null` candidates -> null (full ANN)
+  - empty set -> empty set (no ANN hits)
+  - too large -> null
+  - too small with no filters -> null
+  - filtersActive + allowedIdx -> allowedIdx
+  - otherwise -> candidates
+- Explain `annCandidatePolicy` includes `inputSize`, `output`, `reason` (`noCandidates`, `tooLarge`, `tooSmallNoFilters`, `filtersActiveAllowedIdx`, `ok`).
+
+---
+
+# Phase 11.9 – Lexicon-Aware Relations and Retrieval Enrichment
+
+## Feature Flags + Defaults (v1)
+- Lexicon loader: enabled by default; fail-open on missing/invalid files.
+- Relation filtering: enabled only at `quality=max` unless explicitly enabled in config.
+- Relation boosts: disabled by default; must be explicitly enabled.
+- Chargram enrichment: disabled by default; must be explicitly enabled.
+- ANN/minhash candidate safety policy: always on (safety), but explain output is opt-in.
+- Global off-switch: `indexing.lexicon.enabled=false` disables lexicon filtering and related boosts.
+
+## Contract Surface (versioned)
+- Lexicon wordlists: schema-versioned JSON, validated on load.
+- Explain output: `relationBoost` and `annCandidatePolicy` fields added with a versioned explain schema.
+- Config schema: new lexicon + ANN candidate keys explicitly versioned in docs/config schema and inventory.
+
+## Performance Guardrails
+- All lexicon filtering must be O(n) over relations; no per-token regex or substring scans.
+- Avoid new allocations in inner loops; reuse buffers/arrays where possible.
+- Relation boost matching must be bounded by query token count (no unbounded scans).
+
+## Compatibility: cache/signature impact
+- Build signature inputs must include lexicon configs (stopwords, chargramFields/stopwords) and ANN candidate knobs.
+- If signature shape changes, bump `SIGNATURE_VERSION` and update incremental tests accordingly.
+
+## 11.9.0 – Cross-cutting Setup and Contracts
+
+### Goals
+- Establish the lexicon contract, schema, and config surfaces.
+- Align config/CLI/doc surfaces with current codebase.
+
+### Additional docs/specs that MUST be updated
+- `docs/config/schema.json` + `docs/config/contract.md` + `docs/config/inventory.*`
+- `docs/specs/language-lexicon-wordlists.md`
+- `docs/specs/lexicon-relations-filtering.md`
+- `docs/specs/lexicon-retrieval-boosts.md`
+- `docs/specs/chargram-enrichment-and-ann-fallback.md`
+
+### Touchpoints
+- `src/lang/` (new lexicon module)
+- `src/shared/postings-config.js` (new fields)
+- `src/retrieval/cli/normalize-options.js` (new ANN candidate config knobs)
+- `src/retrieval/cli/query-plan.js` (query token source for boosts)
+- `src/retrieval/output/explain.js` + `src/retrieval/output/format.js` (explain payload surfacing)
+- `src/index/build/indexer/signatures.js` (incremental signature inputs / cache invalidation)
+- `docs/config/schema.json`, `docs/config/contract.md`, `docs/config/inventory.*` (config surface)
+- `docs/specs/*` (lexicon + retrieval specs, if promoted to canonical docs)
+ - `src/contracts/registry.js` (register lexicon schema if added)
+ - `src/contracts/schemas/*` + `src/contracts/validators/*` (lexicon wordlist schema)
+
+### Tasks
+- [ ] Decide canonical location for lexicon spec files (recommend `docs/specs/lexicon-*.md`).
+- [ ] Add/extend config schema entries for:
+  - `indexing.postings.chargramFields`
+  - `indexing.postings.chargramStopwords`
+  - `retrieval.annCandidateCap`
+  - `retrieval.annCandidateMinDocCount`
+  - `retrieval.annCandidateMaxDocCount`
+  - `retrieval.relationBoost` (if exposed in config; otherwise document as quality-gated internal).
+- [ ] Document defaults and quality gating in `docs/config/contract.md` or equivalent.
+- [ ] Update config inventory docs after schema changes (keeps script surface tests green).
+- [ ] Update build signature inputs to include lexicon + postings config so incremental caches reset:
+  - `buildIncrementalSignaturePayload(...)` should include lexicon config (stopword policies) and new postings fields.
+  - Consider bumping `SIGNATURE_VERSION` if signature shape changes.
+ - [ ] Add an explicit config flag to disable lexicon features globally (`indexing.lexicon.enabled=false`).
+ - [ ] Define and document versioning rules for lexicon wordlists and explain schema changes.
+
+### Tests
+- [ ] `tests/config/` schema drift tests updated if config schema changes.
+- [ ] `tests/indexer/incremental/signature-lexicon-config.test.js` (signature changes when lexicon/postings config changes).
+ - [ ] `tests/config/config-inventory-lexicon-keys.test.js` (inventory includes lexicon keys).
+ - [ ] `tests/config/config-defaults-lexicon-flags.test.js` (defaults match documented behavior).
+
+---
+
+## 11.9.1 – Language Lexicon Assets and Loader
+
+### Objective
+Provide a standardized lexicon for all language registry ids, with a cached loader and derived stopword sets.
+
+### Touchpoints
+- New:
+  - `src/lang/lexicon/index.js` (public surface)
+  - `src/lang/lexicon/load.js` (file loading + caching)
+  - `src/lang/lexicon/normalize.js` (lowercase/ASCII normalization)
+  - `src/lang/lexicon/wordlists/_generic.json`
+  - `src/lang/lexicon/wordlists/<languageId>.json`
+  - `docs/specs/language-lexicon-wordlists.md` (if promoted)
+  - `docs/schemas/language-lexicon-wordlist.schema.json` (or similar; keep consistent with other schemas)
+- Existing registry:
+  - `src/index/language-registry/registry-data.js` (language ids)
+
+### Tasks
+- [ ] Implement lexicon module:
+  - [ ] `getLanguageLexicon(languageId, { allowFallback })` -> returns normalized sets.
+  - [ ] `isLexiconStopword(languageId, token, domain)` for `relations|ranking|chargrams`.
+  - [ ] `extractSymbolBaseName(name)` shared helper.
+  - Must split on `.`, `::`, `->`, `#`, `/` and trim trailing `()`, `;`, `,`.
+  - [ ] Expose per-language overrides in the lexicon JSON (e.g., allowlists/exclusions for relations stopwords).
+- [ ] Loader behavior:
+  - [ ] Use `import.meta.url` to resolve wordlist directory.
+  - [ ] Cache in `Map<languageId, LanguageLexicon>`.
+  - [ ] Fail-open: missing or invalid => `_generic`.
+  - [ ] Emit a single structured warning on invalid lexicon files (no per-token spam).
+- [ ] Loader must be deterministic: stable ordering, no locale-sensitive transforms.
+- [ ] Add schema validation for each wordlist file.
+  - [ ] Register schema in `src/contracts/registry.js` and validate on load.
+- [ ] Add lexicon files for each language id in the registry; keep v1 conservative (keywords + literals only).
+  - Note: For JS/TS, keep keywords list conservative to avoid filtering property names.
+
+### Tests
+- [ ] `tests/lexicon/lexicon-schema.test.js`
+- [ ] `tests/lexicon/lexicon-loads-all-languages.test.js`
+- [ ] `tests/lexicon/lexicon-stopwords.test.js` (verify derived stopword sets)
+- [ ] `tests/lexicon/lexicon-fallback.test.js` (missing/invalid file -> _generic)
+- [ ] `tests/lexicon/extract-symbol-base-name.test.js` (separators `.`, `::`, `->`, `#`, `/` and trailing punctuation trimming)
+- [ ] `tests/lexicon/lexicon-ascii-only.test.js` (explicit v1 constraint)
+ - [ ] `tests/lexicon/lexicon-per-language-overrides.test.js`
+
+---
+
+## 11.9.2 – Build-Time Lexicon-Aware Relation Filtering
+
+### Objective
+Filter `rawRelations` before building `file_relations` and `callIndex`, using lexicon stopwords for relations.
+
+### Touchpoints
+- `src/index/build/file-processor/cpu.js`
+  - Where `rawRelations` is produced and `buildFileRelations(...)` / `buildCallIndex(...)` are called.
+- `src/index/build/file-processor/relations.js`
+  - `buildFileRelations(rawRelations, relKey)`
+  - `buildCallIndex(rawRelations)`
+- `src/index/build/file-processor/process-chunks.js`
+  - Builds per-chunk `codeRelations` from `callIndex` and writes call details; ensure filtered relations are reflected.
+- `src/retrieval/output/filters.js`
+  - `--calls` / `--uses` filters consume `codeRelations` and `file_relations`.
+- New:
+  - `src/index/build/file-processor/lexicon-relations-filter.js`
+
+### Tasks
+- [ ] Implement `filterRawRelationsWithLexicon(rawRelations, { languageId, lexicon, config, log })`.
+- [ ] Apply filtering immediately before relation building:
+  - In `cpu.js` inside the per-file processing flow, right after `lang.buildRelations(...)` and before `buildFileRelations` / `buildCallIndex`.
+- [ ] Filtering rules:
+  - `usages`: drop tokens whose normalized form is in `lexicon.stopwords.relations`.
+  - `calls` / `callDetails` / `callDetailsWithRange`: drop entries if `extractSymbolBaseName(callee)` is a stopword.
+  - Preserve stable ordering; dedupe only if required.
+- [ ] Fail-open if lexicon missing or disabled.
+- [ ] Add a per-language override mechanism (e.g., config to drop keywords/literals/builtins/types separately).
+- [ ] Ensure cached bundles are compatible:
+  - If cached bundles can bypass filtering, ensure incremental signature invalidation covers lexicon changes.
+ - [ ] Make stable ordering a formal contract requirement (document + test).
+
+### Tests
+- [ ] `tests/file-processor/lexicon-relations-filter.test.js`
+- [ ] `tests/retrieval/uses-and-calls-filters-respect-lexicon.test.js`
+- [ ] `tests/file-processor/lexicon-relations-filter-ordering.test.js` (stable ordering)
+- [ ] `tests/file-processor/lexicon-relations-filter-keyword-property.test.js` (JS/TS property-name edge case)
+- [ ] `tests/file-processor/lexicon-relations-filter-no-imports.test.js` (imports/exports unchanged)
+ - [ ] `tests/file-processor/lexicon-relations-filter-determinism.test.js`
+
+---
+
+## 11.9.3 – Retrieval-Time Lexicon-Aware Relation Boosts
+
+### Objective
+Add boost-only ranking based on calls/usages aligned with query tokens, excluding lexicon stopwords.
+
+### Touchpoints
+- `src/retrieval/pipeline.js` (scoring and explain output)
+- `src/retrieval/cli/query-plan.js` (query tokens source)
+- New:
+  - `src/retrieval/scoring/relation-boost.js`
+
+### Tasks
+- [ ] Implement `computeRelationBoost({ chunk, fileRelations, queryTokens, lexicon, config })`.
+- [ ] Wire into scoring in `src/retrieval/pipeline.js`:
+  - Add `relationBoost` alongside existing boosts (symbol/phrase/etc).
+  - Ensure boost-only (no filtering).
+  - Provide explain payload when `--explain`.
+- [ ] Gate by quality or config (default off).
+- [ ] Ensure query token source uses `buildQueryPlan(...)` output (do not recompute).
+- [ ] Define case-folding behavior in relation to `caseTokens` and `caseFile`.
+ - [ ] Add a small explain schema snippet documenting `relationBoost` fields and units.
+
+### Tests
+- [ ] `tests/retrieval/relation-boost.test.js`
+- [ ] `tests/retrieval/relation-boost-does-not-filter.test.js`
+- [ ] `tests/retrieval/explain-includes-relation-boost.test.js`
+- [ ] `tests/retrieval/relation-boost-case-folding.test.js`
+- [ ] `tests/retrieval/relation-boost-stopword-elision.test.js`
+
+---
+
+## 11.9.4 – Chargram Enrichment and ANN Candidate Safety
+
+### Objective
+Allow optional chargram enrichment without recall loss, and enforce candidate set safety in ANN/minhash.
+
+### Touchpoints
+- `src/shared/postings-config.js` (new `chargramFields`, `chargramStopwords`)
+- `src/index/build/state.js` (chargram generation from fieldTokens)
+- `src/retrieval/pipeline/candidates.js` (candidate set building)
+- `src/retrieval/pipeline.js` (ANN/minhash usage)
+- New:
+  - `src/retrieval/scoring/ann-candidate-policy.js`
+
+### Tasks
+- [ ] Extend `normalizePostingsConfig` to support `chargramFields` + `chargramStopwords` with defaults.
+- [ ] Update chargram tokenization in `appendChunk(...)` (in `src/index/build/state.js`) to use `chargramFields` and optional lexicon stopword filtering.
+- [ ] Implement `resolveAnnCandidateSet(...)` and apply it to ANN and minhash candidate selection:
+  - Use `annCandidateCap`, `annCandidateMinDocCount`, `annCandidateMaxDocCount`.
+  - Ensure filtersActive + allowedIdx behavior is preserved.
+- [ ] Emit explain payload for candidate policy decisions, with deterministic `reason` codes (`noCandidates`, `tooLarge`, `tooSmallNoFilters`, `filtersActiveAllowedIdx`, `ok`).
+- [ ] Ensure ANN/minhash use the same candidate policy (no divergence).
+ - [ ] Add a shared policy contract for `resolveAnnCandidateSet` and reuse in both paths.
+
+### Tests
+- [ ] `tests/postings/chargram-fields.test.js`
+- [ ] `tests/retrieval/ann-candidate-policy.test.js`
+- [ ] `tests/retrieval/ann-candidate-policy-explain.test.js`
+- [ ] `tests/postings/chargram-stopwords.test.js` (lexicon stopword interaction)
+- [ ] `tests/retrieval/ann-candidate-policy-minhash-parity.test.js`
+- [ ] `tests/retrieval/ann-candidate-policy-allowedIdx.test.js`
+ - [ ] `tests/retrieval/ann-candidate-policy-contract.test.js`
+
+---
+
+## 11.9.5 – Observability, Tuning, and Rollout
+
+### Objective
+Make filtering/boosting behavior transparent and safe to tune.
+
+### Touchpoints
+- `src/index/build/file-processor/cpu.js` (logging/counters)
+- `src/retrieval/pipeline.js` (explain payload)
+- `src/shared/auto-policy.js` (quality-based defaults)
+
+### Tasks
+- [ ] Emit structured per-file counts for relations filtering (calls/usages dropped).
+- [ ] Add `relationBoost` + `annCandidatePolicy` to explain output.
+- [ ] Gate new features behind `quality=max` by default (unless explicit config enables).
+- [ ] Add a compact summary line to build logs when lexicon filtering is active (opt-in via verbose).
+ - [ ] Add a “lexicon status” section to explain output when enabled (source file + version).
+
+### Tests
+- [ ] `tests/retrieval/explain-includes-relation-boost.test.js`
+- [ ] `tests/retrieval/explain-includes-ann-policy.test.js`
+- [ ] `tests/indexing/logging/lexicon-filter-counts.test.js` (log line shape, opt-in)
+
+---
+
+## Notes / Implementation Guidelines
+
+- Prefer fail-open behavior for all lexicon-based filtering.
+- Keep relation filtering conservative (keywords + literals only) unless explicitly configured per language.
+- Preserve ordering; dedupe only with stable, deterministic behavior.
+- Avoid new CLI flags unless required; prefer config + quality gating.
+- When adding config, update docs/config schema + contract and keep drift tests passing.
+- Make sure any new config keys are included in config inventory + env/config precedence docs if referenced.
+ - All new lexicon behavior must be disabled by `indexing.lexicon.enabled=false`.
+
+---
+
+## Known Touchpoints (Function Names)
+
+Use these function names to anchor changes:
+
+- `processFiles(...)` in `src/index/build/indexer/steps/process-files.js` (tree-sitter deferral logic already uses ordering helpers).
+- `buildFileRelations(...)` and `buildCallIndex(...)` in `src/index/build/file-processor/relations.js`.
+- `createSearchPipeline(...)` in `src/retrieval/pipeline.js` (scoring + ANN candidate handling).
+- `buildQueryPlan(...)` in `src/retrieval/cli/query-plan.js` (token source).
+- `appendChunk(...)` in `src/index/build/state.js` (chargrams from fieldTokens).
+
+---
+
+## Proposed Phase Order
+
+1. 11.9.0 – Setup + contracts (config schema + docs + lexicon schema).
+2. 11.9.1 – Lexicon loader + wordlists.
+3. 11.9.2 – Build-time relations filtering.
+4. 11.9.4 – Chargram enrichment + ANN candidate safety (foundation for retrieval safety).
+5. 11.9.3 – Retrieval relation boosts (ranking-only).
+6. 11.9.5 – Observability + rollout gating.
+
+---
 
