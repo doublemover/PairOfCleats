@@ -319,6 +319,7 @@ export const processFiles = async ({
         complexityEnabled: runtimeRef.complexityEnabled,
         tokenizationStats,
         structuralMatches,
+        documentExtractionConfig: runtimeRef.indexingConfig?.documentExtraction || null,
         cacheConfig: runtimeRef.cacheConfig,
         cacheReporter,
         queues: runtimeRef.queues,

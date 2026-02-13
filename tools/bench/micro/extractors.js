@@ -4,7 +4,8 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import yargs from 'yargs/yargs';
 import { hideBin } from 'yargs/helpers';
-import { tryImport } from '../../../src/shared/optional-deps.js';
+import { extractPdf, loadPdfExtractorRuntime } from '../../../src/index/extractors/pdf.js';
+import { extractDocx, loadDocxExtractorRuntime } from '../../../src/index/extractors/docx.js';
 import { formatStats, summarizeDurations } from './utils.js';
 
 const argv = yargs(hideBin(process.argv))
@@ -58,23 +59,49 @@ const results = {
   docx: { available: false, files: [] }
 };
 
-const pdfjs = pdfFiles.length ? await loadPdfJs() : null;
+const pdfRuntime = pdfFiles.length ? await loadPdfExtractorRuntime() : null;
 if (pdfFiles.length) {
-  if (!pdfjs) {
+  if (!pdfRuntime?.ok) {
     results.pdf.available = false;
   } else {
     results.pdf.available = true;
-    results.pdf.files = await runExtractorBench(pdfFiles, (filePath) => extractPdf(filePath, pdfjs), { iterations, warmup });
+    results.pdf.files = await runExtractorBench(
+      pdfFiles,
+      async (filePath, buffer) => {
+        const extracted = await extractPdf({ filePath, buffer });
+        if (!extracted.ok) {
+          throw new Error(`pdf extract failed (${extracted.reason})`);
+        }
+        return {
+          pages: extracted.pages.length,
+          chars: extracted.pages.reduce((sum, page) => sum + String(page?.text || '').length, 0)
+        };
+      },
+      { iterations, warmup }
+    );
   }
 }
 
-const mammoth = docxFiles.length ? await loadMammoth() : null;
+const docxRuntime = docxFiles.length ? await loadDocxExtractorRuntime() : null;
 if (docxFiles.length) {
-  if (!mammoth) {
+  if (!docxRuntime?.ok) {
     results.docx.available = false;
   } else {
     results.docx.available = true;
-    results.docx.files = await runExtractorBench(docxFiles, (filePath) => extractDocx(filePath, mammoth), { iterations, warmup });
+    results.docx.files = await runExtractorBench(
+      docxFiles,
+      async (filePath, buffer) => {
+        const extracted = await extractDocx({ filePath, buffer });
+        if (!extracted.ok) {
+          throw new Error(`docx extract failed (${extracted.reason})`);
+        }
+        return {
+          paragraphs: extracted.paragraphs.length,
+          chars: extracted.paragraphs.reduce((sum, paragraph) => sum + String(paragraph?.text || '').length, 0)
+        };
+      },
+      { iterations, warmup }
+    );
   }
 }
 
@@ -112,59 +139,13 @@ function normalizePaths(values) {
   return entries.map((entry) => path.resolve(entry));
 }
 
-async function loadPdfJs() {
-  const candidates = [
-    'pdfjs-dist/legacy/build/pdf.js',
-    'pdfjs-dist/legacy/build/pdf.mjs',
-    'pdfjs-dist/build/pdf.js',
-    'pdfjs-dist'
-  ];
-  for (const target of candidates) {
-    const result = await tryImport(target);
-    if (!result.ok || !result.mod) continue;
-    const mod = result.mod.default || result.mod;
-    if (mod?.getDocument) return mod;
-  }
-  return null;
-}
-
-async function loadMammoth() {
-  const result = await tryImport('mammoth');
-  if (!result.ok || !result.mod) return null;
-  return result.mod.default || result.mod;
-}
-
-async function extractPdf(filePath, pdfjs) {
-  const data = new Uint8Array(await fsPromises.readFile(filePath));
-  const loadingTask = pdfjs.getDocument({ data });
-  const doc = await loadingTask.promise;
-  const pages = doc.numPages || 0;
-  let chars = 0;
-  for (let pageIndex = 1; pageIndex <= pages; pageIndex += 1) {
-    const page = await doc.getPage(pageIndex);
-    const content = await page.getTextContent();
-    const items = content.items || [];
-    for (const item of items) {
-      if (item?.str) chars += item.str.length;
-    }
-  }
-  if (doc?.destroy) await doc.destroy();
-  if (loadingTask?.destroy) await loadingTask.destroy();
-  return { pages, chars };
-}
-
-async function extractDocx(filePath, mammoth) {
-  const result = await mammoth.extractRawText({ path: filePath });
-  const value = result?.value || '';
-  return { chars: value.length, messages: Array.isArray(result?.messages) ? result.messages.length : 0 };
-}
-
 async function runExtractorBench(files, extractFn, { iterations, warmup }) {
   const runs = [];
   for (const filePath of files) {
     const stat = await fsPromises.stat(filePath);
+    const buffer = await fsPromises.readFile(filePath);
     for (let i = 0; i < warmup; i += 1) {
-      await extractFn(filePath);
+      await extractFn(filePath, buffer);
     }
     const timings = [];
     let maxRss = 0;
@@ -172,7 +153,7 @@ async function runExtractorBench(files, extractFn, { iterations, warmup }) {
     let lastMeta = null;
     for (let i = 0; i < iterations; i += 1) {
       const start = process.hrtime.bigint();
-      lastMeta = await extractFn(filePath);
+      lastMeta = await extractFn(filePath, buffer);
       const elapsed = Number(process.hrtime.bigint() - start) / 1e6;
       timings.push(elapsed);
       const mem = process.memoryUsage();

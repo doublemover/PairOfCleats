@@ -8,6 +8,25 @@ const check = (name, options, { allowEsm = false } = {}) => {
   return allowEsm && result.reason === 'unsupported';
 };
 
+const checkCandidates = (candidates, options, {
+  allowEsm = false,
+  validate = null
+} = {}) => {
+  for (const name of candidates || []) {
+    const result = tryRequire(name, options);
+    if (result.ok) {
+      if (typeof validate === 'function') {
+        const mod = result.mod?.default || result.mod;
+        if (validate(mod)) return true;
+        continue;
+      }
+      return true;
+    }
+    if (allowEsm && result.reason === 'unsupported') return true;
+  }
+  return false;
+};
+
 export function getCapabilities(options = {}) {
   if (cached && options.refresh !== true) return cached;
   const opts = {
@@ -32,8 +51,24 @@ export function getCapabilities(options = {}) {
       zstd: check('@mongodb-js/zstd', opts)
     },
     extractors: {
-      pdf: check('pdfjs-dist', opts),
-      docx: check('mammoth', opts)
+      pdf: checkCandidates(
+        [
+          'pdfjs-dist/legacy/build/pdf.js',
+          'pdfjs-dist/legacy/build/pdf.mjs',
+          'pdfjs-dist/build/pdf.js',
+          'pdfjs-dist'
+        ],
+        opts,
+        {
+          allowEsm: true,
+          validate: (mod) => typeof mod?.getDocument === 'function'
+        }
+      ),
+      docx: checkCandidates(
+        ['mammoth', 'docx'],
+        opts,
+        { allowEsm: true }
+      )
     },
     mcp: {
       sdk: check('@modelcontextprotocol/sdk', opts, { allowEsm: true }),

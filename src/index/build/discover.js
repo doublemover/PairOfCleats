@@ -17,6 +17,8 @@ import { pickMinLimit, resolveFileCaps } from './file-processor/read.js';
 import { getEnvConfig } from '../../shared/env.js';
 import { MINIFIED_NAME_REGEX, normalizeRoot } from './watch/shared.js';
 
+const DOCUMENT_EXTS = new Set(['.pdf', '.docx']);
+
 /**
  * Recursively discover indexable files under a directory.
  * @param {{root:string,mode:'code'|'prose'|'extracted-prose',recordsDir?:string|null,ignoreMatcher:import('ignore').Ignore,skippedFiles:Array, maxFileBytes:number|null,fileCaps?:object,maxDepth?:number|null,maxFiles?:number|null}} input
@@ -25,6 +27,7 @@ import { MINIFIED_NAME_REGEX, normalizeRoot } from './watch/shared.js';
 export async function discoverFiles({
   root,
   mode,
+  documentExtractionConfig = null,
   recordsDir = null,
   recordsConfig = null,
   scmProvider = null,
@@ -53,7 +56,7 @@ export async function discoverFiles({
     abortSignal
   });
   if (skippedFiles) skippedFiles.push(...skippedCommon);
-  return filterEntriesByMode(entries, mode, skippedFiles);
+  return filterEntriesByMode(entries, mode, skippedFiles, documentExtractionConfig);
 }
 
 /**
@@ -64,6 +67,7 @@ export async function discoverFiles({
 export async function discoverFilesForModes({
   root,
   modes,
+  documentExtractionConfig = null,
   recordsDir = null,
   recordsConfig = null,
   scmProvider = null,
@@ -95,7 +99,7 @@ export async function discoverFilesForModes({
   for (const mode of modes) {
     const skipped = skippedByMode && skippedByMode[mode] ? skippedByMode[mode] : null;
     if (skipped) skipped.push(...skippedCommon);
-    output[mode] = filterEntriesByMode(entries, mode, skipped);
+    output[mode] = filterEntriesByMode(entries, mode, skipped, documentExtractionConfig);
   }
   return output;
 }
@@ -327,7 +331,9 @@ export async function discoverEntries({
   return { entries, skippedCommon };
 }
 
-function filterEntriesByMode(entries, mode, skippedFiles) {
+function filterEntriesByMode(entries, mode, skippedFiles, documentExtractionConfig = null) {
+  const documentExtractionEnabled = documentExtractionConfig?.enabled === true;
+  const allowDocumentExt = mode === 'extracted-prose' && documentExtractionEnabled;
   const output = [];
   for (const entry of entries) {
     if (entry.record) {
@@ -355,7 +361,8 @@ function filterEntriesByMode(entries, mode, skippedFiles) {
     const isCode = mode === 'code' || mode === 'extracted-prose';
     const allowed = (isProse && EXTS_PROSE.has(entry.ext))
       || (isCode && (EXTS_CODE.has(entry.ext) || entry.isSpecial))
-      || (mode === 'extracted-prose' && EXTS_PROSE.has(entry.ext));
+      || (mode === 'extracted-prose' && EXTS_PROSE.has(entry.ext))
+      || (allowDocumentExt && DOCUMENT_EXTS.has(entry.ext));
     if (!allowed) {
       if (skippedFiles) skippedFiles.push({ file: entry.abs, reason: 'unsupported' });
       continue;

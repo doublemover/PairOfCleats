@@ -514,6 +514,7 @@ export const runStage = async (stage, context, { allowSqlite = true } = {}) => {
         const preprocess = await preprocessFiles({
           root: runtime.root,
           modes: preprocessModes,
+          documentExtractionConfig: runtime.indexingConfig?.documentExtraction || null,
           recordsDir: runtime.recordsDir,
           recordsConfig: runtime.recordsConfig,
           scmProvider: runtime.scmProvider,

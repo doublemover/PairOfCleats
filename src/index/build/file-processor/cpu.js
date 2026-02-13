@@ -101,6 +101,7 @@ export const processFileCpu = async (context) => {
     rel,
     relKey,
     text,
+    documentExtraction,
     fileStat,
     fileHash,
     fileHashAlgo,
@@ -261,7 +262,10 @@ export const processFileCpu = async (context) => {
     throw err;
   }
   fileLanguageId = lang?.id || null;
-  if (!lang && languageOptions?.skipUnknownLanguages) {
+  const allowUnknownLanguage = mode === 'prose'
+    || mode === 'extracted-prose'
+    || (documentExtraction && typeof documentExtraction === 'object');
+  if (!lang && languageOptions?.skipUnknownLanguages && !allowUnknownLanguage) {
     return {
       chunks: [],
       fileRelations: null,
