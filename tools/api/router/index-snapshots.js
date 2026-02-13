@@ -27,7 +27,7 @@ const handleRepoResolveError = (res, err, corsHeaders) => {
 
 const parseBodyOrError = async (req, res, parseJsonBody, corsHeaders) => {
   try {
-    return await parseJsonBody(req);
+    return { ok: true, payload: await parseJsonBody(req) };
   } catch (err) {
     const status = err?.code === 'ERR_BODY_TOO_LARGE'
       ? 413
@@ -42,7 +42,7 @@ const parseBodyOrError = async (req, res, parseJsonBody, corsHeaders) => {
       {},
       corsHeaders || {}
     );
-    return null;
+    return { ok: false, payload: null };
   }
 };
 
@@ -83,8 +83,20 @@ export const handleIndexSnapshotsRoute = async ({
   }
 
   if (pathname === '/index/snapshots' && req.method === 'POST') {
-    const payload = await parseBodyOrError(req, res, parseJsonBody, corsHeaders);
-    if (!payload) return true;
+    const parsedBody = await parseBodyOrError(req, res, parseJsonBody, corsHeaders);
+    if (!parsedBody.ok) return true;
+    const payload = parsedBody.payload;
+    if (payload == null) {
+      sendError(
+        res,
+        400,
+        ERROR_CODES.INVALID_REQUEST,
+        'Request body cannot be empty or null.',
+        {},
+        corsHeaders || {}
+      );
+      return true;
+    }
 
     let repoPath = '';
     try {
