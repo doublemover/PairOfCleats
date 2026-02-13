@@ -97,6 +97,16 @@ const main = async () => {
     );
   } catch {}
 
+  /**
+   * Resolve the default timeout from requested lanes.
+   *
+   * Precedence matters when multiple lanes are selected: we bias toward the
+   * slowest lane profile first (`ci-long` > `ci` > `gate` > `ci-lite`) so
+   * mixed-lane invocations don't inherit an undersized timeout.
+   *
+   * @param {string[]} lanes
+   * @returns {number}
+   */
   const resolveLaneDefaultTimeout = (lanes) => {
     const laneDefaults = new Map([
       ['ci-lite', 15000],

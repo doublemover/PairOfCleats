@@ -12,6 +12,16 @@ const INDEX_LOAD_RETRY_BASE_DELAY_MS = 25;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/**
+ * Buffer chunked subprocess output into complete lines.
+ *
+ * Child process stream chunks can split lines arbitrarily. We only forward
+ * complete lines to the parent logger so progress rendering stays stable and
+ * does not interleave partial fragments with TTY redraw output.
+ *
+ * @param {(line: string) => void} onLine
+ * @returns {{ push: (text: string) => void, flush: () => void }}
+ */
 const createLineBuffer = (onLine) => {
   let buffer = '';
   return {
@@ -204,6 +214,9 @@ export const runTreeSitterScheduler = async ({
     const stdoutBuffer = streamLogs ? createLineBuffer((line) => log(line)) : null;
     const stderrBuffer = streamLogs ? createLineBuffer((line) => log(line)) : null;
     try {
+      // Avoid stdio='inherit' when we have a logger. Direct child writes bypass
+      // the display/progress handlers and render underneath interactive bars.
+      // Piping and relaying lines keeps all output on the parent render path.
       await spawnSubprocess(process.execPath, [SCHEDULER_EXEC_PATH, '--outDir', outDir], {
         cwd: runtime?.root || undefined,
         env: runtimeEnv,
