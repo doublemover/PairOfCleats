@@ -40,6 +40,21 @@ export const clearRepoCaches = (repoPath) => {
   repoCacheManager.clearRepoCaches(repoPath);
 };
 
+const INDEX_MODES = ['code', 'prose', 'extracted-prose', 'records'];
+
+const hasRepoArtifacts = (repoPath) => {
+  try {
+    const userConfig = loadUserConfig(repoPath);
+    const repoCacheRoot = getRepoCacheRoot(repoPath, userConfig);
+    if (!fs.existsSync(repoCacheRoot) || !fs.statSync(repoCacheRoot).isDirectory()) return false;
+    const buildsRoot = path.join(repoCacheRoot, 'builds');
+    if (fs.existsSync(path.join(buildsRoot, 'current.json'))) return true;
+    return INDEX_MODES.some((mode) => fs.existsSync(path.join(repoCacheRoot, `index-${mode}`)));
+  } catch {
+    return false;
+  }
+};
+
 /**
  * Resolve and validate a repo path.
  * @param {string} inputPath
@@ -50,16 +65,20 @@ export function resolveRepoPath(inputPath) {
   if (!fs.existsSync(base) || !fs.statSync(base).isDirectory()) {
     throw createError(ERROR_CODES.INVALID_REQUEST, `Repo path not found: ${base}`);
   }
-  if (inputPath) {
-    return toRealPathSync(base);
-  }
-  return toRealPathSync(resolveRepoRoot(base));
+  const resolvedRoot = toRealPathSync(resolveRepoRoot(base));
+  if (!inputPath) return resolvedRoot;
+
+  const explicitPath = toRealPathSync(base);
+  if (explicitPath === resolvedRoot) return resolvedRoot;
+  if (hasRepoArtifacts(resolvedRoot)) return resolvedRoot;
+  if (hasRepoArtifacts(explicitPath)) return explicitPath;
+  return resolvedRoot;
 }
 
 const resolveConfigRoot = (args) => {
   const candidate = args?.repoPath ? path.resolve(String(args.repoPath)) : null;
   if (candidate && fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()) {
-    return toRealPathSync(candidate);
+    return toRealPathSync(resolveRepoRoot(candidate));
   }
   return toRealPathSync(resolveRepoRoot(process.cwd()));
 };
