@@ -62,6 +62,7 @@ export const METADATA_V2_SCHEMA = {
   type: 'object',
   required: ['chunkId', 'file'],
   properties: {
+    schemaVersion: { type: ['integer', 'null'], minimum: 1 },
     chunkId: { type: 'string' },
     chunkUid: { type: 'string' },
     chunkUidAlgoVersion: nullableString,
@@ -87,7 +88,15 @@ export const METADATA_V2_SCHEMA = {
         end: { type: ['integer', 'null'], minimum: 0 },
         startLine: { type: ['integer', 'null'], minimum: 0 },
         endLine: { type: ['integer', 'null'], minimum: 0 },
-        embeddingContext: nullableString
+        embeddingContext: nullableString,
+        sourceType: { type: ['string', 'null'], enum: ['pdf', 'docx', null] },
+        pageStart: { type: ['integer', 'null'], minimum: 0 },
+        pageEnd: { type: ['integer', 'null'], minimum: 0 },
+        paragraphStart: { type: ['integer', 'null'], minimum: 0 },
+        paragraphEnd: { type: ['integer', 'null'], minimum: 0 },
+        headingPath: { type: ['array', 'null'], items: { type: 'string' } },
+        windowIndex: { type: ['integer', 'null'], minimum: 0 },
+        anchor: nullableString
       },
       additionalProperties: true
     },

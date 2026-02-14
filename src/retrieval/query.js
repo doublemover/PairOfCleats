@@ -61,6 +61,9 @@ const BOOLEAN_TOKEN = {
 
 const BOOLEAN_OPERATORS = new Set(['and', 'or', 'not']);
 
+const FALLBACK_STRIP_QUOTES = /^["']+|["']+$/g;
+const FALLBACK_HARD_ERROR_PATTERN = /Standalone "-" is not allowed/i;
+
 const tokenizeBooleanQuery = (raw) => {
   const tokens = [];
   const errors = [];
@@ -111,7 +114,18 @@ const tokenizeBooleanQuery = (raw) => {
       i = j + 1;
       continue;
     }
-    if (ch === '!' || (ch === '-' && i + 1 < text.length && !/\s/.test(text[i + 1]))) {
+    if (ch === '!') {
+      tokens.push({ type: BOOLEAN_TOKEN.NOT });
+      i += 1;
+      continue;
+    }
+    if (ch === '-') {
+      let j = i + 1;
+      while (j < text.length && /\s/.test(text[j])) j += 1;
+      if (j >= text.length) {
+        pushError('Standalone "-" is not allowed in boolean queries.');
+        break;
+      }
       tokens.push({ type: BOOLEAN_TOKEN.NOT });
       i += 1;
       continue;
@@ -287,6 +301,45 @@ export function parseQueryInput(raw) {
   }
   const flattened = flattenQueryAst(ast);
   return { ...flattened, ast };
+}
+
+const fallbackTerms = (raw) => String(raw || '')
+  .split(/\s+/)
+  .map((token) => token.trim())
+  .filter(Boolean)
+  .map((token) => token.replace(FALLBACK_STRIP_QUOTES, ''))
+  .filter(Boolean);
+
+/**
+ * Parse query text with grammar-first semantics and controlled fallback.
+ * Fallback is only used for recoverable parser errors.
+ * @param {string} raw
+ * @returns {{parsed:{includeTerms:string[],excludeTerms:string[],phrases:string[],excludePhrases:string[],ast:object|null},strategy:'grammar'|'heuristic-fallback',fallbackReason:string|null}}
+ */
+export function parseQueryWithFallback(raw) {
+  try {
+    return {
+      parsed: parseQueryInput(raw),
+      strategy: 'grammar',
+      fallbackReason: null
+    };
+  } catch (error) {
+    const message = String(error?.message || 'query parse failed');
+    if (FALLBACK_HARD_ERROR_PATTERN.test(message)) {
+      throw error;
+    }
+    return {
+      parsed: {
+        includeTerms: fallbackTerms(raw),
+        excludeTerms: [],
+        phrases: [],
+        excludePhrases: [],
+        ast: null
+      },
+      strategy: 'heuristic-fallback',
+      fallbackReason: message
+    };
+  }
 }
 
 const normalizeToken = (value) => String(value || '').normalize('NFKD');

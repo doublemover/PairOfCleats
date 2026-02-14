@@ -1,0 +1,73 @@
+{
+  "code": {
+    "schemaVersion": 1,
+    "selected": {
+      "type": "bm25",
+      "score": 0.28768207245178085
+    },
+    "sparse": {
+      "type": "bm25",
+      "score": 0.28768207245178085,
+      "normalized": null,
+      "weights": null,
+      "profile": null,
+      "match": null,
+      "variant": null,
+      "tokenizer": null,
+      "variantReason": null,
+      "normalizedQueryChanged": null,
+      "availabilityCode": null,
+      "availabilityReason": null,
+      "fielded": false,
+      "k1": 1.2,
+      "b": 0.75,
+      "ftsFallback": false
+    },
+    "ann": null,
+    "rrf": null,
+    "blend": null,
+    "symbol": null,
+    "phrase": null,
+    "graph": null
+  },
+  "prose": {
+    "schemaVersion": 1,
+    "selected": {
+      "type": "fts",
+      "score": 2
+    },
+    "sparse": {
+      "type": "fts",
+      "score": 2,
+      "normalized": false,
+      "weights": [
+        0,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "profile": "balanced",
+      "match": "\"alpha\"",
+      "variant": "unicode61",
+      "tokenizer": "unicode61 remove_diacritics 2",
+      "variantReason": "default_unicode61",
+      "normalizedQueryChanged": false,
+      "availabilityCode": null,
+      "availabilityReason": null,
+      "fielded": false,
+      "k1": null,
+      "b": null,
+      "ftsFallback": false
+    },
+    "ann": null,
+    "rrf": null,
+    "blend": null,
+    "symbol": null,
+    "phrase": null,
+    "graph": null
+  }
+}

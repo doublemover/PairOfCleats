@@ -101,6 +101,7 @@ export const processFileCpu = async (context) => {
     rel,
     relKey,
     text,
+    documentExtraction,
     fileStat,
     fileHash,
     fileHashAlgo,
@@ -207,7 +208,8 @@ export const processFileCpu = async (context) => {
     && baseTreeSitterConfig?.languagePasses === false
     ? { ...(baseTreeSitterConfig || {}), allowedLanguages }
     : baseTreeSitterConfig;
-  const resolvedSegmentsConfig = mode === 'extracted-prose'
+  const extractedDocumentFile = documentExtraction && typeof documentExtraction === 'object';
+  const resolvedSegmentsConfig = mode === 'extracted-prose' && !extractedDocumentFile
     ? { ...normalizedSegmentsConfig, onlyExtras: true }
     : normalizedSegmentsConfig;
   const treeSitterEnabled = treeSitterConfig?.enabled !== false && mode === 'code';
@@ -261,7 +263,10 @@ export const processFileCpu = async (context) => {
     throw err;
   }
   fileLanguageId = lang?.id || null;
-  if (!lang && languageOptions?.skipUnknownLanguages) {
+  const allowUnknownLanguage = mode === 'prose'
+    || mode === 'extracted-prose'
+    || extractedDocumentFile;
+  if (!lang && languageOptions?.skipUnknownLanguages && !allowUnknownLanguage) {
     return {
       chunks: [],
       fileRelations: null,
@@ -454,6 +459,9 @@ export const processFileCpu = async (context) => {
     ...languageContext,
     yamlChunking: languageOptions?.yamlChunking,
     chunking: languageOptions?.chunking,
+    documentExtraction: extractedDocumentFile
+      ? documentExtraction
+      : null,
     javascript: languageOptions?.javascript,
     typescript: languageOptions?.typescript,
     // Tree-sitter chunking is handled by the global scheduler. Prevent per-file

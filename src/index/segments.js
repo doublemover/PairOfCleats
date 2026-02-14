@@ -67,6 +67,7 @@ export function discoverSegments({
   segmentsConfig = null,
   extraSegments = []
 }) {
+  const effectiveMode = mode === 'extracted-prose' ? 'prose' : mode;
   const config = normalizeSegmentsConfig(segmentsConfig);
   if (config.onlyExtras) {
     return finalizeSegments(extraSegments || [], relPath);
@@ -122,7 +123,7 @@ export function discoverSegments({
     }
   }
   const baseSegment = {
-    type: resolveSegmentType(mode, ext),
+    type: resolveSegmentType(effectiveMode, ext),
     languageId,
     start: 0,
     end: text.length,

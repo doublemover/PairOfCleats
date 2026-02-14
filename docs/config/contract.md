@@ -418,6 +418,8 @@ tooling.vfs.tokenMode (string)
 - --file
 - --filter
 - --fts-profile
+- --fts-stemming
+- --fts-trigram
 - --fts-weights
 - --generator
 - --graph-ranking-max-ms

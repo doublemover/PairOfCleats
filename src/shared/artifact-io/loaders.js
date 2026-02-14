@@ -46,6 +46,7 @@ import {
 } from './binary-columnar.js';
 import { formatHash64 } from '../token-id.js';
 import { mergeChunkMetaColdFields } from '../chunk-meta-cold.js';
+import { normalizeMetaV2ForRead } from '../meta-v2.js';
 
 const warnedNonStrictJsonFallback = new Set();
 const warnedMaterializeFallback = new Set();
@@ -1275,6 +1276,16 @@ const mergeChunkMetaColdRows = (hotRows, coldRows) => {
   return hotRows;
 };
 
+const normalizeChunkMetaMetaV2 = (rows) => {
+  if (!Array.isArray(rows) || !rows.length) return rows;
+  for (const row of rows) {
+    if (!row || typeof row !== 'object') continue;
+    if (!Object.prototype.hasOwnProperty.call(row, 'metaV2')) continue;
+    row.metaV2 = normalizeMetaV2ForRead(row.metaV2);
+  }
+  return rows;
+};
+
 export const loadChunkMeta = async (
   dir,
   {
@@ -1290,7 +1301,7 @@ export const loadChunkMeta = async (
   const validationMode = strict ? 'strict' : 'trusted';
   const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
   const maybeMergeCold = async (rows) => {
-    if (!includeCold) return rows;
+    if (!includeCold) return normalizeChunkMetaMetaV2(rows);
     const coldRows = await loadChunkMetaColdRows({
       dir,
       maxBytes,
@@ -1298,7 +1309,7 @@ export const loadChunkMeta = async (
       strict,
       validationMode
     });
-    return mergeChunkMetaColdRows(rows, coldRows);
+    return normalizeChunkMetaMetaV2(mergeChunkMetaColdRows(rows, coldRows));
   };
   const loadChunkMetaJsonlFallback = async () => {
     const fallback = resolveJsonlFallbackSources(dir, 'chunk_meta');

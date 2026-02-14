@@ -110,6 +110,18 @@ This document maps user-visible behavior to implementation, configuration switch
   - Tests: `tests/cli/search/search-explain-symbol.test.js`, `tests/cli/search/search-rrf.test.js`, `tests/retrieval/contracts/result-shape.test.js`, `tests/retrieval/filters/query-syntax/phrases-and-scorebreakdown.test.js`.
   - Limitations: explain output is only available for JSON/human modes that emit it.
 
+- Claim: score breakdown payloads are schema-versioned and bounded by one shared output budget policy.
+  - Implementation: `src/retrieval/output/score-breakdown.js` (`createScoreBreakdown`, `applyScoreBreakdownBudget`, `applyOutputBudgetPolicy`), `src/retrieval/pipeline.js` (score breakdown creation), `src/retrieval/cli/render.js` (payload budget application).
+  - Config: defaults are enforced even when no explicit budget config is provided.
+  - Tests: `tests/retrieval/contracts/score-breakdown-contract-parity.test.js`, `tests/retrieval/contracts/score-breakdown-snapshots.test.js`, `tests/retrieval/contracts/score-breakdown-budget-limits.test.js`, `tests/retrieval/output/explain-output-includes-routing-and-fts-match.test.js`.
+  - Limitations: byte budget pruning may null optional explain blocks before selected score metadata.
+
+- Claim: query parsing is grammar-first with recoverable fallback; unary `-` supports optional whitespace and standalone `-` is invalid.
+  - Implementation: `src/retrieval/query.js` (`parseQueryInput`, `parseQueryWithFallback`), `src/retrieval/cli/query-plan.js` (parser fallback wiring), `src/retrieval/query-intent.js` (intent fallback reason output).
+  - Config: n/a.
+  - Tests: `tests/retrieval/query/boolean-unary-not-whitespace.test.js`, `tests/retrieval/query/query-intent-path-heuristics.test.js`, `tests/retrieval/query/boolean-inventory-vs-semantics.test.js`, `tests/retrieval/query/golden-query-corpus.test.js`.
+  - Limitations: phrase escaping is quote-delimited only; backslash escapes are treated as literal text.
+
 - Claim: ranking blends BM25 + ANN with optional RRF; ANN backends are exercised by sqlite, HNSW, and LanceDB tests.
   - Implementation: `src/retrieval/pipeline.js` (`mergeRanked`, `blendRanked`), `src/retrieval/rankers.js` (`rankDenseVectors`), `src/shared/hnsw.js` (`loadHnswIndex`).
   - Config: `search.bm25.*`, `search.scoreBlend.*`, `search.rrf.*`, `search.annDefault`; CLI `--ann`.

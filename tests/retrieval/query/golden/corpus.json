@@ -1,0 +1,22 @@
+[
+  {
+    "id": "path_ts",
+    "query": "src/utils/file.ts"
+  },
+  {
+    "id": "url_https",
+    "query": "https://example.com/docs/api"
+  },
+  {
+    "id": "negation_spaced",
+    "query": "alpha - beta"
+  },
+  {
+    "id": "recover_unbalanced_quote",
+    "query": "alpha \"beta"
+  },
+  {
+    "id": "inventory_list",
+    "query": "tokens:[alpha,beta]"
+  }
+]

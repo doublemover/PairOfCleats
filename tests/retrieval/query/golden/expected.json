@@ -1,0 +1,85 @@
+[
+  {
+    "id": "path_ts",
+    "parseStrategy": "grammar",
+    "parseFallbackReason": null,
+    "includeTerms": [
+      "src/utils/file.ts"
+    ],
+    "excludeTerms": [],
+    "phrases": [],
+    "excludePhrases": [],
+    "astType": "term",
+    "intentType": "path",
+    "intentReason": "dominant path signals",
+    "intentParseStrategy": "grammar",
+    "intentFallbackReason": null
+  },
+  {
+    "id": "url_https",
+    "parseStrategy": "grammar",
+    "parseFallbackReason": null,
+    "includeTerms": [
+      "https://example.com/docs/api"
+    ],
+    "excludeTerms": [],
+    "phrases": [],
+    "excludePhrases": [],
+    "astType": "term",
+    "intentType": "url",
+    "intentReason": "dominant url signals",
+    "intentParseStrategy": "grammar",
+    "intentFallbackReason": null
+  },
+  {
+    "id": "negation_spaced",
+    "parseStrategy": "grammar",
+    "parseFallbackReason": null,
+    "includeTerms": [
+      "alpha"
+    ],
+    "excludeTerms": [
+      "beta"
+    ],
+    "phrases": [],
+    "excludePhrases": [],
+    "astType": "and",
+    "intentType": "mixed",
+    "intentReason": "signals mixed or weak",
+    "intentParseStrategy": "grammar",
+    "intentFallbackReason": null
+  },
+  {
+    "id": "recover_unbalanced_quote",
+    "parseStrategy": "heuristic-fallback",
+    "parseFallbackReason": "Unbalanced quote in query.",
+    "includeTerms": [
+      "alpha",
+      "beta"
+    ],
+    "excludeTerms": [],
+    "phrases": [],
+    "excludePhrases": [],
+    "astType": null,
+    "intentType": "mixed",
+    "intentReason": "signals mixed or weak; fallback=Unbalanced quote in query.",
+    "intentParseStrategy": "heuristic-fallback",
+    "intentFallbackReason": "Unbalanced quote in query."
+  },
+  {
+    "id": "inventory_list",
+    "parseStrategy": "grammar",
+    "parseFallbackReason": null,
+    "includeTerms": [
+      "tokens:[alpha,beta]"
+    ],
+    "excludeTerms": [],
+    "phrases": [],
+    "excludePhrases": [],
+    "astType": "term",
+    "intentType": "mixed",
+    "intentReason": "signals mixed or weak",
+    "intentParseStrategy": "grammar",
+    "intentFallbackReason": null
+  }
+]

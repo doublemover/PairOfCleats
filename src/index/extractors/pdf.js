@@ -1,0 +1,180 @@
+import fs from 'node:fs/promises';
+import { tryImport } from '../../shared/optional-deps.js';
+import {
+  buildFailedResult,
+  normalizeDocumentExtractionPolicy,
+  normalizeExtractedText,
+  normalizeWarnings,
+  resolvePackageVersion,
+  withTimeout
+} from './common.js';
+
+const PDF_IMPORT_CANDIDATES = [
+  'pdfjs-dist/legacy/build/pdf.js',
+  'pdfjs-dist/legacy/build/pdf.mjs',
+  'pdfjs-dist/build/pdf.js',
+  'pdfjs-dist'
+];
+
+const PASSWORD_HINT = /password|encrypt/i;
+const TESTING_ENV = process.env.PAIROFCLEATS_TESTING === '1';
+const FORCE_MISSING_ENV = TESTING_ENV && process.env.PAIROFCLEATS_TEST_FORCE_PDF_MISSING === '1';
+const STUB_EXTRACT_ENV = TESTING_ENV && process.env.PAIROFCLEATS_TEST_STUB_PDF_EXTRACT === '1';
+const STUB_DELAY_MS = TESTING_ENV
+  ? Math.max(0, Number(process.env.PAIROFCLEATS_TEST_STUB_PDF_EXTRACT_DELAY_MS) || 0)
+  : 0;
+
+let cachedRuntime = null;
+
+const normalizeItemText = (value) => normalizeExtractedText(value);
+
+const normalizePageText = (items) => {
+  let text = '';
+  for (const item of items || []) {
+    const raw = item?.str;
+    if (!raw) continue;
+    const value = normalizeItemText(raw);
+    if (!value) continue;
+    if (!text) {
+      text = value;
+      continue;
+    }
+    text += item?.hasEOL ? `\n${value}` : ` ${value}`;
+  }
+  return normalizeExtractedText(text);
+};
+
+const resolvePdfFailureReason = (err) => {
+  const code = String(err?.code || '');
+  const name = String(err?.name || '');
+  const message = String(err?.message || '');
+  if (code === 'EXTRACT_TIMEOUT') return 'extract_timeout';
+  if (name === 'PasswordException' || PASSWORD_HINT.test(message)) return 'unsupported_encrypted';
+  return 'extract_failed';
+};
+
+export async function loadPdfExtractorRuntime({ refresh = false } = {}) {
+  if (FORCE_MISSING_ENV) {
+    cachedRuntime = {
+      ok: false,
+      reason: 'missing_dependency',
+      name: 'pdfjs-dist',
+      version: null,
+      target: null,
+      mod: null
+    };
+    return cachedRuntime;
+  }
+  if (cachedRuntime && !refresh) return cachedRuntime;
+  for (const target of PDF_IMPORT_CANDIDATES) {
+    const imported = await tryImport(target);
+    if (!imported.ok || !imported.mod) continue;
+    const mod = imported.mod.default || imported.mod;
+    if (typeof mod?.getDocument !== 'function') continue;
+    cachedRuntime = {
+      ok: true,
+      name: 'pdfjs-dist',
+      version: resolvePackageVersion('pdfjs-dist'),
+      target,
+      mod
+    };
+    return cachedRuntime;
+  }
+  cachedRuntime = {
+    ok: false,
+    reason: 'missing_dependency',
+    name: 'pdfjs-dist',
+    version: resolvePackageVersion('pdfjs-dist'),
+    target: null,
+    mod: null
+  };
+  return cachedRuntime;
+}
+
+export async function extractPdf({
+  filePath = null,
+  buffer = null,
+  policy = null
+} = {}) {
+  const resolvedPolicy = normalizeDocumentExtractionPolicy(policy);
+  const warnings = [];
+  const source = Buffer.isBuffer(buffer)
+    ? buffer
+    : (filePath ? await fs.readFile(filePath) : null);
+  if (!source) {
+    return buildFailedResult('extract_failed', ['Missing file buffer']);
+  }
+  if (source.length > resolvedPolicy.maxBytesPerFile) {
+    return buildFailedResult('oversize');
+  }
+  if (STUB_EXTRACT_ENV) {
+    try {
+      return await withTimeout(async () => {
+        if (STUB_DELAY_MS > 0) {
+          await new Promise((resolve) => setTimeout(resolve, STUB_DELAY_MS));
+        }
+        const text = normalizeExtractedText(source.toString('utf8'));
+        if (!text) return buildFailedResult('unsupported_scanned');
+        return {
+          ok: true,
+          pages: [{ pageNumber: 1, text }],
+          warnings: [],
+          extractor: {
+            name: 'pdf-test-stub',
+            version: 'test',
+            target: 'stub'
+          }
+        };
+      }, resolvedPolicy.extractTimeoutMs);
+    } catch (err) {
+      return buildFailedResult(resolvePdfFailureReason(err), [err?.message]);
+    }
+  }
+  const runtime = await loadPdfExtractorRuntime();
+  if (!runtime.ok || !runtime.mod) {
+    return buildFailedResult('missing_dependency');
+  }
+  try {
+    const result = await withTimeout(async () => {
+      const pdfjs = runtime.mod;
+      const loadingTask = pdfjs.getDocument({
+        data: new Uint8Array(source),
+        isEvalSupported: false,
+        useSystemFonts: false
+      });
+      const doc = await loadingTask.promise;
+      const numPages = Number(doc?.numPages) || 0;
+      if (numPages > resolvedPolicy.maxPages) {
+        if (typeof doc?.destroy === 'function') await doc.destroy();
+        if (typeof loadingTask?.destroy === 'function') await loadingTask.destroy();
+        return buildFailedResult('oversize');
+      }
+      const pages = [];
+      for (let pageNumber = 1; pageNumber <= numPages; pageNumber += 1) {
+        const page = await doc.getPage(pageNumber);
+        const content = await page.getTextContent();
+        const text = normalizePageText(content?.items || []);
+        pages.push({ pageNumber, text });
+      }
+      if (typeof doc?.destroy === 'function') await doc.destroy();
+      if (typeof loadingTask?.destroy === 'function') await loadingTask.destroy();
+      const nonEmptyPageCount = pages.reduce((count, page) => count + (page.text ? 1 : 0), 0);
+      if (!pages.length || nonEmptyPageCount === 0) {
+        return buildFailedResult('unsupported_scanned');
+      }
+      return {
+        ok: true,
+        pages,
+        warnings: normalizeWarnings(warnings),
+        extractor: {
+          name: runtime.name,
+          version: runtime.version,
+          target: runtime.target
+        }
+      };
+    }, resolvedPolicy.extractTimeoutMs);
+    return result;
+  } catch (err) {
+    return buildFailedResult(resolvePdfFailureReason(err), [err?.message]);
+  }
+}

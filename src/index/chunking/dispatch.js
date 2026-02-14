@@ -49,7 +49,9 @@ import { buildPerlChunks } from '../../lang/perl.js';
 import { buildShellChunks } from '../../lang/shell.js';
 import { chunkIniToml } from './formats/ini-toml.js';
 import { chunkJson } from './formats/json.js';
+import { chunkDocxDocument } from './formats/docx.js';
 import { chunkMarkdown } from './formats/markdown.js';
+import { chunkPdfDocument } from './formats/pdf.js';
 import { chunkRst, chunkAsciiDoc } from './formats/rst-asciidoc.js';
 import { chunkXml } from './formats/xml.js';
 import { chunkYaml } from './formats/yaml.js';
@@ -542,6 +544,8 @@ const CODE_FORMAT_CHUNKERS = [
 ];
 
 const PROSE_CHUNKERS = [
+  { id: 'pdf', match: (ext) => ext === '.pdf', chunk: ({ text, context }) => chunkPdfDocument(text, context) },
+  { id: 'docx', match: (ext) => ext === '.docx', chunk: ({ text, context }) => chunkDocxDocument(text, context) },
   { id: 'markdown', match: (ext) => ext === '.md' || ext === '.mdx', chunk: ({ text, ext, context }) => chunkMarkdown(text, ext, context) },
   { id: 'rst', match: (ext) => ext === '.rst', chunk: ({ text }) => chunkRst(text) },
   { id: 'asciidoc', match: (ext) => ext === '.adoc' || ext === '.asciidoc', chunk: ({ text }) => chunkAsciiDoc(text) }

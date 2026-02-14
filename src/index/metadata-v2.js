@@ -1,6 +1,7 @@
 import { buildChunkId } from './chunk-id.js';
 import { buildSymbolIdentity } from './identity/symbol.js';
 import { collectDeclaredReturnTypes, pickDeclaredReturnType } from '../shared/docmeta.js';
+import { META_V2_SCHEMA_VERSION, normalizeMetaV2ForWrite } from '../shared/meta-v2.js';
 
 const normalizeString = (value) => {
   if (value === null || value === undefined) return null;
@@ -187,6 +188,7 @@ export function buildMetaV2({ chunk, docmeta, toolInfo, analysisPolicy }) {
   };
 
   const metadata = {
+    schemaVersion: META_V2_SCHEMA_VERSION,
     chunkId,
     chunkUid,
     chunkUidAlgoVersion: normalizeString(identity?.chunkUidAlgoVersion || (chunkUid ? 'v1' : null)),
@@ -210,7 +212,17 @@ export function buildMetaV2({ chunk, docmeta, toolInfo, analysisPolicy }) {
         end: Number.isFinite(segment.end) ? segment.end : null,
         startLine: Number.isFinite(segment.startLine) ? segment.startLine : null,
         endLine: Number.isFinite(segment.endLine) ? segment.endLine : null,
-        embeddingContext: normalizeString(segment.embeddingContext)
+        embeddingContext: normalizeString(segment.embeddingContext),
+        sourceType: normalizeString(segment.sourceType),
+        pageStart: Number.isFinite(segment.pageStart) ? segment.pageStart : null,
+        pageEnd: Number.isFinite(segment.pageEnd) ? segment.pageEnd : null,
+        paragraphStart: Number.isFinite(segment.paragraphStart) ? segment.paragraphStart : null,
+        paragraphEnd: Number.isFinite(segment.paragraphEnd) ? segment.paragraphEnd : null,
+        headingPath: Array.isArray(segment.headingPath)
+          ? segment.headingPath.map((entry) => normalizeString(entry)).filter(Boolean)
+          : null,
+        windowIndex: Number.isFinite(segment.windowIndex) ? segment.windowIndex : null,
+        anchor: normalizeString(segment.anchor)
       }
       : null,
     range: {
@@ -275,7 +287,7 @@ export function buildMetaV2({ chunk, docmeta, toolInfo, analysisPolicy }) {
   if (!metadata.modifiers.length) metadata.modifiers = null;
   metadata.symbol = buildSymbolIdentity({ metaV2: metadata });
 
-  return metadata;
+  return normalizeMetaV2ForWrite(metadata);
 }
 
 export const finalizeMetaV2 = ({ chunks, toolInfo, analysisPolicy, debug = false, onMismatch = null }) => {

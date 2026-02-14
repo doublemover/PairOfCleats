@@ -20,6 +20,7 @@ import { runSearchByMode } from './search-runner.js';
 import { resolveStubDims } from '../../shared/embedding.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import { stableStringifyForSignature } from '../../shared/stable-json.js';
+import { resolveSqliteFtsRoutingByMode } from '../routing-policy.js';
 
 export async function runSearchSession({
   rootDir,
@@ -53,8 +54,11 @@ export async function runSearchSession({
   sqliteFtsNormalize,
   sqliteFtsProfile,
   sqliteFtsWeights,
+  sqliteFtsTrigram,
+  sqliteFtsStemming,
   sqliteCodePath,
   sqliteProsePath,
+  sqliteExtractedProsePath,
   bm25K1,
   bm25B,
   fieldWeights,
@@ -131,12 +135,29 @@ export async function runSearchSession({
   };
   throwIfAborted();
   const annAdaptiveProviders = userConfig?.retrieval?.ann?.adaptiveProviders !== false;
+  const sqliteFtsRouting = resolveSqliteFtsRoutingByMode({
+    useSqlite,
+    sqliteFtsRequested,
+    sqliteFtsExplicit: backendLabel === 'sqlite-fts',
+    runCode,
+    runProse,
+    runExtractedProse,
+    runRecords
+  });
+  const sqliteFtsVariantConfig = {
+    explicitTrigram: sqliteFtsTrigram === true,
+    stemming: sqliteFtsStemming === true,
+    substringMode: intentInfo?.type === 'path'
+  };
   const searchPipeline = createSearchPipeline({
     useSqlite,
     sqliteFtsRequested,
+    sqliteFtsRoutingByMode: sqliteFtsRouting,
+    sqliteFtsVariantConfig,
     sqliteFtsNormalize,
     sqliteFtsProfile,
     sqliteFtsWeights,
+    query,
     bm25K1,
     bm25B,
     fieldWeights,
@@ -191,6 +212,7 @@ export async function runSearchSession({
       backendLabel,
       sqliteCodePath,
       sqliteProsePath,
+      sqliteExtractedProsePath,
       runRecords,
       runExtractedProse,
       includeExtractedProse: extractedProseLoaded || commentsEnabled,
@@ -619,6 +641,7 @@ export async function runSearchSession({
       enabled: queryCacheEnabled,
       hit: cacheHit,
       key: cacheKey
-    }
+    },
+    routingPolicy: sqliteFtsRouting
   };
 }

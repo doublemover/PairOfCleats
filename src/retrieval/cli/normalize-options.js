@@ -238,6 +238,9 @@ export function normalizeSearchOptions({
     }
   }
   const sqliteFtsWeights = resolveFtsWeights(sqliteFtsProfile, sqliteFtsWeightsConfig);
+  const sqliteFtsTrigram = argv['fts-trigram'] === true;
+  const sqliteFtsStemming = argv['fts-stemming'] === true
+    || userConfig?.search?.sqliteFtsStemming === true;
 
   const explain = argv.explain === true || argv.why === true;
   const configDenseVectorRaw = userConfig?.search?.denseVectorMode;
@@ -327,6 +330,8 @@ export function normalizeSearchOptions({
     sqliteFtsNormalize,
     sqliteFtsProfile,
     sqliteFtsWeights,
+    sqliteFtsTrigram,
+    sqliteFtsStemming,
     fieldWeightsConfig: searchConfig.fieldWeights || null,
     explain,
     denseVectorMode,

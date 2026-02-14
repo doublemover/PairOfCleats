@@ -20,6 +20,8 @@ import { applyGraphRanking } from './pipeline/graph-ranking.js';
 import { createCandidatePool } from './pipeline/candidate-pool.js';
 import { createScoreBufferPool } from './pipeline/score-buffer.js';
 import { createTopKReducer } from './pipeline/topk.js';
+import { compileFtsMatchQuery } from './fts-query.js';
+import { createScoreBreakdown } from './output/score-breakdown.js';
 
 const SQLITE_IN_LIMIT = 900;
 const MAX_POOL_ENTRIES = 50000;
@@ -29,6 +31,7 @@ const PREFLIGHT_CACHE_TTL_MS = 30000;
 const ANN_ADAPTIVE_FAILURE_PENALTY_MS = 5000;
 const ANN_ADAPTIVE_PREFLIGHT_PENALTY_MS = 10000;
 const ANN_ADAPTIVE_LATENCY_ALPHA = 0.25;
+const FTS_UNAVAILABLE_CODE = 'retrieval_fts_unavailable';
 
 /**
  * Create a search pipeline runner bound to a shared context.
@@ -46,6 +49,7 @@ export function createSearchPipeline(context) {
     bm25B,
     fieldWeights,
     postingsConfig,
+    query,
     queryTokens,
     queryAst,
     phraseNgramSet,
@@ -63,6 +67,8 @@ export function createSearchPipeline(context) {
     scoreBlend,
     minhashMaxDocs,
     sparseBackend,
+    sqliteFtsRoutingByMode,
+    sqliteFtsVariantConfig,
     vectorAnnState,
     vectorAnnUsed,
     hnswAnnState,
@@ -356,7 +362,23 @@ export function createSearchPipeline(context) {
   return async function runSearch(idx, mode, queryEmbedding) {
     throwIfAborted();
     const meta = idx.chunkMeta;
-    const sqliteEnabledForMode = useSqlite && (mode === 'code' || mode === 'prose');
+    const sqliteEnabledForMode = useSqlite && (
+      mode === 'code'
+      || mode === 'prose'
+      || mode === 'extracted-prose'
+    );
+    const sqliteRouteByMode = sqliteFtsRoutingByMode?.byMode?.[mode] || null;
+    const sqliteFtsDesiredForMode = sqliteRouteByMode
+      ? sqliteRouteByMode.desired === 'fts'
+      : sqliteFtsRequested;
+    const sqliteFtsCompilation = compileFtsMatchQuery({
+      queryAst,
+      queryTokens,
+      query,
+      explicitTrigram: sqliteFtsVariantConfig?.explicitTrigram === true,
+      substringMode: sqliteFtsVariantConfig?.substringMode === true,
+      stemmingEnabled: sqliteFtsVariantConfig?.stemming === true
+    });
     const filtersEnabled = typeof filtersActive === 'boolean'
       ? filtersActive
       : hasActiveFilters(filters);
@@ -452,12 +474,16 @@ export function createSearchPipeline(context) {
         let bmHits = [];
         let sparseType = fieldWeightsEnabled ? 'bm25-fielded' : 'bm25';
         let sqliteFtsUsed = false;
+        const sqliteFtsDiagnostics = [];
+        let sqliteFtsOverfetch = null;
         const sqliteFtsAllowed = allowedIdx && allowedCount
           ? (allowedCount <= SQLITE_IN_LIMIT ? ensureAllowedSet(allowedIdx) : null)
           : null;
         const sqliteFtsCanPushdown = !!(sqliteFtsAllowed && sqliteFtsAllowed.size <= SQLITE_IN_LIMIT);
         const sqliteFtsEligible = sqliteEnabledForMode
-        && sqliteFtsRequested
+        && sqliteFtsDesiredForMode
+        && typeof sqliteFtsCompilation.match === 'string'
+        && sqliteFtsCompilation.match.trim().length > 0
         && (typeof sqliteHasFts !== 'function' || sqliteHasFts(mode))
         && (!filtersEnabled || sqliteFtsCanPushdown);
         const wantsTantivy = normalizedSparseBackend === 'tantivy';
@@ -487,9 +513,18 @@ export function createSearchPipeline(context) {
           const ftsResult = sqliteFtsProvider.search({
             idx,
             queryTokens,
+            ftsMatch: sqliteFtsCompilation.match,
             mode,
             topN: expandedTopN,
-            allowedIds: sqliteFtsCanPushdown ? sqliteFtsAllowed : null
+            allowedIds: sqliteFtsCanPushdown ? sqliteFtsAllowed : null,
+            onDiagnostic: (diagnostic) => {
+              if (!diagnostic || typeof diagnostic !== 'object') return;
+              sqliteFtsDiagnostics.push(diagnostic);
+            },
+            onOverfetch: (stats) => {
+              if (!stats || typeof stats !== 'object') return;
+              sqliteFtsOverfetch = stats;
+            }
           });
           bmHits = ftsResult.hits;
           sqliteFtsUsed = bmHits.length > 0;
@@ -522,11 +557,46 @@ export function createSearchPipeline(context) {
           candidates: candidates ? candidates.size : null,
           bmHits: bmHits.length
         };
+        const unavailableDiagnostic = sqliteFtsDiagnostics.find(
+          (entry) => entry?.code === FTS_UNAVAILABLE_CODE
+        );
+        const sqliteRoutingReason = !sqliteEnabledForMode
+          ? 'sqlite_unavailable'
+          : !sqliteFtsDesiredForMode
+            ? 'mode_routed_to_sparse'
+            : !sqliteFtsCompilation.match
+              ? 'empty_fts_match'
+              : (typeof sqliteHasFts === 'function' && !sqliteHasFts(mode))
+                ? 'fts_table_unavailable'
+                : (filtersEnabled && !sqliteFtsCanPushdown)
+                  ? 'filters_require_pushdown'
+                  : (unavailableDiagnostic
+                    ? FTS_UNAVAILABLE_CODE
+                    : 'fts_selected');
+        candidateMetrics.routing = {
+          mode,
+          sqliteEnabledForMode,
+          sqliteFtsDesired: sqliteFtsDesiredForMode,
+          reason: sqliteRoutingReason,
+          route: sqliteRouteByMode || null
+        };
+        candidateMetrics.fts = {
+          match: sqliteFtsCompilation.match,
+          variant: sqliteFtsCompilation.variant,
+          tokenizer: sqliteFtsCompilation.tokenizer,
+          reasonPath: sqliteFtsCompilation.reasonPath,
+          normalizedChanged: sqliteFtsCompilation.normalizedChanged,
+          diagnostics: sqliteFtsDiagnostics,
+          overfetch: sqliteFtsOverfetch
+        };
         candidateMetrics.sqliteFtsUsed = sqliteFtsUsed;
         candidateMetrics.sparseType = sparseType;
-        return { candidates, bmHits, sparseType, sqliteFtsUsed };
+        return { candidates, bmHits, sparseType, sqliteFtsUsed, sqliteFtsDiagnostics };
       });
-      let { candidates, bmHits, sparseType, sqliteFtsUsed } = candidateResult;
+      let { candidates, bmHits, sparseType, sqliteFtsUsed, sqliteFtsDiagnostics } = candidateResult;
+      const sqliteFtsUnavailable = Array.isArray(sqliteFtsDiagnostics)
+        ? sqliteFtsDiagnostics.find((entry) => entry?.code === FTS_UNAVAILABLE_CODE)
+        : null;
 
       // MinHash (embedding) ANN, if requested
       const annMetrics = {};
@@ -848,35 +918,44 @@ export function createSearchPipeline(context) {
               boost: symbolBoost
             };
           }
-          const scoreBreakdown = explain ? {
-            sparse: sparseScore != null ? {
-              type: sparseTypeValue,
-              score: sparseScore,
-              normalized: sparseTypeValue === 'fts' ? sqliteFtsNormalize : null,
-              weights: sparseTypeValue === 'fts' ? sqliteFtsWeights : null,
-              profile: sparseTypeValue === 'fts' ? sqliteFtsProfile : null,
-              fielded: fieldWeightsEnabled || false,
-              k1: sparseTypeValue && sparseTypeValue !== 'fts' ? bm25K1 : null,
-              b: sparseTypeValue && sparseTypeValue !== 'fts' ? bm25B : null,
-              ftsFallback: sqliteFtsRequested ? !sqliteFtsUsed : false
-            } : null,
-            ann: annScore != null ? {
-              score: annScore,
-              source: entry.annSource || null
-            } : null,
-            rrf: useRrf ? blendInfo : null,
-            phrase: phraseNgramSet ? {
-              matches: phraseMatches,
-              boost: phraseBoost,
-              factor: phraseFactor
-            } : null,
-            symbol: symbolInfo,
-            blend: blendEnabled && !useRrf ? blendInfo : null,
-            selected: {
-              type: scoreType,
-              score
-            }
-          } : null;
+          const scoreBreakdown = explain
+            ? createScoreBreakdown({
+              sparse: sparseScore != null ? {
+                type: sparseTypeValue,
+                score: sparseScore,
+                normalized: sparseTypeValue === 'fts' ? sqliteFtsNormalize : null,
+                weights: sparseTypeValue === 'fts' ? sqliteFtsWeights : null,
+                profile: sparseTypeValue === 'fts' ? sqliteFtsProfile : null,
+                match: sparseTypeValue === 'fts' ? sqliteFtsCompilation.match : null,
+                variant: sparseTypeValue === 'fts' ? sqliteFtsCompilation.variant : null,
+                tokenizer: sparseTypeValue === 'fts' ? sqliteFtsCompilation.tokenizer : null,
+                variantReason: sparseTypeValue === 'fts' ? sqliteFtsCompilation.reasonPath : null,
+                normalizedQueryChanged: sparseTypeValue === 'fts' ? sqliteFtsCompilation.normalizedChanged : null,
+                availabilityCode: sqliteFtsUnavailable?.code || null,
+                availabilityReason: sqliteFtsUnavailable?.reason || null,
+                fielded: fieldWeightsEnabled || false,
+                k1: sparseTypeValue && sparseTypeValue !== 'fts' ? bm25K1 : null,
+                b: sparseTypeValue && sparseTypeValue !== 'fts' ? bm25B : null,
+                ftsFallback: sqliteFtsDesiredForMode ? !sqliteFtsUsed : false
+              } : null,
+              ann: annScore != null ? {
+                score: annScore,
+                source: entry.annSource || null
+              } : null,
+              rrf: useRrf ? blendInfo : null,
+              phrase: phraseNgramSet ? {
+                matches: phraseMatches,
+                boost: phraseBoost,
+                factor: phraseFactor
+              } : null,
+              symbol: symbolInfo,
+              blend: blendEnabled && !useRrf ? blendInfo : null,
+              selected: {
+                type: scoreType,
+                score
+              }
+            })
+            : null;
           const payload = {
             idx: idxVal,
             score,

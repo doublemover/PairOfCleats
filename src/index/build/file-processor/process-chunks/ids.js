@@ -61,6 +61,7 @@ export const prepareChunkIds = async ({
   chunks,
   text,
   relKey,
+  namespaceKey = 'repo',
   containerExt,
   containerLanguageId,
   lineIndex,
@@ -76,7 +77,7 @@ export const prepareChunkIds = async ({
     chunks,
     fileText: text,
     fileRelPath: relKey,
-    namespaceKey: 'repo',
+    namespaceKey,
     strict,
     log
   });
