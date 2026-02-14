@@ -982,18 +982,27 @@ export function createSearchPipeline(context) {
         }
 
         if (annEnabled && !annHits.length) {
-          const minhashCandidates = annCandidatePolicy.set;
+          const minhashCandidates = (
+            annCandidatePolicy.reason === ANN_CANDIDATE_POLICY_REASONS.FILTERS_ACTIVE_ALLOWED_IDX
+            && annCandidateBase
+            && annCandidateBase.size > 0
+          )
+            ? annCandidateBase
+            : annCandidatePolicy.set;
           const minhashFallback = annFallback;
           const minhashCandidatesEmpty = minhashCandidates && minhashCandidates.size === 0;
           const minhashTotal = minhashCandidates
             ? minhashCandidates.size
             : (idx.minhash?.signatures?.length || 0);
-          const allowMinhash = minhashTotal > 0 && (!minhashLimit || minhashTotal <= minhashLimit);
-          if (allowMinhash && !minhashCandidatesEmpty) {
+          const allowMinhashCandidates = minhashTotal > 0 && (!minhashLimit || minhashTotal <= minhashLimit);
+          const minhashFallbackTotal = minhashFallback ? minhashFallback.size : 0;
+          const allowMinhashFallback = minhashFallbackTotal > 0
+            && (!minhashLimit || minhashFallbackTotal <= minhashLimit);
+          if (allowMinhashCandidates && !minhashCandidatesEmpty) {
             annHits = rankMinhash(idx, queryTokens, expandedTopN, minhashCandidates);
             if (annHits.length) annSource = 'minhash';
           }
-          if (!annHits.length && allowMinhash && minhashFallback) {
+          if (!annHits.length && allowMinhashFallback) {
             annHits = rankMinhash(idx, queryTokens, expandedTopN, minhashFallback);
             if (annHits.length) annSource = 'minhash';
           }
