@@ -1,6 +1,7 @@
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
 import { forEachRollingChargramHash } from '../../shared/chargram-hash.js';
 import { registerTokenIdInvariant } from '../../shared/invariants.js';
+import { isLexiconStopword } from '../../lang/lexicon/index.js';
 import {
   createTypedTokenPostingMap,
   formatHash64,
@@ -145,6 +146,7 @@ const appendDocIdToPostingValue = (posting, docId) => {
   }
   return posting;
 };
+const ALLOWED_CHARGRAM_FIELDS = new Set(['name', 'signature', 'doc', 'comment', 'body']);
 
 const phraseIdsEqual = (leftIds, rightIds, start) => {
   if (!Array.isArray(leftIds) || !Array.isArray(rightIds)) return false;
@@ -518,6 +520,21 @@ export function appendChunk(
   const fieldedEnabled = config.fielded !== false;
   const tokenClassificationEnabled = config.tokenClassification?.enabled === true;
   const chargramSource = config.chargramSource === 'full' ? 'full' : 'fields';
+  const chargramStopwords = config.chargramStopwords === true;
+  const chargramFieldsRaw = Array.isArray(config.chargramFields)
+    ? config.chargramFields
+    : [];
+  const chargramFields = [];
+  for (const entry of chargramFieldsRaw) {
+    if (typeof entry !== 'string') continue;
+    const normalized = entry.trim().toLowerCase();
+    if (!normalized || !ALLOWED_CHARGRAM_FIELDS.has(normalized)) continue;
+    if (chargramFields.includes(normalized)) continue;
+    chargramFields.push(normalized);
+  }
+  if (!chargramFields.length) {
+    chargramFields.push('name', 'doc');
+  }
   const chargramMinRaw = Number.isFinite(config.chargramMinN)
     ? Math.max(1, Math.floor(config.chargramMinN))
     : DEFAULT_POSTINGS_CONFIG.chargramMinN;
@@ -540,6 +557,10 @@ export function appendChunk(
   const reuseWindow = state.chargramBuffers?.window || null;
   const charSet = reuseSet || new Set();
   if (reuseSet) reuseSet.clear();
+  const chargramLanguageId = chunk?.lang
+    || chunk?.metaV2?.lang
+    || chunk?.metaV2?.effective?.languageId
+    || null;
   if (chargramEnabled) {
     const maxChargramsPerChunk = chargramGuard?.maxPerChunk || 0;
     const chargrams = Array.isArray(chunk.chargrams) && chunk.chargrams.length
@@ -561,6 +582,7 @@ export function appendChunk(
         if (!Array.isArray(tokenList) || !tokenList.length) return;
         for (const w of tokenList) {
           if (chargramMaxTokenLength && w.length > chargramMaxTokenLength) continue;
+          if (chargramStopwords && isLexiconStopword(chargramLanguageId, w, 'chargrams')) continue;
           appendChargramsToSet(
             w,
             chargramMinN,
@@ -578,8 +600,9 @@ export function appendChunk(
         const fields = chunk.fieldTokens;
         // Historically we derived chargrams from "field" text (name + doc). Doing so
         // keeps the chargram vocab bounded even when indexing many languages.
-        addFromTokens(fields.name);
-        addFromTokens(fields.doc);
+        for (const field of chargramFields) {
+          addFromTokens(fields[field]);
+        }
         if (!charSet.size) {
           // Intentionally emit no chargrams when no field tokens exist.
           // Falling back to the full token stream defeats the purpose of

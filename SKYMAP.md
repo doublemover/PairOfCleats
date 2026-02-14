@@ -948,18 +948,18 @@ Improve ranking via relation alignment signals without changing filter semantics
 Enable optional chargram enrichment and enforce one shared candidate safety policy for ANN and minhash.
 
 #### Tasks
-- [ ] Extend postings config for `chargramFields` and `chargramStopwords`.
-- [ ] Support allowed fields: `name`, `signature`, `doc`, `comment`, `body`.
-- [ ] Apply optional lexicon chargram stopword filtering.
-- [ ] Implement shared `resolveAnnCandidateSet(...)` policy used by ANN and minhash.
-- [ ] Candidate policy reason codes:
-  - [ ] `noCandidates`
-  - [ ] `tooLarge`
-  - [ ] `tooSmallNoFilters`
-  - [ ] `filtersActiveAllowedIdx`
-  - [ ] `ok`
-- [ ] Use simple fixed defaults first (`minDocCount=100`, `maxDocCount=20000`) and tune only if needed.
-- [ ] Emit explain payload with input/output sizes and policy reason.
+- [x] Extend postings config for `chargramFields` and `chargramStopwords`.
+- [x] Support allowed fields: `name`, `signature`, `doc`, `comment`, `body`.
+- [x] Apply optional lexicon chargram stopword filtering.
+- [x] Implement shared `resolveAnnCandidateSet(...)` policy used by ANN and minhash.
+- [x] Candidate policy reason codes:
+  - [x] `noCandidates`
+  - [x] `tooLarge`
+  - [x] `tooSmallNoFilters`
+  - [x] `filtersActiveAllowedIdx`
+  - [x] `ok`
+- [x] Use simple fixed defaults first (`minDocCount=100`, `maxDocCount=20000`) and tune only if needed.
+- [x] Emit explain payload with input/output sizes and policy reason.
 
 #### Touchpoints
 - `src/shared/postings-config.js`
@@ -969,13 +969,13 @@ Enable optional chargram enrichment and enforce one shared candidate safety poli
 - `src/retrieval/scoring/ann-candidate-policy.js` (new)
 
 #### Tests
-- [ ] `tests/postings/chargram-fields.test.js`
-- [ ] `tests/postings/chargram-stopwords.test.js`
-- [ ] `tests/retrieval/ann-candidate-policy.test.js`
-- [ ] `tests/retrieval/ann-candidate-policy-contract.test.js`
-- [ ] `tests/retrieval/ann-candidate-policy-minhash-parity.test.js`
-- [ ] `tests/retrieval/ann-candidate-policy-allowedIdx.test.js`
-- [ ] `tests/retrieval/ann-candidate-policy-explain.test.js`
+- [x] `tests/postings/chargram-fields.test.js`
+- [x] `tests/postings/chargram-stopwords.test.js`
+- [x] `tests/retrieval/ann-candidate-policy.test.js`
+- [x] `tests/retrieval/ann-candidate-policy-contract.test.js`
+- [x] `tests/retrieval/ann-candidate-policy-minhash-parity.test.js`
+- [x] `tests/retrieval/ann-candidate-policy-allowedIdx.test.js`
+- [x] `tests/retrieval/ann-candidate-policy-explain.test.js`
 
 ### 19.5 Observability and simple rollout
 

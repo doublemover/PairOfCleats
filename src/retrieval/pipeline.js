@@ -23,6 +23,7 @@ import { createTopKReducer } from './pipeline/topk.js';
 import { compileFtsMatchQuery } from './fts-query.js';
 import { createScoreBreakdown } from './output/score-breakdown.js';
 import { resolveSparseRequiredTables, RETRIEVAL_SPARSE_UNAVAILABLE_CODE } from './sparse/requirements.js';
+import { resolveAnnCandidateSet } from './scoring/ann-candidate-policy.js';
 import { computeRelationBoost } from './scoring/relation-boost.js';
 import { INDEX_PROFILE_VECTOR_ONLY } from '../contracts/index-profile.js';
 
@@ -557,18 +558,6 @@ export function createSearchPipeline(context) {
       }
       throwIfAborted();
 
-      const intersectCandidateSet = (candidateSet, allowedSet) => {
-        if (!allowedSet) return { set: candidateSet, owned: false };
-        const resolvedAllowed = allowedSet instanceof Set ? allowedSet : bitmapToSet(allowedSet);
-        if (!candidateSet) return { set: resolvedAllowed, owned: !(allowedSet instanceof Set) };
-        if (candidateSet === resolvedAllowed) return { set: candidateSet, owned: false };
-        const filtered = candidatePool.acquire();
-        for (const id of candidateSet) {
-          if (hasAllowedId(allowedSet, id)) filtered.add(id);
-        }
-        return { set: filtered, owned: true };
-      };
-
       // Main search: BM25 token match (with optional SQLite FTS first pass)
       const candidateMetrics = {};
       const candidateResult = runStage('candidates', candidateMetrics, () => {
@@ -814,9 +803,19 @@ export function createSearchPipeline(context) {
         };
 
         const annCandidateBase = ensureCandidateBase();
-        const { set: annCandidates, owned: annCandidatesOwned } = intersectCandidateSet(annCandidateBase, allowedIdx);
-        if (annCandidatesOwned) trackReleaseSet(annCandidates);
-        const annFallback = annCandidateBase && allowedIdx ? allowedIdx : null;
+        const annCandidatePolicy = resolveAnnCandidateSet({
+          candidates: annCandidateBase,
+          allowedIds: allowedIdx,
+          filtersActive: filtersEnabled,
+          cap: annCandidatePolicyConfig.cap,
+          minDocCount: annCandidatePolicyConfig.minDocCount,
+          maxDocCount: annCandidatePolicyConfig.maxDocCount,
+          toSet: ensureAllowedSet
+        });
+        const annCandidates = annCandidatePolicy.set;
+        const annFallback = annCandidatePolicy.reason === 'ok' && filtersEnabled && allowedIdx
+          ? ensureAllowedSet(allowedIdx)
+          : null;
 
         const normalizeAnnHits = (hits) => {
           if (!Array.isArray(hits)) return [];
@@ -959,10 +958,8 @@ export function createSearchPipeline(context) {
         }
 
         if (annEnabled && !annHits.length) {
-          const minhashBase = annCandidateBase;
-          const { set: minhashCandidates, owned: minhashOwned } = intersectCandidateSet(minhashBase, allowedIdx);
-          if (minhashOwned) trackReleaseSet(minhashCandidates);
-          const minhashFallback = minhashBase && allowedIdx ? allowedIdx : null;
+          const minhashCandidates = annCandidatePolicy.set;
+          const minhashFallback = annFallback;
           const minhashCandidatesEmpty = minhashCandidates && minhashCandidates.size === 0;
           const minhashTotal = minhashCandidates
             ? minhashCandidates.size
@@ -987,6 +984,7 @@ export function createSearchPipeline(context) {
         annMetrics.profileId = profileId;
         annMetrics.vectorOnlyProfile = vectorOnlyProfile;
         annMetrics.candidatePolicyConfig = annCandidatePolicyConfig;
+        annMetrics.candidatePolicy = annCandidatePolicy.explain;
 
         if (vectorOnlyProfile && !annHits.length) {
           throw createError(
@@ -1004,9 +1002,9 @@ export function createSearchPipeline(context) {
           );
         }
 
-        return { annHits, annSource };
+        return { annHits, annSource, annCandidatePolicy: annCandidatePolicy.explain };
       });
-      let { annHits, annSource } = annResult;
+      let { annHits, annSource, annCandidatePolicy } = annResult;
 
       const fusionBuffer = scoreBufferPool.acquire({
         fields: [
@@ -1158,7 +1156,8 @@ export function createSearchPipeline(context) {
               } : null,
               ann: annScore != null ? {
                 score: annScore,
-                source: entry.annSource || null
+                source: entry.annSource || null,
+                candidatePolicy: annCandidatePolicy || null
               } : null,
               rrf: useRrf ? blendInfo : null,
               phrase: phraseNgramSet ? {

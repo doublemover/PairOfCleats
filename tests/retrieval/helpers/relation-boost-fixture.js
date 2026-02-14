@@ -20,7 +20,14 @@ export const createRelationBoostPipeline = ({
   explain = true,
   filters = {},
   relationBoost = { enabled: true },
-  rankSqliteFts = () => [{ idx: 0, score: 1 }]
+  rankSqliteFts = () => [{ idx: 0, score: 1 }],
+  annEnabled = false,
+  annBackend = 'auto',
+  annCandidateCap = 20000,
+  annCandidateMinDocCount = 100,
+  annCandidateMaxDocCount = 20000,
+  vectorAnnAvailable = false,
+  rankVectorAnnSqlite = () => []
 } = {}) => createSearchPipeline({
   useSqlite: true,
   sqliteFtsRequested: true,
@@ -55,15 +62,21 @@ export const createRelationBoostPipeline = ({
   filters,
   filtersActive: false,
   topN: 10,
-  annEnabled: false,
-  annBackend: 'auto',
+  annEnabled,
+  annBackend,
   scoreBlend: null,
-  annCandidateCap: 20000,
-  annCandidateMinDocCount: 100,
-  annCandidateMaxDocCount: 20000,
+  annCandidateCap,
+  annCandidateMinDocCount,
+  annCandidateMaxDocCount,
   minhashMaxDocs: null,
   sparseBackend: 'auto',
-  vectorAnnState: makeAnnState(),
+  vectorAnnState: {
+    ...makeAnnState(),
+    code: { available: vectorAnnAvailable },
+    prose: { available: false },
+    records: { available: false },
+    'extracted-prose': { available: false }
+  },
   vectorAnnUsed: makeAnnUsed(),
   hnswAnnState: makeAnnState(),
   hnswAnnUsed: makeAnnUsed(),
@@ -80,7 +93,7 @@ export const createRelationBoostPipeline = ({
     avgDocLen: 1
   }),
   rankSqliteFts,
-  rankVectorAnnSqlite: () => [],
+  rankVectorAnnSqlite,
   sqliteHasFts: () => true,
   signal: null,
   rrf: { enabled: false }
