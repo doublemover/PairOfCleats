@@ -18,12 +18,25 @@ const normalizeToken = (value) => {
   return value.trim().toLowerCase();
 };
 
-const resolveDropConfig = ({ languageId, config }) => {
+const resolveRelationsScopes = ({ languageId, config }) => {
   const cfg = asPlainObject(config) || {};
   const relations = asPlainObject(cfg.relations) || {};
   const languageOverrides = asPlainObject(cfg.languageOverrides) || {};
   const languageOverride = asPlainObject(languageOverrides[languageId || '_generic']) || {};
   const languageRelations = asPlainObject(languageOverride.relations) || {};
+  return { relations, languageRelations };
+};
+
+const resolveRelationsEnabled = ({ languageId, config }) => {
+  const { relations, languageRelations } = resolveRelationsScopes({ languageId, config });
+  return normalizeBool(
+    languageRelations.enabled,
+    normalizeBool(relations.enabled, true)
+  );
+};
+
+const resolveDropConfig = ({ languageId, config }) => {
+  const { relations, languageRelations } = resolveRelationsScopes({ languageId, config });
   const globalDrop = asPlainObject(relations.drop) || {};
   const languageDrop = asPlainObject(languageRelations.drop) || {};
 
@@ -141,9 +154,7 @@ export const filterRawRelationsWithLexicon = (rawRelations, {
 
   const cfg = asPlainObject(config) || {};
   const lexiconEnabled = cfg.enabled !== false;
-  const relationsConfig = asPlainObject(cfg.relations) || {};
-  const relationsEnabled = relationsConfig.enabled !== false;
-  if (!lexiconEnabled || !relationsEnabled) return rawRelations;
+  if (!lexiconEnabled) return rawRelations;
 
   let resolvedLexicon;
   try {
@@ -162,7 +173,11 @@ export const filterRawRelationsWithLexicon = (rawRelations, {
 
   if (!resolvedLexicon || typeof resolvedLexicon !== 'object') return rawRelations;
 
-  const dropConfig = resolveDropConfig({ languageId: languageId || resolvedLexicon.languageId, config: cfg });
+  const resolvedLanguageId = languageId || resolvedLexicon.languageId || '_generic';
+  const relationsEnabled = resolveRelationsEnabled({ languageId: resolvedLanguageId, config: cfg });
+  if (!relationsEnabled) return rawRelations;
+
+  const dropConfig = resolveDropConfig({ languageId: resolvedLanguageId, config: cfg });
   const dropSet = buildDropSet(resolvedLexicon, dropConfig);
   if (!dropSet.size) return rawRelations;
 
@@ -258,7 +273,6 @@ export const filterRawRelationsWithLexicon = (rawRelations, {
     filtered.callDetailsWithRange = callDetailsWithRange;
   }
 
-  const resolvedLanguageId = languageId || resolvedLexicon.languageId;
   maybeLogStats({ stats, languageId: resolvedLanguageId, relKey, log });
   return attachFilterStats(filtered, stats, resolvedLanguageId, relKey);
 };
