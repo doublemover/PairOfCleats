@@ -246,6 +246,15 @@ export const processFiles = async ({
       if (result.fileRelations) {
         stateRef.fileRelations.set(result.relKey, result.fileRelations);
       }
+      if (result.lexiconFilterStats && result.relKey) {
+        if (!stateRef.lexiconRelationFilterByFile) {
+          stateRef.lexiconRelationFilterByFile = new Map();
+        }
+        stateRef.lexiconRelationFilterByFile.set(result.relKey, {
+          ...result.lexiconFilterStats,
+          file: result.relKey
+        });
+      }
       if (Array.isArray(result.vfsManifestRows) && result.vfsManifestRows.length) {
         if (!stateRef.vfsManifestCollector) {
           stateRef.vfsManifestCollector = createVfsManifestCollector({

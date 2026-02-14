@@ -983,14 +983,14 @@ Enable optional chargram enrichment and enforce one shared candidate safety poli
 Make lexicon and candidate-policy behavior transparent and easy to enable safely.
 
 #### Tasks
-- [ ] Emit per-file relation filtering counters in build logs and structured report.
-- [ ] Add explain sections for `relationBoost` and `annCandidatePolicy`.
-- [ ] Add lexicon status in explain:
-  - [ ] source file
-  - [ ] format version
-  - [ ] domain token counts
-- [ ] Keep new behavior behind straightforward feature flags.
-- [ ] Enable per repo/team in small steps and revert by toggling flags if issues appear.
+- [x] Emit per-file relation filtering counters in build logs and structured report.
+- [x] Add explain sections for `relationBoost` and `annCandidatePolicy`.
+- [x] Add lexicon status in explain:
+  - [x] source file
+  - [x] format version
+  - [x] domain token counts
+- [x] Keep new behavior behind straightforward feature flags.
+- [x] Enable per repo/team in small steps and revert by toggling flags if issues appear.
 
 #### Touchpoints
 - `src/index/build/file-processor/cpu.js`
@@ -1001,12 +1001,12 @@ Make lexicon and candidate-policy behavior transparent and easy to enable safely
 - `docs/testing/truth-table.md`
 
 #### Tests
-- [ ] `tests/retrieval/explain-includes-relation-boost.test.js`
-  - [ ] Explain includes relation boost fields, units, and bounded token lists.
-- [ ] `tests/retrieval/explain-includes-ann-policy.test.js`
-  - [ ] Explain includes ANN candidate policy input/output and reason code.
-- [ ] `tests/indexing/logging/lexicon-filter-counts.test.js`
-  - [ ] Build logs include deterministic per-file relation filtering counters when enabled.
+- [x] `tests/retrieval/explain-includes-relation-boost.test.js`
+  - [x] Explain includes relation boost fields, units, and bounded token lists.
+- [x] `tests/retrieval/explain-includes-ann-policy.test.js`
+  - [x] Explain includes ANN candidate policy input/output and reason code.
+- [x] `tests/indexing/logging/lexicon-filter-counts.test.js`
+  - [x] Build logs include deterministic per-file relation filtering counters when enabled.
 
 ---
 

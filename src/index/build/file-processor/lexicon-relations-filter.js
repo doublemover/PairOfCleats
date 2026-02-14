@@ -92,12 +92,40 @@ const bumpCategory = (bucket, category) => {
 const maybeLogStats = ({ stats, languageId, relKey, log }) => {
   if (typeof log !== 'function') return;
   const total = stats.droppedCalls + stats.droppedUsages + stats.droppedCallDetails + stats.droppedCallDetailsWithRange;
-  if (!total) return;
   log(
     `lexicon.relations.filtered language=${languageId || '_generic'} file=${relKey || '-'} ` +
-    `callsDropped=${stats.droppedCalls} usagesDropped=${stats.droppedUsages}`
+    `callsDropped=${stats.droppedCalls} usagesDropped=${stats.droppedUsages} ` +
+    `callDetailsDropped=${stats.droppedCallDetails} callDetailsRangeDropped=${stats.droppedCallDetailsWithRange} ` +
+    `totalDropped=${total}`
   );
 };
+
+const attachFilterStats = (relations, stats, languageId, relKey) => {
+  if (!relations || typeof relations !== 'object' || !stats) return relations;
+  Object.defineProperty(relations, '__lexiconFilterStats', {
+    value: {
+      languageId: languageId || '_generic',
+      file: relKey || null,
+      droppedCalls: stats.droppedCalls,
+      droppedUsages: stats.droppedUsages,
+      droppedCallDetails: stats.droppedCallDetails,
+      droppedCallDetailsWithRange: stats.droppedCallDetailsWithRange,
+      droppedTotal: stats.droppedCalls + stats.droppedUsages + stats.droppedCallDetails + stats.droppedCallDetailsWithRange,
+      droppedCallsByCategory: { ...stats.droppedCallsByCategory },
+      droppedUsagesByCategory: { ...stats.droppedUsagesByCategory }
+    },
+    enumerable: false,
+    writable: false,
+    configurable: false
+  });
+  return relations;
+};
+
+export const getLexiconRelationFilterStats = (relations) => (
+  relations && typeof relations === 'object' && relations.__lexiconFilterStats
+    ? relations.__lexiconFilterStats
+    : null
+);
 
 export const filterRawRelationsWithLexicon = (rawRelations, {
   languageId = null,
@@ -227,6 +255,7 @@ export const filterRawRelationsWithLexicon = (rawRelations, {
     filtered.callDetailsWithRange = callDetailsWithRange;
   }
 
-  maybeLogStats({ stats, languageId: languageId || resolvedLexicon.languageId, relKey, log });
-  return filtered;
+  const resolvedLanguageId = languageId || resolvedLexicon.languageId;
+  maybeLogStats({ stats, languageId: resolvedLanguageId, relKey, log });
+  return attachFilterStats(filtered, stats, resolvedLanguageId, relKey);
 };

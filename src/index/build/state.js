@@ -415,6 +415,7 @@ export function createIndexState(options = {}) {
     skippedFiles: [],
     totalTokens: 0,
     fileRelations: new Map(),
+    lexiconRelationFilterByFile: new Map(),
     fileInfoByPath: new Map(),
     fileDetailsByPath: new Map(),
     chunkUidToFile: new Map(),
@@ -893,6 +894,12 @@ export function mergeIndexState(target, source) {
   if (source.fileRelations && typeof source.fileRelations.entries === 'function') {
     for (const [file, relations] of source.fileRelations.entries()) {
       target.fileRelations.set(file, relations);
+    }
+  }
+  if (source.lexiconRelationFilterByFile && typeof source.lexiconRelationFilterByFile.entries === 'function') {
+    if (!target.lexiconRelationFilterByFile) target.lexiconRelationFilterByFile = new Map();
+    for (const [file, stats] of source.lexiconRelationFilterByFile.entries()) {
+      target.lexiconRelationFilterByFile.set(file, stats);
     }
   }
   if (source.fileInfoByPath && typeof source.fileInfoByPath.entries === 'function') {
