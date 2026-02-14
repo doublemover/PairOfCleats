@@ -12,8 +12,8 @@ const srcDir = path.join(repoRoot, 'src');
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(srcDir, { recursive: true });
 
-const commentText = 'extracted-prose sentinel phrase';
-const swiftCommentText = 'swift extracted-prose sentinel phrase';
+const commentText = 'extracted prose sentinel phrase';
+const swiftCommentText = 'swift extracted prose sentinel phrase';
 const mdCommentText = 'markdown comment sentinel phrase';
 const mdPlainText = 'opal zephyr raptor kinetic comet';
 const source = [
