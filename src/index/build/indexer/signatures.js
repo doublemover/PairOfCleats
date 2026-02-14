@@ -117,7 +117,8 @@ export const buildIncrementalSignaturePayload = (runtime, mode, tokenizationKey)
     lexicon: languageOptions.lexicon
       ? {
         enabled: languageOptions.lexicon.enabled !== false,
-        relations: languageOptions.lexicon.relations || null
+        relations: languageOptions.lexicon.relations || null,
+        languageOverrides: languageOptions.lexicon.languageOverrides || null
       }
       : { enabled: true },
     importScan: indexingConfig.importScan ?? null,
