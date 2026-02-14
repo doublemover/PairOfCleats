@@ -23,7 +23,10 @@ import { createTopKReducer } from './pipeline/topk.js';
 import { compileFtsMatchQuery } from './fts-query.js';
 import { createScoreBreakdown } from './output/score-breakdown.js';
 import { resolveSparseRequiredTables, RETRIEVAL_SPARSE_UNAVAILABLE_CODE } from './sparse/requirements.js';
-import { resolveAnnCandidateSet } from './scoring/ann-candidate-policy.js';
+import {
+  ANN_CANDIDATE_POLICY_REASONS,
+  resolveAnnCandidateSet
+} from './scoring/ann-candidate-policy.js';
 import { computeRelationBoost } from './scoring/relation-boost.js';
 import { INDEX_PROFILE_VECTOR_ONLY } from '../contracts/index-profile.js';
 
@@ -829,8 +832,13 @@ export function createSearchPipeline(context) {
           toSet: ensureAllowedSet
         });
         const annCandidates = annCandidatePolicy.set;
-        const annFallback = annCandidatePolicy.reason === 'ok' && filtersEnabled && allowedIdx
+        const allowedFallback = filtersEnabled && allowedIdx
           ? ensureAllowedSet(allowedIdx)
+          : null;
+        const annFallback = allowedFallback
+          && annCandidates !== allowedFallback
+          && annCandidatePolicy.reason !== ANN_CANDIDATE_POLICY_REASONS.FILTERS_ACTIVE_ALLOWED_IDX
+          ? allowedFallback
           : null;
 
         const normalizeAnnHits = (hits) => {
