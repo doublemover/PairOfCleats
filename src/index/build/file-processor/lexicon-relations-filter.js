@@ -39,7 +39,10 @@ const resolveDropConfig = ({ languageId, config }) => {
     literals: normalizeBool(merged.literals, defaults.literals),
     builtins: normalizeBool(merged.builtins, defaults.builtins),
     types: normalizeBool(merged.types, defaults.types),
-    stableDedupe: normalizeBool(relations.stableDedupe, false)
+    stableDedupe: normalizeBool(
+      languageRelations.stableDedupe,
+      normalizeBool(relations.stableDedupe, false)
+    )
   };
 };
 

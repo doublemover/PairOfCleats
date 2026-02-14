@@ -73,4 +73,58 @@ assert.equal(
   'expected file-relation lookup to require exact case when caseFile=true'
 );
 
+const mapCollisionIdx = createRelationBoostIndex({
+  chunks: [{
+    id: 0,
+    file: 'src/FoO.js',
+    lang: 'javascript',
+    tokens: ['alpha'],
+    codeRelations: {}
+  }],
+  fileRelations: new Map([
+    ['src/FOO.js', { usages: ['UpperToken'] }],
+    ['src/foo.js', { usages: ['LowerToken'] }]
+  ])
+});
+const mapCollisionPipeline = createRelationBoostPipeline({
+  query: 'UpperToken',
+  queryTokens: ['uppertoken'],
+  filters: { caseFile: false, caseTokens: false },
+  relationBoost: { enabled: true, perCall: 0.25, perUse: 0.1, maxBoost: 1.5 },
+  rankSqliteFts: () => [{ idx: 0, score: 1 }]
+});
+const mapCollisionHit = (await mapCollisionPipeline(mapCollisionIdx, 'code', null))[0];
+assert.equal(
+  mapCollisionHit?.scoreBreakdown?.relation?.usageMatches,
+  0,
+  'expected ambiguous lowercase relation-map keys to skip case-insensitive fallback'
+);
+
+const objectCollisionIdx = createRelationBoostIndex({
+  chunks: [{
+    id: 0,
+    file: 'src/FoO.js',
+    lang: 'javascript',
+    tokens: ['alpha'],
+    codeRelations: {}
+  }],
+  fileRelations: {
+    'src/FOO.js': { usages: ['UpperToken'] },
+    'src/foo.js': { usages: ['LowerToken'] }
+  }
+});
+const objectCollisionPipeline = createRelationBoostPipeline({
+  query: 'UpperToken',
+  queryTokens: ['uppertoken'],
+  filters: { caseFile: false, caseTokens: false },
+  relationBoost: { enabled: true, perCall: 0.25, perUse: 0.1, maxBoost: 1.5 },
+  rankSqliteFts: () => [{ idx: 0, score: 1 }]
+});
+const objectCollisionHit = (await objectCollisionPipeline(objectCollisionIdx, 'code', null))[0];
+assert.equal(
+  objectCollisionHit?.scoreBreakdown?.relation?.usageMatches,
+  0,
+  'expected ambiguous lowercase relation-object keys to skip case-insensitive fallback'
+);
+
 console.log('relation boost case-folding test passed');
