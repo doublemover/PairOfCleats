@@ -148,8 +148,16 @@ export const resolveAnnCandidateSet = ({
       resolvedSet = null;
     }
   } else if (candidateSize > effectiveMax) {
-    reason = ANN_CANDIDATE_POLICY_REASONS.TOO_LARGE;
-    resolvedSet = null;
+    if (filtersEnabled) {
+      // Keep constrained mode under active filters even when candidate volume
+      // exceeds cap. Switching to full mode can let out-of-filter ANN hits
+      // crowd out required in-filter docs before final filtering.
+      reason = ANN_CANDIDATE_POLICY_REASONS.TOO_LARGE;
+      resolvedSet = candidateSet;
+    } else {
+      reason = ANN_CANDIDATE_POLICY_REASONS.TOO_LARGE;
+      resolvedSet = null;
+    }
   } else if (candidateSize < resolvedMin) {
     const fallbackSet = resolveAllowedFallback();
     if (fallbackSet) {

@@ -22,6 +22,30 @@ const tooLarge = resolveAnnCandidateSet({
 assert.equal(tooLarge.reason, ANN_CANDIDATE_POLICY_REASONS.TOO_LARGE, 'unexpected too-large reason');
 assert.equal(tooLarge.set, null, 'expected too-large candidate policy to return full mode');
 
+const tooLargeWithFilters = resolveAnnCandidateSet({
+  candidates: new Set(Array.from({ length: 50 }, (_, i) => i)),
+  allowedIds: new Set(Array.from({ length: 100 }, (_, i) => i)),
+  filtersActive: true,
+  cap: 40,
+  minDocCount: 5,
+  maxDocCount: 100
+});
+assert.equal(
+  tooLargeWithFilters.reason,
+  ANN_CANDIDATE_POLICY_REASONS.TOO_LARGE,
+  'expected too-large reason when filtered candidate set exceeds cap'
+);
+assert.equal(
+  tooLargeWithFilters.set?.size,
+  50,
+  'expected too-large filtered candidate set to stay constrained under active filters'
+);
+assert.equal(
+  tooLargeWithFilters.explain.outputMode,
+  'constrained',
+  'expected constrained output mode when filters are active'
+);
+
 const tooSmallNoFilters = resolveAnnCandidateSet({
   candidates: new Set([1, 2, 3]),
   filtersActive: false,
