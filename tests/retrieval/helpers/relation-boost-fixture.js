@@ -1,20 +1,4 @@
-#!/usr/bin/env node
-import assert from 'node:assert/strict';
 import { createSearchPipeline } from '../../../src/retrieval/pipeline.js';
-import { resolveSqliteFtsRoutingByMode } from '../../../src/retrieval/routing-policy.js';
-
-const expectedKeys = [
-  'schemaVersion',
-  'selected',
-  'sparse',
-  'ann',
-  'rrf',
-  'blend',
-  'symbol',
-  'phrase',
-  'relation',
-  'graph'
-];
 
 const makeAnnState = () => ({
   code: { available: false },
@@ -30,18 +14,24 @@ const makeAnnUsed = () => ({
   'extracted-prose': false
 });
 
-const pipeline = createSearchPipeline({
+export const createRelationBoostPipeline = ({
+  query = 'alpha',
+  queryTokens = ['alpha'],
+  explain = true,
+  filters = {},
+  relationBoost = { enabled: true },
+  rankSqliteFts = () => [{ idx: 0, score: 1 }]
+} = {}) => createSearchPipeline({
   useSqlite: true,
   sqliteFtsRequested: true,
-  sqliteFtsRoutingByMode: resolveSqliteFtsRoutingByMode({
-    useSqlite: true,
-    sqliteFtsRequested: true,
-    sqliteFtsExplicit: false,
-    runCode: true,
-    runProse: true,
-    runExtractedProse: false,
-    runRecords: false
-  }),
+  sqliteFtsRoutingByMode: {
+    byMode: {
+      code: {
+        desired: 'fts',
+        route: 'fts'
+      }
+    }
+  },
   sqliteFtsVariantConfig: {
     explicitTrigram: false,
     substringMode: false,
@@ -50,8 +40,8 @@ const pipeline = createSearchPipeline({
   sqliteFtsNormalize: false,
   sqliteFtsProfile: 'balanced',
   sqliteFtsWeights: [0, 1, 1, 1, 1, 1, 1, 1],
-  query: 'alpha',
-  queryTokens: ['alpha'],
+  query,
+  queryTokens,
   queryAst: null,
   bm25K1: 1.2,
   bm25B: 0.75,
@@ -59,14 +49,18 @@ const pipeline = createSearchPipeline({
   postingsConfig: { enablePhraseNgrams: false, enableChargrams: false },
   phraseNgramSet: null,
   phraseRange: null,
-  explain: true,
+  explain,
   symbolBoost: { enabled: false },
-  filters: {},
+  relationBoost,
+  filters,
   filtersActive: false,
-  topN: 3,
+  topN: 10,
   annEnabled: false,
   annBackend: 'auto',
   scoreBlend: null,
+  annCandidateCap: 20000,
+  annCandidateMinDocCount: 100,
+  annCandidateMaxDocCount: 20000,
   minhashMaxDocs: null,
   sparseBackend: 'auto',
   vectorAnnState: makeAnnState(),
@@ -85,38 +79,29 @@ const pipeline = createSearchPipeline({
     totalDocs: 1,
     avgDocLen: 1
   }),
-  rankSqliteFts: () => [{ idx: 0, score: 2 }],
+  rankSqliteFts,
   rankVectorAnnSqlite: () => [],
-  sqliteHasFts: (mode) => mode === 'prose',
+  sqliteHasFts: () => true,
   signal: null,
   rrf: { enabled: false }
 });
 
-const idx = {
-  chunkMeta: [{ id: 0, file: 'src/a.js', tokens: ['alpha'], weight: 1 }],
+export const createRelationBoostIndex = ({
+  chunks = [],
+  fileRelations = null
+} = {}) => ({
+  chunkMeta: chunks,
   tokenIndex: {
     vocab: ['alpha'],
     vocabIndex: new Map([['alpha', 0]]),
     postings: [[[0, 1]]],
-    docLengths: [1],
-    totalDocs: 1,
+    docLengths: chunks.map(() => 1),
+    totalDocs: chunks.length,
     avgDocLen: 1
   },
   filterIndex: null,
-  fileRelations: null,
+  fileRelations,
   phraseNgrams: null,
   minhash: null,
   denseVec: null
-};
-
-const codeHit = (await pipeline(idx, 'code', null))[0];
-const proseHit = (await pipeline(idx, 'prose', null))[0];
-
-assert.ok(codeHit?.scoreBreakdown, 'expected code hit scoreBreakdown');
-assert.ok(proseHit?.scoreBreakdown, 'expected prose hit scoreBreakdown');
-assert.deepEqual(Object.keys(codeHit.scoreBreakdown), expectedKeys, 'expected code scoreBreakdown contract keys');
-assert.deepEqual(Object.keys(proseHit.scoreBreakdown), expectedKeys, 'expected prose scoreBreakdown contract keys');
-assert.equal(codeHit.scoreBreakdown.schemaVersion, 1, 'expected schema version in code hit');
-assert.equal(proseHit.scoreBreakdown.schemaVersion, 1, 'expected schema version in prose hit');
-
-console.log('score breakdown contract parity test passed');
+});

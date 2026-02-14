@@ -23,6 +23,7 @@ import { createTopKReducer } from './pipeline/topk.js';
 import { compileFtsMatchQuery } from './fts-query.js';
 import { createScoreBreakdown } from './output/score-breakdown.js';
 import { resolveSparseRequiredTables, RETRIEVAL_SPARSE_UNAVAILABLE_CODE } from './sparse/requirements.js';
+import { computeRelationBoost } from './scoring/relation-boost.js';
 import { INDEX_PROFILE_VECTOR_ONLY } from '../contracts/index-profile.js';
 
 const SQLITE_IN_LIMIT = 900;
@@ -59,6 +60,7 @@ export function createSearchPipeline(context) {
     phraseRange,
     explain,
     symbolBoost,
+    relationBoost,
     filters,
     filtersActive,
     filterPredicates,
@@ -68,6 +70,9 @@ export function createSearchPipeline(context) {
     annBackend,
     annAdaptiveProviders,
     scoreBlend,
+    annCandidateCap,
+    annCandidateMinDocCount,
+    annCandidateMaxDocCount,
     minhashMaxDocs,
     sparseBackend,
     sqliteFtsRoutingByMode,
@@ -110,6 +115,35 @@ export function createSearchPipeline(context) {
   )
     ? Number(symbolBoost.exportWeight)
     : 1.1;
+  const relationBoostEnabled = relationBoost?.enabled === true;
+  const relationBoostPerCall = Number.isFinite(Number(relationBoost?.perCall))
+    ? Number(relationBoost.perCall)
+    : 0.25;
+  const relationBoostPerUse = Number.isFinite(Number(relationBoost?.perUse))
+    ? Number(relationBoost.perUse)
+    : 0.1;
+  const relationBoostMaxBoost = Number.isFinite(Number(relationBoost?.maxBoost))
+    ? Number(relationBoost.maxBoost)
+    : 1.5;
+  const relationBoostConfig = {
+    enabled: relationBoostEnabled,
+    perCall: relationBoostPerCall,
+    perUse: relationBoostPerUse,
+    maxBoost: relationBoostMaxBoost,
+    caseTokens: filters?.caseTokens === true,
+    caseFile: filters?.caseFile === true
+  };
+  const annCandidatePolicyConfig = {
+    cap: Number.isFinite(Number(annCandidateCap))
+      ? Math.max(1, Math.floor(Number(annCandidateCap)))
+      : null,
+    minDocCount: Number.isFinite(Number(annCandidateMinDocCount))
+      ? Math.max(1, Math.floor(Number(annCandidateMinDocCount)))
+      : null,
+    maxDocCount: Number.isFinite(Number(annCandidateMaxDocCount))
+      ? Math.max(1, Math.floor(Number(annCandidateMaxDocCount)))
+      : null
+  };
   const rrfEnabled = rrf?.enabled !== false;
   const rrfK = Number.isFinite(Number(rrf?.k))
     ? Math.max(1, Number(rrf.k))
@@ -364,6 +398,46 @@ export function createSearchPipeline(context) {
       mode,
       ...extra
     });
+  };
+  const lowerCaseRelationLookupCache = new WeakMap();
+  const toLowerSafe = (value) => (typeof value === 'string' ? value.toLowerCase() : '');
+  const resolveFileRelations = (relationsStore, filePath, caseSensitiveFile = false) => {
+    if (!relationsStore || typeof filePath !== 'string' || !filePath) return null;
+    if (typeof relationsStore.get === 'function') {
+      if (typeof relationsStore.has === 'function' && relationsStore.has(filePath)) {
+        return relationsStore.get(filePath);
+      }
+      const direct = relationsStore.get(filePath);
+      if (direct) return direct;
+      if (caseSensitiveFile) return null;
+      let normalized = lowerCaseRelationLookupCache.get(relationsStore);
+      if (!normalized) {
+        normalized = new Map();
+        for (const [key, value] of relationsStore.entries()) {
+          if (typeof key !== 'string' || !key) continue;
+          const lowered = toLowerSafe(key);
+          if (!lowered || normalized.has(lowered)) continue;
+          normalized.set(lowered, value);
+        }
+        lowerCaseRelationLookupCache.set(relationsStore, normalized);
+      }
+      return normalized.get(toLowerSafe(filePath)) || null;
+    }
+    if (Object.prototype.hasOwnProperty.call(relationsStore, filePath)) {
+      return relationsStore[filePath];
+    }
+    if (caseSensitiveFile) return null;
+    let normalized = lowerCaseRelationLookupCache.get(relationsStore);
+    if (!normalized) {
+      normalized = new Map();
+      for (const [key, value] of Object.entries(relationsStore)) {
+        const lowered = toLowerSafe(key);
+        if (!lowered || normalized.has(lowered)) continue;
+        normalized.set(lowered, value);
+      }
+      lowerCaseRelationLookupCache.set(relationsStore, normalized);
+    }
+    return normalized.get(toLowerSafe(filePath)) || null;
   };
   const checkRequiredTables = (mode, tables) => {
     if (!Array.isArray(tables) || !tables.length) return [];
@@ -912,6 +986,7 @@ export function createSearchPipeline(context) {
         annMetrics.providerAvailable = providerAvailable;
         annMetrics.profileId = profileId;
         annMetrics.vectorOnlyProfile = vectorOnlyProfile;
+        annMetrics.candidatePolicyConfig = annCandidatePolicyConfig;
 
         if (vectorOnlyProfile && !annHits.length) {
           throw createError(
@@ -1001,11 +1076,11 @@ export function createSearchPipeline(context) {
           const chunk = meta[idxVal];
           if (!chunk) return;
           if (!matchesQueryAst(idx, idxVal, chunk)) return;
-          const fileRelations = idx.fileRelations
-            ? (typeof idx.fileRelations.get === 'function'
-              ? idx.fileRelations.get(chunk.file)
-              : idx.fileRelations[chunk.file])
-            : null;
+          const fileRelations = resolveFileRelations(
+            idx.fileRelations,
+            chunk.file,
+            relationBoostConfig.caseFile
+          );
           const enrichedChunk = fileRelations
             ? {
               ...chunk,
@@ -1048,6 +1123,18 @@ export function createSearchPipeline(context) {
               boost: symbolBoost
             };
           }
+          let relationInfo = null;
+          if (relationBoostEnabled) {
+            relationInfo = computeRelationBoost({
+              chunk: enrichedChunk,
+              fileRelations,
+              queryTokens,
+              config: relationBoostConfig
+            });
+            if (Number.isFinite(relationInfo?.boost) && relationInfo.boost > 0) {
+              score += relationInfo.boost;
+            }
+          }
           const scoreBreakdown = explain
             ? createScoreBreakdown({
               sparse: sparseScore != null ? {
@@ -1081,6 +1168,7 @@ export function createSearchPipeline(context) {
               } : null,
               symbol: symbolInfo,
               blend: blendEnabled && !useRrf ? blendInfo : null,
+              relation: relationInfo,
               selected: {
                 type: scoreType,
                 score

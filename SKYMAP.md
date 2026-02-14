@@ -918,15 +918,15 @@ Filter noisy relation tokens at build time only, preserving stable ordering and 
 Improve ranking via relation alignment signals without changing filter semantics.
 
 #### Tasks
-- [ ] Implement `computeRelationBoost({ chunk, fileRelations, queryTokens, lexicon, config })`.
-- [ ] Use `buildQueryPlan(...)` token output as the sole token source.
-- [ ] Respect `caseTokens` and `caseFile` semantics.
-- [ ] Keep boost bounded:
-  - [ ] `boost = min(maxBoost, callMatches*perCall + usageMatches*perUse)`
-  - [ ] keep `maxBoost` conservative by default.
-- [ ] Explain output:
-  - [ ] include bounded deterministic token lists
-  - [ ] include units and caps used
+- [x] Implement `computeRelationBoost({ chunk, fileRelations, queryTokens, lexicon, config })`.
+- [x] Use `buildQueryPlan(...)` token output as the sole token source.
+- [x] Respect `caseTokens` and `caseFile` semantics.
+- [x] Keep boost bounded:
+  - [x] `boost = min(maxBoost, callMatches*perCall + usageMatches*perUse)`
+  - [x] keep `maxBoost` conservative by default.
+- [x] Explain output:
+  - [x] include bounded deterministic token lists
+  - [x] include units and caps used
 
 #### Touchpoints
 - `src/retrieval/pipeline.js`
@@ -935,12 +935,12 @@ Improve ranking via relation alignment signals without changing filter semantics
 - `src/retrieval/output/explain.js`
 
 #### Tests
-- [ ] `tests/retrieval/relation-boost.test.js`
-- [ ] `tests/retrieval/relation-boost-does-not-filter.test.js`
-- [ ] `tests/retrieval/relation-boost-case-folding.test.js`
-- [ ] `tests/retrieval/relation-boost-stopword-elision.test.js`
-- [ ] `tests/retrieval/relation-boost-cap-relative-to-base.test.js`
-- [ ] `tests/retrieval/explain-includes-relation-boost.test.js`
+- [x] `tests/retrieval/relation-boost.test.js`
+- [x] `tests/retrieval/relation-boost-does-not-filter.test.js`
+- [x] `tests/retrieval/relation-boost-case-folding.test.js`
+- [x] `tests/retrieval/relation-boost-stopword-elision.test.js`
+- [x] `tests/retrieval/relation-boost-cap-relative-to-base.test.js`
+- [x] `tests/retrieval/explain-includes-relation-boost.test.js`
 
 ### 19.4 Chargram enrichment and ANN candidate safety
 
