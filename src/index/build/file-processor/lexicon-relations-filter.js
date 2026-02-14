@@ -262,7 +262,7 @@ export const filterRawRelationsWithLexicon = (rawRelations, {
       }
       if (stableDedupe) {
         const range = detail?.range && typeof detail.range === 'object'
-          ? `${detail.range.start || ''}:${detail.range.end || ''}`
+          ? `${detail.range.start ?? ''}:${detail.range.end ?? ''}`
           : '';
         const key = `${String(detail?.caller || '')}|${String(detail?.callee || '')}|${range}`;
         if (seen.has(key)) continue;
