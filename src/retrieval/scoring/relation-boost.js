@@ -36,9 +36,17 @@ const resolveLanguageId = (chunk) => (
 );
 
 const resolveUsageSource = (chunk, fileRelations) => {
-  if (Array.isArray(chunk?.codeRelations?.usages)) return chunk.codeRelations.usages;
-  if (Array.isArray(chunk?.usages)) return chunk.usages;
-  if (Array.isArray(fileRelations?.usages)) return fileRelations.usages;
+  const sources = [
+    chunk?.codeRelations?.usages,
+    chunk?.usages,
+    fileRelations?.usages
+  ];
+  for (const source of sources) {
+    if (Array.isArray(source) && source.length) return source;
+  }
+  for (const source of sources) {
+    if (Array.isArray(source)) return source;
+  }
   return [];
 };
 

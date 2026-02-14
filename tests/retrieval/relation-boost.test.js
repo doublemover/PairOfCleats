@@ -34,4 +34,54 @@ assert.deepEqual(result.matchedCalls, ['fetchdata'], 'unexpected matched call to
 assert.deepEqual(result.matchedUsages, ['fetchdata', 'result'], 'unexpected matched usage tokens');
 assert.ok(!result.signalTokens.includes('if'), 'expected ranking stopword token to be elided');
 
+const chunkUsageFallback = computeRelationBoost({
+  chunk: {
+    lang: 'javascript',
+    file: 'src/fallback.js',
+    codeRelations: {
+      calls: [],
+      usages: []
+    },
+    usages: ['ChunkUsageOnly']
+  },
+  fileRelations: {
+    usages: ['FileUsageOnly']
+  },
+  queryTokens: ['chunkusageonly', 'fileusageonly'],
+  config: {
+    enabled: true,
+    perCall: 0.25,
+    perUse: 0.1,
+    maxBoost: 1.5,
+    caseTokens: false
+  }
+});
+assert.equal(chunkUsageFallback.usageMatches, 1, 'expected fallback to chunk.usages when chunk codeRelations.usages is empty');
+assert.deepEqual(chunkUsageFallback.matchedUsages, ['chunkusageonly'], 'unexpected chunk-level fallback usage token');
+
+const fileUsageFallback = computeRelationBoost({
+  chunk: {
+    lang: 'javascript',
+    file: 'src/fallback-file.js',
+    codeRelations: {
+      calls: [],
+      usages: []
+    },
+    usages: []
+  },
+  fileRelations: {
+    usages: ['FileUsageOnly']
+  },
+  queryTokens: ['fileusageonly'],
+  config: {
+    enabled: true,
+    perCall: 0.25,
+    perUse: 0.1,
+    maxBoost: 1.5,
+    caseTokens: false
+  }
+});
+assert.equal(fileUsageFallback.usageMatches, 1, 'expected fallback to fileRelations.usages when chunk usages are empty');
+assert.deepEqual(fileUsageFallback.matchedUsages, ['fileusageonly'], 'unexpected file-level fallback usage token');
+
 console.log('relation boost scoring test passed');
