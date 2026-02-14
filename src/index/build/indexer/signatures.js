@@ -114,6 +114,12 @@ export const buildIncrementalSignaturePayload = (runtime, mode, tokenizationKey)
         byLanguage: languageOptions.treeSitter.byLanguage || {}
       }
       : { enabled: false },
+    lexicon: languageOptions.lexicon
+      ? {
+        enabled: languageOptions.lexicon.enabled !== false,
+        relations: languageOptions.lexicon.relations || null
+      }
+      : { enabled: true },
     importScan: indexingConfig.importScan ?? null,
     yamlChunking: languageOptions.yamlChunking || null,
     kotlin: languageOptions.kotlin || null,

@@ -359,6 +359,15 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   const toolingConfig = getToolingConfig(root, userConfig);
   const toolingEnabled = toolingConfig.autoEnableOnDetect !== false;
   const postingsConfig = normalizePostingsConfig(indexingConfig.postings || {});
+  const rawLexiconConfig = indexingConfig.lexicon && typeof indexingConfig.lexicon === 'object'
+    ? indexingConfig.lexicon
+    : {};
+  const lexiconConfig = {
+    enabled: rawLexiconConfig.enabled !== false
+  };
+  if (rawLexiconConfig.relations && typeof rawLexiconConfig.relations === 'object') {
+    lexiconConfig.relations = rawLexiconConfig.relations;
+  }
   const { maxFileBytes, fileCaps, guardrails } = resolveFileCapsAndGuardrails(indexingConfig);
   const astDataflowEnabled = indexingConfig.astDataflow !== false;
   const controlFlowEnabled = indexingConfig.controlFlow !== false;
@@ -796,6 +805,9 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   if (postingsConfig.enableChargrams === false) {
     log('Chargram postings disabled via indexing.postings.enableChargrams.');
   }
+  if (lexiconConfig.enabled === false) {
+    log('Lexicon features disabled via indexing.lexicon.enabled.');
+  }
 
   const workerPoolsResult = await timeInit('worker pools', () => createRuntimeWorkerPools({
     workerPoolConfig,
@@ -894,6 +906,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
       mode: yamlChunkingMode,
       maxBytes: yamlTopLevelMaxBytes
     },
+    lexicon: lexiconConfig,
     log
   };
 

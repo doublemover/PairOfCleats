@@ -802,23 +802,23 @@ Deliver lexicon-aware relation filtering and boosts, chargram enrichment, and AN
 Lock contract surfaces before implementation.
 
 #### Tasks
-- [ ] Add config keys and defaults for:
-  - [ ] `indexing.lexicon.enabled`
-  - [ ] `indexing.postings.chargramFields`
-  - [ ] `indexing.postings.chargramStopwords`
-  - [ ] `retrieval.annCandidateCap`
-  - [ ] `retrieval.annCandidateMinDocCount`
-  - [ ] `retrieval.annCandidateMaxDocCount`
-  - [ ] `retrieval.relationBoost` (if exposed)
-- [ ] Publish versioning rules for lexicon wordlists and explain payload.
-- [ ] Add tooling:
-  - [ ] `tools/lexicon/validate.js`
-  - [ ] `tools/lexicon/report.js`
-  - [ ] `npm run lexicon:validate`
-  - [ ] `npm run lexicon:report`
-- [ ] Add explicit v2 deferral note for non-ASCII lexicon support.
-- [ ] Include new config knobs in incremental signature payload.
-- [ ] Move old lexicon draft/spec docs to `docs/archived/` with replacement pointers to canonical 19.x specs.
+- [x] Add config keys and defaults for:
+  - [x] `indexing.lexicon.enabled`
+  - [x] `indexing.postings.chargramFields`
+  - [x] `indexing.postings.chargramStopwords`
+  - [x] `retrieval.annCandidateCap`
+  - [x] `retrieval.annCandidateMinDocCount`
+  - [x] `retrieval.annCandidateMaxDocCount`
+  - [x] `retrieval.relationBoost` (if exposed)
+- [x] Publish versioning rules for lexicon wordlists and explain payload.
+- [x] Add tooling:
+  - [x] `tools/lexicon/validate.js`
+  - [x] `tools/lexicon/report.js`
+  - [x] `npm run lexicon:validate`
+  - [x] `npm run lexicon:report`
+- [x] Add explicit v2 deferral note for non-ASCII lexicon support.
+- [x] Include new config knobs in incremental signature payload.
+- [x] Move old lexicon draft/spec docs to `docs/archived/` with replacement pointers to canonical 19.x specs.
 
 #### Touchpoints
 - `src/shared/postings-config.js`
@@ -829,11 +829,11 @@ Lock contract surfaces before implementation.
 - `src/contracts/validators/*`
 
 #### Tests
-- [ ] `tests/indexer/incremental/signature-lexicon-config.test.js`
-- [ ] `tests/config/config-inventory-lexicon-keys.test.js`
-- [ ] `tests/config/config-defaults-lexicon-flags.test.js`
-- [ ] `tests/lexicon/lexicon-tool-validate.test.js`
-- [ ] `tests/lexicon/lexicon-report.test.js`
+- [x] `tests/indexer/incremental/signature-lexicon-config.test.js`
+- [x] `tests/config/config-inventory-lexicon-keys.test.js`
+- [x] `tests/config/config-defaults-lexicon-flags.test.js`
+- [x] `tests/lexicon/lexicon-tool-validate.test.js`
+- [x] `tests/lexicon/lexicon-report.test.js`
 
 ### 19.1 Lexicon assets and loader
 

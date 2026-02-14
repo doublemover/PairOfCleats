@@ -119,6 +119,7 @@ function normalizeUserConfig(baseConfig) {
     if (indexing.documentExtraction) normalizedIndexing.documentExtraction = indexing.documentExtraction;
     if (indexing.artifacts) normalizedIndexing.artifacts = indexing.artifacts;
     if (indexing.postings) normalizedIndexing.postings = indexing.postings;
+    if (isPlainObject(indexing.lexicon)) normalizedIndexing.lexicon = indexing.lexicon;
     if (indexing.codeMap) normalizedIndexing.codeMap = indexing.codeMap;
     if (indexing.records) normalizedIndexing.records = indexing.records;
     if (indexing.embeddings) normalizedIndexing.embeddings = indexing.embeddings;
@@ -332,6 +333,18 @@ function normalizeUserConfig(baseConfig) {
   if (isPlainObject(baseConfig.retrieval)) {
     const retrieval = baseConfig.retrieval;
     const normalizedRetrieval = {};
+    if (retrieval.annCandidateCap !== undefined) {
+      normalizedRetrieval.annCandidateCap = retrieval.annCandidateCap;
+    }
+    if (retrieval.annCandidateMinDocCount !== undefined) {
+      normalizedRetrieval.annCandidateMinDocCount = retrieval.annCandidateMinDocCount;
+    }
+    if (retrieval.annCandidateMaxDocCount !== undefined) {
+      normalizedRetrieval.annCandidateMaxDocCount = retrieval.annCandidateMaxDocCount;
+    }
+    if (isPlainObject(retrieval.relationBoost)) {
+      normalizedRetrieval.relationBoost = retrieval.relationBoost;
+    }
     if (isPlainObject(retrieval.dense)) {
       normalizedRetrieval.dense = retrieval.dense;
     }

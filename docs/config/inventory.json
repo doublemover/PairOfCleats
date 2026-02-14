@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-13T22:26:12.648Z",
+  "generatedAt": "2026-02-14T00:04:58.387Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -162,14 +162,17 @@
       "indexing.graph.caps.maxNodes",
       "indexing.importConcurrency",
       "indexing.ioConcurrencyCap",
+      "indexing.lexicon.enabled",
       "indexing.maxFileBytes",
       "indexing.maxFileLines",
+      "indexing.postings.chargramFields",
       "indexing.postings.chargramMaxDf",
       "indexing.postings.chargramMaxN",
       "indexing.postings.chargramMaxTokenLength",
       "indexing.postings.chargramMinN",
       "indexing.postings.chargramSource",
       "indexing.postings.chargramSpillMaxUnique",
+      "indexing.postings.chargramStopwords",
       "indexing.postings.enableChargrams",
       "indexing.postings.enablePhraseNgrams",
       "indexing.postings.fielded",
@@ -220,6 +223,9 @@
       "mcp.toolTimeoutMs",
       "mcp.toolTimeouts",
       "quality",
+      "retrieval.annCandidateCap",
+      "retrieval.annCandidateMaxDocCount",
+      "retrieval.annCandidateMinDocCount",
       "retrieval.contextExpansion.enabled",
       "retrieval.contextExpansion.includeCalls",
       "retrieval.contextExpansion.includeExports",
@@ -250,6 +256,10 @@
       "retrieval.graphRanking.seedK",
       "retrieval.graphRanking.seedSelection",
       "retrieval.graphRanking.weights",
+      "retrieval.relationBoost.enabled",
+      "retrieval.relationBoost.maxBoost",
+      "retrieval.relationBoost.perCall",
+      "retrieval.relationBoost.perUse",
       "runtime.ioOversubscribe",
       "runtime.maxOldSpaceMb",
       "runtime.nodeOptions",
@@ -329,8 +339,8 @@
   },
   "configSchema": {
     "path": "docs/config/schema.json",
-    "totalKeys": 264,
-    "leafKeys": 214,
+    "totalKeys": 276,
+    "leafKeys": 224,
     "topLevel": [
       {
         "key": "cache",
@@ -338,7 +348,7 @@
       },
       {
         "key": "indexing",
-        "count": 132
+        "count": 136
       },
       {
         "key": "mcp",
@@ -350,7 +360,7 @@
       },
       {
         "key": "retrieval",
-        "count": 35
+        "count": 43
       },
       {
         "key": "runtime",
@@ -746,6 +756,16 @@
       "enum": null
     },
     {
+      "path": "indexing.lexicon",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
       "path": "indexing.maxFileBytes",
       "type": "number",
       "enum": null
@@ -758,6 +778,11 @@
     {
       "path": "indexing.postings",
       "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.postings.chargramFields",
+      "type": "array",
       "enum": null
     },
     {
@@ -788,6 +813,11 @@
     {
       "path": "indexing.postings.chargramSpillMaxUnique",
       "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.postings.chargramStopwords",
+      "type": "boolean",
       "enum": null
     },
     {
@@ -1123,6 +1153,21 @@
       "enum": null
     },
     {
+      "path": "retrieval.annCandidateCap",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "retrieval.annCandidateMaxDocCount",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "retrieval.annCandidateMinDocCount",
+      "type": "number",
+      "enum": null
+    },
+    {
       "path": "retrieval.contextExpansion",
       "type": "object",
       "enum": null
@@ -1290,6 +1335,31 @@
     {
       "path": "retrieval.graphRanking.weights",
       "type": "object",
+      "enum": null
+    },
+    {
+      "path": "retrieval.relationBoost",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "retrieval.relationBoost.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "retrieval.relationBoost.maxBoost",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "retrieval.relationBoost.perCall",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "retrieval.relationBoost.perUse",
+      "type": "number",
       "enum": null
     },
     {
@@ -1846,6 +1916,7 @@
         "tests/indexing/metrics/index-metrics-options.test.js",
         "tests/indexing/piece-assembly/piece-assembly.test.js",
         "tests/indexing/postings/chunk-meta-determinism.test.js",
+        "tests/indexing/postings/vector-only-missing-embeddings-is-error.test.js",
         "tests/indexing/risk/interprocedural/runtime-gating.test.js",
         "tests/indexing/runtime/two-stage-state.test.js",
         "tests/indexing/scm/index-build-no-scm.test.js",
@@ -2337,6 +2408,7 @@
       "name": "PAIROFCLEATS_STAGE",
       "files": [
         "src/shared/env.js",
+        "tests/indexing/postings/vector-only-missing-embeddings-is-error.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -2426,6 +2498,7 @@
         "tests/indexing/incremental/incremental-cache-signature.test.js",
         "tests/indexing/incremental/incremental-tokenization-cache.test.js",
         "tests/indexing/piece-assembly/piece-assembly.test.js",
+        "tests/indexing/postings/vector-only-missing-embeddings-is-error.test.js",
         "tests/indexing/shards/shard-merge.test.js",
         "tests/retrieval/cache/query-cache.test.js",
         "tests/retrieval/filters/types.test.js",
@@ -2635,6 +2708,10 @@
         "tests/indexing/metrics/index-metrics-options.test.js",
         "tests/indexing/piece-assembly/piece-assembly.test.js",
         "tests/indexing/postings/chunk-meta-determinism.test.js",
+        "tests/indexing/postings/vector-only-cleanup-allowlist-safety.test.js",
+        "tests/indexing/postings/vector-only-does-not-emit-sparse.test.js",
+        "tests/indexing/postings/vector-only-missing-embeddings-is-error.test.js",
+        "tests/indexing/postings/vector-only-switching-cleans-stale-sparse.test.js",
         "tests/indexing/risk/interprocedural/artifacts-written.test.js",
         "tests/indexing/risk/interprocedural/runtime-gating.test.js",
         "tests/indexing/runtime/two-stage-state.test.js",
@@ -2646,7 +2723,9 @@
         "tests/retrieval/ann/ann-parity.test.js",
         "tests/retrieval/ann/hnsw-ann.test.js",
         "tests/retrieval/ann/lancedb-ann.test.js",
+        "tests/retrieval/backend/mixed-profile-cohort-opt-in.test.js",
         "tests/retrieval/backend/retrieval-strict-manifest-embeddings.test.js",
+        "tests/retrieval/backend/vector-only-compatibility-key-mismatch.test.js",
         "tests/retrieval/cache/query-cache-signature-sharded-chunk-meta.test.js",
         "tests/retrieval/cache/query-cache.test.js",
         "tests/retrieval/federation/explicit-root-no-fallback.test.js",
@@ -2821,6 +2900,7 @@
         "tests/indexing/incremental/incremental-tokenization-cache.test.js",
         "tests/indexing/map/code-map-guardrails.test.js",
         "tests/indexing/map/code-map-performance.test.js",
+        "tests/indexing/postings/vector-only-missing-embeddings-is-error.test.js",
         "tests/indexing/scm/no-scm-build-id.test.js",
         "tests/indexing/tree-sitter/js-tree-sitter-maxbytes.test.js",
         "tests/perf/sqlite-p95-latency.test.js",

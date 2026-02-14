@@ -92,15 +92,19 @@ indexing.graph.caps.maxEdges (number)
 indexing.graph.caps.maxNodes (number)
 indexing.importConcurrency (number)
 indexing.ioConcurrencyCap (number)
+indexing.lexicon (object)
+indexing.lexicon.enabled (boolean)
 indexing.maxFileBytes (number)
 indexing.maxFileLines (number)
 indexing.postings (object)
+indexing.postings.chargramFields (array)
 indexing.postings.chargramMaxDf (number)
 indexing.postings.chargramMaxN (number)
 indexing.postings.chargramMaxTokenLength
 indexing.postings.chargramMinN (number)
 indexing.postings.chargramSource (string)
 indexing.postings.chargramSpillMaxUnique (number)
+indexing.postings.chargramStopwords (boolean)
 indexing.postings.enableChargrams (boolean)
 indexing.postings.enablePhraseNgrams (boolean)
 indexing.postings.fielded (boolean)
@@ -162,6 +166,9 @@ mcp.toolTimeoutMs (number)
 mcp.toolTimeouts (object)
 quality (string) enum=auto|fast|balanced|max
 retrieval (object)
+retrieval.annCandidateCap (number)
+retrieval.annCandidateMaxDocCount (number)
+retrieval.annCandidateMinDocCount (number)
 retrieval.contextExpansion (object)
 retrieval.contextExpansion.enabled (boolean)
 retrieval.contextExpansion.includeCalls (boolean)
@@ -196,6 +203,11 @@ retrieval.graphRanking.maxWallClockMs (number)
 retrieval.graphRanking.seedK (number)
 retrieval.graphRanking.seedSelection (string)
 retrieval.graphRanking.weights (object)
+retrieval.relationBoost (object)
+retrieval.relationBoost.enabled (boolean)
+retrieval.relationBoost.maxBoost (number)
+retrieval.relationBoost.perCall (number)
+retrieval.relationBoost.perUse (number)
 runtime (object)
 runtime.ioOversubscribe (boolean)
 runtime.maxOldSpaceMb (number)
@@ -288,7 +300,17 @@ tooling.vfs.tokenMode (string)
 
 ## Defaults
 
+- indexing.lexicon.enabled = true
+- indexing.postings.chargramFields = ["name","doc"]
+- indexing.postings.chargramStopwords = false
 - indexing.profile = "default"
+- retrieval.annCandidateCap = 20000
+- retrieval.annCandidateMaxDocCount = 20000
+- retrieval.annCandidateMinDocCount = 100
+- retrieval.relationBoost.enabled = false
+- retrieval.relationBoost.maxBoost = 1.5
+- retrieval.relationBoost.perCall = 0.25
+- retrieval.relationBoost.perUse = 0.1
 
 ## Env overrides (runtime)
 
@@ -385,6 +407,7 @@ tooling.vfs.tokenMode (string)
 ### search / pairofcleats search
 
 - --alias
+- --allow-sparse-fallback
 - --allow-unsafe-mix
 - --ann
 - --ann-backend
