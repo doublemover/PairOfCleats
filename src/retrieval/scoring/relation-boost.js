@@ -74,6 +74,36 @@ const resolveLexicon = (languageId, lexicon) => {
   return getLanguageLexicon(languageId, { allowFallback: true });
 };
 
+const hasSetToken = (set, token) => (
+  set instanceof Set && set.has(token)
+);
+
+const isRankingStopword = ({
+  languageId,
+  token,
+  resolvedLexicon,
+  allowGlobalFallback
+}) => {
+  const normalized = normalizeToken(token, false);
+  if (!normalized) return false;
+
+  const rankingStopwords = resolvedLexicon?.stopwords?.ranking;
+  if (rankingStopwords instanceof Set) {
+    return rankingStopwords.has(normalized);
+  }
+
+  if (resolvedLexicon && typeof resolvedLexicon === 'object') {
+    return hasSetToken(resolvedLexicon.keywords, normalized)
+      || hasSetToken(resolvedLexicon.literals, normalized)
+      || hasSetToken(resolvedLexicon.types, normalized)
+      || hasSetToken(resolvedLexicon.builtins, normalized);
+  }
+
+  return allowGlobalFallback
+    ? isLexiconStopword(languageId, normalized, 'ranking')
+    : false;
+};
+
 /**
  * Compute additive relation-boost score and explain metadata.
  * @param {object} input
@@ -102,6 +132,7 @@ export const computeRelationBoost = ({
     DEFAULT_RELATION_BOOST.maxExplainTokens
   )));
   const languageId = resolveLanguageId(chunk);
+  const hasInjectedLexicon = lexicon != null;
 
   let resolvedLexicon = null;
   if (lexiconEnabled) {
@@ -117,7 +148,12 @@ export const computeRelationBoost = ({
   for (const rawToken of rawQueryTokens) {
     const normalized = normalizeToken(rawToken, caseTokens);
     if (!normalized) continue;
-    if (lexiconEnabled && isLexiconStopword(languageId, normalized, 'ranking')) continue;
+    if (lexiconEnabled && isRankingStopword({
+      languageId,
+      token: rawToken,
+      resolvedLexicon,
+      allowGlobalFallback: !hasInjectedLexicon
+    })) continue;
     queryTokenSet.add(normalized);
   }
 

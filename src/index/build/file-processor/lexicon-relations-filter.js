@@ -30,8 +30,8 @@ const resolveDropConfig = ({ languageId, config }) => {
   const defaults = { ...DEFAULT_DROP_CONFIG };
   const merged = {
     ...defaults,
-    ...languageDrop,
-    ...globalDrop
+    ...globalDrop,
+    ...languageDrop
   };
 
   return {
