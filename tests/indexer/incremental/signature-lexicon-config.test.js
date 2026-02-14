@@ -16,7 +16,18 @@ const baseRuntime = {
   languageOptions: {
     javascript: { parser: 'babel', flow: 'auto' },
     typescript: { parser: 'auto', importsOnly: false },
-    lexicon: { enabled: true }
+    lexicon: {
+      enabled: true,
+      relations: {
+        enabled: true,
+        drop: {
+          keywords: true,
+          literals: true,
+          builtins: false,
+          types: false
+        }
+      }
+    }
   },
   toolInfo: { version: '1.0.0' },
   profile: { id: 'default', schemaVersion: 1 }
@@ -33,4 +44,21 @@ const sigDisabled = buildIncrementalSignature({
 }, 'code', tokenizationKey);
 
 assert.notEqual(sigEnabled, sigDisabled, 'expected lexicon config change to invalidate signature');
+const sigDropChanged = buildIncrementalSignature({
+  ...baseRuntime,
+  languageOptions: {
+    ...baseRuntime.languageOptions,
+    lexicon: {
+      ...baseRuntime.languageOptions.lexicon,
+      relations: {
+        ...baseRuntime.languageOptions.lexicon.relations,
+        drop: {
+          ...baseRuntime.languageOptions.lexicon.relations.drop,
+          builtins: true
+        }
+      }
+    }
+  }
+}, 'code', tokenizationKey);
+assert.notEqual(sigEnabled, sigDropChanged, 'expected lexicon drop controls to invalidate signature');
 console.log('signature lexicon config test passed');

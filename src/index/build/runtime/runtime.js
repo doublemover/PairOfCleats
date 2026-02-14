@@ -362,11 +362,32 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   const rawLexiconConfig = indexingConfig.lexicon && typeof indexingConfig.lexicon === 'object'
     ? indexingConfig.lexicon
     : {};
+  const policyQualityValue = typeof autoPolicy?.quality?.value === 'string'
+    ? autoPolicy.quality.value
+    : null;
+  const rawLexiconRelations = rawLexiconConfig.relations && typeof rawLexiconConfig.relations === 'object'
+    ? rawLexiconConfig.relations
+    : {};
+  const rawLexiconDrop = rawLexiconRelations.drop && typeof rawLexiconRelations.drop === 'object'
+    ? rawLexiconRelations.drop
+    : {};
   const lexiconConfig = {
-    enabled: rawLexiconConfig.enabled !== false
+    enabled: rawLexiconConfig.enabled !== false,
+    relations: {
+      enabled: typeof rawLexiconRelations.enabled === 'boolean'
+        ? rawLexiconRelations.enabled
+        : policyQualityValue === 'max',
+      stableDedupe: rawLexiconRelations.stableDedupe === true,
+      drop: {
+        keywords: rawLexiconDrop.keywords !== false,
+        literals: rawLexiconDrop.literals !== false,
+        builtins: rawLexiconDrop.builtins === true,
+        types: rawLexiconDrop.types === true
+      }
+    }
   };
-  if (rawLexiconConfig.relations && typeof rawLexiconConfig.relations === 'object') {
-    lexiconConfig.relations = rawLexiconConfig.relations;
+  if (rawLexiconConfig.languageOverrides && typeof rawLexiconConfig.languageOverrides === 'object') {
+    lexiconConfig.languageOverrides = rawLexiconConfig.languageOverrides;
   }
   const { maxFileBytes, fileCaps, guardrails } = resolveFileCapsAndGuardrails(indexingConfig);
   const astDataflowEnabled = indexingConfig.astDataflow !== false;

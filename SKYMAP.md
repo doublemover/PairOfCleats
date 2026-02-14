@@ -882,20 +882,20 @@ Provide canonical wordlists, strict validation, deterministic normalization, and
 Filter noisy relation tokens at build time only, preserving stable ordering and conservative behavior.
 
 #### Tasks
-- [ ] Add `filterRawRelationsWithLexicon(rawRelations, { languageId, lexicon, config, log })`.
-- [ ] Apply filter right before relation index construction.
-- [ ] Filter scope in v1:
-  - [ ] `usages`
-  - [ ] `calls`
-  - [ ] `callDetails`
-  - [ ] `callDetailsWithRange`
-  - [ ] do not filter `imports/exports`
-- [ ] Preserve stable ordering; stable de-dupe only when explicitly enabled.
-- [ ] Override precedence (fixed):
-  1. [ ] global config
-  2. [ ] language override file
-  3. [ ] built-in defaults
-- [ ] Ensure incremental signatures include lexicon/filter controls.
+- [x] Add `filterRawRelationsWithLexicon(rawRelations, { languageId, lexicon, config, log })`.
+- [x] Apply filter right before relation index construction.
+- [x] Filter scope in v1:
+  - [x] `usages`
+  - [x] `calls`
+  - [x] `callDetails`
+  - [x] `callDetailsWithRange`
+  - [x] do not filter `imports/exports`
+- [x] Preserve stable ordering; stable de-dupe only when explicitly enabled.
+- [x] Override precedence (fixed):
+  1. [x] global config
+  2. [x] language override file
+  3. [x] built-in defaults
+- [x] Ensure incremental signatures include lexicon/filter controls.
 
 #### Touchpoints
 - `src/index/build/file-processor/cpu.js`
@@ -905,12 +905,12 @@ Filter noisy relation tokens at build time only, preserving stable ordering and 
 - `src/retrieval/output/filters.js`
 
 #### Tests
-- [ ] `tests/file-processor/lexicon-relations-filter.test.js`
-- [ ] `tests/file-processor/lexicon-relations-filter-ordering.test.js`
-- [ ] `tests/file-processor/lexicon-relations-filter-keyword-property.test.js`
-- [ ] `tests/file-processor/lexicon-relations-filter-no-imports.test.js`
-- [ ] `tests/file-processor/lexicon-relations-filter-determinism.test.js`
-- [ ] `tests/retrieval/uses-and-calls-filters-respect-lexicon.test.js`
+- [x] `tests/file-processor/lexicon-relations-filter.test.js`
+- [x] `tests/file-processor/lexicon-relations-filter-ordering.test.js`
+- [x] `tests/file-processor/lexicon-relations-filter-keyword-property.test.js`
+- [x] `tests/file-processor/lexicon-relations-filter-no-imports.test.js`
+- [x] `tests/file-processor/lexicon-relations-filter-determinism.test.js`
+- [x] `tests/retrieval/uses-and-calls-filters-respect-lexicon.test.js`
 
 ### 19.3 Retrieval relation boosts (boost-only)
 

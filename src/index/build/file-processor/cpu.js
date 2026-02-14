@@ -4,6 +4,7 @@ import { getLanguageForFile } from '../../language-registry.js';
 import { toRepoPosixPath } from '../../scm/paths.js';
 import { buildLineAuthors } from '../../scm/annotate.js';
 import { buildCallIndex, buildFileRelations } from './relations.js';
+import { filterRawRelationsWithLexicon } from './lexicon-relations-filter.js';
 import {
   isTreeSitterSchedulerLanguage,
   resolveTreeSitterLanguageForSegment
@@ -308,8 +309,17 @@ export const processFileCpu = async (context) => {
       return failFile('relation-error', 'relations', err);
     }
   }
-  const fileRelations = relationsEnabled ? buildFileRelations(rawRelations, relKey) : null;
-  const callIndex = relationsEnabled ? buildCallIndex(rawRelations) : null;
+  let filteredRelations = rawRelations;
+  if (mode === 'code' && relationsEnabled && rawRelations) {
+    filteredRelations = filterRawRelationsWithLexicon(rawRelations, {
+      languageId: lang?.id || null,
+      config: languageOptions?.lexicon || null,
+      log,
+      relKey
+    });
+  }
+  const fileRelations = relationsEnabled ? buildFileRelations(filteredRelations, relKey) : null;
+  const callIndex = relationsEnabled ? buildCallIndex(filteredRelations) : null;
   const resolvedGitBlameEnabled = typeof analysisPolicy?.git?.blame === 'boolean'
     ? analysisPolicy.git.blame
     : gitBlameEnabled;
