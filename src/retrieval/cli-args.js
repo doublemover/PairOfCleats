@@ -54,6 +54,7 @@ export function parseSearchArgs(rawArgs) {
     n: { type: 'number' },
     matched: { type: 'boolean' },
     ann: { type: 'boolean' },
+    'allow-sparse-fallback': { type: 'boolean', default: false },
     'ann-backend': { type: 'string' },
     comments: { type: 'boolean', default: true },
     case: { type: 'boolean' },
@@ -184,6 +185,7 @@ export function getSearchUsage() {
     '  --fts-trigram',
     '  --fts-stemming',
     '  --ann-backend auto|lancedb|sqlite|hnsw|js',
+    '  --allow-sparse-fallback',
     '  --non-strict'
   ].join('\n');
 }

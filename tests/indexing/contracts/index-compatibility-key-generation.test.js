@@ -37,4 +37,14 @@ const keyD = buildCompatibilityKey({
 });
 assert.notEqual(keyA, keyD, 'compatibilityKey should include the enabled mode set');
 
+const keyE = buildCompatibilityKey({
+  runtime: {
+    ...runtime,
+    profile: { id: 'vector_only', schemaVersion: 1 }
+  },
+  modes: ['code', 'prose'],
+  tokenizationKeys
+});
+assert.notEqual(keyA, keyE, 'compatibilityKey should include index profile identity');
+
 console.log('compatibility key generation test passed');

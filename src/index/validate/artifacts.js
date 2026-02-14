@@ -1,10 +1,18 @@
 import { normalizeLanceDbConfig } from '../../shared/lancedb.js';
+import {
+  INDEX_PROFILE_VECTOR_ONLY,
+  normalizeIndexProfileId
+} from '../../contracts/index-profile.js';
 
-export const buildArtifactLists = (userConfig, postingsConfig) => {
-  const requiredArtifacts = ['chunk_meta', 'token_postings'];
+export const buildArtifactLists = (userConfig, postingsConfig, { profileId = null } = {}) => {
+  const resolvedProfileId = normalizeIndexProfileId(profileId || userConfig?.indexing?.profile);
+  const sparseEnabled = resolvedProfileId !== INDEX_PROFILE_VECTOR_ONLY;
+  const requiredArtifacts = sparseEnabled
+    ? ['chunk_meta', 'token_postings']
+    : ['chunk_meta', 'dense_vectors'];
   const strictOnlyRequiredArtifacts = ['index_state', 'filelists'];
-  if (postingsConfig.enablePhraseNgrams) requiredArtifacts.push('phrase_ngrams');
-  if (postingsConfig.enableChargrams) requiredArtifacts.push('chargram_postings');
+  if (sparseEnabled && postingsConfig.enablePhraseNgrams) requiredArtifacts.push('phrase_ngrams');
+  if (sparseEnabled && postingsConfig.enableChargrams) requiredArtifacts.push('chargram_postings');
   const optionalArtifacts = [
     'minhash_signatures',
     'file_relations',
@@ -25,7 +33,7 @@ export const buildArtifactLists = (userConfig, postingsConfig) => {
     'field_tokens',
     'vocab_order'
   ];
-  if (userConfig.search?.annDefault !== false) {
+  if (userConfig.search?.annDefault !== false || !sparseEnabled) {
     optionalArtifacts.push('dense_vectors');
     optionalArtifacts.push('dense_vectors_doc');
     optionalArtifacts.push('dense_vectors_code');

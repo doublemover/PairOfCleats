@@ -1,5 +1,10 @@
 import { ARTIFACT_SCHEMA_HASH } from '../../../contracts/registry.js';
 import { CHUNK_ID_ALGO_VERSION } from '../../../contracts/compatibility.js';
+import {
+  INDEX_PROFILE_DEFAULT,
+  INDEX_PROFILE_SCHEMA_VERSION,
+  normalizeIndexProfileId
+} from '../../../contracts/index-profile.js';
 import { sha1 } from '../../../shared/hash.js';
 import { stableStringifyForSignature } from '../../../shared/stable-json.js';
 import { MAX_JSON_BYTES } from '../../../shared/artifact-io/constants.js';
@@ -61,6 +66,9 @@ export const buildIncrementalSignaturePayload = (runtime, mode, tokenizationKey)
       }
     }
     : null;
+  const runtimeProfile = runtime.profile && typeof runtime.profile === 'object'
+    ? runtime.profile
+    : {};
   return {
     signatureVersion: SIGNATURE_VERSION,
     mode,
@@ -110,6 +118,15 @@ export const buildIncrementalSignaturePayload = (runtime, mode, tokenizationKey)
     yamlChunking: languageOptions.yamlChunking || null,
     kotlin: languageOptions.kotlin || null,
     chunkIdAlgoVersion: CHUNK_ID_ALGO_VERSION,
+    profile: {
+      id: normalizeIndexProfileId(
+        runtimeProfile.id ?? indexingConfig.profile,
+        INDEX_PROFILE_DEFAULT
+      ),
+      schemaVersion: Number.isFinite(Number(runtimeProfile.schemaVersion))
+        ? Math.max(1, Math.floor(Number(runtimeProfile.schemaVersion)))
+        : INDEX_PROFILE_SCHEMA_VERSION
+    },
     scm: scmSignature,
     embeddings: {
       enabled: runtime.embeddingEnabled || runtime.embeddingService,

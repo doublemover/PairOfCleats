@@ -9,6 +9,7 @@ import { readJsoncFile } from '../../src/shared/jsonc.js';
 import { isPlainObject, mergeConfig } from '../../src/shared/config.js';
 import { validateConfig } from '../../src/config/validate.js';
 import { stableStringify } from '../../src/shared/stable-json.js';
+import { assertKnownIndexProfileId } from '../../src/contracts/index-profile.js';
 import { DEFAULT_DP_MAX_BY_FILE_COUNT } from './constants.js';
 import { resolveToolRoot } from './tool.js';
 
@@ -110,6 +111,9 @@ function normalizeUserConfig(baseConfig) {
   if (isPlainObject(baseConfig.indexing)) {
     const indexing = baseConfig.indexing;
     const normalizedIndexing = {};
+    if (indexing.profile !== undefined) {
+      normalizedIndexing.profile = assertKnownIndexProfileId(indexing.profile);
+    }
     if (indexing.segmenting) normalizedIndexing.segmenting = indexing.segmenting;
     if (indexing.commentExtraction) normalizedIndexing.commentExtraction = indexing.commentExtraction;
     if (indexing.documentExtraction) normalizedIndexing.documentExtraction = indexing.documentExtraction;

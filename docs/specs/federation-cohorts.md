@@ -115,6 +115,16 @@ Example fragment:
 4. Repos with explicit unavailable mode state (`present:false` or `availabilityReason != "present"`) are excluded from cohort bucket selection for that mode.
 5. If every repo is unavailable for a mode, that mode selects no repos (empty selection) instead of forcing a `null` cohort winner.
 
+### Phase 18 profile compatibility notes
+
+- `indexing.profile` now contributes to compatibility identity (via compatibility/cohort keys).
+- Mixed profile cohorts (`default` + `vector_only`) are rejected by default.
+- Explicit override is required:
+  - CLI: `--allow-unsafe-mix`
+  - API/MCP: `allowUnsafeMix`
+- Overrides emit warnings and should be treated as temporary migration behavior.
+- Legacy `index_state.json` without `profile` metadata is normalized to `profile.id=default` at read time with a one-time compatibility warning per process.
+
 ---
 
 ## 6. Determinism rules

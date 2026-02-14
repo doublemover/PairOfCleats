@@ -45,6 +45,8 @@ import { recordSearchArtifacts } from './cli/persist.js';
 import { DEFAULT_CODE_DICT_LANGUAGES, normalizeCodeDictLanguages } from '../shared/code-dictionaries.js';
 import { compileFilterPredicates } from './output/filters.js';
 import { stableStringify } from '../shared/stable-json.js';
+import { INDEX_PROFILE_DEFAULT, INDEX_PROFILE_VECTOR_ONLY } from '../contracts/index-profile.js';
+import { RETRIEVAL_SPARSE_UNAVAILABLE_CODE, resolveSparseRequiredTables } from './sparse/requirements.js';
 import {
   buildQueryPlanCacheKey,
   buildQueryPlanConfigSignature,
@@ -53,6 +55,24 @@ import {
   createQueryPlanEntry
 } from './query-plan-cache.js';
 import { createRetrievalStageTracker } from './pipeline/stage-checkpoints.js';
+
+const PROFILE_MODES = Object.freeze(['code', 'prose', 'extracted-prose', 'records']);
+
+const resolveProfileForState = (state) => {
+  const id = state?.profile?.id;
+  if (typeof id === 'string' && id.trim()) return id.trim().toLowerCase();
+  return INDEX_PROFILE_DEFAULT;
+};
+
+const collectMissingSparseTables = ({ sqliteHelpers, mode, postingsConfig }) => {
+  if (!sqliteHelpers || typeof sqliteHelpers.hasTable !== 'function') return [];
+  const required = resolveSparseRequiredTables(postingsConfig);
+  const missing = [];
+  for (const tableName of required) {
+    if (!sqliteHelpers.hasTable(mode, tableName)) missing.push(tableName);
+  }
+  return missing;
+};
 
 export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}) {
   const telemetry = createSearchTelemetry();
@@ -235,6 +255,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       langImpossible,
       metaFilters,
       annEnabled,
+      annFlagPresent,
       scoreBlendEnabled,
       scoreBlendSparseWeight,
       scoreBlendAnnWeight,
@@ -259,12 +280,15 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       sqliteFtsStemming,
       fieldWeightsConfig,
       explain,
+      allowSparseFallback,
+      allowUnsafeMix,
       denseVectorMode,
       strict,
       backendArg,
       lancedbConfig,
       tantivyConfig,
-      sparseBackend
+      sparseBackend,
+      scoreMode
     } = runConfig;
 
     if (!query) {
@@ -323,7 +347,6 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     }
 
     telemetry.setMode(searchMode);
-    telemetry.setAnn(annEnabled ? 'on' : 'off');
 
     const modelConfig = getModelConfig(rootDir, userConfig);
     const modelIdDefault = argv.model || modelConfig.id || DEFAULT_MODEL_ID;
@@ -338,7 +361,16 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     const needsExtractedProse = runExtractedProseRaw;
     const requiresExtractedProse = searchMode === 'extracted-prose';
     const needsSqlite = runCode || runProse || runExtractedProseRaw;
-    const vectorAnnEnabled = annEnabled && vectorExtension.enabled;
+    let annEnabledEffective = annEnabled;
+    let vectorAnnEnabled = false;
+    const profileWarnings = [];
+    const profileWarningSet = new Set();
+    const addProfileWarning = (warning) => {
+      const text = typeof warning === 'string' ? warning.trim() : '';
+      if (!text || profileWarningSet.has(text)) return;
+      profileWarningSet.add(text);
+      profileWarnings.push(text);
+    };
     const dbModeSelection = [];
     if (needsCode) dbModeSelection.push('code');
     if (needsProse) dbModeSelection.push('prose');
@@ -371,14 +403,102 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     const sqliteExtractedProsePath = sqlitePaths.extractedProsePath;
 
     const sqliteStateCode = needsCode
-      ? loadIndexState(rootDir, userConfig, 'code', { resolveOptions: indexResolveOptions })
+      ? loadIndexState(rootDir, userConfig, 'code', {
+        resolveOptions: indexResolveOptions,
+        onCompatibilityWarning: addProfileWarning
+      })
       : null;
     const sqliteStateProse = needsProse
-      ? loadIndexState(rootDir, userConfig, 'prose', { resolveOptions: indexResolveOptions })
+      ? loadIndexState(rootDir, userConfig, 'prose', {
+        resolveOptions: indexResolveOptions,
+        onCompatibilityWarning: addProfileWarning
+      })
       : null;
     const sqliteStateExtractedProse = needsExtractedProse
-      ? loadIndexState(rootDir, userConfig, 'extracted-prose', { resolveOptions: indexResolveOptions })
+      ? loadIndexState(rootDir, userConfig, 'extracted-prose', {
+        resolveOptions: indexResolveOptions,
+        onCompatibilityWarning: addProfileWarning
+      })
       : null;
+    const sqliteStateRecords = runRecords
+      ? loadIndexState(rootDir, userConfig, 'records', {
+        resolveOptions: indexResolveOptions,
+        onCompatibilityWarning: addProfileWarning
+      })
+      : null;
+    const indexStateByMode = {
+      code: sqliteStateCode,
+      prose: sqliteStateProse,
+      'extracted-prose': sqliteStateExtractedProse,
+      records: sqliteStateRecords
+    };
+    const selectedModes = PROFILE_MODES.filter((mode) => (
+      (mode === 'code' && runCode)
+      || (mode === 'prose' && runProse)
+      || (mode === 'extracted-prose' && runExtractedProseRaw)
+      || (mode === 'records' && runRecords)
+    ));
+    const profilePolicyByMode = {};
+    for (const mode of selectedModes) {
+      const profileId = resolveProfileForState(indexStateByMode[mode]);
+      const vectorOnly = profileId === INDEX_PROFILE_VECTOR_ONLY;
+      profilePolicyByMode[mode] = {
+        profileId,
+        vectorOnly,
+        allowSparseFallback: allowSparseFallback === true,
+        sparseUnavailableReason: vectorOnly ? 'profile_vector_only' : null
+      };
+    }
+    const vectorOnlyModes = selectedModes.filter((mode) => profilePolicyByMode[mode]?.vectorOnly === true);
+    const profileModes = selectedModes
+      .map((mode) => ({ mode, profileId: profilePolicyByMode[mode]?.profileId || INDEX_PROFILE_DEFAULT }))
+      .filter((entry) => typeof entry.profileId === 'string' && entry.profileId);
+    const uniqueProfileIds = Array.from(new Set(profileModes.map((entry) => entry.profileId)));
+    if (uniqueProfileIds.length > 1) {
+      const details = profileModes
+        .map((entry) => `${entry.mode}:${entry.profileId}`)
+        .join(', ');
+      if (allowUnsafeMix !== true) {
+        return bail(
+          `[search] retrieval_profile_mismatch: mixed index profiles detected (${details}). ` +
+            'Rebuild indexes to a single profile or pass --allow-unsafe-mix to override.',
+          1,
+          ERROR_CODES.INVALID_REQUEST
+        );
+      }
+      addProfileWarning(
+        `Unsafe mixed-profile cohort override enabled (--allow-unsafe-mix): ${details}.`
+      );
+    }
+    const sparseOnlyRequested = scoreMode === 'sparse' || (annFlagPresent && annEnabled === false);
+    if (vectorOnlyModes.length && sparseOnlyRequested) {
+      if (allowSparseFallback !== true) {
+        const details = vectorOnlyModes.join(', ');
+        return bail(
+          `[search] retrieval_profile_mismatch: sparse-only retrieval cannot run against vector_only index profile (${details}). ` +
+            'Re-run with ANN enabled or pass --allow-sparse-fallback to allow ANN fallback.',
+          1,
+          ERROR_CODES.INVALID_REQUEST
+        );
+      }
+      addProfileWarning(
+        `Sparse-only request overridden for vector_only mode(s): ${vectorOnlyModes.join(', ')}. ANN fallback was used.`
+      );
+      annEnabledEffective = true;
+    }
+    if (vectorOnlyModes.length && annEnabledEffective !== true) {
+      addProfileWarning(
+        `Forcing ANN on for vector_only mode(s): ${vectorOnlyModes.join(', ')}. Sparse providers are unavailable.`
+      );
+      annEnabledEffective = true;
+    }
+    vectorAnnEnabled = annEnabledEffective && vectorExtension.enabled;
+    telemetry.setAnn(annEnabledEffective ? 'on' : 'off');
+    if (emitOutput && profileWarnings.length) {
+      for (const warning of profileWarnings) {
+        console.warn(`[search] ${warning}`);
+      }
+    }
     const sqliteCodeAvailable = !sqliteRootsMixed && fsSync.existsSync(sqliteCodePath) && isSqliteReady(sqliteStateCode);
     const sqliteProseAvailable = !sqliteRootsMixed && fsSync.existsSync(sqliteProsePath) && isSqliteReady(sqliteStateProse);
     const sqliteExtractedProseAvailable = !sqliteRootsMixed
@@ -571,6 +691,31 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     if (backendForcedLmdb && !useLmdb) {
       return bail('LMDB backend requested but unavailable.', 1, ERROR_CODES.INVALID_REQUEST);
     }
+    if (!annEnabledEffective && useSqlite) {
+      const sparseMissingByMode = {};
+      for (const mode of selectedModes) {
+        if (mode === 'records') continue;
+        const policy = profilePolicyByMode[mode];
+        if (policy?.vectorOnly) continue;
+        const missing = collectMissingSparseTables({
+          sqliteHelpers,
+          mode,
+          postingsConfig
+        });
+        if (missing.length) sparseMissingByMode[mode] = missing;
+      }
+      if (Object.keys(sparseMissingByMode).length) {
+        const details = Object.entries(sparseMissingByMode)
+          .map(([mode, missing]) => `- ${mode}: ${missing.join(', ')}`)
+          .join('\n');
+        return bail(
+          `[search] ${RETRIEVAL_SPARSE_UNAVAILABLE_CODE}: sparse-only retrieval requires sparse tables, but required tables are missing.\n${details}\n` +
+            'Rebuild sparse artifacts or enable ANN fallback.',
+          1,
+          ERROR_CODES.CAPABILITY_MISSING
+        );
+      }
+    }
 
     const branchResult = await applyBranchFilter({
       branchFilter,
@@ -743,7 +888,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     }
     stageTracker.record('startup.query-plan', planStart, { mode: 'all' });
 
-    const annActive = annEnabled && queryPlan.queryTokens.length > 0;
+    const annActive = annEnabledEffective && queryPlan.queryTokens.length > 0;
     const graphRankingEnabled = graphRankingConfig?.enabled === true;
     const requiredArtifacts = resolveRequiredArtifacts({
       queryPlan,
@@ -808,13 +953,15 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       indexStates: {
         code: sqliteStateCode || null,
         prose: sqliteStateProse || null,
-        'extracted-prose': sqliteStateExtractedProse || null
+        'extracted-prose': sqliteStateExtractedProse || null,
+        records: sqliteStateRecords || null
       },
       strict,
       loadIndexFromSqlite,
       loadIndexFromLmdb,
       resolvedDenseVectorMode: queryPlan.resolvedDenseVectorMode,
       loadExtractedProse: joinComments,
+      allowUnsafeMix,
       requiredArtifacts,
       indexDirByMode: asOfContext?.strict ? asOfContext.indexDirByMode : null,
       indexBaseRootByMode: asOfContext?.strict ? asOfContext.indexBaseRootByMode : null,
@@ -846,7 +993,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       extractedProseLoaded,
       topN,
       useSqlite,
-      annEnabled,
+      annEnabled: annEnabledEffective,
       annActive,
       annBackend,
       lancedbConfig,
@@ -903,6 +1050,9 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       rankSqliteFts,
       rankVectorAnnSqlite,
       sqliteHasFts: sqliteHelpers?.hasFtsTable,
+      sqliteHasTable: sqliteHelpers?.hasTable,
+      profilePolicyByMode,
+      profileWarnings,
       idxProse,
       idxExtractedProse,
       idxCode,
@@ -964,7 +1114,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
         codeHits: searchResult.codeHits,
         recordHits: searchResult.recordHits
       },
-      annEnabled,
+      annEnabled: annEnabledEffective,
       annActive,
       annBackend: searchResult.annBackend,
       vectorExtension,
@@ -978,6 +1128,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       embeddingProvider,
       embeddingOnnx,
       cacheInfo: searchResult.cache,
+      profileInfo: searchResult.profile || null,
       intentInfo: queryPlan.intentInfo,
       resolvedDenseVectorMode: queryPlan.resolvedDenseVectorMode,
       fieldWeights: queryPlan.fieldWeights,

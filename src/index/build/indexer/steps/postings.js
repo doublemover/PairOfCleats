@@ -9,6 +9,7 @@ import {
 } from '../../state.js';
 import { quantizeVecUint8 } from '../../../embedding.js';
 import { isVectorLike } from '../../../../shared/embedding-utils.js';
+import { INDEX_PROFILE_VECTOR_ONLY } from '../../../../contracts/index-profile.js';
 
 export const createTokenRetentionState = ({ runtime, totalFiles, log = sharedLog }) => {
   const tokenizationStats = {
@@ -160,6 +161,13 @@ export const createTokenRetentionState = ({ runtime, totalFiles, log = sharedLog
 };
 
 export const buildIndexPostings = async ({ runtime, state }) => {
+  const vectorOnlyProfile = runtime?.profile?.id === INDEX_PROFILE_VECTOR_ONLY;
+  const embeddingsConfigured = runtime?.userConfig?.indexing?.embeddings?.enabled !== false;
+  if (vectorOnlyProfile && runtime?.embeddingEnabled !== true && embeddingsConfigured !== true) {
+    throw new Error(
+      'indexing.profile=vector_only requires embeddings to be available during index build.'
+    );
+  }
   enforceTokenIdCollisionPolicy(state);
   const postings = await buildPostings({
     chunks: state.chunks,
@@ -206,6 +214,19 @@ export const buildIndexPostings = async ({ runtime, state }) => {
   if (state?.triPost?.clear) state.triPost.clear();
   if (state?.fieldPostings?.clear) state.fieldPostings.clear();
   if (state?.df?.clear) state.df.clear();
+
+  if (vectorOnlyProfile) {
+    postings.tokenVocab = [];
+    postings.tokenVocabIds = [];
+    postings.tokenPostingsList = [];
+    postings.phraseVocab = [];
+    postings.phrasePostings = [];
+    postings.chargramVocab = [];
+    postings.chargramPostings = [];
+    postings.fieldPostings = null;
+    postings.minhashSigs = [];
+    postings.minhashStream = false;
+  }
 
   return postings;
 };

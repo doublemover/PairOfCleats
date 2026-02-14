@@ -200,6 +200,11 @@
       "type": "object",
       "additionalProperties": true,
       "properties": {
+        "profile": {
+          "type": "string",
+          "enum": ["default", "vector_only"],
+          "default": "default"
+        },
         "concurrency": { "type": "number" },
         "importConcurrency": { "type": "number" },
         "ioConcurrencyCap": { "type": "number" },

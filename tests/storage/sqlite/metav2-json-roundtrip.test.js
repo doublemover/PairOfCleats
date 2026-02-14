@@ -28,6 +28,7 @@ const metaV2 = {
   lang: 'javascript',
   ext: '.js'
 };
+const expectedMetaV2 = { ...metaV2, schemaVersion: 2 };
 
 const db = new Database(dbPath);
 db.exec(CREATE_TABLES_BASE_SQL);
@@ -76,6 +77,6 @@ const { chunkMeta } = helpers.loadIndexFromSqlite('code', {
 readDb.close();
 
 assert.equal(chunkMeta.length, 1);
-assert.deepStrictEqual(chunkMeta[0].metaV2, metaV2);
+assert.deepStrictEqual(chunkMeta[0].metaV2, expectedMetaV2);
 
 console.log('sqlite metaV2_json roundtrip ok');

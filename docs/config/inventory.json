@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-13T09:48:13.009Z",
+  "generatedAt": "2026-02-13T22:26:12.648Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -177,6 +177,7 @@
       "indexing.postings.phraseMinN",
       "indexing.postings.phraseSource",
       "indexing.postings.tokenClassification",
+      "indexing.profile",
       "indexing.riskInterprocedural.caps.maxCallSitesPerEdge",
       "indexing.riskInterprocedural.caps.maxDepth",
       "indexing.riskInterprocedural.caps.maxEdgeExpansions",
@@ -328,8 +329,8 @@
   },
   "configSchema": {
     "path": "docs/config/schema.json",
-    "totalKeys": 263,
-    "leafKeys": 213,
+    "totalKeys": 264,
+    "leafKeys": 214,
     "topLevel": [
       {
         "key": "cache",
@@ -337,7 +338,7 @@
       },
       {
         "key": "indexing",
-        "count": 131
+        "count": 132
       },
       {
         "key": "mcp",
@@ -823,6 +824,14 @@
       "path": "indexing.postings.tokenClassification",
       "type": null,
       "enum": null
+    },
+    {
+      "path": "indexing.profile",
+      "type": "string",
+      "enum": [
+        "default",
+        "vector_only"
+      ]
     },
     {
       "path": "indexing.riskInterprocedural",
@@ -2411,6 +2420,9 @@
         "tests/indexer/call-sites/call-sites-empty-required.test.js",
         "tests/indexing/artifacts/artifact-size-guardrails.test.js",
         "tests/indexing/contracts/golden-surface-suite.test.js",
+        "tests/indexing/contracts/profile-artifacts-present-omitted-consistency.test.js",
+        "tests/indexing/contracts/profile-index-state-contract.test.js",
+        "tests/indexing/contracts/profile-index-state-has-required-artifacts.test.js",
         "tests/indexing/incremental/incremental-cache-signature.test.js",
         "tests/indexing/incremental/incremental-tokenization-cache.test.js",
         "tests/indexing/piece-assembly/piece-assembly.test.js",
@@ -2427,6 +2439,23 @@
         "tests/storage/sqlite/sqlite-auto-backend.test.js",
         "tools/bench/index/scheduler-store-format.js",
         "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TEST_FORCE_DOCX_MISSING",
+      "files": [
+        "src/index/extractors/docx.js",
+        "tests/indexing/extracted-prose/document-extraction-outcomes-recorded.test.js",
+        "tests/indexing/extracted-prose/documents-skipped-when-unavailable.test.js",
+        "tests/indexing/extracted-prose/docx-missing-dep-skips.test.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TEST_FORCE_PDF_MISSING",
+      "files": [
+        "src/index/extractors/pdf.js",
+        "tests/indexing/extracted-prose/documents-skipped-when-unavailable.test.js",
+        "tests/indexing/extracted-prose/pdf-missing-dep-skips.test.js"
       ]
     },
     {
@@ -2508,6 +2537,39 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_TEST_STUB_DOCX_EXTRACT",
+      "files": [
+        "src/index/extractors/docx.js",
+        "tests/indexing/extracted-prose/document-bytes-hash-stable.test.js",
+        "tests/indexing/extracted-prose/document-extraction-checksums-and-counts.test.js",
+        "tests/indexing/extracted-prose/documents-included-when-available.test.js",
+        "tests/indexing/extracted-prose/extraction-report.test.js",
+        "tests/services/sqlite-hydration-metaV2-parity.test.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TEST_STUB_PDF_EXTRACT",
+      "files": [
+        "src/index/extractors/pdf.js",
+        "tests/indexing/extracted-prose/document-bytes-hash-stable.test.js",
+        "tests/indexing/extracted-prose/document-chunk-id-no-collision.test.js",
+        "tests/indexing/extracted-prose/document-extraction-checksums-and-counts.test.js",
+        "tests/indexing/extracted-prose/document-extraction-outcomes-recorded.test.js",
+        "tests/indexing/extracted-prose/document-extractor-version-recorded.test.js",
+        "tests/indexing/extracted-prose/document-security-guardrails.test.js",
+        "tests/indexing/extracted-prose/documents-included-when-available.test.js",
+        "tests/indexing/extracted-prose/extraction-report.test.js",
+        "tests/services/sqlite-hydration-metaV2-parity.test.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TEST_STUB_PDF_EXTRACT_DELAY_MS",
+      "files": [
+        "src/index/extractors/pdf.js",
+        "tests/indexing/extracted-prose/document-security-guardrails.test.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_TEST_TANTIVY",
       "files": [
         "tests/smoke/tantivy-smoke.test.js",
@@ -2533,6 +2595,8 @@
     {
       "name": "PAIROFCLEATS_TESTING",
       "files": [
+        "src/index/extractors/docx.js",
+        "src/index/extractors/pdf.js",
         "src/shared/env.js",
         "tests/cli/build-index/build-index-all.test.js",
         "tests/cli/general/risk-explain.test.js",
@@ -2553,12 +2617,16 @@
         "tests/indexing/contracts/index-compatibility-key-enforced-on-load.test.js",
         "tests/indexing/contracts/index-compatibility-key-federation-block.test.js",
         "tests/indexing/contracts/loader-matrix-parity.test.js",
+        "tests/indexing/contracts/profile-artifacts-present-omitted-consistency.test.js",
+        "tests/indexing/contracts/profile-index-state-contract.test.js",
+        "tests/indexing/contracts/profile-index-state-has-required-artifacts.test.js",
         "tests/indexing/contracts/snapshots-contracts.test.js",
         "tests/indexing/determinism/chunkuid-determinism.test.js",
         "tests/indexing/embeddings/build/args-parsing.test.js",
         "tests/indexing/embeddings/build/runtime-defaults.test.js",
         "tests/indexing/embeddings/embedding-batch-autotune.test.js",
         "tests/indexing/embeddings/manifest-embeddings-pieces.test.js",
+        "tests/indexing/extracted-prose/document-security-guardrails.test.js",
         "tests/indexing/extracted-prose/extracted-prose.test.js",
         "tests/indexing/incremental/incremental-cache-signature.test.js",
         "tests/indexing/incremental/incremental-tokenization-cache.test.js",
@@ -2738,6 +2806,16 @@
         "tests/indexer/call-sites/call-sites-emit-artifacts-none.test.js",
         "tests/indexer/call-sites/call-sites-empty-required.test.js",
         "tests/indexing/artifacts/artifact-size-guardrails.test.js",
+        "tests/indexing/extracted-prose/document-bytes-hash-stable.test.js",
+        "tests/indexing/extracted-prose/document-chunk-id-no-collision.test.js",
+        "tests/indexing/extracted-prose/document-extraction-checksums-and-counts.test.js",
+        "tests/indexing/extracted-prose/document-extraction-outcomes-recorded.test.js",
+        "tests/indexing/extracted-prose/document-extractor-version-recorded.test.js",
+        "tests/indexing/extracted-prose/documents-included-when-available.test.js",
+        "tests/indexing/extracted-prose/documents-skipped-when-unavailable.test.js",
+        "tests/indexing/extracted-prose/docx-missing-dep-skips.test.js",
+        "tests/indexing/extracted-prose/extraction-report.test.js",
+        "tests/indexing/extracted-prose/pdf-missing-dep-skips.test.js",
         "tests/indexing/file-processor/skip-minified-binary.test.js",
         "tests/indexing/incremental/incremental-cache-signature.test.js",
         "tests/indexing/incremental/incremental-tokenization-cache.test.js",
@@ -2750,6 +2828,7 @@
         "tests/services/api-search-asof.test.js",
         "tests/services/snapshot-query.test.js",
         "tests/services/sqlite-build-snapshot.test.js",
+        "tests/services/sqlite-hydration-metaV2-parity.test.js",
         "tests/shared/encoding/encoding-fallback.test.js",
         "tests/storage/sqlite/sqlite-incremental-no-change.test.js",
         "tools/ci/run-suite.js",
@@ -2767,7 +2846,13 @@
   "envVarsPublic": [
     "PAIROFCLEATS_API_TOKEN"
   ],
-  "envVarsUnknown": [],
+  "envVarsUnknown": [
+    "PAIROFCLEATS_TEST_FORCE_DOCX_MISSING",
+    "PAIROFCLEATS_TEST_FORCE_PDF_MISSING",
+    "PAIROFCLEATS_TEST_STUB_DOCX_EXTRACT",
+    "PAIROFCLEATS_TEST_STUB_PDF_EXTRACT",
+    "PAIROFCLEATS_TEST_STUB_PDF_EXTRACT_DELAY_MS"
+  ],
   "cliFlags": {
     "totalFlags": 310,
     "publicFlags": [

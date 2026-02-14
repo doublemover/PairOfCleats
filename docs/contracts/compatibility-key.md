@@ -12,6 +12,7 @@ The key is `sha1(stableStringify(payload))` where the payload includes:
 - **artifactSurfaceMajor**: major version of `ARTIFACT_SURFACE_VERSION`.
 - **schemaHash**: registry hash for artifact schemas (`ARTIFACT_SCHEMA_HASH`).
 - **tokenizationKeys**: per-mode tokenization signatures (from `buildTokenizationKey`).
+- **profile**: `{ id, schemaVersion }` from the index profile contract.
 - **embeddingsKey**: hash of embedding identity/config (null if embeddings disabled).
 - **languagePolicyKey**: hash of segment/language/comment policy.
 - **chunkIdAlgoVersion**: version for chunk identity derivation.
@@ -35,6 +36,7 @@ The key changes when any of the following change:
 - Chunk id derivation rules (chunk id algorithm version).
 - SQLite schema version changes (e.g., adding `metaV2_json`).
 - Enabled modes list (code/prose/extracted-prose/records).
+- Index profile identity (`default` vs `vector_only`) or profile schema version.
 
 ## Troubleshooting
 

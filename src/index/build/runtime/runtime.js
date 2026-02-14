@@ -57,6 +57,10 @@ import {
   resolveWorkerPoolRuntimeConfig,
   createRuntimeWorkerPools
 } from './workers.js';
+import {
+  assertKnownIndexProfileId,
+  buildIndexProfileState
+} from '../../../contracts/index-profile.js';
 
 const coercePositiveInt = (value) => {
   const parsed = Number(value);
@@ -179,6 +183,12 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   if (stageOverrides) {
     indexingConfig = mergeConfig(indexingConfig, stageOverrides);
   }
+  const profileId = assertKnownIndexProfileId(indexingConfig.profile);
+  const profile = buildIndexProfileState(profileId);
+  indexingConfig = {
+    ...indexingConfig,
+    profile: profile.id
+  };
   const rawArgs = Array.isArray(rawArgv) ? rawArgv : [];
   const scmAnnotateOverride = rawArgs.includes('--scm-annotate')
     ? true
@@ -710,6 +720,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   } else if (stage === 'stage4') {
     log('Indexing stage4 (sqlite/ann pass) running.');
   }
+  log(`Index profile: ${profile.id}.`);
   if (!embeddingEnabled) {
     const label = embeddingService ? 'service queue' : 'disabled';
     const deferred = baseEmbeddingsPlanned && (stage === 'stage1' || stage === 'stage2');
@@ -900,6 +911,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     repoCacheRoot,
     buildId,
     buildRoot,
+    profile,
     recordsDir: triageConfig.recordsDir,
     recordsConfig,
     currentIndexRoot,

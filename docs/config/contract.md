@@ -108,6 +108,7 @@ indexing.postings.phraseMaxN (number)
 indexing.postings.phraseMinN (number)
 indexing.postings.phraseSource (string)
 indexing.postings.tokenClassification
+indexing.profile (string) enum=default|vector_only
 indexing.riskInterprocedural (object)
 indexing.riskInterprocedural.caps (object)
 indexing.riskInterprocedural.caps.maxCallSitesPerEdge (number)
@@ -287,7 +288,7 @@ tooling.vfs.tokenMode (string)
 
 ## Defaults
 
-- (no defaults declared in schema)
+- indexing.profile = "default"
 
 ## Env overrides (runtime)
 

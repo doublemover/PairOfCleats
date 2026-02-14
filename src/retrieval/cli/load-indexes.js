@@ -98,6 +98,7 @@ export async function loadSearchIndexes({
   lancedbConfig,
   tantivyConfig,
   strict = true,
+  allowUnsafeMix = false,
   indexStates = null,
   loadIndexFromSqlite,
   loadIndexFromLmdb,
@@ -267,27 +268,32 @@ export async function loadSearchIndexes({
       const { key } = readCompatibilityKey(entry.dir, { maxBytes: MAX_JSON_BYTES, strict });
       keys.set(entry.mode, key);
     }
-    const uniqueKeys = new Set(keys.values());
-    if (uniqueKeys.size > 1) {
-      if (!resolvedRunExtractedProse && keys.has('extracted-prose')) {
-        const filtered = new Map(Array.from(keys.entries()).filter(([mode]) => mode !== 'extracted-prose'));
-        const filteredKeys = new Set(filtered.values());
-        if (filteredKeys.size <= 1) {
-          if (emitOutput) {
-            console.warn('[search] extracted-prose index mismatch; skipping comment joins.');
-          }
-          resolvedLoadExtractedProse = false;
-          extractedProseDir = null;
-        } else {
-          const details = Array.from(keys.entries())
-            .map(([mode, key]) => `- ${mode}: ${key}`)
-            .join('\n');
-          throw new Error(`Incompatible indexes detected (compatibilityKey mismatch):\n${details}`);
+    let keysToValidate = keys;
+    const hasMixedCompatibilityKeys = (map) => (new Set(map.values())).size > 1;
+    if (hasMixedCompatibilityKeys(keysToValidate) && !resolvedRunExtractedProse && keysToValidate.has('extracted-prose')) {
+      const filtered = new Map(Array.from(keysToValidate.entries()).filter(([mode]) => mode !== 'extracted-prose'));
+      if (!hasMixedCompatibilityKeys(filtered)) {
+        if (emitOutput) {
+          console.warn('[search] extracted-prose index mismatch; skipping comment joins.');
+        }
+        resolvedLoadExtractedProse = false;
+        extractedProseDir = null;
+        keysToValidate = filtered;
+      }
+    }
+    if (hasMixedCompatibilityKeys(keysToValidate)) {
+      const details = Array.from(keysToValidate.entries())
+        .map(([mode, key]) => `- ${mode}: ${key}`)
+        .join('\n');
+      if (allowUnsafeMix === true) {
+        if (emitOutput) {
+          console.warn(
+            '[search] compatibilityKey mismatch overridden via --allow-unsafe-mix. ' +
+            'Results may combine incompatible index cohorts:\n' +
+            details
+          );
         }
       } else {
-        const details = Array.from(keys.entries())
-          .map(([mode, key]) => `- ${mode}: ${key}`)
-          .join('\n');
         throw new Error(`Incompatible indexes detected (compatibilityKey mismatch):\n${details}`);
       }
     }

@@ -18,7 +18,7 @@ const srcDir = path.join(repoRoot, 'src');
 await rmDirRecursive(tempRoot, { retries: 6, delayMs: 120 });
 await fsPromises.mkdir(srcDir, { recursive: true });
 
-const commentText = 'extracted-prose cache sentinel';
+const commentText = 'extracted prose cache sentinel';
 const source = [
   '/**',
   ` * ${commentText}`,

@@ -1,5 +1,9 @@
 import { writeIndexArtifacts } from '../../artifacts.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../../contracts/versioning.js';
+import {
+  buildIndexProfileState,
+} from '../../../../contracts/index-profile.js';
+import { buildIndexStateArtifactsBlock } from '../../index-state-profile.js';
 import { serializeRiskRulesBundle } from '../../../risk-rules.js';
 import { finalizePerfProfile } from '../../perf-profile.js';
 import { finalizeMetaV2 } from '../../../metadata-v2.js';
@@ -50,6 +54,13 @@ export const writeIndexArtifactsForMode = async ({
     ? (runtime.riskInterproceduralConfig?.emitArtifacts || null)
     : null;
   const tokenIdCollisions = getTokenIdCollisionSummary(state);
+  const profile = buildIndexProfileState(runtime.profile?.id || runtime.indexingConfig?.profile);
+  const artifacts = buildIndexStateArtifactsBlock({
+    profileId: profile.id,
+    mode,
+    embeddingsEnabled: runtime.embeddingEnabled || runtime.embeddingService,
+    postingsConfig: runtime.postingsConfig
+  });
   if (mode === 'code') {
     try {
       const result = computeInterproceduralRisk({
@@ -138,6 +149,7 @@ export const writeIndexArtifactsForMode = async ({
     indexState: {
       generatedAt: new Date().toISOString(),
       artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
+      profile,
       compatibilityKey: runtime.compatibilityKey || null,
       cohortKey: runtime.cohortKeys?.[mode] || runtime.compatibilityKey || null,
       buildId: runtime.buildId || null,
@@ -172,7 +184,8 @@ export const writeIndexArtifactsForMode = async ({
           : runtime.typeInferenceCrossFileEnabled,
         gitBlame: typeof runtime.analysisPolicy?.git?.blame === 'boolean'
           ? runtime.analysisPolicy.git.blame
-          : runtime.gitBlameEnabled
+          : runtime.gitBlameEnabled,
+        vectorOnlyShortcuts: state.vectorOnlyShortcuts || null
       },
       shards: runtime.shards?.enabled
         ? { enabled: true, plan: shardSummary }
@@ -190,6 +203,7 @@ export const writeIndexArtifactsForMode = async ({
         emitArtifacts: riskInterproceduralEmitArtifacts
       },
       riskRules: riskRules || null,
+      artifacts,
       extensions: {
         tokenIdCollisions
       }

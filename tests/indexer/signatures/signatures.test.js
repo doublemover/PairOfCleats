@@ -58,6 +58,7 @@ const runtimeA = {
   embeddingService: false,
   embeddingMode: 'inline',
   embeddingBatchSize: 32,
+  profile: { id: 'default', schemaVersion: 1 },
   toolInfo: { version: '1.0.0' },
   fileCaps: { default: { maxBytes: 1, maxLines: 2 }, byExt: {}, byLanguage: {} },
   fileScan: { sampleBytes: 64 },
@@ -90,6 +91,14 @@ const sigD = buildIncrementalSignature({
 }, 'code', tokenKeyA);
 if (sigA === sigD) {
   fail('buildIncrementalSignature should reflect tool version changes.');
+}
+
+const sigE = buildIncrementalSignature({
+  ...runtimeA,
+  profile: { id: 'vector_only', schemaVersion: 1 }
+}, 'code', tokenKeyA);
+if (sigA === sigE) {
+  fail('buildIncrementalSignature should reflect index profile changes.');
 }
 
 console.log('indexer signatures tests passed');

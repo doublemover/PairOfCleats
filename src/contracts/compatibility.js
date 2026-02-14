@@ -3,6 +3,11 @@ import { stableStringify } from '../shared/stable-json.js';
 import { ARTIFACT_SCHEMA_HASH } from './registry.js';
 import { SCHEMA_VERSION as SQLITE_SCHEMA_VERSION } from '../storage/sqlite/schema.js';
 import { ARTIFACT_SURFACE_VERSION, parseSemver } from './versioning.js';
+import {
+  INDEX_PROFILE_DEFAULT,
+  INDEX_PROFILE_SCHEMA_VERSION,
+  normalizeIndexProfileId
+} from './index-profile.js';
 
 const normalizeModes = (modes) => Array.from(new Set(modes || [])).sort();
 
@@ -36,6 +41,20 @@ const sanitizeVolatileConfig = (value) => {
   return out;
 };
 
+const resolveProfilePayload = (runtime) => {
+  const runtimeProfile = runtime?.profile && typeof runtime.profile === 'object'
+    ? runtime.profile
+    : {};
+  const id = normalizeIndexProfileId(
+    runtimeProfile.id ?? runtime?.indexingConfig?.profile,
+    INDEX_PROFILE_DEFAULT
+  );
+  const schemaVersion = Number.isFinite(Number(runtimeProfile.schemaVersion))
+    ? Math.max(1, Math.floor(Number(runtimeProfile.schemaVersion)))
+    : INDEX_PROFILE_SCHEMA_VERSION;
+  return { id, schemaVersion };
+};
+
 export const buildLanguagePolicyKey = (runtime) => {
   const languageOptions = sanitizeVolatileConfig(runtime?.languageOptions || {});
   const payload = {
@@ -66,6 +85,7 @@ export const buildCompatibilityKey = ({ runtime, modes, tokenizationKeys }) => {
     artifactSurfaceMajor: parsed?.major ?? null,
     schemaHash: ARTIFACT_SCHEMA_HASH,
     tokenizationKeys: tokenizationKeys || {},
+    profile: resolveProfilePayload(runtime),
     embeddingsKey: buildEmbeddingsKey(runtime),
     languagePolicyKey: buildLanguagePolicyKey(runtime),
     chunkIdAlgoVersion: CHUNK_ID_ALGO_VERSION,
@@ -84,6 +104,7 @@ export const buildCohortKey = ({ runtime, mode, tokenizationKeys }) => {
     tokenizationKey: normalizedMode
       ? (tokenizationKeys?.[normalizedMode] || null)
       : null,
+    profile: resolveProfilePayload(runtime),
     embeddingsKey: buildEmbeddingsKey(runtime),
     languagePolicyKey: buildLanguagePolicyKey(runtime),
     chunkIdAlgoVersion: CHUNK_ID_ALGO_VERSION,

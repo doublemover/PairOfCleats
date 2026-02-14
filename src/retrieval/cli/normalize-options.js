@@ -137,6 +137,10 @@ export function normalizeSearchOptions({
     ? searchConfig.annDefault
     : null;
   const annEnabled = annFlagPresent ? argv.ann : (annDefault ?? policyAnn ?? true);
+  const allowSparseFallback = argv['allow-sparse-fallback'] === true
+    || argv.allowSparseFallback === true;
+  const allowUnsafeMix = argv['allow-unsafe-mix'] === true
+    || argv.allowUnsafeMix === true;
   const annBackendRaw = argv['ann-backend'] ?? argv.annBackend;
   const annBackend = annBackendRaw == null
     ? 'lancedb'
@@ -309,6 +313,9 @@ export function normalizeSearchOptions({
     langImpossible,
     metaFilters,
     annEnabled,
+    annFlagPresent,
+    allowSparseFallback,
+    allowUnsafeMix,
     annBackend,
     scoreBlendEnabled,
     scoreBlendSparseWeight,
