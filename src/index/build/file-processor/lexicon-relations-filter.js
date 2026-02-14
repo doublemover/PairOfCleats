@@ -15,7 +15,7 @@ const normalizeBool = (value, fallback) => (typeof value === 'boolean' ? value :
 
 const normalizeToken = (value) => {
   if (typeof value !== 'string') return '';
-  return value.trim().toLowerCase();
+  return value.trim();
 };
 
 const resolveRelationsScopes = ({ languageId, config }) => {
@@ -179,9 +179,8 @@ export const filterRawRelationsWithLexicon = (rawRelations, {
 
   const dropConfig = resolveDropConfig({ languageId: resolvedLanguageId, config: cfg });
   const dropSet = buildDropSet(resolvedLexicon, dropConfig);
-  if (!dropSet.size) return rawRelations;
-
   const stableDedupe = dropConfig.stableDedupe === true;
+  if (!dropSet.size && !stableDedupe) return rawRelations;
   const stats = createStats();
 
   const filtered = { ...rawRelations };
