@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-14T00:04:58.387Z",
+  "generatedAt": "2026-02-14T01:50:21.813Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -89,6 +89,8 @@
       "PAIROFCLEATS_TEST_CACHE_SUFFIX",
       "PAIROFCLEATS_TEST_CODE_MAP_BUDGET_MS",
       "PAIROFCLEATS_TEST_CONFIG",
+      "PAIROFCLEATS_TEST_FORCE_DOCX_MISSING",
+      "PAIROFCLEATS_TEST_FORCE_PDF_MISSING",
       "PAIROFCLEATS_TEST_LOG_DIR",
       "PAIROFCLEATS_TEST_LOG_SILENT",
       "PAIROFCLEATS_TEST_MAX_JSON_BYTES",
@@ -98,6 +100,9 @@
       "PAIROFCLEATS_TEST_PID_FILE",
       "PAIROFCLEATS_TEST_RETRIES",
       "PAIROFCLEATS_TEST_SQLITE_P95_MAX_MS",
+      "PAIROFCLEATS_TEST_STUB_DOCX_EXTRACT",
+      "PAIROFCLEATS_TEST_STUB_PDF_EXTRACT",
+      "PAIROFCLEATS_TEST_STUB_PDF_EXTRACT_DELAY_MS",
       "PAIROFCLEATS_TEST_TANTIVY",
       "PAIROFCLEATS_TEST_THREADS",
       "PAIROFCLEATS_TEST_TIMEOUT_MS",
@@ -2520,7 +2525,8 @@
         "src/index/extractors/docx.js",
         "tests/indexing/extracted-prose/document-extraction-outcomes-recorded.test.js",
         "tests/indexing/extracted-prose/documents-skipped-when-unavailable.test.js",
-        "tests/indexing/extracted-prose/docx-missing-dep-skips.test.js"
+        "tests/indexing/extracted-prose/docx-missing-dep-skips.test.js",
+        "tools/config/inventory.js"
       ]
     },
     {
@@ -2528,7 +2534,8 @@
       "files": [
         "src/index/extractors/pdf.js",
         "tests/indexing/extracted-prose/documents-skipped-when-unavailable.test.js",
-        "tests/indexing/extracted-prose/pdf-missing-dep-skips.test.js"
+        "tests/indexing/extracted-prose/pdf-missing-dep-skips.test.js",
+        "tools/config/inventory.js"
       ]
     },
     {
@@ -2617,7 +2624,8 @@
         "tests/indexing/extracted-prose/document-extraction-checksums-and-counts.test.js",
         "tests/indexing/extracted-prose/documents-included-when-available.test.js",
         "tests/indexing/extracted-prose/extraction-report.test.js",
-        "tests/services/sqlite-hydration-metaV2-parity.test.js"
+        "tests/services/sqlite-hydration-metaV2-parity.test.js",
+        "tools/config/inventory.js"
       ]
     },
     {
@@ -2632,14 +2640,16 @@
         "tests/indexing/extracted-prose/document-security-guardrails.test.js",
         "tests/indexing/extracted-prose/documents-included-when-available.test.js",
         "tests/indexing/extracted-prose/extraction-report.test.js",
-        "tests/services/sqlite-hydration-metaV2-parity.test.js"
+        "tests/services/sqlite-hydration-metaV2-parity.test.js",
+        "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_TEST_STUB_PDF_EXTRACT_DELAY_MS",
       "files": [
         "src/index/extractors/pdf.js",
-        "tests/indexing/extracted-prose/document-security-guardrails.test.js"
+        "tests/indexing/extracted-prose/document-security-guardrails.test.js",
+        "tools/config/inventory.js"
       ]
     },
     {
@@ -2926,13 +2936,7 @@
   "envVarsPublic": [
     "PAIROFCLEATS_API_TOKEN"
   ],
-  "envVarsUnknown": [
-    "PAIROFCLEATS_TEST_FORCE_DOCX_MISSING",
-    "PAIROFCLEATS_TEST_FORCE_PDF_MISSING",
-    "PAIROFCLEATS_TEST_STUB_DOCX_EXTRACT",
-    "PAIROFCLEATS_TEST_STUB_PDF_EXTRACT",
-    "PAIROFCLEATS_TEST_STUB_PDF_EXTRACT_DELAY_MS"
-  ],
+  "envVarsUnknown": [],
   "cliFlags": {
     "totalFlags": 310,
     "publicFlags": [
