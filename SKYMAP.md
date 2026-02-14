@@ -841,23 +841,23 @@ Lock contract surfaces before implementation.
 Provide canonical wordlists, strict validation, deterministic normalization, and cached loading.
 
 #### Tasks
-- [ ] Implement:
-  - [ ] `getLanguageLexicon(languageId, { allowFallback })`
-  - [ ] `isLexiconStopword(languageId, token, domain)`
-  - [ ] `extractSymbolBaseName(name)` with fixed separator behavior
-- [ ] Wordlist schema requirements:
-  - [ ] required: `formatVersion=1`, `languageId`, `keywords[]`, `literals[]`
-  - [ ] optional: `types[]`, `builtins[]`, `modules[]`, `notes[]`
-  - [ ] `additionalProperties=false`
-- [ ] Loader behavior:
-  - [ ] resolve via `import.meta.url`
-  - [ ] cache via `Map<languageId, LanguageLexicon>`
-  - [ ] fail-open to `_generic`
-  - [ ] one structured warning per invalid file
-- [ ] Keep a practical language coverage pass:
-  - [ ] add language-specific wordlists where obvious value exists
-  - [ ] rely on `_generic` fallback for the rest until needed
-- [ ] Keep JS/TS keyword sets conservative to avoid property-name over-filtering.
+- [x] Implement:
+  - [x] `getLanguageLexicon(languageId, { allowFallback })`
+  - [x] `isLexiconStopword(languageId, token, domain)`
+  - [x] `extractSymbolBaseName(name)` with fixed separator behavior
+- [x] Wordlist schema requirements:
+  - [x] required: `formatVersion=1`, `languageId`, `keywords[]`, `literals[]`
+  - [x] optional: `types[]`, `builtins[]`, `modules[]`, `notes[]`
+  - [x] `additionalProperties=false`
+- [x] Loader behavior:
+  - [x] resolve via `import.meta.url`
+  - [x] cache via `Map<languageId, LanguageLexicon>`
+  - [x] fail-open to `_generic`
+  - [x] one structured warning per invalid file
+- [x] Keep a practical language coverage pass:
+  - [x] add language-specific wordlists where obvious value exists
+  - [x] rely on `_generic` fallback for the rest until needed
+- [x] Keep JS/TS keyword sets conservative to avoid property-name over-filtering.
 
 #### Touchpoints
 - `src/lang/lexicon/index.js` (new)
@@ -868,13 +868,13 @@ Provide canonical wordlists, strict validation, deterministic normalization, and
 - `src/index/language-registry/registry-data.js`
 
 #### Tests
-- [ ] `tests/lexicon/lexicon-schema.test.js`
-- [ ] `tests/lexicon/lexicon-loads-all-languages.test.js`
-- [ ] `tests/lexicon/lexicon-stopwords.test.js`
-- [ ] `tests/lexicon/lexicon-fallback.test.js`
-- [ ] `tests/lexicon/extract-symbol-base-name.test.js`
-- [ ] `tests/lexicon/lexicon-ascii-only.test.js`
-- [ ] `tests/lexicon/lexicon-per-language-overrides.test.js`
+- [x] `tests/lexicon/lexicon-schema.test.js`
+- [x] `tests/lexicon/lexicon-loads-all-languages.test.js`
+- [x] `tests/lexicon/lexicon-stopwords.test.js`
+- [x] `tests/lexicon/lexicon-fallback.test.js`
+- [x] `tests/lexicon/extract-symbol-base-name.test.js`
+- [x] `tests/lexicon/lexicon-ascii-only.test.js`
+- [x] `tests/lexicon/lexicon-per-language-overrides.test.js`
 
 ### 19.2 Build-time lexicon relation filtering
 

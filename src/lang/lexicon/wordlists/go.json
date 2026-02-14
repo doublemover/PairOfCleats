@@ -1,0 +1,50 @@
+{
+  "formatVersion": 1,
+  "languageId": "go",
+  "keywords": [
+    "break",
+    "case",
+    "const",
+    "continue",
+    "defer",
+    "else",
+    "fallthrough",
+    "for",
+    "func",
+    "go",
+    "if",
+    "import",
+    "interface",
+    "package",
+    "range",
+    "return",
+    "select",
+    "struct",
+    "switch",
+    "type",
+    "var"
+  ],
+  "literals": [
+    "false",
+    "iota",
+    "nil",
+    "true"
+  ],
+  "types": [
+    "bool",
+    "byte",
+    "error",
+    "float64",
+    "int",
+    "string"
+  ],
+  "builtins": [
+    "append",
+    "cap",
+    "len",
+    "make",
+    "new"
+  ],
+  "modules": [],
+  "notes": []
+}

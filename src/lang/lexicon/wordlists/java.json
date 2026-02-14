@@ -1,0 +1,51 @@
+{
+  "formatVersion": 1,
+  "languageId": "java",
+  "keywords": [
+    "break",
+    "case",
+    "catch",
+    "class",
+    "const",
+    "continue",
+    "else",
+    "extends",
+    "final",
+    "finally",
+    "for",
+    "if",
+    "implements",
+    "import",
+    "interface",
+    "new",
+    "package",
+    "return",
+    "switch",
+    "throw",
+    "try",
+    "while"
+  ],
+  "literals": [
+    "false",
+    "null",
+    "true"
+  ],
+  "types": [
+    "boolean",
+    "double",
+    "int",
+    "long",
+    "string",
+    "void"
+  ],
+  "builtins": [
+    "list",
+    "map",
+    "system"
+  ],
+  "modules": [
+    "java",
+    "javax"
+  ],
+  "notes": []
+}
