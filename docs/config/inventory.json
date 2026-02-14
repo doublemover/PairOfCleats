@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-14T02:15:29.931Z",
+  "generatedAt": "2026-02-14T21:05:43.138Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -168,6 +168,18 @@
       "indexing.importConcurrency",
       "indexing.ioConcurrencyCap",
       "indexing.lexicon.enabled",
+      "indexing.lexicon.languageOverrides.*.relations.drop.builtins",
+      "indexing.lexicon.languageOverrides.*.relations.drop.keywords",
+      "indexing.lexicon.languageOverrides.*.relations.drop.literals",
+      "indexing.lexicon.languageOverrides.*.relations.drop.types",
+      "indexing.lexicon.languageOverrides.*.relations.enabled",
+      "indexing.lexicon.languageOverrides.*.relations.stableDedupe",
+      "indexing.lexicon.relations.drop.builtins",
+      "indexing.lexicon.relations.drop.keywords",
+      "indexing.lexicon.relations.drop.literals",
+      "indexing.lexicon.relations.drop.types",
+      "indexing.lexicon.relations.enabled",
+      "indexing.lexicon.relations.stableDedupe",
       "indexing.maxFileBytes",
       "indexing.maxFileLines",
       "indexing.postings.chargramFields",
@@ -344,8 +356,8 @@
   },
   "configSchema": {
     "path": "docs/config/schema.json",
-    "totalKeys": 276,
-    "leafKeys": 224,
+    "totalKeys": 294,
+    "leafKeys": 236,
     "topLevel": [
       {
         "key": "cache",
@@ -353,7 +365,7 @@
       },
       {
         "key": "indexing",
-        "count": 136
+        "count": 154
       },
       {
         "key": "mcp",
@@ -767,6 +779,96 @@
     },
     {
       "path": "indexing.lexicon.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides.*",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides.*.relations",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides.*.relations.drop",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides.*.relations.drop.builtins",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides.*.relations.drop.keywords",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides.*.relations.drop.literals",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides.*.relations.drop.types",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides.*.relations.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides.*.relations.stableDedupe",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.relations",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.relations.drop",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.relations.drop.builtins",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.relations.drop.keywords",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.relations.drop.literals",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.relations.drop.types",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.relations.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.relations.stableDedupe",
       "type": "boolean",
       "enum": null
     },
@@ -1946,6 +2048,7 @@
         "tests/services/api/no-index.test.js",
         "tests/services/mcp/mcp-robustness.test.js",
         "tests/services/mcp/mcp-schema.test.js",
+        "tests/services/mcp/repo-path-resolution.test.js",
         "tests/services/mcp/sdk-mode.test.js",
         "tests/services/snapshot-query.test.js",
         "tests/services/sqlite-build-snapshot.test.js",
@@ -2783,6 +2886,7 @@
         "tests/services/indexing/compressed-artifact-presence.test.js",
         "tests/services/mcp/mcp-robustness.test.js",
         "tests/services/mcp/mcp-schema.test.js",
+        "tests/services/mcp/repo-path-resolution.test.js",
         "tests/services/mcp/sdk-mode.test.js",
         "tests/services/snapshot-create.test.js",
         "tests/services/snapshot-freeze.test.js",

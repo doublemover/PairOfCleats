@@ -314,6 +314,51 @@
             "enabled": {
               "type": "boolean",
               "default": true
+            },
+            "relations": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "stableDedupe": { "type": "boolean" },
+                "drop": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "keywords": { "type": "boolean" },
+                    "literals": { "type": "boolean" },
+                    "builtins": { "type": "boolean" },
+                    "types": { "type": "boolean" }
+                  }
+                }
+              }
+            },
+            "languageOverrides": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "relations": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "enabled": { "type": "boolean" },
+                      "stableDedupe": { "type": "boolean" },
+                      "drop": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "keywords": { "type": "boolean" },
+                          "literals": { "type": "boolean" },
+                          "builtins": { "type": "boolean" },
+                          "types": { "type": "boolean" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
             }
           }
         },

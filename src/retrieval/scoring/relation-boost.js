@@ -82,9 +82,10 @@ const isRankingStopword = ({
   languageId,
   token,
   resolvedLexicon,
-  allowGlobalFallback
+  allowGlobalFallback,
+  caseSensitive = false
 }) => {
-  const normalized = normalizeToken(token, false);
+  const normalized = normalizeToken(token, caseSensitive);
   if (!normalized) return false;
 
   const rankingStopwords = resolvedLexicon?.stopwords?.ranking;
@@ -98,6 +99,9 @@ const isRankingStopword = ({
       || hasSetToken(resolvedLexicon.types, normalized)
       || hasSetToken(resolvedLexicon.builtins, normalized);
   }
+
+  // Avoid case-folding elision when running case-sensitive relation boosting.
+  if (caseSensitive) return false;
 
   return allowGlobalFallback
     ? isLexiconStopword(languageId, normalized, 'ranking')
@@ -152,7 +156,8 @@ export const computeRelationBoost = ({
       languageId,
       token: rawToken,
       resolvedLexicon,
-      allowGlobalFallback: !hasInjectedLexicon
+      allowGlobalFallback: !hasInjectedLexicon,
+      caseSensitive: caseTokens
     })) continue;
     queryTokenSet.add(normalized);
   }
