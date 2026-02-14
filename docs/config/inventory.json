@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-14T01:50:21.813Z",
+  "generatedAt": "2026-02-14T02:15:29.931Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2522,7 +2522,7 @@
     {
       "name": "PAIROFCLEATS_TEST_FORCE_DOCX_MISSING",
       "files": [
-        "src/index/extractors/docx.js",
+        "src/shared/env.js",
         "tests/indexing/extracted-prose/document-extraction-outcomes-recorded.test.js",
         "tests/indexing/extracted-prose/documents-skipped-when-unavailable.test.js",
         "tests/indexing/extracted-prose/docx-missing-dep-skips.test.js",
@@ -2532,7 +2532,7 @@
     {
       "name": "PAIROFCLEATS_TEST_FORCE_PDF_MISSING",
       "files": [
-        "src/index/extractors/pdf.js",
+        "src/shared/env.js",
         "tests/indexing/extracted-prose/documents-skipped-when-unavailable.test.js",
         "tests/indexing/extracted-prose/pdf-missing-dep-skips.test.js",
         "tools/config/inventory.js"
@@ -2619,7 +2619,7 @@
     {
       "name": "PAIROFCLEATS_TEST_STUB_DOCX_EXTRACT",
       "files": [
-        "src/index/extractors/docx.js",
+        "src/shared/env.js",
         "tests/indexing/extracted-prose/document-bytes-hash-stable.test.js",
         "tests/indexing/extracted-prose/document-extraction-checksums-and-counts.test.js",
         "tests/indexing/extracted-prose/documents-included-when-available.test.js",
@@ -2631,7 +2631,7 @@
     {
       "name": "PAIROFCLEATS_TEST_STUB_PDF_EXTRACT",
       "files": [
-        "src/index/extractors/pdf.js",
+        "src/shared/env.js",
         "tests/indexing/extracted-prose/document-bytes-hash-stable.test.js",
         "tests/indexing/extracted-prose/document-chunk-id-no-collision.test.js",
         "tests/indexing/extracted-prose/document-extraction-checksums-and-counts.test.js",
@@ -2647,7 +2647,7 @@
     {
       "name": "PAIROFCLEATS_TEST_STUB_PDF_EXTRACT_DELAY_MS",
       "files": [
-        "src/index/extractors/pdf.js",
+        "src/shared/env.js",
         "tests/indexing/extracted-prose/document-security-guardrails.test.js",
         "tools/config/inventory.js"
       ]
@@ -2678,8 +2678,6 @@
     {
       "name": "PAIROFCLEATS_TESTING",
       "files": [
-        "src/index/extractors/docx.js",
-        "src/index/extractors/pdf.js",
         "src/shared/env.js",
         "tests/cli/build-index/build-index-all.test.js",
         "tests/cli/general/risk-explain.test.js",
