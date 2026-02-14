@@ -1,0 +1,49 @@
+{
+  "formatVersion": 1,
+  "languageId": "javascript",
+  "keywords": [
+    "break",
+    "case",
+    "catch",
+    "class",
+    "const",
+    "continue",
+    "else",
+    "export",
+    "extends",
+    "finally",
+    "for",
+    "function",
+    "if",
+    "import",
+    "let",
+    "new",
+    "return",
+    "switch",
+    "throw",
+    "try",
+    "var",
+    "while"
+  ],
+  "literals": [
+    "false",
+    "null",
+    "true",
+    "undefined"
+  ],
+  "types": [],
+  "builtins": [
+    "array",
+    "console",
+    "map",
+    "promise",
+    "set"
+  ],
+  "modules": [
+    "fs",
+    "path"
+  ],
+  "notes": [
+    "Conservative JS set to avoid property-name over-filtering."
+  ]
+}

@@ -279,6 +279,18 @@
               "minimum": 0,
               "description": "Maximum document frequency for chargram postings (0 disables the cap)."
             },
+            "chargramFields": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["name", "signature", "doc", "comment", "body"]
+              },
+              "default": ["name", "doc"]
+            },
+            "chargramStopwords": {
+              "type": "boolean",
+              "default": false
+            },
             "chargramSource": { "type": "string" },
             "fielded": { "type": "boolean" },
             "tokenClassification": {
@@ -292,6 +304,16 @@
                   }
                 }
               ]
+            }
+          }
+        },
+        "lexicon": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true
             }
           }
         },
@@ -521,6 +543,40 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "annCandidateCap": {
+          "type": "number",
+          "default": 20000
+        },
+        "annCandidateMinDocCount": {
+          "type": "number",
+          "default": 100
+        },
+        "annCandidateMaxDocCount": {
+          "type": "number",
+          "default": 20000
+        },
+        "relationBoost": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false
+            },
+            "perCall": {
+              "type": "number",
+              "default": 0.25
+            },
+            "perUse": {
+              "type": "number",
+              "default": 0.1
+            },
+            "maxBoost": {
+              "type": "number",
+              "default": 1.5
+            }
+          }
+        },
         "graph": {
           "type": "object",
           "additionalProperties": false,

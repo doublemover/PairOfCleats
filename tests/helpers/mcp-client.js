@@ -189,8 +189,9 @@ export const startMcpServer = async ({
   const reader = createReader(server.stdout, { onActivity: touchTimeout });
   const { readMessage, readAnyMessage, notifications } = reader;
   touchTimeout();
+  const resolvedTransport = transport || (mode === 'sdk' ? 'sdk' : 'legacy');
   const send = (payload) => {
-    if (transport === 'sdk') {
+    if (resolvedTransport === 'sdk') {
       server.stdin.write(encodeLineMessage(payload));
       return;
     }

@@ -1,0 +1,50 @@
+{
+  "formatVersion": 1,
+  "languageId": "csharp",
+  "keywords": [
+    "break",
+    "case",
+    "catch",
+    "class",
+    "const",
+    "continue",
+    "else",
+    "finally",
+    "for",
+    "foreach",
+    "if",
+    "interface",
+    "namespace",
+    "new",
+    "return",
+    "switch",
+    "throw",
+    "try",
+    "using",
+    "while"
+  ],
+  "literals": [
+    "false",
+    "null",
+    "true"
+  ],
+  "types": [
+    "bool",
+    "decimal",
+    "double",
+    "float",
+    "int",
+    "long",
+    "string",
+    "void"
+  ],
+  "builtins": [
+    "console",
+    "list",
+    "task"
+  ],
+  "modules": [
+    "system"
+  ],
+  "notes": []
+}

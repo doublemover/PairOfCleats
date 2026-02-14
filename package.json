@@ -47,6 +47,8 @@
     "config-dump": "node tools/config/dump.js",
     "config-reset": "node tools/config/reset.js",
     "config:budget": "node tools/config/inventory.js --check",
+    "lexicon:validate": "node tools/lexicon/validate.js",
+    "lexicon:report": "node tools/lexicon/report.js",
     "env:check": "node tools/ci/check-env-usage.js",
     "release-check": "node tools/release/check.js",
     "release-check:breaking": "node tools/release/check.js --breaking",

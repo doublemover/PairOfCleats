@@ -54,6 +54,15 @@ export function formatScoreBreakdown(scoreBreakdown, color) {
     const piece = formatScorePiece('Symbol', entry, color);
     if (piece) parts.push(piece);
   }
+  const relation = scoreBreakdown.relation || null;
+  if (relation && relation.enabled !== false) {
+    const entry = [];
+    if (Number.isFinite(relation.callMatches)) entry.push(`call=${relation.callMatches}`);
+    if (Number.isFinite(relation.usageMatches)) entry.push(`use=${relation.usageMatches}`);
+    if (Number.isFinite(relation.boost)) entry.push(`+${relation.boost.toFixed(3)}`);
+    const piece = formatScorePiece('Relation', entry, color);
+    if (piece) parts.push(piece);
+  }
   const graph = scoreBreakdown.graph || null;
   if (graph) {
     const entry = [];

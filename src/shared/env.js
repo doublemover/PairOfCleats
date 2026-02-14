@@ -18,6 +18,11 @@ const normalizeNumber = (value) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
 };
+const normalizeNonNegativeInt = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return 0;
+  return Math.max(0, Math.floor(parsed));
+};
 
 const isTesting = (env) => env?.PAIROFCLEATS_TESTING === '1' || env?.PAIROFCLEATS_TESTING === 'true';
 
@@ -107,6 +112,28 @@ export function getTestEnvConfig(env = process.env) {
     maxJsonBytes: normalizeNumber(env.PAIROFCLEATS_TEST_MAX_JSON_BYTES),
     allowMissingCompatKey: normalizeOptionalBoolean(env.PAIROFCLEATS_TEST_ALLOW_MISSING_COMPAT_KEY),
     mcpDelayMs: normalizeNumber(env.PAIROFCLEATS_TEST_MCP_DELAY_MS)
+  };
+}
+
+export function getDocumentExtractorTestConfig(env = process.env) {
+  const testing = isTesting(env);
+  if (!testing) {
+    return {
+      testing: false,
+      forceDocxMissing: false,
+      forcePdfMissing: false,
+      stubDocxExtract: false,
+      stubPdfExtract: false,
+      stubPdfExtractDelayMs: 0
+    };
+  }
+  return {
+    testing: true,
+    forceDocxMissing: normalizeBoolean(env.PAIROFCLEATS_TEST_FORCE_DOCX_MISSING),
+    forcePdfMissing: normalizeBoolean(env.PAIROFCLEATS_TEST_FORCE_PDF_MISSING),
+    stubDocxExtract: normalizeBoolean(env.PAIROFCLEATS_TEST_STUB_DOCX_EXTRACT),
+    stubPdfExtract: normalizeBoolean(env.PAIROFCLEATS_TEST_STUB_PDF_EXTRACT),
+    stubPdfExtractDelayMs: normalizeNonNegativeInt(env.PAIROFCLEATS_TEST_STUB_PDF_EXTRACT_DELAY_MS)
   };
 }
 

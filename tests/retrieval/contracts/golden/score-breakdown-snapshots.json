@@ -18,6 +18,7 @@
       "normalizedQueryChanged": null,
       "availabilityCode": null,
       "availabilityReason": null,
+      "indexProfile": null,
       "fielded": false,
       "k1": 1.2,
       "b": 0.75,
@@ -28,6 +29,7 @@
     "blend": null,
     "symbol": null,
     "phrase": null,
+    "relation": null,
     "graph": null
   },
   "prose": {
@@ -58,6 +60,7 @@
       "normalizedQueryChanged": false,
       "availabilityCode": null,
       "availabilityReason": null,
+      "indexProfile": null,
       "fielded": false,
       "k1": null,
       "b": null,
@@ -68,6 +71,7 @@
     "blend": null,
     "symbol": null,
     "phrase": null,
+    "relation": null,
     "graph": null
   }
 }

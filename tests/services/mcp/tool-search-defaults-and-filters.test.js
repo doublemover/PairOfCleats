@@ -74,7 +74,7 @@ try {
       name: 'search',
       arguments: {
         repoPath: fixtureRoot,
-        query: 'req',
+        query: 'runUnsafe',
         mode: 'code',
         top: 50,
         backend: 'memory'
@@ -110,7 +110,7 @@ try {
       name: 'search',
       arguments: {
         repoPath: fixtureRoot,
-        query: 'req',
+        query: 'runUnsafe',
         mode: 'code',
         top: 50,
         riskTag: 'command-exec',

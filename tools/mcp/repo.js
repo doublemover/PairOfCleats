@@ -50,13 +50,16 @@ export function resolveRepoPath(inputPath) {
   if (!fs.existsSync(base) || !fs.statSync(base).isDirectory()) {
     throw createError(ERROR_CODES.INVALID_REQUEST, `Repo path not found: ${base}`);
   }
+  if (inputPath) {
+    return toRealPathSync(base);
+  }
   return toRealPathSync(resolveRepoRoot(base));
 }
 
 const resolveConfigRoot = (args) => {
   const candidate = args?.repoPath ? path.resolve(String(args.repoPath)) : null;
   if (candidate && fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()) {
-    return toRealPathSync(resolveRepoRoot(candidate));
+    return toRealPathSync(candidate);
   }
   return toRealPathSync(resolveRepoRoot(process.cwd()));
 };

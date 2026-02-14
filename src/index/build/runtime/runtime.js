@@ -359,6 +359,36 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   const toolingConfig = getToolingConfig(root, userConfig);
   const toolingEnabled = toolingConfig.autoEnableOnDetect !== false;
   const postingsConfig = normalizePostingsConfig(indexingConfig.postings || {});
+  const rawLexiconConfig = indexingConfig.lexicon && typeof indexingConfig.lexicon === 'object'
+    ? indexingConfig.lexicon
+    : {};
+  const policyQualityValue = typeof autoPolicy?.quality?.value === 'string'
+    ? autoPolicy.quality.value
+    : null;
+  const rawLexiconRelations = rawLexiconConfig.relations && typeof rawLexiconConfig.relations === 'object'
+    ? rawLexiconConfig.relations
+    : {};
+  const rawLexiconDrop = rawLexiconRelations.drop && typeof rawLexiconRelations.drop === 'object'
+    ? rawLexiconRelations.drop
+    : {};
+  const lexiconConfig = {
+    enabled: rawLexiconConfig.enabled !== false,
+    relations: {
+      enabled: typeof rawLexiconRelations.enabled === 'boolean'
+        ? rawLexiconRelations.enabled
+        : policyQualityValue === 'max',
+      stableDedupe: rawLexiconRelations.stableDedupe === true,
+      drop: {
+        keywords: rawLexiconDrop.keywords !== false,
+        literals: rawLexiconDrop.literals !== false,
+        builtins: rawLexiconDrop.builtins === true,
+        types: rawLexiconDrop.types === true
+      }
+    }
+  };
+  if (rawLexiconConfig.languageOverrides && typeof rawLexiconConfig.languageOverrides === 'object') {
+    lexiconConfig.languageOverrides = rawLexiconConfig.languageOverrides;
+  }
   const { maxFileBytes, fileCaps, guardrails } = resolveFileCapsAndGuardrails(indexingConfig);
   const astDataflowEnabled = indexingConfig.astDataflow !== false;
   const controlFlowEnabled = indexingConfig.controlFlow !== false;
@@ -796,6 +826,9 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   if (postingsConfig.enableChargrams === false) {
     log('Chargram postings disabled via indexing.postings.enableChargrams.');
   }
+  if (lexiconConfig.enabled === false) {
+    log('Lexicon features disabled via indexing.lexicon.enabled.');
+  }
 
   const workerPoolsResult = await timeInit('worker pools', () => createRuntimeWorkerPools({
     workerPoolConfig,
@@ -894,6 +927,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
       mode: yamlChunkingMode,
       maxBytes: yamlTopLevelMaxBytes
     },
+    lexicon: lexiconConfig,
     log
   };
 

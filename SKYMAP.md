@@ -802,23 +802,23 @@ Deliver lexicon-aware relation filtering and boosts, chargram enrichment, and AN
 Lock contract surfaces before implementation.
 
 #### Tasks
-- [ ] Add config keys and defaults for:
-  - [ ] `indexing.lexicon.enabled`
-  - [ ] `indexing.postings.chargramFields`
-  - [ ] `indexing.postings.chargramStopwords`
-  - [ ] `retrieval.annCandidateCap`
-  - [ ] `retrieval.annCandidateMinDocCount`
-  - [ ] `retrieval.annCandidateMaxDocCount`
-  - [ ] `retrieval.relationBoost` (if exposed)
-- [ ] Publish versioning rules for lexicon wordlists and explain payload.
-- [ ] Add tooling:
-  - [ ] `tools/lexicon/validate.js`
-  - [ ] `tools/lexicon/report.js`
-  - [ ] `npm run lexicon:validate`
-  - [ ] `npm run lexicon:report`
-- [ ] Add explicit v2 deferral note for non-ASCII lexicon support.
-- [ ] Include new config knobs in incremental signature payload.
-- [ ] Move old lexicon draft/spec docs to `docs/archived/` with replacement pointers to canonical 19.x specs.
+- [x] Add config keys and defaults for:
+  - [x] `indexing.lexicon.enabled`
+  - [x] `indexing.postings.chargramFields`
+  - [x] `indexing.postings.chargramStopwords`
+  - [x] `retrieval.annCandidateCap`
+  - [x] `retrieval.annCandidateMinDocCount`
+  - [x] `retrieval.annCandidateMaxDocCount`
+  - [x] `retrieval.relationBoost` (if exposed)
+- [x] Publish versioning rules for lexicon wordlists and explain payload.
+- [x] Add tooling:
+  - [x] `tools/lexicon/validate.js`
+  - [x] `tools/lexicon/report.js`
+  - [x] `npm run lexicon:validate`
+  - [x] `npm run lexicon:report`
+- [x] Add explicit v2 deferral note for non-ASCII lexicon support.
+- [x] Include new config knobs in incremental signature payload.
+- [x] Move old lexicon draft/spec docs to `docs/archived/` with replacement pointers to canonical 19.x specs.
 
 #### Touchpoints
 - `src/shared/postings-config.js`
@@ -829,11 +829,11 @@ Lock contract surfaces before implementation.
 - `src/contracts/validators/*`
 
 #### Tests
-- [ ] `tests/indexer/incremental/signature-lexicon-config.test.js`
-- [ ] `tests/config/config-inventory-lexicon-keys.test.js`
-- [ ] `tests/config/config-defaults-lexicon-flags.test.js`
-- [ ] `tests/lexicon/lexicon-tool-validate.test.js`
-- [ ] `tests/lexicon/lexicon-report.test.js`
+- [x] `tests/indexer/incremental/signature-lexicon-config.test.js`
+- [x] `tests/config/config-inventory-lexicon-keys.test.js`
+- [x] `tests/config/config-defaults-lexicon-flags.test.js`
+- [x] `tests/lexicon/lexicon-tool-validate.test.js`
+- [x] `tests/lexicon/lexicon-report.test.js`
 
 ### 19.1 Lexicon assets and loader
 
@@ -841,23 +841,23 @@ Lock contract surfaces before implementation.
 Provide canonical wordlists, strict validation, deterministic normalization, and cached loading.
 
 #### Tasks
-- [ ] Implement:
-  - [ ] `getLanguageLexicon(languageId, { allowFallback })`
-  - [ ] `isLexiconStopword(languageId, token, domain)`
-  - [ ] `extractSymbolBaseName(name)` with fixed separator behavior
-- [ ] Wordlist schema requirements:
-  - [ ] required: `formatVersion=1`, `languageId`, `keywords[]`, `literals[]`
-  - [ ] optional: `types[]`, `builtins[]`, `modules[]`, `notes[]`
-  - [ ] `additionalProperties=false`
-- [ ] Loader behavior:
-  - [ ] resolve via `import.meta.url`
-  - [ ] cache via `Map<languageId, LanguageLexicon>`
-  - [ ] fail-open to `_generic`
-  - [ ] one structured warning per invalid file
-- [ ] Keep a practical language coverage pass:
-  - [ ] add language-specific wordlists where obvious value exists
-  - [ ] rely on `_generic` fallback for the rest until needed
-- [ ] Keep JS/TS keyword sets conservative to avoid property-name over-filtering.
+- [x] Implement:
+  - [x] `getLanguageLexicon(languageId, { allowFallback })`
+  - [x] `isLexiconStopword(languageId, token, domain)`
+  - [x] `extractSymbolBaseName(name)` with fixed separator behavior
+- [x] Wordlist schema requirements:
+  - [x] required: `formatVersion=1`, `languageId`, `keywords[]`, `literals[]`
+  - [x] optional: `types[]`, `builtins[]`, `modules[]`, `notes[]`
+  - [x] `additionalProperties=false`
+- [x] Loader behavior:
+  - [x] resolve via `import.meta.url`
+  - [x] cache via `Map<languageId, LanguageLexicon>`
+  - [x] fail-open to `_generic`
+  - [x] one structured warning per invalid file
+- [x] Keep a practical language coverage pass:
+  - [x] add language-specific wordlists where obvious value exists
+  - [x] rely on `_generic` fallback for the rest until needed
+- [x] Keep JS/TS keyword sets conservative to avoid property-name over-filtering.
 
 #### Touchpoints
 - `src/lang/lexicon/index.js` (new)
@@ -868,13 +868,13 @@ Provide canonical wordlists, strict validation, deterministic normalization, and
 - `src/index/language-registry/registry-data.js`
 
 #### Tests
-- [ ] `tests/lexicon/lexicon-schema.test.js`
-- [ ] `tests/lexicon/lexicon-loads-all-languages.test.js`
-- [ ] `tests/lexicon/lexicon-stopwords.test.js`
-- [ ] `tests/lexicon/lexicon-fallback.test.js`
-- [ ] `tests/lexicon/extract-symbol-base-name.test.js`
-- [ ] `tests/lexicon/lexicon-ascii-only.test.js`
-- [ ] `tests/lexicon/lexicon-per-language-overrides.test.js`
+- [x] `tests/lexicon/lexicon-schema.test.js`
+- [x] `tests/lexicon/lexicon-loads-all-languages.test.js`
+- [x] `tests/lexicon/lexicon-stopwords.test.js`
+- [x] `tests/lexicon/lexicon-fallback.test.js`
+- [x] `tests/lexicon/extract-symbol-base-name.test.js`
+- [x] `tests/lexicon/lexicon-ascii-only.test.js`
+- [x] `tests/lexicon/lexicon-per-language-overrides.test.js`
 
 ### 19.2 Build-time lexicon relation filtering
 
@@ -882,20 +882,20 @@ Provide canonical wordlists, strict validation, deterministic normalization, and
 Filter noisy relation tokens at build time only, preserving stable ordering and conservative behavior.
 
 #### Tasks
-- [ ] Add `filterRawRelationsWithLexicon(rawRelations, { languageId, lexicon, config, log })`.
-- [ ] Apply filter right before relation index construction.
-- [ ] Filter scope in v1:
-  - [ ] `usages`
-  - [ ] `calls`
-  - [ ] `callDetails`
-  - [ ] `callDetailsWithRange`
-  - [ ] do not filter `imports/exports`
-- [ ] Preserve stable ordering; stable de-dupe only when explicitly enabled.
-- [ ] Override precedence (fixed):
-  1. [ ] global config
-  2. [ ] language override file
-  3. [ ] built-in defaults
-- [ ] Ensure incremental signatures include lexicon/filter controls.
+- [x] Add `filterRawRelationsWithLexicon(rawRelations, { languageId, lexicon, config, log })`.
+- [x] Apply filter right before relation index construction.
+- [x] Filter scope in v1:
+  - [x] `usages`
+  - [x] `calls`
+  - [x] `callDetails`
+  - [x] `callDetailsWithRange`
+  - [x] do not filter `imports/exports`
+- [x] Preserve stable ordering; stable de-dupe only when explicitly enabled.
+- [x] Override precedence (fixed):
+  1. [x] global config
+  2. [x] language override file
+  3. [x] built-in defaults
+- [x] Ensure incremental signatures include lexicon/filter controls.
 
 #### Touchpoints
 - `src/index/build/file-processor/cpu.js`
@@ -905,12 +905,12 @@ Filter noisy relation tokens at build time only, preserving stable ordering and 
 - `src/retrieval/output/filters.js`
 
 #### Tests
-- [ ] `tests/file-processor/lexicon-relations-filter.test.js`
-- [ ] `tests/file-processor/lexicon-relations-filter-ordering.test.js`
-- [ ] `tests/file-processor/lexicon-relations-filter-keyword-property.test.js`
-- [ ] `tests/file-processor/lexicon-relations-filter-no-imports.test.js`
-- [ ] `tests/file-processor/lexicon-relations-filter-determinism.test.js`
-- [ ] `tests/retrieval/uses-and-calls-filters-respect-lexicon.test.js`
+- [x] `tests/file-processor/lexicon-relations-filter.test.js`
+- [x] `tests/file-processor/lexicon-relations-filter-ordering.test.js`
+- [x] `tests/file-processor/lexicon-relations-filter-keyword-property.test.js`
+- [x] `tests/file-processor/lexicon-relations-filter-no-imports.test.js`
+- [x] `tests/file-processor/lexicon-relations-filter-determinism.test.js`
+- [x] `tests/retrieval/uses-and-calls-filters-respect-lexicon.test.js`
 
 ### 19.3 Retrieval relation boosts (boost-only)
 
@@ -918,15 +918,15 @@ Filter noisy relation tokens at build time only, preserving stable ordering and 
 Improve ranking via relation alignment signals without changing filter semantics.
 
 #### Tasks
-- [ ] Implement `computeRelationBoost({ chunk, fileRelations, queryTokens, lexicon, config })`.
-- [ ] Use `buildQueryPlan(...)` token output as the sole token source.
-- [ ] Respect `caseTokens` and `caseFile` semantics.
-- [ ] Keep boost bounded:
-  - [ ] `boost = min(maxBoost, callMatches*perCall + usageMatches*perUse)`
-  - [ ] keep `maxBoost` conservative by default.
-- [ ] Explain output:
-  - [ ] include bounded deterministic token lists
-  - [ ] include units and caps used
+- [x] Implement `computeRelationBoost({ chunk, fileRelations, queryTokens, lexicon, config })`.
+- [x] Use `buildQueryPlan(...)` token output as the sole token source.
+- [x] Respect `caseTokens` and `caseFile` semantics.
+- [x] Keep boost bounded:
+  - [x] `boost = min(maxBoost, callMatches*perCall + usageMatches*perUse)`
+  - [x] keep `maxBoost` conservative by default.
+- [x] Explain output:
+  - [x] include bounded deterministic token lists
+  - [x] include units and caps used
 
 #### Touchpoints
 - `src/retrieval/pipeline.js`
@@ -935,12 +935,12 @@ Improve ranking via relation alignment signals without changing filter semantics
 - `src/retrieval/output/explain.js`
 
 #### Tests
-- [ ] `tests/retrieval/relation-boost.test.js`
-- [ ] `tests/retrieval/relation-boost-does-not-filter.test.js`
-- [ ] `tests/retrieval/relation-boost-case-folding.test.js`
-- [ ] `tests/retrieval/relation-boost-stopword-elision.test.js`
-- [ ] `tests/retrieval/relation-boost-cap-relative-to-base.test.js`
-- [ ] `tests/retrieval/explain-includes-relation-boost.test.js`
+- [x] `tests/retrieval/relation-boost.test.js`
+- [x] `tests/retrieval/relation-boost-does-not-filter.test.js`
+- [x] `tests/retrieval/relation-boost-case-folding.test.js`
+- [x] `tests/retrieval/relation-boost-stopword-elision.test.js`
+- [x] `tests/retrieval/relation-boost-cap-relative-to-base.test.js`
+- [x] `tests/retrieval/explain-includes-relation-boost.test.js`
 
 ### 19.4 Chargram enrichment and ANN candidate safety
 
@@ -948,18 +948,18 @@ Improve ranking via relation alignment signals without changing filter semantics
 Enable optional chargram enrichment and enforce one shared candidate safety policy for ANN and minhash.
 
 #### Tasks
-- [ ] Extend postings config for `chargramFields` and `chargramStopwords`.
-- [ ] Support allowed fields: `name`, `signature`, `doc`, `comment`, `body`.
-- [ ] Apply optional lexicon chargram stopword filtering.
-- [ ] Implement shared `resolveAnnCandidateSet(...)` policy used by ANN and minhash.
-- [ ] Candidate policy reason codes:
-  - [ ] `noCandidates`
-  - [ ] `tooLarge`
-  - [ ] `tooSmallNoFilters`
-  - [ ] `filtersActiveAllowedIdx`
-  - [ ] `ok`
-- [ ] Use simple fixed defaults first (`minDocCount=100`, `maxDocCount=20000`) and tune only if needed.
-- [ ] Emit explain payload with input/output sizes and policy reason.
+- [x] Extend postings config for `chargramFields` and `chargramStopwords`.
+- [x] Support allowed fields: `name`, `signature`, `doc`, `comment`, `body`.
+- [x] Apply optional lexicon chargram stopword filtering.
+- [x] Implement shared `resolveAnnCandidateSet(...)` policy used by ANN and minhash.
+- [x] Candidate policy reason codes:
+  - [x] `noCandidates`
+  - [x] `tooLarge`
+  - [x] `tooSmallNoFilters`
+  - [x] `filtersActiveAllowedIdx`
+  - [x] `ok`
+- [x] Use simple fixed defaults first (`minDocCount=100`, `maxDocCount=20000`) and tune only if needed.
+- [x] Emit explain payload with input/output sizes and policy reason.
 
 #### Touchpoints
 - `src/shared/postings-config.js`
@@ -969,13 +969,13 @@ Enable optional chargram enrichment and enforce one shared candidate safety poli
 - `src/retrieval/scoring/ann-candidate-policy.js` (new)
 
 #### Tests
-- [ ] `tests/postings/chargram-fields.test.js`
-- [ ] `tests/postings/chargram-stopwords.test.js`
-- [ ] `tests/retrieval/ann-candidate-policy.test.js`
-- [ ] `tests/retrieval/ann-candidate-policy-contract.test.js`
-- [ ] `tests/retrieval/ann-candidate-policy-minhash-parity.test.js`
-- [ ] `tests/retrieval/ann-candidate-policy-allowedIdx.test.js`
-- [ ] `tests/retrieval/ann-candidate-policy-explain.test.js`
+- [x] `tests/postings/chargram-fields.test.js`
+- [x] `tests/postings/chargram-stopwords.test.js`
+- [x] `tests/retrieval/ann-candidate-policy.test.js`
+- [x] `tests/retrieval/ann-candidate-policy-contract.test.js`
+- [x] `tests/retrieval/ann-candidate-policy-minhash-parity.test.js`
+- [x] `tests/retrieval/ann-candidate-policy-allowedIdx.test.js`
+- [x] `tests/retrieval/ann-candidate-policy-explain.test.js`
 
 ### 19.5 Observability and simple rollout
 
@@ -983,14 +983,14 @@ Enable optional chargram enrichment and enforce one shared candidate safety poli
 Make lexicon and candidate-policy behavior transparent and easy to enable safely.
 
 #### Tasks
-- [ ] Emit per-file relation filtering counters in build logs and structured report.
-- [ ] Add explain sections for `relationBoost` and `annCandidatePolicy`.
-- [ ] Add lexicon status in explain:
-  - [ ] source file
-  - [ ] format version
-  - [ ] domain token counts
-- [ ] Keep new behavior behind straightforward feature flags.
-- [ ] Enable per repo/team in small steps and revert by toggling flags if issues appear.
+- [x] Emit per-file relation filtering counters in build logs and structured report.
+- [x] Add explain sections for `relationBoost` and `annCandidatePolicy`.
+- [x] Add lexicon status in explain:
+  - [x] source file
+  - [x] format version
+  - [x] domain token counts
+- [x] Keep new behavior behind straightforward feature flags.
+- [x] Enable per repo/team in small steps and revert by toggling flags if issues appear.
 
 #### Touchpoints
 - `src/index/build/file-processor/cpu.js`
@@ -1001,12 +1001,12 @@ Make lexicon and candidate-policy behavior transparent and easy to enable safely
 - `docs/testing/truth-table.md`
 
 #### Tests
-- [ ] `tests/retrieval/explain-includes-relation-boost.test.js`
-  - [ ] Explain includes relation boost fields, units, and bounded token lists.
-- [ ] `tests/retrieval/explain-includes-ann-policy.test.js`
-  - [ ] Explain includes ANN candidate policy input/output and reason code.
-- [ ] `tests/indexing/logging/lexicon-filter-counts.test.js`
-  - [ ] Build logs include deterministic per-file relation filtering counters when enabled.
+- [x] `tests/retrieval/explain-includes-relation-boost.test.js`
+  - [x] Explain includes relation boost fields, units, and bounded token lists.
+- [x] `tests/retrieval/explain-includes-ann-policy.test.js`
+  - [x] Explain includes ANN candidate policy input/output and reason code.
+- [x] `tests/indexing/logging/lexicon-filter-counts.test.js`
+  - [x] Build logs include deterministic per-file relation filtering counters when enabled.
 
 ---
 

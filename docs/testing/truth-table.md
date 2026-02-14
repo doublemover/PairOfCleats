@@ -116,6 +116,12 @@ This document maps user-visible behavior to implementation, configuration switch
   - Tests: `tests/retrieval/contracts/score-breakdown-contract-parity.test.js`, `tests/retrieval/contracts/score-breakdown-snapshots.test.js`, `tests/retrieval/contracts/score-breakdown-budget-limits.test.js`, `tests/retrieval/output/explain-output-includes-routing-and-fts-match.test.js`.
   - Limitations: byte budget pruning may null optional explain blocks before selected score metadata.
 
+- Claim: lexicon relation filtering, relation boost explain, and ANN candidate-policy explain are feature-gated and rollout-safe.
+  - Implementation: `src/index/build/file-processor/lexicon-relations-filter.js` (`filterRawRelationsWithLexicon`), `src/index/build/file-processor/cpu.js` (per-file filter stats), `src/index/build/artifacts.js` (`buildLexiconRelationFilterReport` + `lexicon_relation_filter_report.json`), `src/retrieval/scoring/relation-boost.js` (`computeRelationBoost`), `src/retrieval/scoring/ann-candidate-policy.js` (`resolveAnnCandidateSet`), `src/retrieval/cli/render.js` (explain `stats.relationBoost`, `stats.lexicon`, `stats.annCandidatePolicy`).
+  - Config: `indexing.lexicon.enabled`, `indexing.lexicon.relations.enabled`, `retrieval.relationBoost.enabled`, `retrieval.annCandidateCap`, `retrieval.annCandidateMinDocCount`, `retrieval.annCandidateMaxDocCount`.
+  - Tests: `tests/indexing/logging/lexicon-filter-counts.test.js`, `tests/retrieval/explain-includes-relation-boost.test.js`, `tests/retrieval/explain-includes-ann-policy.test.js`, `tests/retrieval/ann-candidate-policy-contract.test.js`.
+  - Limitations: in v1, lexicon wordlists are ASCII-only and fallback to `_generic` on load/parse failures.
+
 - Claim: query parsing is grammar-first with recoverable fallback; unary `-` supports optional whitespace and standalone `-` is invalid.
   - Implementation: `src/retrieval/query.js` (`parseQueryInput`, `parseQueryWithFallback`), `src/retrieval/cli/query-plan.js` (parser fallback wiring), `src/retrieval/query-intent.js` (intent fallback reason output).
   - Config: n/a.

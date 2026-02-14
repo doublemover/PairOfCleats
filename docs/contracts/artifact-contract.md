@@ -133,6 +133,9 @@ Each `index-<mode>/` directory contains:
     - `extensions.artifactCleanup.actions[]` with removed path + recursive flag
 - `.filelists.json`
   - Scan summary (sampled file lists).
+- `lexicon_relation_filter_report.json` (optional, code mode when lexicon relation filtering runs)
+  - Per-file lexicon relation drop counters and mode totals.
+  - Included in `pieces/manifest.json` as stats artifact `lexicon_relation_filter_report`.
 - `pieces/manifest.json`
   - Piece inventory with checksums and sizes.
 

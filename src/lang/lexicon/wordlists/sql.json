@@ -1,0 +1,42 @@
+{
+  "formatVersion": 1,
+  "languageId": "sql",
+  "keywords": [
+    "alter",
+    "create",
+    "delete",
+    "drop",
+    "from",
+    "group",
+    "having",
+    "insert",
+    "into",
+    "join",
+    "limit",
+    "order",
+    "select",
+    "update",
+    "where"
+  ],
+  "literals": [
+    "false",
+    "null",
+    "true"
+  ],
+  "types": [
+    "bigint",
+    "boolean",
+    "integer",
+    "text",
+    "varchar"
+  ],
+  "builtins": [
+    "avg",
+    "count",
+    "max",
+    "min",
+    "sum"
+  ],
+  "modules": [],
+  "notes": []
+}
