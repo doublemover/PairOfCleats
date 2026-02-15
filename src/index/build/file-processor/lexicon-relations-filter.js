@@ -17,6 +17,7 @@ const normalizeToken = (value) => {
   if (typeof value !== 'string') return '';
   return value.trim();
 };
+const toDedupeKeyPart = (value) => (value ?? '') === '' ? '' : String(value);
 
 const resolveRelationsScopes = ({ languageId, config }) => {
   const cfg = asPlainObject(config) || {};
@@ -240,7 +241,10 @@ export const filterRawRelationsWithLexicon = (rawRelations, {
         continue;
       }
       if (stableDedupe) {
-        const key = `${String(detail?.caller || '')}|${String(detail?.callee || '')}|${Number(detail?.line) || 0}|${Number(detail?.col) || 0}`;
+        const start = toDedupeKeyPart(detail?.start);
+        const line = toDedupeKeyPart(detail?.startLine ?? detail?.line);
+        const col = toDedupeKeyPart(detail?.startCol ?? detail?.col);
+        const key = `${String(detail?.caller || '')}|${String(detail?.callee || '')}|${start}|${line}|${col}`;
         if (seen.has(key)) continue;
         seen.add(key);
       }
