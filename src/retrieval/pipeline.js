@@ -832,14 +832,19 @@ export function createSearchPipeline(context) {
           toSet: ensureAllowedSet
         });
         const annCandidates = annCandidatePolicy.set;
-        const allowedFallback = filtersEnabled && allowedIdx
-          ? ensureAllowedSet(allowedIdx)
-          : null;
-        const annFallback = allowedFallback
-          && annCandidates !== allowedFallback
-          && annCandidatePolicy.reason !== ANN_CANDIDATE_POLICY_REASONS.FILTERS_ACTIVE_ALLOWED_IDX
-          ? allowedFallback
-          : null;
+        const shouldTryAnnFallback = filtersEnabled
+          && Boolean(allowedIdx)
+          && annCandidatePolicy.reason !== ANN_CANDIDATE_POLICY_REASONS.FILTERS_ACTIVE_ALLOWED_IDX;
+        let annFallbackResolved = false;
+        let annFallback = null;
+        const resolveAnnFallback = () => {
+          if (!shouldTryAnnFallback) return null;
+          if (!annFallbackResolved) {
+            annFallback = ensureAllowedSet(allowedIdx);
+            annFallbackResolved = true;
+          }
+          return annFallback;
+        };
 
         const normalizeAnnHits = (hits) => {
           if (!Array.isArray(hits)) return [];
@@ -967,8 +972,11 @@ export function createSearchPipeline(context) {
             if (!preflightOk) continue;
             providerAvailable = true;
             annHits = await runAnnQuery(provider, annCandidates);
-            if (!annHits.length && annFallback) {
-              annHits = await runAnnQuery(provider, annFallback);
+            if (!annHits.length && shouldTryAnnFallback) {
+              const fallbackCandidates = resolveAnnFallback();
+              if (fallbackCandidates) {
+                annHits = await runAnnQuery(provider, fallbackCandidates);
+              }
             }
             if (annHits.length) {
               annSource = provider?.id || backend;
@@ -995,7 +1003,7 @@ export function createSearchPipeline(context) {
             ? minhashCandidates.size
             : (idx.minhash?.signatures?.length || 0);
           const allowMinhashCandidates = minhashTotal > 0 && (!minhashLimit || minhashTotal <= minhashLimit);
-          const minhashFallbackTotal = minhashFallback ? minhashFallback.size : 0;
+          const minhashFallbackTotal = shouldTryAnnFallback ? allowedCount : 0;
           const allowMinhashFallback = minhashFallbackTotal > 0
             && (!minhashLimit || minhashFallbackTotal <= minhashLimit);
           if (allowMinhashCandidates && !minhashCandidatesEmpty) {
@@ -1003,8 +1011,11 @@ export function createSearchPipeline(context) {
             if (annHits.length) annSource = 'minhash';
           }
           if (!annHits.length && allowMinhashFallback) {
-            annHits = rankMinhash(idx, queryTokens, expandedTopN, minhashFallback);
-            if (annHits.length) annSource = 'minhash';
+            const fallbackCandidates = minhashFallback || resolveAnnFallback();
+            if (fallbackCandidates) {
+              annHits = rankMinhash(idx, queryTokens, expandedTopN, fallbackCandidates);
+              if (annHits.length) annSource = 'minhash';
+            }
           }
         }
 

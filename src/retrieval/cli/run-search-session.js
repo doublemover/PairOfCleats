@@ -247,6 +247,13 @@ export async function runSearchSession({
       annMode: vectorExtension.annMode,
       annProvider: vectorExtension.provider,
       annExtension: vectorAnnEnabled,
+      annAdaptiveProviders,
+      relationBoost,
+      annCandidatePolicy: {
+        cap: annCandidateCap,
+        minDocCount: annCandidateMinDocCount,
+        maxDocCount: annCandidateMaxDocCount
+      },
       scoreBlend,
       fieldWeights,
       denseVectorMode: resolvedDenseVectorMode,
