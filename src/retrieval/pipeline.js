@@ -764,7 +764,7 @@ export function createSearchPipeline(context) {
       const sparseUnavailable = Array.isArray(sqliteFtsDiagnostics)
         ? sqliteFtsDiagnostics.find((entry) => entry?.code === RETRIEVAL_SPARSE_UNAVAILABLE_CODE)
         : null;
-      if (!annEnabled && !vectorOnlyProfile && sparseUnavailable) {
+      if (!annEnabled && !vectorOnlyProfile && sparseUnavailable && sparseType === 'none') {
         throw createError(
           ERROR_CODES.CAPABILITY_MISSING,
           'Sparse retrieval backend is unavailable for this query. ' +

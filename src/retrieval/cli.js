@@ -445,6 +445,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       || (mode === 'extracted-prose' && runExtractedProseRaw)
       || (mode === 'records' && runRecords)
     ));
+    const selectedModesWithState = selectedModes.filter((mode) => indexStateByMode[mode]);
     const profilePolicyByMode = {};
     for (const mode of selectedModes) {
       const profileId = resolveProfileForState(indexStateByMode[mode]);
@@ -457,7 +458,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       };
     }
     const vectorOnlyModes = selectedModes.filter((mode) => profilePolicyByMode[mode]?.vectorOnly === true);
-    const profileModes = selectedModes
+    const profileModes = selectedModesWithState
       .map((mode) => ({ mode, profileId: profilePolicyByMode[mode]?.profileId || INDEX_PROFILE_DEFAULT }))
       .filter((entry) => typeof entry.profileId === 'string' && entry.profileId);
     const uniqueProfileIds = Array.from(new Set(profileModes.map((entry) => entry.profileId)));

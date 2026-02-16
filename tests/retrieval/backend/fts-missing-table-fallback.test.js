@@ -78,7 +78,8 @@ const pipeline = createSearchPipeline({
     return [{ idx: 0, score: 3 }];
   },
   rankVectorAnnSqlite: () => [],
-  sqliteHasFts: () => false,
+  sqliteHasFts: () => true,
+  sqliteHasTable: (_mode, tableName) => tableName !== 'chunks_fts',
   signal: null,
   rrf: { enabled: false }
 });
