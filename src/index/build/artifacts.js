@@ -285,6 +285,53 @@ const buildExtractionReport = ({
   };
 };
 
+export const buildLexiconRelationFilterReport = ({ state, mode }) => {
+  const relationStats = state?.lexiconRelationFilterByFile;
+  const entries = relationStats && typeof relationStats.entries === 'function'
+    ? Array.from(relationStats.entries())
+    : [];
+  const files = entries
+    .map(([file, stats]) => ({
+      file,
+      languageId: stats?.languageId || null,
+      droppedCalls: Number(stats?.droppedCalls) || 0,
+      droppedUsages: Number(stats?.droppedUsages) || 0,
+      droppedCallDetails: Number(stats?.droppedCallDetails) || 0,
+      droppedCallDetailsWithRange: Number(stats?.droppedCallDetailsWithRange) || 0,
+      droppedTotal: Number(stats?.droppedTotal) || 0,
+      droppedCallsByCategory: {
+        ...(stats?.droppedCallsByCategory || {})
+      },
+      droppedUsagesByCategory: {
+        ...(stats?.droppedUsagesByCategory || {})
+      }
+    }))
+    .sort((a, b) => (a.file < b.file ? -1 : (a.file > b.file ? 1 : 0)));
+
+  const totals = {
+    files: files.length,
+    droppedCalls: 0,
+    droppedUsages: 0,
+    droppedCallDetails: 0,
+    droppedCallDetailsWithRange: 0,
+    droppedTotal: 0
+  };
+  for (const entry of files) {
+    totals.droppedCalls += entry.droppedCalls;
+    totals.droppedUsages += entry.droppedUsages;
+    totals.droppedCallDetails += entry.droppedCallDetails;
+    totals.droppedCallDetailsWithRange += entry.droppedCallDetailsWithRange;
+    totals.droppedTotal += entry.droppedTotal;
+  }
+
+  return {
+    schemaVersion: 1,
+    mode,
+    totals,
+    files
+  };
+};
+
 /**
  * Write index artifacts and metrics.
  * @param {object} input
@@ -922,6 +969,29 @@ export async function writeIndexArtifacts(input) {
       }
     );
     addPieceFile({ type: 'stats', name: 'extraction_report', format: 'json' }, extractionReportPath);
+  }
+  const lexiconRelationFilterReport = buildLexiconRelationFilterReport({ state, mode });
+  if (Array.isArray(lexiconRelationFilterReport.files) && lexiconRelationFilterReport.files.length) {
+    const lexiconReportPath = path.join(outDir, 'lexicon_relation_filter_report.json');
+    enqueueWrite(
+      formatArtifactLabel(lexiconReportPath),
+      async () => {
+        await writeJsonObjectFile(lexiconReportPath, {
+          fields: lexiconRelationFilterReport,
+          atomic: true
+        });
+      }
+    );
+    addPieceFile({ type: 'stats', name: 'lexicon_relation_filter_report', format: 'json' }, lexiconReportPath);
+    if (indexState && typeof indexState === 'object') {
+      if (!indexState.extensions || typeof indexState.extensions !== 'object') {
+        indexState.extensions = {};
+      }
+      indexState.extensions.lexiconRelationFilter = {
+        schemaVersion: 1,
+        totals: lexiconRelationFilterReport.totals
+      };
+    }
   }
   if (indexState && typeof indexState === 'object') {
     const indexStatePath = path.join(outDir, 'index_state.json');

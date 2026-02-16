@@ -631,7 +631,12 @@ export function createFileProcessor(options) {
     }
     fileLanguageId = cpuResult?.fileLanguageId ?? fileLanguageId;
     fileLineCount = cpuResult?.fileLineCount ?? fileLineCount;
-    const { chunks: fileChunks, fileRelations, skip } = cpuResult || {};
+    const {
+      chunks: fileChunks,
+      fileRelations,
+      lexiconFilterStats,
+      skip
+    } = cpuResult || {};
     const vfsManifestRows = cpuResult?.vfsManifestRows || null;
     if (skip) {
       const { reason, ...extra } = skip;
@@ -692,6 +697,7 @@ export function createFileProcessor(options) {
       durationMs: fileDurationMs,
       chunks: fileChunks,
       fileRelations,
+      lexiconFilterStats,
       vfsManifestRows,
       fileInfo,
       manifestEntry,

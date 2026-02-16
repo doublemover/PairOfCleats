@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-13T22:26:12.648Z",
+  "generatedAt": "2026-02-14T21:05:43.138Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -89,6 +89,8 @@
       "PAIROFCLEATS_TEST_CACHE_SUFFIX",
       "PAIROFCLEATS_TEST_CODE_MAP_BUDGET_MS",
       "PAIROFCLEATS_TEST_CONFIG",
+      "PAIROFCLEATS_TEST_FORCE_DOCX_MISSING",
+      "PAIROFCLEATS_TEST_FORCE_PDF_MISSING",
       "PAIROFCLEATS_TEST_LOG_DIR",
       "PAIROFCLEATS_TEST_LOG_SILENT",
       "PAIROFCLEATS_TEST_MAX_JSON_BYTES",
@@ -98,6 +100,9 @@
       "PAIROFCLEATS_TEST_PID_FILE",
       "PAIROFCLEATS_TEST_RETRIES",
       "PAIROFCLEATS_TEST_SQLITE_P95_MAX_MS",
+      "PAIROFCLEATS_TEST_STUB_DOCX_EXTRACT",
+      "PAIROFCLEATS_TEST_STUB_PDF_EXTRACT",
+      "PAIROFCLEATS_TEST_STUB_PDF_EXTRACT_DELAY_MS",
       "PAIROFCLEATS_TEST_TANTIVY",
       "PAIROFCLEATS_TEST_THREADS",
       "PAIROFCLEATS_TEST_TIMEOUT_MS",
@@ -162,14 +167,29 @@
       "indexing.graph.caps.maxNodes",
       "indexing.importConcurrency",
       "indexing.ioConcurrencyCap",
+      "indexing.lexicon.enabled",
+      "indexing.lexicon.languageOverrides.*.relations.drop.builtins",
+      "indexing.lexicon.languageOverrides.*.relations.drop.keywords",
+      "indexing.lexicon.languageOverrides.*.relations.drop.literals",
+      "indexing.lexicon.languageOverrides.*.relations.drop.types",
+      "indexing.lexicon.languageOverrides.*.relations.enabled",
+      "indexing.lexicon.languageOverrides.*.relations.stableDedupe",
+      "indexing.lexicon.relations.drop.builtins",
+      "indexing.lexicon.relations.drop.keywords",
+      "indexing.lexicon.relations.drop.literals",
+      "indexing.lexicon.relations.drop.types",
+      "indexing.lexicon.relations.enabled",
+      "indexing.lexicon.relations.stableDedupe",
       "indexing.maxFileBytes",
       "indexing.maxFileLines",
+      "indexing.postings.chargramFields",
       "indexing.postings.chargramMaxDf",
       "indexing.postings.chargramMaxN",
       "indexing.postings.chargramMaxTokenLength",
       "indexing.postings.chargramMinN",
       "indexing.postings.chargramSource",
       "indexing.postings.chargramSpillMaxUnique",
+      "indexing.postings.chargramStopwords",
       "indexing.postings.enableChargrams",
       "indexing.postings.enablePhraseNgrams",
       "indexing.postings.fielded",
@@ -220,6 +240,9 @@
       "mcp.toolTimeoutMs",
       "mcp.toolTimeouts",
       "quality",
+      "retrieval.annCandidateCap",
+      "retrieval.annCandidateMaxDocCount",
+      "retrieval.annCandidateMinDocCount",
       "retrieval.contextExpansion.enabled",
       "retrieval.contextExpansion.includeCalls",
       "retrieval.contextExpansion.includeExports",
@@ -250,6 +273,10 @@
       "retrieval.graphRanking.seedK",
       "retrieval.graphRanking.seedSelection",
       "retrieval.graphRanking.weights",
+      "retrieval.relationBoost.enabled",
+      "retrieval.relationBoost.maxBoost",
+      "retrieval.relationBoost.perCall",
+      "retrieval.relationBoost.perUse",
       "runtime.ioOversubscribe",
       "runtime.maxOldSpaceMb",
       "runtime.nodeOptions",
@@ -329,8 +356,8 @@
   },
   "configSchema": {
     "path": "docs/config/schema.json",
-    "totalKeys": 264,
-    "leafKeys": 214,
+    "totalKeys": 294,
+    "leafKeys": 236,
     "topLevel": [
       {
         "key": "cache",
@@ -338,7 +365,7 @@
       },
       {
         "key": "indexing",
-        "count": 132
+        "count": 154
       },
       {
         "key": "mcp",
@@ -350,7 +377,7 @@
       },
       {
         "key": "retrieval",
-        "count": 35
+        "count": 43
       },
       {
         "key": "runtime",
@@ -746,6 +773,106 @@
       "enum": null
     },
     {
+      "path": "indexing.lexicon",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides.*",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides.*.relations",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides.*.relations.drop",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides.*.relations.drop.builtins",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides.*.relations.drop.keywords",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides.*.relations.drop.literals",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides.*.relations.drop.types",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides.*.relations.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides.*.relations.stableDedupe",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.relations",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.relations.drop",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.relations.drop.builtins",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.relations.drop.keywords",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.relations.drop.literals",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.relations.drop.types",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.relations.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.relations.stableDedupe",
+      "type": "boolean",
+      "enum": null
+    },
+    {
       "path": "indexing.maxFileBytes",
       "type": "number",
       "enum": null
@@ -758,6 +885,11 @@
     {
       "path": "indexing.postings",
       "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.postings.chargramFields",
+      "type": "array",
       "enum": null
     },
     {
@@ -788,6 +920,11 @@
     {
       "path": "indexing.postings.chargramSpillMaxUnique",
       "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.postings.chargramStopwords",
+      "type": "boolean",
       "enum": null
     },
     {
@@ -1123,6 +1260,21 @@
       "enum": null
     },
     {
+      "path": "retrieval.annCandidateCap",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "retrieval.annCandidateMaxDocCount",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "retrieval.annCandidateMinDocCount",
+      "type": "number",
+      "enum": null
+    },
+    {
       "path": "retrieval.contextExpansion",
       "type": "object",
       "enum": null
@@ -1290,6 +1442,31 @@
     {
       "path": "retrieval.graphRanking.weights",
       "type": "object",
+      "enum": null
+    },
+    {
+      "path": "retrieval.relationBoost",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "retrieval.relationBoost.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "retrieval.relationBoost.maxBoost",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "retrieval.relationBoost.perCall",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "retrieval.relationBoost.perUse",
+      "type": "number",
       "enum": null
     },
     {
@@ -1846,6 +2023,7 @@
         "tests/indexing/metrics/index-metrics-options.test.js",
         "tests/indexing/piece-assembly/piece-assembly.test.js",
         "tests/indexing/postings/chunk-meta-determinism.test.js",
+        "tests/indexing/postings/vector-only-missing-embeddings-is-error.test.js",
         "tests/indexing/risk/interprocedural/runtime-gating.test.js",
         "tests/indexing/runtime/two-stage-state.test.js",
         "tests/indexing/scm/index-build-no-scm.test.js",
@@ -1870,6 +2048,7 @@
         "tests/services/api/no-index.test.js",
         "tests/services/mcp/mcp-robustness.test.js",
         "tests/services/mcp/mcp-schema.test.js",
+        "tests/services/mcp/repo-path-resolution.test.js",
         "tests/services/mcp/sdk-mode.test.js",
         "tests/services/snapshot-query.test.js",
         "tests/services/sqlite-build-snapshot.test.js",
@@ -2337,6 +2516,7 @@
       "name": "PAIROFCLEATS_STAGE",
       "files": [
         "src/shared/env.js",
+        "tests/indexing/postings/vector-only-missing-embeddings-is-error.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -2426,6 +2606,7 @@
         "tests/indexing/incremental/incremental-cache-signature.test.js",
         "tests/indexing/incremental/incremental-tokenization-cache.test.js",
         "tests/indexing/piece-assembly/piece-assembly.test.js",
+        "tests/indexing/postings/vector-only-missing-embeddings-is-error.test.js",
         "tests/indexing/shards/shard-merge.test.js",
         "tests/retrieval/cache/query-cache.test.js",
         "tests/retrieval/filters/types.test.js",
@@ -2444,18 +2625,20 @@
     {
       "name": "PAIROFCLEATS_TEST_FORCE_DOCX_MISSING",
       "files": [
-        "src/index/extractors/docx.js",
+        "src/shared/env.js",
         "tests/indexing/extracted-prose/document-extraction-outcomes-recorded.test.js",
         "tests/indexing/extracted-prose/documents-skipped-when-unavailable.test.js",
-        "tests/indexing/extracted-prose/docx-missing-dep-skips.test.js"
+        "tests/indexing/extracted-prose/docx-missing-dep-skips.test.js",
+        "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_TEST_FORCE_PDF_MISSING",
       "files": [
-        "src/index/extractors/pdf.js",
+        "src/shared/env.js",
         "tests/indexing/extracted-prose/documents-skipped-when-unavailable.test.js",
-        "tests/indexing/extracted-prose/pdf-missing-dep-skips.test.js"
+        "tests/indexing/extracted-prose/pdf-missing-dep-skips.test.js",
+        "tools/config/inventory.js"
       ]
     },
     {
@@ -2539,18 +2722,19 @@
     {
       "name": "PAIROFCLEATS_TEST_STUB_DOCX_EXTRACT",
       "files": [
-        "src/index/extractors/docx.js",
+        "src/shared/env.js",
         "tests/indexing/extracted-prose/document-bytes-hash-stable.test.js",
         "tests/indexing/extracted-prose/document-extraction-checksums-and-counts.test.js",
         "tests/indexing/extracted-prose/documents-included-when-available.test.js",
         "tests/indexing/extracted-prose/extraction-report.test.js",
-        "tests/services/sqlite-hydration-metaV2-parity.test.js"
+        "tests/services/sqlite-hydration-metaV2-parity.test.js",
+        "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_TEST_STUB_PDF_EXTRACT",
       "files": [
-        "src/index/extractors/pdf.js",
+        "src/shared/env.js",
         "tests/indexing/extracted-prose/document-bytes-hash-stable.test.js",
         "tests/indexing/extracted-prose/document-chunk-id-no-collision.test.js",
         "tests/indexing/extracted-prose/document-extraction-checksums-and-counts.test.js",
@@ -2559,14 +2743,16 @@
         "tests/indexing/extracted-prose/document-security-guardrails.test.js",
         "tests/indexing/extracted-prose/documents-included-when-available.test.js",
         "tests/indexing/extracted-prose/extraction-report.test.js",
-        "tests/services/sqlite-hydration-metaV2-parity.test.js"
+        "tests/services/sqlite-hydration-metaV2-parity.test.js",
+        "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_TEST_STUB_PDF_EXTRACT_DELAY_MS",
       "files": [
-        "src/index/extractors/pdf.js",
-        "tests/indexing/extracted-prose/document-security-guardrails.test.js"
+        "src/shared/env.js",
+        "tests/indexing/extracted-prose/document-security-guardrails.test.js",
+        "tools/config/inventory.js"
       ]
     },
     {
@@ -2595,8 +2781,6 @@
     {
       "name": "PAIROFCLEATS_TESTING",
       "files": [
-        "src/index/extractors/docx.js",
-        "src/index/extractors/pdf.js",
         "src/shared/env.js",
         "tests/cli/build-index/build-index-all.test.js",
         "tests/cli/general/risk-explain.test.js",
@@ -2635,6 +2819,10 @@
         "tests/indexing/metrics/index-metrics-options.test.js",
         "tests/indexing/piece-assembly/piece-assembly.test.js",
         "tests/indexing/postings/chunk-meta-determinism.test.js",
+        "tests/indexing/postings/vector-only-cleanup-allowlist-safety.test.js",
+        "tests/indexing/postings/vector-only-does-not-emit-sparse.test.js",
+        "tests/indexing/postings/vector-only-missing-embeddings-is-error.test.js",
+        "tests/indexing/postings/vector-only-switching-cleans-stale-sparse.test.js",
         "tests/indexing/risk/interprocedural/artifacts-written.test.js",
         "tests/indexing/risk/interprocedural/runtime-gating.test.js",
         "tests/indexing/runtime/two-stage-state.test.js",
@@ -2646,7 +2834,9 @@
         "tests/retrieval/ann/ann-parity.test.js",
         "tests/retrieval/ann/hnsw-ann.test.js",
         "tests/retrieval/ann/lancedb-ann.test.js",
+        "tests/retrieval/backend/mixed-profile-cohort-opt-in.test.js",
         "tests/retrieval/backend/retrieval-strict-manifest-embeddings.test.js",
+        "tests/retrieval/backend/vector-only-compatibility-key-mismatch.test.js",
         "tests/retrieval/cache/query-cache-signature-sharded-chunk-meta.test.js",
         "tests/retrieval/cache/query-cache.test.js",
         "tests/retrieval/federation/explicit-root-no-fallback.test.js",
@@ -2696,6 +2886,7 @@
         "tests/services/indexing/compressed-artifact-presence.test.js",
         "tests/services/mcp/mcp-robustness.test.js",
         "tests/services/mcp/mcp-schema.test.js",
+        "tests/services/mcp/repo-path-resolution.test.js",
         "tests/services/mcp/sdk-mode.test.js",
         "tests/services/snapshot-create.test.js",
         "tests/services/snapshot-freeze.test.js",
@@ -2821,6 +3012,7 @@
         "tests/indexing/incremental/incremental-tokenization-cache.test.js",
         "tests/indexing/map/code-map-guardrails.test.js",
         "tests/indexing/map/code-map-performance.test.js",
+        "tests/indexing/postings/vector-only-missing-embeddings-is-error.test.js",
         "tests/indexing/scm/no-scm-build-id.test.js",
         "tests/indexing/tree-sitter/js-tree-sitter-maxbytes.test.js",
         "tests/perf/sqlite-p95-latency.test.js",
@@ -2846,13 +3038,7 @@
   "envVarsPublic": [
     "PAIROFCLEATS_API_TOKEN"
   ],
-  "envVarsUnknown": [
-    "PAIROFCLEATS_TEST_FORCE_DOCX_MISSING",
-    "PAIROFCLEATS_TEST_FORCE_PDF_MISSING",
-    "PAIROFCLEATS_TEST_STUB_DOCX_EXTRACT",
-    "PAIROFCLEATS_TEST_STUB_PDF_EXTRACT",
-    "PAIROFCLEATS_TEST_STUB_PDF_EXTRACT_DELAY_MS"
-  ],
+  "envVarsUnknown": [],
   "cliFlags": {
     "totalFlags": 310,
     "publicFlags": [

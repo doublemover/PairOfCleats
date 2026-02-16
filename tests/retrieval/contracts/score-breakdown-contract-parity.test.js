@@ -12,6 +12,7 @@ const expectedKeys = [
   'blend',
   'symbol',
   'phrase',
+  'relation',
   'graph'
 ];
 

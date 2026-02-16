@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import { tryImport } from '../../shared/optional-deps.js';
+import { getDocumentExtractorTestConfig } from '../../shared/env.js';
 import {
   buildFailedResult,
   normalizeDocumentExtractionPolicy,
@@ -17,12 +18,6 @@ const PDF_IMPORT_CANDIDATES = [
 ];
 
 const PASSWORD_HINT = /password|encrypt/i;
-const TESTING_ENV = process.env.PAIROFCLEATS_TESTING === '1';
-const FORCE_MISSING_ENV = TESTING_ENV && process.env.PAIROFCLEATS_TEST_FORCE_PDF_MISSING === '1';
-const STUB_EXTRACT_ENV = TESTING_ENV && process.env.PAIROFCLEATS_TEST_STUB_PDF_EXTRACT === '1';
-const STUB_DELAY_MS = TESTING_ENV
-  ? Math.max(0, Number(process.env.PAIROFCLEATS_TEST_STUB_PDF_EXTRACT_DELAY_MS) || 0)
-  : 0;
 
 let cachedRuntime = null;
 
@@ -54,7 +49,9 @@ const resolvePdfFailureReason = (err) => {
 };
 
 export async function loadPdfExtractorRuntime({ refresh = false } = {}) {
-  if (FORCE_MISSING_ENV) {
+  const testConfig = getDocumentExtractorTestConfig();
+  const forceMissing = testConfig.testing && testConfig.forcePdfMissing === true;
+  if (forceMissing) {
     cachedRuntime = {
       ok: false,
       reason: 'missing_dependency',
@@ -97,6 +94,9 @@ export async function extractPdf({
   policy = null
 } = {}) {
   const resolvedPolicy = normalizeDocumentExtractionPolicy(policy);
+  const testConfig = getDocumentExtractorTestConfig();
+  const stubExtract = testConfig.testing && testConfig.stubPdfExtract === true;
+  const stubDelayMs = testConfig.testing ? testConfig.stubPdfExtractDelayMs : 0;
   const warnings = [];
   const source = Buffer.isBuffer(buffer)
     ? buffer
@@ -107,11 +107,11 @@ export async function extractPdf({
   if (source.length > resolvedPolicy.maxBytesPerFile) {
     return buildFailedResult('oversize');
   }
-  if (STUB_EXTRACT_ENV) {
+  if (stubExtract) {
     try {
       return await withTimeout(async () => {
-        if (STUB_DELAY_MS > 0) {
-          await new Promise((resolve) => setTimeout(resolve, STUB_DELAY_MS));
+        if (stubDelayMs > 0) {
+          await new Promise((resolve) => setTimeout(resolve, stubDelayMs));
         }
         const text = normalizeExtractedText(source.toString('utf8'));
         if (!text) return buildFailedResult('unsupported_scanned');

@@ -25,6 +25,7 @@ These artifacts define the public surface and must be present when referenced:
 ## Optional public artifacts (when enabled)
 
 - `call_sites` (jsonl or sharded jsonl) when relations are enabled.
+- `lexicon_relation_filter_report` (json) when lexicon relation filtering is enabled for code builds.
 - Embeddings and ANN artifacts (when embeddings are enabled):
   - `dense_vectors`, `dense_vectors_doc`, `dense_vectors_code`
   - `dense_vectors_hnsw` + `dense_vectors_hnsw_meta`

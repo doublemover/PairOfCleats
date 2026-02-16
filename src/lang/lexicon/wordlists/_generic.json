@@ -1,0 +1,49 @@
+{
+  "formatVersion": 1,
+  "languageId": "_generic",
+  "keywords": [
+    "break",
+    "case",
+    "catch",
+    "class",
+    "const",
+    "continue",
+    "default",
+    "do",
+    "else",
+    "enum",
+    "export",
+    "extends",
+    "finally",
+    "for",
+    "function",
+    "if",
+    "import",
+    "interface",
+    "let",
+    "new",
+    "return",
+    "struct",
+    "switch",
+    "throw",
+    "try",
+    "var",
+    "while"
+  ],
+  "literals": [
+    "false",
+    "inf",
+    "nan",
+    "nil",
+    "none",
+    "null",
+    "true",
+    "undefined"
+  ],
+  "types": [],
+  "builtins": [],
+  "modules": [],
+  "notes": [
+    "Fallback lexicon for unsupported or unknown languages."
+  ]
+}

@@ -23,6 +23,11 @@ import { createTopKReducer } from './pipeline/topk.js';
 import { compileFtsMatchQuery } from './fts-query.js';
 import { createScoreBreakdown } from './output/score-breakdown.js';
 import { resolveSparseRequiredTables, RETRIEVAL_SPARSE_UNAVAILABLE_CODE } from './sparse/requirements.js';
+import {
+  ANN_CANDIDATE_POLICY_REASONS,
+  resolveAnnCandidateSet
+} from './scoring/ann-candidate-policy.js';
+import { computeRelationBoost } from './scoring/relation-boost.js';
 import { INDEX_PROFILE_VECTOR_ONLY } from '../contracts/index-profile.js';
 
 const SQLITE_IN_LIMIT = 900;
@@ -59,6 +64,7 @@ export function createSearchPipeline(context) {
     phraseRange,
     explain,
     symbolBoost,
+    relationBoost,
     filters,
     filtersActive,
     filterPredicates,
@@ -68,6 +74,9 @@ export function createSearchPipeline(context) {
     annBackend,
     annAdaptiveProviders,
     scoreBlend,
+    annCandidateCap,
+    annCandidateMinDocCount,
+    annCandidateMaxDocCount,
     minhashMaxDocs,
     sparseBackend,
     sqliteFtsRoutingByMode,
@@ -110,6 +119,35 @@ export function createSearchPipeline(context) {
   )
     ? Number(symbolBoost.exportWeight)
     : 1.1;
+  const relationBoostEnabled = relationBoost?.enabled === true;
+  const relationBoostPerCall = Number.isFinite(Number(relationBoost?.perCall))
+    ? Number(relationBoost.perCall)
+    : 0.25;
+  const relationBoostPerUse = Number.isFinite(Number(relationBoost?.perUse))
+    ? Number(relationBoost.perUse)
+    : 0.1;
+  const relationBoostMaxBoost = Number.isFinite(Number(relationBoost?.maxBoost))
+    ? Number(relationBoost.maxBoost)
+    : 1.5;
+  const relationBoostConfig = {
+    enabled: relationBoostEnabled,
+    perCall: relationBoostPerCall,
+    perUse: relationBoostPerUse,
+    maxBoost: relationBoostMaxBoost,
+    caseTokens: filters?.caseTokens === true,
+    caseFile: filters?.caseFile === true
+  };
+  const annCandidatePolicyConfig = {
+    cap: Number.isFinite(Number(annCandidateCap))
+      ? Math.max(1, Math.floor(Number(annCandidateCap)))
+      : null,
+    minDocCount: Number.isFinite(Number(annCandidateMinDocCount))
+      ? Math.max(1, Math.floor(Number(annCandidateMinDocCount)))
+      : null,
+    maxDocCount: Number.isFinite(Number(annCandidateMaxDocCount))
+      ? Math.max(1, Math.floor(Number(annCandidateMaxDocCount)))
+      : null
+  };
   const rrfEnabled = rrf?.enabled !== false;
   const rrfK = Number.isFinite(Number(rrf?.k))
     ? Math.max(1, Number(rrf.k))
@@ -365,6 +403,62 @@ export function createSearchPipeline(context) {
       ...extra
     });
   };
+  const lowerCaseRelationLookupCache = new WeakMap();
+  const toLowerSafe = (value) => (typeof value === 'string' ? value.toLowerCase() : '');
+  const AMBIGUOUS_RELATION_LOOKUP = Symbol('ambiguousRelationLookup');
+  const addCaseInsensitiveLookupEntry = (lookup, key, value) => {
+    if (typeof key !== 'string' || !key) return;
+    const lowered = toLowerSafe(key);
+    if (!lowered) return;
+    if (!lookup.has(lowered)) {
+      lookup.set(lowered, value);
+      return;
+    }
+    const existing = lookup.get(lowered);
+    if (existing !== AMBIGUOUS_RELATION_LOOKUP && existing !== value) {
+      lookup.set(lowered, AMBIGUOUS_RELATION_LOOKUP);
+    }
+  };
+  const getCaseInsensitiveLookupValue = (lookup, filePath) => {
+    const lowered = toLowerSafe(filePath);
+    if (!lowered) return null;
+    const value = lookup.get(lowered);
+    if (value === AMBIGUOUS_RELATION_LOOKUP) return null;
+    return value || null;
+  };
+  const resolveFileRelations = (relationsStore, filePath, caseSensitiveFile = false) => {
+    if (!relationsStore || typeof filePath !== 'string' || !filePath) return null;
+    if (typeof relationsStore.get === 'function') {
+      if (typeof relationsStore.has === 'function' && relationsStore.has(filePath)) {
+        return relationsStore.get(filePath);
+      }
+      const direct = relationsStore.get(filePath);
+      if (direct) return direct;
+      if (caseSensitiveFile) return null;
+      let normalized = lowerCaseRelationLookupCache.get(relationsStore);
+      if (!normalized) {
+        normalized = new Map();
+        for (const [key, value] of relationsStore.entries()) {
+          addCaseInsensitiveLookupEntry(normalized, key, value);
+        }
+        lowerCaseRelationLookupCache.set(relationsStore, normalized);
+      }
+      return getCaseInsensitiveLookupValue(normalized, filePath);
+    }
+    if (Object.prototype.hasOwnProperty.call(relationsStore, filePath)) {
+      return relationsStore[filePath];
+    }
+    if (caseSensitiveFile) return null;
+    let normalized = lowerCaseRelationLookupCache.get(relationsStore);
+    if (!normalized) {
+      normalized = new Map();
+      for (const [key, value] of Object.entries(relationsStore)) {
+        addCaseInsensitiveLookupEntry(normalized, key, value);
+      }
+      lowerCaseRelationLookupCache.set(relationsStore, normalized);
+    }
+    return getCaseInsensitiveLookupValue(normalized, filePath);
+  };
   const checkRequiredTables = (mode, tables) => {
     if (!Array.isArray(tables) || !tables.length) return [];
     if (typeof sqliteHasTable !== 'function') return [];
@@ -482,18 +576,6 @@ export function createSearchPipeline(context) {
         return [];
       }
       throwIfAborted();
-
-      const intersectCandidateSet = (candidateSet, allowedSet) => {
-        if (!allowedSet) return { set: candidateSet, owned: false };
-        const resolvedAllowed = allowedSet instanceof Set ? allowedSet : bitmapToSet(allowedSet);
-        if (!candidateSet) return { set: resolvedAllowed, owned: !(allowedSet instanceof Set) };
-        if (candidateSet === resolvedAllowed) return { set: candidateSet, owned: false };
-        const filtered = candidatePool.acquire();
-        for (const id of candidateSet) {
-          if (hasAllowedId(allowedSet, id)) filtered.add(id);
-        }
-        return { set: filtered, owned: true };
-      };
 
       // Main search: BM25 token match (with optional SQLite FTS first pass)
       const candidateMetrics = {};
@@ -740,9 +822,29 @@ export function createSearchPipeline(context) {
         };
 
         const annCandidateBase = ensureCandidateBase();
-        const { set: annCandidates, owned: annCandidatesOwned } = intersectCandidateSet(annCandidateBase, allowedIdx);
-        if (annCandidatesOwned) trackReleaseSet(annCandidates);
-        const annFallback = annCandidateBase && allowedIdx ? allowedIdx : null;
+        const annCandidatePolicy = resolveAnnCandidateSet({
+          candidates: annCandidateBase,
+          allowedIds: allowedIdx,
+          filtersActive: filtersEnabled,
+          cap: annCandidatePolicyConfig.cap,
+          minDocCount: annCandidatePolicyConfig.minDocCount,
+          maxDocCount: annCandidatePolicyConfig.maxDocCount,
+          toSet: ensureAllowedSet
+        });
+        const annCandidates = annCandidatePolicy.set;
+        const shouldTryAnnFallback = filtersEnabled
+          && Boolean(allowedIdx)
+          && annCandidatePolicy.reason !== ANN_CANDIDATE_POLICY_REASONS.FILTERS_ACTIVE_ALLOWED_IDX;
+        let annFallbackResolved = false;
+        let annFallback = null;
+        const resolveAnnFallback = () => {
+          if (!shouldTryAnnFallback) return null;
+          if (!annFallbackResolved) {
+            annFallback = ensureAllowedSet(allowedIdx);
+            annFallbackResolved = true;
+          }
+          return annFallback;
+        };
 
         const normalizeAnnHits = (hits) => {
           if (!Array.isArray(hits)) return [];
@@ -870,8 +972,11 @@ export function createSearchPipeline(context) {
             if (!preflightOk) continue;
             providerAvailable = true;
             annHits = await runAnnQuery(provider, annCandidates);
-            if (!annHits.length && annFallback) {
-              annHits = await runAnnQuery(provider, annFallback);
+            if (!annHits.length && shouldTryAnnFallback) {
+              const fallbackCandidates = resolveAnnFallback();
+              if (fallbackCandidates) {
+                annHits = await runAnnQuery(provider, fallbackCandidates);
+              }
             }
             if (annHits.length) {
               annSource = provider?.id || backend;
@@ -885,22 +990,32 @@ export function createSearchPipeline(context) {
         }
 
         if (annEnabled && !annHits.length) {
-          const minhashBase = annCandidateBase;
-          const { set: minhashCandidates, owned: minhashOwned } = intersectCandidateSet(minhashBase, allowedIdx);
-          if (minhashOwned) trackReleaseSet(minhashCandidates);
-          const minhashFallback = minhashBase && allowedIdx ? allowedIdx : null;
+          const minhashCandidates = (
+            annCandidatePolicy.reason === ANN_CANDIDATE_POLICY_REASONS.FILTERS_ACTIVE_ALLOWED_IDX
+            && annCandidateBase
+            && annCandidateBase.size > 0
+          )
+            ? annCandidateBase
+            : annCandidatePolicy.set;
+          const minhashFallback = annFallback;
           const minhashCandidatesEmpty = minhashCandidates && minhashCandidates.size === 0;
           const minhashTotal = minhashCandidates
             ? minhashCandidates.size
             : (idx.minhash?.signatures?.length || 0);
-          const allowMinhash = minhashTotal > 0 && (!minhashLimit || minhashTotal <= minhashLimit);
-          if (allowMinhash && !minhashCandidatesEmpty) {
+          const allowMinhashCandidates = minhashTotal > 0 && (!minhashLimit || minhashTotal <= minhashLimit);
+          const minhashFallbackTotal = shouldTryAnnFallback ? allowedCount : 0;
+          const allowMinhashFallback = minhashFallbackTotal > 0
+            && (!minhashLimit || minhashFallbackTotal <= minhashLimit);
+          if (allowMinhashCandidates && !minhashCandidatesEmpty) {
             annHits = rankMinhash(idx, queryTokens, expandedTopN, minhashCandidates);
             if (annHits.length) annSource = 'minhash';
           }
-          if (!annHits.length && allowMinhash && minhashFallback) {
-            annHits = rankMinhash(idx, queryTokens, expandedTopN, minhashFallback);
-            if (annHits.length) annSource = 'minhash';
+          if (!annHits.length && allowMinhashFallback) {
+            const fallbackCandidates = minhashFallback || resolveAnnFallback();
+            if (fallbackCandidates) {
+              annHits = rankMinhash(idx, queryTokens, expandedTopN, fallbackCandidates);
+              if (annHits.length) annSource = 'minhash';
+            }
           }
         }
 
@@ -912,6 +1027,8 @@ export function createSearchPipeline(context) {
         annMetrics.providerAvailable = providerAvailable;
         annMetrics.profileId = profileId;
         annMetrics.vectorOnlyProfile = vectorOnlyProfile;
+        annMetrics.candidatePolicyConfig = annCandidatePolicyConfig;
+        annMetrics.candidatePolicy = annCandidatePolicy.explain;
 
         if (vectorOnlyProfile && !annHits.length) {
           throw createError(
@@ -929,9 +1046,9 @@ export function createSearchPipeline(context) {
           );
         }
 
-        return { annHits, annSource };
+        return { annHits, annSource, annCandidatePolicy: annCandidatePolicy.explain };
       });
-      let { annHits, annSource } = annResult;
+      let { annHits, annSource, annCandidatePolicy } = annResult;
 
       const fusionBuffer = scoreBufferPool.acquire({
         fields: [
@@ -1001,11 +1118,11 @@ export function createSearchPipeline(context) {
           const chunk = meta[idxVal];
           if (!chunk) return;
           if (!matchesQueryAst(idx, idxVal, chunk)) return;
-          const fileRelations = idx.fileRelations
-            ? (typeof idx.fileRelations.get === 'function'
-              ? idx.fileRelations.get(chunk.file)
-              : idx.fileRelations[chunk.file])
-            : null;
+          const fileRelations = resolveFileRelations(
+            idx.fileRelations,
+            chunk.file,
+            relationBoostConfig.caseFile
+          );
           const enrichedChunk = fileRelations
             ? {
               ...chunk,
@@ -1048,6 +1165,18 @@ export function createSearchPipeline(context) {
               boost: symbolBoost
             };
           }
+          let relationInfo = null;
+          if (relationBoostEnabled) {
+            relationInfo = computeRelationBoost({
+              chunk: enrichedChunk,
+              fileRelations,
+              queryTokens,
+              config: relationBoostConfig
+            });
+            if (Number.isFinite(relationInfo?.boost) && relationInfo.boost > 0) {
+              score += relationInfo.boost;
+            }
+          }
           const scoreBreakdown = explain
             ? createScoreBreakdown({
               sparse: sparseScore != null ? {
@@ -1071,7 +1200,8 @@ export function createSearchPipeline(context) {
               } : null,
               ann: annScore != null ? {
                 score: annScore,
-                source: entry.annSource || null
+                source: entry.annSource || null,
+                candidatePolicy: annCandidatePolicy || null
               } : null,
               rrf: useRrf ? blendInfo : null,
               phrase: phraseNgramSet ? {
@@ -1081,6 +1211,7 @@ export function createSearchPipeline(context) {
               } : null,
               symbol: symbolInfo,
               blend: blendEnabled && !useRrf ? blendInfo : null,
+              relation: relationInfo,
               selected: {
                 type: scoreType,
                 score
