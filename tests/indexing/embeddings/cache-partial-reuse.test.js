@@ -10,12 +10,14 @@ const tempRoot = path.join(root, '.testCache', 'embeddings-cache-partial-reuse')
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 const srcDir = path.join(repoRoot, 'src');
-const srcPath = path.join(srcDir, 'alpha.js');
+const changedSrcPath = path.join(srcDir, 'alpha.js');
+const stableSrcPath = path.join(srcDir, 'stable.js');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(srcDir, { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
-await fsPromises.writeFile(srcPath, 'export const alpha = () => 1;\nexport const beta = () => 2;\n');
+await fsPromises.writeFile(changedSrcPath, 'export const alpha = () => 1;\nexport const beta = () => 2;\n');
+await fsPromises.writeFile(stableSrcPath, 'export const stable = () => 42;\n');
 
 const env = applyTestEnv({
   cacheRoot,
@@ -85,8 +87,19 @@ if (!firstKeys.length) {
   console.error('Expected cache entries after initial build');
   process.exit(1);
 }
-const priorKey = firstKeys[0];
-const priorEntry = first.index.entries[priorKey];
+const firstEntries = Object.entries(first.index.entries || {});
+const changedEntryPair = firstEntries.find(([, entry]) => String(entry?.file || '').endsWith('src/alpha.js'));
+if (!changedEntryPair) {
+  console.error('Expected changed file cache entry after initial build');
+  process.exit(1);
+}
+const [changedKeyFirst] = changedEntryPair;
+const stableEntryPair = firstEntries.find(([, entry]) => String(entry?.file || '').endsWith('src/stable.js'));
+if (!stableEntryPair) {
+  console.error('Expected stable file cache entry after initial build');
+  process.exit(1);
+}
+const [priorKey, priorEntry] = stableEntryPair;
 const priorHits = Number.isFinite(Number(priorEntry?.hits)) ? Number(priorEntry.hits) : 0;
 const priorCache = await readCacheEntry(first.cacheDir, priorKey, first.index);
 if (!Array.isArray(priorCache?.entry?.chunkHashes)) {
@@ -94,16 +107,11 @@ if (!Array.isArray(priorCache?.entry?.chunkHashes)) {
   process.exit(1);
 }
 
-await fsPromises.appendFile(srcPath, 'export const gamma = () => 3;\n');
+await fsPromises.appendFile(changedSrcPath, 'export const gamma = () => 3;\n');
 runNode('build_index changed', [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot]);
 runNode('build_embeddings changed', [path.join(root, 'tools', 'build', 'embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot]);
 
 const second = await loadCacheIndex(cacheRoot);
-const secondKeys = Object.keys(second.index.entries || {});
-if (secondKeys.length <= firstKeys.length) {
-  console.error('Expected a new cache entry after file change');
-  process.exit(1);
-}
 const updatedEntry = second.index.entries[priorKey];
 if (!updatedEntry) {
   console.error('Expected prior cache entry to remain in index');
@@ -112,6 +120,13 @@ if (!updatedEntry) {
 const updatedHits = Number.isFinite(Number(updatedEntry.hits)) ? Number(updatedEntry.hits) : 0;
 if (updatedHits <= priorHits) {
   console.error('Expected partial reuse to record a cache access for the prior entry');
+  process.exit(1);
+}
+const changedKeysAfter = Object.entries(second.index.entries || {})
+  .filter(([, entry]) => String(entry?.file || '').endsWith('src/alpha.js'))
+  .map(([key]) => key);
+if (!changedKeysAfter.some((key) => key !== changedKeyFirst)) {
+  console.error('Expected changed file to produce a new cache key');
   process.exit(1);
 }
 

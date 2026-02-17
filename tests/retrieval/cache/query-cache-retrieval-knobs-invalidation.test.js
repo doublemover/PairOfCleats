@@ -49,7 +49,7 @@ const envB = applyTestEnv({
 const envC = applyTestEnv({
   cacheRoot,
   embeddings: 'stub',
-  testConfig: buildTestConfig({ relationBoostEnabled: true, annCandidateCap: 5 })
+  testConfig: buildTestConfig({ relationBoostEnabled: true, annCandidateCap: 100 })
 });
 
 const run = (args, label, env) => {
