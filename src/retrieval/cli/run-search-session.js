@@ -22,6 +22,21 @@ import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import { stableStringifyForSignature } from '../../shared/stable-json.js';
 import { resolveSqliteFtsRoutingByMode } from '../routing-policy.js';
 
+/**
+ * Execute one retrieval session, including query cache lookup, per-mode search,
+ * context expansion, and telemetry payload assembly.
+ *
+ * Key invariants:
+ * - Cache keys must include query-shaping knobs (including sqlite FTS variant
+ *   flags) so option toggles never reuse stale hits.
+ * - `sqliteHasDb` is propagated to the pipeline to allow per-mode SQLite
+ *   availability checks (for example extracted-prose may be file-backed while
+ *   code/prose remain SQLite-backed).
+ *
+ * @param {object} input
+ * @param {(mode:string)=>boolean} [input.sqliteHasDb]
+ * @returns {Promise<object>}
+ */
 export async function runSearchSession({
   rootDir,
   userConfig,
@@ -266,6 +281,12 @@ export async function runSearchSession({
       sqliteFtsNormalize,
       sqliteFtsProfile,
       sqliteFtsWeights,
+      // FTS compilation variants change query behavior; include them in the
+      // cache key so toggling flags invalidates prior cache entries.
+      sqliteFtsVariant: {
+        trigram: sqliteFtsTrigram === true,
+        stemming: sqliteFtsStemming === true
+      },
       comments: { enabled: commentsEnabled },
       models: modelIds,
       embeddings: {
