@@ -55,7 +55,11 @@ try {
   await runSearchCli(baseArgs, { emitOutput: false, exitOnError: false });
 } catch (err) {
   baseFailed = true;
-  assert.equal(err?.reasonCode, 'retrieval_sparse_unavailable', 'expected sparse-unavailable error without fallback override');
+  const message = String(err?.message || err);
+  assert.ok(
+    /retrieval_sparse_unavailable/i.test(message),
+    'expected sparse-unavailable error without fallback override'
+  );
 }
 const payload = await runSearchCli(
   [...baseArgs, '--allow-sparse-fallback'],

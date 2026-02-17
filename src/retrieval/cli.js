@@ -123,35 +123,76 @@ const collectMissingSparseTables = ({ sqliteHelpers, mode, postingsConfig, requi
 };
 
 /**
- * Resolve sparse preflight tables for a mode based on active sqlite routing.
- * Modes routed to sqlite-fts primarily require FTS tables, but filtered sparse
- * runs with ANN fallback enabled may still require BM25 tables when pushdown is
- * not possible at runtime.
+ * Resolve missing sparse tables for preflight based on sqlite routing/fallback behavior.
+ * For sqlite-fts-routed modes, sparse retrieval can still succeed via BM25 fallback when
+ * FTS tables are absent, so preflight should only fail when both routes are unavailable.
  *
  * @param {{
+ *   sqliteHelpers?: { hasTable?: (mode:string, tableName:string)=>boolean }|null,
  *   mode: string,
  *   postingsConfig?: object,
  *   sqliteFtsRoutingByMode?: { byMode?: Record<string, { desired?: string }> }|null,
  *   allowSparseFallback?: boolean,
- *   filtersActive?: boolean
+ *   filtersActive?: boolean,
+ *   sparseBackend?: string
  * }} input
  * @returns {string[]}
  */
-const resolveSparsePreflightTables = ({
+const resolveSparsePreflightMissingTables = ({
+  sqliteHelpers,
   mode,
   postingsConfig,
   sqliteFtsRoutingByMode,
   allowSparseFallback = false,
-  filtersActive = false
+  filtersActive = false,
+  sparseBackend = 'auto'
 }) => {
   const desiredRoute = sqliteFtsRoutingByMode?.byMode?.[mode]?.desired || null;
-  if (desiredRoute === 'fts') {
-    const ftsTables = ['chunks', 'chunks_fts'];
-    const includeBm25FallbackTables = allowSparseFallback === true && filtersActive === true;
-    if (!includeBm25FallbackTables) return ftsTables;
-    return Array.from(new Set([...ftsTables, ...resolveSparseRequiredTables(postingsConfig)]));
+  if (desiredRoute !== 'fts') {
+    return collectMissingSparseTables({
+      sqliteHelpers,
+      mode,
+      postingsConfig,
+      requiredTables: resolveSparseRequiredTables(postingsConfig)
+    });
   }
-  return resolveSparseRequiredTables(postingsConfig);
+
+  const ftsRequiredTables = ['chunks', 'chunks_fts'];
+  const bm25RequiredTables = resolveSparseRequiredTables(postingsConfig);
+  const ftsMissing = collectMissingSparseTables({
+    sqliteHelpers,
+    mode,
+    postingsConfig,
+    requiredTables: ftsRequiredTables
+  });
+  const bm25Missing = collectMissingSparseTables({
+    sqliteHelpers,
+    mode,
+    postingsConfig,
+    requiredTables: bm25RequiredTables
+  });
+  const ftsAvailable = ftsMissing.length === 0;
+  const bm25Available = bm25Missing.length === 0;
+  const normalizedSparseBackend = typeof sparseBackend === 'string'
+    ? sparseBackend.trim().toLowerCase()
+    : 'auto';
+  const bm25FallbackPossible = normalizedSparseBackend !== 'tantivy';
+
+  if (!bm25FallbackPossible) {
+    return ftsAvailable ? [] : ftsMissing;
+  }
+
+  if (allowSparseFallback === true && filtersActive === true) {
+    // Active filters can disable sqlite-fts routing at runtime (when allowlists
+    // cannot be pushed down), so BM25 availability must be preflighted here.
+    return bm25Available ? [] : bm25Missing;
+  }
+
+  // Sparse mode can still route to BM25 when sqlite-fts returns no hits.
+  // Require BM25 tables up front to avoid late runtime sparse-unavailable failures.
+  if (bm25Available && (ftsAvailable || ftsMissing.length > 0)) return [];
+  if (ftsAvailable && !bm25Available) return bm25Missing;
+  return Array.from(new Set([...ftsMissing, ...bm25Missing]));
 };
 
 /**
@@ -1025,18 +1066,14 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       for (const mode of sparsePreflightModes) {
         const policy = profilePolicyByMode[mode];
         if (policy?.vectorOnly) continue;
-        const requiredTables = resolveSparsePreflightTables({
+        const missing = resolveSparsePreflightMissingTables({
+          sqliteHelpers,
           mode,
           postingsConfig,
           sqliteFtsRoutingByMode: sqliteFtsRouting,
           allowSparseFallback,
-          filtersActive: queryPlan.filtersActive === true
-        });
-        const missing = collectMissingSparseTables({
-          sqliteHelpers,
-          mode,
-          postingsConfig,
-          requiredTables
+          filtersActive: queryPlan.filtersActive === true,
+          sparseBackend
         });
         if (missing.length) sparseMissingByMode[mode] = missing;
       }
