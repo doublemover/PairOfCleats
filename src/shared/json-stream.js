@@ -18,6 +18,21 @@ const resolveShardLimits = ({ maxBytes, maxItems }) => ({
   maxItems: normalizeShardLimit(maxItems)
 });
 
+/**
+ * Prefer a cached JSONL payload when producers have already serialized a row.
+ * This keeps fanout writers from paying `JSON.stringify` repeatedly for
+ * identical row objects.
+ *
+ * @param {any} item
+ * @returns {string}
+ */
+const resolveJsonlLine = (item) => {
+  if (item && typeof item === 'object' && typeof item.__jsonl === 'string') {
+    return item.__jsonl;
+  }
+  return stringifyJsonValue(item);
+};
+
 export const resolveJsonlExtension = (value) => {
   if (value === 'gzip') return 'jsonl.gz';
   if (value === 'zstd') return 'jsonl.zst';
@@ -59,7 +74,7 @@ export async function writeJsonLinesFile(filePath, items, options = {}) {
   try {
     for (const item of items) {
       throwIfAborted(signal);
-      const line = stringifyJsonValue(item);
+      const line = resolveJsonlLine(item);
       const lineBuffer = Buffer.from(line, 'utf8');
       const lineBytes = lineBuffer.length + 1;
       if (resolvedMaxBytes && lineBytes > resolvedMaxBytes) {
@@ -121,7 +136,7 @@ export async function writeJsonLinesFileAsync(filePath, items, options = {}) {
   try {
     for await (const item of items) {
       throwIfAborted(signal);
-      const line = stringifyJsonValue(item);
+      const line = resolveJsonlLine(item);
       const lineBuffer = Buffer.from(line, 'utf8');
       const lineBytes = lineBuffer.length + 1;
       if (resolvedMaxBytes && lineBytes > resolvedMaxBytes) {
@@ -262,7 +277,7 @@ export async function writeJsonLinesSharded(input) {
       const item = next.value;
       next = iterator.next();
       const hasMore = !next.done;
-      const line = stringifyJsonValue(item);
+      const line = resolveJsonlLine(item);
       const lineBuffer = Buffer.from(line, 'utf8');
       const lineBytes = lineBuffer.length + 1;
       const needsNewPart = current
@@ -431,7 +446,7 @@ export async function writeJsonLinesShardedAsync(input) {
   try {
     for await (const item of items) {
       throwIfAborted(signal);
-      const line = stringifyJsonValue(item);
+      const line = resolveJsonlLine(item);
       const lineBuffer = Buffer.from(line, 'utf8');
       const lineBytes = lineBuffer.length + 1;
       const needsNewPart = current
