@@ -259,6 +259,17 @@ Guardrails reject risky combinations with stable codes:
 Capability probing uses explicit baseline defaults (`src/shared/capabilities.js`) before optional
 dependency detection mutates feature availability.
 
+## 6.4 Basic resource visibility
+
+Runtime now emits lightweight warnings for abnormal one-run growth:
+- indexing compares prior vs current mode artifact bytes and emits
+  `op_resource_index_growth_abnormal` when growth exceeds ratio+delta thresholds.
+- retrieval compares start/end process RSS and emits
+  `op_resource_retrieval_memory_growth_abnormal` when growth exceeds ratio+delta thresholds.
+
+Thresholds are centralized in `src/shared/ops-resource-visibility.js` as
+`RESOURCE_GROWTH_THRESHOLDS`.
+
 ## 7) Implementation references
 
 - Runtime envelope: `src/shared/runtime-envelope.js`

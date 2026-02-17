@@ -18,6 +18,13 @@ import { SCHEDULER_QUEUE_NAMES } from '../runtime/scheduler.js';
 import { formatHealthFailure, runIndexingHealthChecks } from '../../../shared/ops-health.js';
 import { runWithOperationalFailurePolicy } from '../../../shared/ops-failure-injection.js';
 import {
+  RESOURCE_GROWTH_THRESHOLDS,
+  RESOURCE_WARNING_CODES,
+  evaluateResourceGrowth,
+  formatResourceGrowthWarning,
+  readIndexArtifactBytes
+} from '../../../shared/ops-resource-visibility.js';
+import {
   SIGNATURE_VERSION,
   buildIncrementalSignature,
   buildIncrementalSignatureSummary,
@@ -220,6 +227,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     log
   });
   const outDir = getIndexDir(runtime.root, mode, runtime.userConfig, { indexRoot: runtime.buildRoot });
+  const indexSizeBaselineBytes = await readIndexArtifactBytes(outDir);
   await fs.mkdir(outDir, { recursive: true });
   const indexingHealth = runIndexingHealthChecks({ mode, runtime, outDir });
   if (!indexingHealth.ok) {
@@ -684,6 +692,22 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       vfsManifest: vfsExtra
     }
   });
+  const indexSizeCurrentBytes = await readIndexArtifactBytes(outDir);
+  const indexGrowth = evaluateResourceGrowth({
+    baselineBytes: indexSizeBaselineBytes,
+    currentBytes: indexSizeCurrentBytes,
+    ratioThreshold: RESOURCE_GROWTH_THRESHOLDS.indexSizeRatio,
+    deltaThresholdBytes: RESOURCE_GROWTH_THRESHOLDS.indexSizeDeltaBytes
+  });
+  if (indexGrowth.abnormal) {
+    log(formatResourceGrowthWarning({
+      code: RESOURCE_WARNING_CODES.INDEX_SIZE_GROWTH_ABNORMAL,
+      component: 'indexing',
+      metric: `${mode}.artifact_bytes`,
+      growth: indexGrowth,
+      nextAction: 'Review indexing inputs or profile artifact bloat before release.'
+    }));
+  }
   throwIfAborted(abortSignal);
   if (runtimeRef?.overallProgress?.advance) {
     const finalStage = stagePlan[stagePlan.length - 1];

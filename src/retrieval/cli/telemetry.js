@@ -1,8 +1,20 @@
 import { observeSearchDuration } from '../../shared/metrics.js';
+import {
+  RESOURCE_GROWTH_THRESHOLDS,
+  RESOURCE_WARNING_CODES,
+  captureProcessMemoryRss,
+  evaluateResourceGrowth,
+  formatResourceGrowthWarning
+} from '../../shared/ops-resource-visibility.js';
 
-export function createSearchTelemetry() {
+export function createSearchTelemetry({ readRss = null } = {}) {
+  const resolveRss = typeof readRss === 'function'
+    ? readRss
+    : captureProcessMemoryRss;
   const metricsStart = process.hrtime.bigint();
+  const rssStart = resolveRss();
   let metricsRecorded = false;
+  let resourceWarningRecorded = false;
   let metricsMode = 'unknown';
   let metricsBackend = 'unknown';
   let metricsAnn = 'unknown';
@@ -20,10 +32,31 @@ export function createSearchTelemetry() {
       });
     } catch {}
   };
+  const emitResourceWarnings = ({ warn = null } = {}) => {
+    if (resourceWarningRecorded) return null;
+    resourceWarningRecorded = true;
+    const growth = evaluateResourceGrowth({
+      baselineBytes: rssStart,
+      currentBytes: resolveRss(),
+      ratioThreshold: RESOURCE_GROWTH_THRESHOLDS.retrievalRssRatio,
+      deltaThresholdBytes: RESOURCE_GROWTH_THRESHOLDS.retrievalRssDeltaBytes
+    });
+    if (!growth.abnormal) return growth;
+    const message = formatResourceGrowthWarning({
+      code: RESOURCE_WARNING_CODES.RETRIEVAL_MEMORY_GROWTH_ABNORMAL,
+      component: 'retrieval',
+      metric: 'rss',
+      growth,
+      nextAction: 'Profile retrieval hot path and reduce working-set growth.'
+    });
+    if (typeof warn === 'function') warn(message);
+    return growth;
+  };
   return {
     setMode: (mode) => { metricsMode = mode; },
     setBackend: (backend) => { metricsBackend = backend; },
     setAnn: (ann) => { metricsAnn = ann; },
-    record: recordSearchMetrics
+    record: recordSearchMetrics,
+    emitResourceWarnings
   };
 }

@@ -68,5 +68,7 @@ Notes
 - Use `syncPolicy: "fetch"` for Sourcebot-style fetch-only workflows.
 - Each job runs `build_index.js` for the configured repo/mode.
 - Watch mode uses atomic attempt roots and promotion barriers (see `docs/specs/watch-atomicity.md`).
+- Index workers emit `op_resource_index_growth_abnormal` when artifact bytes grow abnormally versus the prior build in the same mode.
+- Retrieval/API paths emit `op_resource_retrieval_memory_growth_abnormal` when per-run RSS growth is clearly abnormal.
 
 
