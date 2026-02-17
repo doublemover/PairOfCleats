@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { escapeRegex } from '../../src/shared/text/escape-regex.js';
+import { isTestingEnv } from '../../src/shared/env.js';
 
 const args = process.argv.slice(2);
 const hasFlag = (flag) => args.includes(flag);
@@ -76,6 +77,7 @@ const overrideIds = new Set([
     .flatMap((entry) => String(entry).split(',').map((value) => value.trim()))
     .filter(Boolean)
 ]);
+const TESTING_ENV_KEY = 'PAIROFCLEATS_TESTING';
 
 // Keep blockers intentionally minimal; these are the only OP contracts that
 // should hard-fail release checks by default.
@@ -159,9 +161,13 @@ if (!noBlockers) {
   const overridden = [];
   for (const blocker of ESSENTIAL_BLOCKERS) {
     const [command, ...commandArgs] = blocker.command;
+    const blockerEnv = { ...process.env };
+    if (!isTestingEnv(blockerEnv)) {
+      blockerEnv[TESTING_ENV_KEY] = '1';
+    }
     const run = spawnSync(command, commandArgs, {
       cwd: root,
-      env: { ...process.env, PAIROFCLEATS_TESTING: process.env.PAIROFCLEATS_TESTING || '1' },
+      env: blockerEnv,
       encoding: 'utf8'
     });
     if (run.status === 0) {
