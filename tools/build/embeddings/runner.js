@@ -41,8 +41,11 @@ import {
   resolveSqlitePaths
 } from '../../shared/dict-utils.js';
 import {
+  buildChunkHashesFingerprint,
   buildCacheIdentity,
   buildCacheKey,
+  createShardAppendHandlePool,
+  encodeCacheEntryPayload,
   isCacheValid,
   readCacheIndex,
   readCacheMeta,
@@ -984,11 +987,17 @@ export async function runBuildEmbeddingsWithConfig(config) {
         const ioTokensTotal = Number.isFinite(Number(schedulerStatsForWriter?.tokens?.io?.total))
           ? Math.max(1, Math.floor(Number(schedulerStatsForWriter.tokens.io.total)))
           : 1;
+        const computeTokensTotal = Number.isFinite(Number(schedulerStatsForWriter?.tokens?.cpu?.total))
+          ? Math.max(1, Math.floor(Number(schedulerStatsForWriter.tokens.cpu.total)))
+          : 1;
+        const backendParallelDispatch = getChunkEmbeddings?.supportsParallelDispatch === true;
+        const parallelBatchDispatch = backendParallelDispatch && computeTokensTotal > 1;
         const defaultWriterMaxPending = Math.max(1, Math.min(4, ioTokensTotal * 2));
         const writerMaxPending = schedulerIoMaxPending
           ? Math.max(1, Math.min(defaultWriterMaxPending, schedulerIoMaxPending))
           : defaultWriterMaxPending;
         const writerQueue = createBoundedWriterQueue({ scheduleIo, maxPending: writerMaxPending });
+        const cacheShardHandlePool = createShardAppendHandlePool();
 
         let sharedZeroVec = new Float32Array(0);
         const markFileProcessed = async () => {
@@ -1084,31 +1093,39 @@ export async function runBuildEmbeddingsWithConfig(config) {
               const fileHashLocal = entry.fileHash;
               const chunkSignatureLocal = entry.chunkSignature;
               const chunkHashesLocal = entry.chunkHashes;
+              const chunkHashesFingerprintLocal = entry.chunkHashesFingerprint || null;
+              const cachePayload = {
+                key: cacheKeyLocal,
+                file: normalizedRelLocal,
+                hash: fileHashLocal,
+                chunkSignature: chunkSignatureLocal,
+                chunkHashes: chunkHashesLocal,
+                cacheMeta: {
+                  schemaVersion: 1,
+                  identityKey: cacheIdentityKey,
+                  identity: cacheIdentity,
+                  createdAt: new Date().toISOString()
+                },
+                codeVectors: cachedCodeVectors,
+                docVectors: cachedDocVectors,
+                mergedVectors: cachedMergedVectors
+              };
+              const encodedPayload = await encodeCacheEntryPayload(cachePayload);
               await writerQueue.enqueue(async () => {
-                const shardEntry = await writeCacheEntry(cacheDirLocal, cacheKeyLocal, {
-                  key: cacheKeyLocal,
-                  file: normalizedRelLocal,
-                  hash: fileHashLocal,
-                  chunkSignature: chunkSignatureLocal,
-                  chunkHashes: chunkHashesLocal,
-                  cacheMeta: {
-                    schemaVersion: 1,
-                    identityKey: cacheIdentityKey,
-                    identity: cacheIdentity,
-                    createdAt: new Date().toISOString()
-                  },
-                  codeVectors: cachedCodeVectors,
-                  docVectors: cachedDocVectors,
-                  mergedVectors: cachedMergedVectors
-                }, { index: cacheIndex });
+                const shardEntry = await writeCacheEntry(cacheDirLocal, cacheKeyLocal, cachePayload, {
+                  index: cacheIndex,
+                  encodedBuffer: encodedPayload,
+                  shardHandlePool: cacheShardHandlePool
+                });
                 if (shardEntry) {
                   upsertCacheIndexEntry(cacheIndex, cacheKeyLocal, {
                     key: cacheKeyLocal,
                     file: normalizedRelLocal,
                     hash: fileHashLocal,
                     chunkSignature: chunkSignatureLocal,
-                    chunkHashes: chunkHashesLocal,
-                    codeVectors: cachedCodeVectors
+                    chunkCount: entry.items.length,
+                    chunkHashesFingerprint: chunkHashesFingerprintLocal,
+                    chunkHashesCount: Array.isArray(chunkHashesLocal) ? chunkHashesLocal.length : null
                   }, shardEntry);
                   markCacheIndexDirty();
                 }
@@ -1128,9 +1145,11 @@ export async function runBuildEmbeddingsWithConfig(config) {
           assertVectorArrays,
           scheduleCompute,
           processFileEmbeddings,
-          mode
+          mode,
+          parallelDispatch: parallelBatchDispatch
         });
-        for (const [relPath, items] of fileEntries) {
+        try {
+          for (const [relPath, items] of fileEntries) {
           const normalizedRel = toPosix(relPath);
           const chunkSignature = buildChunkSignature(items);
           const manifestEntry = manifestFiles[normalizedRel] || null;
@@ -1383,6 +1402,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
             chunkDocTexts[i] = trimmedDoc;
             chunkHashes[i] = sha1(`${codeText}\n${trimmedDoc}`);
           }
+          const chunkHashesFingerprint = buildChunkHashesFingerprint(chunkHashes);
           const reuse = {
             code: new Array(items.length).fill(null),
             doc: new Array(items.length).fill(null),
@@ -1391,7 +1411,14 @@ export async function runBuildEmbeddingsWithConfig(config) {
           if (cacheEligible) {
             const priorKey = cacheIndex?.files?.[normalizedRel];
             if (priorKey && priorKey !== cacheKey) {
-              const priorResult = await scheduleIo(() => readCacheEntry(cacheDir, priorKey, cacheIndex));
+              const priorIndexEntry = cacheIndex?.entries?.[priorKey] || null;
+              const canCheckFingerprint = typeof chunkHashesFingerprint === 'string'
+                && !!priorIndexEntry?.chunkHashesFingerprint;
+              const fingerprintMatches = !canCheckFingerprint
+                || priorIndexEntry.chunkHashesFingerprint === chunkHashesFingerprint;
+              const priorResult = fingerprintMatches
+                ? await scheduleIo(() => readCacheEntry(cacheDir, priorKey, cacheIndex))
+                : null;
               const priorEntry = priorResult?.entry;
               if (priorEntry && Array.isArray(priorEntry.chunkHashes)) {
                 const hashMap = new Map();
@@ -1441,6 +1468,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
             fileHash,
             chunkSignature,
             chunkHashes,
+            chunkHashesFingerprint,
             codeTexts,
             docTexts,
             codeMapping,
@@ -1448,8 +1476,10 @@ export async function runBuildEmbeddingsWithConfig(config) {
             reuse
           });
         }
-
-        await writerQueue.onIdle();
+        } finally {
+          await writerQueue.onIdle();
+          await cacheShardHandlePool.close();
+        }
         await flushCacheIndexMaybe({ force: true });
 
         stageCheckpoints.record({

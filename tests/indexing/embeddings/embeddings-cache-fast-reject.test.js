@@ -9,7 +9,8 @@ const cacheIndex = {
     'key-a': {
       key: 'key-a',
       hash: 'hash-a',
-      chunkSignature: 'sig-a'
+      chunkSignature: 'sig-a',
+      chunkHashesFingerprint: 'fp-a'
     }
   }
 };
@@ -60,6 +61,19 @@ assert.equal(
   }),
   true,
   'expected identity mismatch to fast reject'
+);
+
+assert.equal(
+  shouldFastRejectCacheLookup({
+    cacheIndex,
+    cacheKey: 'key-a',
+    identityKey: 'identity-a',
+    fileHash: 'hash-a',
+    chunkSignature: 'sig-a',
+    chunkHashesFingerprint: 'fp-b'
+  }),
+  true,
+  'expected chunk hash fingerprint mismatch to fast reject'
 );
 
 assert.equal(
