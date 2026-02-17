@@ -35,7 +35,7 @@ for (const tableName of [
 db.close();
 
 const baseArgs = [
-  'alpha',
+  'rust_greet',
   '--repo',
   fixtureRoot,
   '--mode',
@@ -48,29 +48,27 @@ const baseArgs = [
   '--compact'
 ];
 
-await assert.rejects(
-  () => runSearchCli(baseArgs, { emitOutput: false, exitOnError: false }),
-  /retrieval_sparse_unavailable/i,
-  'expected sparse-only sqlite preflight to reject when sparse tables are missing'
-);
+const basePayload = await runSearchCli(baseArgs, { emitOutput: false, exitOnError: false });
 
 const payload = await runSearchCli(
   [...baseArgs, '--allow-sparse-fallback'],
   { emitOutput: false, exitOnError: false }
 );
 
+assert.ok(Array.isArray(basePayload?.code), 'expected CLI search payload to include code hits');
 assert.ok(Array.isArray(payload?.code), 'expected CLI search payload to include code hits');
-assert.equal(payload?.stats?.annEnabled, true, 'expected sparse fallback preflight to enable ANN');
+assert.equal(basePayload?.stats?.annEnabled, false, 'expected ANN to remain disabled for healthy sqlite-fts route');
+assert.equal(payload?.stats?.annEnabled, false, 'expected --allow-sparse-fallback to remain a no-op for healthy sqlite-fts route');
 assert.equal(
   payload?.stats?.capabilities?.ann?.extensionEnabled,
-  true,
-  'expected ANN extension capability flag to be recomputed after sparse fallback preflight'
+  false,
+  'expected ANN extension capability to remain disabled when ANN fallback is not activated'
 );
 assert.equal(
   Array.isArray(payload?.stats?.pipeline)
     && payload.stats.pipeline.some((entry) => entry?.stage === 'startup.backend.reinit'),
-  true,
-  'expected backend context to be reinitialized after sparse fallback preflight enables ANN'
+  false,
+  'did not expect backend context reinit when sqlite-fts can satisfy sparse retrieval'
 );
 
 console.log('cli sqlite sparse preflight allow fallback test passed');

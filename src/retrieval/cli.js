@@ -47,6 +47,7 @@ import { compileFilterPredicates } from './output/filters.js';
 import { stableStringify } from '../shared/stable-json.js';
 import { INDEX_PROFILE_DEFAULT, INDEX_PROFILE_VECTOR_ONLY } from '../contracts/index-profile.js';
 import { RETRIEVAL_SPARSE_UNAVAILABLE_CODE, resolveSparseRequiredTables } from './sparse/requirements.js';
+import { resolveSqliteFtsRoutingByMode } from './routing-policy.js';
 import {
   buildQueryPlanCacheKey,
   buildQueryPlanConfigSignature,
@@ -77,18 +78,41 @@ const resolveProfileForState = (state) => {
  * @param {{
  *   sqliteHelpers?: { hasTable?: (mode:string, tableName:string)=>boolean }|null,
  *   mode: string,
- *   postingsConfig?: object
+ *   postingsConfig?: object,
+ *   requiredTables?: string[]|null
  * }} input
  * @returns {string[]}
  */
-const collectMissingSparseTables = ({ sqliteHelpers, mode, postingsConfig }) => {
+const collectMissingSparseTables = ({ sqliteHelpers, mode, postingsConfig, requiredTables = null }) => {
   if (!sqliteHelpers || typeof sqliteHelpers.hasTable !== 'function') return [];
-  const required = resolveSparseRequiredTables(postingsConfig);
+  const required = Array.isArray(requiredTables)
+    ? requiredTables
+    : resolveSparseRequiredTables(postingsConfig);
   const missing = [];
   for (const tableName of required) {
     if (!sqliteHelpers.hasTable(mode, tableName)) missing.push(tableName);
   }
   return missing;
+};
+
+/**
+ * Resolve sparse preflight tables for a mode based on active sqlite routing.
+ * Modes routed to sqlite-fts only require FTS tables; BM25 tables are checked
+ * only when the mode is routed to sparse/BM25 retrieval.
+ *
+ * @param {{
+ *   mode: string,
+ *   postingsConfig?: object,
+ *   sqliteFtsRoutingByMode?: { byMode?: Record<string, { desired?: string }> }|null
+ * }} input
+ * @returns {string[]}
+ */
+const resolveSparsePreflightTables = ({ mode, postingsConfig, sqliteFtsRoutingByMode }) => {
+  const desiredRoute = sqliteFtsRoutingByMode?.byMode?.[mode]?.desired || null;
+  if (desiredRoute === 'fts') {
+    return ['chunks', 'chunks_fts'];
+  }
+  return resolveSparseRequiredTables(postingsConfig);
 };
 
 /**
@@ -772,6 +796,15 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       return bail('LMDB backend requested but unavailable.', 1, ERROR_CODES.INVALID_REQUEST);
     }
     if (!annEnabledEffective && useSqlite) {
+      const sqliteFtsRouting = resolveSqliteFtsRoutingByMode({
+        useSqlite,
+        sqliteFtsRequested: sqliteFtsEnabled,
+        sqliteFtsExplicit: backendLabel === 'sqlite-fts',
+        runCode,
+        runProse,
+        runExtractedProse: runExtractedProseRaw,
+        runRecords
+      });
       const sparseMissingByMode = {};
       const sparsePreflightModes = resolveSparsePreflightModes({
         selectedModes,
@@ -781,10 +814,16 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       for (const mode of sparsePreflightModes) {
         const policy = profilePolicyByMode[mode];
         if (policy?.vectorOnly) continue;
+        const requiredTables = resolveSparsePreflightTables({
+          mode,
+          postingsConfig,
+          sqliteFtsRoutingByMode: sqliteFtsRouting
+        });
         const missing = collectMissingSparseTables({
           sqliteHelpers,
           mode,
-          postingsConfig
+          postingsConfig,
+          requiredTables
         });
         if (missing.length) sparseMissingByMode[mode] = missing;
       }
