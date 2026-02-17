@@ -6,7 +6,7 @@ const sparseMissingByMode = {
   code: ['token_vocab', 'token_postings']
 };
 
-const missingWithoutAnn = resolveSparseFallbackModesWithoutAnn({
+const missingWithoutAnn = await resolveSparseFallbackModesWithoutAnn({
   sparseMissingByMode,
   idxByMode: {
     code: {
@@ -26,7 +26,72 @@ assert.deepEqual(
   'expected mode to be marked unavailable when sparse fallback has no ANN path'
 );
 
-const availableWithMinhash = resolveSparseFallbackModesWithoutAnn({
+const missingWithDenseLoaderOnly = await resolveSparseFallbackModesWithoutAnn({
+  sparseMissingByMode,
+  idxByMode: {
+    code: {
+      minhash: null,
+      denseVec: null,
+      loadDenseVectors: async () => null
+    }
+  },
+  vectorAnnState: { code: { available: false } },
+  hnswAnnState: { code: { available: false } },
+  lanceAnnState: { code: { available: false } }
+});
+
+assert.deepEqual(
+  missingWithDenseLoaderOnly,
+  ['code'],
+  'expected loader-only mode to remain unavailable when dense vectors are missing'
+);
+
+const missingWithFailingDenseLoader = await resolveSparseFallbackModesWithoutAnn({
+  sparseMissingByMode,
+  idxByMode: {
+    code: {
+      minhash: null,
+      denseVec: null,
+      loadDenseVectors: async () => {
+        throw new Error('dense vectors unavailable');
+      }
+    }
+  },
+  vectorAnnState: { code: { available: false } },
+  hnswAnnState: { code: { available: false } },
+  lanceAnnState: { code: { available: false } }
+});
+
+assert.deepEqual(
+  missingWithFailingDenseLoader,
+  ['code'],
+  'expected failing dense loader to be treated as unavailable ANN path'
+);
+
+const availableWithDenseLoader = await resolveSparseFallbackModesWithoutAnn({
+  sparseMissingByMode,
+  idxByMode: {
+    code: {
+      minhash: null,
+      denseVec: null,
+      loadDenseVectors: async function loadDenseVectors() {
+        this.denseVec = { vectors: [[0.1, 0.2, 0.3]] };
+        return this.denseVec;
+      }
+    }
+  },
+  vectorAnnState: { code: { available: false } },
+  hnswAnnState: { code: { available: false } },
+  lanceAnnState: { code: { available: false } }
+});
+
+assert.deepEqual(
+  availableWithDenseLoader,
+  [],
+  'expected mode to be available when lazy loader materializes dense vectors'
+);
+
+const availableWithMinhash = await resolveSparseFallbackModesWithoutAnn({
   sparseMissingByMode,
   idxByMode: {
     code: {
@@ -46,7 +111,7 @@ assert.deepEqual(
   'expected minhash signatures to satisfy ANN fallback availability'
 );
 
-const availableWithProvider = resolveSparseFallbackModesWithoutAnn({
+const availableWithProvider = await resolveSparseFallbackModesWithoutAnn({
   sparseMissingByMode,
   idxByMode: {
     code: {

@@ -225,7 +225,26 @@ export const resolveSparsePreflightModes = ({
   });
 };
 
-const hasAnnPathForMode = ({
+/**
+ * Resolve whether lazy dense-vector loading yields real ANN artifacts.
+ * The loader hook may be attached even when no dense vectors exist, so
+ * fallback guards must probe and verify loaded vectors before treating
+ * dense ANN as available.
+ *
+ * @param {object|null|undefined} idx
+ * @returns {Promise<boolean>}
+ */
+const tryLoadDenseVectorsForAnnPath = async (idx) => {
+  if (typeof idx?.loadDenseVectors !== 'function') return false;
+  try {
+    await idx.loadDenseVectors();
+  } catch {
+    return false;
+  }
+  return Array.isArray(idx?.denseVec?.vectors) && idx.denseVec.vectors.length > 0;
+};
+
+const hasAnnPathForMode = async ({
   mode,
   idxByMode,
   vectorAnnState,
@@ -237,10 +256,11 @@ const hasAnnPathForMode = ({
   if (hasMinhash) return true;
   const hasDenseVectors = Array.isArray(idx?.denseVec?.vectors) && idx.denseVec.vectors.length > 0;
   if (hasDenseVectors) return true;
-  if (typeof idx?.loadDenseVectors === 'function') return true;
   if (vectorAnnState?.[mode]?.available) return true;
   if (hnswAnnState?.[mode]?.available) return true;
   if (lanceAnnState?.[mode]?.available) return true;
+  const loadedDenseVectors = await tryLoadDenseVectorsForAnnPath(idx);
+  if (loadedDenseVectors) return true;
   return false;
 };
 
@@ -254,9 +274,9 @@ const hasAnnPathForMode = ({
  *   hnswAnnState?: Record<string, {available?: boolean}>,
  *   lanceAnnState?: Record<string, {available?: boolean}>
  * }} input
- * @returns {string[]}
+ * @returns {Promise<string[]>}
  */
-export const resolveSparseFallbackModesWithoutAnn = ({
+export const resolveSparseFallbackModesWithoutAnn = async ({
   sparseMissingByMode,
   idxByMode,
   vectorAnnState,
@@ -265,13 +285,19 @@ export const resolveSparseFallbackModesWithoutAnn = ({
 }) => {
   const modes = Object.keys(sparseMissingByMode || {});
   if (!modes.length) return [];
-  return modes.filter((mode) => !hasAnnPathForMode({
-    mode,
-    idxByMode,
-    vectorAnnState,
-    hnswAnnState,
-    lanceAnnState
-  }));
+  const entries = await Promise.all(
+    modes.map(async (mode) => ({
+      mode,
+      hasAnn: await hasAnnPathForMode({
+        mode,
+        idxByMode,
+        vectorAnnState,
+        hnswAnnState,
+        lanceAnnState
+      })
+    }))
+  );
+  return entries.filter((entry) => !entry.hasAnn).map((entry) => entry.mode);
 };
 
 /**
@@ -1290,7 +1316,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     throwIfAborted();
 
     if (sparseFallbackForcedByPreflight) {
-      const sparseFallbackModesWithoutAnn = resolveSparseFallbackModesWithoutAnn({
+      const sparseFallbackModesWithoutAnn = await resolveSparseFallbackModesWithoutAnn({
         sparseMissingByMode,
         idxByMode: {
           code: idxCode,
