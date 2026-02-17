@@ -94,6 +94,7 @@ export function createSearchPipeline(context) {
     rankVectorAnnSqlite,
     sqliteHasFts,
     sqliteHasTable,
+    sqliteHasDb,
     profilePolicyByMode,
     signal,
     rrf,
@@ -487,7 +488,8 @@ export function createSearchPipeline(context) {
     const sqliteEnabledForMode = useSqlite && (
       mode === 'code'
       || mode === 'prose'
-      || mode === 'extracted-prose'
+      || (mode === 'extracted-prose'
+        && (typeof sqliteHasDb !== 'function' || sqliteHasDb(mode)))
     );
     const sqliteRouteByMode = sqliteFtsRoutingByMode?.byMode?.[mode] || null;
     const sqliteFtsDesiredForMode = sqliteRouteByMode

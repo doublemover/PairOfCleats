@@ -88,6 +88,7 @@ export async function runSearchSession({
   rankVectorAnnSqlite,
   sqliteHasFts,
   sqliteHasTable,
+  sqliteHasDb,
   profilePolicyByMode = null,
   profileWarnings = [],
   idxProse,
@@ -206,6 +207,7 @@ export async function runSearchSession({
     rankVectorAnnSqlite,
     sqliteHasFts,
     sqliteHasTable,
+    sqliteHasDb,
     profilePolicyByMode,
     signal
   });

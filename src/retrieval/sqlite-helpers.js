@@ -40,7 +40,7 @@ export function unpackUint32(buffer) {
 /**
  * Create SQLite helper functions for search.
  * @param {object} options
- * @param {(mode:'code'|'prose')=>import('better-sqlite3').Database|null} options.getDb
+ * @param {(mode:'code'|'prose'|'extracted-prose')=>import('better-sqlite3').Database|null} options.getDb
  * @param {object} options.postingsConfig
  * @param {number[]} options.sqliteFtsWeights
  * @param {number|null|undefined} options.maxCandidates
@@ -98,6 +98,8 @@ export function createSqliteHelpers(options) {
     ftsAvailability.set(db, { available });
     return available;
   };
+
+  const hasDb = (mode) => Boolean(getDb(mode));
 
   const hasTable = (mode, tableName) => {
     const db = getDb(mode);
@@ -722,6 +724,7 @@ export function createSqliteHelpers(options) {
 
   return {
     loadIndexFromSqlite,
+    hasDb,
     hasFtsTable,
     hasTable,
     getTokenIndexForQuery,

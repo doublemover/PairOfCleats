@@ -6,6 +6,7 @@ const optionalExtracted = resolveProfileCohortModes({
   runCode: true,
   runProse: false,
   runRecords: false,
+  runExtractedProse: false,
   requiresExtractedProse: false
 });
 assert.deepEqual(
@@ -18,6 +19,7 @@ const requiredExtracted = resolveProfileCohortModes({
   runCode: false,
   runProse: false,
   runRecords: false,
+  runExtractedProse: true,
   requiresExtractedProse: true
 });
 assert.deepEqual(
@@ -26,10 +28,24 @@ assert.deepEqual(
   'explicit extracted-prose mode should be included in profile cohort checks'
 );
 
+const proseSearchModes = resolveProfileCohortModes({
+  runCode: false,
+  runProse: true,
+  runRecords: false,
+  runExtractedProse: true,
+  requiresExtractedProse: false
+});
+assert.deepEqual(
+  proseSearchModes,
+  ['prose', 'extracted-prose'],
+  'searched extracted-prose should be included in profile cohort checks'
+);
+
 const mixedPrimaryModes = resolveProfileCohortModes({
   runCode: true,
   runProse: true,
   runRecords: true,
+  runExtractedProse: false,
   requiresExtractedProse: false
 });
 assert.deepEqual(

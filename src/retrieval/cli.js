@@ -75,13 +75,15 @@ const resolveProfileForState = (state) => {
 
 /**
  * Resolve modes that should participate in profile/cohort policy checks.
- * `extracted-prose` is optional and should only be included when the request
- * explicitly targets extracted-prose.
+ * `extracted-prose` should be included whenever that mode is searched.
+ * This captures explicit extracted-prose queries and prose/default runs that
+ * also execute extracted-prose retrieval.
  *
  * @param {{
  *   runCode: boolean,
  *   runProse: boolean,
  *   runRecords: boolean,
+ *   runExtractedProse: boolean,
  *   requiresExtractedProse: boolean
  * }} input
  * @returns {string[]}
@@ -90,11 +92,12 @@ export const resolveProfileCohortModes = ({
   runCode,
   runProse,
   runRecords,
+  runExtractedProse,
   requiresExtractedProse
 }) => PROFILE_MODES.filter((mode) => (
   (mode === 'code' && runCode)
   || (mode === 'prose' && runProse)
-  || (mode === 'extracted-prose' && requiresExtractedProse)
+  || (mode === 'extracted-prose' && (runExtractedProse || requiresExtractedProse))
   || (mode === 'records' && runRecords)
 ));
 
@@ -616,6 +619,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       runCode,
       runProse,
       runRecords,
+      runExtractedProse: runExtractedProseRaw,
       requiresExtractedProse
     });
     const selectedModesWithState = selectedModes.filter((mode) => indexStateByMode[mode]);
@@ -1314,6 +1318,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       rankVectorAnnSqlite,
       sqliteHasFts: sqliteHelpers?.hasFtsTable,
       sqliteHasTable: sqliteHelpers?.hasTable,
+      sqliteHasDb: sqliteHelpers?.hasDb,
       profilePolicyByMode,
       profileWarnings,
       idxProse,

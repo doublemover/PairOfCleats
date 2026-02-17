@@ -23,6 +23,10 @@ const writeIndexState = async (mode, profileId) => {
       }
     }, null, 2)
   );
+  await fs.writeFile(
+    path.join(indexDir, 'chunk_meta.json'),
+    JSON.stringify([], null, 2)
+  );
 };
 
 await writeIndexState('prose', 'default');
@@ -49,17 +53,17 @@ try {
   failed = true;
   const message = String(err?.message || err);
   assert.ok(
-    !/mixed index profiles detected/i.test(message),
-    'inactive extracted-prose mode should not trigger mixed-profile cohort rejection'
+    /mixed index profiles detected/i.test(message),
+    'searched extracted-prose mode should participate in mixed-profile cohort rejection'
   );
   assert.ok(
-    !/allow-unsafe-mix/i.test(message),
-    'inactive extracted-prose mode should not require --allow-unsafe-mix'
+    /allow-unsafe-mix/i.test(message),
+    'mixed-profile cohort rejection should recommend --allow-unsafe-mix'
   );
 }
 
 if (!failed) {
-  throw new Error('Expected failure because prose index artifacts are incomplete in this fixture');
+  throw new Error('Expected mixed-profile cohort rejection when prose search includes extracted-prose');
 }
 
-console.log('profile mix ignores inactive extracted-prose test passed');
+console.log('profile mix includes searched extracted-prose test passed');
