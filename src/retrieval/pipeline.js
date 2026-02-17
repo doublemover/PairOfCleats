@@ -764,7 +764,13 @@ export function createSearchPipeline(context) {
       const sparseUnavailable = Array.isArray(sqliteFtsDiagnostics)
         ? sqliteFtsDiagnostics.find((entry) => entry?.code === RETRIEVAL_SPARSE_UNAVAILABLE_CODE)
         : null;
-      if (!annEnabled && !vectorOnlyProfile && sparseUnavailable && sparseType === 'none') {
+      const sparseFallbackAllowedByPolicy = modeProfilePolicy?.allowSparseFallback === true;
+      const annEnabledForMode = annEnabled || (
+        sparseFallbackAllowedByPolicy
+        && sparseUnavailable
+        && sparseType === 'none'
+      );
+      if (!annEnabledForMode && !vectorOnlyProfile && sparseUnavailable && sparseType === 'none') {
         throw createError(
           ERROR_CODES.CAPABILITY_MISSING,
           'Sparse retrieval backend is unavailable for this query. ' +
@@ -786,7 +792,7 @@ export function createSearchPipeline(context) {
         let annSource = null;
         let warned = false;
 
-        if (!annEnabled) {
+        if (!annEnabledForMode) {
           if (vectorOnlyProfile) {
             throw createError(
               ERROR_CODES.INVALID_REQUEST,
@@ -955,10 +961,10 @@ export function createSearchPipeline(context) {
         || hnswAnnState?.[mode]?.available
         || lanceAnnState?.[mode]?.available
         );
-        const vectorActive = annEnabled && isEmbeddingReady(queryEmbedding) && hasVectorArtifacts;
+        const vectorActive = annEnabledForMode && isEmbeddingReady(queryEmbedding) && hasVectorArtifacts;
         let providerAvailable = false;
 
-        if (annEnabled && vectorActive) {
+        if (annEnabledForMode && vectorActive) {
           const providers = getAnnProviders();
           const orderedBackends = resolveAnnBackends(providers, mode);
           annMetrics.providerOrder = orderedBackends;
@@ -989,14 +995,32 @@ export function createSearchPipeline(context) {
           }
         }
 
-        if (annEnabled && !annHits.length) {
-          const minhashCandidates = (
+        if (annEnabledForMode && !annHits.length) {
+          let minhashCandidates = annCandidatePolicy.set;
+          if (
             annCandidatePolicy.reason === ANN_CANDIDATE_POLICY_REASONS.FILTERS_ACTIVE_ALLOWED_IDX
             && annCandidateBase
             && annCandidateBase.size > 0
-          )
-            ? annCandidateBase
-            : annCandidatePolicy.set;
+            && filtersEnabled
+            && allowedIdx
+          ) {
+            const bmConstrainedCandidates = candidatePool.acquire();
+            for (const candidateId of annCandidateBase) {
+              if (hasAllowedId(allowedIdx, candidateId)) {
+                bmConstrainedCandidates.add(candidateId);
+              }
+            }
+            trackReleaseSet(bmConstrainedCandidates);
+            const policySetSize = annCandidatePolicy.set ? annCandidatePolicy.set.size : 0;
+            if (
+              bmConstrainedCandidates.size > 0
+              && minhashLimit
+              && policySetSize > minhashLimit
+              && bmConstrainedCandidates.size <= minhashLimit
+            ) {
+              minhashCandidates = bmConstrainedCandidates;
+            }
+          }
           const minhashFallback = annFallback;
           const minhashCandidatesEmpty = minhashCandidates && minhashCandidates.size === 0;
           const minhashTotal = minhashCandidates

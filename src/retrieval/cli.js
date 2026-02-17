@@ -370,6 +370,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     const needsSqlite = runCode || runProse || runExtractedProseRaw;
     let annEnabledEffective = annEnabled;
     let vectorAnnEnabled = false;
+    let sparseFallbackForcedByPreflight = false;
     const profileWarnings = [];
     const profileWarningSet = new Set();
     const addProfileWarning = (warning) => {
@@ -713,16 +714,35 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
         if (missing.length) sparseMissingByMode[mode] = missing;
       }
       if (Object.keys(sparseMissingByMode).length) {
-        const details = Object.entries(sparseMissingByMode)
-          .map(([mode, missing]) => `- ${mode}: ${missing.join(', ')}`)
-          .join('\n');
-        return bail(
-          `[search] ${RETRIEVAL_SPARSE_UNAVAILABLE_CODE}: sparse-only retrieval requires sparse tables, but required tables are missing.\n${details}\n` +
-            'Rebuild sparse artifacts or enable ANN fallback.',
-          1,
-          ERROR_CODES.CAPABILITY_MISSING
-        );
+        if (allowSparseFallback === true) {
+          sparseFallbackForcedByPreflight = true;
+          annEnabledEffective = true;
+          const details = Object.entries(sparseMissingByMode)
+            .map(([mode, missing]) => `${mode}: ${missing.join(', ')}`)
+            .join('; ');
+          const warning = (
+            `Sparse tables missing for sparse-only request (${details}). ` +
+            'Enabling ANN fallback because --allow-sparse-fallback was set.'
+          );
+          addProfileWarning(warning);
+          if (emitOutput) {
+            console.warn(`[search] ${warning}`);
+          }
+        } else {
+          const details = Object.entries(sparseMissingByMode)
+            .map(([mode, missing]) => `- ${mode}: ${missing.join(', ')}`)
+            .join('\n');
+          return bail(
+            `[search] ${RETRIEVAL_SPARSE_UNAVAILABLE_CODE}: sparse-only retrieval requires sparse tables, but required tables are missing.\n${details}\n` +
+              'Rebuild sparse artifacts or enable ANN fallback.',
+            1,
+            ERROR_CODES.CAPABILITY_MISSING
+          );
+        }
       }
+    }
+    if (sparseFallbackForcedByPreflight) {
+      telemetry.setAnn('on');
     }
 
     const branchResult = await applyBranchFilter({
