@@ -35,6 +35,7 @@ export function buildChunkPayload({
   dictWords,
   dictConfig,
   postingsConfig,
+  emitFieldTokens = true,
   tokenMode,
   fileRelations,
   relationsEnabled,
@@ -47,9 +48,10 @@ export function buildChunkPayload({
   const docText = typeof docmeta.doc === 'string' ? docmeta.doc : '';
   const fieldedEnabled = postingsConfig?.fielded !== false;
   const tokenClassificationEnabled = postingsConfig?.tokenClassification?.enabled === true;
-  const wantsFieldTokens = fieldedEnabled
+  const wantsFieldTokens = emitFieldTokens
+    && (fieldedEnabled
     || postingsConfig?.chargramSource === 'fields'
-    || postingsConfig?.phraseSource === 'fields';
+    || postingsConfig?.phraseSource === 'fields');
   let fieldTokens = null;
   if (wantsFieldTokens) {
     const docTokens = tokenMode !== 'code'

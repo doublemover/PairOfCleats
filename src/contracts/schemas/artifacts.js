@@ -515,6 +515,79 @@ const extractionReportSchema = {
   additionalProperties: false
 };
 
+const lexiconRelationFilterCategoryCounts = {
+  type: 'object',
+  required: ['keywords', 'literals', 'builtins', 'types'],
+  properties: {
+    keywords: intId,
+    literals: intId,
+    builtins: intId,
+    types: intId
+  },
+  additionalProperties: false
+};
+
+const lexiconRelationFilterReportFile = {
+  type: 'object',
+  required: [
+    'file',
+    'languageId',
+    'droppedCalls',
+    'droppedUsages',
+    'droppedCallDetails',
+    'droppedCallDetailsWithRange',
+    'droppedTotal',
+    'droppedCallsByCategory',
+    'droppedUsagesByCategory'
+  ],
+  properties: {
+    file: { type: 'string' },
+    languageId: nullableString,
+    droppedCalls: intId,
+    droppedUsages: intId,
+    droppedCallDetails: intId,
+    droppedCallDetailsWithRange: intId,
+    droppedTotal: intId,
+    droppedCallsByCategory: lexiconRelationFilterCategoryCounts,
+    droppedUsagesByCategory: lexiconRelationFilterCategoryCounts
+  },
+  additionalProperties: false
+};
+
+const lexiconRelationFilterReportSchema = {
+  type: 'object',
+  required: ['schemaVersion', 'mode', 'totals', 'files'],
+  properties: {
+    schemaVersion: posInt,
+    mode: modeName,
+    totals: {
+      type: 'object',
+      required: [
+        'files',
+        'droppedCalls',
+        'droppedUsages',
+        'droppedCallDetails',
+        'droppedCallDetailsWithRange',
+        'droppedTotal'
+      ],
+      properties: {
+        files: intId,
+        droppedCalls: intId,
+        droppedUsages: intId,
+        droppedCallDetails: intId,
+        droppedCallDetailsWithRange: intId,
+        droppedTotal: intId
+      },
+      additionalProperties: false
+    },
+    files: {
+      type: 'array',
+      items: lexiconRelationFilterReportFile
+    }
+  },
+  additionalProperties: false
+};
+
 const shardedJsonlPart = {
   type: 'object',
   required: ['path', 'records', 'bytes'],
@@ -1392,6 +1465,7 @@ export const ARTIFACT_SCHEMA_DEFS = {
   },
   filelists: fileListsSchema,
   extraction_report: extractionReportSchema,
+  lexicon_relation_filter_report: lexiconRelationFilterReportSchema,
   pieces_manifest: {
     type: 'object',
     required: ['version', 'artifactSurfaceVersion', 'pieces'],
@@ -1420,6 +1494,15 @@ export const ARTIFACT_SCHEMA_DEFS = {
       generatedAt: { type: 'string' },
       updatedAt: nullableString,
       artifactSurfaceVersion: semverString,
+      profile: {
+        type: 'object',
+        required: ['id', 'schemaVersion'],
+        properties: {
+          id: { type: 'string', enum: ['default', 'vector_only'] },
+          schemaVersion: { type: 'number', const: 1 }
+        },
+        additionalProperties: false
+      },
       compatibilityKey: nullableString,
       cohortKey: nullableString,
       repoId: nullableString,
@@ -1434,6 +1517,26 @@ export const ARTIFACT_SCHEMA_DEFS = {
       filterIndex: { type: 'object', additionalProperties: true },
       sqlite: { type: 'object', additionalProperties: true },
       lmdb: { type: 'object', additionalProperties: true },
+      artifacts: {
+        type: 'object',
+        required: ['schemaVersion', 'present', 'omitted', 'requiredForSearch'],
+        properties: {
+          schemaVersion: { type: 'number', const: 1 },
+          present: {
+            type: 'object',
+            additionalProperties: { type: 'boolean' }
+          },
+          omitted: {
+            type: 'array',
+            items: { type: 'string' }
+          },
+          requiredForSearch: {
+            type: 'array',
+            items: { type: 'string' }
+          }
+        },
+        additionalProperties: false
+      },
       riskInterprocedural: {
         type: 'object',
         required: ['enabled', 'summaryOnly', 'emitArtifacts'],

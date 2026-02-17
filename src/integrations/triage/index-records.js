@@ -8,9 +8,11 @@ import { createIndexState, appendChunk } from '../../index/build/state.js';
 import { buildPostings } from '../../index/build/postings.js';
 import { writeIndexArtifacts } from '../../index/build/artifacts.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
+import { buildIndexProfileState, INDEX_PROFILE_VECTOR_ONLY } from '../../contracts/index-profile.js';
 import { buildChunkId } from '../../index/chunk-id.js';
 import { assignChunkUids } from '../../index/identity/chunk-uid.js';
 import { getLanguageForFile } from '../../index/language-registry.js';
+import { buildIndexStateArtifactsBlock } from '../../index/build/index-state-profile.js';
 import { toPosix } from '../../shared/files.js';
 import { extractNgrams, splitId, splitWordsWithDict, stem } from '../../shared/tokenize.js';
 import { forEachRollingChargramHash } from '../../shared/chargram-hash.js';
@@ -20,12 +22,46 @@ import { isPathUnderDir } from '../../shared/path-normalize.js';
 import { promoteRecordFields } from './record-utils.js';
 
 /**
+ * Records service-mode builds enqueue embeddings without materializing dense artifacts.
+ * `artifacts.present.dense_vectors*` must track emitted vectors on disk, not queue capability.
+ *
+ * @param {object} postings
+ * @returns {boolean}
+ */
+const hasEmittedDenseVectors = (postings) => (
+  (Array.isArray(postings?.quantizedVectors) && postings.quantizedVectors.length > 0)
+  || (Array.isArray(postings?.quantizedDocVectors) && postings.quantizedDocVectors.length > 0)
+  || (Array.isArray(postings?.quantizedCodeVectors) && postings.quantizedCodeVectors.length > 0)
+);
+
+/**
+ * Vector-only builds are valid when embeddings are available inline or when
+ * service queueing is enabled for deferred embedding generation.
+ *
+ * @param {object} runtime
+ * @returns {boolean}
+ */
+const hasVectorEmbeddingBuildCapability = (runtime) => (
+  runtime?.embeddingEnabled === true || runtime?.embeddingService === true
+);
+
+/**
  * Build the records index for a repo.
  * @param {{runtime:object,discovery?:{entries:Array}}} input
  * @returns {Promise<void>}
  */
 export async function buildRecordsIndexForRepo({ runtime, discovery = null, abortSignal = null }) {
   throwIfAborted(abortSignal);
+  const profile = buildIndexProfileState(runtime.profile?.id || runtime.indexingConfig?.profile);
+  // Keep records indexing consistent with main indexer vector_only behavior:
+  // retain chunk tokens but skip sparse postings/materialization work.
+  const sparsePostingsEnabled = profile.id !== INDEX_PROFILE_VECTOR_ONLY;
+  if (profile.id === INDEX_PROFILE_VECTOR_ONLY && !hasVectorEmbeddingBuildCapability(runtime)) {
+    throw new Error(
+      'indexing.profile=vector_only requires embeddings to be available during index build. '
+      + 'Enable inline/stub embeddings or service-mode embedding queueing and rebuild.'
+    );
+  }
   const triageConfig = getTriageConfig(runtime.root, runtime.userConfig);
   const recordsDir = triageConfig.recordsDir;
   const outDir = getIndexDir(runtime.root, 'records', runtime.userConfig, { indexRoot: runtime.buildRoot });
@@ -100,12 +136,13 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
       runtime.dictConfig,
       recordExt,
       postingsConfig,
-      [recordName, docmeta.doc || ''].filter(Boolean).join(' ')
+      [recordName, docmeta.doc || ''].filter(Boolean).join(' '),
+      { sparsePostingsEnabled }
     );
     if (!tokenPayload.tokens.length) continue;
 
     const stats = computeTokenStats(tokenPayload.tokens);
-    const fieldTokens = postingsConfig?.fielded !== false ? {
+    const fieldTokens = sparsePostingsEnabled && postingsConfig?.fielded !== false ? {
       name: recordName ? buildRecordSeq(recordName, runtime.dictWords, runtime.dictConfig, recordExt).tokens : [],
       signature: [],
       doc: docmeta.doc ? buildRecordSeq(docmeta.doc, runtime.dictWords, runtime.dictConfig, recordExt).tokens : [],
@@ -115,8 +152,12 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
     const embedText = docmeta.doc || text;
     const embedding = await runtime.getChunkEmbedding(embedText);
 
-    const mh = new SimpleMinHash();
-    tokenPayload.tokens.forEach((t) => mh.update(t));
+    let minhashSig = [];
+    if (sparsePostingsEnabled) {
+      const mh = new SimpleMinHash();
+      tokenPayload.tokens.forEach((t) => mh.update(t));
+      minhashSig = mh.hashValues;
+    }
 
     const lines = text.split(/\r?\n/);
     const startLine = 1;
@@ -149,7 +190,7 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
       preContext: [],
       postContext: [],
       embedding,
-      minhashSig: mh.hashValues,
+      minhashSig,
       weight: 1,
       externalDocs: [],
       ...(fieldTokens ? { fieldTokens } : {})
@@ -164,7 +205,13 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
       log
     });
 
-    appendChunk(state, chunkPayload, postingsConfig);
+    appendChunk(
+      state,
+      chunkPayload,
+      postingsConfig,
+      null,
+      { sparsePostingsEnabled }
+    );
     state.scannedFiles.push(recordFile);
     state.scannedFilesTimes.push({
       file: recordFile,
@@ -195,12 +242,20 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
     useStubEmbeddings: runtime.useStubEmbeddings,
     log,
     workerPool: runtime.workerPool,
-    embeddingsEnabled: runtime.embeddingEnabled
+    embeddingsEnabled: runtime.embeddingEnabled,
+    sparsePostingsEnabled
   });
 
+  const artifacts = buildIndexStateArtifactsBlock({
+    profileId: profile.id,
+    mode: 'records',
+    embeddingsEnabled: hasEmittedDenseVectors(postings),
+    postingsConfig
+  });
   const indexState = {
     generatedAt: new Date().toISOString(),
     artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
+    profile,
     compatibilityKey: runtime.compatibilityKey || null,
     cohortKey: runtime.cohortKeys?.records || runtime.compatibilityKey || null,
     buildId: runtime.buildId || null,
@@ -228,7 +283,8 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
       : { enabled: false },
     enrichment: runtime.twoStage?.enabled
       ? { enabled: true, pending: runtime.stage === 'stage1', stage: runtime.stage || null }
-      : { enabled: false }
+      : { enabled: false },
+    artifacts
   };
 
   throwIfAborted(abortSignal);
@@ -297,10 +353,18 @@ function buildDocMeta(record, triageConfig, recordMeta = null) {
   return docmeta;
 }
 
-function tokenizeRecord(text, dictWords, dictConfig, ext, postingsConfig, chargramFieldText = '') {
+function tokenizeRecord(
+  text,
+  dictWords,
+  dictConfig,
+  ext,
+  postingsConfig,
+  chargramFieldText = '',
+  { sparsePostingsEnabled = true } = {}
+) {
   const { tokens, seq } = buildRecordSeq(text, dictWords, dictConfig, ext);
-  const phraseEnabled = postingsConfig?.enablePhraseNgrams !== false;
-  const chargramEnabled = postingsConfig?.enableChargrams !== false;
+  const phraseEnabled = sparsePostingsEnabled && postingsConfig?.enablePhraseNgrams !== false;
+  const chargramEnabled = sparsePostingsEnabled && postingsConfig?.enableChargrams !== false;
   const chargramSource = typeof postingsConfig?.chargramSource === 'string'
     ? postingsConfig.chargramSource.trim().toLowerCase()
     : 'fields';

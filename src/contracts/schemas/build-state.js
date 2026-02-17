@@ -223,6 +223,16 @@ const REPO_PROVENANCE = {
   ]
 };
 
+const PROFILE_ENTRY = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['id', 'schemaVersion'],
+  properties: {
+    id: { type: 'string', enum: ['default', 'vector_only'] },
+    schemaVersion: { type: 'number', const: 1 }
+  }
+};
+
 export const BUILD_STATE_SCHEMA = {
   $schema: 'https://json-schema.org/draft/2020-12/schema',
   title: 'build_state.json',
@@ -270,6 +280,7 @@ export const BUILD_STATE_SCHEMA = {
     },
     signatureVersion: { type: ['number', 'null'] },
     configHash: { type: ['string', 'null'] },
+    profile: PROFILE_ENTRY,
     repo: REPO_PROVENANCE,
     phases: {
       type: 'object',

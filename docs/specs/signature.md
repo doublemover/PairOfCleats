@@ -27,6 +27,7 @@ Signature inputs are derived from `buildIncrementalSignaturePayload`:
   - `artifactSchemaHash` (`ARTIFACT_SCHEMA_HASH`)
   - `chunkIdAlgoVersion` (`CHUNK_ID_ALGO_VERSION`)
   - `cacheSchemaVersion` (tool version from `runtime.toolInfo.version`)
+  - `profile.id`, `profile.schemaVersion`
 - **Mode + tokenization**
   - `mode` (code/prose/etc)
   - `tokenizationKey` (see `buildTokenizationKey`)

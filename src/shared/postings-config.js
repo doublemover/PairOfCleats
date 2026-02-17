@@ -11,6 +11,8 @@
  *   chargramMaxTokenLength:number|null,
  *   chargramSpillMaxUnique:number,
  *   chargramMaxDf:number,
+ *   chargramFields:string[],
+ *   chargramStopwords:boolean,
  *   chargramSource:string,
  *   phraseSource:string,
  *   phraseHash:boolean,
@@ -22,6 +24,7 @@
 export function normalizePostingsConfig(input = {}) {
   const MAX_CHARGRAM_N = 8;
   const MAX_CHARGRAM_TOKEN_LENGTH = 128;
+  const ALLOWED_CHARGRAM_FIELDS = new Set(['name', 'signature', 'doc', 'comment', 'body']);
   const cfg = input && typeof input === 'object' ? input : {};
   const enablePhraseNgrams = cfg.enablePhraseNgrams !== false;
   const enableChargrams = cfg.enableChargrams !== false;
@@ -90,6 +93,24 @@ export function normalizePostingsConfig(input = {}) {
     : 0;
   const phraseHash = cfg.phraseHash !== false;
   const typed = cfg.typed !== false;
+  const chargramStopwords = cfg.chargramStopwords === true;
+  const chargramFieldsRaw = Array.isArray(cfg.chargramFields)
+    ? cfg.chargramFields
+    : (typeof cfg.chargramFields === 'string'
+      ? cfg.chargramFields.split(/[,\s]+/)
+      : []);
+  const chargramFields = [];
+  const seenChargramFields = new Set();
+  for (const entry of chargramFieldsRaw) {
+    const normalized = typeof entry === 'string' ? entry.trim().toLowerCase() : '';
+    if (!normalized || !ALLOWED_CHARGRAM_FIELDS.has(normalized)) continue;
+    if (seenChargramFields.has(normalized)) continue;
+    seenChargramFields.add(normalized);
+    chargramFields.push(normalized);
+  }
+  if (!chargramFields.length) {
+    chargramFields.push('name', 'doc');
+  }
 
   return {
     enablePhraseNgrams,
@@ -103,6 +124,8 @@ export function normalizePostingsConfig(input = {}) {
     chargramMaxTokenLength,
     chargramSpillMaxUnique,
     chargramMaxDf,
+    chargramFields,
+    chargramStopwords,
     chargramSource,
     typed,
     fielded,

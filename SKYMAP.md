@@ -609,19 +609,19 @@ Support a true vector-only profile that builds and searches without sparse artif
 Define strict on-disk contract for profile and artifact presence.
 
 #### Tasks
-- [ ] Add config enum `indexing.profile: default | vector_only` (default `default`).
-- [ ] Reject unknown profile values during config normalization.
-- [ ] Add `profile` block in `index_state.json`:
-  - [ ] `profile.id`
-  - [ ] `profile.schemaVersion = 1`
-- [ ] Add `artifacts` block in `index_state.json`:
-  - [ ] `schemaVersion = 1`
-  - [ ] `present` map
-  - [ ] `omitted` array
-  - [ ] `requiredForSearch` array
-- [ ] Add canonical JSON examples for both profiles in docs.
-- [ ] Include profile block in build-state/build reports for traceability.
-- [ ] Include `profile.id` and `profile.schemaVersion` in compatibility and signature keys.
+- [x] Add config enum `indexing.profile: default | vector_only` (default `default`).
+- [x] Reject unknown profile values during config normalization.
+- [x] Add `profile` block in `index_state.json`:
+  - [x] `profile.id`
+  - [x] `profile.schemaVersion = 1`
+- [x] Add `artifacts` block in `index_state.json`:
+  - [x] `schemaVersion = 1`
+  - [x] `present` map
+  - [x] `omitted` array
+  - [x] `requiredForSearch` array
+- [x] Add canonical JSON examples for both profiles in docs.
+- [x] Include profile block in build-state/build reports for traceability.
+- [x] Include `profile.id` and `profile.schemaVersion` in compatibility and signature keys.
 
 #### Touchpoints
 - `docs/config/schema.json`
@@ -633,9 +633,9 @@ Define strict on-disk contract for profile and artifact presence.
 - `src/contracts/validators/artifacts.js`
 
 #### Tests
-- [ ] `tests/indexing/contracts/profile-index-state-contract.test.js`
-- [ ] `tests/indexing/contracts/profile-artifacts-present-omitted-consistency.test.js`
-- [ ] `tests/indexing/contracts/profile-index-state-has-required-artifacts.test.js`
+- [x] `tests/indexing/contracts/profile-index-state-contract.test.js`
+- [x] `tests/indexing/contracts/profile-artifacts-present-omitted-consistency.test.js`
+- [x] `tests/indexing/contracts/profile-index-state-has-required-artifacts.test.js`
 
 ### 18.2 Build gating, sparse omission, and safe cleanup
 
@@ -643,15 +643,15 @@ Define strict on-disk contract for profile and artifact presence.
 Skip sparse generation cleanly for vector-only builds and remove stale sparse outputs safely.
 
 #### Tasks
-- [ ] Thread `profile.id` through pipeline feature settings.
-- [ ] In `vector_only`, disable tokenize/postings stages.
-- [ ] Reject vector-only build when embeddings are unavailable.
-- [ ] Enforce strict denylist for sparse artifacts in vector-only output.
-- [ ] Safe cleanup policy:
-  - [ ] only delete allowlisted sparse artifact filenames in managed outDir
-  - [ ] never recursively delete unknown files
-  - [ ] log cleanup actions in build report
-- [ ] Preserve missing embedding marker convention (zero-length typed array).
+- [x] Thread `profile.id` through pipeline feature settings.
+- [x] In `vector_only`, disable tokenize/postings stages.
+- [x] Reject vector-only build when embeddings are unavailable.
+- [x] Enforce strict denylist for sparse artifacts in vector-only output.
+- [x] Safe cleanup policy:
+  - [x] only delete allowlisted sparse artifact filenames in managed outDir
+  - [x] never recursively delete unknown files
+  - [x] log cleanup actions in build report
+- [x] Preserve missing embedding marker convention (zero-length typed array).
 
 #### Touchpoints
 - `src/index/build/indexer/pipeline.js`
@@ -663,10 +663,10 @@ Skip sparse generation cleanly for vector-only builds and remove stale sparse ou
 - `src/index/validate/artifacts.js`
 
 #### Tests
-- [ ] `tests/indexing/postings/vector-only-does-not-emit-sparse.test.js`
-- [ ] `tests/indexing/postings/vector-only-switching-cleans-stale-sparse.test.js`
-- [ ] `tests/indexing/postings/vector-only-missing-embeddings-is-error.test.js`
-- [ ] `tests/indexing/postings/vector-only-cleanup-allowlist-safety.test.js`
+- [x] `tests/indexing/postings/vector-only-does-not-emit-sparse.test.js`
+- [x] `tests/indexing/postings/vector-only-switching-cleans-stale-sparse.test.js`
+- [x] `tests/indexing/postings/vector-only-missing-embeddings-is-error.test.js`
+- [x] `tests/indexing/postings/vector-only-cleanup-allowlist-safety.test.js`
 
 ### 18.3 Search routing and strict mismatch policy
 
@@ -678,15 +678,15 @@ Make query-time behavior profile-aware with one clear policy and explicit overri
 - Explicit override is `--allow-sparse-fallback` / `allowSparseFallback`.
 
 #### Tasks
-- [ ] Load profile early in retrieval path.
-- [ ] If index profile is `vector_only`:
-  - [ ] choose ANN/vector providers by default
-  - [ ] mark sparse providers unavailable
-- [ ] If user requests sparse-only behavior against vector-only:
-  - [ ] return controlled error with rebuild guidance
-- [ ] Add provider boundary table checks (`requireTables`) and controlled errors.
-- [ ] Ensure CLI/API/MCP policy parity for reject/override behavior.
-- [ ] Surface profile and mismatch details in explain output.
+- [x] Load profile early in retrieval path.
+- [x] If index profile is `vector_only`:
+  - [x] choose ANN/vector providers by default
+  - [x] mark sparse providers unavailable
+- [x] If user requests sparse-only behavior against vector-only:
+  - [x] return controlled error with rebuild guidance
+- [x] Add provider boundary table checks (`requireTables`) and controlled errors.
+- [x] Ensure CLI/API/MCP policy parity for reject/override behavior.
+- [x] Surface profile and mismatch details in explain output.
 
 #### Touchpoints
 - `src/retrieval/pipeline.js`
@@ -700,14 +700,14 @@ Make query-time behavior profile-aware with one clear policy and explicit overri
 - `docs/specs/vector-only-profile.md`
 
 #### Tests
-- [ ] `tests/retrieval/backend/vector-only-search-requires-ann.test.js`
-  - [ ] Vector-only index selects ANN path by default and errors if ANN provider unavailable.
-- [ ] `tests/retrieval/backend/vector-only-rejects-sparse-mode.test.js`
-  - [ ] Sparse-dependent mode is rejected by default with actionable guidance.
-- [ ] `tests/retrieval/backend/sqlite-missing-sparse-tables-is-controlled-error.test.js`
-  - [ ] Missing sparse tables return controlled mismatch error, not an exception crash.
-- [ ] `tests/retrieval/output/explain-vector-only-warnings.test.js`
-  - [ ] Explain output includes profile, mismatch reason, and override guidance.
+- [x] `tests/retrieval/backend/vector-only-search-requires-ann.test.js`
+  - [x] Vector-only index selects ANN path by default and errors if ANN provider unavailable.
+- [x] `tests/retrieval/backend/vector-only-rejects-sparse-mode.test.js`
+  - [x] Sparse-dependent mode is rejected by default with actionable guidance.
+- [x] `tests/retrieval/backend/sqlite-missing-sparse-tables-is-controlled-error.test.js`
+  - [x] Missing sparse tables return controlled mismatch error, not an exception crash.
+- [x] `tests/retrieval/output/explain-vector-only-warnings.test.js`
+  - [x] Explain output includes profile, mismatch reason, and override guidance.
 
 ### 18.4 Legacy migration and federation compatibility
 
@@ -715,13 +715,13 @@ Make query-time behavior profile-aware with one clear policy and explicit overri
 Handle old indexes and mixed-profile cohorts deterministically.
 
 #### Tasks
-- [ ] Legacy index without profile block:
-  - [ ] normalize to `default` at read time
-  - [ ] emit compatibility warning once per process
-- [ ] Mixed profile cohorts:
-  - [ ] reject by default
-- [ ] allow only with explicit opt-in and explain warning
-- [ ] Publish migration guide from old index_state shapes.
+- [x] Legacy index without profile block:
+  - [x] normalize to `default` at read time
+  - [x] emit compatibility warning once per process
+- [x] Mixed profile cohorts:
+  - [x] reject by default
+- [x] allow only with explicit opt-in and explain warning
+- [x] Publish migration guide from old index_state shapes.
 
 #### Touchpoints
 - `src/retrieval/cli/index-loader.js`
@@ -731,9 +731,9 @@ Handle old indexes and mixed-profile cohorts deterministically.
 - `docs/specs/federation-cohorts.md`
 
 #### Tests
-- [ ] `tests/retrieval/backend/vector-only-compatibility-key-mismatch.test.js`
-- [ ] `tests/retrieval/backend/legacy-index-without-profile-normalizes-default.test.js`
-- [ ] `tests/retrieval/backend/mixed-profile-cohort-opt-in.test.js`
+- [x] `tests/retrieval/backend/vector-only-compatibility-key-mismatch.test.js`
+- [x] `tests/retrieval/backend/legacy-index-without-profile-normalizes-default.test.js`
+- [x] `tests/retrieval/backend/mixed-profile-cohort-opt-in.test.js`
 
 ### 18.5 Optional analysis shortcuts for vector-only builds (stretch)
 
@@ -741,13 +741,16 @@ Handle old indexes and mixed-profile cohorts deterministically.
 Optionally reduce build time for vector-only workflows while preserving transparency.
 
 #### Tasks
-- [ ] Add policy flags to disable expensive analysis passes when `profile=vector_only`.
-- [ ] Keep each disabled feature opt-outable and report choices in build report.
-- [ ] Keep this subphase non-blocking to core phase exit.
+- [x] Add policy flags to disable expensive analysis passes when `profile=vector_only`.
+- [x] Keep each disabled feature opt-outable and report choices in build report.
+- [x] Keep this subphase non-blocking to core phase exit.
 
 #### Touchpoints
 - `src/index/build/indexer/pipeline.js`
 - `docs/config/*`
+
+#### Tests
+- [x] `tests/indexing/postings/vector-only-analysis-shortcuts-policy.test.js`
 
 ---
 
@@ -799,23 +802,23 @@ Deliver lexicon-aware relation filtering and boosts, chargram enrichment, and AN
 Lock contract surfaces before implementation.
 
 #### Tasks
-- [ ] Add config keys and defaults for:
-  - [ ] `indexing.lexicon.enabled`
-  - [ ] `indexing.postings.chargramFields`
-  - [ ] `indexing.postings.chargramStopwords`
-  - [ ] `retrieval.annCandidateCap`
-  - [ ] `retrieval.annCandidateMinDocCount`
-  - [ ] `retrieval.annCandidateMaxDocCount`
-  - [ ] `retrieval.relationBoost` (if exposed)
-- [ ] Publish versioning rules for lexicon wordlists and explain payload.
-- [ ] Add tooling:
-  - [ ] `tools/lexicon/validate.js`
-  - [ ] `tools/lexicon/report.js`
-  - [ ] `npm run lexicon:validate`
-  - [ ] `npm run lexicon:report`
-- [ ] Add explicit v2 deferral note for non-ASCII lexicon support.
-- [ ] Include new config knobs in incremental signature payload.
-- [ ] Move old lexicon draft/spec docs to `docs/archived/` with replacement pointers to canonical 19.x specs.
+- [x] Add config keys and defaults for:
+  - [x] `indexing.lexicon.enabled`
+  - [x] `indexing.postings.chargramFields`
+  - [x] `indexing.postings.chargramStopwords`
+  - [x] `retrieval.annCandidateCap`
+  - [x] `retrieval.annCandidateMinDocCount`
+  - [x] `retrieval.annCandidateMaxDocCount`
+  - [x] `retrieval.relationBoost` (if exposed)
+- [x] Publish versioning rules for lexicon wordlists and explain payload.
+- [x] Add tooling:
+  - [x] `tools/lexicon/validate.js`
+  - [x] `tools/lexicon/report.js`
+  - [x] `npm run lexicon:validate`
+  - [x] `npm run lexicon:report`
+- [x] Add explicit v2 deferral note for non-ASCII lexicon support.
+- [x] Include new config knobs in incremental signature payload.
+- [x] Move old lexicon draft/spec docs to `docs/archived/` with replacement pointers to canonical 19.x specs.
 
 #### Touchpoints
 - `src/shared/postings-config.js`
@@ -826,11 +829,11 @@ Lock contract surfaces before implementation.
 - `src/contracts/validators/*`
 
 #### Tests
-- [ ] `tests/indexer/incremental/signature-lexicon-config.test.js`
-- [ ] `tests/config/config-inventory-lexicon-keys.test.js`
-- [ ] `tests/config/config-defaults-lexicon-flags.test.js`
-- [ ] `tests/lexicon/lexicon-tool-validate.test.js`
-- [ ] `tests/lexicon/lexicon-report.test.js`
+- [x] `tests/indexer/incremental/signature-lexicon-config.test.js`
+- [x] `tests/config/config-inventory-lexicon-keys.test.js`
+- [x] `tests/config/config-defaults-lexicon-flags.test.js`
+- [x] `tests/lexicon/lexicon-tool-validate.test.js`
+- [x] `tests/lexicon/lexicon-report.test.js`
 
 ### 19.1 Lexicon assets and loader
 
@@ -838,23 +841,23 @@ Lock contract surfaces before implementation.
 Provide canonical wordlists, strict validation, deterministic normalization, and cached loading.
 
 #### Tasks
-- [ ] Implement:
-  - [ ] `getLanguageLexicon(languageId, { allowFallback })`
-  - [ ] `isLexiconStopword(languageId, token, domain)`
-  - [ ] `extractSymbolBaseName(name)` with fixed separator behavior
-- [ ] Wordlist schema requirements:
-  - [ ] required: `formatVersion=1`, `languageId`, `keywords[]`, `literals[]`
-  - [ ] optional: `types[]`, `builtins[]`, `modules[]`, `notes[]`
-  - [ ] `additionalProperties=false`
-- [ ] Loader behavior:
-  - [ ] resolve via `import.meta.url`
-  - [ ] cache via `Map<languageId, LanguageLexicon>`
-  - [ ] fail-open to `_generic`
-  - [ ] one structured warning per invalid file
-- [ ] Keep a practical language coverage pass:
-  - [ ] add language-specific wordlists where obvious value exists
-  - [ ] rely on `_generic` fallback for the rest until needed
-- [ ] Keep JS/TS keyword sets conservative to avoid property-name over-filtering.
+- [x] Implement:
+  - [x] `getLanguageLexicon(languageId, { allowFallback })`
+  - [x] `isLexiconStopword(languageId, token, domain)`
+  - [x] `extractSymbolBaseName(name)` with fixed separator behavior
+- [x] Wordlist schema requirements:
+  - [x] required: `formatVersion=1`, `languageId`, `keywords[]`, `literals[]`
+  - [x] optional: `types[]`, `builtins[]`, `modules[]`, `notes[]`
+  - [x] `additionalProperties=false`
+- [x] Loader behavior:
+  - [x] resolve via `import.meta.url`
+  - [x] cache via `Map<languageId, LanguageLexicon>`
+  - [x] fail-open to `_generic`
+  - [x] one structured warning per invalid file
+- [x] Keep a practical language coverage pass:
+  - [x] add language-specific wordlists where obvious value exists
+  - [x] rely on `_generic` fallback for the rest until needed
+- [x] Keep JS/TS keyword sets conservative to avoid property-name over-filtering.
 
 #### Touchpoints
 - `src/lang/lexicon/index.js` (new)
@@ -865,13 +868,13 @@ Provide canonical wordlists, strict validation, deterministic normalization, and
 - `src/index/language-registry/registry-data.js`
 
 #### Tests
-- [ ] `tests/lexicon/lexicon-schema.test.js`
-- [ ] `tests/lexicon/lexicon-loads-all-languages.test.js`
-- [ ] `tests/lexicon/lexicon-stopwords.test.js`
-- [ ] `tests/lexicon/lexicon-fallback.test.js`
-- [ ] `tests/lexicon/extract-symbol-base-name.test.js`
-- [ ] `tests/lexicon/lexicon-ascii-only.test.js`
-- [ ] `tests/lexicon/lexicon-per-language-overrides.test.js`
+- [x] `tests/lexicon/lexicon-schema.test.js`
+- [x] `tests/lexicon/lexicon-loads-all-languages.test.js`
+- [x] `tests/lexicon/lexicon-stopwords.test.js`
+- [x] `tests/lexicon/lexicon-fallback.test.js`
+- [x] `tests/lexicon/extract-symbol-base-name.test.js`
+- [x] `tests/lexicon/lexicon-ascii-only.test.js`
+- [x] `tests/lexicon/lexicon-per-language-overrides.test.js`
 
 ### 19.2 Build-time lexicon relation filtering
 
@@ -879,20 +882,20 @@ Provide canonical wordlists, strict validation, deterministic normalization, and
 Filter noisy relation tokens at build time only, preserving stable ordering and conservative behavior.
 
 #### Tasks
-- [ ] Add `filterRawRelationsWithLexicon(rawRelations, { languageId, lexicon, config, log })`.
-- [ ] Apply filter right before relation index construction.
-- [ ] Filter scope in v1:
-  - [ ] `usages`
-  - [ ] `calls`
-  - [ ] `callDetails`
-  - [ ] `callDetailsWithRange`
-  - [ ] do not filter `imports/exports`
-- [ ] Preserve stable ordering; stable de-dupe only when explicitly enabled.
-- [ ] Override precedence (fixed):
-  1. [ ] global config
-  2. [ ] language override file
-  3. [ ] built-in defaults
-- [ ] Ensure incremental signatures include lexicon/filter controls.
+- [x] Add `filterRawRelationsWithLexicon(rawRelations, { languageId, lexicon, config, log })`.
+- [x] Apply filter right before relation index construction.
+- [x] Filter scope in v1:
+  - [x] `usages`
+  - [x] `calls`
+  - [x] `callDetails`
+  - [x] `callDetailsWithRange`
+  - [x] do not filter `imports/exports`
+- [x] Preserve stable ordering; stable de-dupe only when explicitly enabled.
+- [x] Override precedence (fixed):
+  1. [x] global config
+  2. [x] language override file
+  3. [x] built-in defaults
+- [x] Ensure incremental signatures include lexicon/filter controls.
 
 #### Touchpoints
 - `src/index/build/file-processor/cpu.js`
@@ -902,12 +905,12 @@ Filter noisy relation tokens at build time only, preserving stable ordering and 
 - `src/retrieval/output/filters.js`
 
 #### Tests
-- [ ] `tests/file-processor/lexicon-relations-filter.test.js`
-- [ ] `tests/file-processor/lexicon-relations-filter-ordering.test.js`
-- [ ] `tests/file-processor/lexicon-relations-filter-keyword-property.test.js`
-- [ ] `tests/file-processor/lexicon-relations-filter-no-imports.test.js`
-- [ ] `tests/file-processor/lexicon-relations-filter-determinism.test.js`
-- [ ] `tests/retrieval/uses-and-calls-filters-respect-lexicon.test.js`
+- [x] `tests/file-processor/lexicon-relations-filter.test.js`
+- [x] `tests/file-processor/lexicon-relations-filter-ordering.test.js`
+- [x] `tests/file-processor/lexicon-relations-filter-keyword-property.test.js`
+- [x] `tests/file-processor/lexicon-relations-filter-no-imports.test.js`
+- [x] `tests/file-processor/lexicon-relations-filter-determinism.test.js`
+- [x] `tests/retrieval/uses-and-calls-filters-respect-lexicon.test.js`
 
 ### 19.3 Retrieval relation boosts (boost-only)
 
@@ -915,15 +918,15 @@ Filter noisy relation tokens at build time only, preserving stable ordering and 
 Improve ranking via relation alignment signals without changing filter semantics.
 
 #### Tasks
-- [ ] Implement `computeRelationBoost({ chunk, fileRelations, queryTokens, lexicon, config })`.
-- [ ] Use `buildQueryPlan(...)` token output as the sole token source.
-- [ ] Respect `caseTokens` and `caseFile` semantics.
-- [ ] Keep boost bounded:
-  - [ ] `boost = min(maxBoost, callMatches*perCall + usageMatches*perUse)`
-  - [ ] keep `maxBoost` conservative by default.
-- [ ] Explain output:
-  - [ ] include bounded deterministic token lists
-  - [ ] include units and caps used
+- [x] Implement `computeRelationBoost({ chunk, fileRelations, queryTokens, lexicon, config })`.
+- [x] Use `buildQueryPlan(...)` token output as the sole token source.
+- [x] Respect `caseTokens` and `caseFile` semantics.
+- [x] Keep boost bounded:
+  - [x] `boost = min(maxBoost, callMatches*perCall + usageMatches*perUse)`
+  - [x] keep `maxBoost` conservative by default.
+- [x] Explain output:
+  - [x] include bounded deterministic token lists
+  - [x] include units and caps used
 
 #### Touchpoints
 - `src/retrieval/pipeline.js`
@@ -932,12 +935,12 @@ Improve ranking via relation alignment signals without changing filter semantics
 - `src/retrieval/output/explain.js`
 
 #### Tests
-- [ ] `tests/retrieval/relation-boost.test.js`
-- [ ] `tests/retrieval/relation-boost-does-not-filter.test.js`
-- [ ] `tests/retrieval/relation-boost-case-folding.test.js`
-- [ ] `tests/retrieval/relation-boost-stopword-elision.test.js`
-- [ ] `tests/retrieval/relation-boost-cap-relative-to-base.test.js`
-- [ ] `tests/retrieval/explain-includes-relation-boost.test.js`
+- [x] `tests/retrieval/relation-boost.test.js`
+- [x] `tests/retrieval/relation-boost-does-not-filter.test.js`
+- [x] `tests/retrieval/relation-boost-case-folding.test.js`
+- [x] `tests/retrieval/relation-boost-stopword-elision.test.js`
+- [x] `tests/retrieval/relation-boost-cap-relative-to-base.test.js`
+- [x] `tests/retrieval/explain-includes-relation-boost.test.js`
 
 ### 19.4 Chargram enrichment and ANN candidate safety
 
@@ -945,18 +948,18 @@ Improve ranking via relation alignment signals without changing filter semantics
 Enable optional chargram enrichment and enforce one shared candidate safety policy for ANN and minhash.
 
 #### Tasks
-- [ ] Extend postings config for `chargramFields` and `chargramStopwords`.
-- [ ] Support allowed fields: `name`, `signature`, `doc`, `comment`, `body`.
-- [ ] Apply optional lexicon chargram stopword filtering.
-- [ ] Implement shared `resolveAnnCandidateSet(...)` policy used by ANN and minhash.
-- [ ] Candidate policy reason codes:
-  - [ ] `noCandidates`
-  - [ ] `tooLarge`
-  - [ ] `tooSmallNoFilters`
-  - [ ] `filtersActiveAllowedIdx`
-  - [ ] `ok`
-- [ ] Use simple fixed defaults first (`minDocCount=100`, `maxDocCount=20000`) and tune only if needed.
-- [ ] Emit explain payload with input/output sizes and policy reason.
+- [x] Extend postings config for `chargramFields` and `chargramStopwords`.
+- [x] Support allowed fields: `name`, `signature`, `doc`, `comment`, `body`.
+- [x] Apply optional lexicon chargram stopword filtering.
+- [x] Implement shared `resolveAnnCandidateSet(...)` policy used by ANN and minhash.
+- [x] Candidate policy reason codes:
+  - [x] `noCandidates`
+  - [x] `tooLarge`
+  - [x] `tooSmallNoFilters`
+  - [x] `filtersActiveAllowedIdx`
+  - [x] `ok`
+- [x] Use simple fixed defaults first (`minDocCount=100`, `maxDocCount=20000`) and tune only if needed.
+- [x] Emit explain payload with input/output sizes and policy reason.
 
 #### Touchpoints
 - `src/shared/postings-config.js`
@@ -966,13 +969,13 @@ Enable optional chargram enrichment and enforce one shared candidate safety poli
 - `src/retrieval/scoring/ann-candidate-policy.js` (new)
 
 #### Tests
-- [ ] `tests/postings/chargram-fields.test.js`
-- [ ] `tests/postings/chargram-stopwords.test.js`
-- [ ] `tests/retrieval/ann-candidate-policy.test.js`
-- [ ] `tests/retrieval/ann-candidate-policy-contract.test.js`
-- [ ] `tests/retrieval/ann-candidate-policy-minhash-parity.test.js`
-- [ ] `tests/retrieval/ann-candidate-policy-allowedIdx.test.js`
-- [ ] `tests/retrieval/ann-candidate-policy-explain.test.js`
+- [x] `tests/postings/chargram-fields.test.js`
+- [x] `tests/postings/chargram-stopwords.test.js`
+- [x] `tests/retrieval/ann-candidate-policy.test.js`
+- [x] `tests/retrieval/ann-candidate-policy-contract.test.js`
+- [x] `tests/retrieval/ann-candidate-policy-minhash-parity.test.js`
+- [x] `tests/retrieval/ann-candidate-policy-allowedIdx.test.js`
+- [x] `tests/retrieval/ann-candidate-policy-explain.test.js`
 
 ### 19.5 Observability and simple rollout
 
@@ -980,14 +983,14 @@ Enable optional chargram enrichment and enforce one shared candidate safety poli
 Make lexicon and candidate-policy behavior transparent and easy to enable safely.
 
 #### Tasks
-- [ ] Emit per-file relation filtering counters in build logs and structured report.
-- [ ] Add explain sections for `relationBoost` and `annCandidatePolicy`.
-- [ ] Add lexicon status in explain:
-  - [ ] source file
-  - [ ] format version
-  - [ ] domain token counts
-- [ ] Keep new behavior behind straightforward feature flags.
-- [ ] Enable per repo/team in small steps and revert by toggling flags if issues appear.
+- [x] Emit per-file relation filtering counters in build logs and structured report.
+- [x] Add explain sections for `relationBoost` and `annCandidatePolicy`.
+- [x] Add lexicon status in explain:
+  - [x] source file
+  - [x] format version
+  - [x] domain token counts
+- [x] Keep new behavior behind straightforward feature flags.
+- [x] Enable per repo/team in small steps and revert by toggling flags if issues appear.
 
 #### Touchpoints
 - `src/index/build/file-processor/cpu.js`
@@ -998,12 +1001,12 @@ Make lexicon and candidate-policy behavior transparent and easy to enable safely
 - `docs/testing/truth-table.md`
 
 #### Tests
-- [ ] `tests/retrieval/explain-includes-relation-boost.test.js`
-  - [ ] Explain includes relation boost fields, units, and bounded token lists.
-- [ ] `tests/retrieval/explain-includes-ann-policy.test.js`
-  - [ ] Explain includes ANN candidate policy input/output and reason code.
-- [ ] `tests/indexing/logging/lexicon-filter-counts.test.js`
-  - [ ] Build logs include deterministic per-file relation filtering counters when enabled.
+- [x] `tests/retrieval/explain-includes-relation-boost.test.js`
+  - [x] Explain includes relation boost fields, units, and bounded token lists.
+- [x] `tests/retrieval/explain-includes-ann-policy.test.js`
+  - [x] Explain includes ANN candidate policy input/output and reason code.
+- [x] `tests/indexing/logging/lexicon-filter-counts.test.js`
+  - [x] Build logs include deterministic per-file relation filtering counters when enabled.
 
 ---
 

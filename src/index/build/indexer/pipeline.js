@@ -13,6 +13,7 @@ import { createStageCheckpointRecorder } from '../stage-checkpoints.js';
 import { createIndexState } from '../state.js';
 import { enqueueEmbeddingJob } from './embedding-queue.js';
 import { getTreeSitterStats, resetTreeSitterStats } from '../../../lang/tree-sitter.js';
+import { INDEX_PROFILE_VECTOR_ONLY } from '../../../contracts/index-profile.js';
 import { SCHEDULER_QUEUE_NAMES } from '../runtime/scheduler.js';
 import {
   SIGNATURE_VERSION,
@@ -44,10 +45,43 @@ const resolveAnalysisFlags = (runtime) => {
   };
 };
 
-const buildFeatureSettings = (runtime, mode) => {
-  const analysisFlags = resolveAnalysisFlags(runtime);
+/**
+ * Vector-only builds can proceed when embeddings are either immediately
+ * available (`embeddingEnabled`) or deferred to service queueing
+ * (`embeddingService`).
+ *
+ * @param {object} runtime
+ * @returns {boolean}
+ */
+const hasVectorEmbeddingBuildCapability = (runtime) => (
+  runtime?.embeddingEnabled === true || runtime?.embeddingService === true
+);
+
+export const resolveVectorOnlyShortcutPolicy = (runtime) => {
+  const profileId = runtime?.profile?.id || runtime?.indexingConfig?.profile || 'default';
+  const vectorOnly = profileId === INDEX_PROFILE_VECTOR_ONLY;
+  const config = runtime?.indexingConfig?.vectorOnly && typeof runtime.indexingConfig.vectorOnly === 'object'
+    ? runtime.indexingConfig.vectorOnly
+    : {};
   return {
+    profileId,
+    enabled: vectorOnly,
+    disableImportGraph: vectorOnly ? config.disableImportGraph !== false : false,
+    disableCrossFileInference: vectorOnly ? config.disableCrossFileInference !== false : false
+  };
+};
+
+export const buildFeatureSettings = (runtime, mode) => {
+  const analysisFlags = resolveAnalysisFlags(runtime);
+  const profileId = runtime?.profile?.id || runtime?.indexingConfig?.profile || 'default';
+  const vectorOnly = profileId === INDEX_PROFILE_VECTOR_ONLY;
+  const vectorOnlyShortcuts = resolveVectorOnlyShortcutPolicy(runtime);
+  return {
+    profileId,
+    // Query-AST filtering depends on per-chunk tokens even for vector_only retrieval.
+    // Keep tokenization enabled while still disabling sparse postings artifacts.
     tokenize: true,
+    postings: !vectorOnly,
     embeddings: runtime.embeddingEnabled || runtime.embeddingService,
     gitBlame: analysisFlags.gitBlame,
     pythonAst: runtime.languageOptions?.pythonAst?.enabled !== false && mode === 'code',
@@ -59,7 +93,13 @@ const buildFeatureSettings = (runtime, mode) => {
     astDataflow: runtime.astDataflowEnabled && mode === 'code',
     controlFlow: runtime.controlFlowEnabled && mode === 'code',
     typeInferenceCrossFile: analysisFlags.typeInferenceCrossFile && mode === 'code',
-    riskAnalysisCrossFile: analysisFlags.riskAnalysisCrossFile && mode === 'code'
+    riskAnalysisCrossFile: analysisFlags.riskAnalysisCrossFile && mode === 'code',
+    vectorOnlyShortcuts: vectorOnlyShortcuts.enabled
+      ? {
+        disableImportGraph: vectorOnlyShortcuts.disableImportGraph,
+        disableCrossFileInference: vectorOnlyShortcuts.disableCrossFileInference
+      }
+      : null
   };
 };
 
@@ -293,6 +333,36 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   const runtimeRef = dictConfig === runtime.dictConfig
     ? runtime
     : { ...runtime, dictConfig };
+  const vectorOnlyShortcuts = resolveVectorOnlyShortcutPolicy(runtimeRef);
+  state.vectorOnlyShortcuts = vectorOnlyShortcuts.enabled
+    ? {
+      disableImportGraph: vectorOnlyShortcuts.disableImportGraph,
+      disableCrossFileInference: vectorOnlyShortcuts.disableCrossFileInference
+    }
+    : null;
+  if (vectorOnlyShortcuts.enabled) {
+    log(
+      '[vector_only] analysis shortcuts: '
+      + `disableImportGraph=${vectorOnlyShortcuts.disableImportGraph}, `
+      + `disableCrossFileInference=${vectorOnlyShortcuts.disableCrossFileInference}.`
+    );
+  }
+  await updateBuildState(runtimeRef.buildRoot, {
+    analysisShortcuts: {
+      [mode]: {
+        profileId: vectorOnlyShortcuts.profileId,
+        disableImportGraph: vectorOnlyShortcuts.disableImportGraph,
+        disableCrossFileInference: vectorOnlyShortcuts.disableCrossFileInference
+      }
+    }
+  });
+  const vectorOnlyProfile = runtimeRef?.profile?.id === INDEX_PROFILE_VECTOR_ONLY;
+  if (vectorOnlyProfile && !hasVectorEmbeddingBuildCapability(runtimeRef)) {
+    throw new Error(
+      'indexing.profile=vector_only requires embeddings to be available during index build. ' +
+      'Enable inline/stub embeddings or service-mode embedding queueing and rebuild.'
+    );
+  }
   const tokenizationKey = buildTokenizationKey(runtimeRef, mode);
   const cacheSignature = buildIncrementalSignature(runtimeRef, mode, tokenizationKey);
   const cacheSignatureSummary = buildIncrementalSignatureSummary(runtimeRef, mode, tokenizationKey);
@@ -328,11 +398,13 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   }
 
   const relationsEnabled = runtimeRef.stage !== 'stage1';
+  const importGraphEnabled = relationsEnabled && !vectorOnlyShortcuts.disableImportGraph;
+  const crossFileInferenceEnabled = relationsEnabled && !vectorOnlyShortcuts.disableCrossFileInference;
   advanceStage(stagePlan[1]);
   let { importResult, scanPlan } = await preScanImports({
     runtime: runtimeRef,
     mode,
-    relationsEnabled,
+    relationsEnabled: importGraphEnabled,
     entries: allEntries,
     crashLogger,
     timing,
@@ -433,7 +505,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
 
   const postImportResult = await postScanImports({
     mode,
-    relationsEnabled,
+    relationsEnabled: importGraphEnabled,
     scanPlan,
     state,
     timing,
@@ -456,7 +528,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
         state,
         crashLogger,
         featureMetrics,
-        relationsEnabled,
+        relationsEnabled: crossFileInferenceEnabled,
         abortSignal
       })
     )
@@ -466,7 +538,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       state,
       crashLogger,
       featureMetrics,
-      relationsEnabled,
+      relationsEnabled: crossFileInferenceEnabled,
       abortSignal
     }));
   throwIfAborted(abortSignal);
@@ -503,7 +575,11 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
           warningSuppressed: Number(state.importResolutionGraph.stats.warningSuppressed) || 0
         }
         : null,
-      graphs: summarizeGraphRelations(graphRelations)
+      graphs: summarizeGraphRelations(graphRelations),
+      shortcuts: {
+        importGraphEnabled,
+        crossFileInferenceEnabled
+      }
     }
   });
   if (mode === 'code' && crossFileEnabled) {

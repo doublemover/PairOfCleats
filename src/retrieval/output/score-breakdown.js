@@ -59,7 +59,7 @@ const clampObjectFields = (value, maxFields) => {
 const byteSize = (value) => Buffer.byteLength(JSON.stringify(value), 'utf8');
 
 const enforceScoreBreakdownByteBudget = (scoreBreakdown, maxBytes) => {
-  const prunable = ['graph', 'symbol', 'phrase', 'blend', 'rrf', 'ann', 'sparse'];
+  const prunable = ['graph', 'relation', 'symbol', 'phrase', 'blend', 'rrf', 'ann', 'sparse'];
   const out = { ...scoreBreakdown };
   if (byteSize(out) <= maxBytes) return out;
   for (const key of prunable) {
@@ -98,6 +98,7 @@ export const createScoreBreakdown = (components = {}, policy = null) => {
     blend: components.blend || null,
     symbol: components.symbol || null,
     phrase: components.phrase || null,
+    relation: components.relation || null,
     graph: components.graph || null
   };
   return applyScoreBreakdownBudget(base, policy);

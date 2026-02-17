@@ -36,6 +36,7 @@ export function renderSearchOutput({
   embeddingProvider,
   embeddingOnnx,
   cacheInfo,
+  profileInfo = null,
   intentInfo,
   resolvedDenseVectorMode,
   fieldWeights,
@@ -158,6 +159,7 @@ export function renderSearchOutput({
         hit: cacheInfo.hit,
         key: cacheInfo.key
       },
+      profile: profileInfo,
       capabilities: {
         routing: routingPolicy,
         ann: {
@@ -188,6 +190,16 @@ export function renderSearchOutput({
   }
 
   if (explain) {
+    const allExplainHits = [
+      ...(Array.isArray(payload?.code) ? payload.code : []),
+      ...(Array.isArray(payload?.prose) ? payload.prose : []),
+      ...(Array.isArray(payload?.extractedProse) ? payload.extractedProse : []),
+      ...(Array.isArray(payload?.records) ? payload.records : [])
+    ];
+    const firstRelationBoost = allExplainHits.find((hit) => hit?.scoreBreakdown?.relation)?.scoreBreakdown?.relation || null;
+    const firstLexiconStatus = firstRelationBoost?.lexicon || null;
+    const firstAnnCandidatePolicy = allExplainHits.find((hit) => hit?.scoreBreakdown?.ann?.candidatePolicy)
+      ?.scoreBreakdown?.ann?.candidatePolicy || null;
     payload.stats = payload.stats || {};
     payload.stats.intent = {
       ...intentInfo,
@@ -196,6 +208,9 @@ export function renderSearchOutput({
     };
     payload.stats.contextExpansion = contextExpansionStats;
     payload.stats.routing = routingPolicy;
+    payload.stats.relationBoost = firstRelationBoost;
+    payload.stats.lexicon = firstLexiconStatus;
+    payload.stats.annCandidatePolicy = firstAnnCandidatePolicy;
   }
 
   const budgetPolicy = normalizeOutputBudgetPolicy(outputBudget);

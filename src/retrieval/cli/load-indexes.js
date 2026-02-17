@@ -98,6 +98,7 @@ export async function loadSearchIndexes({
   lancedbConfig,
   tantivyConfig,
   strict = true,
+  allowUnsafeMix = false,
   indexStates = null,
   loadIndexFromSqlite,
   loadIndexFromLmdb,
@@ -267,27 +268,32 @@ export async function loadSearchIndexes({
       const { key } = readCompatibilityKey(entry.dir, { maxBytes: MAX_JSON_BYTES, strict });
       keys.set(entry.mode, key);
     }
-    const uniqueKeys = new Set(keys.values());
-    if (uniqueKeys.size > 1) {
-      if (!resolvedRunExtractedProse && keys.has('extracted-prose')) {
-        const filtered = new Map(Array.from(keys.entries()).filter(([mode]) => mode !== 'extracted-prose'));
-        const filteredKeys = new Set(filtered.values());
-        if (filteredKeys.size <= 1) {
-          if (emitOutput) {
-            console.warn('[search] extracted-prose index mismatch; skipping comment joins.');
-          }
-          resolvedLoadExtractedProse = false;
-          extractedProseDir = null;
-        } else {
-          const details = Array.from(keys.entries())
-            .map(([mode, key]) => `- ${mode}: ${key}`)
-            .join('\n');
-          throw new Error(`Incompatible indexes detected (compatibilityKey mismatch):\n${details}`);
+    let keysToValidate = keys;
+    const hasMixedCompatibilityKeys = (map) => (new Set(map.values())).size > 1;
+    if (hasMixedCompatibilityKeys(keysToValidate) && !resolvedRunExtractedProse && keysToValidate.has('extracted-prose')) {
+      const filtered = new Map(Array.from(keysToValidate.entries()).filter(([mode]) => mode !== 'extracted-prose'));
+      if (!hasMixedCompatibilityKeys(filtered)) {
+        if (emitOutput) {
+          console.warn('[search] extracted-prose index mismatch; skipping comment joins.');
+        }
+        resolvedLoadExtractedProse = false;
+        extractedProseDir = null;
+        keysToValidate = filtered;
+      }
+    }
+    if (hasMixedCompatibilityKeys(keysToValidate)) {
+      const details = Array.from(keysToValidate.entries())
+        .map(([mode, key]) => `- ${mode}: ${key}`)
+        .join('\n');
+      if (allowUnsafeMix === true) {
+        if (emitOutput) {
+          console.warn(
+            '[search] compatibilityKey mismatch overridden via --allow-unsafe-mix. ' +
+            'Results may combine incompatible index cohorts:\n' +
+            details
+          );
         }
       } else {
-        const details = Array.from(keys.entries())
-          .map(([mode, key]) => `- ${mode}: ${key}`)
-          .join('\n');
         throw new Error(`Incompatible indexes detected (compatibilityKey mismatch):\n${details}`);
       }
     }
@@ -302,19 +308,22 @@ export async function loadSearchIndexes({
     includeChunkMetaCold: needsChunkMetaCold,
     includeHnsw: annActive
   };
-  const resolveDenseArtifactName = (mode) => {
-    if (resolvedDenseVectorMode === 'code') return 'dense_vectors_code';
-    if (resolvedDenseVectorMode === 'doc') return 'dense_vectors_doc';
+  /**
+   * Auto mode prefers split vectors by cohort, but legacy indexes may only expose merged vectors.
+   * Keep merged as a lazy-load fallback so ANN stays available during mixed-version rollouts.
+   */
+  const resolveDenseArtifactCandidates = (mode) => {
+    if (resolvedDenseVectorMode === 'code') return ['dense_vectors_code'];
+    if (resolvedDenseVectorMode === 'doc') return ['dense_vectors_doc'];
     if (resolvedDenseVectorMode === 'auto') {
-      if (mode === 'code') return 'dense_vectors_code';
-      if (mode === 'prose' || mode === 'extracted-prose') return 'dense_vectors_doc';
+      if (mode === 'code') return ['dense_vectors_code', 'dense_vectors'];
+      if (mode === 'prose' || mode === 'extracted-prose') return ['dense_vectors_doc', 'dense_vectors'];
     }
-    return 'dense_vectors';
+    return ['dense_vectors'];
   };
   const attachDenseVectorLoader = (idx, mode, dir) => {
     if (!idx || !dir || !needsAnnArtifacts || !lazyDenseVectorsEnabled) return;
-    const artifactName = resolveDenseArtifactName(mode);
-    const fallbackPath = path.join(dir, `${artifactName}_uint8.json`);
+    const artifactCandidates = resolveDenseArtifactCandidates(mode);
     let pendingLoad = null;
     idx.loadDenseVectors = async () => {
       if (Array.isArray(idx?.denseVec?.vectors) && idx.denseVec.vectors.length > 0) {
@@ -330,24 +339,27 @@ export async function loadSearchIndexes({
             throw err;
           }
         }
-        try {
-          const loaded = await loadJsonObjectArtifact(dir, artifactName, {
-            maxBytes: MAX_JSON_BYTES,
-            manifest,
-            strict,
-            fallbackPath
-          });
-          if (!loaded || !Array.isArray(loaded.vectors) || !loaded.vectors.length) {
-            idx.loadDenseVectors = null;
-            return null;
+        for (const artifactName of artifactCandidates) {
+          const fallbackPath = path.join(dir, `${artifactName}_uint8.json`);
+          try {
+            const loaded = await loadJsonObjectArtifact(dir, artifactName, {
+              maxBytes: MAX_JSON_BYTES,
+              manifest,
+              strict,
+              fallbackPath
+            });
+            if (!loaded || !Array.isArray(loaded.vectors) || !loaded.vectors.length) {
+              continue;
+            }
+            if (!loaded.model && modelIdDefault) loaded.model = modelIdDefault;
+            idx.denseVec = loaded;
+            return loaded;
+          } catch {
+            continue;
           }
-          if (!loaded.model && modelIdDefault) loaded.model = modelIdDefault;
-          idx.denseVec = loaded;
-          return loaded;
-        } catch {
-          idx.loadDenseVectors = null;
-          return null;
         }
+        idx.loadDenseVectors = null;
+        return null;
       })().finally(() => {
         pendingLoad = null;
       });

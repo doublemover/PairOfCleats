@@ -130,6 +130,12 @@ export function normalizeSearchOptions({
   const metaFilters = parseMetaFilters(argv.meta, argv['meta-json']);
 
   const searchConfig = userConfig?.search || {};
+  const retrievalConfig = userConfig?.retrieval || {};
+  const normalizePositiveInt = (value, fallback) => {
+    const parsed = normalizeOptionalNumber(value);
+    if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+    return Math.max(1, Math.floor(parsed));
+  };
   const maxCandidates = normalizeOptionalNumber(searchConfig.maxCandidates);
   const annFlagPresent = rawArgs.includes('--ann') || rawArgs.includes('--no-ann');
   const policyAnn = policy?.retrieval?.ann?.enabled;
@@ -137,6 +143,10 @@ export function normalizeSearchOptions({
     ? searchConfig.annDefault
     : null;
   const annEnabled = annFlagPresent ? argv.ann : (annDefault ?? policyAnn ?? true);
+  const allowSparseFallback = argv['allow-sparse-fallback'] === true
+    || argv.allowSparseFallback === true;
+  const allowUnsafeMix = argv['allow-unsafe-mix'] === true
+    || argv.allowUnsafeMix === true;
   const annBackendRaw = argv['ann-backend'] ?? argv.annBackend;
   const annBackend = annBackendRaw == null
     ? 'lancedb'
@@ -158,6 +168,23 @@ export function normalizeSearchOptions({
   const symbolBoostEnabled = true;
   const symbolBoostDefinitionWeight = 1.2;
   const symbolBoostExportWeight = 1.1;
+  const relationBoostConfigRaw = retrievalConfig?.relationBoost || {};
+  const relationBoostEnabled = relationBoostConfigRaw.enabled === true;
+  const relationBoostPerCall = Number.isFinite(Number(relationBoostConfigRaw.perCall))
+    && Number(relationBoostConfigRaw.perCall) > 0
+    ? Number(relationBoostConfigRaw.perCall)
+    : 0.25;
+  const relationBoostPerUse = Number.isFinite(Number(relationBoostConfigRaw.perUse))
+    && Number(relationBoostConfigRaw.perUse) > 0
+    ? Number(relationBoostConfigRaw.perUse)
+    : 0.1;
+  const relationBoostMaxBoost = Number.isFinite(Number(relationBoostConfigRaw.maxBoost))
+    && Number(relationBoostConfigRaw.maxBoost) > 0
+    ? Number(relationBoostConfigRaw.maxBoost)
+    : 1.5;
+  const annCandidateCap = normalizePositiveInt(retrievalConfig.annCandidateCap, 20000);
+  const annCandidateMinDocCount = normalizePositiveInt(retrievalConfig.annCandidateMinDocCount, 100);
+  const annCandidateMaxDocCount = normalizePositiveInt(retrievalConfig.annCandidateMaxDocCount, 20000);
 
   const minhashMaxDocs = 5000;
 
@@ -309,6 +336,9 @@ export function normalizeSearchOptions({
     langImpossible,
     metaFilters,
     annEnabled,
+    annFlagPresent,
+    allowSparseFallback,
+    allowUnsafeMix,
     annBackend,
     scoreBlendEnabled,
     scoreBlendSparseWeight,
@@ -316,6 +346,13 @@ export function normalizeSearchOptions({
     symbolBoostEnabled,
     symbolBoostDefinitionWeight,
     symbolBoostExportWeight,
+    relationBoostEnabled,
+    relationBoostPerCall,
+    relationBoostPerUse,
+    relationBoostMaxBoost,
+    annCandidateCap,
+    annCandidateMinDocCount,
+    annCandidateMaxDocCount,
     minhashMaxDocs,
     maxCandidates,
     queryCacheEnabled,

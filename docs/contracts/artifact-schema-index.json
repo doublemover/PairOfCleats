@@ -1,5 +1,5 @@
 {
-  "schemaHash": "a066ef37b5aa31032210a59e0ee6f2e95b4ba2dc",
+  "schemaHash": "36c94fb84c8fa43d27eb433fe7014a1613e82b8a",
   "artifacts": [
     {
       "artifact": "api_contracts",
@@ -451,6 +451,23 @@
       "optionalFields": []
     },
     {
+      "artifact": "extraction_report",
+      "schemaVersion": {
+        "type": "integer"
+      },
+      "requiredFields": [
+        "chunkerVersion",
+        "counts",
+        "extractionConfigDigest",
+        "extractors",
+        "files",
+        "generatedAt",
+        "mode",
+        "schemaVersion"
+      ],
+      "optionalFields": []
+    },
+    {
       "artifact": "field_postings",
       "schemaVersion": null,
       "requiredFields": [
@@ -607,6 +624,7 @@
         "mode"
       ],
       "optionalFields": [
+        "artifacts",
         "assembled",
         "buildId",
         "cohortKey",
@@ -617,6 +635,7 @@
         "features",
         "filterIndex",
         "lmdb",
+        "profile",
         "repoId",
         "riskInterprocedural",
         "riskRules",
@@ -625,6 +644,19 @@
         "stage",
         "updatedAt"
       ]
+    },
+    {
+      "artifact": "lexicon_relation_filter_report",
+      "schemaVersion": {
+        "type": "integer"
+      },
+      "requiredFields": [
+        "files",
+        "mode",
+        "schemaVersion",
+        "totals"
+      ],
+      "optionalFields": []
     },
     {
       "artifact": "minhash_signatures",

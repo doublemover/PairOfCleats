@@ -195,7 +195,9 @@ export async function validateIndexArtifacts(input = {}) {
     strictOnlyRequiredArtifacts,
     optionalArtifacts,
     lanceConfig
-  } = buildArtifactLists(userConfig, postingsConfig);
+  } = buildArtifactLists(userConfig, postingsConfig, {
+    profileId: userConfig?.indexing?.profile
+  });
   const symbolArtifacts = new Set(['symbols', 'symbol_occurrences', 'symbol_edges']);
 
   for (const mode of modes) {

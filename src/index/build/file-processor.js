@@ -156,6 +156,7 @@ export function createFileProcessor(options) {
     embeddingNormalize = true,
     toolInfo = null,
     tokenizationStats = null,
+    tokenizeEnabled = true,
     featureMetrics = null,
     buildStage = null,
     documentExtractionConfig = null,
@@ -602,6 +603,7 @@ export function createFileProcessor(options) {
       workerDictOverride,
       workerState,
       tokenizationStats,
+      tokenizeEnabled,
       embeddingEnabled,
       embeddingNormalize,
       embeddingBatchSize,
@@ -629,7 +631,12 @@ export function createFileProcessor(options) {
     }
     fileLanguageId = cpuResult?.fileLanguageId ?? fileLanguageId;
     fileLineCount = cpuResult?.fileLineCount ?? fileLineCount;
-    const { chunks: fileChunks, fileRelations, skip } = cpuResult || {};
+    const {
+      chunks: fileChunks,
+      fileRelations,
+      lexiconFilterStats,
+      skip
+    } = cpuResult || {};
     const vfsManifestRows = cpuResult?.vfsManifestRows || null;
     if (skip) {
       const { reason, ...extra } = skip;
@@ -690,6 +697,7 @@ export function createFileProcessor(options) {
       durationMs: fileDurationMs,
       chunks: fileChunks,
       fileRelations,
+      lexiconFilterStats,
       vfsManifestRows,
       fileInfo,
       manifestEntry,

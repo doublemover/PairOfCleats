@@ -9,8 +9,25 @@ import {
 } from '../../state.js';
 import { quantizeVecUint8 } from '../../../embedding.js';
 import { isVectorLike } from '../../../../shared/embedding-utils.js';
+import { INDEX_PROFILE_VECTOR_ONLY } from '../../../../contracts/index-profile.js';
 
-export const createTokenRetentionState = ({ runtime, totalFiles, log = sharedLog }) => {
+/**
+ * Vector-only builds are allowed when embeddings are available inline or via
+ * service queueing; both modes indicate vector capability at build time.
+ *
+ * @param {object} runtime
+ * @returns {boolean}
+ */
+const hasVectorEmbeddingBuildCapability = (runtime) => (
+  runtime?.embeddingEnabled === true || runtime?.embeddingService === true
+);
+
+export const createTokenRetentionState = ({
+  runtime,
+  totalFiles,
+  sparsePostingsEnabled = null,
+  log = sharedLog
+}) => {
   const tokenizationStats = {
     chunks: 0,
     tokens: 0,
@@ -40,6 +57,9 @@ export const createTokenRetentionState = ({ runtime, totalFiles, log = sharedLog
     mode: resolvedTokenMode,
     sampleSize: tokenSampleSize
   });
+  const sparseEnabled = typeof sparsePostingsEnabled === 'boolean'
+    ? sparsePostingsEnabled
+    : runtime?.profile?.id !== INDEX_PROFILE_VECTOR_ONLY;
   const tokenRetentionAuto = tokenMode === 'auto';
   let tokenTotal = 0;
 
@@ -142,7 +162,13 @@ export const createTokenRetentionState = ({ runtime, totalFiles, log = sharedLog
       delete chunkCopy.embed_doc;
       delete chunkCopy.embed_code;
     }
-    appendChunk(stateRef, chunkCopy, runtime.postingsConfig, tokenRetention);
+    appendChunk(
+      stateRef,
+      chunkCopy,
+      runtime.postingsConfig,
+      tokenRetention,
+      { sparsePostingsEnabled: sparseEnabled }
+    );
     if (tokenRetentionAuto && tokenRetention.mode === 'full'
       && tokenMaxTotal
       && tokenTotal > tokenMaxTotal) {
@@ -160,6 +186,13 @@ export const createTokenRetentionState = ({ runtime, totalFiles, log = sharedLog
 };
 
 export const buildIndexPostings = async ({ runtime, state }) => {
+  const vectorOnlyProfile = runtime?.profile?.id === INDEX_PROFILE_VECTOR_ONLY;
+  if (vectorOnlyProfile && !hasVectorEmbeddingBuildCapability(runtime)) {
+    throw new Error(
+      'indexing.profile=vector_only requires embeddings to be available during index build. '
+      + 'Enable inline/stub embeddings or service-mode embedding queueing and rebuild.'
+    );
+  }
   enforceTokenIdCollisionPolicy(state);
   const postings = await buildPostings({
     chunks: state.chunks,
@@ -181,6 +214,7 @@ export const buildIndexPostings = async ({ runtime, state }) => {
     workerPool: runtime.workerPool,
     quantizePool: runtime.quantizePool,
     embeddingsEnabled: runtime.embeddingEnabled,
+    sparsePostingsEnabled: !vectorOnlyProfile,
     buildStage: runtime.stage
   });
 

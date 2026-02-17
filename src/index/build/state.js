@@ -1,6 +1,7 @@
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
 import { forEachRollingChargramHash } from '../../shared/chargram-hash.js';
 import { registerTokenIdInvariant } from '../../shared/invariants.js';
+import { isLexiconStopword } from '../../lang/lexicon/index.js';
 import {
   createTypedTokenPostingMap,
   formatHash64,
@@ -145,6 +146,7 @@ const appendDocIdToPostingValue = (posting, docId) => {
   }
   return posting;
 };
+const ALLOWED_CHARGRAM_FIELDS = new Set(['name', 'signature', 'doc', 'comment', 'body']);
 
 const phraseIdsEqual = (leftIds, rightIds, start) => {
   if (!Array.isArray(leftIds) || !Array.isArray(rightIds)) return false;
@@ -413,6 +415,7 @@ export function createIndexState(options = {}) {
     skippedFiles: [],
     totalTokens: 0,
     fileRelations: new Map(),
+    lexiconRelationFilterByFile: new Map(),
     fileInfoByPath: new Map(),
     fileDetailsByPath: new Map(),
     chunkUidToFile: new Map(),
@@ -489,16 +492,18 @@ export function appendChunk(
   state,
   chunk,
   postingsConfig = DEFAULT_POSTINGS_CONFIG,
-  tokenRetention = null
+  tokenRetention = null,
+  options = null
 ) {
   const config = postingsConfig && typeof postingsConfig === 'object' ? postingsConfig : {};
+  const sparseEnabled = options?.sparsePostingsEnabled !== false;
   const tokens = Array.isArray(chunk.tokens) ? chunk.tokens : [];
   const tokenIds = Array.isArray(chunk.tokenIds) ? chunk.tokenIds : null;
   const useTokenIds = tokenIds && tokenIds.length === tokens.length;
   const tokenKeys = useTokenIds ? tokenIds : tokens;
   const seq = Array.isArray(chunk.seq) && chunk.seq.length ? chunk.seq : tokens;
 
-  const phraseEnabled = config.enablePhraseNgrams !== false;
+  const phraseEnabled = sparseEnabled && config.enablePhraseNgrams !== false;
   const phraseMinRaw = Number.isFinite(config.phraseMinN)
     ? Math.max(1, Math.floor(config.phraseMinN))
     : DEFAULT_POSTINGS_CONFIG.phraseMinN;
@@ -514,10 +519,25 @@ export function appendChunk(
     && state?.phrasePostHashBuckets
     && typeof state.phrasePostHashBuckets.set === 'function';
 
-  const chargramEnabled = config.enableChargrams !== false;
-  const fieldedEnabled = config.fielded !== false;
-  const tokenClassificationEnabled = config.tokenClassification?.enabled === true;
+  const chargramEnabled = sparseEnabled && config.enableChargrams !== false;
+  const fieldedEnabled = sparseEnabled && config.fielded !== false;
+  const tokenClassificationEnabled = sparseEnabled && config.tokenClassification?.enabled === true;
   const chargramSource = config.chargramSource === 'full' ? 'full' : 'fields';
+  const chargramStopwords = config.chargramStopwords === true;
+  const chargramFieldsRaw = Array.isArray(config.chargramFields)
+    ? config.chargramFields
+    : [];
+  const chargramFields = [];
+  for (const entry of chargramFieldsRaw) {
+    if (typeof entry !== 'string') continue;
+    const normalized = entry.trim().toLowerCase();
+    if (!normalized || !ALLOWED_CHARGRAM_FIELDS.has(normalized)) continue;
+    if (chargramFields.includes(normalized)) continue;
+    chargramFields.push(normalized);
+  }
+  if (!chargramFields.length) {
+    chargramFields.push('name', 'doc');
+  }
   const chargramMinRaw = Number.isFinite(config.chargramMinN)
     ? Math.max(1, Math.floor(config.chargramMinN))
     : DEFAULT_POSTINGS_CONFIG.chargramMinN;
@@ -540,6 +560,10 @@ export function appendChunk(
   const reuseWindow = state.chargramBuffers?.window || null;
   const charSet = reuseSet || new Set();
   if (reuseSet) reuseSet.clear();
+  const chargramLanguageId = chunk?.lang
+    || chunk?.metaV2?.lang
+    || chunk?.metaV2?.effective?.languageId
+    || null;
   if (chargramEnabled) {
     const maxChargramsPerChunk = chargramGuard?.maxPerChunk || 0;
     const chargrams = Array.isArray(chunk.chargrams) && chunk.chargrams.length
@@ -561,6 +585,7 @@ export function appendChunk(
         if (!Array.isArray(tokenList) || !tokenList.length) return;
         for (const w of tokenList) {
           if (chargramMaxTokenLength && w.length > chargramMaxTokenLength) continue;
+          if (chargramStopwords && isLexiconStopword(chargramLanguageId, w, 'chargrams')) continue;
           appendChargramsToSet(
             w,
             chargramMinN,
@@ -578,8 +603,9 @@ export function appendChunk(
         const fields = chunk.fieldTokens;
         // Historically we derived chargrams from "field" text (name + doc). Doing so
         // keeps the chargram vocab bounded even when indexing many languages.
-        addFromTokens(fields.name);
-        addFromTokens(fields.doc);
+        for (const field of chargramFields) {
+          addFromTokens(fields[field]);
+        }
         if (!charSet.size) {
           // Intentionally emit no chargrams when no field tokens exist.
           // Falling back to the full token stream defeats the purpose of
@@ -592,7 +618,7 @@ export function appendChunk(
     }
   }
 
-  if (useTokenIds && state.tokenIdMap) {
+  if (sparseEnabled && useTokenIds && state.tokenIdMap) {
     for (let i = 0; i < tokenIds.length; i += 1) {
       registerTokenIdInvariant({
         tokenIdMap: state.tokenIdMap,
@@ -603,20 +629,22 @@ export function appendChunk(
     }
   }
 
-  const freq = state.tokenBuffers?.freq || new Map();
-  if (state.tokenBuffers?.freq) freq.clear();
-  tokenKeys.forEach((t) => {
-    freq.set(t, (freq.get(t) || 0) + 1);
-  });
+  if (sparseEnabled) {
+    const freq = state.tokenBuffers?.freq || new Map();
+    if (state.tokenBuffers?.freq) freq.clear();
+    tokenKeys.forEach((t) => {
+      freq.set(t, (freq.get(t) || 0) + 1);
+    });
 
-  state.docLengths[chunkId] = tokens.length;
-  for (const [tok, count] of freq.entries()) {
-    let postings = state.tokenPostings.get(tok);
-    if (!postings) {
-      postings = [];
-      state.tokenPostings.set(tok, postings);
+    state.docLengths[chunkId] = tokens.length;
+    for (const [tok, count] of freq.entries()) {
+      let postings = state.tokenPostings.get(tok);
+      if (!postings) {
+        postings = [];
+        state.tokenPostings.set(tok, postings);
+      }
+      postings.push([chunkId, count]);
     }
-    postings.push([chunkId, count]);
   }
 
   if (phraseEnabled) {
@@ -870,6 +898,12 @@ export function mergeIndexState(target, source) {
   if (source.fileRelations && typeof source.fileRelations.entries === 'function') {
     for (const [file, relations] of source.fileRelations.entries()) {
       target.fileRelations.set(file, relations);
+    }
+  }
+  if (source.lexiconRelationFilterByFile && typeof source.lexiconRelationFilterByFile.entries === 'function') {
+    if (!target.lexiconRelationFilterByFile) target.lexiconRelationFilterByFile = new Map();
+    for (const [file, stats] of source.lexiconRelationFilterByFile.entries()) {
+      target.lexiconRelationFilterByFile.set(file, stats);
     }
   }
   if (source.fileInfoByPath && typeof source.fileInfoByPath.entries === 'function') {

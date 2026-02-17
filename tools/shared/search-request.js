@@ -181,6 +181,8 @@ export function buildSearchRequestArgs(payload = {}, {
   const resolvedSnapshot = snapshot || snapshotId;
   const backend = toStringValue(payload.backend);
   const ann = typeof payload.ann === 'boolean' ? payload.ann : null;
+  const allowSparseFallback = payload.allowSparseFallback === true;
+  const allowUnsafeMix = payload.allowUnsafeMix === true;
   const top = normalizeOptionalNumber(payload.top, { min: topMin });
   const contextLines = normalizeOptionalNumber(payload.context, { min: 0 });
 
@@ -195,6 +197,8 @@ export function buildSearchRequestArgs(payload = {}, {
   if (backend) searchArgs.push('--backend', backend);
   if (ann === true) searchArgs.push('--ann');
   if (ann === false) searchArgs.push('--no-ann');
+  if (allowSparseFallback) searchArgs.push('--allow-sparse-fallback');
+  if (allowUnsafeMix) searchArgs.push('--allow-unsafe-mix');
   if (top != null) searchArgs.push(topFlag, String(top));
   if (contextLines != null) searchArgs.push('--context', String(contextLines));
 

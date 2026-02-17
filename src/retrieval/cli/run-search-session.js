@@ -68,6 +68,10 @@ export async function runSearchSession({
   phraseNgramSet,
   phraseRange,
   symbolBoost,
+  relationBoost,
+  annCandidateCap,
+  annCandidateMinDocCount,
+  annCandidateMaxDocCount,
   maxCandidates,
   filters,
   filtersActive,
@@ -83,6 +87,9 @@ export async function runSearchSession({
   rankSqliteFts,
   rankVectorAnnSqlite,
   sqliteHasFts,
+  sqliteHasTable,
+  profilePolicyByMode = null,
+  profileWarnings = [],
   idxProse,
   idxExtractedProse,
   idxCode,
@@ -167,6 +174,10 @@ export async function runSearchSession({
     phraseNgramSet,
     phraseRange,
     symbolBoost,
+    relationBoost,
+    annCandidateCap,
+    annCandidateMinDocCount,
+    annCandidateMaxDocCount,
     maxCandidates,
     filters,
     filtersActive,
@@ -194,6 +205,8 @@ export async function runSearchSession({
     rankSqliteFts,
     rankVectorAnnSqlite,
     sqliteHasFts,
+    sqliteHasTable,
+    profilePolicyByMode,
     signal
   });
   throwIfAborted();
@@ -234,6 +247,13 @@ export async function runSearchSession({
       annMode: vectorExtension.annMode,
       annProvider: vectorExtension.provider,
       annExtension: vectorAnnEnabled,
+      annAdaptiveProviders,
+      relationBoost,
+      annCandidatePolicy: {
+        cap: annCandidateCap,
+        minDocCount: annCandidateMinDocCount,
+        maxDocCount: annCandidateMaxDocCount
+      },
       scoreBlend,
       fieldWeights,
       denseVectorMode: resolvedDenseVectorMode,
@@ -637,6 +657,10 @@ export async function runSearchSession({
     recordExpanded,
     contextExpansionStats,
     annBackend: annBackendUsed,
+    profile: {
+      byMode: profilePolicyByMode || null,
+      warnings: Array.isArray(profileWarnings) ? profileWarnings : []
+    },
     cache: {
       enabled: queryCacheEnabled,
       hit: cacheHit,

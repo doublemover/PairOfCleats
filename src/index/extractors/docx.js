@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import zlib from 'node:zlib';
 import { tryImport } from '../../shared/optional-deps.js';
+import { getDocumentExtractorTestConfig } from '../../shared/env.js';
 import {
   buildFailedResult,
   normalizeDocumentExtractionPolicy,
@@ -18,9 +19,6 @@ const DOCX_IMPORT_CANDIDATES = [
 const EOCD_SIGNATURE = 0x06054b50;
 const CENTRAL_SIGNATURE = 0x02014b50;
 const LOCAL_SIGNATURE = 0x04034b50;
-const TESTING_ENV = process.env.PAIROFCLEATS_TESTING === '1';
-const FORCE_MISSING_ENV = TESTING_ENV && process.env.PAIROFCLEATS_TEST_FORCE_DOCX_MISSING === '1';
-const STUB_EXTRACT_ENV = TESTING_ENV && process.env.PAIROFCLEATS_TEST_STUB_DOCX_EXTRACT === '1';
 
 let cachedRuntime = null;
 
@@ -147,7 +145,9 @@ const parseDocxParagraphsFromBuffer = (buffer) => {
 };
 
 export async function loadDocxExtractorRuntime({ refresh = false } = {}) {
-  if (FORCE_MISSING_ENV) {
+  const testConfig = getDocumentExtractorTestConfig();
+  const forceMissing = testConfig.testing && testConfig.forceDocxMissing === true;
+  if (forceMissing) {
     cachedRuntime = {
       ok: false,
       reason: 'missing_dependency',
@@ -209,6 +209,8 @@ export async function extractDocx({
   policy = null
 } = {}) {
   const resolvedPolicy = normalizeDocumentExtractionPolicy(policy);
+  const testConfig = getDocumentExtractorTestConfig();
+  const stubExtract = testConfig.testing && testConfig.stubDocxExtract === true;
   const source = Buffer.isBuffer(buffer)
     ? buffer
     : (filePath ? await fs.readFile(filePath) : null);
@@ -216,7 +218,7 @@ export async function extractDocx({
   if (source.length > resolvedPolicy.maxBytesPerFile) {
     return buildFailedResult('oversize');
   }
-  if (STUB_EXTRACT_ENV) {
+  if (stubExtract) {
     const text = normalizeExtractedText(source.toString('utf8'));
     if (!text) return buildFailedResult('unsupported_scanned');
     return {

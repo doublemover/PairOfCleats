@@ -31,12 +31,21 @@ const ensureDir = async (dir) => {
 };
 
 const resolveCacheName = (baseName) => {
+  const MAX_CACHE_NAME_LENGTH = 64;
+  const truncateWithHash = (value) => {
+    const text = String(value || '').trim();
+    if (!text) return 'fixture-cache';
+    if (text.length <= MAX_CACHE_NAME_LENGTH) return text;
+    const digest = crypto.createHash('sha1').update(text).digest('hex').slice(0, 10);
+    const headLength = Math.max(8, MAX_CACHE_NAME_LENGTH - digest.length - 1);
+    return `${text.slice(0, headLength)}-${digest}`;
+  };
   const suffixRaw = typeof process.env.PAIROFCLEATS_TEST_CACHE_SUFFIX === 'string'
     ? process.env.PAIROFCLEATS_TEST_CACHE_SUFFIX.trim()
     : '';
-  if (!suffixRaw) return baseName;
-  if (baseName.endsWith(`-${suffixRaw}`)) return baseName;
-  return `${baseName}-${suffixRaw}`;
+  if (!suffixRaw) return truncateWithHash(baseName);
+  if (baseName.endsWith(`-${suffixRaw}`)) return truncateWithHash(baseName);
+  return truncateWithHash(`${baseName}-${suffixRaw}`);
 };
 
 const normalizeRepoSlug = (repoRoot) => String(path.basename(path.resolve(repoRoot)) || 'repo')
@@ -225,9 +234,16 @@ export const ensureFixtureIndex = async ({
 };
 
 export const ensureFixtureSqlite = async ({ fixtureRoot, userConfig, env }) => {
-  const sqlitePaths = resolveSqlitePaths(fixtureRoot, userConfig);
+  let sqlitePaths = resolveSqlitePaths(fixtureRoot, userConfig);
   if (!fs.existsSync(sqlitePaths.codePath) || !fs.existsSync(sqlitePaths.prosePath)) {
     await runSqliteBuild(fixtureRoot, { emitOutput: true });
+    sqlitePaths = resolveSqlitePaths(fixtureRoot, userConfig);
+  }
+  if (!fs.existsSync(sqlitePaths.codePath) || !fs.existsSync(sqlitePaths.prosePath)) {
+    throw new Error(
+      `SQLite fixture paths are unavailable after build. `
+      + `codePath=${sqlitePaths.codePath} prosePath=${sqlitePaths.prosePath}`
+    );
   }
   return sqlitePaths;
 };

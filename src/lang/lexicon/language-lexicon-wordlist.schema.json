@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "language-lexicon-wordlist.schema.json",
+  "title": "PairOfCleats language lexicon wordlist",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "formatVersion",
+    "languageId",
+    "keywords",
+    "literals"
+  ],
+  "properties": {
+    "formatVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "languageId": {
+      "type": "string",
+      "pattern": "^[_a-z0-9][a-z0-9_-]*$"
+    },
+    "keywords": {
+      "$ref": "#/$defs/termList"
+    },
+    "literals": {
+      "$ref": "#/$defs/termList"
+    },
+    "types": {
+      "$ref": "#/$defs/termList"
+    },
+    "builtins": {
+      "$ref": "#/$defs/termList"
+    },
+    "modules": {
+      "$ref": "#/$defs/termList"
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "$defs": {
+    "asciiToken": {
+      "type": "string",
+      "pattern": "^[\\x21-\\x7E]+$"
+    },
+    "termList": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/asciiToken"
+      },
+      "uniqueItems": true
+    }
+  }
+}

@@ -81,6 +81,7 @@ export function createSqliteHelpers(options) {
   };
   const statementCache = new WeakMap();
   const ftsAvailability = new WeakMap();
+  const tableAvailability = new WeakMap();
 
   const hasFtsTable = (mode) => {
     const db = getDb(mode);
@@ -95,6 +96,27 @@ export function createSqliteHelpers(options) {
       available = false;
     }
     ftsAvailability.set(db, { available });
+    return available;
+  };
+
+  const hasTable = (mode, tableName) => {
+    const db = getDb(mode);
+    if (!db || typeof tableName !== 'string' || !tableName.trim()) return false;
+    const resolvedName = tableName.trim();
+    let cache = tableAvailability.get(db);
+    if (!cache) {
+      cache = new Map();
+      tableAvailability.set(db, cache);
+    }
+    if (cache.has(resolvedName)) return cache.get(resolvedName) === true;
+    let available = false;
+    try {
+      const row = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?").get(resolvedName);
+      available = Boolean(row?.name);
+    } catch {
+      available = false;
+    }
+    cache.set(resolvedName, available);
     return available;
   };
 
@@ -671,6 +693,7 @@ export function createSqliteHelpers(options) {
   return {
     loadIndexFromSqlite,
     hasFtsTable,
+    hasTable,
     getTokenIndexForQuery,
     buildCandidateSetSqlite,
     rankSqliteFts,
