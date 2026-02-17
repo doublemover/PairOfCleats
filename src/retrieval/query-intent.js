@@ -7,6 +7,11 @@ const CODE_TOKEN_PATTERN = /[{}()[\];:<>.=]|=>|->|::|\+\+|--|\|\||&&/;
 const CAMEL_PATTERN = /[a-z][A-Z]/;
 const SNAKE_PATTERN = /_/;
 const INTENT_TYPES = ['code', 'prose', 'path', 'url', 'mixed'];
+/**
+ * Confidence cutoffs used by both intent classification and trust-surface
+ * rendering. Keep these centralized so bucket semantics stay consistent across
+ * ranking, explanation, and contract tests.
+ */
 export const INTENT_CONFIDENCE_BUCKET_THRESHOLDS = Object.freeze({
   high: 0.78,
   medium: 0.56

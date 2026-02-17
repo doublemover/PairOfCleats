@@ -57,6 +57,14 @@ const resolveNeighbors = (index, nodeId) => {
   return list;
 };
 
+/**
+ * Create a memoized resolver that merges call+usage neighbors into one
+ * deterministic sorted adjacency list per node.
+ *
+ * @param {Map<string, object>} callIndex
+ * @param {Map<string, object>} usageIndex
+ * @returns {(nodeId:string)=>string[]}
+ */
 const createNeighborResolver = (callIndex, usageIndex) => {
   const cache = new Map();
   return (nodeId) => {

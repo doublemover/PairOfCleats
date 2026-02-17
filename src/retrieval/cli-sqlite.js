@@ -46,8 +46,12 @@ export async function createSqliteBackend(options) {
     'extracted-prose': { available: false }
   };
   const vectorAnnUsed = { code: false, prose: false, records: false, 'extracted-prose': false };
-  // Match sqlite builder behavior: shared ANN table suffixing is driven by
-  // code/prose DB path equality only; extracted-prose may be separate.
+  /**
+   * Match index-builder ANN table suffixing behavior.
+   * Only code/prose path equality participates in shared-DB table naming.
+   * Extracted-prose is intentionally excluded because it may be routed to a
+   * separate SQLite file (or fall back to file artifacts) in mixed backends.
+   */
   const sharedDb = Boolean(
     sqliteCodePath
     && sqliteProsePath

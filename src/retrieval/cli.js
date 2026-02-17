@@ -819,6 +819,14 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     }
     const sqliteFtsEnabled = sqliteFtsRequested || (autoBackendRequested && useSqliteSelection);
 
+    /**
+     * Build backend runtime context and consistently attribute the timing sample
+     * to a caller-selected stage. Reused for initial backend bootstrap and
+     * reinitialization paths so health/telemetry observe a single operation shape.
+     *
+     * @param {string} [stageName='startup.backend']
+     * @returns {Promise<object>}
+     */
     const createBackendContextWithTracking = async (stageName = 'startup.backend') => {
       const backendStart = stageTracker.mark();
       const context = await createBackendContext({

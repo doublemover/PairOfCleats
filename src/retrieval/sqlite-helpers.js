@@ -99,6 +99,14 @@ export function createSqliteHelpers(options) {
     return available;
   };
 
+  /**
+   * Check whether a mode currently has an attached SQLite database handle.
+   * Used by upstream routing to avoid running SQLite-only checks for modes that
+   * are loaded from file artifacts.
+   *
+   * @param {'code'|'prose'|'extracted-prose'} mode
+   * @returns {boolean}
+   */
   const hasDb = (mode) => Boolean(getDb(mode));
 
   const hasTable = (mode, tableName) => {

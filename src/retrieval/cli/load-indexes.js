@@ -71,6 +71,14 @@ const extractEmbeddingIdentity = (meta) => {
   return identity;
 };
 
+/**
+ * Load retrieval indexes across enabled modes and attach optional ANN/graph
+ * side artifacts while enforcing cohort compatibility and embedding identity.
+ * In non-strict mode, incompatible ANN sources are disabled instead of failing.
+ *
+ * @param {object} input
+ * @returns {Promise<object>}
+ */
 export async function loadSearchIndexes({
   rootDir,
   userConfig,
@@ -326,6 +334,14 @@ export async function loadSearchIndexes({
     }
     return ['dense_vectors'];
   };
+  /**
+   * Attach lazy dense-vector loading for modes that defer ANN artifacts.
+   * Candidate artifacts are tried in priority order and memoized per index.
+   *
+   * @param {object} idx
+   * @param {string} mode
+   * @param {string|null} dir
+   */
   const attachDenseVectorLoader = (idx, mode, dir) => {
     if (!idx || !dir || !needsAnnArtifacts || !lazyDenseVectorsEnabled) return;
     const artifactCandidates = resolveDenseArtifactCandidates(mode);
@@ -491,6 +507,16 @@ export async function loadSearchIndexes({
     idxRecords.indexDir = recordsDir;
   }
 
+  /**
+   * Attach LanceDB metadata/dir pointers for ANN search.
+   * Non-strict mode tolerates missing manifest entries and falls back to
+   * legacy on-disk paths when present.
+   *
+   * @param {object} idx
+   * @param {string} mode
+   * @param {string|null} dir
+   * @returns {Promise<object|null>}
+   */
   const attachLanceDb = async (idx, mode, dir) => {
     if (!idx || !dir || lancedbConfig?.enabled === false) return null;
     const paths = resolveLanceDbPaths(dir);
@@ -647,6 +673,15 @@ export async function loadSearchIndexes({
     await Promise.all(Array.from({ length: Math.min(limit, attachTasks.length) }, runTask));
   }
 
+  /**
+   * Compare embedding identity across ANN-related artifacts for one mode.
+   * Returns mismatch records; in non-strict mode, disable hooks may mark
+   * incompatible ANN sources unavailable to keep retrieval operational.
+   *
+   * @param {string} mode
+   * @param {object} idx
+   * @returns {Array<object>}
+   */
   const validateEmbeddingIdentityForMode = (mode, idx) => {
     if (!idx) return [];
     const sources = [];

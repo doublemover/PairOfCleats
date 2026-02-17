@@ -8,6 +8,14 @@ import {
 import { applyOutputBudgetPolicy, normalizeOutputBudgetPolicy } from '../output/score-breakdown.js';
 import { buildTrustSurface } from '../output/explain.js';
 
+/**
+ * Render retrieval results in JSON or TTY format and append derived output
+ * sections (bundles, stats, explain/trust surfaces) before emission.
+ * Large JSON responses can stream directly to stdout to reduce peak memory.
+ *
+ * @param {object} input
+ * @returns {object}
+ */
 export function renderSearchOutput({
   emitOutput,
   jsonOutput,

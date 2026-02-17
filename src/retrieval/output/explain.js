@@ -17,6 +17,23 @@ const toBucket = (value) => {
     : 'low';
 };
 
+/**
+ * Derive trust-surface signals from intent/context/ANN policy metadata.
+ * These booleans intentionally capture cross-stage degradations so clients can
+ * explain why confidence was reduced even when ranking still succeeds.
+ *
+ * @param {{
+ *  intentInfo?:object,
+ *  contextExpansionStats?:object,
+ *  annCandidatePolicy?:object
+ * }} input
+ * @returns {{
+ *  intentAbstained:boolean,
+ *  parseFallback:boolean,
+ *  contextExpansionTruncated:boolean,
+ *  annCandidateConstrained:boolean
+ * }}
+ */
 const resolveSignals = ({ intentInfo, contextExpansionStats, annCandidatePolicy }) => {
   const contextModes = ['code', 'prose', 'extracted-prose', 'records'];
   const contextExpansionTruncated = contextModes.some((mode) => Boolean(contextExpansionStats?.[mode]?.truncation));
@@ -28,6 +45,14 @@ const resolveSignals = ({ intentInfo, contextExpansionStats, annCandidatePolicy 
   };
 };
 
+/**
+ * Build canonical reason codes for the trust/confidence surface.
+ * Reason ordering is stable and low-confidence is surfaced first so logs and
+ * contracts remain deterministic for regression tests.
+ *
+ * @param {{confidenceBucket:'low'|'medium'|'high',signals:object}} input
+ * @returns {string[]}
+ */
 const resolveReasonCodes = ({ confidenceBucket, signals }) => {
   const reasons = [];
   if (confidenceBucket === 'low') reasons.push('low_intent_confidence');

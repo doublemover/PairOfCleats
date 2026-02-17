@@ -85,6 +85,15 @@ const normalizeDenseVectorMode = (value) => {
   return null;
 };
 
+/**
+ * Normalize raw CLI/config/policy input into a validated retrieval options
+ * object consumed by the runtime pipeline.
+ * Precedence: explicit CLI flags override config defaults, and policy guards
+ * constrain unsafe values before execution.
+ *
+ * @param {object} input
+ * @returns {object}
+ */
 export function normalizeSearchOptions({
   argv,
   rawArgs,

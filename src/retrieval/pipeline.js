@@ -44,6 +44,10 @@ const VECTOR_REQUIRED_CODE = 'retrieval_vector_required';
 /**
  * Create a search pipeline runner bound to a shared context.
  * @param {object} context
+ * @param {(mode:string)=>boolean} [context.sqliteHasDb]
+ * Optional per-mode SQLite availability probe. When omitted, extracted-prose
+ * follows legacy behavior and is treated as SQLite-backed whenever
+ * `useSqlite=true`.
  * @returns {(idx:object, mode:'code'|'prose'|'records'|'extracted-prose', queryEmbedding:number[]|null)=>Promise<Array<object>>}
  */
 export function createSearchPipeline(context) {
@@ -485,6 +489,8 @@ export function createSearchPipeline(context) {
       : null;
     const profileId = modeProfilePolicy?.profileId || idx?.state?.profile?.id || null;
     const vectorOnlyProfile = profileId === INDEX_PROFILE_VECTOR_ONLY;
+    // extracted-prose may be file-backed even during mixed SQLite runs; gate
+    // SQLite-only table checks by actual DB attachment for that mode.
     const sqliteEnabledForMode = useSqlite && (
       mode === 'code'
       || mode === 'prose'

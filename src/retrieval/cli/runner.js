@@ -9,6 +9,13 @@ export const inferJsonOutputFromArgs = (rawArgs) => {
   return { jsonOutput };
 };
 
+/**
+ * Build common CLI runner helpers for error handling, cancellation, and health
+ * checks.
+ *
+ * @param {object} input
+ * @returns {{emitError:Function,bail:Function,throwIfAborted:Function,ensureRetrievalHealth:Function}}
+ */
 export const createRunnerHelpers = ({ emitOutput, exitOnError, jsonOutput, recordSearchMetrics, signal }) => {
   const emitError = (message, errorCode) => {
     if (!emitOutput || !message) return;
@@ -44,6 +51,7 @@ export const createRunnerHelpers = ({ emitOutput, exitOnError, jsonOutput, recor
     runRecords,
     backendLabel
   } = {}) => {
+    // Fail fast with machine-readable health codes before hot-path retrieval.
     const report = runRetrievalHealthChecks({
       query,
       runCode,

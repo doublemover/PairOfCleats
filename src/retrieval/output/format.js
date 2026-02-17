@@ -230,6 +230,14 @@ const buildFormatCacheKey = ({
   }
 }).key;
 
+/**
+ * Build comma-delimited wrapped lines while preserving ANSI-aware width checks.
+ *
+ * @param {string} label
+ * @param {Array<unknown>} items
+ * @param {{indent?:string,maxWidth?:number}} [options]
+ * @returns {string[]}
+ */
 const buildWrappedLines = (label, items, { indent = INDENT, maxWidth = 110 } = {}) => {
   if (!Array.isArray(items) || !items.length) return [];
   const prefix = `${indent}${label} `;
@@ -275,6 +283,12 @@ const formatVerticalList = (label, items, options) => {
   return lines.map((line) => `${line}\n`).join('');
 };
 
+/**
+ * Convert control-flow counters into printable pluralized labels.
+ *
+ * @param {object|null} controlFlow
+ * @returns {Array<{label:string,value:number}>}
+ */
 const formatControlFlow = (controlFlow) => {
   if (!controlFlow) return [];
   const parts = [];
@@ -295,6 +309,13 @@ const formatControlFlow = (controlFlow) => {
   return parts;
 };
 
+/**
+ * Style function/class signatures by emphasizing symbol name and argument list.
+ *
+ * @param {string|null|undefined} signature
+ * @param {string|null|undefined} nameLabel
+ * @returns {string}
+ */
 const formatSignature = (signature, nameLabel) => {
   const raw = String(signature || '').trim();
   if (!raw) return '';
