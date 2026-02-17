@@ -24,6 +24,16 @@ const FILE_WATCHDOG_MS = 10000;
 const DEFAULT_POSTINGS_ROWS_PER_PENDING = 200;
 const DEFAULT_POSTINGS_BYTES_PER_PENDING = 8 * 1024 * 1024;
 
+export const resolveChunkProcessingFeatureFlags = (runtime) => {
+  const vectorOnlyProfile = runtime?.profile?.id === INDEX_PROFILE_VECTOR_ONLY;
+  return {
+    // Keep tokens populated for vector_only so retrieval query-AST matching
+    // can still evaluate term/phrase predicates against ANN-ranked hits.
+    tokenizeEnabled: true,
+    sparsePostingsEnabled: !vectorOnlyProfile
+  };
+};
+
 const coercePositiveInt = (value) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return null;
@@ -145,9 +155,7 @@ export const processFiles = async ({
       log
     });
     const { tokenizationStats, appendChunkWithRetention } = tokenRetentionState;
-    const vectorOnlyProfile = runtime?.profile?.id === INDEX_PROFILE_VECTOR_ONLY;
-    const tokenizeEnabled = !vectorOnlyProfile;
-    const sparsePostingsEnabled = !vectorOnlyProfile;
+    const { tokenizeEnabled, sparsePostingsEnabled } = resolveChunkProcessingFeatureFlags(runtime);
     const postingsQueueConfig = sparsePostingsEnabled
       ? resolvePostingsQueueConfig(runtime)
       : null;

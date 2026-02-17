@@ -59,14 +59,16 @@ export const resolveVectorOnlyShortcutPolicy = (runtime) => {
   };
 };
 
-const buildFeatureSettings = (runtime, mode) => {
+export const buildFeatureSettings = (runtime, mode) => {
   const analysisFlags = resolveAnalysisFlags(runtime);
   const profileId = runtime?.profile?.id || runtime?.indexingConfig?.profile || 'default';
   const vectorOnly = profileId === INDEX_PROFILE_VECTOR_ONLY;
   const vectorOnlyShortcuts = resolveVectorOnlyShortcutPolicy(runtime);
   return {
     profileId,
-    tokenize: !vectorOnly,
+    // Query-AST filtering depends on per-chunk tokens even for vector_only retrieval.
+    // Keep tokenization enabled while still disabling sparse postings artifacts.
+    tokenize: true,
     postings: !vectorOnly,
     embeddings: runtime.embeddingEnabled || runtime.embeddingService,
     gitBlame: analysisFlags.gitBlame,
