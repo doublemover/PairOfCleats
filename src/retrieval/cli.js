@@ -74,6 +74,19 @@ const collectMissingSparseTables = ({ sqliteHelpers, mode, postingsConfig }) => 
   return missing;
 };
 
+export const resolveSparsePreflightModes = ({
+  selectedModes,
+  requiresExtractedProse,
+  loadExtractedProseSqlite
+}) => {
+  if (!Array.isArray(selectedModes)) return [];
+  return selectedModes.filter((mode) => {
+    if (mode === 'records') return false;
+    if (mode !== 'extracted-prose') return true;
+    return requiresExtractedProse === true || loadExtractedProseSqlite === true;
+  });
+};
+
 export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}) {
   const telemetry = createSearchTelemetry();
   const recordSearchMetrics = (status) => telemetry.record(status);
@@ -709,8 +722,12 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     }
     if (!annEnabledEffective && useSqlite) {
       const sparseMissingByMode = {};
-      for (const mode of selectedModes) {
-        if (mode === 'records') continue;
+      const sparsePreflightModes = resolveSparsePreflightModes({
+        selectedModes,
+        requiresExtractedProse,
+        loadExtractedProseSqlite
+      });
+      for (const mode of sparsePreflightModes) {
         const policy = profilePolicyByMode[mode];
         if (policy?.vectorOnly) continue;
         const missing = collectMissingSparseTables({
