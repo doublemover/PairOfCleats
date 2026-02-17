@@ -88,11 +88,58 @@ try {
   );
   assert.equal(nonRetriableError.opFailureRetriable, false, 'expected non-retriable error to disable retry');
 
+  let noRetryError = null;
+  setFailureConfig({
+    ops: {
+      failureInjection: {
+        enabled: true,
+        retriableRetries: 0,
+        rules: [
+          {
+            target: 'retrieval.hotpath',
+            failureClass: OP_FAILURE_CLASSES.RETRIABLE,
+            failCount: 1,
+            message: 'single-attempt retriable failure'
+          }
+        ]
+      }
+    }
+  });
+  try {
+    await runWithOperationalFailurePolicy({
+      target: 'retrieval.hotpath',
+      operation: 'test-no-retry-budget',
+      execute: async () => 'not-expected'
+    });
+  } catch (err) {
+    noRetryError = err;
+  }
+  assert.ok(noRetryError, 'expected retriable injection to throw when retry budget is zero');
+  assert.equal(
+    noRetryError.code,
+    OP_FAILURE_CODES.INJECTED_RETRIABLE,
+    'expected injected retriable code when retry budget is zero'
+  );
+  assert.equal(
+    noRetryError.opFailureClassification,
+    OP_FAILURE_CLASSES.RETRIABLE,
+    'expected retriable classification to be preserved on no-retry failures'
+  );
+
   const timeoutClassification = classifyOperationalFailure({ code: 'ETIMEDOUT' });
   assert.equal(
     timeoutClassification.classification,
     OP_FAILURE_CLASSES.RETRIABLE,
     'expected ETIMEDOUT to classify as retriable'
+  );
+  const explicitClassification = classifyOperationalFailure({
+    code: 'INTERNAL',
+    opFailureClass: OP_FAILURE_CLASSES.NON_RETRIABLE
+  });
+  assert.equal(
+    explicitClassification.classification,
+    OP_FAILURE_CLASSES.NON_RETRIABLE,
+    'expected explicit opFailureClass to override code-based classification'
   );
 
   console.log('ops failure injection retrieval hotpath test passed');

@@ -82,4 +82,24 @@ assert.throws(() => normalizeWithConfig({
   }
 }), (error) => String(error?.message || '').includes(OP_CONFIG_GUARDRAIL_CODES.RRF_K_INVALID));
 
+const boundaryValid = normalizeWithConfig({
+  args: ['hello'],
+  userConfig: {
+    retrieval: {
+      annCandidateCap: 100,
+      annCandidateMinDocCount: 100,
+      annCandidateMaxDocCount: 100
+    },
+    search: {
+      rrf: {
+        k: 1
+      }
+    }
+  }
+});
+assert.equal(boundaryValid.annCandidateCap, 100, 'expected equal min/max/cap boundary to remain valid');
+assert.equal(boundaryValid.annCandidateMinDocCount, 100, 'expected min boundary to remain valid');
+assert.equal(boundaryValid.annCandidateMaxDocCount, 100, 'expected max boundary to remain valid');
+assert.equal(boundaryValid.rrfK, 1, 'expected positive boundary rrf.k to remain valid');
+
 console.log('ops config guardrails test passed');

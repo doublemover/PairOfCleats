@@ -33,11 +33,25 @@ const normalIndexGrowth = evaluateResourceGrowth({
   deltaThresholdBytes: RESOURCE_GROWTH_THRESHOLDS.indexSizeDeltaBytes
 });
 assert.equal(normalIndexGrowth.abnormal, false, 'expected normal index growth to stay below warning threshold');
+const ratioOnlyGrowth = evaluateResourceGrowth({
+  baselineBytes: 50 * MiB,
+  currentBytes: 120 * MiB,
+  ratioThreshold: RESOURCE_GROWTH_THRESHOLDS.indexSizeRatio,
+  deltaThresholdBytes: RESOURCE_GROWTH_THRESHOLDS.indexSizeDeltaBytes
+});
+assert.equal(
+  ratioOnlyGrowth.abnormal,
+  false,
+  'expected ratio-only growth to remain below warning threshold when delta gate is not met'
+);
 
 const abnormalWarnings = [];
 let abnormalReads = 0;
 const abnormalTelemetry = createSearchTelemetry({
   readRss: () => ([120 * MiB, 340 * MiB][Math.min(abnormalReads++, 1)])
+});
+abnormalTelemetry.emitResourceWarnings({
+  warn: (message) => abnormalWarnings.push(String(message))
 });
 abnormalTelemetry.emitResourceWarnings({
   warn: (message) => abnormalWarnings.push(String(message))
