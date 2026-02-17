@@ -140,7 +140,7 @@ const collectMissingSparseTables = ({ sqliteHelpers, mode, postingsConfig, requi
  * }} input
  * @returns {string[]}
  */
-const resolveSparsePreflightMissingTables = ({
+export const resolveSparsePreflightMissingTables = ({
   sqliteHelpers,
   mode,
   postingsConfig,
@@ -149,6 +149,12 @@ const resolveSparsePreflightMissingTables = ({
   filtersActive = false,
   sparseBackend = 'auto'
 }) => {
+  const normalizedSparseBackend = typeof sparseBackend === 'string'
+    ? sparseBackend.trim().toLowerCase()
+    : 'auto';
+  // Tantivy sparse routing does not depend on SQLite sparse/BM25 tables.
+  if (normalizedSparseBackend === 'tantivy') return [];
+
   const desiredRoute = sqliteFtsRoutingByMode?.byMode?.[mode]?.desired || null;
   if (desiredRoute !== 'fts') {
     return collectMissingSparseTables({
@@ -175,9 +181,6 @@ const resolveSparsePreflightMissingTables = ({
   });
   const ftsAvailable = ftsMissing.length === 0;
   const bm25Available = bm25Missing.length === 0;
-  const normalizedSparseBackend = typeof sparseBackend === 'string'
-    ? sparseBackend.trim().toLowerCase()
-    : 'auto';
   const bm25FallbackPossible = normalizedSparseBackend !== 'tantivy';
 
   if (!bm25FallbackPossible) {
