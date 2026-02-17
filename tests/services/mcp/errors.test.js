@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { ERROR_CODES } from '../../../src/shared/error-codes.js';
 import { getCapabilities } from '../../../src/shared/capabilities.js';
 import { startMcpServer } from '../../helpers/mcp-client.js';
@@ -15,6 +16,10 @@ for (const mode of modes) {
   const missingRepo = path.join(cacheRoot, 'missing');
   await fsPromises.rm(cacheRoot, { recursive: true, force: true });
   await fsPromises.mkdir(emptyRepo, { recursive: true });
+  const gitInit = spawnSync('git', ['init', '-q'], { cwd: emptyRepo, stdio: 'ignore' });
+  if (gitInit.status !== 0) {
+    throw new Error(`[${mode}] failed to initialize temporary git repo for empty-repo MCP test fixture`);
+  }
 
   const { send, readMessage, shutdown } = await startMcpServer({ cacheRoot, mode });
 

@@ -9,7 +9,6 @@ const encodeFramedMessage = (payload) => {
   const json = JSON.stringify(payload);
   return `Content-Length: ${Buffer.byteLength(json, 'utf8')}\r\n\r\n${json}`;
 };
-const encodeLineMessage = (payload) => `${JSON.stringify(payload)}\n`;
 
 const createReader = (stream, { onActivity } = {}) => {
   let buffer = Buffer.alloc(0);
@@ -191,8 +190,8 @@ export const startMcpServer = async ({
   touchTimeout();
   const resolvedTransport = transport || (mode === 'sdk' ? 'sdk' : 'legacy');
   const send = (payload) => {
-    if (resolvedTransport === 'sdk') {
-      server.stdin.write(encodeLineMessage(payload));
+    if (resolvedTransport === 'line') {
+      server.stdin.write(`${JSON.stringify(payload)}\n`);
       return;
     }
     server.stdin.write(encodeFramedMessage(payload));
