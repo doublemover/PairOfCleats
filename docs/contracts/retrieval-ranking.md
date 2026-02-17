@@ -49,10 +49,13 @@ When graph ranking is enabled and explain is requested, hits SHOULD include:
 - `scoreBreakdown.graph`:
   - `score` (number): additive score applied for graph-aware reordering
   - `degree` (number): combined in+out degree across call/usage graphs
-  - `proximity` (number): seed proximity (1 for seed hits, 0.5 for neighbors, else 0)
+  - `proximity` (number): seed proximity (`1/(distance+1)` for discovered nodes; 0 when undiscovered)
+  - `seedDistance` (number|null): BFS hop distance from selected seeds
   - `weights` (object): `{ degree, proximity }` weights used to compute `score`
   - `seedSelection` (`top1|topK|none`)
   - `seedK` (number|null)
+  - `expansion` (object): `{ maxDepth, maxWidthPerNode, maxVisitedNodes }`
+  - `stopReason` (`maxWorkUnits|maxWallClockMs|maxVisitedNodes|maxWidthPerNode|maxDepth|null`)
 
 Graph ranking MUST NOT change membership (see below).
 
@@ -121,6 +124,11 @@ When graph ranking is enabled:
 ### Performance and bounding
 - Graph feature computation MUST have a deterministic work cap (`maxGraphWorkUnits`).
 - A wall-clock fuse MAY exist but must emit truncation when it triggers.
+- Multi-hop expansion MUST be bounded by depth/width/node limits:
+  - `maxDepth` (default `2`, hard cap `4`)
+  - `maxWidthPerNode` (default `12`, hard cap `64`)
+  - `maxVisitedNodes` (default `192`, hard cap `2048`)
+- Stop conditions MUST resolve deterministically with explicit reason codes.
 
 ---
 

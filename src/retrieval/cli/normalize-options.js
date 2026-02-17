@@ -204,6 +204,7 @@ export function normalizeSearchOptions({
   const graphRankingRaw = userConfig?.retrieval?.graphRanking || {};
   const graphRankingEnabled = graphRankingRaw.enabled === true;
   const graphRankingWeights = graphRankingRaw.weights || {};
+  const graphRankingExpansionRaw = graphRankingRaw.expansion || {};
   const graphRankingSeedSelectionRaw = argv['graph-ranking-seeds'] ?? graphRankingRaw.seedSelection;
   const graphRankingSeedSelection = graphRankingSeedSelectionRaw
     ? String(graphRankingSeedSelectionRaw).trim()
@@ -221,7 +222,12 @@ export function normalizeSearchOptions({
       argv['graph-ranking-max-ms'] ?? graphRankingRaw.maxWallClockMs
     ),
     seedSelection: graphRankingSeedSelection ?? graphRankingRaw.seedSelection ?? 'top1',
-    seedK: normalizeOptionalNumber(argv['graph-ranking-seed-k'] ?? graphRankingRaw.seedK)
+    seedK: normalizeOptionalNumber(argv['graph-ranking-seed-k'] ?? graphRankingRaw.seedK),
+    expansion: {
+      maxDepth: normalizeOptionalNumber(graphRankingExpansionRaw.maxDepth) ?? 2,
+      maxWidthPerNode: normalizeOptionalNumber(graphRankingExpansionRaw.maxWidthPerNode) ?? 12,
+      maxVisitedNodes: normalizeOptionalNumber(graphRankingExpansionRaw.maxVisitedNodes) ?? 192
+    }
   };
 
   const contextExpansionConfig = userConfig?.retrieval?.contextExpansion || {};
