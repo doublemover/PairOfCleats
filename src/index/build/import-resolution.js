@@ -367,6 +367,14 @@ const collectEntryFileSet = ({ entries, root }) => {
   return { rootAbs, fileSet };
 };
 
+/**
+ * Create normalized file lookup structures for import resolution.
+ * Includes case-insensitive fallback map plus prefix trie to short-circuit
+ * impossible extension probes.
+ *
+ * @param {{entries:Array<object|string>,root:string,fsMemo?:object|null}} input
+ * @returns {{rootAbs:string,fileSet:Set<string>,fileLower:Map<string,string>,hasTsconfig:boolean,pathTrie:object}}
+ */
 const createFileLookup = ({ entries, root, fsMemo = null }) => {
   const io = fsMemo || createFsMemo();
   const rootAbs = path.resolve(root);
@@ -411,6 +419,15 @@ const resolveFromLookup = (relPath, lookup) => {
   return null;
 };
 
+/**
+ * Resolve an import-relative candidate against lookup structures.
+ * Uses trie prefix checks before extension expansion to avoid unnecessary probe
+ * work for paths that cannot match indexed files.
+ *
+ * @param {string} relPath
+ * @param {{fileSet:Set<string>,fileLower:Map<string,string>,pathTrie?:object}} lookup
+ * @returns {string|null}
+ */
 const resolveCandidate = (relPath, lookup) => {
   if (!relPath) return null;
   const normalized = normalizeRelPath(relPath);

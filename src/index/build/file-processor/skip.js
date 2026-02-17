@@ -2,6 +2,15 @@ import path from 'node:path';
 import { pickMinLimit, resolveFileCaps } from './read.js';
 import { detectBinary, isMinifiedName, readFileSample } from '../file-scan.js';
 
+/**
+ * Resolve pre-read skip decisions (caps/minified/binary scanner) before full
+ * file decode. Supports a document-extraction bypass for binary/minified
+ * reasons while still enforcing max-bytes and max-lines caps.
+ *
+ * @param {object} input
+ * @param {boolean} [input.bypassBinaryMinifiedSkip=false]
+ * @returns {Promise<object|null>}
+ */
 export async function resolvePreReadSkip({
   abs,
   fileEntry,
@@ -81,6 +90,11 @@ export async function resolvePreReadSkip({
   return null;
 }
 
+/**
+ * Detect binary payloads after file bytes are already loaded.
+ * @param {{abs:string,fileBuffer:Buffer,fileScanner:object}} input
+ * @returns {Promise<object|null>}
+ */
 export async function resolveBinarySkip({ abs, fileBuffer, fileScanner }) {
   if (!fileBuffer || !fileBuffer.length) return null;
   const binarySkip = await detectBinary({

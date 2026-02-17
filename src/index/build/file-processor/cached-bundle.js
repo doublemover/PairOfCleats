@@ -6,6 +6,15 @@ import { stripFileRelations } from './relations.js';
 import { log } from '../../../shared/progress.js';
 import { buildPostingsPayloadMetadata } from '../postings-payload.js';
 
+/**
+ * Rehydrate a cached per-file bundle when structural and cap invariants still
+ * hold for the current file snapshot.
+ * Rebuilds metadata as needed, reapplies structural matches, and returns
+ * skip metadata when cache reuse is disallowed by size/line limits.
+ *
+ * @param {object} input
+ * @returns {{result:object|null,skip:object|null}}
+ */
 export function reuseCachedBundle({
   abs,
   relKey,

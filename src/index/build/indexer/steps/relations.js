@@ -51,6 +51,11 @@ const logUnresolvedImportSamples = ({ samples, suppressed, unresolvedTotal }) =>
   }
 };
 
+/**
+ * Resolve import-scan strategy for the current mode/runtime policy.
+ * @param {{runtime:object,mode:string,relationsEnabled:boolean}} input
+ * @returns {{importScanMode:string,enableImportLinks:boolean,usePreScan:boolean,shouldScan:boolean,importGraphEnabled:boolean}}
+ */
 export const resolveImportScanPlan = ({ runtime, mode, relationsEnabled }) => {
   const importScanRaw = runtime.indexingConfig?.importScan;
   const importScanMode = typeof importScanRaw === 'string'
@@ -106,6 +111,13 @@ export const preScanImports = async ({
   return { importResult, scanPlan };
 };
 
+/**
+ * Resolve import links post-processing (including cache reuse and unresolved
+ * sample logging) and attach optional import graph metadata.
+ *
+ * @param {object} input
+ * @returns {Promise<object|null>}
+ */
 export const postScanImports = async ({
   mode,
   relationsEnabled,
@@ -202,6 +214,13 @@ export const postScanImports = async ({
   return resolvedResult;
 };
 
+/**
+ * Run cross-file type/risk inference and build optional interprocedural
+ * summaries for emitted artifacts.
+ *
+ * @param {object} input
+ * @returns {Promise<object|null>}
+ */
 export const runCrossFileInference = async ({
   runtime,
   mode,

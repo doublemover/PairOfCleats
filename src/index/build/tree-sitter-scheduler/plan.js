@@ -87,6 +87,14 @@ const sortJobs = (a, b) => {
   return compareStrings(a.virtualPath || '', b.virtualPath || '');
 };
 
+/**
+ * Resolve planner I/O concurrency for scheduler plan building.
+ * Uses explicit scheduler overrides when provided, otherwise derives from
+ * host parallelism with an upper safety cap.
+ *
+ * @param {object|null|undefined} treeSitterConfig
+ * @returns {number}
+ */
 const resolvePlannerIoConcurrency = (treeSitterConfig) => {
   const schedulerConfig = treeSitterConfig?.scheduler || {};
   const configuredRaw = Number(

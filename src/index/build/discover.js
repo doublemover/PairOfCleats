@@ -105,6 +105,15 @@ export async function discoverFilesForModes({
   return output;
 }
 
+/**
+ * Discover candidate files once, then reuse the result across modes.
+ * The traversal enforces ignore rules, per-file caps, and a coordinated
+ * `maxFiles` reservation model so concurrent stat workers do not over-accept
+ * or silently drop candidates.
+ *
+ * @param {object} input
+ * @returns {Promise<{entries:Array<object>,skippedCommon:Array<object>}>}
+ */
 export async function discoverEntries({
   root,
   recordsDir = null,
@@ -355,6 +364,14 @@ export async function discoverEntries({
   return { entries, skippedCommon };
 }
 
+/**
+ * Apply mode-specific filtering to shared discovery entries.
+ * @param {Array<object>} entries
+ * @param {'code'|'prose'|'records'|'extracted-prose'} mode
+ * @param {Array<object>|null} skippedFiles
+ * @param {object|null} [documentExtractionConfig]
+ * @returns {Array<object>}
+ */
 function filterEntriesByMode(entries, mode, skippedFiles, documentExtractionConfig = null) {
   const documentExtractionEnabled = documentExtractionConfig?.enabled === true;
   const allowDocumentExt = mode === 'extracted-prose' && documentExtractionEnabled;

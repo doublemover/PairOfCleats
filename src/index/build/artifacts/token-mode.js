@@ -1,5 +1,13 @@
 import { log } from '../../../shared/progress.js';
 
+/**
+ * Resolve chunk token artifact mode and budgets.
+ * In vector_only profile, `auto` is forced to `full` so retrieval-side lexical
+ * post-filters can still evaluate term/phrase predicates deterministically.
+ *
+ * @param {{indexingConfig?:object,state:object,fileCounts?:object,profileId?:string|null}} input
+ * @returns {{tokenMode:string,resolvedTokenMode:string,tokenMaxFiles:number,tokenMaxTotal:number,tokenSampleSize:number}}
+ */
 export function resolveTokenMode({ indexingConfig = {}, state, fileCounts, profileId = null }) {
   const tokenModeRaw = typeof indexingConfig.chunkTokenMode === 'string'
     ? indexingConfig.chunkTokenMode.trim().toLowerCase()

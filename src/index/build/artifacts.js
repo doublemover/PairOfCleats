@@ -328,6 +328,14 @@ const buildExtractionReport = ({
   };
 };
 
+/**
+ * Build per-file lexicon relation filter drop report.
+ * Captures dropped calls/usages plus category breakdowns and deterministic
+ * sorting so report diffs remain stable across runs.
+ *
+ * @param {{state:object,mode:string}} input
+ * @returns {object}
+ */
 export const buildLexiconRelationFilterReport = ({ state, mode }) => {
   const relationStats = state?.lexiconRelationFilterByFile;
   const entries = relationStats && typeof relationStats.entries === 'function'
@@ -549,6 +557,8 @@ export async function writeIndexArtifacts(input) {
     : fileMetaMaxBytes;
   const toolingConfig = getToolingConfig(root, userConfig);
   const vfsHashRouting = toolingConfig?.vfs?.hashRouting === true;
+  // Keep file_meta fingerprint source deterministic: prefer discovery order when
+  // available, otherwise fall back to sorted fileInfo keys.
   const resolveFileMetaFiles = () => {
     if (Array.isArray(state?.discoveredFiles) && state.discoveredFiles.length) {
       return state.discoveredFiles.slice();

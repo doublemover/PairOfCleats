@@ -40,6 +40,16 @@ const stripFullFileChunkingCaches = (context) => {
   return next;
 };
 
+/**
+ * Build a segment-local line index from full-file line offsets.
+ * Only offsets inside `[segmentStart, segmentEnd)` are retained and rebased to
+ * segment-local positions.
+ *
+ * @param {number[]} lineIndex
+ * @param {number} segmentStart
+ * @param {number} segmentEnd
+ * @returns {number[]}
+ */
 const buildSegmentLineIndex = (lineIndex, segmentStart, segmentEnd) => {
   if (!Array.isArray(lineIndex) || !lineIndex.length) return [0];
   if (!Number.isFinite(segmentStart) || !Number.isFinite(segmentEnd) || segmentEnd <= segmentStart) {

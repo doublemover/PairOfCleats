@@ -82,6 +82,13 @@ const collectModuleImportsFast = async ({ text, ext }) => {
   return success ? normalizeImports(Array.from(imports)) : null;
 };
 
+/**
+ * Prioritize import scanning toward files likely to yield more edges first.
+ * Uses cached import counts when available, then file size, then stable index.
+ *
+ * @param {Array<{relKey:string,stat?:{size?:number},index:number}>} items
+ * @param {Map<string, number>} cachedImportCounts
+ */
 export function sortImportScanItems(items, cachedImportCounts) {
   const haveCounts = cachedImportCounts instanceof Map && cachedImportCounts.size > 0;
   items.sort((a, b) => {

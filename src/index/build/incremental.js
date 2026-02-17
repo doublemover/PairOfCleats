@@ -13,6 +13,14 @@ import {
 } from '../../shared/bundle-io.js';
 import { normalizeFilePath } from '../../shared/path-normalize.js';
 
+/**
+ * Summarize changed signature keys for incremental-cache reset diagnostics.
+ *
+ * @param {object|null} current
+ * @param {object|null} previous
+ * @param {number} [limit=5]
+ * @returns {string|null}
+ */
 const summarizeSignatureDelta = (current, previous, limit = 5) => {
   if (!current || !previous) return null;
   const keys = new Set([
@@ -47,6 +55,14 @@ const resolveSharedReadCache = (sharedReadState) => (
   sharedReadState instanceof Map ? sharedReadState : null
 );
 
+/**
+ * Lookup a shared file hash/buffer cache entry when size+mtime still match.
+ *
+ * @param {Map<string, object>|null} sharedReadState
+ * @param {string} relKey
+ * @param {{size:number,mtimeMs:number}} fileStat
+ * @returns {{size:number,mtimeMs:number,hash:string,buffer:Buffer|null}|null}
+ */
 const getSharedReadEntry = (sharedReadState, relKey, fileStat) => {
   const cache = resolveSharedReadCache(sharedReadState);
   if (!cache || !relKey) return null;
@@ -59,6 +75,11 @@ const getSharedReadEntry = (sharedReadState, relKey, fileStat) => {
   return entry;
 };
 
+/**
+ * Store a shared hash/buffer entry and evict oldest entries above cap.
+ *
+ * @param {object} input
+ */
 const setSharedReadEntry = ({
   sharedReadState,
   relKey,
@@ -80,6 +101,13 @@ const setSharedReadEntry = ({
   }
 };
 
+/**
+ * Read file bytes and hash with optional shared-cache reuse.
+ * Buffers are retained only when `requireBuffer` is true.
+ *
+ * @param {object} input
+ * @returns {Promise<{hash:string,buffer:Buffer|null}>}
+ */
 const readFileBufferAndHash = async ({
   absPath,
   relKey,

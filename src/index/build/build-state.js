@@ -69,6 +69,14 @@ const resolveCheckpointModePath = (buildRoot, mode) => (
 const resolveEventsPath = (buildRoot) => path.join(buildRoot, STATE_EVENTS_FILE);
 const resolveDeltasPath = (buildRoot) => path.join(buildRoot, STATE_DELTAS_FILE);
 
+/**
+ * Pick debounce duration for pending state writes.
+ * Larger patches and heartbeat/checkpoint updates get a longer window to
+ * coalesce bursts while keeping regular status updates responsive.
+ *
+ * @param {object|null} patch
+ * @returns {number}
+ */
 const resolveDebounceMs = (patch) => {
   if (!patch || typeof patch !== 'object') return DEFAULT_DEBOUNCE_MS;
   const patchBytes = estimateJsonBytes(patch);
@@ -170,6 +178,15 @@ const hydrateStateDefaults = async (state, buildRoot) => {
   };
 };
 
+/**
+ * Merge a partial build-state patch into the current snapshot.
+ * Nested objects that are updated incrementally (phases/progress/checkpoints)
+ * are merged shallowly per key; other fields are replaced directly.
+ *
+ * @param {object} base
+ * @param {object} patch
+ * @returns {object}
+ */
 const mergeState = (base, patch) => {
   const merged = { ...base, ...patch };
   const isObject = (value) => (
@@ -621,6 +638,10 @@ const writeStateFile = async (buildRoot, state, cache, { comparableHash = null }
 /**
  * Persist stage checkpoint payloads by mode so updates only rewrite changed
  * slices instead of a full combined snapshot on every checkpoint flush.
+ *
+ * Migration note: when sidecar index is absent (legacy combined checkpoints),
+ * the first sidecar write seeds from the merged checkpoint state so untouched
+ * legacy modes are preserved.
  */
 const writeCheckpointSlices = async (buildRoot, {
   checkpointPatch,

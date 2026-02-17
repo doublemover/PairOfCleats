@@ -37,6 +37,13 @@ import { processFiles } from './steps/process-files.js';
 import { postScanImports, preScanImports, runCrossFileInference } from './steps/relations.js';
 import { writeIndexArtifactsForMode } from './steps/write.js';
 
+/**
+ * Resolve effective analysis feature flags with policy overrides.
+ * Runtime toggles provide defaults; explicit policy booleans take precedence.
+ *
+ * @param {object} runtime
+ * @returns {{gitBlame:boolean,typeInference:boolean,typeInferenceCrossFile:boolean,riskAnalysis:boolean,riskAnalysisCrossFile:boolean}}
+ */
 const resolveAnalysisFlags = (runtime) => {
   const policy = runtime.analysisPolicy || {};
   return {

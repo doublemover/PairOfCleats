@@ -489,6 +489,10 @@ export const enforceTokenIdCollisionPolicy = (
  * @param {object} chunk
  * @param {object} [postingsConfig=DEFAULT_POSTINGS_CONFIG]
  * @param {object|null} [tokenRetention=null]
+ * @param {{sparsePostingsEnabled?:boolean}|null} [options=null]
+ * When `sparsePostingsEnabled=false`, sparse postings/token statistics are
+ * intentionally skipped (vector-only profile), while chunk/token payloads are
+ * still retained for downstream filtering/query-AST matching.
  */
 export function appendChunk(
   state,

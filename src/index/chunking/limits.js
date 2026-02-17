@@ -13,6 +13,14 @@ const normalizeChunkLimit = (value) => {
   return limit > 0 ? limit : null;
 };
 
+/**
+ * Resolve optional shared chunking cache for this text payload.
+ * Shared caches are reused only when bound to the exact same source text.
+ *
+ * @param {object|null|undefined} context
+ * @param {string} text
+ * @returns {object|null}
+ */
 const resolveChunkingShared = (context, text) => {
   const shared = context?.chunkingShared;
   if (!shared || typeof shared !== 'object') return null;

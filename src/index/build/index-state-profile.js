@@ -4,6 +4,14 @@ import {
   resolveRequiredArtifactsForProfile
 } from '../../contracts/index-profile.js';
 
+/**
+ * Resolve per-artifact presence flags for index_state.artifacts.
+ * Vector-only profiles intentionally mark sparse artifacts as omitted while
+ * preserving dense sidecar presence when embeddings are enabled.
+ *
+ * @param {object} input
+ * @returns {Record<string, boolean>}
+ */
 const buildIndexStateArtifactsPresent = ({
   profileId,
   mode,

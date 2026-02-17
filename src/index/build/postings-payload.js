@@ -12,6 +12,13 @@ const coerceNonNegativeInt = (value) => {
   return Math.floor(parsed);
 };
 
+/**
+ * Validate and normalize postings payload metadata.
+ * Rows must be positive; bytes may be zero when payload content is empty.
+ *
+ * @param {object|null|undefined} payload
+ * @returns {{rows:number,bytes:number}|null}
+ */
 export const normalizePostingsPayloadMetadata = (payload) => {
   if (!payload || typeof payload !== 'object') return null;
   const rows = coercePositiveInt(payload.rows);
@@ -20,6 +27,13 @@ export const normalizePostingsPayloadMetadata = (payload) => {
   return { rows, bytes };
 };
 
+/**
+ * Estimate rows/bytes for postings payload scheduling.
+ * `bytes` is an approximation used for queue/backpressure heuristics.
+ *
+ * @param {{chunks?:Array<object>,fileRelations?:object|null,vfsManifestRows?:Array<object>|null}} input
+ * @returns {{rows:number,bytes:number}}
+ */
 export const buildPostingsPayloadMetadata = ({
   chunks,
   fileRelations,

@@ -235,6 +235,14 @@ export const createTokenRetentionState = ({
   };
 };
 
+/**
+ * Build sparse/dense postings artifacts from accumulated chunk state.
+ * Enforces vector-only capability preconditions and clears heavyweight
+ * in-memory posting maps once artifacts are materialized.
+ *
+ * @param {{runtime:object,state:object,incrementalState?:object|null}} input
+ * @returns {Promise<object>}
+ */
 export const buildIndexPostings = async ({ runtime, state, incrementalState = null }) => {
   const vectorOnlyProfile = runtime?.profile?.id === INDEX_PROFILE_VECTOR_ONLY;
   if (vectorOnlyProfile && !hasVectorEmbeddingBuildCapability(runtime)) {

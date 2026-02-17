@@ -53,6 +53,8 @@ export function createEmbedder({
   async function getChunkEmbeddings(texts) {
     return adapter.embed(texts);
   }
+  // Surface adapter concurrency capability so embedding pipelines can safely
+  // decide whether code/doc batches may run in parallel.
   getChunkEmbeddings.supportsParallelDispatch = adapter?.supportsParallelDispatch === true;
 
   return { getChunkEmbedding, getChunkEmbeddings, embedderPromise: adapter.embedderPromise };

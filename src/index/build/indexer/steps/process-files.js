@@ -49,6 +49,14 @@ const assignFileIndexes = (entries) => {
   }
 };
 
+/**
+ * Resolve postings queue backpressure thresholds from runtime config.
+ * Defaults scale with CPU queue capacity to bound in-flight sparse payloads
+ * without starving workers on larger repositories.
+ *
+ * @param {object} runtime
+ * @returns {{maxPending:number,maxPendingRows:number,maxPendingBytes:number,maxHeapFraction:number|undefined}}
+ */
 const resolvePostingsQueueConfig = (runtime) => {
   const config = runtime?.stage1Queues?.postings || {};
   const cpuPending = Number.isFinite(runtime?.queues?.cpu?.maxPending)
@@ -73,6 +81,14 @@ const resolvePostingsQueueConfig = (runtime) => {
   };
 };
 
+/**
+ * Main stage1 file-processing orchestration.
+ * Handles scheduler prep, concurrent file processing, ordered output append,
+ * sparse postings backpressure, and checkpoint/progress emission.
+ *
+ * @param {object} input
+ * @returns {Promise<object>}
+ */
 export const processFiles = async ({
   mode,
   runtime,

@@ -231,6 +231,15 @@ export async function buildPostings(input) {
     chargram: null
   };
   const compareChargramRows = (a, b) => sortStrings(a?.token, b?.token);
+  /**
+   * Build a stable planner input key for spill-run sets.
+   * Uses run basename + size so planner hints are reused only when the run
+   * shape matches the current merge input.
+   *
+   * @param {string} label
+   * @param {Array<string|{path?:string}>} runs
+   * @returns {Promise<string|null>}
+   */
   const buildPlannerInputKey = async (label, runs) => {
     if (!runs || !runs.length) return null;
     const hash = crypto.createHash('sha1');
@@ -247,6 +256,14 @@ export async function buildPostings(input) {
     }
     return hash.digest('hex');
   };
+  /**
+   * Merge spill runs with optional planner hints/checkpointing.
+   * Returns an iterator + cleanup and exposes whether planner hints were used
+   * so callers can emit diagnostics for reuse effectiveness.
+   *
+   * @param {{runs:string[],compare:Function,label:string}} input
+   * @returns {Promise<{iterator:AsyncGenerator|null,cleanup:(()=>Promise<void>)|null,stats?:object|null,plannerUsed?:boolean,plannerHintUsed?:boolean}>}
+   */
   const mergeSpillRuns = async ({ runs, compare, label }) => {
     if (!runs || !runs.length) return { iterator: null, cleanup: null };
     if (!buildRoot || runs.length <= DEFAULT_MAX_OPEN_RUNS) {
