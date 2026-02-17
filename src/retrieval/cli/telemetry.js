@@ -7,6 +7,19 @@ import {
   formatResourceGrowthWarning
 } from '../../shared/ops-resource-visibility.js';
 
+/**
+ * Build per-search telemetry recorders.
+ * `emitResourceWarnings` is intentionally one-shot so repeated cleanup paths
+ * cannot duplicate abnormal-growth warnings for the same run.
+ * @param {{readRss?:(()=>number)|null}} [input]
+ * @returns {{
+ *   setMode:(mode:string)=>void,
+ *   setBackend:(backend:string)=>void,
+ *   setAnn:(ann:string|boolean)=>void,
+ *   record:(status:string)=>void,
+ *   emitResourceWarnings:(input?:{warn?:(message:string)=>void})=>any
+ * }}
+ */
 export function createSearchTelemetry({ readRss = null } = {}) {
   const resolveRss = typeof readRss === 'function'
     ? readRss

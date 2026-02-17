@@ -11,6 +11,13 @@ const blockersOnly = hasFlag('--blockers-only');
 const noBlockers = hasFlag('--no-blockers');
 const allowBlockerOverride = hasFlag('--allow-blocker-override');
 
+/**
+ * Read a single-value CLI option (`--name value` or `--name=value`).
+ * Returns empty string when missing so downstream checks can treat
+ * absence and blank values uniformly.
+ * @param {string} name
+ * @returns {string}
+ */
 const readOption = (name) => {
   const flag = `--${name}`;
   for (let i = 0; i < args.length; i += 1) {
@@ -26,6 +33,11 @@ const readOption = (name) => {
   return '';
 };
 
+/**
+ * Read repeatable CLI options while preserving argument order.
+ * @param {string} name
+ * @returns {string[]}
+ */
 const readMultiOption = (name) => {
   const flag = `--${name}`;
   const values = [];
@@ -65,6 +77,8 @@ const overrideIds = new Set([
     .filter(Boolean)
 ]);
 
+// Keep blockers intentionally minimal; these are the only OP contracts that
+// should hard-fail release checks by default.
 const ESSENTIAL_BLOCKERS = Object.freeze([
   {
     id: 'ops-health-contract',
