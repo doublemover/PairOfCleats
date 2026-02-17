@@ -1215,11 +1215,11 @@ Keep runtime behavior stable and failure handling clear without adding heavy ope
   - [x] Log output contains actionable reason and component context.
 
 ### OP.2 Failure injection harness
-- [ ] Add deterministic failure injection for indexing and retrieval hot paths.
-- [ ] Classify failures as retriable/non-retriable.
-- [ ] `tests/ops/failure-injection/retrieval-hotpath.test.js`
-  - [ ] Injected failures map to expected retriable/non-retriable classes.
-  - [ ] Recovery path behavior matches documented policy.
+- [x] Add deterministic failure injection for indexing and retrieval hot paths.
+- [x] Classify failures as retriable/non-retriable.
+- [x] `tests/ops/failure-injection/retrieval-hotpath.test.js`
+  - [x] Injected failures map to expected retriable/non-retriable classes.
+  - [x] Recovery path behavior matches documented policy.
 
 ### OP.3 Stable defaults and guardrails
 - [ ] Keep operational defaults conservative and explicit.

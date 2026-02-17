@@ -48,6 +48,7 @@ import { stableStringify } from '../shared/stable-json.js';
 import { INDEX_PROFILE_DEFAULT, INDEX_PROFILE_VECTOR_ONLY } from '../contracts/index-profile.js';
 import { RETRIEVAL_SPARSE_UNAVAILABLE_CODE, resolveSparseRequiredTables } from './sparse/requirements.js';
 import { resolveSqliteFtsRoutingByMode } from './routing-policy.js';
+import { runWithOperationalFailurePolicy } from '../shared/ops-failure-injection.js';
 import {
   buildQueryPlanCacheKey,
   buildQueryPlanConfigSignature,
@@ -858,7 +859,15 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       stageTracker.record(stageName, backendStart, { mode: 'all' });
       return context;
     };
-    let backendContext = await createBackendContextWithTracking('startup.backend');
+    const backendInitResult = await runWithOperationalFailurePolicy({
+      target: 'retrieval.hotpath',
+      operation: 'backend-context',
+      execute: async () => createBackendContextWithTracking('startup.backend'),
+      log: (message) => {
+        if (emitOutput) console.warn(message);
+      }
+    });
+    let backendContext = backendInitResult.value;
 
     let {
       useSqlite,

@@ -16,6 +16,7 @@ import { getTreeSitterStats, resetTreeSitterStats } from '../../../lang/tree-sit
 import { INDEX_PROFILE_VECTOR_ONLY } from '../../../contracts/index-profile.js';
 import { SCHEDULER_QUEUE_NAMES } from '../runtime/scheduler.js';
 import { formatHealthFailure, runIndexingHealthChecks } from '../../../shared/ops-health.js';
+import { runWithOperationalFailurePolicy } from '../../../shared/ops-failure-injection.js';
 import {
   SIGNATURE_VERSION,
   buildIncrementalSignature,
@@ -317,15 +318,21 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   };
 
   advanceStage(stagePlan[0]);
-  const allEntries = await runDiscovery({
-    runtime,
-    mode,
-    discovery,
-    state,
-    timing,
-    stageNumber: stageIndex,
-    abortSignal
+  const discoveryResult = await runWithOperationalFailurePolicy({
+    target: 'indexing.hotpath',
+    operation: 'discovery',
+    log,
+    execute: async () => runDiscovery({
+      runtime,
+      mode,
+      discovery,
+      state,
+      timing,
+      stageNumber: stageIndex,
+      abortSignal
+    })
   });
+  const allEntries = discoveryResult.value;
   stageCheckpoints.record({
     stage: 'stage1',
     step: 'discovery',
