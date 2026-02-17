@@ -210,12 +210,22 @@ export async function discoverEntries({
   const entries = [];
   let acceptedCount = 0;
   let reservedCount = 0;
-  let maxFilesReached = false;
   const envConfig = getEnvConfig();
   const statConcurrency = Math.min(
     64,
     Math.max(4, Number(envConfig.discoveryStatConcurrency) || 32)
   );
+  /**
+   * Reserve work slots without turning reservation rejections into a hard stop.
+   * This keeps in-flight work bounded by `maxFiles` while only treating accepted
+   * entries as progress toward the cap.
+   * @returns {boolean}
+   */
+  const canReserveCandidate = () => {
+    if (!maxFilesValue) return true;
+    if (acceptedCount >= maxFilesValue) return false;
+    return (acceptedCount + reservedCount) < maxFilesValue;
+  };
   const processCandidate = async (absPath) => {
     throwIfAborted(abortSignal);
     const relPosix = toPosix(path.relative(root, absPath));
@@ -254,15 +264,9 @@ export async function discoverEntries({
       return;
     }
     if (maxFilesValue) {
-      if (reservedCount >= maxFilesValue) {
-        maxFilesReached = true;
-        return;
-      }
+      if (!canReserveCandidate()) return;
       reservedCount += 1;
       reserved = true;
-      if (reservedCount >= maxFilesValue) {
-        maxFilesReached = true;
-      }
     }
     try {
       let stat;
@@ -322,7 +326,7 @@ export async function discoverEntries({
     const workers = Array.from({ length: workerCount }, () => (async () => {
       while (true) {
         throwIfAborted(abortSignal);
-        if (maxFilesReached) break;
+        if (maxFilesValue && acceptedCount >= maxFilesValue) break;
         const idx = cursor;
         cursor += 1;
         if (idx >= candidates.length) break;
@@ -331,7 +335,7 @@ export async function discoverEntries({
     })());
     await Promise.all(workers);
   }
-  if (maxFilesValue && maxFilesReached) {
+  if (maxFilesValue && acceptedCount >= maxFilesValue) {
     recordSkip(root, MAX_FILES_LIMIT_REASON, { maxFiles: maxFilesValue });
   }
 
