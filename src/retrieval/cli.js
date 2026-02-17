@@ -1136,7 +1136,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
         runExtractedProse: runExtractedProseRaw,
         runRecords
       });
-      const sparseMissingByMode = {};
+      sparseMissingByMode = {};
       const sparsePreflightModes = resolveSparsePreflightModes({
         selectedModes,
         requiresExtractedProse,
