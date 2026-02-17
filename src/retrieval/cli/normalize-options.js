@@ -40,6 +40,15 @@ const buildGuardrailError = (code, message) => {
   return error;
 };
 
+/**
+ * Reject risky retrieval knob combinations early with stable guardrail codes.
+ * @param {{
+ *   annCandidateCap:number,
+ *   annCandidateMinDocCount:number,
+ *   annCandidateMaxDocCount:number,
+ *   rrfK:number
+ * }} input
+ */
 const validateOperationalGuardrails = ({
   annCandidateCap,
   annCandidateMinDocCount,

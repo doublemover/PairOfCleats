@@ -26,6 +26,19 @@ const toMiB = (bytes) => bytes / (1024 * 1024);
 /**
  * Evaluate growth against ratio + absolute delta thresholds. Requiring both
  * keeps warnings low-noise on small baselines while still catching large spikes.
+ * @param {{
+ *   baselineBytes?:number,
+ *   currentBytes?:number,
+ *   ratioThreshold?:number,
+ *   deltaThresholdBytes?:number
+ * }} [input]
+ * @returns {{
+ *   baselineBytes:number,
+ *   currentBytes:number,
+ *   deltaBytes:number,
+ *   ratio:number,
+ *   abnormal:boolean
+ * }}
  */
 export const evaluateResourceGrowth = ({
   baselineBytes,
@@ -57,6 +70,17 @@ export const evaluateResourceGrowth = ({
   };
 };
 
+/**
+ * Format resource growth warning lines for logs/diagnostics.
+ * @param {{
+ *   code?:string,
+ *   component?:string,
+ *   metric?:string,
+ *   growth?:{baselineBytes?:number,currentBytes?:number,deltaBytes?:number,ratio?:number},
+ *   nextAction?:string
+ * }} [input]
+ * @returns {string}
+ */
 export const formatResourceGrowthWarning = ({
   code,
   component,
@@ -75,6 +99,10 @@ export const formatResourceGrowthWarning = ({
   );
 };
 
+/**
+ * Capture current process RSS bytes.
+ * @returns {number}
+ */
 export const captureProcessMemoryRss = () => (
   Number(process.memoryUsage()?.rss) || 0
 );

@@ -50,6 +50,8 @@ const normalizeFailCount = (value, fallback = 1) => {
 /**
  * Parse and cache failure-injection policy from test config. Cache key uses
  * raw env inputs to avoid repeated JSON parse overhead on hot paths.
+ * @param {NodeJS.ProcessEnv} [env]
+ * @returns {{enabled:boolean,retriableRetries:number,rules:Array<object>}}
  */
 const loadFailureInjectionPolicy = (env = process.env) => {
   const testingRaw = toText(env?.PAIROFCLEATS_TESTING);
@@ -122,6 +124,11 @@ export const classifyOperationalFailure = (error) => {
   };
 };
 
+/**
+ * Deterministically inject a configured failure for the given target.
+ * Each rule only injects for its configured `failCount` attempts.
+ * @param {{target?:string,env?:NodeJS.ProcessEnv}} [input]
+ */
 const maybeInjectOperationalFailure = ({ target, env = process.env } = {}) => {
   const policy = loadFailureInjectionPolicy(env);
   if (!policy.enabled) return;
@@ -150,6 +157,8 @@ const maybeInjectOperationalFailure = ({ target, env = process.env } = {}) => {
 /**
  * Execute an operation with deterministic failure injection and retriable
  * recovery policy.
+ * Retries run at most `retriableRetries` additional times (so total attempts
+ * are `retriableRetries + 1`).
  * @param {{target:string,operation?:string,execute?:Function,log?:(msg:string)=>void,env?:object}} input
  * @returns {Promise<{value:any,attempts:number,recovered:boolean}>}
  */
