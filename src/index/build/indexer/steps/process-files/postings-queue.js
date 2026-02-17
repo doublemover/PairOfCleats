@@ -1,4 +1,5 @@
 import v8 from 'node:v8';
+import { normalizePostingsPayloadMetadata } from '../../../postings-payload.js';
 
 const MB = 1024 * 1024;
 
@@ -65,10 +66,14 @@ const resolvePayloadBytes = (result) => {
   return total;
 };
 
-export const estimatePostingsPayload = (result) => ({
-  rows: resolvePayloadRows(result),
-  bytes: resolvePayloadBytes(result)
-});
+export const estimatePostingsPayload = (result) => {
+  const precomputed = normalizePostingsPayloadMetadata(result?.postingsPayload);
+  if (precomputed) return precomputed;
+  return {
+    rows: resolvePayloadRows(result),
+    bytes: resolvePayloadBytes(result)
+  };
+};
 
 export const createPostingsQueue = ({
   maxPending,
