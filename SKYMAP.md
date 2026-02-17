@@ -1236,11 +1236,11 @@ Keep runtime behavior stable and failure handling clear without adding heavy ope
   - [x] Override path requires explicit marker and is audit-visible.
 
 ### OP.5 Basic resource visibility
-- [ ] Add lightweight visibility for memory and index size growth.
-- [ ] Emit warnings for obviously abnormal growth.
-- [ ] `tests/ops/resources/basic-growth-warning.test.js`
-  - [ ] Resource growth warnings trigger on controlled abnormal fixtures.
-  - [ ] Normal fixture runs stay below warning thresholds.
+- [x] Add lightweight visibility for memory and index size growth.
+- [x] Emit warnings for obviously abnormal growth.
+- [x] `tests/ops/resources/basic-growth-warning.test.js`
+  - [x] Resource growth warnings trigger on controlled abnormal fixtures.
+  - [x] Normal fixture runs stay below warning thresholds.
 
 ---
 

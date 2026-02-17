@@ -205,3 +205,8 @@ This document maps user-visible behavior to implementation, configuration switch
   - Config: `--allow-blocker-override`, `--override-id`, `--override-marker`.
   - Tests: `tests/ops/release-gates/essential-blockers.test.js`.
   - Limitations: blocker scope is intentionally narrow and does not replace full CI lane coverage.
+- Claim: runtime emits lightweight warnings for abnormal retrieval memory growth and index artifact growth.
+  - Implementation: `src/shared/ops-resource-visibility.js`, `src/retrieval/cli/telemetry.js` (`emitResourceWarnings`), `src/retrieval/cli.js` (warning emission), `src/index/build/indexer/pipeline.js` (index growth warning).
+  - Config: threshold constants in `RESOURCE_GROWTH_THRESHOLDS`.
+  - Tests: `tests/ops/resources/basic-growth-warning.test.js`.
+  - Limitations: thresholds are coarse by design; they are warning signals, not hard build/search blockers.

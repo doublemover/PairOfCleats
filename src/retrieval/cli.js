@@ -1445,6 +1445,13 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     }
     throw err;
   } finally {
+    if (telemetry?.emitResourceWarnings) {
+      telemetry.emitResourceWarnings({
+        warn: (message) => {
+          if (emitOutput) console.warn(message);
+        }
+      });
+    }
     if (typeof queryPlanCache?.persist === 'function') {
       try {
         await queryPlanCache.persist();
