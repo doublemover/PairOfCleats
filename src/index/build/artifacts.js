@@ -395,7 +395,7 @@ export async function writeIndexArtifacts(input) {
     resolvedTokenMode,
     tokenMaxFiles,
     tokenSampleSize
-  } = resolveTokenMode({ indexingConfig, state, fileCounts });
+  } = resolveTokenMode({ indexingConfig, state, fileCounts, profileId });
   const {
     compressionEnabled,
     compressionMode,

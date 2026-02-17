@@ -1,6 +1,6 @@
 import { log } from '../../../shared/progress.js';
 
-export function resolveTokenMode({ indexingConfig = {}, state, fileCounts }) {
+export function resolveTokenMode({ indexingConfig = {}, state, fileCounts, profileId = null }) {
   const tokenModeRaw = typeof indexingConfig.chunkTokenMode === 'string'
     ? indexingConfig.chunkTokenMode.trim().toLowerCase()
     : 'auto';
@@ -19,10 +19,19 @@ export function resolveTokenMode({ indexingConfig = {}, state, fileCounts }) {
   const tokenSampleSize = Number.isFinite(tokenSampleRaw)
     ? Math.max(1, Math.floor(tokenSampleRaw))
     : 32;
+  const profileIdRaw = typeof profileId === 'string'
+    ? profileId.trim().toLowerCase()
+    : (typeof indexingConfig.profile === 'string'
+      ? indexingConfig.profile.trim().toLowerCase()
+      : '');
+  const vectorOnlyProfile = profileIdRaw === 'vector_only';
+  // Artifact token output must stay in lockstep with runtime retention policy:
+  // vector_only auto mode keeps full tokens for lexical post-filter correctness.
+  const forceFullTokenRetention = vectorOnlyProfile && tokenMode === 'auto';
   let resolvedTokenMode = tokenMode === 'auto'
-    ? ((fileCounts?.candidates ?? 0) <= tokenMaxFiles ? 'full' : 'sample')
+    ? ((forceFullTokenRetention || (fileCounts?.candidates ?? 0) <= tokenMaxFiles) ? 'full' : 'sample')
     : tokenMode;
-  if (resolvedTokenMode === 'full' && tokenMode === 'auto') {
+  if (resolvedTokenMode === 'full' && tokenMode === 'auto' && !forceFullTokenRetention) {
     let totalTokens = 0;
     for (const chunk of state.chunks) {
       const count = Number.isFinite(chunk?.tokenCount)

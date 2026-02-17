@@ -65,17 +65,20 @@ export const createTokenRetentionState = ({
   const tokenSampleSize = Number.isFinite(Number(indexingConfig.chunkTokenSampleSize))
     ? Math.max(1, Math.floor(Number(indexingConfig.chunkTokenSampleSize)))
     : 32;
+  const sparseEnabled = typeof sparsePostingsEnabled === 'boolean'
+    ? sparsePostingsEnabled
+    : runtime?.profile?.id !== INDEX_PROFILE_VECTOR_ONLY;
+  // Vector-only retrieval relies on exact chunk tokens for query-AST filtering.
+  // Auto sampling heuristics would introduce false negatives in large repos.
+  const forceFullTokenRetention = !sparseEnabled && tokenMode === 'auto';
   const resolvedTokenMode = tokenMode === 'auto'
-    ? (totalFiles <= tokenMaxFiles ? 'full' : 'sample')
+    ? (forceFullTokenRetention || totalFiles <= tokenMaxFiles ? 'full' : 'sample')
     : tokenMode;
   const tokenRetention = normalizeTokenRetention({
     mode: resolvedTokenMode,
     sampleSize: tokenSampleSize
   });
-  const sparseEnabled = typeof sparsePostingsEnabled === 'boolean'
-    ? sparsePostingsEnabled
-    : runtime?.profile?.id !== INDEX_PROFILE_VECTOR_ONLY;
-  const tokenRetentionAuto = tokenMode === 'auto';
+  const tokenRetentionAuto = tokenMode === 'auto' && !forceFullTokenRetention;
   let tokenTotal = 0;
 
   // Shared empty vector marker used to represent missing doc embeddings without
