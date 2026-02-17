@@ -256,6 +256,15 @@ Stable sort keys:
 6. `chunkUid` lexicographic
 7. `symbolId` lexicographic (if present)
 
+### 4.5 Track IQ retrieval bundle tie-break alignment
+
+Retrieval result bundles (outside full context-pack generation) follow a reduced deterministic contract:
+- group by `file` (fallback synthetic bundle for missing file)
+- order bundles by `totalScore`, then `topScore`, then `modeCount`, then `file`, then `bundleId`
+- order items inside each bundle by `score`, mode precedence, source index, then stable id key
+
+This alignment keeps bundle previews deterministic and compatible with context-pack ordering expectations.
+
 ---
 
 ## 5. Artifact plan

@@ -40,6 +40,35 @@ Filters are ANDed together unless explicitly documented otherwise.
 Search supports code, prose, records, and mixed modes. Mixed-mode results are
 fused using RRF by default; each mode can be weighted independently via config.
 
+## Track IQ: Bundle-style result assembly
+
+JSON output includes a deterministic `bundles` object:
+- `schemaVersion` (number, current `1`)
+- `groups` (array) where each group contains:
+  - `bundleId`
+  - `file` (nullable)
+  - `hitCount`
+  - `totalScore`
+  - `topScore`
+  - `modeCount`
+  - `modes` (stable mode ordering)
+  - `hits` (stable in-bundle ordering)
+
+Grouping + ordering contract:
+- Primary grouping key is `file`.
+- Hits without `file` are isolated into synthetic bundles.
+- Bundle ordering tie-breakers are deterministic:
+  1. `totalScore` descending
+  2. `topScore` descending
+  3. `modeCount` descending
+  4. `file` lexicographic
+  5. `bundleId` lexicographic
+- In-bundle hit ordering tie-breakers are deterministic:
+  1. `score` descending
+  2. mode precedence (`code`, `extractedProse`, `prose`, `records`)
+  3. source index ascending
+  4. stable text key (`id`)
+
 ## Explain schema
 
 `--explain` emits a stable `scoreBreakdown` object for each hit:
