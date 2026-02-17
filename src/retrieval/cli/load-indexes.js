@@ -309,8 +309,13 @@ export async function loadSearchIndexes({
     includeHnsw: annActive
   };
   /**
-   * Auto mode prefers split vectors by cohort, but legacy indexes may only expose merged vectors.
-   * Keep merged as a lazy-load fallback so ANN stays available during mixed-version rollouts.
+   * Resolve ordered dense-vector artifact candidates for a mode.
+   * Auto mode prefers split vectors by cohort, but legacy indexes may only
+   * expose merged vectors, so merged remains a fallback candidate during
+   * mixed-version rollouts.
+   *
+   * @param {string} mode
+   * @returns {string[]}
    */
   const resolveDenseArtifactCandidates = (mode) => {
     if (resolvedDenseVectorMode === 'code') return ['dense_vectors_code'];

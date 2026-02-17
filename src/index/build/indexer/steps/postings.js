@@ -22,6 +22,21 @@ const hasVectorEmbeddingBuildCapability = (runtime) => (
   runtime?.embeddingEnabled === true || runtime?.embeddingService === true
 );
 
+/**
+ * Build append helpers that apply token retention and early embedding
+ * quantization while optionally bypassing sparse postings writes.
+ *
+ * @param {{
+ *   runtime: object,
+ *   totalFiles: number,
+ *   sparsePostingsEnabled?: boolean|null,
+ *   log?: (message:string)=>void
+ * }} input
+ * @returns {{
+ *   tokenizationStats: { chunks:number, tokens:number, seq:number, ngrams:number, chargrams:number },
+ *   appendChunkWithRetention: (stateRef:object, chunk:object, mainState:object)=>void
+ * }}
+ */
 export const createTokenRetentionState = ({
   runtime,
   totalFiles,

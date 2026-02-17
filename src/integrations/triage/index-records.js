@@ -353,6 +353,20 @@ function buildDocMeta(record, triageConfig, recordMeta = null) {
   return docmeta;
 }
 
+/**
+ * Tokenize a records document and derive phrase/chargram side channels.
+ * When `sparsePostingsEnabled` is false (vector_only profile), sparse-derived
+ * structures are skipped while lexical tokens remain for query-AST matching.
+ *
+ * @param {string} text
+ * @param {Set<string>} dictWords
+ * @param {object} dictConfig
+ * @param {string} ext
+ * @param {object} postingsConfig
+ * @param {string} [chargramFieldText='']
+ * @param {{ sparsePostingsEnabled?: boolean }} [options]
+ * @returns {{ tokens:string[], seq:string[], ngrams:string[]|null, chargrams:string[]|null }}
+ */
 function tokenizeRecord(
   text,
   dictWords,

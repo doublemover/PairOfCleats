@@ -45,7 +45,29 @@ const tuneBM25Params = (chunks) => {
 
 /**
  * Build postings and vector artifacts for the index.
- * @param {object} input
+ *
+ * @param {{
+ *   chunks: object[],
+ *   df: Map<string, number>,
+ *   tokenPostings: Map<string, Array<[number, number]>>,
+ *   tokenIdMap?: Map<string, string>,
+ *   docLengths: number[],
+ *   fieldPostings?: object,
+ *   fieldDocLengths?: object,
+ *   phrasePost?: Map<string, number[]>,
+ *   phrasePostHashBuckets?: Map<string, number[]>|null,
+ *   triPost?: Map<string, number[]>,
+ *   postingsConfig?: object,
+ *   postingsGuard?: object|null,
+ *   buildRoot?: string|null,
+ *   modelId?: string,
+ *   useStubEmbeddings?: boolean,
+ *   log?: (message:string)=>void,
+ *   workerPool?: object,
+ *   quantizePool?: object,
+ *   embeddingsEnabled?: boolean,
+ *   buildStage?: string|null
+ * }} input
  * @returns {object}
  */
 export async function buildPostings(input) {

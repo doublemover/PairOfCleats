@@ -487,6 +487,8 @@ export const enforceTokenIdCollisionPolicy = (
  * Append a processed chunk into global index structures.
  * @param {object} state
  * @param {object} chunk
+ * @param {object} [postingsConfig=DEFAULT_POSTINGS_CONFIG]
+ * @param {object|null} [tokenRetention=null]
  */
 export function appendChunk(
   state,
