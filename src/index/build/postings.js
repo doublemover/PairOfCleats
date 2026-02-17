@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { quantizeVec } from '../embedding.js';
@@ -60,6 +61,7 @@ const tuneBM25Params = (chunks) => {
  *   postingsConfig?: object,
  *   postingsGuard?: object|null,
  *   buildRoot?: string|null,
+ *   plannerCacheDir?: string|null,
  *   modelId?: string,
  *   useStubEmbeddings?: boolean,
  *   log?: (message:string)=>void,
@@ -85,6 +87,7 @@ export async function buildPostings(input) {
     postingsConfig,
     postingsGuard = null,
     buildRoot = null,
+    plannerCacheDir = null,
     modelId,
     useStubEmbeddings,
     log,
@@ -228,6 +231,22 @@ export async function buildPostings(input) {
     chargram: null
   };
   const compareChargramRows = (a, b) => sortStrings(a?.token, b?.token);
+  const buildPlannerInputKey = async (label, runs) => {
+    if (!runs || !runs.length) return null;
+    const hash = crypto.createHash('sha1');
+    hash.update(label);
+    hash.update('\n');
+    for (const run of runs) {
+      const runPath = typeof run === 'string' ? run : run?.path;
+      if (!runPath) continue;
+      const stat = await fs.stat(runPath).catch(() => null);
+      hash.update(path.basename(runPath));
+      hash.update(':');
+      hash.update(String(Number.isFinite(stat?.size) ? stat.size : -1));
+      hash.update('\n');
+    }
+    return hash.digest('hex');
+  };
   const mergeSpillRuns = async ({ runs, compare, label }) => {
     if (!runs || !runs.length) return { iterator: null, cleanup: null };
     if (!buildRoot || runs.length <= DEFAULT_MAX_OPEN_RUNS) {
@@ -241,6 +260,10 @@ export async function buildPostings(input) {
     const mergeDir = path.join(buildRoot, `${label}.merge`);
     const mergedPath = path.join(mergeDir, `${label}.merged.jsonl`);
     const checkpointPath = path.join(mergeDir, `${label}.checkpoint.json`);
+    const plannerHintsPath = plannerCacheDir
+      ? path.join(plannerCacheDir, 'spill-merge-planner', `${label}.planner-hints.json`)
+      : null;
+    const plannerInputKey = await buildPlannerInputKey(label, runs);
     const { cleanup, stats } = await mergeRunsWithPlanner({
       runs,
       outputPath: mergedPath,
@@ -249,7 +272,9 @@ export async function buildPostings(input) {
       runPrefix: label,
       checkpointPath,
       maxOpenRuns: DEFAULT_MAX_OPEN_RUNS,
-      validateComparator: true
+      validateComparator: true,
+      plannerHintsPath,
+      plannerInputKey
     });
     const cleanupAll = async () => {
       if (cleanup) await cleanup();
@@ -261,7 +286,8 @@ export async function buildPostings(input) {
       iterator: readJsonlRows(mergedPath),
       cleanup: cleanupAll,
       stats: stats || null,
-      plannerUsed: true
+      plannerUsed: true,
+      plannerHintUsed: stats?.plannerHintUsed === true
     };
   };
   const shouldSpillByBytes = (map, maxBytes) => {
@@ -599,6 +625,7 @@ export async function buildPostings(input) {
             rows: 0,
             bytes: mergeResult?.stats?.bytes ?? null,
             planner: mergeResult?.plannerUsed || false,
+            plannerHintUsed: mergeResult?.plannerHintUsed === true,
             passes: mergeResult?.stats?.passes ?? null,
             runsMerged: mergeResult?.stats?.runsMerged ?? null,
             elapsedMs: mergeResult?.stats?.elapsedMs ?? null
@@ -720,6 +747,7 @@ export async function buildPostings(input) {
             rows: 0,
             bytes: mergeResult?.stats?.bytes ?? null,
             planner: mergeResult?.plannerUsed || false,
+            plannerHintUsed: mergeResult?.plannerHintUsed === true,
             passes: mergeResult?.stats?.passes ?? null,
             runsMerged: mergeResult?.stats?.runsMerged ?? null,
             elapsedMs: mergeResult?.stats?.elapsedMs ?? null

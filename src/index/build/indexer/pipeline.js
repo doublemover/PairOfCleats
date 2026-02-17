@@ -612,9 +612,9 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     ? runtimeRef.scheduler.schedule(
       SCHEDULER_QUEUE_NAMES.stage1Postings,
       { cpu: 1 },
-      () => buildIndexPostings({ runtime: runtimeRef, state })
+      () => buildIndexPostings({ runtime: runtimeRef, state, incrementalState })
     )
-    : buildIndexPostings({ runtime: runtimeRef, state }));
+    : buildIndexPostings({ runtime: runtimeRef, state, incrementalState }));
   stageCheckpoints.record({
     stage: 'stage1',
     step: 'postings',

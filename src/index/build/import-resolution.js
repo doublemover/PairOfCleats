@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { readJsoncFile } from '../../shared/jsonc.js';
@@ -25,6 +26,7 @@ const MAX_IMPORT_WARNINGS = 200;
 const MAX_GRAPH_EDGES = 200000;
 const MAX_GRAPH_NODES = 100000;
 const NEGATIVE_CACHE_TTL_MS = 60000;
+const IMPORT_LOOKUP_CACHE_SCHEMA_VERSION = 1;
 
 const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
 
@@ -91,35 +93,217 @@ const trieHasPrefix = (trie, relPath) => {
   return true;
 };
 
+const serializePathTrie = (node) => {
+  if (!node || !(node.children instanceof Map)) return {};
+  const out = {};
+  const keys = Array.from(node.children.keys()).sort(sortStrings);
+  for (const key of keys) {
+    out[key] = serializePathTrie(node.children.get(key));
+  }
+  return out;
+};
+
+const deserializePathTrie = (raw) => {
+  const node = { children: new Map() };
+  if (!raw || typeof raw !== 'object') return node;
+  for (const key of Object.keys(raw).sort(sortStrings)) {
+    node.children.set(key, deserializePathTrie(raw[key]));
+  }
+  return node;
+};
+
+const buildLookupCompatibilityFingerprint = ({ rootAbs, fileSetFingerprint }) => {
+  if (!rootAbs || !fileSetFingerprint) return null;
+  return sha1(JSON.stringify({
+    schemaVersion: IMPORT_LOOKUP_CACHE_SCHEMA_VERSION,
+    rootHash: sha1(rootAbs),
+    fileSetFingerprint
+  }));
+};
+
+const createLookupSnapshot = ({ lookup, fileSetFingerprint, compatibilityFingerprint }) => {
+  if (!lookup || !fileSetFingerprint || !compatibilityFingerprint) return null;
+  const fileSet = Array.from(lookup.fileSet || []);
+  fileSet.sort(sortStrings);
+  const fileLower = {};
+  for (const [key, value] of Array.from(lookup.fileLower?.entries?.() || [])) {
+    fileLower[key] = value;
+  }
+  return {
+    compatibilityFingerprint,
+    rootHash: sha1(lookup.rootAbs),
+    fileSetFingerprint,
+    hasTsconfig: lookup.hasTsconfig === true,
+    fileSet,
+    fileLower,
+    pathTrie: serializePathTrie(lookup.pathTrie)
+  };
+};
+
+const createLookupFromSnapshot = ({ root, snapshot }) => {
+  if (!root || !snapshot || typeof snapshot !== 'object') return null;
+  const rootAbs = path.resolve(root);
+  const files = Array.isArray(snapshot.fileSet) ? snapshot.fileSet : [];
+  if (!files.length) return null;
+  const fileSet = new Set(files.map((entry) => normalizeRelPath(entry)).filter(Boolean));
+  const fileLower = new Map();
+  for (const [lower, relPath] of Object.entries(snapshot.fileLower || {})) {
+    if (typeof lower !== 'string' || typeof relPath !== 'string') continue;
+    fileLower.set(lower, normalizeRelPath(relPath));
+  }
+  if (fileLower.size === 0) {
+    for (const relPath of fileSet.values()) {
+      const lower = relPath.toLowerCase();
+      if (!fileLower.has(lower) || sortStrings(relPath, fileLower.get(lower)) < 0) {
+        fileLower.set(lower, relPath);
+      }
+    }
+  }
+  const pathTrie = deserializePathTrie(snapshot.pathTrie);
+  return {
+    rootAbs,
+    fileSet,
+    fileLower,
+    hasTsconfig: snapshot.hasTsconfig === true,
+    pathTrie
+  };
+};
+
 const resolveWithinRoot = (rootAbs, absPath) => {
   const rel = path.relative(rootAbs, absPath);
   if (!rel || rel.startsWith('..') || isAbsolutePathNative(rel)) return null;
   return normalizeRelPath(toPosix(rel));
 };
 
-const createFsMemo = () => {
+const normalizeMetaPath = (targetPath) => path.resolve(String(targetPath || ''));
+
+const createFsMemo = (preloaded = null) => {
   const existsCache = new Map();
   const statCache = new Map();
+  const existsByPath = preloaded && typeof preloaded === 'object' && preloaded.existsByPath
+    ? preloaded.existsByPath
+    : null;
+  const statByPath = preloaded && typeof preloaded === 'object' && preloaded.statByPath
+    ? preloaded.statByPath
+    : null;
+  const hasOwn = Object.prototype.hasOwnProperty;
   return {
     existsSync: (targetPath) => {
-      if (existsCache.has(targetPath)) return existsCache.get(targetPath);
+      const key = normalizeMetaPath(targetPath);
+      if (existsCache.has(key)) return existsCache.get(key);
+      if (existsByPath && hasOwn.call(existsByPath, key)) {
+        const exists = existsByPath[key] === true;
+        existsCache.set(key, exists);
+        return exists;
+      }
       let exists = false;
       try {
-        exists = fs.existsSync(targetPath);
+        exists = fs.existsSync(key);
       } catch {}
-      existsCache.set(targetPath, exists);
+      existsCache.set(key, exists);
       return exists;
     },
     statSync: (targetPath) => {
-      if (statCache.has(targetPath)) return statCache.get(targetPath);
+      const key = normalizeMetaPath(targetPath);
+      if (statCache.has(key)) return statCache.get(key);
+      if (statByPath && hasOwn.call(statByPath, key)) {
+        const stat = statByPath[key] || null;
+        statCache.set(key, stat);
+        return stat;
+      }
       let stat = null;
       try {
-        stat = fs.statSync(targetPath);
+        stat = fs.statSync(key);
       } catch {}
-      statCache.set(targetPath, stat);
+      statCache.set(key, stat);
       return stat;
     }
   };
+};
+
+/**
+ * Preload fs existence/stat metadata for import resolution to avoid repeating
+ * synchronous fs checks for tsconfig/package lookups on large warm builds.
+ *
+ * @param {{root:string,entries?:Array<object|string>,importsByFile?:Map<string,string[]>|object}} input
+ * @returns {Promise<{existsByPath:Record<string,boolean>,statByPath:Record<string,object|null>,candidateCount:number}|null>}
+ */
+export const prepareImportResolutionFsMeta = async ({
+  root,
+  entries,
+  importsByFile
+} = {}) => {
+  if (!root) return null;
+  const rootAbs = path.resolve(root);
+  const candidatePaths = new Set([path.join(rootAbs, 'package.json'), path.join(rootAbs, 'tsconfig.json')]);
+
+  const addDirAncestors = (startDir) => {
+    let dir = path.resolve(startDir);
+    for (;;) {
+      const rel = path.relative(rootAbs, dir);
+      if (rel && (rel.startsWith('..') || isAbsolutePathNative(rel))) break;
+      candidatePaths.add(path.join(dir, 'tsconfig.json'));
+      const parent = path.dirname(dir);
+      if (parent === dir) break;
+      dir = parent;
+    }
+  };
+
+  if (importsByFile && typeof importsByFile === 'object') {
+    const importerFiles = importsByFile instanceof Map
+      ? Array.from(importsByFile.keys())
+      : Object.keys(importsByFile);
+    for (const importer of importerFiles) {
+      if (typeof importer !== 'string' || !importer) continue;
+      addDirAncestors(path.dirname(path.resolve(rootAbs, importer)));
+    }
+  } else if (Array.isArray(entries)) {
+    for (const entry of entries) {
+      const abs = typeof entry === 'string' ? entry : entry?.abs;
+      if (!abs) continue;
+      addDirAncestors(path.dirname(path.resolve(abs)));
+    }
+  }
+
+  const existsByPath = Object.create(null);
+  const statByPath = Object.create(null);
+  await Promise.all(Array.from(candidatePaths, async (candidate) => {
+    const key = normalizeMetaPath(candidate);
+    try {
+      const stat = await fsPromises.stat(key);
+      existsByPath[key] = true;
+      statByPath[key] = {
+        mtimeMs: Number.isFinite(stat?.mtimeMs) ? stat.mtimeMs : null,
+        size: Number.isFinite(stat?.size) ? stat.size : null,
+        isFile: typeof stat?.isFile === 'function' ? stat.isFile() : true
+      };
+    } catch {
+      existsByPath[key] = false;
+      statByPath[key] = null;
+    }
+  }));
+
+  return {
+    existsByPath,
+    statByPath,
+    candidateCount: candidatePaths.size
+  };
+};
+
+const collectEntryFileSet = ({ entries, root }) => {
+  const rootAbs = path.resolve(root);
+  const fileSet = new Set();
+  for (const entry of entries || []) {
+    const abs = typeof entry === 'string' ? entry : entry?.abs;
+    if (!abs) continue;
+    const rel = typeof entry === 'object' && entry.rel
+      ? entry.rel
+      : path.relative(rootAbs, abs);
+    const relPosix = normalizeRelPath(toPosix(rel));
+    if (!relPosix) continue;
+    fileSet.add(relPosix);
+  }
+  return { rootAbs, fileSet };
 };
 
 const createFileLookup = ({ entries, root, fsMemo = null }) => {
@@ -467,11 +651,10 @@ export function resolveImportLinks({
   graphMeta = null,
   cache = null,
   fileHashes = null,
-  cacheStats = null
+  cacheStats = null,
+  fsMeta = null
 }) {
-  const fsMemo = createFsMemo();
-  const lookup = createFileLookup({ entries, root, fsMemo });
-  const tsConfigResolver = createTsConfigLoader({ rootAbs: lookup.rootAbs, fileSet: lookup.fileSet, fsMemo });
+  const fsMemo = createFsMemo(fsMeta);
   const cacheState = cache && typeof cache === 'object' ? cache : null;
   const cacheMetrics = cacheState
     ? (cacheStats || {
@@ -483,24 +666,57 @@ export function resolveImportLinks({
       specsReused: 0,
       specsComputed: 0,
       packageInvalidated: false,
-      fileSetInvalidated: false
+      fileSetInvalidated: false,
+      lookupReused: false,
+      lookupInvalidated: false,
+      fsMetaPrefetchedPaths: Number(fsMeta?.candidateCount || 0)
     })
     : null;
   if (cacheState && (!cacheState.files || typeof cacheState.files !== 'object')) {
     cacheState.files = {};
   }
-  const fileSetFingerprint = cacheState ? computeFileSetFingerprint(lookup.fileSet) : null;
+  const { rootAbs, fileSet } = collectEntryFileSet({ entries, root });
+  const fileSetFingerprint = cacheState ? computeFileSetFingerprint(fileSet) : null;
+  const lookupCompatibilityFingerprint = cacheState
+    ? buildLookupCompatibilityFingerprint({ rootAbs, fileSetFingerprint })
+    : null;
+  const cachedLookup = cacheState?.lookup && typeof cacheState.lookup === 'object'
+    ? cacheState.lookup
+    : null;
+  const canReuseLookup = !!(
+    cacheState
+    && cachedLookup
+    && lookupCompatibilityFingerprint
+    && cachedLookup.compatibilityFingerprint === lookupCompatibilityFingerprint
+    && cachedLookup.fileSetFingerprint === fileSetFingerprint
+    && cachedLookup.rootHash === sha1(rootAbs)
+  );
+  const lookup = canReuseLookup
+    ? createLookupFromSnapshot({ root, snapshot: cachedLookup })
+    : null;
+  const resolvedLookup = lookup || createFileLookup({ entries, root, fsMemo });
+  const tsConfigResolver = createTsConfigLoader({
+    rootAbs: resolvedLookup.rootAbs,
+    fileSet: resolvedLookup.fileSet,
+    fsMemo
+  });
+  if (cacheMetrics && canReuseLookup && lookup) {
+    cacheMetrics.lookupReused = true;
+  }
+  if (cacheMetrics && cachedLookup && !canReuseLookup) {
+    cacheMetrics.lookupInvalidated = true;
+  }
   const fileSetChanged = !!(cacheState
     && fileSetFingerprint
     && cacheState.fileSetFingerprint !== fileSetFingerprint);
-  const packageFingerprint = cacheState ? resolvePackageFingerprint(lookup.rootAbs, fsMemo) : null;
-  const repoHash = cacheState ? sha1(lookup.rootAbs) : null;
+  const packageFingerprint = cacheState ? resolvePackageFingerprint(resolvedLookup.rootAbs, fsMemo) : null;
+  const repoHash = cacheState ? sha1(resolvedLookup.rootAbs) : null;
   const cacheKeyInfo = cacheState && fileSetFingerprint
     ? buildCacheKey({
       repoHash,
       buildConfigHash: packageFingerprint || null,
       mode,
-      schemaVersion: 'import-resolution-cache-v2',
+      schemaVersion: 'import-resolution-cache-v3',
       featureFlags: graphMeta?.importScanMode ? [`scan:${graphMeta.importScanMode}`] : null,
       pathPolicy: 'posix',
       extra: { fileSetFingerprint }
@@ -515,6 +731,7 @@ export function resolveImportLinks({
       log('[imports] cache invalidated: package.json fingerprint changed');
     }
     cacheState.files = {};
+    cacheState.lookup = null;
   }
   if (cacheState && fileSetChanged) {
     if (cacheMetrics) cacheMetrics.fileSetInvalidated = true;
@@ -522,12 +739,14 @@ export function resolveImportLinks({
       log('[imports] cache invalidated: file set changed');
     }
     cacheState.files = {};
+    cacheState.lookup = null;
   }
   if (cacheState && cacheKeyChanged) {
     if (typeof log === 'function') {
       log('[imports] cache invalidated: cache key changed');
     }
     cacheState.files = {};
+    cacheState.lookup = null;
   }
   if (cacheState && packageFingerprint) {
     cacheState.packageFingerprint = packageFingerprint;
@@ -537,6 +756,13 @@ export function resolveImportLinks({
   }
   if (cacheState && cacheKey) {
     cacheState.cacheKey = cacheKey;
+  }
+  if (cacheState && fileSetFingerprint && lookupCompatibilityFingerprint) {
+    cacheState.lookup = createLookupSnapshot({
+      lookup: resolvedLookup,
+      fileSetFingerprint,
+      compatibilityFingerprint: lookupCompatibilityFingerprint
+    });
   }
   const resolveFileHash = (relPath) => {
     if (!fileHashes || !relPath) return null;
@@ -562,7 +788,7 @@ export function resolveImportLinks({
       repoHash,
       buildConfigHash: tsKey,
       mode,
-      schemaVersion: 'import-resolution-cache-v2',
+      schemaVersion: 'import-resolution-cache-v3',
       featureFlags: null,
       pathPolicy: 'posix',
       extra: {
@@ -594,7 +820,7 @@ export function resolveImportLinks({
     const importLinks = new Set();
     const externalImports = new Set();
     const relNormalized = normalizeRelPath(importerRel);
-    const importerAbs = path.resolve(lookup.rootAbs, relNormalized);
+    const importerAbs = path.resolve(resolvedLookup.rootAbs, relNormalized);
     let tsconfig = null;
     let tsconfigResolved = false;
 
@@ -647,7 +873,7 @@ export function resolveImportLinks({
       if (cachedSpec && fileSetChanged) {
         cachedSpec = null;
       }
-      if (cachedSpec && cachedSpec.resolvedPath && !lookup.fileSet.has(cachedSpec.resolvedPath)) {
+      if (cachedSpec && cachedSpec.resolvedPath && !resolvedLookup.fileSet.has(cachedSpec.resolvedPath)) {
         cachedSpec = null;
       }
       if (cachedSpec) {
@@ -678,7 +904,7 @@ export function resolveImportLinks({
           const base = spec.startsWith('/')
             ? normalizeRelPath(spec.slice(1))
             : normalizeRelPath(path.posix.join(path.posix.dirname(relNormalized), spec));
-          const candidate = resolveCandidate(base, lookup);
+          const candidate = resolveCandidate(base, resolvedLookup);
           if (candidate) {
             resolvedType = 'relative';
             resolvedPath = candidate;
@@ -686,7 +912,7 @@ export function resolveImportLinks({
             resolvedType = 'unresolved';
           }
         } else {
-          const tsResolved = resolveTsPaths({ spec, tsconfig, lookup });
+          const tsResolved = resolveTsPaths({ spec, tsconfig, lookup: resolvedLookup });
           if (tsResolved) {
             resolvedType = 'ts-path';
             resolvedPath = tsResolved.resolved;
@@ -751,7 +977,7 @@ export function resolveImportLinks({
       if (enableGraph) {
         if (edges.length < MAX_GRAPH_EDGES) {
           const tsconfigRel = tsconfigPath
-            ? resolveWithinRoot(lookup.rootAbs, tsconfigPath)
+            ? resolveWithinRoot(resolvedLookup.rootAbs, tsconfigPath)
             : null;
           const edge = {
             from: `file:${relNormalized}`,

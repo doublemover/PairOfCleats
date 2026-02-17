@@ -3,7 +3,7 @@ import { throwIfAborted } from '../../../../shared/abort.js';
 import { applyCrossFileInference } from '../../../type-inference-crossfile.js';
 import { buildRiskSummaries } from '../../../risk-interprocedural/summaries.js';
 import { scanImports } from '../../imports.js';
-import { resolveImportLinks } from '../../import-resolution.js';
+import { prepareImportResolutionFsMeta, resolveImportLinks } from '../../import-resolution.js';
 import { loadImportResolutionCache, saveImportResolutionCache } from '../../import-resolution-cache.js';
 
 const MAX_UNRESOLVED_IMPORT_LOG_LINES = 50;
@@ -134,6 +134,11 @@ export const postScanImports = async ({
   let cachePath = null;
   let fileHashes = null;
   let cacheStats = null;
+  const fsMeta = await prepareImportResolutionFsMeta({
+    root: runtime.root,
+    entries,
+    importsByFile
+  });
   if (cacheEnabled) {
     ({ cache, cachePath } = await loadImportResolutionCache({ incrementalState, log }));
     fileHashes = new Map();
@@ -165,7 +170,8 @@ export const postScanImports = async ({
     },
     cache,
     fileHashes,
-    cacheStats
+    cacheStats,
+    fsMeta
   });
   if (resolution?.graph) {
     state.importResolutionGraph = resolution.graph;
