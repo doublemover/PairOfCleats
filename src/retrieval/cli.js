@@ -124,20 +124,32 @@ const collectMissingSparseTables = ({ sqliteHelpers, mode, postingsConfig, requi
 
 /**
  * Resolve sparse preflight tables for a mode based on active sqlite routing.
- * Modes routed to sqlite-fts only require FTS tables; BM25 tables are checked
- * only when the mode is routed to sparse/BM25 retrieval.
+ * Modes routed to sqlite-fts primarily require FTS tables, but filtered sparse
+ * runs with ANN fallback enabled may still require BM25 tables when pushdown is
+ * not possible at runtime.
  *
  * @param {{
  *   mode: string,
  *   postingsConfig?: object,
- *   sqliteFtsRoutingByMode?: { byMode?: Record<string, { desired?: string }> }|null
+ *   sqliteFtsRoutingByMode?: { byMode?: Record<string, { desired?: string }> }|null,
+ *   allowSparseFallback?: boolean,
+ *   filtersActive?: boolean
  * }} input
  * @returns {string[]}
  */
-const resolveSparsePreflightTables = ({ mode, postingsConfig, sqliteFtsRoutingByMode }) => {
+const resolveSparsePreflightTables = ({
+  mode,
+  postingsConfig,
+  sqliteFtsRoutingByMode,
+  allowSparseFallback = false,
+  filtersActive = false
+}) => {
   const desiredRoute = sqliteFtsRoutingByMode?.byMode?.[mode]?.desired || null;
   if (desiredRoute === 'fts') {
-    return ['chunks', 'chunks_fts'];
+    const ftsTables = ['chunks', 'chunks_fts'];
+    const includeBm25FallbackTables = allowSparseFallback === true && filtersActive === true;
+    if (!includeBm25FallbackTables) return ftsTables;
+    return Array.from(new Set([...ftsTables, ...resolveSparseRequiredTables(postingsConfig)]));
   }
   return resolveSparseRequiredTables(postingsConfig);
 };
@@ -824,85 +836,6 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     if (backendForcedLmdb && !useLmdb) {
       return bail('LMDB backend requested but unavailable.', 1, ERROR_CODES.INVALID_REQUEST);
     }
-    if (!annEnabledEffective && useSqlite) {
-      const sqliteFtsRouting = resolveSqliteFtsRoutingByMode({
-        useSqlite,
-        sqliteFtsRequested: sqliteFtsEnabled,
-        sqliteFtsExplicit: backendLabel === 'sqlite-fts',
-        runCode,
-        runProse,
-        runExtractedProse: runExtractedProseRaw,
-        runRecords
-      });
-      const sparseMissingByMode = {};
-      const sparsePreflightModes = resolveSparsePreflightModes({
-        selectedModes,
-        requiresExtractedProse,
-        loadExtractedProseSqlite
-      });
-      for (const mode of sparsePreflightModes) {
-        const policy = profilePolicyByMode[mode];
-        if (policy?.vectorOnly) continue;
-        const requiredTables = resolveSparsePreflightTables({
-          mode,
-          postingsConfig,
-          sqliteFtsRoutingByMode: sqliteFtsRouting
-        });
-        const missing = collectMissingSparseTables({
-          sqliteHelpers,
-          mode,
-          postingsConfig,
-          requiredTables
-        });
-        if (missing.length) sparseMissingByMode[mode] = missing;
-      }
-      if (Object.keys(sparseMissingByMode).length) {
-        if (allowSparseFallback === true) {
-          sparseFallbackForcedByPreflight = true;
-          annEnabledEffective = true;
-          const details = Object.entries(sparseMissingByMode)
-            .map(([mode, missing]) => `${mode}: ${missing.join(', ')}`)
-            .join('; ');
-          const warning = (
-            `Sparse tables missing for sparse-only request (${details}). ` +
-            'Enabling ANN fallback because --allow-sparse-fallback was set.'
-          );
-          addProfileWarning(warning);
-          if (emitOutput) {
-            console.warn(`[search] ${warning}`);
-          }
-        } else {
-          const details = Object.entries(sparseMissingByMode)
-            .map(([mode, missing]) => `- ${mode}: ${missing.join(', ')}`)
-            .join('\n');
-          return bail(
-            `[search] ${RETRIEVAL_SPARSE_UNAVAILABLE_CODE}: sparse-only retrieval requires sparse tables, but required tables are missing.\n${details}\n` +
-              'Rebuild sparse artifacts or enable ANN fallback.',
-            1,
-            ERROR_CODES.CAPABILITY_MISSING
-          );
-        }
-      }
-    }
-    if (sparseFallbackForcedByPreflight) {
-      syncAnnFlags();
-      backendContext = await createBackendContextWithTracking('startup.backend.reinit');
-      ({
-        useSqlite,
-        useLmdb,
-        backendLabel,
-        backendPolicyInfo,
-        vectorAnnState,
-        vectorAnnUsed,
-        sqliteHelpers,
-        lmdbHelpers
-      } = backendContext);
-      telemetry.setBackend(backendLabel);
-      if (backendForcedLmdb && !useLmdb) {
-        return bail('LMDB backend requested but unavailable.', 1, ERROR_CODES.INVALID_REQUEST);
-      }
-    }
-
     const branchResult = await applyBranchFilter({
       branchFilter,
       caseSensitive: caseFile,
@@ -1072,6 +1005,87 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       );
     }
     stageTracker.record('startup.query-plan', planStart, { mode: 'all' });
+
+    if (!annEnabledEffective && useSqlite) {
+      const sqliteFtsRouting = resolveSqliteFtsRoutingByMode({
+        useSqlite,
+        sqliteFtsRequested: sqliteFtsEnabled,
+        sqliteFtsExplicit: backendLabel === 'sqlite-fts',
+        runCode,
+        runProse,
+        runExtractedProse: runExtractedProseRaw,
+        runRecords
+      });
+      const sparseMissingByMode = {};
+      const sparsePreflightModes = resolveSparsePreflightModes({
+        selectedModes,
+        requiresExtractedProse,
+        loadExtractedProseSqlite
+      });
+      for (const mode of sparsePreflightModes) {
+        const policy = profilePolicyByMode[mode];
+        if (policy?.vectorOnly) continue;
+        const requiredTables = resolveSparsePreflightTables({
+          mode,
+          postingsConfig,
+          sqliteFtsRoutingByMode: sqliteFtsRouting,
+          allowSparseFallback,
+          filtersActive: queryPlan.filtersActive === true
+        });
+        const missing = collectMissingSparseTables({
+          sqliteHelpers,
+          mode,
+          postingsConfig,
+          requiredTables
+        });
+        if (missing.length) sparseMissingByMode[mode] = missing;
+      }
+      if (Object.keys(sparseMissingByMode).length) {
+        if (allowSparseFallback === true) {
+          sparseFallbackForcedByPreflight = true;
+          annEnabledEffective = true;
+          const details = Object.entries(sparseMissingByMode)
+            .map(([mode, missing]) => `${mode}: ${missing.join(', ')}`)
+            .join('; ');
+          const warning = (
+            `Sparse tables missing for sparse-only request (${details}). ` +
+            'Enabling ANN fallback because --allow-sparse-fallback was set.'
+          );
+          addProfileWarning(warning);
+          if (emitOutput) {
+            console.warn(`[search] ${warning}`);
+          }
+        } else {
+          const details = Object.entries(sparseMissingByMode)
+            .map(([mode, missing]) => `- ${mode}: ${missing.join(', ')}`)
+            .join('\n');
+          return bail(
+            `[search] ${RETRIEVAL_SPARSE_UNAVAILABLE_CODE}: sparse-only retrieval requires sparse tables, but required tables are missing.\n${details}\n` +
+              'Rebuild sparse artifacts or enable ANN fallback.',
+            1,
+            ERROR_CODES.CAPABILITY_MISSING
+          );
+        }
+      }
+    }
+    if (sparseFallbackForcedByPreflight) {
+      syncAnnFlags();
+      backendContext = await createBackendContextWithTracking('startup.backend.reinit');
+      ({
+        useSqlite,
+        useLmdb,
+        backendLabel,
+        backendPolicyInfo,
+        vectorAnnState,
+        vectorAnnUsed,
+        sqliteHelpers,
+        lmdbHelpers
+      } = backendContext);
+      telemetry.setBackend(backendLabel);
+      if (backendForcedLmdb && !useLmdb) {
+        return bail('LMDB backend requested but unavailable.', 1, ERROR_CODES.INVALID_REQUEST);
+      }
+    }
 
     const annActive = resolveAnnActive({
       annEnabled: annEnabledEffective,
