@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-17T07:28:10.481Z",
+  "generatedAt": "2026-02-17T17:10:51.953Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -125,6 +125,7 @@
       "indexing.artifacts.tokenPostingsFormat",
       "indexing.artifacts.tokenPostingsShardSize",
       "indexing.artifacts.tokenPostingsShardThreshold",
+      "indexing.artifacts.writeConcurrency",
       "indexing.concurrency",
       "indexing.diffs.compute.detectRenames",
       "indexing.diffs.compute.includeRelations",
@@ -356,8 +357,8 @@
   },
   "configSchema": {
     "path": "docs/config/schema.json",
-    "totalKeys": 294,
-    "leafKeys": 236,
+    "totalKeys": 295,
+    "leafKeys": 237,
     "topLevel": [
       {
         "key": "cache",
@@ -365,7 +366,7 @@
       },
       {
         "key": "indexing",
-        "count": 154
+        "count": 155
       },
       {
         "key": "mcp",
@@ -466,6 +467,11 @@
     {
       "path": "indexing.artifacts.tokenPostingsShardThreshold",
       "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.artifacts.writeConcurrency",
+      "type": "integer",
       "enum": null
     },
     {
@@ -2592,6 +2598,7 @@
       "name": "PAIROFCLEATS_TEST_CONFIG",
       "files": [
         "src/shared/env.js",
+        "src/shared/ops-failure-injection.js",
         "tests/cli/build-index/build-index-all.test.js",
         "tests/helpers/fixture-index.js",
         "tests/helpers/test-env-clear.test.js",
@@ -2610,6 +2617,7 @@
         "tests/indexing/postings/vector-only-missing-embeddings-is-error.test.js",
         "tests/indexing/postings/vector-only-service-embeddings-pending-artifacts.test.js",
         "tests/indexing/shards/shard-merge.test.js",
+        "tests/ops/failure-injection/retrieval-hotpath.test.js",
         "tests/retrieval/cache/query-cache.test.js",
         "tests/retrieval/filters/types.test.js",
         "tests/services/api-search-asof.test.js",
@@ -2784,6 +2792,7 @@
       "name": "PAIROFCLEATS_TESTING",
       "files": [
         "src/shared/env.js",
+        "src/shared/ops-failure-injection.js",
         "tests/cli/build-index/build-index-all.test.js",
         "tests/cli/general/risk-explain.test.js",
         "tests/cli/search/search-startup-checkpoints-order.test.js",
@@ -2833,6 +2842,8 @@
         "tests/indexing/runtime/two-stage-state.test.js",
         "tests/indexing/shards/shard-merge.test.js",
         "tests/indexing/validate/index-validate-chunk-meta-large-manifest-budget.test.js",
+        "tests/ops/failure-injection/retrieval-hotpath.test.js",
+        "tests/ops/release-gates/essential-blockers.test.js",
         "tests/perf/baseline-artifacts.test.js",
         "tests/perf/bench/run.test.js",
         "tests/perf/sqlite-p95-latency.test.js",
@@ -2845,6 +2856,7 @@
         "tests/retrieval/backend/mixed-profile-cohort-opt-in.test.js",
         "tests/retrieval/backend/profile-mix-ignores-inactive-extracted-prose.test.js",
         "tests/retrieval/backend/profile-mix-ignores-missing-optional-state.test.js",
+        "tests/retrieval/backend/profile-mix-ignores-optional-extracted-comments.test.js",
         "tests/retrieval/backend/retrieval-strict-manifest-embeddings.test.js",
         "tests/retrieval/backend/vector-only-compatibility-key-mismatch.test.js",
         "tests/retrieval/cache/query-cache-signature-sharded-chunk-meta.test.js",
@@ -2938,7 +2950,8 @@
         "tools/bench/index/scheduler-store-format.js",
         "tools/ci/run-suite.js",
         "tools/config/contract-doc.js",
-        "tools/config/inventory.js"
+        "tools/config/inventory.js",
+        "tools/release/check.js"
       ]
     },
     {
