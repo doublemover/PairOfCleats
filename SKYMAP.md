@@ -1208,11 +1208,11 @@ Keep runtime behavior stable and failure handling clear without adding heavy ope
 - `.github/workflows/ci.yml`
 
 ### OP.1 Health checks and clear logs
-- [ ] Add practical health checks for core indexing and retrieval paths.
-- [ ] Ensure logs clearly identify failure type and likely next action.
-- [ ] `tests/ops/health-check-contract.test.js`
-  - [ ] Health checks surface pass/fail state with stable machine-readable codes.
-  - [ ] Log output contains actionable reason and component context.
+- [x] Add practical health checks for core indexing and retrieval paths.
+- [x] Ensure logs clearly identify failure type and likely next action.
+- [x] `tests/ops/health-check-contract.test.js`
+  - [x] Health checks surface pass/fail state with stable machine-readable codes.
+  - [x] Log output contains actionable reason and component context.
 
 ### OP.2 Failure injection harness
 - [ ] Add deterministic failure injection for indexing and retrieval hot paths.

@@ -183,3 +183,10 @@ This document maps user-visible behavior to implementation, configuration switch
   - Config: `PAIROFCLEATS_*` env for config hash inputs.
   - Tests: `tests/indexing/discovery/discover.test.js`, `tests/cli/general/repo-root.test.js`, `tests/tooling/install/tool-root.test.js`.
   - Limitations: timestamps and external tools can introduce non-deterministic fields.
+
+## Operational reliability
+- Claim: indexing and retrieval run lightweight preflight health checks with stable machine-readable codes and actionable logs.
+  - Implementation: `src/shared/ops-health.js` (`runIndexingHealthChecks`, `runRetrievalHealthChecks`, `formatHealthFailure`), `src/index/build/indexer/pipeline.js` (indexing health gate), `src/retrieval/cli/runner.js` (`ensureRetrievalHealth`), `src/retrieval/cli.js` (retrieval health invocation).
+  - Config: no explicit knob; checks run by default.
+  - Tests: `tests/ops/health-check-contract.test.js`.
+  - Limitations: health checks validate runtime readiness and input sanity; they do not replace full end-to-end smoke tests.

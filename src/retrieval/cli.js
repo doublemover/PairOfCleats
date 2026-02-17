@@ -329,7 +329,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
 
   configureOutputCaches({ cacheConfig, verbose: verboseCache, log: cacheLog });
 
-  const { bail, throwIfAborted } = createRunnerHelpers({
+  const { bail, throwIfAborted, ensureRetrievalHealth } = createRunnerHelpers({
     emitOutput,
     exitOnError,
     jsonOutput,
@@ -871,6 +871,14 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       lmdbHelpers
     } = backendContext;
     telemetry.setBackend(backendLabel);
+    ensureRetrievalHealth({
+      query,
+      runCode,
+      runProse,
+      runExtractedProse: runExtractedProseRaw,
+      runRecords,
+      backendLabel
+    });
     if (backendForcedLmdb && !useLmdb) {
       return bail('LMDB backend requested but unavailable.', 1, ERROR_CODES.INVALID_REQUEST);
     }
