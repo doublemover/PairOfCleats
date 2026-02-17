@@ -75,14 +75,13 @@ const resolveProfileForState = (state) => {
 /**
  * Resolve modes that should participate in profile/cohort policy checks.
  * `extracted-prose` is optional and should only be included when the request
- * explicitly targets extracted-prose or comment-join retrieval is active.
+ * explicitly targets extracted-prose.
  *
  * @param {{
  *   runCode: boolean,
  *   runProse: boolean,
  *   runRecords: boolean,
- *   requiresExtractedProse: boolean,
- *   joinComments: boolean
+ *   requiresExtractedProse: boolean
  * }} input
  * @returns {string[]}
  */
@@ -90,12 +89,11 @@ export const resolveProfileCohortModes = ({
   runCode,
   runProse,
   runRecords,
-  requiresExtractedProse,
-  joinComments
+  requiresExtractedProse
 }) => PROFILE_MODES.filter((mode) => (
   (mode === 'code' && runCode)
   || (mode === 'prose' && runProse)
-  || (mode === 'extracted-prose' && (requiresExtractedProse || joinComments))
+  || (mode === 'extracted-prose' && requiresExtractedProse)
   || (mode === 'records' && runRecords)
 ));
 
@@ -617,8 +615,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       runCode,
       runProse,
       runRecords,
-      requiresExtractedProse,
-      joinComments
+      requiresExtractedProse
     });
     const selectedModesWithState = selectedModes.filter((mode) => indexStateByMode[mode]);
     const profilePolicyByMode = {};
