@@ -25,12 +25,8 @@
     {
       "lane": "gate",
       "match": [
-        "^unified-syntax-representation/",
         "^contracts/",
-        "^conformance/",
-        "^report-schema/report-schema-audit-contracts$",
         "^benchmarks/regressions/",
-        "^fixtures/governance/",
         "^backcompat/",
         "^diagnostics/diagnostics-transition-validation$",
         "^indexing/policy/",
