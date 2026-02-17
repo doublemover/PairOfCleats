@@ -53,6 +53,9 @@ const hasVectorEmbeddingBuildCapability = (runtime) => (
 export async function buildRecordsIndexForRepo({ runtime, discovery = null, abortSignal = null }) {
   throwIfAborted(abortSignal);
   const profile = buildIndexProfileState(runtime.profile?.id || runtime.indexingConfig?.profile);
+  // Keep records indexing consistent with main indexer vector_only behavior:
+  // retain chunk tokens but skip sparse postings/materialization work.
+  const sparsePostingsEnabled = profile.id !== INDEX_PROFILE_VECTOR_ONLY;
   if (profile.id === INDEX_PROFILE_VECTOR_ONLY && !hasVectorEmbeddingBuildCapability(runtime)) {
     throw new Error(
       'indexing.profile=vector_only requires embeddings to be available during index build. '
@@ -133,12 +136,13 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
       runtime.dictConfig,
       recordExt,
       postingsConfig,
-      [recordName, docmeta.doc || ''].filter(Boolean).join(' ')
+      [recordName, docmeta.doc || ''].filter(Boolean).join(' '),
+      { sparsePostingsEnabled }
     );
     if (!tokenPayload.tokens.length) continue;
 
     const stats = computeTokenStats(tokenPayload.tokens);
-    const fieldTokens = postingsConfig?.fielded !== false ? {
+    const fieldTokens = sparsePostingsEnabled && postingsConfig?.fielded !== false ? {
       name: recordName ? buildRecordSeq(recordName, runtime.dictWords, runtime.dictConfig, recordExt).tokens : [],
       signature: [],
       doc: docmeta.doc ? buildRecordSeq(docmeta.doc, runtime.dictWords, runtime.dictConfig, recordExt).tokens : [],
@@ -148,8 +152,12 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
     const embedText = docmeta.doc || text;
     const embedding = await runtime.getChunkEmbedding(embedText);
 
-    const mh = new SimpleMinHash();
-    tokenPayload.tokens.forEach((t) => mh.update(t));
+    let minhashSig = [];
+    if (sparsePostingsEnabled) {
+      const mh = new SimpleMinHash();
+      tokenPayload.tokens.forEach((t) => mh.update(t));
+      minhashSig = mh.hashValues;
+    }
 
     const lines = text.split(/\r?\n/);
     const startLine = 1;
@@ -182,7 +190,7 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
       preContext: [],
       postContext: [],
       embedding,
-      minhashSig: mh.hashValues,
+      minhashSig,
       weight: 1,
       externalDocs: [],
       ...(fieldTokens ? { fieldTokens } : {})
@@ -197,7 +205,13 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
       log
     });
 
-    appendChunk(state, chunkPayload, postingsConfig);
+    appendChunk(
+      state,
+      chunkPayload,
+      postingsConfig,
+      null,
+      { sparsePostingsEnabled }
+    );
     state.scannedFiles.push(recordFile);
     state.scannedFilesTimes.push({
       file: recordFile,
@@ -228,7 +242,8 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
     useStubEmbeddings: runtime.useStubEmbeddings,
     log,
     workerPool: runtime.workerPool,
-    embeddingsEnabled: runtime.embeddingEnabled
+    embeddingsEnabled: runtime.embeddingEnabled,
+    sparsePostingsEnabled
   });
 
   const artifacts = buildIndexStateArtifactsBlock({
@@ -338,10 +353,18 @@ function buildDocMeta(record, triageConfig, recordMeta = null) {
   return docmeta;
 }
 
-function tokenizeRecord(text, dictWords, dictConfig, ext, postingsConfig, chargramFieldText = '') {
+function tokenizeRecord(
+  text,
+  dictWords,
+  dictConfig,
+  ext,
+  postingsConfig,
+  chargramFieldText = '',
+  { sparsePostingsEnabled = true } = {}
+) {
   const { tokens, seq } = buildRecordSeq(text, dictWords, dictConfig, ext);
-  const phraseEnabled = postingsConfig?.enablePhraseNgrams !== false;
-  const chargramEnabled = postingsConfig?.enableChargrams !== false;
+  const phraseEnabled = sparsePostingsEnabled && postingsConfig?.enablePhraseNgrams !== false;
+  const chargramEnabled = sparsePostingsEnabled && postingsConfig?.enableChargrams !== false;
   const chargramSource = typeof postingsConfig?.chargramSource === 'string'
     ? postingsConfig.chargramSource.trim().toLowerCase()
     : 'fields';
