@@ -235,7 +235,7 @@ export const createTokenRetentionState = ({
   };
 };
 
-export const buildIndexPostings = async ({ runtime, state }) => {
+export const buildIndexPostings = async ({ runtime, state, incrementalState = null }) => {
   const vectorOnlyProfile = runtime?.profile?.id === INDEX_PROFILE_VECTOR_ONLY;
   if (vectorOnlyProfile && !hasVectorEmbeddingBuildCapability(runtime)) {
     throw new Error(
@@ -258,6 +258,7 @@ export const buildIndexPostings = async ({ runtime, state }) => {
     postingsConfig: runtime.postingsConfig,
     postingsGuard: state.postingsGuard,
     buildRoot: runtime.buildRoot,
+    plannerCacheDir: incrementalState?.incrementalDir || null,
     modelId: runtime.modelId,
     useStubEmbeddings: runtime.useStubEmbeddings,
     log: sharedLog,

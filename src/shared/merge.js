@@ -326,6 +326,25 @@ const writeCheckpoint = async (checkpointPath, payload) => {
   await replaceFile(tempPath, checkpointPath);
 };
 
+const readPlannerHints = async (plannerHintsPath) => {
+  if (!plannerHintsPath) return null;
+  try {
+    const raw = await fsPromises.readFile(plannerHintsPath, 'utf8');
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
+const writePlannerHints = async (plannerHintsPath, payload) => {
+  if (!plannerHintsPath || !payload) return;
+  const tempPath = createTempPath(plannerHintsPath);
+  await fsPromises.mkdir(path.dirname(plannerHintsPath), { recursive: true });
+  await fsPromises.writeFile(tempPath, JSON.stringify(payload, null, 2));
+  await replaceFile(tempPath, plannerHintsPath);
+};
+
 export const mergeRunsWithPlanner = async ({
   runs,
   outputPath,
@@ -337,7 +356,9 @@ export const mergeRunsWithPlanner = async ({
   runPrefix = 'merge',
   compareId = null,
   validateComparator = false,
-  checkpointPath = null
+  checkpointPath = null,
+  plannerHintsPath = null,
+  plannerInputKey = null
 } = {}) => {
   if (!Array.isArray(runs) || !runs.length) {
     throw new Error('mergeRunsWithPlanner requires runs');
@@ -346,6 +367,12 @@ export const mergeRunsWithPlanner = async ({
   const resolvedTempDir = tempDir || path.dirname(outputPath);
   await fsPromises.mkdir(resolvedTempDir, { recursive: true });
   const cleanupPaths = [];
+  const plannerHints = await readPlannerHints(plannerHintsPath);
+  const plannerHintUsed = !!(
+    plannerHints
+    && plannerInputKey
+    && plannerHints.inputKey === plannerInputKey
+  );
   const checkpoint = await readCheckpoint(checkpointPath);
   let passIndex = 0;
   let currentRuns = runs.slice();
@@ -407,8 +434,17 @@ export const mergeRunsWithPlanner = async ({
     finalStats.runsMerged = runs.length;
     finalStats.passes = passIndex;
     finalStats.plannerUsed = true;
+    finalStats.plannerHintUsed = plannerHintUsed;
   }
   await writeCheckpoint(checkpointPath, checkpointState);
+  await writePlannerHints(plannerHintsPath, {
+    version: MERGE_RUN_SCHEMA_VERSION,
+    inputKey: plannerInputKey || null,
+    maxOpenRuns,
+    runsMerged: runs.length,
+    passes: passIndex,
+    updatedAt: new Date().toISOString()
+  });
 
   const cleanup = async () => {
     for (const entry of cleanupPaths) {
