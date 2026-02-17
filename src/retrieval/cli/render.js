@@ -1,6 +1,7 @@
 import { compactHit } from './render-output.js';
 import { formatFullChunk, formatShortChunk, getOutputCacheReporter } from '../output.js';
 import { applyOutputBudgetPolicy, normalizeOutputBudgetPolicy } from '../output/score-breakdown.js';
+import { buildTrustSurface } from '../output/explain.js';
 
 export function renderSearchOutput({
   emitOutput,
@@ -211,6 +212,11 @@ export function renderSearchOutput({
     payload.stats.relationBoost = firstRelationBoost;
     payload.stats.lexicon = firstLexiconStatus;
     payload.stats.annCandidatePolicy = firstAnnCandidatePolicy;
+    payload.stats.trust = buildTrustSurface({
+      intentInfo,
+      contextExpansionStats,
+      annCandidatePolicy: firstAnnCandidatePolicy
+    });
   }
 
   const budgetPolicy = normalizeOutputBudgetPolicy(outputBudget);

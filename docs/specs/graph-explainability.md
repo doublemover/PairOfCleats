@@ -38,6 +38,36 @@
 }
 ```
 
+### 1.3 Track IQ retrieval trust surface
+
+Retrieval explain payloads include a compact trust block at `stats.trust`:
+
+```json
+{
+  "schemaVersion": 1,
+  "confidence": {
+    "value": 0.78,
+    "margin": 0.22,
+    "bucket": "high",
+    "buckets": {
+      "low": { "minInclusive": 0, "maxExclusive": 0.56 },
+      "medium": { "minInclusive": 0.56, "maxExclusive": 0.78 },
+      "high": { "minInclusive": 0.78, "maxInclusive": 1 }
+    }
+  },
+  "signals": {
+    "intentAbstained": false,
+    "parseFallback": false,
+    "contextExpansionTruncated": false,
+    "annCandidateConstrained": false
+  },
+  "reasonCodes": ["confidence_nominal"]
+}
+```
+
+Forward compatibility rule:
+- readers must ignore unknown fields and preserve parsing of known fields.
+
 ### 1.1 ExplainCapabilities
 - declares which evidence kinds were available
 - declares which graph artifacts participated

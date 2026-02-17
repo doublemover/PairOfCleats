@@ -61,6 +61,16 @@ For explain output, `stats.intent` now carries a calibrated confidence surface:
 - `confidence`, `confidenceMargin`, and `confidenceBucket` summarize the selected class confidence.
 - `abstain=true` and `state=uncertain` indicate a low-confidence intent decision.
 
+### Track IQ: Trust surface contract
+Explain output MUST include `stats.trust` with `schemaVersion=1` and:
+- `confidence.value`, `confidence.margin`, `confidence.bucket`
+- explicit `confidence.buckets` definitions for `low|medium|high`
+- `signals` booleans for trust-relevant degradations
+- `reasonCodes` for machine-readable trust diagnostics
+
+Reader compatibility rule:
+- Consumers MUST ignore unknown forward fields in `stats.trust` and continue parsing known fields.
+
 ### Phase 11: Graph ranking explain additions (optional)
 When graph-aware ranking is enabled, explain SHOULD include:
 

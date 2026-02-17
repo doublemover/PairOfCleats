@@ -1165,11 +1165,11 @@ Incrementally improve intent understanding, multi-hop expansion, confidence esti
   - [x] Same seed query produces identical expansion graph/order.
 
 ### IQ.3 Trust and confidence surfacing
-- [ ] Add trust signals to explain payload with versioned schema.
-- [ ] Add confidence bucket definitions (`low`, `medium`, `high`).
-- [ ] `tests/retrieval/explain/confidence-surface-contract.test.js`
-  - [ ] Explain payload includes required trust/confidence fields with schema version.
-  - [ ] Unknown forward fields are ignored by readers without parse failure.
+- [x] Add trust signals to explain payload with versioned schema.
+- [x] Add confidence bucket definitions (`low`, `medium`, `high`).
+- [x] `tests/retrieval/explain/confidence-surface-contract.test.js`
+  - [x] Explain payload includes required trust/confidence fields with schema version.
+  - [x] Unknown forward fields are ignored by readers without parse failure.
 
 ### IQ.4 Bundle-style result assembly
 - [ ] Define bundle grouping and ordering contract.

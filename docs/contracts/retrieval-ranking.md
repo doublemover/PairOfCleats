@@ -78,6 +78,21 @@ When explain is enabled, `stats.intent` SHOULD include calibrated intent confide
 - `state`: `certain|uncertain`
 - `abstainReason`: reason code when `abstain=true` (`low_confidence`)
 
+#### Track IQ: Trust surface (versioned)
+`stats.trust` is a versioned explain block:
+- `schemaVersion` (number, current `1`)
+- `confidence`:
+  - `value` in `[0,1]`
+  - `margin` in `[0,1]`
+  - `bucket` in `low|medium|high`
+  - `buckets` definitions for `low|medium|high`
+- `signals`:
+  - `intentAbstained`
+  - `parseFallback`
+  - `contextExpansionTruncated`
+  - `annCandidateConstrained`
+- `reasonCodes` (array of machine-readable reason strings)
+
 ---
 
 ## Context expansion (post-ranking; optional)
