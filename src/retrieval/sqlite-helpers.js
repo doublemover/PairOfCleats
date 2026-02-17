@@ -120,6 +120,16 @@ export function createSqliteHelpers(options) {
     return available;
   };
 
+  /**
+   * Prepare and cache a statement per-db using a caller-provided key.
+   * Keys must encode SQL shape (including dynamic placeholder arity).
+   * Reusing a key across different bind counts can trigger sqlite bind errors.
+   *
+   * @param {import('better-sqlite3').Database} db
+   * @param {string} key
+   * @param {string} sql
+   * @returns {import('better-sqlite3').Statement}
+   */
   const getCachedStatement = (db, key, sql) => {
     let dbCache = statementCache.get(db);
     if (!dbCache) {
@@ -524,6 +534,23 @@ export function createSqliteHelpers(options) {
    * @param {number} topN
    * @param {boolean} [normalizeScores]
    * @param {Set<number>|null} [allowedIds]
+   * @param {{
+   *   ftsMatch?: string,
+   *   overfetchRowCap?: number,
+   *   overfetchTimeBudgetMs?: number,
+   *   overfetchChunkSize?: number,
+   *   onDiagnostic?: (diagnostic:{code:string,reason:string,mode:'code'|'prose',message:string|null})=>void,
+   *   onOverfetch?: (stats:{
+   *     rowCap:number,
+   *     timeBudgetMs:number,
+   *     rowsScanned:number,
+   *     rowsMatched:number,
+   *     canPushdown:boolean,
+   *     filteredByAllowedIds:boolean,
+   *     truncated:boolean,
+   *     elapsedMs:number
+   *   })=>void
+   * }} [options]
    * @returns {Array<{idx:number,score:number}>}
    */
   function rankSqliteFts(
