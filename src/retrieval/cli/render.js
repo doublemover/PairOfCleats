@@ -1,5 +1,10 @@
 import { compactHit } from './render-output.js';
-import { formatFullChunk, formatShortChunk, getOutputCacheReporter } from '../output.js';
+import {
+  buildResultBundles,
+  formatFullChunk,
+  formatShortChunk,
+  getOutputCacheReporter
+} from '../output.js';
 import { applyOutputBudgetPolicy, normalizeOutputBudgetPolicy } from '../output/score-breakdown.js';
 import { buildTrustSurface } from '../output/explain.js';
 
@@ -90,6 +95,12 @@ export function renderSearchOutput({
     code: jsonCompact ? codeHitsFinal.map((hit) => compactHit(hit, explain)) : sanitize(codeHitsFinal),
     records: jsonCompact ? recordHitsFinal.map((hit) => compactHit(hit, explain)) : sanitize(recordHitsFinal)
   };
+  payload.bundles = buildResultBundles({
+    code: payload.code,
+    extractedProse: payload.extractedProse,
+    prose: payload.prose,
+    records: payload.records
+  });
   if (asOfContext) {
     payload.asOf = {
       ref: asOfContext.ref || 'latest',
@@ -248,6 +259,8 @@ export function renderSearchOutput({
       writeArray(outputPayload.code);
       out.write(',\"records\":');
       writeArray(outputPayload.records);
+      out.write(',\"bundles\":');
+      out.write(JSON.stringify(outputPayload.bundles));
       if (outputPayload.asOf) {
         out.write(',\"asOf\":');
         out.write(JSON.stringify(outputPayload.asOf));

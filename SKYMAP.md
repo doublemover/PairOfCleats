@@ -1172,11 +1172,11 @@ Incrementally improve intent understanding, multi-hop expansion, confidence esti
   - [x] Unknown forward fields are ignored by readers without parse failure.
 
 ### IQ.4 Bundle-style result assembly
-- [ ] Define bundle grouping and ordering contract.
-- [ ] Add deterministic tie-breakers across bundles.
-- [ ] `tests/retrieval/output/bundle-assembly-deterministic.test.js`
-  - [ ] Bundle membership and ordering are stable across repeated runs.
-  - [ ] Tie-break rules are applied consistently for equal-score cases.
+- [x] Define bundle grouping and ordering contract.
+- [x] Add deterministic tie-breakers across bundles.
+- [x] `tests/retrieval/output/bundle-assembly-deterministic.test.js`
+  - [x] Bundle membership and ordering are stable across repeated runs.
+  - [x] Tie-break rules are applied consistently for equal-score cases.
 
 ### IQ.5 Evaluation harness
 - [ ] Add small fixed fixtures that catch obvious IQ regressions.
