@@ -1,8 +1,10 @@
 import fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { throwIfAborted } from '../../../shared/abort.js';
 import { toPosix } from '../../../shared/files.js';
 import { compareStrings } from '../../../shared/sort.js';
+import { runWithConcurrency } from '../../../shared/concurrency.js';
 import { writeJsonObjectFile, writeJsonLinesFile } from '../../../shared/json-stream.js';
 import { readTextFileWithHash } from '../../../shared/encoding.js';
 import { getLanguageForFile } from '../../language-registry.js';
@@ -28,6 +30,7 @@ import { resolveTreeSitterSchedulerPaths } from './paths.js';
 import { createTreeSitterFileVersionSignature } from './file-signature.js';
 
 const TREE_SITTER_LANG_IDS = new Set(TREE_SITTER_LANGUAGE_IDS);
+const PLANNER_IO_CONCURRENCY_CAP = 16;
 
 const countLines = (text) => {
   if (!text) return 0;
@@ -84,6 +87,22 @@ const sortJobs = (a, b) => {
   return compareStrings(a.virtualPath || '', b.virtualPath || '');
 };
 
+const resolvePlannerIoConcurrency = (treeSitterConfig) => {
+  const schedulerConfig = treeSitterConfig?.scheduler || {};
+  const configuredRaw = Number(
+    schedulerConfig.planIoConcurrency
+      ?? schedulerConfig.plannerIoConcurrency
+      ?? schedulerConfig.ioConcurrency
+  );
+  if (Number.isFinite(configuredRaw) && configuredRaw > 0) {
+    return Math.max(1, Math.min(PLANNER_IO_CONCURRENCY_CAP, Math.floor(configuredRaw)));
+  }
+  const available = typeof os.availableParallelism === 'function'
+    ? os.availableParallelism()
+    : 4;
+  return Math.max(1, Math.min(PLANNER_IO_CONCURRENCY_CAP, Math.floor(available || 1)));
+};
+
 export const buildTreeSitterSchedulerPlan = async ({
   mode,
   runtime,
@@ -98,6 +117,7 @@ export const buildTreeSitterSchedulerPlan = async ({
   if (!treeSitterConfig || treeSitterConfig.enabled === false) return null;
   const strict = treeSitterConfig?.strict === true;
   const skipOnParseError = runtime?.languageOptions?.skipOnParseError === true;
+  const plannerIoConcurrency = resolvePlannerIoConcurrency(treeSitterConfig);
 
   const paths = resolveTreeSitterSchedulerPaths(outDir);
   await fs.mkdir(paths.baseDir, { recursive: true });
@@ -122,184 +142,203 @@ export const buildTreeSitterSchedulerPlan = async ({
   const sortedEntries = Array.isArray(entries) ? entries.slice() : [];
   sortedEntries.sort((a, b) => compareStrings(resolveEntrySortKey(a), resolveEntrySortKey(b)));
 
-  for (const entry of sortedEntries) {
-    throwIfAborted(abortSignal);
-    if (!entry) continue;
-    if (entry?.treeSitterDisabled === true) continue;
-    const { abs, relKey } = resolveEntryPaths(entry, runtime.root);
-    if (!abs || !relKey) continue;
+  const entryResults = await runWithConcurrency(
+    sortedEntries,
+    plannerIoConcurrency,
+    async (entry) => {
+      throwIfAborted(abortSignal);
+      if (!entry) return { jobs: [], requiredLanguages: [] };
+      if (entry?.treeSitterDisabled === true) return { jobs: [], requiredLanguages: [] };
+      const { abs, relKey } = resolveEntryPaths(entry, runtime.root);
+      if (!abs || !relKey) return { jobs: [], requiredLanguages: [] };
 
-    let stat = null;
-    try {
-      // Mirror file processor behavior: use lstat so we can reliably detect
-      // symlinks (stat() follows them).
-      stat = await fs.lstat(abs);
-    } catch (err) {
-      if (log) {
-        log(`[tree-sitter:schedule] skip ${relKey}: lstat failed (${err?.code || 'ERR'})`);
-      }
-      continue;
-    }
-    if (stat?.isSymbolicLink?.()) {
-      if (log) log(`[tree-sitter:schedule] skip ${relKey}: symlink`);
-      continue;
-    }
-    if (stat && typeof stat.isFile === 'function' && !stat.isFile()) {
-      if (log) log(`[tree-sitter:schedule] skip ${relKey}: not a file`);
-      continue;
-    }
-    if (entry?.skip) {
-      const reason = entry.skip?.reason || 'skip';
-      if (log) log(`[tree-sitter:schedule] skip ${relKey}: ${reason}`);
-      continue;
-    }
-    if (entry?.scan?.skip) {
-      const reason = entry.scan.skip?.reason || 'skip';
-      if (log) log(`[tree-sitter:schedule] skip ${relKey}: ${reason}`);
-      continue;
-    }
-    if (isMinifiedName(path.basename(abs))) {
-      if (log) log(`[tree-sitter:schedule] skip ${relKey}: minified`);
-      continue;
-    }
-
-    const ext = typeof entry?.ext === 'string' && entry.ext ? entry.ext : path.extname(abs);
-    const langHint = getLanguageForFile(ext, relKey);
-    const primaryLanguageId = langHint?.id || null;
-
-    let text = null;
-    let buffer = null;
-    let hash = null;
-    const cached = fileTextCache?.get && relKey ? fileTextCache.get(relKey) : null;
-    if (cached && typeof cached === 'object') {
-      if (typeof cached.text === 'string') text = cached.text;
-      if (Buffer.isBuffer(cached.buffer)) buffer = cached.buffer;
-      if (typeof cached.hash === 'string' && cached.hash) hash = cached.hash;
-    }
-    if (!text) {
+      let stat = null;
       try {
-        const decoded = await readTextFileWithHash(abs, { buffer, stat });
-        text = decoded.text;
-        buffer = decoded.buffer;
-        hash = decoded.hash;
-        if (fileTextCache?.set && relKey) {
-          fileTextCache.set(relKey, {
-            text,
-            buffer,
-            hash: decoded.hash,
-            size: stat?.size ?? buffer.length,
-            mtimeMs: stat?.mtimeMs ?? null,
-            encoding: decoded.encoding || null,
-            encodingFallback: decoded.usedFallback,
-            encodingConfidence: decoded.confidence
-          });
-        }
+        // Mirror file processor behavior: use lstat so we can reliably detect
+        // symlinks (stat() follows them).
+        stat = await fs.lstat(abs);
       } catch (err) {
-        const code = err?.code || null;
-        if (code === 'ERR_SYMLINK') {
-          if (log) log(`[tree-sitter:schedule] skip ${relKey}: symlink`);
+        if (log) {
+          log(`[tree-sitter:schedule] skip ${relKey}: lstat failed (${err?.code || 'ERR'})`);
+        }
+        return { jobs: [], requiredLanguages: [] };
+      }
+      if (stat?.isSymbolicLink?.()) {
+        if (log) log(`[tree-sitter:schedule] skip ${relKey}: symlink`);
+        return { jobs: [], requiredLanguages: [] };
+      }
+      if (stat && typeof stat.isFile === 'function' && !stat.isFile()) {
+        if (log) log(`[tree-sitter:schedule] skip ${relKey}: not a file`);
+        return { jobs: [], requiredLanguages: [] };
+      }
+      if (entry?.skip) {
+        const reason = entry.skip?.reason || 'skip';
+        if (log) log(`[tree-sitter:schedule] skip ${relKey}: ${reason}`);
+        return { jobs: [], requiredLanguages: [] };
+      }
+      if (entry?.scan?.skip) {
+        const reason = entry.scan.skip?.reason || 'skip';
+        if (log) log(`[tree-sitter:schedule] skip ${relKey}: ${reason}`);
+        return { jobs: [], requiredLanguages: [] };
+      }
+      if (isMinifiedName(path.basename(abs))) {
+        if (log) log(`[tree-sitter:schedule] skip ${relKey}: minified`);
+        return { jobs: [], requiredLanguages: [] };
+      }
+
+      const ext = typeof entry?.ext === 'string' && entry.ext ? entry.ext : path.extname(abs);
+      const langHint = getLanguageForFile(ext, relKey);
+      const primaryLanguageId = langHint?.id || null;
+
+      let text = null;
+      let buffer = null;
+      let hash = null;
+      const cached = fileTextCache?.get && relKey ? fileTextCache.get(relKey) : null;
+      if (cached && typeof cached === 'object') {
+        if (typeof cached.text === 'string') text = cached.text;
+        if (Buffer.isBuffer(cached.buffer)) buffer = cached.buffer;
+        if (typeof cached.hash === 'string' && cached.hash) hash = cached.hash;
+      }
+      if (!text) {
+        try {
+          const decoded = await readTextFileWithHash(abs, { buffer, stat });
+          text = decoded.text;
+          buffer = decoded.buffer;
+          hash = decoded.hash;
+          if (fileTextCache?.set && relKey) {
+            fileTextCache.set(relKey, {
+              text,
+              buffer,
+              hash: decoded.hash,
+              size: stat?.size ?? buffer.length,
+              mtimeMs: stat?.mtimeMs ?? null,
+              encoding: decoded.encoding || null,
+              encodingFallback: decoded.usedFallback,
+              encodingConfidence: decoded.confidence
+            });
+          }
+        } catch (err) {
+          const code = err?.code || null;
+          if (code === 'ERR_SYMLINK') {
+            if (log) log(`[tree-sitter:schedule] skip ${relKey}: symlink`);
+            return { jobs: [], requiredLanguages: [] };
+          }
+          const reason = (code === 'EACCES' || code === 'EPERM' || code === 'EISDIR')
+            ? 'unreadable'
+            : 'read-failure';
+          if (log) log(`[tree-sitter:schedule] skip ${relKey}: ${reason} (${code || 'ERR'})`);
+          return { jobs: [], requiredLanguages: [] };
+        }
+      }
+      if (!hash) {
+        const decoded = await readTextFileWithHash(abs, { buffer, stat });
+        hash = decoded.hash;
+        if (!text) text = decoded.text;
+        if (!buffer) buffer = decoded.buffer;
+      }
+      const fileVersionSignature = createTreeSitterFileVersionSignature({
+        size: stat?.size,
+        mtimeMs: stat?.mtimeMs,
+        hash
+      });
+
+      let segments = null;
+      try {
+        segments = discoverSegments({
+          text,
+          ext,
+          relPath: relKey,
+          mode: effectiveMode,
+          languageId: primaryLanguageId,
+          context: null,
+          segmentsConfig: runtime.segmentsConfig,
+          extraSegments: []
+        });
+        await assignSegmentUids({ text, segments, ext, mode: effectiveMode });
+      } catch (err) {
+        const message = err?.message || String(err);
+        if (skipOnParseError) {
+          if (log) {
+            log(`[tree-sitter:schedule] skip ${relKey}: parse-error (${message})`);
+          }
+          return { jobs: [], requiredLanguages: [] };
+        }
+        throw new Error(`[tree-sitter:schedule] segment discovery failed for ${relKey}: ${message}`);
+      }
+
+      const jobs = [];
+      const requiredLanguages = new Set();
+      for (const segment of segments || []) {
+        if (!segment) continue;
+        const tokenMode = resolveSegmentTokenMode(segment);
+        if (tokenMode !== 'code') continue;
+        if (!shouldIndexSegment(segment, tokenMode, effectiveMode)) continue;
+
+        const segmentExt = resolveSegmentExt(ext, segment);
+        const rawLanguageId = segment.languageId || primaryLanguageId || null;
+        const languageId = resolveTreeSitterLanguageForSegment(rawLanguageId, segmentExt);
+        if (!languageId || !TREE_SITTER_LANG_IDS.has(languageId)) continue;
+        if (!isTreeSitterSchedulerLanguage(languageId)) continue;
+        if (!isTreeSitterEnabled(treeSitterOptions, languageId)) continue;
+
+        const segmentText = text.slice(segment.start, segment.end);
+        if (exceedsTreeSitterLimits({ text: segmentText, languageId, treeSitterConfig, log })) {
           continue;
         }
-        const reason = (code === 'EACCES' || code === 'EPERM' || code === 'EISDIR')
-          ? 'unreadable'
-          : 'read-failure';
-        if (log) log(`[tree-sitter:schedule] skip ${relKey}: ${reason} (${code || 'ERR'})`);
-        continue;
-      }
-    }
-    if (!hash) {
-      const decoded = await readTextFileWithHash(abs, { buffer, stat });
-      hash = decoded.hash;
-      if (!text) text = decoded.text;
-      if (!buffer) buffer = decoded.buffer;
-    }
-    const fileVersionSignature = createTreeSitterFileVersionSignature({
-      size: stat?.size,
-      mtimeMs: stat?.mtimeMs,
-      hash
-    });
 
-    let segments = null;
-    try {
-      segments = discoverSegments({
-        text,
-        ext,
-        relPath: relKey,
-        mode: effectiveMode,
-        languageId: primaryLanguageId,
-        context: null,
-        segmentsConfig: runtime.segmentsConfig,
-        extraSegments: []
-      });
-      await assignSegmentUids({ text, segments, ext, mode: effectiveMode });
-    } catch (err) {
-      const message = err?.message || String(err);
-      if (skipOnParseError) {
-        if (log) {
-          log(`[tree-sitter:schedule] skip ${relKey}: parse-error (${message})`);
+        const target = resolveNativeTreeSitterTarget(languageId, segmentExt);
+        if (!target) {
+          if (strict) {
+            throw new Error(`[tree-sitter:schedule] missing grammar target for ${languageId} (${relKey}).`);
+          }
+          if (log) {
+            log(`[tree-sitter:schedule] skip ${languageId} segment: grammar target unavailable (${relKey})`);
+          }
+          continue;
         }
-        continue;
+        const grammarKey = target.grammarKey;
+
+        const segmentUid = segment.segmentUid || null;
+        const virtualPath = buildVfsVirtualPath({
+          containerPath: relKey,
+          segmentUid,
+          effectiveExt: segmentExt
+        });
+
+        requiredLanguages.add(languageId);
+        jobs.push({
+          schemaVersion: '1.0.0',
+          virtualPath,
+          grammarKey,
+          runtimeKind: target.runtimeKind,
+          languageId,
+          containerPath: relKey,
+          containerExt: ext,
+          effectiveExt: segmentExt,
+          segmentStart: segment.start,
+          segmentEnd: segment.end,
+          fileVersionSignature,
+          segment
+        });
       }
-      throw new Error(`[tree-sitter:schedule] segment discovery failed for ${relKey}: ${message}`);
-    }
+      return { jobs, requiredLanguages: Array.from(requiredLanguages) };
+    },
+    { signal: abortSignal }
+  );
 
-    for (const segment of segments || []) {
-      if (!segment) continue;
-      const tokenMode = resolveSegmentTokenMode(segment);
-      if (tokenMode !== 'code') continue;
-      if (!shouldIndexSegment(segment, tokenMode, effectiveMode)) continue;
-
-      const segmentExt = resolveSegmentExt(ext, segment);
-      const rawLanguageId = segment.languageId || primaryLanguageId || null;
-      const languageId = resolveTreeSitterLanguageForSegment(rawLanguageId, segmentExt);
-      if (!languageId || !TREE_SITTER_LANG_IDS.has(languageId)) continue;
-      if (!isTreeSitterSchedulerLanguage(languageId)) continue;
-      if (!isTreeSitterEnabled(treeSitterOptions, languageId)) continue;
-
-      const segmentText = text.slice(segment.start, segment.end);
-      if (exceedsTreeSitterLimits({ text: segmentText, languageId, treeSitterConfig, log })) {
-        continue;
-      }
-
-      const target = resolveNativeTreeSitterTarget(languageId, segmentExt);
-      if (!target) {
-        if (strict) {
-          throw new Error(`[tree-sitter:schedule] missing grammar target for ${languageId} (${relKey}).`);
-        }
-        if (log) {
-          log(`[tree-sitter:schedule] skip ${languageId} segment: grammar target unavailable (${relKey})`);
-        }
-        continue;
-      }
-      const grammarKey = target.grammarKey;
-
-      const segmentUid = segment.segmentUid || null;
-      const virtualPath = buildVfsVirtualPath({
-        containerPath: relKey,
-        segmentUid,
-        effectiveExt: segmentExt
-      });
-
+  for (const result of entryResults || []) {
+    throwIfAborted(abortSignal);
+    if (!result) continue;
+    for (const languageId of result.requiredLanguages || []) {
       requiredNativeLanguages.add(languageId);
-      const job = {
-        schemaVersion: '1.0.0',
-        virtualPath,
-        grammarKey,
-        runtimeKind: target.runtimeKind,
-        languageId,
-        containerPath: relKey,
-        containerExt: ext,
-        effectiveExt: segmentExt,
-        segmentStart: segment.start,
-        segmentEnd: segment.end,
-        fileVersionSignature,
-        segment: segment
-      };
+    }
+    for (const job of result.jobs || []) {
+      const grammarKey = job.grammarKey;
       if (!groups.has(grammarKey)) {
         groups.set(grammarKey, { grammarKey, languages: new Set(), jobs: [] });
       }
       const group = groups.get(grammarKey);
-      group.languages.add(languageId);
+      group.languages.add(job.languageId);
       group.jobs.push(job);
     }
   }

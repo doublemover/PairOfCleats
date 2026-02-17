@@ -1052,10 +1052,10 @@ Make index builds and embedding generation significantly faster through straight
 Remove duplicate tree-sitter segmentation work and reduce serial planning I/O in the scheduler path.
 
 #### Tasks
-- [ ] In `processFileCpu`, prefer scheduler-planned segments when available; only fall back to `discoverSegments` when missing or hash-stale.
-- [ ] Keep segment UID assignment deterministic after planned-segment reuse.
-- [ ] Parallelize `buildTreeSitterSchedulerPlan` per-file `lstat/readTextFileWithHash` work with bounded concurrency.
-- [ ] Keep planner output ordering deterministic (`plan.jobs` and index ordering unchanged).
+- [x] In `processFileCpu`, prefer scheduler-planned segments when available; only fall back to `discoverSegments` when missing or hash-stale.
+- [x] Keep segment UID assignment deterministic after planned-segment reuse.
+- [x] Parallelize `buildTreeSitterSchedulerPlan` per-file `lstat/readTextFileWithHash` work with bounded concurrency.
+- [x] Keep planner output ordering deterministic (`plan.jobs` and index ordering unchanged).
 
 #### Touchpoints
 - `src/index/build/file-processor/cpu.js`
@@ -1064,12 +1064,12 @@ Remove duplicate tree-sitter segmentation work and reduce serial planning I/O in
 - `src/index/build/runtime/hash.js`
 
 #### Tests
-- [ ] `tests/indexing/scheduler/planned-segments-reuse-without-rediscovery.test.js`
-  - [ ] Fixture with scheduler-provided segments verifies `discoverSegments` path is not used.
-  - [ ] Chunk boundaries/IDs and metadata remain identical to baseline output.
-- [ ] `tests/indexing/scheduler/plan-parallel-io-deterministic-order.test.js`
-  - [ ] Planner output (`plan.jobs`, file order, signatures) matches sequential mode exactly.
-  - [ ] Parallel mode preserves deterministic job ordering across repeated runs.
+- [x] `tests/indexing/scheduler/planned-segments-reuse-without-rediscovery.test.js`
+  - [x] Fixture with scheduler-provided segments verifies `discoverSegments` path is not used.
+  - [x] Chunk boundaries/IDs and metadata remain identical to baseline output.
+- [x] `tests/indexing/scheduler/plan-parallel-io-deterministic-order.test.js`
+  - [x] Planner output (`plan.jobs`, file order, signatures) matches sequential mode exactly.
+  - [x] Parallel mode preserves deterministic job ordering across repeated runs.
 
 ### 20.2 Discovery and incremental read dedupe
 
