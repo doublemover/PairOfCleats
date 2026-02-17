@@ -73,6 +73,33 @@ const resolveProfileForState = (state) => {
 };
 
 /**
+ * Resolve modes that should participate in profile/cohort policy checks.
+ * `extracted-prose` is optional and should only be included when the request
+ * explicitly targets extracted-prose or comment-join retrieval is active.
+ *
+ * @param {{
+ *   runCode: boolean,
+ *   runProse: boolean,
+ *   runRecords: boolean,
+ *   requiresExtractedProse: boolean,
+ *   joinComments: boolean
+ * }} input
+ * @returns {string[]}
+ */
+export const resolveProfileCohortModes = ({
+  runCode,
+  runProse,
+  runRecords,
+  requiresExtractedProse,
+  joinComments
+}) => PROFILE_MODES.filter((mode) => (
+  (mode === 'code' && runCode)
+  || (mode === 'prose' && runProse)
+  || (mode === 'extracted-prose' && (requiresExtractedProse || joinComments))
+  || (mode === 'records' && runRecords)
+));
+
+/**
  * Determine which sparse tables are missing for a mode.
  *
  * @param {{
@@ -455,6 +482,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     const needsProse = runProse;
     const needsExtractedProse = runExtractedProseRaw;
     const requiresExtractedProse = searchMode === 'extracted-prose';
+    const joinComments = commentsEnabled && runCode;
     const needsSqlite = runCode || runProse || runExtractedProseRaw;
     let annEnabledEffective = annEnabled;
     let vectorAnnEnabled = false;
@@ -532,12 +560,13 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       'extracted-prose': sqliteStateExtractedProse,
       records: sqliteStateRecords
     };
-    const selectedModes = PROFILE_MODES.filter((mode) => (
-      (mode === 'code' && runCode)
-      || (mode === 'prose' && runProse)
-      || (mode === 'extracted-prose' && runExtractedProseRaw)
-      || (mode === 'records' && runRecords)
-    ));
+    const selectedModes = resolveProfileCohortModes({
+      runCode,
+      runProse,
+      runRecords,
+      requiresExtractedProse,
+      joinComments
+    });
     const selectedModesWithState = selectedModes.filter((mode) => indexStateByMode[mode]);
     const profilePolicyByMode = {};
     for (const mode of selectedModes) {
@@ -924,7 +953,6 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     stageTracker.record('startup.dictionary', dictStart, { mode: 'all' });
     throwIfAborted();
 
-    const joinComments = commentsEnabled && runCode;
     const planStart = stageTracker.mark();
     const planConfigSignature = queryPlanCache?.enabled !== false
       ? buildQueryPlanConfigSignature({

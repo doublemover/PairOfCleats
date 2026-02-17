@@ -846,7 +846,10 @@ export function createSearchPipeline(context) {
         const resolveAnnFallback = () => {
           if (!shouldTryAnnFallback) return null;
           if (!annFallbackResolved) {
-            annFallback = ensureAllowedSet(allowedIdx);
+            // Keep allowlist in native representation (Set/bitmap) so large
+            // filtered cohorts do not incur eager Set materialization unless a
+            // specific provider requires conversion.
+            annFallback = allowedIdx;
             annFallbackResolved = true;
           }
           return annFallback;
