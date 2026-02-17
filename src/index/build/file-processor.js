@@ -339,7 +339,8 @@ export function createFileProcessor(options) {
       runIo,
       languageId: fileLanguageId,
       mode,
-      maxFileBytes
+      maxFileBytes,
+      bypassBinaryMinifiedSkip: documentExtractionEnabled && isDocumentExt(ext)
     });
     if (preReadSkip) {
       const { reason, ...extra } = preReadSkip;
@@ -489,9 +490,20 @@ export function createFileProcessor(options) {
         return null;
       }
       text = joined.text;
+      let sourceHashBuffer = Buffer.isBuffer(fileBuffer) ? fileBuffer : null;
+      if (!sourceHashBuffer) {
+        try {
+          sourceHashBuffer = await runIo(() => fs.readFile(abs));
+          if (Buffer.isBuffer(sourceHashBuffer)) fileBuffer = sourceHashBuffer;
+        } catch {
+          sourceHashBuffer = null;
+        }
+      }
       if (!fileHash) {
-        fileHash = sha1(fileBuffer);
-        fileHashAlgo = 'sha1';
+        if (sourceHashBuffer) {
+          fileHash = sha1(sourceHashBuffer);
+          fileHashAlgo = 'sha1';
+        }
       }
       fileEncoding = 'document-extracted';
       fileEncodingFallback = null;
@@ -500,7 +512,7 @@ export function createFileProcessor(options) {
         sourceType: ext === '.pdf' ? 'pdf' : 'docx',
         status: 'ok',
         extractor: extracted.extractor || null,
-        sourceBytesHash: sha256Hex(fileBuffer),
+        sourceBytesHash: sourceHashBuffer ? sha256Hex(sourceHashBuffer) : null,
         sourceBytesHashAlgo: 'sha256',
         counts: joined.counts,
         units: joined.units.map((unit) => ({

@@ -636,7 +636,14 @@ const writeCheckpointSlices = async (buildRoot, {
     modes: {}
   };
   const now = new Date().toISOString();
-  const modeKeys = Object.keys(checkpointPatch).sort(sortStrings);
+  const hasExistingSidecarModes = Boolean(
+    existingIndex?.modes
+    && Object.keys(existingIndex.modes).length
+  );
+  const modeSource = hasExistingSidecarModes
+    ? checkpointPatch
+    : mergedCheckpoints;
+  const modeKeys = Object.keys(modeSource || {}).sort(sortStrings);
   for (const mode of modeKeys) {
     const modePayload = mergedCheckpoints?.[mode];
     if (!modePayload || typeof modePayload !== 'object') continue;
