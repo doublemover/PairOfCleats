@@ -403,7 +403,12 @@ const appendShardEntryUnlocked = async (cacheDir, cacheIndex, buffer, options = 
   const handlePool = options.shardHandlePool;
   if (handlePool && typeof handlePool.get === 'function') {
     const pooled = await handlePool.get(shardPath);
-    const offset = pooled.size;
+    /**
+     * The lock is acquired per append call (not per pool lifetime), so another process may
+     * append between writes. Refresh size each time so returned offsets stay aligned with disk.
+     */
+    const stat = await pooled.handle.stat();
+    const offset = stat.size;
     await pooled.handle.write(payload, 0, payload.length, offset);
     pooled.size = offset + payload.length;
     const shardMeta = cacheIndex.shards?.[shardName] || { createdAt: new Date().toISOString(), sizeBytes: 0 };
