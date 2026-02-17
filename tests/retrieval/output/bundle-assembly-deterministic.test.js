@@ -55,4 +55,27 @@ assert.ok(
   'expected synthetic bundles to keep null file field for no-file hits'
 );
 
+const originalLocaleCompare = String.prototype.localeCompare;
+String.prototype.localeCompare = function localeCompareDisabled() {
+  throw new Error('localeCompare must not be used for deterministic ordering');
+};
+try {
+  const localeNeutral = buildResultBundles({
+    code: [
+      { id: 'alpha-hit', file: 'src/alpha.js', score: 2, scoreType: 'bm25', start: 0, end: 1 },
+      { id: 'z-hit', file: 'src/z.js', score: 2, scoreType: 'bm25', start: 0, end: 1 }
+    ],
+    extractedProse: [],
+    prose: [],
+    records: []
+  });
+  assert.deepEqual(
+    localeNeutral.groups.map((group) => group.file),
+    ['src/alpha.js', 'src/z.js'],
+    'expected locale-neutral lexical tie ordering'
+  );
+} finally {
+  String.prototype.localeCompare = originalLocaleCompare;
+}
+
 console.log('bundle assembly deterministic test passed');
