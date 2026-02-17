@@ -12,10 +12,16 @@ import {
   INDEX_PROFILE_SCHEMA_VERSION,
   normalizeIndexProfileId
 } from '../../contracts/index-profile.js';
+import {
+  STAGE_CHECKPOINTS_SIDECAR_VERSION,
+  STAGE_CHECKPOINTS_SIDECAR_PREFIX,
+  STAGE_CHECKPOINTS_INDEX_BASENAME,
+  buildStageCheckpointModeBasename
+} from './stage-checkpoints/sidecar.js';
 
 const STATE_FILE = 'build_state.json';
 const STATE_PROGRESS_FILE = 'build_state.progress.json';
-const STATE_CHECKPOINTS_FILE = 'build_state.stage-checkpoints.json';
+const LEGACY_STATE_CHECKPOINTS_FILE = 'build_state.stage-checkpoints.json';
 const STATE_EVENTS_FILE = 'build_state.events.jsonl';
 const STATE_DELTAS_FILE = 'build_state.deltas.jsonl';
 const STATE_SCHEMA_VERSION = 1;
@@ -28,6 +34,7 @@ const EVENT_LOG_MAX_BYTES = 2 * 1024 * 1024;
 const DELTA_LOG_MAX_BYTES = 4 * 1024 * 1024;
 const LARGE_PATCH_BYTES = 64 * 1024;
 const STATE_MAP_MAX_ENTRIES = 64;
+const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
 
 const stateQueues = new Map();
 const stateErrors = new Map();
@@ -54,7 +61,11 @@ const trimStateMap = (map, { maxEntries = STATE_MAP_MAX_ENTRIES, skipActive = fa
 
 const resolveStatePath = (buildRoot) => path.join(buildRoot, STATE_FILE);
 const resolveProgressPath = (buildRoot) => path.join(buildRoot, STATE_PROGRESS_FILE);
-const resolveCheckpointsPath = (buildRoot) => path.join(buildRoot, STATE_CHECKPOINTS_FILE);
+const resolveLegacyCheckpointsPath = (buildRoot) => path.join(buildRoot, LEGACY_STATE_CHECKPOINTS_FILE);
+const resolveCheckpointIndexPath = (buildRoot) => path.join(buildRoot, STAGE_CHECKPOINTS_INDEX_BASENAME);
+const resolveCheckpointModePath = (buildRoot, mode) => (
+  path.join(buildRoot, buildStageCheckpointModeBasename(mode))
+);
 const resolveEventsPath = (buildRoot) => path.join(buildRoot, STATE_EVENTS_FILE);
 const resolveDeltasPath = (buildRoot) => path.join(buildRoot, STATE_DELTAS_FILE);
 
@@ -439,6 +450,74 @@ const readJsonFile = async (filePath) => {
   }
 };
 
+const normalizeCheckpointIndex = (value) => {
+  if (!value || typeof value !== 'object') return null;
+  const version = Number.isFinite(Number(value.version))
+    ? Math.floor(Number(value.version))
+    : null;
+  if (version !== STAGE_CHECKPOINTS_SIDECAR_VERSION) return null;
+  const modes = value.modes && typeof value.modes === 'object' ? value.modes : {};
+  const normalizedModes = {};
+  for (const [mode, descriptor] of Object.entries(modes)) {
+    if (!descriptor || typeof descriptor !== 'object') continue;
+    const relPath = typeof descriptor.path === 'string' ? descriptor.path : null;
+    if (!relPath) continue;
+    normalizedModes[mode] = {
+      path: relPath,
+      updatedAt: typeof descriptor.updatedAt === 'string' ? descriptor.updatedAt : null
+    };
+  }
+  return {
+    version: STAGE_CHECKPOINTS_SIDECAR_VERSION,
+    updatedAt: typeof value.updatedAt === 'string' ? value.updatedAt : null,
+    modes: normalizedModes
+  };
+};
+
+const readCheckpointIndex = async (buildRoot) => {
+  const parsed = await readJsonFile(resolveCheckpointIndexPath(buildRoot));
+  return normalizeCheckpointIndex(parsed);
+};
+
+const serializeCheckpointIndex = (indexValue) => {
+  const modes = {};
+  const modeKeys = Object.keys(indexValue?.modes || {}).sort(sortStrings);
+  for (const mode of modeKeys) {
+    const descriptor = indexValue.modes[mode];
+    if (!descriptor?.path) continue;
+    modes[mode] = {
+      path: descriptor.path,
+      updatedAt: descriptor.updatedAt || null
+    };
+  }
+  return {
+    version: STAGE_CHECKPOINTS_SIDECAR_VERSION,
+    updatedAt: indexValue?.updatedAt || new Date().toISOString(),
+    modes
+  };
+};
+
+const loadCheckpointSlices = async (buildRoot) => {
+  const index = await readCheckpointIndex(buildRoot);
+  if (index?.modes && Object.keys(index.modes).length) {
+    const merged = {};
+    const modeKeys = Object.keys(index.modes).sort(sortStrings);
+    for (const mode of modeKeys) {
+      const descriptor = index.modes[mode];
+      const relPath = descriptor?.path || null;
+      if (!relPath) continue;
+      const modePath = path.join(buildRoot, relPath);
+      const payload = await readJsonFile(modePath);
+      if (payload && typeof payload === 'object') {
+        merged[mode] = payload;
+      }
+    }
+    return merged;
+  }
+  // Back-compat fallback for pre-v1 sidecar naming.
+  return await readJsonFile(resolveLegacyCheckpointsPath(buildRoot));
+};
+
 const stripUpdatedAt = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
   const next = { ...value };
@@ -473,11 +552,9 @@ const loadBuildState = async (buildRoot) => {
 
 const loadSidecar = async (buildRoot, type) => {
   const cache = getCacheEntry(buildRoot);
-  const filePath = type === 'progress'
-    ? resolveProgressPath(buildRoot)
-    : resolveCheckpointsPath(buildRoot);
-  const fingerprint = await readFingerprint(filePath);
   if (type === 'progress') {
+    const filePath = resolveProgressPath(buildRoot);
+    const fingerprint = await readFingerprint(filePath);
     if (fingerprintsMatch(fingerprint, cache.progressFingerprint) && cache.progress) {
       return cache.progress;
     }
@@ -487,12 +564,13 @@ const loadSidecar = async (buildRoot, type) => {
     cache.progressHash = parsed ? hashJson(parsed) : null;
     return parsed;
   }
-  if (fingerprintsMatch(fingerprint, cache.checkpointsFingerprint) && cache.stageCheckpoints) {
+  const checkpointsFingerprint = await readFingerprint(resolveCheckpointIndexPath(buildRoot));
+  if (fingerprintsMatch(checkpointsFingerprint, cache.checkpointsFingerprint) && cache.stageCheckpoints) {
     return cache.stageCheckpoints;
   }
-  const parsed = fingerprint ? await readJsonFile(filePath) : null;
+  const parsed = await loadCheckpointSlices(buildRoot);
   cache.stageCheckpoints = parsed;
-  cache.checkpointsFingerprint = fingerprint;
+  cache.checkpointsFingerprint = checkpointsFingerprint;
   cache.checkpointsHash = parsed ? hashJson(parsed) : null;
   return parsed;
 };
@@ -540,39 +618,74 @@ const writeStateFile = async (buildRoot, state, cache, { comparableHash = null }
   }
 };
 
+/**
+ * Persist stage checkpoint payloads by mode so updates only rewrite changed
+ * slices instead of a full combined snapshot on every checkpoint flush.
+ */
+const writeCheckpointSlices = async (buildRoot, {
+  checkpointPatch,
+  mergedCheckpoints,
+  cache
+} = {}) => {
+  if (!buildRoot || !checkpointPatch || !mergedCheckpoints || !cache) return null;
+  const indexPath = resolveCheckpointIndexPath(buildRoot);
+  const existingIndex = await readCheckpointIndex(buildRoot);
+  const nextIndex = existingIndex || {
+    version: STAGE_CHECKPOINTS_SIDECAR_VERSION,
+    updatedAt: null,
+    modes: {}
+  };
+  const now = new Date().toISOString();
+  const modeKeys = Object.keys(checkpointPatch).sort(sortStrings);
+  for (const mode of modeKeys) {
+    const modePayload = mergedCheckpoints?.[mode];
+    if (!modePayload || typeof modePayload !== 'object') continue;
+    const modePath = resolveCheckpointModePath(buildRoot, mode);
+    const relPath = path.basename(modePath);
+    const jsonString = `${JSON.stringify(modePayload)}\n`;
+    const existingString = await fs.readFile(modePath, 'utf8').catch(() => null);
+    if (existingString !== jsonString) {
+      await atomicWriteText(modePath, jsonString);
+    }
+    nextIndex.modes[mode] = {
+      path: relPath,
+      updatedAt: now
+    };
+  }
+  nextIndex.updatedAt = now;
+  await atomicWriteText(indexPath, `${JSON.stringify(serializeCheckpointIndex(nextIndex))}\n`);
+  cache.stageCheckpoints = mergedCheckpoints;
+  cache.checkpointsFingerprint = await readFingerprint(indexPath);
+  cache.checkpointsHash = hashJson(mergedCheckpoints);
+  cache.checkpointsSerialized = null;
+  return mergedCheckpoints;
+};
+
 const writeSidecarFile = async (buildRoot, type, payload, cache) => {
   if (!buildRoot || !payload) return null;
-  const filePath = type === 'progress'
-    ? resolveProgressPath(buildRoot)
-    : resolveCheckpointsPath(buildRoot);
+  if (type === 'checkpoints') {
+    return writeCheckpointSlices(buildRoot, {
+      checkpointPatch: payload.patch,
+      mergedCheckpoints: payload.merged,
+      cache
+    });
+  }
+  const filePath = resolveProgressPath(buildRoot);
   const jsonString = `${JSON.stringify(payload)}\n`;
   const nextHash = hashJsonString(jsonString);
-  const cachedHash = type === 'progress' ? cache.progressHash : cache.checkpointsHash;
+  const cachedHash = cache.progressHash;
   if (nextHash && cachedHash === nextHash) {
-    if (type === 'progress') {
-      cache.progress = payload;
-      cache.progressSerialized = jsonString;
-    }
-    if (type === 'checkpoints') {
-      cache.stageCheckpoints = payload;
-      cache.checkpointsSerialized = jsonString;
-    }
+    cache.progress = payload;
+    cache.progressSerialized = jsonString;
     return payload;
   }
   try {
     await atomicWriteText(filePath, jsonString);
     const fingerprint = await readFingerprint(filePath);
-    if (type === 'progress') {
-      cache.progress = payload;
-      cache.progressFingerprint = fingerprint;
-      cache.progressHash = nextHash;
-      cache.progressSerialized = jsonString;
-    } else {
-      cache.stageCheckpoints = payload;
-      cache.checkpointsFingerprint = fingerprint;
-      cache.checkpointsHash = nextHash;
-      cache.checkpointsSerialized = jsonString;
-    }
+    cache.progress = payload;
+    cache.progressFingerprint = fingerprint;
+    cache.progressHash = nextHash;
+    cache.progressSerialized = jsonString;
     return payload;
   } catch (err) {
     if (err?.code === 'ENOENT' && !(await buildRootExists(buildRoot))) return null;
@@ -605,7 +718,12 @@ const applyStatePatch = async (buildRoot, patch, events = []) => {
 
   const writes = [];
   if (progress) writes.push(writeSidecarFile(buildRoot, 'progress', nextProgress, cache));
-  if (checkpoints) writes.push(writeSidecarFile(buildRoot, 'checkpoints', nextCheckpoints, cache));
+  if (checkpoints) {
+    writes.push(writeSidecarFile(buildRoot, 'checkpoints', {
+      patch: checkpoints,
+      merged: nextCheckpoints
+    }, cache));
+  }
 
   let merged = state;
   if (main && Object.keys(main).length > 0) {
