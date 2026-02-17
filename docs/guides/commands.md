@@ -65,6 +65,7 @@ See `docs/guides/mcp.md` for MCP server modes, capabilities, and error codes.
 | `postinstall` | tooling | no |  |
 | `rebuild:native` | tooling | no |  |
 | `release-check` | release | no |  |
+| `release-check:blockers` | release | no |  |
 | `release-check:breaking` | release | no |  |
 | `repair:native` | tooling | no |  |
 | `report-artifacts` | tooling | no |  |

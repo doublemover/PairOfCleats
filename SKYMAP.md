@@ -106,7 +106,7 @@ Define exactly what is supported and what blocks release.
 Create one command that validates basic release viability without hidden environment assumptions.
 
 #### Tasks
-- [ ] Add `node tools/release-check.js` and wire `npm run release-check`.
+- [ ] Add `node tools/release/check.js` and wire `npm run release-check`.
 - [ ] Required checks (fixed order):
   - [ ] `pairofcleats --version`
   - [ ] fixture `index build`
@@ -118,7 +118,7 @@ Create one command that validates basic release viability without hidden environ
 - [ ] Ensure timestamps in report are ISO 8601.
 
 #### Touchpoints
-- `tools/release-check.js` (new)
+- `tools/release/check.js` (new)
 - `package.json`
 - `src/retrieval/cli/*` (if command wiring changes)
 
@@ -214,7 +214,7 @@ Make release gating rules explicit and machine-checkable.
 - `.github/workflows/ci.yml`
 - `.github/workflows/ci-long.yml`
 - `.github/workflows/nightly.yml`
-- `tools/release-check.js`
+- `tools/release/check.js`
 
 #### Tests
 - [ ] `tests/tooling/ci-gates-required-jobs.test.js`
@@ -1204,7 +1204,7 @@ Keep runtime behavior stable and failure handling clear without adding heavy ope
 - `src/retrieval/cli/runner.js`
 - `src/retrieval/cli/telemetry.js`
 - `src/shared/capabilities.js`
-- `tools/release-check.js`
+- `tools/release/check.js`
 - `.github/workflows/ci.yml`
 
 ### OP.1 Health checks and clear logs

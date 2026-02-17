@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-14T00:05:02.797Z",
+  "generatedAt": "2026-02-17T10:37:55.719Z",
   "scripts": [
     {
       "name": "api-server",
@@ -273,6 +273,12 @@
     },
     {
       "name": "release-check",
+      "category": "release",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "release-check:blockers",
       "category": "release",
       "ciAllowed": false,
       "replacement": null
