@@ -35,6 +35,25 @@ assert.ok(
   'expected release-check failure output to identify failing blocker'
 );
 
+const overrideWithoutMarker = runReleaseCheck({
+  cwd: tempRoot,
+  args: [
+    '--blockers-only',
+    '--allow-blocker-override',
+    '--override-id',
+    'ops-health-contract',
+    '--override-id',
+    'ops-failure-injection-contract',
+    '--override-id',
+    'ops-config-guardrails-contract'
+  ]
+});
+assert.notEqual(
+  overrideWithoutMarker.status,
+  0,
+  'expected override path to fail when marker is missing'
+);
+
 const marker = 'INC-OP4-override-test';
 const override = runReleaseCheck({
   cwd: tempRoot,
@@ -59,6 +78,10 @@ assert.ok(
 assert.ok(
   String(override.stderr || '').includes(marker),
   'expected override audit record to include explicit marker'
+);
+assert.ok(
+  String(override.stderr || '').includes('release-blocker-override'),
+  'expected override audit payload type to be present for compliance tracing'
 );
 
 await fs.rm(tempRoot, { recursive: true, force: true });
