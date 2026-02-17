@@ -200,6 +200,7 @@ export const buildIndexPostings = async ({ runtime, state }) => {
     workerPool: runtime.workerPool,
     quantizePool: runtime.quantizePool,
     embeddingsEnabled: runtime.embeddingEnabled,
+    sparsePostingsEnabled: !vectorOnlyProfile,
     buildStage: runtime.stage
   });
 
@@ -225,19 +226,6 @@ export const buildIndexPostings = async ({ runtime, state }) => {
   if (state?.triPost?.clear) state.triPost.clear();
   if (state?.fieldPostings?.clear) state.fieldPostings.clear();
   if (state?.df?.clear) state.df.clear();
-
-  if (vectorOnlyProfile) {
-    postings.tokenVocab = [];
-    postings.tokenVocabIds = [];
-    postings.tokenPostingsList = [];
-    postings.phraseVocab = [];
-    postings.phrasePostings = [];
-    postings.chargramVocab = [];
-    postings.chargramPostings = [];
-    postings.fieldPostings = null;
-    postings.minhashSigs = [];
-    postings.minhashStream = false;
-  }
 
   return postings;
 };

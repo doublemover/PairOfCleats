@@ -16,10 +16,14 @@ import { getTokenIdCollisionSummary } from '../../state.js';
  * configured embedding capability. Service-mode builds enqueue vectors later,
  * so these flags remain false until dense artifacts are actually written.
  *
- * @param {object} runtime
+ * @param {object} postings
  * @returns {boolean}
  */
-const hasEmittedDenseVectors = (runtime) => runtime?.embeddingEnabled === true;
+const hasEmittedDenseVectors = (postings) => (
+  (Array.isArray(postings?.quantizedVectors) && postings.quantizedVectors.length > 0)
+  || (Array.isArray(postings?.quantizedDocVectors) && postings.quantizedDocVectors.length > 0)
+  || (Array.isArray(postings?.quantizedCodeVectors) && postings.quantizedCodeVectors.length > 0)
+);
 
 export const writeIndexArtifactsForMode = async ({
   runtime,
@@ -68,7 +72,7 @@ export const writeIndexArtifactsForMode = async ({
   const artifacts = buildIndexStateArtifactsBlock({
     profileId: profile.id,
     mode,
-    embeddingsEnabled: hasEmittedDenseVectors(runtime),
+    embeddingsEnabled: hasEmittedDenseVectors(postings),
     postingsConfig: runtime.postingsConfig
   });
   if (mode === 'code') {

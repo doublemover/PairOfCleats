@@ -69,8 +69,10 @@ export async function buildPostings(input) {
     workerPool,
     quantizePool,
     embeddingsEnabled = true,
+    sparsePostingsEnabled = true,
     buildStage = null
   } = input;
+  const sparseEnabled = sparsePostingsEnabled !== false;
 
   const normalizedDocLengths = Array.isArray(docLengths)
     ? docLengths.map((len) => (Number.isFinite(len) ? len : 0))
@@ -152,8 +154,10 @@ export async function buildPostings(input) {
     };
   }
 
-  const phraseEnabled = resolvedConfig.enablePhraseNgrams !== false;
-  const chargramEnabled = resolvedConfig.enableChargrams !== false;
+  // Vector-only profiles keep chunk tokens for query-AST filtering, but should
+  // skip sparse postings materialization entirely.
+  const phraseEnabled = sparseEnabled && resolvedConfig.enablePhraseNgrams !== false;
+  const chargramEnabled = sparseEnabled && resolvedConfig.enableChargrams !== false;
   const chargramSpillMaxUnique = Number.isFinite(resolvedConfig.chargramSpillMaxUnique)
     ? Math.max(0, Math.floor(resolvedConfig.chargramSpillMaxUnique))
     : 0;
@@ -791,39 +795,50 @@ export async function buildPostings(input) {
     }
   }
 
-  let includeTokenIds = tokenIdMap && tokenIdMap.size > 0;
-  const tokenEntries = Array.from(tokenPostings.keys()).map((id) => {
-    const mapped = tokenIdMap?.get(id);
-    if (!mapped) includeTokenIds = false;
-    const token = mapped ?? (typeof id === 'string' ? id : String(id));
-    return { id, token };
-  });
-  tokenEntries.sort((a, b) => sortStrings(a.token, b.token));
-  const tokenVocab = new Array(tokenEntries.length);
-  const tokenVocabIds = includeTokenIds ? new Array(tokenEntries.length) : null;
-  const tokenPostingsList = new Array(tokenEntries.length);
-  for (let i = 0; i < tokenEntries.length; i += 1) {
-    const entry = tokenEntries[i];
-    tokenVocab[i] = entry.token;
-    if (tokenVocabIds) tokenVocabIds[i] = entry.id;
-    tokenPostingsList[i] = normalizeTfPostingList(tokenPostings.get(entry.id));
-    tokenPostings.delete(entry.id);
+  let tokenVocab = [];
+  let tokenVocabIds = [];
+  let tokenPostingsList = [];
+  if (sparseEnabled) {
+    let includeTokenIds = tokenIdMap && tokenIdMap.size > 0;
+    const tokenEntries = Array.from(tokenPostings.keys()).map((id) => {
+      const mapped = tokenIdMap?.get(id);
+      if (!mapped) includeTokenIds = false;
+      const token = mapped ?? (typeof id === 'string' ? id : String(id));
+      return { id, token };
+    });
+    tokenEntries.sort((a, b) => sortStrings(a.token, b.token));
+    tokenVocab = new Array(tokenEntries.length);
+    tokenVocabIds = includeTokenIds ? new Array(tokenEntries.length) : null;
+    tokenPostingsList = new Array(tokenEntries.length);
+    for (let i = 0; i < tokenEntries.length; i += 1) {
+      const entry = tokenEntries[i];
+      tokenVocab[i] = entry.token;
+      if (tokenVocabIds) tokenVocabIds[i] = entry.id;
+      tokenPostingsList[i] = normalizeTfPostingList(tokenPostings.get(entry.id));
+      tokenPostings.delete(entry.id);
+    }
   }
-  if (typeof tokenPostings.clear === 'function') tokenPostings.clear();
+  if (typeof tokenPostings?.clear === 'function') tokenPostings.clear();
   const avgDocLen = normalizedDocLengths.length
     ? normalizedDocLengths.reduce((sum, len) => sum + len, 0) / normalizedDocLengths.length
     : 0;
 
-  const allowMinhash = !minhashMaxDocs || chunks.length <= minhashMaxDocs;
-  const minhashSigs = allowMinhash && !minhashStream ? chunks.map((c) => c.minhashSig) : [];
-  const minhashGuard = (!allowMinhash && minhashMaxDocs)
-    ? { skipped: true, maxDocs: minhashMaxDocs, totalDocs: chunks.length }
-    : null;
-  if (!allowMinhash && typeof log === 'function') {
-    log(`[postings] minhash skipped: ${chunks.length} docs exceeds max ${minhashMaxDocs}.`);
+  let allowMinhash = false;
+  let minhashSigs = [];
+  let minhashGuard = null;
+  if (sparseEnabled) {
+    allowMinhash = !minhashMaxDocs || chunks.length <= minhashMaxDocs;
+    minhashSigs = allowMinhash && !minhashStream ? chunks.map((c) => c.minhashSig) : [];
+    minhashGuard = (!allowMinhash && minhashMaxDocs)
+      ? { skipped: true, maxDocs: minhashMaxDocs, totalDocs: chunks.length }
+      : null;
+    if (!allowMinhash && typeof log === 'function') {
+      log(`[postings] minhash skipped: ${chunks.length} docs exceeds max ${minhashMaxDocs}.`);
+    }
   }
 
   const buildFieldPostings = () => {
+    if (!sparseEnabled) return null;
     if (!fieldPostings || !fieldDocLengths) return null;
     const fields = {};
     const fieldEntries = Object.entries(fieldPostings).sort((a, b) => sortStrings(a[0], b[0]));
