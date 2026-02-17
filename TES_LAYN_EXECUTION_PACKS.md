@@ -1,6 +1,6 @@
-# TES_LAYN_EXECUTION_PACKS - USR Batch and Framework Packs
+# TES_LAYN_EXECUTION_PACKS - USR Language and Framework Delivery Packs
 
-Last updated: 2026-02-13T09:58:25Z
+Last updated: 2026-02-17T00:00:00Z
 Status: active
 Parent roadmap: `TES_LAYN_ROADMAP.md`
 Governance reference: `TES_LAYN_GOVERNANCE.md`
@@ -11,13 +11,13 @@ This document carries detailed execution packs for roadmap implementation phases
 
 Use this file for:
 - language batch delivery detail (B0-B8)
-- framework overlay delivery detail (C4-required profiles)
-- concrete touchpoints (code, matrix, docs, tests)
+- framework overlay delivery detail (required framework profiles)
+- concrete runtime, fixture, and spec touchpoints
 
 Keep implementation straightforward:
 - no placeholder paths
 - no speculative work items
-- no phase/batch closure without runnable tests
+- no batch closure without runnable functional scenarios
 
 ## 1) Global Completion Contract
 
@@ -25,8 +25,8 @@ A pack is complete only when all conditions below are true:
 
 1. Runtime touchpoints are implemented and merged.
 2. Matrix and spec touchpoints are updated and consistent.
-3. Required fixture/golden artifacts are present for affected scope.
-4. Required contract and conformance tests pass.
+3. Required fixture/canonical artifacts are present for affected scope.
+4. Functional language/framework scenarios pass for indexed/searchable behavior.
 5. Diagnostics for partial/unsupported states are explicit where applicable.
 
 Primary runtime touchpoints:
@@ -38,8 +38,6 @@ Primary runtime touchpoints:
 - `src/index/identity/chunk-uid.js`
 - `src/index/identity/symbol.js`
 - `src/index/build/runtime/normalize.js`
-- `src/contracts/validators/usr.js`
-- `src/contracts/validators/usr-matrix.js`
 
 Primary matrix/spec touchpoints:
 - `tests/lang/matrix/usr-language-profiles.json`
@@ -52,13 +50,11 @@ Primary matrix/spec touchpoints:
 - `docs/specs/usr-core-language-framework-catalog.md`
 - `docs/specs/usr-core-normalization-linking-identity.md`
 
-Primary fixture/test touchpoints:
+Primary fixture/functional touchpoints:
 - `tests/fixtures/usr/**`
-- `tests/conformance/language-shards/**`
-- `tests/conformance/framework-canonicalization/**`
-- `tests/conformance/embedding-provenance/**`
-- `tests/conformance/risk-fixture-governance/**`
-- `tests/unified-syntax-representation/lang/contracts/**`
+- `tests/indexing/language-fixture/**`
+- `tests/retrieval/**`
+- `tests/services/**`
 
 ## 2) Batch Execution Packs (B0-B8)
 
@@ -75,31 +71,27 @@ Completion status:
 
 Batch map (authoritative source: `tests/lang/matrix/usr-language-batch-shards.json`):
 
-| Batch | Scope | Required conformance | Order manifest | Primary shard test |
-| --- | --- | --- | --- | --- |
-| B0 | foundation | C0,C1 | `tests/conformance/language-shards/foundation/foundation.order.txt` | `tests/conformance/language-shards/foundation/foundation-validation.test.js` |
-| B1 | javascript, typescript | C0,C1,C2,C3,C4 | `tests/conformance/language-shards/javascript-typescript/javascript-typescript.order.txt` | `tests/conformance/language-shards/javascript-typescript/javascript-typescript-validation.test.js` |
-| B2 | clike, go, rust, swift | C0,C1,C2,C3 | `tests/conformance/language-shards/systems-languages/systems-languages.order.txt` | `tests/conformance/language-shards/systems-languages/systems-languages-validation.test.js` |
-| B3 | csharp, dart, groovy, java, kotlin, scala | C0,C1,C2,C3 | `tests/conformance/language-shards/managed-languages/managed-languages.order.txt` | `tests/conformance/language-shards/managed-languages/managed-languages-validation.test.js` |
-| B4 | julia, lua, perl, php, python, r, ruby, shell | C0,C1,C2,C3 | `tests/conformance/language-shards/dynamic-languages/dynamic-languages.order.txt` | `tests/conformance/language-shards/dynamic-languages/dynamic-languages-validation.test.js` |
-| B5 | css, handlebars, html, jinja, mustache, razor | C0,C1,C4 | `tests/conformance/language-shards/markup-style-template/markup-style-template.order.txt` | `tests/conformance/language-shards/markup-style-template/markup-style-template-validation.test.js` |
-| B6 | graphql, proto, sql | C0,C1,C2,C3 | `tests/conformance/language-shards/data-interface-dsl/data-interface-dsl.order.txt` | `tests/conformance/language-shards/data-interface-dsl/data-interface-dsl-validation.test.js` |
-| B7 | cmake, dockerfile, makefile, nix, starlark | C0,C1,C2 | `tests/conformance/language-shards/build-infra-dsl/build-infra-dsl.order.txt` | `tests/conformance/language-shards/build-infra-dsl/build-infra-dsl-validation.test.js` |
-| B8 | cross-batch integration | C0,C1,C2,C3,C4 | `tests/conformance/language-shards/cross-language-integration/cross-language-integration.order.txt` | `tests/conformance/language-shards/cross-language-integration/cross-language-integration-validation.test.js` |
+| Batch | Scope | Capability targets |
+| --- | --- | --- |
+| B0 | foundation | C0,C1 |
+| B1 | javascript, typescript | C0,C1,C2,C3,C4 |
+| B2 | clike, go, rust, swift | C0,C1,C2,C3 |
+| B3 | csharp, dart, groovy, java, kotlin, scala | C0,C1,C2,C3 |
+| B4 | julia, lua, perl, php, python, r, ruby, shell | C0,C1,C2,C3 |
+| B5 | css, handlebars, html, jinja, mustache, razor | C0,C1,C4 |
+| B6 | graphql, proto, sql | C0,C1,C2,C3 |
+| B7 | cmake, dockerfile, makefile, nix, starlark | C0,C1,C2 |
+| B8 | cross-batch integration | C0,C1,C2,C3,C4 |
 
 Minimum required checks for every batch pack:
 
 1. Registry and matrix rows are complete for in-scope languages.
-2. Required parser/collector/control-flow hooks are implemented or explicitly marked unsupported with diagnostics.
-3. Shard order manifest and shard validation test pass.
+2. Parser/collector/control-flow hooks are implemented or explicitly marked unsupported with diagnostics.
+3. Functional scenarios cover parsing, segmentation, identity mapping, and retrieval surfaces.
 4. Impacted per-language spec docs are updated (`docs/specs/usr/languages/*.md`).
-5. Matrix contract tests remain green:
-- `tests/unified-syntax-representation/shared/contracts/schema-validators.test.js`
-- `tests/unified-syntax-representation/shared/contracts/matrix-validators.test.js`
-- `tests/unified-syntax-representation/lang/contracts/language-contract-matrix-sync-validation.test.js`
-- `tests/unified-syntax-representation/lang/contracts/language-batch-shards-validation.test.js`
+5. Output determinism is stable on rerun for active fixtures.
 
-## 3) Framework Execution Packs (C4)
+## 3) Framework Execution Packs
 
 Completion status:
 - [ ] react pack complete
@@ -113,7 +105,7 @@ Completion status:
 
 Framework map (authoritative source: `tests/lang/matrix/usr-framework-profiles.json`):
 
-| Framework | Applies to languages | Required conformance | Edge-case matrix source |
+| Framework | Applies to languages | Capability target | Edge-case matrix source |
 | --- | --- | --- | --- |
 | react | javascript, typescript | C4 | `tests/lang/matrix/usr-framework-edge-cases.json` |
 | vue | css, html, javascript, typescript | C4 | `tests/lang/matrix/usr-framework-edge-cases.json` |
@@ -126,17 +118,13 @@ Framework map (authoritative source: `tests/lang/matrix/usr-framework-profiles.j
 
 Minimum required checks for every framework pack:
 
-1. Framework profile and edge-case rows are complete and schema-valid.
+1. Framework profile and edge-case rows are complete and consistent.
 2. Route/template/style/hydration semantics are implemented for required cases.
 3. Framework fixtures and canonical bundles are updated under `tests/fixtures/usr/`.
 4. Framework spec docs are updated (`docs/specs/usr/frameworks/*.md`).
-5. Required framework tests pass:
-- `tests/conformance/framework-canonicalization/framework-canonicalization-validation.test.js`
-- `tests/unified-syntax-representation/lang/contracts/framework-contract-matrix-sync-validation.test.js`
-- `tests/unified-syntax-representation/lang/contracts/framework-profile-matrix-sync-validation.test.js`
-- `tests/unified-syntax-representation/lang/contracts/framework-canonicalization-baseline-validation.test.js`
+5. Deterministic framework overlay behavior is stable in functional scenarios.
 
-## 4) Semantics and Hardening Packs (Phase E and Phase F)
+## 4) Semantics and Hardening Packs
 
 Completion status:
 - [ ] semantics/risk pack complete
@@ -148,8 +136,6 @@ Semantics/risk pack touchpoints:
 - `src/index/risk-rules.js`
 - `src/index/risk-interprocedural/*.js`
 - `tests/lang/matrix/usr-language-risk-profiles.json`
-- `tests/lang/matrix/usr-failure-injection-matrix.json`
-- `tests/lang/matrix/usr-security-gates.json`
 
 Fixture/golden determinism pack touchpoints:
 - `tests/fixtures/usr/canonical-examples/`
@@ -164,19 +150,30 @@ Readiness/hardening pack touchpoints:
 - `tests/lang/matrix/usr-waiver-policy.json`
 
 Minimum required checks for these packs:
-- `tests/unified-syntax-representation/lang/contracts/risk-fixture-governance-baseline-validation.test.js`
-- `tests/unified-syntax-representation/lang/contracts/embedding-provenance-baseline-validation.test.js`
-- `tests/unified-syntax-representation/lang/contracts/hardening-readiness-validation.test.js`
-- `tests/unified-syntax-representation/lang/contracts/implementation-readiness-validation.test.js`
-- `tests/unified-syntax-representation/lang/contracts/observability-rollup-validation.test.js`
-- `tests/unified-syntax-representation/lang/contracts/security-gate-validation.test.js`
+- semantics/risk outputs are functionally correct for target profiles
+- canonical and generated artifacts remain deterministic
+- caps/perf fallback behavior is explicit and stable
+- readiness and observability evidence is current
 
-## 5) Quick Execution Sequence
+## 5) Fast Repeatable Pack Template (for 20+ languages)
+
+For each language/framework pack, execute this order:
+
+1. wire registry/profile row and capability target
+2. implement parser/segment/identity mapping path
+3. implement import/call/control-flow edges
+4. implement language/framework-specific edge handling
+5. add/update fixtures and canonical outputs
+6. verify determinism and diagnostics
+7. update language/framework spec notes
+8. mark pack complete only when runtime behavior is production-usable
+
+## 6) Quick Execution Sequence
 
 1. Complete B0 and B1 first.
 2. Execute B2-B7 in parallel where owners and dependencies allow.
-3. Complete B8 integration only after B1-B7 are green.
-4. Complete framework packs and C4 checks.
+3. Complete B8 integration only after B1-B7 functional readiness is achieved.
+4. Complete framework packs for all required profiles.
 5. Complete semantics/risk/fixture/readiness packs before rollout authorization.
 
 This file remains the detailed checklist companion to `TES_LAYN_ROADMAP.md`.
