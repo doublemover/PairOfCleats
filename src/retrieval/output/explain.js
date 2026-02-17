@@ -1,3 +1,121 @@
+import { INTENT_CONFIDENCE_BUCKET_THRESHOLDS } from '../query-intent.js';
+
+export const TRUST_SURFACE_SCHEMA_VERSION = 1;
+
+const clamp01 = (value) => Math.max(0, Math.min(1, Number(value) || 0));
+
+const isPlainObject = (value) => (
+  value && typeof value === 'object' && value.constructor === Object
+);
+
+const toBoolean = (value) => value === true;
+
+const toBucket = (value) => {
+  const raw = String(value || '').trim().toLowerCase();
+  return raw === 'low' || raw === 'medium' || raw === 'high'
+    ? raw
+    : 'low';
+};
+
+const resolveSignals = ({ intentInfo, contextExpansionStats, annCandidatePolicy }) => {
+  const contextModes = ['code', 'prose', 'extracted-prose', 'records'];
+  const contextExpansionTruncated = contextModes.some((mode) => Boolean(contextExpansionStats?.[mode]?.truncation));
+  return {
+    intentAbstained: toBoolean(intentInfo?.abstain),
+    parseFallback: intentInfo?.parseStrategy === 'heuristic-fallback',
+    contextExpansionTruncated,
+    annCandidateConstrained: annCandidatePolicy?.outputMode === 'constrained'
+  };
+};
+
+const resolveReasonCodes = ({ confidenceBucket, signals }) => {
+  const reasons = [];
+  if (confidenceBucket === 'low') reasons.push('low_intent_confidence');
+  if (signals.intentAbstained) reasons.push('intent_abstained');
+  if (signals.parseFallback) reasons.push('query_parse_fallback');
+  if (signals.contextExpansionTruncated) reasons.push('context_expansion_truncated');
+  if (signals.annCandidateConstrained) reasons.push('ann_candidate_constrained');
+  if (!reasons.length) reasons.push('confidence_nominal');
+  return reasons;
+};
+
+export const CONFIDENCE_BUCKET_DEFINITIONS = Object.freeze({
+  low: { minInclusive: 0, maxExclusive: INTENT_CONFIDENCE_BUCKET_THRESHOLDS.medium },
+  medium: {
+    minInclusive: INTENT_CONFIDENCE_BUCKET_THRESHOLDS.medium,
+    maxExclusive: INTENT_CONFIDENCE_BUCKET_THRESHOLDS.high
+  },
+  high: { minInclusive: INTENT_CONFIDENCE_BUCKET_THRESHOLDS.high, maxInclusive: 1 }
+});
+
+/**
+ * Build a stable trust/confidence explain surface for retrieval output.
+ * @param {object} input
+ * @returns {object}
+ */
+export const buildTrustSurface = ({
+  intentInfo,
+  contextExpansionStats,
+  annCandidatePolicy
+} = {}) => {
+  const confidence = clamp01(intentInfo?.confidence);
+  const confidenceBucket = toBucket(intentInfo?.confidenceBucket);
+  const confidenceMargin = clamp01(intentInfo?.confidenceMargin);
+  const signals = resolveSignals({ intentInfo, contextExpansionStats, annCandidatePolicy });
+  const reasons = resolveReasonCodes({ confidenceBucket, signals });
+  return {
+    schemaVersion: TRUST_SURFACE_SCHEMA_VERSION,
+    confidence: {
+      value: confidence,
+      margin: confidenceMargin,
+      bucket: confidenceBucket,
+      buckets: CONFIDENCE_BUCKET_DEFINITIONS
+    },
+    signals,
+    reasonCodes: reasons
+  };
+};
+
+/**
+ * Parse trust/confidence surface while ignoring unknown forward fields.
+ * @param {object} surface
+ * @returns {object}
+ */
+export const readTrustSurface = (surface) => {
+  if (!isPlainObject(surface)) {
+    return buildTrustSurface();
+  }
+  const confidence = isPlainObject(surface.confidence) ? surface.confidence : {};
+  const signals = isPlainObject(surface.signals) ? surface.signals : {};
+  const normalized = {
+    schemaVersion: Number.isFinite(Number(surface.schemaVersion))
+      ? Number(surface.schemaVersion)
+      : TRUST_SURFACE_SCHEMA_VERSION,
+    confidence: {
+      value: clamp01(confidence.value),
+      margin: clamp01(confidence.margin),
+      bucket: toBucket(confidence.bucket),
+      buckets: CONFIDENCE_BUCKET_DEFINITIONS
+    },
+    signals: {
+      intentAbstained: toBoolean(signals.intentAbstained),
+      parseFallback: toBoolean(signals.parseFallback),
+      contextExpansionTruncated: toBoolean(signals.contextExpansionTruncated),
+      annCandidateConstrained: toBoolean(signals.annCandidateConstrained)
+    },
+    reasonCodes: Array.isArray(surface.reasonCodes)
+      ? surface.reasonCodes.map((entry) => String(entry)).filter(Boolean)
+      : []
+  };
+  if (!normalized.reasonCodes.length) {
+    normalized.reasonCodes = resolveReasonCodes({
+      confidenceBucket: normalized.confidence.bucket,
+      signals: normalized.signals
+    });
+  }
+  return normalized;
+};
+
 const formatExplainLine = (label, parts, color) => {
   const filtered = parts.filter(Boolean);
   if (!filtered.length) return null;

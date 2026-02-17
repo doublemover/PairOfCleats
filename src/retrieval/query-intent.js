@@ -7,7 +7,7 @@ const CODE_TOKEN_PATTERN = /[{}()[\];:<>.=]|=>|->|::|\+\+|--|\|\||&&/;
 const CAMEL_PATTERN = /[a-z][A-Z]/;
 const SNAKE_PATTERN = /_/;
 const INTENT_TYPES = ['code', 'prose', 'path', 'url', 'mixed'];
-const INTENT_CONFIDENCE_BUCKETS = Object.freeze({
+export const INTENT_CONFIDENCE_BUCKET_THRESHOLDS = Object.freeze({
   high: 0.78,
   medium: 0.56
 });
@@ -23,8 +23,8 @@ const DEFAULT_FIELD_WEIGHTS = {
 const clamp01 = (value) => Math.max(0, Math.min(1, Number(value) || 0));
 
 const resolveConfidenceBucket = (confidence) => {
-  if (confidence >= INTENT_CONFIDENCE_BUCKETS.high) return 'high';
-  if (confidence >= INTENT_CONFIDENCE_BUCKETS.medium) return 'medium';
+  if (confidence >= INTENT_CONFIDENCE_BUCKET_THRESHOLDS.high) return 'high';
+  if (confidence >= INTENT_CONFIDENCE_BUCKET_THRESHOLDS.medium) return 'medium';
   return 'low';
 };
 
