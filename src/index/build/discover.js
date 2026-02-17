@@ -181,12 +181,6 @@ export async function discoverEntries({
     if (maxDepthValue != null) {
       crawler = crawler.withMaxDepth(maxDepthValue);
     }
-    if (maxFilesValue) {
-      // Keep traversal bounded when maxFiles is active while still allowing
-      // headroom for skipped candidates before accepted entries hit the cap.
-      const crawlLimit = Math.max(maxFilesValue, maxFilesValue * 8);
-      crawler = crawler.withMaxFiles(crawlLimit);
-    }
     if (abortSignal) {
       crawler = crawler.withAbortSignal(abortSignal);
     }
@@ -216,15 +210,18 @@ export async function discoverEntries({
     Math.max(4, Number(envConfig.discoveryStatConcurrency) || 32)
   );
   /**
-   * Reserve work slots without turning reservation rejections into a hard stop.
-   * This keeps in-flight work bounded by `maxFiles` while only treating accepted
-   * entries as progress toward the cap.
+   * Acquire an in-flight reservation for a candidate.
+   * Reservations are intentionally independent from accepted entries so workers
+   * do not permanently drop candidates while another reservation is still
+   * resolving (for example a delayed stat-failed path).
    * @returns {boolean}
    */
-  const canReserveCandidate = () => {
+  const tryReserveCandidate = () => {
     if (!maxFilesValue) return true;
     if (acceptedCount >= maxFilesValue) return false;
-    return (acceptedCount + reservedCount) < maxFilesValue;
+    if (reservedCount >= maxFilesValue) return false;
+    reservedCount += 1;
+    return true;
   };
   const processCandidate = async (absPath) => {
     throwIfAborted(abortSignal);
@@ -234,8 +231,6 @@ export async function discoverEntries({
     const inRecordsRoot = recordsRoot
       ? normalizedAbs.startsWith(`${recordsRoot}${path.sep}`)
       : false;
-    let reserved = false;
-    let accepted = false;
     if (maxDepthValue != null) {
       const depth = relPosix.split('/').length - 1;
       if (depth > maxDepthValue) {
@@ -263,11 +258,6 @@ export async function discoverEntries({
       recordSkip(absPath, 'ignored');
       return;
     }
-    if (maxFilesValue) {
-      if (!canReserveCandidate()) return;
-      reservedCount += 1;
-      reserved = true;
-    }
     try {
       let stat;
       try {
@@ -291,6 +281,9 @@ export async function discoverEntries({
         });
         return;
       }
+      if (maxFilesValue && acceptedCount >= maxFilesValue) {
+        return;
+      }
       const record = inRecordsRoot
         ? { source: 'triage', recordType: 'record', reason: 'records-dir' }
         : (recordsClassifier
@@ -306,10 +299,9 @@ export async function discoverEntries({
         isLock,
         ...(record ? { record } : {})
       });
-      accepted = true;
       acceptedCount += 1;
     } finally {
-      if (reserved && !accepted) {
+      if (maxFilesValue) {
         reservedCount = Math.max(0, reservedCount - 1);
       }
     }
@@ -327,9 +319,18 @@ export async function discoverEntries({
       while (true) {
         throwIfAborted(abortSignal);
         if (maxFilesValue && acceptedCount >= maxFilesValue) break;
+        if (maxFilesValue && !tryReserveCandidate()) {
+          await new Promise((resolve) => setImmediate(resolve));
+          continue;
+        }
         const idx = cursor;
         cursor += 1;
-        if (idx >= candidates.length) break;
+        if (idx >= candidates.length) {
+          if (maxFilesValue) {
+            reservedCount = Math.max(0, reservedCount - 1);
+          }
+          break;
+        }
         await processCandidate(candidates[idx]);
       }
     })());
