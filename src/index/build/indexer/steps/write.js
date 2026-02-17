@@ -58,7 +58,7 @@ export const writeIndexArtifactsForMode = async ({
   const artifacts = buildIndexStateArtifactsBlock({
     profileId: profile.id,
     mode,
-    embeddingsEnabled: runtime.embeddingEnabled || runtime.embeddingService,
+    embeddingsEnabled: runtime.embeddingEnabled === true,
     postingsConfig: runtime.postingsConfig
   });
   if (mode === 'code') {

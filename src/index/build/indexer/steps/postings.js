@@ -162,9 +162,10 @@ export const createTokenRetentionState = ({ runtime, totalFiles, log = sharedLog
 
 export const buildIndexPostings = async ({ runtime, state }) => {
   const vectorOnlyProfile = runtime?.profile?.id === INDEX_PROFILE_VECTOR_ONLY;
-  if (vectorOnlyProfile && runtime?.embeddingEnabled !== true) {
+  if (vectorOnlyProfile && runtime?.embeddingEnabled !== true && runtime?.embeddingService !== true) {
     throw new Error(
-      'indexing.profile=vector_only requires embeddings to be available during index build.'
+      'indexing.profile=vector_only requires embeddings to be available during index build. '
+      + 'Enable inline/stub embeddings or service-mode embedding queueing and rebuild.'
     );
   }
   enforceTokenIdCollisionPolicy(state);

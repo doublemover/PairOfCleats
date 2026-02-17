@@ -345,10 +345,10 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     }
   });
   const vectorOnlyProfile = runtimeRef?.profile?.id === INDEX_PROFILE_VECTOR_ONLY;
-  if (vectorOnlyProfile && runtimeRef.embeddingEnabled !== true) {
+  if (vectorOnlyProfile && runtimeRef.embeddingEnabled !== true && runtimeRef.embeddingService !== true) {
     throw new Error(
       'indexing.profile=vector_only requires embeddings to be available during index build. ' +
-      'Enable inline/stub embeddings and rebuild.'
+      'Enable inline/stub embeddings or service-mode embedding queueing and rebuild.'
     );
   }
   const tokenizationKey = buildTokenizationKey(runtimeRef, mode);
