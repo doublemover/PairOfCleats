@@ -1106,11 +1106,11 @@ Stop wasted file-system and read/hash work in discovery and incremental cache lo
 Increase embedding throughput by parallelizing independent batches and removing cache/write-path bottlenecks.
 
 #### Tasks
-- [ ] Dispatch code and doc embedding batches concurrently where backends advertise safe parallelism; otherwise keep deterministic serial path.
-- [ ] Add compact cache-entry fingerprint to avoid decompressing full payloads just to compare chunk hashes.
-- [ ] Reuse shard append handles during cache flushes to avoid repeated open/stat/close cycles.
-- [ ] Move heavy encoding off the writer queue critical section (queue should gate disk I/O, not compression CPU time).
-- [ ] Keep embedding cache identity and determinism unchanged.
+- [x] Dispatch code and doc embedding batches concurrently where backends advertise safe parallelism; otherwise keep deterministic serial path.
+- [x] Add compact cache-entry fingerprint to avoid decompressing full payloads just to compare chunk hashes.
+- [x] Reuse shard append handles during cache flushes to avoid repeated open/stat/close cycles.
+- [x] Move heavy encoding off the writer queue critical section (queue should gate disk I/O, not compression CPU time).
+- [x] Keep embedding cache identity and determinism unchanged.
 
 #### Touchpoints
 - `tools/build/embeddings/batch.js`
@@ -1121,18 +1121,18 @@ Increase embedding throughput by parallelizing independent batches and removing 
 - `src/shared/embeddings-cache/*`
 
 #### Tests
-- [ ] `tests/embeddings/pipeline/code-doc-batches-parallel-dispatch.test.js`
-  - [ ] Code/doc batch dispatches overlap in time when backend supports concurrency.
-  - [ ] Result ordering and embedding identity remain deterministic.
-- [ ] `tests/embeddings/cache/fingerprint-short-circuit-avoids-decompress.test.js`
-  - [ ] Fingerprint mismatch bypasses full payload decompress/read path.
-  - [ ] Cache miss/hit decisions remain correct for unchanged hashes.
-- [ ] `tests/embeddings/cache/shard-append-handle-reuse.test.js`
-  - [ ] Shard appends reuse handles within a flush window (no per-entry reopen loop).
-  - [ ] Final shard contents and index pointers remain valid and deterministic.
-- [ ] `tests/embeddings/pipeline/writer-queue-encode-off-critical-path.test.js`
-  - [ ] Encoding occurs outside queue-gated disk write section.
-  - [ ] Queue drains correctly with no lost writes or ordering drift.
+- [x] `tests/embeddings/pipeline/code-doc-batches-parallel-dispatch.test.js`
+  - [x] Code/doc batch dispatches overlap in time when backend supports concurrency.
+  - [x] Result ordering and embedding identity remain deterministic.
+- [x] `tests/embeddings/cache/fingerprint-short-circuit-avoids-decompress.test.js`
+  - [x] Fingerprint mismatch bypasses full payload decompress/read path.
+  - [x] Cache miss/hit decisions remain correct for unchanged hashes.
+- [x] `tests/embeddings/cache/shard-append-handle-reuse.test.js`
+  - [x] Shard appends reuse handles within a flush window (no per-entry reopen loop).
+  - [x] Final shard contents and index pointers remain valid and deterministic.
+- [x] `tests/embeddings/pipeline/writer-queue-encode-off-critical-path.test.js`
+  - [x] Encoding occurs outside queue-gated disk write section.
+  - [x] Queue drains correctly with no lost writes or ordering drift.
 
 ### 20.4 Postings and chunking compute reuse
 

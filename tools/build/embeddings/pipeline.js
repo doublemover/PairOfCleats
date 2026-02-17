@@ -5,7 +5,8 @@ export const createFileEmbeddingsProcessor = ({
   assertVectorArrays,
   scheduleCompute,
   processFileEmbeddings,
-  mode
+  mode,
+  parallelDispatch = false
 }) => {
   const runEmbeddingsBatch = async (texts, label) => {
     if (!texts.length) return [];
@@ -22,13 +23,6 @@ export const createFileEmbeddingsProcessor = ({
     entry.codeEmbeds = new Array(entry.items.length).fill(null);
     entry.docVectorsRaw = new Array(entry.items.length).fill(null);
 
-    if (entry.codeTexts.length) {
-      const codeEmbeds = await runEmbeddingsBatch(entry.codeTexts, `${mode} code`);
-      for (let i = 0; i < entry.codeMapping.length; i += 1) {
-        entry.codeEmbeds[entry.codeMapping[i]] = codeEmbeds[i] || null;
-      }
-    }
-
     const docPayloads = [];
     const docMapping = [];
     for (let i = 0; i < entry.docTexts.length; i += 1) {
@@ -36,11 +30,25 @@ export const createFileEmbeddingsProcessor = ({
       docPayloads.push(entry.docTexts[i]);
       docMapping.push(entry.docMapping[i]);
     }
-    if (docPayloads.length) {
+    const runCode = async () => {
+      if (!entry.codeTexts.length) return;
+      const codeEmbeds = await runEmbeddingsBatch(entry.codeTexts, `${mode} code`);
+      for (let i = 0; i < entry.codeMapping.length; i += 1) {
+        entry.codeEmbeds[entry.codeMapping[i]] = codeEmbeds[i] || null;
+      }
+    };
+    const runDoc = async () => {
+      if (!docPayloads.length) return;
       const docEmbeds = await runEmbeddingsBatch(docPayloads, `${mode} doc`);
       for (let i = 0; i < docMapping.length; i += 1) {
         entry.docVectorsRaw[docMapping[i]] = docEmbeds[i] || null;
       }
+    };
+    if (parallelDispatch && entry.codeTexts.length && docPayloads.length) {
+      await Promise.all([runCode(), runDoc()]);
+    } else {
+      await runCode();
+      await runDoc();
     }
 
     await processFileEmbeddings(entry);

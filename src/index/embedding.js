@@ -53,6 +53,7 @@ export function createEmbedder({
   async function getChunkEmbeddings(texts) {
     return adapter.embed(texts);
   }
+  getChunkEmbeddings.supportsParallelDispatch = adapter?.supportsParallelDispatch === true;
 
   return { getChunkEmbedding, getChunkEmbeddings, embedderPromise: adapter.embedderPromise };
 }

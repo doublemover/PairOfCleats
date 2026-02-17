@@ -135,7 +135,8 @@ const createXenovaAdapter = ({ modelId, modelsDir, normalize }) => {
     get embedderPromise() {
       return ensureEmbedder();
     },
-    provider: 'xenova'
+    provider: 'xenova',
+    supportsParallelDispatch: true
   };
 };
 
@@ -158,7 +159,13 @@ const createAdapter = ({
       return list.map((text) => stubEmbedding(text, safeDims, normalize !== false));
     };
     const embedOne = async (text) => stubEmbedding(text, safeDims, normalize !== false);
-    return { embed, embedOne, embedderPromise: null, provider: resolvedProvider };
+    return {
+      embed,
+      embedOne,
+      embedderPromise: null,
+      provider: resolvedProvider,
+      supportsParallelDispatch: true
+    };
   }
 
   if (resolvedProvider === 'onnx') {
@@ -207,7 +214,8 @@ const createAdapter = ({
         }
       },
       embedderPromise: onnxEmbedder.embedderPromise,
-      provider: resolvedProvider
+      provider: resolvedProvider,
+      supportsParallelDispatch: true
     };
   }
 
