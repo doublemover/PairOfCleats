@@ -195,3 +195,8 @@ This document maps user-visible behavior to implementation, configuration switch
   - Config: `PAIROFCLEATS_TEST_CONFIG.ops.failureInjection` (test-only policy and retry settings).
   - Tests: `tests/ops/failure-injection/retrieval-hotpath.test.js`.
   - Limitations: injection is intentionally test-gated and does not run outside testing mode.
+- Claim: retrieval option defaults are explicit/conservative and risky knob combinations are rejected with stable guardrail codes.
+  - Implementation: `src/retrieval/cli/normalize-options.js` (`OP_RETRIEVAL_DEFAULTS`, `OP_CONFIG_GUARDRAIL_CODES`, `validateOperationalGuardrails`), `src/shared/capabilities.js` (`CAPABILITY_DEFAULTS`).
+  - Config: `retrieval.annCandidate*` and `search.rrf.k`.
+  - Tests: `tests/ops/config/guardrails.test.js`.
+  - Limitations: guardrails currently target candidate-window and RRF risks; they do not validate every retrieval knob combination.

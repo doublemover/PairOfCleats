@@ -19,6 +19,53 @@ import { resolveSearchMode } from '../cli-args.js';
 import { getMissingFlagMessages, resolveBm25Defaults } from './options.js';
 import { normalizeOptionalNumber } from '../../shared/limits.js';
 
+export const OP_CONFIG_GUARDRAIL_CODES = Object.freeze({
+  ANN_CANDIDATE_BOUNDS_INVALID: 'op_guardrail_ann_candidate_bounds_invalid',
+  ANN_CANDIDATE_CAP_OUT_OF_RANGE: 'op_guardrail_ann_candidate_cap_out_of_range',
+  RRF_K_INVALID: 'op_guardrail_rrf_k_invalid'
+});
+
+export const OP_RETRIEVAL_DEFAULTS = Object.freeze({
+  annCandidateCap: 20000,
+  annCandidateMinDocCount: 100,
+  annCandidateMaxDocCount: 20000,
+  queryCacheMaxEntries: 200,
+  queryCacheTtlMs: 0,
+  rrfK: 60
+});
+
+const buildGuardrailError = (code, message) => {
+  const error = new Error(`[${code}] ${message}`);
+  error.guardrailCode = code;
+  return error;
+};
+
+const validateOperationalGuardrails = ({
+  annCandidateCap,
+  annCandidateMinDocCount,
+  annCandidateMaxDocCount,
+  rrfK
+}) => {
+  if (annCandidateMinDocCount > annCandidateMaxDocCount) {
+    throw buildGuardrailError(
+      OP_CONFIG_GUARDRAIL_CODES.ANN_CANDIDATE_BOUNDS_INVALID,
+      'retrieval.annCandidateMinDocCount cannot exceed retrieval.annCandidateMaxDocCount.'
+    );
+  }
+  if (annCandidateCap < annCandidateMinDocCount || annCandidateCap > annCandidateMaxDocCount) {
+    throw buildGuardrailError(
+      OP_CONFIG_GUARDRAIL_CODES.ANN_CANDIDATE_CAP_OUT_OF_RANGE,
+      'retrieval.annCandidateCap must stay within [annCandidateMinDocCount, annCandidateMaxDocCount].'
+    );
+  }
+  if (!Number.isFinite(rrfK) || rrfK <= 0) {
+    throw buildGuardrailError(
+      OP_CONFIG_GUARDRAIL_CODES.RRF_K_INVALID,
+      'search.rrf.k must be a positive number.'
+    );
+  }
+};
+
 const normalizeDenseVectorMode = (value) => {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim().toLowerCase();
@@ -182,15 +229,24 @@ export function normalizeSearchOptions({
     && Number(relationBoostConfigRaw.maxBoost) > 0
     ? Number(relationBoostConfigRaw.maxBoost)
     : 1.5;
-  const annCandidateCap = normalizePositiveInt(retrievalConfig.annCandidateCap, 20000);
-  const annCandidateMinDocCount = normalizePositiveInt(retrievalConfig.annCandidateMinDocCount, 100);
-  const annCandidateMaxDocCount = normalizePositiveInt(retrievalConfig.annCandidateMaxDocCount, 20000);
+  const annCandidateCap = normalizePositiveInt(
+    retrievalConfig.annCandidateCap,
+    OP_RETRIEVAL_DEFAULTS.annCandidateCap
+  );
+  const annCandidateMinDocCount = normalizePositiveInt(
+    retrievalConfig.annCandidateMinDocCount,
+    OP_RETRIEVAL_DEFAULTS.annCandidateMinDocCount
+  );
+  const annCandidateMaxDocCount = normalizePositiveInt(
+    retrievalConfig.annCandidateMaxDocCount,
+    OP_RETRIEVAL_DEFAULTS.annCandidateMaxDocCount
+  );
 
   const minhashMaxDocs = 5000;
 
   const queryCacheEnabled = policy?.quality?.value ? policy.quality.value !== 'fast' : false;
-  const queryCacheMaxEntries = 200;
-  const queryCacheTtlMs = 0;
+  const queryCacheMaxEntries = OP_RETRIEVAL_DEFAULTS.queryCacheMaxEntries;
+  const queryCacheTtlMs = OP_RETRIEVAL_DEFAULTS.queryCacheTtlMs;
 
   const rrfConfig = searchConfig.rrf || {};
   const policyRrfEnabled = policy?.retrieval?.rrf?.enabled;
@@ -199,7 +255,13 @@ export function normalizeSearchOptions({
     : (policyRrfEnabled ?? true);
   const rrfK = normalizeOptionalNumber(rrfConfig.k)
     ?? normalizeOptionalNumber(policy?.retrieval?.rrf?.k)
-    ?? 60;
+    ?? OP_RETRIEVAL_DEFAULTS.rrfK;
+  validateOperationalGuardrails({
+    annCandidateCap,
+    annCandidateMinDocCount,
+    annCandidateMaxDocCount,
+    rrfK
+  });
 
   const graphRankingRaw = userConfig?.retrieval?.graphRanking || {};
   const graphRankingEnabled = graphRankingRaw.enabled === true;
