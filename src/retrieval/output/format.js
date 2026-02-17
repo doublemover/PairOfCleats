@@ -11,7 +11,20 @@ export const RESULT_BUNDLE_SCHEMA_VERSION = 1;
 const BUNDLE_MODE_ORDER = Object.freeze(['code', 'extractedProse', 'prose', 'records']);
 const BUNDLE_MODE_RANK = new Map(BUNDLE_MODE_ORDER.map((mode, index) => [mode, index]));
 
-const compareText = (a, b) => String(a || '').localeCompare(String(b || ''));
+/**
+ * Locale-neutral comparator for deterministic ordering across environments.
+ *
+ * @param {unknown} a
+ * @param {unknown} b
+ * @returns {number}
+ */
+const compareText = (a, b) => {
+  const left = String(a || '');
+  const right = String(b || '');
+  if (left < right) return -1;
+  if (left > right) return 1;
+  return 0;
+};
 
 /**
  * Assemble deterministic result bundles grouped by file path.
@@ -488,7 +501,7 @@ export function formatFullChunk({
       calleeCounts.set(callee, (calleeCounts.get(callee) || 0) + 1);
     }
     const entries = Array.from(calleeCounts.entries())
-      .sort((a, b) => (b[1] - a[1]) || String(a[0]).localeCompare(String(b[0])));
+      .sort((a, b) => (b[1] - a[1]) || compareText(a[0], b[0]));
     const maxEntries = 8;
     const rendered = entries.slice(0, maxEntries).map(([callee, count]) => (
       count > 1 ? `${callee} (${count})` : callee
