@@ -1158,11 +1158,11 @@ Incrementally improve intent understanding, multi-hop expansion, confidence esti
   - [x] Low-confidence queries trigger abstain path deterministically.
 
 ### IQ.2 Multi-hop expansion policy
-- [ ] Define bounded expansion depth/width defaults.
-- [ ] Add deterministic stop conditions.
-- [ ] `tests/retrieval/expansion/multihop-bounded-policy.test.js`
-  - [ ] Expansion never exceeds configured depth/width bounds.
-  - [ ] Same seed query produces identical expansion graph/order.
+- [x] Define bounded expansion depth/width defaults.
+- [x] Add deterministic stop conditions.
+- [x] `tests/retrieval/expansion/multihop-bounded-policy.test.js`
+  - [x] Expansion never exceeds configured depth/width bounds.
+  - [x] Same seed query produces identical expansion graph/order.
 
 ### IQ.3 Trust and confidence surfacing
 - [ ] Add trust signals to explain payload with versioned schema.
