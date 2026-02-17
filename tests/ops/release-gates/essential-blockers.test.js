@@ -54,6 +54,30 @@ assert.notEqual(
   'expected override path to fail when marker is missing'
 );
 
+const overrideWithFlagLikeMarker = runReleaseCheck({
+  cwd: tempRoot,
+  args: [
+    '--blockers-only',
+    '--allow-blocker-override',
+    '--override-marker',
+    '--override-id',
+    'ops-health-contract',
+    '--override-id',
+    'ops-failure-injection-contract',
+    '--override-id',
+    'ops-config-guardrails-contract'
+  ]
+});
+assert.notEqual(
+  overrideWithFlagLikeMarker.status,
+  0,
+  'expected override path to fail when marker value is missing/flag-like'
+);
+assert.ok(
+  String(overrideWithFlagLikeMarker.stderr || '').includes('--override-marker requires a non-flag marker value'),
+  'expected release-check to report malformed override marker'
+);
+
 const marker = 'INC-OP4-override-test';
 const override = runReleaseCheck({
   cwd: tempRoot,

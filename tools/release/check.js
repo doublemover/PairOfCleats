@@ -7,6 +7,10 @@ import { isTestingEnv } from '../../src/shared/env.js';
 
 const args = process.argv.slice(2);
 const hasFlag = (flag) => args.includes(flag);
+const hasOption = (name) => {
+  const flag = `--${name}`;
+  return args.some((arg) => arg === flag || (typeof arg === 'string' && arg.startsWith(`${flag}=`)));
+};
 const requireBreaking = hasFlag('--breaking');
 const blockersOnly = hasFlag('--blockers-only');
 const noBlockers = hasFlag('--no-blockers');
@@ -71,6 +75,7 @@ if (hasFlag('--help') || hasFlag('-h')) {
 }
 
 const overrideMarker = readOption('override-marker').trim();
+const hasOverrideMarkerOption = hasOption('override-marker');
 const overrideIds = new Set([
   ...readMultiOption('override-id'),
   ...readMultiOption('override-ids')
@@ -78,6 +83,11 @@ const overrideIds = new Set([
     .filter(Boolean)
 ]);
 const TESTING_ENV_KEY = 'PAIROFCLEATS_TESTING';
+
+if (hasOverrideMarkerOption && (!overrideMarker || overrideMarker.startsWith('-'))) {
+  console.error('release-check: --override-marker requires a non-flag marker value.');
+  process.exit(1);
+}
 
 // Keep blockers intentionally minimal; these are the only OP contracts that
 // should hard-fail release checks by default.
