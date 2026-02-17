@@ -53,6 +53,14 @@ fused using RRF by default; each mode can be weighted independently via config.
 
 Backends must emit this schema consistently so that parity checks are meaningful.
 
+### Track IQ: Intent confidence semantics
+For explain output, `stats.intent` now carries a calibrated confidence surface:
+- `type` remains the dominant class from intent classification.
+- `effectiveType` is the class applied to retrieval knobs; when confidence is low (`confidenceBucket=low`), implementations MUST abstain and set `effectiveType=mixed`.
+- `confidenceByType` is a deterministic, normalized per-class map over `code|prose|path|url|mixed`.
+- `confidence`, `confidenceMargin`, and `confidenceBucket` summarize the selected class confidence.
+- `abstain=true` and `state=uncertain` indicate a low-confidence intent decision.
+
 ### Phase 11: Graph ranking explain additions (optional)
 When graph-aware ranking is enabled, explain SHOULD include:
 

@@ -1151,11 +1151,11 @@ Incrementally improve intent understanding, multi-hop expansion, confidence esti
 - `src/retrieval/output/format.js`
 
 ### IQ.1 Intent confidence calibration
-- [ ] Add calibrated confidence outputs per intent class.
-- [ ] Add abstain/uncertain state for low-confidence cases.
-- [ ] `tests/retrieval/intent/intent-confidence-calibration.test.js`
-  - [ ] Confidence buckets are calibrated against fixture truth labels.
-  - [ ] Low-confidence queries trigger abstain path deterministically.
+- [x] Add calibrated confidence outputs per intent class.
+- [x] Add abstain/uncertain state for low-confidence cases.
+- [x] `tests/retrieval/intent/intent-confidence-calibration.test.js`
+  - [x] Confidence buckets are calibrated against fixture truth labels.
+  - [x] Low-confidence queries trigger abstain path deterministically.
 
 ### IQ.2 Multi-hop expansion policy
 - [ ] Define bounded expansion depth/width defaults.

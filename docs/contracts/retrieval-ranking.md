@@ -63,6 +63,18 @@ Phase 17 also requires routing visibility in explain stats:
 - `stats.routingPolicy`
 - `stats.routing`
 
+#### Track IQ: Intent confidence surface
+When explain is enabled, `stats.intent` SHOULD include calibrated intent confidence fields:
+- `type`: dominant classified intent (`code|prose|path|url|mixed`)
+- `effectiveType`: intent used for weighting/vector routing (`mixed` when abstaining)
+- `confidence`: calibrated confidence of `type` in `[0,1]`
+- `confidenceByType`: per-class calibrated confidence map
+- `confidenceMargin`: gap between top two calibrated class confidences
+- `confidenceBucket`: `low|medium|high`
+- `abstain`: deterministic low-confidence gate
+- `state`: `certain|uncertain`
+- `abstainReason`: reason code when `abstain=true` (`low_confidence`)
+
 ---
 
 ## Context expansion (post-ranking; optional)
