@@ -1,3 +1,13 @@
+/**
+ * Create per-file embeddings processor for code/doc payloads.
+ * When `parallelDispatch=true`, code/doc embedding batches execute concurrently
+ * only if both payload groups are present; otherwise processing stays serial to
+ * avoid unnecessary scheduling overhead.
+ *
+ * @param {object} input
+ * @param {boolean} [input.parallelDispatch=false]
+ * @returns {(entry:object)=>Promise<void>}
+ */
 export const createFileEmbeddingsProcessor = ({
   embeddingBatchSize,
   getChunkEmbeddings,

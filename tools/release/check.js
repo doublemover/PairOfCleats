@@ -7,6 +7,11 @@ import { isTestingEnv } from '../../src/shared/env.js';
 
 const args = process.argv.slice(2);
 const hasFlag = (flag) => args.includes(flag);
+/**
+ * Check whether a CLI option is present as `--name` or `--name=value`.
+ * @param {string} name
+ * @returns {boolean}
+ */
 const hasOption = (name) => {
   const flag = `--${name}`;
   return args.some((arg) => arg === flag || (typeof arg === 'string' && arg.startsWith(`${flag}=`)));

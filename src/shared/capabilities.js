@@ -2,6 +2,10 @@ import { tryRequire } from './optional-deps.js';
 
 let cached = null;
 
+/**
+ * Stable defaults used when capability providers are missing or when we skip probing.
+ * Fields remain frozen so downstream code can rely on referential equality while merging.
+ */
 export const CAPABILITY_DEFAULTS = Object.freeze({
   watcher: Object.freeze({
     chokidar: false,
@@ -58,6 +62,11 @@ const checkCandidates = (candidates, options, {
   return false;
 };
 
+/**
+ * Probe optional runtime capabilities once and cache the result unless `refresh` is requested.
+ * @param {{refresh?:boolean,verbose?:boolean,logger?:object}} [options]
+ * @returns {object}
+ */
 export function getCapabilities(options = {}) {
   if (cached && options.refresh !== true) return cached;
   const opts = {

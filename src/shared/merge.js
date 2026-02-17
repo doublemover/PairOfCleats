@@ -326,6 +326,13 @@ const writeCheckpoint = async (checkpointPath, payload) => {
   await replaceFile(tempPath, checkpointPath);
 };
 
+/**
+ * Read optional planner hint metadata from disk.
+ * Hints are best-effort and ignored when unreadable or invalid.
+ *
+ * @param {string|null} plannerHintsPath
+ * @returns {Promise<object|null>}
+ */
 const readPlannerHints = async (plannerHintsPath) => {
   if (!plannerHintsPath) return null;
   try {
@@ -337,6 +344,12 @@ const readPlannerHints = async (plannerHintsPath) => {
   }
 };
 
+/**
+ * Persist planner hint metadata atomically.
+ * @param {string|null} plannerHintsPath
+ * @param {object|null} payload
+ * @returns {Promise<void>}
+ */
 const writePlannerHints = async (plannerHintsPath, payload) => {
   if (!plannerHintsPath || !payload) return;
   const tempPath = createTempPath(plannerHintsPath);
@@ -345,6 +358,14 @@ const writePlannerHints = async (plannerHintsPath, payload) => {
   await replaceFile(tempPath, plannerHintsPath);
 };
 
+/**
+ * Merge sorted run files using a staged planner/checkpoint strategy.
+ * Planner hints are keyed by `plannerInputKey`; `plannerHintUsed` is surfaced
+ * in stats so callers can track hint reuse hit-rate.
+ *
+ * @param {object} input
+ * @returns {Promise<{outputPath:string,stats:object,cleanup:()=>Promise<void>}>}
+ */
 export const mergeRunsWithPlanner = async ({
   runs,
   outputPath,

@@ -92,6 +92,31 @@ try {
   ({ default: Database } = await import('better-sqlite3'));
 } catch {}
 
+/**
+ * Kick off the `pairofcleats build embeddings` workflow using normalized runtime config.
+ * @param {{
+ *   argv:string[],
+ *   root:string,
+ *   userConfig:object,
+ *   envConfig:object,
+ *   indexingConfig:object,
+ *   rawArgv:string[],
+ *   embeddingsConfig:object,
+ *   embeddingProvider:object|null,
+ *   embeddingOnnx:object|null,
+ *   hnswConfig:object,
+ *   normalizedEmbeddingMode:string,
+ *   resolvedEmbeddingMode:string,
+ *   useStubEmbeddings:boolean,
+ *   embeddingBatchSize:number,
+ *   configuredDims:number|null,
+ *   modelId:string|null,
+ *   modelsDir:string|null,
+ *   indexRoot:string,
+ *   modes:string[]
+ * }} config
+ * @returns {Promise<void>}
+ */
 export async function runBuildEmbeddingsWithConfig(config) {
   const {
     argv,
