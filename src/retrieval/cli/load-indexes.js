@@ -308,19 +308,22 @@ export async function loadSearchIndexes({
     includeChunkMetaCold: needsChunkMetaCold,
     includeHnsw: annActive
   };
-  const resolveDenseArtifactName = (mode) => {
-    if (resolvedDenseVectorMode === 'code') return 'dense_vectors_code';
-    if (resolvedDenseVectorMode === 'doc') return 'dense_vectors_doc';
+  /**
+   * Auto mode prefers split vectors by cohort, but legacy indexes may only expose merged vectors.
+   * Keep merged as a lazy-load fallback so ANN stays available during mixed-version rollouts.
+   */
+  const resolveDenseArtifactCandidates = (mode) => {
+    if (resolvedDenseVectorMode === 'code') return ['dense_vectors_code'];
+    if (resolvedDenseVectorMode === 'doc') return ['dense_vectors_doc'];
     if (resolvedDenseVectorMode === 'auto') {
-      if (mode === 'code') return 'dense_vectors_code';
-      if (mode === 'prose' || mode === 'extracted-prose') return 'dense_vectors_doc';
+      if (mode === 'code') return ['dense_vectors_code', 'dense_vectors'];
+      if (mode === 'prose' || mode === 'extracted-prose') return ['dense_vectors_doc', 'dense_vectors'];
     }
-    return 'dense_vectors';
+    return ['dense_vectors'];
   };
   const attachDenseVectorLoader = (idx, mode, dir) => {
     if (!idx || !dir || !needsAnnArtifacts || !lazyDenseVectorsEnabled) return;
-    const artifactName = resolveDenseArtifactName(mode);
-    const fallbackPath = path.join(dir, `${artifactName}_uint8.json`);
+    const artifactCandidates = resolveDenseArtifactCandidates(mode);
     let pendingLoad = null;
     idx.loadDenseVectors = async () => {
       if (Array.isArray(idx?.denseVec?.vectors) && idx.denseVec.vectors.length > 0) {
@@ -336,24 +339,27 @@ export async function loadSearchIndexes({
             throw err;
           }
         }
-        try {
-          const loaded = await loadJsonObjectArtifact(dir, artifactName, {
-            maxBytes: MAX_JSON_BYTES,
-            manifest,
-            strict,
-            fallbackPath
-          });
-          if (!loaded || !Array.isArray(loaded.vectors) || !loaded.vectors.length) {
-            idx.loadDenseVectors = null;
-            return null;
+        for (const artifactName of artifactCandidates) {
+          const fallbackPath = path.join(dir, `${artifactName}_uint8.json`);
+          try {
+            const loaded = await loadJsonObjectArtifact(dir, artifactName, {
+              maxBytes: MAX_JSON_BYTES,
+              manifest,
+              strict,
+              fallbackPath
+            });
+            if (!loaded || !Array.isArray(loaded.vectors) || !loaded.vectors.length) {
+              continue;
+            }
+            if (!loaded.model && modelIdDefault) loaded.model = modelIdDefault;
+            idx.denseVec = loaded;
+            return loaded;
+          } catch {
+            continue;
           }
-          if (!loaded.model && modelIdDefault) loaded.model = modelIdDefault;
-          idx.denseVec = loaded;
-          return loaded;
-        } catch {
-          idx.loadDenseVectors = null;
-          return null;
         }
+        idx.loadDenseVectors = null;
+        return null;
       })().finally(() => {
         pendingLoad = null;
       });

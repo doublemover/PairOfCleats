@@ -1072,7 +1072,8 @@ export function createSearchPipeline(context) {
         annMetrics.candidatePolicy = annCandidatePolicy.explain;
 
         const annCapabilityUnavailable = !vectorActive || !providerAvailable;
-        if (vectorOnlyProfile && annCapabilityUnavailable && !annHits.length) {
+        const emptyIndex = !Array.isArray(meta) || meta.length === 0;
+        if (vectorOnlyProfile && !emptyIndex && annCapabilityUnavailable && !annHits.length) {
           const capabilityReason = !vectorActive ? 'ann_capability_unavailable' : 'ann_provider_unavailable';
           throw createError(
             ERROR_CODES.CAPABILITY_MISSING,
