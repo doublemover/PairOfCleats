@@ -225,9 +225,16 @@ export const ensureFixtureIndex = async ({
 };
 
 export const ensureFixtureSqlite = async ({ fixtureRoot, userConfig, env }) => {
-  const sqlitePaths = resolveSqlitePaths(fixtureRoot, userConfig);
+  let sqlitePaths = resolveSqlitePaths(fixtureRoot, userConfig);
   if (!fs.existsSync(sqlitePaths.codePath) || !fs.existsSync(sqlitePaths.prosePath)) {
     await runSqliteBuild(fixtureRoot, { emitOutput: true });
+    sqlitePaths = resolveSqlitePaths(fixtureRoot, userConfig);
+  }
+  if (!fs.existsSync(sqlitePaths.codePath) || !fs.existsSync(sqlitePaths.prosePath)) {
+    throw new Error(
+      `SQLite fixture paths are unavailable after build. `
+      + `codePath=${sqlitePaths.codePath} prosePath=${sqlitePaths.prosePath}`
+    );
   }
   return sqlitePaths;
 };
