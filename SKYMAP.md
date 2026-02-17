@@ -1179,11 +1179,11 @@ Incrementally improve intent understanding, multi-hop expansion, confidence esti
   - [x] Tie-break rules are applied consistently for equal-score cases.
 
 ### IQ.5 Evaluation harness
-- [ ] Add small fixed fixtures that catch obvious IQ regressions.
-- [ ] Keep a lightweight regression test lane for IQ behavior.
-- [ ] `tests/retrieval/eval/iq-regression-smoke.test.js`
-  - [ ] Fixture suite catches confidence/expansion/bundle regressions in one lane.
-  - [ ] Lane output is deterministic and stable enough for CI gating.
+- [x] Add small fixed fixtures that catch obvious IQ regressions.
+- [x] Keep a lightweight regression test lane for IQ behavior.
+- [x] `tests/retrieval/eval/iq-regression-smoke.test.js`
+  - [x] Fixture suite catches confidence/expansion/bundle regressions in one lane.
+  - [x] Lane output is deterministic and stable enough for CI gating.
 
 ---
 
