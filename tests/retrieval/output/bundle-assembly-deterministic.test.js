@@ -35,4 +35,24 @@ assert.deepEqual(
   'expected deterministic in-bundle tie-breaker order'
 );
 
+const noFileFixture = {
+  code: [
+    { id: 'nf1', file: '', score: 0.7, scoreType: 'bm25', start: 0, end: 1 },
+    { id: 'nf2', file: null, score: 0.6, scoreType: 'bm25', start: 1, end: 2 }
+  ],
+  extractedProse: [],
+  prose: [
+    { id: 'nf3', file: undefined, score: 0.5, scoreType: 'fts', start: 2, end: 3 }
+  ],
+  records: []
+};
+const noFileFirst = buildResultBundles(noFileFixture);
+const noFileSecond = buildResultBundles(noFileFixture);
+assert.deepEqual(noFileFirst, noFileSecond, 'expected deterministic synthetic bundle keys for no-file hits');
+assert.equal(noFileFirst.groups.length, 3, 'expected no-file hits to remain stable as independent synthetic bundles');
+assert.ok(
+  noFileFirst.groups.every((group) => group.file === null),
+  'expected synthetic bundles to keep null file field for no-file hits'
+);
+
 console.log('bundle assembly deterministic test passed');

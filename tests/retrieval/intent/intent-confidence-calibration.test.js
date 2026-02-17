@@ -102,4 +102,28 @@ assert.deepEqual(
   'expected deterministic low-confidence abstain path'
 );
 
+const grammarCode = classifyQuery({
+  query: 'cacheHit && key',
+  tokens: ['cacheHit', 'key'],
+  phrases: []
+});
+const fallbackCode = classifyQuery({
+  query: 'cacheHit && key',
+  tokens: ['cacheHit', 'key'],
+  phrases: [],
+  parseStrategy: 'heuristic-fallback',
+  parseFallbackReason: 'query_parser_failed'
+});
+
+assert.equal(fallbackCode.parseStrategy, 'heuristic-fallback', 'expected explicit heuristic fallback strategy');
+assert.equal(fallbackCode.parseFallbackReason, 'query_parser_failed', 'expected fallback reason to be preserved');
+assert.ok(
+  fallbackCode.reason.includes('fallback=query_parser_failed'),
+  'expected fallback reason to be included in explainable classifier reason'
+);
+assert.ok(
+  fallbackCode.confidence < grammarCode.confidence,
+  'expected heuristic fallback path to reduce confidence vs grammar parse path'
+);
+
 console.log('intent confidence calibration test passed');
