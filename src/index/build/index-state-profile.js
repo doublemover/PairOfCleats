@@ -17,8 +17,10 @@ const buildIndexStateArtifactsPresent = ({
     phrase_ngrams: sparseEnabled && postingsConfig?.enablePhraseNgrams === true,
     chargram_postings: sparseEnabled && postingsConfig?.enableChargrams === true,
     dense_vectors: embeddingsEnabled,
-    dense_vectors_doc: embeddingsEnabled && (mode === 'prose' || mode === 'extracted-prose'),
-    dense_vectors_code: embeddingsEnabled && mode === 'code',
+    // Dense sidecar artifacts are emitted alongside merged dense vectors whenever
+    // dense vectors are written, regardless of mode.
+    dense_vectors_doc: embeddingsEnabled,
+    dense_vectors_code: embeddingsEnabled,
     index_state: true,
     filelists: true
   };
