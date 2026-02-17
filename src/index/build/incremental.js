@@ -41,6 +41,76 @@ const shouldVerifyHash = (fileStat, cachedEntry) => (
   isCoarseMtime(fileStat?.mtimeMs) && !!cachedEntry?.hash
 );
 
+const MAX_SHARED_HASH_READ_ENTRIES = 256;
+
+const resolveSharedReadCache = (sharedReadState) => (
+  sharedReadState instanceof Map ? sharedReadState : null
+);
+
+const getSharedReadEntry = (sharedReadState, relKey, fileStat) => {
+  const cache = resolveSharedReadCache(sharedReadState);
+  if (!cache || !relKey) return null;
+  const entry = cache.get(relKey);
+  if (!entry || typeof entry !== 'object') return null;
+  if (entry.size !== fileStat?.size || entry.mtimeMs !== fileStat?.mtimeMs) {
+    cache.delete(relKey);
+    return null;
+  }
+  return entry;
+};
+
+const setSharedReadEntry = ({
+  sharedReadState,
+  relKey,
+  fileStat,
+  hash,
+  buffer = null
+}) => {
+  const cache = resolveSharedReadCache(sharedReadState);
+  if (!cache || !relKey || !fileStat || !hash) return;
+  cache.set(relKey, {
+    size: fileStat.size,
+    mtimeMs: fileStat.mtimeMs,
+    hash,
+    buffer: Buffer.isBuffer(buffer) ? buffer : null
+  });
+  if (cache.size > MAX_SHARED_HASH_READ_ENTRIES) {
+    const firstKey = cache.keys().next().value;
+    if (firstKey !== undefined) cache.delete(firstKey);
+  }
+};
+
+const readFileBufferAndHash = async ({
+  absPath,
+  relKey,
+  fileStat,
+  sharedReadState = null,
+  requireBuffer = false
+}) => {
+  const shared = getSharedReadEntry(sharedReadState, relKey, fileStat);
+  if (shared) {
+    if (!requireBuffer || Buffer.isBuffer(shared.buffer)) {
+      return {
+        hash: shared.hash,
+        buffer: Buffer.isBuffer(shared.buffer) ? shared.buffer : null
+      };
+    }
+  }
+  const buffer = await fs.readFile(absPath);
+  const hash = sha1(buffer);
+  setSharedReadEntry({
+    sharedReadState,
+    relKey,
+    fileStat,
+    hash,
+    buffer: requireBuffer ? buffer : null
+  });
+  return {
+    hash,
+    buffer: requireBuffer ? buffer : null
+  };
+};
+
 const normalizeIncrementalRelPath = (value) => {
   const normalized = normalizeFilePath(value, { lower: process.platform === 'win32' });
   return normalized.startsWith('./') ? normalized.slice(2) : normalized;
@@ -137,7 +207,15 @@ export async function loadIncrementalState({
   if (enabled) {
     await fs.mkdir(bundleDir, { recursive: true });
   }
-  return { enabled, incrementalDir, bundleDir, manifestPath, manifest, bundleFormat: manifest.bundleFormat };
+  return {
+    enabled,
+    incrementalDir,
+    bundleDir,
+    manifestPath,
+    manifest,
+    bundleFormat: manifest.bundleFormat,
+    readHashCache: new Map()
+  };
 }
 
 const STAGE_ORDER = {
@@ -251,7 +329,8 @@ export async function readCachedBundle({
   fileStat,
   manifest,
   bundleDir,
-  bundleFormat = null
+  bundleFormat = null,
+  sharedReadState = null
 }) {
   let cachedBundle = null;
   let fileHash = null;
@@ -265,8 +344,15 @@ export async function readCachedBundle({
   if (cachedEntry && cachedEntry.size === fileStat.size && cachedEntry.mtimeMs === fileStat.mtimeMs && fsSync.existsSync(bundlePath)) {
     try {
       if (shouldVerifyHash(fileStat, cachedEntry)) {
-        buffer = await fs.readFile(absPath);
-        fileHash = sha1(buffer);
+        const sharedRead = await readFileBufferAndHash({
+          absPath,
+          relKey,
+          fileStat,
+          sharedReadState,
+          requireBuffer: true
+        });
+        buffer = sharedRead.buffer;
+        fileHash = sharedRead.hash;
         if (fileHash !== cachedEntry.hash) {
           return { cachedBundle, fileHash, buffer };
         }
@@ -280,8 +366,15 @@ export async function readCachedBundle({
     }
   } else if (cachedEntry && cachedEntry.hash && fsSync.existsSync(bundlePath)) {
     try {
-      buffer = await fs.readFile(absPath);
-      fileHash = sha1(buffer);
+      const sharedRead = await readFileBufferAndHash({
+        absPath,
+        relKey,
+        fileStat,
+        sharedReadState,
+        requireBuffer: true
+      });
+      buffer = sharedRead.buffer;
+      fileHash = sharedRead.hash;
       if (fileHash === cachedEntry.hash) {
         const result = await readBundleFile(bundlePath, {
           format: resolveBundleFormatFromName(bundleName, resolvedBundleFormat)
@@ -308,7 +401,8 @@ export async function readCachedImports({
   fileStat,
   manifest,
   bundleDir,
-  bundleFormat = null
+  bundleFormat = null,
+  sharedReadState = null
 }) {
   if (!enabled) return null;
   const resolvedBundleFormat = normalizeBundleFormat(bundleFormat || manifest?.bundleFormat);
@@ -319,8 +413,14 @@ export async function readCachedImports({
     const bundlePath = path.join(bundleDir, bundleName);
     if (!fsSync.existsSync(bundlePath)) return null;
     try {
-      const buffer = await fs.readFile(absPath);
-      const fileHash = sha1(buffer);
+      const sharedRead = await readFileBufferAndHash({
+        absPath,
+        relKey,
+        fileStat,
+        sharedReadState,
+        requireBuffer: false
+      });
+      const fileHash = sharedRead.hash;
       if (fileHash !== cachedEntry.hash) return null;
       const result = await readBundleFile(bundlePath, {
         format: resolveBundleFormatFromName(bundleName, resolvedBundleFormat)
@@ -335,8 +435,14 @@ export async function readCachedImports({
   }
   if (shouldVerifyHash(fileStat, cachedEntry)) {
     try {
-      const buffer = await fs.readFile(absPath);
-      const fileHash = sha1(buffer);
+      const sharedRead = await readFileBufferAndHash({
+        absPath,
+        relKey,
+        fileStat,
+        sharedReadState,
+        requireBuffer: false
+      });
+      const fileHash = sharedRead.hash;
       if (fileHash !== cachedEntry.hash) return null;
     } catch {
       return null;

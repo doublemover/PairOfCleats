@@ -1077,11 +1077,11 @@ Remove duplicate tree-sitter segmentation work and reduce serial planning I/O in
 Stop wasted file-system and read/hash work in discovery and incremental cache lookup flows.
 
 #### Tasks
-- [ ] Abort discovery crawl as soon as `maxFiles` is satisfied (do not continue full repository traversal).
-- [ ] Emit a stable limit reason code (`max_files_reached`) when early-abort is triggered.
-- [ ] Share single-file `buffer/hash` between cached bundle and cached imports lookup to avoid duplicate reads.
-- [ ] Add streaming truncation path in file reads so oversized files can be capped without full in-memory materialization.
-- [ ] Keep skip/limit diagnostics deterministic when early abort paths are active.
+- [x] Abort discovery crawl as soon as `maxFiles` is satisfied (do not continue full repository traversal).
+- [x] Emit a stable limit reason code (`max_files_reached`) when early-abort is triggered.
+- [x] Share single-file `buffer/hash` between cached bundle and cached imports lookup to avoid duplicate reads.
+- [x] Add streaming truncation path in file reads so oversized files can be capped without full in-memory materialization.
+- [x] Keep skip/limit diagnostics deterministic when early abort paths are active.
 
 #### Touchpoints
 - `src/index/build/discover.js`
@@ -1090,15 +1090,15 @@ Stop wasted file-system and read/hash work in discovery and incremental cache lo
 - `src/index/build/file-scan.js`
 
 #### Tests
-- [ ] `tests/indexing/discovery/max-files-abort-crawl.test.js`
-  - [ ] With low `maxFiles`, crawler exits early and does not traverse remaining tree.
-  - [ ] Skip diagnostics record deterministic limit reason code `max_files_reached`.
-- [ ] `tests/indexing/incremental/shared-buffer-hash-for-imports-and-bundle.test.js`
-  - [ ] Same file is read once when both bundle/import cache checks require hash.
-  - [ ] Import outputs and cache hits remain identical to legacy behavior.
-- [ ] `tests/indexing/read/streaming-truncation-byte-cap.test.js`
-  - [ ] Streaming-cap path returns the same truncated text as non-streaming baseline.
-  - [ ] Memory usage path avoids full-file materialization for oversized fixture.
+- [x] `tests/indexing/discovery/max-files-abort-crawl.test.js`
+  - [x] With low `maxFiles`, crawler exits early and does not traverse remaining tree.
+  - [x] Skip diagnostics record deterministic limit reason code `max_files_reached`.
+- [x] `tests/indexing/incremental/shared-buffer-hash-for-imports-and-bundle.test.js`
+  - [x] Same file is read once when both bundle/import cache checks require hash.
+  - [x] Import outputs and cache hits remain identical to legacy behavior.
+- [x] `tests/indexing/read/streaming-truncation-byte-cap.test.js`
+  - [x] Streaming-cap path returns the same truncated text as non-streaming baseline.
+  - [x] Memory usage path avoids full-file materialization for oversized fixture.
 
 ### 20.3 Embedding pipeline fast path
 

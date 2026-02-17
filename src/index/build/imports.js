@@ -152,7 +152,8 @@ export async function scanImports({
           fileStat: item.stat,
           manifest: incrementalState.manifest,
           bundleDir: incrementalState.bundleDir,
-          bundleFormat: incrementalState.bundleFormat
+          bundleFormat: incrementalState.bundleFormat,
+          sharedReadState: incrementalState.readHashCache || null
         });
         if (Array.isArray(cachedImports)) {
           if (cachedImports.length > 0) {
@@ -200,7 +201,8 @@ export async function scanImports({
           fileStat: item.stat,
           manifest: incrementalState.manifest,
           bundleDir: incrementalState.bundleDir,
-          bundleFormat: incrementalState.bundleFormat
+          bundleFormat: incrementalState.bundleFormat,
+          sharedReadState: incrementalState.readHashCache || null
         });
         if (Array.isArray(cachedImportsFallback)) {
           recordImports(cachedImportsFallback);

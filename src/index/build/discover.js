@@ -18,6 +18,7 @@ import { getEnvConfig } from '../../shared/env.js';
 import { MINIFIED_NAME_REGEX, normalizeRoot } from './watch/shared.js';
 
 const DOCUMENT_EXTS = new Set(['.pdf', '.docx']);
+const MAX_FILES_LIMIT_REASON = 'max_files_reached';
 
 /**
  * Recursively discover indexable files under a directory.
@@ -180,6 +181,12 @@ export async function discoverEntries({
     if (maxDepthValue != null) {
       crawler = crawler.withMaxDepth(maxDepthValue);
     }
+    if (maxFilesValue) {
+      // Keep traversal bounded when maxFiles is active while still allowing
+      // headroom for skipped candidates before accepted entries hit the cap.
+      const crawlLimit = Math.max(maxFilesValue, maxFilesValue * 8);
+      crawler = crawler.withMaxFiles(crawlLimit);
+    }
     if (abortSignal) {
       crawler = crawler.withAbortSignal(abortSignal);
     }
@@ -203,6 +210,7 @@ export async function discoverEntries({
   const entries = [];
   let acceptedCount = 0;
   let reservedCount = 0;
+  let maxFilesReached = false;
   const envConfig = getEnvConfig();
   const statConcurrency = Math.min(
     64,
@@ -247,11 +255,14 @@ export async function discoverEntries({
     }
     if (maxFilesValue) {
       if (reservedCount >= maxFilesValue) {
-        recordSkip(absPath, 'max-files', { maxFiles: maxFilesValue });
+        maxFilesReached = true;
         return;
       }
       reservedCount += 1;
       reserved = true;
+      if (reservedCount >= maxFilesValue) {
+        maxFilesReached = true;
+      }
     }
     try {
       let stat;
@@ -299,7 +310,11 @@ export async function discoverEntries({
       }
     }
   };
-  const workerCount = Math.min(statConcurrency, candidates.length || 0);
+  const workerCount = Math.min(
+    statConcurrency,
+    maxFilesValue ? maxFilesValue : Number.MAX_SAFE_INTEGER,
+    candidates.length || 0
+  );
   if (!workerCount) {
     // no candidates
   } else {
@@ -307,6 +322,7 @@ export async function discoverEntries({
     const workers = Array.from({ length: workerCount }, () => (async () => {
       while (true) {
         throwIfAborted(abortSignal);
+        if (maxFilesReached) break;
         const idx = cursor;
         cursor += 1;
         if (idx >= candidates.length) break;
@@ -314,6 +330,9 @@ export async function discoverEntries({
       }
     })());
     await Promise.all(workers);
+  }
+  if (maxFilesValue && maxFilesReached) {
+    recordSkip(root, MAX_FILES_LIMIT_REASON, { maxFiles: maxFilesValue });
   }
 
   entries.sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0));
