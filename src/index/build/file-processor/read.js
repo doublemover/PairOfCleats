@@ -1,6 +1,8 @@
+import fs from 'node:fs/promises';
 import path from 'node:path';
 import { resolveSpecialCodeExt } from '../../constants.js';
 import { fileExt } from '../../../shared/files.js';
+import { decodeTextBuffer } from '../../../shared/encoding.js';
 import { pickMinLimit } from '../runtime/limits.js';
 
 export { pickMinLimit };
@@ -64,6 +66,71 @@ export const truncateByBytes = (value, maxBytes) => {
     truncated: true,
     bytes: safeEnd
   };
+};
+
+/**
+ * Read text with a hard byte cap using streamed reads to avoid materializing
+ * oversized files in memory.
+ * @param {{absPath:string,maxBytes:number,chunkSizeBytes?:number,stat?:import('node:fs').Stats|null}} input
+ * @returns {Promise<{text:string,encoding:string|null,usedFallback:boolean,confidence:number|null,buffer:Buffer,truncated:boolean,bytes:number}>}
+ */
+export const readTextFileWithStreamingCap = async ({
+  absPath,
+  maxBytes,
+  chunkSizeBytes = 64 * 1024,
+  stat = null
+}) => {
+  const cap = Number.isFinite(Number(maxBytes)) ? Math.max(0, Math.floor(Number(maxBytes))) : 0;
+  if (!cap) {
+    const buffer = await fs.readFile(absPath);
+    const decoded = decodeTextBuffer(buffer);
+    return {
+      ...decoded,
+      buffer,
+      truncated: false,
+      bytes: buffer.length
+    };
+  }
+
+  const chunkSize = Number.isFinite(Number(chunkSizeBytes))
+    ? Math.max(1024, Math.floor(Number(chunkSizeBytes)))
+    : 64 * 1024;
+  const handle = await fs.open(absPath, 'r');
+  try {
+    let remaining = cap;
+    let total = 0;
+    const buffers = [];
+    while (remaining > 0) {
+      const nextSize = Math.min(chunkSize, remaining);
+      const chunk = Buffer.allocUnsafe(nextSize);
+      const { bytesRead } = await handle.read(chunk, 0, nextSize, total);
+      if (!bytesRead) break;
+      total += bytesRead;
+      remaining -= bytesRead;
+      buffers.push(bytesRead === chunk.length ? chunk : chunk.subarray(0, bytesRead));
+      if (bytesRead < nextSize) break;
+    }
+    const buffer = buffers.length === 1 ? buffers[0] : Buffer.concat(buffers, total);
+    const decoded = decodeTextBuffer(buffer);
+    let truncated = false;
+    if (total >= cap) {
+      if (Number.isFinite(stat?.size)) {
+        truncated = stat.size > total;
+      } else {
+        const probe = Buffer.allocUnsafe(1);
+        const { bytesRead: probeRead } = await handle.read(probe, 0, 1, total);
+        truncated = probeRead > 0;
+      }
+    }
+    return {
+      ...decoded,
+      buffer,
+      truncated,
+      bytes: total
+    };
+  } finally {
+    await handle.close();
+  }
 };
 
 /**

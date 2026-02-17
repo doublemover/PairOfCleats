@@ -111,7 +111,7 @@ const countLimited = await discoverFiles({
   maxFiles: 1
 });
 assert.ok(countLimited.length <= 1, 'maxFiles should cap entries');
-assert.ok(countSkipped.some((entry) => entry.reason === 'max-files'), 'maxFiles skip reason missing');
+assert.ok(countSkipped.some((entry) => entry.reason === 'max_files_reached'), 'maxFiles skip reason missing');
 
 const skippedByMode = { code: [], prose: [], 'extracted-prose': [], records: [] };
 const byMode = await discoverFilesForModes({
