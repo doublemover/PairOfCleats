@@ -12,6 +12,27 @@ const noCandidates = resolveAnnCandidateSet({
 assert.equal(noCandidates.reason, ANN_CANDIDATE_POLICY_REASONS.NO_CANDIDATES, 'unexpected no-candidates reason');
 assert.equal(noCandidates.set, null, 'expected full-mode candidate path when no candidates');
 
+const noCandidatesFilteredEmptyAllowlist = resolveAnnCandidateSet({
+  candidates: null,
+  allowedIds: new Set(),
+  filtersActive: true
+});
+assert.equal(
+  noCandidatesFilteredEmptyAllowlist.reason,
+  ANN_CANDIDATE_POLICY_REASONS.NO_CANDIDATES,
+  'unexpected no-candidates reason for empty filtered allowlist'
+);
+assert.equal(
+  noCandidatesFilteredEmptyAllowlist.set?.size,
+  0,
+  'expected empty filtered allowlist to stay constrained (empty set)'
+);
+assert.equal(
+  noCandidatesFilteredEmptyAllowlist.explain.outputMode,
+  'constrained',
+  'expected empty filtered allowlist to avoid full-mode fallback'
+);
+
 const tooLarge = resolveAnnCandidateSet({
   candidates: new Set(Array.from({ length: 50 }, (_, i) => i)),
   filtersActive: false,

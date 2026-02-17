@@ -67,4 +67,40 @@ assert.deepEqual(
   'expected fallback to use full allowed index set'
 );
 
+const emptyAllowedBitmap = {
+  size: 0,
+  has: () => false
+};
+const emptyFiltered = resolveAnnCandidateSet({
+  candidates: new Set([1, 2]),
+  allowedIds: emptyAllowedBitmap,
+  filtersActive: true,
+  minDocCount: 1,
+  maxDocCount: 20000,
+  toSet,
+  getSize,
+  hasId
+});
+
+assert.equal(
+  emptyFiltered.reason,
+  ANN_CANDIDATE_POLICY_REASONS.NO_CANDIDATES,
+  'expected no-candidates reason when active filters resolve to an empty allowlist'
+);
+assert.equal(
+  emptyFiltered.set?.size,
+  0,
+  'expected empty filtered allowlist to stay constrained as an empty set'
+);
+assert.equal(
+  emptyFiltered.explain.outputMode,
+  'constrained',
+  'expected empty filtered allowlist to avoid full-mode ANN fallback'
+);
+assert.equal(
+  allowedToSetCalls,
+  1,
+  'expected empty filtered allowlist to avoid materializing allowedIds'
+);
+
 console.log('ann candidate policy lazy materialization test passed');

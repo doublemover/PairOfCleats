@@ -145,7 +145,9 @@ export const resolveAnnCandidateSet = ({
       resolvedSet = fallbackSet;
     } else {
       reason = ANN_CANDIDATE_POLICY_REASONS.NO_CANDIDATES;
-      resolvedSet = null;
+      // Under active filters, an explicit empty allowlist means "no docs allowed",
+      // not "search the full corpus".
+      resolvedSet = filtersEnabled && hasAllowedInput ? new Set() : null;
     }
   } else if (candidateSize > effectiveMax) {
     if (filtersEnabled) {

@@ -22,6 +22,19 @@ import { isPathUnderDir } from '../../shared/path-normalize.js';
 import { promoteRecordFields } from './record-utils.js';
 
 /**
+ * Records service-mode builds enqueue embeddings without materializing dense artifacts.
+ * `artifacts.present.dense_vectors*` must track emitted vectors on disk, not queue capability.
+ *
+ * @param {object} postings
+ * @returns {boolean}
+ */
+const hasEmittedDenseVectors = (postings) => (
+  (Array.isArray(postings?.quantizedVectors) && postings.quantizedVectors.length > 0)
+  || (Array.isArray(postings?.quantizedDocVectors) && postings.quantizedDocVectors.length > 0)
+  || (Array.isArray(postings?.quantizedCodeVectors) && postings.quantizedCodeVectors.length > 0)
+);
+
+/**
  * Build the records index for a repo.
  * @param {{runtime:object,discovery?:{entries:Array}}} input
  * @returns {Promise<void>}
@@ -204,7 +217,7 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
   const artifacts = buildIndexStateArtifactsBlock({
     profileId: profile.id,
     mode: 'records',
-    embeddingsEnabled: runtime.embeddingEnabled || runtime.embeddingService,
+    embeddingsEnabled: hasEmittedDenseVectors(postings),
     postingsConfig
   });
   const indexState = {
