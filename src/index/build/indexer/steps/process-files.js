@@ -149,13 +149,14 @@ export const processFiles = async ({
       repoCacheRoot: runtime.repoCacheRoot,
       log
     });
+    const { tokenizeEnabled, sparsePostingsEnabled } = resolveChunkProcessingFeatureFlags(runtime);
     const tokenRetentionState = createTokenRetentionState({
       runtime,
       totalFiles: entries.length,
+      sparsePostingsEnabled,
       log
     });
     const { tokenizationStats, appendChunkWithRetention } = tokenRetentionState;
-    const { tokenizeEnabled, sparsePostingsEnabled } = resolveChunkProcessingFeatureFlags(runtime);
     const postingsQueueConfig = sparsePostingsEnabled
       ? resolvePostingsQueueConfig(runtime)
       : null;

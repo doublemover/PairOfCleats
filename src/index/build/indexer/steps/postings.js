@@ -22,7 +22,12 @@ const hasVectorEmbeddingBuildCapability = (runtime) => (
   runtime?.embeddingEnabled === true || runtime?.embeddingService === true
 );
 
-export const createTokenRetentionState = ({ runtime, totalFiles, log = sharedLog }) => {
+export const createTokenRetentionState = ({
+  runtime,
+  totalFiles,
+  sparsePostingsEnabled = null,
+  log = sharedLog
+}) => {
   const tokenizationStats = {
     chunks: 0,
     tokens: 0,
@@ -52,6 +57,9 @@ export const createTokenRetentionState = ({ runtime, totalFiles, log = sharedLog
     mode: resolvedTokenMode,
     sampleSize: tokenSampleSize
   });
+  const sparseEnabled = typeof sparsePostingsEnabled === 'boolean'
+    ? sparsePostingsEnabled
+    : runtime?.profile?.id !== INDEX_PROFILE_VECTOR_ONLY;
   const tokenRetentionAuto = tokenMode === 'auto';
   let tokenTotal = 0;
 
@@ -154,7 +162,13 @@ export const createTokenRetentionState = ({ runtime, totalFiles, log = sharedLog
       delete chunkCopy.embed_doc;
       delete chunkCopy.embed_code;
     }
-    appendChunk(stateRef, chunkCopy, runtime.postingsConfig, tokenRetention);
+    appendChunk(
+      stateRef,
+      chunkCopy,
+      runtime.postingsConfig,
+      tokenRetention,
+      { sparsePostingsEnabled: sparseEnabled }
+    );
     if (tokenRetentionAuto && tokenRetention.mode === 'full'
       && tokenMaxTotal
       && tokenTotal > tokenMaxTotal) {

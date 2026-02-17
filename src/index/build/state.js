@@ -492,16 +492,18 @@ export function appendChunk(
   state,
   chunk,
   postingsConfig = DEFAULT_POSTINGS_CONFIG,
-  tokenRetention = null
+  tokenRetention = null,
+  options = null
 ) {
   const config = postingsConfig && typeof postingsConfig === 'object' ? postingsConfig : {};
+  const sparseEnabled = options?.sparsePostingsEnabled !== false;
   const tokens = Array.isArray(chunk.tokens) ? chunk.tokens : [];
   const tokenIds = Array.isArray(chunk.tokenIds) ? chunk.tokenIds : null;
   const useTokenIds = tokenIds && tokenIds.length === tokens.length;
   const tokenKeys = useTokenIds ? tokenIds : tokens;
   const seq = Array.isArray(chunk.seq) && chunk.seq.length ? chunk.seq : tokens;
 
-  const phraseEnabled = config.enablePhraseNgrams !== false;
+  const phraseEnabled = sparseEnabled && config.enablePhraseNgrams !== false;
   const phraseMinRaw = Number.isFinite(config.phraseMinN)
     ? Math.max(1, Math.floor(config.phraseMinN))
     : DEFAULT_POSTINGS_CONFIG.phraseMinN;
@@ -517,9 +519,9 @@ export function appendChunk(
     && state?.phrasePostHashBuckets
     && typeof state.phrasePostHashBuckets.set === 'function';
 
-  const chargramEnabled = config.enableChargrams !== false;
-  const fieldedEnabled = config.fielded !== false;
-  const tokenClassificationEnabled = config.tokenClassification?.enabled === true;
+  const chargramEnabled = sparseEnabled && config.enableChargrams !== false;
+  const fieldedEnabled = sparseEnabled && config.fielded !== false;
+  const tokenClassificationEnabled = sparseEnabled && config.tokenClassification?.enabled === true;
   const chargramSource = config.chargramSource === 'full' ? 'full' : 'fields';
   const chargramStopwords = config.chargramStopwords === true;
   const chargramFieldsRaw = Array.isArray(config.chargramFields)
@@ -616,7 +618,7 @@ export function appendChunk(
     }
   }
 
-  if (useTokenIds && state.tokenIdMap) {
+  if (sparseEnabled && useTokenIds && state.tokenIdMap) {
     for (let i = 0; i < tokenIds.length; i += 1) {
       registerTokenIdInvariant({
         tokenIdMap: state.tokenIdMap,
@@ -627,20 +629,22 @@ export function appendChunk(
     }
   }
 
-  const freq = state.tokenBuffers?.freq || new Map();
-  if (state.tokenBuffers?.freq) freq.clear();
-  tokenKeys.forEach((t) => {
-    freq.set(t, (freq.get(t) || 0) + 1);
-  });
+  if (sparseEnabled) {
+    const freq = state.tokenBuffers?.freq || new Map();
+    if (state.tokenBuffers?.freq) freq.clear();
+    tokenKeys.forEach((t) => {
+      freq.set(t, (freq.get(t) || 0) + 1);
+    });
 
-  state.docLengths[chunkId] = tokens.length;
-  for (const [tok, count] of freq.entries()) {
-    let postings = state.tokenPostings.get(tok);
-    if (!postings) {
-      postings = [];
-      state.tokenPostings.set(tok, postings);
+    state.docLengths[chunkId] = tokens.length;
+    for (const [tok, count] of freq.entries()) {
+      let postings = state.tokenPostings.get(tok);
+      if (!postings) {
+        postings = [];
+        state.tokenPostings.set(tok, postings);
+      }
+      postings.push([chunkId, count]);
     }
-    postings.push([chunkId, count]);
   }
 
   if (phraseEnabled) {
