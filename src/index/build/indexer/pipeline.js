@@ -343,8 +343,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     }
   });
   const vectorOnlyProfile = runtimeRef?.profile?.id === INDEX_PROFILE_VECTOR_ONLY;
-  const embeddingsConfigured = runtimeRef?.userConfig?.indexing?.embeddings?.enabled !== false;
-  if (vectorOnlyProfile && runtimeRef.embeddingEnabled !== true && embeddingsConfigured !== true) {
+  if (vectorOnlyProfile && runtimeRef.embeddingEnabled !== true) {
     throw new Error(
       'indexing.profile=vector_only requires embeddings to be available during index build. ' +
       'Enable inline/stub embeddings and rebuild.'

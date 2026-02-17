@@ -162,8 +162,7 @@ export const createTokenRetentionState = ({ runtime, totalFiles, log = sharedLog
 
 export const buildIndexPostings = async ({ runtime, state }) => {
   const vectorOnlyProfile = runtime?.profile?.id === INDEX_PROFILE_VECTOR_ONLY;
-  const embeddingsConfigured = runtime?.userConfig?.indexing?.embeddings?.enabled !== false;
-  if (vectorOnlyProfile && runtime?.embeddingEnabled !== true && embeddingsConfigured !== true) {
+  if (vectorOnlyProfile && runtime?.embeddingEnabled !== true) {
     throw new Error(
       'indexing.profile=vector_only requires embeddings to be available during index build.'
     );

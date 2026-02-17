@@ -15,7 +15,7 @@ const testConfig = {
   indexing: {
     profile: 'vector_only',
     embeddings: {
-      enabled: false,
+      enabled: true,
       mode: 'off',
       hnsw: { enabled: false },
       lancedb: { enabled: false }

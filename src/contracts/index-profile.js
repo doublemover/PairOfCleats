@@ -32,6 +32,12 @@ const normalizeString = (value) => (
 export const isKnownIndexProfileId = (value) => INDEX_PROFILE_SET.has(normalizeString(value));
 
 export const assertKnownIndexProfileId = (value, fieldName = 'indexing.profile') => {
+  if (value == null) return INDEX_PROFILE_DEFAULT;
+  if (typeof value !== 'string') {
+    throw new Error(
+      `${fieldName} must be a string (${INDEX_PROFILE_IDS.join(', ')}). Received type: ${typeof value}`
+    );
+  }
   const normalized = normalizeString(value);
   if (!normalized) return INDEX_PROFILE_DEFAULT;
   if (INDEX_PROFILE_SET.has(normalized)) return normalized;
