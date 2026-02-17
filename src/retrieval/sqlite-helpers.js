@@ -619,7 +619,10 @@ export function createSqliteHelpers(options) {
           if (page.length < pageLimit) break;
         }
       } else {
-        const stmt = getCachedStatement(db, canPushdown ? 'rankSqliteFtsPushdown' : 'rankSqliteFts', fetchSql(false));
+        const stmtKey = canPushdown
+          ? `rankSqliteFtsPushdown:${allowedList.length}`
+          : 'rankSqliteFts';
+        const stmt = getCachedStatement(db, stmtKey, fetchSql(false));
         const queryLimit = canPushdown
           ? Math.min(overfetchRowCap, Math.max(topLimit, allowedList.length))
           : overfetchRowCap;
