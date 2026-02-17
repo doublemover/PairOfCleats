@@ -1,3 +1,5 @@
+import { applyTestEnv, syncProcessEnv } from './test-env.js';
+
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
@@ -19,7 +21,7 @@ import {
   loadJsonArrayArtifactSync,
   readCompatibilityKey
 } from '../../src/shared/artifact-io.js';
-import { syncProcessEnv } from './test-env.js';
+
 import { rmDirRecursive } from './temp.js';
 import { isPlainObject, mergeConfig } from '../../src/shared/config.js';
 import { runSqliteBuild } from './sqlite-builder.js';
@@ -104,9 +106,7 @@ const createFixtureEnv = (cacheRoot, overrides = {}) => {
     })
   );
   const env = {
-    ...baseEnv,
-    PAIROFCLEATS_TESTING: '1',
-    PAIROFCLEATS_CACHE_ROOT: cacheRoot,
+    ...baseEnv,    PAIROFCLEATS_CACHE_ROOT: cacheRoot,
     PAIROFCLEATS_EMBEDDINGS: 'stub',
     PAIROFCLEATS_WORKER_POOL: 'off',
     PAIROFCLEATS_TEST_CONFIG: JSON.stringify(mergedTestConfig),
@@ -194,7 +194,7 @@ export const ensureFixtureIndex = async ({
   const fixtureRoot = toRealPathSync(fixtureRootRaw);
   const cacheRoot = path.join(ROOT, '.testCache', resolveCacheName(cacheName));
   await ensureDir(cacheRoot);
-  process.env.PAIROFCLEATS_TESTING = '1';
+  applyTestEnv();
   process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
   const env = createFixtureEnv(cacheRoot, envOverrides);
   const userConfig = loadUserConfig(fixtureRoot);

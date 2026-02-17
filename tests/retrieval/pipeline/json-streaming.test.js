@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { renderSearchOutput } from '../../../src/retrieval/cli/render.js';
 import { color } from '../../../src/retrieval/cli/ansi.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const hits = [
   { id: 1, file: 'src/a.js', start: 0, end: 1, score: 1, scoreType: 'bm25' }
@@ -105,3 +105,4 @@ assert.equal(parsed.code.length, 1);
 assert.equal(parsed.code[0].file, 'src/a.js');
 
 console.log('json streaming output test passed');
+import { applyTestEnv } from '../../helpers/test-env.js';

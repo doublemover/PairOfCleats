@@ -1,8 +1,9 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import { compareTopKEntries, selectTopK } from '../../../src/retrieval/pipeline/topk.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const makeRng = (seed) => {
   let state = seed >>> 0;

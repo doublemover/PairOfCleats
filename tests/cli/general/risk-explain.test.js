@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -6,7 +7,7 @@ import { loadJsonArrayArtifact } from '../../../src/shared/artifact-io.js';
 import { ensureFixtureIndex } from '../../helpers/fixture-index.js';
 import { getCombinedOutput } from '../../helpers/stdio.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const { root, codeDir, env } = await ensureFixtureIndex({
   fixtureName: 'risk-interprocedural/js-simple',

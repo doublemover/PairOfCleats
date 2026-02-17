@@ -1,9 +1,10 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import { ensureFixtureIndex, ensureFixtureSqlite } from '../../helpers/fixture-index.js';
 import { runSearchCli } from '../../../src/retrieval/cli.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 let Database;
 try {

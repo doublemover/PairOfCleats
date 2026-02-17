@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { ensureFixtureIndex } from '../../helpers/fixture-index.js';
@@ -7,7 +8,7 @@ import { validateIndexArtifacts } from '../../../src/index/validate.js';
 import { hasIndexMeta } from '../../../src/retrieval/cli/index-loader.js';
 import { loadChunkMeta, loadPiecesManifest, readJsonFile } from '../../../src/shared/artifact-io.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 const testConfig = {
   triage: { recordsDir: './records' },
   indexing: { embeddings: { enabled: false } },

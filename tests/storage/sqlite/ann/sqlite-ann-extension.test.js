@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../../helpers/test-env.js';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -29,9 +30,7 @@ await fsPromises.writeFile(
 const extensionPath = requireSqliteVec({ repoRoot });
 
 const env = {
-  ...process.env,
-  PAIROFCLEATS_TESTING: '1',
-  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
+  ...process.env,  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
   PAIROFCLEATS_EMBEDDINGS: 'stub',
   PAIROFCLEATS_BUNDLE_THREADS: '1',
   PAIROFCLEATS_TEST_CONFIG: JSON.stringify({
@@ -44,7 +43,7 @@ const env = {
     }
   })
 };
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
 process.env.PAIROFCLEATS_BUNDLE_THREADS = '1';

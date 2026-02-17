@@ -1,11 +1,12 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { runSearchCli } from '../../../src/retrieval/cli.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-profile-mix-optional-state-'));
 const proseDir = path.join(rootDir, 'index-prose');

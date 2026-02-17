@@ -4,7 +4,7 @@ import { buildFilterIndex } from '../../../src/retrieval/filter-index.js';
 import { filterChunkIds } from '../../../src/retrieval/output.js';
 import { getBitmapSize } from '../../../src/retrieval/bitmap.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const meta = [
   {
@@ -39,3 +39,4 @@ const noneCount = noneResult ? getBitmapSize(noneResult) : 0;
 assert.equal(noneCount, 0, 'expected empty allowlist for non-matching filters');
 
 console.log('filter bitmap shortcircuit test passed');
+import { applyTestEnv } from '../../helpers/test-env.js';

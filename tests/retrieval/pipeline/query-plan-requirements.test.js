@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { validateQueryPlan } from '../../../src/retrieval/query-plan-schema.js';
 import { buildTestPlan, createPlanInputs } from './query-plan-helpers.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const inputs = createPlanInputs({ query: 'alpha "beta gamma"' });
 const plan = buildTestPlan(inputs);
@@ -15,3 +15,4 @@ assert.ok(plan.phraseNgramSet instanceof Set || plan.phraseNgramSet === null, 'e
 assert.ok(plan.requiredArtifacts instanceof Set, 'expected requiredArtifacts set');
 
 console.log('query plan requirements test passed');
+import { applyTestEnv } from '../../helpers/test-env.js';

@@ -4,10 +4,11 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
-import { DEFAULT_TEST_ENV_KEYS, syncProcessEnv } from '../../helpers/test-env.js';
+import { applyTestEnv, DEFAULT_TEST_ENV_KEYS, syncProcessEnv } from '../../helpers/test-env.js';
 import { rmDirRecursive } from '../../helpers/temp.js';
 import { loadChunkMeta, loadGraphRelationsSync, loadTokenPostings } from '../../../src/shared/artifact-io.js';
 import { stableStringify } from '../../../src/shared/stable-json.js';
+applyTestEnv();
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
@@ -30,9 +31,7 @@ await rmDirRecursive(cacheRoot, { retries: 8, delayMs: 150 });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 
 const baseEnv = {
-  ...process.env,
-  PAIROFCLEATS_TESTING: '1',
-  PAIROFCLEATS_EMBEDDINGS: 'stub',
+  ...process.env,  PAIROFCLEATS_EMBEDDINGS: 'stub',
   PAIROFCLEATS_TEST_CONFIG: JSON.stringify({
     tooling: { autoEnableOnDetect: false }
   })

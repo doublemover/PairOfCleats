@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
@@ -20,12 +21,10 @@ await fsPromises.mkdir(tempRoot, { recursive: true });
 await fsPromises.cp(fixtureRoot, repoRoot, { recursive: true });
 
 const env = {
-  ...process.env,
-  PAIROFCLEATS_TESTING: '1',
-  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
+  ...process.env,  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
   PAIROFCLEATS_EMBEDDINGS: 'stub'
 };
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
 

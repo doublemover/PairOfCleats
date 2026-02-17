@@ -6,7 +6,7 @@ import path from 'node:path';
 import { formatFullChunk } from '../../../src/retrieval/output/format.js';
 import { color } from '../../../src/retrieval/cli/ansi.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-summary-'));
 const filePath = path.join(rootDir, 'src');
@@ -62,3 +62,4 @@ assert.ok(withSummary.includes('Summary'), 'expected summary output when enabled
 assert.ok(!withoutSummary.includes('Summary'), 'expected summary to be skipped');
 
 console.log('context skip summary test passed');
+import { applyTestEnv } from '../../helpers/test-env.js';

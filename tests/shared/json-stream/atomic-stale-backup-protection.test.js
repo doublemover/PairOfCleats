@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
@@ -6,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { replaceFile } from '../../../src/shared/json-stream.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const tempRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-atomic-stale-backup-'));
 

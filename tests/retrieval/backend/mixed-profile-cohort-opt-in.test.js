@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -6,7 +7,7 @@ import path from 'node:path';
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import { loadSearchIndexes } from '../../../src/retrieval/cli/load-indexes.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const createIndex = async (rootDir, mode, { compatibilityKey, profileId }) => {
   const indexDir = path.join(rootDir, `index-${mode}`);

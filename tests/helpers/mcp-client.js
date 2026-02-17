@@ -3,6 +3,8 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { applyTestEnv } from './test-env.js';
+applyTestEnv();
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 const encodeFramedMessage = (payload) => {
@@ -165,9 +167,7 @@ export const startMcpServer = async ({
   const server = spawn(process.execPath, serverArgs, {
     stdio: ['pipe', 'pipe', 'inherit'],
     env: {
-      ...process.env,
-      PAIROFCLEATS_TESTING: '1',
-      PAIROFCLEATS_HOME: cacheRoot,
+      ...process.env,      PAIROFCLEATS_HOME: cacheRoot,
       PAIROFCLEATS_CACHE_ROOT: cacheRoot,
       ...env
     }

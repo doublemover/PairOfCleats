@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createCandidatePool } from '../../../src/retrieval/pipeline/candidate-pool.js';
 import { createScoreBufferPool } from '../../../src/retrieval/pipeline/score-buffer.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const candidatePool = createCandidatePool({ maxSets: 1, maxEntries: 2 });
 const oversized = candidatePool.acquire();
@@ -28,3 +28,4 @@ scoreBufferPool.release(buffer);
 assert.ok(scoreBufferPool.stats.drops > 0, 'expected score buffer pool to drop oversized buffers');
 
 console.log('object pool leak test passed');
+import { applyTestEnv } from '../../helpers/test-env.js';

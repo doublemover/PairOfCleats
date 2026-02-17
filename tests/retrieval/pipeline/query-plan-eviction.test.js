@@ -12,7 +12,7 @@ import {
   createPlanInputs
 } from './query-plan-helpers.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const cache = createQueryPlanCache({ maxEntries: 1, ttlMs: 60000 });
 
@@ -55,3 +55,4 @@ const retained = cache.get(keyB.key, { configSignature: configB, indexSignature:
 assert.ok(retained, 'expected second entry to remain');
 
 console.log('query plan cache eviction test passed');
+import { applyTestEnv } from '../../helpers/test-env.js';

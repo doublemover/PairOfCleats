@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -21,12 +22,10 @@ const source = [
 await fsPromises.writeFile(path.join(srcDir, 'sample.js'), source);
 
 const env = {
-  ...process.env,
-  PAIROFCLEATS_TESTING: '1',
-  PAIROFCLEATS_CACHE_ROOT: path.join(tempRoot, 'cache'),
+  ...process.env,  PAIROFCLEATS_CACHE_ROOT: path.join(tempRoot, 'cache'),
   PAIROFCLEATS_EMBEDDINGS: 'stub'
 };
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 process.env.PAIROFCLEATS_CACHE_ROOT = path.join(tempRoot, 'cache');
 process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
 

@@ -1,11 +1,12 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { ensureFixtureIndex } from '../../helpers/fixture-index.js';
 import { loadSearchIndexes } from '../../../src/retrieval/cli/load-indexes.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const { fixtureRoot, userConfig, codeDir } = await ensureFixtureIndex({
   fixtureName: 'sample',

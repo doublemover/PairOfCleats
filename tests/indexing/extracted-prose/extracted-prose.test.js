@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
@@ -46,12 +47,10 @@ await fsPromises.writeFile(
 );
 
 const env = {
-  ...process.env,
-  PAIROFCLEATS_TESTING: '1',
-  PAIROFCLEATS_CACHE_ROOT: path.join(tempRoot, 'cache'),
+  ...process.env,  PAIROFCLEATS_CACHE_ROOT: path.join(tempRoot, 'cache'),
   PAIROFCLEATS_EMBEDDINGS: 'stub'
 };
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 process.env.PAIROFCLEATS_CACHE_ROOT = env.PAIROFCLEATS_CACHE_ROOT;
 process.env.PAIROFCLEATS_EMBEDDINGS = env.PAIROFCLEATS_EMBEDDINGS;
 

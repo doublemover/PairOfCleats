@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import {
   OP_FAILURE_CLASSES,
@@ -12,7 +13,7 @@ const prevTesting = process.env.PAIROFCLEATS_TESTING;
 const prevConfig = process.env.PAIROFCLEATS_TEST_CONFIG;
 
 const setFailureConfig = (config) => {
-  process.env.PAIROFCLEATS_TESTING = '1';
+  applyTestEnv();
   process.env.PAIROFCLEATS_TEST_CONFIG = JSON.stringify(config);
   resetOperationalFailureInjectionState();
 };

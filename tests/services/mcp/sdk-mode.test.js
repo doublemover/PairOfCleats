@@ -1,11 +1,12 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import { spawn } from 'node:child_process';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { MCP_SCHEMA_VERSION } from '../../../src/integrations/mcp/defs.js';
 import { getCapabilities } from '../../../src/shared/capabilities.js';
 import { skip } from '../../helpers/skip.js';
-
+applyTestEnv();
 const caps = getCapabilities({ refresh: true });
 if (!caps?.mcp?.sdk) {
   skip('Skipping SDK MCP test; @modelcontextprotocol/sdk not available.');
@@ -18,9 +19,7 @@ const serverPath = path.join(process.cwd(), 'tools', 'mcp', 'server.js');
 const server = spawn(process.execPath, [serverPath, '--mcp-mode', 'sdk'], {
   stdio: ['pipe', 'pipe', 'inherit'],
   env: {
-    ...process.env,
-    PAIROFCLEATS_TESTING: '1',
-    PAIROFCLEATS_HOME: cacheRoot,
+    ...process.env,    PAIROFCLEATS_HOME: cacheRoot,
     PAIROFCLEATS_CACHE_ROOT: cacheRoot
   }
 });

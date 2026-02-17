@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -18,12 +19,10 @@ await fs.mkdir(tempRoot, { recursive: true });
 await fs.cp(fixtureRoot, repoRoot, { recursive: true });
 
 const env = {
-  ...process.env,
-  PAIROFCLEATS_TESTING: '1',
-  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
+  ...process.env,  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
   PAIROFCLEATS_EMBEDDINGS: 'stub'
 };
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
 

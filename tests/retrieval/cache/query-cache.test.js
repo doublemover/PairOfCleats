@@ -1,11 +1,12 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { resolveVersionedCacheRoot } from '../../../src/shared/cache-roots.js';
 import { rmDirRecursive } from '../../helpers/temp.js';
-
+applyTestEnv();
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'query-cache');
 const repoRoot = path.join(tempRoot, 'repo');
@@ -18,9 +19,7 @@ await fsPromises.mkdir(repoRoot, { recursive: true });
 await fsPromises.cp(fixtureRoot, repoRoot, { recursive: true });
 
 const env = {
-  ...process.env,
-  PAIROFCLEATS_TESTING: '1',
-  PAIROFCLEATS_TEST_CONFIG: JSON.stringify({ quality: 'max' }),
+  ...process.env,  PAIROFCLEATS_TEST_CONFIG: JSON.stringify({ quality: 'max' }),
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
   PAIROFCLEATS_EMBEDDINGS: 'stub'
 };

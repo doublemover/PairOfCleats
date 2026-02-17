@@ -3,16 +3,15 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
-import { syncProcessEnv } from '../../helpers/test-env.js';
+import { applyTestEnv, syncProcessEnv } from '../../helpers/test-env.js';
+applyTestEnv();
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
 const cacheRoot = path.join(root, '.testCache', 'retrieval-strict-manifest-embeddings');
 
 const env = {
-  ...process.env,
-  PAIROFCLEATS_TESTING: '1',
-  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
+  ...process.env,  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
   PAIROFCLEATS_EMBEDDINGS: 'stub'
 };
 syncProcessEnv(env);

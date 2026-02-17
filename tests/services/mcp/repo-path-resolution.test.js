@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
@@ -43,7 +44,7 @@ if (gitInit.status !== 0) {
 const prevCacheRoot = process.env.PAIROFCLEATS_CACHE_ROOT;
 const prevTesting = process.env.PAIROFCLEATS_TESTING;
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 try {
   const rootCache = await ensureRepoArtifacts(repoRoot, 'root-build');

@@ -1,10 +1,11 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import { createSearchPipeline } from '../../../src/retrieval/pipeline.js';
 import { createCandidatePool } from '../../../src/retrieval/pipeline/candidate-pool.js';
 import { createScoreBufferPool } from '../../../src/retrieval/pipeline/score-buffer.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const candidatePool = createCandidatePool({ maxSets: 2, maxEntries: 100 });
 const scoreBufferPool = createScoreBufferPool({ maxBuffers: 2, maxEntries: 100 });

@@ -1,13 +1,14 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { spawnSubprocessSync } from '../../../src/shared/subprocess.js';
-
+applyTestEnv();
 const root = process.cwd();
 const binPath = path.join(root, 'bin', 'pairofcleats.js');
 
 const result = spawnSubprocessSync(process.execPath, [binPath, 'version'], {
-  env: { ...process.env, PAIROFCLEATS_TESTING: '1' },
+  env: { ...process.env },
   captureStdout: true,
   captureStderr: true,
   outputMode: 'string',

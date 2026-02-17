@@ -1,10 +1,11 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-
+applyTestEnv();
 const repoRoot = process.cwd();
 const releaseCheckScript = path.join(repoRoot, 'tools', 'release', 'check.js');
 
@@ -16,7 +17,6 @@ const runReleaseCheck = ({ cwd, args = [] }) => spawnSync(
     encoding: 'utf8',
     env: {
       ...process.env,
-      PAIROFCLEATS_TESTING: '1'
     }
   }
 );

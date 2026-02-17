@@ -1,8 +1,9 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import { compareTopKEntries, selectTopK } from '../../../src/retrieval/pipeline/topk.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const items = Array.from({ length: 500 }, (_, i) => ({
   idx: i,

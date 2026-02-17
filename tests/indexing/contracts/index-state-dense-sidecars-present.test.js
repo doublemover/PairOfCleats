@@ -1,8 +1,9 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import { buildIndexStateArtifactsBlock } from '../../../src/index/build/index-state-profile.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const baseInput = {
   profileId: 'default',

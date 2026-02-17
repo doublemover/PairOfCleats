@@ -1,11 +1,12 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { startApiServer } from '../../helpers/api-server.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-api-fed-redaction-'));
 const repoRoot = path.join(tempRoot, 'repo');
@@ -23,9 +24,7 @@ await fs.writeFile(workspacePath, `{
 }`, 'utf8');
 
 const env = {
-  ...process.env,
-  PAIROFCLEATS_TESTING: '1',
-  PAIROFCLEATS_CACHE_ROOT: cacheRoot
+  ...process.env,  PAIROFCLEATS_CACHE_ROOT: cacheRoot
 };
 
 const { serverInfo, requestJson, stop } = await startApiServer({

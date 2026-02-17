@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -12,7 +13,7 @@ import {
   loadUserConfig
 } from '../../../tools/shared/dict-utils.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-workspace-global-cache-'));
 const cacheRoot = path.join(tempRoot, 'cache');

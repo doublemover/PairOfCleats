@@ -8,6 +8,8 @@ import { SCHEMA_VERSION } from '../../../../src/storage/sqlite/schema.js';
 import { resolveVersionedCacheRoot } from '../../../../src/shared/cache-roots.js';
 import { getRepoId } from '../../../../tools/shared/dict-utils.js';
 
+import { applyTestEnv } from '../../../helpers/test-env.js';
+applyTestEnv();
 const ROOT = process.cwd();
 const TEMP_ROOT = path.join(ROOT, '.testCache', 'summary-report');
 const CACHE_ROOT = path.join(TEMP_ROOT, 'cache');
@@ -84,9 +86,7 @@ const hasFixtureArtifacts = (modelId) => {
 };
 
 const baseEnv = {
-  ...process.env,
-  PAIROFCLEATS_TESTING: '1',
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
+  ...process.env,  PAIROFCLEATS_EMBEDDINGS: 'stub'
 };
 
 const runBuild = (label, envOverrides, args) => {

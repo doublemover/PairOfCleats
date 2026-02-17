@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
@@ -7,7 +8,7 @@ import { getRepoCacheRoot } from '../../src/shared/dict-utils.js';
 import { createPointerSnapshot } from '../../src/index/snapshots/create.js';
 import { computeIndexDiff, showDiff } from '../../src/index/diffs/compute.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'index-diff-service');

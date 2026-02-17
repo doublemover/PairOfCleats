@@ -12,7 +12,7 @@ import {
   createPlanInputs
 } from './query-plan-helpers.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const cache = createQueryPlanCache({ maxEntries: 5, ttlMs: 60000 });
 const inputs = createPlanInputs();
@@ -43,3 +43,4 @@ const cached = cache.get(keyInfo.key, { configSignature, indexSignature });
 assert.equal(cached, null, 'expected cache miss after config change');
 
 console.log('query plan cache invalidates on config change test passed');
+import { applyTestEnv } from '../../helpers/test-env.js';

@@ -2,7 +2,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { resolveSilentStdio } from '../helpers/test-env.js';
+import { applyTestEnv, resolveSilentStdio } from '../helpers/test-env.js';
 import { runSqliteBuild } from '../helpers/sqlite-builder.js';
 
 const root = process.cwd();
@@ -19,13 +19,11 @@ const env = {
   ...process.env,
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
   PAIROFCLEATS_EMBEDDINGS: 'stub',
-  PAIROFCLEATS_WORKER_POOL: 'off',
-  PAIROFCLEATS_TESTING: '1'
-};
+  PAIROFCLEATS_WORKER_POOL: 'off',};
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
 process.env.PAIROFCLEATS_WORKER_POOL = 'off';
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const run = (args, label) => {
   const result = spawnSync(process.execPath, args, { cwd: repoRoot, env, stdio: 'inherit' });

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -15,7 +16,7 @@ await fsPromises.mkdir(cacheRoot, { recursive: true });
 const repoRoot = toRealPathSync(repoRootRaw);
 const prevTesting = process.env.PAIROFCLEATS_TESTING;
 const prevCacheRoot = process.env.PAIROFCLEATS_CACHE_ROOT;
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 let codeIndexDir = '';
 

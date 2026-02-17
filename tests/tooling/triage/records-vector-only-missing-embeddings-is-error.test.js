@@ -1,11 +1,12 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildRecordsIndexForRepo } from '../../../src/integrations/triage/index-records.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const tempRoot = path.join(root, '.testCache', `triage-records-vector-only-missing-embeddings-${Date.now()}-${process.pid}`);

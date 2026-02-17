@@ -12,7 +12,7 @@ import {
   createPlanInputs
 } from './query-plan-helpers.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const cache = createQueryPlanCache({ maxEntries: 5, ttlMs: 60000 });
 const inputs = createPlanInputs();
@@ -40,3 +40,4 @@ assert.ok(cached, 'expected cache hit');
 assert.equal(cached.plan, plan, 'expected cached plan to match reference');
 
 console.log('query plan cache hit test passed');
+import { applyTestEnv } from '../../helpers/test-env.js';

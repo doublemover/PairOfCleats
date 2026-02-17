@@ -1,9 +1,10 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const root = process.cwd();
 const runnerPath = path.join(root, 'tools', 'build', 'embeddings', 'runner.js');

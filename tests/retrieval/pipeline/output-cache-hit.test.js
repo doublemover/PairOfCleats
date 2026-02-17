@@ -4,7 +4,7 @@ import { configureOutputCaches, getFormatShortCache } from '../../../src/retriev
 import { formatShortChunk } from '../../../src/retrieval/output/format.js';
 import { color } from '../../../src/retrieval/cli/ansi.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 configureOutputCaches({ cacheConfig: {} });
 const cache = getFormatShortCache();
@@ -51,3 +51,4 @@ const finalHits = cache?.stats?.hits || 0;
 assert.ok(finalHits > initialHits, 'expected format cache hit');
 
 console.log('output cache hit test passed');
+import { applyTestEnv } from '../../helpers/test-env.js';

@@ -7,7 +7,7 @@ import { buildPostings } from '../../../src/index/build/postings.js';
 import { writeIndexArtifacts } from '../../../src/index/build/artifacts.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const root = process.cwd();
 const testRoot = path.join(root, '.testCache', 'phase18-vector-only-switch-cleanup');
