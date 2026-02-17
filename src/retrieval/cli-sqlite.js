@@ -46,11 +46,13 @@ export async function createSqliteBackend(options) {
     'extracted-prose': { available: false }
   };
   const vectorAnnUsed = { code: false, prose: false, records: false, 'extracted-prose': false };
-  const sharedDb = sqliteCodePath
+  // Match sqlite builder behavior: shared ANN table suffixing is driven by
+  // code/prose DB path equality only; extracted-prose may be separate.
+  const sharedDb = Boolean(
+    sqliteCodePath
     && sqliteProsePath
-    && sqliteExtractedProsePath
     && path.resolve(sqliteCodePath) === path.resolve(sqliteProsePath)
-    && path.resolve(sqliteCodePath) === path.resolve(sqliteExtractedProsePath);
+  );
   const vectorAnnConfigByMode = {
     code: resolveVectorExtensionConfigForMode(vectorExtension, 'code', { sharedDb }),
     prose: resolveVectorExtensionConfigForMode(vectorExtension, 'prose', { sharedDb }),
