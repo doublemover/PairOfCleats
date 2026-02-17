@@ -1222,11 +1222,11 @@ Keep runtime behavior stable and failure handling clear without adding heavy ope
   - [x] Recovery path behavior matches documented policy.
 
 ### OP.3 Stable defaults and guardrails
-- [ ] Keep operational defaults conservative and explicit.
-- [ ] Add guardrails for risky config combinations.
-- [ ] `tests/ops/config/guardrails.test.js`
-  - [ ] Invalid or risky combinations are rejected with clear error codes.
-  - [ ] Safe defaults remain unchanged when optional knobs are absent.
+- [x] Keep operational defaults conservative and explicit.
+- [x] Add guardrails for risky config combinations.
+- [x] `tests/ops/config/guardrails.test.js`
+  - [x] Invalid or risky combinations are rejected with clear error codes.
+  - [x] Safe defaults remain unchanged when optional knobs are absent.
 
 ### OP.4 Release blocking essentials
 - [ ] Keep only essential reliability checks as release blockers.

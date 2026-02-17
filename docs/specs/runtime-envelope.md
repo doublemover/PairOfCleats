@@ -244,6 +244,21 @@ Runtime wrappers:
 - indexing discovery hot path uses `runWithOperationalFailurePolicy` in `src/index/build/indexer/pipeline.js`.
 - retrieval backend-context hot path uses `runWithOperationalFailurePolicy` in `src/retrieval/cli.js`.
 
+## 6.3 Operational defaults and guardrails
+
+Retrieval runtime normalization now enforces conservative operational defaults:
+- ANN candidate defaults: `cap=20000`, `minDocCount=100`, `maxDocCount=20000`.
+- Query-cache defaults: `maxEntries=200`, `ttlMs=0`.
+- RRF default: `k=60`.
+
+Guardrails reject risky combinations with stable codes:
+- `op_guardrail_ann_candidate_bounds_invalid`
+- `op_guardrail_ann_candidate_cap_out_of_range`
+- `op_guardrail_rrf_k_invalid`
+
+Capability probing uses explicit baseline defaults (`src/shared/capabilities.js`) before optional
+dependency detection mutates feature availability.
+
 ## 7) Implementation references
 
 - Runtime envelope: `src/shared/runtime-envelope.js`
