@@ -76,18 +76,21 @@ const runBuildAndReadManifest = (writeConcurrency) => {
   }));
 };
 
-const stableManifestSnapshot = (entries) => entries.map((entry) => ({
-  path: entry.path,
-  bytes: entry.bytes
-}));
-
-const NON_DETERMINISTIC_CHECKSUM_PATHS = new Set([
+const NON_DETERMINISTIC_ARTIFACT_PATHS = new Set([
   '.filelists.json',
   'graph_relations.meta.json',
   'index_state.json',
   'risk_interprocedural_stats.json',
   'vocab_order.json'
 ]);
+
+const stableManifestSnapshot = (entries) => entries.map((entry) => (
+  NON_DETERMINISTIC_ARTIFACT_PATHS.has(entry.path)
+    ? { path: entry.path }
+    : { path: entry.path, bytes: entry.bytes }
+));
+
+const NON_DETERMINISTIC_CHECKSUM_PATHS = NON_DETERMINISTIC_ARTIFACT_PATHS;
 const stableChecksumByPath = (entries) => {
   const map = new Map();
   for (const entry of entries) {
