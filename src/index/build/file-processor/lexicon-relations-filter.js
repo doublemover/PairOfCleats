@@ -1,4 +1,5 @@
 import { extractSymbolBaseName, getLanguageLexicon } from '../../../lang/lexicon/index.js';
+import { isPlainObject, normalizeBoolean } from '../../../shared/config.js';
 
 const DEFAULT_DROP_CONFIG = Object.freeze({
   keywords: true,
@@ -7,11 +8,7 @@ const DEFAULT_DROP_CONFIG = Object.freeze({
   types: false
 });
 
-const asPlainObject = (value) => (
-  value && typeof value === 'object' && !Array.isArray(value) ? value : null
-);
-
-const normalizeBool = (value, fallback) => (typeof value === 'boolean' ? value : fallback);
+const asPlainObject = (value) => (isPlainObject(value) ? value : null);
 
 const normalizeToken = (value) => {
   if (typeof value !== 'string') return '';
@@ -30,9 +27,9 @@ const resolveRelationsScopes = ({ languageId, config }) => {
 
 const resolveRelationsEnabled = ({ languageId, config }) => {
   const { relations, languageRelations } = resolveRelationsScopes({ languageId, config });
-  return normalizeBool(
+  return normalizeBoolean(
     languageRelations.enabled,
-    normalizeBool(relations.enabled, true)
+    normalizeBoolean(relations.enabled, true)
   );
 };
 
@@ -49,13 +46,13 @@ const resolveDropConfig = ({ languageId, config }) => {
   };
 
   return {
-    keywords: normalizeBool(merged.keywords, defaults.keywords),
-    literals: normalizeBool(merged.literals, defaults.literals),
-    builtins: normalizeBool(merged.builtins, defaults.builtins),
-    types: normalizeBool(merged.types, defaults.types),
-    stableDedupe: normalizeBool(
+    keywords: normalizeBoolean(merged.keywords, defaults.keywords),
+    literals: normalizeBoolean(merged.literals, defaults.literals),
+    builtins: normalizeBoolean(merged.builtins, defaults.builtins),
+    types: normalizeBoolean(merged.types, defaults.types),
+    stableDedupe: normalizeBoolean(
       languageRelations.stableDedupe,
-      normalizeBool(relations.stableDedupe, false)
+      normalizeBoolean(relations.stableDedupe, false)
     )
   };
 };

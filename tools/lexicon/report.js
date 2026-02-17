@@ -2,6 +2,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { listWordlistJsonFiles, parseLexiconCliArgs } from './shared.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..', '..');
@@ -9,28 +10,6 @@ const root = path.resolve(__dirname, '..', '..');
 const defaults = {
   dir: path.join(root, 'src', 'lang', 'lexicon', 'wordlists'),
   json: false
-};
-
-const parseArgs = (argv) => {
-  const out = { ...defaults };
-  for (let i = 2; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (arg === '--json') {
-      out.json = true;
-      continue;
-    }
-    if (arg === '--dir') {
-      out.dir = path.resolve(argv[i + 1] || out.dir);
-      i += 1;
-      continue;
-    }
-    if (arg === '--help' || arg === '-h') {
-      console.log('Usage: node tools/lexicon/report.js [--json] [--dir <path>]');
-      process.exit(0);
-    }
-    throw new Error(`Unknown arg: ${arg}`);
-  }
-  return out;
 };
 
 const toStringArray = (value) => (Array.isArray(value) ? value.filter((entry) => typeof entry === 'string') : []);
@@ -46,12 +25,11 @@ const countUnion = (...lists) => {
 };
 
 const main = async () => {
-  const options = parseArgs(process.argv);
-  const entries = await fs.readdir(options.dir, { withFileTypes: true });
-  const files = entries
-    .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.json'))
-    .map((entry) => entry.name)
-    .sort();
+  const options = parseLexiconCliArgs(process.argv, {
+    defaults,
+    usage: 'Usage: node tools/lexicon/report.js [--json] [--dir <path>]'
+  });
+  const files = await listWordlistJsonFiles(options.dir);
 
   const rows = [];
   for (const fileName of files) {

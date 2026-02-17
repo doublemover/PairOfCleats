@@ -1,12 +1,9 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import path from 'node:path';
 import { validateConfig } from '../../src/config/validate.js';
+import { loadConfigSchema } from '../helpers/config-schema.js';
 
-const root = process.cwd();
-const schemaPath = path.join(root, 'docs', 'config', 'schema.json');
-const schema = JSON.parse(await fs.readFile(schemaPath, 'utf8'));
+const schema = await loadConfigSchema();
 
 const validConfig = {
   indexing: {

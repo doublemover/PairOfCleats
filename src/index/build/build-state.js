@@ -7,6 +7,7 @@ import { sha1 } from '../../shared/hash.js';
 import { estimateJsonBytes } from '../../shared/cache.js';
 import { createLifecycleRegistry } from '../../shared/lifecycle/registry.js';
 import { logLine } from '../../shared/progress.js';
+import { compareStrings } from '../../shared/sort.js';
 import {
   INDEX_PROFILE_DEFAULT,
   INDEX_PROFILE_SCHEMA_VERSION,
@@ -34,7 +35,6 @@ const EVENT_LOG_MAX_BYTES = 2 * 1024 * 1024;
 const DELTA_LOG_MAX_BYTES = 4 * 1024 * 1024;
 const LARGE_PATCH_BYTES = 64 * 1024;
 const STATE_MAP_MAX_ENTRIES = 64;
-const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
 
 const stateQueues = new Map();
 const stateErrors = new Map();
@@ -498,7 +498,7 @@ const readCheckpointIndex = async (buildRoot) => {
 
 const serializeCheckpointIndex = (indexValue) => {
   const modes = {};
-  const modeKeys = Object.keys(indexValue?.modes || {}).sort(sortStrings);
+  const modeKeys = Object.keys(indexValue?.modes || {}).sort(compareStrings);
   for (const mode of modeKeys) {
     const descriptor = indexValue.modes[mode];
     if (!descriptor?.path) continue;
@@ -518,7 +518,7 @@ const loadCheckpointSlices = async (buildRoot) => {
   const index = await readCheckpointIndex(buildRoot);
   if (index?.modes && Object.keys(index.modes).length) {
     const merged = {};
-    const modeKeys = Object.keys(index.modes).sort(sortStrings);
+    const modeKeys = Object.keys(index.modes).sort(compareStrings);
     for (const mode of modeKeys) {
       const descriptor = index.modes[mode];
       const relPath = descriptor?.path || null;
@@ -664,7 +664,7 @@ const writeCheckpointSlices = async (buildRoot, {
   const modeSource = hasExistingSidecarModes
     ? checkpointPatch
     : mergedCheckpoints;
-  const modeKeys = Object.keys(modeSource || {}).sort(sortStrings);
+  const modeKeys = Object.keys(modeSource || {}).sort(compareStrings);
   for (const mode of modeKeys) {
     const modePayload = mergedCheckpoints?.[mode];
     if (!modePayload || typeof modePayload !== 'object') continue;

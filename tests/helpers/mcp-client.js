@@ -3,8 +3,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { applyTestEnv } from './test-env.js';
-applyTestEnv();
+import { ensureTestingEnv } from './test-env.js';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 const encodeFramedMessage = (payload) => {
@@ -164,13 +163,15 @@ export const startMcpServer = async ({
   if (Array.isArray(args) && args.length) {
     serverArgs.push(...args);
   }
+  const childEnv = ensureTestingEnv({
+    ...process.env,
+    PAIROFCLEATS_HOME: cacheRoot,
+    PAIROFCLEATS_CACHE_ROOT: cacheRoot,
+    ...env
+  });
   const server = spawn(process.execPath, serverArgs, {
     stdio: ['pipe', 'pipe', 'inherit'],
-    env: {
-      ...process.env,      PAIROFCLEATS_HOME: cacheRoot,
-      PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-      ...env
-    }
+    env: childEnv
   });
 
   let timeout = null;
@@ -188,9 +189,9 @@ export const startMcpServer = async ({
   const reader = createReader(server.stdout, { onActivity: touchTimeout });
   const { readMessage, readAnyMessage, notifications } = reader;
   touchTimeout();
-  const resolvedTransport = transport || (mode === 'sdk' ? 'sdk' : 'legacy');
+  const resolvedTransport = transport || (mode === 'sdk' ? 'line' : 'legacy');
   const send = (payload) => {
-    if (resolvedTransport === 'line') {
+    if (resolvedTransport === 'line' || resolvedTransport === 'sdk') {
       server.stdin.write(`${JSON.stringify(payload)}\n`);
       return;
     }
@@ -205,3 +206,5 @@ export const startMcpServer = async ({
 
   return { server, send, readMessage, readAnyMessage, notifications, shutdown };
 };
+
+

@@ -1,4 +1,4 @@
-import { applyTestEnv, syncProcessEnv } from './test-env.js';
+import { applyTestEnv } from './test-env.js';
 
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
@@ -90,32 +90,15 @@ const mergeTestConfig = (rawOverride) => {
 const createFixtureEnv = (cacheRoot, overrides = {}) => {
   const { PAIROFCLEATS_TEST_CONFIG: testConfigOverride, ...restOverrides } = overrides;
   const mergedTestConfig = mergeTestConfig(testConfigOverride);
-  const preservedPairOfCleatsKeys = new Set([
-    'PAIROFCLEATS_TEST_CACHE_SUFFIX',
-    'PAIROFCLEATS_TEST_LOG_SILENT',
-    'PAIROFCLEATS_TEST_ALLOW_MISSING_COMPAT_KEY',
-    'PAIROFCLEATS_TESTING'
-  ]);
-  const deletedKeys = new Set();
-  const baseEnv = Object.fromEntries(
-    Object.entries(process.env).filter(([key]) => {
-      if (!key.startsWith('PAIROFCLEATS_')) return true;
-      if (preservedPairOfCleatsKeys.has(key)) return true;
-      deletedKeys.add(key);
-      return false;
-    })
-  );
-  const env = {
-    ...baseEnv,    PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-    PAIROFCLEATS_EMBEDDINGS: 'stub',
-    PAIROFCLEATS_WORKER_POOL: 'off',
-    PAIROFCLEATS_TEST_CONFIG: JSON.stringify(mergedTestConfig),
-    ...restOverrides
-  };
-  const syncKeys = new Set(Object.keys(env).filter((key) => key.startsWith('PAIROFCLEATS_')));
-  for (const key of deletedKeys) syncKeys.add(key);
-  syncProcessEnv(env, Array.from(syncKeys), { clearMissing: true });
-  return env;
+  return applyTestEnv({
+    cacheRoot,
+    embeddings: 'stub',
+    testConfig: mergedTestConfig,
+    extraEnv: {
+      PAIROFCLEATS_WORKER_POOL: 'off',
+      ...restOverrides
+    }
+  });
 };
 
 const hasChunkMeta = (dir) => hasIndexMeta(dir);
@@ -194,8 +177,6 @@ export const ensureFixtureIndex = async ({
   const fixtureRoot = toRealPathSync(fixtureRootRaw);
   const cacheRoot = path.join(ROOT, '.testCache', resolveCacheName(cacheName));
   await ensureDir(cacheRoot);
-  applyTestEnv();
-  process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
   const env = createFixtureEnv(cacheRoot, envOverrides);
   const userConfig = loadUserConfig(fixtureRoot);
   let codeDir = getIndexDir(fixtureRoot, 'code', userConfig);
@@ -326,4 +307,5 @@ export const runSearch = ({
     process.exit(1);
   }
 };
+
 

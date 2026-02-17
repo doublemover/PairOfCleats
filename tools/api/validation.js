@@ -1,4 +1,9 @@
 import { compileSchema, createAjv } from '../../src/shared/validation/ajv-factory.js';
+import {
+  INTEGER_MIN_ZERO_FLAG_FIELDS,
+  REPEATED_LIST_FIELDS,
+  STRING_FLAG_FIELDS
+} from '../shared/search-request.js';
 
 const stringListSchema = {
   anyOf: [
@@ -26,6 +31,18 @@ const metaSchema = {
   ]
 };
 
+const stringFieldProperties = Object.fromEntries(
+  STRING_FLAG_FIELDS.map(([field]) => [field, { type: 'string' }])
+);
+
+const integerMinZeroFieldProperties = Object.fromEntries(
+  INTEGER_MIN_ZERO_FLAG_FIELDS.map(([field]) => [field, { type: 'integer', minimum: 0 }])
+);
+
+const repeatedListFieldProperties = Object.fromEntries(
+  REPEATED_LIST_FIELDS.map(([field]) => [field, stringListSchema])
+);
+
 const searchRequestSchema = {
   type: 'object',
   additionalProperties: false,
@@ -45,52 +62,20 @@ const searchRequestSchema = {
     allowUnsafeMix: { type: 'boolean' },
     top: { type: 'integer', minimum: 0 },
     context: { type: 'integer', minimum: 0 },
-    type: { type: 'string' },
-    author: { type: 'string' },
-    import: { type: 'string' },
-    calls: { type: 'string' },
-    uses: { type: 'string' },
-    signature: { type: 'string' },
-    param: { type: 'string' },
-    decorator: { type: 'string' },
-    inferredType: { type: 'string' },
-    returnType: { type: 'string' },
-    throws: { type: 'string' },
-    reads: { type: 'string' },
-    writes: { type: 'string' },
-    mutates: { type: 'string' },
-    alias: { type: 'string' },
-    awaits: { type: 'string' },
-    risk: { type: 'string' },
-    riskTag: { type: 'string' },
-    riskSource: { type: 'string' },
-    riskSink: { type: 'string' },
-    riskCategory: { type: 'string' },
-    riskFlow: { type: 'string' },
-    branchesMin: { type: 'integer', minimum: 0 },
-    loopsMin: { type: 'integer', minimum: 0 },
-    breaksMin: { type: 'integer', minimum: 0 },
-    continuesMin: { type: 'integer', minimum: 0 },
-    churnMin: { type: 'integer', minimum: 0 },
-    chunkAuthor: { type: 'string' },
-    modifiedAfter: { type: 'string' },
-    modifiedSince: { type: 'integer', minimum: 0 },
+    ...stringFieldProperties,
+    ...integerMinZeroFieldProperties,
     visibility: { type: 'string' },
     extends: { type: 'string' },
     lint: { type: 'boolean' },
     async: { type: 'boolean' },
     generator: { type: 'boolean' },
     returns: { type: 'boolean' },
-    branch: { type: 'string' },
-    lang: { type: 'string' },
     case: { type: 'boolean' },
     caseFile: { type: 'boolean' },
     caseTokens: { type: 'boolean' },
     path: stringListSchema,
     paths: stringListSchema,
-    file: stringListSchema,
-    ext: stringListSchema,
-    filter: { type: 'string' },
+    ...repeatedListFieldProperties,
     meta: metaSchema,
     metaJson: {
       type: ['string', 'object', 'array', 'number', 'boolean', 'null']

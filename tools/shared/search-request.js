@@ -1,4 +1,4 @@
-const STRING_FLAG_FIELDS = Object.freeze([
+export const STRING_FLAG_FIELDS = Object.freeze([
   ['type', '--type'],
   ['author', '--author'],
   ['import', '--import'],
@@ -30,7 +30,7 @@ const STRING_FLAG_FIELDS = Object.freeze([
   ['filter', '--filter']
 ]);
 
-const INTEGER_MIN_ZERO_FLAG_FIELDS = Object.freeze([
+export const INTEGER_MIN_ZERO_FLAG_FIELDS = Object.freeze([
   ['branchesMin', '--branches'],
   ['loopsMin', '--loops'],
   ['breaksMin', '--breaks'],
@@ -39,7 +39,7 @@ const INTEGER_MIN_ZERO_FLAG_FIELDS = Object.freeze([
   ['modifiedSince', '--modified-since']
 ]);
 
-const REPEATED_LIST_FIELDS = Object.freeze([
+export const REPEATED_LIST_FIELDS = Object.freeze([
   ['file', '--file'],
   ['ext', '--ext']
 ]);

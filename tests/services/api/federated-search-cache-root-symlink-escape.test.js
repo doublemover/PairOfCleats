@@ -2,13 +2,16 @@
 import { applyTestEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
-import { startApiServer } from '../../helpers/api-server.js';
+import {
+  createFederatedTempRoot,
+  startFederatedApiServer,
+  writeFederatedWorkspaceConfig
+} from '../../helpers/federated-api.js';
 
 applyTestEnv();
 
-const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-api-fed-cache-symlink-'));
+const tempRoot = await createFederatedTempRoot('pairofcleats-api-fed-cache-symlink-');
 const allowedRoot = path.join(tempRoot, 'allowed');
 const blockedRoot = path.join(tempRoot, 'blocked');
 const repoRoot = path.join(allowedRoot, 'repo');
@@ -19,21 +22,17 @@ await fs.mkdir(repoRoot, { recursive: true });
 await fs.mkdir(blockedRoot, { recursive: true });
 await fs.symlink(blockedRoot, cacheLinkPath, process.platform === 'win32' ? 'junction' : 'dir');
 
-await fs.writeFile(workspacePath, `{
-  "schemaVersion": 1,
-  "cacheRoot": "./cache-link/federated-cache",
-  "repos": [
-    { "root": "./repo", "alias": "sample" }
+await writeFederatedWorkspaceConfig(workspacePath, {
+  schemaVersion: 1,
+  cacheRoot: './cache-link/federated-cache',
+  repos: [
+    { root: './repo', alias: 'sample' }
   ]
-}`, 'utf8');
+});
 
-const env = {
-  ...process.env,};
-
-const { serverInfo, requestJson, stop } = await startApiServer({
+const { serverInfo, requestJson, stop } = await startFederatedApiServer({
   repoRoot,
-  allowedRoots: [allowedRoot],
-  env
+  allowedRoots: [allowedRoot]
 });
 
 try {

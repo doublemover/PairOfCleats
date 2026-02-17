@@ -2,13 +2,16 @@
 import { applyTestEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
-import { startApiServer } from '../../helpers/api-server.js';
+import {
+  createFederatedTempRoot,
+  startFederatedApiServer,
+  writeFederatedWorkspaceConfig
+} from '../../helpers/federated-api.js';
 
 applyTestEnv();
 
-const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-api-fed-repo-root-directory-'));
+const tempRoot = await createFederatedTempRoot('pairofcleats-api-fed-repo-root-directory-');
 const allowedRoot = path.join(tempRoot, 'allowed');
 const defaultRepo = path.join(allowedRoot, 'repo-default');
 const notDirectory = path.join(allowedRoot, 'repo-root.txt');
@@ -17,21 +20,17 @@ const workspacePath = path.join(allowedRoot, '.pairofcleats-workspace.jsonc');
 await fs.mkdir(defaultRepo, { recursive: true });
 await fs.writeFile(notDirectory, 'not a directory', 'utf8');
 
-await fs.writeFile(workspacePath, `{
-  "schemaVersion": 1,
-  "cacheRoot": "./cache",
-  "repos": [
-    { "root": "./repo-root.txt", "alias": "bad-root" }
+await writeFederatedWorkspaceConfig(workspacePath, {
+  schemaVersion: 1,
+  cacheRoot: './cache',
+  repos: [
+    { root: './repo-root.txt', alias: 'bad-root' }
   ]
-}`, 'utf8');
+});
 
-const env = {
-  ...process.env,};
-
-const { serverInfo, requestJson, stop } = await startApiServer({
+const { serverInfo, requestJson, stop } = await startFederatedApiServer({
   repoRoot: defaultRepo,
-  allowedRoots: [allowedRoot],
-  env
+  allowedRoots: [allowedRoot]
 });
 
 try {

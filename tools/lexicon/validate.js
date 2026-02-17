@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Ajv2020 from 'ajv/dist/2020.js';
+import { listWordlistJsonFiles, parseLexiconCliArgs } from './shared.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..', '..');
@@ -11,33 +12,6 @@ const defaults = {
   dir: path.join(root, 'src', 'lang', 'lexicon', 'wordlists'),
   schema: path.join(root, 'src', 'lang', 'lexicon', 'language-lexicon-wordlist.schema.json'),
   json: false
-};
-
-const parseArgs = (argv) => {
-  const out = { ...defaults };
-  for (let i = 2; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (arg === '--json') {
-      out.json = true;
-      continue;
-    }
-    if (arg === '--dir') {
-      out.dir = path.resolve(argv[i + 1] || out.dir);
-      i += 1;
-      continue;
-    }
-    if (arg === '--schema') {
-      out.schema = path.resolve(argv[i + 1] || out.schema);
-      i += 1;
-      continue;
-    }
-    if (arg === '--help' || arg === '-h') {
-      console.log('Usage: node tools/lexicon/validate.js [--json] [--dir <path>] [--schema <path>]');
-      process.exit(0);
-    }
-    throw new Error(`Unknown arg: ${arg}`);
-  }
-  return out;
 };
 
 const isAsciiToken = (value) => typeof value === 'string' && /^[\x21-\x7E]+$/.test(value);
@@ -73,21 +47,16 @@ const validateWordlistArrays = (payload, filePath) => {
 };
 
 const main = async () => {
-  const options = parseArgs(process.argv);
+  const options = parseLexiconCliArgs(process.argv, {
+    defaults,
+    usage: 'Usage: node tools/lexicon/validate.js [--json] [--dir <path>] [--schema <path>]',
+    includeSchema: true
+  });
   const schema = JSON.parse(await fs.readFile(options.schema, 'utf8'));
   const ajv = new Ajv2020({ allErrors: true, strict: false });
   const validate = ajv.compile(schema);
 
-  let files = [];
-  try {
-    const entries = await fs.readdir(options.dir, { withFileTypes: true });
-    files = entries
-      .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.json'))
-      .map((entry) => entry.name)
-      .sort();
-  } catch (error) {
-    throw new Error(`Failed to read wordlist directory: ${error?.message || error}`);
-  }
+  const files = await listWordlistJsonFiles(options.dir);
 
   const errors = [];
   const perFile = [];

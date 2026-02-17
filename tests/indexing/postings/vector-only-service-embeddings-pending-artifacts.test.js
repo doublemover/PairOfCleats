@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { applyTestEnv } from '../../helpers/test-env.js';
+import { applyTestEnv, ensureTestingEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -39,11 +39,14 @@ const testConfig = {
 const baseEnv = Object.fromEntries(
   Object.entries(process.env).filter(([key]) => !/^pairofcleats_/i.test(key))
 );
+
 const env = {
-  ...baseEnv,  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
+  ...baseEnv,
+  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
   PAIROFCLEATS_WORKER_POOL: 'off',
   PAIROFCLEATS_TEST_CONFIG: JSON.stringify(testConfig)
 };
+ensureTestingEnv(env);
 
 await fs.rm(cacheRoot, { recursive: true, force: true });
 await fs.mkdir(cacheRoot, { recursive: true });
@@ -90,3 +93,4 @@ assert.equal(
 );
 
 console.log('vector-only service embeddings pending artifact test passed');
+
