@@ -1229,11 +1229,11 @@ Keep runtime behavior stable and failure handling clear without adding heavy ope
   - [x] Safe defaults remain unchanged when optional knobs are absent.
 
 ### OP.4 Release blocking essentials
-- [ ] Keep only essential reliability checks as release blockers.
-- [ ] Document owner and override path for each blocker.
-- [ ] `tests/ops/release-gates/essential-blockers.test.js`
-  - [ ] Required blockers fail release-check when missing/failing.
-  - [ ] Override path requires explicit marker and is audit-visible.
+- [x] Keep only essential reliability checks as release blockers.
+- [x] Document owner and override path for each blocker.
+- [x] `tests/ops/release-gates/essential-blockers.test.js`
+  - [x] Required blockers fail release-check when missing/failing.
+  - [x] Override path requires explicit marker and is audit-visible.
 
 ### OP.5 Basic resource visibility
 - [ ] Add lightweight visibility for memory and index size growth.

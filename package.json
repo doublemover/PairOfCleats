@@ -52,6 +52,7 @@
     "env:check": "node tools/ci/check-env-usage.js",
     "release-check": "node tools/release/check.js",
     "release-check:breaking": "node tools/release/check.js --breaking",
+    "release-check:blockers": "node tools/release/check.js --blockers-only",
     "uninstall": "node tools/tooling/uninstall.js",
     "api-server": "node tools/api/server.js",
     "mcp-server": "node tools/mcp/server.js",

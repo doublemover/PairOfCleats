@@ -52,6 +52,9 @@ jobs:
       - name: Env usage guardrail
         run: npm run env:check
 
+      - name: Essential release blockers
+        run: npm run release-check:blockers
+
       - name: Gate lane
         run: |
           node tests/run.js --lane gate --allow-timeouts --junit .testLogs/junit-gate.xml --log-dir .testLogs
