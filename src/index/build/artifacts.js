@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { createHash } from 'node:crypto';
 import { log, logLine, showProgress } from '../../shared/progress.js';
 import { MAX_JSON_BYTES, readJsonFile, loadJsonArrayArtifact } from '../../shared/artifact-io.js';
@@ -139,7 +140,49 @@ const VECTOR_ONLY_SPARSE_RECURSIVE_ALLOWLIST = new Set([
   'minhash_signatures.parts'
 ]);
 
+const ARTIFACT_WRITE_CONCURRENCY_MIN = 1;
+const ARTIFACT_WRITE_CONCURRENCY_MAX = 32;
+const ARTIFACT_WRITE_DEFAULT_MAX = 16;
+
 const sha256Hex = (value) => createHash('sha256').update(String(value || ''), 'utf8').digest('hex');
+
+/**
+ * Resolve artifact writer concurrency with a dynamic default and bounded override.
+ * @param {{artifactConfig?:object,totalWrites:number}} input
+ * @returns {{cap:number,override:boolean}}
+ */
+const resolveArtifactWriteConcurrency = ({ artifactConfig, totalWrites }) => {
+  const resolvedWrites = Number.isFinite(Number(totalWrites))
+    ? Math.max(0, Math.floor(Number(totalWrites)))
+    : 0;
+  if (!resolvedWrites) return { cap: 0, override: false };
+  const configured = artifactConfig?.writeConcurrency;
+  if (configured != null) {
+    const parsed = Number(configured);
+    const isInt = Number.isInteger(parsed);
+    if (!isInt || parsed < ARTIFACT_WRITE_CONCURRENCY_MIN || parsed > ARTIFACT_WRITE_CONCURRENCY_MAX) {
+      const err = new Error(
+        '[config] indexing.artifacts.writeConcurrency must be an integer in range 1..32.'
+      );
+      err.code = 'ERR_CONFIG_ARTIFACT_WRITE_CONCURRENCY';
+      throw err;
+    }
+    return { cap: parsed, override: true };
+  }
+  const available = typeof os.availableParallelism === 'function'
+    ? os.availableParallelism()
+    : os.cpus().length;
+  const baseline = Number.isFinite(Number(available))
+    ? Math.max(1, Math.floor(Number(available)))
+    : 1;
+  return {
+    cap: Math.max(
+      ARTIFACT_WRITE_CONCURRENCY_MIN,
+      Math.min(ARTIFACT_WRITE_DEFAULT_MAX, baseline)
+    ),
+    override: false
+  };
+};
 
 const normalizeExtractionFilePath = (file, root) => {
   const raw = String(file || '');
@@ -1680,7 +1723,11 @@ export async function writeIndexArtifacts(input) {
   if (totalWrites) {
     const artifactLabel = totalWrites === 1 ? 'artifact' : 'artifacts';
     logLine(`Writing index files (${totalWrites} ${artifactLabel})...`, { kind: 'status' });
-    const writeConcurrency = Math.max(1, Math.min(4, totalWrites));
+    const { cap: writeConcurrencyCap } = resolveArtifactWriteConcurrency({
+      artifactConfig,
+      totalWrites
+    });
+    const writeConcurrency = Math.max(1, Math.min(totalWrites, writeConcurrencyCap));
     await runWithConcurrency(
       writes,
       writeConcurrency,

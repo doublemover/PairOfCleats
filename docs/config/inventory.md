@@ -746,6 +746,7 @@ indexing.artifacts.symbolArtifactsFormat (string) enum=auto|jsonl|jsonl-sharded|
 indexing.artifacts.tokenPostingsFormat (string)
 indexing.artifacts.tokenPostingsShardSize (number)
 indexing.artifacts.tokenPostingsShardThreshold (number)
+indexing.artifacts.writeConcurrency (integer) range=1..32
 indexing.concurrency (number)
 indexing.diffs (object)
 indexing.diffs.compute (object)
