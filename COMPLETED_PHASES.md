@@ -15782,3 +15782,251 @@ Placement guidance:
 
 ---
 
+
+
+## Phase 20 - Index Build and Embedding Throughput Fast Path
+
+### Objective
+Make index builds and embedding generation significantly faster through straightforward, low-risk hot-path optimizations.
+
+### Non-goals
+- Changing retrieval semantics or ranking contracts.
+- Introducing non-deterministic output ordering.
+- Adding heavy benchmark infrastructure as a prerequisite for shipping.
+
+### Execution style for this phase
+- Prioritize obvious wins with direct code-path reductions (less repeated work, less sync I/O, less serialization churn).
+- Validate with lightweight regression and stage-duration smoke checks on fixed fixtures.
+
+### Exit criteria
+- Tree-sitter and file-processing hot paths avoid repeated segmentation and serial planning I/O.
+- Discovery and incremental paths stop unnecessary crawl/read work early.
+- Embedding pipeline improves throughput by removing avoidable serialization/queue bottlenecks.
+- Artifact write path reduces repeated serialization and under-utilized write concurrency.
+- Build-state/checkpoint persistence no longer rewrites large payloads unnecessarily.
+- Import-resolution and postings-merge paths reuse warm-build state where safe.
+
+### Docs that must be updated
+- `docs/perf/indexing-stage-audit.md`
+- `docs/perf/index-artifact-pipelines.md`
+- `docs/perf/shared-io-serialization.md`
+- `docs/specs/build-scheduler.md`
+- `docs/specs/artifact-io-pipeline.md`
+- `docs/specs/embeddings-cache.md`
+- `docs/specs/spimi-spill.md`
+- `docs/specs/large-file-caps-strategy.md`
+- `docs/specs/build-state-integrity.md`
+- `docs/guides/perfplan-execution.md`
+- `docs/guides/commands.md`
+- `docs/config/schema.json` and `docs/config/contract.md` (if new tuning knobs are added)
+
+### 20.1 Scheduler and segmentation reuse
+
+#### Objective
+Remove duplicate tree-sitter segmentation work and reduce serial planning I/O in the scheduler path.
+
+#### Tasks
+- [x] In `processFileCpu`, prefer scheduler-planned segments when available; only fall back to `discoverSegments` when missing or hash-stale.
+- [x] Keep segment UID assignment deterministic after planned-segment reuse.
+- [x] Parallelize `buildTreeSitterSchedulerPlan` per-file `lstat/readTextFileWithHash` work with bounded concurrency.
+- [x] Keep planner output ordering deterministic (`plan.jobs` and index ordering unchanged).
+
+#### Touchpoints
+- `src/index/build/file-processor/cpu.js`
+- `src/index/build/tree-sitter-scheduler/plan.js`
+- `src/index/build/tree-sitter-scheduler/runner.js`
+- `src/index/build/runtime/hash.js`
+
+#### Tests
+- [x] `tests/indexing/scheduler/planned-segments-reuse-without-rediscovery.test.js`
+  - [x] Fixture with scheduler-provided segments verifies `discoverSegments` path is not used.
+  - [x] Chunk boundaries/IDs and metadata remain identical to baseline output.
+- [x] `tests/indexing/scheduler/plan-parallel-io-deterministic-order.test.js`
+  - [x] Planner output (`plan.jobs`, file order, signatures) matches sequential mode exactly.
+  - [x] Parallel mode preserves deterministic job ordering across repeated runs.
+
+### 20.2 Discovery and incremental read dedupe
+
+#### Objective
+Stop wasted file-system and read/hash work in discovery and incremental cache lookup flows.
+
+#### Tasks
+- [x] Abort discovery crawl as soon as `maxFiles` is satisfied (do not continue full repository traversal).
+- [x] Emit a stable limit reason code (`max_files_reached`) when early-abort is triggered.
+- [x] Share single-file `buffer/hash` between cached bundle and cached imports lookup to avoid duplicate reads.
+- [x] Add streaming truncation path in file reads so oversized files can be capped without full in-memory materialization.
+- [x] Keep skip/limit diagnostics deterministic when early abort paths are active.
+
+#### Touchpoints
+- `src/index/build/discover.js`
+- `src/index/build/incremental.js`
+- `src/index/build/file-processor/read.js`
+- `src/index/build/file-scan.js`
+
+#### Tests
+- [x] `tests/indexing/discovery/max-files-abort-crawl.test.js`
+  - [x] With low `maxFiles`, crawler exits early and does not traverse remaining tree.
+  - [x] Skip diagnostics record deterministic limit reason code `max_files_reached`.
+- [x] `tests/indexing/incremental/shared-buffer-hash-for-imports-and-bundle.test.js`
+  - [x] Same file is read once when both bundle/import cache checks require hash.
+  - [x] Import outputs and cache hits remain identical to legacy behavior.
+- [x] `tests/indexing/read/streaming-truncation-byte-cap.test.js`
+  - [x] Streaming-cap path returns the same truncated text as non-streaming baseline.
+  - [x] Memory usage path avoids full-file materialization for oversized fixture.
+
+### 20.3 Embedding pipeline fast path
+
+#### Objective
+Increase embedding throughput by parallelizing independent batches and removing cache/write-path bottlenecks.
+
+#### Tasks
+- [x] Dispatch code and doc embedding batches concurrently where backends advertise safe parallelism; otherwise keep deterministic serial path.
+- [x] Add compact cache-entry fingerprint to avoid decompressing full payloads just to compare chunk hashes.
+- [x] Reuse shard append handles during cache flushes to avoid repeated open/stat/close cycles.
+- [x] Move heavy encoding off the writer queue critical section (queue should gate disk I/O, not compression CPU time).
+- [x] Keep embedding cache identity and determinism unchanged.
+
+#### Touchpoints
+- `tools/build/embeddings/batch.js`
+- `tools/build/embeddings/runner.js`
+- `tools/build/embeddings/cache.js`
+- `src/index/build/embedding-batch.js`
+- `src/index/build/indexer/embedding-queue.js`
+- `src/shared/embeddings-cache/*`
+
+#### Tests
+- [x] `tests/embeddings/pipeline/code-doc-batches-parallel-dispatch.test.js`
+  - [x] Code/doc batch dispatches overlap in time when backend supports concurrency.
+  - [x] Result ordering and embedding identity remain deterministic.
+- [x] `tests/embeddings/cache/fingerprint-short-circuit-avoids-decompress.test.js`
+  - [x] Fingerprint mismatch bypasses full payload decompress/read path.
+  - [x] Cache miss/hit decisions remain correct for unchanged hashes.
+- [x] `tests/embeddings/cache/shard-append-handle-reuse.test.js`
+  - [x] Shard appends reuse handles within a flush window (no per-entry reopen loop).
+  - [x] Final shard contents and index pointers remain valid and deterministic.
+- [x] `tests/embeddings/pipeline/writer-queue-encode-off-critical-path.test.js`
+  - [x] Encoding occurs outside queue-gated disk write section.
+  - [x] Queue drains correctly with no lost writes or ordering drift.
+
+### 20.4 Postings and chunking compute reuse
+
+#### Objective
+Cut repeated serialization/splitting/allocation work in postings and chunking paths.
+
+#### Tasks
+- [x] Replace per-file payload size estimation by full `JSON.stringify` with precomputed postings payload metadata.
+- [x] Hoist line/byte index computation so chunk format handlers reuse shared indexes instead of rebuilding repeatedly.
+- [x] Reduce per-chunk quantization allocation churn by pooling/reuse where safe and deterministic.
+- [x] Keep retention semantics unchanged while moving quantization/retention work earlier when possible.
+
+#### Touchpoints
+- `src/index/build/indexer/steps/process-files/postings-queue.js`
+- `src/index/build/file-processor/process-chunks/index.js`
+- `src/index/chunking/dispatch.js`
+- `src/index/chunking/limits.js`
+- `src/index/build/indexer/steps/postings.js`
+
+#### Tests
+- [x] `tests/indexing/postings/payload-estimation-uses-precomputed-metadata.test.js`
+  - [x] Metadata path avoids fallback stringify estimation when metadata is present.
+  - [x] Reserved rows/bytes accounting matches legacy semantics.
+- [x] `tests/indexing/chunking/shared-line-index-reuse-deterministic.test.js`
+  - [x] Shared line/byte index path preserves chunk boundaries/anchors exactly.
+  - [x] Repeated runs produce identical chunk IDs and ordering.
+- [x] `tests/indexing/postings/quantization-buffer-reuse-no-drift.test.js`
+  - [x] Reused/pool buffers produce byte-identical quantized vectors to baseline.
+  - [x] No drift in downstream ranking inputs from quantization reuse.
+
+### 20.5 Artifact write throughput and serialization fanout
+
+#### Objective
+Increase artifact write throughput by reducing repeated serialization and better utilizing available I/O concurrency.
+
+#### Tasks
+- [x] Replace hard-capped artifact write concurrency with dynamic default based on available parallelism (`min(availableParallelism, 16)`), with optional config override.
+- [x] Validate override bounds (`1..32`) and reject invalid values with a controlled config error.
+- [x] Serialize `chunk_meta` rows once and fan out to hot/cold/compat/binary outputs from a shared stream.
+- [x] Expand cached JSONL row reuse to avoid repeated stringify for the same row across outputs.
+- [x] Preserve deterministic artifact ordering and checksums.
+
+#### Touchpoints
+- `src/index/build/artifacts.js`
+- `src/index/build/artifacts/writer.js`
+- `src/index/build/artifacts/writers/chunk-meta.js`
+- `src/shared/artifact-io/jsonl.js`
+- `src/shared/json-stream/*`
+
+#### Tests
+- [x] `tests/indexing/artifacts/dynamic-write-concurrency-preserves-order.test.js`
+  - [x] Different write concurrency settings produce identical artifact manifest ordering.
+  - [x] Checksums remain identical for same inputs.
+- [x] `tests/indexing/artifacts/artifact-write-concurrency-config-validation.test.js`
+  - [x] Invalid override values outside `1..32` fail with controlled config error.
+- [x] `tests/indexing/artifacts/chunk-meta-single-pass-fanout-parity.test.js`
+  - [x] Single-pass fanout outputs match legacy multi-pass outputs byte-for-byte.
+  - [x] Hot/cold/compat/binary sinks stay mutually consistent.
+- [x] `tests/indexing/artifacts/chunk-meta-cached-jsonl-reuse.test.js`
+  - [x] Cached JSONL row reuse path avoids repeat stringify for same row.
+  - [x] Emitted JSONL remains valid and deterministic.
+
+### 20.6 Build-state and checkpoint I/O slimming
+
+#### Objective
+Reduce large repeated atomic rewrites in long-running builds.
+
+#### Tasks
+- [x] Move heavy `stageCheckpoints` payloads into dedicated sidecar/checkpoint files so `build_state.json` stays lightweight.
+- [x] Update checkpoint recorder to write changed slices instead of full combined snapshots.
+- [x] Keep the same crash-recovery semantics and deterministic state reconstruction.
+- [x] Use a stable sidecar naming/version convention (`stage_checkpoints.v1.*`) for forward compatibility.
+
+#### Touchpoints
+- `src/index/build/build-state.js`
+- `src/index/build/stage-checkpoints.js`
+- `src/index/build/stage-checkpoints/` (new folder)
+- `src/index/build/state.js`
+
+#### Tests
+- [x] `tests/indexing/state/build-state-lightweight-main-file.test.js`
+  - [x] Main `build_state.json` excludes heavy checkpoint payload sections.
+  - [x] Sidecar checkpoint files contain required checkpoint content.
+- [x] `tests/indexing/state/checkpoint-slice-write-and-recover.test.js`
+  - [x] Slice updates reconstruct full checkpoint state deterministically after reload.
+  - [x] Crash-recovery behavior matches previous correctness guarantees.
+- [x] `tests/indexing/state/checkpoint-sidecar-naming-versioned.test.js`
+  - [x] Sidecar files follow stable `stage_checkpoints.v1.*` naming convention.
+
+### 20.7 Import-resolution and postings-merge warm-build reuse
+
+#### Objective
+Reuse warm-build metadata for import lookup and spill-merge planning to avoid repeated expensive setup work.
+
+#### Tasks
+- [x] Persist and reuse import lookup structures (`fileSet`/trie/index) between compatible builds using an explicit compatibility fingerprint.
+- [x] Replace repeated synchronous existence/stat checks with batched async metadata lookups where safe.
+- [x] Persist spill-merge planner metadata/checkpoint hints and reuse when inputs are unchanged.
+- [x] Keep merge output deterministic and equivalent to cold planner behavior.
+
+#### Touchpoints
+- `src/index/build/import-resolution.js`
+- `src/index/build/import-resolution-cache.js`
+- `src/index/build/postings.js`
+- `src/index/build/indexer/steps/relations.js`
+- `tools/bench/index/import-resolution-graph.js`
+- `tools/bench/index/postings-real.js`
+
+#### Tests
+- [x] `tests/indexing/imports/warm-lookup-structure-reuse.test.js`
+  - [x] Warm run reuses persisted import lookup structures when compatible.
+  - [x] Import resolution output remains identical to cold rebuild output.
+- [x] `tests/indexing/imports/async-fs-memo-parity.test.js`
+  - [x] Async metadata lookup path matches sync memoized decision parity.
+  - [x] Path existence and resolution outcomes remain deterministic.
+- [x] `tests/indexing/imports/lookup-fingerprint-compatibility-gate.test.js`
+  - [x] Lookup structure reuse occurs only when compatibility fingerprint matches.
+- [x] `tests/indexing/postings/spill-merge-planner-metadata-reuse.test.js`
+  - [x] Reused planner metadata path is taken when inputs are unchanged.
+  - [x] Postings output and merge ordering match cold planner baseline.
+
+---
+
