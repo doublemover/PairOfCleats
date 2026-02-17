@@ -1140,10 +1140,10 @@ Increase embedding throughput by parallelizing independent batches and removing 
 Cut repeated serialization/splitting/allocation work in postings and chunking paths.
 
 #### Tasks
-- [ ] Replace per-file payload size estimation by full `JSON.stringify` with precomputed postings payload metadata.
-- [ ] Hoist line/byte index computation so chunk format handlers reuse shared indexes instead of rebuilding repeatedly.
-- [ ] Reduce per-chunk quantization allocation churn by pooling/reuse where safe and deterministic.
-- [ ] Keep retention semantics unchanged while moving quantization/retention work earlier when possible.
+- [x] Replace per-file payload size estimation by full `JSON.stringify` with precomputed postings payload metadata.
+- [x] Hoist line/byte index computation so chunk format handlers reuse shared indexes instead of rebuilding repeatedly.
+- [x] Reduce per-chunk quantization allocation churn by pooling/reuse where safe and deterministic.
+- [x] Keep retention semantics unchanged while moving quantization/retention work earlier when possible.
 
 #### Touchpoints
 - `src/index/build/indexer/steps/process-files/postings-queue.js`
@@ -1153,15 +1153,15 @@ Cut repeated serialization/splitting/allocation work in postings and chunking pa
 - `src/index/build/indexer/steps/postings.js`
 
 #### Tests
-- [ ] `tests/indexing/postings/payload-estimation-uses-precomputed-metadata.test.js`
-  - [ ] Metadata path avoids fallback stringify estimation when metadata is present.
-  - [ ] Reserved rows/bytes accounting matches legacy semantics.
-- [ ] `tests/indexing/chunking/shared-line-index-reuse-deterministic.test.js`
-  - [ ] Shared line/byte index path preserves chunk boundaries/anchors exactly.
-  - [ ] Repeated runs produce identical chunk IDs and ordering.
-- [ ] `tests/indexing/postings/quantization-buffer-reuse-no-drift.test.js`
-  - [ ] Reused/pool buffers produce byte-identical quantized vectors to baseline.
-  - [ ] No drift in downstream ranking inputs from quantization reuse.
+- [x] `tests/indexing/postings/payload-estimation-uses-precomputed-metadata.test.js`
+  - [x] Metadata path avoids fallback stringify estimation when metadata is present.
+  - [x] Reserved rows/bytes accounting matches legacy semantics.
+- [x] `tests/indexing/chunking/shared-line-index-reuse-deterministic.test.js`
+  - [x] Shared line/byte index path preserves chunk boundaries/anchors exactly.
+  - [x] Repeated runs produce identical chunk IDs and ordering.
+- [x] `tests/indexing/postings/quantization-buffer-reuse-no-drift.test.js`
+  - [x] Reused/pool buffers produce byte-identical quantized vectors to baseline.
+  - [x] No drift in downstream ranking inputs from quantization reuse.
 
 ### 20.5 Artifact write throughput and serialization fanout
 

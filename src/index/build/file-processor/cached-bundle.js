@@ -4,6 +4,7 @@ import { applyStructuralMatchesToChunks } from './chunk.js';
 import { pickMinLimit, resolveFileCaps } from './read.js';
 import { stripFileRelations } from './relations.js';
 import { log } from '../../../shared/progress.js';
+import { buildPostingsPayloadMetadata } from '../postings-payload.js';
 
 export function reuseCachedBundle({
   abs,
@@ -157,6 +158,11 @@ export function reuseCachedBundle({
       manifestEntry,
       fileInfo,
       fileRelations,
+      postingsPayload: buildPostingsPayloadMetadata({
+        chunks: updatedChunks,
+        fileRelations,
+        vfsManifestRows
+      }),
       fileMetrics: {
         languageId: fileLanguageId || cachedLanguage || null,
         bytes: fileStat.size,

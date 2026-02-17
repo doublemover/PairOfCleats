@@ -13,6 +13,13 @@ const normalizeChunkLimit = (value) => {
   return limit > 0 ? limit : null;
 };
 
+const resolveChunkingShared = (context, text) => {
+  const shared = context?.chunkingShared;
+  if (!shared || typeof shared !== 'object') return null;
+  if (typeof shared.text === 'string' && shared.text !== text) return null;
+  return shared;
+};
+
 /**
  * Resolve optional chunk size caps from indexing context.
  * @param {object} context
@@ -212,7 +219,16 @@ export const splitChunkByBytes = (chunk, text, resolveLineIndex, maxBytes, byteM
 export const applyChunkingLimits = (chunks, text, context) => {
   if (!Array.isArray(chunks) || !chunks.length) return chunks;
   const { maxBytes, maxLines } = resolveChunkingLimits(context);
-  const byteMetrics = maxBytes || !maxLines ? buildUtf8ByteMetrics(text) : null;
+  const shared = resolveChunkingShared(context, text);
+  let byteMetrics = shared?.byteMetrics
+    && shared.byteMetrics.text === text
+    && shared.byteMetrics.prefix
+    ? shared.byteMetrics
+    : null;
+  if (!byteMetrics && (maxBytes || !maxLines)) {
+    byteMetrics = buildUtf8ByteMetrics(text);
+    if (shared) shared.byteMetrics = byteMetrics;
+  }
   const resolveChunkBytes = (chunk) => {
     const start = Number.isFinite(chunk.start) ? chunk.start : 0;
     const end = Number.isFinite(chunk.end) ? chunk.end : start;
@@ -225,9 +241,12 @@ export const applyChunkingLimits = (chunks, text, context) => {
       : null
     : null;
   if (!maxBytes && !maxLines && !guardrailMaxBytes) return chunks;
-  let lineIndex = null;
+  let lineIndex = Array.isArray(shared?.lineIndex) ? shared.lineIndex : null;
   const getLineIndex = () => {
-    if (!lineIndex) lineIndex = buildLineIndex(text);
+    if (!lineIndex) {
+      lineIndex = buildLineIndex(text);
+      if (shared) shared.lineIndex = lineIndex;
+    }
     return lineIndex;
   };
   let output = chunks;

@@ -8,6 +8,7 @@ import { log, logLine } from '../../shared/progress.js';
 import { getEnvConfig } from '../../shared/env.js';
 import { readTextFileWithHash } from '../../shared/encoding.js';
 import { sha1 } from '../../shared/hash.js';
+import { buildPostingsPayloadMetadata } from './postings-payload.js';
 import { createFileScanner } from './file-scan.js';
 import { createTokenizationContext } from './tokenization.js';
 import { reuseCachedBundle } from './file-processor/cached-bundle.js';
@@ -439,6 +440,13 @@ export function createFileProcessor(options) {
       return null;
     }
     if (cachedOutcome?.result) {
+      if (!cachedOutcome.result.postingsPayload) {
+        cachedOutcome.result.postingsPayload = buildPostingsPayloadMetadata({
+          chunks: cachedOutcome.result.chunks,
+          fileRelations: cachedOutcome.result.fileRelations,
+          vfsManifestRows: cachedOutcome.result.vfsManifestRows
+        });
+      }
       warnEncodingFallback(relKey, cachedOutcome.result.fileInfo);
       return cachedOutcome.result;
     }
@@ -682,6 +690,11 @@ export function createFileProcessor(options) {
       fileLanguageId,
       cached: false
     });
+    const postingsPayload = buildPostingsPayloadMetadata({
+      chunks: fileChunks,
+      fileRelations,
+      vfsManifestRows
+    });
     recordFileMetrics({
       fileLineCount,
       fileStat,
@@ -699,6 +712,7 @@ export function createFileProcessor(options) {
       fileRelations,
       lexiconFilterStats,
       vfsManifestRows,
+      postingsPayload,
       fileInfo,
       manifestEntry,
       fileMetrics

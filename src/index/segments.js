@@ -36,7 +36,26 @@ const stripFullFileChunkingCaches = (context) => {
   }
   delete next.jsAst;
   delete next.pythonAst;
+  delete next.chunkingShared;
   return next;
+};
+
+const buildSegmentLineIndex = (lineIndex, segmentStart, segmentEnd) => {
+  if (!Array.isArray(lineIndex) || !lineIndex.length) return [0];
+  if (!Number.isFinite(segmentStart) || !Number.isFinite(segmentEnd) || segmentEnd <= segmentStart) {
+    return [0];
+  }
+  const startLineIdx = Math.max(0, offsetToLine(lineIndex, segmentStart) - 1);
+  const endOffset = segmentEnd > segmentStart ? segmentEnd - 1 : segmentStart;
+  const endLineIdx = Math.max(startLineIdx, offsetToLine(lineIndex, endOffset) - 1);
+  const local = [0];
+  for (let line = startLineIdx + 1; line <= endLineIdx; line += 1) {
+    const absoluteOffset = lineIndex[line];
+    if (!Number.isFinite(absoluteOffset)) continue;
+    if (absoluteOffset <= segmentStart || absoluteOffset >= segmentEnd) continue;
+    local.push(absoluteOffset - segmentStart);
+  }
+  return local;
 };
 
 export const assignSegmentUids = async ({ text, segments, ext, mode }) => {
@@ -159,9 +178,23 @@ export function chunkSegments({
     const segmentEndOffset = segment.end > segment.start ? segment.end - 1 : segment.start;
     const segmentEndLine = offsetToLine(resolvedLineIndex, segmentEndOffset);
     const segmentUid = isBase ? null : segment.segmentUid || null;
+    const baseShared = context?.chunkingShared && typeof context.chunkingShared === 'object'
+      ? context.chunkingShared
+      : null;
+    const chunkingShared = isBase
+      ? {
+        ...(baseShared || {}),
+        text,
+        lineIndex: resolvedLineIndex
+      }
+      : {
+        text: segmentText,
+        lineIndex: buildSegmentLineIndex(resolvedLineIndex, segment.start, segment.end)
+      };
     const segmentContext = {
       ...(isBase ? context : stripFullFileChunkingCaches(context)),
       languageId: segment.languageId || context.languageId || null,
+      chunkingShared,
       segment: isBase
         ? null
         : {

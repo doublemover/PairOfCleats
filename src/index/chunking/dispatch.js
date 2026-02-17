@@ -70,16 +70,26 @@ const applyFormatMeta = (chunks, format, kind) => {
 
 const MAX_REGEX_LINE = 8192;
 
-const splitLinesWithIndex = (text) => {
+const splitLinesWithIndex = (text, context = null) => {
   const lines = text.split('\n');
+  const sharedLineIndex = Array.isArray(context?.chunkingShared?.lineIndex)
+    ? context.chunkingShared.lineIndex
+    : null;
+  if (sharedLineIndex && sharedLineIndex.length === lines.length) {
+    return { lines, lineIndex: sharedLineIndex };
+  }
+  const lineIndex = buildLineIndexFromLines(lines);
+  if (context?.chunkingShared && typeof context.chunkingShared === 'object') {
+    context.chunkingShared.lineIndex = lineIndex;
+  }
   return {
     lines,
-    lineIndex: buildLineIndexFromLines(lines)
+    lineIndex
   };
 };
 
-const chunkByLineRegex = (text, matcher, options = {}) => {
-  const { lines, lineIndex } = splitLinesWithIndex(text);
+const chunkByLineRegex = (text, matcher, options = {}, context = null) => {
+  const { lines, lineIndex } = splitLinesWithIndex(text, context);
   const headings = [];
   const maxLineLength = Number.isFinite(Number(options.maxLineLength))
     ? Math.max(0, Math.floor(Number(options.maxLineLength)))
@@ -111,8 +121,8 @@ const chunkByLineRegex = (text, matcher, options = {}) => {
   }];
 };
 
-const chunkDockerfile = (text) => {
-  const { lines, lineIndex } = splitLinesWithIndex(text);
+const chunkDockerfile = (text, context = null) => {
+  const { lines, lineIndex } = splitLinesWithIndex(text, context);
   const headings = [];
   const rx = /^\s*([A-Z][A-Z0-9_-]+)\b/;
   for (let i = 0; i < lines.length; ++i) {
@@ -129,8 +139,8 @@ const chunkDockerfile = (text) => {
   return [{ start: 0, end: text.length, name: 'Dockerfile', kind: 'ConfigSection', meta: { format: 'dockerfile' } }];
 };
 
-const chunkMakefile = (text) => {
-  const { lines, lineIndex } = splitLinesWithIndex(text);
+const chunkMakefile = (text, context = null) => {
+  const { lines, lineIndex } = splitLinesWithIndex(text, context);
   const headings = [];
   const rx = /^([A-Za-z0-9_./-]+)\s*:/;
   for (let i = 0; i < lines.length; ++i) {
@@ -148,8 +158,8 @@ const chunkMakefile = (text) => {
   return [{ start: 0, end: text.length, name: 'Makefile', kind: 'ConfigSection', meta: { format: 'makefile' } }];
 };
 
-const chunkProto = (text) => {
-  const { lines, lineIndex } = splitLinesWithIndex(text);
+const chunkProto = (text, context = null) => {
+  const { lines, lineIndex } = splitLinesWithIndex(text, context);
   const headings = [];
   const rx = /^\s*(message|enum|service|extend|oneof)\s+([A-Za-z_][A-Za-z0-9_]*)/;
   for (let i = 0; i < lines.length; ++i) {
@@ -174,8 +184,8 @@ const chunkProto = (text) => {
   return [{ start: 0, end: text.length, name: 'proto', kind: 'Section', meta: { format: 'proto' } }];
 };
 
-const chunkGraphql = (text) => {
-  const { lines, lineIndex } = splitLinesWithIndex(text);
+const chunkGraphql = (text, context = null) => {
+  const { lines, lineIndex } = splitLinesWithIndex(text, context);
   const headings = [];
   const rx = /^\s*(schema|type|interface|enum|union|input|scalar|directive|fragment)\b\s*([A-Za-z_][A-Za-z0-9_]*)?/;
   for (let i = 0; i < lines.length; ++i) {
@@ -205,16 +215,16 @@ const chunkGraphql = (text) => {
   return [{ start: 0, end: text.length, name: 'graphql', kind: 'Section', meta: { format: 'graphql' } }];
 };
 
-const chunkCmake = (text) => chunkByLineRegex(text, /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(/, {
+const chunkCmake = (text, context = null) => chunkByLineRegex(text, /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(/, {
   format: 'cmake',
   kind: 'ConfigSection',
   defaultName: 'cmake',
   skipLine: (line) => line.trim().startsWith('#'),
   precheck: (line) => line.includes('(')
-});
+}, context);
 
-const chunkStarlark = (text) => {
-  const { lines, lineIndex } = splitLinesWithIndex(text);
+const chunkStarlark = (text, context = null) => {
+  const { lines, lineIndex } = splitLinesWithIndex(text, context);
   const headings = [];
   const defRx = /^\s*(def|class)\s+([A-Za-z_][A-Za-z0-9_]*)\b/;
   const callRx = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(/;
@@ -244,7 +254,7 @@ const chunkStarlark = (text) => {
   }];
 };
 
-const chunkNix = (text) => {
+const chunkNix = (text, context = null) => {
   const skipLine = (line) => {
     const trimmed = line.trim();
     return !trimmed || trimmed.startsWith('#') || trimmed === 'in' || trimmed === 'let';
@@ -255,11 +265,11 @@ const chunkNix = (text) => {
     defaultName: 'nix',
     skipLine,
     precheck: (line) => line.includes('=')
-  });
+  }, context);
 };
 
-const chunkDart = (text) => {
-  const { lines, lineIndex } = splitLinesWithIndex(text);
+const chunkDart = (text, context = null) => {
+  const { lines, lineIndex } = splitLinesWithIndex(text, context);
   const headings = [];
   const typeRx = /^\s*(class|mixin|enum|extension|typedef)\s+([A-Za-z_][A-Za-z0-9_]*)/;
   const funcRx = /^\s*(?:[A-Za-z_][A-Za-z0-9_<>]*\s+)+([A-Za-z_][A-Za-z0-9_]*)\s*\(/;
@@ -297,8 +307,8 @@ const chunkDart = (text) => {
   }];
 };
 
-const chunkScala = (text) => {
-  const { lines, lineIndex } = splitLinesWithIndex(text);
+const chunkScala = (text, context = null) => {
+  const { lines, lineIndex } = splitLinesWithIndex(text, context);
   const headings = [];
   const typeRx = /^\s*(?:case\s+class|class|object|trait|enum)\s+([A-Za-z_][A-Za-z0-9_]*)/;
   const defRx = /^\s*def\s+([A-Za-z_][A-Za-z0-9_]*)/;
@@ -332,8 +342,8 @@ const chunkScala = (text) => {
   }];
 };
 
-const chunkGroovy = (text) => {
-  const { lines, lineIndex } = splitLinesWithIndex(text);
+const chunkGroovy = (text, context = null) => {
+  const { lines, lineIndex } = splitLinesWithIndex(text, context);
   const headings = [];
   const typeRx = /^\s*(class|interface|trait|enum)\s+([A-Za-z_][A-Za-z0-9_]*)/;
   const defRx = /^\s*def\s+([A-Za-z_][A-Za-z0-9_]*)/;
@@ -367,15 +377,15 @@ const chunkGroovy = (text) => {
   }];
 };
 
-const chunkR = (text) => chunkByLineRegex(text, /^\s*([A-Za-z.][A-Za-z0-9_.]*)\s*(?:<-|=)\s*function\b/, {
+const chunkR = (text, context = null) => chunkByLineRegex(text, /^\s*([A-Za-z.][A-Za-z0-9_.]*)\s*(?:<-|=)\s*function\b/, {
   format: 'r',
   kind: 'Section',
   defaultName: 'r',
   precheck: (line) => line.includes('function')
-});
+}, context);
 
-const chunkJulia = (text) => {
-  const { lines, lineIndex } = splitLinesWithIndex(text);
+const chunkJulia = (text, context = null) => {
+  const { lines, lineIndex } = splitLinesWithIndex(text, context);
   const headings = [];
   const rx = /^\s*(module|function|macro)\s+([A-Za-z_][A-Za-z0-9_!.]*)/;
   for (let i = 0; i < lines.length; ++i) {
@@ -401,21 +411,21 @@ const chunkJulia = (text) => {
   }];
 };
 
-const chunkHandlebars = (text) => chunkByLineRegex(text, /{{[#^]\s*([A-Za-z0-9_.-]+)\b/, {
+const chunkHandlebars = (text, context = null) => chunkByLineRegex(text, /{{[#^]\s*([A-Za-z0-9_.-]+)\b/, {
   format: 'handlebars',
   kind: 'Section',
   defaultName: 'handlebars',
   precheck: (line) => line.includes('{{')
-});
+}, context);
 
-const chunkMustache = (text) => chunkByLineRegex(text, /{{[#^]\s*([A-Za-z0-9_.-]+)\b/, {
+const chunkMustache = (text, context = null) => chunkByLineRegex(text, /{{[#^]\s*([A-Za-z0-9_.-]+)\b/, {
   format: 'mustache',
   kind: 'Section',
   defaultName: 'mustache',
   precheck: (line) => line.includes('{{')
-});
+}, context);
 
-const chunkJinja = (text) => chunkByLineRegex(text, /{%\s*(block|macro|for|if|set|include|extends)\s+([^%\n]+)%}/, {
+const chunkJinja = (text, context = null) => chunkByLineRegex(text, /{%\s*(block|macro|for|if|set|include|extends)\s+([^%\n]+)%}/, {
   format: 'jinja',
   kind: 'Section',
   defaultName: 'jinja',
@@ -424,10 +434,10 @@ const chunkJinja = (text) => chunkByLineRegex(text, /{%\s*(block|macro|for|if|se
     const name = String(match[2] || '').trim().split(/\s+/)[0];
     return name ? `${match[1]} ${name}` : match[1];
   }
-});
+}, context);
 
-const chunkRazor = (text) => {
-  const { lines, lineIndex } = splitLinesWithIndex(text);
+const chunkRazor = (text, context = null) => {
+  const { lines, lineIndex } = splitLinesWithIndex(text, context);
   const headings = [];
   const rx = /^\s*@\s*(page|model|inherits|functions|code|section)\b\s*([A-Za-z_][A-Za-z0-9_]*)?/i;
   for (let i = 0; i < lines.length; ++i) {
@@ -499,10 +509,10 @@ const CODE_CHUNKERS = [
     context?.perlChunks || buildPerlChunks(text) },
   { id: 'shell', match: (ext) => isShell(ext), chunk: ({ text, context }) =>    
     context?.shellChunks || buildShellChunks(text) },
-  { id: 'dockerfile', match: (ext) => ext === '.dockerfile', chunk: ({ text }) =>
-    chunkDockerfile(text) },
-  { id: 'makefile', match: (ext) => ext === '.makefile', chunk: ({ text }) =>
-    chunkMakefile(text) },
+  { id: 'dockerfile', match: (ext) => ext === '.dockerfile', chunk: ({ text, context }) =>
+    chunkDockerfile(text, context) },
+  { id: 'makefile', match: (ext) => ext === '.makefile', chunk: ({ text, context }) =>
+    chunkMakefile(text, context) },
   { id: 'csharp', match: (ext) => isCSharp(ext), chunk: ({ text, context }) =>  
     context?.csharpChunks || buildCSharpChunks(text, getTreeSitterOptions(context)) },
   { id: 'kotlin', match: (ext) => isKotlin(ext), chunk: ({ text, context }) =>
@@ -515,22 +525,22 @@ const CODE_CHUNKERS = [
     context?.luaChunks || buildLuaChunks(text) },
   { id: 'sql', match: (ext) => isSql(ext), chunk: ({ text, context }) =>
     context?.sqlChunks || buildSqlChunks(text) },
-  { id: 'proto', match: (ext) => ext === '.proto', chunk: ({ text }) =>
-    chunkProto(text) },
-  { id: 'graphql', match: (ext) => ext === '.graphql' || ext === '.gql' || ext === '.graphqls', chunk: ({ text }) =>
-    chunkGraphql(text) },
-  { id: 'cmake', match: (ext) => CMAKE_EXTS.has(ext), chunk: ({ text }) => chunkCmake(text) },
-  { id: 'starlark', match: (ext) => STARLARK_EXTS.has(ext), chunk: ({ text }) => chunkStarlark(text) },
-  { id: 'nix', match: (ext) => NIX_EXTS.has(ext), chunk: ({ text }) => chunkNix(text) },
-  { id: 'dart', match: (ext) => DART_EXTS.has(ext), chunk: ({ text }) => chunkDart(text) },
-  { id: 'scala', match: (ext) => SCALA_EXTS.has(ext), chunk: ({ text }) => chunkScala(text) },
-  { id: 'groovy', match: (ext) => GROOVY_EXTS.has(ext), chunk: ({ text }) => chunkGroovy(text) },
-  { id: 'r', match: (ext) => R_EXTS.has(ext), chunk: ({ text }) => chunkR(text) },
-  { id: 'julia', match: (ext) => JULIA_EXTS.has(ext), chunk: ({ text }) => chunkJulia(text) },
-  { id: 'handlebars', match: (ext) => HANDLEBARS_EXTS.has(ext), chunk: ({ text }) => chunkHandlebars(text) },
-  { id: 'mustache', match: (ext) => MUSTACHE_EXTS.has(ext), chunk: ({ text }) => chunkMustache(text) },
-  { id: 'jinja', match: (ext) => JINJA_EXTS.has(ext), chunk: ({ text }) => chunkJinja(text) },
-  { id: 'razor', match: (ext) => RAZOR_EXTS.has(ext), chunk: ({ text }) => chunkRazor(text) }
+  { id: 'proto', match: (ext) => ext === '.proto', chunk: ({ text, context }) =>
+    chunkProto(text, context) },
+  { id: 'graphql', match: (ext) => ext === '.graphql' || ext === '.gql' || ext === '.graphqls', chunk: ({ text, context }) =>
+    chunkGraphql(text, context) },
+  { id: 'cmake', match: (ext) => CMAKE_EXTS.has(ext), chunk: ({ text, context }) => chunkCmake(text, context) },
+  { id: 'starlark', match: (ext) => STARLARK_EXTS.has(ext), chunk: ({ text, context }) => chunkStarlark(text, context) },
+  { id: 'nix', match: (ext) => NIX_EXTS.has(ext), chunk: ({ text, context }) => chunkNix(text, context) },
+  { id: 'dart', match: (ext) => DART_EXTS.has(ext), chunk: ({ text, context }) => chunkDart(text, context) },
+  { id: 'scala', match: (ext) => SCALA_EXTS.has(ext), chunk: ({ text, context }) => chunkScala(text, context) },
+  { id: 'groovy', match: (ext) => GROOVY_EXTS.has(ext), chunk: ({ text, context }) => chunkGroovy(text, context) },
+  { id: 'r', match: (ext) => R_EXTS.has(ext), chunk: ({ text, context }) => chunkR(text, context) },
+  { id: 'julia', match: (ext) => JULIA_EXTS.has(ext), chunk: ({ text, context }) => chunkJulia(text, context) },
+  { id: 'handlebars', match: (ext) => HANDLEBARS_EXTS.has(ext), chunk: ({ text, context }) => chunkHandlebars(text, context) },
+  { id: 'mustache', match: (ext) => MUSTACHE_EXTS.has(ext), chunk: ({ text, context }) => chunkMustache(text, context) },
+  { id: 'jinja', match: (ext) => JINJA_EXTS.has(ext), chunk: ({ text, context }) => chunkJinja(text, context) },
+  { id: 'razor', match: (ext) => RAZOR_EXTS.has(ext), chunk: ({ text, context }) => chunkRazor(text, context) }
 ];
 
 const CODE_FORMAT_CHUNKERS = [
@@ -539,8 +549,8 @@ const CODE_FORMAT_CHUNKERS = [
     chunkIniToml(text, ext === '.toml' ? 'toml' : 'ini', context) },
   { id: 'xml', match: (ext) => ext === '.xml', chunk: ({ text }) => chunkXml(text) },
   { id: 'yaml', match: (ext) => ext === '.yaml' || ext === '.yml', chunk: ({ text, relPath, context }) => chunkYaml(text, relPath, context) },
-  { id: 'proto', match: (ext) => ext === '.proto', chunk: ({ text }) => chunkProto(text) },
-  { id: 'graphql', match: (ext) => ext === '.graphql' || ext === '.gql', chunk: ({ text }) => chunkGraphql(text) }
+  { id: 'proto', match: (ext) => ext === '.proto', chunk: ({ text, context }) => chunkProto(text, context) },
+  { id: 'graphql', match: (ext) => ext === '.graphql' || ext === '.gql', chunk: ({ text, context }) => chunkGraphql(text, context) }
 ];
 
 const PROSE_CHUNKERS = [
