@@ -43,6 +43,7 @@ const baseArgs = [
   '--backend',
   'sqlite-fts',
   '--no-ann',
+  '--stats',
   '--json',
   '--compact'
 ];
@@ -59,5 +60,17 @@ const payload = await runSearchCli(
 );
 
 assert.ok(Array.isArray(payload?.code), 'expected CLI search payload to include code hits');
+assert.equal(payload?.stats?.annEnabled, true, 'expected sparse fallback preflight to enable ANN');
+assert.equal(
+  payload?.stats?.capabilities?.ann?.extensionEnabled,
+  true,
+  'expected ANN extension capability flag to be recomputed after sparse fallback preflight'
+);
+assert.equal(
+  Array.isArray(payload?.stats?.pipeline)
+    && payload.stats.pipeline.some((entry) => entry?.stage === 'startup.backend.reinit'),
+  true,
+  'expected backend context to be reinitialized after sparse fallback preflight enables ANN'
+);
 
 console.log('cli sqlite sparse preflight allow fallback test passed');

@@ -1054,14 +1054,16 @@ export function createSearchPipeline(context) {
         annMetrics.candidatePolicyConfig = annCandidatePolicyConfig;
         annMetrics.candidatePolicy = annCandidatePolicy.explain;
 
-        if (vectorOnlyProfile && !annHits.length) {
+        const annCapabilityUnavailable = !vectorActive || !providerAvailable;
+        if (vectorOnlyProfile && annCapabilityUnavailable && !annHits.length) {
+          const capabilityReason = !vectorActive ? 'ann_capability_unavailable' : 'ann_provider_unavailable';
           throw createError(
             ERROR_CODES.CAPABILITY_MISSING,
             `Vector-only search requires ANN/vector providers for mode "${mode}", but none were available. ` +
               'Rebuild embeddings and ensure at least one ANN provider is configured.',
             {
               reasonCode: VECTOR_REQUIRED_CODE,
-              reason: 'ann_provider_unavailable',
+              reason: capabilityReason,
               mode,
               profileId,
               providerAvailable,

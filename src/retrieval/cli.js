@@ -379,6 +379,10 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       profileWarningSet.add(text);
       profileWarnings.push(text);
     };
+    const syncAnnFlags = () => {
+      vectorAnnEnabled = annEnabledEffective && vectorExtension.enabled === true;
+      telemetry.setAnn(annEnabledEffective ? 'on' : 'off');
+    };
     const dbModeSelection = [];
     if (needsCode) dbModeSelection.push('code');
     if (needsProse) dbModeSelection.push('prose');
@@ -501,8 +505,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       );
       annEnabledEffective = true;
     }
-    vectorAnnEnabled = annEnabledEffective && vectorExtension.enabled;
-    telemetry.setAnn(annEnabledEffective ? 'on' : 'off');
+    syncAnnFlags();
     if (emitOutput && profileWarnings.length) {
       for (const warning of profileWarnings) {
         console.warn(`[search] ${warning}`);
@@ -644,49 +647,53 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     }
     const sqliteFtsEnabled = sqliteFtsRequested || (autoBackendRequested && useSqliteSelection);
 
-    const backendStart = stageTracker.mark();
-    const backendContext = await createBackendContext({
-      backendPolicy,
-      useSqlite: useSqliteSelection,
-      useLmdb: useLmdbSelection,
-      needsCode,
-      needsProse,
-      needsExtractedProse: loadExtractedProseSqlite,
-      sqliteCodePath,
-      sqliteProsePath,
-      sqliteExtractedProsePath,
-      sqliteFtsRequested: sqliteFtsEnabled,
-      backendForcedSqlite,
-      backendForcedLmdb,
-      backendForcedTantivy,
-      vectorExtension,
-      vectorAnnEnabled,
-      dbCache: sqliteCache,
-      sqliteStates: {
-        code: sqliteStateCode,
-        prose: sqliteStateProse,
-        'extracted-prose': sqliteStateExtractedProse
-      },
-      lmdbCodePath,
-      lmdbProsePath,
-      lmdbStates: {
-        code: lmdbStateCode,
-        prose: lmdbStateProse
-      },
-      postingsConfig,
-      sqliteFtsWeights,
-      maxCandidates,
-      queryVectorAnn,
-      modelIdDefault,
-      fileChargramN,
-      hnswConfig,
-      denseVectorMode,
-      root: rootDir,
-      userConfig
-    });
-    stageTracker.record('startup.backend', backendStart, { mode: 'all' });
+    const createBackendContextWithTracking = async (stageName = 'startup.backend') => {
+      const backendStart = stageTracker.mark();
+      const context = await createBackendContext({
+        backendPolicy,
+        useSqlite: useSqliteSelection,
+        useLmdb: useLmdbSelection,
+        needsCode,
+        needsProse,
+        needsExtractedProse: loadExtractedProseSqlite,
+        sqliteCodePath,
+        sqliteProsePath,
+        sqliteExtractedProsePath,
+        sqliteFtsRequested: sqliteFtsEnabled,
+        backendForcedSqlite,
+        backendForcedLmdb,
+        backendForcedTantivy,
+        vectorExtension,
+        vectorAnnEnabled,
+        dbCache: sqliteCache,
+        sqliteStates: {
+          code: sqliteStateCode,
+          prose: sqliteStateProse,
+          'extracted-prose': sqliteStateExtractedProse
+        },
+        lmdbCodePath,
+        lmdbProsePath,
+        lmdbStates: {
+          code: lmdbStateCode,
+          prose: lmdbStateProse
+        },
+        postingsConfig,
+        sqliteFtsWeights,
+        maxCandidates,
+        queryVectorAnn,
+        modelIdDefault,
+        fileChargramN,
+        hnswConfig,
+        denseVectorMode,
+        root: rootDir,
+        userConfig
+      });
+      stageTracker.record(stageName, backendStart, { mode: 'all' });
+      return context;
+    };
+    let backendContext = await createBackendContextWithTracking('startup.backend');
 
-    const {
+    let {
       useSqlite,
       useLmdb,
       backendLabel,
@@ -742,7 +749,22 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       }
     }
     if (sparseFallbackForcedByPreflight) {
-      telemetry.setAnn('on');
+      syncAnnFlags();
+      backendContext = await createBackendContextWithTracking('startup.backend.reinit');
+      ({
+        useSqlite,
+        useLmdb,
+        backendLabel,
+        backendPolicyInfo,
+        vectorAnnState,
+        vectorAnnUsed,
+        sqliteHelpers,
+        lmdbHelpers
+      } = backendContext);
+      telemetry.setBackend(backendLabel);
+      if (backendForcedLmdb && !useLmdb) {
+        return bail('LMDB backend requested but unavailable.', 1, ERROR_CODES.INVALID_REQUEST);
+      }
     }
 
     const branchResult = await applyBranchFilter({
