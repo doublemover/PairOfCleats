@@ -222,6 +222,16 @@ CLI overrides:
 Warnings use `code: "runtime.envOverride"` when a requested value cannot be applied because of
 base env settings (for example, `UV_THREADPOOL_SIZE` or `NODE_OPTIONS`).
 
+## 6.1 Operational health checks
+
+Runtime envelope consumers now run lightweight operational health checks before hot-path work:
+- indexing checks validate mode, build root presence, and writable output directory.
+- retrieval checks validate query presence, at least one enabled mode, and backend resolution.
+
+Health-check failures are emitted with stable machine-readable codes and actionable log text:
+- format: `[health] code=<code> component=<component> reason="<reason>" next="<next action>"`
+- implementation: `src/shared/ops-health.js`
+
 ## 7) Implementation references
 
 - Runtime envelope: `src/shared/runtime-envelope.js`

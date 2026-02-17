@@ -1,4 +1,5 @@
 import { createError, ERROR_CODES, isErrorCode } from '../../shared/error-codes.js';
+import { formatHealthFailure, runRetrievalHealthChecks } from '../../shared/ops-health.js';
 
 export const inferJsonOutputFromArgs = (rawArgs) => {
   if (!Array.isArray(rawArgs)) return { jsonOutput: false };
@@ -35,9 +36,38 @@ export const createRunnerHelpers = ({ emitOutput, exitOnError, jsonOutput, recor
     throw error;
   };
 
+  const ensureRetrievalHealth = ({
+    query,
+    runCode,
+    runProse,
+    runExtractedProse,
+    runRecords,
+    backendLabel
+  } = {}) => {
+    const report = runRetrievalHealthChecks({
+      query,
+      runCode,
+      runProse,
+      runExtractedProse,
+      runRecords,
+      backendLabel
+    });
+    if (report.ok) return report;
+    const firstFailure = report.failures[0] || null;
+    const message = formatHealthFailure(firstFailure);
+    emitError(message, ERROR_CODES.CAPABILITY_MISSING);
+    recordSearchMetrics('error');
+    const error = createError(ERROR_CODES.CAPABILITY_MISSING, message);
+    error.healthReport = report;
+    error.healthCode = firstFailure?.code || null;
+    error.emitted = true;
+    throw error;
+  };
+
   return {
     emitError,
     bail,
-    throwIfAborted
+    throwIfAborted,
+    ensureRetrievalHealth
   };
 };

@@ -15,6 +15,7 @@ import { enqueueEmbeddingJob } from './embedding-queue.js';
 import { getTreeSitterStats, resetTreeSitterStats } from '../../../lang/tree-sitter.js';
 import { INDEX_PROFILE_VECTOR_ONLY } from '../../../contracts/index-profile.js';
 import { SCHEDULER_QUEUE_NAMES } from '../runtime/scheduler.js';
+import { formatHealthFailure, runIndexingHealthChecks } from '../../../shared/ops-health.js';
 import {
   SIGNATURE_VERSION,
   buildIncrementalSignature,
@@ -219,6 +220,16 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   });
   const outDir = getIndexDir(runtime.root, mode, runtime.userConfig, { indexRoot: runtime.buildRoot });
   await fs.mkdir(outDir, { recursive: true });
+  const indexingHealth = runIndexingHealthChecks({ mode, runtime, outDir });
+  if (!indexingHealth.ok) {
+    const firstFailure = indexingHealth.failures[0] || null;
+    const message = formatHealthFailure(firstFailure);
+    log(message);
+    const error = new Error(message);
+    error.code = firstFailure?.code || 'op_health_indexing_failed';
+    error.healthReport = indexingHealth;
+    throw error;
+  }
   log(`[init] ${mode} index dir: ${outDir}`);
   log(`\n📄  Scanning ${mode} ...`);
   const timing = { start: Date.now() };
