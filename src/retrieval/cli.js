@@ -58,12 +58,29 @@ import { createRetrievalStageTracker } from './pipeline/stage-checkpoints.js';
 
 const PROFILE_MODES = Object.freeze(['code', 'prose', 'extracted-prose', 'records']);
 
+/**
+ * Resolve profile id from index state with backward-compatible defaulting.
+ * Older index states may not include `profile.id`, which should be treated as `default`.
+ *
+ * @param {object|null|undefined} state
+ * @returns {string}
+ */
 const resolveProfileForState = (state) => {
   const id = state?.profile?.id;
   if (typeof id === 'string' && id.trim()) return id.trim().toLowerCase();
   return INDEX_PROFILE_DEFAULT;
 };
 
+/**
+ * Determine which sparse tables are missing for a mode.
+ *
+ * @param {{
+ *   sqliteHelpers?: { hasTable?: (mode:string, tableName:string)=>boolean }|null,
+ *   mode: string,
+ *   postingsConfig?: object
+ * }} input
+ * @returns {string[]}
+ */
 const collectMissingSparseTables = ({ sqliteHelpers, mode, postingsConfig }) => {
   if (!sqliteHelpers || typeof sqliteHelpers.hasTable !== 'function') return [];
   const required = resolveSparseRequiredTables(postingsConfig);
@@ -74,6 +91,18 @@ const collectMissingSparseTables = ({ sqliteHelpers, mode, postingsConfig }) => 
   return missing;
 };
 
+/**
+ * Resolve modes that should participate in sparse preflight checks.
+ * `extracted-prose` is optional for many runs and should only be validated when
+ * it is explicitly required or already loaded.
+ *
+ * @param {{
+ *   selectedModes: string[],
+ *   requiresExtractedProse: boolean,
+ *   loadExtractedProseSqlite: boolean
+ * }} input
+ * @returns {string[]}
+ */
 export const resolveSparsePreflightModes = ({
   selectedModes,
   requiresExtractedProse,
@@ -87,6 +116,18 @@ export const resolveSparsePreflightModes = ({
   });
 };
 
+/**
+ * Resolve whether ANN should be considered active for the current query.
+ * Most queries require at least one query token, but `vector_only` cohorts
+ * must still run ANN for tokenless queries (for example exclusion-only input).
+ *
+ * @param {{
+ *   annEnabled: boolean,
+ *   queryTokens: string[],
+ *   vectorOnlyModes: string[]
+ * }} input
+ * @returns {boolean}
+ */
 export const resolveAnnActive = ({
   annEnabled,
   queryTokens,

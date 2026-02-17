@@ -45,6 +45,18 @@ const resolveAnalysisFlags = (runtime) => {
   };
 };
 
+/**
+ * Vector-only builds can proceed when embeddings are either immediately
+ * available (`embeddingEnabled`) or deferred to service queueing
+ * (`embeddingService`).
+ *
+ * @param {object} runtime
+ * @returns {boolean}
+ */
+const hasVectorEmbeddingBuildCapability = (runtime) => (
+  runtime?.embeddingEnabled === true || runtime?.embeddingService === true
+);
+
 export const resolveVectorOnlyShortcutPolicy = (runtime) => {
   const profileId = runtime?.profile?.id || runtime?.indexingConfig?.profile || 'default';
   const vectorOnly = profileId === INDEX_PROFILE_VECTOR_ONLY;
@@ -345,7 +357,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     }
   });
   const vectorOnlyProfile = runtimeRef?.profile?.id === INDEX_PROFILE_VECTOR_ONLY;
-  if (vectorOnlyProfile && runtimeRef.embeddingEnabled !== true && runtimeRef.embeddingService !== true) {
+  if (vectorOnlyProfile && !hasVectorEmbeddingBuildCapability(runtimeRef)) {
     throw new Error(
       'indexing.profile=vector_only requires embeddings to be available during index build. ' +
       'Enable inline/stub embeddings or service-mode embedding queueing and rebuild.'

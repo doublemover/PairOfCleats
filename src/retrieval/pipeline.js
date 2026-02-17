@@ -859,6 +859,14 @@ export function createSearchPipeline(context) {
             .sort((a, b) => (b.sim - a.sim) || (a.idx - b.idx));
         };
 
+        /**
+         * Run provider preflight with cached cooldown semantics.
+         * Failed probes temporarily disable the provider for this mode, while
+         * successful probes are cached for a short TTL to avoid repeated checks.
+         *
+         * @param {object|null|undefined} provider
+         * @returns {Promise<boolean>}
+         */
         const ensureProviderPreflight = async (provider) => {
           if (!provider || typeof provider.preflight !== 'function') return true;
           const state = getProviderModeState(provider, mode);
@@ -921,6 +929,15 @@ export function createSearchPipeline(context) {
           }
         };
 
+        /**
+         * Normalize candidate-set representation for provider query calls.
+         * Sqlite-vec and LanceDB providers operate on `Set<number>` even when
+         * the pipeline currently tracks candidates in bitmap form.
+         *
+         * @param {object|null|undefined} provider
+         * @param {Set<number>|object|null} candidateSet
+         * @returns {Set<number>|object|null}
+         */
         const normalizeAnnCandidateSet = (provider, candidateSet) => {
           if (!candidateSet) return null;
           if (candidateSet instanceof Set) return candidateSet;

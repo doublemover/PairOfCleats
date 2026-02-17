@@ -11,6 +11,16 @@ import { log } from '../../../../shared/progress.js';
 import { computeInterproceduralRisk } from '../../../risk-interprocedural/engine.js';
 import { getTokenIdCollisionSummary } from '../../state.js';
 
+/**
+ * `artifacts.present.dense_vectors*` must describe emitted artifacts, not
+ * configured embedding capability. Service-mode builds enqueue vectors later,
+ * so these flags remain false until dense artifacts are actually written.
+ *
+ * @param {object} runtime
+ * @returns {boolean}
+ */
+const hasEmittedDenseVectors = (runtime) => runtime?.embeddingEnabled === true;
+
 export const writeIndexArtifactsForMode = async ({
   runtime,
   mode,
@@ -58,7 +68,7 @@ export const writeIndexArtifactsForMode = async ({
   const artifacts = buildIndexStateArtifactsBlock({
     profileId: profile.id,
     mode,
-    embeddingsEnabled: runtime.embeddingEnabled === true,
+    embeddingsEnabled: hasEmittedDenseVectors(runtime),
     postingsConfig: runtime.postingsConfig
   });
   if (mode === 'code') {

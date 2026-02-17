@@ -31,6 +31,15 @@ const normalizeString = (value) => (
 
 export const isKnownIndexProfileId = (value) => INDEX_PROFILE_SET.has(normalizeString(value));
 
+/**
+ * Validate profile id with strict type checks.
+ * Null/undefined and empty strings normalize to the default profile, while
+ * non-string explicit values are rejected to surface configuration mistakes.
+ *
+ * @param {unknown} value
+ * @param {string} [fieldName='indexing.profile']
+ * @returns {string}
+ */
 export const assertKnownIndexProfileId = (value, fieldName = 'indexing.profile') => {
   if (value == null) return INDEX_PROFILE_DEFAULT;
   if (typeof value !== 'string') {
@@ -46,6 +55,14 @@ export const assertKnownIndexProfileId = (value, fieldName = 'indexing.profile')
   );
 };
 
+/**
+ * Normalize profile id for permissive readers. Unknown/non-string values map
+ * to `fallback` so legacy payloads continue to load safely.
+ *
+ * @param {unknown} value
+ * @param {string} [fallback=INDEX_PROFILE_DEFAULT]
+ * @returns {string}
+ */
 export const normalizeIndexProfileId = (value, fallback = INDEX_PROFILE_DEFAULT) => {
   const normalized = normalizeString(value);
   if (!normalized) return fallback;
@@ -58,6 +75,12 @@ export const buildIndexProfileState = (profileId) => ({
   schemaVersion: INDEX_PROFILE_SCHEMA_VERSION
 });
 
+/**
+ * Resolve required artifact names for a profile id.
+ *
+ * @param {unknown} profileId
+ * @returns {string[]}
+ */
 export const resolveRequiredArtifactsForProfile = (profileId) => {
   const resolved = normalizeIndexProfileId(profileId, INDEX_PROFILE_DEFAULT);
   return [...(REQUIRED_ARTIFACTS_BY_PROFILE[resolved] || REQUIRED_ARTIFACTS_BY_PROFILE[INDEX_PROFILE_DEFAULT])];
