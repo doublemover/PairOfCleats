@@ -232,6 +232,18 @@ Health-check failures are emitted with stable machine-readable codes and actiona
 - format: `[health] code=<code> component=<component> reason="<reason>" next="<next action>"`
 - implementation: `src/shared/ops-health.js`
 
+## 6.2 Operational failure injection (test-only)
+
+Operational failure injection is deterministic and only enabled in test mode:
+- config source: `PAIROFCLEATS_TEST_CONFIG.ops.failureInjection`.
+- targets: `indexing.hotpath` and `retrieval.hotpath`.
+- classes: `retriable` and `non_retriable`.
+- policy: retriable failures follow configured retry budget (`retriableRetries`), non-retriable failures fail immediately.
+
+Runtime wrappers:
+- indexing discovery hot path uses `runWithOperationalFailurePolicy` in `src/index/build/indexer/pipeline.js`.
+- retrieval backend-context hot path uses `runWithOperationalFailurePolicy` in `src/retrieval/cli.js`.
+
 ## 7) Implementation references
 
 - Runtime envelope: `src/shared/runtime-envelope.js`

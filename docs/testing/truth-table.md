@@ -190,3 +190,8 @@ This document maps user-visible behavior to implementation, configuration switch
   - Config: no explicit knob; checks run by default.
   - Tests: `tests/ops/health-check-contract.test.js`.
   - Limitations: health checks validate runtime readiness and input sanity; they do not replace full end-to-end smoke tests.
+- Claim: indexing/retrieval hot paths support deterministic failure injection plus retriable/non-retriable classification and retry policy.
+  - Implementation: `src/shared/ops-failure-injection.js` (`classifyOperationalFailure`, `runWithOperationalFailurePolicy`), `src/index/build/indexer/pipeline.js` (indexing hot-path wrapper), `src/retrieval/cli.js` (retrieval backend-context wrapper).
+  - Config: `PAIROFCLEATS_TEST_CONFIG.ops.failureInjection` (test-only policy and retry settings).
+  - Tests: `tests/ops/failure-injection/retrieval-hotpath.test.js`.
+  - Limitations: injection is intentionally test-gated and does not run outside testing mode.
