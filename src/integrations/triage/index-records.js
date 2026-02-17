@@ -8,7 +8,7 @@ import { createIndexState, appendChunk } from '../../index/build/state.js';
 import { buildPostings } from '../../index/build/postings.js';
 import { writeIndexArtifacts } from '../../index/build/artifacts.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
-import { buildIndexProfileState } from '../../contracts/index-profile.js';
+import { buildIndexProfileState, INDEX_PROFILE_VECTOR_ONLY } from '../../contracts/index-profile.js';
 import { buildChunkId } from '../../index/chunk-id.js';
 import { assignChunkUids } from '../../index/identity/chunk-uid.js';
 import { getLanguageForFile } from '../../index/language-registry.js';
@@ -35,12 +35,30 @@ const hasEmittedDenseVectors = (postings) => (
 );
 
 /**
+ * Vector-only builds are valid when embeddings are available inline or when
+ * service queueing is enabled for deferred embedding generation.
+ *
+ * @param {object} runtime
+ * @returns {boolean}
+ */
+const hasVectorEmbeddingBuildCapability = (runtime) => (
+  runtime?.embeddingEnabled === true || runtime?.embeddingService === true
+);
+
+/**
  * Build the records index for a repo.
  * @param {{runtime:object,discovery?:{entries:Array}}} input
  * @returns {Promise<void>}
  */
 export async function buildRecordsIndexForRepo({ runtime, discovery = null, abortSignal = null }) {
   throwIfAborted(abortSignal);
+  const profile = buildIndexProfileState(runtime.profile?.id || runtime.indexingConfig?.profile);
+  if (profile.id === INDEX_PROFILE_VECTOR_ONLY && !hasVectorEmbeddingBuildCapability(runtime)) {
+    throw new Error(
+      'indexing.profile=vector_only requires embeddings to be available during index build. '
+      + 'Enable inline/stub embeddings or service-mode embedding queueing and rebuild.'
+    );
+  }
   const triageConfig = getTriageConfig(runtime.root, runtime.userConfig);
   const recordsDir = triageConfig.recordsDir;
   const outDir = getIndexDir(runtime.root, 'records', runtime.userConfig, { indexRoot: runtime.buildRoot });
@@ -213,7 +231,6 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
     embeddingsEnabled: runtime.embeddingEnabled
   });
 
-  const profile = buildIndexProfileState(runtime.profile?.id || runtime.indexingConfig?.profile);
   const artifacts = buildIndexStateArtifactsBlock({
     profileId: profile.id,
     mode: 'records',
