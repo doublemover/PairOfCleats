@@ -222,6 +222,55 @@ export const resolveSparsePreflightModes = ({
   });
 };
 
+const hasAnnPathForMode = ({
+  mode,
+  idxByMode,
+  vectorAnnState,
+  hnswAnnState,
+  lanceAnnState
+}) => {
+  const idx = idxByMode?.[mode] || null;
+  const hasMinhash = Array.isArray(idx?.minhash?.signatures) && idx.minhash.signatures.length > 0;
+  if (hasMinhash) return true;
+  const hasDenseVectors = Array.isArray(idx?.denseVec?.vectors) && idx.denseVec.vectors.length > 0;
+  if (hasDenseVectors) return true;
+  if (typeof idx?.loadDenseVectors === 'function') return true;
+  if (vectorAnnState?.[mode]?.available) return true;
+  if (hnswAnnState?.[mode]?.available) return true;
+  if (lanceAnnState?.[mode]?.available) return true;
+  return false;
+};
+
+/**
+ * Resolve sparse-fallback modes that still have no ANN path after index load.
+ *
+ * @param {{
+ *   sparseMissingByMode?: Record<string, string[]>,
+ *   idxByMode: Record<string, object|null|undefined>,
+ *   vectorAnnState?: Record<string, {available?: boolean}>,
+ *   hnswAnnState?: Record<string, {available?: boolean}>,
+ *   lanceAnnState?: Record<string, {available?: boolean}>
+ * }} input
+ * @returns {string[]}
+ */
+export const resolveSparseFallbackModesWithoutAnn = ({
+  sparseMissingByMode,
+  idxByMode,
+  vectorAnnState,
+  hnswAnnState,
+  lanceAnnState
+}) => {
+  const modes = Object.keys(sparseMissingByMode || {});
+  if (!modes.length) return [];
+  return modes.filter((mode) => !hasAnnPathForMode({
+    mode,
+    idxByMode,
+    vectorAnnState,
+    hnswAnnState,
+    lanceAnnState
+  }));
+};
+
 /**
  * Resolve whether ANN should be considered active for the current query.
  * Most queries require at least one query token, but `vector_only` cohorts
@@ -1073,6 +1122,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     }
     stageTracker.record('startup.query-plan', planStart, { mode: 'all' });
 
+    let sparseMissingByMode = {};
     if (!annEnabledEffective && useSqlite) {
       const sqliteFtsRouting = resolveSqliteFtsRoutingByMode({
         useSqlite,
@@ -1235,6 +1285,33 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     });
     stageTracker.record('startup.indexes', indexesStart, { mode: 'all' });
     throwIfAborted();
+
+    if (sparseFallbackForcedByPreflight) {
+      const sparseFallbackModesWithoutAnn = resolveSparseFallbackModesWithoutAnn({
+        sparseMissingByMode,
+        idxByMode: {
+          code: idxCode,
+          prose: idxProse,
+          'extracted-prose': idxExtractedProse,
+          records: idxRecords
+        },
+        vectorAnnState,
+        hnswAnnState,
+        lanceAnnState
+      });
+      if (sparseFallbackModesWithoutAnn.length) {
+        const sparseDetails = Object.entries(sparseMissingByMode)
+          .map(([mode, missing]) => `- ${mode}: ${missing.join(', ')}`)
+          .join('\n');
+        return bail(
+          `[search] ${RETRIEVAL_SPARSE_UNAVAILABLE_CODE}: --allow-sparse-fallback was set, but no ANN path is available for mode(s): ` +
+            `${sparseFallbackModesWithoutAnn.join(', ')}.\n${sparseDetails}\n` +
+            'Rebuild sparse artifacts or make ANN artifacts/providers available before using sparse fallback.',
+          1,
+          ERROR_CODES.CAPABILITY_MISSING
+        );
+      }
+    }
 
     const modelIds = {
       code: modelIdForCode,
