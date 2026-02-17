@@ -200,3 +200,8 @@ This document maps user-visible behavior to implementation, configuration switch
   - Config: `retrieval.annCandidate*` and `search.rrf.k`.
   - Tests: `tests/ops/config/guardrails.test.js`.
   - Limitations: guardrails currently target candidate-window and RRF risks; they do not validate every retrieval knob combination.
+- Claim: release checks only block on essential operational reliability contracts and provide explicit audited overrides.
+  - Implementation: `tools/release/check.js` (`--blockers-only`, blocker ownership metadata, audited overrides), `.github/workflows/ci.yml` (gate job calls `npm run release-check:blockers`).
+  - Config: `--allow-blocker-override`, `--override-id`, `--override-marker`.
+  - Tests: `tests/ops/release-gates/essential-blockers.test.js`.
+  - Limitations: blocker scope is intentionally narrow and does not replace full CI lane coverage.
