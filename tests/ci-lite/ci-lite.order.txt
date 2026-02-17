@@ -401,7 +401,6 @@ indexing/tree-sitter/tree-sitter-chunk-cache-persistent
 indexing/risk/interprocedural/callsite-sampling
 cli/search/search-lazy-imports
 shared/json-stream/maxbytes-enforced
-tooling/docs/config-contract-doc
 tooling/vfs/vfs-index-lookup
 retrieval/filters/ext-filter
 context-pack/context-pack-assembly-memory
