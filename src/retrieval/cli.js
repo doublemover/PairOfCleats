@@ -87,6 +87,16 @@ export const resolveSparsePreflightModes = ({
   });
 };
 
+export const resolveAnnActive = ({
+  annEnabled,
+  queryTokens,
+  vectorOnlyModes
+}) => {
+  if (annEnabled !== true) return false;
+  if (Array.isArray(queryTokens) && queryTokens.length > 0) return true;
+  return Array.isArray(vectorOnlyModes) && vectorOnlyModes.length > 0;
+};
+
 export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}) {
   const telemetry = createSearchTelemetry();
   const recordSearchMetrics = (status) => telemetry.record(status);
@@ -955,7 +965,11 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     }
     stageTracker.record('startup.query-plan', planStart, { mode: 'all' });
 
-    const annActive = annEnabledEffective && queryPlan.queryTokens.length > 0;
+    const annActive = resolveAnnActive({
+      annEnabled: annEnabledEffective,
+      queryTokens: queryPlan.queryTokens,
+      vectorOnlyModes
+    });
     const graphRankingEnabled = graphRankingConfig?.enabled === true;
     const requiredArtifacts = resolveRequiredArtifacts({
       queryPlan,
