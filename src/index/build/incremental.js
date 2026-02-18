@@ -585,8 +585,80 @@ export async function pruneIncrementalManifest({ enabled, manifest, manifestPath
 }
 
 /**
+ * Prefetch existing bundle VFS manifest rows so cross-file bundle rewrites can
+ * preserve them without paying a serialized read phase after inference.
+ *
+ * @param {{
+ *   enabled:boolean,
+ *   manifest:object,
+ *   bundleDir:string,
+ *   bundleFormat?:string|null,
+ *   concurrency?:number
+ * }} input
+ * @returns {Promise<Map<string,Array<object>|null>|null>}
+ */
+export async function preloadIncrementalBundleVfsRows({
+  enabled,
+  manifest,
+  bundleDir,
+  bundleFormat = null,
+  concurrency = 8
+}) {
+  if (!enabled) return null;
+  const entries = Object.entries(manifest?.files || {});
+  if (!entries.length) return new Map();
+  const resolvedBundleFormat = normalizeBundleFormat(bundleFormat || manifest?.bundleFormat);
+  const rowsByFile = new Map();
+  const normalizedConcurrency = Number.isFinite(Number(concurrency)) && Number(concurrency) > 0
+    ? Math.max(1, Math.floor(Number(concurrency)))
+    : 8;
+  const workerCount = Math.min(entries.length, normalizedConcurrency);
+  let cursor = 0;
+  const workers = Array.from({ length: workerCount }, async () => {
+    for (;;) {
+      const index = cursor;
+      cursor += 1;
+      if (index >= entries.length) break;
+      const [file, entry] = entries[index];
+      const normalizedFile = normalizeIncrementalRelPath(file);
+      const bundleName = entry?.bundle || resolveBundleFilename(file, resolvedBundleFormat);
+      if (!bundleName) {
+        rowsByFile.set(normalizedFile, null);
+        continue;
+      }
+      const bundlePath = path.join(bundleDir, bundleName);
+      if (!fsSync.existsSync(bundlePath)) {
+        rowsByFile.set(normalizedFile, null);
+        continue;
+      }
+      let vfsManifestRows = null;
+      try {
+        const existing = await readBundleFile(bundlePath, {
+          format: resolveBundleFormatFromName(bundleName, resolvedBundleFormat)
+        });
+        vfsManifestRows = Array.isArray(existing?.bundle?.vfsManifestRows)
+          ? existing.bundle.vfsManifestRows
+          : null;
+      } catch {}
+      rowsByFile.set(normalizedFile, vfsManifestRows);
+    }
+  });
+  await Promise.all(workers);
+  return rowsByFile;
+}
+
+/**
  * Update incremental bundles after cross-file inference.
- * @param {{enabled:boolean,manifest:object,bundleDir:string,chunks:object[],fileRelations:Map<string,object>|object|null,log:(msg:string)=>void}} input
+ * @param {{
+ *   enabled:boolean,
+ *   manifest:object,
+ *   bundleDir:string,
+ *   chunks:object[],
+ *   fileRelations:Map<string,object>|object|null,
+ *   bundleFormat?:string|null,
+ *   existingVfsManifestRowsByFile?:Map<string,Array<object>|null>|object|null,
+ *   log:(msg:string)=>void
+ * }} input
  */
 export async function updateBundlesWithChunks({
   enabled,
@@ -595,6 +667,7 @@ export async function updateBundlesWithChunks({
   chunks,
   fileRelations,
   bundleFormat = null,
+  existingVfsManifestRowsByFile = null,
   log
 }) {
   if (!enabled) return;
@@ -621,14 +694,34 @@ export async function updateBundlesWithChunks({
     }
     const bundlePath = path.join(bundleDir, bundleName);
     let vfsManifestRows = null;
-    try {
-      const existing = await readBundleFile(bundlePath, {
-        format: resolveBundleFormatFromName(bundleName, resolvedBundleFormat)
-      });
-      vfsManifestRows = Array.isArray(existing?.bundle?.vfsManifestRows)
-        ? existing.bundle.vfsManifestRows
-        : null;
-    } catch {}
+    let hasPrefetchedVfsRows = false;
+    if (existingVfsManifestRowsByFile && typeof existingVfsManifestRowsByFile.get === 'function') {
+      if (existingVfsManifestRowsByFile.has(normalizedFile)) {
+        vfsManifestRows = existingVfsManifestRowsByFile.get(normalizedFile) || null;
+        hasPrefetchedVfsRows = true;
+      } else if (existingVfsManifestRowsByFile.has(file)) {
+        vfsManifestRows = existingVfsManifestRowsByFile.get(file) || null;
+        hasPrefetchedVfsRows = true;
+      }
+    } else if (existingVfsManifestRowsByFile && typeof existingVfsManifestRowsByFile === 'object') {
+      if (Object.prototype.hasOwnProperty.call(existingVfsManifestRowsByFile, normalizedFile)) {
+        vfsManifestRows = existingVfsManifestRowsByFile[normalizedFile] || null;
+        hasPrefetchedVfsRows = true;
+      } else if (Object.prototype.hasOwnProperty.call(existingVfsManifestRowsByFile, file)) {
+        vfsManifestRows = existingVfsManifestRowsByFile[file] || null;
+        hasPrefetchedVfsRows = true;
+      }
+    }
+    if (!hasPrefetchedVfsRows) {
+      try {
+        const existing = await readBundleFile(bundlePath, {
+          format: resolveBundleFormatFromName(bundleName, resolvedBundleFormat)
+        });
+        vfsManifestRows = Array.isArray(existing?.bundle?.vfsManifestRows)
+          ? existing.bundle.vfsManifestRows
+          : null;
+      } catch {}
+    }
     const bundle = {
       file,
       hash: entry.hash,
