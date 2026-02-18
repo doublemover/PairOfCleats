@@ -64,17 +64,20 @@ assert.equal(buildState.phases?.stage3?.status, 'done');
 assert.equal(buildState.phases?.stage4?.status, 'done');
 assert.ok(buildState.orderingLedger?.schemaVersion >= 1, 'expected ordering ledger');
 
-const stageCheckpoints = await readJson(path.join(buildRoot, 'build_state.stage-checkpoints.json'));
-assert.ok(stageCheckpoints?.code?.multi?.checkpoints?.length > 0, 'expected multi-stage checkpoints');
-assert.ok(stageCheckpoints?.code?.stage3?.checkpoints?.length > 0, 'expected stage3 checkpoints');
-assert.ok(stageCheckpoints?.code?.stage4?.checkpoints?.length > 0, 'expected stage4 checkpoints');
+const checkpointIndex = await readJson(path.join(buildRoot, 'stage_checkpoints.v1.index.json'));
+const codeCheckpointRelPath = checkpointIndex?.modes?.code?.path || null;
+assert.ok(typeof codeCheckpointRelPath === 'string' && codeCheckpointRelPath.length > 0, 'expected code checkpoint sidecar path');
+const codeCheckpoints = await readJson(path.join(buildRoot, codeCheckpointRelPath));
+assert.ok(codeCheckpoints?.multi?.checkpoints?.length > 0, 'expected multi-stage checkpoints');
+assert.ok(codeCheckpoints?.stage3?.checkpoints?.length > 0, 'expected stage3 checkpoints');
+assert.ok(codeCheckpoints?.stage4?.checkpoints?.length > 0, 'expected stage4 checkpoints');
 
 const findCheckpoint = (collection, predicate) => (
   Array.isArray(collection) ? collection.find(predicate) : null
 );
-const multiCheckpoints = stageCheckpoints.code.multi.checkpoints;
-const stage3Checkpoints = stageCheckpoints.code.stage3.checkpoints;
-const stage4Checkpoints = stageCheckpoints.code.stage4.checkpoints;
+const multiCheckpoints = codeCheckpoints.multi.checkpoints;
+const stage3Checkpoints = codeCheckpoints.stage3.checkpoints;
+const stage4Checkpoints = codeCheckpoints.stage4.checkpoints;
 
 const stage1Processing = findCheckpoint(
   multiCheckpoints,
