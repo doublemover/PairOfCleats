@@ -5,7 +5,7 @@ import { createTempPath } from '../json-stream/atomic.js';
 const RENAME_RETRY_CODES = new Set(['EEXIST', 'EPERM', 'ENOTEMPTY', 'EACCES', 'EXDEV']);
 const DIR_SYNC_UNSUPPORTED_CODES = new Set(['EINVAL', 'ENOTSUP', 'EPERM', 'EISDIR', 'EBADF', 'EMFILE', 'ENFILE']);
 const OPEN_RETRY_CODES = new Set(['EMFILE', 'ENFILE']);
-const OPEN_RETRY_ATTEMPTS = 6;
+const OPEN_RETRY_ATTEMPTS = 10;
 const OPEN_RETRY_BASE_DELAY_MS = 10;
 
 const toNonNegativeInt = (value, fallback) => {
