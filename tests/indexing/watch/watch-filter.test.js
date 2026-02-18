@@ -15,6 +15,9 @@ assert.equal(
 
 const mdPath = path.join(root, 'docs', 'readme.md');
 const docsHtmlPath = path.join(root, 'docs', 'reference', 'index.html');
+const docsJsPath = path.join(root, 'docs', 'reference', 'site.js');
+const docsJsonPath = path.join(root, 'docs', 'reference', 'search.json');
+const docsCssPath = path.join(root, 'docs', 'reference', 'site.css');
 const srcHtmlPath = path.join(root, 'src', 'site', 'index.html');
 assert.equal(
   isIndexablePath({ absPath: mdPath, root, ignoreMatcher, modes: ['prose'] }),
@@ -56,6 +59,36 @@ assert.equal(
   isIndexablePath({ absPath: docsHtmlPath, root, ignoreMatcher, modes: ['extracted-prose'] }),
   true,
   'expected docs html to be indexable for extracted-prose mode'
+);
+assert.equal(
+  isIndexablePath({ absPath: docsJsPath, root, ignoreMatcher, modes: ['code'] }),
+  false,
+  'expected docs js to be excluded for code mode'
+);
+assert.equal(
+  isIndexablePath({ absPath: docsJsonPath, root, ignoreMatcher, modes: ['code'] }),
+  false,
+  'expected docs json to be excluded for code mode'
+);
+assert.equal(
+  isIndexablePath({ absPath: docsCssPath, root, ignoreMatcher, modes: ['code'] }),
+  false,
+  'expected docs css to be excluded for code mode'
+);
+assert.equal(
+  isIndexablePath({ absPath: docsJsPath, root, ignoreMatcher, modes: ['prose'] }),
+  true,
+  'expected docs js to be indexable for prose mode'
+);
+assert.equal(
+  isIndexablePath({ absPath: docsJsonPath, root, ignoreMatcher, modes: ['prose'] }),
+  true,
+  'expected docs json to be indexable for prose mode'
+);
+assert.equal(
+  isIndexablePath({ absPath: docsCssPath, root, ignoreMatcher, modes: ['prose'] }),
+  true,
+  'expected docs css to be indexable for prose mode'
 );
 
 assert.equal(

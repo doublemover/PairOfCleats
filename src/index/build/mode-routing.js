@@ -16,7 +16,19 @@ const DOCS_AMBIGUOUS_PROSE_EXTS = new Set([
   '.toml',
   '.ini',
   '.cfg',
-  '.conf'
+  '.conf',
+  '.css',
+  '.scss',
+  '.less',
+  '.js',
+  '.mjs',
+  '.cjs',
+  '.jsx',
+  '.ts',
+  '.tsx',
+  '.json',
+  '.jsonc',
+  '.map'
 ]);
 
 const normalizeExt = (ext) => String(ext || '').toLowerCase();
@@ -26,7 +38,7 @@ const normalizeRelPath = (relPath) => {
   return toPosix(String(relPath)).trim();
 };
 
-const isDocsPath = (relPath) => {
+export const isDocsPath = (relPath) => {
   const normalized = normalizeRelPath(relPath);
   if (!normalized) return false;
   return normalized.split('/').some((segment) => segment.toLowerCase() === 'docs');
@@ -50,4 +62,3 @@ export const isCodeEntryForPath = ({ ext, relPath, isSpecial = false }) => {
   if (shouldPreferDocsProse({ ext: normalizedExt, relPath })) return false;
   return EXTS_CODE.has(normalizedExt) || isSpecial;
 };
-

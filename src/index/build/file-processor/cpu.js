@@ -21,6 +21,7 @@ import {
 import { buildLanguageAnalysisContext } from './cpu/analyze.js';
 import { buildCommentMeta } from './cpu/meta.js';
 import { resolveFileCaps } from './read.js';
+import { isDocsPath } from '../mode-routing.js';
 import { buildLineIndex } from '../../../shared/lines.js';
 import { formatError } from './meta.js';
 import { processChunks } from './process-chunks.js';
@@ -351,6 +352,7 @@ export const processFileCpu = async (context) => {
   const filePosix = scmActive && scmRepoRoot
     ? toRepoPosixPath(abs, scmRepoRoot)
     : null;
+  const skipScmForDocsPath = isDocsPath(relKey);
   const normalizedExt = typeof ext === 'string' ? ext.toLowerCase() : '';
   const metaTimeoutRaw = Number(scmConfig?.timeoutMs);
   const hasExplicitMetaTimeout = Number.isFinite(metaTimeoutRaw) && metaTimeoutRaw > 0;
@@ -364,7 +366,7 @@ export const processFileCpu = async (context) => {
       metaTimeoutMs = Math.min(metaTimeoutMs, 750);
     }
   }
-  if (scmActive && filePosix && typeof scmProviderImpl.getFileMeta === 'function') {
+  if (!skipScmForDocsPath && scmActive && filePosix && typeof scmProviderImpl.getFileMeta === 'function') {
     const fileMeta = await runIo(() => scmProviderImpl.getFileMeta({
       repoRoot: scmRepoRoot,
       filePosix,
@@ -382,7 +384,11 @@ export const processFileCpu = async (context) => {
       };
     }
   }
-  if (scmActive && filePosix && resolvedGitBlameEnabled && typeof scmProviderImpl.annotate === 'function') {
+  if (!skipScmForDocsPath
+    && scmActive
+    && filePosix
+    && resolvedGitBlameEnabled
+    && typeof scmProviderImpl.annotate === 'function') {
     const annotateConfig = scmConfig?.annotate || {};
     const maxAnnotateBytesRaw = Number(annotateConfig.maxFileSizeBytes);
     const maxAnnotateBytes = Number.isFinite(maxAnnotateBytesRaw)
