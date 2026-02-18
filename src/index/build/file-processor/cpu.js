@@ -377,9 +377,12 @@ export const processFileCpu = async (context) => {
   const resolvedGitBlameEnabled = typeof analysisPolicy?.git?.blame === 'boolean'
     ? analysisPolicy.git.blame
     : gitBlameEnabled;
+  const legacyScmIncludeChurn = typeof scmConfig?.includeChurn === 'boolean'
+    ? scmConfig.includeChurn
+    : (typeof scmConfig?.meta?.includeChurn === 'boolean' ? scmConfig.meta.includeChurn : null);
   const resolvedGitChurnEnabled = typeof analysisPolicy?.git?.churn === 'boolean'
     ? analysisPolicy.git.churn
-    : true;
+    : (legacyScmIncludeChurn ?? true);
   updateCrashStage('scm-meta', { blame: resolvedGitBlameEnabled });
   const scmStart = Date.now();
   let lineAuthors = null;

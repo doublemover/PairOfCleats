@@ -159,9 +159,11 @@ const jsLanguageHint = getLanguageForFile('.js', jsRelKey);
 let jsAnnotateCalls = 0;
 let jsTimeoutMs = null;
 let jsMetaTimeoutMs = null;
+let jsIncludeChurn = null;
 const jsScmProvider = {
   async getFileMeta(args) {
     jsMetaTimeoutMs = args?.timeoutMs ?? null;
+    jsIncludeChurn = args?.includeChurn ?? null;
     return { ok: false };
   },
   async annotate(args) {
@@ -185,6 +187,60 @@ await processFileCpu(createContext({
 assert.equal(jsAnnotateCalls, 1, 'expected annotate to run for .js files');
 assert.equal(jsTimeoutMs, 2000, 'expected non-metadata annotate timeout to clamp to 2000ms');
 assert.equal(jsMetaTimeoutMs, 750, 'expected non-metadata meta timeout to clamp to 750ms');
+assert.equal(jsIncludeChurn, true, 'expected non-fast-path churn metadata enabled by default');
+
+let legacyIncludeChurn = null;
+const legacyScmProvider = {
+  async getFileMeta(args) {
+    legacyIncludeChurn = args?.includeChurn ?? null;
+    return { ok: false };
+  },
+  async annotate() {
+    return { ok: false, reason: 'timeout' };
+  }
+};
+await processFileCpu(createContext({
+  abs: jsAbs,
+  ext: '.js',
+  rel: jsRel,
+  relKey: jsRelKey,
+  text: jsText,
+  fileStat: jsStat,
+  languageHint: jsLanguageHint,
+  scmProviderImpl: legacyScmProvider,
+  fileHash: 'scm-annotate-fast-timeout-legacy-churn-off',
+  scmConfig: { annotate: {}, meta: { includeChurn: false } }
+}));
+assert.equal(legacyIncludeChurn, false, 'expected legacy scm meta.includeChurn=false to disable churn metadata');
+
+let legacyWithPolicyIncludeChurn = null;
+const legacyWithPolicyScmProvider = {
+  async getFileMeta(args) {
+    legacyWithPolicyIncludeChurn = args?.includeChurn ?? null;
+    return { ok: false };
+  },
+  async annotate() {
+    return { ok: false, reason: 'timeout' };
+  }
+};
+await processFileCpu(createContext({
+  abs: jsAbs,
+  ext: '.js',
+  rel: jsRel,
+  relKey: jsRelKey,
+  text: jsText,
+  fileStat: jsStat,
+  languageHint: jsLanguageHint,
+  scmProviderImpl: legacyWithPolicyScmProvider,
+  fileHash: 'scm-annotate-fast-timeout-legacy-churn-policy-override',
+  scmConfig: { annotate: {}, meta: { includeChurn: false } },
+  analysisPolicy: { git: { churn: true } }
+}));
+assert.equal(
+  legacyWithPolicyIncludeChurn,
+  true,
+  'expected analysis policy git.churn to override legacy scm meta.includeChurn'
+);
 
 let explicitTimeoutMs = null;
 let explicitMetaTimeoutMs = null;
