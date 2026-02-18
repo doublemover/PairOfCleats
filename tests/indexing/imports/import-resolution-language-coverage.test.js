@@ -24,6 +24,8 @@ await write(
 await write('python/pkg/main.py', 'import helpers\nfrom .utils import parse\nimport requests\n');
 await write('python/pkg/helpers.py', 'VALUE = 1\n');
 await write('python/pkg/utils/__init__.py', 'def parse():\n  return True\n');
+await write('python/pydantic_core/__init__.py', 'from ._pydantic_core import __version__\n');
+await write('python/pydantic_core/_pydantic_core.pyi', '__version__: str\n');
 
 await write('lib/App/Main.pm', "use App::Util;\n");
 await write('lib/App/Util.pm', "package App::Util;\n1;\n");
@@ -84,6 +86,8 @@ const entries = [
   'python/pkg/main.py',
   'python/pkg/helpers.py',
   'python/pkg/utils/__init__.py',
+  'python/pydantic_core/__init__.py',
+  'python/pydantic_core/_pydantic_core.pyi',
   'lib/App/Main.pm',
   'lib/App/Util.pm',
   'lua/app/main.lua',
@@ -126,6 +130,7 @@ const entries = [
 
 const importsByFile = {
   'python/pkg/main.py': ['helpers', '.utils', 'requests'],
+  'python/pydantic_core/__init__.py': ['._pydantic_core'],
   'lib/App/Main.pm': ['App::Util'],
   'lua/app/main.lua': ['app.util'],
   'src/App/Main.php': ['App\\Util\\Helper'],
@@ -170,6 +175,7 @@ const assertExternal = (file, expected) => {
 
 assertLinks('python/pkg/main.py', ['python/pkg/helpers.py', 'python/pkg/utils/__init__.py']);
 assertExternal('python/pkg/main.py', ['requests']);
+assertLinks('python/pydantic_core/__init__.py', ['python/pydantic_core/_pydantic_core.pyi']);
 assertLinks('lib/App/Main.pm', ['lib/App/Util.pm']);
 assertLinks('lua/app/main.lua', ['lua/app/util.lua']);
 assertLinks('src/App/Main.php', ['src/App/Util/Helper.php']);

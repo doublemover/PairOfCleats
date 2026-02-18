@@ -933,6 +933,8 @@ const importerExtension = (importerRel) => path.posix.extname(normalizeRelPath(i
 const importerBaseName = (importerRel) => path.posix.basename(normalizeRelPath(importerRel)).toLowerCase();
 
 const isPythonImporter = (importerRel) => importerExtension(importerRel) === '.py';
+const PYTHON_MODULE_EXTENSIONS = ['.py', '.pyi'];
+const PYTHON_PACKAGE_SUFFIXES = ['__init__.py', '__init__.pyi'];
 const isPerlImporter = (importerRel) => {
   const ext = importerExtension(importerRel);
   return ext === '.pl' || ext === '.pm' || ext === '.t';
@@ -1144,8 +1146,8 @@ const resolvePythonRelativeDottedImport = ({ spec, importerRel, lookup }) => {
   return resolveWithLanguageExtensions({
     base,
     lookup,
-    extensions: ['.py'],
-    suffixes: ['__init__.py']
+    extensions: PYTHON_MODULE_EXTENSIONS,
+    suffixes: PYTHON_PACKAGE_SUFFIXES
   });
 };
 
@@ -1172,8 +1174,8 @@ const resolveLanguageRelativeImport = ({ spec, base, importerRel, lookup }) => {
     return resolveWithLanguageExtensions({
       base,
       lookup,
-      extensions: ['.py'],
-      suffixes: ['__init__.py']
+      extensions: PYTHON_MODULE_EXTENSIONS,
+      suffixes: PYTHON_PACKAGE_SUFFIXES
     });
   }
   if (isPerlImporter(importerRel)) {
@@ -1353,13 +1355,21 @@ const resolveLanguageNonRelativeImport = ({
       const importerDir = path.posix.dirname(normalizeRelPath(importerRel));
       const resolved = resolveFromCandidateList([
         `${modulePath}.py`,
+        `${modulePath}.pyi`,
         `${modulePath}/__init__.py`,
+        `${modulePath}/__init__.pyi`,
         path.posix.join(importerDir, `${modulePath}.py`),
+        path.posix.join(importerDir, `${modulePath}.pyi`),
         path.posix.join(importerDir, `${modulePath}/__init__.py`),
+        path.posix.join(importerDir, `${modulePath}/__init__.pyi`),
         `src/${modulePath}.py`,
+        `src/${modulePath}.pyi`,
         `src/${modulePath}/__init__.py`,
+        `src/${modulePath}/__init__.pyi`,
         `lib/${modulePath}.py`,
-        `lib/${modulePath}/__init__.py`
+        `lib/${modulePath}.pyi`,
+        `lib/${modulePath}/__init__.py`,
+        `lib/${modulePath}/__init__.pyi`
       ], lookup);
       if (resolved) return { resolvedType: 'python-module', resolvedPath: resolved };
     }
