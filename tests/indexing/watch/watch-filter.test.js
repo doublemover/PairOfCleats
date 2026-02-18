@@ -14,6 +14,8 @@ assert.equal(
 );
 
 const mdPath = path.join(root, 'docs', 'readme.md');
+const docsHtmlPath = path.join(root, 'docs', 'reference', 'index.html');
+const srcHtmlPath = path.join(root, 'src', 'site', 'index.html');
 assert.equal(
   isIndexablePath({ absPath: mdPath, root, ignoreMatcher, modes: ['prose'] }),
   true,
@@ -36,6 +38,30 @@ assert.equal(
   isIndexablePath({ absPath: jsPath, root, ignoreMatcher, modes: ['extracted-prose'] }),
   true,
   'expected code extension to be indexable for extracted-prose mode'
+);
+
+assert.equal(
+  isIndexablePath({ absPath: docsHtmlPath, root, ignoreMatcher, modes: ['prose'] }),
+  true,
+  'expected docs html to be indexable for prose mode'
+);
+
+assert.equal(
+  isIndexablePath({ absPath: docsHtmlPath, root, ignoreMatcher, modes: ['code'] }),
+  false,
+  'expected docs html to be excluded for code mode'
+);
+
+assert.equal(
+  isIndexablePath({ absPath: docsHtmlPath, root, ignoreMatcher, modes: ['extracted-prose'] }),
+  true,
+  'expected docs html to be indexable for extracted-prose mode'
+);
+
+assert.equal(
+  isIndexablePath({ absPath: srcHtmlPath, root, ignoreMatcher, modes: ['code'] }),
+  true,
+  'expected non-docs html to remain indexable for code mode'
 );
 
 const dockerfilePath = path.join(root, 'Dockerfile');

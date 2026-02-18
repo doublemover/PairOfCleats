@@ -37,6 +37,7 @@ import { startChokidarWatcher } from './watch/backends/chokidar.js';
 import { startParcelWatcher } from './watch/backends/parcel.js';
 import { createWatchAttemptManager } from './watch/attempts.js';
 import { MINIFIED_NAME_REGEX, normalizeRoot } from './watch/shared.js';
+import { isCodeEntryForPath, isProseEntryForPath } from './mode-routing.js';
 
 export { createDebouncedScheduler, acquireIndexLockWithBackoff };
 
@@ -395,9 +396,18 @@ export async function watchIndex({
       }
       const isProse = mode === 'prose';
       const isCode = mode === 'code' || mode === 'extracted-prose';
-      const allowed = (isProse && EXTS_PROSE.has(classification.ext))
-        || (isCode && (EXTS_CODE.has(classification.ext) || classification.isSpecial))
-        || (mode === 'extracted-prose' && EXTS_PROSE.has(classification.ext));
+      const proseAllowed = isProseEntryForPath({
+        ext: classification.ext,
+        relPath: classification.relPosix
+      });
+      const codeAllowed = isCodeEntryForPath({
+        ext: classification.ext,
+        relPath: classification.relPosix,
+        isSpecial: classification.isSpecial
+      });
+      const allowed = (isProse && proseAllowed)
+        || (isCode && codeAllowed)
+        || (mode === 'extracted-prose' && proseAllowed);
       const map = ensureModeMap(mode);
       if (allowed) {
         if (!map.has(absPath)) incrementTracked(absPath);

@@ -14,6 +14,8 @@ const tempRoot = path.join(root, '.testCache', 'discover');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(path.join(tempRoot, 'src'), { recursive: true });
 await fs.mkdir(path.join(tempRoot, 'docs'), { recursive: true });
+await fs.mkdir(path.join(tempRoot, 'src', 'site'), { recursive: true });
+await fs.mkdir(path.join(tempRoot, 'docs', 'reference'), { recursive: true });
 await fs.mkdir(path.join(tempRoot, 'src', 'deep', 'nested'), { recursive: true });
 await fs.mkdir(path.join(tempRoot, 'logs'), { recursive: true });
 
@@ -35,8 +37,10 @@ runGit(['config', 'user.name', 'Tests']);
 
 await fs.writeFile(path.join(tempRoot, 'src', 'app.js'), 'console.log("hi")\n');
 await fs.writeFile(path.join(tempRoot, 'src', 'lib.rs'), 'fn main() {}\n');
+await fs.writeFile(path.join(tempRoot, 'src', 'site', 'index.html'), '<!doctype html><html><body>code-ish</body></html>\n');
 await fs.writeFile(path.join(tempRoot, 'src', 'deep', 'nested', 'too-deep.js'), 'console.log("deep")\n');
 await fs.writeFile(path.join(tempRoot, 'docs', 'readme.md'), '# Hello\n');
+await fs.writeFile(path.join(tempRoot, 'docs', 'reference', 'index.html'), '<!doctype html><html><body>docs prose</body></html>\n');
 await fs.writeFile(path.join(tempRoot, 'logs', 'app.log'), '2024-01-01 12:00:00 started\n');
 await fs.writeFile(path.join(tempRoot, 'Dockerfile.dev'), 'FROM node:20\n');
 await fs.writeFile(path.join(tempRoot, 'Makefile.in'), 'build:\n\t@echo ok\n');
@@ -126,12 +130,16 @@ const byMode = await discoverFilesForModes({
 });
 assert.ok(byMode.code.some((entry) => entry.rel === 'src/app.js'), 'code mode missing app.js');
 assert.ok(byMode.code.some((entry) => entry.rel === 'src/lib.rs'), 'code mode missing lib.rs');
+assert.ok(byMode.code.some((entry) => entry.rel === 'src/site/index.html'), 'code mode missing non-docs html');
 assert.ok(byMode.prose.some((entry) => entry.rel === 'docs/readme.md'), 'prose mode missing readme');
+assert.ok(byMode.prose.some((entry) => entry.rel === 'docs/reference/index.html'), 'prose mode missing docs html');
 assert.ok(byMode['extracted-prose'].some((entry) => entry.rel === 'src/app.js'), 'extracted-prose missing app.js');
 assert.ok(byMode['extracted-prose'].some((entry) => entry.rel === 'docs/readme.md'), 'extracted-prose missing readme');
+assert.ok(byMode['extracted-prose'].some((entry) => entry.rel === 'docs/reference/index.html'), 'extracted-prose missing docs html');
 assert.ok(byMode.records.some((entry) => entry.rel === 'logs/app.log'), 'records mode missing app.log');
 assert.ok(!byMode.prose.some((entry) => entry.rel === 'src/lib.rs'), 'prose mode should not include Rust files');
 assert.ok(!byMode.code.some((entry) => entry.rel === 'logs/app.log'), 'code mode should not include records files');
+assert.ok(!byMode.code.some((entry) => entry.rel === 'docs/reference/index.html'), 'code mode should not include docs html');
 assert.ok(!byMode.prose.some((entry) => entry.rel === 'logs/app.log'), 'prose mode should not include records files');
 assert.ok(!byMode['extracted-prose'].some((entry) => entry.rel === 'logs/app.log'), 'extracted-prose mode should not include records files');
 assert.ok(!byMode.code.some((entry) => entry.rel === 'src/untracked.js'), 'untracked file should not appear');

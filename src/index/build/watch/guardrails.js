@@ -1,7 +1,5 @@
 import path from 'node:path';
 import {
-  EXTS_CODE,
-  EXTS_PROSE,
   isLockFile,
   isManifestFile,
   isSpecialCodeFile,
@@ -10,6 +8,7 @@ import {
 import { fileExt, toPosix } from '../../../shared/files.js';
 import { pickMinLimit, resolveFileCaps } from '../file-processor/read.js';
 import { normalizeRoot } from './shared.js';
+import { isCodeEntryForPath, isProseEntryForPath } from '../mode-routing.js';
 
 export const resolveMaxFilesCap = (maxFiles) => {
   const cap = Number(maxFiles);
@@ -38,8 +37,9 @@ export const isIndexablePath = ({ absPath, root, recordsRoot, ignoreMatcher, mod
   const isLock = isLockFile(baseName);
   const isSpecial = isSpecialCodeFile(baseName) || isManifest || isLock;
   const allowCode = (modes.includes('code') || modes.includes('extracted-prose'))
-    && (EXTS_CODE.has(ext) || isSpecial);
-  const allowProse = (modes.includes('prose') || modes.includes('extracted-prose')) && EXTS_PROSE.has(ext);
+    && isCodeEntryForPath({ ext, relPath: relPosix, isSpecial });
+  const allowProse = (modes.includes('prose') || modes.includes('extracted-prose'))
+    && isProseEntryForPath({ ext, relPath: relPosix });
   return allowCode || allowProse;
 };
 
