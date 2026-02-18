@@ -91,6 +91,61 @@ const extractStringField = (window, field) => {
   return decodeJsonString(match[1]);
 };
 
+const collectTopLevelArrayObjectRanges = (text, entryLimit) => {
+  const ranges = [];
+  if (!text || !entryLimit) return ranges;
+  let i = 0;
+  while (i < text.length && /\s/.test(text[i])) i += 1;
+  if (text[i] !== '[') return ranges;
+  let arrayDepth = 1;
+  let objectDepth = 0;
+  let objectStart = -1;
+  let inString = false;
+  let escaped = false;
+  for (i += 1; i < text.length; i += 1) {
+    const ch = text[i];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (ch === '\\') {
+        escaped = true;
+      } else if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+    if (ch === '[') {
+      arrayDepth += 1;
+      continue;
+    }
+    if (ch === ']') {
+      arrayDepth -= 1;
+      if (arrayDepth <= 0) break;
+      continue;
+    }
+    if (ch === '{') {
+      objectDepth += 1;
+      if (arrayDepth === 1 && objectDepth === 1) {
+        objectStart = i;
+      }
+      continue;
+    }
+    if (ch === '}' && objectDepth > 0) {
+      objectDepth -= 1;
+      if (arrayDepth === 1 && objectDepth === 0 && objectStart >= 0) {
+        ranges.push({ start: objectStart, end: i + 1 });
+        objectStart = -1;
+        if (ranges.length >= entryLimit) break;
+      }
+    }
+  }
+  return ranges;
+};
+
 // Large docs search indexes can be multi-megabyte single-line JSON blobs.
 // Full JSON.parse is expensive and unnecessary when we only need a small
 // normalized text synopsis, so this scans entry headers and local windows.
@@ -136,6 +191,31 @@ const compactDocsSearchJsonTextFastScan = (
     if (!normalized) continue;
     lines.push(trimToLimit(normalized, lineLimit));
   }
+  if (!lines.length) {
+    const arrayEntryRanges = collectTopLevelArrayObjectRanges(text, entryLimit);
+    for (const range of arrayEntryRanges) {
+      if (lines.length >= entryLimit) break;
+      const end = Math.min(range.end, range.start + windowChars);
+      const window = text.slice(range.start, end);
+      const route = extractStringField(window, 'route')
+        || extractStringField(window, 'path')
+        || extractStringField(window, 'url')
+        || extractStringField(window, 'id');
+      const name = extractStringField(window, 'name') || extractStringField(window, 'title');
+      const parent = extractStringField(window, 'parent_name') || extractStringField(window, 'parent');
+      const abstract = extractStringField(window, 'abstract')
+        || extractStringField(window, 'description')
+        || extractStringField(window, 'text')
+        || extractStringField(window, 'content');
+      const normalized = normalizeEntry(route, {
+        name,
+        parent_name: parent,
+        abstract
+      }, abstractLimit);
+      if (!normalized) continue;
+      lines.push(trimToLimit(normalized, lineLimit));
+    }
+  }
   if (!lines.length) return null;
   return `${lines.join('\n')}\n`;
 };
@@ -143,7 +223,6 @@ const compactDocsSearchJsonTextFastScan = (
 export const isDocsSearchIndexJsonPath = ({ mode, ext, relPath }) => {
   const normalizedExt = String(ext || '').toLowerCase();
   if (normalizedExt !== '.json') return false;
-  if (String(mode || '').toLowerCase() === 'code') return false;
   const normalizedPath = toPosix(String(relPath || '')).trim();
   if (!normalizedPath) return false;
   const baseName = normalizedPath.split('/').pop()?.toLowerCase() || '';

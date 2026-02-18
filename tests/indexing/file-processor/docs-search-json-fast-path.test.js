@@ -21,8 +21,8 @@ assert.equal(
     ext: '.json',
     relPath: 'docs/search.json'
   }),
-  false,
-  'expected code mode to skip docs search index fast path'
+  true,
+  'expected code mode docs/search.json to still use docs search index compaction'
 );
 
 assert.equal(
