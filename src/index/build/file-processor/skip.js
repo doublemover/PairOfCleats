@@ -5,7 +5,9 @@ import { detectBinary, isMinifiedName, readFileSample } from '../file-scan.js';
 const isGeneratedDocsetPath = (absPath) => {
   const normalized = String(absPath || '').replace(/\\/g, '/').toLowerCase();
   return normalized.includes('/docsets/')
-    || normalized.includes('.docset/');
+    || normalized.includes('.docset/')
+    || normalized.includes('/docs/docset/')
+    || normalized.includes('/docset/');
 };
 
 /**
