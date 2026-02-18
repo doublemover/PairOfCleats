@@ -53,6 +53,7 @@ import {
 import { buildRustChunks, buildRustRelations, collectRustImports, computeRustFlow, extractRustDocMeta } from '../../lang/rust.js';
 import { buildSwiftChunks, buildSwiftRelations, collectSwiftImports, computeSwiftFlow, extractSwiftDocMeta } from '../../lang/swift.js';
 import { buildShellChunks, buildShellRelations, collectShellImports, computeShellFlow, extractShellDocMeta } from '../../lang/shell.js';
+import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from '../../lang/flow.js';
 import { buildTreeSitterChunksAsync } from '../../lang/tree-sitter.js';
 import { buildControlFlowOnly, JS_CONTROL_FLOW, PY_CONTROL_FLOW } from './control-flow.js';
 import { buildSimpleRelations } from './simple-relations.js';
@@ -82,7 +83,7 @@ const {
   getKotlinFileStats
 } = kotlinLang;
 
-const flowOptions = (options) => ({
+const flowOptions = (options = {}) => ({
   dataflow: options.astDataflowEnabled,
   controlFlow: options.controlFlowEnabled
 });
@@ -123,6 +124,159 @@ const createImportCollectorAdapter = ({ id, match, collectImports }) => ({
   flow: () => null,
   attachName: false,
   capabilityProfile: IMPORT_COLLECTOR_CAPABILITY_PROFILE
+});
+
+const HEURISTIC_CALL_SKIP = new Set([
+  'if',
+  'for',
+  'while',
+  'switch',
+  'catch',
+  'return',
+  'throw',
+  'new',
+  'super',
+  'this',
+  'assert',
+  'try',
+  'class',
+  'interface',
+  'trait',
+  'enum',
+  'def',
+  'object',
+  'fun',
+  'when'
+]);
+
+const HEURISTIC_CONTROL_FLOW_OPTIONS = Object.freeze({
+  branchKeywords: ['if', 'else', 'switch', 'case', 'match', 'when', 'catch', 'try'],
+  loopKeywords: ['for', 'while', 'do']
+});
+
+const DART_SYMBOL_PATTERNS = Object.freeze([
+  /\b(?:class|mixin|enum|extension)\s+([A-Za-z_][A-Za-z0-9_]*)/g,
+  /\b(?:void|Future(?:<[^>]+>)?|Stream(?:<[^>]+>)?|[A-Za-z_][A-Za-z0-9_<>\[\]?]*)\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/g,
+  /\b(?:get|set)\s+([A-Za-z_][A-Za-z0-9_]*)\b/g
+]);
+
+const GROOVY_SYMBOL_PATTERNS = Object.freeze([
+  /\b(?:class|interface|trait|enum)\s+([A-Za-z_][A-Za-z0-9_]*)/g,
+  /\bdef\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/g,
+  /\b(?:public|private|protected|static|final|synchronized|abstract|\s)+[A-Za-z_][A-Za-z0-9_<>\[\]?]*\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/g
+]);
+
+const SCALA_SYMBOL_PATTERNS = Object.freeze([
+  /\b(?:class|object|trait|enum)\s+([A-Za-z_][A-Za-z0-9_]*)/g,
+  /\bdef\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?:\[[^\]]+\])?\s*\(/g
+]);
+
+const sortUnique = (values) => Array.from(new Set(values.filter(Boolean))).sort((a, b) => (a < b ? -1 : (a > b ? 1 : 0)));
+
+const collectPatternNames = (text, patterns) => {
+  const names = [];
+  const source = String(text || '');
+  for (const pattern of patterns || []) {
+    const flags = pattern.flags.includes('g') ? pattern.flags : `${pattern.flags}g`;
+    const matcher = new RegExp(pattern.source, flags);
+    let match;
+    while ((match = matcher.exec(source)) !== null) {
+      const name = String(match[1] || '').trim();
+      if (name) names.push(name);
+      if (!match[0]) matcher.lastIndex += 1;
+    }
+  }
+  return sortUnique(names);
+};
+
+const collectHeuristicCallees = (text) => {
+  const source = String(text || '');
+  const out = [];
+  const callRe = /\b([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
+  let match;
+  while ((match = callRe.exec(source)) !== null) {
+    const callee = String(match[1] || '').trim();
+    if (callee && !HEURISTIC_CALL_SKIP.has(callee)) out.push(callee);
+    if (!match[0]) callRe.lastIndex += 1;
+  }
+  return sortUnique(out);
+};
+
+const buildHeuristicManagedRelations = ({ text, options, collectImports, symbolPatterns }) => {
+  const base = buildSimpleRelations({ imports: collectImports(text, options) });
+  const symbols = collectPatternNames(text, symbolPatterns);
+  const callees = collectHeuristicCallees(text);
+  const calls = [];
+  const callers = symbols.length ? symbols : ['<module>'];
+  for (const caller of callers) {
+    for (const callee of callees) {
+      if (!callee || callee === caller) continue;
+      calls.push([caller, callee]);
+      if (calls.length >= 96) break;
+    }
+    if (calls.length >= 96) break;
+  }
+  return {
+    ...base,
+    exports: symbols,
+    calls,
+    usages: callees
+  };
+};
+
+const extractHeuristicManagedDocMeta = (chunk) => {
+  const symbol = typeof chunk?.name === 'string' ? chunk.name.trim() : '';
+  if (!symbol) return null;
+  return {
+    symbol,
+    source: 'managed-heuristic-adapter'
+  };
+};
+
+const buildHeuristicManagedFlow = (text, chunk, options = {}) => {
+  if (!chunk || !Number.isFinite(chunk.start) || !Number.isFinite(chunk.end)) return null;
+  const source = String(text || '');
+  const start = Math.max(0, chunk.start);
+  const end = Math.min(source.length, chunk.end);
+  if (end <= start) return null;
+  const scope = source.slice(start, end);
+  const dataflowEnabled = options.dataflow !== false;
+  const controlFlowEnabled = options.controlFlow !== false;
+  const out = {
+    dataflow: null,
+    controlFlow: null,
+    throws: [],
+    awaits: [],
+    yields: false,
+    returnsValue: false
+  };
+  if (dataflowEnabled) {
+    out.dataflow = buildHeuristicDataflow(scope, { skip: HEURISTIC_CALL_SKIP, memberOperators: ['.'] });
+    out.returnsValue = hasReturnValue(scope);
+    out.throws = /\bthrow\b/.test(scope) ? ['throw'] : [];
+    out.awaits = /\bawait\b/.test(scope) ? ['await'] : [];
+    out.yields = /\byield\b/.test(scope);
+  }
+  if (controlFlowEnabled) {
+    out.controlFlow = summarizeControlFlow(scope, HEURISTIC_CONTROL_FLOW_OPTIONS);
+  }
+  return out;
+};
+
+const createHeuristicManagedAdapter = ({ id, match, collectImports, symbolPatterns }) => ({
+  id,
+  match,
+  collectImports: (text, options) => collectImports(text, options),
+  prepare: async () => ({}),
+  buildRelations: ({ text, options }) => buildHeuristicManagedRelations({
+    text,
+    options,
+    collectImports,
+    symbolPatterns
+  }),
+  extractDocMeta: ({ chunk }) => extractHeuristicManagedDocMeta(chunk),
+  flow: ({ text, chunk, options }) => buildHeuristicManagedFlow(text, chunk, flowOptions(options)),
+  attachName: true
 });
 
 export const LANGUAGE_REGISTRY = [
@@ -465,20 +619,23 @@ export const LANGUAGE_REGISTRY = [
     match: (ext) => NIX_EXTS.has(ext),
     collectImports: collectNixImports
   }),
-  createImportCollectorAdapter({
+  createHeuristicManagedAdapter({
     id: 'dart',
     match: (ext) => DART_EXTS.has(ext),
-    collectImports: collectDartImports
+    collectImports: collectDartImports,
+    symbolPatterns: DART_SYMBOL_PATTERNS
   }),
-  createImportCollectorAdapter({
+  createHeuristicManagedAdapter({
     id: 'scala',
     match: (ext) => SCALA_EXTS.has(ext),
-    collectImports: collectScalaImports
+    collectImports: collectScalaImports,
+    symbolPatterns: SCALA_SYMBOL_PATTERNS
   }),
-  createImportCollectorAdapter({
+  createHeuristicManagedAdapter({
     id: 'groovy',
     match: (ext) => GROOVY_EXTS.has(ext),
-    collectImports: collectGroovyImports
+    collectImports: collectGroovyImports,
+    symbolPatterns: GROOVY_SYMBOL_PATTERNS
   }),
   createImportCollectorAdapter({
     id: 'r',
