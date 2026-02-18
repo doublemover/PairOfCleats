@@ -1,6 +1,6 @@
 # TES_LAYN_ROADMAP - Functional USR Delivery Plan
 
-Last updated: 2026-02-17T00:00:00Z
+Last updated: 2026-02-18T02:09:06Z
 Status: active
 Supersedes: prior contract-heavy rollout plans
 
@@ -92,6 +92,7 @@ Objective: implement and harden language adapters in repeatable batches.
 
 Deliverables:
 - [x] B1 complete (JS/TS + framework foundations).
+- [x] B2 complete (systems languages).
 - [ ] B2-B7 complete with required adapters and language-specific edges.
 - [ ] Import-only entries replaced by full adapters where required.
 
