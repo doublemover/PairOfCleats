@@ -19,3 +19,5 @@ export const TYPE_KIND_PATTERNS = [
 
 export const RETURN_CALL_RX = /return\s+(?:await\s+)?(?!new\s)(?:&\s*)?([A-Za-z_$][\w$.:]*)\s*\(/g;
 export const RETURN_NEW_RX = /return\s+(?:await\s+)?new\s+([A-Za-z_$][\w$.:]*)\s*\(/g;
+export const RETURN_BARE_TARGET_RX =
+  /^\s*return\s+(?:await\s+)?(?!new\b)(?:&\s*)?([A-Za-z_$][\w$.:!?]*)\b(?!\s*\()/gm;

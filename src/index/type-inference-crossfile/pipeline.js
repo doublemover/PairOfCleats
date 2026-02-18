@@ -190,6 +190,24 @@ export async function applyCrossFileInference({
     const text = await getFileText(chunk.file);
     return text.slice(chunk.start, chunk.end);
   };
+  const collectKnownCallees = (chunk) => {
+    const known = new Set();
+    const relations = chunk?.codeRelations || {};
+    if (Array.isArray(relations.calls)) {
+      for (const entry of relations.calls) {
+        if (!Array.isArray(entry) || entry.length < 2) continue;
+        const callee = entry[1];
+        if (typeof callee === 'string' && callee) known.add(callee);
+      }
+    }
+    if (Array.isArray(relations.callDetails)) {
+      for (const detail of relations.callDetails) {
+        const callee = detail?.callee;
+        if (typeof callee === 'string' && callee) known.add(callee);
+      }
+    }
+    return known;
+  };
   const returnCallsByChunk = new WeakMap();
   const getReturnCalls = async (chunk) => {
     if (!chunk) return { calls: new Set(), news: new Set() };
@@ -201,7 +219,7 @@ export async function applyCrossFileInference({
       returnCallsByChunk.set(chunk, empty);
       return empty;
     }
-    const parsed = extractReturnCalls(chunkText);
+    const parsed = extractReturnCalls(chunkText, { knownCallees: collectKnownCallees(chunk) });
     returnCallsByChunk.set(chunk, parsed);
     return parsed;
   };

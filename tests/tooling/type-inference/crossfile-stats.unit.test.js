@@ -225,6 +225,70 @@ await runStatsScenario('perl-return-invocation', {
   }
 });
 
+const rubyCreateContent = [
+  'def create_widget',
+  "  return 'ok'",
+  'end',
+  ''
+].join('\n');
+const rubyBuildContent = [
+  'def build_widget',
+  '  return create_widget',
+  'end',
+  ''
+].join('\n');
+await runStatsScenario('ruby-return-invocation-without-parens', {
+  files: {
+    'lib/create_widget.rb': rubyCreateContent,
+    'lib/build_widget.rb': rubyBuildContent
+  },
+  chunks: [
+    {
+      file: 'lib/build_widget.rb',
+      name: 'build_widget',
+      kind: 'FunctionDeclaration',
+      chunkUid: 'uid-ruby-build',
+      start: 0,
+      end: rubyBuildContent.length,
+      docmeta: { returnsValue: true },
+      codeRelations: {
+        calls: [['build_widget', 'create_widget']]
+      },
+      metaV2: buildSymbolMeta({
+        file: 'lib/build_widget.rb',
+        name: 'build_widget',
+        kind: 'FunctionDeclaration',
+        chunkUid: 'uid-ruby-build'
+      })
+    },
+    {
+      file: 'lib/create_widget.rb',
+      name: 'create_widget',
+      kind: 'FunctionDeclaration',
+      chunkUid: 'uid-ruby-create',
+      start: 0,
+      end: rubyCreateContent.length,
+      docmeta: {
+        returnType: 'Widget',
+        returnsValue: true
+      },
+      codeRelations: {},
+      metaV2: buildSymbolMeta({
+        file: 'lib/create_widget.rb',
+        name: 'create_widget',
+        kind: 'FunctionDeclaration',
+        chunkUid: 'uid-ruby-create'
+      })
+    }
+  ],
+  expect: {
+    linkedCalls: 1,
+    linkedUsages: 0,
+    inferredReturns: 1,
+    riskFlows: 0
+  }
+});
+
 const variableReturnProducer = [
   'export function status() {',
   "  return 'ok';",
