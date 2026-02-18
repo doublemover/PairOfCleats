@@ -7,6 +7,54 @@ import { normalizePositiveNumber } from '../../shared/limits.js';
 import { MINIFIED_NAME_REGEX } from './watch/shared.js';
 
 const MINIFIED_SAMPLE_EXTS = new Set([...JS_EXTS, ...CSS_EXTS, ...HTML_EXTS]);
+const KNOWN_TEXT_EXTS = new Set([
+  '.c',
+  '.cc',
+  '.cpp',
+  '.cxx',
+  '.h',
+  '.hh',
+  '.hpp',
+  '.hxx',
+  '.m',
+  '.mm',
+  '.swift',
+  '.java',
+  '.kt',
+  '.kts',
+  '.go',
+  '.rs',
+  '.js',
+  '.jsx',
+  '.ts',
+  '.tsx',
+  '.json',
+  '.jsonc',
+  '.yml',
+  '.yaml',
+  '.toml',
+  '.ini',
+  '.cfg',
+  '.conf',
+  '.gradle',
+  '.cmake',
+  '.md',
+  '.markdown',
+  '.txt',
+  '.rst',
+  '.py',
+  '.pyi',
+  '.rb',
+  '.php',
+  '.lua',
+  '.pl',
+  '.pm',
+  '.sh',
+  '.bash',
+  '.zsh',
+  '.sql',
+  '.proto'
+]);
 
 const normalizeLimit = (value, fallback) => normalizePositiveNumber(value, fallback);
 
@@ -145,16 +193,23 @@ export function createFileScanner(fileScanConfig = {}) {
     && MINIFIED_SAMPLE_EXTS.has(ext);
   const scanFile = async ({ absPath, stat, ext, readSample }) => {
     const size = stat?.size || 0;
+    const normalizedExt = String(ext || '').toLowerCase();
     const wantsBinary = shouldSampleBinary(size);
-    const wantsMinified = shouldSampleMinified(size, ext);
+    const wantsMinified = shouldSampleMinified(size, normalizedExt);
+    const skipBinaryProbe = !wantsBinary && KNOWN_TEXT_EXTS.has(normalizedExt);
+    const shouldProbeBinary = !skipBinaryProbe;
     const result = {
       checkedBinary: false,
       checkedMinified: false,
       skip: null,
       sampleBuffer: null
     };
-    if (!sampleSizeBytes || (!wantsBinary && !wantsMinified && !fileTypeSampleBytes)) return result;
-    const sampleBytes = Math.max(fileTypeSampleBytes, wantsBinary || wantsMinified ? sampleSizeBytes : 0);
+    if (!sampleSizeBytes || (!shouldProbeBinary && !wantsMinified && !wantsBinary)) return result;
+    const sampleBytes = Math.max(
+      shouldProbeBinary ? fileTypeSampleBytes : 0,
+      wantsBinary || wantsMinified ? sampleSizeBytes : 0
+    );
+    if (!sampleBytes) return result;
     let sampleBuffer = null;
     try {
       sampleBuffer = await readSample(absPath, sampleBytes);
@@ -163,17 +218,19 @@ export function createFileScanner(fileScanConfig = {}) {
     }
     if (!sampleBuffer) return result;
     result.sampleBuffer = sampleBuffer;
-    const binarySkip = await detectBinary({
-      absPath,
-      buffer: sampleBuffer,
-      maxNonTextRatio: binary.maxNonTextRatio
-    });
-    if (binarySkip) {
-      result.checkedBinary = true;
-      result.skip = { ...binarySkip, bytes: size };
-      return result;
+    if (shouldProbeBinary) {
+      const binarySkip = await detectBinary({
+        absPath,
+        buffer: sampleBuffer,
+        maxNonTextRatio: binary.maxNonTextRatio
+      });
+      if (binarySkip) {
+        result.checkedBinary = true;
+        result.skip = { ...binarySkip, bytes: size };
+        return result;
+      }
+      if (wantsBinary) result.checkedBinary = true;
     }
-    if (wantsBinary) result.checkedBinary = true;
     if (wantsMinified) {
       result.checkedMinified = true;
       const sampleText = sampleBuffer.toString('utf8');
