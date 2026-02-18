@@ -74,6 +74,13 @@ const SCM_FAST_TIMEOUT_PATH_PARTS = [
   '/.circleci/',
   '/.gitlab/'
 ];
+const SCM_FORCE_TIMEOUT_CAP_PATH_PARTS = [
+  '/test/',
+  '/validation-test/',
+  '/unittests/',
+  '/utils/unicodedata/',
+  '/utils/gen-unicode-data/'
+];
 const SCM_JAVA_FAST_TIMEOUT_MIN_LINES = 400;
 const SCM_FAST_TIMEOUT_MAX_LINES = 900;
 const SCM_CHURN_MAX_BYTES = 256 * 1024;
@@ -112,6 +119,10 @@ const HEAVY_RELATIONS_PATH_PARTS = [
 ];
 
 const normalizeScmPath = (relPath) => String(relPath || '').replace(/\\/g, '/').toLowerCase();
+const toBoundedScmPath = (relPath) => {
+  const normalized = normalizeScmPath(relPath);
+  return `/${normalized.replace(/^\/+|\/+$/g, '')}/`;
+};
 
 const isPythonGeneratedDataPath = (relPath) => {
   const normalizedPath = normalizeScmPath(relPath);
@@ -129,6 +140,7 @@ const isPythonGeneratedDataPath = (relPath) => {
  */
 const isScmFastPath = ({ relPath, ext, lines }) => {
   const normalizedPath = normalizeScmPath(relPath);
+  const boundedPath = toBoundedScmPath(relPath);
   const normalizedExt = typeof ext === 'string' ? ext.toLowerCase() : '';
   if (SCM_META_FAST_TIMEOUT_EXTS.has(normalizedExt) || SCM_ANNOTATE_FAST_TIMEOUT_EXTS.has(normalizedExt)) {
     return true;
@@ -142,16 +154,24 @@ const isScmFastPath = ({ relPath, ext, lines }) => {
   const base = normalizedPath.split('/').pop() || '';
   if (SCM_FAST_TIMEOUT_BASENAMES.has(base)) return true;
   for (const part of SCM_FAST_TIMEOUT_PATH_PARTS) {
-    if (normalizedPath.includes(part)) return true;
+    if (boundedPath.includes(part)) return true;
   }
   if (isHeavyRelationsPath(normalizedPath)) return true;
   return false;
 };
 
+const shouldForceScmTimeoutCaps = (relPath) => {
+  const boundedPath = toBoundedScmPath(relPath);
+  for (const part of SCM_FORCE_TIMEOUT_CAP_PATH_PARTS) {
+    if (boundedPath.includes(part)) return true;
+  }
+  return false;
+};
+
 const isHeavyRelationsPath = (relPath) => {
-  const normalizedPath = normalizeScmPath(relPath);
+  const boundedPath = toBoundedScmPath(relPath);
   for (const part of HEAVY_RELATIONS_PATH_PARTS) {
-    if (normalizedPath.includes(part)) return true;
+    if (boundedPath.includes(part)) return true;
   }
   return false;
 };
@@ -287,6 +307,7 @@ export const processFileCpu = async (context) => {
     showLineProgress,
     toolInfo,
     treeSitterScheduler,
+    perfEventLogger,
     timing,
     languageHint,
     crashLogger,
@@ -551,8 +572,12 @@ export const processFileCpu = async (context) => {
       || isPythonGeneratedDataPath(relKey)
     );
   const annotateConfig = scmConfig?.annotate || {};
-  const enforceScmTimeoutCaps = scmConfig?.allowSlowTimeouts !== true
-    && annotateConfig?.allowSlowTimeouts !== true;
+  const skipScmAnnotateForProseMode = mode === 'prose' && annotateConfig?.prose !== true;
+  const forceScmTimeoutCaps = shouldForceScmTimeoutCaps(relKey);
+  const enforceScmTimeoutCaps = forceScmTimeoutCaps || (
+    scmConfig?.allowSlowTimeouts !== true
+    && annotateConfig?.allowSlowTimeouts !== true
+  );
   const metaTimeoutRaw = Number(scmConfig?.timeoutMs);
   const hasExplicitMetaTimeout = Number.isFinite(metaTimeoutRaw) && metaTimeoutRaw > 0;
   let metaTimeoutMs = hasExplicitMetaTimeout
@@ -596,6 +621,7 @@ export const processFileCpu = async (context) => {
     if (
       resolvedGitBlameEnabled
       && !skipScmAnnotateForProseRoute
+      && !skipScmAnnotateForProseMode
       && !skipScmAnnotateForGeneratedPython
       && scmMetaUnavailableReason == null
       && typeof scmProviderImpl.annotate === 'function'
@@ -962,6 +988,7 @@ export const processFileCpu = async (context) => {
     lintCache,
     log,
     logLine,
+    perfEventLogger,
     crashLogger,
     riskAnalysisEnabled,
     riskConfig,

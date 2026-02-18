@@ -90,6 +90,15 @@ const HEAVY_FILE_CHUNK_ONLY_MIN_BYTES_DEFAULT = 96 * 1024;
 const HEAVY_FILE_CHUNK_ONLY_MIN_LINES_DEFAULT = 1200;
 const HEAVY_FILE_SKIP_TOKENIZATION_CHUNK_ONLY_MIN_BYTES_DEFAULT = 256 * 1024;
 const HEAVY_FILE_SKIP_TOKENIZATION_CHUNK_ONLY_MIN_LINES_DEFAULT = 3000;
+const HEAVY_FILE_SWIFT_HOT_PATH_TARGET_CHUNKS_DEFAULT = 24;
+const HEAVY_FILE_SWIFT_HOT_PATH_MIN_CHUNKS_DEFAULT = 48;
+const HEAVY_FILE_SWIFT_HOT_PATH_PARTS = [
+  '/test/',
+  '/tests/',
+  '/validation-test/',
+  '/unittests/',
+  '/utils/'
+];
 const HEAVY_FILE_PATH_PREFIXES = [
   '/3rdparty/',
   '/third_party/',
@@ -139,6 +148,8 @@ const normalizeHeavyFilePolicy = (languageOptions) => {
   const skipTokenizationChunkOnlyMinBytesRaw = Number(config.skipTokenizationChunkOnlyMinBytes);
   const skipTokenizationChunkOnlyMinLinesRaw = Number(config.skipTokenizationChunkOnlyMinLines);
   const skipTokenizationCoalesceMaxChunksRaw = Number(config.skipTokenizationCoalesceMaxChunks);
+  const swiftHotPathTargetChunksRaw = Number(config.swiftHotPathTargetChunks);
+  const swiftHotPathMinChunksRaw = Number(config.swiftHotPathMinChunks);
   const maxBytes = Number.isFinite(maxBytesRaw) && maxBytesRaw > 0
     ? Math.floor(maxBytesRaw)
     : HEAVY_FILE_MAX_BYTES_DEFAULT;
@@ -190,6 +201,14 @@ const normalizeHeavyFilePolicy = (languageOptions) => {
     && skipTokenizationCoalesceMaxChunksRaw > 0
     ? Math.floor(skipTokenizationCoalesceMaxChunksRaw)
     : HEAVY_FILE_SKIP_TOKENIZATION_COALESCE_MAX_CHUNKS_DEFAULT;
+  const swiftHotPathTargetChunks = Number.isFinite(swiftHotPathTargetChunksRaw)
+    && swiftHotPathTargetChunksRaw > 0
+    ? Math.floor(swiftHotPathTargetChunksRaw)
+    : HEAVY_FILE_SWIFT_HOT_PATH_TARGET_CHUNKS_DEFAULT;
+  const swiftHotPathMinChunks = Number.isFinite(swiftHotPathMinChunksRaw)
+    && swiftHotPathMinChunksRaw > 0
+    ? Math.floor(swiftHotPathMinChunksRaw)
+    : HEAVY_FILE_SWIFT_HOT_PATH_MIN_CHUNKS_DEFAULT;
   return {
     enabled,
     maxBytes,
@@ -206,7 +225,9 @@ const normalizeHeavyFilePolicy = (languageOptions) => {
     skipTokenizationMaxChunks,
     skipTokenizationChunkOnlyMinBytes,
     skipTokenizationChunkOnlyMinLines,
-    skipTokenizationCoalesceMaxChunks
+    skipTokenizationCoalesceMaxChunks,
+    swiftHotPathTargetChunks,
+    swiftHotPathMinChunks
   };
 };
 
@@ -229,6 +250,19 @@ const shouldDownshiftForHeavyPath = ({
     || fileLines >= heavyFilePolicy.pathMinLines
     || chunkCount >= heavyFilePolicy.pathMinChunks
   );
+};
+
+const shouldApplySwiftHotPathCoalescing = ({
+  relPath,
+  ext,
+  chunkCount,
+  heavyFilePolicy
+}) => {
+  if (String(ext || '').toLowerCase() !== '.swift') return false;
+  if (chunkCount < heavyFilePolicy.swiftHotPathMinChunks) return false;
+  const normalized = String(relPath || '').replace(/\\/g, '/').toLowerCase();
+  const bounded = `/${normalized.replace(/^\/+|\/+$/g, '')}/`;
+  return HEAVY_FILE_SWIFT_HOT_PATH_PARTS.some((part) => bounded.includes(part));
 };
 
 const coalesceHeavyChunks = (chunks, maxChunks) => {
@@ -307,6 +341,7 @@ export const processChunks = async (context) => {
     lintCache,
     log,
     logLine,
+    perfEventLogger,
     crashLogger,
     riskAnalysisEnabled,
     riskConfig,
@@ -346,7 +381,9 @@ export const processChunks = async (context) => {
     });
   };
   const sourceChunks = Array.isArray(sc) ? sc : [];
+  const processChunksStartedAt = Date.now();
   updateCrashStage('process-chunks:start', { totalChunks: sourceChunks.length, languageId: containerLanguageId });
+  const canEmitPerfEvent = perfEventLogger && typeof perfEventLogger.emit === 'function';
   const fileBytes = fileStat?.size ?? Buffer.byteLength(text || '', 'utf8');
   const fileLines = fileLineCount || 0;
   const heavyFilePolicy = normalizeHeavyFilePolicy(languageOptions);
@@ -388,18 +425,29 @@ export const processChunks = async (context) => {
       || skipTokenizationByLines
       || skipTokenizationByChunkOnly
     );
-  const heavyFileTargetChunks = heavyFileSkipTokenization
+  const heavyFileTargetChunksBase = heavyFileSkipTokenization
     ? Math.min(heavyFilePolicy.maxChunks, heavyFilePolicy.skipTokenizationCoalesceMaxChunks)
     : heavyFilePolicy.maxChunks;
+  const heavyFileSwiftHotPath = heavyFileDownshift
+    && shouldApplySwiftHotPathCoalescing({
+      relPath: relKey,
+      ext: containerExt,
+      chunkCount: sourceChunks.length,
+      heavyFilePolicy
+    });
+  const heavyFileTargetChunks = heavyFileSwiftHotPath
+    ? Math.max(1, Math.min(heavyFileTargetChunksBase, heavyFilePolicy.swiftHotPathTargetChunks))
+    : heavyFileTargetChunksBase;
   const chunksForProcessing = heavyFileDownshift
     ? coalesceHeavyChunks(sourceChunks, heavyFileTargetChunks)
     : sourceChunks;
-  if (heavyFileDownshift && typeof log === 'function') {
+  const heavyFileWasCoalesced = chunksForProcessing.length !== sourceChunks.length;
+  if (heavyFileDownshift && typeof log === 'function' && !canEmitPerfEvent) {
     log(
       `[perf] heavy-file downshift enabled for ${relKey} `
       + `(${fileBytes} bytes, ${fileLines} lines, ${sourceChunks.length} chunks).`
     );
-    if (chunksForProcessing.length !== sourceChunks.length) {
+    if (heavyFileWasCoalesced) {
       log(
         `[perf] heavy-file chunks coalesced for ${relKey} `
         + `(${sourceChunks.length} -> ${chunksForProcessing.length}).`
@@ -980,6 +1028,64 @@ export const processChunks = async (context) => {
     languageOptions
   });
   addEmbeddingDuration(embeddingResult.embeddingMs);
+  if (mode === 'code' && canEmitPerfEvent) {
+    const processingDurationMs = Math.max(0, Date.now() - processChunksStartedAt);
+    const sourceChunkCount = sourceChunks.length;
+    const workingChunkCount = chunksForProcessing.length;
+    const outputChunkCount = chunks.length;
+    const coalescedChunks = Math.max(0, sourceChunkCount - workingChunkCount);
+    const coalesceRatio = sourceChunkCount > 0
+      ? Number((workingChunkCount / sourceChunkCount).toFixed(6))
+      : null;
+    const outputRatio = sourceChunkCount > 0
+      ? Number((outputChunkCount / sourceChunkCount).toFixed(6))
+      : null;
+    const throughputChunksPerSecond = processingDurationMs > 0
+      ? Number(((workingChunkCount * 1000) / processingDurationMs).toFixed(3))
+      : null;
+    perfEventLogger.emit('perf.heavy_file_policy', {
+      mode,
+      file: relKey,
+      ext: containerExt,
+      languageId: containerLanguageId,
+      fileBytes,
+      fileLines,
+      sourceChunks: sourceChunkCount,
+      workingChunks: workingChunkCount,
+      outputChunks: outputChunkCount,
+      heavyDownshift: heavyFileDownshift,
+      coalesced: heavyFileWasCoalesced,
+      coalescedChunks,
+      coalesceRatio,
+      outputRatio,
+      skipTokenization: heavyFileSkipTokenization,
+      throughputChunksPerSecond,
+      processingDurationMs,
+      heavyReasonBytes: heavyByBytes,
+      heavyReasonLines: heavyByLines,
+      heavyReasonChunks: heavyByChunks,
+      heavyReasonChunkOnly: heavyByChunkOnly,
+      heavyReasonPath: heavyByPath,
+      skipReasonBytes: skipTokenizationByBytes,
+      skipReasonLines: skipTokenizationByLines,
+      skipReasonChunks: skipTokenizationByChunks,
+      skipReasonChunkOnly: skipTokenizationByChunkOnly,
+      heavyReasonSwiftHotPath: heavyFileSwiftHotPath,
+      policyMaxBytes: heavyFilePolicy.maxBytes,
+      policyMaxLines: heavyFilePolicy.maxLines,
+      policyMaxChunks: heavyFilePolicy.maxChunks,
+      policyTargetChunks: heavyFileTargetChunks,
+      policySwiftHotPathTargetChunks: heavyFilePolicy.swiftHotPathTargetChunks,
+      policySwiftHotPathMinChunks: heavyFilePolicy.swiftHotPathMinChunks,
+      policyPathMinBytes: heavyFilePolicy.pathMinBytes,
+      policyPathMinLines: heavyFilePolicy.pathMinLines,
+      policyPathMinChunks: heavyFilePolicy.pathMinChunks,
+      policySkipTokenizationMaxBytes: heavyFilePolicy.skipTokenizationMaxBytes,
+      policySkipTokenizationMaxLines: heavyFilePolicy.skipTokenizationMaxLines,
+      policySkipTokenizationMaxChunks: heavyFilePolicy.skipTokenizationMaxChunks,
+      policySkipTokenizationCoalesceMaxChunks: heavyFilePolicy.skipTokenizationCoalesceMaxChunks
+    });
+  }
 
   return { chunks, vfsManifestRows };
 };

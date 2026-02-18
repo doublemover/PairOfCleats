@@ -9,6 +9,7 @@ import { compareStrings } from '../../../../shared/sort.js';
 import { createBuildCheckpoint } from '../../build-state.js';
 import { createFileProcessor } from '../../file-processor.js';
 import { runTreeSitterScheduler } from '../../tree-sitter-scheduler/runner.js';
+import { createPerfEventLogger } from '../../perf-event-log.js';
 import { loadStructuralMatches } from '../../../structural.js';
 import { planShardBatches, planShards } from '../../shards.js';
 import { recordFileMetric } from '../../perf-profile.js';
@@ -212,6 +213,11 @@ export const processFiles = async ({
   const envConfig = getEnvConfig();
   const showFileProgress = envConfig.verbose === true || runtime?.argv?.verbose === true;
   const debugOrdered = envConfig.debugOrdered === true;
+  const perfEventLogger = await createPerfEventLogger({
+    buildRoot: runtime.buildRoot || runtime.root,
+    mode,
+    stream: 'heavy-file'
+  });
 
   let treeSitterScheduler = null;
   const treeSitterEnabled = mode === 'code' && runtime?.languageOptions?.treeSitter?.enabled !== false;
@@ -464,6 +470,7 @@ export const processFiles = async ({
         maxFileBytes: runtimeRef.maxFileBytes,
         fileScan: runtimeRef.fileScan,
         featureMetrics: runtimeRef.featureMetrics,
+        perfEventLogger,
         buildStage: runtimeRef.stage,
         abortSignal
       });
@@ -904,6 +911,7 @@ export const processFiles = async ({
 
     return { tokenizationStats, shardSummary, shardPlan, postingsQueueStats };
   } finally {
+    await perfEventLogger.close();
     await closeTreeSitterScheduler();
   }
 };

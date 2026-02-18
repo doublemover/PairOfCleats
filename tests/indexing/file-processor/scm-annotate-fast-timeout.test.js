@@ -442,6 +442,46 @@ await processFileCpu(createContext({
 assert.equal(allowSlowTimeoutMs, 4321, 'expected allowSlowTimeouts to permit explicit annotate timeout');
 assert.equal(allowSlowMetaTimeoutMs, 333, 'expected allowSlowTimeouts to permit explicit meta timeout');
 
+let forcedCapAnnotateTimeoutMs = null;
+let forcedCapMetaTimeoutMs = null;
+const forcedCapScmProvider = {
+  async getFileMeta(args) {
+    forcedCapMetaTimeoutMs = args?.timeoutMs ?? null;
+    return { ok: false };
+  },
+  async annotate(args) {
+    forcedCapAnnotateTimeoutMs = args?.timeoutMs ?? null;
+    return { ok: false, reason: 'timeout' };
+  }
+};
+const forcedCapRelKey = 'test/Sema/exhaustive_switch.swift';
+await processFileCpu(createContext({
+  abs: swiftAbs,
+  ext: '.swift',
+  rel: forcedCapRelKey,
+  relKey: forcedCapRelKey,
+  text: swiftText,
+  fileStat: swiftStat,
+  languageHint: getLanguageForFile('.swift', forcedCapRelKey),
+  scmProviderImpl: forcedCapScmProvider,
+  fileHash: 'scm-annotate-fast-timeout-force-cap',
+  scmConfig: {
+    allowSlowTimeouts: true,
+    timeoutMs: 12000,
+    annotate: { timeoutMs: 15000 }
+  }
+}));
+assert.equal(
+  forcedCapAnnotateTimeoutMs,
+  750,
+  'expected benchmark hotspot paths to keep fast annotate timeout caps even with allowSlowTimeouts'
+);
+assert.equal(
+  forcedCapMetaTimeoutMs,
+  250,
+  'expected benchmark hotspot paths to keep fast metadata timeout caps even with allowSlowTimeouts'
+);
+
 let scmRunIoCalls = 0;
 let scmRunProcCalls = 0;
 const scmRunIoProvider = {
@@ -540,6 +580,34 @@ assert.equal(
   0,
   'expected prose docs files to skip SCM annotate'
 );
+
+let proseTxtMetaCalls = 0;
+let proseTxtAnnotateCalls = 0;
+const proseTxtScmProvider = {
+  async getFileMeta() {
+    proseTxtMetaCalls += 1;
+    return { ok: false };
+  },
+  async annotate() {
+    proseTxtAnnotateCalls += 1;
+    return { ok: false, reason: 'timeout' };
+  }
+};
+const proseTxtRelKey = 'test/stdlib/Inputs/NormalizationTest.txt';
+await processFileCpu(createContext({
+  mode: 'prose',
+  abs: yamlAbs,
+  ext: '.txt',
+  rel: proseTxtRelKey,
+  relKey: proseTxtRelKey,
+  text: 'A\nB\nC\n',
+  fileStat: { size: 6 },
+  languageHint: getLanguageForFile('.txt', proseTxtRelKey),
+  scmProviderImpl: proseTxtScmProvider,
+  fileHash: 'scm-annotate-fast-timeout-prose-txt'
+}));
+assert.equal(proseTxtMetaCalls, 1, 'expected prose text files to keep SCM metadata');
+assert.equal(proseTxtAnnotateCalls, 0, 'expected prose text files to skip SCM annotate by default');
 
 let docsProseMetaCalls = 0;
 let docsProseAnnotateCalls = 0;

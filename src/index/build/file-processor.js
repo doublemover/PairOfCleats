@@ -163,6 +163,7 @@ export function createFileProcessor(options) {
     tokenizationStats = null,
     tokenizeEnabled = true,
     featureMetrics = null,
+    perfEventLogger = null,
     buildStage = null,
     documentExtractionConfig = null,
     abortSignal = null
@@ -650,6 +651,7 @@ export function createFileProcessor(options) {
       treeSitterScheduler,
       timing,
       languageHint,
+      perfEventLogger,
       crashLogger,
       vfsManifestConcurrency,
       complexityCache,

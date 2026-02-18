@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
+import { availableParallelism } from 'node:os';
 import path from 'node:path';
 import { sha1 } from '../../shared/hash.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
@@ -50,6 +51,26 @@ const shouldVerifyHash = (fileStat, cachedEntry) => (
 );
 
 const MAX_SHARED_HASH_READ_ENTRIES = 256;
+const DEFAULT_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY = 8;
+const MAX_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY = 32;
+
+const resolveIncrementalBundleUpdateConcurrency = (totalUpdates) => {
+  const updates = Number.isFinite(Number(totalUpdates)) && totalUpdates > 0
+    ? Math.floor(Number(totalUpdates))
+    : 1;
+  const envRaw = Number(process.env.PAIROFCLEATS_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY);
+  if (Number.isFinite(envRaw) && envRaw > 0) {
+    return Math.min(updates, Math.max(1, Math.floor(envRaw)));
+  }
+  const cpuCount = typeof availableParallelism === 'function'
+    ? Math.max(1, Math.floor(availableParallelism()))
+    : DEFAULT_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY;
+  const derived = Math.max(
+    DEFAULT_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY,
+    Math.min(MAX_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY, cpuCount * 2)
+  );
+  return Math.min(updates, derived);
+};
 
 const resolveSharedReadCache = (sharedReadState) => (
   sharedReadState instanceof Map ? sharedReadState : null
@@ -671,6 +692,7 @@ export async function updateBundlesWithChunks({
   log
 }) {
   if (!enabled) return;
+  const startedAt = Date.now();
   const chunkMap = new Map();
   for (const chunk of chunks) {
     if (!chunk?.file) continue;
@@ -679,71 +701,106 @@ export async function updateBundlesWithChunks({
     list.push(chunk);
     chunkMap.set(fileKey, list);
   }
-  let bundleUpdates = 0;
   const resolvedBundleFormat = normalizeBundleFormat(bundleFormat || manifest?.bundleFormat);
+  const pendingUpdates = [];
   for (const [file, entry] of Object.entries(manifest.files || {})) {
     const normalizedFile = normalizeIncrementalRelPath(file);
     const bundleName = entry?.bundle || resolveBundleFilename(file, resolvedBundleFormat);
     const fileChunks = chunkMap.get(normalizedFile);
     if (!bundleName || !fileChunks) continue;
-    let relations = null;
-    if (fileRelations) {
-      relations = typeof fileRelations.get === 'function'
-        ? (fileRelations.get(normalizedFile) || fileRelations.get(file) || null)
-        : (fileRelations[normalizedFile] || fileRelations[file] || null);
-    }
-    const bundlePath = path.join(bundleDir, bundleName);
-    let vfsManifestRows = null;
-    let hasPrefetchedVfsRows = false;
-    if (existingVfsManifestRowsByFile && typeof existingVfsManifestRowsByFile.get === 'function') {
-      if (existingVfsManifestRowsByFile.has(normalizedFile)) {
-        vfsManifestRows = existingVfsManifestRowsByFile.get(normalizedFile) || null;
-        hasPrefetchedVfsRows = true;
-      } else if (existingVfsManifestRowsByFile.has(file)) {
-        vfsManifestRows = existingVfsManifestRowsByFile.get(file) || null;
-        hasPrefetchedVfsRows = true;
+    pendingUpdates.push({ file, normalizedFile, entry, bundleName, fileChunks });
+  }
+  if (!pendingUpdates.length) return;
+  let bundleUpdates = 0;
+  let bundleFailures = 0;
+  let nextProgressUpdate = 500;
+  const updateTotal = pendingUpdates.length;
+  const workerCount = resolveIncrementalBundleUpdateConcurrency(updateTotal);
+  let cursor = 0;
+  const workers = Array.from({ length: workerCount }, async () => {
+    for (;;) {
+      const index = cursor;
+      cursor += 1;
+      if (index >= pendingUpdates.length) break;
+      const {
+        file,
+        normalizedFile,
+        entry,
+        bundleName,
+        fileChunks
+      } = pendingUpdates[index];
+      let relations = null;
+      if (fileRelations) {
+        relations = typeof fileRelations.get === 'function'
+          ? (fileRelations.get(normalizedFile) || fileRelations.get(file) || null)
+          : (fileRelations[normalizedFile] || fileRelations[file] || null);
       }
-    } else if (existingVfsManifestRowsByFile && typeof existingVfsManifestRowsByFile === 'object') {
-      if (Object.prototype.hasOwnProperty.call(existingVfsManifestRowsByFile, normalizedFile)) {
-        vfsManifestRows = existingVfsManifestRowsByFile[normalizedFile] || null;
-        hasPrefetchedVfsRows = true;
-      } else if (Object.prototype.hasOwnProperty.call(existingVfsManifestRowsByFile, file)) {
-        vfsManifestRows = existingVfsManifestRowsByFile[file] || null;
-        hasPrefetchedVfsRows = true;
+      const bundlePath = path.join(bundleDir, bundleName);
+      let vfsManifestRows = null;
+      let hasPrefetchedVfsRows = false;
+      if (existingVfsManifestRowsByFile && typeof existingVfsManifestRowsByFile.get === 'function') {
+        if (existingVfsManifestRowsByFile.has(normalizedFile)) {
+          vfsManifestRows = existingVfsManifestRowsByFile.get(normalizedFile) || null;
+          hasPrefetchedVfsRows = true;
+        } else if (existingVfsManifestRowsByFile.has(file)) {
+          vfsManifestRows = existingVfsManifestRowsByFile.get(file) || null;
+          hasPrefetchedVfsRows = true;
+        }
+      } else if (existingVfsManifestRowsByFile && typeof existingVfsManifestRowsByFile === 'object') {
+        if (Object.prototype.hasOwnProperty.call(existingVfsManifestRowsByFile, normalizedFile)) {
+          vfsManifestRows = existingVfsManifestRowsByFile[normalizedFile] || null;
+          hasPrefetchedVfsRows = true;
+        } else if (Object.prototype.hasOwnProperty.call(existingVfsManifestRowsByFile, file)) {
+          vfsManifestRows = existingVfsManifestRowsByFile[file] || null;
+          hasPrefetchedVfsRows = true;
+        }
       }
-    }
-    if (!hasPrefetchedVfsRows) {
+      if (!hasPrefetchedVfsRows) {
+        try {
+          const existing = await readBundleFile(bundlePath, {
+            format: resolveBundleFormatFromName(bundleName, resolvedBundleFormat)
+          });
+          vfsManifestRows = Array.isArray(existing?.bundle?.vfsManifestRows)
+            ? existing.bundle.vfsManifestRows
+            : null;
+        } catch {}
+      }
+      const bundle = {
+        file,
+        hash: entry.hash,
+        mtimeMs: entry.mtimeMs,
+        size: entry.size,
+        chunks: fileChunks,
+        fileRelations: relations,
+        vfsManifestRows,
+        encoding: entry.encoding || null,
+        encodingFallback: typeof entry.encodingFallback === 'boolean' ? entry.encodingFallback : null,
+        encodingConfidence: Number.isFinite(entry.encodingConfidence) ? entry.encodingConfidence : null
+      };
       try {
-        const existing = await readBundleFile(bundlePath, {
+        await writeBundleFile({
+          bundlePath,
+          bundle,
           format: resolveBundleFormatFromName(bundleName, resolvedBundleFormat)
         });
-        vfsManifestRows = Array.isArray(existing?.bundle?.vfsManifestRows)
-          ? existing.bundle.vfsManifestRows
-          : null;
-      } catch {}
+        bundleUpdates += 1;
+      } catch {
+        bundleFailures += 1;
+      }
+      const completed = bundleUpdates + bundleFailures;
+      if (typeof log === 'function' && completed >= nextProgressUpdate && completed < updateTotal) {
+        log(`[incremental] cross-file bundle updates: ${completed}/${updateTotal}`);
+        nextProgressUpdate += 500;
+      }
     }
-    const bundle = {
-      file,
-      hash: entry.hash,
-      mtimeMs: entry.mtimeMs,
-      size: entry.size,
-      chunks: fileChunks,
-      fileRelations: relations,
-      vfsManifestRows,
-      encoding: entry.encoding || null,
-      encodingFallback: typeof entry.encodingFallback === 'boolean' ? entry.encodingFallback : null,
-      encodingConfidence: Number.isFinite(entry.encodingConfidence) ? entry.encodingConfidence : null
-    };
-    try {
-      await writeBundleFile({
-        bundlePath,
-        bundle,
-        format: resolveBundleFormatFromName(bundleName, resolvedBundleFormat)
-      });
-      bundleUpdates += 1;
-    } catch {}
-  }
-  if (bundleUpdates) {
-    log(`Cross-file inference updated ${bundleUpdates} incremental bundle(s).`);
+  });
+  await Promise.all(workers);
+  if (bundleUpdates || bundleFailures) {
+    const durationMs = Math.max(0, Date.now() - startedAt);
+    const failureText = bundleFailures > 0 ? `, ${bundleFailures} failed` : '';
+    log(
+      `Cross-file inference updated ${bundleUpdates} incremental bundle(s)${failureText} `
+      + `in ${durationMs}ms (workers=${workerCount}).`
+    );
   }
 }
