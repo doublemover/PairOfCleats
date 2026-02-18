@@ -27,6 +27,7 @@ for (let i = 0; i < fileCount; i += 1) {
   await fsPromises.writeFile(path.join(repoRoot, `big-${i}.js`), content);
 }
 
+applyTestEnv();
 const inheritedEnv = { ...process.env };
 delete inheritedEnv.PAIROFCLEATS_TEST_CONFIG;
 delete inheritedEnv.PAIROFCLEATS_TEST_MAX_JSON_BYTES;
@@ -36,7 +37,6 @@ const baseEnv = {
   PAIROFCLEATS_EMBEDDINGS: 'stub',
   PAIROFCLEATS_WORKER_POOL: 'auto'
 };
-applyTestEnv();
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
 
