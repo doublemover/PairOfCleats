@@ -3,6 +3,7 @@ import { fileExt } from '../../../../../shared/files.js';
 import { log } from '../../../../../shared/progress.js';
 import { getLanguageForFile } from '../../../../language-registry.js';
 import { TREE_SITTER_LANGUAGE_IDS } from '../../../../../lang/tree-sitter.js';
+import { isDocsPath, isInfraConfigPath } from '../../../mode-routing.js';
 
 const TREE_SITTER_LANG_IDS = new Set(TREE_SITTER_LANGUAGE_IDS);
 const TREE_SITTER_EXT_MAP = new Map([
@@ -40,6 +41,18 @@ const TREE_SITTER_EXT_MAP = new Map([
   ['.htm', 'html']
 ]);
 const HTML_EMBEDDED_LANGUAGES = ['javascript', 'css'];
+const DOC_TREE_SITTER_SKIP_LANGUAGES = new Set([
+  'yaml',
+  'json',
+  'toml',
+  'markdown',
+  'html',
+  'javascript',
+  'typescript',
+  'tsx',
+  'jsx',
+  'css'
+]);
 
 const resolveTreeSitterLanguageForEntry = (entry) => {
   const extRaw = typeof entry?.ext === 'string' && entry.ext ? entry.ext : fileExt(entry?.abs || entry?.rel || '');
@@ -52,8 +65,13 @@ const resolveTreeSitterLanguageForEntry = (entry) => {
 };
 
 const resolveTreeSitterBatchInfo = (entry, treeSitterOptions) => {
+  const relPath = typeof entry?.rel === 'string' ? entry.rel : '';
+  if (isInfraConfigPath(relPath)) return { key: 'none', languages: [] };
   const primary = resolveTreeSitterLanguageForEntry(entry);
   if (!primary) return { key: 'none', languages: [] };
+  if (isDocsPath(relPath) && DOC_TREE_SITTER_SKIP_LANGUAGES.has(primary)) {
+    return { key: 'none', languages: [] };
+  }
   if (treeSitterOptions?.languagePasses !== false) {
     return { key: primary, languages: [primary] };
   }

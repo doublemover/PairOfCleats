@@ -87,8 +87,9 @@ export const isDocsPath = (relPath) => {
 export const isInfraConfigPath = (relPath) => {
   const normalized = normalizeRelPath(relPath).toLowerCase();
   if (!normalized) return false;
+  const bounded = `/${normalized.replace(/^\/+|\/+$/g, '')}/`;
   for (const part of INFRA_PATH_PARTS) {
-    if (normalized.includes(part)) return true;
+    if (bounded.includes(part)) return true;
   }
   const base = normalized.split('/').pop() || '';
   if (BUILD_CONFIG_BASENAMES.has(base)) return true;
