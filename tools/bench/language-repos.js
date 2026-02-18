@@ -157,15 +157,19 @@ const isDiskFullMessage = (line) => {
     || text.includes('enospc')
     || text.includes('insufficient free space');
 };
-const appendLog = (line, level = 'info') => {
+const appendLog = (line, level = 'info', meta = null) => {
   if (!line) return;
   writeLog(line);
   if (level === 'error') {
-    display.error(line);
+    display.error(line, meta);
   } else if (level === 'warn') {
-    display.warn(line);
+    display.warn(line, meta);
   } else {
-    display.log(line);
+    if (meta && typeof meta === 'object' && meta.kind === 'status') {
+      display.logLine(line, meta);
+    } else {
+      display.log(line, meta);
+    }
   }
   logHistory.push(line);
   if (logHistory.length > logHistoryLimit) logHistory.shift();
@@ -175,7 +179,8 @@ const handleProgressEvent = (event) => {
   if (event.event === 'log') {
     const message = event.message || '';
     const level = event.level || 'info';
-    appendLog(message, level);
+    const meta = event.meta && typeof event.meta === 'object' ? event.meta : null;
+    appendLog(message, level, meta);
     return;
   }
   const rawName = event.name || event.taskId || 'task';
