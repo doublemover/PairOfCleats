@@ -340,7 +340,9 @@ export const processFileCpu = async (context) => {
   const resolvedGitBlameEnabled = typeof analysisPolicy?.git?.blame === 'boolean'
     ? analysisPolicy.git.blame
     : gitBlameEnabled;
-  const resolvedGitChurnEnabled = scmConfig?.meta?.includeChurn !== false;
+  const resolvedGitChurnEnabled = typeof analysisPolicy?.git?.churn === 'boolean'
+    ? analysisPolicy.git.churn
+    : true;
   updateCrashStage('scm-meta', { blame: resolvedGitBlameEnabled });
   const scmStart = Date.now();
   let lineAuthors = null;
@@ -350,13 +352,11 @@ export const processFileCpu = async (context) => {
     ? toRepoPosixPath(abs, scmRepoRoot)
     : null;
   const normalizedExt = typeof ext === 'string' ? ext.toLowerCase() : '';
-  const metaConfig = scmConfig?.meta || {};
-  const metaTimeoutRaw = Number(metaConfig.timeoutMs);
-  const defaultTimeoutRaw = Number(scmConfig?.timeoutMs);
+  const metaTimeoutRaw = Number(scmConfig?.timeoutMs);
   const hasExplicitMetaTimeout = Number.isFinite(metaTimeoutRaw) && metaTimeoutRaw > 0;
   let metaTimeoutMs = hasExplicitMetaTimeout
     ? metaTimeoutRaw
-    : (Number.isFinite(defaultTimeoutRaw) && defaultTimeoutRaw > 0 ? defaultTimeoutRaw : 2000);
+    : 2000;
   if (!hasExplicitMetaTimeout) {
     if (SCM_META_FAST_TIMEOUT_EXTS.has(normalizedExt)) {
       metaTimeoutMs = Math.min(metaTimeoutMs, 250);

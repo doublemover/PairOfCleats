@@ -18,7 +18,7 @@ export const buildAnalysisPolicy = ({
   git: {
     enabled: gitBlameEnabled,
     blame: gitBlameEnabled,
-    churn: false
+    churn: true
   },
   typeInference: {
     local: { enabled: typeInferenceEnabled },

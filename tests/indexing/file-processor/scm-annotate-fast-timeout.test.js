@@ -36,7 +36,8 @@ const createContext = ({
   languageHint,
   scmProviderImpl,
   fileHash,
-  scmConfig = { annotate: {} }
+  scmConfig = { annotate: {} },
+  analysisPolicy = null
 }) => ({
   abs,
   root,
@@ -80,7 +81,7 @@ const createContext = ({
   riskAnalysisEnabled: false,
   riskConfig: {},
   gitBlameEnabled: true,
-  analysisPolicy: null,
+  analysisPolicy,
   workerPool: null,
   workerDictOverride: null,
   workerState: {},
@@ -208,7 +209,8 @@ await processFileCpu(createContext({
   languageHint: yamlLanguageHint,
   scmProviderImpl: explicitScmProvider,
   fileHash: 'scm-annotate-fast-timeout-explicit',
-  scmConfig: { annotate: { timeoutMs: 4321 }, meta: { timeoutMs: 333, includeChurn: false } }
+  scmConfig: { timeoutMs: 333, annotate: { timeoutMs: 4321 } },
+  analysisPolicy: { git: { churn: false } }
 }));
 assert.equal(explicitTimeoutMs, 4321, 'expected explicit annotate timeout to bypass clamping');
 assert.equal(explicitMetaTimeoutMs, 333, 'expected explicit meta timeout to bypass clamping');
