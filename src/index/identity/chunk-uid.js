@@ -1,6 +1,7 @@
 import { checksumString } from '../../shared/hash.js';
 import { toPosix } from '../../shared/files.js';
 import { normalizeEol } from '../../shared/eol.js';
+import { isCanonicalChunkUid } from '../../shared/identity.js';
 
 export const PRE_CONTEXT_CHARS = 128;
 export const POST_CONTEXT_CHARS = 128;
@@ -15,10 +16,10 @@ const normalizeHash = (value) => {
   return trimmed ? trimmed : null;
 };
 
-const hashComponent = async (label, text) => {
+const hashComponent = async (label, text, { allowEmpty = false } = {}) => {
   const normalized = normalizeForUid(text);
-  if (!normalized) return null;
-  const hash = await checksumString(`${label}\0${normalized}`);
+  if (!normalized && !allowEmpty) return null;
+  const hash = await checksumString(`${label}\0${normalized || ''}`);
   return normalizeHash(hash?.value);
 };
 
@@ -56,7 +57,7 @@ export const computeChunkUid = async ({
   const spanRaw = text.slice(start, end);
   const preRaw = text.slice(Math.max(0, start - preContextChars), start);
   const postRaw = text.slice(end, Math.min(text.length, end + postContextChars));
-  const spanHash = await hashComponent('span', spanRaw);
+  const spanHash = await hashComponent('span', spanRaw, { allowEmpty: true });
   const preHash = await hashComponent('pre', preRaw);
   const postHash = await hashComponent('post', postRaw);
   let base = `ck64:v1:${safeNamespace}:${safePath}`;
@@ -64,6 +65,9 @@ export const computeChunkUid = async ({
   base += `:${spanHash || ''}`;
   if (preHash) base += `:${preHash}`;
   if (postHash) base += `:${postHash}`;
+  if (!isCanonicalChunkUid(base)) {
+    throw new Error('Generated chunkUid violates canonical grammar');
+  }
   return {
     chunkUid: base,
     spanHash,
@@ -177,6 +181,9 @@ export const assignChunkUids = async ({
         const base = chunk.chunkUid;
         const ordinal = index + 1;
         chunk.chunkUid = `${base}:ord${ordinal}`;
+        if (!isCanonicalChunkUid(chunk.chunkUid)) {
+          throw new Error(`Collision-resolved chunkUid violates canonical grammar for ${safePath}`);
+        }
         if (chunk.identity) {
           chunk.identity.collisionOf = base;
         } else {

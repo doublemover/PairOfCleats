@@ -78,7 +78,7 @@ Exit checks:
 Objective: finish identity grammar, coordinate normalization, and cross-language mapping stability.
 
 Deliverables:
-- [ ] Canonical ID grammar and collision handling are implemented in runtime.
+- [x] Canonical ID grammar and collision handling are implemented in runtime.
 - [ ] Endpoint/entity integrity constraints are enforced in runtime paths.
 - [ ] Parser precedence and normalization mapping are deterministic and table-driven.
 
