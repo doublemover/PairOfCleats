@@ -90,11 +90,12 @@ export function resolveThreadLimits(input = {}) {
     : Math.max(1, Math.min(cpuCount, requestedThreads));
   const effectiveIoOversubscribe = ioOversubscribe || explicitCliOvercommit;
   const maxConcurrencyCap = Math.max(defaultFileConcurrency, resolvedThreads);
-  let fileConcurrency = Math.max(1, Math.min(maxConcurrencyCap, resolvedThreads));
+  const maxFileConcurrencyCap = Math.max(defaultFileConcurrency, resolvedThreads * 2);
+  let fileConcurrency = Math.max(1, Math.min(maxFileConcurrencyCap, resolvedThreads * 2));
   let importConcurrency = Math.max(
     1,
     Math.min(
-      maxConcurrencyCap,
+      maxFileConcurrencyCap,
       cliThreadsProvided
         ? fileConcurrency
         : Number.isFinite(Number(importConcurrencyConfig))
@@ -132,7 +133,7 @@ export function resolveThreadLimits(input = {}) {
   if (configuredIoCap !== null) {
     ioConcurrency = Math.max(1, Math.min(ioConcurrency, configuredIoCap));
   }
-  const cpuConcurrency = Math.max(1, Math.min(maxConcurrencyCap, fileConcurrency));
+  const cpuConcurrency = Math.max(1, Math.min(maxConcurrencyCap, resolvedThreads));
   const procConcurrency = Math.max(1, Math.min(8, Math.min(4, cpuCount)));
   const source = cliThreadsProvided
     ? 'cli'

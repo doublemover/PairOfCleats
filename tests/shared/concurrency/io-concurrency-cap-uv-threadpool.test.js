@@ -24,8 +24,8 @@ const oversubscribed = resolveThreadLimits({
   ioOversubscribe: true
 });
 
-assert.strictEqual(oversubscribed.fileConcurrency, 64, 'fileConcurrency should use requested threads when oversubscribe enabled');
-assert.strictEqual(oversubscribed.importConcurrency, 64, 'importConcurrency should use requested threads when oversubscribe enabled');
+assert.strictEqual(oversubscribed.fileConcurrency, 128, 'fileConcurrency should allow up to 2x resolved threads');
+assert.strictEqual(oversubscribed.importConcurrency, 128, 'importConcurrency should allow up to 2x resolved threads when oversubscribe enabled');
 assert.strictEqual(oversubscribed.ioConcurrency, 64, 'ioConcurrency should honor platform cap when oversubscribe enabled');
 
 const cliOvercommitted = resolveThreadLimits({
@@ -38,8 +38,9 @@ const cliOvercommitted = resolveThreadLimits({
 });
 
 assert.strictEqual(cliOvercommitted.threads, 32, 'cli threads should clamp to 2x cpu count');
-assert.strictEqual(cliOvercommitted.fileConcurrency, 32, 'fileConcurrency should cap at 2x cpu count for cli overcommit');
-assert.strictEqual(cliOvercommitted.importConcurrency, 32, 'importConcurrency should cap at 2x cpu count for cli overcommit');
-assert.strictEqual(cliOvercommitted.ioConcurrency, 32, 'ioConcurrency should follow capped cli overcommit concurrency');
+assert.strictEqual(cliOvercommitted.fileConcurrency, 64, 'fileConcurrency should allow up to 2x resolved threads for cli overcommit');
+assert.strictEqual(cliOvercommitted.importConcurrency, 64, 'importConcurrency should allow up to 2x resolved threads for cli overcommit');
+assert.strictEqual(cliOvercommitted.ioConcurrency, 64, 'ioConcurrency should follow elevated cli overcommit concurrency');
+assert.strictEqual(cliOvercommitted.cpuConcurrency, 32, 'cpuConcurrency should remain bounded to resolved threads');
 
 console.log('io concurrency cap tests passed');
