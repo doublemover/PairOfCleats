@@ -16,7 +16,10 @@ const write = async (relPath, content = '') => {
 };
 
 await write('go.mod', 'module github.com/example/demo\n\ngo 1.21\n');
-await write('pubspec.yaml', 'name: benchapp\nenvironment:\n  sdk: ">=3.0.0 <4.0.0"\n');
+await write(
+  'pubspec.yaml',
+  'publish_to: none\nversion: 0.1.0\nname: benchapp\nenvironment:\n  sdk: ">=3.0.0 <4.0.0"\n'
+);
 
 await write('python/pkg/main.py', 'import helpers\nfrom .utils import parse\nimport requests\n');
 await write('python/pkg/helpers.py', 'VALUE = 1\n');

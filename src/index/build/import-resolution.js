@@ -814,11 +814,12 @@ const resolveDartPackageName = (rootAbs, fsMemo = null) => {
     const text = fs.readFileSync(pubspecPath, 'utf8');
     const lines = text.split(/\r?\n/);
     for (const rawLine of lines) {
-      const line = String(rawLine || '').trim();
-      if (!line || line.startsWith('#')) continue;
-      const match = line.match(/^name\s*:\s*["']?([A-Za-z0-9_.-]+)["']?\s*$/);
+      const line = String(rawLine || '');
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      if (/^\s/.test(line)) continue;
+      const match = trimmed.match(/^name\s*:\s*["']?([A-Za-z0-9_.-]+)["']?\s*(?:#.*)?$/);
       if (match?.[1]) return match[1];
-      if (/^[A-Za-z_][A-Za-z0-9_-]*\s*:/.test(line)) break;
     }
   } catch {}
   return null;
