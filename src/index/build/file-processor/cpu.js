@@ -74,6 +74,7 @@ const SCM_FAST_TIMEOUT_PATH_PARTS = [
   '/.circleci/',
   '/.gitlab/'
 ];
+const SCM_JAVA_FAST_TIMEOUT_MIN_LINES = 400;
 const SCM_FAST_TIMEOUT_MAX_LINES = 900;
 const SCM_CHURN_MAX_BYTES = 256 * 1024;
 const HEAVY_RELATIONS_MAX_BYTES = 512 * 1024;
@@ -114,6 +115,9 @@ const isScmFastPath = ({ relPath, ext, lines }) => {
   const normalizedPath = normalizeScmPath(relPath);
   const normalizedExt = typeof ext === 'string' ? ext.toLowerCase() : '';
   if (SCM_META_FAST_TIMEOUT_EXTS.has(normalizedExt) || SCM_ANNOTATE_FAST_TIMEOUT_EXTS.has(normalizedExt)) {
+    return true;
+  }
+  if (normalizedExt === '.java' && Number.isFinite(Number(lines)) && Number(lines) >= SCM_JAVA_FAST_TIMEOUT_MIN_LINES) {
     return true;
   }
   if (Number.isFinite(Number(lines)) && Number(lines) >= SCM_FAST_TIMEOUT_MAX_LINES) {

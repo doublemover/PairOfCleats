@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-18T09:50:59.220Z",
+  "generatedAt": "2026-02-18T18:34:57.142Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2915,7 +2915,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 312,
+    "totalFlags": 314,
     "publicFlags": [
       "backend",
       "host",
@@ -3015,6 +3015,7 @@
       "flowMode",
       "focus",
       "force",
+      "forcePrepare",
       "format",
       "frame-budget",
       "from",
@@ -3189,6 +3190,7 @@
       "skip-sqlite",
       "skip-tooling",
       "skip-validate",
+      "skipPrepare",
       "snapshot",
       "sort",
       "source",
@@ -3425,6 +3427,13 @@
         "file": "tests/indexing/imports/imports-options-forwarding-flowmode.test.js",
         "flags": [
           "flowMode"
+        ]
+      },
+      {
+        "file": "tests/indexing/language-registry/build-language-context-skip-prepare.test.js",
+        "flags": [
+          "forcePrepare",
+          "skipPrepare"
         ]
       },
       {

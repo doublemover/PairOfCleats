@@ -191,6 +191,42 @@ assert.equal(jsTimeoutMs, 2000, 'expected non-metadata annotate timeout to clamp
 assert.equal(jsMetaTimeoutMs, 750, 'expected non-metadata meta timeout to clamp to 750ms');
 assert.equal(jsIncludeChurn, true, 'expected non-fast-path churn metadata enabled by default');
 
+const javaRelKey = 'src/org/example/LargeAssertions.java';
+const javaText = `${Array.from({ length: 600 }, (_, i) => `class JavaFastPathLine${i} {}`).join('\n')}\n`;
+const javaStat = { size: Buffer.byteLength(javaText, 'utf8') };
+const javaLanguageHint = getLanguageForFile('.java', javaRelKey);
+let javaAnnotateCalls = 0;
+let javaTimeoutMs = null;
+let javaMetaTimeoutMs = null;
+let javaIncludeChurn = null;
+const javaScmProvider = {
+  async getFileMeta(args) {
+    javaMetaTimeoutMs = args?.timeoutMs ?? null;
+    javaIncludeChurn = args?.includeChurn ?? null;
+    return { ok: false };
+  },
+  async annotate(args) {
+    javaAnnotateCalls += 1;
+    javaTimeoutMs = args?.timeoutMs ?? null;
+    return { ok: false, reason: 'timeout' };
+  }
+};
+await processFileCpu(createContext({
+  abs: jsAbs,
+  ext: '.java',
+  rel: javaRelKey,
+  relKey: javaRelKey,
+  text: javaText,
+  fileStat: javaStat,
+  languageHint: javaLanguageHint,
+  scmProviderImpl: javaScmProvider,
+  fileHash: 'scm-annotate-fast-timeout-java'
+}));
+assert.equal(javaAnnotateCalls, 1, 'expected annotate to run for .java files');
+assert.equal(javaTimeoutMs, 750, 'expected .java annotate timeout to clamp for large Java files');
+assert.equal(javaMetaTimeoutMs, 250, 'expected .java meta timeout to clamp for large Java files');
+assert.equal(javaIncludeChurn, false, 'expected fast-path large .java churn metadata to be disabled');
+
 const swiftAbs = path.join(root, 'tests', 'fixtures', 'tree-sitter', 'swift.swift');
 const swiftRel = path.relative(root, swiftAbs);
 const swiftRelKey = swiftRel.split(path.sep).join('/');
