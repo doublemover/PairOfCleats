@@ -369,22 +369,22 @@ const computeMetaWithFastCommands = async ({
     });
     const churn = churnResult.exitCode === 0
       ? parseNumstatChurnText(churnResult.stdout)
-      : { added: 0, deleted: 0 };
+      : null;
     return {
       last_modified: lastModifiedAt,
       last_author: lastAuthor,
-      churn: churn.added + churn.deleted,
-      churn_added: churn.added,
-      churn_deleted: churn.deleted,
+      churn: churn ? (churn.added + churn.deleted) : null,
+      churn_added: churn?.added ?? null,
+      churn_deleted: churn?.deleted ?? null,
       churn_commits: null
     };
   } catch {
     return {
       last_modified: lastModifiedAt,
       last_author: lastAuthor,
-      churn: 0,
-      churn_added: 0,
-      churn_deleted: 0,
+      churn: null,
+      churn_added: null,
+      churn_deleted: null,
       churn_commits: null
     };
   }
@@ -410,6 +410,6 @@ async function computeNumstatChurn(git, file, limit) {
     const raw = await git.raw(['log', '--numstat', '-n', String(limit), '--format=', '--', file]);
     return parseNumstatChurnText(raw);
   } catch {
-    return { added: 0, deleted: 0 };
+    return null;
   }
 }
