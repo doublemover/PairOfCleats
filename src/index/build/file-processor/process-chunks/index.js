@@ -43,6 +43,28 @@ export const createFrameworkProfileResolver = ({
   };
 };
 
+export const canUseLineTokenStreamSlice = ({
+  chunkStart,
+  chunkEnd,
+  startLine,
+  endLine,
+  lineIndex,
+  fileLength
+}) => {
+  if (!Array.isArray(lineIndex) || !lineIndex.length) return false;
+  if (!Number.isFinite(chunkStart) || !Number.isFinite(chunkEnd)) return false;
+  const startLineNumber = Math.max(1, Math.floor(Number(startLine) || 1));
+  const endLineNumber = Math.max(startLineNumber, Math.floor(Number(endLine) || startLineNumber));
+  const startLineOffset = lineIndex[startLineNumber - 1];
+  if (!Number.isFinite(startLineOffset)) return false;
+  const nextLineOffset = lineIndex[endLineNumber];
+  const endLineOffset = Number.isFinite(nextLineOffset)
+    ? nextLineOffset
+    : (Number.isFinite(fileLength) ? fileLength : null);
+  if (!Number.isFinite(endLineOffset)) return false;
+  return chunkStart === startLineOffset && chunkEnd === endLineOffset;
+};
+
 export const processChunks = async (context) => {
   const {
     sc,
@@ -420,7 +442,18 @@ export const processChunks = async (context) => {
 
     let tokenPayload = null;
     let pretokenized = null;
-    if (tokenizeEnabled && tokenizationFileStreamEnabled && tokenText === ctext) {
+    const useLineTokenStream = tokenizeEnabled
+      && tokenizationFileStreamEnabled
+      && tokenText === ctext
+      && canUseLineTokenStreamSlice({
+        chunkStart: c.start,
+        chunkEnd: c.end,
+        startLine,
+        endLine,
+        lineIndex,
+        fileLength: text.length
+      });
+    if (useLineTokenStream) {
       let tokenStream = fileTokenStreamCache.get(dictCacheKey);
       if (!tokenStream) {
         tokenStream = createFileLineTokenStream({

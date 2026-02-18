@@ -480,6 +480,20 @@ const normalizeToken = (value) => {
   return value;
 };
 
+const PROSE_DICT_SPLIT_BYPASS_EXTS = new Set([
+  '.html',
+  '.htm',
+  '.json',
+  '.jsonc',
+  '.yml',
+  '.yaml',
+  '.toml',
+  '.ini',
+  '.cfg',
+  '.conf',
+  '.xml'
+]);
+
 const buildSequenceFromTokens = (tokens, seqBuffer = null) => {
   if (!Array.isArray(tokens) || !tokens.length) return [];
   let hasSynonyms = false;
@@ -603,7 +617,10 @@ export function buildTokenSequence({
   }
 
   let working = scratch;
-  if (!(mode === 'prose' && ext === '.md')) {
+  const normalizedExt = typeof ext === 'string' ? ext.toLowerCase() : '';
+  const skipDictSegmentation = mode === 'prose'
+    && (normalizedExt === '.md' || PROSE_DICT_SPLIT_BYPASS_EXTS.has(normalizedExt));
+  if (!skipDictSegmentation) {
     for (const token of working) {
       const parts = splitWordsWithDict(token, dictWords, dictConfig);
       if (Array.isArray(parts) && parts.length) {
