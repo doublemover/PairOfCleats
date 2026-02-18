@@ -31,4 +31,20 @@ for (const chunk of byteLimitedChunks) {
   assert.ok(bytes <= 1024, `chunk byte count ${bytes} exceeds maxBytes`);
 }
 
+const largeText = `${text}\n${text}\n${text}\n${text}`;
+const largeChunks = smartChunk({
+  text: largeText,
+  ext: '.html',
+  relPath: 'docs/large-sample.html',
+  mode: 'prose',
+  context: {}
+});
+assert.ok(largeChunks.length > 1, 'expected large prose fallback documents to split into multiple chunks');
+assert.equal(largeChunks[0].start, 0, 'expected first large prose chunk to start at 0');
+assert.equal(
+  largeChunks[largeChunks.length - 1].end,
+  largeText.length,
+  'expected final large prose chunk to end at file end'
+);
+
 console.log('prose fallback whole-document test passed');

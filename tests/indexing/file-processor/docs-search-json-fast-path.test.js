@@ -56,4 +56,25 @@ assert.ok(!compacted.includes('<p>') && !compacted.includes('<code>'), 'expected
 const invalidCompacted = compactDocsSearchJsonText('{');
 assert.equal(invalidCompacted, null, 'expected invalid json to skip compaction');
 
+const fastScanRaw = JSON.stringify({
+  'Classes/Session.html': {
+    name: 'Session',
+    abstract: '<p>Creates and manages requests.</p>'
+  },
+  'Classes/Request.html': {
+    name: 'Request',
+    parent_name: 'Session',
+    abstract: '<p>Represents a single request.</p>'
+  }
+});
+const fastScanned = compactDocsSearchJsonText(fastScanRaw, {
+  fastScanMinInputChars: 1,
+  fastScanWindowChars: 1024
+});
+assert.ok(typeof fastScanned === 'string' && fastScanned.length > 0, 'expected fast-scan compaction output');
+assert.ok(
+  fastScanned.includes('Classes/Session.html | Session | Creates and manages requests.'),
+  'expected fast-scan path to preserve normalized route/name/abstract'
+);
+
 console.log('docs search json fast path test passed');

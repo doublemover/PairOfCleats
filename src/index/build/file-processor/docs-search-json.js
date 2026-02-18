@@ -5,6 +5,8 @@ const DOCS_SEARCH_JSON_FILE = 'search.json';
 const MAX_ENTRIES_DEFAULT = 50000;
 const MAX_ABSTRACT_CHARS_DEFAULT = 320;
 const MAX_LINE_CHARS_DEFAULT = 640;
+const FAST_SCAN_MIN_INPUT_CHARS_DEFAULT = 1_500_000;
+const FAST_SCAN_WINDOW_CHARS_DEFAULT = 4096;
 const MAX_ROUTE_CHARS = 220;
 const MAX_NAME_CHARS = 180;
 const MAX_PARENT_CHARS = 120;
@@ -72,6 +74,72 @@ const normalizeEntry = (route, value, maxAbstractChars) => {
   return [routeText, nameText, parentText, abstractText].filter(Boolean).join(' | ');
 };
 
+const decodeJsonString = (raw) => {
+  if (typeof raw !== 'string') return '';
+  try {
+    return JSON.parse(`"${raw}"`);
+  } catch {
+    return raw;
+  }
+};
+
+const extractStringField = (window, field) => {
+  if (!window) return '';
+  const rx = new RegExp(`"${field}"\\s*:\\s*"((?:\\\\.|[^"\\\\])*)"`, 'i');
+  const match = window.match(rx);
+  if (!match) return '';
+  return decodeJsonString(match[1]);
+};
+
+// Large docs search indexes can be multi-megabyte single-line JSON blobs.
+// Full JSON.parse is expensive and unnecessary when we only need a small
+// normalized text synopsis, so this scans entry headers and local windows.
+const compactDocsSearchJsonTextFastScan = (
+  text,
+  {
+    entryLimit,
+    abstractLimit,
+    lineLimit,
+    scanWindowChars = FAST_SCAN_WINDOW_CHARS_DEFAULT
+  }
+) => {
+  const lines = [];
+  const windowChars = Number.isFinite(Number(scanWindowChars)) && scanWindowChars > 0
+    ? Math.max(512, Math.floor(Number(scanWindowChars)))
+    : FAST_SCAN_WINDOW_CHARS_DEFAULT;
+  const entryHeadRx = /"((?:\\.|[^"\\]){1,260})"\s*:\s*\{/g;
+  const entryHeads = [];
+  let match;
+  while ((match = entryHeadRx.exec(text)) !== null) {
+    entryHeads.push({ start: match.index, routeRaw: match[1] });
+  }
+  for (let i = 0; i < entryHeads.length; i += 1) {
+    if (lines.length >= entryLimit) break;
+    const head = entryHeads[i];
+    const route = decodeJsonString(head.routeRaw);
+    if (!route) continue;
+    const start = head.start;
+    const nextStart = i + 1 < entryHeads.length ? entryHeads[i + 1].start : text.length;
+    const end = Math.min(text.length, start + windowChars, nextStart);
+    const window = text.slice(start, end);
+    const name = extractStringField(window, 'name') || extractStringField(window, 'title');
+    const parent = extractStringField(window, 'parent_name') || extractStringField(window, 'parent');
+    const abstract = extractStringField(window, 'abstract')
+      || extractStringField(window, 'description')
+      || extractStringField(window, 'text')
+      || extractStringField(window, 'content');
+    const normalized = normalizeEntry(route, {
+      name,
+      parent_name: parent,
+      abstract
+    }, abstractLimit);
+    if (!normalized) continue;
+    lines.push(trimToLimit(normalized, lineLimit));
+  }
+  if (!lines.length) return null;
+  return `${lines.join('\n')}\n`;
+};
+
 export const isDocsSearchIndexJsonPath = ({ mode, ext, relPath }) => {
   const normalizedExt = String(ext || '').toLowerCase();
   if (normalizedExt !== '.json') return false;
@@ -88,16 +156,12 @@ export const compactDocsSearchJsonText = (
   {
     maxEntries = MAX_ENTRIES_DEFAULT,
     maxAbstractChars = MAX_ABSTRACT_CHARS_DEFAULT,
-    maxLineChars = MAX_LINE_CHARS_DEFAULT
+    maxLineChars = MAX_LINE_CHARS_DEFAULT,
+    fastScanMinInputChars = FAST_SCAN_MIN_INPUT_CHARS_DEFAULT,
+    fastScanWindowChars = FAST_SCAN_WINDOW_CHARS_DEFAULT
   } = {}
 ) => {
   if (typeof text !== 'string' || !text.trim()) return null;
-  let parsed = null;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    return null;
-  }
   const entryLimit = Number.isFinite(Number(maxEntries))
     ? Math.max(1, Math.floor(Number(maxEntries)))
     : MAX_ENTRIES_DEFAULT;
@@ -107,6 +171,24 @@ export const compactDocsSearchJsonText = (
   const lineLimit = Number.isFinite(Number(maxLineChars))
     ? Math.max(80, Math.floor(Number(maxLineChars)))
     : MAX_LINE_CHARS_DEFAULT;
+  const fastScanThreshold = Number.isFinite(Number(fastScanMinInputChars))
+    ? Math.max(0, Math.floor(Number(fastScanMinInputChars)))
+    : FAST_SCAN_MIN_INPUT_CHARS_DEFAULT;
+  if (fastScanThreshold > 0 && text.length >= fastScanThreshold) {
+    return compactDocsSearchJsonTextFastScan(text, {
+      entryLimit,
+      abstractLimit,
+      lineLimit,
+      scanWindowChars: fastScanWindowChars
+    });
+  }
+
+  let parsed = null;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return null;
+  }
   const lines = [];
   const appendLine = (route, value) => {
     if (lines.length >= entryLimit) return;

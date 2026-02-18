@@ -213,7 +213,15 @@ export const processChunks = async (context) => {
     fileBytes: Buffer.byteLength(text || '', 'utf8')
   });
   attachCallDetailsByChunkIndex(callIndex, sc);
-  const useWorkerForTokens = tokenMode === 'code'
+  const proseWorkerMinBytesRaw = Number(languageOptions?.tokenization?.proseWorkerMinBytes);
+  const proseWorkerMinBytes = Number.isFinite(proseWorkerMinBytesRaw) && proseWorkerMinBytesRaw > 0
+    ? Math.floor(proseWorkerMinBytesRaw)
+    : 128 * 1024;
+  // Small prose files are faster on the main thread and avoid proc-queue
+  // contention; route only larger prose documents through tokenize workers.
+  const shouldUseProseWorker = tokenMode === 'prose'
+    && (fileStat?.size ?? Buffer.byteLength(text || '', 'utf8')) >= proseWorkerMinBytes;
+  const useWorkerForTokens = (tokenMode === 'code' || shouldUseProseWorker)
     && !workerState.tokenWorkerDisabled
     && workerPool
     && workerPool.shouldUseForFile
