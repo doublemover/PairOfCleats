@@ -25,6 +25,27 @@ const CASES = [
     expectedSignal: 'nextAppRouterDynamicSegment'
   },
   {
+    relPath: 'src/pages/index.tsx',
+    ext: '.tsx',
+    text: "import Link from 'next/link';\nexport default function Home(){ return <Link href='/' />; }",
+    expectedId: 'next',
+    expectedSignal: 'nextPagesRouterRoute'
+  },
+  {
+    relPath: 'src/pages/account.tsx',
+    ext: '.tsx',
+    text: "import React from 'react';\nexport default function Account(){ return <main />; }",
+    expectedId: 'react',
+    expectedSignal: null
+  },
+  {
+    relPath: 'src/app/dashboard/widgets.tsx',
+    ext: '.tsx',
+    text: "import React from 'react';\nexport const Widgets = () => <section />;",
+    expectedId: 'react',
+    expectedSignal: null
+  },
+  {
     relPath: 'pages/users/[id].vue',
     ext: '.vue',
     text: '<template><NuxtPage /></template>\n<style scoped></style>',

@@ -4,6 +4,23 @@ const pathHasSegment = (pathLower, segment) => new RegExp(`(^|/)${segment}(/|$)`
 const isJsFamily = (ext) => new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.mts', '.cts']).has(ext);
 
 const hasDynamicSegment = (pathLower) => /\[[^/\]]+\]/.test(pathLower);
+const NEXT_APP_ROUTE_FILE_RX = /(^|\/)app\/(?:.+\/)?(page|layout|route|template|loading|error|not-found|default|head)\.(js|jsx|ts|tsx|mjs|cjs|mts|cts|mdx)$/i;
+const NEXT_PAGES_ROUTE_FILE_RX = /(^|\/)pages\/.+\.(js|jsx|ts|tsx|mjs|cjs|mts|cts|mdx)$/i;
+const NEXT_CONFIG_FILE_RX = /(^|\/)next\.config\.(js|cjs|mjs|ts)$/i;
+const hasNextSourceSignal = (sourceLower) => (
+  sourceLower.includes("from 'next")
+  || sourceLower.includes('from "next')
+  || sourceLower.includes('next/link')
+  || sourceLower.includes('next/router')
+  || sourceLower.includes('next/navigation')
+  || sourceLower.includes('next/head')
+  || sourceLower.includes('next/image')
+  || sourceLower.includes('next/server')
+  || /\bnextpage\b/.test(sourceLower)
+  || /\bgetstaticprops\b/.test(sourceLower)
+  || /\bgetserversideprops\b/.test(sourceLower)
+  || /\bgeneratestaticparams\b/.test(sourceLower)
+);
 
 const buildSignals = (pairs) => {
   const signals = {};
@@ -84,15 +101,20 @@ export const detectFrameworkProfile = ({ relPath, ext, text = '' } = {}) => {
   }
 
   if (isJsFamily(normalizedExt)) {
-    const isNext = pathHasSegment(normalizedPath, 'app')
-      || pathHasSegment(normalizedPath, 'pages')
-      || normalizedPath.includes('next.config.')
-      || /\/(page|layout|route)\.(js|jsx|ts|tsx)$/.test(normalizedPath);
+    const nextAppRouteFile = NEXT_APP_ROUTE_FILE_RX.test(normalizedPath);
+    const nextPagesRouteFile = NEXT_PAGES_ROUTE_FILE_RX.test(normalizedPath);
+    const nextConfigFile = NEXT_CONFIG_FILE_RX.test(normalizedPath);
+    const nextSourceSignal = hasNextSourceSignal(sourceLower);
+    const isNext = nextConfigFile
+      || nextAppRouteFile
+      || (nextPagesRouteFile && nextSourceSignal);
     if (isNext) {
       const signals = buildSignals([
-        ['nextAppRouterDynamicSegment', pathHasSegment(normalizedPath, 'app') && dynamicRoute],
+        ['nextAppRouterDynamicSegment', nextAppRouteFile && dynamicRoute],
         ['nextClientServerBoundary', sourceLower.includes('"use client"') || sourceLower.includes("'use client'") || sourceLower.includes('"use server"') || sourceLower.includes("'use server'")],
-        ['nextRouteHandlerRuntime', /\/route\.(js|jsx|ts|tsx)$/.test(normalizedPath)],
+        ['nextRouteHandlerRuntime', /(^|\/)app\/(?:.+\/)?route\.(js|jsx|ts|tsx|mjs|cjs|mts|cts|mdx)$/.test(normalizedPath)],
+        ['nextPagesRouterRoute', nextPagesRouteFile],
+        ['nextConfigFile', nextConfigFile],
         ['dynamicRoute', dynamicRoute]
       ]);
       return { id: 'next', confidence: 'heuristic', signals };
