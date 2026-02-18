@@ -71,6 +71,8 @@ const SCM_FAST_TIMEOUT_MAX_LINES = 900;
 const SCM_CHURN_MAX_BYTES = 256 * 1024;
 const HEAVY_RELATIONS_MAX_BYTES = 512 * 1024;
 const HEAVY_RELATIONS_MAX_LINES = 6000;
+const HEAVY_RELATIONS_PATH_MIN_BYTES = 64 * 1024;
+const HEAVY_RELATIONS_PATH_MIN_LINES = 1200;
 const HEAVY_RELATIONS_PATH_PARTS = [
   '/third_party/',
   '/thirdparty/',
@@ -119,6 +121,14 @@ const isHeavyRelationsPath = (relPath) => {
   }
   return false;
 };
+
+const shouldSkipHeavyRelationsByPath = ({ relPath, fileBytes, fileLines }) => (
+  isHeavyRelationsPath(relPath)
+  && (
+    fileBytes >= HEAVY_RELATIONS_PATH_MIN_BYTES
+    || fileLines >= HEAVY_RELATIONS_PATH_MIN_LINES
+  )
+);
 
 /**
  * Merge scheduler-planned segments with comment/frontmatter extras while keeping
@@ -428,7 +438,11 @@ export const processFileCpu = async (context) => {
     && (
       (fileStat?.size ?? 0) >= HEAVY_RELATIONS_MAX_BYTES
       || totalLines >= HEAVY_RELATIONS_MAX_LINES
-      || isHeavyRelationsPath(relKey)
+      || shouldSkipHeavyRelationsByPath({
+        relPath: relKey,
+        fileBytes: fileStat?.size ?? 0,
+        fileLines: totalLines
+      })
     );
   const effectiveRelationsEnabled = relationsEnabled && !skipHeavyRelations;
   let rawRelations = null;

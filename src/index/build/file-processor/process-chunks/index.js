@@ -78,6 +78,9 @@ export const canUseLineTokenStreamSlice = ({
 const HEAVY_FILE_MAX_BYTES_DEFAULT = 768 * 1024;
 const HEAVY_FILE_MAX_LINES_DEFAULT = 8000;
 const HEAVY_FILE_MAX_CHUNKS_DEFAULT = 96;
+const HEAVY_FILE_PATH_MIN_BYTES_DEFAULT = 64 * 1024;
+const HEAVY_FILE_PATH_MIN_LINES_DEFAULT = 1200;
+const HEAVY_FILE_PATH_MIN_CHUNKS_DEFAULT = HEAVY_FILE_MAX_CHUNKS_DEFAULT;
 const HEAVY_FILE_PATH_RX = /\/(?:third_party|thirdparty|vendor|single_include|include\/fmt|include\/spdlog\/fmt|include\/nlohmann|tests\/abi|test\/gtest|docs\/mkdocs|\.github\/workflows)\//;
 
 const normalizeHeavyFilePolicy = (languageOptions) => {
@@ -87,6 +90,9 @@ const normalizeHeavyFilePolicy = (languageOptions) => {
   const maxBytesRaw = Number(config.maxBytes);
   const maxLinesRaw = Number(config.maxLines);
   const maxChunksRaw = Number(config.maxChunks);
+  const pathMinBytesRaw = Number(config.pathMinBytes);
+  const pathMinLinesRaw = Number(config.pathMinLines);
+  const pathMinChunksRaw = Number(config.pathMinChunks);
   const maxBytes = Number.isFinite(maxBytesRaw) && maxBytesRaw > 0
     ? Math.floor(maxBytesRaw)
     : HEAVY_FILE_MAX_BYTES_DEFAULT;
@@ -96,13 +102,37 @@ const normalizeHeavyFilePolicy = (languageOptions) => {
   const maxChunks = Number.isFinite(maxChunksRaw) && maxChunksRaw > 0
     ? Math.floor(maxChunksRaw)
     : HEAVY_FILE_MAX_CHUNKS_DEFAULT;
-  return { enabled, maxBytes, maxLines, maxChunks };
+  const pathMinBytes = Number.isFinite(pathMinBytesRaw) && pathMinBytesRaw > 0
+    ? Math.floor(pathMinBytesRaw)
+    : HEAVY_FILE_PATH_MIN_BYTES_DEFAULT;
+  const pathMinLines = Number.isFinite(pathMinLinesRaw) && pathMinLinesRaw > 0
+    ? Math.floor(pathMinLinesRaw)
+    : HEAVY_FILE_PATH_MIN_LINES_DEFAULT;
+  const pathMinChunks = Number.isFinite(pathMinChunksRaw) && pathMinChunksRaw > 0
+    ? Math.floor(pathMinChunksRaw)
+    : HEAVY_FILE_PATH_MIN_CHUNKS_DEFAULT;
+  return { enabled, maxBytes, maxLines, maxChunks, pathMinBytes, pathMinLines, pathMinChunks };
 };
 
 const isHeavyFilePath = (relPath) => {
   const normalized = String(relPath || '').replace(/\\/g, '/').toLowerCase();
   const bounded = `/${normalized.replace(/^\/+|\/+$/g, '')}/`;
   return HEAVY_FILE_PATH_RX.test(bounded);
+};
+
+const shouldDownshiftForHeavyPath = ({
+  relPath,
+  fileBytes,
+  fileLines,
+  chunkCount,
+  heavyFilePolicy
+}) => {
+  if (!isHeavyFilePath(relPath)) return false;
+  return (
+    fileBytes >= heavyFilePolicy.pathMinBytes
+    || fileLines >= heavyFilePolicy.pathMinLines
+    || chunkCount >= heavyFilePolicy.pathMinChunks
+  );
 };
 
 const coalesceHeavyChunks = (chunks, maxChunks) => {
@@ -222,14 +252,21 @@ export const processChunks = async (context) => {
   const sourceChunks = Array.isArray(sc) ? sc : [];
   updateCrashStage('process-chunks:start', { totalChunks: sourceChunks.length, languageId: containerLanguageId });
   const fileBytes = fileStat?.size ?? Buffer.byteLength(text || '', 'utf8');
+  const fileLines = fileLineCount || 0;
   const heavyFilePolicy = normalizeHeavyFilePolicy(languageOptions);
   const heavyFileDownshift = mode === 'code'
     && heavyFilePolicy.enabled
     && (
       fileBytes >= heavyFilePolicy.maxBytes
-      || (fileLineCount || 0) >= heavyFilePolicy.maxLines
+      || fileLines >= heavyFilePolicy.maxLines
       || sourceChunks.length >= heavyFilePolicy.maxChunks
-      || isHeavyFilePath(relKey)
+      || shouldDownshiftForHeavyPath({
+        relPath: relKey,
+        fileBytes,
+        fileLines,
+        chunkCount: sourceChunks.length,
+        heavyFilePolicy
+      })
     );
   const chunksForProcessing = heavyFileDownshift
     ? coalesceHeavyChunks(sourceChunks, heavyFilePolicy.maxChunks)
@@ -237,7 +274,7 @@ export const processChunks = async (context) => {
   if (heavyFileDownshift && typeof log === 'function') {
     log(
       `[perf] heavy-file downshift enabled for ${relKey} `
-      + `(${fileBytes} bytes, ${fileLineCount || 0} lines, ${sourceChunks.length} chunks).`
+      + `(${fileBytes} bytes, ${fileLines} lines, ${sourceChunks.length} chunks).`
     );
     if (chunksForProcessing.length !== sourceChunks.length) {
       log(
