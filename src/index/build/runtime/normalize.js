@@ -13,6 +13,66 @@ export const normalizeFlowSetting = (raw) => {
   return ['auto', 'on', 'off'].includes(normalized) ? normalized : 'auto';
 };
 
+const readNested = (source, keyPath) => {
+  if (!source || typeof source !== 'object') return undefined;
+  let current = source;
+  for (const key of keyPath) {
+    if (!current || typeof current !== 'object' || !(key in current)) {
+      return undefined;
+    }
+    current = current[key];
+  }
+  return current;
+};
+
+const PARSER_NORMALIZATION_TABLE = Object.freeze([
+  Object.freeze({
+    id: 'javascript',
+    topLevelKey: 'javascriptParser',
+    nestedPath: Object.freeze(['javascript', 'parser']),
+    fallback: 'babel',
+    allowed: Object.freeze(['auto', 'babel', 'acorn', 'esprima'])
+  }),
+  Object.freeze({
+    id: 'typescript',
+    topLevelKey: 'typescriptParser',
+    nestedPath: Object.freeze(['typescript', 'parser']),
+    fallback: 'auto',
+    allowed: Object.freeze(['auto', 'typescript', 'babel', 'heuristic'])
+  })
+]);
+
+const FLOW_NORMALIZATION_TABLE = Object.freeze([
+  Object.freeze({
+    id: 'javascript',
+    topLevelKey: 'javascriptFlow',
+    nestedPath: Object.freeze(['javascript', 'flow']),
+    fallback: 'auto'
+  })
+]);
+
+export const normalizeLanguageParserConfig = (indexingConfig = {}) => {
+  const resolved = {};
+  for (const row of PARSER_NORMALIZATION_TABLE) {
+    const nestedValue = readNested(indexingConfig, row.nestedPath);
+    const topLevelValue = indexingConfig?.[row.topLevelKey];
+    const raw = nestedValue !== undefined ? nestedValue : topLevelValue;
+    resolved[row.id] = normalizeParser(raw, row.fallback, row.allowed);
+  }
+  return resolved;
+};
+
+export const normalizeLanguageFlowConfig = (indexingConfig = {}) => {
+  const resolved = {};
+  for (const row of FLOW_NORMALIZATION_TABLE) {
+    const nestedValue = readNested(indexingConfig, row.nestedPath);
+    const topLevelValue = indexingConfig?.[row.topLevelKey];
+    const raw = nestedValue !== undefined ? nestedValue : topLevelValue;
+    resolved[row.id] = normalizeFlowSetting(raw ?? row.fallback);
+  }
+  return resolved;
+};
+
 const resolvePath = (value) => path.resolve(String(value || ''));
 
 const normalizeAbsolutePathForSignature = (value) => {

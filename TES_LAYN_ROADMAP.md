@@ -80,10 +80,10 @@ Objective: finish identity grammar, coordinate normalization, and cross-language
 Deliverables:
 - [x] Canonical ID grammar and collision handling are implemented in runtime.
 - [x] Endpoint/entity integrity constraints are enforced in runtime paths.
-- [ ] Parser precedence and normalization mapping are deterministic and table-driven.
+- [x] Parser precedence and normalization mapping are deterministic and table-driven.
 
 Exit checks:
-- [ ] Determinism reruns match for ID and normalize outputs.
+- [x] Determinism reruns match for ID and normalize outputs.
 - [ ] Failure paths emit correct, actionable diagnostics.
 
 ### Phase C - Language Batch Execution (B1-B7)

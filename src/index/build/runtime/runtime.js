@@ -42,8 +42,8 @@ import { normalizeStage, buildStageOverrides } from './stage.js';
 import { configureRuntimeLogger } from './logging.js';
 import { normalizeLimit, resolveFileCapsAndGuardrails } from './caps.js';
 import {
-  normalizeParser,
-  normalizeFlowSetting,
+  normalizeLanguageParserConfig,
+  normalizeLanguageFlowConfig,
   normalizeDictSignaturePath
 } from './normalize.js';
 import { buildAnalysisPolicy } from './policy.js';
@@ -443,16 +443,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   const kotlinFlowMaxLines = normalizeLimit(kotlinConfig.flowMaxLines, 3000);
   const kotlinRelationsMaxBytes = normalizeLimit(kotlinConfig.relationsMaxBytes, 200 * 1024);
   const kotlinRelationsMaxLines = normalizeLimit(kotlinConfig.relationsMaxLines, 2000);
-  const javascriptParser = normalizeParser(
-    indexingConfig.javascriptParser,
-    'babel',
-    ['auto', 'babel', 'acorn', 'esprima']
-  );
-  const typescriptParser = normalizeParser(
-    indexingConfig.typescriptParser,
-    'auto',
-    ['auto', 'typescript', 'babel', 'heuristic']
-  );
+  const parserConfig = normalizeLanguageParserConfig(indexingConfig);
   const typescriptConfig = indexingConfig.typescript || {};
   const typescriptImportsOnly = typescriptConfig.importsOnly === true;
   const typescriptEmbeddingBatchRaw = Number(typescriptConfig.embeddingBatchMultiplier);
@@ -464,7 +455,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     indexingConfig.embeddingBatchMultipliers || {},
     typescriptEmbeddingBatchMultiplier ? { typescript: typescriptEmbeddingBatchMultiplier } : {}
   );
-  const javascriptFlow = normalizeFlowSetting(indexingConfig.javascriptFlow);
+  const flowConfig = normalizeLanguageFlowConfig(indexingConfig);
   const pythonAstConfig = indexingConfig.pythonAst || {};
   const pythonAstEnabled = pythonAstConfig.enabled !== false;
   const segmentsConfig = normalizeSegmentsConfig(indexingConfig.segments || {});
@@ -883,11 +874,11 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     skipUnknownLanguages,
     skipOnParseError,
     javascript: {
-      parser: javascriptParser,
-      flow: javascriptFlow
+      parser: parserConfig.javascript,
+      flow: flowConfig.javascript
     },
     typescript: {
-      parser: typescriptParser,
+      parser: parserConfig.typescript,
       importsOnly: typescriptImportsOnly
     },
     embeddingBatchMultipliers,
