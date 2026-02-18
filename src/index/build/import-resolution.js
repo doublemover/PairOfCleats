@@ -980,29 +980,40 @@ const looksLikePathSpecifier = (spec) => {
 
 const resolvePathLikeImport = ({ spec, importerRel, lookup }) => {
   const importerDir = path.posix.dirname(normalizeRelPath(importerRel));
-  const normalizedSpec = normalizeRelPath(spec);
-  if (!normalizedSpec) return null;
-  if (normalizedSpec.startsWith('//')) {
-    const label = normalizedSpec.slice(2);
+  const rawSpec = toPosix(String(spec || '')).trim();
+  if (!rawSpec) return null;
+  if (rawSpec.startsWith('//')) {
+    const label = rawSpec.slice(2);
     const colon = label.indexOf(':');
     if (colon >= 0) {
-      const pkg = label.slice(0, colon);
-      const target = label.slice(colon + 1);
+      const pkg = normalizeRelPath(label.slice(0, colon));
+      const target = normalizeRelPath(label.slice(colon + 1));
       if (target) {
         return resolveFromCandidateList([pkg ? `${pkg}/${target}` : target], lookup);
       }
       return null;
     }
-    return resolveFromCandidateList([label], lookup);
+    const normalizedLabel = normalizeRelPath(label);
+    if (!normalizedLabel) return null;
+    return resolveFromCandidateList([normalizedLabel], lookup);
   }
-  if (normalizedSpec.startsWith(':')) {
-    const target = normalizedSpec.slice(1);
+  if (rawSpec.startsWith(':')) {
+    const target = normalizeRelPath(rawSpec.slice(1));
     if (!target) return null;
     return resolveFromCandidateList([`${importerDir}/${target}`], lookup);
   }
-  if (normalizedSpec.startsWith('/')) {
+  if (rawSpec.startsWith('/')) {
+    const normalizedSpec = normalizeRelPath(rawSpec);
+    if (!normalizedSpec) return null;
     return resolveFromCandidateList([normalizedSpec.slice(1)], lookup);
   }
+  if (rawSpec.startsWith('./') || rawSpec.startsWith('../')) {
+    const joined = normalizeRelPath(path.posix.join(importerDir, rawSpec));
+    if (!joined) return null;
+    return resolveFromCandidateList([joined], lookup);
+  }
+  const normalizedSpec = normalizeRelPath(rawSpec);
+  if (!normalizedSpec) return null;
   if (normalizedSpec.startsWith('.')) {
     return resolveFromCandidateList([path.posix.join(importerDir, normalizedSpec)], lookup);
   }

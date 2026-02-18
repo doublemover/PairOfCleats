@@ -57,6 +57,12 @@ await write('scripts/lib/helpers.sh', 'echo ok\n');
 
 await write('cmake/main.cmake', 'include(modules/common.cmake)\n');
 await write('cmake/modules/common.cmake', '# helper\n');
+await write('cmake/sub/main.cmake', 'include(../modules/common.cmake)\n');
+await write('cmake/sub/modules/common.cmake', '# sibling should not win for ../ imports\n');
+
+await write('tools/defs.bzl', 'def macro():\n  pass\n');
+await write('app/rules.bzl', 'load("//tools:defs.bzl", "macro")\nload(":local.bzl", "local_macro")\n');
+await write('app/local.bzl', 'def local_macro():\n  pass\n');
 
 await write('lib/main.dart', "import 'package:benchapp/src/util.dart';\nimport 'src/local.dart';\nimport 'package:flutter/material.dart';\n");
 await write('lib/src/util.dart', 'class Util {}\n');
@@ -100,6 +106,11 @@ const entries = [
   'scripts/lib/helpers.sh',
   'cmake/main.cmake',
   'cmake/modules/common.cmake',
+  'cmake/sub/main.cmake',
+  'cmake/sub/modules/common.cmake',
+  'tools/defs.bzl',
+  'app/rules.bzl',
+  'app/local.bzl',
   'lib/main.dart',
   'lib/src/util.dart',
   'lib/src/local.dart',
@@ -126,6 +137,8 @@ const importsByFile = {
   'src/lib.rs': ['crate::util::parser'],
   'scripts/main.sh': ['lib/helpers.sh'],
   'cmake/main.cmake': ['modules/common.cmake'],
+  'cmake/sub/main.cmake': ['../modules/common.cmake'],
+  'app/rules.bzl': ['//tools:defs.bzl', ':local.bzl'],
   'lib/main.dart': ['package:benchapp/src/util.dart', 'src/local.dart', 'package:flutter/material.dart'],
   'src/main/scala/com/acme/ScalaMain.scala': ['com.acme.util.ScalaHelper'],
   'src/main/groovy/com/acme/GMain.groovy': ['com.acme.util.GHelper'],
@@ -168,6 +181,8 @@ assertLinks('Sources/Core/Main.swift', ['Sources/CoreNetworking/Client.swift']);
 assertLinks('src/lib.rs', ['src/util/parser.rs']);
 assertLinks('scripts/main.sh', ['scripts/lib/helpers.sh']);
 assertLinks('cmake/main.cmake', ['cmake/modules/common.cmake']);
+assertLinks('cmake/sub/main.cmake', ['cmake/modules/common.cmake']);
+assertLinks('app/rules.bzl', ['app/local.bzl', 'tools/defs.bzl']);
 assertLinks('lib/main.dart', ['lib/src/local.dart', 'lib/src/util.dart']);
 assertExternal('lib/main.dart', ['package:flutter/material.dart']);
 assertLinks('src/main/scala/com/acme/ScalaMain.scala', ['src/main/scala/com/acme/util/ScalaHelper.scala']);
