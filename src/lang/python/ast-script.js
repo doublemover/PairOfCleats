@@ -1,5 +1,5 @@
 export const PYTHON_AST_SCRIPT = `
-import ast, json, sys
+import ast, json, sys, warnings
 
 dataflow_enabled = True
 control_flow_enabled = True
@@ -570,7 +570,12 @@ def parse_source(source, filename=None, dataflow_flag=True, control_flow_flag=Tr
     dataflow_enabled = bool(dataflow_flag)
     control_flow_enabled = bool(control_flow_flag)
     try:
-        tree = ast.parse(source, filename=filename or "<unknown>")
+        with warnings.catch_warnings():
+            # Python 3.12+ emits SyntaxWarning for legacy string escapes (e.g. "\\S")
+            # even when code is otherwise parseable; treat these as non-fatal for indexing.
+            warnings.filterwarnings("ignore", category=SyntaxWarning, message=r".*invalid escape sequence.*")
+            warnings.filterwarnings("ignore", category=DeprecationWarning, message=r".*invalid escape sequence.*")
+            tree = ast.parse(source, filename=filename or "<unknown>")
     except Exception as e:
         return {"error": str(e)}
     collector = Collector()
