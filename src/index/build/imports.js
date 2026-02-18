@@ -82,6 +82,13 @@ const collectModuleImportsFast = async ({ text, ext }) => {
   return success ? normalizeImports(Array.from(imports)) : null;
 };
 
+/**
+ * Prioritize import scanning toward files likely to yield more edges first.
+ * Uses cached import counts when available, then file size, then stable index.
+ *
+ * @param {Array<{relKey:string,stat?:{size?:number},index:number}>} items
+ * @param {Map<string, number>} cachedImportCounts
+ */
 export function sortImportScanItems(items, cachedImportCounts) {
   const haveCounts = cachedImportCounts instanceof Map && cachedImportCounts.size > 0;
   items.sort((a, b) => {
@@ -152,7 +159,8 @@ export async function scanImports({
           fileStat: item.stat,
           manifest: incrementalState.manifest,
           bundleDir: incrementalState.bundleDir,
-          bundleFormat: incrementalState.bundleFormat
+          bundleFormat: incrementalState.bundleFormat,
+          sharedReadState: incrementalState.readHashCache || null
         });
         if (Array.isArray(cachedImports)) {
           if (cachedImports.length > 0) {
@@ -200,7 +208,8 @@ export async function scanImports({
           fileStat: item.stat,
           manifest: incrementalState.manifest,
           bundleDir: incrementalState.bundleDir,
-          bundleFormat: incrementalState.bundleFormat
+          bundleFormat: incrementalState.bundleFormat,
+          sharedReadState: incrementalState.readHashCache || null
         });
         if (Array.isArray(cachedImportsFallback)) {
           recordImports(cachedImportsFallback);

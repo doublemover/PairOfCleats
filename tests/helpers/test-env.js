@@ -7,6 +7,8 @@ export const DEFAULT_TEST_ENV_KEYS = [
   'PAIROFCLEATS_TEST_CONFIG'
 ];
 
+export const TESTING_ENABLED = '1';
+
 export const syncProcessEnv = (env, keys = DEFAULT_TEST_ENV_KEYS, { clearMissing = false } = {}) => {
   if (!env || typeof env !== 'object') return;
   for (const key of keys) {
@@ -23,10 +25,16 @@ export const syncProcessEnv = (env, keys = DEFAULT_TEST_ENV_KEYS, { clearMissing
   }
 };
 
+export const ensureTestingEnv = (env) => {
+  if (!env || typeof env !== 'object') return env;
+  env.PAIROFCLEATS_TESTING = TESTING_ENABLED;
+  return env;
+};
+
 export const applyTestEnv = ({
   cacheRoot,
   embeddings,
-  testing = '1',
+  testing = TESTING_ENABLED,
   testConfig,
   extraEnv
 } = {}) => {

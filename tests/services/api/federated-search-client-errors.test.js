@@ -1,34 +1,32 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
-import { startApiServer } from '../../helpers/api-server.js';
+import {
+  createFederatedTempRoot,
+  startFederatedApiServer,
+  writeFederatedWorkspaceConfig
+} from '../../helpers/federated-api.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
-const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-api-fed-client-errors-'));
+const tempRoot = await createFederatedTempRoot('pairofcleats-api-fed-client-errors-');
 const repoRoot = path.join(tempRoot, 'repo');
 const workspacePath = path.join(tempRoot, '.pairofcleats-workspace.jsonc');
 
 await fs.mkdir(repoRoot, { recursive: true });
-await fs.writeFile(workspacePath, `{
-  "schemaVersion": 1,
-  "cacheRoot": "./cache",
-  "repos": [
-    { "root": "./repo", "alias": "sample" }
+await writeFederatedWorkspaceConfig(workspacePath, {
+  schemaVersion: 1,
+  cacheRoot: './cache',
+  repos: [
+    { root: './repo', alias: 'sample' }
   ]
-}`, 'utf8');
+});
 
-const env = {
-  ...process.env,
-  PAIROFCLEATS_TESTING: '1'
-};
-
-const { serverInfo, requestJson, stop } = await startApiServer({
+const { serverInfo, requestJson, stop } = await startFederatedApiServer({
   repoRoot,
-  allowedRoots: [tempRoot],
-  env
+  allowedRoots: [tempRoot]
 });
 
 try {

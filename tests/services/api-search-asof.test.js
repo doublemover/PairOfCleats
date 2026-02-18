@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import http from 'node:http';
@@ -9,7 +10,7 @@ import { computeIndexDiff } from '../../src/index/diffs/compute.js';
 import { loadUserConfig } from '../../tools/shared/dict-utils.js';
 import { startApiServer } from '../helpers/api-server.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'api-search-asof-service');
@@ -22,9 +23,7 @@ await fs.mkdir(tempRoot, { recursive: true });
 await fs.cp(fixtureRoot, repoRoot, { recursive: true });
 
 const env = {
-  ...process.env,
-  PAIROFCLEATS_TESTING: '1',
-  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
+  ...process.env,  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
   PAIROFCLEATS_EMBEDDINGS: 'stub',
   PAIROFCLEATS_WORKER_POOL: 'off',
   PAIROFCLEATS_TEST_CONFIG: JSON.stringify({

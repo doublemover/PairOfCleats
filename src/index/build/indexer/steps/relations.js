@@ -3,7 +3,7 @@ import { throwIfAborted } from '../../../../shared/abort.js';
 import { applyCrossFileInference } from '../../../type-inference-crossfile.js';
 import { buildRiskSummaries } from '../../../risk-interprocedural/summaries.js';
 import { scanImports } from '../../imports.js';
-import { resolveImportLinks } from '../../import-resolution.js';
+import { prepareImportResolutionFsMeta, resolveImportLinks } from '../../import-resolution.js';
 import { loadImportResolutionCache, saveImportResolutionCache } from '../../import-resolution-cache.js';
 
 const MAX_UNRESOLVED_IMPORT_LOG_LINES = 50;
@@ -51,6 +51,11 @@ const logUnresolvedImportSamples = ({ samples, suppressed, unresolvedTotal }) =>
   }
 };
 
+/**
+ * Resolve import-scan strategy for the current mode/runtime policy.
+ * @param {{runtime:object,mode:string,relationsEnabled:boolean}} input
+ * @returns {{importScanMode:string,enableImportLinks:boolean,usePreScan:boolean,shouldScan:boolean,importGraphEnabled:boolean}}
+ */
 export const resolveImportScanPlan = ({ runtime, mode, relationsEnabled }) => {
   const importScanRaw = runtime.indexingConfig?.importScan;
   const importScanMode = typeof importScanRaw === 'string'
@@ -106,6 +111,13 @@ export const preScanImports = async ({
   return { importResult, scanPlan };
 };
 
+/**
+ * Resolve import links post-processing (including cache reuse and unresolved
+ * sample logging) and attach optional import graph metadata.
+ *
+ * @param {object} input
+ * @returns {Promise<object|null>}
+ */
 export const postScanImports = async ({
   mode,
   relationsEnabled,
@@ -134,6 +146,11 @@ export const postScanImports = async ({
   let cachePath = null;
   let fileHashes = null;
   let cacheStats = null;
+  const fsMeta = await prepareImportResolutionFsMeta({
+    root: runtime.root,
+    entries,
+    importsByFile
+  });
   if (cacheEnabled) {
     ({ cache, cachePath } = await loadImportResolutionCache({ incrementalState, log }));
     fileHashes = new Map();
@@ -165,7 +182,8 @@ export const postScanImports = async ({
     },
     cache,
     fileHashes,
-    cacheStats
+    cacheStats,
+    fsMeta
   });
   if (resolution?.graph) {
     state.importResolutionGraph = resolution.graph;
@@ -196,6 +214,13 @@ export const postScanImports = async ({
   return resolvedResult;
 };
 
+/**
+ * Run cross-file type/risk inference and build optional interprocedural
+ * summaries for emitted artifacts.
+ *
+ * @param {object} input
+ * @returns {Promise<object|null>}
+ */
 export const runCrossFileInference = async ({
   runtime,
   mode,

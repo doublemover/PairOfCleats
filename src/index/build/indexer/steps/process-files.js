@@ -18,10 +18,21 @@ import { createPostingsQueue, estimatePostingsPayload } from './process-files/po
 import { buildOrderedAppender } from './process-files/ordered.js';
 import { createShardRuntime, resolveCheckpointBatchSize } from './process-files/runtime.js';
 import { SCHEDULER_QUEUE_NAMES } from '../../runtime/scheduler.js';
+import { INDEX_PROFILE_VECTOR_ONLY } from '../../../../contracts/index-profile.js';
 
 const FILE_WATCHDOG_MS = 10000;
 const DEFAULT_POSTINGS_ROWS_PER_PENDING = 200;
 const DEFAULT_POSTINGS_BYTES_PER_PENDING = 8 * 1024 * 1024;
+
+export const resolveChunkProcessingFeatureFlags = (runtime) => {
+  const vectorOnlyProfile = runtime?.profile?.id === INDEX_PROFILE_VECTOR_ONLY;
+  return {
+    // Keep tokens populated for vector_only so retrieval query-AST matching
+    // can still evaluate term/phrase predicates against ANN-ranked hits.
+    tokenizeEnabled: true,
+    sparsePostingsEnabled: !vectorOnlyProfile
+  };
+};
 
 const coercePositiveInt = (value) => {
   const parsed = Number(value);
@@ -38,6 +49,14 @@ const assignFileIndexes = (entries) => {
   }
 };
 
+/**
+ * Resolve postings queue backpressure thresholds from runtime config.
+ * Defaults scale with CPU queue capacity to bound in-flight sparse payloads
+ * without starving workers on larger repositories.
+ *
+ * @param {object} runtime
+ * @returns {{maxPending:number,maxPendingRows:number,maxPendingBytes:number,maxHeapFraction:number|undefined}}
+ */
 const resolvePostingsQueueConfig = (runtime) => {
   const config = runtime?.stage1Queues?.postings || {};
   const cpuPending = Number.isFinite(runtime?.queues?.cpu?.maxPending)
@@ -62,6 +81,14 @@ const resolvePostingsQueueConfig = (runtime) => {
   };
 };
 
+/**
+ * Main stage1 file-processing orchestration.
+ * Handles scheduler prep, concurrent file processing, ordered output append,
+ * sparse postings backpressure, and checkpoint/progress emission.
+ *
+ * @param {object} input
+ * @returns {Promise<object>}
+ */
 export const processFiles = async ({
   mode,
   runtime,
@@ -138,25 +165,31 @@ export const processFiles = async ({
       repoCacheRoot: runtime.repoCacheRoot,
       log
     });
+    const { tokenizeEnabled, sparsePostingsEnabled } = resolveChunkProcessingFeatureFlags(runtime);
     const tokenRetentionState = createTokenRetentionState({
       runtime,
       totalFiles: entries.length,
+      sparsePostingsEnabled,
       log
     });
     const { tokenizationStats, appendChunkWithRetention } = tokenRetentionState;
-    const postingsQueueConfig = resolvePostingsQueueConfig(runtime);
-    const postingsQueue = createPostingsQueue({
-      ...postingsQueueConfig,
-      log
-    });
-    if (runtime?.scheduler?.registerQueue) {
+    const postingsQueueConfig = sparsePostingsEnabled
+      ? resolvePostingsQueueConfig(runtime)
+      : null;
+    const postingsQueue = postingsQueueConfig
+      ? createPostingsQueue({
+        ...postingsQueueConfig,
+        log
+      })
+      : null;
+    if (postingsQueueConfig && runtime?.scheduler?.registerQueue) {
       runtime.scheduler.registerQueue(SCHEDULER_QUEUE_NAMES.stage1Postings, {
         ...(Number.isFinite(postingsQueueConfig.maxPending)
           ? { maxPending: postingsQueueConfig.maxPending }
           : {})
       });
     }
-    const schedulePostings = runtime?.scheduler?.schedule
+    const schedulePostings = sparsePostingsEnabled && runtime?.scheduler?.schedule
     // Avoid deadlocking the scheduler when Stage1 CPU work is already holding
     // the only CPU token (e.g. --threads 1). Postings apply runs on the same
     // JS thread, so account it against memory/backpressure only.
@@ -238,6 +271,15 @@ export const processFiles = async ({
       if (result.fileRelations) {
         stateRef.fileRelations.set(result.relKey, result.fileRelations);
       }
+      if (result.lexiconFilterStats && result.relKey) {
+        if (!stateRef.lexiconRelationFilterByFile) {
+          stateRef.lexiconRelationFilterByFile = new Map();
+        }
+        stateRef.lexiconRelationFilterByFile.set(result.relKey, {
+          ...result.lexiconFilterStats,
+          file: result.relKey
+        });
+      }
       if (Array.isArray(result.vfsManifestRows) && result.vfsManifestRows.length) {
         if (!stateRef.vfsManifestCollector) {
           stateRef.vfsManifestCollector = createVfsManifestCollector({
@@ -311,6 +353,7 @@ export const processFiles = async ({
         analysisPolicy: runtimeRef.analysisPolicy,
         typeInferenceEnabled: runtimeRef.typeInferenceEnabled,
         riskAnalysisEnabled: runtimeRef.riskAnalysisEnabled,
+        tokenizeEnabled,
         riskConfig: runtimeRef.riskConfig,
         toolInfo: runtimeRef.toolInfo,
         seenFiles,
@@ -319,6 +362,7 @@ export const processFiles = async ({
         complexityEnabled: runtimeRef.complexityEnabled,
         tokenizationStats,
         structuralMatches,
+        documentExtractionConfig: runtimeRef.indexingConfig?.documentExtraction || null,
         cacheConfig: runtimeRef.cacheConfig,
         cacheReporter,
         queues: runtimeRef.queues,
@@ -429,17 +473,21 @@ export const processFiles = async ({
               if (!result) {
                 return orderedAppender.skip(orderIndex);
               }
-              const payload = estimatePostingsPayload(result);
-              const nextOrderedIndex = typeof orderedAppender.peekNextIndex === 'function'
-                ? orderedAppender.peekNextIndex()
-                : null;
-              const bypassBackpressure = Number.isFinite(nextOrderedIndex)
-              && Number.isFinite(orderIndex)
-              && orderIndex <= nextOrderedIndex;
-              const reservation = await postingsQueue.reserve({
-                ...payload,
-                bypass: bypassBackpressure
-              });
+              const reservation = sparsePostingsEnabled && postingsQueue
+                ? await (() => {
+                  const payload = estimatePostingsPayload(result);
+                  const nextOrderedIndex = typeof orderedAppender.peekNextIndex === 'function'
+                    ? orderedAppender.peekNextIndex()
+                    : null;
+                  const bypassBackpressure = Number.isFinite(nextOrderedIndex)
+                    && Number.isFinite(orderIndex)
+                    && orderIndex <= nextOrderedIndex;
+                  return postingsQueue.reserve({
+                    ...payload,
+                    bypass: bypassBackpressure
+                  });
+                })()
+                : { release: () => {} };
               return orderedAppender
                 .enqueue(orderIndex, result, shardMeta)
                 .finally(() => reservation.release());

@@ -7,6 +7,8 @@ import { fromPosix, toPosix } from '../../shared/files.js';
 import { log, logLine } from '../../shared/progress.js';
 import { getEnvConfig } from '../../shared/env.js';
 import { readTextFileWithHash } from '../../shared/encoding.js';
+import { sha1 } from '../../shared/hash.js';
+import { buildPostingsPayloadMetadata } from './postings-payload.js';
 import { createFileScanner } from './file-scan.js';
 import { createTokenizationContext } from './tokenization.js';
 import { reuseCachedBundle } from './file-processor/cached-bundle.js';
@@ -16,6 +18,89 @@ import { resolveBinarySkip, resolvePreReadSkip } from './file-processor/skip.js'
 import { createFileTimingTracker } from './file-processor/timings.js';
 import { resolveExt } from './file-processor/read.js';
 import { getLanguageForFile } from '../language-registry.js';
+import { extractPdf } from '../extractors/pdf.js';
+import { extractDocx } from '../extractors/docx.js';
+import {
+  EXTRACTION_NORMALIZATION_POLICY,
+  normalizeDocumentExtractionPolicy,
+  normalizeExtractedText,
+  sha256Hex
+} from '../extractors/common.js';
+
+const DOCUMENT_EXTS = new Set(['.pdf', '.docx']);
+
+const isDocumentExt = (ext) => DOCUMENT_EXTS.has(ext);
+
+const buildPdfExtractionText = (pages) => {
+  const units = [];
+  let cursor = 0;
+  const parts = [];
+  for (const page of pages || []) {
+    const text = normalizeExtractedText(page?.text || '');
+    if (!text) continue;
+    const start = cursor;
+    parts.push(text);
+    cursor += text.length;
+    units.push({
+      type: 'pdf',
+      pageNumber: Number(page?.pageNumber) || units.length + 1,
+      start,
+      end: cursor,
+      text
+    });
+    parts.push('\n\n');
+    cursor += 2;
+  }
+  if (parts.length >= 2) {
+    parts.pop();
+    cursor = Math.max(0, cursor - 2);
+  }
+  return {
+    text: parts.join(''),
+    units,
+    counts: {
+      pages: units.length,
+      paragraphs: 0,
+      totalUnits: units.length
+    }
+  };
+};
+
+const buildDocxExtractionText = (paragraphs) => {
+  const units = [];
+  let cursor = 0;
+  const parts = [];
+  for (const paragraph of paragraphs || []) {
+    const text = normalizeExtractedText(paragraph?.text || '');
+    if (!text) continue;
+    const start = cursor;
+    parts.push(text);
+    cursor += text.length;
+    units.push({
+      type: 'docx',
+      index: Number(paragraph?.index) || units.length + 1,
+      style: paragraph?.style || null,
+      start,
+      end: cursor,
+      text
+    });
+    parts.push('\n\n');
+    cursor += 2;
+  }
+  if (parts.length >= 2) {
+    parts.pop();
+    cursor = Math.max(0, cursor - 2);
+  }
+  return {
+    text: parts.join(''),
+    units,
+    counts: {
+      pages: 0,
+      paragraphs: units.length,
+      totalUnits: units.length
+    }
+  };
+};
 
 let warnedNoWorkerPool = false;
 /**
@@ -72,8 +157,10 @@ export function createFileProcessor(options) {
     embeddingNormalize = true,
     toolInfo = null,
     tokenizationStats = null,
+    tokenizeEnabled = true,
     featureMetrics = null,
     buildStage = null,
+    documentExtractionConfig = null,
     abortSignal = null
   } = options;
   const lintEnabled = lintEnabledRaw !== false;
@@ -101,6 +188,12 @@ export function createFileProcessor(options) {
     abortSignal
   };
   const { astDataflowEnabled, controlFlowEnabled } = resolvedLanguageOptions;
+  const resolvedDocumentExtraction = documentExtractionConfig && typeof documentExtractionConfig === 'object'
+    ? documentExtractionConfig
+    : {};
+  const documentExtractionEnabled = mode === 'extracted-prose'
+    && resolvedDocumentExtraction.enabled === true;
+  const documentExtractionPolicy = normalizeDocumentExtractionPolicy(resolvedDocumentExtraction);
   const ioQueue = queues?.io || null;
   const cpuQueue = queues?.cpu || null;
   const embeddingQueue = queues?.embedding || null;
@@ -246,7 +339,8 @@ export function createFileProcessor(options) {
       runIo,
       languageId: fileLanguageId,
       mode,
-      maxFileBytes
+      maxFileBytes,
+      bypassBinaryMinifiedSkip: documentExtractionEnabled && isDocumentExt(ext)
     });
     if (preReadSkip) {
       const { reason, ...extra } = preReadSkip;
@@ -263,6 +357,7 @@ export function createFileProcessor(options) {
     let fileEncoding = null;
     let fileEncodingFallback = null;
     let fileEncodingConfidence = null;
+    let documentExtraction = null;
     if (fileTextCache?.get && relKey) {
       const cached = fileTextCache.get(relKey);
       if (cached && typeof cached === 'object') {
@@ -346,6 +441,13 @@ export function createFileProcessor(options) {
       return null;
     }
     if (cachedOutcome?.result) {
+      if (!cachedOutcome.result.postingsPayload) {
+        cachedOutcome.result.postingsPayload = buildPostingsPayloadMetadata({
+          chunks: cachedOutcome.result.chunks,
+          fileRelations: cachedOutcome.result.fileRelations,
+          vfsManifestRows: cachedOutcome.result.vfsManifestRows
+        });
+      }
       warnEncodingFallback(relKey, cachedOutcome.result.fileInfo);
       return cachedOutcome.result;
     }
@@ -365,31 +467,92 @@ export function createFileProcessor(options) {
         return null;
       }
     }
-    const binarySkip = await resolveBinarySkip({
-      abs,
-      fileBuffer,
-      fileScanner
-    });
-    if (binarySkip) {
-      const { reason, ...extra } = binarySkip;
-      recordSkip(abs, reason || 'binary', extra);
-      return null;
-    }
-    if (!text || !fileHash) {
-      const decoded = await readTextFileWithHash(abs, { buffer: fileBuffer, stat: fileStat });
-      if (!text) text = decoded.text;
-      if (!fileHash) {
-        fileHash = decoded.hash;
-        fileHashAlgo = 'sha1';
+    if (documentExtractionEnabled && isDocumentExt(ext)) {
+      const extracted = ext === '.pdf'
+        ? await extractPdf({ filePath: abs, buffer: fileBuffer, policy: documentExtractionPolicy })
+        : await extractDocx({ filePath: abs, buffer: fileBuffer, policy: documentExtractionPolicy });
+      if (!extracted?.ok) {
+        recordSkip(abs, extracted?.reason || 'extract_failed', {
+          stage: 'extract',
+          sourceType: ext === '.pdf' ? 'pdf' : 'docx',
+          warnings: extracted?.warnings || []
+        });
+        return null;
       }
-      fileEncoding = decoded.encoding || fileEncoding;
-      fileEncodingFallback = decoded.usedFallback;
-      fileEncodingConfidence = decoded.confidence;
-      warnEncodingFallback(relKey, {
-        encoding: fileEncoding,
-        encodingFallback: fileEncodingFallback,
-        encodingConfidence: fileEncodingConfidence
+      const joined = ext === '.pdf'
+        ? buildPdfExtractionText(extracted.pages)
+        : buildDocxExtractionText(extracted.paragraphs);
+      if (!joined.text) {
+        recordSkip(abs, 'unsupported_scanned', {
+          stage: 'extract',
+          sourceType: ext === '.pdf' ? 'pdf' : 'docx'
+        });
+        return null;
+      }
+      text = joined.text;
+      let sourceHashBuffer = Buffer.isBuffer(fileBuffer) ? fileBuffer : null;
+      if (!sourceHashBuffer) {
+        try {
+          sourceHashBuffer = await runIo(() => fs.readFile(abs));
+          if (Buffer.isBuffer(sourceHashBuffer)) fileBuffer = sourceHashBuffer;
+        } catch {
+          sourceHashBuffer = null;
+        }
+      }
+      if (!fileHash) {
+        if (sourceHashBuffer) {
+          fileHash = sha1(sourceHashBuffer);
+          fileHashAlgo = 'sha1';
+        }
+      }
+      fileEncoding = 'document-extracted';
+      fileEncodingFallback = null;
+      fileEncodingConfidence = null;
+      documentExtraction = {
+        sourceType: ext === '.pdf' ? 'pdf' : 'docx',
+        status: 'ok',
+        extractor: extracted.extractor || null,
+        sourceBytesHash: sourceHashBuffer ? sha256Hex(sourceHashBuffer) : null,
+        sourceBytesHashAlgo: 'sha256',
+        counts: joined.counts,
+        units: joined.units.map((unit) => ({
+          type: unit.type,
+          ...(Number.isFinite(unit.pageNumber) ? { pageNumber: unit.pageNumber } : {}),
+          ...(Number.isFinite(unit.index) ? { index: unit.index } : {}),
+          ...(unit.style ? { style: unit.style } : {}),
+          start: unit.start,
+          end: unit.end
+        })),
+        normalizationPolicy: EXTRACTION_NORMALIZATION_POLICY,
+        warnings: extracted.warnings || []
+      };
+    } else {
+      const binarySkip = await resolveBinarySkip({
+        abs,
+        fileBuffer,
+        fileScanner
       });
+      if (binarySkip) {
+        const { reason, ...extra } = binarySkip;
+        recordSkip(abs, reason || 'binary', extra);
+        return null;
+      }
+      if (!text || !fileHash) {
+        const decoded = await readTextFileWithHash(abs, { buffer: fileBuffer, stat: fileStat });
+        if (!text) text = decoded.text;
+        if (!fileHash) {
+          fileHash = decoded.hash;
+          fileHashAlgo = 'sha1';
+        }
+        fileEncoding = decoded.encoding || fileEncoding;
+        fileEncodingFallback = decoded.usedFallback;
+        fileEncodingConfidence = decoded.confidence;
+        warnEncodingFallback(relKey, {
+          encoding: fileEncoding,
+          encodingFallback: fileEncodingFallback,
+          encodingConfidence: fileEncodingConfidence
+        });
+      }
     }
 
     const fileInfo = {
@@ -398,7 +561,8 @@ export function createFileProcessor(options) {
       hashAlgo: fileHashAlgo || null,
       encoding: fileEncoding || null,
       encodingFallback: typeof fileEncodingFallback === 'boolean' ? fileEncodingFallback : null,
-      encodingConfidence: Number.isFinite(fileEncodingConfidence) ? fileEncodingConfidence : null
+      encodingConfidence: Number.isFinite(fileEncodingConfidence) ? fileEncodingConfidence : null,
+      ...(documentExtraction ? { extraction: documentExtraction } : {})
     };
     warnEncodingFallback(relKey, fileInfo);
     if (fileTextCache?.set && relKey && (text || fileBuffer)) {
@@ -427,6 +591,7 @@ export function createFileProcessor(options) {
       rel,
       relKey,
       text,
+      documentExtraction,
       fileStat,
       fileHash,
       fileHashAlgo,
@@ -458,6 +623,7 @@ export function createFileProcessor(options) {
       workerDictOverride,
       workerState,
       tokenizationStats,
+      tokenizeEnabled,
       embeddingEnabled,
       embeddingNormalize,
       embeddingBatchSize,
@@ -485,7 +651,12 @@ export function createFileProcessor(options) {
     }
     fileLanguageId = cpuResult?.fileLanguageId ?? fileLanguageId;
     fileLineCount = cpuResult?.fileLineCount ?? fileLineCount;
-    const { chunks: fileChunks, fileRelations, skip } = cpuResult || {};
+    const {
+      chunks: fileChunks,
+      fileRelations,
+      lexiconFilterStats,
+      skip
+    } = cpuResult || {};
     const vfsManifestRows = cpuResult?.vfsManifestRows || null;
     if (skip) {
       const { reason, ...extra } = skip;
@@ -531,6 +702,11 @@ export function createFileProcessor(options) {
       fileLanguageId,
       cached: false
     });
+    const postingsPayload = buildPostingsPayloadMetadata({
+      chunks: fileChunks,
+      fileRelations,
+      vfsManifestRows
+    });
     recordFileMetrics({
       fileLineCount,
       fileStat,
@@ -546,7 +722,9 @@ export function createFileProcessor(options) {
       durationMs: fileDurationMs,
       chunks: fileChunks,
       fileRelations,
+      lexiconFilterStats,
       vfsManifestRows,
+      postingsPayload,
       fileInfo,
       manifestEntry,
       fileMetrics

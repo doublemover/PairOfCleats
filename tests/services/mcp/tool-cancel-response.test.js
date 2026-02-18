@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { ERROR_CODES } from '../../../src/shared/error-codes.js';
 import { startMcpServer } from '../../helpers/mcp-client.js';
 
@@ -10,8 +11,16 @@ const repoRoot = path.join(cacheRoot, 'repo');
 const repoSrc = path.join(repoRoot, 'src');
 await fsPromises.mkdir(repoSrc, { recursive: true });
 await fsPromises.writeFile(path.join(repoSrc, 'index.js'), 'export const answer = 42;\n', 'utf8');
+const gitInit = spawnSync('git', ['init', '-q'], { cwd: repoRoot, stdio: 'ignore' });
+if (gitInit.status !== 0) {
+  throw new Error('Failed to initialize temporary git repository for MCP cancellation test.');
+}
 
-const { send, readMessage, readAnyMessage, shutdown } = await startMcpServer({ cacheRoot });
+const { send, readMessage, readAnyMessage, shutdown } = await startMcpServer({
+  cacheRoot,
+  mode: 'legacy',
+  env: { PAIROFCLEATS_TEST_MCP_DELAY_MS: '2000' }
+});
 const toolCallId = 2;
 let cancelled = false;
 

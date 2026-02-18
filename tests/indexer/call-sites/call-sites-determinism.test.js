@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -42,9 +43,7 @@ const buildOnce = async (fixtureRoot, { label }) => {
   const cacheRoot = await makeTempDir(`pairofcleats-cache-${label}-`);
 
   const env = {
-    ...process.env,
-    PAIROFCLEATS_TESTING: '1',
-    PAIROFCLEATS_TEST_CONFIG: JSON.stringify(TEST_CONFIG),
+    ...process.env,    PAIROFCLEATS_TEST_CONFIG: JSON.stringify(TEST_CONFIG),
     PAIROFCLEATS_CACHE_ROOT: cacheRoot,
     PAIROFCLEATS_EMBEDDINGS: 'stub',
     PAIROFCLEATS_WORKER_POOL: 'off'
@@ -66,7 +65,7 @@ const buildOnce = async (fixtureRoot, { label }) => {
   const prevTesting = process.env.PAIROFCLEATS_TESTING;
   const prevTestConfig = process.env.PAIROFCLEATS_TEST_CONFIG;
   process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
-  process.env.PAIROFCLEATS_TESTING = '1';
+  applyTestEnv();
   process.env.PAIROFCLEATS_TEST_CONFIG = JSON.stringify(TEST_CONFIG);
 
   try {

@@ -34,6 +34,30 @@ if (!minifiedSkip || minifiedSkip.reason !== 'minified') {
   fail('Expected minified filename to skip with reason=minified.');
 }
 
+const extractedDocPath = path.join(tempRoot, 'report.min.pdf');
+await fs.writeFile(extractedDocPath, Buffer.from('%PDF-1.4\n%test\n'));
+const extractedDocStat = await fs.stat(extractedDocPath);
+const extractedDocSkip = await resolvePreReadSkip({
+  abs: extractedDocPath,
+  fileEntry: {
+    lines: 1,
+    scan: {
+      checkedBinary: true,
+      checkedMinified: true,
+      skip: { reason: 'binary', method: 'file-type' }
+    }
+  },
+  fileStat: extractedDocStat,
+  ext: '.pdf',
+  fileCaps: {},
+  fileScanner,
+  runIo,
+  bypassBinaryMinifiedSkip: true
+});
+if (extractedDocSkip) {
+  fail('Expected document extraction path to bypass binary/minified pre-read skips.');
+}
+
 const cappedPath = path.join(tempRoot, 'big.txt');
 await fs.writeFile(cappedPath, 'abcdef');
 const cappedStat = await fs.stat(cappedPath);

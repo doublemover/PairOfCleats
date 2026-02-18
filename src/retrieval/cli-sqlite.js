@@ -16,15 +16,17 @@ const sqliteChunkCountCache = new Map();
 /**
  * Initialize SQLite connections for search.
  * @param {object} options
- * @returns {Promise<{useSqlite:boolean,dbCode:(object|null),dbProse:(object|null),vectorAnnState:object,vectorAnnUsed:object}>}
+ * @returns {Promise<{useSqlite:boolean,dbCode:(object|null),dbProse:(object|null),dbExtractedProse:(object|null),vectorAnnState:object,vectorAnnUsed:object}>}
  */
 export async function createSqliteBackend(options) {
   const {
     useSqlite: useSqliteInput,
     needsCode,
     needsProse,
+    needsExtractedProse,
     sqliteCodePath,
     sqliteProsePath,
+    sqliteExtractedProsePath,
     sqliteFtsRequested,
     backendForcedSqlite,
     vectorExtension,
@@ -36,6 +38,7 @@ export async function createSqliteBackend(options) {
   let useSqlite = useSqliteInput;
   let dbCode = null;
   let dbProse = null;
+  let dbExtractedProse = null;
   const vectorAnnState = {
     code: { available: false },
     prose: { available: false },
@@ -43,9 +46,30 @@ export async function createSqliteBackend(options) {
     'extracted-prose': { available: false }
   };
   const vectorAnnUsed = { code: false, prose: false, records: false, 'extracted-prose': false };
-  const sharedDb = sqliteCodePath
+  const resetVectorAnnAvailability = () => {
+    for (const mode of Object.keys(vectorAnnState)) {
+      const entry = vectorAnnState[mode];
+      if (!entry || typeof entry !== 'object') continue;
+      entry.available = false;
+      delete entry.table;
+      delete entry.column;
+      delete entry.dims;
+      if (Object.prototype.hasOwnProperty.call(vectorAnnUsed, mode)) {
+        vectorAnnUsed[mode] = false;
+      }
+    }
+  };
+  /**
+   * Match index-builder ANN table suffixing behavior.
+   * Only code/prose path equality participates in shared-DB table naming.
+   * Extracted-prose is intentionally excluded because it may be routed to a
+   * separate SQLite file (or fall back to file artifacts) in mixed backends.
+   */
+  const sharedDb = Boolean(
+    sqliteCodePath
     && sqliteProsePath
-    && path.resolve(sqliteCodePath) === path.resolve(sqliteProsePath);
+    && path.resolve(sqliteCodePath) === path.resolve(sqliteProsePath)
+  );
   const vectorAnnConfigByMode = {
     code: resolveVectorExtensionConfigForMode(vectorExtension, 'code', { sharedDb }),
     prose: resolveVectorExtensionConfigForMode(vectorExtension, 'prose', { sharedDb }),
@@ -54,7 +78,7 @@ export async function createSqliteBackend(options) {
   };
 
   if (!useSqlite) {
-    return { useSqlite, dbCode, dbProse, vectorAnnState, vectorAnnUsed };
+    return { useSqlite, dbCode, dbProse, dbExtractedProse, vectorAnnState, vectorAnnUsed };
   }
 
   const isSqliteReady = (mode) => {
@@ -66,6 +90,7 @@ export async function createSqliteBackend(options) {
   const pendingModes = [];
   if (needsCode && !isSqliteReady('code')) pendingModes.push('code');
   if (needsProse && !isSqliteReady('prose')) pendingModes.push('prose');
+  if (needsExtractedProse && !isSqliteReady('extracted-prose')) pendingModes.push('extracted-prose');
   if (pendingModes.length) {
     const message = `SQLite ${pendingModes.join(', ')} index marked pending; falling back to file-backed indexes.`;
     if (backendForcedSqlite) {
@@ -73,7 +98,7 @@ export async function createSqliteBackend(options) {
     }
     console.warn(message);
     useSqlite = false;
-    return { useSqlite, dbCode, dbProse, vectorAnnState, vectorAnnUsed };
+    return { useSqlite, dbCode, dbProse, dbExtractedProse, vectorAnnState, vectorAnnUsed };
   }
 
   let Database;
@@ -86,7 +111,7 @@ export async function createSqliteBackend(options) {
     }
     console.warn(message);
     useSqlite = false;
-    return { useSqlite, dbCode, dbProse, vectorAnnState, vectorAnnUsed };
+    return { useSqlite, dbCode, dbProse, dbExtractedProse, vectorAnnState, vectorAnnUsed };
   }
 
   const requiredTables = sqliteFtsRequested
@@ -239,17 +264,32 @@ export async function createSqliteBackend(options) {
 
   if (needsCode) dbCode = openSqlite(sqliteCodePath, 'code');
   if (needsProse) dbProse = openSqlite(sqliteProsePath, 'prose');
+  if (needsExtractedProse) dbExtractedProse = openSqlite(sqliteExtractedProsePath, 'extracted-prose');
   if (needsCode) initVectorAnn(dbCode, 'code');
   if (needsProse) initVectorAnn(dbProse, 'prose');
-  if ((needsCode && !dbCode) || (needsProse && !dbProse)) {
+  if (needsExtractedProse) initVectorAnn(dbExtractedProse, 'extracted-prose');
+  if ((needsCode && !dbCode) || (needsProse && !dbProse) || (needsExtractedProse && !dbExtractedProse)) {
     if (dbCode) dbCache?.close ? dbCache.close(sqliteCodePath) : dbCode.close();
     if (dbProse) dbCache?.close ? dbCache.close(sqliteProsePath) : dbProse.close();
+    if (dbExtractedProse) dbCache?.close ? dbCache.close(sqliteExtractedProsePath) : dbExtractedProse.close();
     dbCode = null;
     dbProse = null;
+    dbExtractedProse = null;
     useSqlite = false;
+    // Prevent partially initialized SQLite ANN availability from leaking into
+    // file-backed fallback paths.
+    resetVectorAnnAvailability();
   }
 
-  return { useSqlite, dbCode, dbProse, vectorAnnState, vectorAnnUsed, vectorAnnConfigByMode };
+  return {
+    useSqlite,
+    dbCode,
+    dbProse,
+    dbExtractedProse,
+    vectorAnnState,
+    vectorAnnUsed,
+    vectorAnnConfigByMode
+  };
 }
 
 /**

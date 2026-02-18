@@ -6,14 +6,41 @@ import { fetchVocabRows as fetchSqliteVocabRows } from '../storage/sqlite/vocab.
 import { parseArrayField, parseJson } from './query-cache.js';
 import { buildFtsBm25Expr } from './fts.js';
 import { buildFilterIndex } from './filter-index.js';
+import { normalizeMetaV2ForRead } from '../shared/meta-v2.js';
 
 const SQLITE_IN_LIMIT = 900;
 const FTS_TOKEN_SAFE = /^[\p{L}\p{N}_]+$/u;
+const FTS_OVERFETCH_MIN_ROWS = 5000;
+const FTS_OVERFETCH_MULTIPLIER = 10;
+const FTS_OVERFETCH_TIME_BUDGET_MS = 150;
+export const RETRIEVAL_FTS_UNAVAILABLE_CODE = 'retrieval_fts_unavailable';
+
+/**
+ * Decode a packed uint32 buffer into an array.
+ * Uses a DataView fallback for unaligned slices.
+ * @param {Buffer} buffer
+ * @returns {number[]}
+ */
+export function unpackUint32(buffer) {
+  if (!buffer) return [];
+  const byteLength = Math.floor(buffer.byteLength / 4) * 4;
+  if (byteLength <= 0) return [];
+  if ((buffer.byteOffset % 4) === 0) {
+    const view = new Uint32Array(buffer.buffer, buffer.byteOffset, byteLength / 4);
+    return Array.from(view);
+  }
+  const view = new DataView(buffer.buffer, buffer.byteOffset, byteLength);
+  const out = new Array(byteLength / 4);
+  for (let i = 0; i < out.length; i += 1) {
+    out[i] = view.getUint32(i * 4, true);
+  }
+  return out;
+}
 
 /**
  * Create SQLite helper functions for search.
  * @param {object} options
- * @param {(mode:'code'|'prose')=>import('better-sqlite3').Database|null} options.getDb
+ * @param {(mode:'code'|'prose'|'extracted-prose')=>import('better-sqlite3').Database|null} options.getDb
  * @param {object} options.postingsConfig
  * @param {number[]} options.sqliteFtsWeights
  * @param {number|null|undefined} options.maxCandidates
@@ -54,6 +81,7 @@ export function createSqliteHelpers(options) {
   };
   const statementCache = new WeakMap();
   const ftsAvailability = new WeakMap();
+  const tableAvailability = new WeakMap();
 
   const hasFtsTable = (mode) => {
     const db = getDb(mode);
@@ -71,6 +99,47 @@ export function createSqliteHelpers(options) {
     return available;
   };
 
+  /**
+   * Check whether a mode currently has an attached SQLite database handle.
+   * Used by upstream routing to avoid running SQLite-only checks for modes that
+   * are loaded from file artifacts.
+   *
+   * @param {'code'|'prose'|'extracted-prose'} mode
+   * @returns {boolean}
+   */
+  const hasDb = (mode) => Boolean(getDb(mode));
+
+  const hasTable = (mode, tableName) => {
+    const db = getDb(mode);
+    if (!db || typeof tableName !== 'string' || !tableName.trim()) return false;
+    const resolvedName = tableName.trim();
+    let cache = tableAvailability.get(db);
+    if (!cache) {
+      cache = new Map();
+      tableAvailability.set(db, cache);
+    }
+    if (cache.has(resolvedName)) return cache.get(resolvedName) === true;
+    let available = false;
+    try {
+      const row = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?").get(resolvedName);
+      available = Boolean(row?.name);
+    } catch {
+      available = false;
+    }
+    cache.set(resolvedName, available);
+    return available;
+  };
+
+  /**
+   * Prepare and cache a statement per-db using a caller-provided key.
+   * Keys must encode SQL shape (including dynamic placeholder arity).
+   * Reusing a key across different bind counts can trigger sqlite bind errors.
+   *
+   * @param {import('better-sqlite3').Database} db
+   * @param {string} key
+   * @param {string} sql
+   * @returns {import('better-sqlite3').Statement}
+   */
   const getCachedStatement = (db, key, sql) => {
     let dbCache = statementCache.get(db);
     if (!dbCache) {
@@ -86,17 +155,6 @@ export function createSqliteHelpers(options) {
   };
 
   const buildPlaceholders = (count) => Array.from({ length: count }, () => '?').join(',');
-
-  /**
-   * Decode a packed uint32 buffer into an array.
-   * @param {Buffer} buffer
-   * @returns {number[]}
-   */
-  function unpackUint32(buffer) {
-    if (!buffer) return [];
-    const view = new Uint32Array(buffer.buffer, buffer.byteOffset, Math.floor(buffer.byteLength / 4));
-    return Array.from(view);
-  }
 
   /**
    * Map a chunk row into the in-memory metadata shape.
@@ -121,6 +179,7 @@ export function createSqliteHelpers(options) {
     } else {
       metaV2 = row.metaV2_json;
     }
+    metaV2 = normalizeMetaV2ForRead(metaV2);
     if (metaV2?.chunkId && row.chunk_id && metaV2.chunkId !== row.chunk_id) {
       throw new Error(`[sqlite] metaV2.chunkId mismatch for chunk ${row.id ?? 'unknown'}`);
     }
@@ -485,32 +544,146 @@ export function createSqliteHelpers(options) {
    * @param {number} topN
    * @param {boolean} [normalizeScores]
    * @param {Set<number>|null} [allowedIds]
+   * @param {{
+   *   ftsMatch?: string,
+   *   overfetchRowCap?: number,
+   *   overfetchTimeBudgetMs?: number,
+   *   overfetchChunkSize?: number,
+   *   onDiagnostic?: (diagnostic:{code:string,reason:string,mode:'code'|'prose',message:string|null})=>void,
+   *   onOverfetch?: (stats:{
+   *     rowCap:number,
+   *     timeBudgetMs:number,
+   *     rowsScanned:number,
+   *     rowsMatched:number,
+   *     canPushdown:boolean,
+   *     filteredByAllowedIds:boolean,
+   *     truncated:boolean,
+   *     elapsedMs:number
+   *   })=>void
+   * }} [options]
    * @returns {Array<{idx:number,score:number}>}
    */
-  function rankSqliteFts(idx, queryTokens, mode, topN, normalizeScores = false, allowedIds = null) {
+  function rankSqliteFts(
+    idx,
+    queryTokens,
+    mode,
+    topN,
+    normalizeScores = false,
+    allowedIds = null,
+    options = {}
+  ) {
+    const topLimit = Math.max(1, Math.floor(Number(topN) || 1));
+    const overfetchRowCap = Number.isFinite(Number(options?.overfetchRowCap))
+      ? Math.max(topLimit, Math.floor(Number(options.overfetchRowCap)))
+      : Math.max(FTS_OVERFETCH_MIN_ROWS, FTS_OVERFETCH_MULTIPLIER * topLimit);
+    const overfetchTimeBudgetMs = Number.isFinite(Number(options?.overfetchTimeBudgetMs))
+      ? Math.max(1, Math.floor(Number(options.overfetchTimeBudgetMs)))
+      : FTS_OVERFETCH_TIME_BUDGET_MS;
+    const overfetchChunkSize = Number.isFinite(Number(options?.overfetchChunkSize))
+      ? Math.max(1, Math.floor(Number(options.overfetchChunkSize)))
+      : Math.min(512, overfetchRowCap);
+    const emitDiagnostic = (reason, error = null) => {
+      if (typeof options?.onDiagnostic !== 'function') return;
+      options.onDiagnostic({
+        code: RETRIEVAL_FTS_UNAVAILABLE_CODE,
+        reason,
+        mode,
+        message: error ? String(error?.message || error) : null
+      });
+    };
+    const emitOverfetch = (stats) => {
+      if (typeof options?.onOverfetch !== 'function') return;
+      options.onOverfetch(stats);
+    };
     const db = getDb(mode);
-    if (!db || !queryTokens.length) return [];
+    if (!db) {
+      emitDiagnostic('db_unavailable');
+      return [];
+    }
     if (allowedIds && allowedIds.size === 0) return [];
+    if (!hasFtsTable(mode)) {
+      emitDiagnostic('missing_table');
+      return [];
+    }
+    const explicitMatch = typeof options?.ftsMatch === 'string'
+      ? options.ftsMatch.trim()
+      : '';
+    if (!explicitMatch && !queryTokens.length) return [];
     const ftsTokens = queryTokens.filter((token) => FTS_TOKEN_SAFE.test(token));
-    if (!ftsTokens.length) return [];
-    const ftsQuery = ftsTokens.join(' ');
+    const fallbackMatch = ftsTokens.length
+      ? ftsTokens.map((token) => `"${token}"`).join(' AND ')
+      : '';
+    const ftsQuery = explicitMatch || fallbackMatch;
+    if (!ftsQuery) return [];
     const bm25Expr = buildFtsBm25Expr(sqliteFtsWeights);
     const allowedList = allowedIds && allowedIds.size ? Array.from(allowedIds) : null;
     const canPushdown = !!(allowedList && allowedList.length <= SQLITE_IN_LIMIT);
     const allowedClause = canPushdown
       ? ` AND chunks_fts.rowid IN (${allowedList.map(() => '?').join(',')})`
       : '';
-    const params = canPushdown
-      ? [ftsQuery, mode, ...allowedList, topN]
-      : [ftsQuery, mode, topN];
-    const rows = db.prepare(
-      `SELECT chunks_fts.rowid AS id, ${bm25Expr} AS score, chunks.weight AS weight
+    const fetchSql = (withOffset = false) => `SELECT chunks_fts.rowid AS id, ${bm25Expr} AS score, chunks.weight AS weight
        FROM chunks_fts
        JOIN chunks ON chunks.id = chunks_fts.rowid
        WHERE chunks_fts MATCH ? AND chunks.mode = ?
        ${allowedClause}
-       ORDER BY score ASC, chunks_fts.rowid ASC LIMIT ?`
-    ).all(...params);
+       ORDER BY score ASC, chunks_fts.rowid ASC LIMIT ?${withOffset ? ' OFFSET ?' : ''}`;
+    let rows = [];
+    const startedAt = Date.now();
+    let rowsScanned = 0;
+    let truncated = false;
+    try {
+      if (allowedIds && !canPushdown) {
+        const stmt = getCachedStatement(db, 'rankSqliteFtsPaged', fetchSql(true));
+        let offset = 0;
+        while (rowsScanned < overfetchRowCap) {
+          const elapsed = Date.now() - startedAt;
+          if (elapsed >= overfetchTimeBudgetMs) {
+            truncated = true;
+            break;
+          }
+          const pageLimit = Math.min(overfetchChunkSize, overfetchRowCap - rowsScanned);
+          const page = stmt.all(ftsQuery, mode, pageLimit, offset);
+          if (!page.length) break;
+          rowsScanned += page.length;
+          offset += page.length;
+          for (const row of page) {
+            if (allowedIds.has(row.id)) rows.push(row);
+          }
+          if (rowsScanned >= overfetchRowCap) {
+            truncated = true;
+            break;
+          }
+          if (page.length < pageLimit) break;
+        }
+      } else {
+        const stmtKey = canPushdown
+          ? `rankSqliteFtsPushdown:${allowedList.length}`
+          : 'rankSqliteFts';
+        const stmt = getCachedStatement(db, stmtKey, fetchSql(false));
+        const queryLimit = canPushdown
+          ? Math.min(overfetchRowCap, Math.max(topLimit, allowedList.length))
+          : overfetchRowCap;
+        const params = canPushdown
+          ? [ftsQuery, mode, ...allowedList, queryLimit]
+          : [ftsQuery, mode, queryLimit];
+        rows = stmt.all(...params);
+        rowsScanned = rows.length;
+        truncated = rows.length >= overfetchRowCap;
+      }
+    } catch (error) {
+      emitDiagnostic('query_failed', error);
+      return [];
+    }
+    emitOverfetch({
+      rowCap: overfetchRowCap,
+      timeBudgetMs: overfetchTimeBudgetMs,
+      rowsScanned,
+      rowsMatched: rows.length,
+      canPushdown,
+      filteredByAllowedIds: Boolean(allowedIds),
+      truncated,
+      elapsedMs: Date.now() - startedAt
+    });
     const rawScores = rows.map((row) => -row.score);
     let min = 0;
     let max = 0;
@@ -531,13 +704,9 @@ export function createSqliteHelpers(options) {
         : raw;
       hits.push({ idx: row.id, score: normalized * weight });
     }
-    let filteredHits = hits;
-    if (allowedIds && allowedIds.size && !canPushdown) {
-      filteredHits = filteredHits.filter((hit) => allowedIds.has(hit.idx));
-    }
-    return filteredHits
+    return hits
       .sort((a, b) => (b.score - a.score) || (a.idx - b.idx))
-      .slice(0, topN);
+      .slice(0, topLimit);
   }
 
   /**
@@ -563,7 +732,9 @@ export function createSqliteHelpers(options) {
 
   return {
     loadIndexFromSqlite,
+    hasDb,
     hasFtsTable,
+    hasTable,
     getTokenIndexForQuery,
     buildCandidateSetSqlite,
     rankSqliteFts,

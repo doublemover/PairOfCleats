@@ -16,6 +16,9 @@ Provide a fast console summary of indexing and search metrics, with optional JSO
 - Index metrics: chunk/token totals for code and prose indexes.
 - Search history: total queries, average latency (ms), last query timestamp, no-result count, top queries.
 - Top files (by hit counts) and top terms (by frequency in metrics entries).
+- Operational growth warnings:
+  - `op_resource_index_growth_abnormal` when index artifact bytes jump abnormally in a single build.
+  - `op_resource_retrieval_memory_growth_abnormal` when retrieval RSS grows abnormally in a single run.
 
 JSON payload keys:
 - `generatedAt`, `metricsDir`

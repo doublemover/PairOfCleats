@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
@@ -12,8 +13,8 @@ const srcDir = path.join(repoRoot, 'src');
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(srcDir, { recursive: true });
 
-const commentText = 'extracted-prose sentinel phrase';
-const swiftCommentText = 'swift extracted-prose sentinel phrase';
+const commentText = 'extracted prose sentinel phrase';
+const swiftCommentText = 'swift extracted prose sentinel phrase';
 const mdCommentText = 'markdown comment sentinel phrase';
 const mdPlainText = 'opal zephyr raptor kinetic comet';
 const source = [
@@ -46,12 +47,10 @@ await fsPromises.writeFile(
 );
 
 const env = {
-  ...process.env,
-  PAIROFCLEATS_TESTING: '1',
-  PAIROFCLEATS_CACHE_ROOT: path.join(tempRoot, 'cache'),
+  ...process.env,  PAIROFCLEATS_CACHE_ROOT: path.join(tempRoot, 'cache'),
   PAIROFCLEATS_EMBEDDINGS: 'stub'
 };
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 process.env.PAIROFCLEATS_CACHE_ROOT = env.PAIROFCLEATS_CACHE_ROOT;
 process.env.PAIROFCLEATS_EMBEDDINGS = env.PAIROFCLEATS_EMBEDDINGS;
 

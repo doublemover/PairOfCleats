@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../helpers/test-env.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
@@ -13,9 +14,7 @@ const buildPath = path.join(root, 'build_index.js');
 const cacheRoot = await makeTempDir('pairofcleats-baseline-');
 
 const env = {
-  ...process.env,
-  PAIROFCLEATS_TESTING: '1',
-  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
+  ...process.env,  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
   PAIROFCLEATS_EMBEDDINGS: 'stub',
   PAIROFCLEATS_THREADS: '1',
   PAIROFCLEATS_BUNDLE_THREADS: '1'
@@ -96,7 +95,7 @@ const readArtifacts = (indexDir) => {
 
 const prevCacheRoot = process.env.PAIROFCLEATS_CACHE_ROOT;
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 const userConfig = loadUserConfig(fixtureRoot);
 
 const buildResult1 = runBuild();

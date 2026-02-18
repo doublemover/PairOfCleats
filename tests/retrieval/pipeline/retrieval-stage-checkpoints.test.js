@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createSearchPipeline } from '../../../src/retrieval/pipeline.js';
 import { createRetrievalStageTracker } from '../../../src/retrieval/pipeline/stage-checkpoints.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const stageTracker = createRetrievalStageTracker({ enabled: true });
 const context = {
@@ -119,3 +119,4 @@ assert.ok(stages.includes('fusion'), 'expected fusion stage');
 assert.ok(stages.includes('rank'), 'expected rank stage');
 
 console.log('retrieval stage checkpoints test passed');
+import { applyTestEnv } from '../../helpers/test-env.js';

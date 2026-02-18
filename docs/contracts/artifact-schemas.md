@@ -62,8 +62,9 @@ Machine-readable index:
 - `chargram_postings` (object): requires `vocab`, `postings`.
 - `filter_index` (object): requires `fileById`, `fileChunksById`. Optional: `fileChargramN`, `byExt`, `byKind`, `byAuthor`, `byChunkAuthor`, `byVisibility`, `fileChargrams`.
 - `filelists` (object): requires `generatedAt`, `scanned`, `skipped` (each has `count`, `sample`).
+- `lexicon_relation_filter_report` (object): requires `schemaVersion`, `mode`, `totals`, `files`; `totals` requires dropped counter fields and `files`; each file row requires per-file dropped counters plus categorized drop maps.
 - `pieces_manifest` (object): requires `version`, `artifactSurfaceVersion`, `pieces`. Optional: `compatibilityKey`, `generatedAt`, `updatedAt`, `mode`, `stage`, `repoId`, `buildId`, `extensions`.
-- `index_state` (object): requires `generatedAt`, `mode`, `artifactSurfaceVersion`. Optional: `compatibilityKey`, `cohortKey`, `repoId`, `buildId`, `stage`, `assembled`, `embeddings`, `features`, `shards`, `enrichment`, `filterIndex`, `sqlite`, `lmdb`, `riskInterprocedural` (requires `enabled`, `summaryOnly`, `emitArtifacts`), `riskRules`, `extensions`.
+- `index_state` (object): requires `generatedAt`, `mode`, `artifactSurfaceVersion`. Optional: `profile` (requires `id`, `schemaVersion=1`), `compatibilityKey`, `cohortKey`, `repoId`, `buildId`, `stage`, `assembled`, `embeddings`, `features`, `shards`, `enrichment`, `filterIndex`, `sqlite`, `lmdb`, `artifacts` (requires `schemaVersion=1`, `present`, `omitted`, `requiredForSearch`), `riskInterprocedural` (requires `enabled`, `summaryOnly`, `emitArtifacts`), `riskRules`, `extensions`.
 - `builds_current` (object): requires `buildId`, `buildRoot`, `promotedAt`, `artifactSurfaceVersion`. Optional: `buildRoots`, `buildRootsByMode`, `buildRootsByStage`, `stage`, `modes`, `configHash`, `compatibilityKey`, `tool`, `repo`, `extensions`.
 - `snapshots_manifest` (object): requires `version`, `updatedAt`, `snapshots`, `tags`.
 - `snapshot_record` (object): requires `version`, `snapshotId`, `createdAt`, `kind`, `tags`, `pointer`.

@@ -2,6 +2,7 @@ export {
   parseChurnArg,
   parseModifiedArgs,
   parseQueryInput,
+  parseQueryWithFallback,
   annotateQueryAst,
   tokenizePhrase,
   tokenizeQueryTerms,

@@ -5,6 +5,10 @@ import { toRepoPosixPath } from '../../scm/paths.js';
 import { buildLineAuthors } from '../../scm/annotate.js';
 import { buildCallIndex, buildFileRelations } from './relations.js';
 import {
+  filterRawRelationsWithLexicon,
+  getLexiconRelationFilterStats
+} from './lexicon-relations-filter.js';
+import {
   isTreeSitterSchedulerLanguage,
   resolveTreeSitterLanguageForSegment
 } from './tree-sitter.js';
@@ -101,6 +105,7 @@ export const processFileCpu = async (context) => {
     rel,
     relKey,
     text,
+    documentExtraction,
     fileStat,
     fileHash,
     fileHashAlgo,
@@ -132,6 +137,7 @@ export const processFileCpu = async (context) => {
     workerDictOverride,
     workerState,
     tokenizationStats,
+    tokenizeEnabled,
     embeddingEnabled,
     embeddingNormalize,
     embeddingBatchSize,
@@ -207,7 +213,8 @@ export const processFileCpu = async (context) => {
     && baseTreeSitterConfig?.languagePasses === false
     ? { ...(baseTreeSitterConfig || {}), allowedLanguages }
     : baseTreeSitterConfig;
-  const resolvedSegmentsConfig = mode === 'extracted-prose'
+  const extractedDocumentFile = documentExtraction && typeof documentExtraction === 'object';
+  const resolvedSegmentsConfig = mode === 'extracted-prose' && !extractedDocumentFile
     ? { ...normalizedSegmentsConfig, onlyExtras: true }
     : normalizedSegmentsConfig;
   const treeSitterEnabled = treeSitterConfig?.enabled !== false && mode === 'code';
@@ -261,7 +268,10 @@ export const processFileCpu = async (context) => {
     throw err;
   }
   fileLanguageId = lang?.id || null;
-  if (!lang && languageOptions?.skipUnknownLanguages) {
+  const allowUnknownLanguage = mode === 'prose'
+    || mode === 'extracted-prose'
+    || extractedDocumentFile;
+  if (!lang && languageOptions?.skipUnknownLanguages && !allowUnknownLanguage) {
     return {
       chunks: [],
       fileRelations: null,
@@ -302,8 +312,19 @@ export const processFileCpu = async (context) => {
       return failFile('relation-error', 'relations', err);
     }
   }
-  const fileRelations = relationsEnabled ? buildFileRelations(rawRelations, relKey) : null;
-  const callIndex = relationsEnabled ? buildCallIndex(rawRelations) : null;
+  let filteredRelations = rawRelations;
+  let lexiconFilterStats = null;
+  if (mode === 'code' && relationsEnabled && rawRelations) {
+    filteredRelations = filterRawRelationsWithLexicon(rawRelations, {
+      languageId: lang?.id || null,
+      config: languageOptions?.lexicon || null,
+      log,
+      relKey
+    });
+    lexiconFilterStats = getLexiconRelationFilterStats(filteredRelations);
+  }
+  const fileRelations = relationsEnabled ? buildFileRelations(filteredRelations, relKey) : null;
+  const callIndex = relationsEnabled ? buildCallIndex(filteredRelations) : null;
   const resolvedGitBlameEnabled = typeof analysisPolicy?.git?.blame === 'boolean'
     ? analysisPolicy.git.blame
     : gitBlameEnabled;
@@ -454,6 +475,9 @@ export const processFileCpu = async (context) => {
     ...languageContext,
     yamlChunking: languageOptions?.yamlChunking,
     chunking: languageOptions?.chunking,
+    documentExtraction: extractedDocumentFile
+      ? documentExtraction
+      : null,
     javascript: languageOptions?.javascript,
     typescript: languageOptions?.typescript,
     // Tree-sitter chunking is handled by the global scheduler. Prevent per-file
@@ -635,6 +659,7 @@ export const processFileCpu = async (context) => {
     workerDictOverride,
     workerState,
     tokenizationStats,
+    tokenizeEnabled,
     complexityEnabled,
     lintEnabled,
     complexityCache,
@@ -673,6 +698,7 @@ export const processFileCpu = async (context) => {
   return {
     chunks: chunkResult.chunks,
     fileRelations,
+    lexiconFilterStats,
     vfsManifestRows: chunkResult.vfsManifestRows || null,
     skip: null,
     fileLanguageId,

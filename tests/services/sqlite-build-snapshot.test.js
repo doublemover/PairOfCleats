@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
@@ -9,7 +10,7 @@ import { buildSqliteIndex } from '../../src/integrations/core/index.js';
 import { createPointerSnapshot } from '../../src/index/snapshots/create.js';
 import { loadUserConfig } from '../../tools/shared/dict-utils.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'sqlite-build-snapshot-service');

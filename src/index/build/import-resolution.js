@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { readJsoncFile } from '../../shared/jsonc.js';
@@ -25,6 +26,9 @@ const MAX_IMPORT_WARNINGS = 200;
 const MAX_GRAPH_EDGES = 200000;
 const MAX_GRAPH_NODES = 100000;
 const NEGATIVE_CACHE_TTL_MS = 60000;
+const IMPORT_LOOKUP_CACHE_SCHEMA_VERSION = 1;
+const FS_META_PREFETCH_CONCURRENCY = 32;
+const FS_META_TRANSIENT_ERROR_CODES = new Set(['EAGAIN', 'EMFILE', 'ENFILE']);
 
 const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
 
@@ -91,37 +95,286 @@ const trieHasPrefix = (trie, relPath) => {
   return true;
 };
 
+const serializePathTrie = (node) => {
+  if (!node || !(node.children instanceof Map)) return {};
+  const out = {};
+  const keys = Array.from(node.children.keys()).sort(sortStrings);
+  for (const key of keys) {
+    out[key] = serializePathTrie(node.children.get(key));
+  }
+  return out;
+};
+
+const deserializePathTrie = (raw) => {
+  const node = { children: new Map() };
+  if (!raw || typeof raw !== 'object') return node;
+  for (const key of Object.keys(raw).sort(sortStrings)) {
+    node.children.set(key, deserializePathTrie(raw[key]));
+  }
+  return node;
+};
+
+const buildLookupCompatibilityFingerprint = ({ rootAbs, fileSetFingerprint }) => {
+  if (!rootAbs || !fileSetFingerprint) return null;
+  return sha1(JSON.stringify({
+    schemaVersion: IMPORT_LOOKUP_CACHE_SCHEMA_VERSION,
+    rootHash: sha1(rootAbs),
+    fileSetFingerprint
+  }));
+};
+
+const createLookupSnapshot = ({ lookup, fileSetFingerprint, compatibilityFingerprint }) => {
+  if (!lookup || !fileSetFingerprint || !compatibilityFingerprint) return null;
+  const fileSet = Array.from(lookup.fileSet || []);
+  fileSet.sort(sortStrings);
+  const fileLower = {};
+  for (const [key, value] of Array.from(lookup.fileLower?.entries?.() || [])) {
+    fileLower[key] = value;
+  }
+  return {
+    compatibilityFingerprint,
+    rootHash: sha1(lookup.rootAbs),
+    fileSetFingerprint,
+    hasTsconfig: lookup.hasTsconfig === true,
+    fileSet,
+    fileLower,
+    pathTrie: serializePathTrie(lookup.pathTrie)
+  };
+};
+
+const createLookupFromSnapshot = ({ root, snapshot }) => {
+  if (!root || !snapshot || typeof snapshot !== 'object') return null;
+  const rootAbs = path.resolve(root);
+  const files = Array.isArray(snapshot.fileSet) ? snapshot.fileSet : [];
+  if (!files.length) return null;
+  const fileSet = new Set(files.map((entry) => normalizeRelPath(entry)).filter(Boolean));
+  const fileLower = new Map();
+  for (const [lower, relPath] of Object.entries(snapshot.fileLower || {})) {
+    if (typeof lower !== 'string' || typeof relPath !== 'string') continue;
+    fileLower.set(lower, normalizeRelPath(relPath));
+  }
+  if (fileLower.size === 0) {
+    for (const relPath of fileSet.values()) {
+      const lower = relPath.toLowerCase();
+      if (!fileLower.has(lower) || sortStrings(relPath, fileLower.get(lower)) < 0) {
+        fileLower.set(lower, relPath);
+      }
+    }
+  }
+  const pathTrie = deserializePathTrie(snapshot.pathTrie);
+  return {
+    rootAbs,
+    fileSet,
+    fileLower,
+    hasTsconfig: snapshot.hasTsconfig === true,
+    pathTrie
+  };
+};
+
 const resolveWithinRoot = (rootAbs, absPath) => {
   const rel = path.relative(rootAbs, absPath);
   if (!rel || rel.startsWith('..') || isAbsolutePathNative(rel)) return null;
   return normalizeRelPath(toPosix(rel));
 };
 
-const createFsMemo = () => {
+const normalizeMetaPath = (targetPath) => path.resolve(String(targetPath || ''));
+
+/**
+ * Transient fs errors should not be persisted as "file missing" because they
+ * can self-resolve moments later under lower descriptor pressure.
+ *
+ * @param {unknown} error
+ * @returns {boolean}
+ */
+const isTransientFsMetaError = (error) => FS_META_TRANSIENT_ERROR_CODES.has(String(error?.code || ''));
+
+const isMissingFsMetaError = (error) => {
+  const code = String(error?.code || '');
+  return code === 'ENOENT' || code === 'ENOTDIR';
+};
+
+const createFsMemo = (preloaded = null) => {
   const existsCache = new Map();
   const statCache = new Map();
+  const existsByPath = preloaded && typeof preloaded === 'object' && preloaded.existsByPath
+    ? preloaded.existsByPath
+    : null;
+  const statByPath = preloaded && typeof preloaded === 'object' && preloaded.statByPath
+    ? preloaded.statByPath
+    : null;
+  const transientByPath = preloaded && typeof preloaded === 'object' && preloaded.transientByPath
+    ? preloaded.transientByPath
+    : null;
+  const hasOwn = Object.prototype.hasOwnProperty;
+  const hasTransient = (key) => transientByPath && hasOwn.call(transientByPath, key) && transientByPath[key] === true;
   return {
     existsSync: (targetPath) => {
-      if (existsCache.has(targetPath)) return existsCache.get(targetPath);
+      const key = normalizeMetaPath(targetPath);
+      if (existsCache.has(key)) return existsCache.get(key);
+      if (hasTransient(key)) {
+        let exists = false;
+        try {
+          exists = fs.existsSync(key);
+        } catch {}
+        existsCache.set(key, exists);
+        return exists;
+      }
+      if (existsByPath && hasOwn.call(existsByPath, key)) {
+        const exists = existsByPath[key] === true;
+        existsCache.set(key, exists);
+        return exists;
+      }
       let exists = false;
       try {
-        exists = fs.existsSync(targetPath);
+        exists = fs.existsSync(key);
       } catch {}
-      existsCache.set(targetPath, exists);
+      existsCache.set(key, exists);
       return exists;
     },
     statSync: (targetPath) => {
-      if (statCache.has(targetPath)) return statCache.get(targetPath);
+      const key = normalizeMetaPath(targetPath);
+      if (statCache.has(key)) return statCache.get(key);
+      if (hasTransient(key)) {
+        let stat = null;
+        try {
+          stat = fs.statSync(key);
+        } catch {}
+        statCache.set(key, stat);
+        return stat;
+      }
+      if (statByPath && hasOwn.call(statByPath, key)) {
+        const stat = statByPath[key] || null;
+        statCache.set(key, stat);
+        return stat;
+      }
       let stat = null;
       try {
-        stat = fs.statSync(targetPath);
+        stat = fs.statSync(key);
       } catch {}
-      statCache.set(targetPath, stat);
+      statCache.set(key, stat);
       return stat;
     }
   };
 };
 
+/**
+ * Preload fs existence/stat metadata for import resolution to avoid repeating
+ * synchronous fs checks for tsconfig/package lookups on large warm builds.
+ *
+ * @param {{root:string,entries?:Array<object|string>,importsByFile?:Map<string,string[]>|object}} input
+ * @returns {Promise<{
+ *   existsByPath:Record<string,boolean>,
+ *   statByPath:Record<string,object|null>,
+ *   transientByPath:Record<string,boolean>,
+ *   candidateCount:number
+ * }|null>}
+ */
+export const prepareImportResolutionFsMeta = async ({
+  root,
+  entries,
+  importsByFile
+} = {}) => {
+  if (!root) return null;
+  const rootAbs = path.resolve(root);
+  const candidatePaths = new Set([path.join(rootAbs, 'package.json'), path.join(rootAbs, 'tsconfig.json')]);
+
+  const addDirAncestors = (startDir) => {
+    let dir = path.resolve(startDir);
+    for (;;) {
+      const rel = path.relative(rootAbs, dir);
+      if (rel && (rel.startsWith('..') || isAbsolutePathNative(rel))) break;
+      candidatePaths.add(path.join(dir, 'tsconfig.json'));
+      const parent = path.dirname(dir);
+      if (parent === dir) break;
+      dir = parent;
+    }
+  };
+
+  if (importsByFile && typeof importsByFile === 'object') {
+    const importerFiles = importsByFile instanceof Map
+      ? Array.from(importsByFile.keys())
+      : Object.keys(importsByFile);
+    for (const importer of importerFiles) {
+      if (typeof importer !== 'string' || !importer) continue;
+      addDirAncestors(path.dirname(path.resolve(rootAbs, importer)));
+    }
+  } else if (Array.isArray(entries)) {
+    for (const entry of entries) {
+      const abs = typeof entry === 'string' ? entry : entry?.abs;
+      if (!abs) continue;
+      addDirAncestors(path.dirname(path.resolve(abs)));
+    }
+  }
+
+  const existsByPath = Object.create(null);
+  const statByPath = Object.create(null);
+  const transientByPath = Object.create(null);
+  const candidates = Array.from(candidatePaths, (candidate) => normalizeMetaPath(candidate));
+  const workerCount = Math.max(1, Math.min(FS_META_PREFETCH_CONCURRENCY, candidates.length));
+  let cursor = 0;
+  const workers = Array.from({ length: workerCount }, async () => {
+    for (;;) {
+      const index = cursor;
+      cursor += 1;
+      if (index >= candidates.length) break;
+      const key = candidates[index];
+      try {
+        const stat = await fsPromises.stat(key);
+        existsByPath[key] = true;
+        statByPath[key] = {
+          mtimeMs: Number.isFinite(stat?.mtimeMs) ? stat.mtimeMs : null,
+          size: Number.isFinite(stat?.size) ? stat.size : null,
+          isFile: typeof stat?.isFile === 'function' ? stat.isFile() : true
+        };
+      } catch (error) {
+        if (isTransientFsMetaError(error)) {
+          transientByPath[key] = true;
+          continue;
+        }
+        if (isMissingFsMetaError(error)) {
+          existsByPath[key] = false;
+          statByPath[key] = null;
+          continue;
+        }
+        existsByPath[key] = false;
+        statByPath[key] = null;
+      }
+    }
+  });
+  await Promise.all(workers);
+
+  return {
+    existsByPath,
+    statByPath,
+    transientByPath,
+    candidateCount: candidatePaths.size
+  };
+};
+
+const collectEntryFileSet = ({ entries, root }) => {
+  const rootAbs = path.resolve(root);
+  const fileSet = new Set();
+  for (const entry of entries || []) {
+    const abs = typeof entry === 'string' ? entry : entry?.abs;
+    if (!abs) continue;
+    const rel = typeof entry === 'object' && entry.rel
+      ? entry.rel
+      : path.relative(rootAbs, abs);
+    const relPosix = normalizeRelPath(toPosix(rel));
+    if (!relPosix) continue;
+    fileSet.add(relPosix);
+  }
+  return { rootAbs, fileSet };
+};
+
+/**
+ * Create normalized file lookup structures for import resolution.
+ * Includes case-insensitive fallback map plus prefix trie to short-circuit
+ * impossible extension probes.
+ *
+ * @param {{entries:Array<object|string>,root:string,fsMemo?:object|null}} input
+ * @returns {{rootAbs:string,fileSet:Set<string>,fileLower:Map<string,string>,hasTsconfig:boolean,pathTrie:object}}
+ */
 const createFileLookup = ({ entries, root, fsMemo = null }) => {
   const io = fsMemo || createFsMemo();
   const rootAbs = path.resolve(root);
@@ -166,6 +419,15 @@ const resolveFromLookup = (relPath, lookup) => {
   return null;
 };
 
+/**
+ * Resolve an import-relative candidate against lookup structures.
+ * Uses trie prefix checks before extension expansion to avoid unnecessary probe
+ * work for paths that cannot match indexed files.
+ *
+ * @param {string} relPath
+ * @param {{fileSet:Set<string>,fileLower:Map<string,string>,pathTrie?:object}} lookup
+ * @returns {string|null}
+ */
 const resolveCandidate = (relPath, lookup) => {
   if (!relPath) return null;
   const normalized = normalizeRelPath(relPath);
@@ -467,11 +729,10 @@ export function resolveImportLinks({
   graphMeta = null,
   cache = null,
   fileHashes = null,
-  cacheStats = null
+  cacheStats = null,
+  fsMeta = null
 }) {
-  const fsMemo = createFsMemo();
-  const lookup = createFileLookup({ entries, root, fsMemo });
-  const tsConfigResolver = createTsConfigLoader({ rootAbs: lookup.rootAbs, fileSet: lookup.fileSet, fsMemo });
+  const fsMemo = createFsMemo(fsMeta);
   const cacheState = cache && typeof cache === 'object' ? cache : null;
   const cacheMetrics = cacheState
     ? (cacheStats || {
@@ -483,24 +744,57 @@ export function resolveImportLinks({
       specsReused: 0,
       specsComputed: 0,
       packageInvalidated: false,
-      fileSetInvalidated: false
+      fileSetInvalidated: false,
+      lookupReused: false,
+      lookupInvalidated: false,
+      fsMetaPrefetchedPaths: Number(fsMeta?.candidateCount || 0)
     })
     : null;
   if (cacheState && (!cacheState.files || typeof cacheState.files !== 'object')) {
     cacheState.files = {};
   }
-  const fileSetFingerprint = cacheState ? computeFileSetFingerprint(lookup.fileSet) : null;
+  const { rootAbs, fileSet } = collectEntryFileSet({ entries, root });
+  const fileSetFingerprint = cacheState ? computeFileSetFingerprint(fileSet) : null;
+  const lookupCompatibilityFingerprint = cacheState
+    ? buildLookupCompatibilityFingerprint({ rootAbs, fileSetFingerprint })
+    : null;
+  const cachedLookup = cacheState?.lookup && typeof cacheState.lookup === 'object'
+    ? cacheState.lookup
+    : null;
+  const canReuseLookup = !!(
+    cacheState
+    && cachedLookup
+    && lookupCompatibilityFingerprint
+    && cachedLookup.compatibilityFingerprint === lookupCompatibilityFingerprint
+    && cachedLookup.fileSetFingerprint === fileSetFingerprint
+    && cachedLookup.rootHash === sha1(rootAbs)
+  );
+  const lookup = canReuseLookup
+    ? createLookupFromSnapshot({ root, snapshot: cachedLookup })
+    : null;
+  const resolvedLookup = lookup || createFileLookup({ entries, root, fsMemo });
+  const tsConfigResolver = createTsConfigLoader({
+    rootAbs: resolvedLookup.rootAbs,
+    fileSet: resolvedLookup.fileSet,
+    fsMemo
+  });
+  if (cacheMetrics && canReuseLookup && lookup) {
+    cacheMetrics.lookupReused = true;
+  }
+  if (cacheMetrics && cachedLookup && !canReuseLookup) {
+    cacheMetrics.lookupInvalidated = true;
+  }
   const fileSetChanged = !!(cacheState
     && fileSetFingerprint
     && cacheState.fileSetFingerprint !== fileSetFingerprint);
-  const packageFingerprint = cacheState ? resolvePackageFingerprint(lookup.rootAbs, fsMemo) : null;
-  const repoHash = cacheState ? sha1(lookup.rootAbs) : null;
+  const packageFingerprint = cacheState ? resolvePackageFingerprint(resolvedLookup.rootAbs, fsMemo) : null;
+  const repoHash = cacheState ? sha1(resolvedLookup.rootAbs) : null;
   const cacheKeyInfo = cacheState && fileSetFingerprint
     ? buildCacheKey({
       repoHash,
       buildConfigHash: packageFingerprint || null,
       mode,
-      schemaVersion: 'import-resolution-cache-v2',
+      schemaVersion: 'import-resolution-cache-v3',
       featureFlags: graphMeta?.importScanMode ? [`scan:${graphMeta.importScanMode}`] : null,
       pathPolicy: 'posix',
       extra: { fileSetFingerprint }
@@ -515,6 +809,7 @@ export function resolveImportLinks({
       log('[imports] cache invalidated: package.json fingerprint changed');
     }
     cacheState.files = {};
+    cacheState.lookup = null;
   }
   if (cacheState && fileSetChanged) {
     if (cacheMetrics) cacheMetrics.fileSetInvalidated = true;
@@ -522,12 +817,14 @@ export function resolveImportLinks({
       log('[imports] cache invalidated: file set changed');
     }
     cacheState.files = {};
+    cacheState.lookup = null;
   }
   if (cacheState && cacheKeyChanged) {
     if (typeof log === 'function') {
       log('[imports] cache invalidated: cache key changed');
     }
     cacheState.files = {};
+    cacheState.lookup = null;
   }
   if (cacheState && packageFingerprint) {
     cacheState.packageFingerprint = packageFingerprint;
@@ -537,6 +834,13 @@ export function resolveImportLinks({
   }
   if (cacheState && cacheKey) {
     cacheState.cacheKey = cacheKey;
+  }
+  if (cacheState && fileSetFingerprint && lookupCompatibilityFingerprint) {
+    cacheState.lookup = createLookupSnapshot({
+      lookup: resolvedLookup,
+      fileSetFingerprint,
+      compatibilityFingerprint: lookupCompatibilityFingerprint
+    });
   }
   const resolveFileHash = (relPath) => {
     if (!fileHashes || !relPath) return null;
@@ -562,7 +866,7 @@ export function resolveImportLinks({
       repoHash,
       buildConfigHash: tsKey,
       mode,
-      schemaVersion: 'import-resolution-cache-v2',
+      schemaVersion: 'import-resolution-cache-v3',
       featureFlags: null,
       pathPolicy: 'posix',
       extra: {
@@ -594,7 +898,7 @@ export function resolveImportLinks({
     const importLinks = new Set();
     const externalImports = new Set();
     const relNormalized = normalizeRelPath(importerRel);
-    const importerAbs = path.resolve(lookup.rootAbs, relNormalized);
+    const importerAbs = path.resolve(resolvedLookup.rootAbs, relNormalized);
     let tsconfig = null;
     let tsconfigResolved = false;
 
@@ -647,7 +951,7 @@ export function resolveImportLinks({
       if (cachedSpec && fileSetChanged) {
         cachedSpec = null;
       }
-      if (cachedSpec && cachedSpec.resolvedPath && !lookup.fileSet.has(cachedSpec.resolvedPath)) {
+      if (cachedSpec && cachedSpec.resolvedPath && !resolvedLookup.fileSet.has(cachedSpec.resolvedPath)) {
         cachedSpec = null;
       }
       if (cachedSpec) {
@@ -678,7 +982,7 @@ export function resolveImportLinks({
           const base = spec.startsWith('/')
             ? normalizeRelPath(spec.slice(1))
             : normalizeRelPath(path.posix.join(path.posix.dirname(relNormalized), spec));
-          const candidate = resolveCandidate(base, lookup);
+          const candidate = resolveCandidate(base, resolvedLookup);
           if (candidate) {
             resolvedType = 'relative';
             resolvedPath = candidate;
@@ -686,7 +990,7 @@ export function resolveImportLinks({
             resolvedType = 'unresolved';
           }
         } else {
-          const tsResolved = resolveTsPaths({ spec, tsconfig, lookup });
+          const tsResolved = resolveTsPaths({ spec, tsconfig, lookup: resolvedLookup });
           if (tsResolved) {
             resolvedType = 'ts-path';
             resolvedPath = tsResolved.resolved;
@@ -751,7 +1055,7 @@ export function resolveImportLinks({
       if (enableGraph) {
         if (edges.length < MAX_GRAPH_EDGES) {
           const tsconfigRel = tsconfigPath
-            ? resolveWithinRoot(lookup.rootAbs, tsconfigPath)
+            ? resolveWithinRoot(resolvedLookup.rootAbs, tsconfigPath)
             : null;
           const edge = {
             from: `file:${relNormalized}`,

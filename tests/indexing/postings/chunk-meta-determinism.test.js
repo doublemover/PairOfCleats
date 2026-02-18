@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
@@ -9,7 +10,7 @@ import { loadChunkMeta, MAX_JSON_BYTES } from '../../../src/shared/artifact-io.j
 import { resolveVersionedCacheRoot } from '../../../src/shared/cache-roots.js';
 import { stableStringifyForSignature } from '../../../src/shared/stable-json.js';
 import { sha1 } from '../../../src/shared/hash.js';
-
+applyTestEnv();
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
 const benchRoot = path.join(root, '.testCache', 'chunk-meta-determinism');
@@ -59,9 +60,7 @@ const runBuild = async ({ label, threads }) => {
   await safeRm(cacheRoot);
   await fs.mkdir(cacheRoot, { recursive: true });
   const env = {
-    ...process.env,
-    PAIROFCLEATS_TESTING: '1',
-    PAIROFCLEATS_CACHE_ROOT: cacheRoot,
+    ...process.env,    PAIROFCLEATS_CACHE_ROOT: cacheRoot,
     PAIROFCLEATS_EMBEDDINGS: 'stub'
   };
   const args = [

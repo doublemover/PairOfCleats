@@ -1,10 +1,11 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../../helpers/test-env.js';
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { ensureFixtureIndex } from '../../../helpers/fixture-index.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const { codeDir } = await ensureFixtureIndex({
   fixtureName: 'risk-interprocedural/js-simple',

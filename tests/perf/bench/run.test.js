@@ -11,10 +11,10 @@ import { runWithConcurrency } from '../../../src/shared/concurrency.js';
 import os from 'node:os';
 import { createSafeRegex, normalizeSafeRegexConfig } from '../../../src/shared/safe-regex.js';
 import { build as buildHistogram } from 'hdr-histogram-js';
-import { attachSilentLogging } from '../../helpers/test-env.js';
+import { applyTestEnv, attachSilentLogging } from '../../helpers/test-env.js';
 import { runSqliteBuild } from '../../helpers/sqlite-builder.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const rawArgs = process.argv.slice(2);
 const argv = createCli({

@@ -1,11 +1,12 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import { spawn } from 'node:child_process';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { getToolCatalog, getToolDefs, MCP_SCHEMA_VERSION } from '../../../src/integrations/mcp/defs.js';
 import { stableStringify } from '../../../src/shared/stable-json.js';
 import { DEFAULT_MODEL_ID } from '../../../tools/shared/dict-utils.js';
-
+applyTestEnv();
 const root = process.cwd();
 const serverPath = path.join(root, 'tools', 'mcp', 'server.js');
 const sampleRepo = path.join(root, 'tests', 'fixtures', 'sample');
@@ -113,9 +114,7 @@ function createReader(stream) {
 const server = spawn(process.execPath, [serverPath], {
   stdio: ['pipe', 'pipe', 'inherit'],
   env: {
-    ...process.env,
-    PAIROFCLEATS_TESTING: '1',
-    PAIROFCLEATS_HOME: cacheRoot,
+    ...process.env,    PAIROFCLEATS_HOME: cacheRoot,
     PAIROFCLEATS_CACHE_ROOT: cacheRoot,
     // Force the default cache root to our seeded test directory to keep schema snapshots stable.
     XDG_CACHE_HOME: defaultCacheHome,

@@ -5,7 +5,7 @@ import { compileFilterPredicates } from '../../../src/retrieval/output/filters.j
 import { filterChunks, filterChunkIds } from '../../../src/retrieval/output.js';
 import { bitmapToArray } from '../../../src/retrieval/bitmap.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const meta = [
   {
@@ -64,3 +64,4 @@ assert.deepEqual(allowedIds, expected, 'compiled predicates should match filterC
 assert.equal(compiled.fileMatchers, matcherRef, 'compiled matchers should be reused');
 
 console.log('filter compiled reuse test passed');
+import { applyTestEnv } from '../../helpers/test-env.js';

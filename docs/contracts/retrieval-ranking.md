@@ -29,6 +29,19 @@ Phase 11 adds:
 - `blend`: blended score details when enabled
 - `symbol`: definition/export boosts (when available)
 - `phrase`: phrase/chargram boosts (when available)
+- `schemaVersion`: score breakdown schema version (`1`)
+
+#### Phase 17: Prose FTS explain additions
+When SQLite FTS is selected for prose modes and explain is enabled, hits SHOULD include:
+
+- `scoreBreakdown.sparse.match`: compiled FTS5 `MATCH` string.
+- `scoreBreakdown.sparse.variant`: selected tokenizer variant (`trigram|porter|unicode61`).
+- `scoreBreakdown.sparse.tokenizer`: tokenizer config label.
+- `scoreBreakdown.sparse.variantReason`: precedence reason path.
+- `scoreBreakdown.sparse.normalizedQueryChanged`: whether NFKC changed the query.
+- `scoreBreakdown.sparse.ftsFallback`: true when desired FTS routing fell back to sparse.
+- Controlled unavailability diagnostics use code `retrieval_fts_unavailable`.
+- Output budgets enforce shared limits for explain payloads (`maxBytes`, `maxFields`, `maxExplainItems`).
 
 #### Phase 11: Graph ranking breakdown (optional)
 When graph ranking is enabled and explain is requested, hits SHOULD include:
@@ -36,15 +49,49 @@ When graph ranking is enabled and explain is requested, hits SHOULD include:
 - `scoreBreakdown.graph`:
   - `score` (number): additive score applied for graph-aware reordering
   - `degree` (number): combined in+out degree across call/usage graphs
-  - `proximity` (number): seed proximity (1 for seed hits, 0.5 for neighbors, else 0)
+  - `proximity` (number): seed proximity (`1/(distance+1)` for discovered nodes; 0 when undiscovered)
+  - `seedDistance` (number|null): BFS hop distance from selected seeds
   - `weights` (object): `{ degree, proximity }` weights used to compute `score`
   - `seedSelection` (`top1|topK|none`)
   - `seedK` (number|null)
+  - `expansion` (object): `{ maxDepth, maxWidthPerNode, maxVisitedNodes }`
+  - `stopReason` (`maxWorkUnits|maxWallClockMs|maxVisitedNodes|maxWidthPerNode|maxDepth|null`)
 
 Graph ranking MUST NOT change membership (see below).
 
 ### `--explain` and `--why`
 These flags must render identical content and differ only in presentation.
+
+Phase 17 also requires routing visibility in explain stats:
+- `stats.routingPolicy`
+- `stats.routing`
+
+#### Track IQ: Intent confidence surface
+When explain is enabled, `stats.intent` SHOULD include calibrated intent confidence fields:
+- `type`: dominant classified intent (`code|prose|path|url|mixed`)
+- `effectiveType`: intent used for weighting/vector routing (`mixed` when abstaining)
+- `confidence`: calibrated confidence of `type` in `[0,1]`
+- `confidenceByType`: per-class calibrated confidence map
+- `confidenceMargin`: gap between top two calibrated class confidences
+- `confidenceBucket`: `low|medium|high`
+- `abstain`: deterministic low-confidence gate
+- `state`: `certain|uncertain`
+- `abstainReason`: reason code when `abstain=true` (`low_confidence`)
+
+#### Track IQ: Trust surface (versioned)
+`stats.trust` is a versioned explain block:
+- `schemaVersion` (number, current `1`)
+- `confidence`:
+  - `value` in `[0,1]`
+  - `margin` in `[0,1]`
+  - `bucket` in `low|medium|high`
+  - `buckets` definitions for `low|medium|high`
+- `signals`:
+  - `intentAbstained`
+  - `parseFallback`
+  - `contextExpansionTruncated`
+  - `annCandidateConstrained`
+- `reasonCodes` (array of machine-readable reason strings)
 
 ---
 
@@ -92,6 +139,11 @@ When graph ranking is enabled:
 ### Performance and bounding
 - Graph feature computation MUST have a deterministic work cap (`maxGraphWorkUnits`).
 - A wall-clock fuse MAY exist but must emit truncation when it triggers.
+- Multi-hop expansion MUST be bounded by depth/width/node limits:
+  - `maxDepth` (default `2`, hard cap `4`)
+  - `maxWidthPerNode` (default `12`, hard cap `64`)
+  - `maxVisitedNodes` (default `192`, hard cap `2048`)
+- Stop conditions MUST resolve deterministically with explicit reason codes.
 
 ---
 

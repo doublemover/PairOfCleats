@@ -1,11 +1,12 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { getIndexSignature } from '../../src/retrieval/cli-index.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-shard-sig-'));
 const codeDir = path.join(rootDir, 'index-code');

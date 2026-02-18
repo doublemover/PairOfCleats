@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-12T00:49:29.588Z",
+  "generatedAt": "2026-02-17T10:37:55.719Z",
   "scripts": [
     {
       "name": "api-server",
@@ -206,6 +206,18 @@
       "replacement": null
     },
     {
+      "name": "lexicon:report",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "lexicon:validate",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
       "name": "lint",
       "category": "lint",
       "ciAllowed": true,
@@ -266,8 +278,20 @@
       "replacement": null
     },
     {
+      "name": "release-check:blockers",
+      "category": "release",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
       "name": "release-check:breaking",
       "category": "release",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "repair:native",
+      "category": "tooling",
       "ciAllowed": false,
       "replacement": null
     },
@@ -333,6 +357,12 @@
     },
     {
       "name": "verify-extensions",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "verify:native",
       "category": "tooling",
       "ciAllowed": false,
       "replacement": null

@@ -4,7 +4,7 @@ import { buildFilterIndex } from '../../../src/retrieval/filter-index.js';
 import { filterChunks, filterChunkIds } from '../../../src/retrieval/output.js';
 import { bitmapToArray } from '../../../src/retrieval/bitmap.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const meta = [
   {
@@ -55,3 +55,4 @@ allowedIds.sort((a, b) => a - b);
 assert.deepEqual(allowedIds, expected, 'bitmap allowlist should match filterChunks results');
 
 console.log('filter bitmap equivalence test passed');
+import { applyTestEnv } from '../../helpers/test-env.js';

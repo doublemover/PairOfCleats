@@ -3,7 +3,7 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 
-const CACHE_VERSION = 2;
+const CACHE_VERSION = 3;
 const CACHE_FILE = 'import-resolution-cache.json';
 
 const isObject = (value) => (
@@ -14,13 +14,32 @@ const normalizeCache = (raw) => {
   if (!isObject(raw)) return null;
   if (Number(raw.version) !== CACHE_VERSION) return null;
   const files = isObject(raw.files) ? raw.files : {};
+  const lookup = isObject(raw.lookup) ? raw.lookup : null;
+  const normalizedLookup = lookup
+    ? {
+      compatibilityFingerprint: typeof lookup.compatibilityFingerprint === 'string'
+        ? lookup.compatibilityFingerprint
+        : null,
+      rootHash: typeof lookup.rootHash === 'string' ? lookup.rootHash : null,
+      fileSetFingerprint: typeof lookup.fileSetFingerprint === 'string'
+        ? lookup.fileSetFingerprint
+        : null,
+      hasTsconfig: lookup.hasTsconfig === true,
+      fileSet: Array.isArray(lookup.fileSet)
+        ? lookup.fileSet.filter((entry) => typeof entry === 'string')
+        : [],
+      fileLower: isObject(lookup.fileLower) ? lookup.fileLower : {},
+      pathTrie: isObject(lookup.pathTrie) ? lookup.pathTrie : null
+    }
+    : null;
   return {
     version: CACHE_VERSION,
     generatedAt: typeof raw.generatedAt === 'string' ? raw.generatedAt : null,
     packageFingerprint: typeof raw.packageFingerprint === 'string' ? raw.packageFingerprint : null,
     fileSetFingerprint: typeof raw.fileSetFingerprint === 'string' ? raw.fileSetFingerprint : null,
     cacheKey: typeof raw.cacheKey === 'string' ? raw.cacheKey : null,
-    files
+    files,
+    lookup: normalizedLookup
   };
 };
 
@@ -40,7 +59,8 @@ export const loadImportResolutionCache = async ({ incrementalState, log = null }
         packageFingerprint: null,
         fileSetFingerprint: null,
         cacheKey: null,
-        files: {}
+        files: {},
+        lookup: null
       },
       cachePath
     };
@@ -61,7 +81,8 @@ export const loadImportResolutionCache = async ({ incrementalState, log = null }
       packageFingerprint: null,
       fileSetFingerprint: null,
       cacheKey: null,
-      files: {}
+      files: {},
+      lookup: null
     },
     cachePath
   };
@@ -75,7 +96,8 @@ export const saveImportResolutionCache = async ({ cache, cachePath } = {}) => {
     packageFingerprint: typeof cache.packageFingerprint === 'string' ? cache.packageFingerprint : null,
     fileSetFingerprint: typeof cache.fileSetFingerprint === 'string' ? cache.fileSetFingerprint : null,
     cacheKey: typeof cache.cacheKey === 'string' ? cache.cacheKey : null,
-    files: isObject(cache.files) ? cache.files : {}
+    files: isObject(cache.files) ? cache.files : {},
+    lookup: isObject(cache.lookup) ? cache.lookup : null
   };
   try {
     await atomicWriteJson(cachePath, payload, { spaces: 2 });

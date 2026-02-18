@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -6,7 +7,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getRepoCacheRoot, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const root = process.cwd();
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-index-stats-missing-'));
@@ -62,7 +63,7 @@ const run = spawnSync(
   [toolPath, '--repo', repoRoot, '--verify', '--json'],
   {
     encoding: 'utf8',
-    env: { ...process.env, PAIROFCLEATS_TESTING: '1' }
+    env: { ...process.env }
   }
 );
 

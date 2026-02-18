@@ -15,7 +15,7 @@ import {
   createPlanInputs
 } from './query-plan-helpers.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'poc-query-plan-size-'));
 const cachePath = path.join(tempDir, 'queryPlanCache.json');
@@ -57,3 +57,4 @@ assert.ok(Array.isArray(payload.entries), 'expected disk cache entries list');
 assert.ok(payload.entries.length <= 8, 'expected cache entries to be trimmed');
 
 console.log('query plan disk cache size cap test passed');
+import { applyTestEnv } from '../../helpers/test-env.js';

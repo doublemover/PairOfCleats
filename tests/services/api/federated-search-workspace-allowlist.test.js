@@ -1,14 +1,17 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
-import { startApiServer } from '../../helpers/api-server.js';
+import {
+  createFederatedTempRoot,
+  startFederatedApiServer,
+  writeFederatedWorkspaceConfig
+} from '../../helpers/federated-api.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
-const root = process.cwd();
-const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-api-fed-allowlist-'));
+const tempRoot = await createFederatedTempRoot('pairofcleats-api-fed-allowlist-');
 const allowedRoot = path.join(tempRoot, 'allowed');
 const blockedRoot = path.join(tempRoot, 'blocked');
 const defaultRepo = path.join(allowedRoot, 'repo-default');
@@ -18,24 +21,18 @@ const workspacePath = path.join(allowedRoot, '.pairofcleats-workspace.jsonc');
 await fs.mkdir(defaultRepo, { recursive: true });
 await fs.mkdir(blockedRepo, { recursive: true });
 
-await fs.writeFile(workspacePath, `{
-  "schemaVersion": 1,
-  "cacheRoot": "./cache",
-  "repos": [
-    { "root": "./repo-default", "alias": "allowed" },
-    { "root": "../blocked/repo-blocked", "alias": "blocked" }
+await writeFederatedWorkspaceConfig(workspacePath, {
+  schemaVersion: 1,
+  cacheRoot: './cache',
+  repos: [
+    { root: './repo-default', alias: 'allowed' },
+    { root: '../blocked/repo-blocked', alias: 'blocked' }
   ]
-}`, 'utf8');
+});
 
-const env = {
-  ...process.env,
-  PAIROFCLEATS_TESTING: '1'
-};
-
-const { serverInfo, requestJson, stop } = await startApiServer({
+const { serverInfo, requestJson, stop } = await startFederatedApiServer({
   repoRoot: defaultRepo,
-  allowedRoots: [allowedRoot],
-  env
+  allowedRoots: [allowedRoot]
 });
 
 try {

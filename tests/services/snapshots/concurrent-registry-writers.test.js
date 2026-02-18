@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -13,7 +14,7 @@ import {
   writeDiffsManifest
 } from '../../../src/index/diffs/registry.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-concurrent-registry-'));
 const repoCacheRoot = path.join(tempRoot, 'repo-cache');

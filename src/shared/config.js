@@ -2,6 +2,10 @@ export function isPlainObject(value) {
   return value && typeof value === 'object' && !Array.isArray(value);
 }
 
+export function normalizeBoolean(value, fallback) {
+  return typeof value === 'boolean' ? value : fallback;
+}
+
 export function mergeConfig(base, overrides) {
   if (!isPlainObject(base)) return overrides;
   if (!isPlainObject(overrides)) return base;

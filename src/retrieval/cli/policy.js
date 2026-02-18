@@ -5,8 +5,10 @@ export const resolveBackendSelection = async ({
   sqliteAvailable,
   sqliteCodeAvailable,
   sqliteProseAvailable,
+  sqliteExtractedProseAvailable,
   sqliteCodePath,
   sqliteProsePath,
+  sqliteExtractedProsePath,
   lmdbAvailable,
   lmdbCodeAvailable,
   lmdbProseAvailable,
@@ -15,6 +17,7 @@ export const resolveBackendSelection = async ({
   needsSqlite,
   needsCode,
   needsProse,
+  needsExtractedProse,
   defaultBackend,
   onWarn
 }) => {
@@ -34,6 +37,9 @@ export const resolveBackendSelection = async ({
     } else {
       if (needsCode && !sqliteCodeAvailable) missing.push(`code=${sqliteCodePath}`);
       if (needsProse && !sqliteProseAvailable) missing.push(`prose=${sqliteProsePath}`);
+      if (needsExtractedProse && !sqliteExtractedProseAvailable) {
+        missing.push(`extracted-prose=${sqliteExtractedProsePath}`);
+      }
     }
     const suffix = missing.length
       ? missing.join(', ')

@@ -40,6 +40,35 @@ Filters are ANDed together unless explicitly documented otherwise.
 Search supports code, prose, records, and mixed modes. Mixed-mode results are
 fused using RRF by default; each mode can be weighted independently via config.
 
+## Track IQ: Bundle-style result assembly
+
+JSON output includes a deterministic `bundles` object:
+- `schemaVersion` (number, current `1`)
+- `groups` (array) where each group contains:
+  - `bundleId`
+  - `file` (nullable)
+  - `hitCount`
+  - `totalScore`
+  - `topScore`
+  - `modeCount`
+  - `modes` (stable mode ordering)
+  - `hits` (stable in-bundle ordering)
+
+Grouping + ordering contract:
+- Primary grouping key is `file`.
+- Hits without `file` are isolated into synthetic bundles.
+- Bundle ordering tie-breakers are deterministic:
+  1. `totalScore` descending
+  2. `topScore` descending
+  3. `modeCount` descending
+  4. `file` lexicographic
+  5. `bundleId` lexicographic
+- In-bundle hit ordering tie-breakers are deterministic:
+  1. `score` descending
+  2. mode precedence (`code`, `extractedProse`, `prose`, `records`)
+  3. source index ascending
+  4. stable text key (`id`)
+
 ## Explain schema
 
 `--explain` emits a stable `scoreBreakdown` object for each hit:
@@ -52,6 +81,24 @@ fused using RRF by default; each mode can be weighted independently via config.
 - `phrase`: phrase/chargram boost metadata
 
 Backends must emit this schema consistently so that parity checks are meaningful.
+
+### Track IQ: Intent confidence semantics
+For explain output, `stats.intent` now carries a calibrated confidence surface:
+- `type` remains the dominant class from intent classification.
+- `effectiveType` is the class applied to retrieval knobs; when confidence is low (`confidenceBucket=low`), implementations MUST abstain and set `effectiveType=mixed`.
+- `confidenceByType` is a deterministic, normalized per-class map over `code|prose|path|url|mixed`.
+- `confidence`, `confidenceMargin`, and `confidenceBucket` summarize the selected class confidence.
+- `abstain=true` and `state=uncertain` indicate a low-confidence intent decision.
+
+### Track IQ: Trust surface contract
+Explain output MUST include `stats.trust` with `schemaVersion=1` and:
+- `confidence.value`, `confidence.margin`, `confidence.bucket`
+- explicit `confidence.buckets` definitions for `low|medium|high`
+- `signals` booleans for trust-relevant degradations
+- `reasonCodes` for machine-readable trust diagnostics
+
+Reader compatibility rule:
+- Consumers MUST ignore unknown forward fields in `stats.trust` and continue parsing known fields.
 
 ### Phase 11: Graph ranking explain additions (optional)
 When graph-aware ranking is enabled, explain SHOULD include:

@@ -20,6 +20,8 @@ const cases = [
   { label: 'backend', args: { backend: 'sqlite' }, expect: ['--backend', 'sqlite'] },
   { label: 'ann true', args: { ann: true }, expect: ['--ann'] },
   { label: 'ann false', args: { ann: false }, expect: ['--no-ann'] },
+  { label: 'allowSparseFallback', args: { allowSparseFallback: true }, expect: ['--allow-sparse-fallback'] },
+  { label: 'allowUnsafeMix', args: { allowUnsafeMix: true }, expect: ['--allow-unsafe-mix'] },
   { label: 'top', args: { top: 5 }, expect: ['-n', '5'] },
   { label: 'context', args: { context: 3 }, expect: ['--context', '3'] },
   { label: 'type', args: { type: 'function' }, expect: ['--type', 'function'] },

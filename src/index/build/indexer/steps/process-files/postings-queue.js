@@ -1,4 +1,5 @@
 import v8 from 'node:v8';
+import { normalizePostingsPayloadMetadata } from '../../../postings-payload.js';
 
 const MB = 1024 * 1024;
 
@@ -65,11 +66,37 @@ const resolvePayloadBytes = (result) => {
   return total;
 };
 
-export const estimatePostingsPayload = (result) => ({
-  rows: resolvePayloadRows(result),
-  bytes: resolvePayloadBytes(result)
-});
+/**
+ * Estimate payload size for queue backpressure using precomputed metadata
+ * when available, otherwise falling back to JSON-size approximation.
+ *
+ * @param {object|null} result
+ * @returns {{rows:number,bytes:number}}
+ */
+export const estimatePostingsPayload = (result) => {
+  const precomputed = normalizePostingsPayloadMetadata(result?.postingsPayload);
+  if (precomputed) return precomputed;
+  return {
+    rows: resolvePayloadRows(result),
+    bytes: resolvePayloadBytes(result)
+  };
+};
 
+/**
+ * Create a lightweight backpressure queue for postings writes.
+ * Limits can be configured by pending task count, payload rows/bytes, and
+ * adaptive heap pressure scaling; callers reserve before async writes and
+ * release when done.
+ *
+ * @param {{
+ *   maxPending?:number,
+ *   maxPendingRows?:number,
+ *   maxPendingBytes?:number,
+ *   maxHeapFraction?:number,
+ *   log?:(msg:string)=>void
+ * }} [options]
+ * @returns {{reserve:(input?:{rows?:number,bytes?:number,bypass?:boolean})=>Promise<{release:()=>void}>,stats:()=>object}}
+ */
 export const createPostingsQueue = ({
   maxPending,
   maxPendingRows,

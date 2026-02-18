@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -6,7 +7,7 @@ import path from 'node:path';
 import { loadChunkMeta } from '../../../src/shared/artifact-io.js';
 import { ARTIFACT_SURFACE_VERSION, SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../src/contracts/versioning.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-loader-matrix-'));
 const expected = [{ id: 0, file: 'src/a.js', start: 0, end: 1 }];

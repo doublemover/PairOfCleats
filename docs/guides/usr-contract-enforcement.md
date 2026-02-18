@@ -1,6 +1,6 @@
 # USR Contract Enforcement Guide
 
-Last updated: 2026-02-12T08:22:17Z
+Last updated: 2026-02-13T09:58:25Z
 
 ## Purpose
 
@@ -105,7 +105,7 @@ Define CI/local enforcement for the consolidated USR contract model.
 
 3. Roadmap/spec alignment
 - `TES_LAYN_ROADMAP.md` contract references resolve
-- roadmap phase gates reference current core contracts and evidence outputs
+- roadmap and companion docs (`TES_LAYN_EXECUTION_PACKS.md`, `TES_LAYN_GOVERNANCE.md`) reference current core contracts and evidence outputs
 
 ## CI lanes
 

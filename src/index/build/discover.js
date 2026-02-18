@@ -17,6 +17,9 @@ import { pickMinLimit, resolveFileCaps } from './file-processor/read.js';
 import { getEnvConfig } from '../../shared/env.js';
 import { MINIFIED_NAME_REGEX, normalizeRoot } from './watch/shared.js';
 
+const DOCUMENT_EXTS = new Set(['.pdf', '.docx']);
+const MAX_FILES_LIMIT_REASON = 'max_files_reached';
+
 /**
  * Recursively discover indexable files under a directory.
  * @param {{root:string,mode:'code'|'prose'|'extracted-prose',recordsDir?:string|null,ignoreMatcher:import('ignore').Ignore,skippedFiles:Array, maxFileBytes:number|null,fileCaps?:object,maxDepth?:number|null,maxFiles?:number|null}} input
@@ -25,6 +28,7 @@ import { MINIFIED_NAME_REGEX, normalizeRoot } from './watch/shared.js';
 export async function discoverFiles({
   root,
   mode,
+  documentExtractionConfig = null,
   recordsDir = null,
   recordsConfig = null,
   scmProvider = null,
@@ -53,7 +57,7 @@ export async function discoverFiles({
     abortSignal
   });
   if (skippedFiles) skippedFiles.push(...skippedCommon);
-  return filterEntriesByMode(entries, mode, skippedFiles);
+  return filterEntriesByMode(entries, mode, skippedFiles, documentExtractionConfig);
 }
 
 /**
@@ -64,6 +68,7 @@ export async function discoverFiles({
 export async function discoverFilesForModes({
   root,
   modes,
+  documentExtractionConfig = null,
   recordsDir = null,
   recordsConfig = null,
   scmProvider = null,
@@ -95,11 +100,20 @@ export async function discoverFilesForModes({
   for (const mode of modes) {
     const skipped = skippedByMode && skippedByMode[mode] ? skippedByMode[mode] : null;
     if (skipped) skipped.push(...skippedCommon);
-    output[mode] = filterEntriesByMode(entries, mode, skipped);
+    output[mode] = filterEntriesByMode(entries, mode, skipped, documentExtractionConfig);
   }
   return output;
 }
 
+/**
+ * Discover candidate files once, then reuse the result across modes.
+ * The traversal enforces ignore rules, per-file caps, and a coordinated
+ * `maxFiles` reservation model so concurrent stat workers do not over-accept
+ * or silently drop candidates.
+ *
+ * @param {object} input
+ * @returns {Promise<{entries:Array<object>,skippedCommon:Array<object>}>}
+ */
 export async function discoverEntries({
   root,
   recordsDir = null,
@@ -204,6 +218,20 @@ export async function discoverEntries({
     64,
     Math.max(4, Number(envConfig.discoveryStatConcurrency) || 32)
   );
+  /**
+   * Acquire an in-flight reservation for a candidate.
+   * Reservations are intentionally independent from accepted entries so workers
+   * do not permanently drop candidates while another reservation is still
+   * resolving (for example a delayed stat-failed path).
+   * @returns {boolean}
+   */
+  const tryReserveCandidate = () => {
+    if (!maxFilesValue) return true;
+    if (acceptedCount >= maxFilesValue) return false;
+    if (reservedCount >= maxFilesValue) return false;
+    reservedCount += 1;
+    return true;
+  };
   const processCandidate = async (absPath) => {
     throwIfAborted(abortSignal);
     const relPosix = toPosix(path.relative(root, absPath));
@@ -212,8 +240,6 @@ export async function discoverEntries({
     const inRecordsRoot = recordsRoot
       ? normalizedAbs.startsWith(`${recordsRoot}${path.sep}`)
       : false;
-    let reserved = false;
-    let accepted = false;
     if (maxDepthValue != null) {
       const depth = relPosix.split('/').length - 1;
       if (depth > maxDepthValue) {
@@ -241,14 +267,6 @@ export async function discoverEntries({
       recordSkip(absPath, 'ignored');
       return;
     }
-    if (maxFilesValue) {
-      if (reservedCount >= maxFilesValue) {
-        recordSkip(absPath, 'max-files', { maxFiles: maxFilesValue });
-        return;
-      }
-      reservedCount += 1;
-      reserved = true;
-    }
     try {
       let stat;
       try {
@@ -272,6 +290,9 @@ export async function discoverEntries({
         });
         return;
       }
+      if (maxFilesValue && acceptedCount >= maxFilesValue) {
+        return;
+      }
       const record = inRecordsRoot
         ? { source: 'triage', recordType: 'record', reason: 'records-dir' }
         : (recordsClassifier
@@ -287,15 +308,18 @@ export async function discoverEntries({
         isLock,
         ...(record ? { record } : {})
       });
-      accepted = true;
       acceptedCount += 1;
     } finally {
-      if (reserved && !accepted) {
+      if (maxFilesValue) {
         reservedCount = Math.max(0, reservedCount - 1);
       }
     }
   };
-  const workerCount = Math.min(statConcurrency, candidates.length || 0);
+  const workerCount = Math.min(
+    statConcurrency,
+    maxFilesValue ? maxFilesValue : Number.MAX_SAFE_INTEGER,
+    candidates.length || 0
+  );
   if (!workerCount) {
     // no candidates
   } else {
@@ -303,13 +327,26 @@ export async function discoverEntries({
     const workers = Array.from({ length: workerCount }, () => (async () => {
       while (true) {
         throwIfAborted(abortSignal);
+        if (maxFilesValue && acceptedCount >= maxFilesValue) break;
+        if (maxFilesValue && !tryReserveCandidate()) {
+          await new Promise((resolve) => setImmediate(resolve));
+          continue;
+        }
         const idx = cursor;
         cursor += 1;
-        if (idx >= candidates.length) break;
+        if (idx >= candidates.length) {
+          if (maxFilesValue) {
+            reservedCount = Math.max(0, reservedCount - 1);
+          }
+          break;
+        }
         await processCandidate(candidates[idx]);
       }
     })());
     await Promise.all(workers);
+  }
+  if (maxFilesValue && acceptedCount >= maxFilesValue) {
+    recordSkip(root, MAX_FILES_LIMIT_REASON, { maxFiles: maxFilesValue });
   }
 
   entries.sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0));
@@ -327,7 +364,17 @@ export async function discoverEntries({
   return { entries, skippedCommon };
 }
 
-function filterEntriesByMode(entries, mode, skippedFiles) {
+/**
+ * Apply mode-specific filtering to shared discovery entries.
+ * @param {Array<object>} entries
+ * @param {'code'|'prose'|'records'|'extracted-prose'} mode
+ * @param {Array<object>|null} skippedFiles
+ * @param {object|null} [documentExtractionConfig]
+ * @returns {Array<object>}
+ */
+function filterEntriesByMode(entries, mode, skippedFiles, documentExtractionConfig = null) {
+  const documentExtractionEnabled = documentExtractionConfig?.enabled === true;
+  const allowDocumentExt = mode === 'extracted-prose' && documentExtractionEnabled;
   const output = [];
   for (const entry of entries) {
     if (entry.record) {
@@ -355,7 +402,8 @@ function filterEntriesByMode(entries, mode, skippedFiles) {
     const isCode = mode === 'code' || mode === 'extracted-prose';
     const allowed = (isProse && EXTS_PROSE.has(entry.ext))
       || (isCode && (EXTS_CODE.has(entry.ext) || entry.isSpecial))
-      || (mode === 'extracted-prose' && EXTS_PROSE.has(entry.ext));
+      || (mode === 'extracted-prose' && EXTS_PROSE.has(entry.ext))
+      || (allowDocumentExt && DOCUMENT_EXTS.has(entry.ext));
     if (!allowed) {
       if (skippedFiles) skippedFiles.push({ file: entry.abs, reason: 'unsupported' });
       continue;

@@ -3,13 +3,13 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { ensureTestingEnv } from './test-env.js';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 const encodeFramedMessage = (payload) => {
   const json = JSON.stringify(payload);
   return `Content-Length: ${Buffer.byteLength(json, 'utf8')}\r\n\r\n${json}`;
 };
-const encodeLineMessage = (payload) => `${JSON.stringify(payload)}\n`;
 
 const createReader = (stream, { onActivity } = {}) => {
   let buffer = Buffer.alloc(0);
@@ -163,15 +163,15 @@ export const startMcpServer = async ({
   if (Array.isArray(args) && args.length) {
     serverArgs.push(...args);
   }
+  const childEnv = ensureTestingEnv({
+    ...process.env,
+    PAIROFCLEATS_HOME: cacheRoot,
+    PAIROFCLEATS_CACHE_ROOT: cacheRoot,
+    ...env
+  });
   const server = spawn(process.execPath, serverArgs, {
     stdio: ['pipe', 'pipe', 'inherit'],
-    env: {
-      ...process.env,
-      PAIROFCLEATS_TESTING: '1',
-      PAIROFCLEATS_HOME: cacheRoot,
-      PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-      ...env
-    }
+    env: childEnv
   });
 
   let timeout = null;
@@ -189,9 +189,10 @@ export const startMcpServer = async ({
   const reader = createReader(server.stdout, { onActivity: touchTimeout });
   const { readMessage, readAnyMessage, notifications } = reader;
   touchTimeout();
+  const resolvedTransport = transport || (mode === 'sdk' ? 'line' : 'legacy');
   const send = (payload) => {
-    if (transport === 'sdk') {
-      server.stdin.write(encodeLineMessage(payload));
+    if (resolvedTransport === 'line' || resolvedTransport === 'sdk') {
+      server.stdin.write(`${JSON.stringify(payload)}\n`);
       return;
     }
     server.stdin.write(encodeFramedMessage(payload));
@@ -205,3 +206,5 @@ export const startMcpServer = async ({
 
   return { server, send, readMessage, readAnyMessage, notifications, shutdown };
 };
+
+

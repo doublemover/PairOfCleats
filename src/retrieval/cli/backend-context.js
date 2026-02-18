@@ -10,8 +10,10 @@ export const createBackendContext = async ({
   useLmdb: useLmdbInput,
   needsCode,
   needsProse,
+  needsExtractedProse,
   sqliteCodePath,
   sqliteProsePath,
+  sqliteExtractedProsePath,
   sqliteFtsRequested,
   backendForcedSqlite,
   backendForcedLmdb,
@@ -49,8 +51,10 @@ export const createBackendContext = async ({
     useSqlite: useSqliteInput,
     needsCode,
     needsProse,
+    needsExtractedProse,
     sqliteCodePath,
     sqliteProsePath,
+    sqliteExtractedProsePath,
     sqliteFtsRequested,
     backendForcedSqlite,
     vectorExtension,
@@ -61,6 +65,7 @@ export const createBackendContext = async ({
   let useSqlite = sqliteBackend.useSqlite;
   let dbCode = sqliteBackend.dbCode;
   let dbProse = sqliteBackend.dbProse;
+  let dbExtractedProse = sqliteBackend.dbExtractedProse;
   let lmdbCode = lmdbBackend.dbCode;
   let lmdbProse = lmdbBackend.dbProse;
 
@@ -84,6 +89,7 @@ export const createBackendContext = async ({
     if (!useSqlite) return null;
     if (mode === 'code') return dbCode;
     if (mode === 'prose') return dbProse;
+    if (mode === 'extracted-prose') return dbExtractedProse;
     return null;
   };
 
@@ -125,6 +131,7 @@ export const createBackendContext = async ({
     useLmdb,
     dbCode,
     dbProse,
+    dbExtractedProse,
     lmdbCode,
     lmdbProse,
     backendLabel,

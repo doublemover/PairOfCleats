@@ -54,6 +54,7 @@ export function parseSearchArgs(rawArgs) {
     n: { type: 'number' },
     matched: { type: 'boolean' },
     ann: { type: 'boolean' },
+    'allow-sparse-fallback': { type: 'boolean', default: false },
     'ann-backend': { type: 'string' },
     comments: { type: 'boolean', default: true },
     case: { type: 'boolean' },
@@ -78,6 +79,8 @@ export function parseSearchArgs(rawArgs) {
     'bm25-b': { type: 'number' },
     'fts-profile': { type: 'string' },
     'fts-weights': { type: 'string' },
+    'fts-trigram': { type: 'boolean', default: false },
+    'fts-stemming': { type: 'boolean', default: false },
     'dense-vector-mode': { type: 'string' },
     calls: { type: 'string' },
     uses: { type: 'string' },
@@ -179,7 +182,10 @@ export function getSearchUsage() {
     '  --bm25-b <N>',
     '  --fts-profile <profile>',
     '  --fts-weights <json|list>',
+    '  --fts-trigram',
+    '  --fts-stemming',
     '  --ann-backend auto|lancedb|sqlite|hnsw|js',
+    '  --allow-sparse-fallback',
     '  --non-strict'
   ].join('\n');
 }

@@ -1,9 +1,10 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { performance } from 'node:perf_hooks';
-
+applyTestEnv();
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'code-map-performance');
 const repoRoot = path.join(tempRoot, 'repo');
@@ -20,9 +21,7 @@ for (let i = 0; i < 180; i += 1) {
 await fsPromises.writeFile(path.join(repoRoot, 'src', 'many.js'), funcs.join('\n'));
 
 const env = {
-  ...process.env,
-  PAIROFCLEATS_TESTING: '1',
-  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
+  ...process.env,  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
   PAIROFCLEATS_EMBEDDINGS: 'stub',
   PAIROFCLEATS_WORKER_POOL: 'off'
 };

@@ -1,7 +1,7 @@
 # USR Consolidated Contract Set
 
 Status: Draft v2.1
-Last updated: 2026-02-11T07:25:00Z
+Last updated: 2026-02-13T09:58:25Z
 
 USR now uses a consolidated architecture: one umbrella spec plus a focused core contract set.
 
@@ -38,6 +38,8 @@ Templates are optional extension docs for exceptional cases. The default path is
 ## Supporting references
 
 - `TES_LAYN_ROADMAP.md`
+- `TES_LAYN_EXECUTION_PACKS.md`
+- `TES_LAYN_GOVERNANCE.md`
 - `docs/schemas/usr/README.md`
 
 ## Policy

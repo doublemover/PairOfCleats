@@ -11,9 +11,10 @@
     "suggest-tests"
   ],
   "excludedFiles": ["run.js"],
-  "knownLanes": ["smoke", "unit", "ci-lite", "ci-long", "integration", "services", "api", "storage", "perf", "mcp", "ci", "gate", "backcompat", "diagnostics-summary", "decomposed-drift"],
+  "knownLanes": ["smoke", "unit", "ci-lite", "ci-long", "integration", "services", "api", "storage", "perf", "mcp", "iq", "ci", "gate", "backcompat", "diagnostics-summary", "decomposed-drift"],
   "laneRules": [
     { "lane": "perf", "match": ["^perf/"] },
+    { "lane": "iq", "match": ["^retrieval/eval/"] },
     {
       "lane": "ci-long",
       "match": [
@@ -24,12 +25,8 @@
     {
       "lane": "gate",
       "match": [
-        "^unified-syntax-representation/",
         "^contracts/",
-        "^conformance/",
-        "^report-schema/report-schema-audit-contracts$",
         "^benchmarks/regressions/",
-        "^fixtures/governance/",
         "^backcompat/",
         "^diagnostics/diagnostics-transition-validation$",
         "^indexing/policy/",
