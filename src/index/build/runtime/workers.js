@@ -169,14 +169,14 @@ export const createRuntimeQueues = ({
 };
 
 export const resolveWorkerPoolRuntimeConfig = ({ indexingConfig, envConfig, cpuConcurrency, fileConcurrency }) => {
-  const workerPoolDefaultMax = Math.min(8, fileConcurrency);
+  const workerPoolDefaultMax = Math.min(16, fileConcurrency);
   return resolveWorkerPoolConfig(
     indexingConfig.workerPool || {},
     envConfig,
     {
       cpuLimit: cpuConcurrency,
       defaultMaxWorkers: workerPoolDefaultMax,
-      hardMaxWorkers: 16
+      hardMaxWorkers: 32
     }
   );
 };

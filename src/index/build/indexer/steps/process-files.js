@@ -40,6 +40,20 @@ const coercePositiveInt = (value) => {
   return Math.floor(parsed);
 };
 
+export const shouldBypassPostingsBackpressure = ({
+  orderIndex,
+  nextOrderedIndex,
+  bypassWindow = 0
+}) => {
+  if (!Number.isFinite(orderIndex) || !Number.isFinite(nextOrderedIndex)) return false;
+  const normalizedOrderIndex = Math.floor(orderIndex);
+  const normalizedNextIndex = Math.floor(nextOrderedIndex);
+  const normalizedWindow = Number.isFinite(bypassWindow)
+    ? Math.max(0, Math.floor(bypassWindow))
+    : 0;
+  return normalizedOrderIndex <= (normalizedNextIndex + normalizedWindow);
+};
+
 const assignFileIndexes = (entries) => {
   if (!Array.isArray(entries)) return;
   for (let i = 0; i < entries.length; i += 1) {
@@ -506,9 +520,11 @@ export const processFiles = async ({
                   const nextOrderedIndex = typeof orderedAppender.peekNextIndex === 'function'
                     ? orderedAppender.peekNextIndex()
                     : null;
-                  const bypassBackpressure = Number.isFinite(nextOrderedIndex)
-                    && Number.isFinite(orderIndex)
-                    && orderIndex <= nextOrderedIndex;
+                  const bypassBackpressure = shouldBypassPostingsBackpressure({
+                    orderIndex,
+                    nextOrderedIndex,
+                    bypassWindow: orderedAppenderConfig.maxPendingBeforeBackpressure
+                  });
                   return postingsQueue.reserve({
                     ...payload,
                     bypass: bypassBackpressure
@@ -726,10 +742,10 @@ export const processFiles = async ({
         return work;
       };
       const shardWorkPlan = buildShardWorkPlan();
-      let defaultShardConcurrency = Math.max(1, Math.min(4, runtime.fileConcurrency));
-      if (process.platform === 'win32') {
-        defaultShardConcurrency = Math.max(1, runtime.cpuConcurrency);
-      }
+      let defaultShardConcurrency = Math.max(
+        1,
+        Math.min(8, runtime.fileConcurrency, runtime.cpuConcurrency)
+      );
       let shardConcurrency = Number.isFinite(runtime.shards.maxWorkers)
         ? Math.max(1, Math.floor(runtime.shards.maxWorkers))
         : defaultShardConcurrency;
@@ -750,7 +766,7 @@ export const processFiles = async ({
       shardConcurrency = Math.max(1, shardBatches.length);
       const perShardFileConcurrency = Math.max(
         1,
-        Math.min(2, Math.floor(runtime.fileConcurrency / shardConcurrency))
+        Math.min(4, Math.floor(runtime.fileConcurrency / shardConcurrency))
       );
       const perShardImportConcurrency = Math.max(1, Math.floor(runtime.importConcurrency / shardConcurrency));
       const baseEmbedConcurrency = Number.isFinite(runtime.embeddingConcurrency)
