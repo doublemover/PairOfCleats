@@ -21,9 +21,9 @@ import { SCHEDULER_QUEUE_NAMES } from '../../runtime/scheduler.js';
 import { INDEX_PROFILE_VECTOR_ONLY } from '../../../../contracts/index-profile.js';
 
 const FILE_WATCHDOG_MS = 10000;
-const DEFAULT_POSTINGS_ROWS_PER_PENDING = 200;
-const DEFAULT_POSTINGS_BYTES_PER_PENDING = 8 * 1024 * 1024;
-const DEFAULT_POSTINGS_PENDING_SCALE = 2;
+const DEFAULT_POSTINGS_ROWS_PER_PENDING = 300;
+const DEFAULT_POSTINGS_BYTES_PER_PENDING = 12 * 1024 * 1024;
+const DEFAULT_POSTINGS_PENDING_SCALE = 3;
 
 export const resolveChunkProcessingFeatureFlags = (runtime) => {
   const vectorOnlyProfile = runtime?.profile?.id === INDEX_PROFILE_VECTOR_ONLY;
@@ -164,7 +164,7 @@ const resolveOrderedAppenderConfig = (runtime) => {
     : 1;
   const maxPendingBeforeBackpressure = coercePositiveInt(config.maxPending)
     ?? cpuPending
-    ?? Math.max(32, fileConcurrency * 8);
+    ?? Math.max(64, fileConcurrency * 12);
   return { maxPendingBeforeBackpressure };
 };
 
