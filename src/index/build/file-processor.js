@@ -17,6 +17,10 @@ import { loadCachedBundleForFile, writeBundleForFile } from './file-processor/in
 import { resolveBinarySkip, resolvePreReadSkip } from './file-processor/skip.js';
 import { createFileTimingTracker } from './file-processor/timings.js';
 import { resolveExt } from './file-processor/read.js';
+import {
+  compactDocsSearchJsonText,
+  isDocsSearchIndexJsonPath
+} from './file-processor/docs-search-json.js';
 import { getLanguageForFile } from '../language-registry.js';
 import { extractPdf } from '../extractors/pdf.js';
 import { extractDocx } from '../extractors/docx.js';
@@ -552,6 +556,12 @@ export function createFileProcessor(options) {
           encodingFallback: fileEncodingFallback,
           encodingConfidence: fileEncodingConfidence
         });
+      }
+      if (isDocsSearchIndexJsonPath({ mode, ext, relPath: relKey })) {
+        const compacted = compactDocsSearchJsonText(text);
+        if (typeof compacted === 'string' && compacted.length > 0) {
+          text = compacted;
+        }
       }
     }
 
