@@ -52,10 +52,16 @@ const normalizeRelPath = (relPath) => {
   return toPosix(String(relPath)).trim();
 };
 
+const DOCS_PATH_SEGMENTS = new Set([
+  'docs',
+  'doc',
+  'documentation'
+]);
+
 export const isDocsPath = (relPath) => {
   const normalized = normalizeRelPath(relPath);
   if (!normalized) return false;
-  return normalized.split('/').some((segment) => segment.toLowerCase() === 'docs');
+  return normalized.split('/').some((segment) => DOCS_PATH_SEGMENTS.has(segment.toLowerCase()));
 };
 
 export const isFixturePath = (relPath) => {
