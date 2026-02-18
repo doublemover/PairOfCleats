@@ -551,7 +551,12 @@ export const LANGUAGE_REGISTRY = [
         options
       });
       if (!tsChunks || !tsChunks.length) {
-        tsChunks = buildTypeScriptChunks(text, { ext, relPath, parser: options?.typescript?.parser });
+        tsChunks = buildTypeScriptChunks(text, {
+          ...(options && typeof options === 'object' ? options : {}),
+          ext,
+          relPath,
+          parser: options?.typescript?.parser
+        });
       }
       return { tsChunks };
     },
@@ -622,7 +627,11 @@ export const LANGUAGE_REGISTRY = [
     match: (ext) => isGo(ext),
     collectImports: (text, options) => collectGoImports(text, options),
     prepare: async ({ text, relPath, options }) => {
-      const goChunks = buildGoChunks(text, { relPath, parser: options?.go?.parser });
+      const goChunks = buildGoChunks(text, {
+        ...(options && typeof options === 'object' ? options : {}),
+        relPath,
+        parser: options?.go?.parser
+      });
       return { goChunks };
     },
     buildRelations: ({ text, context, relPath, options }) =>
@@ -636,7 +645,11 @@ export const LANGUAGE_REGISTRY = [
     match: (ext) => isJava(ext),
     collectImports: (text, options) => collectJavaImports(text, options),
     prepare: async ({ text, relPath, options }) => {
-      const javaChunks = buildJavaChunks(text, { relPath, parser: options?.java?.parser });
+      const javaChunks = buildJavaChunks(text, {
+        ...(options && typeof options === 'object' ? options : {}),
+        relPath,
+        parser: options?.java?.parser
+      });
       return { javaChunks };
     },
     buildRelations: ({ text, context, relPath, options }) =>
@@ -650,7 +663,11 @@ export const LANGUAGE_REGISTRY = [
     match: (ext) => isCSharp(ext),
     collectImports: (text, options) => collectCSharpImports(text, options),
     prepare: async ({ text, relPath, options }) => {
-      const csChunks = buildCSharpChunks(text, { relPath, parser: options?.csharp?.parser });
+      const csChunks = buildCSharpChunks(text, {
+        ...(options && typeof options === 'object' ? options : {}),
+        relPath,
+        parser: options?.csharp?.parser
+      });
       return { csChunks };
     },
     buildRelations: ({ text, context, relPath, options }) =>
@@ -664,7 +681,11 @@ export const LANGUAGE_REGISTRY = [
     match: (ext) => isKotlin(ext),
     collectImports: (text, options) => collectKotlinImports(text, options),
     prepare: async ({ text, relPath, options }) => {
-      const kotlinChunks = buildKotlinChunks(text, { relPath, parser: options?.kotlin?.parser });
+      const kotlinChunks = buildKotlinChunks(text, {
+        ...(options && typeof options === 'object' ? options : {}),
+        relPath,
+        parser: options?.kotlin?.parser
+      });
       return { kotlinChunks };
     },
     buildRelations: ({ text, context, relPath, options }) =>
@@ -678,7 +699,11 @@ export const LANGUAGE_REGISTRY = [
     match: (ext) => isRuby(ext),
     collectImports: (text, options) => collectRubyImports(text, options),
     prepare: async ({ text, relPath, options }) => {
-      const rubyChunks = buildRubyChunks(text, { relPath, parser: options?.ruby?.parser });
+      const rubyChunks = buildRubyChunks(text, {
+        ...(options && typeof options === 'object' ? options : {}),
+        relPath,
+        parser: options?.ruby?.parser
+      });
       return { rubyChunks };
     },
     buildRelations: ({ text, context, relPath, options }) =>
@@ -692,7 +717,11 @@ export const LANGUAGE_REGISTRY = [
     match: (ext) => isPhp(ext),
     collectImports: (text, options) => collectPhpImports(text, options),
     prepare: async ({ text, relPath, options }) => {
-      const phpChunks = buildPhpChunks(text, { relPath, parser: options?.php?.parser });
+      const phpChunks = buildPhpChunks(text, {
+        ...(options && typeof options === 'object' ? options : {}),
+        relPath,
+        parser: options?.php?.parser
+      });
       return { phpChunks };
     },
     buildRelations: ({ text, context, relPath, options }) =>
@@ -706,7 +735,11 @@ export const LANGUAGE_REGISTRY = [
     match: (ext) => isHtml(ext),
     collectImports: (text, options) => collectHtmlImports(text, options),
     prepare: async ({ text, relPath, options }) => {
-      const htmlChunks = buildHtmlChunks(text, { relPath, parser: options?.html?.parser });
+      const htmlChunks = buildHtmlChunks(text, {
+        ...(options && typeof options === 'object' ? options : {}),
+        relPath,
+        parser: options?.html?.parser
+      });
       return { htmlChunks };
     },
     buildRelations: ({ text, context, relPath, options }) =>
@@ -721,7 +754,11 @@ export const LANGUAGE_REGISTRY = [
     match: (ext) => isCss(ext),
     collectImports: (text, options) => collectCssImports(text, options),
     prepare: async ({ text, relPath, options }) => {
-      const cssChunks = buildCssChunks(text, { relPath, parser: options?.css?.parser });
+      const cssChunks = buildCssChunks(text, {
+        ...(options && typeof options === 'object' ? options : {}),
+        relPath,
+        parser: options?.css?.parser
+      });
       return { cssChunks };
     },
     buildRelations: ({ text, context, relPath, options }) =>
@@ -735,7 +772,11 @@ export const LANGUAGE_REGISTRY = [
     match: (ext) => isLua(ext),
     collectImports: (text, options) => collectLuaImports(text, options),
     prepare: async ({ text, relPath, options }) => {
-      const luaChunks = buildLuaChunks(text, { relPath, parser: options?.lua?.parser });
+      const luaChunks = buildLuaChunks(text, {
+        ...(options && typeof options === 'object' ? options : {}),
+        relPath,
+        parser: options?.lua?.parser
+      });
       return { luaChunks };
     },
     buildRelations: ({ text, context, relPath, options }) =>
@@ -753,6 +794,7 @@ export const LANGUAGE_REGISTRY = [
         ? options.resolveSqlDialect(ext || path.extname(relPath || ''))
         : (options?.sql?.dialect || 'generic');
       const sqlChunks = buildSqlChunks(text, {
+        ...(options && typeof options === 'object' ? options : {}),
         relPath,
         parser: options?.sql?.parser,
         dialect
@@ -779,7 +821,11 @@ export const LANGUAGE_REGISTRY = [
     match: (ext) => isPerl(ext),
     collectImports: (text, options) => collectPerlImports(text, options),
     prepare: async ({ text, relPath, options }) => {
-      const perlChunks = buildPerlChunks(text, { relPath, parser: options?.perl?.parser });
+      const perlChunks = buildPerlChunks(text, {
+        ...(options && typeof options === 'object' ? options : {}),
+        relPath,
+        parser: options?.perl?.parser
+      });
       return { perlChunks };
     },
     buildRelations: ({ text, context, relPath, options }) =>
@@ -793,7 +839,11 @@ export const LANGUAGE_REGISTRY = [
     match: (ext) => isShell(ext),
     collectImports: (text, options) => collectShellImports(text, options),
     prepare: async ({ text, relPath, options }) => {
-      const shellChunks = buildShellChunks(text, { relPath, parser: options?.shell?.parser });
+      const shellChunks = buildShellChunks(text, {
+        ...(options && typeof options === 'object' ? options : {}),
+        relPath,
+        parser: options?.shell?.parser
+      });
       return { shellChunks };
     },
     buildRelations: ({ text, context, relPath, options }) =>
@@ -807,7 +857,11 @@ export const LANGUAGE_REGISTRY = [
     match: (ext) => ext === '.rs',
     collectImports: (text, options) => collectRustImports(text, options),
     prepare: async ({ text, relPath, options }) => {
-      const rustChunks = buildRustChunks(text, { relPath, parser: options?.rust?.parser });
+      const rustChunks = buildRustChunks(text, {
+        ...(options && typeof options === 'object' ? options : {}),
+        relPath,
+        parser: options?.rust?.parser
+      });
       return { rustChunks };
     },
     buildRelations: ({ text, context, relPath, options }) =>

@@ -524,7 +524,7 @@ const CODE_CHUNKERS = [
   { id: 'lua', match: (ext) => isLua(ext), chunk: ({ text, context }) =>
     context?.luaChunks || buildLuaChunks(text) },
   { id: 'sql', match: (ext) => isSql(ext), chunk: ({ text, context }) =>
-    context?.sqlChunks || buildSqlChunks(text) },
+    context?.sqlChunks || buildSqlChunks(text, getTreeSitterOptions(context)) },
   { id: 'proto', match: (ext) => ext === '.proto', chunk: ({ text, context }) =>
     chunkProto(text, context) },
   { id: 'graphql', match: (ext) => ext === '.graphql' || ext === '.gql' || ext === '.graphqls', chunk: ({ text, context }) =>
