@@ -104,6 +104,35 @@ const isHeavyFilePath = (relPath) => {
   return HEAVY_FILE_PATH_RX.test(normalized);
 };
 
+const coalesceHeavyChunks = (chunks, maxChunks) => {
+  if (!Array.isArray(chunks) || chunks.length <= 1) return chunks;
+  const target = Number.isFinite(Number(maxChunks))
+    ? Math.max(1, Math.floor(Number(maxChunks)))
+    : HEAVY_FILE_MAX_CHUNKS_DEFAULT;
+  if (chunks.length <= target) return chunks;
+  const groupSize = Math.max(1, Math.ceil(chunks.length / target));
+  const merged = [];
+  for (let i = 0; i < chunks.length; i += groupSize) {
+    const first = chunks[i];
+    const lastIndex = Math.min(chunks.length - 1, i + groupSize - 1);
+    const last = chunks[lastIndex];
+    if (!first || !last) continue;
+    const next = { ...first, start: first.start, end: last.end };
+    if (last.meta && typeof last.meta === 'object') {
+      next.meta = { ...(next.meta || {}), endLine: last.meta.endLine ?? next.meta?.endLine };
+    }
+    if (groupSize > 1) {
+      delete next.segment;
+      delete next.segmentUid;
+    }
+    delete next.chunkUid;
+    delete next.chunkId;
+    delete next.spanIndex;
+    merged.push(next);
+  }
+  return merged;
+};
+
 export const processChunks = async (context) => {
   const {
     sc,
@@ -189,7 +218,8 @@ export const processChunks = async (context) => {
       ...extra
     });
   };
-  updateCrashStage('process-chunks:start', { totalChunks: sc.length, languageId: containerLanguageId });
+  const sourceChunks = Array.isArray(sc) ? sc : [];
+  updateCrashStage('process-chunks:start', { totalChunks: sourceChunks.length, languageId: containerLanguageId });
   const fileBytes = fileStat?.size ?? Buffer.byteLength(text || '', 'utf8');
   const heavyFilePolicy = normalizeHeavyFilePolicy(languageOptions);
   const heavyFileDownshift = mode === 'code'
@@ -197,14 +227,23 @@ export const processChunks = async (context) => {
     && (
       fileBytes >= heavyFilePolicy.maxBytes
       || (fileLineCount || 0) >= heavyFilePolicy.maxLines
-      || sc.length >= heavyFilePolicy.maxChunks
+      || sourceChunks.length >= heavyFilePolicy.maxChunks
       || isHeavyFilePath(relKey)
     );
+  const chunksForProcessing = heavyFileDownshift
+    ? coalesceHeavyChunks(sourceChunks, heavyFilePolicy.maxChunks)
+    : sourceChunks;
   if (heavyFileDownshift && typeof log === 'function') {
     log(
       `[perf] heavy-file downshift enabled for ${relKey} `
-      + `(${fileBytes} bytes, ${fileLineCount || 0} lines, ${sc.length} chunks).`
+      + `(${fileBytes} bytes, ${fileLineCount || 0} lines, ${sourceChunks.length} chunks).`
     );
+    if (chunksForProcessing.length !== sourceChunks.length) {
+      log(
+        `[perf] heavy-file chunks coalesced for ${relKey} `
+        + `(${sourceChunks.length} -> ${chunksForProcessing.length}).`
+      );
+    }
   }
 
   const strictIdentity = analysisPolicy?.identity?.strict !== false;
@@ -213,7 +252,7 @@ export const processChunks = async (context) => {
   let vfsManifestRows = null;
   try {
     const prepared = await prepareChunkIds({
-      chunks: sc,
+      chunks: chunksForProcessing,
       text,
       relKey,
       namespaceKey: chunkUidNamespaceKey,
@@ -232,8 +271,8 @@ export const processChunks = async (context) => {
     if (failFile) return failFile('identity', 'chunk-uid', err);
     throw err;
   }
-  const commentAssignments = assignCommentsToChunks(commentEntries, sc);
-  const commentRangeAssignments = assignCommentsToChunks(commentRanges, sc);
+  const commentAssignments = assignCommentsToChunks(commentEntries, chunksForProcessing);
+  const commentRangeAssignments = assignCommentsToChunks(commentRanges, chunksForProcessing);
   const chunks = [];
   const tokenBuffers = createTokenizationBuffers();
   const dictWordsCache = new Map();
@@ -260,7 +299,7 @@ export const processChunks = async (context) => {
     context: fileTokenContext,
     fileBytes
   });
-  attachCallDetailsByChunkIndex(callIndex, sc);
+  attachCallDetailsByChunkIndex(callIndex, chunksForProcessing);
   const proseWorkerMinBytesRaw = Number(languageOptions?.tokenization?.proseWorkerMinBytes);
   const proseWorkerMinBytes = Number.isFinite(proseWorkerMinBytesRaw) && proseWorkerMinBytesRaw > 0
     ? Math.floor(proseWorkerMinBytesRaw)
@@ -388,8 +427,8 @@ export const processChunks = async (context) => {
     text
   });
 
-  for (let ci = 0; ci < sc.length; ++ci) {
-    const c = sc[ci];
+  for (let ci = 0; ci < chunksForProcessing.length; ++ci) {
+    const c = chunksForProcessing[ci];
     updateCrashStage('chunk', {
       chunkIndex: ci,
       chunkId: c?.chunkId || null,
@@ -701,7 +740,7 @@ export const processChunks = async (context) => {
         const startLine = Math.max(prev.endLine - effectiveContextWin + 1, prev.startLine);
         preContext = lineReader.getLines(startLine, prev.endLine);
       }
-      if (ci + 1 < sc.length) {
+      if (ci + 1 < chunksForProcessing.length) {
         const next = chunkLineRanges[ci + 1];
         const endLine = Math.min(next.startLine + effectiveContextWin - 1, next.endLine);
         postContext = lineReader.getLines(next.startLine, endLine);
