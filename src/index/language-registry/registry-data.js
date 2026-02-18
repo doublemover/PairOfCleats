@@ -186,6 +186,45 @@ const R_SYMBOL_PATTERNS = Object.freeze([
   /\bsetMethod\s*\(\s*['"]([A-Za-z_][A-Za-z0-9_.]*)['"]/g
 ]);
 
+const HANDLEBARS_SYMBOL_PATTERNS = Object.freeze([
+  /\{\{#\*inline\s+["']([^"']+)["']/g
+]);
+
+const MUSTACHE_SYMBOL_PATTERNS = Object.freeze([
+  /\{\{#\s*([A-Za-z_][A-Za-z0-9_.-]*)\s*\}\}/g
+]);
+
+const JINJA_SYMBOL_PATTERNS = Object.freeze([
+  /\{%\s*(?:block|macro)\s+([A-Za-z_][A-Za-z0-9_]*)/g
+]);
+
+const RAZOR_SYMBOL_PATTERNS = Object.freeze([
+  /@section\s+([A-Za-z_][A-Za-z0-9_]*)/g,
+  /@helper\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/g
+]);
+
+const TEMPLATE_USAGE_SKIP = new Set([
+  'if',
+  'else',
+  'elif',
+  'for',
+  'each',
+  'with',
+  'unless',
+  'end',
+  'endif',
+  'endfor',
+  'block',
+  'endblock',
+  'macro',
+  'endmacro',
+  'import',
+  'include',
+  'extends',
+  'using',
+  'section'
+]);
+
 const sortUnique = (values) => Array.from(new Set(values.filter(Boolean))).sort((a, b) => (a < b ? -1 : (a > b ? 1 : 0)));
 
 const collectPatternNames = (text, patterns) => {
@@ -217,10 +256,30 @@ const collectHeuristicCallees = (text) => {
   return sortUnique(out);
 };
 
-const buildHeuristicManagedRelations = ({ text, options, collectImports, symbolPatterns }) => {
+const collectTemplateUsages = (text) => {
+  const source = String(text || '');
+  const matches = [];
+  const moustacheRef = /\{\{\s*[#/>]?\s*([A-Za-z_][A-Za-z0-9_.-]*)/g;
+  const jinjaRef = /\{%\s*(?:include|extends|import|from|call|macro|block)\s+['"]?([A-Za-z_][A-Za-z0-9_.-]*)/g;
+  const razorPartialRef = /@(?:Html\.)?Partial(?:Async)?\s*\(\s*["']([^"']+)["']/g;
+  const razorCallRef = /@([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
+  for (const matcher of [moustacheRef, jinjaRef, razorPartialRef, razorCallRef]) {
+    let match;
+    while ((match = matcher.exec(source)) !== null) {
+      const name = String(match[1] || '').trim();
+      if (name && !TEMPLATE_USAGE_SKIP.has(name)) matches.push(name);
+      if (!match[0]) matcher.lastIndex += 1;
+    }
+  }
+  return sortUnique(matches);
+};
+
+const buildHeuristicManagedRelations = ({ text, options, collectImports, symbolPatterns, usageCollector }) => {
   const base = buildSimpleRelations({ imports: collectImports(text, options) });
   const symbols = collectPatternNames(text, symbolPatterns);
-  const callees = collectHeuristicCallees(text);
+  const callees = typeof usageCollector === 'function'
+    ? usageCollector(text)
+    : collectHeuristicCallees(text);
   const calls = [];
   const callers = symbols.length ? symbols : ['<module>'];
   for (const caller of callers) {
@@ -278,7 +337,7 @@ const buildHeuristicManagedFlow = (text, chunk, options = {}) => {
   return out;
 };
 
-const createHeuristicManagedAdapter = ({ id, match, collectImports, symbolPatterns }) => ({
+const createHeuristicManagedAdapter = ({ id, match, collectImports, symbolPatterns, usageCollector = null }) => ({
   id,
   match,
   collectImports: (text, options) => collectImports(text, options),
@@ -287,7 +346,8 @@ const createHeuristicManagedAdapter = ({ id, match, collectImports, symbolPatter
     text,
     options,
     collectImports,
-    symbolPatterns
+    symbolPatterns,
+    usageCollector
   }),
   extractDocMeta: ({ chunk }) => extractHeuristicManagedDocMeta(chunk),
   flow: ({ text, chunk, options }) => buildHeuristicManagedFlow(text, chunk, flowOptions(options)),
@@ -664,25 +724,33 @@ export const LANGUAGE_REGISTRY = [
     collectImports: collectJuliaImports,
     symbolPatterns: JULIA_SYMBOL_PATTERNS
   }),
-  createImportCollectorAdapter({
+  createHeuristicManagedAdapter({
     id: 'handlebars',
     match: (ext) => HANDLEBARS_EXTS.has(ext),
-    collectImports: collectHandlebarsImports
+    collectImports: collectHandlebarsImports,
+    symbolPatterns: HANDLEBARS_SYMBOL_PATTERNS,
+    usageCollector: collectTemplateUsages
   }),
-  createImportCollectorAdapter({
+  createHeuristicManagedAdapter({
     id: 'mustache',
     match: (ext) => MUSTACHE_EXTS.has(ext),
-    collectImports: collectMustacheImports
+    collectImports: collectMustacheImports,
+    symbolPatterns: MUSTACHE_SYMBOL_PATTERNS,
+    usageCollector: collectTemplateUsages
   }),
-  createImportCollectorAdapter({
+  createHeuristicManagedAdapter({
     id: 'jinja',
     match: (ext) => JINJA_EXTS.has(ext),
-    collectImports: collectJinjaImports
+    collectImports: collectJinjaImports,
+    symbolPatterns: JINJA_SYMBOL_PATTERNS,
+    usageCollector: collectTemplateUsages
   }),
-  createImportCollectorAdapter({
+  createHeuristicManagedAdapter({
     id: 'razor',
     match: (ext) => RAZOR_EXTS.has(ext),
-    collectImports: collectRazorImports
+    collectImports: collectRazorImports,
+    symbolPatterns: RAZOR_SYMBOL_PATTERNS,
+    usageCollector: collectTemplateUsages
   }),
   createImportCollectorAdapter({
     id: 'proto',
