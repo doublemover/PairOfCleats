@@ -21,7 +21,7 @@ import {
 import { buildLanguageAnalysisContext } from './cpu/analyze.js';
 import { buildCommentMeta } from './cpu/meta.js';
 import { resolveFileCaps } from './read.js';
-import { shouldPreferDocsProse } from '../mode-routing.js';
+import { isCodeEntryForPath, shouldPreferDocsProse } from '../mode-routing.js';
 import { buildLineIndex } from '../../../shared/lines.js';
 import { formatError } from './meta.js';
 import { processChunks } from './process-chunks.js';
@@ -392,11 +392,13 @@ export const processFileCpu = async (context) => {
     ? toRepoPosixPath(abs, scmRepoRoot)
     : null;
   const normalizedExt = typeof ext === 'string' ? ext.toLowerCase() : '';
-  const proseRoutePreferred = mode === 'code'
-    && shouldPreferDocsProse({ ext: normalizedExt, relPath: relKey });
-  // Skip SCM only for prose routing outcomes. Code files under docs/ still retain
-  // churn/blame metadata unless they are explicitly routed to prose mode.
-  const skipScmForProseRoute = mode !== 'code' || proseRoutePreferred;
+  const proseRoutePreferred = shouldPreferDocsProse({ ext: normalizedExt, relPath: relKey });
+  const extractedProseCodeRoute = mode === 'extracted-prose'
+    && isCodeEntryForPath({ ext: normalizedExt, relPath: relKey, isSpecial: false });
+  const scmCodeEligible = mode === 'code' || extractedProseCodeRoute;
+  // Keep SCM metadata for code-routed entries in both code/extracted-prose lanes.
+  // Prose-routed files (including docs/assets) still skip SCM to avoid wasted churn/blame work.
+  const skipScmForProseRoute = !scmCodeEligible || proseRoutePreferred;
   const scmFastPath = isScmFastPath({ relPath: relKey, ext: normalizedExt });
   const annotateConfig = scmConfig?.annotate || {};
   const enforceScmTimeoutCaps = scmConfig?.allowSlowTimeouts !== true

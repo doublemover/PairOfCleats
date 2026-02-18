@@ -27,6 +27,7 @@ const timing = {
 };
 
 const createContext = ({
+  mode = 'code',
   abs,
   ext,
   rel,
@@ -42,7 +43,7 @@ const createContext = ({
 }) => ({
   abs,
   root,
-  mode: 'code',
+  mode,
   fileEntry: { abs, rel: relKey },
   fileIndex: 1,
   ext,
@@ -387,5 +388,69 @@ await processFileCpu(createContext({
 }));
 assert.equal(docsProseMetaCalls, 0, 'expected docs prose-routed files to skip SCM metadata');
 assert.equal(docsProseAnnotateCalls, 0, 'expected docs prose-routed files to skip SCM annotate');
+
+let extractedCodeMetaCalls = 0;
+let extractedCodeAnnotateCalls = 0;
+const extractedCodeScmProvider = {
+  async getFileMeta() {
+    extractedCodeMetaCalls += 1;
+    return { ok: false };
+  },
+  async annotate() {
+    extractedCodeAnnotateCalls += 1;
+    return { ok: false, reason: 'timeout' };
+  }
+};
+const extractedCodeRelKey = 'src/extracted/main.js';
+await processFileCpu(createContext({
+  mode: 'extracted-prose',
+  abs: jsAbs,
+  ext: '.js',
+  rel: extractedCodeRelKey,
+  relKey: extractedCodeRelKey,
+  text: jsText,
+  fileStat: jsStat,
+  languageHint: getLanguageForFile('.js', extractedCodeRelKey),
+  scmProviderImpl: extractedCodeScmProvider,
+  fileHash: 'scm-annotate-fast-timeout-extracted-code'
+}));
+assert.equal(extractedCodeMetaCalls, 1, 'expected extracted-prose code files to keep SCM metadata');
+assert.equal(extractedCodeAnnotateCalls, 1, 'expected extracted-prose code files to keep SCM annotate');
+
+let extractedDocsProseMetaCalls = 0;
+let extractedDocsProseAnnotateCalls = 0;
+const extractedDocsProseScmProvider = {
+  async getFileMeta() {
+    extractedDocsProseMetaCalls += 1;
+    return { ok: false };
+  },
+  async annotate() {
+    extractedDocsProseAnnotateCalls += 1;
+    return { ok: false, reason: 'timeout' };
+  }
+};
+const extractedDocsProseRelKey = 'docs/reference/search.json';
+await processFileCpu(createContext({
+  mode: 'extracted-prose',
+  abs: yamlAbs,
+  ext: '.json',
+  rel: extractedDocsProseRelKey,
+  relKey: extractedDocsProseRelKey,
+  text: '{"hits":[{"title":"docs"}]}',
+  fileStat: yamlStat,
+  languageHint: getLanguageForFile('.json', extractedDocsProseRelKey),
+  scmProviderImpl: extractedDocsProseScmProvider,
+  fileHash: 'scm-annotate-fast-timeout-extracted-docs-prose'
+}));
+assert.equal(
+  extractedDocsProseMetaCalls,
+  0,
+  'expected extracted-prose docs prose-routed files to skip SCM metadata'
+);
+assert.equal(
+  extractedDocsProseAnnotateCalls,
+  0,
+  'expected extracted-prose docs prose-routed files to skip SCM annotate'
+);
 
 console.log('scm annotate fast timeout test passed');
