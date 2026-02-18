@@ -68,6 +68,12 @@ const coercePositiveInt = (value) => {
   return Math.floor(parsed);
 };
 
+const coerceNonNegativeInt = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return null;
+  return Math.floor(parsed);
+};
+
 const coerceFraction = (value) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return null;
@@ -84,6 +90,12 @@ const resolveStage1Queues = (indexingConfig = {}) => {
   const postings = stage1?.postings && typeof stage1.postings === 'object'
     ? stage1.postings
     : {};
+  const ordered = stage1?.ordered && typeof stage1.ordered === 'object'
+    ? stage1.ordered
+    : {};
+  const watchdog = stage1?.watchdog && typeof stage1.watchdog === 'object'
+    ? stage1.watchdog
+    : {};
 
   const tokenizeConcurrency = coercePositiveInt(tokenize.concurrency);
   const tokenizeMaxPending = coercePositiveInt(tokenize.maxPending);
@@ -94,6 +106,17 @@ const resolveStage1Queues = (indexingConfig = {}) => {
   const postingsMaxPendingRows = coercePositiveInt(postings.maxPendingRows);
   const postingsMaxPendingBytes = coercePositiveInt(postings.maxPendingBytes);
   const postingsMaxHeapFraction = coerceFraction(postings.maxHeapFraction);
+  const orderedMaxPending = coercePositiveInt(ordered.maxPending);
+  const orderedBucketSize = coercePositiveInt(ordered.bucketSize);
+  const watchdogSlowFileMs = coerceNonNegativeInt(
+    watchdog.slowFileMs ?? stage1.fileWatchdogMs
+  );
+  const watchdogMaxSlowFileMs = coerceNonNegativeInt(
+    watchdog.maxSlowFileMs ?? stage1.fileWatchdogMaxMs
+  );
+  const watchdogBytesPerStep = coercePositiveInt(watchdog.bytesPerStep);
+  const watchdogLinesPerStep = coercePositiveInt(watchdog.linesPerStep);
+  const watchdogStepMs = coercePositiveInt(watchdog.stepMs);
 
   return {
     tokenize: {
@@ -105,6 +128,17 @@ const resolveStage1Queues = (indexingConfig = {}) => {
       maxPendingRows: postingsMaxPendingRows,
       maxPendingBytes: postingsMaxPendingBytes,
       maxHeapFraction: postingsMaxHeapFraction
+    },
+    ordered: {
+      maxPending: orderedMaxPending,
+      bucketSize: orderedBucketSize
+    },
+    watchdog: {
+      slowFileMs: watchdogSlowFileMs,
+      maxSlowFileMs: watchdogMaxSlowFileMs,
+      bytesPerStep: watchdogBytesPerStep,
+      linesPerStep: watchdogLinesPerStep,
+      stepMs: watchdogStepMs
     }
   };
 };

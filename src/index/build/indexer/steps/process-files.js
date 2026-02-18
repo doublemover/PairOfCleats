@@ -21,7 +21,11 @@ import { createShardRuntime, resolveCheckpointBatchSize } from './process-files/
 import { SCHEDULER_QUEUE_NAMES } from '../../runtime/scheduler.js';
 import { INDEX_PROFILE_VECTOR_ONLY } from '../../../../contracts/index-profile.js';
 
-const FILE_WATCHDOG_MS = 10000;
+const FILE_WATCHDOG_DEFAULT_MS = 10000;
+const FILE_WATCHDOG_DEFAULT_MAX_MS = 120000;
+const FILE_WATCHDOG_DEFAULT_BYTES_PER_STEP = 256 * 1024;
+const FILE_WATCHDOG_DEFAULT_LINES_PER_STEP = 2000;
+const FILE_WATCHDOG_DEFAULT_STEP_MS = 1000;
 const DEFAULT_POSTINGS_ROWS_PER_PENDING = 300;
 const DEFAULT_POSTINGS_BYTES_PER_PENDING = 12 * 1024 * 1024;
 const DEFAULT_POSTINGS_PENDING_SCALE = 3;
@@ -86,6 +90,40 @@ const coercePositiveInt = (value) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return null;
   return Math.floor(parsed);
+};
+
+const coerceNonNegativeInt = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return null;
+  return Math.floor(parsed);
+};
+
+const resolveFileWatchdogConfig = (runtime) => {
+  const config = runtime?.stage1Queues?.watchdog || {};
+  const slowFileMs = coerceNonNegativeInt(config.slowFileMs) ?? FILE_WATCHDOG_DEFAULT_MS;
+  const maxSlowFileMs = coerceNonNegativeInt(config.maxSlowFileMs)
+    ?? Math.max(FILE_WATCHDOG_DEFAULT_MAX_MS, slowFileMs);
+  const bytesPerStep = coercePositiveInt(config.bytesPerStep) ?? FILE_WATCHDOG_DEFAULT_BYTES_PER_STEP;
+  const linesPerStep = coercePositiveInt(config.linesPerStep) ?? FILE_WATCHDOG_DEFAULT_LINES_PER_STEP;
+  const stepMs = coercePositiveInt(config.stepMs) ?? FILE_WATCHDOG_DEFAULT_STEP_MS;
+  return {
+    slowFileMs: Math.max(0, slowFileMs),
+    maxSlowFileMs: Math.max(0, maxSlowFileMs),
+    bytesPerStep,
+    linesPerStep,
+    stepMs
+  };
+};
+
+const resolveFileWatchdogMs = (watchdogConfig, entry) => {
+  if (!watchdogConfig || watchdogConfig.slowFileMs <= 0) return 0;
+  const fileBytes = coerceNonNegativeInt(entry?.stat?.size) ?? 0;
+  const fileLines = coerceNonNegativeInt(entry?.lines) ?? 0;
+  const byteSteps = Math.floor(fileBytes / watchdogConfig.bytesPerStep);
+  const lineSteps = Math.floor(fileLines / watchdogConfig.linesPerStep);
+  const extraSteps = Math.max(byteSteps, lineSteps);
+  const timeoutMs = watchdogConfig.slowFileMs + (extraSteps * watchdogConfig.stepMs);
+  return Math.min(watchdogConfig.maxSlowFileMs, timeoutMs);
 };
 
 export const shouldBypassPostingsBackpressure = ({
@@ -474,6 +512,7 @@ export const processFiles = async ({
         buildStage: runtimeRef.stage,
         abortSignal
       });
+      const fileWatchdogConfig = resolveFileWatchdogConfig(runtimeRef);
       const runEntryBatch = async (batchEntries) => {
         const orderedCompletionTracker = createOrderedCompletionTracker();
         await runWithQueue(
@@ -486,8 +525,9 @@ export const processFiles = async ({
               : (Number.isFinite(queueIndex) ? queueIndex + 1 : null);
             const rel = entry.rel || toPosix(path.relative(runtimeRef.root, entry.abs));
             const watchdogStart = Date.now();
+            const fileWatchdogMs = resolveFileWatchdogMs(fileWatchdogConfig, entry);
             let watchdog = null;
-            if (FILE_WATCHDOG_MS > 0) {
+            if (fileWatchdogMs > 0) {
               watchdog = setTimeout(() => {
                 const elapsedMs = Date.now() - watchdogStart;
                 const lineText = Number.isFinite(entry.lines) ? ` lines ${entry.lines}` : '';
@@ -499,9 +539,10 @@ export const processFiles = async ({
                   fileIndex: stableFileIndex,
                   total: progress.total,
                   lines: entry.lines || null,
-                  durationMs: elapsedMs
+                  durationMs: elapsedMs,
+                  thresholdMs: fileWatchdogMs
                 });
-              }, FILE_WATCHDOG_MS);
+              }, fileWatchdogMs);
               watchdog.unref?.();
             }
             if (showFileProgress) {

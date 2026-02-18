@@ -2,6 +2,7 @@ import path from 'node:path';
 
 import { writeJsonArrayFile, writeJsonObjectFile, writeJsonLinesSharded } from '../../../shared/json-stream.js';
 import { estimateJsonBytes } from '../../../shared/cache.js';
+import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../contracts/versioning.js';
 
 export const createArtifactWriter = ({
   outDir,
@@ -168,7 +169,7 @@ export const createArtifactWriter = ({
         const metaPath = path.join(outDir, `${base}.meta.json`);
         await writeJsonObjectFile(metaPath, {
           fields: {
-            schemaVersion: '1.0.0',
+            schemaVersion: SHARDED_JSONL_META_SCHEMA_VERSION,
             artifact: base,
             format: 'jsonl-sharded',
             generatedAt: new Date().toISOString(),

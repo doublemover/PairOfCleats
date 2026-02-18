@@ -18,6 +18,51 @@ const SOURCEKIT_DEFAULT_HOVER_TIMEOUT_MS = 3500;
 const SOURCEKIT_DEFAULT_HOVER_MAX_PER_FILE = 10;
 const SOURCEKIT_DEFAULT_HOVER_DISABLE_AFTER_TIMEOUTS = 2;
 const SOURCEKIT_TOP_OFFENDER_LIMIT = 8;
+const SOURCEKIT_DEFAULT_EXCLUDE_PATH_REGEXES = [
+  /\/test\/sourcekit\/misc\/parser-cutoff\.swift$/i
+];
+
+const buildRegex = (value) => {
+  if (value instanceof RegExp) return value;
+  const text = String(value || '').trim();
+  if (!text) return null;
+  const slashMatch = /^\/(.+)\/([a-z]*)$/i.exec(text);
+  if (slashMatch) {
+    try {
+      return new RegExp(slashMatch[1], slashMatch[2]);
+    } catch {
+      return null;
+    }
+  }
+  try {
+    return new RegExp(text, 'i');
+  } catch {
+    return null;
+  }
+};
+
+const resolveSourcekitExcludePathRegexes = (sourcekitConfig) => {
+  const configured = Array.isArray(sourcekitConfig?.excludePathRegexes)
+    ? sourcekitConfig.excludePathRegexes
+    : (Array.isArray(sourcekitConfig?.excludePathPatterns)
+      ? sourcekitConfig.excludePathPatterns
+      : []);
+  const parsed = configured
+    .map((entry) => buildRegex(entry))
+    .filter((entry) => entry instanceof RegExp);
+  return [...SOURCEKIT_DEFAULT_EXCLUDE_PATH_REGEXES, ...parsed];
+};
+
+const shouldSkipSourcekitPath = (virtualPath, excludePathRegexes) => {
+  const normalized = String(virtualPath || '').replace(/\\/g, '/');
+  if (!normalized) return false;
+  for (const pattern of excludePathRegexes || []) {
+    if (!(pattern instanceof RegExp)) continue;
+    pattern.lastIndex = 0;
+    if (pattern.test(normalized)) return true;
+  }
+  return false;
+};
 
 const shouldUseShell = (cmd) => process.platform === 'win32' && /\.(cmd|bat)$/i.test(cmd);
 const quoteWindowsCmdArg = (value) => {
@@ -36,9 +81,9 @@ const runProbeCommand = (cmd, args) => {
   const commandLine = [cmd, ...(Array.isArray(args) ? args : [])]
     .map(quoteWindowsCmdArg)
     .join(' ');
-  return execaSync(commandLine, {
+  const shellExe = process.env.ComSpec || 'cmd.exe';
+  return execaSync(shellExe, ['/d', '/s', '/c', commandLine], {
     stdio: 'ignore',
-    shell: true,
     reject: false
   });
 };
@@ -211,11 +256,17 @@ export const createSourcekitProvider = () => ({
   async run(ctx, inputs) {
     const log = typeof ctx?.logger === 'function' ? ctx.logger : (() => {});
     const sourcekitConfig = ctx?.toolingConfig?.sourcekit || {};
-    const docs = Array.isArray(inputs?.documents)
+    const excludePathRegexes = resolveSourcekitExcludePathRegexes(sourcekitConfig);
+    const docsAll = Array.isArray(inputs?.documents)
       ? inputs.documents.filter((doc) => SWIFT_EXTS.includes(path.extname(doc.virtualPath).toLowerCase()))
       : [];
+    const docs = docsAll.filter((doc) => !shouldSkipSourcekitPath(doc?.virtualPath, excludePathRegexes));
+    if (docs.length < docsAll.length) {
+      log(`[tooling] sourcekit skipped ${docsAll.length - docs.length} document(s) by path filter.`);
+    }
+    const docPaths = new Set(docs.map((doc) => doc.virtualPath));
     const targets = Array.isArray(inputs?.targets)
-      ? inputs.targets.filter((target) => docs.some((doc) => doc.virtualPath === target.virtualPath))
+      ? inputs.targets.filter((target) => docPaths.has(target.virtualPath))
       : [];
     const duplicateChecks = buildDuplicateChunkUidChecks(targets, { label: 'sourcekit' });
     if (!docs.length || !targets.length) {

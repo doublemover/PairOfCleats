@@ -1711,11 +1711,13 @@ export const ARTIFACT_SCHEMA_DEFS = {
     additionalProperties: true
   },
   import_resolution_graph: importResolutionGraphSchema,
+  file_meta_meta: buildShardedJsonlMeta('file_meta'),
   chunk_meta_meta: buildShardedJsonlMeta('chunk_meta'),
   chunk_meta_cold_meta: buildShardedJsonlMeta('chunk_meta_cold'),
   chunk_uid_map_meta: buildShardedJsonlMeta('chunk_uid_map'),
   vfs_manifest_meta: buildShardedJsonlMeta('vfs_manifest'),
   vfs_path_map_meta: buildShardedJsonlMeta('vfs_path_map'),
+  field_tokens_meta: buildShardedJsonlMeta('field_tokens'),
   file_relations_meta: buildShardedJsonlMeta('file_relations'),
   symbols_meta: buildShardedJsonlMeta('symbols'),
   symbol_occurrences_meta: buildShardedJsonlMeta('symbol_occurrences'),

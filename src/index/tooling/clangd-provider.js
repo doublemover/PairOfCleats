@@ -30,9 +30,9 @@ const runProbeCommand = (cmd, args) => {
   const commandLine = [cmd, ...(Array.isArray(args) ? args : [])]
     .map(quoteWindowsCmdArg)
     .join(' ');
-  return execaSync(commandLine, {
+  const shellExe = process.env.ComSpec || 'cmd.exe';
+  return execaSync(shellExe, ['/d', '/s', '/c', commandLine], {
     stdio: 'ignore',
-    shell: true,
     reject: false
   });
 };
