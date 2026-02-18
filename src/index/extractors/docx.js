@@ -23,20 +23,34 @@ const LOCAL_SIGNATURE = 0x04034b50;
 let cachedRuntime = null;
 
 const decodeXmlEntities = (value) => (
-  String(value || '')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&amp;/g, '&')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, '\'')
-    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => {
-      const code = Number.parseInt(hex, 16);
-      return Number.isFinite(code) ? String.fromCodePoint(code) : '';
-    })
-    .replace(/&#([0-9]+);/g, (_, dec) => {
-      const code = Number.parseInt(dec, 10);
-      return Number.isFinite(code) ? String.fromCodePoint(code) : '';
-    })
+  String(value || '').replace(
+    /&(#x[0-9a-fA-F]+|#[0-9]+|lt|gt|amp|quot|#39);/g,
+    (_, token) => {
+      switch (token) {
+        case 'lt':
+          return '<';
+        case 'gt':
+          return '>';
+        case 'amp':
+          return '&';
+        case 'quot':
+          return '"';
+        case '#39':
+          return '\'';
+        default:
+          break;
+      }
+      if (token.startsWith('#x')) {
+        const code = Number.parseInt(token.slice(2), 16);
+        return Number.isFinite(code) ? String.fromCodePoint(code) : '';
+      }
+      if (token.startsWith('#')) {
+        const code = Number.parseInt(token.slice(1), 10);
+        return Number.isFinite(code) ? String.fromCodePoint(code) : '';
+      }
+      return '';
+    }
+  )
 );
 
 const resolveDocxFailureReason = (err) => {

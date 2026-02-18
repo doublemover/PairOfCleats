@@ -54,10 +54,6 @@ if (!fs.existsSync(fileMetaPath)) {
 }
 
 const files = JSON.parse(fs.readFileSync(fileMetaPath, 'utf8'));
-const expectedScoped = 'https://www.npmjs.com/package/@scope/pkg';
-const expectedUnscoped = 'https://www.npmjs.com/package/left-pad';
-const encodedScoped = 'https://www.npmjs.com/package/%40scope/pkg';
-
 const allDocs = files.flatMap((file) => file.externalDocs || []);
 const allowedHosts = new Set(['www.npmjs.com', 'npmjs.com', 'pypi.org', 'pkg.go.dev']);
 const isAllowedHost = (urlValue) => {
@@ -74,16 +70,36 @@ if (invalidHosts.length) {
   console.error(`External docs must use allowed hosts: ${invalidHosts.join(', ')}`);
   process.exit(1);
 }
-if (!allDocs.includes(expectedScoped)) {
-  console.error(`Missing scoped npm doc link: ${expectedScoped}`);
+const hasExactNpmPackageDoc = (packageName) => allDocs.some((docUrl) => {
+  let parsed;
+  try {
+    parsed = new URL(docUrl);
+  } catch {
+    return false;
+  }
+  const host = parsed.hostname.toLowerCase();
+  const exactPath = `/package/${packageName}`;
+  return (
+    (host === 'www.npmjs.com' || host === 'npmjs.com')
+    && parsed.protocol === 'https:'
+    && parsed.pathname === exactPath
+    && !parsed.search
+    && !parsed.hash
+    && parsed.username === ''
+    && parsed.password === ''
+  );
+});
+
+if (!hasExactNpmPackageDoc('@scope/pkg')) {
+  console.error('Missing scoped npm doc link: https://www.npmjs.com/package/@scope/pkg');
   process.exit(1);
 }
-if (allDocs.includes(encodedScoped)) {
-  console.error(`Scoped npm doc link should preserve @: ${encodedScoped}`);
+if (hasExactNpmPackageDoc('%40scope/pkg')) {
+  console.error('Scoped npm doc link should preserve @: https://www.npmjs.com/package/%40scope/pkg');
   process.exit(1);
 }
-if (!allDocs.includes(expectedUnscoped)) {
-  console.error(`Missing npm doc link: ${expectedUnscoped}`);
+if (!hasExactNpmPackageDoc('left-pad')) {
+  console.error('Missing npm doc link: https://www.npmjs.com/package/left-pad');
   process.exit(1);
 }
 

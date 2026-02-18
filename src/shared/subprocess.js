@@ -3,74 +3,9 @@ import { spawn, spawnSync } from 'node:child_process';
 const DEFAULT_MAX_OUTPUT_BYTES = 1_000_000;
 const DEFAULT_KILL_GRACE_MS = 5000;
 
-const quoteWindowsCmdArg = (value) => {
-  const text = String(value ?? '');
-  if (!text) return '""';
-  // When using `shell: true` on Windows, cmd.exe metacharacters can change the
-  // meaning of the command line. Quote any arg that contains whitespace, quotes,
-  // or cmd metacharacters.
-  if (!/[\s"&|<>^();]/u.test(text)) return text;
-  let escaped = text.replaceAll('"', '""');
-  // Avoid swallowing the closing quote when the argument ends with backslashes.
-  // This is a common footgun with Windows command line quoting.
-  let trailing = 0;
-  for (let i = escaped.length - 1; i >= 0 && escaped[i] === '\\'; i -= 1) {
-    trailing += 1;
-  }
-  if (trailing > 0) escaped += '\\'.repeat(trailing);
-  return `"${escaped}"`;
-};
-
-const quotePosixShellArg = (value) => {
-  const text = String(value ?? '');
-  if (!text) return "''";
-  // When using `shell: true`, quote any shell metacharacters so args are passed
-  // literally (e.g. `R&D.txt`, `foo|bar`, redirects, etc).
-  if (!/[\s'"\\&|<>;()$`]/u.test(text)) return text;
-  return `'${text.replaceAll("'", "'\\''")}'`;
-};
-
-const buildShellCommand = (command, args) => {
-  const resolvedArgs = Array.isArray(args) ? args : [];
-  if (!resolvedArgs.length) return String(command ?? '');
-  const quoteArg = process.platform === 'win32' ? quoteWindowsCmdArg : quotePosixShellArg;
-  return [command, ...resolvedArgs].map(quoteArg).join(' ');
-};
-
-const isWindowsAbsolutePath = (value) => /^[A-Za-z]:[\\/]/.test(value) || /^\\\\/.test(value);
-
-const shouldBypassCmdShell = (command) => {
-  if (process.platform !== 'win32') return false;
-  const text = String(command ?? '').trim();
-  if (!text) return false;
-  const lowered = text.toLowerCase();
-  // Batch scripts and extensionless commands should continue to route through
-  // cmd.exe so PATHEXT/built-ins (for example `npm`, `dir`) resolve as users expect.
-  if (/\.(cmd|bat)$/i.test(lowered)) return false;
-  const hasPathSep = /[\\/]/.test(text);
-  const hasKnownExecutableExt = /\.(exe|com)$/i.test(lowered);
-  if (hasKnownExecutableExt) return true;
-  if (isWindowsAbsolutePath(text)) return true;
-  if (hasPathSep) return false;
-  return false;
-};
-
-const resolveShellInvocation = (command, args) => {
-  const resolvedCommand = String(command ?? '');
-  const resolvedArgs = Array.isArray(args) ? args.map((arg) => String(arg ?? '')) : [];
-  if (process.platform === 'win32') {
-    const commandLine = buildShellCommand(resolvedCommand, resolvedArgs);
-    return {
-      command: process.env.ComSpec || 'cmd.exe',
-      args: ['/d', '/s', '/c', commandLine]
-    };
-  }
-  const commandLine = buildShellCommand(resolvedCommand, resolvedArgs);
-  return {
-    command: process.env.SHELL || '/bin/sh',
-    args: ['-lc', commandLine]
-  };
-};
+const SHELL_MODE_DISABLED_ERROR = (
+  'spawnSubprocess shell mode is disabled for security; pass an executable and args with shell=false.'
+);
 
 export class SubprocessError extends Error {
   constructor(message, result, cause) {
@@ -265,22 +200,19 @@ export function spawnSubprocess(command, args, options = {}) {
     }
     const stdoutCollector = createCollector({ enabled: captureStdout, maxOutputBytes, encoding });
     const stderrCollector = createCollector({ enabled: captureStderr, maxOutputBytes, encoding });
-    const useShell = options.shell === true;
-    const child = useShell
-      ? (() => {
-        if (process.platform === 'win32' && shouldBypassCmdShell(command)) {
-          return spawn(command, args, { cwd: options.cwd, env: options.env, stdio, shell: false, detached });
-        }
-        const invocation = resolveShellInvocation(command, args);
-        return spawn(invocation.command, invocation.args, {
-          cwd: options.cwd,
-          env: options.env,
-          stdio,
-          shell: false,
-          detached
-        });
-      })()
-      : spawn(command, args, { cwd: options.cwd, env: options.env, stdio, shell: false, detached });
+    if (options.shell === true) {
+      const result = buildResult({
+        pid: null,
+        exitCode: null,
+        signal: null,
+        startedAt,
+        stdout: undefined,
+        stderr: undefined
+      });
+      reject(new SubprocessError(SHELL_MODE_DISABLED_ERROR, result));
+      return;
+    }
+    const child = spawn(command, args, { cwd: options.cwd, env: options.env, stdio, shell: false, detached });
     if (options.input != null && child.stdin) {
       try {
         child.stdin.write(options.input);
@@ -410,37 +342,25 @@ export function spawnSubprocessSync(command, args, options = {}) {
   const captureStderr = shouldCapture(stdio, options.captureStderr, 2);
   const rejectOnNonZeroExit = options.rejectOnNonZeroExit !== false;
   const expectedExitCodes = resolveExpectedExitCodes(options.expectedExitCodes);
-  const useShell = options.shell === true;
-  const result = useShell
-    ? (() => {
-      if (process.platform === 'win32' && shouldBypassCmdShell(command)) {
-        return spawnSync(command, args, {
-          cwd: options.cwd,
-          env: options.env,
-          stdio,
-          shell: false,
-          input: options.input,
-          encoding: captureStdout || captureStderr ? 'buffer' : undefined
-        });
-      }
-      const invocation = resolveShellInvocation(command, args);
-      return spawnSync(invocation.command, invocation.args, {
-        cwd: options.cwd,
-        env: options.env,
-        stdio,
-        shell: false,
-        input: options.input,
-        encoding: captureStdout || captureStderr ? 'buffer' : undefined
-      });
-    })()
-    : spawnSync(command, args, {
-      cwd: options.cwd,
-      env: options.env,
-      stdio,
-      shell: false,
-      input: options.input,
-      encoding: captureStdout || captureStderr ? 'buffer' : undefined
+  if (options.shell === true) {
+    const normalized = buildResult({
+      pid: null,
+      exitCode: null,
+      signal: null,
+      startedAt,
+      stdout: captureStdout ? (outputMode === 'lines' ? [] : '') : undefined,
+      stderr: captureStderr ? (outputMode === 'lines' ? [] : '') : undefined
     });
+    throw new SubprocessError(SHELL_MODE_DISABLED_ERROR, normalized);
+  }
+  const result = spawnSync(command, args, {
+    cwd: options.cwd,
+    env: options.env,
+    stdio,
+    shell: false,
+    input: options.input,
+    encoding: captureStdout || captureStderr ? 'buffer' : undefined
+  });
   const stdout = captureStdout
     ? trimOutput(result.stdout, maxOutputBytes, encoding, outputMode)
     : undefined;
