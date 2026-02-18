@@ -28,10 +28,25 @@ import {
 } from './_common.js';
 
 const MAX_ROW_BYTES = 32768;
+const SYMBOL_SPILL_BUFFER_BYTES_MIN = 8 * 1024 * 1024;
+const SYMBOL_SPILL_BUFFER_BYTES_MAX = 32 * 1024 * 1024;
+const SYMBOL_SPILL_BUFFER_ROWS = 20000;
 
 const measureRowBytes = (row) => (
   Buffer.byteLength(JSON.stringify(row), 'utf8') + 1
 );
+
+const resolveSpillBufferBytes = (maxJsonBytes) => {
+  const raw = Number(maxJsonBytes);
+  if (!Number.isFinite(raw) || raw <= 0) return SYMBOL_SPILL_BUFFER_BYTES_MIN;
+  return Math.max(
+    SYMBOL_SPILL_BUFFER_BYTES_MIN,
+    Math.min(
+      SYMBOL_SPILL_BUFFER_BYTES_MAX,
+      Math.floor(raw * 0.12)
+    )
+  );
+};
 
 const normalizeText = (value) => {
   if (value === null || value === undefined) return null;
@@ -97,12 +112,13 @@ const maybeTrimRow = (row) => {
 
 const collectRows = async (chunks, { outDir, maxJsonBytes }) => {
   const stats = createTrimStats();
+  const spillBufferBytes = resolveSpillBufferBytes(maxJsonBytes);
   const collector = createRowSpillCollector({
     outDir,
     runPrefix: 'symbol_edges',
     compare: compareSymbolEdgeRows,
-    maxBufferBytes: 2 * 1024 * 1024,
-    maxBufferRows: 5000,
+    maxBufferBytes: spillBufferBytes,
+    maxBufferRows: SYMBOL_SPILL_BUFFER_ROWS,
     maxJsonBytes,
     stats
   });
