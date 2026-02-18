@@ -23,6 +23,7 @@ import { INDEX_PROFILE_VECTOR_ONLY } from '../../../../contracts/index-profile.j
 const FILE_WATCHDOG_MS = 10000;
 const DEFAULT_POSTINGS_ROWS_PER_PENDING = 200;
 const DEFAULT_POSTINGS_BYTES_PER_PENDING = 8 * 1024 * 1024;
+const DEFAULT_POSTINGS_PENDING_SCALE = 2;
 
 export const resolveChunkProcessingFeatureFlags = (runtime) => {
   const vectorOnlyProfile = runtime?.profile?.id === INDEX_PROFILE_VECTOR_ONLY;
@@ -126,8 +127,10 @@ const resolvePostingsQueueConfig = (runtime) => {
     ? Math.max(1, Math.floor(runtime.cpuConcurrency))
     : 1;
   const baseMaxPending = coercePositiveInt(config.maxPending)
-    ?? cpuPending
-    ?? Math.max(16, cpuConcurrency * 4);
+    ?? (Number.isFinite(cpuPending)
+      ? Math.max(1, Math.floor(cpuPending * DEFAULT_POSTINGS_PENDING_SCALE))
+      : null)
+    ?? Math.max(32, cpuConcurrency * 8);
   const maxPendingRows = coercePositiveInt(config.maxPendingRows)
     ?? Math.max(DEFAULT_POSTINGS_ROWS_PER_PENDING, baseMaxPending * DEFAULT_POSTINGS_ROWS_PER_PENDING);
   const maxPendingBytes = coercePositiveInt(config.maxPendingBytes)
