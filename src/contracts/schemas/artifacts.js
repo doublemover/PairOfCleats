@@ -1159,6 +1159,7 @@ export const MANIFEST_ONLY_ARTIFACT_NAMES = [
   'token_postings_binary_columnar_offsets',
   'token_postings_binary_columnar_lengths',
   'token_postings_binary_columnar_meta',
+  'token_postings_offsets',
   'symbol_edges_offsets',
   'symbol_occurrences_offsets',
   'symbols_offsets',

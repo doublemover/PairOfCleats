@@ -505,12 +505,29 @@ export async function writeIndexArtifacts(input) {
   const tokenPostingsFormatConfig = typeof artifactConfig.tokenPostingsFormat === 'string'
     ? artifactConfig.tokenPostingsFormat.toLowerCase()
     : null;
+  const tokenPostingsPackedAutoThresholdBytes = Number.isFinite(
+    Number(artifactConfig.tokenPostingsPackedAutoThresholdBytes)
+  )
+    ? Math.max(0, Math.floor(Number(artifactConfig.tokenPostingsPackedAutoThresholdBytes)))
+    : (8 * 1024 * 1024);
   let tokenPostingsShardSize = Number.isFinite(Number(artifactConfig.tokenPostingsShardSize))
     ? Math.max(1000, Math.floor(Number(artifactConfig.tokenPostingsShardSize)))
     : 50000;
   const tokenPostingsShardThreshold = Number.isFinite(Number(artifactConfig.tokenPostingsShardThreshold))
     ? Math.max(0, Math.floor(Number(artifactConfig.tokenPostingsShardThreshold)))
     : 200000;
+  const fieldTokensShardThresholdBytes = Number.isFinite(Number(artifactConfig.fieldTokensShardThresholdBytes))
+    ? Math.max(0, Math.floor(Number(artifactConfig.fieldTokensShardThresholdBytes)))
+    : (8 * 1024 * 1024);
+  const fieldTokensShardMaxBytes = Number.isFinite(Number(artifactConfig.fieldTokensShardMaxBytes))
+    ? Math.max(0, Math.floor(Number(artifactConfig.fieldTokensShardMaxBytes)))
+    : (8 * 1024 * 1024);
+  const minhashJsonLargeThreshold = Number.isFinite(Number(artifactConfig.minhashJsonLargeThreshold))
+    ? Math.max(0, Math.floor(Number(artifactConfig.minhashJsonLargeThreshold)))
+    : 20000;
+  const writeProgressHeartbeatMs = Number.isFinite(Number(artifactConfig.writeProgressHeartbeatMs))
+    ? Math.max(0, Math.floor(Number(artifactConfig.writeProgressHeartbeatMs)))
+    : 15000;
 
   const maxJsonBytes = MAX_JSON_BYTES;
   const byteBudgetState = resolveByteBudgetMap({ indexingConfig, maxJsonBytes });
@@ -836,6 +853,7 @@ export async function writeIndexArtifacts(input) {
     tokenPostingsShardSize,
     tokenPostingsShardThreshold,
     tokenPostingsBinaryColumnar,
+    tokenPostingsPackedAutoThresholdBytes,
     postings,
     maxJsonBytes: tokenPostingsMaxBytes,
     maxJsonBytesSoft: tokenPostingsMaxBytesSoft,
@@ -961,6 +979,8 @@ export async function writeIndexArtifacts(input) {
   let completedWrites = 0;
   let lastWriteLog = 0;
   let lastWriteLabel = '';
+  const activeWrites = new Map();
+  let writeHeartbeatTimer = null;
   const artifactMetrics = new Map();
   const writeLogIntervalMs = 1000;
   const writeProgressMeta = { stage: 'write', mode, taskId: `write:${mode}:artifacts` };
@@ -991,6 +1011,35 @@ export async function writeIndexArtifacts(input) {
     if (!label) return;
     const existing = artifactMetrics.get(label) || { path: label };
     artifactMetrics.set(label, { ...existing, ...metric });
+  };
+  const startWriteHeartbeat = () => {
+    if (writeProgressHeartbeatMs <= 0 || writeHeartbeatTimer) return;
+    writeHeartbeatTimer = setInterval(() => {
+      if (!activeWrites.size || completedWrites >= totalWrites) return;
+      const now = Date.now();
+      const inflight = Array.from(activeWrites.entries())
+        .map(([label, startedAt]) => ({
+          label,
+          elapsedSec: Math.max(1, Math.round((now - startedAt) / 1000))
+        }))
+        .sort((a, b) => b.elapsedSec - a.elapsedSec);
+      const preview = inflight.slice(0, 3)
+        .map(({ label, elapsedSec }) => `${label} (${elapsedSec}s)`)
+        .join(', ');
+      const suffix = inflight.length > 3 ? ` (+${inflight.length - 3} more)` : '';
+      logLine(
+        `Writing index files ${completedWrites}/${totalWrites} | in-flight: ${preview}${suffix}`,
+        { kind: 'status' }
+      );
+    }, writeProgressHeartbeatMs);
+    if (typeof writeHeartbeatTimer?.unref === 'function') {
+      writeHeartbeatTimer.unref();
+    }
+  };
+  const stopWriteHeartbeat = () => {
+    if (!writeHeartbeatTimer) return;
+    clearInterval(writeHeartbeatTimer);
+    writeHeartbeatTimer = null;
   };
   const enqueueWrite = (label, job) => {
     writes.push({
@@ -1443,7 +1492,85 @@ export async function writeIndexArtifacts(input) {
         }
       })()
       : (postings.minhashSigs || []));
-  if (sparseArtifactsEnabled) {
+  const packMinhashSignatures = ({ signatures, chunks }) => {
+    const source = Array.isArray(signatures) && signatures.length ? signatures : null;
+    const sourceChunks = Array.isArray(chunks) && chunks.length ? chunks : null;
+    if (!source && !sourceChunks) return null;
+    const resolveDims = () => {
+      const values = source || sourceChunks;
+      for (const entry of values) {
+        const sig = source ? entry : entry?.minhashSig;
+        if (Array.isArray(sig) && sig.length) return sig.length;
+      }
+      return 0;
+    };
+    const dims = resolveDims();
+    if (!dims) return null;
+    const count = source ? source.length : sourceChunks.length;
+    const total = dims * count;
+    const buffer = Buffer.allocUnsafe(total * 4);
+    const view = new Uint32Array(buffer.buffer, buffer.byteOffset, total);
+    let coercedRows = 0;
+    let offset = 0;
+    const writeSignature = (sig) => {
+      if (!Array.isArray(sig)) {
+        coercedRows += 1;
+        for (let i = 0; i < dims; i += 1) {
+          view[offset] = 0;
+          offset += 1;
+        }
+        return;
+      }
+      if (sig.length !== dims) coercedRows += 1;
+      for (let i = 0; i < dims; i += 1) {
+        const value = sig[i];
+        view[offset] = Number.isFinite(value) ? value : 0;
+        offset += 1;
+      }
+    };
+    if (source) {
+      for (const sig of source) {
+        writeSignature(sig);
+      }
+    } else {
+      for (const chunk of sourceChunks) {
+        writeSignature(chunk?.minhashSig);
+      }
+    }
+    return { buffer, dims, count, coercedRows };
+  };
+  const packedMinhash = sparseArtifactsEnabled
+    ? packMinhashSignatures({
+      signatures: minhashFromPostings,
+      chunks: minhashStream ? state.chunks : null
+    })
+    : null;
+  if (packedMinhash?.coercedRows && typeof log === 'function') {
+    log(
+      `[minhash] packed signatures coerced ${packedMinhash.coercedRows} row(s) `
+      + `to match dims=${packedMinhash.dims}.`
+    );
+  }
+  const skipMinhashJsonForLarge = sparseArtifactsEnabled
+    && packedMinhash
+    && minhashCount >= minhashJsonLargeThreshold;
+  if (skipMinhashJsonForLarge && typeof log === 'function') {
+    log(
+      `[minhash] skipping minhash_signatures.json for large index `
+      + `(count=${minhashCount}, threshold=${minhashJsonLargeThreshold}); using packed artifact.`
+    );
+  }
+  if (skipMinhashJsonForLarge) {
+    await removeArtifact(path.join(outDir, 'minhash_signatures.json'), { policy: 'format_cleanup' });
+    await removeArtifact(path.join(outDir, 'minhash_signatures.json.gz'), { policy: 'format_cleanup' });
+    await removeArtifact(path.join(outDir, 'minhash_signatures.json.zst'), { policy: 'format_cleanup' });
+    await removeArtifact(path.join(outDir, 'minhash_signatures.meta.json'), { policy: 'format_cleanup' });
+    await removeArtifact(path.join(outDir, 'minhash_signatures.parts'), {
+      recursive: true,
+      policy: 'format_cleanup'
+    });
+  }
+  if (sparseArtifactsEnabled && !skipMinhashJsonForLarge) {
     enqueueJsonObject('minhash_signatures', { arrays: { signatures: minhashIterable } }, {
       piece: {
         type: 'postings',
@@ -1452,46 +1579,6 @@ export async function writeIndexArtifacts(input) {
       }
     });
   }
-  const packMinhashSignatures = ({ signatures, chunks }) => {
-    const source = Array.isArray(signatures) && signatures.length ? signatures : null;
-    const sourceChunks = Array.isArray(chunks) && chunks.length ? chunks : null;
-    if (!source && !sourceChunks) return null;
-    const first = source ? source[0] : sourceChunks[0]?.minhashSig;
-    if (!Array.isArray(first) || !first.length) return null;
-    const dims = first.length;
-    const count = source ? source.length : sourceChunks.length;
-    const total = dims * count;
-    const buffer = Buffer.allocUnsafe(total * 4);
-    const view = new Uint32Array(buffer.buffer, buffer.byteOffset, total);
-    let offset = 0;
-    if (source) {
-      for (const sig of source) {
-        if (!Array.isArray(sig) || sig.length !== dims) return null;
-        for (let i = 0; i < dims; i += 1) {
-          const value = sig[i];
-          view[offset] = Number.isFinite(value) ? value : 0;
-          offset += 1;
-        }
-      }
-    } else {
-      for (const chunk of sourceChunks) {
-        const sig = chunk?.minhashSig;
-        if (!Array.isArray(sig) || sig.length !== dims) return null;
-        for (let i = 0; i < dims; i += 1) {
-          const value = sig[i];
-          view[offset] = Number.isFinite(value) ? value : 0;
-          offset += 1;
-        }
-      }
-    }
-    return { buffer, dims, count };
-  };
-  const packedMinhash = sparseArtifactsEnabled
-    ? packMinhashSignatures({
-      signatures: minhashFromPostings,
-      chunks: minhashStream ? state.chunks : null
-    })
-    : null;
   if (packedMinhash) {
     const packedChecksum = computePackedChecksum(packedMinhash.buffer);
     const packedPath = path.join(outDir, 'minhash_signatures.packed.bin');
@@ -1554,9 +1641,48 @@ export async function writeIndexArtifacts(input) {
     });
   }
   if (sparseArtifactsEnabled && resolvedConfig.fielded !== false && Array.isArray(state.fieldTokens)) {
-    enqueueJsonArray('field_tokens', state.fieldTokens, {
-      piece: { type: 'postings', name: 'field_tokens', count: state.fieldTokens.length }
-    });
+    const fieldTokensEstimatedBytes = estimateJsonBytes(state.fieldTokens);
+    const fieldTokensUseShards = fieldTokensShardThresholdBytes > 0
+      && fieldTokensShardMaxBytes > 0
+      && fieldTokensEstimatedBytes >= fieldTokensShardThresholdBytes;
+    if (fieldTokensUseShards) {
+      enqueueWrite(
+        formatArtifactLabel(path.join(outDir, 'field_tokens.parts')),
+        async () => {
+          await removeArtifact(path.join(outDir, 'field_tokens.json'), { policy: 'format_cleanup' });
+          await removeArtifact(path.join(outDir, 'field_tokens.json.gz'), { policy: 'format_cleanup' });
+          await removeArtifact(path.join(outDir, 'field_tokens.json.zst'), { policy: 'format_cleanup' });
+        }
+      );
+      if (typeof log === 'function') {
+        log(
+          `field_tokens estimate ~${formatBytes(fieldTokensEstimatedBytes)}; ` +
+          `using jsonl-sharded output (target ${formatBytes(fieldTokensShardMaxBytes)}).`
+        );
+      }
+      enqueueJsonArraySharded('field_tokens', state.fieldTokens, {
+        maxBytes: fieldTokensShardMaxBytes,
+        estimatedBytes: fieldTokensEstimatedBytes,
+        piece: { type: 'postings', name: 'field_tokens', count: state.fieldTokens.length },
+        compression: null,
+        gzipOptions: null,
+        offsets: true
+      });
+    } else {
+      enqueueWrite(
+        formatArtifactLabel(path.join(outDir, 'field_tokens.parts')),
+        async () => {
+          await removeArtifact(path.join(outDir, 'field_tokens.meta.json'), { policy: 'format_cleanup' });
+          await removeArtifact(path.join(outDir, 'field_tokens.parts'), {
+            recursive: true,
+            policy: 'format_cleanup'
+          });
+        }
+      );
+      enqueueJsonArray('field_tokens', state.fieldTokens, {
+        piece: { type: 'postings', name: 'field_tokens', count: state.fieldTokens.length }
+      });
+    }
   }
   const fileRelationsCompression = resolveShardCompression('file_relations');
   const fileRelationsOrdering = enqueueFileRelationsArtifacts({
@@ -1744,18 +1870,26 @@ export async function writeIndexArtifacts(input) {
       totalWrites
     });
     const writeConcurrency = Math.max(1, Math.min(totalWrites, writeConcurrencyCap));
-    await runWithConcurrency(
-      writes,
-      writeConcurrency,
-      async ({ label, job }) => {
-        try {
-          await job();
-        } finally {
-          logWriteProgress(label);
-        }
-      },
-      { collectResults: false }
-    );
+    startWriteHeartbeat();
+    try {
+      await runWithConcurrency(
+        writes,
+        writeConcurrency,
+        async ({ label, job }) => {
+          const activeLabel = label || '(unnamed artifact)';
+          activeWrites.set(activeLabel, Date.now());
+          try {
+            await job();
+          } finally {
+            activeWrites.delete(activeLabel);
+            logWriteProgress(label);
+          }
+        },
+        { collectResults: false }
+      );
+    } finally {
+      stopWriteHeartbeat();
+    }
     logLine('', { kind: 'status' });
   } else {
     logLine('Writing index files (0 artifacts)...', { kind: 'status' });

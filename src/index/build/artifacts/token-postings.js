@@ -45,6 +45,7 @@ export function resolveTokenPostingsPlan({
   tokenPostingsShardSize,
   tokenPostingsShardThreshold,
   tokenPostingsBinaryColumnar = false,
+  tokenPostingsPackedAutoThresholdBytes = null,
   postings,
   maxJsonBytes,
   maxJsonBytesSoft,
@@ -83,6 +84,29 @@ export function resolveTokenPostingsPlan({
         resolvedShardSize
       );
       resolvedShardSize = Math.max(1, Math.min(resolvedShardSize, targetShardSize));
+    }
+    const packedThresholdRaw = Number(tokenPostingsPackedAutoThresholdBytes);
+    const packedThreshold = Number.isFinite(packedThresholdRaw) && packedThresholdRaw > 0
+      ? Math.floor(packedThresholdRaw)
+      : null;
+    if (
+      tokenPostingsFormat === 'auto'
+      && tokenPostingsBinaryColumnar === true
+      && Number.isFinite(packedThreshold)
+      && tokenPostingsEstimate.estimatedBytes >= packedThreshold
+    ) {
+      tokenPostingsUseShards = false;
+      log(
+        `Token postings estimate ~${formatBytes(tokenPostingsEstimate.estimatedBytes)}; ` +
+        `switching auto format to packed (threshold ${formatBytes(packedThreshold)}).`
+      );
+      return {
+        tokenPostingsFormat: 'packed',
+        tokenPostingsUseShards,
+        tokenPostingsShardSize: resolvedShardSize,
+        tokenPostingsBinaryColumnar: tokenPostingsBinaryColumnar === true,
+        tokenPostingsEstimate
+      };
     }
   }
   return {
