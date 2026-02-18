@@ -26,6 +26,7 @@ import { buildLineIndex } from '../../../shared/lines.js';
 import { formatError } from './meta.js';
 import { processChunks } from './process-chunks.js';
 import { buildVfsVirtualPath } from '../../tooling/vfs.js';
+import { shouldSkipTreeSitterPlanningForPath } from '../tree-sitter-scheduler/policy.js';
 import {
   resolveSegmentExt,
   resolveSegmentTokenMode,
@@ -48,6 +49,7 @@ const SCM_FAST_TIMEOUT_PATH_PARTS = [
   '/.circleci/',
   '/.gitlab/'
 ];
+const SCM_FAST_TIMEOUT_MAX_LINES = 900;
 const SCM_CHURN_MAX_BYTES = 256 * 1024;
 const HEAVY_RELATIONS_MAX_BYTES = 512 * 1024;
 const HEAVY_RELATIONS_MAX_LINES = 6000;
@@ -71,13 +73,16 @@ const normalizeScmPath = (relPath) => String(relPath || '').replace(/\\/g, '/').
  * Files that frequently incur SCM command overhead (lockfiles/config/docs search payloads)
  * are routed through tighter timeout caps so they do not dominate queue latency.
  *
- * @param {{relPath?:string,ext?:string}} input
+ * @param {{relPath?:string,ext?:string,lines?:number}} input
  * @returns {boolean}
  */
-const isScmFastPath = ({ relPath, ext }) => {
+const isScmFastPath = ({ relPath, ext, lines }) => {
   const normalizedPath = normalizeScmPath(relPath);
   const normalizedExt = typeof ext === 'string' ? ext.toLowerCase() : '';
   if (SCM_META_FAST_TIMEOUT_EXTS.has(normalizedExt) || SCM_ANNOTATE_FAST_TIMEOUT_EXTS.has(normalizedExt)) {
+    return true;
+  }
+  if (Number.isFinite(Number(lines)) && Number(lines) >= SCM_FAST_TIMEOUT_MAX_LINES) {
     return true;
   }
   const base = normalizedPath.split('/').pop() || '';
@@ -85,6 +90,7 @@ const isScmFastPath = ({ relPath, ext }) => {
   for (const part of SCM_FAST_TIMEOUT_PATH_PARTS) {
     if (normalizedPath.includes(part)) return true;
   }
+  if (isHeavyRelationsPath(normalizedPath)) return true;
   return false;
 };
 
@@ -276,11 +282,18 @@ export const processFileCpu = async (context) => {
     && baseTreeSitterConfig?.languagePasses === false
     ? { ...(baseTreeSitterConfig || {}), allowedLanguages }
     : baseTreeSitterConfig;
+  const primaryLanguageId = languageHint?.id || null;
+  const treeSitterPolicySkipped = shouldSkipTreeSitterPlanningForPath({
+    relKey,
+    languageId: primaryLanguageId
+  });
   const extractedDocumentFile = documentExtraction && typeof documentExtraction === 'object';
   const resolvedSegmentsConfig = mode === 'extracted-prose' && !extractedDocumentFile
     ? { ...normalizedSegmentsConfig, onlyExtras: true }
     : normalizedSegmentsConfig;
-  const treeSitterEnabled = treeSitterConfig?.enabled !== false && mode === 'code';
+  const treeSitterEnabled = treeSitterConfig?.enabled !== false
+    && mode === 'code'
+    && !treeSitterPolicySkipped;
   const treeSitterLanguagePasses = treeSitterEnabled && treeSitterConfig?.languagePasses !== false;
   const treeSitterCacheKey = treeSitterConfig?.cacheKey ?? fileHash ?? null;
   const treeSitterConfigForMode = treeSitterEnabled
@@ -321,7 +334,6 @@ export const processFileCpu = async (context) => {
     };
   const shouldSerializeLanguageContext = treeSitterEnabled && treeSitterLanguagePasses === false;
   const runTreeSitter = shouldSerializeLanguageContext ? runTreeSitterSerial : (fn) => fn();
-  const primaryLanguageId = languageHint?.id || null;
   let lang = null;
   let languageContext = {};
   updateCrashStage('tree-sitter');
@@ -449,7 +461,7 @@ export const processFileCpu = async (context) => {
   // Keep SCM metadata for prose mode so retrieval filters can use author/date
   // constraints, but still skip docs-prose routes in code/extracted-prose lanes.
   const skipScmForProseRoute = proseRoutePreferred && mode !== 'prose';
-  const scmFastPath = isScmFastPath({ relPath: relKey, ext: normalizedExt });
+  const scmFastPath = isScmFastPath({ relPath: relKey, ext: normalizedExt, lines: fileLineCount });
   const annotateConfig = scmConfig?.annotate || {};
   const enforceScmTimeoutCaps = scmConfig?.allowSlowTimeouts !== true
     && annotateConfig?.allowSlowTimeouts !== true;

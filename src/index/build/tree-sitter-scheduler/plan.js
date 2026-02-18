@@ -14,7 +14,6 @@ import {
   resolveSegmentTokenMode,
   shouldIndexSegment
 } from '../../segments/config.js';
-import { isDocsPath, isInfraConfigPath } from '../mode-routing.js';
 import { isMinifiedName } from '../file-scan.js';
 import { buildVfsVirtualPath } from '../../tooling/vfs.js';
 import { TREE_SITTER_LANGUAGE_IDS } from '../../../lang/tree-sitter.js';
@@ -29,32 +28,10 @@ import {
 } from '../file-processor/tree-sitter.js';
 import { resolveTreeSitterSchedulerPaths } from './paths.js';
 import { createTreeSitterFileVersionSignature } from './file-signature.js';
+import { shouldSkipTreeSitterPlanningForPath } from './policy.js';
 
 const TREE_SITTER_LANG_IDS = new Set(TREE_SITTER_LANGUAGE_IDS);
 const PLANNER_IO_CONCURRENCY_CAP = 16;
-const DOC_TREE_SITTER_SKIP_LANGUAGES = new Set([
-  'yaml',
-  'json',
-  'toml',
-  'markdown',
-  'html',
-  'javascript',
-  'typescript',
-  'tsx',
-  'jsx',
-  'css'
-]);
-const HEAVY_TREE_SITTER_PATH_PARTS = [
-  '/include/fmt/',
-  '/include/spdlog/fmt/',
-  '/include/nlohmann/',
-  '/single_include/nlohmann/',
-  '/tests/abi/',
-  '/test/gtest/',
-  '/contrib/minizip/',
-  '/docs/mkdocs/'
-];
-const HEAVY_TREE_SITTER_LANGUAGES = new Set(['clike', 'cpp', 'objc']);
 
 const countLines = (text) => {
   if (!text) return 0;
@@ -114,19 +91,6 @@ const sortJobs = (a, b) => {
   const endDelta = (a.segmentEnd || 0) - (b.segmentEnd || 0);
   if (endDelta !== 0) return endDelta;
   return compareStrings(a.virtualPath || '', b.virtualPath || '');
-};
-
-const shouldSkipTreeSitterPlanningForPath = ({ relKey, languageId }) => {
-  if (!relKey) return false;
-  if (isInfraConfigPath(relKey)) return true;
-  if (isDocsPath(relKey) && DOC_TREE_SITTER_SKIP_LANGUAGES.has(languageId || '')) return true;
-  if (!HEAVY_TREE_SITTER_LANGUAGES.has(languageId || '')) return false;
-  const normalized = toPosix(String(relKey)).toLowerCase();
-  const bounded = `/${normalized.replace(/^\/+|\/+$/g, '')}/`;
-  for (const part of HEAVY_TREE_SITTER_PATH_PARTS) {
-    if (bounded.includes(part)) return true;
-  }
-  return false;
 };
 
 /**
