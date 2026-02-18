@@ -400,7 +400,10 @@ export const processFileCpu = async (context) => {
   if (!skipScmForDocsPath && scmActive && filePosix && typeof scmProviderImpl.getFileMeta === 'function') {
     scmTasks.push((async () => {
       const includeChurn = resolvedGitChurnEnabled && !scmFastPath;
-      const fileMeta = await runIo(() => scmProviderImpl.getFileMeta({
+      // SCM providers use subprocess execution and internal timeouts; queueing these
+      // behind shared IO work creates head-of-line delays where tiny files appear slow.
+      // Execute directly so SCM latency tracks provider timeout rather than queue backlog.
+      const fileMeta = await Promise.resolve(scmProviderImpl.getFileMeta({
         repoRoot: scmRepoRoot,
         filePosix,
         timeoutMs: Math.max(0, metaTimeoutMs),
@@ -469,7 +472,7 @@ export const processFileCpu = async (context) => {
         }
       };
       scmTasks.push((async () => {
-        const annotateResult = await runIo(() => annotateWithTimeout());
+        const annotateResult = await annotateWithTimeout();
         lineAuthors = buildLineAuthors(annotateResult);
       })());
     }

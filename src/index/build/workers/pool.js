@@ -349,6 +349,12 @@ export async function createIndexerWorkerPool(input = {}) {
         if (disabled || permanentlyDisabled) return false;
         if (config.enabled === true) return true;
         if (config.enabled === 'auto') {
+          const minFileBytes = Number.isFinite(config.minFileBytes) && config.minFileBytes > 0
+            ? Math.floor(config.minFileBytes)
+            : null;
+          if (minFileBytes != null && Number.isFinite(sizeBytes) && sizeBytes < minFileBytes) {
+            return false;
+          }
           if (config.maxFileBytes == null) return true;
           return !Number.isFinite(sizeBytes) || sizeBytes <= config.maxFileBytes;
         }

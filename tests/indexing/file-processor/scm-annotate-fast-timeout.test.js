@@ -37,7 +37,8 @@ const createContext = ({
   scmProviderImpl,
   fileHash,
   scmConfig = { annotate: {} },
-  analysisPolicy = null
+  analysisPolicy = null,
+  runIo = (fn) => fn()
 }) => ({
   abs,
   root,
@@ -95,7 +96,7 @@ const createContext = ({
   runEmbedding: (fn) => fn(),
   runProc: (fn) => fn(),
   runTreeSitterSerial: (fn) => fn(),
-  runIo: (fn) => fn(),
+  runIo,
   log: noop,
   logLine: noop,
   showLineProgress: false,
@@ -246,5 +247,31 @@ await processFileCpu(createContext({
 }));
 assert.equal(allowSlowTimeoutMs, 4321, 'expected allowSlowTimeouts to permit explicit annotate timeout');
 assert.equal(allowSlowMetaTimeoutMs, 333, 'expected allowSlowTimeouts to permit explicit meta timeout');
+
+let scmRunIoCalls = 0;
+const scmRunIoProvider = {
+  async getFileMeta() {
+    return { ok: false };
+  },
+  async annotate() {
+    return { ok: false, reason: 'timeout' };
+  }
+};
+await processFileCpu(createContext({
+  abs: yamlAbs,
+  ext: '.yml',
+  rel: yamlRel,
+  relKey: yamlRelKey,
+  text: yamlText,
+  fileStat: yamlStat,
+  languageHint: yamlLanguageHint,
+  scmProviderImpl: scmRunIoProvider,
+  fileHash: 'scm-annotate-fast-timeout-runio',
+  runIo: async (fn) => {
+    scmRunIoCalls += 1;
+    return fn();
+  }
+}));
+assert.equal(scmRunIoCalls, 0, 'expected SCM metadata/blame to avoid shared runIo queue');
 
 console.log('scm annotate fast timeout test passed');

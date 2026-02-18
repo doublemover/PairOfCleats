@@ -130,6 +130,19 @@ export function normalizeWorkerPoolConfig(raw = {}, options = {}) {
       maxFileBytes = Math.floor(maxFileBytesParsed);
     }
   }
+  const minFileBytesRaw = raw.minFileBytes;
+  let minFileBytes = 16 * 1024;
+  if (minFileBytesRaw === false || minFileBytesRaw === 0) {
+    minFileBytes = null;
+  } else {
+    const minFileBytesParsed = Number(minFileBytesRaw);
+    if (Number.isFinite(minFileBytesParsed) && minFileBytesParsed > 0) {
+      minFileBytes = Math.floor(minFileBytesParsed);
+    }
+  }
+  if (Number.isFinite(minFileBytes) && Number.isFinite(maxFileBytes) && minFileBytes > maxFileBytes) {
+    minFileBytes = maxFileBytes;
+  }
   const idleTimeoutMsRaw = Number(raw.idleTimeoutMs);
   const idleTimeoutMs = Number.isFinite(idleTimeoutMsRaw) && idleTimeoutMsRaw > 0
     ? Math.floor(idleTimeoutMsRaw)
@@ -151,6 +164,7 @@ export function normalizeWorkerPoolConfig(raw = {}, options = {}) {
     enabled,
     maxWorkers,
     maxFileBytes,
+    minFileBytes,
     idleTimeoutMs,
     taskTimeoutMs,
     quantizeBatchSize,
