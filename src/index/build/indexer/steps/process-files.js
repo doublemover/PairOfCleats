@@ -82,6 +82,30 @@ const resolvePostingsQueueConfig = (runtime) => {
 };
 
 /**
+ * Resolve ordered appender backpressure thresholds.
+ *
+ * The ordered appender preserves deterministic emission order, but allowing a
+ * bounded out-of-order buffer keeps workers productive while a single slow
+ * head-of-line file is still processing.
+ *
+ * @param {object} runtime
+ * @returns {{maxPendingBeforeBackpressure:number}}
+ */
+const resolveOrderedAppenderConfig = (runtime) => {
+  const config = runtime?.stage1Queues?.ordered || {};
+  const cpuPending = Number.isFinite(runtime?.queues?.cpu?.maxPending)
+    ? runtime.queues.cpu.maxPending
+    : null;
+  const fileConcurrency = Number.isFinite(runtime?.fileConcurrency)
+    ? Math.max(1, Math.floor(runtime.fileConcurrency))
+    : 1;
+  const maxPendingBeforeBackpressure = coercePositiveInt(config.maxPending)
+    ?? cpuPending
+    ?? Math.max(32, fileConcurrency * 8);
+  return { maxPendingBeforeBackpressure };
+};
+
+/**
  * Main stage1 file-processing orchestration.
  * Handles scheduler prep, concurrent file processing, ordered output append,
  * sparse postings backpressure, and checkpoint/progress emission.
@@ -176,6 +200,7 @@ export const processFiles = async ({
     const postingsQueueConfig = sparsePostingsEnabled
       ? resolvePostingsQueueConfig(runtime)
       : null;
+    const orderedAppenderConfig = resolveOrderedAppenderConfig(runtime);
     const postingsQueue = postingsQueueConfig
       ? createPostingsQueue({
         ...postingsQueueConfig,
@@ -301,6 +326,7 @@ export const processFiles = async ({
         startIndex: startOrderIndex,
         bucketSize: coercePositiveInt(runtime?.stage1Queues?.ordered?.bucketSize)
         ?? Math.max(128, runtime.fileConcurrency * 32),
+        maxPendingBeforeBackpressure: orderedAppenderConfig.maxPendingBeforeBackpressure,
         log: (message, meta = {}) => logLine(message, { ...meta, mode, stage: 'processing' }),
         stallMs: debugOrdered ? 5000 : undefined,
         debugOrdered
@@ -379,6 +405,7 @@ export const processFiles = async ({
         abortSignal
       });
       const runEntryBatch = async (batchEntries) => {
+        const orderedCompletions = new Set();
         await runWithQueue(
           runtimeRef.queues.cpu,
           batchEntries,
@@ -488,9 +515,17 @@ export const processFiles = async ({
                   });
                 })()
                 : { release: () => {} };
-              return orderedAppender
-                .enqueue(orderIndex, result, shardMeta)
-                .finally(() => reservation.release());
+              const completion = orderedAppender.enqueue(orderIndex, result, shardMeta);
+              orderedCompletions.add(completion);
+              const releaseReservation = () => {
+                orderedCompletions.delete(completion);
+                reservation.release();
+              };
+              completion.then(releaseReservation, releaseReservation);
+              if (typeof orderedAppender.waitForCapacity === 'function') {
+                return orderedAppender.waitForCapacity();
+              }
+              return completion;
             },
             onError: async (err, ctx) => {
               const entryIndex = Number.isFinite(ctx?.index) ? ctx.index : 0;
@@ -516,6 +551,9 @@ export const processFiles = async ({
             retryDelayMs: 200
           }
         );
+        while (orderedCompletions.size > 0) {
+          await Promise.all(Array.from(orderedCompletions));
+        }
       };
       try {
         await runEntryBatch(shardEntries);

@@ -16,6 +16,9 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
   const bucketSize = Number.isFinite(options.bucketSize)
     ? Math.max(0, Math.floor(options.bucketSize))
     : 0;
+  const maxPendingBeforeBackpressure = Number.isFinite(options.maxPendingBeforeBackpressure)
+    ? Math.max(1, Math.floor(options.maxPendingBeforeBackpressure))
+    : 0;
   const pending = new Map();
   const completed = new Set();
   const startIndex = Number.isFinite(options.startIndex)
@@ -49,6 +52,9 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
   }
   const seen = expectedCount != null ? new Set() : null;
   let seenCount = 0;
+  const capacityWaiters = new Set();
+  let abortError = null;
+  let lastActivityAt = Date.now();
 
   const emitLog = (message, meta) => {
     if (!logFn) return;
@@ -72,7 +78,53 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
   };
 
   const noteAdvance = () => {
-    lastAdvanceAt = Date.now();
+    const now = Date.now();
+    lastAdvanceAt = now;
+    lastActivityAt = now;
+  };
+
+  const noteActivity = () => {
+    lastActivityAt = Date.now();
+  };
+
+  const rejectCapacityWaiters = (err) => {
+    if (!capacityWaiters.size) return;
+    const error = err instanceof Error ? err : new Error(String(err || 'Ordered appender aborted.'));
+    const waiters = Array.from(capacityWaiters);
+    capacityWaiters.clear();
+    for (const waiter of waiters) {
+      try {
+        waiter.reject(error);
+      } catch {}
+    }
+  };
+
+  const resolveCapacityWaiters = () => {
+    if (!capacityWaiters.size) return;
+    if (aborted) {
+      rejectCapacityWaiters(abortError || new Error('Ordered appender aborted.'));
+      return;
+    }
+    if (maxPendingBeforeBackpressure > 0 && pending.size > maxPendingBeforeBackpressure) return;
+    const waiters = Array.from(capacityWaiters);
+    capacityWaiters.clear();
+    for (const waiter of waiters) {
+      try {
+        waiter.resolve();
+      } catch {}
+    }
+  };
+
+  const waitForCapacity = () => {
+    if (aborted) {
+      return Promise.reject(abortError || new Error('Ordered appender aborted.'));
+    }
+    if (maxPendingBeforeBackpressure <= 0 || pending.size <= maxPendingBeforeBackpressure) {
+      return Promise.resolve();
+    }
+    return new Promise((resolve, reject) => {
+      capacityWaiters.add({ resolve, reject });
+    });
   };
 
   const scheduleStallCheck = () => {
@@ -85,8 +137,8 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
         scheduleStallCheck();
         return;
       }
-      const ageMs = Date.now() - lastAdvanceAt;
-      if (ageMs < stallMs) {
+      const idleMs = Date.now() - lastActivityAt;
+      if (idleMs < stallMs) {
         scheduleStallCheck();
         return;
       }
@@ -94,10 +146,23 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
       const head = keys.slice(0, 5).join(', ');
       const tail = keys.length > 5 ? keys.slice(-5).join(', ') : '';
       const tailText = tail ? ` … ${tail}` : '';
-      emitLog(
-        `[ordered] stalled at index ${nextIndex} for ${Math.round(ageMs / 1000)}s; pending=${pending.size}; keys=${head}${tailText}`,
-        { kind: 'warning' }
-      );
+      const idleSeconds = Math.round(idleMs / 1000);
+      const seenRemaining = expectedCount != null ? Math.max(0, expectedCount - seenCount) : null;
+      const completedCount = completed.size;
+      const orderedRemaining = expectedCount != null ? Math.max(0, expectedCount - completedCount) : null;
+      if (expectedCount != null && seenRemaining > 0) {
+        emitLog(
+          `[ordered] waiting on index ${nextIndex}; idle=${idleSeconds}s; pending=${pending.size}; ` +
+          `unseen=${seenRemaining}; remaining=${orderedRemaining}; keys=${head}${tailText}`,
+          { kind: 'status' }
+        );
+      } else {
+        const remainingText = orderedRemaining != null ? `; remaining=${orderedRemaining}` : '';
+        emitLog(
+          `[ordered] stalled at index ${nextIndex} for ${idleSeconds}s; pending=${pending.size}${remainingText}; keys=${head}${tailText}`,
+          { kind: 'warning' }
+        );
+      }
       scheduleStallCheck();
     }, stallMs);
     stallTimer.unref?.();
@@ -212,13 +277,15 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
   const abort = (err) => {
     if (aborted) return;
     aborted = true;
+    abortError = err instanceof Error ? err : new Error(String(err || 'Ordered appender aborted.'));
     if (stallTimer) {
       clearTimeout(stallTimer);
       stallTimer = null;
     }
+    rejectCapacityWaiters(abortError);
     for (const entry of pending.values()) {
       try {
-        entry?.reject?.(err);
+        entry?.reject?.(abortError);
       } catch {}
     }
     pending.clear();
@@ -256,6 +323,7 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
           }
           completed.add(key);
           entry?.resolve?.();
+          noteActivity();
         } catch (err) {
           try { entry?.reject?.(err); } catch {}
           throw err;
@@ -282,6 +350,7 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
         nextIndex = Math.max(nextIndex, currentIndex + 1);
         noteAdvance();
         advancePastSkipped();
+        resolveCapacityWaiters();
       }
     }
     if (bucketSize > 0 && pending.has(nextIndex)) {
@@ -299,6 +368,7 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
       seenCount,
       bucketSize
     });
+    resolveCapacityWaiters();
   };
 
   const scheduleFlush = async () => {
@@ -353,6 +423,7 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
         if (result && !existing.result) existing.result = result;
         if (result && existing.result && existing.result !== result) existing.result = result;
         if (!existing.shardMeta && shardMeta) existing.shardMeta = shardMeta;
+        noteActivity();
         debugLog('[ordered] enqueue merge', {
           orderIndex,
           index,
@@ -373,6 +444,7 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
         reject = rej;
       });
       pending.set(index, { result, shardMeta, resolve, reject, done });
+      noteActivity();
       debugLog('[ordered] enqueue new', {
         orderIndex,
         index,
@@ -395,6 +467,7 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
         return Promise.resolve();
       }
       noteSeen(index);
+      noteActivity();
       debugLog('[ordered] skip', {
         orderIndex,
         index,
@@ -408,6 +481,7 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
         pending.delete(index);
         try { entry?.resolve?.(); } catch {}
         completed.add(index);
+        resolveCapacityWaiters();
       }
       skipped.add(index);
       // Ensure we advance if the skipped index is next up.
@@ -419,6 +493,7 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
     peekNextIndex() {
       return nextIndex;
     },
+    waitForCapacity,
     abort
   };
 };
