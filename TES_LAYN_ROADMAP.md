@@ -84,7 +84,7 @@ Deliverables:
 
 Exit checks:
 - [x] Determinism reruns match for ID and normalize outputs.
-- [ ] Failure paths emit correct, actionable diagnostics.
+- [x] Failure paths emit correct, actionable diagnostics.
 
 ### Phase C - Language Batch Execution (B1-B7)
 
