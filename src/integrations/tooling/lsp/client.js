@@ -88,6 +88,19 @@ export function createLspClient(options) {
   let nextStartAt = 0;
   // Ensure every LSP request is bounded unless explicitly disabled.
   const DEFAULT_REQUEST_TIMEOUT_MS = 15000;
+  const CLOSED_TRANSPORT_WRITE_ERROR_CODES = new Set([
+    'ERR_STREAM_DESTROYED',
+    'EPIPE',
+    'ECONNRESET',
+    'ERR_SOCKET_CLOSED',
+    'EOF'
+  ]);
+  const isClosedTransportWriteError = (err) => {
+    const code = String(err?.code || '').toUpperCase();
+    if (code && CLOSED_TRANSPORT_WRITE_ERROR_CODES.has(code)) return true;
+    const message = String(err?.message || err || '');
+    return /\bEPIPE\b/i.test(message) || /stream (?:is )?closed/i.test(message);
+  };
 
   const rejectPending = (err) => {
     for (const entry of pending.values()) {
@@ -108,7 +121,8 @@ export function createLspClient(options) {
     const pendingWrite = writer.write(payload);
     if (pendingWrite && typeof pendingWrite.catch === 'function') {
       pendingWrite.catch((err) => {
-        if (err?.code === 'ERR_STREAM_DESTROYED') {
+        if (isClosedTransportWriteError(err)) {
+          rejectPendingTransportClosed();
           writerClosed = true;
           return;
         }
