@@ -161,5 +161,134 @@ await runStatsScenario('one-each', {
   }
 });
 
+const perlCreateContent = [
+  'sub create_widget {',
+  "  return bless {}, 'Widget';",
+  '}',
+  ''
+].join('\n');
+const perlBuildContent = [
+  'sub build_widget {',
+  '  return create_widget;',
+  '}',
+  ''
+].join('\n');
+await runStatsScenario('perl-return-bare-call', {
+  files: {
+    'lib/create_widget.pm': perlCreateContent,
+    'lib/build_widget.pm': perlBuildContent
+  },
+  chunks: [
+    {
+      file: 'lib/build_widget.pm',
+      name: 'build_widget',
+      kind: 'FunctionDeclaration',
+      chunkUid: 'uid-perl-build',
+      start: 0,
+      end: perlBuildContent.length,
+      docmeta: { returnsValue: true },
+      codeRelations: {
+        calls: [['build_widget', 'create_widget']]
+      },
+      metaV2: buildSymbolMeta({
+        file: 'lib/build_widget.pm',
+        name: 'build_widget',
+        kind: 'FunctionDeclaration',
+        chunkUid: 'uid-perl-build'
+      })
+    },
+    {
+      file: 'lib/create_widget.pm',
+      name: 'create_widget',
+      kind: 'FunctionDeclaration',
+      chunkUid: 'uid-perl-create',
+      start: 0,
+      end: perlCreateContent.length,
+      docmeta: {
+        returnType: 'Widget',
+        returnsValue: true
+      },
+      codeRelations: {},
+      metaV2: buildSymbolMeta({
+        file: 'lib/create_widget.pm',
+        name: 'create_widget',
+        kind: 'FunctionDeclaration',
+        chunkUid: 'uid-perl-create'
+      })
+    }
+  ],
+  expect: {
+    linkedCalls: 1,
+    linkedUsages: 0,
+    inferredReturns: 1,
+    riskFlows: 0
+  }
+});
+
+const shellHelperContent = [
+  'helper() {',
+  "  echo 'ok'",
+  '}',
+  ''
+].join('\n');
+const shellWrapperContent = [
+  'run_wrapper() {',
+  '  helper',
+  '  return 0',
+  '}',
+  ''
+].join('\n');
+await runStatsScenario('shell-status-return', {
+  files: {
+    'src/helper.sh': shellHelperContent,
+    'src/wrapper.sh': shellWrapperContent
+  },
+  chunks: [
+    {
+      file: 'src/wrapper.sh',
+      name: 'run_wrapper',
+      kind: 'FunctionDeclaration',
+      chunkUid: 'uid-shell-wrapper',
+      start: 0,
+      end: shellWrapperContent.length,
+      docmeta: { returnsValue: true },
+      codeRelations: {
+        calls: [['run_wrapper', 'helper']]
+      },
+      metaV2: buildSymbolMeta({
+        file: 'src/wrapper.sh',
+        name: 'run_wrapper',
+        kind: 'FunctionDeclaration',
+        chunkUid: 'uid-shell-wrapper'
+      })
+    },
+    {
+      file: 'src/helper.sh',
+      name: 'helper',
+      kind: 'FunctionDeclaration',
+      chunkUid: 'uid-shell-helper',
+      start: 0,
+      end: shellHelperContent.length,
+      docmeta: {
+        returnType: 'string',
+        returnsValue: true
+      },
+      codeRelations: {},
+      metaV2: buildSymbolMeta({
+        file: 'src/helper.sh',
+        name: 'helper',
+        kind: 'FunctionDeclaration',
+        chunkUid: 'uid-shell-helper'
+      })
+    }
+  ],
+  expect: {
+    linkedCalls: 1,
+    linkedUsages: 0,
+    inferredReturns: 0,
+    riskFlows: 0
+  }
+});
+
 console.log('Cross-file inference stats ok.');
 
