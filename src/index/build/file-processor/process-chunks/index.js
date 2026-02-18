@@ -81,6 +81,11 @@ const HEAVY_FILE_MAX_CHUNKS_DEFAULT = 64;
 const HEAVY_FILE_PATH_MIN_BYTES_DEFAULT = 64 * 1024;
 const HEAVY_FILE_PATH_MIN_LINES_DEFAULT = 1200;
 const HEAVY_FILE_PATH_MIN_CHUNKS_DEFAULT = HEAVY_FILE_MAX_CHUNKS_DEFAULT;
+const HEAVY_FILE_SKIP_TOKENIZATION_ENABLED_DEFAULT = true;
+const HEAVY_FILE_SKIP_TOKENIZATION_MAX_BYTES_DEFAULT = HEAVY_FILE_MAX_BYTES_DEFAULT * 2;
+const HEAVY_FILE_SKIP_TOKENIZATION_MAX_LINES_DEFAULT = HEAVY_FILE_MAX_LINES_DEFAULT * 2;
+const HEAVY_FILE_SKIP_TOKENIZATION_MAX_CHUNKS_DEFAULT = HEAVY_FILE_MAX_CHUNKS_DEFAULT * 2;
+const HEAVY_FILE_SKIP_TOKENIZATION_COALESCE_MAX_CHUNKS_DEFAULT = 16;
 const HEAVY_FILE_PATH_RX = /\/(?:third_party|thirdparty|vendor|single_include|include\/fmt|include\/spdlog\/fmt|include\/nlohmann|tests\/abi|test\/gtest|docs\/mkdocs|\.github\/workflows)\//;
 
 const normalizeHeavyFilePolicy = (languageOptions) => {
@@ -93,6 +98,10 @@ const normalizeHeavyFilePolicy = (languageOptions) => {
   const pathMinBytesRaw = Number(config.pathMinBytes);
   const pathMinLinesRaw = Number(config.pathMinLines);
   const pathMinChunksRaw = Number(config.pathMinChunks);
+  const skipTokenizationMaxBytesRaw = Number(config.skipTokenizationMaxBytes);
+  const skipTokenizationMaxLinesRaw = Number(config.skipTokenizationMaxLines);
+  const skipTokenizationMaxChunksRaw = Number(config.skipTokenizationMaxChunks);
+  const skipTokenizationCoalesceMaxChunksRaw = Number(config.skipTokenizationCoalesceMaxChunks);
   const maxBytes = Number.isFinite(maxBytesRaw) && maxBytesRaw > 0
     ? Math.floor(maxBytesRaw)
     : HEAVY_FILE_MAX_BYTES_DEFAULT;
@@ -111,7 +120,36 @@ const normalizeHeavyFilePolicy = (languageOptions) => {
   const pathMinChunks = Number.isFinite(pathMinChunksRaw) && pathMinChunksRaw > 0
     ? Math.floor(pathMinChunksRaw)
     : HEAVY_FILE_PATH_MIN_CHUNKS_DEFAULT;
-  return { enabled, maxBytes, maxLines, maxChunks, pathMinBytes, pathMinLines, pathMinChunks };
+  const skipTokenizationEnabled = config.skipTokenization !== false
+    ? HEAVY_FILE_SKIP_TOKENIZATION_ENABLED_DEFAULT
+    : false;
+  const skipTokenizationMaxBytes = Number.isFinite(skipTokenizationMaxBytesRaw) && skipTokenizationMaxBytesRaw > 0
+    ? Math.floor(skipTokenizationMaxBytesRaw)
+    : HEAVY_FILE_SKIP_TOKENIZATION_MAX_BYTES_DEFAULT;
+  const skipTokenizationMaxLines = Number.isFinite(skipTokenizationMaxLinesRaw) && skipTokenizationMaxLinesRaw > 0
+    ? Math.floor(skipTokenizationMaxLinesRaw)
+    : HEAVY_FILE_SKIP_TOKENIZATION_MAX_LINES_DEFAULT;
+  const skipTokenizationMaxChunks = Number.isFinite(skipTokenizationMaxChunksRaw) && skipTokenizationMaxChunksRaw > 0
+    ? Math.floor(skipTokenizationMaxChunksRaw)
+    : HEAVY_FILE_SKIP_TOKENIZATION_MAX_CHUNKS_DEFAULT;
+  const skipTokenizationCoalesceMaxChunks = Number.isFinite(skipTokenizationCoalesceMaxChunksRaw)
+    && skipTokenizationCoalesceMaxChunksRaw > 0
+    ? Math.floor(skipTokenizationCoalesceMaxChunksRaw)
+    : HEAVY_FILE_SKIP_TOKENIZATION_COALESCE_MAX_CHUNKS_DEFAULT;
+  return {
+    enabled,
+    maxBytes,
+    maxLines,
+    maxChunks,
+    pathMinBytes,
+    pathMinLines,
+    pathMinChunks,
+    skipTokenizationEnabled,
+    skipTokenizationMaxBytes,
+    skipTokenizationMaxLines,
+    skipTokenizationMaxChunks,
+    skipTokenizationCoalesceMaxChunks
+  };
 };
 
 const isHeavyFilePath = (relPath) => {
@@ -268,8 +306,18 @@ export const processChunks = async (context) => {
         heavyFilePolicy
       })
     );
+  const heavyFileSkipTokenization = heavyFileDownshift
+    && heavyFilePolicy.skipTokenizationEnabled
+    && (
+      fileBytes >= heavyFilePolicy.skipTokenizationMaxBytes
+      || fileLines >= heavyFilePolicy.skipTokenizationMaxLines
+      || sourceChunks.length >= heavyFilePolicy.skipTokenizationMaxChunks
+    );
+  const heavyFileTargetChunks = heavyFileSkipTokenization
+    ? Math.min(heavyFilePolicy.maxChunks, heavyFilePolicy.skipTokenizationCoalesceMaxChunks)
+    : heavyFilePolicy.maxChunks;
   const chunksForProcessing = heavyFileDownshift
-    ? coalesceHeavyChunks(sourceChunks, heavyFilePolicy.maxChunks)
+    ? coalesceHeavyChunks(sourceChunks, heavyFileTargetChunks)
     : sourceChunks;
   if (heavyFileDownshift && typeof log === 'function') {
     log(
@@ -281,6 +329,9 @@ export const processChunks = async (context) => {
         `[perf] heavy-file chunks coalesced for ${relKey} `
         + `(${sourceChunks.length} -> ${chunksForProcessing.length}).`
       );
+    }
+    if (heavyFileSkipTokenization) {
+      log(`[perf] heavy-file tokenization skipped for ${relKey}.`);
     }
   }
 
@@ -459,6 +510,7 @@ export const processChunks = async (context) => {
   const effectiveTypeInferenceEnabled = heavyFileDownshift ? false : baseTypeInferenceEnabled;
   const effectiveRiskAnalysisEnabled = heavyFileDownshift ? false : baseRiskAnalysisEnabled;
   const effectiveRelationsEnabled = heavyFileDownshift ? false : relationsEnabled;
+  const effectiveTokenizeEnabled = tokenizeEnabled && !heavyFileSkipTokenization;
   const resolveFrameworkProfile = createFrameworkProfileResolver({
     relPath: rel,
     ext: containerExt,
@@ -603,7 +655,7 @@ export const processChunks = async (context) => {
 
     let tokenPayload = null;
     let pretokenized = null;
-    const useLineTokenStream = tokenizeEnabled
+    const useLineTokenStream = effectiveTokenizeEnabled
       && tokenizationFileStreamEnabled
       && tokenText === ctext
       && canUseLineTokenStreamSlice({
@@ -633,7 +685,7 @@ export const processChunks = async (context) => {
       });
     }
     let usedWorkerTokenize = false;
-    if (tokenizeEnabled && runTokenize && !pretokenized) {
+    if (effectiveTokenizeEnabled && runTokenize && !pretokenized) {
       try {
         const tokenStart = Date.now();
         updateCrashStage('tokenize-worker', { chunkIndex: ci });
@@ -686,7 +738,7 @@ export const processChunks = async (context) => {
         }
       }
     }
-    if (tokenizeEnabled && !tokenPayload) {
+    if (effectiveTokenizeEnabled && !tokenPayload) {
       const tokenStart = Date.now();
       updateCrashStage('tokenize', { chunkIndex: ci });
       tokenPayload = tokenizeChunkText({
@@ -703,7 +755,7 @@ export const processChunks = async (context) => {
       addTokenizeDuration(tokenDurationMs);
       addSettingMetric('tokenize', chunkLanguageId, chunkLineCount, tokenDurationMs);
     }
-    if (!tokenizeEnabled) {
+    if (!effectiveTokenizeEnabled) {
       tokenPayload = {
         tokens: [],
         tokenIds: [],
@@ -717,7 +769,7 @@ export const processChunks = async (context) => {
       };
     }
 
-    const tokenClassificationEnabled = tokenizeEnabled
+    const tokenClassificationEnabled = effectiveTokenizeEnabled
       && fileTokenContext?.tokenClassification?.enabled === true
       && chunkMode === 'code';
     if (tokenClassificationEnabled && usedWorkerTokenize) {
@@ -754,7 +806,7 @@ export const processChunks = async (context) => {
       literalTokens
     } = tokenPayload;
 
-    if (tokenizationStats && tokenizeEnabled) {
+    if (tokenizationStats && effectiveTokenizeEnabled) {
       tokenizationStats.chunks += 1;
       tokenizationStats.tokens += tokens.length;
       tokenizationStats.seq += seq.length;
@@ -762,7 +814,7 @@ export const processChunks = async (context) => {
       // We don't materialize them during tokenization to avoid large transient allocations.
     }
 
-    if (tokenizeEnabled && !seq.length) continue;
+    if (effectiveTokenizeEnabled && !seq.length) continue;
 
     const docText = typeof docmeta.doc === 'string' ? docmeta.doc : '';
 
@@ -822,7 +874,7 @@ export const processChunks = async (context) => {
       dictWords: dictWordsForChunk,
       dictConfig,
       postingsConfig,
-      emitFieldTokens: tokenizeEnabled,
+      emitFieldTokens: effectiveTokenizeEnabled,
       tokenMode: chunkMode,
       fileRelations,
       relationsEnabled: effectiveRelationsEnabled,

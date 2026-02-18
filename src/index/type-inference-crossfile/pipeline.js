@@ -10,6 +10,15 @@ import { runToolingPass } from './tooling.js';
 import { buildSymbolIndex, resolveSymbolRef } from './resolver.js';
 
 const resolveLinkRef = (link) => link?.to || link?.calleeRef || link?.ref || link?.symbolRef || null;
+const LARGE_REPO_CHUNK_THRESHOLD = 3000;
+const LARGE_REPO_FILE_THRESHOLD = 500;
+const LARGE_REPO_CALL_LINKS_PER_CHUNK = 96;
+const LARGE_REPO_CALL_SUMMARIES_PER_CHUNK = 128;
+const LARGE_REPO_USAGE_LINKS_PER_CHUNK = 128;
+const LARGE_REPO_CALL_LINKS_TOTAL = 25000;
+const LARGE_REPO_USAGE_LINKS_TOTAL = 25000;
+const LARGE_REPO_CALL_SAMPLE_LIMIT = 10;
+const LARGE_REPO_PARAM_TYPE_LIMIT = 3;
 
 const linkKeys = new WeakMap();
 
@@ -106,8 +115,6 @@ export async function applyCrossFileInference({
   const chunkByUid = new Map();
   const fileSet = new Set();
   const riskSeverityRank = { low: 1, medium: 2, high: 3 };
-  const callSampleLimit = 25;
-  const paramTypeLimit = 5;
   const callSampleCounts = new Map();
   const confidenceForHop = (hops) => Math.max(0.2, FLOW_CONFIDENCE * (0.85 ** hops));
 
@@ -137,11 +144,35 @@ export async function applyCrossFileInference({
   }
 
   const symbolResolver = buildSymbolIndex(symbolEntries);
+  const largeRepoBudget = chunks.length >= LARGE_REPO_CHUNK_THRESHOLD || fileSet.size >= LARGE_REPO_FILE_THRESHOLD
+    ? {
+      maxCallLinksPerChunk: LARGE_REPO_CALL_LINKS_PER_CHUNK,
+      maxCallSummariesPerChunk: LARGE_REPO_CALL_SUMMARIES_PER_CHUNK,
+      maxUsageLinksPerChunk: LARGE_REPO_USAGE_LINKS_PER_CHUNK,
+      maxTotalCallLinks: LARGE_REPO_CALL_LINKS_TOTAL,
+      maxTotalUsageLinks: LARGE_REPO_USAGE_LINKS_TOTAL,
+      callSampleLimit: LARGE_REPO_CALL_SAMPLE_LIMIT,
+      paramTypeLimit: LARGE_REPO_PARAM_TYPE_LIMIT
+    }
+    : null;
+  const callSampleLimit = largeRepoBudget?.callSampleLimit ?? 25;
+  const paramTypeLimit = largeRepoBudget?.paramTypeLimit ?? 5;
+  if (largeRepoBudget && typeof log === 'function') {
+    log(
+      `[perf] cross-file budget enabled `
+      + `(chunks=${chunks.length}, files=${fileSet.size}, `
+      + `callPerChunk=${largeRepoBudget.maxCallLinksPerChunk}, `
+      + `usagePerChunk=${largeRepoBudget.maxUsageLinksPerChunk}).`
+    );
+  }
 
   let linkedCalls = 0;
   let linkedUsages = 0;
   let inferredReturns = 0;
   let riskFlows = 0;
+  let droppedCallLinks = 0;
+  let droppedCallSummaries = 0;
+  let droppedUsageLinks = 0;
   const fileUsageFallbackApplied = new Set();
 
   const fileTextByRel = new Map();
@@ -309,7 +340,21 @@ export async function applyCrossFileInference({
     const usageLinks = [];
 
     if (Array.isArray(relations.calls)) {
-      for (const [, callee] of relations.calls) {
+      const maxCallLinksPerChunk = Number.isFinite(largeRepoBudget?.maxCallLinksPerChunk)
+        ? Math.max(0, Math.floor(largeRepoBudget.maxCallLinksPerChunk))
+        : null;
+      const maxCallLinkSource = maxCallLinksPerChunk == null
+        ? relations.calls.length
+        : Math.min(relations.calls.length, maxCallLinksPerChunk);
+      if (maxCallLinkSource < relations.calls.length) {
+        droppedCallLinks += relations.calls.length - maxCallLinkSource;
+      }
+      for (let callIndex = 0; callIndex < maxCallLinkSource; callIndex += 1) {
+        if (Number.isFinite(largeRepoBudget?.maxTotalCallLinks) && linkedCalls + callLinks.length >= largeRepoBudget.maxTotalCallLinks) {
+          droppedCallLinks += maxCallLinkSource - callIndex;
+          break;
+        }
+        const [, callee] = relations.calls[callIndex] || [];
         const symbolRef = resolveSymbolRef({
           targetName: callee,
           kindHint: null,
@@ -334,7 +379,17 @@ export async function applyCrossFileInference({
     }
 
     if (Array.isArray(relations.callDetails)) {
-      for (const detail of relations.callDetails) {
+      const maxCallSummariesPerChunk = Number.isFinite(largeRepoBudget?.maxCallSummariesPerChunk)
+        ? Math.max(0, Math.floor(largeRepoBudget.maxCallSummariesPerChunk))
+        : null;
+      const maxCallSummarySource = maxCallSummariesPerChunk == null
+        ? relations.callDetails.length
+        : Math.min(relations.callDetails.length, maxCallSummariesPerChunk);
+      if (maxCallSummarySource < relations.callDetails.length) {
+        droppedCallSummaries += relations.callDetails.length - maxCallSummarySource;
+      }
+      for (let detailIndex = 0; detailIndex < maxCallSummarySource; detailIndex += 1) {
+        const detail = relations.callDetails[detailIndex];
         const callee = detail?.callee;
         if (!callee) continue;
         const symbolRef = resolveSymbolRef({
@@ -402,7 +457,21 @@ export async function applyCrossFileInference({
       fileUsageFallbackApplied.add(chunk.file);
     }
     if (Array.isArray(usageSource)) {
-      for (const usage of usageSource) {
+      const maxUsageLinksPerChunk = Number.isFinite(largeRepoBudget?.maxUsageLinksPerChunk)
+        ? Math.max(0, Math.floor(largeRepoBudget.maxUsageLinksPerChunk))
+        : null;
+      const maxUsageSource = maxUsageLinksPerChunk == null
+        ? usageSource.length
+        : Math.min(usageSource.length, maxUsageLinksPerChunk);
+      if (maxUsageSource < usageSource.length) {
+        droppedUsageLinks += usageSource.length - maxUsageSource;
+      }
+      for (let usageIndex = 0; usageIndex < maxUsageSource; usageIndex += 1) {
+        if (Number.isFinite(largeRepoBudget?.maxTotalUsageLinks) && linkedUsages + usageLinks.length >= largeRepoBudget.maxTotalUsageLinks) {
+          droppedUsageLinks += maxUsageSource - usageIndex;
+          break;
+        }
+        const usage = usageSource[usageIndex];
         const symbolRef = resolveSymbolRef({
           targetName: usage,
           kindHint: null,
@@ -571,5 +640,24 @@ export async function applyCrossFileInference({
     }
   }
 
-  return { linkedCalls, linkedUsages, inferredReturns, riskFlows };
+  if (largeRepoBudget && typeof log === 'function') {
+    if (droppedCallLinks > 0 || droppedCallSummaries > 0 || droppedUsageLinks > 0) {
+      log(
+        `[perf] cross-file budget dropped `
+        + `callLinks=${droppedCallLinks}, `
+        + `callSummaries=${droppedCallSummaries}, `
+        + `usageLinks=${droppedUsageLinks}.`
+      );
+    }
+  }
+
+  return {
+    linkedCalls,
+    linkedUsages,
+    inferredReturns,
+    riskFlows,
+    droppedCallLinks,
+    droppedCallSummaries,
+    droppedUsageLinks
+  };
 }
