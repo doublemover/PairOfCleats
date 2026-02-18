@@ -59,7 +59,7 @@ export const createOrderedCompletionTracker = () => {
 
   const wait = async () => {
     while (pending.size > 0) {
-      await Promise.all(Array.from(pending));
+      await Promise.allSettled(Array.from(pending));
     }
     throwIfFailed();
   };
