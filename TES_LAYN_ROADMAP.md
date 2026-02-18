@@ -91,7 +91,7 @@ Exit checks:
 Objective: implement and harden language adapters in repeatable batches.
 
 Deliverables:
-- [ ] B1 complete (JS/TS + framework foundations).
+- [x] B1 complete (JS/TS + framework foundations).
 - [ ] B2-B7 complete with required adapters and language-specific edges.
 - [ ] Import-only entries replaced by full adapters where required.
 

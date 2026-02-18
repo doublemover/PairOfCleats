@@ -60,7 +60,7 @@ Primary fixture/functional touchpoints:
 
 Completion status:
 - [x] B0 foundation pack complete
-- [ ] B1 javascript/typescript pack complete
+- [x] B1 javascript/typescript pack complete
 - [ ] B2 systems-languages pack complete
 - [ ] B3 managed-languages pack complete
 - [ ] B4 dynamic-languages pack complete
