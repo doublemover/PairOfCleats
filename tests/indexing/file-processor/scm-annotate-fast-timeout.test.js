@@ -60,7 +60,7 @@ const createContext = ({
   scmProviderImpl,
   scmRepoRoot: root,
   scmConfig,
-  languageOptions: { treeSitter: { enabled: false } },
+  languageOptions: { treeSitter: { enabled: false }, pythonAst: { enabled: false } },
   astDataflowEnabled: false,
   controlFlowEnabled: false,
   normalizedSegmentsConfig: normalizeSegmentsConfig(null),
@@ -225,6 +225,71 @@ await processFileCpu(createContext({
 assert.equal(swiftAnnotateCalls, 1, 'expected annotate to run for .swift files');
 assert.equal(swiftTimeoutMs, 750, 'expected .swift annotate timeout to clamp to 750ms');
 assert.equal(swiftMetaTimeoutMs, 250, 'expected .swift meta timeout to clamp to 250ms');
+
+const pyAbs = path.join(root, 'tests', 'fixtures', 'sample', 'src', 'sample.py');
+const pyRel = path.relative(root, pyAbs);
+const pyRelKey = pyRel.split(path.sep).join('/');
+const pyText = await fs.readFile(pyAbs, 'utf8');
+const pyStat = await fs.stat(pyAbs);
+const pyLanguageHint = getLanguageForFile('.py', pyRelKey);
+let pyAnnotateCalls = 0;
+let pyTimeoutMs = null;
+let pyMetaTimeoutMs = null;
+let pyIncludeChurn = null;
+const pyScmProvider = {
+  async getFileMeta(args) {
+    pyMetaTimeoutMs = args?.timeoutMs ?? null;
+    pyIncludeChurn = args?.includeChurn ?? null;
+    return { ok: false };
+  },
+  async annotate(args) {
+    pyAnnotateCalls += 1;
+    pyTimeoutMs = args?.timeoutMs ?? null;
+    return { ok: false, reason: 'timeout' };
+  }
+};
+await processFileCpu(createContext({
+  abs: pyAbs,
+  ext: '.py',
+  rel: pyRel,
+  relKey: pyRelKey,
+  text: pyText,
+  fileStat: pyStat,
+  languageHint: pyLanguageHint,
+  scmProviderImpl: pyScmProvider,
+  fileHash: 'scm-annotate-fast-timeout-py'
+}));
+assert.equal(pyAnnotateCalls, 1, 'expected annotate to run for .py files');
+assert.equal(pyTimeoutMs, 750, 'expected .py annotate timeout to clamp to 750ms');
+assert.equal(pyMetaTimeoutMs, 250, 'expected .py meta timeout to clamp to 250ms');
+assert.equal(pyIncludeChurn, false, 'expected fast-path .py churn metadata to be disabled');
+
+let pyGeneratedMetaCalls = 0;
+let pyGeneratedAnnotateCalls = 0;
+const pyGeneratedScmProvider = {
+  async getFileMeta() {
+    pyGeneratedMetaCalls += 1;
+    return { ok: false };
+  },
+  async annotate() {
+    pyGeneratedAnnotateCalls += 1;
+    return { ok: false, reason: 'timeout' };
+  }
+};
+const pyGeneratedRelKey = 'pygments/lexers/_lasso_builtins.py';
+await processFileCpu(createContext({
+  abs: pyAbs,
+  ext: '.py',
+  rel: pyGeneratedRelKey,
+  relKey: pyGeneratedRelKey,
+  text: pyText,
+  fileStat: pyStat,
+  languageHint: getLanguageForFile('.py', pyGeneratedRelKey),
+  scmProviderImpl: pyGeneratedScmProvider,
+  fileHash: 'scm-annotate-fast-timeout-py-generated'
+}));
+assert.equal(pyGeneratedMetaCalls, 1, 'expected generated python files to keep SCM file metadata');
+assert.equal(pyGeneratedAnnotateCalls, 0, 'expected generated python files to skip SCM annotate');
 
 let legacyIncludeChurn = null;
 const legacyScmProvider = {

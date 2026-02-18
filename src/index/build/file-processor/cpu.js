@@ -40,6 +40,8 @@ const SCM_ANNOTATE_FAST_TIMEOUT_EXTS = new Set([
   '.json',
   '.toml',
   '.lock',
+  '.py',
+  '.pyi',
   '.swift',
   '.html',
   '.htm'
@@ -50,10 +52,15 @@ const SCM_META_FAST_TIMEOUT_EXTS = new Set([
   '.json',
   '.toml',
   '.lock',
+  '.py',
+  '.pyi',
   '.swift',
   '.html',
   '.htm'
 ]);
+const SCM_PYTHON_EXTS = new Set(['.py', '.pyi']);
+const SCM_ANNOTATE_PYTHON_MAX_BYTES = 64 * 1024;
+const SCM_ANNOTATE_PYTHON_HEAVY_LINE_CUTOFF = 2500;
 const SCM_FAST_TIMEOUT_BASENAMES = new Set([
   'cmakelists.txt',
   'makefile',
@@ -88,6 +95,13 @@ const HEAVY_RELATIONS_PATH_PARTS = [
 ];
 
 const normalizeScmPath = (relPath) => String(relPath || '').replace(/\\/g, '/').toLowerCase();
+
+const isPythonGeneratedDataPath = (relPath) => {
+  const normalizedPath = normalizeScmPath(relPath);
+  if (!normalizedPath.endsWith('.py') && !normalizedPath.endsWith('.pyi')) return false;
+  if (!normalizedPath.includes('pygments/lexers/')) return false;
+  return normalizedPath.endsWith('_builtins.py') || normalizedPath.endsWith('/_mapping.py');
+};
 
 /**
  * Files that frequently incur SCM command overhead (lockfiles/config/docs search payloads)
@@ -348,6 +362,10 @@ export const processFileCpu = async (context) => {
       relationsEnabled,
       metricsCollector,
       filePath: abs,
+      fileSizeBytes: fileStat?.size ?? null,
+      fileLineCountHint: Number.isFinite(Number(fileEntry?.lines))
+        ? Math.max(0, Math.floor(Number(fileEntry.lines)))
+        : null,
       // When scheduler chunks are already planned, stage1 can skip language-level
       // prepare passes and avoid duplicate parser work on large files.
       skipPrepare: hasSchedulerPlannedSegments && mode === 'code' && relationsEnabled !== true,
@@ -357,6 +375,10 @@ export const processFileCpu = async (context) => {
       relationsEnabled,
       metricsCollector,
       filePath: abs,
+      fileSizeBytes: fileStat?.size ?? null,
+      fileLineCountHint: Number.isFinite(Number(fileEntry?.lines))
+        ? Math.max(0, Math.floor(Number(fileEntry.lines)))
+        : null,
       skipPrepare: hasSchedulerPlannedSegments && mode === 'code' && relationsEnabled !== true,
       treeSitter: contextTreeSitterConfig
     };
@@ -498,6 +520,12 @@ export const processFileCpu = async (context) => {
   // skip annotate for this route.
   const skipScmAnnotateForProseRoute = proseRoutePreferred && mode === 'prose';
   const scmFastPath = isScmFastPath({ relPath: relKey, ext: normalizedExt, lines: fileLineCount });
+  const isPythonScmPath = SCM_PYTHON_EXTS.has(normalizedExt);
+  const skipScmAnnotateForGeneratedPython = isPythonScmPath
+    && (
+      fileLineCount >= SCM_ANNOTATE_PYTHON_HEAVY_LINE_CUTOFF
+      || isPythonGeneratedDataPath(relKey)
+    );
   const annotateConfig = scmConfig?.annotate || {};
   const enforceScmTimeoutCaps = scmConfig?.allowSlowTimeouts !== true
     && annotateConfig?.allowSlowTimeouts !== true;
@@ -544,15 +572,19 @@ export const processFileCpu = async (context) => {
     if (
       resolvedGitBlameEnabled
       && !skipScmAnnotateForProseRoute
+      && !skipScmAnnotateForGeneratedPython
       && scmMetaUnavailableReason == null
       && typeof scmProviderImpl.annotate === 'function'
     ) {
       await runScmTask(async () => {
         const maxAnnotateBytesRaw = Number(annotateConfig.maxFileSizeBytes);
         const defaultAnnotateBytes = scmFastPath ? 128 * 1024 : 256 * 1024;
+        const annotateDefaultBytes = isPythonScmPath
+          ? Math.min(defaultAnnotateBytes, SCM_ANNOTATE_PYTHON_MAX_BYTES)
+          : defaultAnnotateBytes;
         const maxAnnotateBytes = Number.isFinite(maxAnnotateBytesRaw)
           ? Math.max(0, maxAnnotateBytesRaw)
-          : defaultAnnotateBytes;
+          : annotateDefaultBytes;
         const annotateTimeoutRaw = Number(annotateConfig.timeoutMs);
         const defaultTimeoutRaw = Number(scmConfig?.timeoutMs);
         const hasExplicitAnnotateTimeout = Number.isFinite(annotateTimeoutRaw) && annotateTimeoutRaw > 0;
