@@ -49,6 +49,16 @@ const SCM_FAST_TIMEOUT_PATH_PARTS = [
   '/.gitlab/'
 ];
 const SCM_CHURN_MAX_BYTES = 256 * 1024;
+const HEAVY_RELATIONS_MAX_BYTES = 512 * 1024;
+const HEAVY_RELATIONS_MAX_LINES = 6000;
+const HEAVY_RELATIONS_PATH_PARTS = [
+  '/third_party/',
+  '/thirdparty/',
+  '/vendor/',
+  '/single_include/',
+  '/tests/abi/',
+  '/test/gtest/'
+];
 
 const normalizeScmPath = (relPath) => String(relPath || '').replace(/\\/g, '/').toLowerCase();
 
@@ -68,6 +78,14 @@ const isScmFastPath = ({ relPath, ext }) => {
   const base = normalizedPath.split('/').pop() || '';
   if (SCM_FAST_TIMEOUT_BASENAMES.has(base)) return true;
   for (const part of SCM_FAST_TIMEOUT_PATH_PARTS) {
+    if (normalizedPath.includes(part)) return true;
+  }
+  return false;
+};
+
+const isHeavyRelationsPath = (relPath) => {
+  const normalizedPath = normalizeScmPath(relPath);
+  for (const part of HEAVY_RELATIONS_PATH_PARTS) {
     if (normalizedPath.includes(part)) return true;
   }
   return false;
@@ -370,8 +388,16 @@ export const processFileCpu = async (context) => {
       }
     };
   }
+  const skipHeavyRelations = mode === 'code'
+    && relationsEnabled
+    && (
+      (fileStat?.size ?? 0) >= HEAVY_RELATIONS_MAX_BYTES
+      || totalLines >= HEAVY_RELATIONS_MAX_LINES
+      || isHeavyRelationsPath(relKey)
+    );
+  const effectiveRelationsEnabled = relationsEnabled && !skipHeavyRelations;
   let rawRelations = null;
-  if (mode === 'code' && relationsEnabled && lang && typeof lang.buildRelations === 'function') {
+  if (mode === 'code' && effectiveRelationsEnabled && lang && typeof lang.buildRelations === 'function') {
     try {
       rawRelations = lang.buildRelations({
         text,
@@ -385,7 +411,7 @@ export const processFileCpu = async (context) => {
   }
   let filteredRelations = rawRelations;
   let lexiconFilterStats = null;
-  if (mode === 'code' && relationsEnabled && rawRelations) {
+  if (mode === 'code' && effectiveRelationsEnabled && rawRelations) {
     filteredRelations = filterRawRelationsWithLexicon(rawRelations, {
       languageId: lang?.id || null,
       config: languageOptions?.lexicon || null,
@@ -394,8 +420,8 @@ export const processFileCpu = async (context) => {
     });
     lexiconFilterStats = getLexiconRelationFilterStats(filteredRelations);
   }
-  const fileRelations = relationsEnabled ? buildFileRelations(filteredRelations, relKey) : null;
-  const callIndex = relationsEnabled ? buildCallIndex(filteredRelations) : null;
+  const fileRelations = effectiveRelationsEnabled ? buildFileRelations(filteredRelations, relKey) : null;
+  const callIndex = effectiveRelationsEnabled ? buildCallIndex(filteredRelations) : null;
   const resolvedGitBlameEnabled = typeof analysisPolicy?.git?.blame === 'boolean'
     ? analysisPolicy.git.blame
     : gitBlameEnabled;
@@ -657,7 +683,9 @@ export const processFileCpu = async (context) => {
       });
     }
 
-    const batchChunks = typeof treeSitterScheduler.loadChunksBatch === 'function'
+    const batchChunks = scheduled.length > 0
+      && treeSitterScheduler
+      && typeof treeSitterScheduler.loadChunksBatch === 'function'
       ? await treeSitterScheduler.loadChunksBatch(scheduled.map((item) => item.virtualPath))
       : null;
     if (Array.isArray(batchChunks) && batchChunks.length === scheduled.length) {
@@ -685,8 +713,15 @@ export const processFileCpu = async (context) => {
         sc.push(...chunks);
       }
     } else {
+      const loadChunk = treeSitterScheduler && typeof treeSitterScheduler.loadChunks === 'function'
+        ? (virtualPath) => treeSitterScheduler.loadChunks(virtualPath)
+        : null;
       for (const item of scheduled) {
-        const chunks = await treeSitterScheduler.loadChunks(item.virtualPath);
+        if (!loadChunk) {
+          fallbackSegments.push(item.segment);
+          continue;
+        }
+        const chunks = await loadChunk(item.virtualPath);
         if (!Array.isArray(chunks) || !chunks.length) {
           const hasScheduledEntry = treeSitterScheduler?.index instanceof Map
             ? treeSitterScheduler.index.has(item.virtualPath)
@@ -774,7 +809,7 @@ export const processFileCpu = async (context) => {
     languageContext,
     languageOptions,
     mode,
-    relationsEnabled,
+    relationsEnabled: effectiveRelationsEnabled,
     fileRelations,
     callIndex,
     fileStructural,
