@@ -153,9 +153,9 @@ const parseSignature = (detail, languageId, symbolName) => {
   return parseClikeSignature(trimmed, symbolName);
 };
 
-const createClangdStderrFilter = () => {
+export const createClangdStderrFilter = () => {
   let suppressedIncludeCleaner = 0;
-  const includeCleanerPattern = /\bIncludeCleaner:\s+Failed to get an entry for resolved path '' from include <[^>]+>\s*:\s*no such file or directory\b/i;
+  const includeCleanerPattern = /\bIncludeCleaner:\s+Failed to get an entry for resolved path '' from include (?:<[^>]+>|"[^"]+")\s*:\s*no such file or directory\b/i;
   return {
     filter: (line) => {
       if (includeCleanerPattern.test(String(line || ''))) {
