@@ -732,14 +732,746 @@ const resolveRubyRelativeImport = ({ base, lookup }) => {
   return null;
 };
 
+const resolveFromCandidateList = (candidates, lookup) => {
+  const seen = new Set();
+  for (const candidate of candidates) {
+    const rel = normalizeRelPath(candidate);
+    if (!rel || rel.startsWith('/') || seen.has(rel)) continue;
+    seen.add(rel);
+    const resolved = resolveFromLookup(rel, lookup);
+    if (resolved) return resolved;
+  }
+  return null;
+};
+
+const listFilesInDir = ({ dir, lookup, ext = null }) => {
+  const normalizedDir = normalizeRelPath(dir);
+  if (!normalizedDir || normalizedDir.startsWith('/')) return [];
+  const prefix = `${normalizedDir}/`;
+  const out = [];
+  for (const relPath of lookup.fileSet || []) {
+    if (!relPath.startsWith(prefix)) continue;
+    const remainder = relPath.slice(prefix.length);
+    if (!remainder || remainder.includes('/')) continue;
+    if (ext && !remainder.toLowerCase().endsWith(ext.toLowerCase())) continue;
+    out.push(relPath);
+  }
+  out.sort(sortStrings);
+  return out;
+};
+
+const resolveGoModulePath = (rootAbs, fsMemo = null) => {
+  const io = fsMemo || createFsMemo();
+  const goModPath = path.join(rootAbs, 'go.mod');
+  if (!io.existsSync(goModPath)) return null;
+  try {
+    const text = fs.readFileSync(goModPath, 'utf8');
+    const match = text.match(/^\s*module\s+([^\s]+)\s*$/m);
+    return match?.[1] ? String(match[1]).trim() : null;
+  } catch {
+    return null;
+  }
+};
+
+const resolveWithLanguageExtensions = ({ base, lookup, extensions = [], suffixes = [] }) => {
+  const normalizedBase = normalizeRelPath(base);
+  if (!normalizedBase || normalizedBase.startsWith('/')) return null;
+  const candidates = [normalizedBase];
+  for (const ext of extensions) {
+    if (!ext) continue;
+    candidates.push(`${normalizedBase}${ext}`);
+  }
+  for (const suffix of suffixes) {
+    if (!suffix) continue;
+    candidates.push(`${normalizedBase}/${suffix}`);
+  }
+  return resolveFromCandidateList(candidates, lookup);
+};
+
+const resolveWithLanguageExtensionsFromBases = ({
+  bases,
+  lookup,
+  extensions = [],
+  suffixes = []
+}) => {
+  if (!Array.isArray(bases) || !bases.length) return null;
+  for (const base of bases) {
+    const resolved = resolveWithLanguageExtensions({ base, lookup, extensions, suffixes });
+    if (resolved) return resolved;
+  }
+  return null;
+};
+
+/**
+ * Read the local Dart package name from pubspec.yaml so `package:<self>/...`
+ * imports can be treated as in-repo links instead of external packages.
+ */
+const resolveDartPackageName = (rootAbs, fsMemo = null) => {
+  const io = fsMemo || createFsMemo();
+  const pubspecPath = path.join(rootAbs, 'pubspec.yaml');
+  if (!io.existsSync(pubspecPath)) return null;
+  try {
+    const text = fs.readFileSync(pubspecPath, 'utf8');
+    const lines = text.split(/\r?\n/);
+    for (const rawLine of lines) {
+      const line = String(rawLine || '').trim();
+      if (!line || line.startsWith('#')) continue;
+      const match = line.match(/^name\s*:\s*["']?([A-Za-z0-9_.-]+)["']?\s*$/);
+      if (match?.[1]) return match[1];
+      if (/^[A-Za-z_][A-Za-z0-9_-]*\s*:/.test(line)) break;
+    }
+  } catch {}
+  return null;
+};
+
+const importerExtension = (importerRel) => path.posix.extname(normalizeRelPath(importerRel)).toLowerCase();
+
+const importerBaseName = (importerRel) => path.posix.basename(normalizeRelPath(importerRel)).toLowerCase();
+
+const isPythonImporter = (importerRel) => importerExtension(importerRel) === '.py';
+const isPerlImporter = (importerRel) => {
+  const ext = importerExtension(importerRel);
+  return ext === '.pl' || ext === '.pm' || ext === '.t';
+};
+const isLuaImporter = (importerRel) => importerExtension(importerRel) === '.lua';
+const isPhpImporter = (importerRel) => importerExtension(importerRel) === '.php';
+const isGoImporter = (importerRel) => importerExtension(importerRel) === '.go';
+const isJavaImporter = (importerRel) => importerExtension(importerRel) === '.java';
+const isKotlinImporter = (importerRel) => {
+  const ext = importerExtension(importerRel);
+  return ext === '.kt' || ext === '.kts';
+};
+const isCsharpImporter = (importerRel) => importerExtension(importerRel) === '.cs';
+const isSwiftImporter = (importerRel) => importerExtension(importerRel) === '.swift';
+const isRustImporter = (importerRel) => importerExtension(importerRel) === '.rs';
+const isDartImporter = (importerRel) => importerExtension(importerRel) === '.dart';
+const isScalaImporter = (importerRel) => importerExtension(importerRel) === '.scala';
+const isGroovyImporter = (importerRel) => {
+  const ext = importerExtension(importerRel);
+  return ext === '.groovy' || ext === '.gradle';
+};
+const isJuliaImporter = (importerRel) => importerExtension(importerRel) === '.jl';
+const isShellImporter = (importerRel) => {
+  const ext = importerExtension(importerRel);
+  const base = importerBaseName(importerRel);
+  return ext === '.sh'
+    || ext === '.bash'
+    || ext === '.zsh'
+    || ext === '.ksh'
+    || ext === '.fish'
+    || base === 'bashrc'
+    || base === 'zshrc';
+};
+
+const CLIKE_IMPORTER_EXTS = new Set([
+  '.c',
+  '.cc',
+  '.cpp',
+  '.cxx',
+  '.h',
+  '.hh',
+  '.hpp',
+  '.hxx',
+  '.ipp',
+  '.inl',
+  '.inc',
+  '.m',
+  '.mm'
+]);
+
+const isClikeImporter = (importerRel) => CLIKE_IMPORTER_EXTS.has(importerExtension(importerRel));
+
+const PATH_LIKE_IMPORTER_EXTS = new Set([
+  '.c',
+  '.cc',
+  '.cpp',
+  '.cxx',
+  '.h',
+  '.hh',
+  '.hpp',
+  '.hxx',
+  '.ipp',
+  '.inl',
+  '.inc',
+  '.m',
+  '.mm',
+  '.cmake',
+  '.mk',
+  '.mak',
+  '.nix',
+  '.proto',
+  '.graphql',
+  '.gql',
+  '.hbs',
+  '.mustache',
+  '.jinja',
+  '.jinja2',
+  '.j2',
+  '.bzl',
+  '.star',
+  '.dart'
+]);
+
+const PATH_LIKE_SPEC_EXTS = new Set([
+  '.c',
+  '.cc',
+  '.cpp',
+  '.cxx',
+  '.h',
+  '.hh',
+  '.hpp',
+  '.hxx',
+  '.ipp',
+  '.inl',
+  '.inc',
+  '.cmake',
+  '.mk',
+  '.nix',
+  '.proto',
+  '.graphql',
+  '.gql',
+  '.hbs',
+  '.mustache',
+  '.jinja',
+  '.jinja2',
+  '.j2',
+  '.bzl',
+  '.json',
+  '.yaml',
+  '.yml',
+  '.toml',
+  '.ini',
+  '.cfg',
+  '.conf',
+  '.xml',
+  '.md',
+  '.txt',
+  '.css',
+  '.scss',
+  '.js',
+  '.ts',
+  '.rb',
+  '.py',
+  '.php',
+  '.pm',
+  '.lua',
+  '.sh'
+]);
+
+const isPathLikeImporter = (importerRel) => {
+  const ext = importerExtension(importerRel);
+  if (PATH_LIKE_IMPORTER_EXTS.has(ext)) return true;
+  const base = importerBaseName(importerRel);
+  return base === 'cmakelists.txt'
+    || base === 'makefile'
+    || base === 'dockerfile'
+    || base.endsWith('.mk');
+};
+
+const looksLikePathSpecifier = (spec) => {
+  if (!spec) return false;
+  if (spec.startsWith('./') || spec.startsWith('../') || spec.startsWith('/')) return true;
+  if (spec.startsWith('//') || spec.startsWith(':')) return true;
+  if (spec.includes('/') || spec.includes('\\')) return true;
+  const ext = path.posix.extname(spec).toLowerCase();
+  return PATH_LIKE_SPEC_EXTS.has(ext);
+};
+
+const resolvePathLikeImport = ({ spec, importerRel, lookup }) => {
+  const importerDir = path.posix.dirname(normalizeRelPath(importerRel));
+  const normalizedSpec = normalizeRelPath(spec);
+  if (!normalizedSpec) return null;
+  if (normalizedSpec.startsWith('//')) {
+    const label = normalizedSpec.slice(2);
+    const colon = label.indexOf(':');
+    if (colon >= 0) {
+      const pkg = label.slice(0, colon);
+      const target = label.slice(colon + 1);
+      if (target) {
+        return resolveFromCandidateList([pkg ? `${pkg}/${target}` : target], lookup);
+      }
+      return null;
+    }
+    return resolveFromCandidateList([label], lookup);
+  }
+  if (normalizedSpec.startsWith(':')) {
+    const target = normalizedSpec.slice(1);
+    if (!target) return null;
+    return resolveFromCandidateList([`${importerDir}/${target}`], lookup);
+  }
+  if (normalizedSpec.startsWith('/')) {
+    return resolveFromCandidateList([normalizedSpec.slice(1)], lookup);
+  }
+  if (normalizedSpec.startsWith('.')) {
+    return resolveFromCandidateList([path.posix.join(importerDir, normalizedSpec)], lookup);
+  }
+  return resolveFromCandidateList([
+    path.posix.join(importerDir, normalizedSpec),
+    normalizedSpec
+  ], lookup);
+};
+
+const resolvePythonRelativeDottedImport = ({ spec, importerRel, lookup }) => {
+  const match = spec.match(/^(\.+)(.*)$/);
+  if (!match) return null;
+  const dotPrefix = match[1] || '';
+  const remainderRaw = match[2] || '';
+  const importerDir = path.posix.dirname(normalizeRelPath(importerRel));
+  let anchorDir = importerDir;
+  const climbs = Math.max(0, dotPrefix.length - 1);
+  for (let i = 0; i < climbs; i += 1) {
+    anchorDir = path.posix.dirname(anchorDir);
+  }
+  const remainder = remainderRaw
+    ? normalizeRelPath(remainderRaw.replace(/\./g, '/'))
+    : '';
+  const base = remainder ? path.posix.join(anchorDir, remainder) : anchorDir;
+  return resolveWithLanguageExtensions({
+    base,
+    lookup,
+    extensions: ['.py'],
+    suffixes: ['__init__.py']
+  });
+};
+
+const resolveLanguageRelativeImport = ({ spec, base, importerRel, lookup }) => {
+  if (isRubyImporter(importerRel)) {
+    const rubyResolved = resolveRubyRelativeImport({ base, lookup });
+    if (rubyResolved) return rubyResolved;
+  }
+  if (isPythonImporter(importerRel)) {
+    if (/^\.+[^/\\]*$/.test(spec) && !spec.startsWith('./') && !spec.startsWith('../')) {
+      const dottedResolved = resolvePythonRelativeDottedImport({ spec, importerRel, lookup });
+      if (dottedResolved) return dottedResolved;
+      return null;
+    }
+    return resolveWithLanguageExtensions({
+      base,
+      lookup,
+      extensions: ['.py'],
+      suffixes: ['__init__.py']
+    });
+  }
+  if (isPerlImporter(importerRel)) {
+    return resolveWithLanguageExtensions({ base, lookup, extensions: ['.pm'] });
+  }
+  if (isLuaImporter(importerRel)) {
+    return resolveWithLanguageExtensions({
+      base,
+      lookup,
+      extensions: ['.lua'],
+      suffixes: ['init.lua']
+    });
+  }
+  if (isPhpImporter(importerRel)) {
+    return resolveWithLanguageExtensions({ base, lookup, extensions: ['.php'] });
+  }
+  if (isShellImporter(importerRel)) {
+    return resolveWithLanguageExtensions({ base, lookup, extensions: ['.sh'] });
+  }
+  if (isRustImporter(importerRel)) {
+    return resolveWithLanguageExtensions({
+      base,
+      lookup,
+      extensions: ['.rs'],
+      suffixes: ['mod.rs']
+    });
+  }
+  if (isGoImporter(importerRel)) {
+    return resolveWithLanguageExtensions({ base, lookup, extensions: ['.go'] });
+  }
+  if (isJavaImporter(importerRel)) {
+    return resolveWithLanguageExtensions({ base, lookup, extensions: ['.java'] });
+  }
+  if (isKotlinImporter(importerRel)) {
+    return resolveWithLanguageExtensions({ base, lookup, extensions: ['.kt', '.kts', '.java'] });
+  }
+  if (isCsharpImporter(importerRel)) {
+    return resolveWithLanguageExtensions({ base, lookup, extensions: ['.cs'] });
+  }
+  if (isSwiftImporter(importerRel)) {
+    return resolveWithLanguageExtensions({ base, lookup, extensions: ['.swift'] });
+  }
+  if (isPathLikeImporter(importerRel) && looksLikePathSpecifier(spec)) {
+    return resolvePathLikeImport({ spec, importerRel, lookup });
+  }
+  return null;
+};
+
+const resolveDottedImportToPath = ({ spec, lookup, extensions = [], prefixes = [''] }) => {
+  if (!spec || spec.endsWith('.*')) return null;
+  const normalizedSpec = spec.replace(/\\/g, '.');
+  if (!/^[A-Za-z_][\w.]*$/.test(normalizedSpec)) return null;
+  const parts = normalizedSpec.split('.').filter(Boolean);
+  if (!parts.length) return null;
+  const candidates = [];
+  for (let keep = parts.length; keep >= 1; keep -= 1) {
+    const stem = parts.slice(0, keep).join('/');
+    for (const prefix of prefixes) {
+      const base = prefix ? `${prefix}/${stem}` : stem;
+      for (const ext of extensions) {
+        candidates.push(`${base}${ext}`);
+      }
+    }
+  }
+  return resolveFromCandidateList(candidates, lookup);
+};
+
+const normalizeDottedImportSpecifier = (spec) => {
+  if (!spec) return '';
+  let normalized = String(spec).trim();
+  normalized = normalized.replace(/\.\*$/, '').replace(/\._$/, '');
+  normalized = normalized.replace(/:+$/, '');
+  if (!normalized) return '';
+  if (!/^[A-Za-z_][\w.]*$/.test(normalized)) return '';
+  return normalized;
+};
+
+/**
+ * Resolve C/C++ include-style specifiers using both importer-relative paths
+ * and common include roots (include/src/lib/vendor) used by many repositories.
+ */
+const resolveClikeIncludeImport = ({ spec, importerRel, lookup }) => {
+  const pathLikeResolved = resolvePathLikeImport({ spec, importerRel, lookup });
+  if (pathLikeResolved) return pathLikeResolved;
+  const normalizedSpec = normalizeRelPath(spec);
+  if (!normalizedSpec) return null;
+  if (
+    normalizedSpec.startsWith('/')
+    || normalizedSpec.startsWith('.')
+    || normalizedSpec.startsWith(':')
+    || normalizedSpec.startsWith('//')
+  ) {
+    return null;
+  }
+  const includeRoots = ['include', 'src', 'lib', 'headers', 'vendor', 'third_party', 'third-party'];
+  const baseCandidates = includeRoots.map((root) => `${root}/${normalizedSpec}`);
+  const rooted = resolveFromCandidateList(baseCandidates, lookup);
+  if (rooted) return rooted;
+  if (path.posix.extname(normalizedSpec)) return null;
+  return resolveWithLanguageExtensionsFromBases({
+    bases: baseCandidates,
+    lookup,
+    extensions: ['.h', '.hpp', '.hh', '.hxx', '.inc', '.inl']
+  });
+};
+
+const resolveDartPackageImport = ({ spec, lookup, dartPackageName }) => {
+  if (!spec.startsWith('package:')) return null;
+  const payload = spec.slice('package:'.length);
+  if (!payload) return null;
+  const slashIndex = payload.indexOf('/');
+  const packageName = (slashIndex >= 0 ? payload.slice(0, slashIndex) : payload).trim();
+  const packagePath = normalizeRelPath(slashIndex >= 0 ? payload.slice(slashIndex + 1) : '');
+  if (!packageName || !packagePath) return null;
+  const candidates = [
+    `packages/${packageName}/${packagePath}`,
+    `third_party/dart/${packageName}/${packagePath}`
+  ];
+  if (!dartPackageName || packageName === dartPackageName) {
+    candidates.unshift(`lib/${packagePath}`, packagePath, `src/${packagePath}`);
+  }
+  return resolveFromCandidateList(candidates, lookup);
+};
+
+const resolveDartImport = ({ spec, importerRel, lookup, dartPackageName }) => {
+  if (spec.startsWith('dart:')) return null;
+  const packageResolved = resolveDartPackageImport({ spec, lookup, dartPackageName });
+  if (packageResolved) return packageResolved;
+  if (!looksLikePathSpecifier(spec)) return null;
+  const pathLikeResolved = resolvePathLikeImport({ spec, importerRel, lookup });
+  if (pathLikeResolved) return pathLikeResolved;
+  const normalizedSpec = normalizeRelPath(spec);
+  if (!normalizedSpec || normalizedSpec.startsWith('/')) return null;
+  const importerDir = path.posix.dirname(normalizeRelPath(importerRel));
+  const bases = [
+    path.posix.join(importerDir, normalizedSpec),
+    normalizedSpec,
+    `lib/${normalizedSpec}`,
+    `src/${normalizedSpec}`
+  ];
+  return resolveWithLanguageExtensionsFromBases({
+    bases,
+    lookup,
+    extensions: ['.dart']
+  });
+};
+
+const resolveLanguageNonRelativeImport = ({
+  importerRel,
+  spec,
+  lookup,
+  rootAbs,
+  goModulePath,
+  dartPackageName
+}) => {
+  if (isRubyImporter(importerRel)) {
+    const rubyResolved = resolveRubyLoadPathImport({ spec, lookup });
+    if (rubyResolved) return { resolvedType: 'ruby-load-path', resolvedPath: rubyResolved };
+  }
+  if (isPythonImporter(importerRel)) {
+    if (/^[A-Za-z_][\w.]*$/.test(spec)) {
+      const modulePath = spec.replace(/\./g, '/');
+      const importerDir = path.posix.dirname(normalizeRelPath(importerRel));
+      const resolved = resolveFromCandidateList([
+        `${modulePath}.py`,
+        `${modulePath}/__init__.py`,
+        path.posix.join(importerDir, `${modulePath}.py`),
+        path.posix.join(importerDir, `${modulePath}/__init__.py`),
+        `src/${modulePath}.py`,
+        `src/${modulePath}/__init__.py`,
+        `lib/${modulePath}.py`,
+        `lib/${modulePath}/__init__.py`
+      ], lookup);
+      if (resolved) return { resolvedType: 'python-module', resolvedPath: resolved };
+    }
+    return null;
+  }
+  if (isPerlImporter(importerRel)) {
+    if (spec.includes('::')) {
+      const packagePath = spec.replace(/::/g, '/');
+      const resolved = resolveFromCandidateList([`${packagePath}.pm`, `lib/${packagePath}.pm`], lookup);
+      if (resolved) return { resolvedType: 'perl-package', resolvedPath: resolved };
+    }
+    return null;
+  }
+  if (isLuaImporter(importerRel)) {
+    if (/^[A-Za-z_][\w.]*$/.test(spec)) {
+      const modulePath = spec.replace(/\./g, '/');
+      const resolved = resolveFromCandidateList([
+        `${modulePath}.lua`,
+        `${modulePath}/init.lua`,
+        `lua/${modulePath}.lua`,
+        `lua/${modulePath}/init.lua`,
+        `src/${modulePath}.lua`,
+        `src/${modulePath}/init.lua`
+      ], lookup);
+      if (resolved) return { resolvedType: 'lua-module', resolvedPath: resolved };
+    }
+    return null;
+  }
+  if (isPhpImporter(importerRel)) {
+    if (spec.includes('\\')) {
+      const namespacePath = spec.replace(/\\/g, '/');
+      const resolved = resolveFromCandidateList([
+        `${namespacePath}.php`,
+        `src/${namespacePath}.php`,
+        `app/${namespacePath}.php`,
+        `lib/${namespacePath}.php`
+      ], lookup);
+      if (resolved) return { resolvedType: 'php-namespace', resolvedPath: resolved };
+    }
+    return null;
+  }
+  if (isShellImporter(importerRel)) {
+    if (looksLikePathSpecifier(spec)) {
+      const resolved = resolvePathLikeImport({ spec, importerRel, lookup });
+      if (resolved) return { resolvedType: 'shell-path', resolvedPath: resolved };
+    }
+    return null;
+  }
+  if (isGoImporter(importerRel)) {
+    let packageRel = null;
+    if (goModulePath && spec.startsWith(`${goModulePath}/`)) {
+      packageRel = normalizeRelPath(spec.slice(goModulePath.length + 1));
+    } else if (/^(internal|pkg|cmd|src)\//.test(spec)) {
+      packageRel = normalizeRelPath(spec);
+    }
+    if (packageRel) {
+      const direct = resolveFromCandidateList([`${packageRel}.go`, `src/${packageRel}.go`], lookup);
+      if (direct) return { resolvedType: 'go-module', resolvedPath: direct };
+      const dirCandidates = [
+        ...listFilesInDir({ dir: packageRel, lookup, ext: '.go' }),
+        ...listFilesInDir({ dir: `src/${packageRel}`, lookup, ext: '.go' })
+      ];
+      if (dirCandidates.length) return { resolvedType: 'go-module', resolvedPath: dirCandidates[0] };
+    }
+    return null;
+  }
+  if (isJavaImporter(importerRel)) {
+    const resolved = resolveDottedImportToPath({
+      spec,
+      lookup,
+      extensions: ['.java', '.kt'],
+      prefixes: [
+        '',
+        'src',
+        'app',
+        'lib',
+        'src/main/java',
+        'src/test/java',
+        'src/main/kotlin',
+        'src/test/kotlin'
+      ]
+    });
+    if (resolved) return { resolvedType: 'java-package', resolvedPath: resolved };
+    return null;
+  }
+  if (isKotlinImporter(importerRel)) {
+    const resolved = resolveDottedImportToPath({
+      spec,
+      lookup,
+      extensions: ['.kt', '.kts', '.java'],
+      prefixes: [
+        '',
+        'src',
+        'app',
+        'lib',
+        'src/main/kotlin',
+        'src/test/kotlin',
+        'src/main/java',
+        'src/test/java'
+      ]
+    });
+    if (resolved) return { resolvedType: 'kotlin-package', resolvedPath: resolved };
+    return null;
+  }
+  if (isCsharpImporter(importerRel)) {
+    const resolved = resolveDottedImportToPath({
+      spec,
+      lookup,
+      extensions: ['.cs'],
+      prefixes: ['', 'src', 'app', 'lib']
+    });
+    if (resolved) return { resolvedType: 'csharp-namespace', resolvedPath: resolved };
+    return null;
+  }
+  if (isSwiftImporter(importerRel)) {
+    if (!/^[A-Za-z_][\w.]*$/.test(spec)) return null;
+    const moduleName = spec.split('.')[0];
+    const direct = resolveFromCandidateList([
+      `Sources/${moduleName}/${moduleName}.swift`,
+      `${moduleName}.swift`,
+      `src/${moduleName}.swift`
+    ], lookup);
+    if (direct) return { resolvedType: 'swift-module', resolvedPath: direct };
+    const inSources = listFilesInDir({ dir: `Sources/${moduleName}`, lookup, ext: '.swift' });
+    if (inSources.length) return { resolvedType: 'swift-module', resolvedPath: inSources[0] };
+    return null;
+  }
+  if (isDartImporter(importerRel)) {
+    const resolved = resolveDartImport({ spec, importerRel, lookup, dartPackageName });
+    if (resolved) return { resolvedType: 'dart-module', resolvedPath: resolved };
+    return null;
+  }
+  if (isScalaImporter(importerRel)) {
+    const normalizedSpec = normalizeDottedImportSpecifier(spec);
+    if (!normalizedSpec) return null;
+    const resolved = resolveDottedImportToPath({
+      spec: normalizedSpec,
+      lookup,
+      extensions: ['.scala', '.java', '.kt'],
+      prefixes: [
+        '',
+        'src/main/scala',
+        'src/test/scala',
+        'src/main/java',
+        'src/test/java',
+        'src/main/kotlin',
+        'src/test/kotlin',
+        'app',
+        'lib',
+        'src'
+      ]
+    });
+    if (resolved) return { resolvedType: 'scala-package', resolvedPath: resolved };
+    return null;
+  }
+  if (isGroovyImporter(importerRel)) {
+    const normalizedSpec = normalizeDottedImportSpecifier(spec);
+    if (!normalizedSpec) return null;
+    const resolved = resolveDottedImportToPath({
+      spec: normalizedSpec,
+      lookup,
+      extensions: ['.groovy', '.java', '.kt'],
+      prefixes: [
+        '',
+        'src/main/groovy',
+        'src/test/groovy',
+        'src/main/java',
+        'src/test/java',
+        'src/main/kotlin',
+        'src/test/kotlin',
+        'app',
+        'lib',
+        'src'
+      ]
+    });
+    if (resolved) return { resolvedType: 'groovy-package', resolvedPath: resolved };
+    return null;
+  }
+  if (isJuliaImporter(importerRel)) {
+    const moduleSpec = String(spec || '').split(':')[0].trim();
+    if (!moduleSpec || !/^[A-Za-z_][\w.]*$/.test(moduleSpec)) return null;
+    const parts = moduleSpec.split('.').filter(Boolean);
+    if (!parts.length) return null;
+    const modulePath = parts.join('/');
+    const moduleLeaf = parts[parts.length - 1];
+    const resolved = resolveFromCandidateList([
+      `src/${modulePath}.jl`,
+      `src/${modulePath}/${moduleLeaf}.jl`,
+      `${modulePath}.jl`,
+      `${modulePath}/${moduleLeaf}.jl`,
+      `test/${modulePath}.jl`
+    ], lookup);
+    if (resolved) return { resolvedType: 'julia-module', resolvedPath: resolved };
+    return null;
+  }
+  if (isClikeImporter(importerRel) && looksLikePathSpecifier(spec)) {
+    const resolved = resolveClikeIncludeImport({ spec, importerRel, lookup });
+    if (resolved) return { resolvedType: 'clike-include', resolvedPath: resolved };
+    return null;
+  }
+  if (isRustImporter(importerRel)) {
+    if (!spec.includes('::')) return null;
+    const importerNorm = normalizeRelPath(importerRel);
+    const importerDir = path.posix.dirname(importerNorm);
+    const parts = spec.split('::').filter(Boolean);
+    if (!parts.length) return null;
+    let baseDir = null;
+    let tail = [];
+    if (parts[0] === 'crate') {
+      baseDir = 'src';
+      tail = parts.slice(1);
+    } else if (parts[0] === 'self') {
+      baseDir = importerDir;
+      tail = parts.slice(1);
+    } else if (parts[0] === 'super') {
+      baseDir = path.posix.dirname(importerDir);
+      tail = parts.slice(1);
+    } else {
+      return null;
+    }
+    if (!tail.length) return null;
+    const stem = path.posix.join(baseDir, tail.join('/'));
+    const resolved = resolveFromCandidateList([`${stem}.rs`, `${stem}/mod.rs`], lookup);
+    if (resolved) return { resolvedType: 'rust-module', resolvedPath: resolved };
+    return null;
+  }
+  if (isPathLikeImporter(importerRel) && looksLikePathSpecifier(spec)) {
+    const resolved = resolvePathLikeImport({ spec, importerRel, lookup });
+    if (resolved) return { resolvedType: 'path-like', resolvedPath: resolved };
+  }
+  return null;
+};
+
 const resolvePackageFingerprint = (rootAbs, fsMemo = null) => {
   const io = fsMemo || createFsMemo();
   if (!rootAbs) return null;
-  const packagePath = path.join(rootAbs, 'package.json');
-  if (!io.existsSync(packagePath)) return null;
+  const fingerprintParts = [];
+  const files = ['package.json', 'go.mod', 'pubspec.yaml'];
+  for (const rel of files) {
+    const abs = path.join(rootAbs, rel);
+    if (!io.existsSync(abs)) continue;
+    try {
+      const raw = fs.readFileSync(abs, 'utf8');
+      fingerprintParts.push(`${rel}:${sha1(raw)}`);
+    } catch {}
+  }
+  if (!fingerprintParts.length) return null;
   try {
-    const raw = fs.readFileSync(packagePath, 'utf8');
-    return sha1(raw);
+    fingerprintParts.sort(sortStrings);
+    return sha1(fingerprintParts.join('\n'));
   } catch {
     return null;
   }
@@ -834,6 +1566,8 @@ export function resolveImportLinks({
     fileSet: resolvedLookup.fileSet,
     fsMemo
   });
+  const goModulePath = resolveGoModulePath(resolvedLookup.rootAbs, fsMemo);
+  const dartPackageName = resolveDartPackageName(resolvedLookup.rootAbs, fsMemo);
   if (cacheMetrics && canReuseLookup && lookup) {
     cacheMetrics.lookupReused = true;
   }
@@ -1038,10 +1772,13 @@ export function resolveImportLinks({
           const base = spec.startsWith('/')
             ? normalizeRelPath(spec.slice(1))
             : normalizeRelPath(path.posix.join(path.posix.dirname(relNormalized), spec));
-          const rubyRelativeResolved = isRubyImporter(relNormalized)
-            ? resolveRubyRelativeImport({ base, lookup: resolvedLookup })
-            : null;
-          const candidate = rubyRelativeResolved || resolveCandidate(base, resolvedLookup);
+          const languageRelativeResolved = resolveLanguageRelativeImport({
+            spec,
+            base,
+            importerRel: relNormalized,
+            lookup: resolvedLookup
+          });
+          const candidate = languageRelativeResolved || resolveCandidate(base, resolvedLookup);
           if (candidate) {
             resolvedType = 'relative';
             resolvedPath = candidate;
@@ -1056,12 +1793,17 @@ export function resolveImportLinks({
             tsPathPattern = tsResolved.pattern;
             tsconfigPath = tsconfig?.tsconfigPath || null;
           } else {
-            const rubyResolved = isRubyImporter(relNormalized)
-              ? resolveRubyLoadPathImport({ spec, lookup: resolvedLookup })
-              : null;
-            if (rubyResolved) {
-              resolvedType = 'ruby-load-path';
-              resolvedPath = rubyResolved;
+            const languageResolved = resolveLanguageNonRelativeImport({
+              importerRel: relNormalized,
+              spec,
+              lookup: resolvedLookup,
+              rootAbs: resolvedLookup.rootAbs,
+              goModulePath,
+              dartPackageName
+            });
+            if (languageResolved) {
+              resolvedType = languageResolved.resolvedType;
+              resolvedPath = languageResolved.resolvedPath;
             } else {
               resolvedType = 'external';
               packageName = parsePackageName(spec);
@@ -1095,7 +1837,7 @@ export function resolveImportLinks({
         };
       }
 
-      if (resolvedType === 'relative' || resolvedType === 'ts-path' || resolvedType === 'ruby-load-path') {
+      if (resolvedType !== 'external' && resolvedType !== 'unresolved') {
         importLinks.add(resolvedPath);
         resolvedCount += 1;
         edgeTarget = `file:${resolvedPath}`;
