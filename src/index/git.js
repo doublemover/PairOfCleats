@@ -79,6 +79,65 @@ export function configureGitMetaCache(cacheConfig, reporter = null) {
 }
 
 /**
+ * Fetch per-line git authors for a file.
+ * Uses a dedicated blame cache so callers that only need blame data avoid
+ * running file-level churn/log metadata commands.
+ *
+ * @param {string} file
+ * @param {{baseDir?:string,timeoutMs?:number,signal?:AbortSignal|null}} [options]
+ * @returns {Promise<string[]|null>}
+ */
+export async function getGitLineAuthorsForFile(file, options = {}) {
+  const baseDir = options.baseDir
+    ? path.resolve(options.baseDir)
+    : (isAbsolutePathNative(file) ? path.dirname(file) : process.cwd());
+  const relFile = isAbsolutePathNative(file) ? path.relative(baseDir, file) : file;
+  const absFile = isAbsolutePathNative(file) ? file : path.resolve(baseDir, file);
+  const fileArg = toPosix(relFile);
+  const timeoutMs = Number.isFinite(Number(options.timeoutMs)) ? Number(options.timeoutMs) : null;
+  const signal = options.signal || null;
+  const blameKey = buildLocalCacheKey({
+    namespace: 'git-blame',
+    payload: {
+      baseDir,
+      file: fileArg
+    }
+  }).key;
+
+  if (isGitTemporarilyDisabled(baseDir)) return null;
+
+  const cached = gitBlameCache.get(blameKey);
+  if (cached) return cached;
+
+  try {
+    let blame = null;
+    if (timeoutMs || signal) {
+      const result = await runScmCommand('git', ['-C', baseDir, 'blame', '--line-porcelain', '--', fileArg], {
+        outputMode: 'string',
+        captureStdout: true,
+        captureStderr: true,
+        rejectOnNonZeroExit: false,
+        maxOutputBytes: resolveBlameMaxOutputBytes(absFile),
+        timeoutMs,
+        signal
+      });
+      blame = result.exitCode === 0 ? result.stdout : null;
+    } else {
+      const git = simpleGit({ baseDir });
+      blame = await git.raw(['blame', '--line-porcelain', '--', fileArg]);
+    }
+    const lineAuthors = parseLineAuthors(blame);
+    if (lineAuthors) gitBlameCache.set(blameKey, lineAuthors);
+    clearGitFailureState(baseDir);
+    return lineAuthors || null;
+  } catch (err) {
+    recordGitFailure(baseDir, err);
+    warnGitUnavailable(baseDir);
+    return null;
+  }
+}
+
+/**
  * Fetch git metadata for an entire file, with optional line-level blame.
  * Returns empty object when git is unavailable or fails.
  * @param {string} file
@@ -149,37 +208,11 @@ export async function getGitMetaForFile(file, options = {}) {
     if (!meta) return {};
     clearGitFailureState(baseDir);
     if (!blameEnabled) return meta;
-    const blameKey = buildLocalCacheKey({
-      namespace: 'git-blame',
-      payload: {
-        baseDir,
-        file: fileArg
-      }
-    }).key;
-    let lineAuthors = gitBlameCache.get(blameKey);
-    if (!lineAuthors) {
-      let blame = null;
-      if (timeoutMs || signal) {
-        try {
-          const result = await runScmCommand('git', ['-C', baseDir, 'blame', '--line-porcelain', '--', fileArg], {
-            outputMode: 'string',
-            captureStdout: true,
-            captureStderr: true,
-            rejectOnNonZeroExit: false,
-            maxOutputBytes: resolveBlameMaxOutputBytes(absFile),
-            timeoutMs,
-            signal
-          });
-          blame = result.exitCode === 0 ? result.stdout : null;
-        } catch {
-          blame = null;
-        }
-      } else {
-        blame = await git.raw(['blame', '--line-porcelain', '--', fileArg]);
-      }
-      lineAuthors = parseLineAuthors(blame);
-      if (lineAuthors) gitBlameCache.set(blameKey, lineAuthors);
-    }
+    const lineAuthors = await getGitLineAuthorsForFile(absFile, {
+      baseDir,
+      timeoutMs,
+      signal
+    });
     return {
       ...meta,
       lineAuthors
@@ -273,15 +306,23 @@ const recordGitFailure = (baseDir, err) => {
   if (!baseDir) return;
   const now = Date.now();
   const code = String(err?.code || err?.cause?.code || '').toUpperCase();
+  const message = String(err?.message || err?.cause?.message || '').toLowerCase();
   const prior = gitRootFailureState.get(baseDir) || {
     failures: 0,
     blockedUntil: 0
   };
   const timeoutLike = code === 'SUBPROCESS_TIMEOUT' || code === 'ABORT_ERR';
+  const fatalUnavailable = code === 'ENOENT'
+    || message.includes('not a git repository')
+    || message.includes('git metadata unavailable')
+    || message.includes('is not recognized as an internal or external command')
+    || message.includes('spawn git');
   const failures = prior.failures + 1;
-  const blockedUntil = timeoutLike || failures >= 3
-    ? (now + GIT_ROOT_FAILURE_BLOCK_MS)
-    : prior.blockedUntil;
+  const blockedUntil = fatalUnavailable
+    ? Number.POSITIVE_INFINITY
+    : (timeoutLike || failures >= 3
+      ? (now + GIT_ROOT_FAILURE_BLOCK_MS)
+      : prior.blockedUntil);
   gitRootFailureState.set(baseDir, { failures, blockedUntil });
 };
 

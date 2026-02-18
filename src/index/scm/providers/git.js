@@ -1,7 +1,11 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
 import PQueue from 'p-queue';
-import { getGitMetaForFile, getRepoProvenance as getLegacyRepoProvenance } from '../../git.js';
+import {
+  getGitLineAuthorsForFile,
+  getGitMetaForFile,
+  getRepoProvenance as getLegacyRepoProvenance
+} from '../../git.js';
 import { toPosix } from '../../../shared/files.js';
 import { findUpwards } from '../../../shared/fs/find-upwards.js';
 import { runScmCommand } from '../runner.js';
@@ -144,16 +148,15 @@ export const gitProvider = {
   },
   async annotate({ repoRoot, filePosix, timeoutMs, signal }) {
     const absPath = path.join(repoRoot, filePosix);
-    const meta = await runGitTask(() => getGitMetaForFile(absPath, {
-      blame: true,
+    const lineAuthors = await runGitTask(() => getGitLineAuthorsForFile(absPath, {
       baseDir: repoRoot,
       timeoutMs,
       signal
     }));
-    if (!meta || !Array.isArray(meta.lineAuthors)) {
+    if (!Array.isArray(lineAuthors)) {
       return { ok: false, reason: 'unavailable' };
     }
-    const lines = meta.lineAuthors.map((author, index) => ({
+    const lines = lineAuthors.map((author, index) => ({
       line: index + 1,
       author: author || 'unknown'
     }));
