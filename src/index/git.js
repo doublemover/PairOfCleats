@@ -373,6 +373,18 @@ const parseNumstatChurnText = (stdout) => {
   return { added, deleted };
 };
 
+const createGitNonZeroExitError = (label, result) => {
+  const exitCode = Number(result?.exitCode);
+  const codeSuffix = Number.isFinite(exitCode) ? String(Math.floor(exitCode)) : 'NONZERO';
+  const stderr = String(result?.stderr || '').trim();
+  const stdout = String(result?.stdout || '').trim();
+  const details = stderr || stdout || `${label} exited with code ${codeSuffix}`;
+  const err = new Error(details);
+  err.code = `GIT_EXIT_${codeSuffix}`;
+  err.exitCode = exitCode;
+  return err;
+};
+
 const computeMetaWithFastCommands = async ({
   baseDir,
   fileArg,
@@ -399,7 +411,7 @@ const computeMetaWithFastCommands = async ({
     timeoutMs,
     signal
   });
-  if (headResult.exitCode !== 0) return null;
+  if (headResult.exitCode !== 0) throw createGitNonZeroExitError('git log', headResult);
   const { lastModifiedAt, lastAuthor } = parseLogHead(headResult.stdout);
   if (!includeChurn) {
     return {
