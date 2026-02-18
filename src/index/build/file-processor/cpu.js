@@ -462,9 +462,10 @@ export const processFileCpu = async (context) => {
     && resolvedGitBlameEnabled
     && typeof scmProviderImpl.annotate === 'function') {
     const maxAnnotateBytesRaw = Number(annotateConfig.maxFileSizeBytes);
+    const defaultAnnotateBytes = scmFastPath ? 128 * 1024 : 512 * 1024;
     const maxAnnotateBytes = Number.isFinite(maxAnnotateBytesRaw)
       ? Math.max(0, maxAnnotateBytesRaw)
-      : null;
+      : defaultAnnotateBytes;
     const annotateTimeoutRaw = Number(annotateConfig.timeoutMs);
     const defaultTimeoutRaw = Number(scmConfig?.timeoutMs);
     const hasExplicitAnnotateTimeout = Number.isFinite(annotateTimeoutRaw) && annotateTimeoutRaw > 0;

@@ -33,7 +33,7 @@ const resolveJjConfig = () => {
   const jjConfig = config.jj || {};
   const maxConcurrentProcesses = Number.isFinite(Number(config.maxConcurrentProcesses))
     ? Math.max(1, Math.floor(Number(config.maxConcurrentProcesses)))
-    : 2;
+    : 8;
   const timeoutMs = Number.isFinite(Number(config.timeoutMs)) && Number(config.timeoutMs) > 0
     ? Math.floor(Number(config.timeoutMs))
     : 4000;

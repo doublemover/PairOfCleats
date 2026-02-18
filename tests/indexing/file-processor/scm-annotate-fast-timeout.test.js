@@ -460,4 +460,32 @@ assert.equal(
   'expected extracted-prose docs prose-routed files to skip SCM annotate'
 );
 
+let cappedMetaCalls = 0;
+let cappedAnnotateCalls = 0;
+const cappedScmProvider = {
+  async getFileMeta() {
+    cappedMetaCalls += 1;
+    return { ok: false };
+  },
+  async annotate() {
+    cappedAnnotateCalls += 1;
+    return { ok: false, reason: 'timeout' };
+  }
+};
+const largeRelKey = 'src/huge.cpp';
+const largeText = `int sentinel = 0;\n${'a'.repeat(600 * 1024)}`;
+await processFileCpu(createContext({
+  abs: jsAbs,
+  ext: '.cpp',
+  rel: largeRelKey,
+  relKey: largeRelKey,
+  text: largeText,
+  fileStat: { size: Buffer.byteLength(largeText, 'utf8') },
+  languageHint: getLanguageForFile('.cpp', largeRelKey),
+  scmProviderImpl: cappedScmProvider,
+  fileHash: 'scm-annotate-fast-timeout-default-size-cap'
+}));
+assert.equal(cappedMetaCalls, 1, 'expected SCM metadata to remain enabled for large files');
+assert.equal(cappedAnnotateCalls, 0, 'expected default annotate size cap to skip large-file blame');
+
 console.log('scm annotate fast timeout test passed');

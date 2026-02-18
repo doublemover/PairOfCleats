@@ -35,7 +35,7 @@ const resolveGitConfig = () => {
   const config = getScmRuntimeConfig() || {};
   const maxConcurrentProcesses = Number.isFinite(Number(config.maxConcurrentProcesses))
     ? Math.max(1, Math.floor(Number(config.maxConcurrentProcesses)))
-    : 4;
+    : 8;
   return { maxConcurrentProcesses };
 };
 
