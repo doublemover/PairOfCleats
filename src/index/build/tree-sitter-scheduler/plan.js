@@ -41,11 +41,16 @@ const countLines = (text) => {
   return count;
 };
 
-const exceedsTreeSitterLimits = ({ text, languageId, treeSitterConfig, log }) => {
+const resolveTreeSitterLimits = ({ languageId, treeSitterConfig }) => {
   const config = treeSitterConfig && typeof treeSitterConfig === 'object' ? treeSitterConfig : {};
   const perLanguage = (config.byLanguage && languageId && config.byLanguage[languageId]) || {};
   const maxBytes = perLanguage.maxBytes ?? config.maxBytes;
   const maxLines = perLanguage.maxLines ?? config.maxLines;
+  return { maxBytes, maxLines };
+};
+
+const exceedsTreeSitterLimits = ({ text, languageId, treeSitterConfig, log }) => {
+  const { maxBytes, maxLines } = resolveTreeSitterLimits({ languageId, treeSitterConfig });
   if (typeof maxBytes === 'number' && maxBytes > 0) {
     const bytes = Buffer.byteLength(text, 'utf8');
     if (bytes > maxBytes) {
@@ -197,6 +202,23 @@ export const buildTreeSitterSchedulerPlan = async ({
       const ext = typeof entry?.ext === 'string' && entry.ext ? entry.ext : path.extname(abs);
       const langHint = getLanguageForFile(ext, relKey);
       const primaryLanguageId = langHint?.id || null;
+      const { maxBytes, maxLines } = resolveTreeSitterLimits({
+        languageId: primaryLanguageId,
+        treeSitterConfig
+      });
+      if (typeof maxBytes === 'number' && maxBytes > 0 && Number.isFinite(stat?.size) && stat.size > maxBytes) {
+        if (log) {
+          log(`[tree-sitter:schedule] skip ${primaryLanguageId || 'unknown'} file: maxBytes (${stat.size} > ${maxBytes})`);
+        }
+        return { jobs: [], requiredLanguages: [] };
+      }
+      const knownLines = Number(entry?.lines);
+      if (typeof maxLines === 'number' && maxLines > 0 && Number.isFinite(knownLines) && knownLines > maxLines) {
+        if (log) {
+          log(`[tree-sitter:schedule] skip ${primaryLanguageId || 'unknown'} file: maxLines (${knownLines} > ${maxLines})`);
+        }
+        return { jobs: [], requiredLanguages: [] };
+      }
 
       let text = null;
       let buffer = null;
