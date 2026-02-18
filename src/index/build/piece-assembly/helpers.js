@@ -126,16 +126,28 @@ export const validateLengths = (label, list, expected, dir, { allowMissing = fal
 
 export const normalizeIdList = (list) => {
   if (!Array.isArray(list)) return [];
-  const filtered = list.filter((value) => Number.isFinite(value));
-  if (filtered.length <= 1) return filtered;
-  filtered.sort((a, b) => a - b);
-  const deduped = [];
-  let last = null;
-  for (const value of filtered) {
-    if (value !== last) deduped.push(value);
-    last = value;
+  const filtered = new Array(list.length);
+  let count = 0;
+  for (let i = 0; i < list.length; i += 1) {
+    const value = list[i];
+    if (!Number.isFinite(value)) continue;
+    filtered[count] = value;
+    count += 1;
   }
-  return deduped;
+  if (count <= 1) {
+    return count === 1 ? [filtered[0]] : [];
+  }
+  filtered.length = count;
+  filtered.sort((a, b) => a - b);
+  let write = 1;
+  for (let read = 1; read < filtered.length; read += 1) {
+    if (filtered[read] !== filtered[write - 1]) {
+      filtered[write] = filtered[read];
+      write += 1;
+    }
+  }
+  filtered.length = write;
+  return filtered;
 };
 
 export const normalizeTfPostings = (list) => {

@@ -202,11 +202,31 @@ export async function buildPostings(input) {
     return [];
   };
   const normalizeIdList = (value) => {
-    const list = normalizeDocIdList(value).filter((entry) => Number.isFinite(entry));
-    if (list.length <= 1 || isSortedIds(list)) return list;
-    const sorted = Array.from(new Set(list));
-    sorted.sort((a, b) => a - b);
-    return sorted;
+    const raw = normalizeDocIdList(value);
+    if (!raw.length) return [];
+    const list = new Array(raw.length);
+    let count = 0;
+    for (let i = 0; i < raw.length; i += 1) {
+      const entry = raw[i];
+      if (!Number.isFinite(entry)) continue;
+      list[count] = entry;
+      count += 1;
+    }
+    if (count <= 1) {
+      return count === 1 ? [list[0]] : [];
+    }
+    list.length = count;
+    if (isSortedIds(list)) return list;
+    list.sort((a, b) => a - b);
+    let write = 1;
+    for (let read = 1; read < list.length; read += 1) {
+      if (list[read] !== list[write - 1]) {
+        list[write] = list[read];
+        write += 1;
+      }
+    }
+    list.length = write;
+    return list;
   };
   const mergeIdLists = (left, right) => {
     if (left == null) return normalizeIdList(right);
