@@ -821,7 +821,11 @@ export const LANGUAGE_REGISTRY = [
     match: (ext) => ext === '.swift',
     collectImports: (text, options) => collectSwiftImports(text, options),
     prepare: async ({ text, relPath, options }) => {
-      const swiftChunks = buildSwiftChunks(text, { relPath, parser: options?.swift?.parser });
+      const swiftChunks = buildSwiftChunks(text, {
+        ...(options && typeof options === 'object' ? options : {}),
+        relPath,
+        parser: options?.swift?.parser
+      });
       return { swiftChunks };
     },
     buildRelations: ({ text, context, relPath, options }) =>
