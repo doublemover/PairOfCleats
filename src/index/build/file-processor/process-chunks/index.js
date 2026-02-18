@@ -78,19 +78,7 @@ export const canUseLineTokenStreamSlice = ({
 const HEAVY_FILE_MAX_BYTES_DEFAULT = 768 * 1024;
 const HEAVY_FILE_MAX_LINES_DEFAULT = 8000;
 const HEAVY_FILE_MAX_CHUNKS_DEFAULT = 96;
-const HEAVY_FILE_PATH_PARTS = [
-  '/third_party/',
-  '/thirdparty/',
-  '/vendor/',
-  '/single_include/',
-  '/include/fmt/',
-  '/include/spdlog/fmt/',
-  '/include/nlohmann/',
-  '/tests/abi/',
-  '/test/gtest/',
-  '/docs/mkdocs/',
-  '/.github/workflows/'
-];
+const HEAVY_FILE_PATH_RX = /\/(?:third_party|thirdparty|vendor|single_include|include\/fmt|include\/spdlog\/fmt|include\/nlohmann|tests\/abi|test\/gtest|docs\/mkdocs|\.github\/workflows)\//;
 
 const normalizeHeavyFilePolicy = (languageOptions) => {
   const raw = languageOptions?.heavyFile;
@@ -113,10 +101,7 @@ const normalizeHeavyFilePolicy = (languageOptions) => {
 
 const isHeavyFilePath = (relPath) => {
   const normalized = String(relPath || '').replace(/\\/g, '/').toLowerCase();
-  for (const part of HEAVY_FILE_PATH_PARTS) {
-    if (normalized.includes(part)) return true;
-  }
-  return false;
+  return HEAVY_FILE_PATH_RX.test(normalized);
 };
 
 export const processChunks = async (context) => {
