@@ -2,7 +2,11 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { ensureRepoBenchmarkReady, parseSubmoduleStatusLines } from '../../../tools/bench/language/repos.js';
+import {
+  buildNonInteractiveGitEnv,
+  ensureRepoBenchmarkReady,
+  parseSubmoduleStatusLines
+} from '../../../tools/bench/language/repos.js';
 
 const parsed = parseSubmoduleStatusLines([
   '-a1b2c3d extern/doctest (heads/main)',
@@ -37,5 +41,10 @@ const summary = ensureRepoBenchmarkReady({ repoPath: missingRepo });
 assert.equal(summary.gitRepo, false, 'expected non-git dirs to skip preflight without throwing');
 assert.equal(summary.submodules.detected, 0, 'unexpected submodule detection for non-git dir');
 assert.equal(summary.lfs.pulled, false, 'unexpected lfs pull for non-git dir');
+
+const env = buildNonInteractiveGitEnv({ HOME: '/tmp/home' });
+assert.equal(env.GIT_TERMINAL_PROMPT, '0', 'expected bench preflight git commands to disable prompts');
+assert.equal(env.GCM_INTERACTIVE, 'Never', 'expected bench preflight to disable interactive credential manager');
+assert.equal(env.HOME, '/tmp/home', 'expected caller env vars to remain intact');
 
 console.log('bench-language repo preflight parser test passed.');

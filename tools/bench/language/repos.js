@@ -13,10 +13,17 @@ const canRun = (cmd, args) => {
 };
 const DEFAULT_PREFLIGHT_TIMEOUT_MS = 120000;
 
+export const buildNonInteractiveGitEnv = (baseEnv = process.env) => ({
+  ...baseEnv,
+  GIT_TERMINAL_PROMPT: '0',
+  GCM_INTERACTIVE: 'Never'
+});
+
 const runGitInRepo = (repoPath, args, { timeoutMs = DEFAULT_PREFLIGHT_TIMEOUT_MS } = {}) => {
   return runCommand('git', ['-C', repoPath, ...args], {
     encoding: 'utf8',
-    timeout: timeoutMs
+    timeout: timeoutMs,
+    env: buildNonInteractiveGitEnv()
   });
 };
 
