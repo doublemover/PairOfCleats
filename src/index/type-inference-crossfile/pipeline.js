@@ -142,6 +142,7 @@ export async function applyCrossFileInference({
   let linkedUsages = 0;
   let inferredReturns = 0;
   let riskFlows = 0;
+  const fileUsageFallbackApplied = new Set();
 
   const fileTextByRel = new Map();
   const fileTextByAbs = new Map();
@@ -371,9 +372,17 @@ export async function applyCrossFileInference({
       }
     }
 
-    const usageSource = Array.isArray(relations.usages)
+    const hasChunkUsageSource = Array.isArray(relations.usages);
+    const useFileUsageFallback = !hasChunkUsageSource
+      && Array.isArray(fileRelation?.usages)
+      && typeof chunk?.file === 'string'
+      && !fileUsageFallbackApplied.has(chunk.file);
+    const usageSource = hasChunkUsageSource
       ? relations.usages
-      : (Array.isArray(fileRelation?.usages) ? fileRelation.usages : null);
+      : (useFileUsageFallback ? fileRelation.usages : null);
+    if (useFileUsageFallback) {
+      fileUsageFallbackApplied.add(chunk.file);
+    }
     if (Array.isArray(usageSource)) {
       for (const usage of usageSource) {
         const symbolRef = resolveSymbolRef({

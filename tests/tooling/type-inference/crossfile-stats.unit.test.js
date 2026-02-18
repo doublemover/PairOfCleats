@@ -36,7 +36,7 @@ const writeScenarioFile = async (rootDir, relPath, contents) => {
   return absPath;
 };
 
-const runStatsScenario = async (name, { files, chunks, expect }) => {
+const runStatsScenario = async (name, { files, chunks, expect, fileRelations = null }) => {
   const scenarioRoot = path.join(statsRoot, name);
   await fsPromises.rm(scenarioRoot, { recursive: true, force: true });
   await fsPromises.mkdir(scenarioRoot, { recursive: true });
@@ -51,7 +51,7 @@ const runStatsScenario = async (name, { files, chunks, expect }) => {
     useTooling: false,
     enableTypeInference: true,
     enableRiskCorrelation: true,
-    fileRelations: null
+    fileRelations
   });
   const entries = [
     ['linkedCalls', stats.linkedCalls, expect.linkedCalls],
@@ -348,6 +348,89 @@ await runStatsScenario('shell-status-return', {
   expect: {
     linkedCalls: 1,
     linkedUsages: 0,
+    inferredReturns: 0,
+    riskFlows: 0
+  }
+});
+
+const fallbackUsageFile = [
+  'def first',
+  '  1',
+  'end',
+  '',
+  'def second',
+  '  2',
+  'end',
+  ''
+].join('\n');
+const fallbackTargetFile = [
+  'class Widget',
+  'end',
+  ''
+].join('\n');
+await runStatsScenario('file-usage-fallback-applies-once', {
+  files: {
+    'lib/a.rb': fallbackUsageFile,
+    'lib/widget.rb': fallbackTargetFile
+  },
+  chunks: [
+    {
+      file: 'lib/a.rb',
+      name: 'first',
+      kind: 'FunctionDeclaration',
+      chunkUid: 'uid-a-first',
+      start: 0,
+      end: fallbackUsageFile.length,
+      docmeta: { returnsValue: false },
+      codeRelations: {},
+      metaV2: buildSymbolMeta({
+        file: 'lib/a.rb',
+        name: 'first',
+        kind: 'FunctionDeclaration',
+        chunkUid: 'uid-a-first'
+      })
+    },
+    {
+      file: 'lib/a.rb',
+      name: 'second',
+      kind: 'FunctionDeclaration',
+      chunkUid: 'uid-a-second',
+      start: 0,
+      end: fallbackUsageFile.length,
+      docmeta: { returnsValue: false },
+      codeRelations: {},
+      metaV2: buildSymbolMeta({
+        file: 'lib/a.rb',
+        name: 'second',
+        kind: 'FunctionDeclaration',
+        chunkUid: 'uid-a-second'
+      })
+    },
+    {
+      file: 'lib/widget.rb',
+      name: 'Widget',
+      kind: 'class',
+      chunkUid: 'uid-widget-fallback',
+      start: 0,
+      end: fallbackTargetFile.length,
+      docmeta: {},
+      codeRelations: {},
+      metaV2: buildSymbolMeta({
+        file: 'lib/widget.rb',
+        name: 'Widget',
+        kind: 'class',
+        chunkUid: 'uid-widget-fallback'
+      })
+    }
+  ],
+  fileRelations: {
+    'lib/a.rb': {
+      usages: ['Widget']
+    }
+  },
+  expect: {
+    linkedCalls: 0,
+    linkedUsages: 1,
     inferredReturns: 0,
     riskFlows: 0
   }
