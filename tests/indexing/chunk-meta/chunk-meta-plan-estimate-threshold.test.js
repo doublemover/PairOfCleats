@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { resolveChunkMetaPlan } from '../../../src/index/build/artifacts/writers/chunk-meta.js';
+import { ensureTestingEnv } from '../../helpers/test-env.js';
+
+ensureTestingEnv(process.env);
 
 const buildIterator = ({ count, payloadSize }) => {
   const payload = 'x'.repeat(payloadSize);
