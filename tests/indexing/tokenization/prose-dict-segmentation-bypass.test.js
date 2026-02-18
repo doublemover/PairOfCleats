@@ -21,6 +21,14 @@ const txtTokens = buildTokenSequence({
   dictConfig
 }).tokens;
 
+const jsTokens = buildTokenSequence({
+  text: 'requestbuilder',
+  mode: 'prose',
+  ext: '.js',
+  dictWords,
+  dictConfig
+}).tokens;
+
 assert.equal(
   htmlTokens.includes('request') || htmlTokens.includes('builder'),
   false,
@@ -33,5 +41,10 @@ assert.equal(
   'expected prose plain-text tokenization to keep dictionary segmentation'
 );
 
-console.log('prose dict segmentation bypass test passed');
+assert.equal(
+  jsTokens.includes('request') || jsTokens.includes('builder'),
+  false,
+  'expected prose js tokenization to bypass dictionary segmentation'
+);
 
+console.log('prose dict segmentation bypass test passed');

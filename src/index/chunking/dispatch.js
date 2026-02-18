@@ -1,5 +1,4 @@
 import {
-  EXTS_PROSE,
   isCLike,
   isGo,
   isJava,
@@ -589,6 +588,11 @@ export function smartChunk({
       const chunks = chunker.chunk({ text, ext, relPath, context });
       if (chunks && chunks.length) return applyChunkingLimits(chunks, text, context);
     }
+    return applyChunkingLimits(
+      [{ start: 0, end: text.length, name: null, kind: 'Section', meta: {} }],
+      text,
+      context
+    );
   }
   if (mode === 'code') {
     const codeChunker = resolveChunker(CODE_CHUNKERS, ext, relPath);
@@ -601,13 +605,6 @@ export function smartChunk({
       const chunks = formatChunker.chunk({ text, ext, relPath, context });
       if (chunks && chunks.length) return applyChunkingLimits(chunks, text, context);
     }
-  }
-  if (mode === 'prose' && EXTS_PROSE.has(ext)) {
-    return applyChunkingLimits(
-      [{ start: 0, end: text.length, name: null, kind: 'Section', meta: {} }],
-      text,
-      context
-    );
   }
   const fallbackChunkSize = 800;
   const out = [];
