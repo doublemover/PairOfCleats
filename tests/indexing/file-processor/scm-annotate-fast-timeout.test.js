@@ -39,7 +39,8 @@ const createContext = ({
   fileHash,
   scmConfig = { annotate: {} },
   analysisPolicy = null,
-  runIo = (fn) => fn()
+  runIo = (fn) => fn(),
+  runProc = (fn) => fn()
 }) => ({
   abs,
   root,
@@ -95,7 +96,7 @@ const createContext = ({
   getChunkEmbedding: null,
   getChunkEmbeddings: null,
   runEmbedding: (fn) => fn(),
-  runProc: (fn) => fn(),
+  runProc,
   runTreeSitterSerial: (fn) => fn(),
   runIo,
   log: noop,
@@ -306,6 +307,7 @@ assert.equal(allowSlowTimeoutMs, 4321, 'expected allowSlowTimeouts to permit exp
 assert.equal(allowSlowMetaTimeoutMs, 333, 'expected allowSlowTimeouts to permit explicit meta timeout');
 
 let scmRunIoCalls = 0;
+let scmRunProcCalls = 0;
 const scmRunIoProvider = {
   async getFileMeta() {
     return { ok: false };
@@ -327,9 +329,14 @@ await processFileCpu(createContext({
   runIo: async (fn) => {
     scmRunIoCalls += 1;
     return fn();
-  }
+  },
+  runProc: async (fn) => {
+    scmRunProcCalls += 1;
+    return fn();
+  },
 }));
 assert.equal(scmRunIoCalls, 0, 'expected SCM metadata/blame to avoid shared runIo queue');
+assert.equal(scmRunProcCalls, 2, 'expected SCM metadata/blame to use runProc queueing');
 
 let docsCodeMetaCalls = 0;
 let docsCodeAnnotateCalls = 0;

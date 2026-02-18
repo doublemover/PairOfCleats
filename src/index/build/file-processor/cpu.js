@@ -262,6 +262,18 @@ export const processFileCpu = async (context) => {
   const treeSitterConfigForMode = treeSitterEnabled
     ? { ...(treeSitterConfig || {}), cacheKey: treeSitterCacheKey }
     : { ...(treeSitterConfig || {}), enabled: false, cacheKey: treeSitterCacheKey };
+  let schedulerPlannedSegments = null;
+  if (
+    treeSitterEnabled
+    && treeSitterScheduler
+    && typeof treeSitterScheduler.loadPlannedSegments === 'function'
+  ) {
+    try {
+      schedulerPlannedSegments = treeSitterScheduler.loadPlannedSegments(relKey);
+    } catch {}
+  }
+  const hasSchedulerPlannedSegments = Array.isArray(schedulerPlannedSegments)
+    && schedulerPlannedSegments.length > 0;
   const contextTreeSitterConfig = treeSitterLanguagePasses
     ? { ...(treeSitterConfigForMode || {}), enabled: false }
     : treeSitterConfigForMode;
@@ -271,9 +283,18 @@ export const processFileCpu = async (context) => {
       relationsEnabled,
       metricsCollector,
       filePath: abs,
+      // When scheduler chunks are already planned, stage1 can skip language-level
+      // prepare passes and avoid duplicate parser work on large files.
+      skipPrepare: hasSchedulerPlannedSegments && mode === 'code' && relationsEnabled !== true,
       treeSitter: contextTreeSitterConfig
     }
-    : { relationsEnabled, metricsCollector, filePath: abs, treeSitter: contextTreeSitterConfig };
+    : {
+      relationsEnabled,
+      metricsCollector,
+      filePath: abs,
+      skipPrepare: hasSchedulerPlannedSegments && mode === 'code' && relationsEnabled !== true,
+      treeSitter: contextTreeSitterConfig
+    };
   const shouldSerializeLanguageContext = treeSitterEnabled && treeSitterLanguagePasses === false;
   const runTreeSitter = shouldSerializeLanguageContext ? runTreeSitterSerial : (fn) => fn();
   const primaryLanguageId = languageHint?.id || null;
@@ -412,19 +433,17 @@ export const processFileCpu = async (context) => {
     const metaCapMs = scmFastPath || SCM_META_FAST_TIMEOUT_EXTS.has(normalizedExt) ? 250 : 750;
     metaTimeoutMs = Math.min(metaTimeoutMs, metaCapMs);
   }
+  const runScmTask = typeof runProc === 'function' ? runProc : (fn) => fn();
   const scmTasks = [];
   if (!skipScmForProseRoute && scmActive && filePosix && typeof scmProviderImpl.getFileMeta === 'function') {
     scmTasks.push((async () => {
       const includeChurn = resolvedGitChurnEnabled && !scmFastPath;
-      // SCM providers use subprocess execution and internal timeouts; queueing these
-      // behind shared IO work creates head-of-line delays where tiny files appear slow.
-      // Execute directly so SCM latency tracks provider timeout rather than queue backlog.
-      const fileMeta = await Promise.resolve(scmProviderImpl.getFileMeta({
+      const fileMeta = await runScmTask(() => Promise.resolve(scmProviderImpl.getFileMeta({
         repoRoot: scmRepoRoot,
         filePosix,
         timeoutMs: Math.max(0, metaTimeoutMs),
         includeChurn
-      }));
+      })));
       if (fileMeta && fileMeta.ok !== false) {
         fileGitMeta = {
           last_modified: fileMeta.lastModifiedAt ?? null,
@@ -488,7 +507,7 @@ export const processFileCpu = async (context) => {
         }
       };
       scmTasks.push((async () => {
-        const annotateResult = await annotateWithTimeout();
+        const annotateResult = await runScmTask(annotateWithTimeout);
         lineAuthors = buildLineAuthors(annotateResult);
       })());
     }
@@ -527,10 +546,12 @@ export const processFileCpu = async (context) => {
   let segmentsFromSchedulerPlan = false;
   updateCrashStage('segments');
   try {
-    const plannedSegments = (mustUseTreeSitterScheduler
-      && typeof treeSitterScheduler?.loadPlannedSegments === 'function')
-      ? treeSitterScheduler.loadPlannedSegments(relKey)
-      : null;
+    const plannedSegments = hasSchedulerPlannedSegments
+      ? schedulerPlannedSegments
+      : ((mustUseTreeSitterScheduler
+        && typeof treeSitterScheduler?.loadPlannedSegments === 'function')
+        ? treeSitterScheduler.loadPlannedSegments(relKey)
+        : null);
     if (Array.isArray(plannedSegments) && plannedSegments.length) {
       // Keep runtime segmentation aligned with the scheduler plan, while preserving
       // comment-derived/extracted-prose extra segments for fallback chunking paths.
