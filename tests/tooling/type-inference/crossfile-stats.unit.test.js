@@ -169,11 +169,11 @@ const perlCreateContent = [
 ].join('\n');
 const perlBuildContent = [
   'sub build_widget {',
-  '  return create_widget;',
+  '  return create_widget();',
   '}',
   ''
 ].join('\n');
-await runStatsScenario('perl-return-bare-call', {
+await runStatsScenario('perl-return-invocation', {
   files: {
     'lib/create_widget.pm': perlCreateContent,
     'lib/build_widget.pm': perlBuildContent
@@ -221,6 +221,69 @@ await runStatsScenario('perl-return-bare-call', {
     linkedCalls: 1,
     linkedUsages: 0,
     inferredReturns: 1,
+    riskFlows: 0
+  }
+});
+
+const variableReturnProducer = [
+  'export function status() {',
+  "  return 'ok';",
+  '}',
+  ''
+].join('\n');
+const variableReturnConsumer = [
+  'export function readStatus() {',
+  "  const status = 'local';",
+  '  return status;',
+  '}',
+  ''
+].join('\n');
+await runStatsScenario('return-variable-not-call', {
+  files: {
+    'src/status.js': variableReturnProducer,
+    'src/consumer.js': variableReturnConsumer
+  },
+  chunks: [
+    {
+      file: 'src/consumer.js',
+      name: 'readStatus',
+      kind: 'function',
+      chunkUid: 'uid-read-status',
+      start: 0,
+      end: variableReturnConsumer.length,
+      docmeta: { returnsValue: true },
+      codeRelations: {},
+      metaV2: buildSymbolMeta({
+        file: 'src/consumer.js',
+        name: 'readStatus',
+        kind: 'function',
+        chunkUid: 'uid-read-status'
+      })
+    },
+    {
+      file: 'src/status.js',
+      name: 'status',
+      kind: 'function',
+      chunkUid: 'uid-status',
+      start: 0,
+      end: variableReturnProducer.length,
+      docmeta: {
+        returnType: 'Widget',
+        returnsValue: true
+      },
+      codeRelations: {},
+      metaV2: buildSymbolMeta({
+        file: 'src/status.js',
+        name: 'status',
+        kind: 'function',
+        chunkUid: 'uid-status'
+      })
+    }
+  ],
+  expect: {
+    linkedCalls: 0,
+    linkedUsages: 0,
+    inferredReturns: 0,
     riskFlows: 0
   }
 });
