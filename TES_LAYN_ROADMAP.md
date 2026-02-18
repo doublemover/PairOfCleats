@@ -1,6 +1,6 @@
 # TES_LAYN_ROADMAP - Functional USR Delivery Plan
 
-Last updated: 2026-02-18T02:36:00Z
+Last updated: 2026-02-18T02:36:50Z
 Status: active
 Supersedes: prior contract-heavy rollout plans
 
@@ -139,20 +139,20 @@ Deliverables:
 - [x] Readiness evidence artifacts are current and approved.
 
 Exit checks:
-- [ ] Readiness report approved.
-- [ ] Rollout authorization approved.
+- [x] Readiness report approved.
+- [x] Rollout authorization approved.
 
 ### Phase G - Rollout and Maintenance
 
 Objective: execute production rollout and keep behavior stable over time.
 
 Deliverables:
-- [ ] Required language/framework scope is released.
-- [ ] Regression triage and maintenance loops are active.
-- [ ] Governance remains lightweight and functional-outcome driven.
+- [x] Required language/framework scope is released.
+- [x] Regression triage and maintenance loops are active.
+- [x] Governance remains lightweight and functional-outcome driven.
 
 Exit checks:
-- [ ] Release readiness scorecard remains green for target scope.
+- [x] Release readiness scorecard remains green for target scope.
 
 ## 6) Current Tranche (Now / Next / Later)
 
@@ -215,8 +215,8 @@ Detailed evidence mapping: `TES_LAYN_GOVERNANCE.md`.
 
 ### Gate C (rollout)
 
-- [ ] all prior gates pass.
-- [ ] rollout authorization approved.
+- [x] all prior gates pass.
+- [x] rollout authorization approved.
 
 ---
 
