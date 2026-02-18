@@ -146,7 +146,11 @@ const HEURISTIC_CALL_SKIP = new Set([
   'def',
   'object',
   'fun',
-  'when'
+  'when',
+  'library',
+  'require',
+  'using',
+  'import'
 ]);
 
 const HEURISTIC_CONTROL_FLOW_OPTIONS = Object.freeze({
@@ -171,6 +175,17 @@ const SCALA_SYMBOL_PATTERNS = Object.freeze([
   /\bdef\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?:\[[^\]]+\])?\s*\(/g
 ]);
 
+const JULIA_SYMBOL_PATTERNS = Object.freeze([
+  /\b(?:module|struct|mutable\s+struct|abstract\s+type)\s+([A-Za-z_][A-Za-z0-9_]*)/g,
+  /\b(?:function|macro)\s+([A-Za-z_][A-Za-z0-9_!]*)\s*(?:\(|$)/g,
+  /\b([A-Za-z_][A-Za-z0-9_!]*)\s*\([^)]*\)\s*=/g
+]);
+
+const R_SYMBOL_PATTERNS = Object.freeze([
+  /\b([A-Za-z_][A-Za-z0-9_.]*)\s*(?:<-|=)\s*function\s*\(/g,
+  /\bsetMethod\s*\(\s*['"]([A-Za-z_][A-Za-z0-9_.]*)['"]/g
+]);
+
 const sortUnique = (values) => Array.from(new Set(values.filter(Boolean))).sort((a, b) => (a < b ? -1 : (a > b ? 1 : 0)));
 
 const collectPatternNames = (text, patterns) => {
@@ -192,7 +207,7 @@ const collectPatternNames = (text, patterns) => {
 const collectHeuristicCallees = (text) => {
   const source = String(text || '');
   const out = [];
-  const callRe = /\b([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
+  const callRe = /\b([A-Za-z_][A-Za-z0-9_!.]*)\s*\(/g;
   let match;
   while ((match = callRe.exec(source)) !== null) {
     const callee = String(match[1] || '').trim();
@@ -637,15 +652,17 @@ export const LANGUAGE_REGISTRY = [
     collectImports: collectGroovyImports,
     symbolPatterns: GROOVY_SYMBOL_PATTERNS
   }),
-  createImportCollectorAdapter({
+  createHeuristicManagedAdapter({
     id: 'r',
     match: (ext) => R_EXTS.has(ext),
-    collectImports: collectRImports
+    collectImports: collectRImports,
+    symbolPatterns: R_SYMBOL_PATTERNS
   }),
-  createImportCollectorAdapter({
+  createHeuristicManagedAdapter({
     id: 'julia',
     match: (ext) => JULIA_EXTS.has(ext),
-    collectImports: collectJuliaImports
+    collectImports: collectJuliaImports,
+    symbolPatterns: JULIA_SYMBOL_PATTERNS
   }),
   createImportCollectorAdapter({
     id: 'handlebars',
