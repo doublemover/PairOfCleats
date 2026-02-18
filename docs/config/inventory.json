@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-18T02:49:29.996Z",
+  "generatedAt": "2026-02-18T09:50:59.220Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2082,7 +2082,6 @@
         "tests/tooling/eval/eval-quality.test.js",
         "tests/tooling/fixtures/fixture-empty.test.js",
         "tests/tooling/fixtures/fixture-eval.test.js",
-        "tests/tooling/fixtures/fixture-parity.test.js",
         "tests/tooling/index-stats/index-stats-explicit-repo-path.test.js",
         "tests/tooling/install/setup-index-detection.test.js",
         "tests/tooling/install/setup.test.js",
@@ -2216,7 +2215,6 @@
         "tests/tooling/eval/eval-quality.test.js",
         "tests/tooling/fixtures/fixture-empty.test.js",
         "tests/tooling/fixtures/fixture-eval.test.js",
-        "tests/tooling/fixtures/fixture-parity.test.js",
         "tests/tooling/reports/summary/summary-report-helpers.js",
         "tests/tooling/script-coverage/script-coverage.runner.js",
         "tools/ci/run-suite.js",
@@ -2315,6 +2313,7 @@
         "src/shared/runtime-envelope.js",
         "tests/helpers/sqlite-incremental.js",
         "tests/perf/bench/run.test.js",
+        "tests/shared/runtime/runtime-env-envelope-overrides.test.js",
         "tests/shared/runtime/runtime-envelope-node-options-merge.test.js",
         "tests/shared/runtime/runtime-envelope-spawn-env.test.js",
         "tests/storage/sqlite/sqlite-incremental-no-change.test.js",
@@ -2380,6 +2379,7 @@
       "name": "PAIROFCLEATS_NODE_OPTIONS",
       "files": [
         "src/shared/runtime-envelope.js",
+        "tests/shared/runtime/runtime-env-envelope-overrides.test.js",
         "tests/shared/runtime/runtime-envelope-node-options-merge.test.js",
         "tests/shared/runtime/runtime-envelope-spawn-env.test.js",
         "tools/config/inventory.js"
@@ -2836,6 +2836,7 @@
       "name": "PAIROFCLEATS_UV_THREADPOOL_SIZE",
       "files": [
         "src/shared/runtime-envelope.js",
+        "tests/shared/runtime/runtime-env-envelope-overrides.test.js",
         "tests/shared/runtime/runtime-envelope-spawn-env.test.js",
         "tests/shared/runtime/runtime-envelope-uv-threadpool-precedence.test.js",
         "tools/config/inventory.js"
@@ -3505,6 +3506,12 @@
         "flags": [
           "astDataflowEnabled",
           "controlFlowEnabled"
+        ]
+      },
+      {
+        "file": "tests/lang/contracts/swift-prepare-tree-sitter-disabled.test.js",
+        "flags": [
+          "treeSitter"
         ]
       },
       {
@@ -4959,6 +4966,20 @@
         ]
       },
       {
+        "flag": "treeSitter",
+        "count": 8,
+        "files": [
+          "src/lang/javascript/chunks.js",
+          "src/lang/typescript/chunks.js",
+          "tests/indexing/tree-sitter/tree-sitter-adaptive-budget.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-chunks.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-missing-grammar-fallback.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-streaming-chunking.test.js",
+          "tests/lang/contracts/swift-prepare-tree-sitter-disabled.test.js",
+          "tools/bench/index/tree-sitter-load.js"
+        ]
+      },
+      {
         "flag": "dry-run",
         "count": 7,
         "files": [
@@ -5047,19 +5068,6 @@
           "tools/reports/compare-models.js",
           "tools/reports/metrics-dashboard.js",
           "tools/reports/parity-matrix.js"
-        ]
-      },
-      {
-        "flag": "treeSitter",
-        "count": 7,
-        "files": [
-          "src/lang/javascript/chunks.js",
-          "src/lang/typescript/chunks.js",
-          "tests/indexing/tree-sitter/tree-sitter-adaptive-budget.test.js",
-          "tests/indexing/tree-sitter/tree-sitter-chunks.test.js",
-          "tests/indexing/tree-sitter/tree-sitter-missing-grammar-fallback.test.js",
-          "tests/indexing/tree-sitter/tree-sitter-streaming-chunking.test.js",
-          "tools/bench/index/tree-sitter-load.js"
         ]
       },
       {
@@ -6065,6 +6073,7 @@
       "src/retrieval/federation/coordinator.js",
       "src/shared/cli-options.js",
       "src/shared/cli.js",
+      "tests/indexing/chunking/chunker-options-forwarding.test.js",
       "tests/indexing/tree-sitter/tree-sitter-chunk-cache-reuse.test.js",
       "tests/indexing/tree-sitter/tree-sitter-memory-plateau.test.js",
       "tests/perf/bench/run.test.js",
