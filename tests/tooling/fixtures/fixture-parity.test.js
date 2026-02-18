@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
@@ -21,6 +22,7 @@ const parsedTimeout = Number.isFinite(argv['timeout-ms']) ? argv['timeout-ms'] :
 const timeoutMs = Math.max(1000, Math.floor(parsedTimeout));
 const defaultProfile = process.platform === 'win32' ? 'ci-parity' : '';
 const resolvedProfile = process.env.PAIROFCLEATS_PROFILE || defaultProfile;
+const runTag = String(process.pid);
 
 function resolveFixtures() {
   if (argv.fixtures) {
@@ -71,22 +73,18 @@ for (const fixtureName of fixtures) {
     console.error(`Fixture not found: ${fixtureRoot}`);
     process.exit(1);
   }
-  const cacheRoot = path.join(root, '.testCache', `parity-${fixtureName}`);
+  const cacheRoot = path.join(root, '.testCache', `parity-${fixtureName}-${runTag}`);
   console.log(`\nFixture parity: ${fixtureName}`);
   await fsPromises.rm(cacheRoot, { recursive: true, force: true });
   await fsPromises.mkdir(cacheRoot, { recursive: true });
 
-  const env = {
-    ...process.env,
-    PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-    PAIROFCLEATS_EMBEDDINGS: 'stub',
-    ...(resolvedProfile ? { PAIROFCLEATS_PROFILE: resolvedProfile } : {})
-  };
-  process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
-  process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
-  if (resolvedProfile) {
-    process.env.PAIROFCLEATS_PROFILE = resolvedProfile;
-  }
+  const env = applyTestEnv({
+    cacheRoot,
+    embeddings: 'stub',
+    extraEnv: resolvedProfile
+      ? { PAIROFCLEATS_PROFILE: resolvedProfile }
+      : null
+  });
   if (resolvedProfile) {
     console.log(`[fixture-parity] profile=${resolvedProfile}`);
   }

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-17T23:49:17.993Z",
+  "generatedAt": "2026-02-18T02:49:29.996Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2914,7 +2914,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 310,
+    "totalFlags": 312,
     "publicFlags": [
       "backend",
       "host",
@@ -2938,6 +2938,7 @@
       "args",
       "artifactDir",
       "as-of",
+      "astDataflowEnabled",
       "auth-token",
       "avg",
       "avgBytes",
@@ -2966,6 +2967,7 @@
       "command",
       "concurrency",
       "config",
+      "controlFlowEnabled",
       "cors-allow-any",
       "cors-allowed-origins",
       "count",
@@ -3475,6 +3477,41 @@
           "maxBytes",
           "minBytes",
           "windowBytes"
+        ]
+      },
+      {
+        "file": "tests/lang/contracts/build-dsl-heuristic-adapters.test.js",
+        "flags": [
+          "astDataflowEnabled",
+          "controlFlowEnabled"
+        ]
+      },
+      {
+        "file": "tests/lang/contracts/data-interface-heuristic-adapters.test.js",
+        "flags": [
+          "astDataflowEnabled",
+          "controlFlowEnabled"
+        ]
+      },
+      {
+        "file": "tests/lang/contracts/dynamic-heuristic-adapters.test.js",
+        "flags": [
+          "astDataflowEnabled",
+          "controlFlowEnabled"
+        ]
+      },
+      {
+        "file": "tests/lang/contracts/managed-heuristic-adapters.test.js",
+        "flags": [
+          "astDataflowEnabled",
+          "controlFlowEnabled"
+        ]
+      },
+      {
+        "file": "tests/lang/contracts/template-heuristic-adapters.test.js",
+        "flags": [
+          "astDataflowEnabled",
+          "controlFlowEnabled"
         ]
       },
       {
@@ -5086,6 +5123,17 @@
         ]
       },
       {
+        "flag": "astDataflowEnabled",
+        "count": 5,
+        "files": [
+          "tests/lang/contracts/build-dsl-heuristic-adapters.test.js",
+          "tests/lang/contracts/data-interface-heuristic-adapters.test.js",
+          "tests/lang/contracts/dynamic-heuristic-adapters.test.js",
+          "tests/lang/contracts/managed-heuristic-adapters.test.js",
+          "tests/lang/contracts/template-heuristic-adapters.test.js"
+        ]
+      },
+      {
         "flag": "collapse",
         "count": 5,
         "files": [
@@ -5094,6 +5142,17 @@
           "tools/bench/map/viewer-fps.js",
           "tools/bench/map/viewer-lod-stress.js",
           "tools/reports/report-code-map.js"
+        ]
+      },
+      {
+        "flag": "controlFlowEnabled",
+        "count": 5,
+        "files": [
+          "tests/lang/contracts/build-dsl-heuristic-adapters.test.js",
+          "tests/lang/contracts/data-interface-heuristic-adapters.test.js",
+          "tests/lang/contracts/dynamic-heuristic-adapters.test.js",
+          "tests/lang/contracts/managed-heuristic-adapters.test.js",
+          "tests/lang/contracts/template-heuristic-adapters.test.js"
         ]
       },
       {
