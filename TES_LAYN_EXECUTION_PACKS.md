@@ -1,6 +1,6 @@
 # TES_LAYN_EXECUTION_PACKS - USR Language and Framework Delivery Packs
 
-Last updated: 2026-02-18T02:18:41Z
+Last updated: 2026-02-18T02:20:48Z
 Status: active
 Parent roadmap: `TES_LAYN_ROADMAP.md`
 Governance reference: `TES_LAYN_GOVERNANCE.md`
@@ -65,7 +65,7 @@ Completion status:
 - [x] B3 managed-languages pack complete
 - [x] B4 dynamic-languages pack complete
 - [x] B5 markup-style-template pack complete
-- [ ] B6 data-interface-dsl pack complete
+- [x] B6 data-interface-dsl pack complete
 - [ ] B7 build-infra-dsl pack complete
 - [ ] B8 cross-language integration pack complete
 

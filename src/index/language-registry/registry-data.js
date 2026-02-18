@@ -203,6 +203,16 @@ const RAZOR_SYMBOL_PATTERNS = Object.freeze([
   /@helper\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/g
 ]);
 
+const GRAPHQL_SYMBOL_PATTERNS = Object.freeze([
+  /\b(?:type|interface|enum|union|input|scalar)\s+([A-Za-z_][A-Za-z0-9_]*)/g,
+  /\bfragment\s+([A-Za-z_][A-Za-z0-9_]*)\s+on\s+[A-Za-z_][A-Za-z0-9_]*/g
+]);
+
+const PROTO_SYMBOL_PATTERNS = Object.freeze([
+  /\b(?:message|enum|service)\s+([A-Za-z_][A-Za-z0-9_]*)/g,
+  /\brpc\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/g
+]);
+
 const TEMPLATE_USAGE_SKIP = new Set([
   'if',
   'else',
@@ -223,6 +233,47 @@ const TEMPLATE_USAGE_SKIP = new Set([
   'extends',
   'using',
   'section'
+]);
+
+const GRAPHQL_USAGE_SKIP = new Set([
+  'query',
+  'mutation',
+  'subscription',
+  'fragment',
+  'on',
+  'schema',
+  'type',
+  'interface',
+  'enum',
+  'union',
+  'input',
+  'scalar',
+  'implements'
+]);
+
+const PROTO_USAGE_SKIP = new Set([
+  'double',
+  'float',
+  'int32',
+  'int64',
+  'uint32',
+  'uint64',
+  'sint32',
+  'sint64',
+  'fixed32',
+  'fixed64',
+  'sfixed32',
+  'sfixed64',
+  'bool',
+  'string',
+  'bytes',
+  'map',
+  'oneof',
+  'optional',
+  'required',
+  'repeated',
+  'returns',
+  'rpc'
 ]);
 
 const sortUnique = (values) => Array.from(new Set(values.filter(Boolean))).sort((a, b) => (a < b ? -1 : (a > b ? 1 : 0)));
@@ -272,6 +323,42 @@ const collectTemplateUsages = (text) => {
     }
   }
   return sortUnique(matches);
+};
+
+const collectGraphqlUsages = (text) => {
+  const source = String(text || '');
+  const values = [];
+  const typeRef = /:\s*([A-Za-z_][A-Za-z0-9_]*)/g;
+  const fragmentRef = /\.\.\.\s*([A-Za-z_][A-Za-z0-9_]*)/g;
+  const implRef = /\b(?:on|implements)\s+([A-Za-z_][A-Za-z0-9_]*)/g;
+  for (const matcher of [typeRef, fragmentRef, implRef]) {
+    let match;
+    while ((match = matcher.exec(source)) !== null) {
+      const name = String(match[1] || '').trim();
+      if (name && !GRAPHQL_USAGE_SKIP.has(name)) values.push(name);
+      if (!match[0]) matcher.lastIndex += 1;
+    }
+  }
+  return sortUnique(values);
+};
+
+const collectProtoUsages = (text) => {
+  const source = String(text || '');
+  const values = [];
+  const rpcTypes = /\brpc\s+[A-Za-z_][A-Za-z0-9_]*\s*\(\s*([A-Za-z_][A-Za-z0-9_.]*)\s*\)\s+returns\s*\(\s*([A-Za-z_][A-Za-z0-9_.]*)\s*\)/g;
+  const fieldTypes = /\b(?:optional|required|repeated)?\s*([A-Za-z_][A-Za-z0-9_.]*)\s+[A-Za-z_][A-Za-z0-9_]*\s*=\s*\d+/g;
+  for (const matcher of [rpcTypes, fieldTypes]) {
+    let match;
+    while ((match = matcher.exec(source)) !== null) {
+      const candidates = matcher === rpcTypes ? [match[1], match[2]] : [match[1]];
+      for (const candidate of candidates) {
+        const name = String(candidate || '').trim();
+        if (name && !PROTO_USAGE_SKIP.has(name)) values.push(name);
+      }
+      if (!match[0]) matcher.lastIndex += 1;
+    }
+  }
+  return sortUnique(values);
 };
 
 const buildHeuristicManagedRelations = ({ text, options, collectImports, symbolPatterns, usageCollector }) => {
@@ -752,10 +839,12 @@ export const LANGUAGE_REGISTRY = [
     symbolPatterns: RAZOR_SYMBOL_PATTERNS,
     usageCollector: collectTemplateUsages
   }),
-  createImportCollectorAdapter({
+  createHeuristicManagedAdapter({
     id: 'proto',
     match: (ext, relPath) => ext === '.proto' || isProtoConfigPath(relPath),
-    collectImports: collectProtoImports
+    collectImports: collectProtoImports,
+    symbolPatterns: PROTO_SYMBOL_PATTERNS,
+    usageCollector: collectProtoUsages
   }),
   createImportCollectorAdapter({
     id: 'makefile',
@@ -767,9 +856,11 @@ export const LANGUAGE_REGISTRY = [
     match: (_ext, relPath) => isDockerfilePath(relPath),
     collectImports: collectDockerfileImports
   }),
-  createImportCollectorAdapter({
+  createHeuristicManagedAdapter({
     id: 'graphql',
     match: (ext) => ext === '.graphql' || ext === '.gql',
-    collectImports: collectGraphqlImports
+    collectImports: collectGraphqlImports,
+    symbolPatterns: GRAPHQL_SYMBOL_PATTERNS,
+    usageCollector: collectGraphqlUsages
   })
 ];

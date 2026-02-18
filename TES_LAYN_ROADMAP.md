@@ -1,6 +1,6 @@
 # TES_LAYN_ROADMAP - Functional USR Delivery Plan
 
-Last updated: 2026-02-18T02:18:41Z
+Last updated: 2026-02-18T02:20:48Z
 Status: active
 Supersedes: prior contract-heavy rollout plans
 
@@ -96,6 +96,7 @@ Deliverables:
 - [x] B3 complete (managed languages).
 - [x] B4 complete (dynamic languages).
 - [x] B5 complete (markup/style/template).
+- [x] B6 complete (data/interface/DSL).
 - [ ] B2-B7 complete with required adapters and language-specific edges.
 - [ ] Import-only entries replaced by full adapters where required.
 
