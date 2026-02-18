@@ -487,6 +487,11 @@ export async function writeIndexArtifacts(input) {
   const chunkMetaJsonlThreshold = Number.isFinite(Number(artifactConfig.chunkMetaJsonlThreshold))
     ? Math.max(0, Math.floor(Number(artifactConfig.chunkMetaJsonlThreshold)))
     : 200000;
+  const chunkMetaJsonlEstimateThresholdBytes = Number.isFinite(
+    Number(artifactConfig.chunkMetaJsonlEstimateThresholdBytes)
+  )
+    ? Math.max(1, Math.floor(Number(artifactConfig.chunkMetaJsonlEstimateThresholdBytes)))
+    : (32 * 1024 * 1024);
   const chunkMetaShardSize = Number.isFinite(Number(artifactConfig.chunkMetaShardSize))
     ? Math.max(0, Math.floor(Number(artifactConfig.chunkMetaShardSize)))
     : 100000;
@@ -816,6 +821,7 @@ export async function writeIndexArtifacts(input) {
     chunkMetaStreaming,
     chunkMetaBinaryColumnar,
     chunkMetaJsonlThreshold,
+    chunkMetaJsonlEstimateThresholdBytes,
     chunkMetaShardSize,
     maxJsonBytes: chunkMetaMaxBytes
   });

@@ -541,7 +541,7 @@ const buildColumnarChunkMeta = (chunkMetaIterator, chunkMetaCount) => {
 
 /**
  * Decide chunk_meta artifact mode/sharding based on estimated row size and limits.
- * @param {{chunks:Array<object>,chunkMetaIterator:function,artifactMode:string,chunkMetaFormatConfig?:string|null,chunkMetaStreaming?:boolean,chunkMetaBinaryColumnar?:boolean,chunkMetaJsonlThreshold:number,chunkMetaShardSize:number,maxJsonBytes?:number}} input
+ * @param {{chunks:Array<object>,chunkMetaIterator:function,artifactMode:string,chunkMetaFormatConfig?:string|null,chunkMetaStreaming?:boolean,chunkMetaBinaryColumnar?:boolean,chunkMetaJsonlThreshold:number,chunkMetaShardSize:number,chunkMetaJsonlEstimateThresholdBytes?:number,maxJsonBytes?:number}} input
  * @returns {object}
  */
 export const resolveChunkMetaPlan = ({
@@ -553,9 +553,13 @@ export const resolveChunkMetaPlan = ({
   chunkMetaBinaryColumnar = false,
   chunkMetaJsonlThreshold,
   chunkMetaShardSize,
+  chunkMetaJsonlEstimateThresholdBytes = 32 * 1024 * 1024,
   maxJsonBytes = MAX_JSON_BYTES
 }) => {
   const resolvedMaxJsonBytes = resolveChunkMetaMaxBytes(maxJsonBytes);
+  const resolvedJsonlEstimateThresholdBytes = Number.isFinite(Number(chunkMetaJsonlEstimateThresholdBytes))
+    ? Math.max(1, Math.floor(Number(chunkMetaJsonlEstimateThresholdBytes)))
+    : (32 * 1024 * 1024);
   const maxJsonBytesSoft = resolvedMaxJsonBytes * 0.9;
   const shardTargetBytes = resolvedMaxJsonBytes * 0.75;
   const chunkMetaCount = chunks.length;
@@ -583,22 +587,29 @@ export const resolveChunkMetaPlan = ({
       const avgBytes = sampledBytes / sampled;
       const estimatedBytes = avgBytes * chunkMetaCount;
       estimatedJsonlBytes = estimatedBytes;
-      if (estimatedBytes > maxJsonBytesSoft) {
+      const forceJsonlByEstimate = chunkMetaFormat === 'auto'
+        && estimatedBytes >= resolvedJsonlEstimateThresholdBytes;
+      if (estimatedBytes > maxJsonBytesSoft || forceJsonlByEstimate) {
         if (chunkMetaUseColumnar) {
           chunkMetaUseColumnar = false;
         }
         chunkMetaUseJsonl = true;
-        const targetShardSize = Math.max(1, Math.floor(shardTargetBytes / avgBytes));
-        if (resolvedShardSize > 0) {
-          resolvedShardSize = Math.min(resolvedShardSize, targetShardSize);
-        } else {
-          resolvedShardSize = targetShardSize;
+        if (estimatedBytes > maxJsonBytesSoft) {
+          const targetShardSize = Math.max(1, Math.floor(shardTargetBytes / avgBytes));
+          if (resolvedShardSize > 0) {
+            resolvedShardSize = Math.min(resolvedShardSize, targetShardSize);
+          } else {
+            resolvedShardSize = targetShardSize;
+          }
         }
         chunkMetaUseShards = chunkMetaCount > resolvedShardSize;
         const chunkMetaMode = chunkMetaUseShards ? 'jsonl-sharded' : 'jsonl';
+        const reason = estimatedBytes > maxJsonBytesSoft
+          ? `to stay under ${formatBytes(resolvedMaxJsonBytes)}`
+          : `to avoid large-array JSON serialization overhead (threshold ${formatBytes(resolvedJsonlEstimateThresholdBytes)})`;
         log(
           `Chunk metadata estimate ~${formatBytes(estimatedBytes)}; ` +
-          `using ${chunkMetaMode} to stay under ${formatBytes(resolvedMaxJsonBytes)}.`
+          `using ${chunkMetaMode} ${reason}.`
         );
       }
     }
