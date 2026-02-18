@@ -126,4 +126,15 @@ assert.ok(
   'expected heavy-file downshift to trigger for root-level vendor path once file size/line pressure is high'
 );
 
+const largeSwiftFixtureText = `${Array.from({ length: 1300 }, (_, i) => `public let swift_fixture_${i} = ${i}`).join('\n')}\n`;
+const largeSwiftFixture = await runCase({
+  relPath: 'test/api-digester/Inputs/SDK.swift',
+  text: largeSwiftFixtureText
+});
+assert.equal(largeSwiftFixture.result.chunks.length, 1, 'expected one chunk result for large swift fixture path');
+assert.ok(
+  largeSwiftFixture.logs.some((line) => line.includes('[perf] heavy-file downshift enabled for test/api-digester/Inputs/SDK.swift')),
+  'expected heavy-file downshift to trigger for known heavy swift fixture path'
+);
+
 console.log('heavy file root-path downshift test passed');

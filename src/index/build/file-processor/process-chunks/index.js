@@ -91,6 +91,7 @@ const HEAVY_FILE_CHUNK_ONLY_MIN_LINES_DEFAULT = 1200;
 const HEAVY_FILE_SKIP_TOKENIZATION_CHUNK_ONLY_MIN_BYTES_DEFAULT = 256 * 1024;
 const HEAVY_FILE_SKIP_TOKENIZATION_CHUNK_ONLY_MIN_LINES_DEFAULT = 3000;
 const HEAVY_FILE_PATH_PREFIXES = [
+  '/3rdparty/',
   '/third_party/',
   '/thirdparty/',
   '/vendor/',
@@ -98,9 +99,25 @@ const HEAVY_FILE_PATH_PREFIXES = [
   '/include/fmt/',
   '/include/spdlog/fmt/',
   '/include/nlohmann/',
+  '/modules/core/include/opencv2/core/hal/',
+  '/modules/core/src/',
+  '/modules/dnn/',
+  '/modules/js/perf/',
+  '/sources/cniollhttp/',
+  '/sources/nio/',
+  '/sources/niocore/',
+  '/sources/nioposix/',
+  '/tests/nio/',
+  '/test/api-digester/inputs/',
+  '/test/remote-run/',
+  '/test/stdlib/inputs/',
   '/tests/abi/',
   '/test/gtest/',
+  '/utils/unicodedata/',
+  '/utils/gen-unicode-data/',
+  '/samples/',
   '/docs/mkdocs/',
+  '/cmake/',
   '/.github/workflows/'
 ];
 

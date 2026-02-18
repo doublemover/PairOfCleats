@@ -82,6 +82,7 @@ const HEAVY_RELATIONS_MAX_LINES = 6000;
 const HEAVY_RELATIONS_PATH_MIN_BYTES = 64 * 1024;
 const HEAVY_RELATIONS_PATH_MIN_LINES = 1200;
 const HEAVY_RELATIONS_PATH_PARTS = [
+  '/3rdparty/',
   '/third_party/',
   '/thirdparty/',
   '/vendor/',
@@ -89,8 +90,23 @@ const HEAVY_RELATIONS_PATH_PARTS = [
   '/include/fmt/',
   '/include/spdlog/fmt/',
   '/include/nlohmann/',
+  '/modules/core/include/opencv2/core/hal/',
+  '/modules/core/src/',
+  '/modules/dnn/',
+  '/modules/js/perf/',
+  '/sources/cniollhttp/',
+  '/sources/nio/',
+  '/sources/niocore/',
+  '/sources/nioposix/',
+  '/tests/nio/',
+  '/test/api-digester/inputs/',
+  '/test/remote-run/',
+  '/test/stdlib/inputs/',
   '/tests/abi/',
   '/test/gtest/',
+  '/utils/unicodedata/',
+  '/utils/gen-unicode-data/',
+  '/samples/',
   '/docs/mkdocs/',
   '/.github/workflows/'
 ];
@@ -184,11 +200,15 @@ const mergePlannedSegmentsWithExtras = ({ plannedSegments, extraSegments, relKey
   return deduped;
 };
 
-const countLines = (text) => {
+const countLines = (text, maxLines = null) => {
   if (!text) return 0;
+  const capped = Number.isFinite(Number(maxLines)) && Number(maxLines) > 0
+    ? Math.floor(Number(maxLines))
+    : null;
   let count = 1;
   for (let i = 0; i < text.length; i += 1) {
     if (text.charCodeAt(i) === 10) count += 1;
+    if (capped && count > capped) return count;
   }
   return count;
 };
@@ -203,7 +223,7 @@ const exceedsTreeSitterLimits = ({ text, languageId, treeSitterConfig }) => {
     if (bytes > maxBytes) return true;
   }
   if (typeof maxLines === 'number' && maxLines > 0) {
-    const lines = countLines(text);
+    const lines = countLines(text, maxLines);
     if (lines > maxLines) return true;
   }
   return false;

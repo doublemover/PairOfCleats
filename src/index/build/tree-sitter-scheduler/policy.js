@@ -15,17 +15,43 @@ const DOC_TREE_SITTER_SKIP_LANGUAGES = new Set([
 ]);
 
 const HEAVY_TREE_SITTER_PATH_PARTS = [
+  '/3rdparty/',
   '/include/fmt/',
   '/include/spdlog/fmt/',
   '/include/nlohmann/',
   '/single_include/nlohmann/',
+  '/modules/core/include/opencv2/core/hal/',
+  '/modules/core/src/',
+  '/modules/dnn/',
+  '/modules/js/perf/',
+  '/sources/cniollhttp/',
+  '/sources/nio/',
+  '/sources/niocore/',
+  '/sources/nioposix/',
+  '/tests/nio/',
   '/tests/abi/',
+  '/test/api-digester/inputs/',
+  '/test/remote-run/',
+  '/test/stdlib/inputs/',
   '/test/gtest/',
   '/contrib/minizip/',
+  '/utils/unicodedata/',
+  '/utils/gen-unicode-data/',
+  '/samples/',
   '/docs/mkdocs/'
 ];
 
-const HEAVY_TREE_SITTER_LANGUAGES = new Set(['clike', 'cpp', 'objc']);
+const HEAVY_TREE_SITTER_LANGUAGES = new Set([
+  'clike',
+  'cpp',
+  'objc',
+  'swift',
+  'cmake',
+  'javascript',
+  'typescript',
+  'jsx',
+  'tsx'
+]);
 
 export const shouldSkipTreeSitterPlanningForPath = ({ relKey, languageId }) => {
   if (!relKey) return false;

@@ -33,11 +33,15 @@ import { shouldSkipTreeSitterPlanningForPath } from './policy.js';
 const TREE_SITTER_LANG_IDS = new Set(TREE_SITTER_LANGUAGE_IDS);
 const PLANNER_IO_CONCURRENCY_CAP = 16;
 
-const countLines = (text) => {
+const countLines = (text, maxLines = null) => {
   if (!text) return 0;
+  const capped = Number.isFinite(Number(maxLines)) && Number(maxLines) > 0
+    ? Math.floor(Number(maxLines))
+    : null;
   let count = 1;
   for (let i = 0; i < text.length; i += 1) {
     if (text.charCodeAt(i) === 10) count += 1;
+    if (capped && count > capped) return count;
   }
   return count;
 };
@@ -60,7 +64,7 @@ const exceedsTreeSitterLimits = ({ text, languageId, treeSitterConfig, log }) =>
     }
   }
   if (typeof maxLines === 'number' && maxLines > 0) {
-    const lines = countLines(text);
+    const lines = countLines(text, maxLines);
     if (lines > maxLines) {
       if (log) log(`[tree-sitter:schedule] skip ${languageId} segment: maxLines (${lines} > ${maxLines})`);
       return true;
