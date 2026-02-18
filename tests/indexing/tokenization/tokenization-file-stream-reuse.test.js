@@ -77,4 +77,42 @@ for (const [startLine, endLine] of ranges) {
   }
 }
 
+// Regression: very large single-line payloads must not overflow call stack
+// when slicing pre-tokenized file-line streams.
+const longLine = Array.from({ length: 120000 }, (_, i) => `token_${i}`).join(' ');
+const hugeText = `{"docs":"${longLine}"}`;
+const hugeStream = createFileLineTokenStream({
+  text: hugeText,
+  mode: 'prose',
+  ext: '.json',
+  dictWords: context.dictWords,
+  dictConfig: context.dictConfig
+});
+const hugePretokenized = sliceFileLineTokenStream({
+  stream: hugeStream,
+  startLine: 1,
+  endLine: 1
+});
+const hugeBaseline = tokenizeChunkText({
+  text: hugeText,
+  mode: 'prose',
+  ext: '.json',
+  context
+});
+const hugeReused = tokenizeChunkText({
+  text: hugeText,
+  mode: 'prose',
+  ext: '.json',
+  context,
+  pretokenized: hugePretokenized
+});
+if (JSON.stringify(hugeBaseline.tokens) !== JSON.stringify(hugeReused.tokens)) {
+  console.error('token mismatch for huge single-line slice');
+  process.exit(1);
+}
+if (JSON.stringify(hugeBaseline.seq) !== JSON.stringify(hugeReused.seq)) {
+  console.error('seq mismatch for huge single-line slice');
+  process.exit(1);
+}
+
 console.log('tokenization file stream reuse test passed');

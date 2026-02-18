@@ -550,14 +550,17 @@ export const sliceFileLineTokenStream = ({ stream, startLine, endLine }) => {
   const start = Math.max(1, Math.floor(Number(startLine) || 1));
   const end = Math.max(start, Math.floor(Number(endLine) || start));
   const tokens = [];
+  const appendList = (list) => {
+    for (let i = 0; i < list.length; i += 1) tokens.push(list[i]);
+  };
   for (let line = start; line <= end; line += 1) {
     const list = lineTokens[line - 1];
-    if (Array.isArray(list) && list.length) tokens.push(...list);
+    if (Array.isArray(list) && list.length) appendList(list);
   }
   if (linePunctuationTokens) {
     for (let line = start; line <= end; line += 1) {
       const list = linePunctuationTokens[line - 1];
-      if (Array.isArray(list) && list.length) tokens.push(...list);
+      if (Array.isArray(list) && list.length) appendList(list);
     }
   }
   return { tokens, seq: buildSequenceFromTokens(tokens) };
