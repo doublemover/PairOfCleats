@@ -65,7 +65,7 @@ Required framework profiles:
 Objective: lock adapter scaffolding, registry wiring, and deterministic core plumbing.
 
 Deliverables:
-- [ ] Unified adapter scaffolding and language registry wiring are complete.
+- [x] Unified adapter scaffolding and language registry wiring are complete.
 - [ ] Baseline identity/normalization envelope is stable across reruns.
 - [ ] Core diagnostics are explicit for unsupported and partial features.
 

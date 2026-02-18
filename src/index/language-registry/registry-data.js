@@ -87,6 +87,32 @@ const flowOptions = (options) => ({
   controlFlow: options.controlFlowEnabled
 });
 
+const normalizeRelPath = (relPath) => String(relPath || '').replace(/\\/g, '/');
+
+const getPathBasename = (relPath) => path.posix.basename(normalizeRelPath(relPath)).toLowerCase();
+
+const MAKEFILE_BASENAMES = new Set(['makefile', 'gnumakefile', 'bsdmakefile']);
+
+const isMakefilePath = (relPath) => MAKEFILE_BASENAMES.has(getPathBasename(relPath));
+
+const isDockerfilePath = (relPath) => getPathBasename(relPath).startsWith('dockerfile');
+
+const isProtoConfigPath = (relPath) => {
+  const name = getPathBasename(relPath);
+  return name === 'buf.yaml' || name === 'buf.gen.yaml';
+};
+
+const createImportCollectorAdapter = ({ id, match, collectImports }) => ({
+  id,
+  match,
+  collectImports: (text, options) => collectImports(text, options),
+  prepare: async () => ({}),
+  buildRelations: ({ text, options }) => buildSimpleRelations({ imports: collectImports(text, options) }),
+  extractDocMeta: () => null,
+  flow: () => null,
+  attachName: false
+});
+
 export const LANGUAGE_REGISTRY = [
   {
     id: 'javascript',
@@ -412,116 +438,84 @@ export const LANGUAGE_REGISTRY = [
     flow: ({ text, chunk, options }) => computeSwiftFlow(text, chunk, flowOptions(options)),
     attachName: true
   },
-  {
+  createImportCollectorAdapter({
     id: 'cmake',
     match: (ext) => CMAKE_EXTS.has(ext),
-    collectImports: (text) => collectCmakeImports(text),
-    buildRelations: ({ text }) => buildSimpleRelations({ imports: collectCmakeImports(text) }),
-    attachName: false
-  },
-  {
+    collectImports: collectCmakeImports
+  }),
+  createImportCollectorAdapter({
     id: 'starlark',
     match: (ext) => STARLARK_EXTS.has(ext),
-    collectImports: (text) => collectStarlarkImports(text),
-    buildRelations: ({ text }) => buildSimpleRelations({ imports: collectStarlarkImports(text) }),
-    attachName: false
-  },
-  {
+    collectImports: collectStarlarkImports
+  }),
+  createImportCollectorAdapter({
     id: 'nix',
     match: (ext) => NIX_EXTS.has(ext),
-    collectImports: (text) => collectNixImports(text),
-    buildRelations: ({ text }) => buildSimpleRelations({ imports: collectNixImports(text) }),
-    attachName: false
-  },
-  {
+    collectImports: collectNixImports
+  }),
+  createImportCollectorAdapter({
     id: 'dart',
     match: (ext) => DART_EXTS.has(ext),
-    collectImports: (text) => collectDartImports(text),
-    buildRelations: ({ text }) => buildSimpleRelations({ imports: collectDartImports(text) }),
-    attachName: false
-  },
-  {
+    collectImports: collectDartImports
+  }),
+  createImportCollectorAdapter({
     id: 'scala',
     match: (ext) => SCALA_EXTS.has(ext),
-    collectImports: (text) => collectScalaImports(text),
-    buildRelations: ({ text }) => buildSimpleRelations({ imports: collectScalaImports(text) }),
-    attachName: false
-  },
-  {
+    collectImports: collectScalaImports
+  }),
+  createImportCollectorAdapter({
     id: 'groovy',
     match: (ext) => GROOVY_EXTS.has(ext),
-    collectImports: (text) => collectGroovyImports(text),
-    buildRelations: ({ text }) => buildSimpleRelations({ imports: collectGroovyImports(text) }),
-    attachName: false
-  },
-  {
+    collectImports: collectGroovyImports
+  }),
+  createImportCollectorAdapter({
     id: 'r',
     match: (ext) => R_EXTS.has(ext),
-    collectImports: (text) => collectRImports(text),
-    buildRelations: ({ text }) => buildSimpleRelations({ imports: collectRImports(text) }),
-    attachName: false
-  },
-  {
+    collectImports: collectRImports
+  }),
+  createImportCollectorAdapter({
     id: 'julia',
     match: (ext) => JULIA_EXTS.has(ext),
-    collectImports: (text) => collectJuliaImports(text),
-    buildRelations: ({ text }) => buildSimpleRelations({ imports: collectJuliaImports(text) }),
-    attachName: false
-  },
-  {
+    collectImports: collectJuliaImports
+  }),
+  createImportCollectorAdapter({
     id: 'handlebars',
     match: (ext) => HANDLEBARS_EXTS.has(ext),
-    collectImports: (text) => collectHandlebarsImports(text),
-    buildRelations: ({ text }) => buildSimpleRelations({ imports: collectHandlebarsImports(text) }),
-    attachName: false
-  },
-  {
+    collectImports: collectHandlebarsImports
+  }),
+  createImportCollectorAdapter({
     id: 'mustache',
     match: (ext) => MUSTACHE_EXTS.has(ext),
-    collectImports: (text) => collectMustacheImports(text),
-    buildRelations: ({ text }) => buildSimpleRelations({ imports: collectMustacheImports(text) }),
-    attachName: false
-  },
-  {
+    collectImports: collectMustacheImports
+  }),
+  createImportCollectorAdapter({
     id: 'jinja',
     match: (ext) => JINJA_EXTS.has(ext),
-    collectImports: (text) => collectJinjaImports(text),
-    buildRelations: ({ text }) => buildSimpleRelations({ imports: collectJinjaImports(text) }),
-    attachName: false
-  },
-  {
+    collectImports: collectJinjaImports
+  }),
+  createImportCollectorAdapter({
     id: 'razor',
     match: (ext) => RAZOR_EXTS.has(ext),
-    collectImports: (text) => collectRazorImports(text),
-    buildRelations: ({ text }) => buildSimpleRelations({ imports: collectRazorImports(text) }),
-    attachName: false
-  },
-  {
+    collectImports: collectRazorImports
+  }),
+  createImportCollectorAdapter({
     id: 'proto',
-    match: (ext, relPath) => ext === '.proto' || relPath === 'buf.gen.yaml' || relPath === 'buf.yaml',
-    collectImports: (text, options) => collectProtoImports(text, options),
-    buildRelations: ({ text, options }) => buildSimpleRelations({ imports: collectProtoImports(text, options) }),
-    attachName: false
-  },
-  {
+    match: (ext, relPath) => ext === '.proto' || isProtoConfigPath(relPath),
+    collectImports: collectProtoImports
+  }),
+  createImportCollectorAdapter({
     id: 'makefile',
-    match: (_ext, relPath) => relPath && relPath.toLowerCase() === 'makefile',
-    collectImports: (text) => collectMakefileImports(text),
-    buildRelations: ({ text }) => buildSimpleRelations({ imports: collectMakefileImports(text) }),
-    attachName: false
-  },
-  {
+    match: (_ext, relPath) => isMakefilePath(relPath),
+    collectImports: collectMakefileImports
+  }),
+  createImportCollectorAdapter({
     id: 'dockerfile',
-    match: (_ext, relPath) => relPath && relPath.toLowerCase() === 'dockerfile',
-    collectImports: (text) => collectDockerfileImports(text),
-    buildRelations: ({ text }) => buildSimpleRelations({ imports: collectDockerfileImports(text) }),
-    attachName: false
-  },
-  {
+    match: (_ext, relPath) => isDockerfilePath(relPath),
+    collectImports: collectDockerfileImports
+  }),
+  createImportCollectorAdapter({
     id: 'graphql',
     match: (ext) => ext === '.graphql' || ext === '.gql',
-    collectImports: (text) => collectGraphqlImports(text),
-    buildRelations: ({ text }) => buildSimpleRelations({ imports: collectGraphqlImports(text) }),
-    attachName: false
-  }
+    collectImports: collectGraphqlImports
+  })
 ];
