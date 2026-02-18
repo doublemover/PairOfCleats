@@ -248,9 +248,6 @@ export const listTrackedHeaderPaths = (repoRoot) => {
       maxBuffer: 32 * 1024 * 1024
     });
     if (result.exitCode !== 0) {
-      if (fingerprint) {
-        TRACKED_HEADER_PATHS_CACHE.set(cacheKey, { fingerprint, paths: [] });
-      }
       return [];
     }
     const trackedPaths = String(result.stdout || '')
@@ -262,9 +259,6 @@ export const listTrackedHeaderPaths = (repoRoot) => {
     }
     return trackedPaths;
   } catch {
-    if (fingerprint) {
-      TRACKED_HEADER_PATHS_CACHE.set(cacheKey, { fingerprint, paths: [] });
-    }
     return [];
   }
 };
