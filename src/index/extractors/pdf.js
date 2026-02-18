@@ -1,4 +1,6 @@
 import fs from 'node:fs/promises';
+import path from 'node:path';
+import { createRequire } from 'node:module';
 import { tryImport } from '../../shared/optional-deps.js';
 import { getDocumentExtractorTestConfig } from '../../shared/env.js';
 import {
@@ -10,6 +12,8 @@ import {
   withTimeout
 } from './common.js';
 
+const require = createRequire(import.meta.url);
+
 const PDF_IMPORT_CANDIDATES = [
   'pdfjs-dist/legacy/build/pdf.js',
   'pdfjs-dist/legacy/build/pdf.mjs',
@@ -20,6 +24,7 @@ const PDF_IMPORT_CANDIDATES = [
 const PASSWORD_HINT = /password|encrypt/i;
 
 let cachedRuntime = null;
+let cachedStandardFontDataUrl = undefined;
 
 const normalizeItemText = (value) => normalizeExtractedText(value);
 
@@ -46,6 +51,21 @@ const resolvePdfFailureReason = (err) => {
   if (code === 'EXTRACT_TIMEOUT') return 'extract_timeout';
   if (name === 'PasswordException' || PASSWORD_HINT.test(message)) return 'unsupported_encrypted';
   return 'extract_failed';
+};
+
+const resolveStandardFontDataUrl = () => {
+  if (cachedStandardFontDataUrl !== undefined) return cachedStandardFontDataUrl;
+  try {
+    const packageJsonPath = require.resolve('pdfjs-dist/package.json');
+    const standardFontsDir = path.join(path.dirname(packageJsonPath), 'standard_fonts');
+    const standardFontsPath = standardFontsDir.replace(/\\/g, '/');
+    cachedStandardFontDataUrl = standardFontsPath.endsWith('/')
+      ? standardFontsPath
+      : `${standardFontsPath}/`;
+  } catch {
+    cachedStandardFontDataUrl = null;
+  }
+  return cachedStandardFontDataUrl;
 };
 
 export async function loadPdfExtractorRuntime({ refresh = false } = {}) {
@@ -137,10 +157,12 @@ export async function extractPdf({
   try {
     const result = await withTimeout(async () => {
       const pdfjs = runtime.mod;
+      const standardFontDataUrl = resolveStandardFontDataUrl();
       const loadingTask = pdfjs.getDocument({
         data: new Uint8Array(source),
         isEvalSupported: false,
-        useSystemFonts: false
+        useSystemFonts: false,
+        ...(standardFontDataUrl ? { standardFontDataUrl } : {})
       });
       const doc = await loadingTask.promise;
       const numPages = Number(doc?.numPages) || 0;
