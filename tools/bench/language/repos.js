@@ -3,6 +3,22 @@ import path from 'node:path';
 import { runCommand } from '../../shared/cli-utils.js';
 import { getIndexDir, getRepoCacheRoot, loadUserConfig, resolveSqlitePaths } from '../../shared/dict-utils.js';
 
+const emit = (onLog, message, level = 'info') => {
+  if (typeof onLog === 'function') {
+    onLog(message, level);
+    return;
+  }
+  if (level === 'error') {
+    console.error(message);
+    return;
+  }
+  if (level === 'warn') {
+    console.warn(message);
+    return;
+  }
+  console.log(message);
+};
+
 const canRun = (cmd, args) => {
   try {
     const result = runCommand(cmd, args, { encoding: 'utf8' });
@@ -166,7 +182,7 @@ export const ensureRepoBenchmarkReady = ({
   return summary;
 };
 
-export const resolveCloneTool = () => {
+export const resolveCloneTool = ({ onLog = null } = {}) => {
   const gitAvailable = canRun('git', ['--version']);
   const ghAvailable = canRun('gh', ['--version']);
   const preferGit = process.platform === 'win32' && gitAvailable;
@@ -206,11 +222,11 @@ export const resolveCloneTool = () => {
       ]
     };
   }
-  console.error('GitHub CLI (gh) or git is required to clone benchmark repos.');
+  emit(onLog, 'GitHub CLI (gh) or git is required to clone benchmark repos.', 'error');
   process.exit(1);
 };
 
-export const ensureLongPathsSupport = () => {
+export const ensureLongPathsSupport = ({ onLog = null } = {}) => {
   if (process.platform !== 'win32') return;
   if (canRun('git', ['--version'])) {
     try {
@@ -228,14 +244,14 @@ export const ensureLongPathsSupport = () => {
     regResult = null;
   }
   if (!regResult || !regResult.ok) {
-    console.warn('Warning: Unable to confirm Windows long path setting. Enable LongPathsEnabled=1 if clones fail.');
+    emit(onLog, 'Warning: Unable to confirm Windows long path setting. Enable LongPathsEnabled=1 if clones fail.', 'warn');
     return;
   }
   const match = String(regResult.stdout || '').match(/LongPathsEnabled\s+REG_DWORD\s+0x([0-9a-f]+)/i);
   if (!match) return;
   const value = Number.parseInt(match[1], 16);
   if (value === 0) {
-    console.warn('Warning: Windows long paths are disabled. Enable LongPathsEnabled=1 to avoid clone failures.');
+    emit(onLog, 'Warning: Windows long paths are disabled. Enable LongPathsEnabled=1 to avoid clone failures.', 'warn');
   }
 };
 

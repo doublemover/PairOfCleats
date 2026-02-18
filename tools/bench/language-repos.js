@@ -284,8 +284,8 @@ process.on('unhandledRejection', (err) => {
   exitWithDisplay(1);
 });
 
-const config = loadBenchConfig(configPath);
-await validateEncodingFixtures(scriptRoot);
+const config = loadBenchConfig(configPath, { onLog: appendLog });
+await validateEncodingFixtures(scriptRoot, { onLog: appendLog });
 const languageFilter = parseCommaList(argv.languages || argv.language).map((entry) => entry.toLowerCase());
 let tierFilter = parseCommaList(argv.tier).map((entry) => entry.toLowerCase());
 const repoFilter = parseCommaList(argv.only || argv.repos).map((entry) => entry.toLowerCase());
@@ -397,13 +397,13 @@ if (argv.list) {
   if (argv.json) {
     console.log(JSON.stringify(payload, null, 2));
   } else {
-    console.error('Benchmark targets');
-    console.error(`- config: ${configPath}`);
-    console.error(`- repos: ${reposRoot}`);
-    console.error(`- cache: ${cacheRoot}`);
-    console.error(`- results: ${resultsRoot}`);
+    display.log('Benchmark targets');
+    display.log(`- config: ${configPath}`);
+    display.log(`- repos: ${reposRoot}`);
+    display.log(`- cache: ${cacheRoot}`);
+    display.log(`- results: ${resultsRoot}`);
     for (const task of tasks) {
-      console.error(`- ${task.language} ${task.tier} ${task.repo}`);
+      display.log(`- ${task.language} ${task.tier} ${task.repo}`);
     }
   }
   exitWithDisplay(0);
@@ -416,8 +416,8 @@ if (!tasks.length) {
 
 let cloneTool = null;
 if (cloneEnabled && !dryRun) {
-  ensureLongPathsSupport();
-  cloneTool = resolveCloneTool();
+  ensureLongPathsSupport({ onLog: appendLog });
+  cloneTool = resolveCloneTool({ onLog: appendLog });
 }
 await fsPromises.mkdir(reposRoot, { recursive: true });
 await fsPromises.mkdir(resultsRoot, { recursive: true });
@@ -753,15 +753,17 @@ const output = buildReportOutput({
   config
 });
 
-display.close();
-
 if (!quietMode) {
-  console.error('\nGrouped summary');
+  appendLog('\nGrouped summary');
   for (const [language, payload] of Object.entries(output.groupedSummary)) {
     if (!payload.summary) continue;
-    printSummary(payload.label, payload.summary, payload.count, quietMode);
+    printSummary(payload.label, payload.summary, payload.count, quietMode, {
+      writeLine: (line) => appendLog(line)
+    });
   }
-  printSummary('Overall', output.overallSummary, results.length, quietMode);
+  printSummary('Overall', output.overallSummary, results.length, quietMode, {
+    writeLine: (line) => appendLog(line)
+  });
 }
 
 if (argv.out) {
@@ -771,8 +773,10 @@ if (argv.out) {
 }
 
 if (argv.json) {
+  display.close();
   console.log(JSON.stringify(output, null, 2));
 } else {
-  console.error(`\nCompleted ${results.length} benchmark runs.`);
-  if (argv.out) console.error(`Summary written to ${path.resolve(argv.out)}`);
+  appendLog(`\nCompleted ${results.length} benchmark runs.`);
+  if (argv.out) appendLog(`Summary written to ${path.resolve(argv.out)}`);
+  display.close();
 }

@@ -1,6 +1,18 @@
 import { readJsoncFile } from '../../../src/shared/jsonc.js';
 
-export const loadBenchConfig = (configPath) => {
+const emit = (onLog, message, level = 'error') => {
+  if (typeof onLog === 'function') {
+    onLog(message, level);
+    return;
+  }
+  if (level === 'warn') {
+    console.warn(message);
+    return;
+  }
+  console.error(message);
+};
+
+export const loadBenchConfig = (configPath, { onLog = null } = {}) => {
   try {
     const config = readJsoncFile(configPath);
     if (!config || typeof config !== 'object') {
@@ -8,8 +20,8 @@ export const loadBenchConfig = (configPath) => {
     }
     return config;
   } catch (err) {
-    console.error(`Failed to read ${configPath}`);
-    if (err && err.message) console.error(err.message);
+    emit(onLog, `Failed to read ${configPath}`, 'error');
+    if (err && err.message) emit(onLog, err.message, 'error');
     process.exit(1);
   }
 };

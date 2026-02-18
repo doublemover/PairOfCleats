@@ -6,6 +6,7 @@ import { getScmRuntimeConfig } from '../runtime.js';
 import { toPosix } from '../../../shared/files.js';
 import { findUpwards } from '../../../shared/fs/find-upwards.js';
 import { createWarnOnce } from '../../../shared/logging/warn-once.js';
+import { log } from '../../../shared/progress.js';
 import {
   normalizeJjPathList,
   parseJjFileListOutput,
@@ -91,16 +92,16 @@ const runJjRaw = async ({ repoRoot, args, timeoutMs, useQueue = true, signal }) 
 const logJjInfo = async (repoRoot, config) => {
   if (!logState.provider) {
     logState.provider = true;
-    console.warn('[scm] provider=jj');
+    log('[scm] provider=jj');
   }
   if (repoRoot && !logState.roots.has(repoRoot)) {
     logState.roots.add(repoRoot);
-    console.warn(`[scm] jj root: ${repoRoot}`);
+    log(`[scm] jj root: ${repoRoot}`);
   }
   if (!logState.mode) {
     logState.mode = true;
     const mode = config.snapshotWorkingCopy ? 'snapshot' : 'read-only';
-    console.warn(`[scm] jj pinning mode: ${mode}`);
+    log(`[scm] jj pinning mode: ${mode}`);
   }
   if (!logState.version) {
     const result = await runJjRaw({
@@ -111,7 +112,7 @@ const logJjInfo = async (repoRoot, config) => {
     });
     if (result.exitCode === 0) {
       const version = String(result.stdout || '').trim();
-      if (version) console.warn(`[scm] jj version: ${version}`);
+      if (version) log(`[scm] jj version: ${version}`);
     }
     logState.version = true;
   }

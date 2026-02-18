@@ -10,6 +10,7 @@ import {
 } from '../shared/cache.js';
 import { buildLocalCacheKey } from '../shared/cache-key.js';
 import { isAbsolutePathNative, toPosix } from '../shared/files.js';
+import { log } from '../shared/progress.js';
 import { getChunkAuthorsFromLines } from './scm/annotate.js';
 
 let gitMetaCache = createLruCache({
@@ -35,7 +36,7 @@ const warnGitUnavailable = (repoRoot, message = 'Git metadata unavailable.') => 
   if (warnedGitRoots.has(key)) return;
   warnedGitRoots.add(key);
   const suffix = repoRoot ? ` (${repoRoot})` : '';
-  console.warn(`[git] ${message}${suffix}`);
+  log(`[git] ${message}${suffix}`);
 };
 
 const resolveBlameMaxOutputBytes = (absFile) => {
