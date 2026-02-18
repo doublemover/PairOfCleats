@@ -159,6 +159,11 @@ if (realEmbeddings && baseEnv.PAIROFCLEATS_EMBEDDINGS) {
   delete baseEnv.PAIROFCLEATS_EMBEDDINGS;
 }
 if (heapOverride) {
+  baseEnv.NODE_OPTIONS = stripMaxOldSpaceFlag(baseEnv.NODE_OPTIONS || '');
+  baseEnv.NODE_OPTIONS = [baseEnv.NODE_OPTIONS, `--max-old-space-size=${heapOverride}`]
+    .filter(Boolean)
+    .join(' ')
+    .trim();
   baseEnv.PAIROFCLEATS_MAX_OLD_SPACE_MB = String(heapOverride);
   logBench(
     `[bench] heap ${formatGb(heapOverride)} (${heapOverride} MB) ` +
