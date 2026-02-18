@@ -85,6 +85,18 @@ try {
     assert.ok(loaded[i], `expected row ${i}`);
     assert.equal(loaded[i].virtualPath, rows[i].virtualPath, `virtual path mismatch at ${i}`);
   }
+  const retained = await lookup.loadChunks(rows[0].virtualPath, { consume: false });
+  assert.ok(Array.isArray(retained) && retained.length === 1, 'expected paged chunk load');
+  const retainedStats = lookup.stats();
+  assert.ok(retainedStats.cacheEntries >= 1, 'expected row cache entry for non-consumed paged row');
+  assert.ok(retainedStats.pageCacheEntries >= 1, 'expected page cache entry for non-consumed paged row');
+  const consumed = await lookup.loadChunks(rows[0].virtualPath);
+  assert.ok(Array.isArray(consumed) && consumed.length === 1, 'expected consumed paged chunk load');
+  const consumedSecond = await lookup.loadChunks(rows[1].virtualPath);
+  assert.ok(Array.isArray(consumedSecond) && consumedSecond.length === 1, 'expected second consumed paged chunk load');
+  const consumedStats = lookup.stats();
+  assert.equal(consumedStats.cacheEntries, 0, 'expected consumed paged row to release row cache');
+  assert.equal(consumedStats.pageCacheEntries, 0, 'expected consumed paged row to release page cache');
 } finally {
   await lookup.close();
 }

@@ -12,7 +12,7 @@ import {
 } from '../../tooling/vfs.js';
 import { resolveTreeSitterSchedulerPaths } from './paths.js';
 
-const DEFAULT_ROW_CACHE_MAX = 50000;
+const DEFAULT_ROW_CACHE_MAX = 4096;
 const DEFAULT_MISS_CACHE_MAX = 10000;
 const DEFAULT_PAGE_CACHE_MAX = 1024;
 
@@ -381,9 +381,25 @@ export const createTreeSitterSchedulerLookup = ({
     return rows;
   };
 
-  const loadChunks = async (virtualPath) => {
+  const releaseVirtualPathCaches = (virtualPath) => {
+    if (!virtualPath) return;
+    rowCache.delete(virtualPath);
+    missCache.delete(virtualPath);
+    const entry = index.get(virtualPath);
+    if (!entry || entry.store !== 'paged-json') return;
+    const grammarKey = typeof entry.grammarKey === 'string' ? entry.grammarKey : null;
+    const pageId = Number(entry.page);
+    if (!grammarKey || !Number.isFinite(pageId) || pageId < 0) return;
+    pageRowsCache.delete(`${grammarKey}:${pageId}`);
+  };
+
+  const loadChunks = async (virtualPath, options = {}) => {
+    const consume = options?.consume !== false;
     const row = await loadRow(virtualPath);
     const chunks = Array.isArray(row?.chunks) ? row.chunks : null;
+    if (consume) {
+      releaseVirtualPathCaches(virtualPath);
+    }
     return chunks || null;
   };
 
@@ -407,6 +423,7 @@ export const createTreeSitterSchedulerLookup = ({
     stats: () => ({
       indexEntries: index.size,
       cacheEntries: rowCache.size(),
+      pageCacheEntries: pageRowsCache.size(),
       missEntries: missCache.size(),
       grammarKeys: grammarKeys().length
     }),
