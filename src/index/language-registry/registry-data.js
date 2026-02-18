@@ -102,6 +102,17 @@ const isProtoConfigPath = (relPath) => {
   return name === 'buf.yaml' || name === 'buf.gen.yaml';
 };
 
+const IMPORT_COLLECTOR_CAPABILITY_PROFILE = Object.freeze({
+  state: 'partial',
+  diagnostics: Object.freeze([
+    Object.freeze({
+      code: 'USR-W-CAPABILITY-DOWNGRADED',
+      reasonCode: 'USR-R-HEURISTIC-ONLY',
+      detail: 'import-collector-adapter'
+    })
+  ])
+});
+
 const createImportCollectorAdapter = ({ id, match, collectImports }) => ({
   id,
   match,
@@ -110,7 +121,8 @@ const createImportCollectorAdapter = ({ id, match, collectImports }) => ({
   buildRelations: ({ text, options }) => buildSimpleRelations({ imports: collectImports(text, options) }),
   extractDocMeta: () => null,
   flow: () => null,
-  attachName: false
+  attachName: false,
+  capabilityProfile: IMPORT_COLLECTOR_CAPABILITY_PROFILE
 });
 
 export const LANGUAGE_REGISTRY = [

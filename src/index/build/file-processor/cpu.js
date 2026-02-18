@@ -275,7 +275,16 @@ export const processFileCpu = async (context) => {
     return {
       chunks: [],
       fileRelations: null,
-      skip: { reason: 'unsupported-language' }
+      skip: {
+        reason: 'unsupported-language',
+        diagnostics: [
+          {
+            code: 'USR-E-CAPABILITY-LOST',
+            reasonCode: 'USR-R-PARSER-UNAVAILABLE',
+            detail: ext || null
+          }
+        ]
+      }
     };
   }
   if (languageContext?.pythonAstMetrics?.durationMs) {

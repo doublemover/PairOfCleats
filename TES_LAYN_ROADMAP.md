@@ -67,7 +67,7 @@ Objective: lock adapter scaffolding, registry wiring, and deterministic core plu
 Deliverables:
 - [x] Unified adapter scaffolding and language registry wiring are complete.
 - [x] Baseline identity/normalization envelope is stable across reruns.
-- [ ] Core diagnostics are explicit for unsupported and partial features.
+- [x] Core diagnostics are explicit for unsupported and partial features.
 
 Exit checks:
 - [ ] Baseline fixture runs are deterministic for core outputs.
