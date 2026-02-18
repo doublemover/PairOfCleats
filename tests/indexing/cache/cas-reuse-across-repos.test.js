@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -9,7 +10,7 @@ import {
   writeCasObject
 } from '../../../src/shared/cache-cas.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-cas-reuse-'));
 const cacheRoot = path.join(tempRoot, 'cache');

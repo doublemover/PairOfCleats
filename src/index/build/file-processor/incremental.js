@@ -14,7 +14,8 @@ export async function loadCachedBundleForFile({
     fileStat,
     manifest: incrementalState.manifest,
     bundleDir: incrementalState.bundleDir,
-    bundleFormat: incrementalState.bundleFormat
+    bundleFormat: incrementalState.bundleFormat,
+    sharedReadState: incrementalState.readHashCache || null
   }));
 }
 

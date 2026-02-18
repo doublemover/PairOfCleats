@@ -473,7 +473,8 @@ export async function watchIndex({
         configHash: attemptRuntime.configHash,
         toolVersion: attemptRuntime.toolInfo?.version || null,
         repoProvenance: attemptRuntime.repoProvenance,
-        signatureVersion: SIGNATURE_VERSION
+        signatureVersion: SIGNATURE_VERSION,
+        profile: attemptRuntime.profile || null
       });
       if (attemptRuntime?.ignoreFiles?.length || attemptRuntime?.ignoreWarnings?.length) {
         await updateBuildState(attemptRuntime.buildRoot, {

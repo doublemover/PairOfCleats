@@ -24,6 +24,7 @@ import {
   resolveRetries,
   resolveTimeout
 } from './runner/run-helpers.js';
+import { ensureTestingEnv } from './helpers/test-env.js';
 import { runTests } from './runner/run-execution.js';
 import { summarizeResults } from './runner/run-results.js';
 import {
@@ -376,7 +377,7 @@ const main = async () => {
 
   const baseEnv = { ...process.env };
   scrubInheritedPairOfCleatsEnv(baseEnv);
-  baseEnv.PAIROFCLEATS_TESTING = '1';
+  ensureTestingEnv(baseEnv);
   if (!baseEnv.PAIROFCLEATS_CACHE_ROOT) {
     baseEnv.PAIROFCLEATS_CACHE_ROOT = path.join(ROOT, '.testCache');
   }

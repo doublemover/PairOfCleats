@@ -11,6 +11,9 @@ import { discoverEntries } from './discover.js';
 import { createRecordsClassifier, shouldSniffRecordContent } from './records.js';
 import { pickMinLimit } from './runtime/limits.js';
 
+const DOCUMENT_EXTS = new Set(['.pdf', '.docx']);
+const isDocumentExt = (ext) => DOCUMENT_EXTS.has(String(ext || '').toLowerCase());
+
 const hasMaxLinesCaps = (fileCaps) => {
   const defaultMax = fileCaps?.default?.maxLines;
   if (Number.isFinite(Number(defaultMax)) && Number(defaultMax) > 0) return true;
@@ -34,11 +37,14 @@ const resolveMaxLines = ({ ext, lang }, fileCaps) => {
   return pickMinLimit(defaultCaps.maxLines, extCaps?.maxLines, langCaps?.maxLines);
 };
 
-const isSupportedEntry = (entry, mode) => {
+const isSupportedEntry = (entry, mode, { documentExtractionEnabled = false } = {}) => {
   if (!entry) return false;
   if (mode === 'code') return EXTS_CODE.has(entry.ext) || entry.isSpecial;
   if (mode === 'extracted-prose') {
-    return EXTS_CODE.has(entry.ext) || EXTS_PROSE.has(entry.ext) || entry.isSpecial;
+    return EXTS_CODE.has(entry.ext)
+      || EXTS_PROSE.has(entry.ext)
+      || entry.isSpecial
+      || (documentExtractionEnabled && isDocumentExt(entry.ext));
   }
   if (mode === 'prose') return EXTS_PROSE.has(entry.ext);
   if (mode === 'records') return !!entry.record;
@@ -69,6 +75,7 @@ const validateEntries = (entries) => {
 export async function preprocessFiles({
   root,
   modes,
+  documentExtractionConfig = null,
   recordsDir = null,
   recordsConfig = null,
   scmProvider = null,
@@ -86,6 +93,7 @@ export async function preprocessFiles({
   abortSignal = null
 }) {
   throwIfAborted(abortSignal);
+  const documentExtractionEnabled = documentExtractionConfig?.enabled === true;
   const { entries, skippedCommon } = await discoverEntries({
     root,
     recordsDir,
@@ -116,10 +124,17 @@ export async function preprocessFiles({
         ext: entry.ext,
         readSample: readFileSample
       });
+      const bypassBinarySkip = Boolean(
+        documentExtractionEnabled
+        && isDocumentExt(entry.ext)
+        && scanResult?.skip?.reason === 'binary'
+      );
       if (scanResult?.skip) {
-        entry.skip = scanResult.skip;
-        scanSkips.push({ file: entry.abs, reason: scanResult.skip.reason, ...scanResult.skip });
-        return;
+        if (!bypassBinarySkip) {
+          entry.skip = scanResult.skip;
+          scanSkips.push({ file: entry.abs, reason: scanResult.skip.reason, ...scanResult.skip });
+          return;
+        }
       }
       if (recordsClassifier && !entry.record) {
         let sampleText = null;
@@ -148,7 +163,8 @@ export async function preprocessFiles({
       }
       entry.scan = {
         checkedBinary: scanResult?.checkedBinary === true,
-        checkedMinified: scanResult?.checkedMinified === true
+        checkedMinified: scanResult?.checkedMinified === true || bypassBinarySkip,
+        bypassBinarySkip
       };
     },
     { collectResults: false, signal: abortSignal }
@@ -157,7 +173,9 @@ export async function preprocessFiles({
 
   const needsLines = lineCounts === true || hasMaxLinesCaps(fileCaps);
   const supportedEntries = entries.filter((entry) => !entry.skip
-    && (isSupportedEntry(entry, 'code') || isSupportedEntry(entry, 'prose') || isSupportedEntry(entry, 'records')));
+    && (isSupportedEntry(entry, 'code', { documentExtractionEnabled })
+      || isSupportedEntry(entry, 'prose', { documentExtractionEnabled })
+      || isSupportedEntry(entry, 'records', { documentExtractionEnabled })));
   let lineCountMap = new Map();
   if (needsLines && supportedEntries.length) {
     throwIfAborted(abortSignal);
@@ -187,7 +205,7 @@ export async function preprocessFiles({
         });
         continue;
       }
-      if (!isSupportedEntry(entry, mode)) {
+      if (!isSupportedEntry(entry, mode, { documentExtractionEnabled })) {
         modeSkipped.push({ file: entry.abs, reason: 'unsupported' });
         continue;
       }

@@ -20,7 +20,23 @@ import { runSearchByMode } from './search-runner.js';
 import { resolveStubDims } from '../../shared/embedding.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import { stableStringifyForSignature } from '../../shared/stable-json.js';
+import { resolveSqliteFtsRoutingByMode } from '../routing-policy.js';
 
+/**
+ * Execute one retrieval session, including query cache lookup, per-mode search,
+ * context expansion, and telemetry payload assembly.
+ *
+ * Key invariants:
+ * - Cache keys must include query-shaping knobs (including sqlite FTS variant
+ *   flags) so option toggles never reuse stale hits.
+ * - `sqliteHasDb` is propagated to the pipeline to allow per-mode SQLite
+ *   availability checks (for example extracted-prose may be file-backed while
+ *   code/prose remain SQLite-backed).
+ *
+ * @param {object} input
+ * @param {(mode:string)=>boolean} [input.sqliteHasDb]
+ * @returns {Promise<object>}
+ */
 export async function runSearchSession({
   rootDir,
   userConfig,
@@ -53,8 +69,11 @@ export async function runSearchSession({
   sqliteFtsNormalize,
   sqliteFtsProfile,
   sqliteFtsWeights,
+  sqliteFtsTrigram,
+  sqliteFtsStemming,
   sqliteCodePath,
   sqliteProsePath,
+  sqliteExtractedProsePath,
   bm25K1,
   bm25B,
   fieldWeights,
@@ -64,6 +83,10 @@ export async function runSearchSession({
   phraseNgramSet,
   phraseRange,
   symbolBoost,
+  relationBoost,
+  annCandidateCap,
+  annCandidateMinDocCount,
+  annCandidateMaxDocCount,
   maxCandidates,
   filters,
   filtersActive,
@@ -79,6 +102,10 @@ export async function runSearchSession({
   rankSqliteFts,
   rankVectorAnnSqlite,
   sqliteHasFts,
+  sqliteHasTable,
+  sqliteHasDb,
+  profilePolicyByMode = null,
+  profileWarnings = [],
   idxProse,
   idxExtractedProse,
   idxCode,
@@ -131,12 +158,29 @@ export async function runSearchSession({
   };
   throwIfAborted();
   const annAdaptiveProviders = userConfig?.retrieval?.ann?.adaptiveProviders !== false;
+  const sqliteFtsRouting = resolveSqliteFtsRoutingByMode({
+    useSqlite,
+    sqliteFtsRequested,
+    sqliteFtsExplicit: backendLabel === 'sqlite-fts',
+    runCode,
+    runProse,
+    runExtractedProse,
+    runRecords
+  });
+  const sqliteFtsVariantConfig = {
+    explicitTrigram: sqliteFtsTrigram === true,
+    stemming: sqliteFtsStemming === true,
+    substringMode: intentInfo?.type === 'path'
+  };
   const searchPipeline = createSearchPipeline({
     useSqlite,
     sqliteFtsRequested,
+    sqliteFtsRoutingByMode: sqliteFtsRouting,
+    sqliteFtsVariantConfig,
     sqliteFtsNormalize,
     sqliteFtsProfile,
     sqliteFtsWeights,
+    query,
     bm25K1,
     bm25B,
     fieldWeights,
@@ -146,6 +190,10 @@ export async function runSearchSession({
     phraseNgramSet,
     phraseRange,
     symbolBoost,
+    relationBoost,
+    annCandidateCap,
+    annCandidateMinDocCount,
+    annCandidateMaxDocCount,
     maxCandidates,
     filters,
     filtersActive,
@@ -173,6 +221,9 @@ export async function runSearchSession({
     rankSqliteFts,
     rankVectorAnnSqlite,
     sqliteHasFts,
+    sqliteHasTable,
+    sqliteHasDb,
+    profilePolicyByMode,
     signal
   });
   throwIfAborted();
@@ -191,6 +242,7 @@ export async function runSearchSession({
       backendLabel,
       sqliteCodePath,
       sqliteProsePath,
+      sqliteExtractedProsePath,
       runRecords,
       runExtractedProse,
       includeExtractedProse: extractedProseLoaded || commentsEnabled,
@@ -212,6 +264,13 @@ export async function runSearchSession({
       annMode: vectorExtension.annMode,
       annProvider: vectorExtension.provider,
       annExtension: vectorAnnEnabled,
+      annAdaptiveProviders,
+      relationBoost,
+      annCandidatePolicy: {
+        cap: annCandidateCap,
+        minDocCount: annCandidateMinDocCount,
+        maxDocCount: annCandidateMaxDocCount
+      },
       scoreBlend,
       fieldWeights,
       denseVectorMode: resolvedDenseVectorMode,
@@ -222,6 +281,12 @@ export async function runSearchSession({
       sqliteFtsNormalize,
       sqliteFtsProfile,
       sqliteFtsWeights,
+      // FTS compilation variants change query behavior; include them in the
+      // cache key so toggling flags invalidates prior cache entries.
+      sqliteFtsVariant: {
+        trigram: sqliteFtsTrigram === true,
+        stemming: sqliteFtsStemming === true
+      },
       comments: { enabled: commentsEnabled },
       models: modelIds,
       embeddings: {
@@ -615,10 +680,15 @@ export async function runSearchSession({
     recordExpanded,
     contextExpansionStats,
     annBackend: annBackendUsed,
+    profile: {
+      byMode: profilePolicyByMode || null,
+      warnings: Array.isArray(profileWarnings) ? profileWarnings : []
+    },
     cache: {
       enabled: queryCacheEnabled,
       hit: cacheHit,
       key: cacheKey
-    }
+    },
+    routingPolicy: sqliteFtsRouting
   };
 }

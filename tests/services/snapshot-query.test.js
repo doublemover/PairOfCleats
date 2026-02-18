@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -7,7 +8,7 @@ import { runSearchCli } from '../../src/retrieval/cli.js';
 import { createPointerSnapshot } from '../../src/index/snapshots/create.js';
 import { loadUserConfig } from '../../tools/shared/dict-utils.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'snapshot-query-service');

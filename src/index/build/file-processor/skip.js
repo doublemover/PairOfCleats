@@ -2,6 +2,15 @@ import path from 'node:path';
 import { pickMinLimit, resolveFileCaps } from './read.js';
 import { detectBinary, isMinifiedName, readFileSample } from '../file-scan.js';
 
+/**
+ * Resolve pre-read skip decisions (caps/minified/binary scanner) before full
+ * file decode. Supports a document-extraction bypass for binary/minified
+ * reasons while still enforcing max-bytes and max-lines caps.
+ *
+ * @param {object} input
+ * @param {boolean} [input.bypassBinaryMinifiedSkip=false]
+ * @returns {Promise<object|null>}
+ */
 export async function resolvePreReadSkip({
   abs,
   fileEntry,
@@ -12,8 +21,13 @@ export async function resolvePreReadSkip({
   runIo,
   languageId = null,
   mode = null,
-  maxFileBytes = null
+  maxFileBytes = null,
+  bypassBinaryMinifiedSkip = false
 }) {
+  const shouldBypassSkipReason = (reason) => (
+    bypassBinaryMinifiedSkip === true
+    && (reason === 'binary' || reason === 'minified')
+  );
   const capsByExt = resolveFileCaps(fileCaps, ext, languageId, mode);
   const effectiveMaxBytes = pickMinLimit(maxFileBytes, capsByExt.maxBytes);
   if (effectiveMaxBytes && fileStat.size > effectiveMaxBytes) {
@@ -29,13 +43,18 @@ export async function resolvePreReadSkip({
   if (scanState?.skip) {
     const { reason, ...extra } = scanState.skip;
     const resolvedReason = reason || 'oversize';
+    if (shouldBypassSkipReason(resolvedReason)) {
+      // Document extraction can process PDF/DOCX bytes directly; keep size/line
+      // caps enforced but bypass text-oriented pre-read binary/minified checks.
+      return null;
+    }
     return {
       reason: resolvedReason,
       ...(resolvedReason === 'oversize' ? { stage: 'pre-read' } : {}),
       ...extra
     };
   }
-  if (isMinifiedName(path.basename(abs))) {
+  if (!bypassBinaryMinifiedSkip && isMinifiedName(path.basename(abs))) {
     return { reason: 'minified', method: 'name' };
   }
   const knownLines = Number(fileEntry?.lines);
@@ -58,6 +77,9 @@ export async function resolvePreReadSkip({
     if (scanResult?.skip) {
       const { reason, ...extra } = scanResult.skip;
       const resolvedReason = reason || 'oversize';
+      if (shouldBypassSkipReason(resolvedReason)) {
+        return null;
+      }
       return {
         reason: resolvedReason,
         ...(resolvedReason === 'oversize' ? { stage: 'pre-read' } : {}),
@@ -68,6 +90,11 @@ export async function resolvePreReadSkip({
   return null;
 }
 
+/**
+ * Detect binary payloads after file bytes are already loaded.
+ * @param {{abs:string,fileBuffer:Buffer,fileScanner:object}} input
+ * @returns {Promise<object|null>}
+ */
 export async function resolveBinarySkip({ abs, fileBuffer, fileScanner }) {
   if (!fileBuffer || !fileBuffer.length) return null;
   const binarySkip = await detectBinary({

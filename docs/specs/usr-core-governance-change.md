@@ -1,7 +1,7 @@
 # Spec -- USR Core Governance and Change Contract
 
-Status: Draft v2.0
-Last updated: 2026-02-12T05:23:00Z
+Status: Draft v2.1
+Last updated: 2026-02-13T09:58:25Z
 
 ## Purpose
 
@@ -69,7 +69,7 @@ Every PR that changes USR contracts, registries, or validators must classify its
 | Tier | Typical scope | Required reviewer threshold | Required updates |
 | --- | --- | --- | --- |
 | Tier 1 | editorial/narrative clarification with no normative key, schema, or behavior change | at least 1 owner-role reviewer | roadmap/sync links only when touched |
-| Tier 2 | normative key/value/constraint changes in docs or registries without hard break | at least 2 reviewers including primary or backup owner role | registries, schemas, validators/tests, and roadmap appendix sync in same PR |
+| Tier 2 | normative key/value/constraint changes in docs or registries without hard break | at least 2 reviewers including primary or backup owner role | registries, schemas, validators/tests, and roadmap/governance sync in same PR |
 | Tier 3 | breaking semantic/schema behavior or rollout/cutover-impacting changes | at least 3 reviewers including primary + backup owner roles and release authority | full Tier 2 bundle plus migration notes, compatibility/backcompat evidence, and rollout gate updates |
 
 Tier mapping to change classes:
@@ -103,11 +103,13 @@ Drift checks must verify consistency across:
 - all `docs/specs/usr-core-*.md`
 - `docs/specs/usr-consolidation-coverage-matrix.md`
 - `TES_LAYN_ROADMAP.md`
+- `TES_LAYN_EXECUTION_PACKS.md`
+- `TES_LAYN_GOVERNANCE.md`
 - `tests/lang/matrix/usr-*.json`
 
 Drift checks must also verify:
 
-1. contract references in roadmap appendices H/J/M
+1. contract references across roadmap and companion docs are current
 2. consolidation mapping completeness in `usr-consolidation-coverage-matrix.md`
 3. no orphan blocking evidence artifacts without contract ownership
 

@@ -110,6 +110,24 @@ This document maps user-visible behavior to implementation, configuration switch
   - Tests: `tests/cli/search/search-explain-symbol.test.js`, `tests/cli/search/search-rrf.test.js`, `tests/retrieval/contracts/result-shape.test.js`, `tests/retrieval/filters/query-syntax/phrases-and-scorebreakdown.test.js`.
   - Limitations: explain output is only available for JSON/human modes that emit it.
 
+- Claim: score breakdown payloads are schema-versioned and bounded by one shared output budget policy.
+  - Implementation: `src/retrieval/output/score-breakdown.js` (`createScoreBreakdown`, `applyScoreBreakdownBudget`, `applyOutputBudgetPolicy`), `src/retrieval/pipeline.js` (score breakdown creation), `src/retrieval/cli/render.js` (payload budget application).
+  - Config: defaults are enforced even when no explicit budget config is provided.
+  - Tests: `tests/retrieval/contracts/score-breakdown-contract-parity.test.js`, `tests/retrieval/contracts/score-breakdown-snapshots.test.js`, `tests/retrieval/contracts/score-breakdown-budget-limits.test.js`, `tests/retrieval/output/explain-output-includes-routing-and-fts-match.test.js`.
+  - Limitations: byte budget pruning may null optional explain blocks before selected score metadata.
+
+- Claim: lexicon relation filtering, relation boost explain, and ANN candidate-policy explain are feature-gated and rollout-safe.
+  - Implementation: `src/index/build/file-processor/lexicon-relations-filter.js` (`filterRawRelationsWithLexicon`), `src/index/build/file-processor/cpu.js` (per-file filter stats), `src/index/build/artifacts.js` (`buildLexiconRelationFilterReport` + `lexicon_relation_filter_report.json`), `src/retrieval/scoring/relation-boost.js` (`computeRelationBoost`), `src/retrieval/scoring/ann-candidate-policy.js` (`resolveAnnCandidateSet`), `src/retrieval/cli/render.js` (explain `stats.relationBoost`, `stats.lexicon`, `stats.annCandidatePolicy`).
+  - Config: `indexing.lexicon.enabled`, `indexing.lexicon.relations.enabled`, `retrieval.relationBoost.enabled`, `retrieval.annCandidateCap`, `retrieval.annCandidateMinDocCount`, `retrieval.annCandidateMaxDocCount`.
+  - Tests: `tests/indexing/logging/lexicon-filter-counts.test.js`, `tests/retrieval/explain-includes-relation-boost.test.js`, `tests/retrieval/explain-includes-ann-policy.test.js`, `tests/retrieval/ann-candidate-policy-contract.test.js`.
+  - Limitations: in v1, lexicon wordlists are ASCII-only and fallback to `_generic` on load/parse failures.
+
+- Claim: query parsing is grammar-first with recoverable fallback; unary `-` supports optional whitespace and standalone `-` is invalid.
+  - Implementation: `src/retrieval/query.js` (`parseQueryInput`, `parseQueryWithFallback`), `src/retrieval/cli/query-plan.js` (parser fallback wiring), `src/retrieval/query-intent.js` (intent fallback reason output).
+  - Config: n/a.
+  - Tests: `tests/retrieval/query/boolean-unary-not-whitespace.test.js`, `tests/retrieval/query/query-intent-path-heuristics.test.js`, `tests/retrieval/query/boolean-inventory-vs-semantics.test.js`, `tests/retrieval/query/golden-query-corpus.test.js`.
+  - Limitations: phrase escaping is quote-delimited only; backslash escapes are treated as literal text.
+
 - Claim: ranking blends BM25 + ANN with optional RRF; ANN backends are exercised by sqlite, HNSW, and LanceDB tests.
   - Implementation: `src/retrieval/pipeline.js` (`mergeRanked`, `blendRanked`), `src/retrieval/rankers.js` (`rankDenseVectors`), `src/shared/hnsw.js` (`loadHnswIndex`).
   - Config: `search.bm25.*`, `search.scoreBlend.*`, `search.rrf.*`, `search.annDefault`; CLI `--ann`.
@@ -165,3 +183,30 @@ This document maps user-visible behavior to implementation, configuration switch
   - Config: `PAIROFCLEATS_*` env for config hash inputs.
   - Tests: `tests/indexing/discovery/discover.test.js`, `tests/cli/general/repo-root.test.js`, `tests/tooling/install/tool-root.test.js`.
   - Limitations: timestamps and external tools can introduce non-deterministic fields.
+
+## Operational reliability
+- Claim: indexing and retrieval run lightweight preflight health checks with stable machine-readable codes and actionable logs.
+  - Implementation: `src/shared/ops-health.js` (`runIndexingHealthChecks`, `runRetrievalHealthChecks`, `formatHealthFailure`), `src/index/build/indexer/pipeline.js` (indexing health gate), `src/retrieval/cli/runner.js` (`ensureRetrievalHealth`), `src/retrieval/cli.js` (retrieval health invocation).
+  - Config: no explicit knob; checks run by default.
+  - Tests: `tests/ops/health-check-contract.test.js`.
+  - Limitations: health checks validate runtime readiness and input sanity; they do not replace full end-to-end smoke tests.
+- Claim: indexing/retrieval hot paths support deterministic failure injection plus retriable/non-retriable classification and retry policy.
+  - Implementation: `src/shared/ops-failure-injection.js` (`classifyOperationalFailure`, `runWithOperationalFailurePolicy`), `src/index/build/indexer/pipeline.js` (indexing hot-path wrapper), `src/retrieval/cli.js` (retrieval backend-context wrapper).
+  - Config: `PAIROFCLEATS_TEST_CONFIG.ops.failureInjection` (test-only policy and retry settings).
+  - Tests: `tests/ops/failure-injection/retrieval-hotpath.test.js`.
+  - Limitations: injection is intentionally test-gated and does not run outside testing mode.
+- Claim: retrieval option defaults are explicit/conservative and risky knob combinations are rejected with stable guardrail codes.
+  - Implementation: `src/retrieval/cli/normalize-options.js` (`OP_RETRIEVAL_DEFAULTS`, `OP_CONFIG_GUARDRAIL_CODES`, `validateOperationalGuardrails`), `src/shared/capabilities.js` (`CAPABILITY_DEFAULTS`).
+  - Config: `retrieval.annCandidate*` and `search.rrf.k`.
+  - Tests: `tests/ops/config/guardrails.test.js`.
+  - Limitations: guardrails currently target candidate-window and RRF risks; they do not validate every retrieval knob combination.
+- Claim: release checks only block on essential operational reliability contracts and provide explicit audited overrides.
+  - Implementation: `tools/release/check.js` (`--blockers-only`, blocker ownership metadata, audited overrides), `.github/workflows/ci.yml` (gate job calls `npm run release-check:blockers`).
+  - Config: `--allow-blocker-override`, `--override-id`, `--override-marker`.
+  - Tests: `tests/ops/release-gates/essential-blockers.test.js`.
+  - Limitations: blocker scope is intentionally narrow and does not replace full CI lane coverage.
+- Claim: runtime emits lightweight warnings for abnormal retrieval memory growth and index artifact growth.
+  - Implementation: `src/shared/ops-resource-visibility.js`, `src/retrieval/cli/telemetry.js` (`emitResourceWarnings`), `src/retrieval/cli.js` (warning emission), `src/index/build/indexer/pipeline.js` (index growth warning).
+  - Config: threshold constants in `RESOURCE_GROWTH_THRESHOLDS`.
+  - Tests: `tests/ops/resources/basic-growth-warning.test.js`.
+  - Limitations: thresholds are coarse by design; they are warning signals, not hard build/search blockers.

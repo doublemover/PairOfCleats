@@ -1,6 +1,21 @@
 import { compactHit } from './render-output.js';
-import { formatFullChunk, formatShortChunk, getOutputCacheReporter } from '../output.js';
+import {
+  buildResultBundles,
+  formatFullChunk,
+  formatShortChunk,
+  getOutputCacheReporter
+} from '../output.js';
+import { applyOutputBudgetPolicy, normalizeOutputBudgetPolicy } from '../output/score-breakdown.js';
+import { buildTrustSurface } from '../output/explain.js';
 
+/**
+ * Render retrieval results in JSON or TTY format and append derived output
+ * sections (bundles, stats, explain/trust surfaces) before emission.
+ * Large JSON responses can stream directly to stdout to reduce peak memory.
+ *
+ * @param {object} input
+ * @returns {object}
+ */
 export function renderSearchOutput({
   emitOutput,
   jsonOutput,
@@ -10,6 +25,7 @@ export function renderSearchOutput({
   rootDir,
   backendLabel,
   backendPolicyInfo,
+  routingPolicy = null,
   runCode,
   runProse,
   runExtractedProse,
@@ -34,6 +50,7 @@ export function renderSearchOutput({
   embeddingProvider,
   embeddingOnnx,
   cacheInfo,
+  profileInfo = null,
   intentInfo,
   resolvedDenseVectorMode,
   fieldWeights,
@@ -47,6 +64,7 @@ export function renderSearchOutput({
   verboseCache,
   elapsedMs,
   stageTracker,
+  outputBudget = null,
   asOfContext = null,
   streamJson = false
 }) {
@@ -85,6 +103,12 @@ export function renderSearchOutput({
     code: jsonCompact ? codeHitsFinal.map((hit) => compactHit(hit, explain)) : sanitize(codeHitsFinal),
     records: jsonCompact ? recordHitsFinal.map((hit) => compactHit(hit, explain)) : sanitize(recordHitsFinal)
   };
+  payload.bundles = buildResultBundles({
+    code: payload.code,
+    extractedProse: payload.extractedProse,
+    prose: payload.prose,
+    records: payload.records
+  });
   if (asOfContext) {
     payload.asOf = {
       ref: asOfContext.ref || 'latest',
@@ -109,6 +133,7 @@ export function renderSearchOutput({
       annMode: vectorAnnActive ? 'extension' : vectorExtension.annMode,
       annBackend,
       backendPolicy: backendPolicyInfo,
+      routingPolicy,
       annExtension: vectorAnnEnabled ? {
         provider: vectorExtension.provider,
         table: vectorExtension.table,
@@ -154,6 +179,14 @@ export function renderSearchOutput({
         hit: cacheInfo.hit,
         key: cacheInfo.key
       },
+      profile: profileInfo,
+      capabilities: {
+        routing: routingPolicy,
+        ann: {
+          extensionEnabled: vectorAnnEnabled,
+          extensionAvailable: vectorAnnState
+        }
+      },
       asOf: asOfContext
         ? {
           ref: asOfContext.ref || 'latest',
@@ -177,6 +210,16 @@ export function renderSearchOutput({
   }
 
   if (explain) {
+    const allExplainHits = [
+      ...(Array.isArray(payload?.code) ? payload.code : []),
+      ...(Array.isArray(payload?.prose) ? payload.prose : []),
+      ...(Array.isArray(payload?.extractedProse) ? payload.extractedProse : []),
+      ...(Array.isArray(payload?.records) ? payload.records : [])
+    ];
+    const firstRelationBoost = allExplainHits.find((hit) => hit?.scoreBreakdown?.relation)?.scoreBreakdown?.relation || null;
+    const firstLexiconStatus = firstRelationBoost?.lexicon || null;
+    const firstAnnCandidatePolicy = allExplainHits.find((hit) => hit?.scoreBreakdown?.ann?.candidatePolicy)
+      ?.scoreBreakdown?.ann?.candidatePolicy || null;
     payload.stats = payload.stats || {};
     payload.stats.intent = {
       ...intentInfo,
@@ -184,13 +227,25 @@ export function renderSearchOutput({
       fieldWeights
     };
     payload.stats.contextExpansion = contextExpansionStats;
+    payload.stats.routing = routingPolicy;
+    payload.stats.relationBoost = firstRelationBoost;
+    payload.stats.lexicon = firstLexiconStatus;
+    payload.stats.annCandidatePolicy = firstAnnCandidatePolicy;
+    payload.stats.trust = buildTrustSurface({
+      intentInfo,
+      contextExpansionStats,
+      annCandidatePolicy: firstAnnCandidatePolicy
+    });
   }
 
+  const budgetPolicy = normalizeOutputBudgetPolicy(outputBudget);
+  const outputPayload = applyOutputBudgetPolicy(payload, budgetPolicy);
+
   if (emitOutput && jsonOutput) {
-    const totalHits = payload.prose.length
-      + payload.extractedProse.length
-      + payload.code.length
-      + payload.records.length;
+    const totalHits = outputPayload.prose.length
+      + outputPayload.extractedProse.length
+      + outputPayload.code.length
+      + outputPayload.records.length;
     const shouldStream = streamJson || totalHits >= 500;
     if (shouldStream) {
       const out = process.stdout;
@@ -203,26 +258,28 @@ export function renderSearchOutput({
         out.write(']');
       };
       out.write('{');
-      out.write(`\"backend\":${JSON.stringify(payload.backend)}`);
+      out.write(`\"backend\":${JSON.stringify(outputPayload.backend)}`);
       out.write(',\"prose\":');
-      writeArray(payload.prose);
+      writeArray(outputPayload.prose);
       out.write(',\"extractedProse\":');
-      writeArray(payload.extractedProse);
+      writeArray(outputPayload.extractedProse);
       out.write(',\"code\":');
-      writeArray(payload.code);
+      writeArray(outputPayload.code);
       out.write(',\"records\":');
-      writeArray(payload.records);
-      if (payload.asOf) {
+      writeArray(outputPayload.records);
+      out.write(',\"bundles\":');
+      out.write(JSON.stringify(outputPayload.bundles));
+      if (outputPayload.asOf) {
         out.write(',\"asOf\":');
-        out.write(JSON.stringify(payload.asOf));
+        out.write(JSON.stringify(outputPayload.asOf));
       }
-      if (payload.stats) {
+      if (outputPayload.stats) {
         out.write(',\"stats\":');
-        out.write(JSON.stringify(payload.stats));
+        out.write(JSON.stringify(outputPayload.stats));
       }
       out.write('}\n');
     } else {
-      console.log(JSON.stringify(payload));
+      console.log(JSON.stringify(outputPayload));
     }
   }
 
@@ -438,5 +495,5 @@ export function renderSearchOutput({
     outputCacheReporter.report();
   }
 
-  return payload;
+  return outputPayload;
 }

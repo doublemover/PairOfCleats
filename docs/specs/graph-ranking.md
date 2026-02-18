@@ -86,6 +86,23 @@ type GraphRankingConfig = {
 - `maxContribution <= 0.35`
 - weights sum does not imply contribution; contribution is clamped separately
 
+### 3.1 Track IQ bounded expansion policy (implemented)
+
+Graph reordering uses deterministic multi-hop expansion from selected seed hits with explicit bounds:
+
+- `expansion.maxDepth` default `2`, hard max `4`
+- `expansion.maxWidthPerNode` default `12`, hard max `64`
+- `expansion.maxVisitedNodes` default `192`, hard max `2048`
+
+Traversal is deterministic BFS over lexicographically sorted neighbor IDs.
+Stop/truncation reason is explicit and stable:
+
+- `maxWorkUnits`
+- `maxWallClockMs`
+- `maxVisitedNodes`
+- `maxWidthPerNode`
+- `maxDepth`
+
 ---
 
 ## 4. Scoring model

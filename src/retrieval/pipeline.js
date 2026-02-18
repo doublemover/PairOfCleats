@@ -20,6 +20,15 @@ import { applyGraphRanking } from './pipeline/graph-ranking.js';
 import { createCandidatePool } from './pipeline/candidate-pool.js';
 import { createScoreBufferPool } from './pipeline/score-buffer.js';
 import { createTopKReducer } from './pipeline/topk.js';
+import { compileFtsMatchQuery } from './fts-query.js';
+import { createScoreBreakdown } from './output/score-breakdown.js';
+import { resolveSparseRequiredTables, RETRIEVAL_SPARSE_UNAVAILABLE_CODE } from './sparse/requirements.js';
+import {
+  ANN_CANDIDATE_POLICY_REASONS,
+  resolveAnnCandidateSet
+} from './scoring/ann-candidate-policy.js';
+import { computeRelationBoost } from './scoring/relation-boost.js';
+import { INDEX_PROFILE_VECTOR_ONLY } from '../contracts/index-profile.js';
 
 const SQLITE_IN_LIMIT = 900;
 const MAX_POOL_ENTRIES = 50000;
@@ -29,10 +38,16 @@ const PREFLIGHT_CACHE_TTL_MS = 30000;
 const ANN_ADAPTIVE_FAILURE_PENALTY_MS = 5000;
 const ANN_ADAPTIVE_PREFLIGHT_PENALTY_MS = 10000;
 const ANN_ADAPTIVE_LATENCY_ALPHA = 0.25;
+const FTS_UNAVAILABLE_CODE = 'retrieval_fts_unavailable';
+const VECTOR_REQUIRED_CODE = 'retrieval_vector_required';
 
 /**
  * Create a search pipeline runner bound to a shared context.
  * @param {object} context
+ * @param {(mode:string)=>boolean} [context.sqliteHasDb]
+ * Optional per-mode SQLite availability probe. When omitted, extracted-prose
+ * follows legacy behavior and is treated as SQLite-backed whenever
+ * `useSqlite=true`.
  * @returns {(idx:object, mode:'code'|'prose'|'records'|'extracted-prose', queryEmbedding:number[]|null)=>Promise<Array<object>>}
  */
 export function createSearchPipeline(context) {
@@ -46,12 +61,14 @@ export function createSearchPipeline(context) {
     bm25B,
     fieldWeights,
     postingsConfig,
+    query,
     queryTokens,
     queryAst,
     phraseNgramSet,
     phraseRange,
     explain,
     symbolBoost,
+    relationBoost,
     filters,
     filtersActive,
     filterPredicates,
@@ -61,8 +78,13 @@ export function createSearchPipeline(context) {
     annBackend,
     annAdaptiveProviders,
     scoreBlend,
+    annCandidateCap,
+    annCandidateMinDocCount,
+    annCandidateMaxDocCount,
     minhashMaxDocs,
     sparseBackend,
+    sqliteFtsRoutingByMode,
+    sqliteFtsVariantConfig,
     vectorAnnState,
     vectorAnnUsed,
     hnswAnnState,
@@ -75,6 +97,9 @@ export function createSearchPipeline(context) {
     rankSqliteFts,
     rankVectorAnnSqlite,
     sqliteHasFts,
+    sqliteHasTable,
+    sqliteHasDb,
+    profilePolicyByMode,
     signal,
     rrf,
     graphRankingConfig,
@@ -99,6 +124,35 @@ export function createSearchPipeline(context) {
   )
     ? Number(symbolBoost.exportWeight)
     : 1.1;
+  const relationBoostEnabled = relationBoost?.enabled === true;
+  const relationBoostPerCall = Number.isFinite(Number(relationBoost?.perCall))
+    ? Number(relationBoost.perCall)
+    : 0.25;
+  const relationBoostPerUse = Number.isFinite(Number(relationBoost?.perUse))
+    ? Number(relationBoost.perUse)
+    : 0.1;
+  const relationBoostMaxBoost = Number.isFinite(Number(relationBoost?.maxBoost))
+    ? Number(relationBoost.maxBoost)
+    : 1.5;
+  const relationBoostConfig = {
+    enabled: relationBoostEnabled,
+    perCall: relationBoostPerCall,
+    perUse: relationBoostPerUse,
+    maxBoost: relationBoostMaxBoost,
+    caseTokens: filters?.caseTokens === true,
+    caseFile: filters?.caseFile === true
+  };
+  const annCandidatePolicyConfig = {
+    cap: Number.isFinite(Number(annCandidateCap))
+      ? Math.max(1, Math.floor(Number(annCandidateCap)))
+      : null,
+    minDocCount: Number.isFinite(Number(annCandidateMinDocCount))
+      ? Math.max(1, Math.floor(Number(annCandidateMinDocCount)))
+      : null,
+    maxDocCount: Number.isFinite(Number(annCandidateMaxDocCount))
+      ? Math.max(1, Math.floor(Number(annCandidateMaxDocCount)))
+      : null
+  };
   const rrfEnabled = rrf?.enabled !== false;
   const rrfK = Number.isFinite(Number(rrf?.k))
     ? Math.max(1, Number(rrf.k))
@@ -345,6 +399,80 @@ export function createSearchPipeline(context) {
     if (!annSource) return null;
     return annSource === 'minhash' ? 'minhash' : 'vector';
   };
+  const emitSparseUnavailable = (diagnostics, reason, mode, extra = {}) => {
+    if (!Array.isArray(diagnostics)) return;
+    diagnostics.push({
+      code: RETRIEVAL_SPARSE_UNAVAILABLE_CODE,
+      reason,
+      mode,
+      ...extra
+    });
+  };
+  const lowerCaseRelationLookupCache = new WeakMap();
+  const toLowerSafe = (value) => (typeof value === 'string' ? value.toLowerCase() : '');
+  const AMBIGUOUS_RELATION_LOOKUP = Symbol('ambiguousRelationLookup');
+  const addCaseInsensitiveLookupEntry = (lookup, key, value) => {
+    if (typeof key !== 'string' || !key) return;
+    const lowered = toLowerSafe(key);
+    if (!lowered) return;
+    if (!lookup.has(lowered)) {
+      lookup.set(lowered, value);
+      return;
+    }
+    const existing = lookup.get(lowered);
+    if (existing !== AMBIGUOUS_RELATION_LOOKUP && existing !== value) {
+      lookup.set(lowered, AMBIGUOUS_RELATION_LOOKUP);
+    }
+  };
+  const getCaseInsensitiveLookupValue = (lookup, filePath) => {
+    const lowered = toLowerSafe(filePath);
+    if (!lowered) return null;
+    const value = lookup.get(lowered);
+    if (value === AMBIGUOUS_RELATION_LOOKUP) return null;
+    return value || null;
+  };
+  const resolveFileRelations = (relationsStore, filePath, caseSensitiveFile = false) => {
+    if (!relationsStore || typeof filePath !== 'string' || !filePath) return null;
+    if (typeof relationsStore.get === 'function') {
+      if (typeof relationsStore.has === 'function' && relationsStore.has(filePath)) {
+        return relationsStore.get(filePath);
+      }
+      const direct = relationsStore.get(filePath);
+      if (direct) return direct;
+      if (caseSensitiveFile) return null;
+      let normalized = lowerCaseRelationLookupCache.get(relationsStore);
+      if (!normalized) {
+        normalized = new Map();
+        for (const [key, value] of relationsStore.entries()) {
+          addCaseInsensitiveLookupEntry(normalized, key, value);
+        }
+        lowerCaseRelationLookupCache.set(relationsStore, normalized);
+      }
+      return getCaseInsensitiveLookupValue(normalized, filePath);
+    }
+    if (Object.prototype.hasOwnProperty.call(relationsStore, filePath)) {
+      return relationsStore[filePath];
+    }
+    if (caseSensitiveFile) return null;
+    let normalized = lowerCaseRelationLookupCache.get(relationsStore);
+    if (!normalized) {
+      normalized = new Map();
+      for (const [key, value] of Object.entries(relationsStore)) {
+        addCaseInsensitiveLookupEntry(normalized, key, value);
+      }
+      lowerCaseRelationLookupCache.set(relationsStore, normalized);
+    }
+    return getCaseInsensitiveLookupValue(normalized, filePath);
+  };
+  const checkRequiredTables = (mode, tables) => {
+    if (!Array.isArray(tables) || !tables.length) return [];
+    if (typeof sqliteHasTable !== 'function') return [];
+    const missing = [];
+    for (const tableName of tables) {
+      if (!sqliteHasTable(mode, tableName)) missing.push(tableName);
+    }
+    return missing;
+  };
 
   /**
    * Execute the full search pipeline for a mode.
@@ -356,7 +484,31 @@ export function createSearchPipeline(context) {
   return async function runSearch(idx, mode, queryEmbedding) {
     throwIfAborted();
     const meta = idx.chunkMeta;
-    const sqliteEnabledForMode = useSqlite && (mode === 'code' || mode === 'prose');
+    const modeProfilePolicy = profilePolicyByMode?.[mode] && typeof profilePolicyByMode[mode] === 'object'
+      ? profilePolicyByMode[mode]
+      : null;
+    const profileId = modeProfilePolicy?.profileId || idx?.state?.profile?.id || null;
+    const vectorOnlyProfile = profileId === INDEX_PROFILE_VECTOR_ONLY;
+    // extracted-prose may be file-backed even during mixed SQLite runs; gate
+    // SQLite-only table checks by actual DB attachment for that mode.
+    const sqliteEnabledForMode = useSqlite && (
+      mode === 'code'
+      || mode === 'prose'
+      || (mode === 'extracted-prose'
+        && (typeof sqliteHasDb !== 'function' || sqliteHasDb(mode)))
+    );
+    const sqliteRouteByMode = sqliteFtsRoutingByMode?.byMode?.[mode] || null;
+    const sqliteFtsDesiredForMode = sqliteRouteByMode
+      ? sqliteRouteByMode.desired === 'fts'
+      : sqliteFtsRequested;
+    const sqliteFtsCompilation = compileFtsMatchQuery({
+      queryAst,
+      queryTokens,
+      query,
+      explicitTrigram: sqliteFtsVariantConfig?.explicitTrigram === true,
+      substringMode: sqliteFtsVariantConfig?.substringMode === true,
+      stemmingEnabled: sqliteFtsVariantConfig?.stemming === true
+    });
     const filtersEnabled = typeof filtersActive === 'boolean'
       ? filtersActive
       : hasActiveFilters(filters);
@@ -433,18 +585,6 @@ export function createSearchPipeline(context) {
       }
       throwIfAborted();
 
-      const intersectCandidateSet = (candidateSet, allowedSet) => {
-        if (!allowedSet) return { set: candidateSet, owned: false };
-        const resolvedAllowed = allowedSet instanceof Set ? allowedSet : bitmapToSet(allowedSet);
-        if (!candidateSet) return { set: resolvedAllowed, owned: !(allowedSet instanceof Set) };
-        if (candidateSet === resolvedAllowed) return { set: candidateSet, owned: false };
-        const filtered = candidatePool.acquire();
-        for (const id of candidateSet) {
-          if (hasAllowedId(allowedSet, id)) filtered.add(id);
-        }
-        return { set: filtered, owned: true };
-      };
-
       // Main search: BM25 token match (with optional SQLite FTS first pass)
       const candidateMetrics = {};
       const candidateResult = runStage('candidates', candidateMetrics, () => {
@@ -452,15 +592,40 @@ export function createSearchPipeline(context) {
         let bmHits = [];
         let sparseType = fieldWeightsEnabled ? 'bm25-fielded' : 'bm25';
         let sqliteFtsUsed = false;
+        const sqliteFtsDiagnostics = [];
+        let sqliteFtsOverfetch = null;
+        const sparseDeniedByProfile = vectorOnlyProfile === true;
         const sqliteFtsAllowed = allowedIdx && allowedCount
           ? (allowedCount <= SQLITE_IN_LIMIT ? ensureAllowedSet(allowedIdx) : null)
           : null;
         const sqliteFtsCanPushdown = !!(sqliteFtsAllowed && sqliteFtsAllowed.size <= SQLITE_IN_LIMIT);
+        const sqliteFtsRequiredTables = typeof sqliteFtsProvider.requireTables === 'function'
+          ? sqliteFtsProvider.requireTables({ postingsConfig })
+          : ['chunks_fts'];
+        const sqliteFtsMissingTables = sqliteEnabledForMode
+          ? checkRequiredTables(mode, sqliteFtsRequiredTables)
+          : [];
         const sqliteFtsEligible = sqliteEnabledForMode
-        && sqliteFtsRequested
+        && !sparseDeniedByProfile
+        && sqliteFtsDesiredForMode
+        && typeof sqliteFtsCompilation.match === 'string'
+        && sqliteFtsCompilation.match.trim().length > 0
+        && sqliteFtsMissingTables.length === 0
         && (typeof sqliteHasFts !== 'function' || sqliteHasFts(mode))
         && (!filtersEnabled || sqliteFtsCanPushdown);
         const wantsTantivy = normalizedSparseBackend === 'tantivy';
+        const sparseRequiredTables = sqliteEnabledForMode
+          ? resolveSparseRequiredTables(postingsConfig)
+          : [];
+        const sparseMissingTables = sqliteEnabledForMode
+          ? checkRequiredTables(mode, sparseRequiredTables)
+          : [];
+        if (sqliteFtsMissingTables.length) {
+          emitSparseUnavailable(sqliteFtsDiagnostics, 'missing_required_tables', mode, {
+            provider: sqliteFtsProvider.id || 'sqlite-fts',
+            missingTables: sqliteFtsMissingTables
+          });
+        }
         const buildCandidatesFromHits = (hits) => {
           if (!hits || !hits.length) return null;
           const set = candidatePool.acquire();
@@ -470,7 +635,13 @@ export function createSearchPipeline(context) {
           trackReleaseSet(set);
           return set;
         };
-        if (wantsTantivy) {
+        if (sparseDeniedByProfile) {
+          emitSparseUnavailable(sqliteFtsDiagnostics, 'profile_vector_only', mode, {
+            profileId,
+            guidance: 'Vector-only indexes require ANN-capable retrieval providers.'
+          });
+          sparseType = 'none';
+        } else if (wantsTantivy) {
           const tantivyResult = tantivyProvider.search({
             idx,
             queryTokens,
@@ -487,9 +658,18 @@ export function createSearchPipeline(context) {
           const ftsResult = sqliteFtsProvider.search({
             idx,
             queryTokens,
+            ftsMatch: sqliteFtsCompilation.match,
             mode,
             topN: expandedTopN,
-            allowedIds: sqliteFtsCanPushdown ? sqliteFtsAllowed : null
+            allowedIds: sqliteFtsCanPushdown ? sqliteFtsAllowed : null,
+            onDiagnostic: (diagnostic) => {
+              if (!diagnostic || typeof diagnostic !== 'object') return;
+              sqliteFtsDiagnostics.push(diagnostic);
+            },
+            onOverfetch: (stats) => {
+              if (!stats || typeof stats !== 'object') return;
+              sqliteFtsOverfetch = stats;
+            }
           });
           bmHits = ftsResult.hits;
           sqliteFtsUsed = bmHits.length > 0;
@@ -498,35 +678,120 @@ export function createSearchPipeline(context) {
             candidates = buildCandidatesFromHits(bmHits);
           }
         }
-        if (!bmHits.length && !wantsTantivy) {
-          const tokenIndexOverride = sqliteEnabledForMode ? getTokenIndexForQuery(queryTokens, mode) : null;
-          candidates = buildCandidateSet(idx, queryTokens, mode);
-          trackReleaseSet(candidates);
-          const bm25Result = bm25Provider.search({
-            idx,
-            queryTokens,
-            mode,
-            topN: expandedTopN,
-            allowedIds: allowedIdx,
-            fieldWeights,
-            k1: bm25K1,
-            b: bm25B,
-            tokenIndexOverride
-          });
-          bmHits = bm25Result.hits;
-          sparseType = bm25Result.type;
-          sqliteFtsUsed = false;
+        if (!bmHits.length && !wantsTantivy && !sparseDeniedByProfile) {
+          if (sparseMissingTables.length) {
+            emitSparseUnavailable(sqliteFtsDiagnostics, 'missing_required_tables', mode, {
+              provider: bm25Provider.id || 'js-bm25',
+              missingTables: sparseMissingTables
+            });
+            sparseType = 'none';
+          } else {
+            try {
+              const tokenIndexOverride = sqliteEnabledForMode ? getTokenIndexForQuery(queryTokens, mode) : null;
+              candidates = buildCandidateSet(idx, queryTokens, mode);
+              trackReleaseSet(candidates);
+              const bm25Result = bm25Provider.search({
+                idx,
+                queryTokens,
+                mode,
+                topN: expandedTopN,
+                allowedIds: allowedIdx,
+                fieldWeights,
+                k1: bm25K1,
+                b: bm25B,
+                tokenIndexOverride
+              });
+              bmHits = bm25Result.hits;
+              sparseType = bm25Result.type;
+              sqliteFtsUsed = false;
+            } catch (error) {
+              emitSparseUnavailable(sqliteFtsDiagnostics, 'provider_error', mode, {
+                provider: bm25Provider.id || 'js-bm25',
+                message: String(error?.message || error)
+              });
+              sparseType = 'none';
+            }
+          }
         }
         candidateMetrics.counts = {
           allowed: allowedIdx ? allowedCount : null,
           candidates: candidates ? candidates.size : null,
           bmHits: bmHits.length
         };
+        const unavailableDiagnostic = sqliteFtsDiagnostics.find(
+          (entry) => entry?.code === FTS_UNAVAILABLE_CODE
+        );
+        const sqliteRoutingReason = !sqliteEnabledForMode
+          ? 'sqlite_unavailable'
+          : sparseDeniedByProfile
+            ? 'profile_vector_only_sparse_unavailable'
+            : !sqliteFtsDesiredForMode
+              ? 'mode_routed_to_sparse'
+              : !sqliteFtsCompilation.match
+                ? 'empty_fts_match'
+                : sqliteFtsMissingTables.length > 0
+                  ? 'fts_missing_required_tables'
+                  : (typeof sqliteHasFts === 'function' && !sqliteHasFts(mode))
+                    ? 'fts_table_unavailable'
+                    : (filtersEnabled && !sqliteFtsCanPushdown)
+                      ? 'filters_require_pushdown'
+                      : (unavailableDiagnostic
+                        ? FTS_UNAVAILABLE_CODE
+                        : 'fts_selected');
+        candidateMetrics.routing = {
+          mode,
+          sqliteEnabledForMode,
+          sqliteFtsDesired: sqliteFtsDesiredForMode,
+          reason: sqliteRoutingReason,
+          profileId,
+          sparseDeniedByProfile,
+          route: sqliteRouteByMode || null
+        };
+        candidateMetrics.fts = {
+          match: sqliteFtsCompilation.match,
+          variant: sqliteFtsCompilation.variant,
+          tokenizer: sqliteFtsCompilation.tokenizer,
+          reasonPath: sqliteFtsCompilation.reasonPath,
+          normalizedChanged: sqliteFtsCompilation.normalizedChanged,
+          diagnostics: sqliteFtsDiagnostics,
+          overfetch: sqliteFtsOverfetch
+        };
         candidateMetrics.sqliteFtsUsed = sqliteFtsUsed;
         candidateMetrics.sparseType = sparseType;
-        return { candidates, bmHits, sparseType, sqliteFtsUsed };
+        candidateMetrics.profile = {
+          id: profileId,
+          sparseDenied: sparseDeniedByProfile,
+          sparseFallbackAllowed: modeProfilePolicy?.allowSparseFallback === true
+        };
+        return { candidates, bmHits, sparseType, sqliteFtsUsed, sqliteFtsDiagnostics };
       });
-      let { candidates, bmHits, sparseType, sqliteFtsUsed } = candidateResult;
+      let { candidates, bmHits, sparseType, sqliteFtsUsed, sqliteFtsDiagnostics } = candidateResult;
+      const sqliteFtsUnavailable = Array.isArray(sqliteFtsDiagnostics)
+        ? sqliteFtsDiagnostics.find((entry) => entry?.code === FTS_UNAVAILABLE_CODE)
+        : null;
+      const sparseUnavailable = Array.isArray(sqliteFtsDiagnostics)
+        ? sqliteFtsDiagnostics.find((entry) => entry?.code === RETRIEVAL_SPARSE_UNAVAILABLE_CODE)
+        : null;
+      const sparseFallbackAllowedByPolicy = modeProfilePolicy?.allowSparseFallback === true;
+      const annEnabledForMode = annEnabled || (
+        sparseFallbackAllowedByPolicy
+        && sparseUnavailable
+        && sparseType === 'none'
+      );
+      if (!annEnabledForMode && !vectorOnlyProfile && sparseUnavailable && sparseType === 'none') {
+        throw createError(
+          ERROR_CODES.CAPABILITY_MISSING,
+          'Sparse retrieval backend is unavailable for this query. ' +
+            'Rebuild sparse artifacts or enable ANN search.',
+          {
+            reasonCode: RETRIEVAL_SPARSE_UNAVAILABLE_CODE,
+            reason: sparseUnavailable.reason || 'sparse_unavailable',
+            mode,
+            profileId,
+            missingTables: sparseUnavailable.missingTables || null
+          }
+        );
+      }
 
       // MinHash (embedding) ANN, if requested
       const annMetrics = {};
@@ -535,7 +800,20 @@ export function createSearchPipeline(context) {
         let annSource = null;
         let warned = false;
 
-        if (!annEnabled) {
+        if (!annEnabledForMode) {
+          if (vectorOnlyProfile) {
+            throw createError(
+              ERROR_CODES.INVALID_REQUEST,
+              'Sparse-only retrieval is not allowed for indexing.profile=vector_only. ' +
+                'Re-run without sparse-only mode or pass --allow-sparse-fallback to permit ANN fallback.',
+              {
+                reasonCode: 'retrieval_profile_mismatch',
+                reason: 'sparse_requested_against_vector_only',
+                mode,
+                profileId
+              }
+            );
+          }
           annMetrics.vectorActive = false;
           annMetrics.hits = 0;
           annMetrics.source = null;
@@ -558,9 +836,32 @@ export function createSearchPipeline(context) {
         };
 
         const annCandidateBase = ensureCandidateBase();
-        const { set: annCandidates, owned: annCandidatesOwned } = intersectCandidateSet(annCandidateBase, allowedIdx);
-        if (annCandidatesOwned) trackReleaseSet(annCandidates);
-        const annFallback = annCandidateBase && allowedIdx ? allowedIdx : null;
+        const annCandidatePolicy = resolveAnnCandidateSet({
+          candidates: annCandidateBase,
+          allowedIds: allowedIdx,
+          filtersActive: filtersEnabled,
+          cap: annCandidatePolicyConfig.cap,
+          minDocCount: annCandidatePolicyConfig.minDocCount,
+          maxDocCount: annCandidatePolicyConfig.maxDocCount,
+          toSet: ensureAllowedSet
+        });
+        const annCandidates = annCandidatePolicy.set;
+        const shouldTryAnnFallback = filtersEnabled
+          && Boolean(allowedIdx)
+          && annCandidatePolicy.reason !== ANN_CANDIDATE_POLICY_REASONS.FILTERS_ACTIVE_ALLOWED_IDX;
+        let annFallbackResolved = false;
+        let annFallback = null;
+        const resolveAnnFallback = () => {
+          if (!shouldTryAnnFallback) return null;
+          if (!annFallbackResolved) {
+            // Keep allowlist in native representation (Set/bitmap) so large
+            // filtered cohorts do not incur eager Set materialization unless a
+            // specific provider requires conversion.
+            annFallback = allowedIdx;
+            annFallbackResolved = true;
+          }
+          return annFallback;
+        };
 
         const normalizeAnnHits = (hits) => {
           if (!Array.isArray(hits)) return [];
@@ -569,6 +870,14 @@ export function createSearchPipeline(context) {
             .sort((a, b) => (b.sim - a.sim) || (a.idx - b.idx));
         };
 
+        /**
+         * Run provider preflight with cached cooldown semantics.
+         * Failed probes temporarily disable the provider for this mode, while
+         * successful probes are cached for a short TTL to avoid repeated checks.
+         *
+         * @param {object|null|undefined} provider
+         * @returns {Promise<boolean>}
+         */
         const ensureProviderPreflight = async (provider) => {
           if (!provider || typeof provider.preflight !== 'function') return true;
           const state = getProviderModeState(provider, mode);
@@ -631,6 +940,15 @@ export function createSearchPipeline(context) {
           }
         };
 
+        /**
+         * Normalize candidate-set representation for provider query calls.
+         * Sqlite-vec and LanceDB providers operate on `Set<number>` even when
+         * the pipeline currently tracks candidates in bitmap form.
+         *
+         * @param {object|null|undefined} provider
+         * @param {Set<number>|object|null} candidateSet
+         * @returns {Set<number>|object|null}
+         */
         const normalizeAnnCandidateSet = (provider, candidateSet) => {
           if (!candidateSet) return null;
           if (candidateSet instanceof Set) return candidateSet;
@@ -642,8 +960,12 @@ export function createSearchPipeline(context) {
         };
 
         const runAnnQuery = async (provider, candidateSet) => {
-          if (!provider || typeof provider.query !== 'function') return [];
-          if (isProviderCoolingDown(provider, mode)) return [];
+          if (!provider || typeof provider.query !== 'function') {
+            return { hits: [], succeeded: false };
+          }
+          if (isProviderCoolingDown(provider, mode)) {
+            return { hits: [], succeeded: false };
+          }
           const normalizedCandidateSet = normalizeAnnCandidateSet(provider, candidateSet);
           const startedAtNs = process.hrtime.bigint();
           try {
@@ -657,10 +979,10 @@ export function createSearchPipeline(context) {
             });
             const elapsedMs = Number(process.hrtime.bigint() - startedAtNs) / 1e6;
             recordProviderSuccess(provider, mode, { latencyMs: elapsedMs });
-            return normalizeAnnHits(hits);
+            return { hits: normalizeAnnHits(hits), succeeded: true };
           } catch (err) {
             recordProviderFailure(provider, mode, err?.message || 'query failed');
-            return [];
+            return { hits: [], succeeded: false };
           }
         };
 
@@ -671,10 +993,10 @@ export function createSearchPipeline(context) {
         || hnswAnnState?.[mode]?.available
         || lanceAnnState?.[mode]?.available
         );
-        const vectorActive = annEnabled && isEmbeddingReady(queryEmbedding) && hasVectorArtifacts;
+        const vectorActive = annEnabledForMode && isEmbeddingReady(queryEmbedding) && hasVectorArtifacts;
         let providerAvailable = false;
 
-        if (annEnabled && vectorActive) {
+        if (annEnabledForMode && vectorActive) {
           const providers = getAnnProviders();
           const orderedBackends = resolveAnnBackends(providers, mode);
           annMetrics.providerOrder = orderedBackends;
@@ -683,13 +1005,36 @@ export function createSearchPipeline(context) {
             const provider = providers.get(backend);
             if (!provider || typeof provider.query !== 'function') continue;
             if (typeof provider.preflight !== 'function' && isProviderCoolingDown(provider, mode)) continue;
-            if (!provider.isAvailable({ idx, mode, embedding: queryEmbedding })) continue;
+            let providerInitiallyAvailable = false;
+            try {
+              providerInitiallyAvailable = provider.isAvailable({ idx, mode, embedding: queryEmbedding }) === true;
+            } catch {
+              providerInitiallyAvailable = false;
+            }
+            if (!providerInitiallyAvailable) continue;
             const preflightOk = await ensureProviderPreflight(provider);
             if (!preflightOk) continue;
-            providerAvailable = true;
-            annHits = await runAnnQuery(provider, annCandidates);
-            if (!annHits.length && annFallback) {
-              annHits = await runAnnQuery(provider, annFallback);
+            const resolveProviderAvailability = () => {
+              try {
+                return provider.isAvailable({ idx, mode, embedding: queryEmbedding }) === true;
+              } catch {
+                return false;
+              }
+            };
+            const primaryResult = await runAnnQuery(provider, annCandidates);
+            annHits = primaryResult.hits;
+            if (primaryResult.succeeded && (annHits.length > 0 || resolveProviderAvailability())) {
+              providerAvailable = true;
+            }
+            if (!annHits.length && shouldTryAnnFallback) {
+              const fallbackCandidates = resolveAnnFallback();
+              if (fallbackCandidates) {
+                const fallbackResult = await runAnnQuery(provider, fallbackCandidates);
+                annHits = fallbackResult.hits;
+                if (fallbackResult.succeeded && (annHits.length > 0 || resolveProviderAvailability())) {
+                  providerAvailable = true;
+                }
+              }
             }
             if (annHits.length) {
               annSource = provider?.id || backend;
@@ -702,23 +1047,51 @@ export function createSearchPipeline(context) {
           }
         }
 
-        if (annEnabled && !annHits.length) {
-          const minhashBase = annCandidateBase;
-          const { set: minhashCandidates, owned: minhashOwned } = intersectCandidateSet(minhashBase, allowedIdx);
-          if (minhashOwned) trackReleaseSet(minhashCandidates);
-          const minhashFallback = minhashBase && allowedIdx ? allowedIdx : null;
+        if (annEnabledForMode && !annHits.length) {
+          let minhashCandidates = annCandidatePolicy.set;
+          if (
+            annCandidatePolicy.reason === ANN_CANDIDATE_POLICY_REASONS.FILTERS_ACTIVE_ALLOWED_IDX
+            && annCandidateBase
+            && annCandidateBase.size > 0
+            && filtersEnabled
+            && allowedIdx
+          ) {
+            const bmConstrainedCandidates = candidatePool.acquire();
+            for (const candidateId of annCandidateBase) {
+              if (hasAllowedId(allowedIdx, candidateId)) {
+                bmConstrainedCandidates.add(candidateId);
+              }
+            }
+            trackReleaseSet(bmConstrainedCandidates);
+            const policySetSize = annCandidatePolicy.set ? annCandidatePolicy.set.size : 0;
+            if (
+              bmConstrainedCandidates.size > 0
+              && minhashLimit
+              && policySetSize > minhashLimit
+              && bmConstrainedCandidates.size <= minhashLimit
+            ) {
+              minhashCandidates = bmConstrainedCandidates;
+            }
+          }
+          const minhashFallback = annFallback;
           const minhashCandidatesEmpty = minhashCandidates && minhashCandidates.size === 0;
           const minhashTotal = minhashCandidates
             ? minhashCandidates.size
             : (idx.minhash?.signatures?.length || 0);
-          const allowMinhash = minhashTotal > 0 && (!minhashLimit || minhashTotal <= minhashLimit);
-          if (allowMinhash && !minhashCandidatesEmpty) {
+          const allowMinhashCandidates = minhashTotal > 0 && (!minhashLimit || minhashTotal <= minhashLimit);
+          const minhashFallbackTotal = shouldTryAnnFallback ? allowedCount : 0;
+          const allowMinhashFallback = minhashFallbackTotal > 0
+            && (!minhashLimit || minhashFallbackTotal <= minhashLimit);
+          if (allowMinhashCandidates && !minhashCandidatesEmpty) {
             annHits = rankMinhash(idx, queryTokens, expandedTopN, minhashCandidates);
             if (annHits.length) annSource = 'minhash';
           }
-          if (!annHits.length && allowMinhash && minhashFallback) {
-            annHits = rankMinhash(idx, queryTokens, expandedTopN, minhashFallback);
-            if (annHits.length) annSource = 'minhash';
+          if (!annHits.length && allowMinhashFallback) {
+            const fallbackCandidates = minhashFallback || resolveAnnFallback();
+            if (fallbackCandidates) {
+              annHits = rankMinhash(idx, queryTokens, expandedTopN, fallbackCandidates);
+              if (annHits.length) annSource = 'minhash';
+            }
           }
         }
 
@@ -728,10 +1101,33 @@ export function createSearchPipeline(context) {
         annMetrics.warned = warned;
         annMetrics.candidates = annCandidateBase ? annCandidateBase.size : null;
         annMetrics.providerAvailable = providerAvailable;
+        annMetrics.profileId = profileId;
+        annMetrics.vectorOnlyProfile = vectorOnlyProfile;
+        annMetrics.candidatePolicyConfig = annCandidatePolicyConfig;
+        annMetrics.candidatePolicy = annCandidatePolicy.explain;
 
-        return { annHits, annSource };
+        const annCapabilityUnavailable = !vectorActive || !providerAvailable;
+        const emptyIndex = !Array.isArray(meta) || meta.length === 0;
+        if (vectorOnlyProfile && !emptyIndex && annCapabilityUnavailable && !annHits.length) {
+          const capabilityReason = !vectorActive ? 'ann_capability_unavailable' : 'ann_provider_unavailable';
+          throw createError(
+            ERROR_CODES.CAPABILITY_MISSING,
+            `Vector-only search requires ANN/vector providers for mode "${mode}", but none were available. ` +
+              'Rebuild embeddings and ensure at least one ANN provider is configured.',
+            {
+              reasonCode: VECTOR_REQUIRED_CODE,
+              reason: capabilityReason,
+              mode,
+              profileId,
+              providerAvailable,
+              vectorActive
+            }
+          );
+        }
+
+        return { annHits, annSource, annCandidatePolicy: annCandidatePolicy.explain };
       });
-      let { annHits, annSource } = annResult;
+      let { annHits, annSource, annCandidatePolicy } = annResult;
 
       const fusionBuffer = scoreBufferPool.acquire({
         fields: [
@@ -801,11 +1197,11 @@ export function createSearchPipeline(context) {
           const chunk = meta[idxVal];
           if (!chunk) return;
           if (!matchesQueryAst(idx, idxVal, chunk)) return;
-          const fileRelations = idx.fileRelations
-            ? (typeof idx.fileRelations.get === 'function'
-              ? idx.fileRelations.get(chunk.file)
-              : idx.fileRelations[chunk.file])
-            : null;
+          const fileRelations = resolveFileRelations(
+            idx.fileRelations,
+            chunk.file,
+            relationBoostConfig.caseFile
+          );
           const enrichedChunk = fileRelations
             ? {
               ...chunk,
@@ -848,35 +1244,59 @@ export function createSearchPipeline(context) {
               boost: symbolBoost
             };
           }
-          const scoreBreakdown = explain ? {
-            sparse: sparseScore != null ? {
-              type: sparseTypeValue,
-              score: sparseScore,
-              normalized: sparseTypeValue === 'fts' ? sqliteFtsNormalize : null,
-              weights: sparseTypeValue === 'fts' ? sqliteFtsWeights : null,
-              profile: sparseTypeValue === 'fts' ? sqliteFtsProfile : null,
-              fielded: fieldWeightsEnabled || false,
-              k1: sparseTypeValue && sparseTypeValue !== 'fts' ? bm25K1 : null,
-              b: sparseTypeValue && sparseTypeValue !== 'fts' ? bm25B : null,
-              ftsFallback: sqliteFtsRequested ? !sqliteFtsUsed : false
-            } : null,
-            ann: annScore != null ? {
-              score: annScore,
-              source: entry.annSource || null
-            } : null,
-            rrf: useRrf ? blendInfo : null,
-            phrase: phraseNgramSet ? {
-              matches: phraseMatches,
-              boost: phraseBoost,
-              factor: phraseFactor
-            } : null,
-            symbol: symbolInfo,
-            blend: blendEnabled && !useRrf ? blendInfo : null,
-            selected: {
-              type: scoreType,
-              score
+          let relationInfo = null;
+          if (relationBoostEnabled) {
+            relationInfo = computeRelationBoost({
+              chunk: enrichedChunk,
+              fileRelations,
+              queryTokens,
+              config: relationBoostConfig
+            });
+            if (Number.isFinite(relationInfo?.boost) && relationInfo.boost > 0) {
+              score += relationInfo.boost;
             }
-          } : null;
+          }
+          const scoreBreakdown = explain
+            ? createScoreBreakdown({
+              sparse: sparseScore != null ? {
+                type: sparseTypeValue,
+                score: sparseScore,
+                normalized: sparseTypeValue === 'fts' ? sqliteFtsNormalize : null,
+                weights: sparseTypeValue === 'fts' ? sqliteFtsWeights : null,
+                profile: sparseTypeValue === 'fts' ? sqliteFtsProfile : null,
+                match: sparseTypeValue === 'fts' ? sqliteFtsCompilation.match : null,
+                variant: sparseTypeValue === 'fts' ? sqliteFtsCompilation.variant : null,
+                tokenizer: sparseTypeValue === 'fts' ? sqliteFtsCompilation.tokenizer : null,
+                variantReason: sparseTypeValue === 'fts' ? sqliteFtsCompilation.reasonPath : null,
+                normalizedQueryChanged: sparseTypeValue === 'fts' ? sqliteFtsCompilation.normalizedChanged : null,
+                availabilityCode: sqliteFtsUnavailable?.code || null,
+                availabilityReason: sqliteFtsUnavailable?.reason || null,
+                indexProfile: profileId || null,
+                fielded: fieldWeightsEnabled || false,
+                k1: sparseTypeValue && sparseTypeValue !== 'fts' ? bm25K1 : null,
+                b: sparseTypeValue && sparseTypeValue !== 'fts' ? bm25B : null,
+                ftsFallback: sqliteFtsDesiredForMode ? !sqliteFtsUsed : false
+              } : null,
+              ann: annScore != null ? {
+                score: annScore,
+                source: entry.annSource || null,
+                candidatePolicy: annCandidatePolicy || null
+              } : null,
+              rrf: useRrf ? blendInfo : null,
+              phrase: phraseNgramSet ? {
+                matches: phraseMatches,
+                boost: phraseBoost,
+                factor: phraseFactor
+              } : null,
+              symbol: symbolInfo,
+              blend: blendEnabled && !useRrf ? blendInfo : null,
+              relation: relationInfo,
+              selected: {
+                type: scoreType,
+                score
+              }
+            })
+            : null;
           const payload = {
             idx: idxVal,
             score,

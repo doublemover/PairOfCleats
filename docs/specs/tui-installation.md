@@ -4,6 +4,9 @@ This spec defines how the Rust Ratatui TUI binary is delivered in a Node/npm-bas
 - **Optional compile-on-install**
 - **Fallback to verified prebuilt binaries**
 
+Status: **proposed design only** (not implemented in the current tree as of 2026-02-17).
+Any `tools/tui/*` paths in this document are planned touchpoints, not active commands.
+
 > This is analogous to the repo’s existing “download native binaries” flow for extensions (see `tools/download/extensions.js` and config in `tools/sqlite/vector-extension.js`).
 
 ---
@@ -73,7 +76,7 @@ Manifest example:
 Add to `package.json`:
 ```json
 "scripts": {
-  "postinstall": "node tools/tui/install.js"
+  "postinstall": "node tools/setup/postinstall.js && node tools/tui/install.js"
 }
 ```
 
@@ -140,7 +143,7 @@ Follow the pattern and security posture of `tools/download/extensions.js`:
 If the wrapper can’t find a binary:
 - Suggest:
   1. `PAIROFCLEATS_TUI_BUILD=1 npm install` (build from source)
-  2. `node tools/tui/download.js` (download prebuilt)
+  2. `node tools/tui/download.js` (planned command for prebuilt download)
   3. Use Node CLI: `pairofcleats ...`
 
 ---

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -75,7 +76,7 @@ const manifest = {
 await writeJsonObjectFile(path.join(indexDir, 'pieces', 'manifest.json'), { fields: manifest, atomic: true });
 
 // Shrink MAX_JSON_BYTES for this process to force use of manifest-derived bytes.
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 process.env.PAIROFCLEATS_TEST_MAX_JSON_BYTES = '128';
 
 const { validateIndexArtifacts } = await import('../../../src/index/validate.js');

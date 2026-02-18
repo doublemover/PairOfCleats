@@ -13,7 +13,17 @@ import { createStageCheckpointRecorder } from '../stage-checkpoints.js';
 import { createIndexState } from '../state.js';
 import { enqueueEmbeddingJob } from './embedding-queue.js';
 import { getTreeSitterStats, resetTreeSitterStats } from '../../../lang/tree-sitter.js';
+import { INDEX_PROFILE_VECTOR_ONLY } from '../../../contracts/index-profile.js';
 import { SCHEDULER_QUEUE_NAMES } from '../runtime/scheduler.js';
+import { formatHealthFailure, runIndexingHealthChecks } from '../../../shared/ops-health.js';
+import { runWithOperationalFailurePolicy } from '../../../shared/ops-failure-injection.js';
+import {
+  RESOURCE_GROWTH_THRESHOLDS,
+  RESOURCE_WARNING_CODES,
+  evaluateResourceGrowth,
+  formatResourceGrowthWarning,
+  readIndexArtifactBytes
+} from '../../../shared/ops-resource-visibility.js';
 import {
   SIGNATURE_VERSION,
   buildIncrementalSignature,
@@ -27,6 +37,13 @@ import { processFiles } from './steps/process-files.js';
 import { postScanImports, preScanImports, runCrossFileInference } from './steps/relations.js';
 import { writeIndexArtifactsForMode } from './steps/write.js';
 
+/**
+ * Resolve effective analysis feature flags with policy overrides.
+ * Runtime toggles provide defaults; explicit policy booleans take precedence.
+ *
+ * @param {object} runtime
+ * @returns {{gitBlame:boolean,typeInference:boolean,typeInferenceCrossFile:boolean,riskAnalysis:boolean,riskAnalysisCrossFile:boolean}}
+ */
 const resolveAnalysisFlags = (runtime) => {
   const policy = runtime.analysisPolicy || {};
   return {
@@ -44,10 +61,43 @@ const resolveAnalysisFlags = (runtime) => {
   };
 };
 
-const buildFeatureSettings = (runtime, mode) => {
-  const analysisFlags = resolveAnalysisFlags(runtime);
+/**
+ * Vector-only builds can proceed when embeddings are either immediately
+ * available (`embeddingEnabled`) or deferred to service queueing
+ * (`embeddingService`).
+ *
+ * @param {object} runtime
+ * @returns {boolean}
+ */
+const hasVectorEmbeddingBuildCapability = (runtime) => (
+  runtime?.embeddingEnabled === true || runtime?.embeddingService === true
+);
+
+export const resolveVectorOnlyShortcutPolicy = (runtime) => {
+  const profileId = runtime?.profile?.id || runtime?.indexingConfig?.profile || 'default';
+  const vectorOnly = profileId === INDEX_PROFILE_VECTOR_ONLY;
+  const config = runtime?.indexingConfig?.vectorOnly && typeof runtime.indexingConfig.vectorOnly === 'object'
+    ? runtime.indexingConfig.vectorOnly
+    : {};
   return {
+    profileId,
+    enabled: vectorOnly,
+    disableImportGraph: vectorOnly ? config.disableImportGraph !== false : false,
+    disableCrossFileInference: vectorOnly ? config.disableCrossFileInference !== false : false
+  };
+};
+
+export const buildFeatureSettings = (runtime, mode) => {
+  const analysisFlags = resolveAnalysisFlags(runtime);
+  const profileId = runtime?.profile?.id || runtime?.indexingConfig?.profile || 'default';
+  const vectorOnly = profileId === INDEX_PROFILE_VECTOR_ONLY;
+  const vectorOnlyShortcuts = resolveVectorOnlyShortcutPolicy(runtime);
+  return {
+    profileId,
+    // Query-AST filtering depends on per-chunk tokens even for vector_only retrieval.
+    // Keep tokenization enabled while still disabling sparse postings artifacts.
     tokenize: true,
+    postings: !vectorOnly,
     embeddings: runtime.embeddingEnabled || runtime.embeddingService,
     gitBlame: analysisFlags.gitBlame,
     pythonAst: runtime.languageOptions?.pythonAst?.enabled !== false && mode === 'code',
@@ -59,7 +109,13 @@ const buildFeatureSettings = (runtime, mode) => {
     astDataflow: runtime.astDataflowEnabled && mode === 'code',
     controlFlow: runtime.controlFlowEnabled && mode === 'code',
     typeInferenceCrossFile: analysisFlags.typeInferenceCrossFile && mode === 'code',
-    riskAnalysisCrossFile: analysisFlags.riskAnalysisCrossFile && mode === 'code'
+    riskAnalysisCrossFile: analysisFlags.riskAnalysisCrossFile && mode === 'code',
+    vectorOnlyShortcuts: vectorOnlyShortcuts.enabled
+      ? {
+        disableImportGraph: vectorOnlyShortcuts.disableImportGraph,
+        disableCrossFileInference: vectorOnlyShortcuts.disableCrossFileInference
+      }
+      : null
   };
 };
 
@@ -94,6 +150,71 @@ const summarizeGraphRelations = (graphRelations) => {
   };
 };
 
+const summarizeDocumentExtractionForMode = (state) => {
+  const fileInfoByPath = state?.fileInfoByPath;
+  if (!(fileInfoByPath && typeof fileInfoByPath.entries === 'function')) return null;
+  const files = [];
+  const extractorMap = new Map();
+  const totals = {
+    files: 0,
+    pages: 0,
+    paragraphs: 0,
+    units: 0
+  };
+  for (const [file, info] of fileInfoByPath.entries()) {
+    const extraction = info?.extraction;
+    if (!extraction || extraction.status !== 'ok') continue;
+    const extractorName = extraction?.extractor?.name || null;
+    const extractorVersion = extraction?.extractor?.version || null;
+    const extractorTarget = extraction?.extractor?.target || null;
+    const extractorKey = `${extractorName || 'unknown'}|${extractorVersion || 'unknown'}|${extractorTarget || ''}`;
+    if (!extractorMap.has(extractorKey)) {
+      extractorMap.set(extractorKey, {
+        name: extractorName,
+        version: extractorVersion,
+        target: extractorTarget
+      });
+    }
+    const unitCounts = {
+      pages: Number(extraction?.counts?.pages) || 0,
+      paragraphs: Number(extraction?.counts?.paragraphs) || 0,
+      totalUnits: Number(extraction?.counts?.totalUnits) || 0
+    };
+    totals.files += 1;
+    totals.pages += unitCounts.pages;
+    totals.paragraphs += unitCounts.paragraphs;
+    totals.units += unitCounts.totalUnits;
+    files.push({
+      file,
+      sourceType: extraction.sourceType || null,
+      extractor: {
+        name: extractorName,
+        version: extractorVersion,
+        target: extractorTarget
+      },
+      sourceBytesHash: extraction.sourceBytesHash || null,
+      sourceBytesHashAlgo: extraction.sourceBytesHashAlgo || 'sha256',
+      unitCounts,
+      normalizationPolicy: extraction.normalizationPolicy || null
+    });
+  }
+  files.sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : 0));
+  if (!files.length) return null;
+  const extractors = Array.from(extractorMap.values()).sort((a, b) => {
+    const left = `${a.name || ''}|${a.version || ''}|${a.target || ''}`;
+    const right = `${b.name || ''}|${b.version || ''}|${b.target || ''}`;
+    if (left < right) return -1;
+    if (left > right) return 1;
+    return 0;
+  });
+  return {
+    schemaVersion: 1,
+    files,
+    extractors,
+    totals
+  };
+};
+
 /**
  * Build indexes for a given mode.
  * @param {{mode:'code'|'prose'|'records'|'extracted-prose',runtime:object,discovery?:{entries:Array,skippedFiles:Array}}} input
@@ -113,7 +234,18 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     log
   });
   const outDir = getIndexDir(runtime.root, mode, runtime.userConfig, { indexRoot: runtime.buildRoot });
+  const indexSizeBaselineBytes = await readIndexArtifactBytes(outDir);
   await fs.mkdir(outDir, { recursive: true });
+  const indexingHealth = runIndexingHealthChecks({ mode, runtime, outDir });
+  if (!indexingHealth.ok) {
+    const firstFailure = indexingHealth.failures[0] || null;
+    const message = formatHealthFailure(firstFailure);
+    log(message);
+    const error = new Error(message);
+    error.code = firstFailure?.code || 'op_health_indexing_failed';
+    error.healthReport = indexingHealth;
+    throw error;
+  }
   log(`[init] ${mode} index dir: ${outDir}`);
   log(`\n📄  Scanning ${mode} ...`);
   const timing = { start: Date.now() };
@@ -201,15 +333,21 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   };
 
   advanceStage(stagePlan[0]);
-  const allEntries = await runDiscovery({
-    runtime,
-    mode,
-    discovery,
-    state,
-    timing,
-    stageNumber: stageIndex,
-    abortSignal
+  const discoveryResult = await runWithOperationalFailurePolicy({
+    target: 'indexing.hotpath',
+    operation: 'discovery',
+    log,
+    execute: async () => runDiscovery({
+      runtime,
+      mode,
+      discovery,
+      state,
+      timing,
+      stageNumber: stageIndex,
+      abortSignal
+    })
   });
+  const allEntries = discoveryResult.value;
   stageCheckpoints.record({
     stage: 'stage1',
     step: 'discovery',
@@ -228,6 +366,36 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   const runtimeRef = dictConfig === runtime.dictConfig
     ? runtime
     : { ...runtime, dictConfig };
+  const vectorOnlyShortcuts = resolveVectorOnlyShortcutPolicy(runtimeRef);
+  state.vectorOnlyShortcuts = vectorOnlyShortcuts.enabled
+    ? {
+      disableImportGraph: vectorOnlyShortcuts.disableImportGraph,
+      disableCrossFileInference: vectorOnlyShortcuts.disableCrossFileInference
+    }
+    : null;
+  if (vectorOnlyShortcuts.enabled) {
+    log(
+      '[vector_only] analysis shortcuts: '
+      + `disableImportGraph=${vectorOnlyShortcuts.disableImportGraph}, `
+      + `disableCrossFileInference=${vectorOnlyShortcuts.disableCrossFileInference}.`
+    );
+  }
+  await updateBuildState(runtimeRef.buildRoot, {
+    analysisShortcuts: {
+      [mode]: {
+        profileId: vectorOnlyShortcuts.profileId,
+        disableImportGraph: vectorOnlyShortcuts.disableImportGraph,
+        disableCrossFileInference: vectorOnlyShortcuts.disableCrossFileInference
+      }
+    }
+  });
+  const vectorOnlyProfile = runtimeRef?.profile?.id === INDEX_PROFILE_VECTOR_ONLY;
+  if (vectorOnlyProfile && !hasVectorEmbeddingBuildCapability(runtimeRef)) {
+    throw new Error(
+      'indexing.profile=vector_only requires embeddings to be available during index build. ' +
+      'Enable inline/stub embeddings or service-mode embedding queueing and rebuild.'
+    );
+  }
   const tokenizationKey = buildTokenizationKey(runtimeRef, mode);
   const cacheSignature = buildIncrementalSignature(runtimeRef, mode, tokenizationKey);
   const cacheSignatureSummary = buildIncrementalSignatureSummary(runtimeRef, mode, tokenizationKey);
@@ -263,11 +431,13 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   }
 
   const relationsEnabled = runtimeRef.stage !== 'stage1';
+  const importGraphEnabled = relationsEnabled && !vectorOnlyShortcuts.disableImportGraph;
+  const crossFileInferenceEnabled = relationsEnabled && !vectorOnlyShortcuts.disableCrossFileInference;
   advanceStage(stagePlan[1]);
   let { importResult, scanPlan } = await preScanImports({
     runtime: runtimeRef,
     mode,
-    relationsEnabled,
+    relationsEnabled: importGraphEnabled,
     entries: allEntries,
     crashLogger,
     timing,
@@ -355,10 +525,20 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       }
     }
   });
+  if (mode === 'extracted-prose') {
+    const extractionSummary = summarizeDocumentExtractionForMode(state);
+    if (extractionSummary) {
+      await updateBuildState(runtimeRef.buildRoot, {
+        documentExtraction: {
+          [mode]: extractionSummary
+        }
+      });
+    }
+  }
 
   const postImportResult = await postScanImports({
     mode,
-    relationsEnabled,
+    relationsEnabled: importGraphEnabled,
     scanPlan,
     state,
     timing,
@@ -381,7 +561,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
         state,
         crashLogger,
         featureMetrics,
-        relationsEnabled,
+        relationsEnabled: crossFileInferenceEnabled,
         abortSignal
       })
     )
@@ -391,7 +571,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       state,
       crashLogger,
       featureMetrics,
-      relationsEnabled,
+      relationsEnabled: crossFileInferenceEnabled,
       abortSignal
     }));
   throwIfAborted(abortSignal);
@@ -428,7 +608,11 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
           warningSuppressed: Number(state.importResolutionGraph.stats.warningSuppressed) || 0
         }
         : null,
-      graphs: summarizeGraphRelations(graphRelations)
+      graphs: summarizeGraphRelations(graphRelations),
+      shortcuts: {
+        importGraphEnabled,
+        crossFileInferenceEnabled
+      }
     }
   });
   if (mode === 'code' && crossFileEnabled) {
@@ -461,9 +645,9 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     ? runtimeRef.scheduler.schedule(
       SCHEDULER_QUEUE_NAMES.stage1Postings,
       { cpu: 1 },
-      () => buildIndexPostings({ runtime: runtimeRef, state })
+      () => buildIndexPostings({ runtime: runtimeRef, state, incrementalState })
     )
-    : buildIndexPostings({ runtime: runtimeRef, state }));
+    : buildIndexPostings({ runtime: runtimeRef, state, incrementalState }));
   stageCheckpoints.record({
     stage: 'stage1',
     step: 'postings',
@@ -515,6 +699,22 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       vfsManifest: vfsExtra
     }
   });
+  const indexSizeCurrentBytes = await readIndexArtifactBytes(outDir);
+  const indexGrowth = evaluateResourceGrowth({
+    baselineBytes: indexSizeBaselineBytes,
+    currentBytes: indexSizeCurrentBytes,
+    ratioThreshold: RESOURCE_GROWTH_THRESHOLDS.indexSizeRatio,
+    deltaThresholdBytes: RESOURCE_GROWTH_THRESHOLDS.indexSizeDeltaBytes
+  });
+  if (indexGrowth.abnormal) {
+    log(formatResourceGrowthWarning({
+      code: RESOURCE_WARNING_CODES.INDEX_SIZE_GROWTH_ABNORMAL,
+      component: 'indexing',
+      metric: `${mode}.artifact_bytes`,
+      growth: indexGrowth,
+      nextAction: 'Review indexing inputs or profile artifact bloat before release.'
+    }));
+  }
   throwIfAborted(abortSignal);
   if (runtimeRef?.overallProgress?.advance) {
     const finalStage = stagePlan[stagePlan.length - 1];

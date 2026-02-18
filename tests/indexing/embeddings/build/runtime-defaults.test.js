@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -19,7 +20,7 @@ const restoreEnv = () => {
   }
 };
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 process.env.PAIROFCLEATS_CACHE_ROOT = path.join(tempRoot, 'cache');
 process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
 

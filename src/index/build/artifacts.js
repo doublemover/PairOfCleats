@@ -1,6 +1,8 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
+import { createHash } from 'node:crypto';
 import { log, logLine, showProgress } from '../../shared/progress.js';
 import { MAX_JSON_BYTES, readJsonFile, loadJsonArrayArtifact } from '../../shared/artifact-io.js';
 import { toPosix } from '../../shared/files.js';
@@ -50,6 +52,336 @@ import { applyByteBudget, resolveByteBudgetMap } from './byte-budget.js';
 import { CHARGRAM_HASH_META } from '../../shared/chargram-hash.js';
 import { createOrderingHasher } from '../../shared/order.js';
 import { computePackedChecksum } from '../../shared/artifact-io/checksum.js';
+import { DOCUMENT_CHUNKER_VERSION } from '../chunking/formats/document-common.js';
+import { DOCUMENT_EXTRACTION_REASON_CODES } from '../extractors/common.js';
+import {
+  INDEX_PROFILE_VECTOR_ONLY,
+  normalizeIndexProfileId
+} from '../../contracts/index-profile.js';
+
+const DOCUMENT_SOURCE_EXT_TO_TYPE = new Map([
+  ['.pdf', 'pdf'],
+  ['.docx', 'docx']
+]);
+
+const DOCUMENT_EXTRACTION_REASON_SET = new Set(DOCUMENT_EXTRACTION_REASON_CODES);
+
+const VECTOR_ONLY_SPARSE_PIECE_DENYLIST = new Set([
+  'token_postings',
+  'token_postings_offsets',
+  'token_postings_meta',
+  'token_postings_binary_columnar',
+  'token_postings_binary_columnar_offsets',
+  'token_postings_binary_columnar_lengths',
+  'token_postings_binary_columnar_meta',
+  'phrase_ngrams',
+  'chargram_postings',
+  'field_postings',
+  'field_tokens',
+  'vocab_order',
+  'minhash_signatures',
+  'minhash_signatures_packed',
+  'minhash_signatures_packed_meta'
+]);
+
+const VECTOR_ONLY_SPARSE_CLEANUP_ALLOWLIST = new Set([
+  'token_postings.json',
+  'token_postings.json.gz',
+  'token_postings.json.zst',
+  'token_postings.meta.json',
+  'token_postings.shards',
+  'token_postings.parts',
+  'token_postings.packed.bin',
+  'token_postings.packed.offsets.bin',
+  'token_postings.packed.meta.json',
+  'token_postings.binary-columnar.bin',
+  'token_postings.binary-columnar.offsets.bin',
+  'token_postings.binary-columnar.lengths.varint',
+  'token_postings.binary-columnar.meta.json',
+  'phrase_ngrams.json',
+  'phrase_ngrams.json.gz',
+  'phrase_ngrams.json.zst',
+  'phrase_ngrams.meta.json',
+  'phrase_ngrams.parts',
+  'chargram_postings.json',
+  'chargram_postings.json.gz',
+  'chargram_postings.json.zst',
+  'chargram_postings.meta.json',
+  'chargram_postings.parts',
+  'field_postings.json',
+  'field_postings.json.gz',
+  'field_postings.json.zst',
+  'field_postings.meta.json',
+  'field_postings.parts',
+  'field_tokens.json',
+  'field_tokens.json.gz',
+  'field_tokens.json.zst',
+  'field_tokens.meta.json',
+  'field_tokens.parts',
+  'vocab_order.json',
+  'vocab_order.json.gz',
+  'vocab_order.json.zst',
+  'minhash_signatures.json',
+  'minhash_signatures.json.gz',
+  'minhash_signatures.json.zst',
+  'minhash_signatures.meta.json',
+  'minhash_signatures.parts',
+  'minhash_signatures.packed.bin',
+  'minhash_signatures.packed.meta.json'
+]);
+
+const VECTOR_ONLY_SPARSE_RECURSIVE_ALLOWLIST = new Set([
+  'token_postings.shards',
+  'token_postings.parts',
+  'phrase_ngrams.parts',
+  'chargram_postings.parts',
+  'field_postings.parts',
+  'field_tokens.parts',
+  'minhash_signatures.parts'
+]);
+
+const ARTIFACT_WRITE_CONCURRENCY_MIN = 1;
+const ARTIFACT_WRITE_CONCURRENCY_MAX = 32;
+const ARTIFACT_WRITE_DEFAULT_MAX = 16;
+
+const sha256Hex = (value) => createHash('sha256').update(String(value || ''), 'utf8').digest('hex');
+
+/**
+ * Resolve artifact writer concurrency with a dynamic default and bounded override.
+ * @param {{artifactConfig?:object,totalWrites:number}} input
+ * @returns {{cap:number,override:boolean}}
+ */
+const resolveArtifactWriteConcurrency = ({ artifactConfig, totalWrites }) => {
+  const resolvedWrites = Number.isFinite(Number(totalWrites))
+    ? Math.max(0, Math.floor(Number(totalWrites)))
+    : 0;
+  if (!resolvedWrites) return { cap: 0, override: false };
+  const configured = artifactConfig?.writeConcurrency;
+  if (configured != null) {
+    const parsed = Number(configured);
+    const isInt = Number.isInteger(parsed);
+    if (!isInt || parsed < ARTIFACT_WRITE_CONCURRENCY_MIN || parsed > ARTIFACT_WRITE_CONCURRENCY_MAX) {
+      const err = new Error(
+        '[config] indexing.artifacts.writeConcurrency must be an integer in range 1..32.'
+      );
+      err.code = 'ERR_CONFIG_ARTIFACT_WRITE_CONCURRENCY';
+      throw err;
+    }
+    return { cap: parsed, override: true };
+  }
+  const available = typeof os.availableParallelism === 'function'
+    ? os.availableParallelism()
+    : os.cpus().length;
+  const baseline = Number.isFinite(Number(available))
+    ? Math.max(1, Math.floor(Number(available)))
+    : 1;
+  return {
+    cap: Math.max(
+      ARTIFACT_WRITE_CONCURRENCY_MIN,
+      Math.min(ARTIFACT_WRITE_DEFAULT_MAX, baseline)
+    ),
+    override: false
+  };
+};
+
+const normalizeExtractionFilePath = (file, root) => {
+  const raw = String(file || '');
+  if (!raw) return raw;
+  const normalizedRaw = toPosix(raw);
+  if (!root || !path.isAbsolute(raw)) return normalizedRaw;
+  const rel = toPosix(path.relative(root, raw));
+  return rel && !rel.startsWith('..') ? rel : normalizedRaw;
+};
+
+const resolveDocumentSourceType = (filePath, fallback = null) => {
+  if (fallback === 'pdf' || fallback === 'docx') return fallback;
+  const ext = path.extname(String(filePath || '')).toLowerCase();
+  return DOCUMENT_SOURCE_EXT_TO_TYPE.get(ext) || null;
+};
+
+const buildExtractionIdentityHash = ({
+  bytesHash,
+  extractorVersion,
+  normalizationPolicy,
+  chunkerVersion,
+  extractionConfigDigest
+}) => sha256Hex([
+  String(bytesHash || ''),
+  String(extractorVersion || ''),
+  String(normalizationPolicy || ''),
+  String(chunkerVersion || ''),
+  String(extractionConfigDigest || '')
+].join('|'));
+
+const buildExtractionReport = ({
+  state,
+  root,
+  mode,
+  documentExtractionConfig
+}) => {
+  const configDigest = sha256Hex(stableStringifyForSignature(documentExtractionConfig || {}));
+  const entries = new Map();
+  const fileInfoByPath = state?.fileInfoByPath;
+  if (fileInfoByPath && typeof fileInfoByPath.entries === 'function') {
+    for (const [file, info] of fileInfoByPath.entries()) {
+      const extraction = info?.extraction;
+      if (!extraction || extraction.status !== 'ok') continue;
+      const normalizedFile = normalizeExtractionFilePath(file, root);
+      const sourceType = resolveDocumentSourceType(normalizedFile, extraction.sourceType || null);
+      if (!sourceType) continue;
+      const extractorVersion = extraction?.extractor?.version || null;
+      entries.set(normalizedFile, {
+        file: normalizedFile,
+        sourceType,
+        status: 'ok',
+        reason: null,
+        extractor: extraction.extractor || null,
+        sourceBytesHash: extraction.sourceBytesHash || null,
+        sourceBytesHashAlgo: extraction.sourceBytesHashAlgo || 'sha256',
+        normalizationPolicy: extraction.normalizationPolicy || null,
+        chunkerVersion: DOCUMENT_CHUNKER_VERSION,
+        extractionConfigDigest: configDigest,
+        extractionIdentityHash: buildExtractionIdentityHash({
+          bytesHash: extraction.sourceBytesHash,
+          extractorVersion,
+          normalizationPolicy: extraction.normalizationPolicy,
+          chunkerVersion: DOCUMENT_CHUNKER_VERSION,
+          extractionConfigDigest: configDigest
+        }),
+        unitCounts: {
+          pages: Number(extraction?.counts?.pages) || 0,
+          paragraphs: Number(extraction?.counts?.paragraphs) || 0,
+          totalUnits: Number(extraction?.counts?.totalUnits) || 0
+        },
+        warnings: Array.isArray(extraction?.warnings) ? extraction.warnings : []
+      });
+    }
+  }
+  for (const skipped of state?.skippedFiles || []) {
+    const filePath = normalizeExtractionFilePath(skipped?.file, root);
+    const sourceType = resolveDocumentSourceType(filePath, skipped?.sourceType || null);
+    if (!filePath || !sourceType) continue;
+    if (entries.get(filePath)?.status === 'ok') continue;
+    const reasonRaw = String(skipped?.reason || 'extract_failed');
+    const reason = DOCUMENT_EXTRACTION_REASON_SET.has(reasonRaw) ? reasonRaw : 'extract_failed';
+    entries.set(filePath, {
+      file: filePath,
+      sourceType,
+      status: 'skipped',
+      reason,
+      extractor: null,
+      sourceBytesHash: null,
+      sourceBytesHashAlgo: null,
+      normalizationPolicy: null,
+      chunkerVersion: DOCUMENT_CHUNKER_VERSION,
+      extractionConfigDigest: configDigest,
+      extractionIdentityHash: null,
+      unitCounts: null,
+      warnings: Array.isArray(skipped?.warnings) ? skipped.warnings : []
+    });
+  }
+  const files = Array.from(entries.values()).sort((a, b) => (
+    a.file < b.file ? -1 : a.file > b.file ? 1 : 0
+  ));
+  const byReason = {};
+  let okCount = 0;
+  let skippedCount = 0;
+  for (const file of files) {
+    if (file.status === 'ok') {
+      okCount += 1;
+      continue;
+    }
+    skippedCount += 1;
+    const reason = file.reason || 'extract_failed';
+    byReason[reason] = (byReason[reason] || 0) + 1;
+  }
+  const extractorMap = new Map();
+  for (const file of files) {
+    if (!file.extractor) continue;
+    const key = [
+      file.extractor?.name || '',
+      file.extractor?.version || '',
+      file.extractor?.target || ''
+    ].join('|');
+    if (!extractorMap.has(key)) {
+      extractorMap.set(key, {
+        name: file.extractor?.name || null,
+        version: file.extractor?.version || null,
+        target: file.extractor?.target || null
+      });
+    }
+  }
+  return {
+    schemaVersion: 1,
+    mode,
+    generatedAt: new Date().toISOString(),
+    chunkerVersion: DOCUMENT_CHUNKER_VERSION,
+    extractionConfigDigest: configDigest,
+    counts: {
+      total: files.length,
+      ok: okCount,
+      skipped: skippedCount,
+      byReason
+    },
+    extractors: Array.from(extractorMap.values()),
+    files
+  };
+};
+
+/**
+ * Build per-file lexicon relation filter drop report.
+ * Captures dropped calls/usages plus category breakdowns and deterministic
+ * sorting so report diffs remain stable across runs.
+ *
+ * @param {{state:object,mode:string}} input
+ * @returns {object}
+ */
+export const buildLexiconRelationFilterReport = ({ state, mode }) => {
+  const relationStats = state?.lexiconRelationFilterByFile;
+  const entries = relationStats && typeof relationStats.entries === 'function'
+    ? Array.from(relationStats.entries())
+    : [];
+  const files = entries
+    .map(([file, stats]) => ({
+      file,
+      languageId: stats?.languageId || null,
+      droppedCalls: Number(stats?.droppedCalls) || 0,
+      droppedUsages: Number(stats?.droppedUsages) || 0,
+      droppedCallDetails: Number(stats?.droppedCallDetails) || 0,
+      droppedCallDetailsWithRange: Number(stats?.droppedCallDetailsWithRange) || 0,
+      droppedTotal: Number(stats?.droppedTotal) || 0,
+      droppedCallsByCategory: {
+        ...(stats?.droppedCallsByCategory || {})
+      },
+      droppedUsagesByCategory: {
+        ...(stats?.droppedUsagesByCategory || {})
+      }
+    }))
+    .sort((a, b) => (a.file < b.file ? -1 : (a.file > b.file ? 1 : 0)));
+
+  const totals = {
+    files: files.length,
+    droppedCalls: 0,
+    droppedUsages: 0,
+    droppedCallDetails: 0,
+    droppedCallDetailsWithRange: 0,
+    droppedTotal: 0
+  };
+  for (const entry of files) {
+    totals.droppedCalls += entry.droppedCalls;
+    totals.droppedUsages += entry.droppedUsages;
+    totals.droppedCallDetails += entry.droppedCallDetails;
+    totals.droppedCallDetailsWithRange += entry.droppedCallDetailsWithRange;
+    totals.droppedTotal += entry.droppedTotal;
+  }
+
+  return {
+    schemaVersion: 1,
+    mode,
+    totals,
+    files
+  };
+};
 
 /**
  * Write index artifacts and metrics.
@@ -106,12 +438,15 @@ export async function writeIndexArtifacts(input) {
     };
   };
   const indexingConfig = userConfig?.indexing || {};
+  const profileId = normalizeIndexProfileId(indexState?.profile?.id || indexingConfig.profile);
+  const vectorOnlyProfile = profileId === INDEX_PROFILE_VECTOR_ONLY;
+  const sparseArtifactsEnabled = !vectorOnlyProfile;
   const documentExtractionEnabled = indexingConfig.documentExtraction?.enabled === true;
   const {
     resolvedTokenMode,
     tokenMaxFiles,
     tokenSampleSize
-  } = resolveTokenMode({ indexingConfig, state, fileCounts });
+  } = resolveTokenMode({ indexingConfig, state, fileCounts, profileId });
   const {
     compressionEnabled,
     compressionMode,
@@ -222,6 +557,8 @@ export async function writeIndexArtifacts(input) {
     : fileMetaMaxBytes;
   const toolingConfig = getToolingConfig(root, userConfig);
   const vfsHashRouting = toolingConfig?.vfs?.hashRouting === true;
+  // Keep file_meta fingerprint source deterministic: prefer discovery order when
+  // available, otherwise fall back to sorted fileInfo keys.
   const resolveFileMetaFiles = () => {
     if (Array.isArray(state?.discoveredFiles) && state.discoveredFiles.length) {
       return state.discoveredFiles.slice();
@@ -499,7 +836,7 @@ export async function writeIndexArtifacts(input) {
     shardTargetBytes: tokenPostingsShardTargetBytes,
     log
   });
-  if (tokenPostingsEstimate?.estimatedBytes) {
+  if (sparseArtifactsEnabled && tokenPostingsEstimate?.estimatedBytes) {
     applyByteBudget({
       budget: tokenPostingsBudget,
       totalBytes: tokenPostingsEstimate.estimatedBytes,
@@ -509,47 +846,108 @@ export async function writeIndexArtifacts(input) {
     });
   }
   tokenPostingsShardSize = resolvedTokenPostingsShardSize;
-  await ensureDiskSpace({
-    targetPath: outDir,
-    requiredBytes: tokenPostingsEstimate?.estimatedBytes,
-    label: `${mode} token_postings`
-  });
-  const removeArtifact = async (targetPath) => {
+  if (sparseArtifactsEnabled) {
+    await ensureDiskSpace({
+      targetPath: outDir,
+      requiredBytes: tokenPostingsEstimate?.estimatedBytes,
+      label: `${mode} token_postings`
+    });
+  }
+  const cleanupActions = [];
+  const recordCleanupAction = ({ targetPath, recursive = false, policy = 'legacy' }) => {
+    if (!targetPath) return;
+    cleanupActions.push({
+      path: toPosix(path.relative(outDir, targetPath)),
+      recursive: recursive === true,
+      policy
+    });
+  };
+  const removeArtifact = async (targetPath, options = {}) => {
+    const { recursive = true, policy = 'legacy' } = options;
     try {
       if (fsSync.existsSync(targetPath)) {
         logLine(`[artifact-cleanup] remove ${targetPath}`, { kind: 'status' });
+        recordCleanupAction({ targetPath, recursive, policy });
       }
-      await fs.rm(targetPath, { recursive: true, force: true });
+      await fs.rm(targetPath, { recursive, force: true });
     } catch {}
   };
+  const removeAllowlistedSparseArtifact = async (artifactName) => {
+    if (!artifactName || !VECTOR_ONLY_SPARSE_CLEANUP_ALLOWLIST.has(artifactName)) return;
+    const targetPath = path.join(outDir, artifactName);
+    const targetRoot = path.resolve(outDir);
+    const resolvedTarget = path.resolve(targetPath);
+    if (path.dirname(resolvedTarget) !== targetRoot) return;
+    let recursive = false;
+    try {
+      const stat = await fs.stat(targetPath);
+      recursive = stat.isDirectory();
+    } catch {
+      return;
+    }
+    if (recursive && !VECTOR_ONLY_SPARSE_RECURSIVE_ALLOWLIST.has(artifactName)) {
+      return;
+    }
+    await removeArtifact(targetPath, { recursive, policy: 'vector_only_allowlist' });
+  };
+  const cleanupVectorOnlySparseArtifacts = async () => {
+    const toRemove = Array.from(VECTOR_ONLY_SPARSE_CLEANUP_ALLOWLIST).sort((a, b) => a.localeCompare(b));
+    for (const artifactName of toRemove) {
+      await removeAllowlistedSparseArtifact(artifactName);
+    }
+  };
   const removeCompressedArtifact = async (base) => {
-    await removeArtifact(path.join(outDir, `${base}.json.gz`));
-    await removeArtifact(path.join(outDir, `${base}.json.zst`));
+    await removeArtifact(path.join(outDir, `${base}.json.gz`), { policy: 'format_cleanup' });
+    await removeArtifact(path.join(outDir, `${base}.json.zst`), { policy: 'format_cleanup' });
   };
   const removePackedPostings = async () => {
-    await removeArtifact(path.join(outDir, 'token_postings.packed.bin'));
-    await removeArtifact(path.join(outDir, 'token_postings.packed.offsets.bin'));
-    await removeArtifact(path.join(outDir, 'token_postings.packed.meta.json'));
+    await removeArtifact(path.join(outDir, 'token_postings.packed.bin'), { policy: 'format_cleanup' });
+    await removeArtifact(path.join(outDir, 'token_postings.packed.offsets.bin'), { policy: 'format_cleanup' });
+    await removeArtifact(path.join(outDir, 'token_postings.packed.meta.json'), { policy: 'format_cleanup' });
   };
   const removePackedMinhash = async () => {
-    await removeArtifact(path.join(outDir, 'minhash_signatures.packed.bin'));
-    await removeArtifact(path.join(outDir, 'minhash_signatures.packed.meta.json'));
+    await removeArtifact(path.join(outDir, 'minhash_signatures.packed.bin'), { policy: 'format_cleanup' });
+    await removeArtifact(path.join(outDir, 'minhash_signatures.packed.meta.json'), { policy: 'format_cleanup' });
   };
-  if (tokenPostingsFormat === 'packed') {
-    await removeArtifact(path.join(outDir, 'token_postings.json'));
-    await removeCompressedArtifact('token_postings');
-    await removeArtifact(path.join(outDir, 'token_postings.meta.json'));
-    await removeArtifact(path.join(outDir, 'token_postings.shards'));
+  if (vectorOnlyProfile) {
+    await cleanupVectorOnlySparseArtifacts();
   } else {
-    await removePackedPostings();
+    if (tokenPostingsFormat === 'packed') {
+      await removeArtifact(path.join(outDir, 'token_postings.json'), { policy: 'format_cleanup' });
+      await removeCompressedArtifact('token_postings');
+      await removeArtifact(path.join(outDir, 'token_postings.meta.json'), { policy: 'format_cleanup' });
+      await removeArtifact(path.join(outDir, 'token_postings.shards'), {
+        recursive: true,
+        policy: 'format_cleanup'
+      });
+    } else {
+      await removePackedPostings();
+    }
+    if (tokenPostingsUseShards) {
+      await removeArtifact(path.join(outDir, 'token_postings.json'), { policy: 'format_cleanup' });
+      await removeCompressedArtifact('token_postings');
+      await removeArtifact(path.join(outDir, 'token_postings.shards'), {
+        recursive: true,
+        policy: 'format_cleanup'
+      });
+    } else {
+      await removeArtifact(path.join(outDir, 'token_postings.meta.json'), { policy: 'format_cleanup' });
+      await removeArtifact(path.join(outDir, 'token_postings.shards'), {
+        recursive: true,
+        policy: 'format_cleanup'
+      });
+    }
   }
-  if (tokenPostingsUseShards) {
-    await removeArtifact(path.join(outDir, 'token_postings.json'));
-    await removeCompressedArtifact('token_postings');
-    await removeArtifact(path.join(outDir, 'token_postings.shards'));
-  } else {
-    await removeArtifact(path.join(outDir, 'token_postings.meta.json'));
-    await removeArtifact(path.join(outDir, 'token_postings.shards'));
+  if (indexState && typeof indexState === 'object') {
+    if (!indexState.extensions || typeof indexState.extensions !== 'object') {
+      indexState.extensions = {};
+    }
+    indexState.extensions.artifactCleanup = {
+      schemaVersion: 1,
+      profileId,
+      allowlistOnly: vectorOnlyProfile,
+      actions: cleanupActions
+    };
   }
   const writeStart = Date.now();
   const writes = [];
@@ -606,6 +1004,48 @@ export async function writeIndexArtifacts(input) {
       }
     });
   };
+  if (mode === 'extracted-prose' && documentExtractionEnabled) {
+    const extractionReportPath = path.join(outDir, 'extraction_report.json');
+    const extractionReport = buildExtractionReport({
+      state,
+      root,
+      mode,
+      documentExtractionConfig: indexingConfig.documentExtraction || {}
+    });
+    enqueueWrite(
+      formatArtifactLabel(extractionReportPath),
+      async () => {
+        await writeJsonObjectFile(extractionReportPath, {
+          fields: extractionReport,
+          atomic: true
+        });
+      }
+    );
+    addPieceFile({ type: 'stats', name: 'extraction_report', format: 'json' }, extractionReportPath);
+  }
+  const lexiconRelationFilterReport = buildLexiconRelationFilterReport({ state, mode });
+  if (Array.isArray(lexiconRelationFilterReport.files) && lexiconRelationFilterReport.files.length) {
+    const lexiconReportPath = path.join(outDir, 'lexicon_relation_filter_report.json');
+    enqueueWrite(
+      formatArtifactLabel(lexiconReportPath),
+      async () => {
+        await writeJsonObjectFile(lexiconReportPath, {
+          fields: lexiconRelationFilterReport,
+          atomic: true
+        });
+      }
+    );
+    addPieceFile({ type: 'stats', name: 'lexicon_relation_filter_report', format: 'json' }, lexiconReportPath);
+    if (indexState && typeof indexState === 'object') {
+      if (!indexState.extensions || typeof indexState.extensions !== 'object') {
+        indexState.extensions = {};
+      }
+      indexState.extensions.lexiconRelationFilter = {
+        schemaVersion: 1,
+        totals: lexiconRelationFilterReport.totals
+      };
+    }
+  }
   if (indexState && typeof indexState === 'object') {
     const indexStatePath = path.join(outDir, 'index_state.json');
     const indexStateMetaPath = path.join(outDir, 'index_state.meta.json');
@@ -997,13 +1437,15 @@ export async function writeIndexArtifacts(input) {
         }
       })()
       : (postings.minhashSigs || []));
-  enqueueJsonObject('minhash_signatures', { arrays: { signatures: minhashIterable } }, {
-    piece: {
-      type: 'postings',
-      name: 'minhash_signatures',
-      count: minhashCount
-    }
-  });
+  if (sparseArtifactsEnabled) {
+    enqueueJsonObject('minhash_signatures', { arrays: { signatures: minhashIterable } }, {
+      piece: {
+        type: 'postings',
+        name: 'minhash_signatures',
+        count: minhashCount
+      }
+    });
+  }
   const packMinhashSignatures = ({ signatures, chunks }) => {
     const source = Array.isArray(signatures) && signatures.length ? signatures : null;
     const sourceChunks = Array.isArray(chunks) && chunks.length ? chunks : null;
@@ -1038,10 +1480,12 @@ export async function writeIndexArtifacts(input) {
     }
     return { buffer, dims, count };
   };
-  const packedMinhash = packMinhashSignatures({
-    signatures: minhashFromPostings,
-    chunks: minhashStream ? state.chunks : null
-  });
+  const packedMinhash = sparseArtifactsEnabled
+    ? packMinhashSignatures({
+      signatures: minhashFromPostings,
+      chunks: minhashStream ? state.chunks : null
+    })
+    : null;
   if (packedMinhash) {
     const packedChecksum = computePackedChecksum(packedMinhash.buffer);
     const packedPath = path.join(outDir, 'minhash_signatures.packed.bin');
@@ -1073,20 +1517,22 @@ export async function writeIndexArtifacts(input) {
     await removePackedMinhash();
   }
   const tokenPostingsCompression = resolveShardCompression('token_postings');
-  await enqueueTokenPostingsArtifacts({
-    outDir,
-    postings,
-    state,
-    tokenPostingsFormat,
-    tokenPostingsUseShards,
-    tokenPostingsShardSize,
-    tokenPostingsBinaryColumnar,
-    tokenPostingsCompression,
-    enqueueJsonObject,
-    enqueueWrite,
-    addPieceFile,
-    formatArtifactLabel
-  });
+  if (sparseArtifactsEnabled) {
+    await enqueueTokenPostingsArtifacts({
+      outDir,
+      postings,
+      state,
+      tokenPostingsFormat,
+      tokenPostingsUseShards,
+      tokenPostingsShardSize,
+      tokenPostingsBinaryColumnar,
+      tokenPostingsCompression,
+      enqueueJsonObject,
+      enqueueWrite,
+      addPieceFile,
+      formatArtifactLabel
+    });
+  }
   const vocabOrder = {};
   const tokenOrdering = measureVocabOrdering(postings.tokenVocab);
   await recordOrdering('token_vocab', tokenOrdering, 'token_vocab:token');
@@ -1096,12 +1542,12 @@ export async function writeIndexArtifacts(input) {
       count: tokenOrdering.orderingCount
     };
   }
-  if (postings.fieldPostings?.fields) {
+  if (sparseArtifactsEnabled && postings.fieldPostings?.fields) {
     enqueueJsonObject('field_postings', { fields: { fields: postings.fieldPostings.fields } }, {
       piece: { type: 'postings', name: 'field_postings' }
     });
   }
-  if (resolvedConfig.fielded !== false && Array.isArray(state.fieldTokens)) {
+  if (sparseArtifactsEnabled && resolvedConfig.fielded !== false && Array.isArray(state.fieldTokens)) {
     enqueueJsonArray('field_tokens', state.fieldTokens, {
       piece: { type: 'postings', name: 'field_tokens', count: state.fieldTokens.length }
     });
@@ -1241,7 +1687,7 @@ export async function writeIndexArtifacts(input) {
     removeArtifact
   }));
   await recordOrdering('graph_relations', graphRelationsOrdering, 'graph_relations:graph,node');
-  if (resolvedConfig.enablePhraseNgrams !== false) {
+  if (sparseArtifactsEnabled && resolvedConfig.enablePhraseNgrams !== false) {
     enqueueJsonObject('phrase_ngrams', {
       arrays: { vocab: postings.phraseVocab, postings: postings.phrasePostings }
     }, {
@@ -1256,7 +1702,7 @@ export async function writeIndexArtifacts(input) {
       };
     }
   }
-  if (resolvedConfig.enableChargrams !== false) {
+  if (sparseArtifactsEnabled && resolvedConfig.enableChargrams !== false) {
     enqueueJsonObject('chargram_postings', {
       fields: { hash: CHARGRAM_HASH_META },
       arrays: { vocab: postings.chargramVocab, postings: postings.chargramPostings }
@@ -1272,7 +1718,7 @@ export async function writeIndexArtifacts(input) {
       };
     }
   }
-  if (Object.keys(vocabOrder).length) {
+  if (sparseArtifactsEnabled && Object.keys(vocabOrder).length) {
     enqueueJsonObject('vocab_order', {
       fields: {
         algo: 'sha1',
@@ -1287,7 +1733,11 @@ export async function writeIndexArtifacts(input) {
   if (totalWrites) {
     const artifactLabel = totalWrites === 1 ? 'artifact' : 'artifacts';
     logLine(`Writing index files (${totalWrites} ${artifactLabel})...`, { kind: 'status' });
-    const writeConcurrency = Math.max(1, Math.min(4, totalWrites));
+    const { cap: writeConcurrencyCap } = resolveArtifactWriteConcurrency({
+      artifactConfig,
+      totalWrites
+    });
+    const writeConcurrency = Math.max(1, Math.min(totalWrites, writeConcurrencyCap));
     await runWithConcurrency(
       writes,
       writeConcurrency,
@@ -1304,6 +1754,31 @@ export async function writeIndexArtifacts(input) {
   } else {
     logLine('Writing index files (0 artifacts)...', { kind: 'status' });
     logLine('', { kind: 'status' });
+  }
+  if (vectorOnlyProfile) {
+    const deniedPieces = pieceEntries
+      .filter((entry) => VECTOR_ONLY_SPARSE_PIECE_DENYLIST.has(String(entry?.name || '')))
+      .map((entry) => String(entry?.name || '').trim())
+      .filter(Boolean);
+    if (deniedPieces.length) {
+      const uniqueDenied = Array.from(new Set(deniedPieces)).sort((a, b) => a.localeCompare(b));
+      throw new Error(
+        `[vector_only] sparse artifact emission detected: ${uniqueDenied.join(', ')}. ` +
+        'Rebuild with sparse outputs disabled.'
+      );
+    }
+    const lingeringSparse = [];
+    for (const artifactName of VECTOR_ONLY_SPARSE_CLEANUP_ALLOWLIST) {
+      if (!fsSync.existsSync(path.join(outDir, artifactName))) continue;
+      lingeringSparse.push(artifactName);
+    }
+    if (lingeringSparse.length) {
+      const sample = lingeringSparse.sort((a, b) => a.localeCompare(b)).slice(0, 8).join(', ');
+      throw new Error(
+        `[vector_only] sparse artifacts still present after cleanup: ${sample}. ` +
+        'Delete stale sparse artifacts and rebuild.'
+      );
+    }
   }
   timing.writeMs = Date.now() - writeStart;
   timing.totalMs = Date.now() - timing.start;
@@ -1345,6 +1820,10 @@ export async function writeIndexArtifacts(input) {
     artifactMetrics.set(entry.path, metric);
   }
   if (timing) {
+    timing.cleanup = {
+      profileId,
+      actions: cleanupActions
+    };
     timing.artifacts = Array.from(artifactMetrics.values()).sort((a, b) => {
       const aPath = String(a?.path || '');
       const bPath = String(b?.path || '');

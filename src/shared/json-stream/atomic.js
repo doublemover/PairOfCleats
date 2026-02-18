@@ -20,7 +20,17 @@ const WINDOWS_PATH_BUDGET = 240;
 const MIN_COMPACT_TOKEN_CHARS = 12;
 const REPLACE_TEMP_WAIT_ATTEMPTS = 20;
 const REPLACE_TEMP_WAIT_BASE_DELAY_MS = 25;
+const REPLACE_DIR_RENAME_ATTEMPTS = 10;
+const REPLACE_DIR_RENAME_BASE_DELAY_MS = 20;
 const LONG_PATH_PREFIX = '\\\\?\\';
+const RETRYABLE_DIR_RENAME_CODES = new Set([
+  'EEXIST',
+  'EPERM',
+  'ENOTEMPTY',
+  'EACCES',
+  'EXDEV',
+  'EBUSY'
+]);
 
 const stripLongPathPrefix = (value) => (
   typeof value === 'string' && value.startsWith(LONG_PATH_PREFIX)
@@ -300,9 +310,39 @@ export const replaceDir = async (tempPath, finalPath, options = {}) => {
       await fsPromises.rename(bakPath, finalPath);
     } catch {}
   };
+  const renameWithRetries = async (fromPath, toPath) => {
+    for (let attempt = 0; attempt < REPLACE_DIR_RENAME_ATTEMPTS; attempt += 1) {
+      try {
+        await fsPromises.rename(fromPath, toPath);
+        return;
+      } catch (err) {
+        const retryable = RETRYABLE_DIR_RENAME_CODES.has(err?.code);
+        if (!retryable || attempt >= REPLACE_DIR_RENAME_ATTEMPTS - 1) {
+          throw err;
+        }
+        await sleep(REPLACE_DIR_RENAME_BASE_DELAY_MS * (attempt + 1));
+      }
+    }
+  };
+  const copyDirFallback = async () => {
+    try {
+      await fsPromises.rm(finalPath, { recursive: true, force: true });
+    } catch {}
+    try {
+      await fsPromises.cp(tempPath, finalPath, {
+        recursive: true,
+        force: true,
+        errorOnExist: false
+      });
+      await fsPromises.rm(tempPath, { recursive: true, force: true });
+      return true;
+    } catch {
+      return false;
+    }
+  };
   if (finalExists && !backupAvailable) {
     try {
-      await fsPromises.rename(finalPath, bakPath);
+      await renameWithRetries(finalPath, bakPath);
       backupAvailable = true;
     } catch (err) {
       if (err?.code !== 'ENOENT') {
@@ -311,12 +351,12 @@ export const replaceDir = async (tempPath, finalPath, options = {}) => {
     }
   }
   try {
-    await fsPromises.rename(tempPath, finalPath);
+    await renameWithRetries(tempPath, finalPath);
     if (!keepBackup && backupAvailable) {
       try { await fsPromises.rm(bakPath, { recursive: true, force: true }); } catch {}
     }
   } catch (err) {
-    if (!['EEXIST', 'EPERM', 'ENOTEMPTY', 'EACCES', 'EXDEV'].includes(err?.code)) {
+    if (!RETRYABLE_DIR_RENAME_CODES.has(err?.code)) {
       await restoreBackup();
       throw err;
     }
@@ -324,11 +364,17 @@ export const replaceDir = async (tempPath, finalPath, options = {}) => {
       if (fs.existsSync(finalPath)) {
         await fsPromises.rm(finalPath, { recursive: true, force: true });
       }
-      await fsPromises.rename(tempPath, finalPath);
+      await renameWithRetries(tempPath, finalPath);
       if (!keepBackup && backupAvailable) {
         try { await fsPromises.rm(bakPath, { recursive: true, force: true }); } catch {}
       }
     } catch (renameErr) {
+      if (await copyDirFallback()) {
+        if (!keepBackup && backupAvailable) {
+          try { await fsPromises.rm(bakPath, { recursive: true, force: true }); } catch {}
+        }
+        return;
+      }
       await restoreBackup();
       throw renameErr;
     }

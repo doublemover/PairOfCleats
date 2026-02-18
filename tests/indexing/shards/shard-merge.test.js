@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
@@ -19,16 +20,14 @@ await fsPromises.mkdir(path.join(repoRoot, 'src'), { recursive: true });
 await fsPromises.mkdir(path.join(repoRoot, 'lib'), { recursive: true });
 await fsPromises.mkdir(cacheRootA, { recursive: true });
 await fsPromises.mkdir(cacheRootB, { recursive: true });
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 await fsPromises.writeFile(path.join(repoRoot, 'src', 'alpha.js'), 'export const alpha = 1;\n');
 await fsPromises.writeFile(path.join(repoRoot, 'lib', 'beta.py'), 'def beta():\n  return 2\n');
 
 const runBuild = (cacheRoot, label, testConfig) => {
   const env = {
-    ...process.env,
-    PAIROFCLEATS_TESTING: '1',
-    ...(testConfig ? { PAIROFCLEATS_TEST_CONFIG: JSON.stringify(testConfig) } : {}),
+    ...process.env,    ...(testConfig ? { PAIROFCLEATS_TEST_CONFIG: JSON.stringify(testConfig) } : {}),
     PAIROFCLEATS_CACHE_ROOT: cacheRoot,
     PAIROFCLEATS_EMBEDDINGS: 'stub'
   };

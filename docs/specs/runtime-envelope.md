@@ -222,6 +222,54 @@ CLI overrides:
 Warnings use `code: "runtime.envOverride"` when a requested value cannot be applied because of
 base env settings (for example, `UV_THREADPOOL_SIZE` or `NODE_OPTIONS`).
 
+## 6.1 Operational health checks
+
+Runtime envelope consumers now run lightweight operational health checks before hot-path work:
+- indexing checks validate mode, build root presence, and writable output directory.
+- retrieval checks validate query presence, at least one enabled mode, and backend resolution.
+
+Health-check failures are emitted with stable machine-readable codes and actionable log text:
+- format: `[health] code=<code> component=<component> reason="<reason>" next="<next action>"`
+- implementation: `src/shared/ops-health.js`
+
+## 6.2 Operational failure injection (test-only)
+
+Operational failure injection is deterministic and only enabled in test mode:
+- config source: `PAIROFCLEATS_TEST_CONFIG.ops.failureInjection`.
+- targets: `indexing.hotpath` and `retrieval.hotpath`.
+- classes: `retriable` and `non_retriable`.
+- policy: retriable failures follow configured retry budget (`retriableRetries`), non-retriable failures fail immediately.
+
+Runtime wrappers:
+- indexing discovery hot path uses `runWithOperationalFailurePolicy` in `src/index/build/indexer/pipeline.js`.
+- retrieval backend-context hot path uses `runWithOperationalFailurePolicy` in `src/retrieval/cli.js`.
+
+## 6.3 Operational defaults and guardrails
+
+Retrieval runtime normalization now enforces conservative operational defaults:
+- ANN candidate defaults: `cap=20000`, `minDocCount=100`, `maxDocCount=20000`.
+- Query-cache defaults: `maxEntries=200`, `ttlMs=0`.
+- RRF default: `k=60`.
+
+Guardrails reject risky combinations with stable codes:
+- `op_guardrail_ann_candidate_bounds_invalid`
+- `op_guardrail_ann_candidate_cap_out_of_range`
+- `op_guardrail_rrf_k_invalid`
+
+Capability probing uses explicit baseline defaults (`src/shared/capabilities.js`) before optional
+dependency detection mutates feature availability.
+
+## 6.4 Basic resource visibility
+
+Runtime now emits lightweight warnings for abnormal one-run growth:
+- indexing compares prior vs current mode artifact bytes and emits
+  `op_resource_index_growth_abnormal` when growth exceeds ratio+delta thresholds.
+- retrieval compares start/end process RSS and emits
+  `op_resource_retrieval_memory_growth_abnormal` when growth exceeds ratio+delta thresholds.
+
+Thresholds are centralized in `src/shared/ops-resource-visibility.js` as
+`RESOURCE_GROWTH_THRESHOLDS`.
+
 ## 7) Implementation references
 
 - Runtime envelope: `src/shared/runtime-envelope.js`

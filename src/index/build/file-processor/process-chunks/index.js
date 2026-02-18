@@ -62,6 +62,7 @@ export const processChunks = async (context) => {
     workerDictOverride,
     workerState,
     tokenizationStats,
+    tokenizeEnabled = true,
     complexityEnabled,
     lintEnabled,
     complexityCache,
@@ -109,6 +110,7 @@ export const processChunks = async (context) => {
   updateCrashStage('process-chunks:start', { totalChunks: sc.length, languageId: containerLanguageId });
 
   const strictIdentity = analysisPolicy?.identity?.strict !== false;
+  const chunkUidNamespaceKey = mode === 'extracted-prose' ? 'repo:extracted-prose' : 'repo';
   let chunkLineRanges = [];
   let vfsManifestRows = null;
   try {
@@ -116,6 +118,7 @@ export const processChunks = async (context) => {
       chunks: sc,
       text,
       relKey,
+      namespaceKey: chunkUidNamespaceKey,
       containerExt,
       containerLanguageId,
       lineIndex,
@@ -389,7 +392,7 @@ export const processChunks = async (context) => {
 
     let tokenPayload = null;
     let pretokenized = null;
-    if (tokenizationFileStreamEnabled && tokenText === ctext) {
+    if (tokenizeEnabled && tokenizationFileStreamEnabled && tokenText === ctext) {
       let tokenStream = fileTokenStreamCache.get(dictCacheKey);
       if (!tokenStream) {
         tokenStream = createFileLineTokenStream({
@@ -408,7 +411,7 @@ export const processChunks = async (context) => {
       });
     }
     let usedWorkerTokenize = false;
-    if (runTokenize && !pretokenized) {
+    if (tokenizeEnabled && runTokenize && !pretokenized) {
       try {
         const tokenStart = Date.now();
         updateCrashStage('tokenize-worker', { chunkIndex: ci });
@@ -461,7 +464,7 @@ export const processChunks = async (context) => {
         }
       }
     }
-    if (!tokenPayload) {
+    if (tokenizeEnabled && !tokenPayload) {
       const tokenStart = Date.now();
       updateCrashStage('tokenize', { chunkIndex: ci });
       tokenPayload = tokenizeChunkText({
@@ -478,8 +481,22 @@ export const processChunks = async (context) => {
       addTokenizeDuration(tokenDurationMs);
       addSettingMetric('tokenize', chunkLanguageId, chunkLineCount, tokenDurationMs);
     }
+    if (!tokenizeEnabled) {
+      tokenPayload = {
+        tokens: [],
+        tokenIds: [],
+        seq: [],
+        minhashSig: [],
+        stats: {},
+        identifierTokens: [],
+        keywordTokens: [],
+        operatorTokens: [],
+        literalTokens: []
+      };
+    }
 
-    const tokenClassificationEnabled = tokenContext?.tokenClassification?.enabled === true
+    const tokenClassificationEnabled = tokenizeEnabled
+      && tokenContext?.tokenClassification?.enabled === true
       && chunkMode === 'code';
     if (tokenClassificationEnabled && usedWorkerTokenize) {
       // Tokenization workers intentionally do not run tree-sitter classification to avoid
@@ -515,7 +532,7 @@ export const processChunks = async (context) => {
       literalTokens
     } = tokenPayload;
 
-    if (tokenizationStats) {
+    if (tokenizationStats && tokenizeEnabled) {
       tokenizationStats.chunks += 1;
       tokenizationStats.tokens += tokens.length;
       tokenizationStats.seq += seq.length;
@@ -523,7 +540,7 @@ export const processChunks = async (context) => {
       // We don't materialize them during tokenization to avoid large transient allocations.
     }
 
-    if (!seq.length) continue;
+    if (tokenizeEnabled && !seq.length) continue;
 
     const docText = typeof docmeta.doc === 'string' ? docmeta.doc : '';
 
@@ -583,6 +600,7 @@ export const processChunks = async (context) => {
       dictWords: dictWordsForChunk,
       dictConfig,
       postingsConfig,
+      emitFieldTokens: tokenizeEnabled,
       tokenMode: chunkMode,
       fileRelations,
       relationsEnabled,

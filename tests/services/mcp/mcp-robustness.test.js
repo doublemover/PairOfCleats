@@ -1,8 +1,9 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import { spawn } from 'node:child_process';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-
+applyTestEnv();
 const root = process.cwd();
 const serverPath = path.join(root, 'tools', 'mcp', 'server.js');
 const tempRoot = path.join(root, '.testCache', 'mcp-robustness');
@@ -83,9 +84,7 @@ async function runQueueTest() {
   const server = spawn(process.execPath, [serverPath], {
     stdio: ['pipe', 'pipe', 'inherit'],
     env: {
-      ...process.env,
-      PAIROFCLEATS_TESTING: '1',
-      PAIROFCLEATS_HOME: queueCache,
+      ...process.env,      PAIROFCLEATS_HOME: queueCache,
       PAIROFCLEATS_CACHE_ROOT: queueCache,
       PAIROFCLEATS_MCP_QUEUE_MAX: '1'
     }
@@ -156,9 +155,7 @@ async function runCancelTest() {
   const server = spawn(process.execPath, [serverPath], {
     stdio: ['pipe', 'pipe', 'inherit'],
     env: {
-      ...process.env,
-      PAIROFCLEATS_TESTING: '1',
-      PAIROFCLEATS_HOME: cancelCache,
+      ...process.env,      PAIROFCLEATS_HOME: cancelCache,
       PAIROFCLEATS_CACHE_ROOT: cancelCache,
       PAIROFCLEATS_TEST_MCP_DELAY_MS: '250'
     }
@@ -216,9 +213,7 @@ async function runProgressThrottleTest() {
   const server = spawn(process.execPath, [serverPath], {
     stdio: ['pipe', 'pipe', 'inherit'],
     env: {
-      ...process.env,
-      PAIROFCLEATS_TESTING: '1',
-      PAIROFCLEATS_HOME: cancelCache,
+      ...process.env,      PAIROFCLEATS_HOME: cancelCache,
       PAIROFCLEATS_CACHE_ROOT: cancelCache,
       PAIROFCLEATS_TEST_MCP_DELAY_MS: '250'
     }
@@ -270,9 +265,7 @@ async function runTimeoutTest() {
   const server = spawn(process.execPath, [serverPath], {
     stdio: ['pipe', 'pipe', 'inherit'],
     env: {
-      ...process.env,
-      PAIROFCLEATS_TESTING: '1',
-      PAIROFCLEATS_HOME: timeoutCache,
+      ...process.env,      PAIROFCLEATS_HOME: timeoutCache,
       PAIROFCLEATS_CACHE_ROOT: timeoutCache,
       PAIROFCLEATS_MCP_TOOL_TIMEOUT_MS: '1'
     }

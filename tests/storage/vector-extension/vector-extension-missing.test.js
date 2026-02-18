@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { updateSqliteDense } from '../../../tools/build/embeddings/sqlite-dense.js';
@@ -18,7 +19,7 @@ const cacheRoot = path.join(tempRoot, 'cache');
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(repoRoot, { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 const userConfig = { cache: { root: cacheRoot } };
 const dbPath = path.join(repoRoot, 'index.sqlite');

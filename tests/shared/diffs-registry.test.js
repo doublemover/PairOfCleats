@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -14,7 +15,7 @@ import {
 } from '../../src/index/diffs/registry.js';
 import { stableStringify } from '../../src/shared/stable-json.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'diffs-registry');

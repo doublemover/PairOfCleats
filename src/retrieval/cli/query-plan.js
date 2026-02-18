@@ -3,7 +3,7 @@ import { buildHighlightRegex } from './highlight.js';
 import {
   buildPhraseNgrams,
   annotateQueryAst,
-  parseQueryInput,
+  parseQueryWithFallback,
   tokenizePhrase,
   tokenizeQueryTerms
 } from '../query-parse.js';
@@ -46,7 +46,8 @@ export function buildQueryPlan({
   extImpossible,
   langImpossible
 }) {
-  const parsedQuery = parseQueryInput(query);
+  const parseResult = parseQueryWithFallback(query);
+  const parsedQuery = parseResult.parsed;
   const queryAst = annotateQueryAst(parsedQuery.ast, dict, { ...dictConfig, caseSensitive: caseTokens }, postingsConfig);
   const includeTokens = tokenizeQueryTerms(parsedQuery.includeTerms, dict, { ...dictConfig, caseSensitive: caseTokens });
   const phraseTokens = parsedQuery.phrases
@@ -74,7 +75,9 @@ export function buildQueryPlan({
     query,
     tokens: queryTokens,
     phrases: parsedQuery.phrases,
-    filters: { file: fileFilter }
+    filters: { file: fileFilter },
+    parseStrategy: parseResult.strategy,
+    parseFallbackReason: parseResult.fallbackReason
   });
   const fieldWeights = resolveIntentFieldWeights(fieldWeightsConfig, intentInfo);
   const resolvedDenseVectorMode = resolveIntentVectorMode(denseVectorMode, intentInfo);

@@ -4,7 +4,7 @@ import { buildFilterIndex } from '../../../src/retrieval/filter-index.js';
 import { filterChunkIds } from '../../../src/retrieval/output.js';
 import { getBitmapSize, isRoaringAvailable } from '../../../src/retrieval/bitmap.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 if (!isRoaringAvailable()) {
   console.log('roaring-wasm not available; skipping bitmap threshold test');
@@ -34,3 +34,4 @@ assert.ok(setResult instanceof Set, 'expected Set output below threshold');
 assert.equal(setResult.size, meta.length, 'Set result size mismatch');
 
 console.log('filter bitmap threshold test passed');
+import { applyTestEnv } from '../../helpers/test-env.js';

@@ -69,6 +69,71 @@ const SIGNATURE_ENTRY = {
   }
 };
 
+const DOCUMENT_EXTRACTION_EXTRACTOR = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['name', 'version', 'target'],
+  properties: {
+    name: { type: ['string', 'null'] },
+    version: { type: ['string', 'null'] },
+    target: { type: ['string', 'null'] }
+  }
+};
+
+const DOCUMENT_EXTRACTION_FILE_ENTRY = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'file',
+    'sourceType',
+    'extractor',
+    'sourceBytesHash',
+    'sourceBytesHashAlgo',
+    'unitCounts',
+    'normalizationPolicy'
+  ],
+  properties: {
+    file: { type: 'string' },
+    sourceType: { type: ['string', 'null'], enum: ['pdf', 'docx', null] },
+    extractor: DOCUMENT_EXTRACTION_EXTRACTOR,
+    sourceBytesHash: { type: ['string', 'null'] },
+    sourceBytesHashAlgo: { type: 'string' },
+    unitCounts: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['pages', 'paragraphs', 'totalUnits'],
+      properties: {
+        pages: { type: 'number' },
+        paragraphs: { type: 'number' },
+        totalUnits: { type: 'number' }
+      }
+    },
+    normalizationPolicy: { type: ['string', 'null'] }
+  }
+};
+
+const DOCUMENT_EXTRACTION_SUMMARY = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['schemaVersion', 'files', 'extractors', 'totals'],
+  properties: {
+    schemaVersion: { type: 'number' },
+    files: { type: 'array', items: DOCUMENT_EXTRACTION_FILE_ENTRY },
+    extractors: { type: 'array', items: DOCUMENT_EXTRACTION_EXTRACTOR },
+    totals: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['files', 'pages', 'paragraphs', 'units'],
+      properties: {
+        files: { type: 'number' },
+        pages: { type: 'number' },
+        paragraphs: { type: 'number' },
+        units: { type: 'number' }
+      }
+    }
+  }
+};
+
 const ORDERING_LEDGER_SEEDS = {
   type: 'object',
   additionalProperties: {
@@ -158,6 +223,16 @@ const REPO_PROVENANCE = {
   ]
 };
 
+const PROFILE_ENTRY = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['id', 'schemaVersion'],
+  properties: {
+    id: { type: 'string', enum: ['default', 'vector_only'] },
+    schemaVersion: { type: 'number', const: 1 }
+  }
+};
+
 export const BUILD_STATE_SCHEMA = {
   $schema: 'https://json-schema.org/draft/2020-12/schema',
   title: 'build_state.json',
@@ -205,6 +280,7 @@ export const BUILD_STATE_SCHEMA = {
     },
     signatureVersion: { type: ['number', 'null'] },
     configHash: { type: ['string', 'null'] },
+    profile: PROFILE_ENTRY,
     repo: REPO_PROVENANCE,
     phases: {
       type: 'object',
@@ -230,6 +306,10 @@ export const BUILD_STATE_SCHEMA = {
     signatures: {
       type: 'object',
       additionalProperties: SIGNATURE_ENTRY
+    },
+    documentExtraction: {
+      type: 'object',
+      additionalProperties: DOCUMENT_EXTRACTION_SUMMARY
     },
     orderingLedger: ORDERING_LEDGER,
     ignore: {

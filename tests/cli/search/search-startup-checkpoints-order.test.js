@@ -1,8 +1,9 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import { ensureFixtureIndex, runSearch } from '../../helpers/fixture-index.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const { fixtureRoot, env } = await ensureFixtureIndex({ fixtureName: 'sample' });
 const payload = runSearch({

@@ -135,7 +135,10 @@ const createXenovaAdapter = ({ modelId, modelsDir, normalize }) => {
     get embedderPromise() {
       return ensureEmbedder();
     },
-    provider: 'xenova'
+    provider: 'xenova',
+    // Xenova inference is stateless per call, so callers may dispatch
+    // independent code/doc embedding batches concurrently.
+    supportsParallelDispatch: true
   };
 };
 
@@ -158,7 +161,14 @@ const createAdapter = ({
       return list.map((text) => stubEmbedding(text, safeDims, normalize !== false));
     };
     const embedOne = async (text) => stubEmbedding(text, safeDims, normalize !== false);
-    return { embed, embedOne, embedderPromise: null, provider: resolvedProvider };
+    return {
+      embed,
+      embedOne,
+      embedderPromise: null,
+      provider: resolvedProvider,
+      // Stub adapter has no shared model state and is always concurrency-safe.
+      supportsParallelDispatch: true
+    };
   }
 
   if (resolvedProvider === 'onnx') {
@@ -207,7 +217,10 @@ const createAdapter = ({
         }
       },
       embedderPromise: onnxEmbedder.embedderPromise,
-      provider: resolvedProvider
+      provider: resolvedProvider,
+      // ONNX adapter executes batch calls independently; callers may parallelize
+      // code/doc dispatch at the orchestration layer.
+      supportsParallelDispatch: true
     };
   }
 

@@ -17,13 +17,20 @@ if (!buildRoot) {
   process.exit(1);
 }
 
-const checkpointsPath = path.join(buildRoot, 'build_state.stage-checkpoints.json');
-if (!fs.existsSync(checkpointsPath)) {
-  console.error(`Missing stage checkpoints at ${checkpointsPath}`);
+const sidecarIndexPath = path.join(buildRoot, 'stage_checkpoints.v1.index.json');
+if (!fs.existsSync(sidecarIndexPath)) {
+  console.error(`Missing stage checkpoint index at ${sidecarIndexPath}`);
   process.exit(1);
 }
-
-const raw = JSON.parse(await fsPromises.readFile(checkpointsPath, 'utf8')) || {};
+const sidecarIndex = JSON.parse(await fsPromises.readFile(sidecarIndexPath, 'utf8')) || {};
+const sidecarModeEntry = sidecarIndex?.modes?.code || sidecarIndex?.modes?.prose || null;
+const relPath = typeof sidecarModeEntry?.path === 'string' ? sidecarModeEntry.path : null;
+const modePath = relPath ? path.join(buildRoot, relPath) : null;
+if (!modePath || !fs.existsSync(modePath)) {
+  console.error(`Missing stage checkpoint mode sidecar at ${modePath || '<none>'}`);
+  process.exit(1);
+}
+const raw = { code: JSON.parse(await fsPromises.readFile(modePath, 'utf8')) || {} };
 const modeEntry = raw.code || raw.prose || null;
 if (!modeEntry || typeof modeEntry !== 'object') {
   console.error('Stage checkpoints missing mode entry.');

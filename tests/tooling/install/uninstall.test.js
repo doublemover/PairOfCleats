@@ -1,10 +1,11 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { repoRoot } from '../../helpers/root.js';
-
+applyTestEnv();
 const root = repoRoot();
 const baseDir = path.join(root, '.testCache', 'uninstall');
 const repoDir = path.join(baseDir, 'repo');
@@ -35,9 +36,7 @@ await fsPromises.writeFile(path.join(modelsDir, 'model.bin'), 'model');
 await fsPromises.writeFile(path.join(extensionsDir, 'vec0.dll'), 'ext');
 
 const env = {
-  ...process.env,
-  PAIROFCLEATS_TESTING: '1',
-  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
+  ...process.env,  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
   LOCALAPPDATA: appDataRoot
 };
 

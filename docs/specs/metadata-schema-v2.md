@@ -1,8 +1,9 @@
 # Metadata Schema v2 (Updated)
 
-This document defines the v2 per-chunk metadata contract. `metaV2` is stored inside `chunk_meta` entries.
+This document defines the per-chunk `metaV2` contract. `metaV2` is stored inside `chunk_meta` entries.
 
-Schema version: **2.0.0**
+Writer schema version: **3**  
+Reader compatibility: **v2 and v3**
 
 This updated version aligns the contract with:
 - segment-aware indexing (embedded code inside container formats),
@@ -47,6 +48,13 @@ Offsets must be compatible with `text.slice(start, end)`.
 - `segment.startLine` / `segment.endLine` (number|null): container line numbers for the segment span
 - `segment.embeddingContext` (string|null): `code | prose | ...`
   - Required for embedded segments; null for non-segment chunks.
+- Extracted-document extensions (v3 writer shape):
+  - `segment.sourceType` (`pdf` | `docx`)
+  - `segment.pageStart` / `segment.pageEnd` (PDF)
+  - `segment.paragraphStart` / `segment.paragraphEnd` (DOCX)
+  - `segment.headingPath` (string[]|null)
+  - `segment.windowIndex` (number|null)
+  - `segment.anchor` (string|null)
 
 For non-segmented chunks (full container files), `segment` may be null.
 
@@ -66,10 +74,12 @@ A chunk originates from a **container file** (physical file on disk) but may be 
 ### 3.2 Legacy compatibility
 
 - Older builds may only populate `ext` and `lang` without `container/effective`.
+- Older builds may also omit `metaV2.schemaVersion` and extracted-document segment fields.
 - Readers should treat:
   - `metaV2.ext` as container extension (legacy),
   - `metaV2.lang` as "best available language id" (legacy), and
   - derive effective identity from `segment.languageId` + mapping tables when `effective` is missing.
+- Readers must ignore unknown forward fields when present.
 
 ### 3.3 `lang` and `ext` top-level fields
 

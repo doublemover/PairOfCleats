@@ -71,6 +71,14 @@ const extractEmbeddingIdentity = (meta) => {
   return identity;
 };
 
+/**
+ * Load retrieval indexes across enabled modes and attach optional ANN/graph
+ * side artifacts while enforcing cohort compatibility and embedding identity.
+ * In non-strict mode, incompatible ANN sources are disabled instead of failing.
+ *
+ * @param {object} input
+ * @returns {Promise<object>}
+ */
 export async function loadSearchIndexes({
   rootDir,
   userConfig,
@@ -98,6 +106,7 @@ export async function loadSearchIndexes({
   lancedbConfig,
   tantivyConfig,
   strict = true,
+  allowUnsafeMix = false,
   indexStates = null,
   loadIndexFromSqlite,
   loadIndexFromLmdb,
@@ -267,27 +276,32 @@ export async function loadSearchIndexes({
       const { key } = readCompatibilityKey(entry.dir, { maxBytes: MAX_JSON_BYTES, strict });
       keys.set(entry.mode, key);
     }
-    const uniqueKeys = new Set(keys.values());
-    if (uniqueKeys.size > 1) {
-      if (!resolvedRunExtractedProse && keys.has('extracted-prose')) {
-        const filtered = new Map(Array.from(keys.entries()).filter(([mode]) => mode !== 'extracted-prose'));
-        const filteredKeys = new Set(filtered.values());
-        if (filteredKeys.size <= 1) {
-          if (emitOutput) {
-            console.warn('[search] extracted-prose index mismatch; skipping comment joins.');
-          }
-          resolvedLoadExtractedProse = false;
-          extractedProseDir = null;
-        } else {
-          const details = Array.from(keys.entries())
-            .map(([mode, key]) => `- ${mode}: ${key}`)
-            .join('\n');
-          throw new Error(`Incompatible indexes detected (compatibilityKey mismatch):\n${details}`);
+    let keysToValidate = keys;
+    const hasMixedCompatibilityKeys = (map) => (new Set(map.values())).size > 1;
+    if (hasMixedCompatibilityKeys(keysToValidate) && !resolvedRunExtractedProse && keysToValidate.has('extracted-prose')) {
+      const filtered = new Map(Array.from(keysToValidate.entries()).filter(([mode]) => mode !== 'extracted-prose'));
+      if (!hasMixedCompatibilityKeys(filtered)) {
+        if (emitOutput) {
+          console.warn('[search] extracted-prose index mismatch; skipping comment joins.');
+        }
+        resolvedLoadExtractedProse = false;
+        extractedProseDir = null;
+        keysToValidate = filtered;
+      }
+    }
+    if (hasMixedCompatibilityKeys(keysToValidate)) {
+      const details = Array.from(keysToValidate.entries())
+        .map(([mode, key]) => `- ${mode}: ${key}`)
+        .join('\n');
+      if (allowUnsafeMix === true) {
+        if (emitOutput) {
+          console.warn(
+            '[search] compatibilityKey mismatch overridden via --allow-unsafe-mix. ' +
+            'Results may combine incompatible index cohorts:\n' +
+            details
+          );
         }
       } else {
-        const details = Array.from(keys.entries())
-          .map(([mode, key]) => `- ${mode}: ${key}`)
-          .join('\n');
         throw new Error(`Incompatible indexes detected (compatibilityKey mismatch):\n${details}`);
       }
     }
@@ -302,19 +316,35 @@ export async function loadSearchIndexes({
     includeChunkMetaCold: needsChunkMetaCold,
     includeHnsw: annActive
   };
-  const resolveDenseArtifactName = (mode) => {
-    if (resolvedDenseVectorMode === 'code') return 'dense_vectors_code';
-    if (resolvedDenseVectorMode === 'doc') return 'dense_vectors_doc';
+  /**
+   * Resolve ordered dense-vector artifact candidates for a mode.
+   * Auto mode prefers split vectors by cohort, but legacy indexes may only
+   * expose merged vectors, so merged remains a fallback candidate during
+   * mixed-version rollouts.
+   *
+   * @param {string} mode
+   * @returns {string[]}
+   */
+  const resolveDenseArtifactCandidates = (mode) => {
+    if (resolvedDenseVectorMode === 'code') return ['dense_vectors_code'];
+    if (resolvedDenseVectorMode === 'doc') return ['dense_vectors_doc'];
     if (resolvedDenseVectorMode === 'auto') {
-      if (mode === 'code') return 'dense_vectors_code';
-      if (mode === 'prose' || mode === 'extracted-prose') return 'dense_vectors_doc';
+      if (mode === 'code') return ['dense_vectors_code', 'dense_vectors'];
+      if (mode === 'prose' || mode === 'extracted-prose') return ['dense_vectors_doc', 'dense_vectors'];
     }
-    return 'dense_vectors';
+    return ['dense_vectors'];
   };
+  /**
+   * Attach lazy dense-vector loading for modes that defer ANN artifacts.
+   * Candidate artifacts are tried in priority order and memoized per index.
+   *
+   * @param {object} idx
+   * @param {string} mode
+   * @param {string|null} dir
+   */
   const attachDenseVectorLoader = (idx, mode, dir) => {
     if (!idx || !dir || !needsAnnArtifacts || !lazyDenseVectorsEnabled) return;
-    const artifactName = resolveDenseArtifactName(mode);
-    const fallbackPath = path.join(dir, `${artifactName}_uint8.json`);
+    const artifactCandidates = resolveDenseArtifactCandidates(mode);
     let pendingLoad = null;
     idx.loadDenseVectors = async () => {
       if (Array.isArray(idx?.denseVec?.vectors) && idx.denseVec.vectors.length > 0) {
@@ -330,24 +360,27 @@ export async function loadSearchIndexes({
             throw err;
           }
         }
-        try {
-          const loaded = await loadJsonObjectArtifact(dir, artifactName, {
-            maxBytes: MAX_JSON_BYTES,
-            manifest,
-            strict,
-            fallbackPath
-          });
-          if (!loaded || !Array.isArray(loaded.vectors) || !loaded.vectors.length) {
-            idx.loadDenseVectors = null;
-            return null;
+        for (const artifactName of artifactCandidates) {
+          const fallbackPath = path.join(dir, `${artifactName}_uint8.json`);
+          try {
+            const loaded = await loadJsonObjectArtifact(dir, artifactName, {
+              maxBytes: MAX_JSON_BYTES,
+              manifest,
+              strict,
+              fallbackPath
+            });
+            if (!loaded || !Array.isArray(loaded.vectors) || !loaded.vectors.length) {
+              continue;
+            }
+            if (!loaded.model && modelIdDefault) loaded.model = modelIdDefault;
+            idx.denseVec = loaded;
+            return loaded;
+          } catch {
+            continue;
           }
-          if (!loaded.model && modelIdDefault) loaded.model = modelIdDefault;
-          idx.denseVec = loaded;
-          return loaded;
-        } catch {
-          idx.loadDenseVectors = null;
-          return null;
         }
+        idx.loadDenseVectors = null;
+        return null;
       })().finally(() => {
         pendingLoad = null;
       });
@@ -367,12 +400,29 @@ export async function loadSearchIndexes({
       includeFilterIndex: needsFilterIndex
     }) : await loadIndexCachedLocal(proseDir, loadOptions, 'prose')))
     : { ...EMPTY_INDEX };
-  const idxExtractedProse = resolvedLoadExtractedProse
-    ? await loadIndexCachedLocal(extractedProseDir, {
-      ...loadOptions,
-      includeHnsw: annActive && resolvedRunExtractedProse
-    }, 'extracted-prose')
-    : { ...EMPTY_INDEX };
+  let idxExtractedProse = { ...EMPTY_INDEX };
+  if (resolvedLoadExtractedProse) {
+    if (useSqlite) {
+      try {
+        idxExtractedProse = loadIndexFromSqlite('extracted-prose', {
+          includeDense: needsAnnArtifacts && !lazyDenseVectorsEnabled,
+          includeMinhash: needsAnnArtifacts,
+          includeChunks: sqliteContextChunks,
+          includeFilterIndex: needsFilterIndex
+        });
+      } catch {
+        idxExtractedProse = await loadIndexCachedLocal(extractedProseDir, {
+          ...loadOptions,
+          includeHnsw: annActive && resolvedRunExtractedProse
+        }, 'extracted-prose');
+      }
+    } else {
+      idxExtractedProse = await loadIndexCachedLocal(extractedProseDir, {
+        ...loadOptions,
+        includeHnsw: annActive && resolvedRunExtractedProse
+      }, 'extracted-prose');
+    }
+  }
   const idxCode = runCode
     ? (useSqlite ? loadIndexFromSqlite('code', {
       includeDense: needsAnnArtifacts && !lazyDenseVectorsEnabled,
@@ -457,6 +507,16 @@ export async function loadSearchIndexes({
     idxRecords.indexDir = recordsDir;
   }
 
+  /**
+   * Attach LanceDB metadata/dir pointers for ANN search.
+   * Non-strict mode tolerates missing manifest entries and falls back to
+   * legacy on-disk paths when present.
+   *
+   * @param {object} idx
+   * @param {string} mode
+   * @param {string|null} dir
+   * @returns {Promise<object|null>}
+   */
   const attachLanceDb = async (idx, mode, dir) => {
     if (!idx || !dir || lancedbConfig?.enabled === false) return null;
     const paths = resolveLanceDbPaths(dir);
@@ -613,6 +673,15 @@ export async function loadSearchIndexes({
     await Promise.all(Array.from({ length: Math.min(limit, attachTasks.length) }, runTask));
   }
 
+  /**
+   * Compare embedding identity across ANN-related artifacts for one mode.
+   * Returns mismatch records; in non-strict mode, disable hooks may mark
+   * incompatible ANN sources unavailable to keep retrieval operational.
+   *
+   * @param {string} mode
+   * @param {object} idx
+   * @returns {Array<object>}
+   */
   const validateEmbeddingIdentityForMode = (mode, idx) => {
     if (!idx) return [];
     const sources = [];

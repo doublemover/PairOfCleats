@@ -8,7 +8,8 @@ import { loadUserConfig, getCurrentBuildInfo, getIndexDir } from '../../../tools
 import { copyFixtureToTemp } from '../../helpers/fixtures.js';
 import { repoRoot } from '../../helpers/root.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
-import { syncProcessEnv } from '../../helpers/test-env.js';
+import { applyTestEnv, syncProcessEnv } from '../../helpers/test-env.js';
+applyTestEnv();
 
 const ROOT = repoRoot();
 const BUILD_INDEX = path.join(ROOT, 'build_index.js');
@@ -43,9 +44,7 @@ const loadPieces = async (codeDir) => {
 const buildOnce = async (fixtureRoot) => {
   const cacheRoot = await makeTempDir('pairofcleats-cache-call-sites-none-');
   const env = {
-    ...process.env,
-    PAIROFCLEATS_TESTING: '1',
-    PAIROFCLEATS_TEST_CONFIG: JSON.stringify(TEST_CONFIG),
+    ...process.env,    PAIROFCLEATS_TEST_CONFIG: JSON.stringify(TEST_CONFIG),
     PAIROFCLEATS_CACHE_ROOT: cacheRoot,
     PAIROFCLEATS_EMBEDDINGS: 'stub',
     PAIROFCLEATS_WORKER_POOL: 'off'

@@ -19,6 +19,62 @@ import { resolveSearchMode } from '../cli-args.js';
 import { getMissingFlagMessages, resolveBm25Defaults } from './options.js';
 import { normalizeOptionalNumber } from '../../shared/limits.js';
 
+export const OP_CONFIG_GUARDRAIL_CODES = Object.freeze({
+  ANN_CANDIDATE_BOUNDS_INVALID: 'op_guardrail_ann_candidate_bounds_invalid',
+  ANN_CANDIDATE_CAP_OUT_OF_RANGE: 'op_guardrail_ann_candidate_cap_out_of_range',
+  RRF_K_INVALID: 'op_guardrail_rrf_k_invalid'
+});
+
+export const OP_RETRIEVAL_DEFAULTS = Object.freeze({
+  annCandidateCap: 20000,
+  annCandidateMinDocCount: 100,
+  annCandidateMaxDocCount: 20000,
+  queryCacheMaxEntries: 200,
+  queryCacheTtlMs: 0,
+  rrfK: 60
+});
+
+const buildGuardrailError = (code, message) => {
+  const error = new Error(`[${code}] ${message}`);
+  error.guardrailCode = code;
+  return error;
+};
+
+/**
+ * Reject risky retrieval knob combinations early with stable guardrail codes.
+ * @param {{
+ *   annCandidateCap:number,
+ *   annCandidateMinDocCount:number,
+ *   annCandidateMaxDocCount:number,
+ *   rrfK:number
+ * }} input
+ */
+const validateOperationalGuardrails = ({
+  annCandidateCap,
+  annCandidateMinDocCount,
+  annCandidateMaxDocCount,
+  rrfK
+}) => {
+  if (annCandidateMinDocCount > annCandidateMaxDocCount) {
+    throw buildGuardrailError(
+      OP_CONFIG_GUARDRAIL_CODES.ANN_CANDIDATE_BOUNDS_INVALID,
+      'retrieval.annCandidateMinDocCount cannot exceed retrieval.annCandidateMaxDocCount.'
+    );
+  }
+  if (annCandidateCap < annCandidateMinDocCount || annCandidateCap > annCandidateMaxDocCount) {
+    throw buildGuardrailError(
+      OP_CONFIG_GUARDRAIL_CODES.ANN_CANDIDATE_CAP_OUT_OF_RANGE,
+      'retrieval.annCandidateCap must stay within [annCandidateMinDocCount, annCandidateMaxDocCount].'
+    );
+  }
+  if (!Number.isFinite(rrfK) || rrfK <= 0) {
+    throw buildGuardrailError(
+      OP_CONFIG_GUARDRAIL_CODES.RRF_K_INVALID,
+      'search.rrf.k must be a positive number.'
+    );
+  }
+};
+
 const normalizeDenseVectorMode = (value) => {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim().toLowerCase();
@@ -29,6 +85,15 @@ const normalizeDenseVectorMode = (value) => {
   return null;
 };
 
+/**
+ * Normalize raw CLI/config/policy input into a validated retrieval options
+ * object consumed by the runtime pipeline.
+ * Precedence: explicit CLI flags override config defaults, and policy guards
+ * constrain unsafe values before execution.
+ *
+ * @param {object} input
+ * @returns {object}
+ */
 export function normalizeSearchOptions({
   argv,
   rawArgs,
@@ -130,6 +195,12 @@ export function normalizeSearchOptions({
   const metaFilters = parseMetaFilters(argv.meta, argv['meta-json']);
 
   const searchConfig = userConfig?.search || {};
+  const retrievalConfig = userConfig?.retrieval || {};
+  const normalizePositiveInt = (value, fallback) => {
+    const parsed = normalizeOptionalNumber(value);
+    if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+    return Math.max(1, Math.floor(parsed));
+  };
   const maxCandidates = normalizeOptionalNumber(searchConfig.maxCandidates);
   const annFlagPresent = rawArgs.includes('--ann') || rawArgs.includes('--no-ann');
   const policyAnn = policy?.retrieval?.ann?.enabled;
@@ -137,6 +208,10 @@ export function normalizeSearchOptions({
     ? searchConfig.annDefault
     : null;
   const annEnabled = annFlagPresent ? argv.ann : (annDefault ?? policyAnn ?? true);
+  const allowSparseFallback = argv['allow-sparse-fallback'] === true
+    || argv.allowSparseFallback === true;
+  const allowUnsafeMix = argv['allow-unsafe-mix'] === true
+    || argv.allowUnsafeMix === true;
   const annBackendRaw = argv['ann-backend'] ?? argv.annBackend;
   const annBackend = annBackendRaw == null
     ? 'lancedb'
@@ -158,12 +233,38 @@ export function normalizeSearchOptions({
   const symbolBoostEnabled = true;
   const symbolBoostDefinitionWeight = 1.2;
   const symbolBoostExportWeight = 1.1;
+  const relationBoostConfigRaw = retrievalConfig?.relationBoost || {};
+  const relationBoostEnabled = relationBoostConfigRaw.enabled === true;
+  const relationBoostPerCall = Number.isFinite(Number(relationBoostConfigRaw.perCall))
+    && Number(relationBoostConfigRaw.perCall) > 0
+    ? Number(relationBoostConfigRaw.perCall)
+    : 0.25;
+  const relationBoostPerUse = Number.isFinite(Number(relationBoostConfigRaw.perUse))
+    && Number(relationBoostConfigRaw.perUse) > 0
+    ? Number(relationBoostConfigRaw.perUse)
+    : 0.1;
+  const relationBoostMaxBoost = Number.isFinite(Number(relationBoostConfigRaw.maxBoost))
+    && Number(relationBoostConfigRaw.maxBoost) > 0
+    ? Number(relationBoostConfigRaw.maxBoost)
+    : 1.5;
+  const annCandidateCap = normalizePositiveInt(
+    retrievalConfig.annCandidateCap,
+    OP_RETRIEVAL_DEFAULTS.annCandidateCap
+  );
+  const annCandidateMinDocCount = normalizePositiveInt(
+    retrievalConfig.annCandidateMinDocCount,
+    OP_RETRIEVAL_DEFAULTS.annCandidateMinDocCount
+  );
+  const annCandidateMaxDocCount = normalizePositiveInt(
+    retrievalConfig.annCandidateMaxDocCount,
+    OP_RETRIEVAL_DEFAULTS.annCandidateMaxDocCount
+  );
 
   const minhashMaxDocs = 5000;
 
   const queryCacheEnabled = policy?.quality?.value ? policy.quality.value !== 'fast' : false;
-  const queryCacheMaxEntries = 200;
-  const queryCacheTtlMs = 0;
+  const queryCacheMaxEntries = OP_RETRIEVAL_DEFAULTS.queryCacheMaxEntries;
+  const queryCacheTtlMs = OP_RETRIEVAL_DEFAULTS.queryCacheTtlMs;
 
   const rrfConfig = searchConfig.rrf || {};
   const policyRrfEnabled = policy?.retrieval?.rrf?.enabled;
@@ -172,11 +273,18 @@ export function normalizeSearchOptions({
     : (policyRrfEnabled ?? true);
   const rrfK = normalizeOptionalNumber(rrfConfig.k)
     ?? normalizeOptionalNumber(policy?.retrieval?.rrf?.k)
-    ?? 60;
+    ?? OP_RETRIEVAL_DEFAULTS.rrfK;
+  validateOperationalGuardrails({
+    annCandidateCap,
+    annCandidateMinDocCount,
+    annCandidateMaxDocCount,
+    rrfK
+  });
 
   const graphRankingRaw = userConfig?.retrieval?.graphRanking || {};
   const graphRankingEnabled = graphRankingRaw.enabled === true;
   const graphRankingWeights = graphRankingRaw.weights || {};
+  const graphRankingExpansionRaw = graphRankingRaw.expansion || {};
   const graphRankingSeedSelectionRaw = argv['graph-ranking-seeds'] ?? graphRankingRaw.seedSelection;
   const graphRankingSeedSelection = graphRankingSeedSelectionRaw
     ? String(graphRankingSeedSelectionRaw).trim()
@@ -194,7 +302,12 @@ export function normalizeSearchOptions({
       argv['graph-ranking-max-ms'] ?? graphRankingRaw.maxWallClockMs
     ),
     seedSelection: graphRankingSeedSelection ?? graphRankingRaw.seedSelection ?? 'top1',
-    seedK: normalizeOptionalNumber(argv['graph-ranking-seed-k'] ?? graphRankingRaw.seedK)
+    seedK: normalizeOptionalNumber(argv['graph-ranking-seed-k'] ?? graphRankingRaw.seedK),
+    expansion: {
+      maxDepth: normalizeOptionalNumber(graphRankingExpansionRaw.maxDepth) ?? 2,
+      maxWidthPerNode: normalizeOptionalNumber(graphRankingExpansionRaw.maxWidthPerNode) ?? 12,
+      maxVisitedNodes: normalizeOptionalNumber(graphRankingExpansionRaw.maxVisitedNodes) ?? 192
+    }
   };
 
   const contextExpansionConfig = userConfig?.retrieval?.contextExpansion || {};
@@ -238,6 +351,9 @@ export function normalizeSearchOptions({
     }
   }
   const sqliteFtsWeights = resolveFtsWeights(sqliteFtsProfile, sqliteFtsWeightsConfig);
+  const sqliteFtsTrigram = argv['fts-trigram'] === true;
+  const sqliteFtsStemming = argv['fts-stemming'] === true
+    || userConfig?.search?.sqliteFtsStemming === true;
 
   const explain = argv.explain === true || argv.why === true;
   const configDenseVectorRaw = userConfig?.search?.denseVectorMode;
@@ -306,6 +422,9 @@ export function normalizeSearchOptions({
     langImpossible,
     metaFilters,
     annEnabled,
+    annFlagPresent,
+    allowSparseFallback,
+    allowUnsafeMix,
     annBackend,
     scoreBlendEnabled,
     scoreBlendSparseWeight,
@@ -313,6 +432,13 @@ export function normalizeSearchOptions({
     symbolBoostEnabled,
     symbolBoostDefinitionWeight,
     symbolBoostExportWeight,
+    relationBoostEnabled,
+    relationBoostPerCall,
+    relationBoostPerUse,
+    relationBoostMaxBoost,
+    annCandidateCap,
+    annCandidateMinDocCount,
+    annCandidateMaxDocCount,
     minhashMaxDocs,
     maxCandidates,
     queryCacheEnabled,
@@ -327,6 +453,8 @@ export function normalizeSearchOptions({
     sqliteFtsNormalize,
     sqliteFtsProfile,
     sqliteFtsWeights,
+    sqliteFtsTrigram,
+    sqliteFtsStemming,
     fieldWeightsConfig: searchConfig.fieldWeights || null,
     explain,
     denseVectorMode,

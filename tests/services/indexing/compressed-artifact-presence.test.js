@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -8,7 +9,7 @@ import { loadWorkspaceConfig } from '../../../src/workspace/config.js';
 import { generateWorkspaceManifest } from '../../../src/workspace/manifest.js';
 import { toRealPathSync } from '../../../src/workspace/identity.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-compressed-artifacts-'));
 const cacheRoot = path.join(tempRoot, 'cache');

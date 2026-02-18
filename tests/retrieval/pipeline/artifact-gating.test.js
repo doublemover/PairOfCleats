@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import {
   REQUIRED_ARTIFACTS,
@@ -6,7 +7,7 @@ import {
 } from '../../../src/retrieval/cli/required-artifacts.js';
 import { buildTestPlan, createPlanInputs } from './query-plan-helpers.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const importInputs = createPlanInputs({ searchImport: 'react' });
 const importPlan = buildTestPlan(importInputs);

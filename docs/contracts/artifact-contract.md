@@ -57,6 +57,16 @@ Each `index-<mode>/` directory contains:
 - `chunk_meta.json` (or `chunk_meta.jsonl`, or sharded `chunk_meta.parts/` + `chunk_meta.meta.json`, or `chunk_meta.columnar.json`)
   - Array/JSONL of chunk metadata entries.
   - Each entry includes `id`, `fileId`, `start`, `end`, `startLine`, `endLine`, `kind`, `name`, plus optional metadata.
+  - `metaV2` compatibility contract:
+    - Current writer shape is `metaV2.schemaVersion = 3`.
+    - `metaV2.segment` may include document fields for extracted prose:
+      - `sourceType` (`pdf` or `docx`)
+      - `pageStart` / `pageEnd` (PDF)
+      - `paragraphStart` / `paragraphEnd` (DOCX)
+      - `headingPath` (optional array)
+      - `windowIndex` (optional integer)
+      - `anchor` (stable deterministic anchor string)
+    - Readers normalize missing `schemaVersion` to legacy v2 semantics and must tolerate unknown forward fields.
   - Columnar form (`chunk_meta.columnar.json`) stores a `{ format: "columnar", columns, arrays, length }` payload that inflates to the same row schema.
   - Sharded JSONL meta (`chunk_meta.meta.json`) uses the jsonl-sharded schema:
     - `schemaVersion`, `artifact`, `format: jsonl-sharded`, `generatedAt`, `compression`
@@ -108,8 +118,24 @@ Each `index-<mode>/` directory contains:
 - Embeddings cache entries are stored out-of-band under the OS cache root and are not part of the build artifact surface. They are safe to delete and are rebuilt on demand.
 - `index_state.json`
   - Build feature flags + stage metadata for the mode.
+  - Includes profile contract:
+    - `profile.id` (`default|vector_only`)
+    - `profile.schemaVersion` (`1`)
+  - Includes artifact contract:
+    - `artifacts.schemaVersion` (`1`)
+    - `artifacts.present` (artifact availability map)
+    - `artifacts.omitted` (sorted omitted list)
+    - `artifacts.requiredForSearch` (profile-derived required set)
+  - Includes cleanup report extension:
+    - `extensions.artifactCleanup.schemaVersion` (`1`)
+    - `extensions.artifactCleanup.profileId`
+    - `extensions.artifactCleanup.allowlistOnly`
+    - `extensions.artifactCleanup.actions[]` with removed path + recursive flag
 - `.filelists.json`
   - Scan summary (sampled file lists).
+- `lexicon_relation_filter_report.json` (optional, code mode when lexicon relation filtering runs)
+  - Per-file lexicon relation drop counters and mode totals.
+  - Included in `pieces/manifest.json` as stats artifact `lexicon_relation_filter_report`.
 - `pieces/manifest.json`
   - Piece inventory with checksums and sizes.
 

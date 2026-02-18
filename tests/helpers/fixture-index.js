@@ -1,3 +1,5 @@
+import { applyTestEnv } from './test-env.js';
+
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
@@ -19,7 +21,7 @@ import {
   loadJsonArrayArtifactSync,
   readCompatibilityKey
 } from '../../src/shared/artifact-io.js';
-import { syncProcessEnv } from './test-env.js';
+
 import { rmDirRecursive } from './temp.js';
 import { isPlainObject, mergeConfig } from '../../src/shared/config.js';
 import { runSqliteBuild } from './sqlite-builder.js';
@@ -31,12 +33,21 @@ const ensureDir = async (dir) => {
 };
 
 const resolveCacheName = (baseName) => {
+  const MAX_CACHE_NAME_LENGTH = 64;
+  const truncateWithHash = (value) => {
+    const text = String(value || '').trim();
+    if (!text) return 'fixture-cache';
+    if (text.length <= MAX_CACHE_NAME_LENGTH) return text;
+    const digest = crypto.createHash('sha1').update(text).digest('hex').slice(0, 10);
+    const headLength = Math.max(8, MAX_CACHE_NAME_LENGTH - digest.length - 1);
+    return `${text.slice(0, headLength)}-${digest}`;
+  };
   const suffixRaw = typeof process.env.PAIROFCLEATS_TEST_CACHE_SUFFIX === 'string'
     ? process.env.PAIROFCLEATS_TEST_CACHE_SUFFIX.trim()
     : '';
-  if (!suffixRaw) return baseName;
-  if (baseName.endsWith(`-${suffixRaw}`)) return baseName;
-  return `${baseName}-${suffixRaw}`;
+  if (!suffixRaw) return truncateWithHash(baseName);
+  if (baseName.endsWith(`-${suffixRaw}`)) return truncateWithHash(baseName);
+  return truncateWithHash(`${baseName}-${suffixRaw}`);
 };
 
 const normalizeRepoSlug = (repoRoot) => String(path.basename(path.resolve(repoRoot)) || 'repo')
@@ -79,34 +90,15 @@ const mergeTestConfig = (rawOverride) => {
 const createFixtureEnv = (cacheRoot, overrides = {}) => {
   const { PAIROFCLEATS_TEST_CONFIG: testConfigOverride, ...restOverrides } = overrides;
   const mergedTestConfig = mergeTestConfig(testConfigOverride);
-  const preservedPairOfCleatsKeys = new Set([
-    'PAIROFCLEATS_TEST_CACHE_SUFFIX',
-    'PAIROFCLEATS_TEST_LOG_SILENT',
-    'PAIROFCLEATS_TEST_ALLOW_MISSING_COMPAT_KEY',
-    'PAIROFCLEATS_TESTING'
-  ]);
-  const deletedKeys = new Set();
-  const baseEnv = Object.fromEntries(
-    Object.entries(process.env).filter(([key]) => {
-      if (!key.startsWith('PAIROFCLEATS_')) return true;
-      if (preservedPairOfCleatsKeys.has(key)) return true;
-      deletedKeys.add(key);
-      return false;
-    })
-  );
-  const env = {
-    ...baseEnv,
-    PAIROFCLEATS_TESTING: '1',
-    PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-    PAIROFCLEATS_EMBEDDINGS: 'stub',
-    PAIROFCLEATS_WORKER_POOL: 'off',
-    PAIROFCLEATS_TEST_CONFIG: JSON.stringify(mergedTestConfig),
-    ...restOverrides
-  };
-  const syncKeys = new Set(Object.keys(env).filter((key) => key.startsWith('PAIROFCLEATS_')));
-  for (const key of deletedKeys) syncKeys.add(key);
-  syncProcessEnv(env, Array.from(syncKeys), { clearMissing: true });
-  return env;
+  return applyTestEnv({
+    cacheRoot,
+    embeddings: 'stub',
+    testConfig: mergedTestConfig,
+    extraEnv: {
+      PAIROFCLEATS_WORKER_POOL: 'off',
+      ...restOverrides
+    }
+  });
 };
 
 const hasChunkMeta = (dir) => hasIndexMeta(dir);
@@ -185,8 +177,6 @@ export const ensureFixtureIndex = async ({
   const fixtureRoot = toRealPathSync(fixtureRootRaw);
   const cacheRoot = path.join(ROOT, '.testCache', resolveCacheName(cacheName));
   await ensureDir(cacheRoot);
-  process.env.PAIROFCLEATS_TESTING = '1';
-  process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
   const env = createFixtureEnv(cacheRoot, envOverrides);
   const userConfig = loadUserConfig(fixtureRoot);
   let codeDir = getIndexDir(fixtureRoot, 'code', userConfig);
@@ -225,9 +215,16 @@ export const ensureFixtureIndex = async ({
 };
 
 export const ensureFixtureSqlite = async ({ fixtureRoot, userConfig, env }) => {
-  const sqlitePaths = resolveSqlitePaths(fixtureRoot, userConfig);
+  let sqlitePaths = resolveSqlitePaths(fixtureRoot, userConfig);
   if (!fs.existsSync(sqlitePaths.codePath) || !fs.existsSync(sqlitePaths.prosePath)) {
     await runSqliteBuild(fixtureRoot, { emitOutput: true });
+    sqlitePaths = resolveSqlitePaths(fixtureRoot, userConfig);
+  }
+  if (!fs.existsSync(sqlitePaths.codePath) || !fs.existsSync(sqlitePaths.prosePath)) {
+    throw new Error(
+      `SQLite fixture paths are unavailable after build. `
+      + `codePath=${sqlitePaths.codePath} prosePath=${sqlitePaths.prosePath}`
+    );
   }
   return sqlitePaths;
 };
@@ -310,4 +307,5 @@ export const runSearch = ({
     process.exit(1);
   }
 };
+
 

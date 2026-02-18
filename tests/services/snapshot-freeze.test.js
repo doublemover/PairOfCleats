@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
@@ -8,9 +9,10 @@ import { createPointerSnapshot } from '../../src/index/snapshots/create.js';
 import { freezeSnapshot } from '../../src/index/snapshots/freeze.js';
 import { resolveIndexRef } from '../../src/index/index-ref.js';
 import { loadFrozen, loadSnapshotsManifest } from '../../src/index/snapshots/registry.js';
+import { replaceDir } from '../../src/shared/json-stream/atomic.js';
 import { createBaseIndex } from '../indexing/validate/helpers.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'snapshot-freeze-service');
@@ -60,7 +62,7 @@ const seedBuildRoot = async ({
   const { indexDir } = await createBaseIndex({ rootDir: buildRoot });
   const modeDir = path.join(buildRoot, 'index-code');
   await fs.mkdir(path.dirname(modeDir), { recursive: true });
-  await fs.rename(indexDir, modeDir);
+  await replaceDir(indexDir, modeDir);
   await fs.rm(path.join(buildRoot, '.index-root'), { recursive: true, force: true });
   await enrichPiecesManifestChecksums(modeDir, { corruptFirst: corruptManifest });
   await writeJson(path.join(buildRoot, 'build_state.json'), {

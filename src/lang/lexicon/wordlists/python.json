@@ -1,0 +1,58 @@
+{
+  "formatVersion": 1,
+  "languageId": "python",
+  "keywords": [
+    "and",
+    "as",
+    "break",
+    "class",
+    "continue",
+    "def",
+    "elif",
+    "else",
+    "except",
+    "finally",
+    "for",
+    "from",
+    "if",
+    "import",
+    "in",
+    "is",
+    "lambda",
+    "not",
+    "or",
+    "pass",
+    "raise",
+    "return",
+    "try",
+    "while",
+    "with",
+    "yield"
+  ],
+  "literals": [
+    "false",
+    "none",
+    "true"
+  ],
+  "types": [
+    "bool",
+    "dict",
+    "float",
+    "int",
+    "list",
+    "set",
+    "str"
+  ],
+  "builtins": [
+    "len",
+    "print",
+    "range"
+  ],
+  "modules": [
+    "collections",
+    "os",
+    "pathlib",
+    "sys"
+  ],
+  "notes": []
+}

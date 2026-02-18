@@ -43,6 +43,7 @@ export const runDiscovery = async ({
     entries = await runtime.queues.io.add(() => discoverFiles({
       root: runtime.root,
       mode,
+      documentExtractionConfig: runtime.indexingConfig?.documentExtraction || null,
       recordsDir: runtime.recordsDir,
       recordsConfig: runtime.recordsConfig,
       scmProvider: runtime.scmProvider,

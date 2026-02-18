@@ -15,7 +15,7 @@ import {
   createPlanInputs
 } from './query-plan-helpers.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'poc-query-plan-'));
 const cachePath = path.join(tempDir, 'queryPlanCache.json');
@@ -65,3 +65,4 @@ assert.ok(
 );
 
 console.log('query plan disk cache test passed');
+import { applyTestEnv } from '../../helpers/test-env.js';

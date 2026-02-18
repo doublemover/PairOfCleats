@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
+import { sha1 } from '../../../src/shared/hash.js';
 import { buildCacheKey as buildUnifiedCacheKey } from '../../../src/shared/cache-key.js';
 import { buildEmbeddingIdentity, buildEmbeddingIdentityKey } from '../../../src/shared/embedding-identity.js';
 import {
@@ -20,6 +21,7 @@ const CACHE_INDEX_VERSION = 1;
 const CACHE_KEY_SCHEMA_VERSION = 'embeddings-cache-v1';
 const DEFAULT_MAX_SHARD_BYTES = 128 * 1024 * 1024;
 const CACHE_ENTRY_PREFIX_BYTES = 4;
+const CHUNK_HASH_FINGERPRINT_DELIMITER = '\n';
 const DEFAULT_LOCK_WAIT_MS = 5000;
 const DEFAULT_LOCK_POLL_MS = 100;
 const DEFAULT_LOCK_STALE_MS = 30 * 60 * 1000;
@@ -182,6 +184,61 @@ export const readCacheEntryFile = async (filePath) => {
   return decodeEmbeddingsCache(raw);
 };
 
+/**
+ * Encode an embeddings cache payload.
+ * @param {object} payload
+ * @param {object} [options]
+ * @returns {Promise<Buffer>}
+ */
+export const encodeCacheEntryPayload = async (payload, options = {}) => (
+  encodeEmbeddingsCache(payload, options)
+);
+
+const normalizeChunkHashes = (chunkHashes) => (
+  Array.isArray(chunkHashes)
+    ? chunkHashes.map((hash) => (typeof hash === 'string' ? hash : ''))
+    : null
+);
+
+/**
+ * Build a compact, stable fingerprint for chunk hash lists.
+ * @param {string[]|null|undefined} chunkHashes
+ * @returns {string|null}
+ */
+export const buildChunkHashesFingerprint = (chunkHashes) => {
+  const normalized = normalizeChunkHashes(chunkHashes);
+  if (!normalized || !normalized.length) return null;
+  return sha1(normalized.join(CHUNK_HASH_FINGERPRINT_DELIMITER));
+};
+
+/**
+ * Create a reusable shard append handle pool for a flush window.
+ * @returns {{get:(shardPath:string)=>Promise<{handle:import('node:fs/promises').FileHandle,size:number}>,close:()=>Promise<void>}}
+ */
+export const createShardAppendHandlePool = () => {
+  const handles = new Map();
+  return {
+    async get(shardPath) {
+      let entry = handles.get(shardPath) || null;
+      if (!entry) {
+        const handle = await fs.open(shardPath, 'a');
+        const stat = await handle.stat();
+        entry = { handle, size: stat.size };
+        handles.set(shardPath, entry);
+      }
+      return entry;
+    },
+    async close() {
+      for (const entry of handles.values()) {
+        try {
+          await entry.handle.close();
+        } catch {}
+      }
+      handles.clear();
+    }
+  };
+};
+
 const createCacheIndex = (identityKey) => {
   const now = new Date().toISOString();
   return {
@@ -340,13 +397,34 @@ const appendShardEntryUnlocked = async (cacheDir, cacheIndex, buffer, options = 
   await fs.mkdir(shardDir, { recursive: true });
   const shardName = selectShardForWrite(cacheIndex, buffer.length, options.maxShardBytes);
   const shardPath = resolveCacheShardPath(cacheDir, shardName);
+  const prefix = Buffer.allocUnsafe(CACHE_ENTRY_PREFIX_BYTES);
+  prefix.writeUInt32LE(buffer.length, 0);
+  const payload = Buffer.concat([prefix, buffer]);
+  const handlePool = options.shardHandlePool;
+  if (handlePool && typeof handlePool.get === 'function') {
+    const pooled = await handlePool.get(shardPath);
+    /**
+     * The lock is acquired per append call (not per pool lifetime), so another process may
+     * append between writes. Refresh size each time so returned offsets stay aligned with disk.
+     */
+    const stat = await pooled.handle.stat();
+    const offset = stat.size;
+    await pooled.handle.write(payload, 0, payload.length, offset);
+    pooled.size = offset + payload.length;
+    const shardMeta = cacheIndex.shards?.[shardName] || { createdAt: new Date().toISOString(), sizeBytes: 0 };
+    shardMeta.sizeBytes = pooled.size;
+    cacheIndex.shards[shardName] = shardMeta;
+    return {
+      shard: shardName,
+      offset: offset + CACHE_ENTRY_PREFIX_BYTES,
+      length: buffer.length,
+      sizeBytes: payload.length
+    };
+  }
   const handle = await fs.open(shardPath, 'a');
   try {
     const stat = await handle.stat();
     const offset = stat.size;
-    const prefix = Buffer.allocUnsafe(CACHE_ENTRY_PREFIX_BYTES);
-    prefix.writeUInt32LE(buffer.length, 0);
-    const payload = Buffer.concat([prefix, buffer]);
     await handle.write(payload, 0, payload.length, offset);
     const totalBytes = payload.length;
     const shardMeta = cacheIndex.shards?.[shardName] || { createdAt: new Date().toISOString(), sizeBytes: 0 };
@@ -380,7 +458,9 @@ export const writeCacheEntry = async (cacheDir, cacheKey, payload, options = {})
   if (!targetPath) return null;
   const tempPath = createTempPath(targetPath);
   try {
-    const buffer = await encodeEmbeddingsCache(payload, options);
+    const buffer = Buffer.isBuffer(options.encodedBuffer)
+      ? options.encodedBuffer
+      : await encodeEmbeddingsCache(payload, options);
     if (options.index) {
       const shardEntry = await appendShardEntry(cacheDir, options.index, buffer, options);
       if (shardEntry) return shardEntry;
@@ -410,6 +490,24 @@ export const upsertCacheIndexEntry = (cacheIndex, cacheKey, payload, shardEntry 
   const existing = cacheIndex.entries?.[cacheKey] || {};
   const hasShard = Boolean(shardEntry?.shard);
   const hasStandalonePath = Boolean(shardEntry?.path);
+  const chunkHashesFingerprint = payload.chunkHashesFingerprint
+    || buildChunkHashesFingerprint(payload.chunkHashes)
+    || existing.chunkHashesFingerprint
+    || null;
+  const chunkHashesCount = Number.isFinite(Number(payload.chunkHashesCount))
+    ? Number(payload.chunkHashesCount)
+    : (
+      Array.isArray(payload.chunkHashes)
+        ? payload.chunkHashes.length
+        : (Number.isFinite(Number(existing.chunkHashesCount)) ? Number(existing.chunkHashesCount) : null)
+    );
+  const chunkCount = Number.isFinite(Number(payload.chunkCount))
+    ? Number(payload.chunkCount)
+    : (
+      Array.isArray(payload.codeVectors)
+        ? payload.codeVectors.length
+        : (Number.isFinite(Number(existing.chunkCount)) ? Number(existing.chunkCount) : null)
+    );
   const next = {
     key: cacheKey,
     file: payload.file || existing.file || null,
@@ -426,7 +524,9 @@ export const upsertCacheIndexEntry = (cacheIndex, cacheKey, payload, shardEntry 
     sizeBytes: Number.isFinite(Number(shardEntry?.sizeBytes))
       ? Number(shardEntry.sizeBytes)
       : existing.sizeBytes || null,
-    chunkCount: Array.isArray(payload.codeVectors) ? payload.codeVectors.length : existing.chunkCount || null,
+    chunkCount,
+    chunkHashesFingerprint,
+    chunkHashesCount,
     createdAt: existing.createdAt || now,
     lastAccessAt: now,
     hits: Number.isFinite(Number(existing.hits)) ? Number(existing.hits) : 0
@@ -759,7 +859,8 @@ export const shouldFastRejectCacheLookup = ({
   cacheKey,
   identityKey,
   fileHash,
-  chunkSignature
+  chunkSignature,
+  chunkHashesFingerprint
 } = {}) => {
   if (!cacheIndex || typeof cacheIndex !== 'object') return false;
   if (!cacheKey) return false;
@@ -770,6 +871,13 @@ export const shouldFastRejectCacheLookup = ({
   if (identityKey && indexIdentityKey && indexIdentityKey !== identityKey) return true;
   if (fileHash && indexEntry?.hash && indexEntry.hash !== fileHash) return true;
   if (chunkSignature && indexEntry?.chunkSignature && indexEntry.chunkSignature !== chunkSignature) return true;
+  if (
+    chunkHashesFingerprint
+    && indexEntry?.chunkHashesFingerprint
+    && indexEntry.chunkHashesFingerprint !== chunkHashesFingerprint
+  ) {
+    return true;
+  }
 
   return false;
 };

@@ -64,4 +64,19 @@ if (parsedLimits.tokenMaxFiles !== 12 || parsedLimits.tokenMaxTotal !== 7) {
   fail('Expected chunkTokenMaxFiles/maxTokens to parse numeric strings.');
 }
 
+const vectorOnlyAuto = resolveTokenMode({
+  indexingConfig: {
+    profile: 'vector_only',
+    chunkTokenMode: 'auto',
+    chunkTokenMaxFiles: 1,
+    chunkTokenMaxTokens: 1
+  },
+  profileId: 'vector_only',
+  state: { chunks: [{ tokens: ['a', 'b'] }] },
+  fileCounts: { candidates: 1000 }
+});
+if (vectorOnlyAuto.resolvedTokenMode !== 'full') {
+  fail('Expected vector_only auto mode to force full token retention.');
+}
+
 console.log('artifact token mode tests passed');

@@ -1,10 +1,11 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'index-stats-aggregate');
@@ -101,7 +102,7 @@ const run = spawnSync(
   [toolPath, '--index-dir', indexRoot, '--json'],
   {
     encoding: 'utf8',
-    env: { ...process.env, PAIROFCLEATS_TESTING: '1' }
+    env: { ...process.env }
   }
 );
 

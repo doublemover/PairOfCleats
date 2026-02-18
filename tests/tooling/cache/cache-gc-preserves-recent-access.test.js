@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -6,7 +7,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { touchCasObject, writeCasObject } from '../../../src/shared/cache-cas.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const root = process.cwd();
 const toolPath = path.join(root, 'tools', 'index', 'cache-gc.js');
@@ -43,7 +44,7 @@ const run = spawnSync(
   ],
   {
     encoding: 'utf8',
-    env: { ...process.env, PAIROFCLEATS_TESTING: '1' }
+    env: { ...process.env }
   }
 );
 

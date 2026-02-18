@@ -27,3 +27,9 @@ This file complements `docs/config/inventory.md` with manual analysis and owners
 - Requires targeted audit; config schema currently does not distinguish between deprecated and active keys.
 - Flags and env vars in `docs/config/inventory.md` with low call-site counts are good candidates for pruning once behavior is traced.
 
+## Phase 19 additions (lexicon and ANN candidate safety)
+- `indexing.lexicon.enabled` is the global lexicon gate for build/retrieval lexicon features.
+- `indexing.postings.chargramFields` and `indexing.postings.chargramStopwords` control optional chargram enrichment behavior.
+- `retrieval.annCandidateCap`, `retrieval.annCandidateMinDocCount`, and `retrieval.annCandidateMaxDocCount` define ANN/minhash candidate safety bounds.
+- `retrieval.relationBoost.*` is the boost-only ranking control surface and defaults to disabled.
+

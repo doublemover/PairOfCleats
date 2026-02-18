@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-13T04:38:50.290Z",
+  "generatedAt": "2026-02-17T23:49:17.993Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -89,6 +89,8 @@
       "PAIROFCLEATS_TEST_CACHE_SUFFIX",
       "PAIROFCLEATS_TEST_CODE_MAP_BUDGET_MS",
       "PAIROFCLEATS_TEST_CONFIG",
+      "PAIROFCLEATS_TEST_FORCE_DOCX_MISSING",
+      "PAIROFCLEATS_TEST_FORCE_PDF_MISSING",
       "PAIROFCLEATS_TEST_LOG_DIR",
       "PAIROFCLEATS_TEST_LOG_SILENT",
       "PAIROFCLEATS_TEST_MAX_JSON_BYTES",
@@ -98,6 +100,9 @@
       "PAIROFCLEATS_TEST_PID_FILE",
       "PAIROFCLEATS_TEST_RETRIES",
       "PAIROFCLEATS_TEST_SQLITE_P95_MAX_MS",
+      "PAIROFCLEATS_TEST_STUB_DOCX_EXTRACT",
+      "PAIROFCLEATS_TEST_STUB_PDF_EXTRACT",
+      "PAIROFCLEATS_TEST_STUB_PDF_EXTRACT_DELAY_MS",
       "PAIROFCLEATS_TEST_TANTIVY",
       "PAIROFCLEATS_TEST_THREADS",
       "PAIROFCLEATS_TEST_TIMEOUT_MS",
@@ -120,6 +125,7 @@
       "indexing.artifacts.tokenPostingsFormat",
       "indexing.artifacts.tokenPostingsShardSize",
       "indexing.artifacts.tokenPostingsShardThreshold",
+      "indexing.artifacts.writeConcurrency",
       "indexing.concurrency",
       "indexing.diffs.compute.detectRenames",
       "indexing.diffs.compute.includeRelations",
@@ -162,14 +168,29 @@
       "indexing.graph.caps.maxNodes",
       "indexing.importConcurrency",
       "indexing.ioConcurrencyCap",
+      "indexing.lexicon.enabled",
+      "indexing.lexicon.languageOverrides.*.relations.drop.builtins",
+      "indexing.lexicon.languageOverrides.*.relations.drop.keywords",
+      "indexing.lexicon.languageOverrides.*.relations.drop.literals",
+      "indexing.lexicon.languageOverrides.*.relations.drop.types",
+      "indexing.lexicon.languageOverrides.*.relations.enabled",
+      "indexing.lexicon.languageOverrides.*.relations.stableDedupe",
+      "indexing.lexicon.relations.drop.builtins",
+      "indexing.lexicon.relations.drop.keywords",
+      "indexing.lexicon.relations.drop.literals",
+      "indexing.lexicon.relations.drop.types",
+      "indexing.lexicon.relations.enabled",
+      "indexing.lexicon.relations.stableDedupe",
       "indexing.maxFileBytes",
       "indexing.maxFileLines",
+      "indexing.postings.chargramFields",
       "indexing.postings.chargramMaxDf",
       "indexing.postings.chargramMaxN",
       "indexing.postings.chargramMaxTokenLength",
       "indexing.postings.chargramMinN",
       "indexing.postings.chargramSource",
       "indexing.postings.chargramSpillMaxUnique",
+      "indexing.postings.chargramStopwords",
       "indexing.postings.enableChargrams",
       "indexing.postings.enablePhraseNgrams",
       "indexing.postings.fielded",
@@ -177,6 +198,7 @@
       "indexing.postings.phraseMinN",
       "indexing.postings.phraseSource",
       "indexing.postings.tokenClassification",
+      "indexing.profile",
       "indexing.riskInterprocedural.caps.maxCallSitesPerEdge",
       "indexing.riskInterprocedural.caps.maxDepth",
       "indexing.riskInterprocedural.caps.maxEdgeExpansions",
@@ -219,6 +241,9 @@
       "mcp.toolTimeoutMs",
       "mcp.toolTimeouts",
       "quality",
+      "retrieval.annCandidateCap",
+      "retrieval.annCandidateMaxDocCount",
+      "retrieval.annCandidateMinDocCount",
       "retrieval.contextExpansion.enabled",
       "retrieval.contextExpansion.includeCalls",
       "retrieval.contextExpansion.includeExports",
@@ -249,6 +274,10 @@
       "retrieval.graphRanking.seedK",
       "retrieval.graphRanking.seedSelection",
       "retrieval.graphRanking.weights",
+      "retrieval.relationBoost.enabled",
+      "retrieval.relationBoost.maxBoost",
+      "retrieval.relationBoost.perCall",
+      "retrieval.relationBoost.perUse",
       "runtime.ioOversubscribe",
       "runtime.maxOldSpaceMb",
       "runtime.nodeOptions",
@@ -328,8 +357,8 @@
   },
   "configSchema": {
     "path": "docs/config/schema.json",
-    "totalKeys": 263,
-    "leafKeys": 213,
+    "totalKeys": 295,
+    "leafKeys": 237,
     "topLevel": [
       {
         "key": "cache",
@@ -337,7 +366,7 @@
       },
       {
         "key": "indexing",
-        "count": 131
+        "count": 155
       },
       {
         "key": "mcp",
@@ -349,7 +378,7 @@
       },
       {
         "key": "retrieval",
-        "count": 35
+        "count": 43
       },
       {
         "key": "runtime",
@@ -438,6 +467,11 @@
     {
       "path": "indexing.artifacts.tokenPostingsShardThreshold",
       "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.artifacts.writeConcurrency",
+      "type": "integer",
       "enum": null
     },
     {
@@ -745,6 +779,106 @@
       "enum": null
     },
     {
+      "path": "indexing.lexicon",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides.*",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides.*.relations",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides.*.relations.drop",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides.*.relations.drop.builtins",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides.*.relations.drop.keywords",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides.*.relations.drop.literals",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides.*.relations.drop.types",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides.*.relations.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides.*.relations.stableDedupe",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.relations",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.relations.drop",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.relations.drop.builtins",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.relations.drop.keywords",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.relations.drop.literals",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.relations.drop.types",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.relations.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.relations.stableDedupe",
+      "type": "boolean",
+      "enum": null
+    },
+    {
       "path": "indexing.maxFileBytes",
       "type": "number",
       "enum": null
@@ -757,6 +891,11 @@
     {
       "path": "indexing.postings",
       "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.postings.chargramFields",
+      "type": "array",
       "enum": null
     },
     {
@@ -787,6 +926,11 @@
     {
       "path": "indexing.postings.chargramSpillMaxUnique",
       "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.postings.chargramStopwords",
+      "type": "boolean",
       "enum": null
     },
     {
@@ -823,6 +967,14 @@
       "path": "indexing.postings.tokenClassification",
       "type": null,
       "enum": null
+    },
+    {
+      "path": "indexing.profile",
+      "type": "string",
+      "enum": [
+        "default",
+        "vector_only"
+      ]
     },
     {
       "path": "indexing.riskInterprocedural",
@@ -1114,6 +1266,21 @@
       "enum": null
     },
     {
+      "path": "retrieval.annCandidateCap",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "retrieval.annCandidateMaxDocCount",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "retrieval.annCandidateMinDocCount",
+      "type": "number",
+      "enum": null
+    },
+    {
       "path": "retrieval.contextExpansion",
       "type": "object",
       "enum": null
@@ -1281,6 +1448,31 @@
     {
       "path": "retrieval.graphRanking.weights",
       "type": "object",
+      "enum": null
+    },
+    {
+      "path": "retrieval.relationBoost",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "retrieval.relationBoost.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "retrieval.relationBoost.maxBoost",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "retrieval.relationBoost.perCall",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "retrieval.relationBoost.perUse",
+      "type": "number",
       "enum": null
     },
     {
@@ -1808,7 +2000,6 @@
         "tests/cli/search/search-missing-index.test.js",
         "tests/cli/search/search-rrf.test.js",
         "tests/cli/search/search-tie-order.test.js",
-        "tests/helpers/fixture-index.js",
         "tests/helpers/mcp-client.js",
         "tests/helpers/test-env.js",
         "tests/helpers/triage.js",
@@ -1837,6 +2028,8 @@
         "tests/indexing/metrics/index-metrics-options.test.js",
         "tests/indexing/piece-assembly/piece-assembly.test.js",
         "tests/indexing/postings/chunk-meta-determinism.test.js",
+        "tests/indexing/postings/vector-only-missing-embeddings-is-error.test.js",
+        "tests/indexing/postings/vector-only-service-embeddings-pending-artifacts.test.js",
         "tests/indexing/risk/interprocedural/runtime-gating.test.js",
         "tests/indexing/runtime/two-stage-state.test.js",
         "tests/indexing/scm/index-build-no-scm.test.js",
@@ -1861,6 +2054,7 @@
         "tests/services/api/no-index.test.js",
         "tests/services/mcp/mcp-robustness.test.js",
         "tests/services/mcp/mcp-schema.test.js",
+        "tests/services/mcp/repo-path-resolution.test.js",
         "tests/services/mcp/sdk-mode.test.js",
         "tests/services/snapshot-query.test.js",
         "tests/services/sqlite-build-snapshot.test.js",
@@ -1880,7 +2074,6 @@
         "tests/storage/sqlite/sqlite-build-indexes.test.js",
         "tests/storage/sqlite/sqlite-bundle-missing.test.js",
         "tests/storage/sqlite/sqlite-compact.test.js",
-        "tests/storage/sqlite/sqlite-incremental-no-change.test.js",
         "tests/storage/sqlite/sqlite-index-state-fail-closed.test.js",
         "tests/storage/sqlite/sqlite-missing-dep.test.js",
         "tests/storage/sqlite/sqlite-sidecar-cleanup.test.js",
@@ -1959,7 +2152,6 @@
         "tests/cli/search/search-missing-index.test.js",
         "tests/cli/search/search-rrf.test.js",
         "tests/cli/search/search-tie-order.test.js",
-        "tests/helpers/fixture-index.js",
         "tests/helpers/test-env-clear.test.js",
         "tests/helpers/test-env.js",
         "tests/helpers/triage.js",
@@ -2018,7 +2210,6 @@
         "tests/storage/sqlite/sqlite-build-indexes.test.js",
         "tests/storage/sqlite/sqlite-bundle-missing.test.js",
         "tests/storage/sqlite/sqlite-compact.test.js",
-        "tests/storage/sqlite/sqlite-incremental-no-change.test.js",
         "tests/storage/sqlite/sqlite-index-state-fail-closed.test.js",
         "tests/storage/sqlite/sqlite-missing-dep.test.js",
         "tests/storage/sqlite/sqlite-sidecar-cleanup.test.js",
@@ -2328,6 +2519,7 @@
       "name": "PAIROFCLEATS_STAGE",
       "files": [
         "src/shared/env.js",
+        "tests/indexing/postings/vector-only-missing-embeddings-is-error.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -2402,6 +2594,7 @@
       "name": "PAIROFCLEATS_TEST_CONFIG",
       "files": [
         "src/shared/env.js",
+        "src/shared/ops-failure-injection.js",
         "tests/cli/build-index/build-index-all.test.js",
         "tests/helpers/fixture-index.js",
         "tests/helpers/test-env-clear.test.js",
@@ -2414,7 +2607,10 @@
         "tests/indexing/incremental/incremental-cache-signature.test.js",
         "tests/indexing/incremental/incremental-tokenization-cache.test.js",
         "tests/indexing/piece-assembly/piece-assembly.test.js",
+        "tests/indexing/postings/vector-only-missing-embeddings-is-error.test.js",
+        "tests/indexing/postings/vector-only-service-embeddings-pending-artifacts.test.js",
         "tests/indexing/shards/shard-merge.test.js",
+        "tests/ops/failure-injection/retrieval-hotpath.test.js",
         "tests/retrieval/cache/query-cache.test.js",
         "tests/retrieval/filters/types.test.js",
         "tests/services/api-search-asof.test.js",
@@ -2426,6 +2622,25 @@
         "tests/storage/sqlite/ann/sqlite-ann-extension.test.js",
         "tests/storage/sqlite/sqlite-auto-backend.test.js",
         "tools/bench/index/scheduler-store-format.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TEST_FORCE_DOCX_MISSING",
+      "files": [
+        "src/shared/env.js",
+        "tests/indexing/extracted-prose/document-extraction-outcomes-recorded.test.js",
+        "tests/indexing/extracted-prose/documents-skipped-when-unavailable.test.js",
+        "tests/indexing/extracted-prose/docx-missing-dep-skips.test.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TEST_FORCE_PDF_MISSING",
+      "files": [
+        "src/shared/env.js",
+        "tests/indexing/extracted-prose/documents-skipped-when-unavailable.test.js",
+        "tests/indexing/extracted-prose/pdf-missing-dep-skips.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -2444,7 +2659,6 @@
     {
       "name": "PAIROFCLEATS_TEST_LOG_SILENT",
       "files": [
-        "tests/helpers/fixture-index.js",
         "tests/helpers/test-env.js",
         "tests/run.js",
         "tools/config/inventory.js"
@@ -2471,6 +2685,7 @@
       "files": [
         "src/shared/env.js",
         "tests/services/mcp/mcp-robustness.test.js",
+        "tests/services/mcp/tool-cancel-response.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -2508,6 +2723,42 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_TEST_STUB_DOCX_EXTRACT",
+      "files": [
+        "src/shared/env.js",
+        "tests/indexing/extracted-prose/document-bytes-hash-stable.test.js",
+        "tests/indexing/extracted-prose/document-extraction-checksums-and-counts.test.js",
+        "tests/indexing/extracted-prose/documents-included-when-available.test.js",
+        "tests/indexing/extracted-prose/extraction-report.test.js",
+        "tests/services/sqlite-hydration-metaV2-parity.test.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TEST_STUB_PDF_EXTRACT",
+      "files": [
+        "src/shared/env.js",
+        "tests/indexing/extracted-prose/document-bytes-hash-stable.test.js",
+        "tests/indexing/extracted-prose/document-chunk-id-no-collision.test.js",
+        "tests/indexing/extracted-prose/document-extraction-checksums-and-counts.test.js",
+        "tests/indexing/extracted-prose/document-extraction-outcomes-recorded.test.js",
+        "tests/indexing/extracted-prose/document-extractor-version-recorded.test.js",
+        "tests/indexing/extracted-prose/document-security-guardrails.test.js",
+        "tests/indexing/extracted-prose/documents-included-when-available.test.js",
+        "tests/indexing/extracted-prose/extraction-report.test.js",
+        "tests/services/sqlite-hydration-metaV2-parity.test.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TEST_STUB_PDF_EXTRACT_DELAY_MS",
+      "files": [
+        "src/shared/env.js",
+        "tests/indexing/extracted-prose/document-security-guardrails.test.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_TEST_TANTIVY",
       "files": [
         "tests/smoke/tantivy-smoke.test.js",
@@ -2534,140 +2785,21 @@
       "name": "PAIROFCLEATS_TESTING",
       "files": [
         "src/shared/env.js",
-        "tests/cli/build-index/build-index-all.test.js",
-        "tests/cli/general/risk-explain.test.js",
-        "tests/cli/search/search-startup-checkpoints-order.test.js",
+        "src/shared/ops-failure-injection.js",
         "tests/helpers/fixture-index.js",
-        "tests/helpers/mcp-client.js",
         "tests/helpers/test-env.js",
         "tests/indexer/call-sites/call-sites-determinism.test.js",
         "tests/indexer/call-sites/call-sites-emit-artifacts-none.test.js",
         "tests/indexer/call-sites/call-sites-empty-required.test.js",
-        "tests/indexing/artifacts/artifact-size-guardrails.test.js",
-        "tests/indexing/cache/cas-reuse-across-repos.test.js",
-        "tests/indexing/cache/workspace-concurrency-limits.test.js",
-        "tests/indexing/cache/workspace-global-cache-reuse.test.js",
-        "tests/indexing/chunking/comment-join.test.js",
-        "tests/indexing/contracts/diffs-contracts.test.js",
-        "tests/indexing/contracts/golden-surface-suite.test.js",
-        "tests/indexing/contracts/index-compatibility-key-enforced-on-load.test.js",
-        "tests/indexing/contracts/index-compatibility-key-federation-block.test.js",
-        "tests/indexing/contracts/loader-matrix-parity.test.js",
-        "tests/indexing/contracts/snapshots-contracts.test.js",
-        "tests/indexing/determinism/chunkuid-determinism.test.js",
-        "tests/indexing/embeddings/build/args-parsing.test.js",
-        "tests/indexing/embeddings/build/runtime-defaults.test.js",
-        "tests/indexing/embeddings/embedding-batch-autotune.test.js",
-        "tests/indexing/embeddings/manifest-embeddings-pieces.test.js",
-        "tests/indexing/extracted-prose/extracted-prose.test.js",
-        "tests/indexing/incremental/incremental-cache-signature.test.js",
-        "tests/indexing/incremental/incremental-tokenization-cache.test.js",
-        "tests/indexing/map/code-map-guardrails.test.js",
-        "tests/indexing/map/code-map-performance.test.js",
-        "tests/indexing/metrics/index-metrics-options.test.js",
-        "tests/indexing/piece-assembly/piece-assembly.test.js",
-        "tests/indexing/postings/chunk-meta-determinism.test.js",
-        "tests/indexing/risk/interprocedural/artifacts-written.test.js",
-        "tests/indexing/risk/interprocedural/runtime-gating.test.js",
-        "tests/indexing/runtime/two-stage-state.test.js",
-        "tests/indexing/shards/shard-merge.test.js",
-        "tests/indexing/validate/index-validate-chunk-meta-large-manifest-budget.test.js",
-        "tests/perf/baseline-artifacts.test.js",
-        "tests/perf/bench/run.test.js",
-        "tests/perf/sqlite-p95-latency.test.js",
-        "tests/retrieval/ann/ann-parity.test.js",
-        "tests/retrieval/ann/hnsw-ann.test.js",
-        "tests/retrieval/ann/lancedb-ann.test.js",
-        "tests/retrieval/backend/retrieval-strict-manifest-embeddings.test.js",
-        "tests/retrieval/cache/query-cache-signature-sharded-chunk-meta.test.js",
-        "tests/retrieval/cache/query-cache.test.js",
-        "tests/retrieval/federation/explicit-root-no-fallback.test.js",
+        "tests/ops/failure-injection/retrieval-hotpath.test.js",
         "tests/retrieval/parity/parity.test.js",
-        "tests/retrieval/pipeline/ann-lazy-import.test.js",
-        "tests/retrieval/pipeline/artifact-gating-deps.test.js",
-        "tests/retrieval/pipeline/artifact-gating.test.js",
-        "tests/retrieval/pipeline/candidates-buffer-reuse.test.js",
-        "tests/retrieval/pipeline/context-skips.test.js",
-        "tests/retrieval/pipeline/filter-bitmap-equivalence.test.js",
-        "tests/retrieval/pipeline/filter-bitmap-shortcircuit.test.js",
-        "tests/retrieval/pipeline/filter-bitmap-threshold.test.js",
-        "tests/retrieval/pipeline/filter-compiled-reuse.test.js",
-        "tests/retrieval/pipeline/index-loader-lazy.test.js",
-        "tests/retrieval/pipeline/json-streaming.test.js",
-        "tests/retrieval/pipeline/object-pool-leak.test.js",
-        "tests/retrieval/pipeline/output-cache-hit.test.js",
-        "tests/retrieval/pipeline/query-cache-hit.test.js",
-        "tests/retrieval/pipeline/query-plan-cache-key.test.js",
-        "tests/retrieval/pipeline/query-plan-disk-cache-size-cap.test.js",
-        "tests/retrieval/pipeline/query-plan-disk-cache.test.js",
-        "tests/retrieval/pipeline/query-plan-eviction.test.js",
-        "tests/retrieval/pipeline/query-plan-invalidates-config.test.js",
-        "tests/retrieval/pipeline/query-plan-invalidates-index.test.js",
-        "tests/retrieval/pipeline/query-plan-requirements.test.js",
-        "tests/retrieval/pipeline/query-plan-schema-version.test.js",
-        "tests/retrieval/pipeline/ranking-fastpath.test.js",
-        "tests/retrieval/pipeline/retrieval-stage-checkpoints.test.js",
-        "tests/retrieval/pipeline/search-startup-fastpath.test.js",
-        "tests/retrieval/pipeline/topk-equivalence.test.js",
-        "tests/retrieval/pipeline/topk-tie-break.test.js",
-        "tests/run.js",
-        "tests/runner/all.js",
-        "tests/services/api-search-asof.test.js",
-        "tests/services/api/federated-search-cache-root-allowlist.test.js",
-        "tests/services/api/federated-search-cache-root-symlink-escape.test.js",
-        "tests/services/api/federated-search-client-errors.test.js",
-        "tests/services/api/federated-search-per-repo-top-zero.test.js",
-        "tests/services/api/federated-search-redacts-paths.test.js",
-        "tests/services/api/federated-search-repo-root-directory-validation.test.js",
-        "tests/services/api/federated-search-workspace-allowlist.test.js",
-        "tests/services/api/federated-search-workspaceid-validation.test.js",
-        "tests/services/api/no-index.test.js",
-        "tests/services/asof-explicit-root-no-fallback.test.js",
-        "tests/services/embeddings/mode-root-divergence-maintenance.test.js",
-        "tests/services/index-diff.test.js",
-        "tests/services/indexing/compressed-artifact-presence.test.js",
-        "tests/services/mcp/mcp-robustness.test.js",
-        "tests/services/mcp/mcp-schema.test.js",
-        "tests/services/mcp/sdk-mode.test.js",
-        "tests/services/snapshot-create.test.js",
-        "tests/services/snapshot-freeze.test.js",
-        "tests/services/snapshot-query.test.js",
-        "tests/services/snapshots/concurrent-registry-writers.test.js",
-        "tests/services/sqlite-build-snapshot.test.js",
-        "tests/shared/diffs-registry.test.js",
-        "tests/shared/json-stream/atomic-stale-backup-protection.test.js",
-        "tests/shared/logging/stdout-contract.test.js",
-        "tests/shared/no-path-leak.test.js",
-        "tests/shared/snapshots-registry.test.js",
-        "tests/smoke/tantivy-smoke.test.js",
-        "tests/storage/lmdb/lmdb-backend.test.js",
-        "tests/storage/lmdb/lmdb-corruption.test.js",
-        "tests/storage/lmdb/lmdb-mapsize.test.js",
-        "tests/storage/lmdb/lmdb-report-artifacts.test.js",
-        "tests/storage/sqlite/ann/sqlite-ann-extension.test.js",
-        "tests/storage/sqlite/sqlite-auto-backend.test.js",
-        "tests/storage/sqlite/sqlite-build-indexes.test.js",
-        "tests/storage/sqlite/sqlite-incremental-no-change.test.js",
-        "tests/storage/sqlite/sqlite-missing-dep.test.js",
-        "tests/storage/vector-extension/vector-extension-missing.test.js",
-        "tests/tooling/cache/cache-gc-preserves-manifest-referenced.test.js",
-        "tests/tooling/cache/cache-gc-preserves-recent-access.test.js",
-        "tests/tooling/dict-utils/paths-builds-root.test.js",
-        "tests/tooling/fixtures/fixture-empty.test.js",
-        "tests/tooling/index-stats/index-stats-aggregate.test.js",
-        "tests/tooling/index-stats/index-stats-explicit-repo-path.test.js",
-        "tests/tooling/index-stats/index-stats-json.test.js",
-        "tests/tooling/index-stats/index-stats-missing-artifact.test.js",
+        "tests/services/mcp/repo-path-resolution.test.js",
         "tests/tooling/install/setup-index-detection.test.js",
-        "tests/tooling/install/uninstall.test.js",
-        "tests/tooling/reports/summary/summary-report-helpers.js",
-        "tests/tooling/workspace/catalog-json.test.js",
-        "tests/unit/retrieval-index-signature-shards.unit.js",
-        "tests/workspace/windows-path-canonicalization-contract.test.js",
         "tools/bench/index/scheduler-store-format.js",
         "tools/ci/run-suite.js",
         "tools/config/contract-doc.js",
-        "tools/config/inventory.js"
+        "tools/config/inventory.js",
+        "tools/release/check.js"
       ]
     },
     {
@@ -2738,11 +2870,23 @@
         "tests/indexer/call-sites/call-sites-emit-artifacts-none.test.js",
         "tests/indexer/call-sites/call-sites-empty-required.test.js",
         "tests/indexing/artifacts/artifact-size-guardrails.test.js",
+        "tests/indexing/extracted-prose/document-bytes-hash-stable.test.js",
+        "tests/indexing/extracted-prose/document-chunk-id-no-collision.test.js",
+        "tests/indexing/extracted-prose/document-extraction-checksums-and-counts.test.js",
+        "tests/indexing/extracted-prose/document-extraction-outcomes-recorded.test.js",
+        "tests/indexing/extracted-prose/document-extractor-version-recorded.test.js",
+        "tests/indexing/extracted-prose/documents-included-when-available.test.js",
+        "tests/indexing/extracted-prose/documents-skipped-when-unavailable.test.js",
+        "tests/indexing/extracted-prose/docx-missing-dep-skips.test.js",
+        "tests/indexing/extracted-prose/extraction-report.test.js",
+        "tests/indexing/extracted-prose/pdf-missing-dep-skips.test.js",
         "tests/indexing/file-processor/skip-minified-binary.test.js",
         "tests/indexing/incremental/incremental-cache-signature.test.js",
         "tests/indexing/incremental/incremental-tokenization-cache.test.js",
         "tests/indexing/map/code-map-guardrails.test.js",
         "tests/indexing/map/code-map-performance.test.js",
+        "tests/indexing/postings/vector-only-missing-embeddings-is-error.test.js",
+        "tests/indexing/postings/vector-only-service-embeddings-pending-artifacts.test.js",
         "tests/indexing/scm/no-scm-build-id.test.js",
         "tests/indexing/tree-sitter/js-tree-sitter-maxbytes.test.js",
         "tests/perf/sqlite-p95-latency.test.js",
@@ -2750,6 +2894,7 @@
         "tests/services/api-search-asof.test.js",
         "tests/services/snapshot-query.test.js",
         "tests/services/sqlite-build-snapshot.test.js",
+        "tests/services/sqlite-hydration-metaV2-parity.test.js",
         "tests/shared/encoding/encoding-fallback.test.js",
         "tests/storage/sqlite/sqlite-incremental-no-change.test.js",
         "tools/ci/run-suite.js",
@@ -3087,15 +3232,6 @@
     "publicDetected": [],
     "publicUnknown": [],
     "byFile": [
-      {
-        "file": ".benchCache/scheduler-store-format/repos/baseline/generate.js",
-        "flags": [
-          "clean",
-          "count",
-          "out",
-          "seed"
-        ]
-      },
       {
         "file": "src/contracts/schemas/analysis.js",
         "flags": [
@@ -4610,9 +4746,8 @@
       },
       {
         "flag": "out",
-        "count": 39,
+        "count": 38,
         "files": [
-          ".benchCache/scheduler-store-format/repos/baseline/generate.js",
           "tests/fixtures/medium/generate.js",
           "tests/retrieval/parity/parity.test.js",
           "tests/tooling/fixtures/fixture-eval.test.js",
@@ -4691,9 +4826,8 @@
       },
       {
         "flag": "seed",
-        "count": 16,
+        "count": 15,
         "files": [
-          ".benchCache/scheduler-store-format/repos/baseline/generate.js",
           "src/integrations/tooling/context-pack.js",
           "src/integrations/tooling/graph-context.js",
           "src/integrations/tooling/impact.js",
@@ -5311,15 +5445,6 @@
         ]
       },
       {
-        "flag": "count",
-        "count": 3,
-        "files": [
-          ".benchCache/scheduler-store-format/repos/baseline/generate.js",
-          "tests/fixtures/medium/generate.js",
-          "tools/bench/query-generator.js"
-        ]
-      },
-      {
         "flag": "includeUsages",
         "count": 3,
         "files": [
@@ -5472,11 +5597,11 @@
         ]
       },
       {
-        "flag": "clean",
+        "flag": "count",
         "count": 2,
         "files": [
-          ".benchCache/scheduler-store-format/repos/baseline/generate.js",
-          "tests/fixtures/medium/generate.js"
+          "tests/fixtures/medium/generate.js",
+          "tools/bench/query-generator.js"
         ]
       },
       {

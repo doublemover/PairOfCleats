@@ -490,7 +490,8 @@ export const runStage = async (stage, context, { allowSqlite = true } = {}) => {
         configHash: runtime.configHash,
         toolVersion: getToolVersion(),
         repoProvenance: runtime.repoProvenance,
-        signatureVersion: SIGNATURE_VERSION
+        signatureVersion: SIGNATURE_VERSION,
+        profile: runtime.profile || null
       });
       if (runtime?.ignoreFiles?.length || runtime?.ignoreWarnings?.length) {
         await updateBuildState(runtime.buildRoot, {
@@ -514,6 +515,7 @@ export const runStage = async (stage, context, { allowSqlite = true } = {}) => {
         const preprocess = await preprocessFiles({
           root: runtime.root,
           modes: preprocessModes,
+          documentExtractionConfig: runtime.indexingConfig?.documentExtraction || null,
           recordsDir: runtime.recordsDir,
           recordsConfig: runtime.recordsConfig,
           scmProvider: runtime.scmProvider,
@@ -661,7 +663,8 @@ export const runStage = async (stage, context, { allowSqlite = true } = {}) => {
         repo: runtime.root,
         stage,
         buildRoot: runtime.buildRoot,
-        repoCacheRoot: runtime.repoCacheRoot
+        repoCacheRoot: runtime.repoCacheRoot,
+        profile: runtime.profile || null
       };
     } catch (err) {
       if (runtime?.buildRoot) {

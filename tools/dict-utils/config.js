@@ -9,6 +9,7 @@ import { readJsoncFile } from '../../src/shared/jsonc.js';
 import { isPlainObject, mergeConfig } from '../../src/shared/config.js';
 import { validateConfig } from '../../src/config/validate.js';
 import { stableStringify } from '../../src/shared/stable-json.js';
+import { assertKnownIndexProfileId } from '../../src/contracts/index-profile.js';
 import { DEFAULT_DP_MAX_BY_FILE_COUNT } from './constants.js';
 import { resolveToolRoot } from './tool.js';
 
@@ -110,11 +111,15 @@ function normalizeUserConfig(baseConfig) {
   if (isPlainObject(baseConfig.indexing)) {
     const indexing = baseConfig.indexing;
     const normalizedIndexing = {};
+    if (indexing.profile !== undefined) {
+      normalizedIndexing.profile = assertKnownIndexProfileId(indexing.profile);
+    }
     if (indexing.segmenting) normalizedIndexing.segmenting = indexing.segmenting;
     if (indexing.commentExtraction) normalizedIndexing.commentExtraction = indexing.commentExtraction;
     if (indexing.documentExtraction) normalizedIndexing.documentExtraction = indexing.documentExtraction;
     if (indexing.artifacts) normalizedIndexing.artifacts = indexing.artifacts;
     if (indexing.postings) normalizedIndexing.postings = indexing.postings;
+    if (isPlainObject(indexing.lexicon)) normalizedIndexing.lexicon = indexing.lexicon;
     if (indexing.codeMap) normalizedIndexing.codeMap = indexing.codeMap;
     if (indexing.records) normalizedIndexing.records = indexing.records;
     if (indexing.embeddings) normalizedIndexing.embeddings = indexing.embeddings;
@@ -328,6 +333,18 @@ function normalizeUserConfig(baseConfig) {
   if (isPlainObject(baseConfig.retrieval)) {
     const retrieval = baseConfig.retrieval;
     const normalizedRetrieval = {};
+    if (retrieval.annCandidateCap !== undefined) {
+      normalizedRetrieval.annCandidateCap = retrieval.annCandidateCap;
+    }
+    if (retrieval.annCandidateMinDocCount !== undefined) {
+      normalizedRetrieval.annCandidateMinDocCount = retrieval.annCandidateMinDocCount;
+    }
+    if (retrieval.annCandidateMaxDocCount !== undefined) {
+      normalizedRetrieval.annCandidateMaxDocCount = retrieval.annCandidateMaxDocCount;
+    }
+    if (isPlainObject(retrieval.relationBoost)) {
+      normalizedRetrieval.relationBoost = retrieval.relationBoost;
+    }
     if (isPlainObject(retrieval.dense)) {
       normalizedRetrieval.dense = retrieval.dense;
     }

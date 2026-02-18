@@ -7,7 +7,7 @@ import {
   createPlanInputs
 } from './query-plan-helpers.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
+applyTestEnv();
 
 const inputs = createPlanInputs();
 const configSignature = buildPlanConfigSignature(inputs);
@@ -49,3 +49,4 @@ const differentIndexKey = buildPlanCacheKey({
 assert.notEqual(keyInfo.key, differentIndexKey.key, 'expected different key for different index signature');
 
 console.log('query plan cache key test passed');
+import { applyTestEnv } from '../../helpers/test-env.js';
