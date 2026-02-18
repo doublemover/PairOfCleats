@@ -1,6 +1,6 @@
 # TES_LAYN_EXECUTION_PACKS - USR Language and Framework Delivery Packs
 
-Last updated: 2026-02-18T02:24:29Z
+Last updated: 2026-02-18T02:26:08Z
 Status: active
 Parent roadmap: `TES_LAYN_ROADMAP.md`
 Governance reference: `TES_LAYN_GOVERNANCE.md`
@@ -67,7 +67,7 @@ Completion status:
 - [x] B5 markup-style-template pack complete
 - [x] B6 data-interface-dsl pack complete
 - [x] B7 build-infra-dsl pack complete
-- [ ] B8 cross-language integration pack complete
+- [x] B8 cross-language integration pack complete
 
 Batch map (authoritative source: `tests/lang/matrix/usr-language-batch-shards.json`):
 

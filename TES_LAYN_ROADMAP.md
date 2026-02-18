@@ -1,6 +1,6 @@
 # TES_LAYN_ROADMAP - Functional USR Delivery Plan
 
-Last updated: 2026-02-18T02:24:29Z
+Last updated: 2026-02-18T02:26:08Z
 Status: active
 Supersedes: prior contract-heavy rollout plans
 
@@ -102,8 +102,8 @@ Deliverables:
 - [x] Import-only entries replaced by full adapters where required.
 
 Exit checks:
-- [ ] All batch packs in `TES_LAYN_EXECUTION_PACKS.md` are complete.
-- [ ] Each language meets required functional capability targets.
+- [x] All batch packs in `TES_LAYN_EXECUTION_PACKS.md` are complete.
+- [x] Each language meets required functional capability targets.
 
 ### Phase D - Framework Overlay Completion
 
@@ -204,14 +204,14 @@ Detailed evidence mapping: `TES_LAYN_GOVERNANCE.md`.
 
 ### Gate B1-B7 (language batches)
 
-- [ ] language pack deliverables in active scope are complete.
-- [ ] required baseline capabilities are met for active target scope.
-- [ ] deterministic behavior is stable for active batch outputs.
+- [x] language pack deliverables in active scope are complete.
+- [x] required baseline capabilities are met for active target scope.
+- [x] deterministic behavior is stable for active batch outputs.
 
 ### Gate B8 (cross-language integration)
 
-- [ ] mixed-repo and cross-batch behavior is complete.
-- [ ] cross-language canonical coherence is stable.
+- [x] mixed-repo and cross-batch behavior is complete.
+- [x] cross-language canonical coherence is stable.
 
 ### Gate C (rollout)
 
