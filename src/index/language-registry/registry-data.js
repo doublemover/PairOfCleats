@@ -114,18 +114,6 @@ const IMPORT_COLLECTOR_CAPABILITY_PROFILE = Object.freeze({
   ])
 });
 
-const createImportCollectorAdapter = ({ id, match, collectImports }) => ({
-  id,
-  match,
-  collectImports: (text, options) => collectImports(text, options),
-  prepare: async () => ({}),
-  buildRelations: ({ text, options }) => buildSimpleRelations({ imports: collectImports(text, options) }),
-  extractDocMeta: () => null,
-  flow: () => null,
-  attachName: false,
-  capabilityProfile: IMPORT_COLLECTOR_CAPABILITY_PROFILE
-});
-
 const HEURISTIC_CALL_SKIP = new Set([
   'if',
   'for',
@@ -213,6 +201,26 @@ const PROTO_SYMBOL_PATTERNS = Object.freeze([
   /\brpc\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/g
 ]);
 
+const CMAKE_SYMBOL_PATTERNS = Object.freeze([
+  /\b(?:function|macro)\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)/g
+]);
+
+const STARLARK_SYMBOL_PATTERNS = Object.freeze([
+  /\bdef\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/g
+]);
+
+const NIX_SYMBOL_PATTERNS = Object.freeze([
+  /^\s*([A-Za-z_][A-Za-z0-9_-]*)\s*=/gm
+]);
+
+const MAKEFILE_SYMBOL_PATTERNS = Object.freeze([
+  /^([A-Za-z0-9_.-]+)\s*:/gm
+]);
+
+const DOCKERFILE_SYMBOL_PATTERNS = Object.freeze([
+  /^\s*FROM\s+[^\n]+?\s+AS\s+([A-Za-z_][A-Za-z0-9_-]*)/gim
+]);
+
 const TEMPLATE_USAGE_SKIP = new Set([
   'if',
   'else',
@@ -274,6 +282,21 @@ const PROTO_USAGE_SKIP = new Set([
   'repeated',
   'returns',
   'rpc'
+]);
+
+const BUILD_DSL_USAGE_SKIP = new Set([
+  'if',
+  'elseif',
+  'else',
+  'endif',
+  'foreach',
+  'endforeach',
+  'while',
+  'endwhile',
+  'function',
+  'endfunction',
+  'macro',
+  'endmacro'
 ]);
 
 const sortUnique = (values) => Array.from(new Set(values.filter(Boolean))).sort((a, b) => (a < b ? -1 : (a > b ? 1 : 0)));
@@ -361,6 +384,36 @@ const collectProtoUsages = (text) => {
   return sortUnique(values);
 };
 
+const collectBuildDslUsages = (text) => {
+  const source = String(text || '');
+  const values = [];
+  const cmakeCalls = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(/gm;
+  const starlarkCalls = /\b([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
+  const makeDeps = /^[A-Za-z0-9_.-]+\s*:\s*([^\n#]+)/gm;
+  const dockerFrom = /^\s*FROM\s+([^\s]+)(?:\s+AS\s+[A-Za-z_][A-Za-z0-9_-]*)?/gim;
+  const dockerCopyFrom = /--from=([A-Za-z_][A-Za-z0-9_-]*)/g;
+  const nixOps = /\b(import|callPackage)\b/g;
+  const matchers = [cmakeCalls, starlarkCalls, dockerFrom, dockerCopyFrom, nixOps];
+  for (const matcher of matchers) {
+    let match;
+    while ((match = matcher.exec(source)) !== null) {
+      const name = String(match[1] || '').trim();
+      if (name && !BUILD_DSL_USAGE_SKIP.has(name)) values.push(name);
+      if (!match[0]) matcher.lastIndex += 1;
+    }
+  }
+  let depMatch;
+  while ((depMatch = makeDeps.exec(source)) !== null) {
+    const depBlock = String(depMatch[1] || '');
+    const deps = depBlock.split(/\s+/).map((entry) => entry.trim()).filter(Boolean);
+    for (const dep of deps) {
+      if (!BUILD_DSL_USAGE_SKIP.has(dep)) values.push(dep);
+    }
+    if (!depMatch[0]) makeDeps.lastIndex += 1;
+  }
+  return sortUnique(values);
+};
+
 const buildHeuristicManagedRelations = ({ text, options, collectImports, symbolPatterns, usageCollector }) => {
   const base = buildSimpleRelations({ imports: collectImports(text, options) });
   const symbols = collectPatternNames(text, symbolPatterns);
@@ -424,22 +477,33 @@ const buildHeuristicManagedFlow = (text, chunk, options = {}) => {
   return out;
 };
 
-const createHeuristicManagedAdapter = ({ id, match, collectImports, symbolPatterns, usageCollector = null }) => ({
+const createHeuristicManagedAdapter = ({
   id,
   match,
-  collectImports: (text, options) => collectImports(text, options),
-  prepare: async () => ({}),
-  buildRelations: ({ text, options }) => buildHeuristicManagedRelations({
-    text,
-    options,
-    collectImports,
-    symbolPatterns,
-    usageCollector
-  }),
-  extractDocMeta: ({ chunk }) => extractHeuristicManagedDocMeta(chunk),
-  flow: ({ text, chunk, options }) => buildHeuristicManagedFlow(text, chunk, flowOptions(options)),
-  attachName: true
-});
+  collectImports,
+  symbolPatterns,
+  usageCollector = null,
+  capabilityProfile = null
+}) => {
+  const adapter = {
+    id,
+    match,
+    collectImports: (text, options) => collectImports(text, options),
+    prepare: async () => ({}),
+    buildRelations: ({ text, options }) => buildHeuristicManagedRelations({
+      text,
+      options,
+      collectImports,
+      symbolPatterns,
+      usageCollector
+    }),
+    extractDocMeta: ({ chunk }) => extractHeuristicManagedDocMeta(chunk),
+    flow: ({ text, chunk, options }) => buildHeuristicManagedFlow(text, chunk, flowOptions(options)),
+    attachName: true
+  };
+  if (capabilityProfile) adapter.capabilityProfile = capabilityProfile;
+  return adapter;
+};
 
 export const LANGUAGE_REGISTRY = [
   {
@@ -766,20 +830,29 @@ export const LANGUAGE_REGISTRY = [
     flow: ({ text, chunk, options }) => computeSwiftFlow(text, chunk, flowOptions(options)),
     attachName: true
   },
-  createImportCollectorAdapter({
+  createHeuristicManagedAdapter({
     id: 'cmake',
     match: (ext) => CMAKE_EXTS.has(ext),
-    collectImports: collectCmakeImports
+    collectImports: collectCmakeImports,
+    symbolPatterns: CMAKE_SYMBOL_PATTERNS,
+    usageCollector: collectBuildDslUsages,
+    capabilityProfile: IMPORT_COLLECTOR_CAPABILITY_PROFILE
   }),
-  createImportCollectorAdapter({
+  createHeuristicManagedAdapter({
     id: 'starlark',
     match: (ext) => STARLARK_EXTS.has(ext),
-    collectImports: collectStarlarkImports
+    collectImports: collectStarlarkImports,
+    symbolPatterns: STARLARK_SYMBOL_PATTERNS,
+    usageCollector: collectBuildDslUsages,
+    capabilityProfile: IMPORT_COLLECTOR_CAPABILITY_PROFILE
   }),
-  createImportCollectorAdapter({
+  createHeuristicManagedAdapter({
     id: 'nix',
     match: (ext) => NIX_EXTS.has(ext),
-    collectImports: collectNixImports
+    collectImports: collectNixImports,
+    symbolPatterns: NIX_SYMBOL_PATTERNS,
+    usageCollector: collectBuildDslUsages,
+    capabilityProfile: IMPORT_COLLECTOR_CAPABILITY_PROFILE
   }),
   createHeuristicManagedAdapter({
     id: 'dart',
@@ -846,15 +919,21 @@ export const LANGUAGE_REGISTRY = [
     symbolPatterns: PROTO_SYMBOL_PATTERNS,
     usageCollector: collectProtoUsages
   }),
-  createImportCollectorAdapter({
+  createHeuristicManagedAdapter({
     id: 'makefile',
     match: (_ext, relPath) => isMakefilePath(relPath),
-    collectImports: collectMakefileImports
+    collectImports: collectMakefileImports,
+    symbolPatterns: MAKEFILE_SYMBOL_PATTERNS,
+    usageCollector: collectBuildDslUsages,
+    capabilityProfile: IMPORT_COLLECTOR_CAPABILITY_PROFILE
   }),
-  createImportCollectorAdapter({
+  createHeuristicManagedAdapter({
     id: 'dockerfile',
     match: (_ext, relPath) => isDockerfilePath(relPath),
-    collectImports: collectDockerfileImports
+    collectImports: collectDockerfileImports,
+    symbolPatterns: DOCKERFILE_SYMBOL_PATTERNS,
+    usageCollector: collectBuildDslUsages,
+    capabilityProfile: IMPORT_COLLECTOR_CAPABILITY_PROFILE
   }),
   createHeuristicManagedAdapter({
     id: 'graphql',
