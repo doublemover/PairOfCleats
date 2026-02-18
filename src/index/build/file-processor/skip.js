@@ -2,6 +2,12 @@ import path from 'node:path';
 import { pickMinLimit, resolveFileCaps } from './read.js';
 import { detectBinary, isMinifiedName, readFileSample } from '../file-scan.js';
 
+const isGeneratedDocsetPath = (absPath) => {
+  const normalized = String(absPath || '').replace(/\\/g, '/').toLowerCase();
+  return normalized.includes('/docsets/')
+    || normalized.includes('.docset/');
+};
+
 /**
  * Resolve pre-read skip decisions (caps/minified/binary scanner) before full
  * file decode. Supports a document-extraction bypass for binary/minified
@@ -53,6 +59,9 @@ export async function resolvePreReadSkip({
       ...(resolvedReason === 'oversize' ? { stage: 'pre-read' } : {}),
       ...extra
     };
+  }
+  if (isGeneratedDocsetPath(abs)) {
+    return { reason: 'generated-docset' };
   }
   if (!bypassBinaryMinifiedSkip && isMinifiedName(path.basename(abs))) {
     return { reason: 'minified', method: 'name' };
