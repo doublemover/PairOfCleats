@@ -110,8 +110,7 @@ export const isFixturePath = (relPath) => {
 export const shouldPreferDocsProse = ({ ext, relPath }) => {
   const normalizedExt = normalizeExt(ext);
   if (!normalizedExt) return false;
-  return (isDocsPath(relPath) || isInfraConfigPath(relPath))
-    && DOCS_AMBIGUOUS_PROSE_EXTS.has(normalizedExt);
+  return isDocsPath(relPath) && DOCS_AMBIGUOUS_PROSE_EXTS.has(normalizedExt);
 };
 
 export const shouldPreferInfraProse = ({ relPath }) => isInfraConfigPath(relPath);
@@ -124,8 +123,7 @@ export const shouldPreferFixtureProse = ({ ext, relPath }) => {
 
 export const isProseEntryForPath = ({ ext, relPath }) => {
   const normalizedExt = normalizeExt(ext);
-  return shouldPreferInfraProse({ relPath })
-    || EXTS_PROSE.has(normalizedExt)
+  return EXTS_PROSE.has(normalizedExt)
     || shouldPreferDocsProse({ ext: normalizedExt, relPath })
     || shouldPreferFixtureProse({ ext: normalizedExt, relPath });
 };
@@ -133,7 +131,6 @@ export const isProseEntryForPath = ({ ext, relPath }) => {
 export const isCodeEntryForPath = ({ ext, relPath, isSpecial = false }) => {
   const normalizedExt = normalizeExt(ext);
   if (!normalizedExt && !isSpecial) return false;
-  if (shouldPreferInfraProse({ relPath })) return false;
   if (shouldPreferDocsProse({ ext: normalizedExt, relPath })) return false;
   if (shouldPreferFixtureProse({ ext: normalizedExt, relPath })) return false;
   return EXTS_CODE.has(normalizedExt) || isSpecial;
