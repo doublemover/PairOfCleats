@@ -317,7 +317,8 @@ export async function collectLspTypes({
   maxDiagnosticsPerUri = DEFAULT_MAX_DIAGNOSTICS_PER_URI,
   maxDiagnosticsPerChunk = DEFAULT_MAX_DIAGNOSTICS_PER_CHUNK,
   documentSymbolTimeoutMs = null,
-  stderrFilter = null
+  stderrFilter = null,
+  initializationOptions = null
 }) {
   const resolvePositiveTimeout = (value) => {
     const parsed = Number(value);
@@ -474,6 +475,7 @@ export async function collectLspTypes({
     await guard.run(({ timeoutMs: guardTimeout }) => client.initialize({
       rootUri,
       capabilities: { textDocument: { documentSymbol: { hierarchicalDocumentSymbolSupport: true } } },
+      initializationOptions,
       timeoutMs: guardTimeout
     }), { label: 'initialize' });
   } catch (err) {

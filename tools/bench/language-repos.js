@@ -8,6 +8,7 @@ import { loadBenchConfig } from './language/config.js';
 import { checkIndexLock, formatLockDetail } from './language/locks.js';
 import {
   ensureLongPathsSupport,
+  ensureRepoBenchmarkReady,
   needsIndexArtifacts,
   needsSqliteArtifacts,
   resolveCloneTool,
@@ -522,6 +523,13 @@ for (const task of tasks) {
           continue;
         }
       }
+    }
+
+    if (!dryRun) {
+      ensureRepoBenchmarkReady({
+        repoPath,
+        onLog: appendLog
+      });
     }
 
     await ensureBenchConfig(repoPath, cacheRoot);

@@ -19,5 +19,13 @@ assert.ok(
   logs[0].includes('suppressed 2 IncludeCleaner stderr line(s)'),
   `expected suppression count in summary log, got: ${logs[0]}`
 );
+assert.ok(
+  logs[0].includes('top missing headers:'),
+  `expected header summary in aggregate suppression log, got: ${logs[0]}`
+);
+assert.ok(
+  logs[0].includes('doctest.h') && logs[0].includes('doctest_compatibility.h'),
+  `expected missing header names in summary log, got: ${logs[0]}`
+);
 
 console.log('clangd stderr filter test passed');

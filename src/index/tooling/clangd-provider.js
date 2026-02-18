@@ -85,6 +85,145 @@ const resolveCompileCommandsDir = (rootDir, clangdConfig) => {
   return null;
 };
 
+const HEADER_FILE_EXTS = new Set([
+  '.h',
+  '.hh',
+  '.hpp',
+  '.hxx',
+  '.inc',
+  '.ipp',
+  '.inl',
+  '.tpp',
+  '.cuh'
+]);
+const TRACKED_HEADER_PATHS_CACHE = new Map();
+
+const normalizeRepoPosixPath = (value) => String(value || '')
+  .replace(/\\/g, '/')
+  .replace(/^\.\/+/, '')
+  .trim();
+
+const headerExtForPath = (value) => {
+  const ext = path.extname(String(value || '')).toLowerCase();
+  return HEADER_FILE_EXTS.has(ext) ? ext : null;
+};
+
+export const extractIncludeHeadersFromDocuments = (documents) => {
+  const headers = new Set();
+  const docs = Array.isArray(documents) ? documents : [];
+  const includeRe = /^\s*#\s*include\s*(?:<([^>]+)>|"([^"]+)")/gm;
+  for (const doc of docs) {
+    const text = String(doc?.text || '');
+    if (!text) continue;
+    includeRe.lastIndex = 0;
+    let match;
+    while ((match = includeRe.exec(text)) !== null) {
+      const raw = (match[1] || match[2] || '').trim();
+      if (!raw) continue;
+      headers.add(normalizeRepoPosixPath(raw));
+    }
+  }
+  return Array.from(headers);
+};
+
+export const inferIncludeRootsFromHeaderPaths = ({
+  repoRoot,
+  includeHeaders,
+  headerPaths,
+  maxRoots = 16
+}) => {
+  const root = path.resolve(repoRoot || process.cwd());
+  const headers = Array.isArray(includeHeaders) ? includeHeaders : [];
+  const tracked = Array.isArray(headerPaths) ? headerPaths : [];
+  if (!headers.length || !tracked.length) return [];
+
+  const trackedPosix = tracked
+    .map((entry) => normalizeRepoPosixPath(entry))
+    .filter((entry) => Boolean(entry) && headerExtForPath(entry));
+  const trackedSet = new Set(trackedPosix);
+  const trackedByBaseName = new Map();
+  for (const trackedHeader of trackedPosix) {
+    const baseName = path.posix.basename(trackedHeader);
+    if (!baseName) continue;
+    if (!trackedByBaseName.has(baseName)) trackedByBaseName.set(baseName, []);
+    trackedByBaseName.get(baseName).push(trackedHeader);
+  }
+  const roots = [];
+  const seen = new Set();
+  const addRoot = (candidate) => {
+    if (!candidate) return;
+    const normalized = path.resolve(candidate);
+    if (seen.has(normalized)) return;
+    seen.add(normalized);
+    roots.push(normalized);
+  };
+
+  for (const includeRaw of headers) {
+    const includeHeader = normalizeRepoPosixPath(includeRaw);
+    if (!includeHeader) continue;
+    const includeParts = includeHeader.split('/').filter(Boolean);
+    const includeBase = includeParts[includeParts.length - 1] || includeHeader;
+
+    if (trackedSet.has(includeHeader)) {
+      addRoot(root);
+      continue;
+    }
+
+    const candidates = trackedByBaseName.get(includeBase) || [];
+    for (const trackedHeader of candidates) {
+      if (!trackedHeader.endsWith(includeHeader)) continue;
+      const prefixLen = trackedHeader.length - includeHeader.length;
+      const prefixRaw = prefixLen > 0 ? trackedHeader.slice(0, prefixLen).replace(/\/+$/, '') : '';
+      const prefixPath = prefixRaw ? path.join(root, prefixRaw) : root;
+      addRoot(prefixPath);
+    }
+
+    if (includeParts.length === 1) {
+      for (const trackedHeader of candidates) {
+        if (!trackedHeader.endsWith(`/${includeBase}`) && trackedHeader !== includeBase) continue;
+        const parent = path.dirname(trackedHeader);
+        const parentPath = parent && parent !== '.'
+          ? path.join(root, parent)
+          : root;
+        addRoot(parentPath);
+      }
+    }
+  }
+
+  const limited = roots
+    .filter((entry) => fsSync.existsSync(entry))
+    .slice(0, Math.max(0, Math.floor(Number(maxRoots) || 0)));
+  return limited;
+};
+
+const listTrackedHeaderPaths = (repoRoot) => {
+  const cacheKey = path.resolve(repoRoot || process.cwd());
+  if (TRACKED_HEADER_PATHS_CACHE.has(cacheKey)) {
+    return TRACKED_HEADER_PATHS_CACHE.get(cacheKey);
+  }
+  const pathSpecs = Array.from(HEADER_FILE_EXTS).map((ext) => `*${ext}`);
+  try {
+    const result = execaSync('git', ['-C', cacheKey, 'ls-files', '-z', '--', ...pathSpecs], {
+      reject: false,
+      encoding: 'utf8',
+      maxBuffer: 32 * 1024 * 1024
+    });
+    if (result.exitCode !== 0) {
+      TRACKED_HEADER_PATHS_CACHE.set(cacheKey, []);
+      return [];
+    }
+    const trackedPaths = String(result.stdout || '')
+      .split('\0')
+      .map((entry) => normalizeRepoPosixPath(entry))
+      .filter((entry) => Boolean(entry) && headerExtForPath(entry));
+    TRACKED_HEADER_PATHS_CACHE.set(cacheKey, trackedPaths);
+    return trackedPaths;
+  } catch {
+    TRACKED_HEADER_PATHS_CACHE.set(cacheKey, []);
+    return [];
+  }
+};
+
 const parseObjcSignature = (detail) => {
   if (!detail || !detail.includes(':')) return null;
   const signature = detail.trim();
@@ -155,20 +294,31 @@ const parseSignature = (detail, languageId, symbolName) => {
 
 export const createClangdStderrFilter = () => {
   let suppressedIncludeCleaner = 0;
-  const includeCleanerPattern = /\bIncludeCleaner:\s+Failed to get an entry for resolved path '' from include (?:<[^>]+>|"[^"]+")\s*:\s*no such file or directory\b/i;
+  const includeCleanerPattern = /\bIncludeCleaner:\s+Failed to get an entry for resolved path '' from include (?:<([^>]+)>|"([^"]+)")\s*:\s*no such file or directory\b/i;
+  const missingHeaders = new Map();
   return {
     filter: (line) => {
-      if (includeCleanerPattern.test(String(line || ''))) {
+      const match = includeCleanerPattern.exec(String(line || ''));
+      if (match) {
         suppressedIncludeCleaner += 1;
+        const includePath = (match[1] || match[2] || '').trim();
+        if (includePath) {
+          missingHeaders.set(includePath, (missingHeaders.get(includePath) || 0) + 1);
+        }
         return null;
       }
       return line;
     },
     flush: (log) => {
       if (!suppressedIncludeCleaner) return;
+      const headerSummary = Array.from(missingHeaders.entries())
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .slice(0, 5)
+        .map(([name, count]) => `${name}${count > 1 ? ` (${count})` : ''}`)
+        .join(', ');
       log(
         `[tooling] clangd suppressed ${suppressedIncludeCleaner} IncludeCleaner stderr line(s); ` +
-        'missing include roots should be configured via compile_commands.json.'
+        `missing include roots should be configured via compile_commands.json.${headerSummary ? ` top missing headers: ${headerSummary}.` : ''}`
       );
     }
   };
@@ -233,6 +383,40 @@ export const createClangdProvider = () => ({
     clangdArgs.push('--log=error');
     clangdArgs.push('--background-index=false');
     if (compileCommandsDir) clangdArgs.push(`--compile-commands-dir=${compileCommandsDir}`);
+    const configuredFallbackFlags = Array.isArray(clangdConfig.fallbackFlags)
+      ? clangdConfig.fallbackFlags
+        .map((entry) => String(entry || '').trim())
+        .filter(Boolean)
+      : [];
+    let inferredIncludeRoots = [];
+    if (!compileCommandsDir && clangdConfig.autoInferIncludeRoots !== false) {
+      const includeHeaders = extractIncludeHeadersFromDocuments(docs);
+      if (includeHeaders.length) {
+        const trackedHeaders = listTrackedHeaderPaths(ctx.repoRoot);
+        inferredIncludeRoots = inferIncludeRootsFromHeaderPaths({
+          repoRoot: ctx.repoRoot,
+          includeHeaders,
+          headerPaths: trackedHeaders,
+          maxRoots: Number.isFinite(Number(clangdConfig.maxInferredIncludeRoots))
+            ? Math.max(0, Math.floor(Number(clangdConfig.maxInferredIncludeRoots)))
+            : 16
+        });
+      }
+    }
+    const inferredFallbackFlags = [];
+    for (const includeRoot of inferredIncludeRoots) {
+      inferredFallbackFlags.push('-I', includeRoot);
+    }
+    const fallbackFlags = [...configuredFallbackFlags, ...inferredFallbackFlags];
+    const initializationOptions = fallbackFlags.length
+      ? { fallbackFlags }
+      : null;
+    if (inferredIncludeRoots.length) {
+      log(
+        `[tooling] clangd inferred ${inferredIncludeRoots.length} include root(s): ` +
+        `${inferredIncludeRoots.slice(0, 5).join(', ')}${inferredIncludeRoots.length > 5 ? ' ...' : ''}`
+      );
+    }
     const globalTimeoutMs = asFiniteNumber(ctx?.toolingConfig?.timeoutMs);
     const providerTimeoutMs = asFiniteNumber(clangdConfig.timeoutMs);
     const timeoutMs = Math.max(30000, Math.floor(providerTimeoutMs ?? globalTimeoutMs ?? 45000));
@@ -268,7 +452,8 @@ export const createClangdProvider = () => ({
         vfsTokenMode: ctx?.toolingConfig?.vfs?.tokenMode,
         vfsIoBatching: ctx?.toolingConfig?.vfs?.ioBatching,
         vfsColdStartCache: ctx?.toolingConfig?.vfs?.coldStartCache,
-        indexDir: ctx?.buildRoot || null
+        indexDir: ctx?.buildRoot || null,
+        initializationOptions
       });
     } finally {
       clangdStderr.flush(log);
