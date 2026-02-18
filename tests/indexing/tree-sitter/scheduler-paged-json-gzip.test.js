@@ -92,6 +92,12 @@ try {
   assert.ok(retainedStats.pageCacheEntries >= 1, 'expected page cache entry for non-consumed paged row');
   const consumed = await lookup.loadChunks(rows[0].virtualPath);
   assert.ok(Array.isArray(consumed) && consumed.length === 1, 'expected consumed paged chunk load');
+  const consumedFirstStats = lookup.stats();
+  assert.equal(
+    consumedFirstStats.pageCacheEntries,
+    1,
+    'expected shared page cache to remain while sibling virtual paths are unconsumed'
+  );
   const consumedSecond = await lookup.loadChunks(rows[1].virtualPath);
   assert.ok(Array.isArray(consumedSecond) && consumedSecond.length === 1, 'expected second consumed paged chunk load');
   const consumedStats = lookup.stats();

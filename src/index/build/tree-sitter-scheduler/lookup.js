@@ -44,9 +44,26 @@ export const createTreeSitterSchedulerLookup = ({
     name: 'tree-sitter-scheduler-page-rows',
     maxEntries: DEFAULT_PAGE_CACHE_MAX
   });
+  const pageRefCounts = new Map();
+  const consumedVirtualPaths = new Set();
   const readersByManifestPath = new Map();
   const segmentMetaByGrammarKey = new Map(); // grammarKey -> Promise<Map<number, object>|null>
   const pageIndexByGrammarKey = new Map(); // grammarKey -> Promise<Map<number, object>|null>
+
+  const pageCacheKeyForEntry = (entry) => {
+    if (!entry || entry.store !== 'paged-json') return null;
+    const grammarKey = typeof entry.grammarKey === 'string' ? entry.grammarKey : null;
+    const pageId = Number(entry.page);
+    if (!grammarKey || !Number.isFinite(pageId) || pageId < 0) return null;
+    return `${grammarKey}:${pageId}`;
+  };
+
+  for (const entry of index.values()) {
+    const pageKey = pageCacheKeyForEntry(entry);
+    if (!pageKey) continue;
+    const current = pageRefCounts.get(pageKey) || 0;
+    pageRefCounts.set(pageKey, current + 1);
+  }
 
   const getReaderForManifest = (manifestPath, format = 'jsonl') => {
     const key = `${manifestPath}|${format}`;
@@ -67,6 +84,8 @@ export const createTreeSitterSchedulerLookup = ({
     segmentMetaByGrammarKey.clear();
     pageIndexByGrammarKey.clear();
     pageRowsCache.clear();
+    pageRefCounts.clear();
+    consumedVirtualPaths.clear();
     await Promise.all(readers.map(async (reader) => {
       try {
         await reader.close();
@@ -385,12 +404,22 @@ export const createTreeSitterSchedulerLookup = ({
     if (!virtualPath) return;
     rowCache.delete(virtualPath);
     missCache.delete(virtualPath);
+    if (consumedVirtualPaths.has(virtualPath)) return;
+    consumedVirtualPaths.add(virtualPath);
     const entry = index.get(virtualPath);
-    if (!entry || entry.store !== 'paged-json') return;
-    const grammarKey = typeof entry.grammarKey === 'string' ? entry.grammarKey : null;
-    const pageId = Number(entry.page);
-    if (!grammarKey || !Number.isFinite(pageId) || pageId < 0) return;
-    pageRowsCache.delete(`${grammarKey}:${pageId}`);
+    const pageKey = pageCacheKeyForEntry(entry);
+    if (!pageKey) return;
+    const remaining = pageRefCounts.get(pageKey);
+    if (Number.isFinite(remaining)) {
+      if (remaining <= 1) {
+        pageRefCounts.delete(pageKey);
+        pageRowsCache.delete(pageKey);
+      } else {
+        pageRefCounts.set(pageKey, remaining - 1);
+      }
+      return;
+    }
+    pageRowsCache.delete(pageKey);
   };
 
   const loadChunks = async (virtualPath, options = {}) => {
