@@ -235,7 +235,8 @@ export const processFileCpu = async (context) => {
       treeSitter: contextTreeSitterConfig
     }
     : { relationsEnabled, metricsCollector, filePath: abs, treeSitter: contextTreeSitterConfig };
-  const runTreeSitter = treeSitterEnabled ? runTreeSitterSerial : (fn) => fn();
+  const shouldSerializeLanguageContext = treeSitterEnabled && treeSitterLanguagePasses === false;
+  const runTreeSitter = shouldSerializeLanguageContext ? runTreeSitterSerial : (fn) => fn();
   const primaryLanguageId = languageHint?.id || null;
   let lang = null;
   let languageContext = {};
