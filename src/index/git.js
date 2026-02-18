@@ -121,7 +121,10 @@ export async function getGitLineAuthorsForFile(file, options = {}) {
         timeoutMs,
         signal
       });
-      blame = result.exitCode === 0 ? result.stdout : null;
+      if (result.exitCode !== 0) {
+        throw createGitNonZeroExitError('git blame', result);
+      }
+      blame = result.stdout;
     } else {
       const git = simpleGit({ baseDir });
       blame = await git.raw(['blame', '--line-porcelain', '--', fileArg]);
