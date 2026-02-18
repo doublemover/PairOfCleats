@@ -64,10 +64,9 @@ export const resolveTreeSitterRuntime = (indexingConfig) => {
   const treeSitterConfig = indexingConfig.treeSitter || {};
   const treeSitterEnabled = treeSitterConfig.enabled !== false;
   const treeSitterLanguages = treeSitterConfig.languages || {};
-  // Keep large C/C++ headers on the native parser path by default.
-  // 512KB caused frequent scheduler skips on benchmark repos (e.g. nlohmann/fmt),
-  // which then fell back to slower heuristic chunking.
-  const treeSitterMaxBytes = normalizeLimit(treeSitterConfig.maxBytes, 1024 * 1024);
+  // Keep a conservative global ceiling by default so oversized JS payloads
+  // are rejected early and do not trigger expensive parser/minified heuristics.
+  const treeSitterMaxBytes = normalizeLimit(treeSitterConfig.maxBytes, 512 * 1024);
   const treeSitterMaxLines = normalizeLimit(treeSitterConfig.maxLines, 10000);
   const treeSitterMaxParseMs = normalizeLimit(treeSitterConfig.maxParseMs, 1000);
   const treeSitterByLanguage = normalizeTreeSitterByLanguage(
