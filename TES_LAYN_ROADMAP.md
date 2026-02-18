@@ -1,6 +1,6 @@
 # TES_LAYN_ROADMAP - Functional USR Delivery Plan
 
-Last updated: 2026-02-18T02:30:50Z
+Last updated: 2026-02-18T02:32:35Z
 Status: active
 Supersedes: prior contract-heavy rollout plans
 
@@ -121,12 +121,12 @@ Exit checks:
 Objective: complete semantic/risk behavior, canonical examples, and deterministic goldens.
 
 Deliverables:
-- [ ] Flow/query/risk semantics implemented for required profiles.
+- [x] Flow/query/risk semantics implemented for required profiles.
 - [ ] Canonical bundles and fixture indexes are complete and deterministic.
 - [ ] Drift controls for functional outputs are operational.
 
 Exit checks:
-- [ ] Semantic and risk outputs match expected runtime behavior.
+- [x] Semantic and risk outputs match expected runtime behavior.
 - [ ] Golden outputs are deterministic on rerun.
 
 ### Phase F - Readiness and Operational Hardening
