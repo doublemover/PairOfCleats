@@ -86,6 +86,10 @@ const HEAVY_FILE_SKIP_TOKENIZATION_MAX_BYTES_DEFAULT = HEAVY_FILE_MAX_BYTES_DEFA
 const HEAVY_FILE_SKIP_TOKENIZATION_MAX_LINES_DEFAULT = HEAVY_FILE_MAX_LINES_DEFAULT * 2;
 const HEAVY_FILE_SKIP_TOKENIZATION_MAX_CHUNKS_DEFAULT = HEAVY_FILE_MAX_CHUNKS_DEFAULT * 2;
 const HEAVY_FILE_SKIP_TOKENIZATION_COALESCE_MAX_CHUNKS_DEFAULT = 16;
+const HEAVY_FILE_CHUNK_ONLY_MIN_BYTES_DEFAULT = 96 * 1024;
+const HEAVY_FILE_CHUNK_ONLY_MIN_LINES_DEFAULT = 1200;
+const HEAVY_FILE_SKIP_TOKENIZATION_CHUNK_ONLY_MIN_BYTES_DEFAULT = 256 * 1024;
+const HEAVY_FILE_SKIP_TOKENIZATION_CHUNK_ONLY_MIN_LINES_DEFAULT = 3000;
 const HEAVY_FILE_PATH_PREFIXES = [
   '/third_party/',
   '/thirdparty/',
@@ -110,9 +114,13 @@ const normalizeHeavyFilePolicy = (languageOptions) => {
   const pathMinBytesRaw = Number(config.pathMinBytes);
   const pathMinLinesRaw = Number(config.pathMinLines);
   const pathMinChunksRaw = Number(config.pathMinChunks);
+  const chunkOnlyMinBytesRaw = Number(config.chunkOnlyMinBytes);
+  const chunkOnlyMinLinesRaw = Number(config.chunkOnlyMinLines);
   const skipTokenizationMaxBytesRaw = Number(config.skipTokenizationMaxBytes);
   const skipTokenizationMaxLinesRaw = Number(config.skipTokenizationMaxLines);
   const skipTokenizationMaxChunksRaw = Number(config.skipTokenizationMaxChunks);
+  const skipTokenizationChunkOnlyMinBytesRaw = Number(config.skipTokenizationChunkOnlyMinBytes);
+  const skipTokenizationChunkOnlyMinLinesRaw = Number(config.skipTokenizationChunkOnlyMinLines);
   const skipTokenizationCoalesceMaxChunksRaw = Number(config.skipTokenizationCoalesceMaxChunks);
   const maxBytes = Number.isFinite(maxBytesRaw) && maxBytesRaw > 0
     ? Math.floor(maxBytesRaw)
@@ -123,6 +131,7 @@ const normalizeHeavyFilePolicy = (languageOptions) => {
   const maxChunks = Number.isFinite(maxChunksRaw) && maxChunksRaw > 0
     ? Math.floor(maxChunksRaw)
     : HEAVY_FILE_MAX_CHUNKS_DEFAULT;
+  const hasExplicitMaxChunks = Number.isFinite(maxChunksRaw) && maxChunksRaw > 0;
   const pathMinBytes = Number.isFinite(pathMinBytesRaw) && pathMinBytesRaw > 0
     ? Math.floor(pathMinBytesRaw)
     : HEAVY_FILE_PATH_MIN_BYTES_DEFAULT;
@@ -144,6 +153,22 @@ const normalizeHeavyFilePolicy = (languageOptions) => {
   const skipTokenizationMaxChunks = Number.isFinite(skipTokenizationMaxChunksRaw) && skipTokenizationMaxChunksRaw > 0
     ? Math.floor(skipTokenizationMaxChunksRaw)
     : HEAVY_FILE_SKIP_TOKENIZATION_MAX_CHUNKS_DEFAULT;
+  const hasExplicitSkipTokenizationMaxChunks = Number.isFinite(skipTokenizationMaxChunksRaw)
+    && skipTokenizationMaxChunksRaw > 0;
+  const chunkOnlyMinBytes = Number.isFinite(chunkOnlyMinBytesRaw) && chunkOnlyMinBytesRaw > 0
+    ? Math.floor(chunkOnlyMinBytesRaw)
+    : (hasExplicitMaxChunks ? 0 : HEAVY_FILE_CHUNK_ONLY_MIN_BYTES_DEFAULT);
+  const chunkOnlyMinLines = Number.isFinite(chunkOnlyMinLinesRaw) && chunkOnlyMinLinesRaw > 0
+    ? Math.floor(chunkOnlyMinLinesRaw)
+    : (hasExplicitMaxChunks ? 0 : HEAVY_FILE_CHUNK_ONLY_MIN_LINES_DEFAULT);
+  const skipTokenizationChunkOnlyMinBytes = Number.isFinite(skipTokenizationChunkOnlyMinBytesRaw)
+    && skipTokenizationChunkOnlyMinBytesRaw > 0
+    ? Math.floor(skipTokenizationChunkOnlyMinBytesRaw)
+    : (hasExplicitSkipTokenizationMaxChunks ? 0 : HEAVY_FILE_SKIP_TOKENIZATION_CHUNK_ONLY_MIN_BYTES_DEFAULT);
+  const skipTokenizationChunkOnlyMinLines = Number.isFinite(skipTokenizationChunkOnlyMinLinesRaw)
+    && skipTokenizationChunkOnlyMinLinesRaw > 0
+    ? Math.floor(skipTokenizationChunkOnlyMinLinesRaw)
+    : (hasExplicitSkipTokenizationMaxChunks ? 0 : HEAVY_FILE_SKIP_TOKENIZATION_CHUNK_ONLY_MIN_LINES_DEFAULT);
   const skipTokenizationCoalesceMaxChunks = Number.isFinite(skipTokenizationCoalesceMaxChunksRaw)
     && skipTokenizationCoalesceMaxChunksRaw > 0
     ? Math.floor(skipTokenizationCoalesceMaxChunksRaw)
@@ -156,10 +181,14 @@ const normalizeHeavyFilePolicy = (languageOptions) => {
     pathMinBytes,
     pathMinLines,
     pathMinChunks,
+    chunkOnlyMinBytes,
+    chunkOnlyMinLines,
     skipTokenizationEnabled,
     skipTokenizationMaxBytes,
     skipTokenizationMaxLines,
     skipTokenizationMaxChunks,
+    skipTokenizationChunkOnlyMinBytes,
+    skipTokenizationChunkOnlyMinLines,
     skipTokenizationCoalesceMaxChunks
   };
 };
@@ -304,26 +333,43 @@ export const processChunks = async (context) => {
   const fileBytes = fileStat?.size ?? Buffer.byteLength(text || '', 'utf8');
   const fileLines = fileLineCount || 0;
   const heavyFilePolicy = normalizeHeavyFilePolicy(languageOptions);
+  const heavyByBytes = fileBytes >= heavyFilePolicy.maxBytes;
+  const heavyByLines = fileLines >= heavyFilePolicy.maxLines;
+  const heavyByChunks = sourceChunks.length >= heavyFilePolicy.maxChunks;
+  const heavyByChunkOnly = heavyByChunks
+    && (
+      fileBytes >= heavyFilePolicy.chunkOnlyMinBytes
+      || fileLines >= heavyFilePolicy.chunkOnlyMinLines
+    );
+  const heavyByPath = shouldDownshiftForHeavyPath({
+    relPath: relKey,
+    fileBytes,
+    fileLines,
+    chunkCount: sourceChunks.length,
+    heavyFilePolicy
+  });
   const heavyFileDownshift = mode === 'code'
     && heavyFilePolicy.enabled
     && (
-      fileBytes >= heavyFilePolicy.maxBytes
-      || fileLines >= heavyFilePolicy.maxLines
-      || sourceChunks.length >= heavyFilePolicy.maxChunks
-      || shouldDownshiftForHeavyPath({
-        relPath: relKey,
-        fileBytes,
-        fileLines,
-        chunkCount: sourceChunks.length,
-        heavyFilePolicy
-      })
+      heavyByBytes
+      || heavyByLines
+      || heavyByChunkOnly
+      || heavyByPath
+    );
+  const skipTokenizationByBytes = fileBytes >= heavyFilePolicy.skipTokenizationMaxBytes;
+  const skipTokenizationByLines = fileLines >= heavyFilePolicy.skipTokenizationMaxLines;
+  const skipTokenizationByChunks = sourceChunks.length >= heavyFilePolicy.skipTokenizationMaxChunks;
+  const skipTokenizationByChunkOnly = skipTokenizationByChunks
+    && (
+      fileBytes >= heavyFilePolicy.skipTokenizationChunkOnlyMinBytes
+      || fileLines >= heavyFilePolicy.skipTokenizationChunkOnlyMinLines
     );
   const heavyFileSkipTokenization = heavyFileDownshift
     && heavyFilePolicy.skipTokenizationEnabled
     && (
-      fileBytes >= heavyFilePolicy.skipTokenizationMaxBytes
-      || fileLines >= heavyFilePolicy.skipTokenizationMaxLines
-      || sourceChunks.length >= heavyFilePolicy.skipTokenizationMaxChunks
+      skipTokenizationByBytes
+      || skipTokenizationByLines
+      || skipTokenizationByChunkOnly
     );
   const heavyFileTargetChunks = heavyFileSkipTokenization
     ? Math.min(heavyFilePolicy.maxChunks, heavyFilePolicy.skipTokenizationCoalesceMaxChunks)
