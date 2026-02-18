@@ -3,6 +3,7 @@ import { analyzeComplexity, lintChunk } from '../../../analysis.js';
 import { getLanguageForFile } from '../../../language-registry.js';
 import { getChunkAuthorsFromLines } from '../../../scm/annotate.js';
 import { isJsLike } from '../../../constants.js';
+import { detectFrameworkProfile } from '../../../framework-profile.js';
 import {
   classifyTokenBuckets,
   createFileLineTokenStream,
@@ -21,6 +22,21 @@ import { attachCallDetailsByChunkIndex } from './dedupe.js';
 import { buildChunkEnrichment } from './enrichment.js';
 import { prepareChunkIds } from './ids.js';
 import { collectChunkComments } from './limits.js';
+
+export const createFrameworkProfileResolver = ({ relPath, text, detect = detectFrameworkProfile }) => {
+  const cache = new Map();
+  return ({ ext }) => {
+    const key = String(ext || '');
+    if (cache.has(key)) return cache.get(key);
+    const profile = detect({
+      relPath,
+      ext,
+      text
+    }) || null;
+    cache.set(key, profile);
+    return profile;
+  };
+};
 
 export const processChunks = async (context) => {
   const {
@@ -255,6 +271,10 @@ export const processChunks = async (context) => {
   const resolvedRiskAnalysisEnabled = typeof analysisPolicy?.risk?.enabled === 'boolean'
     ? analysisPolicy.risk.enabled
     : riskAnalysisEnabled;
+  const resolveFrameworkProfile = createFrameworkProfileResolver({
+    relPath: rel,
+    text
+  });
 
   for (let ci = 0; ci < sc.length; ++ci) {
     const c = sc[ci];
@@ -273,6 +293,7 @@ export const processChunks = async (context) => {
     const segmentTokenMode = c.segment ? resolveSegmentTokenMode(c.segment) : tokenMode;
     const chunkMode = segmentTokenMode || tokenMode;
     const effectiveExt = c.segment?.ext || containerExt;
+    const fileFrameworkProfile = resolveFrameworkProfile({ ext: effectiveExt });
     const langCacheKey = effectiveExt || '';
     let effectiveLang = effectiveLangCache.get(langCacheKey);
     if (effectiveLang === undefined) {
@@ -349,11 +370,10 @@ export const processChunks = async (context) => {
       updateCrashStage,
       failFile,
       diagnostics,
-      relPath: rel,
-      effectiveExt,
       startLine,
       endLine,
-      totalLines
+      totalLines,
+      fileFrameworkProfile
     });
     if (enrichment?.skip) {
       return enrichment.skip;
