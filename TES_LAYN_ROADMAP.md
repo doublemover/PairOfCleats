@@ -70,7 +70,7 @@ Deliverables:
 - [x] Core diagnostics are explicit for unsupported and partial features.
 
 Exit checks:
-- [ ] Baseline fixture runs are deterministic for core outputs.
+- [x] Baseline fixture runs are deterministic for core outputs.
 - [ ] No unresolved runtime blockers remain in foundation scope.
 
 ### Phase B - Identity and Normalization Core
@@ -193,7 +193,7 @@ Detailed evidence mapping: `TES_LAYN_GOVERNANCE.md`.
 
 ### Gate A (foundation)
 
-- [ ] foundation runtime outputs are deterministic.
+- [x] foundation runtime outputs are deterministic.
 - [ ] registry and adapter scaffolding are complete.
 
 ### Gate B1-B7 (language batches)
