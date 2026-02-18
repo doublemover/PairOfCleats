@@ -1035,6 +1035,15 @@ const resolvePythonRelativeDottedImport = ({ spec, importerRel, lookup }) => {
   });
 };
 
+/**
+ * Resolve path-like relative imports using importer language heuristics.
+ *
+ * This is the primary relative-specifier hook for languages whose module
+ * systems need extension/suffix probing (Ruby, Python, Perl, Lua, etc.).
+ *
+ * @param {{spec:string,base:string,importerRel:string,lookup:Set<string>}} input
+ * @returns {string|null}
+ */
 const resolveLanguageRelativeImport = ({ spec, base, importerRel, lookup }) => {
   if (isRubyImporter(importerRel)) {
     const rubyResolved = resolveRubyRelativeImport({ base, lookup });
@@ -1198,6 +1207,20 @@ const resolveDartImport = ({ spec, importerRel, lookup, dartPackageName }) => {
   });
 };
 
+/**
+ * Resolve non-relative imports (`foo.bar`, namespaces, package paths) using
+ * language-specific conventions and return typed resolution metadata.
+ *
+ * @param {{
+ *   importerRel:string,
+ *   spec:string,
+ *   lookup:Set<string>,
+ *   rootAbs:string|null,
+ *   goModulePath:string|null,
+ *   dartPackageName:string|null
+ * }} input
+ * @returns {{resolvedType:string,resolvedPath:string}|null}
+ */
 const resolveLanguageNonRelativeImport = ({
   importerRel,
   spec,

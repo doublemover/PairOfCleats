@@ -139,9 +139,20 @@ export async function getGitLineAuthorsForFile(file, options = {}) {
 
 /**
  * Fetch git metadata for an entire file, with optional line-level blame.
- * Returns empty object when git is unavailable or fails.
+ *
+ * Uses per-root caches and a temporary backoff circuit so repeated git
+ * timeouts/unavailability do not repeatedly stall hot indexing paths.
+ * Returns `{}` when git is unavailable or currently backed off.
+ *
  * @param {string} file
- * @param {{blame?:boolean,baseDir?:string}} [options]
+ * @param {{
+ *   blame?:boolean,
+ *   includeChurn?:boolean,
+ *   churnWindowCommits?:number,
+ *   timeoutMs?:number,
+ *   signal?:AbortSignal|null,
+ *   baseDir?:string
+ * }} [options]
  * @returns {Promise<{last_modified?:string,last_author?:string,churn?:number,churn_added?:number,churn_deleted?:number,churn_commits?:number,lineAuthors?:string[]}|{}>}
  */
 export async function getGitMetaForFile(file, options = {}) {
@@ -302,6 +313,17 @@ const clearGitFailureState = (baseDir) => {
   gitRootFailureState.delete(baseDir);
 };
 
+/**
+ * Record a git failure and compute temporary/permanent disable windows.
+ *
+ * Fatal “git unavailable” signatures disable lookups indefinitely for the
+ * repo root. Timeout-like failures or repeated transient failures trigger a
+ * temporary cooldown to protect indexing latency.
+ *
+ * @param {string} baseDir
+ * @param {Error|any} err
+ * @returns {void}
+ */
 const recordGitFailure = (baseDir, err) => {
   if (!baseDir) return;
   const now = Date.now();

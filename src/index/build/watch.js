@@ -283,6 +283,13 @@ export async function watchIndex({
     return { entries, skippedFiles };
   };
 
+  /**
+   * Classify a changed path for watch-mode indexing, applying guardrails
+   * (outside-root, depth, ignore, minified, size, symlink, records routing).
+   *
+   * @param {string} absPath
+   * @returns {Promise<object>}
+   */
   const classifyPath = async (absPath) => {
     const relPosix = toPosix(path.relative(root, absPath));
     if (!relPosix || relPosix === '.' || relPosix.startsWith('..')) {
@@ -351,6 +358,13 @@ export async function watchIndex({
     };
   };
 
+  /**
+   * Reconcile one absolute path across all active modes and update tracked
+   * entry/skip maps while maintaining cross-mode reference counts.
+   *
+   * @param {string} absPath
+   * @returns {Promise<boolean>} true when tracked membership changed.
+   */
   const updateTrackedEntry = async (absPath) => {
     const beforeCount = trackedCounts.get(absPath) || 0;
     const classification = await classifyPath(absPath);
@@ -422,6 +436,13 @@ export async function watchIndex({
     return beforeCount !== afterCount;
   };
 
+  /**
+   * Execute one watch rebuild cycle:
+   * acquire lock, build per mode from tracked discovery, validate, then
+   * promote on success. If updates arrive mid-run, queue a follow-up cycle.
+   *
+   * @returns {Promise<void>}
+   */
   const runBuild = async () => {
     if (running) {
       pending = true;

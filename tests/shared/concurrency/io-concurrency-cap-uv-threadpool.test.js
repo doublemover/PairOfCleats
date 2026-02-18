@@ -28,4 +28,18 @@ assert.strictEqual(oversubscribed.fileConcurrency, 64, 'fileConcurrency should u
 assert.strictEqual(oversubscribed.importConcurrency, 64, 'importConcurrency should use requested threads when oversubscribe enabled');
 assert.strictEqual(oversubscribed.ioConcurrency, 64, 'ioConcurrency should honor platform cap when oversubscribe enabled');
 
+const cliOvercommitted = resolveThreadLimits({
+  argv: { threads: 64 },
+  rawArgv: ['--threads', '64'],
+  envConfig: {},
+  cpuCount: 16,
+  uvThreadpoolSize: 4,
+  ioOversubscribe: false
+});
+
+assert.strictEqual(cliOvercommitted.threads, 64, 'cli threads should not clamp to cpu count');
+assert.strictEqual(cliOvercommitted.fileConcurrency, 64, 'fileConcurrency should honor explicit cli overcommit');
+assert.strictEqual(cliOvercommitted.importConcurrency, 64, 'importConcurrency should honor explicit cli overcommit');
+assert.strictEqual(cliOvercommitted.ioConcurrency, 64, 'ioConcurrency should follow overcommitted file/import concurrency');
+
 console.log('io concurrency cap tests passed');

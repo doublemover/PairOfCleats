@@ -51,6 +51,13 @@ const FLOW_NORMALIZATION_TABLE = Object.freeze([
   })
 ]);
 
+/**
+ * Normalize per-language parser selections from nested config keys while
+ * preserving legacy top-level overrides for compatibility.
+ *
+ * @param {object} [indexingConfig={}]
+ * @returns {Record<string,string>}
+ */
 export const normalizeLanguageParserConfig = (indexingConfig = {}) => {
   const resolved = {};
   for (const row of PARSER_NORMALIZATION_TABLE) {
@@ -62,6 +69,12 @@ export const normalizeLanguageParserConfig = (indexingConfig = {}) => {
   return resolved;
 };
 
+/**
+ * Normalize Flow enablement flags from nested/legacy config fields.
+ *
+ * @param {object} [indexingConfig={}]
+ * @returns {Record<string,'auto'|'on'|'off'>}
+ */
 export const normalizeLanguageFlowConfig = (indexingConfig = {}) => {
   const resolved = {};
   for (const row of FLOW_NORMALIZATION_TABLE) {
@@ -93,6 +106,17 @@ const isWithinRoot = (rootPath, targetPath) => {
   return !relative.startsWith('..') && !path.isAbsolute(relative);
 };
 
+/**
+ * Normalize dictionary file paths into stable signature keys.
+ *
+ * Preference order:
+ * 1. Relative to configured dictionary directory.
+ * 2. Relative to repository root.
+ * 3. Normalized absolute path (with Windows drive letter normalization).
+ *
+ * @param {{dictFile:string,dictDir?:string|null,repoRoot:string}} input
+ * @returns {string}
+ */
 export const normalizeDictSignaturePath = ({ dictFile, dictDir, repoRoot }) => {
   const normalized = resolvePath(dictFile);
   if (dictDir) {

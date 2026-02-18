@@ -88,6 +88,18 @@ const renameTempFile = async (tempPath, targetPath) => {
   await fs.rename(tempPath, targetPath);
 };
 
+/**
+ * Write payload to a temporary sibling file, fsync it, rename into place, and
+ * fsync the parent directory to maximize durability across crashes.
+ *
+ * This is the shared primitive used by `atomicWriteText` and
+ * `atomicWriteJson`; it also retries open calls for transient FD exhaustion.
+ *
+ * @param {string} targetPath
+ * @param {string|Buffer} payload
+ * @param {{mkdir?:boolean,mode?:number,encoding?:string}} [options]
+ * @returns {Promise<string|null>}
+ */
 const writeAtomicPayload = async (targetPath, payload, {
   mkdir = true,
   mode = undefined,

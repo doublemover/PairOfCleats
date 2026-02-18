@@ -91,6 +91,14 @@ const extractStringField = (window, field) => {
   return decodeJsonString(match[1]);
 };
 
+/**
+ * Collect byte ranges for top-level objects inside a JSON array without fully
+ * parsing the payload, capped by `entryLimit`.
+ *
+ * @param {string} text
+ * @param {number} entryLimit
+ * @returns {Array<{start:number,end:number}>}
+ */
 const collectTopLevelArrayObjectRanges = (text, entryLimit) => {
   const ranges = [];
   if (!text || !entryLimit) return ranges;
@@ -146,9 +154,17 @@ const collectTopLevelArrayObjectRanges = (text, entryLimit) => {
   return ranges;
 };
 
-// Large docs search indexes can be multi-megabyte single-line JSON blobs.
-// Full JSON.parse is expensive and unnecessary when we only need a small
-// normalized text synopsis, so this scans entry headers and local windows.
+/**
+ * Fast-scan large docs `search.json` payloads and extract compact
+ * `route | name | parent | abstract` lines from local windows.
+ *
+ * This avoids whole-document `JSON.parse` for multi-megabyte blobs while still
+ * preserving representative text for indexing.
+ *
+ * @param {string} text
+ * @param {{entryLimit:number,abstractLimit:number,lineLimit:number,scanWindowChars?:number}} options
+ * @returns {string|null}
+ */
 const compactDocsSearchJsonTextFastScan = (
   text,
   {
@@ -220,6 +236,13 @@ const compactDocsSearchJsonTextFastScan = (
   return `${lines.join('\n')}\n`;
 };
 
+/**
+ * Detect whether a file path is a docs search index candidate (`search.json`
+ * under a docs route) eligible for compaction.
+ *
+ * @param {{mode:string,ext:string,relPath:string}} input
+ * @returns {boolean}
+ */
 export const isDocsSearchIndexJsonPath = ({ mode, ext, relPath }) => {
   const normalizedExt = String(ext || '').toLowerCase();
   if (normalizedExt !== '.json') return false;
@@ -230,6 +253,22 @@ export const isDocsSearchIndexJsonPath = ({ mode, ext, relPath }) => {
   return isDocsPath(normalizedPath);
 };
 
+/**
+ * Normalize docs search index JSON into compact, line-oriented text.
+ *
+ * Uses a fast scanner for very large inputs and falls back to JSON parsing to
+ * support both object- and array-shaped payloads.
+ *
+ * @param {string} text
+ * @param {{
+ *   maxEntries?:number,
+ *   maxAbstractChars?:number,
+ *   maxLineChars?:number,
+ *   fastScanMinInputChars?:number,
+ *   fastScanWindowChars?:number
+ * }} [options]
+ * @returns {string|null}
+ */
 export const compactDocsSearchJsonText = (
   text,
   {
