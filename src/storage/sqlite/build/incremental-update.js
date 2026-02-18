@@ -36,6 +36,10 @@ import { getSchemaVersion, validateSqliteDatabase } from './validate.js';
 import { ensureVocabIds } from '../vocab.js';
 
 const MAX_INCREMENTAL_CHANGE_RATIO = 0.35;
+const MAX_INCREMENTAL_CHANGE_RATIO_BY_MODE = {
+  prose: 0.7,
+  'extracted-prose': 0.9
+};
 const VOCAB_GROWTH_LIMITS = {
   token_vocab: { ratio: 0.4, absolute: 200000 },
   phrase_vocab: { ratio: 0.5, absolute: 150000 },
@@ -213,12 +217,15 @@ export async function incrementalUpdateDatabase({
     manifestUpdates: manifestUpdates.length
   };
   if (totalFiles) {
+    const maxChangeRatio = Number.isFinite(MAX_INCREMENTAL_CHANGE_RATIO_BY_MODE[mode])
+      ? MAX_INCREMENTAL_CHANGE_RATIO_BY_MODE[mode]
+      : MAX_INCREMENTAL_CHANGE_RATIO;
     const changeRatio = (changed.length + deleted.length) / totalFiles;
-    if (changeRatio > MAX_INCREMENTAL_CHANGE_RATIO) {
+    if (changeRatio > maxChangeRatio) {
       await finalize();
       return {
         used: false,
-        reason: `change ratio ${changeRatio.toFixed(2)} (changed=${changed.length}, deleted=${deleted.length}, total=${totalFiles}) exceeds ${MAX_INCREMENTAL_CHANGE_RATIO}`,
+        reason: `change ratio ${changeRatio.toFixed(2)} (changed=${changed.length}, deleted=${deleted.length}, total=${totalFiles}) exceeds ${maxChangeRatio}`,
         ...changeSummary
       };
     }
