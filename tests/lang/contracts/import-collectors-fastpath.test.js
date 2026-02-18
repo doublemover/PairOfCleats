@@ -46,6 +46,7 @@ assert.deepEqual(
 
 assert.deepEqual(collectRubyImports('puts :ok\n'), []);
 assert.deepEqual(collectRubyImports('require \"json\"\nrequire_relative \"../lib/x\"\n').sort(), ['../lib/x', 'json']);
+assert.deepEqual(collectRubyImports('require_relative \"tasklib\"\n').sort(), ['./tasklib']);
 
 assert.deepEqual(collectRustImports('fn main() {}\n'), []);
 assert.deepEqual(collectRustImports('use std::fs;\nextern crate serde;\n').sort(), ['serde', 'std::fs']);

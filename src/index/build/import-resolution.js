@@ -676,6 +676,62 @@ const parsePackageName = (spec) => {
   return name || null;
 };
 
+const isRubyImporter = (importerRel) => {
+  const normalized = normalizeRelPath(importerRel).toLowerCase();
+  if (!normalized) return false;
+  const base = path.posix.basename(normalized);
+  return normalized.endsWith('.rb')
+    || normalized.endsWith('.rake')
+    || base === 'rakefile';
+};
+
+const resolveRubyLoadPathImport = ({ spec, lookup }) => {
+  const normalizedSpec = normalizeRelPath(spec);
+  if (!normalizedSpec || normalizedSpec.startsWith('/')) return null;
+  const candidates = [
+    normalizedSpec,
+    `${normalizedSpec}.rb`,
+    `${normalizedSpec}.rake`,
+    `${normalizedSpec}/index.rb`,
+    `${normalizedSpec}/index.rake`,
+    `lib/${normalizedSpec}`,
+    `lib/${normalizedSpec}.rb`,
+    `lib/${normalizedSpec}.rake`,
+    `lib/${normalizedSpec}/index.rb`,
+    `lib/${normalizedSpec}/index.rake`
+  ];
+  const seen = new Set();
+  for (const candidate of candidates) {
+    const rel = normalizeRelPath(candidate);
+    if (!rel || rel.startsWith('/') || seen.has(rel)) continue;
+    seen.add(rel);
+    const resolved = resolveFromLookup(rel, lookup);
+    if (resolved) return resolved;
+  }
+  return null;
+};
+
+const resolveRubyRelativeImport = ({ base, lookup }) => {
+  const normalizedBase = normalizeRelPath(base);
+  if (!normalizedBase || normalizedBase.startsWith('/')) return null;
+  const candidates = [
+    normalizedBase,
+    `${normalizedBase}.rb`,
+    `${normalizedBase}.rake`,
+    `${normalizedBase}/index.rb`,
+    `${normalizedBase}/index.rake`
+  ];
+  const seen = new Set();
+  for (const candidate of candidates) {
+    const rel = normalizeRelPath(candidate);
+    if (!rel || rel.startsWith('/') || seen.has(rel)) continue;
+    seen.add(rel);
+    const resolved = resolveFromLookup(rel, lookup);
+    if (resolved) return resolved;
+  }
+  return null;
+};
+
 const resolvePackageFingerprint = (rootAbs, fsMemo = null) => {
   const io = fsMemo || createFsMemo();
   if (!rootAbs) return null;
@@ -982,7 +1038,10 @@ export function resolveImportLinks({
           const base = spec.startsWith('/')
             ? normalizeRelPath(spec.slice(1))
             : normalizeRelPath(path.posix.join(path.posix.dirname(relNormalized), spec));
-          const candidate = resolveCandidate(base, resolvedLookup);
+          const rubyRelativeResolved = isRubyImporter(relNormalized)
+            ? resolveRubyRelativeImport({ base, lookup: resolvedLookup })
+            : null;
+          const candidate = rubyRelativeResolved || resolveCandidate(base, resolvedLookup);
           if (candidate) {
             resolvedType = 'relative';
             resolvedPath = candidate;
@@ -997,8 +1056,16 @@ export function resolveImportLinks({
             tsPathPattern = tsResolved.pattern;
             tsconfigPath = tsconfig?.tsconfigPath || null;
           } else {
-            resolvedType = 'external';
-            packageName = parsePackageName(spec);
+            const rubyResolved = isRubyImporter(relNormalized)
+              ? resolveRubyLoadPathImport({ spec, lookup: resolvedLookup })
+              : null;
+            if (rubyResolved) {
+              resolvedType = 'ruby-load-path';
+              resolvedPath = rubyResolved;
+            } else {
+              resolvedType = 'external';
+              packageName = parsePackageName(spec);
+            }
           }
         }
 
@@ -1028,7 +1095,7 @@ export function resolveImportLinks({
         };
       }
 
-      if (resolvedType === 'relative' || resolvedType === 'ts-path') {
+      if (resolvedType === 'relative' || resolvedType === 'ts-path' || resolvedType === 'ruby-load-path') {
         importLinks.add(resolvedPath);
         resolvedCount += 1;
         edgeTarget = `file:${resolvedPath}`;
