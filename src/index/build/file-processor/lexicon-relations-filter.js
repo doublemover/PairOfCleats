@@ -106,12 +106,14 @@ const bumpCategory = (bucket, category) => {
 const maybeLogStats = ({ stats, languageId, relKey, log }) => {
   if (typeof log !== 'function') return;
   const total = stats.droppedCalls + stats.droppedUsages + stats.droppedCallDetails + stats.droppedCallDetailsWithRange;
-  log(
-    `lexicon.relations.filtered language=${languageId || '_generic'} file=${relKey || '-'} ` +
-    `callsDropped=${stats.droppedCalls} usagesDropped=${stats.droppedUsages} ` +
-    `callDetailsDropped=${stats.droppedCallDetails} callDetailsRangeDropped=${stats.droppedCallDetailsWithRange} ` +
-    `totalDropped=${total}`
-  );
+  if (total <= 0) return;
+  const counters = [];
+  if (stats.droppedCalls > 0) counters.push(`callsDropped=${stats.droppedCalls}`);
+  if (stats.droppedUsages > 0) counters.push(`usagesDropped=${stats.droppedUsages}`);
+  if (stats.droppedCallDetails > 0) counters.push(`callDetailsDropped=${stats.droppedCallDetails}`);
+  if (stats.droppedCallDetailsWithRange > 0) counters.push(`callDetailsRangeDropped=${stats.droppedCallDetailsWithRange}`);
+  counters.push(`totalDropped=${total}`);
+  log(`lexicon.relations.filtered language=${languageId || '_generic'} file=${relKey || '-'} ${counters.join(' ')}`);
 };
 
 const attachFilterStats = (relations, stats, languageId, relKey) => {
