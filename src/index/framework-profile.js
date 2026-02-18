@@ -13,9 +13,16 @@ const hasNextSourceSignal = (sourceLower) => (
   || sourceLower.includes('next/link')
   || sourceLower.includes('next/router')
   || sourceLower.includes('next/navigation')
+  || sourceLower.includes('next/headers')
+  || sourceLower.includes('next/font')
+  || sourceLower.includes('next/cache')
   || sourceLower.includes('next/head')
   || sourceLower.includes('next/image')
   || sourceLower.includes('next/server')
+  || sourceLower.includes("'use client'")
+  || sourceLower.includes('"use client"')
+  || sourceLower.includes("'use server'")
+  || sourceLower.includes('"use server"')
   || /\bnextpage\b/.test(sourceLower)
   || /\bgetstaticprops\b/.test(sourceLower)
   || /\bgetserversideprops\b/.test(sourceLower)
@@ -106,8 +113,7 @@ export const detectFrameworkProfile = ({ relPath, ext, text = '' } = {}) => {
     const nextConfigFile = NEXT_CONFIG_FILE_RX.test(normalizedPath);
     const nextSourceSignal = hasNextSourceSignal(sourceLower);
     const isNext = nextConfigFile
-      || nextAppRouteFile
-      || (nextPagesRouteFile && nextSourceSignal);
+      || ((nextAppRouteFile || nextPagesRouteFile) && nextSourceSignal);
     if (isNext) {
       const signals = buildSignals([
         ['nextAppRouterDynamicSegment', nextAppRouteFile && dynamicRoute],

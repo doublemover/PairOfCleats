@@ -25,6 +25,13 @@ const CASES = [
     expectedSignal: 'nextAppRouterDynamicSegment'
   },
   {
+    relPath: 'app/blog/page.tsx',
+    ext: '.tsx',
+    text: "import React from 'react';\nexport default function BlogPage(){ return <section />; }",
+    expectedId: 'react',
+    expectedSignal: null
+  },
+  {
     relPath: 'src/pages/index.tsx',
     ext: '.tsx',
     text: "import Link from 'next/link';\nexport default function Home(){ return <Link href='/' />; }",
