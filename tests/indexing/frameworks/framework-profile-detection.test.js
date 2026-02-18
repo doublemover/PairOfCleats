@@ -46,6 +46,20 @@ const CASES = [
     expectedSignal: null
   },
   {
+    relPath: 'src/app/settings/page.tsx',
+    ext: '.tsx',
+    text: "import { Button } from 'nextui/button';\nexport default function Settings(){ return <Button />; }",
+    expectedId: 'react',
+    expectedSignal: null
+  },
+  {
+    relPath: 'app/notes/page.tsx',
+    ext: '.tsx',
+    text: "// 'use client'\nimport React from 'react';\nexport default function Notes(){ return <section />; }",
+    expectedId: 'react',
+    expectedSignal: null
+  },
+  {
     relPath: 'src/app/dashboard/widgets.tsx',
     ext: '.tsx',
     text: "import React from 'react';\nexport const Widgets = () => <section />;",

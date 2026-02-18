@@ -352,6 +352,69 @@ await runStatsScenario('return-variable-not-call', {
   }
 });
 
+const expressionReturnProducer = [
+  'export function helper() {',
+  "  return 'ok';",
+  '}',
+  ''
+].join('\n');
+const expressionReturnConsumer = [
+  'export function computeStatus() {',
+  "  const fallback = () => 'fallback';",
+  '  return helper && fallback();',
+  '}',
+  ''
+].join('\n');
+await runStatsScenario('return-expression-not-bare-invocation', {
+  files: {
+    'src/helper.js': expressionReturnProducer,
+    'src/consumer-expression.js': expressionReturnConsumer
+  },
+  chunks: [
+    {
+      file: 'src/consumer-expression.js',
+      name: 'computeStatus',
+      kind: 'function',
+      chunkUid: 'uid-compute-status',
+      start: 0,
+      end: expressionReturnConsumer.length,
+      docmeta: { returnsValue: true },
+      codeRelations: {},
+      metaV2: buildSymbolMeta({
+        file: 'src/consumer-expression.js',
+        name: 'computeStatus',
+        kind: 'function',
+        chunkUid: 'uid-compute-status'
+      })
+    },
+    {
+      file: 'src/helper.js',
+      name: 'helper',
+      kind: 'function',
+      chunkUid: 'uid-helper-expression',
+      start: 0,
+      end: expressionReturnProducer.length,
+      docmeta: {
+        returnType: 'Widget',
+        returnsValue: true
+      },
+      codeRelations: {},
+      metaV2: buildSymbolMeta({
+        file: 'src/helper.js',
+        name: 'helper',
+        kind: 'function',
+        chunkUid: 'uid-helper-expression'
+      })
+    }
+  ],
+  expect: {
+    linkedCalls: 0,
+    linkedUsages: 0,
+    inferredReturns: 0,
+    riskFlows: 0
+  }
+});
+
 const shellHelperContent = [
   'helper() {',
   "  echo 'ok'",

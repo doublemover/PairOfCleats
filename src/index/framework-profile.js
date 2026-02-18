@@ -7,22 +7,11 @@ const hasDynamicSegment = (pathLower) => /\[[^/\]]+\]/.test(pathLower);
 const NEXT_APP_ROUTE_FILE_RX = /(^|\/)app\/(?:.+\/)?(page|layout|route|template|loading|error|not-found|default|head)\.(js|jsx|ts|tsx|mjs|cjs|mts|cts|mdx)$/i;
 const NEXT_PAGES_ROUTE_FILE_RX = /(^|\/)pages\/.+\.(js|jsx|ts|tsx|mjs|cjs|mts|cts|mdx)$/i;
 const NEXT_CONFIG_FILE_RX = /(^|\/)next\.config\.(js|cjs|mjs|ts)$/i;
-const hasNextSourceSignal = (sourceLower) => (
-  sourceLower.includes("from 'next")
-  || sourceLower.includes('from "next')
-  || sourceLower.includes('next/link')
-  || sourceLower.includes('next/router')
-  || sourceLower.includes('next/navigation')
-  || sourceLower.includes('next/headers')
-  || sourceLower.includes('next/font')
-  || sourceLower.includes('next/cache')
-  || sourceLower.includes('next/head')
-  || sourceLower.includes('next/image')
-  || sourceLower.includes('next/server')
-  || sourceLower.includes("'use client'")
-  || sourceLower.includes('"use client"')
-  || sourceLower.includes("'use server'")
-  || sourceLower.includes('"use server"')
+const NEXT_IMPORT_SIGNAL_RX = /\bfrom\s+['"]next(?:\/[^'"]*)?['"]|\brequire\(\s*['"]next(?:\/[^'"]*)?['"]\s*\)|\bimport\(\s*['"]next(?:\/[^'"]*)?['"]\s*\)/i;
+const NEXT_DIRECTIVE_SIGNAL_RX = /^\s*(?:(?:\/\/[^\n]*\n)|(?:\/\*[\s\S]*?\*\/\s*))*['"]use\s+(?:client|server)['"]\s*;?/i;
+const hasNextSourceSignal = (source, sourceLower) => (
+  NEXT_IMPORT_SIGNAL_RX.test(source)
+  || NEXT_DIRECTIVE_SIGNAL_RX.test(source)
   || /\bnextpage\b/.test(sourceLower)
   || /\bgetstaticprops\b/.test(sourceLower)
   || /\bgetserversideprops\b/.test(sourceLower)
@@ -120,7 +109,7 @@ export const detectFrameworkProfile = ({ relPath, ext, text = '' } = {}) => {
     const nextAppRouteFile = NEXT_APP_ROUTE_FILE_RX.test(normalizedPath);
     const nextPagesRouteFile = NEXT_PAGES_ROUTE_FILE_RX.test(normalizedPath);
     const nextConfigFile = NEXT_CONFIG_FILE_RX.test(normalizedPath);
-    const nextSourceSignal = hasNextSourceSignal(sourceLower);
+    const nextSourceSignal = hasNextSourceSignal(source, sourceLower);
     // Require source-level Next signals for route-like paths to avoid broad false positives
     // in non-Next repos that happen to use app/pages directory names.
     const isNext = nextConfigFile
