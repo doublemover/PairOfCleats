@@ -1,6 +1,6 @@
 # TES_LAYN_ROADMAP - Functional USR Delivery Plan
 
-Last updated: 2026-02-18T02:34:34Z
+Last updated: 2026-02-18T02:36:00Z
 Status: active
 Supersedes: prior contract-heavy rollout plans
 
@@ -134,9 +134,9 @@ Exit checks:
 Objective: finalize caps/perf/observability guardrails for rollout readiness.
 
 Deliverables:
-- [ ] Resource caps and fallback behavior are stable under load.
-- [ ] Operational observability fields are complete for rollout scope.
-- [ ] Readiness evidence artifacts are current and approved.
+- [x] Resource caps and fallback behavior are stable under load.
+- [x] Operational observability fields are complete for rollout scope.
+- [x] Readiness evidence artifacts are current and approved.
 
 Exit checks:
 - [ ] Readiness report approved.
