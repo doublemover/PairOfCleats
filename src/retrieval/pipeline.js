@@ -960,8 +960,12 @@ export function createSearchPipeline(context) {
         };
 
         const runAnnQuery = async (provider, candidateSet) => {
-          if (!provider || typeof provider.query !== 'function') return [];
-          if (isProviderCoolingDown(provider, mode)) return [];
+          if (!provider || typeof provider.query !== 'function') {
+            return { hits: [], succeeded: false };
+          }
+          if (isProviderCoolingDown(provider, mode)) {
+            return { hits: [], succeeded: false };
+          }
           const normalizedCandidateSet = normalizeAnnCandidateSet(provider, candidateSet);
           const startedAtNs = process.hrtime.bigint();
           try {
@@ -975,10 +979,10 @@ export function createSearchPipeline(context) {
             });
             const elapsedMs = Number(process.hrtime.bigint() - startedAtNs) / 1e6;
             recordProviderSuccess(provider, mode, { latencyMs: elapsedMs });
-            return normalizeAnnHits(hits);
+            return { hits: normalizeAnnHits(hits), succeeded: true };
           } catch (err) {
             recordProviderFailure(provider, mode, err?.message || 'query failed');
-            return [];
+            return { hits: [], succeeded: false };
           }
         };
 
@@ -1001,15 +1005,35 @@ export function createSearchPipeline(context) {
             const provider = providers.get(backend);
             if (!provider || typeof provider.query !== 'function') continue;
             if (typeof provider.preflight !== 'function' && isProviderCoolingDown(provider, mode)) continue;
-            if (!provider.isAvailable({ idx, mode, embedding: queryEmbedding })) continue;
+            let providerInitiallyAvailable = false;
+            try {
+              providerInitiallyAvailable = provider.isAvailable({ idx, mode, embedding: queryEmbedding }) === true;
+            } catch {
+              providerInitiallyAvailable = false;
+            }
+            if (!providerInitiallyAvailable) continue;
             const preflightOk = await ensureProviderPreflight(provider);
             if (!preflightOk) continue;
-            providerAvailable = true;
-            annHits = await runAnnQuery(provider, annCandidates);
+            const resolveProviderAvailability = () => {
+              try {
+                return provider.isAvailable({ idx, mode, embedding: queryEmbedding }) === true;
+              } catch {
+                return false;
+              }
+            };
+            const primaryResult = await runAnnQuery(provider, annCandidates);
+            annHits = primaryResult.hits;
+            if (primaryResult.succeeded && (annHits.length > 0 || resolveProviderAvailability())) {
+              providerAvailable = true;
+            }
             if (!annHits.length && shouldTryAnnFallback) {
               const fallbackCandidates = resolveAnnFallback();
               if (fallbackCandidates) {
-                annHits = await runAnnQuery(provider, fallbackCandidates);
+                const fallbackResult = await runAnnQuery(provider, fallbackCandidates);
+                annHits = fallbackResult.hits;
+                if (fallbackResult.succeeded && (annHits.length > 0 || resolveProviderAvailability())) {
+                  providerAvailable = true;
+                }
               }
             }
             if (annHits.length) {

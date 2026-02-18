@@ -46,6 +46,19 @@ export async function createSqliteBackend(options) {
     'extracted-prose': { available: false }
   };
   const vectorAnnUsed = { code: false, prose: false, records: false, 'extracted-prose': false };
+  const resetVectorAnnAvailability = () => {
+    for (const mode of Object.keys(vectorAnnState)) {
+      const entry = vectorAnnState[mode];
+      if (!entry || typeof entry !== 'object') continue;
+      entry.available = false;
+      delete entry.table;
+      delete entry.column;
+      delete entry.dims;
+      if (Object.prototype.hasOwnProperty.call(vectorAnnUsed, mode)) {
+        vectorAnnUsed[mode] = false;
+      }
+    }
+  };
   /**
    * Match index-builder ANN table suffixing behavior.
    * Only code/prose path equality participates in shared-DB table naming.
@@ -263,6 +276,9 @@ export async function createSqliteBackend(options) {
     dbProse = null;
     dbExtractedProse = null;
     useSqlite = false;
+    // Prevent partially initialized SQLite ANN availability from leaking into
+    // file-backed fallback paths.
+    resetVectorAnnAvailability();
   }
 
   return {
