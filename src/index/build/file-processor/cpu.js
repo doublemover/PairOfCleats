@@ -32,6 +32,7 @@ import {
 } from '../../segments/config.js';
 
 const TREE_SITTER_LANG_IDS = new Set(TREE_SITTER_LANGUAGE_IDS);
+const SCM_ANNOTATE_FAST_TIMEOUT_EXTS = new Set(['.yml', '.yaml', '.json', '.toml', '.lock']);
 
 /**
  * Merge scheduler-planned segments with comment/frontmatter extras while keeping
@@ -364,15 +365,24 @@ export const processFileCpu = async (context) => {
   }
   if (scmActive && filePosix && resolvedGitBlameEnabled && typeof scmProviderImpl.annotate === 'function') {
     const annotateConfig = scmConfig?.annotate || {};
+    const normalizedExt = typeof ext === 'string' ? ext.toLowerCase() : '';
     const maxAnnotateBytesRaw = Number(annotateConfig.maxFileSizeBytes);
     const maxAnnotateBytes = Number.isFinite(maxAnnotateBytesRaw)
       ? Math.max(0, maxAnnotateBytesRaw)
       : null;
     const annotateTimeoutRaw = Number(annotateConfig.timeoutMs);
     const defaultTimeoutRaw = Number(scmConfig?.timeoutMs);
-    const annotateTimeoutMs = Number.isFinite(annotateTimeoutRaw) && annotateTimeoutRaw > 0
+    const hasExplicitAnnotateTimeout = Number.isFinite(annotateTimeoutRaw) && annotateTimeoutRaw > 0;
+    let annotateTimeoutMs = hasExplicitAnnotateTimeout
       ? annotateTimeoutRaw
       : (Number.isFinite(defaultTimeoutRaw) && defaultTimeoutRaw > 0 ? defaultTimeoutRaw : 10000);
+    if (!hasExplicitAnnotateTimeout) {
+      if (SCM_ANNOTATE_FAST_TIMEOUT_EXTS.has(normalizedExt)) {
+        annotateTimeoutMs = Math.min(annotateTimeoutMs, 750);
+      } else {
+        annotateTimeoutMs = Math.min(annotateTimeoutMs, 2000);
+      }
+    }
     const withinAnnotateCap = maxAnnotateBytes == null
       || (fileStat?.size ?? 0) <= maxAnnotateBytes;
     if (withinAnnotateCap) {
