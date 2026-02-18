@@ -101,7 +101,8 @@ const normalizeHeavyFilePolicy = (languageOptions) => {
 
 const isHeavyFilePath = (relPath) => {
   const normalized = String(relPath || '').replace(/\\/g, '/').toLowerCase();
-  return HEAVY_FILE_PATH_RX.test(normalized);
+  const bounded = `/${normalized.replace(/^\/+|\/+$/g, '')}/`;
+  return HEAVY_FILE_PATH_RX.test(bounded);
 };
 
 const coalesceHeavyChunks = (chunks, maxChunks) => {
