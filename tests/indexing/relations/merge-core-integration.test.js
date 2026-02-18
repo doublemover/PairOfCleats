@@ -15,7 +15,11 @@ const callLinks = [];
 for (let i = 0; i < 6001; i += 1) {
   callLinks.push({
     edgeKind: 'call',
-    to: { targetName: `sym-${String(6000 - i).padStart(4, '0')}`, status: 'resolved' }
+    to: {
+      targetName: `sym-${String(6000 - i).padStart(4, '0')}`,
+      status: 'resolved',
+      resolved: { chunkUid: `uid-${String(6000 - i).padStart(4, '0')}` }
+    }
   });
 }
 
@@ -32,7 +36,7 @@ const writes = [];
 await enqueueSymbolEdgesArtifacts({
   state,
   outDir,
-  maxJsonBytes: 1024 * 1024,
+  maxJsonBytes: 10 * 1024 * 1024,
   format: null,
   compression: null,
   enqueueWrite: (_label, fn) => writes.push(fn),

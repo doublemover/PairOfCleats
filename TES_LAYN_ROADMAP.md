@@ -79,7 +79,7 @@ Objective: finish identity grammar, coordinate normalization, and cross-language
 
 Deliverables:
 - [x] Canonical ID grammar and collision handling are implemented in runtime.
-- [ ] Endpoint/entity integrity constraints are enforced in runtime paths.
+- [x] Endpoint/entity integrity constraints are enforced in runtime paths.
 - [ ] Parser precedence and normalization mapping are deterministic and table-driven.
 
 Exit checks:

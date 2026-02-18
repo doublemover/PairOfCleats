@@ -39,6 +39,33 @@ const normalizeText = (value) => {
   return text ? text : null;
 };
 
+const hasEndpointIdentity = (endpoint) => (
+  Boolean(
+    normalizeText(endpoint?.symbolId)
+    || normalizeText(endpoint?.chunkUid)
+    || normalizeText(endpoint?.symbolKey)
+  )
+);
+
+const isValidSymbolRefEndpoint = (ref) => {
+  if (!ref || typeof ref !== 'object') return false;
+  const status = (normalizeText(ref.status) || 'resolved').toLowerCase();
+  if (status === 'resolved') {
+    if (hasEndpointIdentity(ref.resolved)) return true;
+    if (Array.isArray(ref.candidates)) {
+      return ref.candidates.some((candidate) => hasEndpointIdentity(candidate));
+    }
+    return false;
+  }
+  if (status === 'ambiguous') {
+    return Array.isArray(ref.candidates) && ref.candidates.filter((candidate) => hasEndpointIdentity(candidate)).length > 1;
+  }
+  if (status === 'unresolved') {
+    return Boolean(normalizeText(ref.targetName) || normalizeText(ref.importHint));
+  }
+  return true;
+};
+
 const trimSymbolRef = (ref) => {
   if (!ref || typeof ref !== 'object') return ref;
   const trimmed = { ...ref };
@@ -96,6 +123,7 @@ const collectRows = async (chunks, { outDir, maxJsonBytes }) => {
       for (const link of links) {
         const ref = link?.to || link?.ref || null;
         if (!ref) continue;
+        if (!isValidSymbolRefEndpoint(ref)) continue;
         const { row, trimmed } = maybeTrimRow({
           v: 1,
           type: link?.edgeKind || 'call',
