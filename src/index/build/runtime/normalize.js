@@ -13,17 +13,37 @@ export const normalizeFlowSetting = (raw) => {
   return ['auto', 'on', 'off'].includes(normalized) ? normalized : 'auto';
 };
 
+const resolvePath = (value) => path.resolve(String(value || ''));
+
+const normalizeAbsolutePathForSignature = (value) => {
+  const normalized = path.normalize(value);
+  if (process.platform !== 'win32') return normalized;
+  return normalized.replace(/^[A-Z]:/, (drive) => drive.toLowerCase());
+};
+
+const toPosixRelative = (from, to) => {
+  const relative = path.relative(from, to);
+  if (!relative || relative === '.') return '';
+  return toPosix(relative);
+};
+
+const isWithinRoot = (rootPath, targetPath) => {
+  const relative = path.relative(rootPath, targetPath);
+  if (!relative || relative === '.') return true;
+  return !relative.startsWith('..') && !path.isAbsolute(relative);
+};
+
 export const normalizeDictSignaturePath = ({ dictFile, dictDir, repoRoot }) => {
-  const normalized = path.resolve(dictFile);
+  const normalized = resolvePath(dictFile);
   if (dictDir) {
-    const normalizedDictDir = path.resolve(dictDir);
-    if (normalized === normalizedDictDir || normalized.startsWith(normalizedDictDir + path.sep)) {
-      return toPosix(path.relative(normalizedDictDir, normalized));
+    const normalizedDictDir = resolvePath(dictDir);
+    if (isWithinRoot(normalizedDictDir, normalized)) {
+      return toPosixRelative(normalizedDictDir, normalized);
     }
   }
-  const normalizedRepoRoot = path.resolve(repoRoot);
-  if (normalized === normalizedRepoRoot || normalized.startsWith(normalizedRepoRoot + path.sep)) {
-    return toPosix(path.relative(normalizedRepoRoot, normalized));
+  const normalizedRepoRoot = resolvePath(repoRoot);
+  if (isWithinRoot(normalizedRepoRoot, normalized)) {
+    return toPosixRelative(normalizedRepoRoot, normalized);
   }
-  return normalized;
+  return toPosix(normalizeAbsolutePathForSignature(normalized));
 };
