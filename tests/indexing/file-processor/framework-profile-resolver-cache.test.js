@@ -3,27 +3,25 @@ import assert from 'node:assert/strict';
 import { createFrameworkProfileResolver } from '../../../src/index/build/file-processor/process-chunks/index.js';
 
 let calls = 0;
+const seenExts = [];
 const resolver = createFrameworkProfileResolver({
   relPath: 'src/components/Button.tsx',
+  ext: '.vue',
   text: "import React from 'react';\nexport const Button = () => <button />;",
   detect: ({ ext }) => {
     calls += 1;
-    if (ext === '.tsx') {
-      return { id: 'react', confidence: 'heuristic', signals: { reactHydrationBoundary: false } };
+    seenExts.push(ext);
+    if (ext === '.vue') {
+      return { id: 'vue', confidence: 'heuristic', signals: { vueSfcScriptSetupBindings: false } };
     }
     return null;
   }
 });
 
-const firstTsx = resolver({ ext: '.tsx' });
-const secondTsx = resolver({ ext: '.tsx' });
-assert.equal(calls, 1, 'expected framework detection to be cached per extension');
-assert.equal(firstTsx, secondTsx, 'expected cached framework profile object to be reused');
-
-const firstMdx = resolver({ ext: '.mdx' });
-const secondMdx = resolver({ ext: '.mdx' });
-assert.equal(calls, 2, 'expected one detection call for each unique extension');
-assert.equal(firstMdx, null);
-assert.equal(secondMdx, null);
+const firstSegment = resolver({ ext: '.js' });
+const secondSegment = resolver({ ext: '.css' });
+assert.equal(calls, 1, 'expected framework detection to run once per container file');
+assert.equal(firstSegment, secondSegment, 'expected cached framework profile object to be reused');
+assert.deepEqual(seenExts, ['.vue'], 'expected resolver to detect framework using container extension');
 
 console.log('framework profile resolver cache test passed');

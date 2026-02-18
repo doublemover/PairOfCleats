@@ -23,18 +23,23 @@ import { buildChunkEnrichment } from './enrichment.js';
 import { prepareChunkIds } from './ids.js';
 import { collectChunkComments } from './limits.js';
 
-export const createFrameworkProfileResolver = ({ relPath, text, detect = detectFrameworkProfile }) => {
-  const cache = new Map();
-  return ({ ext }) => {
-    const key = String(ext || '');
-    if (cache.has(key)) return cache.get(key);
-    const profile = detect({
+export const createFrameworkProfileResolver = ({
+  relPath,
+  ext,
+  text,
+  detect = detectFrameworkProfile
+}) => {
+  let resolved = false;
+  let cachedProfile = null;
+  return () => {
+    if (resolved) return cachedProfile;
+    cachedProfile = detect({
       relPath,
       ext,
       text
     }) || null;
-    cache.set(key, profile);
-    return profile;
+    resolved = true;
+    return cachedProfile;
   };
 };
 
@@ -273,6 +278,7 @@ export const processChunks = async (context) => {
     : riskAnalysisEnabled;
   const resolveFrameworkProfile = createFrameworkProfileResolver({
     relPath: rel,
+    ext: containerExt,
     text
   });
 
@@ -293,7 +299,7 @@ export const processChunks = async (context) => {
     const segmentTokenMode = c.segment ? resolveSegmentTokenMode(c.segment) : tokenMode;
     const chunkMode = segmentTokenMode || tokenMode;
     const effectiveExt = c.segment?.ext || containerExt;
-    const fileFrameworkProfile = resolveFrameworkProfile({ ext: effectiveExt });
+    const fileFrameworkProfile = resolveFrameworkProfile();
     const langCacheKey = effectiveExt || '';
     let effectiveLang = effectiveLangCache.get(langCacheKey);
     if (effectiveLang === undefined) {
