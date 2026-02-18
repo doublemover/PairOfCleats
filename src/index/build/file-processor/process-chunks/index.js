@@ -75,6 +75,45 @@ export const canUseLineTokenStreamSlice = ({
   return chunkStart === startLineOffset && chunkEnd === endLineOffset;
 };
 
+const HEAVY_FILE_MAX_BYTES_DEFAULT = 768 * 1024;
+const HEAVY_FILE_MAX_LINES_DEFAULT = 8000;
+const HEAVY_FILE_MAX_CHUNKS_DEFAULT = 96;
+const HEAVY_FILE_PATH_PARTS = [
+  '/third_party/',
+  '/thirdparty/',
+  '/vendor/',
+  '/single_include/',
+  '/tests/abi/',
+  '/test/gtest/'
+];
+
+const normalizeHeavyFilePolicy = (languageOptions) => {
+  const raw = languageOptions?.heavyFile;
+  const config = raw && typeof raw === 'object' ? raw : {};
+  const enabled = config.enabled !== false;
+  const maxBytesRaw = Number(config.maxBytes);
+  const maxLinesRaw = Number(config.maxLines);
+  const maxChunksRaw = Number(config.maxChunks);
+  const maxBytes = Number.isFinite(maxBytesRaw) && maxBytesRaw > 0
+    ? Math.floor(maxBytesRaw)
+    : HEAVY_FILE_MAX_BYTES_DEFAULT;
+  const maxLines = Number.isFinite(maxLinesRaw) && maxLinesRaw > 0
+    ? Math.floor(maxLinesRaw)
+    : HEAVY_FILE_MAX_LINES_DEFAULT;
+  const maxChunks = Number.isFinite(maxChunksRaw) && maxChunksRaw > 0
+    ? Math.floor(maxChunksRaw)
+    : HEAVY_FILE_MAX_CHUNKS_DEFAULT;
+  return { enabled, maxBytes, maxLines, maxChunks };
+};
+
+const isHeavyFilePath = (relPath) => {
+  const normalized = String(relPath || '').replace(/\\/g, '/').toLowerCase();
+  for (const part of HEAVY_FILE_PATH_PARTS) {
+    if (normalized.includes(part)) return true;
+  }
+  return false;
+};
+
 export const processChunks = async (context) => {
   const {
     sc,
@@ -161,6 +200,22 @@ export const processChunks = async (context) => {
     });
   };
   updateCrashStage('process-chunks:start', { totalChunks: sc.length, languageId: containerLanguageId });
+  const fileBytes = fileStat?.size ?? Buffer.byteLength(text || '', 'utf8');
+  const heavyFilePolicy = normalizeHeavyFilePolicy(languageOptions);
+  const heavyFileDownshift = mode === 'code'
+    && heavyFilePolicy.enabled
+    && (
+      fileBytes >= heavyFilePolicy.maxBytes
+      || (fileLineCount || 0) >= heavyFilePolicy.maxLines
+      || sc.length >= heavyFilePolicy.maxChunks
+      || isHeavyFilePath(relKey)
+    );
+  if (heavyFileDownshift && typeof log === 'function') {
+    log(
+      `[perf] heavy-file downshift enabled for ${relKey} `
+      + `(${fileBytes} bytes, ${fileLineCount || 0} lines, ${sc.length} chunks).`
+    );
+  }
 
   const strictIdentity = analysisPolicy?.identity?.strict !== false;
   const chunkUidNamespaceKey = mode === 'extracted-prose' ? 'repo:extracted-prose' : 'repo';
@@ -208,9 +263,12 @@ export const processChunks = async (context) => {
   } else {
     fileTokenContext.tokenClassification = { ...fileTokenContext.tokenClassification };
   }
+  if (heavyFileDownshift) {
+    fileTokenContext.tokenClassification.enabled = false;
+  }
   fileTokenContext.tokenClassificationRuntime = createTokenClassificationRuntime({
     context: fileTokenContext,
-    fileBytes: Buffer.byteLength(text || '', 'utf8')
+    fileBytes
   });
   attachCallDetailsByChunkIndex(callIndex, sc);
   const proseWorkerMinBytesRaw = Number(languageOptions?.tokenization?.proseWorkerMinBytes);
@@ -220,12 +278,12 @@ export const processChunks = async (context) => {
   // Small prose files are faster on the main thread and avoid proc-queue
   // contention; route only larger prose documents through tokenize workers.
   const shouldUseProseWorker = tokenMode === 'prose'
-    && (fileStat?.size ?? Buffer.byteLength(text || '', 'utf8')) >= proseWorkerMinBytes;
+    && fileBytes >= proseWorkerMinBytes;
   const useWorkerForTokens = (tokenMode === 'code' || shouldUseProseWorker)
     && !workerState.tokenWorkerDisabled
     && workerPool
     && workerPool.shouldUseForFile
-    ? workerPool.shouldUseForFile(fileStat.size)
+    ? workerPool.shouldUseForFile(fileBytes)
     : false;
   const runTokenize = useWorkerForTokens && typeof workerPool?.runTokenize === 'function'
     ? (payload) => (runProc ? runProc(() => workerPool.runTokenize(payload)) : workerPool.runTokenize(payload))
@@ -233,7 +291,9 @@ export const processChunks = async (context) => {
   let fileComplexity = {};
   let fileLint = [];
   if (isJsLike(ext) && mode === 'code') {
-    if (complexityEnabled) {
+    const effectiveComplexityEnabled = complexityEnabled && !heavyFileDownshift;
+    const effectiveLintEnabled = lintEnabled && !heavyFileDownshift;
+    if (effectiveComplexityEnabled) {
       const cacheKey = fileHash ? `${rel}:${fileHash}` : rel;
       let cachedComplexity = complexityCache.get(cacheKey);
       if (!cachedComplexity) {
@@ -247,7 +307,7 @@ export const processChunks = async (context) => {
       }
       fileComplexity = cachedComplexity || {};
     }
-    if (lintEnabled) {
+    if (effectiveLintEnabled) {
       const cacheKey = fileHash ? `${rel}:${fileHash}` : rel;
       let cachedLint = lintCache.get(cacheKey);
       if (!cachedLint) {
@@ -265,7 +325,8 @@ export const processChunks = async (context) => {
 
   let lastLineLogged = 0;
   let lastLineLogMs = 0;
-  const lineReader = contextWin > 0 ? createLineReader(text, lineIndex) : null;
+  const effectiveContextWin = heavyFileDownshift ? 0 : contextWin;
+  const lineReader = effectiveContextWin > 0 ? createLineReader(text, lineIndex) : null;
   const filterLintForChunk = (entries, startLine, endLine, includeUnscoped) => {
     if (!entries.length) return entries;
     return entries.filter((entry) => {
@@ -322,12 +383,15 @@ export const processChunks = async (context) => {
   };
   const resolveLintForChunk = fileLint.length ? createLintChunkResolver(fileLint) : null;
 
-  const resolvedTypeInferenceEnabled = typeof analysisPolicy?.typeInference?.local?.enabled === 'boolean'
+  const baseTypeInferenceEnabled = typeof analysisPolicy?.typeInference?.local?.enabled === 'boolean'
     ? analysisPolicy.typeInference.local.enabled
     : typeInferenceEnabled;
-  const resolvedRiskAnalysisEnabled = typeof analysisPolicy?.risk?.enabled === 'boolean'
+  const baseRiskAnalysisEnabled = typeof analysisPolicy?.risk?.enabled === 'boolean'
     ? analysisPolicy.risk.enabled
     : riskAnalysisEnabled;
+  const effectiveTypeInferenceEnabled = heavyFileDownshift ? false : baseTypeInferenceEnabled;
+  const effectiveRiskAnalysisEnabled = heavyFileDownshift ? false : baseRiskAnalysisEnabled;
+  const effectiveRelationsEnabled = heavyFileDownshift ? false : relationsEnabled;
   const resolveFrameworkProfile = createFrameworkProfileResolver({
     relPath: rel,
     ext: containerExt,
@@ -414,12 +478,12 @@ export const processChunks = async (context) => {
       languageOptions,
       fileRelations,
       callIndex,
-      relationsEnabled,
+      relationsEnabled: effectiveRelationsEnabled,
       fileStructural,
       chunkLineCount,
       chunkLanguageId,
-      resolvedTypeInferenceEnabled,
-      resolvedRiskAnalysisEnabled,
+      resolvedTypeInferenceEnabled: effectiveTypeInferenceEnabled,
+      resolvedRiskAnalysisEnabled: effectiveRiskAnalysisEnabled,
       riskConfig,
       astDataflowEnabled,
       controlFlowEnabled,
@@ -641,15 +705,15 @@ export const processChunks = async (context) => {
       : fileLint;
 
     let preContext = [], postContext = [];
-    if (contextWin > 0 && lineReader) {
+    if (effectiveContextWin > 0 && lineReader) {
       if (ci > 0) {
         const prev = chunkLineRanges[ci - 1];
-        const startLine = Math.max(prev.endLine - contextWin + 1, prev.startLine);
+        const startLine = Math.max(prev.endLine - effectiveContextWin + 1, prev.startLine);
         preContext = lineReader.getLines(startLine, prev.endLine);
       }
       if (ci + 1 < sc.length) {
         const next = chunkLineRanges[ci + 1];
-        const endLine = Math.min(next.startLine + contextWin - 1, next.endLine);
+        const endLine = Math.min(next.startLine + effectiveContextWin - 1, next.endLine);
         postContext = lineReader.getLines(next.startLine, endLine);
       }
     }
@@ -694,7 +758,7 @@ export const processChunks = async (context) => {
       emitFieldTokens: tokenizeEnabled,
       tokenMode: chunkMode,
       fileRelations,
-      relationsEnabled,
+      relationsEnabled: effectiveRelationsEnabled,
       toolInfo,
       gitMeta,
       analysisPolicy
