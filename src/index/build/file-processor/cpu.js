@@ -745,10 +745,14 @@ export const processFileCpu = async (context) => {
       });
     }
 
+    const schedulerLoadOptions = { consume: false };
     const batchChunks = scheduled.length > 0
       && treeSitterScheduler
       && typeof treeSitterScheduler.loadChunksBatch === 'function'
-      ? await treeSitterScheduler.loadChunksBatch(scheduled.map((item) => item.virtualPath))
+      ? await treeSitterScheduler.loadChunksBatch(
+        scheduled.map((item) => item.virtualPath),
+        schedulerLoadOptions
+      )
       : null;
     if (Array.isArray(batchChunks) && batchChunks.length === scheduled.length) {
       for (let i = 0; i < scheduled.length; i += 1) {
@@ -776,7 +780,7 @@ export const processFileCpu = async (context) => {
       }
     } else {
       const loadChunk = treeSitterScheduler && typeof treeSitterScheduler.loadChunks === 'function'
-        ? (virtualPath) => treeSitterScheduler.loadChunks(virtualPath)
+        ? (virtualPath) => treeSitterScheduler.loadChunks(virtualPath, schedulerLoadOptions)
         : null;
       for (const item of scheduled) {
         if (!loadChunk) {

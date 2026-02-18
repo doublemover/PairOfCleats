@@ -40,6 +40,10 @@ const MAX_INCREMENTAL_CHANGE_RATIO_BY_MODE = {
   prose: 0.7,
   'extracted-prose': 0.9
 };
+const MAX_INCREMENTAL_CHANGE_RATIO_GRACE_BY_MODE = {
+  'extracted-prose': 0.95
+};
+const MAX_INCREMENTAL_CHANGE_GRACE_DELETED_RATIO = 0.02;
 const VOCAB_GROWTH_LIMITS = {
   token_vocab: { ratio: 0.4, absolute: 200000 },
   phrase_vocab: { ratio: 0.5, absolute: 150000 },
@@ -83,14 +87,21 @@ const evaluateIncrementalChangeGuard = ({ mode, totalFiles, changedCount, delete
   const maxChangeRatio = Number.isFinite(MAX_INCREMENTAL_CHANGE_RATIO_BY_MODE[mode])
     ? MAX_INCREMENTAL_CHANGE_RATIO_BY_MODE[mode]
     : MAX_INCREMENTAL_CHANGE_RATIO;
+  const maxGraceRatio = Number.isFinite(MAX_INCREMENTAL_CHANGE_RATIO_GRACE_BY_MODE[mode])
+    ? MAX_INCREMENTAL_CHANGE_RATIO_GRACE_BY_MODE[mode]
+    : null;
   if (!totalFiles) {
     return { ok: true, changeRatio: 0, maxChangeRatio };
   }
   const changeRatio = (changedCount + deletedCount) / totalFiles;
+  const deletedRatio = deletedCount / totalFiles;
+  const withinGrace = maxGraceRatio != null
+    && changeRatio <= maxGraceRatio
+    && deletedRatio <= MAX_INCREMENTAL_CHANGE_GRACE_DELETED_RATIO;
   return {
-    ok: changeRatio <= maxChangeRatio,
+    ok: changeRatio <= maxChangeRatio || withinGrace,
     changeRatio,
-    maxChangeRatio
+    maxChangeRatio: withinGrace ? maxGraceRatio : maxChangeRatio
   };
 };
 
