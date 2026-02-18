@@ -83,8 +83,13 @@ const HEAVY_FILE_PATH_PARTS = [
   '/thirdparty/',
   '/vendor/',
   '/single_include/',
+  '/include/fmt/',
+  '/include/spdlog/fmt/',
+  '/include/nlohmann/',
   '/tests/abi/',
-  '/test/gtest/'
+  '/test/gtest/',
+  '/docs/mkdocs/',
+  '/.github/workflows/'
 ];
 
 const normalizeHeavyFilePolicy = (languageOptions) => {
