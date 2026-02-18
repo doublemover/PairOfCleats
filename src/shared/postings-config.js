@@ -18,7 +18,13 @@
  *   phraseHash:boolean,
  *   typed:boolean,
  *   fielded:boolean,
- *   tokenClassification:{enabled:boolean}
+ *   tokenClassification:{
+ *     enabled:boolean,
+ *     treeSitterMaxChunkBytes?:number,
+ *     treeSitterMaxFileBytes?:number,
+ *     treeSitterMaxChunksPerFile?:number,
+ *     treeSitterMaxBytesPerFile?:number
+ *   }
  * }}
  */
 export function normalizePostingsConfig(input = {}) {
@@ -30,10 +36,13 @@ export function normalizePostingsConfig(input = {}) {
   const enableChargrams = cfg.enableChargrams !== false;
   const fielded = cfg.fielded !== false;
   const tokenClassificationRaw = cfg.tokenClassification;
+  const tokenClassificationObject = tokenClassificationRaw && typeof tokenClassificationRaw === 'object'
+    ? tokenClassificationRaw
+    : null;
   const tokenClassificationEnabled = typeof tokenClassificationRaw === 'boolean'
     ? tokenClassificationRaw
-    : (tokenClassificationRaw && typeof tokenClassificationRaw === 'object'
-      ? tokenClassificationRaw.enabled !== false
+    : (tokenClassificationObject
+      ? tokenClassificationObject.enabled !== false
       : true);
 
   // Phrase n-grams are very high-cardinality when derived from the full token
@@ -56,6 +65,11 @@ export function normalizePostingsConfig(input = {}) {
     const num = Number(value);
     if (!Number.isFinite(num)) return null;
     return Math.floor(num);
+  };
+  const toPositiveInt = (value) => {
+    const normalized = toInt(value);
+    if (!Number.isFinite(normalized) || normalized <= 0) return null;
+    return normalized;
   };
   const normalizeRange = (minRaw, maxRaw, defaults) => {
     let min = toInt(minRaw);
@@ -111,6 +125,17 @@ export function normalizePostingsConfig(input = {}) {
   if (!chargramFields.length) {
     chargramFields.push('name', 'doc');
   }
+  const tokenClassification = {
+    enabled: tokenClassificationEnabled
+  };
+  const treeSitterMaxChunkBytes = toPositiveInt(tokenClassificationObject?.treeSitterMaxChunkBytes);
+  const treeSitterMaxFileBytes = toPositiveInt(tokenClassificationObject?.treeSitterMaxFileBytes);
+  const treeSitterMaxChunksPerFile = toPositiveInt(tokenClassificationObject?.treeSitterMaxChunksPerFile);
+  const treeSitterMaxBytesPerFile = toPositiveInt(tokenClassificationObject?.treeSitterMaxBytesPerFile);
+  if (treeSitterMaxChunkBytes != null) tokenClassification.treeSitterMaxChunkBytes = treeSitterMaxChunkBytes;
+  if (treeSitterMaxFileBytes != null) tokenClassification.treeSitterMaxFileBytes = treeSitterMaxFileBytes;
+  if (treeSitterMaxChunksPerFile != null) tokenClassification.treeSitterMaxChunksPerFile = treeSitterMaxChunksPerFile;
+  if (treeSitterMaxBytesPerFile != null) tokenClassification.treeSitterMaxBytesPerFile = treeSitterMaxBytesPerFile;
 
   return {
     enablePhraseNgrams,
@@ -129,8 +154,6 @@ export function normalizePostingsConfig(input = {}) {
     chargramSource,
     typed,
     fielded,
-    tokenClassification: {
-      enabled: tokenClassificationEnabled
-    }
+    tokenClassification
   };
 }

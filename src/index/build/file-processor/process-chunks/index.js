@@ -6,6 +6,7 @@ import { isJsLike } from '../../../constants.js';
 import { detectFrameworkProfile } from '../../../framework-profile.js';
 import {
   classifyTokenBuckets,
+  createTokenClassificationRuntime,
   createFileLineTokenStream,
   createTokenizationBuffers,
   resolveTokenDictWords,
@@ -190,6 +191,18 @@ export const processChunks = async (context) => {
     || postingsConfig?.phraseSource === 'fields';
   const tokenizationFileStreamEnabled = languageOptions?.tokenization?.fileStream === true;
   const fileTokenStreamCache = new Map();
+  const fileTokenContext = tokenContext && typeof tokenContext === 'object'
+    ? { ...tokenContext }
+    : { tokenClassification: { enabled: false } };
+  if (!fileTokenContext.tokenClassification || typeof fileTokenContext.tokenClassification !== 'object') {
+    fileTokenContext.tokenClassification = { enabled: false };
+  } else {
+    fileTokenContext.tokenClassification = { ...fileTokenContext.tokenClassification };
+  }
+  fileTokenContext.tokenClassificationRuntime = createTokenClassificationRuntime({
+    context: fileTokenContext,
+    fileBytes: Buffer.byteLength(text || '', 'utf8')
+  });
   attachCallDetailsByChunkIndex(callIndex, sc);
   const useWorkerForTokens = tokenMode === 'code'
     && !workerState.tokenWorkerDisabled
@@ -334,7 +347,7 @@ export const processChunks = async (context) => {
     let dictWordsForChunk = dictWordsCache.get(dictCacheKey);
     if (!dictWordsForChunk) {
       dictWordsForChunk = resolveTokenDictWords({
-        context: tokenContext,
+        context: fileTokenContext,
         mode: chunkMode,
         languageId: chunkLanguageId
       });
@@ -532,7 +545,7 @@ export const processChunks = async (context) => {
         text: tokenText,
         mode: chunkMode,
         ext: effectiveExt,
-        context: tokenContext,
+        context: fileTokenContext,
         languageId: chunkLanguageId,
         pretokenized,
         // chargramTokens is intentionally omitted (see note above).
@@ -557,7 +570,7 @@ export const processChunks = async (context) => {
     }
 
     const tokenClassificationEnabled = tokenizeEnabled
-      && tokenContext?.tokenClassification?.enabled === true
+      && fileTokenContext?.tokenClassification?.enabled === true
       && chunkMode === 'code';
     if (tokenClassificationEnabled && usedWorkerTokenize) {
       // Tokenization workers intentionally do not run tree-sitter classification to avoid
@@ -570,7 +583,7 @@ export const processChunks = async (context) => {
         ext: effectiveExt,
         dictWords: dictWordsForChunk,
         dictConfig,
-        context: tokenContext
+        context: fileTokenContext
       });
       tokenPayload = {
         ...tokenPayload,
