@@ -89,6 +89,56 @@ const flowOptions = (options = {}) => ({
 });
 
 const normalizeRelPath = (relPath) => String(relPath || '').replace(/\\/g, '/');
+const normalizeRelPathLower = (relPath) => normalizeRelPath(relPath).toLowerCase();
+const countTextLines = (text) => {
+  if (!text) return 0;
+  let count = 1;
+  for (let i = 0; i < text.length; i += 1) {
+    if (text.charCodeAt(i) === 10) count += 1;
+  }
+  return count;
+};
+const PYTHON_AST_SKIP_HEAVY_DEFAULT_BYTES = 192 * 1024;
+const PYTHON_AST_SKIP_HEAVY_DEFAULT_LINES = 3000;
+const PYTHON_AST_SKIP_PATH_PARTS = ['pygments/lexers/'];
+const PYTHON_AST_SKIP_PATH_SUFFIXES = ['_builtins.py', '/_mapping.py'];
+const shouldSkipPythonAstForFile = ({ text, relPath, options }) => {
+  if (options?.pythonAst?.allowHeavyFiles === true) {
+    return { skip: false, reason: null };
+  }
+  const normalizedPath = normalizeRelPathLower(options?.filePath || relPath || '');
+  for (const pathPart of PYTHON_AST_SKIP_PATH_PARTS) {
+    if (!normalizedPath.includes(pathPart)) continue;
+    for (const suffix of PYTHON_AST_SKIP_PATH_SUFFIXES) {
+      if (normalizedPath.endsWith(suffix)) {
+        return { skip: true, reason: 'generated-path' };
+      }
+    }
+  }
+  const maxBytesRaw = Number(options?.pythonAst?.skipHeavyBytes);
+  const maxBytes = Number.isFinite(maxBytesRaw) && maxBytesRaw > 0
+    ? Math.floor(maxBytesRaw)
+    : PYTHON_AST_SKIP_HEAVY_DEFAULT_BYTES;
+  const fileSizeRaw = Number(options?.fileSizeBytes);
+  const fileSize = Number.isFinite(fileSizeRaw) && fileSizeRaw >= 0
+    ? Math.floor(fileSizeRaw)
+    : Buffer.byteLength(String(text || ''), 'utf8');
+  if (maxBytes > 0 && fileSize > maxBytes) {
+    return { skip: true, reason: 'max-bytes' };
+  }
+  const maxLinesRaw = Number(options?.pythonAst?.skipHeavyLines);
+  const maxLines = Number.isFinite(maxLinesRaw) && maxLinesRaw > 0
+    ? Math.floor(maxLinesRaw)
+    : PYTHON_AST_SKIP_HEAVY_DEFAULT_LINES;
+  const lineHintRaw = Number(options?.fileLineCountHint);
+  const fileLines = Number.isFinite(lineHintRaw) && lineHintRaw >= 0
+    ? Math.floor(lineHintRaw)
+    : countTextLines(text);
+  if (maxLines > 0 && fileLines > maxLines) {
+    return { skip: true, reason: 'max-lines' };
+  }
+  return { skip: false, reason: null };
+};
 
 const getPathBasename = (relPath) => path.posix.basename(normalizeRelPath(relPath)).toLowerCase();
 
@@ -588,7 +638,9 @@ export const LANGUAGE_REGISTRY = [
       let pythonAstMetrics = null;
       let pythonChunks = null;
       const pythonAstEnabled = options?.pythonAst?.enabled !== false;
-      if (pythonAstEnabled) {
+      const pythonAstSkip = shouldSkipPythonAstForFile({ text, relPath, options });
+      const runPythonAst = pythonAstEnabled && !pythonAstSkip.skip;
+      if (runPythonAst) {
         const python = await getPythonAst(text, options?.log, {
           ...options,
           dataflow: options?.astDataflowEnabled,
@@ -597,6 +649,11 @@ export const LANGUAGE_REGISTRY = [
         });
         if (python?.ast) pythonAst = python.ast;
         if (python?.metrics) pythonAstMetrics = python.metrics;
+      } else if (pythonAstEnabled && pythonAstSkip.skip && typeof options?.log === 'function') {
+        options.log(
+          `[python-ast] skip ${normalizeRelPath(relPath || options?.filePath || '')} `
+          + `(${pythonAstSkip.reason || 'policy'}).`
+        );
       }
       if (pythonAst) {
         pythonChunks = buildPythonChunksFromAst(text, pythonAst);
