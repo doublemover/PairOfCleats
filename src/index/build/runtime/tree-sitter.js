@@ -78,7 +78,11 @@ export const resolveTreeSitterRuntime = (indexingConfig) => {
     typescript: { maxBytes: 256 * 1024, maxLines: null, maxParseMs: null },
     tsx: { maxBytes: 256 * 1024, maxLines: null, maxParseMs: null },
     jsx: { maxBytes: 256 * 1024, maxLines: null, maxParseMs: null },
-    html: { maxBytes: 256 * 1024, maxLines: null, maxParseMs: null }
+    html: { maxBytes: 256 * 1024, maxLines: null, maxParseMs: null },
+    yaml: { maxBytes: 192 * 1024, maxLines: 4000, maxParseMs: 1500 },
+    clike: { maxBytes: 384 * 1024, maxLines: 6000, maxParseMs: 2000 },
+    cpp: { maxBytes: 384 * 1024, maxLines: 6000, maxParseMs: 2000 },
+    objc: { maxBytes: 384 * 1024, maxLines: 6000, maxParseMs: 2000 }
   };
   const mergedTreeSitterByLanguage = {
     ...heavyGrammarDefaults,
