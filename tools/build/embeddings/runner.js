@@ -1848,7 +1848,14 @@ export async function runBuildEmbeddingsWithConfig(config) {
         // Ignore cache meta write failures.
         }
 
-        log(`[embeddings] ${mode}: wrote ${totalChunks} vectors (dims=${finalDims}).`);
+        {
+          const vectorSummary = `[embeddings] ${mode}: wrote ${totalChunks} vectors (dims=${finalDims}).`;
+          if (typeof display?.logLine === 'function') {
+            display.logLine(vectorSummary, { kind: 'status' });
+          } else {
+            log(vectorSummary);
+          }
+        }
         writerStatsByMode[mode] = writerQueue.stats();
         const schedulerStats = scheduler?.stats?.();
         const starvationCount = schedulerStats?.counters?.starvation ?? 0;
