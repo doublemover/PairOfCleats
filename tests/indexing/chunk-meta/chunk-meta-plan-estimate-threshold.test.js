@@ -30,7 +30,7 @@ const largePlan = resolveChunkMetaPlan({
   chunkMetaBinaryColumnar: false,
   chunkMetaJsonlThreshold: 200000,
   chunkMetaShardSize: 100000,
-  chunkMetaJsonlEstimateThresholdBytes: 32 * 1024 * 1024,
+  chunkMetaJsonlEstimateThresholdBytes: 8 * 1024 * 1024,
   maxJsonBytes: 128 * 1024 * 1024
 });
 
@@ -47,7 +47,7 @@ const smallPlan = resolveChunkMetaPlan({
   chunkMetaBinaryColumnar: false,
   chunkMetaJsonlThreshold: 200000,
   chunkMetaShardSize: 100000,
-  chunkMetaJsonlEstimateThresholdBytes: 32 * 1024 * 1024,
+  chunkMetaJsonlEstimateThresholdBytes: 8 * 1024 * 1024,
   maxJsonBytes: 128 * 1024 * 1024
 });
 

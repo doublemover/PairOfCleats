@@ -553,13 +553,13 @@ export const resolveChunkMetaPlan = ({
   chunkMetaBinaryColumnar = false,
   chunkMetaJsonlThreshold,
   chunkMetaShardSize,
-  chunkMetaJsonlEstimateThresholdBytes = 32 * 1024 * 1024,
+  chunkMetaJsonlEstimateThresholdBytes = 8 * 1024 * 1024,
   maxJsonBytes = MAX_JSON_BYTES
 }) => {
   const resolvedMaxJsonBytes = resolveChunkMetaMaxBytes(maxJsonBytes);
   const resolvedJsonlEstimateThresholdBytes = Number.isFinite(Number(chunkMetaJsonlEstimateThresholdBytes))
     ? Math.max(1, Math.floor(Number(chunkMetaJsonlEstimateThresholdBytes)))
-    : (32 * 1024 * 1024);
+    : (8 * 1024 * 1024);
   const maxJsonBytesSoft = resolvedMaxJsonBytes * 0.9;
   const shardTargetBytes = resolvedMaxJsonBytes * 0.75;
   const chunkMetaCount = chunks.length;
