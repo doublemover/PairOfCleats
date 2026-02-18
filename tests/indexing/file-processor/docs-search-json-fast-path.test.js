@@ -77,4 +77,29 @@ assert.ok(
   'expected fast-scan path to preserve normalized route/name/abstract'
 );
 
+const fastScanArrayRaw = JSON.stringify([
+  {
+    route: '/guide/install',
+    title: 'Install',
+    abstract: '<p>Install guide.</p>'
+  },
+  {
+    path: '/guide/config',
+    name: 'Config',
+    description: '<p>Config reference.</p>'
+  }
+]);
+const fastScanArrayCompacted = compactDocsSearchJsonText(fastScanArrayRaw, {
+  fastScanMinInputChars: 1,
+  fastScanWindowChars: 1024
+});
+assert.ok(
+  typeof fastScanArrayCompacted === 'string' && fastScanArrayCompacted.length > 0,
+  'expected parser fallback when fast scan finds no object-shaped entries'
+);
+assert.ok(
+  fastScanArrayCompacted.includes('/guide/install | Install | Install guide.'),
+  'expected array-shaped search.json to compact via parser fallback'
+);
+
 console.log('docs search json fast path test passed');

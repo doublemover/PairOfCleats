@@ -175,12 +175,15 @@ export const compactDocsSearchJsonText = (
     ? Math.max(0, Math.floor(Number(fastScanMinInputChars)))
     : FAST_SCAN_MIN_INPUT_CHARS_DEFAULT;
   if (fastScanThreshold > 0 && text.length >= fastScanThreshold) {
-    return compactDocsSearchJsonTextFastScan(text, {
+    const fastScanned = compactDocsSearchJsonTextFastScan(text, {
       entryLimit,
       abstractLimit,
       lineLimit,
       scanWindowChars: fastScanWindowChars
     });
+    if (typeof fastScanned === 'string' && fastScanned.length > 0) {
+      return fastScanned;
+    }
   }
 
   let parsed = null;
