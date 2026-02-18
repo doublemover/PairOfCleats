@@ -86,7 +86,19 @@ const HEAVY_FILE_SKIP_TOKENIZATION_MAX_BYTES_DEFAULT = HEAVY_FILE_MAX_BYTES_DEFA
 const HEAVY_FILE_SKIP_TOKENIZATION_MAX_LINES_DEFAULT = HEAVY_FILE_MAX_LINES_DEFAULT * 2;
 const HEAVY_FILE_SKIP_TOKENIZATION_MAX_CHUNKS_DEFAULT = HEAVY_FILE_MAX_CHUNKS_DEFAULT * 2;
 const HEAVY_FILE_SKIP_TOKENIZATION_COALESCE_MAX_CHUNKS_DEFAULT = 16;
-const HEAVY_FILE_PATH_RX = /\/(?:third_party|thirdparty|vendor|single_include|include\/fmt|include\/spdlog\/fmt|include\/nlohmann|tests\/abi|test\/gtest|docs\/mkdocs|\.github\/workflows)\//;
+const HEAVY_FILE_PATH_PREFIXES = [
+  '/third_party/',
+  '/thirdparty/',
+  '/vendor/',
+  '/single_include/',
+  '/include/fmt/',
+  '/include/spdlog/fmt/',
+  '/include/nlohmann/',
+  '/tests/abi/',
+  '/test/gtest/',
+  '/docs/mkdocs/',
+  '/.github/workflows/'
+];
 
 const normalizeHeavyFilePolicy = (languageOptions) => {
   const raw = languageOptions?.heavyFile;
@@ -155,7 +167,7 @@ const normalizeHeavyFilePolicy = (languageOptions) => {
 const isHeavyFilePath = (relPath) => {
   const normalized = String(relPath || '').replace(/\\/g, '/').toLowerCase();
   const bounded = `/${normalized.replace(/^\/+|\/+$/g, '')}/`;
-  return HEAVY_FILE_PATH_RX.test(bounded);
+  return HEAVY_FILE_PATH_PREFIXES.some((prefix) => bounded.startsWith(prefix));
 };
 
 const shouldDownshiftForHeavyPath = ({

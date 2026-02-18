@@ -105,6 +105,16 @@ assert.ok(
   'expected tiny vendor file to avoid heavy-file downshift'
 );
 
+const nestedThirdparty = await runCase({
+  relPath: 'tests/thirdparty/Fuzzer/test/TraceMallocTest.cpp',
+  text: 'int nested_fixture_symbol() { return 7; }\n'
+});
+assert.equal(nestedThirdparty.result.chunks.length, 1, 'expected one chunk result for nested thirdparty fixture file');
+assert.ok(
+  !nestedThirdparty.logs.some((line) => line.includes('[perf] heavy-file downshift enabled for tests/thirdparty/Fuzzer/test/TraceMallocTest.cpp')),
+  'expected nested tests/thirdparty fixture paths to avoid heavy-file downshift'
+);
+
 const largeVendorText = `${Array.from({ length: 1300 }, (_, i) => `int vendor_symbol_${i} = ${i};`).join('\n')}\n`;
 const largeVendor = await runCase({
   relPath: 'vendor/large.cpp',
