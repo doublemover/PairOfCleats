@@ -144,7 +144,7 @@
     "re2js": "^1.2.0",
     "roaring-wasm": "^1.1.0",
     "seedrandom": "^3.0.5",
-    "selfsigned": "^2.4.1",
+    "selfsigned": "^5.5.0",
     "semver": "^7.7.3",
     "simple-git": "3.30.0",
     "smol-toml": "^1.6.0",
