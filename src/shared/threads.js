@@ -7,8 +7,9 @@ import os from 'node:os';
  * -> `PAIROFCLEATS_THREADS` -> computed default.
  *
  * Explicit CLI overcommit (`--threads` greater than detected CPU threads) is
- * treated as intentional and preserved; in that case IO oversubscription is
- * also enabled so file/import/io limits are not silently clamped back down.
+ * treated as intentional up to a bounded ceiling (`2x` detected CPU threads);
+ * in that case IO oversubscription is also enabled so file/import/io limits are
+ * not silently clamped back down below the effective thread request.
  *
  * @param {object} [input]
  * @param {object} [input.argv]
@@ -79,9 +80,13 @@ export function resolveThreadLimits(input = {}) {
       : envThreadsProvided
         ? Math.floor(envThreads)
         : defaultThreads;
-  const explicitCliOvercommit = cliThreadsProvided && requestedThreads > cpuCount;
+  const cliOvercommitCap = Math.max(1, cpuCount * 2);
+  const effectiveCliThreads = cliThreadsProvided
+    ? Math.min(Math.max(1, requestedThreads), cliOvercommitCap)
+    : requestedThreads;
+  const explicitCliOvercommit = cliThreadsProvided && effectiveCliThreads > cpuCount;
   const resolvedThreads = cliThreadsProvided
-    ? Math.max(1, requestedThreads)
+    ? Math.max(1, effectiveCliThreads)
     : Math.max(1, Math.min(cpuCount, requestedThreads));
   const effectiveIoOversubscribe = ioOversubscribe || explicitCliOvercommit;
   const maxConcurrencyCap = Math.max(defaultFileConcurrency, resolvedThreads);

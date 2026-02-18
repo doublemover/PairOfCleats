@@ -37,9 +37,9 @@ const cliOvercommitted = resolveThreadLimits({
   ioOversubscribe: false
 });
 
-assert.strictEqual(cliOvercommitted.threads, 64, 'cli threads should not clamp to cpu count');
-assert.strictEqual(cliOvercommitted.fileConcurrency, 64, 'fileConcurrency should honor explicit cli overcommit');
-assert.strictEqual(cliOvercommitted.importConcurrency, 64, 'importConcurrency should honor explicit cli overcommit');
-assert.strictEqual(cliOvercommitted.ioConcurrency, 64, 'ioConcurrency should follow overcommitted file/import concurrency');
+assert.strictEqual(cliOvercommitted.threads, 32, 'cli threads should clamp to 2x cpu count');
+assert.strictEqual(cliOvercommitted.fileConcurrency, 32, 'fileConcurrency should cap at 2x cpu count for cli overcommit');
+assert.strictEqual(cliOvercommitted.importConcurrency, 32, 'importConcurrency should cap at 2x cpu count for cli overcommit');
+assert.strictEqual(cliOvercommitted.ioConcurrency, 32, 'ioConcurrency should follow capped cli overcommit concurrency');
 
 console.log('io concurrency cap tests passed');
