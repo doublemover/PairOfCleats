@@ -24,6 +24,15 @@ import { buildChunkEnrichment } from './enrichment.js';
 import { prepareChunkIds } from './ids.js';
 import { collectChunkComments } from './limits.js';
 
+/**
+ * Resolve framework profile once per file and reuse across chunk iterations.
+ *
+ * `detectFrameworkProfile` inspects full-file text and path heuristics, so calling it per chunk
+ * would repeatedly rescan the same content on large files.
+ *
+ * @param {{relPath:string,ext:string,text:string,detect?:(input:{relPath:string,ext:string,text:string})=>object|null}} input
+ * @returns {() => object|null}
+ */
 export const createFrameworkProfileResolver = ({
   relPath,
   ext,

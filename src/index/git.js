@@ -370,6 +370,8 @@ const computeMetaWithFastCommands = async ({
     const churn = churnResult.exitCode === 0
       ? parseNumstatChurnText(churnResult.stdout)
       : null;
+    // Non-zero/timeout fast-path churn is treated as unknown (null), not zero.
+    // This avoids silently undercounting churn on slow repositories.
     return {
       last_modified: lastModifiedAt,
       last_author: lastAuthor,

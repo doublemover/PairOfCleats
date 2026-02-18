@@ -34,6 +34,19 @@ export const resolveChunkProcessingFeatureFlags = (runtime) => {
   };
 };
 
+/**
+ * Track ordered-appender completion promises and rethrow the first flush failure.
+ *
+ * `runWithQueue` may await throttling hooks (capacity) instead of each append completion.
+ * This tracker keeps failures from `orderedAppender.enqueue()` observable even when callers
+ * are only awaiting backpressure gates.
+ *
+ * @returns {{
+ *   track:(completion:Promise<unknown>|unknown,onSettled?:(()=>void)|null)=>Promise<unknown>|unknown,
+ *   throwIfFailed:()=>void,
+ *   wait:()=>Promise<void>
+ * }}
+ */
 export const createOrderedCompletionTracker = () => {
   const pending = new Set();
   let firstError = null;
@@ -569,6 +582,8 @@ export const processFiles = async ({
                 reservation.release();
               });
               if (typeof orderedAppender.waitForCapacity === 'function') {
+                // Capacity throttling intentionally does not await this specific completion.
+                // Surface any enqueue/flush failure before accepting more work.
                 await orderedAppender.waitForCapacity();
                 orderedCompletionTracker.throwIfFailed();
                 return;

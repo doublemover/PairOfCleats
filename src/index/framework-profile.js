@@ -37,6 +37,15 @@ const buildSignals = (pairs) => {
   return signals;
 };
 
+/**
+ * Infer framework profile from path/ext/source heuristics.
+ *
+ * Path-only signals are intentionally gated for ambiguous frameworks (notably Next.js)
+ * to avoid mislabeling repos that use common directory names like `app/` or `pages/`.
+ *
+ * @param {{relPath?:string,ext?:string,text?:string}} [input]
+ * @returns {{id:string,confidence:'heuristic',signals:Record<string,boolean>}|null}
+ */
 export const detectFrameworkProfile = ({ relPath, ext, text = '' } = {}) => {
   const normalizedPath = toPosixLower(relPath);
   const normalizedExt = String(ext || '').toLowerCase();
@@ -112,6 +121,8 @@ export const detectFrameworkProfile = ({ relPath, ext, text = '' } = {}) => {
     const nextPagesRouteFile = NEXT_PAGES_ROUTE_FILE_RX.test(normalizedPath);
     const nextConfigFile = NEXT_CONFIG_FILE_RX.test(normalizedPath);
     const nextSourceSignal = hasNextSourceSignal(sourceLower);
+    // Require source-level Next signals for route-like paths to avoid broad false positives
+    // in non-Next repos that happen to use app/pages directory names.
     const isNext = nextConfigFile
       || ((nextAppRouteFile || nextPagesRouteFile) && nextSourceSignal);
     if (isNext) {

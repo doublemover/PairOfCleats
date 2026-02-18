@@ -108,6 +108,14 @@ const headerExtForPath = (value) => {
   return HEADER_FILE_EXTS.has(ext) ? ext : null;
 };
 
+/**
+ * Build a lightweight cache fingerprint from the git index file metadata.
+ * Any add/remove/rename reflected in the index should change size/mtime and
+ * invalidate tracked-header cache entries for long-lived indexing processes.
+ *
+ * @param {string} repoRoot
+ * @returns {string|null}
+ */
 const resolveTrackedHeaderCacheFingerprint = (repoRoot) => {
   const root = path.resolve(repoRoot || process.cwd());
   try {
@@ -217,6 +225,12 @@ export const inferIncludeRootsFromHeaderPaths = ({
   return limited;
 };
 
+/**
+ * Return repository-tracked header paths with cache invalidation tied to git index state.
+ *
+ * @param {string} repoRoot
+ * @returns {string[]}
+ */
 export const listTrackedHeaderPaths = (repoRoot) => {
   const cacheKey = path.resolve(repoRoot || process.cwd());
   const fingerprint = resolveTrackedHeaderCacheFingerprint(cacheKey);

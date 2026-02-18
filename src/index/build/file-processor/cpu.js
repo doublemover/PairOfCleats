@@ -51,6 +51,13 @@ const SCM_FAST_TIMEOUT_PATH_PARTS = [
 
 const normalizeScmPath = (relPath) => String(relPath || '').replace(/\\/g, '/').toLowerCase();
 
+/**
+ * Files that frequently incur SCM command overhead (lockfiles/config/docs search payloads)
+ * are routed through tighter timeout caps so they do not dominate queue latency.
+ *
+ * @param {{relPath?:string,ext?:string}} input
+ * @returns {boolean}
+ */
 const isScmFastPath = ({ relPath, ext }) => {
   const normalizedPath = normalizeScmPath(relPath);
   const normalizedExt = typeof ext === 'string' ? ext.toLowerCase() : '';
@@ -384,6 +391,8 @@ export const processFileCpu = async (context) => {
   const normalizedExt = typeof ext === 'string' ? ext.toLowerCase() : '';
   const proseRoutePreferred = mode === 'code'
     && shouldPreferDocsProse({ ext: normalizedExt, relPath: relKey });
+  // Skip SCM only for prose routing outcomes. Code files under docs/ still retain
+  // churn/blame metadata unless they are explicitly routed to prose mode.
   const skipScmForProseRoute = mode !== 'code' || proseRoutePreferred;
   const scmFastPath = isScmFastPath({ relPath: relKey, ext: normalizedExt });
   const annotateConfig = scmConfig?.annotate || {};
