@@ -25,6 +25,8 @@ let gitBlameCache = createLruCache({
   ttlMs: DEFAULT_CACHE_TTL_MS.gitMeta,
   sizeCalculation: estimateJsonBytes
 });
+const gitRootFailureState = new Map();
+const GIT_ROOT_FAILURE_BLOCK_MS = 5 * 60 * 1000;
 
 const warnedGitRoots = new Set();
 
@@ -105,6 +107,10 @@ export async function getGitMetaForFile(file, options = {}) {
   const timeoutMs = Number.isFinite(Number(options.timeoutMs)) ? Number(options.timeoutMs) : null;
   const signal = options.signal || null;
 
+  if (isGitTemporarilyDisabled(baseDir)) {
+    return {};
+  }
+
   const cached = gitMetaCache.get(cacheKey);
   if (cached && !blameEnabled) return cached;
 
@@ -141,6 +147,7 @@ export async function getGitMetaForFile(file, options = {}) {
     }
 
     if (!meta) return {};
+    clearGitFailureState(baseDir);
     if (!blameEnabled) return meta;
     const blameKey = buildLocalCacheKey({
       namespace: 'git-blame',
@@ -177,7 +184,8 @@ export async function getGitMetaForFile(file, options = {}) {
       ...meta,
       lineAuthors
     };
-  } catch {
+  } catch (err) {
+    recordGitFailure(baseDir, err);
     warnGitUnavailable(baseDir);
     return {};
   }
@@ -246,6 +254,35 @@ const resolveChurnWindowCommits = (rawValue) => {
   return Number.isFinite(value) && value > 0
     ? Math.max(1, Math.floor(value))
     : 10;
+};
+
+const isGitTemporarilyDisabled = (baseDir) => {
+  const entry = gitRootFailureState.get(baseDir);
+  if (!entry) return false;
+  if (entry.blockedUntil > Date.now()) return true;
+  gitRootFailureState.delete(baseDir);
+  return false;
+};
+
+const clearGitFailureState = (baseDir) => {
+  if (!baseDir) return;
+  gitRootFailureState.delete(baseDir);
+};
+
+const recordGitFailure = (baseDir, err) => {
+  if (!baseDir) return;
+  const now = Date.now();
+  const code = String(err?.code || err?.cause?.code || '').toUpperCase();
+  const prior = gitRootFailureState.get(baseDir) || {
+    failures: 0,
+    blockedUntil: 0
+  };
+  const timeoutLike = code === 'SUBPROCESS_TIMEOUT' || code === 'ABORT_ERR';
+  const failures = prior.failures + 1;
+  const blockedUntil = timeoutLike || failures >= 3
+    ? (now + GIT_ROOT_FAILURE_BLOCK_MS)
+    : prior.blockedUntil;
+  gitRootFailureState.set(baseDir, { failures, blockedUntil });
 };
 
 const parseLogHead = (stdout) => {

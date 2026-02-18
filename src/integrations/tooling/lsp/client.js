@@ -98,7 +98,11 @@ export function createLspClient(options) {
   const isClosedTransportWriteError = (err) => {
     const code = String(err?.code || '').toUpperCase();
     if (code && CLOSED_TRANSPORT_WRITE_ERROR_CODES.has(code)) return true;
-    const message = String(err?.message || err || '');
+    const message = [
+      String(err?.message || ''),
+      String(err?.cause?.message || ''),
+      String(err || '')
+    ].join(' ');
     return /\bEPIPE\b/i.test(message) || /stream (?:is )?closed/i.test(message);
   };
 
@@ -319,6 +323,11 @@ export function createLspClient(options) {
       start();
       send({ jsonrpc: '2.0', method, params });
     } catch (err) {
+      if (isClosedTransportWriteError(err)) {
+        rejectPendingTransportClosed();
+        writerClosed = true;
+        return;
+      }
       log(`[lsp] notify failed: ${err?.message || err}`);
     }
   };

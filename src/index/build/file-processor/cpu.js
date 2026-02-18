@@ -35,6 +35,35 @@ import {
 const TREE_SITTER_LANG_IDS = new Set(TREE_SITTER_LANGUAGE_IDS);
 const SCM_ANNOTATE_FAST_TIMEOUT_EXTS = new Set(['.yml', '.yaml', '.json', '.toml', '.lock']);
 const SCM_META_FAST_TIMEOUT_EXTS = new Set(['.yml', '.yaml', '.json', '.toml', '.lock']);
+const SCM_FAST_TIMEOUT_BASENAMES = new Set([
+  'cmakelists.txt',
+  'makefile',
+  'dockerfile',
+  'podfile',
+  'gemfile',
+  'justfile'
+]);
+const SCM_FAST_TIMEOUT_PATH_PARTS = [
+  '/.github/workflows/',
+  '/.circleci/',
+  '/.gitlab/'
+];
+
+const normalizeScmPath = (relPath) => String(relPath || '').replace(/\\/g, '/').toLowerCase();
+
+const isScmFastPath = ({ relPath, ext }) => {
+  const normalizedPath = normalizeScmPath(relPath);
+  const normalizedExt = typeof ext === 'string' ? ext.toLowerCase() : '';
+  if (SCM_META_FAST_TIMEOUT_EXTS.has(normalizedExt) || SCM_ANNOTATE_FAST_TIMEOUT_EXTS.has(normalizedExt)) {
+    return true;
+  }
+  const base = normalizedPath.split('/').pop() || '';
+  if (SCM_FAST_TIMEOUT_BASENAMES.has(base)) return true;
+  for (const part of SCM_FAST_TIMEOUT_PATH_PARTS) {
+    if (normalizedPath.includes(part)) return true;
+  }
+  return false;
+};
 
 /**
  * Merge scheduler-planned segments with comment/frontmatter extras while keeping
@@ -354,42 +383,46 @@ export const processFileCpu = async (context) => {
     : null;
   const skipScmForDocsPath = isDocsPath(relKey);
   const normalizedExt = typeof ext === 'string' ? ext.toLowerCase() : '';
+  const scmFastPath = isScmFastPath({ relPath: relKey, ext: normalizedExt });
+  const annotateConfig = scmConfig?.annotate || {};
+  const enforceScmTimeoutCaps = scmConfig?.allowSlowTimeouts !== true
+    && annotateConfig?.allowSlowTimeouts !== true;
   const metaTimeoutRaw = Number(scmConfig?.timeoutMs);
   const hasExplicitMetaTimeout = Number.isFinite(metaTimeoutRaw) && metaTimeoutRaw > 0;
   let metaTimeoutMs = hasExplicitMetaTimeout
     ? metaTimeoutRaw
     : 2000;
-  if (!hasExplicitMetaTimeout) {
-    if (SCM_META_FAST_TIMEOUT_EXTS.has(normalizedExt)) {
-      metaTimeoutMs = Math.min(metaTimeoutMs, 250);
-    } else {
-      metaTimeoutMs = Math.min(metaTimeoutMs, 750);
-    }
+  if (enforceScmTimeoutCaps) {
+    const metaCapMs = scmFastPath || SCM_META_FAST_TIMEOUT_EXTS.has(normalizedExt) ? 250 : 750;
+    metaTimeoutMs = Math.min(metaTimeoutMs, metaCapMs);
   }
+  const scmTasks = [];
   if (!skipScmForDocsPath && scmActive && filePosix && typeof scmProviderImpl.getFileMeta === 'function') {
-    const fileMeta = await runIo(() => scmProviderImpl.getFileMeta({
-      repoRoot: scmRepoRoot,
-      filePosix,
-      timeoutMs: Math.max(0, metaTimeoutMs),
-      includeChurn: resolvedGitChurnEnabled
-    }));
-    if (fileMeta && fileMeta.ok !== false) {
-      fileGitMeta = {
-        last_modified: fileMeta.lastModifiedAt ?? null,
-        last_author: fileMeta.lastAuthor ?? null,
-        churn: Number.isFinite(fileMeta.churn) ? fileMeta.churn : null,
-        churn_added: Number.isFinite(fileMeta.churnAdded) ? fileMeta.churnAdded : null,
-        churn_deleted: Number.isFinite(fileMeta.churnDeleted) ? fileMeta.churnDeleted : null,
-        churn_commits: Number.isFinite(fileMeta.churnCommits) ? fileMeta.churnCommits : null
-      };
-    }
+    scmTasks.push((async () => {
+      const includeChurn = resolvedGitChurnEnabled && !scmFastPath;
+      const fileMeta = await runIo(() => scmProviderImpl.getFileMeta({
+        repoRoot: scmRepoRoot,
+        filePosix,
+        timeoutMs: Math.max(0, metaTimeoutMs),
+        includeChurn
+      }));
+      if (fileMeta && fileMeta.ok !== false) {
+        fileGitMeta = {
+          last_modified: fileMeta.lastModifiedAt ?? null,
+          last_author: fileMeta.lastAuthor ?? null,
+          churn: Number.isFinite(fileMeta.churn) ? fileMeta.churn : null,
+          churn_added: Number.isFinite(fileMeta.churnAdded) ? fileMeta.churnAdded : null,
+          churn_deleted: Number.isFinite(fileMeta.churnDeleted) ? fileMeta.churnDeleted : null,
+          churn_commits: Number.isFinite(fileMeta.churnCommits) ? fileMeta.churnCommits : null
+        };
+      }
+    })());
   }
   if (!skipScmForDocsPath
     && scmActive
     && filePosix
     && resolvedGitBlameEnabled
     && typeof scmProviderImpl.annotate === 'function') {
-    const annotateConfig = scmConfig?.annotate || {};
     const maxAnnotateBytesRaw = Number(annotateConfig.maxFileSizeBytes);
     const maxAnnotateBytes = Number.isFinite(maxAnnotateBytesRaw)
       ? Math.max(0, maxAnnotateBytesRaw)
@@ -400,12 +433,9 @@ export const processFileCpu = async (context) => {
     let annotateTimeoutMs = hasExplicitAnnotateTimeout
       ? annotateTimeoutRaw
       : (Number.isFinite(defaultTimeoutRaw) && defaultTimeoutRaw > 0 ? defaultTimeoutRaw : 10000);
-    if (!hasExplicitAnnotateTimeout) {
-      if (SCM_ANNOTATE_FAST_TIMEOUT_EXTS.has(normalizedExt)) {
-        annotateTimeoutMs = Math.min(annotateTimeoutMs, 750);
-      } else {
-        annotateTimeoutMs = Math.min(annotateTimeoutMs, 2000);
-      }
+    if (enforceScmTimeoutCaps) {
+      const annotateCapMs = scmFastPath || SCM_ANNOTATE_FAST_TIMEOUT_EXTS.has(normalizedExt) ? 750 : 2000;
+      annotateTimeoutMs = Math.min(annotateTimeoutMs, annotateCapMs);
     }
     const withinAnnotateCap = maxAnnotateBytes == null
       || (fileStat?.size ?? 0) <= maxAnnotateBytes;
@@ -438,9 +468,14 @@ export const processFileCpu = async (context) => {
           if (timeoutId) clearTimeout(timeoutId);
         }
       };
-      const annotateResult = await runIo(() => annotateWithTimeout());
-      lineAuthors = buildLineAuthors(annotateResult);
+      scmTasks.push((async () => {
+        const annotateResult = await runIo(() => annotateWithTimeout());
+        lineAuthors = buildLineAuthors(annotateResult);
+      })());
     }
+  }
+  if (scmTasks.length) {
+    await Promise.all(scmTasks);
   }
   setGitDuration(Date.now() - scmStart);
   const parseStart = Date.now();

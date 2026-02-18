@@ -147,7 +147,7 @@ await processFileCpu(createContext({
 assert.equal(yamlAnnotateCalls, 1, 'expected annotate to run for .yml files');
 assert.equal(yamlTimeoutMs, 750, 'expected .yml annotate timeout to clamp to 750ms by default');
 assert.equal(yamlMetaTimeoutMs, 250, 'expected .yml meta timeout to clamp to 250ms by default');
-assert.equal(yamlIncludeChurn, true, 'expected git churn metadata to default enabled');
+assert.equal(yamlIncludeChurn, false, 'expected fast-path .yml churn metadata to be disabled');
 
 const jsAbs = path.join(root, 'tests', 'fixtures', 'tree-sitter', 'javascript.js');
 const jsRel = path.relative(root, jsAbs);
@@ -212,8 +212,39 @@ await processFileCpu(createContext({
   scmConfig: { timeoutMs: 333, annotate: { timeoutMs: 4321 } },
   analysisPolicy: { git: { churn: false } }
 }));
-assert.equal(explicitTimeoutMs, 4321, 'expected explicit annotate timeout to bypass clamping');
-assert.equal(explicitMetaTimeoutMs, 333, 'expected explicit meta timeout to bypass clamping');
+assert.equal(explicitTimeoutMs, 750, 'expected explicit annotate timeout to still respect fast-path clamp');
+assert.equal(explicitMetaTimeoutMs, 250, 'expected explicit meta timeout to still respect fast-path clamp');
 assert.equal(explicitIncludeChurn, false, 'expected churn flag to respect analysis policy');
+
+let allowSlowTimeoutMs = null;
+let allowSlowMetaTimeoutMs = null;
+const allowSlowScmProvider = {
+  async getFileMeta(args) {
+    allowSlowMetaTimeoutMs = args?.timeoutMs ?? null;
+    return { ok: false };
+  },
+  async annotate(args) {
+    allowSlowTimeoutMs = args?.timeoutMs ?? null;
+    return { ok: false, reason: 'timeout' };
+  }
+};
+await processFileCpu(createContext({
+  abs: yamlAbs,
+  ext: '.yml',
+  rel: yamlRel,
+  relKey: yamlRelKey,
+  text: yamlText,
+  fileStat: yamlStat,
+  languageHint: yamlLanguageHint,
+  scmProviderImpl: allowSlowScmProvider,
+  fileHash: 'scm-annotate-fast-timeout-allow-slow',
+  scmConfig: {
+    allowSlowTimeouts: true,
+    timeoutMs: 333,
+    annotate: { timeoutMs: 4321 }
+  }
+}));
+assert.equal(allowSlowTimeoutMs, 4321, 'expected allowSlowTimeouts to permit explicit annotate timeout');
+assert.equal(allowSlowMetaTimeoutMs, 333, 'expected allowSlowTimeouts to permit explicit meta timeout');
 
 console.log('scm annotate fast timeout test passed');
