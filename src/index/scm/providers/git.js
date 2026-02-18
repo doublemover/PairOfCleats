@@ -95,9 +95,14 @@ export const gitProvider = {
       .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
     return { filesPosix: entries };
   },
-  async getFileMeta({ repoRoot, filePosix }) {
+  async getFileMeta({ repoRoot, filePosix, timeoutMs, includeChurn = true }) {
     const absPath = path.join(repoRoot, filePosix);
-    const meta = await getGitMetaForFile(absPath, { blame: false, baseDir: repoRoot });
+    const meta = await getGitMetaForFile(absPath, {
+      blame: false,
+      baseDir: repoRoot,
+      timeoutMs,
+      includeChurn
+    });
     if (!meta || !meta.last_modified) {
       return { ok: false, reason: 'unavailable' };
     }

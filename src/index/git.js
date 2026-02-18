@@ -85,17 +85,21 @@ export function configureGitMetaCache(cacheConfig, reporter = null) {
  */
 export async function getGitMetaForFile(file, options = {}) {
   const blameEnabled = options.blame !== false;
+  const includeChurn = options.includeChurn !== false;
   const baseDir = options.baseDir
     ? path.resolve(options.baseDir)
     : (isAbsolutePathNative(file) ? path.dirname(file) : process.cwd());
   const relFile = isAbsolutePathNative(file) ? path.relative(baseDir, file) : file;
   const absFile = isAbsolutePathNative(file) ? file : path.resolve(baseDir, file);
   const fileArg = toPosix(relFile);
+  const churnWindowCommits = resolveChurnWindowCommits(options.churnWindowCommits);
   const cacheKey = buildLocalCacheKey({
     namespace: 'git-meta',
     payload: {
       baseDir,
-      file: fileArg
+      file: fileArg,
+      includeChurn,
+      churnWindowCommits
     }
   }).key;
   const timeoutMs = Number.isFinite(Number(options.timeoutMs)) ? Number(options.timeoutMs) : null;
@@ -108,20 +112,35 @@ export async function getGitMetaForFile(file, options = {}) {
     const git = simpleGit({ baseDir });
     let meta = cached;
     if (!meta) {
-      const log = await git.log({ file: fileArg, n: 10 });
-      const { added, deleted } = await computeNumstatChurn(git, fileArg, log.all.length || 10);
-      const churn = added + deleted;
-      meta = {
-        last_modified: log.latest?.date || null,
-        last_author: log.latest?.author_name || null,
-        churn,
-        churn_added: added,
-        churn_deleted: deleted,
-        churn_commits: log.all.length || 0
-      };
-      gitMetaCache.set(cacheKey, meta);
+      if (timeoutMs || signal) {
+        meta = await computeMetaWithFastCommands({
+          baseDir,
+          fileArg,
+          timeoutMs,
+          signal,
+          includeChurn,
+          churnWindowCommits
+        });
+      } else {
+        const log = await git.log({ file: fileArg, n: churnWindowCommits });
+        const churn = includeChurn
+          ? await computeNumstatChurn(git, fileArg, log.all.length || churnWindowCommits)
+          : null;
+        meta = {
+          last_modified: log.latest?.date || null,
+          last_author: log.latest?.author_name || null,
+          churn: churn ? churn.added + churn.deleted : null,
+          churn_added: churn?.added ?? null,
+          churn_deleted: churn?.deleted ?? null,
+          churn_commits: churn ? (log.all.length || 0) : null
+        };
+      }
+      if (meta && (meta.last_modified || meta.last_author)) {
+        gitMetaCache.set(cacheKey, meta);
+      }
     }
 
+    if (!meta) return {};
     if (!blameEnabled) return meta;
     const blameKey = buildLocalCacheKey({
       namespace: 'git-blame',
@@ -222,13 +241,118 @@ export async function getRepoProvenance(repoRoot) {
   }
 }
 
-/**
- * Compute churn from git numstat output.
- * @param {import('simple-git').SimpleGit} git
- * @param {string} file
- * @param {number} limit
- * @returns {Promise<{added:number,deleted:number}>}
- */
+const resolveChurnWindowCommits = (rawValue) => {
+  const value = Number(rawValue);
+  return Number.isFinite(value) && value > 0
+    ? Math.max(1, Math.floor(value))
+    : 10;
+};
+
+const parseLogHead = (stdout) => {
+  const raw = String(stdout || '').trim();
+  if (!raw) return { lastModifiedAt: null, lastAuthor: null };
+  const [lastModifiedAtRaw, ...authorParts] = raw.split('\0');
+  const lastModifiedAt = String(lastModifiedAtRaw || '').trim() || null;
+  const lastAuthor = authorParts.join('\0').trim() || null;
+  return { lastModifiedAt, lastAuthor };
+};
+
+const parseNumstatChurnText = (stdout) => {
+  let added = 0;
+  let deleted = 0;
+  for (const line of String(stdout || '').split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const parts = trimmed.split('\t');
+    if (parts.length < 2) continue;
+    const addedVal = parts[0] === '-' ? 0 : Number.parseInt(parts[0], 10);
+    const deletedVal = parts[1] === '-' ? 0 : Number.parseInt(parts[1], 10);
+    if (Number.isFinite(addedVal)) added += addedVal;
+    if (Number.isFinite(deletedVal)) deleted += deletedVal;
+  }
+  return { added, deleted };
+};
+
+const computeMetaWithFastCommands = async ({
+  baseDir,
+  fileArg,
+  timeoutMs,
+  signal,
+  includeChurn,
+  churnWindowCommits
+}) => {
+  const headResult = await runScmCommand('git', [
+    '-C',
+    baseDir,
+    'log',
+    '-n',
+    '1',
+    '--date=iso-strict',
+    '--format=%aI%x00%an',
+    '--',
+    fileArg
+  ], {
+    outputMode: 'string',
+    captureStdout: true,
+    captureStderr: true,
+    rejectOnNonZeroExit: false,
+    timeoutMs,
+    signal
+  });
+  if (headResult.exitCode !== 0) return null;
+  const { lastModifiedAt, lastAuthor } = parseLogHead(headResult.stdout);
+  if (!includeChurn) {
+    return {
+      last_modified: lastModifiedAt,
+      last_author: lastAuthor,
+      churn: null,
+      churn_added: null,
+      churn_deleted: null,
+      churn_commits: null
+    };
+  }
+  try {
+    const churnResult = await runScmCommand('git', [
+      '-C',
+      baseDir,
+      'log',
+      '--numstat',
+      '-n',
+      String(churnWindowCommits),
+      '--format=',
+      '--',
+      fileArg
+    ], {
+      outputMode: 'string',
+      captureStdout: true,
+      captureStderr: true,
+      rejectOnNonZeroExit: false,
+      timeoutMs,
+      signal
+    });
+    const churn = churnResult.exitCode === 0
+      ? parseNumstatChurnText(churnResult.stdout)
+      : { added: 0, deleted: 0 };
+    return {
+      last_modified: lastModifiedAt,
+      last_author: lastAuthor,
+      churn: churn.added + churn.deleted,
+      churn_added: churn.added,
+      churn_deleted: churn.deleted,
+      churn_commits: null
+    };
+  } catch {
+    return {
+      last_modified: lastModifiedAt,
+      last_author: lastAuthor,
+      churn: 0,
+      churn_added: 0,
+      churn_deleted: 0,
+      churn_commits: null
+    };
+  }
+};
+
 function parseLineAuthors(blameText) {
   const authors = [];
   let currentAuthor = null;
@@ -247,19 +371,7 @@ function parseLineAuthors(blameText) {
 async function computeNumstatChurn(git, file, limit) {
   try {
     const raw = await git.raw(['log', '--numstat', '-n', String(limit), '--format=', '--', file]);
-    let added = 0;
-    let deleted = 0;
-    for (const line of raw.split('\n')) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-      const parts = trimmed.split('\t');
-      if (parts.length < 2) continue;
-      const addedVal = parts[0] === '-' ? 0 : Number.parseInt(parts[0], 10);
-      const deletedVal = parts[1] === '-' ? 0 : Number.parseInt(parts[1], 10);
-      if (Number.isFinite(addedVal)) added += addedVal;
-      if (Number.isFinite(deletedVal)) deleted += deletedVal;
-    }
-    return { added, deleted };
+    return parseNumstatChurnText(raw);
   } catch {
     return { added: 0, deleted: 0 };
   }

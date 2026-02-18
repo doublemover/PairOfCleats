@@ -319,22 +319,30 @@ export const jjProvider = {
     }
     return { filesPosix };
   },
-  async getFileMeta({ repoRoot, filePosix }) {
+  async getFileMeta({ repoRoot, filePosix, timeoutMs, includeChurn = true }) {
     const config = resolveJjConfig();
     const fileset = toJjFileset(filePosix);
     if (!fileset) return { ok: false, reason: 'unavailable' };
     const filesetLiteral = JSON.stringify(fileset);
-    const template = [
-      'json({',
-      '"author": author.name(),',
-      '"timestamp": author.timestamp().utc().format("%Y-%m-%dT%H:%M:%SZ"),',
-      `"added": self.diff(${filesetLiteral}).stat().total_added(),`,
-      `"removed": self.diff(${filesetLiteral}).stat().total_removed()`,
-      '})'
-    ].join(' ');
+    const template = includeChurn
+      ? [
+        'json({',
+        '"author": author.name(),',
+        '"timestamp": author.timestamp().utc().format("%Y-%m-%dT%H:%M:%SZ"),',
+        `"added": self.diff(${filesetLiteral}).stat().total_added(),`,
+        `"removed": self.diff(${filesetLiteral}).stat().total_removed()`,
+        '})'
+      ].join(' ')
+      : [
+        'json({',
+        '"author": author.name(),',
+        '"timestamp": author.timestamp().utc().format("%Y-%m-%dT%H:%M:%SZ")',
+        '})'
+      ].join(' ');
     const result = await runJjCommand({
       repoRoot,
-      args: ['log', '--no-graph', '-n', String(config.churnWindowCommits), '-T', template, fileset]
+      args: ['log', '--no-graph', '-n', includeChurn ? String(config.churnWindowCommits) : '1', '-T', template, fileset],
+      timeoutMs: Number.isFinite(timeoutMs) ? timeoutMs : config.timeoutMs
     });
     if (result.exitCode !== 0) {
       return { ok: false, reason: 'unavailable' };
@@ -347,20 +355,22 @@ export const jjProvider = {
     let churnAdded = 0;
     let churnDeleted = 0;
     let churnCommits = 0;
-    for (const row of rows) {
-      churnCommits += 1;
-      const added = Number(row?.added) || 0;
-      const removed = Number(row?.removed) || 0;
-      churnAdded += Number.isFinite(added) ? added : 0;
-      churnDeleted += Number.isFinite(removed) ? removed : 0;
+    if (includeChurn) {
+      for (const row of rows) {
+        churnCommits += 1;
+        const added = Number(row?.added) || 0;
+        const removed = Number(row?.removed) || 0;
+        churnAdded += Number.isFinite(added) ? added : 0;
+        churnDeleted += Number.isFinite(removed) ? removed : 0;
+      }
     }
     return {
       lastModifiedAt: first.timestamp || null,
       lastAuthor: first.author || null,
-      churn: churnAdded + churnDeleted,
-      churnAdded,
-      churnDeleted,
-      churnCommits
+      churn: includeChurn ? churnAdded + churnDeleted : null,
+      churnAdded: includeChurn ? churnAdded : null,
+      churnDeleted: includeChurn ? churnDeleted : null,
+      churnCommits: includeChurn ? churnCommits : null
     };
   },
   async annotate({ repoRoot, filePosix, timeoutMs, signal }) {

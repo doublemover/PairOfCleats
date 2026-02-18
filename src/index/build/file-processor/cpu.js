@@ -33,6 +33,7 @@ import {
 
 const TREE_SITTER_LANG_IDS = new Set(TREE_SITTER_LANGUAGE_IDS);
 const SCM_ANNOTATE_FAST_TIMEOUT_EXTS = new Set(['.yml', '.yaml', '.json', '.toml', '.lock']);
+const SCM_META_FAST_TIMEOUT_EXTS = new Set(['.yml', '.yaml', '.json', '.toml', '.lock']);
 
 /**
  * Merge scheduler-planned segments with comment/frontmatter extras while keeping
@@ -339,6 +340,7 @@ export const processFileCpu = async (context) => {
   const resolvedGitBlameEnabled = typeof analysisPolicy?.git?.blame === 'boolean'
     ? analysisPolicy.git.blame
     : gitBlameEnabled;
+  const resolvedGitChurnEnabled = scmConfig?.meta?.includeChurn !== false;
   updateCrashStage('scm-meta', { blame: resolvedGitBlameEnabled });
   const scmStart = Date.now();
   let lineAuthors = null;
@@ -347,10 +349,27 @@ export const processFileCpu = async (context) => {
   const filePosix = scmActive && scmRepoRoot
     ? toRepoPosixPath(abs, scmRepoRoot)
     : null;
+  const normalizedExt = typeof ext === 'string' ? ext.toLowerCase() : '';
+  const metaConfig = scmConfig?.meta || {};
+  const metaTimeoutRaw = Number(metaConfig.timeoutMs);
+  const defaultTimeoutRaw = Number(scmConfig?.timeoutMs);
+  const hasExplicitMetaTimeout = Number.isFinite(metaTimeoutRaw) && metaTimeoutRaw > 0;
+  let metaTimeoutMs = hasExplicitMetaTimeout
+    ? metaTimeoutRaw
+    : (Number.isFinite(defaultTimeoutRaw) && defaultTimeoutRaw > 0 ? defaultTimeoutRaw : 2000);
+  if (!hasExplicitMetaTimeout) {
+    if (SCM_META_FAST_TIMEOUT_EXTS.has(normalizedExt)) {
+      metaTimeoutMs = Math.min(metaTimeoutMs, 250);
+    } else {
+      metaTimeoutMs = Math.min(metaTimeoutMs, 750);
+    }
+  }
   if (scmActive && filePosix && typeof scmProviderImpl.getFileMeta === 'function') {
     const fileMeta = await runIo(() => scmProviderImpl.getFileMeta({
       repoRoot: scmRepoRoot,
-      filePosix
+      filePosix,
+      timeoutMs: Math.max(0, metaTimeoutMs),
+      includeChurn: resolvedGitChurnEnabled
     }));
     if (fileMeta && fileMeta.ok !== false) {
       fileGitMeta = {
@@ -365,7 +384,6 @@ export const processFileCpu = async (context) => {
   }
   if (scmActive && filePosix && resolvedGitBlameEnabled && typeof scmProviderImpl.annotate === 'function') {
     const annotateConfig = scmConfig?.annotate || {};
-    const normalizedExt = typeof ext === 'string' ? ext.toLowerCase() : '';
     const maxAnnotateBytesRaw = Number(annotateConfig.maxFileSizeBytes);
     const maxAnnotateBytes = Number.isFinite(maxAnnotateBytesRaw)
       ? Math.max(0, maxAnnotateBytesRaw)

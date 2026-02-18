@@ -83,7 +83,12 @@
  *  listTrackedFiles: (input: { repoRoot: string, subdir?: string|null }) => Promise<ScmFileList|ScmUnavailable|null> | ScmFileList|ScmUnavailable|null,
  *  getRepoProvenance: (input: { repoRoot: string }) => Promise<ScmRepoProvenance> | ScmRepoProvenance,
  *  getChangedFiles: (input: { repoRoot: string, fromRef?: string|null, toRef?: string|null, subdir?: string|null }) => Promise<ScmFileList|ScmUnavailable> | ScmFileList|ScmUnavailable,
- *  getFileMeta: (input: { repoRoot: string, filePosix: string }) => Promise<ScmFileMeta|ScmUnavailable> | ScmFileMeta|ScmUnavailable,
+ *  getFileMeta: (input: {
+ *    repoRoot: string,
+ *    filePosix: string,
+ *    timeoutMs?: number,
+ *    includeChurn?: boolean
+ *  }) => Promise<ScmFileMeta|ScmUnavailable> | ScmFileMeta|ScmUnavailable,
  *  annotate?: (input: { repoRoot: string, filePosix: string, timeoutMs: number }) => Promise<ScmAnnotateResult|ScmUnavailable> | ScmAnnotateResult|ScmUnavailable
  * }} ScmProvider
  */

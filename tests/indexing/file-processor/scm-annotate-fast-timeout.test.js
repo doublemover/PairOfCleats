@@ -117,8 +117,12 @@ const yamlStat = await fs.stat(yamlAbs);
 const yamlLanguageHint = getLanguageForFile('.yml', yamlRelKey);
 let yamlAnnotateCalls = 0;
 let yamlTimeoutMs = null;
+let yamlMetaTimeoutMs = null;
+let yamlIncludeChurn = null;
 const yamlScmProvider = {
-  async getFileMeta() {
+  async getFileMeta(args) {
+    yamlMetaTimeoutMs = args?.timeoutMs ?? null;
+    yamlIncludeChurn = args?.includeChurn ?? null;
     return { ok: false };
   },
   async annotate(args) {
@@ -141,6 +145,8 @@ await processFileCpu(createContext({
 }));
 assert.equal(yamlAnnotateCalls, 1, 'expected annotate to run for .yml files');
 assert.equal(yamlTimeoutMs, 750, 'expected .yml annotate timeout to clamp to 750ms by default');
+assert.equal(yamlMetaTimeoutMs, 250, 'expected .yml meta timeout to clamp to 250ms by default');
+assert.equal(yamlIncludeChurn, true, 'expected git churn metadata to default enabled');
 
 const jsAbs = path.join(root, 'tests', 'fixtures', 'tree-sitter', 'javascript.js');
 const jsRel = path.relative(root, jsAbs);
@@ -150,8 +156,10 @@ const jsStat = await fs.stat(jsAbs);
 const jsLanguageHint = getLanguageForFile('.js', jsRelKey);
 let jsAnnotateCalls = 0;
 let jsTimeoutMs = null;
+let jsMetaTimeoutMs = null;
 const jsScmProvider = {
-  async getFileMeta() {
+  async getFileMeta(args) {
+    jsMetaTimeoutMs = args?.timeoutMs ?? null;
     return { ok: false };
   },
   async annotate(args) {
@@ -174,10 +182,15 @@ await processFileCpu(createContext({
 }));
 assert.equal(jsAnnotateCalls, 1, 'expected annotate to run for .js files');
 assert.equal(jsTimeoutMs, 2000, 'expected non-metadata annotate timeout to clamp to 2000ms');
+assert.equal(jsMetaTimeoutMs, 750, 'expected non-metadata meta timeout to clamp to 750ms');
 
 let explicitTimeoutMs = null;
+let explicitMetaTimeoutMs = null;
+let explicitIncludeChurn = null;
 const explicitScmProvider = {
-  async getFileMeta() {
+  async getFileMeta(args) {
+    explicitMetaTimeoutMs = args?.timeoutMs ?? null;
+    explicitIncludeChurn = args?.includeChurn ?? null;
     return { ok: false };
   },
   async annotate(args) {
@@ -195,8 +208,10 @@ await processFileCpu(createContext({
   languageHint: yamlLanguageHint,
   scmProviderImpl: explicitScmProvider,
   fileHash: 'scm-annotate-fast-timeout-explicit',
-  scmConfig: { annotate: { timeoutMs: 4321 } }
+  scmConfig: { annotate: { timeoutMs: 4321 }, meta: { timeoutMs: 333, includeChurn: false } }
 }));
 assert.equal(explicitTimeoutMs, 4321, 'expected explicit annotate timeout to bypass clamping');
+assert.equal(explicitMetaTimeoutMs, 333, 'expected explicit meta timeout to bypass clamping');
+assert.equal(explicitIncludeChurn, false, 'expected churn flag to respect analysis policy');
 
 console.log('scm annotate fast timeout test passed');
