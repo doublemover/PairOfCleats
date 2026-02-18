@@ -21,7 +21,7 @@ import {
 import { buildLanguageAnalysisContext } from './cpu/analyze.js';
 import { buildCommentMeta } from './cpu/meta.js';
 import { resolveFileCaps } from './read.js';
-import { isCodeEntryForPath, shouldPreferDocsProse } from '../mode-routing.js';
+import { shouldPreferDocsProse } from '../mode-routing.js';
 import { buildLineIndex } from '../../../shared/lines.js';
 import { formatError } from './meta.js';
 import { processChunks } from './process-chunks.js';
@@ -446,12 +446,9 @@ export const processFileCpu = async (context) => {
     : null;
   const normalizedExt = typeof ext === 'string' ? ext.toLowerCase() : '';
   const proseRoutePreferred = shouldPreferDocsProse({ ext: normalizedExt, relPath: relKey });
-  const extractedProseCodeRoute = mode === 'extracted-prose'
-    && isCodeEntryForPath({ ext: normalizedExt, relPath: relKey, isSpecial: false });
-  const scmCodeEligible = mode === 'code' || extractedProseCodeRoute;
-  // Keep SCM metadata for code-routed entries in both code/extracted-prose lanes.
-  // Prose-routed files (including docs/assets) still skip SCM to avoid wasted churn/blame work.
-  const skipScmForProseRoute = !scmCodeEligible || proseRoutePreferred;
+  // Keep SCM metadata for prose mode so retrieval filters can use author/date
+  // constraints, but still skip docs-prose routes in code/extracted-prose lanes.
+  const skipScmForProseRoute = proseRoutePreferred && mode !== 'prose';
   const scmFastPath = isScmFastPath({ relPath: relKey, ext: normalizedExt });
   const annotateConfig = scmConfig?.annotate || {};
   const enforceScmTimeoutCaps = scmConfig?.allowSlowTimeouts !== true
@@ -467,8 +464,8 @@ export const processFileCpu = async (context) => {
   }
   const runScmTask = typeof runProc === 'function' ? runProc : (fn) => fn();
   if (!skipScmForProseRoute && scmActive && filePosix) {
-    await runScmTask(async () => {
-      if (typeof scmProviderImpl.getFileMeta === 'function') {
+    if (typeof scmProviderImpl.getFileMeta === 'function') {
+      await runScmTask(async () => {
         const includeChurn = resolvedGitChurnEnabled
           && !scmFastPath
           && (fileStat?.size ?? 0) <= SCM_CHURN_MAX_BYTES;
@@ -488,8 +485,10 @@ export const processFileCpu = async (context) => {
             churn_commits: Number.isFinite(fileMeta.churnCommits) ? fileMeta.churnCommits : null
           };
         }
-      }
-      if (resolvedGitBlameEnabled && typeof scmProviderImpl.annotate === 'function') {
+      });
+    }
+    if (resolvedGitBlameEnabled && typeof scmProviderImpl.annotate === 'function') {
+      await runScmTask(async () => {
         const maxAnnotateBytesRaw = Number(annotateConfig.maxFileSizeBytes);
         const defaultAnnotateBytes = scmFastPath ? 128 * 1024 : 256 * 1024;
         const maxAnnotateBytes = Number.isFinite(maxAnnotateBytesRaw)
@@ -507,35 +506,34 @@ export const processFileCpu = async (context) => {
         }
         const withinAnnotateCap = maxAnnotateBytes == null
           || (fileStat?.size ?? 0) <= maxAnnotateBytes;
-        if (withinAnnotateCap) {
-          const timeoutMs = Math.max(0, annotateTimeoutMs);
-          const controller = new AbortController();
-          let timeoutId = null;
-          if (timeoutMs > 0) {
-            timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-          }
-          try {
-            const annotateResult = await Promise.resolve(scmProviderImpl.annotate({
-              repoRoot: scmRepoRoot,
-              filePosix,
-              timeoutMs,
-              signal: controller.signal
-            })).catch((err) => {
-              if (controller.signal.aborted) return { ok: false, reason: 'timeout' };
-              if (err?.code === 'ABORT_ERR' || err?.name === 'AbortError') {
-                return { ok: false, reason: 'timeout' };
-              }
-              return { ok: false, reason: 'unavailable' };
-            });
-            lineAuthors = buildLineAuthors(
-              controller.signal.aborted ? { ok: false, reason: 'timeout' } : annotateResult
-            );
-          } finally {
-            if (timeoutId) clearTimeout(timeoutId);
-          }
+        if (!withinAnnotateCap) return;
+        const timeoutMs = Math.max(0, annotateTimeoutMs);
+        const controller = new AbortController();
+        let timeoutId = null;
+        if (timeoutMs > 0) {
+          timeoutId = setTimeout(() => controller.abort(), timeoutMs);
         }
-      }
-    });
+        try {
+          const annotateResult = await Promise.resolve(scmProviderImpl.annotate({
+            repoRoot: scmRepoRoot,
+            filePosix,
+            timeoutMs,
+            signal: controller.signal
+          })).catch((err) => {
+            if (controller.signal.aborted) return { ok: false, reason: 'timeout' };
+            if (err?.code === 'ABORT_ERR' || err?.name === 'AbortError') {
+              return { ok: false, reason: 'timeout' };
+            }
+            return { ok: false, reason: 'unavailable' };
+          });
+          lineAuthors = buildLineAuthors(
+            controller.signal.aborted ? { ok: false, reason: 'timeout' } : annotateResult
+          );
+        } finally {
+          if (timeoutId) clearTimeout(timeoutId);
+        }
+      });
+    }
   }
   setGitDuration(Date.now() - scmStart);
   const parseStart = Date.now();
