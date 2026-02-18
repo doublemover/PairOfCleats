@@ -191,6 +191,41 @@ assert.equal(jsTimeoutMs, 2000, 'expected non-metadata annotate timeout to clamp
 assert.equal(jsMetaTimeoutMs, 750, 'expected non-metadata meta timeout to clamp to 750ms');
 assert.equal(jsIncludeChurn, true, 'expected non-fast-path churn metadata enabled by default');
 
+const swiftAbs = path.join(root, 'tests', 'fixtures', 'tree-sitter', 'swift.swift');
+const swiftRel = path.relative(root, swiftAbs);
+const swiftRelKey = swiftRel.split(path.sep).join('/');
+const swiftText = await fs.readFile(swiftAbs, 'utf8');
+const swiftStat = await fs.stat(swiftAbs);
+const swiftLanguageHint = getLanguageForFile('.swift', swiftRelKey);
+let swiftAnnotateCalls = 0;
+let swiftTimeoutMs = null;
+let swiftMetaTimeoutMs = null;
+const swiftScmProvider = {
+  async getFileMeta(args) {
+    swiftMetaTimeoutMs = args?.timeoutMs ?? null;
+    return { ok: false };
+  },
+  async annotate(args) {
+    swiftAnnotateCalls += 1;
+    swiftTimeoutMs = args?.timeoutMs ?? null;
+    return { ok: false, reason: 'timeout' };
+  }
+};
+await processFileCpu(createContext({
+  abs: swiftAbs,
+  ext: '.swift',
+  rel: swiftRel,
+  relKey: swiftRelKey,
+  text: swiftText,
+  fileStat: swiftStat,
+  languageHint: swiftLanguageHint,
+  scmProviderImpl: swiftScmProvider,
+  fileHash: 'scm-annotate-fast-timeout-swift'
+}));
+assert.equal(swiftAnnotateCalls, 1, 'expected annotate to run for .swift files');
+assert.equal(swiftTimeoutMs, 750, 'expected .swift annotate timeout to clamp to 750ms');
+assert.equal(swiftMetaTimeoutMs, 250, 'expected .swift meta timeout to clamp to 250ms');
+
 let legacyIncludeChurn = null;
 const legacyScmProvider = {
   async getFileMeta(args) {
@@ -368,6 +403,42 @@ await processFileCpu(createContext({
 }));
 assert.equal(docsCodeMetaCalls, 1, 'expected docs code files to keep SCM metadata');
 assert.equal(docsCodeAnnotateCalls, 1, 'expected docs code files to keep SCM annotate');
+
+let docsProseModeMetaCalls = 0;
+let docsProseModeAnnotateCalls = 0;
+const docsProseModeScmProvider = {
+  async getFileMeta() {
+    docsProseModeMetaCalls += 1;
+    return { ok: false };
+  },
+  async annotate() {
+    docsProseModeAnnotateCalls += 1;
+    return { ok: false, reason: 'timeout' };
+  }
+};
+const docsProseModeRelKey = 'docs/reference/index.html';
+await processFileCpu(createContext({
+  mode: 'prose',
+  abs: yamlAbs,
+  ext: '.html',
+  rel: docsProseModeRelKey,
+  relKey: docsProseModeRelKey,
+  text: '<html><body>Docs</body></html>',
+  fileStat: yamlStat,
+  languageHint: getLanguageForFile('.html', docsProseModeRelKey),
+  scmProviderImpl: docsProseModeScmProvider,
+  fileHash: 'scm-annotate-fast-timeout-docs-prose-mode'
+}));
+assert.equal(
+  docsProseModeMetaCalls,
+  1,
+  'expected prose docs files to keep SCM file metadata'
+);
+assert.equal(
+  docsProseModeAnnotateCalls,
+  0,
+  'expected prose docs files to skip SCM annotate'
+);
 
 let docsProseMetaCalls = 0;
 let docsProseAnnotateCalls = 0;

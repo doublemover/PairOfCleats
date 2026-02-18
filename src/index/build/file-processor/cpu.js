@@ -34,8 +34,26 @@ import {
 } from '../../segments/config.js';
 
 const TREE_SITTER_LANG_IDS = new Set(TREE_SITTER_LANGUAGE_IDS);
-const SCM_ANNOTATE_FAST_TIMEOUT_EXTS = new Set(['.yml', '.yaml', '.json', '.toml', '.lock']);
-const SCM_META_FAST_TIMEOUT_EXTS = new Set(['.yml', '.yaml', '.json', '.toml', '.lock']);
+const SCM_ANNOTATE_FAST_TIMEOUT_EXTS = new Set([
+  '.yml',
+  '.yaml',
+  '.json',
+  '.toml',
+  '.lock',
+  '.swift',
+  '.html',
+  '.htm'
+]);
+const SCM_META_FAST_TIMEOUT_EXTS = new Set([
+  '.yml',
+  '.yaml',
+  '.json',
+  '.toml',
+  '.lock',
+  '.swift',
+  '.html',
+  '.htm'
+]);
 const SCM_FAST_TIMEOUT_BASENAMES = new Set([
   'cmakelists.txt',
   'makefile',
@@ -461,6 +479,10 @@ export const processFileCpu = async (context) => {
   // Keep SCM metadata for prose mode so retrieval filters can use author/date
   // constraints, but still skip docs-prose routes in code/extracted-prose lanes.
   const skipScmForProseRoute = proseRoutePreferred && mode !== 'prose';
+  // Prose-route docs payloads (large HTML/search JSON) are watchdog-prone when
+  // line-level annotate runs for every file; keep lightweight file metadata but
+  // skip annotate for this route.
+  const skipScmAnnotateForProseRoute = proseRoutePreferred && mode === 'prose';
   const scmFastPath = isScmFastPath({ relPath: relKey, ext: normalizedExt, lines: fileLineCount });
   const annotateConfig = scmConfig?.annotate || {};
   const enforceScmTimeoutCaps = scmConfig?.allowSlowTimeouts !== true
@@ -475,6 +497,7 @@ export const processFileCpu = async (context) => {
     metaTimeoutMs = Math.min(metaTimeoutMs, metaCapMs);
   }
   const runScmTask = typeof runProc === 'function' ? runProc : (fn) => fn();
+  let scmMetaUnavailableReason = null;
   if (!skipScmForProseRoute && scmActive && filePosix) {
     if (typeof scmProviderImpl.getFileMeta === 'function') {
       await runScmTask(async () => {
@@ -496,10 +519,20 @@ export const processFileCpu = async (context) => {
             churn_deleted: Number.isFinite(fileMeta.churnDeleted) ? fileMeta.churnDeleted : null,
             churn_commits: Number.isFinite(fileMeta.churnCommits) ? fileMeta.churnCommits : null
           };
+        } else {
+          const reason = String(fileMeta?.reason || '').toLowerCase();
+          if (reason === 'timeout' || reason === 'unavailable') {
+            scmMetaUnavailableReason = reason;
+          }
         }
       });
     }
-    if (resolvedGitBlameEnabled && typeof scmProviderImpl.annotate === 'function') {
+    if (
+      resolvedGitBlameEnabled
+      && !skipScmAnnotateForProseRoute
+      && scmMetaUnavailableReason == null
+      && typeof scmProviderImpl.annotate === 'function'
+    ) {
       await runScmTask(async () => {
         const maxAnnotateBytesRaw = Number(annotateConfig.maxFileSizeBytes);
         const defaultAnnotateBytes = scmFastPath ? 128 * 1024 : 256 * 1024;
