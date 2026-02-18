@@ -1,9 +1,12 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { applyTestEnv } from '../../helpers/test-env.js';
 import {
   compactDocsSearchJsonText,
   isDocsSearchIndexJsonPath
 } from '../../../src/index/build/file-processor/docs-search-json.js';
+
+applyTestEnv();
 
 assert.equal(
   isDocsSearchIndexJsonPath({
@@ -100,6 +103,48 @@ assert.ok(
 assert.ok(
   fastScanArrayCompacted.includes('/guide/install | Install | Install guide.'),
   'expected array-shaped search.json to compact via parser fallback'
+);
+
+const nestedObjectRaw = JSON.stringify({
+  '/guide/a': {
+    name: 'Guide A',
+    abstract: '<p>Top level A.</p>',
+    meta: {
+      '/fake/nested-1': {
+        name: 'Nested 1',
+        abstract: '<p>Nested content.</p>'
+      },
+      '/fake/nested-2': {
+        name: 'Nested 2',
+        abstract: '<p>Nested content 2.</p>'
+      }
+    }
+  },
+  '/guide/b': {
+    name: 'Guide B',
+    abstract: '<p>Top level B.</p>'
+  }
+});
+const nestedCompacted = compactDocsSearchJsonText(nestedObjectRaw, {
+  maxEntries: 2,
+  fastScanMinInputChars: 1,
+  fastScanWindowChars: 1024
+});
+assert.ok(
+  typeof nestedCompacted === 'string' && nestedCompacted.length > 0,
+  'expected fast-scan compaction output for nested object payload'
+);
+assert.ok(
+  nestedCompacted.includes('/guide/a | Guide A | Top level A.'),
+  'expected fast-scan to retain first top-level route'
+);
+assert.ok(
+  nestedCompacted.includes('/guide/b | Guide B | Top level B.'),
+  'expected fast-scan to retain later top-level route instead of nested keys'
+);
+assert.ok(
+  !nestedCompacted.includes('/fake/nested-1') && !nestedCompacted.includes('/fake/nested-2'),
+  'expected nested payload keys to be excluded from top-level fast-scan routes'
 );
 
 console.log('docs search json fast path test passed');

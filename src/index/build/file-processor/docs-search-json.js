@@ -155,6 +155,98 @@ const collectTopLevelArrayObjectRanges = (text, entryLimit) => {
 };
 
 /**
+ * Collect candidate top-level object-member route heads (`"route": {`) without
+ * matching nested payload keys.
+ *
+ * @param {string} text
+ * @param {number} entryLimit
+ * @returns {Array<{start:number,routeRaw:string}>}
+ */
+const collectTopLevelObjectEntryHeads = (text, entryLimit) => {
+  const heads = [];
+  if (!text || !entryLimit) return heads;
+  let i = 0;
+  while (i < text.length && /\s/.test(text[i])) i += 1;
+  if (text[i] !== '{') return heads;
+  let objectDepth = 1;
+  let arrayDepth = 0;
+  let inString = false;
+  let escaped = false;
+  const parseStringAt = (start) => {
+    let raw = '';
+    let localEscaped = false;
+    for (let cursor = start + 1; cursor < text.length; cursor += 1) {
+      const ch = text[cursor];
+      if (localEscaped) {
+        raw += ch;
+        localEscaped = false;
+        continue;
+      }
+      if (ch === '\\') {
+        raw += ch;
+        localEscaped = true;
+        continue;
+      }
+      if (ch === '"') {
+        return { raw, end: cursor };
+      }
+      raw += ch;
+    }
+    return null;
+  };
+  for (i += 1; i < text.length; i += 1) {
+    const ch = text[i];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (ch === '\\') {
+        escaped = true;
+      } else if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (ch === '"') {
+      if (objectDepth === 1 && arrayDepth === 0) {
+        const keyToken = parseStringAt(i);
+        if (!keyToken) break;
+        let cursor = keyToken.end + 1;
+        while (cursor < text.length && /\s/.test(text[cursor])) cursor += 1;
+        if (text[cursor] === ':') {
+          cursor += 1;
+          while (cursor < text.length && /\s/.test(text[cursor])) cursor += 1;
+          if (text[cursor] === '{') {
+            heads.push({ start: i, routeRaw: keyToken.raw });
+            if (heads.length >= entryLimit) break;
+          }
+        }
+        i = keyToken.end;
+        continue;
+      }
+      inString = true;
+      continue;
+    }
+    if (ch === '{') {
+      objectDepth += 1;
+      continue;
+    }
+    if (ch === '}') {
+      objectDepth -= 1;
+      if (objectDepth <= 0) break;
+      continue;
+    }
+    if (ch === '[') {
+      arrayDepth += 1;
+      continue;
+    }
+    if (ch === ']') {
+      if (arrayDepth > 0) arrayDepth -= 1;
+    }
+  }
+  return heads;
+};
+
+/**
  * Fast-scan large docs `search.json` payloads and extract compact
  * `route | name | parent | abstract` lines from local windows.
  *
@@ -178,12 +270,7 @@ const compactDocsSearchJsonTextFastScan = (
   const windowChars = Number.isFinite(Number(scanWindowChars)) && scanWindowChars > 0
     ? Math.max(512, Math.floor(Number(scanWindowChars)))
     : FAST_SCAN_WINDOW_CHARS_DEFAULT;
-  const entryHeadRx = /"((?:\\.|[^"\\]){1,260})"\s*:\s*\{/g;
-  const entryHeads = [];
-  let match;
-  while ((match = entryHeadRx.exec(text)) !== null) {
-    entryHeads.push({ start: match.index, routeRaw: match[1] });
-  }
+  const entryHeads = collectTopLevelObjectEntryHeads(text, entryLimit);
   for (let i = 0; i < entryHeads.length; i += 1) {
     if (lines.length >= entryLimit) break;
     const head = entryHeads[i];
