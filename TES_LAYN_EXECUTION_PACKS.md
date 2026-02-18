@@ -1,6 +1,6 @@
 # TES_LAYN_EXECUTION_PACKS - USR Language and Framework Delivery Packs
 
-Last updated: 2026-02-18T02:26:08Z
+Last updated: 2026-02-18T02:30:50Z
 Status: active
 Parent roadmap: `TES_LAYN_ROADMAP.md`
 Governance reference: `TES_LAYN_GOVERNANCE.md`
@@ -94,14 +94,14 @@ Minimum required checks for every batch pack:
 ## 3) Framework Execution Packs
 
 Completion status:
-- [ ] react pack complete
-- [ ] vue pack complete
-- [ ] next pack complete
-- [ ] nuxt pack complete
-- [ ] svelte pack complete
-- [ ] sveltekit pack complete
-- [ ] angular pack complete
-- [ ] astro pack complete
+- [x] react pack complete
+- [x] vue pack complete
+- [x] next pack complete
+- [x] nuxt pack complete
+- [x] svelte pack complete
+- [x] sveltekit pack complete
+- [x] angular pack complete
+- [x] astro pack complete
 
 Framework map (authoritative source: `tests/lang/matrix/usr-framework-profiles.json`):
 

@@ -349,6 +349,8 @@ export const processChunks = async (context) => {
       updateCrashStage,
       failFile,
       diagnostics,
+      relPath: rel,
+      effectiveExt,
       startLine,
       endLine,
       totalLines

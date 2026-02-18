@@ -1,6 +1,6 @@
 # TES_LAYN_ROADMAP - Functional USR Delivery Plan
 
-Last updated: 2026-02-18T02:26:08Z
+Last updated: 2026-02-18T02:30:50Z
 Status: active
 Supersedes: prior contract-heavy rollout plans
 
@@ -110,11 +110,11 @@ Exit checks:
 Objective: complete framework-specific route/template/style semantics.
 
 Deliverables:
-- [ ] Framework handlers and profile wiring are complete for all required frameworks.
-- [ ] Framework edge cases are implemented and reflected in fixtures/spec docs.
+- [x] Framework handlers and profile wiring are complete for all required frameworks.
+- [x] Framework edge cases are implemented and reflected in fixtures/spec docs.
 
 Exit checks:
-- [ ] Framework profile behavior is deterministic and functionally complete.
+- [x] Framework profile behavior is deterministic and functionally complete.
 
 ### Phase E - Semantics and Quality Hardening
 

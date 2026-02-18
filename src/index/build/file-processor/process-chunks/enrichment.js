@@ -1,6 +1,7 @@
 import { buildChunkRelations } from '../../../language-registry.js';
 import { detectRiskSignals } from '../../../risk.js';
 import { inferTypeMetadata } from '../../../type-inference.js';
+import { detectFrameworkProfile } from '../../../framework-profile.js';
 import { getStructuralMatchesForChunk } from '../chunk.js';
 import { mergeFlowMeta } from '../meta.js';
 
@@ -60,6 +61,8 @@ export const buildChunkEnrichment = ({
   updateCrashStage,
   failFile,
   diagnostics,
+  relPath,
+  effectiveExt,
   startLine,
   endLine,
   totalLines
@@ -180,6 +183,18 @@ export const buildChunkEnrichment = ({
     docmeta = {
       ...docmeta,
       usrCapabilities
+    };
+  }
+
+  const frameworkProfile = detectFrameworkProfile({
+    relPath,
+    ext: effectiveExt || diagnostics?.segmentExt || diagnostics?.containerExt || null,
+    text
+  });
+  if (frameworkProfile) {
+    docmeta = {
+      ...docmeta,
+      frameworkProfile
     };
   }
 
