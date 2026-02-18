@@ -34,6 +34,39 @@ export const resolveChunkProcessingFeatureFlags = (runtime) => {
   };
 };
 
+export const createOrderedCompletionTracker = () => {
+  const pending = new Set();
+  let firstError = null;
+
+  const track = (completion, onSettled = null) => {
+    if (!completion || typeof completion.then !== 'function') return completion;
+    pending.add(completion);
+    const settle = completion
+      .catch((err) => {
+        if (!firstError) firstError = err;
+      })
+      .finally(() => {
+        pending.delete(completion);
+        if (typeof onSettled === 'function') onSettled();
+      });
+    void settle.catch(() => {});
+    return completion;
+  };
+
+  const throwIfFailed = () => {
+    if (firstError) throw firstError;
+  };
+
+  const wait = async () => {
+    while (pending.size > 0) {
+      await Promise.all(Array.from(pending));
+    }
+    throwIfFailed();
+  };
+
+  return { track, throwIfFailed, wait };
+};
+
 const coercePositiveInt = (value) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return null;
@@ -419,7 +452,7 @@ export const processFiles = async ({
         abortSignal
       });
       const runEntryBatch = async (batchEntries) => {
-        const orderedCompletions = new Set();
+        const orderedCompletionTracker = createOrderedCompletionTracker();
         await runWithQueue(
           runtimeRef.queues.cpu,
           batchEntries,
@@ -532,14 +565,13 @@ export const processFiles = async ({
                 })()
                 : { release: () => {} };
               const completion = orderedAppender.enqueue(orderIndex, result, shardMeta);
-              orderedCompletions.add(completion);
-              const releaseReservation = () => {
-                orderedCompletions.delete(completion);
+              orderedCompletionTracker.track(completion, () => {
                 reservation.release();
-              };
-              completion.then(releaseReservation, releaseReservation);
+              });
               if (typeof orderedAppender.waitForCapacity === 'function') {
-                return orderedAppender.waitForCapacity();
+                await orderedAppender.waitForCapacity();
+                orderedCompletionTracker.throwIfFailed();
+                return;
               }
               return completion;
             },
@@ -567,9 +599,7 @@ export const processFiles = async ({
             retryDelayMs: 200
           }
         );
-        while (orderedCompletions.size > 0) {
-          await Promise.all(Array.from(orderedCompletions));
-        }
+        await orderedCompletionTracker.wait();
       };
       try {
         await runEntryBatch(shardEntries);
