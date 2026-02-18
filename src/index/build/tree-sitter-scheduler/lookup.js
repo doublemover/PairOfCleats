@@ -432,6 +432,20 @@ export const createTreeSitterSchedulerLookup = ({
     return chunks || null;
   };
 
+  const loadChunksBatch = async (virtualPaths, options = {}) => {
+    const keys = Array.isArray(virtualPaths) ? virtualPaths : [];
+    if (!keys.length) return [];
+    const consume = options?.consume !== false;
+    const rows = await loadRows(keys);
+    const chunks = rows.map((row) => (Array.isArray(row?.chunks) ? row.chunks : null));
+    if (consume) {
+      for (const virtualPath of keys) {
+        releaseVirtualPathCaches(virtualPath);
+      }
+    }
+    return chunks;
+  };
+
   const grammarKeys = () => {
     const keys = new Set();
     for (const entry of index.values()) {
@@ -448,6 +462,7 @@ export const createTreeSitterSchedulerLookup = ({
     loadRow,
     loadRows,
     loadChunks,
+    loadChunksBatch,
     close,
     stats: () => ({
       indexEntries: index.size,

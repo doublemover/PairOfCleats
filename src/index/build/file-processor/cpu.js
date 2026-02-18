@@ -657,27 +657,56 @@ export const processFileCpu = async (context) => {
       });
     }
 
-    for (const item of scheduled) {
-      const chunks = await treeSitterScheduler.loadChunks(item.virtualPath);
-      if (!Array.isArray(chunks) || !chunks.length) {
-        const hasScheduledEntry = treeSitterScheduler?.index instanceof Map
-          ? treeSitterScheduler.index.has(item.virtualPath)
-          : null;
-        if (!treeSitterStrict && hasScheduledEntry === false) {
-          fallbackSegments.push(item.segment);
+    const batchChunks = typeof treeSitterScheduler.loadChunksBatch === 'function'
+      ? await treeSitterScheduler.loadChunksBatch(scheduled.map((item) => item.virtualPath))
+      : null;
+    if (Array.isArray(batchChunks) && batchChunks.length === scheduled.length) {
+      for (let i = 0; i < scheduled.length; i += 1) {
+        const item = scheduled[i];
+        const chunks = batchChunks[i];
+        if (!Array.isArray(chunks) || !chunks.length) {
+          const hasScheduledEntry = treeSitterScheduler?.index instanceof Map
+            ? treeSitterScheduler.index.has(item.virtualPath)
+            : null;
+          if (!treeSitterStrict && hasScheduledEntry === false) {
+            fallbackSegments.push(item.segment);
+            logLine?.(
+              `[tree-sitter:schedule] scheduler missing ${item.label}; using fallback chunking for ${relKey}`,
+              { kind: 'warn', mode, stage: 'processing', file: relKey, substage: 'chunking' }
+            );
+            continue;
+          }
           logLine?.(
-            `[tree-sitter:schedule] scheduler missing ${item.label}; using fallback chunking for ${relKey}`,
-            { kind: 'warn', mode, stage: 'processing', file: relKey, substage: 'chunking' }
+            `[tree-sitter:schedule] missing scheduled chunks for ${relKey}: ${item.label}`,
+            { kind: 'error', mode, stage: 'processing', file: relKey, substage: 'chunking' }
           );
-          continue;
+          throw new Error(`[tree-sitter:schedule] Missing scheduled chunks for ${relKey}: ${item.label}`);
         }
-        logLine?.(
-          `[tree-sitter:schedule] missing scheduled chunks for ${relKey}: ${item.label}`,
-          { kind: 'error', mode, stage: 'processing', file: relKey, substage: 'chunking' }
-        );
-        throw new Error(`[tree-sitter:schedule] Missing scheduled chunks for ${relKey}: ${item.label}`);
+        sc.push(...chunks);
       }
-      sc.push(...chunks);
+    } else {
+      for (const item of scheduled) {
+        const chunks = await treeSitterScheduler.loadChunks(item.virtualPath);
+        if (!Array.isArray(chunks) || !chunks.length) {
+          const hasScheduledEntry = treeSitterScheduler?.index instanceof Map
+            ? treeSitterScheduler.index.has(item.virtualPath)
+            : null;
+          if (!treeSitterStrict && hasScheduledEntry === false) {
+            fallbackSegments.push(item.segment);
+            logLine?.(
+              `[tree-sitter:schedule] scheduler missing ${item.label}; using fallback chunking for ${relKey}`,
+              { kind: 'warn', mode, stage: 'processing', file: relKey, substage: 'chunking' }
+            );
+            continue;
+          }
+          logLine?.(
+            `[tree-sitter:schedule] missing scheduled chunks for ${relKey}: ${item.label}`,
+            { kind: 'error', mode, stage: 'processing', file: relKey, substage: 'chunking' }
+          );
+          throw new Error(`[tree-sitter:schedule] Missing scheduled chunks for ${relKey}: ${item.label}`);
+        }
+        sc.push(...chunks);
+      }
     }
 
     if (fallbackSegments.length) {
