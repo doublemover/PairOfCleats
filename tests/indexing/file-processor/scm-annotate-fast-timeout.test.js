@@ -274,4 +274,62 @@ await processFileCpu(createContext({
 }));
 assert.equal(scmRunIoCalls, 0, 'expected SCM metadata/blame to avoid shared runIo queue');
 
+let docsCodeMetaCalls = 0;
+let docsCodeAnnotateCalls = 0;
+const docsCodeScmProvider = {
+  async getFileMeta() {
+    docsCodeMetaCalls += 1;
+    return { ok: false };
+  },
+  async annotate() {
+    docsCodeAnnotateCalls += 1;
+    return { ok: false, reason: 'timeout' };
+  }
+};
+const docsCodeRelKey = 'docs/examples/main.go';
+await processFileCpu(createContext({
+  abs: jsAbs,
+  ext: '.go',
+  rel: docsCodeRelKey,
+  relKey: docsCodeRelKey,
+  text: [
+    'package main',
+    'func main() { helper() }',
+    'func helper() {}'
+  ].join('\n'),
+  fileStat: jsStat,
+  languageHint: getLanguageForFile('.go', docsCodeRelKey),
+  scmProviderImpl: docsCodeScmProvider,
+  fileHash: 'scm-annotate-fast-timeout-docs-code'
+}));
+assert.equal(docsCodeMetaCalls, 1, 'expected docs code files to keep SCM metadata');
+assert.equal(docsCodeAnnotateCalls, 1, 'expected docs code files to keep SCM annotate');
+
+let docsProseMetaCalls = 0;
+let docsProseAnnotateCalls = 0;
+const docsProseScmProvider = {
+  async getFileMeta() {
+    docsProseMetaCalls += 1;
+    return { ok: false };
+  },
+  async annotate() {
+    docsProseAnnotateCalls += 1;
+    return { ok: false, reason: 'timeout' };
+  }
+};
+const docsProseRelKey = 'docs/guide/readme.md';
+await processFileCpu(createContext({
+  abs: yamlAbs,
+  ext: '.md',
+  rel: docsProseRelKey,
+  relKey: docsProseRelKey,
+  text: '# Docs\n\nParagraph text.',
+  fileStat: yamlStat,
+  languageHint: getLanguageForFile('.md', docsProseRelKey),
+  scmProviderImpl: docsProseScmProvider,
+  fileHash: 'scm-annotate-fast-timeout-docs-prose'
+}));
+assert.equal(docsProseMetaCalls, 0, 'expected docs prose-routed files to skip SCM metadata');
+assert.equal(docsProseAnnotateCalls, 0, 'expected docs prose-routed files to skip SCM annotate');
+
 console.log('scm annotate fast timeout test passed');

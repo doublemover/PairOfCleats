@@ -108,6 +108,27 @@ const headerExtForPath = (value) => {
   return HEADER_FILE_EXTS.has(ext) ? ext : null;
 };
 
+const resolveTrackedHeaderCacheFingerprint = (repoRoot) => {
+  const root = path.resolve(repoRoot || process.cwd());
+  try {
+    const result = execaSync('git', ['-C', root, 'rev-parse', '--git-path', 'index'], {
+      reject: false,
+      encoding: 'utf8',
+      maxBuffer: 1024 * 1024
+    });
+    if (result.exitCode !== 0) return null;
+    const rawPath = String(result.stdout || '').trim();
+    if (!rawPath) return null;
+    const indexPath = path.isAbsolute(rawPath)
+      ? rawPath
+      : path.resolve(root, rawPath);
+    const stat = fsSync.statSync(indexPath);
+    return `${indexPath}:${stat.size}:${stat.mtimeMs}`;
+  } catch {
+    return null;
+  }
+};
+
 export const extractIncludeHeadersFromDocuments = (documents) => {
   const headers = new Set();
   const docs = Array.isArray(documents) ? documents : [];
@@ -196,10 +217,14 @@ export const inferIncludeRootsFromHeaderPaths = ({
   return limited;
 };
 
-const listTrackedHeaderPaths = (repoRoot) => {
+export const listTrackedHeaderPaths = (repoRoot) => {
   const cacheKey = path.resolve(repoRoot || process.cwd());
-  if (TRACKED_HEADER_PATHS_CACHE.has(cacheKey)) {
-    return TRACKED_HEADER_PATHS_CACHE.get(cacheKey);
+  const fingerprint = resolveTrackedHeaderCacheFingerprint(cacheKey);
+  if (fingerprint) {
+    const cached = TRACKED_HEADER_PATHS_CACHE.get(cacheKey) || null;
+    if (cached && cached.fingerprint === fingerprint) {
+      return cached.paths;
+    }
   }
   const pathSpecs = Array.from(HEADER_FILE_EXTS).map((ext) => `*${ext}`);
   try {
@@ -209,17 +234,23 @@ const listTrackedHeaderPaths = (repoRoot) => {
       maxBuffer: 32 * 1024 * 1024
     });
     if (result.exitCode !== 0) {
-      TRACKED_HEADER_PATHS_CACHE.set(cacheKey, []);
+      if (fingerprint) {
+        TRACKED_HEADER_PATHS_CACHE.set(cacheKey, { fingerprint, paths: [] });
+      }
       return [];
     }
     const trackedPaths = String(result.stdout || '')
       .split('\0')
       .map((entry) => normalizeRepoPosixPath(entry))
       .filter((entry) => Boolean(entry) && headerExtForPath(entry));
-    TRACKED_HEADER_PATHS_CACHE.set(cacheKey, trackedPaths);
+    if (fingerprint) {
+      TRACKED_HEADER_PATHS_CACHE.set(cacheKey, { fingerprint, paths: trackedPaths });
+    }
     return trackedPaths;
   } catch {
-    TRACKED_HEADER_PATHS_CACHE.set(cacheKey, []);
+    if (fingerprint) {
+      TRACKED_HEADER_PATHS_CACHE.set(cacheKey, { fingerprint, paths: [] });
+    }
     return [];
   }
 };

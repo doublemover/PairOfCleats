@@ -21,7 +21,7 @@ import {
 import { buildLanguageAnalysisContext } from './cpu/analyze.js';
 import { buildCommentMeta } from './cpu/meta.js';
 import { resolveFileCaps } from './read.js';
-import { isDocsPath } from '../mode-routing.js';
+import { shouldPreferDocsProse } from '../mode-routing.js';
 import { buildLineIndex } from '../../../shared/lines.js';
 import { formatError } from './meta.js';
 import { processChunks } from './process-chunks.js';
@@ -381,8 +381,10 @@ export const processFileCpu = async (context) => {
   const filePosix = scmActive && scmRepoRoot
     ? toRepoPosixPath(abs, scmRepoRoot)
     : null;
-  const skipScmForDocsPath = isDocsPath(relKey);
   const normalizedExt = typeof ext === 'string' ? ext.toLowerCase() : '';
+  const proseRoutePreferred = mode === 'code'
+    && shouldPreferDocsProse({ ext: normalizedExt, relPath: relKey });
+  const skipScmForProseRoute = mode !== 'code' || proseRoutePreferred;
   const scmFastPath = isScmFastPath({ relPath: relKey, ext: normalizedExt });
   const annotateConfig = scmConfig?.annotate || {};
   const enforceScmTimeoutCaps = scmConfig?.allowSlowTimeouts !== true
@@ -397,7 +399,7 @@ export const processFileCpu = async (context) => {
     metaTimeoutMs = Math.min(metaTimeoutMs, metaCapMs);
   }
   const scmTasks = [];
-  if (!skipScmForDocsPath && scmActive && filePosix && typeof scmProviderImpl.getFileMeta === 'function') {
+  if (!skipScmForProseRoute && scmActive && filePosix && typeof scmProviderImpl.getFileMeta === 'function') {
     scmTasks.push((async () => {
       const includeChurn = resolvedGitChurnEnabled && !scmFastPath;
       // SCM providers use subprocess execution and internal timeouts; queueing these
@@ -421,7 +423,7 @@ export const processFileCpu = async (context) => {
       }
     })());
   }
-  if (!skipScmForDocsPath
+  if (!skipScmForProseRoute
     && scmActive
     && filePosix
     && resolvedGitBlameEnabled
