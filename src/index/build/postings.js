@@ -54,6 +54,15 @@ const isSortedIds = (list) => {
   return true;
 };
 
+const isSortedUniqueFiniteIds = (list) => {
+  for (let i = 0; i < list.length; i += 1) {
+    const value = list[i];
+    if (!Number.isFinite(value)) return false;
+    if (i > 0 && value <= list[i - 1]) return false;
+  }
+  return true;
+};
+
 const isSortedPostings = (list) => {
   for (let i = 1; i < list.length; i += 1) {
     if (!Array.isArray(list[i - 1]) || !Array.isArray(list[i])) return false;
@@ -240,7 +249,62 @@ export async function buildPostings(input) {
     if (typeof value[Symbol.iterator] === 'function') return Array.from(value);
     return [];
   };
+  const mergeSortedUniqueIdLists = (listA, listB) => {
+    const out = new Array(listA.length + listB.length);
+    let aIndex = 0;
+    let bIndex = 0;
+    let writeIndex = 0;
+    let last = null;
+    let hasLast = false;
+    while (aIndex < listA.length && bIndex < listB.length) {
+      const leftValue = listA[aIndex];
+      const rightValue = listB[bIndex];
+      let nextValue;
+      if (leftValue < rightValue) {
+        nextValue = leftValue;
+        aIndex += 1;
+      } else if (leftValue > rightValue) {
+        nextValue = rightValue;
+        bIndex += 1;
+      } else {
+        nextValue = leftValue;
+        aIndex += 1;
+        bIndex += 1;
+      }
+      if (!hasLast || nextValue !== last) {
+        out[writeIndex] = nextValue;
+        writeIndex += 1;
+        last = nextValue;
+        hasLast = true;
+      }
+    }
+    while (aIndex < listA.length) {
+      const nextValue = listA[aIndex];
+      aIndex += 1;
+      if (!hasLast || nextValue !== last) {
+        out[writeIndex] = nextValue;
+        writeIndex += 1;
+        last = nextValue;
+        hasLast = true;
+      }
+    }
+    while (bIndex < listB.length) {
+      const nextValue = listB[bIndex];
+      bIndex += 1;
+      if (!hasLast || nextValue !== last) {
+        out[writeIndex] = nextValue;
+        writeIndex += 1;
+        last = nextValue;
+        hasLast = true;
+      }
+    }
+    out.length = writeIndex;
+    return out;
+  };
   const normalizeIdList = (value) => {
+    if (Array.isArray(value) && value.length && isSortedUniqueFiniteIds(value)) {
+      return value;
+    }
     const raw = normalizeDocIdList(value);
     if (!raw.length) return [];
     const list = new Array(raw.length);
@@ -255,7 +319,18 @@ export async function buildPostings(input) {
       return count === 1 ? [list[0]] : [];
     }
     list.length = count;
-    if (isSortedIds(list)) return list;
+    if (isSortedUniqueFiniteIds(list)) return list;
+    if (isSortedIds(list)) {
+      let write = 1;
+      for (let read = 1; read < list.length; read += 1) {
+        if (list[read] !== list[write - 1]) {
+          list[write] = list[read];
+          write += 1;
+        }
+      }
+      list.length = write;
+      return list;
+    }
     list.sort((a, b) => a - b);
     let write = 1;
     for (let read = 1; read < list.length; read += 1) {
@@ -270,20 +345,21 @@ export async function buildPostings(input) {
   const mergeIdLists = (left, right) => {
     if (left == null) return normalizeIdList(right);
     if (right == null) return normalizeIdList(left);
-    const listA = normalizeDocIdList(left);
-    const listB = normalizeDocIdList(right);
+    const listA = normalizeIdList(left);
+    const listB = normalizeIdList(right);
     if (!listA.length) return listB;
     if (!listB.length) return listA;
     const lastA = listA[listA.length - 1];
+    const firstA = listA[0];
     const firstB = listB[0];
-    if (isSortedIds(listA) && isSortedIds(listB) && Number.isFinite(lastA) && Number.isFinite(firstB) && lastA <= firstB) {
+    const lastB = listB[listB.length - 1];
+    if (Number.isFinite(lastA) && Number.isFinite(firstB) && lastA < firstB) {
       return listA.concat(listB);
     }
-    const merged = listA.concat(listB);
-    if (isSortedIds(merged)) return merged;
-    const sorted = Array.from(new Set(merged));
-    sorted.sort((a, b) => a - b);
-    return sorted;
+    if (Number.isFinite(lastB) && Number.isFinite(firstA) && lastB < firstA) {
+      return listB.concat(listA);
+    }
+    return mergeSortedUniqueIdLists(listA, listB);
   };
   const postingsMergeStats = {
     phrase: null,

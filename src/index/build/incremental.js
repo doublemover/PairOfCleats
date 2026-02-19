@@ -1,5 +1,4 @@
 import fs from 'node:fs/promises';
-import fsSync from 'node:fs';
 import { availableParallelism } from 'node:os';
 import path from 'node:path';
 import { sha1 } from '../../shared/hash.js';
@@ -13,6 +12,15 @@ import {
   writeBundleFile
 } from '../../shared/bundle-io.js';
 import { normalizeFilePath } from '../../shared/path-normalize.js';
+
+const pathExists = async (targetPath) => {
+  try {
+    await fs.access(targetPath);
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 /**
  * Summarize changed signature keys for incremental-cache reset diagnostics.
@@ -198,7 +206,7 @@ export async function loadIncrementalState({
     files: {},
     shards: null
   };
-  if (enabled && fsSync.existsSync(manifestPath)) {
+  if (enabled && await pathExists(manifestPath)) {
     try {
       const loaded = JSON.parse(await fs.readFile(manifestPath, 'utf8'));
       if (loaded && typeof loaded === 'object') {
@@ -308,7 +316,7 @@ export async function shouldReuseIncrementalIndex({
   const manifestFiles = manifest.files || {};
   const indexStatePath = path.join(outDir, 'index_state.json');
   const piecesPath = path.join(outDir, 'pieces', 'manifest.json');
-  if (!fsSync.existsSync(indexStatePath) || !fsSync.existsSync(piecesPath)) {
+  if (!(await pathExists(indexStatePath)) || !(await pathExists(piecesPath))) {
     return fail('missing index artifacts');
   }
   let indexState = null;
@@ -341,7 +349,7 @@ export async function shouldReuseIncrementalIndex({
     if (!withinOutDir) {
       return fail('piece manifest path escapes output dir');
     }
-    if (!fsSync.existsSync(resolvedPath)) {
+    if (!(await pathExists(resolvedPath))) {
       return fail(`piece missing: ${relPath}`);
     }
   }
@@ -390,7 +398,8 @@ export async function readCachedBundle({
   const cachedEntry = manifest.files[relKey];
   const bundleName = cachedEntry?.bundle || resolveBundleFilename(relKey, resolvedBundleFormat);
   const bundlePath = path.join(bundleDir, bundleName);
-  if (cachedEntry && cachedEntry.size === fileStat.size && cachedEntry.mtimeMs === fileStat.mtimeMs && fsSync.existsSync(bundlePath)) {
+  const bundleExists = await pathExists(bundlePath);
+  if (cachedEntry && cachedEntry.size === fileStat.size && cachedEntry.mtimeMs === fileStat.mtimeMs && bundleExists) {
     try {
       if (shouldVerifyHash(fileStat, cachedEntry)) {
         const sharedRead = await readFileBufferAndHash({
@@ -413,7 +422,7 @@ export async function readCachedBundle({
     } catch {
       cachedBundle = null;
     }
-  } else if (cachedEntry && cachedEntry.hash && fsSync.existsSync(bundlePath)) {
+  } else if (cachedEntry && cachedEntry.hash && bundleExists) {
     try {
       const sharedRead = await readFileBufferAndHash({
         absPath,
@@ -460,7 +469,7 @@ export async function readCachedImports({
     if (!cachedEntry || !cachedEntry.hash) return null;
     const bundleName = cachedEntry.bundle || resolveBundleFilename(relKey, resolvedBundleFormat);
     const bundlePath = path.join(bundleDir, bundleName);
-    if (!fsSync.existsSync(bundlePath)) return null;
+    if (!(await pathExists(bundlePath))) return null;
     try {
       const sharedRead = await readFileBufferAndHash({
         absPath,
@@ -499,7 +508,7 @@ export async function readCachedImports({
   }
   const bundleName = cachedEntry.bundle || resolveBundleFilename(relKey, resolvedBundleFormat);
   const bundlePath = path.join(bundleDir, bundleName);
-  if (!fsSync.existsSync(bundlePath)) return null;
+  if (!(await pathExists(bundlePath))) return null;
   try {
     const result = await readBundleFile(bundlePath, {
       format: resolveBundleFormatFromName(bundleName, resolvedBundleFormat)
@@ -592,11 +601,9 @@ export async function pruneIncrementalManifest({ enabled, manifest, manifestPath
     const entry = manifest.files[relKey];
     if (entry?.bundle) {
       const bundlePath = path.join(bundleDir, entry.bundle);
-      if (fsSync.existsSync(bundlePath)) {
-        try {
-          await fs.rm(bundlePath);
-        } catch {}
-      }
+      try {
+        await fs.rm(bundlePath, { force: true });
+      } catch {}
     }
     delete manifest.files[relKey];
   }
@@ -648,7 +655,7 @@ export async function preloadIncrementalBundleVfsRows({
         continue;
       }
       const bundlePath = path.join(bundleDir, bundleName);
-      if (!fsSync.existsSync(bundlePath)) {
+      if (!(await pathExists(bundlePath))) {
         rowsByFile.set(normalizedFile, null);
         continue;
       }

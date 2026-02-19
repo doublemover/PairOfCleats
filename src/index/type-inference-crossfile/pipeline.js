@@ -114,6 +114,7 @@ export async function applyCrossFileInference({
   const entryByUid = new Map();
   const chunkByUid = new Map();
   const fileSet = new Set();
+  const symbolRefCache = new Map();
   const riskSeverityRank = { low: 1, medium: 2, high: 3 };
   const callSampleCounts = new Map();
   const confidenceForHop = (hops) => Math.max(0.2, FLOW_CONFIDENCE * (0.85 ** hops));
@@ -144,6 +145,28 @@ export async function applyCrossFileInference({
   }
 
   const symbolResolver = buildSymbolIndex(symbolEntries);
+  const resolveSymbolRefCached = ({
+    targetName,
+    kindHint = null,
+    fromFile = null
+  }) => {
+    const name = typeof targetName === 'string' ? targetName : null;
+    if (!name) return null;
+    const cacheKey = `${fromFile || ''}\u0001${kindHint || ''}\u0001${name}`;
+    if (symbolRefCache.has(cacheKey)) {
+      return symbolRefCache.get(cacheKey);
+    }
+    const resolved = resolveSymbolRef({
+      targetName: name,
+      kindHint,
+      fromFile,
+      fileRelations,
+      symbolIndex: symbolResolver,
+      fileSet
+    });
+    symbolRefCache.set(cacheKey, resolved || null);
+    return resolved || null;
+  };
   const largeRepoBudget = chunks.length >= LARGE_REPO_CHUNK_THRESHOLD || fileSet.size >= LARGE_REPO_FILE_THRESHOLD
     ? {
       maxCallLinksPerChunk: LARGE_REPO_CALL_LINKS_PER_CHUNK,
@@ -355,13 +378,10 @@ export async function applyCrossFileInference({
           break;
         }
         const [, callee] = relations.calls[callIndex] || [];
-        const symbolRef = resolveSymbolRef({
+        const symbolRef = resolveSymbolRefCached({
           targetName: callee,
           kindHint: null,
-          fromFile: chunk.file,
-          fileRelations,
-          symbolIndex: symbolResolver,
-          fileSet
+          fromFile: chunk.file
         });
         if (!symbolRef) continue;
         if (symbolRef.resolved?.chunkUid && symbolRef.resolved.chunkUid === fromChunkUid) continue;
@@ -392,13 +412,10 @@ export async function applyCrossFileInference({
         const detail = relations.callDetails[detailIndex];
         const callee = detail?.callee;
         if (!callee) continue;
-        const symbolRef = resolveSymbolRef({
+        const symbolRef = resolveSymbolRefCached({
           targetName: callee,
           kindHint: null,
-          fromFile: chunk.file,
-          fileRelations,
-          symbolIndex: symbolResolver,
-          fileSet
+          fromFile: chunk.file
         });
         const candidateIds = buildCandidateIds(symbolRef);
         if (symbolRef?.resolved?.chunkUid && !detail.targetChunkUid) {
@@ -472,13 +489,10 @@ export async function applyCrossFileInference({
           break;
         }
         const usage = usageSource[usageIndex];
-        const symbolRef = resolveSymbolRef({
+        const symbolRef = resolveSymbolRefCached({
           targetName: usage,
           kindHint: null,
-          fromFile: chunk.file,
-          fileRelations,
-          symbolIndex: symbolResolver,
-          fileSet
+          fromFile: chunk.file
         });
         if (!symbolRef) continue;
         if (symbolRef.resolved?.chunkUid && symbolRef.resolved.chunkUid === fromChunkUid) continue;
@@ -573,13 +587,10 @@ export async function applyCrossFileInference({
         }
         for (const callName of returnCalls) {
           if (resolvedViaSummaries.has(callName)) continue;
-          const symbolRef = resolveSymbolRef({
+          const symbolRef = resolveSymbolRefCached({
             targetName: callName,
             kindHint: null,
-            fromFile: chunk.file,
-            fileRelations,
-            symbolIndex: symbolResolver,
-            fileSet
+            fromFile: chunk.file
           });
           if (!symbolRef?.resolved?.chunkUid) continue;
           const entry = entryByUid.get(symbolRef.resolved.chunkUid);

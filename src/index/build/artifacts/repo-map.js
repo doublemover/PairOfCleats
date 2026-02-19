@@ -239,20 +239,24 @@ export async function enqueueRepoMapArtifacts({
           },
           ...(repoMapMeasurement?.delta?.ratio != null ? { ratio: repoMapMeasurement.delta.ratio } : {})
         } : null;
+        const metaFields = {
+          schemaVersion: SHARDED_JSONL_META_SCHEMA_VERSION,
+          artifact: 'repo_map',
+          format: 'jsonl-sharded',
+          generatedAt: new Date().toISOString(),
+          compression: repoMapCompression || 'none',
+          totalRecords: result.total,
+          totalBytes: result.totalBytes,
+          maxPartRecords: result.maxPartRecords,
+          maxPartBytes: result.maxPartBytes,
+          targetMaxBytes: result.targetMaxBytes,
+          parts
+        };
+        if (deltaExtensions) {
+          metaFields.extensions = { delta: deltaExtensions };
+        }
         await schedule(() => writeJsonObjectFile(repoMapMetaPath, {
-          fields: {
-            schemaVersion: SHARDED_JSONL_META_SCHEMA_VERSION,
-            artifact: 'repo_map',
-            format: 'jsonl-sharded',
-            generatedAt: new Date().toISOString(),
-            compression: repoMapCompression || 'none',
-            totalRecords: result.total,
-            totalBytes: result.totalBytes,
-            maxPartRecords: result.maxPartRecords,
-            maxPartBytes: result.maxPartBytes,
-            targetMaxBytes: result.targetMaxBytes,
-            parts
-          },
+          fields: metaFields,
           atomic: true
         }));
         await removeRepoMapJson();
@@ -269,25 +273,6 @@ export async function enqueueRepoMapArtifacts({
           }, absPath);
         }
         addPieceFile({ type: 'chunks', name: 'repo_map_meta', format: 'json' }, repoMapMetaPath);
-        if (deltaExtensions) {
-          await schedule(() => writeJsonObjectFile(repoMapMetaPath, {
-            fields: {
-              schemaVersion: SHARDED_JSONL_META_SCHEMA_VERSION,
-              artifact: 'repo_map',
-              format: 'jsonl-sharded',
-              generatedAt: new Date().toISOString(),
-              compression: repoMapCompression || 'none',
-              totalRecords: result.total,
-              totalBytes: result.totalBytes,
-              maxPartRecords: result.maxPartRecords,
-              maxPartBytes: result.maxPartBytes,
-              targetMaxBytes: result.targetMaxBytes,
-              parts,
-              extensions: { delta: deltaExtensions }
-            },
-            atomic: true
-          }));
-        }
       }
     );
   }
