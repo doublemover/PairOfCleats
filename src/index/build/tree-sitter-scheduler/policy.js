@@ -53,9 +53,20 @@ const HEAVY_TREE_SITTER_LANGUAGES = new Set([
   'tsx'
 ]);
 
+export const isGeneratedTreeSitterPath = (relKey) => {
+  if (!relKey) return false;
+  const normalized = toPosix(String(relKey)).toLowerCase();
+  const bounded = `/${normalized.replace(/^\/+|\/+$/g, '')}/`;
+  if (bounded.includes('/.docset/contents/resources/documents/')) return true;
+  if (bounded.includes('/docsets/') && bounded.includes('/contents/resources/documents/')) return true;
+  if (bounded.includes('/docs/docset/contents/resources/documents/')) return true;
+  return false;
+};
+
 export const shouldSkipTreeSitterPlanningForPath = ({ relKey, languageId }) => {
   if (!relKey) return false;
   const normalizedLanguageId = languageId || '';
+  if (isGeneratedTreeSitterPath(relKey)) return true;
   if (isInfraConfigPath(relKey)) return true;
   if (isDocsPath(relKey) && DOC_TREE_SITTER_SKIP_LANGUAGES.has(normalizedLanguageId)) return true;
   if (!HEAVY_TREE_SITTER_LANGUAGES.has(normalizedLanguageId)) return false;

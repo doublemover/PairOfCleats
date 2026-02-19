@@ -596,6 +596,12 @@ export async function writeIndexArtifacts(input) {
   const fileMetaColumnarThreshold = Number.isFinite(Number(artifactConfig.fileMetaColumnarThresholdBytes))
     ? Math.max(0, Math.floor(Number(artifactConfig.fileMetaColumnarThresholdBytes)))
     : fileMetaMaxBytes;
+  const fileMetaJsonlThreshold = Number.isFinite(Number(artifactConfig.fileMetaJsonlThresholdBytes))
+    ? Math.max(0, Math.floor(Number(artifactConfig.fileMetaJsonlThresholdBytes)))
+    : Math.min(fileMetaMaxBytes, 8 * 1024 * 1024);
+  const fileMetaShardedMaxBytes = Number.isFinite(Number(artifactConfig.fileMetaShardedMaxBytes))
+    ? Math.max(0, Math.floor(Number(artifactConfig.fileMetaShardedMaxBytes)))
+    : Math.min(fileMetaMaxBytes, 8 * 1024 * 1024);
   const toolingConfig = getToolingConfig(root, userConfig);
   const vfsHashRouting = toolingConfig?.vfs?.hashRouting === true;
   // Keep file_meta fingerprint source deterministic: prefer discovery order when
@@ -615,7 +621,8 @@ export async function writeIndexArtifacts(input) {
     : null;
   const fileMetaCacheFlags = [
     `format:${fileMetaFormatConfig || 'auto'}`,
-    `columnarThreshold:${fileMetaColumnarThreshold}`
+    `columnarThreshold:${fileMetaColumnarThreshold}`,
+    `jsonlThreshold:${fileMetaJsonlThreshold}`
   ];
   const fileMetaCacheKey = fileMetaFingerprint
     ? buildCacheKey({
@@ -1284,10 +1291,15 @@ export async function writeIndexArtifacts(input) {
   const fileMetaExceedsMax = Number.isFinite(fileMetaMaxBytes)
     ? fileMetaEstimatedBytes > fileMetaMaxBytes
     : false;
+  const fileMetaAutoUseJsonl = fileMetaFormat === 'auto'
+    && Number.isFinite(fileMetaJsonlThreshold)
+    && fileMetaJsonlThreshold > 0
+    && fileMetaEstimatedBytes >= fileMetaJsonlThreshold;
   const fileMetaUseColumnar = !fileMetaExceedsMax
-    && (fileMetaFormat === 'columnar' || fileMetaFormat === 'auto')
+    && fileMetaFormat === 'columnar'
     && fileMetaEstimatedBytes >= fileMetaColumnarThreshold;
   const fileMetaUseJsonl = fileMetaFormat === 'jsonl'
+    || fileMetaAutoUseJsonl
     || fileMetaExceedsMax
     || (!fileMetaUseColumnar && Number.isFinite(fileMetaMaxBytes)
       && fileMetaEstimatedBytes > fileMetaMaxBytes);
@@ -1344,7 +1356,7 @@ export async function writeIndexArtifacts(input) {
         }
       );
       enqueueJsonArraySharded('file_meta', fileMeta, {
-        maxBytes: fileMetaMaxBytes,
+        maxBytes: fileMetaShardedMaxBytes || fileMetaMaxBytes,
         estimatedBytes: fileMetaEstimatedBytes,
         piece: { type: 'chunks', name: 'file_meta' },
         metaExtensions: { fingerprint: fileMetaFingerprint || null, cacheKey: fileMetaCacheKey || null },

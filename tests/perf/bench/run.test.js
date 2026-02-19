@@ -2,7 +2,7 @@
 import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { spawn, spawnSync } from 'node:child_process';
+import { fork, spawnSync } from 'node:child_process';
 import { createCli } from '../../../src/shared/cli.js';
 import { BENCH_OPTIONS, validateBenchArgs } from '../../../src/shared/cli-options.js';
 import { getIndexDir, getRuntimeConfig, loadUserConfig, resolveRuntimeEnv, resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';
@@ -47,10 +47,10 @@ if (safeRegex.test('a'.repeat(100))) {
 
 const root = process.cwd();
 const repoArg = argv.repo ? path.resolve(argv.repo) : null;
-const searchPath = path.join(root, 'search.js');
 const reportPath = path.join(root, 'tools', 'index', 'report-artifacts.js');
 const buildIndexPath = path.join(root, 'build_index.js');
 const indexerServicePath = path.join(root, 'tools', 'service', 'indexer-service.js');
+const queryWorkerPath = path.join(root, 'tests', 'perf', 'bench', 'query-worker.js');
 
 const defaultQueriesPath = path.join(root, 'tests', 'retrieval', 'parity', 'parity-queries.txt');
 const queriesPath = argv.queries ? path.resolve(argv.queries) : defaultQueriesPath;
@@ -179,9 +179,8 @@ function logBench(message) {
   else console.log(message);
 }
 
-function runSearch(query, backend) {
+function buildSearchArgs(query, backend) {
   const args = [
-    searchPath,
     query,
     '--json',
     '--json',
@@ -197,43 +196,99 @@ function runSearch(query, backend) {
   if (bm25BArg) args.push('--bm25-b', String(bm25BArg));
   if (ftsProfileArg) args.push('--fts-profile', String(ftsProfileArg));
   if (ftsWeightsArg) args.push('--fts-weights', String(ftsWeightsArg));
+  return args;
+}
+
+function createSearchWorker(label, env) {
+  const child = fork(queryWorkerPath, [], {
+    env,
+    stdio: ['ignore', 'pipe', 'pipe', 'ipc']
+  });
+  attachSilentLogging(child, label);
+  let nextMessageId = 1;
+  const pending = new Map();
+  child.on('message', (message) => {
+    const id = Number(message?.id);
+    if (!Number.isFinite(id) || !pending.has(id)) return;
+    const entry = pending.get(id);
+    pending.delete(id);
+    if (message?.ok) {
+      entry.resolve(message.payload || {});
+      return;
+    }
+    const err = new Error(message?.error?.message || `Query worker ${label} failed`);
+    err.code = message?.error?.code || 'ERR_QUERY_WORKER';
+    entry.reject(err);
+  });
+  const rejectAll = (reason) => {
+    for (const [, entry] of pending) {
+      entry.reject(reason);
+    }
+    pending.clear();
+  };
+  child.on('error', (err) => {
+    rejectAll(err instanceof Error ? err : new Error(String(err)));
+  });
+  child.on('exit', (code, signal) => {
+    if (!pending.size) return;
+    rejectAll(new Error(`Query worker ${label} exited early (code=${code ?? 'null'}, signal=${signal ?? 'null'})`));
+  });
+  const run = (args) => new Promise((resolve, reject) => {
+    const id = nextMessageId;
+    nextMessageId += 1;
+    pending.set(id, { resolve, reject });
+    child.send({ type: 'run', id, args });
+  });
+  const close = async () => {
+    if (!child || child.killed) return;
+    await new Promise((resolve) => {
+      child.once('exit', () => resolve());
+      try {
+        child.send({ type: 'shutdown' });
+      } catch {
+        resolve();
+      }
+      setTimeout(() => {
+        try {
+          child.kill('SIGTERM');
+        } catch {}
+        resolve();
+      }, 2000).unref?.();
+    });
+  };
+  return { run, close };
+}
+
+function createSearchWorkerPool({ size, env }) {
+  const workerCount = Math.max(1, Math.floor(size) || 1);
+  const workers = Array.from({ length: workerCount }, (_, index) => (
+    createSearchWorker(`bench-worker:${index + 1}`, env)
+  ));
+  let nextWorker = 0;
+  const run = (args) => {
+    const worker = workers[nextWorker];
+    nextWorker = (nextWorker + 1) % workers.length;
+    return worker.run(args);
+  };
+  const close = async () => {
+    await Promise.all(workers.map((worker) => worker.close()));
+  };
+  return { run, close };
+}
+
+function runSearch(pool, query, backend) {
+  const args = buildSearchArgs(query, backend);
+  return pool.run(args);
+}
+
+function buildQueryWorkerEnv() {
   const env = { ...benchEnv };
   if (stubEmbeddings) {
     env.PAIROFCLEATS_EMBEDDINGS = 'stub';
   } else {
     delete env.PAIROFCLEATS_EMBEDDINGS;
   }
-  return new Promise((resolve) => {
-    const child = spawn(process.execPath, args, { env, stdio: ['ignore', 'pipe', 'pipe'] });
-    attachSilentLogging(child, `bench:${backend}`);
-    let stdout = '';
-    let stderr = '';
-    child.stdout.on('data', (chunk) => {
-      stdout += chunk;
-    });
-    child.stderr.on('data', (chunk) => {
-      stderr += chunk;
-    });
-    child.on('error', (err) => {
-      console.error(`Search failed to start for backend=${backend} query="${query}"`);
-      if (err?.message) console.error(err.message);
-      process.exit(1);
-    });
-    child.on('close', (code) => {
-      if (code !== 0) {
-        console.error(`Search failed for backend=${backend} query="${query}"`);
-        if (stderr) console.error(stderr.trim());
-        process.exit(code ?? 1);
-      }
-      try {
-        resolve(JSON.parse(stdout || '{}'));
-      } catch (err) {
-        console.error(`Search response parse failed for backend=${backend} query="${query}"`);
-        if (stderr) console.error(stderr.trim());
-        process.exit(1);
-      }
-    });
-  });
+  return env;
 }
 
 function mean(values) {
@@ -474,6 +529,10 @@ const runQueries = async (requestedConcurrency) => {
     `(${totalSearches} searches) with concurrency ${requestedConcurrency}.`
   );
   logQueryProgress(true);
+  const workerPool = createSearchWorkerPool({
+    size: Math.max(1, Math.min(requestedConcurrency, queryTasks.length || 1)),
+    env: buildQueryWorkerEnv()
+  });
 
   const loggedQueries = new Set();
   const runQueryTask = async (task) => {
@@ -484,7 +543,7 @@ const runQueries = async (requestedConcurrency) => {
         `${task.queryIndex}/${selectedQueries.length}: ${task.query}`
       );
     }
-    const payload = await runSearch(task.query, task.backend);
+    const payload = await runSearch(workerPool, task.query, task.backend);
     queryProgress.count += 1;
     logQueryProgress();
     const elapsedMs = Number(payload.stats?.elapsedMs);
@@ -501,12 +560,16 @@ const runQueries = async (requestedConcurrency) => {
     const rss = payload.stats?.memory?.rss;
     if (Number.isFinite(rss)) memoryRss[task.backend].push(rss);
   };
-  if (queryTasks.length) {
-    await runWithConcurrency(
-      queryTasks,
-      Math.max(1, Math.min(requestedConcurrency, queryTasks.length)),
-      runQueryTask
-    );
+  try {
+    if (queryTasks.length) {
+      await runWithConcurrency(
+        queryTasks,
+        Math.max(1, Math.min(requestedConcurrency, queryTasks.length)),
+        runQueryTask
+      );
+    }
+  } finally {
+    await workerPool.close();
   }
   logQueryProgress(true);
   const queryWallMs = Date.now() - queryProgress.startMs;

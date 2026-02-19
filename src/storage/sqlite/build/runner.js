@@ -797,9 +797,7 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
       if (!outputPath) return bail('SQLite output path could not be resolved.');
       const outDir = path.dirname(outputPath);
       const logDetails = [];
-      const modeChunkCountHint = mode === 'records'
-        ? resolveChunkMetaTotalRecords(modeIndexDir)
-        : null;
+      const modeChunkCountHint = resolveChunkMetaTotalRecords(modeIndexDir);
       if (emitOutput) {
         log(`${modeLabel} building ${mode} index -> ${outputPath}`);
       }
@@ -815,16 +813,16 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
         note: null
       });
 
-      if (mode === 'records'
-        && modeChunkCountHint === 0
+      if (modeChunkCountHint === 0
         && fsSync.existsSync(outputPath)) {
-        const existingRows = readSqliteModeCount(outputPath, 'records');
+        const existingRows = readSqliteModeCount(outputPath, mode);
         if (existingRows === 0) {
           stageCheckpoints.record({
             stage: 'stage4',
-            step: 'skip-empty-records',
+            step: `skip-empty-${mode}`,
             extra: {
-              recordsArtifactsRows: 0,
+              modeArtifactsRows: 0,
+              mode,
               existingRows: 0
             }
           });
@@ -837,11 +835,15 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
             path: outputPath,
             schemaVersion: SCHEMA_VERSION,
             threadLimits,
-            note: 'skipped empty records rebuild',
-            stats: { skipped: true, reason: 'empty-records-artifacts' }
+            note: `skipped empty ${mode} rebuild`,
+            stats: { skipped: true, reason: `empty-${mode}-artifacts` }
           });
           if (emitOutput) {
-            log(`${modeLabel} skipping records sqlite rebuild (artifacts empty; existing db empty).`);
+            if (mode === 'records') {
+              log(`${modeLabel} skipping records sqlite rebuild (artifacts empty; existing db empty).`);
+            } else {
+              log(`${modeLabel} skipping sqlite rebuild (artifacts empty; existing db empty).`);
+            }
           }
           done += 1;
           buildModeTask.set(done, modeList.length, { message: `${mode} skipped` });

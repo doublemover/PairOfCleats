@@ -8,7 +8,9 @@ import { throwIfAborted } from '../../../../shared/abort.js';
 import { compareStrings } from '../../../../shared/sort.js';
 import { createBuildCheckpoint } from '../../build-state.js';
 import { createFileProcessor } from '../../file-processor.js';
+import { getLanguageForFile } from '../../../language-registry.js';
 import { runTreeSitterScheduler } from '../../tree-sitter-scheduler/runner.js';
+import { shouldSkipTreeSitterPlanningForPath } from '../../tree-sitter-scheduler/policy.js';
 import { createPerfEventLogger } from '../../perf-event-log.js';
 import { loadStructuralMatches } from '../../../structural.js';
 import { planShardBatches, planShards } from '../../shards.js';
@@ -29,6 +31,7 @@ const FILE_WATCHDOG_DEFAULT_STEP_MS = 1000;
 const DEFAULT_POSTINGS_ROWS_PER_PENDING = 300;
 const DEFAULT_POSTINGS_BYTES_PER_PENDING = 12 * 1024 * 1024;
 const DEFAULT_POSTINGS_PENDING_SCALE = 3;
+const LEXICON_FILTER_LOG_LIMIT = 5;
 
 export const resolveChunkProcessingFeatureFlags = (runtime) => {
   const vectorOnlyProfile = runtime?.profile?.id === INDEX_PROFILE_VECTOR_ONLY;
@@ -207,6 +210,68 @@ const resolveOrderedAppenderConfig = (runtime) => {
   return { maxPendingBeforeBackpressure };
 };
 
+const resolveTreeSitterPlannerEntries = ({ entries, root }) => {
+  if (!Array.isArray(entries) || !entries.length) {
+    return { entries: [], skipped: 0 };
+  }
+  const plannerEntries = [];
+  let skipped = 0;
+  for (const entry of entries) {
+    if (!entry || typeof entry !== 'object') continue;
+    if (entry.treeSitterDisabled === true || entry.skip || entry?.scan?.skip) {
+      skipped += 1;
+      continue;
+    }
+    const relKey = entry.rel || toPosix(path.relative(root, entry.abs || ''));
+    const ext = typeof entry.ext === 'string' && entry.ext
+      ? entry.ext
+      : fileExt(entry.abs || relKey || '');
+    const languageId = getLanguageForFile(ext, relKey)?.id || null;
+    if (shouldSkipTreeSitterPlanningForPath({ relKey, languageId })) {
+      skipped += 1;
+      continue;
+    }
+    plannerEntries.push(entry);
+  }
+  return { entries: plannerEntries, skipped };
+};
+
+const logLexiconFilterAggregate = ({ state, logFn }) => {
+  if (!state?.lexiconRelationFilterByFile || typeof state.lexiconRelationFilterByFile.entries !== 'function') return;
+  const entries = Array.from(state.lexiconRelationFilterByFile.entries());
+  if (!entries.length) return;
+  let totalDropped = 0;
+  let droppedCalls = 0;
+  let droppedUsages = 0;
+  let droppedCallDetails = 0;
+  let droppedCallDetailsWithRange = 0;
+  const byLanguage = new Map();
+  for (const [, stats] of entries) {
+    const languageId = stats?.languageId || '_generic';
+    const bucket = byLanguage.get(languageId) || { files: 0, droppedTotal: 0 };
+    bucket.files += 1;
+    const dropped = Number(stats?.droppedTotal) || 0;
+    bucket.droppedTotal += dropped;
+    byLanguage.set(languageId, bucket);
+    totalDropped += dropped;
+    droppedCalls += Number(stats?.droppedCalls) || 0;
+    droppedUsages += Number(stats?.droppedUsages) || 0;
+    droppedCallDetails += Number(stats?.droppedCallDetails) || 0;
+    droppedCallDetailsWithRange += Number(stats?.droppedCallDetailsWithRange) || 0;
+  }
+  if (!totalDropped) return;
+  const languages = Array.from(byLanguage.entries())
+    .sort((a, b) => b[1].droppedTotal - a[1].droppedTotal)
+    .slice(0, LEXICON_FILTER_LOG_LIMIT)
+    .map(([languageId, bucket]) => `${languageId}:${bucket.droppedTotal}`);
+  const suffix = languages.length ? ` top=${languages.join(',')}` : '';
+  logFn(
+    `[lexicon] relations filtered across ${entries.length} files `
+    + `(dropped=${totalDropped} calls=${droppedCalls} usages=${droppedUsages} `
+    + `callDetails=${droppedCallDetails} callDetailsRange=${droppedCallDetailsWithRange}).${suffix}`
+  );
+};
+
 /**
  * Main stage1 file-processing orchestration.
  * Handles scheduler prep, concurrent file processing, ordered output append,
@@ -260,11 +325,21 @@ export const processFiles = async ({
   let treeSitterScheduler = null;
   const treeSitterEnabled = mode === 'code' && runtime?.languageOptions?.treeSitter?.enabled !== false;
   if (treeSitterEnabled) {
+    const plannerInput = resolveTreeSitterPlannerEntries({
+      entries,
+      root: runtime.root
+    });
+    if (plannerInput.skipped > 0) {
+      log(
+        `[tree-sitter:schedule] Prefiltered ${plannerInput.skipped} non-actionable entries `
+        + `before planner (${plannerInput.entries.length} remaining).`
+      );
+    }
     log('[tree-sitter:schedule] Building global tree-sitter plan (VFS batched by grammar)...');
     treeSitterScheduler = await runTreeSitterScheduler({
       mode,
       runtime,
-      entries,
+      entries: plannerInput.entries,
       outDir,
       fileTextCache,
       abortSignal,
@@ -949,6 +1024,7 @@ export const processFiles = async ({
       if (timing) timing.postingsQueue = postingsQueueStats;
       if (state) state.postingsQueueStats = postingsQueueStats;
     }
+    logLexiconFilterAggregate({ state, logFn: log });
 
     return { tokenizationStats, shardSummary, shardPlan, postingsQueueStats };
   } finally {

@@ -2,6 +2,7 @@ import { normalizePostingsConfig } from '../../shared/postings-config.js';
 import { forEachRollingChargramHash } from '../../shared/chargram-hash.js';
 import { registerTokenIdInvariant } from '../../shared/invariants.js';
 import { isLexiconStopword } from '../../lang/lexicon/index.js';
+import { isDocsPath, isFixturePath } from './mode-routing.js';
 import {
   createTypedTokenPostingMap,
   formatHash64,
@@ -16,11 +17,33 @@ const POSTINGS_GUARDS = {
   phrase: { maxUnique: 1000000, maxPerChunk: 20000 },
   chargram: { maxUnique: 2000000, maxPerChunk: 50000 }
 };
+const POSTINGS_GUARD_TIER_MAX_PER_CHUNK = Object.freeze({
+  docs: { phrase: 12000, chargram: 24000 },
+  fixtures: { phrase: 6000, chargram: 12000 }
+});
+
+const resolvePostingsGuardTier = (file) => {
+  if (!file || typeof file !== 'string') return null;
+  if (isFixturePath(file)) return 'fixtures';
+  if (isDocsPath(file)) return 'docs';
+  return null;
+};
+
+const resolveGuardMaxPerChunk = (guard, kind, tier) => {
+  const base = Number.isFinite(guard?.maxPerChunk) ? Math.max(0, Math.floor(guard.maxPerChunk)) : 0;
+  if (!base || !tier) return base;
+  const tierCap = Number.isFinite(POSTINGS_GUARD_TIER_MAX_PER_CHUNK[tier]?.[kind])
+    ? Math.max(0, Math.floor(POSTINGS_GUARD_TIER_MAX_PER_CHUNK[tier][kind]))
+    : 0;
+  if (!tierCap) return base;
+  return Math.min(base, tierCap);
+};
 
 const createGuardEntry = (label, limits) => ({
   label,
   maxUnique: limits.maxUnique,
   maxPerChunk: limits.maxPerChunk,
+  effectiveMaxPerChunk: limits.maxPerChunk,
   disabled: false,
   reason: null,
   dropped: 0,
@@ -88,7 +111,16 @@ function appendDocIdToPostingsMap(map, key, docId, guard = null, context = null)
  * This significantly reduces transient allocation pressure compared to
  * `extractNgrams(...)`, especially for long token sequences.
  */
-function appendPhraseNgramsToPostingsMap(map, tokens, docId, minN, maxN, guard = null, context = null) {
+function appendPhraseNgramsToPostingsMap(
+  map,
+  tokens,
+  docId,
+  minN,
+  maxN,
+  guard = null,
+  context = null,
+  maxPerChunkOverride = null
+) {
   if (!map) return;
   if (!Array.isArray(tokens) || tokens.length === 0) return;
   const min = Number.isFinite(minN) ? minN : 2;
@@ -103,7 +135,9 @@ function appendPhraseNgramsToPostingsMap(map, tokens, docId, minN, maxN, guard =
   const maxSpan = Math.min(max, len);
 
   let emitted = 0;
-  const maxPerChunk = guard?.maxPerChunk || 0;
+  const maxPerChunk = Number.isFinite(maxPerChunkOverride)
+    ? Math.max(0, Math.floor(maxPerChunkOverride))
+    : (guard?.maxPerChunk || 0);
   for (let i = 0; i < len; i += 1) {
     // Build incrementally: token[i], token[i]␁token[i+1], ...
     let key = '';
@@ -166,7 +200,8 @@ function appendPhraseNgramsToHashBuckets({
   maxN,
   guard = null,
   context = null,
-  state = null
+  state = null,
+  maxPerChunk = null
 }) {
   if (!bucketMap || typeof bucketMap.get !== 'function' || typeof bucketMap.set !== 'function') return;
   if (!Array.isArray(tokenIds) || !tokenIds.length) return;
@@ -177,11 +212,13 @@ function appendPhraseNgramsToHashBuckets({
   if (len < min) return;
   const maxSpan = Math.min(max, len);
   let emitted = 0;
-  const maxPerChunk = guard?.maxPerChunk || 0;
+  const resolvedMaxPerChunk = Number.isFinite(maxPerChunk)
+    ? Math.max(0, Math.floor(maxPerChunk))
+    : (guard?.maxPerChunk || 0);
   for (let i = 0; i < len; i += 1) {
     for (let n = min; n <= maxSpan; n += 1) {
       if ((i + n) > len) break;
-      if (maxPerChunk && emitted >= maxPerChunk) {
+      if (resolvedMaxPerChunk && emitted >= resolvedMaxPerChunk) {
         if (guard) {
           guard.truncatedChunks += 1;
           recordGuardSample(guard, context);
@@ -561,6 +598,21 @@ export function appendChunk(
   const guardContext = { file: chunk.file, chunkId };
   const phraseGuard = state.postingsGuard?.phrase || null;
   const chargramGuard = state.postingsGuard?.chargram || null;
+  const postingsGuardTier = resolvePostingsGuardTier(chunk?.file || chunk?.metaV2?.file || null);
+  const phraseMaxPerChunk = resolveGuardMaxPerChunk(phraseGuard, 'phrase', postingsGuardTier);
+  const chargramMaxPerChunk = resolveGuardMaxPerChunk(chargramGuard, 'chargram', postingsGuardTier);
+  if (phraseGuard && phraseMaxPerChunk > 0) {
+    phraseGuard.effectiveMaxPerChunk = Math.min(
+      Number.isFinite(phraseGuard.effectiveMaxPerChunk) ? phraseGuard.effectiveMaxPerChunk : phraseGuard.maxPerChunk,
+      phraseMaxPerChunk
+    );
+  }
+  if (chargramGuard && chargramMaxPerChunk > 0) {
+    chargramGuard.effectiveMaxPerChunk = Math.min(
+      Number.isFinite(chargramGuard.effectiveMaxPerChunk) ? chargramGuard.effectiveMaxPerChunk : chargramGuard.maxPerChunk,
+      chargramMaxPerChunk
+    );
+  }
 
   const reuseSet = state.chargramBuffers?.set || null;
   const reuseWindow = state.chargramBuffers?.window || null;
@@ -571,7 +623,7 @@ export function appendChunk(
     || chunk?.metaV2?.effective?.languageId
     || null;
   if (chargramEnabled) {
-    const maxChargramsPerChunk = chargramGuard?.maxPerChunk || 0;
+    const maxChargramsPerChunk = chargramMaxPerChunk;
     const chargrams = Array.isArray(chunk.chargrams) && chunk.chargrams.length
       ? chunk.chargrams
       : null;
@@ -663,7 +715,8 @@ export function appendChunk(
         maxN: phraseMaxN,
         guard: phraseGuard,
         context: guardContext,
-        state
+        state,
+        maxPerChunk: phraseMaxPerChunk
       });
     } else if (phraseSource === 'full') {
       appendPhraseNgramsToPostingsMap(
@@ -673,7 +726,8 @@ export function appendChunk(
         phraseMinN,
         phraseMaxN,
         phraseGuard,
-        guardContext
+        guardContext,
+        phraseMaxPerChunk
       );
     } else {
       const fields = chunk.fieldTokens || {};
@@ -691,13 +745,14 @@ export function appendChunk(
           phraseMinN,
           phraseMaxN,
           phraseGuard,
-          guardContext
+          guardContext,
+          phraseMaxPerChunk
         );
       }
     }
   }
   if (chargramEnabled) {
-    const maxChargrams = chargramGuard?.maxPerChunk || 0;
+    const maxChargrams = chargramMaxPerChunk;
     let added = 0;
     for (const tg of charSet) {
       if (maxChargrams && added >= maxChargrams) {
@@ -980,9 +1035,12 @@ export function getPostingsGuardWarnings(state) {
         `[postings] ${guard.label} postings capped at ${guard.maxUnique} unique terms; further entries skipped.${sampleSuffix}`
       );
     }
-    if (guard.truncatedChunks && guard.maxPerChunk) {
+    const effectiveMaxPerChunk = Number.isFinite(guard.effectiveMaxPerChunk)
+      ? guard.effectiveMaxPerChunk
+      : guard.maxPerChunk;
+    if (guard.truncatedChunks && effectiveMaxPerChunk) {
       warnings.push(
-        `[postings] ${guard.label} postings truncated for ${guard.truncatedChunks} chunk(s) (limit ${guard.maxPerChunk} per chunk).${sampleSuffix}`
+        `[postings] ${guard.label} postings truncated for ${guard.truncatedChunks} chunk(s) (limit ${effectiveMaxPerChunk} per chunk).${sampleSuffix}`
       );
     }
   }

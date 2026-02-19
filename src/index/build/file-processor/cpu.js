@@ -528,10 +528,14 @@ export const processFileCpu = async (context) => {
   let filteredRelations = rawRelations;
   let lexiconFilterStats = null;
   if (mode === 'code' && effectiveRelationsEnabled && rawRelations) {
+    const lexiconRelationConfig = languageOptions?.lexicon?.relations;
+    const logPerFileLexiconFilter = lexiconRelationConfig && typeof lexiconRelationConfig === 'object'
+      ? lexiconRelationConfig.logPerFile === true
+      : false;
     filteredRelations = filterRawRelationsWithLexicon(rawRelations, {
       languageId: lang?.id || null,
       config: languageOptions?.lexicon || null,
-      log,
+      log: logPerFileLexiconFilter ? log : null,
       relKey
     });
     lexiconFilterStats = getLexiconRelationFilterStats(filteredRelations);
