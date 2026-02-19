@@ -12,6 +12,7 @@ import {
   writeBundleFile
 } from '../../shared/bundle-io.js';
 import { normalizeFilePath } from '../../shared/path-normalize.js';
+import { getEnvConfig } from '../../shared/env.js';
 
 const pathExists = async (targetPath) => {
   try {
@@ -61,12 +62,13 @@ const shouldVerifyHash = (fileStat, cachedEntry) => (
 const MAX_SHARED_HASH_READ_ENTRIES = 256;
 const DEFAULT_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY = 8;
 const MAX_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY = 32;
+const ENV_CONFIG = getEnvConfig();
 
 const resolveIncrementalBundleUpdateConcurrency = (totalUpdates) => {
   const updates = Number.isFinite(Number(totalUpdates)) && totalUpdates > 0
     ? Math.floor(Number(totalUpdates))
     : 1;
-  const envRaw = Number(process.env.PAIROFCLEATS_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY);
+  const envRaw = Number(ENV_CONFIG.incrementalBundleUpdateConcurrency);
   if (Number.isFinite(envRaw) && envRaw > 0) {
     return Math.min(updates, Math.max(1, Math.floor(envRaw)));
   }

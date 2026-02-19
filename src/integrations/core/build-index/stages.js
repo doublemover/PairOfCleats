@@ -10,7 +10,7 @@ import { promoteBuild } from '../../../index/build/promotion.js';
 import { validateIndexArtifacts } from '../../../index/validate.js';
 import { logError as defaultLogError, logLine, showProgress } from '../../../shared/progress.js';
 import { isAbortError, throwIfAborted } from '../../../shared/abort.js';
-import { isTestingEnv } from '../../../shared/env.js';
+import { getEnvConfig, isTestingEnv } from '../../../shared/env.js';
 import { SCHEDULER_QUEUE_NAMES } from '../../../index/build/runtime/scheduler.js';
 import { createFeatureMetrics, writeFeatureMetrics } from '../../../index/build/feature-metrics.js';
 import {
@@ -30,6 +30,7 @@ import { runEmbeddingsTool } from '../embeddings.js';
 
 const DEFAULT_BUILD_INDEX_LOCK_WAIT_MS = 15000;
 const DEFAULT_BUILD_INDEX_LOCK_POLL_MS = 250;
+const ENV_CONFIG = getEnvConfig();
 
 const parseNonNegativeInt = (value, fallback) => {
   const parsed = Number.parseInt(String(value ?? ''), 10);
@@ -37,13 +38,13 @@ const parseNonNegativeInt = (value, fallback) => {
 };
 
 const BUILD_INDEX_LOCK_WAIT_MS = parseNonNegativeInt(
-  process.env.PAIROFCLEATS_BUILD_INDEX_LOCK_WAIT_MS,
+  ENV_CONFIG.buildIndexLockWaitMs,
   DEFAULT_BUILD_INDEX_LOCK_WAIT_MS
 );
 const BUILD_INDEX_LOCK_POLL_MS = Math.max(
   1,
   parseNonNegativeInt(
-    process.env.PAIROFCLEATS_BUILD_INDEX_LOCK_POLL_MS,
+    ENV_CONFIG.buildIndexLockPollMs,
     DEFAULT_BUILD_INDEX_LOCK_POLL_MS
   )
 );
