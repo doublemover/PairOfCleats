@@ -924,6 +924,16 @@ export async function buildDatabaseFromArtifacts({
       recordTable('token_stats', 1, 0);
     }
 
+    /**
+     * Rebuild sparse token tables from already-ingested chunk rows.
+     *
+     * This is the fallback path when token_postings artifacts are unavailable
+     * and chunk metadata was streamed into sqlite staging/final tables (so no
+     * in-memory `indexData.chunkMeta` array exists to rebuild from directly).
+     *
+     * @param {string} targetMode
+     * @returns {boolean} True when at least one chunk row was processed.
+     */
     function ingestTokenIndexFromStoredChunks(targetMode) {
       const selectChunks = db.prepare(
         'SELECT id, tokens FROM chunks WHERE mode = ? ORDER BY id'

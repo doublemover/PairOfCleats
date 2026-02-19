@@ -150,7 +150,15 @@ const sha256Hex = (value) => createHash('sha256').update(String(value || ''), 'u
 
 /**
  * Resolve artifact writer concurrency with a dynamic default and bounded override.
- * @param {{artifactConfig?:object,totalWrites:number}} input
+ *
+ * Defaults are intentionally tiered:
+ * - standard builds: up to 16 concurrent writes
+ * - high-volume builds (many artifact files): up to 24 concurrent writes
+ *
+ * Explicit `indexing.artifacts.writeConcurrency` config always wins, and
+ * `availableParallelism` is exposed for deterministic tests.
+ *
+ * @param {{artifactConfig?:object,totalWrites:number,availableParallelism?:number|null}} input
  * @returns {{cap:number,override:boolean}}
  */
 export const resolveArtifactWriteConcurrency = ({

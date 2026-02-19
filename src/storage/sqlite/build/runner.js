@@ -76,6 +76,16 @@ const countMissingBundleFiles = (incrementalData) => {
   return missing;
 };
 
+/**
+ * Best-effort chunk count probe used to skip redundant empty-mode rebuilds.
+ *
+ * Prefers `chunk_meta.meta.json` when present, then falls back to legacy
+ * monolithic JSON/JSONL artifacts. Returns `null` when count cannot be
+ * determined safely from on-disk metadata.
+ *
+ * @param {string} indexDir
+ * @returns {number|null}
+ */
 const resolveChunkMetaTotalRecords = (indexDir) => {
   if (!indexDir || typeof indexDir !== 'string') return null;
   const readJsonSafe = (targetPath) => {
@@ -352,6 +362,15 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
     }
     return counts;
   };
+  /**
+   * Read row count for a single mode from an existing sqlite db.
+   * Returns null when db/table is unreadable so callers can avoid
+   * treating probe failures as authoritative zero-row results.
+   *
+   * @param {string} dbPath
+   * @param {string} mode
+   * @returns {number|null}
+   */
   const readSqliteModeCount = (dbPath, mode) => {
     if (!dbPath || !mode) return null;
     let db = null;
