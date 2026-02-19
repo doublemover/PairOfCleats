@@ -380,13 +380,20 @@ export async function buildPostings(input) {
     const hash = crypto.createHash('sha1');
     hash.update(label);
     hash.update('\n');
-    for (const run of runs) {
+    const runRows = await Promise.all((runs || []).map(async (run) => {
       const runPath = typeof run === 'string' ? run : run?.path;
-      if (!runPath) continue;
+      if (!runPath) return null;
       const stat = await fs.stat(runPath).catch(() => null);
-      hash.update(path.basename(runPath));
+      return {
+        baseName: path.basename(runPath),
+        size: Number.isFinite(stat?.size) ? stat.size : -1
+      };
+    }));
+    for (const row of runRows) {
+      if (!row) continue;
+      hash.update(row.baseName);
       hash.update(':');
-      hash.update(String(Number.isFinite(stat?.size) ? stat.size : -1));
+      hash.update(String(row.size));
       hash.update('\n');
     }
     return hash.digest('hex');

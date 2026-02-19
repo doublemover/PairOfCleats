@@ -521,6 +521,20 @@ const selectPackageRootEntry = (packageJson) => {
 
 const createPackageDirectoryResolver = ({ lookup, rootAbs }) => {
   const cache = new Map();
+  const packageEntryCache = new Map();
+  const readPackageEntry = (packageJsonRel) => {
+    if (!packageJsonRel) return null;
+    if (packageEntryCache.has(packageJsonRel)) return packageEntryCache.get(packageJsonRel);
+    let packageEntry = null;
+    try {
+      const packageJsonAbs = path.resolve(rootAbs, packageJsonRel);
+      const raw = fs.readFileSync(packageJsonAbs, 'utf8');
+      const parsed = JSON.parse(raw);
+      packageEntry = selectPackageRootEntry(parsed);
+    } catch {}
+    packageEntryCache.set(packageJsonRel, packageEntry);
+    return packageEntry;
+  };
   return (baseRelPath) => {
     const base = normalizeRelPath(baseRelPath);
     const cacheKey = base || '.';
@@ -532,18 +546,13 @@ const createPackageDirectoryResolver = ({ lookup, rootAbs }) => {
       return null;
     }
     let resolved = null;
-    try {
-      const packageJsonAbs = path.resolve(rootAbs, packageJsonRel);
-      const raw = fs.readFileSync(packageJsonAbs, 'utf8');
-      const parsed = JSON.parse(raw);
-      const packageEntry = selectPackageRootEntry(parsed);
-      if (packageEntry != null) {
-        const targetBase = packageEntry
-          ? normalizeRelPath(base ? path.posix.join(base, packageEntry) : packageEntry)
-          : base;
-        resolved = resolveCandidate(targetBase, lookup);
-      }
-    } catch {}
+    const packageEntry = readPackageEntry(packageJsonRel);
+    if (packageEntry != null) {
+      const targetBase = packageEntry
+        ? normalizeRelPath(base ? path.posix.join(base, packageEntry) : packageEntry)
+        : base;
+      resolved = resolveCandidate(targetBase, lookup);
+    }
     cache.set(cacheKey, resolved);
     return resolved;
   };
@@ -1804,18 +1813,7 @@ export function resolveImportLinks({
   const resolutionCache = new Map();
   const cacheKeyFor = (importerRel, spec, tsconfig) => {
     const tsKey = tsconfig?.fingerprint || tsconfig?.tsconfigPath || 'none';
-    return buildCacheKey({
-      repoHash,
-      buildConfigHash: tsKey,
-      mode,
-      schemaVersion: 'import-resolution-cache-v3',
-      featureFlags: null,
-      pathPolicy: 'posix',
-      extra: {
-        importer: importerRel || '',
-        spec: spec || ''
-      }
-    }).key;
+    return `${importerRel || ''}\u0000${spec || ''}\u0000${tsKey}`;
   };
   let suppressedWarnings = 0;
   let unresolvedCount = 0;
