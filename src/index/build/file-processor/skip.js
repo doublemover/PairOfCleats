@@ -4,10 +4,12 @@ import { detectBinary, isMinifiedName, readFileSample } from '../file-scan.js';
 
 const isGeneratedDocsetPath = (absPath) => {
   const normalized = String(absPath || '').replace(/\\/g, '/').toLowerCase();
-  return normalized.includes('/docsets/')
-    || normalized.includes('.docset/')
-    || normalized.includes('/docs/docset/')
-    || normalized.includes('/docset/');
+  // Restrict to generated docset bundle payload trees to avoid skipping
+  // first-party source paths like src/docset/*.
+  if (normalized.includes('.docset/contents/resources/documents/')) return true;
+  if (normalized.includes('/docsets/') && normalized.includes('/contents/resources/documents/')) return true;
+  if (normalized.includes('/docs/docset/contents/resources/documents/')) return true;
+  return false;
 };
 
 /**
