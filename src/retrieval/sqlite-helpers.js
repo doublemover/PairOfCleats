@@ -183,6 +183,7 @@ export function createSqliteHelpers(options) {
     if (metaV2?.chunkId && row.chunk_id && metaV2.chunkId !== row.chunk_id) {
       throw new Error(`[sqlite] metaV2.chunkId mismatch for chunk ${row.id ?? 'unknown'}`);
     }
+    const chunkAuthors = parseJson(row.chunk_authors, null);
     return {
       id: row.id,
       file: row.file,
@@ -212,8 +213,8 @@ export function createSqliteHelpers(options) {
       churn_added: row.churn_added,
       churn_deleted: row.churn_deleted,
       churn_commits: row.churn_commits,
-      chunk_authors: parseJson(row.chunk_authors, null),
-      chunkAuthors: parseJson(row.chunk_authors, null)
+      chunk_authors: chunkAuthors,
+      chunkAuthors: chunkAuthors
     };
   }
 
@@ -684,12 +685,20 @@ export function createSqliteHelpers(options) {
       truncated,
       elapsedMs: Date.now() - startedAt
     });
-    const rawScores = rows.map((row) => -row.score);
     let min = 0;
     let max = 0;
-    if (normalizeScores && rawScores.length) {
-      min = Math.min(...rawScores);
-      max = Math.max(...rawScores);
+    if (normalizeScores && rows.length) {
+      min = Number.POSITIVE_INFINITY;
+      max = Number.NEGATIVE_INFINITY;
+      for (const row of rows) {
+        const raw = -row.score;
+        if (raw < min) min = raw;
+        if (raw > max) max = raw;
+      }
+      if (!Number.isFinite(min) || !Number.isFinite(max)) {
+        min = 0;
+        max = 0;
+      }
     }
     const hits = [];
     for (let i = 0; i < rows.length; i++) {
@@ -698,7 +707,7 @@ export function createSqliteHelpers(options) {
       const weight = typeof row.weight === 'number'
         ? row.weight
         : (idx.chunkMeta?.[row.id]?.weight || 1);
-      const raw = rawScores[i];
+      const raw = -row.score;
       const normalized = normalizeScores
         ? (max > min ? (raw - min) / (max - min) : 1)
         : raw;

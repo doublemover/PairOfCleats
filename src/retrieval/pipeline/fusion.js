@@ -47,9 +47,11 @@ export const fuseRankedHits = ({
     recordHit(h.idx, { ann: h.sim, annSource });
   });
 
-  const sparseMaxScore = bmHits.length
-    ? Math.max(...bmHits.map((hit) => (hit.score ?? hit.sim ?? 0)))
-    : null;
+  let sparseMaxScore = null;
+  for (const hit of bmHits) {
+    const value = hit?.score ?? hit?.sim ?? 0;
+    sparseMaxScore = sparseMaxScore == null ? value : Math.max(sparseMaxScore, value);
+  }
   const scored = scoreBuffer?.reset ? scoreBuffer.reset() : [];
   for (const [idxVal, scores] of allHits.entries()) {
     const sparseScore = scores.fts ?? scores.bm25 ?? null;

@@ -10,6 +10,7 @@ const DEFAULT_MAX_REASONS = 3;
 
 const REASON_PRIORITY_ORDER = ['call', 'usage', 'export', 'import', 'nameFallback'];
 const REASON_PRIORITY = new Map(REASON_PRIORITY_ORDER.map((reason, index) => [reason, index]));
+const GRAPH_INDEX_CACHE = new WeakMap();
 
 const resolvePriority = (reasonType) => (
   REASON_PRIORITY.has(reasonType) ? REASON_PRIORITY.get(reasonType) : REASON_PRIORITY_ORDER.length + 1
@@ -69,6 +70,19 @@ const buildGraphIndex = (graph) => {
   return map;
 };
 
+const resolveGraphIndexes = (graphRelations) => {
+  if (!graphRelations || typeof graphRelations !== 'object') return null;
+  const cached = GRAPH_INDEX_CACHE.get(graphRelations);
+  if (cached) return cached;
+  const next = {
+    callGraph: buildGraphIndex(graphRelations.callGraph),
+    usageGraph: buildGraphIndex(graphRelations.usageGraph),
+    importGraph: buildGraphIndex(graphRelations.importGraph)
+  };
+  GRAPH_INDEX_CACHE.set(graphRelations, next);
+  return next;
+};
+
 const collectEdges = ({
   fromRef,
   graph,
@@ -105,7 +119,7 @@ const collectEdges = ({
     });
     added += 1;
   }
-  edges.sort(compareGraphEdges);
+  if (edges.length > 1) edges.sort(compareGraphEdges);
   return edges;
 };
 
@@ -367,13 +381,7 @@ export function expandContext({
     });
   };
 
-  const graphIndexes = graphRelations
-    ? {
-      callGraph: buildGraphIndex(graphRelations.callGraph),
-      usageGraph: buildGraphIndex(graphRelations.usageGraph),
-      importGraph: buildGraphIndex(graphRelations.importGraph)
-    }
-    : null;
+  const graphIndexes = resolveGraphIndexes(graphRelations);
 
   let halted = false;
 

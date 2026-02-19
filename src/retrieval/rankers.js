@@ -310,27 +310,24 @@ export function rankDenseVectors(idx, queryEmbedding, topN, candidateSet) {
   const vectorCount = hasBuffer && dims > 0
     ? Math.floor(denseBuffer.length / dims)
     : vectors.length;
-  const ids = candidateSet
-    ? bitmapToArray(candidateSet)
-    : Array.from({ length: vectorCount }, (_, i) => i);
   const reducer = createTopKReducer({
     k: topN,
     buildPayload: (entry) => ({ idx: entry.id, sim: entry.score })
   });
   let order = 0;
 
-  for (const id of ids) {
+  const processVectorId = (id) => {
     let vec = null;
     if (hasBuffer) {
       const start = id * dims;
       const end = start + dims;
-      if (start < 0 || end > denseBuffer.length) continue;
+      if (start < 0 || end > denseBuffer.length) return;
       vec = denseBuffer.subarray(start, end);
     } else {
       vec = vectors[id];
     }
     const isArrayLike = Array.isArray(vec) || ArrayBuffer.isView(vec);
-    if (!isArrayLike || vec.length < dims) continue;
+    if (!isArrayLike || vec.length < dims) return;
     let dot = 0;
     for (let i = 0; i < dims; i++) {
       const v = vec[i] * scale + minVal;
@@ -338,6 +335,17 @@ export function rankDenseVectors(idx, queryEmbedding, topN, candidateSet) {
     }
     reducer.pushRaw(dot, id, order);
     order += 1;
+  };
+
+  if (candidateSet) {
+    const ids = bitmapToArray(candidateSet);
+    for (const id of ids) {
+      processVectorId(id);
+    }
+  } else {
+    for (let id = 0; id < vectorCount; id += 1) {
+      processVectorId(id);
+    }
   }
 
   return reducer.finish({ limit: topN });
