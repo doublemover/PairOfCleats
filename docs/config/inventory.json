@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-19T01:56:44.951Z",
+  "generatedAt": "2026-02-19T04:10:24.544Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -30,6 +30,8 @@
       "PAIROFCLEATS_ANN_BACKEND",
       "PAIROFCLEATS_API_TOKEN",
       "PAIROFCLEATS_BENCH_RUN",
+      "PAIROFCLEATS_BUILD_INDEX_LOCK_POLL_MS",
+      "PAIROFCLEATS_BUILD_INDEX_LOCK_WAIT_MS",
       "PAIROFCLEATS_BUNDLE_THREADS",
       "PAIROFCLEATS_CACHE_METRICS_SAMPLE_RATE",
       "PAIROFCLEATS_CACHE_NAMESPACE",
@@ -47,6 +49,7 @@
       "PAIROFCLEATS_FILE_CACHE_MAX",
       "PAIROFCLEATS_HOME",
       "PAIROFCLEATS_IMPORT_GRAPH",
+      "PAIROFCLEATS_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY",
       "PAIROFCLEATS_IO_OVERSUBSCRIBE",
       "PAIROFCLEATS_LANCEDB_CHILD",
       "PAIROFCLEATS_LANCEDB_ISOLATE",
@@ -1960,6 +1963,20 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_BUILD_INDEX_LOCK_POLL_MS",
+      "files": [
+        "src/integrations/core/build-index/stages.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_BUILD_INDEX_LOCK_WAIT_MS",
+      "files": [
+        "src/integrations/core/build-index/stages.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_BUNDLE_THREADS",
       "files": [
         "src/shared/env.js",
@@ -2268,7 +2285,8 @@
     {
       "name": "PAIROFCLEATS_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY",
       "files": [
-        "src/index/build/incremental.js"
+        "src/index/build/incremental.js",
+        "tools/config/inventory.js"
       ]
     },
     {
@@ -2923,9 +2941,7 @@
   "envVarsPublic": [
     "PAIROFCLEATS_API_TOKEN"
   ],
-  "envVarsUnknown": [
-    "PAIROFCLEATS_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY"
-  ],
+  "envVarsUnknown": [],
   "cliFlags": {
     "totalFlags": 316,
     "publicFlags": [
