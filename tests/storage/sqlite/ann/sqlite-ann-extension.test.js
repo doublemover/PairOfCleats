@@ -29,11 +29,10 @@ await fsPromises.writeFile(
 
 const extensionPath = requireSqliteVec({ repoRoot });
 
-const env = {
-  ...process.env,  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub',
-  PAIROFCLEATS_BUNDLE_THREADS: '1',
-  PAIROFCLEATS_TEST_CONFIG: JSON.stringify({
+const env = applyTestEnv({
+  cacheRoot,
+  embeddings: 'stub',
+  testConfig: {
     sqlite: {
       vectorExtension: {
         annMode: 'extension',
@@ -41,13 +40,9 @@ const env = {
         path: extensionPath
       }
     }
-  })
-};
-applyTestEnv();
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
-process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
-process.env.PAIROFCLEATS_BUNDLE_THREADS = '1';
-process.env.PAIROFCLEATS_TEST_CONFIG = env.PAIROFCLEATS_TEST_CONFIG;
+  },
+  extraEnv: { PAIROFCLEATS_BUNDLE_THREADS: '1' }
+});
 
 function run(args, label) {
   const result = spawnSync(process.execPath, args, {
@@ -182,4 +177,3 @@ if (orphanRow?.count) {
 dbAfter.close();
 
 console.log('sqlite ann extension test passed');
-

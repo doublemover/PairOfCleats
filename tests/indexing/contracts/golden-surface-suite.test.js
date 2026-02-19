@@ -8,14 +8,13 @@ import { validateIndexArtifacts } from '../../../src/index/validate.js';
 import { hasIndexMeta } from '../../../src/retrieval/cli/index-loader.js';
 import { loadChunkMeta, loadPiecesManifest, readJsonFile } from '../../../src/shared/artifact-io.js';
 
-applyTestEnv();
 const testConfig = {
   triage: { recordsDir: './records' },
   indexing: { embeddings: { enabled: false } },
   sqlite: { use: false },
   lmdb: { use: false }
 };
-process.env.PAIROFCLEATS_TEST_CONFIG = JSON.stringify(testConfig);
+applyTestEnv({ testConfig });
 
 const { fixtureRoot, userConfig, codeDir, proseDir } = await ensureFixtureIndex({
   fixtureName: 'public-surface',

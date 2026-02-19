@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { applyTestEnv } from '../../helpers/test-env.js';
+import { applyTestEnv, syncProcessEnv } from '../../helpers/test-env.js';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -14,10 +14,11 @@ const cacheRoot = path.join(tempRoot, 'cache');
 await fsPromises.mkdir(repoRootRaw, { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 const repoRoot = toRealPathSync(repoRootRaw);
-const prevTesting = process.env.PAIROFCLEATS_TESTING;
-const prevCacheRoot = process.env.PAIROFCLEATS_CACHE_ROOT;
-applyTestEnv();
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
+const prevEnv = {
+  PAIROFCLEATS_TESTING: process.env.PAIROFCLEATS_TESTING,
+  PAIROFCLEATS_CACHE_ROOT: process.env.PAIROFCLEATS_CACHE_ROOT
+};
+applyTestEnv({ cacheRoot });
 let codeIndexDir = '';
 
 async function resetIndexDir() {
@@ -156,16 +157,6 @@ try {
   }
   console.log('setup index detection tests passed');
 } finally {
-  if (prevTesting === undefined) {
-    delete process.env.PAIROFCLEATS_TESTING;
-  } else {
-    process.env.PAIROFCLEATS_TESTING = prevTesting;
-  }
-  if (prevCacheRoot === undefined) {
-    delete process.env.PAIROFCLEATS_CACHE_ROOT;
-  } else {
-    process.env.PAIROFCLEATS_CACHE_ROOT = prevCacheRoot;
-  }
+  syncProcessEnv(prevEnv, Object.keys(prevEnv), { clearMissing: true });
   await rmDirRecursive(tempRoot);
 }
-

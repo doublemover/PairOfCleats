@@ -5,6 +5,7 @@ import path from 'node:path';
 
 import { loadChunkMeta } from '../../../src/shared/artifact-io.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { writePiecesManifest } from '../../helpers/artifact-io-fixture.js';
 
 applyTestEnv({ testing: '1' });
 
@@ -33,6 +34,10 @@ await fs.writeFile(
   `${coldRows.map((row) => JSON.stringify(row)).join('\n')}\n`,
   'utf8'
 );
+await writePiecesManifest(tempRoot, [
+  { name: 'chunk_meta', path: 'chunk_meta.jsonl', format: 'jsonl' },
+  { name: 'chunk_meta_cold', path: 'chunk_meta_cold.jsonl', format: 'jsonl' }
+]);
 
 const hotOnly = await loadChunkMeta(tempRoot, { strict: false, includeCold: false });
 assert.equal(Array.isArray(hotOnly), true);

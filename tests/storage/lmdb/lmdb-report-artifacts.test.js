@@ -25,17 +25,13 @@ await fsPromises.mkdir(tempRoot, { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 await fsPromises.cp(fixtureRoot, repoRoot, { recursive: true });
 
-const env = {
-  ...process.env,  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub',
-  PAIROFCLEATS_TEST_CONFIG: JSON.stringify({
+const env = applyTestEnv({
+  cacheRoot,
+  embeddings: 'stub',
+  testConfig: {
     lmdb: { use: true }
-  })
-};
-applyTestEnv();
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
-process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
-process.env.PAIROFCLEATS_TEST_CONFIG = env.PAIROFCLEATS_TEST_CONFIG;
+  }
+});
 
 const run = (args, label, options = {}) => {
   const result = spawnSync(process.execPath, args, {
@@ -121,4 +117,3 @@ if (!issues.some((issue) => issue.includes('missing artifact key') && issue.incl
 }
 
 console.log('lmdb report artifacts test passed');
-

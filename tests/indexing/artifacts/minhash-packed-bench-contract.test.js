@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
+import { applyTestEnv } from '../../helpers/test-env.js';
+
+applyTestEnv({ testing: '1' });
 
 const root = process.cwd();
 const script = path.join(root, 'tools', 'bench', 'index', 'minhash-packed.js');

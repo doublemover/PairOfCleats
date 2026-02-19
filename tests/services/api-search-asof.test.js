@@ -10,8 +10,6 @@ import { computeIndexDiff } from '../../src/index/diffs/compute.js';
 import { loadUserConfig } from '../../tools/shared/dict-utils.js';
 import { startApiServer } from '../helpers/api-server.js';
 
-applyTestEnv();
-
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'api-search-asof-service');
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
@@ -22,11 +20,10 @@ await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 await fs.cp(fixtureRoot, repoRoot, { recursive: true });
 
-const env = {
-  ...process.env,  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub',
-  PAIROFCLEATS_WORKER_POOL: 'off',
-  PAIROFCLEATS_TEST_CONFIG: JSON.stringify({
+const env = applyTestEnv({
+  cacheRoot,
+  embeddings: 'stub',
+  testConfig: {
     indexing: {
       embeddings: {
         enabled: false,
@@ -35,12 +32,9 @@ const env = {
         hnsw: { enabled: false }
       }
     }
-  })
-};
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
-process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
-process.env.PAIROFCLEATS_WORKER_POOL = 'off';
-process.env.PAIROFCLEATS_TEST_CONFIG = env.PAIROFCLEATS_TEST_CONFIG;
+  },
+  extraEnv: { PAIROFCLEATS_WORKER_POOL: 'off' }
+});
 
 const runBuild = () => {
   const result = spawnSync(
