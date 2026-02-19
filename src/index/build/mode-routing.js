@@ -77,6 +77,12 @@ const INFRA_PATH_PARTS = [
   '/.circleci/',
   '/.gitlab/'
 ];
+const STRUCTURED_INFRA_CODE_PATH_PARTS = [
+  '/.github/workflows/',
+  '/.github/actions/',
+  '/.circleci/',
+  '/.gitlab/'
+];
 
 export const isDocsPath = (relPath) => {
   const normalized = normalizeRelPath(relPath);
@@ -98,6 +104,16 @@ export const isInfraConfigPath = (relPath) => {
   return BUILD_CONFIG_EXTS.has(baseExt);
 };
 
+const isStructuredInfraCodePath = (relPath) => {
+  const normalized = normalizeRelPath(relPath).toLowerCase();
+  if (!normalized) return false;
+  const bounded = `/${normalized.replace(/^\/+|\/+$/g, '')}/`;
+  for (const part of STRUCTURED_INFRA_CODE_PATH_PARTS) {
+    if (bounded.includes(part)) return true;
+  }
+  return false;
+};
+
 export const isFixturePath = (relPath) => {
   const normalized = normalizeRelPath(relPath);
   if (!normalized) return false;
@@ -113,7 +129,9 @@ export const shouldPreferDocsProse = ({ ext, relPath }) => {
   return isDocsPath(relPath) && DOCS_AMBIGUOUS_PROSE_EXTS.has(normalizedExt);
 };
 
-export const shouldPreferInfraProse = ({ relPath }) => isInfraConfigPath(relPath);
+export const shouldPreferInfraProse = ({ relPath }) => (
+  isInfraConfigPath(relPath) && !isStructuredInfraCodePath(relPath)
+);
 
 export const shouldPreferFixtureProse = ({ ext, relPath }) => {
   const normalizedExt = normalizeExt(ext);

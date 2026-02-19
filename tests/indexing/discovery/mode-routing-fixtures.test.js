@@ -68,18 +68,18 @@ assert.equal(
 );
 assert.equal(
   shouldPreferInfraProse({ relPath: '.github/workflows/ci.yml' }),
-  true,
-  'expected CI workflow path to be recognized as infra-preferred prose'
+  false,
+  'expected CI workflow path to remain code-routed for structured chunk fidelity'
 );
 assert.equal(
   isProseEntryForPath({ ext: '.yml', relPath: '.github/workflows/ci.yml' }),
-  true,
-  'expected CI workflow config to route to prose mode'
+  false,
+  'expected CI workflow config to stay out of prose mode'
 );
 assert.equal(
   isCodeEntryForPath({ ext: '.yml', relPath: '.github/workflows/ci.yml' }),
-  false,
-  'expected CI workflow config to stay out of code mode'
+  true,
+  'expected CI workflow config to remain in code mode'
 );
 assert.equal(
   isProseEntryForPath({ ext: '.txt', relPath: 'infra/Makefile' }),
