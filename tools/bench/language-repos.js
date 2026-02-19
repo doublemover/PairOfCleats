@@ -176,6 +176,13 @@ const appendLog = (line, level = 'info', meta = null) => {
   logHistory.push(line);
   if (logHistory.length > logHistoryLimit) logHistory.shift();
 };
+const writeListLine = (line) => {
+  if (quietMode) {
+    process.stderr.write(`${line}\n`);
+    return;
+  }
+  appendLog(line);
+};
 const handleProgressEvent = (event) => {
   if (!event || typeof event !== 'object') return;
   if (event.event === 'log') {
@@ -398,13 +405,13 @@ if (argv.list) {
   if (argv.json) {
     console.log(JSON.stringify(payload, null, 2));
   } else {
-    console.error('Benchmark targets');
-    console.error(`- config: ${configPath}`);
-    console.error(`- repos: ${reposRoot}`);
-    console.error(`- cache: ${cacheRoot}`);
-    console.error(`- results: ${resultsRoot}`);
+    writeListLine('Benchmark targets');
+    writeListLine(`- config: ${configPath}`);
+    writeListLine(`- repos: ${reposRoot}`);
+    writeListLine(`- cache: ${cacheRoot}`);
+    writeListLine(`- results: ${resultsRoot}`);
     for (const task of tasks) {
-      console.error(`- ${task.language} ${task.tier} ${task.repo}`);
+      writeListLine(`- ${task.language} ${task.tier} ${task.repo}`);
     }
   }
   exitWithDisplay(0);
@@ -490,7 +497,7 @@ for (const task of tasks) {
       slug: task.logSlug || toSafeLogSlug(getRepoShortName(task.repo)) || 'repo'
     });
     if (!quietMode && repoLogPath) {
-      display.log(`[logs] ${repoLabel} -> ${repoLogPath}`);
+      appendLog(`[logs] ${repoLabel} -> ${repoLogPath}`);
     }
   }
 

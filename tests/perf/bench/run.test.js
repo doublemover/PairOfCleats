@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fork, spawnSync } from 'node:child_process';
 import { createCli } from '../../../src/shared/cli.js';
 import { BENCH_OPTIONS, validateBenchArgs } from '../../../src/shared/cli-options.js';
+import { createDisplay } from '../../../src/shared/cli/display.js';
 import { getIndexDir, getRuntimeConfig, loadUserConfig, resolveRuntimeEnv, resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';
 import { getEnvConfig } from '../../../src/shared/env.js';
 import { runWithConcurrency } from '../../../src/shared/concurrency.js';
@@ -24,6 +25,25 @@ const argv = createCli({
 }).parse();
 validateBenchArgs(argv);
 
+const display = createDisplay({
+  stream: process.stderr,
+  progressMode: argv.progress,
+  verbose: argv.verbose === true,
+  quiet: argv.quiet === true,
+  json: argv.json === true
+});
+let displayClosed = false;
+const closeDisplay = () => {
+  if (displayClosed) return;
+  display.close();
+  displayClosed = true;
+};
+const fatalExit = (message, code = 1) => {
+  display.error(String(message || 'Unknown error'));
+  closeDisplay();
+  process.exit(code);
+};
+
 const safeRegexConfig = normalizeSafeRegexConfig({
   maxPatternLength: 64,
   maxInputLength: 64,
@@ -32,17 +52,14 @@ const safeRegexConfig = normalizeSafeRegexConfig({
 });
 const safeRegex = createSafeRegex('a+b', '', safeRegexConfig);
 if (!safeRegex || !safeRegex.test('Aaab')) {
-  console.error('Safe regex self-check failed.');
-  process.exit(1);
+  fatalExit('Safe regex self-check failed.');
 }
 const rejected = createSafeRegex('a'.repeat(128), '', safeRegexConfig);
 if (rejected) {
-  console.error('Safe regex maxPatternLength guard failed.');
-  process.exit(1);
+  fatalExit('Safe regex maxPatternLength guard failed.');
 }
 if (safeRegex.test('a'.repeat(100))) {
-  console.error('Safe regex maxInputLength guard failed.');
-  process.exit(1);
+  fatalExit('Safe regex maxInputLength guard failed.');
 }
 
 const root = process.cwd();
@@ -69,8 +86,7 @@ async function loadQueries(filePath) {
 
 const queries = await loadQueries(queriesPath);
 if (!queries.length) {
-  console.error(`No queries found at ${queriesPath}`);
-  process.exit(1);
+  fatalExit(`No queries found at ${queriesPath}`);
 }
 
 const topN = Math.max(1, parseInt(argv.top, 10) || 5);
@@ -175,8 +191,7 @@ const benchEnv = baseEnv;
 function logBench(message) {
   if (!message) return;
   if (quietMode) return;
-  if (jsonOutput) process.stderr.write(`${message}\n`);
-  else console.log(message);
+  display.log(message);
 }
 
 function buildSearchArgs(query, backend) {
@@ -379,8 +394,7 @@ function runBuild(args, label, env) {
     if (result.stderr) process.stderr.write(result.stderr);
   }
   if (result.status !== 0) {
-    console.error(`Build failed: ${label}`);
-    process.exit(result.status ?? 1);
+    fatalExit(`Build failed: ${label}`, result.status ?? 1);
   }
   return Date.now() - start;
 }
@@ -397,8 +411,7 @@ function runServiceQueue(queueName, env) {
     if (result.stderr) process.stderr.write(result.stderr);
   }
   if (result.status !== 0) {
-    console.error(`Service queue failed: ${queueName}`);
-    process.exit(result.status ?? 1);
+    fatalExit(`Service queue failed: ${queueName}`, result.status ?? 1);
   }
 }
 
@@ -548,8 +561,7 @@ const runQueries = async (requestedConcurrency) => {
     logQueryProgress();
     const elapsedMs = Number(payload.stats?.elapsedMs);
     if (!Number.isFinite(elapsedMs)) {
-      console.error(`[bench] Missing timing stats for backend=${task.backend} query="${task.query}"`);
-      process.exit(1);
+      fatalExit(`[bench] Missing timing stats for backend=${task.backend} query="${task.query}"`);
     }
     latency[task.backend].push(elapsedMs);
     const codeHits = Array.isArray(payload.code) ? payload.code.length : 0;
@@ -619,8 +631,7 @@ if (corruption && corruption.ok === false) {
   const issues = Array.isArray(corruption.issues) && corruption.issues.length
     ? corruption.issues.join('; ')
     : 'unknown issues';
-  console.error(`[bench] Artifact corruption check failed: ${issues}`);
-  process.exit(1);
+  fatalExit(`[bench] Artifact corruption check failed: ${issues}`);
 }
 
 const summaries = runs.map((run) => run.summary).filter(Boolean);
@@ -653,6 +664,7 @@ const output = {
 };
 
 if (argv.json) {
+  closeDisplay();
   console.log(JSON.stringify(output, null, 2));
 } else {
   for (const runSummary of summaries) {
@@ -660,12 +672,12 @@ if (argv.json) {
     const concurrencyLabel = Number.isFinite(runSummary.queryConcurrency)
       ? ` (concurrency ${runSummary.queryConcurrency})`
       : '';
-    console.log(`Benchmark summary${concurrencyLabel}`);
-    console.log(`- Queries: ${runSummary.queries}`);
-    console.log(`- TopN: ${runSummary.topN}`);
-    console.log(`- Ann: ${runSummary.annEnabled}`);
+    logBench(`Benchmark summary${concurrencyLabel}`);
+    logBench(`- Queries: ${runSummary.queries}`);
+    logBench(`- TopN: ${runSummary.topN}`);
+    logBench(`- Ann: ${runSummary.annEnabled}`);
     if (Number.isFinite(runSummary.queryWallMs)) {
-      console.log(
+      logBench(
         `- Query wall time: ${formatDuration(runSummary.queryWallMs)} ` +
         `(avg/search ${formatDurationMs(runSummary.queryWallMsPerSearch)}, ` +
         `avg/query ${formatDurationMs(runSummary.queryWallMsPerQuery)})`
@@ -674,28 +686,28 @@ if (argv.json) {
     for (const backend of runSummary.backends || backends) {
       const stats = runSummary.latencyMs?.[backend];
       if (stats) {
-        console.log(`- ${backend} avg ms: ${stats.mean.toFixed(1)} (p95 ${stats.p95.toFixed(1)}, p99 ${stats.p99.toFixed(1)})`);
+        logBench(`- ${backend} avg ms: ${stats.mean.toFixed(1)} (p95 ${stats.p95.toFixed(1)}, p99 ${stats.p99.toFixed(1)})`);
       }
       const hitRate = runSummary.hitRate?.[backend];
       const resultCount = runSummary.resultCountAvg?.[backend];
       if (Number.isFinite(hitRate) && Number.isFinite(resultCount)) {
-        console.log(`- ${backend} hit rate: ${(hitRate * 100).toFixed(1)}% (avg hits ${resultCount.toFixed(1)})`);
+        logBench(`- ${backend} hit rate: ${(hitRate * 100).toFixed(1)}% (avg hits ${resultCount.toFixed(1)})`);
       }
       const mem = runSummary.memoryRss?.[backend];
       if (mem && mem.mean) {
-        console.log(`- ${backend} rss avg mb: ${(mem.mean / (1024 * 1024)).toFixed(1)} (p95 ${(mem.p95 / (1024 * 1024)).toFixed(1)}, p99 ${(mem.p99 / (1024 * 1024)).toFixed(1)})`);
+        logBench(`- ${backend} rss avg mb: ${(mem.mean / (1024 * 1024)).toFixed(1)} (p95 ${(mem.p95 / (1024 * 1024)).toFixed(1)}, p99 ${(mem.p99 / (1024 * 1024)).toFixed(1)})`);
       }
     }
     if (runSummary.buildMs?.index) {
-      console.log(`- build index ms: ${runSummary.buildMs.index.toFixed(0)}`);
+      logBench(`- build index ms: ${runSummary.buildMs.index.toFixed(0)}`);
     }
     if (runSummary.buildMs?.sqlite) {
-      console.log(`- build sqlite ms: ${runSummary.buildMs.sqlite.toFixed(0)}`);
+      logBench(`- build sqlite ms: ${runSummary.buildMs.sqlite.toFixed(0)}`);
     }
     const throughput = artifactReport?.throughput || null;
     if (throughput?.code) {
       const codeThroughput = throughput.code;
-      console.log(
+      logBench(
         `- throughput code: ${formatRate(codeThroughput.chunksPerSec, 'chunks')}, ` +
         `${formatRate(codeThroughput.tokensPerSec, 'tokens')}, ` +
         `${formatRate(codeThroughput.bytesPerSec, 'bytes')}`
@@ -703,7 +715,7 @@ if (argv.json) {
     }
     if (throughput?.prose) {
       const proseThroughput = throughput.prose;
-      console.log(
+      logBench(
         `- throughput prose: ${formatRate(proseThroughput.chunksPerSec, 'chunks')}, ` +
         `${formatRate(proseThroughput.tokensPerSec, 'tokens')}, ` +
         `${formatRate(proseThroughput.bytesPerSec, 'bytes')}`
@@ -711,7 +723,7 @@ if (argv.json) {
     }
     if (throughput?.lmdb?.code) {
       const lmdbCode = throughput.lmdb.code;
-      console.log(
+      logBench(
         `- throughput lmdb code: ${formatRate(lmdbCode.chunksPerSec, 'chunks')}, ` +
         `${formatRate(lmdbCode.tokensPerSec, 'tokens')}, ` +
         `${formatRate(lmdbCode.bytesPerSec, 'bytes')}`
@@ -719,7 +731,7 @@ if (argv.json) {
     }
     if (throughput?.lmdb?.prose) {
       const lmdbProse = throughput.lmdb.prose;
-      console.log(
+      logBench(
         `- throughput lmdb prose: ${formatRate(lmdbProse.chunksPerSec, 'chunks')}, ` +
         `${formatRate(lmdbProse.tokensPerSec, 'tokens')}, ` +
         `${formatRate(lmdbProse.bytesPerSec, 'bytes')}`
@@ -731,5 +743,6 @@ if (argv.json) {
 if (argv['write-report']) {
   const outPath = argv.out ? path.resolve(argv.out) : path.join(root, 'docs', 'benchmarks.json');
   await fs.writeFile(outPath, JSON.stringify(output, null, 2));
-  if (!argv.json) console.log(`Report written to ${outPath}`);
+  if (!argv.json) logBench(`Report written to ${outPath}`);
 }
+closeDisplay();

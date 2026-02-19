@@ -1,15 +1,17 @@
+import { log, logError } from '../../../src/shared/progress.js';
+
 export const emitBenchLog = (onLog, message, level = 'info') => {
   if (typeof onLog === 'function') {
     onLog(message, level);
     return;
   }
   if (level === 'error') {
-    console.error(message);
+    logError(message);
     return;
   }
   if (level === 'warn') {
-    console.warn(message);
+    log(`[warn] ${message}`);
     return;
   }
-  console.log(message);
+  log(message);
 };

@@ -1,3 +1,5 @@
+import { log } from '../../../src/shared/progress.js';
+
 export const summarizeResults = (items) => {
   const valid = items.filter((entry) => entry.summary);
   if (!valid.length) return null;
@@ -56,7 +58,7 @@ export const printSummary = (
   summary,
   count,
   quietMode,
-  { writeLine = (line) => console.error(line) } = {}
+  { writeLine = (line) => log(line) } = {}
 ) => {
   if (!summary || quietMode) return;
   writeLine(`\n${label} summary (${count} repos)`);
