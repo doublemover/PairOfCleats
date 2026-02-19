@@ -125,6 +125,7 @@ export const isProseEntryForPath = ({ ext, relPath }) => {
   const normalizedExt = normalizeExt(ext);
   return EXTS_PROSE.has(normalizedExt)
     || shouldPreferDocsProse({ ext: normalizedExt, relPath })
+    || shouldPreferInfraProse({ relPath })
     || shouldPreferFixtureProse({ ext: normalizedExt, relPath });
 };
 
@@ -132,6 +133,7 @@ export const isCodeEntryForPath = ({ ext, relPath, isSpecial = false }) => {
   const normalizedExt = normalizeExt(ext);
   if (!normalizedExt && !isSpecial) return false;
   if (shouldPreferDocsProse({ ext: normalizedExt, relPath })) return false;
+  if (shouldPreferInfraProse({ relPath })) return false;
   if (shouldPreferFixtureProse({ ext: normalizedExt, relPath })) return false;
   return EXTS_CODE.has(normalizedExt) || isSpecial;
 };
