@@ -1083,6 +1083,36 @@ const isPathLikeImporter = (importerRel) => {
     || base.endsWith('.mk');
 };
 
+const isCmakeImporter = (importerRel) => {
+  const ext = importerExtension(importerRel);
+  if (ext === '.cmake') return true;
+  return importerBaseName(importerRel) === 'cmakelists.txt';
+};
+
+const expandPathLikeCandidates = ({ importerRel, candidates }) => {
+  const cmakeImporter = isCmakeImporter(importerRel);
+  const out = [];
+  const seen = new Set();
+  const pushCandidate = (candidate) => {
+    const normalized = normalizeRelPath(candidate);
+    if (!normalized || seen.has(normalized)) return;
+    seen.add(normalized);
+    out.push(normalized);
+  };
+  for (const candidate of candidates || []) {
+    if (candidate === null || candidate === undefined) continue;
+    const normalized = normalizeRelPath(candidate);
+    if (normalized) pushCandidate(normalized);
+    if (!cmakeImporter) continue;
+    const base = normalized || '';
+    const hasExtension = Boolean(path.posix.extname(path.posix.basename(base)));
+    if (hasExtension) continue;
+    const cmakeListsPath = base ? `${base}/CMakeLists.txt` : 'CMakeLists.txt';
+    pushCandidate(cmakeListsPath);
+  }
+  return out;
+};
+
 const looksLikePathSpecifier = (spec) => {
   if (!spec) return false;
   if (spec.startsWith('./') || spec.startsWith('../') || spec.startsWith('/')) return true;
@@ -1103,38 +1133,67 @@ const resolvePathLikeImport = ({ spec, importerRel, lookup }) => {
       const pkg = normalizeRelPath(label.slice(0, colon));
       const target = normalizeRelPath(label.slice(colon + 1));
       if (target) {
-        return resolveFromCandidateList([pkg ? `${pkg}/${target}` : target], lookup);
+        return resolveFromCandidateList(
+          expandPathLikeCandidates({
+            importerRel,
+            candidates: [pkg ? `${pkg}/${target}` : target]
+          }),
+          lookup
+        );
       }
       return null;
     }
     const normalizedLabel = normalizeRelPath(label);
     if (!normalizedLabel) return null;
-    return resolveFromCandidateList([normalizedLabel], lookup);
+    return resolveFromCandidateList(
+      expandPathLikeCandidates({ importerRel, candidates: [normalizedLabel] }),
+      lookup
+    );
   }
   if (rawSpec.startsWith(':')) {
     const target = normalizeRelPath(rawSpec.slice(1));
     if (!target) return null;
-    return resolveFromCandidateList([`${importerDir}/${target}`], lookup);
+    return resolveFromCandidateList(
+      expandPathLikeCandidates({ importerRel, candidates: [`${importerDir}/${target}`] }),
+      lookup
+    );
   }
   if (rawSpec.startsWith('/')) {
     const normalizedSpec = normalizeRelPath(rawSpec);
     if (!normalizedSpec) return null;
-    return resolveFromCandidateList([normalizedSpec.slice(1)], lookup);
+    return resolveFromCandidateList(
+      expandPathLikeCandidates({ importerRel, candidates: [normalizedSpec.slice(1)] }),
+      lookup
+    );
   }
   if (rawSpec.startsWith('./') || rawSpec.startsWith('../')) {
     const joined = normalizeRelPath(path.posix.join(importerDir, rawSpec));
-    if (!joined) return null;
-    return resolveFromCandidateList([joined], lookup);
+    return resolveFromCandidateList(
+      expandPathLikeCandidates({ importerRel, candidates: [joined] }),
+      lookup
+    );
   }
   const normalizedSpec = normalizeRelPath(rawSpec);
   if (!normalizedSpec) return null;
   if (normalizedSpec.startsWith('.')) {
-    return resolveFromCandidateList([path.posix.join(importerDir, normalizedSpec)], lookup);
+    return resolveFromCandidateList(
+      expandPathLikeCandidates({
+        importerRel,
+        candidates: [path.posix.join(importerDir, normalizedSpec)]
+      }),
+      lookup
+    );
   }
-  return resolveFromCandidateList([
-    path.posix.join(importerDir, normalizedSpec),
-    normalizedSpec
-  ], lookup);
+  return resolveFromCandidateList(
+    expandPathLikeCandidates({
+      importerRel,
+      candidates: [
+        path.posix.join(importerDir, normalizedSpec),
+        normalizedSpec
+      ]
+    }),
+    lookup
+  );
 };
 
 const resolvePythonRelativeDottedImport = ({ spec, importerRel, lookup }) => {
