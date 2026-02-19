@@ -43,7 +43,16 @@ export const createArtifactWriter = ({
       : compressionKeepRaw;
   };
 
-  const enqueueJsonObject = (base, payload, { compressible = true, piece = null } = {}) => {
+  const enqueueJsonObject = (
+    base,
+    payload,
+    {
+      compressible = true,
+      piece = null,
+      priority = null,
+      estimatedBytes = null
+    } = {}
+  ) => {
     const compression = resolveCompression(base, compressible);
     const keepRaw = resolveKeepRaw(base);
     if (compression) {
@@ -55,7 +64,8 @@ export const createArtifactWriter = ({
           compression,
           gzipOptions: compressionGzipOptions,
           atomic: true
-        })
+        }),
+        { priority, estimatedBytes }
       );
       if (piece) {
         addPieceFile({ ...piece, format: 'json', compression }, gzPath);
@@ -64,7 +74,8 @@ export const createArtifactWriter = ({
         const rawPath = artifactPath(base, false);
         enqueueWrite(
           formatArtifactLabel(rawPath),
-          () => writeJsonObjectFile(rawPath, { ...payload, atomic: true })
+          () => writeJsonObjectFile(rawPath, { ...payload, atomic: true }),
+          { priority, estimatedBytes }
         );
         if (piece) {
           addPieceFile({ ...piece, format: 'json' }, rawPath);
@@ -75,14 +86,24 @@ export const createArtifactWriter = ({
     const rawPath = artifactPath(base, false);
     enqueueWrite(
       formatArtifactLabel(rawPath),
-      () => writeJsonObjectFile(rawPath, { ...payload, atomic: true })
+      () => writeJsonObjectFile(rawPath, { ...payload, atomic: true }),
+      { priority, estimatedBytes }
     );
     if (piece) {
       addPieceFile({ ...piece, format: 'json' }, rawPath);
     }
   };
 
-  const enqueueJsonArray = (base, items, { compressible = true, piece = null } = {}) => {
+  const enqueueJsonArray = (
+    base,
+    items,
+    {
+      compressible = true,
+      piece = null,
+      priority = null,
+      estimatedBytes = null
+    } = {}
+  ) => {
     const compression = resolveCompression(base, compressible);
     const keepRaw = resolveKeepRaw(base);
     if (compression) {
@@ -93,7 +114,8 @@ export const createArtifactWriter = ({
           compression,
           gzipOptions: compressionGzipOptions,
           atomic: true
-        })
+        }),
+        { priority, estimatedBytes }
       );
       if (piece) {
         addPieceFile({ ...piece, format: 'json', compression }, gzPath);
@@ -102,7 +124,8 @@ export const createArtifactWriter = ({
         const rawPath = artifactPath(base, false);
         enqueueWrite(
           formatArtifactLabel(rawPath),
-          () => writeJsonArrayFile(rawPath, items, { atomic: true })
+          () => writeJsonArrayFile(rawPath, items, { atomic: true }),
+          { priority, estimatedBytes }
         );
         if (piece) {
           addPieceFile({ ...piece, format: 'json' }, rawPath);
@@ -113,7 +136,8 @@ export const createArtifactWriter = ({
     const rawPath = artifactPath(base, false);
     enqueueWrite(
       formatArtifactLabel(rawPath),
-      () => writeJsonArrayFile(rawPath, items, { atomic: true })
+      () => writeJsonArrayFile(rawPath, items, { atomic: true }),
+      { priority, estimatedBytes }
     );
     if (piece) {
       addPieceFile({ ...piece, format: 'json' }, rawPath);

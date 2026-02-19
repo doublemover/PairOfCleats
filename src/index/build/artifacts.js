@@ -984,6 +984,18 @@ export async function writeIndexArtifacts(input) {
   const artifactMetrics = new Map();
   const writeLogIntervalMs = 1000;
   const writeProgressMeta = { stage: 'write', mode, taskId: `write:${mode}:artifacts` };
+  const WRITE_WEIGHT_HINTS = [
+    ['field_postings', 220],
+    ['token_postings', 210],
+    ['chunk_meta', 180],
+    ['repo_map', 170],
+    ['file_meta', 160],
+    ['symbol_occurrences', 150],
+    ['symbol_edges', 140],
+    ['graph_relations', 140],
+    ['phrase_ngrams', 120],
+    ['chargram_postings', 110]
+  ];
   const formatArtifactLabel = (filePath) => toPosix(path.relative(outDir, filePath));
   const pieceEntries = [];
   const addPieceFile = (entry, filePath) => {
@@ -1041,9 +1053,17 @@ export async function writeIndexArtifacts(input) {
     clearInterval(writeHeartbeatTimer);
     writeHeartbeatTimer = null;
   };
-  const enqueueWrite = (label, job) => {
+  const enqueueWrite = (label, job, meta = {}) => {
+    const parsedPriority = Number(meta?.priority);
+    const priority = Number.isFinite(parsedPriority) ? parsedPriority : 0;
+    const parsedEstimatedBytes = Number(meta?.estimatedBytes);
+    const estimatedBytes = Number.isFinite(parsedEstimatedBytes) && parsedEstimatedBytes >= 0
+      ? parsedEstimatedBytes
+      : null;
     writes.push({
       label,
+      priority,
+      estimatedBytes,
       job: async () => {
         const started = Date.now();
         await job();
@@ -1059,6 +1079,32 @@ export async function writeIndexArtifacts(input) {
       }
     });
   };
+  const resolveWriteWeight = (entry) => {
+    if (!entry || typeof entry !== 'object') return 0;
+    const label = String(entry.label || '');
+    let weight = Number.isFinite(entry.priority) ? entry.priority : 0;
+    if (Number.isFinite(entry.estimatedBytes) && entry.estimatedBytes > 0) {
+      weight += Math.log2(entry.estimatedBytes + 1);
+    }
+    for (const [needle, hint] of WRITE_WEIGHT_HINTS) {
+      if (label.includes(needle)) {
+        weight += hint;
+        break;
+      }
+    }
+    return weight;
+  };
+  const scheduleWrites = (entries) => (
+    Array.isArray(entries)
+      ? entries.slice().sort((a, b) => {
+        const delta = resolveWriteWeight(b) - resolveWriteWeight(a);
+        if (delta !== 0) return delta;
+        const aLabel = String(a?.label || '');
+        const bLabel = String(b?.label || '');
+        return aLabel < bLabel ? -1 : (aLabel > bLabel ? 1 : 0);
+      })
+      : []
+  );
   if (mode === 'extracted-prose' && documentExtractionEnabled) {
     const extractionReportPath = path.join(outDir, 'extraction_report.json');
     const extractionReport = buildExtractionReport({
@@ -1620,6 +1666,8 @@ export async function writeIndexArtifacts(input) {
       tokenPostingsShardSize,
       tokenPostingsBinaryColumnar,
       tokenPostingsCompression,
+      writePriority: 210,
+      tokenPostingsEstimatedBytes: tokenPostingsEstimate?.estimatedBytes || null,
       enqueueJsonObject,
       enqueueWrite,
       addPieceFile,
@@ -1637,7 +1685,8 @@ export async function writeIndexArtifacts(input) {
   }
   if (sparseArtifactsEnabled && postings.fieldPostings?.fields) {
     enqueueJsonObject('field_postings', { fields: { fields: postings.fieldPostings.fields } }, {
-      piece: { type: 'postings', name: 'field_postings' }
+      piece: { type: 'postings', name: 'field_postings' },
+      priority: 220
     });
   }
   if (sparseArtifactsEnabled && resolvedConfig.fielded !== false && Array.isArray(state.fieldTokens)) {
@@ -1861,7 +1910,8 @@ export async function writeIndexArtifacts(input) {
       piece: { type: 'postings', name: 'vocab_order' }
     });
   }
-  totalWrites = writes.length;
+  const scheduledWrites = scheduleWrites(writes);
+  totalWrites = scheduledWrites.length;
   if (totalWrites) {
     const artifactLabel = totalWrites === 1 ? 'artifact' : 'artifacts';
     logLine(`Writing index files (${totalWrites} ${artifactLabel})...`, { kind: 'status' });
@@ -1873,7 +1923,7 @@ export async function writeIndexArtifacts(input) {
     startWriteHeartbeat();
     try {
       await runWithConcurrency(
-        writes,
+        scheduledWrites,
         writeConcurrency,
         async ({ label, job }) => {
           const activeLabel = label || '(unnamed artifact)';

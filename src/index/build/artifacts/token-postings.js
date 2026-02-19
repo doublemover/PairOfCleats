@@ -146,6 +146,8 @@ export async function enqueueTokenPostingsArtifacts({
   tokenPostingsShardSize,
   tokenPostingsBinaryColumnar = false,
   tokenPostingsCompression,
+  writePriority = 0,
+  tokenPostingsEstimatedBytes = null,
   enqueueJsonObject,
   enqueueWrite,
   addPieceFile,
@@ -200,6 +202,10 @@ export async function enqueueTokenPostingsArtifacts({
           },
           atomic: true
         });
+      },
+      {
+        priority: writePriority,
+        estimatedBytes: tokenPostingsEstimatedBytes
       }
     );
   };
@@ -279,6 +285,10 @@ export async function enqueueTokenPostingsArtifacts({
           },
           atomic: true
         });
+      },
+      {
+        priority: writePriority,
+        estimatedBytes: tokenPostingsEstimatedBytes
       }
     );
   } else {
@@ -295,7 +305,9 @@ export async function enqueueTokenPostingsArtifacts({
         docLengths: state.docLengths
       }
     }, {
-      piece: { type: 'postings', name: 'token_postings', count: postings.tokenVocab.length }
+      piece: { type: 'postings', name: 'token_postings', count: postings.tokenVocab.length },
+      priority: writePriority,
+      estimatedBytes: tokenPostingsEstimatedBytes
     });
   }
 

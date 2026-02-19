@@ -1,5 +1,5 @@
 import { writeChunk } from './streams.js';
-import { throwIfAborted } from './runtime.js';
+import { createCooperativeYielder, throwIfAborted } from './runtime.js';
 
 export const normalizeJsonValue = (value) => {
   if (value && typeof value === 'object') {
@@ -33,6 +33,7 @@ const untrackJsonTraversal = (value, seen, tracked) => {
 };
 
 const TYPED_ARRAY_JSON_BATCH = 2048;
+const PRIMITIVE_ARRAY_JSON_BATCH = 2048;
 
 const serializeTypedArraySlice = (array, start, end) => {
   const size = end - start;
@@ -44,7 +45,7 @@ const serializeTypedArraySlice = (array, start, end) => {
   return parts.join(',');
 };
 
-const writeTypedArrayJson = async (stream, array) => {
+const writeTypedArrayJson = async (stream, array, cooperate = null) => {
   await writeChunk(stream, '[');
   if (!array.length) {
     await writeChunk(stream, ']');
@@ -52,6 +53,7 @@ const writeTypedArrayJson = async (stream, array) => {
   }
   let first = true;
   for (let i = 0; i < array.length; i += TYPED_ARRAY_JSON_BATCH) {
+    if (cooperate) await cooperate();
     const end = Math.min(array.length, i + TYPED_ARRAY_JSON_BATCH);
     const chunk = serializeTypedArraySlice(array, i, end);
     if (chunk.length) {
@@ -72,7 +74,14 @@ const stringifyTypedArrayJson = (array) => {
   return `[${parts.join(',')}]`;
 };
 
-const writeJsonValueInternal = async (stream, value, seen) => {
+const isFastJsonPrimitive = (value) => (
+  value === null
+  || typeof value === 'string'
+  || typeof value === 'number'
+  || typeof value === 'boolean'
+);
+
+const writeJsonValueInternal = async (stream, value, seen, cooperate = null) => {
   const normalized = normalizeJsonValue(value);
   if (normalized === null || typeof normalized !== 'object') {
     if (normalized === undefined || typeof normalized === 'function' || typeof normalized === 'symbol') {
@@ -83,7 +92,7 @@ const writeJsonValueInternal = async (stream, value, seen) => {
     return;
   }
   if (ArrayBuffer.isView(normalized) && !(normalized instanceof DataView)) {
-    await writeTypedArrayJson(stream, normalized);
+    await writeTypedArrayJson(stream, normalized, cooperate);
     return;
   }
 
@@ -92,15 +101,40 @@ const writeJsonValueInternal = async (stream, value, seen) => {
     if (Array.isArray(normalized)) {
       await writeChunk(stream, '[');
       let first = true;
+      let primitiveBatch = [];
+      const flushPrimitiveBatch = async () => {
+        if (!primitiveBatch.length) return;
+        const chunk = primitiveBatch.join(',');
+        await writeChunk(stream, first ? chunk : `,${chunk}`);
+        primitiveBatch = [];
+        first = false;
+      };
       for (const item of normalized) {
-        if (!first) await writeChunk(stream, ',');
         const itemValue = normalizeJsonValue(item);
         if (itemValue === undefined || typeof itemValue === 'function' || typeof itemValue === 'symbol') {
-          await writeChunk(stream, 'null');
-        } else {
-          await writeJsonValueInternal(stream, itemValue, seen);
+          primitiveBatch.push('null');
+          if (primitiveBatch.length >= PRIMITIVE_ARRAY_JSON_BATCH) {
+            await flushPrimitiveBatch();
+            if (cooperate) await cooperate();
+          }
+          continue;
         }
+        if (isFastJsonPrimitive(itemValue)) {
+          primitiveBatch.push(JSON.stringify(itemValue));
+          if (primitiveBatch.length >= PRIMITIVE_ARRAY_JSON_BATCH) {
+            await flushPrimitiveBatch();
+            if (cooperate) await cooperate();
+          }
+          continue;
+        }
+        await flushPrimitiveBatch();
+        if (!first) await writeChunk(stream, ',');
+        await writeJsonValueInternal(stream, itemValue, seen, cooperate);
+        if (cooperate) await cooperate();
         first = false;
+      }
+      if (primitiveBatch.length) {
+        await flushPrimitiveBatch();
       }
       await writeChunk(stream, ']');
       return;
@@ -114,7 +148,8 @@ const writeJsonValueInternal = async (stream, value, seen) => {
       }
       if (!first) await writeChunk(stream, ',');
       await writeChunk(stream, `${JSON.stringify(key)}:`);
-      await writeJsonValueInternal(stream, entryValue, seen);
+      await writeJsonValueInternal(stream, entryValue, seen, cooperate);
+      if (cooperate) await cooperate();
       first = false;
     }
     await writeChunk(stream, '}');
@@ -123,8 +158,11 @@ const writeJsonValueInternal = async (stream, value, seen) => {
   }
 };
 
-export const writeJsonValue = async (stream, value) => {
-  await writeJsonValueInternal(stream, value, new WeakSet());
+export const writeJsonValue = async (stream, value, options = {}) => {
+  const cooperate = typeof options?.cooperate === 'function'
+    ? options.cooperate
+    : createCooperativeYielder();
+  await writeJsonValueInternal(stream, value, new WeakSet(), cooperate);
 };
 
 const stringifyJsonValueInternal = (value, seen) => {
@@ -164,11 +202,13 @@ export const stringifyJsonValue = (value) => {
 };
 
 export const writeArrayItems = async (stream, items, signal = null) => {
+  const cooperate = createCooperativeYielder();
   let first = true;
   for (const item of items) {
     throwIfAborted(signal);
     if (!first) await writeChunk(stream, ',');
-    await writeJsonValue(stream, item);
+    await writeJsonValue(stream, item, { cooperate });
+    await cooperate();
     first = false;
   }
 };
