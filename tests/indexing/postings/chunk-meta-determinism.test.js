@@ -13,7 +13,8 @@ import { sha1 } from '../../../src/shared/hash.js';
 applyTestEnv();
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const benchRoot = path.join(root, '.testCache', 'chunk-meta-determinism');
+const runId = `${process.pid}-${Date.now().toString(36)}-${Math.random().toString(16).slice(2, 8)}`;
+const benchRoot = path.join(root, '.testCache', 'chunk-meta-determinism', runId);
 const buildIndexPath = path.join(root, 'build_index.js');
 
 const safeRm = async (dir) => {
@@ -55,6 +56,17 @@ const readVocabOrder = async (indexDir) => {
 
 const hashPayload = (payload) => sha1(stableStringifyForSignature(payload));
 
+const formatBuildFailure = (label, result) => {
+  const status = result?.status ?? null;
+  const signal = result?.signal ?? null;
+  const stdout = String(result?.stdout || '').trim();
+  const stderr = String(result?.stderr || '').trim();
+  const sections = [`build_index failed for ${label} (status=${status}, signal=${signal})`];
+  if (stdout) sections.push(`--- stdout ---\n${stdout}`);
+  if (stderr) sections.push(`--- stderr ---\n${stderr}`);
+  return sections.join('\n');
+};
+
 const runBuild = async ({ label, threads }) => {
   const cacheRoot = path.join(benchRoot, label);
   await safeRm(cacheRoot);
@@ -82,9 +94,7 @@ const runBuild = async ({ label, threads }) => {
   ];
   const result = spawnSync(process.execPath, args, { cwd: fixtureRoot, env, encoding: 'utf8' });
   if (result.status !== 0) {
-    console.error(result.stdout || '');
-    console.error(result.stderr || '');
-    throw new Error(`build_index failed for ${label}`);
+    throw new Error(formatBuildFailure(label, result));
   }
   const { buildRoot } = await readBuildRoot(cacheRoot);
   const indexDir = path.join(buildRoot, 'index-code');
@@ -97,12 +107,16 @@ const runBuild = async ({ label, threads }) => {
   };
 };
 
-const runA = await runBuild({ label: 'run-a', threads: 1 });
-const runB = await runBuild({ label: 'run-b', threads: 4 });
+try {
+  const runA = await runBuild({ label: 'run-a', threads: 1 });
+  const runB = await runBuild({ label: 'run-b', threads: 4 });
 
-assert.ok(runA.chunkCount > 0, 'expected chunk_meta to include chunks');
-assert.equal(runA.chunkMetaHash, runB.chunkMetaHash, 'chunk_meta should be deterministic across concurrency');
-assert.equal(runA.vocabOrderHash, runB.vocabOrderHash, 'vocab_order should be deterministic across concurrency');
+  assert.ok(runA.chunkCount > 0, 'expected chunk_meta to include chunks');
+  assert.equal(runA.chunkMetaHash, runB.chunkMetaHash, 'chunk_meta should be deterministic across concurrency');
+  assert.equal(runA.vocabOrderHash, runB.vocabOrderHash, 'vocab_order should be deterministic across concurrency');
 
-console.log('chunk meta determinism test passed');
+  console.log('chunk meta determinism test passed');
+} finally {
+  await safeRm(benchRoot);
+}
 

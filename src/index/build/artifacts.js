@@ -984,18 +984,7 @@ export async function writeIndexArtifacts(input) {
   const artifactMetrics = new Map();
   const writeLogIntervalMs = 1000;
   const writeProgressMeta = { stage: 'write', mode, taskId: `write:${mode}:artifacts` };
-  const WRITE_WEIGHT_HINTS = [
-    ['field_postings', 220],
-    ['token_postings', 210],
-    ['chunk_meta', 180],
-    ['repo_map', 170],
-    ['file_meta', 160],
-    ['symbol_occurrences', 150],
-    ['symbol_edges', 140],
-    ['graph_relations', 140],
-    ['phrase_ngrams', 120],
-    ['chargram_postings', 110]
-  ];
+  let enqueueSeq = 0;
   const formatArtifactLabel = (filePath) => toPosix(path.relative(outDir, filePath));
   const pieceEntries = [];
   const addPieceFile = (entry, filePath) => {
@@ -1064,6 +1053,7 @@ export async function writeIndexArtifacts(input) {
       label,
       priority,
       estimatedBytes,
+      seq: enqueueSeq,
       job: async () => {
         const started = Date.now();
         await job();
@@ -1078,19 +1068,14 @@ export async function writeIndexArtifacts(input) {
         recordArtifactMetric(label, { durationMs, bytes });
       }
     });
+    enqueueSeq += 1;
   };
   const resolveWriteWeight = (entry) => {
     if (!entry || typeof entry !== 'object') return 0;
-    const label = String(entry.label || '');
     let weight = Number.isFinite(entry.priority) ? entry.priority : 0;
-    if (Number.isFinite(entry.estimatedBytes) && entry.estimatedBytes > 0) {
+    // Keep FIFO ordering unless a write has explicit priority.
+    if (weight > 0 && Number.isFinite(entry.estimatedBytes) && entry.estimatedBytes > 0) {
       weight += Math.log2(entry.estimatedBytes + 1);
-    }
-    for (const [needle, hint] of WRITE_WEIGHT_HINTS) {
-      if (label.includes(needle)) {
-        weight += hint;
-        break;
-      }
     }
     return weight;
   };
@@ -1099,9 +1084,9 @@ export async function writeIndexArtifacts(input) {
       ? entries.slice().sort((a, b) => {
         const delta = resolveWriteWeight(b) - resolveWriteWeight(a);
         if (delta !== 0) return delta;
-        const aLabel = String(a?.label || '');
-        const bLabel = String(b?.label || '');
-        return aLabel < bLabel ? -1 : (aLabel > bLabel ? 1 : 0);
+        const aSeq = Number.isFinite(a?.seq) ? a.seq : 0;
+        const bSeq = Number.isFinite(b?.seq) ? b.seq : 0;
+        return aSeq - bSeq;
       })
       : []
   );
