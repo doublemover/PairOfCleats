@@ -15,6 +15,31 @@ import {
 } from '../../shared/merge.js';
 
 const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
+const DEFAULT_COOPERATIVE_YIELD_EVERY = 1024;
+const DEFAULT_COOPERATIVE_YIELD_MIN_INTERVAL_MS = 250;
+
+const resolvePositiveInt = (value, fallback, minimum = 1) => {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return fallback;
+  return Math.max(minimum, Math.floor(num));
+};
+
+const createCooperativeYield = ({
+  every = DEFAULT_COOPERATIVE_YIELD_EVERY,
+  minIntervalMs = DEFAULT_COOPERATIVE_YIELD_MIN_INTERVAL_MS
+} = {}) => {
+  let checks = 0;
+  let lastYieldAt = Date.now();
+  return () => {
+    checks += 1;
+    if (checks < every) return null;
+    checks = 0;
+    const now = Date.now();
+    if ((now - lastYieldAt) < minIntervalMs) return null;
+    lastYieldAt = now;
+    return new Promise((resolve) => setImmediate(resolve));
+  };
+};
 
 const resolveTokenCount = (chunk) => (
   Number.isFinite(chunk?.tokenCount)
@@ -104,6 +129,20 @@ export async function buildPostings(input) {
     : [];
 
   const resolvedConfig = normalizePostingsConfig(postingsConfig || {});
+  const cooperativeYieldEvery = resolvePositiveInt(
+    postingsConfig?.cooperativeYieldEvery,
+    DEFAULT_COOPERATIVE_YIELD_EVERY,
+    128
+  );
+  const cooperativeYieldMinIntervalMs = resolvePositiveInt(
+    postingsConfig?.cooperativeYieldMinIntervalMs,
+    DEFAULT_COOPERATIVE_YIELD_MIN_INTERVAL_MS,
+    25
+  );
+  const requestYield = createCooperativeYield({
+    every: cooperativeYieldEvery,
+    minIntervalMs: cooperativeYieldMinIntervalMs
+  });
   const minhashMaxDocsRaw = postingsConfig && typeof postingsConfig === 'object'
     ? Number(postingsConfig.minhashMaxDocs)
     : NaN;
@@ -327,12 +366,14 @@ export async function buildPostings(input) {
       plannerHintUsed: stats?.plannerHintUsed === true
     };
   };
-  const shouldSpillByBytes = (map, maxBytes) => {
+  const shouldSpillByBytes = async (map, maxBytes) => {
     if (!maxBytes || !map || typeof map.entries !== 'function') return false;
     let total = 0;
     for (const [token, posting] of map.entries()) {
       total += estimateJsonBytes({ token, postings: posting });
       if (total >= maxBytes) return true;
+      const waitForYield = requestYield();
+      if (waitForYield) await waitForYield;
     }
     return false;
   };
@@ -375,7 +416,7 @@ export async function buildPostings(input) {
     }
     return parts.join(phraseSeparator);
   };
-  const collectPhraseEntriesFromHashBuckets = () => {
+  const collectPhraseEntriesFromHashBuckets = async () => {
     if (!phraseHashEnabled) return [];
     if (!phrasePostHashBuckets || typeof phrasePostHashBuckets.entries !== 'function') return [];
     const rows = [];
@@ -384,14 +425,20 @@ export async function buildPostings(input) {
       if (bucket.kind === 'single') {
         const phrase = resolvePhraseFromIds(bucket.ids);
         if (phrase) rows.push([phrase, bucket.posting]);
+        const waitForYield = requestYield();
+        if (waitForYield) await waitForYield;
         continue;
       }
       if (Array.isArray(bucket.entries)) {
         for (const entry of bucket.entries) {
           const phrase = resolvePhraseFromIds(entry?.ids);
           if (phrase) rows.push([phrase, entry?.posting]);
+          const waitForYield = requestYield();
+          if (waitForYield) await waitForYield;
         }
       }
+      const waitForYield = requestYield();
+      if (waitForYield) await waitForYield;
     }
     return rows;
   };
@@ -513,6 +560,8 @@ export async function buildPostings(input) {
         quantizedVectors[i] = mergedVec;
         quantizedDocVectors[i] = docVec;
         quantizedCodeVectors[i] = codeVec;
+        const waitForYield = requestYield();
+        if (waitForYield) await waitForYield;
       }
     } else {
       // Legacy path: quantize from float embeddings.
@@ -559,6 +608,8 @@ export async function buildPostings(input) {
         if (!quantizeWorker) {
           for (let i = 0; i < chunks.length; i += 1) {
             out[i] = quantizeVec(selector(chunks[i]));
+            const waitForYield = requestYield();
+            if (waitForYield) await waitForYield;
           }
           return out;
         }
@@ -610,7 +661,7 @@ export async function buildPostings(input) {
   // releasing the source Sets/Maps to keep peak RSS lower.
   let phraseVocab = [];
   let phrasePostings = [];
-  const phraseEntriesFromHash = collectPhraseEntriesFromHashBuckets();
+  const phraseEntriesFromHash = await collectPhraseEntriesFromHashBuckets();
   if (phraseEnabled && phraseEntriesFromHash.length) {
     const entries = phraseEntriesFromHash.sort((a, b) => sortStrings(a[0], b[0]));
     phraseVocab = new Array(entries.length);
@@ -619,12 +670,14 @@ export async function buildPostings(input) {
       const [key, posting] = entries[i];
       phraseVocab[i] = key;
       phrasePostings[i] = normalizeIdList(posting);
+      const waitForYield = requestYield();
+      if (waitForYield) await waitForYield;
     }
     if (typeof phrasePostHashBuckets.clear === 'function') phrasePostHashBuckets.clear();
   } else if (phraseEnabled && phrasePost && typeof phrasePost.keys === 'function') {
     const phraseShouldSpill = buildRoot
       && phraseSpillMaxBytes
-      && shouldSpillByBytes(phrasePost, phraseSpillMaxBytes);
+      && await shouldSpillByBytes(phrasePost, phraseSpillMaxBytes);
     if (phraseShouldSpill) {
       const collector = createRowSpillCollector({
         outDir: buildRoot,
@@ -640,6 +693,8 @@ export async function buildPostings(input) {
           postings: normalizeIdList(posting)
         });
         phrasePost.delete(key);
+        const waitForYield = requestYield();
+        if (waitForYield) await waitForYield;
       }
       const collected = await collector.finalize();
       const rows = collected?.rows || null;
@@ -669,11 +724,17 @@ export async function buildPostings(input) {
           };
           for await (const row of iterator) {
             const token = row?.token;
-            if (!token) continue;
+            if (!token) {
+              const waitForYield = requestYield();
+              if (waitForYield) await waitForYield;
+              continue;
+            }
             postingsMergeStats.phrase.rows += 1;
             if (currentToken === null) {
               currentToken = token;
               currentPosting = row.postings;
+              const waitForYield = requestYield();
+              if (waitForYield) await waitForYield;
               continue;
             }
             if (token !== currentToken) {
@@ -684,17 +745,27 @@ export async function buildPostings(input) {
               }
               currentToken = token;
               currentPosting = row.postings;
+              const waitForYield = requestYield();
+              if (waitForYield) await waitForYield;
               continue;
             }
             currentPosting = mergeIdLists(currentPosting, row.postings);
+            const waitForYield = requestYield();
+            if (waitForYield) await waitForYield;
           }
         } else {
           for (const row of iterator) {
             const token = row?.token;
-            if (!token) continue;
+            if (!token) {
+              const waitForYield = requestYield();
+              if (waitForYield) await waitForYield;
+              continue;
+            }
             if (currentToken === null) {
               currentToken = token;
               currentPosting = row.postings;
+              const waitForYield = requestYield();
+              if (waitForYield) await waitForYield;
               continue;
             }
             if (token !== currentToken) {
@@ -705,9 +776,13 @@ export async function buildPostings(input) {
               }
               currentToken = token;
               currentPosting = row.postings;
+              const waitForYield = requestYield();
+              if (waitForYield) await waitForYield;
               continue;
             }
             currentPosting = mergeIdLists(currentPosting, row.postings);
+            const waitForYield = requestYield();
+            if (waitForYield) await waitForYield;
           }
         }
       }
@@ -723,7 +798,13 @@ export async function buildPostings(input) {
       if (mergeResult?.cleanup) await mergeResult.cleanup();
       if (collected?.cleanup) await collected.cleanup();
     } else {
-      const entries = Array.from(phrasePost.entries()).sort((a, b) => sortStrings(a[0], b[0]));
+      const entries = [];
+      for (const entry of phrasePost.entries()) {
+        entries.push(entry);
+        const waitForYield = requestYield();
+        if (waitForYield) await waitForYield;
+      }
+      entries.sort((a, b) => sortStrings(a[0], b[0]));
       phraseVocab = new Array(entries.length);
       phrasePostings = new Array(entries.length);
       for (let i = 0; i < entries.length; i += 1) {
@@ -731,6 +812,8 @@ export async function buildPostings(input) {
         phraseVocab[i] = key;
         phrasePostings[i] = normalizeIdList(posting);
         phrasePost.delete(key);
+        const waitForYield = requestYield();
+        if (waitForYield) await waitForYield;
       }
       if (typeof phrasePost.clear === 'function') phrasePost.clear();
     }
@@ -743,7 +826,7 @@ export async function buildPostings(input) {
   if (chargramEnabled && triPost && typeof triPost.keys === 'function') {
     const spillByBytes = buildRoot
       && chargramSpillMaxBytes
-      && shouldSpillByBytes(triPost, chargramSpillMaxBytes);
+      && await shouldSpillByBytes(triPost, chargramSpillMaxBytes);
     const shouldSpill = buildRoot
       && ((chargramSpillMaxUnique && triPost.size >= chargramSpillMaxUnique) || spillByBytes);
     if (shouldSpill) {
@@ -761,6 +844,8 @@ export async function buildPostings(input) {
           postings: normalizeIdList(posting)
         });
         triPost.delete(key);
+        const waitForYield = requestYield();
+        if (waitForYield) await waitForYield;
       }
       const collected = await collector.finalize();
       const rows = collected?.rows || null;
@@ -791,11 +876,17 @@ export async function buildPostings(input) {
           };
           for await (const row of iterator) {
             const token = row?.token;
-            if (!token) continue;
+            if (!token) {
+              const waitForYield = requestYield();
+              if (waitForYield) await waitForYield;
+              continue;
+            }
             postingsMergeStats.chargram.rows += 1;
             if (currentToken === null) {
               currentToken = token;
               currentPosting = row.postings;
+              const waitForYield = requestYield();
+              if (waitForYield) await waitForYield;
               continue;
             }
             if (token !== currentToken) {
@@ -806,17 +897,27 @@ export async function buildPostings(input) {
               }
               currentToken = token;
               currentPosting = row.postings;
+              const waitForYield = requestYield();
+              if (waitForYield) await waitForYield;
               continue;
             }
             currentPosting = mergeIdLists(currentPosting, row.postings);
+            const waitForYield = requestYield();
+            if (waitForYield) await waitForYield;
           }
         } else {
           for (const row of iterator) {
             const token = row?.token;
-            if (!token) continue;
+            if (!token) {
+              const waitForYield = requestYield();
+              if (waitForYield) await waitForYield;
+              continue;
+            }
             if (currentToken === null) {
               currentToken = token;
               currentPosting = row.postings;
+              const waitForYield = requestYield();
+              if (waitForYield) await waitForYield;
               continue;
             }
             if (token !== currentToken) {
@@ -827,9 +928,13 @@ export async function buildPostings(input) {
               }
               currentToken = token;
               currentPosting = row.postings;
+              const waitForYield = requestYield();
+              if (waitForYield) await waitForYield;
               continue;
             }
             currentPosting = mergeIdLists(currentPosting, row.postings);
+            const waitForYield = requestYield();
+            if (waitForYield) await waitForYield;
           }
         }
       }
@@ -866,7 +971,13 @@ export async function buildPostings(input) {
         guard: guardStats
       };
     } else {
-      const entries = Array.from(triPost.entries()).sort((a, b) => sortStrings(a[0], b[0]));
+      const entries = [];
+      for (const entry of triPost.entries()) {
+        entries.push(entry);
+        const waitForYield = requestYield();
+        if (waitForYield) await waitForYield;
+      }
+      entries.sort((a, b) => sortStrings(a[0], b[0]));
       chargramVocab = [];
       chargramPostings = [];
       for (let i = 0; i < entries.length; i += 1) {
@@ -877,6 +988,8 @@ export async function buildPostings(input) {
           chargramPostings.push(normalized);
         }
         triPost.delete(key);
+        const waitForYield = requestYield();
+        if (waitForYield) await waitForYield;
       }
       if (typeof triPost.clear === 'function') triPost.clear();
     }
@@ -887,12 +1000,15 @@ export async function buildPostings(input) {
   let tokenPostingsList = [];
   if (sparseEnabled) {
     let includeTokenIds = tokenIdMap && tokenIdMap.size > 0;
-    const tokenEntries = Array.from(tokenPostings.keys()).map((id) => {
+    const tokenEntries = [];
+    for (const id of tokenPostings.keys()) {
       const mapped = tokenIdMap?.get(id);
       if (!mapped) includeTokenIds = false;
       const token = mapped ?? (typeof id === 'string' ? id : String(id));
-      return { id, token };
-    });
+      tokenEntries.push({ id, token });
+      const waitForYield = requestYield();
+      if (waitForYield) await waitForYield;
+    }
     tokenEntries.sort((a, b) => sortStrings(a.token, b.token));
     tokenVocab = new Array(tokenEntries.length);
     tokenVocabIds = includeTokenIds ? new Array(tokenEntries.length) : null;
@@ -903,6 +1019,8 @@ export async function buildPostings(input) {
       if (tokenVocabIds) tokenVocabIds[i] = entry.id;
       tokenPostingsList[i] = normalizeTfPostingList(tokenPostings.get(entry.id));
       tokenPostings.delete(entry.id);
+      const waitForYield = requestYield();
+      if (waitForYield) await waitForYield;
     }
   }
   if (typeof tokenPostings?.clear === 'function') tokenPostings.clear();
@@ -924,19 +1042,27 @@ export async function buildPostings(input) {
     }
   }
 
-  const buildFieldPostings = () => {
+  const buildFieldPostings = async () => {
     if (!sparseEnabled) return null;
     if (!fieldPostings || !fieldDocLengths) return null;
     const fields = {};
     const fieldEntries = Object.entries(fieldPostings).sort((a, b) => sortStrings(a[0], b[0]));
     for (const [field, postingsMap] of fieldEntries) {
       if (!postingsMap || typeof postingsMap.keys !== 'function') continue;
-      const vocab = Array.from(postingsMap.keys()).sort(sortStrings);
+      const vocab = [];
+      for (const token of postingsMap.keys()) {
+        vocab.push(token);
+        const waitForYield = requestYield();
+        if (waitForYield) await waitForYield;
+      }
+      vocab.sort(sortStrings);
       const postings = new Array(vocab.length);
       for (let i = 0; i < vocab.length; i += 1) {
         const token = vocab[i];
         postings[i] = normalizeTfPostingList(postingsMap.get(token));
         postingsMap.delete(token);
+        const waitForYield = requestYield();
+        if (waitForYield) await waitForYield;
       }
       if (typeof postingsMap.clear === 'function') postingsMap.clear();
       const lengthsRaw = fieldDocLengths[field] || [];
@@ -953,6 +1079,8 @@ export async function buildPostings(input) {
         avgDocLen: avgLen,
         totalDocs: lengths.length
       };
+      const waitForYield = requestYield();
+      if (waitForYield) await waitForYield;
     }
     return Object.keys(fields).length ? { fields } : null;
   };
@@ -985,7 +1113,7 @@ export async function buildPostings(input) {
     b,
     avgChunkLen,
     totalDocs: N,
-    fieldPostings: buildFieldPostings(),
+    fieldPostings: await buildFieldPostings(),
     phraseVocab,
     phrasePostings,
     chargramVocab,
