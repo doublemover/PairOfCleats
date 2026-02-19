@@ -333,8 +333,8 @@ export function loadSqliteIndexOptionalArtifacts(dir, { modelId = null } = {}) {
     if (denseVec) break;
   }
   return {
-    fileMeta: loadOptionalFileMetaRows(dir),
-    minhash: loadOptionalMinhashRows(dir),
+    fileMeta: loadOptionalFileMetaRows(dir, { materialize: true }),
+    minhash: loadOptionalMinhashRows(dir, { materialize: true }),
     denseVec,
     phraseNgrams: loadOptional(dir, 'phrase_ngrams.json'),
     chargrams: loadOptional(dir, 'chargram_postings.json')
@@ -351,9 +351,16 @@ export async function loadIndex(dir, modelId) {
   const chunkMetaPath = path.join(dir, 'chunk_meta.json');
   const chunkMetaJsonlPath = path.join(dir, 'chunk_meta.jsonl');
   const chunkMetaMetaPath = path.join(dir, 'chunk_meta.meta.json');
+  const chunkMetaCompressedPaths = [
+    `${chunkMetaPath}.gz`,
+    `${chunkMetaPath}.zst`,
+    `${chunkMetaJsonlPath}.gz`,
+    `${chunkMetaJsonlPath}.zst`
+  ];
   if (!fs.existsSync(chunkMetaPath)
     && !fs.existsSync(chunkMetaJsonlPath)
-    && !fs.existsSync(chunkMetaMetaPath)) {
+    && !fs.existsSync(chunkMetaMetaPath)
+    && !chunkMetaCompressedPaths.some((target) => fs.existsSync(target))) {
     return null;
   }
   const chunkMeta = await loadChunkMeta(dir, { maxBytes: MAX_JSON_BYTES });

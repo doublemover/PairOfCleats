@@ -147,8 +147,10 @@ const resolveChunkMetaSources = (dir) => {
     return { format: 'jsonl', paths: [jsonlResolved] };
   }
   const jsonPath = path.join(dir, 'chunk_meta.json');
-  if (fsSync.existsSync(jsonPath)) {
-    return { format: 'json', paths: [jsonPath] };
+  const jsonCandidates = [jsonPath, `${jsonPath}.gz`, `${jsonPath}.zst`];
+  const jsonResolved = jsonCandidates.find((candidate) => fsSync.existsSync(candidate));
+  if (jsonResolved) {
+    return { format: 'json', paths: [jsonResolved] };
   }
   return null;
 };
@@ -922,6 +924,95 @@ export async function buildDatabaseFromArtifacts({
       recordTable('token_stats', 1, 0);
     }
 
+    function ingestTokenIndexFromStoredChunks(targetMode) {
+      const selectChunks = db.prepare(
+        'SELECT id, tokens FROM chunks WHERE mode = ? ORDER BY id'
+      );
+      const tokenIdMap = new Map();
+      let nextTokenId = 0;
+      let totalDocs = 0;
+      let totalLen = 0;
+      let docLengthRows = 0;
+      let tokenVocabRows = 0;
+      let tokenPostingRows = 0;
+      let sawRows = false;
+      const lengthsStart = performance.now();
+      const vocabStart = performance.now();
+      const postingStart = performance.now();
+      const parseTokens = (raw) => {
+        if (typeof raw !== 'string' || !raw) return [];
+        try {
+          const parsed = JSON.parse(raw);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch {
+          return [];
+        }
+      };
+      const insertTx = db.transaction((batch) => {
+        const postingsByDoc = new Map();
+        for (const entry of batch) {
+          if (!entry) continue;
+          const docId = Number.isFinite(entry.id) ? entry.id : null;
+          if (!Number.isFinite(docId)) continue;
+          sawRows = true;
+          const tokensArray = parseTokens(entry.tokens);
+          const docLen = tokensArray.length;
+          totalDocs += 1;
+          totalLen += docLen;
+          insertDocLength.run(targetMode, docId, docLen);
+          docLengthRows += 1;
+          if (!docLen) continue;
+          const freq = buildTokenFrequency(tokensArray);
+          for (const [token, tf] of freq.entries()) {
+            let tokenId = tokenIdMap.get(token);
+            if (tokenId === undefined) {
+              tokenId = nextTokenId;
+              nextTokenId += 1;
+              tokenIdMap.set(token, tokenId);
+              insertTokenVocab.run(targetMode, tokenId, token);
+              tokenVocabRows += 1;
+            }
+            let docPostings = postingsByDoc.get(docId);
+            if (!docPostings) {
+              docPostings = new Map();
+              postingsByDoc.set(docId, docPostings);
+            }
+            docPostings.set(tokenId, (docPostings.get(tokenId) || 0) + tf);
+          }
+        }
+        for (const [docId, docPostings] of postingsByDoc.entries()) {
+          for (const [tokenId, tf] of docPostings.entries()) {
+            insertTokenPosting.run(targetMode, tokenId, docId, tf);
+            tokenPostingRows += 1;
+          }
+        }
+      });
+      const batch = [];
+      for (const row of selectChunks.iterate(targetMode)) {
+        batch.push(row);
+        if (batch.length >= resolvedBatchSize) {
+          insertTx(batch);
+          batch.length = 0;
+          recordBatch('tokenPostingBatches');
+          recordBatch('tokenVocabBatches');
+          recordBatch('docLengthBatches');
+        }
+      }
+      if (batch.length) {
+        insertTx(batch);
+        recordBatch('tokenPostingBatches');
+        recordBatch('tokenVocabBatches');
+        recordBatch('docLengthBatches');
+      }
+      if (!sawRows) return false;
+      insertTokenStats.run(targetMode, totalDocs ? totalLen / totalDocs : 0, totalDocs);
+      recordTable('doc_lengths', docLengthRows, performance.now() - lengthsStart);
+      recordTable('token_vocab', tokenVocabRows, performance.now() - vocabStart);
+      recordTable('token_postings', tokenPostingRows, performance.now() - postingStart);
+      recordTable('token_stats', 1, 0);
+      return true;
+    }
+
     function ingestPostingIndex(
       indexData,
       targetMode,
@@ -1569,11 +1660,11 @@ export async function buildDatabaseFromArtifacts({
       if (!tokenIngested && indexDir) {
         tokenIngested = ingestTokenIndexFromPieces(targetMode, indexDir);
       }
-      if (!tokenIngested) {
+      if (!tokenIngested && chunkCount > 0) {
         warn(`[sqlite] token_postings missing; rebuilding tokens for ${targetMode}.`);
-        if (Array.isArray(indexData?.chunkMeta)) {
+        if (Array.isArray(indexData?.chunkMeta) && indexData.chunkMeta.length) {
           ingestTokenIndexFromChunks(indexData.chunkMeta, targetMode);
-        } else {
+        } else if (!ingestTokenIndexFromStoredChunks(targetMode)) {
           warn(`[sqlite] chunk_meta unavailable for token rebuild (${targetMode}).`);
         }
       }
