@@ -2,6 +2,10 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { writeJsonObjectFile } from '../../../src/shared/json-stream.js';
 import { loadMinhashSignatures } from '../../../src/shared/artifact-io/loaders.js';
+import {
+  prepareArtifactIoTestDir,
+  writePiecesManifest
+} from '../../helpers/artifact-io-fixture.js';
 
 const fail = (message) => {
   console.error(message);
@@ -35,9 +39,7 @@ const packSignatures = (signatures, dims) => {
 };
 
 const root = process.cwd();
-const testRoot = path.join(root, '.testCache', 'minhash-packed-roundtrip');
-await fs.rm(testRoot, { recursive: true, force: true });
-await fs.mkdir(testRoot, { recursive: true });
+const testRoot = await prepareArtifactIoTestDir('minhash-packed-roundtrip', { root });
 
 const count = 12;
 const dims = 8;
@@ -55,6 +57,10 @@ await writeJsonObjectFile(packedMetaPath, {
   },
   atomic: true
 });
+await writePiecesManifest(testRoot, [
+  { name: 'minhash_signatures', path: 'minhash_signatures.packed.bin', format: 'packed' },
+  { name: 'minhash_signatures_meta', path: 'minhash_signatures.packed.meta.json', format: 'json' }
+]);
 
 const loaded = await loadMinhashSignatures(testRoot, { strict: false });
 if (!loaded?.signatures || loaded.signatures.length !== signatures.length) {

@@ -1,31 +1,10 @@
-import fs from 'node:fs';
 import path from 'node:path';
 import { logLine } from '../../progress.js';
-import { MAX_JSON_BYTES } from '../constants.js';
-import { existsOrBak, readShardFiles, resolveArtifactMtime, resolveDirMtime } from '../fs.js';
 import { validateOffsetsAgainstFile } from '../offsets.js';
 import { readJsonFile } from '../json.js';
 import { readCache, writeCache } from '../cache.js';
 
-const warnedNonStrictJsonFallback = new Set();
 const warnedMaterializeFallback = new Set();
-
-/**
- * Emit a one-time warning when non-strict loading falls back to legacy paths.
- *
- * @param {string} dir
- * @param {string} name
- * @returns {void}
- */
-const warnNonStrictJsonFallback = (dir, name) => {
-  const key = `${dir}:${name}`;
-  if (warnedNonStrictJsonFallback.has(key)) return;
-  warnedNonStrictJsonFallback.add(key);
-  logLine(
-    `[manifest] Non-strict mode: ${name} missing from manifest; using legacy JSON path (${dir}).`,
-    { kind: 'warning' }
-  );
-};
 
 /**
  * Emit a one-time warning when a streaming caller must materialize payloads.
@@ -130,124 +109,6 @@ const ensureOffsetsValid = async (jsonlPath, offsetsPath) => {
 };
 
 /**
- * @typedef {object} JsonlArtifactSources
- * @property {'json'|'jsonl'|'columnar'} format
- * @property {string[]} paths
- * @property {string[]|null} [offsets]
- */
-
-/**
- * Resolve preferred artifact source paths for JSON/JSONL-based artifacts.
- *
- * @param {string} dir
- * @param {string} baseName
- * @returns {JsonlArtifactSources|null}
- */
-const resolveJsonlArtifactSources = (dir, baseName) => {
-  const metaPath = path.join(dir, `${baseName}.meta.json`);
-  const partsDir = path.join(dir, `${baseName}.parts`);
-  const jsonlPath = path.join(dir, `${baseName}.jsonl`);
-  const hasJsonl = existsOrBak(jsonlPath);
-  const hasShards = existsOrBak(metaPath) || fs.existsSync(partsDir);
-  if (hasJsonl && hasShards) {
-    const jsonlMtime = resolveArtifactMtime(jsonlPath);
-    const shardMtime = existsOrBak(metaPath)
-      ? resolveArtifactMtime(metaPath)
-      : resolveDirMtime(partsDir);
-    if (jsonlMtime >= shardMtime) {
-      return { format: 'jsonl', paths: [jsonlPath] };
-    }
-  }
-  if (hasShards) {
-    let parts = [];
-    let metaFormat = null;
-    let offsets = [];
-    if (existsOrBak(metaPath)) {
-      try {
-        const metaRaw = readJsonFileCached(metaPath, { maxBytes: MAX_JSON_BYTES });
-        const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
-        metaFormat = typeof meta?.format === 'string' ? meta.format : null;
-        if (Array.isArray(meta?.offsets) && meta.offsets.length) {
-          offsets = meta.offsets
-            .map((offset) => (typeof offset === 'string' ? offset : null))
-            .filter(Boolean)
-            .map((name) => path.join(dir, name));
-        }
-        if (Array.isArray(meta?.parts) && meta.parts.length) {
-          parts = meta.parts
-            .map((part) => (typeof part === 'string' ? part : part?.path))
-            .filter(Boolean)
-            .map((name) => path.join(dir, name));
-        }
-      } catch {}
-    }
-    if (!parts.length) {
-      parts = readShardFiles(partsDir, `${baseName}.part-`);
-    }
-    if (parts.length) {
-      if (metaFormat === 'json' || metaFormat === 'columnar') {
-        return { format: metaFormat, paths: [parts[0]] };
-      }
-      return {
-        format: 'jsonl',
-        paths: parts,
-        offsets: offsets.length === parts.length ? offsets : null
-      };
-    }
-    return null;
-  }
-  if (hasJsonl) {
-    return { format: 'jsonl', paths: [jsonlPath] };
-  }
-  return null;
-};
-
-/**
- * Resolve fallback JSONL source paths, including compressed single-file forms.
- *
- * @param {string} dir
- * @param {string} baseName
- * @returns {JsonlArtifactSources|null}
- */
-const resolveJsonlFallbackSources = (dir, baseName) => {
-  const metaPath = path.join(dir, `${baseName}.meta.json`);
-  let offsets = [];
-  if (existsOrBak(metaPath)) {
-    try {
-      const metaRaw = readJsonFileCached(metaPath, { maxBytes: MAX_JSON_BYTES });
-      const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
-      if (Array.isArray(meta?.offsets) && meta.offsets.length) {
-        offsets = meta.offsets
-          .map((offset) => (typeof offset === 'string' ? offset : null))
-          .filter(Boolean)
-          .map((name) => path.join(dir, name));
-      }
-    } catch {}
-  }
-  const partsDir = path.join(dir, `${baseName}.parts`);
-  const parts = readShardFiles(partsDir, `${baseName}.part-`);
-  if (parts.length) {
-    return {
-      format: 'jsonl',
-      paths: parts,
-      offsets: offsets.length === parts.length ? offsets : null
-    };
-  }
-  const jsonlBase = path.join(dir, `${baseName}.jsonl`);
-  const hasJsonl = existsOrBak(jsonlBase)
-    || existsOrBak(`${jsonlBase}.gz`)
-    || existsOrBak(`${jsonlBase}.zst`);
-  if (hasJsonl) {
-    return {
-      format: 'jsonl',
-      paths: [jsonlBase],
-      offsets: offsets.length === 1 ? offsets : null
-    };
-  }
-  return null;
-};
-
-/**
  * Materialize row-wise objects from a columnar payload.
  *
  * @param {any} payload
@@ -308,13 +169,10 @@ const iterateColumnarRows = (payload) => {
 };
 
 export {
-  warnNonStrictJsonFallback,
   warnMaterializeFallback,
   readJsonFileCached,
   assertNoShardIndexGaps,
   ensureOffsetsValid,
-  resolveJsonlArtifactSources,
-  resolveJsonlFallbackSources,
   inflateColumnarRows,
   iterateColumnarRows
 };

@@ -3,11 +3,13 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { loadTokenPostings } from '../../../src/shared/artifact-io/loaders.js';
 import { encodePackedOffsets, packTfPostings } from '../../../src/shared/packed-postings.js';
+import {
+  prepareArtifactIoTestDir,
+  writePiecesManifest
+} from '../../helpers/artifact-io-fixture.js';
 
 const root = process.cwd();
-const testRoot = path.join(root, '.testCache', 'packed-postings-windowed-read');
-await fs.rm(testRoot, { recursive: true, force: true });
-await fs.mkdir(testRoot, { recursive: true });
+const testRoot = await prepareArtifactIoTestDir('packed-postings-windowed-read', { root });
 
 const vocab = ['alpha', 'beta', 'gamma', 'delta'];
 const postings = [
@@ -39,6 +41,10 @@ await fs.writeFile(
     }
   }, null, 2)
 );
+await writePiecesManifest(testRoot, [
+  { name: 'token_postings', path: 'token_postings.packed.bin', format: 'packed' },
+  { name: 'token_postings_meta', path: 'token_postings.packed.meta.json', format: 'json' }
+]);
 
 const loaded = loadTokenPostings(testRoot, {
   strict: false,

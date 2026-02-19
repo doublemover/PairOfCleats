@@ -12,6 +12,7 @@ import {
   createSymbolArtifactChunks,
   runSymbolArtifactWriters
 } from './helpers/symbol-artifact-fixture.js';
+import { writePiecesManifest } from '../../../helpers/artifact-io-fixture.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'symbol-by-file-index');
@@ -28,6 +29,12 @@ const { fileMeta, fileIdByPath } = await runSymbolArtifactWriters({
   includeEdges: true,
   useFileIndex: true
 });
+await writePiecesManifest(outDir, [
+  { name: 'symbol_occurrences', path: 'symbol_occurrences.jsonl' },
+  { name: 'symbol_edges', path: 'symbol_edges.jsonl' },
+  { name: 'symbol_occurrences_by_file_meta', path: 'symbol_occurrences.by-file.meta.json', format: 'json' },
+  { name: 'symbol_edges_by_file_meta', path: 'symbol_edges.by-file.meta.json', format: 'json' }
+]);
 
 const targetFileId = fileIdByPath.get('src/alpha.js');
 assert.ok(Number.isFinite(targetFileId), 'expected fileId for alpha.js');

@@ -3,11 +3,13 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { writeJsonObjectFile } from '../../../src/shared/json-stream.js';
 import { loadMinhashSignatureRows } from '../../../src/shared/artifact-io/loaders.js';
+import {
+  prepareArtifactIoTestDir,
+  writePiecesManifest
+} from '../../helpers/artifact-io-fixture.js';
 
 const root = process.cwd();
-const testRoot = path.join(root, '.testCache', 'minhash-packed-row-stability');
-await fs.rm(testRoot, { recursive: true, force: true });
-await fs.mkdir(testRoot, { recursive: true });
+const testRoot = await prepareArtifactIoTestDir('minhash-packed-row-stability', { root });
 
 const dims = 6;
 const count = 7;
@@ -38,6 +40,10 @@ await writeJsonObjectFile(packedMetaPath, {
   },
   atomic: true
 });
+await writePiecesManifest(testRoot, [
+  { name: 'minhash_signatures', path: 'minhash_signatures.packed.bin', format: 'packed' },
+  { name: 'minhash_signatures_meta', path: 'minhash_signatures.packed.meta.json', format: 'json' }
+]);
 
 const rows = [];
 for await (const row of loadMinhashSignatureRows(testRoot, {

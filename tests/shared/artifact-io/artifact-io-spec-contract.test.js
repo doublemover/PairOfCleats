@@ -6,40 +6,55 @@ import {
   loadJsonArrayArtifact,
   loadJsonArrayArtifactRows
 } from '../../../src/shared/artifact-io/loaders.js';
+import {
+  prepareArtifactIoTestDir,
+  writePiecesManifest
+} from '../../helpers/artifact-io-fixture.js';
 
 const root = process.cwd();
-const testRoot = path.join(root, '.testCache', 'artifact-io-spec-contract');
-await fs.rm(testRoot, { recursive: true, force: true });
-await fs.mkdir(testRoot, { recursive: true });
+const testRoot = await prepareArtifactIoTestDir('artifact-io-spec-contract', { root });
 
-const strictDir = path.join(testRoot, 'strict-manifest');
-await fs.mkdir(strictDir, { recursive: true });
-await fs.writeFile(path.join(strictDir, 'sample.json'), JSON.stringify([{ id: 1 }], null, 2));
+const noManifestDir = path.join(testRoot, 'strict-manifest');
+await fs.mkdir(noManifestDir, { recursive: true });
+await fs.writeFile(path.join(noManifestDir, 'sample.json'), JSON.stringify([{ id: 1 }], null, 2));
 
 await assert.rejects(
-  () => loadJsonArrayArtifact(strictDir, 'sample', { strict: true }),
+  () => loadJsonArrayArtifact(noManifestDir, 'sample', { strict: true }),
   /Missing pieces manifest|ERR_MANIFEST_MISSING/,
   'strict mode must be manifest-first'
 );
 
-const nonStrictRows = await loadJsonArrayArtifact(strictDir, 'sample', { strict: false });
-assert.equal(nonStrictRows.length, 1, 'non-strict loader should allow legacy json fallback');
-
 await assert.rejects(
-  async () => {
-    for await (const _row of loadJsonArrayArtifactRows(strictDir, 'sample', { strict: false })) {
-      // no-op
-    }
-  },
-  /Materialized read required for sample/,
-  'streaming loader should require explicit materialize opt-in for JSON fallback'
+  () => loadJsonArrayArtifact(noManifestDir, 'sample', { strict: false }),
+  /Missing pieces manifest|ERR_MANIFEST_MISSING/,
+  'non-strict mode should still require manifest-declared artifacts after cutover'
 );
+
+const manifestDir = path.join(testRoot, 'manifest-json');
+await fs.mkdir(path.join(manifestDir, 'pieces'), { recursive: true });
+await fs.writeFile(path.join(manifestDir, 'sample.json'), JSON.stringify([{ id: 1 }], null, 2));
+await writePiecesManifest(manifestDir, [
+  { name: 'sample', path: 'sample.json', format: 'json' }
+]);
+
+const materializedRows = await loadJsonArrayArtifact(manifestDir, 'sample', { strict: false });
+assert.equal(materializedRows.length, 1, 'manifest JSON should load through non-strict path');
+const streamedRows = [];
+for await (const row of loadJsonArrayArtifactRows(manifestDir, 'sample', { strict: false })) {
+  streamedRows.push(row);
+}
+assert.equal(streamedRows.length, 1, 'streaming loader should yield manifest-backed JSON rows');
 
 const partialDir = path.join(testRoot, 'partial');
 const partialParts = path.join(partialDir, 'sample.parts');
+await fs.mkdir(path.join(partialDir, 'pieces'), { recursive: true });
 await fs.mkdir(partialParts, { recursive: true });
 await fs.writeFile(path.join(partialParts, 'sample.part-000000.jsonl'), '{"id":0}\n');
 await fs.writeFile(path.join(partialParts, 'sample.part-000002.jsonl'), '{"id":2}\n');
+await writePiecesManifest(partialDir, [
+  { name: 'sample', path: 'sample.parts/sample.part-000000.jsonl' },
+  { name: 'sample', path: 'sample.parts/sample.part-000002.jsonl' }
+]);
 
 await assert.rejects(
   () => loadJsonArrayArtifact(partialDir, 'sample', { strict: false }),

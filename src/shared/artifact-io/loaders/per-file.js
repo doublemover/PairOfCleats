@@ -36,10 +36,6 @@ const resolvePerFileMetaPath = (dir, baseName, { manifest, strict, maxBytes }) =
   if (sources?.paths?.length) {
     return sources.paths[0];
   }
-  if (!strict) {
-    const fallback = path.join(dir, `${baseName}.by-file.meta.json`);
-    return existsOrBak(fallback) ? fallback : null;
-  }
   return null;
 };
 
@@ -127,25 +123,10 @@ const loadSymbolRowsForFile = async (
     strict = true
   } = {}
 ) => {
-  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
+  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict: true });
   let resolvedFileId = Number.isFinite(fileId) ? fileId : null;
-  if (!Number.isFinite(resolvedFileId) && filePath) {
-    try {
-      const fileMeta = await loadJsonArrayArtifact(dir, 'file_meta', {
-        maxBytes,
-        manifest: resolvedManifest,
-        strict
-      });
-      if (Array.isArray(fileMeta)) {
-        const match = fileMeta.find((entry) => entry?.file === filePath);
-        if (match && Number.isFinite(match.id)) {
-          resolvedFileId = match.id;
-        }
-      }
-    } catch {}
-  }
   let resolvedFilePath = filePath || null;
-  if (!resolvedFilePath && Number.isFinite(resolvedFileId)) {
+  if ((!Number.isFinite(resolvedFileId) && filePath) || (!resolvedFilePath && Number.isFinite(resolvedFileId))) {
     try {
       const fileMeta = await loadJsonArrayArtifact(dir, 'file_meta', {
         maxBytes,
@@ -153,9 +134,15 @@ const loadSymbolRowsForFile = async (
         strict
       });
       if (Array.isArray(fileMeta)) {
-        const match = fileMeta.find((entry) => entry?.id === resolvedFileId);
-        if (match?.file) {
-          resolvedFilePath = match.file;
+        for (const entry of fileMeta) {
+          if (!entry || typeof entry !== 'object') continue;
+          if (!Number.isFinite(resolvedFileId) && entry.file === filePath && Number.isFinite(entry.id)) {
+            resolvedFileId = entry.id;
+          }
+          if (!resolvedFilePath && Number.isFinite(resolvedFileId) && entry.id === resolvedFileId && entry.file) {
+            resolvedFilePath = entry.file;
+          }
+          if (Number.isFinite(resolvedFileId) && resolvedFilePath) break;
         }
       }
     } catch {}

@@ -1,10 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { MAX_JSON_BYTES } from '../constants.js';
-import { existsOrBak, readShardFiles } from '../fs.js';
+import { existsOrBak } from '../fs.js';
 import { readJsonFile } from '../json.js';
 import { createPackedChecksumValidator } from '../checksum.js';
-import { loadPiecesManifest, resolveManifestArtifactSources, normalizeMetaParts } from '../manifest.js';
+import { loadPiecesManifest, resolveManifestArtifactSources } from '../manifest.js';
 import {
   DEFAULT_PACKED_BLOCK_SIZE,
   decodePackedOffsets,
@@ -12,11 +12,11 @@ import {
   unpackTfPostings
 } from '../../packed-postings.js';
 import { formatHash64 } from '../../token-id.js';
-import { readJsonFileCached, warnNonStrictJsonFallback } from './shared.js';
+import { readJsonFileCached } from './shared.js';
 import { tryLoadTokenPostingsBinaryColumnar } from './binary-columnar.js';
 
 /**
- * Load sparse token postings from manifest-selected formats or legacy fallbacks.
+ * Load sparse token postings from manifest-selected formats.
  *
  * Supported formats:
  * - JSON object (`token_postings.json`)
@@ -46,7 +46,7 @@ export const loadTokenPostings = (
     packedWindowBytes = 16 * 1024 * 1024
   } = {}
 ) => {
-  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
+  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict: true });
 
   /**
    * Load packed token postings with bounded decode windows to cap peak RSS.
@@ -217,96 +217,35 @@ export const loadTokenPostings = (
       docLengths
     };
   };
-  if (preferBinaryColumnar) {
-    const binary = tryLoadTokenPostingsBinaryColumnar(dir, { maxBytes });
-    if (binary) return binary;
-  }
-  if (strict) {
-    const sources = resolveManifestArtifactSources({
-      dir,
-      manifest: resolvedManifest,
-      name: 'token_postings',
-      strict: true,
-      maxBytes
-    });
-    if (sources?.paths?.length) {
-      if (sources.format === 'json') {
-        if (sources.paths.length > 1) {
-          throw new Error('Ambiguous JSON sources for token_postings');
-        }
-        return readJsonFile(sources.paths[0], { maxBytes });
-      }
-      if (sources.format === 'packed') {
-        if (sources.paths.length > 1) {
-          throw new Error('Ambiguous packed sources for token_postings');
-        }
-        return loadPacked(sources.paths[0]);
-      }
-      if (sources.format === 'sharded') {
-        return loadSharded(sources.meta || {}, sources.paths, path.join(dir, 'token_postings.shards'));
-      }
-      if (sources.format === 'binary-columnar') {
-        const binary = tryLoadTokenPostingsBinaryColumnar(dir, { maxBytes });
-        if (binary) return binary;
-      }
-      throw new Error(`Unsupported token_postings format: ${sources.format}`);
-    }
-    throw new Error('Missing manifest entry for token_postings');
-  }
-
+  void preferBinaryColumnar;
   const sources = resolveManifestArtifactSources({
     dir,
     manifest: resolvedManifest,
     name: 'token_postings',
-    strict: false,
+    strict,
     maxBytes
   });
-  if (sources?.paths?.length) {
-    if (sources.format === 'json') {
-      if (sources.paths.length > 1) {
-        throw new Error('Ambiguous JSON sources for token_postings');
-      }
-      return readJsonFile(sources.paths[0], { maxBytes });
+  if (!sources?.paths?.length) {
+    throw new Error('Missing manifest entry for token_postings');
+  }
+  if (sources.format === 'json') {
+    if (sources.paths.length > 1) {
+      throw new Error('Ambiguous JSON sources for token_postings');
     }
-    if (sources.format === 'packed') {
-      if (sources.paths.length > 1) {
-        throw new Error('Ambiguous packed sources for token_postings');
-      }
-      return loadPacked(sources.paths[0]);
+    return readJsonFile(sources.paths[0], { maxBytes });
+  }
+  if (sources.format === 'packed') {
+    if (sources.paths.length > 1) {
+      throw new Error('Ambiguous packed sources for token_postings');
     }
-    if (sources.format === 'sharded') {
-      return loadSharded(sources.meta || {}, sources.paths, path.join(dir, 'token_postings.shards'));
-    }
-    if (sources.format === 'binary-columnar') {
-      const binary = tryLoadTokenPostingsBinaryColumnar(dir, { maxBytes });
-      if (binary) return binary;
-    }
-    throw new Error(`Unsupported token_postings format: ${sources.format}`);
+    return loadPacked(sources.paths[0]);
   }
-
-  const binaryTokenPostings = tryLoadTokenPostingsBinaryColumnar(dir, { maxBytes });
-  if (binaryTokenPostings) {
-    warnNonStrictJsonFallback(dir, 'token_postings');
-    return binaryTokenPostings;
+  if (sources.format === 'sharded') {
+    return loadSharded(sources.meta || {}, sources.paths, path.join(dir, 'token_postings.shards'));
   }
-  const packedPath = path.join(dir, 'token_postings.packed.bin');
-  if (existsOrBak(packedPath)) {
-    warnNonStrictJsonFallback(dir, 'token_postings');
-    return loadPacked(packedPath);
+  if (sources.format === 'binary-columnar') {
+    const binary = tryLoadTokenPostingsBinaryColumnar(dir, { maxBytes });
+    if (binary) return binary;
   }
-  const metaPath = path.join(dir, 'token_postings.meta.json');
-  const shardsDir = path.join(dir, 'token_postings.shards');
-  if (existsOrBak(metaPath) || fs.existsSync(shardsDir)) {
-    const meta = existsOrBak(metaPath) ? readJsonFileCached(metaPath, { maxBytes }) : {};
-    const partList = normalizeMetaParts(meta?.parts);
-    const shards = partList.length
-      ? partList.map((name) => path.join(dir, name))
-      : readShardFiles(shardsDir, 'token_postings.part-');
-    return loadSharded(meta, shards, shardsDir);
-  }
-  const jsonPath = path.join(dir, 'token_postings.json');
-  if (existsOrBak(jsonPath)) {
-    return readJsonFile(jsonPath, { maxBytes });
-  }
-  throw new Error('Missing index artifact: token_postings.json');
+  throw new Error(`Unsupported token_postings format: ${sources.format}`);
 };

@@ -4,6 +4,7 @@ import path from 'node:path';
 import { MAX_JSON_BYTES } from '../constants.js';
 import { existsOrBak } from '../fs.js';
 import { createPackedChecksumValidator } from '../checksum.js';
+import { loadPiecesManifest, resolveManifestArtifactSources } from '../manifest.js';
 import { readJsonFileCached, warnMaterializeFallback } from './shared.js';
 import { loadJsonObjectArtifact } from './core.js';
 
@@ -28,9 +29,24 @@ export const loadMinhashSignatures = async (
     strict = true
   } = {}
 ) => {
-  const packedPath = path.join(dir, 'minhash_signatures.packed.bin');
-  const metaPath = path.join(dir, 'minhash_signatures.packed.meta.json');
-  if (existsOrBak(packedPath) && existsOrBak(metaPath)) {
+  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict: true });
+  const sources = resolveManifestArtifactSources({
+    dir,
+    manifest: resolvedManifest,
+    name: 'minhash_signatures',
+    strict,
+    maxBytes
+  });
+  if (!sources?.paths?.length) return null;
+  if (sources.format === 'packed') {
+    if (sources.paths.length > 1) {
+      throw new Error('Ambiguous packed sources for minhash_signatures');
+    }
+    const packedPath = sources.paths[0];
+    const metaPath = sources.metaPath || path.join(dir, 'minhash_signatures.packed.meta.json');
+    if (!existsOrBak(packedPath) || !existsOrBak(metaPath)) {
+      throw new Error('Missing packed minhash signature artifacts');
+    }
     const metaRaw = readJsonFileCached(metaPath, { maxBytes });
     const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
     const dims = Number.isFinite(Number(meta?.dims)) ? Math.max(0, Math.floor(Number(meta.dims))) : 0;
@@ -56,12 +72,18 @@ export const loadMinhashSignatures = async (
     }
     return { signatures };
   }
+  if (sources.format !== 'json') {
+    throw new Error(`Unsupported minhash_signatures format: ${sources.format}`);
+  }
   try {
-    return await loadJsonObjectArtifact(dir, 'minhash_signatures', { maxBytes, manifest, strict });
+    return await loadJsonObjectArtifact(dir, 'minhash_signatures', {
+      maxBytes,
+      manifest: resolvedManifest,
+      strict
+    });
   } catch (err) {
     const message = err?.message || '';
-    if (message.includes('Missing manifest entry for minhash_signatures')
-      || message.includes('Missing index artifact: minhash_signatures.json')) {
+    if (message.includes('Missing manifest entry for minhash_signatures')) {
       return null;
     }
     throw err;
@@ -93,9 +115,24 @@ export const loadMinhashSignatureRows = async function* (
     batchSize = 2048
   } = {}
 ) {
-  const packedPath = path.join(dir, 'minhash_signatures.packed.bin');
-  const metaPath = path.join(dir, 'minhash_signatures.packed.meta.json');
-  if (existsOrBak(packedPath) && existsOrBak(metaPath)) {
+  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict: true });
+  const sources = resolveManifestArtifactSources({
+    dir,
+    manifest: resolvedManifest,
+    name: 'minhash_signatures',
+    strict,
+    maxBytes
+  });
+  if (!sources?.paths?.length) return;
+  if (sources.format === 'packed') {
+    if (sources.paths.length > 1) {
+      throw new Error('Ambiguous packed sources for minhash_signatures');
+    }
+    const packedPath = sources.paths[0];
+    const metaPath = sources.metaPath || path.join(dir, 'minhash_signatures.packed.meta.json');
+    if (!existsOrBak(packedPath) || !existsOrBak(metaPath)) {
+      throw new Error('Missing packed minhash signature artifacts');
+    }
     const metaRaw = readJsonFileCached(metaPath, { maxBytes });
     const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
     const dims = Number.isFinite(Number(meta?.dims)) ? Math.max(0, Math.floor(Number(meta.dims))) : 0;
@@ -143,13 +180,19 @@ export const loadMinhashSignatureRows = async function* (
     }
     return;
   }
+  if (sources.format !== 'json') {
+    throw new Error(`Unsupported minhash_signatures format: ${sources.format}`);
+  }
   let payload = null;
   try {
-    payload = await loadJsonObjectArtifact(dir, 'minhash_signatures', { maxBytes, manifest, strict });
+    payload = await loadJsonObjectArtifact(dir, 'minhash_signatures', {
+      maxBytes,
+      manifest: resolvedManifest,
+      strict
+    });
   } catch (err) {
     const message = err?.message || '';
-    if (message.includes('Missing manifest entry for minhash_signatures')
-      || message.includes('Missing index artifact: minhash_signatures.json')) {
+    if (message.includes('Missing manifest entry for minhash_signatures')) {
       return;
     }
     throw err;
