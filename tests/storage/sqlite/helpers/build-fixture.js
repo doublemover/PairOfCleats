@@ -4,6 +4,7 @@ import path from 'node:path';
 import { writeJsonLinesSharded, writeJsonObjectFile } from '../../../../src/shared/json-stream.js';
 import { buildDatabaseFromArtifacts, loadIndexPieces } from '../../../../src/storage/sqlite/build/from-artifacts.js';
 import { applyTestEnv } from '../../../helpers/test-env.js';
+import { writePiecesManifest } from '../../../helpers/artifact-io-fixture.js';
 
 const loadDatabaseCtor = async () => {
   try {
@@ -102,6 +103,20 @@ export const setupSqliteBuildFixture = async ({
     arrays: { docLengths },
     atomic: true
   });
+  const pieceEntries = [
+    ...shardResult.parts.map((part) => ({
+      name: 'chunk_meta',
+      path: part,
+      format: 'jsonl'
+    })),
+    { name: 'chunk_meta_meta', path: 'chunk_meta.meta.json', format: 'json' },
+    {
+      name: 'token_postings',
+      path: 'token_postings.shards/token_postings.part-00000.json',
+      format: 'sharded'
+    },
+    { name: 'token_postings_meta', path: 'token_postings.meta.json', format: 'json' }
+  ];
 
   let phraseDocIds = [];
   if (includeRowcountArtifacts) {
@@ -143,7 +158,14 @@ export const setupSqliteBuildFixture = async ({
       },
       atomic: true
     });
+    pieceEntries.push(
+      { name: 'phrase_ngrams', path: 'phrase_ngrams.json', format: 'json' },
+      { name: 'chargram_postings', path: 'chargram_postings.json', format: 'json' },
+      { name: 'minhash_signatures', path: 'minhash_signatures.json', format: 'json' },
+      { name: 'dense_vectors_uint8', path: 'dense_vectors_uint8.json', format: 'json' }
+    );
   }
+  await writePiecesManifest(indexDir, pieceEntries);
 
   const indexPieces = await loadIndexPieces(indexDir, null);
   const count = await buildDatabaseFromArtifacts({

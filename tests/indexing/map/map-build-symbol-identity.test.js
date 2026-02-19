@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { buildCodeMap } from '../../../src/map/build-map.js';
+import { writePiecesManifest } from '../../helpers/artifact-io-fixture.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'map-build-symbol-identity');
@@ -38,6 +39,9 @@ const chunkMeta = [
 ];
 
 await fs.writeFile(path.join(tempRoot, 'chunk_meta.json'), JSON.stringify(chunkMeta, null, 2));
+await writePiecesManifest(tempRoot, [
+  { name: 'chunk_meta', path: 'chunk_meta.json', format: 'json' }
+]);
 
 const mapModel = await buildCodeMap({
   repoRoot: root,

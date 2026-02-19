@@ -7,6 +7,7 @@ import { tryRequire } from '../../../../src/shared/optional-deps.js';
 import { buildDatabaseFromArtifacts, loadIndexPieces } from '../../../../src/storage/sqlite/build/from-artifacts.js';
 import { skip } from '../../../helpers/skip.js';
 import { applyTestEnv } from '../../../helpers/test-env.js';
+import { writePiecesManifest } from '../../../helpers/artifact-io-fixture.js';
 
 const loadDatabaseCtor = async () => {
   try {
@@ -119,6 +120,20 @@ export const runSqliteJsonlStreamingCompressionCase = async ({
     arrays: { docLengths },
     atomic: true
   });
+  await writePiecesManifest(indexDir, [
+    ...shardResult.parts.map((part) => ({
+      name: 'chunk_meta',
+      path: part,
+      format: 'jsonl'
+    })),
+    { name: 'chunk_meta_meta', path: 'chunk_meta.meta.json', format: 'json' },
+    {
+      name: 'token_postings',
+      path: 'token_postings.shards/token_postings.part-00000.json',
+      format: 'sharded'
+    },
+    { name: 'token_postings_meta', path: 'token_postings.meta.json', format: 'json' }
+  ]);
 
   const indexPieces = await loadIndexPieces(indexDir, null);
   const count = await buildDatabaseFromArtifacts({

@@ -137,6 +137,13 @@ export function loadOptional(dir, name) {
   }
 }
 
+const isOptionalArtifactMissingError = (err) => (
+  err?.code === 'ERR_ARTIFACT_PARTS_MISSING'
+  || err?.code === 'ERR_MANIFEST_MISSING'
+  || /Missing index artifact/.test(err?.message || '')
+  || /Missing manifest entry for /.test(err?.message || '')
+);
+
 export async function loadOptionalArrayArtifact(dir, name) {
   if (!dir || !name) return null;
   try {
@@ -146,7 +153,7 @@ export async function loadOptionalArrayArtifact(dir, name) {
       console.warn(`[sqlite] Skipping ${name}: ${err.message}`);
       return null;
     }
-    if (err?.code === 'ERR_ARTIFACT_PARTS_MISSING' || /Missing index artifact/.test(err?.message || '')) {
+    if (isOptionalArtifactMissingError(err)) {
       return null;
     }
     throw err;
@@ -169,7 +176,7 @@ export function loadOptionalArrayArtifactRows(dir, name, { materialize = false }
         console.warn(`[sqlite] Skipping ${name}: ${err.message}`);
         return;
       }
-      if (err?.code === 'ERR_ARTIFACT_PARTS_MISSING' || /Missing index artifact/.test(err?.message || '')) {
+      if (isOptionalArtifactMissingError(err)) {
         return;
       }
       throw err;
@@ -196,7 +203,7 @@ export function loadOptionalFileMetaRows(
         console.warn(`[sqlite] Skipping file_meta: ${err.message}`);
         return;
       }
-      if (err?.code === 'ERR_ARTIFACT_PARTS_MISSING' || /Missing index artifact/.test(err?.message || '')) {
+      if (isOptionalArtifactMissingError(err)) {
         return;
       }
       throw err;
@@ -220,7 +227,7 @@ export function loadOptionalMinhashRows(dir, { materialize = false } = {}) {
         console.warn(`[sqlite] Skipping minhash_signatures: ${err.message}`);
         return;
       }
-      if (err?.code === 'ERR_ARTIFACT_PARTS_MISSING' || /Missing index artifact/.test(err?.message || '')) {
+      if (isOptionalArtifactMissingError(err)) {
         return;
       }
       throw err;
