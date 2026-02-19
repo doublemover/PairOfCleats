@@ -17,32 +17,67 @@ import { createSpillHelpers, compareChargramRows } from './spill.js';
 import { buildTokenAndFieldPostings } from './token-field.js';
 
 /**
- * Build postings and vector artifacts for the index.
+ * @typedef {object} BuildPostingsInput
+ * @property {object[]} chunks
+ * @property {Map<string, number>} df
+ * @property {Map<string, Array<[number, number]>>} tokenPostings
+ * @property {Map<string, string>} [tokenIdMap]
+ * @property {number[]} docLengths
+ * @property {Record<string, Map<string, Array<[number, number]>>>} [fieldPostings]
+ * @property {Record<string, number[]>} [fieldDocLengths]
+ * @property {Map<string, number[]>} [phrasePost]
+ * @property {Map<string, any>|null} [phrasePostHashBuckets]
+ * @property {Map<string, number[]>} [triPost]
+ * @property {object} [postingsConfig]
+ * @property {object|null} [postingsGuard]
+ * @property {string|null} [buildRoot]
+ * @property {string|null} [plannerCacheDir]
+ * @property {string} [modelId]
+ * @property {boolean} [useStubEmbeddings]
+ * @property {(message: string) => void} [log]
+ * @property {object} [workerPool]
+ * @property {object} [quantizePool]
+ * @property {boolean} [embeddingsEnabled=true]
+ * @property {boolean} [sparsePostingsEnabled=true]
+ * @property {string|null} [buildStage]
+ */
+
+/**
+ * @typedef {object} BuildPostingsResult
+ * @property {number} k1
+ * @property {number} b
+ * @property {number} avgChunkLen
+ * @property {number} totalDocs
+ * @property {object|null} fieldPostings
+ * @property {string[]} phraseVocab
+ * @property {number[][]} phrasePostings
+ * @property {string[]} chargramVocab
+ * @property {number[][]} chargramPostings
+ * @property {object|null} chargramStats
+ * @property {string[]} tokenVocab
+ * @property {Array<string|number>|null} tokenVocabIds
+ * @property {Array<Array<[number, number]>>} tokenPostingsList
+ * @property {number} avgDocLen
+ * @property {unknown[]} minhashSigs
+ * @property {boolean} minhashStream
+ * @property {object|null} minhashGuard
+ * @property {number} dims
+ * @property {Array<Uint8Array|number[]>} quantizedVectors
+ * @property {Array<Uint8Array|number[]>} quantizedDocVectors
+ * @property {Array<Uint8Array|number[]>} quantizedCodeVectors
+ * @property {{ phrase: object|null, chargram: object|null }} [postingsMergeStats]
+ */
+
+/**
+ * Build all postings/vector artifacts required by Stage 2 index output.
  *
- * @param {{
- *   chunks: object[],
- *   df: Map<string, number>,
- *   tokenPostings: Map<string, Array<[number, number]>>,
- *   tokenIdMap?: Map<string, string>,
- *   docLengths: number[],
- *   fieldPostings?: object,
- *   fieldDocLengths?: object,
- *   phrasePost?: Map<string, number[]>,
- *   phrasePostHashBuckets?: Map<string, number[]>|null,
- *   triPost?: Map<string, number[]>,
- *   postingsConfig?: object,
- *   postingsGuard?: object|null,
- *   buildRoot?: string|null,
- *   plannerCacheDir?: string|null,
- *   modelId?: string,
- *   useStubEmbeddings?: boolean,
- *   log?: (message:string)=>void,
- *   workerPool?: object,
- *   quantizePool?: object,
- *   embeddingsEnabled?: boolean,
- *   buildStage?: string|null
- * }} input
- * @returns {object}
+ * The function centralizes:
+ * - sparse token/field/phrase/chargram postings assembly,
+ * - configurable spill/merge behavior for high-cardinality postings,
+ * - dense vector quantization and minhash gating.
+ *
+ * @param {BuildPostingsInput} input
+ * @returns {Promise<BuildPostingsResult>}
  */
 export async function buildPostings(input) {
   const {
@@ -119,6 +154,17 @@ export async function buildPostings(input) {
     : 0;
   const fieldedEnabled = resolvedConfig.fielded !== false;
   const phraseHashEnabled = resolvedConfig.phraseHash === true;
+  /**
+   * Build an empty-but-shaped field postings object for zero-document runs.
+   *
+   * @returns {{ fields: Record<string, {
+   *   vocab: string[],
+   *   postings: any[],
+   *   docLengths: number[],
+   *   avgDocLen: number,
+   *   totalDocs: number
+   * }> }|null}
+   */
   const buildEmptyFieldPostings = () => {
     if (!fieldedEnabled) return null;
     const fields = {};

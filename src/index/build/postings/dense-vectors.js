@@ -2,6 +2,38 @@ import { quantizeVec } from '../../embedding.js';
 import { DEFAULT_STUB_DIMS } from '../../../shared/embedding.js';
 import { isVectorLike } from '../../../shared/embedding-utils.js';
 
+/**
+ * @typedef {object} BuildDenseVectorsInput
+ * @property {object[]} chunks
+ * @property {boolean} [embeddingsEnabled=true]
+ * @property {boolean} [useStubEmbeddings]
+ * @property {string} [modelId]
+ * @property {(message: string) => void} [log]
+ * @property {object} [workerPool]
+ * @property {object} [quantizePool]
+ * @property {() => Promise<void> | null} [requestYield]
+ * @property {string|null} [buildStage]
+ */
+
+/**
+ * @typedef {object} BuildDenseVectorsOutput
+ * @property {number} dims
+ * @property {Array<Uint8Array|number[]>} quantizedVectors
+ * @property {Array<Uint8Array|number[]>} quantizedDocVectors
+ * @property {Array<Uint8Array|number[]>} quantizedCodeVectors
+ */
+
+/**
+ * Build quantized dense vectors for merged, doc-only, and code-only channels.
+ *
+ * Behavior:
+ * - Uses pre-quantized byte vectors when available.
+ * - Otherwise quantizes float vectors via worker pool batches with inline fallback.
+ * - Preserves deterministic dimensionality by truncating/padding to resolved `dims`.
+ *
+ * @param {BuildDenseVectorsInput} input
+ * @returns {Promise<BuildDenseVectorsOutput>}
+ */
 export const buildDenseVectors = async ({
   chunks,
   embeddingsEnabled = true,
@@ -31,6 +63,12 @@ export const buildDenseVectors = async ({
     log(`Using ${embedLabel} embeddings for dense vectors (${modelId})...`);
   }
 
+  /**
+   * Detect quantized vectors represented as byte typed arrays.
+   *
+   * @param {unknown} value
+   * @returns {boolean}
+   */
   const isByteVector = (value) => (
     value
     && typeof value === 'object'
@@ -41,6 +79,11 @@ export const buildDenseVectors = async ({
     && !(typeof Buffer !== 'undefined' && Buffer.isBuffer(value))
   );
 
+  /**
+   * Resolve canonical dimension count from highest-confidence signal.
+   *
+   * @returns {number}
+   */
   const resolveDims = () => {
     for (const chunk of chunks) {
       const vec = chunk?.embedding_u8;
@@ -63,6 +106,12 @@ export const buildDenseVectors = async ({
   zeroU8.fill(ZERO_QUANT);
   const zeroVec = new Array(dims).fill(0);
 
+  /**
+   * Normalize a float vector to `dims` while preserving order.
+   *
+   * @param {unknown} vec
+   * @returns {number[]|Float32Array}
+   */
   const normalizeFloatVector = (vec) => {
     if (!isVectorLike(vec)) return zeroVec;
     if (vec.length === dims) return ArrayBuffer.isView(vec) ? Array.from(vec) : vec;
@@ -72,6 +121,13 @@ export const buildDenseVectors = async ({
     return out;
   };
 
+  /**
+   * Normalize a byte vector to `dims`, optionally treating empty vectors as zero.
+   *
+   * @param {unknown} vec
+   * @param {{ emptyIsZero?: boolean }} [options]
+   * @returns {Uint8Array|null}
+   */
   const normalizeByteVector = (vec, { emptyIsZero = false } = {}) => {
     if (!isByteVector(vec)) return null;
     if (!vec.length && emptyIsZero) return zeroU8;
@@ -173,6 +229,13 @@ export const buildDenseVectors = async ({
       }
       quantizeWarned = true;
     };
+    /**
+     * Quantize vectors selected from chunks, using worker pool batching when
+     * available and falling back to inline quantization on worker failures.
+     *
+     * @param {(chunk: object) => number[]|Float32Array|Uint8Array} selector
+     * @returns {Promise<Array<Uint8Array|number[]>>}
+     */
     const quantizeVectors = async (selector) => {
       const out = new Array(chunks.length);
       if (!quantizeWorker) {

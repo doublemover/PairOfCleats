@@ -1,3 +1,19 @@
+/**
+ * Resolve minhash emission mode and guard metadata.
+ *
+ * @param {{
+ *   sparseEnabled?: boolean,
+ *   minhashMaxDocs?: number,
+ *   minhashStream?: boolean,
+ *   chunks?: object[],
+ *   log?: (message: string) => void
+ * }} [input]
+ * @returns {{
+ *   allowMinhash: boolean,
+ *   minhashSigs: unknown[],
+ *   minhashGuard: { skipped: true, maxDocs: number, totalDocs: number }|null
+ * }}
+ */
 export const resolveMinhashOutputs = ({
   sparseEnabled,
   minhashMaxDocs,

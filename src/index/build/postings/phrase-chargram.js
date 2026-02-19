@@ -4,6 +4,13 @@ import { mergeIdListsWithNormalizedLeft, normalizeIdList } from './id-lists.js';
 
 const phraseSeparator = '\u0001';
 
+/**
+ * Build a stable phrase key from token IDs.
+ *
+ * @param {number[]|null|undefined} ids
+ * @param {Map<number|string, string>} [tokenIdMap]
+ * @returns {string}
+ */
 const resolvePhraseFromIds = (ids, tokenIdMap) => {
   if (!Array.isArray(ids) || !ids.length) return '';
   const parts = new Array(ids.length);
@@ -15,6 +22,17 @@ const resolvePhraseFromIds = (ids, tokenIdMap) => {
   return parts.join(phraseSeparator);
 };
 
+/**
+ * Flatten hash-bucket phrase postings into sortable `[phrase, posting]` rows.
+ *
+ * @param {{
+ *   phraseHashEnabled: boolean,
+ *   phrasePostHashBuckets?: Map<any, any>|null,
+ *   tokenIdMap?: Map<number|string, string>|null,
+ *   requestYield?: (() => Promise<void> | null)|null
+ * }} input
+ * @returns {Promise<Array<[string, unknown]>>}
+ */
 const collectPhraseEntriesFromHashBuckets = async ({
   phraseHashEnabled,
   phrasePostHashBuckets,
@@ -47,6 +65,49 @@ const collectPhraseEntriesFromHashBuckets = async ({
   return rows;
 };
 
+/**
+ * Build phrase and chargram postings, applying optional spill/merge strategy for
+ * high-cardinality maps and DF guards for chargrams.
+ *
+ * @param {{
+ *   phraseEnabled?: boolean,
+ *   chargramEnabled?: boolean,
+ *   phraseHashEnabled?: boolean,
+ *   phrasePostHashBuckets?: Map<any, any>|null,
+ *   phrasePost?: Map<string, unknown>|null,
+ *   triPost?: Map<string, unknown>|null,
+ *   tokenIdMap?: Map<number|string, string>|null,
+ *   buildRoot?: string|null,
+ *   phraseSpillMaxBytes?: number,
+ *   phraseSpillMaxUnique?: number,
+ *   chargramSpillMaxBytes?: number,
+ *   chargramSpillMaxUnique?: number,
+ *   chargramMaxDf?: number,
+ *   postingsGuard?: object|null,
+ *   requestYield?: (() => Promise<void> | null)|null,
+ *   mergeSpillRuns: (input: {
+ *     runs: Array<string|{path?: string}>,
+ *     compare: (a: any, b: any) => number,
+ *     label: string
+ *   }) => Promise<{
+ *     iterator: AsyncIterable<any>|Iterable<any>|null,
+ *     cleanup?: (() => Promise<void>)|null,
+ *     stats?: object|null,
+ *     plannerUsed?: boolean,
+ *     plannerHintUsed?: boolean
+ *   }>,
+ *   shouldSpillByBytes: (map: Map<any, any>, maxBytes: number) => Promise<boolean>,
+ *   compareChargramRows: (a: any, b: any) => number
+ * }} [input]
+ * @returns {Promise<{
+ *   phraseVocab: string[],
+ *   phrasePostings: number[][],
+ *   chargramVocab: string[],
+ *   chargramPostings: number[][],
+ *   chargramStats: object,
+ *   postingsMergeStats: { phrase: object|null, chargram: object|null }
+ * }>}
+ */
 export const buildPhraseAndChargramPostings = async ({
   phraseEnabled,
   chargramEnabled,

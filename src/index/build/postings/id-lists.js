@@ -1,3 +1,7 @@
+/**
+ * @param {number[]} list
+ * @returns {boolean}
+ */
 const isSortedIds = (list) => {
   for (let i = 1; i < list.length; i += 1) {
     if (list[i] < list[i - 1]) return false;
@@ -5,6 +9,10 @@ const isSortedIds = (list) => {
   return true;
 };
 
+/**
+ * @param {number[]} list
+ * @returns {boolean}
+ */
 const isSortedUniqueFiniteIds = (list) => {
   for (let i = 0; i < list.length; i += 1) {
     const value = list[i];
@@ -14,6 +22,10 @@ const isSortedUniqueFiniteIds = (list) => {
   return true;
 };
 
+/**
+ * @param {Array<[number, number]>} list
+ * @returns {boolean}
+ */
 const isSortedPostings = (list) => {
   for (let i = 1; i < list.length; i += 1) {
     if (!Array.isArray(list[i - 1]) || !Array.isArray(list[i])) return false;
@@ -22,6 +34,12 @@ const isSortedPostings = (list) => {
   return true;
 };
 
+/**
+ * Accept scalar, array, or iterable inputs and normalize to an array.
+ *
+ * @param {unknown} value
+ * @returns {unknown[]}
+ */
 const normalizeDocIdList = (value) => {
   if (value == null) return [];
   if (typeof value === 'number') return [value];
@@ -30,6 +48,13 @@ const normalizeDocIdList = (value) => {
   return [];
 };
 
+/**
+ * Merge two sorted unique ID arrays in linear time.
+ *
+ * @param {number[]} listA
+ * @param {number[]} listB
+ * @returns {number[]}
+ */
 const mergeSortedUniqueIdLists = (listA, listB) => {
   const out = new Array(listA.length + listB.length);
   let aIndex = 0;
@@ -83,6 +108,16 @@ const mergeSortedUniqueIdLists = (listA, listB) => {
   return out;
 };
 
+/**
+ * Normalize a posting input to a sorted, unique, finite numeric ID list.
+ *
+ * Performance notes:
+ * - Fast path returns the original array when already sorted+unique+finite.
+ * - Sorted-but-duplicated inputs avoid a full sort and only compact.
+ *
+ * @param {unknown} value
+ * @returns {number[]}
+ */
 export const normalizeIdList = (value) => {
   if (Array.isArray(value) && value.length && isSortedUniqueFiniteIds(value)) {
     return value;
@@ -128,6 +163,10 @@ export const normalizeIdList = (value) => {
 /**
  * Merge posting lists when the left input is already normalized.
  * Avoids re-validating/re-scanning the accumulated list on every merge.
+ *
+ * @param {number[]} leftNormalized
+ * @param {unknown} right
+ * @returns {number[]}
  */
 export const mergeIdListsWithNormalizedLeft = (leftNormalized, right) => {
   if (!Array.isArray(leftNormalized)) return normalizeIdList(right);
@@ -147,6 +186,12 @@ export const mergeIdListsWithNormalizedLeft = (leftNormalized, right) => {
   return mergeSortedUniqueIdLists(leftNormalized, listB);
 };
 
+/**
+ * Normalize term-frequency postings to `[docId, tf]` pairs sorted by doc ID.
+ *
+ * @param {unknown} value
+ * @returns {Array<[number, number]>}
+ */
 export const normalizeTfPostingList = (value) => {
   if (!Array.isArray(value)) return [];
   const next = [];

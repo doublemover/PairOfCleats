@@ -10,6 +10,14 @@ import {
 } from '../../../shared/merge.js';
 import { sortStrings } from './constants.js';
 
+/**
+ * Build a stable cache key for merge planner hints from run identity metadata.
+ *
+ * @param {string} label
+ * @param {Array<string|{path?: string}>} runs
+ * @param {{ requestYield?: (() => Promise<void> | null) }} [options]
+ * @returns {Promise<string|null>}
+ */
 const buildPlannerInputKey = async (label, runs, { requestYield } = {}) => {
   if (!runs || !runs.length) return null;
   const hash = crypto.createHash('sha1');
@@ -29,8 +37,38 @@ const buildPlannerInputKey = async (label, runs, { requestYield } = {}) => {
   return hash.digest('hex');
 };
 
+/**
+ * Row comparator for phrase/chargram spill runs.
+ *
+ * @param {{ token?: string }} a
+ * @param {{ token?: string }} b
+ * @returns {number}
+ */
 export const compareChargramRows = (a, b) => sortStrings(a?.token, b?.token);
 
+/**
+ * Create spill/merge helpers shared by phrase and chargram stages.
+ *
+ * @param {{
+ *   buildRoot?: string|null,
+ *   plannerCacheDir?: string|null,
+ *   requestYield?: (() => Promise<void> | null)|null
+ * }} [options]
+ * @returns {{
+ *   mergeSpillRuns: (input: {
+ *     runs: Array<string|{path?: string}>,
+ *     compare: (a: any, b: any) => number,
+ *     label: string
+ *   }) => Promise<{
+ *     iterator: AsyncIterable<any>|Iterable<any>|null,
+ *     cleanup: (() => Promise<void>)|null,
+ *     stats?: object|null,
+ *     plannerUsed?: boolean,
+ *     plannerHintUsed?: boolean
+ *   }>,
+ *   shouldSpillByBytes: (map: Map<any, any>, maxBytes: number) => Promise<boolean>
+ * }}
+ */
 export const createSpillHelpers = ({
   buildRoot = null,
   plannerCacheDir = null,

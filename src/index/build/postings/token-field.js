@@ -1,5 +1,32 @@
 import { sortStrings } from './constants.js';
 
+/**
+ * Build token-level and field-level sparse posting artifacts.
+ *
+ * @param {{
+ *   sparseEnabled?: boolean,
+ *   tokenPostings: Map<any, unknown>,
+ *   tokenIdMap?: Map<any, string>|null,
+ *   fieldPostings?: Record<string, Map<string, unknown>>|null,
+ *   fieldDocLengths?: Record<string, number[]>|null,
+ *   normalizedDocLengths?: number[],
+ *   requestYield?: (() => Promise<void> | null)|null,
+ *   normalizeTfPostingList: (value: unknown) => Array<[number, number]>
+ * }} [input]
+ * @returns {Promise<{
+ *   tokenVocab: string[],
+ *   tokenVocabIds: Array<string|number>|null,
+ *   tokenPostingsList: Array<Array<[number, number]>>,
+ *   avgDocLen: number,
+ *   fieldPostingsResult: { fields: Record<string, {
+ *     vocab: string[],
+ *     postings: Array<Array<[number, number]>>,
+ *     docLengths: number[],
+ *     avgDocLen: number,
+ *     totalDocs: number
+ *   }>}|null
+ * }>}
+ */
 export const buildTokenAndFieldPostings = async ({
   sparseEnabled,
   tokenPostings,
@@ -43,6 +70,17 @@ export const buildTokenAndFieldPostings = async ({
     ? normalizedDocLengths.reduce((sum, len) => sum + len, 0) / normalizedDocLengths.length
     : 0;
 
+  /**
+   * Build per-field sparse postings with deterministic token order.
+   *
+   * @returns {Promise<{ fields: Record<string, {
+   *   vocab: string[],
+   *   postings: Array<Array<[number, number]>>,
+   *   docLengths: number[],
+   *   avgDocLen: number,
+   *   totalDocs: number
+   * }>}|null>}
+   */
   const buildFieldPostings = async () => {
     if (!sparseEnabled) return null;
     if (!fieldPostings || !fieldDocLengths) return null;
