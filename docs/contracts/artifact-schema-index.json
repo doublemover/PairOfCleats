@@ -1,5 +1,5 @@
 {
-  "schemaHash": "36c94fb84c8fa43d27eb433fe7014a1613e82b8a",
+  "schemaHash": "117041bf43e4829be3660b9c27594f94f60d17f2",
   "artifacts": [
     {
       "artifact": "api_contracts",
@@ -488,6 +488,29 @@
       ]
     },
     {
+      "artifact": "field_tokens_meta",
+      "schemaVersion": {
+        "type": "string",
+        "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$"
+      },
+      "requiredFields": [
+        "artifact",
+        "compression",
+        "format",
+        "generatedAt",
+        "maxPartBytes",
+        "maxPartRecords",
+        "parts",
+        "schemaVersion",
+        "targetMaxBytes",
+        "totalBytes",
+        "totalRecords"
+      ],
+      "optionalFields": [
+        "extensions"
+      ]
+    },
+    {
       "artifact": "file_meta",
       "schemaVersion": null,
       "requiredFields": [
@@ -499,6 +522,29 @@
         "encodingConfidence",
         "encodingFallback",
         "ext"
+      ]
+    },
+    {
+      "artifact": "file_meta_meta",
+      "schemaVersion": {
+        "type": "string",
+        "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$"
+      },
+      "requiredFields": [
+        "artifact",
+        "compression",
+        "format",
+        "generatedAt",
+        "maxPartBytes",
+        "maxPartRecords",
+        "parts",
+        "schemaVersion",
+        "targetMaxBytes",
+        "totalBytes",
+        "totalRecords"
+      ],
+      "optionalFields": [
+        "extensions"
       ]
     },
     {
