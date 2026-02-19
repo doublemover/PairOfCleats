@@ -13,6 +13,7 @@ await fs.mkdir(path.join(srcRoot, 'b'), { recursive: true });
 await fs.mkdir(path.join(srcRoot, 'lib'), { recursive: true });
 await fs.mkdir(path.join(srcRoot, 'alt'), { recursive: true });
 await fs.mkdir(path.join(srcRoot, 'pkg', 'src', 'deep'), { recursive: true });
+await fs.mkdir(path.join(srcRoot, 'pkg2', 'src', 'deep'), { recursive: true });
 await fs.mkdir(path.join(tempRoot, 'lib', 'rake'), { recursive: true });
 await fs.mkdir(path.join(tempRoot, 'tasks'), { recursive: true });
 await fs.mkdir(path.join(tempRoot, 'packages'), { recursive: true });
@@ -34,6 +35,16 @@ await fs.writeFile(path.join(srcRoot, 'pkg', 'src', 'index.js'), 'module.exports
 await fs.writeFile(
   path.join(srcRoot, 'pkg', 'package.json'),
   JSON.stringify({ name: 'pkg-local', main: 'src/index.js' }, null, 2)
+);
+await fs.writeFile(
+  path.join(srcRoot, 'pkg2', 'src', 'deep', 'feature.js'),
+  "require('.');\nrequire('..');\nrequire('../..');\nrequire('../../..');\n"
+);
+await fs.writeFile(path.join(srcRoot, 'pkg2', 'src', 'deep', 'index.js'), 'module.exports = "deep2";\n');
+await fs.writeFile(path.join(srcRoot, 'pkg2', 'src', 'index.ts'), 'export default "pkg2-src";\n');
+await fs.writeFile(
+  path.join(srcRoot, 'pkg2', 'package.json'),
+  JSON.stringify({ name: 'pkg2-local', main: 'node8plus/index.js' }, null, 2)
 );
 await fs.writeFile(path.join(tempRoot, 'packages', 'index.js'), 'module.exports = "packages-root";\n');
 await fs.writeFile(path.join(tempRoot, 'lib', 'rake.rb'), "require 'rake/version'\nrequire 'json'\n");
@@ -67,6 +78,9 @@ const entries = [
   { abs: path.join(srcRoot, 'pkg', 'src', 'deep', 'index.js'), rel: 'src/pkg/src/deep/index.js' },
   { abs: path.join(srcRoot, 'pkg', 'src', 'index.js'), rel: 'src/pkg/src/index.js' },
   { abs: path.join(srcRoot, 'pkg', 'package.json'), rel: 'src/pkg/package.json' },
+  { abs: path.join(srcRoot, 'pkg2', 'src', 'deep', 'feature.js'), rel: 'src/pkg2/src/deep/feature.js' },
+  { abs: path.join(srcRoot, 'pkg2', 'src', 'deep', 'index.js'), rel: 'src/pkg2/src/deep/index.js' },
+  { abs: path.join(srcRoot, 'pkg2', 'src', 'index.ts'), rel: 'src/pkg2/src/index.ts' },
   { abs: path.join(tempRoot, 'packages', 'index.js'), rel: 'packages/index.js' },
   { abs: path.join(tempRoot, 'lib', 'rake.rb'), rel: 'lib/rake.rb' },
   { abs: path.join(tempRoot, 'lib', 'rake', 'version.rb'), rel: 'lib/rake/version.rb' },
@@ -80,6 +94,7 @@ const importsByFile = {
   'src/b/index.js': ['./utils'],
   'src/main.ts': ['@lib/util', 'react'],
   'src/pkg/src/deep/feature.js': ['.', '..', '../..', '../../..'],
+  'src/pkg2/src/deep/feature.js': ['.', '..', '../..', '../../..'],
   'lib/rake.rb': ['rake/version', 'json'],
   'tasks/build.rake': ['./helpers'],
   Rakefile: ['rake']
@@ -116,6 +131,7 @@ const relA = relationsA.get('src/a/index.js');
 const relB = relationsA.get('src/b/index.js');
 const relMain = relationsA.get('src/main.ts');
 const relPkgFeature = relationsA.get('src/pkg/src/deep/feature.js');
+const relPkg2Feature = relationsA.get('src/pkg2/src/deep/feature.js');
 const relRuby = relationsA.get('lib/rake.rb');
 const relRakeTask = relationsA.get('tasks/build.rake');
 const relRakefile = relationsA.get('Rakefile');
@@ -129,6 +145,7 @@ assert.deepEqual(relMain.importLinks, ['src/lib/util.ts']);
 assert.deepEqual(relMain.externalImports, ['react']);
 assert.ok(!relMain.importLinks.includes('react'));
 assert.deepEqual(relPkgFeature.importLinks, ['src/index.js', 'src/pkg/src/deep/index.js', 'src/pkg/src/index.js']);
+assert.deepEqual(relPkg2Feature.importLinks, ['src/index.js', 'src/pkg2/src/deep/index.js', 'src/pkg2/src/index.ts']);
 assert.deepEqual(relRuby.importLinks, ['lib/rake/version.rb']);
 assert.deepEqual(relRuby.externalImports, ['json']);
 assert.deepEqual(relRakeTask.importLinks, ['tasks/helpers.rb']);

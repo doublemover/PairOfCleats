@@ -522,18 +522,26 @@ const selectPackageRootEntry = (packageJson) => {
 const createPackageDirectoryResolver = ({ lookup, rootAbs }) => {
   const cache = new Map();
   const packageEntryCache = new Map();
-  const readPackageEntry = (packageJsonRel) => {
-    if (!packageJsonRel) return null;
-    if (packageEntryCache.has(packageJsonRel)) return packageEntryCache.get(packageJsonRel);
+  const readPackageEntry = (cacheKey, packageJsonAbs) => {
+    if (!cacheKey || !packageJsonAbs) return null;
+    if (packageEntryCache.has(cacheKey)) return packageEntryCache.get(cacheKey);
     let packageEntry = null;
     try {
-      const packageJsonAbs = path.resolve(rootAbs, packageJsonRel);
       const raw = fs.readFileSync(packageJsonAbs, 'utf8');
       const parsed = JSON.parse(raw);
       packageEntry = selectPackageRootEntry(parsed);
     } catch {}
-    packageEntryCache.set(packageJsonRel, packageEntry);
+    packageEntryCache.set(cacheKey, packageEntry);
     return packageEntry;
+  };
+  const resolveDevSourceEntry = (base) => {
+    const candidates = ['src/index', 'src/main', 'lib/index', 'source/index'];
+    for (const candidate of candidates) {
+      const targetBase = base ? path.posix.join(base, candidate) : candidate;
+      const resolved = resolveCandidate(targetBase, lookup);
+      if (resolved) return resolved;
+    }
+    return null;
   };
   return (baseRelPath) => {
     const base = normalizeRelPath(baseRelPath);
@@ -541,17 +549,31 @@ const createPackageDirectoryResolver = ({ lookup, rootAbs }) => {
     if (cache.has(cacheKey)) return cache.get(cacheKey);
     const packageJsonCandidate = base ? `${base}/package.json` : 'package.json';
     const packageJsonRel = resolveFromLookup(packageJsonCandidate, lookup);
-    if (!packageJsonRel) {
+    const packageJsonAbs = packageJsonRel
+      ? path.resolve(rootAbs, packageJsonRel)
+      : path.resolve(rootAbs, packageJsonCandidate);
+    let hasPackageJson = !!packageJsonRel;
+    if (!hasPackageJson) {
+      try {
+        hasPackageJson = fs.existsSync(packageJsonAbs);
+      } catch {
+        hasPackageJson = false;
+      }
+    }
+    if (!hasPackageJson) {
       cache.set(cacheKey, null);
       return null;
     }
     let resolved = null;
-    const packageEntry = readPackageEntry(packageJsonRel);
+    const packageEntry = readPackageEntry(packageJsonRel || packageJsonAbs, packageJsonAbs);
     if (packageEntry != null) {
       const targetBase = packageEntry
         ? normalizeRelPath(base ? path.posix.join(base, packageEntry) : packageEntry)
         : base;
       resolved = resolveCandidate(targetBase, lookup);
+    }
+    if (!resolved) {
+      resolved = resolveDevSourceEntry(base);
     }
     cache.set(cacheKey, resolved);
     return resolved;
