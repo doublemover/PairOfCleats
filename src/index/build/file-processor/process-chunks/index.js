@@ -265,7 +265,7 @@ const shouldApplySwiftHotPathCoalescing = ({
   return HEAVY_FILE_SWIFT_HOT_PATH_PARTS.some((part) => bounded.includes(part));
 };
 
-const coalesceHeavyChunks = (chunks, maxChunks) => {
+export const coalesceHeavyChunks = (chunks, maxChunks) => {
   if (!Array.isArray(chunks) || chunks.length <= 1) return chunks;
   const target = Number.isFinite(Number(maxChunks))
     ? Math.max(1, Math.floor(Number(maxChunks)))
@@ -282,7 +282,8 @@ const coalesceHeavyChunks = (chunks, maxChunks) => {
     if (last.meta && typeof last.meta === 'object') {
       next.meta = { ...(next.meta || {}), endLine: last.meta.endLine ?? next.meta?.endLine };
     }
-    if (groupSize > 1) {
+    const mergedChunkCount = (lastIndex - i) + 1;
+    if (mergedChunkCount > 1) {
       delete next.segment;
       delete next.segmentUid;
     }
