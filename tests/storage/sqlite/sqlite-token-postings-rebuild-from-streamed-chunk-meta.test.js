@@ -5,14 +5,14 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { writeJsonLinesFile } from '../../../src/shared/json-stream.js';
 import { buildDatabaseFromArtifacts, loadIndexPieces } from '../../../src/storage/sqlite/build/from-artifacts.js';
+import { requireOrSkip } from '../../helpers/require-or-skip.js';
+import { ensureTestingEnv } from '../../helpers/test-env.js';
+
+ensureTestingEnv(process.env);
+requireOrSkip({ capability: 'sqlite', reason: 'sqlite streamed token_postings rebuild test requires better-sqlite3' });
 
 let Database = null;
-try {
-  ({ default: Database } = await import('better-sqlite3'));
-} catch (err) {
-  console.error(`better-sqlite3 missing: ${err?.message || err}`);
-  process.exit(1);
-}
+({ default: Database } = await import('better-sqlite3'));
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'sqlite-token-postings-rebuild-from-streamed-chunk-meta');

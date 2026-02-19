@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { listTrackedHeaderPaths } from '../../../../src/index/tooling/clangd-provider.js';
+import { skip } from '../../../helpers/skip.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'clangd-tracked-headers-cache-invalidation');
@@ -11,8 +12,7 @@ const repoRoot = path.join(tempRoot, 'repo');
 
 const gitVersion = spawnSync('git', ['--version'], { encoding: 'utf8' });
 if (gitVersion.status !== 0) {
-  console.log('clangd tracked headers cache invalidation test skipped (git unavailable).');
-  process.exit(0);
+  skip('clangd tracked headers cache invalidation test skipped (git unavailable).');
 }
 
 const runGit = (args) => {

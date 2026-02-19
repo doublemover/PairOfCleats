@@ -7,6 +7,7 @@ import { readTextFile } from '../../../src/shared/encoding.js';
 import { countLinesForEntries } from '../../../src/shared/file-stats.js';
 import { formatDurationMs } from '../../../src/shared/time-format.js';
 import { getTriageConfig } from '../../shared/dict-utils.js';
+import { emitBenchLog } from './logging.js';
 
 export const formatDuration = (ms) => formatDurationMs(ms);
 
@@ -99,13 +100,7 @@ export const buildLineStats = async (repoPath, userConfig) => {
 };
 
 export const validateEncodingFixtures = async (scriptRoot, { onLog = null } = {}) => {
-  const warn = (message) => {
-    if (typeof onLog === 'function') {
-      onLog(message, 'warn');
-      return;
-    }
-    console.warn(message);
-  };
+  const warn = (message) => emitBenchLog(onLog, message, 'warn');
   const fixturePath = path.join(scriptRoot, 'tests', 'fixtures', 'encoding', 'latin1.js');
   if (!fs.existsSync(fixturePath)) return;
   try {

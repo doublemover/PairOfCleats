@@ -28,6 +28,10 @@ let gitBlameCache = createLruCache({
 });
 const gitRootFailureState = new Map();
 const GIT_ROOT_FAILURE_BLOCK_MS = 5 * 60 * 1000;
+const GIT_FAILURE_SCOPE = Object.freeze({
+  META: 'meta',
+  BLAME: 'blame'
+});
 
 const warnedGitRoots = new Set();
 
@@ -105,7 +109,7 @@ export async function getGitLineAuthorsForFile(file, options = {}) {
     }
   }).key;
 
-  if (isGitTemporarilyDisabled(baseDir)) return null;
+  if (isGitTemporarilyDisabled(baseDir, GIT_FAILURE_SCOPE.BLAME)) return null;
 
   const cached = gitBlameCache.get(blameKey);
   if (cached) return cached;
@@ -132,10 +136,10 @@ export async function getGitLineAuthorsForFile(file, options = {}) {
     }
     const lineAuthors = parseLineAuthors(blame);
     if (lineAuthors) gitBlameCache.set(blameKey, lineAuthors);
-    clearGitFailureState(baseDir);
+    clearGitFailureState(baseDir, GIT_FAILURE_SCOPE.BLAME);
     return lineAuthors || null;
   } catch (err) {
-    recordGitFailure(baseDir, err);
+    recordGitFailure(baseDir, err, GIT_FAILURE_SCOPE.BLAME);
     warnGitUnavailable(baseDir);
     return null;
   }
@@ -181,7 +185,7 @@ export async function getGitMetaForFile(file, options = {}) {
   const timeoutMs = Number.isFinite(Number(options.timeoutMs)) ? Number(options.timeoutMs) : null;
   const signal = options.signal || null;
 
-  if (isGitTemporarilyDisabled(baseDir)) {
+  if (isGitTemporarilyDisabled(baseDir, GIT_FAILURE_SCOPE.META)) {
     return {};
   }
 
@@ -221,19 +225,17 @@ export async function getGitMetaForFile(file, options = {}) {
     }
 
     if (!meta) return {};
-    clearGitFailureState(baseDir);
+    clearGitFailureState(baseDir, GIT_FAILURE_SCOPE.META);
     if (!blameEnabled) return meta;
+    if (!meta.last_modified && !meta.last_author) return meta;
     const lineAuthors = await getGitLineAuthorsForFile(absFile, {
       baseDir,
       timeoutMs,
       signal
     });
-    return {
-      ...meta,
-      lineAuthors
-    };
+    return lineAuthors ? { ...meta, lineAuthors } : meta;
   } catch (err) {
-    recordGitFailure(baseDir, err);
+    recordGitFailure(baseDir, err, GIT_FAILURE_SCOPE.META);
     warnGitUnavailable(baseDir);
     return {};
   }
@@ -304,52 +306,101 @@ const resolveChurnWindowCommits = (rawValue) => {
     : 10;
 };
 
-const isGitTemporarilyDisabled = (baseDir) => {
-  const entry = gitRootFailureState.get(baseDir);
-  if (!entry) return false;
-  if (entry.blockedUntil > Date.now()) return true;
-  gitRootFailureState.delete(baseDir);
+const createFailureBucket = () => ({
+  failures: 0,
+  blockedUntil: 0
+});
+
+const getFailureBuckets = (baseDir, create = false) => {
+  const existing = gitRootFailureState.get(baseDir);
+  if (existing?.meta && existing?.blame) return existing;
+  if (!create) return null;
+  const next = {
+    meta: existing?.meta || createFailureBucket(),
+    blame: existing?.blame || createFailureBucket()
+  };
+  gitRootFailureState.set(baseDir, next);
+  return next;
+};
+
+const isFailureBucketActive = (bucket, now = Date.now()) =>
+  Number(bucket?.blockedUntil) > now;
+
+const isGitTemporarilyDisabled = (baseDir, scope = GIT_FAILURE_SCOPE.META) => {
+  const buckets = getFailureBuckets(baseDir);
+  const bucket = buckets?.[scope];
+  if (!bucket) return false;
+  if (isFailureBucketActive(bucket)) return true;
+  if (bucket.blockedUntil > 0) {
+    bucket.failures = 0;
+    bucket.blockedUntil = 0;
+  }
+  const metaActive = isFailureBucketActive(buckets.meta);
+  const blameActive = isFailureBucketActive(buckets.blame);
+  if (!metaActive && !blameActive && buckets.meta.failures === 0 && buckets.blame.failures === 0) {
+    gitRootFailureState.delete(baseDir);
+  }
   return false;
 };
 
-const clearGitFailureState = (baseDir) => {
+const clearFailureBucket = (bucket) => {
+  if (!bucket) return;
+  bucket.failures = 0;
+  bucket.blockedUntil = 0;
+};
+
+const clearGitFailureState = (baseDir, scope = null) => {
   if (!baseDir) return;
-  gitRootFailureState.delete(baseDir);
+  if (!scope) {
+    gitRootFailureState.delete(baseDir);
+    return;
+  }
+  const buckets = getFailureBuckets(baseDir);
+  if (!buckets?.[scope]) return;
+  clearFailureBucket(buckets[scope]);
+  if (buckets.meta.failures === 0
+      && buckets.meta.blockedUntil === 0
+      && buckets.blame.failures === 0
+      && buckets.blame.blockedUntil === 0) {
+    gitRootFailureState.delete(baseDir);
+  }
 };
 
 /**
  * Record a git failure and compute temporary/permanent disable windows.
  *
  * Fatal “git unavailable” signatures disable lookups indefinitely for the
- * repo root. Timeout-like failures or repeated transient failures trigger a
- * temporary cooldown to protect indexing latency.
+ * repo root scope. Timeout-like failures or repeated transient failures
+ * trigger a temporary cooldown for that scope to protect indexing latency.
  *
  * @param {string} baseDir
  * @param {Error|any} err
+ * @param {'meta'|'blame'} [scope]
  * @returns {void}
  */
-const recordGitFailure = (baseDir, err) => {
+const recordGitFailure = (baseDir, err, scope = GIT_FAILURE_SCOPE.META) => {
   if (!baseDir) return;
+  const buckets = getFailureBuckets(baseDir, true);
+  const bucket = buckets[scope] || createFailureBucket();
+  buckets[scope] = bucket;
   const now = Date.now();
   const code = String(err?.code || err?.cause?.code || '').toUpperCase();
   const message = String(err?.message || err?.cause?.message || '').toLowerCase();
-  const prior = gitRootFailureState.get(baseDir) || {
-    failures: 0,
-    blockedUntil: 0
-  };
   const timeoutLike = code === 'SUBPROCESS_TIMEOUT' || code === 'ABORT_ERR';
   const fatalUnavailable = code === 'ENOENT'
     || message.includes('not a git repository')
     || message.includes('git metadata unavailable')
     || message.includes('is not recognized as an internal or external command')
     || message.includes('spawn git');
-  const failures = prior.failures + 1;
+  const failures = bucket.failures + 1;
   const blockedUntil = fatalUnavailable
     ? Number.POSITIVE_INFINITY
     : (timeoutLike || failures >= 3
       ? (now + GIT_ROOT_FAILURE_BLOCK_MS)
-      : prior.blockedUntil);
-  gitRootFailureState.set(baseDir, { failures, blockedUntil });
+      : bucket.blockedUntil);
+  bucket.failures = failures;
+  bucket.blockedUntil = blockedUntil;
+  gitRootFailureState.set(baseDir, buckets);
 };
 
 const parseLogHead = (stdout) => {

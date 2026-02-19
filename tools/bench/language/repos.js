@@ -2,22 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { runCommand } from '../../shared/cli-utils.js';
 import { getIndexDir, getRepoCacheRoot, loadUserConfig, resolveSqlitePaths } from '../../shared/dict-utils.js';
-
-const emit = (onLog, message, level = 'info') => {
-  if (typeof onLog === 'function') {
-    onLog(message, level);
-    return;
-  }
-  if (level === 'error') {
-    console.error(message);
-    return;
-  }
-  if (level === 'warn') {
-    console.warn(message);
-    return;
-  }
-  console.log(message);
-};
+import { emitBenchLog } from './logging.js';
 
 const canRun = (cmd, args) => {
   try {
@@ -222,7 +207,7 @@ export const resolveCloneTool = ({ onLog = null } = {}) => {
       ]
     };
   }
-  emit(onLog, 'GitHub CLI (gh) or git is required to clone benchmark repos.', 'error');
+  emitBenchLog(onLog, 'GitHub CLI (gh) or git is required to clone benchmark repos.', 'error');
   process.exit(1);
 };
 
@@ -244,14 +229,14 @@ export const ensureLongPathsSupport = ({ onLog = null } = {}) => {
     regResult = null;
   }
   if (!regResult || !regResult.ok) {
-    emit(onLog, 'Warning: Unable to confirm Windows long path setting. Enable LongPathsEnabled=1 if clones fail.', 'warn');
+    emitBenchLog(onLog, 'Warning: Unable to confirm Windows long path setting. Enable LongPathsEnabled=1 if clones fail.', 'warn');
     return;
   }
   const match = String(regResult.stdout || '').match(/LongPathsEnabled\s+REG_DWORD\s+0x([0-9a-f]+)/i);
   if (!match) return;
   const value = Number.parseInt(match[1], 16);
   if (value === 0) {
-    emit(onLog, 'Warning: Windows long paths are disabled. Enable LongPathsEnabled=1 to avoid clone failures.', 'warn');
+    emitBenchLog(onLog, 'Warning: Windows long paths are disabled. Enable LongPathsEnabled=1 to avoid clone failures.', 'warn');
   }
 };
 

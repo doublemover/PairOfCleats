@@ -19,6 +19,19 @@ assert.ok(payload.languages.includes('shell'), 'shell language missing');
 assert.ok(Array.isArray(payload.tasks), 'tasks array missing');
 assert.ok(payload.tasks.length > 0, 'no benchmark tasks listed');
 
+const quietListResult = spawnSync(process.execPath, [scriptPath, '--list', '--quiet', '--tier', 'typical'], {
+  encoding: 'utf8'
+});
+if (quietListResult.status !== 0) {
+  console.error(quietListResult.stderr || 'bench-language-repos --quiet --list failed');
+  process.exit(quietListResult.status ?? 1);
+}
+assert.match(
+  quietListResult.stderr || '',
+  /Benchmark targets/,
+  'quiet list output should still print target listing'
+);
+
 const shardByLabel = new Map([['src', { index: 2, total: 4 }]]);
 const progressLine = formatShardFileProgress(
   {

@@ -3,6 +3,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { getGitMetaForFile } from '../../../src/index/git.js';
 import { setScmCommandRunner } from '../../../src/index/scm/runner.js';
+import { ensureTestingEnv } from '../../helpers/test-env.js';
+
+ensureTestingEnv(process.env);
 
 const root = process.cwd();
 const target = path.join(root, 'README.md');

@@ -7,6 +7,7 @@ import { parseBenchLanguageArgs } from './language/cli.js';
 import { loadBenchConfig } from './language/config.js';
 import { checkIndexLock, formatLockDetail } from './language/locks.js';
 import {
+  buildNonInteractiveGitEnv,
   ensureLongPathsSupport,
   ensureRepoBenchmarkReady,
   needsIndexArtifacts,
@@ -397,13 +398,13 @@ if (argv.list) {
   if (argv.json) {
     console.log(JSON.stringify(payload, null, 2));
   } else {
-    display.log('Benchmark targets');
-    display.log(`- config: ${configPath}`);
-    display.log(`- repos: ${reposRoot}`);
-    display.log(`- cache: ${cacheRoot}`);
-    display.log(`- results: ${resultsRoot}`);
+    console.error('Benchmark targets');
+    console.error(`- config: ${configPath}`);
+    console.error(`- repos: ${reposRoot}`);
+    console.error(`- cache: ${cacheRoot}`);
+    console.error(`- results: ${resultsRoot}`);
     for (const task of tasks) {
-      display.log(`- ${task.language} ${task.tier} ${task.repo}`);
+      console.error(`- ${task.language} ${task.tier} ${task.repo}`);
     }
   }
   exitWithDisplay(0);
@@ -503,7 +504,7 @@ for (const task of tasks) {
       if (!dryRun && cloneEnabled && cloneTool) {
         const args = cloneTool.buildArgs(task.repo, repoPath);
         const cloneResult = await processRunner.runProcess(`clone ${task.repo}`, cloneTool.label, args, {
-          env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+          env: buildNonInteractiveGitEnv(process.env),
           continueOnError: true
         });
         if (!cloneResult.ok) {

@@ -3,15 +3,14 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { buildSqliteIndex } from '../../../tools/build/sqlite/runner.js';
-import { applyTestEnv } from '../../helpers/test-env.js';
+import { requireOrSkip } from '../../helpers/require-or-skip.js';
+import { applyTestEnv, ensureTestingEnv } from '../../helpers/test-env.js';
+
+ensureTestingEnv(process.env);
+requireOrSkip({ capability: 'sqlite', reason: 'sqlite empty code rebuild test requires better-sqlite3' });
 
 let Database = null;
-try {
-  ({ default: Database } = await import('better-sqlite3'));
-} catch (err) {
-  console.error(`better-sqlite3 missing: ${err?.message || err}`);
-  process.exit(1);
-}
+({ default: Database } = await import('better-sqlite3'));
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'sqlite-skip-empty-code-rebuild');
