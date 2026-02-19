@@ -143,6 +143,8 @@ const VECTOR_ONLY_SPARSE_RECURSIVE_ALLOWLIST = new Set([
 const ARTIFACT_WRITE_CONCURRENCY_MIN = 1;
 const ARTIFACT_WRITE_CONCURRENCY_MAX = 32;
 const ARTIFACT_WRITE_DEFAULT_MAX = 16;
+const ARTIFACT_WRITE_HIGH_VOLUME_THRESHOLD = 64;
+const ARTIFACT_WRITE_HIGH_VOLUME_DEFAULT_MAX = 24;
 
 const sha256Hex = (value) => createHash('sha256').update(String(value || ''), 'utf8').digest('hex');
 
@@ -151,7 +153,11 @@ const sha256Hex = (value) => createHash('sha256').update(String(value || ''), 'u
  * @param {{artifactConfig?:object,totalWrites:number}} input
  * @returns {{cap:number,override:boolean}}
  */
-const resolveArtifactWriteConcurrency = ({ artifactConfig, totalWrites }) => {
+export const resolveArtifactWriteConcurrency = ({
+  artifactConfig,
+  totalWrites,
+  availableParallelism = null
+}) => {
   const resolvedWrites = Number.isFinite(Number(totalWrites))
     ? Math.max(0, Math.floor(Number(totalWrites)))
     : 0;
@@ -169,16 +175,21 @@ const resolveArtifactWriteConcurrency = ({ artifactConfig, totalWrites }) => {
     }
     return { cap: parsed, override: true };
   }
-  const available = typeof os.availableParallelism === 'function'
-    ? os.availableParallelism()
-    : os.cpus().length;
+  const available = Number.isFinite(Number(availableParallelism)) && Number(availableParallelism) > 0
+    ? Number(availableParallelism)
+    : (typeof os.availableParallelism === 'function'
+      ? os.availableParallelism()
+      : os.cpus().length);
   const baseline = Number.isFinite(Number(available))
     ? Math.max(1, Math.floor(Number(available)))
     : 1;
+  const defaultCap = resolvedWrites >= ARTIFACT_WRITE_HIGH_VOLUME_THRESHOLD
+    ? ARTIFACT_WRITE_HIGH_VOLUME_DEFAULT_MAX
+    : ARTIFACT_WRITE_DEFAULT_MAX;
   return {
     cap: Math.max(
       ARTIFACT_WRITE_CONCURRENCY_MIN,
-      Math.min(ARTIFACT_WRITE_DEFAULT_MAX, baseline)
+      Math.min(defaultCap, baseline)
     ),
     override: false
   };
