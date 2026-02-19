@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-19T04:10:24.544Z",
+  "generatedAt": "2026-02-19T20:12:05.263Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -1965,14 +1965,14 @@
     {
       "name": "PAIROFCLEATS_BUILD_INDEX_LOCK_POLL_MS",
       "files": [
-        "src/integrations/core/build-index/stages.js",
+        "src/shared/env.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_BUILD_INDEX_LOCK_WAIT_MS",
       "files": [
-        "src/integrations/core/build-index/stages.js",
+        "src/shared/env.js",
         "tools/config/inventory.js"
       ]
     },
@@ -2285,7 +2285,7 @@
     {
       "name": "PAIROFCLEATS_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY",
       "files": [
-        "src/index/build/incremental.js",
+        "src/shared/env.js",
         "tools/config/inventory.js"
       ]
     },
