@@ -1,14 +1,13 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { estimateJsonBytes } from '../../../shared/cache.js';
 import {
   DEFAULT_MAX_OPEN_RUNS,
   mergeRunsWithPlanner,
   mergeSortedRuns,
   readJsonlRows
 } from '../../../shared/merge.js';
-import { sortStrings } from './constants.js';
+import { maybeYield, sortStrings } from './constants.js';
 
 /**
  * Build a stable cache key for merge planner hints from run identity metadata.
@@ -31,8 +30,7 @@ const buildPlannerInputKey = async (label, runs, { requestYield } = {}) => {
     hash.update(':');
     hash.update(String(Number.isFinite(stat?.size) ? stat.size : -1));
     hash.update('\n');
-    const waitForYield = requestYield?.();
-    if (waitForYield) await waitForYield;
+    await maybeYield(requestYield);
   }
   return hash.digest('hex');
 };
@@ -65,8 +63,7 @@ export const compareChargramRows = (a, b) => sortStrings(a?.token, b?.token);
  *     stats?: object|null,
  *     plannerUsed?: boolean,
  *     plannerHintUsed?: boolean
- *   }>,
- *   shouldSpillByBytes: (map: Map<any, any>, maxBytes: number) => Promise<boolean>
+ *   }>
  * }}
  */
 export const createSpillHelpers = ({
@@ -118,20 +115,7 @@ export const createSpillHelpers = ({
     };
   };
 
-  const shouldSpillByBytes = async (map, maxBytes) => {
-    if (!maxBytes || !map || typeof map.entries !== 'function') return false;
-    let total = 0;
-    for (const [token, posting] of map.entries()) {
-      total += estimateJsonBytes({ token, postings: posting });
-      if (total >= maxBytes) return true;
-      const waitForYield = requestYield?.();
-      if (waitForYield) await waitForYield;
-    }
-    return false;
-  };
-
   return {
-    mergeSpillRuns,
-    shouldSpillByBytes
+    mergeSpillRuns
   };
 };

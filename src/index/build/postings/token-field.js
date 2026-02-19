@@ -1,4 +1,4 @@
-import { sortStrings } from './constants.js';
+import { maybeYield, sortStrings } from './constants.js';
 
 /**
  * Build token-level and field-level sparse posting artifacts.
@@ -43,13 +43,12 @@ export const buildTokenAndFieldPostings = async ({
   if (sparseEnabled) {
     let includeTokenIds = tokenIdMap && tokenIdMap.size > 0;
     const tokenEntries = [];
-    for (const id of tokenPostings.keys()) {
+    for (const [id, posting] of tokenPostings.entries()) {
       const mapped = tokenIdMap?.get(id);
       if (!mapped) includeTokenIds = false;
       const token = mapped ?? (typeof id === 'string' ? id : String(id));
-      tokenEntries.push({ id, token });
-      const waitForYield = requestYield?.();
-      if (waitForYield) await waitForYield;
+      tokenEntries.push({ id, token, posting });
+      await maybeYield(requestYield);
     }
     tokenEntries.sort((a, b) => sortStrings(a.token, b.token));
     tokenVocab = new Array(tokenEntries.length);
@@ -59,10 +58,8 @@ export const buildTokenAndFieldPostings = async ({
       const entry = tokenEntries[i];
       tokenVocab[i] = entry.token;
       if (tokenVocabIds) tokenVocabIds[i] = entry.id;
-      tokenPostingsList[i] = normalizeTfPostingList(tokenPostings.get(entry.id));
-      tokenPostings.delete(entry.id);
-      const waitForYield = requestYield?.();
-      if (waitForYield) await waitForYield;
+      tokenPostingsList[i] = normalizeTfPostingList(entry.posting);
+      await maybeYield(requestYield);
     }
   }
   if (typeof tokenPostings?.clear === 'function') tokenPostings.clear();
@@ -87,23 +84,22 @@ export const buildTokenAndFieldPostings = async ({
     const fields = {};
     const fieldEntries = Object.entries(fieldPostings).sort((a, b) => sortStrings(a[0], b[0]));
     for (const [field, postingsMap] of fieldEntries) {
-      if (!postingsMap || typeof postingsMap.keys !== 'function') continue;
-      const vocab = [];
-      for (const token of postingsMap.keys()) {
-        vocab.push(token);
-        const waitForYield = requestYield?.();
-        if (waitForYield) await waitForYield;
-      }
-      vocab.sort(sortStrings);
-      const postings = new Array(vocab.length);
-      for (let i = 0; i < vocab.length; i += 1) {
-        const token = vocab[i];
-        postings[i] = normalizeTfPostingList(postingsMap.get(token));
-        postingsMap.delete(token);
-        const waitForYield = requestYield?.();
-        if (waitForYield) await waitForYield;
+      if (!postingsMap || typeof postingsMap.entries !== 'function') continue;
+      const entries = [];
+      for (const [token, posting] of postingsMap.entries()) {
+        entries.push([token, posting]);
+        await maybeYield(requestYield);
       }
       if (typeof postingsMap.clear === 'function') postingsMap.clear();
+      entries.sort((a, b) => sortStrings(a[0], b[0]));
+      const vocab = new Array(entries.length);
+      const postings = new Array(entries.length);
+      for (let i = 0; i < entries.length; i += 1) {
+        const [token, posting] = entries[i];
+        vocab[i] = token;
+        postings[i] = normalizeTfPostingList(posting);
+        await maybeYield(requestYield);
+      }
       const lengthsRaw = fieldDocLengths[field] || [];
       const lengths = Array.isArray(lengthsRaw)
         ? lengthsRaw.map((len) => (Number.isFinite(len) ? len : 0))
@@ -118,8 +114,7 @@ export const buildTokenAndFieldPostings = async ({
         avgDocLen: avgLen,
         totalDocs: lengths.length
       };
-      const waitForYield = requestYield?.();
-      if (waitForYield) await waitForYield;
+      await maybeYield(requestYield);
     }
     return Object.keys(fields).length ? { fields } : null;
   };

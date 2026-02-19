@@ -51,6 +51,17 @@ export const createCooperativeYield = ({
 };
 
 /**
+ * Yield cooperatively when requested by the stage scheduler.
+ *
+ * @param {(() => Promise<void> | null)|null|undefined} requestYield
+ * @returns {Promise<void>}
+ */
+export const maybeYield = async (requestYield) => {
+  const waitForYield = requestYield?.();
+  if (waitForYield) await waitForYield;
+};
+
+/**
  * Resolve token length for a chunk, preferring precomputed `tokenCount`.
  *
  * @param {object} chunk

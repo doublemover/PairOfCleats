@@ -1,6 +1,7 @@
 import { quantizeVec } from '../../embedding.js';
 import { DEFAULT_STUB_DIMS } from '../../../shared/embedding.js';
 import { isVectorLike } from '../../../shared/embedding-utils.js';
+import { maybeYield } from './constants.js';
 
 /**
  * @typedef {object} BuildDenseVectorsInput
@@ -114,10 +115,15 @@ export const buildDenseVectors = async ({
    */
   const normalizeFloatVector = (vec) => {
     if (!isVectorLike(vec)) return zeroVec;
-    if (vec.length === dims) return ArrayBuffer.isView(vec) ? Array.from(vec) : vec;
-    if (vec.length > dims) return Array.from(vec).slice(0, dims);
-    const out = Array.from(vec);
-    while (out.length < dims) out.push(0);
+    if (vec.length === dims) return vec;
+    if (vec.length > dims) {
+      if (ArrayBuffer.isView(vec) && !(vec instanceof DataView) && typeof vec.subarray === 'function') {
+        return vec.subarray(0, dims);
+      }
+      return Array.from(vec).slice(0, dims);
+    }
+    const out = new Float32Array(dims);
+    for (let i = 0; i < vec.length; i += 1) out[i] = vec[i];
     return out;
   };
 
@@ -189,8 +195,7 @@ export const buildDenseVectors = async ({
       quantizedVectors[i] = mergedVec;
       quantizedDocVectors[i] = docVec;
       quantizedCodeVectors[i] = codeVec;
-      const waitForYield = requestYield?.();
-      if (waitForYield) await waitForYield;
+      await maybeYield(requestYield);
     }
   } else {
     const selectEmbedding = (chunk) => (
@@ -241,8 +246,7 @@ export const buildDenseVectors = async ({
       if (!quantizeWorker) {
         for (let i = 0; i < chunks.length; i += 1) {
           out[i] = quantizeVec(selector(chunks[i]));
-          const waitForYield = requestYield?.();
-          if (waitForYield) await waitForYield;
+          await maybeYield(requestYield);
         }
         return out;
       }

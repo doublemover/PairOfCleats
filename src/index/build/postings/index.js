@@ -126,32 +126,16 @@ export async function buildPostings(input) {
     every: cooperativeYieldEvery,
     minIntervalMs: cooperativeYieldMinIntervalMs
   });
-  const minhashMaxDocsRaw = postingsConfig && typeof postingsConfig === 'object'
-    ? Number(postingsConfig.minhashMaxDocs)
-    : NaN;
-  const minhashMaxDocs = Number.isFinite(minhashMaxDocsRaw)
-    ? Math.max(0, Math.floor(minhashMaxDocsRaw))
-    : 0;
-  const minhashStream = !(postingsConfig && typeof postingsConfig === 'object')
-    || postingsConfig.minhashStream !== false;
-  const phraseSpillMaxBytesRaw = postingsConfig && typeof postingsConfig === 'object'
-    ? Number(postingsConfig.phraseSpillMaxBytes)
-    : NaN;
-  const phraseSpillMaxBytes = Number.isFinite(phraseSpillMaxBytesRaw)
-    ? Math.max(0, Math.floor(phraseSpillMaxBytesRaw))
-    : 0;
-  const phraseSpillMaxUniqueRaw = postingsConfig && typeof postingsConfig === 'object'
-    ? Number(postingsConfig.phraseSpillMaxUnique)
-    : NaN;
-  const phraseSpillMaxUnique = Number.isFinite(phraseSpillMaxUniqueRaw)
-    ? Math.max(0, Math.floor(phraseSpillMaxUniqueRaw))
-    : DEFAULT_PHRASE_SPILL_MAX_UNIQUE;
-  const chargramSpillMaxBytesRaw = postingsConfig && typeof postingsConfig === 'object'
-    ? Number(postingsConfig.chargramSpillMaxBytes)
-    : NaN;
-  const chargramSpillMaxBytes = Number.isFinite(chargramSpillMaxBytesRaw)
-    ? Math.max(0, Math.floor(chargramSpillMaxBytesRaw))
-    : 0;
+  const config = (postingsConfig && typeof postingsConfig === 'object') ? postingsConfig : {};
+  const readNonNegativeInt = (key, fallback = 0) => resolvePositiveInt(config[key], fallback, 0);
+  const minhashMaxDocs = readNonNegativeInt('minhashMaxDocs', 0);
+  const minhashStream = config.minhashStream !== false;
+  const phraseSpillMaxBytes = readNonNegativeInt('phraseSpillMaxBytes', 0);
+  const phraseSpillMaxUnique = readNonNegativeInt(
+    'phraseSpillMaxUnique',
+    DEFAULT_PHRASE_SPILL_MAX_UNIQUE
+  );
+  const chargramSpillMaxBytes = readNonNegativeInt('chargramSpillMaxBytes', 0);
   const fieldedEnabled = resolvedConfig.fielded !== false;
   const phraseHashEnabled = resolvedConfig.phraseHash === true;
   /**
@@ -231,10 +215,7 @@ export async function buildPostings(input) {
   const N = chunks.length;
   const avgChunkLen = chunks.reduce((sum, c) => sum + resolveTokenCount(c), 0) / Math.max(N, 1);
 
-  const {
-    mergeSpillRuns,
-    shouldSpillByBytes
-  } = createSpillHelpers({
+  const { mergeSpillRuns } = createSpillHelpers({
     buildRoot,
     plannerCacheDir,
     requestYield
@@ -281,7 +262,6 @@ export async function buildPostings(input) {
     postingsGuard,
     requestYield,
     mergeSpillRuns,
-    shouldSpillByBytes,
     compareChargramRows
   });
 
