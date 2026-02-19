@@ -76,6 +76,43 @@ const countMissingBundleFiles = (incrementalData) => {
   return missing;
 };
 
+const resolveChunkMetaTotalRecords = (indexDir) => {
+  if (!indexDir || typeof indexDir !== 'string') return null;
+  const readJsonSafe = (targetPath) => {
+    try {
+      return JSON.parse(fsSync.readFileSync(targetPath, 'utf8'));
+    } catch {
+      return null;
+    }
+  };
+  const metaPath = path.join(indexDir, 'chunk_meta.meta.json');
+  if (fsSync.existsSync(metaPath)) {
+    const metaRaw = readJsonSafe(metaPath);
+    const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
+    const totalRecords = Number(meta?.totalRecords);
+    if (Number.isFinite(totalRecords) && totalRecords >= 0) {
+      return Math.max(0, Math.floor(totalRecords));
+    }
+  }
+  const jsonPath = path.join(indexDir, 'chunk_meta.json');
+  if (fsSync.existsSync(jsonPath)) {
+    const payload = readJsonSafe(jsonPath);
+    if (Array.isArray(payload)) return payload.length;
+  }
+  const jsonlPath = path.join(indexDir, 'chunk_meta.jsonl');
+  if (fsSync.existsSync(jsonlPath)) {
+    try {
+      const raw = fsSync.readFileSync(jsonlPath, 'utf8');
+      if (!raw.trim()) return 0;
+      return raw
+        .split(/\r?\n/)
+        .filter((line) => line.trim().length > 0)
+        .length;
+    } catch {}
+  }
+  return null;
+};
+
 /**
  * Build sqlite indexes without CLI parsing.
  * @param {object} options
@@ -315,6 +352,24 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
     }
     return counts;
   };
+  const readSqliteModeCount = (dbPath, mode) => {
+    if (!dbPath || !mode) return null;
+    let db = null;
+    try {
+      db = new Database(dbPath, { readonly: true });
+      const row = db.prepare('SELECT COUNT(*) AS total FROM chunks WHERE mode = ?').get(mode);
+      return Number.isFinite(row?.total) ? row.total : 0;
+    } catch {
+      return null;
+    }
+    finally {
+      if (db) {
+        try {
+          db.close();
+        } catch {}
+      }
+    }
+  };
   const hasVectorTableAtPath = (dbPath, tableName) => {
     if (!dbPath || !tableName) return false;
     let db = null;
@@ -536,6 +591,9 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
       if (!outputPath) return bail('SQLite output path could not be resolved.');
       const outDir = path.dirname(outputPath);
       const logDetails = [];
+      const modeChunkCountHint = mode === 'records'
+        ? resolveChunkMetaTotalRecords(modeIndexDir)
+        : null;
       if (emitOutput) {
         log(`${modeLabel} building ${mode} index -> ${outputPath}`);
       }
@@ -550,6 +608,40 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
         threadLimits,
         note: null
       });
+
+      if (mode === 'records'
+        && modeChunkCountHint === 0
+        && fsSync.existsSync(outputPath)) {
+        const existingRows = readSqliteModeCount(outputPath, 'records');
+        if (existingRows === 0) {
+          stageCheckpoints.record({
+            stage: 'stage4',
+            step: 'skip-empty-records',
+            extra: {
+              recordsArtifactsRows: 0,
+              existingRows: 0
+            }
+          });
+          await updateSqliteState({
+            root,
+            userConfig,
+            indexRoot,
+            mode,
+            status: 'ready',
+            path: outputPath,
+            schemaVersion: SCHEMA_VERSION,
+            threadLimits,
+            note: 'skipped empty records rebuild',
+            stats: { skipped: true, reason: 'empty-records-artifacts' }
+          });
+          if (emitOutput) {
+            log(`${modeLabel} skipping records sqlite rebuild (artifacts empty; existing db empty).`);
+          }
+          done += 1;
+          buildModeTask.set(done, modeList.length, { message: `${mode} skipped` });
+          continue;
+        }
+      }
 
       const incrementalData = loadIncrementalManifest(repoCacheRoot, mode);
       const incrementalBundleDir = incrementalData?.bundleDir || null;
