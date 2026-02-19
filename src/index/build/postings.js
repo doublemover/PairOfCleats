@@ -17,6 +17,9 @@ import {
 const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
 const DEFAULT_COOPERATIVE_YIELD_EVERY = 1024;
 const DEFAULT_COOPERATIVE_YIELD_MIN_INTERVAL_MS = 250;
+// Phrase postings can hit very high cardinality on large repos; spill-by-count
+// keeps stage2 from spending hours materializing giant in-memory arrays.
+const DEFAULT_PHRASE_SPILL_MAX_UNIQUE = 250000;
 
 const resolvePositiveInt = (value, fallback, minimum = 1) => {
   const num = Number(value);
@@ -166,6 +169,12 @@ export async function buildPostings(input) {
   const phraseSpillMaxBytes = Number.isFinite(phraseSpillMaxBytesRaw)
     ? Math.max(0, Math.floor(phraseSpillMaxBytesRaw))
     : 0;
+  const phraseSpillMaxUniqueRaw = postingsConfig && typeof postingsConfig === 'object'
+    ? Number(postingsConfig.phraseSpillMaxUnique)
+    : NaN;
+  const phraseSpillMaxUnique = Number.isFinite(phraseSpillMaxUniqueRaw)
+    ? Math.max(0, Math.floor(phraseSpillMaxUniqueRaw))
+    : DEFAULT_PHRASE_SPILL_MAX_UNIQUE;
   const chargramSpillMaxBytesRaw = postingsConfig && typeof postingsConfig === 'object'
     ? Number(postingsConfig.chargramSpillMaxBytes)
     : NaN;
@@ -342,24 +351,26 @@ export async function buildPostings(input) {
     list.length = write;
     return list;
   };
-  const mergeIdLists = (left, right) => {
-    if (left == null) return normalizeIdList(right);
-    if (right == null) return normalizeIdList(left);
-    const listA = normalizeIdList(left);
+  /**
+   * Merge posting lists when the left input is already normalized.
+   * Avoids re-validating/re-scanning the accumulated list on every merge.
+   */
+  const mergeIdListsWithNormalizedLeft = (leftNormalized, right) => {
+    if (!Array.isArray(leftNormalized)) return normalizeIdList(right);
     const listB = normalizeIdList(right);
-    if (!listA.length) return listB;
-    if (!listB.length) return listA;
-    const lastA = listA[listA.length - 1];
-    const firstA = listA[0];
+    if (!leftNormalized.length) return listB;
+    if (!listB.length) return leftNormalized;
+    const lastA = leftNormalized[leftNormalized.length - 1];
+    const firstA = leftNormalized[0];
     const firstB = listB[0];
     const lastB = listB[listB.length - 1];
     if (Number.isFinite(lastA) && Number.isFinite(firstB) && lastA < firstB) {
-      return listA.concat(listB);
+      return leftNormalized.concat(listB);
     }
     if (Number.isFinite(lastB) && Number.isFinite(firstA) && lastB < firstA) {
-      return listB.concat(listA);
+      return listB.concat(leftNormalized);
     }
-    return mergeSortedUniqueIdLists(listA, listB);
+    return mergeSortedUniqueIdLists(leftNormalized, listB);
   };
   const postingsMergeStats = {
     phrase: null,
@@ -380,21 +391,16 @@ export async function buildPostings(input) {
     const hash = crypto.createHash('sha1');
     hash.update(label);
     hash.update('\n');
-    const runRows = await Promise.all((runs || []).map(async (run) => {
+    for (const run of (runs || [])) {
       const runPath = typeof run === 'string' ? run : run?.path;
-      if (!runPath) return null;
+      if (!runPath) continue;
       const stat = await fs.stat(runPath).catch(() => null);
-      return {
-        baseName: path.basename(runPath),
-        size: Number.isFinite(stat?.size) ? stat.size : -1
-      };
-    }));
-    for (const row of runRows) {
-      if (!row) continue;
-      hash.update(row.baseName);
+      hash.update(path.basename(runPath));
       hash.update(':');
-      hash.update(String(row.size));
+      hash.update(String(Number.isFinite(stat?.size) ? stat.size : -1));
       hash.update('\n');
+      const waitForYield = requestYield();
+      if (waitForYield) await waitForYield;
     }
     return hash.digest('hex');
   };
@@ -758,9 +764,19 @@ export async function buildPostings(input) {
     }
     if (typeof phrasePostHashBuckets.clear === 'function') phrasePostHashBuckets.clear();
   } else if (phraseEnabled && phrasePost && typeof phrasePost.keys === 'function') {
-    const phraseShouldSpill = buildRoot
+    const phraseSpillByUnique = !!(
+      buildRoot
+      && phraseSpillMaxUnique
+      && Number.isFinite(phrasePost.size)
+      && phrasePost.size >= phraseSpillMaxUnique
+    );
+    const phraseSpillByBytes = !!(
+      !phraseSpillByUnique
+      && buildRoot
       && phraseSpillMaxBytes
-      && await shouldSpillByBytes(phrasePost, phraseSpillMaxBytes);
+      && await shouldSpillByBytes(phrasePost, phraseSpillMaxBytes)
+    );
+    const phraseShouldSpill = phraseSpillByUnique || phraseSpillByBytes;
     if (phraseShouldSpill) {
       const collector = createRowSpillCollector({
         outDir: buildRoot,
@@ -815,7 +831,7 @@ export async function buildPostings(input) {
             postingsMergeStats.phrase.rows += 1;
             if (currentToken === null) {
               currentToken = token;
-              currentPosting = row.postings;
+              currentPosting = normalizeIdList(row.postings);
               const waitForYield = requestYield();
               if (waitForYield) await waitForYield;
               continue;
@@ -827,12 +843,12 @@ export async function buildPostings(input) {
                 postingsList.push(normalized);
               }
               currentToken = token;
-              currentPosting = row.postings;
+              currentPosting = normalizeIdList(row.postings);
               const waitForYield = requestYield();
               if (waitForYield) await waitForYield;
               continue;
             }
-            currentPosting = mergeIdLists(currentPosting, row.postings);
+            currentPosting = mergeIdListsWithNormalizedLeft(currentPosting, row.postings);
             const waitForYield = requestYield();
             if (waitForYield) await waitForYield;
           }
@@ -846,7 +862,7 @@ export async function buildPostings(input) {
             }
             if (currentToken === null) {
               currentToken = token;
-              currentPosting = row.postings;
+              currentPosting = normalizeIdList(row.postings);
               const waitForYield = requestYield();
               if (waitForYield) await waitForYield;
               continue;
@@ -858,12 +874,12 @@ export async function buildPostings(input) {
                 postingsList.push(normalized);
               }
               currentToken = token;
-              currentPosting = row.postings;
+              currentPosting = normalizeIdList(row.postings);
               const waitForYield = requestYield();
               if (waitForYield) await waitForYield;
               continue;
             }
-            currentPosting = mergeIdLists(currentPosting, row.postings);
+            currentPosting = mergeIdListsWithNormalizedLeft(currentPosting, row.postings);
             const waitForYield = requestYield();
             if (waitForYield) await waitForYield;
           }
@@ -907,11 +923,19 @@ export async function buildPostings(input) {
   let chargramStats = null;
   const triPostSize = triPost?.size || 0;
   if (chargramEnabled && triPost && typeof triPost.keys === 'function') {
-    const spillByBytes = buildRoot
+    const spillByUnique = !!(
+      buildRoot
+      && chargramSpillMaxUnique
+      && Number.isFinite(triPost.size)
+      && triPost.size >= chargramSpillMaxUnique
+    );
+    const spillByBytes = !!(
+      !spillByUnique
+      && buildRoot
       && chargramSpillMaxBytes
-      && await shouldSpillByBytes(triPost, chargramSpillMaxBytes);
-    const shouldSpill = buildRoot
-      && ((chargramSpillMaxUnique && triPost.size >= chargramSpillMaxUnique) || spillByBytes);
+      && await shouldSpillByBytes(triPost, chargramSpillMaxBytes)
+    );
+    const shouldSpill = spillByUnique || spillByBytes;
     if (shouldSpill) {
       const collector = createRowSpillCollector({
         outDir: buildRoot,
@@ -967,7 +991,7 @@ export async function buildPostings(input) {
             postingsMergeStats.chargram.rows += 1;
             if (currentToken === null) {
               currentToken = token;
-              currentPosting = row.postings;
+              currentPosting = normalizeIdList(row.postings);
               const waitForYield = requestYield();
               if (waitForYield) await waitForYield;
               continue;
@@ -979,12 +1003,12 @@ export async function buildPostings(input) {
                 postingsList.push(normalized);
               }
               currentToken = token;
-              currentPosting = row.postings;
+              currentPosting = normalizeIdList(row.postings);
               const waitForYield = requestYield();
               if (waitForYield) await waitForYield;
               continue;
             }
-            currentPosting = mergeIdLists(currentPosting, row.postings);
+            currentPosting = mergeIdListsWithNormalizedLeft(currentPosting, row.postings);
             const waitForYield = requestYield();
             if (waitForYield) await waitForYield;
           }
@@ -998,7 +1022,7 @@ export async function buildPostings(input) {
             }
             if (currentToken === null) {
               currentToken = token;
-              currentPosting = row.postings;
+              currentPosting = normalizeIdList(row.postings);
               const waitForYield = requestYield();
               if (waitForYield) await waitForYield;
               continue;
@@ -1010,12 +1034,12 @@ export async function buildPostings(input) {
                 postingsList.push(normalized);
               }
               currentToken = token;
-              currentPosting = row.postings;
+              currentPosting = normalizeIdList(row.postings);
               const waitForYield = requestYield();
               if (waitForYield) await waitForYield;
               continue;
             }
-            currentPosting = mergeIdLists(currentPosting, row.postings);
+            currentPosting = mergeIdListsWithNormalizedLeft(currentPosting, row.postings);
             const waitForYield = requestYield();
             if (waitForYield) await waitForYield;
           }
