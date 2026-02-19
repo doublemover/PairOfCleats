@@ -369,9 +369,14 @@ const matchChunkFilters = (c, state) => {
     if (!matches) return false;
   }
   if (chunkAuthor) {
-    const authors = Array.isArray(c.chunk_authors)
+    const chunkAuthors = Array.isArray(c.chunk_authors)
       ? c.chunk_authors
       : (Array.isArray(c.chunkAuthors) ? c.chunkAuthors : null);
+    const authors = (Array.isArray(chunkAuthors) && chunkAuthors.length)
+      ? chunkAuthors
+      : (Array.isArray(c.last_author)
+        ? c.last_author
+        : (c.last_author ? [c.last_author] : null));
     if (!matchList(authors, chunkAuthor, normalize)) return false;
   }
   if (importName) {

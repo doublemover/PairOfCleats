@@ -46,6 +46,16 @@ export function buildFilterIndex(chunkMeta = [], options = {}) {
     }
     addOne(map, value, id);
   };
+  const resolveChunkAuthorsForIndex = (chunk) => {
+    const chunkAuthors = Array.isArray(chunk?.chunk_authors)
+      ? chunk.chunk_authors
+      : (Array.isArray(chunk?.chunkAuthors) ? chunk.chunkAuthors : null);
+    if (Array.isArray(chunkAuthors) && chunkAuthors.length) return chunkAuthors;
+    const lastAuthor = chunk?.last_author;
+    if (Array.isArray(lastAuthor) && lastAuthor.length) return lastAuthor;
+    if (lastAuthor) return [lastAuthor];
+    return [];
+  };
 
   const normalizeLang = (value) => {
     if (typeof value !== 'string') return null;
@@ -100,10 +110,8 @@ export function buildFilterIndex(chunkMeta = [], options = {}) {
     add(index.byAuthor, chunk.last_author, id);
     const visibility = chunk.docmeta?.visibility || chunk.docmeta?.modifiers?.visibility || null;
     add(index.byVisibility, visibility, id);
-    const chunkAuthors = Array.isArray(chunk.chunk_authors)
-      ? chunk.chunk_authors
-      : (Array.isArray(chunk.chunkAuthors) ? chunk.chunkAuthors : []);
-    for (const author of chunkAuthors) add(index.byChunkAuthor, author, id);    
+    const chunkAuthors = resolveChunkAuthorsForIndex(chunk);
+    for (const author of chunkAuthors) add(index.byChunkAuthor, author, id);
   }
 
   if (includeBitmaps) {
