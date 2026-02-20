@@ -1,0 +1,44 @@
+{
+  "item": 36,
+  "section": "36",
+  "title": "Mandatory backward-compatibility matrix",
+  "sourceSpecs": [
+    "docs/specs/unified-syntax-representation.md",
+    "docs/specs/migration-and-backcompat.md",
+    "docs/specs/usr-core-rollout-release-migration.md"
+  ],
+  "inputs": {
+    "backcompatMatrix": "tests/lang/matrix/usr-backcompat-matrix.json"
+  },
+  "requiredScenarioIds": [
+    "BC-001",
+    "BC-002",
+    "BC-003",
+    "BC-004",
+    "BC-005",
+    "BC-006",
+    "BC-007",
+    "BC-008",
+    "BC-009",
+    "BC-010",
+    "BC-011",
+    "BC-012"
+  ],
+  "strictBlockingIds": [
+    "BC-001",
+    "BC-002",
+    "BC-003",
+    "BC-005",
+    "BC-006",
+    "BC-008",
+    "BC-009",
+    "BC-010",
+    "BC-012"
+  ],
+  "nonStrictAdvisoryIds": [
+    "BC-004",
+    "BC-007",
+    "BC-011"
+  ],
+  "report": "usr-section-36-backcompat-matrix-report.json"
+}

@@ -22,3 +22,16 @@ Gate:
 Bench:
 - `tools/bench/usr/item35-framework-canonicalization.js`
 - Snapshot: `item35-framework-canonicalization.json`
+
+## Item 36 - Mandatory backward-compatibility matrix
+
+Config:
+- `docs/config/usr-guardrails/item-36-backcompat-matrix.json`
+
+Gate:
+- `tools/ci/usr/item36-backcompat-matrix-gate.js`
+- Report: `usr-section-36-backcompat-matrix-report.json`
+
+Bench:
+- `tools/bench/usr/item36-backcompat-matrix.js`
+- Snapshot: `item36-backcompat-matrix.json`

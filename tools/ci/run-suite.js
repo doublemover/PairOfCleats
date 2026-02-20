@@ -73,6 +73,12 @@ const USR_GUARDRAIL_GATES = Object.freeze([
     label: 'USR guardrail (item 35: framework canonicalization)',
     script: 'tools/ci/usr/item35-framework-canonicalization-gate.js',
     report: 'usr-section-35-framework-canonicalization-report.json'
+  },
+  {
+    item: 36,
+    label: 'USR guardrail (item 36: backward-compatibility matrix)',
+    script: 'tools/ci/usr/item36-backcompat-matrix-gate.js',
+    report: 'usr-section-36-backcompat-matrix-report.json'
   }
 ]);
 
