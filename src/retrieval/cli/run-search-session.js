@@ -390,7 +390,25 @@ export async function runSearchSession({
             cacheHit = true;
             entry.ts = Date.now();
             rememberQueryCacheEntry(queryCachePath, cacheKey, cacheSignature, entry, queryCacheMaxEntries);
-            cacheShouldPersist = Boolean(cacheData);
+            if (!cacheData) {
+              cacheData = loadQueryCache(queryCachePath, {
+                prewarm: false
+              });
+            }
+            if (cacheData && Array.isArray(cacheData.entries)) {
+              const existingIndex = cacheData.entries.findIndex((candidate) => (
+                candidate?.key === cacheKey && candidate?.signature === cacheSignature
+              ));
+              if (existingIndex >= 0) {
+                cacheData.entries[existingIndex] = {
+                  ...cacheData.entries[existingIndex],
+                  ts: entry.ts
+                };
+              } else {
+                cacheData.entries.push(entry);
+              }
+              cacheShouldPersist = true;
+            }
           }
         }
       }

@@ -1557,17 +1557,18 @@ export async function writeIndexArtifacts(input) {
           `emitting auxiliary shards (${fieldPostingsShardCount} target).`
         );
       }
-      if (!fieldPostingsKeepLegacyJson) {
-        await removeArtifact(path.join(outDir, 'field_postings.json'), { policy: 'format_cleanup' });
+      if (!fieldPostingsKeepLegacyJson && typeof log === 'function') {
+        log(
+          '[warn] fieldPostingsKeepLegacyJson=false ignored while shard readers are unavailable; ' +
+          'emitting field_postings.json for compatibility.'
+        );
       }
     }
-    if (fieldPostingsKeepLegacyJson || !shouldShardFieldPostings) {
-      enqueueJsonObject('field_postings', { fields: { fields: fieldPostingsObject } }, {
-        piece: { type: 'postings', name: 'field_postings' },
-        priority: 220,
-        estimatedBytes: fieldPostingsEstimatedBytes
-      });
-    }
+    enqueueJsonObject('field_postings', { fields: { fields: fieldPostingsObject } }, {
+      piece: { type: 'postings', name: 'field_postings' },
+      priority: 220,
+      estimatedBytes: fieldPostingsEstimatedBytes
+    });
   }
   if (sparseArtifactsEnabled && resolvedConfig.fielded !== false && Array.isArray(state.fieldTokens)) {
     const fieldTokensEstimatedBytes = estimateJsonBytes(state.fieldTokens);

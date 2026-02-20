@@ -191,11 +191,10 @@ export const resolveWorkerResourceLimits = (maxWorkers, options = {}) => {
     policyMinMb,
     Math.min(platformCap, maxPerWorkerMb || WORKER_HEAP_TARGET_MAX_MB)
   );
-  // When max-old-space-size is explicitly set, never let worker heap ceilings
-  // exceed the split process budget.
-  const effectiveMaxMb = explicitProcessHeapBudget
-    ? Math.min(policyMaxMb, perWorkerBudgetMb)
-    : policyMaxMb;
+  // Never let per-worker heap ceilings exceed the derived per-worker budget.
+  // This prevents worker aggregate limits from oversubscribing host/process
+  // memory budgets on high-worker-count or memory-constrained hosts.
+  const effectiveMaxMb = Math.max(1, Math.min(policyMaxMb, perWorkerBudgetMb));
   const effectiveMinMb = Math.min(policyMinMb, effectiveMaxMb);
   const capped = Math.max(
     effectiveMinMb,
