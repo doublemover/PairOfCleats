@@ -1,4 +1,5 @@
 import PQueue from 'p-queue';
+import os from 'node:os';
 import { createAbortError, throwIfAborted } from './abort.js';
 
 /**
@@ -336,8 +337,20 @@ export function createBuildScheduler(input = {}) {
     }
     const pendingPressure = totalPending > Math.max(2, (tokens.cpu.total + tokens.io.total));
     const mostlyIdle = totalPending === 0 && totalRunning === 0;
+    const totalMem = Number(os.totalmem()) || 0;
+    const freeMem = Number(os.freemem()) || 0;
+    const freeRatio = totalMem > 0 ? (freeMem / totalMem) : null;
+    const memoryLowHeadroom = Number.isFinite(freeRatio) && freeRatio < 0.15;
+    const memoryHighHeadroom = !Number.isFinite(freeRatio) || freeRatio > 0.25;
 
-    if (pendingPressure) {
+    if (memoryLowHeadroom) {
+      tokens.cpu.total = Math.max(baselineLimits.cpu, tokens.cpu.total - 1);
+      tokens.io.total = Math.max(baselineLimits.io, tokens.io.total - 1);
+      tokens.mem.total = Math.max(baselineLimits.mem, tokens.mem.total - 1);
+      return;
+    }
+
+    if (pendingPressure && memoryHighHeadroom) {
       const nextCpu = Math.min(maxLimits.cpu, tokens.cpu.total + 1);
       const nextIo = Math.min(maxLimits.io, tokens.io.total + 1);
       const nextMem = Math.min(maxLimits.mem, tokens.mem.total + 1);
