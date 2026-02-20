@@ -614,9 +614,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.35 Dart
 
-- [ ] Implement `.dart` routing and import/type relation extraction behavior.
-- [ ] Implement and verify chunking and relation extraction for Flutter and server Dart code.
-- [ ] Calibrate and commit Dart caps for generated model-heavy repositories.
+- [x] Implement `.dart` routing and import/type relation extraction behavior.
+- [x] Implement and verify chunking and relation extraction for Flutter and server Dart code.
+- [x] Calibrate and commit Dart caps for generated model-heavy repositories.
 
 
 Touchpoints:
