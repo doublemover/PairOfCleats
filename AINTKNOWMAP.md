@@ -41,7 +41,7 @@ This roadmap consolidates all duplicated sections in `FUTUREROADMAP.md` into one
 
 Intent: remove ambiguity before code changes.
 
-- [ ] Resolve all open decisions in `FUTUREROADMAP.md` decision registers.
+- [x] Resolve all open decisions in `FUTUREROADMAP.md` decision registers.
 - [ ] Declare canonical command/file names where duplicates exist:
   - [ ] keep `tools/release/check.js` as canonical release runner
   - [ ] keep one canonical test path per concern

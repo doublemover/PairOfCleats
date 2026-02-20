@@ -62,11 +62,11 @@ When a spec/doc is replaced (e.g., a reconciled spec supersedes an older one):
 
 | Decision | Description | Default if Unresolved | Owner | Due Phase | Decision deadline |
 | --- | --- | --- | --- | --- | --- |
-| D1 Phase 16 extraction deps | Which PDF/DOCX libraries are canonical? | Prefer pdfjs‑dist + mammoth | TBD | 16 | Before Phase 16 start |
-| D2 Phase 17 vector‑only | Which sparse artifacts are removed vs retained? | Keep minimal metadata for compatibility | TBD | 17 | Before Phase 17 start |
-| D3 Phase 18 packaging | Native packaging targets/priorities | Windows + macOS + Linux | TBD | 18 | Before Phase 18 start |
-| D4 Phase 19 lexicon | Promote LEXI into FUTUREROADMAP? | Yes (single source) | TBD | 19 | Before Phase 19 start |
-| D5 Phase 20 TUI | JSONL protocol v2 strictness | Strict + fail‑open log wrapping | TBD | 20 | Before Phase 20 start |
+| D1 Phase 16 extraction deps | Which PDF/DOCX libraries are canonical? | Prefer pdfjs‑dist + mammoth | Core Maintainers | 16 | Resolved 2026-02-20 |
+| D2 Phase 17 vector‑only | Which sparse artifacts are removed vs retained? | Keep minimal metadata for compatibility | Core Maintainers | 17 | Resolved 2026-02-20 |
+| D3 Phase 18 packaging | Native packaging targets/priorities | Windows + macOS + Linux | Core Maintainers | 18 | Resolved 2026-02-20 |
+| D4 Phase 19 lexicon | Promote LEXI into FUTUREROADMAP? | Yes (single source) | Core Maintainers | 19 | Resolved 2026-02-20 |
+| D5 Phase 20 TUI | JSONL protocol v2 strictness | Strict + fail‑open log wrapping | Core Maintainers | 20 | Resolved 2026-02-20 |
 
 ### Dependency map (high-level)
 - Phase 16 extraction + routing precedes Phase 17 vector‑only profile defaults.
@@ -1695,17 +1695,17 @@ Note: each phase's "Exit Criteria" section is the acceptance criteria for that p
 
 | Decision | Description | Default if Unresolved | Owner | Due Phase | Decision deadline |
 | --- | --- | --- | --- | --- | --- |
-| D1 `api_contracts_meta` | Add schema + writer vs remove from docs. | Remove from docs and keep it out of the contract until a schema exists. | TBD | Phase 2 | Before Phase 2 start |
-| D2 N‑1 major support for 0.x | Change code or document current behavior. | Document current behavior, add a compatibility note, and revisit in Phase 5. | TBD | Phase 3 | Before Phase 3 start |
-| D3 Extensions-only vs extra fields | Tighten schemas or relax docs. | Tighten schemas; explicitly whitelist extension fields if needed. | TBD | Phase 2 | Before Phase 2 start |
-| D4 Graph explain shape | Update docs or change output. | Align output to docs and version the explain schema. | TBD | Phase 3 | Before Phase 3 start |
-| D5 Impact empty inputs | Enforce error or document warning+empty result. | Default to error; allow legacy warning only with explicit flag. | TBD | Phase 3 | Before Phase 3 start |
-| D6 Graph product surfaces spec | Keep authoritative + update or archive. | Keep authoritative and update docs to match behavior. | TBD | Phase 3 | Before Phase 3 start |
-| D7 Risk trimming/ordering | Enforce spec in code or update specs. | Enforce spec in code, add deterministic trimming rules. | TBD | Phase 2 | Before Phase 2 start |
-| D8 Tooling IO `fileTextByFile` | Implement cache or update spec to VFS. | Update spec to VFS and treat cache as optional. | TBD | Phase 4 | Before Phase 4 start |
-| D9 TS provider heuristic IDs | Remove from code or allow in spec. | Allow in spec with explicit marker and phase-out plan. | TBD | Phase 3 | Before Phase 3 start |
-| D10 VFS manifest trimming | Enforce deterministic trim or update spec. | Enforce deterministic trim with counters. | TBD | Phase 2 | Before Phase 2 start |
-| D11 Promote `docs/new_docs/*` | Promote into specs or archive/remove. | Promote only docs with implementation + tests; archive the rest. | TBD | Phase 6 | Before Phase 6 start |
+| D1 `api_contracts_meta` | Add schema + writer vs remove from docs. | Remove from docs and keep it out of the contract until a schema exists. | Core Maintainers | Phase 2 | Resolved 2026-02-20 |
+| D2 N‑1 major support for 0.x | Change code or document current behavior. | Document current behavior, add a compatibility note, and revisit in Phase 5. | Core Maintainers | Phase 3 | Resolved 2026-02-20 |
+| D3 Extensions-only vs extra fields | Tighten schemas or relax docs. | Tighten schemas; explicitly whitelist extension fields if needed. | Core Maintainers | Phase 2 | Resolved 2026-02-20 |
+| D4 Graph explain shape | Update docs or change output. | Align output to docs and version the explain schema. | Core Maintainers | Phase 3 | Resolved 2026-02-20 |
+| D5 Impact empty inputs | Enforce error or document warning+empty result. | Default to error; allow legacy warning only with explicit flag. | Core Maintainers | Phase 3 | Resolved 2026-02-20 |
+| D6 Graph product surfaces spec | Keep authoritative + update or archive. | Keep authoritative and update docs to match behavior. | Core Maintainers | Phase 3 | Resolved 2026-02-20 |
+| D7 Risk trimming/ordering | Enforce spec in code or update specs. | Enforce spec in code, add deterministic trimming rules. | Core Maintainers | Phase 2 | Resolved 2026-02-20 |
+| D8 Tooling IO `fileTextByFile` | Implement cache or update spec to VFS. | Update spec to VFS and treat cache as optional. | Core Maintainers | Phase 4 | Resolved 2026-02-20 |
+| D9 TS provider heuristic IDs | Remove from code or allow in spec. | Allow in spec with explicit marker and phase-out plan. | Core Maintainers | Phase 3 | Resolved 2026-02-20 |
+| D10 VFS manifest trimming | Enforce deterministic trim or update spec. | Enforce deterministic trim with counters. | Core Maintainers | Phase 2 | Resolved 2026-02-20 |
+| D11 Promote `docs/new_docs/*` | Promote into specs or archive/remove. | Promote only docs with implementation + tests; archive the rest. | Core Maintainers | Phase 6 | Resolved 2026-02-20 |
 
 ## Glossary
 
