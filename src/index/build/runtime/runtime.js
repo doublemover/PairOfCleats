@@ -297,6 +297,8 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     adaptive: schedulerConfig.adaptive,
     adaptiveTargetUtilization: schedulerConfig.adaptiveTargetUtilization,
     adaptiveStep: schedulerConfig.adaptiveStep,
+    adaptiveMemoryReserveMb: schedulerConfig.adaptiveMemoryReserveMb,
+    adaptiveMemoryPerTokenMb: schedulerConfig.adaptiveMemoryPerTokenMb,
     maxCpuTokens: schedulerConfig.maxCpuTokens,
     maxIoTokens: schedulerConfig.maxIoTokens,
     maxMemoryTokens: schedulerConfig.maxMemoryTokens,
