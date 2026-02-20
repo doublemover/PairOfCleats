@@ -15,6 +15,7 @@ import { collectRazorImports } from '../../../src/index/language-registry/import
 import { collectRImports } from '../../../src/index/language-registry/import-collectors/r.js';
 import { collectScalaImports } from '../../../src/index/language-registry/import-collectors/scala.js';
 import { collectStarlarkImports } from '../../../src/index/language-registry/import-collectors/starlark.js';
+import { collectYamlImports } from '../../../src/index/language-registry/import-collectors/yaml.js';
 
 const sort = (list) => list.slice().sort();
 const expectSet = (label, actual, expected) => {
@@ -27,6 +28,21 @@ const expectSet = (label, actual, expected) => {
 };
 
 const cases = [
+  {
+    label: 'yaml',
+    fn: collectYamlImports,
+    text: [
+      'defaults: &defaults',
+      '  image: node:20',
+      'service:',
+      '  <<: *defaults',
+      'include:',
+      '  - ./base.yaml',
+      '  - "./feature.yml"',
+      'extends: ./parent.yml'
+    ].join('\n'),
+    expected: ['anchor:defaults', 'alias:defaults', './base.yaml', './feature.yml', './parent.yml']
+  },
   {
     label: 'dockerfile',
     fn: collectDockerfileImports,

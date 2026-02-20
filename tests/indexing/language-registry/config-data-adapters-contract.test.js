@@ -10,7 +10,12 @@ const CASES = [
   { id: 'json', ext: '.json', text: '{"server":{"port":8080}}\n' },
   { id: 'toml', ext: '.toml', text: '[server]\nport=8080\n' },
   { id: 'xml', ext: '.xml', text: '<config><server port="8080"/></config>\n' },
-  { id: 'yaml', ext: '.yaml', text: 'server:\n  port: 8080\n' }
+  {
+    id: 'yaml',
+    ext: '.yaml',
+    text: 'defaults: &base\nservice:\n  <<: *base\ninclude:\n  - ./base.yml\n',
+    expectedImports: ['anchor:base', 'alias:base', './base.yml']
+  }
 ];
 
 for (const testCase of CASES) {
@@ -22,6 +27,13 @@ for (const testCase of CASES) {
   assert.ok(Array.isArray(relations.exports), `${testCase.id} buildRelations should return exports array`);
   assert.ok(Array.isArray(relations.calls), `${testCase.id} buildRelations should return calls array`);
   assert.ok(Array.isArray(relations.usages), `${testCase.id} buildRelations should return usages array`);
+  if (Array.isArray(testCase.expectedImports)) {
+    assert.deepEqual(
+      new Set(relations.imports),
+      new Set(testCase.expectedImports),
+      `${testCase.id} buildRelations imports mismatch`
+    );
+  }
 
   const docmeta = adapter.extractDocMeta({
     chunk: {

@@ -73,6 +73,7 @@ import { collectRazorImports } from './import-collectors/razor.js';
 import { collectRImports } from './import-collectors/r.js';
 import { collectScalaImports } from './import-collectors/scala.js';
 import { collectStarlarkImports } from './import-collectors/starlark.js';
+import { collectYamlImports } from './import-collectors/yaml.js';
 
 const {
   buildKotlinChunks,
@@ -560,12 +561,12 @@ const createHeuristicManagedAdapter = ({
   return adapter;
 };
 
-const createConfigDataAdapter = ({ id, match }) => ({
+const createConfigDataAdapter = ({ id, match, collectImports = () => [] }) => ({
   id,
   match,
-  collectImports: () => [],
+  collectImports: (text, options) => collectImports(text, options),
   prepare: async () => ({}),
-  buildRelations: () => buildSimpleRelations({ imports: [] }),
+  buildRelations: ({ text, options }) => buildSimpleRelations({ imports: collectImports(text, options) }),
   extractDocMeta: () => ({}),
   flow: () => null,
   attachName: false
@@ -1091,6 +1092,7 @@ export const LANGUAGE_REGISTRY = [
   }),
   createConfigDataAdapter({
     id: 'yaml',
-    match: (ext) => YAML_EXTS.has(ext)
+    match: (ext) => YAML_EXTS.has(ext),
+    collectImports: collectYamlImports
   })
 ];
