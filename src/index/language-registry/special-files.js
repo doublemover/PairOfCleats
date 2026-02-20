@@ -75,12 +75,16 @@ export const LOCK_FILENAMES = Object.freeze([
 
 export const SPECIAL_CODE_FILENAME_TO_EXT = Object.freeze({
   build: '.bazel',
+  'build.bazel': '.bazel',
   'cmakelists.txt': '.cmake',
   dockerfile: '.dockerfile',
   gnumakefile: '.makefile',
   makefile: '.makefile',
   module: '.bazel',
-  workspace: '.bazel'
+  'module.bazel': '.bazel',
+  workspace: '.bazel',
+  'workspace.bazel': '.bazel',
+  'workspace.bzlmod': '.bazel'
 });
 
 export const SPECIAL_CODE_PREFIX_TO_EXT = Object.freeze({

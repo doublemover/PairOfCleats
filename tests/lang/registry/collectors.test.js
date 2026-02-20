@@ -60,8 +60,13 @@ const cases = [
   {
     label: 'starlark',
     fn: collectStarlarkImports,
-    text: 'load(\"//path:target\", \"x\")',
-    expected: ['//path:target']
+    text: [
+      'load(\"//path:target\", \"x\")',
+      'bazel_dep(name = \"rules_cc\", version = \"0.0.1\")',
+      'use_extension(\"//tools:deps.bzl\", \"deps\")',
+      'local_path_override(module_name = \"custom\", path = \"../third_party/custom\")'
+    ].join('\n'),
+    expected: ['//path:target', '@rules_cc', '//tools:deps.bzl', '../third_party/custom']
   },
   {
     label: 'nix',

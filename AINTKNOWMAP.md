@@ -552,9 +552,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.31 Starlark/Bazel
 
-- [ ] Implement `.bzl`, `BUILD`, `WORKSPACE`, and related Bazel file routing.
-- [ ] Implement and verify load/target relation extraction across Bazel module graphs.
-- [ ] Calibrate and commit Starlark/Bazel caps for monorepo-scale build definitions.
+- [x] Implement `.bzl`, `BUILD`, `WORKSPACE`, and related Bazel file routing.
+- [x] Implement and verify load/target relation extraction across Bazel module graphs.
+- [x] Calibrate and commit Starlark/Bazel caps for monorepo-scale build definitions.
 
 
 Touchpoints:

@@ -156,7 +156,15 @@ export const LANGUAGE_ROUTE_DESCRIPTORS = Object.freeze([
     parserRoute: 'tree-sitter-starlark',
     capsProfile: 'starlark-default',
     extensions: Object.freeze(['.bzl', '.bazel', '.star']),
-    specialFilenames: Object.freeze(['build', 'workspace', 'module'])
+    specialFilenames: Object.freeze([
+      'build',
+      'build.bazel',
+      'workspace',
+      'workspace.bazel',
+      'workspace.bzlmod',
+      'module',
+      'module.bazel'
+    ])
   }),
   Object.freeze({
     id: 'nix',
