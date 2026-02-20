@@ -1,8 +1,10 @@
+import os from 'node:os';
 import { createSchedulerQueueAdapter, createTaskQueues } from '../../../shared/concurrency.js';
 import { logLine } from '../../../shared/progress.js';
 import { SCHEDULER_QUEUE_NAMES } from './scheduler.js';
 import { resolveThreadLimits } from '../../../shared/threads.js';
 import { createIndexerWorkerPools, resolveWorkerPoolConfig } from '../worker-pool.js';
+import { resolveWorkerHeapBudgetPolicy } from '../workers/config.js';
 import { createCrashLogger } from '../crash-log.js';
 
 /**
@@ -89,6 +91,68 @@ const coercePositiveInt = (value) => {
 };
 
 /**
+ * Resolve explicit memory budgets used by worker pools and stage write buffers.
+ * The default policy reserves 1-2GB worker heaps and shifts additional
+ * headroom to per-worker caches/write buffers when system RSS headroom exists.
+ *
+ * @param {object} input
+ * @param {object} input.indexingConfig
+ * @param {number} input.cpuConcurrency
+ * @returns {{
+ *   totalMemMb:number|null,
+ *   maxGlobalRssMb:number|null,
+ *   reserveRssMb:number,
+ *   workerHeapPolicy:{targetPerWorkerMb:number,minPerWorkerMb:number,maxPerWorkerMb:number},
+ *   perWorkerCacheMb:number,
+ *   perWorkerWriteBufferMb:number,
+ *   queueHeadroomScale:number
+ * }}
+ */
+export const resolveRuntimeMemoryPolicy = ({ indexingConfig, cpuConcurrency }) => {
+  const totalMemMb = Number.isFinite(Number(os.totalmem()))
+    ? Math.floor(os.totalmem() / (1024 * 1024))
+    : null;
+  const memoryConfig = indexingConfig?.memory && typeof indexingConfig.memory === 'object'
+    ? indexingConfig.memory
+    : {};
+  const workerHeapPolicy = resolveWorkerHeapBudgetPolicy({
+    targetPerWorkerMb: memoryConfig.workerHeapTargetMb,
+    minPerWorkerMb: memoryConfig.workerHeapMinMb,
+    maxPerWorkerMb: memoryConfig.workerHeapMaxMb
+  });
+  const reserveRssMb = Number.isFinite(Number(memoryConfig.reserveRssMb))
+    ? Math.max(512, Math.floor(Number(memoryConfig.reserveRssMb)))
+    : 2048;
+  const maxGlobalRssMb = Number.isFinite(totalMemMb) && totalMemMb > 0
+    ? Math.max(2048, Math.floor(totalMemMb * 0.9))
+    : null;
+  const perWorkerCacheMb = Number.isFinite(Number(memoryConfig.perWorkerCacheMb))
+    ? Math.max(64, Math.floor(Number(memoryConfig.perWorkerCacheMb)))
+    : Math.max(128, Math.min(512, Math.floor(workerHeapPolicy.targetPerWorkerMb * 0.35)));
+  const perWorkerWriteBufferMb = Number.isFinite(Number(memoryConfig.perWorkerWriteBufferMb))
+    ? Math.max(64, Math.floor(Number(memoryConfig.perWorkerWriteBufferMb)))
+    : Math.max(128, Math.min(768, Math.floor(workerHeapPolicy.targetPerWorkerMb * 0.45)));
+  const workerCount = Number.isFinite(cpuConcurrency)
+    ? Math.max(1, Math.floor(cpuConcurrency))
+    : 1;
+  const projectedBudgetMb = workerCount * (
+    workerHeapPolicy.targetPerWorkerMb + perWorkerCacheMb + perWorkerWriteBufferMb
+  );
+  const queueHeadroomScale = Number.isFinite(maxGlobalRssMb) && maxGlobalRssMb > 0
+    ? (projectedBudgetMb < Math.max(512, maxGlobalRssMb - reserveRssMb) ? 3 : 2)
+    : 2;
+  return {
+    totalMemMb,
+    maxGlobalRssMb,
+    reserveRssMb,
+    workerHeapPolicy,
+    perWorkerCacheMb,
+    perWorkerWriteBufferMb,
+    queueHeadroomScale
+  };
+};
+
+/**
  * Create stage runtime queues with bounded pending windows.
  *
  * Scheduler-backed adapters are preferred when available; otherwise plain
@@ -114,7 +178,8 @@ export const createRuntimeQueues = ({
   pendingLimits,
   scheduler,
   stage1Queues = null,
-  procConcurrency = null
+  procConcurrency = null,
+  memoryPolicy = null
 }) => {
   // Bound the number of in-flight tasks we allow `runWithQueue()` to schedule.
   //
@@ -134,7 +199,12 @@ export const createRuntimeQueues = ({
   const schedulerAdaptive = scheduler
     && scheduler.enabled
     && scheduler.lowResourceMode !== true;
-  const pendingScale = schedulerAdaptive ? 2 : 1;
+  const memoryPendingScale = Number.isFinite(Number(memoryPolicy?.queueHeadroomScale))
+    ? Math.max(1, Math.floor(Number(memoryPolicy.queueHeadroomScale)))
+    : 1;
+  const pendingScale = schedulerAdaptive
+    ? Math.max(2, memoryPendingScale)
+    : memoryPendingScale;
   const maxFilePending = coercePositiveInt(tokenizeConfig?.maxPending)
     ?? (Number.isFinite(pendingLimits?.cpu?.maxPending)
       ? pendingLimits.cpu.maxPending
@@ -194,6 +264,9 @@ export const createRuntimeQueues = ({
     const queues = procQueue
       ? { io: ioQueue, cpu: cpuQueue, embedding: embeddingQueue, proc: procQueue }
       : { io: ioQueue, cpu: cpuQueue, embedding: embeddingQueue };
+    for (const queue of Object.values(queues)) {
+      queue.inflightBytes = 0;
+    }
     return { queues, maxFilePending, maxIoPending, maxEmbeddingPending };
   }
 
@@ -207,6 +280,9 @@ export const createRuntimeQueues = ({
     embeddingPendingLimit: maxEmbeddingPending,
     procPendingLimit
   });
+  for (const queue of Object.values(queues)) {
+    queue.inflightBytes = 0;
+  }
   return { queues, maxFilePending, maxIoPending, maxEmbeddingPending };
 };
 
@@ -315,6 +391,12 @@ export const createRuntimeWorkerPools = async ({
         ? `, split tasks (quantizeMax=${workerPoolConfig.quantizeMaxWorkers || Math.max(1, Math.floor(workerPoolConfig.maxWorkers / 2))})`
         : '';
       log(`Worker pool enabled (${modeLabel}, maxThreads=${maxThreads}${splitLabel}).`);
+      if (workerPool.heapPolicy) {
+        log(
+          `Worker heap policy: target=${workerPool.heapPolicy.targetPerWorkerMb}MB ` +
+          `(min=${workerPool.heapPolicy.minPerWorkerMb}MB, max=${workerPool.heapPolicy.maxPerWorkerMb}MB).`
+        );
+      }
       if (workerPoolConfig.enabled === 'auto') {
         log(`Worker pool auto threshold: maxFileBytes=${workerPoolConfig.maxFileBytes}.`);
       }

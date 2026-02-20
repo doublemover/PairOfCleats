@@ -54,6 +54,7 @@ import { resolveSchedulerConfig } from './scheduler.js';
 import { resolveTreeSitterRuntime, preloadTreeSitterRuntimeLanguages } from './tree-sitter.js';
 import {
   createRuntimeQueues,
+  resolveRuntimeMemoryPolicy,
   resolveWorkerPoolRuntimeConfig,
   createRuntimeWorkerPools
 } from './workers.js';
@@ -78,6 +79,50 @@ const coerceFraction = (value) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return null;
   return Math.min(1, parsed);
+};
+
+const isObject = (value) => value && typeof value === 'object' && !Array.isArray(value);
+
+/**
+ * Shared runtime telemetry collector for cross-stage in-flight gauges.
+ *
+ * @returns {{
+ *   setInFlightBytes:(channel:string, input?:{bytes?:number,count?:number})=>void,
+ *   clearInFlightBytes:(channel:string)=>void,
+ *   readInFlightBytes:()=>{total:number,channels:Record<string,{bytes:number,count:number}>}
+ * }}
+ */
+const createRuntimeTelemetry = () => {
+  const channels = new Map();
+  const setInFlightBytes = (channel, input = {}) => {
+    if (!channel) return;
+    const bytes = Number(input?.bytes);
+    const count = Number(input?.count);
+    channels.set(String(channel), {
+      bytes: Number.isFinite(bytes) && bytes > 0 ? Math.floor(bytes) : 0,
+      count: Number.isFinite(count) && count > 0 ? Math.floor(count) : 0
+    });
+  };
+  const clearInFlightBytes = (channel) => {
+    if (!channel) return;
+    channels.delete(String(channel));
+  };
+  const readInFlightBytes = () => {
+    const out = {};
+    let total = 0;
+    for (const [name, value] of channels.entries()) {
+      const bytes = Number(value?.bytes) || 0;
+      const count = Number(value?.count) || 0;
+      out[name] = { bytes, count };
+      total += bytes;
+    }
+    return { total, channels: out };
+  };
+  return {
+    setInFlightBytes,
+    clearInFlightBytes,
+    readInFlightBytes
+  };
 };
 
 /**
@@ -184,6 +229,21 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   const policyConcurrency = autoPolicy?.indexing?.concurrency || null;
   const policyEmbeddings = autoPolicy?.indexing?.embeddings || null;
   const policyWorkerPool = autoPolicy?.runtime?.workerPool || null;
+  const autoPolicyProfile = isObject(autoPolicy?.profile)
+    ? autoPolicy.profile
+    : { id: 'default', enabled: false };
+  const policyHugeRepoProfile = isObject(autoPolicy?.indexing?.hugeRepoProfile)
+    ? autoPolicy.indexing.hugeRepoProfile
+    : null;
+  const explicitHugeRepoProfile = isObject(indexingConfig?.hugeRepoProfile)
+    ? indexingConfig.hugeRepoProfile
+    : {};
+  const hugeRepoProfileEnabled = typeof explicitHugeRepoProfile.enabled === 'boolean'
+    ? explicitHugeRepoProfile.enabled
+    : policyHugeRepoProfile?.enabled === true;
+  if (hugeRepoProfileEnabled && isObject(policyHugeRepoProfile?.overrides)) {
+    indexingConfig = mergeConfig(indexingConfig, policyHugeRepoProfile.overrides);
+  }
   if (policyConcurrency) {
     indexingConfig = mergeConfig(indexingConfig, {
       concurrency: policyConcurrency.files,
@@ -201,6 +261,14 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
       workerPool: {
         enabled: policyWorkerPool.enabled !== false ? 'auto' : false,
         maxWorkers: policyWorkerPool.maxThreads
+      }
+    });
+  }
+  if (hugeRepoProfileEnabled) {
+    indexingConfig = mergeConfig(indexingConfig, {
+      hugeRepoProfile: {
+        enabled: true,
+        id: autoPolicyProfile.id || 'huge-repo'
       }
     });
   }
@@ -287,6 +355,11 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
       log(`[warn] ${warning.message}`);
     }
   }
+  const telemetry = createRuntimeTelemetry();
+  const preRuntimeMemoryPolicy = resolveRuntimeMemoryPolicy({
+    indexingConfig,
+    cpuConcurrency: envelope?.concurrency?.cpuConcurrency?.value
+  });
   const schedulerConfig = resolveSchedulerConfig({
     argv,
     rawArgv,
@@ -304,7 +377,10 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     adaptive: schedulerConfig.adaptive,
     adaptiveTargetUtilization: schedulerConfig.adaptiveTargetUtilization,
     adaptiveStep: schedulerConfig.adaptiveStep,
-    adaptiveMemoryReserveMb: schedulerConfig.adaptiveMemoryReserveMb,
+    adaptiveMemoryReserveMb: Math.max(
+      schedulerConfig.adaptiveMemoryReserveMb,
+      preRuntimeMemoryPolicy?.reserveRssMb || 0
+    ),
     adaptiveMemoryPerTokenMb: schedulerConfig.adaptiveMemoryPerTokenMb,
     maxCpuTokens: schedulerConfig.maxCpuTokens,
     maxIoTokens: schedulerConfig.maxIoTokens,
@@ -591,6 +667,28 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     ioConcurrency: envelope.concurrency.ioConcurrency.value,
     cpuConcurrency: envelope.concurrency.cpuConcurrency.value
   };
+  const runtimeMemoryPolicy = resolveRuntimeMemoryPolicy({
+    indexingConfig,
+    cpuConcurrency
+  });
+  const rawWorkerPoolConfig = indexingConfig.workerPool && typeof indexingConfig.workerPool === 'object'
+    ? indexingConfig.workerPool
+    : {};
+  if (rawWorkerPoolConfig.heapTargetMb == null || rawWorkerPoolConfig.heapMinMb == null || rawWorkerPoolConfig.heapMaxMb == null) {
+    indexingConfig = mergeConfig(indexingConfig, {
+      workerPool: {
+        ...(rawWorkerPoolConfig.heapTargetMb == null
+          ? { heapTargetMb: runtimeMemoryPolicy.workerHeapPolicy.targetPerWorkerMb }
+          : {}),
+        ...(rawWorkerPoolConfig.heapMinMb == null
+          ? { heapMinMb: runtimeMemoryPolicy.workerHeapPolicy.minPerWorkerMb }
+          : {}),
+        ...(rawWorkerPoolConfig.heapMaxMb == null
+          ? { heapMaxMb: runtimeMemoryPolicy.workerHeapPolicy.maxPerWorkerMb }
+          : {})
+      }
+    });
+  }
 
   const embeddingRuntime = await timeInit('embedding runtime', () => resolveEmbeddingRuntime({
     rootDir: root,
@@ -650,7 +748,8 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     pendingLimits: envelope.queues,
     scheduler,
     stage1Queues,
-    procConcurrency
+    procConcurrency,
+    memoryPolicy: runtimeMemoryPolicy
   });
   const { queues } = queueConfig;
 
@@ -797,6 +896,12 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     log('Indexing stage4 (sqlite/ann pass) running.');
   }
   log(`Index profile: ${profile.id}.`);
+  if (hugeRepoProfileEnabled) {
+    log(
+      `Huge-repo profile enabled (${autoPolicyProfile.id || 'huge-repo'}): ` +
+      'cross-file enrichment and expensive relation passes are reduced by default.'
+    );
+  }
   if (!embeddingEnabled) {
     const label = embeddingService ? 'service queue' : 'disabled';
     const deferred = baseEmbeddingsPlanned && (stage === 'stage1' || stage === 'stage2');
@@ -820,6 +925,13 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     log(`Incremental cache enabled (root: ${path.join(repoCacheRoot, 'incremental')}).`);
   }
   log(`Queue concurrency: io=${ioConcurrency}, cpu=${cpuConcurrency}.`);
+  log(
+    `Memory policy: workerHeap=${runtimeMemoryPolicy.workerHeapPolicy.targetPerWorkerMb}MB ` +
+    `(min=${runtimeMemoryPolicy.workerHeapPolicy.minPerWorkerMb}MB, ` +
+    `max=${runtimeMemoryPolicy.workerHeapPolicy.maxPerWorkerMb}MB), ` +
+    `workerCache=${runtimeMemoryPolicy.perWorkerCacheMb}MB, ` +
+    `writeBuffer=${runtimeMemoryPolicy.perWorkerWriteBufferMb}MB.`
+  );
   if (!astDataflowEnabled) {
     log('AST dataflow metadata disabled via indexing.astDataflow.');
   }
@@ -1006,6 +1118,8 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
       version: toolVersion,
       configHash: contentConfigHash || null
     },
+    autoPolicyProfile,
+    hugeRepoProfileEnabled,
     toolingConfig,
     toolingEnabled,
     indexingConfig,
@@ -1056,6 +1170,8 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     queues,
     scheduler,
     schedulerConfig,
+    memoryPolicy: runtimeMemoryPolicy,
+    telemetry,
     stage1Queues,
     procConcurrency,
     incrementalEnabled,

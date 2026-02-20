@@ -10,6 +10,7 @@ import {
 import {
   buildWorkerExecArgv,
   resolveMemoryWorkerCap,
+  resolveWorkerHeapBudgetPolicy,
   resolveWorkerResourceLimits
 } from './config.js';
 import { sanitizePoolPayload, summarizeError } from './protocol.js';
@@ -134,10 +135,15 @@ export async function createIndexerWorkerPool(input = {}) {
     let shutdownWhenIdle = false;
     let pendingRestart = false;
     const workerExecArgv = buildWorkerExecArgv();
-    const resourceLimits = resolveWorkerResourceLimits(poolConfig.maxWorkers, {
+    const heapPolicy = resolveWorkerHeapBudgetPolicy({
       targetPerWorkerMb: poolConfig.heapTargetMb,
       minPerWorkerMb: poolConfig.heapMinMb,
       maxPerWorkerMb: poolConfig.heapMaxMb
+    });
+    const resourceLimits = resolveWorkerResourceLimits(poolConfig.maxWorkers, {
+      targetPerWorkerMb: heapPolicy.targetPerWorkerMb,
+      minPerWorkerMb: heapPolicy.minPerWorkerMb,
+      maxPerWorkerMb: heapPolicy.maxPerWorkerMb
     });
     const createPool = () => {
       const workerData = {
@@ -364,8 +370,30 @@ export async function createIndexerWorkerPool(input = {}) {
     updatePoolMetrics();
     return {
       config,
+      heapPolicy,
       get pool() {
         return pool;
+      },
+      stats() {
+        const queued = Number.isFinite(pool?.queueSize) ? pool.queueSize : 0;
+        const maxWorkers = Number.isFinite(poolConfig?.maxWorkers)
+          ? Math.max(1, Math.floor(poolConfig.maxWorkers))
+          : 1;
+        const queueUtilization = maxWorkers > 0
+          ? Math.max(0, Math.min(1, (activeTasks + queued) / maxWorkers))
+          : null;
+        return {
+          pool: poolLabel,
+          activeTasks,
+          queuedTasks: queued,
+          maxWorkers,
+          utilization: queueUtilization,
+          disabled,
+          pendingRestart,
+          restartAttempts,
+          heapPolicy,
+          heapLimitMb: Number(resourceLimits?.maxOldGenerationSizeMb) || null
+        };
       },
       dictConfig: sanitizeDictConfig(dictConfig),
       shouldUseForFile(sizeBytes) {

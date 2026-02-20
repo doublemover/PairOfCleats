@@ -93,6 +93,7 @@ export const estimatePostingsPayload = (result) => {
  *   maxPendingRows?:number,
  *   maxPendingBytes?:number,
  *   maxHeapFraction?:number,
+ *   onChange?:(snapshot:{pendingCount:number,pendingRows:number,pendingBytes:number})=>void,
  *   log?:(msg:string)=>void
  * }} [options]
  * @returns {{reserve:(input?:{rows?:number,bytes?:number,bypass?:boolean})=>Promise<{release:()=>void}>,stats:()=>object}}
@@ -102,6 +103,7 @@ export const createPostingsQueue = ({
   maxPendingRows,
   maxPendingBytes,
   maxHeapFraction,
+  onChange = null,
   log = null
 } = {}) => {
   const resolvedMaxPending = coercePositiveInt(maxPending);
@@ -139,6 +141,16 @@ export const createPostingsQueue = ({
 
   const waiters = [];
   let lastLogAt = 0;
+  const emitChange = () => {
+    if (typeof onChange !== 'function') return;
+    try {
+      onChange({
+        pendingCount: state.pending,
+        pendingRows: state.pendingRows,
+        pendingBytes: state.pendingBytes
+      });
+    } catch {}
+  };
   const notifyWaiters = () => {
     if (!waiters.length) return;
     const pending = waiters.splice(0, waiters.length);
@@ -256,11 +268,13 @@ export const createPostingsQueue = ({
     state.measuredRows += payloadRows;
     state.measuredBytes += payloadBytes;
     noteHighWater();
+    emitChange();
     return {
       release() {
         state.pending = Math.max(0, state.pending - 1);
         state.pendingRows = Math.max(0, state.pendingRows - payloadRows);
         state.pendingBytes = Math.max(0, state.pendingBytes - payloadBytes);
+        emitChange();
         notifyWaiters();
       }
     };

@@ -32,6 +32,7 @@ const DEFAULT_POSTINGS_ROWS_PER_PENDING = 300;
 const DEFAULT_POSTINGS_BYTES_PER_PENDING = 12 * 1024 * 1024;
 const DEFAULT_POSTINGS_PENDING_SCALE = 3;
 const LEXICON_FILTER_LOG_LIMIT = 5;
+const MB = 1024 * 1024;
 
 export const resolveChunkProcessingFeatureFlags = (runtime) => {
   const vectorOnlyProfile = runtime?.profile?.id === INDEX_PROFILE_VECTOR_ONLY;
@@ -173,10 +174,18 @@ const resolvePostingsQueueConfig = (runtime) => {
       ? Math.max(1, Math.floor(cpuPending * DEFAULT_POSTINGS_PENDING_SCALE))
       : null)
     ?? Math.max(32, cpuConcurrency * 8);
+  const perWorkerWriteBufferMb = Number(runtime?.memoryPolicy?.perWorkerWriteBufferMb);
+  const projectedWriteBufferBytes = Number.isFinite(perWorkerWriteBufferMb) && perWorkerWriteBufferMb > 0
+    ? Math.floor(perWorkerWriteBufferMb * MB * Math.max(1, cpuConcurrency))
+    : 0;
   const maxPendingRows = coercePositiveInt(config.maxPendingRows)
     ?? Math.max(DEFAULT_POSTINGS_ROWS_PER_PENDING, baseMaxPending * DEFAULT_POSTINGS_ROWS_PER_PENDING);
   const maxPendingBytes = coercePositiveInt(config.maxPendingBytes)
-    ?? Math.max(DEFAULT_POSTINGS_BYTES_PER_PENDING, baseMaxPending * DEFAULT_POSTINGS_BYTES_PER_PENDING);
+    ?? Math.max(
+      DEFAULT_POSTINGS_BYTES_PER_PENDING,
+      baseMaxPending * DEFAULT_POSTINGS_BYTES_PER_PENDING,
+      projectedWriteBufferBytes
+    );
   const maxHeapFraction = Number(config.maxHeapFraction);
   return {
     maxPending: baseMaxPending,
@@ -388,12 +397,26 @@ export const processFiles = async ({
       ? resolvePostingsQueueConfig(runtime)
       : null;
     const orderedAppenderConfig = resolveOrderedAppenderConfig(runtime);
+    const updatePostingsTelemetry = (snapshot = null) => {
+      if (!runtime?.telemetry?.setInFlightBytes) return;
+      const pendingCount = Number(snapshot?.pendingCount) || 0;
+      const pendingBytes = Number(snapshot?.pendingBytes) || 0;
+      runtime.telemetry.setInFlightBytes('stage1.postings-queue', {
+        count: pendingCount,
+        bytes: pendingBytes
+      });
+    };
     const postingsQueue = postingsQueueConfig
       ? createPostingsQueue({
         ...postingsQueueConfig,
+        onChange: updatePostingsTelemetry,
         log
       })
       : null;
+    if (postingsQueue) updatePostingsTelemetry({ pendingCount: 0, pendingBytes: 0 });
+    if (!postingsQueue) {
+      runtime?.telemetry?.clearInFlightBytes?.('stage1.postings-queue');
+    }
     if (postingsQueueConfig && runtime?.scheduler?.registerQueue) {
       runtime.scheduler.registerQueue(SCHEDULER_QUEUE_NAMES.stage1Postings, {
         ...(Number.isFinite(postingsQueueConfig.maxPending)
@@ -1031,6 +1054,7 @@ export const processFiles = async ({
 
     return { tokenizationStats, shardSummary, shardPlan, postingsQueueStats };
   } finally {
+    runtime?.telemetry?.clearInFlightBytes?.('stage1.postings-queue');
     await perfEventLogger.close();
     await closeTreeSitterScheduler();
   }

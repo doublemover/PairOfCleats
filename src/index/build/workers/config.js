@@ -15,6 +15,10 @@ const parsePositiveInt = (value) => {
   return Math.max(1, Math.floor(parsed));
 };
 
+const WORKER_HEAP_TARGET_MIN_MB = 1024;
+const WORKER_HEAP_TARGET_DEFAULT_MB = 1536;
+const WORKER_HEAP_TARGET_MAX_MB = 2048;
+
 /**
  * Build worker `execArgv` by removing parent heap flags so worker limits can
  * be controlled explicitly through `resourceLimits`.
@@ -40,6 +44,50 @@ export const resolveMemoryWorkerCap = (requested) => {
   if (!Number.isFinite(totalMemMb) || totalMemMb <= 0) return null;
   const cap = Math.max(1, Math.floor(totalMemMb / 4096));
   return Math.min(requested, cap);
+};
+
+/**
+ * Resolve the target per-worker heap policy used for heavy indexing stages.
+ * Defaults intentionally bias to 1-2GB per worker when host memory allows.
+ *
+ * @param {object} [options]
+ * @param {number} [options.targetPerWorkerMb]
+ * @param {number} [options.minPerWorkerMb]
+ * @param {number} [options.maxPerWorkerMb]
+ * @returns {{targetPerWorkerMb:number,minPerWorkerMb:number,maxPerWorkerMb:number}}
+ */
+export const resolveWorkerHeapBudgetPolicy = (options = {}) => {
+  const envTargetMb = parsePositiveInt(process.env.PAIROFCLEATS_WORKER_POOL_HEAP_TARGET_MB);
+  const envMinMb = parsePositiveInt(process.env.PAIROFCLEATS_WORKER_POOL_HEAP_MIN_MB);
+  const envMaxMb = parsePositiveInt(process.env.PAIROFCLEATS_WORKER_POOL_HEAP_MAX_MB);
+  const totalMemMb = Math.floor(os.totalmem() / (1024 * 1024));
+  const autoTargetMb = Number.isFinite(totalMemMb) && totalMemMb >= 65536
+    ? WORKER_HEAP_TARGET_MAX_MB
+    : Number.isFinite(totalMemMb) && totalMemMb >= 24576
+      ? WORKER_HEAP_TARGET_DEFAULT_MB
+      : WORKER_HEAP_TARGET_MIN_MB;
+  const minPerWorkerMb = parsePositiveInt(options.minPerWorkerMb)
+    || envMinMb
+    || WORKER_HEAP_TARGET_MIN_MB;
+  const maxPerWorkerMb = Math.max(
+    minPerWorkerMb,
+    Math.min(
+      process.platform === 'win32' ? 8192 : 16384,
+      parsePositiveInt(options.maxPerWorkerMb) || envMaxMb || WORKER_HEAP_TARGET_MAX_MB
+    )
+  );
+  const targetPerWorkerMb = Math.max(
+    minPerWorkerMb,
+    Math.min(
+      maxPerWorkerMb,
+      parsePositiveInt(options.targetPerWorkerMb) || envTargetMb || autoTargetMb || WORKER_HEAP_TARGET_DEFAULT_MB
+    )
+  );
+  return {
+    targetPerWorkerMb,
+    minPerWorkerMb,
+    maxPerWorkerMb
+  };
 };
 
 const parseMaxOldSpaceMb = () => {
@@ -86,12 +134,10 @@ export const resolveWorkerResourceLimits = (maxWorkers, options = {}) => {
 
   const totalMemMb = Math.floor(os.totalmem() / (1024 * 1024));
   const maxOldSpaceMb = parseMaxOldSpaceMb();
-  const envTargetMb = parsePositiveInt(process.env.PAIROFCLEATS_WORKER_POOL_HEAP_TARGET_MB);
-  const envMinMb = parsePositiveInt(process.env.PAIROFCLEATS_WORKER_POOL_HEAP_MIN_MB);
-  const envMaxMb = parsePositiveInt(process.env.PAIROFCLEATS_WORKER_POOL_HEAP_MAX_MB);
-  const targetPerWorkerMb = parsePositiveInt(options.targetPerWorkerMb) || envTargetMb;
-  const minPerWorkerMb = parsePositiveInt(options.minPerWorkerMb) || envMinMb;
-  const maxPerWorkerMb = parsePositiveInt(options.maxPerWorkerMb) || envMaxMb;
+  const heapPolicy = resolveWorkerHeapBudgetPolicy(options);
+  const targetPerWorkerMb = heapPolicy.targetPerWorkerMb;
+  const minPerWorkerMb = heapPolicy.minPerWorkerMb;
+  const maxPerWorkerMb = heapPolicy.maxPerWorkerMb;
 
   // Budget worker heaps based on either the explicitly configured
   // --max-old-space-size or a conservative fraction of system RAM.
@@ -126,12 +172,10 @@ export const resolveWorkerResourceLimits = (maxWorkers, options = {}) => {
   // process.
   const perWorkerBudgetMb = Math.floor(budgetMb / (workerCount + 1));
   const autoTargetMb = Number.isFinite(totalMemMb) && totalMemMb >= 65536
-    ? 2048
-    : Number.isFinite(totalMemMb) && totalMemMb >= 32768
-      ? 1536
-      : Number.isFinite(totalMemMb) && totalMemMb >= 16384
-        ? 1024
-        : 768;
+    ? WORKER_HEAP_TARGET_MAX_MB
+    : Number.isFinite(totalMemMb) && totalMemMb >= 24576
+      ? WORKER_HEAP_TARGET_DEFAULT_MB
+      : WORKER_HEAP_TARGET_MIN_MB;
   const boostedBudgetTargetMb = perWorkerBudgetMb > 0
     ? Math.floor(perWorkerBudgetMb * 1.25)
     : autoTargetMb;
@@ -139,10 +183,9 @@ export const resolveWorkerResourceLimits = (maxWorkers, options = {}) => {
     targetPerWorkerMb || autoTargetMb,
     boostedBudgetTargetMb
   );
-  const defaultMinMb = 512;
   const platformCap = process.platform === 'win32' ? 8192 : 16384;
-  const minMb = Math.max(256, minPerWorkerMb || defaultMinMb);
-  const maxMb = Math.max(minMb, Math.min(platformCap, maxPerWorkerMb || platformCap));
+  const minMb = Math.max(256, minPerWorkerMb || WORKER_HEAP_TARGET_MIN_MB);
+  const maxMb = Math.max(minMb, Math.min(platformCap, maxPerWorkerMb || WORKER_HEAP_TARGET_MAX_MB));
   const capped = Math.max(
     minMb,
     Math.min(maxMb, Math.max(perWorkerBudgetMb, desiredTargetMb))

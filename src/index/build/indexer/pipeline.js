@@ -332,6 +332,15 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   let stageIndex = 0;
   const getSchedulerStats = () => (runtime?.scheduler?.stats ? runtime.scheduler.stats() : null);
   let lowUtilizationWarningEmitted = false;
+  const utilizationTarget = Number.isFinite(Number(runtime?.schedulerConfig?.utilizationAlertTarget))
+    ? Math.max(0.25, Math.min(0.99, Number(runtime.schedulerConfig.utilizationAlertTarget)))
+    : 0.75;
+  const utilizationAlertWindowMs = Number.isFinite(Number(runtime?.schedulerConfig?.utilizationAlertWindowMs))
+    ? Math.max(1000, Math.floor(Number(runtime.schedulerConfig.utilizationAlertWindowMs)))
+    : 15000;
+  const heavyUtilizationStages = new Set(['processing', 'relations', 'postings', 'write']);
+  let utilizationUnderTargetSinceMs = 0;
+  let utilizationTargetWarningEmitted = false;
   /**
    * Capture an operational snapshot used for stage checkpoint telemetry.
    *
@@ -339,6 +348,28 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
    */
   const captureRuntimeSnapshot = () => {
     const schedulerStats = getSchedulerStats();
+    const schedulerQueueDepth = schedulerStats?.queues
+      ? Object.values(schedulerStats.queues).reduce((sum, queue) => (
+        sum + (Number.isFinite(Number(queue?.pending)) ? Number(queue.pending) : 0)
+      ), 0)
+      : null;
+    const queueInflightBytes = runtime?.queues
+      ? {
+        io: Number(runtime.queues.io?.inflightBytes) || 0,
+        cpu: Number(runtime.queues.cpu?.inflightBytes) || 0,
+        embedding: Number(runtime.queues.embedding?.inflightBytes) || 0,
+        proc: Number(runtime.queues.proc?.inflightBytes) || 0
+      }
+      : null;
+    const telemetryInflightBytes = runtime?.telemetry?.readInFlightBytes
+      ? runtime.telemetry.readInFlightBytes()
+      : null;
+    const workerStats = runtime?.workerPool?.stats ? runtime.workerPool.stats() : null;
+    const quantizeWorkerStats = runtime?.quantizePool
+      && runtime.quantizePool !== runtime.workerPool
+      && runtime.quantizePool?.stats
+      ? runtime.quantizePool.stats()
+      : null;
     const cpuCount = Array.isArray(runtime?.cpuList) && runtime.cpuList.length
       ? runtime.cpuList.length
       : (Array.isArray(os.cpus()) ? os.cpus().length : null);
@@ -357,7 +388,10 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       cpu: {
         cores: Number.isFinite(cpuCount) ? cpuCount : null,
         loadAvg1m: oneMinuteLoad,
-        normalizedLoad: normalizedCpuLoad
+        normalizedLoad: normalizedCpuLoad,
+        busyPct: Number.isFinite(normalizedCpuLoad)
+          ? Math.max(0, Math.min(100, Math.round(normalizedCpuLoad * 1000) / 10))
+          : null
       },
       memory: {
         totalBytes: totalMem > 0 ? totalMem : null,
@@ -369,9 +403,25 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
           ioPending: Number.isFinite(runtime.queues.io?.size) ? runtime.queues.io.size : null,
           cpuPending: Number.isFinite(runtime.queues.cpu?.size) ? runtime.queues.cpu.size : null,
           embeddingPending: Number.isFinite(runtime.queues.embedding?.size) ? runtime.queues.embedding.size : null,
-          procPending: Number.isFinite(runtime.queues.proc?.size) ? runtime.queues.proc.size : null
+          procPending: Number.isFinite(runtime.queues.proc?.size) ? runtime.queues.proc.size : null,
+          schedulerPending: schedulerQueueDepth
         }
-        : null
+        : null,
+      inFlightBytes: {
+        queue: queueInflightBytes,
+        telemetry: telemetryInflightBytes,
+        total: Number(
+          (queueInflightBytes?.io || 0)
+          + (queueInflightBytes?.cpu || 0)
+          + (queueInflightBytes?.embedding || 0)
+          + (queueInflightBytes?.proc || 0)
+          + (telemetryInflightBytes?.total || 0)
+        ) || 0
+      },
+      workers: {
+        tokenize: workerStats || null,
+        quantize: quantizeWorkerStats || null
+      }
     };
   };
   const maybeWarnLowSchedulerUtilization = ({ snapshot, stage, step }) => {
@@ -391,6 +441,56 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       `utilization=${utilization.toFixed(2)}, pending=${Math.floor(pending)}, ` +
       `tokens(cpu=${Math.floor(cpuTokens || 0)}, io=${Math.floor(ioTokens || 0)}).`
     );
+  };
+  const maybeWarnUtilizationTarget = ({ snapshot, stage, step }) => {
+    if (!heavyUtilizationStages.has(String(step || stage || '').toLowerCase())) {
+      utilizationUnderTargetSinceMs = 0;
+      return;
+    }
+    const schedulerStats = snapshot?.scheduler;
+    const utilization = Number(schedulerStats?.utilization?.overall);
+    const pending = Number(schedulerStats?.activity?.pending);
+    const cpuTokens = Number(schedulerStats?.tokens?.cpu?.total);
+    const ioTokens = Number(schedulerStats?.tokens?.io?.total);
+    const tokenBudget = Math.max(1, Math.floor((cpuTokens || 0) + (ioTokens || 0)));
+    if (!Number.isFinite(utilization) || !Number.isFinite(pending)) {
+      utilizationUnderTargetSinceMs = 0;
+      return;
+    }
+    if (pending < Math.max(16, tokenBudget * 2)) {
+      utilizationUnderTargetSinceMs = 0;
+      return;
+    }
+    if (utilization >= utilizationTarget) {
+      utilizationUnderTargetSinceMs = 0;
+      return;
+    }
+    const now = Date.now();
+    if (!utilizationUnderTargetSinceMs) {
+      utilizationUnderTargetSinceMs = now;
+      return;
+    }
+    if (utilizationTargetWarningEmitted) return;
+    const underMs = now - utilizationUnderTargetSinceMs;
+    if (underMs < utilizationAlertWindowMs) return;
+    utilizationTargetWarningEmitted = true;
+    const underSeconds = Math.max(1, Math.round(underMs / 1000));
+    log(
+      `[perf] sustained scheduler utilization below target at ${stage}${step ? `/${step}` : ''}: ` +
+      `utilization=${utilization.toFixed(2)}, target=${utilizationTarget.toFixed(2)}, ` +
+      `pending=${Math.floor(pending)}, duration=${underSeconds}s.`
+    );
+    stageCheckpoints.record({
+      stage: 'scheduler',
+      step: 'utilization-target-breach',
+      label: `${stage}${step ? `/${step}` : ''}`,
+      extra: {
+        utilization,
+        target: utilizationTarget,
+        pending: Math.floor(pending),
+        durationMs: underMs
+      }
+    });
   };
   /**
    * Record a stage checkpoint enriched with the current runtime snapshot.
@@ -419,6 +519,11 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       }
     });
     maybeWarnLowSchedulerUtilization({
+      snapshot: runtimeSnapshot,
+      stage,
+      step
+    });
+    maybeWarnUtilizationTarget({
       snapshot: runtimeSnapshot,
       stage,
       step
@@ -667,6 +772,27 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     })
     : null;
 
+  const overlapConfig = runtimeRef?.indexingConfig?.pipelineOverlap
+    && typeof runtimeRef.indexingConfig.pipelineOverlap === 'object'
+    ? runtimeRef.indexingConfig.pipelineOverlap
+    : {};
+  const overlapInferPostings = mode === 'code'
+    && overlapConfig.enabled !== false
+    && overlapConfig.inferPostings !== false
+    && crossFileInferenceEnabled;
+  const runPostingsBuild = () => (runtimeRef.scheduler?.schedule
+    ? runtimeRef.scheduler.schedule(
+      SCHEDULER_QUEUE_NAMES.stage1Postings,
+      { cpu: 1 },
+      () => buildIndexPostings({ runtime: runtimeRef, state, incrementalState })
+    )
+    : buildIndexPostings({ runtime: runtimeRef, state, incrementalState }));
+  const postingsPromise = overlapInferPostings ? runPostingsBuild() : null;
+  if (postingsPromise) {
+    // Avoid transient unhandled-rejection noise before the awaited join point.
+    postingsPromise.catch(() => {});
+  }
+
   advanceStage(stagePlan[3]);
   const { crossFileEnabled, graphRelations } = await (runtimeRef.scheduler?.schedule
     ? runtimeRef.scheduler.schedule(
@@ -762,13 +888,9 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
 
   advanceStage(stagePlan[4]);
   throwIfAborted(abortSignal);
-  const postings = await (runtimeRef.scheduler?.schedule
-    ? runtimeRef.scheduler.schedule(
-      SCHEDULER_QUEUE_NAMES.stage1Postings,
-      { cpu: 1 },
-      () => buildIndexPostings({ runtime: runtimeRef, state, incrementalState })
-    )
-    : buildIndexPostings({ runtime: runtimeRef, state, incrementalState }));
+  const postings = postingsPromise
+    ? await postingsPromise
+    : await runPostingsBuild();
   recordStageCheckpoint({
     stage: 'stage1',
     step: 'postings',
@@ -780,7 +902,8 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       postingsMerge: postings.postingsMergeStats || null,
       denseVectors: postings.quantizedVectors?.length || 0,
       docVectors: postings.quantizedDocVectors?.length || 0,
-      codeVectors: postings.quantizedCodeVectors?.length || 0
+      codeVectors: postings.quantizedCodeVectors?.length || 0,
+      overlapInferPostings
     }
   });
 

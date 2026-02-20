@@ -362,6 +362,9 @@ export function createBuildScheduler(input = {}) {
     const totalMem = Number(os.totalmem()) || 0;
     const freeMem = Number(os.freemem()) || 0;
     const freeRatio = totalMem > 0 ? (freeMem / totalMem) : null;
+    const headroomBytes = Number.isFinite(totalMem) && Number.isFinite(freeMem)
+      ? Math.max(0, freeMem)
+      : 0;
     const memoryLowHeadroom = Number.isFinite(freeRatio) && freeRatio < 0.15;
     const memoryHighHeadroom = !Number.isFinite(freeRatio) || freeRatio > 0.25;
     let memoryTokenHeadroomCap = maxLimits.mem;
@@ -390,8 +393,12 @@ export function createBuildScheduler(input = {}) {
       return;
     }
 
-    if (pendingPressure && memoryHighHeadroom) {
-      const scaleStep = utilizationDeficit ? adaptiveStep + 1 : adaptiveStep;
+    const shouldScaleFromHeadroom = memoryHighHeadroom
+      && totalPending > 0
+      && utilizationDeficit
+      && totalRunning >= Math.max(1, Math.floor((tokens.cpu.total + tokens.io.total) * 0.5));
+    if ((pendingPressure || shouldScaleFromHeadroom) && memoryHighHeadroom) {
+      const scaleStep = pendingPressure && utilizationDeficit ? adaptiveStep + 1 : adaptiveStep;
       const nextCpu = Math.min(maxLimits.cpu, tokens.cpu.total + scaleStep);
       const nextIo = Math.min(maxLimits.io, tokens.io.total + scaleStep);
       const nextMem = Math.min(maxLimits.mem, memoryTokenHeadroomCap, tokens.mem.total + adaptiveStep);
@@ -399,6 +406,15 @@ export function createBuildScheduler(input = {}) {
       tokens.io.total = nextIo;
       tokens.mem.total = nextMem;
       return;
+    }
+
+    if (
+      memoryHighHeadroom
+      && headroomBytes > (adaptiveMemoryReserveMb * 1024 * 1024)
+      && totalPending > 0
+      && tokens.mem.total < memoryTokenHeadroomCap
+    ) {
+      tokens.mem.total = Math.min(memoryTokenHeadroomCap, tokens.mem.total + adaptiveStep);
     }
 
     if (mostlyIdle) {
