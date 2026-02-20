@@ -36,8 +36,14 @@ const cases = [
   {
     label: 'makefile',
     fn: collectMakefileImports,
-    text: 'include shared.mk\n-include local.mk',
-    expected: ['shared.mk', 'local.mk']
+    text: [
+      'include shared.mk',
+      '-include local.mk',
+      'sinclude optional.mk',
+      'include $(wildcard mk/rules.mk mk/targets.mk)',
+      'app: src/main.o src/lib.o | build/.stamp'
+    ].join('\n'),
+    expected: ['shared.mk', 'local.mk', 'optional.mk', 'mk/rules.mk', 'mk/targets.mk', 'src/main.o', 'src/lib.o', 'build/.stamp']
   },
   {
     label: 'proto',

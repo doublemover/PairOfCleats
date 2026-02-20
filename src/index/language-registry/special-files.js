@@ -78,6 +78,7 @@ export const SPECIAL_CODE_FILENAME_TO_EXT = Object.freeze({
   'build.bazel': '.bazel',
   'cmakelists.txt': '.cmake',
   dockerfile: '.dockerfile',
+  bsdmakefile: '.makefile',
   gnumakefile: '.makefile',
   makefile: '.makefile',
   module: '.bazel',

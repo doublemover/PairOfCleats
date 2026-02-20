@@ -79,8 +79,8 @@
       "maxLines": 4500
     },
     "makefile": {
-      "maxBytes": 262144,
-      "maxLines": 4500
+      "maxBytes": 327680,
+      "maxLines": 5500
     },
     "mustache": {
       "maxBytes": 196608,
@@ -256,9 +256,9 @@
       "maxParseMs": 1400
     },
     "makefile": {
-      "maxBytes": 262144,
-      "maxLines": 4500,
-      "maxParseMs": 1000
+      "maxBytes": 327680,
+      "maxLines": 5500,
+      "maxParseMs": 1200
     },
     "mustache": {
       "maxBytes": 196608,

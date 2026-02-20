@@ -34,7 +34,7 @@ const ROUTE_BASELINES = Object.freeze({
   'tree-sitter-jinja': Object.freeze({ maxBytes: 224 * 1024, maxLines: 3500, maxParseMs: 1200 }),
   'tree-sitter-razor': Object.freeze({ maxBytes: 224 * 1024, maxLines: 3500, maxParseMs: 1200 }),
   'tree-sitter-proto': Object.freeze({ maxBytes: 256 * 1024, maxLines: 4000, maxParseMs: 1300 }),
-  'line-parser-makefile': Object.freeze({ maxBytes: 256 * 1024, maxLines: 4500, maxParseMs: 1000 }),
+  'line-parser-makefile': Object.freeze({ maxBytes: 320 * 1024, maxLines: 5500, maxParseMs: 1200 }),
   'line-parser-dockerfile': Object.freeze({ maxBytes: 224 * 1024, maxLines: 3500, maxParseMs: 1000 }),
   'tree-sitter-graphql': Object.freeze({ maxBytes: 224 * 1024, maxLines: 3500, maxParseMs: 1200 }),
   'structured-ini': Object.freeze({ maxBytes: 192 * 1024, maxLines: 3000, maxParseMs: 900 }),
@@ -49,6 +49,7 @@ const DEFAULT_BASELINE = Object.freeze({ maxBytes: 256 * 1024, maxLines: 4000, m
 const LANGUAGE_BASELINE_OVERRIDES = Object.freeze({
   clike: Object.freeze({ maxBytes: 640 * 1024, maxLines: 10000, maxParseMs: 2600 }),
   javascript: Object.freeze({ maxBytes: 320 * 1024, maxLines: 5000, maxParseMs: 1500 }),
+  makefile: Object.freeze({ maxBytes: 320 * 1024, maxLines: 5500, maxParseMs: 1200 }),
   nix: Object.freeze({ maxBytes: 320 * 1024, maxLines: 5000, maxParseMs: 1500 }),
   starlark: Object.freeze({ maxBytes: 384 * 1024, maxLines: 6000, maxParseMs: 1700 }),
   typescript: Object.freeze({ maxBytes: 320 * 1024, maxLines: 5000, maxParseMs: 1500 }),
