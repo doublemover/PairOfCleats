@@ -1446,7 +1446,7 @@ Tests:
 
 Exit criteria:
 
-- [ ] Runner/coverage/profile outputs are stable and documented.
+- [x] Runner/coverage/profile outputs are stable and documented.
 
 ---
 
