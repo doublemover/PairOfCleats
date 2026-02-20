@@ -521,9 +521,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.29 Proto
 
-- [ ] Implement `.proto` routing and message/service/import extraction behavior.
-- [ ] Implement and verify relation extraction across multi-file proto packages.
-- [ ] Calibrate and commit Proto caps for large generated-interface repos.
+- [x] Implement `.proto` routing and message/service/import extraction behavior.
+- [x] Implement and verify relation extraction across multi-file proto packages.
+- [x] Calibrate and commit Proto caps for large generated-interface repos.
 
 
 Touchpoints:

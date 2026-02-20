@@ -99,8 +99,8 @@
       "maxLines": 6000
     },
     "proto": {
-      "maxBytes": 262144,
-      "maxLines": 4000
+      "maxBytes": 327680,
+      "maxLines": 5000
     },
     "python": {
       "maxBytes": 393216,
@@ -281,9 +281,9 @@
       "maxParseMs": 1700
     },
     "proto": {
-      "maxBytes": 262144,
-      "maxLines": 4000,
-      "maxParseMs": 1300
+      "maxBytes": 327680,
+      "maxLines": 5000,
+      "maxParseMs": 1500
     },
     "python": {
       "maxBytes": 393216,
