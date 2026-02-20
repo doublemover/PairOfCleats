@@ -64,6 +64,22 @@ import {
   resolveSparsePreflightModes
 } from './preflight.js';
 
+/**
+ * Execute the `pairofcleats search` CLI end-to-end: parse flags, load policy
+ * and indexes, run retrieval, emit output, and persist telemetry.
+ *
+ * @param {string[]} [rawArgs]
+ * @param {object} [options]
+ * @param {boolean} [options.emitOutput]
+ * @param {boolean} [options.exitOnError]
+ * @param {AbortSignal|null} [options.signal]
+ * @param {string|null} [options.scoreMode]
+ * @param {object|null} [options.indexCache]
+ * @param {object|null} [options.sqliteCache]
+ * @param {object|null} [options.queryPlanCache]
+ * @param {string|null} [options.root]
+ * @returns {Promise<object>}
+ */
 export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}) {
   const telemetry = createSearchTelemetry();
   const recordSearchMetrics = (status) => telemetry.record(status);

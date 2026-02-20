@@ -6,6 +6,15 @@ const resolveScoreModeOverride = (value) => {
   throw new Error(`Invalid score mode "${mode}". Use sparse|dense|hybrid.`);
 };
 
+/**
+ * Resolve the runtime search config from normalized CLI options plus an
+ * optional score-mode override.
+ *
+ * @param {object} input
+ * @param {object} input.normalized
+ * @param {string|null} input.scoreModeOverride
+ * @returns {object}
+ */
 export const resolveRunConfig = ({ normalized, scoreModeOverride }) => {
   const {
     query,

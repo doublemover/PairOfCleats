@@ -296,12 +296,14 @@ export function createSearchPipeline(context) {
   };
 
   /**
-   * Execute the full search pipeline for a mode.
+   * Execute the full retrieval pipeline for one mode, including filtering,
+   * sparse/ANN candidate generation, ranking, and optional expansion stages.
+   *
    * @param {object} idx
-    * @param {'code'|'prose'|'records'|'extracted-prose'} mode
-    * @param {number[]|null} queryEmbedding
-    * @returns {Promise<Array<object>>}
-    */
+   * @param {'code'|'prose'|'records'|'extracted-prose'} mode
+   * @param {number[]|null} queryEmbedding
+   * @returns {Promise<Array<object>>}
+   */
   return async function runSearch(idx, mode, queryEmbedding) {
     throwIfAborted();
     const meta = idx.chunkMeta;

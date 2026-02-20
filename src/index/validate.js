@@ -161,6 +161,21 @@ const recordOrderingDrift = ({
   }
   report.hints.push('Rebuild ordering ledger by re-running index build.');
 };
+
+/**
+ * Validate index artifacts for selected modes against manifest presence and
+ * optional ordering ledger constraints.
+ *
+ * @param {object} [input]
+ * @param {string} [input.root]
+ * @param {string|null} [input.indexRoot]
+ * @param {object} [input.userConfig]
+ * @param {string[]} [input.modes]
+ * @param {boolean} [input.sqliteEnabled]
+ * @param {boolean} [input.strict]
+ * @param {boolean} [input.validateOrdering]
+ * @returns {Promise<object>}
+ */
 export async function validateIndexArtifacts(input = {}) {
   const root = getRepoRoot(input.root);
   const indexRoot = input.indexRoot ? path.resolve(input.indexRoot) : null;

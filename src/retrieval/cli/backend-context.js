@@ -4,6 +4,13 @@ import { resolveIndexDir } from '../cli-index.js';
 import { createLmdbHelpers } from '../lmdb-helpers.js';
 import { createSqliteHelpers } from '../sqlite-helpers.js';
 
+/**
+ * Build backend context for retrieval by wiring SQLite/LMDB handles, helper
+ * factories, and backend-policy metadata for the current run.
+ *
+ * @param {object} input
+ * @returns {Promise<object>}
+ */
 export const createBackendContext = async ({
   backendPolicy,
   useSqlite: useSqliteInput,

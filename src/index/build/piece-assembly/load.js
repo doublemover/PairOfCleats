@@ -8,6 +8,14 @@ import {
 } from '../../../shared/artifact-io.js';
 import { readJsonOptional } from './helpers.js';
 
+/**
+ * Load manifest-backed artifacts from an existing index directory and normalize
+ * chunk metadata with file-level fallback fields.
+ *
+ * @param {string} dir
+ * @param {{strict?:boolean}} [options]
+ * @returns {Promise<object>}
+ */
 export const loadIndexArtifacts = async (dir, { strict = true } = {}) => {
   if (!fsSync.existsSync(dir)) {
     throw new Error(`Missing input index directory: ${dir}`);
@@ -93,6 +101,13 @@ export const loadIndexArtifacts = async (dir, { strict = true } = {}) => {
   };
 };
 
+/**
+ * Read compatibility keys for candidate index directories.
+ *
+ * @param {string[]} inputs
+ * @param {{strict?:boolean}} [options]
+ * @returns {Map<string,string>}
+ */
 export const readCompatibilityKeys = (inputs, { strict = true } = {}) => {
   const compatibilityKeys = new Map();
   for (const dir of inputs) {

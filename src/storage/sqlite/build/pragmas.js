@@ -76,6 +76,16 @@ const resolveReadPragmas = (options = {}) => {
   };
 };
 
+/**
+ * Apply aggressive write-time SQLite pragmas for bulk index builds and return
+ * both pre-change and post-change snapshots.
+ *
+ * @param {object} db
+ * @param {object} [options]
+ * @param {number} [options.inputBytes]
+ * @param {object} [options.stats]
+ * @returns {{before:object,applied:object}}
+ */
 export const applyBuildPragmas = (db, options = {}) => {
   const before = {
     journal_mode: readPragma(db, 'journal_mode'),
@@ -122,6 +132,16 @@ export const applyBuildPragmas = (db, options = {}) => {
   };
 };
 
+/**
+ * Apply read-path pragmas tuned for storage tier and tail-latency preferences.
+ *
+ * @param {object} db
+ * @param {object} [options]
+ * @param {number} [options.dbBytes]
+ * @param {string} [options.storageTier]
+ * @param {boolean} [options.tailLatencyTuning]
+ * @returns {{temp_store:string,cache_size:number,mmap_size:number,busy_timeout:number,threads:number}|null}
+ */
 export const applyReadPragmas = (db, options = {}) => {
   if (!db) return null;
   const resolved = resolveReadPragmas(options);
@@ -139,6 +159,14 @@ export const applyReadPragmas = (db, options = {}) => {
   };
 };
 
+/**
+ * Restore SQLite pragmas captured by `applyBuildPragmas` (or safe defaults
+ * when no snapshot is available).
+ *
+ * @param {object} db
+ * @param {{before?:object}|null} [state]
+ * @returns {void}
+ */
 export const restoreBuildPragmas = (db, state = null) => {
   const before = state && typeof state === 'object' ? state.before : null;
   const restoreValue = (key, fallback) => {
@@ -163,6 +191,15 @@ export const restoreBuildPragmas = (db, state = null) => {
   applyIfValue('locking_mode', restoreValue('locking_mode', 'NORMAL'));
 };
 
+/**
+ * Run `PRAGMA optimize` and optionally `ANALYZE` for large build inputs.
+ *
+ * @param {object} db
+ * @param {object} [options]
+ * @param {number} [options.inputBytes]
+ * @param {object} [options.stats]
+ * @returns {void}
+ */
 export const optimizeBuildDatabase = (db, options = {}) => {
   if (!db) return;
   const stats = options.stats && typeof options.stats === 'object' ? options.stats : null;
@@ -190,6 +227,15 @@ export const optimizeBuildDatabase = (db, options = {}) => {
   }
 };
 
+/**
+ * Trigger FTS optimize for a supported table and record timing diagnostics.
+ *
+ * @param {object} db
+ * @param {string} tableName
+ * @param {object} [options]
+ * @param {object} [options.stats]
+ * @returns {void}
+ */
 export const optimizeFtsTable = (db, tableName, options = {}) => {
   if (!db) return;
   const target = typeof tableName === 'string' ? tableName.trim() : '';
