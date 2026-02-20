@@ -113,7 +113,7 @@ const fileSignature = async (filePath) => {
   try {
     let statPath = filePath;
     let stat = await safeStat(statPath, true);
-    if (!stat && filePath.endsWith('.json')) {
+    if (!stat && !filePath.endsWith('.gz') && !filePath.endsWith('.zst')) {
       const zstPath = `${filePath}.zst`;
       stat = await safeStat(zstPath, true);
       if (stat) {
@@ -158,6 +158,16 @@ const shardSignature = async (dir, prefix) => {
   }
 };
 
+const binaryColumnarSignature = async (dir, baseName) => {
+  const metaName = `${baseName}.binary-columnar.meta.json`;
+  const metaSig = await fileSignature(path.join(dir, metaName));
+  if (!metaSig) return null;
+  const dataSig = await fileSignature(path.join(dir, `${baseName}.binary-columnar.bin`));
+  const offsetsSig = await fileSignature(path.join(dir, `${baseName}.binary-columnar.offsets.bin`));
+  const lengthsSig = await fileSignature(path.join(dir, `${baseName}.binary-columnar.lengths.varint`));
+  return `${metaName}:${metaSig}|data:${dataSig || 'missing'}|offsets:${offsetsSig || 'missing'}|lengths:${lengthsSig || 'missing'}`;
+};
+
 const chunkMetaSignature = async (dir) => {
   const jsonPath = path.join(dir, 'chunk_meta.json');
   const jsonSig = await fileSignature(jsonPath);
@@ -165,6 +175,11 @@ const chunkMetaSignature = async (dir) => {
   const jsonlPath = path.join(dir, 'chunk_meta.jsonl');
   const jsonlSig = await fileSignature(jsonlPath);
   if (jsonlSig) return `chunk_meta.jsonl:${jsonlSig}`;
+  const columnarPath = path.join(dir, 'chunk_meta.columnar.json');
+  const columnarSig = await fileSignature(columnarPath);
+  if (columnarSig) return `chunk_meta.columnar.json:${columnarSig}`;
+  const binarySig = await binaryColumnarSignature(dir, 'chunk_meta');
+  if (binarySig) return binarySig;
   const metaPath = path.join(dir, 'chunk_meta.meta.json');
   const metaSig = await fileSignature(metaPath);
   const partsSig = await shardSignature(path.join(dir, 'chunk_meta.parts'), 'chunk_meta.part-');
@@ -185,6 +200,8 @@ const tokenPostingsSignature = async (dir) => {
   const jsonPath = path.join(dir, 'token_postings.json');
   const jsonSig = await fileSignature(jsonPath);
   if (jsonSig) return `token_postings.json:${jsonSig}`;
+  const binarySig = await binaryColumnarSignature(dir, 'token_postings');
+  if (binarySig) return binarySig;
   const metaPath = path.join(dir, 'token_postings.meta.json');
   const metaSig = await fileSignature(metaPath);
   const partsSig = await shardSignature(path.join(dir, 'token_postings.shards'), 'token_postings.part-');
