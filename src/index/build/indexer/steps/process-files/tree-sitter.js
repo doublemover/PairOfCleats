@@ -95,6 +95,16 @@ const resolveTreeSitterBatchInfo = (entry, treeSitterOptions) => {
   return { key, languages: normalized };
 };
 
+/**
+ * Attach tree-sitter batch metadata to entries and optionally reorder by batch
+ * key for parser-cache locality.
+ *
+ * @param {Array<object>} entries
+ * @param {object} treeSitterOptions
+ * @param {object} envConfig
+ * @param {{allowReorder?:boolean}} [options]
+ * @returns {void}
+ */
 export const applyTreeSitterBatching = (entries, treeSitterOptions, envConfig, { allowReorder = true } = {}) => {
   if (!treeSitterOptions || treeSitterOptions.enabled === false) return;
   if (treeSitterOptions.batchByLanguage === false) return;
@@ -128,6 +138,12 @@ export const applyTreeSitterBatching = (entries, treeSitterOptions, envConfig, {
   }
 };
 
+/**
+ * Normalize a language list to supported tree-sitter ids.
+ *
+ * @param {Array<string>} languages
+ * @returns {Array<string>}
+ */
 export const normalizeTreeSitterLanguages = (languages) => {
   const output = new Set();
   for (const language of languages || []) {
@@ -136,6 +152,13 @@ export const normalizeTreeSitterLanguages = (languages) => {
   return Array.from(output).sort();
 };
 
+/**
+ * Overwrite an entry's batch metadata from an explicit language list.
+ *
+ * @param {object} entry
+ * @param {Array<string>} languages
+ * @returns {void}
+ */
 export const updateEntryTreeSitterBatch = (entry, languages) => {
   const normalized = normalizeTreeSitterLanguages(languages);
   entry.treeSitterBatchLanguages = normalized;
@@ -143,6 +166,12 @@ export const updateEntryTreeSitterBatch = (entry, languages) => {
   entry.treeSitterAllowedLanguages = normalized;
 };
 
+/**
+ * Stable sort entries by defer flag, then batch key, then path.
+ *
+ * @param {Array<object>} entries
+ * @returns {void}
+ */
 export const sortEntriesByTreeSitterBatchKey = (entries) => {
   entries.sort((a, b) => {
     const deferA = a.treeSitterDeferredToEnd ? 1 : 0;
@@ -156,6 +185,12 @@ export const sortEntriesByTreeSitterBatchKey = (entries) => {
   });
 };
 
+/**
+ * Ensure all entries have monotonic order indexes and return the next slot.
+ *
+ * @param {Array<object>} entries
+ * @returns {number}
+ */
 export const resolveNextOrderIndex = (entries) => {
   let nextOrderIndex = 0;
   for (const entry of entries || []) {
@@ -169,6 +204,12 @@ export const resolveNextOrderIndex = (entries) => {
   return nextOrderIndex;
 };
 
+/**
+ * Assign one-based `fileIndex` values in current array order.
+ *
+ * @param {Array<object>} entries
+ * @returns {void}
+ */
 export const assignFileIndexes = (entries) => {
   if (!Array.isArray(entries)) return;
   for (let i = 0; i < entries.length; i += 1) {
@@ -178,6 +219,12 @@ export const assignFileIndexes = (entries) => {
   }
 };
 
+/**
+ * Group contiguous entries by batch key.
+ *
+ * @param {Array<object>} entries
+ * @returns {Array<{key:string,languages:Array<string>,entries:Array<object>}>}
+ */
 export const buildTreeSitterEntryBatches = (entries) => {
   const batches = [];
   let current = null;
@@ -193,6 +240,12 @@ export const buildTreeSitterEntryBatches = (entries) => {
   return batches;
 };
 
+/**
+ * Collect distinct language ids referenced by entry batch metadata.
+ *
+ * @param {Array<object>} entries
+ * @returns {Array<string>}
+ */
 export const collectTreeSitterBatchLanguages = (entries) => {
   const languages = new Set();
   for (const entry of entries || []) {
@@ -206,6 +259,12 @@ export const collectTreeSitterBatchLanguages = (entries) => {
   return Array.from(languages).sort();
 };
 
+/**
+ * Build a preload plan ordered by descending language frequency.
+ *
+ * @param {Array<object>} entries
+ * @returns {{languages:Array<string>,counts:Map<string,number>}}
+ */
 export const resolveTreeSitterPreloadPlan = (entries) => {
   const counts = new Map();
   for (const entry of entries || []) {
@@ -230,6 +289,12 @@ export const resolveTreeSitterPreloadPlan = (entries) => {
   return { languages: ordered, counts };
 };
 
+/**
+ * Placeholder preload hook for tree-sitter language batches.
+ *
+ * @param {{languages:Array<string>,treeSitter?:object,log?:(line:string)=>void}} input
+ * @returns {Promise<void>}
+ */
 export const preloadTreeSitterBatch = async ({ languages, treeSitter, log: logFn }) => {
   if (!treeSitter || treeSitter.enabled === false) return;
   if (!Array.isArray(languages) || !languages.length) return;

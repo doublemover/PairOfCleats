@@ -6,11 +6,22 @@ import {
   ORDER_BUFFER_ROWS
 } from './constants.js';
 
+/**
+ * Compute per-bucket row capacity for id-sharded external sorting.
+ * @param {number} total
+ * @returns {number}
+ */
 export const resolveOrderBucketSize = (total) => {
   if (!Number.isFinite(total) || total <= 0) return 0;
   return Math.max(ORDER_BUCKET_MIN, Math.ceil(total / ORDER_BUCKET_TARGET));
 };
 
+/**
+ * Memoize a pre-serialized JSONL line on the row object.
+ * @param {object} row
+ * @param {string} line
+ * @returns {void}
+ */
 export const attachCachedLine = (row, line) => {
   if (!row || typeof row !== 'object') return;
   try {
@@ -18,6 +29,13 @@ export const attachCachedLine = (row, line) => {
   } catch {}
 };
 
+/**
+ * Map sync/async row iterables without materializing full arrays.
+ * @template T,U
+ * @param {Iterable<T>|AsyncIterable<T>} rows
+ * @param {(row:T)=>U|null|undefined} mapper
+ * @returns {Iterable<U>|AsyncIterable<U>}
+ */
 export const mapRows = (rows, mapper) => {
   if (rows && typeof rows[Symbol.asyncIterator] === 'function') {
     return (async function* mappedRowsAsync() {
@@ -35,6 +53,11 @@ export const mapRows = (rows, mapper) => {
   })();
 };
 
+/**
+ * Serialize a row, preferring a cached JSONL payload when available.
+ * @param {object} row
+ * @returns {string}
+ */
 export const serializeCachedRow = (row) => {
   if (row && typeof row === 'object' && typeof row.__jsonl === 'string') {
     return row.__jsonl;
@@ -65,10 +88,22 @@ const getChunkMetaSortKey = (chunk) => ({
   name: chunk?.name
 });
 
+/**
+ * Comparator for full chunk-meta row ordering.
+ * @param {object} left
+ * @param {object} right
+ * @returns {number}
+ */
 export const compareChunkMetaChunks = (left, right) => (
   compareChunkMetaRows(getChunkMetaSortKey(left), getChunkMetaSortKey(right))
 );
 
+/**
+ * Comparator for id-only ordering used in bucket merges.
+ * @param {object} a
+ * @param {object} b
+ * @returns {number}
+ */
 export const compareChunkMetaIdOnly = (a, b) => {
   const idA = Number.isFinite(Number(a?.id)) ? Number(a.id) : null;
   const idB = Number.isFinite(Number(b?.id)) ? Number(b.id) : null;
@@ -78,6 +113,11 @@ export const compareChunkMetaIdOnly = (a, b) => {
   return 0;
 };
 
+/**
+ * Build spill collectors partitioned by id buckets.
+ * @param {{outDir:string,maxJsonBytes:number,chunkMetaCount:number}} input
+ * @returns {{append:(row:object,meta?:{line?:string,lineBytes?:number})=>Promise<void>,finalize:()=>Promise<object>,bucketSize:number}}
+ */
 export const createChunkMetaBucketCollector = ({
   outDir,
   maxJsonBytes,
@@ -129,6 +169,11 @@ export const createChunkMetaBucketCollector = ({
   return { append, finalize, bucketSize };
 };
 
+/**
+ * Normalize max-bytes budget to a concrete integer when configured.
+ * @param {number} maxJsonBytes
+ * @returns {number}
+ */
 export const resolveChunkMetaMaxBytes = (maxJsonBytes) => {
   const parsed = Number(maxJsonBytes);
   if (!Number.isFinite(parsed) || parsed <= 0) return maxJsonBytes;
@@ -175,6 +220,17 @@ const toFiniteOrNull = (value) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+/**
+ * Trim oversized chunk-meta rows down to byte-budget-safe representations.
+ *
+ * Trimming is intentionally staged so downstream consumers keep as much
+ * structure as possible before falling back to a minimal shape.
+ *
+ * @param {object} entry
+ * @param {number} maxBytes
+ * @param {object|null} [stats]
+ * @returns {object}
+ */
 export const compactChunkMetaEntry = (entry, maxBytes, stats = null) => {
   const resolvedMax = Number.isFinite(Number(maxBytes)) ? Math.floor(Number(maxBytes)) : 0;
   if (!resolvedMax) return entry;

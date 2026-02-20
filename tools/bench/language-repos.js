@@ -183,6 +183,26 @@ const writeListLine = (line) => {
   }
   appendLog(line);
 };
+let benchInFlightFraction = 0;
+let updateBenchProgress = () => {};
+const clampBenchFraction = (value) => {
+  if (!Number.isFinite(value)) return 0;
+  if (value <= 0) return 0;
+  if (value >= 1) return 1;
+  return value;
+};
+const deriveBenchFraction = (event) => {
+  const current = Number.isFinite(event?.current) ? Number(event.current) : 0;
+  const total = Number.isFinite(event?.total) ? Number(event.total) : 0;
+  if (total <= 0) return null;
+  return clampBenchFraction(current / total);
+};
+const setBenchInFlightFraction = (value, { refresh = true } = {}) => {
+  const next = clampBenchFraction(value);
+  if (next === benchInFlightFraction) return;
+  benchInFlightFraction = next;
+  if (refresh) updateBenchProgress();
+};
 const handleProgressEvent = (event) => {
   if (!event || typeof event !== 'object') return;
   if (event.event === 'log') {
@@ -195,6 +215,16 @@ const handleProgressEvent = (event) => {
   const rawName = event.name || event.taskId || 'task';
   const isOverall = (event.stage || '').toLowerCase() === 'overall'
     || String(rawName).trim().toLowerCase() === 'overall';
+  if (isOverall) {
+    const fraction = deriveBenchFraction(event);
+    if (event.event === 'task:end') {
+      setBenchInFlightFraction(event.status === 'failed' ? 0 : 1);
+    } else if (fraction !== null) {
+      setBenchInFlightFraction(fraction);
+    } else if (event.event === 'task:start') {
+      setBenchInFlightFraction(0);
+    }
+  }
   const name = isOverall && benchRepoLabel ? benchRepoLabel : rawName;
   const taskId = isOverall && benchRepoLabel ? 'bench:current' : (event.taskId || name);
   const total = Number.isFinite(event.total) && event.total > 0 ? event.total : null;
@@ -452,9 +482,15 @@ const formatBenchRepoLabel = (repo) => {
 let benchTierTag = '';
 let benchRepoLabel = '';
 const benchTask = display.task('Repos', { total: tasks.length, stage: 'bench' });
-const updateBenchProgress = () => {
+updateBenchProgress = () => {
   const reposLabel = benchTierTag ? `Repos (${benchTierTag})` : 'Repos';
-  benchTask.set(completed, tasks.length, { name: reposLabel });
+  const effectiveCompleted = Math.min(tasks.length, completed + benchInFlightFraction);
+  benchTask.set(effectiveCompleted, tasks.length, { name: reposLabel });
+};
+const completeBenchRepo = () => {
+  setBenchInFlightFraction(0, { refresh: false });
+  completed += 1;
+  updateBenchProgress();
 };
 updateBenchProgress();
 
@@ -482,6 +518,7 @@ for (const task of tasks) {
   const tierLabel = String(task.tier || '').trim();
   benchTierTag = formatBenchTierTag(tierLabel) || benchTierTag;
   benchRepoLabel = formatBenchRepoLabel(task.repo);
+  setBenchInFlightFraction(0, { refresh: false });
   display.resetTasks({ preserveStages: ['bench'] });
   updateBenchProgress();
   const repoCacheRoot = resolveRepoCacheRoot({ repoPath, cacheRoot });
@@ -516,8 +553,7 @@ for (const task of tasks) {
         });
         if (!cloneResult.ok) {
           appendLog(`[error] Clone failed for ${repoLabel}; continuing to next repo.`, 'error');
-          completed += 1;
-          updateBenchProgress();
+          completeBenchRepo();
           appendLog('[metrics] failed (clone)');
           results.push({
             ...task,
@@ -640,8 +676,7 @@ for (const task of tasks) {
       const message = `Skipping ${repoLabel}: index lock held ${detail}`.trim();
       appendLog(`[lock] ${message}`);
       if (!quietMode) display.error(message);
-      completed += 1;
-      updateBenchProgress();
+      completeBenchRepo();
       appendLog('[metrics] skipped (lock)');
       results.push({
         ...task,
@@ -707,8 +742,7 @@ for (const task of tasks) {
           appendLog(`[error] Disk space exhausted while benchmarking ${repoLabel}; continuing.`, 'error');
         }
         appendLog(`[error] Bench failed for ${repoLabel}; continuing to next repo.`, 'error');
-        completed += 1;
-        updateBenchProgress();
+        completeBenchRepo();
         appendLog('[metrics] failed (bench)');
         results.push({
           ...task,
@@ -727,8 +761,7 @@ for (const task of tasks) {
       } catch (err) {
         appendLog(`[error] Failed to read bench report for ${repoLabel}; continuing.`, 'error');
         if (err && err.message) display.error(err.message);
-        completed += 1;
-        updateBenchProgress();
+        completeBenchRepo();
         appendLog('[metrics] failed (report)');
         results.push({
           ...task,
@@ -743,8 +776,7 @@ for (const task of tasks) {
       }
     }
 
-    completed += 1;
-    updateBenchProgress();
+    completeBenchRepo();
     appendLog(`[metrics] ${formatMetricSummary(summary)}`);
 
     results.push({ ...task, repoPath, outFile, summary });

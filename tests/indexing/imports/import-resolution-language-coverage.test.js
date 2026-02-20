@@ -57,6 +57,7 @@ await write('src/util/parser.rs', 'pub fn parse() {}\n');
 
 await write('scripts/main.sh', 'source lib/helpers.sh\n');
 await write('scripts/lib/helpers.sh', 'echo ok\n');
+await write('scripts/system.sh', 'source /etc/bash_completion\nsource /usr/local/share/chruby/auto.sh\n');
 
 await write('cmake/main.cmake', 'include(modules/common.cmake)\n');
 await write('cmake/modules/common.cmake', '# helper\n');
@@ -117,6 +118,7 @@ const entries = [
   'src/lib.rs',
   'src/util/parser.rs',
   'scripts/main.sh',
+  'scripts/system.sh',
   'scripts/lib/helpers.sh',
   'cmake/main.cmake',
   'cmake/modules/common.cmake',
@@ -154,6 +156,7 @@ const importsByFile = {
   'Sources/Core/Main.swift': ['CoreNetworking'],
   'src/lib.rs': ['crate::util::parser'],
   'scripts/main.sh': ['lib/helpers.sh'],
+  'scripts/system.sh': ['/etc/bash_completion', '/usr/local/share/chruby/auto.sh'],
   'cmake/main.cmake': ['modules/common.cmake'],
   'cmake/sub/main.cmake': ['../modules/common.cmake'],
   'app/rules.bzl': ['//tools:defs.bzl', ':local.bzl'],
@@ -203,6 +206,7 @@ assertLinks('src/App/Main.cs', ['src/App/Util/Helper.cs']);
 assertLinks('Sources/Core/Main.swift', ['Sources/CoreNetworking/Client.swift']);
 assertLinks('src/lib.rs', ['src/util/parser.rs']);
 assertLinks('scripts/main.sh', ['scripts/lib/helpers.sh']);
+assertExternal('scripts/system.sh', ['/etc/bash_completion', '/usr/local/share/chruby/auto.sh']);
 assertLinks('cmake/main.cmake', ['cmake/modules/common.cmake']);
 assertLinks('cmake/sub/main.cmake', ['cmake/modules/common.cmake']);
 assertLinks('app/rules.bzl', ['app/local.bzl', 'tools/defs.bzl']);

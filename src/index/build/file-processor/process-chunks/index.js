@@ -133,6 +133,8 @@ const HEAVY_FILE_PATH_PREFIXES = [
   '/cmake/',
   '/.github/workflows/'
 ];
+const BOILERPLATE_SCAN_WINDOW_CHARS = 8192;
+const BOILERPLATE_COMMENT_HINT_RX = /(?:^|\n)\s*(?:\/\/|\/\*|#|;|--|<!--|\*)/;
 
 const normalizeHeavyFilePolicy = (languageOptions) => {
   const raw = languageOptions?.heavyFile;
@@ -269,6 +271,34 @@ const shouldApplySwiftHotPathCoalescing = ({
   return HEAVY_FILE_SWIFT_HOT_PATH_PARTS.some((part) => bounded.includes(part));
 };
 
+/**
+ * Cheap preflight for boilerplate detection to avoid full-file scans when
+ * license/generated-comment metadata cannot apply.
+ *
+ * @param {{mode:string,text:string,chunkCount:number}} input
+ * @returns {boolean}
+ */
+const shouldDetectBoilerplateBlocks = ({ mode, text, chunkCount }) => {
+  if (mode !== 'code') return false;
+  if (!Number.isFinite(Number(chunkCount)) || Number(chunkCount) <= 0) return false;
+  if (typeof text !== 'string' || !text) return false;
+  const head = text.slice(0, BOILERPLATE_SCAN_WINDOW_CHARS);
+  if (BOILERPLATE_COMMENT_HINT_RX.test(head)) return true;
+  if (text.length <= BOILERPLATE_SCAN_WINDOW_CHARS) return false;
+  const tail = text.slice(-BOILERPLATE_SCAN_WINDOW_CHARS);
+  return BOILERPLATE_COMMENT_HINT_RX.test(tail);
+};
+
+/**
+ * Merge adjacent chunks into bounded groups for heavy-file downshift paths.
+ *
+ * Preserves deterministic ordering and line coverage while dropping
+ * segment-specific metadata only for chunks that were actually merged.
+ *
+ * @param {Array<object>} chunks
+ * @param {number} maxChunks
+ * @returns {Array<object>}
+ */
 export const coalesceHeavyChunks = (chunks, maxChunks) => {
   if (!Array.isArray(chunks) || chunks.length <= 1) return chunks;
   const target = Number.isFinite(Number(maxChunks))
@@ -299,6 +329,15 @@ export const coalesceHeavyChunks = (chunks, maxChunks) => {
   return merged;
 };
 
+/**
+ * Process raw structural chunks into final chunk payload rows for one file.
+ *
+ * This stage coordinates enrichment, tokenization, optional worker offload,
+ * boilerplate weighting, and embeddings.
+ *
+ * @param {object} context
+ * @returns {Promise<{chunks:Array<object>,fileRelations:any}|object>}
+ */
 export const processChunks = async (context) => {
   const {
     sc,
@@ -644,7 +683,14 @@ export const processChunks = async (context) => {
     ext: containerExt,
     text
   });
-  const fileBoilerplateBlocks = await detectBoilerplateCommentBlocks({ text });
+  const fileBoilerplateBlocks = shouldDetectBoilerplateBlocks({
+    mode,
+    text,
+    chunkCount: chunksForProcessing.length
+  })
+    ? await detectBoilerplateCommentBlocks({ text })
+    : [];
+  const hasFileBoilerplateBlocks = fileBoilerplateBlocks.length > 0;
 
   for (let ci = 0; ci < chunksForProcessing.length; ++ci) {
     const c = chunksForProcessing[ci];
@@ -945,24 +991,27 @@ export const processChunks = async (context) => {
 
     if (effectiveTokenizeEnabled && !seq.length) continue;
 
-    const boilerplateMatch = resolveChunkBoilerplateMatch({
-      blocks: fileBoilerplateBlocks,
-      start: c.start,
-      end: c.end
-    });
-    const boilerplateCoverage = Number(boilerplateMatch?.coverage || 0);
-    if (boilerplateMatch) {
-      docmeta = {
-        ...docmeta,
-        boilerplateRef: boilerplateMatch.ref,
-        boilerplateTags: boilerplateMatch.tags,
-        boilerplatePosition: boilerplateMatch.position,
-        boilerplateCoverage: Number(boilerplateCoverage.toFixed(4)),
-        boilerplateLines: {
-          start: boilerplateMatch.startLine,
-          end: boilerplateMatch.endLine
-        }
-      };
+    let boilerplateCoverage = 0;
+    if (hasFileBoilerplateBlocks) {
+      const boilerplateMatch = resolveChunkBoilerplateMatch({
+        blocks: fileBoilerplateBlocks,
+        start: c.start,
+        end: c.end
+      });
+      boilerplateCoverage = Number(boilerplateMatch?.coverage || 0);
+      if (boilerplateMatch) {
+        docmeta = {
+          ...docmeta,
+          boilerplateRef: boilerplateMatch.ref,
+          boilerplateTags: boilerplateMatch.tags,
+          boilerplatePosition: boilerplateMatch.position,
+          boilerplateCoverage: Number(boilerplateCoverage.toFixed(4)),
+          boilerplateLines: {
+            start: boilerplateMatch.startLine,
+            end: boilerplateMatch.endLine
+          }
+        };
+      }
     }
     const boilerplateWeightMultiplier = boilerplateCoverage >= 0.85
       ? 0.12

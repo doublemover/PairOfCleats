@@ -71,6 +71,12 @@ import { packMinhashSignatures } from './artifacts/minhash-packed.js';
 
 export { resolveArtifactWriteConcurrency, buildLexiconRelationFilterReport };
 
+/**
+ * Aggregate per-chunk boilerplate metadata into a compact reference catalog.
+ *
+ * @param {Array<object>} chunks
+ * @returns {Array<{ref:string,count:number,positions:Record<string,number>,tags:Array<string>,sampleFiles:Array<string>}>}
+ */
 const buildBoilerplateCatalog = (chunks) => {
   if (!Array.isArray(chunks) || !chunks.length) return [];
   const byRef = new Map();

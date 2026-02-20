@@ -29,6 +29,8 @@ import { resolveDartPackageName, resolveGoModulePath, resolvePackageFingerprint 
 import { normalizeRelPath, resolveWithinRoot, sortStrings, stripSpecifier } from './path-utils.js';
 import { createTsConfigLoader, resolveTsPaths } from './tsconfig-resolution.js';
 
+const ABSOLUTE_SYSTEM_PATH_PREFIX_RX = /^\/(?:etc|usr|opt|var|bin|sbin|lib|lib64|dev|proc|sys|run|tmp|home|root)(?:\/|$)/i;
+
 const insertResolutionCache = (cache, key, value) => {
   if (!cache || !key) return;
   if (cache.size >= MAX_RESOLUTION_CACHE_ENTRIES) {
@@ -164,6 +166,17 @@ export function resolveImportLinks({
       compatibilityFingerprint: lookupCompatibilityFingerprint
     });
   }
+
+  const shouldTreatAbsoluteSpecifierAsExternal = ({ spec, importerInfo }) => {
+    if (!spec || !spec.startsWith('/')) return false;
+    if (!importerInfo) return false;
+    const supportsAbsoluteExternal = importerInfo.isShell || importerInfo.isPathLike || importerInfo.isClike;
+    if (!supportsAbsoluteExternal) return false;
+    const normalizedAbsolute = normalizeRelPath(spec.slice(1));
+    if (normalizedAbsolute && resolveCandidate(normalizedAbsolute, resolvedLookup)) return false;
+    if (ABSOLUTE_SYSTEM_PATH_PREFIX_RX.test(spec)) return true;
+    return importerInfo.isShell === true;
+  };
 
   const resolveFileHash = (relPath) => {
     if (!fileHashes || !relPath) return null;
@@ -314,7 +327,15 @@ export function resolveImportLinks({
             resolvedType = 'relative';
             resolvedPath = candidate;
           } else {
-            resolvedType = 'unresolved';
+            const absoluteExternal = shouldTreatAbsoluteSpecifierAsExternal({
+              spec,
+              importerInfo
+            });
+            if (absoluteExternal) {
+              resolvedType = 'external';
+            } else {
+              resolvedType = 'unresolved';
+            }
           }
         } else {
           const tsResolved = resolveTsPaths({ spec, tsconfig, lookup: resolvedLookup });

@@ -5,6 +5,15 @@ import { buildTokenSequence } from '../tokenization.js';
 import { buildExternalDocs } from './meta.js';
 import { log } from '../../../shared/progress.js';
 
+/**
+ * Assemble the final persisted chunk payload shape from per-stage outputs.
+ *
+ * This is the canonical adapter between processing internals (tokenization,
+ * relations, git metadata, etc.) and artifact row schema.
+ *
+ * @param {object} input
+ * @returns {object}
+ */
 export function buildChunkPayload({
   chunk,
   rel,

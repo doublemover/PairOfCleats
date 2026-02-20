@@ -67,6 +67,14 @@ const buildSegmentDescriptor = ({
   };
 };
 
+/**
+ * Build lookup map from raw segment descriptors to coalesced contiguous groups.
+ *
+ * Groups only merge when segment ranges touch and language/ext/type all match.
+ *
+ * @param {Array<object>} chunks
+ * @returns {Map<string, object>}
+ */
 export const buildCoalescedSegmentMap = (chunks) => {
   const segmentsByContainer = new Map();
   const dedupe = new Set();
@@ -185,6 +193,12 @@ export const buildCoalescedSegmentMap = (chunks) => {
   return groupMap;
 };
 
+/**
+ * Build a stable key for looking up segment groups.
+ *
+ * @param {{containerPath:string,segmentUid?:string|null,segmentStart:number,segmentEnd:number,languageId:string,effectiveExt:string}} input
+ * @returns {string}
+ */
 export const resolveSegmentLookupKey = ({
   containerPath,
   segmentUid,
@@ -201,6 +215,13 @@ export const resolveSegmentLookupKey = ({
   effectiveExt
 });
 
+/**
+ * Ensure coalesced groups have a deterministic uid, computing one lazily.
+ *
+ * @param {object} group
+ * @param {string} fileText
+ * @returns {Promise<string|null>}
+ */
 export const ensureCoalescedSegmentUid = async (group, fileText) => {
   if (!group) return null;
   if (group.segmentUid) return group.segmentUid;

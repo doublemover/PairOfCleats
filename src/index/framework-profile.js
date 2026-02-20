@@ -1,7 +1,8 @@
 const toPosixLower = (value) => String(value || '').replace(/\\/g, '/').toLowerCase();
 const pathHasSegment = (pathLower, segment) => new RegExp(`(^|/)${segment}(/|$)`).test(pathLower);
 
-const isJsFamily = (ext) => new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.mts', '.cts']).has(ext);
+const JS_FAMILY_EXTS = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.mts', '.cts']);
+const isJsFamily = (ext) => JS_FAMILY_EXTS.has(ext);
 
 const hasDynamicSegment = (pathLower) => /\[[^/\]]+\]/.test(pathLower);
 const NEXT_APP_ROUTE_FILE_RX = /(^|\/)app\/(?:.+\/)?(page|layout|route|template|loading|error|not-found|default|head)\.(js|jsx|ts|tsx|mjs|cjs|mts|cts|mdx)$/i;
@@ -9,14 +10,14 @@ const NEXT_PAGES_ROUTE_FILE_RX = /(^|\/)pages\/.+\.(js|jsx|ts|tsx|mjs|cjs|mts|ct
 const NEXT_CONFIG_FILE_RX = /(^|\/)next\.config\.(js|cjs|mjs|ts)$/i;
 const NEXT_IMPORT_SIGNAL_RX = /\bfrom\s+['"]next(?:\/[^'"]*)?['"]|\brequire\(\s*['"]next(?:\/[^'"]*)?['"]\s*\)|\bimport\(\s*['"]next(?:\/[^'"]*)?['"]\s*\)/i;
 const NEXT_DIRECTIVE_SIGNAL_RX = /^\s*(?:(?:\/\/[^\n]*\n)|(?:\/\*[\s\S]*?\*\/\s*))*['"]use\s+(?:client|server)['"]\s*;?/i;
-const hasNextSourceSignal = (source, sourceLower) => (
-  NEXT_IMPORT_SIGNAL_RX.test(source)
-  || NEXT_DIRECTIVE_SIGNAL_RX.test(source)
-  || /\bnextpage\b/.test(sourceLower)
-  || /\bgetstaticprops\b/.test(sourceLower)
-  || /\bgetserversideprops\b/.test(sourceLower)
-  || /\bgeneratestaticparams\b/.test(sourceLower)
-);
+const hasNextSourceSignal = (source, getSourceLower) => {
+  if (NEXT_IMPORT_SIGNAL_RX.test(source) || NEXT_DIRECTIVE_SIGNAL_RX.test(source)) return true;
+  const sourceLower = getSourceLower();
+  return /\bnextpage\b/.test(sourceLower)
+    || /\bgetstaticprops\b/.test(sourceLower)
+    || /\bgetserversideprops\b/.test(sourceLower)
+    || /\bgeneratestaticparams\b/.test(sourceLower);
+};
 
 const buildSignals = (pairs) => {
   const signals = {};
@@ -38,14 +39,26 @@ const buildSignals = (pairs) => {
 export const detectFrameworkProfile = ({ relPath, ext, text = '' } = {}) => {
   const normalizedPath = toPosixLower(relPath);
   const normalizedExt = String(ext || '').toLowerCase();
-  const source = String(text || '');
-  const sourceLower = source.toLowerCase();
+  let source = null;
+  let sourceLower = null;
+  const getSource = () => {
+    if (typeof source === 'string') return source;
+    source = typeof text === 'string' ? text : String(text || '');
+    return source;
+  };
+  const getSourceLower = () => {
+    if (typeof sourceLower === 'string') return sourceLower;
+    sourceLower = getSource().toLowerCase();
+    return sourceLower;
+  };
   const dynamicRoute = hasDynamicSegment(normalizedPath);
 
   if (normalizedExt === '.astro') {
+    const sourceText = getSource();
+    const sourceTextLower = getSourceLower();
     const signals = buildSignals([
-      ['astroFrontmatterTemplateBridge', source.trimStart().startsWith('---')],
-      ['astroIslandHydration', sourceLower.includes('client:')],
+      ['astroFrontmatterTemplateBridge', sourceText.trimStart().startsWith('---')],
+      ['astroIslandHydration', sourceTextLower.includes('client:')],
       ['astroRouteCollection', normalizedPath.includes('/src/pages/')],
       ['dynamicRoute', dynamicRoute]
     ]);
@@ -53,6 +66,7 @@ export const detectFrameworkProfile = ({ relPath, ext, text = '' } = {}) => {
   }
 
   if (normalizedExt === '.vue') {
+    const sourceTextLower = getSourceLower();
     const isNuxt = pathHasSegment(normalizedPath, 'pages')
       || pathHasSegment(normalizedPath, 'layouts')
       || normalizedPath.includes('server/api/')
@@ -61,14 +75,14 @@ export const detectFrameworkProfile = ({ relPath, ext, text = '' } = {}) => {
       const signals = buildSignals([
         ['nuxtPagesRouteParams', pathHasSegment(normalizedPath, 'pages') && dynamicRoute],
         ['nuxtServerRouteMapping', normalizedPath.includes('server/api/')],
-        ['nuxtSfcStyleScope', sourceLower.includes('<style scoped')],
+        ['nuxtSfcStyleScope', sourceTextLower.includes('<style scoped')],
         ['dynamicRoute', dynamicRoute]
       ]);
       return { id: 'nuxt', confidence: 'heuristic', signals };
     }
     const signals = buildSignals([
-      ['vueSfcScriptSetupBindings', sourceLower.includes('<script setup')],
-      ['vueSfcScopedStyle', sourceLower.includes('<style scoped')],
+      ['vueSfcScriptSetupBindings', sourceTextLower.includes('<script setup')],
+      ['vueSfcScopedStyle', sourceTextLower.includes('<style scoped')],
       ['vueRouterDynamicParam', dynamicRoute],
       ['dynamicRoute', dynamicRoute]
     ]);
@@ -76,6 +90,8 @@ export const detectFrameworkProfile = ({ relPath, ext, text = '' } = {}) => {
   }
 
   if (normalizedExt === '.svelte') {
+    const sourceText = getSource();
+    const sourceTextLower = getSourceLower();
     const isSvelteKit = normalizedPath.includes('src/routes/')
       || /\/(\+page|\+layout|\+error|\+server)(\.[a-z0-9._-]+)?$/i.test(normalizedPath);
     if (isSvelteKit) {
@@ -88,36 +104,39 @@ export const detectFrameworkProfile = ({ relPath, ext, text = '' } = {}) => {
       return { id: 'sveltekit', confidence: 'heuristic', signals };
     }
     const signals = buildSignals([
-      ['svelteReactiveBinding', source.includes('$:')],
-      ['svelteScopedStyle', sourceLower.includes('<style')]
+      ['svelteReactiveBinding', sourceText.includes('$:')],
+      ['svelteScopedStyle', sourceTextLower.includes('<style')]
     ]);
     return { id: 'svelte', confidence: 'heuristic', signals };
   }
 
   if (/\.(component|module|directive|pipe)\.(ts|html|scss|sass|css)$/.test(normalizedPath)
     || (normalizedPath.includes('src/app/') && (normalizedExt === '.ts' || normalizedExt === '.html'))) {
+    const sourceText = getSource();
     const signals = buildSignals([
-      ['angularInputOutputBinding', source.includes('@Input') || source.includes('@Output') || source.includes('[(ngModel)]')],
-      ['angularRouteConfigLazy', source.includes('loadChildren')],
-      ['angularTemplateStyleEncapsulation', source.includes('ViewEncapsulation') || source.includes('encapsulation:')],
+      ['angularInputOutputBinding', sourceText.includes('@Input') || sourceText.includes('@Output') || sourceText.includes('[(ngModel)]')],
+      ['angularRouteConfigLazy', sourceText.includes('loadChildren')],
+      ['angularTemplateStyleEncapsulation', sourceText.includes('ViewEncapsulation') || sourceText.includes('encapsulation:')],
       ['dynamicRoute', dynamicRoute]
     ]);
     return { id: 'angular', confidence: 'heuristic', signals };
   }
 
   if (isJsFamily(normalizedExt)) {
+    const sourceText = getSource();
     const nextAppRouteFile = NEXT_APP_ROUTE_FILE_RX.test(normalizedPath);
     const nextPagesRouteFile = NEXT_PAGES_ROUTE_FILE_RX.test(normalizedPath);
     const nextConfigFile = NEXT_CONFIG_FILE_RX.test(normalizedPath);
-    const nextSourceSignal = hasNextSourceSignal(source, sourceLower);
+    const nextSourceSignal = hasNextSourceSignal(sourceText, getSourceLower);
     // Require source-level Next signals for route-like paths to avoid broad false positives
     // in non-Next repos that happen to use app/pages directory names.
     const isNext = nextConfigFile
       || ((nextAppRouteFile || nextPagesRouteFile) && nextSourceSignal);
     if (isNext) {
+      const sourceTextLower = getSourceLower();
       const signals = buildSignals([
         ['nextAppRouterDynamicSegment', nextAppRouteFile && dynamicRoute],
-        ['nextClientServerBoundary', sourceLower.includes('"use client"') || sourceLower.includes("'use client'") || sourceLower.includes('"use server"') || sourceLower.includes("'use server'")],
+        ['nextClientServerBoundary', sourceTextLower.includes('"use client"') || sourceTextLower.includes("'use client'") || sourceTextLower.includes('"use server"') || sourceTextLower.includes("'use server'")],
         ['nextRouteHandlerRuntime', /(^|\/)app\/(?:.+\/)?route\.(js|jsx|ts|tsx|mjs|cjs|mts|cts|mdx)$/.test(normalizedPath)],
         ['nextPagesRouterRoute', nextPagesRouteFile],
         ['nextConfigFile', nextConfigFile],
@@ -125,11 +144,12 @@ export const detectFrameworkProfile = ({ relPath, ext, text = '' } = {}) => {
       ]);
       return { id: 'next', confidence: 'heuristic', signals };
     }
-    if (normalizedExt === '.jsx' || normalizedExt === '.tsx' || sourceLower.includes('react')) {
+    if (normalizedExt === '.jsx' || normalizedExt === '.tsx' || getSourceLower().includes('react')) {
+      const sourceTextLower = getSourceLower();
       const signals = buildSignals([
         ['reactRouteDynamic', dynamicRoute],
-        ['reactHydrationBoundary', sourceLower.includes('hydrate') || sourceLower.includes('suspense')],
-        ['reactCssModuleScope', normalizedPath.includes('.module.css') || sourceLower.includes('.module.css')],
+        ['reactHydrationBoundary', sourceTextLower.includes('hydrate') || sourceTextLower.includes('suspense')],
+        ['reactCssModuleScope', normalizedPath.includes('.module.css') || sourceTextLower.includes('.module.css')],
         ['dynamicRoute', dynamicRoute]
       ]);
       return { id: 'react', confidence: 'heuristic', signals };

@@ -400,6 +400,36 @@ const resolveDartImport = ({ spec, importerInfo, lookup, dartPackageName }) => {
   });
 };
 
+/**
+ * Classify importer capabilities once so later resolution branches can remain
+ * branch-predictable and avoid repeated extension/path checks per specifier.
+ *
+ * @param {string} importerRel
+ * @returns {{
+ *   importerRel:string,
+ *   importerDir:string,
+ *   extension:string,
+ *   baseName:string,
+ *   isRuby:boolean,
+ *   isPython:boolean,
+ *   isPerl:boolean,
+ *   isLua:boolean,
+ *   isPhp:boolean,
+ *   isGo:boolean,
+ *   isJava:boolean,
+ *   isKotlin:boolean,
+ *   isCsharp:boolean,
+ *   isSwift:boolean,
+ *   isRust:boolean,
+ *   isDart:boolean,
+ *   isScala:boolean,
+ *   isGroovy:boolean,
+ *   isJulia:boolean,
+ *   isShell:boolean,
+ *   isClike:boolean,
+ *   isPathLike:boolean
+ * }}
+ */
 export const classifyImporter = (importerRel) => {
   const importerPath = normalizeRelPath(importerRel);
   const extension = path.posix.extname(importerPath).toLowerCase();
@@ -461,6 +491,15 @@ export const classifyImporter = (importerRel) => {
   };
 };
 
+/**
+ * Resolve a relative/path-like specifier using language-aware extension and
+ * package conventions.
+ *
+ * This function only resolves candidates that should map to repo-local files.
+ *
+ * @param {{spec:string,base:string,importerInfo:object,lookup:object}} input
+ * @returns {string|null}
+ */
 export const resolveLanguageRelativeImport = ({ spec, base, importerInfo, lookup }) => {
   if (importerInfo.isRuby) {
     const rubyResolved = resolveRubyRelativeImport({ base, lookup });
@@ -525,6 +564,21 @@ export const resolveLanguageRelativeImport = ({ spec, base, importerInfo, lookup
   return null;
 };
 
+/**
+ * Resolve non-relative imports for language ecosystems with local module
+ * conventions (Ruby load paths, Go module roots, Dart package imports, etc.).
+ *
+ * Unhandled specifiers are left to generic external classification upstream.
+ *
+ * @param {{
+ *   importerInfo:object,
+ *   spec:string,
+ *   lookup:object,
+ *   goModulePath?:string|null,
+ *   dartPackageName?:string|null
+ * }} input
+ * @returns {{resolvedType:string,resolvedPath:string}|null}
+ */
 export const resolveLanguageNonRelativeImport = ({
   importerInfo,
   spec,

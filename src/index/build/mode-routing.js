@@ -65,12 +65,6 @@ const BUILD_CONFIG_BASENAMES = new Set([
   'meson.build',
   'meson_options.txt'
 ]);
-const BUILD_CONFIG_EXTS = new Set([
-  '.cmake',
-  '.mk',
-  '.mak',
-  '.make'
-]);
 const INFRA_PATH_PARTS = [
   '/.github/workflows/',
   '/.github/actions/',
@@ -98,10 +92,7 @@ export const isInfraConfigPath = (relPath) => {
     if (bounded.includes(part)) return true;
   }
   const base = normalized.split('/').pop() || '';
-  if (BUILD_CONFIG_BASENAMES.has(base)) return true;
-  const dotIndex = base.lastIndexOf('.');
-  const baseExt = dotIndex >= 0 ? base.slice(dotIndex) : '';
-  return BUILD_CONFIG_EXTS.has(baseExt);
+  return BUILD_CONFIG_BASENAMES.has(base);
 };
 
 const isStructuredInfraCodePath = (relPath) => {

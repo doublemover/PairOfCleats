@@ -7,10 +7,19 @@ import {
 } from '../../../../shared/artifact-io.js';
 
 const CHUNK_META_PROBE_MAX_BYTES = 64 * 1024;
-const CHUNK_META_WHITESPACE = /\s/u;
+const isChunkMetaWhitespaceCode = (code) => {
+  return code === 0xfeff
+    || code === 0x20
+    || code === 0xa0
+    || (code >= 0x09 && code <= 0x0d);
+};
 
-const isChunkMetaWhitespace = (char) => {
-  return char === '\uFEFF' || CHUNK_META_WHITESPACE.test(char);
+const hasChunkMetaNonWhitespace = (value) => {
+  if (!value) return false;
+  for (let i = 0; i < value.length; i += 1) {
+    if (!isChunkMetaWhitespaceCode(value.charCodeAt(i))) return true;
+  }
+  return false;
 };
 
 const toNonNegativeInteger = (value) => {
@@ -77,8 +86,10 @@ const probeChunkMetaJsonArrayEmpty = (filePath, maxProbeBytes = CHUNK_META_PROBE
       && (bytesRead = fsSync.readSync(fd, buffer, 0, Math.min(chunkSize, maxProbeBytes - consumed), null)) > 0) {
       consumed += bytesRead;
       const chunk = buffer.toString('utf8', 0, bytesRead);
-      for (const char of chunk) {
-        if (isChunkMetaWhitespace(char)) continue;
+      for (let i = 0; i < chunk.length; i += 1) {
+        const code = chunk.charCodeAt(i);
+        if (isChunkMetaWhitespaceCode(code)) continue;
+        const char = chunk[i];
         if (state === 0) {
           if (char === '[') {
             state = 1;
@@ -128,14 +139,14 @@ const probeChunkMetaJsonlIsEmpty = (filePath, maxProbeBytes = CHUNK_META_PROBE_M
         if (line.endsWith('\r')) {
           line = line.slice(0, -1);
         }
-        if (line.trim().length > 0) {
+        if (hasChunkMetaNonWhitespace(line)) {
           return false;
         }
         newlineIndex = carry.indexOf('\n');
       }
     }
     if (consumed >= maxProbeBytes) return null;
-    return carry.trim().length === 0;
+    return !hasChunkMetaNonWhitespace(carry);
   } catch {
     return null;
   } finally {

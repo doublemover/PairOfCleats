@@ -59,6 +59,24 @@ export const runRankStage = ({
 
   const relationsByFile = new Map();
   const enrichedChunkByIdx = new Map();
+  const getFileRelations = (filePath) => {
+    if (relationsByFile.has(filePath)) return relationsByFile.get(filePath);
+    const resolved = resolveFileRelations(
+      idx.fileRelations,
+      filePath,
+      relationBoostConfig.caseFile
+    );
+    relationsByFile.set(filePath, resolved || null);
+    return resolved || null;
+  };
+  const needsRelationHydrationForSymbol = (chunk) => {
+    if (!symbolBoostEnabled || !chunk) return false;
+    if (chunk.exported === true || chunk?.meta?.exported === true) return false;
+    const kind = chunk.kind || '';
+    if (typeof kind === 'string' && kind.includes('Export')) return false;
+    if (Array.isArray(chunk.exports) || Array.isArray(chunk?.meta?.exports)) return false;
+    return true;
+  };
   const processEntry = (entry, sourceRank) => {
     if (!entry) return;
     if (allowedIdx && !hasAllowedId(allowedIdx, entry.idx)) return;
@@ -74,36 +92,37 @@ export const runRankStage = ({
     if (!chunk) return;
     if (!matchesQueryAst(idx, idxVal, chunk)) return;
 
-    let enrichedChunk = enrichedChunkByIdx.get(idxVal) || null;
+    const filePath = chunk.file || '';
     let fileRelations = null;
-    if (!enrichedChunk) {
-      const filePath = chunk.file || '';
-      if (relationsByFile.has(filePath)) {
-        fileRelations = relationsByFile.get(filePath);
-      } else {
-        fileRelations = resolveFileRelations(
-          idx.fileRelations,
-          filePath,
-          relationBoostConfig.caseFile
-        );
-        relationsByFile.set(filePath, fileRelations || null);
+    const shouldHydrateRelations = relationBoostEnabled || needsRelationHydrationForSymbol(chunk);
+    let enrichedChunk = chunk;
+    if (shouldHydrateRelations) {
+      enrichedChunk = enrichedChunkByIdx.get(idxVal) || null;
+      if (!enrichedChunk) {
+        fileRelations = getFileRelations(filePath);
+        const hasRelationOverlay = fileRelations
+          && (
+            fileRelations.imports != null
+            || fileRelations.exports != null
+            || fileRelations.usages != null
+            || fileRelations.importLinks != null
+          );
+        enrichedChunk = hasRelationOverlay
+          ? {
+            ...chunk,
+            imports: fileRelations.imports ?? chunk.imports,
+            exports: fileRelations.exports ?? chunk.exports,
+            usages: fileRelations.usages ?? chunk.usages,
+            importLinks: fileRelations.importLinks ?? chunk.importLinks
+          }
+          : chunk;
+        enrichedChunkByIdx.set(idxVal, enrichedChunk);
+      } else if (relationBoostEnabled) {
+        fileRelations = getFileRelations(filePath);
       }
-      enrichedChunk = fileRelations
-        ? {
-          ...chunk,
-          imports: fileRelations.imports || chunk.imports,
-          exports: fileRelations.exports || chunk.exports,
-          usages: fileRelations.usages || chunk.usages,
-          importLinks: fileRelations.importLinks || chunk.importLinks
-        }
-        : chunk;
-      enrichedChunkByIdx.set(idxVal, enrichedChunk);
-    } else if (enrichedChunk !== chunk) {
-      const filePath = chunk.file || '';
-      fileRelations = relationsByFile.has(filePath)
-        ? relationsByFile.get(filePath)
-        : resolveFileRelations(idx.fileRelations, filePath, relationBoostConfig.caseFile);
-      if (!relationsByFile.has(filePath)) relationsByFile.set(filePath, fileRelations || null);
+    }
+    if (relationBoostEnabled && fileRelations == null) {
+      fileRelations = getFileRelations(filePath);
     }
 
     let phraseMatches = 0;

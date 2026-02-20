@@ -77,6 +77,15 @@ const VECTOR_ONLY_SPARSE_RECURSIVE_ALLOWLIST = new Set([
   'minhash_signatures.parts'
 ]);
 
+/**
+ * Remove sparse-only artifacts when running vector-only profiles.
+ *
+ * The cleanup is allowlist-based to avoid accidental deletion of unrelated
+ * files in the artifact directory.
+ *
+ * @param {{outDir:string,removeArtifact:(targetPath:string,meta?:object)=>Promise<void>,concurrency?:number}} input
+ * @returns {Promise<void>}
+ */
 export const cleanupVectorOnlySparseArtifacts = async ({
   outDir,
   removeArtifact,
@@ -105,6 +114,12 @@ export const cleanupVectorOnlySparseArtifacts = async ({
   );
 };
 
+/**
+ * Remove compressed JSON variants for a sparse artifact base name.
+ *
+ * @param {{outDir:string,base:string,removeArtifact:(targetPath:string,meta?:object)=>Promise<void>}} input
+ * @returns {Promise<void>}
+ */
 export const removeCompressedArtifact = async ({ outDir, base, removeArtifact }) => {
   await Promise.all([
     removeArtifact(path.join(outDir, `${base}.json.gz`), { policy: 'format_cleanup' }),
@@ -112,6 +127,12 @@ export const removeCompressedArtifact = async ({ outDir, base, removeArtifact })
   ]);
 };
 
+/**
+ * Remove packed token postings payloads.
+ *
+ * @param {{outDir:string,removeArtifact:(targetPath:string,meta?:object)=>Promise<void>}} input
+ * @returns {Promise<void>}
+ */
 export const removePackedPostings = async ({ outDir, removeArtifact }) => {
   await Promise.all([
     removeArtifact(path.join(outDir, 'token_postings.packed.bin'), { policy: 'format_cleanup' }),
@@ -120,6 +141,12 @@ export const removePackedPostings = async ({ outDir, removeArtifact }) => {
   ]);
 };
 
+/**
+ * Remove packed minhash payloads.
+ *
+ * @param {{outDir:string,removeArtifact:(targetPath:string,meta?:object)=>Promise<void>}} input
+ * @returns {Promise<void>}
+ */
 export const removePackedMinhash = async ({ outDir, removeArtifact }) => {
   await Promise.all([
     removeArtifact(path.join(outDir, 'minhash_signatures.packed.bin'), { policy: 'format_cleanup' }),
@@ -127,6 +154,12 @@ export const removePackedMinhash = async ({ outDir, removeArtifact }) => {
   ]);
 };
 
+/**
+ * Report sparse artifacts that still exist after cleanup operations.
+ *
+ * @param {string} outDir
+ * @returns {Array<string>}
+ */
 export const getLingeringSparseArtifacts = (outDir) => {
   const lingering = [];
   for (const artifactName of VECTOR_ONLY_SPARSE_CLEANUP_ALLOWLIST) {

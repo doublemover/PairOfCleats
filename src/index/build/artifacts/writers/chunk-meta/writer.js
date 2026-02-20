@@ -47,6 +47,15 @@ import {
   COMPAT_CHUNK_META_JSON_MAX_BYTES,
   COMPAT_CHUNK_META_JSON_MAX_ROWS
 } from './constants.js';
+
+/**
+ * Queue chunk-meta artifact writes for all enabled formats (json/jsonl/shards/
+ * columnar/hot-cold split), adapting output strategy to measured row size and
+ * configured byte budgets.
+ *
+ * @param {object} input
+ * @returns {Promise<void>}
+ */
 export const enqueueChunkMetaArtifacts = async ({
   outDir,
   mode,

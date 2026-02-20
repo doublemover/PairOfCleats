@@ -82,6 +82,16 @@ assert.equal(
   'expected CI workflow config to remain in code mode'
 );
 assert.equal(
+  isCodeEntryForPath({ ext: '.cmake', relPath: 'cmake/utils.cmake' }),
+  true,
+  'expected cmake include files to remain in code mode so CMake import links can resolve'
+);
+assert.equal(
+  isProseEntryForPath({ ext: '.cmake', relPath: 'cmake/utils.cmake' }),
+  false,
+  'expected cmake include files to stay out of prose mode'
+);
+assert.equal(
   isProseEntryForPath({ ext: '.txt', relPath: 'infra/Makefile' }),
   true,
   'expected infra build config basename to route to prose mode'

@@ -127,6 +127,21 @@ try {
   );
 
   telemetry.length = 0;
+  const staleIndexHit = await loadVfsManifestRowByPath({
+    manifestPath,
+    index: new Map(),
+    virtualPath: expectedRow.virtualPath,
+    allowScan: true,
+    telemetry
+  });
+  assert.deepEqual(staleIndexHit, expectedRow, 'expected scan fallback to recover from stale index misses');
+  assert.deepEqual(
+    telemetry.map((event) => `${event.path}:${event.outcome}`),
+    ['vfsidx:miss', 'scan:hit'],
+    'expected stale index miss to continue with scan fallback'
+  );
+
+  telemetry.length = 0;
   const scanHit = await loadVfsManifestRowByPath({
     manifestPath,
     virtualPath: expectedRow.virtualPath,

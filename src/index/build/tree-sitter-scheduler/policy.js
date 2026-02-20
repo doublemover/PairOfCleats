@@ -53,6 +53,13 @@ const HEAVY_TREE_SITTER_LANGUAGES = new Set([
   'tsx'
 ]);
 
+/**
+ * Detect vendor-generated docset mirrors where tree-sitter parsing is mostly
+ * low-value and expensive.
+ *
+ * @param {string} relKey
+ * @returns {boolean}
+ */
 export const isGeneratedTreeSitterPath = (relKey) => {
   if (!relKey) return false;
   const normalized = toPosix(String(relKey)).toLowerCase();
@@ -63,6 +70,12 @@ export const isGeneratedTreeSitterPath = (relKey) => {
   return false;
 };
 
+/**
+ * Centralized skip policy used by planner prefiltering and runtime scheduling.
+ *
+ * @param {{relKey:string,languageId?:string|null}} input
+ * @returns {boolean}
+ */
 export const shouldSkipTreeSitterPlanningForPath = ({ relKey, languageId }) => {
   if (!relKey) return false;
   const normalizedLanguageId = languageId || '';

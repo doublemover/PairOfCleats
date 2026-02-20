@@ -18,7 +18,7 @@ import {
 
 const resolveTextSource = (fileTextByPath, containerPath) => {
   if (!fileTextByPath) return null;
-  if (typeof fileTextByPath.get === 'function') return fileTextByPath.get(containerPath) || null;
+  if (typeof fileTextByPath.get === 'function') return fileTextByPath.get(containerPath) ?? null;
   if (typeof fileTextByPath === 'function') return fileTextByPath(containerPath);
   return null;
 };
@@ -106,12 +106,19 @@ export const buildToolingVirtualDocuments = async ({
   const docMap = new Map();
   const skippedSegments = new Set();
   const targets = [];
+  const textSourceByPath = new Map();
   const coalescedMap = coalesceSegments ? buildCoalescedSegmentMap(chunks) : null;
 
   for (const chunk of chunks) {
     if (!chunk?.file) continue;
     const containerPath = toPosix(chunk.file);
-    const fileText = resolveTextSource(fileTextByPath, containerPath);
+    let fileText;
+    if (textSourceByPath.has(containerPath)) {
+      fileText = textSourceByPath.get(containerPath);
+    } else {
+      fileText = resolveTextSource(fileTextByPath, containerPath);
+      textSourceByPath.set(containerPath, fileText);
+    }
     if (typeof fileText !== 'string') {
       if (strict) throw new Error(`Missing file text for ${containerPath}`);
       if (log) log(`[tooling] missing file text for ${containerPath}; skipping.`);
@@ -296,13 +303,19 @@ export const buildVfsManifestRowsForFile = async ({
   for (const chunk of chunks) {
     if (!chunk) continue;
     const segment = chunk.segment || null;
-    const segmentUid = segment?.segmentUid || null;
-    const key = `${segmentUid || ''}`;
-    if (seen.has(key)) continue;
     const segmentStart = segment ? segment.start : 0;
     const segmentEnd = segment ? segment.end : fileText.length;
     const languageId = resolveEffectiveLanguageId({ chunk, segment, containerLanguageId });
     const effectiveExt = segment?.ext || resolveEffectiveExt({ languageId, containerExt });
+    let segmentUid = segment?.segmentUid || null;
+    if (segment && !segmentUid) {
+      if (strict) throw new Error(`Missing segmentUid for ${containerPath}`);
+      segmentUid = `seg:auto:${segmentStart}:${segmentEnd}:${languageId || ''}:${effectiveExt || ''}`;
+    }
+    const key = segmentUid
+      ? `uid:${segmentUid}`
+      : `whole:${segmentStart}:${segmentEnd}:${languageId || ''}:${effectiveExt || ''}`;
+    if (seen.has(key)) continue;
     const entry = {
       key,
       segment,

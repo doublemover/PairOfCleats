@@ -43,6 +43,15 @@ const buildExtractionIdentityHash = ({
   String(extractionConfigDigest || '')
 ].join('|'));
 
+/**
+ * Build deterministic extracted-document provenance report rows.
+ *
+ * Includes successful extraction identity hashes and skipped-file reasons so
+ * incremental/report consumers can explain coverage changes.
+ *
+ * @param {{state:object,root:string,mode:string,documentExtractionConfig?:object}} input
+ * @returns {object}
+ */
 export const buildExtractionReport = ({
   state,
   root,

@@ -37,6 +37,7 @@ export function createDisplay(options = {}) {
     lastLogIndex: -1,
     rendered: false,
     renderLines: 0,
+    renderFrame: [],
     lastRenderMs: 0,
     lastProgressLogMs: 0,
     paletteOffset: null,

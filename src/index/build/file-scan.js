@@ -59,11 +59,26 @@ const KNOWN_TEXT_EXTS = new Set([
 
 const normalizeLimit = (value, fallback) => normalizePositiveNumber(value, fallback);
 
+/**
+ * Fast-path filename heuristic for minified assets.
+ *
+ * This is intentionally cheap and used before content sampling.
+ *
+ * @param {string} baseName
+ * @returns {boolean}
+ */
 export const isMinifiedName = (baseName) => {
   if (!baseName) return false;
   return MINIFIED_NAME_REGEX.test(baseName.toLowerCase());
 };
 
+/**
+ * Read a bounded prefix sample from disk for lightweight file classification.
+ *
+ * @param {string} absPath
+ * @param {number} sampleSizeBytes
+ * @returns {Promise<Buffer|null>}
+ */
 export const readFileSample = async (absPath, sampleSizeBytes) => {
   if (!sampleSizeBytes) return null;
   const handle = await fs.open(absPath, 'r');
@@ -109,6 +124,15 @@ const resolveTextOrBinary = async (absPath, buffer) => {
   return null;
 };
 
+/**
+ * Detect whether a sampled buffer should be treated as binary.
+ *
+ * Runs `file-type` first, then `istextorbinary`, then a minimal byte-level
+ * fallback so we do not miss obvious binary files.
+ *
+ * @param {{absPath:string,buffer:Buffer,maxNonTextRatio:number}} input
+ * @returns {Promise<{reason:string,method:string,mime?:string,ext?:string}|null>}
+ */
 export const detectBinary = async ({ absPath, buffer, maxNonTextRatio }) => {
   if (!buffer || !buffer.length) return null;
   try {
@@ -164,6 +188,24 @@ const isLikelyMinifiedText = (text, config) => {
     && whitespaceRatio < config.maxWhitespaceRatio;
 };
 
+/**
+ * Build a reusable scanner for binary/minified pre-discovery screening.
+ *
+ * The scanner intentionally works from bounded samples so discovery can avoid
+ * large-file reads in the hot path while still making high-confidence skip
+ * decisions.
+ *
+ * @param {object} [fileScanConfig]
+ * @returns {{
+ *   scanFile: (input:{absPath:string,stat?:{size?:number},ext?:string,readSample:(absPath:string,bytes:number)=>Promise<Buffer|null>}) => Promise<object>,
+ *   sampleSizeBytes:number,
+ *   minified:object,
+ *   binary:object,
+ *   normalizeBaseName:(absPath:string)=>string,
+ *   shouldSampleBinary:(size:number)=>boolean,
+ *   shouldSampleMinified:(size:number,ext:string)=>boolean
+ * }}
+ */
 export function createFileScanner(fileScanConfig = {}) {
   const config = fileScanConfig && typeof fileScanConfig === 'object' ? fileScanConfig : {};
   const sampleSizeBytes = normalizeLimit(config.sampleBytes, 8192);

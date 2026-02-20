@@ -7,6 +7,19 @@ import {
 
 const VFS_DOC_HASH_CACHE = new Map();
 
+/**
+ * Build an LRU cache key for segment-scoped document hashing.
+ *
+ * @param {{
+ *   fileHash:string,
+ *   fileHashAlgo?:string|null,
+ *   languageId?:string|null,
+ *   effectiveExt?:string|null,
+ *   segmentStart:number,
+ *   segmentEnd:number
+ * }} input
+ * @returns {string|null}
+ */
 export const buildDocHashCacheKey = ({
   fileHash,
   fileHashAlgo,
@@ -49,6 +62,13 @@ const setCachedDocHash = (cacheKey, docHash) => {
   }
 };
 
+/**
+ * Compute a stable document hash with optional in-memory LRU reuse.
+ *
+ * @param {string} text
+ * @param {string|null} [cacheKey]
+ * @returns {Promise<string>}
+ */
 export const computeDocHash = async (text, cacheKey = null) => {
   const cached = getCachedDocHash(cacheKey);
   if (cached) return cached;

@@ -71,20 +71,22 @@ export const loadVfsManifestRowByPath = async ({
         outcome: 'miss',
         virtualPath
       });
-      return null;
+      if (!allowScan) return null;
+    } else {
+      const row = await readVfsManifestRowAtOffset({
+        manifestPath,
+        offset: entry.offset,
+        bytes: entry.bytes,
+        reader
+      });
+      emitVfsLookupTelemetry(telemetry, {
+        path: 'vfsidx',
+        outcome: row ? 'hit' : 'miss',
+        virtualPath
+      });
+      if (row) return row;
+      if (!allowScan) return null;
     }
-    const row = await readVfsManifestRowAtOffset({
-      manifestPath,
-      offset: entry.offset,
-      bytes: entry.bytes,
-      reader
-    });
-    emitVfsLookupTelemetry(telemetry, {
-      path: 'vfsidx',
-      outcome: row ? 'hit' : 'miss',
-      virtualPath
-    });
-    return row;
   }
   if (!allowScan) {
     emitVfsLookupTelemetry(telemetry, {

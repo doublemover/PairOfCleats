@@ -8,10 +8,21 @@ const DEFAULT_SCM_MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
 
 let activeRunner = defaultRunner;
 
+/**
+ * Override SCM command execution for tests or alternate backends.
+ *
+ * @param {(command:string,args:Array<string>,options?:object)=>Promise<object>|object} runner
+ * @returns {void}
+ */
 export const setScmCommandRunner = (runner) => {
   activeRunner = typeof runner === 'function' ? runner : defaultRunner;
 };
 
+/**
+ * Get the currently active SCM runner implementation.
+ *
+ * @returns {(command:string,args:Array<string>,options?:object)=>Promise<object>|object}
+ */
 export const getScmCommandRunner = () => activeRunner;
 
 const withScmRunnerDefaults = (options = {}) => ({
@@ -27,6 +38,14 @@ const withScmRunnerDefaults = (options = {}) => ({
     : DEFAULT_SCM_MAX_OUTPUT_BYTES
 });
 
+/**
+ * Execute an SCM command with repo-safe defaults.
+ *
+ * @param {string} command
+ * @param {Array<string>} args
+ * @param {object} [options]
+ * @returns {Promise<object>|object}
+ */
 export const runScmCommand = (command, args, options = {}) => (
   activeRunner(command, args, withScmRunnerDefaults(options))
 );
