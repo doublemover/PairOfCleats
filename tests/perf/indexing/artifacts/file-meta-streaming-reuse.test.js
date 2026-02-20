@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { loadFileMetaRows } from '../../../../src/shared/artifact-io.js';
+import { writePiecesManifest } from '../../../helpers/artifact-io-fixture.js';
 
 const root = process.cwd();
 const outDir = path.join(root, '.testCache', 'file-meta-streaming-reuse');
@@ -15,6 +16,9 @@ const rows = Array.from({ length: 16 }, (_value, index) => ({
 
 const jsonPath = path.join(outDir, 'file_meta.json');
 await fs.writeFile(jsonPath, JSON.stringify(rows));
+await writePiecesManifest(outDir, [
+  { name: 'file_meta', path: 'file_meta.json', format: 'json' }
+]);
 
 const streamed = [];
 for await (const entry of loadFileMetaRows(outDir, {
@@ -54,6 +58,9 @@ const invalidRows = [
   { file: 'src/missing-id.js', ext: 'js' }
 ];
 await fs.writeFile(path.join(invalidDir, 'file_meta.jsonl'), invalidRows.map((row) => JSON.stringify(row)).join('\n'));
+await writePiecesManifest(invalidDir, [
+  { name: 'file_meta', path: 'file_meta.jsonl', format: 'jsonl' }
+]);
 let invalidThrew = false;
 try {
   for await (const _entry of loadFileMetaRows(invalidDir, { strict: false })) {

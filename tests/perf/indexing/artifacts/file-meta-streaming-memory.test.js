@@ -3,6 +3,7 @@ import path from 'node:path';
 import { loadFileMetaRows } from '../../../../src/shared/artifact-io.js';
 import { buildFileMetaColumnar } from '../../../../src/index/build/artifacts/file-meta.js';
 import { writeJsonLinesFile } from '../../../../src/shared/json-stream.js';
+import { writePiecesManifest } from '../../../helpers/artifact-io-fixture.js';
 
 const root = process.cwd();
 const outDir = path.join(root, '.testCache', 'file-meta-streaming-memory');
@@ -18,6 +19,9 @@ const rows = Array.from({ length: 64 }, (_value, index) => ({
 
 const jsonlPath = path.join(outDir, 'file_meta.jsonl');
 await writeJsonLinesFile(jsonlPath, rows);
+await writePiecesManifest(outDir, [
+  { name: 'file_meta', path: 'file_meta.jsonl', format: 'jsonl' }
+]);
 
 let threw = false;
 try {
@@ -66,6 +70,9 @@ await fs.writeFile(
   path.join(fallbackDir, 'file_meta.meta.json'),
   JSON.stringify({ format: 'columnar', parts: ['file_meta.columnar.json'] })
 );
+await writePiecesManifest(fallbackDir, [
+  { name: 'file_meta', path: 'file_meta.jsonl', format: 'jsonl' }
+]);
 
 let fallbackCount = 0;
 for await (const _entry of loadFileMetaRows(fallbackDir, {
