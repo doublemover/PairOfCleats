@@ -1332,9 +1332,9 @@ Intent: strict SCM/workspace contracts and deterministic manifests.
 
 #### 5.1 SCM provider contract
 
-- [ ] Define strict provider return contracts for git/jj.
-- [ ] Enforce deterministic failure behavior for unavailable SCM.
-- [ ] Remove inconsistent provider edge behavior.
+- [x] Define strict provider return contracts for git/jj.
+- [x] Enforce deterministic failure behavior for unavailable SCM.
+- [x] Remove inconsistent provider edge behavior.
 
 Touchpoints:
 
@@ -1350,9 +1350,9 @@ Tests:
 
 #### 5.2 Workspace manifest/config
 
-- [ ] Enforce strict schema validation for workspace config/manifest.
-- [ ] Emit deterministic `workspace_manifest.json`.
-- [ ] Document one canonical emission flow.
+- [x] Enforce strict schema validation for workspace config/manifest.
+- [x] Emit deterministic `workspace_manifest.json`.
+- [x] Document one canonical emission flow.
 
 Touchpoints:
 
@@ -1368,7 +1368,7 @@ Tests:
 
 Exit criteria:
 
-- [ ] SCM/workspace contracts are strict and deterministic.
+- [x] SCM/workspace contracts are strict and deterministic.
 
 ---
 
