@@ -323,6 +323,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   const stageTotal = stagePlan.length;
   let stageIndex = 0;
   const getSchedulerStats = () => (runtime?.scheduler?.stats ? runtime.scheduler.stats() : null);
+  let lowUtilizationWarningEmitted = false;
   const captureRuntimeSnapshot = () => {
     const schedulerStats = getSchedulerStats();
     const cpuCount = Array.isArray(runtime?.cpuList) && runtime.cpuList.length
@@ -360,6 +361,24 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
         : null
     };
   };
+  const maybeWarnLowSchedulerUtilization = ({ snapshot, stage, step }) => {
+    if (lowUtilizationWarningEmitted) return;
+    const schedulerStats = snapshot?.scheduler;
+    const utilization = Number(schedulerStats?.utilization?.overall);
+    const pending = Number(schedulerStats?.activity?.pending);
+    const cpuTokens = Number(schedulerStats?.tokens?.cpu?.total);
+    const ioTokens = Number(schedulerStats?.tokens?.io?.total);
+    const tokenBudget = Math.max(1, Math.floor((cpuTokens || 0) + (ioTokens || 0)));
+    if (!Number.isFinite(utilization) || !Number.isFinite(pending)) return;
+    if (pending < Math.max(64, tokenBudget * 4)) return;
+    if (utilization >= 0.35) return;
+    lowUtilizationWarningEmitted = true;
+    log(
+      `[perf] scheduler under-utilization detected at ${stage}${step ? `/${step}` : ''}: ` +
+      `utilization=${utilization.toFixed(2)}, pending=${Math.floor(pending)}, ` +
+      `tokens(cpu=${Math.floor(cpuTokens || 0)}, io=${Math.floor(ioTokens || 0)}).`
+    );
+  };
   const recordStageCheckpoint = ({
     stage,
     step = null,
@@ -367,14 +386,20 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     extra = null
   }) => {
     const safeExtra = extra && typeof extra === 'object' ? extra : {};
+    const runtimeSnapshot = captureRuntimeSnapshot();
     stageCheckpoints.record({
       stage,
       step,
       label,
       extra: {
         ...safeExtra,
-        runtime: captureRuntimeSnapshot()
+        runtime: runtimeSnapshot
       }
+    });
+    maybeWarnLowSchedulerUtilization({
+      snapshot: runtimeSnapshot,
+      stage,
+      step
     });
   };
   const advanceStage = (stage) => {
