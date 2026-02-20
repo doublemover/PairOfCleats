@@ -36,6 +36,14 @@ const ensureBenchConfig = async (repoPath, cacheRoot) => {
   const payload = { cache: { root: cacheRoot } };
   await fsPromises.writeFile(configPath, JSON.stringify(payload, null, 2), 'utf8');
 };
+const USR_GUARDRAIL_BENCHMARKS = Object.freeze([
+  {
+    item: 35,
+    label: 'Per-framework edge canonicalization',
+    script: 'tools/bench/usr/item35-framework-canonicalization.js',
+    report: 'item35-framework-canonicalization.json'
+  }
+]);
 
 const {
   argv,
@@ -322,6 +330,77 @@ process.on('unhandledRejection', (err) => {
   exitWithDisplay(1);
 });
 
+const runUsrGuardrailBenchmarks = async () => {
+  if (!USR_GUARDRAIL_BENCHMARKS.length) return [];
+  const outputDir = path.join(resultsRoot, 'usr');
+  const rows = [];
+  appendLog(`[usr-bench] Running ${USR_GUARDRAIL_BENCHMARKS.length} USR guardrail benchmark snapshot(s).`);
+  if (!dryRun) {
+    await fsPromises.mkdir(outputDir, { recursive: true });
+  }
+  for (const bench of USR_GUARDRAIL_BENCHMARKS) {
+    const scriptPath = path.join(scriptRoot, bench.script);
+    const outPath = path.join(outputDir, bench.report);
+    if (dryRun) {
+      appendLog(`[dry-run] node ${bench.script} --json ${outPath} --quiet`);
+      rows.push({
+        item: bench.item,
+        label: bench.label,
+        script: bench.script,
+        outFile: outPath,
+        dryRun: true
+      });
+      continue;
+    }
+
+    const runResult = await processRunner.runProcess(
+      `usr-bench item ${bench.item}`,
+      process.execPath,
+      [scriptPath, '--json', outPath, '--quiet'],
+      {
+        cwd: scriptRoot,
+        env: { ...baseEnv },
+        continueOnError: true
+      }
+    );
+    if (!runResult.ok) {
+      appendLog(`[usr-bench] item ${bench.item} failed; continuing.`, 'warn');
+      rows.push({
+        item: bench.item,
+        label: bench.label,
+        script: bench.script,
+        outFile: outPath,
+        ok: false
+      });
+      continue;
+    }
+
+    try {
+      const payload = JSON.parse(await fsPromises.readFile(outPath, 'utf8'));
+      rows.push({
+        item: bench.item,
+        label: bench.label,
+        script: bench.script,
+        outFile: outPath,
+        ok: true,
+        generatedAt: payload.generatedAt || null,
+        metrics: payload.metrics || null,
+        sourceDigest: payload.sourceDigest || null
+      });
+    } catch {
+      appendLog(`[usr-bench] item ${bench.item} report parse failed; continuing.`, 'warn');
+      rows.push({
+        item: bench.item,
+        label: bench.label,
+        script: bench.script,
+        outFile: outPath,
+        ok: false
+      });
+    }
+  }
+  return rows;
+};
+
 const config = loadBenchConfig(configPath, { onLog: appendLog });
 await validateEncodingFixtures(scriptRoot, { onLog: appendLog });
 const languageFilter = parseCommaList(argv.languages || argv.language).map((entry) => entry.toLowerCase());
@@ -430,6 +509,7 @@ if (argv.list) {
     runSuffix,
     masterLog: masterLogPath,
     languages: Object.keys(config),
+    usrGuardrailBenchmarks: USR_GUARDRAIL_BENCHMARKS,
     tasks
   };
   if (argv.json) {
@@ -440,6 +520,12 @@ if (argv.list) {
     writeListLine(`- repos: ${reposRoot}`);
     writeListLine(`- cache: ${cacheRoot}`);
     writeListLine(`- results: ${resultsRoot}`);
+    if (USR_GUARDRAIL_BENCHMARKS.length) {
+      writeListLine('- usr guardrail benchmarks:');
+      for (const bench of USR_GUARDRAIL_BENCHMARKS) {
+        writeListLine(`- item ${bench.item}: ${bench.script}`);
+      }
+    }
     for (const task of tasks) {
       writeListLine(`- ${task.language} ${task.tier} ${task.repo}`);
     }
@@ -462,6 +548,7 @@ await fsPromises.mkdir(resultsRoot, { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 initMasterLog();
 appendLog(`Clone tool: ${cloneTool ? cloneTool.label : 'disabled'}`);
+const usrGuardrailBenchmarks = await runUsrGuardrailBenchmarks();
 
 const benchScript = path.join(scriptRoot, 'tests', 'perf', 'bench', 'run.test.js');
 const results = [];
@@ -792,6 +879,12 @@ const output = buildReportOutput({
   results,
   config
 });
+if (usrGuardrailBenchmarks.length) {
+  output.usrGuardrails = {
+    generatedAt: new Date().toISOString(),
+    results: usrGuardrailBenchmarks
+  };
+}
 
 if (!quietMode) {
   appendLog('\nGrouped summary');
