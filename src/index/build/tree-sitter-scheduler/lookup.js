@@ -17,7 +17,11 @@ const DEFAULT_ROW_CACHE_MAX = 4096;
 const DEFAULT_MISS_CACHE_MAX = 10000;
 const DEFAULT_PAGE_CACHE_MAX = 1024;
 
-const coercePositiveIntOr = (value, fallback) => coercePositiveInt(value) ?? fallback;
+const coercePositiveIntOr = (value, fallback) => {
+  const coerced = coercePositiveInt(value);
+  if (coerced == null) return fallback;
+  return Math.max(1, coerced);
+};
 
 export const createTreeSitterSchedulerLookup = ({
   outDir,
