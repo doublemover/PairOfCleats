@@ -275,7 +275,7 @@ Touchpoints:
 #### 0.5.13 C and C++
 
 - [x] Expand and enforce C/C++ extension coverage, including headers/modules (`.h`, `.hh`, `.hpp`, `.hxx`, `.c`, `.cc`, `.cpp`, `.cxx`, `.ipp`, `.ixx`, `.cppm`, `.tpp`, `.inl`, `.modulemap`).
-- [ ] Implement and verify include graph extraction and relation modeling for headers, sources, and module units.
+- [x] Implement and verify include graph extraction and relation modeling for headers, sources, and module units.
 - [ ] Calibrate and commit C/C++ caps for large translation units and header-heavy repos.
 
 
