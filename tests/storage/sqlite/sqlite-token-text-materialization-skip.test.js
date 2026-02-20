@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { writeJsonLinesSharded, writeJsonObjectFile } from '../../../src/shared/json-stream.js';
 import { buildDatabaseFromArtifacts, loadIndexPieces } from '../../../src/storage/sqlite/build/from-artifacts.js';
+import { writePiecesManifest } from '../../helpers/artifact-io-fixture.js';
 
 let Database = null;
 try {
@@ -90,6 +91,20 @@ await writeJsonObjectFile(path.join(indexDir, 'token_postings.meta.json'), {
   },
   atomic: true
 });
+await writePiecesManifest(indexDir, [
+  ...shardResult.parts.map((part) => ({
+    name: 'chunk_meta',
+    path: part,
+    format: 'jsonl'
+  })),
+  { name: 'chunk_meta_meta', path: 'chunk_meta.meta.json', format: 'json' },
+  {
+    name: 'token_postings',
+    path: 'token_postings.shards/token_postings.part-00000.json',
+    format: 'sharded'
+  },
+  { name: 'token_postings_meta', path: 'token_postings.meta.json', format: 'json' }
+]);
 
 const indexPieces = await loadIndexPieces(indexDir, null);
 assert.ok(indexPieces, 'expected loadIndexPieces to detect sharded chunk_meta');

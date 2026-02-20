@@ -5,11 +5,13 @@ import {
   loadJsonArrayArtifactRows
 } from '../../../src/shared/artifact-io.js';
 import { writeJsonLinesFile } from '../../../src/shared/json-stream.js';
+import {
+  prepareArtifactIoTestDir,
+  writePiecesManifest
+} from '../../helpers/artifact-io-fixture.js';
 
 const root = process.cwd();
-const outDir = path.join(root, '.testCache', 'artifact-io-streaming');
-await fs.rm(outDir, { recursive: true, force: true });
-await fs.mkdir(outDir, { recursive: true });
+const outDir = await prepareArtifactIoTestDir('artifact-io-streaming', { root });
 
 const rows = Array.from({ length: 256 }, (_value, index) => ({
   id: index,
@@ -19,6 +21,9 @@ const rows = Array.from({ length: 256 }, (_value, index) => ({
 
 const jsonlPath = path.join(outDir, 'symbols.jsonl');
 await writeJsonLinesFile(jsonlPath, rows);
+await writePiecesManifest(outDir, [
+  { name: 'symbols', path: 'symbols.jsonl' }
+]);
 
 const baseline = await loadJsonArrayArtifact(outDir, 'symbols', { strict: false });
 const streamed = [];

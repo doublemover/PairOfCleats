@@ -237,17 +237,23 @@ const mergeNamedBuckets = (target, source) => {
   }
 };
 
+const cloneMetrics = (value) => {
+  if (!value || typeof value !== 'object') return value;
+  if (typeof structuredClone === 'function') return structuredClone(value);
+  return JSON.parse(JSON.stringify(value));
+};
+
 export function mergeFeatureMetrics(base, next) {
   if (!next || typeof next !== 'object') return base || null;
   if (!base || typeof base !== 'object') {
-    const seeded = JSON.parse(JSON.stringify(next));
+    const seeded = cloneMetrics(next);
     seeded.runs = 1;
     seeded.firstRunAt = next.generatedAt || seeded.generatedAt || null;
     seeded.lastRunAt = next.generatedAt || seeded.generatedAt || null;
     seeded.lastBuildId = next.buildId || null;
     return finalizeFeatureMetrics(seeded);
   }
-  const merged = JSON.parse(JSON.stringify(base));
+  const merged = cloneMetrics(base);
   merged.runs = Number(merged.runs) || 0;
   merged.runs += 1;
   merged.firstRunAt = merged.firstRunAt || merged.generatedAt || null;
@@ -289,7 +295,7 @@ export async function writeFeatureMetrics({ metricsDir, featureMetrics }) {
   const state = featureMetrics.state || featureMetrics;
   if (!state) return;
   await fs.mkdir(metricsDir, { recursive: true });
-  const runMetrics = finalizeFeatureMetrics(JSON.parse(JSON.stringify(state)));
+  const runMetrics = finalizeFeatureMetrics(cloneMetrics(state));
   const runFile = runMetrics.buildId
     ? `feature-metrics-${runMetrics.buildId}.json`
     : 'feature-metrics-run.json';

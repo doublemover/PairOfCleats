@@ -1,5 +1,5 @@
 {
-  "schemaHash": "36c94fb84c8fa43d27eb433fe7014a1613e82b8a",
+  "schemaHash": "6c9fc5eb11ba5682f5c39b0242be71ff4dcdbc41",
   "artifacts": [
     {
       "artifact": "api_contracts",
@@ -13,6 +13,19 @@
         "truncation",
         "warnings"
       ]
+    },
+    {
+      "artifact": "boilerplate_catalog",
+      "schemaVersion": {
+        "type": "string",
+        "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$"
+      },
+      "requiredFields": [
+        "entries",
+        "generatedAt",
+        "schemaVersion"
+      ],
+      "optionalFields": []
     },
     {
       "artifact": "builds_current",
@@ -488,6 +501,29 @@
       ]
     },
     {
+      "artifact": "field_tokens_meta",
+      "schemaVersion": {
+        "type": "string",
+        "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$"
+      },
+      "requiredFields": [
+        "artifact",
+        "compression",
+        "format",
+        "generatedAt",
+        "maxPartBytes",
+        "maxPartRecords",
+        "parts",
+        "schemaVersion",
+        "targetMaxBytes",
+        "totalBytes",
+        "totalRecords"
+      ],
+      "optionalFields": [
+        "extensions"
+      ]
+    },
+    {
       "artifact": "file_meta",
       "schemaVersion": null,
       "requiredFields": [
@@ -499,6 +535,29 @@
         "encodingConfidence",
         "encodingFallback",
         "ext"
+      ]
+    },
+    {
+      "artifact": "file_meta_meta",
+      "schemaVersion": {
+        "type": "string",
+        "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$"
+      },
+      "requiredFields": [
+        "artifact",
+        "compression",
+        "format",
+        "generatedAt",
+        "maxPartBytes",
+        "maxPartRecords",
+        "parts",
+        "schemaVersion",
+        "targetMaxBytes",
+        "totalBytes",
+        "totalRecords"
+      ],
+      "optionalFields": [
+        "extensions"
       ]
     },
     {

@@ -69,8 +69,12 @@ try {
   assert.ok(loaded, 'expected row from binary scheduler format');
   assert.equal(loaded.virtualPath, virtualPath, 'virtual path mismatch');
   assert.equal(loaded.grammarKey, grammarKey, 'grammar key mismatch');
-  const chunks = await lookup.loadChunks(virtualPath);
+  const chunks = await lookup.loadChunks(virtualPath, { consume: false });
   assert.ok(Array.isArray(chunks) && chunks.length === 1, 'expected one chunk');
+  assert.ok(lookup.stats().cacheEntries >= 1, 'expected scheduler row cache to retain non-consumed rows');
+  const consumed = await lookup.loadChunks(virtualPath);
+  assert.ok(Array.isArray(consumed) && consumed.length === 1, 'expected consumed chunk load to succeed');
+  assert.equal(lookup.stats().cacheEntries, 0, 'expected consumed chunk load to release row cache');
 } finally {
   await lookup.close();
 }

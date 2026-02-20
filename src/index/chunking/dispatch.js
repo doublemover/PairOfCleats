@@ -1,5 +1,4 @@
 import {
-  EXTS_PROSE,
   isCLike,
   isGo,
   isJava,
@@ -69,6 +68,8 @@ const applyFormatMeta = (chunks, format, kind) => {
 };
 
 const MAX_REGEX_LINE = 8192;
+const DEFAULT_PROSE_FALLBACK_MAX_CHARS = 120 * 1024;
+const DEFAULT_PROSE_FALLBACK_CHUNK_CHARS = 24 * 1024;
 
 const splitLinesWithIndex = (text, context = null) => {
   const lines = text.split('\n');
@@ -524,7 +525,7 @@ const CODE_CHUNKERS = [
   { id: 'lua', match: (ext) => isLua(ext), chunk: ({ text, context }) =>
     context?.luaChunks || buildLuaChunks(text) },
   { id: 'sql', match: (ext) => isSql(ext), chunk: ({ text, context }) =>
-    context?.sqlChunks || buildSqlChunks(text) },
+    context?.sqlChunks || buildSqlChunks(text, getTreeSitterOptions(context)) },
   { id: 'proto', match: (ext) => ext === '.proto', chunk: ({ text, context }) =>
     chunkProto(text, context) },
   { id: 'graphql', match: (ext) => ext === '.graphql' || ext === '.gql' || ext === '.graphqls', chunk: ({ text, context }) =>
@@ -565,6 +566,32 @@ const resolveChunker = (chunkers, ext, relPath) => (
   chunkers.find((entry) => entry.match(ext, relPath)) || null
 );
 
+const chunkLargeProseFallback = (text, context = {}) => {
+  if (!text) return [];
+  const chunking = context?.chunking && typeof context.chunking === 'object'
+    ? context.chunking
+    : {};
+  const maxCharsRaw = Number(chunking.proseFallbackMaxChars);
+  const chunkCharsRaw = Number(chunking.proseFallbackChunkChars);
+  const maxChars = Number.isFinite(maxCharsRaw) && maxCharsRaw > 0
+    ? Math.floor(maxCharsRaw)
+    : DEFAULT_PROSE_FALLBACK_MAX_CHARS;
+  const chunkChars = Number.isFinite(chunkCharsRaw) && chunkCharsRaw > 0
+    ? Math.floor(chunkCharsRaw)
+    : DEFAULT_PROSE_FALLBACK_CHUNK_CHARS;
+  if (text.length <= maxChars || chunkChars <= 0) {
+    return [{ start: 0, end: text.length, name: null, kind: 'Section', meta: {} }];
+  }
+  // Preserve full coverage while capping worst-case tokenization latency for
+  // very large prose blobs that would otherwise become one giant chunk.
+  const chunks = [];
+  for (let start = 0; start < text.length; start += chunkChars) {
+    const end = Math.min(text.length, start + chunkChars);
+    chunks.push({ start, end, name: null, kind: 'Section', meta: {} });
+  }
+  return chunks;
+};
+
 /**
  * Build chunks for a single file using language-aware heuristics.
  * Falls back to generic fixed-size chunks when no parser matches.
@@ -589,6 +616,7 @@ export function smartChunk({
       const chunks = chunker.chunk({ text, ext, relPath, context });
       if (chunks && chunks.length) return applyChunkingLimits(chunks, text, context);
     }
+    return applyChunkingLimits(chunkLargeProseFallback(text, context), text, context);
   }
   if (mode === 'code') {
     const codeChunker = resolveChunker(CODE_CHUNKERS, ext, relPath);
@@ -601,13 +629,6 @@ export function smartChunk({
       const chunks = formatChunker.chunk({ text, ext, relPath, context });
       if (chunks && chunks.length) return applyChunkingLimits(chunks, text, context);
     }
-  }
-  if (mode === 'prose' && EXTS_PROSE.has(ext)) {
-    return applyChunkingLimits(
-      [{ start: 0, end: text.length, name: null, kind: 'Section', meta: {} }],
-      text,
-      context
-    );
   }
   const fallbackChunkSize = 800;
   const out = [];

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { applyTestEnv } from '../../helpers/test-env.js';
+import { applyTestEnv, syncProcessEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import {
   OP_FAILURE_CLASSES,
@@ -9,12 +9,13 @@ import {
   runWithOperationalFailurePolicy
 } from '../../../src/shared/ops-failure-injection.js';
 
-const prevTesting = process.env.PAIROFCLEATS_TESTING;
-const prevConfig = process.env.PAIROFCLEATS_TEST_CONFIG;
+const prevEnv = {
+  PAIROFCLEATS_TESTING: process.env.PAIROFCLEATS_TESTING,
+  PAIROFCLEATS_TEST_CONFIG: process.env.PAIROFCLEATS_TEST_CONFIG
+};
 
 const setFailureConfig = (config) => {
-  applyTestEnv();
-  process.env.PAIROFCLEATS_TEST_CONFIG = JSON.stringify(config);
+  applyTestEnv({ testConfig: config });
   resetOperationalFailureInjectionState();
 };
 
@@ -145,15 +146,6 @@ try {
 
   console.log('ops failure injection retrieval hotpath test passed');
 } finally {
-  if (prevTesting === undefined) {
-    delete process.env.PAIROFCLEATS_TESTING;
-  } else {
-    process.env.PAIROFCLEATS_TESTING = prevTesting;
-  }
-  if (prevConfig === undefined) {
-    delete process.env.PAIROFCLEATS_TEST_CONFIG;
-  } else {
-    process.env.PAIROFCLEATS_TEST_CONFIG = prevConfig;
-  }
+  syncProcessEnv(prevEnv, Object.keys(prevEnv), { clearMissing: true });
   resetOperationalFailureInjectionState();
 }

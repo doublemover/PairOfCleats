@@ -16,6 +16,7 @@ import { throwIfAborted } from '../../shared/abort.js';
 import { pickMinLimit, resolveFileCaps } from './file-processor/read.js';
 import { getEnvConfig } from '../../shared/env.js';
 import { MINIFIED_NAME_REGEX, normalizeRoot } from './watch/shared.js';
+import { isCodeEntryForPath, isProseEntryForPath } from './mode-routing.js';
 
 const DOCUMENT_EXTS = new Set(['.pdf', '.docx']);
 const MAX_FILES_LIMIT_REASON = 'max_files_reached';
@@ -398,11 +399,17 @@ function filterEntriesByMode(entries, mode, skippedFiles, documentExtractionConf
       if (skippedFiles) skippedFiles.push({ file: entry.abs, reason: 'unsupported' });
       continue;
     }
+    const proseAllowed = isProseEntryForPath({ ext: entry.ext, relPath: entry.rel });
+    const codeAllowed = isCodeEntryForPath({
+      ext: entry.ext,
+      relPath: entry.rel,
+      isSpecial: entry.isSpecial
+    });
     const isProse = mode === 'prose';
     const isCode = mode === 'code' || mode === 'extracted-prose';
-    const allowed = (isProse && EXTS_PROSE.has(entry.ext))
-      || (isCode && (EXTS_CODE.has(entry.ext) || entry.isSpecial))
-      || (mode === 'extracted-prose' && EXTS_PROSE.has(entry.ext))
+    const allowed = (isProse && proseAllowed)
+      || (isCode && codeAllowed)
+      || (mode === 'extracted-prose' && proseAllowed)
       || (allowDocumentExt && DOCUMENT_EXTS.has(entry.ext));
     if (!allowed) {
       if (skippedFiles) skippedFiles.push({ file: entry.abs, reason: 'unsupported' });

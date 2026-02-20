@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-17T23:49:17.993Z",
+  "generatedAt": "2026-02-20T09:31:38.491Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -30,6 +30,8 @@
       "PAIROFCLEATS_ANN_BACKEND",
       "PAIROFCLEATS_API_TOKEN",
       "PAIROFCLEATS_BENCH_RUN",
+      "PAIROFCLEATS_BUILD_INDEX_LOCK_POLL_MS",
+      "PAIROFCLEATS_BUILD_INDEX_LOCK_WAIT_MS",
       "PAIROFCLEATS_BUNDLE_THREADS",
       "PAIROFCLEATS_CACHE_METRICS_SAMPLE_RATE",
       "PAIROFCLEATS_CACHE_NAMESPACE",
@@ -38,6 +40,7 @@
       "PAIROFCLEATS_COMPRESSION",
       "PAIROFCLEATS_DEBUG_CRASH",
       "PAIROFCLEATS_DEBUG_ORDERED",
+      "PAIROFCLEATS_DEBUG_PERF_EVENTS",
       "PAIROFCLEATS_DICT_DIR",
       "PAIROFCLEATS_DISCOVERY_STAT_CONCURRENCY",
       "PAIROFCLEATS_DOC_EXTRACT",
@@ -47,6 +50,7 @@
       "PAIROFCLEATS_FILE_CACHE_MAX",
       "PAIROFCLEATS_HOME",
       "PAIROFCLEATS_IMPORT_GRAPH",
+      "PAIROFCLEATS_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY",
       "PAIROFCLEATS_IO_OVERSUBSCRIBE",
       "PAIROFCLEATS_LANCEDB_CHILD",
       "PAIROFCLEATS_LANCEDB_ISOLATE",
@@ -1960,6 +1964,20 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_BUILD_INDEX_LOCK_POLL_MS",
+      "files": [
+        "src/shared/env.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_BUILD_INDEX_LOCK_WAIT_MS",
+      "files": [
+        "src/shared/env.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_BUNDLE_THREADS",
       "files": [
         "src/shared/env.js",
@@ -1995,7 +2013,6 @@
       "name": "PAIROFCLEATS_CACHE_ROOT",
       "files": [
         "src/shared/env.js",
-        "tests/cli/build-index/build-index-all.test.js",
         "tests/cli/general/repo-root.test.js",
         "tests/cli/search/search-missing-index.test.js",
         "tests/cli/search/search-rrf.test.js",
@@ -2003,12 +2020,12 @@
         "tests/helpers/mcp-client.js",
         "tests/helpers/test-env.js",
         "tests/helpers/triage.js",
-        "tests/indexer/call-sites/call-sites-determinism.test.js",
         "tests/indexer/call-sites/call-sites-emit-artifacts-none.test.js",
         "tests/indexer/call-sites/call-sites-empty-required.test.js",
         "tests/indexing/artifacts/artifact-size-guardrails.test.js",
         "tests/indexing/artifacts/clean-artifacts.test.js",
         "tests/indexing/artifacts/manifest/report-artifacts-manifest-driven.test.js",
+        "tests/indexing/artifacts/packed-artifact-fastpath.test.js",
         "tests/indexing/chunking/comment-join.test.js",
         "tests/indexing/determinism/chunkuid-determinism.test.js",
         "tests/indexing/embeddings/build/args-parsing.test.js",
@@ -2047,7 +2064,6 @@
         "tests/retrieval/parity/parity.test.js",
         "tests/retrieval/ranking/fielded-bm25.test.js",
         "tests/run.js",
-        "tests/services/api-search-asof.test.js",
         "tests/services/api/api-server-stream.test.js",
         "tests/services/api/core-api.test.js",
         "tests/services/api/federated-search-redacts-paths.test.js",
@@ -2056,8 +2072,6 @@
         "tests/services/mcp/mcp-schema.test.js",
         "tests/services/mcp/repo-path-resolution.test.js",
         "tests/services/mcp/sdk-mode.test.js",
-        "tests/services/snapshot-query.test.js",
-        "tests/services/sqlite-build-snapshot.test.js",
         "tests/shared/cache/cache-gc.test.js",
         "tests/shared/cache/cache-migration.test.js",
         "tests/shared/cache/cache-root-versioning.test.js",
@@ -2068,8 +2082,6 @@
         "tests/storage/lmdb/lmdb-backend.test.js",
         "tests/storage/lmdb/lmdb-corruption.test.js",
         "tests/storage/lmdb/lmdb-mapsize.test.js",
-        "tests/storage/lmdb/lmdb-report-artifacts.test.js",
-        "tests/storage/sqlite/ann/sqlite-ann-extension.test.js",
         "tests/storage/sqlite/sqlite-auto-backend.test.js",
         "tests/storage/sqlite/sqlite-build-indexes.test.js",
         "tests/storage/sqlite/sqlite-bundle-missing.test.js",
@@ -2082,7 +2094,6 @@
         "tests/tooling/eval/eval-quality.test.js",
         "tests/tooling/fixtures/fixture-empty.test.js",
         "tests/tooling/fixtures/fixture-eval.test.js",
-        "tests/tooling/fixtures/fixture-parity.test.js",
         "tests/tooling/index-stats/index-stats-explicit-repo-path.test.js",
         "tests/tooling/install/setup-index-detection.test.js",
         "tests/tooling/install/setup.test.js",
@@ -2121,6 +2132,13 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_DEBUG_PERF_EVENTS",
+      "files": [
+        "src/shared/env.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_DICT_DIR",
       "files": [
         "src/shared/env.js",
@@ -2147,7 +2165,6 @@
       "files": [
         "src/integrations/mcp/protocol.js",
         "src/shared/env.js",
-        "tests/cli/build-index/build-index-all.test.js",
         "tests/cli/general/repo-root.test.js",
         "tests/cli/search/search-missing-index.test.js",
         "tests/cli/search/search-rrf.test.js",
@@ -2155,10 +2172,10 @@
         "tests/helpers/test-env-clear.test.js",
         "tests/helpers/test-env.js",
         "tests/helpers/triage.js",
-        "tests/indexer/call-sites/call-sites-determinism.test.js",
         "tests/indexer/call-sites/call-sites-emit-artifacts-none.test.js",
         "tests/indexer/call-sites/call-sites-empty-required.test.js",
         "tests/indexing/artifacts/artifact-size-guardrails.test.js",
+        "tests/indexing/artifacts/packed-artifact-fastpath.test.js",
         "tests/indexing/chunking/comment-join.test.js",
         "tests/indexing/determinism/chunkuid-determinism.test.js",
         "tests/indexing/embeddings/build/runtime-defaults.test.js",
@@ -2191,12 +2208,9 @@
         "tests/retrieval/filters/churn-filter.test.js",
         "tests/retrieval/parity/parity.test.js",
         "tests/retrieval/ranking/fielded-bm25.test.js",
-        "tests/services/api-search-asof.test.js",
         "tests/services/api/api-server-stream.test.js",
         "tests/services/api/core-api.test.js",
         "tests/services/api/no-index.test.js",
-        "tests/services/snapshot-query.test.js",
-        "tests/services/sqlite-build-snapshot.test.js",
         "tests/shared/encoding/encoding-fallback.test.js",
         "tests/shared/subprocess/subprocess-quoting.test.js",
         "tests/smoke/e2e-smoke.test.js",
@@ -2204,8 +2218,6 @@
         "tests/storage/lmdb/lmdb-backend.test.js",
         "tests/storage/lmdb/lmdb-corruption.test.js",
         "tests/storage/lmdb/lmdb-mapsize.test.js",
-        "tests/storage/lmdb/lmdb-report-artifacts.test.js",
-        "tests/storage/sqlite/ann/sqlite-ann-extension.test.js",
         "tests/storage/sqlite/sqlite-auto-backend.test.js",
         "tests/storage/sqlite/sqlite-build-indexes.test.js",
         "tests/storage/sqlite/sqlite-bundle-missing.test.js",
@@ -2216,7 +2228,6 @@
         "tests/tooling/eval/eval-quality.test.js",
         "tests/tooling/fixtures/fixture-empty.test.js",
         "tests/tooling/fixtures/fixture-eval.test.js",
-        "tests/tooling/fixtures/fixture-parity.test.js",
         "tests/tooling/reports/summary/summary-report-helpers.js",
         "tests/tooling/script-coverage/script-coverage.runner.js",
         "tools/ci/run-suite.js",
@@ -2260,6 +2271,13 @@
     },
     {
       "name": "PAIROFCLEATS_IMPORT_GRAPH",
+      "files": [
+        "src/shared/env.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY",
       "files": [
         "src/shared/env.js",
         "tools/config/inventory.js"
@@ -2315,6 +2333,7 @@
         "src/shared/runtime-envelope.js",
         "tests/helpers/sqlite-incremental.js",
         "tests/perf/bench/run.test.js",
+        "tests/shared/runtime/runtime-env-envelope-overrides.test.js",
         "tests/shared/runtime/runtime-envelope-node-options-merge.test.js",
         "tests/shared/runtime/runtime-envelope-spawn-env.test.js",
         "tests/storage/sqlite/sqlite-incremental-no-change.test.js",
@@ -2380,6 +2399,7 @@
       "name": "PAIROFCLEATS_NODE_OPTIONS",
       "files": [
         "src/shared/runtime-envelope.js",
+        "tests/shared/runtime/runtime-env-envelope-overrides.test.js",
         "tests/shared/runtime/runtime-envelope-node-options-merge.test.js",
         "tests/shared/runtime/runtime-envelope-spawn-env.test.js",
         "tools/config/inventory.js"
@@ -2595,14 +2615,13 @@
       "files": [
         "src/shared/env.js",
         "src/shared/ops-failure-injection.js",
-        "tests/cli/build-index/build-index-all.test.js",
         "tests/helpers/fixture-index.js",
         "tests/helpers/test-env-clear.test.js",
         "tests/helpers/test-env.js",
-        "tests/indexer/call-sites/call-sites-determinism.test.js",
         "tests/indexer/call-sites/call-sites-emit-artifacts-none.test.js",
         "tests/indexer/call-sites/call-sites-empty-required.test.js",
         "tests/indexing/artifacts/artifact-size-guardrails.test.js",
+        "tests/indexing/artifacts/packed-artifact-fastpath.test.js",
         "tests/indexing/contracts/golden-surface-suite.test.js",
         "tests/indexing/incremental/incremental-cache-signature.test.js",
         "tests/indexing/incremental/incremental-tokenization-cache.test.js",
@@ -2613,13 +2632,8 @@
         "tests/ops/failure-injection/retrieval-hotpath.test.js",
         "tests/retrieval/cache/query-cache.test.js",
         "tests/retrieval/filters/types.test.js",
-        "tests/services/api-search-asof.test.js",
         "tests/services/mcp/mcp-mode-selection.test.js",
         "tests/services/mcp/tool-search-defaults-and-filters.test.js",
-        "tests/services/snapshot-query.test.js",
-        "tests/services/sqlite-build-snapshot.test.js",
-        "tests/storage/lmdb/lmdb-report-artifacts.test.js",
-        "tests/storage/sqlite/ann/sqlite-ann-extension.test.js",
         "tests/storage/sqlite/sqlite-auto-backend.test.js",
         "tools/bench/index/scheduler-store-format.js",
         "tools/config/inventory.js"
@@ -2788,7 +2802,6 @@
         "src/shared/ops-failure-injection.js",
         "tests/helpers/fixture-index.js",
         "tests/helpers/test-env.js",
-        "tests/indexer/call-sites/call-sites-determinism.test.js",
         "tests/indexer/call-sites/call-sites-emit-artifacts-none.test.js",
         "tests/indexer/call-sites/call-sites-empty-required.test.js",
         "tests/ops/failure-injection/retrieval-hotpath.test.js",
@@ -2836,6 +2849,7 @@
       "name": "PAIROFCLEATS_UV_THREADPOOL_SIZE",
       "files": [
         "src/shared/runtime-envelope.js",
+        "tests/shared/runtime/runtime-env-envelope-overrides.test.js",
         "tests/shared/runtime/runtime-envelope-spawn-env.test.js",
         "tests/shared/runtime/runtime-envelope-uv-threadpool-precedence.test.js",
         "tools/config/inventory.js"
@@ -2870,6 +2884,7 @@
         "tests/indexer/call-sites/call-sites-emit-artifacts-none.test.js",
         "tests/indexer/call-sites/call-sites-empty-required.test.js",
         "tests/indexing/artifacts/artifact-size-guardrails.test.js",
+        "tests/indexing/artifacts/packed-artifact-fastpath.test.js",
         "tests/indexing/extracted-prose/document-bytes-hash-stable.test.js",
         "tests/indexing/extracted-prose/document-chunk-id-no-collision.test.js",
         "tests/indexing/extracted-prose/document-extraction-checksums-and-counts.test.js",
@@ -2914,7 +2929,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 310,
+    "totalFlags": 316,
     "publicFlags": [
       "backend",
       "host",
@@ -2938,6 +2953,7 @@
       "args",
       "artifactDir",
       "as-of",
+      "astDataflowEnabled",
       "auth-token",
       "avg",
       "avgBytes",
@@ -2966,6 +2982,7 @@
       "command",
       "concurrency",
       "config",
+      "controlFlowEnabled",
       "cors-allow-any",
       "cors-allowed-origins",
       "count",
@@ -3004,6 +3021,7 @@
       "failOnWarn",
       "fanout",
       "fields",
+      "fileSizeBytes",
       "files",
       "filesPerLanguage",
       "finding",
@@ -3012,6 +3030,7 @@
       "flowMode",
       "focus",
       "force",
+      "forcePrepare",
       "format",
       "frame-budget",
       "from",
@@ -3136,6 +3155,7 @@
       "progress",
       "properties",
       "provider",
+      "pythonAst",
       "queries",
       "queries-dir",
       "queue",
@@ -3186,6 +3206,7 @@
       "skip-sqlite",
       "skip-tooling",
       "skip-validate",
+      "skipPrepare",
       "snapshot",
       "sort",
       "source",
@@ -3425,6 +3446,21 @@
         ]
       },
       {
+        "file": "tests/indexing/language-registry/build-language-context-skip-prepare.test.js",
+        "flags": [
+          "forcePrepare",
+          "skipPrepare"
+        ]
+      },
+      {
+        "file": "tests/indexing/language-registry/python-ast-heavy-skip.test.js",
+        "flags": [
+          "fileSizeBytes",
+          "log",
+          "pythonAst"
+        ]
+      },
+      {
         "file": "tests/indexing/map/map-build-symbol-identity.test.js",
         "flags": [
           "include",
@@ -3475,6 +3511,47 @@
           "maxBytes",
           "minBytes",
           "windowBytes"
+        ]
+      },
+      {
+        "file": "tests/lang/contracts/build-dsl-heuristic-adapters.test.js",
+        "flags": [
+          "astDataflowEnabled",
+          "controlFlowEnabled"
+        ]
+      },
+      {
+        "file": "tests/lang/contracts/data-interface-heuristic-adapters.test.js",
+        "flags": [
+          "astDataflowEnabled",
+          "controlFlowEnabled"
+        ]
+      },
+      {
+        "file": "tests/lang/contracts/dynamic-heuristic-adapters.test.js",
+        "flags": [
+          "astDataflowEnabled",
+          "controlFlowEnabled"
+        ]
+      },
+      {
+        "file": "tests/lang/contracts/managed-heuristic-adapters.test.js",
+        "flags": [
+          "astDataflowEnabled",
+          "controlFlowEnabled"
+        ]
+      },
+      {
+        "file": "tests/lang/contracts/swift-prepare-tree-sitter-disabled.test.js",
+        "flags": [
+          "treeSitter"
+        ]
+      },
+      {
+        "file": "tests/lang/contracts/template-heuristic-adapters.test.js",
+        "flags": [
+          "astDataflowEnabled",
+          "controlFlowEnabled"
         ]
       },
       {
@@ -4908,6 +4985,20 @@
         ]
       },
       {
+        "flag": "log",
+        "count": 8,
+        "files": [
+          "src/lang/javascript/chunks.js",
+          "src/lang/typescript/chunks.js",
+          "tests/indexing/language-registry/python-ast-heavy-skip.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-adaptive-budget.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-chunks.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-missing-grammar-fallback.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-streaming-chunking.test.js",
+          "tools/bench/index/tree-sitter-load.js"
+        ]
+      },
+      {
         "flag": "quiet",
         "count": 8,
         "files": [
@@ -4919,6 +5010,20 @@
           "tools/ci/build-artifacts.js",
           "tools/download/extensions.js",
           "tools/eval/run.js"
+        ]
+      },
+      {
+        "flag": "treeSitter",
+        "count": 8,
+        "files": [
+          "src/lang/javascript/chunks.js",
+          "src/lang/typescript/chunks.js",
+          "tests/indexing/tree-sitter/tree-sitter-adaptive-budget.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-chunks.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-missing-grammar-fallback.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-streaming-chunking.test.js",
+          "tests/lang/contracts/swift-prepare-tree-sitter-disabled.test.js",
+          "tools/bench/index/tree-sitter-load.js"
         ]
       },
       {
@@ -4961,19 +5066,6 @@
         ]
       },
       {
-        "flag": "log",
-        "count": 7,
-        "files": [
-          "src/lang/javascript/chunks.js",
-          "src/lang/typescript/chunks.js",
-          "tests/indexing/tree-sitter/tree-sitter-adaptive-budget.test.js",
-          "tests/indexing/tree-sitter/tree-sitter-chunks.test.js",
-          "tests/indexing/tree-sitter/tree-sitter-missing-grammar-fallback.test.js",
-          "tests/indexing/tree-sitter/tree-sitter-streaming-chunking.test.js",
-          "tools/bench/index/tree-sitter-load.js"
-        ]
-      },
-      {
         "flag": "progress",
         "count": 7,
         "files": [
@@ -5010,19 +5102,6 @@
           "tools/reports/compare-models.js",
           "tools/reports/metrics-dashboard.js",
           "tools/reports/parity-matrix.js"
-        ]
-      },
-      {
-        "flag": "treeSitter",
-        "count": 7,
-        "files": [
-          "src/lang/javascript/chunks.js",
-          "src/lang/typescript/chunks.js",
-          "tests/indexing/tree-sitter/tree-sitter-adaptive-budget.test.js",
-          "tests/indexing/tree-sitter/tree-sitter-chunks.test.js",
-          "tests/indexing/tree-sitter/tree-sitter-missing-grammar-fallback.test.js",
-          "tests/indexing/tree-sitter/tree-sitter-streaming-chunking.test.js",
-          "tools/bench/index/tree-sitter-load.js"
         ]
       },
       {
@@ -5086,6 +5165,17 @@
         ]
       },
       {
+        "flag": "astDataflowEnabled",
+        "count": 5,
+        "files": [
+          "tests/lang/contracts/build-dsl-heuristic-adapters.test.js",
+          "tests/lang/contracts/data-interface-heuristic-adapters.test.js",
+          "tests/lang/contracts/dynamic-heuristic-adapters.test.js",
+          "tests/lang/contracts/managed-heuristic-adapters.test.js",
+          "tests/lang/contracts/template-heuristic-adapters.test.js"
+        ]
+      },
+      {
         "flag": "collapse",
         "count": 5,
         "files": [
@@ -5094,6 +5184,17 @@
           "tools/bench/map/viewer-fps.js",
           "tools/bench/map/viewer-lod-stress.js",
           "tools/reports/report-code-map.js"
+        ]
+      },
+      {
+        "flag": "controlFlowEnabled",
+        "count": 5,
+        "files": [
+          "tests/lang/contracts/build-dsl-heuristic-adapters.test.js",
+          "tests/lang/contracts/data-interface-heuristic-adapters.test.js",
+          "tests/lang/contracts/dynamic-heuristic-adapters.test.js",
+          "tests/lang/contracts/managed-heuristic-adapters.test.js",
+          "tests/lang/contracts/template-heuristic-adapters.test.js"
         ]
       },
       {
@@ -6006,6 +6107,7 @@
       "src/retrieval/federation/coordinator.js",
       "src/shared/cli-options.js",
       "src/shared/cli.js",
+      "tests/indexing/chunking/chunker-options-forwarding.test.js",
       "tests/indexing/tree-sitter/tree-sitter-chunk-cache-reuse.test.js",
       "tests/indexing/tree-sitter/tree-sitter-memory-plateau.test.js",
       "tests/perf/bench/run.test.js",

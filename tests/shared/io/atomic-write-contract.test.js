@@ -24,6 +24,27 @@ const jsonRaw = fs.readFileSync(jsonPath, 'utf8');
 assert.equal(jsonRaw.endsWith('\n'), true);
 assert.deepEqual(JSON.parse(jsonRaw), { ok: true, values: [1, 2, 3] });
 
+const retryPath = path.join(tempRoot, 'retry.txt');
+const originalOpen = fsPromises.open;
+let emfileAttempts = 0;
+fsPromises.open = async (...args) => {
+  const [filePath, flags] = args;
+  if (String(filePath).includes('retry.txt.tmp-') && flags === 'wx' && emfileAttempts < 2) {
+    emfileAttempts += 1;
+    const err = new Error('too many open files');
+    err.code = 'EMFILE';
+    throw err;
+  }
+  return originalOpen(...args);
+};
+try {
+  await atomicWriteText(retryPath, 'retry-ok');
+} finally {
+  fsPromises.open = originalOpen;
+}
+assert.equal(fs.readFileSync(retryPath, 'utf8'), 'retry-ok');
+assert.equal(emfileAttempts, 2, 'expected EMFILE retry path to be exercised');
+
 let mkdirError = null;
 try {
   await atomicWriteText(path.join(tempRoot, 'nested', 'missing.txt'), 'x', { mkdir: false });

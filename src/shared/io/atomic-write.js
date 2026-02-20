@@ -3,7 +3,10 @@ import path from 'node:path';
 import { createTempPath } from '../json-stream/atomic.js';
 
 const RENAME_RETRY_CODES = new Set(['EEXIST', 'EPERM', 'ENOTEMPTY', 'EACCES', 'EXDEV']);
-const DIR_SYNC_UNSUPPORTED_CODES = new Set(['EINVAL', 'ENOTSUP', 'EPERM', 'EISDIR', 'EBADF']);
+const DIR_SYNC_UNSUPPORTED_CODES = new Set(['EINVAL', 'ENOTSUP', 'EPERM', 'EISDIR', 'EBADF', 'EMFILE', 'ENFILE']);
+const OPEN_RETRY_CODES = new Set(['EMFILE', 'ENFILE']);
+const OPEN_RETRY_ATTEMPTS = 10;
+const OPEN_RETRY_BASE_DELAY_MS = 10;
 
 const toNonNegativeInt = (value, fallback) => {
   const parsed = Number(value);
@@ -28,6 +31,30 @@ const removeTempPath = async (tempPath) => {
   try {
     await fs.rm(tempPath, { force: true });
   } catch {}
+};
+
+const sleep = (delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs));
+
+/**
+ * Retry transient descriptor exhaustion (EMFILE/ENFILE) when creating temp files.
+ * This keeps atomic writes resilient under short-lived FD pressure spikes.
+ */
+const openWithRetry = async (filePath, flags, mode) => {
+  let attempts = 0;
+  while (true) {
+    try {
+      return mode == null
+        ? await fs.open(filePath, flags)
+        : await fs.open(filePath, flags, mode);
+    } catch (err) {
+      attempts += 1;
+      if (!OPEN_RETRY_CODES.has(err?.code) || attempts >= OPEN_RETRY_ATTEMPTS) {
+        throw err;
+      }
+      const delayMs = Math.min(250, OPEN_RETRY_BASE_DELAY_MS * (2 ** (attempts - 1)));
+      await sleep(delayMs);
+    }
+  }
 };
 
 const syncParentDirectory = async (targetPath) => {
@@ -61,6 +88,18 @@ const renameTempFile = async (tempPath, targetPath) => {
   await fs.rename(tempPath, targetPath);
 };
 
+/**
+ * Write payload to a temporary sibling file, fsync it, rename into place, and
+ * fsync the parent directory to maximize durability across crashes.
+ *
+ * This is the shared primitive used by `atomicWriteText` and
+ * `atomicWriteJson`; it also retries open calls for transient FD exhaustion.
+ *
+ * @param {string} targetPath
+ * @param {string|Buffer} payload
+ * @param {{mkdir?:boolean,mode?:number,encoding?:string}} [options]
+ * @returns {Promise<string|null>}
+ */
 const writeAtomicPayload = async (targetPath, payload, {
   mkdir = true,
   mode = undefined,
@@ -74,9 +113,7 @@ const writeAtomicPayload = async (targetPath, payload, {
   const tempPath = createTempPath(targetPath);
   let handle = null;
   try {
-    handle = mode == null
-      ? await fs.open(tempPath, 'wx')
-      : await fs.open(tempPath, 'wx', mode);
+    handle = await openWithRetry(tempPath, 'wx', mode);
     if (Buffer.isBuffer(payload)) {
       await handle.writeFile(payload);
     } else {

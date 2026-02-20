@@ -41,6 +41,24 @@ import {
 } from './progress.js';
 
 const clampRatio = (value) => Math.min(1, Math.max(0, value));
+const moveCursorDown = (term, count) => {
+  if (!count || count <= 0) return;
+  if (typeof term.down === 'function') {
+    term.down(count);
+  } else {
+    term(`\x1b[${count}B`);
+  }
+  term('\r');
+};
+
+const moveCursorUp = (term, count) => {
+  if (!count || count <= 0) return;
+  if (typeof term.up === 'function') {
+    term.up(count);
+    return;
+  }
+  term(`\x1b[${count}A`);
+};
 
 export const renderDisplay = ({
   state,
@@ -580,7 +598,7 @@ export const renderDisplay = ({
   const logLines = state.logLines.slice(-logSlots);
   while (logLines.length < logSlots) logLines.push('');
   if (statusLine) logLines.push(statusLine);
-  const lines = [...logLines, '', ...taskLines, ''];
+  const lines = [...logLines, '', ...taskLines, ''].map((rawLine) => truncateLine(rawLine || '', width));
   const totalLines = lines.length;
 
   if (!state.rendered) {
@@ -592,10 +610,28 @@ export const renderDisplay = ({
     state.renderLines = totalLines;
   }
 
-  term.up(state.renderLines);
-  for (const rawLine of lines) {
-    term.eraseLine();
-    term(truncateLine(rawLine || '', width));
-    term('\n');
+  const frameLines = [...lines];
+  while (frameLines.length < state.renderLines) frameLines.push('');
+  while (state.renderFrame.length < state.renderLines) state.renderFrame.push('');
+
+  const changedRows = [];
+  for (let index = 0; index < state.renderLines; index += 1) {
+    if ((state.renderFrame[index] || '') !== (frameLines[index] || '')) {
+      changedRows.push(index);
+    }
   }
+  if (!changedRows.length) return;
+
+  moveCursorUp(term, state.renderLines);
+  let cursorRow = 0;
+  for (const row of changedRows) {
+    moveCursorDown(term, row - cursorRow);
+    term('\r');
+    term.eraseLine();
+    term(frameLines[row] || '');
+    term('\n');
+    cursorRow = row + 1;
+  }
+  moveCursorDown(term, state.renderLines - cursorRow);
+  state.renderFrame = frameLines;
 };

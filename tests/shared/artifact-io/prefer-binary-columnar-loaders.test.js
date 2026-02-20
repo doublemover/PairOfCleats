@@ -1,0 +1,99 @@
+#!/usr/bin/env node
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+
+import { applyTestEnv } from '../../helpers/test-env.js';
+import { loadChunkMeta, loadTokenPostings } from '../../../src/shared/artifact-io/loaders.js';
+import { encodeBinaryRowFrames } from '../../../src/shared/artifact-io/binary-columnar.js';
+import { encodeVarint64List } from '../../../src/shared/artifact-io/varint.js';
+import {
+  prepareArtifactIoTestDir,
+  writePiecesManifest
+} from '../../helpers/artifact-io-fixture.js';
+
+applyTestEnv();
+
+const root = process.cwd();
+const testRoot = await prepareArtifactIoTestDir('prefer-binary-columnar-loaders', { root });
+
+await fs.writeFile(
+  path.join(testRoot, 'chunk_meta.json'),
+  JSON.stringify([{ id: 0, file: 'json.cc', start: 0, end: 1 }], null, 2)
+);
+await fs.writeFile(
+  path.join(testRoot, 'token_postings.json'),
+  JSON.stringify({
+    vocab: ['json_tok'],
+    postings: [[[1, 1]]],
+    docLengths: [1],
+    totalDocs: 1,
+    avgDocLen: 1
+  }, null, 2)
+);
+
+const chunkMetaBinaryRows = encodeBinaryRowFrames([
+  Buffer.from(JSON.stringify({ id: 0, fileRef: 0, start: 0, end: 1 }), 'utf8')
+]);
+await fs.writeFile(path.join(testRoot, 'chunk_meta.binary-columnar.bin'), chunkMetaBinaryRows.dataBuffer);
+await fs.writeFile(path.join(testRoot, 'chunk_meta.binary-columnar.offsets.bin'), chunkMetaBinaryRows.offsetsBuffer);
+await fs.writeFile(path.join(testRoot, 'chunk_meta.binary-columnar.lengths.varint'), chunkMetaBinaryRows.lengthsBuffer);
+await fs.writeFile(
+  path.join(testRoot, 'chunk_meta.binary-columnar.meta.json'),
+  JSON.stringify({
+    fields: {
+      format: 'binary-columnar-v1',
+      count: 1,
+      data: 'chunk_meta.binary-columnar.bin',
+      offsets: 'chunk_meta.binary-columnar.offsets.bin',
+      lengths: 'chunk_meta.binary-columnar.lengths.varint'
+    },
+    arrays: {
+      fileTable: ['binary.cc']
+    }
+  }, null, 2)
+);
+
+const tokenPayload = encodeVarint64List([1, 2, 4, 1]);
+const tokenPostingsBinaryRows = encodeBinaryRowFrames([tokenPayload]);
+await fs.writeFile(path.join(testRoot, 'token_postings.binary-columnar.bin'), tokenPostingsBinaryRows.dataBuffer);
+await fs.writeFile(path.join(testRoot, 'token_postings.binary-columnar.offsets.bin'), tokenPostingsBinaryRows.offsetsBuffer);
+await fs.writeFile(path.join(testRoot, 'token_postings.binary-columnar.lengths.varint'), tokenPostingsBinaryRows.lengthsBuffer);
+await fs.writeFile(
+  path.join(testRoot, 'token_postings.binary-columnar.meta.json'),
+  JSON.stringify({
+    fields: {
+      format: 'binary-columnar-v1',
+      count: 1,
+      data: 'token_postings.binary-columnar.bin',
+      offsets: 'token_postings.binary-columnar.offsets.bin',
+      lengths: 'token_postings.binary-columnar.lengths.varint',
+      totalDocs: 1,
+      avgDocLen: 3
+    },
+    arrays: {
+      vocab: ['binary_tok'],
+      docLengths: [3]
+    }
+  }, null, 2)
+);
+
+await writePiecesManifest(testRoot, [
+  { name: 'chunk_meta', path: 'chunk_meta.json', format: 'json' },
+  { name: 'token_postings', path: 'token_postings.json', format: 'json' }
+]);
+
+const chunkMetaDefault = await loadChunkMeta(testRoot, { strict: true, preferBinaryColumnar: false });
+assert.equal(chunkMetaDefault[0]?.file, 'json.cc', 'expected manifest JSON chunk_meta when preference is disabled');
+
+const chunkMetaPreferred = await loadChunkMeta(testRoot, { strict: true, preferBinaryColumnar: true });
+assert.equal(chunkMetaPreferred[0]?.file, 'binary.cc', 'expected binary chunk_meta when preference is enabled');
+
+const postingsDefault = loadTokenPostings(testRoot, { strict: true, preferBinaryColumnar: false });
+assert.equal(postingsDefault?.vocab?.[0], 'json_tok', 'expected manifest JSON token_postings when preference is disabled');
+
+const postingsPreferred = loadTokenPostings(testRoot, { strict: true, preferBinaryColumnar: true });
+assert.equal(postingsPreferred?.vocab?.[0], 'binary_tok', 'expected binary token_postings when preference is enabled');
+assert.deepEqual(postingsPreferred?.postings?.[0], [[1, 2], [5, 1]], 'expected binary postings payload to be decoded');
+
+console.log('prefer binary-columnar loaders test passed');

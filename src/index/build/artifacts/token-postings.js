@@ -45,6 +45,7 @@ export function resolveTokenPostingsPlan({
   tokenPostingsShardSize,
   tokenPostingsShardThreshold,
   tokenPostingsBinaryColumnar = false,
+  tokenPostingsPackedAutoThresholdBytes = null,
   postings,
   maxJsonBytes,
   maxJsonBytesSoft,
@@ -84,6 +85,29 @@ export function resolveTokenPostingsPlan({
       );
       resolvedShardSize = Math.max(1, Math.min(resolvedShardSize, targetShardSize));
     }
+    const packedThresholdRaw = Number(tokenPostingsPackedAutoThresholdBytes);
+    const packedThreshold = Number.isFinite(packedThresholdRaw) && packedThresholdRaw > 0
+      ? Math.floor(packedThresholdRaw)
+      : null;
+    if (
+      tokenPostingsFormat === 'auto'
+      && tokenPostingsBinaryColumnar === true
+      && Number.isFinite(packedThreshold)
+      && tokenPostingsEstimate.estimatedBytes >= packedThreshold
+    ) {
+      tokenPostingsUseShards = false;
+      log(
+        `Token postings estimate ~${formatBytes(tokenPostingsEstimate.estimatedBytes)}; ` +
+        `switching auto format to packed (threshold ${formatBytes(packedThreshold)}).`
+      );
+      return {
+        tokenPostingsFormat: 'packed',
+        tokenPostingsUseShards,
+        tokenPostingsShardSize: resolvedShardSize,
+        tokenPostingsBinaryColumnar: tokenPostingsBinaryColumnar === true,
+        tokenPostingsEstimate
+      };
+    }
   }
   return {
     tokenPostingsFormat,
@@ -122,6 +146,8 @@ export async function enqueueTokenPostingsArtifacts({
   tokenPostingsShardSize,
   tokenPostingsBinaryColumnar = false,
   tokenPostingsCompression,
+  writePriority = 0,
+  tokenPostingsEstimatedBytes = null,
   enqueueJsonObject,
   enqueueWrite,
   addPieceFile,
@@ -176,6 +202,10 @@ export async function enqueueTokenPostingsArtifacts({
           },
           atomic: true
         });
+      },
+      {
+        priority: writePriority,
+        estimatedBytes: tokenPostingsEstimatedBytes
       }
     );
   };
@@ -255,6 +285,10 @@ export async function enqueueTokenPostingsArtifacts({
           },
           atomic: true
         });
+      },
+      {
+        priority: writePriority,
+        estimatedBytes: tokenPostingsEstimatedBytes
       }
     );
   } else {
@@ -271,7 +305,9 @@ export async function enqueueTokenPostingsArtifacts({
         docLengths: state.docLengths
       }
     }, {
-      piece: { type: 'postings', name: 'token_postings', count: postings.tokenVocab.length }
+      piece: { type: 'postings', name: 'token_postings', count: postings.tokenVocab.length },
+      priority: writePriority,
+      estimatedBytes: tokenPostingsEstimatedBytes
     });
   }
 

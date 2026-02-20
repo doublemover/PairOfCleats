@@ -49,11 +49,20 @@ if (!paramB.has('number') || paramB.size !== 1) {
 const callText = [
   'return createWidget();',
   'return await ns.Factory.build();',
+  'return helper;',
+  'return &legacy_helper();',
+  'return 0;',
   'return new Widget();'
 ].join('\n');
 const { calls, news } = extractReturnCalls(callText);
-if (!calls.has('createWidget') || !calls.has('ns.Factory.build')) {
+if (!calls.has('createWidget') || !calls.has('ns.Factory.build') || !calls.has('legacy_helper')) {
   fail('extractReturnCalls should collect return call targets.');
+}
+if (calls.has('helper')) {
+  fail('extractReturnCalls should ignore non-invocation return identifiers.');
+}
+if (calls.has('0')) {
+  fail('extractReturnCalls should ignore numeric shell/perl status returns.');
 }
 if (!news.has('Widget') || news.size !== 1) {
   fail('extractReturnCalls should collect return new targets.');

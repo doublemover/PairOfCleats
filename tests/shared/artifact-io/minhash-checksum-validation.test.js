@@ -7,11 +7,13 @@ import {
   loadMinhashSignatures,
   loadMinhashSignatureRows
 } from '../../../src/shared/artifact-io/loaders.js';
+import {
+  prepareArtifactIoTestDir,
+  writePiecesManifest
+} from '../../helpers/artifact-io-fixture.js';
 
 const root = process.cwd();
-const testRoot = path.join(root, '.testCache', 'minhash-checksum-validation');
-await fs.rm(testRoot, { recursive: true, force: true });
-await fs.mkdir(testRoot, { recursive: true });
+const testRoot = await prepareArtifactIoTestDir('minhash-checksum-validation', { root });
 
 const buildPackedFixture = async (dir, { tamper = false } = {}) => {
   await fs.mkdir(dir, { recursive: true });
@@ -46,13 +48,23 @@ const buildPackedFixture = async (dir, { tamper = false } = {}) => {
 };
 
 const validDir = path.join(testRoot, 'valid');
+await fs.mkdir(path.join(validDir, 'pieces'), { recursive: true });
 const { count } = await buildPackedFixture(validDir);
+await writePiecesManifest(validDir, [
+  { name: 'minhash_signatures', path: 'minhash_signatures.packed.bin', format: 'packed' },
+  { name: 'minhash_signatures_meta', path: 'minhash_signatures.packed.meta.json', format: 'json' }
+]);
 const payload = await loadMinhashSignatures(validDir, { strict: false });
 assert.ok(payload && Array.isArray(payload.signatures), 'expected packed minhash payload');
 assert.equal(payload.signatures.length, count, 'expected one signature per row');
 
 const corruptedDir = path.join(testRoot, 'corrupted');
+await fs.mkdir(path.join(corruptedDir, 'pieces'), { recursive: true });
 await buildPackedFixture(corruptedDir, { tamper: true });
+await writePiecesManifest(corruptedDir, [
+  { name: 'minhash_signatures', path: 'minhash_signatures.packed.bin', format: 'packed' },
+  { name: 'minhash_signatures_meta', path: 'minhash_signatures.packed.meta.json', format: 'json' }
+]);
 
 await assert.rejects(
   () => loadMinhashSignatures(corruptedDir, { strict: false }),

@@ -25,6 +25,8 @@ import { sha1 } from './hash.js';
  */
 
 const SEMANTIC_ID_PREFIX = /^(sym1:|scip:|lsif:|lsp:|ctags:)/i;
+const CHUNK_UID_PATTERN = /^ck64:v1:.+:[a-f0-9]{16}(?::[a-f0-9]{16}){0,2}(?::ord[1-9][0-9]*)?$/;
+const GENERATED_SYMBOL_ID_PATTERN = /^sym1:[a-z0-9._-]+:[a-f0-9]{40}$/;
 
 /**
  * Build a ChunkRef from an in-memory chunk record.
@@ -52,6 +54,14 @@ export const isSemanticSymbolId = (value) => {
   if (!value) return false;
   return SEMANTIC_ID_PREFIX.test(String(value));
 };
+
+export const isCanonicalChunkUid = (value) => (
+  typeof value === 'string' && CHUNK_UID_PATTERN.test(value)
+);
+
+export const isCanonicalGeneratedSymbolId = (value) => (
+  typeof value === 'string' && GENERATED_SYMBOL_ID_PATTERN.test(value)
+);
 
 /**
  * Resolve a stable join key for a symbol reference.
@@ -114,5 +124,6 @@ export const buildScopedSymbolId = ({ kindGroup, symbolKey, signatureKey, chunkU
 export const buildSymbolId = ({ scopedId, scheme = 'heur' }) => {
   if (!scopedId) return null;
   const prefix = `sym1:${scheme}:`;
-  return `${prefix}${sha1(String(scopedId))}`;
+  const symbolId = `${prefix}${sha1(String(scopedId))}`;
+  return isCanonicalGeneratedSymbolId(symbolId) ? symbolId : null;
 };

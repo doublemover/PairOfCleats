@@ -9,11 +9,67 @@ import { postingIncludesDocId, resolvePhraseRange } from './candidates.js';
 export const createQueryAstHelpers = ({ queryAst, phraseNgramSet, phraseRange }) => {
   const resolvePhraseRangeFor = (phraseSet) => resolvePhraseRange(phraseSet, phraseRange);
   const resolvedPhraseRange = resolvePhraseRangeFor(phraseNgramSet);
+  const tokenSetCache = new WeakMap();
+  const tokenSetCacheById = new Map();
+  const ngramSetCache = new WeakMap();
+  const ngramSetCacheById = new Map();
+  const phraseRangeKey = resolvedPhraseRange?.min && resolvedPhraseRange?.max
+    ? `${resolvedPhraseRange.min}:${resolvedPhraseRange.max}`
+    : null;
+
+  const resolveChunk = (idx, chunkId, chunk) => (
+    chunk || idx?.chunkMeta?.[chunkId] || null
+  );
+
+  const resolveChunkTokens = (idx, chunkId, chunk) => {
+    if (Array.isArray(chunk?.tokens)) return chunk.tokens;
+    const fallback = idx?.chunkMeta?.[chunkId];
+    return Array.isArray(fallback?.tokens) ? fallback.tokens : [];
+  };
+
+  const getCachedTokenSet = (chunk, chunkId, tokens) => {
+    if (!tokens.length) return null;
+    if (chunk && typeof chunk === 'object') {
+      const cached = tokenSetCache.get(chunk);
+      if (cached && cached.tokens === tokens) return cached.set;
+      const set = new Set(tokens);
+      tokenSetCache.set(chunk, { tokens, set });
+      return set;
+    }
+    if (chunkId == null) return new Set(tokens);
+    const cached = tokenSetCacheById.get(chunkId);
+    if (cached && cached.tokens === tokens) return cached.set;
+    const set = new Set(tokens);
+    tokenSetCacheById.set(chunkId, { tokens, set });
+    return set;
+  };
+
+  const getCachedNgramSet = (chunk, chunkId, tokens) => {
+    if (!tokens.length || !phraseRangeKey) return null;
+    if (chunk && typeof chunk === 'object') {
+      const cached = ngramSetCache.get(chunk);
+      if (cached && cached.tokens === tokens && cached.rangeKey === phraseRangeKey) return cached.set;
+      const ngrams = extractNgrams(tokens, resolvedPhraseRange.min, resolvedPhraseRange.max);
+      const set = ngrams.length ? new Set(ngrams) : null;
+      ngramSetCache.set(chunk, { tokens, rangeKey: phraseRangeKey, set });
+      return set;
+    }
+    if (chunkId == null) {
+      const ngrams = extractNgrams(tokens, resolvedPhraseRange.min, resolvedPhraseRange.max);
+      return ngrams.length ? new Set(ngrams) : null;
+    }
+    const cached = ngramSetCacheById.get(chunkId);
+    if (cached && cached.tokens === tokens && cached.rangeKey === phraseRangeKey) return cached.set;
+    const ngrams = extractNgrams(tokens, resolvedPhraseRange.min, resolvedPhraseRange.max);
+    const set = ngrams.length ? new Set(ngrams) : null;
+    ngramSetCacheById.set(chunkId, { tokens, rangeKey: phraseRangeKey, set });
+    return set;
+  };
 
   // Phrase postings are the authoritative source of phrase membership.
   // Do NOT rely on per-chunk ngram arrays: they are optional, often sampled,
   // and (in memory-constrained builds) may not be present at all.
-  function getPhraseMatchInfo(idx, chunkId, phraseSet, chunkTokens) {
+  function getPhraseMatchInfo(idx, chunkId, phraseSet, chunkTokens, chunk = null) {
     if (!phraseSet || !phraseSet.size || !idx) return { matches: 0 };
     const phraseIndex = idx.phraseNgrams;
     if (phraseIndex && phraseIndex.vocab && phraseIndex.postings) {
@@ -31,11 +87,10 @@ export const createQueryAstHelpers = ({ queryAst, phraseNgramSet, phraseRange })
     }
     const tokens = Array.isArray(chunkTokens)
       ? chunkTokens
-      : (Array.isArray(idx.chunkMeta?.[chunkId]?.tokens) ? idx.chunkMeta[chunkId].tokens : []);
+      : resolveChunkTokens(idx, chunkId, chunk);
     if (!tokens.length || !resolvedPhraseRange?.min || !resolvedPhraseRange?.max) return { matches: 0 };
-    const ngrams = extractNgrams(tokens, resolvedPhraseRange.min, resolvedPhraseRange.max);
-    if (!ngrams.length) return { matches: 0 };
-    const ngramSet = new Set(ngrams);
+    const ngramSet = getCachedNgramSet(chunk, chunkId, tokens);
+    if (!ngramSet || !ngramSet.size) return { matches: 0 };
     let matches = 0;
     for (const ng of phraseSet) {
       if (ngramSet.has(ng)) matches += 1;
@@ -45,10 +100,9 @@ export const createQueryAstHelpers = ({ queryAst, phraseNgramSet, phraseRange })
 
   const matchesQueryAst = (idx, chunkId, chunk) => {
     if (!queryAst) return true;
-    const tokens = Array.isArray(chunk?.tokens)
-      ? chunk.tokens
-      : (Array.isArray(idx.chunkMeta?.[chunkId]?.tokens) ? idx.chunkMeta[chunkId].tokens : []);
-    const tokenSet = tokens.length ? new Set(tokens) : null;
+    const chunkRecord = resolveChunk(idx, chunkId, chunk);
+    const tokens = resolveChunkTokens(idx, chunkId, chunkRecord);
+    const tokenSet = getCachedTokenSet(chunkRecord, chunkId, tokens);
     const evalNode = (node) => {
       if (!node) return true;
       switch (node.type) {
@@ -59,7 +113,7 @@ export const createQueryAstHelpers = ({ queryAst, phraseNgramSet, phraseRange })
         }
         case 'phrase': {
           if (node.ngramSet && node.ngramSet.size) {
-            const matchInfo = getPhraseMatchInfo(idx, chunkId, node.ngramSet, tokens);
+            const matchInfo = getPhraseMatchInfo(idx, chunkId, node.ngramSet, tokens, chunkRecord);
             return matchInfo.matches > 0;
           }
           if (!node.tokens || !node.tokens.length) return false;

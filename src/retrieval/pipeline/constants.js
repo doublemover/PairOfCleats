@@ -1,0 +1,10 @@
+export const SQLITE_IN_LIMIT = 900;
+export const MAX_POOL_ENTRIES = 50000;
+export const PROVIDER_RETRY_BASE_MS = 1000;
+export const PROVIDER_RETRY_MAX_MS = 30000;
+export const PREFLIGHT_CACHE_TTL_MS = 30000;
+export const ANN_ADAPTIVE_FAILURE_PENALTY_MS = 5000;
+export const ANN_ADAPTIVE_PREFLIGHT_PENALTY_MS = 10000;
+export const ANN_ADAPTIVE_LATENCY_ALPHA = 0.25;
+export const FTS_UNAVAILABLE_CODE = 'retrieval_fts_unavailable';
+export const VECTOR_REQUIRED_CODE = 'retrieval_vector_required';

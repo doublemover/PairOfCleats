@@ -106,31 +106,45 @@ const bumpCategory = (bucket, category) => {
 const maybeLogStats = ({ stats, languageId, relKey, log }) => {
   if (typeof log !== 'function') return;
   const total = stats.droppedCalls + stats.droppedUsages + stats.droppedCallDetails + stats.droppedCallDetailsWithRange;
-  log(
-    `lexicon.relations.filtered language=${languageId || '_generic'} file=${relKey || '-'} ` +
-    `callsDropped=${stats.droppedCalls} usagesDropped=${stats.droppedUsages} ` +
-    `callDetailsDropped=${stats.droppedCallDetails} callDetailsRangeDropped=${stats.droppedCallDetailsWithRange} ` +
-    `totalDropped=${total}`
-  );
+  if (total <= 0) return;
+  const counters = [];
+  if (stats.droppedCalls > 0) counters.push(`callsDropped=${stats.droppedCalls}`);
+  if (stats.droppedUsages > 0) counters.push(`usagesDropped=${stats.droppedUsages}`);
+  if (stats.droppedCallDetails > 0) counters.push(`callDetailsDropped=${stats.droppedCallDetails}`);
+  if (stats.droppedCallDetailsWithRange > 0) counters.push(`callDetailsRangeDropped=${stats.droppedCallDetailsWithRange}`);
+  counters.push(`totalDropped=${total}`);
+  log(`lexicon.relations.filtered language=${languageId || '_generic'} file=${relKey || '-'} ${counters.join(' ')}`);
 };
 
 const attachFilterStats = (relations, stats, languageId, relKey) => {
   if (!relations || typeof relations !== 'object' || !stats) return relations;
+  const value = {
+    languageId: languageId || '_generic',
+    file: relKey || null,
+    droppedCalls: stats.droppedCalls,
+    droppedUsages: stats.droppedUsages,
+    droppedCallDetails: stats.droppedCallDetails,
+    droppedCallDetailsWithRange: stats.droppedCallDetailsWithRange,
+    droppedTotal: stats.droppedCalls + stats.droppedUsages + stats.droppedCallDetails + stats.droppedCallDetailsWithRange,
+    droppedCallsByCategory: { ...stats.droppedCallsByCategory },
+    droppedUsagesByCategory: { ...stats.droppedUsagesByCategory }
+  };
+  if (Object.prototype.hasOwnProperty.call(relations, '__lexiconFilterStats')) {
+    try {
+      Object.defineProperty(relations, '__lexiconFilterStats', {
+        value,
+        enumerable: false,
+        writable: false,
+        configurable: true
+      });
+    } catch {}
+    return relations;
+  }
   Object.defineProperty(relations, '__lexiconFilterStats', {
-    value: {
-      languageId: languageId || '_generic',
-      file: relKey || null,
-      droppedCalls: stats.droppedCalls,
-      droppedUsages: stats.droppedUsages,
-      droppedCallDetails: stats.droppedCallDetails,
-      droppedCallDetailsWithRange: stats.droppedCallDetailsWithRange,
-      droppedTotal: stats.droppedCalls + stats.droppedUsages + stats.droppedCallDetails + stats.droppedCallDetailsWithRange,
-      droppedCallsByCategory: { ...stats.droppedCallsByCategory },
-      droppedUsagesByCategory: { ...stats.droppedUsagesByCategory }
-    },
+    value,
     enumerable: false,
     writable: false,
-    configurable: false
+    configurable: true
   });
   return relations;
 };
@@ -181,7 +195,7 @@ export const filterRawRelationsWithLexicon = (rawRelations, {
   if (!dropSet.size && !stableDedupe) return rawRelations;
   const stats = createStats();
 
-  const filtered = { ...rawRelations };
+  const filtered = rawRelations;
 
   if (Array.isArray(rawRelations.usages)) {
     const usages = [];

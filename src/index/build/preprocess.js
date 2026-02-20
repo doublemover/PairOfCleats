@@ -1,6 +1,5 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { EXTS_CODE, EXTS_PROSE } from '../constants.js';
 import { getLanguageForFile } from '../language-registry.js';
 import { countLinesForEntries } from '../../shared/file-stats.js';
 import { toPosix } from '../../shared/files.js';
@@ -10,6 +9,7 @@ import { createFileScanner, readFileSample } from './file-scan.js';
 import { discoverEntries } from './discover.js';
 import { createRecordsClassifier, shouldSniffRecordContent } from './records.js';
 import { pickMinLimit } from './runtime/limits.js';
+import { isCodeEntryForPath, isProseEntryForPath } from './mode-routing.js';
 
 const DOCUMENT_EXTS = new Set(['.pdf', '.docx']);
 const isDocumentExt = (ext) => DOCUMENT_EXTS.has(String(ext || '').toLowerCase());
@@ -39,14 +39,19 @@ const resolveMaxLines = ({ ext, lang }, fileCaps) => {
 
 const isSupportedEntry = (entry, mode, { documentExtractionEnabled = false } = {}) => {
   if (!entry) return false;
-  if (mode === 'code') return EXTS_CODE.has(entry.ext) || entry.isSpecial;
+  const proseAllowed = isProseEntryForPath({ ext: entry.ext, relPath: entry.rel });
+  const codeAllowed = isCodeEntryForPath({
+    ext: entry.ext,
+    relPath: entry.rel,
+    isSpecial: entry.isSpecial
+  });
+  if (mode === 'code') return codeAllowed;
   if (mode === 'extracted-prose') {
-    return EXTS_CODE.has(entry.ext)
-      || EXTS_PROSE.has(entry.ext)
-      || entry.isSpecial
+    return codeAllowed
+      || proseAllowed
       || (documentExtractionEnabled && isDocumentExt(entry.ext));
   }
-  if (mode === 'prose') return EXTS_PROSE.has(entry.ext);
+  if (mode === 'prose') return proseAllowed;
   if (mode === 'records') return !!entry.record;
   return false;
 };

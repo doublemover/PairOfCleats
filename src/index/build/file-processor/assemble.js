@@ -5,6 +5,15 @@ import { buildTokenSequence } from '../tokenization.js';
 import { buildExternalDocs } from './meta.js';
 import { log } from '../../../shared/progress.js';
 
+/**
+ * Assemble the final persisted chunk payload shape from per-stage outputs.
+ *
+ * This is the canonical adapter between processing internals (tokenization,
+ * relations, git metadata, etc.) and artifact row schema.
+ *
+ * @param {object} input
+ * @returns {object}
+ */
 export function buildChunkPayload({
   chunk,
   rel,
@@ -41,9 +50,14 @@ export function buildChunkPayload({
   relationsEnabled,
   toolInfo,
   gitMeta,
-  analysisPolicy
+  analysisPolicy,
+  weightMultiplier = 1
 }) {
-  const weight = getFieldWeight(chunk, rel);
+  const baseWeight = getFieldWeight(chunk, rel);
+  const resolvedWeightMultiplier = Number.isFinite(Number(weightMultiplier))
+    ? Math.max(0.05, Math.min(1, Number(weightMultiplier)))
+    : 1;
+  const weight = baseWeight * resolvedWeightMultiplier;
   const resolvedExt = effectiveExt || ext;
   const docText = typeof docmeta.doc === 'string' ? docmeta.doc : '';
   const fieldedEnabled = postingsConfig?.fielded !== false;

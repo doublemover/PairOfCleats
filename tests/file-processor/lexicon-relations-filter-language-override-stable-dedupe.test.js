@@ -2,16 +2,16 @@
 import assert from 'node:assert/strict';
 import { filterRawRelationsWithLexicon } from '../../src/index/build/file-processor/lexicon-relations-filter.js';
 
-const rawRelations = {
+const createRawRelations = () => ({
   usages: ['if', 'value', 'value'],
   calls: [
     ['run', 'if'],
     ['run', 'value'],
     ['run', 'value']
   ]
-};
+});
 
-const dedupeEnabledByLanguageOverride = filterRawRelationsWithLexicon(rawRelations, {
+const dedupeEnabledByLanguageOverride = filterRawRelationsWithLexicon(createRawRelations(), {
   languageId: 'python',
   config: {
     enabled: true,
@@ -44,7 +44,7 @@ assert.deepEqual(
   'language override stableDedupe=true should dedupe calls even when global stableDedupe=false'
 );
 
-const dedupeDisabledByLanguageOverride = filterRawRelationsWithLexicon(rawRelations, {
+const dedupeDisabledByLanguageOverride = filterRawRelationsWithLexicon(createRawRelations(), {
   languageId: 'python',
   config: {
     enabled: true,

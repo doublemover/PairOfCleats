@@ -36,6 +36,17 @@ import { getSchemaVersion, validateSqliteDatabase } from './validate.js';
 import { ensureVocabIds } from '../vocab.js';
 
 const MAX_INCREMENTAL_CHANGE_RATIO = 0.35;
+const MAX_INCREMENTAL_CHANGE_RATIO_BY_MODE = {
+  prose: 0.75,
+  'extracted-prose': 0.97
+};
+const MAX_INCREMENTAL_CHANGE_RATIO_GRACE_BY_MODE = {
+  'extracted-prose': 0.995
+};
+const MAX_INCREMENTAL_CHANGE_GRACE_DELETED_RATIO = 0.02;
+const MAX_INCREMENTAL_CHANGE_GRACE_DELETED_RATIO_BY_MODE = {
+  'extracted-prose': 0.01
+};
 const VOCAB_GROWTH_LIMITS = {
   token_vocab: { ratio: 0.4, absolute: 200000 },
   phrase_vocab: { ratio: 0.5, absolute: 150000 },
@@ -49,6 +60,13 @@ class IncrementalSkipError extends Error {
   }
 }
 
+/**
+ * Resolve how many dense vectors a payload expects, supporting both current
+ * and legacy dense metadata shapes.
+ *
+ * @param {object|null} denseVec
+ * @returns {number}
+ */
 const resolveExpectedDenseCount = (denseVec) => {
   if (!denseVec || typeof denseVec !== 'object') return 0;
   const fields = denseVec.fields && typeof denseVec.fields === 'object' ? denseVec.fields : null;
@@ -59,6 +77,84 @@ const resolveExpectedDenseCount = (denseVec) => {
   const vectors = denseVec.vectors ?? denseVec.arrays?.vectors;
   if (Array.isArray(vectors) && vectors.length > 0) return vectors.length;
   return 0;
+};
+
+/**
+ * Decide whether the manifest delta is small enough to safely apply
+ * incrementally for the given mode.
+ *
+ * @param {{mode:string,totalFiles:number,changedCount:number,deletedCount:number}} input
+ * @returns {{ok:boolean,changeRatio:number,maxChangeRatio:number}}
+ */
+const evaluateIncrementalChangeGuard = ({ mode, totalFiles, changedCount, deletedCount }) => {
+  const maxChangeRatio = Number.isFinite(MAX_INCREMENTAL_CHANGE_RATIO_BY_MODE[mode])
+    ? MAX_INCREMENTAL_CHANGE_RATIO_BY_MODE[mode]
+    : MAX_INCREMENTAL_CHANGE_RATIO;
+  const maxGraceRatio = Number.isFinite(MAX_INCREMENTAL_CHANGE_RATIO_GRACE_BY_MODE[mode])
+    ? MAX_INCREMENTAL_CHANGE_RATIO_GRACE_BY_MODE[mode]
+    : null;
+  const maxGraceDeletedRatio = Number.isFinite(MAX_INCREMENTAL_CHANGE_GRACE_DELETED_RATIO_BY_MODE[mode])
+    ? MAX_INCREMENTAL_CHANGE_GRACE_DELETED_RATIO_BY_MODE[mode]
+    : MAX_INCREMENTAL_CHANGE_GRACE_DELETED_RATIO;
+  if (!totalFiles) {
+    return { ok: true, changeRatio: 0, maxChangeRatio };
+  }
+  const changeRatio = (changedCount + deletedCount) / totalFiles;
+  const deletedRatio = deletedCount / totalFiles;
+  const withinGrace = maxGraceRatio != null
+    && changeRatio <= maxGraceRatio
+    && deletedRatio <= maxGraceDeletedRatio;
+  return {
+    ok: changeRatio <= maxChangeRatio || withinGrace,
+    changeRatio,
+    maxChangeRatio: withinGrace ? maxGraceRatio : maxChangeRatio
+  };
+};
+
+/**
+ * Allocate a deterministic doc id for incremental inserts.
+ *
+ * Priority: reuse existing ids for the file -> deleted-file free list for new
+ * files -> overflow free list -> remaining deleted free list -> append new id.
+ *
+ * @param {object} input
+ * @param {number[]} input.reuseIds
+ * @param {number} input.reuseIndex
+ * @param {boolean} input.isNewFile
+ * @param {number[]} input.freeDocIdsDeleted
+ * @param {number[]} input.freeDocIdsOverflow
+ * @param {number} input.nextDocId
+ * @returns {{docId:number,reuseIndex:number,nextDocId:number}}
+ */
+const allocateIncrementalDocId = ({
+  reuseIds,
+  reuseIndex,
+  isNewFile,
+  freeDocIdsDeleted,
+  freeDocIdsOverflow,
+  nextDocId
+}) => {
+  if (reuseIndex < reuseIds.length) {
+    return {
+      docId: reuseIds[reuseIndex],
+      reuseIndex: reuseIndex + 1,
+      nextDocId
+    };
+  }
+  if (isNewFile && freeDocIdsDeleted.length) {
+    return { docId: freeDocIdsDeleted.pop(), reuseIndex, nextDocId };
+  }
+  if (freeDocIdsOverflow.length) {
+    return { docId: freeDocIdsOverflow.pop(), reuseIndex, nextDocId };
+  }
+  if (freeDocIdsDeleted.length) {
+    return { docId: freeDocIdsDeleted.pop(), reuseIndex, nextDocId };
+  }
+  return {
+    docId: nextDocId,
+    reuseIndex,
+    nextDocId: nextDocId + 1
+  };
 };
 
 /**
@@ -212,16 +308,19 @@ export async function incrementalUpdateDatabase({
     deletedFiles: deleted.length,
     manifestUpdates: manifestUpdates.length
   };
-  if (totalFiles) {
-    const changeRatio = (changed.length + deleted.length) / totalFiles;
-    if (changeRatio > MAX_INCREMENTAL_CHANGE_RATIO) {
-      await finalize();
-      return {
-        used: false,
-        reason: `change ratio ${changeRatio.toFixed(2)} (changed=${changed.length}, deleted=${deleted.length}, total=${totalFiles}) exceeds ${MAX_INCREMENTAL_CHANGE_RATIO}`,
-        ...changeSummary
-      };
-    }
+  const changeGuard = evaluateIncrementalChangeGuard({
+    mode,
+    totalFiles,
+    changedCount: changed.length,
+    deletedCount: deleted.length
+  });
+  if (!changeGuard.ok) {
+    await finalize();
+    return {
+      used: false,
+      reason: `change ratio ${changeGuard.changeRatio.toFixed(2)} (changed=${changed.length}, deleted=${deleted.length}, total=${totalFiles}) exceeds ${changeGuard.maxChangeRatio}`,
+      ...changeSummary
+    };
   }
   if (!changed.length && !deleted.length && !manifestUpdates.length) {
     await finalize();
@@ -623,20 +722,17 @@ export async function incrementalUpdateDatabase({
       let chunkCount = 0;
       const isNewFile = reuseIds.length === 0;
       for (const chunk of bundle?.chunks || []) {
-        let docId;
-        if (reuseIndex < reuseIds.length) {
-          docId = reuseIds[reuseIndex];
-          reuseIndex += 1;
-        } else if (isNewFile && freeDocIdsDeleted.length) {
-          docId = freeDocIdsDeleted.pop();
-        } else if (freeDocIdsOverflow.length) {
-          docId = freeDocIdsOverflow.pop();
-        } else if (freeDocIdsDeleted.length) {
-          docId = freeDocIdsDeleted.pop();
-        } else {
-          docId = nextDocId;
-          nextDocId += 1;
-        }
+        const allocation = allocateIncrementalDocId({
+          reuseIds,
+          reuseIndex,
+          isNewFile,
+          freeDocIdsDeleted,
+          freeDocIdsOverflow,
+          nextDocId
+        });
+        const docId = allocation.docId;
+        reuseIndex = allocation.reuseIndex;
+        nextDocId = allocation.nextDocId;
         const row = buildChunkRow(
           { ...chunk, file: chunk.file || normalizedFile },
           mode,

@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
 import path from 'node:path';
 import { buildToolingVirtualDocuments } from '../tooling/vfs.js';
 import { runToolingProviders } from '../tooling/orchestrator.js';
@@ -7,6 +8,54 @@ import { runToolingDoctor } from '../tooling/doctor.js';
 import { TOOLING_CONFIDENCE, TOOLING_SOURCE } from './constants.js';
 import { addInferredParam, addInferredReturn } from './apply.js';
 import { isAbsolutePathNative } from '../../shared/files.js';
+import { stableStringify } from '../../shared/stable-json.js';
+
+const TOOLING_DOCTOR_CACHE_VERSION = 1;
+const TOOLING_DOCTOR_CACHE_FILE = '.tooling-doctor-cache.json';
+
+const buildToolingDoctorCacheKey = ({ rootDir, buildRoot, strict, toolingConfig, toolingTimeoutMs, toolingRetries, toolingBreaker }) => {
+  const payload = {
+    version: TOOLING_DOCTOR_CACHE_VERSION,
+    rootDir,
+    buildRoot,
+    strict,
+    toolingTimeoutMs,
+    toolingRetries,
+    toolingBreaker,
+    toolingConfig,
+    runtime: {
+      node: process.version,
+      platform: process.platform,
+      arch: process.arch,
+      path: process.env.PATH || process.env.Path || ''
+    }
+  };
+  return stableStringify(payload);
+};
+
+const readToolingDoctorCache = async (cachePath) => {
+  try {
+    const raw = await fs.readFile(cachePath, 'utf8');
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    if (parsed.version !== TOOLING_DOCTOR_CACHE_VERSION) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+};
+
+const writeToolingDoctorCache = async ({ cachePath, key, reportPath }) => {
+  const payload = {
+    version: TOOLING_DOCTOR_CACHE_VERSION,
+    generatedAt: new Date().toISOString(),
+    key,
+    reportPath
+  };
+  try {
+    await fs.writeFile(cachePath, JSON.stringify(payload));
+  } catch {}
+};
 
 const createToolingLogger = (rootDir, logDir, provider, baseLog) => {
   if (!logDir || !provider) return baseLog;
@@ -197,7 +246,36 @@ export const runToolingPass = async ({
     }
   };
 
-  await runToolingDoctor(ctx, null, { log });
+  const doctorCacheEnabled = toolingConfig?.doctorCache !== false;
+  const doctorCachePath = path.join(buildRoot || rootDir, TOOLING_DOCTOR_CACHE_FILE);
+  const doctorReportPath = path.join(buildRoot || rootDir, 'tooling_report.json');
+  const doctorCacheKey = buildToolingDoctorCacheKey({
+    rootDir,
+    buildRoot: buildRoot || rootDir,
+    strict,
+    toolingConfig: ctx.toolingConfig,
+    toolingTimeoutMs,
+    toolingRetries,
+    toolingBreaker
+  });
+  let doctorCacheHit = false;
+  if (doctorCacheEnabled) {
+    const cached = await readToolingDoctorCache(doctorCachePath);
+    if (cached?.key === doctorCacheKey && fsSync.existsSync(doctorReportPath)) {
+      doctorCacheHit = true;
+      log('[tooling] doctor: using cached report.');
+    }
+  }
+  if (!doctorCacheHit) {
+    await runToolingDoctor(ctx, null, { log });
+    if (doctorCacheEnabled) {
+      await writeToolingDoctorCache({
+        cachePath: doctorCachePath,
+        key: doctorCacheKey,
+        reportPath: doctorReportPath
+      });
+    }
+  }
 
   const providerLog = createToolingLogger(rootDir, toolingLogDir, 'tooling', log);
   const result = await runToolingProviders(ctx, { documents, targets, kinds: ['types'] });

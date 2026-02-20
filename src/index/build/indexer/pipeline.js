@@ -31,7 +31,12 @@ import {
   buildTokenizationKey
 } from './signatures.js';
 import { runDiscovery } from './steps/discover.js';
-import { loadIncrementalPlan, pruneIncrementalState, updateIncrementalBundles } from './steps/incremental.js';
+import {
+  loadIncrementalPlan,
+  prepareIncrementalBundleVfsRows,
+  pruneIncrementalState,
+  updateIncrementalBundles
+} from './steps/incremental.js';
 import { buildIndexPostings } from './steps/postings.js';
 import { processFiles } from './steps/process-files.js';
 import { postScanImports, preScanImports, runCrossFileInference } from './steps/relations.js';
@@ -550,6 +555,16 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   });
   if (postImportResult) importResult = postImportResult;
 
+  const incrementalBundleVfsRowsPromise = mode === 'code'
+    && crossFileInferenceEnabled
+    && runtimeRef.incrementalEnabled === true
+    ? prepareIncrementalBundleVfsRows({
+      runtime: runtimeRef,
+      incrementalState,
+      enabled: true
+    })
+    : null;
+
   advanceStage(stagePlan[3]);
   const { crossFileEnabled, graphRelations } = await (runtimeRef.scheduler?.schedule
     ? runtimeRef.scheduler.schedule(
@@ -616,10 +631,14 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     }
   });
   if (mode === 'code' && crossFileEnabled) {
+    const existingVfsManifestRowsByFile = incrementalBundleVfsRowsPromise
+      ? await incrementalBundleVfsRowsPromise
+      : null;
     await updateIncrementalBundles({
       runtime: runtimeRef,
       incrementalState,
       state,
+      existingVfsManifestRowsByFile,
       log
     });
   }

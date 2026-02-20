@@ -5,8 +5,16 @@ import { planShardBatches } from '../../../src/index/build/shards.js';
 const argv = { threads: 4 };
 const rawArgv = ['--threads', '4'];
 const envConfig = {};
-const limits = resolveThreadLimits({ argv, rawArgv, envConfig, configConcurrency: null, importConcurrencyConfig: null });
-const expectedFileConcurrency = Math.min(limits.cpuCount, 4);
+const limits = resolveThreadLimits({
+  argv,
+  rawArgv,
+  envConfig,
+  configConcurrency: null,
+  importConcurrencyConfig: null,
+  cpuCount: 8,
+  uvThreadpoolSize: 4
+});
+const expectedFileConcurrency = 8;
 
 if (limits.fileConcurrency !== expectedFileConcurrency) {
   console.error(
@@ -14,8 +22,8 @@ if (limits.fileConcurrency !== expectedFileConcurrency) {
   );
   process.exit(1);
 }
-if (limits.cpuConcurrency !== limits.fileConcurrency) {
-  console.error('thread limits test failed: cpuConcurrency not equal fileConcurrency');
+if (limits.cpuConcurrency !== limits.threads) {
+  console.error('thread limits test failed: cpuConcurrency should follow resolved thread count');
   process.exit(1);
 }
 

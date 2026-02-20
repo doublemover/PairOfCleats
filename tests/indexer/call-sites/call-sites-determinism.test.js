@@ -42,12 +42,12 @@ const resolveCodeDir = (fixtureRoot, userConfig, result) => {
 const buildOnce = async (fixtureRoot, { label }) => {
   const cacheRoot = await makeTempDir(`pairofcleats-cache-${label}-`);
 
-  const env = {
-    ...process.env,    PAIROFCLEATS_TEST_CONFIG: JSON.stringify(TEST_CONFIG),
-    PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-    PAIROFCLEATS_EMBEDDINGS: 'stub',
-    PAIROFCLEATS_WORKER_POOL: 'off'
-  };
+  const env = applyTestEnv({
+    cacheRoot,
+    embeddings: 'stub',
+    testConfig: TEST_CONFIG,
+    extraEnv: { PAIROFCLEATS_WORKER_POOL: 'off' }
+  });
 
   const result = spawnSync(
     process.execPath,
@@ -61,35 +61,10 @@ const buildOnce = async (fixtureRoot, { label }) => {
     assert.fail(`build_index.js failed (${label}) with status ${result.status}`);
   }
 
-  const prevCacheRoot = process.env.PAIROFCLEATS_CACHE_ROOT;
-  const prevTesting = process.env.PAIROFCLEATS_TESTING;
-  const prevTestConfig = process.env.PAIROFCLEATS_TEST_CONFIG;
-  process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
-  applyTestEnv();
-  process.env.PAIROFCLEATS_TEST_CONFIG = JSON.stringify(TEST_CONFIG);
-
-  try {
-    const userConfig = loadUserConfig(fixtureRoot);
-    const codeDir = resolveCodeDir(fixtureRoot, userConfig, result);
-    const lines = await readCallSiteLines(codeDir);
-    return { cacheRoot, codeDir, lines };
-  } finally {
-    if (prevCacheRoot === undefined) {
-      delete process.env.PAIROFCLEATS_CACHE_ROOT;
-    } else {
-      process.env.PAIROFCLEATS_CACHE_ROOT = prevCacheRoot;
-    }
-    if (prevTesting === undefined) {
-      delete process.env.PAIROFCLEATS_TESTING;
-    } else {
-      process.env.PAIROFCLEATS_TESTING = prevTesting;
-    }
-    if (prevTestConfig === undefined) {
-      delete process.env.PAIROFCLEATS_TEST_CONFIG;
-    } else {
-      process.env.PAIROFCLEATS_TEST_CONFIG = prevTestConfig;
-    }
-  }
+  const userConfig = loadUserConfig(fixtureRoot);
+  const codeDir = resolveCodeDir(fixtureRoot, userConfig, result);
+  const lines = await readCallSiteLines(codeDir);
+  return { cacheRoot, codeDir, lines };
 };
 
 const fixtureRoot = await copyFixtureToTemp('call-sites-determinism', { prefix: 'pairofcleats-determinism-' });

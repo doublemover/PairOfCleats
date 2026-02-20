@@ -12,7 +12,7 @@ import {
 } from '../../tooling/vfs.js';
 import { resolveTreeSitterSchedulerPaths } from './paths.js';
 
-const DEFAULT_ROW_CACHE_MAX = 50000;
+const DEFAULT_ROW_CACHE_MAX = 4096;
 const DEFAULT_MISS_CACHE_MAX = 10000;
 const DEFAULT_PAGE_CACHE_MAX = 1024;
 
@@ -44,9 +44,26 @@ export const createTreeSitterSchedulerLookup = ({
     name: 'tree-sitter-scheduler-page-rows',
     maxEntries: DEFAULT_PAGE_CACHE_MAX
   });
+  const pageRefCounts = new Map();
+  const consumedVirtualPaths = new Set();
   const readersByManifestPath = new Map();
   const segmentMetaByGrammarKey = new Map(); // grammarKey -> Promise<Map<number, object>|null>
   const pageIndexByGrammarKey = new Map(); // grammarKey -> Promise<Map<number, object>|null>
+
+  const pageCacheKeyForEntry = (entry) => {
+    if (!entry || entry.store !== 'paged-json') return null;
+    const grammarKey = typeof entry.grammarKey === 'string' ? entry.grammarKey : null;
+    const pageId = Number(entry.page);
+    if (!grammarKey || !Number.isFinite(pageId) || pageId < 0) return null;
+    return `${grammarKey}:${pageId}`;
+  };
+
+  for (const entry of index.values()) {
+    const pageKey = pageCacheKeyForEntry(entry);
+    if (!pageKey) continue;
+    const current = pageRefCounts.get(pageKey) || 0;
+    pageRefCounts.set(pageKey, current + 1);
+  }
 
   const getReaderForManifest = (manifestPath, format = 'jsonl') => {
     const key = `${manifestPath}|${format}`;
@@ -67,6 +84,8 @@ export const createTreeSitterSchedulerLookup = ({
     segmentMetaByGrammarKey.clear();
     pageIndexByGrammarKey.clear();
     pageRowsCache.clear();
+    pageRefCounts.clear();
+    consumedVirtualPaths.clear();
     await Promise.all(readers.map(async (reader) => {
       try {
         await reader.close();
@@ -381,10 +400,50 @@ export const createTreeSitterSchedulerLookup = ({
     return rows;
   };
 
-  const loadChunks = async (virtualPath) => {
+  const releaseVirtualPathCaches = (virtualPath) => {
+    if (!virtualPath) return;
+    rowCache.delete(virtualPath);
+    missCache.delete(virtualPath);
+    if (consumedVirtualPaths.has(virtualPath)) return;
+    consumedVirtualPaths.add(virtualPath);
+    const entry = index.get(virtualPath);
+    const pageKey = pageCacheKeyForEntry(entry);
+    if (!pageKey) return;
+    const remaining = pageRefCounts.get(pageKey);
+    if (Number.isFinite(remaining)) {
+      if (remaining <= 1) {
+        pageRefCounts.delete(pageKey);
+        pageRowsCache.delete(pageKey);
+      } else {
+        pageRefCounts.set(pageKey, remaining - 1);
+      }
+      return;
+    }
+    pageRowsCache.delete(pageKey);
+  };
+
+  const loadChunks = async (virtualPath, options = {}) => {
+    const consume = options?.consume !== false;
     const row = await loadRow(virtualPath);
     const chunks = Array.isArray(row?.chunks) ? row.chunks : null;
+    if (consume) {
+      releaseVirtualPathCaches(virtualPath);
+    }
     return chunks || null;
+  };
+
+  const loadChunksBatch = async (virtualPaths, options = {}) => {
+    const keys = Array.isArray(virtualPaths) ? virtualPaths : [];
+    if (!keys.length) return [];
+    const consume = options?.consume !== false;
+    const rows = await loadRows(keys);
+    const chunks = rows.map((row) => (Array.isArray(row?.chunks) ? row.chunks : null));
+    if (consume) {
+      for (const virtualPath of keys) {
+        releaseVirtualPathCaches(virtualPath);
+      }
+    }
+    return chunks;
   };
 
   const grammarKeys = () => {
@@ -403,10 +462,12 @@ export const createTreeSitterSchedulerLookup = ({
     loadRow,
     loadRows,
     loadChunks,
+    loadChunksBatch,
     close,
     stats: () => ({
       indexEntries: index.size,
       cacheEntries: rowCache.size(),
+      pageCacheEntries: pageRowsCache.size(),
       missEntries: missCache.size(),
       grammarKeys: grammarKeys().length
     }),

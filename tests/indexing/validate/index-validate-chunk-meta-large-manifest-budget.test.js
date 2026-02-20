@@ -76,8 +76,9 @@ const manifest = {
 await writeJsonObjectFile(path.join(indexDir, 'pieces', 'manifest.json'), { fields: manifest, atomic: true });
 
 // Shrink MAX_JSON_BYTES for this process to force use of manifest-derived bytes.
-applyTestEnv();
-process.env.PAIROFCLEATS_TEST_MAX_JSON_BYTES = '128';
+applyTestEnv({
+  extraEnv: { PAIROFCLEATS_TEST_MAX_JSON_BYTES: '128' }
+});
 
 const { validateIndexArtifacts } = await import('../../../src/index/validate.js');
 

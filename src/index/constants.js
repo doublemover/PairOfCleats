@@ -173,6 +173,7 @@ export const RAZOR_EXTS = new Set(['.razor', '.cshtml']);
 export const EXTS_CODE = new Set([
   '.js', '.mjs', '.cjs', '.jsx', '.ts', '.tsx', '.mts', '.cts', '.yml', '.yaml', '.sh',
   '.html', '.htm', '.css', '.py', '.swift', '.rs', '.c', '.cc', '.cpp', '.h', '.hpp', '.hh',
+  '.def',
   '.m', '.mm', '.go', '.java', '.cs', '.kt', '.kts', '.rb', '.php', '.phtml',
   '.lua', '.sql', '.psql', '.pgsql', '.mysql', '.sqlite', '.pl', '.pm', '.bash',
   '.zsh', '.ksh', '.json', '.toml', '.ini', '.xml', '.cfg', '.conf', '.vue',

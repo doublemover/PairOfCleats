@@ -39,6 +39,7 @@ const COMMENT_STYLES = [
       'swift',
       'objc',
       'objective-c',
+      'proto',
       'protobuf',
       'dart',
       'scala',

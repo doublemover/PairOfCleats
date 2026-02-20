@@ -66,7 +66,8 @@ export function resolveNodeOptions(runtimeConfig, baseOptions = process.env.NODE
  * @returns {Record<string, string|undefined>}
  */
 export function resolveRuntimeEnv(runtimeConfig, baseEnv = {}) {
-  if (runtimeConfig?.envelope) {
+  const envelope = runtimeConfig?.envelope;
+  if (envelope && !hasExplicitRuntimeOverrides(runtimeConfig, envelope)) {
     return resolveRuntimeEnvFromEnvelope(runtimeConfig.envelope, baseEnv);
   }
   const env = { ...baseEnv };
@@ -82,4 +83,39 @@ export function resolveRuntimeEnv(runtimeConfig, baseEnv = {}) {
     }
   }
   return env;
+}
+
+function hasExplicitRuntimeOverrides(runtimeConfig, envelope) {
+  const requestedMaxOldSpaceMb = Number(envelope?.runtime?.maxOldSpaceMb?.requested?.value);
+  const requestedUvThreadpoolSize = Number(envelope?.runtime?.uvThreadpoolSize?.requested?.value);
+  const requestedNodeOptions = typeof envelope?.runtime?.nodeOptions?.requested?.value === 'string'
+    ? envelope.runtime.nodeOptions.requested.value.trim()
+    : '';
+
+  const configuredMaxOldSpaceMb = Number(runtimeConfig?.maxOldSpaceMb);
+  if (
+    Number.isFinite(configuredMaxOldSpaceMb)
+    && configuredMaxOldSpaceMb > 0
+    && Math.floor(configuredMaxOldSpaceMb) !== Math.floor(requestedMaxOldSpaceMb)
+  ) {
+    return true;
+  }
+
+  const configuredUvThreadpoolSize = Number(runtimeConfig?.uvThreadpoolSize);
+  if (
+    Number.isFinite(configuredUvThreadpoolSize)
+    && configuredUvThreadpoolSize > 0
+    && Math.floor(configuredUvThreadpoolSize) !== Math.floor(requestedUvThreadpoolSize)
+  ) {
+    return true;
+  }
+
+  if (typeof runtimeConfig?.nodeOptions === 'string') {
+    const configuredNodeOptions = runtimeConfig.nodeOptions.trim();
+    if (configuredNodeOptions !== requestedNodeOptions) {
+      return true;
+    }
+  }
+
+  return false;
 }

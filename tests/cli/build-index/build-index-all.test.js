@@ -21,18 +21,14 @@ await fsPromises.writeFile(path.join(repoRoot, 'beta.md'), '# Beta\\n');
 await fsPromises.mkdir(path.join(repoRoot, 'logs'), { recursive: true });
 await fsPromises.writeFile(path.join(repoRoot, 'logs', 'record-1.log'), '2024-01-01 00:00:00 log line\\n');
 
-const env = {
-  ...process.env,  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub',
-  PAIROFCLEATS_TEST_CONFIG: JSON.stringify({
+const env = applyTestEnv({
+  cacheRoot,
+  embeddings: 'stub',
+  testConfig: {
     sqlite: { use: false },
     indexing: { embeddings: { enabled: false } }
-  })
-};
-applyTestEnv();
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
-process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
-process.env.PAIROFCLEATS_TEST_CONFIG = env.PAIROFCLEATS_TEST_CONFIG;
+  }
+});
 
 const result = spawnSync(
   process.execPath,
@@ -44,8 +40,6 @@ if (result.status !== 0) {
   process.exit(result.status ?? 1);
 }
 
-const previousCacheRoot = process.env.PAIROFCLEATS_CACHE_ROOT;
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 const userConfig = loadUserConfig(repoRoot);
 const modes = ['code', 'prose', 'extracted-prose', 'records'];
 const hasChunkMeta = (dir) => (
@@ -63,11 +57,4 @@ for (const mode of modes) {
   }
 }
 
-if (previousCacheRoot === undefined) {
-  delete process.env.PAIROFCLEATS_CACHE_ROOT;
-} else {
-  process.env.PAIROFCLEATS_CACHE_ROOT = previousCacheRoot;
-}
-
 console.log('build-index --mode all test passed');
-

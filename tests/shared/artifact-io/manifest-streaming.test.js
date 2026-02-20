@@ -3,12 +3,14 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { loadJsonArrayArtifact } from '../../../src/shared/artifact-io.js';
 import { writeJsonLinesSharded, writeJsonObjectFile } from '../../../src/shared/json-stream.js';
+import {
+  prepareArtifactIoTestDir,
+  writePiecesManifest
+} from '../../helpers/artifact-io-fixture.js';
 
 const root = process.cwd();
-const outDir = path.join(root, '.testCache', 'artifact-io-manifest');
+const outDir = await prepareArtifactIoTestDir('artifact-io-manifest', { root });
 const piecesDir = path.join(outDir, 'pieces');
-await fs.rm(outDir, { recursive: true, force: true });
-await fs.mkdir(piecesDir, { recursive: true });
 
 const items = Array.from({ length: 120 }, (_value, index) => ({
   id: index,
@@ -44,12 +46,7 @@ manifestPieces.push({
   name: 'items_meta',
   path: 'pieces/items.meta.json'
 });
-
-const manifest = { pieces: manifestPieces };
-await fs.writeFile(
-  path.join(piecesDir, 'manifest.json'),
-  JSON.stringify(manifest, null, 2)
-);
+await writePiecesManifest(outDir, manifestPieces);
 
 const parsed = await loadJsonArrayArtifact(outDir, 'items');
 if (!Array.isArray(parsed) || parsed.length !== items.length) {

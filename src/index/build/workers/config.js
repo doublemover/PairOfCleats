@@ -121,7 +121,7 @@ export function normalizeWorkerPoolConfig(raw = {}, options = {}) {
     : requestedMax;
   const maxWorkers = Math.max(1, cappedMax);
   const maxFileBytesRaw = raw.maxFileBytes;
-  let maxFileBytes = 512 * 1024;
+  let maxFileBytes = 2 * 1024 * 1024;
   if (maxFileBytesRaw === false || maxFileBytesRaw === 0) {
     maxFileBytes = null;
   } else {
@@ -129,6 +129,19 @@ export function normalizeWorkerPoolConfig(raw = {}, options = {}) {
     if (Number.isFinite(maxFileBytesParsed) && maxFileBytesParsed > 0) {
       maxFileBytes = Math.floor(maxFileBytesParsed);
     }
+  }
+  const minFileBytesRaw = raw.minFileBytes;
+  let minFileBytes = 4 * 1024;
+  if (minFileBytesRaw === false || minFileBytesRaw === 0) {
+    minFileBytes = null;
+  } else {
+    const minFileBytesParsed = Number(minFileBytesRaw);
+    if (Number.isFinite(minFileBytesParsed) && minFileBytesParsed > 0) {
+      minFileBytes = Math.floor(minFileBytesParsed);
+    }
+  }
+  if (Number.isFinite(minFileBytes) && Number.isFinite(maxFileBytes) && minFileBytes > maxFileBytes) {
+    minFileBytes = maxFileBytes;
   }
   const idleTimeoutMsRaw = Number(raw.idleTimeoutMs);
   const idleTimeoutMs = Number.isFinite(idleTimeoutMsRaw) && idleTimeoutMsRaw > 0
@@ -151,6 +164,7 @@ export function normalizeWorkerPoolConfig(raw = {}, options = {}) {
     enabled,
     maxWorkers,
     maxFileBytes,
+    minFileBytes,
     idleTimeoutMs,
     taskTimeoutMs,
     quantizeBatchSize,

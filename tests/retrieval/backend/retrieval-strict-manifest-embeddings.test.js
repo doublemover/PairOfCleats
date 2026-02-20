@@ -74,14 +74,18 @@ const nonStrictResult = spawnSync(
   [...searchArgs, '--non-strict'],
   { env, encoding: 'utf8' }
 );
-if (nonStrictResult.status !== 0) {
-  console.error('Expected non-strict search to succeed without pieces manifest.');
-  if (nonStrictResult.stderr) console.error(nonStrictResult.stderr.trim());
-  process.exit(nonStrictResult.status ?? 1);
+if (nonStrictResult.status === 0) {
+  console.error('Expected non-strict search to fail without pieces manifest after hard cutover.');
+  process.exit(1);
 }
-const warnOutput = `${nonStrictResult.stderr || ''}`;
-if (!warnOutput.toLowerCase().includes('non-strict') && !warnOutput.toLowerCase().includes('manifest')) {
-  console.error('Expected non-strict search to warn about manifest fallback.');
+const nonStrictOut = nonStrictResult.stdout || '';
+let nonStrictPayload = null;
+try {
+  nonStrictPayload = JSON.parse(nonStrictOut);
+} catch {}
+const nonStrictMessage = nonStrictPayload?.message || nonStrictOut || nonStrictResult.stderr || '';
+if (!String(nonStrictMessage).toLowerCase().includes('manifest')) {
+  console.error('Expected non-strict search failure to mention manifest.');
   process.exit(1);
 }
 

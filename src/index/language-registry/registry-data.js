@@ -53,6 +53,7 @@ import {
 import { buildRustChunks, buildRustRelations, collectRustImports, computeRustFlow, extractRustDocMeta } from '../../lang/rust.js';
 import { buildSwiftChunks, buildSwiftRelations, collectSwiftImports, computeSwiftFlow, extractSwiftDocMeta } from '../../lang/swift.js';
 import { buildShellChunks, buildShellRelations, collectShellImports, computeShellFlow, extractShellDocMeta } from '../../lang/shell.js';
+import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from '../../lang/flow.js';
 import { buildTreeSitterChunksAsync } from '../../lang/tree-sitter.js';
 import { buildControlFlowOnly, JS_CONTROL_FLOW, PY_CONTROL_FLOW } from './control-flow.js';
 import { buildSimpleRelations } from './simple-relations.js';
@@ -82,10 +83,477 @@ const {
   getKotlinFileStats
 } = kotlinLang;
 
-const flowOptions = (options) => ({
+const flowOptions = (options = {}) => ({
   dataflow: options.astDataflowEnabled,
   controlFlow: options.controlFlowEnabled
 });
+
+const normalizeRelPath = (relPath) => String(relPath || '').replace(/\\/g, '/');
+const normalizeRelPathLower = (relPath) => normalizeRelPath(relPath).toLowerCase();
+const countTextLines = (text) => {
+  if (!text) return 0;
+  let count = 1;
+  for (let i = 0; i < text.length; i += 1) {
+    if (text.charCodeAt(i) === 10) count += 1;
+  }
+  return count;
+};
+const PYTHON_AST_SKIP_HEAVY_DEFAULT_BYTES = 192 * 1024;
+const PYTHON_AST_SKIP_HEAVY_DEFAULT_LINES = 3000;
+const PYTHON_AST_SKIP_PATH_PARTS = ['pygments/lexers/'];
+const PYTHON_AST_SKIP_PATH_SUFFIXES = ['_builtins.py', '/_mapping.py'];
+const shouldSkipPythonAstForFile = ({ text, relPath, options }) => {
+  if (options?.pythonAst?.allowHeavyFiles === true) {
+    return { skip: false, reason: null };
+  }
+  const normalizedPath = normalizeRelPathLower(options?.filePath || relPath || '');
+  for (const pathPart of PYTHON_AST_SKIP_PATH_PARTS) {
+    if (!normalizedPath.includes(pathPart)) continue;
+    for (const suffix of PYTHON_AST_SKIP_PATH_SUFFIXES) {
+      if (normalizedPath.endsWith(suffix)) {
+        return { skip: true, reason: 'generated-path' };
+      }
+    }
+  }
+  const maxBytesRaw = Number(options?.pythonAst?.skipHeavyBytes);
+  const maxBytes = Number.isFinite(maxBytesRaw) && maxBytesRaw > 0
+    ? Math.floor(maxBytesRaw)
+    : PYTHON_AST_SKIP_HEAVY_DEFAULT_BYTES;
+  const fileSizeRaw = Number(options?.fileSizeBytes);
+  const fileSize = Number.isFinite(fileSizeRaw) && fileSizeRaw >= 0
+    ? Math.floor(fileSizeRaw)
+    : Buffer.byteLength(String(text || ''), 'utf8');
+  if (maxBytes > 0 && fileSize > maxBytes) {
+    return { skip: true, reason: 'max-bytes' };
+  }
+  const maxLinesRaw = Number(options?.pythonAst?.skipHeavyLines);
+  const maxLines = Number.isFinite(maxLinesRaw) && maxLinesRaw > 0
+    ? Math.floor(maxLinesRaw)
+    : PYTHON_AST_SKIP_HEAVY_DEFAULT_LINES;
+  const lineHintRaw = Number(options?.fileLineCountHint);
+  const fileLines = Number.isFinite(lineHintRaw) && lineHintRaw >= 0
+    ? Math.floor(lineHintRaw)
+    : countTextLines(text);
+  if (maxLines > 0 && fileLines > maxLines) {
+    return { skip: true, reason: 'max-lines' };
+  }
+  return { skip: false, reason: null };
+};
+
+const getPathBasename = (relPath) => path.posix.basename(normalizeRelPath(relPath)).toLowerCase();
+
+const MAKEFILE_BASENAMES = new Set(['makefile', 'gnumakefile', 'bsdmakefile']);
+
+const isMakefilePath = (relPath) => MAKEFILE_BASENAMES.has(getPathBasename(relPath));
+
+const isDockerfilePath = (relPath) => getPathBasename(relPath).startsWith('dockerfile');
+
+const isProtoConfigPath = (relPath) => {
+  const name = getPathBasename(relPath);
+  return name === 'buf.yaml' || name === 'buf.gen.yaml';
+};
+
+const IMPORT_COLLECTOR_CAPABILITY_PROFILE = Object.freeze({
+  state: 'partial',
+  diagnostics: Object.freeze([
+    Object.freeze({
+      code: 'USR-W-CAPABILITY-DOWNGRADED',
+      reasonCode: 'USR-R-HEURISTIC-ONLY',
+      detail: 'import-collector-adapter'
+    })
+  ])
+});
+
+const HEURISTIC_CALL_SKIP = new Set([
+  'if',
+  'for',
+  'while',
+  'switch',
+  'catch',
+  'return',
+  'throw',
+  'new',
+  'super',
+  'this',
+  'assert',
+  'try',
+  'class',
+  'interface',
+  'trait',
+  'enum',
+  'def',
+  'object',
+  'fun',
+  'when',
+  'library',
+  'require',
+  'using',
+  'import'
+]);
+
+const HEURISTIC_CONTROL_FLOW_OPTIONS = Object.freeze({
+  branchKeywords: ['if', 'else', 'switch', 'case', 'match', 'when', 'catch', 'try'],
+  loopKeywords: ['for', 'while', 'do']
+});
+
+const DART_SYMBOL_PATTERNS = Object.freeze([
+  /\b(?:class|mixin|enum|extension)\s+([A-Za-z_][A-Za-z0-9_]*)/g,
+  /\b(?:void|Future(?:<[^>]+>)?|Stream(?:<[^>]+>)?|[A-Za-z_][A-Za-z0-9_<>\[\]?]*)\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/g,
+  /\b(?:get|set)\s+([A-Za-z_][A-Za-z0-9_]*)\b/g
+]);
+
+const GROOVY_SYMBOL_PATTERNS = Object.freeze([
+  /\b(?:class|interface|trait|enum)\s+([A-Za-z_][A-Za-z0-9_]*)/g,
+  /\bdef\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/g,
+  /\b(?:public|private|protected|static|final|synchronized|abstract|\s)+[A-Za-z_][A-Za-z0-9_<>\[\]?]*\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/g
+]);
+
+const SCALA_SYMBOL_PATTERNS = Object.freeze([
+  /\b(?:class|object|trait|enum)\s+([A-Za-z_][A-Za-z0-9_]*)/g,
+  /\bdef\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?:\[[^\]]+\])?\s*\(/g
+]);
+
+const JULIA_SYMBOL_PATTERNS = Object.freeze([
+  /\b(?:module|struct|mutable\s+struct|abstract\s+type)\s+([A-Za-z_][A-Za-z0-9_]*)/g,
+  /\b(?:function|macro)\s+([A-Za-z_][A-Za-z0-9_!]*)\s*(?:\(|$)/g,
+  /\b([A-Za-z_][A-Za-z0-9_!]*)\s*\([^)]*\)\s*=/g
+]);
+
+const R_SYMBOL_PATTERNS = Object.freeze([
+  /\b([A-Za-z_][A-Za-z0-9_.]*)\s*(?:<-|=)\s*function\s*\(/g,
+  /\bsetMethod\s*\(\s*['"]([A-Za-z_][A-Za-z0-9_.]*)['"]/g
+]);
+
+const HANDLEBARS_SYMBOL_PATTERNS = Object.freeze([
+  /\{\{#\*inline\s+["']([^"']+)["']/g
+]);
+
+const MUSTACHE_SYMBOL_PATTERNS = Object.freeze([
+  /\{\{#\s*([A-Za-z_][A-Za-z0-9_.-]*)\s*\}\}/g
+]);
+
+const JINJA_SYMBOL_PATTERNS = Object.freeze([
+  /\{%\s*(?:block|macro)\s+([A-Za-z_][A-Za-z0-9_]*)/g
+]);
+
+const RAZOR_SYMBOL_PATTERNS = Object.freeze([
+  /@section\s+([A-Za-z_][A-Za-z0-9_]*)/g,
+  /@helper\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/g
+]);
+
+const GRAPHQL_SYMBOL_PATTERNS = Object.freeze([
+  /\b(?:type|interface|enum|union|input|scalar)\s+([A-Za-z_][A-Za-z0-9_]*)/g,
+  /\bfragment\s+([A-Za-z_][A-Za-z0-9_]*)\s+on\s+[A-Za-z_][A-Za-z0-9_]*/g
+]);
+
+const PROTO_SYMBOL_PATTERNS = Object.freeze([
+  /\b(?:message|enum|service)\s+([A-Za-z_][A-Za-z0-9_]*)/g,
+  /\brpc\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/g
+]);
+
+const CMAKE_SYMBOL_PATTERNS = Object.freeze([
+  /\b(?:function|macro)\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)/g
+]);
+
+const STARLARK_SYMBOL_PATTERNS = Object.freeze([
+  /\bdef\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/g
+]);
+
+const NIX_SYMBOL_PATTERNS = Object.freeze([
+  /^\s*([A-Za-z_][A-Za-z0-9_-]*)\s*=/gm
+]);
+
+const MAKEFILE_SYMBOL_PATTERNS = Object.freeze([
+  /^([A-Za-z0-9_.-]+)\s*:/gm
+]);
+
+const DOCKERFILE_SYMBOL_PATTERNS = Object.freeze([
+  /^\s*FROM\s+[^\n]+?\s+AS\s+([A-Za-z_][A-Za-z0-9_-]*)/gim
+]);
+
+const TEMPLATE_USAGE_SKIP = new Set([
+  'if',
+  'else',
+  'elif',
+  'for',
+  'each',
+  'with',
+  'unless',
+  'end',
+  'endif',
+  'endfor',
+  'block',
+  'endblock',
+  'macro',
+  'endmacro',
+  'import',
+  'include',
+  'extends',
+  'using',
+  'section'
+]);
+
+const GRAPHQL_USAGE_SKIP = new Set([
+  'query',
+  'mutation',
+  'subscription',
+  'fragment',
+  'on',
+  'schema',
+  'type',
+  'interface',
+  'enum',
+  'union',
+  'input',
+  'scalar',
+  'implements'
+]);
+
+const PROTO_USAGE_SKIP = new Set([
+  'double',
+  'float',
+  'int32',
+  'int64',
+  'uint32',
+  'uint64',
+  'sint32',
+  'sint64',
+  'fixed32',
+  'fixed64',
+  'sfixed32',
+  'sfixed64',
+  'bool',
+  'string',
+  'bytes',
+  'map',
+  'oneof',
+  'optional',
+  'required',
+  'repeated',
+  'returns',
+  'rpc'
+]);
+
+const BUILD_DSL_USAGE_SKIP = new Set([
+  'if',
+  'elseif',
+  'else',
+  'endif',
+  'foreach',
+  'endforeach',
+  'while',
+  'endwhile',
+  'function',
+  'endfunction',
+  'macro',
+  'endmacro'
+]);
+
+const sortUnique = (values) => Array.from(new Set(values.filter(Boolean))).sort((a, b) => (a < b ? -1 : (a > b ? 1 : 0)));
+
+const collectPatternNames = (text, patterns) => {
+  const names = [];
+  const source = String(text || '');
+  for (const pattern of patterns || []) {
+    const flags = pattern.flags.includes('g') ? pattern.flags : `${pattern.flags}g`;
+    const matcher = new RegExp(pattern.source, flags);
+    let match;
+    while ((match = matcher.exec(source)) !== null) {
+      const name = String(match[1] || '').trim();
+      if (name) names.push(name);
+      if (!match[0]) matcher.lastIndex += 1;
+    }
+  }
+  return sortUnique(names);
+};
+
+const collectHeuristicCallees = (text) => {
+  const source = String(text || '');
+  const out = [];
+  const callRe = /\b([A-Za-z_][A-Za-z0-9_!.]*)\s*\(/g;
+  let match;
+  while ((match = callRe.exec(source)) !== null) {
+    const callee = String(match[1] || '').trim();
+    if (callee && !HEURISTIC_CALL_SKIP.has(callee)) out.push(callee);
+    if (!match[0]) callRe.lastIndex += 1;
+  }
+  return sortUnique(out);
+};
+
+const collectTemplateUsages = (text) => {
+  const source = String(text || '');
+  const matches = [];
+  const moustacheRef = /\{\{\s*[#/>]?\s*([A-Za-z_][A-Za-z0-9_.-]*)/g;
+  const jinjaRef = /\{%\s*(?:include|extends|import|from|call|macro|block)\s+['"]?([A-Za-z_][A-Za-z0-9_.-]*)/g;
+  const razorPartialRef = /@(?:Html\.)?Partial(?:Async)?\s*\(\s*["']([^"']+)["']/g;
+  const razorCallRef = /@([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
+  for (const matcher of [moustacheRef, jinjaRef, razorPartialRef, razorCallRef]) {
+    let match;
+    while ((match = matcher.exec(source)) !== null) {
+      const name = String(match[1] || '').trim();
+      if (name && !TEMPLATE_USAGE_SKIP.has(name)) matches.push(name);
+      if (!match[0]) matcher.lastIndex += 1;
+    }
+  }
+  return sortUnique(matches);
+};
+
+const collectGraphqlUsages = (text) => {
+  const source = String(text || '');
+  const values = [];
+  const typeRef = /:\s*([A-Za-z_][A-Za-z0-9_]*)/g;
+  const fragmentRef = /\.\.\.\s*([A-Za-z_][A-Za-z0-9_]*)/g;
+  const implRef = /\b(?:on|implements)\s+([A-Za-z_][A-Za-z0-9_]*)/g;
+  for (const matcher of [typeRef, fragmentRef, implRef]) {
+    let match;
+    while ((match = matcher.exec(source)) !== null) {
+      const name = String(match[1] || '').trim();
+      if (name && !GRAPHQL_USAGE_SKIP.has(name)) values.push(name);
+      if (!match[0]) matcher.lastIndex += 1;
+    }
+  }
+  return sortUnique(values);
+};
+
+const collectProtoUsages = (text) => {
+  const source = String(text || '');
+  const values = [];
+  const rpcTypes = /\brpc\s+[A-Za-z_][A-Za-z0-9_]*\s*\(\s*([A-Za-z_][A-Za-z0-9_.]*)\s*\)\s+returns\s*\(\s*([A-Za-z_][A-Za-z0-9_.]*)\s*\)/g;
+  const fieldTypes = /\b(?:optional|required|repeated)?\s*([A-Za-z_][A-Za-z0-9_.]*)\s+[A-Za-z_][A-Za-z0-9_]*\s*=\s*\d+/g;
+  for (const matcher of [rpcTypes, fieldTypes]) {
+    let match;
+    while ((match = matcher.exec(source)) !== null) {
+      const candidates = matcher === rpcTypes ? [match[1], match[2]] : [match[1]];
+      for (const candidate of candidates) {
+        const name = String(candidate || '').trim();
+        if (name && !PROTO_USAGE_SKIP.has(name)) values.push(name);
+      }
+      if (!match[0]) matcher.lastIndex += 1;
+    }
+  }
+  return sortUnique(values);
+};
+
+const collectBuildDslUsages = (text) => {
+  const source = String(text || '');
+  const values = [];
+  const cmakeCalls = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(/gm;
+  const starlarkCalls = /\b([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
+  const makeDeps = /^[A-Za-z0-9_.-]+\s*:\s*([^\n#]+)/gm;
+  const dockerFrom = /^\s*FROM\s+([^\s]+)(?:\s+AS\s+[A-Za-z_][A-Za-z0-9_-]*)?/gim;
+  const dockerCopyFrom = /--from=([A-Za-z_][A-Za-z0-9_-]*)/g;
+  const nixOps = /\b(import|callPackage)\b/g;
+  const matchers = [cmakeCalls, starlarkCalls, dockerFrom, dockerCopyFrom, nixOps];
+  for (const matcher of matchers) {
+    let match;
+    while ((match = matcher.exec(source)) !== null) {
+      const name = String(match[1] || '').trim();
+      if (name && !BUILD_DSL_USAGE_SKIP.has(name)) values.push(name);
+      if (!match[0]) matcher.lastIndex += 1;
+    }
+  }
+  let depMatch;
+  while ((depMatch = makeDeps.exec(source)) !== null) {
+    const depBlock = String(depMatch[1] || '');
+    const deps = depBlock.split(/\s+/).map((entry) => entry.trim()).filter(Boolean);
+    for (const dep of deps) {
+      if (!BUILD_DSL_USAGE_SKIP.has(dep)) values.push(dep);
+    }
+    if (!depMatch[0]) makeDeps.lastIndex += 1;
+  }
+  return sortUnique(values);
+};
+
+const buildHeuristicManagedRelations = ({ text, options, collectImports, symbolPatterns, usageCollector }) => {
+  const base = buildSimpleRelations({ imports: collectImports(text, options) });
+  const symbols = collectPatternNames(text, symbolPatterns);
+  const callees = typeof usageCollector === 'function'
+    ? usageCollector(text)
+    : collectHeuristicCallees(text);
+  const calls = [];
+  const callers = symbols.length ? symbols : ['<module>'];
+  for (const caller of callers) {
+    for (const callee of callees) {
+      if (!callee || callee === caller) continue;
+      calls.push([caller, callee]);
+      if (calls.length >= 96) break;
+    }
+    if (calls.length >= 96) break;
+  }
+  return {
+    ...base,
+    exports: symbols,
+    calls,
+    usages: callees
+  };
+};
+
+const extractHeuristicManagedDocMeta = (chunk) => {
+  const symbol = typeof chunk?.name === 'string' ? chunk.name.trim() : '';
+  if (!symbol) return null;
+  return {
+    symbol,
+    source: 'managed-heuristic-adapter'
+  };
+};
+
+const buildHeuristicManagedFlow = (text, chunk, options = {}) => {
+  if (!chunk || !Number.isFinite(chunk.start) || !Number.isFinite(chunk.end)) return null;
+  const source = String(text || '');
+  const start = Math.max(0, chunk.start);
+  const end = Math.min(source.length, chunk.end);
+  if (end <= start) return null;
+  const scope = source.slice(start, end);
+  const dataflowEnabled = options.dataflow !== false;
+  const controlFlowEnabled = options.controlFlow !== false;
+  const out = {
+    dataflow: null,
+    controlFlow: null,
+    throws: [],
+    awaits: [],
+    yields: false,
+    returnsValue: false
+  };
+  if (dataflowEnabled) {
+    out.dataflow = buildHeuristicDataflow(scope, { skip: HEURISTIC_CALL_SKIP, memberOperators: ['.'] });
+    out.returnsValue = hasReturnValue(scope);
+    out.throws = /\bthrow\b/.test(scope) ? ['throw'] : [];
+    out.awaits = /\bawait\b/.test(scope) ? ['await'] : [];
+    out.yields = /\byield\b/.test(scope);
+  }
+  if (controlFlowEnabled) {
+    out.controlFlow = summarizeControlFlow(scope, HEURISTIC_CONTROL_FLOW_OPTIONS);
+  }
+  return out;
+};
+
+const createHeuristicManagedAdapter = ({
+  id,
+  match,
+  collectImports,
+  symbolPatterns,
+  usageCollector = null,
+  capabilityProfile = null
+}) => {
+  const adapter = {
+    id,
+    match,
+    collectImports: (text, options) => collectImports(text, options),
+    prepare: async () => ({}),
+    buildRelations: ({ text, options }) => buildHeuristicManagedRelations({
+      text,
+      options,
+      collectImports,
+      symbolPatterns,
+      usageCollector
+    }),
+    extractDocMeta: ({ chunk }) => extractHeuristicManagedDocMeta(chunk),
+    flow: ({ text, chunk, options }) => buildHeuristicManagedFlow(text, chunk, flowOptions(options)),
+    attachName: true
+  };
+  if (capabilityProfile) adapter.capabilityProfile = capabilityProfile;
+  return adapter;
+};
 
 export const LANGUAGE_REGISTRY = [
   {
@@ -133,7 +601,12 @@ export const LANGUAGE_REGISTRY = [
         options
       });
       if (!tsChunks || !tsChunks.length) {
-        tsChunks = buildTypeScriptChunks(text, { ext, relPath, parser: options?.typescript?.parser });
+        tsChunks = buildTypeScriptChunks(text, {
+          ...(options && typeof options === 'object' ? options : {}),
+          ext,
+          relPath,
+          parser: options?.typescript?.parser
+        });
       }
       return { tsChunks };
     },
@@ -165,7 +638,9 @@ export const LANGUAGE_REGISTRY = [
       let pythonAstMetrics = null;
       let pythonChunks = null;
       const pythonAstEnabled = options?.pythonAst?.enabled !== false;
-      if (pythonAstEnabled) {
+      const pythonAstSkip = shouldSkipPythonAstForFile({ text, relPath, options });
+      const runPythonAst = pythonAstEnabled && !pythonAstSkip.skip;
+      if (runPythonAst) {
         const python = await getPythonAst(text, options?.log, {
           ...options,
           dataflow: options?.astDataflowEnabled,
@@ -174,6 +649,11 @@ export const LANGUAGE_REGISTRY = [
         });
         if (python?.ast) pythonAst = python.ast;
         if (python?.metrics) pythonAstMetrics = python.metrics;
+      } else if (pythonAstEnabled && pythonAstSkip.skip && typeof options?.log === 'function') {
+        options.log(
+          `[python-ast] skip ${normalizeRelPath(relPath || options?.filePath || '')} `
+          + `(${pythonAstSkip.reason || 'policy'}).`
+        );
       }
       if (pythonAst) {
         pythonChunks = buildPythonChunksFromAst(text, pythonAst);
@@ -204,7 +684,11 @@ export const LANGUAGE_REGISTRY = [
     match: (ext) => isGo(ext),
     collectImports: (text, options) => collectGoImports(text, options),
     prepare: async ({ text, relPath, options }) => {
-      const goChunks = buildGoChunks(text, { relPath, parser: options?.go?.parser });
+      const goChunks = buildGoChunks(text, {
+        ...(options && typeof options === 'object' ? options : {}),
+        relPath,
+        parser: options?.go?.parser
+      });
       return { goChunks };
     },
     buildRelations: ({ text, context, relPath, options }) =>
@@ -218,7 +702,11 @@ export const LANGUAGE_REGISTRY = [
     match: (ext) => isJava(ext),
     collectImports: (text, options) => collectJavaImports(text, options),
     prepare: async ({ text, relPath, options }) => {
-      const javaChunks = buildJavaChunks(text, { relPath, parser: options?.java?.parser });
+      const javaChunks = buildJavaChunks(text, {
+        ...(options && typeof options === 'object' ? options : {}),
+        relPath,
+        parser: options?.java?.parser
+      });
       return { javaChunks };
     },
     buildRelations: ({ text, context, relPath, options }) =>
@@ -232,7 +720,11 @@ export const LANGUAGE_REGISTRY = [
     match: (ext) => isCSharp(ext),
     collectImports: (text, options) => collectCSharpImports(text, options),
     prepare: async ({ text, relPath, options }) => {
-      const csChunks = buildCSharpChunks(text, { relPath, parser: options?.csharp?.parser });
+      const csChunks = buildCSharpChunks(text, {
+        ...(options && typeof options === 'object' ? options : {}),
+        relPath,
+        parser: options?.csharp?.parser
+      });
       return { csChunks };
     },
     buildRelations: ({ text, context, relPath, options }) =>
@@ -246,7 +738,11 @@ export const LANGUAGE_REGISTRY = [
     match: (ext) => isKotlin(ext),
     collectImports: (text, options) => collectKotlinImports(text, options),
     prepare: async ({ text, relPath, options }) => {
-      const kotlinChunks = buildKotlinChunks(text, { relPath, parser: options?.kotlin?.parser });
+      const kotlinChunks = buildKotlinChunks(text, {
+        ...(options && typeof options === 'object' ? options : {}),
+        relPath,
+        parser: options?.kotlin?.parser
+      });
       return { kotlinChunks };
     },
     buildRelations: ({ text, context, relPath, options }) =>
@@ -260,7 +756,11 @@ export const LANGUAGE_REGISTRY = [
     match: (ext) => isRuby(ext),
     collectImports: (text, options) => collectRubyImports(text, options),
     prepare: async ({ text, relPath, options }) => {
-      const rubyChunks = buildRubyChunks(text, { relPath, parser: options?.ruby?.parser });
+      const rubyChunks = buildRubyChunks(text, {
+        ...(options && typeof options === 'object' ? options : {}),
+        relPath,
+        parser: options?.ruby?.parser
+      });
       return { rubyChunks };
     },
     buildRelations: ({ text, context, relPath, options }) =>
@@ -274,7 +774,11 @@ export const LANGUAGE_REGISTRY = [
     match: (ext) => isPhp(ext),
     collectImports: (text, options) => collectPhpImports(text, options),
     prepare: async ({ text, relPath, options }) => {
-      const phpChunks = buildPhpChunks(text, { relPath, parser: options?.php?.parser });
+      const phpChunks = buildPhpChunks(text, {
+        ...(options && typeof options === 'object' ? options : {}),
+        relPath,
+        parser: options?.php?.parser
+      });
       return { phpChunks };
     },
     buildRelations: ({ text, context, relPath, options }) =>
@@ -288,7 +792,11 @@ export const LANGUAGE_REGISTRY = [
     match: (ext) => isHtml(ext),
     collectImports: (text, options) => collectHtmlImports(text, options),
     prepare: async ({ text, relPath, options }) => {
-      const htmlChunks = buildHtmlChunks(text, { relPath, parser: options?.html?.parser });
+      const htmlChunks = buildHtmlChunks(text, {
+        ...(options && typeof options === 'object' ? options : {}),
+        relPath,
+        parser: options?.html?.parser
+      });
       return { htmlChunks };
     },
     buildRelations: ({ text, context, relPath, options }) =>
@@ -303,7 +811,11 @@ export const LANGUAGE_REGISTRY = [
     match: (ext) => isCss(ext),
     collectImports: (text, options) => collectCssImports(text, options),
     prepare: async ({ text, relPath, options }) => {
-      const cssChunks = buildCssChunks(text, { relPath, parser: options?.css?.parser });
+      const cssChunks = buildCssChunks(text, {
+        ...(options && typeof options === 'object' ? options : {}),
+        relPath,
+        parser: options?.css?.parser
+      });
       return { cssChunks };
     },
     buildRelations: ({ text, context, relPath, options }) =>
@@ -317,7 +829,11 @@ export const LANGUAGE_REGISTRY = [
     match: (ext) => isLua(ext),
     collectImports: (text, options) => collectLuaImports(text, options),
     prepare: async ({ text, relPath, options }) => {
-      const luaChunks = buildLuaChunks(text, { relPath, parser: options?.lua?.parser });
+      const luaChunks = buildLuaChunks(text, {
+        ...(options && typeof options === 'object' ? options : {}),
+        relPath,
+        parser: options?.lua?.parser
+      });
       return { luaChunks };
     },
     buildRelations: ({ text, context, relPath, options }) =>
@@ -335,6 +851,7 @@ export const LANGUAGE_REGISTRY = [
         ? options.resolveSqlDialect(ext || path.extname(relPath || ''))
         : (options?.sql?.dialect || 'generic');
       const sqlChunks = buildSqlChunks(text, {
+        ...(options && typeof options === 'object' ? options : {}),
         relPath,
         parser: options?.sql?.parser,
         dialect
@@ -361,7 +878,11 @@ export const LANGUAGE_REGISTRY = [
     match: (ext) => isPerl(ext),
     collectImports: (text, options) => collectPerlImports(text, options),
     prepare: async ({ text, relPath, options }) => {
-      const perlChunks = buildPerlChunks(text, { relPath, parser: options?.perl?.parser });
+      const perlChunks = buildPerlChunks(text, {
+        ...(options && typeof options === 'object' ? options : {}),
+        relPath,
+        parser: options?.perl?.parser
+      });
       return { perlChunks };
     },
     buildRelations: ({ text, context, relPath, options }) =>
@@ -375,7 +896,11 @@ export const LANGUAGE_REGISTRY = [
     match: (ext) => isShell(ext),
     collectImports: (text, options) => collectShellImports(text, options),
     prepare: async ({ text, relPath, options }) => {
-      const shellChunks = buildShellChunks(text, { relPath, parser: options?.shell?.parser });
+      const shellChunks = buildShellChunks(text, {
+        ...(options && typeof options === 'object' ? options : {}),
+        relPath,
+        parser: options?.shell?.parser
+      });
       return { shellChunks };
     },
     buildRelations: ({ text, context, relPath, options }) =>
@@ -389,7 +914,11 @@ export const LANGUAGE_REGISTRY = [
     match: (ext) => ext === '.rs',
     collectImports: (text, options) => collectRustImports(text, options),
     prepare: async ({ text, relPath, options }) => {
-      const rustChunks = buildRustChunks(text, { relPath, parser: options?.rust?.parser });
+      const rustChunks = buildRustChunks(text, {
+        ...(options && typeof options === 'object' ? options : {}),
+        relPath,
+        parser: options?.rust?.parser
+      });
       return { rustChunks };
     },
     buildRelations: ({ text, context, relPath, options }) =>
@@ -401,9 +930,13 @@ export const LANGUAGE_REGISTRY = [
   {
     id: 'swift',
     match: (ext) => ext === '.swift',
-    collectImports: (text, options) => collectSwiftImports(text, options),
+    collectImports: (text) => collectSwiftImports(text).imports,
     prepare: async ({ text, relPath, options }) => {
-      const swiftChunks = buildSwiftChunks(text, { relPath, parser: options?.swift?.parser });
+      const swiftChunks = buildSwiftChunks(text, {
+        ...(options && typeof options === 'object' ? options : {}),
+        relPath,
+        parser: options?.swift?.parser
+      });
       return { swiftChunks };
     },
     buildRelations: ({ text, context, relPath, options }) =>
@@ -412,116 +945,116 @@ export const LANGUAGE_REGISTRY = [
     flow: ({ text, chunk, options }) => computeSwiftFlow(text, chunk, flowOptions(options)),
     attachName: true
   },
-  {
+  createHeuristicManagedAdapter({
     id: 'cmake',
     match: (ext) => CMAKE_EXTS.has(ext),
-    collectImports: (text) => collectCmakeImports(text),
-    buildRelations: ({ text }) => buildSimpleRelations({ imports: collectCmakeImports(text) }),
-    attachName: false
-  },
-  {
+    collectImports: collectCmakeImports,
+    symbolPatterns: CMAKE_SYMBOL_PATTERNS,
+    usageCollector: collectBuildDslUsages,
+    capabilityProfile: IMPORT_COLLECTOR_CAPABILITY_PROFILE
+  }),
+  createHeuristicManagedAdapter({
     id: 'starlark',
     match: (ext) => STARLARK_EXTS.has(ext),
-    collectImports: (text) => collectStarlarkImports(text),
-    buildRelations: ({ text }) => buildSimpleRelations({ imports: collectStarlarkImports(text) }),
-    attachName: false
-  },
-  {
+    collectImports: collectStarlarkImports,
+    symbolPatterns: STARLARK_SYMBOL_PATTERNS,
+    usageCollector: collectBuildDslUsages,
+    capabilityProfile: IMPORT_COLLECTOR_CAPABILITY_PROFILE
+  }),
+  createHeuristicManagedAdapter({
     id: 'nix',
     match: (ext) => NIX_EXTS.has(ext),
-    collectImports: (text) => collectNixImports(text),
-    buildRelations: ({ text }) => buildSimpleRelations({ imports: collectNixImports(text) }),
-    attachName: false
-  },
-  {
+    collectImports: collectNixImports,
+    symbolPatterns: NIX_SYMBOL_PATTERNS,
+    usageCollector: collectBuildDslUsages,
+    capabilityProfile: IMPORT_COLLECTOR_CAPABILITY_PROFILE
+  }),
+  createHeuristicManagedAdapter({
     id: 'dart',
     match: (ext) => DART_EXTS.has(ext),
-    collectImports: (text) => collectDartImports(text),
-    buildRelations: ({ text }) => buildSimpleRelations({ imports: collectDartImports(text) }),
-    attachName: false
-  },
-  {
+    collectImports: collectDartImports,
+    symbolPatterns: DART_SYMBOL_PATTERNS
+  }),
+  createHeuristicManagedAdapter({
     id: 'scala',
     match: (ext) => SCALA_EXTS.has(ext),
-    collectImports: (text) => collectScalaImports(text),
-    buildRelations: ({ text }) => buildSimpleRelations({ imports: collectScalaImports(text) }),
-    attachName: false
-  },
-  {
+    collectImports: collectScalaImports,
+    symbolPatterns: SCALA_SYMBOL_PATTERNS
+  }),
+  createHeuristicManagedAdapter({
     id: 'groovy',
     match: (ext) => GROOVY_EXTS.has(ext),
-    collectImports: (text) => collectGroovyImports(text),
-    buildRelations: ({ text }) => buildSimpleRelations({ imports: collectGroovyImports(text) }),
-    attachName: false
-  },
-  {
+    collectImports: collectGroovyImports,
+    symbolPatterns: GROOVY_SYMBOL_PATTERNS
+  }),
+  createHeuristicManagedAdapter({
     id: 'r',
     match: (ext) => R_EXTS.has(ext),
-    collectImports: (text) => collectRImports(text),
-    buildRelations: ({ text }) => buildSimpleRelations({ imports: collectRImports(text) }),
-    attachName: false
-  },
-  {
+    collectImports: collectRImports,
+    symbolPatterns: R_SYMBOL_PATTERNS
+  }),
+  createHeuristicManagedAdapter({
     id: 'julia',
     match: (ext) => JULIA_EXTS.has(ext),
-    collectImports: (text) => collectJuliaImports(text),
-    buildRelations: ({ text }) => buildSimpleRelations({ imports: collectJuliaImports(text) }),
-    attachName: false
-  },
-  {
+    collectImports: collectJuliaImports,
+    symbolPatterns: JULIA_SYMBOL_PATTERNS
+  }),
+  createHeuristicManagedAdapter({
     id: 'handlebars',
     match: (ext) => HANDLEBARS_EXTS.has(ext),
-    collectImports: (text) => collectHandlebarsImports(text),
-    buildRelations: ({ text }) => buildSimpleRelations({ imports: collectHandlebarsImports(text) }),
-    attachName: false
-  },
-  {
+    collectImports: collectHandlebarsImports,
+    symbolPatterns: HANDLEBARS_SYMBOL_PATTERNS,
+    usageCollector: collectTemplateUsages
+  }),
+  createHeuristicManagedAdapter({
     id: 'mustache',
     match: (ext) => MUSTACHE_EXTS.has(ext),
-    collectImports: (text) => collectMustacheImports(text),
-    buildRelations: ({ text }) => buildSimpleRelations({ imports: collectMustacheImports(text) }),
-    attachName: false
-  },
-  {
+    collectImports: collectMustacheImports,
+    symbolPatterns: MUSTACHE_SYMBOL_PATTERNS,
+    usageCollector: collectTemplateUsages
+  }),
+  createHeuristicManagedAdapter({
     id: 'jinja',
     match: (ext) => JINJA_EXTS.has(ext),
-    collectImports: (text) => collectJinjaImports(text),
-    buildRelations: ({ text }) => buildSimpleRelations({ imports: collectJinjaImports(text) }),
-    attachName: false
-  },
-  {
+    collectImports: collectJinjaImports,
+    symbolPatterns: JINJA_SYMBOL_PATTERNS,
+    usageCollector: collectTemplateUsages
+  }),
+  createHeuristicManagedAdapter({
     id: 'razor',
     match: (ext) => RAZOR_EXTS.has(ext),
-    collectImports: (text) => collectRazorImports(text),
-    buildRelations: ({ text }) => buildSimpleRelations({ imports: collectRazorImports(text) }),
-    attachName: false
-  },
-  {
+    collectImports: collectRazorImports,
+    symbolPatterns: RAZOR_SYMBOL_PATTERNS,
+    usageCollector: collectTemplateUsages
+  }),
+  createHeuristicManagedAdapter({
     id: 'proto',
-    match: (ext, relPath) => ext === '.proto' || relPath === 'buf.gen.yaml' || relPath === 'buf.yaml',
-    collectImports: (text, options) => collectProtoImports(text, options),
-    buildRelations: ({ text, options }) => buildSimpleRelations({ imports: collectProtoImports(text, options) }),
-    attachName: false
-  },
-  {
+    match: (ext, relPath) => ext === '.proto' || isProtoConfigPath(relPath),
+    collectImports: collectProtoImports,
+    symbolPatterns: PROTO_SYMBOL_PATTERNS,
+    usageCollector: collectProtoUsages
+  }),
+  createHeuristicManagedAdapter({
     id: 'makefile',
-    match: (_ext, relPath) => relPath && relPath.toLowerCase() === 'makefile',
-    collectImports: (text) => collectMakefileImports(text),
-    buildRelations: ({ text }) => buildSimpleRelations({ imports: collectMakefileImports(text) }),
-    attachName: false
-  },
-  {
+    match: (_ext, relPath) => isMakefilePath(relPath),
+    collectImports: collectMakefileImports,
+    symbolPatterns: MAKEFILE_SYMBOL_PATTERNS,
+    usageCollector: collectBuildDslUsages,
+    capabilityProfile: IMPORT_COLLECTOR_CAPABILITY_PROFILE
+  }),
+  createHeuristicManagedAdapter({
     id: 'dockerfile',
-    match: (_ext, relPath) => relPath && relPath.toLowerCase() === 'dockerfile',
-    collectImports: (text) => collectDockerfileImports(text),
-    buildRelations: ({ text }) => buildSimpleRelations({ imports: collectDockerfileImports(text) }),
-    attachName: false
-  },
-  {
+    match: (_ext, relPath) => isDockerfilePath(relPath),
+    collectImports: collectDockerfileImports,
+    symbolPatterns: DOCKERFILE_SYMBOL_PATTERNS,
+    usageCollector: collectBuildDslUsages,
+    capabilityProfile: IMPORT_COLLECTOR_CAPABILITY_PROFILE
+  }),
+  createHeuristicManagedAdapter({
     id: 'graphql',
     match: (ext) => ext === '.graphql' || ext === '.gql',
-    collectImports: (text) => collectGraphqlImports(text),
-    buildRelations: ({ text }) => buildSimpleRelations({ imports: collectGraphqlImports(text) }),
-    attachName: false
-  }
+    collectImports: collectGraphqlImports,
+    symbolPatterns: GRAPHQL_SYMBOL_PATTERNS,
+    usageCollector: collectGraphqlUsages
+  })
 ];

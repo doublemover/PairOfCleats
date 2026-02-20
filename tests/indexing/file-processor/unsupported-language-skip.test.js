@@ -71,6 +71,13 @@ if (!skip) {
   console.error('Expected unsupported-language skip entry.');
   process.exit(1);
 }
+const diagnostics = Array.isArray(skip.diagnostics) ? skip.diagnostics : [];
+const parserUnavailable = diagnostics.find((entry) =>
+  entry?.code === 'USR-E-CAPABILITY-LOST' && entry?.reasonCode === 'USR-R-PARSER-UNAVAILABLE');
+if (!parserUnavailable) {
+  console.error('Expected unsupported-language skip diagnostics with parser-unavailable reason.');
+  process.exit(1);
+}
 
 console.log('unsupported-language skip test passed');
 

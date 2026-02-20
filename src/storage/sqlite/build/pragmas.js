@@ -1,6 +1,7 @@
 import { performance } from 'node:perf_hooks';
 
 const BYTES_PER_MB = 1024 * 1024;
+const SQLITE_MMAP_TARGET_MB = 8 * 1024;
 const ANALYZE_THRESHOLD_BYTES = 128 * BYTES_PER_MB;
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -30,9 +31,7 @@ const resolveBuildPragmas = (options = {}) => {
   const cacheMb = inputMb === null
     ? 200
     : clamp(Math.round(inputMb * 0.1), 64, 512);
-  const mmapMb = inputMb === null
-    ? 256
-    : clamp(Math.round(inputMb * 0.2), 128, 1024);
+  const mmapMb = SQLITE_MMAP_TARGET_MB;
   const journalLimitBytes = inputMb === null
     ? 64 * BYTES_PER_MB
     : clamp(Math.round(inputBytes * 0.05), 32 * BYTES_PER_MB, 256 * BYTES_PER_MB);
@@ -54,9 +53,7 @@ const resolveReadPragmas = (options = {}) => {
   const cacheMb = dbMb === null
     ? 64
     : clamp(Math.round(dbMb * 0.1), 32, 256);
-  const mmapMb = dbMb === null
-    ? 256
-    : clamp(Math.round(dbMb * 0.5), 128, 2048);
+  const mmapMb = SQLITE_MMAP_TARGET_MB;
   return {
     temp_store: 'MEMORY',
     cache_size: -cacheMb * 1024,

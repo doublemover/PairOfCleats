@@ -64,6 +64,8 @@ export const resolveTreeSitterRuntime = (indexingConfig) => {
   const treeSitterConfig = indexingConfig.treeSitter || {};
   const treeSitterEnabled = treeSitterConfig.enabled !== false;
   const treeSitterLanguages = treeSitterConfig.languages || {};
+  // Keep a conservative global ceiling by default so oversized JS payloads
+  // are rejected early and do not trigger expensive parser/minified heuristics.
   const treeSitterMaxBytes = normalizeLimit(treeSitterConfig.maxBytes, 512 * 1024);
   const treeSitterMaxLines = normalizeLimit(treeSitterConfig.maxLines, 10000);
   const treeSitterMaxParseMs = normalizeLimit(treeSitterConfig.maxParseMs, 1000);
@@ -75,7 +77,11 @@ export const resolveTreeSitterRuntime = (indexingConfig) => {
     typescript: { maxBytes: 256 * 1024, maxLines: null, maxParseMs: null },
     tsx: { maxBytes: 256 * 1024, maxLines: null, maxParseMs: null },
     jsx: { maxBytes: 256 * 1024, maxLines: null, maxParseMs: null },
-    html: { maxBytes: 256 * 1024, maxLines: null, maxParseMs: null }
+    html: { maxBytes: 256 * 1024, maxLines: null, maxParseMs: null },
+    yaml: { maxBytes: 192 * 1024, maxLines: 4000, maxParseMs: 1500 },
+    clike: { maxBytes: 384 * 1024, maxLines: 6000, maxParseMs: 2000 },
+    cpp: { maxBytes: 384 * 1024, maxLines: 6000, maxParseMs: 2000 },
+    objc: { maxBytes: 384 * 1024, maxLines: 6000, maxParseMs: 2000 }
   };
   const mergedTreeSitterByLanguage = {
     ...heavyGrammarDefaults,

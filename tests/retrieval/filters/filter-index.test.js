@@ -33,6 +33,15 @@ const meta = [
     chunk_authors: ['Carol'],
     docmeta: { visibility: 'public' },
     metaV2: { lang: 'python', effective: { languageId: 'python' } }
+  },
+  {
+    id: 3,
+    file: 'docs/d.md',
+    ext: '.md',
+    kind: 'Paragraph',
+    last_author: 'Dana',
+    docmeta: { visibility: 'public' },
+    metaV2: { lang: 'unknown', effective: { languageId: 'unknown' } }
   }
 ];
 
@@ -57,6 +66,7 @@ const expectIds = (filters, expected, label) => {
 
 expectIds({ ext: '.py', author: 'bob' }, [1], 'author+ext');
 expectIds({ chunkAuthor: 'alice' }, [0, 1], 'chunkAuthor');
+expectIds({ chunkAuthor: 'dana' }, [3], 'chunkAuthor fallback to last_author');
 expectIds({ visibility: 'public', type: 'FunctionDeclaration' }, [0, 2], 'visibility+type');
 
 console.log('Filter index test passed');

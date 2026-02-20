@@ -17,5 +17,8 @@ export const TYPE_KIND_PATTERNS = [
   /type/i
 ];
 
-export const RETURN_CALL_RX = /return\s+(?:await\s+)?(?!new\s)([A-Za-z_$][\w$.:]*)\s*\(/g;
+// Match only invocation returns (e.g. `return fn(`), not bare identifiers (`return fn;`).
+export const RETURN_CALL_RX = /return\s+(?:await\s+)?(?!new\s)(?:&\s*)?([A-Za-z_$][\w$.:]*)\s*\(/g;
 export const RETURN_NEW_RX = /return\s+(?:await\s+)?new\s+([A-Za-z_$][\w$.:]*)\s*\(/g;
+export const RETURN_BARE_TARGET_RX =
+  /^\s*return\s+(?:await\s+)?(?!new\b)(?:&\s*)?([A-Za-z_$][\w$.:!?]*)\s*(?:;?\s*)?(?:(?:\/\/|#).*)?$/gm;

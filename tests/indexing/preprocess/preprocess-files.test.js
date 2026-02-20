@@ -10,6 +10,8 @@ const cacheRoot = path.join(root, '.testCache', 'preprocess');
 await fs.rm(cacheRoot, { recursive: true, force: true });
 await fs.mkdir(path.join(cacheRoot, 'src'), { recursive: true });
 await fs.mkdir(path.join(cacheRoot, 'docs'), { recursive: true });
+await fs.mkdir(path.join(cacheRoot, 'src', 'site'), { recursive: true });
+await fs.mkdir(path.join(cacheRoot, 'docs', 'reference'), { recursive: true });
 await fs.mkdir(path.join(cacheRoot, 'logs'), { recursive: true });
 
 await fs.writeFile(path.join(cacheRoot, 'src', 'app.js'), 'const a = 1;\nconst b = 2;\n');
@@ -23,6 +25,23 @@ await fs.copyFile(
   path.join(cacheRoot, 'src', 'binary.png')
 );
 await fs.writeFile(path.join(cacheRoot, 'docs', 'readme.md'), '# title\n');
+await fs.writeFile(
+  path.join(cacheRoot, 'docs', 'reference', 'index.html'),
+  '<!doctype html>\n<html>\n  <body>\n    docs prose\n  </body>\n</html>\n'
+);
+await fs.writeFile(
+  path.join(cacheRoot, 'docs', 'reference', 'site.js'),
+  'const docsScript = 1;\nfunction renderDocsScript() {\n  return docsScript;\n}\n'
+);
+await fs.writeFile(path.join(cacheRoot, 'docs', 'reference', 'search.json'), '{"hits":[{"title":"docs"}]}\n');
+await fs.writeFile(
+  path.join(cacheRoot, 'docs', 'reference', 'site.css'),
+  '.docs {\n  color: #111;\n  padding: 1rem;\n}\n'
+);
+await fs.writeFile(
+  path.join(cacheRoot, 'src', 'site', 'index.html'),
+  '<!doctype html>\n<html>\n  <body>\n    code-ish\n  </body>\n</html>\n'
+);
 await fs.writeFile(path.join(cacheRoot, 'logs', 'app.log'), '2024-01-01 12:00:00 started\n');
 
 const { ignoreMatcher } = await buildIgnoreMatcher({ root: cacheRoot, userConfig: {} });
@@ -56,9 +75,22 @@ const codeEntries = result.entriesByMode.code.map((entry) => entry.rel).sort();
 const proseEntries = result.entriesByMode.prose.map((entry) => entry.rel).sort();
 const extractedEntries = result.entriesByMode['extracted-prose'].map((entry) => entry.rel).sort();
 const recordEntries = result.entriesByMode.records.map((entry) => entry.rel).sort();
-assert.deepEqual(codeEntries, ['src/app.js']);
-assert.deepEqual(proseEntries, ['docs/readme.md']);
-assert.deepEqual(extractedEntries, ['docs/readme.md', 'src/app.js']);
+assert.deepEqual(codeEntries, ['src/app.js', 'src/site/index.html']);
+assert.deepEqual(
+  proseEntries,
+  ['docs/readme.md', 'docs/reference/index.html', 'docs/reference/search.json', 'docs/reference/site.css']
+);
+assert.deepEqual(
+  extractedEntries,
+  [
+    'docs/readme.md',
+    'docs/reference/index.html',
+    'docs/reference/search.json',
+    'docs/reference/site.css',
+    'src/app.js',
+    'src/site/index.html'
+  ]
+);
 assert.deepEqual(recordEntries, ['logs/app.log']);
 assert.ok(!codeEntries.includes('logs/app.log'), 'records should not appear in code');
 assert.ok(!proseEntries.includes('logs/app.log'), 'records should not appear in prose');

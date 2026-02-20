@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { writeJsonLinesSharded, writeJsonObjectFile } from '../../../src/shared/json-stream.js';
 import { buildDatabaseFromArtifacts, loadIndexPieces } from '../../../src/storage/sqlite/build/from-artifacts.js';
+import { writePiecesManifest } from '../../helpers/artifact-io-fixture.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
 applyTestEnv({ testing: '1' });
@@ -106,6 +107,20 @@ const createIndexDir = async (dir, shardCount) => {
     arrays: { docLengths },
     atomic: true
   });
+  await writePiecesManifest(dir, [
+    ...shardResult.parts.map((part) => ({
+      name: 'chunk_meta',
+      path: part,
+      format: 'jsonl'
+    })),
+    { name: 'chunk_meta_meta', path: 'chunk_meta.meta.json', format: 'json' },
+    ...parts.map((part) => ({
+      name: 'token_postings',
+      path: part,
+      format: 'sharded'
+    })),
+    { name: 'token_postings_meta', path: 'token_postings.meta.json', format: 'json' }
+  ]);
 };
 
 const runBuild = async ({ indexDir, outPath }) => {

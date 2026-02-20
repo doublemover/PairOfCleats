@@ -206,6 +206,89 @@ const buildTokenSetForLeaf = (raw, dictWords, dictConfig, ext) => {
   }).tokens;
 };
 
+const TOKEN_CLASSIFICATION_TS_MAX_CHUNK_BYTES_DEFAULT = 24 * 1024;
+const TOKEN_CLASSIFICATION_TS_MAX_FILE_BYTES_DEFAULT = 256 * 1024;
+const TOKEN_CLASSIFICATION_TS_MAX_CHUNKS_PER_FILE_DEFAULT = 96;
+const TOKEN_CLASSIFICATION_TS_MAX_BYTES_PER_FILE_DEFAULT = 384 * 1024;
+
+const normalizePositiveIntOrNull = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return Math.max(1, Math.floor(parsed));
+};
+
+const resolveClassificationLimit = (value, fallback) => {
+  const parsed = normalizePositiveIntOrNull(value);
+  return parsed == null ? fallback : parsed;
+};
+
+export const createTokenClassificationRuntime = ({ context, fileBytes = null } = {}) => {
+  const tokenClassification = context?.tokenClassification && typeof context.tokenClassification === 'object'
+    ? context.tokenClassification
+    : {};
+  const maxChunkBytes = resolveClassificationLimit(
+    tokenClassification.treeSitterMaxChunkBytes,
+    TOKEN_CLASSIFICATION_TS_MAX_CHUNK_BYTES_DEFAULT
+  );
+  const maxFileBytes = resolveClassificationLimit(
+    tokenClassification.treeSitterMaxFileBytes,
+    TOKEN_CLASSIFICATION_TS_MAX_FILE_BYTES_DEFAULT
+  );
+  const maxChunksPerFile = resolveClassificationLimit(
+    tokenClassification.treeSitterMaxChunksPerFile,
+    TOKEN_CLASSIFICATION_TS_MAX_CHUNKS_PER_FILE_DEFAULT
+  );
+  const maxBytesPerFile = resolveClassificationLimit(
+    tokenClassification.treeSitterMaxBytesPerFile,
+    TOKEN_CLASSIFICATION_TS_MAX_BYTES_PER_FILE_DEFAULT
+  );
+  const normalizedFileBytes = normalizePositiveIntOrNull(fileBytes) || 0;
+  const withinFileCap = maxFileBytes == null || normalizedFileBytes <= maxFileBytes;
+  return {
+    treeSitterEnabled: withinFileCap,
+    treeSitterDisabledReason: withinFileCap ? null : 'file-size',
+    maxChunkBytes,
+    maxFileBytes,
+    maxChunksPerFile,
+    maxBytesPerFile,
+    remainingChunks: maxChunksPerFile,
+    remainingBytes: maxBytesPerFile,
+    fileBytes: normalizedFileBytes
+  };
+};
+
+const shouldUseTreeSitterClassification = ({ context, text }) => {
+  const treeSitterConfig = context?.treeSitter;
+  if (!treeSitterConfig || treeSitterConfig.enabled === false) return false;
+  const tokenClassification = context?.tokenClassification && typeof context.tokenClassification === 'object'
+    ? context.tokenClassification
+    : {};
+  const runtime = context?.tokenClassificationRuntime && typeof context.tokenClassificationRuntime === 'object'
+    ? context.tokenClassificationRuntime
+    : null;
+  const maxChunkBytes = resolveClassificationLimit(
+    tokenClassification.treeSitterMaxChunkBytes,
+    runtime?.maxChunkBytes ?? TOKEN_CLASSIFICATION_TS_MAX_CHUNK_BYTES_DEFAULT
+  );
+  const chunkBytes = Buffer.byteLength(text || '', 'utf8');
+  if (maxChunkBytes != null && chunkBytes > maxChunkBytes) return false;
+  if (!runtime) return true;
+  if (runtime.treeSitterEnabled === false) return false;
+  if (runtime.remainingChunks <= 0) {
+    runtime.treeSitterEnabled = false;
+    runtime.treeSitterDisabledReason = runtime.treeSitterDisabledReason || 'chunk-budget';
+    return false;
+  }
+  if (runtime.remainingBytes < chunkBytes) {
+    runtime.treeSitterEnabled = false;
+    runtime.treeSitterDisabledReason = runtime.treeSitterDisabledReason || 'byte-budget';
+    return false;
+  }
+  runtime.remainingChunks -= 1;
+  runtime.remainingBytes = Math.max(0, runtime.remainingBytes - chunkBytes);
+  return true;
+};
+
 const classifyTokensWithTreeSitter = ({
   text,
   languageId,
@@ -326,7 +409,9 @@ export const classifyTokenBuckets = ({
     return { identifierTokens: [], keywordTokens: [], operatorTokens: [], literalTokens: [] };
   }
   const keywordSet = resolveKeywordSet(languageId);
-  const treeSitterConfig = context?.treeSitter || null;
+  const treeSitterConfig = shouldUseTreeSitterClassification({ context, text })
+    ? (context?.treeSitter || null)
+    : { enabled: false };
   const treeSitterSets = classifyTokensWithTreeSitter({
     text,
     languageId,
@@ -480,6 +565,30 @@ const normalizeToken = (value) => {
   return value;
 };
 
+const PROSE_DICT_SPLIT_BYPASS_EXTS = new Set([
+  '.html',
+  '.htm',
+  '.js',
+  '.mjs',
+  '.cjs',
+  '.jsx',
+  '.ts',
+  '.tsx',
+  '.css',
+  '.scss',
+  '.less',
+  '.map',
+  '.json',
+  '.jsonc',
+  '.yml',
+  '.yaml',
+  '.toml',
+  '.ini',
+  '.cfg',
+  '.conf',
+  '.xml'
+]);
+
 const buildSequenceFromTokens = (tokens, seqBuffer = null) => {
   if (!Array.isArray(tokens) || !tokens.length) return [];
   let hasSynonyms = false;
@@ -550,14 +659,17 @@ export const sliceFileLineTokenStream = ({ stream, startLine, endLine }) => {
   const start = Math.max(1, Math.floor(Number(startLine) || 1));
   const end = Math.max(start, Math.floor(Number(endLine) || start));
   const tokens = [];
+  const appendList = (list) => {
+    for (let i = 0; i < list.length; i += 1) tokens.push(list[i]);
+  };
   for (let line = start; line <= end; line += 1) {
     const list = lineTokens[line - 1];
-    if (Array.isArray(list) && list.length) tokens.push(...list);
+    if (Array.isArray(list) && list.length) appendList(list);
   }
   if (linePunctuationTokens) {
     for (let line = start; line <= end; line += 1) {
       const list = linePunctuationTokens[line - 1];
-      if (Array.isArray(list) && list.length) tokens.push(...list);
+      if (Array.isArray(list) && list.length) appendList(list);
     }
   }
   return { tokens, seq: buildSequenceFromTokens(tokens) };
@@ -600,7 +712,10 @@ export function buildTokenSequence({
   }
 
   let working = scratch;
-  if (!(mode === 'prose' && ext === '.md')) {
+  const normalizedExt = typeof ext === 'string' ? ext.toLowerCase() : '';
+  const skipDictSegmentation = mode === 'prose'
+    && (normalizedExt === '.md' || PROSE_DICT_SPLIT_BYPASS_EXTS.has(normalizedExt));
+  if (!skipDictSegmentation) {
     for (const token of working) {
       const parts = splitWordsWithDict(token, dictWords, dictConfig);
       if (Array.isArray(parts) && parts.length) {

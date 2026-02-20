@@ -3,11 +3,13 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { writeJsonLinesFile } from '../../../src/shared/json-stream.js';
 import { loadSymbolOccurrencesByFile } from '../../../src/shared/artifact-io/loaders.js';
+import {
+  prepareArtifactIoTestDir,
+  writePiecesManifest
+} from '../../helpers/artifact-io-fixture.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'broken-offsets-fallback');
-await fs.rm(tempRoot, { recursive: true, force: true });
-await fs.mkdir(tempRoot, { recursive: true });
+const tempRoot = await prepareArtifactIoTestDir('broken-offsets-fallback', { root });
 
 const fileMeta = [
   { id: 0, file: 'src/a.js' },
@@ -34,6 +36,11 @@ await fs.writeFile(
   path.join(tempRoot, 'symbol_occurrences.by-file.meta.json'),
   JSON.stringify(perFileMeta, null, 2)
 );
+await writePiecesManifest(tempRoot, [
+  { name: 'file_meta', path: 'file_meta.json', format: 'json' },
+  { name: 'symbol_occurrences', path: 'symbol_occurrences.jsonl' },
+  { name: 'symbol_occurrences_by_file_meta', path: 'symbol_occurrences.by-file.meta.json', format: 'json' }
+]);
 
 const rows = await loadSymbolOccurrencesByFile(tempRoot, {
   filePath: 'src/a.js',

@@ -10,7 +10,7 @@ import { promoteBuild } from '../../../index/build/promotion.js';
 import { validateIndexArtifacts } from '../../../index/validate.js';
 import { logError as defaultLogError, logLine, showProgress } from '../../../shared/progress.js';
 import { isAbortError, throwIfAborted } from '../../../shared/abort.js';
-import { isTestingEnv } from '../../../shared/env.js';
+import { getEnvConfig, isTestingEnv } from '../../../shared/env.js';
 import { SCHEDULER_QUEUE_NAMES } from '../../../index/build/runtime/scheduler.js';
 import { createFeatureMetrics, writeFeatureMetrics } from '../../../index/build/feature-metrics.js';
 import {
@@ -27,6 +27,41 @@ import { createOverallProgress } from './progress.js';
 import { teardownRuntime } from './runtime.js';
 import { updateEnrichmentState } from '../enrichment-state.js';
 import { runEmbeddingsTool } from '../embeddings.js';
+
+const DEFAULT_BUILD_INDEX_LOCK_WAIT_MS = 15000;
+const DEFAULT_BUILD_INDEX_LOCK_POLL_MS = 250;
+const ENV_CONFIG = getEnvConfig();
+
+const parseNonNegativeInt = (value, fallback) => {
+  const parsed = Number.parseInt(String(value ?? ''), 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+};
+
+const BUILD_INDEX_LOCK_WAIT_MS = parseNonNegativeInt(
+  ENV_CONFIG.buildIndexLockWaitMs,
+  DEFAULT_BUILD_INDEX_LOCK_WAIT_MS
+);
+const BUILD_INDEX_LOCK_POLL_MS = Math.max(
+  1,
+  parseNonNegativeInt(
+    ENV_CONFIG.buildIndexLockPollMs,
+    DEFAULT_BUILD_INDEX_LOCK_POLL_MS
+  )
+);
+
+const acquireBuildIndexLock = async ({ repoCacheRoot, log }) => {
+  const lock = await acquireIndexLock({
+    repoCacheRoot,
+    waitMs: BUILD_INDEX_LOCK_WAIT_MS,
+    pollMs: BUILD_INDEX_LOCK_POLL_MS,
+    log
+  });
+  if (lock) return lock;
+  if (BUILD_INDEX_LOCK_WAIT_MS > 0) {
+    log(`[build] Index lock unavailable after waiting ${BUILD_INDEX_LOCK_WAIT_MS}ms.`);
+  }
+  throw new Error('Index lock unavailable.');
+};
 
 export const runEmbeddingsStage = async ({
   root,
@@ -68,8 +103,7 @@ export const runEmbeddingsStage = async ({
       || buildInfo?.buildRoot
       || null
     );
-    const lock = await acquireIndexLock({ repoCacheRoot, log });
-    if (!lock) throw new Error('Index lock unavailable.');
+    const lock = await acquireBuildIndexLock({ repoCacheRoot, log });
     try {
       throwIfAborted(abortSignal);
       const embedTotal = embedModes.length;
@@ -362,8 +396,7 @@ export const runSqliteStage = async ({
       await updateBuildState(runtime.buildRoot, { stage: 'stage4' });
       const shouldPromote = !(explicitIndexRoot && argv.stage === 'stage4');
       if (shouldPromote) {
-        lock = await acquireIndexLock({ repoCacheRoot: runtime.repoCacheRoot, log });
-        if (!lock) throw new Error('Index lock unavailable.');
+        lock = await acquireBuildIndexLock({ repoCacheRoot: runtime.repoCacheRoot, log });
         await markBuildPhase(runtime.buildRoot, 'promote', 'running');
         promoteRunning = true;
         await promoteBuild({
@@ -640,8 +673,7 @@ export const runStage = async (stage, context, { allowSqlite = true } = {}) => {
       await markBuildPhase(runtime.buildRoot, 'validation', 'done');
       validationDone = true;
       throwIfAborted(abortSignal);
-      lock = await acquireIndexLock({ repoCacheRoot: runtime.repoCacheRoot, log });
-      if (!lock) throw new Error('Index lock unavailable.');
+      lock = await acquireBuildIndexLock({ repoCacheRoot: runtime.repoCacheRoot, log });
       await markBuildPhase(runtime.buildRoot, 'promote', 'running');
       promoteRunning = true;
       throwIfAborted(abortSignal);

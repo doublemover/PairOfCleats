@@ -4,6 +4,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { writeJsonLinesSharded, writeJsonObjectFile } from '../../../src/shared/json-stream.js';
+import { writePiecesManifest } from '../../helpers/artifact-io-fixture.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
 applyTestEnv({ testing: '1' });
@@ -93,6 +94,20 @@ await writeJsonObjectFile(path.join(indexDir, 'token_postings.meta.json'), {
   arrays: { docLengths },
   atomic: true
 });
+await writePiecesManifest(indexDir, [
+  ...shardResult.parts.map((part) => ({
+    name: 'chunk_meta',
+    path: part,
+    format: 'jsonl'
+  })),
+  { name: 'chunk_meta_meta', path: 'chunk_meta.meta.json', format: 'json' },
+  {
+    name: 'token_postings',
+    path: 'token_postings.shards/token_postings.part-00000.json',
+    format: 'sharded'
+  },
+  { name: 'token_postings_meta', path: 'token_postings.meta.json', format: 'json' }
+]);
 
 const benchScript = path.join(root, 'tools', 'bench', 'sqlite', 'build-from-artifacts.js');
 const result = spawnSync(process.execPath, [

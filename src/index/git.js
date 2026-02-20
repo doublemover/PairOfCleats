@@ -10,6 +10,7 @@ import {
 } from '../shared/cache.js';
 import { buildLocalCacheKey } from '../shared/cache-key.js';
 import { isAbsolutePathNative, toPosix } from '../shared/files.js';
+import { log } from '../shared/progress.js';
 import { getChunkAuthorsFromLines } from './scm/annotate.js';
 
 let gitMetaCache = createLruCache({
@@ -25,6 +26,12 @@ let gitBlameCache = createLruCache({
   ttlMs: DEFAULT_CACHE_TTL_MS.gitMeta,
   sizeCalculation: estimateJsonBytes
 });
+const gitRootFailureState = new Map();
+const GIT_ROOT_FAILURE_BLOCK_MS = 5 * 60 * 1000;
+const GIT_FAILURE_SCOPE = Object.freeze({
+  META: 'meta',
+  BLAME: 'blame'
+});
 
 const warnedGitRoots = new Set();
 
@@ -33,7 +40,7 @@ const warnGitUnavailable = (repoRoot, message = 'Git metadata unavailable.') => 
   if (warnedGitRoots.has(key)) return;
   warnedGitRoots.add(key);
   const suffix = repoRoot ? ` (${repoRoot})` : '';
-  console.warn(`[git] ${message}${suffix}`);
+  log(`[git] ${message}${suffix}`);
 };
 
 const resolveBlameMaxOutputBytes = (absFile) => {
@@ -77,29 +84,110 @@ export function configureGitMetaCache(cacheConfig, reporter = null) {
 }
 
 /**
- * Fetch git metadata for an entire file, with optional line-level blame.
- * Returns empty object when git is unavailable or fails.
+ * Fetch per-line git authors for a file.
+ * Uses a dedicated blame cache so callers that only need blame data avoid
+ * running file-level churn/log metadata commands.
+ *
  * @param {string} file
- * @param {{blame?:boolean,baseDir?:string}} [options]
- * @returns {Promise<{last_modified?:string,last_author?:string,churn?:number,churn_added?:number,churn_deleted?:number,churn_commits?:number,lineAuthors?:string[]}|{}>}
+ * @param {{baseDir?:string,timeoutMs?:number,signal?:AbortSignal|null}} [options]
+ * @returns {Promise<string[]|null>}
  */
-export async function getGitMetaForFile(file, options = {}) {
-  const blameEnabled = options.blame !== false;
+export async function getGitLineAuthorsForFile(file, options = {}) {
   const baseDir = options.baseDir
     ? path.resolve(options.baseDir)
     : (isAbsolutePathNative(file) ? path.dirname(file) : process.cwd());
   const relFile = isAbsolutePathNative(file) ? path.relative(baseDir, file) : file;
   const absFile = isAbsolutePathNative(file) ? file : path.resolve(baseDir, file);
   const fileArg = toPosix(relFile);
-  const cacheKey = buildLocalCacheKey({
-    namespace: 'git-meta',
+  const timeoutMs = Number.isFinite(Number(options.timeoutMs)) ? Number(options.timeoutMs) : null;
+  const signal = options.signal || null;
+  const blameKey = buildLocalCacheKey({
+    namespace: 'git-blame',
     payload: {
       baseDir,
       file: fileArg
     }
   }).key;
+
+  if (isGitTemporarilyDisabled(baseDir, GIT_FAILURE_SCOPE.BLAME)) return null;
+
+  const cached = gitBlameCache.get(blameKey);
+  if (cached) return cached;
+
+  try {
+    let blame = null;
+    if (timeoutMs || signal) {
+      const result = await runScmCommand('git', ['-C', baseDir, 'blame', '--line-porcelain', '--', fileArg], {
+        outputMode: 'string',
+        captureStdout: true,
+        captureStderr: true,
+        rejectOnNonZeroExit: false,
+        maxOutputBytes: resolveBlameMaxOutputBytes(absFile),
+        timeoutMs,
+        signal
+      });
+      if (result.exitCode !== 0) {
+        throw createGitNonZeroExitError('git blame', result);
+      }
+      blame = result.stdout;
+    } else {
+      const git = simpleGit({ baseDir });
+      blame = await git.raw(['blame', '--line-porcelain', '--', fileArg]);
+    }
+    const lineAuthors = parseLineAuthors(blame);
+    if (lineAuthors) gitBlameCache.set(blameKey, lineAuthors);
+    clearGitFailureState(baseDir, GIT_FAILURE_SCOPE.BLAME);
+    return lineAuthors || null;
+  } catch (err) {
+    recordGitFailure(baseDir, err, GIT_FAILURE_SCOPE.BLAME);
+    warnGitUnavailable(baseDir);
+    return null;
+  }
+}
+
+/**
+ * Fetch git metadata for an entire file, with optional line-level blame.
+ *
+ * Uses per-root caches and a temporary backoff circuit so repeated git
+ * timeouts/unavailability do not repeatedly stall hot indexing paths.
+ * Returns `{}` when git is unavailable or currently backed off.
+ *
+ * @param {string} file
+ * @param {{
+ *   blame?:boolean,
+ *   includeChurn?:boolean,
+ *   churnWindowCommits?:number,
+ *   timeoutMs?:number,
+ *   signal?:AbortSignal|null,
+ *   baseDir?:string
+ * }} [options]
+ * @returns {Promise<{last_modified?:string,last_author?:string,churn?:number,churn_added?:number,churn_deleted?:number,churn_commits?:number,lineAuthors?:string[]}|{}>}
+ */
+export async function getGitMetaForFile(file, options = {}) {
+  const blameEnabled = options.blame !== false;
+  const includeChurn = options.includeChurn !== false;
+  const baseDir = options.baseDir
+    ? path.resolve(options.baseDir)
+    : (isAbsolutePathNative(file) ? path.dirname(file) : process.cwd());
+  const relFile = isAbsolutePathNative(file) ? path.relative(baseDir, file) : file;
+  const absFile = isAbsolutePathNative(file) ? file : path.resolve(baseDir, file);
+  const fileArg = toPosix(relFile);
+  const churnWindowCommits = resolveChurnWindowCommits(options.churnWindowCommits);
+  const cacheKey = buildLocalCacheKey({
+    namespace: 'git-meta',
+    payload: {
+      baseDir,
+      file: fileArg,
+      includeChurn,
+      churnWindowCommits
+    }
+  }).key;
   const timeoutMs = Number.isFinite(Number(options.timeoutMs)) ? Number(options.timeoutMs) : null;
   const signal = options.signal || null;
+
+  if (isGitTemporarilyDisabled(baseDir, GIT_FAILURE_SCOPE.META)) {
+    return {};
+  }
 
   const cached = gitMetaCache.get(cacheKey);
   if (cached && !blameEnabled) return cached;
@@ -108,57 +196,46 @@ export async function getGitMetaForFile(file, options = {}) {
     const git = simpleGit({ baseDir });
     let meta = cached;
     if (!meta) {
-      const log = await git.log({ file: fileArg, n: 10 });
-      const { added, deleted } = await computeNumstatChurn(git, fileArg, log.all.length || 10);
-      const churn = added + deleted;
-      meta = {
-        last_modified: log.latest?.date || null,
-        last_author: log.latest?.author_name || null,
-        churn,
-        churn_added: added,
-        churn_deleted: deleted,
-        churn_commits: log.all.length || 0
-      };
-      gitMetaCache.set(cacheKey, meta);
+      if (timeoutMs || signal) {
+        meta = await computeMetaWithFastCommands({
+          baseDir,
+          fileArg,
+          timeoutMs,
+          signal,
+          includeChurn,
+          churnWindowCommits
+        });
+      } else {
+        const log = await git.log({ file: fileArg, n: churnWindowCommits });
+        const churn = includeChurn
+          ? await computeNumstatChurn(git, fileArg, log.all.length || churnWindowCommits)
+          : null;
+        meta = {
+          last_modified: log.latest?.date || null,
+          last_author: log.latest?.author_name || null,
+          churn: churn ? churn.added + churn.deleted : null,
+          churn_added: churn?.added ?? null,
+          churn_deleted: churn?.deleted ?? null,
+          churn_commits: churn ? (log.all.length || 0) : null
+        };
+      }
+      if (meta && (meta.last_modified || meta.last_author)) {
+        gitMetaCache.set(cacheKey, meta);
+      }
     }
 
+    if (!meta) return {};
+    clearGitFailureState(baseDir, GIT_FAILURE_SCOPE.META);
     if (!blameEnabled) return meta;
-    const blameKey = buildLocalCacheKey({
-      namespace: 'git-blame',
-      payload: {
-        baseDir,
-        file: fileArg
-      }
-    }).key;
-    let lineAuthors = gitBlameCache.get(blameKey);
-    if (!lineAuthors) {
-      let blame = null;
-      if (timeoutMs || signal) {
-        try {
-          const result = await runScmCommand('git', ['-C', baseDir, 'blame', '--line-porcelain', '--', fileArg], {
-            outputMode: 'string',
-            captureStdout: true,
-            captureStderr: true,
-            rejectOnNonZeroExit: false,
-            maxOutputBytes: resolveBlameMaxOutputBytes(absFile),
-            timeoutMs,
-            signal
-          });
-          blame = result.exitCode === 0 ? result.stdout : null;
-        } catch {
-          blame = null;
-        }
-      } else {
-        blame = await git.raw(['blame', '--line-porcelain', '--', fileArg]);
-      }
-      lineAuthors = parseLineAuthors(blame);
-      if (lineAuthors) gitBlameCache.set(blameKey, lineAuthors);
-    }
-    return {
-      ...meta,
-      lineAuthors
-    };
-  } catch {
+    if (!meta.last_modified && !meta.last_author) return meta;
+    const lineAuthors = await getGitLineAuthorsForFile(absFile, {
+      baseDir,
+      timeoutMs,
+      signal
+    });
+    return lineAuthors ? { ...meta, lineAuthors } : meta;
+  } catch (err) {
+    recordGitFailure(baseDir, err, GIT_FAILURE_SCOPE.META);
     warnGitUnavailable(baseDir);
     return {};
   }
@@ -222,13 +299,229 @@ export async function getRepoProvenance(repoRoot) {
   }
 }
 
+const resolveChurnWindowCommits = (rawValue) => {
+  const value = Number(rawValue);
+  return Number.isFinite(value) && value > 0
+    ? Math.max(1, Math.floor(value))
+    : 10;
+};
+
+const createFailureBucket = () => ({
+  failures: 0,
+  blockedUntil: 0
+});
+
+const getFailureBuckets = (baseDir, create = false) => {
+  const existing = gitRootFailureState.get(baseDir);
+  if (existing?.meta && existing?.blame) return existing;
+  if (!create) return null;
+  const next = {
+    meta: existing?.meta || createFailureBucket(),
+    blame: existing?.blame || createFailureBucket()
+  };
+  gitRootFailureState.set(baseDir, next);
+  return next;
+};
+
+const isFailureBucketActive = (bucket, now = Date.now()) =>
+  Number(bucket?.blockedUntil) > now;
+
+const isGitTemporarilyDisabled = (baseDir, scope = GIT_FAILURE_SCOPE.META) => {
+  const buckets = getFailureBuckets(baseDir);
+  const bucket = buckets?.[scope];
+  if (!bucket) return false;
+  if (isFailureBucketActive(bucket)) return true;
+  if (bucket.blockedUntil > 0) {
+    bucket.failures = 0;
+    bucket.blockedUntil = 0;
+  }
+  const metaActive = isFailureBucketActive(buckets.meta);
+  const blameActive = isFailureBucketActive(buckets.blame);
+  if (!metaActive && !blameActive && buckets.meta.failures === 0 && buckets.blame.failures === 0) {
+    gitRootFailureState.delete(baseDir);
+  }
+  return false;
+};
+
+const clearFailureBucket = (bucket) => {
+  if (!bucket) return;
+  bucket.failures = 0;
+  bucket.blockedUntil = 0;
+};
+
+const clearGitFailureState = (baseDir, scope = null) => {
+  if (!baseDir) return;
+  if (!scope) {
+    gitRootFailureState.delete(baseDir);
+    return;
+  }
+  const buckets = getFailureBuckets(baseDir);
+  if (!buckets?.[scope]) return;
+  clearFailureBucket(buckets[scope]);
+  if (buckets.meta.failures === 0
+      && buckets.meta.blockedUntil === 0
+      && buckets.blame.failures === 0
+      && buckets.blame.blockedUntil === 0) {
+    gitRootFailureState.delete(baseDir);
+  }
+};
+
 /**
- * Compute churn from git numstat output.
- * @param {import('simple-git').SimpleGit} git
- * @param {string} file
- * @param {number} limit
- * @returns {Promise<{added:number,deleted:number}>}
+ * Record a git failure and compute temporary/permanent disable windows.
+ *
+ * Fatal “git unavailable” signatures disable lookups indefinitely for the
+ * repo root scope. Timeout-like failures or repeated transient failures
+ * trigger a temporary cooldown for that scope to protect indexing latency.
+ *
+ * @param {string} baseDir
+ * @param {Error|any} err
+ * @param {'meta'|'blame'} [scope]
+ * @returns {void}
  */
+const recordGitFailure = (baseDir, err, scope = GIT_FAILURE_SCOPE.META) => {
+  if (!baseDir) return;
+  const buckets = getFailureBuckets(baseDir, true);
+  const bucket = buckets[scope] || createFailureBucket();
+  buckets[scope] = bucket;
+  const now = Date.now();
+  const code = String(err?.code || err?.cause?.code || '').toUpperCase();
+  const message = String(err?.message || err?.cause?.message || '').toLowerCase();
+  const timeoutLike = code === 'SUBPROCESS_TIMEOUT' || code === 'ABORT_ERR';
+  const fatalUnavailable = code === 'ENOENT'
+    || message.includes('not a git repository')
+    || message.includes('git metadata unavailable')
+    || message.includes('is not recognized as an internal or external command')
+    || message.includes('spawn git');
+  const failures = bucket.failures + 1;
+  const blockedUntil = fatalUnavailable
+    ? Number.POSITIVE_INFINITY
+    : (timeoutLike || failures >= 3
+      ? (now + GIT_ROOT_FAILURE_BLOCK_MS)
+      : bucket.blockedUntil);
+  bucket.failures = failures;
+  bucket.blockedUntil = blockedUntil;
+  gitRootFailureState.set(baseDir, buckets);
+};
+
+const parseLogHead = (stdout) => {
+  const raw = String(stdout || '').trim();
+  if (!raw) return { lastModifiedAt: null, lastAuthor: null };
+  const [lastModifiedAtRaw, ...authorParts] = raw.split('\0');
+  const lastModifiedAt = String(lastModifiedAtRaw || '').trim() || null;
+  const lastAuthor = authorParts.join('\0').trim() || null;
+  return { lastModifiedAt, lastAuthor };
+};
+
+const parseNumstatChurnText = (stdout) => {
+  let added = 0;
+  let deleted = 0;
+  for (const line of String(stdout || '').split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const parts = trimmed.split('\t');
+    if (parts.length < 2) continue;
+    const addedVal = parts[0] === '-' ? 0 : Number.parseInt(parts[0], 10);
+    const deletedVal = parts[1] === '-' ? 0 : Number.parseInt(parts[1], 10);
+    if (Number.isFinite(addedVal)) added += addedVal;
+    if (Number.isFinite(deletedVal)) deleted += deletedVal;
+  }
+  return { added, deleted };
+};
+
+const createGitNonZeroExitError = (label, result) => {
+  const exitCode = Number(result?.exitCode);
+  const codeSuffix = Number.isFinite(exitCode) ? String(Math.floor(exitCode)) : 'NONZERO';
+  const stderr = String(result?.stderr || '').trim();
+  const stdout = String(result?.stdout || '').trim();
+  const details = stderr || stdout || `${label} exited with code ${codeSuffix}`;
+  const err = new Error(details);
+  err.code = `GIT_EXIT_${codeSuffix}`;
+  err.exitCode = exitCode;
+  return err;
+};
+
+const computeMetaWithFastCommands = async ({
+  baseDir,
+  fileArg,
+  timeoutMs,
+  signal,
+  includeChurn,
+  churnWindowCommits
+}) => {
+  const headResult = await runScmCommand('git', [
+    '-C',
+    baseDir,
+    'log',
+    '-n',
+    '1',
+    '--date=iso-strict',
+    '--format=%aI%x00%an',
+    '--',
+    fileArg
+  ], {
+    outputMode: 'string',
+    captureStdout: true,
+    captureStderr: true,
+    rejectOnNonZeroExit: false,
+    timeoutMs,
+    signal
+  });
+  if (headResult.exitCode !== 0) throw createGitNonZeroExitError('git log', headResult);
+  const { lastModifiedAt, lastAuthor } = parseLogHead(headResult.stdout);
+  if (!includeChurn) {
+    return {
+      last_modified: lastModifiedAt,
+      last_author: lastAuthor,
+      churn: null,
+      churn_added: null,
+      churn_deleted: null,
+      churn_commits: null
+    };
+  }
+  try {
+    const churnResult = await runScmCommand('git', [
+      '-C',
+      baseDir,
+      'log',
+      '--numstat',
+      '-n',
+      String(churnWindowCommits),
+      '--format=',
+      '--',
+      fileArg
+    ], {
+      outputMode: 'string',
+      captureStdout: true,
+      captureStderr: true,
+      rejectOnNonZeroExit: false,
+      timeoutMs,
+      signal
+    });
+    const churn = churnResult.exitCode === 0
+      ? parseNumstatChurnText(churnResult.stdout)
+      : null;
+    // Non-zero/timeout fast-path churn is treated as unknown (null), not zero.
+    // This avoids silently undercounting churn on slow repositories.
+    return {
+      last_modified: lastModifiedAt,
+      last_author: lastAuthor,
+      churn: churn ? (churn.added + churn.deleted) : null,
+      churn_added: churn?.added ?? null,
+      churn_deleted: churn?.deleted ?? null,
+      churn_commits: null
+    };
+  } catch {
+    return {
+      last_modified: lastModifiedAt,
+      last_author: lastAuthor,
+      churn: null,
+      churn_added: null,
+      churn_deleted: null,
+      churn_commits: null
+    };
+  }
+};
+
 function parseLineAuthors(blameText) {
   const authors = [];
   let currentAuthor = null;
@@ -247,20 +540,8 @@ function parseLineAuthors(blameText) {
 async function computeNumstatChurn(git, file, limit) {
   try {
     const raw = await git.raw(['log', '--numstat', '-n', String(limit), '--format=', '--', file]);
-    let added = 0;
-    let deleted = 0;
-    for (const line of raw.split('\n')) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-      const parts = trimmed.split('\t');
-      if (parts.length < 2) continue;
-      const addedVal = parts[0] === '-' ? 0 : Number.parseInt(parts[0], 10);
-      const deletedVal = parts[1] === '-' ? 0 : Number.parseInt(parts[1], 10);
-      if (Number.isFinite(addedVal)) added += addedVal;
-      if (Number.isFinite(deletedVal)) deleted += deletedVal;
-    }
-    return { added, deleted };
+    return parseNumstatChurnText(raw);
   } catch {
-    return { added: 0, deleted: 0 };
+    return null;
   }
 }

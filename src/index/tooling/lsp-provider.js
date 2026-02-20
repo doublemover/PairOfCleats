@@ -52,6 +52,9 @@ const normalizeServerConfig = (server, index) => {
   const timeoutMs = Number(server.timeoutMs);
   const retries = Number(server.retries);
   const priority = Number(server.priority);
+  const documentSymbolConcurrency = Number(server.documentSymbolConcurrency);
+  const hoverConcurrency = Number(server.hoverConcurrency);
+  const hoverCacheMaxEntries = Number(server.hoverCacheMaxEntries);
   return {
     id,
     cmd,
@@ -60,6 +63,15 @@ const normalizeServerConfig = (server, index) => {
     uriScheme,
     timeoutMs: Number.isFinite(timeoutMs) ? Math.max(1000, Math.floor(timeoutMs)) : null,
     retries: Number.isFinite(retries) ? Math.max(0, Math.floor(retries)) : null,
+    documentSymbolConcurrency: Number.isFinite(documentSymbolConcurrency)
+      ? Math.max(1, Math.floor(documentSymbolConcurrency))
+      : null,
+    hoverConcurrency: Number.isFinite(hoverConcurrency)
+      ? Math.max(1, Math.floor(hoverConcurrency))
+      : null,
+    hoverCacheMaxEntries: Number.isFinite(hoverCacheMaxEntries)
+      ? Math.max(1000, Math.floor(hoverCacheMaxEntries))
+      : null,
     priority: Number.isFinite(priority) ? priority : null,
     label: typeof server.label === 'string' ? server.label : null,
     version: typeof server.version === 'string' ? server.version : null
@@ -116,6 +128,10 @@ const createConfiguredLspProvider = (server) => {
         vfsIoBatching: ctx?.toolingConfig?.vfs?.ioBatching,
         vfsColdStartCache: ctx?.toolingConfig?.vfs?.coldStartCache,
         indexDir: ctx?.buildRoot || null,
+        cacheRoot: ctx?.cache?.dir || null,
+        documentSymbolConcurrency: server.documentSymbolConcurrency,
+        hoverConcurrency: server.hoverConcurrency,
+        hoverCacheMaxEntries: server.hoverCacheMaxEntries,
         captureDiagnostics: true
       });
       return {

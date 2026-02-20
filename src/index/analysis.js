@@ -1,5 +1,6 @@
 import escomplex from 'escomplex';
 import { ESLint } from 'eslint';
+import { log } from '../shared/progress.js';
 
 let eslintInstance = null;
 let eslintInitFailed = false;
@@ -18,20 +19,20 @@ async function getEslintInstance() {
   } catch (err) {
     const message = String(err?.message || err || '');
     if (!eslintInitWarned && message) {
-      console.warn(`[lint] ESLint init failed with overrideConfigFile=null: ${message}`);
+      log(`[lint] ESLint init failed with overrideConfigFile=null: ${message}`);
       eslintInitWarned = true;
     }
     try {
       eslintInstance = new ESLint({ useEslintrc: false });
       if (!eslintInitWarned) {
-        console.warn('[lint] ESLint fallback initialized with useEslintrc=false.');
+        log('[lint] ESLint fallback initialized with useEslintrc=false.');
         eslintInitWarned = true;
       }
       return eslintInstance;
     } catch (fallbackErr) {
       const fallbackMessage = String(fallbackErr?.message || fallbackErr || '');
       if (!eslintInitWarned && fallbackMessage) {
-        console.warn(`[lint] ESLint fallback init failed: ${fallbackMessage}`);
+        log(`[lint] ESLint fallback init failed: ${fallbackMessage}`);
         eslintInitWarned = true;
       }
       eslintInitFailed = true;

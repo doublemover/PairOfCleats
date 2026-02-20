@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { assignChunkUids } from '../../../src/index/identity/chunk-uid.js';
+import { isCanonicalChunkUid } from '../../../src/shared/identity.js';
 
 // Force a collision that survives the escalation pass by ensuring the chunk span
 // and both the pre/post context windows are identical (even at 1024 chars).
@@ -60,5 +61,7 @@ assert.ok(firstBase && secondBase, 'expected collisionOf metadata to be set');
 assert.equal(firstBase, secondBase, 'expected shared collisionOf base');
 assert.ok(firstChunk.chunkUid.startsWith(`${firstBase}:ord`), 'expected first uid to be derived from collisionOf base');
 assert.ok(secondChunk.chunkUid.startsWith(`${secondBase}:ord`), 'expected second uid to be derived from collisionOf base');
+assert.equal(isCanonicalChunkUid(firstChunk.chunkUid), true, 'expected first chunk uid to match canonical grammar');
+assert.equal(isCanonicalChunkUid(secondChunk.chunkUid), true, 'expected second chunk uid to match canonical grammar');
 
 console.log('chunkUid ordinal fallback test passed');

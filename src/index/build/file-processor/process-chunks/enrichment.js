@@ -4,6 +4,37 @@ import { inferTypeMetadata } from '../../../type-inference.js';
 import { getStructuralMatchesForChunk } from '../chunk.js';
 import { mergeFlowMeta } from '../meta.js';
 
+const normalizeCapabilityDiagnostic = (entry) => {
+  if (!entry || typeof entry !== 'object') return null;
+  const code = typeof entry.code === 'string' ? entry.code.trim() : '';
+  if (!code) return null;
+  const reasonCode = typeof entry.reasonCode === 'string' ? entry.reasonCode.trim() : '';
+  const detail = typeof entry.detail === 'string' ? entry.detail.trim() : '';
+  return {
+    code,
+    reasonCode: reasonCode || null,
+    detail: detail || null
+  };
+};
+
+const buildUsrCapabilitiesEnvelope = (activeLang) => {
+  const profile = activeLang?.capabilityProfile;
+  if (!profile || typeof profile !== 'object') return null;
+  const stateRaw = typeof profile.state === 'string' ? profile.state.trim().toLowerCase() : '';
+  const state = stateRaw === 'supported' || stateRaw === 'partial' || stateRaw === 'unsupported'
+    ? stateRaw
+    : 'supported';
+  const diagnostics = Array.isArray(profile.diagnostics)
+    ? profile.diagnostics.map((entry) => normalizeCapabilityDiagnostic(entry)).filter(Boolean)
+    : [];
+  if (state === 'supported' && diagnostics.length === 0) return null;
+  return {
+    state,
+    diagnostics,
+    source: activeLang?.id || null
+  };
+};
+
 export const buildChunkEnrichment = ({
   chunkMode,
   text,
@@ -31,7 +62,8 @@ export const buildChunkEnrichment = ({
   diagnostics,
   startLine,
   endLine,
-  totalLines
+  totalLines,
+  fileFrameworkProfile = null
 }) => {
   const resolvedChunkText = typeof chunkText === 'string'
     ? chunkText
@@ -142,6 +174,22 @@ export const buildChunkEnrichment = ({
     if (structural) {
       docmeta = { ...docmeta, structural };
     }
+  }
+
+  const usrCapabilities = buildUsrCapabilitiesEnvelope(activeLang);
+  if (usrCapabilities) {
+    docmeta = {
+      ...docmeta,
+      usrCapabilities
+    };
+  }
+
+  const frameworkProfile = fileFrameworkProfile;
+  if (frameworkProfile) {
+    docmeta = {
+      ...docmeta,
+      frameworkProfile
+    };
   }
 
   return { docmeta, codeRelations };

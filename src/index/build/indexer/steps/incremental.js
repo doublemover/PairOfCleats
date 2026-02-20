@@ -1,4 +1,10 @@
-import { loadIncrementalState, pruneIncrementalManifest, shouldReuseIncrementalIndex, updateBundlesWithChunks } from '../../incremental.js';
+import {
+  loadIncrementalState,
+  preloadIncrementalBundleVfsRows,
+  pruneIncrementalManifest,
+  shouldReuseIncrementalIndex,
+  updateBundlesWithChunks
+} from '../../incremental.js';
 import { configureScmMetaCache } from '../../../scm/cache.js';
 import { log } from '../../../../shared/progress.js';
 
@@ -61,7 +67,31 @@ export const pruneIncrementalState = async ({ runtime, incrementalState, seenFil
   });
 };
 
-export const updateIncrementalBundles = async ({ runtime, incrementalState, state, log: logFn }) => {
+export const prepareIncrementalBundleVfsRows = ({
+  runtime,
+  incrementalState,
+  enabled = true
+}) => {
+  if (enabled !== true) return null;
+  return preloadIncrementalBundleVfsRows({
+    enabled: runtime.incrementalEnabled,
+    manifest: incrementalState.manifest,
+    bundleDir: incrementalState.bundleDir,
+    bundleFormat: incrementalState.bundleFormat,
+    concurrency: runtime.ioConcurrency
+  }).catch((err) => {
+    log(`[incremental] bundle VFS prefetch skipped: ${err?.message || err}`);
+    return null;
+  });
+};
+
+export const updateIncrementalBundles = async ({
+  runtime,
+  incrementalState,
+  state,
+  existingVfsManifestRowsByFile = null,
+  log: logFn
+}) => {
   await updateBundlesWithChunks({
     enabled: runtime.incrementalEnabled,
     manifest: incrementalState.manifest,
@@ -69,6 +99,7 @@ export const updateIncrementalBundles = async ({ runtime, incrementalState, stat
     bundleFormat: incrementalState.bundleFormat,
     chunks: state.chunks,
     fileRelations: state.fileRelations,
+    existingVfsManifestRowsByFile,
     log: logFn
   });
 };

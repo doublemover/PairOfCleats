@@ -143,7 +143,14 @@ export function collectRubyImports(text) {
       continue;
     }
     match = trimmed.match(/^require_relative\s+['"]([^'"]+)['"]/);
-    if (match) imports.add(match[1]);
+    if (match) {
+      const raw = String(match[1] || '').trim();
+      if (!raw) continue;
+      const normalized = raw.startsWith('.') || raw.startsWith('/')
+        ? raw
+        : `./${raw}`;
+      imports.add(normalized);
+    }
   }
   return Array.from(imports);
 }

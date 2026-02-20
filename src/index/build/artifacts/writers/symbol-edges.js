@@ -28,15 +28,57 @@ import {
 } from './_common.js';
 
 const MAX_ROW_BYTES = 32768;
+const SYMBOL_SPILL_BUFFER_BYTES_MIN = 8 * 1024 * 1024;
+const SYMBOL_SPILL_BUFFER_BYTES_MAX = 32 * 1024 * 1024;
+const SYMBOL_SPILL_BUFFER_ROWS = 20000;
 
 const measureRowBytes = (row) => (
   Buffer.byteLength(JSON.stringify(row), 'utf8') + 1
 );
 
+const resolveSpillBufferBytes = (maxJsonBytes) => {
+  const raw = Number(maxJsonBytes);
+  if (!Number.isFinite(raw) || raw <= 0) return SYMBOL_SPILL_BUFFER_BYTES_MIN;
+  return Math.max(
+    SYMBOL_SPILL_BUFFER_BYTES_MIN,
+    Math.min(
+      SYMBOL_SPILL_BUFFER_BYTES_MAX,
+      Math.floor(raw * 0.12)
+    )
+  );
+};
+
 const normalizeText = (value) => {
   if (value === null || value === undefined) return null;
   const text = String(value).trim();
   return text ? text : null;
+};
+
+const hasEndpointIdentity = (endpoint) => (
+  Boolean(
+    normalizeText(endpoint?.symbolId)
+    || normalizeText(endpoint?.chunkUid)
+    || normalizeText(endpoint?.symbolKey)
+  )
+);
+
+const isValidSymbolRefEndpoint = (ref) => {
+  if (!ref || typeof ref !== 'object') return false;
+  const status = (normalizeText(ref.status) || 'resolved').toLowerCase();
+  if (status === 'resolved') {
+    if (hasEndpointIdentity(ref.resolved)) return true;
+    if (Array.isArray(ref.candidates)) {
+      return ref.candidates.some((candidate) => hasEndpointIdentity(candidate));
+    }
+    return false;
+  }
+  if (status === 'ambiguous') {
+    return Array.isArray(ref.candidates) && ref.candidates.filter((candidate) => hasEndpointIdentity(candidate)).length > 1;
+  }
+  if (status === 'unresolved') {
+    return Boolean(normalizeText(ref.targetName) || normalizeText(ref.importHint));
+  }
+  return true;
 };
 
 const trimSymbolRef = (ref) => {
@@ -70,12 +112,13 @@ const maybeTrimRow = (row) => {
 
 const collectRows = async (chunks, { outDir, maxJsonBytes }) => {
   const stats = createTrimStats();
+  const spillBufferBytes = resolveSpillBufferBytes(maxJsonBytes);
   const collector = createRowSpillCollector({
     outDir,
     runPrefix: 'symbol_edges',
     compare: compareSymbolEdgeRows,
-    maxBufferBytes: 2 * 1024 * 1024,
-    maxBufferRows: 5000,
+    maxBufferBytes: spillBufferBytes,
+    maxBufferRows: SYMBOL_SPILL_BUFFER_ROWS,
     maxJsonBytes,
     stats
   });
@@ -96,6 +139,7 @@ const collectRows = async (chunks, { outDir, maxJsonBytes }) => {
       for (const link of links) {
         const ref = link?.to || link?.ref || null;
         if (!ref) continue;
+        if (!isValidSymbolRefEndpoint(ref)) continue;
         const { row, trimmed } = maybeTrimRow({
           v: 1,
           type: link?.edgeKind || 'call',

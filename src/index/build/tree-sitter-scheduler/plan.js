@@ -28,35 +28,54 @@ import {
 } from '../file-processor/tree-sitter.js';
 import { resolveTreeSitterSchedulerPaths } from './paths.js';
 import { createTreeSitterFileVersionSignature } from './file-signature.js';
+import { shouldSkipTreeSitterPlanningForPath } from './policy.js';
 
 const TREE_SITTER_LANG_IDS = new Set(TREE_SITTER_LANGUAGE_IDS);
 const PLANNER_IO_CONCURRENCY_CAP = 16;
+const TREE_SITTER_SKIP_SAMPLE_LIMIT_DEFAULT = 3;
 
-const countLines = (text) => {
+const countLines = (text, maxLines = null) => {
   if (!text) return 0;
+  const capped = Number.isFinite(Number(maxLines)) && Number(maxLines) > 0
+    ? Math.floor(Number(maxLines))
+    : null;
   let count = 1;
   for (let i = 0; i < text.length; i += 1) {
     if (text.charCodeAt(i) === 10) count += 1;
+    if (capped && count > capped) return count;
   }
   return count;
 };
 
-const exceedsTreeSitterLimits = ({ text, languageId, treeSitterConfig, log }) => {
+const resolveTreeSitterLimits = ({ languageId, treeSitterConfig }) => {
   const config = treeSitterConfig && typeof treeSitterConfig === 'object' ? treeSitterConfig : {};
   const perLanguage = (config.byLanguage && languageId && config.byLanguage[languageId]) || {};
   const maxBytes = perLanguage.maxBytes ?? config.maxBytes;
   const maxLines = perLanguage.maxLines ?? config.maxLines;
+  return { maxBytes, maxLines };
+};
+
+const exceedsTreeSitterLimits = ({ text, languageId, treeSitterConfig, recordSkip }) => {
+  const { maxBytes, maxLines } = resolveTreeSitterLimits({ languageId, treeSitterConfig });
   if (typeof maxBytes === 'number' && maxBytes > 0) {
     const bytes = Buffer.byteLength(text, 'utf8');
     if (bytes > maxBytes) {
-      if (log) log(`[tree-sitter:schedule] skip ${languageId} segment: maxBytes (${bytes} > ${maxBytes})`);
+      if (recordSkip) {
+        recordSkip('segment-max-bytes', () => (
+          `[tree-sitter:schedule] skip ${languageId} segment: maxBytes (${bytes} > ${maxBytes})`
+        ));
+      }
       return true;
     }
   }
   if (typeof maxLines === 'number' && maxLines > 0) {
-    const lines = countLines(text);
+    const lines = countLines(text, maxLines);
     if (lines > maxLines) {
-      if (log) log(`[tree-sitter:schedule] skip ${languageId} segment: maxLines (${lines} > ${maxLines})`);
+      if (recordSkip) {
+        recordSkip('segment-max-lines', () => (
+          `[tree-sitter:schedule] skip ${languageId} segment: maxLines (${lines} > ${maxLines})`
+        ));
+      }
       return true;
     }
   }
@@ -111,6 +130,51 @@ const resolvePlannerIoConcurrency = (treeSitterConfig) => {
   return Math.max(1, Math.min(PLANNER_IO_CONCURRENCY_CAP, Math.floor(available || 1)));
 };
 
+const createSkipLogger = ({ treeSitterConfig, log }) => {
+  const schedulerConfig = treeSitterConfig?.scheduler || {};
+  const sampleLimitRaw = Number(
+    schedulerConfig.skipLogSampleLimit
+      ?? schedulerConfig.logSkipSampleLimit
+      ?? schedulerConfig.skipSampleLimit
+      ?? TREE_SITTER_SKIP_SAMPLE_LIMIT_DEFAULT
+  );
+  const sampleLimit = Number.isFinite(sampleLimitRaw) && sampleLimitRaw >= 0
+    ? Math.floor(sampleLimitRaw)
+    : TREE_SITTER_SKIP_SAMPLE_LIMIT_DEFAULT;
+  const emitSamples = schedulerConfig.logSkips !== false;
+  const counts = new Map();
+  const sampleCounts = new Map();
+
+  const record = (reason, message) => {
+    const reasonKey = reason || 'unknown';
+    counts.set(reasonKey, (counts.get(reasonKey) || 0) + 1);
+    if (!emitSamples || !log || sampleLimit <= 0 || !message) return;
+    const seen = sampleCounts.get(reasonKey) || 0;
+    if (seen >= sampleLimit) return;
+    const rendered = typeof message === 'function' ? message() : message;
+    if (!rendered) return;
+    log(rendered);
+    sampleCounts.set(reasonKey, seen + 1);
+  };
+
+  const flush = () => {
+    if (!log || !counts.size) return;
+    for (const reasonKey of Array.from(counts.keys()).sort(compareStrings)) {
+      const count = counts.get(reasonKey) || 0;
+      if (!count) continue;
+      const samples = sampleCounts.get(reasonKey) || 0;
+      const suppressed = Math.max(0, count - samples);
+      if (suppressed > 0) {
+        log(`[tree-sitter:schedule] skip summary ${reasonKey}: ${count} total (${samples} sampled, ${suppressed} suppressed)`);
+      } else {
+        log(`[tree-sitter:schedule] skip summary ${reasonKey}: ${count} total`);
+      }
+    }
+  };
+
+  return { record, flush };
+};
+
 export const buildTreeSitterSchedulerPlan = async ({
   mode,
   runtime,
@@ -126,6 +190,8 @@ export const buildTreeSitterSchedulerPlan = async ({
   const strict = treeSitterConfig?.strict === true;
   const skipOnParseError = runtime?.languageOptions?.skipOnParseError === true;
   const plannerIoConcurrency = resolvePlannerIoConcurrency(treeSitterConfig);
+  const skipLogger = createSkipLogger({ treeSitterConfig, log });
+  const recordSkip = (reason, message) => skipLogger.record(reason, message);
 
   const paths = resolveTreeSitterSchedulerPaths(outDir);
   await fs.mkdir(paths.baseDir, { recursive: true });
@@ -166,37 +232,60 @@ export const buildTreeSitterSchedulerPlan = async ({
         // symlinks (stat() follows them).
         stat = await fs.lstat(abs);
       } catch (err) {
-        if (log) {
-          log(`[tree-sitter:schedule] skip ${relKey}: lstat failed (${err?.code || 'ERR'})`);
-        }
+        recordSkip('lstat-failed', () => (
+          `[tree-sitter:schedule] skip ${relKey}: lstat failed (${err?.code || 'ERR'})`
+        ));
         return { jobs: [], requiredLanguages: [] };
       }
       if (stat?.isSymbolicLink?.()) {
-        if (log) log(`[tree-sitter:schedule] skip ${relKey}: symlink`);
+        recordSkip('symlink', () => `[tree-sitter:schedule] skip ${relKey}: symlink`);
         return { jobs: [], requiredLanguages: [] };
       }
       if (stat && typeof stat.isFile === 'function' && !stat.isFile()) {
-        if (log) log(`[tree-sitter:schedule] skip ${relKey}: not a file`);
+        recordSkip('not-file', () => `[tree-sitter:schedule] skip ${relKey}: not a file`);
         return { jobs: [], requiredLanguages: [] };
       }
       if (entry?.skip) {
         const reason = entry.skip?.reason || 'skip';
-        if (log) log(`[tree-sitter:schedule] skip ${relKey}: ${reason}`);
+        recordSkip('entry-skip', () => `[tree-sitter:schedule] skip ${relKey}: ${reason}`);
         return { jobs: [], requiredLanguages: [] };
       }
       if (entry?.scan?.skip) {
         const reason = entry.scan.skip?.reason || 'skip';
-        if (log) log(`[tree-sitter:schedule] skip ${relKey}: ${reason}`);
+        recordSkip('scan-skip', () => `[tree-sitter:schedule] skip ${relKey}: ${reason}`);
         return { jobs: [], requiredLanguages: [] };
       }
       if (isMinifiedName(path.basename(abs))) {
-        if (log) log(`[tree-sitter:schedule] skip ${relKey}: minified`);
+        recordSkip('minified', () => `[tree-sitter:schedule] skip ${relKey}: minified`);
         return { jobs: [], requiredLanguages: [] };
       }
 
       const ext = typeof entry?.ext === 'string' && entry.ext ? entry.ext : path.extname(abs);
       const langHint = getLanguageForFile(ext, relKey);
       const primaryLanguageId = langHint?.id || null;
+      if (shouldSkipTreeSitterPlanningForPath({ relKey, languageId: primaryLanguageId })) {
+        recordSkip('policy', () => (
+          `[tree-sitter:schedule] skip ${primaryLanguageId || 'unknown'} file: policy (${relKey})`
+        ));
+        return { jobs: [], requiredLanguages: [] };
+      }
+      const { maxBytes, maxLines } = resolveTreeSitterLimits({
+        languageId: primaryLanguageId,
+        treeSitterConfig
+      });
+      if (typeof maxBytes === 'number' && maxBytes > 0 && Number.isFinite(stat?.size) && stat.size > maxBytes) {
+        recordSkip('file-max-bytes', () => (
+          `[tree-sitter:schedule] skip ${primaryLanguageId || 'unknown'} file: maxBytes (${stat.size} > ${maxBytes})`
+        ));
+        return { jobs: [], requiredLanguages: [] };
+      }
+      const knownLines = Number(entry?.lines);
+      if (typeof maxLines === 'number' && maxLines > 0 && Number.isFinite(knownLines) && knownLines > maxLines) {
+        recordSkip('file-max-lines', () => (
+          `[tree-sitter:schedule] skip ${primaryLanguageId || 'unknown'} file: maxLines (${knownLines} > ${maxLines})`
+        ));
+        return { jobs: [], requiredLanguages: [] };
+      }
 
       let text = null;
       let buffer = null;
@@ -228,13 +317,13 @@ export const buildTreeSitterSchedulerPlan = async ({
         } catch (err) {
           const code = err?.code || null;
           if (code === 'ERR_SYMLINK') {
-            if (log) log(`[tree-sitter:schedule] skip ${relKey}: symlink`);
+            recordSkip('symlink', () => `[tree-sitter:schedule] skip ${relKey}: symlink`);
             return { jobs: [], requiredLanguages: [] };
           }
           const reason = (code === 'EACCES' || code === 'EPERM' || code === 'EISDIR')
             ? 'unreadable'
             : 'read-failure';
-          if (log) log(`[tree-sitter:schedule] skip ${relKey}: ${reason} (${code || 'ERR'})`);
+          recordSkip(reason, () => `[tree-sitter:schedule] skip ${relKey}: ${reason} (${code || 'ERR'})`);
           return { jobs: [], requiredLanguages: [] };
         }
       }
@@ -266,9 +355,7 @@ export const buildTreeSitterSchedulerPlan = async ({
       } catch (err) {
         const message = err?.message || String(err);
         if (skipOnParseError) {
-          if (log) {
-            log(`[tree-sitter:schedule] skip ${relKey}: parse-error (${message})`);
-          }
+          recordSkip('parse-error', () => `[tree-sitter:schedule] skip ${relKey}: parse-error (${message})`);
           return { jobs: [], requiredLanguages: [] };
         }
         throw new Error(`[tree-sitter:schedule] segment discovery failed for ${relKey}: ${message}`);
@@ -290,7 +377,7 @@ export const buildTreeSitterSchedulerPlan = async ({
         if (!isTreeSitterEnabled(treeSitterOptions, languageId)) continue;
 
         const segmentText = text.slice(segment.start, segment.end);
-        if (exceedsTreeSitterLimits({ text: segmentText, languageId, treeSitterConfig, log })) {
+        if (exceedsTreeSitterLimits({ text: segmentText, languageId, treeSitterConfig, recordSkip })) {
           continue;
         }
 
@@ -299,9 +386,9 @@ export const buildTreeSitterSchedulerPlan = async ({
           if (strict) {
             throw new Error(`[tree-sitter:schedule] missing grammar target for ${languageId} (${relKey}).`);
           }
-          if (log) {
-            log(`[tree-sitter:schedule] skip ${languageId} segment: grammar target unavailable (${relKey})`);
-          }
+          recordSkip('grammar-target-unavailable', () => (
+            `[tree-sitter:schedule] skip ${languageId} segment: grammar target unavailable (${relKey})`
+          ));
           continue;
         }
         const grammarKey = target.grammarKey;
@@ -404,5 +491,6 @@ export const buildTreeSitterSchedulerPlan = async ({
     await writeJsonLinesFile(jobPath, group.jobs, { atomic: true, compression: null });
   }
 
+  skipLogger.flush();
   return { plan, groups: groupList, paths };
 };

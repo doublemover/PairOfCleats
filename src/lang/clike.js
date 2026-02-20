@@ -279,6 +279,44 @@ function resolveCLikeKeywordSets(ext) {
   return { callKeywords: CLIKE_CALL_KEYWORDS, usageSkip: CLIKE_USAGE_SKIP };
 }
 
+const CLIKE_CALLABLE_KINDS = new Set([
+  'FunctionDeclaration',
+  'MethodDeclaration'
+]);
+
+const attachCachedBodyBounds = (meta, bounds) => {
+  if (!meta || typeof meta !== 'object' || !bounds) return;
+  const bodyStart = Number.isFinite(bounds.bodyStart) ? bounds.bodyStart : -1;
+  const bodyEnd = Number.isFinite(bounds.bodyEnd) ? bounds.bodyEnd : -1;
+  Object.defineProperty(meta, '_bodyStart', {
+    value: bodyStart,
+    writable: true,
+    configurable: true,
+    enumerable: false
+  });
+  Object.defineProperty(meta, '_bodyEnd', {
+    value: bodyEnd,
+    writable: true,
+    configurable: true,
+    enumerable: false
+  });
+};
+
+const resolveChunkBodyBounds = (text, chunk) => {
+  if (!chunk || !Number.isFinite(chunk.start)) {
+    return { bodyStart: -1, bodyEnd: -1 };
+  }
+  const meta = chunk.meta && typeof chunk.meta === 'object' ? chunk.meta : null;
+  const cachedStart = Number.isFinite(meta?._bodyStart) ? meta._bodyStart : null;
+  const cachedEnd = Number.isFinite(meta?._bodyEnd) ? meta._bodyEnd : null;
+  if (cachedStart != null && cachedEnd != null) {
+    return { bodyStart: cachedStart, bodyEnd: cachedEnd };
+  }
+  const bounds = findCLikeBodyBounds(text, chunk.start);
+  if (meta) attachCachedBodyBounds(meta, bounds);
+  return bounds;
+};
+
 function getLastCLikeSegment(raw) {
   if (!raw) return '';
   let end = raw.length;
@@ -373,6 +411,7 @@ export function buildCLikeChunks(text, ext, options = {}) {
         conforms: extractObjcConforms(signature)
       }
     }, true);
+    attachCachedBodyBounds(decls[decls.length - 1]?.meta, bounds);
   }
 
   if (objc) {
@@ -453,6 +492,7 @@ export function buildCLikeChunks(text, ext, options = {}) {
           modifiers
         }
       });
+      attachCachedBodyBounds(decls[decls.length - 1]?.meta, bounds);
       i = endLine;
       continue;
     }
@@ -498,6 +538,7 @@ export function buildCLikeChunks(text, ext, options = {}) {
         docstring: extractDocComment(lines, docLine)
       }
     });
+    attachCachedBodyBounds(decls[decls.length - 1]?.meta, bounds);
     i = endLine;
   }
 
@@ -522,6 +563,7 @@ export function buildCLikeRelations(text, relPath, options = {}) {
   const imports = collectCLikeImports(text);
   const exports = new Set();
   const calls = [];
+  const callPairs = new Set();
   const usages = new Set();
   const clikeChunks = Array.isArray(relPath) ? relPath : null;
   const ext = typeof relPath === 'string'
@@ -532,12 +574,18 @@ export function buildCLikeRelations(text, relPath, options = {}) {
     for (const chunk of clikeChunks) {
       if (!chunk || !chunk.name || chunk.start == null || chunk.end == null) continue;
       if (CLIKE_EXPORT_KINDS.has(chunk.kind)) exports.add(chunk.name);
-      const bounds = findCLikeBodyBounds(text, chunk.start);
+      if (!CLIKE_CALLABLE_KINDS.has(chunk.kind)) continue;
+      const bounds = resolveChunkBodyBounds(text, chunk);
       const scanStart = bounds.bodyStart > -1 && bounds.bodyStart < chunk.end ? bounds.bodyStart + 1 : chunk.start;
       const scanEnd = bounds.bodyEnd > scanStart && bounds.bodyEnd <= chunk.end ? bounds.bodyEnd : chunk.end;
       const slice = text.slice(scanStart, scanEnd);
       const { calls: chunkCalls, usages: chunkUsages } = collectCLikeCallsAndUsages(slice, keywordSets);
-      for (const callee of chunkCalls) calls.push([chunk.name, callee]);
+      for (const callee of chunkCalls) {
+        const pairKey = `${chunk.name}\u0000${callee}`;
+        if (callPairs.has(pairKey)) continue;
+        callPairs.add(pairKey);
+        calls.push([chunk.name, callee]);
+      }
       for (const usage of chunkUsages) usages.add(usage);
     }
   }
@@ -586,7 +634,8 @@ export function extractCLikeDocMeta(chunk) {
  */
 export function computeCLikeFlow(text, chunk, options = {}) {
   if (!chunk || !Number.isFinite(chunk.start) || !Number.isFinite(chunk.end)) return null;
-  const bounds = findCLikeBodyBounds(text, chunk.start);
+  if (!CLIKE_CALLABLE_KINDS.has(chunk.kind)) return null;
+  const bounds = resolveChunkBodyBounds(text, chunk);
   const scanStart = bounds.bodyStart > -1 && bounds.bodyStart < chunk.end ? bounds.bodyStart + 1 : chunk.start;
   const scanEnd = bounds.bodyEnd > scanStart && bounds.bodyEnd <= chunk.end ? bounds.bodyEnd : chunk.end;
   if (scanEnd <= scanStart) return null;

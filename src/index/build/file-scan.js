@@ -7,14 +7,78 @@ import { normalizePositiveNumber } from '../../shared/limits.js';
 import { MINIFIED_NAME_REGEX } from './watch/shared.js';
 
 const MINIFIED_SAMPLE_EXTS = new Set([...JS_EXTS, ...CSS_EXTS, ...HTML_EXTS]);
+const KNOWN_TEXT_EXTS = new Set([
+  '.c',
+  '.cc',
+  '.cpp',
+  '.cxx',
+  '.h',
+  '.hh',
+  '.hpp',
+  '.hxx',
+  '.def',
+  '.m',
+  '.mm',
+  '.swift',
+  '.java',
+  '.kt',
+  '.kts',
+  '.go',
+  '.rs',
+  '.js',
+  '.jsx',
+  '.ts',
+  '.tsx',
+  '.json',
+  '.jsonc',
+  '.yml',
+  '.yaml',
+  '.toml',
+  '.ini',
+  '.cfg',
+  '.conf',
+  '.gradle',
+  '.cmake',
+  '.md',
+  '.markdown',
+  '.txt',
+  '.rst',
+  '.py',
+  '.pyi',
+  '.rb',
+  '.php',
+  '.lua',
+  '.pl',
+  '.pm',
+  '.sh',
+  '.bash',
+  '.zsh',
+  '.sql',
+  '.proto'
+]);
 
 const normalizeLimit = (value, fallback) => normalizePositiveNumber(value, fallback);
 
+/**
+ * Fast-path filename heuristic for minified assets.
+ *
+ * This is intentionally cheap and used before content sampling.
+ *
+ * @param {string} baseName
+ * @returns {boolean}
+ */
 export const isMinifiedName = (baseName) => {
   if (!baseName) return false;
   return MINIFIED_NAME_REGEX.test(baseName.toLowerCase());
 };
 
+/**
+ * Read a bounded prefix sample from disk for lightweight file classification.
+ *
+ * @param {string} absPath
+ * @param {number} sampleSizeBytes
+ * @returns {Promise<Buffer|null>}
+ */
 export const readFileSample = async (absPath, sampleSizeBytes) => {
   if (!sampleSizeBytes) return null;
   const handle = await fs.open(absPath, 'r');
@@ -60,6 +124,15 @@ const resolveTextOrBinary = async (absPath, buffer) => {
   return null;
 };
 
+/**
+ * Detect whether a sampled buffer should be treated as binary.
+ *
+ * Runs `file-type` first, then `istextorbinary`, then a minimal byte-level
+ * fallback so we do not miss obvious binary files.
+ *
+ * @param {{absPath:string,buffer:Buffer,maxNonTextRatio:number}} input
+ * @returns {Promise<{reason:string,method:string,mime?:string,ext?:string}|null>}
+ */
 export const detectBinary = async ({ absPath, buffer, maxNonTextRatio }) => {
   if (!buffer || !buffer.length) return null;
   try {
@@ -115,6 +188,24 @@ const isLikelyMinifiedText = (text, config) => {
     && whitespaceRatio < config.maxWhitespaceRatio;
 };
 
+/**
+ * Build a reusable scanner for binary/minified pre-discovery screening.
+ *
+ * The scanner intentionally works from bounded samples so discovery can avoid
+ * large-file reads in the hot path while still making high-confidence skip
+ * decisions.
+ *
+ * @param {object} [fileScanConfig]
+ * @returns {{
+ *   scanFile: (input:{absPath:string,stat?:{size?:number},ext?:string,readSample:(absPath:string,bytes:number)=>Promise<Buffer|null>}) => Promise<object>,
+ *   sampleSizeBytes:number,
+ *   minified:object,
+ *   binary:object,
+ *   normalizeBaseName:(absPath:string)=>string,
+ *   shouldSampleBinary:(size:number)=>boolean,
+ *   shouldSampleMinified:(size:number,ext:string)=>boolean
+ * }}
+ */
 export function createFileScanner(fileScanConfig = {}) {
   const config = fileScanConfig && typeof fileScanConfig === 'object' ? fileScanConfig : {};
   const sampleSizeBytes = normalizeLimit(config.sampleBytes, 8192);
@@ -145,16 +236,23 @@ export function createFileScanner(fileScanConfig = {}) {
     && MINIFIED_SAMPLE_EXTS.has(ext);
   const scanFile = async ({ absPath, stat, ext, readSample }) => {
     const size = stat?.size || 0;
+    const normalizedExt = String(ext || '').toLowerCase();
     const wantsBinary = shouldSampleBinary(size);
-    const wantsMinified = shouldSampleMinified(size, ext);
+    const wantsMinified = shouldSampleMinified(size, normalizedExt);
+    const skipBinaryProbe = !wantsBinary && KNOWN_TEXT_EXTS.has(normalizedExt);
+    const shouldProbeBinary = !skipBinaryProbe;
     const result = {
       checkedBinary: false,
       checkedMinified: false,
       skip: null,
       sampleBuffer: null
     };
-    if (!sampleSizeBytes || (!wantsBinary && !wantsMinified && !fileTypeSampleBytes)) return result;
-    const sampleBytes = Math.max(fileTypeSampleBytes, wantsBinary || wantsMinified ? sampleSizeBytes : 0);
+    if (!sampleSizeBytes || (!shouldProbeBinary && !wantsMinified && !wantsBinary)) return result;
+    const sampleBytes = Math.max(
+      shouldProbeBinary ? fileTypeSampleBytes : 0,
+      wantsBinary || wantsMinified ? sampleSizeBytes : 0
+    );
+    if (!sampleBytes) return result;
     let sampleBuffer = null;
     try {
       sampleBuffer = await readSample(absPath, sampleBytes);
@@ -163,17 +261,19 @@ export function createFileScanner(fileScanConfig = {}) {
     }
     if (!sampleBuffer) return result;
     result.sampleBuffer = sampleBuffer;
-    const binarySkip = await detectBinary({
-      absPath,
-      buffer: sampleBuffer,
-      maxNonTextRatio: binary.maxNonTextRatio
-    });
-    if (binarySkip) {
-      result.checkedBinary = true;
-      result.skip = { ...binarySkip, bytes: size };
-      return result;
+    if (shouldProbeBinary) {
+      const binarySkip = await detectBinary({
+        absPath,
+        buffer: sampleBuffer,
+        maxNonTextRatio: binary.maxNonTextRatio
+      });
+      if (binarySkip) {
+        result.checkedBinary = true;
+        result.skip = { ...binarySkip, bytes: size };
+        return result;
+      }
+      if (wantsBinary) result.checkedBinary = true;
     }
-    if (wantsBinary) result.checkedBinary = true;
     if (wantsMinified) {
       result.checkedMinified = true;
       const sampleText = sampleBuffer.toString('utf8');

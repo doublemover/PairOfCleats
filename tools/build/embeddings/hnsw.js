@@ -2,16 +2,16 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { loadJsonArrayArtifactRows, readJsonFile } from '../../../src/shared/artifact-io.js';
+import { loadJsonArrayArtifactRows, loadPiecesManifest, readJsonFile } from '../../../src/shared/artifact-io.js';
 import { normalizeEmbeddingVectorInPlace } from '../../../src/shared/embedding-utils.js';
 import { normalizeHnswConfig } from '../../../src/shared/hnsw.js';
-import { getEnvConfig, isTestingEnv } from '../../../src/shared/env.js';
+import { getEnvConfig } from '../../../src/shared/env.js';
 import { writeJsonObjectFile } from '../../../src/shared/json-stream.js';
 import { runIsolatedNodeScriptSync } from '../../../src/shared/subprocess.js';
 import { dequantizeUint8ToFloat32 } from '../../../src/storage/sqlite/vector.js';
 import { createTempPath, replaceFile } from './atomic.js';
 
-const TRACE_ARTIFACT_IO = isTestingEnv() || getEnvConfig().traceArtifactIo;
+const TRACE_ARTIFACT_IO = getEnvConfig().traceArtifactIo === true;
 
 const require = createRequire(import.meta.url);
 let hnswLib = null;
@@ -28,27 +28,81 @@ const loadHnswLib = () => {
   return { lib: hnswLib, error: hnswLoadError };
 };
 
+const toCanonicalArtifactBase = (base) => {
+  if (!base || typeof base !== 'string') return '';
+  if (base.endsWith('_uint8')) return base.slice(0, -('_uint8'.length));
+  if (base.endsWith('_f32')) return base.slice(0, -('_f32'.length));
+  if (base.endsWith('_float32')) return base.slice(0, -('_float32'.length));
+  if (base.endsWith('_fp32')) return base.slice(0, -('_fp32'.length));
+  return base;
+};
+
+const resolveArtifactBaseCandidates = (base) => {
+  const candidates = [];
+  const add = (value) => {
+    if (!value || candidates.includes(value)) return;
+    candidates.push(value);
+  };
+  add(base);
+  add(toCanonicalArtifactBase(base));
+  return candidates;
+};
+
 const resolveVectorsSource = (vectorsPath) => {
   if (!vectorsPath) return null;
   const dir = path.dirname(vectorsPath);
   const base = path.basename(vectorsPath, path.extname(vectorsPath));
-  const metaPath = path.join(dir, `${base}.meta.json`);
-  const hasShardedMeta = fsSync.existsSync(metaPath) || fsSync.existsSync(`${metaPath}.bak`);
-  if (hasShardedMeta) {
+  const ext = path.extname(vectorsPath) || '.json';
+  const baseCandidates = resolveArtifactBaseCandidates(base);
+  let manifest = null;
+  try {
+    manifest = loadPiecesManifest(dir, {
+      maxBytes: Number.POSITIVE_INFINITY,
+      strict: false
+    });
+  } catch {
+    manifest = null;
+  }
+  const manifestNames = new Set(
+    Array.isArray(manifest?.pieces)
+      ? manifest.pieces
+        .map((piece) => (piece && typeof piece.name === 'string' ? piece.name : null))
+        .filter(Boolean)
+      : []
+  );
+  for (const artifactBase of baseCandidates) {
+    const metaPath = path.join(dir, `${artifactBase}.meta.json`);
+    const hasShardedMeta = fsSync.existsSync(metaPath) || fsSync.existsSync(`${metaPath}.bak`);
+    if (!hasShardedMeta) continue;
     try {
       const meta = readJsonFile(metaPath, { maxBytes: Number.POSITIVE_INFINITY });
       const count = Number.isFinite(Number(meta?.totalRecords))
         ? Math.max(0, Math.floor(Number(meta.totalRecords)))
         : 0;
+      if (manifest && manifestNames.size && !manifestNames.has(artifactBase)) {
+        continue;
+      }
       return {
         count,
         vectors: null,
-        rows: loadJsonArrayArtifactRows(dir, base, {
+        rows: loadJsonArrayArtifactRows(dir, artifactBase, {
           maxBytes: Number.POSITIVE_INFINITY,
+          manifest,
           strict: false,
           materialize: true
         })
       };
+    } catch {}
+  }
+  for (const artifactBase of baseCandidates) {
+    const candidatePath = path.join(dir, `${artifactBase}${ext}`);
+    try {
+      const data = readJsonFile(candidatePath, { maxBytes: Number.POSITIVE_INFINITY });
+      const vectors = Array.isArray(data?.arrays?.vectors)
+        ? data.arrays.vectors
+        : (Array.isArray(data?.vectors) ? data.vectors : null);
+      if (!Array.isArray(vectors) || !vectors.length) continue;
+      return { count: vectors.length, vectors, rows: null };
     } catch {}
   }
   try {

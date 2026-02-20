@@ -2,6 +2,7 @@ import path from 'node:path';
 
 import { writeJsonArrayFile, writeJsonObjectFile, writeJsonLinesSharded } from '../../../shared/json-stream.js';
 import { estimateJsonBytes } from '../../../shared/cache.js';
+import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../contracts/versioning.js';
 
 export const createArtifactWriter = ({
   outDir,
@@ -42,7 +43,16 @@ export const createArtifactWriter = ({
       : compressionKeepRaw;
   };
 
-  const enqueueJsonObject = (base, payload, { compressible = true, piece = null } = {}) => {
+  const enqueueJsonObject = (
+    base,
+    payload,
+    {
+      compressible = true,
+      piece = null,
+      priority = null,
+      estimatedBytes = null
+    } = {}
+  ) => {
     const compression = resolveCompression(base, compressible);
     const keepRaw = resolveKeepRaw(base);
     if (compression) {
@@ -54,7 +64,8 @@ export const createArtifactWriter = ({
           compression,
           gzipOptions: compressionGzipOptions,
           atomic: true
-        })
+        }),
+        { priority, estimatedBytes }
       );
       if (piece) {
         addPieceFile({ ...piece, format: 'json', compression }, gzPath);
@@ -63,7 +74,8 @@ export const createArtifactWriter = ({
         const rawPath = artifactPath(base, false);
         enqueueWrite(
           formatArtifactLabel(rawPath),
-          () => writeJsonObjectFile(rawPath, { ...payload, atomic: true })
+          () => writeJsonObjectFile(rawPath, { ...payload, atomic: true }),
+          { priority, estimatedBytes }
         );
         if (piece) {
           addPieceFile({ ...piece, format: 'json' }, rawPath);
@@ -74,14 +86,24 @@ export const createArtifactWriter = ({
     const rawPath = artifactPath(base, false);
     enqueueWrite(
       formatArtifactLabel(rawPath),
-      () => writeJsonObjectFile(rawPath, { ...payload, atomic: true })
+      () => writeJsonObjectFile(rawPath, { ...payload, atomic: true }),
+      { priority, estimatedBytes }
     );
     if (piece) {
       addPieceFile({ ...piece, format: 'json' }, rawPath);
     }
   };
 
-  const enqueueJsonArray = (base, items, { compressible = true, piece = null } = {}) => {
+  const enqueueJsonArray = (
+    base,
+    items,
+    {
+      compressible = true,
+      piece = null,
+      priority = null,
+      estimatedBytes = null
+    } = {}
+  ) => {
     const compression = resolveCompression(base, compressible);
     const keepRaw = resolveKeepRaw(base);
     if (compression) {
@@ -92,7 +114,8 @@ export const createArtifactWriter = ({
           compression,
           gzipOptions: compressionGzipOptions,
           atomic: true
-        })
+        }),
+        { priority, estimatedBytes }
       );
       if (piece) {
         addPieceFile({ ...piece, format: 'json', compression }, gzPath);
@@ -101,7 +124,8 @@ export const createArtifactWriter = ({
         const rawPath = artifactPath(base, false);
         enqueueWrite(
           formatArtifactLabel(rawPath),
-          () => writeJsonArrayFile(rawPath, items, { atomic: true })
+          () => writeJsonArrayFile(rawPath, items, { atomic: true }),
+          { priority, estimatedBytes }
         );
         if (piece) {
           addPieceFile({ ...piece, format: 'json' }, rawPath);
@@ -112,7 +136,8 @@ export const createArtifactWriter = ({
     const rawPath = artifactPath(base, false);
     enqueueWrite(
       formatArtifactLabel(rawPath),
-      () => writeJsonArrayFile(rawPath, items, { atomic: true })
+      () => writeJsonArrayFile(rawPath, items, { atomic: true }),
+      { priority, estimatedBytes }
     );
     if (piece) {
       addPieceFile({ ...piece, format: 'json' }, rawPath);
@@ -168,7 +193,7 @@ export const createArtifactWriter = ({
         const metaPath = path.join(outDir, `${base}.meta.json`);
         await writeJsonObjectFile(metaPath, {
           fields: {
-            schemaVersion: '1.0.0',
+            schemaVersion: SHARDED_JSONL_META_SCHEMA_VERSION,
             artifact: base,
             format: 'jsonl-sharded',
             generatedAt: new Date().toISOString(),

@@ -55,6 +55,10 @@ const DONE_LABEL = supportsColor
   : '[DONE]';
 const writeLine = (line) => {
   if (line === null || line === undefined) return;
+  if (argv.progress === 'jsonl') {
+    display.log(String(line));
+    return;
+  }
   process.stderr.write(`${line}\n`);
 };
 const localAppData = process.env.LOCALAPPDATA || '';

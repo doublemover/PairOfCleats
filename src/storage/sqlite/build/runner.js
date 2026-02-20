@@ -38,43 +38,26 @@ import { incrementalUpdateDatabase } from './incremental-update.js';
 import { SCHEMA_VERSION } from '../schema.js';
 import { resolveOutputPaths } from './output-paths.js';
 import { resolveAsOfContext, resolveSingleRootForModes } from '../../../index/as-of.js';
+import { normalizeModeArg, normalizeValidateMode } from './runner/options.js';
+import { resolveChunkMetaTotalRecords } from './runner/chunk-meta.js';
+import {
+  countMissingBundleFiles,
+  listIncrementalBundleFiles
+} from './runner/incremental.js';
+import {
+  hasVectorTableAtPath,
+  readSqliteCounts,
+  readSqliteModeCount,
+  resolveExpectedDenseCount
+} from './runner/sqlite-probes.js';
+import {
+  createRunnerLogger,
+  formatBundleManifest,
+  formatEmbedStats,
+  formatVectorAnnState
+} from './runner/logging.js';
 
-export const normalizeValidateMode = (value) => {
-  if (value === false || value == null) return 'off';
-  const normalized = String(value).trim().toLowerCase();
-  if (!normalized || normalized === 'true') return 'smoke';
-  if (['off', 'false', '0', 'no'].includes(normalized)) return 'off';
-  if (['full', 'integrity'].includes(normalized)) return 'full';
-  if (['auto', 'adaptive'].includes(normalized)) return 'auto';
-  return 'smoke';
-};
-
-const normalizeModeArg = (value) => {
-  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
-  if (['code', 'prose', 'extracted-prose', 'records', 'all'].includes(normalized)) {
-    return normalized;
-  }
-  return 'all';
-};
-
-const countMissingBundleFiles = (incrementalData) => {
-  const bundleDir = incrementalData?.bundleDir;
-  const files = incrementalData?.manifest?.files;
-  if (!bundleDir || !files || typeof files !== 'object') return 0;
-  let missing = 0;
-  for (const entry of Object.values(files)) {
-    const bundleName = entry?.bundle;
-    if (!bundleName || typeof bundleName !== 'string') {
-      missing += 1;
-      continue;
-    }
-    const bundlePath = path.join(bundleDir, bundleName);
-    if (!fsSync.existsSync(bundlePath)) {
-      missing += 1;
-    }
-  }
-  return missing;
-};
+export { normalizeValidateMode } from './runner/options.js';
 
 /**
  * Build sqlite indexes without CLI parsing.
@@ -195,152 +178,15 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
     }
   };
   process.once('exit', finalize);
-  const log = (message) => {
-    if (!emitOutput || !message) return;
-    if (typeof externalLogger?.log === 'function') {
-      externalLogger.log(message);
-      return;
-    }
-    console.error(message);
-  };
-  const warn = (message) => {
-    if (!emitOutput || !message) return;
-    if (typeof externalLogger?.warn === 'function') {
-      externalLogger.warn(message);
-      return;
-    }
-    if (typeof externalLogger?.log === 'function') {
-      externalLogger.log(message);
-      return;
-    }
-    console.error(message);
-  };
-  const error = (message) => {
-    if (!emitOutput || !message) return;
-    if (typeof externalLogger?.error === 'function') {
-      externalLogger.error(message);
-      return;
-    }
-    if (typeof externalLogger?.log === 'function') {
-      externalLogger.log(message);
-      return;
-    }
-    console.error(message);
-  };
+  const { log, warn, error } = createRunnerLogger({
+    emitOutput,
+    externalLogger
+  });
   const bail = (message, code = 1) => {
     if (message) error(message);
     finalize();
     if (exitOnError) process.exit(code);
     throw new Error(message || 'SQLite index build failed.');
-  };
-  /**
-   * Format embedding stats for logging.
-   * @param {object|null} stats
-   * @returns {string|null}
-   */
-  const formatEmbedStats = (stats) => {
-    if (!stats || typeof stats !== 'object') return null;
-    const parts = [];
-    if (Number.isFinite(stats.denseChunks) || Number.isFinite(stats.totalChunks)) {
-      const dense = Number.isFinite(stats.denseChunks) ? stats.denseChunks : 0;
-      const total = Number.isFinite(stats.totalChunks) ? stats.totalChunks : 0;
-      parts.push(`chunks ${dense}/${total}`);
-    }
-    if (Number.isFinite(stats.denseFloatChunks) || Number.isFinite(stats.denseU8Chunks)) {
-      const floatChunks = Number.isFinite(stats.denseFloatChunks) ? stats.denseFloatChunks : 0;
-      const u8Chunks = Number.isFinite(stats.denseU8Chunks) ? stats.denseU8Chunks : 0;
-      parts.push(`float=${floatChunks} u8=${u8Chunks}`);
-    }
-    if (Number.isFinite(stats.filesTotal)) {
-      const withEmbeddings = Number.isFinite(stats.filesWithEmbeddings) ? stats.filesWithEmbeddings : 0;
-      const totalFiles = Number.isFinite(stats.filesTotal) ? stats.filesTotal : 0;
-      const missing = Number.isFinite(stats.filesMissingEmbeddings) ? stats.filesMissingEmbeddings : 0;
-      parts.push(`files ${withEmbeddings}/${totalFiles} (missing ${missing})`);
-    }
-    if (Array.isArray(stats.sampleMissingFiles) && stats.sampleMissingFiles.length) {
-      parts.push(`sample missing: ${stats.sampleMissingFiles.join(', ')}`);
-    }
-    return parts.length ? parts.join(', ') : null;
-  };
-  /**
-   * Format vector extension state for logging.
-   * @param {object|null} state
-   * @returns {string|null}
-   */
-  const formatVectorAnnState = (state) => {
-    if (!state || typeof state !== 'object') return null;
-    const parts = [
-      `enabled=${state.enabled === true}`,
-      `loaded=${state.loaded === true}`,
-      `ready=${state.ready === true}`
-    ];
-    if (state.table) parts.push(`table=${state.table}`);
-    if (state.column) parts.push(`column=${state.column}`);
-    if (state.reason) parts.push(`reason=${state.reason}`);
-    return parts.join(', ');
-  };
-  /**
-   * Format incremental bundle manifest metadata for logging.
-   * @param {object|null} manifest
-   * @returns {string|null}
-   */
-  const formatBundleManifest = (manifest) => {
-    if (!manifest || typeof manifest !== 'object') return null;
-    const parts = [];
-    if (manifest.bundleEmbeddings !== undefined) {
-      parts.push(`bundleEmbeddings=${manifest.bundleEmbeddings}`);
-    }
-    if (manifest.bundleEmbeddingStage) parts.push(`bundleEmbeddingStage=${manifest.bundleEmbeddingStage}`);
-    if (manifest.bundleEmbeddingMode) parts.push(`bundleEmbeddingMode=${manifest.bundleEmbeddingMode}`);
-    if (manifest.bundleEmbeddingIdentityKey) {
-      parts.push(`bundleEmbeddingIdentityKey=${manifest.bundleEmbeddingIdentityKey}`);
-    }
-    return parts.length ? parts.join(', ') : null;
-  };
-  const readSqliteCounts = (dbPath) => {
-    const counts = {};
-    let db = null;
-    try {
-      db = new Database(dbPath, { readonly: true });
-      const rows = db.prepare('SELECT mode, COUNT(*) AS total FROM chunks GROUP BY mode').all();
-      for (const row of rows || []) {
-        if (!row?.mode) continue;
-        counts[row.mode] = Number.isFinite(row.total) ? row.total : 0;
-      }
-    } catch {}
-    if (db) {
-      try {
-        db.close();
-      } catch {}
-    }
-    return counts;
-  };
-  const hasVectorTableAtPath = (dbPath, tableName) => {
-    if (!dbPath || !tableName) return false;
-    let db = null;
-    try {
-      db = new Database(dbPath, { readonly: true });
-      return hasVectorTable(db, tableName);
-    } catch {
-      return false;
-    } finally {
-      if (db) {
-        try {
-          db.close();
-        } catch {}
-      }
-    }
-  };
-  const resolveExpectedDenseCount = (denseVec) => {
-    if (!denseVec || typeof denseVec !== 'object') return 0;
-    const fields = denseVec.fields && typeof denseVec.fields === 'object' ? denseVec.fields : null;
-    const fromCount = Number(denseVec.count ?? fields?.count);
-    if (Number.isFinite(fromCount) && fromCount > 0) return Math.floor(fromCount);
-    const fromTotalRecords = Number(denseVec.totalRecords ?? fields?.totalRecords);
-    if (Number.isFinite(fromTotalRecords) && fromTotalRecords > 0) return Math.floor(fromTotalRecords);
-    const vectors = denseVec.vectors ?? denseVec.arrays?.vectors;
-    if (Array.isArray(vectors) && vectors.length > 0) return vectors.length;
-    return 0;
   };
   if (!Database) return bail('better-sqlite3 is required. Run npm install first.');
 
@@ -506,13 +352,19 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
     }
     const indexPieces = {};
     const indexPieceErrors = {};
-    for (const mode of modeList) {
-      try {
-        const pieces = await loadIndexPieces(modeIndexDirs[mode]);
-        if (pieces) indexPieces[mode] = pieces;
-      } catch (err) {
-        indexPieceErrors[mode] = err;
-      }
+    const pieceResults = await Promise.all(
+      modeList.map(async (mode) => {
+        try {
+          const pieces = await loadIndexPieces(modeIndexDirs[mode]);
+          return { mode, pieces, error: null };
+        } catch (error) {
+          return { mode, pieces: null, error };
+        }
+      })
+    );
+    for (const result of pieceResults) {
+      if (result?.pieces) indexPieces[result.mode] = result.pieces;
+      if (result?.error) indexPieceErrors[result.mode] = result.error;
     }
     const compactMode = argv.compact === true || (argv.compact == null && argv['no-compact'] !== true);
 
@@ -536,6 +388,7 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
       if (!outputPath) return bail('SQLite output path could not be resolved.');
       const outDir = path.dirname(outputPath);
       const logDetails = [];
+      const modeChunkCountHint = resolveChunkMetaTotalRecords(modeIndexDir);
       if (emitOutput) {
         log(`${modeLabel} building ${mode} index -> ${outputPath}`);
       }
@@ -551,16 +404,57 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
         note: null
       });
 
+      if (modeChunkCountHint === 0
+        && fsSync.existsSync(outputPath)) {
+        const existingRows = readSqliteModeCount({
+          Database,
+          dbPath: outputPath,
+          mode
+        });
+        if (existingRows === 0) {
+          stageCheckpoints.record({
+            stage: 'stage4',
+            step: `skip-empty-${mode}`,
+            extra: {
+              modeArtifactsRows: 0,
+              mode,
+              existingRows: 0
+            }
+          });
+          await updateSqliteState({
+            root,
+            userConfig,
+            indexRoot,
+            mode,
+            status: 'ready',
+            path: outputPath,
+            schemaVersion: SCHEMA_VERSION,
+            threadLimits,
+            note: `skipped empty ${mode} rebuild`,
+            stats: { skipped: true, reason: `empty-${mode}-artifacts` }
+          });
+          if (emitOutput) {
+            if (mode === 'records') {
+              log(`${modeLabel} skipping records sqlite rebuild (artifacts empty; existing db empty).`);
+            } else {
+              log(`${modeLabel} skipping sqlite rebuild (artifacts empty; existing db empty).`);
+            }
+          }
+          done += 1;
+          buildModeTask.set(done, modeList.length, { message: `${mode} skipped` });
+          continue;
+        }
+      }
+
       const incrementalData = loadIncrementalManifest(repoCacheRoot, mode);
       const incrementalBundleDir = incrementalData?.bundleDir || null;
       const incrementalFiles = incrementalData?.manifest?.files;
       const incrementalFileCount = incrementalFiles && typeof incrementalFiles === 'object'
         ? Object.keys(incrementalFiles).length
         : 0;
-      const incrementalBundleCount = incrementalBundleDir && fsSync.existsSync(incrementalBundleDir)
-        ? fsSync.readdirSync(incrementalBundleDir).filter((name) => !name.startsWith('.')).length
-        : 0;
-      const missingBundleCount = countMissingBundleFiles(incrementalData);
+      const bundleInventory = listIncrementalBundleFiles(incrementalBundleDir);
+      const incrementalBundleCount = bundleInventory.count;
+      const missingBundleCount = countMissingBundleFiles(incrementalData, bundleInventory.names);
       let hasIncrementalBundles = incrementalRequested && Boolean(
         incrementalData?.manifest
         && incrementalFileCount > 0
@@ -680,7 +574,10 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
             };
           }
           if (updateResult?.used) {
-            const counts = readSqliteCounts(outputPath);
+            const counts = readSqliteCounts({
+              Database,
+              dbPath: outputPath
+            });
             const durationMs = Date.now() - startTs;
             let stat = null;
             try {
@@ -811,10 +708,12 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
           });
         }
         const hadVectorTable = resolvedVectorConfig?.enabled === true
-          ? hasVectorTableAtPath(
-            tempOutputPath,
-            resolvedVectorConfig?.extension?.table || 'dense_vectors_ann'
-          )
+          ? hasVectorTableAtPath({
+            Database,
+            dbPath: tempOutputPath,
+            tableName: resolvedVectorConfig?.extension?.table || 'dense_vectors_ann',
+            hasVectorTable
+          })
           : false;
         if (compactMode) {
           const compacted = await compactDatabase({
@@ -828,7 +727,10 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
         await replaceSqliteDatabase(tempOutputPath, outputPath);
         tempOutputPath = null;
         await removeSqliteSidecars(outputPath);
-        const counts = readSqliteCounts(outputPath);
+        const counts = readSqliteCounts({
+          Database,
+          dbPath: outputPath
+        });
         const durationMs = Date.now() - startTs;
         const stat = await fs.stat(outputPath);
         stageCheckpoints.record({

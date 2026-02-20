@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { applyTestEnv } from '../../helpers/test-env.js';
+import { applyTestEnv, syncProcessEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
@@ -41,10 +41,11 @@ if (gitInit.status !== 0) {
   process.exit(gitInit.status ?? 1);
 }
 
-const prevCacheRoot = process.env.PAIROFCLEATS_CACHE_ROOT;
-const prevTesting = process.env.PAIROFCLEATS_TESTING;
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
-applyTestEnv();
+const prevEnv = {
+  PAIROFCLEATS_CACHE_ROOT: process.env.PAIROFCLEATS_CACHE_ROOT,
+  PAIROFCLEATS_TESTING: process.env.PAIROFCLEATS_TESTING
+};
+applyTestEnv({ cacheRoot });
 
 try {
   const rootCache = await ensureRepoArtifacts(repoRoot, 'root-build');
@@ -100,10 +101,7 @@ try {
     'toolTimeoutMs from repository root config should apply for nested repoPath'
   );
 } finally {
-  if (prevCacheRoot === undefined) delete process.env.PAIROFCLEATS_CACHE_ROOT;
-  else process.env.PAIROFCLEATS_CACHE_ROOT = prevCacheRoot;
-  if (prevTesting === undefined) delete process.env.PAIROFCLEATS_TESTING;
-  else process.env.PAIROFCLEATS_TESTING = prevTesting;
+  syncProcessEnv(prevEnv, Object.keys(prevEnv), { clearMissing: true });
   if (fs.existsSync(testRoot)) {
     await fsPromises.rm(testRoot, { recursive: true, force: true });
   }

@@ -6,6 +6,7 @@ import { getScmRuntimeConfig } from '../runtime.js';
 import { toPosix } from '../../../shared/files.js';
 import { findUpwards } from '../../../shared/fs/find-upwards.js';
 import { createWarnOnce } from '../../../shared/logging/warn-once.js';
+import { log } from '../../../shared/progress.js';
 import {
   normalizeJjPathList,
   parseJjFileListOutput,
@@ -33,7 +34,7 @@ const resolveJjConfig = () => {
   const jjConfig = config.jj || {};
   const maxConcurrentProcesses = Number.isFinite(Number(config.maxConcurrentProcesses))
     ? Math.max(1, Math.floor(Number(config.maxConcurrentProcesses)))
-    : 2;
+    : 8;
   const timeoutMs = Number.isFinite(Number(config.timeoutMs)) && Number(config.timeoutMs) > 0
     ? Math.floor(Number(config.timeoutMs))
     : 4000;
@@ -91,16 +92,16 @@ const runJjRaw = async ({ repoRoot, args, timeoutMs, useQueue = true, signal }) 
 const logJjInfo = async (repoRoot, config) => {
   if (!logState.provider) {
     logState.provider = true;
-    console.warn('[scm] provider=jj');
+    log('[scm] provider=jj');
   }
   if (repoRoot && !logState.roots.has(repoRoot)) {
     logState.roots.add(repoRoot);
-    console.warn(`[scm] jj root: ${repoRoot}`);
+    log(`[scm] jj root: ${repoRoot}`);
   }
   if (!logState.mode) {
     logState.mode = true;
     const mode = config.snapshotWorkingCopy ? 'snapshot' : 'read-only';
-    console.warn(`[scm] jj pinning mode: ${mode}`);
+    log(`[scm] jj pinning mode: ${mode}`);
   }
   if (!logState.version) {
     const result = await runJjRaw({
@@ -111,7 +112,7 @@ const logJjInfo = async (repoRoot, config) => {
     });
     if (result.exitCode === 0) {
       const version = String(result.stdout || '').trim();
-      if (version) console.warn(`[scm] jj version: ${version}`);
+      if (version) log(`[scm] jj version: ${version}`);
     }
     logState.version = true;
   }
@@ -319,22 +320,30 @@ export const jjProvider = {
     }
     return { filesPosix };
   },
-  async getFileMeta({ repoRoot, filePosix }) {
+  async getFileMeta({ repoRoot, filePosix, timeoutMs, includeChurn = true }) {
     const config = resolveJjConfig();
     const fileset = toJjFileset(filePosix);
     if (!fileset) return { ok: false, reason: 'unavailable' };
     const filesetLiteral = JSON.stringify(fileset);
-    const template = [
-      'json({',
-      '"author": author.name(),',
-      '"timestamp": author.timestamp().utc().format("%Y-%m-%dT%H:%M:%SZ"),',
-      `"added": self.diff(${filesetLiteral}).stat().total_added(),`,
-      `"removed": self.diff(${filesetLiteral}).stat().total_removed()`,
-      '})'
-    ].join(' ');
+    const template = includeChurn
+      ? [
+        'json({',
+        '"author": author.name(),',
+        '"timestamp": author.timestamp().utc().format("%Y-%m-%dT%H:%M:%SZ"),',
+        `"added": self.diff(${filesetLiteral}).stat().total_added(),`,
+        `"removed": self.diff(${filesetLiteral}).stat().total_removed()`,
+        '})'
+      ].join(' ')
+      : [
+        'json({',
+        '"author": author.name(),',
+        '"timestamp": author.timestamp().utc().format("%Y-%m-%dT%H:%M:%SZ")',
+        '})'
+      ].join(' ');
     const result = await runJjCommand({
       repoRoot,
-      args: ['log', '--no-graph', '-n', String(config.churnWindowCommits), '-T', template, fileset]
+      args: ['log', '--no-graph', '-n', includeChurn ? String(config.churnWindowCommits) : '1', '-T', template, fileset],
+      timeoutMs: Number.isFinite(timeoutMs) ? timeoutMs : config.timeoutMs
     });
     if (result.exitCode !== 0) {
       return { ok: false, reason: 'unavailable' };
@@ -347,20 +356,22 @@ export const jjProvider = {
     let churnAdded = 0;
     let churnDeleted = 0;
     let churnCommits = 0;
-    for (const row of rows) {
-      churnCommits += 1;
-      const added = Number(row?.added) || 0;
-      const removed = Number(row?.removed) || 0;
-      churnAdded += Number.isFinite(added) ? added : 0;
-      churnDeleted += Number.isFinite(removed) ? removed : 0;
+    if (includeChurn) {
+      for (const row of rows) {
+        churnCommits += 1;
+        const added = Number(row?.added) || 0;
+        const removed = Number(row?.removed) || 0;
+        churnAdded += Number.isFinite(added) ? added : 0;
+        churnDeleted += Number.isFinite(removed) ? removed : 0;
+      }
     }
     return {
       lastModifiedAt: first.timestamp || null,
       lastAuthor: first.author || null,
-      churn: churnAdded + churnDeleted,
-      churnAdded,
-      churnDeleted,
-      churnCommits
+      churn: includeChurn ? churnAdded + churnDeleted : null,
+      churnAdded: includeChurn ? churnAdded : null,
+      churnDeleted: includeChurn ? churnDeleted : null,
+      churnCommits: includeChurn ? churnCommits : null
     };
   },
   async annotate({ repoRoot, filePosix, timeoutMs, signal }) {

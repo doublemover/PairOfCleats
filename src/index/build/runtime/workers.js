@@ -5,6 +5,26 @@ import { resolveThreadLimits } from '../../../shared/threads.js';
 import { createIndexerWorkerPools, resolveWorkerPoolConfig } from '../worker-pool.js';
 import { createCrashLogger } from '../crash-log.js';
 
+/**
+ * Resolve runtime thread/concurrency limits from CLI, env, and config, and
+ * emit advisory warnings when IO concurrency is likely to outpace libuv.
+ *
+ * @param {object} input
+ * @param {object} input.argv
+ * @param {string[]} input.rawArgv
+ * @param {object} input.envConfig
+ * @param {object} input.indexingConfig
+ * @param {(line:string)=>void} [input.log]
+ * @returns {{
+ *   threadLimits:object,
+ *   cpuCount:number,
+ *   maxConcurrencyCap:number,
+ *   fileConcurrency:number,
+ *   importConcurrency:number,
+ *   ioConcurrency:number,
+ *   cpuConcurrency:number
+ * }}
+ */
 export const resolveThreadLimitsConfig = ({ argv, rawArgv, envConfig, indexingConfig, log }) => {
   const configConcurrency = Number(indexingConfig.concurrency);
   const importConcurrencyConfig = Number(indexingConfig.importConcurrency);
@@ -68,6 +88,24 @@ const coercePositiveInt = (value) => {
   return Math.floor(parsed);
 };
 
+/**
+ * Create stage runtime queues with bounded pending windows.
+ *
+ * Scheduler-backed adapters are preferred when available; otherwise plain
+ * in-process queues are used. Pending limits intentionally stay conservative to
+ * cap out-of-order buffering pressure and avoid transient memory spikes.
+ *
+ * @param {object} options
+ * @param {number} options.ioConcurrency
+ * @param {number} options.cpuConcurrency
+ * @param {number} options.fileConcurrency
+ * @param {number} options.embeddingConcurrency
+ * @param {object|null} options.pendingLimits
+ * @param {object|null} options.scheduler
+ * @param {object|null} [options.stage1Queues]
+ * @param {number|null} [options.procConcurrency]
+ * @returns {{queues:object,maxFilePending:number,maxIoPending:number,maxEmbeddingPending:number}}
+ */
 export const createRuntimeQueues = ({
   ioConcurrency,
   cpuConcurrency,
@@ -96,7 +134,7 @@ export const createRuntimeQueues = ({
   const maxFilePending = coercePositiveInt(tokenizeConfig?.maxPending)
     ?? (Number.isFinite(pendingLimits?.cpu?.maxPending)
       ? pendingLimits.cpu.maxPending
-      : Math.max(16, effectiveCpuConcurrency * 4));
+      : Math.max(32, effectiveCpuConcurrency * 8));
   const maxIoPending = Number.isFinite(pendingLimits?.io?.maxPending)
     ? pendingLimits.io.maxPending
     : Math.max(8, ioConcurrency * 4);
@@ -105,7 +143,7 @@ export const createRuntimeQueues = ({
     : Math.max(1, Math.min(cpuConcurrency || 1, fileConcurrency || 1));
   const maxEmbeddingPending = Number.isFinite(pendingLimits?.embedding?.maxPending)
     ? pendingLimits.embedding.maxPending
-    : Math.max(16, effectiveEmbeddingConcurrency * 4);
+    : Math.max(32, effectiveEmbeddingConcurrency * 8);
   const resolvedProcConcurrency = coercePositiveInt(procConcurrency)
     ?? (Number.isFinite(pendingLimits?.proc?.concurrency)
       ? Math.max(1, Math.floor(pendingLimits.proc.concurrency))
@@ -169,18 +207,45 @@ export const createRuntimeQueues = ({
 };
 
 export const resolveWorkerPoolRuntimeConfig = ({ indexingConfig, envConfig, cpuConcurrency, fileConcurrency }) => {
-  const workerPoolDefaultMax = Math.min(8, fileConcurrency);
+  const dynamicHardMaxWorkers = Math.max(
+    32,
+    Number.isFinite(cpuConcurrency) ? Math.max(1, Math.floor(cpuConcurrency)) : 1,
+    Number.isFinite(fileConcurrency) ? Math.max(1, Math.floor(fileConcurrency)) : 1
+  );
+  const workerPoolDefaultMax = Math.max(
+    1,
+    Math.min(dynamicHardMaxWorkers, Math.max(cpuConcurrency, Math.min(16, fileConcurrency)))
+  );
   return resolveWorkerPoolConfig(
     indexingConfig.workerPool || {},
     envConfig,
     {
       cpuLimit: cpuConcurrency,
       defaultMaxWorkers: workerPoolDefaultMax,
-      hardMaxWorkers: 16
+      hardMaxWorkers: dynamicHardMaxWorkers
     }
   );
 };
 
+/**
+ * Instantiate worker pools (tokenize and optional quantize) and wire crash
+ * logging so pool failures are captured in repo cache diagnostics.
+ *
+ * @param {object} input
+ * @param {object} input.workerPoolConfig
+ * @param {string} input.repoCacheRoot
+ * @param {Set<string>} input.dictWords
+ * @param {object|null} input.dictSharedPayload
+ * @param {object} input.dictConfig
+ * @param {Set<string>|null} input.codeDictWords
+ * @param {Map<string,Set<string>>|object|null} input.codeDictWordsByLanguage
+ * @param {Set<string>|string[]|null} input.codeDictLanguages
+ * @param {object} input.postingsConfig
+ * @param {object} input.treeSitterConfig
+ * @param {boolean} input.debugCrash
+ * @param {(line:string)=>void} input.log
+ * @returns {Promise<{workerPools:object,workerPool:object|null,quantizePool:object|null}>}
+ */
 export const createRuntimeWorkerPools = async ({
   workerPoolConfig,
   repoCacheRoot,

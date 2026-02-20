@@ -7,6 +7,7 @@ import { readTextFile } from '../../../src/shared/encoding.js';
 import { countLinesForEntries } from '../../../src/shared/file-stats.js';
 import { formatDurationMs } from '../../../src/shared/time-format.js';
 import { getTriageConfig } from '../../shared/dict-utils.js';
+import { emitBenchLog } from './logging.js';
 
 export const formatDuration = (ms) => formatDurationMs(ms);
 
@@ -98,16 +99,17 @@ export const buildLineStats = async (repoPath, userConfig) => {
   return { totals, linesByFile };
 };
 
-export const validateEncodingFixtures = async (scriptRoot) => {
+export const validateEncodingFixtures = async (scriptRoot, { onLog = null } = {}) => {
+  const warn = (message) => emitBenchLog(onLog, message, 'warn');
   const fixturePath = path.join(scriptRoot, 'tests', 'fixtures', 'encoding', 'latin1.js');
   if (!fs.existsSync(fixturePath)) return;
   try {
     const { text, usedFallback } = await readTextFile(fixturePath);
     const expected = 'caf\u00e9';
     if (!text.includes(expected) || !usedFallback) {
-      console.warn(`[bench] Encoding fixture did not decode as expected: ${fixturePath}`);
+      warn(`[bench] Encoding fixture did not decode as expected: ${fixturePath}`);
     }
   } catch (err) {
-    console.warn(`[bench] Encoding fixture read failed: ${err?.message || err}`);
+    warn(`[bench] Encoding fixture read failed: ${err?.message || err}`);
   }
 };

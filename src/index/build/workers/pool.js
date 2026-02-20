@@ -349,8 +349,15 @@ export async function createIndexerWorkerPool(input = {}) {
         if (disabled || permanentlyDisabled) return false;
         if (config.enabled === true) return true;
         if (config.enabled === 'auto') {
+          const normalizedSizeBytes = Number.isFinite(sizeBytes) ? sizeBytes : 0;
+          const minFileBytes = Number.isFinite(config.minFileBytes) && config.minFileBytes > 0
+            ? Math.floor(config.minFileBytes)
+            : null;
+          if (minFileBytes != null && normalizedSizeBytes < minFileBytes) {
+            return false;
+          }
           if (config.maxFileBytes == null) return true;
-          return !Number.isFinite(sizeBytes) || sizeBytes <= config.maxFileBytes;
+          return normalizedSizeBytes <= config.maxFileBytes;
         }
         return false;
       },

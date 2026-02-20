@@ -42,8 +42,8 @@ import { normalizeStage, buildStageOverrides } from './stage.js';
 import { configureRuntimeLogger } from './logging.js';
 import { normalizeLimit, resolveFileCapsAndGuardrails } from './caps.js';
 import {
-  normalizeParser,
-  normalizeFlowSetting,
+  normalizeLanguageParserConfig,
+  normalizeLanguageFlowConfig,
   normalizeDictSignaturePath
 } from './normalize.js';
 import { buildAnalysisPolicy } from './policy.js';
@@ -68,6 +68,12 @@ const coercePositiveInt = (value) => {
   return Math.floor(parsed);
 };
 
+const coerceNonNegativeInt = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return null;
+  return Math.floor(parsed);
+};
+
 const coerceFraction = (value) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return null;
@@ -84,6 +90,12 @@ const resolveStage1Queues = (indexingConfig = {}) => {
   const postings = stage1?.postings && typeof stage1.postings === 'object'
     ? stage1.postings
     : {};
+  const ordered = stage1?.ordered && typeof stage1.ordered === 'object'
+    ? stage1.ordered
+    : {};
+  const watchdog = stage1?.watchdog && typeof stage1.watchdog === 'object'
+    ? stage1.watchdog
+    : {};
 
   const tokenizeConcurrency = coercePositiveInt(tokenize.concurrency);
   const tokenizeMaxPending = coercePositiveInt(tokenize.maxPending);
@@ -94,6 +106,17 @@ const resolveStage1Queues = (indexingConfig = {}) => {
   const postingsMaxPendingRows = coercePositiveInt(postings.maxPendingRows);
   const postingsMaxPendingBytes = coercePositiveInt(postings.maxPendingBytes);
   const postingsMaxHeapFraction = coerceFraction(postings.maxHeapFraction);
+  const orderedMaxPending = coercePositiveInt(ordered.maxPending);
+  const orderedBucketSize = coercePositiveInt(ordered.bucketSize);
+  const watchdogSlowFileMs = coerceNonNegativeInt(
+    watchdog.slowFileMs ?? stage1.fileWatchdogMs
+  );
+  const watchdogMaxSlowFileMs = coerceNonNegativeInt(
+    watchdog.maxSlowFileMs ?? stage1.fileWatchdogMaxMs
+  );
+  const watchdogBytesPerStep = coercePositiveInt(watchdog.bytesPerStep);
+  const watchdogLinesPerStep = coercePositiveInt(watchdog.linesPerStep);
+  const watchdogStepMs = coercePositiveInt(watchdog.stepMs);
 
   return {
     tokenize: {
@@ -105,6 +128,17 @@ const resolveStage1Queues = (indexingConfig = {}) => {
       maxPendingRows: postingsMaxPendingRows,
       maxPendingBytes: postingsMaxPendingBytes,
       maxHeapFraction: postingsMaxHeapFraction
+    },
+    ordered: {
+      maxPending: orderedMaxPending,
+      bucketSize: orderedBucketSize
+    },
+    watchdog: {
+      slowFileMs: watchdogSlowFileMs,
+      maxSlowFileMs: watchdogMaxSlowFileMs,
+      bytesPerStep: watchdogBytesPerStep,
+      linesPerStep: watchdogLinesPerStep,
+      stepMs: watchdogStepMs
     }
   };
 };
@@ -443,16 +477,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   const kotlinFlowMaxLines = normalizeLimit(kotlinConfig.flowMaxLines, 3000);
   const kotlinRelationsMaxBytes = normalizeLimit(kotlinConfig.relationsMaxBytes, 200 * 1024);
   const kotlinRelationsMaxLines = normalizeLimit(kotlinConfig.relationsMaxLines, 2000);
-  const javascriptParser = normalizeParser(
-    indexingConfig.javascriptParser,
-    'babel',
-    ['auto', 'babel', 'acorn', 'esprima']
-  );
-  const typescriptParser = normalizeParser(
-    indexingConfig.typescriptParser,
-    'auto',
-    ['auto', 'typescript', 'babel', 'heuristic']
-  );
+  const parserConfig = normalizeLanguageParserConfig(indexingConfig);
   const typescriptConfig = indexingConfig.typescript || {};
   const typescriptImportsOnly = typescriptConfig.importsOnly === true;
   const typescriptEmbeddingBatchRaw = Number(typescriptConfig.embeddingBatchMultiplier);
@@ -464,7 +489,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     indexingConfig.embeddingBatchMultipliers || {},
     typescriptEmbeddingBatchMultiplier ? { typescript: typescriptEmbeddingBatchMultiplier } : {}
   );
-  const javascriptFlow = normalizeFlowSetting(indexingConfig.javascriptFlow);
+  const flowConfig = normalizeLanguageFlowConfig(indexingConfig);
   const pythonAstConfig = indexingConfig.pythonAst || {};
   const pythonAstEnabled = pythonAstConfig.enabled !== false;
   const segmentsConfig = normalizeSegmentsConfig(indexingConfig.segments || {});
@@ -883,11 +908,11 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     skipUnknownLanguages,
     skipOnParseError,
     javascript: {
-      parser: javascriptParser,
-      flow: javascriptFlow
+      parser: parserConfig.javascript,
+      flow: flowConfig.javascript
     },
     typescript: {
-      parser: typescriptParser,
+      parser: parserConfig.typescript,
       importsOnly: typescriptImportsOnly
     },
     embeddingBatchMultipliers,

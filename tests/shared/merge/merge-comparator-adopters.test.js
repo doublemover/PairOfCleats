@@ -40,9 +40,9 @@ await assert.rejects(
 );
 
 const adopterChecks = [
-  'src/index/build/postings.js',
+  'src/index/build/postings/spill.js',
   'src/index/build/artifacts/graph-relations.js',
-  'src/index/build/artifacts/writers/chunk-meta.js',
+  'src/index/build/artifacts/writers/chunk-meta/writer.js',
   'src/index/build/artifacts/writers/symbol-edges.js',
   'src/index/build/artifacts/writers/symbol-occurrences.js',
   'src/index/build/artifacts/writers/vfs-manifest.js',

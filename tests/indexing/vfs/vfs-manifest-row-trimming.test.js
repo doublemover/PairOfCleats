@@ -6,16 +6,20 @@ import path from 'node:path';
 import { loadJsonArrayArtifact } from '../../../src/shared/artifact-io.js';
 import { buildVfsManifestRowsForFile } from '../../../src/index/tooling/vfs.js';
 import { enqueueVfsManifestArtifacts } from '../../../src/index/build/artifacts/writers/vfs-manifest.js';
+import { writePiecesManifest } from '../../helpers/artifact-io-fixture.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 
 const MAX_ROW_BYTES = 32 * 1024;
 
 const runWriter = async ({ outDir, mode, rows, maxJsonBytes }) => {
   const writes = [];
+  const pieceFiles = [];
   const enqueueWrite = (label, fn) => {
     writes.push({ label, fn });
   };
-  const addPieceFile = () => {};
+  const addPieceFile = (entry, absPath) => {
+    pieceFiles.push({ entry, absPath });
+  };
   const formatArtifactLabel = (value) => value;
 
   await enqueueVfsManifestArtifacts({
@@ -32,6 +36,13 @@ const runWriter = async ({ outDir, mode, rows, maxJsonBytes }) => {
 
   for (const write of writes) {
     await write.fn();
+  }
+  if (pieceFiles.length) {
+    const pieces = pieceFiles.map(({ entry, absPath }) => ({
+      ...entry,
+      path: path.relative(outDir, absPath).replace(/\\/g, '/')
+    }));
+    await writePiecesManifest(outDir, pieces);
   }
 };
 

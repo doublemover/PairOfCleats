@@ -20,5 +20,11 @@ client.kill();
 if (logs.some((line) => line.includes('ERR_STREAM_DESTROYED'))) {
   throw new Error('LSP shutdown emitted ERR_STREAM_DESTROYED.');
 }
+if (logs.some((line) => /\[lsp\]\s+write error:/i.test(line))) {
+  throw new Error('LSP shutdown emitted unexpected LSP write error.');
+}
+if (logs.some((line) => /\bEPIPE\b/i.test(line))) {
+  throw new Error('LSP shutdown emitted EPIPE log noise.');
+}
 
 console.log('LSP shutdown test passed');

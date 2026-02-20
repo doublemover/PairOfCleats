@@ -1,4 +1,11 @@
-import { buildScopedSymbolId, buildSignatureKey, buildSymbolId, buildSymbolKey } from '../../shared/identity.js';
+import {
+  buildScopedSymbolId,
+  buildSignatureKey,
+  buildSymbolId,
+  buildSymbolKey,
+  isCanonicalChunkUid,
+  isCanonicalGeneratedSymbolId
+} from '../../shared/identity.js';
 import { toKindGroup } from './kind-group.js';
 
 const normalizeString = (value) => {
@@ -21,6 +28,7 @@ export const buildSymbolIdentity = ({ metaV2 }) => {
   const lang = normalizeString(metaV2.lang);
   const kindGroup = toKindGroup(kind);
   if (!isDefinitionChunk({ name, kind, kindGroup, lang })) return null;
+  if (!isCanonicalChunkUid(metaV2.chunkUid)) return null;
   const qualifiedName = name;
   const symbolKey = buildSymbolKey({
     virtualPath: metaV2.virtualPath,
@@ -36,6 +44,7 @@ export const buildSymbolIdentity = ({ metaV2 }) => {
     chunkUid: metaV2.chunkUid
   });
   const symbolId = buildSymbolId({ scopedId, scheme: 'heur' });
+  if (!isCanonicalGeneratedSymbolId(symbolId)) return null;
   return {
     v: 1,
     scheme: 'heur',

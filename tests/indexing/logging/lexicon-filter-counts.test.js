@@ -53,6 +53,61 @@ assert.match(logs[0], /callDetailsDropped=1/, 'expected callDetailsDropped count
 assert.match(logs[0], /callDetailsRangeDropped=1/, 'expected callDetailsRangeDropped count');
 assert.match(logs[0], /totalDropped=5/, 'expected totalDropped count');
 
+const sparseLogs = [];
+filterRawRelationsWithLexicon({
+  usages: ['if', 'value'],
+  calls: [['run', 'obj.value']],
+  callDetails: [{ caller: 'run', callee: 'obj.value', line: 1, col: 1 }],
+  callDetailsWithRange: [{ caller: 'run', callee: 'obj.value', range: { start: 0, end: 2 } }]
+}, {
+  languageId: 'python',
+  config: {
+    enabled: true,
+    relations: {
+      enabled: true,
+      drop: {
+        keywords: true,
+        literals: true,
+        builtins: false,
+        types: false
+      }
+    }
+  },
+  relKey: 'src/b.py',
+  log: (line) => sparseLogs.push(String(line))
+});
+assert.equal(sparseLogs.length, 1, 'expected sparse filter log line');
+assert.match(sparseLogs[0], /usagesDropped=1/, 'expected usagesDropped count in sparse log');
+assert.match(sparseLogs[0], /totalDropped=1/, 'expected totalDropped count in sparse log');
+assert.doesNotMatch(sparseLogs[0], /callsDropped=/, 'did not expect callsDropped=0 in sparse log');
+assert.doesNotMatch(sparseLogs[0], /callDetailsDropped=/, 'did not expect callDetailsDropped=0 in sparse log');
+assert.doesNotMatch(sparseLogs[0], /callDetailsRangeDropped=/, 'did not expect callDetailsRangeDropped=0 in sparse log');
+
+const zeroLogs = [];
+filterRawRelationsWithLexicon({
+  usages: ['value'],
+  calls: [['run', 'obj.value']],
+  callDetails: [{ caller: 'run', callee: 'obj.value', line: 1, col: 1 }],
+  callDetailsWithRange: [{ caller: 'run', callee: 'obj.value', range: { start: 0, end: 2 } }]
+}, {
+  languageId: 'python',
+  config: {
+    enabled: true,
+    relations: {
+      enabled: true,
+      drop: {
+        keywords: true,
+        literals: true,
+        builtins: false,
+        types: false
+      }
+    }
+  },
+  relKey: 'src/c.py',
+  log: (line) => zeroLogs.push(String(line))
+});
+assert.equal(zeroLogs.length, 0, 'did not expect filter log line when all dropped counters are zero');
+
 const stats = getLexiconRelationFilterStats(filtered);
 assert.ok(stats, 'expected attached lexicon filter stats');
 assert.equal(stats.languageId, 'python');

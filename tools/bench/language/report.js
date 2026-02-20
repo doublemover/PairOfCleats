@@ -1,3 +1,5 @@
+import { log } from '../../../src/shared/progress.js';
+
 export const summarizeResults = (items) => {
   const valid = items.filter((entry) => entry.summary);
   if (!valid.length) return null;
@@ -51,9 +53,15 @@ export const summarizeResults = (items) => {
   };
 };
 
-export const printSummary = (label, summary, count, quietMode) => {
+export const printSummary = (
+  label,
+  summary,
+  count,
+  quietMode,
+  { writeLine = (line) => log(line) } = {}
+) => {
   if (!summary || quietMode) return;
-  console.error(`\n${label} summary (${count} repos)`);
+  writeLine(`\n${label} summary (${count} repos)`);
   for (const backend of summary.backends) {
     const latency = summary.latencyMsAvg?.[backend];
     const hit = summary.hitRate?.[backend];
@@ -63,12 +71,12 @@ export const printSummary = (label, summary, count, quietMode) => {
     const hitText = Number.isFinite(hit) ? `${(hit * 100).toFixed(1)}%` : 'n/a';
     const resultText = Number.isFinite(results) ? results.toFixed(1) : 'n/a';
     const memText = Number.isFinite(mem) ? `${mem.toFixed(1)} MB` : 'n/a';
-    console.error(`- ${backend} avg ${latencyText} | hit ${hitText} | avg hits ${resultText} | rss ${memText}`);
+    writeLine(`- ${backend} avg ${latencyText} | hit ${hitText} | avg hits ${resultText} | rss ${memText}`);
   }
   if (summary.buildMs) {
     for (const [key, value] of Object.entries(summary.buildMs)) {
       if (!Number.isFinite(value)) continue;
-      console.error(`- build ${key} avg ${(value / 1000).toFixed(1)}s`);
+      writeLine(`- build ${key} avg ${(value / 1000).toFixed(1)}s`);
     }
   }
 };

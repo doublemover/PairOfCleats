@@ -10,8 +10,6 @@ import { buildSqliteIndex } from '../../src/integrations/core/index.js';
 import { createPointerSnapshot } from '../../src/index/snapshots/create.js';
 import { loadUserConfig } from '../../tools/shared/dict-utils.js';
 
-applyTestEnv();
-
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'sqlite-build-snapshot-service');
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
@@ -22,18 +20,20 @@ await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 await fs.cp(fixtureRoot, repoRoot, { recursive: true });
 
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
-process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
-process.env.PAIROFCLEATS_WORKER_POOL = 'off';
-process.env.PAIROFCLEATS_TEST_CONFIG = JSON.stringify({
-  indexing: {
-    embeddings: {
-      enabled: false,
-      mode: 'off',
-      lancedb: { enabled: false },
-      hnsw: { enabled: false }
+const env = applyTestEnv({
+  cacheRoot,
+  embeddings: 'stub',
+  testConfig: {
+    indexing: {
+      embeddings: {
+        enabled: false,
+        mode: 'off',
+        lancedb: { enabled: false },
+        hnsw: { enabled: false }
+      }
     }
-  }
+  },
+  extraEnv: { PAIROFCLEATS_WORKER_POOL: 'off' }
 });
 
 const markerPath = path.join(repoRoot, 'src', 'phase14-sqlite-snapshot.js');
@@ -56,7 +56,7 @@ const runBuild = () => {
     ],
     {
       cwd: repoRoot,
-      env: process.env,
+      env,
       encoding: 'utf8'
     }
   );

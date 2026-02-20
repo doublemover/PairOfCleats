@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { buildCodeMap } from '../../../src/map/build-map.js';
+import { writePiecesManifest } from '../../helpers/artifact-io-fixture.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'map-chunkuid-join');
@@ -101,6 +102,10 @@ const graphRelations = {
 
 await fs.writeFile(path.join(tempRoot, 'chunk_meta.json'), JSON.stringify(chunkMeta, null, 2));
 await fs.writeFile(path.join(tempRoot, 'graph_relations.json'), JSON.stringify(graphRelations, null, 2));
+await writePiecesManifest(tempRoot, [
+  { name: 'chunk_meta', path: 'chunk_meta.json', format: 'json' },
+  { name: 'graph_relations', path: 'graph_relations.json', format: 'json' }
+]);
 
 const mapModel = await buildCodeMap({
   repoRoot: root,

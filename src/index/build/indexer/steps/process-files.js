@@ -8,7 +8,10 @@ import { throwIfAborted } from '../../../../shared/abort.js';
 import { compareStrings } from '../../../../shared/sort.js';
 import { createBuildCheckpoint } from '../../build-state.js';
 import { createFileProcessor } from '../../file-processor.js';
+import { getLanguageForFile } from '../../../language-registry.js';
 import { runTreeSitterScheduler } from '../../tree-sitter-scheduler/runner.js';
+import { shouldSkipTreeSitterPlanningForPath } from '../../tree-sitter-scheduler/policy.js';
+import { createHeavyFilePerfAggregator, createPerfEventLogger } from '../../perf-event-log.js';
 import { loadStructuralMatches } from '../../../structural.js';
 import { planShardBatches, planShards } from '../../shards.js';
 import { recordFileMetric } from '../../perf-profile.js';
@@ -20,9 +23,15 @@ import { createShardRuntime, resolveCheckpointBatchSize } from './process-files/
 import { SCHEDULER_QUEUE_NAMES } from '../../runtime/scheduler.js';
 import { INDEX_PROFILE_VECTOR_ONLY } from '../../../../contracts/index-profile.js';
 
-const FILE_WATCHDOG_MS = 10000;
-const DEFAULT_POSTINGS_ROWS_PER_PENDING = 200;
-const DEFAULT_POSTINGS_BYTES_PER_PENDING = 8 * 1024 * 1024;
+const FILE_WATCHDOG_DEFAULT_MS = 10000;
+const FILE_WATCHDOG_DEFAULT_MAX_MS = 120000;
+const FILE_WATCHDOG_DEFAULT_BYTES_PER_STEP = 256 * 1024;
+const FILE_WATCHDOG_DEFAULT_LINES_PER_STEP = 2000;
+const FILE_WATCHDOG_DEFAULT_STEP_MS = 1000;
+const DEFAULT_POSTINGS_ROWS_PER_PENDING = 300;
+const DEFAULT_POSTINGS_BYTES_PER_PENDING = 12 * 1024 * 1024;
+const DEFAULT_POSTINGS_PENDING_SCALE = 3;
+const LEXICON_FILTER_LOG_LIMIT = 5;
 
 export const resolveChunkProcessingFeatureFlags = (runtime) => {
   const vectorOnlyProfile = runtime?.profile?.id === INDEX_PROFILE_VECTOR_ONLY;
@@ -34,10 +43,104 @@ export const resolveChunkProcessingFeatureFlags = (runtime) => {
   };
 };
 
+/**
+ * Track ordered-appender completion promises and rethrow the first flush failure.
+ *
+ * `runWithQueue` may await throttling hooks (capacity) instead of each append completion.
+ * This tracker keeps failures from `orderedAppender.enqueue()` observable even when callers
+ * are only awaiting backpressure gates.
+ *
+ * @returns {{
+ *   track:(completion:Promise<unknown>|unknown,onSettled?:(()=>void)|null)=>Promise<unknown>|unknown,
+ *   throwIfFailed:()=>void,
+ *   wait:()=>Promise<void>
+ * }}
+ */
+export const createOrderedCompletionTracker = () => {
+  const pending = new Set();
+  let firstError = null;
+
+  const track = (completion, onSettled = null) => {
+    if (!completion || typeof completion.then !== 'function') return completion;
+    pending.add(completion);
+    const settle = completion
+      .catch((err) => {
+        if (!firstError) firstError = err;
+      })
+      .finally(() => {
+        pending.delete(completion);
+        if (typeof onSettled === 'function') onSettled();
+      });
+    void settle.catch(() => {});
+    return completion;
+  };
+
+  const throwIfFailed = () => {
+    if (firstError) throw firstError;
+  };
+
+  const wait = async () => {
+    while (pending.size > 0) {
+      await Promise.allSettled(Array.from(pending));
+    }
+    throwIfFailed();
+  };
+
+  return { track, throwIfFailed, wait };
+};
+
 const coercePositiveInt = (value) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return null;
   return Math.floor(parsed);
+};
+
+const coerceNonNegativeInt = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return null;
+  return Math.floor(parsed);
+};
+
+const resolveFileWatchdogConfig = (runtime) => {
+  const config = runtime?.stage1Queues?.watchdog || {};
+  const slowFileMs = coerceNonNegativeInt(config.slowFileMs) ?? FILE_WATCHDOG_DEFAULT_MS;
+  const maxSlowFileMs = coerceNonNegativeInt(config.maxSlowFileMs)
+    ?? Math.max(FILE_WATCHDOG_DEFAULT_MAX_MS, slowFileMs);
+  const bytesPerStep = coercePositiveInt(config.bytesPerStep) ?? FILE_WATCHDOG_DEFAULT_BYTES_PER_STEP;
+  const linesPerStep = coercePositiveInt(config.linesPerStep) ?? FILE_WATCHDOG_DEFAULT_LINES_PER_STEP;
+  const stepMs = coercePositiveInt(config.stepMs) ?? FILE_WATCHDOG_DEFAULT_STEP_MS;
+  return {
+    slowFileMs: Math.max(0, slowFileMs),
+    maxSlowFileMs: Math.max(0, maxSlowFileMs),
+    bytesPerStep,
+    linesPerStep,
+    stepMs
+  };
+};
+
+const resolveFileWatchdogMs = (watchdogConfig, entry) => {
+  if (!watchdogConfig || watchdogConfig.slowFileMs <= 0) return 0;
+  const fileBytes = coerceNonNegativeInt(entry?.stat?.size) ?? 0;
+  const fileLines = coerceNonNegativeInt(entry?.lines) ?? 0;
+  const byteSteps = Math.floor(fileBytes / watchdogConfig.bytesPerStep);
+  const lineSteps = Math.floor(fileLines / watchdogConfig.linesPerStep);
+  const extraSteps = Math.max(byteSteps, lineSteps);
+  const timeoutMs = watchdogConfig.slowFileMs + (extraSteps * watchdogConfig.stepMs);
+  return Math.min(watchdogConfig.maxSlowFileMs, timeoutMs);
+};
+
+export const shouldBypassPostingsBackpressure = ({
+  orderIndex,
+  nextOrderedIndex,
+  bypassWindow = 0
+}) => {
+  if (!Number.isFinite(orderIndex) || !Number.isFinite(nextOrderedIndex)) return false;
+  const normalizedOrderIndex = Math.floor(orderIndex);
+  const normalizedNextIndex = Math.floor(nextOrderedIndex);
+  const normalizedWindow = Number.isFinite(bypassWindow)
+    ? Math.max(0, Math.floor(bypassWindow))
+    : 0;
+  return normalizedOrderIndex <= (normalizedNextIndex + normalizedWindow);
 };
 
 const assignFileIndexes = (entries) => {
@@ -66,8 +169,10 @@ const resolvePostingsQueueConfig = (runtime) => {
     ? Math.max(1, Math.floor(runtime.cpuConcurrency))
     : 1;
   const baseMaxPending = coercePositiveInt(config.maxPending)
-    ?? cpuPending
-    ?? Math.max(16, cpuConcurrency * 4);
+    ?? (Number.isFinite(cpuPending)
+      ? Math.max(1, Math.floor(cpuPending * DEFAULT_POSTINGS_PENDING_SCALE))
+      : null)
+    ?? Math.max(32, cpuConcurrency * 8);
   const maxPendingRows = coercePositiveInt(config.maxPendingRows)
     ?? Math.max(DEFAULT_POSTINGS_ROWS_PER_PENDING, baseMaxPending * DEFAULT_POSTINGS_ROWS_PER_PENDING);
   const maxPendingBytes = coercePositiveInt(config.maxPendingBytes)
@@ -79,6 +184,92 @@ const resolvePostingsQueueConfig = (runtime) => {
     maxPendingBytes,
     maxHeapFraction: Number.isFinite(maxHeapFraction) && maxHeapFraction > 0 ? maxHeapFraction : undefined
   };
+};
+
+/**
+ * Resolve ordered appender backpressure thresholds.
+ *
+ * The ordered appender preserves deterministic emission order, but allowing a
+ * bounded out-of-order buffer keeps workers productive while a single slow
+ * head-of-line file is still processing.
+ *
+ * @param {object} runtime
+ * @returns {{maxPendingBeforeBackpressure:number}}
+ */
+const resolveOrderedAppenderConfig = (runtime) => {
+  const config = runtime?.stage1Queues?.ordered || {};
+  const cpuPending = Number.isFinite(runtime?.queues?.cpu?.maxPending)
+    ? runtime.queues.cpu.maxPending
+    : null;
+  const fileConcurrency = Number.isFinite(runtime?.fileConcurrency)
+    ? Math.max(1, Math.floor(runtime.fileConcurrency))
+    : 1;
+  const maxPendingBeforeBackpressure = coercePositiveInt(config.maxPending)
+    ?? cpuPending
+    ?? Math.max(64, fileConcurrency * 12);
+  return { maxPendingBeforeBackpressure };
+};
+
+const resolveTreeSitterPlannerEntries = ({ entries, root }) => {
+  if (!Array.isArray(entries) || !entries.length) {
+    return { entries: [], skipped: 0 };
+  }
+  const plannerEntries = [];
+  let skipped = 0;
+  for (const entry of entries) {
+    if (!entry || typeof entry !== 'object') continue;
+    if (entry.treeSitterDisabled === true || entry.skip || entry?.scan?.skip) {
+      skipped += 1;
+      continue;
+    }
+    const relKey = entry.rel || toPosix(path.relative(root, entry.abs || ''));
+    const ext = typeof entry.ext === 'string' && entry.ext
+      ? entry.ext
+      : fileExt(entry.abs || relKey || '');
+    const languageId = getLanguageForFile(ext, relKey)?.id || null;
+    if (shouldSkipTreeSitterPlanningForPath({ relKey, languageId })) {
+      skipped += 1;
+      continue;
+    }
+    plannerEntries.push(entry);
+  }
+  return { entries: plannerEntries, skipped };
+};
+
+const logLexiconFilterAggregate = ({ state, logFn }) => {
+  if (!state?.lexiconRelationFilterByFile || typeof state.lexiconRelationFilterByFile.entries !== 'function') return;
+  const entries = Array.from(state.lexiconRelationFilterByFile.entries());
+  if (!entries.length) return;
+  let totalDropped = 0;
+  let droppedCalls = 0;
+  let droppedUsages = 0;
+  let droppedCallDetails = 0;
+  let droppedCallDetailsWithRange = 0;
+  const byLanguage = new Map();
+  for (const [, stats] of entries) {
+    const languageId = stats?.languageId || '_generic';
+    const bucket = byLanguage.get(languageId) || { files: 0, droppedTotal: 0 };
+    bucket.files += 1;
+    const dropped = Number(stats?.droppedTotal) || 0;
+    bucket.droppedTotal += dropped;
+    byLanguage.set(languageId, bucket);
+    totalDropped += dropped;
+    droppedCalls += Number(stats?.droppedCalls) || 0;
+    droppedUsages += Number(stats?.droppedUsages) || 0;
+    droppedCallDetails += Number(stats?.droppedCallDetails) || 0;
+    droppedCallDetailsWithRange += Number(stats?.droppedCallDetailsWithRange) || 0;
+  }
+  if (!totalDropped) return;
+  const languages = Array.from(byLanguage.entries())
+    .sort((a, b) => b[1].droppedTotal - a[1].droppedTotal)
+    .slice(0, LEXICON_FILTER_LOG_LIMIT)
+    .map(([languageId, bucket]) => `${languageId}:${bucket.droppedTotal}`);
+  const suffix = languages.length ? ` top=${languages.join(',')}` : '';
+  logFn(
+    `[lexicon] relations filtered across ${entries.length} files `
+    + `(dropped=${totalDropped} calls=${droppedCalls} usages=${droppedUsages} `
+    + `callDetails=${droppedCallDetails} callDetailsRange=${droppedCallDetailsWithRange}).${suffix}`
+  );
 };
 
 /**
@@ -125,15 +316,35 @@ export const processFiles = async ({
   const envConfig = getEnvConfig();
   const showFileProgress = envConfig.verbose === true || runtime?.argv?.verbose === true;
   const debugOrdered = envConfig.debugOrdered === true;
+  const enablePerfEvents = envConfig.debugPerfEvents === true;
+  const perfEventBaseLogger = await createPerfEventLogger({
+    buildRoot: runtime.buildRoot || runtime.root,
+    mode,
+    stream: 'heavy-file',
+    enabled: mode === 'code' && enablePerfEvents
+  });
+  const perfEventLogger = createHeavyFilePerfAggregator({
+    logger: perfEventBaseLogger
+  });
 
   let treeSitterScheduler = null;
   const treeSitterEnabled = mode === 'code' && runtime?.languageOptions?.treeSitter?.enabled !== false;
   if (treeSitterEnabled) {
+    const plannerInput = resolveTreeSitterPlannerEntries({
+      entries,
+      root: runtime.root
+    });
+    if (plannerInput.skipped > 0) {
+      log(
+        `[tree-sitter:schedule] Prefiltered ${plannerInput.skipped} non-actionable entries `
+        + `before planner (${plannerInput.entries.length} remaining).`
+      );
+    }
     log('[tree-sitter:schedule] Building global tree-sitter plan (VFS batched by grammar)...');
     treeSitterScheduler = await runTreeSitterScheduler({
       mode,
       runtime,
-      entries,
+      entries: plannerInput.entries,
       outDir,
       fileTextCache,
       abortSignal,
@@ -176,6 +387,7 @@ export const processFiles = async ({
     const postingsQueueConfig = sparsePostingsEnabled
       ? resolvePostingsQueueConfig(runtime)
       : null;
+    const orderedAppenderConfig = resolveOrderedAppenderConfig(runtime);
     const postingsQueue = postingsQueueConfig
       ? createPostingsQueue({
         ...postingsQueueConfig,
@@ -301,6 +513,7 @@ export const processFiles = async ({
         startIndex: startOrderIndex,
         bucketSize: coercePositiveInt(runtime?.stage1Queues?.ordered?.bucketSize)
         ?? Math.max(128, runtime.fileConcurrency * 32),
+        maxPendingBeforeBackpressure: orderedAppenderConfig.maxPendingBeforeBackpressure,
         log: (message, meta = {}) => logLine(message, { ...meta, mode, stage: 'processing' }),
         stallMs: debugOrdered ? 5000 : undefined,
         debugOrdered
@@ -375,10 +588,13 @@ export const processFiles = async ({
         maxFileBytes: runtimeRef.maxFileBytes,
         fileScan: runtimeRef.fileScan,
         featureMetrics: runtimeRef.featureMetrics,
+        perfEventLogger,
         buildStage: runtimeRef.stage,
         abortSignal
       });
+      const fileWatchdogConfig = resolveFileWatchdogConfig(runtimeRef);
       const runEntryBatch = async (batchEntries) => {
+        const orderedCompletionTracker = createOrderedCompletionTracker();
         await runWithQueue(
           runtimeRef.queues.cpu,
           batchEntries,
@@ -389,8 +605,9 @@ export const processFiles = async ({
               : (Number.isFinite(queueIndex) ? queueIndex + 1 : null);
             const rel = entry.rel || toPosix(path.relative(runtimeRef.root, entry.abs));
             const watchdogStart = Date.now();
+            const fileWatchdogMs = resolveFileWatchdogMs(fileWatchdogConfig, entry);
             let watchdog = null;
-            if (FILE_WATCHDOG_MS > 0) {
+            if (fileWatchdogMs > 0) {
               watchdog = setTimeout(() => {
                 const elapsedMs = Date.now() - watchdogStart;
                 const lineText = Number.isFinite(entry.lines) ? ` lines ${entry.lines}` : '';
@@ -402,9 +619,10 @@ export const processFiles = async ({
                   fileIndex: stableFileIndex,
                   total: progress.total,
                   lines: entry.lines || null,
-                  durationMs: elapsedMs
+                  durationMs: elapsedMs,
+                  thresholdMs: fileWatchdogMs
                 });
-              }, FILE_WATCHDOG_MS);
+              }, fileWatchdogMs);
               watchdog.unref?.();
             }
             if (showFileProgress) {
@@ -459,6 +677,12 @@ export const processFiles = async ({
           {
             collectResults: false,
             signal: abortSignal,
+            onBeforeDispatch: async () => {
+              if (typeof orderedAppender.waitForCapacity === 'function') {
+                await orderedAppender.waitForCapacity();
+              }
+              orderedCompletionTracker.throwIfFailed();
+            },
             onResult: async (result, ctx) => {
               const entryIndex = Number.isFinite(ctx?.index) ? ctx.index : 0;
               const entry = batchEntries[entryIndex];
@@ -479,18 +703,21 @@ export const processFiles = async ({
                   const nextOrderedIndex = typeof orderedAppender.peekNextIndex === 'function'
                     ? orderedAppender.peekNextIndex()
                     : null;
-                  const bypassBackpressure = Number.isFinite(nextOrderedIndex)
-                    && Number.isFinite(orderIndex)
-                    && orderIndex <= nextOrderedIndex;
+                  const bypassBackpressure = shouldBypassPostingsBackpressure({
+                    orderIndex,
+                    nextOrderedIndex,
+                    bypassWindow: orderedAppenderConfig.maxPendingBeforeBackpressure
+                  });
                   return postingsQueue.reserve({
                     ...payload,
                     bypass: bypassBackpressure
                   });
                 })()
                 : { release: () => {} };
-              return orderedAppender
-                .enqueue(orderIndex, result, shardMeta)
-                .finally(() => reservation.release());
+              const completion = orderedAppender.enqueue(orderIndex, result, shardMeta);
+              orderedCompletionTracker.track(completion, () => {
+                reservation.release();
+              });
             },
             onError: async (err, ctx) => {
               const entryIndex = Number.isFinite(ctx?.index) ? ctx.index : 0;
@@ -516,6 +743,7 @@ export const processFiles = async ({
             retryDelayMs: 200
           }
         );
+        await orderedCompletionTracker.wait();
       };
       try {
         await runEntryBatch(shardEntries);
@@ -534,7 +762,7 @@ export const processFiles = async ({
       const hasEntryLines = entries.some((entry) => Number.isFinite(entry?.lines) && entry.lines > 0);
       if (!hasEntryLines) {
         const lineStart = Date.now();
-        const lineConcurrency = Math.max(1, Math.min(32, runtime.cpuConcurrency * 2));
+        const lineConcurrency = Math.max(1, Math.min(128, runtime.cpuConcurrency * 2));
         if (envConfig.verbose === true) {
           log(`→ Shard planning: counting lines (${lineConcurrency} workers)...`);
         }
@@ -688,10 +916,10 @@ export const processFiles = async ({
         return work;
       };
       const shardWorkPlan = buildShardWorkPlan();
-      let defaultShardConcurrency = Math.max(1, Math.min(4, runtime.fileConcurrency));
-      if (process.platform === 'win32') {
-        defaultShardConcurrency = Math.max(1, runtime.cpuConcurrency);
-      }
+      let defaultShardConcurrency = Math.max(
+        1,
+        Math.min(32, runtime.fileConcurrency, runtime.cpuConcurrency)
+      );
       let shardConcurrency = Number.isFinite(runtime.shards.maxWorkers)
         ? Math.max(1, Math.floor(runtime.shards.maxWorkers))
         : defaultShardConcurrency;
@@ -712,7 +940,7 @@ export const processFiles = async ({
       shardConcurrency = Math.max(1, shardBatches.length);
       const perShardFileConcurrency = Math.max(
         1,
-        Math.min(2, Math.floor(runtime.fileConcurrency / shardConcurrency))
+        Math.min(4, Math.floor(runtime.fileConcurrency / shardConcurrency))
       );
       const perShardImportConcurrency = Math.max(1, Math.floor(runtime.importConcurrency / shardConcurrency));
       const baseEmbedConcurrency = Number.isFinite(runtime.embeddingConcurrency)
@@ -799,9 +1027,11 @@ export const processFiles = async ({
       if (timing) timing.postingsQueue = postingsQueueStats;
       if (state) state.postingsQueueStats = postingsQueueStats;
     }
+    logLexiconFilterAggregate({ state, logFn: log });
 
     return { tokenizationStats, shardSummary, shardPlan, postingsQueueStats };
   } finally {
+    await perfEventLogger.close();
     await closeTreeSitterScheduler();
   }
 };

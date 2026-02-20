@@ -1,6 +1,6 @@
 import { uniqueTypes } from '../../integrations/tooling/providers/shared.js';
 import { collectDeclaredReturnTypes } from '../../shared/docmeta.js';
-import { RETURN_CALL_RX, RETURN_NEW_RX } from './constants.js';
+import { RETURN_BARE_TARGET_RX, RETURN_CALL_RX, RETURN_NEW_RX } from './constants.js';
 import { isTypeDeclaration } from './symbols.js';
 
 export const extractReturnTypes = (chunk) => {
@@ -49,12 +49,13 @@ export const extractParamTypes = (chunk) => {
   return { paramNames, paramTypes };
 };
 
-export const extractReturnCalls = (chunkText) => {
+export const extractReturnCalls = (chunkText, { knownCallees = null } = {}) => {
   const calls = new Set();
   const news = new Set();
   if (!chunkText) return { calls, news };
   RETURN_CALL_RX.lastIndex = 0;
   RETURN_NEW_RX.lastIndex = 0;
+  RETURN_BARE_TARGET_RX.lastIndex = 0;
   let match;
   while ((match = RETURN_CALL_RX.exec(chunkText)) !== null) {
     const name = match[1];
@@ -63,6 +64,13 @@ export const extractReturnCalls = (chunkText) => {
   while ((match = RETURN_NEW_RX.exec(chunkText)) !== null) {
     const name = match[1];
     if (name) news.add(name);
+  }
+  if (knownCallees instanceof Set && knownCallees.size) {
+    while ((match = RETURN_BARE_TARGET_RX.exec(chunkText)) !== null) {
+      const name = match[1];
+      if (!name) continue;
+      if (knownCallees.has(name)) calls.add(name);
+    }
   }
   return { calls, news };
 };

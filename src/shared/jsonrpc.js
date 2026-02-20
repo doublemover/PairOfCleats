@@ -1,6 +1,20 @@
 import { StreamMessageWriter } from 'vscode-jsonrpc';
 
 const writerCache = new WeakMap();
+const CLOSED_STREAM_WRITE_ERROR_CODES = new Set([
+  'ERR_STREAM_DESTROYED',
+  'EPIPE',
+  'ECONNRESET',
+  'ERR_SOCKET_CLOSED',
+  'EOF'
+]);
+
+const isClosedStreamWriteError = (err) => {
+  const code = String(err?.code || '').toUpperCase();
+  if (code && CLOSED_STREAM_WRITE_ERROR_CODES.has(code)) return true;
+  const message = String(err?.message || err || '');
+  return /\bEPIPE\b/i.test(message) || /stream (?:is )?closed/i.test(message);
+};
 
 const getWriterState = (outputStream) => {
   let state = writerCache.get(outputStream);
@@ -38,7 +52,7 @@ export function getJsonRpcWriter(outputStream) {
     };
     state.queue = state.queue.then(run, run);
     return state.queue.catch((err) => {
-      if (err?.code === 'ERR_STREAM_DESTROYED') {
+      if (isClosedStreamWriteError(err)) {
         state.closed = true;
       }
       throw err;

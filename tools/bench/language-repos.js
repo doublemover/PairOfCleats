@@ -7,7 +7,9 @@ import { parseBenchLanguageArgs } from './language/cli.js';
 import { loadBenchConfig } from './language/config.js';
 import { checkIndexLock, formatLockDetail } from './language/locks.js';
 import {
+  buildNonInteractiveGitEnv,
   ensureLongPathsSupport,
+  ensureRepoBenchmarkReady,
   needsIndexArtifacts,
   needsSqliteArtifacts,
   resolveCloneTool,
@@ -157,30 +159,72 @@ const isDiskFullMessage = (line) => {
     || text.includes('enospc')
     || text.includes('insufficient free space');
 };
-const appendLog = (line, level = 'info') => {
+const appendLog = (line, level = 'info', meta = null) => {
   if (!line) return;
   writeLog(line);
   if (level === 'error') {
-    display.error(line);
+    display.error(line, meta);
   } else if (level === 'warn') {
-    display.warn(line);
+    display.warn(line, meta);
   } else {
-    display.log(line);
+    if (meta && typeof meta === 'object' && meta.kind === 'status') {
+      display.logLine(line, meta);
+    } else {
+      display.log(line, meta);
+    }
   }
   logHistory.push(line);
   if (logHistory.length > logHistoryLimit) logHistory.shift();
+};
+const writeListLine = (line) => {
+  if (quietMode) {
+    process.stderr.write(`${line}\n`);
+    return;
+  }
+  appendLog(line);
+};
+let benchInFlightFraction = 0;
+let updateBenchProgress = () => {};
+const clampBenchFraction = (value) => {
+  if (!Number.isFinite(value)) return 0;
+  if (value <= 0) return 0;
+  if (value >= 1) return 1;
+  return value;
+};
+const deriveBenchFraction = (event) => {
+  const current = Number.isFinite(event?.current) ? Number(event.current) : 0;
+  const total = Number.isFinite(event?.total) ? Number(event.total) : 0;
+  if (total <= 0) return null;
+  return clampBenchFraction(current / total);
+};
+const setBenchInFlightFraction = (value, { refresh = true } = {}) => {
+  const next = clampBenchFraction(value);
+  if (next === benchInFlightFraction) return;
+  benchInFlightFraction = next;
+  if (refresh) updateBenchProgress();
 };
 const handleProgressEvent = (event) => {
   if (!event || typeof event !== 'object') return;
   if (event.event === 'log') {
     const message = event.message || '';
     const level = event.level || 'info';
-    appendLog(message, level);
+    const meta = event.meta && typeof event.meta === 'object' ? event.meta : null;
+    appendLog(message, level, meta);
     return;
   }
   const rawName = event.name || event.taskId || 'task';
   const isOverall = (event.stage || '').toLowerCase() === 'overall'
     || String(rawName).trim().toLowerCase() === 'overall';
+  if (isOverall) {
+    const fraction = deriveBenchFraction(event);
+    if (event.event === 'task:end') {
+      setBenchInFlightFraction(event.status === 'failed' ? 0 : 1);
+    } else if (fraction !== null) {
+      setBenchInFlightFraction(fraction);
+    } else if (event.event === 'task:start') {
+      setBenchInFlightFraction(0);
+    }
+  }
   const name = isOverall && benchRepoLabel ? benchRepoLabel : rawName;
   const taskId = isOverall && benchRepoLabel ? 'bench:current' : (event.taskId || name);
   const total = Number.isFinite(event.total) && event.total > 0 ? event.total : null;
@@ -278,8 +322,8 @@ process.on('unhandledRejection', (err) => {
   exitWithDisplay(1);
 });
 
-const config = loadBenchConfig(configPath);
-await validateEncodingFixtures(scriptRoot);
+const config = loadBenchConfig(configPath, { onLog: appendLog });
+await validateEncodingFixtures(scriptRoot, { onLog: appendLog });
 const languageFilter = parseCommaList(argv.languages || argv.language).map((entry) => entry.toLowerCase());
 let tierFilter = parseCommaList(argv.tier).map((entry) => entry.toLowerCase());
 const repoFilter = parseCommaList(argv.only || argv.repos).map((entry) => entry.toLowerCase());
@@ -391,13 +435,13 @@ if (argv.list) {
   if (argv.json) {
     console.log(JSON.stringify(payload, null, 2));
   } else {
-    console.error('Benchmark targets');
-    console.error(`- config: ${configPath}`);
-    console.error(`- repos: ${reposRoot}`);
-    console.error(`- cache: ${cacheRoot}`);
-    console.error(`- results: ${resultsRoot}`);
+    writeListLine('Benchmark targets');
+    writeListLine(`- config: ${configPath}`);
+    writeListLine(`- repos: ${reposRoot}`);
+    writeListLine(`- cache: ${cacheRoot}`);
+    writeListLine(`- results: ${resultsRoot}`);
     for (const task of tasks) {
-      console.error(`- ${task.language} ${task.tier} ${task.repo}`);
+      writeListLine(`- ${task.language} ${task.tier} ${task.repo}`);
     }
   }
   exitWithDisplay(0);
@@ -410,8 +454,8 @@ if (!tasks.length) {
 
 let cloneTool = null;
 if (cloneEnabled && !dryRun) {
-  ensureLongPathsSupport();
-  cloneTool = resolveCloneTool();
+  ensureLongPathsSupport({ onLog: appendLog });
+  cloneTool = resolveCloneTool({ onLog: appendLog });
 }
 await fsPromises.mkdir(reposRoot, { recursive: true });
 await fsPromises.mkdir(resultsRoot, { recursive: true });
@@ -438,9 +482,15 @@ const formatBenchRepoLabel = (repo) => {
 let benchTierTag = '';
 let benchRepoLabel = '';
 const benchTask = display.task('Repos', { total: tasks.length, stage: 'bench' });
-const updateBenchProgress = () => {
+updateBenchProgress = () => {
   const reposLabel = benchTierTag ? `Repos (${benchTierTag})` : 'Repos';
-  benchTask.set(completed, tasks.length, { name: reposLabel });
+  const effectiveCompleted = Math.min(tasks.length, completed + benchInFlightFraction);
+  benchTask.set(effectiveCompleted, tasks.length, { name: reposLabel });
+};
+const completeBenchRepo = () => {
+  setBenchInFlightFraction(0, { refresh: false });
+  completed += 1;
+  updateBenchProgress();
 };
 updateBenchProgress();
 
@@ -468,6 +518,7 @@ for (const task of tasks) {
   const tierLabel = String(task.tier || '').trim();
   benchTierTag = formatBenchTierTag(tierLabel) || benchTierTag;
   benchRepoLabel = formatBenchRepoLabel(task.repo);
+  setBenchInFlightFraction(0, { refresh: false });
   display.resetTasks({ preserveStages: ['bench'] });
   updateBenchProgress();
   const repoCacheRoot = resolveRepoCacheRoot({ repoPath, cacheRoot });
@@ -483,7 +534,7 @@ for (const task of tasks) {
       slug: task.logSlug || toSafeLogSlug(getRepoShortName(task.repo)) || 'repo'
     });
     if (!quietMode && repoLogPath) {
-      display.log(`[logs] ${repoLabel} -> ${repoLogPath}`);
+      appendLog(`[logs] ${repoLabel} -> ${repoLogPath}`);
     }
   }
 
@@ -497,13 +548,12 @@ for (const task of tasks) {
       if (!dryRun && cloneEnabled && cloneTool) {
         const args = cloneTool.buildArgs(task.repo, repoPath);
         const cloneResult = await processRunner.runProcess(`clone ${task.repo}`, cloneTool.label, args, {
-          env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+          env: buildNonInteractiveGitEnv(process.env),
           continueOnError: true
         });
         if (!cloneResult.ok) {
           appendLog(`[error] Clone failed for ${repoLabel}; continuing to next repo.`, 'error');
-          completed += 1;
-          updateBenchProgress();
+          completeBenchRepo();
           appendLog('[metrics] failed (clone)');
           results.push({
             ...task,
@@ -517,6 +567,13 @@ for (const task of tasks) {
           continue;
         }
       }
+    }
+
+    if (!dryRun) {
+      ensureRepoBenchmarkReady({
+        repoPath,
+        onLog: appendLog
+      });
     }
 
     await ensureBenchConfig(repoPath, cacheRoot);
@@ -619,8 +676,7 @@ for (const task of tasks) {
       const message = `Skipping ${repoLabel}: index lock held ${detail}`.trim();
       appendLog(`[lock] ${message}`);
       if (!quietMode) display.error(message);
-      completed += 1;
-      updateBenchProgress();
+      completeBenchRepo();
       appendLog('[metrics] skipped (lock)');
       results.push({
         ...task,
@@ -686,8 +742,7 @@ for (const task of tasks) {
           appendLog(`[error] Disk space exhausted while benchmarking ${repoLabel}; continuing.`, 'error');
         }
         appendLog(`[error] Bench failed for ${repoLabel}; continuing to next repo.`, 'error');
-        completed += 1;
-        updateBenchProgress();
+        completeBenchRepo();
         appendLog('[metrics] failed (bench)');
         results.push({
           ...task,
@@ -706,8 +761,7 @@ for (const task of tasks) {
       } catch (err) {
         appendLog(`[error] Failed to read bench report for ${repoLabel}; continuing.`, 'error');
         if (err && err.message) display.error(err.message);
-        completed += 1;
-        updateBenchProgress();
+        completeBenchRepo();
         appendLog('[metrics] failed (report)');
         results.push({
           ...task,
@@ -722,8 +776,7 @@ for (const task of tasks) {
       }
     }
 
-    completed += 1;
-    updateBenchProgress();
+    completeBenchRepo();
     appendLog(`[metrics] ${formatMetricSummary(summary)}`);
 
     results.push({ ...task, repoPath, outFile, summary });
@@ -740,15 +793,17 @@ const output = buildReportOutput({
   config
 });
 
-display.close();
-
 if (!quietMode) {
-  console.error('\nGrouped summary');
+  appendLog('\nGrouped summary');
   for (const [language, payload] of Object.entries(output.groupedSummary)) {
     if (!payload.summary) continue;
-    printSummary(payload.label, payload.summary, payload.count, quietMode);
+    printSummary(payload.label, payload.summary, payload.count, quietMode, {
+      writeLine: (line) => appendLog(line)
+    });
   }
-  printSummary('Overall', output.overallSummary, results.length, quietMode);
+  printSummary('Overall', output.overallSummary, results.length, quietMode, {
+    writeLine: (line) => appendLog(line)
+  });
 }
 
 if (argv.out) {
@@ -758,8 +813,10 @@ if (argv.out) {
 }
 
 if (argv.json) {
+  display.close();
   console.log(JSON.stringify(output, null, 2));
 } else {
-  console.error(`\nCompleted ${results.length} benchmark runs.`);
-  if (argv.out) console.error(`Summary written to ${path.resolve(argv.out)}`);
+  appendLog(`\nCompleted ${results.length} benchmark runs.`);
+  if (argv.out) appendLog(`Summary written to ${path.resolve(argv.out)}`);
+  display.close();
 }

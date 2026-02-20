@@ -74,6 +74,48 @@ if (!cappedSkip || cappedSkip.reason !== 'oversize' || cappedSkip.maxBytes !== 1
   fail('Expected maxBytes to skip with reason=oversize and maxBytes.');
 }
 
+const firstPartyDocsetPath = path.join(tempRoot, 'src', 'docset', 'guide.md');
+await fs.mkdir(path.dirname(firstPartyDocsetPath), { recursive: true });
+await fs.writeFile(firstPartyDocsetPath, '# guide', 'utf8');
+const firstPartyDocsetStat = await fs.stat(firstPartyDocsetPath);
+const firstPartyDocsetSkip = await resolvePreReadSkip({
+  abs: firstPartyDocsetPath,
+  fileEntry: { lines: 1, scan: { checkedBinary: true, checkedMinified: true } },
+  fileStat: firstPartyDocsetStat,
+  ext: '.md',
+  fileCaps: {},
+  fileScanner,
+  runIo
+});
+if (firstPartyDocsetSkip) {
+  fail('Expected first-party src/docset path not to be skipped as generated docset.');
+}
+
+const generatedDocsetPath = path.join(
+  tempRoot,
+  'build',
+  'API.docset',
+  'Contents',
+  'Resources',
+  'Documents',
+  'index.html'
+);
+await fs.mkdir(path.dirname(generatedDocsetPath), { recursive: true });
+await fs.writeFile(generatedDocsetPath, '<html></html>', 'utf8');
+const generatedDocsetStat = await fs.stat(generatedDocsetPath);
+const generatedDocsetSkip = await resolvePreReadSkip({
+  abs: generatedDocsetPath,
+  fileEntry: { lines: 1, scan: { checkedBinary: true, checkedMinified: true } },
+  fileStat: generatedDocsetStat,
+  ext: '.html',
+  fileCaps: {},
+  fileScanner,
+  runIo
+});
+if (!generatedDocsetSkip || generatedDocsetSkip.reason !== 'generated-docset') {
+  fail('Expected generated docset bundle payload path to skip with reason=generated-docset.');
+}
+
 const binarySkip = await resolveBinarySkip({
   abs: minifiedPath,
   fileBuffer: Buffer.from([0, 0, 0, 0, 0]),

@@ -3,8 +3,14 @@ import { analyzeComplexity, lintChunk } from '../../../analysis.js';
 import { getLanguageForFile } from '../../../language-registry.js';
 import { getChunkAuthorsFromLines } from '../../../scm/annotate.js';
 import { isJsLike } from '../../../constants.js';
+import { detectFrameworkProfile } from '../../../framework-profile.js';
+import {
+  detectBoilerplateCommentBlocks,
+  resolveChunkBoilerplateMatch
+} from '../../../boilerplate.js';
 import {
   classifyTokenBuckets,
+  createTokenClassificationRuntime,
   createFileLineTokenStream,
   createTokenizationBuffers,
   resolveTokenDictWords,
@@ -21,7 +27,320 @@ import { attachCallDetailsByChunkIndex } from './dedupe.js';
 import { buildChunkEnrichment } from './enrichment.js';
 import { prepareChunkIds } from './ids.js';
 import { collectChunkComments } from './limits.js';
+import { shouldSkipPhrasePostingsForChunk } from '../../state.js';
 
+/**
+ * Resolve framework profile once per file and reuse across chunk iterations.
+ *
+ * `detectFrameworkProfile` inspects full-file text and path heuristics, so calling it per chunk
+ * would repeatedly rescan the same content on large files.
+ *
+ * @param {{relPath:string,ext:string,text:string,detect?:(input:{relPath:string,ext:string,text:string})=>object|null}} input
+ * @returns {() => object|null}
+ */
+export const createFrameworkProfileResolver = ({
+  relPath,
+  ext,
+  text,
+  detect = detectFrameworkProfile
+}) => {
+  let resolved = false;
+  let cachedProfile = null;
+  return () => {
+    if (resolved) return cachedProfile;
+    cachedProfile = detect({
+      relPath,
+      ext,
+      text
+    }) || null;
+    resolved = true;
+    return cachedProfile;
+  };
+};
+
+export const canUseLineTokenStreamSlice = ({
+  chunkStart,
+  chunkEnd,
+  startLine,
+  endLine,
+  lineIndex,
+  fileLength
+}) => {
+  if (!Array.isArray(lineIndex) || !lineIndex.length) return false;
+  if (!Number.isFinite(chunkStart) || !Number.isFinite(chunkEnd)) return false;
+  const startLineNumber = Math.max(1, Math.floor(Number(startLine) || 1));
+  const endLineNumber = Math.max(startLineNumber, Math.floor(Number(endLine) || startLineNumber));
+  const startLineOffset = lineIndex[startLineNumber - 1];
+  if (!Number.isFinite(startLineOffset)) return false;
+  const nextLineOffset = lineIndex[endLineNumber];
+  const endLineOffset = Number.isFinite(nextLineOffset)
+    ? nextLineOffset
+    : (Number.isFinite(fileLength) ? fileLength : null);
+  if (!Number.isFinite(endLineOffset)) return false;
+  return chunkStart === startLineOffset && chunkEnd === endLineOffset;
+};
+
+const HEAVY_FILE_MAX_BYTES_DEFAULT = 512 * 1024;
+const HEAVY_FILE_MAX_LINES_DEFAULT = 6000;
+const HEAVY_FILE_MAX_CHUNKS_DEFAULT = 64;
+const HEAVY_FILE_PATH_MIN_BYTES_DEFAULT = 64 * 1024;
+const HEAVY_FILE_PATH_MIN_LINES_DEFAULT = 1200;
+const HEAVY_FILE_PATH_MIN_CHUNKS_DEFAULT = HEAVY_FILE_MAX_CHUNKS_DEFAULT;
+const HEAVY_FILE_SKIP_TOKENIZATION_ENABLED_DEFAULT = true;
+const HEAVY_FILE_SKIP_TOKENIZATION_MAX_BYTES_DEFAULT = HEAVY_FILE_MAX_BYTES_DEFAULT * 2;
+const HEAVY_FILE_SKIP_TOKENIZATION_MAX_LINES_DEFAULT = HEAVY_FILE_MAX_LINES_DEFAULT * 2;
+const HEAVY_FILE_SKIP_TOKENIZATION_MAX_CHUNKS_DEFAULT = HEAVY_FILE_MAX_CHUNKS_DEFAULT * 2;
+const HEAVY_FILE_SKIP_TOKENIZATION_COALESCE_MAX_CHUNKS_DEFAULT = 16;
+const HEAVY_FILE_CHUNK_ONLY_MIN_BYTES_DEFAULT = 96 * 1024;
+const HEAVY_FILE_CHUNK_ONLY_MIN_LINES_DEFAULT = 1200;
+const HEAVY_FILE_SKIP_TOKENIZATION_CHUNK_ONLY_MIN_BYTES_DEFAULT = 256 * 1024;
+const HEAVY_FILE_SKIP_TOKENIZATION_CHUNK_ONLY_MIN_LINES_DEFAULT = 3000;
+const HEAVY_FILE_SWIFT_HOT_PATH_TARGET_CHUNKS_DEFAULT = 24;
+const HEAVY_FILE_SWIFT_HOT_PATH_MIN_CHUNKS_DEFAULT = 48;
+const HEAVY_FILE_SWIFT_HOT_PATH_PARTS = [
+  '/test/',
+  '/tests/',
+  '/validation-test/',
+  '/unittests/',
+  '/utils/'
+];
+const HEAVY_FILE_PATH_PREFIXES = [
+  '/3rdparty/',
+  '/third_party/',
+  '/thirdparty/',
+  '/vendor/',
+  '/single_include/',
+  '/include/fmt/',
+  '/include/spdlog/fmt/',
+  '/include/nlohmann/',
+  '/modules/core/include/opencv2/core/hal/',
+  '/modules/core/src/',
+  '/modules/dnn/',
+  '/modules/js/perf/',
+  '/sources/cniollhttp/',
+  '/sources/nio/',
+  '/sources/niocore/',
+  '/sources/nioposix/',
+  '/tests/nio/',
+  '/test/api-digester/inputs/',
+  '/test/remote-run/',
+  '/test/stdlib/inputs/',
+  '/tests/abi/',
+  '/test/gtest/',
+  '/utils/unicodedata/',
+  '/utils/gen-unicode-data/',
+  '/samples/',
+  '/docs/mkdocs/',
+  '/cmake/',
+  '/.github/workflows/'
+];
+const BOILERPLATE_SCAN_WINDOW_CHARS = 8192;
+const BOILERPLATE_COMMENT_HINT_RX = /(?:^|\n)\s*(?:\/\/|\/\*|#|;|--|<!--|\*)/;
+
+const normalizeHeavyFilePolicy = (languageOptions) => {
+  const raw = languageOptions?.heavyFile;
+  const config = raw && typeof raw === 'object' ? raw : {};
+  const enabled = config.enabled !== false;
+  const maxBytesRaw = Number(config.maxBytes);
+  const maxLinesRaw = Number(config.maxLines);
+  const maxChunksRaw = Number(config.maxChunks);
+  const pathMinBytesRaw = Number(config.pathMinBytes);
+  const pathMinLinesRaw = Number(config.pathMinLines);
+  const pathMinChunksRaw = Number(config.pathMinChunks);
+  const chunkOnlyMinBytesRaw = Number(config.chunkOnlyMinBytes);
+  const chunkOnlyMinLinesRaw = Number(config.chunkOnlyMinLines);
+  const skipTokenizationMaxBytesRaw = Number(config.skipTokenizationMaxBytes);
+  const skipTokenizationMaxLinesRaw = Number(config.skipTokenizationMaxLines);
+  const skipTokenizationMaxChunksRaw = Number(config.skipTokenizationMaxChunks);
+  const skipTokenizationChunkOnlyMinBytesRaw = Number(config.skipTokenizationChunkOnlyMinBytes);
+  const skipTokenizationChunkOnlyMinLinesRaw = Number(config.skipTokenizationChunkOnlyMinLines);
+  const skipTokenizationCoalesceMaxChunksRaw = Number(config.skipTokenizationCoalesceMaxChunks);
+  const swiftHotPathTargetChunksRaw = Number(config.swiftHotPathTargetChunks);
+  const swiftHotPathMinChunksRaw = Number(config.swiftHotPathMinChunks);
+  const maxBytes = Number.isFinite(maxBytesRaw) && maxBytesRaw > 0
+    ? Math.floor(maxBytesRaw)
+    : HEAVY_FILE_MAX_BYTES_DEFAULT;
+  const maxLines = Number.isFinite(maxLinesRaw) && maxLinesRaw > 0
+    ? Math.floor(maxLinesRaw)
+    : HEAVY_FILE_MAX_LINES_DEFAULT;
+  const maxChunks = Number.isFinite(maxChunksRaw) && maxChunksRaw > 0
+    ? Math.floor(maxChunksRaw)
+    : HEAVY_FILE_MAX_CHUNKS_DEFAULT;
+  const hasExplicitMaxChunks = Number.isFinite(maxChunksRaw) && maxChunksRaw > 0;
+  const pathMinBytes = Number.isFinite(pathMinBytesRaw) && pathMinBytesRaw > 0
+    ? Math.floor(pathMinBytesRaw)
+    : HEAVY_FILE_PATH_MIN_BYTES_DEFAULT;
+  const pathMinLines = Number.isFinite(pathMinLinesRaw) && pathMinLinesRaw > 0
+    ? Math.floor(pathMinLinesRaw)
+    : HEAVY_FILE_PATH_MIN_LINES_DEFAULT;
+  const pathMinChunks = Number.isFinite(pathMinChunksRaw) && pathMinChunksRaw > 0
+    ? Math.floor(pathMinChunksRaw)
+    : HEAVY_FILE_PATH_MIN_CHUNKS_DEFAULT;
+  const skipTokenizationEnabled = config.skipTokenization !== false
+    ? HEAVY_FILE_SKIP_TOKENIZATION_ENABLED_DEFAULT
+    : false;
+  const skipTokenizationMaxBytes = Number.isFinite(skipTokenizationMaxBytesRaw) && skipTokenizationMaxBytesRaw > 0
+    ? Math.floor(skipTokenizationMaxBytesRaw)
+    : HEAVY_FILE_SKIP_TOKENIZATION_MAX_BYTES_DEFAULT;
+  const skipTokenizationMaxLines = Number.isFinite(skipTokenizationMaxLinesRaw) && skipTokenizationMaxLinesRaw > 0
+    ? Math.floor(skipTokenizationMaxLinesRaw)
+    : HEAVY_FILE_SKIP_TOKENIZATION_MAX_LINES_DEFAULT;
+  const skipTokenizationMaxChunks = Number.isFinite(skipTokenizationMaxChunksRaw) && skipTokenizationMaxChunksRaw > 0
+    ? Math.floor(skipTokenizationMaxChunksRaw)
+    : HEAVY_FILE_SKIP_TOKENIZATION_MAX_CHUNKS_DEFAULT;
+  const hasExplicitSkipTokenizationMaxChunks = Number.isFinite(skipTokenizationMaxChunksRaw)
+    && skipTokenizationMaxChunksRaw > 0;
+  const chunkOnlyMinBytes = Number.isFinite(chunkOnlyMinBytesRaw) && chunkOnlyMinBytesRaw > 0
+    ? Math.floor(chunkOnlyMinBytesRaw)
+    : (hasExplicitMaxChunks ? 0 : HEAVY_FILE_CHUNK_ONLY_MIN_BYTES_DEFAULT);
+  const chunkOnlyMinLines = Number.isFinite(chunkOnlyMinLinesRaw) && chunkOnlyMinLinesRaw > 0
+    ? Math.floor(chunkOnlyMinLinesRaw)
+    : (hasExplicitMaxChunks ? 0 : HEAVY_FILE_CHUNK_ONLY_MIN_LINES_DEFAULT);
+  const skipTokenizationChunkOnlyMinBytes = Number.isFinite(skipTokenizationChunkOnlyMinBytesRaw)
+    && skipTokenizationChunkOnlyMinBytesRaw > 0
+    ? Math.floor(skipTokenizationChunkOnlyMinBytesRaw)
+    : (hasExplicitSkipTokenizationMaxChunks ? 0 : HEAVY_FILE_SKIP_TOKENIZATION_CHUNK_ONLY_MIN_BYTES_DEFAULT);
+  const skipTokenizationChunkOnlyMinLines = Number.isFinite(skipTokenizationChunkOnlyMinLinesRaw)
+    && skipTokenizationChunkOnlyMinLinesRaw > 0
+    ? Math.floor(skipTokenizationChunkOnlyMinLinesRaw)
+    : (hasExplicitSkipTokenizationMaxChunks ? 0 : HEAVY_FILE_SKIP_TOKENIZATION_CHUNK_ONLY_MIN_LINES_DEFAULT);
+  const skipTokenizationCoalesceMaxChunks = Number.isFinite(skipTokenizationCoalesceMaxChunksRaw)
+    && skipTokenizationCoalesceMaxChunksRaw > 0
+    ? Math.floor(skipTokenizationCoalesceMaxChunksRaw)
+    : HEAVY_FILE_SKIP_TOKENIZATION_COALESCE_MAX_CHUNKS_DEFAULT;
+  const swiftHotPathTargetChunks = Number.isFinite(swiftHotPathTargetChunksRaw)
+    && swiftHotPathTargetChunksRaw > 0
+    ? Math.floor(swiftHotPathTargetChunksRaw)
+    : HEAVY_FILE_SWIFT_HOT_PATH_TARGET_CHUNKS_DEFAULT;
+  const swiftHotPathMinChunks = Number.isFinite(swiftHotPathMinChunksRaw)
+    && swiftHotPathMinChunksRaw > 0
+    ? Math.floor(swiftHotPathMinChunksRaw)
+    : HEAVY_FILE_SWIFT_HOT_PATH_MIN_CHUNKS_DEFAULT;
+  return {
+    enabled,
+    maxBytes,
+    maxLines,
+    maxChunks,
+    pathMinBytes,
+    pathMinLines,
+    pathMinChunks,
+    chunkOnlyMinBytes,
+    chunkOnlyMinLines,
+    skipTokenizationEnabled,
+    skipTokenizationMaxBytes,
+    skipTokenizationMaxLines,
+    skipTokenizationMaxChunks,
+    skipTokenizationChunkOnlyMinBytes,
+    skipTokenizationChunkOnlyMinLines,
+    skipTokenizationCoalesceMaxChunks,
+    swiftHotPathTargetChunks,
+    swiftHotPathMinChunks
+  };
+};
+
+const isHeavyFilePath = (relPath) => {
+  const normalized = String(relPath || '').replace(/\\/g, '/').toLowerCase();
+  const bounded = `/${normalized.replace(/^\/+|\/+$/g, '')}/`;
+  return HEAVY_FILE_PATH_PREFIXES.some((prefix) => bounded.startsWith(prefix));
+};
+
+const shouldDownshiftForHeavyPath = ({
+  relPath,
+  fileBytes,
+  fileLines,
+  chunkCount,
+  heavyFilePolicy
+}) => {
+  if (!isHeavyFilePath(relPath)) return false;
+  return (
+    fileBytes >= heavyFilePolicy.pathMinBytes
+    || fileLines >= heavyFilePolicy.pathMinLines
+    || chunkCount >= heavyFilePolicy.pathMinChunks
+  );
+};
+
+const shouldApplySwiftHotPathCoalescing = ({
+  relPath,
+  ext,
+  chunkCount,
+  heavyFilePolicy
+}) => {
+  if (String(ext || '').toLowerCase() !== '.swift') return false;
+  if (chunkCount < heavyFilePolicy.swiftHotPathMinChunks) return false;
+  const normalized = String(relPath || '').replace(/\\/g, '/').toLowerCase();
+  const bounded = `/${normalized.replace(/^\/+|\/+$/g, '')}/`;
+  return HEAVY_FILE_SWIFT_HOT_PATH_PARTS.some((part) => bounded.includes(part));
+};
+
+/**
+ * Cheap preflight for boilerplate detection to avoid full-file scans when
+ * license/generated-comment metadata cannot apply.
+ *
+ * @param {{mode:string,text:string,chunkCount:number,relPath:string}} input
+ * @returns {boolean}
+ */
+const shouldDetectBoilerplateBlocks = ({ mode, text, chunkCount, relPath }) => {
+  if (mode !== 'code') return false;
+  if (!Number.isFinite(Number(chunkCount)) || Number(chunkCount) <= 0) return false;
+  const relPathLower = typeof relPath === 'string' ? relPath.toLowerCase() : null;
+  if (shouldSkipPhrasePostingsForChunk({ file: relPath }, relPathLower)) return false;
+  if (typeof text !== 'string' || !text) return false;
+  const head = text.slice(0, BOILERPLATE_SCAN_WINDOW_CHARS);
+  if (BOILERPLATE_COMMENT_HINT_RX.test(head)) return true;
+  if (text.length <= BOILERPLATE_SCAN_WINDOW_CHARS) return false;
+  const tail = text.slice(-BOILERPLATE_SCAN_WINDOW_CHARS);
+  return BOILERPLATE_COMMENT_HINT_RX.test(tail);
+};
+
+/**
+ * Merge adjacent chunks into bounded groups for heavy-file downshift paths.
+ *
+ * Preserves deterministic ordering and line coverage while dropping
+ * segment-specific metadata only for chunks that were actually merged.
+ *
+ * @param {Array<object>} chunks
+ * @param {number} maxChunks
+ * @returns {Array<object>}
+ */
+export const coalesceHeavyChunks = (chunks, maxChunks) => {
+  if (!Array.isArray(chunks) || chunks.length <= 1) return chunks;
+  const target = Number.isFinite(Number(maxChunks))
+    ? Math.max(1, Math.floor(Number(maxChunks)))
+    : HEAVY_FILE_MAX_CHUNKS_DEFAULT;
+  if (chunks.length <= target) return chunks;
+  const groupSize = Math.max(1, Math.ceil(chunks.length / target));
+  const merged = [];
+  for (let i = 0; i < chunks.length; i += groupSize) {
+    const first = chunks[i];
+    const lastIndex = Math.min(chunks.length - 1, i + groupSize - 1);
+    const last = chunks[lastIndex];
+    if (!first || !last) continue;
+    const next = { ...first, start: first.start, end: last.end };
+    if (last.meta && typeof last.meta === 'object') {
+      next.meta = { ...(next.meta || {}), endLine: last.meta.endLine ?? next.meta?.endLine };
+    }
+    const mergedChunkCount = (lastIndex - i) + 1;
+    if (mergedChunkCount > 1) {
+      delete next.segment;
+      delete next.segmentUid;
+    }
+    delete next.chunkUid;
+    delete next.chunkId;
+    delete next.spanIndex;
+    merged.push(next);
+  }
+  return merged;
+};
+
+/**
+ * Process raw structural chunks into final chunk payload rows for one file.
+ *
+ * This stage coordinates enrichment, tokenization, optional worker offload,
+ * boilerplate weighting, and embeddings.
+ *
+ * @param {object} context
+ * @returns {Promise<{chunks:Array<object>,fileRelations:any}|object>}
+ */
 export const processChunks = async (context) => {
   const {
     sc,
@@ -69,6 +388,7 @@ export const processChunks = async (context) => {
     lintCache,
     log,
     logLine,
+    perfEventLogger,
     crashLogger,
     riskAnalysisEnabled,
     riskConfig,
@@ -107,7 +427,83 @@ export const processChunks = async (context) => {
       ...extra
     });
   };
-  updateCrashStage('process-chunks:start', { totalChunks: sc.length, languageId: containerLanguageId });
+  const sourceChunks = Array.isArray(sc) ? sc : [];
+  const processChunksStartedAt = Date.now();
+  updateCrashStage('process-chunks:start', { totalChunks: sourceChunks.length, languageId: containerLanguageId });
+  const canEmitPerfEvent = perfEventLogger && typeof perfEventLogger.emit === 'function';
+  const fileBytes = fileStat?.size ?? Buffer.byteLength(text || '', 'utf8');
+  const fileLines = fileLineCount || 0;
+  const heavyFilePolicy = normalizeHeavyFilePolicy(languageOptions);
+  const heavyByBytes = fileBytes >= heavyFilePolicy.maxBytes;
+  const heavyByLines = fileLines >= heavyFilePolicy.maxLines;
+  const heavyByChunks = sourceChunks.length >= heavyFilePolicy.maxChunks;
+  const heavyByChunkOnly = heavyByChunks
+    && (
+      fileBytes >= heavyFilePolicy.chunkOnlyMinBytes
+      || fileLines >= heavyFilePolicy.chunkOnlyMinLines
+    );
+  const heavyByPath = shouldDownshiftForHeavyPath({
+    relPath: relKey,
+    fileBytes,
+    fileLines,
+    chunkCount: sourceChunks.length,
+    heavyFilePolicy
+  });
+  const heavyFileDownshift = mode === 'code'
+    && heavyFilePolicy.enabled
+    && (
+      heavyByBytes
+      || heavyByLines
+      || heavyByChunkOnly
+      || heavyByPath
+    );
+  const skipTokenizationByBytes = fileBytes >= heavyFilePolicy.skipTokenizationMaxBytes;
+  const skipTokenizationByLines = fileLines >= heavyFilePolicy.skipTokenizationMaxLines;
+  const skipTokenizationByChunks = sourceChunks.length >= heavyFilePolicy.skipTokenizationMaxChunks;
+  const skipTokenizationByChunkOnly = skipTokenizationByChunks
+    && (
+      fileBytes >= heavyFilePolicy.skipTokenizationChunkOnlyMinBytes
+      || fileLines >= heavyFilePolicy.skipTokenizationChunkOnlyMinLines
+    );
+  const heavyFileSkipTokenization = heavyFileDownshift
+    && heavyFilePolicy.skipTokenizationEnabled
+    && (
+      skipTokenizationByBytes
+      || skipTokenizationByLines
+      || skipTokenizationByChunkOnly
+    );
+  const heavyFileTargetChunksBase = heavyFileSkipTokenization
+    ? Math.min(heavyFilePolicy.maxChunks, heavyFilePolicy.skipTokenizationCoalesceMaxChunks)
+    : heavyFilePolicy.maxChunks;
+  const heavyFileSwiftHotPath = heavyFileDownshift
+    && shouldApplySwiftHotPathCoalescing({
+      relPath: relKey,
+      ext: containerExt,
+      chunkCount: sourceChunks.length,
+      heavyFilePolicy
+    });
+  const heavyFileTargetChunks = heavyFileSwiftHotPath
+    ? Math.max(1, Math.min(heavyFileTargetChunksBase, heavyFilePolicy.swiftHotPathTargetChunks))
+    : heavyFileTargetChunksBase;
+  const chunksForProcessing = heavyFileDownshift
+    ? coalesceHeavyChunks(sourceChunks, heavyFileTargetChunks)
+    : sourceChunks;
+  const heavyFileWasCoalesced = chunksForProcessing.length !== sourceChunks.length;
+  if (heavyFileDownshift && typeof log === 'function' && !canEmitPerfEvent) {
+    log(
+      `[perf] heavy-file downshift enabled for ${relKey} `
+      + `(${fileBytes} bytes, ${fileLines} lines, ${sourceChunks.length} chunks).`
+    );
+    if (heavyFileWasCoalesced) {
+      log(
+        `[perf] heavy-file chunks coalesced for ${relKey} `
+        + `(${sourceChunks.length} -> ${chunksForProcessing.length}).`
+      );
+    }
+    if (heavyFileSkipTokenization) {
+      log(`[perf] heavy-file tokenization skipped for ${relKey}.`);
+    }
+  }
 
   const strictIdentity = analysisPolicy?.identity?.strict !== false;
   const chunkUidNamespaceKey = mode === 'extracted-prose' ? 'repo:extracted-prose' : 'repo';
@@ -115,7 +511,7 @@ export const processChunks = async (context) => {
   let vfsManifestRows = null;
   try {
     const prepared = await prepareChunkIds({
-      chunks: sc,
+      chunks: chunksForProcessing,
       text,
       relKey,
       namespaceKey: chunkUidNamespaceKey,
@@ -134,8 +530,8 @@ export const processChunks = async (context) => {
     if (failFile) return failFile('identity', 'chunk-uid', err);
     throw err;
   }
-  const commentAssignments = assignCommentsToChunks(commentEntries, sc);
-  const commentRangeAssignments = assignCommentsToChunks(commentRanges, sc);
+  const commentAssignments = assignCommentsToChunks(commentEntries, chunksForProcessing);
+  const commentRangeAssignments = assignCommentsToChunks(commentRanges, chunksForProcessing);
   const chunks = [];
   const tokenBuffers = createTokenizationBuffers();
   const dictWordsCache = new Map();
@@ -147,12 +543,35 @@ export const processChunks = async (context) => {
     || postingsConfig?.phraseSource === 'fields';
   const tokenizationFileStreamEnabled = languageOptions?.tokenization?.fileStream === true;
   const fileTokenStreamCache = new Map();
-  attachCallDetailsByChunkIndex(callIndex, sc);
-  const useWorkerForTokens = tokenMode === 'code'
+  const fileTokenContext = tokenContext && typeof tokenContext === 'object'
+    ? { ...tokenContext }
+    : { tokenClassification: { enabled: false } };
+  if (!fileTokenContext.tokenClassification || typeof fileTokenContext.tokenClassification !== 'object') {
+    fileTokenContext.tokenClassification = { enabled: false };
+  } else {
+    fileTokenContext.tokenClassification = { ...fileTokenContext.tokenClassification };
+  }
+  if (heavyFileDownshift) {
+    fileTokenContext.tokenClassification.enabled = false;
+  }
+  fileTokenContext.tokenClassificationRuntime = createTokenClassificationRuntime({
+    context: fileTokenContext,
+    fileBytes
+  });
+  attachCallDetailsByChunkIndex(callIndex, chunksForProcessing);
+  const proseWorkerMinBytesRaw = Number(languageOptions?.tokenization?.proseWorkerMinBytes);
+  const proseWorkerMinBytes = Number.isFinite(proseWorkerMinBytesRaw) && proseWorkerMinBytesRaw > 0
+    ? Math.floor(proseWorkerMinBytesRaw)
+    : 128 * 1024;
+  // Small prose files are faster on the main thread and avoid proc-queue
+  // contention; route only larger prose documents through tokenize workers.
+  const shouldUseProseWorker = tokenMode === 'prose'
+    && fileBytes >= proseWorkerMinBytes;
+  const useWorkerForTokens = (tokenMode === 'code' || shouldUseProseWorker)
     && !workerState.tokenWorkerDisabled
     && workerPool
     && workerPool.shouldUseForFile
-    ? workerPool.shouldUseForFile(fileStat.size)
+    ? workerPool.shouldUseForFile(fileBytes)
     : false;
   const runTokenize = useWorkerForTokens && typeof workerPool?.runTokenize === 'function'
     ? (payload) => (runProc ? runProc(() => workerPool.runTokenize(payload)) : workerPool.runTokenize(payload))
@@ -160,7 +579,9 @@ export const processChunks = async (context) => {
   let fileComplexity = {};
   let fileLint = [];
   if (isJsLike(ext) && mode === 'code') {
-    if (complexityEnabled) {
+    const effectiveComplexityEnabled = complexityEnabled && !heavyFileDownshift;
+    const effectiveLintEnabled = lintEnabled && !heavyFileDownshift;
+    if (effectiveComplexityEnabled) {
       const cacheKey = fileHash ? `${rel}:${fileHash}` : rel;
       let cachedComplexity = complexityCache.get(cacheKey);
       if (!cachedComplexity) {
@@ -174,7 +595,7 @@ export const processChunks = async (context) => {
       }
       fileComplexity = cachedComplexity || {};
     }
-    if (lintEnabled) {
+    if (effectiveLintEnabled) {
       const cacheKey = fileHash ? `${rel}:${fileHash}` : rel;
       let cachedLint = lintCache.get(cacheKey);
       if (!cachedLint) {
@@ -192,7 +613,8 @@ export const processChunks = async (context) => {
 
   let lastLineLogged = 0;
   let lastLineLogMs = 0;
-  const lineReader = contextWin > 0 ? createLineReader(text, lineIndex) : null;
+  const effectiveContextWin = heavyFileDownshift ? 0 : contextWin;
+  const lineReader = effectiveContextWin > 0 ? createLineReader(text, lineIndex) : null;
   const filterLintForChunk = (entries, startLine, endLine, includeUnscoped) => {
     if (!entries.length) return entries;
     return entries.filter((entry) => {
@@ -249,15 +671,33 @@ export const processChunks = async (context) => {
   };
   const resolveLintForChunk = fileLint.length ? createLintChunkResolver(fileLint) : null;
 
-  const resolvedTypeInferenceEnabled = typeof analysisPolicy?.typeInference?.local?.enabled === 'boolean'
+  const baseTypeInferenceEnabled = typeof analysisPolicy?.typeInference?.local?.enabled === 'boolean'
     ? analysisPolicy.typeInference.local.enabled
     : typeInferenceEnabled;
-  const resolvedRiskAnalysisEnabled = typeof analysisPolicy?.risk?.enabled === 'boolean'
+  const baseRiskAnalysisEnabled = typeof analysisPolicy?.risk?.enabled === 'boolean'
     ? analysisPolicy.risk.enabled
     : riskAnalysisEnabled;
+  const effectiveTypeInferenceEnabled = heavyFileDownshift ? false : baseTypeInferenceEnabled;
+  const effectiveRiskAnalysisEnabled = heavyFileDownshift ? false : baseRiskAnalysisEnabled;
+  const effectiveRelationsEnabled = heavyFileDownshift ? false : relationsEnabled;
+  const effectiveTokenizeEnabled = tokenizeEnabled && !heavyFileSkipTokenization;
+  const resolveFrameworkProfile = createFrameworkProfileResolver({
+    relPath: rel,
+    ext: containerExt,
+    text
+  });
+  const fileBoilerplateBlocks = shouldDetectBoilerplateBlocks({
+    mode,
+    text,
+    chunkCount: chunksForProcessing.length,
+    relPath: rel
+  })
+    ? await detectBoilerplateCommentBlocks({ text })
+    : [];
+  const hasFileBoilerplateBlocks = fileBoilerplateBlocks.length > 0;
 
-  for (let ci = 0; ci < sc.length; ++ci) {
-    const c = sc[ci];
+  for (let ci = 0; ci < chunksForProcessing.length; ++ci) {
+    const c = chunksForProcessing[ci];
     updateCrashStage('chunk', {
       chunkIndex: ci,
       chunkId: c?.chunkId || null,
@@ -273,6 +713,7 @@ export const processChunks = async (context) => {
     const segmentTokenMode = c.segment ? resolveSegmentTokenMode(c.segment) : tokenMode;
     const chunkMode = segmentTokenMode || tokenMode;
     const effectiveExt = c.segment?.ext || containerExt;
+    const fileFrameworkProfile = resolveFrameworkProfile();
     const langCacheKey = effectiveExt || '';
     let effectiveLang = effectiveLangCache.get(langCacheKey);
     if (effectiveLang === undefined) {
@@ -285,7 +726,7 @@ export const processChunks = async (context) => {
     let dictWordsForChunk = dictWordsCache.get(dictCacheKey);
     if (!dictWordsForChunk) {
       dictWordsForChunk = resolveTokenDictWords({
-        context: tokenContext,
+        context: fileTokenContext,
         mode: chunkMode,
         languageId: chunkLanguageId
       });
@@ -335,12 +776,12 @@ export const processChunks = async (context) => {
       languageOptions,
       fileRelations,
       callIndex,
-      relationsEnabled,
+      relationsEnabled: effectiveRelationsEnabled,
       fileStructural,
       chunkLineCount,
       chunkLanguageId,
-      resolvedTypeInferenceEnabled,
-      resolvedRiskAnalysisEnabled,
+      resolvedTypeInferenceEnabled: effectiveTypeInferenceEnabled,
+      resolvedRiskAnalysisEnabled: effectiveRiskAnalysisEnabled,
       riskConfig,
       astDataflowEnabled,
       controlFlowEnabled,
@@ -351,7 +792,8 @@ export const processChunks = async (context) => {
       diagnostics,
       startLine,
       endLine,
-      totalLines
+      totalLines,
+      fileFrameworkProfile
     });
     if (enrichment?.skip) {
       return enrichment.skip;
@@ -392,7 +834,18 @@ export const processChunks = async (context) => {
 
     let tokenPayload = null;
     let pretokenized = null;
-    if (tokenizeEnabled && tokenizationFileStreamEnabled && tokenText === ctext) {
+    const useLineTokenStream = effectiveTokenizeEnabled
+      && tokenizationFileStreamEnabled
+      && tokenText === ctext
+      && canUseLineTokenStreamSlice({
+        chunkStart: c.start,
+        chunkEnd: c.end,
+        startLine,
+        endLine,
+        lineIndex,
+        fileLength: text.length
+      });
+    if (useLineTokenStream) {
       let tokenStream = fileTokenStreamCache.get(dictCacheKey);
       if (!tokenStream) {
         tokenStream = createFileLineTokenStream({
@@ -411,7 +864,7 @@ export const processChunks = async (context) => {
       });
     }
     let usedWorkerTokenize = false;
-    if (tokenizeEnabled && runTokenize && !pretokenized) {
+    if (effectiveTokenizeEnabled && runTokenize && !pretokenized) {
       try {
         const tokenStart = Date.now();
         updateCrashStage('tokenize-worker', { chunkIndex: ci });
@@ -464,14 +917,14 @@ export const processChunks = async (context) => {
         }
       }
     }
-    if (tokenizeEnabled && !tokenPayload) {
+    if (effectiveTokenizeEnabled && !tokenPayload) {
       const tokenStart = Date.now();
       updateCrashStage('tokenize', { chunkIndex: ci });
       tokenPayload = tokenizeChunkText({
         text: tokenText,
         mode: chunkMode,
         ext: effectiveExt,
-        context: tokenContext,
+        context: fileTokenContext,
         languageId: chunkLanguageId,
         pretokenized,
         // chargramTokens is intentionally omitted (see note above).
@@ -481,7 +934,7 @@ export const processChunks = async (context) => {
       addTokenizeDuration(tokenDurationMs);
       addSettingMetric('tokenize', chunkLanguageId, chunkLineCount, tokenDurationMs);
     }
-    if (!tokenizeEnabled) {
+    if (!effectiveTokenizeEnabled) {
       tokenPayload = {
         tokens: [],
         tokenIds: [],
@@ -495,8 +948,8 @@ export const processChunks = async (context) => {
       };
     }
 
-    const tokenClassificationEnabled = tokenizeEnabled
-      && tokenContext?.tokenClassification?.enabled === true
+    const tokenClassificationEnabled = effectiveTokenizeEnabled
+      && fileTokenContext?.tokenClassification?.enabled === true
       && chunkMode === 'code';
     if (tokenClassificationEnabled && usedWorkerTokenize) {
       // Tokenization workers intentionally do not run tree-sitter classification to avoid
@@ -509,7 +962,7 @@ export const processChunks = async (context) => {
         ext: effectiveExt,
         dictWords: dictWordsForChunk,
         dictConfig,
-        context: tokenContext
+        context: fileTokenContext
       });
       tokenPayload = {
         ...tokenPayload,
@@ -532,7 +985,7 @@ export const processChunks = async (context) => {
       literalTokens
     } = tokenPayload;
 
-    if (tokenizationStats && tokenizeEnabled) {
+    if (tokenizationStats && effectiveTokenizeEnabled) {
       tokenizationStats.chunks += 1;
       tokenizationStats.tokens += tokens.length;
       tokenizationStats.seq += seq.length;
@@ -540,7 +993,33 @@ export const processChunks = async (context) => {
       // We don't materialize them during tokenization to avoid large transient allocations.
     }
 
-    if (tokenizeEnabled && !seq.length) continue;
+    if (effectiveTokenizeEnabled && !seq.length) continue;
+
+    let boilerplateCoverage = 0;
+    if (hasFileBoilerplateBlocks) {
+      const boilerplateMatch = resolveChunkBoilerplateMatch({
+        blocks: fileBoilerplateBlocks,
+        start: c.start,
+        end: c.end
+      });
+      boilerplateCoverage = Number(boilerplateMatch?.coverage || 0);
+      if (boilerplateMatch) {
+        docmeta = {
+          ...docmeta,
+          boilerplateRef: boilerplateMatch.ref,
+          boilerplateTags: boilerplateMatch.tags,
+          boilerplatePosition: boilerplateMatch.position,
+          boilerplateCoverage: Number(boilerplateCoverage.toFixed(4)),
+          boilerplateLines: {
+            start: boilerplateMatch.startLine,
+            end: boilerplateMatch.endLine
+          }
+        };
+      }
+    }
+    const boilerplateWeightMultiplier = boilerplateCoverage >= 0.85
+      ? 0.12
+      : (boilerplateCoverage >= 0.6 ? 0.35 : 1);
 
     const docText = typeof docmeta.doc === 'string' ? docmeta.doc : '';
 
@@ -550,15 +1029,15 @@ export const processChunks = async (context) => {
       : fileLint;
 
     let preContext = [], postContext = [];
-    if (contextWin > 0 && lineReader) {
+    if (effectiveContextWin > 0 && lineReader) {
       if (ci > 0) {
         const prev = chunkLineRanges[ci - 1];
-        const startLine = Math.max(prev.endLine - contextWin + 1, prev.startLine);
+        const startLine = Math.max(prev.endLine - effectiveContextWin + 1, prev.startLine);
         preContext = lineReader.getLines(startLine, prev.endLine);
       }
-      if (ci + 1 < sc.length) {
+      if (ci + 1 < chunksForProcessing.length) {
         const next = chunkLineRanges[ci + 1];
-        const endLine = Math.min(next.startLine + contextWin - 1, next.endLine);
+        const endLine = Math.min(next.startLine + effectiveContextWin - 1, next.endLine);
         postContext = lineReader.getLines(next.startLine, endLine);
       }
     }
@@ -600,14 +1079,19 @@ export const processChunks = async (context) => {
       dictWords: dictWordsForChunk,
       dictConfig,
       postingsConfig,
-      emitFieldTokens: tokenizeEnabled,
+      emitFieldTokens: effectiveTokenizeEnabled,
       tokenMode: chunkMode,
       fileRelations,
-      relationsEnabled,
+      relationsEnabled: effectiveRelationsEnabled,
       toolInfo,
       gitMeta,
-      analysisPolicy
+      analysisPolicy,
+      weightMultiplier: boilerplateWeightMultiplier
     });
+    chunkPayload.skipPhrasePostings = shouldSkipPhrasePostingsForChunk(
+      chunkPayload,
+      typeof relKey === 'string' ? relKey.toLowerCase() : null
+    );
 
     chunks.push(chunkPayload);
     if (embeddingEnabled && codeTexts && docTexts) {
@@ -631,6 +1115,64 @@ export const processChunks = async (context) => {
     languageOptions
   });
   addEmbeddingDuration(embeddingResult.embeddingMs);
+  if (mode === 'code' && canEmitPerfEvent) {
+    const processingDurationMs = Math.max(0, Date.now() - processChunksStartedAt);
+    const sourceChunkCount = sourceChunks.length;
+    const workingChunkCount = chunksForProcessing.length;
+    const outputChunkCount = chunks.length;
+    const coalescedChunks = Math.max(0, sourceChunkCount - workingChunkCount);
+    const coalesceRatio = sourceChunkCount > 0
+      ? Number((workingChunkCount / sourceChunkCount).toFixed(6))
+      : null;
+    const outputRatio = sourceChunkCount > 0
+      ? Number((outputChunkCount / sourceChunkCount).toFixed(6))
+      : null;
+    const throughputChunksPerSecond = processingDurationMs > 0
+      ? Number(((workingChunkCount * 1000) / processingDurationMs).toFixed(3))
+      : null;
+    perfEventLogger.emit('perf.heavy_file_policy', {
+      mode,
+      file: relKey,
+      ext: containerExt,
+      languageId: containerLanguageId,
+      fileBytes,
+      fileLines,
+      sourceChunks: sourceChunkCount,
+      workingChunks: workingChunkCount,
+      outputChunks: outputChunkCount,
+      heavyDownshift: heavyFileDownshift,
+      coalesced: heavyFileWasCoalesced,
+      coalescedChunks,
+      coalesceRatio,
+      outputRatio,
+      skipTokenization: heavyFileSkipTokenization,
+      throughputChunksPerSecond,
+      processingDurationMs,
+      heavyReasonBytes: heavyByBytes,
+      heavyReasonLines: heavyByLines,
+      heavyReasonChunks: heavyByChunks,
+      heavyReasonChunkOnly: heavyByChunkOnly,
+      heavyReasonPath: heavyByPath,
+      skipReasonBytes: skipTokenizationByBytes,
+      skipReasonLines: skipTokenizationByLines,
+      skipReasonChunks: skipTokenizationByChunks,
+      skipReasonChunkOnly: skipTokenizationByChunkOnly,
+      heavyReasonSwiftHotPath: heavyFileSwiftHotPath,
+      policyMaxBytes: heavyFilePolicy.maxBytes,
+      policyMaxLines: heavyFilePolicy.maxLines,
+      policyMaxChunks: heavyFilePolicy.maxChunks,
+      policyTargetChunks: heavyFileTargetChunks,
+      policySwiftHotPathTargetChunks: heavyFilePolicy.swiftHotPathTargetChunks,
+      policySwiftHotPathMinChunks: heavyFilePolicy.swiftHotPathMinChunks,
+      policyPathMinBytes: heavyFilePolicy.pathMinBytes,
+      policyPathMinLines: heavyFilePolicy.pathMinLines,
+      policyPathMinChunks: heavyFilePolicy.pathMinChunks,
+      policySkipTokenizationMaxBytes: heavyFilePolicy.skipTokenizationMaxBytes,
+      policySkipTokenizationMaxLines: heavyFilePolicy.skipTokenizationMaxLines,
+      policySkipTokenizationMaxChunks: heavyFilePolicy.skipTokenizationMaxChunks,
+      policySkipTokenizationCoalesceMaxChunks: heavyFilePolicy.skipTokenizationCoalesceMaxChunks
+    });
+  }
 
   return { chunks, vfsManifestRows };
 };

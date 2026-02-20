@@ -42,9 +42,10 @@ const LINGUIST_NAME_TO_ID = new Map([
   ['jinja2', 'jinja'],
   ['django', 'jinja'],
   ['razor', 'razor'],
-  ['protobuf', 'protobuf'],
-  ['protocol buffer', 'protobuf'],
-  ['protocol buffers', 'protobuf'],
+  ['protobuf', 'proto'],
+  ['protocol buffer', 'proto'],
+  ['protocol buffers', 'proto'],
+  ['proto', 'proto'],
   ['graphql', 'graphql'],
   ['kotlin', 'kotlin'],
   ['swift', 'swift'],
@@ -133,7 +134,11 @@ export async function buildLanguageContext({ ext, relPath, mode, text, options }
   const preparedOptions = options && typeof options === 'object'
     ? { ...options, relPath }
     : { relPath };
-  const context = lang && typeof lang.prepare === 'function'
+  // Prose/extracted-prose paths do not require language prepare passes and can
+  // hit expensive parser work (for example large HTML docs) with no downstream use.
+  const shouldPrepare = (mode === 'code' || preparedOptions?.forcePrepare === true)
+    && preparedOptions?.skipPrepare !== true;
+  const context = shouldPrepare && lang && typeof lang.prepare === 'function'
     ? await lang.prepare({ ext, relPath, mode, text, options: preparedOptions })
     : {};
   return { lang, context };

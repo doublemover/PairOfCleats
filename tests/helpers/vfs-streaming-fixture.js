@@ -10,13 +10,17 @@ import { enqueueVfsManifestArtifacts } from '../../src/index/build/artifacts/wri
 import { createVfsManifestCollector } from '../../src/index/build/vfs-manifest-collector.js';
 import { makeTempDir, rmDirRecursive } from './temp.js';
 import { applyTestEnv } from './test-env.js';
+import { writePiecesManifest } from './artifact-io-fixture.js';
 
 const runWriter = async ({ outDir, mode, rows, maxJsonBytes }) => {
   const writes = [];
+  const pieceFiles = [];
   const enqueueWrite = (label, fn) => {
     writes.push({ label, fn });
   };
-  const addPieceFile = () => {};
+  const addPieceFile = (entry, absPath) => {
+    pieceFiles.push({ entry, absPath });
+  };
   const formatArtifactLabel = (value) => value;
 
   await enqueueVfsManifestArtifacts({
@@ -33,6 +37,13 @@ const runWriter = async ({ outDir, mode, rows, maxJsonBytes }) => {
 
   for (const write of writes) {
     await write.fn();
+  }
+  if (pieceFiles.length) {
+    const pieces = pieceFiles.map(({ entry, absPath }) => ({
+      ...entry,
+      path: path.relative(outDir, absPath).replace(/\\/g, '/')
+    }));
+    await writePiecesManifest(outDir, pieces);
   }
 };
 

@@ -588,6 +588,36 @@ const lexiconRelationFilterReportSchema = {
   additionalProperties: false
 };
 
+const boilerplateCatalogEntry = {
+  type: 'object',
+  required: ['ref', 'count', 'positions', 'tags', 'sampleFiles'],
+  properties: {
+    ref: { type: 'string' },
+    count: intId,
+    positions: {
+      type: 'object',
+      additionalProperties: intId
+    },
+    tags: { type: 'array', items: { type: 'string' } },
+    sampleFiles: { type: 'array', items: { type: 'string' } }
+  },
+  additionalProperties: false
+};
+
+const boilerplateCatalogSchema = {
+  type: 'object',
+  required: ['schemaVersion', 'generatedAt', 'entries'],
+  properties: {
+    schemaVersion: semverString,
+    generatedAt: { type: 'string' },
+    entries: {
+      type: 'array',
+      items: boilerplateCatalogEntry
+    }
+  },
+  additionalProperties: false
+};
+
 const shardedJsonlPart = {
   type: 'object',
   required: ['path', 'records', 'bytes'],
@@ -1159,6 +1189,7 @@ export const MANIFEST_ONLY_ARTIFACT_NAMES = [
   'token_postings_binary_columnar_offsets',
   'token_postings_binary_columnar_lengths',
   'token_postings_binary_columnar_meta',
+  'token_postings_offsets',
   'symbol_edges_offsets',
   'symbol_occurrences_offsets',
   'symbols_offsets',
@@ -1466,6 +1497,7 @@ export const ARTIFACT_SCHEMA_DEFS = {
   filelists: fileListsSchema,
   extraction_report: extractionReportSchema,
   lexicon_relation_filter_report: lexiconRelationFilterReportSchema,
+  boilerplate_catalog: boilerplateCatalogSchema,
   pieces_manifest: {
     type: 'object',
     required: ['version', 'artifactSurfaceVersion', 'pieces'],
@@ -1710,11 +1742,13 @@ export const ARTIFACT_SCHEMA_DEFS = {
     additionalProperties: true
   },
   import_resolution_graph: importResolutionGraphSchema,
+  file_meta_meta: buildShardedJsonlMeta('file_meta'),
   chunk_meta_meta: buildShardedJsonlMeta('chunk_meta'),
   chunk_meta_cold_meta: buildShardedJsonlMeta('chunk_meta_cold'),
   chunk_uid_map_meta: buildShardedJsonlMeta('chunk_uid_map'),
   vfs_manifest_meta: buildShardedJsonlMeta('vfs_manifest'),
   vfs_path_map_meta: buildShardedJsonlMeta('vfs_path_map'),
+  field_tokens_meta: buildShardedJsonlMeta('field_tokens'),
   file_relations_meta: buildShardedJsonlMeta('file_relations'),
   symbols_meta: buildShardedJsonlMeta('symbols'),
   symbol_occurrences_meta: buildShardedJsonlMeta('symbol_occurrences'),

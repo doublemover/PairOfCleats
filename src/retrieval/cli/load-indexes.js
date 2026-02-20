@@ -36,6 +36,11 @@ const EMPTY_INDEX = {
 };
 
 const hasOwn = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
+const DENSE_ARTIFACT_LEGACY_FILES = Object.freeze({
+  dense_vectors: Object.freeze(['dense_vectors_uint8.json', 'dense_vectors.json']),
+  dense_vectors_doc: Object.freeze(['dense_vectors_doc_uint8.json', 'dense_vectors_doc.json']),
+  dense_vectors_code: Object.freeze(['dense_vectors_code_uint8.json', 'dense_vectors_code.json'])
+});
 
 const normalizeModel = (value) => {
   if (typeof value !== 'string') return null;
@@ -46,6 +51,22 @@ const normalizeModel = (value) => {
 const normalizeIdentityNumber = (value) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+};
+
+const loadDenseArtifactFromLegacyPath = (dir, artifactName) => {
+  const candidates = DENSE_ARTIFACT_LEGACY_FILES[artifactName];
+  if (!Array.isArray(candidates) || !candidates.length) return null;
+  for (const relPath of candidates) {
+    const absPath = path.join(dir, relPath);
+    const exists = fs.existsSync(absPath)
+      || fs.existsSync(`${absPath}.gz`)
+      || fs.existsSync(`${absPath}.zst`);
+    if (!exists) continue;
+    try {
+      return readJsonFile(absPath, { maxBytes: MAX_JSON_BYTES });
+    } catch {}
+  }
+  return null;
 };
 
 const numbersEqual = (left, right) => Math.abs(left - right) <= 1e-9;
@@ -361,23 +382,23 @@ export async function loadSearchIndexes({
           }
         }
         for (const artifactName of artifactCandidates) {
-          const fallbackPath = path.join(dir, `${artifactName}_uint8.json`);
+          let loaded = null;
           try {
-            const loaded = await loadJsonObjectArtifact(dir, artifactName, {
+            loaded = await loadJsonObjectArtifact(dir, artifactName, {
               maxBytes: MAX_JSON_BYTES,
               manifest,
-              strict,
-              fallbackPath
+              strict
             });
-            if (!loaded || !Array.isArray(loaded.vectors) || !loaded.vectors.length) {
-              continue;
-            }
-            if (!loaded.model && modelIdDefault) loaded.model = modelIdDefault;
-            idx.denseVec = loaded;
-            return loaded;
           } catch {
-            continue;
+            if (strict) continue;
           }
+          if ((!loaded || !Array.isArray(loaded.vectors) || !loaded.vectors.length) && !strict) {
+            loaded = loadDenseArtifactFromLegacyPath(dir, artifactName);
+          }
+          if (!loaded || !Array.isArray(loaded.vectors) || !loaded.vectors.length) continue;
+          if (!loaded.model && modelIdDefault) loaded.model = modelIdDefault;
+          idx.denseVec = loaded;
+          return loaded;
         }
         idx.loadDenseVectors = null;
         return null;
@@ -559,16 +580,12 @@ export async function loadSearchIndexes({
     if (metaPresence?.error && !missingMetaEntry) {
       throw metaPresence.error;
     }
-    // In non-strict mode we intentionally attempt fallbackPath loads even when
-    // the manifest entry is missing, so legacy indexes without manifest entries
-    // can still surface LanceDB metadata if files exist on disk.
-    if (!missingMetaEntry || !strict) {
+    if (!missingMetaEntry) {
       try {
         meta = await loadJsonObjectArtifact(dir, metaName, {
           maxBytes: MAX_JSON_BYTES,
           manifest,
-          strict,
-          fallbackPath: targetPaths.metaPath || null
+          strict
         });
       } catch (err) {
         if (strict) {
@@ -587,14 +604,11 @@ export async function loadSearchIndexes({
     if (dirPresence?.error && !missingDirEntry) {
       throw dirPresence.error;
     }
-    // Same compatibility rule as metadata: allow non-strict fallback path
-    // resolution without a manifest entry for legacy LanceDB directories.
-    if (!missingDirEntry || !strict) {
+    if (!missingDirEntry) {
       try {
         lanceDir = resolveDirArtifactPath(dir, dirName, {
           manifest,
-          strict,
-          fallbackPath: targetPaths.dir || null
+          strict
         });
       } catch (err) {
         if (err?.code !== 'ERR_MANIFEST_MISSING' && err?.code !== 'ERR_MANIFEST_INVALID') {

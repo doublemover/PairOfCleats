@@ -73,11 +73,33 @@ const packSignatures = (signatures) => {
   return buffer;
 };
 
+const toManifestPath = (value) => String(value || '').replace(/\\/g, '/');
+
+const writePiecesManifest = async (runRoot, pieces) => {
+  const manifestPath = path.join(runRoot, 'pieces', 'manifest.json');
+  await fs.mkdir(path.dirname(manifestPath), { recursive: true });
+  await writeJsonObjectFile(manifestPath, {
+    fields: {
+      compatibilityKey: 'bench-minhash-packed',
+      pieces: Array.isArray(pieces)
+        ? pieces.map((piece) => ({
+          ...piece,
+          path: toManifestPath(piece?.path)
+        }))
+        : []
+    },
+    atomic: true
+  });
+};
+
 const runBaseline = async (runRoot, signatures) => {
   await fs.rm(runRoot, { recursive: true, force: true });
   await fs.mkdir(runRoot, { recursive: true });
   const jsonPath = path.join(runRoot, 'minhash_signatures.json');
   await writeJsonObjectFile(jsonPath, { arrays: { signatures } });
+  await writePiecesManifest(runRoot, [
+    { name: 'minhash_signatures', path: 'minhash_signatures.json', format: 'json' }
+  ]);
   const stat = await fs.stat(jsonPath);
   const start = performance.now();
   const loaded = await loadMinhashSignatures(runRoot, { strict: false });
@@ -104,6 +126,10 @@ const runCurrent = async (runRoot, signatures) => {
     },
     atomic: true
   });
+  await writePiecesManifest(runRoot, [
+    { name: 'minhash_signatures', path: 'minhash_signatures.packed.bin', format: 'packed' },
+    { name: 'minhash_signatures_meta', path: 'minhash_signatures.packed.meta.json', format: 'json' }
+  ]);
   const stat = await fs.stat(packedPath);
   const start = performance.now();
   const loaded = await loadMinhashSignatures(runRoot, { strict: false });

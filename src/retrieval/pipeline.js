@@ -10,36 +10,25 @@ import { createHnswAnnProvider } from './ann/providers/hnsw.js';
 import { createLanceDbAnnProvider } from './ann/providers/lancedb.js';
 import { createSqliteVectorAnnProvider } from './ann/providers/sqlite-vec.js';
 import { ANN_PROVIDER_IDS } from './ann/types.js';
-import { isEmbeddingReady } from './ann/utils.js';
 import { resolveAnnOrder } from './ann/normalize-backend.js';
 import { createError, ERROR_CODES } from '../shared/error-codes.js';
 import { createCandidateSetBuilder } from './pipeline/candidates.js';
 import { fuseRankedHits } from './pipeline/fusion.js';
 import { createQueryAstHelpers } from './pipeline/query-ast.js';
-import { applyGraphRanking } from './pipeline/graph-ranking.js';
 import { createCandidatePool } from './pipeline/candidate-pool.js';
 import { createScoreBufferPool } from './pipeline/score-buffer.js';
-import { createTopKReducer } from './pipeline/topk.js';
 import { compileFtsMatchQuery } from './fts-query.js';
-import { createScoreBreakdown } from './output/score-breakdown.js';
 import { resolveSparseRequiredTables, RETRIEVAL_SPARSE_UNAVAILABLE_CODE } from './sparse/requirements.js';
+import { createProviderRuntime } from './pipeline/provider-runtime.js';
+import { resolveFileRelations } from './pipeline/relations.js';
+import { runCandidateStage } from './pipeline/candidate-stage.js';
+import { runAnnStage } from './pipeline/ann-stage.js';
+import { runRankStage } from './pipeline/rank-stage.js';
 import {
-  ANN_CANDIDATE_POLICY_REASONS,
-  resolveAnnCandidateSet
-} from './scoring/ann-candidate-policy.js';
-import { computeRelationBoost } from './scoring/relation-boost.js';
+  FTS_UNAVAILABLE_CODE,
+  MAX_POOL_ENTRIES
+} from './pipeline/constants.js';
 import { INDEX_PROFILE_VECTOR_ONLY } from '../contracts/index-profile.js';
-
-const SQLITE_IN_LIMIT = 900;
-const MAX_POOL_ENTRIES = 50000;
-const PROVIDER_RETRY_BASE_MS = 1000;
-const PROVIDER_RETRY_MAX_MS = 30000;
-const PREFLIGHT_CACHE_TTL_MS = 30000;
-const ANN_ADAPTIVE_FAILURE_PENALTY_MS = 5000;
-const ANN_ADAPTIVE_PREFLIGHT_PENALTY_MS = 10000;
-const ANN_ADAPTIVE_LATENCY_ALPHA = 0.25;
-const FTS_UNAVAILABLE_CODE = 'retrieval_fts_unavailable';
-const VECTOR_REQUIRED_CODE = 'retrieval_vector_required';
 
 /**
  * Create a search pipeline runner bound to a shared context.
@@ -211,6 +200,9 @@ export function createSearchPipeline(context) {
   });
   const bm25Provider = createJsBm25Provider({ rankBM25, rankBM25Fields });
   const tantivyProvider = createTantivyProvider();
+  const sparseRequiredTables = useSqlite
+    ? resolveSparseRequiredTables(postingsConfig)
+    : [];
 
   const isDefinitionKind = (kind) => typeof kind === 'string'
     && /Declaration|Definition|Initializer|Deinitializer/.test(kind);
@@ -270,206 +262,31 @@ export function createSearchPipeline(context) {
     );
   };
 
-  const providerRuntimeState = new Map();
-  const unnamedProviderIdentity = new WeakMap();
-  let unnamedProviderCounter = 0;
-  const resolveProviderStateKey = (provider, mode) => {
-    const modeKey = typeof mode === 'string' && mode ? mode : 'unknown-mode';
-    let providerKey = typeof provider?.id === 'string' && provider.id
-      ? provider.id
-      : '';
-    if (!providerKey) {
-      const providerType = typeof provider;
-      if (provider && (providerType === 'object' || providerType === 'function')) {
-        providerKey = unnamedProviderIdentity.get(provider) || '';
-        if (!providerKey) {
-          unnamedProviderCounter += 1;
-          providerKey = `unnamed-provider-${unnamedProviderCounter}`;
-          unnamedProviderIdentity.set(provider, providerKey);
-        }
-      } else {
-        providerKey = 'unknown-provider';
-      }
-    }
-    return `${modeKey}:${providerKey}`;
-  };
-  const getProviderModeState = (provider, mode) => {
-    if (!provider || !mode) return null;
-    const stateKey = resolveProviderStateKey(provider, mode);
-    if (!providerRuntimeState.has(stateKey)) {
-      providerRuntimeState.set(stateKey, {
-        failures: 0,
-        disabledUntil: 0,
-        preflight: null,
-        preflightFailureUntil: 0,
-        preflightCheckedAt: 0,
-        lastError: null,
-        latencyEwmaMs: null,
-        latencySamples: 0
-      });
-    }
-    return providerRuntimeState.get(stateKey);
-  };
-  const resolveProviderBackoffMs = (failures) => {
-    const count = Number.isFinite(Number(failures)) ? Math.max(0, Math.floor(Number(failures))) : 0;
-    if (!count) return 0;
-    return Math.min(PROVIDER_RETRY_MAX_MS, PROVIDER_RETRY_BASE_MS * (2 ** (count - 1)));
-  };
-  const isProviderCoolingDown = (provider, mode) => {
-    const state = getProviderModeState(provider, mode);
-    if (!state) return false;
-    return state.disabledUntil > Date.now();
-  };
-  const recordProviderFailure = (provider, mode, reason, { fromPreflight = false } = {}) => {
-    const state = getProviderModeState(provider, mode);
-    if (!state) return;
-    state.failures += 1;
-    const now = Date.now();
-    const backoffMs = resolveProviderBackoffMs(state.failures);
-    state.disabledUntil = now + backoffMs;
-    state.lastError = reason || state.lastError || null;
-    if (fromPreflight) {
-      state.preflight = false;
-      state.preflightCheckedAt = now;
-      state.preflightFailureUntil = now + backoffMs;
-    } else {
-      state.preflight = null;
-      state.preflightFailureUntil = 0;
-      state.preflightCheckedAt = 0;
-    }
-  };
-  const recordProviderSuccess = (provider, mode, { latencyMs = null } = {}) => {
-    const state = getProviderModeState(provider, mode);
-    if (!state) return;
-    state.failures = 0;
-    state.disabledUntil = 0;
-    state.lastError = null;
-    state.preflight = true;
-    state.preflightFailureUntil = 0;
-    state.preflightCheckedAt = Date.now();
-    if (Number.isFinite(Number(latencyMs)) && Number(latencyMs) >= 0) {
-      const resolvedLatencyMs = Number(latencyMs);
-      const prev = Number.isFinite(Number(state.latencyEwmaMs))
-        ? Number(state.latencyEwmaMs)
-        : null;
-      state.latencyEwmaMs = prev == null
-        ? resolvedLatencyMs
-        : ((prev * (1 - ANN_ADAPTIVE_LATENCY_ALPHA)) + (resolvedLatencyMs * ANN_ADAPTIVE_LATENCY_ALPHA));
-      state.latencySamples = (Number.isFinite(Number(state.latencySamples)) ? Number(state.latencySamples) : 0) + 1;
-    }
-  };
-  const resolveAnnBackends = (providers, mode) => {
-    const base = annOrder.filter((backend) => providers.has(backend));
-    if (!adaptiveProvidersEnabled || base.length <= 1) return base;
-    const scored = base.map((backend, baseIndex) => {
-      const provider = providers.get(backend);
-      const state = getProviderModeState(provider, mode);
-      const hasLatency = Number.isFinite(Number(state?.latencyEwmaMs));
-      const latencyMs = hasLatency ? Number(state.latencyEwmaMs) : Number.POSITIVE_INFINITY;
-      const failures = Number.isFinite(Number(state?.failures))
-        ? Math.max(0, Math.floor(Number(state.failures)))
-        : 0;
-      const preflightPenalty = state?.preflight === false ? 1 : 0;
-      return {
-        backend,
-        provider,
-        baseIndex,
-        coolingDown: isProviderCoolingDown(provider, mode),
-        failures,
-        preflightPenalty,
-        latencyMs,
-        hasSignal: hasLatency || failures > 0 || preflightPenalty > 0
-      };
-    });
-    const hasSignals = scored.some((entry) => entry.hasSignal);
-    if (!hasSignals) return base;
-    scored.sort((a, b) => {
-      if (a.coolingDown !== b.coolingDown) return Number(a.coolingDown) - Number(b.coolingDown);
-      const aPenalty = (a.failures * ANN_ADAPTIVE_FAILURE_PENALTY_MS)
-        + (a.preflightPenalty * ANN_ADAPTIVE_PREFLIGHT_PENALTY_MS);
-      const bPenalty = (b.failures * ANN_ADAPTIVE_FAILURE_PENALTY_MS)
-        + (b.preflightPenalty * ANN_ADAPTIVE_PREFLIGHT_PENALTY_MS);
-      if (aPenalty !== bPenalty) return aPenalty - bPenalty;
-      if (a.latencyMs !== b.latencyMs) return a.latencyMs - b.latencyMs;
-      return a.baseIndex - b.baseIndex;
-    });
-    return scored.map((entry) => entry.backend);
-  };
-  const resolveAnnType = (annSource) => {
-    if (!annSource) return null;
-    return annSource === 'minhash' ? 'minhash' : 'vector';
-  };
-  const emitSparseUnavailable = (diagnostics, reason, mode, extra = {}) => {
-    if (!Array.isArray(diagnostics)) return;
-    diagnostics.push({
-      code: RETRIEVAL_SPARSE_UNAVAILABLE_CODE,
-      reason,
-      mode,
-      ...extra
-    });
-  };
-  const lowerCaseRelationLookupCache = new WeakMap();
-  const toLowerSafe = (value) => (typeof value === 'string' ? value.toLowerCase() : '');
-  const AMBIGUOUS_RELATION_LOOKUP = Symbol('ambiguousRelationLookup');
-  const addCaseInsensitiveLookupEntry = (lookup, key, value) => {
-    if (typeof key !== 'string' || !key) return;
-    const lowered = toLowerSafe(key);
-    if (!lowered) return;
-    if (!lookup.has(lowered)) {
-      lookup.set(lowered, value);
-      return;
-    }
-    const existing = lookup.get(lowered);
-    if (existing !== AMBIGUOUS_RELATION_LOOKUP && existing !== value) {
-      lookup.set(lowered, AMBIGUOUS_RELATION_LOOKUP);
-    }
-  };
-  const getCaseInsensitiveLookupValue = (lookup, filePath) => {
-    const lowered = toLowerSafe(filePath);
-    if (!lowered) return null;
-    const value = lookup.get(lowered);
-    if (value === AMBIGUOUS_RELATION_LOOKUP) return null;
-    return value || null;
-  };
-  const resolveFileRelations = (relationsStore, filePath, caseSensitiveFile = false) => {
-    if (!relationsStore || typeof filePath !== 'string' || !filePath) return null;
-    if (typeof relationsStore.get === 'function') {
-      if (typeof relationsStore.has === 'function' && relationsStore.has(filePath)) {
-        return relationsStore.get(filePath);
-      }
-      const direct = relationsStore.get(filePath);
-      if (direct) return direct;
-      if (caseSensitiveFile) return null;
-      let normalized = lowerCaseRelationLookupCache.get(relationsStore);
-      if (!normalized) {
-        normalized = new Map();
-        for (const [key, value] of relationsStore.entries()) {
-          addCaseInsensitiveLookupEntry(normalized, key, value);
-        }
-        lowerCaseRelationLookupCache.set(relationsStore, normalized);
-      }
-      return getCaseInsensitiveLookupValue(normalized, filePath);
-    }
-    if (Object.prototype.hasOwnProperty.call(relationsStore, filePath)) {
-      return relationsStore[filePath];
-    }
-    if (caseSensitiveFile) return null;
-    let normalized = lowerCaseRelationLookupCache.get(relationsStore);
-    if (!normalized) {
-      normalized = new Map();
-      for (const [key, value] of Object.entries(relationsStore)) {
-        addCaseInsensitiveLookupEntry(normalized, key, value);
-      }
-      lowerCaseRelationLookupCache.set(relationsStore, normalized);
-    }
-    return getCaseInsensitiveLookupValue(normalized, filePath);
-  };
+  const providerRuntime = createProviderRuntime();
+  const sqliteFtsCompilation = compileFtsMatchQuery({
+    queryAst,
+    queryTokens,
+    query,
+    explicitTrigram: sqliteFtsVariantConfig?.explicitTrigram === true,
+    substringMode: sqliteFtsVariantConfig?.substringMode === true,
+    stemmingEnabled: sqliteFtsVariantConfig?.stemming === true
+  });
+  const filtersEnabled = typeof filtersActive === 'boolean'
+    ? filtersActive
+    : hasActiveFilters(filters);
+  const tableAvailabilityCache = new Map();
   const checkRequiredTables = (mode, tables) => {
     if (!Array.isArray(tables) || !tables.length) return [];
     if (typeof sqliteHasTable !== 'function') return [];
     const missing = [];
     for (const tableName of tables) {
-      if (!sqliteHasTable(mode, tableName)) missing.push(tableName);
+      const cacheKey = `${mode}:${tableName}`;
+      let available = tableAvailabilityCache.get(cacheKey);
+      if (available == null) {
+        available = sqliteHasTable(mode, tableName) === true;
+        tableAvailabilityCache.set(cacheKey, available);
+      }
+      if (!available) missing.push(tableName);
     }
     return missing;
   };
@@ -501,17 +318,6 @@ export function createSearchPipeline(context) {
     const sqliteFtsDesiredForMode = sqliteRouteByMode
       ? sqliteRouteByMode.desired === 'fts'
       : sqliteFtsRequested;
-    const sqliteFtsCompilation = compileFtsMatchQuery({
-      queryAst,
-      queryTokens,
-      query,
-      explicitTrigram: sqliteFtsVariantConfig?.explicitTrigram === true,
-      substringMode: sqliteFtsVariantConfig?.substringMode === true,
-      stemmingEnabled: sqliteFtsVariantConfig?.stemming === true
-    });
-    const filtersEnabled = typeof filtersActive === 'boolean'
-      ? filtersActive
-      : hasActiveFilters(filters);
     const stageMeta = { mode };
     const runStage = (stage, meta, fn) => {
       const hasMeta = typeof meta === 'object' && typeof fn === 'function';
@@ -587,184 +393,42 @@ export function createSearchPipeline(context) {
 
       // Main search: BM25 token match (with optional SQLite FTS first pass)
       const candidateMetrics = {};
-      const candidateResult = runStage('candidates', candidateMetrics, () => {
-        let candidates = null;
-        let bmHits = [];
-        let sparseType = fieldWeightsEnabled ? 'bm25-fielded' : 'bm25';
-        let sqliteFtsUsed = false;
-        const sqliteFtsDiagnostics = [];
-        let sqliteFtsOverfetch = null;
-        const sparseDeniedByProfile = vectorOnlyProfile === true;
-        const sqliteFtsAllowed = allowedIdx && allowedCount
-          ? (allowedCount <= SQLITE_IN_LIMIT ? ensureAllowedSet(allowedIdx) : null)
-          : null;
-        const sqliteFtsCanPushdown = !!(sqliteFtsAllowed && sqliteFtsAllowed.size <= SQLITE_IN_LIMIT);
-        const sqliteFtsRequiredTables = typeof sqliteFtsProvider.requireTables === 'function'
-          ? sqliteFtsProvider.requireTables({ postingsConfig })
-          : ['chunks_fts'];
-        const sqliteFtsMissingTables = sqliteEnabledForMode
-          ? checkRequiredTables(mode, sqliteFtsRequiredTables)
-          : [];
-        const sqliteFtsEligible = sqliteEnabledForMode
-        && !sparseDeniedByProfile
-        && sqliteFtsDesiredForMode
-        && typeof sqliteFtsCompilation.match === 'string'
-        && sqliteFtsCompilation.match.trim().length > 0
-        && sqliteFtsMissingTables.length === 0
-        && (typeof sqliteHasFts !== 'function' || sqliteHasFts(mode))
-        && (!filtersEnabled || sqliteFtsCanPushdown);
-        const wantsTantivy = normalizedSparseBackend === 'tantivy';
-        const sparseRequiredTables = sqliteEnabledForMode
-          ? resolveSparseRequiredTables(postingsConfig)
-          : [];
-        const sparseMissingTables = sqliteEnabledForMode
-          ? checkRequiredTables(mode, sparseRequiredTables)
-          : [];
-        if (sqliteFtsMissingTables.length) {
-          emitSparseUnavailable(sqliteFtsDiagnostics, 'missing_required_tables', mode, {
-            provider: sqliteFtsProvider.id || 'sqlite-fts',
-            missingTables: sqliteFtsMissingTables
-          });
-        }
-        const buildCandidatesFromHits = (hits) => {
-          if (!hits || !hits.length) return null;
-          const set = candidatePool.acquire();
-          for (const hit of hits) {
-            if (Number.isFinite(hit?.idx)) set.add(hit.idx);
-          }
-          trackReleaseSet(set);
-          return set;
-        };
-        if (sparseDeniedByProfile) {
-          emitSparseUnavailable(sqliteFtsDiagnostics, 'profile_vector_only', mode, {
-            profileId,
-            guidance: 'Vector-only indexes require ANN-capable retrieval providers.'
-          });
-          sparseType = 'none';
-        } else if (wantsTantivy) {
-          const tantivyResult = tantivyProvider.search({
-            idx,
-            queryTokens,
-            mode,
-            topN: expandedTopN,
-            allowedIds: allowedIdx
-          });
-          bmHits = tantivyResult.hits;
-          sparseType = tantivyResult.type;
-          if (bmHits.length) {
-            candidates = buildCandidatesFromHits(bmHits);
-          }
-        } else if (sqliteFtsEligible) {
-          const ftsResult = sqliteFtsProvider.search({
-            idx,
-            queryTokens,
-            ftsMatch: sqliteFtsCompilation.match,
-            mode,
-            topN: expandedTopN,
-            allowedIds: sqliteFtsCanPushdown ? sqliteFtsAllowed : null,
-            onDiagnostic: (diagnostic) => {
-              if (!diagnostic || typeof diagnostic !== 'object') return;
-              sqliteFtsDiagnostics.push(diagnostic);
-            },
-            onOverfetch: (stats) => {
-              if (!stats || typeof stats !== 'object') return;
-              sqliteFtsOverfetch = stats;
-            }
-          });
-          bmHits = ftsResult.hits;
-          sqliteFtsUsed = bmHits.length > 0;
-          if (sqliteFtsUsed) {
-            sparseType = ftsResult.type;
-            candidates = buildCandidatesFromHits(bmHits);
-          }
-        }
-        if (!bmHits.length && !wantsTantivy && !sparseDeniedByProfile) {
-          if (sparseMissingTables.length) {
-            emitSparseUnavailable(sqliteFtsDiagnostics, 'missing_required_tables', mode, {
-              provider: bm25Provider.id || 'js-bm25',
-              missingTables: sparseMissingTables
-            });
-            sparseType = 'none';
-          } else {
-            try {
-              const tokenIndexOverride = sqliteEnabledForMode ? getTokenIndexForQuery(queryTokens, mode) : null;
-              candidates = buildCandidateSet(idx, queryTokens, mode);
-              trackReleaseSet(candidates);
-              const bm25Result = bm25Provider.search({
-                idx,
-                queryTokens,
-                mode,
-                topN: expandedTopN,
-                allowedIds: allowedIdx,
-                fieldWeights,
-                k1: bm25K1,
-                b: bm25B,
-                tokenIndexOverride
-              });
-              bmHits = bm25Result.hits;
-              sparseType = bm25Result.type;
-              sqliteFtsUsed = false;
-            } catch (error) {
-              emitSparseUnavailable(sqliteFtsDiagnostics, 'provider_error', mode, {
-                provider: bm25Provider.id || 'js-bm25',
-                message: String(error?.message || error)
-              });
-              sparseType = 'none';
-            }
-          }
-        }
-        candidateMetrics.counts = {
-          allowed: allowedIdx ? allowedCount : null,
-          candidates: candidates ? candidates.size : null,
-          bmHits: bmHits.length
-        };
-        const unavailableDiagnostic = sqliteFtsDiagnostics.find(
-          (entry) => entry?.code === FTS_UNAVAILABLE_CODE
-        );
-        const sqliteRoutingReason = !sqliteEnabledForMode
-          ? 'sqlite_unavailable'
-          : sparseDeniedByProfile
-            ? 'profile_vector_only_sparse_unavailable'
-            : !sqliteFtsDesiredForMode
-              ? 'mode_routed_to_sparse'
-              : !sqliteFtsCompilation.match
-                ? 'empty_fts_match'
-                : sqliteFtsMissingTables.length > 0
-                  ? 'fts_missing_required_tables'
-                  : (typeof sqliteHasFts === 'function' && !sqliteHasFts(mode))
-                    ? 'fts_table_unavailable'
-                    : (filtersEnabled && !sqliteFtsCanPushdown)
-                      ? 'filters_require_pushdown'
-                      : (unavailableDiagnostic
-                        ? FTS_UNAVAILABLE_CODE
-                        : 'fts_selected');
-        candidateMetrics.routing = {
+      const candidateResult = runStage('candidates', candidateMetrics, () => (
+        runCandidateStage({
+          idx,
           mode,
+          allowedIdx,
+          allowedCount,
+          filtersEnabled,
           sqliteEnabledForMode,
-          sqliteFtsDesired: sqliteFtsDesiredForMode,
-          reason: sqliteRoutingReason,
+          sqliteFtsDesiredForMode,
+          sqliteFtsCompilation,
+          sqliteFtsProvider,
+          bm25Provider,
+          tantivyProvider,
+          normalizedSparseBackend,
+          postingsConfig,
+          sparseRequiredTables,
+          sqliteHasFts,
+          checkRequiredTables,
+          sqliteRouteByMode,
           profileId,
-          sparseDeniedByProfile,
-          route: sqliteRouteByMode || null
-        };
-        candidateMetrics.fts = {
-          match: sqliteFtsCompilation.match,
-          variant: sqliteFtsCompilation.variant,
-          tokenizer: sqliteFtsCompilation.tokenizer,
-          reasonPath: sqliteFtsCompilation.reasonPath,
-          normalizedChanged: sqliteFtsCompilation.normalizedChanged,
-          diagnostics: sqliteFtsDiagnostics,
-          overfetch: sqliteFtsOverfetch
-        };
-        candidateMetrics.sqliteFtsUsed = sqliteFtsUsed;
-        candidateMetrics.sparseType = sparseType;
-        candidateMetrics.profile = {
-          id: profileId,
-          sparseDenied: sparseDeniedByProfile,
-          sparseFallbackAllowed: modeProfilePolicy?.allowSparseFallback === true
-        };
-        return { candidates, bmHits, sparseType, sqliteFtsUsed, sqliteFtsDiagnostics };
-      });
+          modeProfilePolicy,
+          vectorOnlyProfile,
+          fieldWeightsEnabled,
+          queryTokens,
+          expandedTopN,
+          ensureAllowedSet,
+          buildCandidateSet,
+          candidatePool,
+          trackReleaseSet,
+          fieldWeights,
+          bm25K1,
+          bm25B,
+          getTokenIndexForQuery,
+          candidateMetrics
+        })
+      ));
       let { candidates, bmHits, sparseType, sqliteFtsUsed, sqliteFtsDiagnostics } = candidateResult;
       const sqliteFtsUnavailable = Array.isArray(sqliteFtsDiagnostics)
         ? sqliteFtsDiagnostics.find((entry) => entry?.code === FTS_UNAVAILABLE_CODE)
@@ -793,340 +457,44 @@ export function createSearchPipeline(context) {
         );
       }
 
-      // MinHash (embedding) ANN, if requested
       const annMetrics = {};
-      const annResult = await runStageAsync('ann', annMetrics, async () => {
-        let annHits = [];
-        let annSource = null;
-        let warned = false;
-
-        if (!annEnabledForMode) {
-          if (vectorOnlyProfile) {
-            throw createError(
-              ERROR_CODES.INVALID_REQUEST,
-              'Sparse-only retrieval is not allowed for indexing.profile=vector_only. ' +
-                'Re-run without sparse-only mode or pass --allow-sparse-fallback to permit ANN fallback.',
-              {
-                reasonCode: 'retrieval_profile_mismatch',
-                reason: 'sparse_requested_against_vector_only',
-                mode,
-                profileId
-              }
-            );
-          }
-          annMetrics.vectorActive = false;
-          annMetrics.hits = 0;
-          annMetrics.source = null;
-          annMetrics.warned = false;
-          annMetrics.candidates = null;
-          annMetrics.providerAvailable = false;
-          return { annHits, annSource };
-        }
-
-        const ensureCandidateBase = () => {
-          if (candidates) return candidates;
-          if (!bmHits.length) return null;
-          const set = candidatePool.acquire();
-          for (const hit of bmHits) {
-            if (Number.isFinite(hit?.idx)) set.add(hit.idx);
-          }
-          trackReleaseSet(set);
-          candidates = set;
-          return set;
-        };
-
-        const annCandidateBase = ensureCandidateBase();
-        const annCandidatePolicy = resolveAnnCandidateSet({
-          candidates: annCandidateBase,
-          allowedIds: allowedIdx,
-          filtersActive: filtersEnabled,
-          cap: annCandidatePolicyConfig.cap,
-          minDocCount: annCandidatePolicyConfig.minDocCount,
-          maxDocCount: annCandidatePolicyConfig.maxDocCount,
-          toSet: ensureAllowedSet
-        });
-        const annCandidates = annCandidatePolicy.set;
-        const shouldTryAnnFallback = filtersEnabled
-          && Boolean(allowedIdx)
-          && annCandidatePolicy.reason !== ANN_CANDIDATE_POLICY_REASONS.FILTERS_ACTIVE_ALLOWED_IDX;
-        let annFallbackResolved = false;
-        let annFallback = null;
-        const resolveAnnFallback = () => {
-          if (!shouldTryAnnFallback) return null;
-          if (!annFallbackResolved) {
-            // Keep allowlist in native representation (Set/bitmap) so large
-            // filtered cohorts do not incur eager Set materialization unless a
-            // specific provider requires conversion.
-            annFallback = allowedIdx;
-            annFallbackResolved = true;
-          }
-          return annFallback;
-        };
-
-        const normalizeAnnHits = (hits) => {
-          if (!Array.isArray(hits)) return [];
-          return hits
-            .filter((hit) => Number.isFinite(hit?.idx) && Number.isFinite(hit?.sim))
-            .sort((a, b) => (b.sim - a.sim) || (a.idx - b.idx));
-        };
-
-        /**
-         * Run provider preflight with cached cooldown semantics.
-         * Failed probes temporarily disable the provider for this mode, while
-         * successful probes are cached for a short TTL to avoid repeated checks.
-         *
-         * @param {object|null|undefined} provider
-         * @returns {Promise<boolean>}
-         */
-        const ensureProviderPreflight = async (provider) => {
-          if (!provider || typeof provider.preflight !== 'function') return true;
-          const state = getProviderModeState(provider, mode);
-          const now = Date.now();
-          if (state) {
-            if (state.preflight === false) {
-              const failureUntil = Number.isFinite(Number(state.preflightFailureUntil))
-                ? Number(state.preflightFailureUntil)
-                : 0;
-              const disabledUntil = Number.isFinite(Number(state.disabledUntil))
-                ? Number(state.disabledUntil)
-                : 0;
-              const blockedUntil = Math.max(failureUntil, disabledUntil);
-              if (blockedUntil > now) {
-                return false;
-              }
-              // Preflight cooldown fully expired; allow a fresh probe attempt.
-              state.disabledUntil = 0;
-              state.preflight = null;
-              state.preflightFailureUntil = 0;
-              state.preflightCheckedAt = 0;
-            }
-            if (state.disabledUntil > now) {
-              return false;
-            }
-            if (state.preflight === true) {
-              if (
-                state.preflightCheckedAt
-                && (now - state.preflightCheckedAt) <= PREFLIGHT_CACHE_TTL_MS
-              ) {
-                return true;
-              }
-              state.preflight = null;
-              state.preflightFailureUntil = 0;
-              state.preflightCheckedAt = 0;
-            }
-          }
-          try {
-            const result = await provider.preflight({
-              idx,
-              mode,
-              embedding: queryEmbedding,
-              signal
-            });
-            const ok = result !== false;
-            const checkedAt = Date.now();
-            if (state) {
-              state.preflight = ok;
-              state.preflightCheckedAt = checkedAt;
-            }
-            if (!ok) {
-              recordProviderFailure(provider, mode, 'preflight failed', { fromPreflight: true });
-              return false;
-            }
-            recordProviderSuccess(provider, mode);
-            return ok;
-          } catch (err) {
-            recordProviderFailure(provider, mode, err?.message || 'preflight failed', { fromPreflight: true });
-            return false;
-          }
-        };
-
-        /**
-         * Normalize candidate-set representation for provider query calls.
-         * Sqlite-vec and LanceDB providers operate on `Set<number>` even when
-         * the pipeline currently tracks candidates in bitmap form.
-         *
-         * @param {object|null|undefined} provider
-         * @param {Set<number>|object|null} candidateSet
-         * @returns {Set<number>|object|null}
-         */
-        const normalizeAnnCandidateSet = (provider, candidateSet) => {
-          if (!candidateSet) return null;
-          if (candidateSet instanceof Set) return candidateSet;
-          const providerId = provider?.id;
-          if (providerId === ANN_PROVIDER_IDS.SQLITE_VECTOR || providerId === ANN_PROVIDER_IDS.LANCEDB) {
-            return bitmapToSet(candidateSet);
-          }
-          return candidateSet;
-        };
-
-        const runAnnQuery = async (provider, candidateSet) => {
-          if (!provider || typeof provider.query !== 'function') {
-            return { hits: [], succeeded: false };
-          }
-          if (isProviderCoolingDown(provider, mode)) {
-            return { hits: [], succeeded: false };
-          }
-          const normalizedCandidateSet = normalizeAnnCandidateSet(provider, candidateSet);
-          const startedAtNs = process.hrtime.bigint();
-          try {
-            const hits = await provider.query({
-              idx,
-              mode,
-              embedding: queryEmbedding,
-              topN: expandedTopN,
-              candidateSet: normalizedCandidateSet,
-              signal
-            });
-            const elapsedMs = Number(process.hrtime.bigint() - startedAtNs) / 1e6;
-            recordProviderSuccess(provider, mode, { latencyMs: elapsedMs });
-            return { hits: normalizeAnnHits(hits), succeeded: true };
-          } catch (err) {
-            recordProviderFailure(provider, mode, err?.message || 'query failed');
-            return { hits: [], succeeded: false };
-          }
-        };
-
-        const hasVectorArtifacts = Boolean(
-          idx?.denseVec?.vectors?.length
-        || typeof idx?.loadDenseVectors === 'function'
-        || vectorAnnState?.[mode]?.available
-        || hnswAnnState?.[mode]?.available
-        || lanceAnnState?.[mode]?.available
-        );
-        const vectorActive = annEnabledForMode && isEmbeddingReady(queryEmbedding) && hasVectorArtifacts;
-        let providerAvailable = false;
-
-        if (annEnabledForMode && vectorActive) {
-          const providers = getAnnProviders();
-          const orderedBackends = resolveAnnBackends(providers, mode);
-          annMetrics.providerOrder = orderedBackends;
-          annMetrics.providerAdaptive = adaptiveProvidersEnabled;
-          for (const backend of orderedBackends) {
-            const provider = providers.get(backend);
-            if (!provider || typeof provider.query !== 'function') continue;
-            if (typeof provider.preflight !== 'function' && isProviderCoolingDown(provider, mode)) continue;
-            let providerInitiallyAvailable = false;
-            try {
-              providerInitiallyAvailable = provider.isAvailable({ idx, mode, embedding: queryEmbedding }) === true;
-            } catch {
-              providerInitiallyAvailable = false;
-            }
-            if (!providerInitiallyAvailable) continue;
-            const preflightOk = await ensureProviderPreflight(provider);
-            if (!preflightOk) continue;
-            const resolveProviderAvailability = () => {
-              try {
-                return provider.isAvailable({ idx, mode, embedding: queryEmbedding }) === true;
-              } catch {
-                return false;
-              }
-            };
-            const primaryResult = await runAnnQuery(provider, annCandidates);
-            annHits = primaryResult.hits;
-            if (primaryResult.succeeded && (annHits.length > 0 || resolveProviderAvailability())) {
-              providerAvailable = true;
-            }
-            if (!annHits.length && shouldTryAnnFallback) {
-              const fallbackCandidates = resolveAnnFallback();
-              if (fallbackCandidates) {
-                const fallbackResult = await runAnnQuery(provider, fallbackCandidates);
-                annHits = fallbackResult.hits;
-                if (fallbackResult.succeeded && (annHits.length > 0 || resolveProviderAvailability())) {
-                  providerAvailable = true;
-                }
-              }
-            }
-            if (annHits.length) {
-              annSource = provider?.id || backend;
-              break;
-            }
-          }
-          if (!providerAvailable && annCandidateBase && annCandidateBase.size > 0) {
-            warnAnnFallback(`Vector ANN unavailable for ${mode}.`);
-            warned = true;
-          }
-        }
-
-        if (annEnabledForMode && !annHits.length) {
-          let minhashCandidates = annCandidatePolicy.set;
-          if (
-            annCandidatePolicy.reason === ANN_CANDIDATE_POLICY_REASONS.FILTERS_ACTIVE_ALLOWED_IDX
-            && annCandidateBase
-            && annCandidateBase.size > 0
-            && filtersEnabled
-            && allowedIdx
-          ) {
-            const bmConstrainedCandidates = candidatePool.acquire();
-            for (const candidateId of annCandidateBase) {
-              if (hasAllowedId(allowedIdx, candidateId)) {
-                bmConstrainedCandidates.add(candidateId);
-              }
-            }
-            trackReleaseSet(bmConstrainedCandidates);
-            const policySetSize = annCandidatePolicy.set ? annCandidatePolicy.set.size : 0;
-            if (
-              bmConstrainedCandidates.size > 0
-              && minhashLimit
-              && policySetSize > minhashLimit
-              && bmConstrainedCandidates.size <= minhashLimit
-            ) {
-              minhashCandidates = bmConstrainedCandidates;
-            }
-          }
-          const minhashFallback = annFallback;
-          const minhashCandidatesEmpty = minhashCandidates && minhashCandidates.size === 0;
-          const minhashTotal = minhashCandidates
-            ? minhashCandidates.size
-            : (idx.minhash?.signatures?.length || 0);
-          const allowMinhashCandidates = minhashTotal > 0 && (!minhashLimit || minhashTotal <= minhashLimit);
-          const minhashFallbackTotal = shouldTryAnnFallback ? allowedCount : 0;
-          const allowMinhashFallback = minhashFallbackTotal > 0
-            && (!minhashLimit || minhashFallbackTotal <= minhashLimit);
-          if (allowMinhashCandidates && !minhashCandidatesEmpty) {
-            annHits = rankMinhash(idx, queryTokens, expandedTopN, minhashCandidates);
-            if (annHits.length) annSource = 'minhash';
-          }
-          if (!annHits.length && allowMinhashFallback) {
-            const fallbackCandidates = minhashFallback || resolveAnnFallback();
-            if (fallbackCandidates) {
-              annHits = rankMinhash(idx, queryTokens, expandedTopN, fallbackCandidates);
-              if (annHits.length) annSource = 'minhash';
-            }
-          }
-        }
-
-        annMetrics.vectorActive = vectorActive;
-        annMetrics.hits = annHits.length;
-        annMetrics.source = annSource;
-        annMetrics.warned = warned;
-        annMetrics.candidates = annCandidateBase ? annCandidateBase.size : null;
-        annMetrics.providerAvailable = providerAvailable;
-        annMetrics.profileId = profileId;
-        annMetrics.vectorOnlyProfile = vectorOnlyProfile;
-        annMetrics.candidatePolicyConfig = annCandidatePolicyConfig;
-        annMetrics.candidatePolicy = annCandidatePolicy.explain;
-
-        const annCapabilityUnavailable = !vectorActive || !providerAvailable;
-        const emptyIndex = !Array.isArray(meta) || meta.length === 0;
-        if (vectorOnlyProfile && !emptyIndex && annCapabilityUnavailable && !annHits.length) {
-          const capabilityReason = !vectorActive ? 'ann_capability_unavailable' : 'ann_provider_unavailable';
-          throw createError(
-            ERROR_CODES.CAPABILITY_MISSING,
-            `Vector-only search requires ANN/vector providers for mode "${mode}", but none were available. ` +
-              'Rebuild embeddings and ensure at least one ANN provider is configured.',
-            {
-              reasonCode: VECTOR_REQUIRED_CODE,
-              reason: capabilityReason,
-              mode,
-              profileId,
-              providerAvailable,
-              vectorActive
-            }
-          );
-        }
-
-        return { annHits, annSource, annCandidatePolicy: annCandidatePolicy.explain };
-      });
+      const annResult = await runStageAsync('ann', annMetrics, async () => (
+        runAnnStage({
+          idx,
+          mode,
+          meta,
+          queryEmbedding,
+          queryTokens,
+          expandedTopN,
+          annEnabledForMode,
+          vectorOnlyProfile,
+          profileId,
+          annOrder,
+          adaptiveProvidersEnabled,
+          getAnnProviders,
+          warnAnnFallback,
+          providerRuntime,
+          signal,
+          candidatePool,
+          trackReleaseSet,
+          candidates,
+          bmHits,
+          allowedIdx,
+          allowedCount,
+          filtersEnabled,
+          annCandidatePolicyConfig,
+          minhashLimit,
+          hasAllowedId,
+          ensureAllowedSet,
+          bitmapToSet,
+          rankMinhash,
+          vectorAnnState,
+          hnswAnnState,
+          lanceAnnState,
+          annMetrics
+        })
+      ));
+      candidates = annResult.candidates;
       let { annHits, annSource, annCandidatePolicy } = annResult;
 
       const fusionBuffer = scoreBufferPool.acquire({
@@ -1162,10 +530,20 @@ export function createSearchPipeline(context) {
       const { scored: fusedScores, useRrf } = fusionResult;
 
       if (idx.loadChunkMetaByIds) {
-        const idsToLoad = new Set();
-        bmHits.forEach((h) => idsToLoad.add(h.idx));
-        annHits.forEach((h) => idsToLoad.add(h.idx));
-        const missing = Array.from(idsToLoad).filter((id) => !meta[id]);
+        const seen = new Set();
+        const missing = [];
+        for (const hit of bmHits) {
+          const id = hit?.idx;
+          if (!Number.isFinite(id) || seen.has(id)) continue;
+          seen.add(id);
+          if (!meta[id]) missing.push(id);
+        }
+        for (const hit of annHits) {
+          const id = hit?.idx;
+          if (!Number.isFinite(id) || seen.has(id)) continue;
+          seen.add(id);
+          if (!meta[id]) missing.push(id);
+        }
         if (missing.length) idx.loadChunkMetaByIds(mode, missing, meta);
       }
       if (signal?.aborted) {
@@ -1175,199 +553,48 @@ export function createSearchPipeline(context) {
       }
 
       const rankMetrics = {};
-      const ranked = runStage('rank', rankMetrics, () => {
-        const topkStats = {};
-        const reducer = createTopKReducer({
-          k: searchTopN,
-          slack: topkSlack,
-          stats: topkStats,
-          buildPayload: (entry) => entry?.payload ?? entry?.item ?? entry
-        });
-        const processEntry = (entry, sourceRank) => {
-          if (!entry) return;
-          if (allowedIdx && !hasAllowedId(allowedIdx, entry.idx)) return;
-          abortIfNeeded();
-          const idxVal = entry.idx;
-          const sparseScore = entry.sparseScore;
-          const annScore = entry.annScore;
-          const sparseTypeValue = entry.sparseType;
-          const scoreType = entry.scoreType;
-          let score = entry.score;
-          const blendInfo = entry.blendInfo;
-          const chunk = meta[idxVal];
-          if (!chunk) return;
-          if (!matchesQueryAst(idx, idxVal, chunk)) return;
-          const fileRelations = resolveFileRelations(
-            idx.fileRelations,
-            chunk.file,
-            relationBoostConfig.caseFile
-          );
-          const enrichedChunk = fileRelations
-            ? {
-              ...chunk,
-              imports: fileRelations.imports || chunk.imports,
-              exports: fileRelations.exports || chunk.exports,
-              usages: fileRelations.usages || chunk.usages,
-              importLinks: fileRelations.importLinks || chunk.importLinks
-            }
-            : chunk;
-          let phraseMatches = 0;
-          let phraseBoost = 0;
-          let phraseFactor = 0;
-          if (phraseNgramSet && phraseNgramSet.size) {
-            const matchInfo = getPhraseMatchInfo(idx, idxVal, phraseNgramSet, chunk?.tokens);
-            phraseMatches = matchInfo.matches;
-            if (phraseMatches) {
-              phraseFactor = Math.min(0.5, phraseMatches * 0.1);
-              phraseBoost = score * phraseFactor;
-              score += phraseBoost;
-            }
-          }
-          let symbolBoost = 0;
-          let symbolFactor = 1;
-          let symbolInfo = null;
-          if (symbolBoostEnabled) {
-            const isDefinition = isDefinitionKind(chunk.kind);
-            const isExported = isExportedChunk(enrichedChunk);
-            let factor = 1;
-            if (isDefinition) factor *= symbolBoostDefinitionWeight;
-            if (isExported) factor *= symbolBoostExportWeight;
-            symbolFactor = factor;
-            if (factor !== 1) {
-              symbolBoost = score * (factor - 1);
-              score *= factor;
-            }
-            symbolInfo = {
-              definition: isDefinition,
-              export: isExported,
-              factor: symbolFactor,
-              boost: symbolBoost
-            };
-          }
-          let relationInfo = null;
-          if (relationBoostEnabled) {
-            relationInfo = computeRelationBoost({
-              chunk: enrichedChunk,
-              fileRelations,
-              queryTokens,
-              config: relationBoostConfig
-            });
-            if (Number.isFinite(relationInfo?.boost) && relationInfo.boost > 0) {
-              score += relationInfo.boost;
-            }
-          }
-          const scoreBreakdown = explain
-            ? createScoreBreakdown({
-              sparse: sparseScore != null ? {
-                type: sparseTypeValue,
-                score: sparseScore,
-                normalized: sparseTypeValue === 'fts' ? sqliteFtsNormalize : null,
-                weights: sparseTypeValue === 'fts' ? sqliteFtsWeights : null,
-                profile: sparseTypeValue === 'fts' ? sqliteFtsProfile : null,
-                match: sparseTypeValue === 'fts' ? sqliteFtsCompilation.match : null,
-                variant: sparseTypeValue === 'fts' ? sqliteFtsCompilation.variant : null,
-                tokenizer: sparseTypeValue === 'fts' ? sqliteFtsCompilation.tokenizer : null,
-                variantReason: sparseTypeValue === 'fts' ? sqliteFtsCompilation.reasonPath : null,
-                normalizedQueryChanged: sparseTypeValue === 'fts' ? sqliteFtsCompilation.normalizedChanged : null,
-                availabilityCode: sqliteFtsUnavailable?.code || null,
-                availabilityReason: sqliteFtsUnavailable?.reason || null,
-                indexProfile: profileId || null,
-                fielded: fieldWeightsEnabled || false,
-                k1: sparseTypeValue && sparseTypeValue !== 'fts' ? bm25K1 : null,
-                b: sparseTypeValue && sparseTypeValue !== 'fts' ? bm25B : null,
-                ftsFallback: sqliteFtsDesiredForMode ? !sqliteFtsUsed : false
-              } : null,
-              ann: annScore != null ? {
-                score: annScore,
-                source: entry.annSource || null,
-                candidatePolicy: annCandidatePolicy || null
-              } : null,
-              rrf: useRrf ? blendInfo : null,
-              phrase: phraseNgramSet ? {
-                matches: phraseMatches,
-                boost: phraseBoost,
-                factor: phraseFactor
-              } : null,
-              symbol: symbolInfo,
-              blend: blendEnabled && !useRrf ? blendInfo : null,
-              relation: relationInfo,
-              selected: {
-                type: scoreType,
-                score
-              }
-            })
-            : null;
-          const payload = {
-            idx: idxVal,
-            score,
-            scoreType,
-            scoreBreakdown,
-            chunk: enrichedChunk,
-            sparseScore,
-            sparseType: sparseTypeValue,
-            annScore,
-            annSource: entry.annSource || null
-          };
-          reducer.pushRaw(score, idxVal, sourceRank, payload);
-        };
-
-        let sourceRank = 0;
-        if (Array.isArray(fusedScores)) {
-          for (const entry of fusedScores) {
-            processEntry(entry, sourceRank);
-            sourceRank += 1;
-          }
-        } else if (fusedScores && Array.isArray(fusedScores.entries)) {
-          for (let i = 0; i < fusedScores.count; i += 1) {
-            processEntry(fusedScores.entries[i], sourceRank);
-            sourceRank += 1;
-          }
-        }
-
-        let scored = reducer.finish({ limit: searchTopN });
-        const poolStatsEnd = poolSnapshot();
-        rankMetrics.topk = {
-          k: searchTopN,
-          slack: topkSlack,
-          ...topkStats
-        };
-        rankMetrics.buffers = {
-          candidate: {
-            allocations: (poolStatsEnd.candidate.allocations || 0) - (poolStatsStart.candidate.allocations || 0),
-            reuses: (poolStatsEnd.candidate.reuses || 0) - (poolStatsStart.candidate.reuses || 0),
-            drops: (poolStatsEnd.candidate.drops || 0) - (poolStatsStart.candidate.drops || 0)
-          },
-          score: {
-            allocations: (poolStatsEnd.score.allocations || 0) - (poolStatsStart.score.allocations || 0),
-            reuses: (poolStatsEnd.score.reuses || 0) - (poolStatsStart.score.reuses || 0),
-            drops: (poolStatsEnd.score.drops || 0) - (poolStatsStart.score.drops || 0)
-          }
-        };
-
-        if (graphRankingConfig?.enabled) {
-          const ranked = applyGraphRanking({
-            entries: scored,
-            graphRelations: idx.graphRelations || null,
-            config: graphRankingConfig,
-            explain
-          });
-          scored = ranked.entries;
-        }
-
-        return scored
-          .map((entry) => ({
-            ...entry.chunk,
-            score: entry.score,
-            scoreType: entry.scoreType,
-            sparseScore: entry.sparseScore,
-            sparseType: entry.sparseType,
-            annScore: entry.annScore,
-            annSource: entry.annSource,
-            annType: resolveAnnType(entry.annSource),
-            ...(explain ? { scoreBreakdown: entry.scoreBreakdown } : {})
-          }))
-          .filter(Boolean);
-      });
+      const ranked = runStage('rank', rankMetrics, () => (
+        runRankStage({
+          idx,
+          meta,
+          fusedScores,
+          useRrf,
+          allowedIdx,
+          hasAllowedId,
+          abortIfNeeded,
+          searchTopN,
+          topkSlack,
+          poolSnapshotStart: poolStatsStart,
+          poolSnapshot,
+          rankMetrics,
+          explain,
+          matchesQueryAst,
+          getPhraseMatchInfo,
+          phraseNgramSet,
+          symbolBoostEnabled,
+          symbolBoostDefinitionWeight,
+          symbolBoostExportWeight,
+          isDefinitionKind,
+          isExportedChunk,
+          relationBoostEnabled,
+          relationBoostConfig,
+          resolveFileRelations,
+          queryTokens,
+          graphRankingConfig,
+          sqliteFtsNormalize,
+          sqliteFtsWeights,
+          sqliteFtsProfile,
+          sqliteFtsCompilation,
+          sqliteFtsUnavailable,
+          profileId,
+          fieldWeightsEnabled,
+          bm25K1,
+          bm25B,
+          sqliteFtsDesiredForMode,
+          annCandidatePolicy,
+          blendEnabled
+        })
+      ));
 
       return ranked;
     } finally {

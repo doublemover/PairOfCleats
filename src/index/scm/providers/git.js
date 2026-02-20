@@ -1,10 +1,16 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
-import { getGitMetaForFile, getRepoProvenance as getLegacyRepoProvenance } from '../../git.js';
+import PQueue from 'p-queue';
+import {
+  getGitLineAuthorsForFile,
+  getGitMetaForFile,
+  getRepoProvenance as getLegacyRepoProvenance
+} from '../../git.js';
 import { toPosix } from '../../../shared/files.js';
 import { findUpwards } from '../../../shared/fs/find-upwards.js';
 import { runScmCommand } from '../runner.js';
 import { toRepoPosixPath } from '../paths.js';
+import { getScmRuntimeConfig } from '../runtime.js';
 
 const parseNullSeparated = (value) => (
   String(value || '')
@@ -26,6 +32,31 @@ const ensurePosixList = (entries) => (
     .filter(Boolean)
 );
 
+let gitQueue = null;
+let gitQueueConcurrency = null;
+
+const resolveGitConfig = () => {
+  const config = getScmRuntimeConfig() || {};
+  const maxConcurrentProcesses = Number.isFinite(Number(config.maxConcurrentProcesses))
+    ? Math.max(1, Math.floor(Number(config.maxConcurrentProcesses)))
+    : 8;
+  return { maxConcurrentProcesses };
+};
+
+const getQueue = (concurrency) => {
+  if (!Number.isFinite(concurrency) || concurrency <= 0) return null;
+  if (gitQueue && gitQueueConcurrency === concurrency) return gitQueue;
+  gitQueueConcurrency = concurrency;
+  gitQueue = new PQueue({ concurrency });
+  return gitQueue;
+};
+
+const runGitTask = async (task, { useQueue = true } = {}) => {
+  const config = resolveGitConfig();
+  const queue = useQueue ? getQueue(config.maxConcurrentProcesses) : null;
+  return queue ? queue.add(task) : task();
+};
+
 export const gitProvider = {
   name: 'git',
   detect({ startPath }) {
@@ -36,12 +67,12 @@ export const gitProvider = {
     const args = ['-C', repoRoot, 'ls-files', '-z'];
     const scoped = subdir ? toRepoPosixPath(subdir, repoRoot) : null;
     if (scoped) args.push('--', scoped);
-    const result = await runScmCommand('git', args, {
+    const result = await runGitTask(() => runScmCommand('git', args, {
       outputMode: 'string',
       captureStdout: true,
       captureStderr: true,
       rejectOnNonZeroExit: false
-    });
+    }));
     if (result.exitCode !== 0) {
       return { ok: false, reason: 'unavailable' };
     }
@@ -80,12 +111,12 @@ export const gitProvider = {
     }
     const scoped = subdir ? toRepoPosixPath(subdir, repoRoot) : null;
     if (scoped) args.push('--', scoped);
-    const result = await runScmCommand('git', args, {
+    const result = await runGitTask(() => runScmCommand('git', args, {
       outputMode: 'string',
       captureStdout: true,
       captureStderr: true,
       rejectOnNonZeroExit: false
-    });
+    }));
     if (result.exitCode !== 0) {
       return { ok: false, reason: 'unavailable' };
     }
@@ -95,9 +126,14 @@ export const gitProvider = {
       .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
     return { filesPosix: entries };
   },
-  async getFileMeta({ repoRoot, filePosix }) {
+  async getFileMeta({ repoRoot, filePosix, timeoutMs, includeChurn = true }) {
     const absPath = path.join(repoRoot, filePosix);
-    const meta = await getGitMetaForFile(absPath, { blame: false, baseDir: repoRoot });
+    const meta = await runGitTask(() => getGitMetaForFile(absPath, {
+      blame: false,
+      baseDir: repoRoot,
+      timeoutMs,
+      includeChurn
+    }));
     if (!meta || !meta.last_modified) {
       return { ok: false, reason: 'unavailable' };
     }
@@ -112,16 +148,15 @@ export const gitProvider = {
   },
   async annotate({ repoRoot, filePosix, timeoutMs, signal }) {
     const absPath = path.join(repoRoot, filePosix);
-    const meta = await getGitMetaForFile(absPath, {
-      blame: true,
+    const lineAuthors = await runGitTask(() => getGitLineAuthorsForFile(absPath, {
       baseDir: repoRoot,
       timeoutMs,
       signal
-    });
-    if (!meta || !Array.isArray(meta.lineAuthors)) {
+    }));
+    if (!Array.isArray(lineAuthors)) {
       return { ok: false, reason: 'unavailable' };
     }
-    const lines = meta.lineAuthors.map((author, index) => ({
+    const lines = lineAuthors.map((author, index) => ({
       line: index + 1,
       author: author || 'unknown'
     }));

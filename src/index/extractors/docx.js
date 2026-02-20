@@ -61,6 +61,20 @@ const resolveDocxFailureReason = (err) => {
   return 'extract_failed';
 };
 
+const hasEncryptedDocxEntries = (entries) => entries.some((entry) => {
+  const name = String(entry?.name || '').toLowerCase();
+  return name === 'encryptedpackage' || name === 'encryptioninfo';
+});
+
+const isEncryptedDocxBuffer = (buffer) => {
+  try {
+    const entries = parseCentralDirectory(buffer);
+    return hasEncryptedDocxEntries(entries);
+  } catch {
+    return false;
+  }
+};
+
 const findEndOfCentralDirectory = (buffer) => {
   const maxSearch = Math.max(0, buffer.length - 22 - 0xffff);
   for (let offset = buffer.length - 22; offset >= maxSearch; offset -= 1) {
@@ -144,8 +158,7 @@ const parseDocxParagraphsFromXml = (xml) => {
 
 const parseDocxParagraphsFromBuffer = (buffer) => {
   const entries = parseCentralDirectory(buffer);
-  const names = new Set(entries.map((entry) => entry.name));
-  if (names.has('EncryptedPackage') || names.has('EncryptionInfo')) {
+  if (hasEncryptedDocxEntries(entries)) {
     return buildFailedResult('unsupported_encrypted');
   }
   const documentEntry = entries.find((entry) => entry.name === 'word/document.xml');
@@ -245,6 +258,9 @@ export async function extractDocx({
         target: 'stub'
       }
     };
+  }
+  if (isEncryptedDocxBuffer(source)) {
+    return buildFailedResult('unsupported_encrypted');
   }
   const runtime = await loadDocxExtractorRuntime();
   if (!runtime.ok) return buildFailedResult('missing_dependency');
