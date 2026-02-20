@@ -101,8 +101,13 @@ const cases = [
   {
     label: 'dart',
     fn: collectDartImports,
-    text: "import 'package:foo/bar.dart';",
-    expected: ['package:foo/bar.dart']
+    text: [
+      "import 'package:foo/bar.dart';",
+      "export 'src/public_api.dart';",
+      "part 'src/model.g.dart';",
+      "part of 'package:foo/app.dart';"
+    ].join('\n'),
+    expected: ['package:foo/bar.dart', 'src/public_api.dart', 'src/model.g.dart', 'package:foo/app.dart']
   },
   {
     label: 'scala',

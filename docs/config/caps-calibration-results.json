@@ -19,8 +19,8 @@
       "maxLines": 4500
     },
     "dart": {
-      "maxBytes": 327680,
-      "maxLines": 5000
+      "maxBytes": 393216,
+      "maxLines": 6500
     },
     "dockerfile": {
       "maxBytes": 294912,
@@ -181,9 +181,9 @@
       "maxParseMs": 1400
     },
     "dart": {
-      "maxBytes": 327680,
-      "maxLines": 5000,
-      "maxParseMs": 1500
+      "maxBytes": 393216,
+      "maxLines": 6500,
+      "maxParseMs": 1800
     },
     "dockerfile": {
       "maxBytes": 294912,
