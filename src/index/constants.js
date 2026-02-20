@@ -154,8 +154,27 @@ for (const ext of ['.def', '.vue', '.svelte', '.astro']) {
 export const JS_EXTS = extensionsFor('javascript');
 export const TS_EXTS = extensionsFor('typescript');
 export const CLIKE_EXTS = extensionsFor('clike');
-export const CPP_EXTS = new Set(['.cc', '.cpp', '.hpp', '.hh']);
-export const OBJC_EXTS = new Set(['.m', '.mm']);
+const CPP_EXTENSION_ALLOWLIST = new Set([
+  '.cc',
+  '.cpp',
+  '.cxx',
+  '.hpp',
+  '.hh',
+  '.hxx',
+  '.ipp',
+  '.ixx',
+  '.cppm',
+  '.tpp',
+  '.inl',
+  '.modulemap'
+]);
+export const CPP_EXTS = new Set(
+  [...CLIKE_EXTS].filter((ext) => CPP_EXTENSION_ALLOWLIST.has(ext))
+);
+const OBJC_EXTENSION_ALLOWLIST = new Set(['.m', '.mm']);
+export const OBJC_EXTS = new Set(
+  [...CLIKE_EXTS].filter((ext) => OBJC_EXTENSION_ALLOWLIST.has(ext))
+);
 export const RUST_EXTS = extensionsFor('rust');
 export const GO_EXTS = extensionsFor('go');
 export const JAVA_EXTS = extensionsFor('java');
