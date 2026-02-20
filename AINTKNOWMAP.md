@@ -1022,7 +1022,7 @@ Tests:
 - [ ] `tests/tooling/sublime/package-determinism.test.js`
 - [ ] `tests/tooling/vscode/extension-packaging.test.js`
 - [ ] `tests/tooling/vscode/vscode-extension.test.js` (updated)
-- [ ] `tests/tooling/vscode/toolchain-missing-policy.test.js` (updated to strict expectation)
+- [ ] Create `tests/tooling/vscode/toolchain-missing-policy.test.js` with strict missing-toolchain failure expectations.
 
 
 Touchpoints:
@@ -1422,8 +1422,8 @@ Tests:
 
 - [ ] `tests/shared/kill-tree.posix.test.js`
 - [ ] `tests/shared/kill-tree.windows.test.js`
-- [ ] `tests/tools/setup-json-output.test.js`
-- [ ] `tests/tools/bootstrap-json-output.test.js`
+- [ ] `tests/tooling/install/setup-json-output.test.js`
+- [ ] `tests/tooling/install/bootstrap-json-output.test.js`
 
 
 Touchpoints:
