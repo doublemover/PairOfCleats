@@ -46,6 +46,8 @@ export function createSearchPipeline(context) {
     sqliteFtsNormalize,
     sqliteFtsProfile,
     sqliteFtsWeights,
+    sqliteTailLatencyTuning,
+    sqliteFtsOverfetch,
     bm25K1,
     bm25B,
     fieldWeights,
@@ -196,7 +198,9 @@ export function createSearchPipeline(context) {
     : 'auto';
   const sqliteFtsProvider = createSqliteFtsProvider({
     rankSqliteFts,
-    normalizeScores: sqliteFtsNormalize
+    normalizeScores: sqliteFtsNormalize,
+    tailLatencyTuning: sqliteTailLatencyTuning === true,
+    overfetch: sqliteFtsOverfetch || null
   });
   const bm25Provider = createJsBm25Provider({ rankBM25, rankBM25Fields });
   const tantivyProvider = createTantivyProvider();
