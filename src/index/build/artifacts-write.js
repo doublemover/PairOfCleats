@@ -708,6 +708,13 @@ export async function writeIndexArtifacts(input) {
   const artifactMetrics = new Map();
   const writeLogIntervalMs = 1000;
   const writeProgressMeta = { stage: 'write', mode, taskId: `write:${mode}:artifacts` };
+  const writeStallWarnSeconds = Number.isFinite(Number(artifactConfig.writeStallWarnSeconds))
+    ? Math.max(5, Math.floor(Number(artifactConfig.writeStallWarnSeconds)))
+    : 30;
+  const writeStallCriticalSeconds = Number.isFinite(Number(artifactConfig.writeStallCriticalSeconds))
+    ? Math.max(writeStallWarnSeconds + 5, Math.floor(Number(artifactConfig.writeStallCriticalSeconds)))
+    : 90;
+  const writeStallAlerts = new Map();
   let enqueueSeq = 0;
   const formatArtifactLabel = (filePath) => toPosix(path.relative(outDir, filePath));
   const pieceEntries = [];
@@ -748,6 +755,41 @@ export async function writeIndexArtifacts(input) {
           elapsedSec: Math.max(1, Math.round((now - startedAt) / 1000))
         }))
         .sort((a, b) => b.elapsedSec - a.elapsedSec);
+      for (const { label, elapsedSec } of inflight) {
+        const alerts = writeStallAlerts.get(label) || { warn: false, critical: false };
+        if (!alerts.warn && elapsedSec >= writeStallWarnSeconds) {
+          alerts.warn = true;
+          writeStallAlerts.set(label, alerts);
+          logLine(
+            `[perf] artifact write stall warning: ${label} in-flight for ${elapsedSec}s (threshold=${writeStallWarnSeconds}s)`,
+            { kind: 'warning' }
+          );
+          if (stageCheckpoints?.record) {
+            stageCheckpoints.record({
+              stage: 'artifacts',
+              step: 'write-stall-warning',
+              label,
+              extra: { elapsedSec, thresholdSec: writeStallWarnSeconds }
+            });
+          }
+        }
+        if (!alerts.critical && elapsedSec >= writeStallCriticalSeconds) {
+          alerts.critical = true;
+          writeStallAlerts.set(label, alerts);
+          logLine(
+            `[perf] artifact write stall critical: ${label} in-flight for ${elapsedSec}s (threshold=${writeStallCriticalSeconds}s)`,
+            { kind: 'error' }
+          );
+          if (stageCheckpoints?.record) {
+            stageCheckpoints.record({
+              stage: 'artifacts',
+              step: 'write-stall-critical',
+              label,
+              extra: { elapsedSec, thresholdSec: writeStallCriticalSeconds }
+            });
+          }
+        }
+      }
       const preview = inflight.slice(0, 3)
         .map(({ label, elapsedSec }) => `${label} (${elapsedSec}s)`)
         .join(', ');
@@ -1628,6 +1670,7 @@ export async function writeIndexArtifacts(input) {
             });
           } finally {
             activeWrites.delete(activeLabel);
+            writeStallAlerts.delete(activeLabel);
             logWriteProgress(label);
           }
         },
