@@ -42,6 +42,12 @@ const USR_GUARDRAIL_BENCHMARKS = Object.freeze([
     label: 'Per-framework edge canonicalization',
     script: 'tools/bench/usr/item35-framework-canonicalization.js',
     report: 'item35-framework-canonicalization.json'
+  },
+  {
+    item: 36,
+    label: 'Mandatory backward-compatibility matrix',
+    script: 'tools/bench/usr/item36-backcompat-matrix.js',
+    report: 'item36-backcompat-matrix.json'
   }
 ]);
 
