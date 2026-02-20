@@ -722,6 +722,12 @@ export async function writeIndexArtifacts(input) {
   const writeStallCriticalSeconds = Number.isFinite(Number(artifactConfig.writeStallCriticalSeconds))
     ? Math.max(writeStallWarnSeconds + 5, Math.floor(Number(artifactConfig.writeStallCriticalSeconds)))
     : 90;
+  const heavyWriteThresholdBytes = Number.isFinite(Number(artifactConfig.writeHeavyThresholdBytes))
+    ? Math.max(1024 * 1024, Math.floor(Number(artifactConfig.writeHeavyThresholdBytes)))
+    : (16 * 1024 * 1024);
+  const heavyWriteConcurrencyOverride = Number.isFinite(Number(artifactConfig.writeHeavyConcurrency))
+    ? Math.max(1, Math.floor(Number(artifactConfig.writeHeavyConcurrency)))
+    : null;
   const writeStallAlerts = new Map();
   let enqueueSeq = 0;
   const formatArtifactLabel = (filePath) => toPosix(path.relative(outDir, filePath));
@@ -853,6 +859,17 @@ export async function writeIndexArtifacts(input) {
       })
       : []
   );
+  const splitWriteLanes = (entries) => {
+    const ordered = scheduleWrites(entries);
+    const lanes = { light: [], heavy: [] };
+    for (const entry of ordered) {
+      const estimated = Number(entry?.estimatedBytes);
+      const isHeavy = Number.isFinite(estimated) && estimated >= heavyWriteThresholdBytes;
+      if (isHeavy) lanes.heavy.push(entry);
+      else lanes.light.push(entry);
+    }
+    return lanes;
+  };
   if (mode === 'extracted-prose' && documentExtractionEnabled) {
     const extractionReportPath = path.join(outDir, 'extraction_report.json');
     const extractionReport = buildExtractionReport({
@@ -1720,8 +1737,8 @@ export async function writeIndexArtifacts(input) {
       piece: { type: 'postings', name: 'vocab_order' }
     });
   }
-  const scheduledWrites = scheduleWrites(writes);
-  totalWrites = scheduledWrites.length;
+  const { light: lightWrites, heavy: heavyWrites } = splitWriteLanes(writes);
+  totalWrites = lightWrites.length + heavyWrites.length;
   if (totalWrites) {
     const artifactLabel = totalWrites === 1 ? 'artifact' : 'artifacts';
     logLine(`Writing index files (${totalWrites} ${artifactLabel})...`, { kind: 'status' });
@@ -1730,11 +1747,25 @@ export async function writeIndexArtifacts(input) {
       totalWrites
     });
     const writeConcurrency = Math.max(1, Math.min(totalWrites, writeConcurrencyCap));
-    startWriteHeartbeat();
-    try {
+    const heavyConcurrency = Math.max(
+      1,
+      Math.min(
+        heavyWrites.length || 1,
+        heavyWriteConcurrencyOverride || Math.max(1, Math.floor(writeConcurrency / 3))
+      )
+    );
+    const lightConcurrency = Math.max(
+      1,
+      Math.min(
+        lightWrites.length || 1,
+        Math.max(1, writeConcurrency - heavyConcurrency)
+      )
+    );
+    const runWriteLane = async (laneWrites, laneConcurrency) => {
+      if (!Array.isArray(laneWrites) || !laneWrites.length) return;
       await runWithConcurrency(
-        scheduledWrites,
-        writeConcurrency,
+        laneWrites,
+        laneConcurrency,
         async ({ label, job, estimatedBytes, enqueuedAt }) => {
           const activeLabel = label || '(unnamed artifact)';
           const started = Date.now();
@@ -1768,6 +1799,13 @@ export async function writeIndexArtifacts(input) {
         },
         { collectResults: false }
       );
+    };
+    startWriteHeartbeat();
+    try {
+      await Promise.all([
+        runWriteLane(lightWrites, lightConcurrency),
+        runWriteLane(heavyWrites, heavyConcurrency)
+      ]);
     } finally {
       stopWriteHeartbeat();
     }
