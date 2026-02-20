@@ -41,6 +41,11 @@ const symbolsByMode = {
     name: 'greet',
     detail: 'def greet(name: str) -> str',
     kind: 12
+  },
+  'clangd-duplicate-symbols': {
+    name: 'add',
+    detail: 'add',
+    kind: 12
   }
 };
 
@@ -132,6 +137,10 @@ const handleRequest = (message) => {
     const uri = params?.textDocument?.uri;
     const text = documents.get(uri) || '';
     const symbol = buildSymbol(text);
+    if (mode === 'clangd-duplicate-symbols' && symbol) {
+      respond(id, [symbol, { ...symbol }]);
+      return;
+    }
     respond(id, symbol ? [symbol] : []);
     return;
   }

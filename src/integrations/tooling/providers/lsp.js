@@ -17,11 +17,115 @@ import {
 const DEFAULT_MAX_DIAGNOSTIC_URIS = 1000;
 const DEFAULT_MAX_DIAGNOSTICS_PER_URI = 200;
 const DEFAULT_MAX_DIAGNOSTICS_PER_CHUNK = 100;
+const DEFAULT_DOCUMENT_SYMBOL_CONCURRENCY = 4;
+const DEFAULT_HOVER_CONCURRENCY = 8;
+const DEFAULT_HOVER_CACHE_MAX_ENTRIES = 50000;
 
 const clampPositiveInt = (value, fallback) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
   return Math.max(1, Math.floor(parsed));
+};
+
+const clampIntRange = (value, fallback, { min = 1, max = 64 } = {}) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  const normalized = Math.floor(parsed);
+  return Math.max(min, Math.min(max, normalized));
+};
+
+const runWithConcurrency = async (items, concurrency, worker) => {
+  const list = Array.isArray(items) ? items : [];
+  if (!list.length) return;
+  const maxWorkers = Math.max(1, Math.min(list.length, clampIntRange(concurrency, 1, { min: 1, max: 128 })));
+  let index = 0;
+  const runners = Array.from({ length: maxWorkers }, async () => {
+    while (true) {
+      const current = index;
+      index += 1;
+      if (current >= list.length) break;
+      await worker(list[current], current);
+    }
+  });
+  await Promise.all(runners);
+};
+
+const createConcurrencyLimiter = (concurrency) => {
+  const maxWorkers = Math.max(1, clampIntRange(concurrency, 1, { min: 1, max: 256 }));
+  let active = 0;
+  const queue = [];
+
+  const pump = () => {
+    while (active < maxWorkers && queue.length) {
+      const task = queue.shift();
+      active += 1;
+      Promise.resolve()
+        .then(task.fn)
+        .then(task.resolve, task.reject)
+        .finally(() => {
+          active -= 1;
+          pump();
+        });
+    }
+  };
+
+  return (fn) => new Promise((resolve, reject) => {
+    queue.push({ fn, resolve, reject });
+    pump();
+  });
+};
+
+const resolveHoverCachePath = (cacheRoot) => {
+  if (!cacheRoot) return null;
+  return path.join(cacheRoot, 'lsp', 'hover-cache-v1.json');
+};
+
+const loadHoverCache = async (cacheRoot) => {
+  const cachePath = resolveHoverCachePath(cacheRoot);
+  if (!cachePath) return { path: null, entries: new Map() };
+  try {
+    const raw = await fs.readFile(cachePath, 'utf8');
+    const parsed = JSON.parse(raw);
+    const rows = Array.isArray(parsed?.entries) ? parsed.entries : [];
+    const entries = new Map();
+    for (const row of rows) {
+      if (!row || typeof row !== 'object') continue;
+      if (typeof row.key !== 'string' || !row.key) continue;
+      if (!row.value || typeof row.value !== 'object') continue;
+      entries.set(row.key, row.value);
+    }
+    return { path: cachePath, entries };
+  } catch {
+    return { path: cachePath, entries: new Map() };
+  }
+};
+
+const persistHoverCache = async ({ cachePath, entries, maxEntries }) => {
+  if (!cachePath || !(entries instanceof Map)) return;
+  const rows = Array.from(entries.entries()).map(([key, value]) => ({
+    key,
+    value
+  }));
+  rows.sort((a, b) => Number(b?.value?.at || 0) - Number(a?.value?.at || 0));
+  const cap = clampIntRange(maxEntries, DEFAULT_HOVER_CACHE_MAX_ENTRIES, { min: 1000, max: 200000 });
+  const limited = rows.slice(0, cap);
+  await fs.mkdir(path.dirname(cachePath), { recursive: true });
+  await fs.writeFile(cachePath, JSON.stringify({
+    version: 1,
+    generatedAt: new Date().toISOString(),
+    entries: limited
+  }));
+};
+
+const buildHoverCacheKey = ({ cmd, docHash, languageId, symbolName, position }) => {
+  if (!docHash || !position || !Number.isFinite(position.line) || !Number.isFinite(position.character)) return null;
+  return [
+    String(cmd || ''),
+    String(languageId || ''),
+    String(docHash),
+    String(symbolName || ''),
+    `${Math.floor(position.line)}:${Math.floor(position.character)}`
+  ].join('|');
 };
 
 const diagnosticKey = (diag) => {
@@ -62,6 +166,7 @@ const normalizeSignatureCacheText = (value) => (
 );
 
 const toFiniteInt = (value, min = null) => {
+  if (value == null) return null;
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return null;
   const normalized = Math.floor(parsed);
@@ -317,6 +422,9 @@ export async function collectLspTypes({
   maxDiagnosticsPerUri = DEFAULT_MAX_DIAGNOSTICS_PER_URI,
   maxDiagnosticsPerChunk = DEFAULT_MAX_DIAGNOSTICS_PER_CHUNK,
   documentSymbolTimeoutMs = null,
+  documentSymbolConcurrency = DEFAULT_DOCUMENT_SYMBOL_CONCURRENCY,
+  hoverConcurrency = DEFAULT_HOVER_CONCURRENCY,
+  hoverCacheMaxEntries = DEFAULT_HOVER_CACHE_MAX_ENTRIES,
   stderrFilter = null,
   initializationOptions = null
 }) {
@@ -333,6 +441,21 @@ export async function collectLspTypes({
   const resolvedMaxDiagnosticUris = clampPositiveInt(maxDiagnosticUris, DEFAULT_MAX_DIAGNOSTIC_URIS);
   const resolvedMaxDiagnosticsPerUri = clampPositiveInt(maxDiagnosticsPerUri, DEFAULT_MAX_DIAGNOSTICS_PER_URI);
   const resolvedMaxDiagnosticsPerChunk = clampPositiveInt(maxDiagnosticsPerChunk, DEFAULT_MAX_DIAGNOSTICS_PER_CHUNK);
+  const resolvedDocumentSymbolConcurrency = clampIntRange(
+    documentSymbolConcurrency,
+    DEFAULT_DOCUMENT_SYMBOL_CONCURRENCY,
+    { min: 1, max: 32 }
+  );
+  const resolvedHoverConcurrency = clampIntRange(
+    hoverConcurrency,
+    DEFAULT_HOVER_CONCURRENCY,
+    { min: 1, max: 64 }
+  );
+  const resolvedHoverCacheMaxEntries = clampIntRange(
+    hoverCacheMaxEntries,
+    DEFAULT_HOVER_CACHE_MAX_ENTRIES,
+    { min: 1000, max: 200000 }
+  );
   const checks = [];
   const docs = Array.isArray(documents) ? documents : [];
   const targetList = Array.isArray(targets) ? targets : [];
@@ -525,6 +648,55 @@ export async function collectLspTypes({
     skippedByGlobalDisable: 0
   };
   let hoverDisabledGlobal = false;
+  const hoverLimiter = createConcurrencyLimiter(resolvedHoverConcurrency);
+  const hoverCacheState = await loadHoverCache(cacheRoot);
+  const hoverCacheEntries = hoverCacheState.entries;
+  let hoverCacheDirty = false;
+
+  const mergeSignatureInfo = (base, next) => {
+    if (!next) return base;
+    if (!base) return next;
+    const merged = { ...base };
+    if ((!merged.returnType || merged.returnType === 'Void')
+      && next.returnType
+      && next.returnType !== 'Void') {
+      merged.returnType = next.returnType;
+    }
+    if (!merged.signature
+      || (!merged.signature.includes('->') && next.signature?.includes('->'))) {
+      if (next.signature) merged.signature = next.signature;
+    }
+    const baseParamTypes = merged.paramTypes && typeof merged.paramTypes === 'object'
+      ? merged.paramTypes
+      : null;
+    const nextParamTypes = next.paramTypes && typeof next.paramTypes === 'object'
+      ? next.paramTypes
+      : null;
+    if (nextParamTypes) {
+      merged.paramTypes = {
+        ...nextParamTypes,
+        ...(baseParamTypes || {})
+      };
+    }
+    if ((!merged.paramNames || !merged.paramNames.length) && next.paramNames?.length) {
+      merged.paramNames = next.paramNames;
+    }
+    return merged;
+  };
+
+  const parseSignatureCached = (detailText, symbolName, languageId) => {
+    if (typeof parseSignature !== 'function') return null;
+    const normalizedDetail = normalizeSignatureCacheText(detailText);
+    if (!normalizedDetail) return null;
+    const cacheKey = `${languageId || ''}::${normalizedDetail}`;
+    if (signatureParseCache.has(cacheKey)) {
+      return signatureParseCache.get(cacheKey);
+    }
+    const parsed = parseSignature(normalizedDetail, languageId, symbolName) || null;
+    signatureParseCache.set(cacheKey, parsed);
+    return parsed;
+  };
+
   const openDocs = new Map();
   const diskPathMap = resolvedScheme === 'file'
     ? await ensureVirtualFilesBatch({
@@ -534,10 +706,12 @@ export async function collectLspTypes({
       coldStartCache
     })
     : null;
-  for (const doc of docsToOpen) {
+  const processDoc = async (doc) => {
+    if (guard.isOpen()) return;
     const fileHoverStats = hoverFileStats.get(doc.virtualPath) || createHoverFileStats();
     hoverFileStats.set(doc.virtualPath, fileHoverStats);
     const docTargets = targetsByPath.get(doc.virtualPath) || [];
+    const languageId = doc.languageId || languageIdForFileExt(path.extname(doc.virtualPath));
     const uri = await resolveDocumentUri({
       rootDir: resolvedRoot,
       doc,
@@ -546,7 +720,7 @@ export async function collectLspTypes({
       diskPathMap,
       coldStartCache
     });
-    const languageId = doc.languageId || languageIdForFileExt(path.extname(doc.virtualPath));
+    const legacyUri = resolvedScheme === 'poc-vfs' ? buildVfsUri(doc.virtualPath) : null;
     if (!openDocs.has(doc.virtualPath)) {
       client.notify('textDocument/didOpen', {
         textDocument: {
@@ -558,244 +732,254 @@ export async function collectLspTypes({
       });
       openDocs.set(doc.virtualPath, {
         uri,
-        legacyUri: resolvedScheme === 'poc-vfs' ? buildVfsUri(doc.virtualPath) : null,
+        legacyUri,
         lineIndex: null,
         text: doc.text || ''
       });
     }
 
-    let symbols = null;
     try {
-      symbols = await guard.run(
-        ({ timeoutMs: guardTimeout }) => client.request(
-          'textDocument/documentSymbol',
-          { textDocument: { uri } },
-          { timeoutMs: guardTimeout }
-        ),
-        {
-          label: 'documentSymbol',
-          ...(resolvedDocumentSymbolTimeout ? { timeoutOverride: resolvedDocumentSymbolTimeout } : {})
-        }
-      );
-    } catch (err) {
-      log(`[index] ${cmd} documentSymbol failed (${doc.virtualPath}): ${err?.message || err}`);
-      if (err?.code === 'TOOLING_CIRCUIT_OPEN' && !checkFlags.circuitOpened) {
-        checkFlags.circuitOpened = true;
-        const state = guard.getState?.() || null;
-        checks.push({
-          name: 'tooling_circuit_open',
-          status: 'warn',
-          message: `${cmd} circuit breaker opened after ${state?.consecutiveFailures ?? 'unknown'} failures.`,
-          count: state?.tripCount ?? 1
-        });
-      }
-      client.notify('textDocument/didClose', { textDocument: { uri } });
-      if (guard.isOpen()) break;
-      continue;
-    }
-
-    const flattened = flattenSymbols(symbols || []);
-    if (!flattened.length) {
-      client.notify('textDocument/didClose', { textDocument: { uri } });
-      continue;
-    }
-
-    const openEntry = openDocs.get(doc.virtualPath) || null;
-    const lineIndex = openEntry?.lineIndex || lineIndexFactory(openEntry?.text || doc.text || '');
-    if (openEntry && !openEntry.lineIndex) openEntry.lineIndex = lineIndex;
-
-    const mergeSignatureInfo = (base, next) => {
-      if (!next) return base;
-      if (!base) return next;
-      const merged = { ...base };
-      if ((!merged.returnType || merged.returnType === 'Void')
-        && next.returnType
-        && next.returnType !== 'Void') {
-        merged.returnType = next.returnType;
-      }
-      if (!merged.signature
-        || (!merged.signature.includes('->') && next.signature?.includes('->'))) {
-        if (next.signature) merged.signature = next.signature;
-      }
-      const baseParamTypes = merged.paramTypes && typeof merged.paramTypes === 'object'
-        ? merged.paramTypes
-        : null;
-      const nextParamTypes = next.paramTypes && typeof next.paramTypes === 'object'
-        ? next.paramTypes
-        : null;
-      if (nextParamTypes) {
-        merged.paramTypes = {
-          ...nextParamTypes,
-          ...(baseParamTypes || {})
-        };
-      }
-      if ((!merged.paramNames || !merged.paramNames.length) && next.paramNames?.length) {
-        merged.paramNames = next.paramNames;
-      }
-      return merged;
-    };
-
-    const parseSignatureCached = (detailText, symbolName) => {
-      if (typeof parseSignature !== 'function') return null;
-      const normalizedDetail = normalizeSignatureCacheText(detailText);
-      if (!normalizedDetail) return null;
-      const cacheKey = `${doc.languageId || ''}::${normalizedDetail}`;
-      if (signatureParseCache.has(cacheKey)) {
-        return signatureParseCache.get(cacheKey);
-      }
-      const parsed = parseSignature(normalizedDetail, doc.languageId, symbolName) || null;
-      signatureParseCache.set(cacheKey, parsed);
-      return parsed;
-    };
-
-    for (const symbol of flattened) {
-      const offsets = rangeToOffsets(lineIndex, symbol.selectionRange || symbol.range);
-      const target = findTargetForOffsets(docTargets, offsets, symbol.name);
-      if (!target) continue;
-      const detailText = symbol.detail || symbol.name;
-      let info = parseSignatureCached(detailText, symbol.name);
-      if (!hasParamTypes(info?.paramTypes)) {
-        const sourceSignature = buildSourceSignatureCandidate(
-          openEntry?.text || doc.text || '',
-          target?.virtualRange
+      let symbols = null;
+      try {
+        symbols = await guard.run(
+          ({ timeoutMs: guardTimeout }) => client.request(
+            'textDocument/documentSymbol',
+            { textDocument: { uri } },
+            { timeoutMs: guardTimeout }
+          ),
+          {
+            label: 'documentSymbol',
+            ...(resolvedDocumentSymbolTimeout ? { timeoutOverride: resolvedDocumentSymbolTimeout } : {})
+          }
         );
-        if (sourceSignature) {
-          const sourceInfo = parseSignatureCached(sourceSignature, symbol.name);
-          if (hasParamTypes(sourceInfo?.paramTypes)) {
-            info = mergeSignatureInfo(info, sourceInfo);
+      } catch (err) {
+        log(`[index] ${cmd} documentSymbol failed (${doc.virtualPath}): ${err?.message || err}`);
+        if (err?.code === 'TOOLING_CIRCUIT_OPEN' && !checkFlags.circuitOpened) {
+          checkFlags.circuitOpened = true;
+          const state = guard.getState?.() || null;
+          checks.push({
+            name: 'tooling_circuit_open',
+            status: 'warn',
+            message: `${cmd} circuit breaker opened after ${state?.consecutiveFailures ?? 'unknown'} failures.`,
+            count: state?.tripCount ?? 1
+          });
+        }
+        return;
+      }
+
+      const flattened = flattenSymbols(symbols || []);
+      if (!flattened.length) {
+        return;
+      }
+
+      const openEntry = openDocs.get(doc.virtualPath) || null;
+      const lineIndex = openEntry?.lineIndex || lineIndexFactory(openEntry?.text || doc.text || '');
+      if (openEntry && !openEntry.lineIndex) openEntry.lineIndex = lineIndex;
+      const hoverRequestByPosition = new Map();
+      const symbolRecords = [];
+
+      const requestHover = (symbol, position) => {
+        const key = `${Math.floor(position.line)}:${Math.floor(position.character)}`;
+        if (hoverRequestByPosition.has(key)) return hoverRequestByPosition.get(key);
+        const hoverCacheKey = buildHoverCacheKey({
+          cmd,
+          docHash: doc.docHash || null,
+          languageId,
+          symbolName: symbol?.name,
+          position
+        });
+        const cachedHoverInfo = hoverCacheKey ? hoverCacheEntries.get(hoverCacheKey) : null;
+        const promise = (async () => {
+          if (cachedHoverInfo?.info) {
+            return cachedHoverInfo.info;
+          }
+          const hoverTimeoutOverride = Number.isFinite(resolvedHoverTimeout)
+            ? resolvedHoverTimeout
+            : null;
+          fileHoverStats.requested += 1;
+          hoverMetrics.requested += 1;
+          const hoverStartMs = Date.now();
+          try {
+            const hover = await hoverLimiter(() => guard.run(
+              ({ timeoutMs: guardTimeout }) => client.request('textDocument/hover', {
+                textDocument: { uri },
+                position
+              }, { timeoutMs: guardTimeout }),
+              { label: 'hover', ...(hoverTimeoutOverride ? { timeoutOverride: hoverTimeoutOverride } : {}) }
+            ));
+            const hoverDurationMs = Date.now() - hoverStartMs;
+            hoverLatencyMs.push(hoverDurationMs);
+            fileHoverStats.latencyMs.push(hoverDurationMs);
+            fileHoverStats.succeeded += 1;
+            hoverMetrics.succeeded += 1;
+            const hoverText = normalizeHoverContents(hover?.contents);
+            const hoverInfo = parseSignatureCached(hoverText, symbol?.name, languageId);
+            if (hoverCacheKey && hoverInfo) {
+              hoverCacheEntries.set(hoverCacheKey, { info: hoverInfo, at: Date.now() });
+              hoverCacheDirty = true;
+            }
+            return hoverInfo;
+          } catch (err) {
+            const message = String(err?.message || err || '').toLowerCase();
+            const isTimeout = message.includes('timeout');
+            if (err?.code === 'TOOLING_CIRCUIT_OPEN' && !checkFlags.circuitOpened) {
+              checkFlags.circuitOpened = true;
+              const state = guard.getState?.() || null;
+              checks.push({
+                name: 'tooling_circuit_open',
+                status: 'warn',
+                message: `${cmd} circuit breaker opened after ${state?.consecutiveFailures ?? 'unknown'} failures.`,
+                count: state?.tripCount ?? 1
+              });
+            }
+            if (isTimeout) {
+              fileHoverStats.timedOut += 1;
+              hoverMetrics.timedOut += 1;
+              if (!checkFlags.hoverTimedOut) {
+                checkFlags.hoverTimedOut = true;
+                checks.push({
+                  name: 'tooling_hover_timeout',
+                  status: 'warn',
+                  message: `${cmd} hover requests timed out; adaptive suppression may be enabled.`
+                });
+              }
+              if (Number.isFinite(resolvedHoverDisableAfterTimeouts)
+              && fileHoverStats.timedOut >= resolvedHoverDisableAfterTimeouts
+              && !fileHoverStats.disabledAdaptive) {
+                fileHoverStats.disabledAdaptive = true;
+              }
+              if (Number.isFinite(resolvedHoverDisableAfterTimeouts)
+              && hoverMetrics.timedOut >= resolvedHoverDisableAfterTimeouts) {
+                hoverDisabledGlobal = true;
+              }
+            }
+            return null;
+          }
+        })();
+        hoverRequestByPosition.set(key, promise);
+        return promise;
+      };
+
+      for (const symbol of flattened) {
+        const offsets = rangeToOffsets(lineIndex, symbol.selectionRange || symbol.range);
+        const target = findTargetForOffsets(docTargets, offsets, symbol.name);
+        if (!target) continue;
+        const detailText = symbol.detail || symbol.name;
+        let info = parseSignatureCached(detailText, symbol.name, languageId);
+        if (!hasParamTypes(info?.paramTypes)) {
+          const sourceSignature = buildSourceSignatureCandidate(
+            openEntry?.text || doc.text || '',
+            target?.virtualRange
+          );
+          if (sourceSignature) {
+            const sourceInfo = parseSignatureCached(sourceSignature, symbol.name, languageId);
+            if (hasParamTypes(sourceInfo?.paramTypes)) {
+              info = mergeSignatureInfo(info, sourceInfo);
+            }
           }
         }
-      }
-      const hasExplicitArrow = typeof detailText === 'string' && detailText.includes('->');
-      const hasSignatureArrow = typeof info?.signature === 'string' && info.signature.includes('->');
-      const normalizedReturnType = normalizeTypeText(info?.returnType);
-      const treatVoidAsMissing = normalizedReturnType === 'Void' && (hasExplicitArrow || hasSignatureArrow);
-      const ambiguousReturn = !normalizedReturnType
+        const hasExplicitArrow = typeof detailText === 'string' && detailText.includes('->');
+        const hasSignatureArrow = typeof info?.signature === 'string' && info.signature.includes('->');
+        const normalizedReturnType = normalizeTypeText(info?.returnType);
+        const treatVoidAsMissing = normalizedReturnType === 'Void' && (hasExplicitArrow || hasSignatureArrow);
+        const ambiguousReturn = !normalizedReturnType
         || /^unknown$/i.test(normalizedReturnType)
         || /^any\b/i.test(normalizedReturnType)
         || treatVoidAsMissing;
-      const needsHover = hoverRequireMissingReturn === true
-        ? ambiguousReturn
-        : (!info || !info.returnType || ambiguousReturn);
-      if (!needsHover) {
-        fileHoverStats.skippedByReturnSufficient += 1;
-        hoverMetrics.skippedByReturnSufficient += 1;
-      }
-      const symbolKindAllowed = !resolvedHoverKinds
+        const needsHover = hoverRequireMissingReturn === true
+          ? ambiguousReturn
+          : (!info || !info.returnType || ambiguousReturn);
+        if (!needsHover) {
+          fileHoverStats.skippedByReturnSufficient += 1;
+          hoverMetrics.skippedByReturnSufficient += 1;
+        }
+        const symbolKindAllowed = !resolvedHoverKinds
         || (Number.isInteger(symbol?.kind) && resolvedHoverKinds.has(symbol.kind));
-      if (!symbolKindAllowed) {
-        fileHoverStats.skippedByKind += 1;
-        hoverMetrics.skippedByKind += 1;
-      }
-      const fileOverBudget = Number.isFinite(resolvedHoverMaxPerFile)
+        if (!symbolKindAllowed) {
+          fileHoverStats.skippedByKind += 1;
+          hoverMetrics.skippedByKind += 1;
+        }
+        const fileOverBudget = Number.isFinite(resolvedHoverMaxPerFile)
         && resolvedHoverMaxPerFile >= 0
         && fileHoverStats.requested >= resolvedHoverMaxPerFile;
-      if (fileOverBudget) {
-        fileHoverStats.skippedByBudget += 1;
-        hoverMetrics.skippedByBudget += 1;
-      }
-      const adaptiveDisabled = hoverDisabledGlobal || fileHoverStats.disabledAdaptive;
-      if (adaptiveDisabled) {
-        if (hoverDisabledGlobal) {
-          fileHoverStats.skippedByGlobalDisable += 1;
-          hoverMetrics.skippedByGlobalDisable += 1;
-        } else {
-          fileHoverStats.skippedByAdaptiveDisable += 1;
-          hoverMetrics.skippedByAdaptiveDisable += 1;
+        if (fileOverBudget) {
+          fileHoverStats.skippedByBudget += 1;
+          hoverMetrics.skippedByBudget += 1;
         }
-      }
-      if (hoverEnabled && needsHover && symbolKindAllowed && !fileOverBudget && !adaptiveDisabled) {
-        const hoverTimeoutOverride = Number.isFinite(resolvedHoverTimeout)
-          ? resolvedHoverTimeout
+        const adaptiveDisabled = hoverDisabledGlobal || fileHoverStats.disabledAdaptive;
+        if (adaptiveDisabled) {
+          if (hoverDisabledGlobal) {
+            fileHoverStats.skippedByGlobalDisable += 1;
+            hoverMetrics.skippedByGlobalDisable += 1;
+          } else {
+            fileHoverStats.skippedByAdaptiveDisable += 1;
+            hoverMetrics.skippedByAdaptiveDisable += 1;
+          }
+        }
+        const position = symbol.selectionRange?.start || symbol.range?.start || null;
+        const hoverPromise = (
+          hoverEnabled
+        && needsHover
+        && symbolKindAllowed
+        && !fileOverBudget
+        && !adaptiveDisabled
+        && position
+        )
+          ? requestHover(symbol, position)
           : null;
-        fileHoverStats.requested += 1;
-        hoverMetrics.requested += 1;
-        const hoverStartMs = Date.now();
-        try {
-          const hover = await guard.run(
-            ({ timeoutMs: guardTimeout }) => client.request('textDocument/hover', {
-              textDocument: { uri },
-              position: symbol.selectionRange?.start || symbol.range?.start
-            }, { timeoutMs: guardTimeout }),
-            { label: 'hover', ...(hoverTimeoutOverride ? { timeoutOverride: hoverTimeoutOverride } : {}) }
-          );
-          const hoverDurationMs = Date.now() - hoverStartMs;
-          hoverLatencyMs.push(hoverDurationMs);
-          fileHoverStats.latencyMs.push(hoverDurationMs);
-          fileHoverStats.succeeded += 1;
-          hoverMetrics.succeeded += 1;
-          const hoverText = normalizeHoverContents(hover?.contents);
-          const hoverInfo = parseSignatureCached(hoverText, symbol.name);
+        symbolRecords.push({ symbol, target, info, hoverPromise });
+      }
+
+      for (const record of symbolRecords) {
+        let info = record.info;
+        if (record.hoverPromise) {
+          const hoverInfo = await record.hoverPromise;
           if (hoverInfo) info = mergeSignatureInfo(info, hoverInfo);
-        } catch (err) {
-          const message = String(err?.message || err || '').toLowerCase();
-          const isTimeout = message.includes('timeout');
-          if (err?.code === 'TOOLING_CIRCUIT_OPEN' && !checkFlags.circuitOpened) {
-            checkFlags.circuitOpened = true;
-            const state = guard.getState?.() || null;
-            checks.push({
-              name: 'tooling_circuit_open',
-              status: 'warn',
-              message: `${cmd} circuit breaker opened after ${state?.consecutiveFailures ?? 'unknown'} failures.`,
-              count: state?.tripCount ?? 1
-            });
-          }
-          if (isTimeout) {
-            fileHoverStats.timedOut += 1;
-            hoverMetrics.timedOut += 1;
-            if (!checkFlags.hoverTimedOut) {
-              checkFlags.hoverTimedOut = true;
-              checks.push({
-                name: 'tooling_hover_timeout',
-                status: 'warn',
-                message: `${cmd} hover requests timed out; adaptive suppression may be enabled.`
-              });
-            }
-            if (Number.isFinite(resolvedHoverDisableAfterTimeouts)
-              && fileHoverStats.timedOut >= resolvedHoverDisableAfterTimeouts
-              && !fileHoverStats.disabledAdaptive) {
-              fileHoverStats.disabledAdaptive = true;
-            }
-            if (Number.isFinite(resolvedHoverDisableAfterTimeouts)
-              && hoverMetrics.timedOut >= resolvedHoverDisableAfterTimeouts) {
-              hoverDisabledGlobal = true;
-            }
+        }
+        if (!info) continue;
+        const chunkUid = record.target?.chunkRef?.chunkUid;
+        if (!chunkUid) {
+          if (strict) throw new Error('LSP output missing chunkUid.');
+          continue;
+        }
+        const normalizedSignature = normalizeTypeText(info.signature);
+        let normalizedReturn = normalizeTypeText(info.returnType);
+        if (normalizedReturn === 'Void' && normalizedSignature?.includes('->')) {
+          const arrowMatch = normalizedSignature.split('->').pop();
+          const trimmed = arrowMatch ? arrowMatch.trim() : '';
+          if (trimmed) {
+            normalizedReturn = trimmed === '()' ? 'Void' : trimmed;
           }
         }
+        byChunkUid[chunkUid] = {
+          chunk: record.target.chunkRef,
+          payload: {
+            returnType: normalizedReturn,
+            paramTypes: normalizeParamTypes(info.paramTypes),
+            signature: normalizedSignature
+          },
+          provenance: {
+            provider: cmd,
+            version: '1.0.0',
+            collectedAt: new Date().toISOString()
+          }
+        };
+        enriched += 1;
       }
-      if (!info) continue;
-
-      const chunkUid = target.chunkRef?.chunkUid;
-      if (!chunkUid) {
-        if (strict) throw new Error('LSP output missing chunkUid.');
-        continue;
-      }
-      const normalizedSignature = normalizeTypeText(info.signature);
-      let normalizedReturn = normalizeTypeText(info.returnType);
-      if (normalizedReturn === 'Void' && normalizedSignature?.includes('->')) {
-        const arrowMatch = normalizedSignature.split('->').pop();
-        const trimmed = arrowMatch ? arrowMatch.trim() : '';
-        if (trimmed) {
-          normalizedReturn = trimmed === '()' ? 'Void' : trimmed;
-        }
-      }
-      byChunkUid[chunkUid] = {
-        chunk: target.chunkRef,
-        payload: {
-          returnType: normalizedReturn,
-          paramTypes: normalizeParamTypes(info.paramTypes),
-          signature: normalizedSignature
-        },
-        provenance: {
-          provider: cmd,
-          version: '1.0.0',
-          collectedAt: new Date().toISOString()
-        }
-      };
-      enriched += 1;
+    } finally {
+      client.notify('textDocument/didClose', { textDocument: { uri } });
     }
+  };
 
-    client.notify('textDocument/didClose', { textDocument: { uri } });
+  await runWithConcurrency(docsToOpen, resolvedDocumentSymbolConcurrency, processDoc);
+  if (hoverCacheDirty) {
+    try {
+      await persistHoverCache({
+        cachePath: hoverCacheState.path,
+        entries: hoverCacheEntries,
+        maxEntries: resolvedHoverCacheMaxEntries
+      });
+    } catch {}
   }
 
   const diagnosticsByChunkUid = {};

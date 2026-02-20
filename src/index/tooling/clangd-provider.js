@@ -97,6 +97,8 @@ const HEADER_FILE_EXTS = new Set([
   '.cuh'
 ]);
 const TRACKED_HEADER_PATHS_CACHE = new Map();
+const TRACKED_HEADER_DISK_CACHE = new Map();
+const TRACKED_HEADER_CACHE_FILE = 'clangd-tracked-headers-v1.json';
 
 const normalizeRepoPosixPath = (value) => String(value || '')
   .replace(/\\/g, '/')
@@ -135,6 +137,42 @@ const resolveTrackedHeaderCacheFingerprint = (repoRoot) => {
   } catch {
     return null;
   }
+};
+
+const resolveTrackedHeaderDiskCachePath = (cacheDir) => {
+  if (!cacheDir || typeof cacheDir !== 'string') return null;
+  return path.join(cacheDir, 'clangd', TRACKED_HEADER_CACHE_FILE);
+};
+
+const loadTrackedHeaderDiskCache = (cachePath) => {
+  if (!cachePath) return null;
+  if (TRACKED_HEADER_DISK_CACHE.has(cachePath)) {
+    return TRACKED_HEADER_DISK_CACHE.get(cachePath);
+  }
+  try {
+    const raw = fsSync.readFileSync(cachePath, 'utf8');
+    const parsed = JSON.parse(raw);
+    const repos = parsed?.repos && typeof parsed.repos === 'object' ? parsed.repos : {};
+    TRACKED_HEADER_DISK_CACHE.set(cachePath, repos);
+    return repos;
+  } catch {
+    const empty = {};
+    TRACKED_HEADER_DISK_CACHE.set(cachePath, empty);
+    return empty;
+  }
+};
+
+const persistTrackedHeaderDiskCache = (cachePath, repos) => {
+  if (!cachePath || !repos || typeof repos !== 'object') return;
+  const payload = {
+    version: 1,
+    generatedAt: new Date().toISOString(),
+    repos
+  };
+  try {
+    fsSync.mkdirSync(path.dirname(cachePath), { recursive: true });
+    fsSync.writeFileSync(cachePath, JSON.stringify(payload));
+  } catch {}
 };
 
 export const extractIncludeHeadersFromDocuments = (documents) => {
@@ -231,13 +269,27 @@ export const inferIncludeRootsFromHeaderPaths = ({
  * @param {string} repoRoot
  * @returns {string[]}
  */
-export const listTrackedHeaderPaths = (repoRoot) => {
+export const listTrackedHeaderPaths = (repoRoot, { cacheDir = null } = {}) => {
   const cacheKey = path.resolve(repoRoot || process.cwd());
   const fingerprint = resolveTrackedHeaderCacheFingerprint(cacheKey);
+  const diskCachePath = resolveTrackedHeaderDiskCachePath(cacheDir);
   if (fingerprint) {
     const cached = TRACKED_HEADER_PATHS_CACHE.get(cacheKey) || null;
     if (cached && cached.fingerprint === fingerprint) {
       return cached.paths;
+    }
+    const diskRepos = loadTrackedHeaderDiskCache(diskCachePath);
+    const diskEntry = diskRepos && typeof diskRepos[cacheKey] === 'object'
+      ? diskRepos[cacheKey]
+      : null;
+    if (diskEntry
+      && diskEntry.fingerprint === fingerprint
+      && Array.isArray(diskEntry.paths)) {
+      TRACKED_HEADER_PATHS_CACHE.set(cacheKey, {
+        fingerprint,
+        paths: diskEntry.paths
+      });
+      return diskEntry.paths;
     }
   }
   const pathSpecs = Array.from(HEADER_FILE_EXTS).map((ext) => `*${ext}`);
@@ -256,6 +308,13 @@ export const listTrackedHeaderPaths = (repoRoot) => {
       .filter((entry) => Boolean(entry) && headerExtForPath(entry));
     if (fingerprint) {
       TRACKED_HEADER_PATHS_CACHE.set(cacheKey, { fingerprint, paths: trackedPaths });
+      const diskRepos = loadTrackedHeaderDiskCache(diskCachePath) || {};
+      diskRepos[cacheKey] = {
+        fingerprint,
+        paths: trackedPaths,
+        updatedAt: Date.now()
+      };
+      persistTrackedHeaderDiskCache(diskCachePath, diskRepos);
     }
     return trackedPaths;
   } catch {
@@ -431,7 +490,7 @@ export const createClangdProvider = () => ({
     if (!compileCommandsDir && clangdConfig.autoInferIncludeRoots !== false) {
       const includeHeaders = extractIncludeHeadersFromDocuments(docs);
       if (includeHeaders.length) {
-        const trackedHeaders = listTrackedHeaderPaths(ctx.repoRoot);
+        const trackedHeaders = listTrackedHeaderPaths(ctx.repoRoot, { cacheDir: ctx?.cache?.dir || null });
         inferredIncludeRoots = inferIncludeRootsFromHeaderPaths({
           repoRoot: ctx.repoRoot,
           includeHeaders,
@@ -484,6 +543,9 @@ export const createClangdProvider = () => ({
         retries,
         breakerThreshold,
         documentSymbolTimeoutMs,
+        documentSymbolConcurrency: clangdConfig.documentSymbolConcurrency,
+        hoverConcurrency: clangdConfig.hoverConcurrency,
+        cacheRoot: ctx?.cache?.dir || null,
         stderrFilter: clangdStderr.filter,
         parseSignature,
         strict: ctx?.strict !== false,
