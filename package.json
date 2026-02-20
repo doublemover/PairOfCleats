@@ -52,6 +52,8 @@
     "env:check": "node tools/ci/check-env-usage.js",
     "release-check": "node tools/release/check.js --report release_check_report.json --manifest release-manifest.json",
     "release-check:breaking": "node tools/release/check.js --breaking --report release_check_report.json --manifest release-manifest.json",
+    "package-sublime": "node tools/package-sublime.js",
+    "package-vscode": "node tools/package-vscode.js",
     "uninstall": "node tools/tooling/uninstall.js",
     "api-server": "node tools/api/server.js",
     "mcp-server": "node tools/mcp/server.js",

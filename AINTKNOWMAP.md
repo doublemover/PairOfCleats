@@ -1107,14 +1107,14 @@ Touchpoints:
 - `docs/guides/path-handling.md`
 #### 2.3 Reproducible editor packaging
 
-- [ ] Implement deterministic Sublime packaging (`tools/package-sublime.js`).
-- [ ] Implement deterministic VS Code packaging (`tools/package-vscode.js`).
-- [ ] Enforce deterministic archive layout rules (stable entry ordering, normalized root prefix, normalized path separators).
-- [ ] Normalize archive metadata (`mtime`, `uid/gid`, mode bits) and enforce fixed compression method/level for reproducible outputs across hosts.
-- [ ] Emit and verify per-archive checksum manifests during packaging runs.
-- [ ] Enforce pinned packaging toolchains.
-- [ ] Fail packaging jobs when required toolchains are unavailable.
-- [ ] Update editor integration docs to reflect active packaging flow.
+- [x] Implement deterministic Sublime packaging (`tools/package-sublime.js`).
+- [x] Implement deterministic VS Code packaging (`tools/package-vscode.js`).
+- [x] Enforce deterministic archive layout rules (stable entry ordering, normalized root prefix, normalized path separators).
+- [x] Normalize archive metadata (`mtime`, `uid/gid`, mode bits) and enforce fixed compression method/level for reproducible outputs across hosts.
+- [x] Emit and verify per-archive checksum manifests during packaging runs.
+- [x] Enforce pinned packaging toolchains.
+- [x] Fail packaging jobs when required toolchains are unavailable.
+- [x] Update editor integration docs to reflect active packaging flow.
 
 Tests:
 
