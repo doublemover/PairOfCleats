@@ -154,6 +154,47 @@ export const createTokenIngestor = (ctx) => {
         ingestTokenIndex(tokenIndex, targetMode);
         return true;
       } catch {
+        const loadWithLegacyManifest = (piece) => {
+          try {
+            const tokenIndex = loadTokenPostings(indexDir, {
+              maxBytes: MAX_JSON_BYTES,
+              strict: false,
+              manifest: { pieces: [piece] }
+            });
+            if (!tokenIndex?.vocab || !tokenIndex?.postings) return false;
+            ingestTokenIndex(tokenIndex, targetMode);
+            return true;
+          } catch {
+            return false;
+          }
+        };
+        const directPiecePath = fsSync.existsSync(directPath)
+          ? 'token_postings.json'
+          : (fsSync.existsSync(directPathGz)
+            ? 'token_postings.json.gz'
+            : (fsSync.existsSync(directPathZst) ? 'token_postings.json.zst' : null));
+        if (
+          directPiecePath
+          && loadWithLegacyManifest({ name: 'token_postings', format: 'json', path: directPiecePath })
+        ) {
+          return true;
+        }
+        if (
+          fsSync.existsSync(path.join(indexDir, 'token_postings.packed.bin'))
+          && loadWithLegacyManifest({ name: 'token_postings', format: 'packed', path: 'token_postings.packed.bin' })
+        ) {
+          return true;
+        }
+        if (
+          fsSync.existsSync(path.join(indexDir, 'token_postings.binary-columnar.bin'))
+          && loadWithLegacyManifest({
+            name: 'token_postings',
+            format: 'binary-columnar',
+            path: 'token_postings.binary-columnar.bin'
+          })
+        ) {
+          return true;
+        }
         return false;
       }
     };

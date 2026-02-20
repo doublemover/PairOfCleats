@@ -4,7 +4,7 @@ import { createIndexerWorkerPool, normalizeWorkerPoolConfig } from '../../../src
 
 const defaults = normalizeWorkerPoolConfig({}, { cpuLimit: 4 });
 assert.equal(defaults.enabled, 'auto', 'expected worker pool default mode to remain auto');
-assert.equal(defaults.minFileBytes, 16 * 1024, 'expected worker auto mode to keep tiny-file bypass default');
+assert.equal(defaults.minFileBytes, 4 * 1024, 'expected worker auto mode to keep tiny-file bypass default');
 
 const explicit = normalizeWorkerPoolConfig({
   enabled: 'auto',

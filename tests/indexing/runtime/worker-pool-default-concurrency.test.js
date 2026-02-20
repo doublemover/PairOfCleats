@@ -8,7 +8,7 @@ const highConcurrency = resolveWorkerPoolRuntimeConfig({
   cpuConcurrency: 32,
   fileConcurrency: 32
 });
-assert.strictEqual(highConcurrency.maxWorkers, 16, 'expected default maxWorkers cap to be 16');
+assert.strictEqual(highConcurrency.maxWorkers, 32, 'expected default maxWorkers cap to scale to cpu/file concurrency');
 
 const boundedByFiles = resolveWorkerPoolRuntimeConfig({
   indexingConfig: {},
@@ -16,7 +16,11 @@ const boundedByFiles = resolveWorkerPoolRuntimeConfig({
   cpuConcurrency: 32,
   fileConcurrency: 6
 });
-assert.strictEqual(boundedByFiles.maxWorkers, 6, 'expected default maxWorkers to respect file concurrency');
+assert.strictEqual(
+  boundedByFiles.maxWorkers,
+  32,
+  'expected default maxWorkers to track cpu concurrency even when file concurrency is lower'
+);
 
 const hardCapped = resolveWorkerPoolRuntimeConfig({
   indexingConfig: { workerPool: { maxWorkers: 64 } },
