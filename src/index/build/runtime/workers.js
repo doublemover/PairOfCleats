@@ -207,14 +207,22 @@ export const createRuntimeQueues = ({
 };
 
 export const resolveWorkerPoolRuntimeConfig = ({ indexingConfig, envConfig, cpuConcurrency, fileConcurrency }) => {
+  const cpuTarget = Number.isFinite(cpuConcurrency)
+    ? Math.max(1, Math.floor(cpuConcurrency))
+    : 1;
+  const fileTarget = Number.isFinite(fileConcurrency)
+    ? Math.max(1, Math.floor(fileConcurrency))
+    : cpuTarget;
   const dynamicHardMaxWorkers = Math.max(
     32,
-    Number.isFinite(cpuConcurrency) ? Math.max(1, Math.floor(cpuConcurrency)) : 1,
-    Number.isFinite(fileConcurrency) ? Math.max(1, Math.floor(fileConcurrency)) : 1
+    cpuTarget,
+    fileTarget
   );
+  const oversubscribeTarget = Math.max(cpuTarget, Math.min(32, cpuTarget * 2));
+  const fileBoundTarget = Math.max(cpuTarget, Math.min(32, fileTarget));
   const workerPoolDefaultMax = Math.max(
     1,
-    Math.min(dynamicHardMaxWorkers, Math.max(cpuConcurrency, Math.min(16, fileConcurrency)))
+    Math.min(dynamicHardMaxWorkers, Math.max(oversubscribeTarget, fileBoundTarget))
   );
   return resolveWorkerPoolConfig(
     indexingConfig.workerPool || {},
