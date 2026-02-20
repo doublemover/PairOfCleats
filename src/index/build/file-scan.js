@@ -16,6 +16,7 @@ const KNOWN_TEXT_EXTS = new Set([
   '.hh',
   '.hpp',
   '.hxx',
+  '.def',
   '.m',
   '.mm',
   '.swift',

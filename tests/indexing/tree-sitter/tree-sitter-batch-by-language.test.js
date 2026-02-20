@@ -25,7 +25,7 @@ const skippedEntries = [
   { rel: 'src/core/main.cpp', ext: '.cpp' }
 ];
 applyTreeSitterBatching(skippedEntries, { enabled: true }, { verbose: false }, { allowReorder: false });
-assert.equal(skippedEntries[0].treeSitterBatchKey, 'none');
+assert.equal(skippedEntries[0].treeSitterBatchKey, 'yaml');
 assert.equal(skippedEntries[1].treeSitterBatchKey, 'none');
 assert.equal(skippedEntries[2].treeSitterBatchKey, 'cpp');
 

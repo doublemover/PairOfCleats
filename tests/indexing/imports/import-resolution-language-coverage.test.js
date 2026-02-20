@@ -23,6 +23,7 @@ await write(
 
 await write('python/pkg/main.py', 'import helpers\nfrom .utils import parse\nimport requests\n');
 await write('python/pkg/helpers.py', 'VALUE = 1\n');
+await write('python/pkg/stubs.pyi', 'from .helpers import VALUE\n');
 await write('python/pkg/utils/__init__.py', 'def parse():\n  return True\n');
 await write('python/pydantic_core/__init__.py', 'from ._pydantic_core import __version__\n');
 await write('python/pydantic_core/_pydantic_core.pyi', '__version__: str\n');
@@ -81,10 +82,19 @@ await write('src/Util/Core.jl', 'module Core\nend\n');
 
 await write('src/main.cpp', '#include "myproj/foo.hpp"\n#include <vector>\n');
 await write('include/myproj/foo.hpp', '#pragma once\n');
+await write(
+  'unittests/runtime/CompatibilityOverrideRuntime.cpp',
+  '#include "../../stdlib/public/CompatibilityOverride/CompatibilityOverrideRuntime.def"\n'
+);
+await write(
+  'stdlib/public/CompatibilityOverride/CompatibilityOverrideRuntime.def',
+  '#define SWIFT_COMPAT_OVERRIDE_RUNTIME 1\n'
+);
 
 const entries = [
   'python/pkg/main.py',
   'python/pkg/helpers.py',
+  'python/pkg/stubs.pyi',
   'python/pkg/utils/__init__.py',
   'python/pydantic_core/__init__.py',
   'python/pydantic_core/_pydantic_core.pyi',
@@ -125,11 +135,14 @@ const entries = [
   'src/Main.jl',
   'src/Util/Core.jl',
   'src/main.cpp',
-  'include/myproj/foo.hpp'
+  'include/myproj/foo.hpp',
+  'unittests/runtime/CompatibilityOverrideRuntime.cpp',
+  'stdlib/public/CompatibilityOverride/CompatibilityOverrideRuntime.def'
 ].map((rel) => ({ abs: path.join(tempRoot, rel), rel }));
 
 const importsByFile = {
   'python/pkg/main.py': ['helpers', '.utils', 'requests'],
+  'python/pkg/stubs.pyi': ['.helpers'],
   'python/pydantic_core/__init__.py': ['._pydantic_core'],
   'lib/App/Main.pm': ['App::Util'],
   'lua/app/main.lua': ['app.util'],
@@ -148,7 +161,10 @@ const importsByFile = {
   'src/main/scala/com/acme/ScalaMain.scala': ['com.acme.util.ScalaHelper'],
   'src/main/groovy/com/acme/GMain.groovy': ['com.acme.util.GHelper'],
   'src/Main.jl': ['Util.Core'],
-  'src/main.cpp': ['myproj/foo.hpp', 'vector']
+  'src/main.cpp': ['myproj/foo.hpp', 'vector'],
+  'unittests/runtime/CompatibilityOverrideRuntime.cpp': [
+    '../../stdlib/public/CompatibilityOverride/CompatibilityOverrideRuntime.def'
+  ]
 };
 
 const relations = new Map(Object.keys(importsByFile).map((file) => [file, { imports: importsByFile[file].slice() }]));
@@ -175,6 +191,7 @@ const assertExternal = (file, expected) => {
 
 assertLinks('python/pkg/main.py', ['python/pkg/helpers.py', 'python/pkg/utils/__init__.py']);
 assertExternal('python/pkg/main.py', ['requests']);
+assertLinks('python/pkg/stubs.pyi', ['python/pkg/helpers.py']);
 assertLinks('python/pydantic_core/__init__.py', ['python/pydantic_core/_pydantic_core.pyi']);
 assertLinks('lib/App/Main.pm', ['lib/App/Util.pm']);
 assertLinks('lua/app/main.lua', ['lua/app/util.lua']);
@@ -196,5 +213,9 @@ assertLinks('src/main/groovy/com/acme/GMain.groovy', ['src/main/groovy/com/acme/
 assertLinks('src/Main.jl', ['src/Util/Core.jl']);
 assertLinks('src/main.cpp', ['include/myproj/foo.hpp']);
 assertExternal('src/main.cpp', ['vector']);
+assertLinks(
+  'unittests/runtime/CompatibilityOverrideRuntime.cpp',
+  ['stdlib/public/CompatibilityOverride/CompatibilityOverrideRuntime.def']
+);
 
 console.log('import resolution language coverage tests passed');

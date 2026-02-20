@@ -15,6 +15,7 @@ const CLIKE_IMPORTER_EXTS = new Set([
   '.hh',
   '.hpp',
   '.hxx',
+  '.def',
   '.ipp',
   '.inl',
   '.inc',
@@ -31,6 +32,7 @@ const PATH_LIKE_IMPORTER_EXTS = new Set([
   '.hh',
   '.hpp',
   '.hxx',
+  '.def',
   '.ipp',
   '.inl',
   '.inc',
@@ -405,7 +407,7 @@ export const classifyImporter = (importerRel) => {
   const importerDir = path.posix.dirname(importerPath);
 
   const isRuby = importerPath.endsWith('.rb') || importerPath.endsWith('.rake') || baseName === 'rakefile';
-  const isPython = extension === '.py';
+  const isPython = PYTHON_MODULE_EXTENSIONS.includes(extension);
   const isPerl = extension === '.pl' || extension === '.pm' || extension === '.t';
   const isLua = extension === '.lua';
   const isPhp = extension === '.php';

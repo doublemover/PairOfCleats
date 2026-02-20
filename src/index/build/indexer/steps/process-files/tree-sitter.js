@@ -3,7 +3,7 @@ import { fileExt } from '../../../../../shared/files.js';
 import { log } from '../../../../../shared/progress.js';
 import { getLanguageForFile } from '../../../../language-registry.js';
 import { TREE_SITTER_LANGUAGE_IDS } from '../../../../../lang/tree-sitter.js';
-import { isDocsPath, isInfraConfigPath } from '../../../mode-routing.js';
+import { isDocsPath, shouldPreferInfraProse } from '../../../mode-routing.js';
 
 const TREE_SITTER_LANG_IDS = new Set(TREE_SITTER_LANGUAGE_IDS);
 const TREE_SITTER_EXT_MAP = new Map([
@@ -66,7 +66,7 @@ const resolveTreeSitterLanguageForEntry = (entry) => {
 
 const resolveTreeSitterBatchInfo = (entry, treeSitterOptions) => {
   const relPath = typeof entry?.rel === 'string' ? entry.rel : '';
-  if (isInfraConfigPath(relPath)) return { key: 'none', languages: [] };
+  if (shouldPreferInfraProse({ relPath })) return { key: 'none', languages: [] };
   const primary = resolveTreeSitterLanguageForEntry(entry);
   if (!primary) return { key: 'none', languages: [] };
   if (isDocsPath(relPath) && DOC_TREE_SITTER_SKIP_LANGUAGES.has(primary)) {

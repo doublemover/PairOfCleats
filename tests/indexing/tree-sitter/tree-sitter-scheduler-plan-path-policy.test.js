@@ -12,6 +12,7 @@ const root = process.cwd();
 const outDir = path.join(root, '.testCache', 'tree-sitter-scheduler-plan-path-policy', 'index-code');
 const fixtureDir = path.join(root, '.testCache', 'tree-sitter-scheduler-plan-path-policy', 'fixtures');
 const infraAbs = path.join(fixtureDir, 'workflow.yml');
+const actionAbs = path.join(fixtureDir, 'action.js');
 const vendorAbs = path.join(fixtureDir, 'json.hpp');
 const swiftHeavyAbs = path.join(fixtureDir, 'swift-heavy.swift');
 const opencvHeavyAbs = path.join(fixtureDir, 'opencv-heavy.hpp');
@@ -22,6 +23,7 @@ await fs.rm(path.join(root, '.testCache', 'tree-sitter-scheduler-plan-path-polic
 await fs.mkdir(outDir, { recursive: true });
 await fs.mkdir(fixtureDir, { recursive: true });
 await fs.writeFile(infraAbs, 'name: CI\non: push\n', 'utf8');
+await fs.writeFile(actionAbs, 'export const run = () => 1;\n', 'utf8');
 await fs.writeFile(vendorAbs, '#pragma once\nnamespace nlohmann {}\n', 'utf8');
 await fs.writeFile(swiftHeavyAbs, 'public struct X { public init() {} }\n', 'utf8');
 await fs.writeFile(opencvHeavyAbs, '#pragma once\nnamespace cv { namespace hal {} }\n', 'utf8');
@@ -43,6 +45,7 @@ const planResult = await buildTreeSitterSchedulerPlan({
   runtime,
   entries: [
     { abs: infraAbs, rel: '.github/workflows/ci.yml', ext: '.yml' },
+    { abs: actionAbs, rel: '.github/actions/my-action/index.js', ext: '.js' },
     { abs: vendorAbs, rel: 'include/nlohmann/json.hpp', ext: '.hpp' },
     { abs: swiftHeavyAbs, rel: 'test/api-digester/Inputs/SDK.swift', ext: '.swift' },
     { abs: opencvHeavyAbs, rel: 'modules/core/include/opencv2/core/hal/intrin.hpp', ext: '.hpp' },
@@ -63,8 +66,12 @@ assert.ok(
   'expected normal js fixture to remain scheduled'
 );
 assert.ok(
-  !allJobs.some((job) => job.containerPath === '.github/workflows/ci.yml'),
-  'expected infra workflow path to be excluded from scheduler plan'
+  allJobs.some((job) => job.containerPath === '.github/workflows/ci.yml'),
+  'expected structured infra workflow path to remain in scheduler plan'
+);
+assert.ok(
+  allJobs.some((job) => job.containerPath === '.github/actions/my-action/index.js'),
+  'expected structured infra action source path to remain in scheduler plan'
 );
 assert.ok(
   !allJobs.some((job) => job.containerPath === 'include/nlohmann/json.hpp'),

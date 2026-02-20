@@ -1,5 +1,5 @@
 import { toPosix } from '../../../shared/files.js';
-import { isDocsPath, isInfraConfigPath } from '../mode-routing.js';
+import { isDocsPath, shouldPreferInfraProse } from '../mode-routing.js';
 
 const DOC_TREE_SITTER_SKIP_LANGUAGES = new Set([
   'yaml',
@@ -67,7 +67,7 @@ export const shouldSkipTreeSitterPlanningForPath = ({ relKey, languageId }) => {
   if (!relKey) return false;
   const normalizedLanguageId = languageId || '';
   if (isGeneratedTreeSitterPath(relKey)) return true;
-  if (isInfraConfigPath(relKey)) return true;
+  if (shouldPreferInfraProse({ relPath: relKey })) return true;
   if (isDocsPath(relKey) && DOC_TREE_SITTER_SKIP_LANGUAGES.has(normalizedLanguageId)) return true;
   if (!HEAVY_TREE_SITTER_LANGUAGES.has(normalizedLanguageId)) return false;
   const normalized = toPosix(String(relKey)).toLowerCase();
