@@ -132,8 +132,13 @@ const cases = [
   {
     label: 'r',
     fn: collectRImports,
-    text: 'library(ggplot2)\nrequire(\"dplyr\")',
-    expected: ['ggplot2', 'dplyr']
+    text: [
+      'library(ggplot2)',
+      'require(\"dplyr\")',
+      'requireNamespace(\"jsonlite\")',
+      'source(\"R/helpers.R\")'
+    ].join('\n'),
+    expected: ['ggplot2', 'dplyr', 'jsonlite', 'R/helpers.R']
   },
   {
     label: 'julia',

@@ -107,8 +107,8 @@
       "maxLines": 6000
     },
     "r": {
-      "maxBytes": 262144,
-      "maxLines": 4500
+      "maxBytes": 327680,
+      "maxLines": 5500
     },
     "razor": {
       "maxBytes": 229376,
@@ -291,9 +291,9 @@
       "maxParseMs": 1800
     },
     "r": {
-      "maxBytes": 262144,
-      "maxLines": 4500,
-      "maxParseMs": 1400
+      "maxBytes": 327680,
+      "maxLines": 5500,
+      "maxParseMs": 1600
     },
     "razor": {
       "maxBytes": 229376,
