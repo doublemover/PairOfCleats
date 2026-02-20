@@ -51,10 +51,23 @@ const ensureArray = (value) => (Array.isArray(value) ? value : []);
 
 const escapeRegex = (value) => value.replace(/[|\\{}()[\]^$+?.]/g, '\\$&');
 const hasGlobTokens = (value) => /[*?]/.test(value);
+
+/**
+ * Convert a simple glob pattern (`*`, `?`) into an anchored regular expression.
+ *
+ * @param {string} pattern
+ * @returns {RegExp}
+ */
 const globToRegex = (pattern) => (
   new RegExp(`^${escapeRegex(pattern).replace(/\\\*/g, '.*').replace(/\\\?/g, '.')}$`)
 );
 
+/**
+ * Extract unique inline-code references from markdown-like text.
+ *
+ * @param {string} text
+ * @returns {string[]}
+ */
 const extractInlineCodeReferences = (text) => {
   const refs = new Set();
   for (const match of text.matchAll(/`([^`\r\n]+)`/g)) {

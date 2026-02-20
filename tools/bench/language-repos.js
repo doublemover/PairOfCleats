@@ -241,6 +241,14 @@ const setBenchInFlightFraction = (value, { refresh = true } = {}) => {
   benchInFlightFraction = next;
   if (refresh) updateBenchProgress();
 };
+
+/**
+ * Consume child progress events and map them onto the interactive bench task
+ * renderer plus repo-level in-flight progress state.
+ *
+ * @param {object} event
+ * @returns {void}
+ */
 const handleProgressEvent = (event) => {
   if (!event || typeof event !== 'object') return;
   if (event.event === 'log') {
@@ -360,6 +368,12 @@ process.on('unhandledRejection', (err) => {
   exitWithDisplay(1);
 });
 
+/**
+ * Run configured USR guardrail benchmark scripts and collect summary rows.
+ * Failures are recorded per-item so language benchmark execution can continue.
+ *
+ * @returns {Promise<Array<object>>}
+ */
 const runUsrGuardrailBenchmarks = async () => {
   if (!USR_GUARDRAIL_BENCHMARKS.length) return [];
   const outputDir = path.join(resultsRoot, 'usr');
@@ -611,6 +625,13 @@ const completeBenchRepo = () => {
 };
 updateBenchProgress();
 
+/**
+ * Remove a repo-scoped cache directory after a bench run while guarding
+ * against deleting paths outside the configured cache root.
+ *
+ * @param {{repoCacheRoot:string,repoLabel:string}} input
+ * @returns {Promise<void>}
+ */
 const cleanRepoCache = async ({ repoCacheRoot, repoLabel }) => {
   if (keepCache || dryRun || !repoCacheRoot) return;
   try {

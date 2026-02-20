@@ -116,6 +116,14 @@ const buildUsrGateSteps = (diagnosticsDir) => USR_GUARDRAIL_GATES.map((gate) => 
   ]
 }));
 
+/**
+ * Execute a CI suite step and throw when the child exits non-zero.
+ *
+ * @param {{label:string,command:string,args:string[],cwd?:string}} step
+ * @param {NodeJS.ProcessEnv} env
+ * @param {boolean} dryRun
+ * @returns {Promise<void>}
+ */
 const runStep = async (step, env, dryRun) => {
   const commandLine = renderCommand(step.command, step.args);
   if (dryRun) {
