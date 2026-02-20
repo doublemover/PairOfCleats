@@ -220,6 +220,20 @@ const looksLikePathSpecifier = (spec) => {
   return PATH_LIKE_SPEC_EXTS.has(ext);
 };
 
+const resolveUnittestsProjectRootCandidate = ({ rawSpec, importerInfo }) => {
+  if (typeof rawSpec !== 'string' || !rawSpec.startsWith('../')) return null;
+  const importerRel = normalizeRelPath(importerInfo?.importerRel);
+  if (!importerRel) return null;
+  const parts = importerRel.split('/').filter(Boolean);
+  const unittestsIndex = parts.indexOf('unittests');
+  if (unittestsIndex <= 0) return null;
+  const projectRoot = parts.slice(0, unittestsIndex).join('/');
+  if (!projectRoot) return null;
+  const strippedSpec = normalizeRelPath(rawSpec.replace(/^(?:\.\.\/)+/, ''));
+  if (!strippedSpec || strippedSpec.startsWith('/')) return null;
+  return normalizeRelPath(`${projectRoot}/${strippedSpec}`);
+};
+
 const resolvePathLikeImport = ({ spec, importerInfo, lookup }) => {
   const rawSpec = toPosix(String(spec || '')).trim();
   if (!rawSpec) return null;
@@ -242,8 +256,13 @@ const resolvePathLikeImport = ({ spec, importerInfo, lookup }) => {
     }
     const normalizedLabel = normalizeRelPath(label);
     if (!normalizedLabel) return null;
+    const labelCandidates = [normalizedLabel];
+    if (label.startsWith('./') || label.startsWith('../')) {
+      const importerAnchored = normalizeRelPath(path.posix.join(importerInfo.importerDir, label));
+      if (importerAnchored) labelCandidates.unshift(importerAnchored);
+    }
     return resolveFromCandidateList(
-      expandPathLikeCandidates({ importerInfo, candidates: [normalizedLabel] }),
+      expandPathLikeCandidates({ importerInfo, candidates: labelCandidates }),
       lookup
     );
   }
@@ -265,8 +284,12 @@ const resolvePathLikeImport = ({ spec, importerInfo, lookup }) => {
   }
   if (rawSpec.startsWith('./') || rawSpec.startsWith('../')) {
     const joined = normalizeRelPath(path.posix.join(importerInfo.importerDir, rawSpec));
+    const unittestsRootCandidate = resolveUnittestsProjectRootCandidate({ rawSpec, importerInfo });
     return resolveFromCandidateList(
-      expandPathLikeCandidates({ importerInfo, candidates: [joined] }),
+      expandPathLikeCandidates({
+        importerInfo,
+        candidates: [joined, unittestsRootCandidate]
+      }),
       lookup
     );
   }
@@ -276,7 +299,10 @@ const resolvePathLikeImport = ({ spec, importerInfo, lookup }) => {
     return resolveFromCandidateList(
       expandPathLikeCandidates({
         importerInfo,
-        candidates: [path.posix.join(importerInfo.importerDir, normalizedSpec)]
+        candidates: [
+          path.posix.join(importerInfo.importerDir, normalizedSpec),
+          normalizedSpec
+        ]
       }),
       lookup
     );
@@ -547,6 +573,10 @@ export const resolveLanguageRelativeImport = ({ spec, base, importerInfo, lookup
     return resolveWithLanguageExtensions({ base, lookup, extensions: ['.php'] });
   }
   if (importerInfo.isShell) {
+    if (looksLikePathSpecifier(spec)) {
+      const pathLikeResolved = resolvePathLikeImport({ spec, importerInfo, lookup });
+      if (pathLikeResolved) return pathLikeResolved;
+    }
     return resolveWithLanguageExtensions({ base, lookup, extensions: ['.sh'] });
   }
   if (importerInfo.isRust) {

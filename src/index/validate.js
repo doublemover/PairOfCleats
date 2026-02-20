@@ -772,7 +772,7 @@ export async function validateIndexArtifacts(input = {}) {
         }
       }
 
-      const fieldPostingsRaw = readJsonArtifact('field_postings');
+      const fieldPostingsRaw = readJsonArtifact('field_postings', { allowOversize: true });
       const fieldPostings = normalizeFieldPostings(fieldPostingsRaw);
       if (fieldPostings) {
         validateSchema(report, mode, 'field_postings', fieldPostings, 'Rebuild index artifacts for this mode.', { strictSchema: strict });

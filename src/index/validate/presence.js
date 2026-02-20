@@ -81,7 +81,7 @@ export const createArtifactPresenceHelpers = ({
     return presence;
   };
 
-  const readJsonArtifact = (name, { required = false } = {}) => {
+  const readJsonArtifact = (name, { required = false, allowOversize = false } = {}) => {
     try {
       if (strict && manifest) {
         const presence = resolvePresence(name);
@@ -103,6 +103,12 @@ export const createArtifactPresenceHelpers = ({
       }
       return readJsonFile(jsonPath, { maxBytes: resolveMaxBytes(name) });
     } catch (err) {
+      if (allowOversize && err?.code === 'ERR_JSON_TOO_LARGE') {
+        const warning = `${name} load skipped (${err?.message || err})`;
+        modeReport.warnings.push(warning);
+        report.warnings.push(`[${mode}] ${warning}`);
+        return null;
+      }
       addIssue(report, mode, `${name} load failed (${err?.message || err})`, 'Rebuild index artifacts for this mode.');
       if (required) modeReport.ok = false;
       return null;
