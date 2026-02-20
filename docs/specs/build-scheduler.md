@@ -1,119 +1,118 @@
 # Build Scheduler Spec
 
+Status: Active v2.0  
+Last updated: 2026-02-20T00:00:00Z
+
 ## Goals
-- Provide a single scheduler that caps CPU, IO, and memory usage across Stage1, Stage2, Stage4, and embeddings.
-- Prevent starvation and uncontrolled backlog growth.
-- Provide deterministic, observable scheduling decisions for debugging and benchmarks.
-- Allow a low-overhead bypass for small repos.
+
+- Provide a single scheduler that caps CPU, IO, and memory usage across indexing stages.
+- Prevent starvation and long-tail stalls.
+- Support adaptive scheduling by file/language cost.
+- Provide deterministic scheduling telemetry.
 
 ## Non-goals
+
 - GPU scheduling.
-- Distributed scheduling across machines.
-- Preempting running work units (no task suspension).
+- Distributed/multi-host scheduling.
+- Task preemption/suspension of running units.
 
 ## Scope
-Applies to indexing pipeline stages and embeddings runner. The scheduler owns admission control, concurrency caps, and queue fairness. It does not alter stage semantics or outputs.
 
-## Definitions
-- Work unit: A single scheduled operation (file process, relations batch, sqlite load chunk, embeddings batch).
-- Token: A unit of resource capacity (CPU, IO, memory) reserved by a work unit.
-- Queue: A logical group of work units with shared priority and fairness.
-- Scheduler: The component that grants tokens and orders work.
+Scheduler owns admission control, concurrency caps, fairness, and backpressure behavior. It does not alter stage semantics.
 
-## Resource Model
-### CPU tokens
-- Represent active compute work.
-- Default size: min(available cores, configured cap).
+## Work model
 
-### IO tokens
-- Represent concurrent IO operations (reads/writes).
-- Default size: configured cap (threadpool aware).
+- Work unit: one schedulable operation.
+- Resource tokens: `cpu`, `io`, `mem`.
+- Cost class: `small`, `medium`, `large`, `xlarge`.
+- Language cost class: per-language heavy/light categorization used for admission throttling.
 
-### Memory tokens
-- Represent estimated heap usage for a work unit.
-- Work units declare a memory budget category (small, medium, large).
+## Queue and fairness policy
 
-## Backpressure Algorithm
-- A work unit requests tokens for CPU, IO, and memory as declared.
-- If any token pool is exhausted, the work unit remains queued.
-- Fairness uses weighted round-robin across queues.
-- Starvation prevention: if a queue has waited longer than a threshold, it receives a priority boost.
+- Weighted round-robin across queue classes.
+- Starvation boost after `starvationMs` wait threshold.
+- Short-job bias: scheduler may prefer ready short units to reduce tail latency.
+- Work-stealing: idle workers may steal from overloaded queues under deterministic tie-break rules.
+
+## Memory-pressure policy
+
+Scheduler tracks memory pressure states:
+
+- `normal`
+- `soft-pressure`
+- `hard-pressure`
+
+Required behavior:
+
+1. Soft pressure reduces heavy-language concurrency.
+2. Hard pressure blocks new heavy units and prioritizes completions.
+3. Cache eviction uses deterministic order: largest-first, then oldest-first tie-break.
 
 ## Scheduler API
-- schedule(queueName, tokens, fn): submit work unit.
-- configure(limits): update token pool sizes.
-- stats(): return queue sizes, token usage, and wait times.
-- shutdown(): stop accepting new work and drain queues.
 
-## Queue Classes
-- stage1.cpu
-- stage1.io
-- stage1.postings
-- stage2.relations
-- stage4.sqlite
-- embeddings.compute
-- embeddings.io
+- `schedule(queueName, tokens, fn)`
+- `configure(limits)`
+- `stats()`
+- `shutdown()`
 
-Queues are prioritized in the order above, with fairness within each priority tier.
+## Config schema
 
-## Config Schema
-- Config location: `indexing.scheduler` in config.
-- scheduler.enabled: boolean (default true for large repos).
-- scheduler.cpuTokens: integer.
-- scheduler.ioTokens: integer.
-- scheduler.memoryTokens: integer.
-- scheduler.lowResourceMode: boolean (force bypass below thresholds).
-- scheduler.starvationMs: integer.
-- scheduler.queues.{queue}.priority: integer.
-- scheduler.queues.{queue}.maxPending: integer.
+`indexing.scheduler`:
 
-### Env overrides
+- `enabled`
+- `cpuTokens`
+- `ioTokens`
+- `memoryTokens`
+- `starvationMs`
+- `lowResourceMode`
+- `languageCostClasses`
+- `heavyLanguageMaxConcurrency`
+- `memoryWatermarks.soft`
+- `memoryWatermarks.hard`
+
+## Env/CLI overrides
+
+Env:
+
 - `PAIROFCLEATS_SCHEDULER`
 - `PAIROFCLEATS_SCHEDULER_CPU`
 - `PAIROFCLEATS_SCHEDULER_IO`
 - `PAIROFCLEATS_SCHEDULER_MEM`
-- `PAIROFCLEATS_SCHEDULER_LOW_RESOURCE`
 - `PAIROFCLEATS_SCHEDULER_STARVATION_MS`
 
-### CLI overrides
+CLI:
+
 - `--scheduler` / `--no-scheduler`
 - `--scheduler-cpu`
 - `--scheduler-io`
 - `--scheduler-mem`
-- `--scheduler-low-resource` / `--no-scheduler-low-resource`
 - `--scheduler-starvation`
 
-### Config precedence
-1) CLI flags
-2) Env vars
-3) Config file
-4) Defaults
+Precedence:
 
-## Failure and Abort Semantics
-- If a work unit throws, the scheduler surfaces the error to the caller and marks the unit failed.
-- Aborts propagate: queued units are cancelled and running units are allowed to finish.
-- Retry is explicit: the caller may reschedule failed units.
+1. CLI
+2. Env
+3. Config file
+4. Defaults
 
 ## Telemetry
+
 Required counters:
-- scheduler.queueDepth.{queue}
-- scheduler.tokens.inUse.{cpu,io,mem}
-- scheduler.waitMs.{queue}
-- scheduler.starvationBoosts
 
-Required logs:
-- queue admission
-- starvation boost
-- scheduler bypass activation
+- queue depth by queue
+- token usage by resource
+- wait time by queue
+- starvation boosts
+- work-steal counts
+- pressure state transitions
+- heavy-language throttle activations
 
-## Low Resource Mode
-- Bypasses scheduler when file count and total bytes are below thresholds.
-- Thresholds are defined in config.
+## Failure and abort semantics
 
-## Examples
-Pseudo-usage:
-- schedule("stage1.cpu", {cpu:1, mem:"small"}, processFile)
-- schedule("stage1.io", {io:1, mem:"small"}, readFile)
+- Work unit errors propagate to caller.
+- Aborts cancel queued work; running work completes or exits by stage-specific cancellation policy.
+- Scheduler shutdown drains queues deterministically.
 
-## Breaking Changes
-No backward compatibility requirements. Config keys are authoritative in this spec.
+## Compatibility policy
+
+No legacy scheduler behavior is retained.

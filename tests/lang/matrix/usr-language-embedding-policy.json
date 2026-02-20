@@ -81,6 +81,12 @@
       ]
     },
     {
+      "languageId": "ini",
+      "canHostEmbedded": false,
+      "canBeEmbedded": true,
+      "embeddedLanguageAllowlist": []
+    },
+    {
       "languageId": "java",
       "canHostEmbedded": false,
       "canBeEmbedded": false,
@@ -107,6 +113,12 @@
         "javascript",
         "typescript"
       ]
+    },
+    {
+      "languageId": "json",
+      "canHostEmbedded": false,
+      "canBeEmbedded": true,
+      "embeddedLanguageAllowlist": []
     },
     {
       "languageId": "julia",
@@ -232,6 +244,12 @@
       "embeddedLanguageAllowlist": []
     },
     {
+      "languageId": "toml",
+      "canHostEmbedded": false,
+      "canBeEmbedded": true,
+      "embeddedLanguageAllowlist": []
+    },
+    {
       "languageId": "typescript",
       "canHostEmbedded": true,
       "canBeEmbedded": true,
@@ -241,6 +259,18 @@
         "html",
         "sql"
       ]
+    },
+    {
+      "languageId": "xml",
+      "canHostEmbedded": false,
+      "canBeEmbedded": true,
+      "embeddedLanguageAllowlist": []
+    },
+    {
+      "languageId": "yaml",
+      "canHostEmbedded": false,
+      "canBeEmbedded": true,
+      "embeddedLanguageAllowlist": []
     }
   ]
 }

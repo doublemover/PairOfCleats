@@ -174,9 +174,14 @@
       "languageIds": [
         "cmake",
         "dockerfile",
+        "ini",
+        "json",
         "makefile",
         "nix",
-        "starlark"
+        "starlark",
+        "toml",
+        "xml",
+        "yaml"
       ],
       "dependsOn": [
         "B1"

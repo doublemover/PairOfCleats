@@ -1,55 +1,73 @@
 # Spec: Tree-sitter Native Scheduler Runtime
 
-Status: Active.
+Status: Active v2.0  
+Last updated: 2026-02-20T00:00:00Z
 
-Goal: run Stage1 tree-sitter chunking through a native-only, scheduler-driven pipeline with deterministic artifacts and strict failure behavior.
+## Goal
+
+Run Stage1 code-mode tree-sitter chunking through a native scheduler-driven pipeline with deterministic artifacts, bounded runtime, and strict failure behavior.
 
 ## Scope
-- Stage1 code-mode tree-sitter scheduling and execution.
+
+- Stage1 tree-sitter planning/execution.
 - Native grammar target resolution and preflight.
-- Scheduler artifact contracts used by file processing.
+- Parser pool lifecycle for scheduled grammar work.
+- Scheduler artifact contracts consumed by file processing.
 
 Out of scope:
-- Mixed native + WASM runtime strategies.
-- WASM preload/eviction lifecycle behavior.
+
+- Mixed native + WASM fallback runtime policy.
 
 ## Architecture
+
 - Planner: `src/index/build/tree-sitter-scheduler/plan.js`
-- Executor/subprocess runner:
-  - `src/index/build/tree-sitter-scheduler/executor.js`
-  - `src/index/build/tree-sitter-scheduler/runner.js`
-  - `src/index/build/tree-sitter-scheduler/subprocess-exec.js`
-- Lookup/cache: `src/index/build/tree-sitter-scheduler/lookup.js`
+- Executor/runner: `executor.js`, `runner.js`, `subprocess-exec.js`
+- Lookup/cache: `lookup.js`
 - Native runtime bindings: `src/lang/tree-sitter/native-runtime.js`
 
-## Scheduler Identity Contract
-- Scheduler batch identity is `grammarKey`.
-- Grammar keys are native-only and MUST use `native:<languageId>`.
-- `wasmKey` is not used in scheduler plans, jobs, indexes, or result rows.
+## Identity contract
 
-## Planner Contract
-- Eligible code segments are discovered from segment metadata and language routing.
-- Native target resolution MUST use `resolveNativeTreeSitterTarget(languageId, ext)`.
-- When tree-sitter strict mode is enabled:
-  - Missing native target MUST throw.
-  - Native grammar preflight failures MUST throw.
-- Planner output MUST include `requiredNativeLanguages` and deterministic `grammarKeys` ordering.
+- Batch identity: `grammarKey`.
+- Grammar keys must be native-only: `native:<languageId>`.
+- Scheduler manifests must include parser/grammar version metadata used by cache invalidation.
 
-## Executor Contract
-- Execution is grouped by `grammarKey` and run in subprocess isolation.
-- Parser activation MUST use native parser activation only.
-- Missing parser activation or empty chunk results in strict mode MUST throw.
-- Result manifests and index rows MUST be deterministic for identical input.
+## Parser lifecycle contract
 
-## Stage1 Integration Contract
-- With tree-sitter enabled in code mode, Stage1 MUST read tree-sitter chunks from scheduler artifacts.
-- Missing scheduler artifact rows/chunks for eligible segments MUST be treated as hard errors.
-- Context-window estimation and non-scheduler fallback paths MUST keep tree-sitter disabled.
+- Parser pools are keyed by grammar.
+- Pool size is bounded and subject to eviction policy.
+- Heavy grammars may be preloaded at runtime bootstrap.
+- Timeout policy scales by file size/line count/language historical parse cost.
+
+## Planner contract
+
+- Eligible code segments are routed by language and segment metadata.
+- Native target resolution must use canonical native target resolver.
+- Missing native targets or preflight failures are hard errors in strict mode.
+- Planner output ordering must be deterministic.
+
+## Executor contract
+
+- Execution groups by `grammarKey` in subprocess isolation.
+- Missing parser activation is a hard error in strict mode.
+- Empty chunk result for eligible inputs is a hard error in strict mode.
+- Output rows/manifests must be deterministic for identical inputs.
+
+## Stage1 integration
+
+- Stage1 reads tree-sitter chunks from scheduler artifacts when enabled.
+- Missing required artifact rows for eligible segments is a hard error.
+- Context-window estimation paths keep tree-sitter disabled unless explicitly enabled.
 
 ## Validation
+
 Minimum suite:
+
 - `tests/indexing/tree-sitter/tree-sitter-scheduler-native-smoke.test.js`
 - `tests/indexing/tree-sitter/tree-sitter-scheduler-native-plan-contract.test.js`
 - `tests/indexing/tree-sitter/tree-sitter-scheduler-native-determinism.test.js`
 - `tests/indexing/tree-sitter/tree-sitter-scheduler-stage1-contract.test.js`
 - `tests/indexing/tree-sitter/tree-sitter-scheduler-swift-subprocess.test.js`
+
+## Compatibility policy
+
+No legacy scheduler keying or runtime fallback aliases are supported.
