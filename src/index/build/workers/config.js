@@ -1,4 +1,5 @@
 import os from 'node:os';
+import { getEnvConfig } from '../../../shared/env.js';
 
 const normalizeEnabled = (raw) => {
   if (raw === true || raw === false) return raw;
@@ -57,9 +58,12 @@ export const resolveMemoryWorkerCap = (requested) => {
  * @returns {{targetPerWorkerMb:number,minPerWorkerMb:number,maxPerWorkerMb:number}}
  */
 export const resolveWorkerHeapBudgetPolicy = (options = {}) => {
-  const envTargetMb = parsePositiveInt(process.env.PAIROFCLEATS_WORKER_POOL_HEAP_TARGET_MB);
-  const envMinMb = parsePositiveInt(process.env.PAIROFCLEATS_WORKER_POOL_HEAP_MIN_MB);
-  const envMaxMb = parsePositiveInt(process.env.PAIROFCLEATS_WORKER_POOL_HEAP_MAX_MB);
+  const envConfig = options?.envConfig && typeof options.envConfig === 'object'
+    ? options.envConfig
+    : getEnvConfig();
+  const envTargetMb = parsePositiveInt(envConfig?.workerPoolHeapTargetMb);
+  const envMinMb = parsePositiveInt(envConfig?.workerPoolHeapMinMb);
+  const envMaxMb = parsePositiveInt(envConfig?.workerPoolHeapMaxMb);
   const totalMemMb = Math.floor(os.totalmem() / (1024 * 1024));
   const autoTargetMb = Number.isFinite(totalMemMb) && totalMemMb >= 65536
     ? WORKER_HEAP_TARGET_MAX_MB
