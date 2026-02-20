@@ -9,6 +9,12 @@ const normalizeEnabled = (raw) => {
   return 'auto';
 };
 
+const parsePositiveInt = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return Math.max(1, Math.floor(parsed));
+};
+
 export const buildWorkerExecArgv = () => process.execArgv.filter((arg) => {
   if (!arg) return false;
   return !arg.startsWith('--max-old-space-size')
@@ -50,12 +56,18 @@ const parseMaxOldSpaceMb = () => {
   return null;
 };
 
-export const resolveWorkerResourceLimits = (maxWorkers) => {
+export const resolveWorkerResourceLimits = (maxWorkers, options = {}) => {
   const workerCount = Math.max(1, Math.floor(Number(maxWorkers) || 0));
   if (!Number.isFinite(workerCount) || workerCount <= 0) return null;
 
   const totalMemMb = Math.floor(os.totalmem() / (1024 * 1024));
   const maxOldSpaceMb = parseMaxOldSpaceMb();
+  const envTargetMb = parsePositiveInt(process.env.PAIROFCLEATS_WORKER_POOL_HEAP_TARGET_MB);
+  const envMinMb = parsePositiveInt(process.env.PAIROFCLEATS_WORKER_POOL_HEAP_MIN_MB);
+  const envMaxMb = parsePositiveInt(process.env.PAIROFCLEATS_WORKER_POOL_HEAP_MAX_MB);
+  const targetPerWorkerMb = parsePositiveInt(options.targetPerWorkerMb) || envTargetMb;
+  const minPerWorkerMb = parsePositiveInt(options.minPerWorkerMb) || envMinMb;
+  const maxPerWorkerMb = parsePositiveInt(options.maxPerWorkerMb) || envMaxMb;
 
   // Budget worker heaps based on either the explicitly configured
   // --max-old-space-size or a conservative fraction of system RAM.
@@ -72,9 +84,10 @@ export const resolveWorkerResourceLimits = (maxWorkers) => {
     // basis (we still apply a physical-RAM cap below).
     budgetMb = Math.floor(maxOldSpaceMb);
   } else if (Number.isFinite(totalMemMb) && totalMemMb > 0) {
-    // Without an explicit heap budget, stay conservative by default.
-    const defaultBasisCapMb = 8192;
-    budgetMb = Math.min(defaultBasisCapMb, Math.floor(totalMemMb * 0.75));
+    // Without an explicit heap budget, allow a larger basis so each worker can
+    // run with 1-2GB heaps on large hosts without artificial throttling.
+    const defaultBasisCapMb = 32768;
+    budgetMb = Math.min(defaultBasisCapMb, Math.floor(totalMemMb * 0.8));
   }
   if (!Number.isFinite(budgetMb) || budgetMb <= 0) return null;
 
@@ -87,10 +100,29 @@ export const resolveWorkerResourceLimits = (maxWorkers) => {
 
   // Split the budget across workers while leaving one "share" for the main
   // process.
-  const perWorker = Math.floor(budgetMb / (workerCount + 1));
-  const minMb = 256;
+  const perWorkerBudgetMb = Math.floor(budgetMb / (workerCount + 1));
+  const autoTargetMb = Number.isFinite(totalMemMb) && totalMemMb >= 65536
+    ? 2048
+    : Number.isFinite(totalMemMb) && totalMemMb >= 32768
+      ? 1536
+      : Number.isFinite(totalMemMb) && totalMemMb >= 16384
+        ? 1024
+        : 768;
+  const boostedBudgetTargetMb = perWorkerBudgetMb > 0
+    ? Math.floor(perWorkerBudgetMb * 1.25)
+    : autoTargetMb;
+  const desiredTargetMb = Math.min(
+    targetPerWorkerMb || autoTargetMb,
+    boostedBudgetTargetMb
+  );
+  const defaultMinMb = 512;
   const platformCap = process.platform === 'win32' ? 8192 : 16384;
-  const capped = Math.max(minMb, Math.min(platformCap, perWorker));
+  const minMb = Math.max(256, minPerWorkerMb || defaultMinMb);
+  const maxMb = Math.max(minMb, Math.min(platformCap, maxPerWorkerMb || platformCap));
+  const capped = Math.max(
+    minMb,
+    Math.min(maxMb, Math.max(perWorkerBudgetMb, desiredTargetMb))
+  );
   return { maxOldGenerationSizeMb: capped };
 };
 
@@ -160,6 +192,15 @@ export function normalizeWorkerPoolConfig(raw = {}, options = {}) {
   const quantizeMaxWorkers = Number.isFinite(quantizeMaxWorkersRaw) && quantizeMaxWorkersRaw > 0
     ? Math.max(1, Math.floor(quantizeMaxWorkersRaw))
     : null;
+  const heapTargetMb = parsePositiveInt(raw.heapTargetMb);
+  const heapMinMb = parsePositiveInt(raw.heapMinMb);
+  const heapMaxMb = parsePositiveInt(raw.heapMaxMb);
+  const normalizedHeapMinMb = heapMinMb != null && heapMaxMb != null
+    ? Math.min(heapMinMb, heapMaxMb)
+    : heapMinMb;
+  const normalizedHeapMaxMb = heapMaxMb != null && normalizedHeapMinMb != null
+    ? Math.max(heapMaxMb, normalizedHeapMinMb)
+    : heapMaxMb;
   return {
     enabled,
     maxWorkers,
@@ -169,7 +210,10 @@ export function normalizeWorkerPoolConfig(raw = {}, options = {}) {
     taskTimeoutMs,
     quantizeBatchSize,
     splitByTask,
-    quantizeMaxWorkers
+    quantizeMaxWorkers,
+    heapTargetMb,
+    heapMinMb: normalizedHeapMinMb,
+    heapMaxMb: normalizedHeapMaxMb
   };
 }
 
@@ -185,6 +229,9 @@ export function resolveWorkerPoolConfig(raw = {}, envConfig = null, options = {}
   const override = typeof envConfig?.workerPool === 'string'
     ? envConfig.workerPool.trim().toLowerCase()
     : '';
+  const hardMaxWorkers = Number.isFinite(options?.hardMaxWorkers)
+    ? Math.max(1, Math.floor(options.hardMaxWorkers))
+    : null;
   if (override) {
     if (['0', 'false', 'off', 'disable', 'disabled'].includes(override)) {
       config.enabled = false;
@@ -193,6 +240,24 @@ export function resolveWorkerPoolConfig(raw = {}, envConfig = null, options = {}
     } else if (override === 'auto') {
       config.enabled = 'auto';
     }
+  }
+  const maxWorkersOverride = parsePositiveInt(envConfig?.workerPoolMaxWorkers);
+  if (maxWorkersOverride != null) {
+    config.maxWorkers = hardMaxWorkers != null
+      ? Math.min(maxWorkersOverride, hardMaxWorkers)
+      : maxWorkersOverride;
+  }
+  const heapTargetOverride = parsePositiveInt(envConfig?.workerPoolHeapTargetMb);
+  const heapMinOverride = parsePositiveInt(envConfig?.workerPoolHeapMinMb);
+  const heapMaxOverride = parsePositiveInt(envConfig?.workerPoolHeapMaxMb);
+  if (heapTargetOverride != null) config.heapTargetMb = heapTargetOverride;
+  if (heapMinOverride != null) config.heapMinMb = heapMinOverride;
+  if (heapMaxOverride != null) config.heapMaxMb = heapMaxOverride;
+  if (config.heapMinMb != null && config.heapMaxMb != null && config.heapMinMb > config.heapMaxMb) {
+    const nextMin = Math.min(config.heapMinMb, config.heapMaxMb);
+    const nextMax = Math.max(config.heapMinMb, config.heapMaxMb);
+    config.heapMinMb = nextMin;
+    config.heapMaxMb = nextMax;
   }
   return config;
 }
