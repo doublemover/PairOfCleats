@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-20T09:31:38.491Z",
+  "generatedAt": "2026-02-20T16:52:05.310Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2406,11 +2406,41 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_PREFER_MEMORY_BACKEND_ON_CACHE_HIT",
+      "files": [
+        "src/shared/env.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_PROFILE",
       "files": [
         "tests/tooling/fixtures/fixture-parity.test.js",
         "tests/tooling/structural/structural-search.test.js",
         "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_QUERY_CACHE_MEMORY_FRESH_MS",
+      "files": [
+        "src/shared/env.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_QUERY_CACHE_PREWARM",
+      "files": [
+        "src/shared/env.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_QUERY_CACHE_PREWARM_MAX_ENTRIES",
+      "files": [
+        "src/shared/env.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_QUERY_CACHE_STRATEGY",
+      "files": [
+        "src/shared/env.js"
       ]
     },
     {
@@ -2429,6 +2459,18 @@
         "tools/bench/index/scheduler-build.js",
         "tools/bench/index/scheduler-store-format.js",
         "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_SCHEDULER_ADAPTIVE",
+      "files": [
+        "src/shared/env.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_SCHEDULER_ADAPTIVE_STEP",
+      "files": [
+        "src/shared/env.js"
       ]
     },
     {
@@ -2455,6 +2497,24 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_SCHEDULER_MAX_CPU",
+      "files": [
+        "src/shared/env.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_SCHEDULER_MAX_IO",
+      "files": [
+        "src/shared/env.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_SCHEDULER_MAX_MEM",
+      "files": [
+        "src/shared/env.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_SCHEDULER_MEM",
       "files": [
         "src/shared/env.js",
@@ -2463,10 +2523,40 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_SCHEDULER_MEMORY_PER_TOKEN_MB",
+      "files": [
+        "src/shared/env.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_SCHEDULER_MEMORY_RESERVE_MB",
+      "files": [
+        "src/shared/env.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_SCHEDULER_STARVATION_MS",
       "files": [
         "src/shared/env.js",
         "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_SCHEDULER_TARGET_UTILIZATION",
+      "files": [
+        "src/shared/env.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_SCHEDULER_UTILIZATION_ALERT_TARGET",
+      "files": [
+        "src/shared/env.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_SCHEDULER_UTILIZATION_ALERT_WINDOW_MS",
+      "files": [
+        "src/shared/env.js"
       ]
     },
     {
@@ -2536,11 +2626,41 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_SQLITE_FTS_OVERFETCH_CHUNK_SIZE",
+      "files": [
+        "src/shared/env.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_SQLITE_FTS_OVERFETCH_ROW_CAP",
+      "files": [
+        "src/shared/env.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_SQLITE_FTS_OVERFETCH_TIME_BUDGET_MS",
+      "files": [
+        "src/shared/env.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_SQLITE_TAIL_LATENCY_TUNING",
+      "files": [
+        "src/shared/env.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_STAGE",
       "files": [
         "src/shared/env.js",
         "tests/indexing/postings/vector-only-missing-embeddings-is-error.test.js",
         "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_STORAGE_TIER",
+      "files": [
+        "src/shared/env.js"
       ]
     },
     {
@@ -2917,6 +3037,33 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_WORKER_POOL_HEAP_MAX_MB",
+      "files": [
+        "src/index/build/workers/config.js",
+        "src/shared/env.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_WORKER_POOL_HEAP_MIN_MB",
+      "files": [
+        "src/index/build/workers/config.js",
+        "src/shared/env.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_WORKER_POOL_HEAP_TARGET_MB",
+      "files": [
+        "src/index/build/workers/config.js",
+        "src/shared/env.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_WORKER_POOL_MAX_WORKERS",
+      "files": [
+        "src/shared/env.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_XXHASH_BACKEND",
       "files": [
         "src/shared/env.js",
@@ -2927,7 +3074,32 @@
   "envVarsPublic": [
     "PAIROFCLEATS_API_TOKEN"
   ],
-  "envVarsUnknown": [],
+  "envVarsUnknown": [
+    "PAIROFCLEATS_PREFER_MEMORY_BACKEND_ON_CACHE_HIT",
+    "PAIROFCLEATS_QUERY_CACHE_MEMORY_FRESH_MS",
+    "PAIROFCLEATS_QUERY_CACHE_PREWARM",
+    "PAIROFCLEATS_QUERY_CACHE_PREWARM_MAX_ENTRIES",
+    "PAIROFCLEATS_QUERY_CACHE_STRATEGY",
+    "PAIROFCLEATS_SCHEDULER_ADAPTIVE",
+    "PAIROFCLEATS_SCHEDULER_ADAPTIVE_STEP",
+    "PAIROFCLEATS_SCHEDULER_MAX_CPU",
+    "PAIROFCLEATS_SCHEDULER_MAX_IO",
+    "PAIROFCLEATS_SCHEDULER_MAX_MEM",
+    "PAIROFCLEATS_SCHEDULER_MEMORY_PER_TOKEN_MB",
+    "PAIROFCLEATS_SCHEDULER_MEMORY_RESERVE_MB",
+    "PAIROFCLEATS_SCHEDULER_TARGET_UTILIZATION",
+    "PAIROFCLEATS_SCHEDULER_UTILIZATION_ALERT_TARGET",
+    "PAIROFCLEATS_SCHEDULER_UTILIZATION_ALERT_WINDOW_MS",
+    "PAIROFCLEATS_SQLITE_FTS_OVERFETCH_CHUNK_SIZE",
+    "PAIROFCLEATS_SQLITE_FTS_OVERFETCH_ROW_CAP",
+    "PAIROFCLEATS_SQLITE_FTS_OVERFETCH_TIME_BUDGET_MS",
+    "PAIROFCLEATS_SQLITE_TAIL_LATENCY_TUNING",
+    "PAIROFCLEATS_STORAGE_TIER",
+    "PAIROFCLEATS_WORKER_POOL_HEAP_MAX_MB",
+    "PAIROFCLEATS_WORKER_POOL_HEAP_MIN_MB",
+    "PAIROFCLEATS_WORKER_POOL_HEAP_TARGET_MB",
+    "PAIROFCLEATS_WORKER_POOL_MAX_WORKERS"
+  ],
   "cliFlags": {
     "totalFlags": 316,
     "publicFlags": [
