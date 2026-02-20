@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { MAX_JSON_BYTES } from '../constants.js';
 import { existsOrBak } from '../fs.js';
 import { readJsonFile, readJsonLinesArray, readJsonLinesArraySync, readJsonLinesIterator } from '../json.js';
@@ -14,6 +16,60 @@ const resolveManifestMaxBytes = (maxBytes) => (
   Number.isFinite(Number(maxBytes)) ? Number(maxBytes) : MAX_JSON_BYTES
 );
 
+const JSONL_EXTENSIONS = ['.jsonl', '.jsonl.gz', '.jsonl.zst'];
+
+const resolveLegacyOffsets = (paths) => {
+  if (!Array.isArray(paths) || !paths.length) return null;
+  const offsets = paths.map((partPath) => `${partPath}.offsets.bin`);
+  return offsets.every((offsetPath) => existsOrBak(offsetPath))
+    ? offsets
+    : null;
+};
+
+const resolveLegacyArraySources = ({ dir, name }) => {
+  for (const extension of JSONL_EXTENSIONS) {
+    const candidate = path.join(dir, `${name}${extension}`);
+    if (existsOrBak(candidate)) {
+      return {
+        format: 'jsonl',
+        paths: [candidate],
+        offsets: resolveLegacyOffsets([candidate])
+      };
+    }
+  }
+
+  const partsDir = path.join(dir, `${name}.parts`);
+  if (fs.existsSync(partsDir) && fs.statSync(partsDir).isDirectory()) {
+    const partPaths = fs.readdirSync(partsDir)
+      .filter((entry) => (
+        entry.startsWith(`${name}.part-`)
+        && (entry.endsWith('.jsonl') || entry.endsWith('.jsonl.gz') || entry.endsWith('.jsonl.zst'))
+      ))
+      .sort((a, b) => (a < b ? -1 : (a > b ? 1 : 0)))
+      .map((entry) => path.join(partsDir, entry))
+      .filter((candidatePath) => existsOrBak(candidatePath));
+    if (partPaths.length) {
+      return {
+        format: 'jsonl',
+        paths: partPaths,
+        offsets: resolveLegacyOffsets(partPaths)
+      };
+    }
+  }
+
+  const jsonPath = path.join(dir, `${name}.json`);
+  if (existsOrBak(jsonPath)) {
+    return { format: 'json', paths: [jsonPath] };
+  }
+
+  const columnarPath = path.join(dir, `${name}.columnar.json`);
+  if (existsOrBak(columnarPath)) {
+    return { format: 'columnar', paths: [columnarPath] };
+  }
+
+  return null;
+};
+
 const resolveRequiredSources = ({
   dir,
   manifest,
@@ -21,13 +77,16 @@ const resolveRequiredSources = ({
   maxBytes,
   strict
 }) => {
-  const sources = resolveManifestArtifactSources({
+  let sources = resolveManifestArtifactSources({
     dir,
     manifest,
     name,
     strict,
     maxBytes
   });
+  if (!sources?.paths?.length && !strict) {
+    sources = resolveLegacyArraySources({ dir, name });
+  }
   if (!sources?.paths?.length) {
     throw new Error(`Missing manifest entry for ${name}`);
   }
@@ -126,7 +185,7 @@ export const loadJsonArrayArtifact = async (
   const validationMode = strict ? 'strict' : 'trusted';
   const resolvedManifest = manifest || loadPiecesManifest(
     dir,
-    { maxBytes: resolveManifestMaxBytes(maxBytes), strict: true }
+    { maxBytes: resolveManifestMaxBytes(maxBytes), strict }
   );
   const sources = resolveRequiredSources({
     dir,
@@ -181,7 +240,7 @@ export const loadJsonArrayArtifactRows = async function* (
   const validationMode = strict ? 'strict' : 'trusted';
   const resolvedManifest = manifest || loadPiecesManifest(
     dir,
-    { maxBytes: resolveManifestMaxBytes(maxBytes), strict: true }
+    { maxBytes: resolveManifestMaxBytes(maxBytes), strict }
   );
   const resolvedKeys = requiredKeys ?? resolveJsonlRequiredKeys(baseName);
   void materialize;
@@ -281,7 +340,7 @@ export const loadFileMetaRows = async function* (
   const validationMode = strict ? 'strict' : 'trusted';
   const resolvedManifest = manifest || loadPiecesManifest(
     dir,
-    { maxBytes: resolveManifestMaxBytes(maxBytes), strict: true }
+    { maxBytes: resolveManifestMaxBytes(maxBytes), strict }
   );
   const resolvedKeys = resolveJsonlRequiredKeys('file_meta');
   void materialize;
@@ -374,7 +433,7 @@ export const loadJsonObjectArtifact = async (
 ) => {
   const resolvedManifest = manifest || loadPiecesManifest(
     dir,
-    { maxBytes: resolveManifestMaxBytes(maxBytes), strict: true }
+    { maxBytes: resolveManifestMaxBytes(maxBytes), strict }
   );
   const sources = resolveManifestArtifactSources({
     dir,
@@ -418,7 +477,7 @@ export const loadJsonObjectArtifactSync = (
 ) => {
   const resolvedManifest = manifest || loadPiecesManifest(
     dir,
-    { maxBytes: resolveManifestMaxBytes(maxBytes), strict: true }
+    { maxBytes: resolveManifestMaxBytes(maxBytes), strict }
   );
   const sources = resolveManifestArtifactSources({
     dir,
@@ -465,7 +524,7 @@ export const loadJsonArrayArtifactSync = (
   const validationMode = strict ? 'strict' : 'trusted';
   const resolvedManifest = manifest || loadPiecesManifest(
     dir,
-    { maxBytes: resolveManifestMaxBytes(maxBytes), strict: true }
+    { maxBytes: resolveManifestMaxBytes(maxBytes), strict }
   );
   const sources = resolveRequiredSources({
     dir,

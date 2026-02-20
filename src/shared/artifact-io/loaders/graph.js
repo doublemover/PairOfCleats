@@ -31,7 +31,7 @@ export const loadGraphRelations = async (
 ) => {
   const requiredKeys = resolveJsonlRequiredKeys('graph_relations');
   const validationMode = strict ? 'strict' : 'trusted';
-  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict: true });
+  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
   const sources = resolveManifestArtifactSources({
     dir,
     manifest: resolvedManifest,
@@ -80,7 +80,7 @@ export const loadGraphRelationsCsr = async (
     strict = true
   } = {}
 ) => {
-  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict: true });
+  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
   const sources = resolveManifestArtifactSources({
     dir,
     manifest: resolvedManifest,
@@ -123,7 +123,7 @@ export const loadGraphRelationsSync = (
 ) => {
   const requiredKeys = resolveJsonlRequiredKeys('graph_relations');
   const validationMode = strict ? 'strict' : 'trusted';
-  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict: true });
+  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
   const sources = resolveManifestArtifactSources({
     dir,
     manifest: resolvedManifest,
@@ -171,7 +171,7 @@ export const loadGraphRelationsCsrSync = (
     strict = true
   } = {}
 ) => {
-  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict: true });
+  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
   const sources = resolveManifestArtifactSources({
     dir,
     manifest: resolvedManifest,

@@ -123,7 +123,7 @@ const loadSymbolRowsForFile = async (
     strict = true
   } = {}
 ) => {
-  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict: true });
+  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
   let resolvedFileId = Number.isFinite(fileId) ? fileId : null;
   let resolvedFilePath = filePath || null;
   if ((!Number.isFinite(resolvedFileId) && filePath) || (!resolvedFilePath && Number.isFinite(resolvedFileId))) {
