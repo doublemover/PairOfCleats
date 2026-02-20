@@ -61,13 +61,13 @@ Intent: hard cutover to fully language-aware indexing, with no blind spots in ex
 
 #### 0.5.0 Phase prelude: shared baselines and execution discipline
 
-- [ ] Execute Phase 0.5 in this order: `0.5.40` (descriptor + manifest canon) -> `0.5.41` (caps telemetry/calibration) -> `0.5.1..0.5.39e` (language/framework implementation passes) -> `0.5.42` (performance optimization program).
-- [ ] Enforce shared-file workstreams to reduce thrash: one routing/descriptor workstream, one caps workstream, one fixture/test workstream; each shared file is patched once per workstream, not repeatedly per language.
-- [ ] Enforce a concrete per-subphase implementation contract for every `0.5.x` language/framework section:
+- [x] Execute Phase 0.5 in this order: `0.5.40` (descriptor + manifest canon) -> `0.5.41` (caps telemetry/calibration) -> `0.5.1..0.5.39e` (language/framework implementation passes) -> `0.5.42` (performance optimization program).
+- [x] Enforce shared-file workstreams to reduce thrash: one routing/descriptor workstream, one caps workstream, one fixture/test workstream; each shared file is patched once per workstream, not repeatedly per language.
+- [x] Enforce a concrete per-subphase implementation contract for every `0.5.x` language/framework section:
   - [ ] deliverable A: descriptor/spec patch (extensions, special filenames, parser route, adapter ID, caps profile)
   - [ ] deliverable B: code-path patch (routing + chunking + relations/flow/docmeta in listed touchpoints)
   - [ ] deliverable C: fixture/test patch (routing + collector/chunker/relation/flow + caps regression coverage)
-- [ ] Require each subphase commit series to include explicit artifact outputs (`descriptor diff`, `caps profile diff`, `fixture/test diff`) so validation work is always tied to concrete code changes.
+- [x] Require each subphase commit series to include explicit artifact outputs (`descriptor diff`, `caps profile diff`, `fixture/test diff`) so validation work is always tied to concrete code changes.
 
 Touchpoints:
 
@@ -78,6 +78,8 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 - `tests/indexing/language-registry/*`
 - `tests/indexing/chunking/*`
+
+Execution contract reference: `docs/guides/phase-0.5-execution-contract.md`.
 
 #### 0.5.1 JavaScript
 
