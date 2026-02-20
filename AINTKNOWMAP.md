@@ -659,9 +659,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.38 R
 
-- [ ] Implement `.r` routing and function/source extraction behavior.
-- [ ] Implement and verify relation extraction for sourced scripts and package-style layouts.
-- [ ] Calibrate and commit R caps for analysis notebooks/scripts with long procedural files.
+- [x] Implement `.r` routing and function/source extraction behavior.
+- [x] Implement and verify relation extraction for sourced scripts and package-style layouts.
+- [x] Calibrate and commit R caps for analysis notebooks/scripts with long procedural files.
 
 
 Touchpoints:
