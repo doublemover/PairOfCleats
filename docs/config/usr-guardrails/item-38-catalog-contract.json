@@ -1,0 +1,52 @@
+{
+  "item": 38,
+  "section": "38",
+  "title": "Core language/framework catalog",
+  "sourceSpecs": [
+    "docs/specs/unified-syntax-representation.md",
+    "docs/specs/usr-core-language-framework-catalog.md"
+  ],
+  "inputs": {
+    "languageProfiles": "tests/lang/matrix/usr-language-profiles.json",
+    "frameworkProfiles": "tests/lang/matrix/usr-framework-profiles.json",
+    "frameworkEdgeCases": "tests/lang/matrix/usr-framework-edge-cases.json",
+    "capabilityMatrix": "tests/lang/matrix/usr-capability-matrix.json",
+    "languageVersionPolicy": "tests/lang/matrix/usr-language-version-policy.json",
+    "languageEmbeddingPolicy": "tests/lang/matrix/usr-language-embedding-policy.json"
+  },
+  "requiredFrameworkProfiles": [
+    "react",
+    "vue",
+    "next",
+    "nuxt",
+    "svelte",
+    "sveltekit",
+    "angular",
+    "astro"
+  ],
+  "requiredLanguageKeys": [
+    "id",
+    "parserPreference",
+    "languageVersionPolicy",
+    "embeddingPolicy",
+    "requiredNodeKinds",
+    "requiredEdgeKinds",
+    "requiredCapabilities",
+    "fallbackChain",
+    "frameworkProfiles",
+    "requiredConformance"
+  ],
+  "requiredFrameworkKeys": [
+    "id",
+    "detectionPrecedence",
+    "appliesToLanguages",
+    "segmentationRules",
+    "bindingSemantics",
+    "routeSemantics",
+    "hydrationSemantics",
+    "embeddedLanguageBridges",
+    "edgeCaseCaseIds",
+    "requiredConformance"
+  ],
+  "report": "usr-section-38-catalog-contract-report.json"
+}

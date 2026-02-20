@@ -85,6 +85,12 @@ const USR_GUARDRAIL_GATES = Object.freeze([
     label: 'USR guardrail (item 37: governance drift)',
     script: 'tools/ci/usr/item37-governance-drift-gate.js',
     report: 'usr-section-37-governance-drift-report.json'
+  },
+  {
+    item: 38,
+    label: 'USR guardrail (item 38: catalog contract)',
+    script: 'tools/ci/usr/item38-catalog-contract-gate.js',
+    report: 'usr-section-38-catalog-contract-report.json'
   }
 ]);
 
