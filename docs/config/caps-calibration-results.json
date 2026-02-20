@@ -35,8 +35,8 @@
       "maxLines": 3500
     },
     "groovy": {
-      "maxBytes": 327680,
-      "maxLines": 5000
+      "maxBytes": 393216,
+      "maxLines": 6000
     },
     "handlebars": {
       "maxBytes": 196608,
@@ -201,9 +201,9 @@
       "maxParseMs": 1200
     },
     "groovy": {
-      "maxBytes": 327680,
-      "maxLines": 5000,
-      "maxParseMs": 1500
+      "maxBytes": 393216,
+      "maxLines": 6000,
+      "maxParseMs": 1700
     },
     "handlebars": {
       "maxBytes": 196608,

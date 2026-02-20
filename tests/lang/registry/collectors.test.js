@@ -122,8 +122,12 @@ const cases = [
   {
     label: 'groovy',
     fn: collectGroovyImports,
-    text: 'import foo.bar.Baz',
-    expected: ['foo.bar.Baz']
+    text: [
+      'package com.example.build',
+      'import foo.bar.Baz',
+      'class Worker extends foo.core.Base implements foo.api.Task'
+    ].join('\n'),
+    expected: ['com.example.build', 'foo.bar.Baz', 'foo.core.Base', 'foo.api.Task']
   },
   {
     label: 'r',
