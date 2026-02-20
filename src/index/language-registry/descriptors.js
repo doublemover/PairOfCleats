@@ -25,7 +25,24 @@ export const LANGUAGE_ROUTE_DESCRIPTORS = Object.freeze([
     adapterId: 'clike',
     parserRoute: 'tree-sitter-clike',
     capsProfile: 'clike-default',
-    extensions: Object.freeze(['.c', '.h', '.cc', '.cpp', '.hpp', '.hh', '.m', '.mm'])
+    extensions: Object.freeze([
+      '.c',
+      '.h',
+      '.cc',
+      '.cpp',
+      '.cxx',
+      '.hpp',
+      '.hh',
+      '.hxx',
+      '.ipp',
+      '.ixx',
+      '.cppm',
+      '.tpp',
+      '.inl',
+      '.modulemap',
+      '.m',
+      '.mm'
+    ])
   }),
   Object.freeze({
     id: 'go',
