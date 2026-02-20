@@ -5,6 +5,7 @@ import { compareStrings } from '../../../shared/sort.js';
 import { createLruCache } from '../../../shared/cache.js';
 import { sha1 } from '../../../shared/hash.js';
 import { readJsonlRows } from '../../../shared/merge.js';
+import { coercePositiveInt } from '../../../shared/number-coerce.js';
 import {
   parseBinaryJsonRowBuffer,
   createVfsManifestOffsetReader,
@@ -16,11 +17,7 @@ const DEFAULT_ROW_CACHE_MAX = 4096;
 const DEFAULT_MISS_CACHE_MAX = 10000;
 const DEFAULT_PAGE_CACHE_MAX = 1024;
 
-const coercePositiveInt = (value, fallback) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
-  return Math.max(1, Math.floor(parsed));
-};
+const coercePositiveIntOr = (value, fallback) => coercePositiveInt(value) ?? fallback;
 
 export const createTreeSitterSchedulerLookup = ({
   outDir,
@@ -30,8 +27,8 @@ export const createTreeSitterSchedulerLookup = ({
   maxMissCacheEntries = null
 }) => {
   const paths = resolveTreeSitterSchedulerPaths(outDir);
-  const cacheMax = coercePositiveInt(maxCacheEntries, DEFAULT_ROW_CACHE_MAX);
-  const missCacheMax = coercePositiveInt(maxMissCacheEntries, DEFAULT_MISS_CACHE_MAX);
+  const cacheMax = coercePositiveIntOr(maxCacheEntries, DEFAULT_ROW_CACHE_MAX);
+  const missCacheMax = coercePositiveIntOr(maxMissCacheEntries, DEFAULT_MISS_CACHE_MAX);
   const rowCache = createLruCache({
     name: 'tree-sitter-scheduler-row',
     maxEntries: cacheMax

@@ -27,6 +27,11 @@ import { buildAutoPolicy } from '../../../shared/auto-policy.js';
 import { buildIgnoreMatcher } from '../ignore.js';
 import { normalizePostingsConfig } from '../../../shared/postings-config.js';
 import { createSharedDictionary, createSharedDictionaryView } from '../../../shared/dictionary.js';
+import {
+  coerceClampedFraction,
+  coerceNonNegativeInt,
+  coercePositiveInt
+} from '../../../shared/number-coerce.js';
 import { normalizeEmbeddingBatchMultipliers } from '../embedding-batch.js';
 import { mergeConfig } from '../../../shared/config.js';
 import { sha1, setXxhashBackend } from '../../../shared/hash.js';
@@ -62,24 +67,6 @@ import {
   assertKnownIndexProfileId,
   buildIndexProfileState
 } from '../../../contracts/index-profile.js';
-
-const coercePositiveInt = (value) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed <= 0) return null;
-  return Math.floor(parsed);
-};
-
-const coerceNonNegativeInt = (value) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed < 0) return null;
-  return Math.floor(parsed);
-};
-
-const coerceFraction = (value) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed <= 0) return null;
-  return Math.min(1, parsed);
-};
 
 const isObject = (value) => value && typeof value === 'object' && !Array.isArray(value);
 
@@ -157,7 +144,11 @@ const resolveStage1Queues = (indexingConfig = {}) => {
   );
   const postingsMaxPendingRows = coercePositiveInt(postings.maxPendingRows);
   const postingsMaxPendingBytes = coercePositiveInt(postings.maxPendingBytes);
-  const postingsMaxHeapFraction = coerceFraction(postings.maxHeapFraction);
+  const postingsMaxHeapFraction = coerceClampedFraction(postings.maxHeapFraction, {
+    min: 0,
+    max: 1,
+    allowZero: false
+  });
   const orderedMaxPending = coercePositiveInt(ordered.maxPending);
   const orderedBucketSize = coercePositiveInt(ordered.bucketSize);
   const watchdogSlowFileMs = coerceNonNegativeInt(

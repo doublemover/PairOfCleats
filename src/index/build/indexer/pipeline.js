@@ -6,6 +6,7 @@ import { createCacheReporter, createLruCache, estimateFileTextBytes } from '../.
 import { getEnvConfig } from '../../../shared/env.js';
 import { log, showProgress } from '../../../shared/progress.js';
 import { throwIfAborted } from '../../../shared/abort.js';
+import { coerceUnitFraction } from '../../../shared/number-coerce.js';
 import { createCrashLogger } from '../crash-log.js';
 import { recordOrderingSeedInputs, updateBuildState } from '../build-state.js';
 import { estimateContextWindow } from '../context-window.js';
@@ -332,9 +333,8 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   let stageIndex = 0;
   const getSchedulerStats = () => (runtime?.scheduler?.stats ? runtime.scheduler.stats() : null);
   let lowUtilizationWarningEmitted = false;
-  const utilizationTarget = Number.isFinite(Number(runtime?.schedulerConfig?.utilizationAlertTarget))
-    ? Math.max(0.25, Math.min(0.99, Number(runtime.schedulerConfig.utilizationAlertTarget)))
-    : 0.75;
+  const utilizationTarget = coerceUnitFraction(runtime?.schedulerConfig?.utilizationAlertTarget)
+    ?? 0.75;
   const utilizationAlertWindowMs = Number.isFinite(Number(runtime?.schedulerConfig?.utilizationAlertWindowMs))
     ? Math.max(1000, Math.floor(Number(runtime.schedulerConfig.utilizationAlertWindowMs)))
     : 15000;

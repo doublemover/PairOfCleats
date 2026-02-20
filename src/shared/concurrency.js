@@ -1,6 +1,7 @@
 import PQueue from 'p-queue';
 import os from 'node:os';
 import { createAbortError, throwIfAborted } from './abort.js';
+import { coerceUnitFraction } from './number-coerce.js';
 
 /**
  * Create shared task queues for IO, CPU, and embeddings work.
@@ -329,9 +330,7 @@ export function createBuildScheduler(input = {}) {
   const adaptiveMinIntervalMs = Number.isFinite(Number(input.adaptiveIntervalMs))
     ? Math.max(50, Math.floor(Number(input.adaptiveIntervalMs)))
     : 250;
-  const adaptiveTargetUtilization = Number.isFinite(Number(input.adaptiveTargetUtilization))
-    ? Math.max(0.25, Math.min(0.99, Number(input.adaptiveTargetUtilization)))
-    : 0.85;
+  const adaptiveTargetUtilization = coerceUnitFraction(input.adaptiveTargetUtilization) ?? 0.85;
   const adaptiveStep = Number.isFinite(Number(input.adaptiveStep))
     ? Math.max(1, Math.floor(Number(input.adaptiveStep)))
     : 1;

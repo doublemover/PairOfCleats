@@ -1,16 +1,5 @@
 import { estimateJsonBytes } from '../../shared/cache.js';
-
-const coercePositiveInt = (value) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed <= 0) return null;
-  return Math.floor(parsed);
-};
-
-const coerceNonNegativeInt = (value) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed < 0) return null;
-  return Math.floor(parsed);
-};
+import { coerceNonNegativeInt, coercePositiveInt } from '../../shared/number-coerce.js';
 
 /**
  * Validate and normalize postings payload metadata.
