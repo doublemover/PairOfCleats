@@ -813,11 +813,11 @@ Touchpoints:
 - `docs/specs/import-resolution.md`
 #### 0.5.41 Language-specific limits calibration program
 
-- [ ] Build a language-by-language telemetry baseline (p50/p95/p99 bytes, lines, tokens, chunk counts, parse times).
-- [ ] Set strict per-language `maxBytes`/`maxLines`/tree-sitter thresholds from measured distributions instead of one global default.
-- [ ] Add per-language cap regression fixtures covering common real-world files and edge-case oversized files.
-- [ ] Emit deterministic calibration artifacts (`caps-calibration-inputs.json`, `caps-calibration-results.json`) and keep them versioned so cap updates are reproducible and reviewable.
-- [ ] Update `docs/specs/large-file-caps-strategy.md` and related contracts to reflect active language-aware behavior only.
+- [x] Build a language-by-language telemetry baseline (p50/p95/p99 bytes, lines, tokens, chunk counts, parse times).
+- [x] Set strict per-language `maxBytes`/`maxLines`/tree-sitter thresholds from measured distributions instead of one global default.
+- [x] Add per-language cap regression fixtures covering common real-world files and edge-case oversized files.
+- [x] Emit deterministic calibration artifacts (`caps-calibration-inputs.json`, `caps-calibration-results.json`) and keep them versioned so cap updates are reproducible and reviewable.
+- [x] Update `docs/specs/large-file-caps-strategy.md` and related contracts to reflect active language-aware behavior only.
 
 
 Touchpoints:
