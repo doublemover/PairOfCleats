@@ -1,0 +1,6 @@
+export const ORDER_BUCKET_TARGET = 64;
+export const ORDER_BUCKET_MIN = 5000;
+export const ORDER_BUFFER_BYTES = 4 * 1024 * 1024;
+export const ORDER_BUFFER_ROWS = 5000;
+export const COMPAT_CHUNK_META_JSON_MAX_BYTES = 8 * 1024 * 1024;
+export const COMPAT_CHUNK_META_JSON_MAX_ROWS = 50000;
