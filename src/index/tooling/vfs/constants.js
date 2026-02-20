@@ -1,0 +1,13 @@
+export const VFS_PREFIX = '.poc-vfs/';
+export const VFS_HASH_PREFIX = `${VFS_PREFIX}by-hash/`;
+export const VFS_MANIFEST_MAX_ROW_BYTES = 32 * 1024;
+export const VFS_DOC_HASH_CACHE_MAX = 50000;
+export const VFS_DOC_HASH_CACHE_SCHEMA_VERSION = '1.0.0';
+export const VFS_COLD_START_SCHEMA_VERSION = '1.0.0';
+export const VFS_COLD_START_DIR = 'vfs-cold-start';
+export const VFS_COLD_START_META = 'vfs_cold_start.meta.json';
+export const VFS_COLD_START_DATA = 'vfs_cold_start.jsonl';
+export const VFS_COLD_START_MAX_BYTES = 64 * 1024 * 1024;
+export const VFS_COLD_START_MAX_AGE_DAYS = 7;
+export const VFS_MANIFEST_HASH_MAX_BYTES = 64 * 1024 * 1024;
+export const VFS_MANIFEST_INDEX_CACHE_MAX = 64;

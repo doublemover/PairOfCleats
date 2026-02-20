@@ -71,6 +71,46 @@ import { packMinhashSignatures } from './artifacts/minhash-packed.js';
 
 export { resolveArtifactWriteConcurrency, buildLexiconRelationFilterReport };
 
+const buildBoilerplateCatalog = (chunks) => {
+  if (!Array.isArray(chunks) || !chunks.length) return [];
+  const byRef = new Map();
+  for (const chunk of chunks) {
+    const docmeta = chunk?.docmeta;
+    const ref = typeof docmeta?.boilerplateRef === 'string' ? docmeta.boilerplateRef : null;
+    if (!ref) continue;
+    const row = byRef.get(ref) || {
+      ref,
+      count: 0,
+      positions: {},
+      tags: new Set(),
+      sampleFiles: []
+    };
+    row.count += 1;
+    const position = typeof docmeta?.boilerplatePosition === 'string'
+      ? docmeta.boilerplatePosition
+      : 'unknown';
+    row.positions[position] = (row.positions[position] || 0) + 1;
+    const tags = Array.isArray(docmeta?.boilerplateTags) ? docmeta.boilerplateTags : [];
+    for (const tag of tags) {
+      if (typeof tag === 'string' && tag.trim()) row.tags.add(tag.trim());
+    }
+    const file = typeof chunk?.file === 'string' ? chunk.file : null;
+    if (file && row.sampleFiles.length < 8 && !row.sampleFiles.includes(file)) {
+      row.sampleFiles.push(file);
+    }
+    byRef.set(ref, row);
+  }
+  return Array.from(byRef.values())
+    .map((row) => ({
+      ref: row.ref,
+      count: row.count,
+      positions: row.positions,
+      tags: Array.from(row.tags).sort(),
+      sampleFiles: row.sampleFiles
+    }))
+    .sort((a, b) => b.count - a.count || a.ref.localeCompare(b.ref));
+};
+
 /**
  * Write index artifacts and metrics.
  * @param {object} input
@@ -809,6 +849,24 @@ export async function writeIndexArtifacts(input) {
         totals: lexiconRelationFilterReport.totals
       };
     }
+  }
+  const boilerplateCatalog = buildBoilerplateCatalog(state?.chunks);
+  if (boilerplateCatalog.length) {
+    const boilerplateCatalogPath = path.join(outDir, 'boilerplate_catalog.json');
+    enqueueWrite(
+      formatArtifactLabel(boilerplateCatalogPath),
+      async () => {
+        await writeJsonObjectFile(boilerplateCatalogPath, {
+          fields: {
+            schemaVersion: '1.0.0',
+            generatedAt: new Date().toISOString(),
+            entries: boilerplateCatalog
+          },
+          atomic: true
+        });
+      }
+    );
+    addPieceFile({ type: 'stats', name: 'boilerplate_catalog', format: 'json' }, boilerplateCatalogPath);
   }
   if (indexState && typeof indexState === 'object') {
     const indexStatePath = path.join(outDir, 'index_state.json');

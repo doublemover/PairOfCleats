@@ -5,6 +5,10 @@ import { getChunkAuthorsFromLines } from '../../../scm/annotate.js';
 import { isJsLike } from '../../../constants.js';
 import { detectFrameworkProfile } from '../../../framework-profile.js';
 import {
+  detectBoilerplateCommentBlocks,
+  resolveChunkBoilerplateMatch
+} from '../../../boilerplate.js';
+import {
   classifyTokenBuckets,
   createTokenClassificationRuntime,
   createFileLineTokenStream,
@@ -640,6 +644,7 @@ export const processChunks = async (context) => {
     ext: containerExt,
     text
   });
+  const fileBoilerplateBlocks = await detectBoilerplateCommentBlocks({ text });
 
   for (let ci = 0; ci < chunksForProcessing.length; ++ci) {
     const c = chunksForProcessing[ci];
@@ -940,6 +945,29 @@ export const processChunks = async (context) => {
 
     if (effectiveTokenizeEnabled && !seq.length) continue;
 
+    const boilerplateMatch = resolveChunkBoilerplateMatch({
+      blocks: fileBoilerplateBlocks,
+      start: c.start,
+      end: c.end
+    });
+    const boilerplateCoverage = Number(boilerplateMatch?.coverage || 0);
+    if (boilerplateMatch) {
+      docmeta = {
+        ...docmeta,
+        boilerplateRef: boilerplateMatch.ref,
+        boilerplateTags: boilerplateMatch.tags,
+        boilerplatePosition: boilerplateMatch.position,
+        boilerplateCoverage: Number(boilerplateCoverage.toFixed(4)),
+        boilerplateLines: {
+          start: boilerplateMatch.startLine,
+          end: boilerplateMatch.endLine
+        }
+      };
+    }
+    const boilerplateWeightMultiplier = boilerplateCoverage >= 0.85
+      ? 0.12
+      : (boilerplateCoverage >= 0.6 ? 0.35 : 1);
+
     const docText = typeof docmeta.doc === 'string' ? docmeta.doc : '';
 
     const complexity = fileComplexity;
@@ -1004,7 +1032,8 @@ export const processChunks = async (context) => {
       relationsEnabled: effectiveRelationsEnabled,
       toolInfo,
       gitMeta,
-      analysisPolicy
+      analysisPolicy,
+      weightMultiplier: boilerplateWeightMultiplier
     });
 
     chunks.push(chunkPayload);

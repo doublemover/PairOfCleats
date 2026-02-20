@@ -41,9 +41,14 @@ export function buildChunkPayload({
   relationsEnabled,
   toolInfo,
   gitMeta,
-  analysisPolicy
+  analysisPolicy,
+  weightMultiplier = 1
 }) {
-  const weight = getFieldWeight(chunk, rel);
+  const baseWeight = getFieldWeight(chunk, rel);
+  const resolvedWeightMultiplier = Number.isFinite(Number(weightMultiplier))
+    ? Math.max(0.05, Math.min(1, Number(weightMultiplier)))
+    : 1;
+  const weight = baseWeight * resolvedWeightMultiplier;
   const resolvedExt = effectiveExt || ext;
   const docText = typeof docmeta.doc === 'string' ? docmeta.doc : '';
   const fieldedEnabled = postingsConfig?.fielded !== false;
