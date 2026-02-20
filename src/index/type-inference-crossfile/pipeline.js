@@ -196,6 +196,7 @@ export async function applyCrossFileInference({
   rootDir,
   buildRoot,
   cacheRoot = null,
+  cacheEnabled = true,
   chunks,
   enabled,
   log = () => {},
@@ -299,7 +300,9 @@ export async function applyCrossFileInference({
       + `usagePerChunk=${largeRepoBudget.maxUsageLinksPerChunk}).`
     );
   }
-  const resolvedCacheRoot = resolveCrossFileCacheRoot({ cacheRoot, rootDir });
+  const resolvedCacheRoot = cacheEnabled === false
+    ? null
+    : resolveCrossFileCacheRoot({ cacheRoot, rootDir });
   const cacheDir = resolvedCacheRoot
     ? path.join(resolvedCacheRoot, CROSS_FILE_CACHE_DIRNAME)
     : null;
