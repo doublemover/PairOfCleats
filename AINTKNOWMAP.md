@@ -505,9 +505,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.28 GraphQL
 
-- [ ] Implement `.graphql`/`.gql` routing and operation/schema chunking behavior.
-- [ ] Implement and verify relation extraction for fragments, operations, and schema references.
-- [ ] Calibrate and commit GraphQL caps for large federated schemas.
+- [x] Implement `.graphql`/`.gql` routing and operation/schema chunking behavior.
+- [x] Implement and verify relation extraction for fragments, operations, and schema references.
+- [x] Calibrate and commit GraphQL caps for large federated schemas.
 
 
 Touchpoints:

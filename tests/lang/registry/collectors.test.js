@@ -65,8 +65,11 @@ const cases = [
   {
     label: 'graphql',
     fn: collectGraphqlImports,
-    text: '#import \"common.graphql\"',
-    expected: ['common.graphql']
+    text: [
+      '#import \"common.graphql\"',
+      'extend schema @link(url: \"https://specs.apollo.dev/federation/v2.6\", import: [\"@key\"])'
+    ].join('\n'),
+    expected: ['common.graphql', 'https://specs.apollo.dev/federation/v2.6']
   },
   {
     label: 'cmake',
