@@ -256,6 +256,14 @@ export async function writeIndexArtifacts(input) {
   const fieldTokensShardMaxBytes = Number.isFinite(Number(artifactConfig.fieldTokensShardMaxBytes))
     ? Math.max(0, Math.floor(Number(artifactConfig.fieldTokensShardMaxBytes)))
     : (8 * 1024 * 1024);
+  const fieldPostingsShardsEnabled = artifactConfig.fieldPostingsShards === true;
+  const fieldPostingsShardThresholdBytes = Number.isFinite(Number(artifactConfig.fieldPostingsShardThresholdBytes))
+    ? Math.max(0, Math.floor(Number(artifactConfig.fieldPostingsShardThresholdBytes)))
+    : (64 * 1024 * 1024);
+  const fieldPostingsShardCount = Number.isFinite(Number(artifactConfig.fieldPostingsShardCount))
+    ? Math.max(2, Math.floor(Number(artifactConfig.fieldPostingsShardCount)))
+    : 8;
+  const fieldPostingsKeepLegacyJson = artifactConfig.fieldPostingsKeepLegacyJson !== false;
   const minhashJsonLargeThreshold = Number.isFinite(Number(artifactConfig.minhashJsonLargeThreshold))
     ? Math.max(0, Math.floor(Number(artifactConfig.minhashJsonLargeThreshold)))
     : 20000;
@@ -1402,10 +1410,84 @@ export async function writeIndexArtifacts(input) {
     };
   }
   if (sparseArtifactsEnabled && postings.fieldPostings?.fields) {
-    enqueueJsonObject('field_postings', { fields: { fields: postings.fieldPostings.fields } }, {
-      piece: { type: 'postings', name: 'field_postings' },
-      priority: 220
-    });
+    const fieldPostingsObject = postings.fieldPostings.fields;
+    const fieldPostingsEstimatedBytes = estimateJsonBytes(fieldPostingsObject);
+    const fieldPostingsRows = Object.entries(fieldPostingsObject).map(([field, value]) => ({
+      field,
+      postings: value
+    }));
+    const shouldShardFieldPostings = fieldPostingsShardsEnabled
+      && fieldPostingsShardThresholdBytes > 0
+      && fieldPostingsEstimatedBytes >= fieldPostingsShardThresholdBytes
+      && fieldPostingsRows.length > fieldPostingsShardCount;
+    if (shouldShardFieldPostings) {
+      const shardsDirPath = path.join(outDir, 'field_postings.shards');
+      const shardsMetaPath = path.join(outDir, 'field_postings.shards.meta.json');
+      enqueueWrite(
+        formatArtifactLabel(shardsDirPath),
+        async () => {
+          await removeArtifact(shardsDirPath, { recursive: true, policy: 'format_cleanup' });
+          await fs.mkdir(shardsDirPath, { recursive: true });
+          const shardSize = Math.max(1, Math.ceil(fieldPostingsRows.length / fieldPostingsShardCount));
+          const partFiles = [];
+          for (let shardIndex = 0; shardIndex < fieldPostingsShardCount; shardIndex += 1) {
+            const start = shardIndex * shardSize;
+            const end = Math.min(fieldPostingsRows.length, start + shardSize);
+            if (start >= end) break;
+            const rows = fieldPostingsRows.slice(start, end);
+            const relPath = `field_postings.shards/field_postings.part-${String(shardIndex).padStart(4, '0')}.json`;
+            const absPath = path.join(outDir, relPath);
+            partFiles.push({ relPath, count: rows.length, absPath });
+            const fields = {};
+            for (const row of rows) fields[row.field] = row.postings;
+            await writeJsonObjectFile(absPath, {
+              fields: { fields },
+              atomic: true
+            });
+          }
+          await writeJsonObjectFile(shardsMetaPath, {
+            fields: {
+              schemaVersion: '1.0.0',
+              generatedAt: new Date().toISOString(),
+              shardCount: partFiles.length,
+              estimatedBytes: fieldPostingsEstimatedBytes,
+              fields: fieldPostingsRows.length,
+              parts: partFiles.map((part) => ({
+                path: part.relPath,
+                fields: part.count
+              }))
+            },
+            atomic: true
+          });
+          for (const part of partFiles) {
+            addPieceFile({
+              type: 'postings',
+              name: 'field_postings_shard',
+              format: 'json',
+              count: part.count
+            }, part.absPath);
+          }
+          addPieceFile({ type: 'postings', name: 'field_postings_shards_meta', format: 'json' }, shardsMetaPath);
+        },
+        { priority: 205, estimatedBytes: fieldPostingsEstimatedBytes }
+      );
+      if (typeof log === 'function') {
+        log(
+          `field_postings estimate ~${formatBytes(fieldPostingsEstimatedBytes)}; ` +
+          `emitting auxiliary shards (${fieldPostingsShardCount} target).`
+        );
+      }
+      if (!fieldPostingsKeepLegacyJson) {
+        await removeArtifact(path.join(outDir, 'field_postings.json'), { policy: 'format_cleanup' });
+      }
+    }
+    if (fieldPostingsKeepLegacyJson || !shouldShardFieldPostings) {
+      enqueueJsonObject('field_postings', { fields: { fields: fieldPostingsObject } }, {
+        piece: { type: 'postings', name: 'field_postings' },
+        priority: 220,
+        estimatedBytes: fieldPostingsEstimatedBytes
+      });
+    }
   }
   if (sparseArtifactsEnabled && resolvedConfig.fielded !== false && Array.isArray(state.fieldTokens)) {
     const fieldTokensEstimatedBytes = estimateJsonBytes(state.fieldTokens);
