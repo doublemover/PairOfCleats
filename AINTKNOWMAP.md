@@ -1056,19 +1056,19 @@ Intent: deterministic releases, reproducible packaging, and strict platform beha
 
 #### 2.1 Deterministic release-check
 
-- [ ] Keep `tools/release/check.js` canonical (current baseline: changelog + essential blockers), then extend it into full deterministic release validation.
-- [ ] Add `npm run release-check`.
-- [ ] Enforce fixed smoke sequence:
-  - [ ] `pairofcleats --version`
-  - [ ] fixture index build
-  - [ ] fixture index validate (`--strict`)
-  - [ ] fixture search
-  - [ ] editor package smoke checks
-  - [ ] service-mode smoke checks
-- [ ] Emit `release_check_report.json` with stable schema and ISO timestamps.
-- [ ] Emit `release-manifest.json` with checksums and artifact inventory.
-- [ ] Run contract/spec drift checks as part of release-check flow before smoke steps.
-- [ ] Remove permissive modes that skip required checks.
+- [x] Keep `tools/release/check.js` canonical (current baseline: changelog + essential blockers), then extend it into full deterministic release validation.
+- [x] Add `npm run release-check`.
+- [x] Enforce fixed smoke sequence:
+  - [x] `pairofcleats --version`
+  - [x] fixture index build
+  - [x] fixture index validate (`--strict`)
+  - [x] fixture search
+  - [x] editor package smoke checks
+  - [x] service-mode smoke checks
+- [x] Emit `release_check_report.json` with stable schema and ISO timestamps.
+- [x] Emit `release-manifest.json` with checksums and artifact inventory.
+- [x] Run contract/spec drift checks as part of release-check flow before smoke steps.
+- [x] Remove permissive modes that skip required checks.
 
 Tests:
 
