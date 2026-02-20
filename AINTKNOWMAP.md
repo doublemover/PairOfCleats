@@ -567,9 +567,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.32 Nix
 
-- [ ] Implement `.nix` routing and import/attribute extraction behavior.
-- [ ] Implement and verify relation extraction across flake/module boundaries.
-- [ ] Calibrate and commit Nix caps for large flake-based infra repositories.
+- [x] Implement `.nix` routing and import/attribute extraction behavior.
+- [x] Implement and verify relation extraction across flake/module boundaries.
+- [x] Calibrate and commit Nix caps for large flake-based infra repositories.
 
 
 Touchpoints:

@@ -87,8 +87,8 @@
       "maxLines": 3000
     },
     "nix": {
-      "maxBytes": 262144,
-      "maxLines": 4000
+      "maxBytes": 327680,
+      "maxLines": 5000
     },
     "perl": {
       "maxBytes": 327680,
@@ -266,9 +266,9 @@
       "maxParseMs": 1100
     },
     "nix": {
-      "maxBytes": 262144,
-      "maxLines": 4000,
-      "maxParseMs": 1300
+      "maxBytes": 327680,
+      "maxLines": 5000,
+      "maxParseMs": 1500
     },
     "perl": {
       "maxBytes": 327680,

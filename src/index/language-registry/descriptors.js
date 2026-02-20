@@ -171,7 +171,8 @@ export const LANGUAGE_ROUTE_DESCRIPTORS = Object.freeze([
     adapterId: 'nix',
     parserRoute: 'tree-sitter-nix',
     capsProfile: 'nix-default',
-    extensions: Object.freeze(['.nix'])
+    extensions: Object.freeze(['.nix']),
+    specialFilenames: Object.freeze(['flake.nix', 'default.nix', 'shell.nix'])
   }),
   Object.freeze({
     id: 'dart',
