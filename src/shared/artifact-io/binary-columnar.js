@@ -1,3 +1,5 @@
+import fs from 'node:fs/promises';
+
 import { decodeVarint64List, encodeVarint64List } from './varint.js';
 
 const OFFSET_BYTES = 8;
@@ -72,6 +74,55 @@ export const encodeBinaryRowFrames = (rowBuffers) => {
     offsetsBuffer: encodeU64Offsets(offsets),
     lengths,
     lengthsBuffer: encodeVarint64List(lengths)
+  };
+};
+
+const toAsyncIterable = (rows) => {
+  if (rows && typeof rows[Symbol.asyncIterator] === 'function') return rows;
+  return (async function* rowIterator() {
+    for (const row of rows || []) {
+      yield row;
+    }
+  })();
+};
+
+/**
+ * Stream row-frame payloads to disk while generating offset/length sidecars.
+ * This avoids materializing a full in-memory data buffer for large artifacts.
+ *
+ * @param {{rowBuffers:Iterable<Buffer|Uint8Array|string>|AsyncIterable<Buffer|Uint8Array|string>,dataPath:string,offsetsPath:string,lengthsPath:string}} input
+ * @returns {Promise<{count:number,totalBytes:number}>}
+ */
+export const writeBinaryRowFrames = async ({
+  rowBuffers,
+  dataPath,
+  offsetsPath,
+  lengthsPath
+}) => {
+  const offsets = [];
+  const lengths = [];
+  let cursor = 0;
+  let count = 0;
+  const handle = await fs.open(dataPath, 'w');
+  try {
+    for await (const row of toAsyncIterable(rowBuffers)) {
+      const payload = Buffer.isBuffer(row) ? row : Buffer.from(row || '');
+      offsets.push(cursor);
+      lengths.push(payload.length);
+      cursor += payload.length;
+      if (payload.length) {
+        await handle.write(payload);
+      }
+      count += 1;
+    }
+  } finally {
+    await handle.close();
+  }
+  await fs.writeFile(offsetsPath, encodeU64Offsets(offsets));
+  await fs.writeFile(lengthsPath, encodeVarint64List(lengths));
+  return {
+    count,
+    totalBytes: cursor
   };
 };
 

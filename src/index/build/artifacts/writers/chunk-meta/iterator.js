@@ -188,7 +188,7 @@ export const createChunkMetaIterator = ({
 
 /**
  * Convert row-wise chunk_meta objects into a columnar payload.
- * @param {Array<object>} rows
+ * @param {Iterable<object>} rows
  * @returns {{format:'columnar',columns:Array<string>,length:number,arrays:Record<string,Array<any>>}}
  */
 export const buildColumnarChunkMetaFromRows = (rows) => {
@@ -222,15 +222,11 @@ export const buildColumnarChunkMetaFromRows = (rows) => {
 };
 
 /**
- * Materialize and convert iterator output to columnar form.
+ * Convert iterator output to columnar form without intermediate row arrays.
  * @param {(start?:number,end?:number,trackStats?:boolean)=>IterableIterator<object>} chunkMetaIterator
  * @param {number} chunkMetaCount
  * @returns {{format:'columnar',columns:Array<string>,length:number,arrays:Record<string,Array<any>>}}
  */
 export const buildColumnarChunkMeta = (chunkMetaIterator, chunkMetaCount) => {
-  const rows = [];
-  for (const entry of chunkMetaIterator(0, chunkMetaCount, false)) {
-    rows.push(entry);
-  }
-  return buildColumnarChunkMetaFromRows(rows);
+  return buildColumnarChunkMetaFromRows(chunkMetaIterator(0, chunkMetaCount, false));
 };

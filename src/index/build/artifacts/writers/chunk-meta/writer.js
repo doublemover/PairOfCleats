@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { log } from '../../../../../shared/progress.js';
 import { MAX_JSON_BYTES } from '../../../../../shared/artifact-io.js';
-import { encodeBinaryRowFrames } from '../../../../../shared/artifact-io/binary-columnar.js';
+import { writeBinaryRowFrames } from '../../../../../shared/artifact-io/binary-columnar.js';
 import { ensureDiskSpace, formatBytes } from '../../../../../shared/disk-space.js';
 import { createOrderingHasher } from '../../../../../shared/order.js';
 import {
@@ -208,10 +208,7 @@ export const enqueueChunkMetaArtifacts = async ({
   let jsonlScan = null;
   let outOfOrder = false;
   let firstOutOfOrder = null;
-  let preparedHotRows = null;
-  let preparedColdRows = null;
   let preparedColumnarHotRows = null;
-  let materializeHotRowsFromSource = null;
   if (chunkMetaStreaming && resolvedUseJsonl) {
     resolvedUseColumnar = false;
     resolvedUseShards = chunkMetaShardSize > 0 && chunkMetaCount > chunkMetaShardSize;
@@ -240,9 +237,7 @@ export const enqueueChunkMetaArtifacts = async ({
   }
 
   if (resolvedUseJsonl && !chunkMetaStreaming) {
-    jsonlScan = scanChunkMeta({ collectRows: true });
-    preparedHotRows = jsonlScan.hotRows;
-    preparedColdRows = jsonlScan.coldRows;
+    jsonlScan = scanChunkMeta({ collectRows: false });
     outOfOrder = !jsonlScan.ordered;
     firstOutOfOrder = jsonlScan.firstOutOfOrder;
     if (firstOutOfOrder) {
@@ -269,7 +264,6 @@ export const enqueueChunkMetaArtifacts = async ({
     if (outOfOrder) {
       if (enableHotColdSplit) {
         enableHotColdSplit = false;
-        preparedColdRows = null;
         jsonlScan.coldJsonlBytes = 0;
       }
       const collector = createChunkMetaBucketCollector({
@@ -277,9 +271,7 @@ export const enqueueChunkMetaArtifacts = async ({
         maxJsonBytes: resolvedMaxJsonBytes,
         chunkMetaCount
       });
-      const rowsForCollector = Array.isArray(preparedHotRows)
-        ? preparedHotRows
-        : mapRows(chunkMetaIterator(0, chunkMetaCount, false), (entry) => projectHotEntry(entry));
+      const rowsForCollector = mapRows(chunkMetaIterator(0, chunkMetaCount, false), (entry) => projectHotEntry(entry));
       for (const hotEntry of rowsForCollector) {
         const { line, lineBytes } = serializeAndCacheRow(hotEntry);
         const rowBytes = lineBytes + 1;
@@ -289,7 +281,6 @@ export const enqueueChunkMetaArtifacts = async ({
         await collector.append(hotEntry, { line, lineBytes: rowBytes });
       }
       collected = await collector.finalize();
-      preparedHotRows = null;
     }
   } else if (resolvedUseJsonl) {
     jsonlScan = {
@@ -519,9 +510,6 @@ export const enqueueChunkMetaArtifacts = async ({
       return { items, itemsAsync };
     };
     const createHotItemsSource = () => {
-      if (!buckets && !runs && !rows && Array.isArray(preparedHotRows)) {
-        return { items: preparedHotRows, itemsAsync: false };
-      }
       const source = createItemsSource();
       if (buckets || runs || rows) return source;
       return {
@@ -530,9 +518,6 @@ export const enqueueChunkMetaArtifacts = async ({
       };
     };
     const createColdItemsSource = () => {
-      if (!buckets && !runs && !rows && Array.isArray(preparedColdRows)) {
-        return { items: preparedColdRows, itemsAsync: false };
-      }
       const source = createItemsSource();
       return {
         ...source,
@@ -566,7 +551,6 @@ export const enqueueChunkMetaArtifacts = async ({
       });
       return materializedHotRowsPromise;
     };
-    materializeHotRowsFromSource = materializeHotRows;
     const writeCompatChunkMetaJson = async () => {
       if (!shouldWriteCompatChunkMetaJson) return;
       const { items, itemsAsync } = createHotItemsSource();
@@ -898,38 +882,51 @@ export const enqueueChunkMetaArtifacts = async ({
     enqueueWrite(
       formatArtifactLabel(binaryMetaPath),
       async () => {
+        const toAsyncIterable = (rows) => {
+          if (rows && typeof rows[Symbol.asyncIterator] === 'function') return rows;
+          return (async function* rowIterator() {
+            for (const row of rows || []) {
+              yield row;
+            }
+          })();
+        };
         const fileTable = [];
         const fileRefByPath = new Map();
-        const rows = [];
-        const sourceRows = materializeHotRowsFromSource
-          ? await materializeHotRowsFromSource()
-          : (Array.isArray(preparedColumnarHotRows)
-            ? preparedColumnarHotRows
-            : (Array.isArray(preparedHotRows)
-              ? preparedHotRows
-              : mapRows(chunkMetaIterator(0, chunkMetaCount, false), (entry) => projectHotEntry(entry))));
-        for (const hotEntry of sourceRows) {
-          if (!hotEntry || typeof hotEntry !== 'object') continue;
-          const next = { ...hotEntry };
-          const file = typeof hotEntry.file === 'string' ? hotEntry.file : null;
-          if (file) {
-            let fileRef = fileRefByPath.get(file);
-            if (!Number.isInteger(fileRef)) {
-              fileRef = fileTable.length;
-              fileRefByPath.set(file, fileRef);
-              fileTable.push(file);
-            }
-            next.fileRef = fileRef;
-            delete next.file;
+        let sourceRows = Array.isArray(preparedColumnarHotRows)
+          ? preparedColumnarHotRows
+          : mapRows(chunkMetaIterator(0, chunkMetaCount, false), (entry) => projectHotEntry(entry));
+        if (outOfOrder) {
+          const materialized = [];
+          for await (const row of toAsyncIterable(sourceRows)) {
+            materialized.push(row);
           }
-          rows.push(next);
+          materialized.sort(compareChunkMetaIdOnly);
+          sourceRows = materialized;
         }
-        if (outOfOrder && !materializeHotRowsFromSource) rows.sort(compareChunkMetaIdOnly);
-        const rowPayloads = rows.map((row) => Buffer.from(JSON.stringify(row), 'utf8'));
-        const frames = encodeBinaryRowFrames(rowPayloads);
-        await fs.writeFile(binaryDataPath, frames.dataBuffer);
-        await fs.writeFile(binaryOffsetsPath, frames.offsetsBuffer);
-        await fs.writeFile(binaryLengthsPath, frames.lengthsBuffer);
+        const rowPayloads = (async function* payloadIterator() {
+          for await (const hotEntry of toAsyncIterable(sourceRows)) {
+            if (!hotEntry || typeof hotEntry !== 'object') continue;
+            const next = { ...hotEntry };
+            const file = typeof hotEntry.file === 'string' ? hotEntry.file : null;
+            if (file) {
+              let fileRef = fileRefByPath.get(file);
+              if (!Number.isInteger(fileRef)) {
+                fileRef = fileTable.length;
+                fileRefByPath.set(file, fileRef);
+                fileTable.push(file);
+              }
+              next.fileRef = fileRef;
+              delete next.file;
+            }
+            yield JSON.stringify(next);
+          }
+        })();
+        const frames = await writeBinaryRowFrames({
+          rowBuffers: rowPayloads,
+          dataPath: binaryDataPath,
+          offsetsPath: binaryOffsetsPath,
+          lengthsPath: binaryLengthsPath
+        });
         await writeJsonObjectFile(binaryMetaPath, {
           fields: {
             format: 'binary-columnar-v1',
