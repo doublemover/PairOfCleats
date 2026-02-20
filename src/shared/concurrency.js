@@ -257,7 +257,12 @@ export function createBuildScheduler(input = {}) {
     completed: 0,
     failed: 0,
     rejected: 0,
-    starvation: 0
+    starvation: 0,
+    rejectedByReason: {
+      maxPending: 0,
+      shutdown: 0,
+      cleared: 0
+    }
   };
 
   const ensureQueue = (name) => {
@@ -276,7 +281,8 @@ export function createBuildScheduler(input = {}) {
         completed: 0,
         failed: 0,
         rejected: 0,
-        starvation: 0
+        starvation: 0,
+        rejectedMaxPending: 0
       }
     };
     queues.set(name, state);
@@ -515,14 +521,17 @@ export function createBuildScheduler(input = {}) {
     }
     if (shuttingDown) {
       counters.rejected += 1;
+      counters.rejectedByReason.shutdown += 1;
       return Promise.reject(new Error('scheduler is shut down'));
     }
     const queue = ensureQueue(queueName);
     if (queue.maxPending && queue.pending.length >= queue.maxPending) {
       queue.stats.rejected += 1;
+      queue.stats.rejectedMaxPending += 1;
       queue.stats.scheduled += 1;
       counters.scheduled += 1;
       counters.rejected += 1;
+      counters.rejectedByReason.maxPending += 1;
       return Promise.reject(new Error(`queue ${queueName} is at maxPending`));
     }
     return new Promise((resolve, reject) => {
@@ -548,6 +557,7 @@ export function createBuildScheduler(input = {}) {
     for (const item of cleared) {
       queue.stats.rejected += 1;
       counters.rejected += 1;
+      counters.rejectedByReason.cleared += 1;
       try {
         item.reject(error);
       } catch {}
@@ -575,6 +585,7 @@ export function createBuildScheduler(input = {}) {
         completed: q.stats.completed,
         failed: q.stats.failed,
         rejected: q.stats.rejected,
+        rejectedMaxPending: q.stats.rejectedMaxPending,
         starvation: q.stats.starvation
       };
     }
@@ -586,7 +597,10 @@ export function createBuildScheduler(input = {}) {
     const memUtilization = resolveUtilization(tokens.mem.used, tokens.mem.total);
     return {
       queues: queueStats,
-      counters: { ...counters },
+      counters: {
+        ...counters,
+        rejectedByReason: { ...counters.rejectedByReason }
+      },
       activity: {
         pending: totalPending,
         running: totalRunning
