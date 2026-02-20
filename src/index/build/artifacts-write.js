@@ -1423,28 +1423,46 @@ export async function writeIndexArtifacts(input) {
     if (shouldShardFieldPostings) {
       const shardsDirPath = path.join(outDir, 'field_postings.shards');
       const shardsMetaPath = path.join(outDir, 'field_postings.shards.meta.json');
-      enqueueWrite(
-        formatArtifactLabel(shardsDirPath),
-        async () => {
-          await removeArtifact(shardsDirPath, { recursive: true, policy: 'format_cleanup' });
-          await fs.mkdir(shardsDirPath, { recursive: true });
-          const shardSize = Math.max(1, Math.ceil(fieldPostingsRows.length / fieldPostingsShardCount));
-          const partFiles = [];
-          for (let shardIndex = 0; shardIndex < fieldPostingsShardCount; shardIndex += 1) {
-            const start = shardIndex * shardSize;
-            const end = Math.min(fieldPostingsRows.length, start + shardSize);
-            if (start >= end) break;
-            const rows = fieldPostingsRows.slice(start, end);
-            const relPath = `field_postings.shards/field_postings.part-${String(shardIndex).padStart(4, '0')}.json`;
-            const absPath = path.join(outDir, relPath);
-            partFiles.push({ relPath, count: rows.length, absPath });
+      await removeArtifact(shardsDirPath, { recursive: true, policy: 'format_cleanup' });
+      await fs.mkdir(shardsDirPath, { recursive: true });
+      const shardSize = Math.max(1, Math.ceil(fieldPostingsRows.length / fieldPostingsShardCount));
+      const partFiles = [];
+      for (let shardIndex = 0; shardIndex < fieldPostingsShardCount; shardIndex += 1) {
+        const start = shardIndex * shardSize;
+        const end = Math.min(fieldPostingsRows.length, start + shardSize);
+        if (start >= end) break;
+        const rows = fieldPostingsRows.slice(start, end);
+        const relPath = `field_postings.shards/field_postings.part-${String(shardIndex).padStart(4, '0')}.json`;
+        const absPath = path.join(outDir, relPath);
+        partFiles.push({ relPath, count: rows.length, absPath, rows });
+      }
+      const partEstimatedBytes = Math.max(
+        1,
+        Math.floor(fieldPostingsEstimatedBytes / Math.max(1, partFiles.length))
+      );
+      for (const part of partFiles) {
+        enqueueWrite(
+          part.relPath,
+          async () => {
             const fields = {};
-            for (const row of rows) fields[row.field] = row.postings;
-            await writeJsonObjectFile(absPath, {
+            for (const row of part.rows) fields[row.field] = row.postings;
+            await writeJsonObjectFile(part.absPath, {
               fields: { fields },
               atomic: true
             });
-          }
+          },
+          { priority: 206, estimatedBytes: partEstimatedBytes }
+        );
+        addPieceFile({
+          type: 'postings',
+          name: 'field_postings_shard',
+          format: 'json',
+          count: part.count
+        }, part.absPath);
+      }
+      enqueueWrite(
+        formatArtifactLabel(shardsMetaPath),
+        async () => {
           await writeJsonObjectFile(shardsMetaPath, {
             fields: {
               schemaVersion: '1.0.0',
@@ -1459,18 +1477,10 @@ export async function writeIndexArtifacts(input) {
             },
             atomic: true
           });
-          for (const part of partFiles) {
-            addPieceFile({
-              type: 'postings',
-              name: 'field_postings_shard',
-              format: 'json',
-              count: part.count
-            }, part.absPath);
-          }
-          addPieceFile({ type: 'postings', name: 'field_postings_shards_meta', format: 'json' }, shardsMetaPath);
         },
-        { priority: 205, estimatedBytes: fieldPostingsEstimatedBytes }
+        { priority: 207, estimatedBytes: Math.max(1024, partFiles.length * 128) }
       );
+      addPieceFile({ type: 'postings', name: 'field_postings_shards_meta', format: 'json' }, shardsMetaPath);
       if (typeof log === 'function') {
         log(
           `field_postings estimate ~${formatBytes(fieldPostingsEstimatedBytes)}; ` +
