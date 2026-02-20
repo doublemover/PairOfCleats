@@ -172,10 +172,19 @@ const readIndexRowsWithRetry = async ({ indexPath, abortSignal = null }) => {
 const loadIndexEntries = async ({ grammarKeys, paths, abortSignal = null }) => {
   throwIfAborted(abortSignal);
   const index = new Map();
-  for (const grammarKey of grammarKeys || []) {
-    throwIfAborted(abortSignal);
-    const indexPath = paths.resultsIndexPathForGrammarKey(grammarKey);
-    const rows = await readIndexRowsWithRetry({ indexPath, abortSignal });
+  const keys = Array.isArray(grammarKeys) ? grammarKeys : [];
+  const rowMaps = await runWithConcurrency(
+    keys,
+    Math.max(1, Math.min(8, keys.length || 1)),
+    async (grammarKey) => {
+      throwIfAborted(abortSignal);
+      const indexPath = paths.resultsIndexPathForGrammarKey(grammarKey);
+      return readIndexRowsWithRetry({ indexPath, abortSignal });
+    },
+    { signal: abortSignal }
+  );
+  for (const rows of rowMaps || []) {
+    if (!(rows instanceof Map)) continue;
     for (const [virtualPath, row] of rows.entries()) {
       throwIfAborted(abortSignal);
       index.set(virtualPath, row);
