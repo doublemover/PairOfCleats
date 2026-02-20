@@ -582,9 +582,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.33 Makefile
 
-- [ ] Implement `Makefile`/`makefile`/`GNUmakefile` routing and deterministic chunking.
-- [ ] Implement and verify target/include relation extraction for layered builds.
-- [ ] Calibrate and commit Makefile caps for generated and aggregate build files.
+- [x] Implement `Makefile`/`makefile`/`GNUmakefile` routing and deterministic chunking.
+- [x] Implement and verify target/include relation extraction for layered builds.
+- [x] Calibrate and commit Makefile caps for generated and aggregate build files.
 
 
 Touchpoints:

@@ -250,7 +250,7 @@ export const LANGUAGE_ROUTE_DESCRIPTORS = Object.freeze([
     parserRoute: 'line-parser-makefile',
     capsProfile: 'makefile-default',
     extensions: Object.freeze(['.makefile']),
-    specialFilenames: Object.freeze(['makefile', 'gnumakefile']),
+    specialFilenames: Object.freeze(['makefile', 'gnumakefile', 'bsdmakefile']),
     specialPrefixes: Object.freeze(['makefile'])
   }),
   Object.freeze({
