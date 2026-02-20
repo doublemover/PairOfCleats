@@ -29,7 +29,7 @@ export const loadMinhashSignatures = async (
     strict = true
   } = {}
 ) => {
-  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict: true });
+  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
   const sources = resolveManifestArtifactSources({
     dir,
     manifest: resolvedManifest,
@@ -115,7 +115,7 @@ export const loadMinhashSignatureRows = async function* (
     batchSize = 2048
   } = {}
 ) {
-  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict: true });
+  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
   const sources = resolveManifestArtifactSources({
     dir,
     manifest: resolvedManifest,

@@ -167,7 +167,7 @@ export const loadChunkMeta = async (
 ) => {
   const requiredKeys = resolveJsonlRequiredKeys('chunk_meta');
   const validationMode = strict ? 'strict' : 'trusted';
-  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict: true });
+  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
   const maybeMergeCold = async (rows) => {
     if (!includeCold) return normalizeChunkMetaMetaV2(rows);
     const coldRows = await loadChunkMetaColdRows({
