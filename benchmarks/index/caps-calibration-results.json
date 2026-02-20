@@ -123,8 +123,8 @@
       "maxLines": 6000
     },
     "scala": {
-      "maxBytes": 393216,
-      "maxLines": 6000
+      "maxBytes": 458752,
+      "maxLines": 7000
     },
     "shell": {
       "maxBytes": 262144,
@@ -311,9 +311,9 @@
       "maxParseMs": 1700
     },
     "scala": {
-      "maxBytes": 393216,
-      "maxLines": 6000,
-      "maxParseMs": 1700
+      "maxBytes": 458752,
+      "maxLines": 7000,
+      "maxParseMs": 1900
     },
     "shell": {
       "maxBytes": 262144,

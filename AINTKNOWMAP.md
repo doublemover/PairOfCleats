@@ -629,9 +629,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.36 Scala
 
-- [ ] Implement `.scala` routing and package/import/type extraction behavior.
-- [ ] Implement and verify relation extraction for trait/object/class-heavy code.
-- [ ] Calibrate and commit Scala caps for large Spark and backend codebases.
+- [x] Implement `.scala` routing and package/import/type extraction behavior.
+- [x] Implement and verify relation extraction for trait/object/class-heavy code.
+- [x] Calibrate and commit Scala caps for large Spark and backend codebases.
 
 
 Touchpoints:
