@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import os from 'node:os';
 import { applyAdaptiveDictConfig, getIndexDir, getMetricsDir } from '../../../shared/dict-utils.js';
 import { buildRecordsIndexForRepo } from '../../../integrations/triage/index-records.js';
 import { createCacheReporter, createLruCache, estimateFileTextBytes } from '../../../shared/cache.js';
@@ -322,6 +323,60 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   const stageTotal = stagePlan.length;
   let stageIndex = 0;
   const getSchedulerStats = () => (runtime?.scheduler?.stats ? runtime.scheduler.stats() : null);
+  const captureRuntimeSnapshot = () => {
+    const schedulerStats = getSchedulerStats();
+    const cpuCount = Array.isArray(runtime?.cpuList) && runtime.cpuList.length
+      ? runtime.cpuList.length
+      : (Array.isArray(os.cpus()) ? os.cpus().length : null);
+    const loadAvg = typeof os.loadavg === 'function' ? os.loadavg() : null;
+    const oneMinuteLoad = Array.isArray(loadAvg) && Number.isFinite(loadAvg[0]) ? loadAvg[0] : null;
+    const normalizedCpuLoad = Number.isFinite(oneMinuteLoad) && Number.isFinite(cpuCount) && cpuCount > 0
+      ? Math.max(0, Math.min(1, oneMinuteLoad / cpuCount))
+      : null;
+    const totalMem = Number(os.totalmem()) || 0;
+    const freeMem = Number(os.freemem()) || 0;
+    const memoryUtilization = totalMem > 0
+      ? Math.max(0, Math.min(1, (totalMem - freeMem) / totalMem))
+      : null;
+    return {
+      scheduler: schedulerStats,
+      cpu: {
+        cores: Number.isFinite(cpuCount) ? cpuCount : null,
+        loadAvg1m: oneMinuteLoad,
+        normalizedLoad: normalizedCpuLoad
+      },
+      memory: {
+        totalBytes: totalMem > 0 ? totalMem : null,
+        freeBytes: freeMem > 0 ? freeMem : null,
+        utilization: memoryUtilization
+      },
+      queues: runtime?.queues
+        ? {
+          ioPending: Number.isFinite(runtime.queues.io?.size) ? runtime.queues.io.size : null,
+          cpuPending: Number.isFinite(runtime.queues.cpu?.size) ? runtime.queues.cpu.size : null,
+          embeddingPending: Number.isFinite(runtime.queues.embedding?.size) ? runtime.queues.embedding.size : null,
+          procPending: Number.isFinite(runtime.queues.proc?.size) ? runtime.queues.proc.size : null
+        }
+        : null
+    };
+  };
+  const recordStageCheckpoint = ({
+    stage,
+    step = null,
+    label = null,
+    extra = null
+  }) => {
+    const safeExtra = extra && typeof extra === 'object' ? extra : {};
+    stageCheckpoints.record({
+      stage,
+      step,
+      label,
+      extra: {
+        ...safeExtra,
+        runtime: captureRuntimeSnapshot()
+      }
+    });
+  };
   const advanceStage = (stage) => {
     if (runtime?.overallProgress?.advance && stageIndex > 0) {
       const prevStage = stagePlan[stageIndex - 1];
@@ -353,7 +408,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     })
   });
   const allEntries = discoveryResult.value;
-  stageCheckpoints.record({
+  recordStageCheckpoint({
     stage: 'stage1',
     step: 'discovery',
     extra: {
@@ -424,7 +479,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     cacheReporter
   });
   if (reused) {
-    stageCheckpoints.record({
+    recordStageCheckpoint({
       stage: 'stage1',
       step: 'incremental',
       label: 'reused',
@@ -450,7 +505,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     fileTextByFile,
     abortSignal
   });
-  stageCheckpoints.record({
+  recordStageCheckpoint({
     stage: 'stage1',
     step: 'imports',
     extra: {
@@ -505,7 +560,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       memory: stats.memory || null
     };
   };
-  stageCheckpoints.record({
+  recordStageCheckpoint({
     stage: 'stage1',
     step: 'processing',
     extra: {
@@ -590,7 +645,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       abortSignal
     }));
   throwIfAborted(abortSignal);
-  stageCheckpoints.record({
+  recordStageCheckpoint({
     stage: 'stage2',
     step: 'relations',
     extra: {
@@ -667,7 +722,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       () => buildIndexPostings({ runtime: runtimeRef, state, incrementalState })
     )
     : buildIndexPostings({ runtime: runtimeRef, state, incrementalState }));
-  stageCheckpoints.record({
+  recordStageCheckpoint({
     stage: 'stage1',
     step: 'postings',
     extra: {
@@ -708,7 +763,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       runsSpilled: vfsStats.runsSpilled || 0
     }
     : null;
-  stageCheckpoints.record({
+  recordStageCheckpoint({
     stage: 'stage2',
     step: 'write',
     extra: {
