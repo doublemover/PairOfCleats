@@ -289,8 +289,8 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.14 Objective-C
 
-- [ ] Implement Objective-C coverage (`.m`, `.mm`, Objective-C headers) and routing through C-like pipelines.
-- [ ] Implement and verify import/include extraction across ObjC and ObjC++ files.
+- [x] Implement Objective-C coverage (`.m`, `.mm`, Objective-C headers) and routing through C-like pipelines.
+- [x] Implement and verify import/include extraction across ObjC and ObjC++ files.
 - [ ] Calibrate and commit Objective-C caps for mixed UIKit/macOS codebases.
 
 
