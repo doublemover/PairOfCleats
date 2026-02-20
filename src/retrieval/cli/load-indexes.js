@@ -361,13 +361,11 @@ export async function loadSearchIndexes({
           }
         }
         for (const artifactName of artifactCandidates) {
-          const fallbackPath = path.join(dir, `${artifactName}_uint8.json`);
           try {
             const loaded = await loadJsonObjectArtifact(dir, artifactName, {
               maxBytes: MAX_JSON_BYTES,
               manifest,
-              strict,
-              fallbackPath
+              strict
             });
             if (!loaded || !Array.isArray(loaded.vectors) || !loaded.vectors.length) {
               continue;
@@ -559,16 +557,12 @@ export async function loadSearchIndexes({
     if (metaPresence?.error && !missingMetaEntry) {
       throw metaPresence.error;
     }
-    // In non-strict mode we intentionally attempt fallbackPath loads even when
-    // the manifest entry is missing, so legacy indexes without manifest entries
-    // can still surface LanceDB metadata if files exist on disk.
-    if (!missingMetaEntry || !strict) {
+    if (!missingMetaEntry) {
       try {
         meta = await loadJsonObjectArtifact(dir, metaName, {
           maxBytes: MAX_JSON_BYTES,
           manifest,
-          strict,
-          fallbackPath: targetPaths.metaPath || null
+          strict
         });
       } catch (err) {
         if (strict) {
@@ -587,14 +581,11 @@ export async function loadSearchIndexes({
     if (dirPresence?.error && !missingDirEntry) {
       throw dirPresence.error;
     }
-    // Same compatibility rule as metadata: allow non-strict fallback path
-    // resolution without a manifest entry for legacy LanceDB directories.
-    if (!missingDirEntry || !strict) {
+    if (!missingDirEntry) {
       try {
         lanceDir = resolveDirArtifactPath(dir, dirName, {
           manifest,
-          strict,
-          fallbackPath: targetPaths.dir || null
+          strict
         });
       } catch (err) {
         if (err?.code !== 'ERR_MANIFEST_MISSING' && err?.code !== 'ERR_MANIFEST_INVALID') {

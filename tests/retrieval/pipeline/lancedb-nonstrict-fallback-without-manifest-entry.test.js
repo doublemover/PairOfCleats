@@ -133,5 +133,6 @@ const loaded = await loadSearchIndexes({
 assert.ok(loaded?.idxCode?.lancedb, 'expected lancedb metadata object to be present');
 assert.equal(loaded.idxCode.lancedb.available, false, 'expected lancedb to be unavailable without manifest entries');
 assert.equal(loaded.idxCode.lancedb.meta, null, 'expected lancedb meta to remain null without manifest entries');
+assert.equal(loaded.idxCode.lancedb.dir, null, 'expected lancedb dir to remain null without manifest entries');
 
 console.log('lancedb manifest entry required contract test passed');

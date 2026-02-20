@@ -359,8 +359,7 @@ export const loadFileMetaRows = async function* (
  * @param {{
  *   maxBytes?: number,
  *   manifest?: object|null,
- *   strict?: boolean,
- *   fallbackPath?: string|null
+ *   strict?: boolean
  * }} [options]
  * @returns {Promise<any>}
  */
@@ -370,11 +369,9 @@ export const loadJsonObjectArtifact = async (
   {
     maxBytes = MAX_JSON_BYTES,
     manifest = null,
-    strict = true,
-    fallbackPath = null
+    strict = true
   } = {}
 ) => {
-  void fallbackPath;
   const resolvedManifest = manifest || loadPiecesManifest(
     dir,
     { maxBytes: resolveManifestMaxBytes(maxBytes), strict: true }
@@ -406,8 +403,7 @@ export const loadJsonObjectArtifact = async (
  * @param {{
  *   maxBytes?: number,
  *   manifest?: object|null,
- *   strict?: boolean,
- *   fallbackPath?: string|null
+ *   strict?: boolean
  * }} [options]
  * @returns {any}
  */
@@ -417,11 +413,9 @@ export const loadJsonObjectArtifactSync = (
   {
     maxBytes = MAX_JSON_BYTES,
     manifest = null,
-    strict = true,
-    fallbackPath = null
+    strict = true
   } = {}
 ) => {
-  void fallbackPath;
   const resolvedManifest = manifest || loadPiecesManifest(
     dir,
     { maxBytes: resolveManifestMaxBytes(maxBytes), strict: true }
