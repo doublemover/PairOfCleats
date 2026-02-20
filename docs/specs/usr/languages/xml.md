@@ -28,7 +28,7 @@ Normative language contract for `xml` under USR.
 
 ## Required node kinds
 
-- `config_mapping`, `config_scalar`, `html_element`, `type_alias_decl`
+- `config_key`, `config_mapping`, `config_scalar`, `config_section`, `config_sequence`
 
 ## Required edge kinds
 

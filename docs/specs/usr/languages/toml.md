@@ -28,7 +28,7 @@ Normative language contract for `toml` under USR.
 
 ## Required node kinds
 
-- `config_key`, `config_mapping`, `config_scalar`, `config_section`
+- `config_key`, `config_mapping`, `config_scalar`, `config_section`, `config_sequence`
 
 ## Required edge kinds
 

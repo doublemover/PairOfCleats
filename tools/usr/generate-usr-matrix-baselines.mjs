@@ -761,26 +761,68 @@ function roadmapTagsForFixture(row) {
   return [...tags].sort();
 }
 
-const generatedLanguageFixtureGovernance = languageBaselines
-  .map((base) => {
-    const families = ['language-baseline', 'golden'];
-    if (base.requiredConformance.includes('C2')) families.push('semantic-flow');
-    if (base.requiredConformance.includes('C3')) families.push('risk');
-    if (base.requiredConformance.includes('C4')) families.push('framework-overlay');
+const configLanguageFixtureSuffixById = {
+  ini: 'multi-section-001',
+  json: 'nested-objects-001',
+  toml: 'array-of-tables-001',
+  xml: 'namespaces-and-includes-001',
+  yaml: 'anchors-aliases-001'
+};
 
-    return {
-      fixtureId: `${base.id}::baseline::coverage-001`,
-      profileType: 'language',
-      profileId: base.id,
-      conformanceLevels: [...base.requiredConformance],
-      families: [...new Set(families)].sort(),
-      owner: `language-${base.id}`,
-      reviewers: ['usr-architecture', 'usr-conformance'],
-      stabilityClass: 'stable',
-      mutationPolicy: 'require-review',
-      goldenRequired: true,
-      blocking: true
-    };
+function fixtureFamiliesForLanguage(base) {
+  const families = ['language-baseline', 'golden'];
+  if (base.requiredConformance.includes('C2')) families.push('semantic-flow');
+  if (base.requiredConformance.includes('C3')) families.push('risk');
+  if (base.requiredConformance.includes('C4')) families.push('framework-overlay');
+  return [...new Set(families)].sort();
+}
+
+const generatedLanguageFixtureGovernance = languageBaselines
+  .flatMap((base) => {
+    const profileType = 'language';
+    const profileId = base.id;
+    const conformanceLevels = [...base.requiredConformance];
+    const owner = `language-${base.id}`;
+    const reviewers = ['usr-architecture', 'usr-conformance'];
+    const stabilityClass = 'stable';
+    const mutationPolicy = 'require-review';
+    const goldenRequired = true;
+    const blocking = true;
+    const baselineFamilies = fixtureFamiliesForLanguage(base);
+    const rows = [
+      {
+        fixtureId: `${base.id}::baseline::coverage-001`,
+        profileType,
+        profileId,
+        conformanceLevels,
+        families: baselineFamilies,
+        owner,
+        reviewers,
+        stabilityClass,
+        mutationPolicy,
+        goldenRequired,
+        blocking
+      }
+    ];
+
+    const configSuffix = configLanguageFixtureSuffixById[base.id];
+    if (configSuffix) {
+      rows.push({
+        fixtureId: `${base.id}::config::${configSuffix}`,
+        profileType,
+        profileId,
+        conformanceLevels,
+        families: [...new Set([...baselineFamilies, 'config'])].sort(),
+        owner,
+        reviewers,
+        stabilityClass,
+        mutationPolicy,
+        goldenRequired,
+        blocking
+      });
+    }
+
+    return rows;
   })
   .sort((a, b) => a.fixtureId.localeCompare(b.fixtureId));
 

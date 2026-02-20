@@ -112,6 +112,18 @@ port = 5432
 `
   },
   {
+    languageId: 'xml',
+    file: 'sample.xml',
+    grammarKey: 'native:xml',
+    expectedNames: ['config', 'database'],
+    content: `<config>
+  <database host="localhost" port="5432">
+    <pool size="5" />
+  </database>
+</config>
+`
+  },
+  {
     languageId: 'markdown',
     file: 'sample.md',
     grammarKey: 'native:markdown',

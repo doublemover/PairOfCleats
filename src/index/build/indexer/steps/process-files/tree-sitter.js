@@ -21,6 +21,7 @@ const TREE_SITTER_EXT_MAP = new Map([
   ['.yaml', 'yaml'],
   ['.yml', 'yaml'],
   ['.toml', 'toml'],
+  ['.xml', 'xml'],
   ['.md', 'markdown'],
   ['.mdx', 'markdown'],
   ['.css', 'css'],

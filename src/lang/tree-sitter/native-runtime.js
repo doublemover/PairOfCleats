@@ -32,6 +32,7 @@ const NATIVE_GRAMMAR_MODULES = Object.freeze({
   json: { moduleName: 'tree-sitter-json' },
   yaml: { moduleName: '@tree-sitter-grammars/tree-sitter-yaml' },
   toml: { moduleName: '@tree-sitter-grammars/tree-sitter-toml' },
+  xml: { moduleName: '@tree-sitter-grammars/tree-sitter-xml', exportKey: 'xml' },
   markdown: { moduleName: '@tree-sitter-grammars/tree-sitter-markdown' },
   kotlin: { moduleName: 'tree-sitter-kotlin' },
   csharp: { moduleName: 'tree-sitter-c-sharp' },

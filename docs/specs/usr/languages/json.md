@@ -28,7 +28,7 @@ Normative language contract for `json` under USR.
 
 ## Required node kinds
 
-- `config_key`, `config_mapping`, `config_scalar`, `config_sequence`
+- `config_key`, `config_mapping`, `config_scalar`, `config_section`, `config_sequence`
 
 ## Required edge kinds
 
