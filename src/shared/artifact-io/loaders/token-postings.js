@@ -217,7 +217,10 @@ export const loadTokenPostings = (
       docLengths
     };
   };
-  void preferBinaryColumnar;
+  if (preferBinaryColumnar) {
+    const binary = tryLoadTokenPostingsBinaryColumnar(dir, { maxBytes });
+    if (binary) return binary;
+  }
   const sources = resolveManifestArtifactSources({
     dir,
     manifest: resolvedManifest,

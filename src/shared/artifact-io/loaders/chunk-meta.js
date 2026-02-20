@@ -179,7 +179,13 @@ export const loadChunkMeta = async (
     });
     return normalizeChunkMetaMetaV2(mergeChunkMetaColdRows(rows, coldRows));
   };
-  void preferBinaryColumnar;
+  if (preferBinaryColumnar) {
+    const binaryRows = tryLoadChunkMetaBinaryColumnar(dir, { maxBytes });
+    if (binaryRows) {
+      const merged = await maybeMergeCold(binaryRows);
+      return maybeInflatePackedTokenIds(merged, materializeTokenIds);
+    }
+  }
   const sources = resolveManifestArtifactSources({
     dir,
     manifest: resolvedManifest,
