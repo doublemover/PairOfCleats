@@ -12,6 +12,12 @@ const root = repoRoot();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'baseline');
 const buildPath = path.join(root, 'build_index.js');
 const cacheRoot = await makeTempDir('pairofcleats-baseline-');
+const prevCacheRoot = process.env.PAIROFCLEATS_CACHE_ROOT;
+
+// Apply shared test defaults first, then pin this test's temp cache root so
+// spawned builds and in-process index-dir resolution target the same location.
+applyTestEnv();
+process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 
 const env = {
   ...process.env,  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
@@ -93,9 +99,6 @@ const readArtifacts = (indexDir) => {
   };
 };
 
-const prevCacheRoot = process.env.PAIROFCLEATS_CACHE_ROOT;
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
-applyTestEnv();
 const userConfig = loadUserConfig(fixtureRoot);
 
 const buildResult1 = runBuild();
