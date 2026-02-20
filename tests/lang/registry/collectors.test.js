@@ -53,8 +53,14 @@ const cases = [
   {
     label: 'proto',
     fn: collectProtoImports,
-    text: 'import \"foo.proto\";\nimport public \"bar.proto\";',
-    expected: ['foo.proto', 'bar.proto']
+    text: [
+      'import \"foo.proto\";',
+      'import public \"bar.proto\";',
+      'import weak \"baz.proto\";',
+      'package poc.services.v1;',
+      'option go_package = \"github.com/acme/poc/services/v1\";'
+    ].join('\n'),
+    expected: ['foo.proto', 'bar.proto', 'baz.proto', 'poc.services.v1', 'github.com/acme/poc/services/v1']
   },
   {
     label: 'graphql',
