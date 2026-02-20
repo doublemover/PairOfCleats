@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { getToolingConfig } from '../../shared/dict-utils.js';
+import { getRepoCacheRoot, getRepoRoot, getToolingConfig } from '../../shared/dict-utils.js';
 import { uniqueTypes } from '../../integrations/tooling/providers/shared.js';
 import { readTextFile } from '../../shared/encoding.js';
 import { sha1 } from '../../shared/hash.js';
@@ -24,6 +24,21 @@ const LARGE_REPO_PARAM_TYPE_LIMIT = 3;
 const CROSS_FILE_CACHE_SCHEMA_VERSION = 1;
 const CROSS_FILE_CACHE_DIRNAME = 'cross-file-inference';
 const DYNAMIC_BUNDLE_TARGET_MS = 500;
+
+const resolveCrossFileCacheRoot = ({ cacheRoot, rootDir }) => {
+  if (typeof cacheRoot === 'string' && cacheRoot.trim()) {
+    return cacheRoot.trim();
+  }
+  if (typeof rootDir !== 'string' || !rootDir.trim()) {
+    return null;
+  }
+  try {
+    const repoRoot = getRepoRoot(null, rootDir);
+    return getRepoCacheRoot(repoRoot);
+  } catch {
+    return null;
+  }
+};
 
 const linkKeys = new WeakMap();
 
@@ -284,11 +299,7 @@ export async function applyCrossFileInference({
       + `usagePerChunk=${largeRepoBudget.maxUsageLinksPerChunk}).`
     );
   }
-  const resolvedCacheRoot = typeof cacheRoot === 'string' && cacheRoot.trim()
-    ? cacheRoot.trim()
-    : (typeof buildRoot === 'string' && buildRoot.trim()
-      ? path.join(buildRoot, '.cache')
-      : null);
+  const resolvedCacheRoot = resolveCrossFileCacheRoot({ cacheRoot, rootDir });
   const cacheDir = resolvedCacheRoot
     ? path.join(resolvedCacheRoot, CROSS_FILE_CACHE_DIRNAME)
     : null;
