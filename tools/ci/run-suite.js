@@ -79,6 +79,12 @@ const USR_GUARDRAIL_GATES = Object.freeze([
     label: 'USR guardrail (item 36: backward-compatibility matrix)',
     script: 'tools/ci/usr/item36-backcompat-matrix-gate.js',
     report: 'usr-section-36-backcompat-matrix-report.json'
+  },
+  {
+    item: 37,
+    label: 'USR guardrail (item 37: governance drift)',
+    script: 'tools/ci/usr/item37-governance-drift-gate.js',
+    report: 'usr-section-37-governance-drift-report.json'
   }
 ]);
 

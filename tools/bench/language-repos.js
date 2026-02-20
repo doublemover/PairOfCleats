@@ -48,6 +48,12 @@ const USR_GUARDRAIL_BENCHMARKS = Object.freeze([
     label: 'Mandatory backward-compatibility matrix',
     script: 'tools/bench/usr/item36-backcompat-matrix.js',
     report: 'item36-backcompat-matrix.json'
+  },
+  {
+    item: 37,
+    label: 'Decomposed contract governance',
+    script: 'tools/bench/usr/item37-governance-drift.js',
+    report: 'item37-governance-drift.json'
   }
 ]);
 
