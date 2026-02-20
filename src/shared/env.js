@@ -80,6 +80,8 @@ export function getEnvConfig(env = process.env) {
     schedulerMaxMemoryTokens: normalizeNumber(env.PAIROFCLEATS_SCHEDULER_MAX_MEM),
     schedulerTargetUtilization: normalizeNumber(env.PAIROFCLEATS_SCHEDULER_TARGET_UTILIZATION),
     schedulerAdaptiveStep: normalizeNumber(env.PAIROFCLEATS_SCHEDULER_ADAPTIVE_STEP),
+    schedulerMemoryReserveMb: normalizeNumber(env.PAIROFCLEATS_SCHEDULER_MEMORY_RESERVE_MB),
+    schedulerMemoryPerTokenMb: normalizeNumber(env.PAIROFCLEATS_SCHEDULER_MEMORY_PER_TOKEN_MB),
     schedulerStarvationMs: normalizeNumber(env.PAIROFCLEATS_SCHEDULER_STARVATION_MS),
     schedulerLowResource: normalizeOptionalBoolean(env.PAIROFCLEATS_SCHEDULER_LOW_RESOURCE),
     mcpTransport: normalizeString(env.PAIROFCLEATS_MCP_TRANSPORT),

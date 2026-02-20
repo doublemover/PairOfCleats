@@ -231,6 +231,22 @@ export const resolveSchedulerConfig = ({ argv, rawArgv, envConfig, indexingConfi
     fallback: 1,
     allowZero: false
   });
+  const adaptiveMemoryReserveMb = resolveNumber({
+    cliValue: null,
+    cliPresent: false,
+    envValue: envConfig?.schedulerMemoryReserveMb,
+    configValue: schedulerConfig?.memoryReserveMb,
+    fallback: 2048,
+    allowZero: true
+  });
+  const adaptiveMemoryPerTokenMb = resolveNumber({
+    cliValue: null,
+    cliPresent: false,
+    envValue: envConfig?.schedulerMemoryPerTokenMb,
+    configValue: schedulerConfig?.memoryPerTokenMb,
+    fallback: 1024,
+    allowZero: false
+  });
 
   const queues = mergeQueueConfig(
     SCHEDULER_DEFAULT_QUEUE_CONFIG,
@@ -246,6 +262,8 @@ export const resolveSchedulerConfig = ({ argv, rawArgv, envConfig, indexingConfi
     adaptive: adaptiveEnabled,
     adaptiveTargetUtilization,
     adaptiveStep: Math.max(1, adaptiveStep || 1),
+    adaptiveMemoryReserveMb: Math.max(0, adaptiveMemoryReserveMb || 0),
+    adaptiveMemoryPerTokenMb: Math.max(64, adaptiveMemoryPerTokenMb || 1024),
     maxCpuTokens: Math.max(1, maxCpuTokens || 1),
     maxIoTokens: Math.max(1, maxIoTokens || 1),
     maxMemoryTokens: Math.max(1, maxMemoryTokens || 1),
