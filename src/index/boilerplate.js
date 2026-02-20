@@ -37,7 +37,7 @@ const stripCommentPrefix = (line) => String(line || '')
   .replace(/^\s*\*\/\s?/, '')
   .replace(/^\s*\*\s?/, '')
   .replace(/^\s*<!--\s?/, '')
-  .replace(/\s*-->\s*$/, '')
+  .replace(/\s*--!?>\s*$/, '')
   .trim();
 
 const isCommentOrBlankLine = (line) => {

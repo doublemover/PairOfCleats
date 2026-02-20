@@ -33,6 +33,16 @@ const row = {
 };
 
 await fs.writeFile(path.join(tempRoot, 'chunk_meta.json'), JSON.stringify([row], null, 2), 'utf8');
+await fs.mkdir(path.join(tempRoot, 'pieces'), { recursive: true });
+await fs.writeFile(
+  path.join(tempRoot, 'pieces', 'manifest.json'),
+  JSON.stringify({
+    pieces: [
+      { name: 'chunk_meta', path: 'chunk_meta.json', format: 'json' }
+    ]
+  }, null, 2),
+  'utf8'
+);
 
 const loaded = await loadChunkMeta(tempRoot, {
   strict: false,

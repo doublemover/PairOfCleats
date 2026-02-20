@@ -104,7 +104,6 @@
     "docx": "^9.5.3",
     "es-module-lexer": "^2.0.0",
     "escomplex": "2.0.0-alpha",
-    "eslint": "9.39.2",
     "esprima": "4.0.1",
     "esquery": "^1.7.0",
     "execa": "^9.6.1",
@@ -149,7 +148,7 @@
     "simple-git": "3.31.1",
     "smol-toml": "^1.6.0",
     "snowball-stemmers": "0.6.0",
-    "svelte": "^5.46.1",
+    "svelte": "^5.51.5",
     "tar-fs": "3.1.1",
     "terminal-kit": "^3.1.2",
     "three": "^0.182.0",
@@ -187,11 +186,16 @@
     "re2": "^1.23.3"
   },
   "overrides": {
-    "tar": "7.5.7",
-    "@isaacs/brace-expansion": "5.0.1"
+    "tar": "7.5.8",
+    "hono": "4.11.10",
+    "@isaacs/brace-expansion": "5.0.1",
+    "glob@13.0.1": {
+      "minimatch": "10.2.1"
+    }
   },
   "devDependencies": {
     "c8": "^9.1.0",
+    "eslint": "9.39.2",
     "patch-package": "^8.0.1"
   }
 }

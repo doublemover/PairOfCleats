@@ -9,9 +9,29 @@ const NEXT_APP_ROUTE_FILE_RX = /(^|\/)app\/(?:.+\/)?(page|layout|route|template|
 const NEXT_PAGES_ROUTE_FILE_RX = /(^|\/)pages\/.+\.(js|jsx|ts|tsx|mjs|cjs|mts|cts|mdx)$/i;
 const NEXT_CONFIG_FILE_RX = /(^|\/)next\.config\.(js|cjs|mjs|ts)$/i;
 const NEXT_IMPORT_SIGNAL_RX = /\bfrom\s+['"]next(?:\/[^'"]*)?['"]|\brequire\(\s*['"]next(?:\/[^'"]*)?['"]\s*\)|\bimport\(\s*['"]next(?:\/[^'"]*)?['"]\s*\)/i;
-const NEXT_DIRECTIVE_SIGNAL_RX = /^\s*(?:(?:\/\/[^\n]*\n)|(?:\/\*[\s\S]*?\*\/\s*))*['"]use\s+(?:client|server)['"]\s*;?/i;
+const hasNextDirectiveSignal = (source) => {
+  const text = typeof source === 'string' ? source : String(source || '');
+  let cursor = 0;
+  while (cursor < text.length) {
+    while (cursor < text.length && /\s/.test(text[cursor])) cursor += 1;
+    if (text.startsWith('//', cursor)) {
+      const nextBreak = text.indexOf('\n', cursor + 2);
+      if (nextBreak < 0) return false;
+      cursor = nextBreak + 1;
+      continue;
+    }
+    if (text.startsWith('/*', cursor)) {
+      const blockEnd = text.indexOf('*/', cursor + 2);
+      if (blockEnd < 0) return false;
+      cursor = blockEnd + 2;
+      continue;
+    }
+    break;
+  }
+  return /^['"]use\s+(?:client|server)['"]\s*;?/i.test(text.slice(cursor));
+};
 const hasNextSourceSignal = (source, getSourceLower) => {
-  if (NEXT_IMPORT_SIGNAL_RX.test(source) || NEXT_DIRECTIVE_SIGNAL_RX.test(source)) return true;
+  if (NEXT_IMPORT_SIGNAL_RX.test(source) || hasNextDirectiveSignal(source)) return true;
   const sourceLower = getSourceLower();
   return /\bnextpage\b/.test(sourceLower)
     || /\bgetstaticprops\b/.test(sourceLower)
