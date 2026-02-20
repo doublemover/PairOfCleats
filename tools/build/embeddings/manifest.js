@@ -38,21 +38,27 @@ export const updatePieceManifest = async ({ indexDir, mode, totalChunks, dims })
   const hnswDocStats = loadMeta('dense_vectors_doc_hnsw.meta.json', { count: totalChunks, dims });
   const hnswCodeStats = loadMeta('dense_vectors_code_hnsw.meta.json', { count: totalChunks, dims });
   const manifestExists = fsSync.existsSync(manifestPath) || fsSync.existsSync(`${manifestPath}.bak`);
-  if (!manifestExists) {
-    // Stage3 should only augment a stage2 manifest. If the baseline manifest is
-    // missing, skip mutation rather than generating an embeddings-only surface.
-    return;
-  }
   let existing = null;
-  try {
-    existing = loadPiecesManifest(indexDir, { maxBytes: MAX_JSON_BYTES, strict: true }) || null;
-  } catch {
-    // Avoid clobbering the artifact surface when the baseline manifest is
-    // temporarily unavailable or unreadable.
-    return;
+  if (manifestExists) {
+    try {
+      existing = loadPiecesManifest(indexDir, { maxBytes: MAX_JSON_BYTES, strict: true }) || null;
+    } catch {
+      existing = null;
+    }
   }
   if (!existing || typeof existing !== 'object') {
-    return;
+    existing = {
+      version: 2,
+      artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
+      compatibilityKey: null,
+      generatedAt: new Date().toISOString(),
+      updatedAt: null,
+      mode,
+      stage: 'stage3',
+      repoId: null,
+      buildId: null,
+      pieces: []
+    };
   }
   const priorPieces = Array.isArray(existing.pieces) ? existing.pieces : [];
   const retained = [];
