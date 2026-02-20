@@ -153,7 +153,7 @@ const SMOKE_STEPS = Object.freeze([
   {
     id: 'smoke.service-mode',
     label: 'service-mode smoke check',
-    command: [process.execPath, 'tools/service/indexer-service.js', 'status', '--json']
+    command: [process.execPath, 'tools/service/indexer-service.js', 'smoke', '--json']
   }
 ]);
 

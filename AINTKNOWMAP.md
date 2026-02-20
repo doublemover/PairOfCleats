@@ -1157,9 +1157,9 @@ Touchpoints:
 - `package.json`
 #### 2.5 Service-mode bundle and enforcement
 
-- [ ] Define canonical one-command service-mode run path.
-- [ ] Document required env, queue paths, and security defaults.
-- [ ] Make service-mode smoke part of standard release validation flow.
+- [x] Define canonical one-command service-mode run path.
+- [x] Document required env, queue paths, and security defaults.
+- [x] Make service-mode smoke part of standard release validation flow.
 
 Tests:
 
