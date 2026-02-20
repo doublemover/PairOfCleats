@@ -63,4 +63,17 @@ assert.deepEqual(
   'expected explicit heavy-lane override to be honored'
 );
 
+const strictCapMixedSingleSlot = resolveArtifactLaneConcurrency({
+  writeConcurrency: 1,
+  lightWrites: 1,
+  heavyWrites: 1,
+  heavyWriteConcurrencyOverride: 8,
+  hostConcurrency: 16
+});
+assert.deepEqual(
+  strictCapMixedSingleSlot,
+  { heavyConcurrency: 1, lightConcurrency: 0 },
+  'expected mixed lanes with writeConcurrency=1 to keep strict global cap'
+);
+
 console.log('artifact write lane concurrency test passed');
