@@ -1421,10 +1421,10 @@ Tests:
 
 #### 6.3 Profiling hooks
 
-- [ ] Implement and enforce `--profile` output contract in the test runner.
-- [ ] Emit deterministic `profile.json` schema with explicit version, normalized path fields, fixed time units, and stable key ordering.
-- [ ] Enforce profile artifact schema validation in contract validators (not docs only).
-- [ ] Enforce deterministic numeric formatting/rounding for timing fields to avoid host-dependent serialization drift.
+- [x] Implement and enforce `--profile` output contract in the test runner.
+- [x] Emit deterministic `profile.json` schema with explicit version, normalized path fields, fixed time units, and stable key ordering.
+- [x] Enforce profile artifact schema validation in contract validators (not docs only).
+- [x] Enforce deterministic numeric formatting/rounding for timing fields to avoid host-dependent serialization drift.
 
 Touchpoints:
 
