@@ -5,6 +5,7 @@ Canonical roadmap generated from a full audit of `FUTUREROADMAP.md`, rewritten f
 ## Hard Cutover Policy
 
 - One active behavior per surface. No compatibility shims, no dual-write/dual-read windows, no legacy mode.
+- Optimization controls use one canonical profile selector with a default profile; temporary per-feature debug overrides are removed within the same phase that introduces them.
 - Contract/schema changes are allowed to be breaking. When changed, update all producers/consumers in the same phase.
 - CLI/API flag changes are allowed to be breaking. Remove retired flags/paths immediately.
 - Toolchain requirements are strict. If a required toolchain is missing, fail fast with a clear error.
@@ -58,11 +59,31 @@ Verification:
 
 Intent: hard cutover to fully language-aware indexing, with no blind spots in extension routing, build/package manifests, or language-specific limits.
 
+#### 0.5.0 Phase prelude: shared baselines and execution discipline
+
+- [ ] Execute Phase 0.5 in this order: `0.5.40` (descriptor + manifest canon) -> `0.5.41` (caps telemetry/calibration) -> `0.5.1..0.5.39e` (language/framework implementation passes) -> `0.5.42` (performance optimization program).
+- [ ] Enforce shared-file workstreams to reduce thrash: one routing/descriptor workstream, one caps workstream, one fixture/test workstream; each shared file is patched once per workstream, not repeatedly per language.
+- [ ] Enforce a concrete per-subphase implementation contract for every `0.5.x` language/framework section:
+  - [ ] deliverable A: descriptor/spec patch (extensions, special filenames, parser route, adapter ID, caps profile)
+  - [ ] deliverable B: code-path patch (routing + chunking + relations/flow/docmeta in listed touchpoints)
+  - [ ] deliverable C: fixture/test patch (routing + collector/chunker/relation/flow + caps regression coverage)
+- [ ] Require each subphase commit series to include explicit artifact outputs (`descriptor diff`, `caps profile diff`, `fixture/test diff`) so validation work is always tied to concrete code changes.
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/build/discover.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/language-registry/registry.js`
+- `src/index/build/runtime/caps.js`
+- `tests/indexing/language-registry/*`
+- `tests/indexing/chunking/*`
+
 #### 0.5.1 JavaScript
 
-- [ ] Confirm and enforce canonical JS source extension routing (`.js`, `.mjs`, `.cjs`) and remove any conflicting heuristics.
-- [ ] Validate JS index build wiring end-to-end: collect imports, chunking, relations, control/data flow, doc metadata extraction.
-- [ ] Tune JS `fileCaps` and tree-sitter thresholds from repo telemetry (token density, average LOC/file, p95 file size) and set strict defaults.
+- [ ] Implement and enforce canonical JS source extension routing (`.js`, `.mjs`, `.cjs`) and remove any conflicting heuristics.
+- [ ] Implement and verify JS index build wiring end-to-end: collect imports, chunking, relations, control/data flow, doc metadata extraction.
+- [ ] Calibrate and commit JS `fileCaps` and tree-sitter thresholds from repo telemetry (token density, average LOC/file, p95 file size) and set strict defaults.
 
 
 Touchpoints:
@@ -76,9 +97,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.2 TypeScript
 
-- [ ] Confirm and enforce TS extension routing (`.ts`, `.mts`, `.cts`, declaration files where intentionally included/excluded).
-- [ ] Validate TS index build wiring end-to-end, including type-centric relation extraction paths.
-- [ ] Tune TS `fileCaps` and parse limits separately from JS based on TS verbosity and declaration-heavy files.
+- [ ] Implement and enforce TS extension routing (`.ts`, `.mts`, `.cts`, declaration files where intentionally included/excluded).
+- [ ] Implement and verify TS index build wiring end-to-end, including type-centric relation extraction paths.
+- [ ] Calibrate and commit TS `fileCaps` and parse limits separately from JS based on TS verbosity and declaration-heavy files.
 
 
 Touchpoints:
@@ -92,7 +113,7 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.3 JSX and TSX
 
-- [ ] Validate `.jsx`/`.tsx` segmentation and parser routing as first-class code paths.
+- [ ] Implement and verify `.jsx`/`.tsx` segmentation and parser routing as first-class code paths.
 - [ ] Enforce deterministic mixed-markup/chunk boundaries and relation extraction behavior.
 - [ ] Add strict caps tuned to high token density in component files.
 
@@ -110,9 +131,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.4 Vue
 
-- [ ] Validate `.vue` segmentation across template/script/style blocks and ensure complete indexing of each embedded language segment.
+- [ ] Implement and verify `.vue` segmentation across template/script/style blocks and ensure complete indexing of each embedded language segment.
 - [ ] Ensure relation/flow coverage includes both script setup and classic script blocks.
-- [ ] Tune `.vue` caps to prevent under-indexing of large SFCs while guarding parse cost.
+- [ ] Calibrate and commit `.vue` caps to prevent under-indexing of large SFCs while guarding parse cost.
 
 
 Touchpoints:
@@ -127,9 +148,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.5 Svelte
 
-- [ ] Validate `.svelte` segmentation and routing for script/context/style/template sections.
+- [ ] Implement and verify `.svelte` segmentation and routing for script/context/style/template sections.
 - [ ] Ensure import/relation extraction covers both module and instance script contexts.
-- [ ] Tune `.svelte` caps for component-heavy repos with large templating blocks.
+- [ ] Calibrate and commit `.svelte` caps for component-heavy repos with large templating blocks.
 
 
 Touchpoints:
@@ -144,9 +165,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.6 Astro
 
-- [ ] Validate `.astro` segmentation and embedded-language indexing fidelity.
+- [ ] Implement and verify `.astro` segmentation and embedded-language indexing fidelity.
 - [ ] Ensure imports/relations from frontmatter and embedded scripts are deterministic.
-- [ ] Tune `.astro` caps for mixed markup/script payloads.
+- [ ] Calibrate and commit `.astro` caps for mixed markup/script payloads.
 
 
 Touchpoints:
@@ -161,9 +182,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.7 Python
 
-- [ ] Confirm `.py` coverage plus package/module boundary handling for import graph extraction.
-- [ ] Validate Python collector/chunker/relation/flow wiring and doc metadata extraction.
-- [ ] Tune Python caps for high-LOC modules and verbose docstring-heavy files.
+- [ ] Implement `.py` coverage plus package/module boundary handling for import graph extraction.
+- [ ] Implement and verify Python collector/chunker/relation/flow wiring and doc metadata extraction.
+- [ ] Calibrate and commit Python caps for high-LOC modules and verbose docstring-heavy files.
 
 
 Touchpoints:
@@ -176,9 +197,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.8 Ruby
 
-- [ ] Confirm `.rb` routing and module/class extraction behavior.
-- [ ] Validate Ruby imports (`require`/`require_relative`) and relation modeling.
-- [ ] Tune Ruby caps for DSL-heavy files and metaprogramming-heavy codebases.
+- [ ] Implement `.rb` routing and module/class extraction behavior.
+- [ ] Implement and verify Ruby imports (`require`/`require_relative`) and relation modeling.
+- [ ] Calibrate and commit Ruby caps for DSL-heavy files and metaprogramming-heavy codebases.
 
 
 Touchpoints:
@@ -191,9 +212,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.9 PHP
 
-- [ ] Confirm `.php` routing and namespace/class/function extraction behavior.
-- [ ] Validate import/usage extraction (`use`, include/require patterns) and relation wiring.
-- [ ] Tune PHP caps for mixed HTML/PHP and framework-style monolith files.
+- [ ] Implement `.php` routing and namespace/class/function extraction behavior.
+- [ ] Implement and verify import/usage extraction (`use`, include/require patterns) and relation wiring.
+- [ ] Calibrate and commit PHP caps for mixed HTML/PHP and framework-style monolith files.
 
 
 Touchpoints:
@@ -206,9 +227,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.10 Lua
 
-- [ ] Confirm `.lua` routing and module import extraction behavior.
-- [ ] Validate chunk/relation extraction quality for table-heavy and script-style code.
-- [ ] Tune Lua caps for plugin-style repos with large script bundles.
+- [ ] Implement `.lua` routing and module import extraction behavior.
+- [ ] Implement and verify chunk/relation extraction quality for table-heavy and script-style code.
+- [ ] Calibrate and commit Lua caps for plugin-style repos with large script bundles.
 
 
 Touchpoints:
@@ -221,9 +242,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.11 Perl
 
-- [ ] Confirm `.pl`/`.pm` routing and package/module extraction coverage.
-- [ ] Validate Perl import/require relation extraction.
-- [ ] Tune Perl caps for legacy monolithic script styles.
+- [ ] Implement `.pl`/`.pm` routing and package/module extraction coverage.
+- [ ] Implement and verify Perl import/require relation extraction.
+- [ ] Calibrate and commit Perl caps for legacy monolithic script styles.
 
 
 Touchpoints:
@@ -236,9 +257,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.12 Shell
 
-- [ ] Confirm `.sh`, `.bash`, `.zsh` routing and shebang-aware indexing behavior.
-- [ ] Validate shell include/source extraction and command relation heuristics.
-- [ ] Tune shell caps for large deployment/CI scripts.
+- [ ] Implement `.sh`, `.bash`, `.zsh` routing and shebang-aware indexing behavior.
+- [ ] Implement and verify shell include/source extraction and command relation heuristics.
+- [ ] Calibrate and commit shell caps for large deployment/CI scripts.
 
 
 Touchpoints:
@@ -252,8 +273,8 @@ Touchpoints:
 #### 0.5.13 C and C++
 
 - [ ] Expand and enforce C/C++ extension coverage, including headers/modules (`.h`, `.hh`, `.hpp`, `.hxx`, `.c`, `.cc`, `.cpp`, `.cxx`, `.ipp`, `.ixx`, `.cppm`, `.tpp`, `.inl`, `.modulemap`).
-- [ ] Validate include graph extraction and relation modeling for headers, sources, and module units.
-- [ ] Tune C/C++ caps for large translation units and header-heavy repos.
+- [ ] Implement and verify include graph extraction and relation modeling for headers, sources, and module units.
+- [ ] Calibrate and commit C/C++ caps for large translation units and header-heavy repos.
 
 
 Touchpoints:
@@ -266,9 +287,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.14 Objective-C
 
-- [ ] Confirm Objective-C coverage (`.m`, `.mm`, Objective-C headers) and routing through C-like pipelines.
-- [ ] Validate import/include extraction across ObjC and ObjC++ files.
-- [ ] Tune Objective-C caps for mixed UIKit/macOS codebases.
+- [ ] Implement Objective-C coverage (`.m`, `.mm`, Objective-C headers) and routing through C-like pipelines.
+- [ ] Implement and verify import/include extraction across ObjC and ObjC++ files.
+- [ ] Calibrate and commit Objective-C caps for mixed UIKit/macOS codebases.
 
 
 Touchpoints:
@@ -281,9 +302,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.15 Go
 
-- [ ] Confirm `.go` routing and package/import extraction behavior.
-- [ ] Validate Go chunking/relations/flow extraction for multi-package repos.
-- [ ] Tune Go caps for generated code and large monorepo package layouts.
+- [ ] Implement `.go` routing and package/import extraction behavior.
+- [ ] Implement and verify Go chunking/relations/flow extraction for multi-package repos.
+- [ ] Calibrate and commit Go caps for generated code and large monorepo package layouts.
 
 
 Touchpoints:
@@ -296,9 +317,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.16 Java
 
-- [ ] Confirm `.java` routing and class/interface/annotation extraction behavior.
-- [ ] Validate package/import and relation extraction across deep package trees.
-- [ ] Tune Java caps for verbose enterprise classes and generated sources.
+- [ ] Implement `.java` routing and class/interface/annotation extraction behavior.
+- [ ] Implement and verify package/import and relation extraction across deep package trees.
+- [ ] Calibrate and commit Java caps for verbose enterprise classes and generated sources.
 
 
 Touchpoints:
@@ -311,9 +332,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.17 CSharp
 
-- [ ] Confirm `.cs` routing and namespace/class/interface extraction behavior.
-- [ ] Validate using/import relation extraction and partial-class handling.
-- [ ] Tune C# caps for large solution codebases.
+- [ ] Implement `.cs` routing and namespace/class/interface extraction behavior.
+- [ ] Implement and verify using/import relation extraction and partial-class handling.
+- [ ] Calibrate and commit C# caps for large solution codebases.
 
 
 Touchpoints:
@@ -326,9 +347,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.18 Kotlin
 
-- [ ] Confirm `.kt` and `.kts` routing and class/object/function extraction behavior.
-- [ ] Validate import and relation extraction for multiplatform and Gradle Kotlin DSL usage.
-- [ ] Tune Kotlin caps for coroutine-heavy and DSL-heavy files.
+- [ ] Implement `.kt` and `.kts` routing and class/object/function extraction behavior.
+- [ ] Implement and verify import and relation extraction for multiplatform and Gradle Kotlin DSL usage.
+- [ ] Calibrate and commit Kotlin caps for coroutine-heavy and DSL-heavy files.
 
 
 Touchpoints:
@@ -341,9 +362,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.19 Rust
 
-- [ ] Confirm `.rs` routing and module/use extraction behavior.
-- [ ] Validate relation extraction across module trees and macro-heavy files.
-- [ ] Tune Rust caps for macro-expanded and generated code patterns.
+- [ ] Implement `.rs` routing and module/use extraction behavior.
+- [ ] Implement and verify relation extraction across module trees and macro-heavy files.
+- [ ] Calibrate and commit Rust caps for macro-expanded and generated code patterns.
 
 
 Touchpoints:
@@ -356,9 +377,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.20 Swift
 
-- [ ] Confirm `.swift` routing and type/function extraction behavior.
-- [ ] Validate import and relation extraction for package and Xcode-style layouts.
-- [ ] Tune Swift caps for protocol-heavy and extension-heavy files.
+- [ ] Implement `.swift` routing and type/function extraction behavior.
+- [ ] Implement and verify import and relation extraction for package and Xcode-style layouts.
+- [ ] Calibrate and commit Swift caps for protocol-heavy and extension-heavy files.
 
 
 Touchpoints:
@@ -371,9 +392,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.21 HTML
 
-- [ ] Confirm `.html`/`.htm` routing and deterministic chunking behavior.
-- [ ] Validate link/script/style reference extraction as relations where supported.
-- [ ] Tune HTML caps for large template bundles.
+- [ ] Implement `.html`/`.htm` routing and deterministic chunking behavior.
+- [ ] Implement and verify link/script/style reference extraction as relations where supported.
+- [ ] Calibrate and commit HTML caps for large template bundles.
 
 
 Touchpoints:
@@ -387,9 +408,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.22 CSS
 
-- [ ] Confirm `.css` routing and selector/token chunking behavior.
-- [ ] Validate import and dependency relation extraction (`@import`, asset references).
-- [ ] Tune CSS caps for large design-system stylesheets.
+- [ ] Implement `.css` routing and selector/token chunking behavior.
+- [ ] Implement and verify import and dependency relation extraction (`@import`, asset references).
+- [ ] Calibrate and commit CSS caps for large design-system stylesheets.
 
 
 Touchpoints:
@@ -402,9 +423,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.23 Handlebars
 
-- [ ] Confirm `.hbs`/`.handlebars` routing and template relation extraction behavior.
-- [ ] Validate mixed template/code chunk boundaries.
-- [ ] Tune Handlebars caps for server-rendered template repositories.
+- [ ] Implement `.hbs`/`.handlebars` routing and template relation extraction behavior.
+- [ ] Implement and verify mixed template/code chunk boundaries.
+- [ ] Calibrate and commit Handlebars caps for server-rendered template repositories.
 
 
 Touchpoints:
@@ -418,9 +439,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.24 Mustache
 
-- [ ] Confirm `.mustache` routing and template parse/chunk behavior.
-- [ ] Validate section/partial relation extraction behavior.
-- [ ] Tune Mustache caps for large template inventories.
+- [ ] Implement `.mustache` routing and template parse/chunk behavior.
+- [ ] Implement and verify section/partial relation extraction behavior.
+- [ ] Calibrate and commit Mustache caps for large template inventories.
 
 
 Touchpoints:
@@ -434,9 +455,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.25 Jinja
 
-- [ ] Confirm `.j2`/`.jinja`/`.jinja2` routing and template relation extraction behavior.
-- [ ] Validate include/extend/import template relation modeling.
-- [ ] Tune Jinja caps for backend template-heavy repos.
+- [ ] Implement `.j2`/`.jinja`/`.jinja2` routing and template relation extraction behavior.
+- [ ] Implement and verify include/extend/import template relation modeling.
+- [ ] Calibrate and commit Jinja caps for backend template-heavy repos.
 
 
 Touchpoints:
@@ -450,9 +471,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.26 Razor
 
-- [ ] Confirm `.cshtml`/`.razor` routing and template-code segmentation behavior.
-- [ ] Validate relation extraction from mixed Razor/C# surfaces.
-- [ ] Tune Razor caps for componentized UI repositories.
+- [ ] Implement `.cshtml`/`.razor` routing and template-code segmentation behavior.
+- [ ] Implement and verify relation extraction from mixed Razor/C# surfaces.
+- [ ] Calibrate and commit Razor caps for componentized UI repositories.
 
 
 Touchpoints:
@@ -466,9 +487,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.27 SQL
 
-- [ ] Confirm `.sql` routing and dialect-aware chunking behavior.
-- [ ] Validate relation extraction for schema/table/function references where supported.
-- [ ] Tune SQL caps for migration-heavy and warehouse-scale schema files.
+- [ ] Implement `.sql` routing and dialect-aware chunking behavior.
+- [ ] Implement and verify relation extraction for schema/table/function references where supported.
+- [ ] Calibrate and commit SQL caps for migration-heavy and warehouse-scale schema files.
 
 
 Touchpoints:
@@ -482,9 +503,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.28 GraphQL
 
-- [ ] Confirm `.graphql`/`.gql` routing and operation/schema chunking behavior.
-- [ ] Validate relation extraction for fragments, operations, and schema references.
-- [ ] Tune GraphQL caps for large federated schemas.
+- [ ] Implement `.graphql`/`.gql` routing and operation/schema chunking behavior.
+- [ ] Implement and verify relation extraction for fragments, operations, and schema references.
+- [ ] Calibrate and commit GraphQL caps for large federated schemas.
 
 
 Touchpoints:
@@ -498,9 +519,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.29 Proto
 
-- [ ] Confirm `.proto` routing and message/service/import extraction behavior.
-- [ ] Validate relation extraction across multi-file proto packages.
-- [ ] Tune Proto caps for large generated-interface repos.
+- [ ] Implement `.proto` routing and message/service/import extraction behavior.
+- [ ] Implement and verify relation extraction across multi-file proto packages.
+- [ ] Calibrate and commit Proto caps for large generated-interface repos.
 
 
 Touchpoints:
@@ -514,9 +535,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.30 CMake
 
-- [ ] Confirm `.cmake` and `CMakeLists.txt` routing.
-- [ ] Validate target/dependency relation extraction for build graphs.
-- [ ] Tune CMake caps for large multi-project build configurations.
+- [ ] Implement `.cmake` and `CMakeLists.txt` routing.
+- [ ] Implement and verify target/dependency relation extraction for build graphs.
+- [ ] Calibrate and commit CMake caps for large multi-project build configurations.
 
 
 Touchpoints:
@@ -529,9 +550,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.31 Starlark/Bazel
 
-- [ ] Confirm `.bzl`, `BUILD`, `WORKSPACE`, and related Bazel file routing.
-- [ ] Validate load/target relation extraction across Bazel module graphs.
-- [ ] Tune Starlark/Bazel caps for monorepo-scale build definitions.
+- [ ] Implement `.bzl`, `BUILD`, `WORKSPACE`, and related Bazel file routing.
+- [ ] Implement and verify load/target relation extraction across Bazel module graphs.
+- [ ] Calibrate and commit Starlark/Bazel caps for monorepo-scale build definitions.
 
 
 Touchpoints:
@@ -544,9 +565,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.32 Nix
 
-- [ ] Confirm `.nix` routing and import/attribute extraction behavior.
-- [ ] Validate relation extraction across flake/module boundaries.
-- [ ] Tune Nix caps for large flake-based infra repositories.
+- [ ] Implement `.nix` routing and import/attribute extraction behavior.
+- [ ] Implement and verify relation extraction across flake/module boundaries.
+- [ ] Calibrate and commit Nix caps for large flake-based infra repositories.
 
 
 Touchpoints:
@@ -559,9 +580,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.33 Makefile
 
-- [ ] Confirm `Makefile`/`makefile`/`GNUmakefile` routing and deterministic chunking.
-- [ ] Validate target/include relation extraction for layered builds.
-- [ ] Tune Makefile caps for generated and aggregate build files.
+- [ ] Implement `Makefile`/`makefile`/`GNUmakefile` routing and deterministic chunking.
+- [ ] Implement and verify target/include relation extraction for layered builds.
+- [ ] Calibrate and commit Makefile caps for generated and aggregate build files.
 
 
 Touchpoints:
@@ -575,9 +596,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.34 Dockerfile
 
-- [ ] Confirm `Dockerfile` and prefixed Dockerfile naming patterns routing.
-- [ ] Validate stage/instruction chunking and dependency relation extraction.
-- [ ] Tune Dockerfile caps for multi-stage enterprise images.
+- [ ] Implement `Dockerfile` and prefixed Dockerfile naming patterns routing.
+- [ ] Implement and verify stage/instruction chunking and dependency relation extraction.
+- [ ] Calibrate and commit Dockerfile caps for multi-stage enterprise images.
 
 
 Touchpoints:
@@ -591,9 +612,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.35 Dart
 
-- [ ] Confirm `.dart` routing and import/type relation extraction behavior.
-- [ ] Validate chunking and relation extraction for Flutter and server Dart code.
-- [ ] Tune Dart caps for generated model-heavy repositories.
+- [ ] Implement `.dart` routing and import/type relation extraction behavior.
+- [ ] Implement and verify chunking and relation extraction for Flutter and server Dart code.
+- [ ] Calibrate and commit Dart caps for generated model-heavy repositories.
 
 
 Touchpoints:
@@ -606,9 +627,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.36 Scala
 
-- [ ] Confirm `.scala` routing and package/import/type extraction behavior.
-- [ ] Validate relation extraction for trait/object/class-heavy code.
-- [ ] Tune Scala caps for large Spark and backend codebases.
+- [ ] Implement `.scala` routing and package/import/type extraction behavior.
+- [ ] Implement and verify relation extraction for trait/object/class-heavy code.
+- [ ] Calibrate and commit Scala caps for large Spark and backend codebases.
 
 
 Touchpoints:
@@ -621,9 +642,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.37 Groovy
 
-- [ ] Confirm `.groovy` routing and import/class extraction behavior.
-- [ ] Validate relation extraction for Gradle and runtime Groovy scripts.
-- [ ] Tune Groovy caps for DSL and script-heavy build repos.
+- [ ] Implement `.groovy` routing and import/class extraction behavior.
+- [ ] Implement and verify relation extraction for Gradle and runtime Groovy scripts.
+- [ ] Calibrate and commit Groovy caps for DSL and script-heavy build repos.
 
 
 Touchpoints:
@@ -636,9 +657,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.38 R
 
-- [ ] Confirm `.r` routing and function/source extraction behavior.
-- [ ] Validate relation extraction for sourced scripts and package-style layouts.
-- [ ] Tune R caps for analysis notebooks/scripts with long procedural files.
+- [ ] Implement `.r` routing and function/source extraction behavior.
+- [ ] Implement and verify relation extraction for sourced scripts and package-style layouts.
+- [ ] Calibrate and commit R caps for analysis notebooks/scripts with long procedural files.
 
 
 Touchpoints:
@@ -651,9 +672,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.39 Julia
 
-- [ ] Confirm `.jl` routing and module/include extraction behavior.
-- [ ] Validate relation extraction across package/module boundaries.
-- [ ] Tune Julia caps for scientific code with long numeric kernels.
+- [ ] Implement `.jl` routing and module/include extraction behavior.
+- [ ] Implement and verify relation extraction across package/module boundaries.
+- [ ] Calibrate and commit Julia caps for scientific code with long numeric kernels.
 
 
 Touchpoints:
@@ -666,73 +687,94 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.39a YAML
 
-- [ ] Confirm `.yaml`/`.yml` routing and top-level/document-aware chunking behavior.
-- [ ] Validate anchor/alias/include-style reference extraction behavior where supported.
-- [ ] Tune YAML caps for large CI/deployment/config monoliths.
+- [ ] Implement `.yaml`/`.yml` routing and top-level/document-aware chunking behavior.
+- [ ] Implement and verify anchor/alias/include-style reference extraction behavior where supported.
+- [ ] Calibrate and commit YAML caps for large CI/deployment/config monoliths.
 
 
 Touchpoints:
 
 - `src/index/constants.js`
 - `src/index/build/discover.js`
+- `src/index/language-registry/registry-data.js`
 - `src/index/chunking/formats/yaml.js`
 - `src/index/chunking/dispatch.js`
+- `src/index/build/file-processor/tree-sitter.js`
+- `src/lang/tree-sitter/config.js`
+- `src/lang/tree-sitter/native-runtime.js`
 - `src/index/build/runtime/caps.js`
 #### 0.5.39b JSON
 
-- [ ] Confirm `.json` routing and deterministic structural chunking behavior.
-- [ ] Validate key-path and reference-style relation extraction behavior where supported.
-- [ ] Tune JSON caps for large generated manifests and lockfiles.
+- [ ] Implement `.json` routing and deterministic structural chunking behavior.
+- [ ] Implement and verify key-path and reference-style relation extraction behavior where supported.
+- [ ] Calibrate and commit JSON caps for large generated manifests and lockfiles.
 
 
 Touchpoints:
 
 - `src/index/constants.js`
 - `src/index/build/discover.js`
+- `src/index/language-registry/registry-data.js`
 - `src/index/chunking/formats/json.js`
 - `src/index/chunking/dispatch.js`
+- `src/index/build/file-processor/tree-sitter.js`
+- `src/lang/tree-sitter/config.js`
+- `src/lang/tree-sitter/native-runtime.js`
 - `src/index/build/runtime/caps.js`
 #### 0.5.39c TOML
 
-- [ ] Confirm `.toml` routing and table/array-of-table chunking behavior.
-- [ ] Validate dependency/config reference extraction behavior where supported.
-- [ ] Tune TOML caps for large toolchain and package configuration files.
+- [ ] Implement `.toml` routing and table/array-of-table chunking behavior.
+- [ ] Implement and verify dependency/config reference extraction behavior where supported.
+- [ ] Calibrate and commit TOML caps for large toolchain and package configuration files.
 
 
 Touchpoints:
 
 - `src/index/constants.js`
 - `src/index/build/discover.js`
+- `src/index/language-registry/registry-data.js`
 - `src/index/chunking/formats/ini-toml.js`
 - `src/index/chunking/dispatch.js`
+- `src/index/build/file-processor/tree-sitter.js`
+- `src/lang/tree-sitter/config.js`
+- `src/lang/tree-sitter/native-runtime.js`
 - `src/index/build/runtime/caps.js`
 #### 0.5.39d INI
 
-- [ ] Confirm `.ini`/`.cfg` routing and section/key chunking behavior.
-- [ ] Validate include/reference extraction behavior where supported.
-- [ ] Tune INI caps for legacy and infra configuration repositories.
+- [ ] Implement `.ini`/`.cfg` routing and section/key chunking behavior.
+- [ ] Implement and verify include/reference extraction behavior where supported.
+- [ ] Calibrate and commit INI caps for legacy and infra configuration repositories.
 
 
 Touchpoints:
 
 - `src/index/constants.js`
 - `src/index/build/discover.js`
+- `src/index/language-registry/registry-data.js`
 - `src/index/chunking/formats/ini-toml.js`
 - `src/index/chunking/dispatch.js`
+- `src/index/build/file-processor/tree-sitter.js`
+- `src/lang/tree-sitter/config.js`
+- `src/lang/tree-sitter/native-runtime.js`
 - `src/index/build/runtime/caps.js`
 #### 0.5.39e XML
 
-- [ ] Confirm `.xml` routing and element/namespace-aware chunking behavior.
-- [ ] Validate schema/import/include relation extraction behavior where supported.
-- [ ] Tune XML caps for verbose build/config/schema files.
+- [ ] Implement `.xml` routing and element/namespace-aware chunking behavior.
+- [ ] Implement and verify schema/import/include relation extraction behavior where supported.
+- [ ] Calibrate and commit XML caps for verbose build/config/schema files.
 
 
 Touchpoints:
 
 - `src/index/constants.js`
 - `src/index/build/discover.js`
+- `src/index/language-registry/registry-data.js`
 - `src/index/chunking/formats/xml.js`
 - `src/index/chunking/dispatch.js`
+- `src/index/build/file-processor/tree-sitter.js`
+- `src/lang/tree-sitter/config.js`
+- `src/lang/tree-sitter/native-runtime.js`
+- `src/lang/workers/tree-sitter-worker.js`
 - `src/index/build/runtime/caps.js`
 #### 0.5.40 Build/package manifest and special-file catalog
 
@@ -750,6 +792,8 @@ Touchpoints:
   - [ ] R: `DESCRIPTION`
   - [ ] Julia: `Project.toml`, `Manifest.toml`
   - [ ] C/C++/ObjC and infra: `CMakeLists.txt`, `Makefile`, `BUILD`, `WORKSPACE`, `Dockerfile`, `buf.yaml`, `buf.gen.yaml`, `flake.nix`
+- [ ] Define one canonical language descriptor contract (extensions, special filenames, parser route, adapter ID, caps profile) and treat it as the only editable source for language routing.
+- [ ] Generate extension/special-file tables and registry dispatch maps from the canonical language descriptor to eliminate manual drift across constants, discovery, and language registry modules.
 - [ ] Keep manifest/special-file logic singular across discovery, tooling helpers, and language catalog specs.
 - [ ] Add strict parity tests that assert manifest/special-file detection coverage for every supported ecosystem and special filename.
 
@@ -760,7 +804,9 @@ Touchpoints:
 - `src/index/language-registry/registry-data.js`
 - `src/index/language-registry/registry.js`
 - `src/index/build/discover.js`
+- `tools/usr/generate-usr-matrix-baselines.mjs`
 - `tools/tooling/utils.js`
+- `docs/specs/usr-language-descriptor-contract.md` (new)
 - `docs/specs/usr-core-language-framework-catalog.md`
 - `docs/specs/import-resolution.md`
 #### 0.5.41 Language-specific limits calibration program
@@ -768,6 +814,7 @@ Touchpoints:
 - [ ] Build a language-by-language telemetry baseline (p50/p95/p99 bytes, lines, tokens, chunk counts, parse times).
 - [ ] Set strict per-language `maxBytes`/`maxLines`/tree-sitter thresholds from measured distributions instead of one global default.
 - [ ] Add per-language cap regression fixtures covering common real-world files and edge-case oversized files.
+- [ ] Emit deterministic calibration artifacts (`caps-calibration-inputs.json`, `caps-calibration-results.json`) and keep them versioned so cap updates are reproducible and reviewable.
 - [ ] Update `docs/specs/large-file-caps-strategy.md` and related contracts to reflect active language-aware behavior only.
 
 
@@ -778,16 +825,27 @@ Touchpoints:
 - `src/index/build/file-processor/skip.js`
 - `src/index/build/discover.js`
 - `src/index/build/watch/guardrails.js`
+- `benchmarks/index/caps-calibration-inputs.json` (new)
+- `benchmarks/index/caps-calibration-results.json` (new)
 - `docs/specs/large-file-caps-strategy.md`
 #### 0.5.42 Index-build performance and optimization program (expert-level)
 
 - [ ] Execute 0.5.42 in strict sequence:
+  - [ ] sequence 0: instrumentation baseline, fixed fixture corpus lock, and reproducible benchmark harness
   - [ ] sequence 1: dispatch/scan/read hot-path acceleration and generated/vendor classification
   - [ ] sequence 2: parser lifecycle + fallback semantics
   - [ ] sequence 3: cache architecture + invalidation correctness
   - [ ] sequence 4: scheduler + memory-layout optimization
-  - [ ] sequence 5: relation recomputation + instrumentation polish
+  - [ ] sequence 5: relation recomputation and memory-layout consolidation
+  - [ ] sequence 6: profile consolidation and cleanup of temporary overrides
 - [ ] Treat current early language resolution and current scan fastpath as baseline; harden and extend rather than re-implement.
+- [ ] Capture baseline and post-change hot-path metrics from the identical fixture corpus so each optimization has attributable before/after impact.
+- [ ] Implement hot-path timing probes first (scan/read/chunk/parse/relation) and freeze their event schema before optimization changes.
+- [ ] Materialize phase artifacts for sequence 0 and reuse them unchanged for all later optimization sequences:
+  - [ ] `benchmarks/index/perf-corpus-manifest.json`
+  - [ ] `benchmarks/index/perf-baseline-telemetry.json`
+  - [ ] `benchmarks/index/perf-after-telemetry.json`
+  - [ ] `benchmarks/index/perf-delta-report.json`
 - [ ] Replace per-file linear language registry lookup with a frozen extension/path-kind dispatch map built once at runtime init.
 - [ ] Harden the existing two-tier scanner in `src/index/build/file-scan.js`:
   - [ ] tier 1: 4-8 KiB probe for binary/minified/generated heuristics
@@ -814,12 +872,14 @@ Touchpoints:
   - [ ] syntax-lite mode (reduced extraction)
   - [ ] chunk-only mode for extreme files
 - [ ] Align fallback behavior with a strict contract so downstream relation/explain/output behavior is deterministic in each fallback mode.
-- [ ] Persist AST/chunk cache entries keyed by `(contentHash, languageId, parserVersion, grammarHash, chunkingConfigVersion, fileCapsVersion, segmentationVersion)`.
+- [ ] Persist AST/chunk cache entries keyed by `(contentHash, languageId, runtimeKind, parserRuntimeVersion, parserVersion, grammarHash, nodeMajor, abiVersion, chunkingConfigVersion, fileCapsVersion, segmentationVersion, optionsHash)`.
 - [ ] Define strict cache invalidation contract and apply it uniformly across warm memory cache and persistent cache stores.
+- [ ] Enforce deterministic cache serialization ordering and checksum verification before cache reuse.
 - [ ] Add block-level segment cache for Vue/Svelte/Astro so unchanged template/script/style blocks skip reparse.
 - [ ] Add identical-content dedup across paths/worktrees to parse once and fan out reused chunk/AST artifacts.
-- [ ] Add adaptive worker scheduler that prioritizes short files first and limits concurrent heavy-language parses to reduce tail latency.
+- [ ] Add adaptive worker scheduler that prioritizes short files first, limits concurrent heavy-language parses, and preserves deterministic tie-break ordering (`priority bucket -> relPath -> contentHash`).
 - [ ] Add work-stealing between workers with heavy-job backpressure to avoid one-worker long-tail stalls.
+- [ ] Enforce deterministic writer commit order for chunks/relations/artifacts independent of worker completion timing.
 - [ ] Add memory-pressure controls:
   - [ ] worker-level memory watermark and soft/hard pressure states
   - [ ] per-language concurrency throttles under pressure
@@ -829,8 +889,17 @@ Touchpoints:
 - [ ] Store relation edges in compact typed-array-backed buffers with delta-encoded positions instead of object-heavy maps.
 - [ ] Add memory arena allocation strategy for transient chunk/relation objects to reduce GC churn in large builds.
 - [ ] Add incremental relation recomputation for unchanged files by reusing prior stable relation snapshots.
-- [ ] Add hot-path timing probes for scan/read/chunk/parse/relation stages and emit per-language breakdown in build stats.
-- [ ] Add optimization toggles in config for each major acceleration path so rollout can be staged per repository profile.
+- [ ] Add chunk-span lazy materialization path: carry `(start,end)` spans through processing and materialize raw substrings only at sinks that require concrete text.
+- [ ] Fuse tokenization, minhash generation, and phrase/chargram extraction into a single streaming pass to reduce duplicate scans and transient allocations.
+- [ ] Add deterministic chunk-embedding cache keyed by `(chunkHash, modelId, embeddingConfigVersion)` and skip recomputation for unchanged chunks.
+- [ ] Add resumable index-build checkpoints (file cursor, artifact flush watermark, checkpoint checksum) so interrupted builds resume without replaying completed work.
+- [ ] Add write-combining for postings/artifact writers with deterministic batched flush order to reduce small-write overhead.
+- [ ] Add persistent tree-sitter query precompile cache keyed by `(languageId, grammarHash, querySetVersion)` to avoid repeat compile costs across runs.
+- [ ] Add adaptive I/O concurrency controller (walk/read/stat lanes) driven by observed latency and memory pressure.
+- [ ] Add path-string and chunk-name interning in artifact writers to reduce memory footprint and artifact size.
+- [ ] Replace per-feature optimization toggles with one canonical `indexOptimizationProfile` selector (`default`, `throughput`, `memory-saver`) and keep `default` as the primary production path.
+- [ ] Remove temporary experiment-only override knobs once profile behavior is stabilized in this phase.
+- [ ] Enforce explicit profile semantics in contract validators so profile changes are schema-validated rather than doc-only.
 
 Touchpoints:
 
@@ -844,12 +913,32 @@ Touchpoints:
 - `src/index/build/import-resolution/*`
 - `src/index/build/runtime/tree-sitter.js`
 - `src/index/build/tree-sitter-scheduler/*`
+- `src/index/build/indexer/steps/process-files/tree-sitter.js`
+- `src/index/build/file-processor/process-chunks/index.js`
+- `src/lang/tree-sitter/native-runtime.js`
+- `src/lang/workers/tree-sitter-worker.js`
 - `src/index/build/runtime/caps.js`
+- `src/index/build/tokenization.js`
+- `src/index/build/postings/*`
+- `src/index/build/indexer/steps/postings.js`
+- `src/index/build/artifacts/write-concurrency.js`
+- `src/index/build/state.js`
+- `src/shared/packed-postings.js`
 - `tools/tooling/utils.js`
+- `benchmarks/index/perf-corpus-manifest.json` (new)
+- `benchmarks/index/perf-baseline-telemetry.json` (new)
+- `benchmarks/index/perf-after-telemetry.json` (new)
+- `benchmarks/index/perf-delta-report.json` (new)
 - `docs/specs/large-file-caps-strategy.md`
 - `docs/specs/generated-vendor-indexing-policy.md`
 - `docs/specs/indexing-fallback-semantics.md`
 - `docs/specs/indexing-memory-pressure-policy.md`
+- `docs/specs/index-optimization-profiles.md` (new)
+- `docs/specs/index-checkpoint-resume.md` (new)
+- `docs/specs/index-embedding-cache.md` (new)
+- `docs/contracts/index-perf-contract.md` (new)
+- `src/contracts/schemas/index-perf.js` (new)
+- `src/contracts/validators/index-perf.js` (new)
 - `docs/specs/import-resolution.md`
 - `docs/specs/usr/languages/*`
 
@@ -865,6 +954,13 @@ Tests:
 - [ ] Add/update generated/vendor policy tests for metadata-only default and explicit opt-in full indexing.
 - [ ] Add/update memory-pressure tests for watermark throttling and deterministic eviction order.
 - [ ] Add/update indexing performance microbench suites (scan/read/chunk/parse/relation) with before/after measurements.
+- [ ] Add/update performance artifact schema validation tests for `perf-*` outputs and `indexOptimizationProfile` contract enforcement.
+- [ ] Add/update fused tokenization/minhash/chargram determinism and throughput tests.
+- [ ] Add/update chunk-embedding cache reuse and invalidation tests.
+- [ ] Add/update checkpoint-resume correctness and determinism tests.
+- [ ] Add/update writer flush-order determinism tests.
+- [ ] Add/update persistent query-precompile cache tests.
+- [ ] Add/update adaptive I/O concurrency stability tests under mixed file-size workloads.
 
 Exit criteria:
 
@@ -872,6 +968,7 @@ Exit criteria:
 - [ ] Header/class/source/build/package file coverage is complete and validated.
 - [ ] Language-specific size/line/parse limits are calibrated from telemetry and enforced.
 - [ ] Performance improvements are implemented with measurable before/after results.
+- [ ] One canonical `indexOptimizationProfile` selector remains, with no temporary per-feature override flags left active.
 
 ---
 
@@ -1012,6 +1109,9 @@ Touchpoints:
 
 - [ ] Implement deterministic Sublime packaging (`tools/package-sublime.js`).
 - [ ] Implement deterministic VS Code packaging (`tools/package-vscode.js`).
+- [ ] Enforce deterministic archive layout rules (stable entry ordering, normalized root prefix, normalized path separators).
+- [ ] Normalize archive metadata (`mtime`, `uid/gid`, mode bits) and enforce fixed compression method/level for reproducible outputs across hosts.
+- [ ] Emit and verify per-archive checksum manifests during packaging runs.
 - [ ] Enforce pinned packaging toolchains.
 - [ ] Fail packaging jobs when required toolchains are unavailable.
 - [ ] Update editor integration docs to reflect active packaging flow.
@@ -1023,12 +1123,16 @@ Tests:
 - [ ] `tests/tooling/vscode/extension-packaging.test.js`
 - [ ] `tests/tooling/vscode/vscode-extension.test.js` (updated)
 - [ ] Create `tests/tooling/vscode/toolchain-missing-policy.test.js` with strict missing-toolchain failure expectations.
+- [ ] `tests/tooling/sublime/package-archive-metadata.test.js` (new)
+- [ ] `tests/tooling/vscode/package-archive-metadata.test.js` (new)
 
 
 Touchpoints:
 
 - `tools/package-sublime.js` (new)
 - `tools/package-vscode.js` (new)
+- `tools/tooling/archive-determinism.js` (new)
+- `docs/specs/editor-packaging-determinism.md` (new)
 - `docs/guides/editor-integration.md`
 - `extensions/`
 - `sublime/`
@@ -1293,34 +1397,52 @@ Tests:
 #### 6.2 Coverage integration
 
 - [ ] Implement `--coverage`, `--coverage-merge`, and `--coverage-changed` in `tests/run.js`.
+- [ ] Define a versioned coverage artifact schema and deterministic merge ordering (normalized repo-relative `/` paths + stable file ordering).
+- [ ] Enforce coverage artifact schema validation in contract validators (not docs only).
 - [ ] Enforce documented output locations and schema.
+- [ ] Normalize all coverage paths before write/merge to eliminate platform-dependent path drift.
 
 Touchpoints:
 
 - `tests/run.js`
-- coverage helper(s) in `tools/`
+- `tools/testing/coverage/*` (new)
+- `src/shared/path-normalize.js`
+- `docs/contracts/test-coverage-contract.md` (new)
+- `src/contracts/schemas/test-artifacts.js` (new)
+- `src/contracts/validators/test-artifacts.js` (new)
 - `.c8/` (new)
 
 Tests:
 
 - [ ] Coverage flag parsing tests.
 - [ ] Coverage merge tests.
+- [ ] Coverage path-normalization determinism tests.
+- [ ] Coverage artifact schema validation tests.
 
 #### 6.3 Profiling hooks
 
 - [ ] Implement and enforce `--profile` output contract in the test runner.
-- [ ] Emit deterministic `profile.json` schema.
+- [ ] Emit deterministic `profile.json` schema with explicit version, normalized path fields, fixed time units, and stable key ordering.
+- [ ] Enforce profile artifact schema validation in contract validators (not docs only).
+- [ ] Enforce deterministic numeric formatting/rounding for timing fields to avoid host-dependent serialization drift.
 
 Touchpoints:
 
+- `tests/run.js`
 - `src/index/build/runtime/runtime.js`
 - `src/retrieval/pipeline.js`
 - `src/retrieval/output/summary.js`
+- `src/shared/path-normalize.js`
+- `docs/contracts/test-profile-contract.md` (new)
+- `src/contracts/schemas/test-artifacts.js` (new)
+- `src/contracts/validators/test-artifacts.js` (new)
 - `docs/perf/*`
 
 Tests:
 
 - [ ] Profile artifact contract tests.
+- [ ] Profile path/time normalization determinism tests.
+- [ ] Profile artifact schema validation tests.
 
 Exit criteria:
 
@@ -1508,6 +1630,10 @@ Touchpoints:
 - [ ] Implement supervisor handshake/run/cancel/shutdown integration.
 - [ ] Implement deterministic jobs/tasks/logs UI model.
 - [ ] Guarantee terminal restoration on normal and error exits.
+- [ ] Pin Rust toolchain + crate dependency versions and enforce lockfile-based reproducible builds.
+- [ ] Define deterministic target-triple to artifact-name mapping used by build, install, and wrapper resolution paths.
+- [ ] Integrate cross-platform TUI build flow in release tooling so produced artifacts/checksums are generated from one canonical pipeline.
+- [ ] Wire Node-side command and release integration for TUI build/install flows (command registry, package scripts, release-check inclusion).
 
 Tests:
 
@@ -1515,13 +1641,23 @@ Tests:
 - [ ] headless smoke test
 - [ ] cancel path integration
 - [ ] rendering responsiveness tests
+- [ ] target-triple artifact naming tests
+- [ ] toolchain pin/lockfile enforcement tests
 
 
 Touchpoints:
 
 - `crates/pairofcleats-tui/` (new)
+- `crates/pairofcleats-tui/Cargo.toml` (new)
+- `crates/pairofcleats-tui/rust-toolchain.toml` (new)
 - `docs/specs/node-supervisor-protocol.md`
 - `docs/specs/progress-protocol-v2.md`
+- `docs/specs/tui-build-and-release.md` (new)
+- `tools/tui/build.js` (new)
+- `tools/release/check.js`
+- `package.json`
+- `docs/guides/commands.md`
+- `bin/pairofcleats.js`
 - `bin/pairofcleats-tui.js` (new)
 #### 9.5 Cancellation and never-hang guarantees
 
@@ -1547,8 +1683,11 @@ Touchpoints:
 - [ ] Implement deterministic TUI install and wrapper flow:
   - `bin/pairofcleats-tui.js`
   - `tools/tui/install.js`
+- [ ] Define one canonical target manifest consumed by build, installer, and wrapper resolution.
 - [ ] Publish deterministic binaries and checksums for supported targets.
+- [ ] Implement and verify checksum and executable metadata before wrapper launch.
 - [ ] Fail wrapper with actionable error when binary is missing/invalid.
+- [ ] Enforce deterministic install layout/cache policy (stable directories, file naming, cleanup semantics).
 - [ ] Add replayable event logs and run correlation.
 - [ ] Add/update TUI docs:
   - `docs/specs/tui-installation.md`
@@ -1565,13 +1704,49 @@ Touchpoints:
 
 - `bin/pairofcleats-tui.js` (new)
 - `tools/tui/install.js` (new)
+- `tools/tui/targets.json` (new)
 - `docs/specs/tui-installation.md`
 - `docs/guides/tui.md`
 - `tests/tui/observability/` (new)
 
+#### 9.7 TUI runtime throughput and interaction latency hardening
+
+- [ ] Implement supervisor-to-TUI credit-based backpressure with bounded queues and deterministic coalesce/drop policy under overload.
+- [ ] Implement viewport virtualization for jobs/tasks/log panes with ring-buffer retention and deterministic truncation semantics.
+- [ ] Implement frame scheduler with fixed render budget and dirty-region diff rendering to cap CPU under high event volume.
+- [ ] Implement oversized event/log payload chunking with deterministic reassembly and overflow behavior.
+- [ ] Implement persistent session snapshot/recovery (`last-state.json`) so TUI restores prior view state after restart.
+- [ ] Implement terminal capability negotiation (color/unicode/mouse/alt-screen) with deterministic degraded rendering modes.
+- [ ] Implement input throttling/debouncing for high key-repeat scenarios with deterministic command dispatch ordering.
+- [ ] Add in-TUI performance telemetry (event lag, render time, queue depth) and emit structured runtime metrics.
+
+Tests:
+
+- [ ] `tests/tui/backpressure-credit-protocol.test.js` (new)
+- [ ] `tests/tui/list-virtualization-determinism.test.js` (new)
+- [ ] `tests/tui/frame-budget-under-load.test.js` (new)
+- [ ] `tests/tui/oversized-event-chunking.test.js` (new)
+- [ ] `tests/tui/session-snapshot-recovery.test.js` (new)
+- [ ] `tests/tui/terminal-capability-fallback.test.js` (new)
+- [ ] `tests/tui/input-throttle-ordering.test.js` (new)
+
+Touchpoints:
+
+- `tools/tui/supervisor.js` (new)
+- `src/shared/cli/progress-stream.js` (new)
+- `src/shared/progress.js`
+- `crates/pairofcleats-tui/src/*` (new)
+- `crates/pairofcleats-tui/Cargo.toml` (new)
+- `docs/specs/progress-protocol-v2.md`
+- `docs/specs/node-supervisor-protocol.md`
+- `docs/specs/tui-performance-and-backpressure.md` (new)
+- `docs/guides/tui.md`
+- `tests/tui/*`
+
 Exit criteria:
 
 - [ ] TUI/supervisor protocol, lifecycle, cancellation, install, and observability are strict and fully validated.
+- [ ] TUI event throughput, frame latency, and backpressure behavior remain stable under sustained high-volume runs.
 
 ---
 
@@ -1581,7 +1756,10 @@ Intent: evaluate acceleration and, if adopted, cut over cleanly without dual run
 #### 10.1 Feasibility and decision
 
 - [ ] Define ABI strategy and parity harness.
-- [ ] Reconcile existing native-accel specs with executable harness and measurable acceptance gates.
+- [ ] Define explicit ABI/runtime boundary contract: ownership model, allocation/free responsibility, panic/error isolation, cancellation semantics.
+- [ ] Define versioned runtime negotiation handshake (`abiVersion`, runtime kind, feature bits) and deterministic failure modes for mismatches.
+- [ ] Define deterministic fallback semantics when native runtime is unavailable/invalid so retrieval behavior remains contract-stable.
+- [ ] Reconcile existing native-accel specs with executable harness and measurable acceptance criteria.
 - [ ] Decide go/no-go with explicit acceptance criteria.
 
 Touchpoints:
@@ -1590,16 +1768,42 @@ Touchpoints:
 - `src/shared/capabilities.js`
 - `tools/setup/rebuild-native.js`
 - `tools/build-native.js` (new)
+- `src/retrieval/native/*`
 - `docs/specs/native-accel.md`
 - `docs/perf/native-accel.md`
 
 Tests:
 
 - [ ] `tests/retrieval/native/feasibility-parity-harness.test.js` (new)
+- [ ] `tests/retrieval/native/abi-handshake-version-mismatch.test.js` (new)
+- [ ] `tests/retrieval/native/fallback-contract.test.js` (new)
+
+#### 10.1b If no-go: closure and cleanup
+
+- [ ] Remove or archive experimental native acceleration scaffolding introduced during feasibility work.
+- [ ] Freeze the no-go decision in active specs/docs and update capability surfaces so runtime selection remains single-path.
+- [ ] Keep parity harness artifacts for auditability, but mark acceleration implementation tasks as closed-not-adopted.
+
+Touchpoints:
+
+- `src/shared/native-accel.js` (new)
+- `src/shared/capabilities.js`
+- `tools/build-native.js` (new)
+- `docs/specs/native-accel.md`
+- `docs/perf/native-accel.md`
+- `docs/archived/native-accel-*.md` (new)
+
+Tests:
+
+- [ ] No-go capability surface tests (native runtime disabled/absent still matches canonical behavior).
+- [ ] No-go docs/spec consistency tests.
 
 #### 10.2 If go: hard cutover plan
 
 - [ ] Implement bitmap/top-k/ANN/worker acceleration with deterministic contracts.
+- [ ] Enforce ABI boundary wrappers with explicit ownership/lifetime rules and deterministic panic/error mapping.
+- [ ] Enforce canonical native-result serialization ordering before parity comparison/output handoff.
+- [ ] Enforce deterministic cancellation and shutdown resource cleanup in native worker paths.
 - [ ] Remove superseded codepaths in the same cutover.
 - [ ] Update retrieval specs/tests to active behavior only.
 
@@ -1612,11 +1816,14 @@ Tests:
 - [ ] `tests/retrieval/native/ann-preflight-error-taxonomy.test.js` (new)
 - [ ] `tests/retrieval/native/worker-offload-equivalence.test.js` (new)
 - [ ] `tests/retrieval/native/worker-cancel.test.js` (new)
+- [ ] `tests/retrieval/native/panic-isolation.test.js` (new)
+- [ ] `tests/retrieval/native/resource-cleanup-determinism.test.js` (new)
 
 Touchpoints:
 
 - `src/shared/native-accel.js` (new)
 - `src/shared/capabilities.js`
+- `src/retrieval/native/*`
 - `tools/build-native.js` (new)
 - `docs/specs/native-accel.md`
 - `docs/perf/native-accel.md`
@@ -1634,3 +1841,4 @@ Exit criteria:
 - [ ] Release, packaging, and platform behavior are deterministic.
 - [ ] Core indexing/retrieval/workspace behavior is deterministic and validated.
 - [ ] TUI/supervisor stack is production-stable and fully tested.
+
