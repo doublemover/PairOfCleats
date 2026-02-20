@@ -103,19 +103,33 @@ const scanRepoStats = async (repoRoot, limits = {}) => {
   };
 };
 
-const resolveConcurrency = (quality, resources) => {
+const resolveConcurrency = (quality, resources, repo = null) => {
   const cpu = resources.cpuCount;
+  const memoryGb = Number(resources.memoryGb) || 0;
+  const hugeRepo = repo?.huge === true;
+  const strongHost = cpu >= 12 && memoryGb >= 32;
   const base = quality === 'fast' ? 4 : quality === 'balanced' ? 8 : 16;
-  const files = Math.max(1, Math.min(cpu, base));
+  const hugeRepoFloor = hugeRepo && strongHost
+    ? Math.max(12, Math.floor(cpu * 0.9))
+    : 0;
+  const files = Math.max(1, Math.min(cpu, Math.max(base, hugeRepoFloor)));
   const imports = files;
   const cpuConcurrency = files;
-  const io = Math.max(1, Math.min(64, files * 4));
+  const io = hugeRepo && strongHost
+    ? Math.max(1, Math.min(128, files * 6))
+    : Math.max(1, Math.min(64, files * 4));
   return { files, imports, cpu: cpuConcurrency, io };
 };
 
-const resolveWorkerPool = (quality, resources) => {
+const resolveWorkerPool = (quality, resources, repo = null) => {
   const cpu = resources.cpuCount;
-  const cap = quality === 'fast' ? 4 : quality === 'balanced' ? 8 : 16;
+  const memoryGb = Number(resources.memoryGb) || 0;
+  const hugeRepo = repo?.huge === true;
+  const strongHost = cpu >= 12 && memoryGb >= 32;
+  const baseCap = quality === 'fast' ? 4 : quality === 'balanced' ? 8 : 16;
+  const cap = hugeRepo && strongHost
+    ? Math.max(baseCap, Math.min(32, cpu * 2))
+    : baseCap;
   return {
     enabled: cpu > 2,
     maxThreads: Math.max(1, Math.min(cpu, cap))
@@ -139,8 +153,8 @@ export async function buildAutoPolicy({
   const requestedQuality = clampQuality(config.quality || 'auto') || 'auto';
   const quality = resolveQuality({ requested: requestedQuality, resources, repo });
   const capabilities = getCapabilities();
-  const concurrency = resolveConcurrency(quality.value, resources);
-  const workerPool = resolveWorkerPool(quality.value, resources);
+  const concurrency = resolveConcurrency(quality.value, resources, repo);
+  const workerPool = resolveWorkerPool(quality.value, resources, repo);
 
   return {
     quality,
