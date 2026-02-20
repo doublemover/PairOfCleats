@@ -301,7 +301,29 @@ export async function validateIndexArtifacts(input = {}) {
         continue;
       }
       validateSchema(report, mode, 'chunk_meta', chunkMeta, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
-      const fileMeta = readJsonArtifact('file_meta');
+      let fileMeta = null;
+      const fileMetaMaxBytes = resolveArtifactValidationMaxBytes({
+        manifest,
+        artifactNames: new Set(['file_meta'])
+      });
+      try {
+        fileMeta = await loadJsonArrayArtifact(dir, 'file_meta', {
+          manifest,
+          strict,
+          maxBytes: fileMetaMaxBytes
+        });
+      } catch (err) {
+        const code = String(err?.code || '');
+        const missingOptional = !strict && (
+          code === 'ERR_ARTIFACT_MISSING'
+          || code === 'ERR_MANIFEST_MISSING'
+          || code === 'ENOENT'
+        );
+        if (!missingOptional) {
+          addIssue(report, mode, `file_meta load failed (${err?.code || err?.message || err})`, 'Rebuild index artifacts for this mode.');
+          if (strict) modeReport.ok = false;
+        }
+      }
       if (Array.isArray(fileMeta) && fileMeta.length) {
         const fileMetaById = new Map();
         for (const entry of fileMeta) {
