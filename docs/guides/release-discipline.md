@@ -25,8 +25,9 @@ Execution order:
 
 1. changelog validation for the current package version
 2. contract/spec drift gate (`tools/docs/contract-drift.js --fail`)
-3. essential reliability blockers
-4. smoke sequence in fixed order:
+3. Python toolchain policy gate (`tools/tooling/python-check.js`)
+4. essential reliability blockers
+5. smoke sequence in fixed order:
    - `pairofcleats --version`
    - fixture index build
    - fixture index validate (`--strict`)
@@ -63,6 +64,16 @@ This requires a non-empty `### Breaking` section for the current version in `CHA
 ## Removed permissive modes
 
 `--blockers-only` and `--no-blockers` are retired. Release checks are all-on and deterministic.
+
+## Python policy
+
+Python is a required runtime dependency for active tooling flows that package or validate Sublime integrations. Enforce availability with:
+
+```bash
+npm run python:check
+```
+
+Core release tooling fails fast when Python is unavailable.
 
 ## Versioning policy
 

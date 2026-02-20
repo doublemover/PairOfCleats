@@ -51,6 +51,7 @@ if (!manifest || manifest.schemaVersion !== 1 || !Array.isArray(manifest.artifac
 const expected = [
   'changelog.entry',
   'contracts.drift',
+  'toolchain.python',
   'ops-health-contract',
   'ops-failure-injection-contract',
   'ops-config-guardrails-contract',

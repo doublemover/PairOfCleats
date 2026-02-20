@@ -27,6 +27,7 @@
     "generate-repo-dict": "node tools/dicts/generate-repo-dict.js",
     "tooling-detect": "node tools/tooling/detect.js",
     "tooling-install": "node tools/tooling/install.js",
+    "python:check": "node tools/tooling/python-check.js",
     "ctags-ingest": "node tools/ingest/ctags.js",
     "scip-ingest": "node tools/ingest/scip.js",
     "lsif-ingest": "node tools/ingest/lsif.js",

@@ -408,6 +408,15 @@ const main = () => {
   steps.push(contractDriftStep);
   if (contractDriftStep.status === 'failed') ok = false;
 
+  const pythonToolchainStep = recordStep({
+    id: 'toolchain.python',
+    phase: 'toolchain',
+    label: 'python toolchain policy check',
+    command: [process.execPath, 'tools/tooling/python-check.js', '--json']
+  });
+  steps.push(pythonToolchainStep);
+  if (pythonToolchainStep.status === 'failed') ok = false;
+
   for (const blocker of ESSENTIAL_BLOCKERS) {
     const step = recordStep({
       id: blocker.id,

@@ -37,6 +37,7 @@ const ids = report.checks.map((entry) => entry.id);
 const expected = [
   'changelog.entry',
   'contracts.drift',
+  'toolchain.python',
   'ops-health-contract',
   'ops-failure-injection-contract',
   'ops-config-guardrails-contract',

@@ -1138,10 +1138,10 @@ Touchpoints:
 - `sublime/`
 #### 2.4 Python toolchain policy
 
-- [ ] Decide and document whether Python is a required runtime dependency for local tooling flows.
-- [ ] If required, enforce preflight failure when missing.
-- [ ] Remove skip-based semantics from core tooling paths.
-- [ ] Keep optional best-effort behavior only in explicitly optional commands.
+- [x] Decide and document whether Python is a required runtime dependency for local tooling flows.
+- [x] If required, enforce preflight failure when missing.
+- [x] Remove skip-based semantics from core tooling paths.
+- [x] Keep optional best-effort behavior only in explicitly optional commands.
 
 Tests:
 
