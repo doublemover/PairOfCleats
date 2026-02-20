@@ -143,8 +143,12 @@ const cases = [
   {
     label: 'julia',
     fn: collectJuliaImports,
-    text: 'using Foo.Bar',
-    expected: ['Foo.Bar']
+    text: [
+      'using Foo.Bar',
+      'import LinearAlgebra',
+      'include(\"kernels/fft.jl\")'
+    ].join('\n'),
+    expected: ['Foo.Bar', 'LinearAlgebra', 'kernels/fft.jl']
   },
   {
     label: 'handlebars',

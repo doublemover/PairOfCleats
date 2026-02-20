@@ -674,9 +674,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.39 Julia
 
-- [ ] Implement `.jl` routing and module/include extraction behavior.
-- [ ] Implement and verify relation extraction across package/module boundaries.
-- [ ] Calibrate and commit Julia caps for scientific code with long numeric kernels.
+- [x] Implement `.jl` routing and module/include extraction behavior.
+- [x] Implement and verify relation extraction across package/module boundaries.
+- [x] Calibrate and commit Julia caps for scientific code with long numeric kernels.
 
 
 Touchpoints:
