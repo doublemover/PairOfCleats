@@ -134,6 +134,7 @@ export const resolveWorkerResourceLimits = (maxWorkers, options = {}) => {
 
   const totalMemMb = Math.floor(os.totalmem() / (1024 * 1024));
   const maxOldSpaceMb = parseMaxOldSpaceMb();
+  const explicitProcessHeapBudget = Number.isFinite(maxOldSpaceMb) && maxOldSpaceMb > 0;
   const heapPolicy = resolveWorkerHeapBudgetPolicy(options);
   const targetPerWorkerMb = heapPolicy.targetPerWorkerMb;
   const minPerWorkerMb = heapPolicy.minPerWorkerMb;
@@ -149,7 +150,7 @@ export const resolveWorkerResourceLimits = (maxWorkers, options = {}) => {
   // for multi-language parsing workloads and can trigger V8 "Zone" OOMs even
   // when the process RSS is low.
   let budgetMb = null;
-  if (Number.isFinite(maxOldSpaceMb) && maxOldSpaceMb > 0) {
+  if (explicitProcessHeapBudget) {
     // If the user explicitly configured a heap budget, keep it as the sizing
     // basis (we still apply a physical-RAM cap below).
     budgetMb = Math.floor(maxOldSpaceMb);
@@ -171,6 +172,7 @@ export const resolveWorkerResourceLimits = (maxWorkers, options = {}) => {
   // Split the budget across workers while leaving one "share" for the main
   // process.
   const perWorkerBudgetMb = Math.floor(budgetMb / (workerCount + 1));
+  if (!Number.isFinite(perWorkerBudgetMb) || perWorkerBudgetMb <= 0) return null;
   const autoTargetMb = Number.isFinite(totalMemMb) && totalMemMb >= 65536
     ? WORKER_HEAP_TARGET_MAX_MB
     : Number.isFinite(totalMemMb) && totalMemMb >= 24576
@@ -184,11 +186,20 @@ export const resolveWorkerResourceLimits = (maxWorkers, options = {}) => {
     boostedBudgetTargetMb
   );
   const platformCap = process.platform === 'win32' ? 8192 : 16384;
-  const minMb = Math.max(256, minPerWorkerMb || WORKER_HEAP_TARGET_MIN_MB);
-  const maxMb = Math.max(minMb, Math.min(platformCap, maxPerWorkerMb || WORKER_HEAP_TARGET_MAX_MB));
+  const policyMinMb = Math.max(256, minPerWorkerMb || WORKER_HEAP_TARGET_MIN_MB);
+  const policyMaxMb = Math.max(
+    policyMinMb,
+    Math.min(platformCap, maxPerWorkerMb || WORKER_HEAP_TARGET_MAX_MB)
+  );
+  // When max-old-space-size is explicitly set, never let worker heap ceilings
+  // exceed the split process budget.
+  const effectiveMaxMb = explicitProcessHeapBudget
+    ? Math.min(policyMaxMb, perWorkerBudgetMb)
+    : policyMaxMb;
+  const effectiveMinMb = Math.min(policyMinMb, effectiveMaxMb);
   const capped = Math.max(
-    minMb,
-    Math.min(maxMb, Math.max(perWorkerBudgetMb, desiredTargetMb))
+    effectiveMinMb,
+    Math.min(effectiveMaxMb, Math.max(perWorkerBudgetMb, desiredTargetMb))
   );
   return { maxOldGenerationSizeMb: capped };
 };

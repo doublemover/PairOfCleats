@@ -259,6 +259,17 @@ export async function runSearchSession({
   const cacheMemoryFreshMs = Number.isFinite(Number(queryCacheMemoryFreshMs))
     ? Math.max(0, Math.floor(Number(queryCacheMemoryFreshMs)))
     : 0;
+  const sqliteFtsOverfetchCacheKey = {
+    rowCap: Number.isFinite(Number(sqliteFtsOverfetch?.rowCap))
+      ? Math.max(1, Math.floor(Number(sqliteFtsOverfetch.rowCap)))
+      : null,
+    timeBudgetMs: Number.isFinite(Number(sqliteFtsOverfetch?.timeBudgetMs))
+      ? Math.max(1, Math.floor(Number(sqliteFtsOverfetch.timeBudgetMs)))
+      : null,
+    chunkSize: Number.isFinite(Number(sqliteFtsOverfetch?.chunkSize))
+      ? Math.max(1, Math.floor(Number(sqliteFtsOverfetch.chunkSize)))
+      : null
+  };
 
   const cacheDir = queryCacheDir || metricsDir;
   const queryCachePath = path.join(cacheDir, 'queryCache.json');
@@ -312,6 +323,10 @@ export async function runSearchSession({
       sqliteFtsVariant: {
         trigram: sqliteFtsTrigram === true,
         stemming: sqliteFtsStemming === true
+      },
+      sqliteFtsTuning: {
+        tailLatencyTuning: sqliteTailLatencyTuning === true,
+        overfetch: sqliteFtsOverfetchCacheKey
       },
       comments: { enabled: commentsEnabled },
       models: modelIds,
