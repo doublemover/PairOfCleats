@@ -3,6 +3,7 @@ import {
   normalizeOptionalLimit,
   normalizeTreeSitterByLanguage
 } from './caps.js';
+import { TREE_SITTER_CAPS_BASELINES } from './caps-calibration.js';
 
 const DEFAULT_DEFER_MISSING_MAX = 2;
 const normalizeOptionalString = (value) => {
@@ -73,15 +74,11 @@ export const resolveTreeSitterRuntime = (indexingConfig) => {
     treeSitterConfig.byLanguage || {}
   );
   const heavyGrammarDefaults = {
-    javascript: { maxBytes: 256 * 1024, maxLines: null, maxParseMs: null },
-    typescript: { maxBytes: 256 * 1024, maxLines: null, maxParseMs: null },
-    tsx: { maxBytes: 256 * 1024, maxLines: null, maxParseMs: null },
-    jsx: { maxBytes: 256 * 1024, maxLines: null, maxParseMs: null },
-    html: { maxBytes: 256 * 1024, maxLines: null, maxParseMs: null },
-    yaml: { maxBytes: 192 * 1024, maxLines: 4000, maxParseMs: 1500 },
-    clike: { maxBytes: 384 * 1024, maxLines: 6000, maxParseMs: 2000 },
-    cpp: { maxBytes: 384 * 1024, maxLines: 6000, maxParseMs: 2000 },
-    objc: { maxBytes: 384 * 1024, maxLines: 6000, maxParseMs: 2000 }
+    ...TREE_SITTER_CAPS_BASELINES,
+    tsx: TREE_SITTER_CAPS_BASELINES.typescript || { maxBytes: 320 * 1024, maxLines: 5000, maxParseMs: 1500 },
+    jsx: TREE_SITTER_CAPS_BASELINES.javascript || { maxBytes: 320 * 1024, maxLines: 5000, maxParseMs: 1500 },
+    cpp: TREE_SITTER_CAPS_BASELINES.clike || { maxBytes: 512 * 1024, maxLines: 8000, maxParseMs: 2200 },
+    objc: TREE_SITTER_CAPS_BASELINES.clike || { maxBytes: 512 * 1024, maxLines: 8000, maxParseMs: 2200 }
   };
   const mergedTreeSitterByLanguage = {
     ...heavyGrammarDefaults,

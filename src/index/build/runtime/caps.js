@@ -1,5 +1,6 @@
 import { normalizeCapNullOnZero } from '../../../shared/limits.js';
 import { pickMinLimit } from './limits.js';
+import { LANGUAGE_CAPS_BASELINES } from './caps-calibration.js';
 
 /**
  * Normalize a numeric cap value to a non-negative integer.
@@ -145,10 +146,17 @@ export const normalizeTreeSitterByLanguage = (raw) => {
 export const resolveFileCapsAndGuardrails = (indexingConfig) => {
   const maxFileBytes = normalizeLimit(indexingConfig.maxFileBytes, 5 * 1024 * 1024);
   const fileCapsConfig = indexingConfig.fileCaps || {};
+  const defaultByLanguageCaps = {};
+  for (const [languageId, entry] of Object.entries(LANGUAGE_CAPS_BASELINES)) {
+    defaultByLanguageCaps[languageId] = normalizeCapEntry(entry);
+  }
   const fileCaps = {
     default: normalizeCapEntry(fileCapsConfig.default || {}),
     byExt: normalizeCapsByExt(fileCapsConfig.byExt || {}),
-    byLanguage: normalizeCapsByLanguage(fileCapsConfig.byLanguage || {}),
+    byLanguage: {
+      ...defaultByLanguageCaps,
+      ...normalizeCapsByLanguage(fileCapsConfig.byLanguage || {})
+    },
     byMode: normalizeCapsByMode(fileCapsConfig.byMode || {})
   };
   const untrustedConfig = indexingConfig.untrusted || {};
