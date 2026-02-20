@@ -112,8 +112,12 @@ const cases = [
   {
     label: 'scala',
     fn: collectScalaImports,
-    text: 'import foo.bar.Baz',
-    expected: ['foo.bar.Baz']
+    text: [
+      'package com.example.service',
+      'import foo.bar.Baz',
+      'class Worker extends foo.core.Base with foo.core.Logging'
+    ].join('\n'),
+    expected: ['com.example.service', 'foo.bar.Baz', 'foo.core.Base', 'foo.core.Logging']
   },
   {
     label: 'groovy',
