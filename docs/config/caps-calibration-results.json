@@ -135,8 +135,8 @@
       "maxLines": 5000
     },
     "starlark": {
-      "maxBytes": 262144,
-      "maxLines": 4000
+      "maxBytes": 393216,
+      "maxLines": 6000
     },
     "swift": {
       "maxBytes": 458752,
@@ -326,9 +326,9 @@
       "maxParseMs": 1500
     },
     "starlark": {
-      "maxBytes": 262144,
-      "maxLines": 4000,
-      "maxParseMs": 1300
+      "maxBytes": 393216,
+      "maxLines": 6000,
+      "maxParseMs": 1700
     },
     "swift": {
       "maxBytes": 458752,
