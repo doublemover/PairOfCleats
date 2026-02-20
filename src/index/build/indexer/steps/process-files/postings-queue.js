@@ -249,6 +249,10 @@ export const createPostingsQueue = ({
         state.backpressureEvents += 1;
       }
     } else {
+      // Even when bypassing backpressure to avoid head-of-line stalls,
+      // still sample heap pressure so telemetry reflects actual memory
+      // constraints seen by postings reservations.
+      resolveLimits(payloadRows, payloadBytes, baseLimits);
       state.reserveBypassCount += 1;
     }
     state.pending += 1;
