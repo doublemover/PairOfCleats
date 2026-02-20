@@ -66,6 +66,12 @@ const USR_GUARDRAIL_BENCHMARKS = Object.freeze([
     label: 'Core normalization/linking/identity',
     script: 'tools/bench/usr/item39-normalization-linking-identity.js',
     report: 'item39-normalization-linking-identity.json'
+  },
+  {
+    item: 40,
+    label: 'Core pipeline/incremental/transforms',
+    script: 'tools/bench/usr/item40-pipeline-incremental-transforms.js',
+    report: 'item40-pipeline-incremental-transforms.json'
   }
 ]);
 
