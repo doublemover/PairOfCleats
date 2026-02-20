@@ -248,6 +248,7 @@ export async function runSearchSession({
   let cacheData = null;
   let cachedPayload = null;
   let cacheShouldPersist = false;
+  let cacheHotPathHit = false;
   const cacheStrategy = queryCacheStrategy === 'memory-first' || preferMemoryBackendOnCacheHit === true
     ? 'memory-first'
     : 'disk-first';
@@ -347,6 +348,7 @@ export async function runSearchSession({
         memoryFreshMs: cacheMemoryFreshMs,
         maxHotEntries: queryCacheMaxEntries
       });
+      if (entry) cacheHotPathHit = true;
     }
     if (!entry) {
       cacheData = loadQueryCache(queryCachePath, {
@@ -738,7 +740,9 @@ export async function runSearchSession({
     cache: {
       enabled: queryCacheEnabled,
       hit: cacheHit,
-      key: cacheKey
+      key: cacheKey,
+      strategy: cacheStrategy,
+      memoryHotPath: cacheHotPathHit
     },
     routingPolicy: sqliteFtsRouting
   };

@@ -67,6 +67,24 @@ const SCRIPT_COVERAGE_GROUPS = Object.freeze([
   'fixtures',
   'tools'
 ]);
+const USR_GUARDRAIL_GATES = Object.freeze([
+  {
+    item: 35,
+    label: 'USR guardrail (item 35: framework canonicalization)',
+    script: 'tools/ci/usr/item35-framework-canonicalization-gate.js',
+    report: 'usr-section-35-framework-canonicalization-report.json'
+  }
+]);
+
+const buildUsrGateSteps = (diagnosticsDir) => USR_GUARDRAIL_GATES.map((gate) => ({
+  label: gate.label,
+  command: process.execPath,
+  args: [
+    gate.script,
+    '--out',
+    path.join(diagnosticsDir, 'usr', gate.report)
+  ]
+}));
 
 const runStep = async (step, env, dryRun) => {
   const commandLine = renderCommand(step.command, step.args);
@@ -145,6 +163,7 @@ const main = async () => {
       command: process.execPath,
       args: ['tools/ci/capability-gate.js', '--mode', mode, '--json', capabilityJson]
     },
+    ...buildUsrGateSteps(diagnosticsDir),
     {
       label: 'CI test lane',
       command: process.execPath,
