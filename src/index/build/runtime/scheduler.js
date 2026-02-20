@@ -197,7 +197,7 @@ export const resolveSchedulerConfig = ({ argv, rawArgv, envConfig, indexingConfi
     cliPresent: hasCliArg(rawArgv, '--scheduler-max-cpu'),
     envValue: envConfig?.schedulerMaxCpuTokens,
     configValue: schedulerConfig?.maxCpuTokens,
-    fallback: Math.max(cpuTokens, defaultCpu * 2),
+    fallback: Math.max(cpuTokens, defaultCpu * 3),
     allowZero: false
   });
 
@@ -206,7 +206,7 @@ export const resolveSchedulerConfig = ({ argv, rawArgv, envConfig, indexingConfi
     cliPresent: hasCliArg(rawArgv, '--scheduler-max-io'),
     envValue: envConfig?.schedulerMaxIoTokens,
     configValue: schedulerConfig?.maxIoTokens,
-    fallback: Math.max(ioTokens, defaultIo * 2),
+    fallback: Math.max(ioTokens, defaultIo * 3),
     allowZero: false
   });
 
@@ -215,7 +215,7 @@ export const resolveSchedulerConfig = ({ argv, rawArgv, envConfig, indexingConfi
     cliPresent: hasCliArg(rawArgv, '--scheduler-max-mem'),
     envValue: envConfig?.schedulerMaxMemoryTokens,
     configValue: schedulerConfig?.maxMemoryTokens,
-    fallback: Math.max(memoryTokens, defaultMem * 2),
+    fallback: Math.max(memoryTokens, defaultMem * 3),
     allowZero: false
   });
   const adaptiveTargetUtilization = coerceUnitFraction(
