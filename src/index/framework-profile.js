@@ -9,11 +9,28 @@ const NEXT_APP_ROUTE_FILE_RX = /(^|\/)app\/(?:.+\/)?(page|layout|route|template|
 const NEXT_PAGES_ROUTE_FILE_RX = /(^|\/)pages\/.+\.(js|jsx|ts|tsx|mjs|cjs|mts|cts|mdx)$/i;
 const NEXT_CONFIG_FILE_RX = /(^|\/)next\.config\.(js|cjs|mjs|ts)$/i;
 const NEXT_IMPORT_SIGNAL_RX = /\bfrom\s+['"]next(?:\/[^'"]*)?['"]|\brequire\(\s*['"]next(?:\/[^'"]*)?['"]\s*\)|\bimport\(\s*['"]next(?:\/[^'"]*)?['"]\s*\)/i;
+const isAsciiWhitespace = (charCode) => (
+  charCode === 9
+  || charCode === 10
+  || charCode === 11
+  || charCode === 12
+  || charCode === 13
+  || charCode === 32
+);
+const matchesUseDirective = (text, cursor) => {
+  const quote = text[cursor];
+  if (quote !== '"' && quote !== '\'') return false;
+  const closing = text.indexOf(quote, cursor + 1);
+  if (closing < 0) return false;
+  const directive = text.slice(cursor + 1, closing).trim().toLowerCase();
+  if (directive !== 'use client' && directive !== 'use server') return false;
+  return true;
+};
 const hasNextDirectiveSignal = (source) => {
   const text = typeof source === 'string' ? source : String(source || '');
   let cursor = 0;
   while (cursor < text.length) {
-    while (cursor < text.length && /\s/.test(text[cursor])) cursor += 1;
+    while (cursor < text.length && isAsciiWhitespace(text.charCodeAt(cursor))) cursor += 1;
     if (text.startsWith('//', cursor)) {
       const nextBreak = text.indexOf('\n', cursor + 2);
       if (nextBreak < 0) return false;
@@ -28,7 +45,7 @@ const hasNextDirectiveSignal = (source) => {
     }
     break;
   }
-  return /^['"]use\s+(?:client|server)['"]\s*;?/i.test(text.slice(cursor));
+  return matchesUseDirective(text, cursor);
 };
 const hasNextSourceSignal = (source, getSourceLower) => {
   if (NEXT_IMPORT_SIGNAL_RX.test(source) || hasNextDirectiveSignal(source)) return true;
