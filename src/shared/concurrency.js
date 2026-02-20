@@ -522,8 +522,12 @@ export function createBuildScheduler(input = {}) {
 
   const stats = () => {
     const queueStats = {};
+    let totalPending = 0;
+    let totalRunning = 0;
     for (const q of queueOrder) {
       const oldest = q.pending.length ? nowMs() - q.pending[0].enqueuedAt : 0;
+      totalPending += q.pending.length;
+      totalRunning += q.running;
       queueStats[q.name] = {
         pending: q.pending.length,
         running: q.running,
@@ -539,13 +543,29 @@ export function createBuildScheduler(input = {}) {
         starvation: q.stats.starvation
       };
     }
+    const resolveUtilization = (used, total) => (
+      total > 0 ? Math.max(0, Math.min(1, used / total)) : 0
+    );
+    const cpuUtilization = resolveUtilization(tokens.cpu.used, tokens.cpu.total);
+    const ioUtilization = resolveUtilization(tokens.io.used, tokens.io.total);
+    const memUtilization = resolveUtilization(tokens.mem.used, tokens.mem.total);
     return {
       queues: queueStats,
       counters: { ...counters },
+      activity: {
+        pending: totalPending,
+        running: totalRunning
+      },
       adaptive: {
         enabled: adaptiveEnabled,
         baseline: baselineLimits,
         max: maxLimits
+      },
+      utilization: {
+        cpu: cpuUtilization,
+        io: ioUtilization,
+        mem: memUtilization,
+        overall: Math.max(cpuUtilization, ioUtilization, memUtilization)
       },
       tokens: {
         cpu: { ...tokens.cpu },
