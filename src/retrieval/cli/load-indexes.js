@@ -270,6 +270,7 @@ export async function loadSearchIndexes({
         }
         resolvedRunExtractedProse = false;
         resolvedLoadExtractedProse = false;
+        extractedProseDir = null;
       }
     }
   }
@@ -683,7 +684,9 @@ export async function loadSearchIndexes({
   if (needsAnnArtifacts) {
     attachTasks.push(() => attachLanceDb(idxCode, 'code', codeIndexDir));
     attachTasks.push(() => attachLanceDb(idxProse, 'prose', proseIndexDir));
-    attachTasks.push(() => attachLanceDb(idxExtractedProse, 'extracted-prose', extractedProseDir));
+    if (resolvedLoadExtractedProse) {
+      attachTasks.push(() => attachLanceDb(idxExtractedProse, 'extracted-prose', extractedProseDir));
+    }
   }
   if (attachTasks.length) {
     const limit = 2;
