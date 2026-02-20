@@ -1175,8 +1175,8 @@ Touchpoints:
 
 Exit criteria:
 
-- [ ] Release-check and platform safety behaviors are deterministic and enforced.
-- [ ] Packaging and service-mode checks are mandatory in standard release validation.
+- [x] Release-check and platform safety behaviors are deterministic and enforced.
+- [x] Packaging and service-mode checks are mandatory in standard release validation.
 
 ---
 
