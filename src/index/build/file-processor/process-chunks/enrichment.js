@@ -2,7 +2,7 @@ import { buildChunkRelations } from '../../../language-registry.js';
 import { detectRiskSignals } from '../../../risk.js';
 import { inferTypeMetadata } from '../../../type-inference.js';
 import { getStructuralMatchesForChunk } from '../chunk.js';
-import { mergeFlowMeta } from '../meta.js';
+import { mergeFlowMeta, normalizeDocMeta } from '../meta.js';
 
 const normalizeCapabilityDiagnostic = (entry) => {
   if (!entry || typeof entry !== 'object') return null;
@@ -83,6 +83,7 @@ export const buildChunkEnrichment = ({
           options: languageOptions
         })
         : {};
+      docmeta = normalizeDocMeta(docmeta);
     } catch (err) {
       return { skip: failFile('parse-error', 'docmeta', err, diagnostics) };
     }
@@ -128,7 +129,7 @@ export const buildChunkEnrichment = ({
       }
     }
     if (flowMeta) {
-      docmeta = mergeFlowMeta(docmeta, flowMeta, { astDataflowEnabled, controlFlowEnabled });
+      docmeta = normalizeDocMeta(mergeFlowMeta(docmeta, flowMeta, { astDataflowEnabled, controlFlowEnabled }));
     }
     addEnrichDuration(Date.now() - relationStart);
     if (resolvedTypeInferenceEnabled) {
@@ -192,5 +193,5 @@ export const buildChunkEnrichment = ({
     };
   }
 
-  return { docmeta, codeRelations };
+  return { docmeta: normalizeDocMeta(docmeta), codeRelations };
 };

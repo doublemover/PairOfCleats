@@ -495,7 +495,7 @@ const buildHeuristicManagedRelations = ({ text, options, collectImports, symbolP
 
 const extractHeuristicManagedDocMeta = (chunk) => {
   const symbol = typeof chunk?.name === 'string' ? chunk.name.trim() : '';
-  if (!symbol) return null;
+  if (!symbol) return {};
   return {
     symbol,
     source: 'managed-heuristic-adapter'
@@ -566,7 +566,7 @@ const createConfigDataAdapter = ({ id, match }) => ({
   collectImports: () => [],
   prepare: async () => ({}),
   buildRelations: () => buildSimpleRelations({ imports: [] }),
-  extractDocMeta: () => null,
+  extractDocMeta: () => ({}),
   flow: () => null,
   attachName: false
 });

@@ -2,6 +2,23 @@ import { buildTreeSitterChunks } from '../../../lang/tree-sitter.js';
 import { buildChunksFromLineHeadings } from '../helpers.js';
 import { getTreeSitterOptions } from '../tree-sitter.js';
 
+const normalizeConfigTreeSitterChunks = (chunks, format) => chunks.map((chunk) => {
+  const rawName = typeof chunk?.name === 'string' ? chunk.name.trim() : '';
+  const name = rawName || 'section';
+  const existingMeta = chunk?.meta && typeof chunk.meta === 'object' ? chunk.meta : {};
+  const rawTitle = typeof existingMeta.title === 'string' ? existingMeta.title.trim() : '';
+  return {
+    ...chunk,
+    name,
+    kind: chunk?.kind || 'ConfigSection',
+    meta: {
+      ...existingMeta,
+      format,
+      title: rawTitle || name
+    }
+  };
+});
+
 export function chunkIniToml(text, format = 'ini', context) {
   if (format === 'toml' && context?.treeSitter?.configChunking === true) {
     const treeChunks = buildTreeSitterChunks({
@@ -10,7 +27,7 @@ export function chunkIniToml(text, format = 'ini', context) {
       ext: '.toml',
       options: getTreeSitterOptions(context)
     });
-    if (treeChunks && treeChunks.length) return treeChunks;
+    if (treeChunks && treeChunks.length) return normalizeConfigTreeSitterChunks(treeChunks, format);
   }
   const lines = text.split('\n');
   const headings = [];

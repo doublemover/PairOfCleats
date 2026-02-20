@@ -1,6 +1,23 @@
 import { buildTreeSitterChunks } from '../../../lang/tree-sitter.js';
 import { getTreeSitterOptions } from '../tree-sitter.js';
 
+const normalizeConfigTreeSitterChunks = (chunks, format) => chunks.map((chunk) => {
+  const rawName = typeof chunk?.name === 'string' ? chunk.name.trim() : '';
+  const name = rawName || 'section';
+  const existingMeta = chunk?.meta && typeof chunk.meta === 'object' ? chunk.meta : {};
+  const rawTitle = typeof existingMeta.title === 'string' ? existingMeta.title.trim() : '';
+  return {
+    ...chunk,
+    name,
+    kind: chunk?.kind || 'ConfigSection',
+    meta: {
+      ...existingMeta,
+      format,
+      title: rawTitle || name
+    }
+  };
+});
+
 const parseJsonString = (text, start) => {
   let i = start + 1;
   let value = '';
@@ -44,7 +61,7 @@ export function chunkJson(text, context) {
       ext: '.json',
       options: getTreeSitterOptions(context)
     });
-    if (treeChunks && treeChunks.length) return treeChunks;
+    if (treeChunks && treeChunks.length) return normalizeConfigTreeSitterChunks(treeChunks, 'json');
   }
   let parsed;
   try {

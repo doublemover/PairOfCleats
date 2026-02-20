@@ -548,7 +548,7 @@ const CODE_FORMAT_CHUNKERS = [
   { id: 'json', match: (ext) => ext === '.json', chunk: ({ text, context }) => chunkJson(text, context) },
   { id: 'ini', match: (ext) => ['.toml', '.ini', '.cfg', '.conf'].includes(ext), chunk: ({ text, ext, context }) =>
     chunkIniToml(text, ext === '.toml' ? 'toml' : 'ini', context) },
-  { id: 'xml', match: (ext) => ext === '.xml', chunk: ({ text }) => chunkXml(text) },
+  { id: 'xml', match: (ext) => ext === '.xml', chunk: ({ text, context }) => chunkXml(text, context) },
   { id: 'yaml', match: (ext) => ext === '.yaml' || ext === '.yml', chunk: ({ text, relPath, context }) => chunkYaml(text, relPath, context) },
   { id: 'proto', match: (ext) => ext === '.proto', chunk: ({ text, context }) => chunkProto(text, context) },
   { id: 'graphql', match: (ext) => ext === '.graphql' || ext === '.gql', chunk: ({ text, context }) => chunkGraphql(text, context) }

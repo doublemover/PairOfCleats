@@ -20,7 +20,7 @@ import {
 import { assignCommentsToChunks } from '../chunk.js';
 import { buildChunkPayload } from '../assemble.js';
 import { attachEmbeddings } from '../embeddings.js';
-import { formatError } from '../meta.js';
+import { formatError, normalizeDocMeta } from '../meta.js';
 import { createLineReader, stripCommentText } from '../utils.js';
 import { resolveSegmentTokenMode } from '../../../segments/config.js';
 import { attachCallDetailsByChunkIndex } from './dedupe.js';
@@ -799,6 +799,7 @@ export const processChunks = async (context) => {
       return enrichment.skip;
     }
     let { codeRelations, docmeta } = enrichment;
+    docmeta = normalizeDocMeta(docmeta);
 
     let assignedRanges = [];
     let commentFieldTokens = [];
@@ -1033,12 +1034,14 @@ export const processChunks = async (context) => {
       if (ci > 0) {
         const prev = chunkLineRanges[ci - 1];
         const startLine = Math.max(prev.endLine - effectiveContextWin + 1, prev.startLine);
-        preContext = lineReader.getLines(startLine, prev.endLine);
+        const resolvedPreContext = lineReader.getLines(startLine, prev.endLine);
+        preContext = Array.isArray(resolvedPreContext) ? resolvedPreContext : [];
       }
       if (ci + 1 < chunksForProcessing.length) {
         const next = chunkLineRanges[ci + 1];
         const endLine = Math.min(next.startLine + effectiveContextWin - 1, next.endLine);
-        postContext = lineReader.getLines(next.startLine, endLine);
+        const resolvedPostContext = lineReader.getLines(next.startLine, endLine);
+        postContext = Array.isArray(resolvedPostContext) ? resolvedPostContext : [];
       }
     }
     const chunkAuthors = lineAuthors
