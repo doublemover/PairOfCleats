@@ -175,8 +175,12 @@ export const resolveWorkerResourceLimits = (maxWorkers, options = {}) => {
 
   // Split the budget across workers while leaving one "share" for the main
   // process.
-  const perWorkerBudgetMb = Math.floor(budgetMb / (workerCount + 1));
-  if (!Number.isFinite(perWorkerBudgetMb) || perWorkerBudgetMb <= 0) return null;
+  const perWorkerBudgetRawMb = Math.floor(budgetMb / (workerCount + 1));
+  // Keep resource limits active even when the split budget underflows.
+  // Returning `null` here removes worker caps entirely in Piscina.
+  const perWorkerBudgetMb = Number.isFinite(perWorkerBudgetRawMb) && perWorkerBudgetRawMb > 0
+    ? perWorkerBudgetRawMb
+    : 1;
   const autoTargetMb = Number.isFinite(totalMemMb) && totalMemMb >= 65536
     ? WORKER_HEAP_TARGET_MAX_MB
     : Number.isFinite(totalMemMb) && totalMemMb >= 24576

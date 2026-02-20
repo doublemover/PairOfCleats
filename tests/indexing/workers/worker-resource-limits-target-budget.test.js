@@ -39,6 +39,18 @@ try {
     900,
     'expected per-worker heap to respect configured minimum bound'
   );
+
+  process.env.NODE_OPTIONS = '--max-old-space-size=8';
+  const underflowStillCapped = resolveWorkerResourceLimits(32, {
+    targetPerWorkerMb: 1024,
+    minPerWorkerMb: 512,
+    maxPerWorkerMb: 2048
+  });
+  assert.equal(
+    underflowStillCapped?.maxOldGenerationSizeMb,
+    1,
+    'expected underflowed per-worker budget to keep a 1MB cap instead of dropping resource limits'
+  );
 } finally {
   if (originalNodeOptions == null) {
     delete process.env.NODE_OPTIONS;
