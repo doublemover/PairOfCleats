@@ -445,6 +445,9 @@ if (buildIndex || buildSqlite) {
       ...buildVerboseArgs,
       ...buildQuietArgs
     ];
+    // Bench controls sqlite timing separately via runSqliteBuild; keep stage4 out
+    // of build_index to avoid duplicate sqlite passes and distorted timings.
+    args.push('--no-sqlite');
     if (repoArg) args.push('--repo', repoArg);
     if (stubEmbeddings) args.push('--stub-embeddings');
     if (buildIncremental) args.push('--incremental');
