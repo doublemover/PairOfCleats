@@ -780,24 +780,24 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.40 Build/package manifest and special-file catalog
 
-- [ ] Expand `MANIFEST_FILES` / `LOCK_FILES` to full supported ecosystem coverage; current detection is still partial.
-  - [ ] JS/TS: `package.json`, lockfiles
-  - [ ] Python: `requirements.txt`, `pyproject.toml`, `Pipfile`, locks
-  - [ ] Ruby: `Gemfile`, `Gemfile.lock`
-  - [ ] PHP: `composer.json`, `composer.lock`
-  - [ ] Go: `go.mod`, `go.sum`
-  - [ ] Rust: `Cargo.toml`, `Cargo.lock`
-  - [ ] Java/Kotlin/Groovy/Scala: `pom.xml`, `build.gradle`, `build.gradle.kts`, `settings.gradle`, `settings.gradle.kts`
-  - [ ] C#: `.sln`, `.csproj`, `.props`, `.targets`, `Directory.Build.props`
-  - [ ] Swift: `Package.swift`, `Package.resolved`
-  - [ ] Dart: `pubspec.yaml`, `pubspec.lock`
-  - [ ] R: `DESCRIPTION`
-  - [ ] Julia: `Project.toml`, `Manifest.toml`
-  - [ ] C/C++/ObjC and infra: `CMakeLists.txt`, `Makefile`, `BUILD`, `WORKSPACE`, `Dockerfile`, `buf.yaml`, `buf.gen.yaml`, `flake.nix`
-- [ ] Define one canonical language descriptor contract (extensions, special filenames, parser route, adapter ID, caps profile) and treat it as the only editable source for language routing.
-- [ ] Generate extension/special-file tables and registry dispatch maps from the canonical language descriptor to eliminate manual drift across constants, discovery, and language registry modules.
-- [ ] Keep manifest/special-file logic singular across discovery, tooling helpers, and language catalog specs.
-- [ ] Add strict parity tests that assert manifest/special-file detection coverage for every supported ecosystem and special filename.
+- [x] Expand `MANIFEST_FILES` / `LOCK_FILES` to full supported ecosystem coverage; current detection is still partial.
+  - [x] JS/TS: `package.json`, lockfiles
+  - [x] Python: `requirements.txt`, `pyproject.toml`, `Pipfile`, locks
+  - [x] Ruby: `Gemfile`, `Gemfile.lock`
+  - [x] PHP: `composer.json`, `composer.lock`
+  - [x] Go: `go.mod`, `go.sum`
+  - [x] Rust: `Cargo.toml`, `Cargo.lock`
+  - [x] Java/Kotlin/Groovy/Scala: `pom.xml`, `build.gradle`, `build.gradle.kts`, `settings.gradle`, `settings.gradle.kts`
+  - [x] C#: `.sln`, `.csproj`, `.props`, `.targets`, `Directory.Build.props`
+  - [x] Swift: `Package.swift`, `Package.resolved`
+  - [x] Dart: `pubspec.yaml`, `pubspec.lock`
+  - [x] R: `DESCRIPTION`
+  - [x] Julia: `Project.toml`, `Manifest.toml`
+  - [x] C/C++/ObjC and infra: `CMakeLists.txt`, `Makefile`, `BUILD`, `WORKSPACE`, `Dockerfile`, `buf.yaml`, `buf.gen.yaml`, `flake.nix`
+- [x] Define one canonical language descriptor contract (extensions, special filenames, parser route, adapter ID, caps profile) and treat it as the only editable source for language routing.
+- [x] Generate extension/special-file tables and registry dispatch maps from the canonical language descriptor to eliminate manual drift across constants, discovery, and language registry modules.
+- [x] Keep manifest/special-file logic singular across discovery, tooling helpers, and language catalog specs.
+- [x] Add strict parity tests that assert manifest/special-file detection coverage for every supported ecosystem and special filename.
 
 
 Touchpoints:
