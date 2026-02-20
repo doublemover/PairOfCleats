@@ -725,6 +725,15 @@ export async function writeIndexArtifacts(input) {
   const heavyWriteThresholdBytes = Number.isFinite(Number(artifactConfig.writeHeavyThresholdBytes))
     ? Math.max(1024 * 1024, Math.floor(Number(artifactConfig.writeHeavyThresholdBytes)))
     : (16 * 1024 * 1024);
+  const forcedHeavyWritePatterns = Array.isArray(artifactConfig.writeHeavyLabelPatterns)
+    ? artifactConfig.writeHeavyLabelPatterns
+      .filter((entry) => typeof entry === 'string' && entry.trim())
+      .map((entry) => new RegExp(entry))
+    : [
+      /(^|\/)field_postings(?:\.|$)/,
+      /(^|\/)token_postings(?:\.|$)/,
+      /(^|\/)chunk_meta(?:\.|$)/
+    ];
   const heavyWriteConcurrencyOverride = Number.isFinite(Number(artifactConfig.writeHeavyConcurrency))
     ? Math.max(1, Math.floor(Number(artifactConfig.writeHeavyConcurrency)))
     : null;
@@ -864,7 +873,10 @@ export async function writeIndexArtifacts(input) {
     const lanes = { light: [], heavy: [] };
     for (const entry of ordered) {
       const estimated = Number(entry?.estimatedBytes);
-      const isHeavy = Number.isFinite(estimated) && estimated >= heavyWriteThresholdBytes;
+      const label = typeof entry?.label === 'string' ? entry.label : '';
+      const isForcedHeavy = forcedHeavyWritePatterns.some((pattern) => pattern.test(label));
+      const isHeavyBySize = Number.isFinite(estimated) && estimated >= heavyWriteThresholdBytes;
+      const isHeavy = isForcedHeavy || isHeavyBySize;
       if (isHeavy) lanes.heavy.push(entry);
       else lanes.light.push(entry);
     }
