@@ -66,6 +66,38 @@ const resolveQueueConfig = (value) => {
   return resolved;
 };
 
+const SCHEDULER_DEFAULT_QUEUE_CONFIG = Object.freeze({
+  'stage1.cpu': Object.freeze({ priority: 40, weight: 3 }),
+  'stage1.io': Object.freeze({ priority: 35, weight: 2 }),
+  'stage1.proc': Object.freeze({ priority: 45, weight: 2 }),
+  'stage1.postings': Object.freeze({ priority: 25, weight: 4 }),
+  'stage2.relations': Object.freeze({ priority: 30, weight: 3 }),
+  'stage2.relations.io': Object.freeze({ priority: 30, weight: 2 }),
+  'stage4.sqlite': Object.freeze({ priority: 20, weight: 5 }),
+  'embeddings.compute': Object.freeze({ priority: 35, weight: 3 }),
+  'embeddings.io': Object.freeze({ priority: 30, weight: 2 })
+});
+
+const mergeQueueConfig = (defaults, overrides) => {
+  const merged = {};
+  const defaultEntries = defaults && typeof defaults === 'object'
+    ? Object.entries(defaults)
+    : [];
+  for (const [queueName, config] of defaultEntries) {
+    merged[queueName] = { ...config };
+  }
+  const overrideEntries = overrides && typeof overrides === 'object'
+    ? Object.entries(overrides)
+    : [];
+  for (const [queueName, config] of overrideEntries) {
+    merged[queueName] = {
+      ...(merged[queueName] || {}),
+      ...(config && typeof config === 'object' ? config : {})
+    };
+  }
+  return merged;
+};
+
 export const SCHEDULER_QUEUE_NAMES = {
   stage1Cpu: 'stage1.cpu',
   stage1Io: 'stage1.io',
@@ -200,7 +232,10 @@ export const resolveSchedulerConfig = ({ argv, rawArgv, envConfig, indexingConfi
     allowZero: false
   });
 
-  const queues = resolveQueueConfig(schedulerConfig?.queues);
+  const queues = mergeQueueConfig(
+    SCHEDULER_DEFAULT_QUEUE_CONFIG,
+    resolveQueueConfig(schedulerConfig?.queues)
+  );
 
   return {
     enabled,
