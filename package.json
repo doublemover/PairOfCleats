@@ -107,7 +107,7 @@
     "esquery": "^1.7.0",
     "execa": "^9.6.1",
     "fast-xml-parser": "^5.3.6",
-    "fdir": "6.4.2",
+    "fdir": "6.5.0",
     "fflate": "^0.8.2",
     "file-type": "^21.3.0",
     "graphology": "^0.26.0",
