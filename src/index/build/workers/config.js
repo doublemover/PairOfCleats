@@ -202,7 +202,7 @@ export const resolveWorkerResourceLimits = (maxWorkers, options = {}) => {
   const effectiveMinMb = Math.min(policyMinMb, effectiveMaxMb);
   const capped = Math.max(
     effectiveMinMb,
-    Math.min(effectiveMaxMb, Math.max(perWorkerBudgetMb, desiredTargetMb))
+    Math.min(effectiveMaxMb, desiredTargetMb)
   );
   return { maxOldGenerationSizeMb: capped };
 };

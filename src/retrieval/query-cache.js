@@ -246,7 +246,7 @@ export function findQueryCacheEntry(cache, key, signature, options = {}) {
   if (strategy === 'memory-first') {
     return readMemory() || readDisk();
   }
-  return readDisk() || readMemory();
+  return readDisk();
 }
 
 /**
