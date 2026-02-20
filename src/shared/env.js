@@ -34,6 +34,13 @@ export function getEnvSecrets(env = process.env) {
   };
 }
 
+/**
+ * Normalize runtime environment variables into a typed configuration object.
+ * All values are parsed once so downstream code can treat the shape as stable.
+ *
+ * @param {NodeJS.ProcessEnv} [env]
+ * @returns {object}
+ */
 export function getEnvConfig(env = process.env) {
   const secrets = getEnvSecrets(env);
   const mcpMode = normalizeString(env.PAIROFCLEATS_MCP_MODE)

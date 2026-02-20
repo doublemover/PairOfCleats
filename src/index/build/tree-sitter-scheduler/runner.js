@@ -193,6 +193,20 @@ const loadIndexEntries = async ({ grammarKeys, paths, abortSignal = null }) => {
   return index;
 };
 
+/**
+ * Execute tree-sitter scheduling for a mode by planning per-grammar jobs,
+ * running the scheduler subprocess(es), and loading the merged index rows.
+ *
+ * @param {object} input
+ * @param {'code'|'prose'|'records'|'extracted-prose'} input.mode
+ * @param {object} input.runtime
+ * @param {Array<object>} input.entries
+ * @param {string} input.outDir
+ * @param {object|null} [input.fileTextCache]
+ * @param {AbortSignal|null} [input.abortSignal]
+ * @param {(line:string)=>void|null} [input.log]
+ * @returns {Promise<object|null>}
+ */
 export const runTreeSitterScheduler = async ({
   mode,
   runtime,

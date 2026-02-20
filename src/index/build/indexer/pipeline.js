@@ -93,6 +93,14 @@ export const resolveVectorOnlyShortcutPolicy = (runtime) => {
   };
 };
 
+/**
+ * Build the effective feature toggle set for a mode from runtime settings,
+ * analysis policy flags, and index profile behavior.
+ *
+ * @param {object} runtime
+ * @param {'code'|'prose'|'records'|'extracted-prose'} mode
+ * @returns {object}
+ */
 export const buildFeatureSettings = (runtime, mode) => {
   const analysisFlags = resolveAnalysisFlags(runtime);
   const profileId = runtime?.profile?.id || runtime?.indexingConfig?.profile || 'default';
@@ -324,6 +332,11 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   let stageIndex = 0;
   const getSchedulerStats = () => (runtime?.scheduler?.stats ? runtime.scheduler.stats() : null);
   let lowUtilizationWarningEmitted = false;
+  /**
+   * Capture an operational snapshot used for stage checkpoint telemetry.
+   *
+   * @returns {object}
+   */
   const captureRuntimeSnapshot = () => {
     const schedulerStats = getSchedulerStats();
     const cpuCount = Array.isArray(runtime?.cpuList) && runtime.cpuList.length
@@ -379,6 +392,15 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       `tokens(cpu=${Math.floor(cpuTokens || 0)}, io=${Math.floor(ioTokens || 0)}).`
     );
   };
+  /**
+   * Record a stage checkpoint enriched with the current runtime snapshot.
+   *
+   * @param {object} input
+   * @param {string} input.stage
+   * @param {string|null} [input.step]
+   * @param {string|null} [input.label]
+   * @param {object|null} [input.extra]
+   */
   const recordStageCheckpoint = ({
     stage,
     step = null,
