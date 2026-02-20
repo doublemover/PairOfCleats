@@ -14,9 +14,46 @@ import {
   loadJsonObjectArtifact,
   loadMinhashSignatures,
   loadPiecesManifest,
+  resolveArtifactPresence,
   resolveBinaryArtifactPath
 } from '../shared/artifact-io.js';
 import { loadHnswIndex, normalizeHnswConfig, resolveHnswPaths, resolveHnswTarget } from '../shared/hnsw.js';
+
+const hasFile = (targetPath) => (
+  fsSync.existsSync(targetPath)
+  || fsSync.existsSync(`${targetPath}.gz`)
+  || fsSync.existsSync(`${targetPath}.zst`)
+);
+
+export function hasChunkMetaArtifacts(dir) {
+  if (!dir) return false;
+  const legacyCandidates = [
+    'chunk_meta.json',
+    'chunk_meta.jsonl',
+    'chunk_meta.meta.json',
+    'chunk_meta.columnar.json',
+    'chunk_meta.binary-columnar.meta.json'
+  ];
+  for (const relPath of legacyCandidates) {
+    if (hasFile(path.join(dir, relPath))) return true;
+  }
+  if (fsSync.existsSync(path.join(dir, 'chunk_meta.parts'))) return true;
+  try {
+    const manifest = loadPiecesManifest(dir, { maxBytes: MAX_JSON_BYTES, strict: true });
+    const presence = resolveArtifactPresence(dir, 'chunk_meta', {
+      manifest,
+      maxBytes: MAX_JSON_BYTES,
+      strict: false
+    });
+    if (!presence || presence.format === 'missing') return false;
+    if (presence.error) return false;
+    if (presence.missingMeta) return false;
+    if (Array.isArray(presence.missingPaths) && presence.missingPaths.length) return false;
+    return Array.isArray(presence.paths) && presence.paths.length > 0;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Load file-backed index artifacts from a directory.
@@ -295,8 +332,21 @@ export async function loadIndex(dir, options) {
     : null;
   if (includeTokenIndexResolved) {
     try {
-      idx.tokenIndex = loadTokenPostings(dir, { maxBytes: MAX_JSON_BYTES });
-    } catch {}
+      idx.tokenIndex = loadTokenPostings(dir, {
+        maxBytes: MAX_JSON_BYTES,
+        manifest,
+        strict
+      });
+    } catch (err) {
+      const message = String(err?.message || '');
+      const missingOptional = !strict && (
+        err?.code === 'ERR_MANIFEST_MISSING'
+        || err?.code === 'ERR_MANIFEST_INVALID'
+        || err?.code === 'ERR_JSON_TOO_LARGE'
+        || /Missing manifest entry for token_postings/i.test(message)
+      );
+      if (!missingOptional) throw err;
+    }
   }
   return idx;
 }
@@ -325,25 +375,11 @@ export function resolveIndexDir(root, mode, userConfig, options = {}) {
     throw createError(ERROR_CODES.NO_INDEX, `[search] ${mode} index is unavailable for explicit as-of target.`);
   }
   const cached = getIndexDir(root, mode, userConfig);
-  const cachedMeta = path.join(cached, 'chunk_meta.json');
-  const cachedMetaJsonl = path.join(cached, 'chunk_meta.jsonl');
-  const cachedMetaParts = path.join(cached, 'chunk_meta.meta.json');
-  const cachedPartsDir = path.join(cached, 'chunk_meta.parts');
-  if (fsSync.existsSync(cachedMeta)
-    || fsSync.existsSync(cachedMetaJsonl)
-    || fsSync.existsSync(cachedMetaParts)
-    || fsSync.existsSync(cachedPartsDir)) {
+  if (hasChunkMetaArtifacts(cached)) {
     return cached;
   }
   const local = path.join(root, `index-${mode}`);
-  const localMeta = path.join(local, 'chunk_meta.json');
-  const localMetaJsonl = path.join(local, 'chunk_meta.jsonl');
-  const localMetaParts = path.join(local, 'chunk_meta.meta.json');
-  const localPartsDir = path.join(local, 'chunk_meta.parts');
-  if (fsSync.existsSync(localMeta)
-    || fsSync.existsSync(localMetaJsonl)
-    || fsSync.existsSync(localMetaParts)
-    || fsSync.existsSync(localPartsDir)) {
+  if (hasChunkMetaArtifacts(local)) {
     return local;
   }
   return cached;
@@ -358,14 +394,7 @@ export function resolveIndexDir(root, mode, userConfig, options = {}) {
  */
 export function requireIndexDir(root, mode, userConfig, options = {}) {
   const dir = resolveIndexDir(root, mode, userConfig, options?.resolveOptions || {});
-  const metaPath = path.join(dir, 'chunk_meta.json');
-  const metaJsonlPath = path.join(dir, 'chunk_meta.jsonl');
-  const metaPartsPath = path.join(dir, 'chunk_meta.meta.json');
-  const metaPartsDir = path.join(dir, 'chunk_meta.parts');
-  if (!fsSync.existsSync(metaPath)
-    && !fsSync.existsSync(metaJsonlPath)
-    && !fsSync.existsSync(metaPartsPath)
-    && !fsSync.existsSync(metaPartsDir)) {
+  if (!hasChunkMetaArtifacts(dir)) {
     const suffix = (mode === 'records' || mode === 'extracted-prose')
       ? ` --mode ${mode}`
       : '';
