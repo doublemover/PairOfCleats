@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-20T16:52:05.310Z",
+  "generatedAt": "2026-02-20T17:32:34.466Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -66,14 +66,29 @@
       "PAIROFCLEATS_MODEL",
       "PAIROFCLEATS_MODELS_DIR",
       "PAIROFCLEATS_NODE_OPTIONS",
+      "PAIROFCLEATS_PREFER_MEMORY_BACKEND_ON_CACHE_HIT",
       "PAIROFCLEATS_PROFILE",
+      "PAIROFCLEATS_QUERY_CACHE_MEMORY_FRESH_MS",
+      "PAIROFCLEATS_QUERY_CACHE_PREWARM",
+      "PAIROFCLEATS_QUERY_CACHE_PREWARM_MAX_ENTRIES",
+      "PAIROFCLEATS_QUERY_CACHE_STRATEGY",
       "PAIROFCLEATS_REGEX_ENGINE",
       "PAIROFCLEATS_SCHEDULER",
+      "PAIROFCLEATS_SCHEDULER_ADAPTIVE",
+      "PAIROFCLEATS_SCHEDULER_ADAPTIVE_STEP",
       "PAIROFCLEATS_SCHEDULER_CPU",
       "PAIROFCLEATS_SCHEDULER_IO",
       "PAIROFCLEATS_SCHEDULER_LOW_RESOURCE",
+      "PAIROFCLEATS_SCHEDULER_MAX_CPU",
+      "PAIROFCLEATS_SCHEDULER_MAX_IO",
+      "PAIROFCLEATS_SCHEDULER_MAX_MEM",
       "PAIROFCLEATS_SCHEDULER_MEM",
+      "PAIROFCLEATS_SCHEDULER_MEMORY_PER_TOKEN_MB",
+      "PAIROFCLEATS_SCHEDULER_MEMORY_RESERVE_MB",
       "PAIROFCLEATS_SCHEDULER_STARVATION_MS",
+      "PAIROFCLEATS_SCHEDULER_TARGET_UTILIZATION",
+      "PAIROFCLEATS_SCHEDULER_UTILIZATION_ALERT_TARGET",
+      "PAIROFCLEATS_SCHEDULER_UTILIZATION_ALERT_WINDOW_MS",
       "PAIROFCLEATS_SCRIPT_COVERAGE_CACHE_ROOT",
       "PAIROFCLEATS_SCRIPT_COVERAGE_GROUPS",
       "PAIROFCLEATS_SCRIPT_COVERAGE_SHARD_COUNT",
@@ -83,7 +98,12 @@
       "PAIROFCLEATS_SKIP_BENCH",
       "PAIROFCLEATS_SKIP_SCRIPT_COVERAGE",
       "PAIROFCLEATS_SKIP_SQLITE_INCREMENTAL",
+      "PAIROFCLEATS_SQLITE_FTS_OVERFETCH_CHUNK_SIZE",
+      "PAIROFCLEATS_SQLITE_FTS_OVERFETCH_ROW_CAP",
+      "PAIROFCLEATS_SQLITE_FTS_OVERFETCH_TIME_BUDGET_MS",
+      "PAIROFCLEATS_SQLITE_TAIL_LATENCY_TUNING",
       "PAIROFCLEATS_STAGE",
+      "PAIROFCLEATS_STORAGE_TIER",
       "PAIROFCLEATS_SUITE_MODE",
       "PAIROFCLEATS_SUMMARY_CACHE_MAX",
       "PAIROFCLEATS_TESTING",
@@ -117,6 +137,10 @@
       "PAIROFCLEATS_VERBOSE",
       "PAIROFCLEATS_WATCHER_BACKEND",
       "PAIROFCLEATS_WORKER_POOL",
+      "PAIROFCLEATS_WORKER_POOL_HEAP_MAX_MB",
+      "PAIROFCLEATS_WORKER_POOL_HEAP_MIN_MB",
+      "PAIROFCLEATS_WORKER_POOL_HEAP_TARGET_MB",
+      "PAIROFCLEATS_WORKER_POOL_MAX_WORKERS",
       "PAIROFCLEATS_XXHASH_BACKEND"
     ],
     "knownConfigKeys": [
@@ -2408,7 +2432,8 @@
     {
       "name": "PAIROFCLEATS_PREFER_MEMORY_BACKEND_ON_CACHE_HIT",
       "files": [
-        "src/shared/env.js"
+        "src/shared/env.js",
+        "tools/config/inventory.js"
       ]
     },
     {
@@ -2422,25 +2447,29 @@
     {
       "name": "PAIROFCLEATS_QUERY_CACHE_MEMORY_FRESH_MS",
       "files": [
-        "src/shared/env.js"
+        "src/shared/env.js",
+        "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_QUERY_CACHE_PREWARM",
       "files": [
-        "src/shared/env.js"
+        "src/shared/env.js",
+        "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_QUERY_CACHE_PREWARM_MAX_ENTRIES",
       "files": [
-        "src/shared/env.js"
+        "src/shared/env.js",
+        "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_QUERY_CACHE_STRATEGY",
       "files": [
-        "src/shared/env.js"
+        "src/shared/env.js",
+        "tools/config/inventory.js"
       ]
     },
     {
@@ -2464,13 +2493,15 @@
     {
       "name": "PAIROFCLEATS_SCHEDULER_ADAPTIVE",
       "files": [
-        "src/shared/env.js"
+        "src/shared/env.js",
+        "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_SCHEDULER_ADAPTIVE_STEP",
       "files": [
-        "src/shared/env.js"
+        "src/shared/env.js",
+        "tools/config/inventory.js"
       ]
     },
     {
@@ -2499,19 +2530,22 @@
     {
       "name": "PAIROFCLEATS_SCHEDULER_MAX_CPU",
       "files": [
-        "src/shared/env.js"
+        "src/shared/env.js",
+        "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_SCHEDULER_MAX_IO",
       "files": [
-        "src/shared/env.js"
+        "src/shared/env.js",
+        "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_SCHEDULER_MAX_MEM",
       "files": [
-        "src/shared/env.js"
+        "src/shared/env.js",
+        "tools/config/inventory.js"
       ]
     },
     {
@@ -2525,13 +2559,15 @@
     {
       "name": "PAIROFCLEATS_SCHEDULER_MEMORY_PER_TOKEN_MB",
       "files": [
-        "src/shared/env.js"
+        "src/shared/env.js",
+        "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_SCHEDULER_MEMORY_RESERVE_MB",
       "files": [
-        "src/shared/env.js"
+        "src/shared/env.js",
+        "tools/config/inventory.js"
       ]
     },
     {
@@ -2544,19 +2580,22 @@
     {
       "name": "PAIROFCLEATS_SCHEDULER_TARGET_UTILIZATION",
       "files": [
-        "src/shared/env.js"
+        "src/shared/env.js",
+        "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_SCHEDULER_UTILIZATION_ALERT_TARGET",
       "files": [
-        "src/shared/env.js"
+        "src/shared/env.js",
+        "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_SCHEDULER_UTILIZATION_ALERT_WINDOW_MS",
       "files": [
-        "src/shared/env.js"
+        "src/shared/env.js",
+        "tools/config/inventory.js"
       ]
     },
     {
@@ -2628,25 +2667,29 @@
     {
       "name": "PAIROFCLEATS_SQLITE_FTS_OVERFETCH_CHUNK_SIZE",
       "files": [
-        "src/shared/env.js"
+        "src/shared/env.js",
+        "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_SQLITE_FTS_OVERFETCH_ROW_CAP",
       "files": [
-        "src/shared/env.js"
+        "src/shared/env.js",
+        "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_SQLITE_FTS_OVERFETCH_TIME_BUDGET_MS",
       "files": [
-        "src/shared/env.js"
+        "src/shared/env.js",
+        "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_SQLITE_TAIL_LATENCY_TUNING",
       "files": [
-        "src/shared/env.js"
+        "src/shared/env.js",
+        "tools/config/inventory.js"
       ]
     },
     {
@@ -2660,7 +2703,8 @@
     {
       "name": "PAIROFCLEATS_STORAGE_TIER",
       "files": [
-        "src/shared/env.js"
+        "src/shared/env.js",
+        "tools/config/inventory.js"
       ]
     },
     {
@@ -3040,27 +3084,31 @@
       "name": "PAIROFCLEATS_WORKER_POOL_HEAP_MAX_MB",
       "files": [
         "src/index/build/workers/config.js",
-        "src/shared/env.js"
+        "src/shared/env.js",
+        "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_WORKER_POOL_HEAP_MIN_MB",
       "files": [
         "src/index/build/workers/config.js",
-        "src/shared/env.js"
+        "src/shared/env.js",
+        "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_WORKER_POOL_HEAP_TARGET_MB",
       "files": [
         "src/index/build/workers/config.js",
-        "src/shared/env.js"
+        "src/shared/env.js",
+        "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_WORKER_POOL_MAX_WORKERS",
       "files": [
-        "src/shared/env.js"
+        "src/shared/env.js",
+        "tools/config/inventory.js"
       ]
     },
     {
@@ -3074,32 +3122,7 @@
   "envVarsPublic": [
     "PAIROFCLEATS_API_TOKEN"
   ],
-  "envVarsUnknown": [
-    "PAIROFCLEATS_PREFER_MEMORY_BACKEND_ON_CACHE_HIT",
-    "PAIROFCLEATS_QUERY_CACHE_MEMORY_FRESH_MS",
-    "PAIROFCLEATS_QUERY_CACHE_PREWARM",
-    "PAIROFCLEATS_QUERY_CACHE_PREWARM_MAX_ENTRIES",
-    "PAIROFCLEATS_QUERY_CACHE_STRATEGY",
-    "PAIROFCLEATS_SCHEDULER_ADAPTIVE",
-    "PAIROFCLEATS_SCHEDULER_ADAPTIVE_STEP",
-    "PAIROFCLEATS_SCHEDULER_MAX_CPU",
-    "PAIROFCLEATS_SCHEDULER_MAX_IO",
-    "PAIROFCLEATS_SCHEDULER_MAX_MEM",
-    "PAIROFCLEATS_SCHEDULER_MEMORY_PER_TOKEN_MB",
-    "PAIROFCLEATS_SCHEDULER_MEMORY_RESERVE_MB",
-    "PAIROFCLEATS_SCHEDULER_TARGET_UTILIZATION",
-    "PAIROFCLEATS_SCHEDULER_UTILIZATION_ALERT_TARGET",
-    "PAIROFCLEATS_SCHEDULER_UTILIZATION_ALERT_WINDOW_MS",
-    "PAIROFCLEATS_SQLITE_FTS_OVERFETCH_CHUNK_SIZE",
-    "PAIROFCLEATS_SQLITE_FTS_OVERFETCH_ROW_CAP",
-    "PAIROFCLEATS_SQLITE_FTS_OVERFETCH_TIME_BUDGET_MS",
-    "PAIROFCLEATS_SQLITE_TAIL_LATENCY_TUNING",
-    "PAIROFCLEATS_STORAGE_TIER",
-    "PAIROFCLEATS_WORKER_POOL_HEAP_MAX_MB",
-    "PAIROFCLEATS_WORKER_POOL_HEAP_MIN_MB",
-    "PAIROFCLEATS_WORKER_POOL_HEAP_TARGET_MB",
-    "PAIROFCLEATS_WORKER_POOL_MAX_WORKERS"
-  ],
+  "envVarsUnknown": [],
   "cliFlags": {
     "totalFlags": 316,
     "publicFlags": [
