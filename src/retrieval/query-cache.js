@@ -170,6 +170,13 @@ export function loadQueryCache(cachePath, options = {}) {
   if (!signature) return createEmptyCache();
   const cached = queryCacheDiskCache.get(cachePath);
   if (cached?.signature === signature && cached?.value) {
+    if (options.prewarm === true) {
+      prewarmHotCache({
+        cachePath,
+        entries: cached.value.entries,
+        maxEntries: normalizePositiveInt(options.prewarmMaxEntries, HOT_CACHE_MAX_ENTRIES_DEFAULT)
+      });
+    }
     return cached.value;
   }
   try {

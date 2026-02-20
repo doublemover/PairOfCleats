@@ -151,15 +151,34 @@ const resolveArtifactLaneConcurrency = ({
       ? Math.max(1, Math.ceil(totalWriteConcurrency * 0.66))
       : Math.max(1, Math.ceil(totalWriteConcurrency / 2)));
 
-  const heavyConcurrency = heavyWriteCount > 0
-    ? Math.max(1, Math.min(heavyWriteCount, dynamicHeavyTarget))
-    : 0;
-  const lightConcurrencyBudget = heavyConcurrency > 0
-    ? Math.max(1, totalWriteConcurrency - heavyConcurrency)
+  const hasHeavy = heavyWriteCount > 0;
+  const hasLight = lightWriteCount > 0;
+
+  if (!hasHeavy && !hasLight) {
+    return { heavyConcurrency: 0, lightConcurrency: 0 };
+  }
+  if (!hasHeavy) {
+    return {
+      heavyConcurrency: 0,
+      lightConcurrency: Math.min(totalWriteConcurrency, lightWriteCount)
+    };
+  }
+  if (!hasLight) {
+    return {
+      heavyConcurrency: Math.min(totalWriteConcurrency, Math.min(heavyWriteCount, dynamicHeavyTarget)),
+      lightConcurrency: 0
+    };
+  }
+
+  const maxHeavyBudget = totalWriteConcurrency > 1
+    ? totalWriteConcurrency - 1
     : totalWriteConcurrency;
-  const lightConcurrency = lightWriteCount > 0
-    ? Math.max(1, Math.min(lightWriteCount, lightConcurrencyBudget))
-    : 0;
+  const heavyConcurrency = Math.max(
+    1,
+    Math.min(heavyWriteCount, dynamicHeavyTarget, maxHeavyBudget)
+  );
+  const lightConcurrencyBudget = Math.max(0, totalWriteConcurrency - heavyConcurrency);
+  const lightConcurrency = Math.min(lightWriteCount, lightConcurrencyBudget);
 
   return {
     heavyConcurrency,
@@ -1861,7 +1880,7 @@ export async function writeIndexArtifacts(input) {
       hostConcurrency
     });
     const runWriteLane = async (laneWrites, laneConcurrency) => {
-      if (!Array.isArray(laneWrites) || !laneWrites.length) return;
+      if (!Array.isArray(laneWrites) || !laneWrites.length || laneConcurrency < 1) return;
       await runWithConcurrency(
         laneWrites,
         laneConcurrency,
@@ -1906,10 +1925,19 @@ export async function writeIndexArtifacts(input) {
     };
     startWriteHeartbeat();
     try {
-      await Promise.all([
-        runWriteLane(lightWrites, lightConcurrency),
-        runWriteLane(heavyWrites, heavyConcurrency)
-      ]);
+      const canRunInParallel = heavyConcurrency > 0 &&
+        lightConcurrency > 0 &&
+        (heavyConcurrency + lightConcurrency) <= writeConcurrency;
+      if (canRunInParallel) {
+        await Promise.all([
+          runWriteLane(lightWrites, lightConcurrency),
+          runWriteLane(heavyWrites, heavyConcurrency)
+        ]);
+      } else {
+        // Preserve global write cap even when one lane has no active budget.
+        await runWriteLane(lightWrites, Math.min(writeConcurrency, lightWrites.length));
+        await runWriteLane(heavyWrites, Math.min(writeConcurrency, heavyWrites.length));
+      }
     } finally {
       stopWriteHeartbeat();
       activeWriteBytes.clear();
