@@ -10,6 +10,7 @@ import { loadChunkMeta, MAX_JSON_BYTES } from '../../../src/shared/artifact-io.j
 import { resolveVersionedCacheRoot } from '../../../src/shared/cache-roots.js';
 import { stableStringifyForSignature } from '../../../src/shared/stable-json.js';
 import { sha1 } from '../../../src/shared/hash.js';
+import { rmDirRecursive } from '../../helpers/temp.js';
 applyTestEnv();
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
@@ -18,9 +19,7 @@ const benchRoot = path.join(root, '.testCache', 'chunk-meta-determinism', runId)
 const buildIndexPath = path.join(root, 'build_index.js');
 
 const safeRm = async (dir) => {
-  try {
-    await fs.rm(dir, { recursive: true, force: true });
-  } catch {}
+  await rmDirRecursive(dir, { retries: 8, delayMs: 150, ignoreRetryableFailure: true });
 };
 
 const readBuildRoot = async (cacheRoot) => {
