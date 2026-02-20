@@ -778,19 +778,8 @@ export async function writeIndexArtifacts(input) {
       priority,
       estimatedBytes,
       seq: enqueueSeq,
-      job: async () => {
-        const started = Date.now();
-        await job();
-        const durationMs = Date.now() - started;
-        let bytes = null;
-        if (label) {
-          try {
-            const stat = await fs.stat(path.join(outDir, label));
-            bytes = stat.size;
-          } catch {}
-        }
-        recordArtifactMetric(label, { durationMs, bytes });
-      }
+      enqueuedAt: Date.now(),
+      job
     });
     enqueueSeq += 1;
   };
@@ -1612,11 +1601,31 @@ export async function writeIndexArtifacts(input) {
       await runWithConcurrency(
         scheduledWrites,
         writeConcurrency,
-        async ({ label, job }) => {
+        async ({ label, job, estimatedBytes, enqueuedAt }) => {
           const activeLabel = label || '(unnamed artifact)';
-          activeWrites.set(activeLabel, Date.now());
+          const started = Date.now();
+          const queueDelayMs = Math.max(0, started - (Number(enqueuedAt) || started));
+          activeWrites.set(activeLabel, started);
           try {
             await job();
+            const durationMs = Date.now() - started;
+            let bytes = null;
+            if (label) {
+              try {
+                const stat = await fs.stat(path.join(outDir, label));
+                bytes = stat.size;
+              } catch {}
+            }
+            const throughputBytesPerSec = Number.isFinite(bytes) && durationMs > 0
+              ? Math.round(bytes / (durationMs / 1000))
+              : null;
+            recordArtifactMetric(label, {
+              queueDelayMs,
+              durationMs,
+              bytes,
+              estimatedBytes: Number.isFinite(estimatedBytes) ? estimatedBytes : null,
+              throughputBytesPerSec
+            });
           } finally {
             activeWrites.delete(activeLabel);
             logWriteProgress(label);
