@@ -26,7 +26,7 @@ import {
 } from './language-resolvers.js';
 import { createPackageDirectoryResolver, parsePackageName } from './package-entry.js';
 import { resolveDartPackageName, resolveGoModulePath, resolvePackageFingerprint } from './repo-metadata.js';
-import { normalizeRelPath, resolveWithinRoot, sortStrings, stripSpecifier } from './path-utils.js';
+import { normalizeImportSpecifier, normalizeRelPath, resolveWithinRoot, sortStrings } from './path-utils.js';
 import { createTsConfigLoader, resolveTsPaths } from './tsconfig-resolution.js';
 
 const ABSOLUTE_SYSTEM_PATH_PREFIX_RX = /^\/(?:etc|usr|opt|var|bin|sbin|lib|lib64|dev|proc|sys|run|tmp|home|root)(?:\/|$)/i;
@@ -262,7 +262,7 @@ export function resolveImportLinks({
     const rawSpecs = Array.from(new Set(rawImports.filter((spec) => typeof spec === 'string' && spec)));
     rawSpecs.sort(sortStrings);
     const hasNonRelative = rawSpecs.some((rawSpec) => {
-      const spec = stripSpecifier(rawSpec);
+      const spec = normalizeImportSpecifier(rawSpec);
       return spec && !(spec.startsWith('.') || spec.startsWith('/'));
     });
     if (hasNonRelative && !tsconfigResolved) {
@@ -285,7 +285,7 @@ export function resolveImportLinks({
     const nextSpecCache = cacheState && fileHash ? {} : null;
 
     for (const rawSpec of rawSpecs) {
-      const spec = stripSpecifier(rawSpec);
+      const spec = normalizeImportSpecifier(rawSpec);
       if (!spec) continue;
       let includeGraphEdge = true;
       const isRelative = spec.startsWith('.') || spec.startsWith('/');
