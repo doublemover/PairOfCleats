@@ -100,7 +100,7 @@ updatedManifest.files[changedFile] = {
   bundle: changedBundleName
 };
 
-const runUpdate = async ({ label, outPath, buildPragmas, optimize }) => {
+const buildBaselineDatabase = async ({ outPath, buildPragmas, optimize }) => {
   await buildDatabaseFromBundles({
     Database,
     outPath,
@@ -115,7 +115,9 @@ const runUpdate = async ({ label, outPath, buildPragmas, optimize }) => {
     buildPragmas,
     optimize
   });
+};
 
+const runUpdate = async ({ label, outPath, buildPragmas }) => {
   if (!fsSync.existsSync(outPath)) {
     console.error('Expected sqlite DB to be created before incremental update.');
     process.exit(1);
@@ -152,19 +154,27 @@ const runUpdate = async ({ label, outPath, buildPragmas, optimize }) => {
 let baselineResult = null;
 let currentResult = null;
 if (mode !== 'current') {
-  baselineResult = await runUpdate({
-    label: 'baseline',
+  await buildBaselineDatabase({
     outPath: outPathBaseline,
     buildPragmas: false,
     optimize: false
   });
+  baselineResult = await runUpdate({
+    label: 'baseline',
+    outPath: outPathBaseline,
+    buildPragmas: false
+  });
 }
 if (mode !== 'baseline') {
-  currentResult = await runUpdate({
-    label: 'current',
+  await buildBaselineDatabase({
     outPath: outPathCurrent,
     buildPragmas: true,
     optimize: true
+  });
+  currentResult = await runUpdate({
+    label: 'current',
+    outPath: outPathCurrent,
+    buildPragmas: true
   });
 }
 if (baselineResult && currentResult) {
