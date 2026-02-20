@@ -63,5 +63,13 @@ assert.equal(getLanguageForFile('', 'proto/buf.yaml')?.id, 'proto');
 assert.equal(getLanguageForFile('', 'proto/buf.gen.yaml')?.id, 'proto');
 assert.equal(getLanguageForFile('.proto', 'proto/schema/service.proto')?.id, 'proto');
 assert.equal(getLanguageForFile('.graphql', 'schema/api.graphql')?.id, 'graphql');
+assert.equal(getLanguageForFile('.ini', 'config/app.ini')?.id, 'ini');
+assert.equal(getLanguageForFile('.cfg', 'config/app.cfg')?.id, 'ini');
+assert.equal(getLanguageForFile('.conf', 'config/app.conf')?.id, 'ini');
+assert.equal(getLanguageForFile('.json', 'config/app.json')?.id, 'json');
+assert.equal(getLanguageForFile('.toml', 'config/app.toml')?.id, 'toml');
+assert.equal(getLanguageForFile('.xml', 'config/app.xml')?.id, 'xml');
+assert.equal(getLanguageForFile('.yaml', 'config/app.yaml')?.id, 'yaml');
+assert.equal(getLanguageForFile('.yml', 'config/app.yml')?.id, 'yaml');
 
 console.log('language registry wiring test passed');
