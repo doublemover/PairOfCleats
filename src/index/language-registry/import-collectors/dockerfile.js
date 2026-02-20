@@ -1,22 +1,22 @@
 import { lineHasAnyInsensitive, shouldScanLine } from './utils.js';
+import { parseDockerfileFromClause, parseDockerfileInstruction } from '../../../shared/dockerfile.js';
 
 export const collectDockerfileImports = (text) => {
   const imports = new Set();
   const lines = String(text || '').split(/\r?\n/);
-  const precheck = (value) => lineHasAnyInsensitive(value, ['from', 'copy', 'add']);
+  const precheck = (value) => lineHasAnyInsensitive(value, ['from', 'copy', 'add', '--mount']);
 
   for (const line of lines) {
     if (!shouldScanLine(line, precheck)) continue;
-    // FROM <image> [AS <stage>]
-    const fromMatch = line.match(/^\s*FROM\s+([^\s]+)(?:\s+AS\s+([^\s]+))?/i);
-    if (fromMatch) {
-      if (fromMatch[1]) imports.add(fromMatch[1]);
-      if (fromMatch[2]) imports.add(fromMatch[2]);
+    const from = parseDockerfileFromClause(line);
+    if (from) {
+      if (from.image) imports.add(from.image);
+      if (from.stage) imports.add(from.stage);
     }
-
-    // COPY/ADD --from=<stage-or-image>
-    if (/^\s*(COPY|ADD)\b/i.test(line)) {
-      const fromFlag = line.match(/--from(?:=|\s+)([^\s]+)/i);
+    const instruction = parseDockerfileInstruction(line);
+    if (!instruction) continue;
+    if (instruction.instruction === 'COPY' || instruction.instruction === 'ADD' || instruction.instruction === 'RUN') {
+      const fromFlag = line.match(/\bfrom(?:=|\s+)([^\s,]+)/i);
       if (fromFlag?.[1]) imports.add(fromFlag[1]);
     }
   }

@@ -598,9 +598,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.34 Dockerfile
 
-- [ ] Implement `Dockerfile` and prefixed Dockerfile naming patterns routing.
-- [ ] Implement and verify stage/instruction chunking and dependency relation extraction.
-- [ ] Calibrate and commit Dockerfile caps for multi-stage enterprise images.
+- [x] Implement `Dockerfile` and prefixed Dockerfile naming patterns routing.
+- [x] Implement and verify stage/instruction chunking and dependency relation extraction.
+- [x] Calibrate and commit Dockerfile caps for multi-stage enterprise images.
 
 
 Touchpoints:

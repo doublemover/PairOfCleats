@@ -23,8 +23,8 @@
       "maxLines": 5000
     },
     "dockerfile": {
-      "maxBytes": 229376,
-      "maxLines": 3500
+      "maxBytes": 294912,
+      "maxLines": 4500
     },
     "go": {
       "maxBytes": 393216,
@@ -186,9 +186,9 @@
       "maxParseMs": 1500
     },
     "dockerfile": {
-      "maxBytes": 229376,
-      "maxLines": 3500,
-      "maxParseMs": 1000
+      "maxBytes": 294912,
+      "maxLines": 4500,
+      "maxParseMs": 1200
     },
     "go": {
       "maxBytes": 393216,

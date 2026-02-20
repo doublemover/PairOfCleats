@@ -30,8 +30,13 @@ const cases = [
   {
     label: 'dockerfile',
     fn: collectDockerfileImports,
-    text: 'FROM node:18 AS base\nCOPY --from=base /src /dst',
-    expected: ['node:18', 'base']
+    text: [
+      'FROM --platform=$BUILDPLATFORM node:18 AS base',
+      'FROM base AS build',
+      'RUN --mount=type=bind,from=build,target=/src true',
+      'COPY --from=base /src /dst'
+    ].join('\n'),
+    expected: ['node:18', 'base', 'build']
   },
   {
     label: 'makefile',
