@@ -14,7 +14,12 @@ import {
   serializeContextIndex,
   hydrateContextIndex
 } from '../context-expansion.js';
-import { findQueryCacheEntry, loadQueryCache, pruneQueryCache } from '../query-cache.js';
+import {
+  findQueryCacheEntry,
+  loadQueryCache,
+  pruneQueryCache,
+  rememberQueryCacheEntry
+} from '../query-cache.js';
 import { filterChunks } from '../output.js';
 import { runSearchByMode } from './search-runner.js';
 import { resolveStubDims } from '../../shared/embedding.js';
@@ -123,6 +128,13 @@ export async function runSearchSession({
   queryCacheEnabled,
   queryCacheMaxEntries,
   queryCacheTtlMs,
+  queryCacheStrategy,
+  queryCachePrewarm,
+  queryCachePrewarmMaxEntries,
+  queryCacheMemoryFreshMs,
+  sqliteTailLatencyTuning,
+  sqliteFtsOverfetch,
+  preferMemoryBackendOnCacheHit,
   backendLabel,
   resolvedDenseVectorMode,
   intentInfo,
@@ -180,6 +192,8 @@ export async function runSearchSession({
     sqliteFtsNormalize,
     sqliteFtsProfile,
     sqliteFtsWeights,
+    sqliteTailLatencyTuning,
+    sqliteFtsOverfetch,
     query,
     bm25K1,
     bm25B,
@@ -233,6 +247,17 @@ export async function runSearchSession({
   let cacheSignature = null;
   let cacheData = null;
   let cachedPayload = null;
+  let cacheShouldPersist = false;
+  const cacheStrategy = queryCacheStrategy === 'memory-first' || preferMemoryBackendOnCacheHit === true
+    ? 'memory-first'
+    : 'disk-first';
+  const cachePrewarmEnabled = queryCachePrewarm === true || cacheStrategy === 'memory-first';
+  const cachePrewarmLimit = Number.isFinite(Number(queryCachePrewarmMaxEntries))
+    ? Math.max(1, Math.floor(Number(queryCachePrewarmMaxEntries)))
+    : 128;
+  const cacheMemoryFreshMs = Number.isFinite(Number(queryCacheMemoryFreshMs))
+    ? Math.max(0, Math.floor(Number(queryCacheMemoryFreshMs)))
+    : 0;
 
   const cacheDir = queryCacheDir || metricsDir;
   const queryCachePath = path.join(cacheDir, 'queryCache.json');
@@ -314,8 +339,27 @@ export async function runSearchSession({
         : null
     });
     cacheKey = cacheKeyInfo.key;
-    cacheData = loadQueryCache(queryCachePath);
-    const entry = findQueryCacheEntry(cacheData, cacheKey, cacheSignature);
+    let entry = null;
+    if (cacheStrategy === 'memory-first') {
+      entry = findQueryCacheEntry(null, cacheKey, cacheSignature, {
+        cachePath: queryCachePath,
+        strategy: cacheStrategy,
+        memoryFreshMs: cacheMemoryFreshMs,
+        maxHotEntries: queryCacheMaxEntries
+      });
+    }
+    if (!entry) {
+      cacheData = loadQueryCache(queryCachePath, {
+        prewarm: cachePrewarmEnabled,
+        prewarmMaxEntries: cachePrewarmLimit
+      });
+      entry = findQueryCacheEntry(cacheData, cacheKey, cacheSignature, {
+        cachePath: queryCachePath,
+        strategy: cacheStrategy,
+        memoryFreshMs: cacheMemoryFreshMs,
+        maxHotEntries: queryCacheMaxEntries
+      });
+    }
     if (entry) {
       const ttl = Number.isFinite(Number(entry.ttlMs)) ? Number(entry.ttlMs) : queryCacheTtlMs;
       if (!ttl || (Date.now() - entry.ts) <= ttl) {
@@ -328,6 +372,8 @@ export async function runSearchSession({
           if (hasCode && hasProse && hasExtractedProse && hasRecords) {
             cacheHit = true;
             entry.ts = Date.now();
+            rememberQueryCacheEntry(queryCachePath, cacheKey, cacheSignature, entry, queryCacheMaxEntries);
+            cacheShouldPersist = Boolean(cacheData);
           }
         }
       }
@@ -643,10 +689,10 @@ export async function runSearchSession({
     : (lanceActive ? 'lancedb' : (hnswActive ? 'hnsw' : 'js'));
 
   if (queryCacheEnabled && cacheKey) {
-    if (!cacheData) cacheData = { version: 1, entries: [] };
+    if (!cacheData && !cacheHit) cacheData = { version: 1, entries: [] };
     if (!cacheHit) {
       cacheData.entries = cacheData.entries.filter((entry) => entry.key !== cacheKey);
-      cacheData.entries.push({
+      const entry = {
         key: cacheKey,
         ts: Date.now(),
         ttlMs: queryCacheTtlMs,
@@ -661,12 +707,17 @@ export async function runSearchSession({
           code: codeHits,
           records: recordHits
         }
-      });
+      };
+      cacheData.entries.push(entry);
+      rememberQueryCacheEntry(queryCachePath, cacheKey, cacheSignature, entry, queryCacheMaxEntries);
+      cacheShouldPersist = true;
     }
-    pruneQueryCache(cacheData, queryCacheMaxEntries);
-    try {
-      await atomicWriteJson(queryCachePath, cacheData, { spaces: 2 });
-    } catch {}
+    if (cacheShouldPersist && cacheData) {
+      pruneQueryCache(cacheData, queryCacheMaxEntries);
+      try {
+        await atomicWriteJson(queryCachePath, cacheData, { spaces: 2 });
+      } catch {}
+    }
   }
 
   return {
