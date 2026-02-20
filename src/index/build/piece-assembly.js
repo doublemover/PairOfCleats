@@ -178,6 +178,7 @@ export async function assembleIndexPieces({
       rootDir: root,
       chunks: state.chunks,
       enabled: true,
+      cacheEnabled: false,
       log,
       useTooling: false,
       enableTypeInference: typeInferenceEnabled && typeInferenceCrossFileEnabled,
