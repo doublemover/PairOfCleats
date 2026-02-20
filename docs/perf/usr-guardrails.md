@@ -61,3 +61,16 @@ Gate:
 Bench:
 - `tools/bench/usr/item38-catalog-contract.js`
 - Snapshot: `item38-catalog-contract.json`
+
+## Item 39 - Core normalization/linking/identity
+
+Config:
+- `docs/config/usr-guardrails/item-39-normalization-linking-identity.json`
+
+Gate:
+- `tools/ci/usr/item39-normalization-linking-identity-gate.js`
+- Report: `usr-section-39-normalization-linking-report.json`
+
+Bench:
+- `tools/bench/usr/item39-normalization-linking-identity.js`
+- Snapshot: `item39-normalization-linking-identity.json`

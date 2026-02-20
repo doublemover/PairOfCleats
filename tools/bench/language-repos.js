@@ -60,6 +60,12 @@ const USR_GUARDRAIL_BENCHMARKS = Object.freeze([
     label: 'Core language/framework catalog',
     script: 'tools/bench/usr/item38-catalog-contract.js',
     report: 'item38-catalog-contract.json'
+  },
+  {
+    item: 39,
+    label: 'Core normalization/linking/identity',
+    script: 'tools/bench/usr/item39-normalization-linking-identity.js',
+    report: 'item39-normalization-linking-identity.json'
   }
 ]);
 

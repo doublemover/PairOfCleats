@@ -91,6 +91,12 @@ const USR_GUARDRAIL_GATES = Object.freeze([
     label: 'USR guardrail (item 38: catalog contract)',
     script: 'tools/ci/usr/item38-catalog-contract-gate.js',
     report: 'usr-section-38-catalog-contract-report.json'
+  },
+  {
+    item: 39,
+    label: 'USR guardrail (item 39: normalization linking identity)',
+    script: 'tools/ci/usr/item39-normalization-linking-identity-gate.js',
+    report: 'usr-section-39-normalization-linking-report.json'
   }
 ]);
 
