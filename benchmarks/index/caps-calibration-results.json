@@ -31,8 +31,8 @@
       "maxLines": 6000
     },
     "graphql": {
-      "maxBytes": 229376,
-      "maxLines": 3500
+      "maxBytes": 327680,
+      "maxLines": 5000
     },
     "groovy": {
       "maxBytes": 393216,
@@ -196,9 +196,9 @@
       "maxParseMs": 1500
     },
     "graphql": {
-      "maxBytes": 229376,
-      "maxLines": 3500,
-      "maxParseMs": 1200
+      "maxBytes": 327680,
+      "maxLines": 5000,
+      "maxParseMs": 1500
     },
     "groovy": {
       "maxBytes": 393216,
