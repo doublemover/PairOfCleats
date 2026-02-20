@@ -71,8 +71,21 @@ const cases = [
   {
     label: 'nix',
     fn: collectNixImports,
-    text: 'import ./module.nix\ncallPackage ../pkg.nix {}',
-    expected: ['./module.nix', '../pkg.nix']
+    text: [
+      'import ./module.nix',
+      'callPackage ../pkg.nix {}',
+      'imports = [ ./hosts/default.nix ../shared/infra.nix ];',
+      'inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";',
+      'inputs.local.path = ../local-override;'
+    ].join('\n'),
+    expected: [
+      './module.nix',
+      '../pkg.nix',
+      './hosts/default.nix',
+      '../shared/infra.nix',
+      'github:NixOS/nixpkgs/nixos-24.11',
+      '../local-override'
+    ]
   },
   {
     label: 'dart',
