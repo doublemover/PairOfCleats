@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { log, logLine, showProgress } from '../../shared/progress.js';
 import { MAX_JSON_BYTES, readJsonFile, loadJsonArrayArtifact } from '../../shared/artifact-io.js';
@@ -1759,11 +1760,18 @@ export async function writeIndexArtifacts(input) {
       totalWrites
     });
     const writeConcurrency = Math.max(1, Math.min(totalWrites, writeConcurrencyCap));
+    const hostConcurrency = typeof os.availableParallelism === 'function'
+      ? os.availableParallelism()
+      : (Array.isArray(os.cpus()) ? os.cpus().length : 1);
+    const dynamicHeavyTarget = heavyWriteConcurrencyOverride
+      || (heavyWrites.length >= 8 && hostConcurrency >= 8
+        ? Math.max(1, Math.ceil(writeConcurrency * 0.66))
+        : Math.max(1, Math.ceil(writeConcurrency / 2)));
     const heavyConcurrency = Math.max(
       1,
       Math.min(
         heavyWrites.length || 1,
-        heavyWriteConcurrencyOverride || Math.max(1, Math.floor(writeConcurrency / 3))
+        dynamicHeavyTarget
       )
     );
     const lightConcurrency = Math.max(
