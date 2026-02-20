@@ -19,6 +19,12 @@ Canonical roadmap generated from a full audit of `FUTUREROADMAP.md`, rewritten f
 - Do not preserve legacy wording or legacy contracts “for reference” in active docs.
 - Superseded specs are moved to `docs/archived/` with a deprecation header (replacement, reason, date, commit/PR).
 
+## Touchpoint Path Conventions
+
+- Touchpoints list both existing files and planned-new files created in-phase.
+- If a touchpoint path does not exist yet, treat it as planned creation work for that subphase.
+- Wildcard touchpoints denote a bounded file family under the listed directory.
+
 ## Canonical source consolidation
 
 This roadmap consolidates all duplicated sections in `FUTUREROADMAP.md` into one sequence:
@@ -728,9 +734,9 @@ Touchpoints:
 - `src/index/chunking/formats/xml.js`
 - `src/index/chunking/dispatch.js`
 - `src/index/build/runtime/caps.js`
-#### 0.5.40 Build/package manifest and special-file matrix
+#### 0.5.40 Build/package manifest and special-file catalog
 
-- [ ] Expand and enforce manifest/build-file coverage for all supported ecosystems:
+- [ ] Expand `MANIFEST_FILES` / `LOCK_FILES` to full supported ecosystem coverage; current detection is still partial.
   - [ ] JS/TS: `package.json`, lockfiles
   - [ ] Python: `requirements.txt`, `pyproject.toml`, `Pipfile`, locks
   - [ ] Ruby: `Gemfile`, `Gemfile.lock`
@@ -744,18 +750,19 @@ Touchpoints:
   - [ ] R: `DESCRIPTION`
   - [ ] Julia: `Project.toml`, `Manifest.toml`
   - [ ] C/C++/ObjC and infra: `CMakeLists.txt`, `Makefile`, `BUILD`, `WORKSPACE`, `Dockerfile`, `buf.yaml`, `buf.gen.yaml`, `flake.nix`
-- [ ] Ensure special filename routing and language detection use one canonical mapping with no duplicates.
-- [ ] Add strict tests that assert manifest/special-file detection coverage for every supported ecosystem.
+- [ ] Keep manifest/special-file logic singular across discovery, tooling helpers, and language catalog specs.
+- [ ] Add strict parity tests that assert manifest/special-file detection coverage for every supported ecosystem and special filename.
 
 
 Touchpoints:
 
 - `src/index/constants.js`
+- `src/index/language-registry/registry-data.js`
 - `src/index/language-registry/registry.js`
 - `src/index/build/discover.js`
 - `tools/tooling/utils.js`
 - `docs/specs/usr-core-language-framework-catalog.md`
-- `tests/lang/matrix/usr-language-profiles.json`
+- `docs/specs/import-resolution.md`
 #### 0.5.41 Language-specific limits calibration program
 
 - [ ] Build a language-by-language telemetry baseline (p50/p95/p99 bytes, lines, tokens, chunk counts, parse times).
@@ -775,22 +782,23 @@ Touchpoints:
 #### 0.5.42 Index-build performance and optimization program (expert-level)
 
 - [ ] Execute 0.5.42 in strict sequence:
-  - [ ] sequence 1: dispatch/scan/read hot-path acceleration
+  - [ ] sequence 1: dispatch/scan/read hot-path acceleration and generated/vendor classification
   - [ ] sequence 2: parser lifecycle + fallback semantics
-  - [ ] sequence 3: caching + invalidation correctness
+  - [ ] sequence 3: cache architecture + invalidation correctness
   - [ ] sequence 4: scheduler + memory-layout optimization
   - [ ] sequence 5: relation recomputation + instrumentation polish
-- [ ] Build a frozen extension-to-language dispatch table at runtime init so per-file language resolution is O(1) with no repeated map construction.
-- [ ] Move language resolution to the earliest discover stage and always pass `languageId` into `resolveFileCaps` before any read/parse work.
-- [ ] Add a two-tier file scan fastpath in `src/index/build/file-scan.js`:
+- [ ] Treat current early language resolution and current scan fastpath as baseline; harden and extend rather than re-implement.
+- [ ] Replace per-file linear language registry lookup with a frozen extension/path-kind dispatch map built once at runtime init.
+- [ ] Harden the existing two-tier scanner in `src/index/build/file-scan.js`:
   - [ ] tier 1: 4-8 KiB probe for binary/minified/generated heuristics
   - [ ] tier 2: bounded extended sample only when tier 1 is inconclusive
 - [ ] Cache scan outcomes by `(path, size, mtimeMs)` for watch/rebuild runs to avoid re-scanning unchanged files.
-- [ ] Add a generated-file classifier (bundle/minified/vendor patterns) and route these files to low-cost metadata-only indexing where applicable.
+- [ ] Implement generated-file classifier coverage (bundle/minified/vendor patterns) and route these files to low-cost metadata-only indexing by default.
 - [ ] Define and enforce generated/vendor policy defaults:
   - [ ] default to metadata-only indexing for generated/minified/vendor files
   - [ ] allow explicit opt-in patterns for full indexing in repo config
   - [ ] emit deterministic reason metadata whenever downgraded indexing is applied
+- [ ] Consolidate import-resolution manifest/package probes so discovery and import resolution consume one normalized manifest graph.
 - [ ] Upgrade `readTextFileWithStreamingCap` to fixed-size chunk streaming with deterministic UTF-8 boundary handling and early cutover at cap.
 - [ ] Reuse one shared line index and UTF-8 byte-prefix table per file across chunking, trimming, and relation span normalization.
 - [ ] Replace repeated `Buffer.byteLength` scans in hot chunk splitting paths with cached prefix lookups.
@@ -805,7 +813,7 @@ Touchpoints:
   - [ ] tree-sitter AST mode (full)
   - [ ] syntax-lite mode (reduced extraction)
   - [ ] chunk-only mode for extreme files
-- [ ] Define strict fallback semantics contract so downstream relation/explain/output behavior is deterministic in each fallback mode.
+- [ ] Align fallback behavior with a strict contract so downstream relation/explain/output behavior is deterministic in each fallback mode.
 - [ ] Persist AST/chunk cache entries keyed by `(contentHash, languageId, parserVersion, grammarHash, chunkingConfigVersion, fileCapsVersion, segmentationVersion)`.
 - [ ] Define strict cache invalidation contract and apply it uniformly across warm memory cache and persistent cache stores.
 - [ ] Add block-level segment cache for Vue/Svelte/Astro so unchanged template/script/style blocks skip reparse.
@@ -833,9 +841,16 @@ Touchpoints:
 - `src/index/build/file-scan.js`
 - `src/index/build/file-processor/*`
 - `src/index/chunking/*`
+- `src/index/build/import-resolution/*`
+- `src/index/build/runtime/tree-sitter.js`
+- `src/index/build/tree-sitter-scheduler/*`
 - `src/index/build/runtime/caps.js`
 - `tools/tooling/utils.js`
 - `docs/specs/large-file-caps-strategy.md`
+- `docs/specs/generated-vendor-indexing-policy.md`
+- `docs/specs/indexing-fallback-semantics.md`
+- `docs/specs/indexing-memory-pressure-policy.md`
+- `docs/specs/import-resolution.md`
 - `docs/specs/usr/languages/*`
 
 Tests:
@@ -866,13 +881,15 @@ Intent: strict deterministic contracts and guardrails.
 
 #### 1.1 Contract versioning and strict schema enforcement
 
-- [ ] Define version bump rules for breaking/non-breaking contract edits.
+- [ ] Align active contract-versioning rules with existing release discipline and schema-version helpers.
 - [ ] Require strict schema validation for active versions.
 - [ ] Remove stale fields/spec clauses during the cutover, do not keep compatibility aliases.
 
 Touchpoints:
 
 - `docs/contracts/*`
+- `docs/guides/release-discipline.md`
+- `src/contracts/versioning.js`
 - `src/contracts/schemas/*`
 - `src/contracts/validators/*`
 
@@ -889,6 +906,8 @@ Tests:
 Touchpoints:
 
 - `src/shared/files.js`
+- `src/shared/path-normalize.js`
+- `docs/guides/path-handling.md`
 - `docs/contracts/*`
 
 Tests:
@@ -909,16 +928,16 @@ Tests:
 
 - [ ] Repeated-run hash stability tests.
 
-#### 1.4 Spec gate consolidation
+#### 1.4 Spec contract consolidation
 
-- [ ] Consolidate guardrails into one entrypoint (`tools/ci/run-suite.js`).
+- [ ] Harden the existing unified guardrail entrypoint (`tools/ci/run-suite.js`) and keep all contract checks registered through it.
 - [ ] Require each guardrail to define scope and remediation command.
 - [ ] Remove duplicated/overlapping guardrail checks.
 
 Touchpoints:
 
 - `tools/ci/run-suite.js`
-- `tools/doc-contract-drift.js`
+- `tools/docs/contract-drift.js`
 - `docs/tooling/script-inventory.json`
 - `docs/guides/commands.md`
 
@@ -936,32 +955,11 @@ Exit criteria:
 
 ### Phase 2 - Release and platform baseline (merged Phase 16 + Phase 18)
 
-Intent: deterministic releases with strict gates.
+Intent: deterministic releases, reproducible packaging, and strict platform behavior.
 
-#### 2.1 Release matrix and support policy
+#### 2.1 Deterministic release-check
 
-- [ ] Create `docs/guides/release-matrix.md`.
-- [ ] Define supported OS/arch and Node versions.
-- [ ] Define required toolchains per target.
-- [ ] Define hard blocking jobs per target.
-- [ ] Define failure taxonomy (`infra_flake`, `product_regression`, `toolchain_missing`).
-
-Tests:
-
-- [ ] `tests/tooling/release-matrix-schema.test.js`
-- [ ] `tests/tooling/release-matrix-blocking-policy.test.js`
-
-
-Touchpoints:
-
-- `docs/guides/release-matrix.md`
-- `.github/workflows/ci.yml`
-- `.github/workflows/ci-long.yml`
-- `.github/workflows/nightly.yml`
-- `tools/release/check.js`
-#### 2.2 Deterministic release-check
-
-- [ ] Make `tools/release/check.js` the canonical deterministic release checker.
+- [ ] Keep `tools/release/check.js` canonical (current baseline: changelog + essential blockers), then extend it into full deterministic release validation.
 - [ ] Add `npm run release-check`.
 - [ ] Enforce fixed smoke sequence:
   - [ ] `pairofcleats --version`
@@ -972,6 +970,7 @@ Touchpoints:
   - [ ] service-mode smoke checks
 - [ ] Emit `release_check_report.json` with stable schema and ISO timestamps.
 - [ ] Emit `release-manifest.json` with checksums and artifact inventory.
+- [ ] Run contract/spec drift checks as part of release-check flow before smoke steps.
 - [ ] Remove permissive modes that skip required checks.
 
 Tests:
@@ -985,10 +984,10 @@ Tests:
 Touchpoints:
 
 - `tools/release/check.js`
+- `tools/docs/contract-drift.js`
 - `package.json`
-- `docs/guides/release-matrix.md`
 - `docs/guides/release-discipline.md`
-#### 2.3 Cross-platform path safety
+#### 2.2 Cross-platform path safety
 
 - [ ] Audit release-critical path joins and normalization.
 - [ ] Replace brittle concatenation with path-safe helpers.
@@ -1009,7 +1008,7 @@ Touchpoints:
 - `src/shared/path-normalize.js`
 - `src/shared/io/atomic-write.js`
 - `docs/guides/path-handling.md`
-#### 2.4 Reproducible editor packaging
+#### 2.3 Reproducible editor packaging
 
 - [ ] Implement deterministic Sublime packaging (`tools/package-sublime.js`).
 - [ ] Implement deterministic VS Code packaging (`tools/package-vscode.js`).
@@ -1028,17 +1027,17 @@ Tests:
 
 Touchpoints:
 
-- `tools/package-sublime.js`
-- `tools/package-vscode.js`
+- `tools/package-sublime.js` (new)
+- `tools/package-vscode.js` (new)
 - `docs/guides/editor-integration.md`
 - `extensions/`
 - `sublime/`
-#### 2.5 Python toolchain policy
+#### 2.4 Python toolchain policy
 
-- [ ] Decide whether Python is required for release/test gates.
+- [ ] Decide and document whether Python is a required runtime dependency for local tooling flows.
 - [ ] If required, enforce preflight failure when missing.
-- [ ] Remove skip-based semantics from required lanes.
-- [ ] Keep a dedicated non-blocking lane only if explicitly documented as non-gating.
+- [ ] Remove skip-based semantics from core tooling paths.
+- [ ] Keep optional best-effort behavior only in explicitly optional commands.
 
 Tests:
 
@@ -1048,15 +1047,15 @@ Tests:
 
 Touchpoints:
 
-- `docs/guides/release-matrix.md`
-- `docs/guides/ci-gate-policy.md`
+- `docs/guides/release-discipline.md`
+- `docs/guides/commands.md`
 - `tests/tooling/sublime/sublime-pycompile.test.js`
 - `package.json`
-#### 2.6 Service-mode bundle and enforcement
+#### 2.5 Service-mode bundle and enforcement
 
 - [ ] Define canonical one-command service-mode run path.
 - [ ] Document required env, queue paths, and security defaults.
-- [ ] Make service-mode smoke part of release gate.
+- [ ] Make service-mode smoke part of standard release validation flow.
 
 Tests:
 
@@ -1068,28 +1067,12 @@ Touchpoints:
 - `tools/service/indexer-service.js`
 - `tools/service/config.js`
 - `docs/guides/service-mode.md`
-- `tests/services/service-mode-smoke.test.js`
-#### 2.7 CI gate policy
-
-- [ ] Create `docs/guides/ci-gate-policy.md`.
-- [ ] Define strict required/advisory job sets.
-- [ ] Add CI summary checker that fails on missing required jobs.
-
-Touchpoints:
-
-- `.github/workflows/ci.yml`
-- `.github/workflows/ci-long.yml`
-- `.github/workflows/nightly.yml`
-
-Tests:
-
-- [ ] `tests/tooling/ci-gates-required-jobs.test.js`
-- [ ] `tests/tooling/ci-gates-failure-taxonomy.test.js`
+- `tests/services/service-mode-smoke.test.js` (new)
 
 Exit criteria:
 
-- [ ] Release matrix, release-check, and CI gate policy are strict and enforced.
-- [ ] Packaging and service-mode checks are mandatory in release validation.
+- [ ] Release-check and platform safety behaviors are deterministic and enforced.
+- [ ] Packaging and service-mode checks are mandatory in standard release validation.
 
 ---
 
@@ -1102,15 +1085,18 @@ Intent: deterministic artifact writing with strict validators.
 - [ ] Add a shared trimming helper and use it across writers.
 - [ ] Define one deterministic trim order.
 - [ ] Emit trim counters in stats.
-- [ ] Version trim policy metadata.
-- [ ] Add `docs/contracts/artifact-trimming-policy.md`.
+- [ ] Emit trim policy metadata required by contract (`trimPolicyVersion`, `trimReasonCounts`, deterministic reason taxonomy).
+- [ ] Align writer outputs with `docs/contracts/artifact-trimming-policy.md` and schema index references.
 
 Touchpoints:
 
 - `src/index/build/artifacts/writers/call-sites.js`
 - `src/index/build/artifacts/writers/*`
-- `src/index/tooling/vfs.js`
+- `src/index/build/artifacts/reporting.js`
+- `src/index/build/artifacts-write.js`
 - `src/contracts/schemas/artifacts.js`
+- `docs/contracts/artifact-trimming-policy.md`
+- `docs/contracts/artifact-schema-index.json`
 
 Tests:
 
@@ -1129,6 +1115,7 @@ Touchpoints:
 - `src/index/build/state.js`
 - `src/index/validate/*`
 - `docs/testing/index-state-nondeterministic-fields.md`
+- `docs/specs/build-state-integrity.md`
 
 Tests:
 
@@ -1146,15 +1133,14 @@ Intent: deterministic output contracts and strict behavior.
 
 #### 4.1 Search startup performance
 
-- [ ] Add startup profiler and checkpoint reporting.
+- [ ] Harden existing startup checkpoint reporting (`startup.backend`, `startup.search`) and freeze deterministic stage schema.
 - [ ] Remove slow init paths from `search --help` and search fast paths.
 
 Touchpoints:
 
-- `bin/pairofcleats.js`
-- `src/retrieval/cli.js`
-- `src/retrieval/cli-args.js`
-- `src/shared/startup-profiler.js`
+- `src/retrieval/cli/run-search.js`
+- `src/retrieval/cli/search-execution.js`
+- `src/retrieval/pipeline/stage-checkpoints.js`
 - `docs/guides/search.md`
 
 Tests:
@@ -1288,7 +1274,7 @@ Intent: strict test telemetry and profiling contracts.
 
 #### 6.1 Timings ledger and watchdog
 
-- [ ] Add `--log-times` with versioned schema.
+- [ ] Harden existing `--log-times` / `--timings-file` output into a versioned schema with strict field guarantees.
 - [ ] Add hung-test watchdog with enforced behavior.
 
 Touchpoints:
@@ -1306,14 +1292,14 @@ Tests:
 
 #### 6.2 Coverage integration
 
-- [ ] Add/finish `--coverage`, `--coverage-merge`, `--coverage-changed`.
+- [ ] Implement `--coverage`, `--coverage-merge`, and `--coverage-changed` in `tests/run.js`.
 - [ ] Enforce documented output locations and schema.
 
 Touchpoints:
 
 - `tests/run.js`
 - coverage helper(s) in `tools/`
-- `.c8/`
+- `.c8/` (new)
 
 Tests:
 
@@ -1322,7 +1308,7 @@ Tests:
 
 #### 6.3 Profiling hooks
 
-- [ ] Enforce `--profile` output contract.
+- [ ] Implement and enforce `--profile` output contract in the test runner.
 - [ ] Emit deterministic `profile.json` schema.
 
 Touchpoints:
@@ -1348,7 +1334,7 @@ Intent: strict CLI routing and error-code consistency.
 
 #### 7.1 Ingest CLI wrappers
 
-- [ ] Add and enforce `pairofcleats ingest <ctags|gtags|lsif|scip>` routes.
+- [ ] Add and enforce `pairofcleats ingest <ctags|gtags|lsif|scip>` routes in `bin/pairofcleats.js` (current ingest scripts are separate commands).
 - [ ] Update ingest docs and command inventory.
 
 Touchpoints:
@@ -1371,7 +1357,7 @@ Tests:
 #### 7.2 Error telemetry consistency
 
 - [ ] Enforce one error code registry and namespace strategy.
-- [ ] Attach code + hint across CLI/API/MCP.
+- [ ] Attach `code + hint` consistently across CLI/API/MCP error payloads.
 
 Touchpoints:
 
@@ -1394,22 +1380,29 @@ Exit criteria:
 
 Intent: eliminate sync FS from request-time paths with one strict signature flow.
 
-- [ ] Make `buildIndexSignature()` async in `src/retrieval/index-cache.js`.
-- [ ] Update all call sites to async await flow:
-  - `src/retrieval/cli/run-search-session.js`
-  - `src/retrieval/cli/index-loader.js`
-  - `src/integrations/tooling/*`
-- [ ] Use one signature strategy keyed by `index_state.json` + deterministic cache policy.
-- [ ] Remove redundant signature branches.
+- [ ] Keep the now-async signature path as baseline and remove remaining sync request-time artifact reads.
+- [ ] Replace sync loaders in request path (`loadJsonArrayArtifactSync`, sync file existence probes) with async equivalents.
+- [ ] Ensure one signature strategy keyed by `index_state.json` + deterministic cache policy.
+- [ ] Remove redundant signature/read branches across retrieval/tooling entrypoints.
 
 Tests:
 
-- [ ] No-sync-FS request-path tests.
+- [ ] No-sync-FS request-path tests (including async artifact loader usage in retrieval startup path).
 - [ ] Signature invalidation tests.
+
+Touchpoints:
+
+- `src/retrieval/index-cache.js`
+- `src/retrieval/cli/index-loader.js`
+- `src/retrieval/cli/load-indexes.js`
+- `src/retrieval/cli/run-search-session.js`
+- `src/shared/artifact-io/loaders/core.js`
+- `src/integrations/tooling/*`
+- `docs/specs/signature.md`
 
 Exit criteria:
 
-- [ ] Request-time signature path is async-only and deterministic.
+- [ ] Request-time signature and artifact-read path is async-only and deterministic.
 
 ---
 
@@ -1419,7 +1412,8 @@ Intent: strict protocol boundary and deterministic orchestration.
 
 #### 9.0 Preparation: tool contract and kill-tree unification
 
-- [ ] Finalize `docs/specs/tui-tool-contract.md`.
+- [ ] Reconcile and freeze `docs/specs/tui-tool-contract.md` against actual supervisor/tool behavior.
+- [ ] Bootstrap missing TUI/supervisor scaffolding directories (`tools/tui/`, `tests/tui/`) and command wrapper entrypoints.
 - [ ] Enforce stdout/stderr contracts for all supervisor-driven tools.
 - [ ] Add shared kill-tree helper (`src/shared/kill-tree.js`) and replace fragmented implementations.
 - [ ] Add stdout guard (`src/shared/cli/stdout-guard.js`).
@@ -1435,12 +1429,13 @@ Tests:
 Touchpoints:
 
 - `docs/specs/tui-tool-contract.md`
-- `src/shared/kill-tree.js`
-- `src/shared/cli/stdout-guard.js`
+- `src/shared/kill-tree.js` (new)
+- `src/shared/cli/stdout-guard.js` (new)
 - `src/shared/cli/progress-events.js`
+- `src/shared/subprocess.js`
 #### 9.1 Protocol v2, context propagation, shared decoder
 
-- [ ] Keep `docs/specs/progress-protocol-v2.md` authoritative.
+- [ ] Reconcile `docs/specs/progress-protocol-v2.md` with runtime implementation and enforce it strictly in code.
 - [ ] Enforce strict `proto: "poc.progress@2"` event parsing.
 - [ ] Add `PAIROFCLEATS_PROGRESS_CONTEXT` propagation.
 - [ ] Implement `src/shared/cli/progress-stream.js` with strict line framing and size cap.
@@ -1462,7 +1457,7 @@ Tests:
 
 #### 9.2 Node supervisor lifecycle model
 
-- [ ] Keep `docs/specs/node-supervisor-protocol.md` canonical.
+- [ ] Use `docs/specs/node-supervisor-protocol.md` as canonical target and implement the missing supervisor runtime.
 - [ ] Implement `tools/tui/supervisor.js` with strict lifecycle states.
 - [ ] Enforce deterministic cancellation and child cleanup.
 - [ ] Emit structured lifecycle events.
@@ -1477,7 +1472,7 @@ Tests:
 Touchpoints:
 
 - `docs/specs/node-supervisor-protocol.md`
-- `tools/tui/supervisor.js`
+- `tools/tui/supervisor.js` (new)
 - `src/shared/subprocess.js`
 - `src/shared/progress.js`
 #### 9.3 Dispatch reconciliation and artifact indexing pass
@@ -1502,10 +1497,11 @@ Touchpoints:
 
 - `docs/specs/dispatcher-rewrite-and-search-reconciliation.md`
 - `docs/specs/supervisor-artifacts-indexing-pass.md`
-- `src/shared/dispatch/registry.js`
-- `src/shared/dispatch/manifest.js`
-- `src/shared/dispatch/resolve.js`
-- `src/shared/dispatch/env.js`
+- `bin/pairofcleats.js`
+- `src/shared/dispatch/registry.js` (new)
+- `src/shared/dispatch/manifest.js` (new)
+- `src/shared/dispatch/resolve.js` (new)
+- `src/shared/dispatch/env.js` (new)
 #### 9.4 Rust Ratatui TUI MVP
 
 - [ ] Create `crates/pairofcleats-tui/` skeleton.
@@ -1523,10 +1519,10 @@ Tests:
 
 Touchpoints:
 
-- `crates/pairofcleats-tui/`
+- `crates/pairofcleats-tui/` (new)
 - `docs/specs/node-supervisor-protocol.md`
 - `docs/specs/progress-protocol-v2.md`
-- `bin/pairofcleats-tui.js`
+- `bin/pairofcleats-tui.js` (new)
 #### 9.5 Cancellation and never-hang guarantees
 
 - [ ] Propagate cancellation/deadlines through all stages.
@@ -1542,7 +1538,7 @@ Tests:
 
 Touchpoints:
 
-- `tools/tui/supervisor.js`
+- `tools/tui/supervisor.js` (new)
 - `src/shared/subprocess.js`
 - `src/shared/abort.js`
 - `src/shared/progress.js`
@@ -1567,11 +1563,11 @@ Tests:
 
 Touchpoints:
 
-- `bin/pairofcleats-tui.js`
-- `tools/tui/install.js`
+- `bin/pairofcleats-tui.js` (new)
+- `tools/tui/install.js` (new)
 - `docs/specs/tui-installation.md`
 - `docs/guides/tui.md`
-- `tests/tui/observability/`
+- `tests/tui/observability/` (new)
 
 Exit criteria:
 
@@ -1585,20 +1581,21 @@ Intent: evaluate acceleration and, if adopted, cut over cleanly without dual run
 #### 10.1 Feasibility and decision
 
 - [ ] Define ABI strategy and parity harness.
-- [ ] Add missing docs:
-  - `docs/specs/native-accel.md`
-  - `docs/perf/native-accel.md`
+- [ ] Reconcile existing native-accel specs with executable harness and measurable acceptance gates.
 - [ ] Decide go/no-go with explicit acceptance criteria.
 
 Touchpoints:
 
-- `src/shared/native-accel.js`
+- `src/shared/native-accel.js` (new)
 - `src/shared/capabilities.js`
-- `tools/build-native.js`
+- `tools/setup/rebuild-native.js`
+- `tools/build-native.js` (new)
+- `docs/specs/native-accel.md`
+- `docs/perf/native-accel.md`
 
 Tests:
 
-- [ ] `tests/retrieval/native/feasibility-parity-harness.test.js`
+- [ ] `tests/retrieval/native/feasibility-parity-harness.test.js` (new)
 
 #### 10.2 If go: hard cutover plan
 
@@ -1608,19 +1605,19 @@ Tests:
 
 Tests:
 
-- [ ] `tests/retrieval/native/bitmap-equivalence.test.js`
-- [ ] `tests/retrieval/native/topk-equivalence.test.js`
-- [ ] `tests/retrieval/native/topk-adversarial-tie-parity.test.js`
-- [ ] `tests/retrieval/native/ann-equivalence.test.js`
-- [ ] `tests/retrieval/native/ann-preflight-error-taxonomy.test.js`
-- [ ] `tests/retrieval/native/worker-offload-equivalence.test.js`
-- [ ] `tests/retrieval/native/worker-cancel.test.js`
+- [ ] `tests/retrieval/native/bitmap-equivalence.test.js` (new)
+- [ ] `tests/retrieval/native/topk-equivalence.test.js` (new)
+- [ ] `tests/retrieval/native/topk-adversarial-tie-parity.test.js` (new)
+- [ ] `tests/retrieval/native/ann-equivalence.test.js` (new)
+- [ ] `tests/retrieval/native/ann-preflight-error-taxonomy.test.js` (new)
+- [ ] `tests/retrieval/native/worker-offload-equivalence.test.js` (new)
+- [ ] `tests/retrieval/native/worker-cancel.test.js` (new)
 
 Touchpoints:
 
-- `src/shared/native-accel.js`
+- `src/shared/native-accel.js` (new)
 - `src/shared/capabilities.js`
-- `tools/build-native.js`
+- `tools/build-native.js` (new)
 - `docs/specs/native-accel.md`
 - `docs/perf/native-accel.md`
 
@@ -1630,17 +1627,10 @@ Exit criteria:
 
 ---
 
-## Global verification plan
-
-- [ ] `node tests/run.js --lane ci-lite`
-- [ ] `node tests/run.js --lane ci`
-- [ ] `node tests/run.js --lane ci-long` for SCM/workspace/large-artifact phases
-- [ ] Mandatory targeted suites by touched area in each phase
-
 ## Final definition of done
 
 - [ ] Active contracts/specs/tests reflect current behavior only.
 - [ ] No compatibility shims or dual-runtime behavior remain.
-- [ ] Release and CI gates are strict and deterministic.
+- [ ] Release, packaging, and platform behavior are deterministic.
 - [ ] Core indexing/retrieval/workspace behavior is deterministic and validated.
 - [ ] TUI/supervisor stack is production-stable and fully tested.
