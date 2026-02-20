@@ -16,3 +16,6 @@ This policy defines how optional capabilities are handled by the test runner (`n
 ## Reporting
 - The runner writes per-test logs under `.testLogs/run-<epoch>-<rand>/` by default (override with `--log-dir` or `PAIROFCLEATS_TEST_LOG_DIR`).
 - Use `--json` or `--junit <path>` for machine-readable summaries.
+- Use `--timings-file <path>` for versioned timings ledgers.
+- Use `--watchdog-ms <n>` to enforce global inactivity shutdown when jobs hang without output or completion.
+- Use `--coverage[=<path>]` and `--profile[=<path>]` for deterministic coverage/profile artifacts when CI lanes require them.

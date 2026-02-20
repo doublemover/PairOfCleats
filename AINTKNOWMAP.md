@@ -1378,8 +1378,8 @@ Intent: strict test telemetry and profiling contracts.
 
 #### 6.1 Timings ledger and watchdog
 
-- [ ] Harden existing `--log-times` / `--timings-file` output into a versioned schema with strict field guarantees.
-- [ ] Add hung-test watchdog with enforced behavior.
+- [x] Harden existing `--log-times` / `--timings-file` output into a versioned schema with strict field guarantees.
+- [x] Add hung-test watchdog with enforced behavior.
 
 Touchpoints:
 

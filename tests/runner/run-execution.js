@@ -87,7 +87,20 @@ const writeLogFile = async ({ logDir, test, attempt, stdout, stderr, status, exi
   return filePath;
 };
 
-const runTestOnce = async ({ test, passThrough, env, cwd, timeoutMs, captureOutput, timeoutGraceMs, skipExitCode, maxOutputBytes }) => new Promise((resolve) => {
+const runTestOnce = async ({
+  test,
+  passThrough,
+  env,
+  cwd,
+  timeoutMs,
+  captureOutput,
+  timeoutGraceMs,
+  skipExitCode,
+  maxOutputBytes,
+  onChildStart = null,
+  onChildStop = null,
+  onActivity = null
+}) => new Promise((resolve) => {
   const start = Date.now();
   const args = [test.path, ...passThrough];
   const testEnv = { ...env };
@@ -103,6 +116,10 @@ const runTestOnce = async ({ test, passThrough, env, cwd, timeoutMs, captureOutp
     detached: process.platform !== 'win32',
     stdio: captureOutput ? ['ignore', 'pipe', 'pipe'] : 'inherit'
   });
+  if (typeof onChildStart === 'function' && Number.isFinite(child.pid)) {
+    onChildStart(child.pid);
+  }
+  if (typeof onActivity === 'function') onActivity();
   let timedOut = false;
   let timeoutHandle = null;
   let resolved = false;
@@ -115,6 +132,9 @@ const runTestOnce = async ({ test, passThrough, env, cwd, timeoutMs, captureOutp
     if (resolved) return;
     resolved = true;
     stopTimer();
+    if (typeof onChildStop === 'function' && Number.isFinite(child.pid)) {
+      onChildStop(child.pid);
+    }
     resolve(normalizeResult(result));
   };
   if (timeoutMs > 0) {
@@ -129,6 +149,12 @@ const runTestOnce = async ({ test, passThrough, env, cwd, timeoutMs, captureOutp
   }
   const getStdout = collectOutput(child.stdout, maxOutputBytes);
   const getStderr = collectOutput(child.stderr, maxOutputBytes);
+  if (child.stdout && typeof onActivity === 'function') {
+    child.stdout.on('data', onActivity);
+  }
+  if (child.stderr && typeof onActivity === 'function') {
+    child.stderr.on('data', onActivity);
+  }
   child.on('error', (error) => {
     const durationMs = Date.now() - start;
     finish({
@@ -174,7 +200,10 @@ const runTestWithRetries = async ({
   skipExitCode,
   maxOutputBytes,
   redoExitCodes,
-  attemptOffset = 0
+  attemptOffset = 0,
+  onChildStart = null,
+  onChildStop = null,
+  onActivity = null
 }) => {
   const maxAttempts = retries + 1;
   const logs = [];
@@ -190,7 +219,10 @@ const runTestWithRetries = async ({
       captureOutput,
       timeoutGraceMs,
       skipExitCode,
-      maxOutputBytes
+      maxOutputBytes,
+      onChildStart,
+      onChildStop,
+      onActivity
     });
     lastResult = result;
     const logPath = await writeLogFile({
@@ -222,6 +254,31 @@ export const runTests = async ({ selection, context, reportResult, reportDirect 
   let failFastTriggered = false;
   const redoQueue = [];
   const queue = new PQueue({ concurrency: context.jobs });
+  const activeChildren = new Set();
+  let lastActivityAt = Date.now();
+  const markActivity = () => {
+    lastActivityAt = Date.now();
+  };
+  let watchdogTimer = null;
+  const watchdogMs = Number(context.watchdogMs);
+  if (Number.isFinite(watchdogMs) && watchdogMs > 0) {
+    watchdogTimer = setInterval(async () => {
+      if (!activeChildren.size) return;
+      if (Date.now() - lastActivityAt < watchdogMs) return;
+      failFastTriggered = true;
+      if (context.watchdogState && typeof context.watchdogState === 'object') {
+        context.watchdogState.triggered = true;
+        context.watchdogState.reason = `no test activity for ${Math.floor(watchdogMs)}ms`;
+      }
+      for (const pid of Array.from(activeChildren)) {
+        try {
+          await killProcessTree(pid, { graceMs: context.timeoutGraceMs });
+        } catch {}
+      }
+      markActivity();
+    }, 500);
+    if (typeof watchdogTimer.unref === 'function') watchdogTimer.unref();
+  }
   selection.forEach((test, index) => {
     queue.add(async () => {
       let result = null;
@@ -249,7 +306,16 @@ export const runTests = async ({ selection, context, reportResult, reportDirect 
           timeoutGraceMs: context.timeoutGraceMs,
           skipExitCode: context.skipExitCode,
           maxOutputBytes: context.maxOutputBytes,
-          redoExitCodes: context.redoExitCodes
+          redoExitCodes: context.redoExitCodes,
+          onChildStart: (pid) => {
+            activeChildren.add(pid);
+            markActivity();
+          },
+          onChildStop: (pid) => {
+            activeChildren.delete(pid);
+            markActivity();
+          },
+          onActivity: markActivity
         });
       }
       const fullResult = { ...test, ...normalizeResult(result) };
@@ -260,6 +326,7 @@ export const runTests = async ({ selection, context, reportResult, reportDirect 
         failFastTriggered = true;
       }
       results[index] = fullResult;
+      markActivity();
       if (reportResult) reportResult(fullResult, index);
     });
   });
@@ -288,11 +355,21 @@ export const runTests = async ({ selection, context, reportResult, reportDirect 
           skipExitCode: context.skipExitCode,
           maxOutputBytes: context.maxOutputBytes,
           redoExitCodes: null,
-          attemptOffset: prior.attempts
+          attemptOffset: prior.attempts,
+          onChildStart: (pid) => {
+            activeChildren.add(pid);
+            markActivity();
+          },
+          onChildStop: (pid) => {
+            activeChildren.delete(pid);
+            markActivity();
+          },
+          onActivity: markActivity
         });
         const mergedLogs = [...(prior.logs || []), ...(result.logs || [])];
         const finalResult = { ...test, ...normalizeResult({ ...result, logs: mergedLogs }) };
         results[index] = finalResult;
+        markActivity();
         if (reportResult) {
           reportResult(finalResult, index);
         }
@@ -303,5 +380,6 @@ export const runTests = async ({ selection, context, reportResult, reportDirect 
     });
     await redoRunner.onIdle();
   }
+  if (watchdogTimer) clearInterval(watchdogTimer);
   return results;
 };
