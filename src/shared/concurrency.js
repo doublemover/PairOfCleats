@@ -234,6 +234,17 @@ export function createBuildScheduler(input = {}) {
   let cpuTokens = normalizeTokenPool(input.cpuTokens);
   let ioTokens = normalizeTokenPool(input.ioTokens);
   let memoryTokens = normalizeTokenPool(input.memoryTokens);
+  const adaptiveEnabled = input.adaptive === true;
+  const baselineLimits = {
+    cpu: cpuTokens,
+    io: ioTokens,
+    mem: memoryTokens
+  };
+  const maxLimits = {
+    cpu: Math.max(baselineLimits.cpu, normalizeTokenPool(input.maxCpuTokens ?? cpuTokens)),
+    io: Math.max(baselineLimits.io, normalizeTokenPool(input.maxIoTokens ?? ioTokens)),
+    mem: Math.max(baselineLimits.mem, normalizeTokenPool(input.maxMemoryTokens ?? memoryTokens))
+  };
 
   const queueConfig = input.queues || {};
   const queues = new Map();
@@ -307,6 +318,41 @@ export function createBuildScheduler(input = {}) {
   });
   let tokens = tokenState();
   let shuttingDown = false;
+  let lastAdaptiveAt = 0;
+  const adaptiveMinIntervalMs = Number.isFinite(Number(input.adaptiveIntervalMs))
+    ? Math.max(50, Math.floor(Number(input.adaptiveIntervalMs)))
+    : 250;
+
+  const maybeAdaptTokens = () => {
+    if (!adaptiveEnabled || shuttingDown) return;
+    const now = nowMs();
+    if ((now - lastAdaptiveAt) < adaptiveMinIntervalMs) return;
+    lastAdaptiveAt = now;
+    let totalPending = 0;
+    let totalRunning = 0;
+    for (const q of queueOrder) {
+      totalPending += q.pending.length;
+      totalRunning += q.running;
+    }
+    const pendingPressure = totalPending > Math.max(2, (tokens.cpu.total + tokens.io.total));
+    const mostlyIdle = totalPending === 0 && totalRunning === 0;
+
+    if (pendingPressure) {
+      const nextCpu = Math.min(maxLimits.cpu, tokens.cpu.total + 1);
+      const nextIo = Math.min(maxLimits.io, tokens.io.total + 1);
+      const nextMem = Math.min(maxLimits.mem, tokens.mem.total + 1);
+      tokens.cpu.total = nextCpu;
+      tokens.io.total = nextIo;
+      tokens.mem.total = nextMem;
+      return;
+    }
+
+    if (mostlyIdle) {
+      tokens.cpu.total = Math.max(baselineLimits.cpu, tokens.cpu.total - 1);
+      tokens.io.total = Math.max(baselineLimits.io, tokens.io.total - 1);
+      tokens.mem.total = Math.max(baselineLimits.mem, tokens.mem.total - 1);
+    }
+  };
 
   const canStart = (req) => {
     const cpu = Math.max(0, Math.floor(Number(req?.cpu || 0)));
@@ -370,6 +416,7 @@ export function createBuildScheduler(input = {}) {
   const pump = () => {
     if (shuttingDown) return;
     while (true) {
+      maybeAdaptTokens();
       const pick = pickNextQueue();
       if (!pick) return;
       const { queue, starved, index } = pick;
@@ -438,6 +485,7 @@ export function createBuildScheduler(input = {}) {
         reject,
         enqueuedAt: nowMs()
       });
+      maybeAdaptTokens();
       queue.stats.scheduled += 1;
       counters.scheduled += 1;
       pump();
@@ -481,6 +529,11 @@ export function createBuildScheduler(input = {}) {
     return {
       queues: queueStats,
       counters: { ...counters },
+      adaptive: {
+        enabled: adaptiveEnabled,
+        baseline: baselineLimits,
+        max: maxLimits
+      },
       tokens: {
         cpu: { ...tokens.cpu },
         io: { ...tokens.io },

@@ -294,6 +294,10 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     cpuTokens: schedulerConfig.cpuTokens,
     ioTokens: schedulerConfig.ioTokens,
     memoryTokens: schedulerConfig.memoryTokens,
+    adaptive: schedulerConfig.adaptive,
+    maxCpuTokens: schedulerConfig.maxCpuTokens,
+    maxIoTokens: schedulerConfig.maxIoTokens,
+    maxMemoryTokens: schedulerConfig.maxMemoryTokens,
     starvationMs: schedulerConfig.starvationMs,
     queues: schedulerConfig.queues
   });

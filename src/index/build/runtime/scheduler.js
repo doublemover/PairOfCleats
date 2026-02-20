@@ -146,6 +146,41 @@ export const resolveSchedulerConfig = ({ argv, rawArgv, envConfig, indexingConfi
     allowZero: false
   });
 
+  const adaptiveEnabled = resolveBoolean({
+    cliValue: argv?.['scheduler-adaptive'] ?? argv?.schedulerAdaptive,
+    cliPresent: hasCliArg(rawArgv, '--scheduler-adaptive') || hasCliArg(rawArgv, '--no-scheduler-adaptive'),
+    envValue: envConfig?.schedulerAdaptive,
+    configValue: schedulerConfig?.adaptive,
+    fallback: false
+  });
+
+  const maxCpuTokens = resolveNumber({
+    cliValue: argv?.['scheduler-max-cpu'] ?? argv?.schedulerMaxCpu,
+    cliPresent: hasCliArg(rawArgv, '--scheduler-max-cpu'),
+    envValue: envConfig?.schedulerMaxCpuTokens,
+    configValue: schedulerConfig?.maxCpuTokens,
+    fallback: Math.max(cpuTokens, defaultCpu * 2),
+    allowZero: false
+  });
+
+  const maxIoTokens = resolveNumber({
+    cliValue: argv?.['scheduler-max-io'] ?? argv?.schedulerMaxIo,
+    cliPresent: hasCliArg(rawArgv, '--scheduler-max-io'),
+    envValue: envConfig?.schedulerMaxIoTokens,
+    configValue: schedulerConfig?.maxIoTokens,
+    fallback: Math.max(ioTokens, defaultIo * 2),
+    allowZero: false
+  });
+
+  const maxMemoryTokens = resolveNumber({
+    cliValue: argv?.['scheduler-max-mem'] ?? argv?.schedulerMaxMem,
+    cliPresent: hasCliArg(rawArgv, '--scheduler-max-mem'),
+    envValue: envConfig?.schedulerMaxMemoryTokens,
+    configValue: schedulerConfig?.maxMemoryTokens,
+    fallback: Math.max(memoryTokens, defaultMem * 2),
+    allowZero: false
+  });
+
   const queues = resolveQueueConfig(schedulerConfig?.queues);
 
   return {
@@ -154,6 +189,10 @@ export const resolveSchedulerConfig = ({ argv, rawArgv, envConfig, indexingConfi
     cpuTokens: Math.max(1, cpuTokens || 1),
     ioTokens: Math.max(1, ioTokens || 1),
     memoryTokens: Math.max(1, memoryTokens || 1),
+    adaptive: adaptiveEnabled,
+    maxCpuTokens: Math.max(1, maxCpuTokens || 1),
+    maxIoTokens: Math.max(1, maxIoTokens || 1),
+    maxMemoryTokens: Math.max(1, maxMemoryTokens || 1),
     starvationMs,
     queues
   };
