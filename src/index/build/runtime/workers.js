@@ -131,19 +131,23 @@ export const createRuntimeQueues = ({
   const tokenizeConfig = stage1Queues?.tokenize || {};
   const tokenizeConcurrency = coercePositiveInt(tokenizeConfig?.concurrency);
   const effectiveCpuConcurrency = tokenizeConcurrency ?? cpuConcurrency;
+  const schedulerAdaptive = scheduler
+    && scheduler.enabled
+    && scheduler.lowResourceMode !== true;
+  const pendingScale = schedulerAdaptive ? 2 : 1;
   const maxFilePending = coercePositiveInt(tokenizeConfig?.maxPending)
     ?? (Number.isFinite(pendingLimits?.cpu?.maxPending)
       ? pendingLimits.cpu.maxPending
-      : Math.max(32, effectiveCpuConcurrency * 8));
+      : Math.max(64, effectiveCpuConcurrency * 8 * pendingScale));
   const maxIoPending = Number.isFinite(pendingLimits?.io?.maxPending)
     ? pendingLimits.io.maxPending
-    : Math.max(8, ioConcurrency * 4);
+    : Math.max(16, ioConcurrency * 4 * pendingScale);
   const effectiveEmbeddingConcurrency = Number.isFinite(embeddingConcurrency) && embeddingConcurrency > 0
     ? embeddingConcurrency
     : Math.max(1, Math.min(cpuConcurrency || 1, fileConcurrency || 1));
   const maxEmbeddingPending = Number.isFinite(pendingLimits?.embedding?.maxPending)
     ? pendingLimits.embedding.maxPending
-    : Math.max(32, effectiveEmbeddingConcurrency * 8);
+    : Math.max(64, effectiveEmbeddingConcurrency * 8 * pendingScale);
   const resolvedProcConcurrency = coercePositiveInt(procConcurrency)
     ?? (Number.isFinite(pendingLimits?.proc?.concurrency)
       ? Math.max(1, Math.floor(pendingLimits.proc.concurrency))
