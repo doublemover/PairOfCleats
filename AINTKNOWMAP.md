@@ -537,9 +537,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.30 CMake
 
-- [ ] Implement `.cmake` and `CMakeLists.txt` routing.
-- [ ] Implement and verify target/dependency relation extraction for build graphs.
-- [ ] Calibrate and commit CMake caps for large multi-project build configurations.
+- [x] Implement `.cmake` and `CMakeLists.txt` routing.
+- [x] Implement and verify target/dependency relation extraction for build graphs.
+- [x] Calibrate and commit CMake caps for large multi-project build configurations.
 
 
 Touchpoints:

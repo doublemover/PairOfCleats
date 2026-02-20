@@ -7,8 +7,8 @@
       "maxLines": 10000
     },
     "cmake": {
-      "maxBytes": 262144,
-      "maxLines": 4000
+      "maxBytes": 327680,
+      "maxLines": 5000
     },
     "csharp": {
       "maxBytes": 458752,
@@ -166,9 +166,9 @@
       "maxParseMs": 2600
     },
     "cmake": {
-      "maxBytes": 262144,
-      "maxLines": 4000,
-      "maxParseMs": 1300
+      "maxBytes": 327680,
+      "maxLines": 5000,
+      "maxParseMs": 1500
     },
     "csharp": {
       "maxBytes": 458752,
