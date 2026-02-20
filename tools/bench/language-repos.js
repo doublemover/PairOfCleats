@@ -54,6 +54,12 @@ const USR_GUARDRAIL_BENCHMARKS = Object.freeze([
     label: 'Decomposed contract governance',
     script: 'tools/bench/usr/item37-governance-drift.js',
     report: 'item37-governance-drift.json'
+  },
+  {
+    item: 38,
+    label: 'Core language/framework catalog',
+    script: 'tools/bench/usr/item38-catalog-contract.js',
+    report: 'item38-catalog-contract.json'
   }
 ]);
 

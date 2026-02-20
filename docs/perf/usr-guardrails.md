@@ -48,3 +48,16 @@ Gate:
 Bench:
 - `tools/bench/usr/item37-governance-drift.js`
 - Snapshot: `item37-governance-drift.json`
+
+## Item 38 - Core language/framework catalog
+
+Config:
+- `docs/config/usr-guardrails/item-38-catalog-contract.json`
+
+Gate:
+- `tools/ci/usr/item38-catalog-contract-gate.js`
+- Report: `usr-section-38-catalog-contract-report.json`
+
+Bench:
+- `tools/bench/usr/item38-catalog-contract.js`
+- Snapshot: `item38-catalog-contract.json`
