@@ -80,6 +80,13 @@ const coerceFraction = (value) => {
   return Math.min(1, parsed);
 };
 
+/**
+ * Resolve stage1 queue controls from indexing configuration, coercing optional
+ * numeric overrides into safe integer/fraction values.
+ *
+ * @param {object} [indexingConfig]
+ * @returns {{tokenize:object,postings:object,ordered:object,watchdog:object}}
+ */
 const resolveStage1Queues = (indexingConfig = {}) => {
   const stage1 = indexingConfig?.stage1 && typeof indexingConfig.stage1 === 'object'
     ? indexingConfig.stage1

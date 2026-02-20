@@ -455,6 +455,12 @@ export async function writeIndexArtifacts(input) {
   };
   let previousFilterIndexResolved = false;
   let previousFilterIndex = null;
+  /**
+   * Resolve the previous filter-index artifact (or its `.bak` fallback) once
+   * so retry/fallback paths can reuse a validated prior output.
+   *
+   * @returns {{piece:object|null,source:string|null}}
+   */
   const resolvePreviousFilterIndex = () => {
     if (previousFilterIndexResolved) return previousFilterIndex;
     previousFilterIndexResolved = true;

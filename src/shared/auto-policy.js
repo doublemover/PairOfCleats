@@ -136,6 +136,18 @@ const resolveWorkerPool = (quality, resources, repo = null) => {
   };
 };
 
+/**
+ * Build an auto-selected runtime policy from host resources, repository size,
+ * and optional user quality overrides.
+ *
+ * @param {object} [input]
+ * @param {string} [input.repoRoot] Repository root used for repo-size scanning.
+ * @param {object} [input.config] User auto-policy configuration overrides.
+ * @param {object} [input.scanLimits] Scan limits forwarded to repo stats.
+ * @param {object} [input.resources] Optional precomputed host resource summary.
+ * @param {object} [input.repo] Optional precomputed repo stats summary.
+ * @returns {Promise<object>} Resolved policy envelope for indexing/retrieval/runtime.
+ */
 export async function buildAutoPolicy({
   repoRoot,
   config = {},

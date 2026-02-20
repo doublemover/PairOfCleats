@@ -210,6 +210,17 @@ export const createRuntimeQueues = ({
   return { queues, maxFilePending, maxIoPending, maxEmbeddingPending };
 };
 
+/**
+ * Resolve worker-pool runtime config by combining queue-derived concurrency
+ * targets with user/env worker-pool overrides.
+ *
+ * @param {object} input
+ * @param {object} input.indexingConfig
+ * @param {object} input.envConfig
+ * @param {number} input.cpuConcurrency
+ * @param {number} input.fileConcurrency
+ * @returns {object}
+ */
 export const resolveWorkerPoolRuntimeConfig = ({ indexingConfig, envConfig, cpuConcurrency, fileConcurrency }) => {
   const cpuTarget = Number.isFinite(cpuConcurrency)
     ? Math.max(1, Math.floor(cpuConcurrency))

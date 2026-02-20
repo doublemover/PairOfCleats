@@ -15,12 +15,25 @@ const parsePositiveInt = (value) => {
   return Math.max(1, Math.floor(parsed));
 };
 
+/**
+ * Build worker `execArgv` by removing parent heap flags so worker limits can
+ * be controlled explicitly through `resourceLimits`.
+ *
+ * @returns {string[]}
+ */
 export const buildWorkerExecArgv = () => process.execArgv.filter((arg) => {
   if (!arg) return false;
   return !arg.startsWith('--max-old-space-size')
     && !arg.startsWith('--max-semi-space-size');
 });
 
+/**
+ * Cap requested worker count from total host memory to avoid pathological
+ * over-provisioning on memory-constrained machines.
+ *
+ * @param {number} requested
+ * @returns {number|null}
+ */
 export const resolveMemoryWorkerCap = (requested) => {
   const totalMemMb = Math.floor(os.totalmem() / (1024 * 1024));
   if (!Number.isFinite(requested) || requested <= 0) return null;
@@ -56,6 +69,17 @@ const parseMaxOldSpaceMb = () => {
   return null;
 };
 
+/**
+ * Resolve per-worker V8 heap limits for Piscina based on worker count, host
+ * RAM, explicit heap flags, and optional per-worker targets.
+ *
+ * @param {number} maxWorkers
+ * @param {object} [options]
+ * @param {number} [options.targetPerWorkerMb]
+ * @param {number} [options.minPerWorkerMb]
+ * @param {number} [options.maxPerWorkerMb]
+ * @returns {{maxOldGenerationSizeMb:number}|null}
+ */
 export const resolveWorkerResourceLimits = (maxWorkers, options = {}) => {
   const workerCount = Math.max(1, Math.floor(Number(maxWorkers) || 0));
   if (!Number.isFinite(workerCount) || workerCount <= 0) return null;
