@@ -671,8 +671,8 @@
         "minVersion": "ini-1.0",
         "maxVersion": null,
         "dialects": [
-          "ini",
-          "cfg"
+          "cfg",
+          "ini"
         ],
         "featureFlags": [
           "sections"
@@ -685,15 +685,17 @@
       },
       "requiredNodeKinds": [
         "config_key",
+        "config_mapping",
         "config_scalar",
-        "config_section"
+        "config_section",
+        "config_sequence"
       ],
       "requiredEdgeKinds": [
         "contains",
         "references"
       ],
       "requiredCapabilities": {
-        "imports": "unsupported",
+        "imports": "partial",
         "relations": "partial",
         "docmeta": "supported",
         "ast": "partial",
@@ -939,6 +941,7 @@
         "config_key",
         "config_mapping",
         "config_scalar",
+        "config_section",
         "config_sequence"
       ],
       "requiredEdgeKinds": [
@@ -946,7 +949,7 @@
         "references"
       ],
       "requiredCapabilities": {
-        "imports": "unsupported",
+        "imports": "partial",
         "relations": "partial",
         "docmeta": "supported",
         "ast": "partial",
@@ -2089,14 +2092,15 @@
         "config_key",
         "config_mapping",
         "config_scalar",
-        "config_section"
+        "config_section",
+        "config_sequence"
       ],
       "requiredEdgeKinds": [
         "contains",
         "references"
       ],
       "requiredCapabilities": {
-        "imports": "unsupported",
+        "imports": "partial",
         "relations": "partial",
         "docmeta": "supported",
         "ast": "partial",
@@ -2219,10 +2223,11 @@
         "embeddedLanguageAllowlist": []
       },
       "requiredNodeKinds": [
+        "config_key",
         "config_mapping",
         "config_scalar",
-        "html_element",
-        "type_alias_decl"
+        "config_section",
+        "config_sequence"
       ],
       "requiredEdgeKinds": [
         "contains",
@@ -2263,8 +2268,8 @@
           "yaml"
         ],
         "featureFlags": [
-          "anchors",
-          "aliases"
+          "aliases",
+          "anchors"
         ]
       },
       "embeddingPolicy": {
@@ -2276,6 +2281,7 @@
         "config_key",
         "config_mapping",
         "config_scalar",
+        "config_section",
         "config_sequence"
       ],
       "requiredEdgeKinds": [
@@ -2283,7 +2289,7 @@
         "references"
       ],
       "requiredCapabilities": {
-        "imports": "unsupported",
+        "imports": "partial",
         "relations": "partial",
         "docmeta": "supported",
         "ast": "partial",

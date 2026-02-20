@@ -1669,21 +1669,6 @@
       "languageId": "ini",
       "frameworkProfile": null,
       "capability": "imports",
-      "state": "unsupported",
-      "requiredConformance": [
-        "C0",
-        "C1",
-        "C2"
-      ],
-      "downgradeDiagnostics": [
-        "USR-E-CAPABILITY-LOST"
-      ],
-      "blocking": false
-    },
-    {
-      "languageId": "ini",
-      "frameworkProfile": null,
-      "capability": "relations",
       "state": "partial",
       "requiredConformance": [
         "C0",
@@ -1698,6 +1683,21 @@
     {
       "languageId": "ini",
       "frameworkProfile": null,
+      "capability": "relations",
+      "state": "partial",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [
+        "USR-W-CAPABILITY-DOWNGRADED"
+      ],
+      "blocking": false
+    },
+    {
+      "languageId": "ini",
+      "frameworkProfile": null,
       "capability": "riskInterprocedural",
       "state": "unsupported",
       "requiredConformance": [
@@ -2259,21 +2259,6 @@
       "languageId": "json",
       "frameworkProfile": null,
       "capability": "imports",
-      "state": "unsupported",
-      "requiredConformance": [
-        "C0",
-        "C1",
-        "C2"
-      ],
-      "downgradeDiagnostics": [
-        "USR-E-CAPABILITY-LOST"
-      ],
-      "blocking": false
-    },
-    {
-      "languageId": "json",
-      "frameworkProfile": null,
-      "capability": "relations",
       "state": "partial",
       "requiredConformance": [
         "C0",
@@ -2288,6 +2273,21 @@
     {
       "languageId": "json",
       "frameworkProfile": null,
+      "capability": "relations",
+      "state": "partial",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [
+        "USR-W-CAPABILITY-DOWNGRADED"
+      ],
+      "blocking": false
+    },
+    {
+      "languageId": "json",
+      "frameworkProfile": null,
       "capability": "riskInterprocedural",
       "state": "unsupported",
       "requiredConformance": [
@@ -5157,14 +5157,14 @@
       "languageId": "toml",
       "frameworkProfile": null,
       "capability": "imports",
-      "state": "unsupported",
+      "state": "partial",
       "requiredConformance": [
         "C0",
         "C1",
         "C2"
       ],
       "downgradeDiagnostics": [
-        "USR-E-CAPABILITY-LOST"
+        "USR-W-CAPABILITY-DOWNGRADED"
       ],
       "blocking": false
     },
@@ -5605,14 +5605,14 @@
       "languageId": "yaml",
       "frameworkProfile": null,
       "capability": "imports",
-      "state": "unsupported",
+      "state": "partial",
       "requiredConformance": [
         "C0",
         "C1",
         "C2"
       ],
       "downgradeDiagnostics": [
-        "USR-E-CAPABILITY-LOST"
+        "USR-W-CAPABILITY-DOWNGRADED"
       ],
       "blocking": false
     },

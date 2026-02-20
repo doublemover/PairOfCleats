@@ -363,6 +363,26 @@
     },
     {
       "profileType": "language",
+      "profileId": "ini",
+      "requiredLevels": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blockingLevels": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "requiredFixtureFamilies": [
+        "golden",
+        "normalization",
+        "resolution",
+        "risk"
+      ]
+    },
+    {
+      "profileType": "language",
       "profileId": "java",
       "requiredLevels": [
         "C0",
@@ -420,6 +440,26 @@
         "C0",
         "C1",
         "C4"
+      ],
+      "requiredFixtureFamilies": [
+        "golden",
+        "normalization",
+        "resolution",
+        "risk"
+      ]
+    },
+    {
+      "profileType": "language",
+      "profileId": "json",
+      "requiredLevels": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blockingLevels": [
+        "C0",
+        "C1",
+        "C2"
       ],
       "requiredFixtureFamilies": [
         "golden",
@@ -836,6 +876,26 @@
     },
     {
       "profileType": "language",
+      "profileId": "toml",
+      "requiredLevels": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blockingLevels": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "requiredFixtureFamilies": [
+        "golden",
+        "normalization",
+        "resolution",
+        "risk"
+      ]
+    },
+    {
+      "profileType": "language",
       "profileId": "typescript",
       "requiredLevels": [
         "C0",
@@ -857,6 +917,46 @@
         "resolution",
         "risk",
         "framework-overlay"
+      ]
+    },
+    {
+      "profileType": "language",
+      "profileId": "xml",
+      "requiredLevels": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blockingLevels": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "requiredFixtureFamilies": [
+        "golden",
+        "normalization",
+        "resolution",
+        "risk"
+      ]
+    },
+    {
+      "profileType": "language",
+      "profileId": "yaml",
+      "requiredLevels": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "blockingLevels": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "requiredFixtureFamilies": [
+        "golden",
+        "normalization",
+        "resolution",
+        "risk"
       ]
     }
   ]

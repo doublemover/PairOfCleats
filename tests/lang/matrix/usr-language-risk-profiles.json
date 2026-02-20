@@ -647,6 +647,65 @@
       }
     },
     {
+      "languageId": "ini",
+      "frameworkProfile": null,
+      "required": {
+        "sources": [
+          "template-input"
+        ],
+        "sinks": [
+          "template-render"
+        ],
+        "sanitizers": [
+          "allowlist",
+          "context-escape",
+          "parameterization"
+        ]
+      },
+      "optional": {
+        "sources": [
+          "config-input"
+        ],
+        "sinks": [
+          "logging-sink"
+        ],
+        "sanitizers": [
+          "encoding-normalization"
+        ]
+      },
+      "unsupported": {
+        "sources": [
+          "interprocedural-source"
+        ],
+        "sinks": [
+          "interprocedural-sink"
+        ],
+        "sanitizers": []
+      },
+      "capabilities": {
+        "riskLocal": "partial",
+        "riskInterprocedural": "unsupported"
+      },
+      "interproceduralGating": {
+        "enabledByDefault": false,
+        "minEvidenceKinds": [
+          "calls",
+          "references"
+        ],
+        "requiredCallLinkConfidence": 0.7
+      },
+      "severityPolicy": {
+        "levels": [
+          "info",
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "defaultLevel": "medium"
+      }
+    },
+    {
       "languageId": "java",
       "frameworkProfile": null,
       "required": {
@@ -764,6 +823,65 @@
     },
     {
       "languageId": "jinja",
+      "frameworkProfile": null,
+      "required": {
+        "sources": [
+          "template-input"
+        ],
+        "sinks": [
+          "template-render"
+        ],
+        "sanitizers": [
+          "allowlist",
+          "context-escape",
+          "parameterization"
+        ]
+      },
+      "optional": {
+        "sources": [
+          "config-input"
+        ],
+        "sinks": [
+          "logging-sink"
+        ],
+        "sanitizers": [
+          "encoding-normalization"
+        ]
+      },
+      "unsupported": {
+        "sources": [
+          "interprocedural-source"
+        ],
+        "sinks": [
+          "interprocedural-sink"
+        ],
+        "sanitizers": []
+      },
+      "capabilities": {
+        "riskLocal": "partial",
+        "riskInterprocedural": "unsupported"
+      },
+      "interproceduralGating": {
+        "enabledByDefault": false,
+        "minEvidenceKinds": [
+          "calls",
+          "references"
+        ],
+        "requiredCallLinkConfidence": 0.7
+      },
+      "severityPolicy": {
+        "levels": [
+          "info",
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "defaultLevel": "medium"
+      }
+    },
+    {
+      "languageId": "json",
       "frameworkProfile": null,
       "required": {
         "sources": [
@@ -1931,6 +2049,65 @@
       }
     },
     {
+      "languageId": "toml",
+      "frameworkProfile": null,
+      "required": {
+        "sources": [
+          "template-input"
+        ],
+        "sinks": [
+          "template-render"
+        ],
+        "sanitizers": [
+          "allowlist",
+          "context-escape",
+          "parameterization"
+        ]
+      },
+      "optional": {
+        "sources": [
+          "config-input"
+        ],
+        "sinks": [
+          "logging-sink"
+        ],
+        "sanitizers": [
+          "encoding-normalization"
+        ]
+      },
+      "unsupported": {
+        "sources": [
+          "interprocedural-source"
+        ],
+        "sinks": [
+          "interprocedural-sink"
+        ],
+        "sanitizers": []
+      },
+      "capabilities": {
+        "riskLocal": "partial",
+        "riskInterprocedural": "unsupported"
+      },
+      "interproceduralGating": {
+        "enabledByDefault": false,
+        "minEvidenceKinds": [
+          "calls",
+          "references"
+        ],
+        "requiredCallLinkConfidence": 0.7
+      },
+      "severityPolicy": {
+        "levels": [
+          "info",
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "defaultLevel": "medium"
+      }
+    },
+    {
       "languageId": "typescript",
       "frameworkProfile": null,
       "required": {
@@ -1971,6 +2148,124 @@
       },
       "interproceduralGating": {
         "enabledByDefault": true,
+        "minEvidenceKinds": [
+          "calls",
+          "references"
+        ],
+        "requiredCallLinkConfidence": 0.7
+      },
+      "severityPolicy": {
+        "levels": [
+          "info",
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "defaultLevel": "medium"
+      }
+    },
+    {
+      "languageId": "xml",
+      "frameworkProfile": null,
+      "required": {
+        "sources": [
+          "template-input"
+        ],
+        "sinks": [
+          "template-render"
+        ],
+        "sanitizers": [
+          "allowlist",
+          "context-escape",
+          "parameterization"
+        ]
+      },
+      "optional": {
+        "sources": [
+          "config-input"
+        ],
+        "sinks": [
+          "logging-sink"
+        ],
+        "sanitizers": [
+          "encoding-normalization"
+        ]
+      },
+      "unsupported": {
+        "sources": [
+          "interprocedural-source"
+        ],
+        "sinks": [
+          "interprocedural-sink"
+        ],
+        "sanitizers": []
+      },
+      "capabilities": {
+        "riskLocal": "partial",
+        "riskInterprocedural": "unsupported"
+      },
+      "interproceduralGating": {
+        "enabledByDefault": false,
+        "minEvidenceKinds": [
+          "calls",
+          "references"
+        ],
+        "requiredCallLinkConfidence": 0.7
+      },
+      "severityPolicy": {
+        "levels": [
+          "info",
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "defaultLevel": "medium"
+      }
+    },
+    {
+      "languageId": "yaml",
+      "frameworkProfile": null,
+      "required": {
+        "sources": [
+          "template-input"
+        ],
+        "sinks": [
+          "template-render"
+        ],
+        "sanitizers": [
+          "allowlist",
+          "context-escape",
+          "parameterization"
+        ]
+      },
+      "optional": {
+        "sources": [
+          "config-input"
+        ],
+        "sinks": [
+          "logging-sink"
+        ],
+        "sanitizers": [
+          "encoding-normalization"
+        ]
+      },
+      "unsupported": {
+        "sources": [
+          "interprocedural-source"
+        ],
+        "sinks": [
+          "interprocedural-sink"
+        ],
+        "sanitizers": []
+      },
+      "capabilities": {
+        "riskLocal": "partial",
+        "riskInterprocedural": "unsupported"
+      },
+      "interproceduralGating": {
+        "enabledByDefault": false,
         "minEvidenceKinds": [
           "calls",
           "references"

@@ -138,8 +138,8 @@
       "minVersion": "ini-1.0",
       "maxVersion": null,
       "dialects": [
-        "ini",
-        "cfg"
+        "cfg",
+        "ini"
       ],
       "featureFlags": [
         "sections"
@@ -462,8 +462,8 @@
         "yaml"
       ],
       "featureFlags": [
-        "anchors",
-        "aliases"
+        "aliases",
+        "anchors"
       ]
     }
   ]
