@@ -259,8 +259,8 @@ export const LANGUAGE_ROUTE_DESCRIPTORS = Object.freeze([
     parserRoute: 'line-parser-dockerfile',
     capsProfile: 'dockerfile-default',
     extensions: Object.freeze(['.dockerfile']),
-    specialFilenames: Object.freeze(['dockerfile']),
-    specialPrefixes: Object.freeze(['dockerfile'])
+    specialFilenames: Object.freeze(['dockerfile', 'containerfile']),
+    specialPrefixes: Object.freeze(['dockerfile', 'containerfile'])
   }),
   Object.freeze({
     id: 'graphql',

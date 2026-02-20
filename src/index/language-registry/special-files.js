@@ -77,6 +77,7 @@ export const SPECIAL_CODE_FILENAME_TO_EXT = Object.freeze({
   build: '.bazel',
   'build.bazel': '.bazel',
   'cmakelists.txt': '.cmake',
+  containerfile: '.dockerfile',
   dockerfile: '.dockerfile',
   bsdmakefile: '.makefile',
   gnumakefile: '.makefile',
@@ -89,6 +90,7 @@ export const SPECIAL_CODE_FILENAME_TO_EXT = Object.freeze({
 });
 
 export const SPECIAL_CODE_PREFIX_TO_EXT = Object.freeze({
+  containerfile: '.dockerfile',
   dockerfile: '.dockerfile',
   makefile: '.makefile'
 });
