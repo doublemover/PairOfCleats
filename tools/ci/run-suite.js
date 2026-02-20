@@ -97,6 +97,12 @@ const USR_GUARDRAIL_GATES = Object.freeze([
     label: 'USR guardrail (item 39: normalization linking identity)',
     script: 'tools/ci/usr/item39-normalization-linking-identity-gate.js',
     report: 'usr-section-39-normalization-linking-report.json'
+  },
+  {
+    item: 40,
+    label: 'USR guardrail (item 40: pipeline incremental transforms)',
+    script: 'tools/ci/usr/item40-pipeline-incremental-transforms-gate.js',
+    report: 'usr-section-40-pipeline-incremental-report.json'
   }
 ]);
 

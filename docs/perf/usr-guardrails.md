@@ -74,3 +74,16 @@ Gate:
 Bench:
 - `tools/bench/usr/item39-normalization-linking-identity.js`
 - Snapshot: `item39-normalization-linking-identity.json`
+
+## Item 40 - Core pipeline/incremental/transforms
+
+Config:
+- `docs/config/usr-guardrails/item-40-pipeline-incremental-transforms.json`
+
+Gate:
+- `tools/ci/usr/item40-pipeline-incremental-transforms-gate.js`
+- Report: `usr-section-40-pipeline-incremental-report.json`
+
+Bench:
+- `tools/bench/usr/item40-pipeline-incremental-transforms.js`
+- Snapshot: `item40-pipeline-incremental-transforms.json`
