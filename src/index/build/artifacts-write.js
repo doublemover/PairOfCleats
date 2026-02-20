@@ -70,7 +70,11 @@ import {
 } from './artifacts/sparse-cleanup.js';
 import { packMinhashSignatures } from './artifacts/minhash-packed.js';
 
-export { resolveArtifactWriteConcurrency, buildLexiconRelationFilterReport };
+export {
+  resolveArtifactWriteConcurrency,
+  buildLexiconRelationFilterReport,
+  resolveArtifactLaneConcurrency
+};
 
 /**
  * Aggregate per-chunk boilerplate metadata into a compact reference catalog.
@@ -116,6 +120,51 @@ const buildBoilerplateCatalog = (chunks) => {
       sampleFiles: row.sampleFiles
     }))
     .sort((a, b) => b.count - a.count || a.ref.localeCompare(b.ref));
+};
+
+/**
+ * Resolve write-lane concurrency for light/heavy artifact queues.
+ *
+ * @param {object} input
+ * @param {number} input.writeConcurrency
+ * @param {number} input.lightWrites
+ * @param {number} input.heavyWrites
+ * @param {number|null} [input.heavyWriteConcurrencyOverride]
+ * @param {number} [input.hostConcurrency]
+ * @returns {{heavyConcurrency:number,lightConcurrency:number}}
+ */
+const resolveArtifactLaneConcurrency = ({
+  writeConcurrency,
+  lightWrites,
+  heavyWrites,
+  heavyWriteConcurrencyOverride = null,
+  hostConcurrency = 1
+}) => {
+  const totalWriteConcurrency = Math.max(1, Math.floor(Number(writeConcurrency) || 1));
+  const lightWriteCount = Math.max(0, Math.floor(Number(lightWrites) || 0));
+  const heavyWriteCount = Math.max(0, Math.floor(Number(heavyWrites) || 0));
+  const availableHostConcurrency = Math.max(1, Math.floor(Number(hostConcurrency) || 1));
+  const heavyOverride = Number(heavyWriteConcurrencyOverride);
+  const dynamicHeavyTarget = Number.isFinite(heavyOverride) && heavyOverride > 0
+    ? Math.max(1, Math.floor(heavyOverride))
+    : (heavyWriteCount >= 8 && availableHostConcurrency >= 8
+      ? Math.max(1, Math.ceil(totalWriteConcurrency * 0.66))
+      : Math.max(1, Math.ceil(totalWriteConcurrency / 2)));
+
+  const heavyConcurrency = heavyWriteCount > 0
+    ? Math.max(1, Math.min(heavyWriteCount, dynamicHeavyTarget))
+    : 0;
+  const lightConcurrencyBudget = heavyConcurrency > 0
+    ? Math.max(1, totalWriteConcurrency - heavyConcurrency)
+    : totalWriteConcurrency;
+  const lightConcurrency = lightWriteCount > 0
+    ? Math.max(1, Math.min(lightWriteCount, lightConcurrencyBudget))
+    : 0;
+
+  return {
+    heavyConcurrency,
+    lightConcurrency
+  };
 };
 
 /**
@@ -1804,24 +1853,13 @@ export async function writeIndexArtifacts(input) {
     const hostConcurrency = typeof os.availableParallelism === 'function'
       ? os.availableParallelism()
       : (Array.isArray(os.cpus()) ? os.cpus().length : 1);
-    const dynamicHeavyTarget = heavyWriteConcurrencyOverride
-      || (heavyWrites.length >= 8 && hostConcurrency >= 8
-        ? Math.max(1, Math.ceil(writeConcurrency * 0.66))
-        : Math.max(1, Math.ceil(writeConcurrency / 2)));
-    const heavyConcurrency = Math.max(
-      1,
-      Math.min(
-        heavyWrites.length || 1,
-        dynamicHeavyTarget
-      )
-    );
-    const lightConcurrency = Math.max(
-      1,
-      Math.min(
-        lightWrites.length || 1,
-        Math.max(1, writeConcurrency - heavyConcurrency)
-      )
-    );
+    const { heavyConcurrency, lightConcurrency } = resolveArtifactLaneConcurrency({
+      writeConcurrency,
+      lightWrites: lightWrites.length,
+      heavyWrites: heavyWrites.length,
+      heavyWriteConcurrencyOverride,
+      hostConcurrency
+    });
     const runWriteLane = async (laneWrites, laneConcurrency) => {
       if (!Array.isArray(laneWrites) || !laneWrites.length) return;
       await runWithConcurrency(
