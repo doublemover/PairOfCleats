@@ -296,6 +296,7 @@ export async function runSearchSession({
       backend: backendLabel,
       mode: searchMode,
       topN,
+      sqliteFtsRequested: sqliteFtsRequested === true,
       ann: annActive,
       annBackend,
       annMode: vectorExtension.annMode,
@@ -308,12 +309,19 @@ export async function runSearchSession({
         minDocCount: annCandidateMinDocCount,
         maxDocCount: annCandidateMaxDocCount
       },
+      bm25: {
+        k1: bm25K1,
+        b: bm25B
+      },
       scoreBlend,
+      rrf,
       fieldWeights,
+      symbolBoost,
       denseVectorMode: resolvedDenseVectorMode,
       intent: intentInfo?.type || null,
       minhashMaxDocs,
       maxCandidates,
+      sparseBackend,
       explain,
       sqliteFtsNormalize,
       sqliteFtsProfile,

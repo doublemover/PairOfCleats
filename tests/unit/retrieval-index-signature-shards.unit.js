@@ -60,4 +60,61 @@ assert.notEqual(
   'index signature must change when chunk_meta shard content changes'
 );
 
+const binaryDir = path.join(rootDir, 'index-binary');
+await fs.mkdir(binaryDir, { recursive: true });
+await fs.writeFile(
+  path.join(binaryDir, 'chunk_meta.binary-columnar.meta.json'),
+  JSON.stringify({
+    format: 'binary-columnar-v1',
+    count: 1,
+    data: 'chunk_meta.binary-columnar.bin',
+    offsets: 'chunk_meta.binary-columnar.offsets.bin',
+    lengths: 'chunk_meta.binary-columnar.lengths.varint'
+  }, null, 2),
+  'utf8'
+);
+await fs.writeFile(path.join(binaryDir, 'chunk_meta.binary-columnar.bin'), Buffer.from([1, 2, 3]));
+await fs.writeFile(path.join(binaryDir, 'chunk_meta.binary-columnar.offsets.bin'), Buffer.from([0, 0, 0, 0]));
+await fs.writeFile(path.join(binaryDir, 'chunk_meta.binary-columnar.lengths.varint'), Buffer.from([3]));
+
+const binaryFirst = await getIndexSignature({
+  useSqlite: false,
+  backendLabel: 'memory',
+  sqliteCodePath: null,
+  sqliteProsePath: null,
+  runRecords: false,
+  runExtractedProse: false,
+  includeExtractedProse: false,
+  root: rootDir,
+  userConfig: {},
+  indexDirByMode: { code: binaryDir },
+  explicitRef: true
+});
+assert.equal(
+  binaryFirst.modes?.code?.includes('chunk_meta.binary-columnar.meta.json:'),
+  true,
+  'index signature should include binary-columnar chunk_meta artifacts'
+);
+
+await fs.writeFile(path.join(binaryDir, 'chunk_meta.binary-columnar.bin'), Buffer.from([1, 2, 3, 4]));
+
+const binarySecond = await getIndexSignature({
+  useSqlite: false,
+  backendLabel: 'memory',
+  sqliteCodePath: null,
+  sqliteProsePath: null,
+  runRecords: false,
+  runExtractedProse: false,
+  includeExtractedProse: false,
+  root: rootDir,
+  userConfig: {},
+  indexDirByMode: { code: binaryDir },
+  explicitRef: true
+});
+assert.notEqual(
+  binaryFirst.modes?.code,
+  binarySecond.modes?.code,
+  'index signature must change when binary-columnar chunk_meta payload changes'
+);
+
 console.log('retrieval index signature shards unit test passed');

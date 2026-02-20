@@ -14,6 +14,23 @@ import {
 } from '../query-intent.js';
 import { compileFilterPredicates } from '../output/filters.js';
 
+const normalizeImpossibleCacheValue = (value) => {
+  if (value == null) return null;
+  if (value instanceof Set) {
+    return Array.from(value).map((entry) => String(entry)).sort();
+  }
+  if (Array.isArray(value)) {
+    return value.map((entry) => String(entry)).sort();
+  }
+  if (value && typeof value === 'object') {
+    return Object.entries(value)
+      .filter(([, allowed]) => allowed !== false)
+      .map(([entry]) => String(entry))
+      .sort();
+  }
+  return String(value);
+};
+
 export function buildQueryPlan({
   query,
   argv,
@@ -180,6 +197,12 @@ export function buildQueryPlan({
     caseFile,
     caseTokens,
     regexConfig: fileFilter ? searchRegexConfig : null,
+    filePrefilter: fileFilter ? {
+      enabled: filePrefilterEnabled,
+      chargramN: fileChargramN
+    } : null,
+    extImpossible: normalizeImpossibleCacheValue(extImpossible),
+    langImpossible: normalizeImpossibleCacheValue(langImpossible),
     meta: metaFilters,
     chunkAuthor: chunkAuthorFilter || null,
     modifiedAfter,
