@@ -9,26 +9,14 @@ import { buildContentConfigHash } from '../../../src/index/build/runtime/hash.js
 import { MAX_JSON_BYTES, readJsonFile, loadJsonObjectArtifact } from '../../../src/shared/artifact-io.js';
 import { loadIndex } from '../../../src/retrieval/cli-index.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { rmDirRecursive } from '../../helpers/temp.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'filter-index-artifact');
 const repoRoot = path.join(tempRoot, 'repo');
 const srcDir = path.join(repoRoot, 'src');
 
-const rmWithRetries = async (target, { retries = 6, delayMs = 150 } = {}) => {
-  for (let attempt = 0; attempt <= retries; attempt += 1) {
-    try {
-      await fsPromises.rm(target, { recursive: true, force: true });
-      return;
-    } catch (err) {
-      if (!err || attempt >= retries) throw err;
-      if (!['EBUSY', 'EPERM', 'ENOTEMPTY'].includes(err.code)) throw err;
-      await new Promise((resolve) => setTimeout(resolve, delayMs * (attempt + 1)));
-    }
-  }
-};
-
-await rmWithRetries(tempRoot);
+await rmDirRecursive(tempRoot, { retries: 6, delayMs: 150 });
 await fsPromises.mkdir(srcDir, { recursive: true });
 await fsPromises.writeFile(path.join(srcDir, 'example.js'), 'const a = 1;\n', 'utf8');
 

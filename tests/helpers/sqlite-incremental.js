@@ -1,50 +1,15 @@
 import fsPromises from 'node:fs/promises';
-import fsSync from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { loadUserConfig, resolveSqlitePaths } from '../../tools/shared/dict-utils.js';
 import { applyTestEnv } from './test-env.js';
+import { rmDirRecursive } from './temp.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const FIXTURE_ROOT = path.join(ROOT, 'tests', 'fixtures', 'sample');
 
-const RETRYABLE_RM_CODES = new Set(['EBUSY', 'ENOTEMPTY', 'EPERM', 'EACCES', 'EMFILE', 'ENFILE']);
-const MAX_RM_ATTEMPTS = 10;
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-const rmWithRetry = async (targetPath) => {
-  let lastError = null;
-  for (let attempt = 0; attempt < MAX_RM_ATTEMPTS; attempt += 1) {
-    try {
-      await fsPromises.rm(targetPath, { recursive: true, force: true });
-      if (!fsSync.existsSync(targetPath)) return;
-    } catch (err) {
-      lastError = err;
-      if (!RETRYABLE_RM_CODES.has(err?.code)) break;
-      await sleep(100 * (attempt + 1));
-    }
-  }
-  try {
-    await fsPromises.access(targetPath);
-    const tombstone = `${targetPath}.pending-delete-${Date.now()}-${process.pid}`;
-    await fsPromises.rename(targetPath, tombstone);
-    for (let attempt = 0; attempt < MAX_RM_ATTEMPTS; attempt += 1) {
-      try {
-        await fsPromises.rm(tombstone, { recursive: true, force: true });
-        if (!fsSync.existsSync(tombstone)) return;
-      } catch (err) {
-        if (!RETRYABLE_RM_CODES.has(err?.code) || attempt >= MAX_RM_ATTEMPTS - 1) break;
-        await sleep(100 * (attempt + 1));
-      }
-    }
-  } catch {}
-  if (!fsSync.existsSync(targetPath)) return;
-  if (lastError && !RETRYABLE_RM_CODES.has(lastError?.code)) {
-    throw lastError;
-  }
-};
 
 const stripMaxOldSpaceFlag = (options) => {
   if (!options) return '';
@@ -87,7 +52,7 @@ export const setupIncrementalRepo = async ({ name }) => {
   const repoRoot = path.join(tempRoot, 'repo');
   const cacheRoot = path.join(tempRoot, 'cache');
 
-  await rmWithRetry(tempRoot);
+  await rmDirRecursive(tempRoot, { retries: 10, delayMs: 100 });
   await fsPromises.mkdir(tempRoot, { recursive: true });
   await fsPromises.cp(FIXTURE_ROOT, repoRoot, { recursive: true });
 

@@ -3,13 +3,17 @@ import os from 'node:os';
 import path from 'node:path';
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+export const RETRYABLE_RM_CODES = new Set(['EPERM', 'EACCES', 'EBUSY', 'ENOTEMPTY', 'EMFILE', 'ENFILE']);
 
 export const makeTempDir = async (prefix = 'pairofcleats-') => {
   const base = path.join(os.tmpdir(), prefix);
   return fsPromises.mkdtemp(base);
 };
 
-export const rmDirRecursive = async (dirPath, { retries = 3, delayMs = 100 } = {}) => {
+export const rmDirRecursive = async (
+  dirPath,
+  { retries = 3, delayMs = 100, ignoreRetryableFailure = false } = {}
+) => {
   const resolvedRetries = Math.max(0, Math.floor(Number(retries) || 0));
   const resolvedDelayMs = Math.max(1, Math.floor(Number(delayMs) || 1));
   for (let attempt = 0; attempt <= resolvedRetries; attempt += 1) {
@@ -20,9 +24,9 @@ export const rmDirRecursive = async (dirPath, { retries = 3, delayMs = 100 } = {
         maxRetries: resolvedRetries,
         retryDelay: resolvedDelayMs
       });
-      return;
+      return true;
     } catch (error) {
-      const retryable = ['EPERM', 'EBUSY', 'ENOTEMPTY', 'EMFILE', 'ENFILE'].includes(error?.code);
+      const retryable = RETRYABLE_RM_CODES.has(error?.code);
       if (attempt >= resolvedRetries || !retryable) {
         if (attempt >= resolvedRetries && retryable) {
           const tombstone = `${dirPath}.pending-delete-${Date.now()}-${process.pid}`;
@@ -31,18 +35,20 @@ export const rmDirRecursive = async (dirPath, { retries = 3, delayMs = 100 } = {
             for (let cleanupAttempt = 0; cleanupAttempt <= resolvedRetries; cleanupAttempt += 1) {
               try {
                 await fsPromises.rm(tombstone, { recursive: true, force: true });
-                return;
+                return true;
               } catch (cleanupError) {
-                const cleanupRetryable = ['EPERM', 'EBUSY', 'ENOTEMPTY', 'EMFILE', 'ENFILE'].includes(cleanupError?.code);
+                const cleanupRetryable = RETRYABLE_RM_CODES.has(cleanupError?.code);
                 if (cleanupAttempt >= resolvedRetries || !cleanupRetryable) break;
                 await wait(resolvedDelayMs * (cleanupAttempt + 1));
               }
             }
           } catch {}
         }
+        if (retryable && ignoreRetryableFailure) return false;
         throw error;
       }
       await wait(resolvedDelayMs * (attempt + 1));
     }
   }
+  return false;
 };
