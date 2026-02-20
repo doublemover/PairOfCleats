@@ -58,6 +58,17 @@ When a spec/doc is replaced (e.g., a reconciled spec supersedes an older one):
 
 ---
 
+## Canonical command/path locks
+
+These names are locked to avoid duplicate command surfaces and duplicate test ownership.
+
+- Canonical release runner command/file: `node tools/release/check.js` (script alias `npm run release-check`).
+- Canonical test ownership rule: one canonical test path per concern.
+  - Duplicates must be merged into the canonical test file.
+  - Retired duplicate tests must be removed or archived with migration notes in the same change.
+
+---
+
 ## Decision Register (resolve before execution)
 
 | Decision | Description | Default if Unresolved | Owner | Due Phase | Decision deadline |
