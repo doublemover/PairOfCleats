@@ -45,7 +45,7 @@ Intent: remove ambiguity before code changes.
 - [x] Declare canonical command/file names where duplicates exist:
   - [x] keep `tools/release/check.js` as canonical release runner
   - [x] keep one canonical test path per concern
-- [ ] Remove duplicate roadmap fragments from active planning docs and keep one authoritative sequence.
+- [x] Remove duplicate roadmap fragments from active planning docs and keep one authoritative sequence.
 - [ ] Enforce hard cutover policy in `AGENTS.md` roadmap process notes.
 
 Verification:
