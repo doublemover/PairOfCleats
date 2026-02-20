@@ -329,10 +329,13 @@ export async function validateIndexArtifacts(input = {}) {
         });
       } catch (err) {
         const code = String(err?.code || '');
+        const message = String(err?.message || '');
         const missingOptional = !strict && (
           code === 'ERR_ARTIFACT_MISSING'
           || code === 'ERR_MANIFEST_MISSING'
           || code === 'ENOENT'
+          || /Missing manifest entry for file_meta/i.test(message)
+          || /Missing pieces manifest/i.test(message)
         );
         if (!missingOptional) {
           addIssue(report, mode, `file_meta load failed (${err?.code || err?.message || err})`, 'Rebuild index artifacts for this mode.');
