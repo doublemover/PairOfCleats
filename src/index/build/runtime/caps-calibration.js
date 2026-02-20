@@ -21,7 +21,7 @@ const ROUTE_BASELINES = Object.freeze({
   'tree-sitter-shell': Object.freeze({ maxBytes: 256 * 1024, maxLines: 4000, maxParseMs: 1300 }),
   'tree-sitter-rust': Object.freeze({ maxBytes: 384 * 1024, maxLines: 6000, maxParseMs: 1700 }),
   'tree-sitter-swift': Object.freeze({ maxBytes: 448 * 1024, maxLines: 7000, maxParseMs: 2000 }),
-  'tree-sitter-cmake': Object.freeze({ maxBytes: 256 * 1024, maxLines: 4000, maxParseMs: 1300 }),
+  'tree-sitter-cmake': Object.freeze({ maxBytes: 320 * 1024, maxLines: 5000, maxParseMs: 1500 }),
   'tree-sitter-starlark': Object.freeze({ maxBytes: 384 * 1024, maxLines: 6000, maxParseMs: 1700 }),
   'tree-sitter-nix': Object.freeze({ maxBytes: 320 * 1024, maxLines: 5000, maxParseMs: 1500 }),
   'tree-sitter-dart': Object.freeze({ maxBytes: 384 * 1024, maxLines: 6500, maxParseMs: 1800 }),
@@ -48,6 +48,7 @@ const DEFAULT_BASELINE = Object.freeze({ maxBytes: 256 * 1024, maxLines: 4000, m
 
 const LANGUAGE_BASELINE_OVERRIDES = Object.freeze({
   clike: Object.freeze({ maxBytes: 640 * 1024, maxLines: 10000, maxParseMs: 2600 }),
+  cmake: Object.freeze({ maxBytes: 320 * 1024, maxLines: 5000, maxParseMs: 1500 }),
   javascript: Object.freeze({ maxBytes: 320 * 1024, maxLines: 5000, maxParseMs: 1500 }),
   dockerfile: Object.freeze({ maxBytes: 288 * 1024, maxLines: 4500, maxParseMs: 1200 }),
   dart: Object.freeze({ maxBytes: 384 * 1024, maxLines: 6500, maxParseMs: 1800 }),

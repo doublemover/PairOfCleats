@@ -65,8 +65,14 @@ const cases = [
   {
     label: 'cmake',
     fn: collectCmakeImports,
-    text: 'include(foo)\nadd_subdirectory(bar)\nfind_package(Baz)',
-    expected: ['foo', 'bar', 'Baz']
+    text: [
+      'include(foo)',
+      'add_subdirectory(bar)',
+      'find_package(Baz)',
+      'target_link_libraries(app PRIVATE core::lib extra_lib)',
+      'add_dependencies(app codegen)'
+    ].join('\n'),
+    expected: ['foo', 'bar', 'Baz', 'core::lib', 'extra_lib', 'codegen']
   },
   {
     label: 'starlark',
