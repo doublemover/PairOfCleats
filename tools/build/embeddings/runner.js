@@ -283,7 +283,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
       return null;
     }
   };
-  const traceArtifactIo = isTestingEnv() || (configEnv || getEnvConfig()).traceArtifactIo;
+  const traceArtifactIo = (configEnv || getEnvConfig()).traceArtifactIo === true;
   const hasArtifactFile = (filePath) => (
     fsSync.existsSync(filePath)
     || fsSync.existsSync(`${filePath}.gz`)
@@ -1031,7 +1031,9 @@ export async function runBuildEmbeddingsWithConfig(config) {
           await flushCacheIndexMaybe();
           if (processedFiles % 8 === 0 || processedFiles === chunksByFile.size) {
             fileTask.set(processedFiles, chunksByFile.size, { message: `${processedFiles}/${chunksByFile.size} files` });
-            log(`[embeddings] ${mode}: processed ${processedFiles}/${chunksByFile.size} files`);
+            if (traceArtifactIo) {
+              log(`[embeddings] ${mode}: processed ${processedFiles}/${chunksByFile.size} files`);
+            }
           }
         };
         const processFileEmbeddings = async (entry) => {

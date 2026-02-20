@@ -114,7 +114,9 @@ export async function buildDatabaseFromBundles({
   const totalFiles = manifestEntries.length;
   let processedFiles = 0;
   let lastProgressLog = 0;
+  let lastLoggedPercentBucket = -1;
   const progressIntervalMs = 1000;
+  const progressPercentStep = 5;
   const envBundleThreads = Number(envConfig.bundleThreads);
   const bundleThreads = Number.isFinite(envBundleThreads) && envBundleThreads > 0
     ? Math.floor(envBundleThreads)
@@ -123,10 +125,17 @@ export async function buildDatabaseFromBundles({
   const useBundleWorkers = bundleLoader.useWorkers;
   const logBundleProgress = (file, force = false) => {
     if (!emitOutput) return;
+    const ratio = totalFiles > 0 ? (processedFiles / totalFiles) : 1;
+    const percentValue = Math.max(0, Math.min(100, ratio * 100));
+    const percentBucket = Math.floor(percentValue / progressPercentStep);
     const now = Date.now();
-    if (!force && now - lastProgressLog < progressIntervalMs) return;
+    if (!force) {
+      if (now - lastProgressLog < progressIntervalMs) return;
+      if (percentBucket <= lastLoggedPercentBucket) return;
+    }
     lastProgressLog = now;
-    const percent = ((processedFiles / totalFiles) * 100).toFixed(1);
+    lastLoggedPercentBucket = Math.max(lastLoggedPercentBucket, percentBucket);
+    const percent = percentValue.toFixed(1);
     const suffix = file ? ` | ${file}` : '';
     log(`[sqlite] bundles ${processedFiles}/${totalFiles} (${percent}%)${suffix}`);
   };

@@ -207,9 +207,14 @@ export const createRuntimeQueues = ({
 };
 
 export const resolveWorkerPoolRuntimeConfig = ({ indexingConfig, envConfig, cpuConcurrency, fileConcurrency }) => {
+  const dynamicHardMaxWorkers = Math.max(
+    32,
+    Number.isFinite(cpuConcurrency) ? Math.max(1, Math.floor(cpuConcurrency)) : 1,
+    Number.isFinite(fileConcurrency) ? Math.max(1, Math.floor(fileConcurrency)) : 1
+  );
   const workerPoolDefaultMax = Math.max(
     1,
-    Math.min(32, Math.max(cpuConcurrency, Math.min(16, fileConcurrency)))
+    Math.min(dynamicHardMaxWorkers, Math.max(cpuConcurrency, Math.min(16, fileConcurrency)))
   );
   return resolveWorkerPoolConfig(
     indexingConfig.workerPool || {},
@@ -217,7 +222,7 @@ export const resolveWorkerPoolRuntimeConfig = ({ indexingConfig, envConfig, cpuC
     {
       cpuLimit: cpuConcurrency,
       defaultMaxWorkers: workerPoolDefaultMax,
-      hardMaxWorkers: 32
+      hardMaxWorkers: dynamicHardMaxWorkers
     }
   );
 };

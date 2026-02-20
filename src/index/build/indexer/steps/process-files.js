@@ -762,7 +762,7 @@ export const processFiles = async ({
       const hasEntryLines = entries.some((entry) => Number.isFinite(entry?.lines) && entry.lines > 0);
       if (!hasEntryLines) {
         const lineStart = Date.now();
-        const lineConcurrency = Math.max(1, Math.min(32, runtime.cpuConcurrency * 2));
+        const lineConcurrency = Math.max(1, Math.min(128, runtime.cpuConcurrency * 2));
         if (envConfig.verbose === true) {
           log(`→ Shard planning: counting lines (${lineConcurrency} workers)...`);
         }
@@ -918,7 +918,7 @@ export const processFiles = async ({
       const shardWorkPlan = buildShardWorkPlan();
       let defaultShardConcurrency = Math.max(
         1,
-        Math.min(8, runtime.fileConcurrency, runtime.cpuConcurrency)
+        Math.min(32, runtime.fileConcurrency, runtime.cpuConcurrency)
       );
       let shardConcurrency = Number.isFinite(runtime.shards.maxWorkers)
         ? Math.max(1, Math.floor(runtime.shards.maxWorkers))

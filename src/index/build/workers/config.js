@@ -121,7 +121,7 @@ export function normalizeWorkerPoolConfig(raw = {}, options = {}) {
     : requestedMax;
   const maxWorkers = Math.max(1, cappedMax);
   const maxFileBytesRaw = raw.maxFileBytes;
-  let maxFileBytes = 512 * 1024;
+  let maxFileBytes = 2 * 1024 * 1024;
   if (maxFileBytesRaw === false || maxFileBytesRaw === 0) {
     maxFileBytes = null;
   } else {
@@ -131,7 +131,7 @@ export function normalizeWorkerPoolConfig(raw = {}, options = {}) {
     }
   }
   const minFileBytesRaw = raw.minFileBytes;
-  let minFileBytes = 16 * 1024;
+  let minFileBytes = 4 * 1024;
   if (minFileBytesRaw === false || minFileBytesRaw === 0) {
     minFileBytes = null;
   } else {

@@ -5,13 +5,13 @@ import { createRequire } from 'node:module';
 import { loadJsonArrayArtifactRows, loadPiecesManifest, readJsonFile } from '../../../src/shared/artifact-io.js';
 import { normalizeEmbeddingVectorInPlace } from '../../../src/shared/embedding-utils.js';
 import { normalizeHnswConfig } from '../../../src/shared/hnsw.js';
-import { getEnvConfig, isTestingEnv } from '../../../src/shared/env.js';
+import { getEnvConfig } from '../../../src/shared/env.js';
 import { writeJsonObjectFile } from '../../../src/shared/json-stream.js';
 import { runIsolatedNodeScriptSync } from '../../../src/shared/subprocess.js';
 import { dequantizeUint8ToFloat32 } from '../../../src/storage/sqlite/vector.js';
 import { createTempPath, replaceFile } from './atomic.js';
 
-const TRACE_ARTIFACT_IO = isTestingEnv() || getEnvConfig().traceArtifactIo;
+const TRACE_ARTIFACT_IO = getEnvConfig().traceArtifactIo === true;
 
 const require = createRequire(import.meta.url);
 let hnswLib = null;

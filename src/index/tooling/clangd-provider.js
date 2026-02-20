@@ -445,19 +445,42 @@ export const createClangdProvider = () => ({
     const docs = Array.isArray(inputs?.documents)
       ? inputs.documents.filter((doc) => CLIKE_EXTS.includes(path.extname(doc.virtualPath).toLowerCase()))
       : [];
-    const targets = Array.isArray(inputs?.targets)
+    let targets = Array.isArray(inputs?.targets)
       ? inputs.targets.filter((target) => docs.some((doc) => doc.virtualPath === target.virtualPath))
       : [];
+    const clangdConfig = ctx?.toolingConfig?.clangd || {};
+    const compileCommandsDir = resolveCompileCommandsDir(ctx.repoRoot, clangdConfig);
+    let selectedDocs = docs;
+    if (!compileCommandsDir) {
+      const maxDocsWithoutCompileCommands = Number.isFinite(Number(clangdConfig.maxDocsWithoutCompileCommands))
+        ? Math.max(1, Math.floor(Number(clangdConfig.maxDocsWithoutCompileCommands)))
+        : 256;
+      if (selectedDocs.length > maxDocsWithoutCompileCommands) {
+        const rankedDocs = selectedDocs
+          .slice()
+          .sort((a, b) => {
+            const aHeader = headerExtForPath(a?.virtualPath) ? 1 : 0;
+            const bHeader = headerExtForPath(b?.virtualPath) ? 1 : 0;
+            if (aHeader !== bHeader) return aHeader - bHeader;
+            return String(a?.virtualPath || '').localeCompare(String(b?.virtualPath || ''));
+          });
+        selectedDocs = rankedDocs.slice(0, maxDocsWithoutCompileCommands);
+        const selectedPaths = new Set(selectedDocs.map((doc) => String(doc?.virtualPath || '')));
+        targets = targets.filter((target) => selectedPaths.has(String(target?.virtualPath || '')));
+        log(
+          `[tooling] clangd limiting documentSymbol scope to ${selectedDocs.length}/${docs.length} files ` +
+          '(no compile_commands.json).'
+        );
+      }
+    }
     const duplicateChecks = buildDuplicateChunkUidChecks(targets, { label: 'clangd' });
-    if (!docs.length || !targets.length) {
+    if (!selectedDocs.length || !targets.length) {
       return {
         provider: { id: 'clangd', version: '2.0.0', configHash: this.getConfigHash(ctx) },
         byChunkUid: {},
         diagnostics: appendDiagnosticChecks(null, duplicateChecks)
       };
     }
-    const clangdConfig = ctx?.toolingConfig?.clangd || {};
-    const compileCommandsDir = resolveCompileCommandsDir(ctx.repoRoot, clangdConfig);
     if (!compileCommandsDir && clangdConfig.requireCompilationDatabase === true) {
       log('[index] clangd requires compile_commands.json; skipping tooling-based types.');
       return {
@@ -488,17 +511,27 @@ export const createClangdProvider = () => ({
       : [];
     let inferredIncludeRoots = [];
     if (!compileCommandsDir && clangdConfig.autoInferIncludeRoots !== false) {
-      const includeHeaders = extractIncludeHeadersFromDocuments(docs);
-      if (includeHeaders.length) {
-        const trackedHeaders = listTrackedHeaderPaths(ctx.repoRoot, { cacheDir: ctx?.cache?.dir || null });
-        inferredIncludeRoots = inferIncludeRootsFromHeaderPaths({
-          repoRoot: ctx.repoRoot,
-          includeHeaders,
-          headerPaths: trackedHeaders,
-          maxRoots: Number.isFinite(Number(clangdConfig.maxInferredIncludeRoots))
-            ? Math.max(0, Math.floor(Number(clangdConfig.maxInferredIncludeRoots)))
-            : 16
-        });
+      const maxDocsForIncludeInference = Number.isFinite(Number(clangdConfig.maxDocsForIncludeInference))
+        ? Math.max(1, Math.floor(Number(clangdConfig.maxDocsForIncludeInference)))
+        : 384;
+      if (selectedDocs.length <= maxDocsForIncludeInference) {
+        const includeHeaders = extractIncludeHeadersFromDocuments(selectedDocs);
+        if (includeHeaders.length) {
+          const trackedHeaders = listTrackedHeaderPaths(ctx.repoRoot, { cacheDir: ctx?.cache?.dir || null });
+          inferredIncludeRoots = inferIncludeRootsFromHeaderPaths({
+            repoRoot: ctx.repoRoot,
+            includeHeaders,
+            headerPaths: trackedHeaders,
+            maxRoots: Number.isFinite(Number(clangdConfig.maxInferredIncludeRoots))
+              ? Math.max(0, Math.floor(Number(clangdConfig.maxInferredIncludeRoots)))
+              : 16
+          });
+        }
+      } else {
+        log(
+          `[tooling] clangd skipped include-root inference for ${selectedDocs.length} files ` +
+          `(limit ${maxDocsForIncludeInference}).`
+        );
       }
     }
     const inferredFallbackFlags = [];
@@ -529,12 +562,21 @@ export const createClangdProvider = () => ({
       timeoutMs,
       Math.floor(configuredDocSymbolTimeout ?? timeoutMs)
     );
+    const hoverEnabled = clangdConfig.hoverEnabled === false
+      ? false
+      : (compileCommandsDir ? true : clangdConfig.disableHoverWithoutCompileCommands === false);
+    const hoverMaxPerFile = Number.isFinite(Number(clangdConfig.hoverMaxPerFile))
+      ? Math.max(0, Math.floor(Number(clangdConfig.hoverMaxPerFile)))
+      : (compileCommandsDir ? null : 8);
+    if (!compileCommandsDir && hoverEnabled === false && clangdConfig.hoverEnabled !== false) {
+      log('[tooling] clangd hover disabled without compile_commands.json (set tooling.clangd.disableHoverWithoutCompileCommands=false to override).');
+    }
     const clangdStderr = createClangdStderrFilter();
     let result;
     try {
       result = await collectLspTypes({
         rootDir: ctx.repoRoot,
-        documents: docs,
+        documents: selectedDocs,
         targets,
         log,
         cmd: resolvedCmd,
@@ -544,6 +586,8 @@ export const createClangdProvider = () => ({
         breakerThreshold,
         documentSymbolTimeoutMs,
         documentSymbolConcurrency: clangdConfig.documentSymbolConcurrency,
+        hoverEnabled,
+        hoverMaxPerFile,
         hoverConcurrency: clangdConfig.hoverConcurrency,
         cacheRoot: ctx?.cache?.dir || null,
         stderrFilter: clangdStderr.filter,
