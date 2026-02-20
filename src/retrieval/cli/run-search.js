@@ -64,6 +64,22 @@ import {
   resolveSparsePreflightModes
 } from './preflight.js';
 
+/**
+ * Execute the `pairofcleats search` CLI end-to-end: parse flags, load policy
+ * and indexes, run retrieval, emit output, and persist telemetry.
+ *
+ * @param {string[]} [rawArgs]
+ * @param {object} [options]
+ * @param {boolean} [options.emitOutput]
+ * @param {boolean} [options.exitOnError]
+ * @param {AbortSignal|null} [options.signal]
+ * @param {string|null} [options.scoreMode]
+ * @param {object|null} [options.indexCache]
+ * @param {object|null} [options.sqliteCache]
+ * @param {object|null} [options.queryPlanCache]
+ * @param {string|null} [options.root]
+ * @returns {Promise<object>}
+ */
 export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}) {
   const telemetry = createSearchTelemetry();
   const recordSearchMetrics = (status) => telemetry.record(status);
@@ -261,9 +277,14 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       annCandidateMaxDocCount,
       minhashMaxDocs,
       maxCandidates,
+      storageTier,
       queryCacheEnabled,
       queryCacheMaxEntries,
       queryCacheTtlMs,
+      queryCacheStrategy,
+      queryCachePrewarm,
+      queryCachePrewarmMaxEntries,
+      queryCacheMemoryFreshMs,
       rrfEnabled,
       rrfK,
       graphRankingConfig,
@@ -275,6 +296,10 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       sqliteFtsWeights,
       sqliteFtsTrigram,
       sqliteFtsStemming,
+      sqliteTailLatencyTuning,
+      sqliteFtsOverfetch,
+      preferMemoryBackendOnCacheHit,
+      sqliteReadPragmas,
       fieldWeightsConfig,
       explain,
       allowSparseFallback,
@@ -691,6 +716,8 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
         fileChargramN,
         hnswConfig,
         denseVectorMode,
+        storageTier,
+        sqliteReadPragmas,
         root: rootDir,
         userConfig
       });
@@ -1152,6 +1179,10 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       minhashMaxDocs,
       sparseBackend,
       sqliteHelpers,
+      storageTier,
+      sqliteTailLatencyTuning,
+      sqliteFtsOverfetch,
+      preferMemoryBackendOnCacheHit,
       profilePolicyByMode,
       profileWarnings,
       idxProse,
@@ -1172,6 +1203,10 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       queryCacheEnabled,
       queryCacheMaxEntries,
       queryCacheTtlMs,
+      queryCacheStrategy,
+      queryCachePrewarm,
+      queryCachePrewarmMaxEntries,
+      queryCacheMemoryFreshMs,
       backendLabel,
       backendPolicyInfo,
       showStats,

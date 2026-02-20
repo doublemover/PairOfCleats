@@ -6,6 +6,15 @@ const resolveScoreModeOverride = (value) => {
   throw new Error(`Invalid score mode "${mode}". Use sparse|dense|hybrid.`);
 };
 
+/**
+ * Resolve the runtime search config from normalized CLI options plus an
+ * optional score-mode override.
+ *
+ * @param {object} input
+ * @param {object} input.normalized
+ * @param {string|null} input.scoreModeOverride
+ * @returns {object}
+ */
 export const resolveRunConfig = ({ normalized, scoreModeOverride }) => {
   const {
     query,
@@ -67,9 +76,14 @@ export const resolveRunConfig = ({ normalized, scoreModeOverride }) => {
     annCandidateMaxDocCount,
     minhashMaxDocs,
     maxCandidates,
+    storageTier,
     queryCacheEnabled,
     queryCacheMaxEntries,
     queryCacheTtlMs,
+    queryCacheStrategy,
+    queryCachePrewarm,
+    queryCachePrewarmMaxEntries,
+    queryCacheMemoryFreshMs,
     rrfEnabled: rrfEnabledRaw,
     rrfK,
     graphRankingConfig,
@@ -81,6 +95,10 @@ export const resolveRunConfig = ({ normalized, scoreModeOverride }) => {
     sqliteFtsWeights,
     sqliteFtsTrigram,
     sqliteFtsStemming,
+    sqliteTailLatencyTuning,
+    sqliteFtsOverfetch,
+    preferMemoryBackendOnCacheHit,
+    sqliteReadPragmas,
     fieldWeightsConfig,
     explain,
     denseVectorMode,
@@ -166,9 +184,14 @@ export const resolveRunConfig = ({ normalized, scoreModeOverride }) => {
     annCandidateMaxDocCount,
     minhashMaxDocs,
     maxCandidates,
+    storageTier,
     queryCacheEnabled,
     queryCacheMaxEntries,
     queryCacheTtlMs,
+    queryCacheStrategy,
+    queryCachePrewarm,
+    queryCachePrewarmMaxEntries,
+    queryCacheMemoryFreshMs,
     rrfEnabled,
     rrfK,
     graphRankingConfig,
@@ -180,6 +203,10 @@ export const resolveRunConfig = ({ normalized, scoreModeOverride }) => {
     sqliteFtsWeights,
     sqliteFtsTrigram,
     sqliteFtsStemming,
+    sqliteTailLatencyTuning,
+    sqliteFtsOverfetch,
+    preferMemoryBackendOnCacheHit,
+    sqliteReadPragmas,
     fieldWeightsConfig,
     explain,
     denseVectorMode,

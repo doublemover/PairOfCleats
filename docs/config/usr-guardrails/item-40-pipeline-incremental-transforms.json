@@ -1,0 +1,32 @@
+{
+  "item": 40,
+  "section": "40",
+  "title": "Core pipeline/incremental/transforms",
+  "sourceSpecs": [
+    "docs/specs/unified-syntax-representation.md",
+    "docs/specs/usr-core-pipeline-incremental-transforms.md"
+  ],
+  "inputs": {
+    "languageProfiles": "tests/lang/matrix/usr-language-profiles.json",
+    "parserRuntimeLock": "tests/lang/matrix/usr-parser-runtime-lock.json",
+    "generatedProvenance": "tests/lang/matrix/usr-generated-provenance-cases.json",
+    "failureInjection": "tests/lang/matrix/usr-failure-injection-matrix.json"
+  },
+  "requiredParserSources": [
+    "native-parser",
+    "tree-sitter",
+    "hybrid",
+    "framework-compiler",
+    "heuristic",
+    "tooling"
+  ],
+  "requiredFailureLayers": [
+    "parser",
+    "normalization",
+    "resolution",
+    "serialization",
+    "runtime",
+    "reporting"
+  ],
+  "report": "usr-section-40-pipeline-incremental-report.json"
+}

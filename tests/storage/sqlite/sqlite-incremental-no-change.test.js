@@ -7,6 +7,7 @@ import { spawnSync } from 'node:child_process';
 import { getCombinedOutput } from '../../helpers/stdio.js';
 import { getIndexDir, loadUserConfig, resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';
 import { runSqliteBuild } from '../../helpers/sqlite-builder.js';
+import { rmDirRecursive } from '../../helpers/temp.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
@@ -25,20 +26,7 @@ const stripMaxOldSpaceFlag = (options) => {
 
 const nodeOptions = stripMaxOldSpaceFlag(process.env.NODE_OPTIONS || '');
 
-const rmWithRetries = async (target, { retries = 8, delayMs = 150 } = {}) => {
-  for (let attempt = 0; attempt <= retries; attempt += 1) {
-    try {
-      await fsPromises.rm(target, { recursive: true, force: true });
-      return;
-    } catch (err) {
-      if (!err || attempt >= retries) throw err;
-      if (!['EBUSY', 'EPERM', 'ENOTEMPTY'].includes(err.code)) throw err;
-      await new Promise((resolve) => setTimeout(resolve, delayMs * (attempt + 1)));
-    }
-  }
-};
-
-await rmWithRetries(tempRoot);
+await rmDirRecursive(tempRoot, { retries: 8, delayMs: 150 });
 await fsPromises.mkdir(tempRoot, { recursive: true });
 await fsPromises.cp(fixtureRoot, repoRoot, { recursive: true });
 

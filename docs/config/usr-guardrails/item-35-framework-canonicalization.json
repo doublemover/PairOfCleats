@@ -1,0 +1,30 @@
+{
+  "item": 35,
+  "section": "35",
+  "title": "Per-framework edge canonicalization",
+  "sourceSpecs": [
+    "docs/specs/unified-syntax-representation.md",
+    "docs/specs/usr-core-language-framework-catalog.md",
+    "docs/specs/usr-core-normalization-linking-identity.md"
+  ],
+  "inputs": {
+    "frameworkProfiles": "tests/lang/matrix/usr-framework-profiles.json",
+    "frameworkEdgeCases": "tests/lang/matrix/usr-framework-edge-cases.json"
+  },
+  "requiredFrameworkProfiles": [
+    "react",
+    "vue",
+    "next",
+    "nuxt",
+    "svelte",
+    "sveltekit",
+    "angular",
+    "astro"
+  ],
+  "requiredCategoryKinds": {
+    "route": "route_maps_to",
+    "template": "template_binds",
+    "style": "style_scopes"
+  },
+  "report": "usr-section-35-framework-canonicalization-report.json"
+}

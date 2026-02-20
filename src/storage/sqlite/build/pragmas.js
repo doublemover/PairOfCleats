@@ -50,18 +50,42 @@ const resolveReadPragmas = (options = {}) => {
   const dbMb = Number.isFinite(dbBytes) && dbBytes > 0
     ? dbBytes / BYTES_PER_MB
     : null;
+  const storageTierRaw = typeof options.storageTier === 'string'
+    ? options.storageTier.trim().toLowerCase()
+    : '';
+  const storageTier = storageTierRaw === 'fast' ? 'fast' : 'balanced';
+  const tailLatencyTuning = options.tailLatencyTuning === true;
   const cacheMb = dbMb === null
-    ? 64
-    : clamp(Math.round(dbMb * 0.1), 32, 256);
-  const mmapMb = SQLITE_MMAP_TARGET_MB;
+    ? (storageTier === 'fast' ? 128 : 64)
+    : (storageTier === 'fast'
+      ? clamp(Math.round(dbMb * 0.2), 96, 1024)
+      : clamp(Math.round(dbMb * 0.1), 32, 256));
+  const mmapMb = storageTier === 'fast'
+    ? 12 * 1024
+    : SQLITE_MMAP_TARGET_MB;
+  const busyTimeoutMs = tailLatencyTuning
+    ? 750
+    : (storageTier === 'fast' ? 1500 : 5000);
+  const threads = tailLatencyTuning || storageTier === 'fast' ? 4 : 2;
   return {
     temp_store: 'MEMORY',
     cache_size: -cacheMb * 1024,
     mmap_size: mmapMb * BYTES_PER_MB,
-    busy_timeout: 5000
+    busy_timeout: busyTimeoutMs,
+    threads
   };
 };
 
+/**
+ * Apply aggressive write-time SQLite pragmas for bulk index builds and return
+ * both pre-change and post-change snapshots.
+ *
+ * @param {object} db
+ * @param {object} [options]
+ * @param {number} [options.inputBytes]
+ * @param {object} [options.stats]
+ * @returns {{before:object,applied:object}}
+ */
 export const applyBuildPragmas = (db, options = {}) => {
   const before = {
     journal_mode: readPragma(db, 'journal_mode'),
@@ -108,6 +132,16 @@ export const applyBuildPragmas = (db, options = {}) => {
   };
 };
 
+/**
+ * Apply read-path pragmas tuned for storage tier and tail-latency preferences.
+ *
+ * @param {object} db
+ * @param {object} [options]
+ * @param {number} [options.dbBytes]
+ * @param {string} [options.storageTier]
+ * @param {boolean} [options.tailLatencyTuning]
+ * @returns {{temp_store:string,cache_size:number,mmap_size:number,busy_timeout:number,threads:number}|null}
+ */
 export const applyReadPragmas = (db, options = {}) => {
   if (!db) return null;
   const resolved = resolveReadPragmas(options);
@@ -115,14 +149,24 @@ export const applyReadPragmas = (db, options = {}) => {
   applyPragma(db, `cache_size = ${resolved.cache_size}`, 'cache_size');
   applyPragma(db, `mmap_size = ${resolved.mmap_size}`, 'mmap_size');
   applyPragma(db, `busy_timeout = ${resolved.busy_timeout}`, 'busy_timeout');
+  applyPragma(db, `threads = ${resolved.threads}`, 'threads');
   return {
     temp_store: readPragma(db, 'temp_store') ?? resolved.temp_store,
     cache_size: readPragma(db, 'cache_size') ?? resolved.cache_size,
     mmap_size: readPragma(db, 'mmap_size') ?? resolved.mmap_size,
-    busy_timeout: readPragma(db, 'busy_timeout') ?? resolved.busy_timeout
+    busy_timeout: readPragma(db, 'busy_timeout') ?? resolved.busy_timeout,
+    threads: readPragma(db, 'threads') ?? resolved.threads
   };
 };
 
+/**
+ * Restore SQLite pragmas captured by `applyBuildPragmas` (or safe defaults
+ * when no snapshot is available).
+ *
+ * @param {object} db
+ * @param {{before?:object}|null} [state]
+ * @returns {void}
+ */
 export const restoreBuildPragmas = (db, state = null) => {
   const before = state && typeof state === 'object' ? state.before : null;
   const restoreValue = (key, fallback) => {
@@ -147,6 +191,15 @@ export const restoreBuildPragmas = (db, state = null) => {
   applyIfValue('locking_mode', restoreValue('locking_mode', 'NORMAL'));
 };
 
+/**
+ * Run `PRAGMA optimize` and optionally `ANALYZE` for large build inputs.
+ *
+ * @param {object} db
+ * @param {object} [options]
+ * @param {number} [options.inputBytes]
+ * @param {object} [options.stats]
+ * @returns {void}
+ */
 export const optimizeBuildDatabase = (db, options = {}) => {
   if (!db) return;
   const stats = options.stats && typeof options.stats === 'object' ? options.stats : null;
@@ -174,6 +227,15 @@ export const optimizeBuildDatabase = (db, options = {}) => {
   }
 };
 
+/**
+ * Trigger FTS optimize for a supported table and record timing diagnostics.
+ *
+ * @param {object} db
+ * @param {string} tableName
+ * @param {object} [options]
+ * @param {object} [options.stats]
+ * @returns {void}
+ */
 export const optimizeFtsTable = (db, tableName, options = {}) => {
   if (!db) return;
   const target = typeof tableName === 'string' ? tableName.trim() : '';

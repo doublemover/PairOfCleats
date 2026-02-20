@@ -1,54 +1,10 @@
 import fsPromises from 'node:fs/promises';
-import fsSync from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { rmDirRecursive } from './temp.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const RETRYABLE_RM_CODES = new Set(['EBUSY', 'ENOTEMPTY', 'EPERM', 'EACCES', 'EMFILE', 'ENFILE']);
-const RM_RETRY_ATTEMPTS = 20;
-const RM_RETRY_BASE_DELAY_MS = 40;
-
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-const rmWithRetry = async (targetPath) => {
-  const removeTombstoneWithRetry = async (tombstonePath) => {
-    for (let i = 0; i < RM_RETRY_ATTEMPTS; i += 1) {
-      try {
-        await fsPromises.rm(tombstonePath, { recursive: true, force: true });
-        if (!fsSync.existsSync(tombstonePath)) return true;
-      } catch (err) {
-        if (!RETRYABLE_RM_CODES.has(err?.code)) break;
-        const delayMs = Math.min(1000, RM_RETRY_BASE_DELAY_MS * (2 ** i));
-        await sleep(delayMs);
-      }
-    }
-    return false;
-  };
-  for (let attempt = 0; attempt < RM_RETRY_ATTEMPTS; attempt += 1) {
-    try {
-      await fsPromises.rm(targetPath, { recursive: true, force: true });
-      if (!fsSync.existsSync(targetPath)) return;
-    } catch (err) {
-      const isLastAttempt = attempt >= RM_RETRY_ATTEMPTS - 1;
-      if (!RETRYABLE_RM_CODES.has(err?.code) || isLastAttempt) {
-        if (isLastAttempt && RETRYABLE_RM_CODES.has(err?.code)) {
-          // Final fallback: detach the directory name and retry delete on the
-          // tombstoned path so active handles cannot recreate under the old path.
-          const tombstone = `${targetPath}.pending-delete-${Date.now()}-${process.pid}`;
-          try {
-            await fsPromises.rename(targetPath, tombstone);
-            if (await removeTombstoneWithRetry(tombstone)) return;
-          } catch {}
-        }
-        if (!fsSync.existsSync(targetPath)) return;
-        throw err;
-      }
-      const delayMs = Math.min(1000, RM_RETRY_BASE_DELAY_MS * (2 ** attempt));
-      await sleep(delayMs);
-    }
-  }
-};
 
 export const getTriageContext = async ({ name }) => {
   const repoRoot = path.join(ROOT, 'tests', 'fixtures', 'sample');
@@ -65,7 +21,7 @@ export const getTriageContext = async ({ name }) => {
   if (traceArtifactIo) {
     console.log(`[triage-test] preparing cache root: ${cacheRoot}`);
   }
-  await rmWithRetry(cacheRoot);
+  await rmDirRecursive(cacheRoot, { retries: 20, delayMs: 40 });
   if (traceArtifactIo) {
     console.log(`[triage-test] ready cache root: ${cacheRoot}`);
   }

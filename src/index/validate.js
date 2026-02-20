@@ -161,6 +161,21 @@ const recordOrderingDrift = ({
   }
   report.hints.push('Rebuild ordering ledger by re-running index build.');
 };
+
+/**
+ * Validate index artifacts for selected modes against manifest presence and
+ * optional ordering ledger constraints.
+ *
+ * @param {object} [input]
+ * @param {string} [input.root]
+ * @param {string|null} [input.indexRoot]
+ * @param {object} [input.userConfig]
+ * @param {string[]} [input.modes]
+ * @param {boolean} [input.sqliteEnabled]
+ * @param {boolean} [input.strict]
+ * @param {boolean} [input.validateOrdering]
+ * @returns {Promise<object>}
+ */
 export async function validateIndexArtifacts(input = {}) {
   const root = getRepoRoot(input.root);
   const indexRoot = input.indexRoot ? path.resolve(input.indexRoot) : null;
@@ -301,7 +316,32 @@ export async function validateIndexArtifacts(input = {}) {
         continue;
       }
       validateSchema(report, mode, 'chunk_meta', chunkMeta, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
-      const fileMeta = readJsonArtifact('file_meta');
+      let fileMeta = null;
+      const fileMetaMaxBytes = resolveArtifactValidationMaxBytes({
+        manifest,
+        artifactNames: new Set(['file_meta'])
+      });
+      try {
+        fileMeta = await loadJsonArrayArtifact(dir, 'file_meta', {
+          manifest,
+          strict,
+          maxBytes: fileMetaMaxBytes
+        });
+      } catch (err) {
+        const code = String(err?.code || '');
+        const message = String(err?.message || '');
+        const missingOptional = !strict && (
+          code === 'ERR_ARTIFACT_MISSING'
+          || code === 'ERR_MANIFEST_MISSING'
+          || code === 'ENOENT'
+          || /Missing manifest entry for file_meta/i.test(message)
+          || /Missing pieces manifest/i.test(message)
+        );
+        if (!missingOptional) {
+          addIssue(report, mode, `file_meta load failed (${err?.code || err?.message || err})`, 'Rebuild index artifacts for this mode.');
+          if (strict) modeReport.ok = false;
+        }
+      }
       if (Array.isArray(fileMeta) && fileMeta.length) {
         const fileMetaById = new Map();
         for (const entry of fileMeta) {
@@ -735,7 +775,7 @@ export async function validateIndexArtifacts(input = {}) {
         }
       }
 
-      const fieldPostingsRaw = readJsonArtifact('field_postings');
+      const fieldPostingsRaw = readJsonArtifact('field_postings', { allowOversize: true });
       const fieldPostings = normalizeFieldPostings(fieldPostingsRaw);
       if (fieldPostings) {
         validateSchema(report, mode, 'field_postings', fieldPostings, 'Rebuild index artifacts for this mode.', { strictSchema: strict });

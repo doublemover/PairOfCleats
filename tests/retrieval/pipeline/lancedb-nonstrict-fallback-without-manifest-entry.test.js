@@ -131,8 +131,16 @@ const loaded = await loadSearchIndexes({
 });
 
 assert.ok(loaded?.idxCode?.lancedb, 'expected lancedb metadata object to be present');
-assert.equal(loaded.idxCode.lancedb.available, false, 'expected lancedb to be unavailable without manifest entries');
-assert.equal(loaded.idxCode.lancedb.meta, null, 'expected lancedb meta to remain null without manifest entries');
-assert.equal(loaded.idxCode.lancedb.dir, null, 'expected lancedb dir to remain null without manifest entries');
+assert.equal(
+  loaded.idxCode.lancedb.available,
+  true,
+  'expected non-strict lancedb load to fall back to legacy metadata + directory paths'
+);
+assert.equal(loaded.idxCode.lancedb.meta?.dims, dims, 'expected lancedb fallback to load legacy metadata file');
+assert.equal(
+  path.basename(loaded.idxCode.lancedb.dir || ''),
+  'dense_vectors.lancedb',
+  'expected lancedb fallback to use legacy directory path'
+);
 
-console.log('lancedb manifest entry required contract test passed');
+console.log('lancedb non-strict fallback without manifest entry test passed');

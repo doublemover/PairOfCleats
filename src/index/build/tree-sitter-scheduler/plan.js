@@ -31,8 +31,13 @@ import { createTreeSitterFileVersionSignature } from './file-signature.js';
 import { shouldSkipTreeSitterPlanningForPath } from './policy.js';
 
 const TREE_SITTER_LANG_IDS = new Set(TREE_SITTER_LANGUAGE_IDS);
-const PLANNER_IO_CONCURRENCY_CAP = 16;
+const PLANNER_IO_CONCURRENCY_CAP = 32;
+const PLANNER_IO_LARGE_REPO_THRESHOLD = 20000;
 const TREE_SITTER_SKIP_SAMPLE_LIMIT_DEFAULT = 3;
+const HEAVY_GRAMMAR_BUCKET_LANGUAGES = new Set(['clike', 'cpp']);
+const HEAVY_GRAMMAR_BUCKET_TARGET_JOBS = 512;
+const HEAVY_GRAMMAR_BUCKET_MIN = 2;
+const HEAVY_GRAMMAR_BUCKET_MAX = 16;
 
 const countLines = (text, maxLines = null) => {
   if (!text) return 0;
@@ -106,6 +111,64 @@ const sortJobs = (a, b) => {
   return compareStrings(a.virtualPath || '', b.virtualPath || '');
 };
 
+const hashString = (value) => {
+  const text = String(value || '');
+  let hash = 2166136261;
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+};
+
+const shardHeavyGrammarGroup = (group, schedulerConfig = {}) => {
+  const jobs = Array.isArray(group?.jobs) ? group.jobs : [];
+  if (!jobs.length) return [];
+  const languages = Array.isArray(group?.languages) ? group.languages : [];
+  const isHeavyLanguage = languages.some((languageId) => HEAVY_GRAMMAR_BUCKET_LANGUAGES.has(languageId));
+  if (!isHeavyLanguage) return [group];
+  const rawEnabled = schedulerConfig.heavyGrammarBucketSharding;
+  if (rawEnabled === false) return [group];
+  const targetJobs = Number.isFinite(Number(schedulerConfig.heavyGrammarBucketTargetJobs))
+    ? Math.max(64, Math.floor(Number(schedulerConfig.heavyGrammarBucketTargetJobs)))
+    : HEAVY_GRAMMAR_BUCKET_TARGET_JOBS;
+  const minBuckets = Number.isFinite(Number(schedulerConfig.heavyGrammarBucketMin))
+    ? Math.max(1, Math.floor(Number(schedulerConfig.heavyGrammarBucketMin)))
+    : HEAVY_GRAMMAR_BUCKET_MIN;
+  const maxBuckets = Number.isFinite(Number(schedulerConfig.heavyGrammarBucketMax))
+    ? Math.max(minBuckets, Math.floor(Number(schedulerConfig.heavyGrammarBucketMax)))
+    : HEAVY_GRAMMAR_BUCKET_MAX;
+  const bucketCount = Math.max(
+    minBuckets,
+    Math.min(maxBuckets, Math.ceil(jobs.length / targetJobs))
+  );
+  if (bucketCount <= 1 || jobs.length < Math.max(64, targetJobs)) return [group];
+
+  const buckets = Array.from({ length: bucketCount }, () => []);
+  for (const job of jobs) {
+    const key = job?.containerPath || job?.virtualPath || '';
+    const bucketIndex = hashString(key) % bucketCount;
+    buckets[bucketIndex].push(job);
+  }
+  const out = [];
+  for (let bucketIndex = 0; bucketIndex < buckets.length; bucketIndex += 1) {
+    const bucketJobs = buckets[bucketIndex];
+    if (!bucketJobs.length) continue;
+    bucketJobs.sort(sortJobs);
+    out.push({
+      grammarKey: `${group.grammarKey}~b${String(bucketIndex + 1).padStart(2, '0')}of${String(bucketCount).padStart(2, '0')}`,
+      baseGrammarKey: group.grammarKey,
+      shard: {
+        bucketIndex: bucketIndex + 1,
+        bucketCount
+      },
+      languages,
+      jobs: bucketJobs
+    });
+  }
+  return out.length ? out : [group];
+};
+
 /**
  * Resolve planner I/O concurrency for scheduler plan building.
  * Uses explicit scheduler overrides when provided, otherwise derives from
@@ -114,7 +177,7 @@ const sortJobs = (a, b) => {
  * @param {object|null|undefined} treeSitterConfig
  * @returns {number}
  */
-const resolvePlannerIoConcurrency = (treeSitterConfig) => {
+const resolvePlannerIoConcurrency = (treeSitterConfig, entryCount = 0) => {
   const schedulerConfig = treeSitterConfig?.scheduler || {};
   const configuredRaw = Number(
     schedulerConfig.planIoConcurrency
@@ -127,7 +190,18 @@ const resolvePlannerIoConcurrency = (treeSitterConfig) => {
   const available = typeof os.availableParallelism === 'function'
     ? os.availableParallelism()
     : 4;
-  return Math.max(1, Math.min(PLANNER_IO_CONCURRENCY_CAP, Math.floor(available || 1)));
+  const totalMemGb = Number.isFinite(Number(os.totalmem()))
+    ? (Number(os.totalmem()) / (1024 ** 3))
+    : null;
+  const memoryConstrainedCap = Number.isFinite(totalMemGb) && totalMemGb > 0 && totalMemGb < 8
+    ? 8
+    : PLANNER_IO_CONCURRENCY_CAP;
+  let resolved = Math.max(1, Math.min(memoryConstrainedCap, Math.floor(available || 1)));
+  if (Number(entryCount) >= PLANNER_IO_LARGE_REPO_THRESHOLD) {
+    const boosted = Math.max(resolved, Math.floor((available || 1) * 0.75));
+    resolved = Math.max(1, Math.min(memoryConstrainedCap, boosted));
+  }
+  return resolved;
 };
 
 const createSkipLogger = ({ treeSitterConfig, log }) => {
@@ -189,7 +263,6 @@ export const buildTreeSitterSchedulerPlan = async ({
   if (!treeSitterConfig || treeSitterConfig.enabled === false) return null;
   const strict = treeSitterConfig?.strict === true;
   const skipOnParseError = runtime?.languageOptions?.skipOnParseError === true;
-  const plannerIoConcurrency = resolvePlannerIoConcurrency(treeSitterConfig);
   const skipLogger = createSkipLogger({ treeSitterConfig, log });
   const recordSkip = (reason, message) => skipLogger.record(reason, message);
 
@@ -215,6 +288,7 @@ export const buildTreeSitterSchedulerPlan = async ({
 
   const sortedEntries = Array.isArray(entries) ? entries.slice() : [];
   sortedEntries.sort((a, b) => compareStrings(resolveEntrySortKey(a), resolveEntrySortKey(b)));
+  const plannerIoConcurrency = resolvePlannerIoConcurrency(treeSitterConfig, sortedEntries.length);
 
   const entryResults = await runWithConcurrency(
     sortedEntries,
@@ -463,7 +537,7 @@ export const buildTreeSitterSchedulerPlan = async ({
   }
 
   const grammarKeys = Array.from(groups.keys()).sort(compareStrings);
-  const groupList = grammarKeys.map((grammarKey) => {
+  const baseGroupList = grammarKeys.map((grammarKey) => {
     const group = groups.get(grammarKey);
     group.jobs.sort(sortJobs);
     return {
@@ -472,6 +546,15 @@ export const buildTreeSitterSchedulerPlan = async ({
       jobs: group.jobs
     };
   });
+  const schedulerConfig = treeSitterConfig?.scheduler || {};
+  const groupList = [];
+  for (const group of baseGroupList) {
+    const sharded = shardHeavyGrammarGroup(group, schedulerConfig);
+    for (const entry of sharded) {
+      groupList.push(entry);
+    }
+  }
+  const finalGrammarKeys = groupList.map((group) => group.grammarKey).sort(compareStrings);
 
   const plan = {
     schemaVersion: '1.0.0',
@@ -480,7 +563,7 @@ export const buildTreeSitterSchedulerPlan = async ({
     repoRoot: runtime.root,
     outDir,
     jobs: groupList.reduce((sum, group) => sum + group.jobs.length, 0),
-    grammarKeys,
+    grammarKeys: finalGrammarKeys,
     requiredNativeLanguages: requiredNative,
     treeSitterConfig
   };

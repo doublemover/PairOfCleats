@@ -1,6 +1,8 @@
 import fs from 'node:fs/promises';
+import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { throwIfAborted } from '../../../shared/abort.js';
+import { runWithConcurrency } from '../../../shared/concurrency.js';
 import { resolveRuntimeEnv } from '../../../shared/runtime-envelope.js';
 import { spawnSubprocess } from '../../../shared/subprocess.js';
 import { buildTreeSitterSchedulerPlan } from './plan.js';
@@ -11,6 +13,23 @@ const INDEX_LOAD_RETRY_ATTEMPTS = 8;
 const INDEX_LOAD_RETRY_BASE_DELAY_MS = 25;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const resolveExecConcurrency = ({ schedulerConfig, grammarCount }) => {
+  if (!Number.isFinite(grammarCount) || grammarCount <= 1) return 1;
+  const configured = Number(
+    schedulerConfig?.execConcurrency
+      ?? schedulerConfig?.subprocessConcurrency
+      ?? schedulerConfig?.concurrency
+  );
+  if (Number.isFinite(configured) && configured > 0) {
+    return Math.max(1, Math.min(grammarCount, Math.floor(configured)));
+  }
+  const available = typeof os.availableParallelism === 'function'
+    ? os.availableParallelism()
+    : 4;
+  const auto = Math.max(1, Math.min(8, Math.floor((available || 1) / 2)));
+  return Math.max(1, Math.min(grammarCount, auto));
+};
 
 /**
  * Buffer chunked subprocess output into complete lines.
@@ -153,10 +172,19 @@ const readIndexRowsWithRetry = async ({ indexPath, abortSignal = null }) => {
 const loadIndexEntries = async ({ grammarKeys, paths, abortSignal = null }) => {
   throwIfAborted(abortSignal);
   const index = new Map();
-  for (const grammarKey of grammarKeys || []) {
-    throwIfAborted(abortSignal);
-    const indexPath = paths.resultsIndexPathForGrammarKey(grammarKey);
-    const rows = await readIndexRowsWithRetry({ indexPath, abortSignal });
+  const keys = Array.isArray(grammarKeys) ? grammarKeys : [];
+  const rowMaps = await runWithConcurrency(
+    keys,
+    Math.max(1, Math.min(8, keys.length || 1)),
+    async (grammarKey) => {
+      throwIfAborted(abortSignal);
+      const indexPath = paths.resultsIndexPathForGrammarKey(grammarKey);
+      return readIndexRowsWithRetry({ indexPath, abortSignal });
+    },
+    { signal: abortSignal }
+  );
+  for (const rows of rowMaps || []) {
+    if (!(rows instanceof Map)) continue;
     for (const [virtualPath, row] of rows.entries()) {
       throwIfAborted(abortSignal);
       index.set(virtualPath, row);
@@ -165,6 +193,20 @@ const loadIndexEntries = async ({ grammarKeys, paths, abortSignal = null }) => {
   return index;
 };
 
+/**
+ * Execute tree-sitter scheduling for a mode by planning per-grammar jobs,
+ * running the scheduler subprocess(es), and loading the merged index rows.
+ *
+ * @param {object} input
+ * @param {'code'|'prose'|'records'|'extracted-prose'} input.mode
+ * @param {object} input.runtime
+ * @param {Array<object>} input.entries
+ * @param {string} input.outDir
+ * @param {object|null} [input.fileTextCache]
+ * @param {AbortSignal|null} [input.abortSignal]
+ * @param {(line:string)=>void|null} [input.log]
+ * @returns {Promise<object|null>}
+ */
 export const runTreeSitterScheduler = async ({
   mode,
   runtime,
@@ -207,31 +249,53 @@ export const runTreeSitterScheduler = async ({
     : process.env;
   const grammarKeys = Array.isArray(planResult.plan?.grammarKeys) ? planResult.plan.grammarKeys : [];
   if (grammarKeys.length) {
-    if (log) {
-      log(`[tree-sitter:schedule] exec 1/1: ${grammarKeys.join(', ')}`);
-    }
     const streamLogs = typeof log === 'function';
-    const stdoutBuffer = streamLogs ? createLineBuffer((line) => log(line)) : null;
-    const stderrBuffer = streamLogs ? createLineBuffer((line) => log(line)) : null;
-    try {
-      // Avoid stdio='inherit' when we have a logger. Direct child writes bypass
-      // the display/progress handlers and render underneath interactive bars.
-      // Piping and relaying lines keeps all output on the parent render path.
-      await spawnSubprocess(process.execPath, [SCHEDULER_EXEC_PATH, '--outDir', outDir], {
-        cwd: runtime?.root || undefined,
-        env: runtimeEnv,
-        stdio: streamLogs ? ['ignore', 'pipe', 'pipe'] : 'inherit',
-        shell: false,
-        signal: abortSignal,
-        killTree: true,
-        rejectOnNonZeroExit: true,
-        onStdout: streamLogs ? (chunk) => stdoutBuffer.push(chunk) : null,
-        onStderr: streamLogs ? (chunk) => stderrBuffer.push(chunk) : null
-      });
-    } finally {
-      stdoutBuffer?.flush();
-      stderrBuffer?.flush();
-    }
+    const execConcurrency = resolveExecConcurrency({
+      schedulerConfig,
+      grammarCount: grammarKeys.length
+    });
+    await runWithConcurrency(
+      grammarKeys,
+      execConcurrency,
+      async (grammarKey, ctx) => {
+        throwIfAborted(abortSignal);
+        if (log) {
+          log(`[tree-sitter:schedule] exec ${ctx.index + 1}/${grammarKeys.length}: ${grammarKey}`);
+        }
+        const linePrefix = `[tree-sitter:schedule:${grammarKey}]`;
+        const stdoutBuffer = streamLogs
+          ? createLineBuffer((line) => log(`${linePrefix} ${line}`))
+          : null;
+        const stderrBuffer = streamLogs
+          ? createLineBuffer((line) => log(`${linePrefix} ${line}`))
+          : null;
+        try {
+          // Avoid stdio='inherit' when we have a logger. Direct child writes bypass
+          // the display/progress handlers and render underneath interactive bars.
+          // Piping and relaying lines keeps all output on the parent render path.
+          await spawnSubprocess(
+            process.execPath,
+            [SCHEDULER_EXEC_PATH, '--outDir', outDir, '--grammarKey', grammarKey],
+            {
+              cwd: runtime?.root || undefined,
+              env: runtimeEnv,
+              stdio: streamLogs ? ['ignore', 'pipe', 'pipe'] : 'inherit',
+              shell: false,
+              signal: abortSignal,
+              killTree: true,
+              rejectOnNonZeroExit: true,
+              onStdout: streamLogs ? (chunk) => stdoutBuffer.push(chunk) : null,
+              onStderr: streamLogs ? (chunk) => stderrBuffer.push(chunk) : null
+            }
+          );
+        } finally {
+          stdoutBuffer?.flush();
+          stderrBuffer?.flush();
+        }
+        throwIfAborted(abortSignal);
+      },
+      { collectResults: false, signal: abortSignal }
+    );
     throwIfAborted(abortSignal);
   }
 

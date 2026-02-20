@@ -46,7 +46,7 @@ export const loadTokenPostings = (
     packedWindowBytes = 16 * 1024 * 1024
   } = {}
 ) => {
-  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict: true });
+  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
 
   /**
    * Load packed token postings with bounded decode windows to cap peak RSS.

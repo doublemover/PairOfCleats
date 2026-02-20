@@ -270,6 +270,7 @@ export async function loadSearchIndexes({
         }
         resolvedRunExtractedProse = false;
         resolvedLoadExtractedProse = false;
+        extractedProseDir = null;
       }
     }
   }
@@ -557,64 +558,75 @@ export async function loadSearchIndexes({
     try {
       manifest = loadPiecesManifest(dir, { maxBytes: MAX_JSON_BYTES, strict });
     } catch (err) {
-      if (err?.code !== 'ERR_MANIFEST_MISSING' && err?.code !== 'ERR_MANIFEST_INVALID') {
+      if (
+        err?.code !== 'ERR_MANIFEST_MISSING'
+        && err?.code !== 'ERR_MANIFEST_INVALID'
+      ) {
         throw err;
       }
-      idx.lancedb = {
-        target,
-        dir: null,
-        metaPath: targetPaths.metaPath || null,
-        meta: null,
-        available: false
-      };
-      return idx.lancedb;
+      if (strict) throw err;
     }
     let meta = null;
-    const metaPresence = resolveArtifactPresence(dir, metaName, {
-      manifest,
-      maxBytes: MAX_JSON_BYTES,
-      strict
-    });
-    const missingMetaEntry = metaPresence?.error?.code === 'ERR_MANIFEST_MISSING'
-      || metaPresence?.format === 'missing';
-    if (metaPresence?.error && !missingMetaEntry) {
-      throw metaPresence.error;
-    }
-    if (!missingMetaEntry) {
-      try {
-        meta = await loadJsonObjectArtifact(dir, metaName, {
-          maxBytes: MAX_JSON_BYTES,
-          manifest,
-          strict
-        });
-      } catch (err) {
-        if (strict) {
-          throw err;
+    if (manifest) {
+      const metaPresence = resolveArtifactPresence(dir, metaName, {
+        manifest,
+        maxBytes: MAX_JSON_BYTES,
+        strict
+      });
+      const missingMetaEntry = metaPresence?.error?.code === 'ERR_MANIFEST_MISSING'
+        || metaPresence?.format === 'missing';
+      if (metaPresence?.error && !missingMetaEntry) {
+        throw metaPresence.error;
+      }
+      if (!missingMetaEntry) {
+        try {
+          meta = await loadJsonObjectArtifact(dir, metaName, {
+            maxBytes: MAX_JSON_BYTES,
+            manifest,
+            strict
+          });
+        } catch (err) {
+          if (strict) {
+            throw err;
+          }
         }
       }
+    }
+    if (!meta && !strict && targetPaths.metaPath && fs.existsSync(targetPaths.metaPath)) {
+      try {
+        meta = readJsonFile(targetPaths.metaPath, { maxBytes: MAX_JSON_BYTES });
+      } catch {}
     }
     let lanceDir = null;
-    const dirPresence = resolveArtifactPresence(dir, dirName, {
-      manifest,
-      maxBytes: MAX_JSON_BYTES,
-      strict
-    });
-    const missingDirEntry = dirPresence?.error?.code === 'ERR_MANIFEST_MISSING'
-      || dirPresence?.format === 'missing';
-    if (dirPresence?.error && !missingDirEntry) {
-      throw dirPresence.error;
-    }
-    if (!missingDirEntry) {
-      try {
-        lanceDir = resolveDirArtifactPath(dir, dirName, {
-          manifest,
-          strict
-        });
-      } catch (err) {
-        if (err?.code !== 'ERR_MANIFEST_MISSING' && err?.code !== 'ERR_MANIFEST_INVALID') {
-          throw err;
+    if (manifest) {
+      const dirPresence = resolveArtifactPresence(dir, dirName, {
+        manifest,
+        maxBytes: MAX_JSON_BYTES,
+        strict
+      });
+      const missingDirEntry = dirPresence?.error?.code === 'ERR_MANIFEST_MISSING'
+        || dirPresence?.format === 'missing';
+      if (dirPresence?.error && !missingDirEntry) {
+        throw dirPresence.error;
+      }
+      if (!missingDirEntry) {
+        try {
+          lanceDir = resolveDirArtifactPath(dir, dirName, {
+            manifest,
+            strict
+          });
+        } catch (err) {
+          if (
+            err?.code !== 'ERR_MANIFEST_MISSING'
+            && err?.code !== 'ERR_MANIFEST_INVALID'
+          ) {
+            throw err;
+          }
         }
       }
+    }
+    if (!lanceDir && !strict && targetPaths.dir && fs.existsSync(targetPaths.dir)) {
+      lanceDir = targetPaths.dir;
     }
     const available = Boolean(meta && lanceDir && fs.existsSync(lanceDir));
     idx.lancedb = {
@@ -672,7 +684,9 @@ export async function loadSearchIndexes({
   if (needsAnnArtifacts) {
     attachTasks.push(() => attachLanceDb(idxCode, 'code', codeIndexDir));
     attachTasks.push(() => attachLanceDb(idxProse, 'prose', proseIndexDir));
-    attachTasks.push(() => attachLanceDb(idxExtractedProse, 'extracted-prose', extractedProseDir));
+    if (resolvedLoadExtractedProse) {
+      attachTasks.push(() => attachLanceDb(idxExtractedProse, 'extracted-prose', extractedProseDir));
+    }
   }
   if (attachTasks.length) {
     const limit = 2;

@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { log, logLine, showProgress } from '../../shared/progress.js';
 import { MAX_JSON_BYTES, readJsonFile, loadJsonArrayArtifact } from '../../shared/artifact-io.js';
@@ -69,7 +70,11 @@ import {
 } from './artifacts/sparse-cleanup.js';
 import { packMinhashSignatures } from './artifacts/minhash-packed.js';
 
-export { resolveArtifactWriteConcurrency, buildLexiconRelationFilterReport };
+export {
+  resolveArtifactWriteConcurrency,
+  buildLexiconRelationFilterReport,
+  resolveArtifactLaneConcurrency
+};
 
 /**
  * Aggregate per-chunk boilerplate metadata into a compact reference catalog.
@@ -118,6 +123,70 @@ const buildBoilerplateCatalog = (chunks) => {
 };
 
 /**
+ * Resolve write-lane concurrency for light/heavy artifact queues.
+ *
+ * @param {object} input
+ * @param {number} input.writeConcurrency
+ * @param {number} input.lightWrites
+ * @param {number} input.heavyWrites
+ * @param {number|null} [input.heavyWriteConcurrencyOverride]
+ * @param {number} [input.hostConcurrency]
+ * @returns {{heavyConcurrency:number,lightConcurrency:number}}
+ */
+const resolveArtifactLaneConcurrency = ({
+  writeConcurrency,
+  lightWrites,
+  heavyWrites,
+  heavyWriteConcurrencyOverride = null,
+  hostConcurrency = 1
+}) => {
+  const totalWriteConcurrency = Math.max(1, Math.floor(Number(writeConcurrency) || 1));
+  const lightWriteCount = Math.max(0, Math.floor(Number(lightWrites) || 0));
+  const heavyWriteCount = Math.max(0, Math.floor(Number(heavyWrites) || 0));
+  const availableHostConcurrency = Math.max(1, Math.floor(Number(hostConcurrency) || 1));
+  const heavyOverride = Number(heavyWriteConcurrencyOverride);
+  const dynamicHeavyTarget = Number.isFinite(heavyOverride) && heavyOverride > 0
+    ? Math.max(1, Math.floor(heavyOverride))
+    : (heavyWriteCount >= 8 && availableHostConcurrency >= 8
+      ? Math.max(1, Math.ceil(totalWriteConcurrency * 0.66))
+      : Math.max(1, Math.ceil(totalWriteConcurrency / 2)));
+
+  const hasHeavy = heavyWriteCount > 0;
+  const hasLight = lightWriteCount > 0;
+
+  if (!hasHeavy && !hasLight) {
+    return { heavyConcurrency: 0, lightConcurrency: 0 };
+  }
+  if (!hasHeavy) {
+    return {
+      heavyConcurrency: 0,
+      lightConcurrency: Math.min(totalWriteConcurrency, lightWriteCount)
+    };
+  }
+  if (!hasLight) {
+    return {
+      heavyConcurrency: Math.min(totalWriteConcurrency, Math.min(heavyWriteCount, dynamicHeavyTarget)),
+      lightConcurrency: 0
+    };
+  }
+
+  const maxHeavyBudget = totalWriteConcurrency > 1
+    ? totalWriteConcurrency - 1
+    : totalWriteConcurrency;
+  const heavyConcurrency = Math.max(
+    1,
+    Math.min(heavyWriteCount, dynamicHeavyTarget, maxHeavyBudget)
+  );
+  const lightConcurrencyBudget = Math.max(0, totalWriteConcurrency - heavyConcurrency);
+  const lightConcurrency = Math.min(lightWriteCount, lightConcurrencyBudget);
+
+  return {
+    heavyConcurrency,
+    lightConcurrency
+  };
+};
+
+/**
  * Write index artifacts and metrics.
  * @param {object} input
  */
@@ -142,6 +211,7 @@ export async function writeIndexArtifacts(input) {
     indexState,
     graphRelations,
     stageCheckpoints,
+    telemetry = null,
     riskInterproceduralEmitArtifacts = null,
     repoProvenance = null
   } = input;
@@ -256,6 +326,14 @@ export async function writeIndexArtifacts(input) {
   const fieldTokensShardMaxBytes = Number.isFinite(Number(artifactConfig.fieldTokensShardMaxBytes))
     ? Math.max(0, Math.floor(Number(artifactConfig.fieldTokensShardMaxBytes)))
     : (8 * 1024 * 1024);
+  const fieldPostingsShardsEnabled = artifactConfig.fieldPostingsShards === true;
+  const fieldPostingsShardThresholdBytes = Number.isFinite(Number(artifactConfig.fieldPostingsShardThresholdBytes))
+    ? Math.max(0, Math.floor(Number(artifactConfig.fieldPostingsShardThresholdBytes)))
+    : (64 * 1024 * 1024);
+  const fieldPostingsShardCount = Number.isFinite(Number(artifactConfig.fieldPostingsShardCount))
+    ? Math.max(2, Math.floor(Number(artifactConfig.fieldPostingsShardCount)))
+    : 8;
+  const fieldPostingsKeepLegacyJson = artifactConfig.fieldPostingsKeepLegacyJson !== false;
   const minhashJsonLargeThreshold = Number.isFinite(Number(artifactConfig.minhashJsonLargeThreshold))
     ? Math.max(0, Math.floor(Number(artifactConfig.minhashJsonLargeThreshold)))
     : 20000;
@@ -446,6 +524,12 @@ export async function writeIndexArtifacts(input) {
   };
   let previousFilterIndexResolved = false;
   let previousFilterIndex = null;
+  /**
+   * Resolve the previous filter-index artifact (or its `.bak` fallback) once
+   * so retry/fallback paths can reuse a validated prior output.
+   *
+   * @returns {{piece:object|null,source:string|null}}
+   */
   const resolvePreviousFilterIndex = () => {
     if (previousFilterIndexResolved) return previousFilterIndex;
     previousFilterIndexResolved = true;
@@ -704,10 +788,69 @@ export async function writeIndexArtifacts(input) {
   let lastWriteLog = 0;
   let lastWriteLabel = '';
   const activeWrites = new Map();
+  const activeWriteBytes = new Map();
   let writeHeartbeatTimer = null;
   const artifactMetrics = new Map();
   const writeLogIntervalMs = 1000;
   const writeProgressMeta = { stage: 'write', mode, taskId: `write:${mode}:artifacts` };
+  const configuredWriteStallThresholds = Array.isArray(artifactConfig.writeStallThresholdsSeconds)
+    ? artifactConfig.writeStallThresholdsSeconds
+      .map((entry) => Number(entry))
+      .filter((entry) => Number.isFinite(entry) && entry > 0)
+      .map((entry) => Math.floor(entry))
+      .sort((a, b) => a - b)
+    : [];
+  const legacyWarnThreshold = Number.isFinite(Number(artifactConfig.writeStallWarnSeconds))
+    ? Math.max(1, Math.floor(Number(artifactConfig.writeStallWarnSeconds)))
+    : null;
+  const legacyCriticalThreshold = Number.isFinite(Number(artifactConfig.writeStallCriticalSeconds))
+    ? Math.max(1, Math.floor(Number(artifactConfig.writeStallCriticalSeconds)))
+    : null;
+  const writeStallThresholdsSeconds = Array.from(new Set(
+    configuredWriteStallThresholds.length
+      ? configuredWriteStallThresholds
+      : [10, 30, 60]
+  ));
+  if (!configuredWriteStallThresholds.length && legacyWarnThreshold != null) {
+    writeStallThresholdsSeconds.push(legacyWarnThreshold);
+  }
+  if (!configuredWriteStallThresholds.length && legacyCriticalThreshold != null) {
+    writeStallThresholdsSeconds.push(legacyCriticalThreshold);
+  }
+  const normalizedWriteStallThresholds = Array.from(new Set(writeStallThresholdsSeconds)).sort((a, b) => a - b);
+  const stallThresholdLevelName = (thresholdSec, index) => {
+    if (thresholdSec >= 60) return 'severe';
+    if (thresholdSec >= 30) return 'critical';
+    if (thresholdSec >= 10) return 'warning';
+    return `level-${index + 1}`;
+  };
+  const heavyWriteThresholdBytes = Number.isFinite(Number(artifactConfig.writeHeavyThresholdBytes))
+    ? Math.max(1024 * 1024, Math.floor(Number(artifactConfig.writeHeavyThresholdBytes)))
+    : (16 * 1024 * 1024);
+  const forcedHeavyWritePatterns = Array.isArray(artifactConfig.writeHeavyLabelPatterns)
+    ? artifactConfig.writeHeavyLabelPatterns
+      .filter((entry) => typeof entry === 'string' && entry.trim())
+      .map((entry) => new RegExp(entry))
+    : [
+      /(^|\/)field_postings(?:\.|$)/,
+      /(^|\/)token_postings(?:\.|$)/,
+      /(^|\/)chunk_meta(?:\.|$)/
+    ];
+  const heavyWriteConcurrencyOverride = Number.isFinite(Number(artifactConfig.writeHeavyConcurrency))
+    ? Math.max(1, Math.floor(Number(artifactConfig.writeHeavyConcurrency)))
+    : null;
+  const writeStallAlerts = new Map();
+  const updateWriteInFlightTelemetry = () => {
+    if (!telemetry || typeof telemetry.setInFlightBytes !== 'function') return;
+    let bytes = 0;
+    for (const value of activeWriteBytes.values()) {
+      if (Number.isFinite(value) && value > 0) bytes += value;
+    }
+    telemetry.setInFlightBytes('artifacts.write', {
+      bytes,
+      count: activeWrites.size
+    });
+  };
   let enqueueSeq = 0;
   const formatArtifactLabel = (filePath) => toPosix(path.relative(outDir, filePath));
   const pieceEntries = [];
@@ -745,11 +888,42 @@ export async function writeIndexArtifacts(input) {
       const inflight = Array.from(activeWrites.entries())
         .map(([label, startedAt]) => ({
           label,
-          elapsedSec: Math.max(1, Math.round((now - startedAt) / 1000))
+          elapsedSec: Math.max(1, Math.round((now - startedAt) / 1000)),
+          estimatedBytes: Number(activeWriteBytes.get(label)) || null
         }))
         .sort((a, b) => b.elapsedSec - a.elapsedSec);
+      for (const { label, elapsedSec, estimatedBytes } of inflight) {
+        const alerts = writeStallAlerts.get(label) || new Set();
+        for (let thresholdIndex = 0; thresholdIndex < normalizedWriteStallThresholds.length; thresholdIndex += 1) {
+          const thresholdSec = normalizedWriteStallThresholds[thresholdIndex];
+          if (alerts.has(thresholdSec) || elapsedSec < thresholdSec) continue;
+          alerts.add(thresholdSec);
+          writeStallAlerts.set(label, alerts);
+          const levelName = stallThresholdLevelName(thresholdSec, thresholdIndex);
+          logLine(
+            `[perf] artifact write stall ${levelName}: ${label} in-flight for ${elapsedSec}s ` +
+            `(threshold=${thresholdSec}s)`,
+            { kind: thresholdSec >= 30 ? 'error' : 'warning' }
+          );
+          if (stageCheckpoints?.record) {
+            stageCheckpoints.record({
+              stage: 'artifacts',
+              step: `write-stall-${thresholdSec}s`,
+              label,
+              extra: {
+                elapsedSec,
+                thresholdSec,
+                level: levelName,
+                estimatedBytes
+              }
+            });
+          }
+        }
+      }
       const preview = inflight.slice(0, 3)
-        .map(({ label, elapsedSec }) => `${label} (${elapsedSec}s)`)
+        .map(({ label, elapsedSec, estimatedBytes }) => (
+          `${label} (${elapsedSec}s${Number.isFinite(estimatedBytes) ? `, ~${formatBytes(estimatedBytes)}` : ''})`
+        ))
         .join(', ');
       const suffix = inflight.length > 3 ? ` (+${inflight.length - 3} more)` : '';
       logLine(
@@ -778,19 +952,8 @@ export async function writeIndexArtifacts(input) {
       priority,
       estimatedBytes,
       seq: enqueueSeq,
-      job: async () => {
-        const started = Date.now();
-        await job();
-        const durationMs = Date.now() - started;
-        let bytes = null;
-        if (label) {
-          try {
-            const stat = await fs.stat(path.join(outDir, label));
-            bytes = stat.size;
-          } catch {}
-        }
-        recordArtifactMetric(label, { durationMs, bytes });
-      }
+      enqueuedAt: Date.now(),
+      job
     });
     enqueueSeq += 1;
   };
@@ -814,6 +977,20 @@ export async function writeIndexArtifacts(input) {
       })
       : []
   );
+  const splitWriteLanes = (entries) => {
+    const ordered = scheduleWrites(entries);
+    const lanes = { light: [], heavy: [] };
+    for (const entry of ordered) {
+      const estimated = Number(entry?.estimatedBytes);
+      const label = typeof entry?.label === 'string' ? entry.label : '';
+      const isForcedHeavy = forcedHeavyWritePatterns.some((pattern) => pattern.test(label));
+      const isHeavyBySize = Number.isFinite(estimated) && estimated >= heavyWriteThresholdBytes;
+      const isHeavy = isForcedHeavy || isHeavyBySize;
+      if (isHeavy) lanes.heavy.push(entry);
+      else lanes.light.push(entry);
+    }
+    return lanes;
+  };
   if (mode === 'extracted-prose' && documentExtractionEnabled) {
     const extractionReportPath = path.join(outDir, 'extraction_report.json');
     const extractionReport = buildExtractionReport({
@@ -1371,9 +1548,94 @@ export async function writeIndexArtifacts(input) {
     };
   }
   if (sparseArtifactsEnabled && postings.fieldPostings?.fields) {
-    enqueueJsonObject('field_postings', { fields: { fields: postings.fieldPostings.fields } }, {
+    const fieldPostingsObject = postings.fieldPostings.fields;
+    const fieldPostingsEstimatedBytes = estimateJsonBytes(fieldPostingsObject);
+    const fieldPostingsRows = Object.entries(fieldPostingsObject).map(([field, value]) => ({
+      field,
+      postings: value
+    }));
+    const shouldShardFieldPostings = fieldPostingsShardsEnabled
+      && fieldPostingsShardThresholdBytes > 0
+      && fieldPostingsEstimatedBytes >= fieldPostingsShardThresholdBytes
+      && fieldPostingsRows.length > fieldPostingsShardCount;
+    if (shouldShardFieldPostings) {
+      const shardsDirPath = path.join(outDir, 'field_postings.shards');
+      const shardsMetaPath = path.join(outDir, 'field_postings.shards.meta.json');
+      await removeArtifact(shardsDirPath, { recursive: true, policy: 'format_cleanup' });
+      await fs.mkdir(shardsDirPath, { recursive: true });
+      const shardSize = Math.max(1, Math.ceil(fieldPostingsRows.length / fieldPostingsShardCount));
+      const partFiles = [];
+      for (let shardIndex = 0; shardIndex < fieldPostingsShardCount; shardIndex += 1) {
+        const start = shardIndex * shardSize;
+        const end = Math.min(fieldPostingsRows.length, start + shardSize);
+        if (start >= end) break;
+        const rows = fieldPostingsRows.slice(start, end);
+        const relPath = `field_postings.shards/field_postings.part-${String(shardIndex).padStart(4, '0')}.json`;
+        const absPath = path.join(outDir, relPath);
+        partFiles.push({ relPath, count: rows.length, absPath, rows });
+      }
+      const partEstimatedBytes = Math.max(
+        1,
+        Math.floor(fieldPostingsEstimatedBytes / Math.max(1, partFiles.length))
+      );
+      for (const part of partFiles) {
+        enqueueWrite(
+          part.relPath,
+          async () => {
+            const fields = {};
+            for (const row of part.rows) fields[row.field] = row.postings;
+            await writeJsonObjectFile(part.absPath, {
+              fields: { fields },
+              atomic: true
+            });
+          },
+          { priority: 206, estimatedBytes: partEstimatedBytes }
+        );
+        addPieceFile({
+          type: 'postings',
+          name: 'field_postings_shard',
+          format: 'json',
+          count: part.count
+        }, part.absPath);
+      }
+      enqueueWrite(
+        formatArtifactLabel(shardsMetaPath),
+        async () => {
+          await writeJsonObjectFile(shardsMetaPath, {
+            fields: {
+              schemaVersion: '1.0.0',
+              generatedAt: new Date().toISOString(),
+              shardCount: partFiles.length,
+              estimatedBytes: fieldPostingsEstimatedBytes,
+              fields: fieldPostingsRows.length,
+              parts: partFiles.map((part) => ({
+                path: part.relPath,
+                fields: part.count
+              }))
+            },
+            atomic: true
+          });
+        },
+        { priority: 207, estimatedBytes: Math.max(1024, partFiles.length * 128) }
+      );
+      addPieceFile({ type: 'postings', name: 'field_postings_shards_meta', format: 'json' }, shardsMetaPath);
+      if (typeof log === 'function') {
+        log(
+          `field_postings estimate ~${formatBytes(fieldPostingsEstimatedBytes)}; ` +
+          `emitting auxiliary shards (${fieldPostingsShardCount} target).`
+        );
+      }
+      if (!fieldPostingsKeepLegacyJson && typeof log === 'function') {
+        log(
+          '[warn] fieldPostingsKeepLegacyJson=false ignored while shard readers are unavailable; ' +
+          'emitting field_postings.json for compatibility.'
+        );
+      }
+    }
+    enqueueJsonObject('field_postings', { fields: { fields: fieldPostingsObject } }, {
       piece: { type: 'postings', name: 'field_postings' },
-      priority: 220
+      priority: 220,
+      estimatedBytes: fieldPostingsEstimatedBytes
     });
   }
   if (sparseArtifactsEnabled && resolvedConfig.fielded !== false && Array.isArray(state.fieldTokens)) {
@@ -1597,8 +1859,8 @@ export async function writeIndexArtifacts(input) {
       piece: { type: 'postings', name: 'vocab_order' }
     });
   }
-  const scheduledWrites = scheduleWrites(writes);
-  totalWrites = scheduledWrites.length;
+  const { light: lightWrites, heavy: heavyWrites } = splitWriteLanes(writes);
+  totalWrites = lightWrites.length + heavyWrites.length;
   if (totalWrites) {
     const artifactLabel = totalWrites === 1 ? 'artifact' : 'artifacts';
     logLine(`Writing index files (${totalWrites} ${artifactLabel})...`, { kind: 'status' });
@@ -1607,25 +1869,90 @@ export async function writeIndexArtifacts(input) {
       totalWrites
     });
     const writeConcurrency = Math.max(1, Math.min(totalWrites, writeConcurrencyCap));
-    startWriteHeartbeat();
-    try {
+    const hostConcurrency = typeof os.availableParallelism === 'function'
+      ? os.availableParallelism()
+      : (Array.isArray(os.cpus()) ? os.cpus().length : 1);
+    const { heavyConcurrency, lightConcurrency } = resolveArtifactLaneConcurrency({
+      writeConcurrency,
+      lightWrites: lightWrites.length,
+      heavyWrites: heavyWrites.length,
+      heavyWriteConcurrencyOverride,
+      hostConcurrency
+    });
+    const scheduleWriteJob = (fn, estimatedBytes) => {
+      if (!scheduler?.schedule || typeof fn !== 'function') return fn();
+      const memTokens = Number.isFinite(Number(estimatedBytes)) && Number(estimatedBytes) >= (64 * 1024 * 1024)
+        ? 2
+        : 1;
+      return scheduler.schedule(
+        SCHEDULER_QUEUE_NAMES.stage2Write,
+        { io: 1, mem: memTokens },
+        fn
+      );
+    };
+    const runWriteLane = async (laneWrites, laneConcurrency) => {
+      if (!Array.isArray(laneWrites) || !laneWrites.length || laneConcurrency < 1) return;
       await runWithConcurrency(
-        scheduledWrites,
-        writeConcurrency,
-        async ({ label, job }) => {
+        laneWrites,
+        laneConcurrency,
+        async ({ label, job, estimatedBytes, enqueuedAt }) => {
           const activeLabel = label || '(unnamed artifact)';
-          activeWrites.set(activeLabel, Date.now());
+          const started = Date.now();
+          const queueDelayMs = Math.max(0, started - (Number(enqueuedAt) || started));
+          activeWrites.set(activeLabel, started);
+          activeWriteBytes.set(activeLabel, Number.isFinite(estimatedBytes) ? estimatedBytes : 0);
+          updateWriteInFlightTelemetry();
           try {
-            await job();
+            await scheduleWriteJob(job, estimatedBytes);
+            const durationMs = Date.now() - started;
+            let bytes = null;
+            if (label) {
+              try {
+                const stat = await fs.stat(path.join(outDir, label));
+                bytes = stat.size;
+              } catch {}
+            }
+            const throughputBytesPerSec = Number.isFinite(bytes) && durationMs > 0
+              ? Math.round(bytes / (durationMs / 1000))
+              : null;
+            recordArtifactMetric(label, {
+              queueDelayMs,
+              waitMs: queueDelayMs,
+              durationMs,
+              bytes,
+              estimatedBytes: Number.isFinite(estimatedBytes) ? estimatedBytes : null,
+              throughputBytesPerSec
+            });
           } finally {
             activeWrites.delete(activeLabel);
+            activeWriteBytes.delete(activeLabel);
+            updateWriteInFlightTelemetry();
+            writeStallAlerts.delete(activeLabel);
             logWriteProgress(label);
           }
         },
         { collectResults: false }
       );
+    };
+    startWriteHeartbeat();
+    try {
+      const canRunInParallel = heavyConcurrency > 0 &&
+        lightConcurrency > 0 &&
+        (heavyConcurrency + lightConcurrency) <= writeConcurrency;
+      if (canRunInParallel) {
+        await Promise.all([
+          runWriteLane(lightWrites, lightConcurrency),
+          runWriteLane(heavyWrites, heavyConcurrency)
+        ]);
+      } else {
+        // Preserve global write cap even when one lane has no active budget.
+        await runWriteLane(lightWrites, Math.min(writeConcurrency, lightWrites.length));
+        await runWriteLane(heavyWrites, Math.min(writeConcurrency, heavyWrites.length));
+      }
     } finally {
       stopWriteHeartbeat();
+      activeWriteBytes.clear();
+      updateWriteInFlightTelemetry();
     }
     logLine('', { kind: 'status' });
   } else {

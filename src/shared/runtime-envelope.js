@@ -1,4 +1,5 @@
 import { resolveThreadLimits } from './threads.js';
+import { coercePositiveInt as coercePositiveIntShared } from './number-coerce.js';
 
 const normalizeString = (value) => (typeof value === 'string' ? value.trim() : '');
 
@@ -7,11 +8,7 @@ const normalizeString = (value) => (typeof value === 'string' ? value.trim() : '
  * @param {unknown} value
  * @returns {number|null}
  */
-export const coercePositiveInt = (value) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed <= 0) return null;
-  return Math.floor(parsed);
-};
+export const coercePositiveInt = (value) => coercePositiveIntShared(value);
 
 /**
  * Parse UV_THREADPOOL_SIZE from environment.

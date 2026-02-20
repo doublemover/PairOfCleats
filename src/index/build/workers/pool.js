@@ -10,10 +10,30 @@ import {
 import {
   buildWorkerExecArgv,
   resolveMemoryWorkerCap,
+  resolveWorkerHeapBudgetPolicy,
   resolveWorkerResourceLimits
 } from './config.js';
 import { sanitizePoolPayload, summarizeError } from './protocol.js';
 
+/**
+ * Create a single indexer worker pool with crash logging, restart handling,
+ * and task-level instrumentation.
+ *
+ * @param {object} [input]
+ * @param {object} input.config
+ * @param {Set<string>} [input.dictWords]
+ * @param {object|null} [input.dictSharedPayload]
+ * @param {object} [input.dictConfig]
+ * @param {Set<string>|null} [input.codeDictWords]
+ * @param {Map<string,Set<string>>|object|null} [input.codeDictWordsByLanguage]
+ * @param {Set<string>|string[]|null} [input.codeDictLanguages]
+ * @param {object} [input.postingsConfig]
+ * @param {object} [input.treeSitterConfig]
+ * @param {object|null} [input.crashLogger]
+ * @param {(line:string)=>void} [input.log]
+ * @param {'tokenize'|'quantize'|string} [input.poolName]
+ * @returns {Promise<object|null>}
+ */
 export async function createIndexerWorkerPool(input = {}) {
   const {
     config,
@@ -115,7 +135,16 @@ export async function createIndexerWorkerPool(input = {}) {
     let shutdownWhenIdle = false;
     let pendingRestart = false;
     const workerExecArgv = buildWorkerExecArgv();
-    const resourceLimits = resolveWorkerResourceLimits(poolConfig.maxWorkers);
+    const heapPolicy = resolveWorkerHeapBudgetPolicy({
+      targetPerWorkerMb: poolConfig.heapTargetMb,
+      minPerWorkerMb: poolConfig.heapMinMb,
+      maxPerWorkerMb: poolConfig.heapMaxMb
+    });
+    const resourceLimits = resolveWorkerResourceLimits(poolConfig.maxWorkers, {
+      targetPerWorkerMb: heapPolicy.targetPerWorkerMb,
+      minPerWorkerMb: heapPolicy.minPerWorkerMb,
+      maxPerWorkerMb: heapPolicy.maxPerWorkerMb
+    });
     const createPool = () => {
       const workerData = {
         dictConfig: sanitizeDictConfig(dictConfig),
@@ -341,8 +370,30 @@ export async function createIndexerWorkerPool(input = {}) {
     updatePoolMetrics();
     return {
       config,
+      heapPolicy,
       get pool() {
         return pool;
+      },
+      stats() {
+        const queued = Number.isFinite(pool?.queueSize) ? pool.queueSize : 0;
+        const maxWorkers = Number.isFinite(poolConfig?.maxWorkers)
+          ? Math.max(1, Math.floor(poolConfig.maxWorkers))
+          : 1;
+        const queueUtilization = maxWorkers > 0
+          ? Math.max(0, Math.min(1, (activeTasks + queued) / maxWorkers))
+          : null;
+        return {
+          pool: poolLabel,
+          activeTasks,
+          queuedTasks: queued,
+          maxWorkers,
+          utilization: queueUtilization,
+          disabled,
+          pendingRestart,
+          restartAttempts,
+          heapPolicy,
+          heapLimitMb: Number(resourceLimits?.maxOldGenerationSizeMb) || null
+        };
       },
       dictConfig: sanitizeDictConfig(dictConfig),
       shouldUseForFile(sizeBytes) {
@@ -565,6 +616,13 @@ export async function createIndexerWorkerPool(input = {}) {
   }
 }
 
+/**
+ * Create tokenize/quantize worker pools from a shared pool budget. When pool
+ * splitting is disabled, both roles point to the same pool.
+ *
+ * @param {object} [input]
+ * @returns {Promise<{tokenizePool:object|null,quantizePool:object|null,destroy:()=>Promise<void>}>}
+ */
 export async function createIndexerWorkerPools(input = {}) {
   const baseConfig = input.config;
   if (!baseConfig || baseConfig.enabled === false) {

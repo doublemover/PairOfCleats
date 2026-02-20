@@ -291,7 +291,7 @@ export const resolveManifestArtifactSources = ({ dir, manifest, name, strict, ma
         }
       }
       const rawFormat = typeof meta?.format === 'string' ? meta.format : null;
-      if (rawFormat === 'jsonl-sharded' || rawFormat === 'sharded') {
+      if (strict && (rawFormat === 'jsonl-sharded' || rawFormat === 'sharded')) {
         const err = new Error(`Manifest meta missing parts for ${name}`);
         err.code = 'ERR_MANIFEST_INVALID';
         throw err;

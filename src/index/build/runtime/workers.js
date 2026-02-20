@@ -1,8 +1,11 @@
+import os from 'node:os';
 import { createSchedulerQueueAdapter, createTaskQueues } from '../../../shared/concurrency.js';
+import { coercePositiveInt } from '../../../shared/number-coerce.js';
 import { logLine } from '../../../shared/progress.js';
 import { SCHEDULER_QUEUE_NAMES } from './scheduler.js';
 import { resolveThreadLimits } from '../../../shared/threads.js';
 import { createIndexerWorkerPools, resolveWorkerPoolConfig } from '../worker-pool.js';
+import { resolveWorkerHeapBudgetPolicy, resolveWorkerResourceLimits } from '../workers/config.js';
 import { createCrashLogger } from '../crash-log.js';
 
 /**
@@ -82,10 +85,72 @@ export const resolveThreadLimitsConfig = ({ argv, rawArgv, envConfig, indexingCo
   };
 };
 
-const coercePositiveInt = (value) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed <= 0) return null;
-  return Math.floor(parsed);
+/**
+ * Resolve explicit memory budgets used by worker pools and stage write buffers.
+ * The default policy reserves 1-2GB worker heaps and shifts additional
+ * headroom to per-worker caches/write buffers when system RSS headroom exists.
+ *
+ * @param {object} input
+ * @param {object} input.indexingConfig
+ * @param {number} input.cpuConcurrency
+ * @returns {{
+ *   totalMemMb:number|null,
+ *   maxGlobalRssMb:number|null,
+ *   reserveRssMb:number,
+ *   workerHeapPolicy:{targetPerWorkerMb:number,minPerWorkerMb:number,maxPerWorkerMb:number},
+ *   effectiveWorkerHeapMb:number,
+ *   perWorkerCacheMb:number,
+ *   perWorkerWriteBufferMb:number,
+ *   queueHeadroomScale:number
+ * }}
+ */
+export const resolveRuntimeMemoryPolicy = ({ indexingConfig, cpuConcurrency }) => {
+  const totalMemMb = Number.isFinite(Number(os.totalmem()))
+    ? Math.floor(os.totalmem() / (1024 * 1024))
+    : null;
+  const memoryConfig = indexingConfig?.memory && typeof indexingConfig.memory === 'object'
+    ? indexingConfig.memory
+    : {};
+  const workerHeapPolicy = resolveWorkerHeapBudgetPolicy({
+    targetPerWorkerMb: memoryConfig.workerHeapTargetMb,
+    minPerWorkerMb: memoryConfig.workerHeapMinMb,
+    maxPerWorkerMb: memoryConfig.workerHeapMaxMb
+  });
+  const workerCount = Number.isFinite(cpuConcurrency)
+    ? Math.max(1, Math.floor(cpuConcurrency))
+    : 1;
+  const workerResourceLimits = resolveWorkerResourceLimits(workerCount, workerHeapPolicy);
+  const effectiveWorkerHeapMb = Number.isFinite(Number(workerResourceLimits?.maxOldGenerationSizeMb))
+    ? Math.max(1, Math.floor(Number(workerResourceLimits.maxOldGenerationSizeMb)))
+    : workerHeapPolicy.targetPerWorkerMb;
+  const reserveRssMb = Number.isFinite(Number(memoryConfig.reserveRssMb))
+    ? Math.max(512, Math.floor(Number(memoryConfig.reserveRssMb)))
+    : 2048;
+  const maxGlobalRssMb = Number.isFinite(totalMemMb) && totalMemMb > 0
+    ? Math.max(2048, Math.floor(totalMemMb * 0.9))
+    : null;
+  const perWorkerCacheMb = Number.isFinite(Number(memoryConfig.perWorkerCacheMb))
+    ? Math.max(64, Math.floor(Number(memoryConfig.perWorkerCacheMb)))
+    : Math.max(128, Math.min(512, Math.floor(effectiveWorkerHeapMb * 0.35)));
+  const perWorkerWriteBufferMb = Number.isFinite(Number(memoryConfig.perWorkerWriteBufferMb))
+    ? Math.max(64, Math.floor(Number(memoryConfig.perWorkerWriteBufferMb)))
+    : Math.max(128, Math.min(768, Math.floor(effectiveWorkerHeapMb * 0.45)));
+  const projectedBudgetMb = workerCount * (
+    effectiveWorkerHeapMb + perWorkerCacheMb + perWorkerWriteBufferMb
+  );
+  const queueHeadroomScale = Number.isFinite(maxGlobalRssMb) && maxGlobalRssMb > 0
+    ? (projectedBudgetMb < Math.max(512, maxGlobalRssMb - reserveRssMb) ? 3 : 2)
+    : 2;
+  return {
+    totalMemMb,
+    maxGlobalRssMb,
+    reserveRssMb,
+    workerHeapPolicy,
+    effectiveWorkerHeapMb,
+    perWorkerCacheMb,
+    perWorkerWriteBufferMb,
+    queueHeadroomScale
+  };
 };
 
 /**
@@ -114,7 +179,8 @@ export const createRuntimeQueues = ({
   pendingLimits,
   scheduler,
   stage1Queues = null,
-  procConcurrency = null
+  procConcurrency = null,
+  memoryPolicy = null
 }) => {
   // Bound the number of in-flight tasks we allow `runWithQueue()` to schedule.
   //
@@ -131,19 +197,28 @@ export const createRuntimeQueues = ({
   const tokenizeConfig = stage1Queues?.tokenize || {};
   const tokenizeConcurrency = coercePositiveInt(tokenizeConfig?.concurrency);
   const effectiveCpuConcurrency = tokenizeConcurrency ?? cpuConcurrency;
+  const schedulerAdaptive = scheduler
+    && scheduler.enabled
+    && scheduler.lowResourceMode !== true;
+  const memoryPendingScale = Number.isFinite(Number(memoryPolicy?.queueHeadroomScale))
+    ? Math.max(1, Math.floor(Number(memoryPolicy.queueHeadroomScale)))
+    : 1;
+  const pendingScale = schedulerAdaptive
+    ? Math.max(2, memoryPendingScale)
+    : memoryPendingScale;
   const maxFilePending = coercePositiveInt(tokenizeConfig?.maxPending)
     ?? (Number.isFinite(pendingLimits?.cpu?.maxPending)
       ? pendingLimits.cpu.maxPending
-      : Math.max(32, effectiveCpuConcurrency * 8));
+      : Math.max(64, effectiveCpuConcurrency * 8 * pendingScale));
   const maxIoPending = Number.isFinite(pendingLimits?.io?.maxPending)
     ? pendingLimits.io.maxPending
-    : Math.max(8, ioConcurrency * 4);
+    : Math.max(16, ioConcurrency * 4 * pendingScale);
   const effectiveEmbeddingConcurrency = Number.isFinite(embeddingConcurrency) && embeddingConcurrency > 0
     ? embeddingConcurrency
     : Math.max(1, Math.min(cpuConcurrency || 1, fileConcurrency || 1));
   const maxEmbeddingPending = Number.isFinite(pendingLimits?.embedding?.maxPending)
     ? pendingLimits.embedding.maxPending
-    : Math.max(32, effectiveEmbeddingConcurrency * 8);
+    : Math.max(64, effectiveEmbeddingConcurrency * 8 * pendingScale);
   const resolvedProcConcurrency = coercePositiveInt(procConcurrency)
     ?? (Number.isFinite(pendingLimits?.proc?.concurrency)
       ? Math.max(1, Math.floor(pendingLimits.proc.concurrency))
@@ -190,6 +265,9 @@ export const createRuntimeQueues = ({
     const queues = procQueue
       ? { io: ioQueue, cpu: cpuQueue, embedding: embeddingQueue, proc: procQueue }
       : { io: ioQueue, cpu: cpuQueue, embedding: embeddingQueue };
+    for (const queue of Object.values(queues)) {
+      queue.inflightBytes = 0;
+    }
     return { queues, maxFilePending, maxIoPending, maxEmbeddingPending };
   }
 
@@ -203,18 +281,40 @@ export const createRuntimeQueues = ({
     embeddingPendingLimit: maxEmbeddingPending,
     procPendingLimit
   });
+  for (const queue of Object.values(queues)) {
+    queue.inflightBytes = 0;
+  }
   return { queues, maxFilePending, maxIoPending, maxEmbeddingPending };
 };
 
+/**
+ * Resolve worker-pool runtime config by combining queue-derived concurrency
+ * targets with user/env worker-pool overrides.
+ *
+ * @param {object} input
+ * @param {object} input.indexingConfig
+ * @param {object} input.envConfig
+ * @param {number} input.cpuConcurrency
+ * @param {number} input.fileConcurrency
+ * @returns {object}
+ */
 export const resolveWorkerPoolRuntimeConfig = ({ indexingConfig, envConfig, cpuConcurrency, fileConcurrency }) => {
+  const cpuTarget = Number.isFinite(cpuConcurrency)
+    ? Math.max(1, Math.floor(cpuConcurrency))
+    : 1;
+  const fileTarget = Number.isFinite(fileConcurrency)
+    ? Math.max(1, Math.floor(fileConcurrency))
+    : cpuTarget;
   const dynamicHardMaxWorkers = Math.max(
     32,
-    Number.isFinite(cpuConcurrency) ? Math.max(1, Math.floor(cpuConcurrency)) : 1,
-    Number.isFinite(fileConcurrency) ? Math.max(1, Math.floor(fileConcurrency)) : 1
+    cpuTarget,
+    fileTarget
   );
+  const oversubscribeTarget = Math.max(cpuTarget, Math.min(32, cpuTarget * 2));
+  const fileBoundTarget = Math.max(cpuTarget, Math.min(32, fileTarget));
   const workerPoolDefaultMax = Math.max(
     1,
-    Math.min(dynamicHardMaxWorkers, Math.max(cpuConcurrency, Math.min(16, fileConcurrency)))
+    Math.min(dynamicHardMaxWorkers, Math.max(oversubscribeTarget, fileBoundTarget))
   );
   return resolveWorkerPoolConfig(
     indexingConfig.workerPool || {},
@@ -292,6 +392,12 @@ export const createRuntimeWorkerPools = async ({
         ? `, split tasks (quantizeMax=${workerPoolConfig.quantizeMaxWorkers || Math.max(1, Math.floor(workerPoolConfig.maxWorkers / 2))})`
         : '';
       log(`Worker pool enabled (${modeLabel}, maxThreads=${maxThreads}${splitLabel}).`);
+      if (workerPool.heapPolicy) {
+        log(
+          `Worker heap policy: target=${workerPool.heapPolicy.targetPerWorkerMb}MB ` +
+          `(min=${workerPool.heapPolicy.minPerWorkerMb}MB, max=${workerPool.heapPolicy.maxPerWorkerMb}MB).`
+        );
+      }
       if (workerPoolConfig.enabled === 'auto') {
         log(`Worker pool auto threshold: maxFileBytes=${workerPoolConfig.maxFileBytes}.`);
       }

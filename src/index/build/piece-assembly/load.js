@@ -8,6 +8,14 @@ import {
 } from '../../../shared/artifact-io.js';
 import { readJsonOptional } from './helpers.js';
 
+/**
+ * Load manifest-backed artifacts from an existing index directory and normalize
+ * chunk metadata with file-level fallback fields.
+ *
+ * @param {string} dir
+ * @param {{strict?:boolean}} [options]
+ * @returns {Promise<object>}
+ */
 export const loadIndexArtifacts = async (dir, { strict = true } = {}) => {
   if (!fsSync.existsSync(dir)) {
     throw new Error(`Missing input index directory: ${dir}`);
@@ -44,6 +52,9 @@ export const loadIndexArtifacts = async (dir, { strict = true } = {}) => {
   }
   for (const chunk of chunkMeta) {
     if (!chunk || (chunk.file && chunk.ext)) continue;
+    if (!chunk.file && chunk.metaV2?.file) chunk.file = chunk.metaV2.file;
+    if (!chunk.ext && chunk.metaV2?.ext) chunk.ext = chunk.metaV2.ext;
+    if (chunk.file && chunk.ext) continue;
     const meta = fileMetaById.get(chunk.fileId);
     if (!meta) continue;
     if (!chunk.file) chunk.file = meta.file;
@@ -60,9 +71,11 @@ export const loadIndexArtifacts = async (dir, { strict = true } = {}) => {
     if (!chunk.churn_deleted) chunk.churn_deleted = meta.churn_deleted;
     if (!chunk.churn_commits) chunk.churn_commits = meta.churn_commits;
   }
-  const missingFile = chunkMeta.some((chunk) => chunk && !chunk.file);
-  if (missingFile) {
-    throw new Error(`file_meta.json required for chunk metadata in ${dir}`);
+  const missingFileCount = chunkMeta.reduce((count, chunk) => (
+    chunk && !chunk.file ? count + 1 : count
+  ), 0);
+  if (missingFileCount > 0) {
+    throw new Error(`file_meta artifact required for chunk metadata in ${dir} (missing files: ${missingFileCount})`);
   }
   const tokenPostings = loadTokenPostings(dir, { manifest, strict });
   return {
@@ -88,6 +101,13 @@ export const loadIndexArtifacts = async (dir, { strict = true } = {}) => {
   };
 };
 
+/**
+ * Read compatibility keys for candidate index directories.
+ *
+ * @param {string[]} inputs
+ * @param {{strict?:boolean}} [options]
+ * @returns {Map<string,string>}
+ */
 export const readCompatibilityKeys = (inputs, { strict = true } = {}) => {
   const compatibilityKeys = new Map();
   for (const dir of inputs) {

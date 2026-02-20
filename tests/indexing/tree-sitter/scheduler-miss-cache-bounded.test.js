@@ -15,7 +15,7 @@ await fs.mkdir(outDir, { recursive: true });
 const lookup = createTreeSitterSchedulerLookup({
   outDir,
   index: new Map(),
-  maxMissCacheEntries: 3
+  maxMissCacheEntries: 0.5
 });
 
 const missingPaths = ['a.js', 'b.js', 'c.js', 'd.js', 'e.js'];
@@ -25,7 +25,8 @@ for (const virtualPath of missingPaths) {
 }
 
 const stats = lookup.stats();
-assert.ok(stats.missEntries <= 3, `expected bounded miss cache, got ${stats.missEntries}`);
+assert.ok(stats.missEntries <= 1, `expected bounded miss cache, got ${stats.missEntries}`);
+assert.ok(stats.missEntries >= 1, 'expected fractional miss cache bound to clamp to at least one entry');
 
 const repeatMiss = await lookup.loadRow('a.js');
 assert.equal(repeatMiss, null, 'expected repeated misses to remain safe');

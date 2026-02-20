@@ -34,6 +34,13 @@ export function getEnvSecrets(env = process.env) {
   };
 }
 
+/**
+ * Normalize runtime environment variables into a typed configuration object.
+ * All values are parsed once so downstream code can treat the shape as stable.
+ *
+ * @param {NodeJS.ProcessEnv} [env]
+ * @returns {object}
+ */
 export function getEnvConfig(env = process.env) {
   const secrets = getEnvSecrets(env);
   const mcpMode = normalizeString(env.PAIROFCLEATS_MCP_MODE)
@@ -48,6 +55,10 @@ export function getEnvConfig(env = process.env) {
     cacheMetricsSampleRate: normalizeNumber(env.PAIROFCLEATS_CACHE_METRICS_SAMPLE_RATE),
     embeddings: normalizeString(env.PAIROFCLEATS_EMBEDDINGS),
     workerPool: normalizeString(env.PAIROFCLEATS_WORKER_POOL),
+    workerPoolMaxWorkers: normalizeNumber(env.PAIROFCLEATS_WORKER_POOL_MAX_WORKERS),
+    workerPoolHeapTargetMb: normalizeNumber(env.PAIROFCLEATS_WORKER_POOL_HEAP_TARGET_MB),
+    workerPoolHeapMinMb: normalizeNumber(env.PAIROFCLEATS_WORKER_POOL_HEAP_MIN_MB),
+    workerPoolHeapMaxMb: normalizeNumber(env.PAIROFCLEATS_WORKER_POOL_HEAP_MAX_MB),
     threads: normalizeNumber(env.PAIROFCLEATS_THREADS),
     bundleThreads: normalizeNumber(env.PAIROFCLEATS_BUNDLE_THREADS),
     watcherBackend: normalizeString(env.PAIROFCLEATS_WATCHER_BACKEND),
@@ -70,6 +81,16 @@ export function getEnvConfig(env = process.env) {
     schedulerCpuTokens: normalizeNumber(env.PAIROFCLEATS_SCHEDULER_CPU),
     schedulerIoTokens: normalizeNumber(env.PAIROFCLEATS_SCHEDULER_IO),
     schedulerMemoryTokens: normalizeNumber(env.PAIROFCLEATS_SCHEDULER_MEM),
+    schedulerAdaptive: normalizeOptionalBoolean(env.PAIROFCLEATS_SCHEDULER_ADAPTIVE),
+    schedulerMaxCpuTokens: normalizeNumber(env.PAIROFCLEATS_SCHEDULER_MAX_CPU),
+    schedulerMaxIoTokens: normalizeNumber(env.PAIROFCLEATS_SCHEDULER_MAX_IO),
+    schedulerMaxMemoryTokens: normalizeNumber(env.PAIROFCLEATS_SCHEDULER_MAX_MEM),
+    schedulerTargetUtilization: normalizeNumber(env.PAIROFCLEATS_SCHEDULER_TARGET_UTILIZATION),
+    schedulerUtilizationAlertTarget: normalizeNumber(env.PAIROFCLEATS_SCHEDULER_UTILIZATION_ALERT_TARGET),
+    schedulerUtilizationAlertWindowMs: normalizeNumber(env.PAIROFCLEATS_SCHEDULER_UTILIZATION_ALERT_WINDOW_MS),
+    schedulerAdaptiveStep: normalizeNumber(env.PAIROFCLEATS_SCHEDULER_ADAPTIVE_STEP),
+    schedulerMemoryReserveMb: normalizeNumber(env.PAIROFCLEATS_SCHEDULER_MEMORY_RESERVE_MB),
+    schedulerMemoryPerTokenMb: normalizeNumber(env.PAIROFCLEATS_SCHEDULER_MEMORY_PER_TOKEN_MB),
     schedulerStarvationMs: normalizeNumber(env.PAIROFCLEATS_SCHEDULER_STARVATION_MS),
     schedulerLowResource: normalizeOptionalBoolean(env.PAIROFCLEATS_SCHEDULER_LOW_RESOURCE),
     mcpTransport: normalizeString(env.PAIROFCLEATS_MCP_TRANSPORT),
@@ -77,6 +98,16 @@ export function getEnvConfig(env = process.env) {
     incrementalBundleUpdateConcurrency: normalizeNumber(env.PAIROFCLEATS_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY),
     buildIndexLockWaitMs: normalizeNumber(env.PAIROFCLEATS_BUILD_INDEX_LOCK_WAIT_MS),
     buildIndexLockPollMs: normalizeNumber(env.PAIROFCLEATS_BUILD_INDEX_LOCK_POLL_MS),
+    storageTier: normalizeString(env.PAIROFCLEATS_STORAGE_TIER),
+    queryCacheStrategy: normalizeString(env.PAIROFCLEATS_QUERY_CACHE_STRATEGY),
+    queryCachePrewarm: normalizeOptionalBoolean(env.PAIROFCLEATS_QUERY_CACHE_PREWARM),
+    queryCachePrewarmMaxEntries: normalizeNumber(env.PAIROFCLEATS_QUERY_CACHE_PREWARM_MAX_ENTRIES),
+    queryCacheMemoryFreshMs: normalizeNumber(env.PAIROFCLEATS_QUERY_CACHE_MEMORY_FRESH_MS),
+    sqliteTailLatencyTuning: normalizeOptionalBoolean(env.PAIROFCLEATS_SQLITE_TAIL_LATENCY_TUNING),
+    sqliteFtsOverfetchRowCap: normalizeNumber(env.PAIROFCLEATS_SQLITE_FTS_OVERFETCH_ROW_CAP),
+    sqliteFtsOverfetchTimeBudgetMs: normalizeNumber(env.PAIROFCLEATS_SQLITE_FTS_OVERFETCH_TIME_BUDGET_MS),
+    sqliteFtsOverfetchChunkSize: normalizeNumber(env.PAIROFCLEATS_SQLITE_FTS_OVERFETCH_CHUNK_SIZE),
+    preferMemoryBackendOnCacheHit: normalizeOptionalBoolean(env.PAIROFCLEATS_PREFER_MEMORY_BACKEND_ON_CACHE_HIT),
     modelsDir: normalizeString(env.PAIROFCLEATS_MODELS_DIR),
     dictDir: normalizeString(env.PAIROFCLEATS_DICT_DIR),
     extensionsDir: normalizeString(env.PAIROFCLEATS_EXTENSIONS_DIR),

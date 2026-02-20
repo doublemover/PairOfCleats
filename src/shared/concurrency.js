@@ -1,5 +1,7 @@
 import PQueue from 'p-queue';
+import os from 'node:os';
 import { createAbortError, throwIfAborted } from './abort.js';
+import { coerceUnitFraction } from './number-coerce.js';
 
 /**
  * Create shared task queues for IO, CPU, and embeddings work.
@@ -234,6 +236,17 @@ export function createBuildScheduler(input = {}) {
   let cpuTokens = normalizeTokenPool(input.cpuTokens);
   let ioTokens = normalizeTokenPool(input.ioTokens);
   let memoryTokens = normalizeTokenPool(input.memoryTokens);
+  const adaptiveEnabled = input.adaptive === true;
+  const baselineLimits = {
+    cpu: cpuTokens,
+    io: ioTokens,
+    mem: memoryTokens
+  };
+  const maxLimits = {
+    cpu: Math.max(baselineLimits.cpu, normalizeTokenPool(input.maxCpuTokens ?? cpuTokens)),
+    io: Math.max(baselineLimits.io, normalizeTokenPool(input.maxIoTokens ?? ioTokens)),
+    mem: Math.max(baselineLimits.mem, normalizeTokenPool(input.maxMemoryTokens ?? memoryTokens))
+  };
 
   const queueConfig = input.queues || {};
   const queues = new Map();
@@ -245,7 +258,12 @@ export function createBuildScheduler(input = {}) {
     completed: 0,
     failed: 0,
     rejected: 0,
-    starvation: 0
+    starvation: 0,
+    rejectedByReason: {
+      maxPending: 0,
+      shutdown: 0,
+      cleared: 0
+    }
   };
 
   const ensureQueue = (name) => {
@@ -254,6 +272,7 @@ export function createBuildScheduler(input = {}) {
     const state = {
       name,
       priority: Number.isFinite(Number(cfg.priority)) ? Number(cfg.priority) : 50,
+      weight: Number.isFinite(Number(cfg.weight)) ? Math.max(1, Math.floor(Number(cfg.weight))) : 1,
       maxPending: Number.isFinite(Number(cfg.maxPending)) ? Math.max(1, Math.floor(Number(cfg.maxPending))) : null,
       pending: [],
       running: 0,
@@ -263,7 +282,8 @@ export function createBuildScheduler(input = {}) {
         completed: 0,
         failed: 0,
         rejected: 0,
-        starvation: 0
+        starvation: 0,
+        rejectedMaxPending: 0
       }
     };
     queues.set(name, state);
@@ -279,6 +299,9 @@ export function createBuildScheduler(input = {}) {
     }
     if (Number.isFinite(Number(config.maxPending))) {
       queue.maxPending = Math.max(1, Math.floor(Number(config.maxPending)));
+    }
+    if (Number.isFinite(Number(config.weight))) {
+      queue.weight = Math.max(1, Math.floor(Number(config.weight)));
     }
     queueOrder.sort((a, b) => a.priority - b.priority || a.name.localeCompare(b.name));
   };
@@ -303,6 +326,102 @@ export function createBuildScheduler(input = {}) {
   });
   let tokens = tokenState();
   let shuttingDown = false;
+  let lastAdaptiveAt = 0;
+  const adaptiveMinIntervalMs = Number.isFinite(Number(input.adaptiveIntervalMs))
+    ? Math.max(50, Math.floor(Number(input.adaptiveIntervalMs)))
+    : 250;
+  const adaptiveTargetUtilization = coerceUnitFraction(input.adaptiveTargetUtilization) ?? 0.85;
+  const adaptiveStep = Number.isFinite(Number(input.adaptiveStep))
+    ? Math.max(1, Math.floor(Number(input.adaptiveStep)))
+    : 1;
+  const adaptiveMemoryReserveMb = Number.isFinite(Number(input.adaptiveMemoryReserveMb))
+    ? Math.max(0, Math.floor(Number(input.adaptiveMemoryReserveMb)))
+    : 2048;
+  const adaptiveMemoryPerTokenMb = Number.isFinite(Number(input.adaptiveMemoryPerTokenMb))
+    ? Math.max(64, Math.floor(Number(input.adaptiveMemoryPerTokenMb)))
+    : 1024;
+
+  const maybeAdaptTokens = () => {
+    if (!adaptiveEnabled || shuttingDown) return;
+    const now = nowMs();
+    if ((now - lastAdaptiveAt) < adaptiveMinIntervalMs) return;
+    lastAdaptiveAt = now;
+    let totalPending = 0;
+    let totalRunning = 0;
+    for (const q of queueOrder) {
+      totalPending += q.pending.length;
+      totalRunning += q.running;
+    }
+    const pendingPressure = totalPending > Math.max(2, Math.floor((tokens.cpu.total + tokens.io.total) * 0.75));
+    const mostlyIdle = totalPending === 0 && totalRunning === 0;
+    const cpuUtilization = tokens.cpu.total > 0 ? (tokens.cpu.used / tokens.cpu.total) : 0;
+    const ioUtilization = tokens.io.total > 0 ? (tokens.io.used / tokens.io.total) : 0;
+    const utilization = Math.max(cpuUtilization, ioUtilization);
+    const utilizationDeficit = utilization < adaptiveTargetUtilization;
+    const totalMem = Number(os.totalmem()) || 0;
+    const freeMem = Number(os.freemem()) || 0;
+    const freeRatio = totalMem > 0 ? (freeMem / totalMem) : null;
+    const headroomBytes = Number.isFinite(totalMem) && Number.isFinite(freeMem)
+      ? Math.max(0, freeMem)
+      : 0;
+    const memoryLowHeadroom = Number.isFinite(freeRatio) && freeRatio < 0.15;
+    const memoryHighHeadroom = !Number.isFinite(freeRatio) || freeRatio > 0.25;
+    let memoryTokenHeadroomCap = maxLimits.mem;
+    if (Number.isFinite(freeMem) && freeMem > 0) {
+      const reserveBytes = adaptiveMemoryReserveMb * 1024 * 1024;
+      const bytesPerToken = adaptiveMemoryPerTokenMb * 1024 * 1024;
+      const availableBytes = Math.max(0, freeMem - reserveBytes);
+      const headroomTokens = Math.max(1, Math.floor(availableBytes / Math.max(1, bytesPerToken)));
+      memoryTokenHeadroomCap = Math.max(
+        baselineLimits.mem,
+        Math.min(maxLimits.mem, headroomTokens)
+      );
+      if (tokens.mem.total > memoryTokenHeadroomCap) {
+        tokens.mem.total = Math.max(tokens.mem.used, memoryTokenHeadroomCap);
+      }
+    }
+
+    if (memoryLowHeadroom) {
+      tokens.cpu.total = Math.max(baselineLimits.cpu, tokens.cpu.used, tokens.cpu.total - adaptiveStep);
+      tokens.io.total = Math.max(baselineLimits.io, tokens.io.used, tokens.io.total - adaptiveStep);
+      tokens.mem.total = Math.max(
+        baselineLimits.mem,
+        tokens.mem.used,
+        Math.min(memoryTokenHeadroomCap, tokens.mem.total - adaptiveStep)
+      );
+      return;
+    }
+
+    const shouldScaleFromHeadroom = memoryHighHeadroom
+      && totalPending > 0
+      && utilizationDeficit
+      && totalRunning >= Math.max(1, Math.floor((tokens.cpu.total + tokens.io.total) * 0.5));
+    if ((pendingPressure || shouldScaleFromHeadroom) && memoryHighHeadroom) {
+      const scaleStep = pendingPressure && utilizationDeficit ? adaptiveStep + 1 : adaptiveStep;
+      const nextCpu = Math.min(maxLimits.cpu, tokens.cpu.total + scaleStep);
+      const nextIo = Math.min(maxLimits.io, tokens.io.total + scaleStep);
+      const nextMem = Math.min(maxLimits.mem, memoryTokenHeadroomCap, tokens.mem.total + adaptiveStep);
+      tokens.cpu.total = nextCpu;
+      tokens.io.total = nextIo;
+      tokens.mem.total = nextMem;
+      return;
+    }
+
+    if (
+      memoryHighHeadroom
+      && headroomBytes > (adaptiveMemoryReserveMb * 1024 * 1024)
+      && totalPending > 0
+      && tokens.mem.total < memoryTokenHeadroomCap
+    ) {
+      tokens.mem.total = Math.min(memoryTokenHeadroomCap, tokens.mem.total + adaptiveStep);
+    }
+
+    if (mostlyIdle) {
+      tokens.cpu.total = Math.max(baselineLimits.cpu, tokens.cpu.used, tokens.cpu.total - adaptiveStep);
+      tokens.io.total = Math.max(baselineLimits.io, tokens.io.used, tokens.io.total - adaptiveStep);
+      tokens.mem.total = Math.max(baselineLimits.mem, tokens.mem.used, tokens.mem.total - adaptiveStep);
+    }
+  };
 
   const canStart = (req) => {
     const cpu = Math.max(0, Math.floor(Number(req?.cpu || 0)));
@@ -350,8 +469,13 @@ export function createBuildScheduler(input = {}) {
       const waited = nowMs() - q.pending[0].enqueuedAt;
       if (waited >= starvationMs && (!starving || waited > starving.waited)) {
         starving = { queue: q, waited, index };
-      } else if (!picked) {
-        picked = { queue: q, index };
+        continue;
+      }
+      const weightBoostMs = Math.max(1, Number(q.weight) || 1) * 250;
+      const priorityPenaltyMs = Math.max(0, Number(q.priority) || 0) * 5;
+      const score = waited + weightBoostMs - priorityPenaltyMs;
+      if (!picked || score > picked.score) {
+        picked = { queue: q, index, score };
       }
     }
     if (starving) return { queue: starving.queue, starved: true, index: starving.index };
@@ -361,6 +485,7 @@ export function createBuildScheduler(input = {}) {
   const pump = () => {
     if (shuttingDown) return;
     while (true) {
+      maybeAdaptTokens();
       const pick = pickNextQueue();
       if (!pick) return;
       const { queue, starved, index } = pick;
@@ -411,14 +536,17 @@ export function createBuildScheduler(input = {}) {
     }
     if (shuttingDown) {
       counters.rejected += 1;
+      counters.rejectedByReason.shutdown += 1;
       return Promise.reject(new Error('scheduler is shut down'));
     }
     const queue = ensureQueue(queueName);
     if (queue.maxPending && queue.pending.length >= queue.maxPending) {
       queue.stats.rejected += 1;
+      queue.stats.rejectedMaxPending += 1;
       queue.stats.scheduled += 1;
       counters.scheduled += 1;
       counters.rejected += 1;
+      counters.rejectedByReason.maxPending += 1;
       return Promise.reject(new Error(`queue ${queueName} is at maxPending`));
     }
     return new Promise((resolve, reject) => {
@@ -429,6 +557,7 @@ export function createBuildScheduler(input = {}) {
         reject,
         enqueuedAt: nowMs()
       });
+      maybeAdaptTokens();
       queue.stats.scheduled += 1;
       counters.scheduled += 1;
       pump();
@@ -443,6 +572,7 @@ export function createBuildScheduler(input = {}) {
     for (const item of cleared) {
       queue.stats.rejected += 1;
       counters.rejected += 1;
+      counters.rejectedByReason.cleared += 1;
       try {
         item.reject(error);
       } catch {}
@@ -452,24 +582,59 @@ export function createBuildScheduler(input = {}) {
 
   const stats = () => {
     const queueStats = {};
+    let totalPending = 0;
+    let totalRunning = 0;
     for (const q of queueOrder) {
       const oldest = q.pending.length ? nowMs() - q.pending[0].enqueuedAt : 0;
+      totalPending += q.pending.length;
+      totalRunning += q.running;
       queueStats[q.name] = {
         pending: q.pending.length,
         running: q.running,
         maxPending: q.maxPending,
+        priority: q.priority,
+        weight: q.weight,
         oldestWaitMs: oldest,
         scheduled: q.stats.scheduled,
         started: q.stats.started,
         completed: q.stats.completed,
         failed: q.stats.failed,
         rejected: q.stats.rejected,
+        rejectedMaxPending: q.stats.rejectedMaxPending,
         starvation: q.stats.starvation
       };
     }
+    const resolveUtilization = (used, total) => (
+      total > 0 ? Math.max(0, Math.min(1, used / total)) : 0
+    );
+    const cpuUtilization = resolveUtilization(tokens.cpu.used, tokens.cpu.total);
+    const ioUtilization = resolveUtilization(tokens.io.used, tokens.io.total);
+    const memUtilization = resolveUtilization(tokens.mem.used, tokens.mem.total);
     return {
       queues: queueStats,
-      counters: { ...counters },
+      counters: {
+        ...counters,
+        rejectedByReason: { ...counters.rejectedByReason }
+      },
+      activity: {
+        pending: totalPending,
+        running: totalRunning
+      },
+      adaptive: {
+        enabled: adaptiveEnabled,
+        baseline: baselineLimits,
+        max: maxLimits,
+        targetUtilization: adaptiveTargetUtilization,
+        step: adaptiveStep,
+        memoryReserveMb: adaptiveMemoryReserveMb,
+        memoryPerTokenMb: adaptiveMemoryPerTokenMb
+      },
+      utilization: {
+        cpu: cpuUtilization,
+        io: ioUtilization,
+        mem: memUtilization,
+        overall: Math.max(cpuUtilization, ioUtilization, memUtilization)
+      },
       tokens: {
         cpu: { ...tokens.cpu },
         io: { ...tokens.io },

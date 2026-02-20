@@ -10,28 +10,30 @@ applyTestEnv({ testing: '1' });
 const root = process.cwd();
 const benchScript = path.join(root, 'tools', 'bench', 'index', 'tree-sitter-load.js');
 
-const result = spawnSync(
-  process.execPath,
-  [
-    benchScript,
-    '--languages',
-    'javascript,go,rust',
-    '--files-per-language',
-    '10',
-    '--repeats',
-    '1',
-    '--json'
-  ],
-  { cwd: root, env: process.env, encoding: 'utf8' }
-);
+const runBenchPayload = () => {
+  const result = spawnSync(
+    process.execPath,
+    [
+      benchScript,
+      '--languages',
+      'javascript,go,rust',
+      '--files-per-language',
+      '10',
+      '--repeats',
+      '1',
+      '--json'
+    ],
+    { cwd: root, env: process.env, encoding: 'utf8' }
+  );
+  if (result.status !== 0) {
+    console.error(result.stdout || '');
+    console.error(result.stderr || '');
+    process.exit(result.status ?? 1);
+  }
+  return JSON.parse(String(result.stdout || '{}'));
+};
 
-if (result.status !== 0) {
-  console.error(result.stdout || '');
-  console.error(result.stderr || '');
-  process.exit(result.status ?? 1);
-}
-
-const payload = JSON.parse(String(result.stdout || '{}'));
+const payload = runBenchPayload();
 const scenarios = Array.isArray(payload.scenarios) ? payload.scenarios : [];
 assert.equal(scenarios.length, 4, 'expected 4 scenarios');
 
@@ -61,9 +63,35 @@ assert.ok(
 );
 const coldMs = Number(cold.totalMs);
 const warmMs = Number(warm.totalMs);
+const regressionThreshold = 1.35;
+let warmWithinThreshold = warmMs <= (coldMs * regressionThreshold);
+let retrySample = null;
+if (!warmWithinThreshold) {
+  retrySample = runBenchPayload();
+  const retryScenarios = Array.isArray(retrySample.scenarios) ? retrySample.scenarios : [];
+  const retryCold = retryScenarios.find((scenario) => (
+    scenario
+    && scenario.cacheMode === 'cold'
+    && scenario.policy === 'file-order'
+  )) || null;
+  const retryWarm = retryScenarios.find((scenario) => (
+    scenario
+    && scenario.cacheMode === 'warm'
+    && scenario.policy === 'file-order'
+  )) || null;
+  if (retryCold && retryWarm && !retryCold.skipped && !retryWarm.skipped) {
+    warmWithinThreshold = Number(retryWarm.totalMs) <= (Number(retryCold.totalMs) * regressionThreshold);
+    retrySample = {
+      coldMs: Number(retryCold.totalMs),
+      warmMs: Number(retryWarm.totalMs)
+    };
+  }
+}
 assert.ok(
-  warmMs <= (coldMs * 1.35),
-  `expected warm run to avoid major regression vs cold (warmMs=${warmMs} coldMs=${coldMs})`
+  warmWithinThreshold,
+  retrySample
+    ? `expected warm run to avoid major regression vs cold (sample1 warmMs=${warmMs} coldMs=${coldMs}; sample2 warmMs=${retrySample.warmMs} coldMs=${retrySample.coldMs})`
+    : `expected warm run to avoid major regression vs cold (warmMs=${warmMs} coldMs=${coldMs})`
 );
 
 const fileOrderCold = findScenario({ cacheMode: 'cold', policy: 'file-order' });

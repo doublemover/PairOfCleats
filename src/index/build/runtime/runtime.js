@@ -27,6 +27,11 @@ import { buildAutoPolicy } from '../../../shared/auto-policy.js';
 import { buildIgnoreMatcher } from '../ignore.js';
 import { normalizePostingsConfig } from '../../../shared/postings-config.js';
 import { createSharedDictionary, createSharedDictionaryView } from '../../../shared/dictionary.js';
+import {
+  coerceClampedFraction,
+  coerceNonNegativeInt,
+  coercePositiveInt
+} from '../../../shared/number-coerce.js';
 import { normalizeEmbeddingBatchMultipliers } from '../embedding-batch.js';
 import { mergeConfig } from '../../../shared/config.js';
 import { sha1, setXxhashBackend } from '../../../shared/hash.js';
@@ -54,6 +59,7 @@ import { resolveSchedulerConfig } from './scheduler.js';
 import { resolveTreeSitterRuntime, preloadTreeSitterRuntimeLanguages } from './tree-sitter.js';
 import {
   createRuntimeQueues,
+  resolveRuntimeMemoryPolicy,
   resolveWorkerPoolRuntimeConfig,
   createRuntimeWorkerPools
 } from './workers.js';
@@ -62,24 +68,57 @@ import {
   buildIndexProfileState
 } from '../../../contracts/index-profile.js';
 
-const coercePositiveInt = (value) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed <= 0) return null;
-  return Math.floor(parsed);
+const isObject = (value) => value && typeof value === 'object' && !Array.isArray(value);
+
+/**
+ * Shared runtime telemetry collector for cross-stage in-flight gauges.
+ *
+ * @returns {{
+ *   setInFlightBytes:(channel:string, input?:{bytes?:number,count?:number})=>void,
+ *   clearInFlightBytes:(channel:string)=>void,
+ *   readInFlightBytes:()=>{total:number,channels:Record<string,{bytes:number,count:number}>}
+ * }}
+ */
+const createRuntimeTelemetry = () => {
+  const channels = new Map();
+  const setInFlightBytes = (channel, input = {}) => {
+    if (!channel) return;
+    const bytes = Number(input?.bytes);
+    const count = Number(input?.count);
+    channels.set(String(channel), {
+      bytes: Number.isFinite(bytes) && bytes > 0 ? Math.floor(bytes) : 0,
+      count: Number.isFinite(count) && count > 0 ? Math.floor(count) : 0
+    });
+  };
+  const clearInFlightBytes = (channel) => {
+    if (!channel) return;
+    channels.delete(String(channel));
+  };
+  const readInFlightBytes = () => {
+    const out = {};
+    let total = 0;
+    for (const [name, value] of channels.entries()) {
+      const bytes = Number(value?.bytes) || 0;
+      const count = Number(value?.count) || 0;
+      out[name] = { bytes, count };
+      total += bytes;
+    }
+    return { total, channels: out };
+  };
+  return {
+    setInFlightBytes,
+    clearInFlightBytes,
+    readInFlightBytes
+  };
 };
 
-const coerceNonNegativeInt = (value) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed < 0) return null;
-  return Math.floor(parsed);
-};
-
-const coerceFraction = (value) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed <= 0) return null;
-  return Math.min(1, parsed);
-};
-
+/**
+ * Resolve stage1 queue controls from indexing configuration, coercing optional
+ * numeric overrides into safe integer/fraction values.
+ *
+ * @param {object} [indexingConfig]
+ * @returns {{tokenize:object,postings:object,ordered:object,watchdog:object}}
+ */
 const resolveStage1Queues = (indexingConfig = {}) => {
   const stage1 = indexingConfig?.stage1 && typeof indexingConfig.stage1 === 'object'
     ? indexingConfig.stage1
@@ -105,7 +144,11 @@ const resolveStage1Queues = (indexingConfig = {}) => {
   );
   const postingsMaxPendingRows = coercePositiveInt(postings.maxPendingRows);
   const postingsMaxPendingBytes = coercePositiveInt(postings.maxPendingBytes);
-  const postingsMaxHeapFraction = coerceFraction(postings.maxHeapFraction);
+  const postingsMaxHeapFraction = coerceClampedFraction(postings.maxHeapFraction, {
+    min: 0,
+    max: 1,
+    allowZero: false
+  });
   const orderedMaxPending = coercePositiveInt(ordered.maxPending);
   const orderedBucketSize = coercePositiveInt(ordered.bucketSize);
   const watchdogSlowFileMs = coerceNonNegativeInt(
@@ -177,6 +220,21 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   const policyConcurrency = autoPolicy?.indexing?.concurrency || null;
   const policyEmbeddings = autoPolicy?.indexing?.embeddings || null;
   const policyWorkerPool = autoPolicy?.runtime?.workerPool || null;
+  const autoPolicyProfile = isObject(autoPolicy?.profile)
+    ? autoPolicy.profile
+    : { id: 'default', enabled: false };
+  const policyHugeRepoProfile = isObject(autoPolicy?.indexing?.hugeRepoProfile)
+    ? autoPolicy.indexing.hugeRepoProfile
+    : null;
+  const explicitHugeRepoProfile = isObject(indexingConfig?.hugeRepoProfile)
+    ? indexingConfig.hugeRepoProfile
+    : {};
+  const hugeRepoProfileEnabled = typeof explicitHugeRepoProfile.enabled === 'boolean'
+    ? explicitHugeRepoProfile.enabled
+    : policyHugeRepoProfile?.enabled === true;
+  if (hugeRepoProfileEnabled && isObject(policyHugeRepoProfile?.overrides)) {
+    indexingConfig = mergeConfig(indexingConfig, policyHugeRepoProfile.overrides);
+  }
   if (policyConcurrency) {
     indexingConfig = mergeConfig(indexingConfig, {
       concurrency: policyConcurrency.files,
@@ -194,6 +252,14 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
       workerPool: {
         enabled: policyWorkerPool.enabled !== false ? 'auto' : false,
         maxWorkers: policyWorkerPool.maxThreads
+      }
+    });
+  }
+  if (hugeRepoProfileEnabled) {
+    indexingConfig = mergeConfig(indexingConfig, {
+      hugeRepoProfile: {
+        enabled: true,
+        id: autoPolicyProfile.id || 'huge-repo'
       }
     });
   }
@@ -280,6 +346,11 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
       log(`[warn] ${warning.message}`);
     }
   }
+  const telemetry = createRuntimeTelemetry();
+  const preRuntimeMemoryPolicy = resolveRuntimeMemoryPolicy({
+    indexingConfig,
+    cpuConcurrency: envelope?.concurrency?.cpuConcurrency?.value
+  });
   const schedulerConfig = resolveSchedulerConfig({
     argv,
     rawArgv,
@@ -294,6 +365,17 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     cpuTokens: schedulerConfig.cpuTokens,
     ioTokens: schedulerConfig.ioTokens,
     memoryTokens: schedulerConfig.memoryTokens,
+    adaptive: schedulerConfig.adaptive,
+    adaptiveTargetUtilization: schedulerConfig.adaptiveTargetUtilization,
+    adaptiveStep: schedulerConfig.adaptiveStep,
+    adaptiveMemoryReserveMb: Math.max(
+      schedulerConfig.adaptiveMemoryReserveMb,
+      preRuntimeMemoryPolicy?.reserveRssMb || 0
+    ),
+    adaptiveMemoryPerTokenMb: schedulerConfig.adaptiveMemoryPerTokenMb,
+    maxCpuTokens: schedulerConfig.maxCpuTokens,
+    maxIoTokens: schedulerConfig.maxIoTokens,
+    maxMemoryTokens: schedulerConfig.maxMemoryTokens,
     starvationMs: schedulerConfig.starvationMs,
     queues: schedulerConfig.queues
   });
@@ -576,6 +658,28 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     ioConcurrency: envelope.concurrency.ioConcurrency.value,
     cpuConcurrency: envelope.concurrency.cpuConcurrency.value
   };
+  const runtimeMemoryPolicy = resolveRuntimeMemoryPolicy({
+    indexingConfig,
+    cpuConcurrency
+  });
+  const rawWorkerPoolConfig = indexingConfig.workerPool && typeof indexingConfig.workerPool === 'object'
+    ? indexingConfig.workerPool
+    : {};
+  if (rawWorkerPoolConfig.heapTargetMb == null || rawWorkerPoolConfig.heapMinMb == null || rawWorkerPoolConfig.heapMaxMb == null) {
+    indexingConfig = mergeConfig(indexingConfig, {
+      workerPool: {
+        ...(rawWorkerPoolConfig.heapTargetMb == null
+          ? { heapTargetMb: runtimeMemoryPolicy.workerHeapPolicy.targetPerWorkerMb }
+          : {}),
+        ...(rawWorkerPoolConfig.heapMinMb == null
+          ? { heapMinMb: runtimeMemoryPolicy.workerHeapPolicy.minPerWorkerMb }
+          : {}),
+        ...(rawWorkerPoolConfig.heapMaxMb == null
+          ? { heapMaxMb: runtimeMemoryPolicy.workerHeapPolicy.maxPerWorkerMb }
+          : {})
+      }
+    });
+  }
 
   const embeddingRuntime = await timeInit('embedding runtime', () => resolveEmbeddingRuntime({
     rootDir: root,
@@ -618,8 +722,14 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     cpuConcurrency,
     fileConcurrency
   });
+  const procConcurrencyCap = Number.isFinite(fileConcurrency)
+    ? Math.max(
+      Math.max(1, Math.floor(cpuConcurrency || 1)),
+      Math.floor(fileConcurrency / 2)
+    )
+    : Math.max(1, Math.floor(cpuConcurrency || 1));
   const procConcurrency = workerPoolConfig?.enabled !== false && Number.isFinite(workerPoolConfig?.maxWorkers)
-    ? Math.max(1, Math.min(cpuConcurrency, Math.floor(workerPoolConfig.maxWorkers)))
+    ? Math.max(1, Math.min(procConcurrencyCap, Math.floor(workerPoolConfig.maxWorkers)))
     : null;
   const queueConfig = createRuntimeQueues({
     ioConcurrency,
@@ -629,7 +739,8 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     pendingLimits: envelope.queues,
     scheduler,
     stage1Queues,
-    procConcurrency
+    procConcurrency,
+    memoryPolicy: runtimeMemoryPolicy
   });
   const { queues } = queueConfig;
 
@@ -776,6 +887,12 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     log('Indexing stage4 (sqlite/ann pass) running.');
   }
   log(`Index profile: ${profile.id}.`);
+  if (hugeRepoProfileEnabled) {
+    log(
+      `Huge-repo profile enabled (${autoPolicyProfile.id || 'huge-repo'}): ` +
+      'cross-file enrichment and expensive relation passes are reduced by default.'
+    );
+  }
   if (!embeddingEnabled) {
     const label = embeddingService ? 'service queue' : 'disabled';
     const deferred = baseEmbeddingsPlanned && (stage === 'stage1' || stage === 'stage2');
@@ -799,6 +916,14 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     log(`Incremental cache enabled (root: ${path.join(repoCacheRoot, 'incremental')}).`);
   }
   log(`Queue concurrency: io=${ioConcurrency}, cpu=${cpuConcurrency}.`);
+  log(
+    `Memory policy: workerHeap=${runtimeMemoryPolicy.workerHeapPolicy.targetPerWorkerMb}MB ` +
+    `(effective=${runtimeMemoryPolicy.effectiveWorkerHeapMb}MB, ` +
+    `min=${runtimeMemoryPolicy.workerHeapPolicy.minPerWorkerMb}MB, ` +
+    `max=${runtimeMemoryPolicy.workerHeapPolicy.maxPerWorkerMb}MB), ` +
+    `workerCache=${runtimeMemoryPolicy.perWorkerCacheMb}MB, ` +
+    `writeBuffer=${runtimeMemoryPolicy.perWorkerWriteBufferMb}MB.`
+  );
   if (!astDataflowEnabled) {
     log('AST dataflow metadata disabled via indexing.astDataflow.');
   }
@@ -985,6 +1110,8 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
       version: toolVersion,
       configHash: contentConfigHash || null
     },
+    autoPolicyProfile,
+    hugeRepoProfileEnabled,
     toolingConfig,
     toolingEnabled,
     indexingConfig,
@@ -1035,6 +1162,8 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     queues,
     scheduler,
     schedulerConfig,
+    memoryPolicy: runtimeMemoryPolicy,
+    telemetry,
     stage1Queues,
     procConcurrency,
     incrementalEnabled,

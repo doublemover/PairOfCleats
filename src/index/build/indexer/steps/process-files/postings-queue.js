@@ -1,26 +1,12 @@
 import v8 from 'node:v8';
 import { normalizePostingsPayloadMetadata } from '../../../postings-payload.js';
+import {
+  coerceClampedFraction,
+  coerceNonNegativeInt,
+  coercePositiveInt
+} from '../../../../../shared/number-coerce.js';
 
 const MB = 1024 * 1024;
-
-const coercePositiveInt = (value) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed <= 0) return null;
-  return Math.floor(parsed);
-};
-
-const coerceNonNegativeInt = (value) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed < 0) return null;
-  return Math.floor(parsed);
-};
-
-const coerceFraction = (value, fallback) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return fallback;
-  if (parsed <= 0) return null;
-  return Math.min(1, parsed);
-};
 
 const resolveHeapLimit = () => {
   try {
@@ -93,6 +79,7 @@ export const estimatePostingsPayload = (result) => {
  *   maxPendingRows?:number,
  *   maxPendingBytes?:number,
  *   maxHeapFraction?:number,
+ *   onChange?:(snapshot:{pendingCount:number,pendingRows:number,pendingBytes:number})=>void,
  *   log?:(msg:string)=>void
  * }} [options]
  * @returns {{reserve:(input?:{rows?:number,bytes?:number,bypass?:boolean})=>Promise<{release:()=>void}>,stats:()=>object}}
@@ -102,12 +89,17 @@ export const createPostingsQueue = ({
   maxPendingRows,
   maxPendingBytes,
   maxHeapFraction,
+  onChange = null,
   log = null
 } = {}) => {
   const resolvedMaxPending = coercePositiveInt(maxPending);
   const resolvedMaxPendingRows = coercePositiveInt(maxPendingRows);
   const resolvedMaxPendingBytes = coercePositiveInt(maxPendingBytes);
-  const resolvedMaxHeapFraction = coerceFraction(maxHeapFraction, 0.8);
+  const resolvedMaxHeapFraction = coerceClampedFraction(maxHeapFraction, {
+    min: 0,
+    max: 1,
+    allowZero: false
+  }) ?? 0.8;
   const heapLimit = resolveHeapLimit();
 
   const state = {
@@ -139,6 +131,16 @@ export const createPostingsQueue = ({
 
   const waiters = [];
   let lastLogAt = 0;
+  const emitChange = () => {
+    if (typeof onChange !== 'function') return;
+    try {
+      onChange({
+        pendingCount: state.pending,
+        pendingRows: state.pendingRows,
+        pendingBytes: state.pendingBytes
+      });
+    } catch {}
+  };
   const notifyWaiters = () => {
     if (!waiters.length) return;
     const pending = waiters.splice(0, waiters.length);
@@ -247,6 +249,10 @@ export const createPostingsQueue = ({
         state.backpressureEvents += 1;
       }
     } else {
+      // Even when bypassing backpressure to avoid head-of-line stalls,
+      // still sample heap pressure so telemetry reflects actual memory
+      // constraints seen by postings reservations.
+      resolveLimits(payloadRows, payloadBytes, baseLimits);
       state.reserveBypassCount += 1;
     }
     state.pending += 1;
@@ -256,11 +262,13 @@ export const createPostingsQueue = ({
     state.measuredRows += payloadRows;
     state.measuredBytes += payloadBytes;
     noteHighWater();
+    emitChange();
     return {
       release() {
         state.pending = Math.max(0, state.pending - 1);
         state.pendingRows = Math.max(0, state.pendingRows - payloadRows);
         state.pendingBytes = Math.max(0, state.pendingBytes - payloadBytes);
+        emitChange();
         notifyWaiters();
       }
     };

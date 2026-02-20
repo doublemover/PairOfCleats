@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { MAX_JSON_BYTES } from '../constants.js';
 import { existsOrBak } from '../fs.js';
 import { readJsonFile, readJsonLinesArray, readJsonLinesArraySync, readJsonLinesIterator } from '../json.js';
@@ -21,7 +22,13 @@ const resolveRequiredSources = ({
   maxBytes,
   strict
 }) => {
-  const sources = resolveManifestArtifactSources({
+  if (!manifest) {
+    const manifestPath = path.join(dir, 'pieces', 'manifest.json');
+    const err = new Error(`Missing pieces manifest: ${manifestPath}`);
+    err.code = 'ERR_MANIFEST_MISSING';
+    throw err;
+  }
+  let sources = resolveManifestArtifactSources({
     dir,
     manifest,
     name,
@@ -126,7 +133,7 @@ export const loadJsonArrayArtifact = async (
   const validationMode = strict ? 'strict' : 'trusted';
   const resolvedManifest = manifest || loadPiecesManifest(
     dir,
-    { maxBytes: resolveManifestMaxBytes(maxBytes), strict: true }
+    { maxBytes: resolveManifestMaxBytes(maxBytes), strict }
   );
   const sources = resolveRequiredSources({
     dir,
@@ -181,7 +188,7 @@ export const loadJsonArrayArtifactRows = async function* (
   const validationMode = strict ? 'strict' : 'trusted';
   const resolvedManifest = manifest || loadPiecesManifest(
     dir,
-    { maxBytes: resolveManifestMaxBytes(maxBytes), strict: true }
+    { maxBytes: resolveManifestMaxBytes(maxBytes), strict }
   );
   const resolvedKeys = requiredKeys ?? resolveJsonlRequiredKeys(baseName);
   void materialize;
@@ -281,7 +288,7 @@ export const loadFileMetaRows = async function* (
   const validationMode = strict ? 'strict' : 'trusted';
   const resolvedManifest = manifest || loadPiecesManifest(
     dir,
-    { maxBytes: resolveManifestMaxBytes(maxBytes), strict: true }
+    { maxBytes: resolveManifestMaxBytes(maxBytes), strict }
   );
   const resolvedKeys = resolveJsonlRequiredKeys('file_meta');
   void materialize;
@@ -374,7 +381,7 @@ export const loadJsonObjectArtifact = async (
 ) => {
   const resolvedManifest = manifest || loadPiecesManifest(
     dir,
-    { maxBytes: resolveManifestMaxBytes(maxBytes), strict: true }
+    { maxBytes: resolveManifestMaxBytes(maxBytes), strict }
   );
   const sources = resolveManifestArtifactSources({
     dir,
@@ -418,7 +425,7 @@ export const loadJsonObjectArtifactSync = (
 ) => {
   const resolvedManifest = manifest || loadPiecesManifest(
     dir,
-    { maxBytes: resolveManifestMaxBytes(maxBytes), strict: true }
+    { maxBytes: resolveManifestMaxBytes(maxBytes), strict }
   );
   const sources = resolveManifestArtifactSources({
     dir,
@@ -465,7 +472,7 @@ export const loadJsonArrayArtifactSync = (
   const validationMode = strict ? 'strict' : 'trusted';
   const resolvedManifest = manifest || loadPiecesManifest(
     dir,
-    { maxBytes: resolveManifestMaxBytes(maxBytes), strict: true }
+    { maxBytes: resolveManifestMaxBytes(maxBytes), strict }
   );
   const sources = resolveRequiredSources({
     dir,
