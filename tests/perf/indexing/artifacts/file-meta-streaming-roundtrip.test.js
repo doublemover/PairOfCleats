@@ -5,6 +5,7 @@ import {
   loadJsonArrayArtifact
 } from '../../../../src/shared/artifact-io.js';
 import { writeJsonLinesFile } from '../../../../src/shared/json-stream.js';
+import { writePiecesManifest } from '../../../helpers/artifact-io-fixture.js';
 
 const root = process.cwd();
 const outDir = path.join(root, '.testCache', 'file-meta-streaming');
@@ -19,6 +20,9 @@ const rows = Array.from({ length: 128 }, (_value, index) => ({
 
 const jsonlPath = path.join(outDir, 'file_meta.jsonl');
 await writeJsonLinesFile(jsonlPath, rows);
+await writePiecesManifest(outDir, [
+  { name: 'file_meta', path: 'file_meta.jsonl', format: 'jsonl' }
+]);
 
 const baseline = await loadJsonArrayArtifact(outDir, 'file_meta', { strict: false });
 const streamed = [];
