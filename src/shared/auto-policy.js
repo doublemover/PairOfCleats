@@ -136,6 +136,43 @@ const resolveWorkerPool = (quality, resources, repo = null) => {
   };
 };
 
+const resolveHugeRepoProfile = ({ config = {}, repo = null }) => {
+  const raw = config?.hugeRepoProfile;
+  const profileConfig = raw && typeof raw === 'object' ? raw : {};
+  const enabled = typeof profileConfig.enabled === 'boolean'
+    ? profileConfig.enabled
+    : repo?.huge === true;
+  const id = enabled ? 'huge-repo' : 'default';
+  const reason = enabled
+    ? (repo?.huge === true ? 'repo-size-threshold' : 'explicit-config')
+    : 'disabled';
+  const overrides = enabled
+    ? {
+      hugeRepoProfile: { enabled: true, id: 'huge-repo' },
+      typeInferenceCrossFile: false,
+      riskAnalysisCrossFile: false,
+      riskInterprocedural: {
+        enabled: false
+      },
+      lexicon: {
+        relations: {
+          enabled: false
+        }
+      },
+      pipelineOverlap: {
+        enabled: true,
+        inferPostings: true
+      }
+    }
+    : {};
+  return {
+    id,
+    enabled,
+    reason,
+    overrides
+  };
+};
+
 /**
  * Build an auto-selected runtime policy from host resources, repository size,
  * and optional user quality overrides.
@@ -164,18 +201,25 @@ export async function buildAutoPolicy({
   });
   const requestedQuality = clampQuality(config.quality || 'auto') || 'auto';
   const quality = resolveQuality({ requested: requestedQuality, resources, repo });
+  const hugeRepoProfile = resolveHugeRepoProfile({ config, repo });
   const capabilities = getCapabilities();
   const concurrency = resolveConcurrency(quality.value, resources, repo);
   const workerPool = resolveWorkerPool(quality.value, resources, repo);
 
   return {
+    profile: {
+      id: hugeRepoProfile.enabled ? hugeRepoProfile.id : 'default',
+      enabled: hugeRepoProfile.enabled,
+      reason: hugeRepoProfile.reason
+    },
     quality,
     resources,
     repo,
     capabilities,
     indexing: {
       concurrency,
-      embeddings: { enabled: quality.value !== 'fast' }
+      embeddings: { enabled: quality.value !== 'fast' },
+      hugeRepoProfile
     },
     retrieval: {
       backend: 'sqlite',

@@ -143,6 +143,7 @@ export async function writeIndexArtifacts(input) {
     indexState,
     graphRelations,
     stageCheckpoints,
+    telemetry = null,
     riskInterproceduralEmitArtifacts = null,
     repoProvenance = null
   } = input;
@@ -719,16 +720,42 @@ export async function writeIndexArtifacts(input) {
   let lastWriteLog = 0;
   let lastWriteLabel = '';
   const activeWrites = new Map();
+  const activeWriteBytes = new Map();
   let writeHeartbeatTimer = null;
   const artifactMetrics = new Map();
   const writeLogIntervalMs = 1000;
   const writeProgressMeta = { stage: 'write', mode, taskId: `write:${mode}:artifacts` };
-  const writeStallWarnSeconds = Number.isFinite(Number(artifactConfig.writeStallWarnSeconds))
-    ? Math.max(5, Math.floor(Number(artifactConfig.writeStallWarnSeconds)))
-    : 30;
-  const writeStallCriticalSeconds = Number.isFinite(Number(artifactConfig.writeStallCriticalSeconds))
-    ? Math.max(writeStallWarnSeconds + 5, Math.floor(Number(artifactConfig.writeStallCriticalSeconds)))
-    : 90;
+  const configuredWriteStallThresholds = Array.isArray(artifactConfig.writeStallThresholdsSeconds)
+    ? artifactConfig.writeStallThresholdsSeconds
+      .map((entry) => Number(entry))
+      .filter((entry) => Number.isFinite(entry) && entry > 0)
+      .map((entry) => Math.floor(entry))
+      .sort((a, b) => a - b)
+    : [];
+  const legacyWarnThreshold = Number.isFinite(Number(artifactConfig.writeStallWarnSeconds))
+    ? Math.max(1, Math.floor(Number(artifactConfig.writeStallWarnSeconds)))
+    : null;
+  const legacyCriticalThreshold = Number.isFinite(Number(artifactConfig.writeStallCriticalSeconds))
+    ? Math.max(1, Math.floor(Number(artifactConfig.writeStallCriticalSeconds)))
+    : null;
+  const writeStallThresholdsSeconds = Array.from(new Set(
+    configuredWriteStallThresholds.length
+      ? configuredWriteStallThresholds
+      : [10, 30, 60]
+  ));
+  if (!configuredWriteStallThresholds.length && legacyWarnThreshold != null) {
+    writeStallThresholdsSeconds.push(legacyWarnThreshold);
+  }
+  if (!configuredWriteStallThresholds.length && legacyCriticalThreshold != null) {
+    writeStallThresholdsSeconds.push(legacyCriticalThreshold);
+  }
+  const normalizedWriteStallThresholds = Array.from(new Set(writeStallThresholdsSeconds)).sort((a, b) => a - b);
+  const stallThresholdLevelName = (thresholdSec, index) => {
+    if (thresholdSec >= 60) return 'severe';
+    if (thresholdSec >= 30) return 'critical';
+    if (thresholdSec >= 10) return 'warning';
+    return `level-${index + 1}`;
+  };
   const heavyWriteThresholdBytes = Number.isFinite(Number(artifactConfig.writeHeavyThresholdBytes))
     ? Math.max(1024 * 1024, Math.floor(Number(artifactConfig.writeHeavyThresholdBytes)))
     : (16 * 1024 * 1024);
@@ -745,6 +772,17 @@ export async function writeIndexArtifacts(input) {
     ? Math.max(1, Math.floor(Number(artifactConfig.writeHeavyConcurrency)))
     : null;
   const writeStallAlerts = new Map();
+  const updateWriteInFlightTelemetry = () => {
+    if (!telemetry || typeof telemetry.setInFlightBytes !== 'function') return;
+    let bytes = 0;
+    for (const value of activeWriteBytes.values()) {
+      if (Number.isFinite(value) && value > 0) bytes += value;
+    }
+    telemetry.setInFlightBytes('artifacts.write', {
+      bytes,
+      count: activeWrites.size
+    });
+  };
   let enqueueSeq = 0;
   const formatArtifactLabel = (filePath) => toPosix(path.relative(outDir, filePath));
   const pieceEntries = [];
@@ -782,46 +820,42 @@ export async function writeIndexArtifacts(input) {
       const inflight = Array.from(activeWrites.entries())
         .map(([label, startedAt]) => ({
           label,
-          elapsedSec: Math.max(1, Math.round((now - startedAt) / 1000))
+          elapsedSec: Math.max(1, Math.round((now - startedAt) / 1000)),
+          estimatedBytes: Number(activeWriteBytes.get(label)) || null
         }))
         .sort((a, b) => b.elapsedSec - a.elapsedSec);
-      for (const { label, elapsedSec } of inflight) {
-        const alerts = writeStallAlerts.get(label) || { warn: false, critical: false };
-        if (!alerts.warn && elapsedSec >= writeStallWarnSeconds) {
-          alerts.warn = true;
+      for (const { label, elapsedSec, estimatedBytes } of inflight) {
+        const alerts = writeStallAlerts.get(label) || new Set();
+        for (let thresholdIndex = 0; thresholdIndex < normalizedWriteStallThresholds.length; thresholdIndex += 1) {
+          const thresholdSec = normalizedWriteStallThresholds[thresholdIndex];
+          if (alerts.has(thresholdSec) || elapsedSec < thresholdSec) continue;
+          alerts.add(thresholdSec);
           writeStallAlerts.set(label, alerts);
+          const levelName = stallThresholdLevelName(thresholdSec, thresholdIndex);
           logLine(
-            `[perf] artifact write stall warning: ${label} in-flight for ${elapsedSec}s (threshold=${writeStallWarnSeconds}s)`,
-            { kind: 'warning' }
+            `[perf] artifact write stall ${levelName}: ${label} in-flight for ${elapsedSec}s ` +
+            `(threshold=${thresholdSec}s)`,
+            { kind: thresholdSec >= 30 ? 'error' : 'warning' }
           );
           if (stageCheckpoints?.record) {
             stageCheckpoints.record({
               stage: 'artifacts',
-              step: 'write-stall-warning',
+              step: `write-stall-${thresholdSec}s`,
               label,
-              extra: { elapsedSec, thresholdSec: writeStallWarnSeconds }
-            });
-          }
-        }
-        if (!alerts.critical && elapsedSec >= writeStallCriticalSeconds) {
-          alerts.critical = true;
-          writeStallAlerts.set(label, alerts);
-          logLine(
-            `[perf] artifact write stall critical: ${label} in-flight for ${elapsedSec}s (threshold=${writeStallCriticalSeconds}s)`,
-            { kind: 'error' }
-          );
-          if (stageCheckpoints?.record) {
-            stageCheckpoints.record({
-              stage: 'artifacts',
-              step: 'write-stall-critical',
-              label,
-              extra: { elapsedSec, thresholdSec: writeStallCriticalSeconds }
+              extra: {
+                elapsedSec,
+                thresholdSec,
+                level: levelName,
+                estimatedBytes
+              }
             });
           }
         }
       }
       const preview = inflight.slice(0, 3)
-        .map(({ label, elapsedSec }) => `${label} (${elapsedSec}s)`)
+        .map(({ label, elapsedSec, estimatedBytes }) => (
+          `${label} (${elapsedSec}s${Number.isFinite(estimatedBytes) ? `, ~${formatBytes(estimatedBytes)}` : ''})`
+        ))
         .join(', ');
       const suffix = inflight.length > 3 ? ` (+${inflight.length - 3} more)` : '';
       logLine(
@@ -1797,6 +1831,8 @@ export async function writeIndexArtifacts(input) {
           const started = Date.now();
           const queueDelayMs = Math.max(0, started - (Number(enqueuedAt) || started));
           activeWrites.set(activeLabel, started);
+          activeWriteBytes.set(activeLabel, Number.isFinite(estimatedBytes) ? estimatedBytes : 0);
+          updateWriteInFlightTelemetry();
           try {
             await job();
             const durationMs = Date.now() - started;
@@ -1812,6 +1848,7 @@ export async function writeIndexArtifacts(input) {
               : null;
             recordArtifactMetric(label, {
               queueDelayMs,
+              waitMs: queueDelayMs,
               durationMs,
               bytes,
               estimatedBytes: Number.isFinite(estimatedBytes) ? estimatedBytes : null,
@@ -1819,6 +1856,8 @@ export async function writeIndexArtifacts(input) {
             });
           } finally {
             activeWrites.delete(activeLabel);
+            activeWriteBytes.delete(activeLabel);
+            updateWriteInFlightTelemetry();
             writeStallAlerts.delete(activeLabel);
             logWriteProgress(label);
           }
@@ -1834,6 +1873,8 @@ export async function writeIndexArtifacts(input) {
       ]);
     } finally {
       stopWriteHeartbeat();
+      activeWriteBytes.clear();
+      updateWriteInFlightTelemetry();
     }
     logLine('', { kind: 'status' });
   } else {

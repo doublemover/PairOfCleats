@@ -263,6 +263,7 @@ export const runCrossFileInference = async ({
     const crossFileStats = await applyCrossFileInference({
       rootDir: runtime.root,
       buildRoot: runtime.buildRoot,
+      cacheRoot: runtime.repoCacheRoot,
       chunks: state.chunks,
       enabled: true,
       log,
@@ -297,6 +298,9 @@ export const runCrossFileInference = async ({
         `${formatCount(usageLinks)} Usage Links, ${formatCount(returns)} Returns, ` +
         `${formatCount(riskFlows)} Risk Flows`
       );
+      if (crossFileStats.cacheHit) {
+        log('[perf] cross-file output cache reused.');
+      }
     }
   }
   if (shouldBuildRiskSummaries) {

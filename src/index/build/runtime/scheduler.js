@@ -247,6 +247,19 @@ export const resolveSchedulerConfig = ({ argv, rawArgv, envConfig, indexingConfi
     fallback: 1024,
     allowZero: false
   });
+  const utilizationAlertTarget = coerceUnitFraction(
+    envConfig?.schedulerUtilizationAlertTarget
+      ?? schedulerConfig?.utilizationAlertTarget
+      ?? schedulerConfig?.utilizationTarget
+  ) ?? 0.75;
+  const utilizationAlertWindowMs = resolveNumber({
+    cliValue: null,
+    cliPresent: false,
+    envValue: envConfig?.schedulerUtilizationAlertWindowMs,
+    configValue: schedulerConfig?.utilizationAlertWindowMs,
+    fallback: 15000,
+    allowZero: false
+  });
 
   const queues = mergeQueueConfig(
     SCHEDULER_DEFAULT_QUEUE_CONFIG,
@@ -264,6 +277,8 @@ export const resolveSchedulerConfig = ({ argv, rawArgv, envConfig, indexingConfi
     adaptiveStep: Math.max(1, adaptiveStep || 1),
     adaptiveMemoryReserveMb: Math.max(0, adaptiveMemoryReserveMb || 0),
     adaptiveMemoryPerTokenMb: Math.max(64, adaptiveMemoryPerTokenMb || 1024),
+    utilizationAlertTarget,
+    utilizationAlertWindowMs: Math.max(1000, utilizationAlertWindowMs || 15000),
     maxCpuTokens: Math.max(1, maxCpuTokens || 1),
     maxIoTokens: Math.max(1, maxIoTokens || 1),
     maxMemoryTokens: Math.max(1, maxMemoryTokens || 1),
