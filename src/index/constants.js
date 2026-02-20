@@ -1,3 +1,13 @@
+import {
+  LOCK_FILENAMES,
+  MANIFEST_FILENAMES,
+  MANIFEST_SUFFIXES,
+  SPECIAL_CODE_FILENAME_TO_EXT,
+  SPECIAL_CODE_FILENAMES,
+  SPECIAL_CODE_PREFIX_TO_EXT
+} from './language-registry/special-files.js';
+import { LANGUAGE_ROUTE_DESCRIPTORS, getLanguageDescriptor } from './language-registry/descriptors.js';
+
 export const SKIP_DIRS = new Set([
   '.git',
   '.repoMetrics',
@@ -123,88 +133,62 @@ export const SKIP_FILES = new Set([
   'AGENTS.md'
 ]);
 
-export const MANIFEST_FILES = new Set([
-  'package.json',
-  'requirements.txt'
-]);
+export const MANIFEST_FILES = new Set(MANIFEST_FILENAMES);
 
-export const LOCK_FILES = new Set([
-  'package-lock.json',
-  'pnpm-lock.yaml',
-  'yarn.lock',
-  'composer.lock',
-  'pipfile.lock',
-  'npm-shrinkwrap.json'
-]);
+export const LOCK_FILES = new Set(LOCK_FILENAMES);
 
 export const EXTS_PROSE = new Set(['.md', '.mdx', '.txt', '.rst', '.adoc', '.asciidoc']);
 
-export const JS_EXTS = new Set(['.js', '.mjs', '.cjs', '.jsx']);
-export const TS_EXTS = new Set(['.ts', '.tsx', '.mts', '.cts']);
-export const CLIKE_EXTS = new Set(['.c', '.h', '.cc', '.cpp', '.hpp', '.hh', '.m', '.mm']);
+const extensionsFor = (id) => new Set(getLanguageDescriptor(id)?.extensions || []);
+
+const CODE_EXTENSION_SET = new Set();
+for (const descriptor of LANGUAGE_ROUTE_DESCRIPTORS) {
+  for (const ext of descriptor?.extensions || []) {
+    CODE_EXTENSION_SET.add(ext);
+  }
+}
+for (const ext of ['.def', '.vue', '.svelte', '.astro']) {
+  CODE_EXTENSION_SET.add(ext);
+}
+
+export const JS_EXTS = extensionsFor('javascript');
+export const TS_EXTS = extensionsFor('typescript');
+export const CLIKE_EXTS = extensionsFor('clike');
 export const CPP_EXTS = new Set(['.cc', '.cpp', '.hpp', '.hh']);
 export const OBJC_EXTS = new Set(['.m', '.mm']);
-export const RUST_EXTS = new Set(['.rs']);
-export const GO_EXTS = new Set(['.go']);
-export const JAVA_EXTS = new Set(['.java']);
-export const CSHARP_EXTS = new Set(['.cs']);
-export const KOTLIN_EXTS = new Set(['.kt', '.kts']);
-export const RUBY_EXTS = new Set(['.rb']);
-export const PHP_EXTS = new Set(['.php', '.phtml']);
-export const HTML_EXTS = new Set(['.html', '.htm']);
-export const CSS_EXTS = new Set(['.css']);
-export const LUA_EXTS = new Set(['.lua']);
-export const SQL_EXTS = new Set(['.sql', '.psql', '.pgsql', '.mysql', '.sqlite']);
-export const PERL_EXTS = new Set(['.pl', '.pm']);
-export const SHELL_EXTS = new Set(['.sh', '.bash', '.zsh', '.ksh']);
-export const CMAKE_EXTS = new Set(['.cmake']);
-export const STARLARK_EXTS = new Set(['.bzl', '.bazel', '.star']);
-export const NIX_EXTS = new Set(['.nix']);
-export const DART_EXTS = new Set(['.dart']);
-export const SCALA_EXTS = new Set(['.scala', '.sc']);
-export const GROOVY_EXTS = new Set(['.groovy', '.gradle', '.gvy']);
-export const R_EXTS = new Set(['.r']);
-export const JULIA_EXTS = new Set(['.jl']);
-export const HANDLEBARS_EXTS = new Set(['.hbs', '.handlebars']);
-export const MUSTACHE_EXTS = new Set(['.mustache']);
-export const JINJA_EXTS = new Set(['.jinja', '.jinja2', '.j2', '.django', '.djhtml']);
-export const RAZOR_EXTS = new Set(['.razor', '.cshtml']);
+export const RUST_EXTS = extensionsFor('rust');
+export const GO_EXTS = extensionsFor('go');
+export const JAVA_EXTS = extensionsFor('java');
+export const CSHARP_EXTS = extensionsFor('csharp');
+export const KOTLIN_EXTS = extensionsFor('kotlin');
+export const RUBY_EXTS = extensionsFor('ruby');
+export const PHP_EXTS = extensionsFor('php');
+export const HTML_EXTS = extensionsFor('html');
+export const CSS_EXTS = extensionsFor('css');
+export const LUA_EXTS = extensionsFor('lua');
+export const SQL_EXTS = extensionsFor('sql');
+export const PERL_EXTS = extensionsFor('perl');
+export const SHELL_EXTS = extensionsFor('shell');
+export const CMAKE_EXTS = extensionsFor('cmake');
+export const STARLARK_EXTS = extensionsFor('starlark');
+export const NIX_EXTS = extensionsFor('nix');
+export const DART_EXTS = extensionsFor('dart');
+export const SCALA_EXTS = extensionsFor('scala');
+export const GROOVY_EXTS = extensionsFor('groovy');
+export const R_EXTS = extensionsFor('r');
+export const JULIA_EXTS = extensionsFor('julia');
+export const HANDLEBARS_EXTS = extensionsFor('handlebars');
+export const MUSTACHE_EXTS = extensionsFor('mustache');
+export const JINJA_EXTS = extensionsFor('jinja');
+export const RAZOR_EXTS = extensionsFor('razor');
 
-export const EXTS_CODE = new Set([
-  '.js', '.mjs', '.cjs', '.jsx', '.ts', '.tsx', '.mts', '.cts', '.yml', '.yaml', '.sh',
-  '.html', '.htm', '.css', '.py', '.swift', '.rs', '.c', '.cc', '.cpp', '.h', '.hpp', '.hh',
-  '.def',
-  '.m', '.mm', '.go', '.java', '.cs', '.kt', '.kts', '.rb', '.php', '.phtml',
-  '.lua', '.sql', '.psql', '.pgsql', '.mysql', '.sqlite', '.pl', '.pm', '.bash',
-  '.zsh', '.ksh', '.json', '.toml', '.ini', '.xml', '.cfg', '.conf', '.vue',
-  '.svelte', '.astro', '.proto', '.graphql', '.gql', '.cmake', '.dockerfile', '.makefile', '.bzl', '.bazel',
-  '.star', '.nix', '.dart', '.scala', '.sc', '.groovy', '.gradle', '.gvy', '.r',
-  '.jl', '.hbs', '.handlebars', '.mustache', '.jinja', '.jinja2', '.j2',
-  '.django', '.djhtml', '.razor', '.cshtml'
-]);
+export const EXTS_CODE = CODE_EXTENSION_SET;
 
-export const CODE_FILENAMES = new Set([
-  'dockerfile',
-  'makefile',
-  'gnumakefile',
-  'cmakelists.txt',
-  'build',
-  'workspace'
-]);
+export const CODE_FILENAMES = new Set(SPECIAL_CODE_FILENAMES);
 
-const SPECIAL_CODE_EXTS = new Map([
-  ['dockerfile', '.dockerfile'],
-  ['makefile', '.makefile'],
-  ['gnumakefile', '.makefile'],
-  ['cmakelists.txt', '.cmake'],
-  ['build', '.bazel'],
-  ['workspace', '.bazel']
-]);
+const SPECIAL_CODE_EXTS = new Map(Object.entries(SPECIAL_CODE_FILENAME_TO_EXT));
 
-const SPECIAL_CODE_PREFIXES = new Map([
-  ['dockerfile', '.dockerfile'],
-  ['makefile', '.makefile']
-]);
+const SPECIAL_CODE_PREFIXES = new Map(Object.entries(SPECIAL_CODE_PREFIX_TO_EXT));
 
 export const STOP = new Set([
   'i', 'me', 'my', 'myself', 'we', 'our', 'ours', 'ourselves',
@@ -573,7 +557,14 @@ export const isShell = (ext) => SHELL_EXTS.has(ext);
  */
 export const isSpecialCodeFile = (name) => !!resolveSpecialCodeExt(name);
 
-export const isManifestFile = (name) => MANIFEST_FILES.has(String(name || '').toLowerCase());
+export const isManifestFile = (name) => {
+  const key = String(name || '').toLowerCase();
+  if (MANIFEST_FILES.has(key)) return true;
+  for (const suffix of MANIFEST_SUFFIXES) {
+    if (key.endsWith(suffix)) return true;
+  }
+  return false;
+};
 
 export const isLockFile = (name) => LOCK_FILES.has(String(name || '').toLowerCase());
 
