@@ -1,0 +1,40 @@
+{
+  "item": 39,
+  "section": "39",
+  "title": "Core normalization/linking/identity",
+  "sourceSpecs": [
+    "docs/specs/unified-syntax-representation.md",
+    "docs/specs/usr-core-normalization-linking-identity.md"
+  ],
+  "inputs": {
+    "nodeKindMapping": "tests/lang/matrix/usr-node-kind-mapping.json",
+    "edgeKindConstraints": "tests/lang/matrix/usr-edge-kind-constraints.json"
+  },
+  "allowedEntityKinds": [
+    "document",
+    "segment",
+    "node",
+    "symbol"
+  ],
+  "requiredEdgeKinds": [
+    "route_maps_to",
+    "template_binds",
+    "style_scopes",
+    "hydration_boundary"
+  ],
+  "requiredAttrsByEdge": {
+    "route_maps_to": [
+      "routePattern"
+    ],
+    "template_binds": [
+      "bindingKind"
+    ],
+    "style_scopes": [
+      "scopeKind"
+    ],
+    "hydration_boundary": [
+      "runtimeSide"
+    ]
+  },
+  "report": "usr-section-39-normalization-linking-report.json"
+}
