@@ -1396,11 +1396,11 @@ Tests:
 
 #### 6.2 Coverage integration
 
-- [ ] Implement `--coverage`, `--coverage-merge`, and `--coverage-changed` in `tests/run.js`.
-- [ ] Define a versioned coverage artifact schema and deterministic merge ordering (normalized repo-relative `/` paths + stable file ordering).
-- [ ] Enforce coverage artifact schema validation in contract validators (not docs only).
-- [ ] Enforce documented output locations and schema.
-- [ ] Normalize all coverage paths before write/merge to eliminate platform-dependent path drift.
+- [x] Implement `--coverage`, `--coverage-merge`, and `--coverage-changed` in `tests/run.js`.
+- [x] Define a versioned coverage artifact schema and deterministic merge ordering (normalized repo-relative `/` paths + stable file ordering).
+- [x] Enforce coverage artifact schema validation in contract validators (not docs only).
+- [x] Enforce documented output locations and schema.
+- [x] Normalize all coverage paths before write/merge to eliminate platform-dependent path drift.
 
 Touchpoints:
 
