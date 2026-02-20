@@ -115,7 +115,11 @@ export async function createIndexerWorkerPool(input = {}) {
     let shutdownWhenIdle = false;
     let pendingRestart = false;
     const workerExecArgv = buildWorkerExecArgv();
-    const resourceLimits = resolveWorkerResourceLimits(poolConfig.maxWorkers);
+    const resourceLimits = resolveWorkerResourceLimits(poolConfig.maxWorkers, {
+      targetPerWorkerMb: poolConfig.heapTargetMb,
+      minPerWorkerMb: poolConfig.heapMinMb,
+      maxPerWorkerMb: poolConfig.heapMaxMb
+    });
     const createPool = () => {
       const workerData = {
         dictConfig: sanitizeDictConfig(dictConfig),
