@@ -626,8 +626,14 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     cpuConcurrency,
     fileConcurrency
   });
+  const procConcurrencyCap = Number.isFinite(fileConcurrency)
+    ? Math.max(
+      Math.max(1, Math.floor(cpuConcurrency || 1)),
+      Math.floor(fileConcurrency / 2)
+    )
+    : Math.max(1, Math.floor(cpuConcurrency || 1));
   const procConcurrency = workerPoolConfig?.enabled !== false && Number.isFinite(workerPoolConfig?.maxWorkers)
-    ? Math.max(1, Math.min(cpuConcurrency, Math.floor(workerPoolConfig.maxWorkers)))
+    ? Math.max(1, Math.min(procConcurrencyCap, Math.floor(workerPoolConfig.maxWorkers)))
     : null;
   const queueConfig = createRuntimeQueues({
     ioConcurrency,
