@@ -1,7 +1,7 @@
 # Spec -- USR Core Language and Framework Catalog Contract
 
 Status: Draft v2.0
-Last updated: 2026-02-11T08:20:00Z
+Last updated: 2026-02-20T00:00:00Z
 
 ## Purpose
 
@@ -60,7 +60,7 @@ Required machine-readable row keys:
 | A -- JS/TS and web templates | `javascript`, `typescript`, `html`, `css`, `graphql`, `handlebars`, `mustache`, `jinja`, `razor` | C4 for JS/TS + framework overlays, C2/C3 for template languages as applicable |
 | B -- core systems/runtime | `python`, `go`, `java`, `csharp`, `kotlin`, `rust`, `swift`, `clike` | C3 |
 | C -- dynamic/server scripting | `ruby`, `php`, `perl`, `lua`, `shell`, `r`, `julia`, `groovy`, `scala`, `dart` | C2/C3 |
-| D -- build/config/data DSLs | `cmake`, `starlark`, `nix`, `makefile`, `dockerfile`, `proto`, `sql` | C1/C2 |
+| D -- build/config/data DSLs | `cmake`, `starlark`, `nix`, `makefile`, `dockerfile`, `proto`, `sql`, `yaml`, `json`, `toml`, `ini`, `xml` | C1/C2 |
 
 ## Framework profile coverage
 

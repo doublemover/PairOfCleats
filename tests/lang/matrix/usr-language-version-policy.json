@@ -134,6 +134,18 @@
       ]
     },
     {
+      "languageId": "ini",
+      "minVersion": "ini-1.0",
+      "maxVersion": null,
+      "dialects": [
+        "cfg",
+        "ini"
+      ],
+      "featureFlags": [
+        "sections"
+      ]
+    },
+    {
       "languageId": "java",
       "minVersion": "17",
       "maxVersion": null,
@@ -169,6 +181,18 @@
       "featureFlags": [
         "filters",
         "macros"
+      ]
+    },
+    {
+      "languageId": "json",
+      "minVersion": "rfc-8259",
+      "maxVersion": null,
+      "dialects": [
+        "json"
+      ],
+      "featureFlags": [
+        "arrays",
+        "nested-objects"
       ]
     },
     {
@@ -394,6 +418,17 @@
       ]
     },
     {
+      "languageId": "toml",
+      "minVersion": "1.0.0",
+      "maxVersion": null,
+      "dialects": [
+        "toml"
+      ],
+      "featureFlags": [
+        "arrays-of-tables"
+      ]
+    },
+    {
       "languageId": "typescript",
       "minVersion": "5.0",
       "maxVersion": null,
@@ -405,6 +440,30 @@
         "decorators",
         "jsx",
         "project-references"
+      ]
+    },
+    {
+      "languageId": "xml",
+      "minVersion": "xml-1.0",
+      "maxVersion": null,
+      "dialects": [
+        "xml"
+      ],
+      "featureFlags": [
+        "namespaces",
+        "xinclude"
+      ]
+    },
+    {
+      "languageId": "yaml",
+      "minVersion": "1.2",
+      "maxVersion": null,
+      "dialects": [
+        "yaml"
+      ],
+      "featureFlags": [
+        "aliases",
+        "anchors"
       ]
     }
   ]

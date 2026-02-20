@@ -1,9 +1,15 @@
 import util from 'node:util';
 import { isGo, isJsLike } from '../../constants.js';
 
+export const normalizeDocMeta = (docmeta) => (
+  docmeta && typeof docmeta === 'object' && !Array.isArray(docmeta)
+    ? docmeta
+    : {}
+);
+
 export const mergeFlowMeta = (docmeta, flowMeta, { astDataflowEnabled, controlFlowEnabled }) => {
   if (!flowMeta) return docmeta;
-  const output = docmeta && typeof docmeta === 'object' ? docmeta : {};
+  const output = normalizeDocMeta(docmeta);
   if (controlFlowEnabled && flowMeta.controlFlow && output.controlFlow == null) {
     output.controlFlow = flowMeta.controlFlow;
   }

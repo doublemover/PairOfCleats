@@ -22,6 +22,7 @@ const REQUIRED_NATIVE_PACKAGES = [
   'tree-sitter-typescript',
   '@tree-sitter-grammars/tree-sitter-markdown',
   '@tree-sitter-grammars/tree-sitter-toml',
+  '@tree-sitter-grammars/tree-sitter-xml',
   '@tree-sitter-grammars/tree-sitter-yaml',
   'better-sqlite3',
   'hnswlib-node',

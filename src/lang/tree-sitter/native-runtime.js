@@ -30,9 +30,22 @@ const NATIVE_GRAMMAR_MODULES = Object.freeze({
   tsx: { moduleName: 'tree-sitter-typescript', exportKey: 'tsx' },
   python: { moduleName: 'tree-sitter-python' },
   json: { moduleName: 'tree-sitter-json' },
-  yaml: { moduleName: '@tree-sitter-grammars/tree-sitter-yaml' },
-  toml: { moduleName: '@tree-sitter-grammars/tree-sitter-toml' },
-  markdown: { moduleName: '@tree-sitter-grammars/tree-sitter-markdown' },
+  yaml: {
+    moduleName: '@tree-sitter-grammars/tree-sitter-yaml',
+    fallbackExportKeys: ['yaml', 'language', 'default']
+  },
+  toml: {
+    moduleName: '@tree-sitter-grammars/tree-sitter-toml',
+    fallbackExportKeys: ['toml', 'language', 'default']
+  },
+  xml: {
+    moduleName: '@tree-sitter-grammars/tree-sitter-xml',
+    fallbackExportKeys: ['xml', 'language', 'default']
+  },
+  markdown: {
+    moduleName: '@tree-sitter-grammars/tree-sitter-markdown',
+    fallbackExportKeys: ['markdown', 'language', 'default']
+  },
   kotlin: { moduleName: 'tree-sitter-kotlin' },
   csharp: { moduleName: 'tree-sitter-c-sharp' },
   clike: { moduleName: 'tree-sitter-c' },
@@ -80,6 +93,14 @@ const resolveGrammarLanguageExport = (grammarModule, grammarSpec) => {
     }
   }
 
+  if (grammarModule?.default) {
+    return { language: grammarModule.default, source: 'default' };
+  }
+
+  if (preferredKey && grammarModule && typeof grammarModule === 'object') {
+    return { language: grammarModule, source: 'module' };
+  }
+
   if (!preferredKey) {
     return { language: grammarModule, source: null };
   }
@@ -87,6 +108,10 @@ const resolveGrammarLanguageExport = (grammarModule, grammarSpec) => {
 };
 
 const normalizeLanguageBinding = (languageValue, grammarModule) => {
+  if (languageValue?.default && languageValue.default !== languageValue) {
+    const nested = normalizeLanguageBinding(languageValue.default, grammarModule);
+    if (nested) return nested;
+  }
   if (!languageValue || typeof languageValue !== 'object') return null;
   if (languageValue.language && languageValue.nodeTypeInfo) return languageValue;
   if (grammarModule && grammarModule.nodeTypeInfo && languageValue === grammarModule.language) {
@@ -99,13 +124,24 @@ const loadGrammarModule = (grammarSpec) => {
   if (grammarSpec?.prebuildBinary) {
     const prebuildId = `${process.platform}-${process.arch}`;
     const bindingPath = `${grammarSpec.moduleName}/prebuilds/${prebuildId}/${grammarSpec.prebuildBinary}`;
-    const binding = require(bindingPath);
     try {
-      binding.nodeTypeInfo = require(`${grammarSpec.moduleName}/src/node-types.json`);
-    } catch {
-      // ignore missing node-types metadata
+      const binding = require(bindingPath);
+      try {
+        binding.nodeTypeInfo = require(`${grammarSpec.moduleName}/src/node-types.json`);
+      } catch {
+        // ignore missing node-types metadata
+      }
+      return binding;
+    } catch (prebuildErr) {
+      try {
+        return require(grammarSpec.moduleName);
+      } catch (moduleErr) {
+        if (moduleErr && typeof moduleErr === 'object' && moduleErr.cause == null) {
+          moduleErr.cause = prebuildErr;
+        }
+        throw moduleErr;
+      }
     }
-    return binding;
   }
   return require(grammarSpec.moduleName);
 };

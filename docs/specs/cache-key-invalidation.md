@@ -1,76 +1,81 @@
 # Cache Key + Invalidation Spec
 
+Status: Active v2.0  
+Last updated: 2026-02-20T00:00:00Z
+
 ## Goals
-- Define a single cache key schema for all caches.
-- Ensure cache invalidation is deterministic and complete.
+
+- Define one deterministic cache-key schema for all cache layers.
+- Ensure stale cache rejection is complete and deterministic.
+- Keep invalidation semantics explicit for parser/chunking/caps/segmentation changes.
 
 ## Non-goals
-- Backward compatibility for old cache layouts.
 
-## Key Schema
-Key fields (concatenated and hashed):
-- repoHash: hash of repo root content list + file hashes
-- buildConfigHash: hash of config inputs affecting outputs
-- mode: code / prose / extracted-prose
-- schemaVersion: version of artifact schema
-- featureFlags: normalized feature toggle list
-- pathPolicy: posix or native
+- No backward compatibility for legacy cache layouts.
+
+## Key schema
+
+Key fields (normalized, concatenated, then hashed):
+
+- `repoHash`: repo file-set/content hash.
+- `buildConfigHash`: normalized config hash for build-affecting settings.
+- `mode`: `code | prose | extracted-prose | records`.
+- `schemaVersion`: artifact schema version.
+- `featureFlags`: normalized sorted feature toggles.
+- `pathPolicy`: `posix | native`.
+- `languageId`: effective language for language-scoped caches.
+- `parserVersion`: parser/runtime version for language parser.
+- `grammarHash`: grammar artifact hash where applicable.
+- `chunkingConfigVersion`: chunking policy version.
+- `fileCapsVersion`: cap policy version.
+- `segmentationVersion`: segmentation policy version for embedded-language files.
 
 Key prefix:
-- cacheNamespace: normalized namespace for cache isolation
-- cacheKeyVersion: version tag for schema changes
 
-Example key payload string:
-repoHash|buildConfigHash|mode|schemaVersion|featureFlags|pathPolicy
+- `cacheNamespace`
+- `cacheKeyVersion`
+
+Example payload:
+
+`repoHash|buildConfigHash|mode|schemaVersion|featureFlags|pathPolicy|languageId|parserVersion|grammarHash|chunkingConfigVersion|fileCapsVersion|segmentationVersion`
 
 Example full key:
-cacheNamespace:cacheKeyVersion:sha1(payload)
 
-Normalization:
-- featureFlags are sorted and comma-joined.
-- pathPolicy defaults to `native` on Windows, `posix` elsewhere unless explicitly set.
-- cacheNamespace defaults to `pairofcleats` and can be overridden via `PAIROFCLEATS_CACHE_NAMESPACE`.
+`cacheNamespace:cacheKeyVersion:sha1(payload)`
 
-## Local Cache Keys
-In-memory caches should use the shared helper with a namespaced payload:
-- `buildLocalCacheKey({ namespace, payload })` hashes a stable, versioned payload.
-- Local keys are versioned via `LOCAL_CACHE_KEY_VERSION` for safe invalidation.
-- Use descriptive namespaces (e.g., `graph-index`, `query-plan`, `context-pack-excerpt`).
+## Invalidation rules
 
-## Repo Hash
-- Derived from discovery list, file hashes, and ignore rules.
-- Must change if any file content changes.
+Any component change invalidates affected cache entries. Required invalidation triggers include:
 
-## Build Config Hash
-Include:
-- tokenization config
-- embeddings config
-- stage caps
-- filter index config
-- artifact compression config
+1. File content or file set change.
+2. Mode change.
+3. Parser/runtime version change.
+4. Grammar artifact change.
+5. Chunking/cap/segmentation policy change.
+6. Feature flag change.
+7. Artifact schema version change.
 
-## Invalidation Rules
-- Any key component change invalidates cache.
-- File set changes invalidate resolved and unresolved import caches.
-- Embeddings cache invalidates on model revision, dims, normalization, or quant change.
-- VFS caches invalidate on manifest or routing config change.
+## Cache layers
 
-## TTL / Expiry
-- Optional TTL per cache type.
-- Default: no TTL unless configured.
+- In-memory hot caches.
+- Persistent AST/chunk caches.
+- VFS/segment caches.
+- Query-plan/retrieval caches.
 
-## Cache Layout
-- Cache root is versioned by schemaVersion.
-- Old caches are purged on schema change.
+All layers must apply the same key schema components relevant to the cached artifact.
 
-## Cache Rebuild + Clear
-- `PAIROFCLEATS_CACHE_REBUILD=1` forces the versioned cache root to be removed before use.
-- `build-index --cache-rebuild` sets `PAIROFCLEATS_CACHE_REBUILD=1`.
-- `pairofcleats cache clear` deletes the versioned cache root (use `--all` to remove legacy roots).
+## Cache clear/rebuild behavior
 
-## Logging
-- Log cache hits/misses with key prefix and reason.
-- Cache metrics sampling can be controlled via `PAIROFCLEATS_CACHE_METRICS_SAMPLE_RATE` (0–1).
+- `PAIROFCLEATS_CACHE_REBUILD=1` forces versioned cache root rebuild.
+- `build-index --cache-rebuild` enables full rebuild.
+- `pairofcleats cache clear` removes active versioned cache root.
 
-## Breaking Changes
-No backward compatibility; old caches are purged.
+## Logging and observability
+
+- Emit cache hit/miss counters by namespace.
+- Emit deterministic invalidation reason codes.
+- Include key-version metadata in diagnostics.
+
+## Compatibility policy
+
+No legacy cache-key aliases are supported.

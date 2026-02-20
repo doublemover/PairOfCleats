@@ -1593,6 +1593,154 @@
       "blocking": false
     },
     {
+      "languageId": "ini",
+      "frameworkProfile": null,
+      "capability": "ast",
+      "state": "partial",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [
+        "USR-W-CAPABILITY-DOWNGRADED"
+      ],
+      "blocking": false
+    },
+    {
+      "languageId": "ini",
+      "frameworkProfile": null,
+      "capability": "controlFlow",
+      "state": "unsupported",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [
+        "USR-E-CAPABILITY-LOST"
+      ],
+      "blocking": false
+    },
+    {
+      "languageId": "ini",
+      "frameworkProfile": null,
+      "capability": "dataFlow",
+      "state": "unsupported",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [
+        "USR-E-CAPABILITY-LOST"
+      ],
+      "blocking": false
+    },
+    {
+      "languageId": "ini",
+      "frameworkProfile": null,
+      "capability": "docmeta",
+      "state": "supported",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [],
+      "blocking": false
+    },
+    {
+      "languageId": "ini",
+      "frameworkProfile": null,
+      "capability": "graphRelations",
+      "state": "partial",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [
+        "USR-W-CAPABILITY-DOWNGRADED"
+      ],
+      "blocking": false
+    },
+    {
+      "languageId": "ini",
+      "frameworkProfile": null,
+      "capability": "imports",
+      "state": "partial",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [
+        "USR-W-CAPABILITY-DOWNGRADED"
+      ],
+      "blocking": false
+    },
+    {
+      "languageId": "ini",
+      "frameworkProfile": null,
+      "capability": "relations",
+      "state": "partial",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [
+        "USR-W-CAPABILITY-DOWNGRADED"
+      ],
+      "blocking": false
+    },
+    {
+      "languageId": "ini",
+      "frameworkProfile": null,
+      "capability": "riskInterprocedural",
+      "state": "unsupported",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [
+        "USR-E-CAPABILITY-LOST"
+      ],
+      "blocking": false
+    },
+    {
+      "languageId": "ini",
+      "frameworkProfile": null,
+      "capability": "riskLocal",
+      "state": "partial",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [
+        "USR-W-CAPABILITY-DOWNGRADED"
+      ],
+      "blocking": false
+    },
+    {
+      "languageId": "ini",
+      "frameworkProfile": null,
+      "capability": "symbolGraph",
+      "state": "partial",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [
+        "USR-W-CAPABILITY-DOWNGRADED"
+      ],
+      "blocking": false
+    },
+    {
       "languageId": "java",
       "frameworkProfile": null,
       "capability": "ast",
@@ -2028,6 +2176,154 @@
         "C0",
         "C1",
         "C4"
+      ],
+      "downgradeDiagnostics": [
+        "USR-W-CAPABILITY-DOWNGRADED"
+      ],
+      "blocking": false
+    },
+    {
+      "languageId": "json",
+      "frameworkProfile": null,
+      "capability": "ast",
+      "state": "partial",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [
+        "USR-W-CAPABILITY-DOWNGRADED"
+      ],
+      "blocking": false
+    },
+    {
+      "languageId": "json",
+      "frameworkProfile": null,
+      "capability": "controlFlow",
+      "state": "unsupported",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [
+        "USR-E-CAPABILITY-LOST"
+      ],
+      "blocking": false
+    },
+    {
+      "languageId": "json",
+      "frameworkProfile": null,
+      "capability": "dataFlow",
+      "state": "unsupported",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [
+        "USR-E-CAPABILITY-LOST"
+      ],
+      "blocking": false
+    },
+    {
+      "languageId": "json",
+      "frameworkProfile": null,
+      "capability": "docmeta",
+      "state": "supported",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [],
+      "blocking": false
+    },
+    {
+      "languageId": "json",
+      "frameworkProfile": null,
+      "capability": "graphRelations",
+      "state": "partial",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [
+        "USR-W-CAPABILITY-DOWNGRADED"
+      ],
+      "blocking": false
+    },
+    {
+      "languageId": "json",
+      "frameworkProfile": null,
+      "capability": "imports",
+      "state": "partial",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [
+        "USR-W-CAPABILITY-DOWNGRADED"
+      ],
+      "blocking": false
+    },
+    {
+      "languageId": "json",
+      "frameworkProfile": null,
+      "capability": "relations",
+      "state": "partial",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [
+        "USR-W-CAPABILITY-DOWNGRADED"
+      ],
+      "blocking": false
+    },
+    {
+      "languageId": "json",
+      "frameworkProfile": null,
+      "capability": "riskInterprocedural",
+      "state": "unsupported",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [
+        "USR-E-CAPABILITY-LOST"
+      ],
+      "blocking": false
+    },
+    {
+      "languageId": "json",
+      "frameworkProfile": null,
+      "capability": "riskLocal",
+      "state": "partial",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [
+        "USR-W-CAPABILITY-DOWNGRADED"
+      ],
+      "blocking": false
+    },
+    {
+      "languageId": "json",
+      "frameworkProfile": null,
+      "capability": "symbolGraph",
+      "state": "partial",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
       ],
       "downgradeDiagnostics": [
         "USR-W-CAPABILITY-DOWNGRADED"
@@ -4785,6 +5081,154 @@
       "blocking": false
     },
     {
+      "languageId": "toml",
+      "frameworkProfile": null,
+      "capability": "ast",
+      "state": "partial",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [
+        "USR-W-CAPABILITY-DOWNGRADED"
+      ],
+      "blocking": false
+    },
+    {
+      "languageId": "toml",
+      "frameworkProfile": null,
+      "capability": "controlFlow",
+      "state": "unsupported",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [
+        "USR-E-CAPABILITY-LOST"
+      ],
+      "blocking": false
+    },
+    {
+      "languageId": "toml",
+      "frameworkProfile": null,
+      "capability": "dataFlow",
+      "state": "unsupported",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [
+        "USR-E-CAPABILITY-LOST"
+      ],
+      "blocking": false
+    },
+    {
+      "languageId": "toml",
+      "frameworkProfile": null,
+      "capability": "docmeta",
+      "state": "supported",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [],
+      "blocking": false
+    },
+    {
+      "languageId": "toml",
+      "frameworkProfile": null,
+      "capability": "graphRelations",
+      "state": "partial",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [
+        "USR-W-CAPABILITY-DOWNGRADED"
+      ],
+      "blocking": false
+    },
+    {
+      "languageId": "toml",
+      "frameworkProfile": null,
+      "capability": "imports",
+      "state": "partial",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [
+        "USR-W-CAPABILITY-DOWNGRADED"
+      ],
+      "blocking": false
+    },
+    {
+      "languageId": "toml",
+      "frameworkProfile": null,
+      "capability": "relations",
+      "state": "partial",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [
+        "USR-W-CAPABILITY-DOWNGRADED"
+      ],
+      "blocking": false
+    },
+    {
+      "languageId": "toml",
+      "frameworkProfile": null,
+      "capability": "riskInterprocedural",
+      "state": "unsupported",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [
+        "USR-E-CAPABILITY-LOST"
+      ],
+      "blocking": false
+    },
+    {
+      "languageId": "toml",
+      "frameworkProfile": null,
+      "capability": "riskLocal",
+      "state": "partial",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [
+        "USR-W-CAPABILITY-DOWNGRADED"
+      ],
+      "blocking": false
+    },
+    {
+      "languageId": "toml",
+      "frameworkProfile": null,
+      "capability": "symbolGraph",
+      "state": "partial",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [
+        "USR-W-CAPABILITY-DOWNGRADED"
+      ],
+      "blocking": false
+    },
+    {
       "languageId": "typescript",
       "frameworkProfile": null,
       "capability": "ast",
@@ -4934,6 +5378,302 @@
         "C4"
       ],
       "downgradeDiagnostics": [],
+      "blocking": false
+    },
+    {
+      "languageId": "xml",
+      "frameworkProfile": null,
+      "capability": "ast",
+      "state": "partial",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [
+        "USR-W-CAPABILITY-DOWNGRADED"
+      ],
+      "blocking": false
+    },
+    {
+      "languageId": "xml",
+      "frameworkProfile": null,
+      "capability": "controlFlow",
+      "state": "unsupported",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [
+        "USR-E-CAPABILITY-LOST"
+      ],
+      "blocking": false
+    },
+    {
+      "languageId": "xml",
+      "frameworkProfile": null,
+      "capability": "dataFlow",
+      "state": "unsupported",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [
+        "USR-E-CAPABILITY-LOST"
+      ],
+      "blocking": false
+    },
+    {
+      "languageId": "xml",
+      "frameworkProfile": null,
+      "capability": "docmeta",
+      "state": "supported",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [],
+      "blocking": false
+    },
+    {
+      "languageId": "xml",
+      "frameworkProfile": null,
+      "capability": "graphRelations",
+      "state": "partial",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [
+        "USR-W-CAPABILITY-DOWNGRADED"
+      ],
+      "blocking": false
+    },
+    {
+      "languageId": "xml",
+      "frameworkProfile": null,
+      "capability": "imports",
+      "state": "partial",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [
+        "USR-W-CAPABILITY-DOWNGRADED"
+      ],
+      "blocking": false
+    },
+    {
+      "languageId": "xml",
+      "frameworkProfile": null,
+      "capability": "relations",
+      "state": "partial",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [
+        "USR-W-CAPABILITY-DOWNGRADED"
+      ],
+      "blocking": false
+    },
+    {
+      "languageId": "xml",
+      "frameworkProfile": null,
+      "capability": "riskInterprocedural",
+      "state": "unsupported",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [
+        "USR-E-CAPABILITY-LOST"
+      ],
+      "blocking": false
+    },
+    {
+      "languageId": "xml",
+      "frameworkProfile": null,
+      "capability": "riskLocal",
+      "state": "partial",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [
+        "USR-W-CAPABILITY-DOWNGRADED"
+      ],
+      "blocking": false
+    },
+    {
+      "languageId": "xml",
+      "frameworkProfile": null,
+      "capability": "symbolGraph",
+      "state": "partial",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [
+        "USR-W-CAPABILITY-DOWNGRADED"
+      ],
+      "blocking": false
+    },
+    {
+      "languageId": "yaml",
+      "frameworkProfile": null,
+      "capability": "ast",
+      "state": "partial",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [
+        "USR-W-CAPABILITY-DOWNGRADED"
+      ],
+      "blocking": false
+    },
+    {
+      "languageId": "yaml",
+      "frameworkProfile": null,
+      "capability": "controlFlow",
+      "state": "unsupported",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [
+        "USR-E-CAPABILITY-LOST"
+      ],
+      "blocking": false
+    },
+    {
+      "languageId": "yaml",
+      "frameworkProfile": null,
+      "capability": "dataFlow",
+      "state": "unsupported",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [
+        "USR-E-CAPABILITY-LOST"
+      ],
+      "blocking": false
+    },
+    {
+      "languageId": "yaml",
+      "frameworkProfile": null,
+      "capability": "docmeta",
+      "state": "supported",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [],
+      "blocking": false
+    },
+    {
+      "languageId": "yaml",
+      "frameworkProfile": null,
+      "capability": "graphRelations",
+      "state": "partial",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [
+        "USR-W-CAPABILITY-DOWNGRADED"
+      ],
+      "blocking": false
+    },
+    {
+      "languageId": "yaml",
+      "frameworkProfile": null,
+      "capability": "imports",
+      "state": "partial",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [
+        "USR-W-CAPABILITY-DOWNGRADED"
+      ],
+      "blocking": false
+    },
+    {
+      "languageId": "yaml",
+      "frameworkProfile": null,
+      "capability": "relations",
+      "state": "partial",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [
+        "USR-W-CAPABILITY-DOWNGRADED"
+      ],
+      "blocking": false
+    },
+    {
+      "languageId": "yaml",
+      "frameworkProfile": null,
+      "capability": "riskInterprocedural",
+      "state": "unsupported",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [
+        "USR-E-CAPABILITY-LOST"
+      ],
+      "blocking": false
+    },
+    {
+      "languageId": "yaml",
+      "frameworkProfile": null,
+      "capability": "riskLocal",
+      "state": "partial",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [
+        "USR-W-CAPABILITY-DOWNGRADED"
+      ],
+      "blocking": false
+    },
+    {
+      "languageId": "yaml",
+      "frameworkProfile": null,
+      "capability": "symbolGraph",
+      "state": "partial",
+      "requiredConformance": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "downgradeDiagnostics": [
+        "USR-W-CAPABILITY-DOWNGRADED"
+      ],
       "blocking": false
     }
   ]

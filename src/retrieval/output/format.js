@@ -156,6 +156,8 @@ const formatInferredMap = (map, limit = 3) => {
   return entries.join(', ');
 };
 
+const toArray = (value) => (Array.isArray(value) ? value : []);
+
 const formatLastModified = (value) => {
   if (!value) return '';
   const date = new Date(value);
@@ -442,9 +444,10 @@ export function formatFullChunk({
       `${labelToken('Returns', ANSI.fgDarkGreen)} ${colorText('value', ANSI.fgLightGreen)}`
     );
   }
-  if (chunk.docmeta?.throws?.length) {
+  const throwsList = toArray(chunk.docmeta?.throws);
+  if (throwsList.length) {
     summaryBits.push(
-      `${labelToken('Throws', ANSI.fgDarkOrange)} ${chunk.docmeta.throws.slice(0, 6).join(', ')}`
+      `${labelToken('Throws', ANSI.fgDarkOrange)} ${throwsList.slice(0, 6).join(', ')}`
     );
   }
   const controlParts = formatControlFlow(chunk.docmeta?.controlFlow || null);
@@ -496,24 +499,24 @@ export function formatFullChunk({
     return colorText(raw, ANSI.fgBrightWhite);
   };
 
-  const importItems = chunk.imports?.length
-    ? chunk.imports
-    : (chunk.codeRelations?.imports?.length ? chunk.codeRelations.imports : []);
+  const importItems = toArray(chunk.imports).length
+    ? toArray(chunk.imports)
+    : toArray(chunk.codeRelations?.imports);
   const importLines = importItems.length
     ? buildWrappedLines(labelToken('Imports', ANSI.fgPink), importItems.map(formatFileItem))
     : [];
   pushBackgroundSection(importLines, BG_IMPORTS);
 
-  const exportItems = chunk.exports?.length
-    ? chunk.exports
-    : (chunk.codeRelations?.exports?.length ? chunk.codeRelations.exports : []);
+  const exportItems = toArray(chunk.exports).length
+    ? toArray(chunk.exports)
+    : toArray(chunk.codeRelations?.exports);
   const exportLines = exportItems.length
     ? buildWrappedLines(labelToken('Exports', ANSI.fgCyan), exportItems.map(formatExportItem))
     : [];
   pushBackgroundSection(exportLines, BG_EXPORTS);
 
-  if (chunk.codeRelations?.calls?.length) {
-    const callPairs = chunk.codeRelations.calls;
+  const callPairs = toArray(chunk.codeRelations?.calls);
+  if (callPairs.length) {
     const callers = new Set();
     const calleeCounts = new Map();
     for (const [caller, callee] of callPairs) {
@@ -545,8 +548,9 @@ export function formatFullChunk({
       pushBackgroundSection(callLines, BG_CALLS);
     }
   }
-  if (chunk.codeRelations?.callSummaries?.length) {
-    const summaries = chunk.codeRelations.callSummaries.slice(0, 3).map((summary) => {
+  const callSummaries = toArray(chunk.codeRelations?.callSummaries);
+  if (callSummaries.length) {
+    const summaries = callSummaries.slice(0, 3).map((summary) => {
       const args = Array.isArray(summary.args) && summary.args.length ? summary.args.join(', ') : '';
       const returns = Array.isArray(summary.returnTypes) && summary.returnTypes.length
         ? ` -> ${summary.returnTypes.join(' | ')}`
@@ -557,9 +561,9 @@ export function formatFullChunk({
     pushBackgroundSection(summaryLines, BG_CALL_SUMMARY);
   }
 
-  const importLinkItems = chunk.importLinks?.length
-    ? chunk.importLinks
-    : (chunk.codeRelations?.importLinks?.length ? chunk.codeRelations.importLinks : []);
+  const importLinkItems = toArray(chunk.importLinks).length
+    ? toArray(chunk.importLinks)
+    : toArray(chunk.codeRelations?.importLinks);
   const importLinkLines = importLinkItems.length
     ? buildWrappedLines(labelToken('Import Links', ANSI.fgGreen), importLinkItems.map(formatFileItem))
     : [];
@@ -594,17 +598,19 @@ export function formatFullChunk({
   if (modifierParts.length) {
     out += formatWrappedList(labelToken('Modifiers', ANSI.fgDarkGray), modifierParts);
   }
-  if (chunk.docmeta?.decorators?.length) {
-    out += formatWrappedList(labelToken('Decorators', ANSI.fgMagenta), chunk.docmeta.decorators);
+  const decorators = toArray(chunk.docmeta?.decorators);
+  if (decorators.length) {
+    out += formatWrappedList(labelToken('Decorators', ANSI.fgMagenta), decorators);
   }
   const bases = chunk.docmeta?.extends || chunk.docmeta?.bases || [];
   if (Array.isArray(bases) && bases.length) {
     out += formatWrappedList(labelToken('Extends', ANSI.fgMagenta), bases);
   }
 
-  if (chunk.usages?.length) {
+  const usages = toArray(chunk.usages);
+  if (usages.length) {
     const usageFreq = Object.create(null);
-    chunk.usages.forEach((raw) => {
+    usages.forEach((raw) => {
       const trimmed = typeof raw === 'string' ? raw.trim() : '';
       if (!trimmed) return;
       usageFreq[trimmed] = (usageFreq[trimmed] || 0) + 1;
@@ -620,24 +626,27 @@ export function formatFullChunk({
     }).join(', ');
 
     if (usageStr.length) out += formatWrappedList(labelToken('Usages', ANSI.fgCyan), usageStr.split(', '));
-  } else if (chunk.codeRelations?.usages?.length) {
-    const usageFreq = Object.create(null);
-    chunk.codeRelations.usages.forEach((raw) => {
-      const trimmed = typeof raw === 'string' ? raw.trim() : '';
-      if (!trimmed) return;
-      usageFreq[trimmed] = (usageFreq[trimmed] || 0) + 1;
-    });
+  } else {
+    const relationUsages = toArray(chunk.codeRelations?.usages);
+    if (relationUsages.length) {
+      const usageFreq = Object.create(null);
+      relationUsages.forEach((raw) => {
+        const trimmed = typeof raw === 'string' ? raw.trim() : '';
+        if (!trimmed) return;
+        usageFreq[trimmed] = (usageFreq[trimmed] || 0) + 1;
+      });
 
-    const usageEntries = Object.entries(usageFreq).sort((a, b) => b[1] - a[1]);
-    const maxCount = usageEntries[0]?.[1] || 0;
+      const usageEntries = Object.entries(usageFreq).sort((a, b) => b[1] - a[1]);
+      const maxCount = usageEntries[0]?.[1] || 0;
 
-    const usageStr = usageEntries.slice(0, 10).map(([usage, count]) => {
-      if (count === 1) return usage;
-      if (count === maxCount) return c.bold(c.yellow(`${usage} (${count})`));
-      return c.cyan(`${usage} (${count})`);
-    }).join(', ');
+      const usageStr = usageEntries.slice(0, 10).map(([usage, count]) => {
+        if (count === 1) return usage;
+        if (count === maxCount) return c.bold(c.yellow(`${usage} (${count})`));
+        return c.cyan(`${usage} (${count})`);
+      }).join(', ');
 
-    if (usageStr.length) out += formatWrappedList(labelToken('Usages', ANSI.fgCyan), usageStr.split(', '));
+      if (usageStr.length) out += formatWrappedList(labelToken('Usages', ANSI.fgCyan), usageStr.split(', '));
+    }
   }
 
   if (matched && queryTokens.length && chunk.headline) {
@@ -707,31 +716,38 @@ export function formatFullChunk({
       }
     }
   }
-  if (chunk.docmeta?.awaits?.length) {
-    out += formatWrappedList(labelToken('Awaits', ANSI.fgBlue), chunk.docmeta.awaits.slice(0, 6));
+  const awaits = toArray(chunk.docmeta?.awaits);
+  if (awaits.length) {
+    out += formatWrappedList(labelToken('Awaits', ANSI.fgBlue), awaits.slice(0, 6));
   }
   if (chunk.docmeta?.yields) {
     out += c.blue(`${INDENT}Yields: `) + 'yes' + '\n';
   }
   const dataflow = chunk.docmeta?.dataflow || null;
   if (dataflow) {
-    if (dataflow.reads?.length) {
-      out += formatWrappedList(labelToken('Reads', ANSI.fgDarkGray), dataflow.reads.slice(0, 6));
+    const reads = toArray(dataflow.reads);
+    if (reads.length) {
+      out += formatWrappedList(labelToken('Reads', ANSI.fgDarkGray), reads.slice(0, 6));
     }
-    if (dataflow.writes?.length) {
-      out += formatWrappedList(labelToken('Writes', ANSI.fgDarkGray), dataflow.writes.slice(0, 6));
+    const writes = toArray(dataflow.writes);
+    if (writes.length) {
+      out += formatWrappedList(labelToken('Writes', ANSI.fgDarkGray), writes.slice(0, 6));
     }
-    if (dataflow.mutations?.length) {
-      out += formatWrappedList(labelToken('Mutates', ANSI.fgDarkGray), dataflow.mutations.slice(0, 6));
+    const mutations = toArray(dataflow.mutations);
+    if (mutations.length) {
+      out += formatWrappedList(labelToken('Mutates', ANSI.fgDarkGray), mutations.slice(0, 6));
     }
-    if (dataflow.aliases?.length) {
-      out += formatWrappedList(labelToken('Aliases', ANSI.fgDarkGray), dataflow.aliases.slice(0, 6));
+    const aliases = toArray(dataflow.aliases);
+    if (aliases.length) {
+      out += formatWrappedList(labelToken('Aliases', ANSI.fgDarkGray), aliases.slice(0, 6));
     }
-    if (dataflow.globals?.length) {
-      out += formatWrappedList(labelToken('Globals', ANSI.fgDarkGray), dataflow.globals.slice(0, 6));
+    const globals = toArray(dataflow.globals);
+    if (globals.length) {
+      out += formatWrappedList(labelToken('Globals', ANSI.fgDarkGray), globals.slice(0, 6));
     }
-    if (dataflow.nonlocals?.length) {
-      out += formatWrappedList(labelToken('Nonlocals', ANSI.fgDarkGray), dataflow.nonlocals.slice(0, 6));
+    const nonlocals = toArray(dataflow.nonlocals);
+    if (nonlocals.length) {
+      out += formatWrappedList(labelToken('Nonlocals', ANSI.fgDarkGray), nonlocals.slice(0, 6));
     }
   }
   const risk = chunk.docmeta?.risk || null;
@@ -739,24 +755,28 @@ export function formatFullChunk({
     if (risk.severity) {
       out += c.red(`${INDENT}RiskLevel: ${risk.severity}`) + '\n';
     }
-    if (risk.tags?.length) {
-      out += formatWrappedList(labelToken('RiskTags', ANSI.fgRed), risk.tags.slice(0, 6));
+    const riskTags = toArray(risk.tags);
+    if (riskTags.length) {
+      out += formatWrappedList(labelToken('RiskTags', ANSI.fgRed), riskTags.slice(0, 6));
     }
-    if (risk.flows?.length) {
-      const flowList = risk.flows.slice(0, 3).map((flow) =>
+    const riskFlows = toArray(risk.flows);
+    if (riskFlows.length) {
+      const flowList = riskFlows.slice(0, 3).map((flow) =>
         `${flow.source}->${flow.sink} (${flow.category})`
       );
       out += formatWrappedList(labelToken('RiskFlows', ANSI.fgRed), flowList);
     }
   }
 
-  if (chunk.lint?.length) {
-    out += c.red(`${INDENT}Lint: ${chunk.lint.length} issues`) +
-      (chunk.lint.length ? c.gray(' | ') + chunk.lint.slice(0, 2).map((lintMsg) => JSON.stringify(lintMsg.message)).join(', ') : '') + '\n';
+  const lintIssues = toArray(chunk.lint);
+  if (lintIssues.length) {
+    out += c.red(`${INDENT}Lint: ${lintIssues.length} issues`) +
+      (lintIssues.length ? c.gray(' | ') + lintIssues.slice(0, 2).map((lintMsg) => JSON.stringify(lintMsg.message)).join(', ') : '') + '\n';
   }
 
-  if (chunk.externalDocs?.length) {
-    out += formatWrappedList(labelToken('Docs', ANSI.fgBlue), chunk.externalDocs);
+  const externalDocs = toArray(chunk.externalDocs);
+  if (externalDocs.length) {
+    out += formatWrappedList(labelToken('Docs', ANSI.fgBlue), externalDocs);
   }
 
   if (summaryState && rootDir && !chunk.docmeta?.record && allowSummary) {

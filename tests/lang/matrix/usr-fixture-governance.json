@@ -453,6 +453,67 @@
       ]
     },
     {
+      "fixtureId": "ini::baseline::coverage-001",
+      "profileType": "language",
+      "profileId": "ini",
+      "conformanceLevels": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "families": [
+        "golden",
+        "language-baseline",
+        "semantic-flow"
+      ],
+      "owner": "language-ini",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:ini",
+        "phase-4",
+        "phase-6",
+        "phase-7"
+      ]
+    },
+    {
+      "fixtureId": "ini::config::multi-section-001",
+      "profileType": "language",
+      "profileId": "ini",
+      "conformanceLevels": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "families": [
+        "config",
+        "golden",
+        "language-baseline",
+        "semantic-flow"
+      ],
+      "owner": "language-ini",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:ini",
+        "phase-4",
+        "phase-6",
+        "phase-7"
+      ]
+    },
+    {
       "fixtureId": "java::baseline::coverage-001",
       "profileType": "language",
       "profileId": "java",
@@ -573,6 +634,67 @@
         "appendix-c:jinja",
         "phase-4",
         "phase-5",
+        "phase-7"
+      ]
+    },
+    {
+      "fixtureId": "json::baseline::coverage-001",
+      "profileType": "language",
+      "profileId": "json",
+      "conformanceLevels": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "families": [
+        "golden",
+        "language-baseline",
+        "semantic-flow"
+      ],
+      "owner": "language-json",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:json",
+        "phase-4",
+        "phase-6",
+        "phase-7"
+      ]
+    },
+    {
+      "fixtureId": "json::config::nested-objects-001",
+      "profileType": "language",
+      "profileId": "json",
+      "conformanceLevels": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "families": [
+        "config",
+        "golden",
+        "language-baseline",
+        "semantic-flow"
+      ],
+      "owner": "language-json",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:json",
+        "phase-4",
+        "phase-6",
         "phase-7"
       ]
     },
@@ -1317,6 +1439,67 @@
       ]
     },
     {
+      "fixtureId": "toml::baseline::coverage-001",
+      "profileType": "language",
+      "profileId": "toml",
+      "conformanceLevels": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "families": [
+        "golden",
+        "language-baseline",
+        "semantic-flow"
+      ],
+      "owner": "language-toml",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:toml",
+        "phase-4",
+        "phase-6",
+        "phase-7"
+      ]
+    },
+    {
+      "fixtureId": "toml::config::array-of-tables-001",
+      "profileType": "language",
+      "profileId": "toml",
+      "conformanceLevels": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "families": [
+        "config",
+        "golden",
+        "language-baseline",
+        "semantic-flow"
+      ],
+      "owner": "language-toml",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:toml",
+        "phase-4",
+        "phase-6",
+        "phase-7"
+      ]
+    },
+    {
       "fixtureId": "typescript::baseline::coverage-001",
       "profileType": "language",
       "profileId": "typescript",
@@ -1752,6 +1935,128 @@
       "roadmapTags": [
         "appendix-d:vue",
         "phase-5",
+        "phase-7"
+      ]
+    },
+    {
+      "fixtureId": "xml::baseline::coverage-001",
+      "profileType": "language",
+      "profileId": "xml",
+      "conformanceLevels": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "families": [
+        "golden",
+        "language-baseline",
+        "semantic-flow"
+      ],
+      "owner": "language-xml",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:xml",
+        "phase-4",
+        "phase-6",
+        "phase-7"
+      ]
+    },
+    {
+      "fixtureId": "xml::config::namespaces-and-includes-001",
+      "profileType": "language",
+      "profileId": "xml",
+      "conformanceLevels": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "families": [
+        "config",
+        "golden",
+        "language-baseline",
+        "semantic-flow"
+      ],
+      "owner": "language-xml",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:xml",
+        "phase-4",
+        "phase-6",
+        "phase-7"
+      ]
+    },
+    {
+      "fixtureId": "yaml::baseline::coverage-001",
+      "profileType": "language",
+      "profileId": "yaml",
+      "conformanceLevels": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "families": [
+        "golden",
+        "language-baseline",
+        "semantic-flow"
+      ],
+      "owner": "language-yaml",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:yaml",
+        "phase-4",
+        "phase-6",
+        "phase-7"
+      ]
+    },
+    {
+      "fixtureId": "yaml::config::anchors-aliases-001",
+      "profileType": "language",
+      "profileId": "yaml",
+      "conformanceLevels": [
+        "C0",
+        "C1",
+        "C2"
+      ],
+      "families": [
+        "config",
+        "golden",
+        "language-baseline",
+        "semantic-flow"
+      ],
+      "owner": "language-yaml",
+      "reviewers": [
+        "usr-architecture",
+        "usr-conformance"
+      ],
+      "stabilityClass": "stable",
+      "mutationPolicy": "require-review",
+      "goldenRequired": true,
+      "blocking": true,
+      "roadmapTags": [
+        "appendix-c:yaml",
+        "phase-4",
+        "phase-6",
         "phase-7"
       ]
     }

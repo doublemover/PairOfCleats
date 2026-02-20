@@ -143,6 +143,11 @@ const shouldSkipPythonAstForFile = ({ text, relPath, options }) => {
 const getPathBasename = (relPath) => path.posix.basename(normalizeRelPath(relPath)).toLowerCase();
 
 const MAKEFILE_BASENAMES = new Set(['makefile', 'gnumakefile', 'bsdmakefile']);
+const INI_EXTS = new Set(['.ini', '.cfg', '.conf']);
+const JSON_EXTS = new Set(['.json']);
+const TOML_EXTS = new Set(['.toml']);
+const XML_EXTS = new Set(['.xml']);
+const YAML_EXTS = new Set(['.yaml', '.yml']);
 
 const isMakefilePath = (relPath) => MAKEFILE_BASENAMES.has(getPathBasename(relPath));
 
@@ -490,7 +495,7 @@ const buildHeuristicManagedRelations = ({ text, options, collectImports, symbolP
 
 const extractHeuristicManagedDocMeta = (chunk) => {
   const symbol = typeof chunk?.name === 'string' ? chunk.name.trim() : '';
-  if (!symbol) return null;
+  if (!symbol) return {};
   return {
     symbol,
     source: 'managed-heuristic-adapter'
@@ -554,6 +559,17 @@ const createHeuristicManagedAdapter = ({
   if (capabilityProfile) adapter.capabilityProfile = capabilityProfile;
   return adapter;
 };
+
+const createConfigDataAdapter = ({ id, match }) => ({
+  id,
+  match,
+  collectImports: () => [],
+  prepare: async () => ({}),
+  buildRelations: () => buildSimpleRelations({ imports: [] }),
+  extractDocMeta: () => ({}),
+  flow: () => null,
+  attachName: false
+});
 
 export const LANGUAGE_REGISTRY = [
   {
@@ -1056,5 +1072,25 @@ export const LANGUAGE_REGISTRY = [
     collectImports: collectGraphqlImports,
     symbolPatterns: GRAPHQL_SYMBOL_PATTERNS,
     usageCollector: collectGraphqlUsages
+  }),
+  createConfigDataAdapter({
+    id: 'ini',
+    match: (ext) => INI_EXTS.has(ext)
+  }),
+  createConfigDataAdapter({
+    id: 'json',
+    match: (ext) => JSON_EXTS.has(ext)
+  }),
+  createConfigDataAdapter({
+    id: 'toml',
+    match: (ext) => TOML_EXTS.has(ext)
+  }),
+  createConfigDataAdapter({
+    id: 'xml',
+    match: (ext) => XML_EXTS.has(ext)
+  }),
+  createConfigDataAdapter({
+    id: 'yaml',
+    match: (ext) => YAML_EXTS.has(ext)
   })
 ];

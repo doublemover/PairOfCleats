@@ -87,7 +87,12 @@ const languageBaselines = [
   { id: 'proto', family: 'data-interface', parserPreference: 'tree-sitter', requiredConformance: ['C0', 'C1', 'C2'], frameworkProfiles: [], minVersion: 'proto3', dialects: ['proto3'], featureFlags: ['options', 'imports'] },
   { id: 'makefile', family: 'build-dsl', parserPreference: 'tree-sitter', requiredConformance: ['C0', 'C1', 'C2'], frameworkProfiles: [], minVersion: 'gnu-make-4.4', dialects: ['gnu-make'], featureFlags: ['pattern-rules'] },
   { id: 'dockerfile', family: 'build-dsl', parserPreference: 'tree-sitter', requiredConformance: ['C0', 'C1', 'C2'], frameworkProfiles: [], minVersion: 'dockerfile-1.5', dialects: ['dockerfile'], featureFlags: ['multistage'] },
-  { id: 'graphql', family: 'data-interface', parserPreference: 'tree-sitter', requiredConformance: ['C0', 'C1', 'C2'], frameworkProfiles: [], minVersion: '2021-10', dialects: ['graphql-schema', 'graphql-query'], featureFlags: ['directives', 'fragments'] }
+  { id: 'graphql', family: 'data-interface', parserPreference: 'tree-sitter', requiredConformance: ['C0', 'C1', 'C2'], frameworkProfiles: [], minVersion: '2021-10', dialects: ['graphql-schema', 'graphql-query'], featureFlags: ['directives', 'fragments'] },
+  { id: 'ini', family: 'config-data', parserPreference: 'heuristic', requiredConformance: ['C0', 'C1', 'C2'], frameworkProfiles: [], minVersion: 'ini-1.0', dialects: ['cfg', 'ini'], featureFlags: ['sections'] },
+  { id: 'json', family: 'config-data', parserPreference: 'tree-sitter', requiredConformance: ['C0', 'C1', 'C2'], frameworkProfiles: [], minVersion: 'rfc-8259', dialects: ['json'], featureFlags: ['arrays', 'nested-objects'] },
+  { id: 'toml', family: 'config-data', parserPreference: 'tree-sitter', requiredConformance: ['C0', 'C1', 'C2'], frameworkProfiles: [], minVersion: '1.0.0', dialects: ['toml'], featureFlags: ['arrays-of-tables'] },
+  { id: 'xml', family: 'config-data', parserPreference: 'tree-sitter', requiredConformance: ['C0', 'C1', 'C2'], frameworkProfiles: [], minVersion: 'xml-1.0', dialects: ['xml'], featureFlags: ['namespaces', 'xinclude'] },
+  { id: 'yaml', family: 'config-data', parserPreference: 'tree-sitter', requiredConformance: ['C0', 'C1', 'C2'], frameworkProfiles: [], minVersion: '1.2', dialects: ['yaml'], featureFlags: ['anchors', 'aliases'] }
 ];
 
 const familyNodeKinds = {
@@ -98,7 +103,8 @@ const familyNodeKinds = {
   markup: ['css_rule', 'directive_expr', 'html_element', 'template_element'],
   style: ['css_rule', 'directive_expr', 'html_element', 'template_element'],
   'data-interface': ['graphql_type_decl', 'interface_decl', 'sql_stmt', 'type_alias_decl'],
-  'build-dsl': ['build_stmt', 'call_expr', 'variable_decl']
+  'build-dsl': ['build_stmt', 'call_expr', 'variable_decl'],
+  'config-data': ['config_key', 'config_mapping', 'config_scalar', 'config_section', 'config_sequence']
 };
 
 const familyEdgeKinds = {
@@ -109,7 +115,8 @@ const familyEdgeKinds = {
   markup: ['contains', 'style_scopes', 'template_binds', 'template_emits'],
   style: ['contains', 'style_scopes', 'template_binds', 'template_emits'],
   'data-interface': ['contains', 'references', 'uses_type'],
-  'build-dsl': ['calls', 'contains', 'references']
+  'build-dsl': ['calls', 'contains', 'references'],
+  'config-data': ['contains', 'references']
 };
 
 const familyCapabilities = {
@@ -204,6 +211,18 @@ const familyCapabilities = {
     ast: 'partial',
     controlFlow: 'partial',
     dataFlow: 'partial',
+    graphRelations: 'partial',
+    riskLocal: 'partial',
+    riskInterprocedural: 'unsupported',
+    symbolGraph: 'partial'
+  },
+  'config-data': {
+    imports: 'partial',
+    relations: 'partial',
+    docmeta: 'supported',
+    ast: 'partial',
+    controlFlow: 'unsupported',
+    dataFlow: 'unsupported',
     graphRelations: 'partial',
     riskLocal: 'partial',
     riskInterprocedural: 'unsupported',
@@ -742,26 +761,68 @@ function roadmapTagsForFixture(row) {
   return [...tags].sort();
 }
 
-const generatedLanguageFixtureGovernance = languageBaselines
-  .map((base) => {
-    const families = ['language-baseline', 'golden'];
-    if (base.requiredConformance.includes('C2')) families.push('semantic-flow');
-    if (base.requiredConformance.includes('C3')) families.push('risk');
-    if (base.requiredConformance.includes('C4')) families.push('framework-overlay');
+const configLanguageFixtureSuffixById = {
+  ini: 'multi-section-001',
+  json: 'nested-objects-001',
+  toml: 'array-of-tables-001',
+  xml: 'namespaces-and-includes-001',
+  yaml: 'anchors-aliases-001'
+};
 
-    return {
-      fixtureId: `${base.id}::baseline::coverage-001`,
-      profileType: 'language',
-      profileId: base.id,
-      conformanceLevels: [...base.requiredConformance],
-      families: [...new Set(families)].sort(),
-      owner: `language-${base.id}`,
-      reviewers: ['usr-architecture', 'usr-conformance'],
-      stabilityClass: 'stable',
-      mutationPolicy: 'require-review',
-      goldenRequired: true,
-      blocking: true
-    };
+function fixtureFamiliesForLanguage(base) {
+  const families = ['language-baseline', 'golden'];
+  if (base.requiredConformance.includes('C2')) families.push('semantic-flow');
+  if (base.requiredConformance.includes('C3')) families.push('risk');
+  if (base.requiredConformance.includes('C4')) families.push('framework-overlay');
+  return [...new Set(families)].sort();
+}
+
+const generatedLanguageFixtureGovernance = languageBaselines
+  .flatMap((base) => {
+    const profileType = 'language';
+    const profileId = base.id;
+    const conformanceLevels = [...base.requiredConformance];
+    const owner = `language-${base.id}`;
+    const reviewers = ['usr-architecture', 'usr-conformance'];
+    const stabilityClass = 'stable';
+    const mutationPolicy = 'require-review';
+    const goldenRequired = true;
+    const blocking = true;
+    const baselineFamilies = fixtureFamiliesForLanguage(base);
+    const rows = [
+      {
+        fixtureId: `${base.id}::baseline::coverage-001`,
+        profileType,
+        profileId,
+        conformanceLevels,
+        families: baselineFamilies,
+        owner,
+        reviewers,
+        stabilityClass,
+        mutationPolicy,
+        goldenRequired,
+        blocking
+      }
+    ];
+
+    const configSuffix = configLanguageFixtureSuffixById[base.id];
+    if (configSuffix) {
+      rows.push({
+        fixtureId: `${base.id}::config::${configSuffix}`,
+        profileType,
+        profileId,
+        conformanceLevels,
+        families: [...new Set([...baselineFamilies, 'config'])].sort(),
+        owner,
+        reviewers,
+        stabilityClass,
+        mutationPolicy,
+        goldenRequired,
+        blocking
+      });
+    }
+
+    return rows;
   })
   .sort((a, b) => a.fixtureId.localeCompare(b.fixtureId));
 
@@ -880,7 +941,7 @@ function embeddingPolicyFor(languageId, family) {
   if (family === 'markup') {
     return { canHostEmbedded: true, canBeEmbedded: true, embeddedLanguageAllowlist: ['css', 'javascript'] };
   }
-  if (family === 'style' || family === 'data-interface') {
+  if (family === 'style' || family === 'data-interface' || family === 'config-data') {
     return { canHostEmbedded: false, canBeEmbedded: true, embeddedLanguageAllowlist: [] };
   }
   return { canHostEmbedded: false, canBeEmbedded: false, embeddedLanguageAllowlist: [] };

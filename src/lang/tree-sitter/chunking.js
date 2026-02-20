@@ -744,6 +744,7 @@ function resolveLanguageForExt(languageId, ext) {
   if (normalizedExt === '.json') return 'json';
   if (normalizedExt === '.yaml' || normalizedExt === '.yml') return 'yaml';
   if (normalizedExt === '.toml') return 'toml';
+  if (normalizedExt === '.xml') return 'xml';
   if (normalizedExt === '.md' || normalizedExt === '.mdx') return 'markdown';
   if (languageId) return languageId;
   if (!normalizedExt) return null;

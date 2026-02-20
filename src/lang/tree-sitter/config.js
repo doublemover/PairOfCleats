@@ -9,6 +9,7 @@ const LANGUAGE_GRAMMAR_KEYS = {
   json: 'native:json',
   yaml: 'native:yaml',
   toml: 'native:toml',
+  xml: 'native:xml',
   markdown: 'native:markdown',
   swift: 'native:swift',
   kotlin: 'native:kotlin',
@@ -48,6 +49,28 @@ const JS_TS_CONFIG = {
     method_definition: 'MethodDeclaration'
   },
   docComments: { linePrefixes: ['//'], blockStarts: ['/**'] }
+};
+
+const XML_NAME_NODE_TYPES = new Set(['Name']);
+
+const resolveXmlName = (node, rawText) => {
+  if (!node || typeof rawText !== 'string') return null;
+  const nameNode = findDescendantByType(node, XML_NAME_NODE_TYPES, 6);
+  if (nameNode) {
+    const rawName = rawText.slice(nameNode.startIndex, nameNode.endIndex).trim();
+    if (rawName) return rawName;
+  }
+  const raw = rawText.slice(node.startIndex, node.endIndex);
+  if (!raw) return null;
+  if (node.type === 'element') {
+    const elementMatch = raw.match(/^<\s*\/?\s*([A-Za-z_][A-Za-z0-9_.:-]*)/);
+    if (elementMatch?.[1]) return elementMatch[1];
+  }
+  if (node.type === 'Attribute') {
+    const attrMatch = raw.match(/^\s*([A-Za-z_][A-Za-z0-9_.:-]*)\s*=/);
+    if (attrMatch?.[1]) return attrMatch[1];
+  }
+  return null;
 };
 
 const LANG_CONFIG = {
@@ -130,6 +153,16 @@ const LANG_CONFIG = {
       const name = head.trim();
       return name || null;
     }
+  },
+  xml: {
+    typeNodes: new Set(['element']),
+    memberNodes: new Set(['Attribute']),
+    kindMap: {
+      element: 'ConfigSection',
+      Attribute: 'ConfigEntry'
+    },
+    nameTypes: XML_NAME_NODE_TYPES,
+    resolveName: resolveXmlName
   },
   markdown: {
     typeNodes: new Set(['atx_heading', 'setext_heading']),

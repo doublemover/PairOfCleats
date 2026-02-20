@@ -2,7 +2,7 @@ import { getHeadline } from '../../headline.js';
 import { getFieldWeight } from '../../field-weighting.js';
 import { buildMetaV2 } from '../../metadata-v2.js';
 import { buildTokenSequence } from '../tokenization.js';
-import { buildExternalDocs } from './meta.js';
+import { buildExternalDocs, normalizeDocMeta } from './meta.js';
 import { log } from '../../../shared/progress.js';
 
 /**
@@ -59,7 +59,10 @@ export function buildChunkPayload({
     : 1;
   const weight = baseWeight * resolvedWeightMultiplier;
   const resolvedExt = effectiveExt || ext;
-  const docText = typeof docmeta.doc === 'string' ? docmeta.doc : '';
+  const resolvedDocmeta = normalizeDocMeta(docmeta);
+  const resolvedPreContext = Array.isArray(preContext) ? preContext : [];
+  const resolvedPostContext = Array.isArray(postContext) ? postContext : [];
+  const docText = typeof resolvedDocmeta.doc === 'string' ? resolvedDocmeta.doc : '';
   const fieldedEnabled = postingsConfig?.fielded !== false;
   const tokenClassificationEnabled = postingsConfig?.tokenClassification?.enabled === true;
   const wantsFieldTokens = emitFieldTokens
@@ -92,9 +95,9 @@ export function buildChunkPayload({
         dictConfig,
         includeSeq: false
       }).tokens : [],
-      signature: docmeta?.signature
+      signature: resolvedDocmeta.signature
         ? buildTokenSequence({
-          text: docmeta.signature,
+          text: resolvedDocmeta.signature,
           mode: tokenMode,
           ext: resolvedExt,
           dictWords,
@@ -139,13 +142,13 @@ export function buildChunkPayload({
     tokenIds,
     seq,
     codeRelations,
-    docmeta,
+    docmeta: resolvedDocmeta,
     stats,
     complexity,
     lint,
     headline,
-    preContext,
-    postContext,
+    preContext: resolvedPreContext,
+    postContext: resolvedPostContext,
     embedding: [],
     embed_doc: [],
     embed_code: [],
@@ -157,7 +160,7 @@ export function buildChunkPayload({
   };
   chunkPayload.metaV2 = buildMetaV2({
     chunk: chunkPayload,
-    docmeta,
+    docmeta: resolvedDocmeta,
     toolInfo,
     analysisPolicy
   });
