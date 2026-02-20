@@ -291,7 +291,7 @@ Touchpoints:
 
 - [x] Implement Objective-C coverage (`.m`, `.mm`, Objective-C headers) and routing through C-like pipelines.
 - [x] Implement and verify import/include extraction across ObjC and ObjC++ files.
-- [ ] Calibrate and commit Objective-C caps for mixed UIKit/macOS codebases.
+- [x] Calibrate and commit Objective-C caps for mixed UIKit/macOS codebases.
 
 
 Touchpoints:
