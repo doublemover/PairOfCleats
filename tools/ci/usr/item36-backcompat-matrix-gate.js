@@ -31,6 +31,14 @@ const readJson = async (relativePath) => {
 };
 
 const ensureArray = (value) => (Array.isArray(value) ? value : []);
+
+/**
+ * Return duplicate values from an array while preserving unique duplicate ids
+ * in first-seen order.
+ *
+ * @param {Array<unknown>} values
+ * @returns {Array<unknown>}
+ */
 const findDuplicates = (values) => {
   const counts = new Map();
   for (const value of values) {
