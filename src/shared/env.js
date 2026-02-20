@@ -78,6 +78,8 @@ export function getEnvConfig(env = process.env) {
     schedulerMaxCpuTokens: normalizeNumber(env.PAIROFCLEATS_SCHEDULER_MAX_CPU),
     schedulerMaxIoTokens: normalizeNumber(env.PAIROFCLEATS_SCHEDULER_MAX_IO),
     schedulerMaxMemoryTokens: normalizeNumber(env.PAIROFCLEATS_SCHEDULER_MAX_MEM),
+    schedulerTargetUtilization: normalizeNumber(env.PAIROFCLEATS_SCHEDULER_TARGET_UTILIZATION),
+    schedulerAdaptiveStep: normalizeNumber(env.PAIROFCLEATS_SCHEDULER_ADAPTIVE_STEP),
     schedulerStarvationMs: normalizeNumber(env.PAIROFCLEATS_SCHEDULER_STARVATION_MS),
     schedulerLowResource: normalizeOptionalBoolean(env.PAIROFCLEATS_SCHEDULER_LOW_RESOURCE),
     mcpTransport: normalizeString(env.PAIROFCLEATS_MCP_TRANSPORT),

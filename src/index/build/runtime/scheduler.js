@@ -17,6 +17,12 @@ const coercePositiveInt = (value) => {
   return Math.floor(parsed);
 };
 
+const coerceUnitFraction = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return Math.max(0.25, Math.min(0.99, parsed));
+};
+
 const hasCliArg = (rawArgv, name) => Array.isArray(rawArgv)
   && rawArgv.some((arg) => arg === name || String(arg).startsWith(`${name}=`));
 
@@ -180,6 +186,19 @@ export const resolveSchedulerConfig = ({ argv, rawArgv, envConfig, indexingConfi
     fallback: Math.max(memoryTokens, defaultMem * 2),
     allowZero: false
   });
+  const adaptiveTargetUtilization = coerceUnitFraction(
+    envConfig?.schedulerTargetUtilization
+      ?? schedulerConfig?.adaptiveTargetUtilization
+      ?? schedulerConfig?.targetUtilization
+  ) ?? 0.85;
+  const adaptiveStep = resolveNumber({
+    cliValue: null,
+    cliPresent: false,
+    envValue: envConfig?.schedulerAdaptiveStep,
+    configValue: schedulerConfig?.adaptiveStep,
+    fallback: 1,
+    allowZero: false
+  });
 
   const queues = resolveQueueConfig(schedulerConfig?.queues);
 
@@ -190,6 +209,8 @@ export const resolveSchedulerConfig = ({ argv, rawArgv, envConfig, indexingConfi
     ioTokens: Math.max(1, ioTokens || 1),
     memoryTokens: Math.max(1, memoryTokens || 1),
     adaptive: adaptiveEnabled,
+    adaptiveTargetUtilization,
+    adaptiveStep: Math.max(1, adaptiveStep || 1),
     maxCpuTokens: Math.max(1, maxCpuTokens || 1),
     maxIoTokens: Math.max(1, maxIoTokens || 1),
     maxMemoryTokens: Math.max(1, maxMemoryTokens || 1),
