@@ -1,5 +1,5 @@
 {
-  "schemaHash": "117041bf43e4829be3660b9c27594f94f60d17f2",
+  "schemaHash": "6c9fc5eb11ba5682f5c39b0242be71ff4dcdbc41",
   "artifacts": [
     {
       "artifact": "api_contracts",
@@ -13,6 +13,19 @@
         "truncation",
         "warnings"
       ]
+    },
+    {
+      "artifact": "boilerplate_catalog",
+      "schemaVersion": {
+        "type": "string",
+        "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$"
+      },
+      "requiredFields": [
+        "entries",
+        "generatedAt",
+        "schemaVersion"
+      ],
+      "optionalFields": []
     },
     {
       "artifact": "builds_current",

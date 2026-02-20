@@ -588,6 +588,36 @@ const lexiconRelationFilterReportSchema = {
   additionalProperties: false
 };
 
+const boilerplateCatalogEntry = {
+  type: 'object',
+  required: ['ref', 'count', 'positions', 'tags', 'sampleFiles'],
+  properties: {
+    ref: { type: 'string' },
+    count: intId,
+    positions: {
+      type: 'object',
+      additionalProperties: intId
+    },
+    tags: { type: 'array', items: { type: 'string' } },
+    sampleFiles: { type: 'array', items: { type: 'string' } }
+  },
+  additionalProperties: false
+};
+
+const boilerplateCatalogSchema = {
+  type: 'object',
+  required: ['schemaVersion', 'generatedAt', 'entries'],
+  properties: {
+    schemaVersion: semverString,
+    generatedAt: { type: 'string' },
+    entries: {
+      type: 'array',
+      items: boilerplateCatalogEntry
+    }
+  },
+  additionalProperties: false
+};
+
 const shardedJsonlPart = {
   type: 'object',
   required: ['path', 'records', 'bytes'],
@@ -1467,6 +1497,7 @@ export const ARTIFACT_SCHEMA_DEFS = {
   filelists: fileListsSchema,
   extraction_report: extractionReportSchema,
   lexicon_relation_filter_report: lexiconRelationFilterReportSchema,
+  boilerplate_catalog: boilerplateCatalogSchema,
   pieces_manifest: {
     type: 'object',
     required: ['version', 'artifactSurfaceVersion', 'pieces'],
