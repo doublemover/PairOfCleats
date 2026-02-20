@@ -1,26 +1,14 @@
+import {
+  coerceNonNegativeInt,
+  coercePositiveInt,
+  coerceUnitFraction
+} from '../../../shared/number-coerce.js';
+
 const normalizeBoolean = (value) => value === true || value === 'true' || value === '1';
 
 const normalizeOptionalBoolean = (value) => {
   if (value == null) return null;
   return normalizeBoolean(value);
-};
-
-const coerceNonNegativeInt = (value) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed < 0) return null;
-  return Math.floor(parsed);
-};
-
-const coercePositiveInt = (value) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed <= 0) return null;
-  return Math.floor(parsed);
-};
-
-const coerceUnitFraction = (value) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed <= 0) return null;
-  return Math.max(0.25, Math.min(0.99, parsed));
 };
 
 const hasCliArg = (rawArgv, name) => Array.isArray(rawArgv)

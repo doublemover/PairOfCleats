@@ -1,26 +1,12 @@
 import v8 from 'node:v8';
 import { normalizePostingsPayloadMetadata } from '../../../postings-payload.js';
+import {
+  coerceClampedFraction,
+  coerceNonNegativeInt,
+  coercePositiveInt
+} from '../../../../../shared/number-coerce.js';
 
 const MB = 1024 * 1024;
-
-const coercePositiveInt = (value) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed <= 0) return null;
-  return Math.floor(parsed);
-};
-
-const coerceNonNegativeInt = (value) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed < 0) return null;
-  return Math.floor(parsed);
-};
-
-const coerceFraction = (value, fallback) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return fallback;
-  if (parsed <= 0) return null;
-  return Math.min(1, parsed);
-};
 
 const resolveHeapLimit = () => {
   try {
@@ -109,7 +95,11 @@ export const createPostingsQueue = ({
   const resolvedMaxPending = coercePositiveInt(maxPending);
   const resolvedMaxPendingRows = coercePositiveInt(maxPendingRows);
   const resolvedMaxPendingBytes = coercePositiveInt(maxPendingBytes);
-  const resolvedMaxHeapFraction = coerceFraction(maxHeapFraction, 0.8);
+  const resolvedMaxHeapFraction = coerceClampedFraction(maxHeapFraction, {
+    min: 0,
+    max: 1,
+    allowZero: false
+  }) ?? 0.8;
   const heapLimit = resolveHeapLimit();
 
   const state = {

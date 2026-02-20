@@ -1,5 +1,6 @@
 import os from 'node:os';
 import { createSchedulerQueueAdapter, createTaskQueues } from '../../../shared/concurrency.js';
+import { coercePositiveInt } from '../../../shared/number-coerce.js';
 import { logLine } from '../../../shared/progress.js';
 import { SCHEDULER_QUEUE_NAMES } from './scheduler.js';
 import { resolveThreadLimits } from '../../../shared/threads.js';
@@ -82,12 +83,6 @@ export const resolveThreadLimitsConfig = ({ argv, rawArgv, envConfig, indexingCo
     ioConcurrency,
     cpuConcurrency
   };
-};
-
-const coercePositiveInt = (value) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed <= 0) return null;
-  return Math.floor(parsed);
 };
 
 /**
