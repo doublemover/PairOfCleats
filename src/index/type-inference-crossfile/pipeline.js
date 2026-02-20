@@ -196,6 +196,14 @@ export async function applyCrossFileInference({
   let droppedCallLinks = 0;
   let droppedCallSummaries = 0;
   let droppedUsageLinks = 0;
+  const maxTotalCallLinks = Number.isFinite(largeRepoBudget?.maxTotalCallLinks)
+    ? Math.max(0, Math.floor(largeRepoBudget.maxTotalCallLinks))
+    : null;
+  const maxTotalUsageLinks = Number.isFinite(largeRepoBudget?.maxTotalUsageLinks)
+    ? Math.max(0, Math.floor(largeRepoBudget.maxTotalUsageLinks))
+    : null;
+  const isCallBudgetExhausted = () => maxTotalCallLinks != null && linkedCalls >= maxTotalCallLinks;
+  const isUsageBudgetExhausted = () => maxTotalUsageLinks != null && linkedUsages >= maxTotalUsageLinks;
   const fileUsageFallbackApplied = new Set();
 
   const fileTextByRel = new Map();
@@ -372,12 +380,20 @@ export async function applyCrossFileInference({
       if (maxCallLinkSource < relations.calls.length) {
         droppedCallLinks += relations.calls.length - maxCallLinkSource;
       }
-      for (let callIndex = 0; callIndex < maxCallLinkSource; callIndex += 1) {
-        if (Number.isFinite(largeRepoBudget?.maxTotalCallLinks) && linkedCalls + callLinks.length >= largeRepoBudget.maxTotalCallLinks) {
-          droppedCallLinks += maxCallLinkSource - callIndex;
-          break;
+      if (isCallBudgetExhausted()) {
+        droppedCallLinks += maxCallLinkSource;
+      }
+      for (let callIndex = 0; callIndex < maxCallLinkSource && !isCallBudgetExhausted(); callIndex += 1) {
+        if (maxTotalCallLinks != null) {
+          const remaining = Math.max(0, maxTotalCallLinks - (linkedCalls + callLinks.length));
+          if (remaining <= 0) {
+            droppedCallLinks += maxCallLinkSource - callIndex;
+            break;
+          }
         }
-        const [, callee] = relations.calls[callIndex] || [];
+        const callEntry = relations.calls[callIndex];
+        if (!Array.isArray(callEntry) || callEntry.length < 2) continue;
+        const callee = callEntry[1];
         const symbolRef = resolveSymbolRefCached({
           targetName: callee,
           kindHint: null,
@@ -408,7 +424,17 @@ export async function applyCrossFileInference({
       if (maxCallSummarySource < relations.callDetails.length) {
         droppedCallSummaries += relations.callDetails.length - maxCallSummarySource;
       }
-      for (let detailIndex = 0; detailIndex < maxCallSummarySource; detailIndex += 1) {
+      if (isCallBudgetExhausted()) {
+        droppedCallSummaries += maxCallSummarySource;
+      }
+      for (let detailIndex = 0; detailIndex < maxCallSummarySource && !isCallBudgetExhausted(); detailIndex += 1) {
+        if (maxTotalCallLinks != null) {
+          const remaining = Math.max(0, maxTotalCallLinks - (linkedCalls + callLinks.length));
+          if (remaining <= 0) {
+            droppedCallSummaries += maxCallSummarySource - detailIndex;
+            break;
+          }
+        }
         const detail = relations.callDetails[detailIndex];
         const callee = detail?.callee;
         if (!callee) continue;
@@ -483,10 +509,16 @@ export async function applyCrossFileInference({
       if (maxUsageSource < usageSource.length) {
         droppedUsageLinks += usageSource.length - maxUsageSource;
       }
-      for (let usageIndex = 0; usageIndex < maxUsageSource; usageIndex += 1) {
-        if (Number.isFinite(largeRepoBudget?.maxTotalUsageLinks) && linkedUsages + usageLinks.length >= largeRepoBudget.maxTotalUsageLinks) {
-          droppedUsageLinks += maxUsageSource - usageIndex;
-          break;
+      if (isUsageBudgetExhausted()) {
+        droppedUsageLinks += maxUsageSource;
+      }
+      for (let usageIndex = 0; usageIndex < maxUsageSource && !isUsageBudgetExhausted(); usageIndex += 1) {
+        if (maxTotalUsageLinks != null) {
+          const remaining = Math.max(0, maxTotalUsageLinks - (linkedUsages + usageLinks.length));
+          if (remaining <= 0) {
+            droppedUsageLinks += maxUsageSource - usageIndex;
+            break;
+          }
         }
         const usage = usageSource[usageIndex];
         const symbolRef = resolveSymbolRefCached({

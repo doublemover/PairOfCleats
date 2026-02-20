@@ -316,11 +316,12 @@ export const processFiles = async ({
   const envConfig = getEnvConfig();
   const showFileProgress = envConfig.verbose === true || runtime?.argv?.verbose === true;
   const debugOrdered = envConfig.debugOrdered === true;
+  const enablePerfEvents = envConfig.debugPerfEvents === true;
   const perfEventBaseLogger = await createPerfEventLogger({
     buildRoot: runtime.buildRoot || runtime.root,
     mode,
     stream: 'heavy-file',
-    enabled: mode === 'code'
+    enabled: mode === 'code' && enablePerfEvents
   });
   const perfEventLogger = createHeavyFilePerfAggregator({
     logger: perfEventBaseLogger

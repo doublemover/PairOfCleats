@@ -82,7 +82,7 @@ const hasGeneratedDocPath = (fileLower, baseNameLower) => {
   return false;
 };
 
-const shouldSkipPhrasePostingsForChunk = (chunk, fileLower) => {
+export const shouldSkipPhrasePostingsForChunk = (chunk, fileLower) => {
   const baseNameLower = getLowerBasename(fileLower);
   if (baseNameLower === 'cmakelists.txt') return true;
   if (isFixturePath(fileLower)) return true;
@@ -673,7 +673,9 @@ export function appendChunk(
   const postingsGuardTier = resolvePostingsGuardTier(chunkFile);
   const phraseMaxPerChunk = resolveGuardMaxPerChunk(phraseGuard, 'phrase', postingsGuardTier);
   const chargramMaxPerChunk = resolveGuardMaxPerChunk(chargramGuard, 'chargram', postingsGuardTier);
-  const skipPhrasePostings = shouldSkipPhrasePostingsForChunk(chunk, chunkFileLower);
+  const skipPhrasePostings = typeof chunk?.skipPhrasePostings === 'boolean'
+    ? chunk.skipPhrasePostings
+    : shouldSkipPhrasePostingsForChunk(chunk, chunkFileLower);
   if (phraseGuard && phraseMaxPerChunk > 0) {
     phraseGuard.effectiveMaxPerChunk = Math.min(
       Number.isFinite(phraseGuard.effectiveMaxPerChunk) ? phraseGuard.effectiveMaxPerChunk : phraseGuard.maxPerChunk,

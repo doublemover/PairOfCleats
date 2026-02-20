@@ -30,6 +30,7 @@ import { normalizeRelPath, resolveWithinRoot, sortStrings, stripSpecifier } from
 import { createTsConfigLoader, resolveTsPaths } from './tsconfig-resolution.js';
 
 const ABSOLUTE_SYSTEM_PATH_PREFIX_RX = /^\/(?:etc|usr|opt|var|bin|sbin|lib|lib64|dev|proc|sys|run|tmp|home|root)(?:\/|$)/i;
+const DEFAULT_UNRESOLVED_NOISE_PREFIXES = ['node:', '@types/', 'internal/'];
 
 const insertResolutionCache = (cache, key, value) => {
   if (!cache || !key) return;
@@ -216,7 +217,26 @@ export function resolveImportLinks({
   const unresolvedSamples = [];
 
   const warningList = unresolvedSamples;
+  const unresolvedDedup = new Set();
+  const unresolvedNoiseIgnore = new Set(
+    Array.isArray(graphMeta?.importScan?.noiseIgnore)
+      ? graphMeta.importScan.noiseIgnore
+        .map((entry) => (typeof entry === 'string' ? entry.trim().toLowerCase() : ''))
+        .filter(Boolean)
+      : []
+  );
   const edges = enableGraph ? graph.edges : null;
+  const shouldIgnoreUnresolvedImport = ({ spec, importerInfo }) => {
+    const normalized = typeof spec === 'string' ? spec.trim() : '';
+    if (!normalized) return true;
+    if (normalized === '.' || normalized === '..') return true;
+    const lower = normalized.toLowerCase();
+    if (DEFAULT_UNRESOLVED_NOISE_PREFIXES.some((prefix) => lower.startsWith(prefix))) return true;
+    if (ABSOLUTE_SYSTEM_PATH_PREFIX_RX.test(normalized) && (importerInfo?.isShell || importerInfo?.isPathLike)) {
+      return true;
+    }
+    return unresolvedNoiseIgnore.has(lower);
+  };
 
   const importsEntries = importsByFile instanceof Map
     ? Array.from(importsByFile.entries())
@@ -262,6 +282,7 @@ export function resolveImportLinks({
     for (const rawSpec of rawSpecs) {
       const spec = stripSpecifier(rawSpec);
       if (!spec) continue;
+      let includeGraphEdge = true;
       const isRelative = spec.startsWith('.') || spec.startsWith('/');
       if (!isRelative && !tsconfigResolved) {
         tsconfigResolved = true;
@@ -400,19 +421,32 @@ export function resolveImportLinks({
         if (enableGraph) addGraphNode(graphNodes, edgeTarget, 'external', capStats);
       } else {
         unresolvedCount += 1;
-        if (warningList.length < MAX_IMPORT_WARNINGS) {
-          warningList.push({
-            importer: relNormalized,
-            specifier: rawSpec,
-            reason: 'unresolved'
-          });
-        } else {
+        const unresolvedKey = `${relNormalized}\u0001${spec}`;
+        const ignoredUnresolved = shouldIgnoreUnresolvedImport({
+          spec,
+          importerInfo
+        });
+        if (ignoredUnresolved || unresolvedDedup.has(unresolvedKey)) {
           suppressedWarnings += 1;
+          includeGraphEdge = false;
+        } else {
+          unresolvedDedup.add(unresolvedKey);
+          if (warningList.length < MAX_IMPORT_WARNINGS) {
+            warningList.push({
+              importer: relNormalized,
+              specifier: rawSpec,
+              reason: 'unresolved'
+            });
+          } else {
+            suppressedWarnings += 1;
+          }
         }
       }
 
-      edgeTotal += 1;
-      if (enableGraph) {
+      if (includeGraphEdge) {
+        edgeTotal += 1;
+      }
+      if (enableGraph && includeGraphEdge) {
         if (edges.length < MAX_GRAPH_EDGES) {
           const tsconfigRel = tsconfigPath
             ? resolveWithinRoot(resolvedLookup.rootAbs, tsconfigPath)

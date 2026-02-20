@@ -27,6 +27,7 @@ import { attachCallDetailsByChunkIndex } from './dedupe.js';
 import { buildChunkEnrichment } from './enrichment.js';
 import { prepareChunkIds } from './ids.js';
 import { collectChunkComments } from './limits.js';
+import { shouldSkipPhrasePostingsForChunk } from '../../state.js';
 
 /**
  * Resolve framework profile once per file and reuse across chunk iterations.
@@ -275,12 +276,14 @@ const shouldApplySwiftHotPathCoalescing = ({
  * Cheap preflight for boilerplate detection to avoid full-file scans when
  * license/generated-comment metadata cannot apply.
  *
- * @param {{mode:string,text:string,chunkCount:number}} input
+ * @param {{mode:string,text:string,chunkCount:number,relPath:string}} input
  * @returns {boolean}
  */
-const shouldDetectBoilerplateBlocks = ({ mode, text, chunkCount }) => {
+const shouldDetectBoilerplateBlocks = ({ mode, text, chunkCount, relPath }) => {
   if (mode !== 'code') return false;
   if (!Number.isFinite(Number(chunkCount)) || Number(chunkCount) <= 0) return false;
+  const relPathLower = typeof relPath === 'string' ? relPath.toLowerCase() : null;
+  if (shouldSkipPhrasePostingsForChunk({ file: relPath }, relPathLower)) return false;
   if (typeof text !== 'string' || !text) return false;
   const head = text.slice(0, BOILERPLATE_SCAN_WINDOW_CHARS);
   if (BOILERPLATE_COMMENT_HINT_RX.test(head)) return true;
@@ -686,7 +689,8 @@ export const processChunks = async (context) => {
   const fileBoilerplateBlocks = shouldDetectBoilerplateBlocks({
     mode,
     text,
-    chunkCount: chunksForProcessing.length
+    chunkCount: chunksForProcessing.length,
+    relPath: rel
   })
     ? await detectBoilerplateCommentBlocks({ text })
     : [];
@@ -1084,6 +1088,10 @@ export const processChunks = async (context) => {
       analysisPolicy,
       weightMultiplier: boilerplateWeightMultiplier
     });
+    chunkPayload.skipPhrasePostings = shouldSkipPhrasePostingsForChunk(
+      chunkPayload,
+      typeof relKey === 'string' ? relKey.toLowerCase() : null
+    );
 
     chunks.push(chunkPayload);
     if (embeddingEnabled && codeTexts && docTexts) {

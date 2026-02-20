@@ -149,13 +149,19 @@ const resolveRubyLoadPathImport = ({ spec, lookup }) => {
     normalizedSpec,
     `${normalizedSpec}.rb`,
     `${normalizedSpec}.rake`,
+    `${normalizedSpec}.ru`,
+    `${normalizedSpec}.gemspec`,
     `${normalizedSpec}/index.rb`,
     `${normalizedSpec}/index.rake`,
+    `${normalizedSpec}/index.ru`,
     `lib/${normalizedSpec}`,
     `lib/${normalizedSpec}.rb`,
     `lib/${normalizedSpec}.rake`,
+    `lib/${normalizedSpec}.ru`,
+    `lib/${normalizedSpec}.gemspec`,
     `lib/${normalizedSpec}/index.rb`,
-    `lib/${normalizedSpec}/index.rake`
+    `lib/${normalizedSpec}/index.rake`,
+    `lib/${normalizedSpec}/index.ru`
   ];
   return resolveFromCandidateList(candidates, lookup);
 };
@@ -167,8 +173,11 @@ const resolveRubyRelativeImport = ({ base, lookup }) => {
     normalizedBase,
     `${normalizedBase}.rb`,
     `${normalizedBase}.rake`,
+    `${normalizedBase}.ru`,
+    `${normalizedBase}.gemspec`,
     `${normalizedBase}/index.rb`,
-    `${normalizedBase}/index.rake`
+    `${normalizedBase}/index.rake`,
+    `${normalizedBase}/index.ru`
   ];
   return resolveFromCandidateList(candidates, lookup);
 };
@@ -436,7 +445,12 @@ export const classifyImporter = (importerRel) => {
   const baseName = path.posix.basename(importerPath).toLowerCase();
   const importerDir = path.posix.dirname(importerPath);
 
-  const isRuby = importerPath.endsWith('.rb') || importerPath.endsWith('.rake') || baseName === 'rakefile';
+  const isRuby = importerPath.endsWith('.rb')
+    || importerPath.endsWith('.rake')
+    || importerPath.endsWith('.ru')
+    || importerPath.endsWith('.gemspec')
+    || baseName === 'rakefile'
+    || baseName === 'gemfile';
   const isPython = PYTHON_MODULE_EXTENSIONS.includes(extension);
   const isPerl = extension === '.pl' || extension === '.pm' || extension === '.t';
   const isLua = extension === '.lua';
