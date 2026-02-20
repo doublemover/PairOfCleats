@@ -254,6 +254,7 @@ export function createBuildScheduler(input = {}) {
     const state = {
       name,
       priority: Number.isFinite(Number(cfg.priority)) ? Number(cfg.priority) : 50,
+      weight: Number.isFinite(Number(cfg.weight)) ? Math.max(1, Math.floor(Number(cfg.weight))) : 1,
       maxPending: Number.isFinite(Number(cfg.maxPending)) ? Math.max(1, Math.floor(Number(cfg.maxPending))) : null,
       pending: [],
       running: 0,
@@ -279,6 +280,9 @@ export function createBuildScheduler(input = {}) {
     }
     if (Number.isFinite(Number(config.maxPending))) {
       queue.maxPending = Math.max(1, Math.floor(Number(config.maxPending)));
+    }
+    if (Number.isFinite(Number(config.weight))) {
+      queue.weight = Math.max(1, Math.floor(Number(config.weight)));
     }
     queueOrder.sort((a, b) => a.priority - b.priority || a.name.localeCompare(b.name));
   };
@@ -350,8 +354,13 @@ export function createBuildScheduler(input = {}) {
       const waited = nowMs() - q.pending[0].enqueuedAt;
       if (waited >= starvationMs && (!starving || waited > starving.waited)) {
         starving = { queue: q, waited, index };
-      } else if (!picked) {
-        picked = { queue: q, index };
+        continue;
+      }
+      const weightBoostMs = Math.max(1, Number(q.weight) || 1) * 250;
+      const priorityPenaltyMs = Math.max(0, Number(q.priority) || 0) * 5;
+      const score = waited + weightBoostMs - priorityPenaltyMs;
+      if (!picked || score > picked.score) {
+        picked = { queue: q, index, score };
       }
     }
     if (starving) return { queue: starving.queue, starved: true, index: starving.index };
@@ -458,6 +467,8 @@ export function createBuildScheduler(input = {}) {
         pending: q.pending.length,
         running: q.running,
         maxPending: q.maxPending,
+        priority: q.priority,
+        weight: q.weight,
         oldestWaitMs: oldest,
         scheduled: q.stats.scheduled,
         started: q.stats.started,

@@ -50,9 +50,11 @@ const resolveQueueConfig = (value) => {
     if (!config || typeof config !== 'object') continue;
     const priority = coerceNonNegativeInt(config.priority);
     const maxPending = coercePositiveInt(config.maxPending);
+    const weight = coercePositiveInt(config.weight);
     resolved[name] = {
       ...(priority != null ? { priority } : {}),
-      ...(maxPending != null ? { maxPending } : {})
+      ...(maxPending != null ? { maxPending } : {}),
+      ...(weight != null ? { weight } : {})
     };
   }
   return resolved;
