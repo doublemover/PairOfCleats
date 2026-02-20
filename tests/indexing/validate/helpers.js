@@ -20,6 +20,7 @@ export const createBaseIndex = async ({
   manifestPieces = null,
   manifestOverrides = {},
   chunkMeta = null,
+  fileMeta = null,
   tokenPostings = null,
   indexState = null,
   fileLists = null
@@ -54,6 +55,21 @@ export const createBaseIndex = async ({
   });
   await fs.writeFile(path.join(indexDir, 'chunk_meta.json'), JSON.stringify(normalizedChunkMeta, null, 2));
 
+  const defaultFileMeta = [];
+  const seenFiles = new Set();
+  for (const row of normalizedChunkMeta) {
+    const file = typeof row?.file === 'string' ? row.file : null;
+    if (!file || seenFiles.has(file)) continue;
+    seenFiles.add(file);
+    defaultFileMeta.push({
+      id: defaultFileMeta.length,
+      file,
+      ext: path.extname(file) || null
+    });
+  }
+  const fileMetaPayload = Array.isArray(fileMeta) ? fileMeta : defaultFileMeta;
+  await fs.writeFile(path.join(indexDir, 'file_meta.json'), JSON.stringify(fileMetaPayload, null, 2));
+
   const tokenPostingsPayload = tokenPostings || {
     vocab: ['alpha'],
     postings: [[[0, 1]]],
@@ -79,6 +95,7 @@ export const createBaseIndex = async ({
 
   const pieces = manifestPieces || [
     { type: 'chunks', name: 'chunk_meta', format: 'json', path: 'chunk_meta.json' },
+    { type: 'chunks', name: 'file_meta', format: 'json', path: 'file_meta.json' },
     { type: 'postings', name: 'token_postings', format: 'json', path: 'token_postings.json' },
     { type: 'stats', name: 'index_state', format: 'json', path: 'index_state.json' },
     { type: 'stats', name: 'filelists', format: 'json', path: '.filelists.json' }
