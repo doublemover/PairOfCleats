@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-20T17:32:34.466Z",
+  "generatedAt": "2026-02-20T21:20:01.589Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2077,7 +2077,6 @@
         "tests/indexing/scm/no-scm-build-id.test.js",
         "tests/indexing/shards/shard-merge.test.js",
         "tests/perf/baseline-artifacts.test.js",
-        "tests/perf/sqlite-p95-latency.test.js",
         "tests/retrieval/ann/ann-parity.test.js",
         "tests/retrieval/ann/hnsw-ann.test.js",
         "tests/retrieval/ann/hnsw-atomic.test.js",
@@ -2222,7 +2221,6 @@
         "tests/indexing/shards/shard-merge.test.js",
         "tests/perf/baseline-artifacts.test.js",
         "tests/perf/bench/run.test.js",
-        "tests/perf/sqlite-p95-latency.test.js",
         "tests/retrieval/ann/ann-parity.test.js",
         "tests/retrieval/ann/hnsw-ann.test.js",
         "tests/retrieval/ann/hnsw-atomic.test.js",
@@ -3083,7 +3081,6 @@
     {
       "name": "PAIROFCLEATS_WORKER_POOL_HEAP_MAX_MB",
       "files": [
-        "src/index/build/workers/config.js",
         "src/shared/env.js",
         "tools/config/inventory.js"
       ]
@@ -3091,7 +3088,6 @@
     {
       "name": "PAIROFCLEATS_WORKER_POOL_HEAP_MIN_MB",
       "files": [
-        "src/index/build/workers/config.js",
         "src/shared/env.js",
         "tools/config/inventory.js"
       ]
@@ -3099,7 +3095,6 @@
     {
       "name": "PAIROFCLEATS_WORKER_POOL_HEAP_TARGET_MB",
       "files": [
-        "src/index/build/workers/config.js",
         "src/shared/env.js",
         "tools/config/inventory.js"
       ]
