@@ -31,7 +31,8 @@ import { createTreeSitterFileVersionSignature } from './file-signature.js';
 import { shouldSkipTreeSitterPlanningForPath } from './policy.js';
 
 const TREE_SITTER_LANG_IDS = new Set(TREE_SITTER_LANGUAGE_IDS);
-const PLANNER_IO_CONCURRENCY_CAP = 16;
+const PLANNER_IO_CONCURRENCY_CAP = 32;
+const PLANNER_IO_LARGE_REPO_THRESHOLD = 20000;
 const TREE_SITTER_SKIP_SAMPLE_LIMIT_DEFAULT = 3;
 
 const countLines = (text, maxLines = null) => {
@@ -114,7 +115,7 @@ const sortJobs = (a, b) => {
  * @param {object|null|undefined} treeSitterConfig
  * @returns {number}
  */
-const resolvePlannerIoConcurrency = (treeSitterConfig) => {
+const resolvePlannerIoConcurrency = (treeSitterConfig, entryCount = 0) => {
   const schedulerConfig = treeSitterConfig?.scheduler || {};
   const configuredRaw = Number(
     schedulerConfig.planIoConcurrency
@@ -127,7 +128,18 @@ const resolvePlannerIoConcurrency = (treeSitterConfig) => {
   const available = typeof os.availableParallelism === 'function'
     ? os.availableParallelism()
     : 4;
-  return Math.max(1, Math.min(PLANNER_IO_CONCURRENCY_CAP, Math.floor(available || 1)));
+  const totalMemGb = Number.isFinite(Number(os.totalmem()))
+    ? (Number(os.totalmem()) / (1024 ** 3))
+    : null;
+  const memoryConstrainedCap = Number.isFinite(totalMemGb) && totalMemGb > 0 && totalMemGb < 8
+    ? 8
+    : PLANNER_IO_CONCURRENCY_CAP;
+  let resolved = Math.max(1, Math.min(memoryConstrainedCap, Math.floor(available || 1)));
+  if (Number(entryCount) >= PLANNER_IO_LARGE_REPO_THRESHOLD) {
+    const boosted = Math.max(resolved, Math.floor((available || 1) * 0.75));
+    resolved = Math.max(1, Math.min(memoryConstrainedCap, boosted));
+  }
+  return resolved;
 };
 
 const createSkipLogger = ({ treeSitterConfig, log }) => {
@@ -189,7 +201,6 @@ export const buildTreeSitterSchedulerPlan = async ({
   if (!treeSitterConfig || treeSitterConfig.enabled === false) return null;
   const strict = treeSitterConfig?.strict === true;
   const skipOnParseError = runtime?.languageOptions?.skipOnParseError === true;
-  const plannerIoConcurrency = resolvePlannerIoConcurrency(treeSitterConfig);
   const skipLogger = createSkipLogger({ treeSitterConfig, log });
   const recordSkip = (reason, message) => skipLogger.record(reason, message);
 
@@ -215,6 +226,7 @@ export const buildTreeSitterSchedulerPlan = async ({
 
   const sortedEntries = Array.isArray(entries) ? entries.slice() : [];
   sortedEntries.sort((a, b) => compareStrings(resolveEntrySortKey(a), resolveEntrySortKey(b)));
+  const plannerIoConcurrency = resolvePlannerIoConcurrency(treeSitterConfig, sortedEntries.length);
 
   const entryResults = await runWithConcurrency(
     sortedEntries,
