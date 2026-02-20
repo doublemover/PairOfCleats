@@ -1,0 +1,14 @@
+#!/usr/bin/env node
+import assert from 'node:assert/strict';
+import { joinPathSafe, normalizePathForPlatform } from '../../../src/shared/path-normalize.js';
+
+const normalized = normalizePathForPlatform('..\\unsafe\0path/segment', { platform: 'posix' });
+assert.equal(normalized.includes('\0'), false, 'expected NUL bytes to be stripped');
+
+const escaped = joinPathSafe('/tmp/pairofcleats', ['..', 'outside', 'file.txt'], { platform: 'posix' });
+assert.equal(escaped, null, 'expected traversal join to be rejected');
+
+const safe = joinPathSafe('/tmp/pairofcleats', ['inside', 'file.txt'], { platform: 'posix' });
+assert.equal(safe, '/tmp/pairofcleats/inside/file.txt', 'expected safe join to resolve inside root');
+
+console.log('path edge-cases test passed');

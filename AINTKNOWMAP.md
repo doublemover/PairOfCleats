@@ -1086,9 +1086,9 @@ Touchpoints:
 - `docs/guides/release-discipline.md`
 #### 2.2 Cross-platform path safety
 
-- [ ] Audit release-critical path joins and normalization.
-- [ ] Replace brittle concatenation with path-safe helpers.
-- [ ] Enforce path behavior for spaces, drive letters, mixed separators, UNC.
+- [x] Audit release-critical path joins and normalization.
+- [x] Replace brittle concatenation with path-safe helpers.
+- [x] Enforce path behavior for spaces, drive letters, mixed separators, UNC.
 
 Tests:
 
