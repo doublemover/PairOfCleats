@@ -1,0 +1,30 @@
+{
+  "item": 37,
+  "section": "37",
+  "title": "Decomposed contract governance",
+  "sourceSpecs": [
+    "docs/specs/unified-syntax-representation.md",
+    "docs/specs/usr-core-governance-change.md",
+    "docs/specs/usr-consolidation-coverage-matrix.md"
+  ],
+  "inputs": {
+    "ownershipMatrix": "tests/lang/matrix/usr-ownership-matrix.json",
+    "governanceSpec": "docs/specs/usr-core-governance-change.md",
+    "coverageMatrix": "docs/specs/usr-consolidation-coverage-matrix.md"
+  },
+  "requiredGovernanceReferences": [
+    "docs/specs/unified-syntax-representation.md",
+    "docs/specs/usr-consolidation-coverage-matrix.md",
+    "tests/lang/matrix/usr-*.json"
+  ],
+  "requiredOwnershipFields": [
+    "id",
+    "domain",
+    "ownerRole",
+    "backupOwnerRole",
+    "escalationPolicyId",
+    "evidenceArtifacts",
+    "blocking"
+  ],
+  "report": "usr-section-37-governance-drift-report.json"
+}

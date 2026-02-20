@@ -35,3 +35,16 @@ Gate:
 Bench:
 - `tools/bench/usr/item36-backcompat-matrix.js`
 - Snapshot: `item36-backcompat-matrix.json`
+
+## Item 37 - Decomposed contract governance
+
+Config:
+- `docs/config/usr-guardrails/item-37-governance-drift.json`
+
+Gate:
+- `tools/ci/usr/item37-governance-drift-gate.js`
+- Report: `usr-section-37-governance-drift-report.json`
+
+Bench:
+- `tools/bench/usr/item37-governance-drift.js`
+- Snapshot: `item37-governance-drift.json`
