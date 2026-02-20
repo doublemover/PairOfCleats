@@ -18,6 +18,7 @@ import {
 import { resolveSearchMode } from '../cli-args.js';
 import { getMissingFlagMessages, resolveBm25Defaults } from './options.js';
 import { normalizeOptionalNumber } from '../../shared/limits.js';
+import { getEnvConfig } from '../../shared/env.js';
 
 export const OP_CONFIG_GUARDRAIL_CODES = Object.freeze({
   ANN_CANDIDATE_BOUNDS_INVALID: 'op_guardrail_ann_candidate_bounds_invalid',
@@ -31,8 +32,18 @@ export const OP_RETRIEVAL_DEFAULTS = Object.freeze({
   annCandidateMaxDocCount: 20000,
   queryCacheMaxEntries: 200,
   queryCacheTtlMs: 0,
-  rrfK: 60
+  rrfK: 60,
+  storageTier: 'balanced',
+  queryCacheStrategy: 'disk-first',
+  queryCachePrewarmMaxEntries: 128,
+  queryCacheMemoryFreshMs: 1000,
+  sqliteFtsTailRowCap: 3000,
+  sqliteFtsTailTimeBudgetMs: 90,
+  sqliteFtsTailChunkSize: 256
 });
+
+const STORAGE_TIERS = new Set(['balanced', 'fast']);
+const QUERY_CACHE_STRATEGIES = new Set(['disk-first', 'memory-first']);
 
 const buildGuardrailError = (code, message) => {
   const error = new Error(`[${code}] ${message}`);
@@ -82,6 +93,30 @@ const normalizeDenseVectorMode = (value) => {
   if (trimmed === 'merged' || trimmed === 'code' || trimmed === 'doc' || trimmed === 'auto') {
     return trimmed;
   }
+  return null;
+};
+
+const normalizeStorageTier = (value) => {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return null;
+  return STORAGE_TIERS.has(normalized) ? normalized : null;
+};
+
+const normalizeQueryCacheStrategy = (value) => {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return null;
+  return QUERY_CACHE_STRATEGIES.has(normalized) ? normalized : null;
+};
+
+const normalizeBooleanOverride = (value) => {
+  if (typeof value === 'boolean') return value;
+  if (value == null) return null;
+  const normalized = String(value).trim().toLowerCase();
+  if (!normalized) return null;
+  if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
+  if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
   return null;
 };
 
@@ -196,6 +231,7 @@ export function normalizeSearchOptions({
 
   const searchConfig = userConfig?.search || {};
   const retrievalConfig = userConfig?.retrieval || {};
+  const envConfig = getEnvConfig();
   const normalizePositiveInt = (value, fallback) => {
     const parsed = normalizeOptionalNumber(value);
     if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
@@ -247,6 +283,11 @@ export function normalizeSearchOptions({
     && Number(relationBoostConfigRaw.maxBoost) > 0
     ? Number(relationBoostConfigRaw.maxBoost)
     : 1.5;
+  const storageTier = normalizeStorageTier(
+    envConfig.storageTier
+      || retrievalConfig.storageTier
+      || searchConfig.storageTier
+  ) || OP_RETRIEVAL_DEFAULTS.storageTier;
   const annCandidateCap = normalizePositiveInt(
     retrievalConfig.annCandidateCap,
     OP_RETRIEVAL_DEFAULTS.annCandidateCap
@@ -262,9 +303,80 @@ export function normalizeSearchOptions({
 
   const minhashMaxDocs = 5000;
 
+  const queryCacheConfig = retrievalConfig?.queryCache && typeof retrievalConfig.queryCache === 'object'
+    ? retrievalConfig.queryCache
+    : {};
   const queryCacheEnabled = policy?.quality?.value ? policy.quality.value !== 'fast' : false;
   const queryCacheMaxEntries = OP_RETRIEVAL_DEFAULTS.queryCacheMaxEntries;
   const queryCacheTtlMs = OP_RETRIEVAL_DEFAULTS.queryCacheTtlMs;
+  const queryCacheStrategy = normalizeQueryCacheStrategy(
+    envConfig.queryCacheStrategy || queryCacheConfig.strategy
+  ) || (storageTier === 'fast' ? 'memory-first' : OP_RETRIEVAL_DEFAULTS.queryCacheStrategy);
+  const queryCachePrewarmOverride = normalizeBooleanOverride(
+    envConfig.queryCachePrewarm ?? queryCacheConfig.prewarm
+  );
+  const queryCachePrewarm = queryCachePrewarmOverride == null
+    ? storageTier === 'fast'
+    : queryCachePrewarmOverride;
+  const queryCachePrewarmMaxEntries = normalizePositiveInt(
+    envConfig.queryCachePrewarmMaxEntries ?? queryCacheConfig.prewarmMaxEntries,
+    OP_RETRIEVAL_DEFAULTS.queryCachePrewarmMaxEntries
+  );
+  const queryCacheMemoryFreshMsRaw = normalizeOptionalNumber(
+    envConfig.queryCacheMemoryFreshMs ?? queryCacheConfig.memoryFreshMs
+  );
+  const queryCacheMemoryFreshMs = Number.isFinite(queryCacheMemoryFreshMsRaw)
+    ? Math.max(0, Math.floor(queryCacheMemoryFreshMsRaw))
+    : (queryCacheStrategy === 'memory-first' ? OP_RETRIEVAL_DEFAULTS.queryCacheMemoryFreshMs : 0);
+  const sqliteTailLatencyConfig = retrievalConfig?.sqliteTailLatency
+    && typeof retrievalConfig.sqliteTailLatency === 'object'
+    ? retrievalConfig.sqliteTailLatency
+    : {};
+  const sqliteTailLatencyTuning = normalizeBooleanOverride(
+    envConfig.sqliteTailLatencyTuning
+      ?? sqliteTailLatencyConfig.enabled
+      ?? retrievalConfig.sqliteTailLatencyTuning
+  ) === true;
+  const sqliteFtsOverfetchRowCapRaw = normalizeOptionalNumber(
+    envConfig.sqliteFtsOverfetchRowCap
+      ?? sqliteTailLatencyConfig.overfetchRowCap
+      ?? retrievalConfig.sqliteFtsOverfetchRowCap
+  );
+  const sqliteFtsOverfetchTimeBudgetMsRaw = normalizeOptionalNumber(
+    envConfig.sqliteFtsOverfetchTimeBudgetMs
+      ?? sqliteTailLatencyConfig.overfetchTimeBudgetMs
+      ?? retrievalConfig.sqliteFtsOverfetchTimeBudgetMs
+  );
+  const sqliteFtsOverfetchChunkSizeRaw = normalizeOptionalNumber(
+    envConfig.sqliteFtsOverfetchChunkSize
+      ?? sqliteTailLatencyConfig.overfetchChunkSize
+      ?? retrievalConfig.sqliteFtsOverfetchChunkSize
+  );
+  const sqliteFtsOverfetch = {
+    rowCap: Number.isFinite(sqliteFtsOverfetchRowCapRaw) && sqliteFtsOverfetchRowCapRaw > 0
+      ? Math.floor(sqliteFtsOverfetchRowCapRaw)
+      : (sqliteTailLatencyTuning ? OP_RETRIEVAL_DEFAULTS.sqliteFtsTailRowCap : null),
+    timeBudgetMs: Number.isFinite(sqliteFtsOverfetchTimeBudgetMsRaw) && sqliteFtsOverfetchTimeBudgetMsRaw > 0
+      ? Math.floor(sqliteFtsOverfetchTimeBudgetMsRaw)
+      : (sqliteTailLatencyTuning ? OP_RETRIEVAL_DEFAULTS.sqliteFtsTailTimeBudgetMs : null),
+    chunkSize: Number.isFinite(sqliteFtsOverfetchChunkSizeRaw) && sqliteFtsOverfetchChunkSizeRaw > 0
+      ? Math.floor(sqliteFtsOverfetchChunkSizeRaw)
+      : (sqliteTailLatencyTuning ? OP_RETRIEVAL_DEFAULTS.sqliteFtsTailChunkSize : null)
+  };
+  if (
+    Number.isFinite(sqliteFtsOverfetch.rowCap)
+    && Number.isFinite(sqliteFtsOverfetch.chunkSize)
+    && sqliteFtsOverfetch.chunkSize > sqliteFtsOverfetch.rowCap
+  ) {
+    sqliteFtsOverfetch.chunkSize = sqliteFtsOverfetch.rowCap;
+  }
+  const preferMemoryBackendOnCacheHit = normalizeBooleanOverride(
+    envConfig.preferMemoryBackendOnCacheHit ?? retrievalConfig.preferMemoryBackendOnCacheHit
+  ) === true;
+  const sqliteReadPragmas = {
+    storageTier,
+    tailLatencyTuning: sqliteTailLatencyTuning
+  };
 
   const rrfConfig = searchConfig.rrf || {};
   const policyRrfEnabled = policy?.retrieval?.rrf?.enabled;
@@ -441,9 +553,14 @@ export function normalizeSearchOptions({
     annCandidateMaxDocCount,
     minhashMaxDocs,
     maxCandidates,
+    storageTier,
     queryCacheEnabled,
     queryCacheMaxEntries,
     queryCacheTtlMs,
+    queryCacheStrategy,
+    queryCachePrewarm,
+    queryCachePrewarmMaxEntries,
+    queryCacheMemoryFreshMs,
     rrfEnabled,
     rrfK,
     graphRankingConfig,
@@ -455,6 +572,10 @@ export function normalizeSearchOptions({
     sqliteFtsWeights,
     sqliteFtsTrigram,
     sqliteFtsStemming,
+    sqliteTailLatencyTuning,
+    sqliteFtsOverfetch,
+    preferMemoryBackendOnCacheHit,
+    sqliteReadPragmas,
     fieldWeightsConfig: searchConfig.fieldWeights || null,
     explain,
     denseVectorMode,
