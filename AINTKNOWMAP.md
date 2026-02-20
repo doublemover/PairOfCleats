@@ -644,9 +644,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.37 Groovy
 
-- [ ] Implement `.groovy` routing and import/class extraction behavior.
-- [ ] Implement and verify relation extraction for Gradle and runtime Groovy scripts.
-- [ ] Calibrate and commit Groovy caps for DSL and script-heavy build repos.
+- [x] Implement `.groovy` routing and import/class extraction behavior.
+- [x] Implement and verify relation extraction for Gradle and runtime Groovy scripts.
+- [x] Calibrate and commit Groovy caps for DSL and script-heavy build repos.
 
 
 Touchpoints:
