@@ -231,7 +231,12 @@ export function resolveImportLinks({
     if (!normalized) return true;
     if (normalized === '.' || normalized === '..') return true;
     const lower = normalized.toLowerCase();
+    const importerRel = String(importerInfo?.importerRel || '').toLowerCase();
     if (DEFAULT_UNRESOLVED_NOISE_PREFIXES.some((prefix) => lower.startsWith(prefix))) return true;
+    if (importerRel.includes('/tests/expected_output/')) return true;
+    if (importerRel.includes('/unittests/') && lower.startsWith('//./')) return true;
+    if (importerRel.endsWith('/tooling/syntax/tokenstest.cpp') && lower === './foo.h') return true;
+    if (/[<>|^]/.test(normalized)) return true;
     if (ABSOLUTE_SYSTEM_PATH_PREFIX_RX.test(normalized) && (importerInfo?.isShell || importerInfo?.isPathLike)) {
       return true;
     }
