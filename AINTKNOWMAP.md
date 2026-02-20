@@ -689,9 +689,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.39a YAML
 
-- [ ] Implement `.yaml`/`.yml` routing and top-level/document-aware chunking behavior.
-- [ ] Implement and verify anchor/alias/include-style reference extraction behavior where supported.
-- [ ] Calibrate and commit YAML caps for large CI/deployment/config monoliths.
+- [x] Implement `.yaml`/`.yml` routing and top-level/document-aware chunking behavior.
+- [x] Implement and verify anchor/alias/include-style reference extraction behavior where supported.
+- [x] Calibrate and commit YAML caps for large CI/deployment/config monoliths.
 
 
 Touchpoints:
