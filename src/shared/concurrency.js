@@ -323,6 +323,12 @@ export function createBuildScheduler(input = {}) {
   const adaptiveMinIntervalMs = Number.isFinite(Number(input.adaptiveIntervalMs))
     ? Math.max(50, Math.floor(Number(input.adaptiveIntervalMs)))
     : 250;
+  const adaptiveTargetUtilization = Number.isFinite(Number(input.adaptiveTargetUtilization))
+    ? Math.max(0.25, Math.min(0.99, Number(input.adaptiveTargetUtilization)))
+    : 0.85;
+  const adaptiveStep = Number.isFinite(Number(input.adaptiveStep))
+    ? Math.max(1, Math.floor(Number(input.adaptiveStep)))
+    : 1;
 
   const maybeAdaptTokens = () => {
     if (!adaptiveEnabled || shuttingDown) return;
@@ -335,8 +341,12 @@ export function createBuildScheduler(input = {}) {
       totalPending += q.pending.length;
       totalRunning += q.running;
     }
-    const pendingPressure = totalPending > Math.max(2, (tokens.cpu.total + tokens.io.total));
+    const pendingPressure = totalPending > Math.max(2, Math.floor((tokens.cpu.total + tokens.io.total) * 0.75));
     const mostlyIdle = totalPending === 0 && totalRunning === 0;
+    const cpuUtilization = tokens.cpu.total > 0 ? (tokens.cpu.used / tokens.cpu.total) : 0;
+    const ioUtilization = tokens.io.total > 0 ? (tokens.io.used / tokens.io.total) : 0;
+    const utilization = Math.max(cpuUtilization, ioUtilization);
+    const utilizationDeficit = utilization < adaptiveTargetUtilization;
     const totalMem = Number(os.totalmem()) || 0;
     const freeMem = Number(os.freemem()) || 0;
     const freeRatio = totalMem > 0 ? (freeMem / totalMem) : null;
@@ -344,16 +354,17 @@ export function createBuildScheduler(input = {}) {
     const memoryHighHeadroom = !Number.isFinite(freeRatio) || freeRatio > 0.25;
 
     if (memoryLowHeadroom) {
-      tokens.cpu.total = Math.max(baselineLimits.cpu, tokens.cpu.total - 1);
-      tokens.io.total = Math.max(baselineLimits.io, tokens.io.total - 1);
-      tokens.mem.total = Math.max(baselineLimits.mem, tokens.mem.total - 1);
+      tokens.cpu.total = Math.max(baselineLimits.cpu, tokens.cpu.used, tokens.cpu.total - adaptiveStep);
+      tokens.io.total = Math.max(baselineLimits.io, tokens.io.used, tokens.io.total - adaptiveStep);
+      tokens.mem.total = Math.max(baselineLimits.mem, tokens.mem.used, tokens.mem.total - adaptiveStep);
       return;
     }
 
     if (pendingPressure && memoryHighHeadroom) {
-      const nextCpu = Math.min(maxLimits.cpu, tokens.cpu.total + 1);
-      const nextIo = Math.min(maxLimits.io, tokens.io.total + 1);
-      const nextMem = Math.min(maxLimits.mem, tokens.mem.total + 1);
+      const scaleStep = utilizationDeficit ? adaptiveStep + 1 : adaptiveStep;
+      const nextCpu = Math.min(maxLimits.cpu, tokens.cpu.total + scaleStep);
+      const nextIo = Math.min(maxLimits.io, tokens.io.total + scaleStep);
+      const nextMem = Math.min(maxLimits.mem, tokens.mem.total + adaptiveStep);
       tokens.cpu.total = nextCpu;
       tokens.io.total = nextIo;
       tokens.mem.total = nextMem;
@@ -361,9 +372,9 @@ export function createBuildScheduler(input = {}) {
     }
 
     if (mostlyIdle) {
-      tokens.cpu.total = Math.max(baselineLimits.cpu, tokens.cpu.total - 1);
-      tokens.io.total = Math.max(baselineLimits.io, tokens.io.total - 1);
-      tokens.mem.total = Math.max(baselineLimits.mem, tokens.mem.total - 1);
+      tokens.cpu.total = Math.max(baselineLimits.cpu, tokens.cpu.used, tokens.cpu.total - adaptiveStep);
+      tokens.io.total = Math.max(baselineLimits.io, tokens.io.used, tokens.io.total - adaptiveStep);
+      tokens.mem.total = Math.max(baselineLimits.mem, tokens.mem.used, tokens.mem.total - adaptiveStep);
     }
   };
 
@@ -559,7 +570,9 @@ export function createBuildScheduler(input = {}) {
       adaptive: {
         enabled: adaptiveEnabled,
         baseline: baselineLimits,
-        max: maxLimits
+        max: maxLimits,
+        targetUtilization: adaptiveTargetUtilization,
+        step: adaptiveStep
       },
       utilization: {
         cpu: cpuUtilization,
