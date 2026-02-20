@@ -33,6 +33,8 @@ export const createBackendContext = async ({
   fileChargramN,
   hnswConfig,
   denseVectorMode,
+  storageTier,
+  sqliteReadPragmas,
   root,
   userConfig
 }) => {
@@ -59,6 +61,8 @@ export const createBackendContext = async ({
     backendForcedSqlite,
     vectorExtension,
     vectorAnnEnabled,
+    storageTier,
+    sqliteReadPragmas,
     dbCache,
     sqliteStates
   });

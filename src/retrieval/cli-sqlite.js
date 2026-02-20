@@ -31,6 +31,8 @@ export async function createSqliteBackend(options) {
     backendForcedSqlite,
     vectorExtension,
     vectorAnnEnabled,
+    storageTier,
+    sqliteReadPragmas,
     dbCache,
     sqliteStates
   } = options;
@@ -231,7 +233,11 @@ export async function createSqliteBackend(options) {
       db.close();
       return null;
     }
-    applyReadPragmas(db, { dbBytes: dbStat?.size });
+    applyReadPragmas(db, {
+      dbBytes: dbStat?.size,
+      storageTier,
+      ...(sqliteReadPragmas && typeof sqliteReadPragmas === 'object' ? sqliteReadPragmas : {})
+    });
     if (dbCache?.set) dbCache.set(dbPath, db);
     return db;
   };

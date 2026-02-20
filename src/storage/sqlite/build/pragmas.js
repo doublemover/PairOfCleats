@@ -50,15 +50,29 @@ const resolveReadPragmas = (options = {}) => {
   const dbMb = Number.isFinite(dbBytes) && dbBytes > 0
     ? dbBytes / BYTES_PER_MB
     : null;
+  const storageTierRaw = typeof options.storageTier === 'string'
+    ? options.storageTier.trim().toLowerCase()
+    : '';
+  const storageTier = storageTierRaw === 'fast' ? 'fast' : 'balanced';
+  const tailLatencyTuning = options.tailLatencyTuning === true;
   const cacheMb = dbMb === null
-    ? 64
-    : clamp(Math.round(dbMb * 0.1), 32, 256);
-  const mmapMb = SQLITE_MMAP_TARGET_MB;
+    ? (storageTier === 'fast' ? 128 : 64)
+    : (storageTier === 'fast'
+      ? clamp(Math.round(dbMb * 0.2), 96, 1024)
+      : clamp(Math.round(dbMb * 0.1), 32, 256));
+  const mmapMb = storageTier === 'fast'
+    ? 12 * 1024
+    : SQLITE_MMAP_TARGET_MB;
+  const busyTimeoutMs = tailLatencyTuning
+    ? 750
+    : (storageTier === 'fast' ? 1500 : 5000);
+  const threads = tailLatencyTuning || storageTier === 'fast' ? 4 : 2;
   return {
     temp_store: 'MEMORY',
     cache_size: -cacheMb * 1024,
     mmap_size: mmapMb * BYTES_PER_MB,
-    busy_timeout: 5000
+    busy_timeout: busyTimeoutMs,
+    threads
   };
 };
 
@@ -115,11 +129,13 @@ export const applyReadPragmas = (db, options = {}) => {
   applyPragma(db, `cache_size = ${resolved.cache_size}`, 'cache_size');
   applyPragma(db, `mmap_size = ${resolved.mmap_size}`, 'mmap_size');
   applyPragma(db, `busy_timeout = ${resolved.busy_timeout}`, 'busy_timeout');
+  applyPragma(db, `threads = ${resolved.threads}`, 'threads');
   return {
     temp_store: readPragma(db, 'temp_store') ?? resolved.temp_store,
     cache_size: readPragma(db, 'cache_size') ?? resolved.cache_size,
     mmap_size: readPragma(db, 'mmap_size') ?? resolved.mmap_size,
-    busy_timeout: readPragma(db, 'busy_timeout') ?? resolved.busy_timeout
+    busy_timeout: readPragma(db, 'busy_timeout') ?? resolved.busy_timeout,
+    threads: readPragma(db, 'threads') ?? resolved.threads
   };
 };
 
