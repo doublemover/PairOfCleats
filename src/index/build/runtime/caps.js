@@ -2,6 +2,18 @@ import { normalizeCapNullOnZero } from '../../../shared/limits.js';
 import { pickMinLimit } from './limits.js';
 import { LANGUAGE_CAPS_BASELINES } from './caps-calibration.js';
 
+const CLIKE_CAPS_BASELINE = LANGUAGE_CAPS_BASELINES.clike || {};
+const DEFAULT_OBJECTIVEC_CAPS_BY_EXT = Object.freeze({
+  '.m': Object.freeze({
+    maxBytes: normalizeCapNullOnZero(CLIKE_CAPS_BASELINE.maxBytes, null),
+    maxLines: normalizeCapNullOnZero(CLIKE_CAPS_BASELINE.maxLines, null)
+  }),
+  '.mm': Object.freeze({
+    maxBytes: normalizeCapNullOnZero(CLIKE_CAPS_BASELINE.maxBytes, null),
+    maxLines: normalizeCapNullOnZero(CLIKE_CAPS_BASELINE.maxLines, null)
+  })
+});
+
 /**
  * Normalize a numeric cap value to a non-negative integer.
  * @param {unknown} value
@@ -159,6 +171,10 @@ export const resolveFileCapsAndGuardrails = (indexingConfig) => {
     },
     byMode: normalizeCapsByMode(fileCapsConfig.byMode || {})
   };
+  for (const [ext, entry] of Object.entries(DEFAULT_OBJECTIVEC_CAPS_BY_EXT)) {
+    if (fileCaps.byExt[ext]) continue;
+    fileCaps.byExt[ext] = { ...entry };
+  }
   const untrustedConfig = indexingConfig.untrusted || {};
   const untrustedEnabled = untrustedConfig.enabled === true;
   const untrustedDefaults = {

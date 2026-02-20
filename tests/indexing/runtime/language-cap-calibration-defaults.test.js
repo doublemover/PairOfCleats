@@ -15,4 +15,10 @@ for (const [languageId, baseline] of Object.entries(LANGUAGE_CAPS_BASELINES)) {
   assert.equal(resolved.maxLines, baseline.maxLines, `maxLines calibration mismatch for ${languageId}`);
 }
 
+const clikeBaseline = LANGUAGE_CAPS_BASELINES.clike;
+assert.equal(fileCaps.byExt['.m']?.maxBytes, clikeBaseline.maxBytes, 'expected .m maxBytes to default to clike baseline');
+assert.equal(fileCaps.byExt['.m']?.maxLines, clikeBaseline.maxLines, 'expected .m maxLines to default to clike baseline');
+assert.equal(fileCaps.byExt['.mm']?.maxBytes, clikeBaseline.maxBytes, 'expected .mm maxBytes to default to clike baseline');
+assert.equal(fileCaps.byExt['.mm']?.maxLines, clikeBaseline.maxLines, 'expected .mm maxLines to default to clike baseline');
+
 console.log('language cap calibration defaults test passed');
