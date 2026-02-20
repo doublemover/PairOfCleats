@@ -131,8 +131,8 @@
       "maxLines": 4000
     },
     "sql": {
-      "maxBytes": 327680,
-      "maxLines": 5000
+      "maxBytes": 393216,
+      "maxLines": 6500
     },
     "starlark": {
       "maxBytes": 393216,
@@ -321,9 +321,9 @@
       "maxParseMs": 1300
     },
     "sql": {
-      "maxBytes": 327680,
-      "maxLines": 5000,
-      "maxParseMs": 1500
+      "maxBytes": 393216,
+      "maxLines": 6500,
+      "maxParseMs": 1800
     },
     "starlark": {
       "maxBytes": 393216,

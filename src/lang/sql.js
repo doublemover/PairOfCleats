@@ -644,11 +644,23 @@ function collectSqlParserUsages(text, dialect, log) {
 }
 
 /**
- * Collect imports from SQL source (none).
+ * Collect imports from SQL source.
  * @returns {string[]}
  */
-export function collectSqlImports() {
-  return [];
+export function collectSqlImports(text = '') {
+  const imports = new Set();
+  const lines = String(text || '').split('\n');
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('--') || line.startsWith('/*')) continue;
+    const psqlMatch = line.match(/^\\i(?:r)?\s+([^\s;]+)/i);
+    if (psqlMatch?.[1]) imports.add(psqlMatch[1]);
+    const sourceMatch = line.match(/^source\s+([^\s;]+)/i);
+    if (sourceMatch?.[1]) imports.add(sourceMatch[1]);
+    const oracleMatch = line.match(/^@@\s*([^\s;]+)/);
+    if (oracleMatch?.[1]) imports.add(oracleMatch[1]);
+  }
+  return Array.from(imports);
 }
 
 /**
@@ -701,6 +713,7 @@ export function buildSqlChunks(text, options = {}) {
 export function buildSqlRelations(text, sqlChunks, options = {}) {
   const exports = new Set();
   const usages = new Set();
+  const imports = collectSqlImports(text);
   if (Array.isArray(sqlChunks)) {
     for (const chunk of sqlChunks) {
       if (!chunk || !chunk.name) continue;
@@ -712,11 +725,11 @@ export function buildSqlRelations(text, sqlChunks, options = {}) {
     if (entry) usages.add(entry);
   }
   return {
-    imports: [],
+    imports,
     exports: Array.from(exports),
     calls: [],
     usages: Array.from(usages),
-    importLinks: []
+    importLinks: imports.slice()
   };
 }
 

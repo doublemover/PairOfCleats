@@ -489,9 +489,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.27 SQL
 
-- [ ] Implement `.sql` routing and dialect-aware chunking behavior.
-- [ ] Implement and verify relation extraction for schema/table/function references where supported.
-- [ ] Calibrate and commit SQL caps for migration-heavy and warehouse-scale schema files.
+- [x] Implement `.sql` routing and dialect-aware chunking behavior.
+- [x] Implement and verify relation extraction for schema/table/function references where supported.
+- [x] Calibrate and commit SQL caps for migration-heavy and warehouse-scale schema files.
 
 
 Touchpoints:
