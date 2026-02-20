@@ -5,7 +5,7 @@ import { logLine } from '../../../shared/progress.js';
 import { SCHEDULER_QUEUE_NAMES } from './scheduler.js';
 import { resolveThreadLimits } from '../../../shared/threads.js';
 import { createIndexerWorkerPools, resolveWorkerPoolConfig } from '../worker-pool.js';
-import { resolveWorkerHeapBudgetPolicy } from '../workers/config.js';
+import { resolveWorkerHeapBudgetPolicy, resolveWorkerResourceLimits } from '../workers/config.js';
 import { createCrashLogger } from '../crash-log.js';
 
 /**
@@ -98,6 +98,7 @@ export const resolveThreadLimitsConfig = ({ argv, rawArgv, envConfig, indexingCo
  *   maxGlobalRssMb:number|null,
  *   reserveRssMb:number,
  *   workerHeapPolicy:{targetPerWorkerMb:number,minPerWorkerMb:number,maxPerWorkerMb:number},
+ *   effectiveWorkerHeapMb:number,
  *   perWorkerCacheMb:number,
  *   perWorkerWriteBufferMb:number,
  *   queueHeadroomScale:number
@@ -115,6 +116,13 @@ export const resolveRuntimeMemoryPolicy = ({ indexingConfig, cpuConcurrency }) =
     minPerWorkerMb: memoryConfig.workerHeapMinMb,
     maxPerWorkerMb: memoryConfig.workerHeapMaxMb
   });
+  const workerCount = Number.isFinite(cpuConcurrency)
+    ? Math.max(1, Math.floor(cpuConcurrency))
+    : 1;
+  const workerResourceLimits = resolveWorkerResourceLimits(workerCount, workerHeapPolicy);
+  const effectiveWorkerHeapMb = Number.isFinite(Number(workerResourceLimits?.maxOldGenerationSizeMb))
+    ? Math.max(1, Math.floor(Number(workerResourceLimits.maxOldGenerationSizeMb)))
+    : workerHeapPolicy.targetPerWorkerMb;
   const reserveRssMb = Number.isFinite(Number(memoryConfig.reserveRssMb))
     ? Math.max(512, Math.floor(Number(memoryConfig.reserveRssMb)))
     : 2048;
@@ -123,15 +131,12 @@ export const resolveRuntimeMemoryPolicy = ({ indexingConfig, cpuConcurrency }) =
     : null;
   const perWorkerCacheMb = Number.isFinite(Number(memoryConfig.perWorkerCacheMb))
     ? Math.max(64, Math.floor(Number(memoryConfig.perWorkerCacheMb)))
-    : Math.max(128, Math.min(512, Math.floor(workerHeapPolicy.targetPerWorkerMb * 0.35)));
+    : Math.max(128, Math.min(512, Math.floor(effectiveWorkerHeapMb * 0.35)));
   const perWorkerWriteBufferMb = Number.isFinite(Number(memoryConfig.perWorkerWriteBufferMb))
     ? Math.max(64, Math.floor(Number(memoryConfig.perWorkerWriteBufferMb)))
-    : Math.max(128, Math.min(768, Math.floor(workerHeapPolicy.targetPerWorkerMb * 0.45)));
-  const workerCount = Number.isFinite(cpuConcurrency)
-    ? Math.max(1, Math.floor(cpuConcurrency))
-    : 1;
+    : Math.max(128, Math.min(768, Math.floor(effectiveWorkerHeapMb * 0.45)));
   const projectedBudgetMb = workerCount * (
-    workerHeapPolicy.targetPerWorkerMb + perWorkerCacheMb + perWorkerWriteBufferMb
+    effectiveWorkerHeapMb + perWorkerCacheMb + perWorkerWriteBufferMb
   );
   const queueHeadroomScale = Number.isFinite(maxGlobalRssMb) && maxGlobalRssMb > 0
     ? (projectedBudgetMb < Math.max(512, maxGlobalRssMb - reserveRssMb) ? 3 : 2)
@@ -141,6 +146,7 @@ export const resolveRuntimeMemoryPolicy = ({ indexingConfig, cpuConcurrency }) =
     maxGlobalRssMb,
     reserveRssMb,
     workerHeapPolicy,
+    effectiveWorkerHeapMb,
     perWorkerCacheMb,
     perWorkerWriteBufferMb,
     queueHeadroomScale

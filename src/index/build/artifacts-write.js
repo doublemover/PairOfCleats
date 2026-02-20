@@ -1879,6 +1879,17 @@ export async function writeIndexArtifacts(input) {
       heavyWriteConcurrencyOverride,
       hostConcurrency
     });
+    const scheduleWriteJob = (fn, estimatedBytes) => {
+      if (!scheduler?.schedule || typeof fn !== 'function') return fn();
+      const memTokens = Number.isFinite(Number(estimatedBytes)) && Number(estimatedBytes) >= (64 * 1024 * 1024)
+        ? 2
+        : 1;
+      return scheduler.schedule(
+        SCHEDULER_QUEUE_NAMES.stage2Write,
+        { io: 1, mem: memTokens },
+        fn
+      );
+    };
     const runWriteLane = async (laneWrites, laneConcurrency) => {
       if (!Array.isArray(laneWrites) || !laneWrites.length || laneConcurrency < 1) return;
       await runWithConcurrency(
@@ -1892,7 +1903,7 @@ export async function writeIndexArtifacts(input) {
           activeWriteBytes.set(activeLabel, Number.isFinite(estimatedBytes) ? estimatedBytes : 0);
           updateWriteInFlightTelemetry();
           try {
-            await job();
+            await scheduleWriteJob(job, estimatedBytes);
             const durationMs = Date.now() - started;
             let bytes = null;
             if (label) {

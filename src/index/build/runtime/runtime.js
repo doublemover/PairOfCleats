@@ -918,7 +918,8 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   log(`Queue concurrency: io=${ioConcurrency}, cpu=${cpuConcurrency}.`);
   log(
     `Memory policy: workerHeap=${runtimeMemoryPolicy.workerHeapPolicy.targetPerWorkerMb}MB ` +
-    `(min=${runtimeMemoryPolicy.workerHeapPolicy.minPerWorkerMb}MB, ` +
+    `(effective=${runtimeMemoryPolicy.effectiveWorkerHeapMb}MB, ` +
+    `min=${runtimeMemoryPolicy.workerHeapPolicy.minPerWorkerMb}MB, ` +
     `max=${runtimeMemoryPolicy.workerHeapPolicy.maxPerWorkerMb}MB), ` +
     `workerCache=${runtimeMemoryPolicy.perWorkerCacheMb}MB, ` +
     `writeBuffer=${runtimeMemoryPolicy.perWorkerWriteBufferMb}MB.`
