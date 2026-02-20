@@ -45,7 +45,7 @@ export function createTaskQueues({
  * @param {PQueue} queue
  * @param {Array<any>} items
  * @param {(item:any, ctx:{index:number,item:any,signal?:AbortSignal})=>Promise<any>} worker
- * @param {{collectResults?:boolean,onResult?:(result:any, ctx:{index:number,item:any,signal?:AbortSignal})=>Promise<void>,onError?:(error:any, ctx:{index:number,item:any,signal?:AbortSignal})=>Promise<void>,onProgress?:(state:{done:number,total:number})=>Promise<void>,bestEffort?:boolean,signal?:AbortSignal,abortError?:Error,retries?:number,retryDelayMs?:number,backoffMs?:number}} [options]
+ * @param {{collectResults?:boolean,onResult?:(result:any, ctx:{index:number,item:any,signal?:AbortSignal})=>Promise<void>,onError?:(error:any, ctx:{index:number,item:any,signal?:AbortSignal})=>Promise<void>,onProgress?:(state:{done:number,total:number})=>Promise<void>,bestEffort?:boolean,signal?:AbortSignal,abortError?:Error,retries?:number,retryDelayMs?:number,backoffMs?:number,onBeforeDispatch?:(ctx:{index:number,item:any,signal?:AbortSignal})=>Promise<void>}} [options]
  * @returns {Promise<any[]|null>}
  */
 export async function runWithQueue(queue, items, worker, options = {}) {
@@ -55,6 +55,9 @@ export async function runWithQueue(queue, items, worker, options = {}) {
   const onResult = typeof options.onResult === 'function' ? options.onResult : null;
   const onError = typeof options.onError === 'function' ? options.onError : null;
   const onProgress = typeof options.onProgress === 'function' ? options.onProgress : null;
+  const onBeforeDispatch = typeof options.onBeforeDispatch === 'function'
+    ? options.onBeforeDispatch
+    : null;
   const retries = Number.isFinite(Number(options.retries)) ? Math.max(0, Math.floor(Number(options.retries))) : 0;
   const retryDelayMs = Number.isFinite(Number(options.retryDelayMs)) ? Math.max(0, Math.floor(Number(options.retryDelayMs))) : 0;
   const backoffMs = Number.isFinite(Number(options.backoffMs)) ? Math.max(0, Math.floor(Number(options.backoffMs))) : null;
@@ -137,6 +140,20 @@ export async function runWithQueue(queue, items, worker, options = {}) {
     if (signal?.aborted) {
       markAborted();
       return;
+    }
+    if (onBeforeDispatch) {
+      try {
+        await onBeforeDispatch(ctx);
+      } catch (err) {
+        await recordError(err, ctx);
+        doneCount += 1;
+        await recordProgress();
+        return;
+      }
+      if (aborted || signal?.aborted) {
+        if (signal?.aborted) markAborted();
+        return;
+      }
     }
     if (maxPending) {
       while (pendingSignals.size >= maxPending && !aborted) {

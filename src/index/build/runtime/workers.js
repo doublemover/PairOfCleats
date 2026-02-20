@@ -134,7 +134,7 @@ export const createRuntimeQueues = ({
   const maxFilePending = coercePositiveInt(tokenizeConfig?.maxPending)
     ?? (Number.isFinite(pendingLimits?.cpu?.maxPending)
       ? pendingLimits.cpu.maxPending
-      : Math.max(16, effectiveCpuConcurrency * 4));
+      : Math.max(32, effectiveCpuConcurrency * 8));
   const maxIoPending = Number.isFinite(pendingLimits?.io?.maxPending)
     ? pendingLimits.io.maxPending
     : Math.max(8, ioConcurrency * 4);
@@ -143,7 +143,7 @@ export const createRuntimeQueues = ({
     : Math.max(1, Math.min(cpuConcurrency || 1, fileConcurrency || 1));
   const maxEmbeddingPending = Number.isFinite(pendingLimits?.embedding?.maxPending)
     ? pendingLimits.embedding.maxPending
-    : Math.max(16, effectiveEmbeddingConcurrency * 4);
+    : Math.max(32, effectiveEmbeddingConcurrency * 8);
   const resolvedProcConcurrency = coercePositiveInt(procConcurrency)
     ?? (Number.isFinite(pendingLimits?.proc?.concurrency)
       ? Math.max(1, Math.floor(pendingLimits.proc.concurrency))
@@ -207,7 +207,10 @@ export const createRuntimeQueues = ({
 };
 
 export const resolveWorkerPoolRuntimeConfig = ({ indexingConfig, envConfig, cpuConcurrency, fileConcurrency }) => {
-  const workerPoolDefaultMax = Math.min(16, fileConcurrency);
+  const workerPoolDefaultMax = Math.max(
+    1,
+    Math.min(32, Math.max(cpuConcurrency, Math.min(16, fileConcurrency)))
+  );
   return resolveWorkerPoolConfig(
     indexingConfig.workerPool || {},
     envConfig,

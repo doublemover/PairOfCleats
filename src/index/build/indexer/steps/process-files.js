@@ -677,6 +677,12 @@ export const processFiles = async ({
           {
             collectResults: false,
             signal: abortSignal,
+            onBeforeDispatch: async () => {
+              if (typeof orderedAppender.waitForCapacity === 'function') {
+                await orderedAppender.waitForCapacity();
+              }
+              orderedCompletionTracker.throwIfFailed();
+            },
             onResult: async (result, ctx) => {
               const entryIndex = Number.isFinite(ctx?.index) ? ctx.index : 0;
               const entry = batchEntries[entryIndex];
@@ -712,14 +718,6 @@ export const processFiles = async ({
               orderedCompletionTracker.track(completion, () => {
                 reservation.release();
               });
-              if (typeof orderedAppender.waitForCapacity === 'function') {
-                // Capacity throttling intentionally does not await this specific completion.
-                // Surface any enqueue/flush failure before accepting more work.
-                await orderedAppender.waitForCapacity();
-                orderedCompletionTracker.throwIfFailed();
-                return;
-              }
-              return completion;
             },
             onError: async (err, ctx) => {
               const entryIndex = Number.isFinite(ctx?.index) ? ctx.index : 0;

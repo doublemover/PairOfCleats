@@ -134,7 +134,7 @@ export function resolveThreadLimits(input = {}) {
     ioConcurrency = Math.max(1, Math.min(ioConcurrency, configuredIoCap));
   }
   const cpuConcurrency = Math.max(1, Math.min(maxConcurrencyCap, resolvedThreads));
-  const procConcurrency = Math.max(1, Math.min(8, Math.min(4, cpuCount)));
+  const procConcurrency = Math.max(1, Math.min(32, resolvedThreads));
   const source = cliThreadsProvided
     ? 'cli'
     : configThreadsProvided
