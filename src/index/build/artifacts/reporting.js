@@ -29,6 +29,13 @@ const INDEX_STATE_NONDETERMINISTIC_FIELDS = Object.freeze([
     excludeFromStableHash: true
   },
   {
+    path: 'embeddings.updatedAt',
+    category: 'time',
+    reason: 'embeddings updatedAt reflects stage3 execution timing per run.',
+    source: 'tools/build/embeddings/runner.js',
+    excludeFromStableHash: true
+  },
+  {
     path: 'buildId',
     category: 'run_identity',
     reason: 'buildId includes timestamp and invocation identity.',
@@ -64,32 +71,39 @@ const INDEX_STATE_NONDETERMINISTIC_FIELDS = Object.freeze([
     excludeFromStableHash: false
   },
   {
-    path: 'sqlite.path',
-    category: 'environment',
-    reason: 'sqlite path is machine-local and build-root dependent.',
+    path: 'sqlite',
+    category: 'runtime_capacity',
+    reason: 'sqlite state contains run-local timing, capacity, and machine-specific paths.',
     source: 'tools/build/sqlite/index-state.js',
-    excludeFromStableHash: false
+    excludeFromStableHash: true
   },
   {
-    path: 'lmdb.path',
-    category: 'environment',
-    reason: 'lmdb path is machine-local and build-root dependent.',
+    path: 'lmdb',
+    category: 'runtime_capacity',
+    reason: 'lmdb state includes machine-local sizing and execution status.',
     source: 'tools/build/lmdb-index.js',
-    excludeFromStableHash: false
+    excludeFromStableHash: true
   },
   {
     path: 'sqlite.threadLimits',
     category: 'runtime_capacity',
     reason: 'sqlite thread limits derive from host/runtime envelope.',
     source: 'tools/build/sqlite/runner.js',
-    excludeFromStableHash: false
+    excludeFromStableHash: true
+  },
+  {
+    path: 'shards.enabled',
+    category: 'runtime_capacity',
+    reason: 'shard mode toggles execution strategy, not indexed corpus content.',
+    source: 'src/index/build/shards.js',
+    excludeFromStableHash: true
   },
   {
     path: 'shards.plan',
     category: 'runtime_capacity',
     reason: 'shard planning includes perf-derived cost estimates.',
     source: 'src/index/build/shards.js',
-    excludeFromStableHash: false
+    excludeFromStableHash: true
   }
 ]);
 

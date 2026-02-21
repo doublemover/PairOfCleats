@@ -848,8 +848,10 @@ export async function writeIndexArtifacts(input) {
   )
     ? Math.max(1, Math.floor(Number(artifactConfig.chunkMetaJsonlEstimateThresholdBytes)))
     : (8 * 1024 * 1024);
-  const chunkMetaShardSize = Number.isFinite(Number(artifactConfig.chunkMetaShardSize))
-    ? Math.max(0, Math.floor(Number(artifactConfig.chunkMetaShardSize)))
+  const chunkMetaShardSizeRaw = Number(artifactConfig.chunkMetaShardSize);
+  const chunkMetaShardSizeExplicit = Number.isFinite(chunkMetaShardSizeRaw);
+  const chunkMetaShardSize = chunkMetaShardSizeExplicit
+    ? Math.max(0, Math.floor(chunkMetaShardSizeRaw))
     : 100000;
   const indexerConfig = indexingConfig.indexer && typeof indexingConfig.indexer === 'object'
     ? indexingConfig.indexer
@@ -1265,7 +1267,12 @@ export async function writeIndexArtifacts(input) {
     chunkMetaShardSize,
     maxJsonBytes: chunkMetaMaxBytes
   });
-  if (chunkMetaAdaptiveShardsEnabled && chunkMetaPlan.chunkMetaUseJsonl && chunkMetaPlan.chunkMetaCount > 0) {
+  if (
+    chunkMetaAdaptiveShardsEnabled
+    && !chunkMetaShardSizeExplicit
+    && chunkMetaPlan.chunkMetaUseJsonl
+    && chunkMetaPlan.chunkMetaCount > 0
+  ) {
     const chunkMetaEstimatedBytes = Number.isFinite(chunkMetaPlan.chunkMetaEstimatedJsonlBytes)
       && chunkMetaPlan.chunkMetaEstimatedJsonlBytes > 0
       ? chunkMetaPlan.chunkMetaEstimatedJsonlBytes
