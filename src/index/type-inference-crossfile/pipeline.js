@@ -27,6 +27,22 @@ const DYNAMIC_BUNDLE_TARGET_MS = 500;
 const SYMBOL_REF_CACHE_MAX_ENTRIES = 20000;
 const SYMBOL_REF_CACHE_TTL_MS = 5 * 60 * 1000;
 const BUNDLE_SIZING_P95_WINDOW = 32;
+const PROPAGATION_PARALLEL_MIN_BUNDLE = 96;
+
+const parseOptionalBoolean = (value) => {
+  if (value == null) return null;
+  const text = String(value).trim().toLowerCase();
+  if (!text) return null;
+  if (text === '1' || text === 'true') return true;
+  if (text === '0' || text === 'false') return false;
+  return null;
+};
+
+const parsePositiveInteger = (value, fallback) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return fallback;
+  return Math.max(1, Math.floor(numeric));
+};
 
 const resolveCrossFileCacheRoot = ({ cacheRoot, rootDir }) => {
   if (typeof cacheRoot === 'string' && cacheRoot.trim()) {
@@ -567,6 +583,13 @@ export async function applyCrossFileInference({
     recentHeapDeltaBytes: []
   };
   let currentBundleSize = bundleSizing.initialBundleSize;
+  const envPropagationParallel = parseOptionalBoolean(process.env.PAIROFCLEATS_CROSSFILE_PROPAGATION_PARALLEL);
+  const propagationParallelEnabled = envPropagationParallel !== false;
+  const propagationParallelMinBundle = parsePositiveInteger(
+    process.env.PAIROFCLEATS_CROSSFILE_PROPAGATION_PARALLEL_MIN_BUNDLE,
+    PROPAGATION_PARALLEL_MIN_BUNDLE
+  );
+  let propagationParallelLogged = false;
   let chunkCursor = 0;
   while (chunkCursor < chunks.length) {
     const bundleStart = chunkCursor;
@@ -574,6 +597,17 @@ export async function applyCrossFileInference({
     const bundle = chunks.slice(bundleStart, bundleEnd);
     const bundleStartedAt = Date.now();
     const heapBeforeBundle = Number(process.memoryUsage?.().heapUsed) || 0;
+    const useParallelPropagation = propagationParallelEnabled
+      && enableTypeInference
+      && enableRiskCorrelation
+      && bundle.length >= propagationParallelMinBundle;
+    if (useParallelPropagation && !propagationParallelLogged && typeof log === 'function') {
+      propagationParallelLogged = true;
+      log(
+        `[perf] cross-file propagation parallel mode enabled ` +
+        `(bundleMin=${propagationParallelMinBundle}).`
+      );
+    }
     for (const chunk of bundle) {
       if (!chunk) continue;
       const relations = chunk.codeRelations || {};
@@ -784,81 +818,61 @@ export async function applyCrossFileInference({
       }
       chunk.codeRelations = relations;
 
-      if (enableTypeInference && callSummaries.length) {
-        for (const summary of callSummaries) {
-          const resolvedUid = summary.resolvedCalleeChunkUid || summary.targetChunkUid || null;
-          const calleeChunk = resolvedUid ? chunkByUid.get(resolvedUid) : null;
-          if (!calleeChunk) continue;
-          const sampleKey = resolvedUid || summary.name;
-          const currentSamples = callSampleCounts.get(sampleKey) || 0;
-          if (currentSamples >= callSampleLimit) continue;
-          callSampleCounts.set(sampleKey, currentSamples + 1);
-          const args = Array.isArray(summary.args) ? summary.args : [];
-          const paramNames = Array.isArray(calleeChunk.docmeta?.paramNames)
-            ? calleeChunk.docmeta.paramNames
-            : (Array.isArray(calleeChunk.docmeta?.params) ? calleeChunk.docmeta.params : []);
-          const argMap = summary.argMap || {};
-          if (!paramNames.length && !args.length && !Object.keys(argMap).length) continue;
-          if (!calleeChunk.docmeta || typeof calleeChunk.docmeta !== 'object') calleeChunk.docmeta = {};
-          const hopCount = calleeChunk.file !== chunk.file ? 1 : 0;
-          const confidence = confidenceForHop(hopCount);
-          for (let i = 0; i < paramNames.length && i < Math.max(args.length, paramNames.length); i += 1) {
-            const name = paramNames[i];
-            const argValue = argMap[name] || args[i];
-            if (!name || !argValue) continue;
-            const type = inferArgType(argValue);
-            if (!type) continue;
-            if (addInferredParam(calleeChunk.docmeta, name, type, FLOW_SOURCE, confidence, paramTypeLimit)) {
-              const entry = resolvedUid ? entryByUid.get(resolvedUid) : null;
-              if (entry) {
-                const existing = entry.paramTypes?.[name] || [];
-                entry.paramTypes = entry.paramTypes || {};
-                entry.paramTypes[name] = uniqueTypes([...(existing || []), type]);
-              }
-            }
-          }
-        }
-      }
-
-      if (enableTypeInference) {
-        const { calls: returnCalls } = await getReturnCalls(chunk);
-        if (returnCalls.size) {
-          if (!chunk.docmeta || typeof chunk.docmeta !== 'object') chunk.docmeta = {};
-          const resolvedViaSummaries = new Set();
-          if (callSummaries.length) {
-            for (const summary of callSummaries) {
-              const callName = typeof summary?.name === 'string' ? summary.name : null;
-              if (!callName || !returnCalls.has(callName)) continue;
-              const resolvedUid = summary?.resolvedCalleeChunkUid || summary?.targetChunkUid || null;
-              const resolvedChunk = resolvedUid ? chunkByUid.get(resolvedUid) : null;
-              const returnTypes = Array.isArray(summary?.returnTypes) && summary.returnTypes.length
-                ? summary.returnTypes
-                : (Array.isArray(entryByUid.get(resolvedUid)?.returnTypes)
-                  ? entryByUid.get(resolvedUid).returnTypes
-                  : []);
-              if (!returnTypes.length) continue;
-              resolvedViaSummaries.add(callName);
-              const hopCount = resolvedChunk?.file && resolvedChunk.file !== chunk.file ? 1 : 0;
-              const confidence = confidenceForHop(hopCount);
-              for (const type of returnTypes) {
-                if (addInferredReturn(chunk.docmeta, type, FLOW_SOURCE, confidence)) {
-                  inferredReturns += 1;
+      const runTypePropagation = async () => {
+        if (callSummaries.length) {
+          for (const summary of callSummaries) {
+            const resolvedUid = summary.resolvedCalleeChunkUid || summary.targetChunkUid || null;
+            const calleeChunk = resolvedUid ? chunkByUid.get(resolvedUid) : null;
+            if (!calleeChunk) continue;
+            const sampleKey = resolvedUid || summary.name;
+            const currentSamples = callSampleCounts.get(sampleKey) || 0;
+            if (currentSamples >= callSampleLimit) continue;
+            callSampleCounts.set(sampleKey, currentSamples + 1);
+            const args = Array.isArray(summary.args) ? summary.args : [];
+            const paramNames = Array.isArray(calleeChunk.docmeta?.paramNames)
+              ? calleeChunk.docmeta.paramNames
+              : (Array.isArray(calleeChunk.docmeta?.params) ? calleeChunk.docmeta.params : []);
+            const argMap = summary.argMap || {};
+            if (!paramNames.length && !args.length && !Object.keys(argMap).length) continue;
+            if (!calleeChunk.docmeta || typeof calleeChunk.docmeta !== 'object') calleeChunk.docmeta = {};
+            const hopCount = calleeChunk.file !== chunk.file ? 1 : 0;
+            const confidence = confidenceForHop(hopCount);
+            for (let i = 0; i < paramNames.length && i < Math.max(args.length, paramNames.length); i += 1) {
+              const name = paramNames[i];
+              const argValue = argMap[name] || args[i];
+              if (!name || !argValue) continue;
+              const type = inferArgType(argValue);
+              if (!type) continue;
+              if (addInferredParam(calleeChunk.docmeta, name, type, FLOW_SOURCE, confidence, paramTypeLimit)) {
+                const entry = resolvedUid ? entryByUid.get(resolvedUid) : null;
+                if (entry) {
+                  const existing = entry.paramTypes?.[name] || [];
+                  entry.paramTypes = entry.paramTypes || {};
+                  entry.paramTypes[name] = uniqueTypes([...(existing || []), type]);
                 }
               }
             }
           }
-          for (const callName of returnCalls) {
-            if (resolvedViaSummaries.has(callName)) continue;
-            const symbolRef = resolveSymbolRefCached({
-              targetName: callName,
-              kindHint: null,
-              fromFile: chunk.file
-            });
-            if (!symbolRef?.resolved?.chunkUid) continue;
-            const entry = entryByUid.get(symbolRef.resolved.chunkUid);
-            const returnTypes = entry?.returnTypes || [];
+        }
+
+        const { calls: returnCalls } = await getReturnCalls(chunk);
+        if (!returnCalls.size) return;
+        if (!chunk.docmeta || typeof chunk.docmeta !== 'object') chunk.docmeta = {};
+        const resolvedViaSummaries = new Set();
+        if (callSummaries.length) {
+          for (const summary of callSummaries) {
+            const callName = typeof summary?.name === 'string' ? summary.name : null;
+            if (!callName || !returnCalls.has(callName)) continue;
+            const resolvedUid = summary?.resolvedCalleeChunkUid || summary?.targetChunkUid || null;
+            const resolvedChunk = resolvedUid ? chunkByUid.get(resolvedUid) : null;
+            const returnTypes = Array.isArray(summary?.returnTypes) && summary.returnTypes.length
+              ? summary.returnTypes
+              : (Array.isArray(entryByUid.get(resolvedUid)?.returnTypes)
+                ? entryByUid.get(resolvedUid).returnTypes
+                : []);
             if (!returnTypes.length) continue;
-            const hopCount = entry?.file !== chunk.file ? 1 : 0;
+            resolvedViaSummaries.add(callName);
+            const hopCount = resolvedChunk?.file && resolvedChunk.file !== chunk.file ? 1 : 0;
             const confidence = confidenceForHop(hopCount);
             for (const type of returnTypes) {
               if (addInferredReturn(chunk.docmeta, type, FLOW_SOURCE, confidence)) {
@@ -867,49 +881,84 @@ export async function applyCrossFileInference({
             }
           }
         }
-      }
-
-      if (enableRiskCorrelation && callLinks.length) {
-        const callerRisk = chunk.docmeta?.risk;
-        const callerSources = Array.isArray(callerRisk?.sources) ? callerRisk.sources : [];
-        if (callerSources.length) {
-          for (const link of callLinks) {
-            const targetUid = link?.to?.resolved?.chunkUid || null;
-            const calleeChunk = targetUid ? chunkByUid.get(targetUid) : null;
-            const calleeRisk = calleeChunk?.docmeta?.risk;
-            const calleeSinks = Array.isArray(calleeRisk?.sinks) ? calleeRisk.sinks : [];
-            if (!calleeSinks.length) continue;
-            const risk = normalizeRisk(chunk);
-            for (const sink of calleeSinks) {
-              if (sink.category) addUnique(risk.categories, sink.category);
-              const sinkTags = Array.isArray(sink.tags) && sink.tags.length
-                ? sink.tags
-                : (Array.isArray(calleeRisk?.tags) ? calleeRisk.tags : []);
-              sinkTags.forEach((tag) => addUnique(risk.tags, tag));
-              if (sink.severity) {
-                const currentRank = riskSeverityRank[risk.severity] || 0;
-                const sinkRank = riskSeverityRank[sink.severity] || 0;
-                if (sinkRank > currentRank) risk.severity = sink.severity;
-              }
-            }
-            for (const source of callerSources) {
-              for (const sink of calleeSinks) {
-                const scope = calleeChunk?.file === chunk.file ? 'file' : 'cross-file';
-                const flow = {
-                  source: source.name,
-                  sink: sink.name,
-                  category: sink.category || null,
-                  severity: sink.severity || null,
-                  scope,
-                  via: `${chunk.name}->${link.to?.targetName || ''}`,
-                  confidence: Math.max(0.2, (source.confidence || 0.5) * 0.85),
-                  ruleIds: [source.ruleId, sink.ruleId].filter(Boolean)
-                };
-                if (addRiskFlow(chunk, risk, flow)) riskFlows += 1;
-              }
+        for (const callName of returnCalls) {
+          if (resolvedViaSummaries.has(callName)) continue;
+          const symbolRef = resolveSymbolRefCached({
+            targetName: callName,
+            kindHint: null,
+            fromFile: chunk.file
+          });
+          if (!symbolRef?.resolved?.chunkUid) continue;
+          const entry = entryByUid.get(symbolRef.resolved.chunkUid);
+          const returnTypes = entry?.returnTypes || [];
+          if (!returnTypes.length) continue;
+          const hopCount = entry?.file !== chunk.file ? 1 : 0;
+          const confidence = confidenceForHop(hopCount);
+          for (const type of returnTypes) {
+            if (addInferredReturn(chunk.docmeta, type, FLOW_SOURCE, confidence)) {
+              inferredReturns += 1;
             }
           }
         }
+      };
+
+      const runRiskPropagation = () => {
+        if (!callLinks.length) return;
+        const callerRisk = chunk.docmeta?.risk;
+        const callerSources = Array.isArray(callerRisk?.sources) ? callerRisk.sources : [];
+        if (!callerSources.length) return;
+        for (const link of callLinks) {
+          const targetUid = link?.to?.resolved?.chunkUid || null;
+          const calleeChunk = targetUid ? chunkByUid.get(targetUid) : null;
+          const calleeRisk = calleeChunk?.docmeta?.risk;
+          const calleeSinks = Array.isArray(calleeRisk?.sinks) ? calleeRisk.sinks : [];
+          if (!calleeSinks.length) continue;
+          const risk = normalizeRisk(chunk);
+          for (const sink of calleeSinks) {
+            if (sink.category) addUnique(risk.categories, sink.category);
+            const sinkTags = Array.isArray(sink.tags) && sink.tags.length
+              ? sink.tags
+              : (Array.isArray(calleeRisk?.tags) ? calleeRisk.tags : []);
+            sinkTags.forEach((tag) => addUnique(risk.tags, tag));
+            if (sink.severity) {
+              const currentRank = riskSeverityRank[risk.severity] || 0;
+              const sinkRank = riskSeverityRank[sink.severity] || 0;
+              if (sinkRank > currentRank) risk.severity = sink.severity;
+            }
+          }
+          for (const source of callerSources) {
+            for (const sink of calleeSinks) {
+              const scope = calleeChunk?.file === chunk.file ? 'file' : 'cross-file';
+              const flow = {
+                source: source.name,
+                sink: sink.name,
+                category: sink.category || null,
+                severity: sink.severity || null,
+                scope,
+                via: `${chunk.name}->${link.to?.targetName || ''}`,
+                confidence: Math.max(0.2, (source.confidence || 0.5) * 0.85),
+                ruleIds: [source.ruleId, sink.ruleId].filter(Boolean)
+              };
+              if (addRiskFlow(chunk, risk, flow)) riskFlows += 1;
+            }
+          }
+        }
+      };
+
+      if (enableTypeInference) {
+        if (useParallelPropagation && enableRiskCorrelation && callLinks.length) {
+          await Promise.all([
+            runTypePropagation(),
+            Promise.resolve().then(() => runRiskPropagation())
+          ]);
+        } else {
+          await runTypePropagation();
+          if (enableRiskCorrelation) {
+            runRiskPropagation();
+          }
+        }
+      } else if (enableRiskCorrelation) {
+        runRiskPropagation();
       }
     }
     const heapAfterBundle = Number(process.memoryUsage?.().heapUsed) || heapBeforeBundle;
