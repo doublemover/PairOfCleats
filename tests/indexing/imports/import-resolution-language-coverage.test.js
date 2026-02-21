@@ -34,8 +34,10 @@ await write('lib/App/Util.pm', "package App::Util;\n1;\n");
 await write('lua/app/main.lua', "local u = require('app.util')\n");
 await write('lua/app/util.lua', 'return {}\n');
 
-await write('src/App/Main.php', "<?php\nuse App\\Util\\Helper;\n");
+await write('src/App/Main.php', "<?php\nuse App\\Util\\Helper;\ninclude_once './bootstrap.php';\nrequire_once '../vendor/autoload.php';\n");
+await write('src/App/bootstrap.php', "<?php\nreturn true;\n");
 await write('src/App/Util/Helper.php', "<?php\nclass Helper {}\n");
+await write('src/vendor/autoload.php', "<?php\n");
 
 await write('cmd/app/main.go', 'package main\nimport "github.com/example/demo/internal/foo"\n');
 await write('internal/foo/helper.go', 'package foo\n');
@@ -104,7 +106,9 @@ const entries = [
   'lua/app/main.lua',
   'lua/app/util.lua',
   'src/App/Main.php',
+  'src/App/bootstrap.php',
   'src/App/Util/Helper.php',
+  'src/vendor/autoload.php',
   'cmd/app/main.go',
   'internal/foo/helper.go',
   'src/main/java/com/acme/App.java',
@@ -148,7 +152,7 @@ const importsByFile = {
   'python/pydantic_core/__init__.py': ['._pydantic_core'],
   'lib/App/Main.pm': ['App::Util'],
   'lua/app/main.lua': ['app.util'],
-  'src/App/Main.php': ['App\\Util\\Helper'],
+  'src/App/Main.php': ['App\\Util\\Helper', './bootstrap.php', '../vendor/autoload.php'],
   'cmd/app/main.go': ['github.com/example/demo/internal/foo'],
   'src/main/java/com/acme/App.java': ['com.acme.util.Helper'],
   'src/main/kotlin/com/acme/KMain.kt': ['com.acme.util.KHelper'],
@@ -186,6 +190,14 @@ const assertLinks = (file, expected) => {
   assert.deepEqual(rel.importLinks || [], expected, `unexpected importLinks for ${file}`);
 };
 
+const assertLinksUnordered = (file, expected) => {
+  const rel = relations.get(file);
+  assert.ok(rel, `missing relations for ${file}`);
+  const actual = Array.isArray(rel.importLinks) ? rel.importLinks.slice().sort() : [];
+  const want = Array.isArray(expected) ? expected.slice().sort() : [];
+  assert.deepEqual(actual, want, `unexpected importLinks for ${file}`);
+};
+
 const assertExternal = (file, expected) => {
   const rel = relations.get(file);
   assert.ok(rel, `missing relations for ${file}`);
@@ -198,7 +210,7 @@ assertLinks('python/pkg/stubs.pyi', ['python/pkg/helpers.py']);
 assertLinks('python/pydantic_core/__init__.py', ['python/pydantic_core/_pydantic_core.pyi']);
 assertLinks('lib/App/Main.pm', ['lib/App/Util.pm']);
 assertLinks('lua/app/main.lua', ['lua/app/util.lua']);
-assertLinks('src/App/Main.php', ['src/App/Util/Helper.php']);
+assertLinksUnordered('src/App/Main.php', ['src/App/Util/Helper.php', 'src/App/bootstrap.php', 'src/vendor/autoload.php']);
 assertLinks('cmd/app/main.go', ['internal/foo/helper.go']);
 assertLinks('src/main/java/com/acme/App.java', ['src/main/java/com/acme/util/Helper.java']);
 assertLinks('src/main/kotlin/com/acme/KMain.kt', ['src/main/kotlin/com/acme/util/KHelper.kt']);

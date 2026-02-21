@@ -191,21 +191,32 @@ function extractVisibility(modifiers) {
  * @returns {string[]}
  */
 export function collectPhpImports(text) {
-  if (!text || !text.includes('use ')) return [];
+  if (!text) return [];
+  const hasUse = text.includes('use ');
+  const hasInclude = text.includes('include');
+  const hasRequire = text.includes('require');
+  if (!hasUse && !hasInclude && !hasRequire) return [];
   const imports = new Set();
   const lines = text.split('\n');
   for (const line of lines) {
     const trimmed = line.trim();
-    if (!trimmed.startsWith('use ')) continue;
-    const match = trimmed.match(/^use\s+([^;]+);/);
-    if (!match) continue;
-    const raw = match[1].trim();
-    raw.split(',').forEach((part) => {
-      const seg = part.trim();
-      if (!seg) return;
-      const name = seg.split(/\s+as\s+/i)[0].trim();
-      if (name) imports.add(name);
-    });
+    if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('#')) continue;
+    if (trimmed.startsWith('use ')) {
+      const match = trimmed.match(/^use\s+([^;]+);/);
+      if (!match) continue;
+      const raw = match[1].trim();
+      raw.split(',').forEach((part) => {
+        const seg = part.trim();
+        if (!seg) return;
+        const name = seg.split(/\s+as\s+/i)[0].trim();
+        if (name) imports.add(name);
+      });
+      continue;
+    }
+    const includeMatch = trimmed.match(/^(?:include|include_once|require|require_once)\s*(?:\(\s*)?['"]([^'"]+)['"]/i);
+    if (includeMatch?.[1]) {
+      imports.add(includeMatch[1].trim());
+    }
   }
   return Array.from(imports);
 }
