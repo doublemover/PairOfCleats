@@ -5,11 +5,32 @@ const toInstructionTokens = (line) => (
     .filter(Boolean)
 );
 
+const DOCKERFILE_INSTRUCTIONS = new Set([
+  'ADD',
+  'ARG',
+  'CMD',
+  'COPY',
+  'ENTRYPOINT',
+  'ENV',
+  'EXPOSE',
+  'FROM',
+  'HEALTHCHECK',
+  'LABEL',
+  'MAINTAINER',
+  'ONBUILD',
+  'RUN',
+  'SHELL',
+  'STOPSIGNAL',
+  'USER',
+  'VOLUME',
+  'WORKDIR'
+]);
+
 export const parseDockerfileInstruction = (line) => {
   const tokens = toInstructionTokens(line);
   if (!tokens.length) return null;
   const instruction = String(tokens[0] || '').toUpperCase();
-  if (!/^[A-Z][A-Z0-9_-]*$/.test(instruction)) return null;
+  if (!DOCKERFILE_INSTRUCTIONS.has(instruction)) return null;
   return {
     instruction,
     tokens,
