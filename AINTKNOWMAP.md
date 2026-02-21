@@ -2160,7 +2160,7 @@ Exit criteria:
       - Touchpoints: bench harness/reporting and CI guardrails (`tools/bench/*`, `tests/perf/bench/*`, `docs/perf/*`, perf schemas/contracts).
       - Acceptance target: benchmark outputs must include reproducible utilization/backpressure/stall telemetry and produce stable A/B recommendations per hardware profile.
       - Validation: add schema-contract tests for new report fields and CI perf-gate tests that fail on stage-time/stall/utilization regressions in huge-repo lanes.
-  79. [ ] Add benchmark run reproducibility metadata (CPU governor, storage path, antivirus state, config hash).
+  79. [x] Add benchmark run reproducibility metadata (CPU governor, storage path, antivirus state, config hash).
       - Touchpoints: bench harness/reporting and CI guardrails (`tools/bench/*`, `tests/perf/bench/*`, `docs/perf/*`, perf schemas/contracts).
       - Acceptance target: benchmark outputs must include reproducible utilization/backpressure/stall telemetry and produce stable A/B recommendations per hardware profile.
       - Validation: add schema-contract tests for new report fields and CI perf-gate tests that fail on stage-time/stall/utilization regressions in huge-repo lanes.

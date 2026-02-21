@@ -40,6 +40,11 @@ const runFixture = async (name, lines) => {
 
   const report = JSON.parse(String(result.stdout || '{}'));
   assert.equal(report.schemaVersion, 1);
+  assert.equal(typeof report?.runner?.configHash, 'string', 'expected configHash reproducibility metadata');
+  assert.ok(report?.runner?.storagePath, 'expected storagePath reproducibility metadata');
+  assert.ok(report?.runner?.storageTier, 'expected storageTier reproducibility metadata');
+  assert.ok(report?.runner?.antivirusState, 'expected antivirusState reproducibility metadata');
+  assert.ok(report?.runner?.cpuGovernor, 'expected cpuGovernor reproducibility metadata');
   assert.ok(Array.isArray(report.results) && report.results.length === 1, 'expected single result');
   return report.results[0];
 };

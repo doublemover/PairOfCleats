@@ -2,6 +2,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
+import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 
 import { resolveBenchSuite } from './suites/sweet16.js';
@@ -139,6 +140,16 @@ const parseTrailingJson = (text) => {
   }
 };
 
+const detectStorageTier = (value) => {
+  const target = String(value || '');
+  if (!target) return 'unknown';
+  const normalized = target.toLowerCase();
+  if (normalized.includes('ramdisk') || normalized.includes('tmpfs') || normalized.includes('\\temp\\ram')) {
+    return 'ram';
+  }
+  return 'disk';
+};
+
 const runOne = ({ script, args, timeoutMs, tokens }) => {
   const absScript = path.isAbsolute(script) ? script : path.join(process.cwd(), script);
   const start = Date.now();
@@ -261,7 +272,26 @@ const main = async () => {
       release: os.release(),
       arch: os.arch(),
       node: process.version,
-      args: process.argv.slice(2)
+      args: process.argv.slice(2),
+      cpuModel: Array.isArray(os.cpus()) && os.cpus().length ? os.cpus()[0].model : null,
+      logicalCpuCount: Array.isArray(os.cpus()) ? os.cpus().length : null,
+      totalMemoryBytes: Number(os.totalmem()) || null,
+      storageTier: detectStorageTier(tokens.indexDir || tokens.repoRoot || process.cwd()),
+      storagePath: tokens.indexDir || tokens.repoRoot || process.cwd(),
+      storageRoot: path.parse(tokens.indexDir || tokens.repoRoot || process.cwd()).root || null,
+      antivirusState: process.env.PAIROFCLEATS_BENCH_ANTIVIRUS_STATE || 'unknown',
+      cpuGovernor: process.env.PAIROFCLEATS_BENCH_CPU_GOVERNOR || 'unknown',
+      configHash: createHash('sha1').update(JSON.stringify({
+        suite: argv.suite || null,
+        scripts: entries.map((entry) => ({
+          id: entry.id || null,
+          script: entry.script,
+          args: Array.isArray(entry.args) ? entry.args : []
+        })),
+        timeoutMs: argv.timeoutMs || 0,
+        repoRoot: tokens.repoRoot || null,
+        indexDir: tokens.indexDir || null
+      })).digest('hex')
     },
     summary,
     results: results.map((entry) => ({
