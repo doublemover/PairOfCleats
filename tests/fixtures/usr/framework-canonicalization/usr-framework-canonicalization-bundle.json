@@ -15,8 +15,14 @@
           "kind": "route_maps_to",
           "frameworkProfile": "angular",
           "status": "resolved",
-          "source": { "entity": "node", "uid": "n64:v1:1111111111111001" },
-          "target": { "entity": "symbol", "uid": "symu:v1:angular:userscomponent" },
+          "source": {
+            "entity": "node",
+            "uid": "n64:v1:1111111111111001"
+          },
+          "target": {
+            "entity": "symbol",
+            "uid": "symu:v1:angular:userscomponent"
+          },
           "attrs": {
             "routePattern": "users/[id]",
             "router": "angular-router",
@@ -28,8 +34,14 @@
           "kind": "template_binds",
           "frameworkProfile": "angular",
           "status": "resolved",
-          "source": { "entity": "node", "uid": "n64:v1:1111111111111002" },
-          "target": { "entity": "symbol", "uid": "symu:v1:angular:userid" },
+          "source": {
+            "entity": "node",
+            "uid": "n64:v1:1111111111111002"
+          },
+          "target": {
+            "entity": "symbol",
+            "uid": "symu:v1:angular:userid"
+          },
           "attrs": {
             "bindingKind": "directive",
             "bindingName": "userId",
@@ -41,8 +53,14 @@
           "kind": "style_scopes",
           "frameworkProfile": "angular",
           "status": "resolved",
-          "source": { "entity": "segment", "uid": "segu:v1:1111111111111003" },
-          "target": { "entity": "symbol", "uid": "symu:v1:angular:userscomponent" },
+          "source": {
+            "entity": "segment",
+            "uid": "segu:v1:1111111111111003"
+          },
+          "target": {
+            "entity": "symbol",
+            "uid": "symu:v1:angular:userscomponent"
+          },
           "attrs": {
             "scopeKind": "component",
             "scopeType": "shadow",
@@ -54,9 +72,11 @@
     {
       "frameworkProfile": "astro",
       "coveredEdgeCaseIds": [
+        "astro-component-style-scope",
         "astro-frontmatter-template-bridge",
         "astro-island-hydration",
-        "astro-route-collection"
+        "astro-route-collection",
+        "astro-template-slot-props"
       ],
       "edges": [
         {
@@ -64,8 +84,14 @@
           "kind": "route_maps_to",
           "frameworkProfile": "astro",
           "status": "resolved",
-          "source": { "entity": "node", "uid": "n64:v1:2222222222221001" },
-          "target": { "entity": "document", "uid": "doc64:v1:2222222222221004" },
+          "source": {
+            "entity": "node",
+            "uid": "n64:v1:2222222222221001"
+          },
+          "target": {
+            "entity": "document",
+            "uid": "doc64:v1:2222222222221004"
+          },
           "attrs": {
             "routePattern": "/docs/[...slug]",
             "router": "file-system",
@@ -77,8 +103,14 @@
           "kind": "template_binds",
           "frameworkProfile": "astro",
           "status": "resolved",
-          "source": { "entity": "node", "uid": "n64:v1:2222222222221002" },
-          "target": { "entity": "symbol", "uid": "symu:v1:astro:paramslug" },
+          "source": {
+            "entity": "node",
+            "uid": "n64:v1:2222222222221002"
+          },
+          "target": {
+            "entity": "symbol",
+            "uid": "symu:v1:astro:paramslug"
+          },
           "attrs": {
             "bindingKind": "frontmatter-binding",
             "bindingName": "astro.params.slug"
@@ -89,8 +121,14 @@
           "kind": "style_scopes",
           "frameworkProfile": "astro",
           "status": "resolved",
-          "source": { "entity": "segment", "uid": "segu:v1:2222222222221003" },
-          "target": { "entity": "symbol", "uid": "symu:v1:astro:docspage" },
+          "source": {
+            "entity": "segment",
+            "uid": "segu:v1:2222222222221003"
+          },
+          "target": {
+            "entity": "symbol",
+            "uid": "symu:v1:astro:docspage"
+          },
           "attrs": {
             "scopeKind": "scoped",
             "scopeType": "scoped",
@@ -104,7 +142,9 @@
       "coveredEdgeCaseIds": [
         "next-app-router-dynamic-segment",
         "next-client-server-boundary",
-        "next-route-handler-runtime"
+        "next-css-module-style-scope",
+        "next-route-handler-runtime",
+        "next-rsc-template-props"
       ],
       "edges": [
         {
@@ -112,8 +152,14 @@
           "kind": "route_maps_to",
           "frameworkProfile": "next",
           "status": "resolved",
-          "source": { "entity": "node", "uid": "n64:v1:3333333333331001" },
-          "target": { "entity": "document", "uid": "doc64:v1:3333333333331004" },
+          "source": {
+            "entity": "node",
+            "uid": "n64:v1:3333333333331001"
+          },
+          "target": {
+            "entity": "document",
+            "uid": "doc64:v1:3333333333331004"
+          },
           "attrs": {
             "routePattern": "/blog/[slug]",
             "router": "app-router",
@@ -125,8 +171,14 @@
           "kind": "template_binds",
           "frameworkProfile": "next",
           "status": "resolved",
-          "source": { "entity": "node", "uid": "n64:v1:3333333333331002" },
-          "target": { "entity": "symbol", "uid": "symu:v1:next:paramsslug" },
+          "source": {
+            "entity": "node",
+            "uid": "n64:v1:3333333333331002"
+          },
+          "target": {
+            "entity": "symbol",
+            "uid": "symu:v1:next:paramsslug"
+          },
           "attrs": {
             "bindingKind": "prop",
             "bindingName": "params.slug"
@@ -137,8 +189,14 @@
           "kind": "style_scopes",
           "frameworkProfile": "next",
           "status": "resolved",
-          "source": { "entity": "segment", "uid": "segu:v1:3333333333331003" },
-          "target": { "entity": "symbol", "uid": "symu:v1:next:blogpage" },
+          "source": {
+            "entity": "segment",
+            "uid": "segu:v1:3333333333331003"
+          },
+          "target": {
+            "entity": "symbol",
+            "uid": "symu:v1:next:blogpage"
+          },
           "attrs": {
             "scopeKind": "module",
             "scopeType": "module",
@@ -152,7 +210,8 @@
       "coveredEdgeCaseIds": [
         "nuxt-pages-route-params",
         "nuxt-server-route-mapping",
-        "nuxt-sfc-style-scope"
+        "nuxt-sfc-style-scope",
+        "nuxt-template-composable-binding"
       ],
       "edges": [
         {
@@ -160,8 +219,14 @@
           "kind": "route_maps_to",
           "frameworkProfile": "nuxt",
           "status": "resolved",
-          "source": { "entity": "node", "uid": "n64:v1:4444444444441001" },
-          "target": { "entity": "symbol", "uid": "symu:v1:nuxt:userspage" },
+          "source": {
+            "entity": "node",
+            "uid": "n64:v1:4444444444441001"
+          },
+          "target": {
+            "entity": "symbol",
+            "uid": "symu:v1:nuxt:userspage"
+          },
           "attrs": {
             "routePattern": "/users/[id]",
             "router": "file-system",
@@ -173,8 +238,14 @@
           "kind": "template_binds",
           "frameworkProfile": "nuxt",
           "status": "resolved",
-          "source": { "entity": "node", "uid": "n64:v1:4444444444441002" },
-          "target": { "entity": "symbol", "uid": "symu:v1:nuxt:routeparamsid" },
+          "source": {
+            "entity": "node",
+            "uid": "n64:v1:4444444444441002"
+          },
+          "target": {
+            "entity": "symbol",
+            "uid": "symu:v1:nuxt:routeparamsid"
+          },
           "attrs": {
             "bindingKind": "composable",
             "bindingName": "route.params.id"
@@ -185,8 +256,14 @@
           "kind": "style_scopes",
           "frameworkProfile": "nuxt",
           "status": "resolved",
-          "source": { "entity": "segment", "uid": "segu:v1:4444444444441003" },
-          "target": { "entity": "symbol", "uid": "symu:v1:nuxt:userspage" },
+          "source": {
+            "entity": "segment",
+            "uid": "segu:v1:4444444444441003"
+          },
+          "target": {
+            "entity": "symbol",
+            "uid": "symu:v1:nuxt:userspage"
+          },
           "attrs": {
             "scopeKind": "scoped",
             "scopeType": "scoped",
@@ -200,6 +277,7 @@
       "coveredEdgeCaseIds": [
         "react-css-module-scope",
         "react-hydration-boundary",
+        "react-jsx-prop-binding",
         "react-route-dynamic"
       ],
       "edges": [
@@ -208,8 +286,14 @@
           "kind": "route_maps_to",
           "frameworkProfile": "react",
           "status": "resolved",
-          "source": { "entity": "node", "uid": "n64:v1:5555555555551001" },
-          "target": { "entity": "symbol", "uid": "symu:v1:react:dashboardpage" },
+          "source": {
+            "entity": "node",
+            "uid": "n64:v1:5555555555551001"
+          },
+          "target": {
+            "entity": "symbol",
+            "uid": "symu:v1:react:dashboardpage"
+          },
           "attrs": {
             "routePattern": "/dashboard",
             "router": "react-router",
@@ -221,8 +305,14 @@
           "kind": "template_binds",
           "frameworkProfile": "react",
           "status": "resolved",
-          "source": { "entity": "node", "uid": "n64:v1:5555555555551002" },
-          "target": { "entity": "symbol", "uid": "symu:v1:react:userprop" },
+          "source": {
+            "entity": "node",
+            "uid": "n64:v1:5555555555551002"
+          },
+          "target": {
+            "entity": "symbol",
+            "uid": "symu:v1:react:userprop"
+          },
           "attrs": {
             "bindingKind": "prop",
             "bindingName": "user"
@@ -233,8 +323,14 @@
           "kind": "style_scopes",
           "frameworkProfile": "react",
           "status": "resolved",
-          "source": { "entity": "segment", "uid": "segu:v1:5555555555551003" },
-          "target": { "entity": "symbol", "uid": "symu:v1:react:usercard" },
+          "source": {
+            "entity": "segment",
+            "uid": "segu:v1:5555555555551003"
+          },
+          "target": {
+            "entity": "symbol",
+            "uid": "symu:v1:react:usercard"
+          },
           "attrs": {
             "scopeKind": "module",
             "scopeType": "module",
@@ -256,8 +352,14 @@
           "kind": "template_binds",
           "frameworkProfile": "svelte",
           "status": "resolved",
-          "source": { "entity": "node", "uid": "n64:v1:6666666666661002" },
-          "target": { "entity": "symbol", "uid": "symu:v1:svelte:uservalue" },
+          "source": {
+            "entity": "node",
+            "uid": "n64:v1:6666666666661002"
+          },
+          "target": {
+            "entity": "symbol",
+            "uid": "symu:v1:svelte:uservalue"
+          },
           "attrs": {
             "bindingKind": "directive",
             "bindingName": "user"
@@ -268,8 +370,14 @@
           "kind": "style_scopes",
           "frameworkProfile": "svelte",
           "status": "resolved",
-          "source": { "entity": "segment", "uid": "segu:v1:6666666666661003" },
-          "target": { "entity": "symbol", "uid": "symu:v1:svelte:usercard" },
+          "source": {
+            "entity": "segment",
+            "uid": "segu:v1:6666666666661003"
+          },
+          "target": {
+            "entity": "symbol",
+            "uid": "symu:v1:svelte:usercard"
+          },
           "attrs": {
             "scopeKind": "scoped",
             "scopeType": "scoped",
@@ -281,7 +389,9 @@
     {
       "frameworkProfile": "sveltekit",
       "coveredEdgeCaseIds": [
+        "sveltekit-component-style-scope",
         "sveltekit-load-data-binding",
+        "sveltekit-page-data-template",
         "sveltekit-route-param",
         "sveltekit-server-action-route"
       ],
@@ -291,8 +401,14 @@
           "kind": "route_maps_to",
           "frameworkProfile": "sveltekit",
           "status": "resolved",
-          "source": { "entity": "node", "uid": "n64:v1:7777777777771001" },
-          "target": { "entity": "document", "uid": "doc64:v1:7777777777771004" },
+          "source": {
+            "entity": "node",
+            "uid": "n64:v1:7777777777771001"
+          },
+          "target": {
+            "entity": "document",
+            "uid": "doc64:v1:7777777777771004"
+          },
           "attrs": {
             "routePattern": "/products/[sku]",
             "router": "file-system",
@@ -304,8 +420,14 @@
           "kind": "template_binds",
           "frameworkProfile": "sveltekit",
           "status": "resolved",
-          "source": { "entity": "node", "uid": "n64:v1:7777777777771002" },
-          "target": { "entity": "symbol", "uid": "symu:v1:sveltekit:dataproduct" },
+          "source": {
+            "entity": "node",
+            "uid": "n64:v1:7777777777771002"
+          },
+          "target": {
+            "entity": "symbol",
+            "uid": "symu:v1:sveltekit:dataproduct"
+          },
           "attrs": {
             "bindingKind": "data-prop",
             "bindingName": "data.product"
@@ -316,8 +438,14 @@
           "kind": "style_scopes",
           "frameworkProfile": "sveltekit",
           "status": "resolved",
-          "source": { "entity": "segment", "uid": "segu:v1:7777777777771003" },
-          "target": { "entity": "symbol", "uid": "symu:v1:sveltekit:productspage" },
+          "source": {
+            "entity": "segment",
+            "uid": "segu:v1:7777777777771003"
+          },
+          "target": {
+            "entity": "symbol",
+            "uid": "symu:v1:sveltekit:productspage"
+          },
           "attrs": {
             "scopeKind": "scoped",
             "scopeType": "scoped",
@@ -339,8 +467,14 @@
           "kind": "route_maps_to",
           "frameworkProfile": "vue",
           "status": "resolved",
-          "source": { "entity": "node", "uid": "n64:v1:8888888888881001" },
-          "target": { "entity": "symbol", "uid": "symu:v1:vue:userdetails" },
+          "source": {
+            "entity": "node",
+            "uid": "n64:v1:8888888888881001"
+          },
+          "target": {
+            "entity": "symbol",
+            "uid": "symu:v1:vue:userdetails"
+          },
           "attrs": {
             "routePattern": "/users/[id]",
             "router": "vue-router",
@@ -352,8 +486,14 @@
           "kind": "template_binds",
           "frameworkProfile": "vue",
           "status": "resolved",
-          "source": { "entity": "node", "uid": "n64:v1:8888888888881002" },
-          "target": { "entity": "symbol", "uid": "symu:v1:vue:userid" },
+          "source": {
+            "entity": "node",
+            "uid": "n64:v1:8888888888881002"
+          },
+          "target": {
+            "entity": "symbol",
+            "uid": "symu:v1:vue:userid"
+          },
           "attrs": {
             "bindingKind": "directive",
             "bindingName": "userId",
@@ -365,8 +505,14 @@
           "kind": "style_scopes",
           "frameworkProfile": "vue",
           "status": "resolved",
-          "source": { "entity": "segment", "uid": "segu:v1:8888888888881003" },
-          "target": { "entity": "symbol", "uid": "symu:v1:vue:userdetails" },
+          "source": {
+            "entity": "segment",
+            "uid": "segu:v1:8888888888881003"
+          },
+          "target": {
+            "entity": "symbol",
+            "uid": "symu:v1:vue:userdetails"
+          },
           "attrs": {
             "scopeKind": "scoped",
             "scopeType": "scoped",
