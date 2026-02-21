@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { resolveSchedulerConfig } from '../../../src/index/build/runtime/scheduler.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
+
+applyTestEnv();
 
 const resolved = resolveSchedulerConfig({
   argv: {

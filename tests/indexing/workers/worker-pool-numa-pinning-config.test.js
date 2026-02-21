@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { normalizeWorkerPoolConfig } from '../../../src/index/build/worker-pool.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
+
+applyTestEnv();
 
 const defaults = normalizeWorkerPoolConfig({ maxWorkers: 16 }, { cpuLimit: 16 });
 assert.equal(defaults.numaPinning.enabled, false, 'expected NUMA pinning to default off');

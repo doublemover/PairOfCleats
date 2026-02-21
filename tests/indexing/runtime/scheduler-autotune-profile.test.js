@@ -3,11 +3,14 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { applyTestEnv } from '../../helpers/test-env.js';
 import {
   deriveSchedulerAutoTuneRecommendation,
   loadSchedulerAutoTuneProfile,
   writeSchedulerAutoTuneProfile
 } from '../../../src/index/build/runtime/scheduler-autotune-profile.js';
+
+applyTestEnv();
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-scheduler-autotune-'));
 try {
