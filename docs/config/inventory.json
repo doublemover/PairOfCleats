@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-20T21:20:01.589Z",
+  "generatedAt": "2026-02-21T01:38:30.621Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -3119,7 +3119,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 316,
+    "totalFlags": 317,
     "publicFlags": [
       "backend",
       "host",
@@ -3205,6 +3205,7 @@
       "engine",
       "evidence",
       "expires",
+      "ext",
       "extensions",
       "fail-fast",
       "failOnViolation",
@@ -3643,6 +3644,12 @@
         ]
       },
       {
+        "file": "tests/indexing/language-registry/config-data-adapters-contract.test.js",
+        "flags": [
+          "ext"
+        ]
+      },
+      {
         "file": "tests/indexing/language-registry/python-ast-heavy-skip.test.js",
         "flags": [
           "fileSizeBytes",
@@ -3690,6 +3697,12 @@
         "file": "tests/indexing/tree-sitter/tree-sitter-streaming-chunking.test.js",
         "flags": [
           "log",
+          "treeSitter"
+        ]
+      },
+      {
+        "file": "tests/indexing/tree-sitter/tree-sitter-xml-runtime.test.js",
+        "flags": [
           "treeSitter"
         ]
       },
@@ -5161,6 +5174,21 @@
         ]
       },
       {
+        "flag": "treeSitter",
+        "count": 9,
+        "files": [
+          "src/lang/javascript/chunks.js",
+          "src/lang/typescript/chunks.js",
+          "tests/indexing/tree-sitter/tree-sitter-adaptive-budget.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-chunks.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-missing-grammar-fallback.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-streaming-chunking.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-xml-runtime.test.js",
+          "tests/lang/contracts/swift-prepare-tree-sitter-disabled.test.js",
+          "tools/bench/index/tree-sitter-load.js"
+        ]
+      },
+      {
         "flag": "format",
         "count": 8,
         "files": [
@@ -5200,20 +5228,6 @@
           "tools/ci/build-artifacts.js",
           "tools/download/extensions.js",
           "tools/eval/run.js"
-        ]
-      },
-      {
-        "flag": "treeSitter",
-        "count": 8,
-        "files": [
-          "src/lang/javascript/chunks.js",
-          "src/lang/typescript/chunks.js",
-          "tests/indexing/tree-sitter/tree-sitter-adaptive-budget.test.js",
-          "tests/indexing/tree-sitter/tree-sitter-chunks.test.js",
-          "tests/indexing/tree-sitter/tree-sitter-missing-grammar-fallback.test.js",
-          "tests/indexing/tree-sitter/tree-sitter-streaming-chunking.test.js",
-          "tests/lang/contracts/swift-prepare-tree-sitter-disabled.test.js",
-          "tools/bench/index/tree-sitter-load.js"
         ]
       },
       {
@@ -6284,6 +6298,7 @@
       "src/index/chunking/formats/ini-toml.js",
       "src/index/chunking/formats/json.js",
       "src/index/chunking/formats/markdown.js",
+      "src/index/chunking/formats/xml.js",
       "src/index/chunking/formats/yaml.js",
       "src/index/language-registry/registry.js",
       "src/index/segments.js",
