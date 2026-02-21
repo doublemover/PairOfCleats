@@ -1494,7 +1494,7 @@ Tests:
 
 Exit criteria:
 
-- [ ] Ingest and error telemetry surfaces are strict and uniform.
+- [x] Ingest and error telemetry surfaces are strict and uniform.
 
 ---
 
