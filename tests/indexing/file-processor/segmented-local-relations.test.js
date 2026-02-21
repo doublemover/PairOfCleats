@@ -44,7 +44,12 @@ const { processFile } = createFileProcessor({
   mode: 'code',
   dictConfig: {},
   dictWords: new Set(),
-  languageOptions: { skipUnknownLanguages: false, astDataflowEnabled: false, controlFlowEnabled: false },
+  languageOptions: {
+    skipUnknownLanguages: false,
+    astDataflowEnabled: false,
+    controlFlowEnabled: false,
+    treeSitter: { enabled: false }
+  },
   postingsConfig: {},
   segmentsConfig: {},
   commentsConfig: {},

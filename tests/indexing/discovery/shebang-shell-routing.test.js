@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { applyTestEnv } from '../../helpers/test-env.js';
-import { discoverFiles } from '../../../src/index/build/discover.js';
+import { discoverEntries, discoverFiles } from '../../../src/index/build/discover.js';
 import { buildIgnoreMatcher } from '../../../src/index/build/ignore.js';
 
 applyTestEnv();
@@ -37,7 +37,12 @@ const rels = entries.map((entry) => entry.rel);
 assert.equal(rels.includes('scripts/rebuild'), true, 'expected shebang shell script to route into code discovery');
 assert.equal(rels.includes('scripts/notes'), false, 'expected non-shebang extensionless file to stay out of code discovery');
 
-const scriptEntry = entries.find((entry) => entry.rel === 'scripts/rebuild');
+const discovered = await discoverEntries({
+  root: tempRoot,
+  ignoreMatcher,
+  maxFileBytes: null
+});
+const scriptEntry = discovered.entries.find((entry) => entry.rel === 'scripts/rebuild');
 assert.equal(scriptEntry?.ext, '.sh', 'expected shebang-routed shell entry to use canonical .sh extension');
 
 console.log('discover shebang shell routing test passed');

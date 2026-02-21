@@ -110,7 +110,7 @@ export const buildChunkEnrichment = ({
           localRelations = activeLang.buildRelations({
             text: resolvedChunkText,
             relPath: chunk?.segment?.segmentId || null,
-            context: null,
+            context: {},
             options: languageOptions
           }) || {};
           if (segmentRelationsCache && cacheKey) {

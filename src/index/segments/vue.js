@@ -47,12 +47,48 @@ export const segmentSvelte = ({ text, relPath }) => {
   }
   if (!ast) return null;
   const segments = [];
+  const extractSvelteAttributeValue = (node, attrName) => {
+    if (!node || !Array.isArray(node.attributes)) return '';
+    const target = String(attrName || '').toLowerCase();
+    const attr = node.attributes.find((entry) => String(entry?.name || '').toLowerCase() === target);
+    if (!attr) return '';
+    if (typeof attr.value === 'string') return attr.value.trim();
+    if (Array.isArray(attr.value)) {
+      return attr.value
+        .map((entry) => {
+          if (typeof entry === 'string') return entry;
+          if (entry && typeof entry === 'object') {
+            if (typeof entry.data === 'string') return entry.data;
+            if (typeof entry.raw === 'string') return entry.raw;
+          }
+          return '';
+        })
+        .join('')
+        .trim();
+    }
+    if (attr.value && typeof attr.value === 'object') {
+      if (typeof attr.value.data === 'string') return attr.value.data.trim();
+      if (typeof attr.value.raw === 'string') return attr.value.raw.trim();
+    }
+    return '';
+  };
   const addContentBlock = (node, blockType, fallbackLang) => {
     const content = node?.content || null;
     const start = content?.start ?? node?.start;
     const end = content?.end ?? node?.end;
     if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return;
-    const languageId = normalizeLanguageHint(node?.lang, fallbackLang);
+    let langHint = node?.lang || extractSvelteAttributeValue(node, 'lang');
+    if (!langHint
+      && Number.isFinite(node?.start)
+      && Number.isFinite(content?.start)
+      && content.start > node.start) {
+      const openTag = text.slice(node.start, Math.min(content.start, node.start + 256));
+      const match = openTag.match(/\blang\s*=\s*["']([^"']+)["']/i);
+      if (match?.[1]) {
+        langHint = match[1].trim();
+      }
+    }
+    const languageId = normalizeLanguageHint(langHint, fallbackLang);
     segments.push({
       type: 'embedded',
       languageId,

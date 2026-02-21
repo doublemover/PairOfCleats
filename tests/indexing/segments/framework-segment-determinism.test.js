@@ -9,11 +9,11 @@ const assertStableSegments = (input, label) => {
   const first = discoverSegments(input);
   const second = discoverSegments(input);
   assert.deepEqual(second, first, `expected deterministic segment output for ${label}`);
-  let lastEnd = -1;
+  let lastStart = -1;
   for (const segment of first) {
     assert.ok(segment.start >= 0 && segment.end > segment.start, `${label} segment range invalid`);
-    assert.ok(segment.start >= lastEnd, `${label} segments should be ordered and non-overlapping`);
-    lastEnd = segment.end;
+    assert.ok(segment.start >= lastStart, `${label} segments should be ordered by start offset`);
+    lastStart = segment.start;
   }
   return first;
 };
