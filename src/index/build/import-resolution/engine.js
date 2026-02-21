@@ -226,21 +226,23 @@ export function resolveImportLinks({
       : []
   );
   const edges = enableGraph ? graph.edges : null;
-  const shouldIgnoreUnresolvedImport = ({ spec, importerInfo }) => {
+  const shouldIgnoreUnresolvedImport = ({ spec, rawSpec, importerInfo }) => {
     const normalized = typeof spec === 'string' ? spec.trim() : '';
     if (!normalized) return true;
     if (normalized === '.' || normalized === '..') return true;
     const lower = normalized.toLowerCase();
+    const rawNormalized = typeof rawSpec === 'string' ? rawSpec.trim() : '';
+    const lowerRaw = rawNormalized.toLowerCase();
     const importerRel = String(importerInfo?.importerRel || '').toLowerCase();
     if (DEFAULT_UNRESOLVED_NOISE_PREFIXES.some((prefix) => lower.startsWith(prefix))) return true;
     if (importerRel.includes('/tests/expected_output/')) return true;
-    if (importerRel.includes('/unittests/') && lower.startsWith('//./')) return true;
+    if (importerRel.includes('/unittests/') && (lower.startsWith('//./') || lowerRaw.startsWith('//./'))) return true;
     if (importerRel.endsWith('/tooling/syntax/tokenstest.cpp') && lower === './foo.h') return true;
     if (/[<>|^]/.test(normalized)) return true;
     if (ABSOLUTE_SYSTEM_PATH_PREFIX_RX.test(normalized) && (importerInfo?.isShell || importerInfo?.isPathLike)) {
       return true;
     }
-    return unresolvedNoiseIgnore.has(lower);
+    return unresolvedNoiseIgnore.has(lower) || unresolvedNoiseIgnore.has(lowerRaw);
   };
 
   const importsEntries = importsByFile instanceof Map
@@ -429,6 +431,7 @@ export function resolveImportLinks({
         const unresolvedKey = `${relNormalized}\u0001${spec}`;
         const ignoredUnresolved = shouldIgnoreUnresolvedImport({
           spec,
+          rawSpec,
           importerInfo
         });
         if (ignoredUnresolved || unresolvedDedup.has(unresolvedKey)) {

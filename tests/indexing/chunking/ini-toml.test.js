@@ -1,5 +1,8 @@
 #!/usr/bin/env node
+import { applyTestEnv } from '../../helpers/test-env.js';
 import { chunkIniToml } from '../../../src/index/chunking.js';
+
+applyTestEnv();
 
 const expect = (condition, message) => {
   if (!condition) {

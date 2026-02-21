@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { applyTestEnv } from '../../helpers/test-env.js';
 import { smartChunk } from '../../../src/index/chunking.js';
+
+applyTestEnv();
 
 const text = [
   'FROM node:20 AS base',

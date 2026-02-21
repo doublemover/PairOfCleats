@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { applyTestEnv } from '../../helpers/test-env.js';
 import { resolveFileCapsAndGuardrails } from '../../../src/index/build/runtime/caps.js';
+
+applyTestEnv();
 
 const { fileCaps } = resolveFileCapsAndGuardrails({
   maxFileBytes: 5 * 1024 * 1024,
