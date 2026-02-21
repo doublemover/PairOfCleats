@@ -562,7 +562,9 @@ export async function applyCrossFileInference({
     avgBundleMs: 0,
     p95BundleMs: 0,
     recentWindowSize: BUNDLE_SIZING_P95_WINDOW,
-    recentBundleDurationsMs: []
+    recentBundleDurationsMs: [],
+    p95HeapDeltaBytes: 0,
+    recentHeapDeltaBytes: []
   };
   let currentBundleSize = bundleSizing.initialBundleSize;
   let chunkCursor = 0;
@@ -571,6 +573,7 @@ export async function applyCrossFileInference({
     const bundleEnd = Math.min(chunks.length, bundleStart + currentBundleSize);
     const bundle = chunks.slice(bundleStart, bundleEnd);
     const bundleStartedAt = Date.now();
+    const heapBeforeBundle = Number(process.memoryUsage?.().heapUsed) || 0;
     for (const chunk of bundle) {
       if (!chunk) continue;
       const relations = chunk.codeRelations || {};
@@ -583,6 +586,19 @@ export async function applyCrossFileInference({
       const callLinks = [];
       const callSummaries = [];
       const usageLinks = [];
+      const hasCallSignals = (Array.isArray(relations.calls) && relations.calls.length > 0)
+        || (Array.isArray(relations.callDetails) && relations.callDetails.length > 0);
+      const hasUsageSignals = Array.isArray(relations.usages) && relations.usages.length > 0;
+      const hasFileUsageSignals = !hasUsageSignals
+        && Array.isArray(fileRelation?.usages)
+        && fileRelation.usages.length > 0
+        && typeof chunk?.file === 'string'
+        && !fileUsageFallbackApplied.has(chunk.file);
+      if (!hasCallSignals && !hasUsageSignals && !hasFileUsageSignals) {
+        // Skip expensive cross-file matching for chunks that do not expose
+        // call/usage signals.
+        continue;
+      }
 
       if (Array.isArray(relations.calls)) {
         const maxCallLinksPerChunk = Number.isFinite(largeRepoBudget?.maxCallLinksPerChunk)
@@ -896,6 +912,8 @@ export async function applyCrossFileInference({
         }
       }
     }
+    const heapAfterBundle = Number(process.memoryUsage?.().heapUsed) || heapBeforeBundle;
+    const heapDelta = Math.max(0, heapAfterBundle - heapBeforeBundle);
     const bundleDurationMs = Math.max(0, Date.now() - bundleStartedAt);
     const recentDurations = bundleSizing.recentBundleDurationsMs;
     recentDurations.push(bundleDurationMs);
@@ -907,6 +925,17 @@ export async function applyCrossFileInference({
         Math.max(0, Math.ceil(sorted.length * 0.95) - 1)
       );
       bundleSizing.p95BundleMs = sorted[p95Index];
+    }
+    const recentHeapDeltas = bundleSizing.recentHeapDeltaBytes;
+    recentHeapDeltas.push(heapDelta);
+    while (recentHeapDeltas.length > bundleSizing.recentWindowSize) recentHeapDeltas.shift();
+    if (recentHeapDeltas.length) {
+      const sortedHeap = recentHeapDeltas.slice().sort((a, b) => a - b);
+      const heapP95Index = Math.min(
+        sortedHeap.length - 1,
+        Math.max(0, Math.ceil(sortedHeap.length * 0.95) - 1)
+      );
+      bundleSizing.p95HeapDeltaBytes = sortedHeap[heapP95Index];
     }
     bundleSizing.totalBundles += 1;
     bundleSizing.lastBundleSize = bundle.length;
@@ -941,6 +970,7 @@ export async function applyCrossFileInference({
         log(
           `[perf] cross-file bundle ${bundleSizing.totalBundles}: ` +
           `size=${bundle.length}, durationMs=${bundleDurationMs}, p95Ms=${bundleSizing.p95BundleMs}, ` +
+          `heapDeltaBytes=${heapDelta}, p95HeapDeltaBytes=${bundleSizing.p95HeapDeltaBytes}, ` +
           `nextSize=${currentBundleSize}.`
         );
       }

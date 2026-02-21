@@ -82,6 +82,10 @@ const runStatsScenario = async (name, {
       console.error(`Cross-file inference stats mismatch (${name}): invalid p95 bundle sizing metric.`);
       process.exit(1);
     }
+    if (!Number.isFinite(stats.bundleSizing.p95HeapDeltaBytes) || stats.bundleSizing.p95HeapDeltaBytes < 0) {
+      console.error(`Cross-file inference stats mismatch (${name}): invalid p95 heap delta metric.`);
+      process.exit(1);
+    }
   }
 };
 
