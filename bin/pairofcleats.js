@@ -1,21 +1,14 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
 import {
-  getAutoPolicy,
-  getRuntimeConfig,
-  getToolVersion,
-  loadUserConfig,
   resolveRepoRoot,
-  resolveRuntimeEnv,
   resolveToolRoot
 } from '../tools/shared/dict-utils.js';
-import { resolveRuntimeEnvelope, resolveRuntimeEnv as resolveRuntimeEnvFromEnvelope } from '../src/shared/runtime-envelope.js';
-import { createCli } from '../src/shared/cli.js';
 import { INDEX_BUILD_OPTIONS } from '../src/shared/cli-options.js';
 import { spawnSubprocessSync } from '../src/shared/subprocess.js';
 import { buildErrorPayload, ERROR_CODES, isErrorCode } from '../src/shared/error-codes.js';
+import { resolveDispatchRuntimeEnv } from '../src/shared/dispatch/env.js';
 
 const ROOT = resolveToolRoot();
 
@@ -182,13 +175,20 @@ function resolveCommand(primary, rest) {
     return { script: 'build_index.js', extraArgs: [], args: [sub, ...rest] };
   }
   if (primary === 'search') {
-    const backend = readFlagValue(rest, 'backend');
-    if (backend && !['auto', 'sqlite', 'sqlite-fts', 'lmdb'].includes(backend.toLowerCase())) {
-      failCli(`Unsupported --backend ${backend}. Use auto|sqlite|sqlite-fts|lmdb.`, {
-        code: ERROR_CODES.INVALID_REQUEST
-      });
-    }
     return { script: 'search.js', extraArgs: [], args: rest };
+  }
+  if (primary === 'dispatch') {
+    const sub = rest.shift();
+    if (!sub || isHelpCommand(sub) || sub === 'list') {
+      return { script: 'tools/dispatch/manifest.js', extraArgs: ['list'], args: rest };
+    }
+    if (sub === 'describe') {
+      return { script: 'tools/dispatch/manifest.js', extraArgs: ['describe'], args: rest };
+    }
+    failCli(`Unknown dispatch subcommand: ${sub}`, {
+      code: ERROR_CODES.INVALID_REQUEST,
+      showHelp: true
+    });
   }
   if (primary === 'workspace') {
     const sub = rest.shift();
@@ -831,40 +831,13 @@ async function runScript(scriptPath, extraArgs, restArgs) {
   }
   const repoOverride = extractRepoArg(restArgs);
   const repoRoot = repoOverride ? path.resolve(repoOverride) : resolveRepoRoot(process.cwd());
-  const userConfig = loadUserConfig(repoRoot);
-  let env = process.env;
-  if (scriptPath === 'build_index.js') {
-    const rawArgs = [...extraArgs, ...restArgs];
-    const cli = createCli({
-      argv: ['node', 'build_index.js', ...rawArgs],
-      options: INDEX_BUILD_OPTIONS
-    }).help(false).version(false).exitProcess(false);
-    const argv = typeof cli.parseSync === 'function' ? cli.parseSync() : cli.parse();
-    const autoPolicy = await getAutoPolicy(repoRoot, userConfig);
-    const envelope = resolveRuntimeEnvelope({
-      argv,
-      rawArgv: rawArgs,
-      userConfig,
-      autoPolicy,
-      env: process.env,
-      execArgv: process.execArgv,
-      cpuCount: os.cpus().length,
-      processInfo: {
-        pid: process.pid,
-        argv: process.argv,
-        execPath: process.execPath,
-        nodeVersion: process.version,
-        platform: process.platform,
-        arch: process.arch,
-        cpuCount: os.cpus().length
-      },
-      toolVersion: getToolVersion()
-    });
-    env = resolveRuntimeEnvFromEnvelope(envelope, process.env);
-  } else {
-    const runtimeConfig = getRuntimeConfig(repoRoot, userConfig);
-    env = resolveRuntimeEnv(runtimeConfig, process.env);
-  }
+  const env = await resolveDispatchRuntimeEnv({
+    root: repoRoot,
+    scriptPath,
+    extraArgs,
+    restArgs,
+    baseEnv: process.env
+  });
   const result = spawnSubprocessSync(process.execPath, [resolved, ...extraArgs, ...restArgs], {
     stdio: 'inherit',
     env,
@@ -940,6 +913,10 @@ Ingest:
 
 TUI:
   tui supervisor          Run Node supervisor for terminal-owned TUI sessions
+
+Dispatch:
+  dispatch list           List shared dispatch manifest entries
+  dispatch describe       Describe one shared dispatch command
 
 Tooling:
   tooling doctor          Inspect tooling availability and config

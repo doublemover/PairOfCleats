@@ -5,7 +5,8 @@ import { spawnSubprocess } from '../../src/shared/subprocess.js';
 import { applyProgressContextEnv } from '../../src/shared/progress.js';
 import { createProgressLineDecoder } from '../../src/shared/cli/progress-stream.js';
 import { formatProgressEvent, PROGRESS_PROTOCOL } from '../../src/shared/cli/progress-events.js';
-import { resolveToolRoot } from '../shared/dict-utils.js';
+import { resolveDispatchRequest } from '../../src/shared/dispatch/resolve.js';
+import { getIndexDir, getMetricsDir, getRepoCacheRoot, loadUserConfig, resolveToolRoot } from '../shared/dict-utils.js';
 
 const ROOT = resolveToolRoot();
 const SUPERVISOR_PROTOCOL = 'poc.tui@1';
@@ -122,11 +123,115 @@ const parseResultFromStdout = (stdoutText, policy) => {
   }
 };
 
+const statArtifact = async ({ kind, label, artifactPath }) => {
+  try {
+    const stat = await fs.promises.stat(artifactPath);
+    return {
+      kind,
+      label,
+      path: artifactPath,
+      exists: true,
+      bytes: stat.size,
+      mtime: stat.mtime.toISOString(),
+      mime: null
+    };
+  } catch {
+    return {
+      kind,
+      label,
+      path: artifactPath,
+      exists: false,
+      bytes: null,
+      mtime: null,
+      mime: null
+    };
+  }
+};
+
+const collectJobArtifacts = async ({ request, cwd }) => {
+  const artifacts = [];
+  const argv = Array.isArray(request?.argv) ? request.argv.map((entry) => String(entry)) : [];
+  const dispatch = resolveDispatchRequest(argv);
+  const repoRoot = request?.repoRoot
+    ? path.resolve(String(request.repoRoot))
+    : path.resolve(cwd || process.cwd());
+  let userConfig = null;
+  try {
+    userConfig = loadUserConfig(repoRoot);
+  } catch {
+    userConfig = null;
+  }
+
+  if (dispatch?.id === 'index.build' || dispatch?.id === 'index.watch') {
+    for (const mode of ['code', 'prose', 'records']) {
+      const indexDir = getIndexDir(repoRoot, mode, userConfig);
+      artifacts.push(await statArtifact({
+        kind: `index:${mode}`,
+        label: `${mode} index`,
+        artifactPath: indexDir
+      }));
+    }
+  }
+
+  if (dispatch?.id === 'search') {
+    const metricsDir = getMetricsDir(repoRoot, userConfig);
+    artifacts.push(await statArtifact({
+      kind: 'metrics:search',
+      label: 'search metrics dir',
+      artifactPath: metricsDir
+    }));
+    artifacts.push(await statArtifact({
+      kind: 'metrics:search-history',
+      label: 'search history',
+      artifactPath: path.join(metricsDir, 'search-history.jsonl')
+    }));
+  }
+
+  if (dispatch?.id === 'setup' || dispatch?.id === 'bootstrap') {
+    artifacts.push(await statArtifact({
+      kind: 'config:file',
+      label: 'config file',
+      artifactPath: path.join(repoRoot, '.pairofcleats.json')
+    }));
+    const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
+    artifacts.push(await statArtifact({
+      kind: 'cache:repo-root',
+      label: 'repo cache root',
+      artifactPath: repoCacheRoot
+    }));
+  }
+
+  return artifacts
+    .slice()
+    .sort((a, b) => `${a.kind}|${a.path}`.localeCompare(`${b.kind}|${b.path}`));
+};
+
 const finalizeJob = (job, payload) => {
   if (job.finalized) return;
   job.finalized = true;
   job.status = payload.status;
   emit('job:end', payload, { jobId: job.id });
+};
+
+const emitArtifacts = async (job, request, { cwd } = {}) => {
+  try {
+    const artifacts = await collectJobArtifacts({ request, cwd });
+    emit('job:artifacts', {
+      artifacts,
+      artifactsIndexed: true,
+      source: 'supervisor'
+    }, { jobId: job.id });
+  } catch (error) {
+    emit('job:artifacts', {
+      artifacts: [],
+      artifactsIndexed: false,
+      source: 'supervisor',
+      error: {
+        message: error?.message || String(error),
+        code: 'ARTIFACT_INDEX_FAILED'
+      }
+    }, { jobId: job.id });
+  }
 };
 
 const startJob = async (request) => {
@@ -272,6 +377,7 @@ const startJob = async (request) => {
       }
 
       finalizeJob(job, payload);
+      await emitArtifacts(job, request, { cwd });
     } catch (error) {
       const cancelled = job.abortController.signal.aborted || error?.name === 'AbortError';
       const payload = {
@@ -297,6 +403,7 @@ const startJob = async (request) => {
         return runAttempt(attempt + 1);
       }
       finalizeJob(job, payload);
+      await emitArtifacts(job, request, { cwd });
     }
   };
 

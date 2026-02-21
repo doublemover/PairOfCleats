@@ -1599,14 +1599,14 @@ Touchpoints:
 - `src/shared/progress.js`
 #### 9.3 Dispatch reconciliation and artifact indexing pass
 
-- [ ] Implement dispatcher rewrite per `docs/specs/dispatcher-rewrite-and-search-reconciliation.md`.
-- [ ] Remove brittle search allowlists; keep one strict search argument surface.
-- [ ] Implement shared dispatch modules:
+- [x] Implement dispatcher rewrite per `docs/specs/dispatcher-rewrite-and-search-reconciliation.md`.
+- [x] Remove brittle search allowlists; keep one strict search argument surface.
+- [x] Implement shared dispatch modules:
   - `src/shared/dispatch/registry.js`
   - `src/shared/dispatch/manifest.js`
   - `src/shared/dispatch/resolve.js`
   - `src/shared/dispatch/env.js`
-- [ ] Implement artifact pass per `docs/specs/supervisor-artifacts-indexing-pass.md` and emit `job:artifacts`.
+- [x] Implement artifact pass per `docs/specs/supervisor-artifacts-indexing-pass.md` and emit `job:artifacts`.
 
 Tests:
 
