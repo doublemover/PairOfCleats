@@ -106,7 +106,7 @@ export function sortImportScanItems(items, cachedImportCounts) {
 
 /**
  * Scan files for imports to build cross-link map.
- * @param {{files:Array<string|{abs:string,rel?:string,stat?:import('node:fs').Stats}>,root:string,mode:'code'|'prose',languageOptions:object,importConcurrency:number,queue?:object,incrementalState?:object,fileTextByFile?:Map<string,string>,readCachedImportsFn?:Function}} input
+ * @param {{files:Array<string|{abs:string,rel?:string,stat?:import('node:fs').Stats,ext?:string}>,root:string,mode:'code'|'prose',languageOptions:object,importConcurrency:number,queue?:object,incrementalState?:object,fileTextByFile?:Map<string,string>,readCachedImportsFn?:Function}} input
  * @returns {Promise<{importsByFile:Record<string,string[]>,durationMs:number,stats:{modules:number,edges:number,files:number,scanned:number}}>}
  */
 export async function scanImports({
@@ -137,6 +137,9 @@ export async function scanImports({
       absPath,
       relKey: toPosix(rel),
       stat: typeof entry === 'object' ? entry.stat : null,
+      ext: typeof entry === 'object' && typeof entry.ext === 'string'
+        ? entry.ext
+        : fileExt(rel),
       index
     };
   });
@@ -181,7 +184,7 @@ export async function scanImports({
     async (item) => {
       throwIfAborted(abortSignal);
       const relKey = item.relKey;
-      const ext = fileExt(relKey);
+      const ext = item.ext || fileExt(relKey);
       const hadPrefetch = cachedImportsByFile.has(relKey);
       const recordImports = (imports) => {
         if (!Array.isArray(imports)) return;

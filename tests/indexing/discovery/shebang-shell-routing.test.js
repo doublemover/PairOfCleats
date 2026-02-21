@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { discoverEntries, discoverFiles } from '../../../src/index/build/discover.js';
+import { createFileProcessor } from '../../../src/index/build/file-processor.js';
 import { buildIgnoreMatcher } from '../../../src/index/build/ignore.js';
 
 applyTestEnv();
@@ -15,7 +16,7 @@ await fs.mkdir(path.join(tempRoot, 'scripts'), { recursive: true });
 
 await fs.writeFile(
   path.join(tempRoot, 'scripts', 'rebuild'),
-  '#!/usr/bin/env bash\necho "rebuild"\n',
+  '#!/usr/bin/env bash\nsource ./env.sh\nfunction rebuild(){\n  helper_run\n}\nrebuild\n',
   'utf8'
 );
 await fs.writeFile(
@@ -69,5 +70,57 @@ assert.equal(shEntry?.ext, '.sh', 'expected sh shebang-routed entry to use canon
 const snippetEntry = discovered.entries.find((entry) => entry.rel === 'scripts/snippet');
 assert.ok(snippetEntry, 'expected indented shebang snippet to be discovered as an entry');
 assert.equal(snippetEntry.ext, '', 'expected indented shebang snippet to keep empty extension');
+
+const discoveredCodeEntry = entries.find((entry) => entry.rel === 'scripts/rebuild');
+assert.equal(discoveredCodeEntry?.ext, '.sh', 'expected shebang-routed discoverFiles entry to keep canonical .sh extension');
+
+const { processFile } = createFileProcessor({
+  root: tempRoot,
+  mode: 'code',
+  dictConfig: {},
+  dictWords: new Set(),
+  languageOptions: {
+    skipUnknownLanguages: false,
+    astDataflowEnabled: false,
+    controlFlowEnabled: false,
+    treeSitter: { enabled: false }
+  },
+  postingsConfig: {},
+  segmentsConfig: {},
+  commentsConfig: {},
+  contextWin: 0,
+  incrementalState: {
+    enabled: false,
+    manifest: { files: {} },
+    bundleDir: '',
+    bundleFormat: 'json'
+  },
+  getChunkEmbedding: async () => null,
+  getChunkEmbeddings: async () => null,
+  typeInferenceEnabled: false,
+  riskAnalysisEnabled: false,
+  riskConfig: {},
+  relationsEnabled: true,
+  seenFiles: new Set(),
+  gitBlameEnabled: false,
+  lintEnabled: false,
+  complexityEnabled: false,
+  structuralMatches: null,
+  cacheConfig: {},
+  cacheReporter: null,
+  queues: null,
+  workerPool: null,
+  crashLogger: null,
+  skippedFiles: [],
+  embeddingEnabled: false,
+  tokenizeEnabled: false,
+  toolInfo: { tool: 'pairofcleats', version: '0.0.0-test' },
+  tokenizationStats: null
+});
+
+const processed = await processFile(discoveredCodeEntry, 0);
+assert.ok(processed?.chunks?.length, 'expected discovered extensionless shebang script to be processed');
+const fileImports = new Set(processed?.fileRelations?.imports || []);
+assert.equal(fileImports.has('./env.sh'), true, 'expected shebang-routed file to use shell relation extraction during processing');
 
 console.log('discover shebang shell routing test passed');

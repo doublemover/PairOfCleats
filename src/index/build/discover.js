@@ -25,7 +25,7 @@ const MAX_FILES_LIMIT_REASON = 'max_files_reached';
 /**
  * Recursively discover indexable files under a directory.
  * @param {{root:string,mode:'code'|'prose'|'extracted-prose',recordsDir?:string|null,ignoreMatcher:import('ignore').Ignore,skippedFiles:Array, maxFileBytes:number|null,fileCaps?:object,maxDepth?:number|null,maxFiles?:number|null}} input
- * @returns {Promise<Array<{abs:string,rel:string,stat:import('node:fs').Stats}>>}
+ * @returns {Promise<Array<{abs:string,rel:string,stat:import('node:fs').Stats,ext:string}>>}
  */
 export async function discoverFiles({
   root,
@@ -65,7 +65,7 @@ export async function discoverFiles({
 /**
  * Discover files for multiple modes in a single traversal.
  * @param {{root:string,modes:Array<'code'|'prose'|'extracted-prose'>,recordsDir?:string|null,ignoreMatcher:import('ignore').Ignore,skippedByMode:Record<string,Array>,maxFileBytes:number|null,fileCaps?:object,maxDepth?:number|null,maxFiles?:number|null}} input
- * @returns {Promise<Record<string,Array<{abs:string,rel:string,stat:import('node:fs').Stats}>>>}
+ * @returns {Promise<Record<string,Array<{abs:string,rel:string,stat:import('node:fs').Stats,ext:string}>>>}
  */
 export async function discoverFilesForModes({
   root,
@@ -423,7 +423,7 @@ function filterEntriesByMode(entries, mode, skippedFiles, documentExtractionConf
       if (skippedFiles) skippedFiles.push({ file: entry.abs, reason: 'unsupported' });
       continue;
     }
-    output.push({ abs: entry.abs, rel: entry.rel, stat: entry.stat });
+    output.push({ abs: entry.abs, rel: entry.rel, stat: entry.stat, ext: entry.ext });
   }
   return output;
 }

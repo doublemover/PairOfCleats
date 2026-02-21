@@ -392,7 +392,8 @@ export async function watchIndex({
     const baseEntry = {
       abs: absPath,
       rel: classification.relPosix,
-      stat: classification.stat
+      stat: classification.stat,
+      ext: classification.ext
     };
     for (const mode of modes) {
       if (classification.record) {
