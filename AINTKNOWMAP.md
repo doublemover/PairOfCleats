@@ -1844,3 +1844,327 @@ Exit criteria:
 - [x] Core indexing/retrieval/workspace behavior is deterministic and validated.
 - [x] TUI/supervisor stack is production-stable and fully tested.
 
+---
+
+## Last Phase
+
+  1.  [ ] Add an adaptive writeConcurrency controller that scales up/down during a run from live queue depth and stall duration instead of a fixed cap.
+      - Touchpoints: `src/index/build/artifacts-write.js`, `src/index/build/artifacts/writers/*`, `src/shared/json-stream.js`, and `src/shared/artifact-io/*` (prefer shared helpers over new local utilities).
+      - Acceptance target: huge-repo write phase should eliminate >60s single-artifact tails; aim for no single required artifact exceeding 30s wall time in `swift`/`opencv` huge runs.
+      - Validation: add/extend artifact write contract + perf tests under `tests/indexing/artifacts/*` and `tests/perf/indexing/artifacts/*`, including strict validation and deterministic output parity checks.
+  2.  [ ] Add a dedicated ultra-light write queue for tiny JSON/meta artifacts so they never wait behind field_postings/packed binaries.
+      - Touchpoints: `src/index/build/artifacts-write.js`, `src/index/build/artifacts/writers/*`, `src/shared/json-stream.js`, and `src/shared/artifact-io/*` (prefer shared helpers over new local utilities).
+      - Acceptance target: huge-repo write phase should eliminate >60s single-artifact tails; aim for no single required artifact exceeding 30s wall time in `swift`/`opencv` huge runs.
+      - Validation: add/extend artifact write contract + perf tests under `tests/indexing/artifacts/*` and `tests/perf/indexing/artifacts/*`, including strict validation and deterministic output parity checks.
+  3.  [ ] Add a third “massive artifact” lane (field_postings, packed postings, binary-columnar outputs) with independent token budgeting.
+      - Touchpoints: `src/index/build/artifacts-write.js`, `src/index/build/artifacts/writers/*`, `src/shared/json-stream.js`, and `src/shared/artifact-io/*` (prefer shared helpers over new local utilities).
+      - Acceptance target: huge-repo write phase should eliminate >60s single-artifact tails; aim for no single required artifact exceeding 30s wall time in `swift`/`opencv` huge runs.
+      - Validation: add/extend artifact write contract + perf tests under `tests/indexing/artifacts/*` and `tests/perf/indexing/artifacts/*`, including strict validation and deterministic output parity checks.
+  4.  [ ] Stream field_postings directly to sharded outputs without first materializing the full in-memory object.
+      - Touchpoints: `src/index/build/artifacts-write.js`, `src/index/build/artifacts/writers/*`, `src/shared/json-stream.js`, and `src/shared/artifact-io/*` (prefer shared helpers over new local utilities).
+      - Acceptance target: huge-repo write phase should eliminate >60s single-artifact tails; aim for no single required artifact exceeding 30s wall time in `swift`/`opencv` huge runs.
+      - Validation: add/extend artifact write contract + perf tests under `tests/indexing/artifacts/*` and `tests/perf/indexing/artifacts/*`, including strict validation and deterministic output parity checks.
+  5.  [ ] Emit optional field_postings binary-columnar form for faster write and load paths on huge repos.
+      - Touchpoints: `src/index/build/artifacts-write.js`, `src/index/build/artifacts/writers/*`, `src/shared/json-stream.js`, and `src/shared/artifact-io/*` (prefer shared helpers over new local utilities).
+      - Acceptance target: huge-repo write phase should eliminate >60s single-artifact tails; aim for no single required artifact exceeding 30s wall time in `swift`/`opencv` huge runs.
+      - Validation: add/extend artifact write contract + perf tests under `tests/indexing/artifacts/*` and `tests/perf/indexing/artifacts/*`, including strict validation and deterministic output parity checks.
+  6.  [ ] Add chunked field_postings merge writer that writes per-field partitions as they’re produced.
+      - Touchpoints: `src/index/build/artifacts-write.js`, `src/index/build/artifacts/writers/*`, `src/shared/json-stream.js`, and `src/shared/artifact-io/*` (prefer shared helpers over new local utilities).
+      - Acceptance target: huge-repo write phase should eliminate >60s single-artifact tails; aim for no single required artifact exceeding 30s wall time in `swift`/`opencv` huge runs.
+      - Validation: add/extend artifact write contract + perf tests under `tests/indexing/artifacts/*` and `tests/perf/indexing/artifacts/*`, including strict validation and deterministic output parity checks.
+  7.  [ ] Add adaptive shard count for field_postings based on estimated bytes and disk throughput profile.
+      - Touchpoints: `src/index/build/artifacts-write.js`, `src/index/build/artifacts/writers/*`, `src/shared/json-stream.js`, and `src/shared/artifact-io/*` (prefer shared helpers over new local utilities).
+      - Acceptance target: huge-repo write phase should eliminate >60s single-artifact tails; aim for no single required artifact exceeding 30s wall time in `swift`/`opencv` huge runs.
+      - Validation: add/extend artifact write contract + perf tests under `tests/indexing/artifacts/*` and `tests/perf/indexing/artifacts/*`, including strict validation and deterministic output parity checks.
+  8.  [ ] Add adaptive shard count for chunk_meta based on row count and measured write throughput.
+      - Touchpoints: `src/index/build/artifacts-write.js`, `src/index/build/artifacts/writers/*`, `src/shared/json-stream.js`, and `src/shared/artifact-io/*` (prefer shared helpers over new local utilities).
+      - Acceptance target: huge-repo write phase should eliminate >60s single-artifact tails; aim for no single required artifact exceeding 30s wall time in `swift`/`opencv` huge runs.
+      - Validation: add/extend artifact write contract + perf tests under `tests/indexing/artifacts/*` and `tests/perf/indexing/artifacts/*`, including strict validation and deterministic output parity checks.
+  9.  [ ] Start chunk_meta.binary-columnar generation as soon as hot rows are available, not after all other writes enqueue.
+      - Touchpoints: `src/index/build/artifacts-write.js`, `src/index/build/artifacts/writers/*`, `src/shared/json-stream.js`, and `src/shared/artifact-io/*` (prefer shared helpers over new local utilities).
+      - Acceptance target: huge-repo write phase should eliminate >60s single-artifact tails; aim for no single required artifact exceeding 30s wall time in `swift`/`opencv` huge runs.
+      - Validation: add/extend artifact write contract + perf tests under `tests/indexing/artifacts/*` and `tests/perf/indexing/artifacts/*`, including strict validation and deterministic output parity checks.
+  10. [ ] Add a “write tail rescue” mode that temporarily boosts tokens for the last 2-3 stalled artifacts.
+      - Touchpoints: `src/index/build/artifacts-write.js`, `src/index/build/artifacts/writers/*`, `src/shared/json-stream.js`, and `src/shared/artifact-io/*` (prefer shared helpers over new local utilities).
+      - Acceptance target: huge-repo write phase should eliminate >60s single-artifact tails; aim for no single required artifact exceeding 30s wall time in `swift`/`opencv` huge runs.
+      - Validation: add/extend artifact write contract + perf tests under `tests/indexing/artifacts/*` and `tests/perf/indexing/artifacts/*`, including strict validation and deterministic output parity checks.
+  11. [ ] Add per-artifact serialization-vs-disk timing split to identify CPU-bound vs IO-bound stalls.
+      - Touchpoints: `src/index/build/artifacts-write.js`, `src/index/build/artifacts/writers/*`, `src/shared/json-stream.js`, and `src/shared/artifact-io/*` (prefer shared helpers over new local utilities).
+      - Acceptance target: huge-repo write phase should eliminate >60s single-artifact tails; aim for no single required artifact exceeding 30s wall time in `swift`/`opencv` huge runs.
+      - Validation: add/extend artifact write contract + perf tests under `tests/indexing/artifacts/*` and `tests/perf/indexing/artifacts/*`, including strict validation and deterministic output parity checks.
+  12. [ ] Add per-artifact p50/p95 queue delay histograms and persist them in bench outputs.
+      - Touchpoints: `src/index/build/artifacts-write.js`, `src/index/build/artifacts/writers/*`, `src/shared/json-stream.js`, and `src/shared/artifact-io/*` (prefer shared helpers over new local utilities).
+      - Acceptance target: huge-repo write phase should eliminate >60s single-artifact tails; aim for no single required artifact exceeding 30s wall time in `swift`/`opencv` huge runs.
+      - Validation: add/extend artifact write contract + perf tests under `tests/indexing/artifacts/*` and `tests/perf/indexing/artifacts/*`, including strict validation and deterministic output parity checks.
+  13. [ ] Add a scheduler rule to prioritize artifacts needed by strict validation before optional artifacts.
+      - Touchpoints: `src/index/build/artifacts-write.js`, `src/index/build/artifacts/writers/*`, `src/shared/json-stream.js`, and `src/shared/artifact-io/*` (prefer shared helpers over new local utilities).
+      - Acceptance target: huge-repo write phase should eliminate >60s single-artifact tails; aim for no single required artifact exceeding 30s wall time in `swift`/`opencv` huge runs.
+      - Validation: add/extend artifact write contract + perf tests under `tests/indexing/artifacts/*` and `tests/perf/indexing/artifacts/*`, including strict validation and deterministic output parity checks.
+  14. [ ] Add direct FD streaming for the largest artifact paths to reduce intermediate buffer churn.
+      - Touchpoints: `src/index/build/artifacts-write.js`, `src/index/build/artifacts/writers/*`, `src/shared/json-stream.js`, and `src/shared/artifact-io/*` (prefer shared helpers over new local utilities).
+      - Acceptance target: huge-repo write phase should eliminate >60s single-artifact tails; aim for no single required artifact exceeding 30s wall time in `swift`/`opencv` huge runs.
+      - Validation: add/extend artifact write contract + perf tests under `tests/indexing/artifacts/*` and `tests/perf/indexing/artifacts/*`, including strict validation and deterministic output parity checks.
+  15. [ ] Reuse pre-serialized JSONL row strings anywhere multiple writers consume the same rows.
+      - Touchpoints: `src/index/build/artifacts-write.js`, `src/index/build/artifacts/writers/*`, `src/shared/json-stream.js`, and `src/shared/artifact-io/*` (prefer shared helpers over new local utilities).
+      - Acceptance target: huge-repo write phase should eliminate >60s single-artifact tails; aim for no single required artifact exceeding 30s wall time in `swift`/`opencv` huge runs.
+      - Validation: add/extend artifact write contract + perf tests under `tests/indexing/artifacts/*` and `tests/perf/indexing/artifacts/*`, including strict validation and deterministic output parity checks.
+  16. [ ] Parallelize compression work for large JSONL shards with bounded worker count.
+      - Touchpoints: `src/index/build/artifacts-write.js`, `src/index/build/artifacts/writers/*`, `src/shared/json-stream.js`, and `src/shared/artifact-io/*` (prefer shared helpers over new local utilities).
+      - Acceptance target: huge-repo write phase should eliminate >60s single-artifact tails; aim for no single required artifact exceeding 30s wall time in `swift`/`opencv` huge runs.
+      - Validation: add/extend artifact write contract + perf tests under `tests/indexing/artifacts/*` and `tests/perf/indexing/artifacts/*`, including strict validation and deterministic output parity checks.
+  17. [ ] Add size-aware compression skipping when compression cost is higher than expected read benefit.
+      - Touchpoints: `src/index/build/artifacts-write.js`, `src/index/build/artifacts/writers/*`, `src/shared/json-stream.js`, and `src/shared/artifact-io/*` (prefer shared helpers over new local utilities).
+      - Acceptance target: huge-repo write phase should eliminate >60s single-artifact tails; aim for no single required artifact exceeding 30s wall time in `swift`/`opencv` huge runs.
+      - Validation: add/extend artifact write contract + perf tests under `tests/indexing/artifacts/*` and `tests/perf/indexing/artifacts/*`, including strict validation and deterministic output parity checks.
+  18. [ ] Add streaming checksum computation during artifact write instead of second-pass reads.
+      - Touchpoints: `src/index/build/artifacts-write.js`, `src/index/build/artifacts/writers/*`, `src/shared/json-stream.js`, and `src/shared/artifact-io/*` (prefer shared helpers over new local utilities).
+      - Acceptance target: huge-repo write phase should eliminate >60s single-artifact tails; aim for no single required artifact exceeding 30s wall time in `swift`/`opencv` huge runs.
+      - Validation: add/extend artifact write contract + perf tests under `tests/indexing/artifacts/*` and `tests/perf/indexing/artifacts/*`, including strict validation and deterministic output parity checks.
+  19. [ ] Add “no heavy write slot reservation” guard in all write-path variants (including future lane logic).
+      - Touchpoints: `src/index/build/artifacts-write.js`, `src/index/build/artifacts/writers/*`, `src/shared/json-stream.js`, and `src/shared/artifact-io/*` (prefer shared helpers over new local utilities).
+      - Acceptance target: huge-repo write phase should eliminate >60s single-artifact tails; aim for no single required artifact exceeding 30s wall time in `swift`/`opencv` huge runs.
+      - Validation: add/extend artifact write contract + perf tests under `tests/indexing/artifacts/*` and `tests/perf/indexing/artifacts/*`, including strict validation and deterministic output parity checks.
+  20. [ ] Add automatic fallback from JSON object write to JSONL shards when serialization time crosses threshold.
+      - Touchpoints: `src/index/build/artifacts-write.js`, `src/index/build/artifacts/writers/*`, `src/shared/json-stream.js`, and `src/shared/artifact-io/*` (prefer shared helpers over new local utilities).
+      - Acceptance target: huge-repo write phase should eliminate >60s single-artifact tails; aim for no single required artifact exceeding 30s wall time in `swift`/`opencv` huge runs.
+      - Validation: add/extend artifact write contract + perf tests under `tests/indexing/artifacts/*` and `tests/perf/indexing/artifacts/*`, including strict validation and deterministic output parity checks.
+  21. [ ] Increase cross-file bundle update concurrency further for very large update sets based on measured CPU idle.
+      - Touchpoints: `src/index/type-inference-crossfile/pipeline.js`, `src/index/build/incremental.js`, `src/shared/bundle-io.js`, and related cache identity/signature paths.
+      - Acceptance target: reduce cross-file incremental bundle-update wall time by >=35% on huge repos while preserving relation/type/risk parity and deterministic bundle contents.
+      - Validation: add incremental + cross-file tests for cache hit/miss behavior, unchanged-file skip behavior, deterministic output hashes, and fallback correctness when prefetch is partial.
+  22. [ ] Split cross-file updates by hot/cold files and prioritize hot files first.
+      - Touchpoints: `src/index/type-inference-crossfile/pipeline.js`, `src/index/build/incremental.js`, `src/shared/bundle-io.js`, and related cache identity/signature paths.
+      - Acceptance target: reduce cross-file incremental bundle-update wall time by >=35% on huge repos while preserving relation/type/risk parity and deterministic bundle contents.
+      - Validation: add incremental + cross-file tests for cache hit/miss behavior, unchanged-file skip behavior, deterministic output hashes, and fallback correctness when prefetch is partial.
+  23. [ ] Persist cross-file inference outputs by strong fingerprint and skip full recompute when unchanged.
+      - Touchpoints: `src/index/type-inference-crossfile/pipeline.js`, `src/index/build/incremental.js`, `src/shared/bundle-io.js`, and related cache identity/signature paths.
+      - Acceptance target: reduce cross-file incremental bundle-update wall time by >=35% on huge repos while preserving relation/type/risk parity and deterministic bundle contents.
+      - Validation: add incremental + cross-file tests for cache hit/miss behavior, unchanged-file skip behavior, deterministic output hashes, and fallback correctness when prefetch is partial.
+  24. [ ] Add chunk-level reuse inside bundles so unchanged chunks do not rewrite bundle payloads.
+      - Touchpoints: `src/index/type-inference-crossfile/pipeline.js`, `src/index/build/incremental.js`, `src/shared/bundle-io.js`, and related cache identity/signature paths.
+      - Acceptance target: reduce cross-file incremental bundle-update wall time by >=35% on huge repos while preserving relation/type/risk parity and deterministic bundle contents.
+      - Validation: add incremental + cross-file tests for cache hit/miss behavior, unchanged-file skip behavior, deterministic output hashes, and fallback correctness when prefetch is partial.
+  25. [ ] Add write coalescing for incremental bundle rewrites to reduce small-write amplification.
+      - Touchpoints: `src/index/type-inference-crossfile/pipeline.js`, `src/index/build/incremental.js`, `src/shared/bundle-io.js`, and related cache identity/signature paths.
+      - Acceptance target: reduce cross-file incremental bundle-update wall time by >=35% on huge repos while preserving relation/type/risk parity and deterministic bundle contents.
+      - Validation: add incremental + cross-file tests for cache hit/miss behavior, unchanged-file skip behavior, deterministic output hashes, and fallback correctness when prefetch is partial.
+  26. [ ] Add partial bundle patch writes (append/replace segments) instead of full rewrite where format allows.
+      - Touchpoints: `src/index/type-inference-crossfile/pipeline.js`, `src/index/build/incremental.js`, `src/shared/bundle-io.js`, and related cache identity/signature paths.
+      - Acceptance target: reduce cross-file incremental bundle-update wall time by >=35% on huge repos while preserving relation/type/risk parity and deterministic bundle contents.
+      - Validation: add incremental + cross-file tests for cache hit/miss behavior, unchanged-file skip behavior, deterministic output hashes, and fallback correctness when prefetch is partial.
+  27. [ ] Cache symbol resolution candidates across bundles with bounded TTL/LRU to cut repeated lookups.
+      - Touchpoints: `src/index/type-inference-crossfile/pipeline.js`, `src/index/build/incremental.js`, `src/shared/bundle-io.js`, and related cache identity/signature paths.
+      - Acceptance target: reduce cross-file incremental bundle-update wall time by >=35% on huge repos while preserving relation/type/risk parity and deterministic bundle contents.
+      - Validation: add incremental + cross-file tests for cache hit/miss behavior, unchanged-file skip behavior, deterministic output hashes, and fallback correctness when prefetch is partial.
+  28. [ ] Add faster map-based dedupe paths for call/usage link construction on huge bundles.
+      - Touchpoints: `src/index/type-inference-crossfile/pipeline.js`, `src/index/build/incremental.js`, `src/shared/bundle-io.js`, and related cache identity/signature paths.
+      - Acceptance target: reduce cross-file incremental bundle-update wall time by >=35% on huge repos while preserving relation/type/risk parity and deterministic bundle contents.
+      - Validation: add incremental + cross-file tests for cache hit/miss behavior, unchanged-file skip behavior, deterministic output hashes, and fallback correctness when prefetch is partial.
+  29. [ ] Add adaptive bundle sizing that uses recent p95 bundle duration, not just average.
+      - Touchpoints: `src/index/type-inference-crossfile/pipeline.js`, `src/index/build/incremental.js`, `src/shared/bundle-io.js`, and related cache identity/signature paths.
+      - Acceptance target: reduce cross-file incremental bundle-update wall time by >=35% on huge repos while preserving relation/type/risk parity and deterministic bundle contents.
+      - Validation: add incremental + cross-file tests for cache hit/miss behavior, unchanged-file skip behavior, deterministic output hashes, and fallback correctness when prefetch is partial.
+  30. [ ] Add short-circuit inference mode for files with no call/usage signals.
+      - Touchpoints: `src/index/type-inference-crossfile/pipeline.js`, `src/index/build/incremental.js`, `src/shared/bundle-io.js`, and related cache identity/signature paths.
+      - Acceptance target: reduce cross-file incremental bundle-update wall time by >=35% on huge repos while preserving relation/type/risk parity and deterministic bundle contents.
+      - Validation: add incremental + cross-file tests for cache hit/miss behavior, unchanged-file skip behavior, deterministic output hashes, and fallback correctness when prefetch is partial.
+  31. [ ] Add opportunistic parallelism in risk/type propagation loops when bundle is large enough.
+      - Touchpoints: `src/index/type-inference-crossfile/pipeline.js`, `src/index/build/incremental.js`, `src/shared/bundle-io.js`, and related cache identity/signature paths.
+      - Acceptance target: reduce cross-file incremental bundle-update wall time by >=35% on huge repos while preserving relation/type/risk parity and deterministic bundle contents.
+      - Validation: add incremental + cross-file tests for cache hit/miss behavior, unchanged-file skip behavior, deterministic output hashes, and fallback correctness when prefetch is partial.
+  32. [ ] Add per-bundle allocation telemetry to find high-GC loops.
+      - Touchpoints: `src/index/type-inference-crossfile/pipeline.js`, `src/index/build/incremental.js`, `src/shared/bundle-io.js`, and related cache identity/signature paths.
+      - Acceptance target: reduce cross-file incremental bundle-update wall time by >=35% on huge repos while preserving relation/type/risk parity and deterministic bundle contents.
+      - Validation: add incremental + cross-file tests for cache hit/miss behavior, unchanged-file skip behavior, deterministic output hashes, and fallback correctness when prefetch is partial.
+  33. [ ] Move heavy cross-file transformations to worker threads with bounded message payloads.
+      - Touchpoints: `src/index/type-inference-crossfile/pipeline.js`, `src/index/build/incremental.js`, `src/shared/bundle-io.js`, and related cache identity/signature paths.
+      - Acceptance target: reduce cross-file incremental bundle-update wall time by >=35% on huge repos while preserving relation/type/risk parity and deterministic bundle contents.
+      - Validation: add incremental + cross-file tests for cache hit/miss behavior, unchanged-file skip behavior, deterministic output hashes, and fallback correctness when prefetch is partial.
+  34. [ ] Add early-stop budgets by repo scale for low-value inference edges in huge profile.
+      - Touchpoints: `src/index/type-inference-crossfile/pipeline.js`, `src/index/build/incremental.js`, `src/shared/bundle-io.js`, and related cache identity/signature paths.
+      - Acceptance target: reduce cross-file incremental bundle-update wall time by >=35% on huge repos while preserving relation/type/risk parity and deterministic bundle contents.
+      - Validation: add incremental + cross-file tests for cache hit/miss behavior, unchanged-file skip behavior, deterministic output hashes, and fallback correctness when prefetch is partial.
+  35. [ ] Add optional “huge repo inference lite” profile that keeps high-signal links only.
+      - Touchpoints: `src/index/type-inference-crossfile/pipeline.js`, `src/index/build/incremental.js`, `src/shared/bundle-io.js`, and related cache identity/signature paths.
+      - Acceptance target: reduce cross-file incremental bundle-update wall time by >=35% on huge repos while preserving relation/type/risk parity and deterministic bundle contents.
+      - Validation: add incremental + cross-file tests for cache hit/miss behavior, unchanged-file skip behavior, deterministic output hashes, and fallback correctness when prefetch is partial.
+  36. [ ] Make scheduler adaptive interval dynamic (shorter under pressure, longer when stable).
+      - Touchpoints: `src/shared/concurrency.js`, `src/index/build/runtime/scheduler.js`, `src/index/build/runtime/workers.js`, and scheduler telemetry/reporting emitters.
+      - Acceptance target: sustain >75% effective utilization during heavy indexing phases on 8c/16t hardware without starvation spikes or queue blow-ups.
+      - Validation: extend scheduler contract/perf tests (`tests/shared/concurrency/*`, `tests/perf/scheduler-*`, `tests/perf/indexing/runtime/*`) for adaptive scaling, fairness, backpressure, and alerting windows.
+  37. [ ] Scale CPU/IO/mem tokens from smoothed utilization windows, not single snapshots.
+      - Touchpoints: `src/shared/concurrency.js`, `src/index/build/runtime/scheduler.js`, `src/index/build/runtime/workers.js`, and scheduler telemetry/reporting emitters.
+      - Acceptance target: sustain >75% effective utilization during heavy indexing phases on 8c/16t hardware without starvation spikes or queue blow-ups.
+      - Validation: extend scheduler contract/perf tests (`tests/shared/concurrency/*`, `tests/perf/scheduler-*`, `tests/perf/indexing/runtime/*`) for adaptive scaling, fairness, backpressure, and alerting windows.
+  38. [ ] Add queue starvation score into token scaling decisions with stronger weight.
+      - Touchpoints: `src/shared/concurrency.js`, `src/index/build/runtime/scheduler.js`, `src/index/build/runtime/workers.js`, and scheduler telemetry/reporting emitters.
+      - Acceptance target: sustain >75% effective utilization during heavy indexing phases on 8c/16t hardware without starvation spikes or queue blow-ups.
+      - Validation: extend scheduler contract/perf tests (`tests/shared/concurrency/*`, `tests/perf/scheduler-*`, `tests/perf/indexing/runtime/*`) for adaptive scaling, fairness, backpressure, and alerting windows.
+  39. [ ] Add per-queue token floors so critical queues cannot be starved by global adaptation.
+      - Touchpoints: `src/shared/concurrency.js`, `src/index/build/runtime/scheduler.js`, `src/index/build/runtime/workers.js`, and scheduler telemetry/reporting emitters.
+      - Acceptance target: sustain >75% effective utilization during heavy indexing phases on 8c/16t hardware without starvation spikes or queue blow-ups.
+      - Validation: extend scheduler contract/perf tests (`tests/shared/concurrency/*`, `tests/perf/scheduler-*`, `tests/perf/indexing/runtime/*`) for adaptive scaling, fairness, backpressure, and alerting windows.
+  40. [ ] Add workload-class weights (parse/infer/write/sqlite) configurable by profile.
+      - Touchpoints: `src/shared/concurrency.js`, `src/index/build/runtime/scheduler.js`, `src/index/build/runtime/workers.js`, and scheduler telemetry/reporting emitters.
+      - Acceptance target: sustain >75% effective utilization during heavy indexing phases on 8c/16t hardware without starvation spikes or queue blow-ups.
+      - Validation: extend scheduler contract/perf tests (`tests/shared/concurrency/*`, `tests/perf/scheduler-*`, `tests/perf/indexing/runtime/*`) for adaptive scaling, fairness, backpressure, and alerting windows.
+  41. [ ] Add explicit backpressure from write queue into stage1/stage2 producers when write tail grows.
+      - Touchpoints: `src/shared/concurrency.js`, `src/index/build/runtime/scheduler.js`, `src/index/build/runtime/workers.js`, and scheduler telemetry/reporting emitters.
+      - Acceptance target: sustain >75% effective utilization during heavy indexing phases on 8c/16t hardware without starvation spikes or queue blow-ups.
+      - Validation: extend scheduler contract/perf tests (`tests/shared/concurrency/*`, `tests/perf/scheduler-*`, `tests/perf/indexing/runtime/*`) for adaptive scaling, fairness, backpressure, and alerting windows.
+  42. [ ] Add in-flight-bytes-aware gating so scheduler reacts to data volume, not only item counts.
+      - Touchpoints: `src/shared/concurrency.js`, `src/index/build/runtime/scheduler.js`, `src/index/build/runtime/workers.js`, and scheduler telemetry/reporting emitters.
+      - Acceptance target: sustain >75% effective utilization during heavy indexing phases on 8c/16t hardware without starvation spikes or queue blow-ups.
+      - Validation: extend scheduler contract/perf tests (`tests/shared/concurrency/*`, `tests/perf/scheduler-*`, `tests/perf/indexing/runtime/*`) for adaptive scaling, fairness, backpressure, and alerting windows.
+  43. [ ] Add max pending-bytes caps per queue in addition to max pending-items.
+      - Touchpoints: `src/shared/concurrency.js`, `src/index/build/runtime/scheduler.js`, `src/index/build/runtime/workers.js`, and scheduler telemetry/reporting emitters.
+      - Acceptance target: sustain >75% effective utilization during heavy indexing phases on 8c/16t hardware without starvation spikes or queue blow-ups.
+      - Validation: extend scheduler contract/perf tests (`tests/shared/concurrency/*`, `tests/perf/scheduler-*`, `tests/perf/indexing/runtime/*`) for adaptive scaling, fairness, backpressure, and alerting windows.
+  44. [ ] Add a scheduler “burst mode” when utilization is low and memory headroom is high.
+      - Touchpoints: `src/shared/concurrency.js`, `src/index/build/runtime/scheduler.js`, `src/index/build/runtime/workers.js`, and scheduler telemetry/reporting emitters.
+      - Acceptance target: sustain >75% effective utilization during heavy indexing phases on 8c/16t hardware without starvation spikes or queue blow-ups.
+      - Validation: extend scheduler contract/perf tests (`tests/shared/concurrency/*`, `tests/perf/scheduler-*`, `tests/perf/indexing/runtime/*`) for adaptive scaling, fairness, backpressure, and alerting windows.
+  45. [ ] Add a scheduler “settle mode” to reduce oscillation after burst.
+      - Touchpoints: `src/shared/concurrency.js`, `src/index/build/runtime/scheduler.js`, `src/index/build/runtime/workers.js`, and scheduler telemetry/reporting emitters.
+      - Acceptance target: sustain >75% effective utilization during heavy indexing phases on 8c/16t hardware without starvation spikes or queue blow-ups.
+      - Validation: extend scheduler contract/perf tests (`tests/shared/concurrency/*`, `tests/perf/scheduler-*`, `tests/perf/indexing/runtime/*`) for adaptive scaling, fairness, backpressure, and alerting windows.
+  46. [ ] Add queue fairness aging based on wait-time percentiles.
+      - Touchpoints: `src/shared/concurrency.js`, `src/index/build/runtime/scheduler.js`, `src/index/build/runtime/workers.js`, and scheduler telemetry/reporting emitters.
+      - Acceptance target: sustain >75% effective utilization during heavy indexing phases on 8c/16t hardware without starvation spikes or queue blow-ups.
+      - Validation: extend scheduler contract/perf tests (`tests/shared/concurrency/*`, `tests/perf/scheduler-*`, `tests/perf/indexing/runtime/*`) for adaptive scaling, fairness, backpressure, and alerting windows.
+  47. [ ] Add queue-level utilization targets and alerts with sustained window logic.
+      - Touchpoints: `src/shared/concurrency.js`, `src/index/build/runtime/scheduler.js`, `src/index/build/runtime/workers.js`, and scheduler telemetry/reporting emitters.
+      - Acceptance target: sustain >75% effective utilization during heavy indexing phases on 8c/16t hardware without starvation spikes or queue blow-ups.
+      - Validation: extend scheduler contract/perf tests (`tests/shared/concurrency/*`, `tests/perf/scheduler-*`, `tests/perf/indexing/runtime/*`) for adaptive scaling, fairness, backpressure, and alerting windows.
+  48. [ ] Add scheduling traces (token totals/used over time) in bench output JSON for regression diffing.
+      - Touchpoints: `src/shared/concurrency.js`, `src/index/build/runtime/scheduler.js`, `src/index/build/runtime/workers.js`, and scheduler telemetry/reporting emitters.
+      - Acceptance target: sustain >75% effective utilization during heavy indexing phases on 8c/16t hardware without starvation spikes or queue blow-ups.
+      - Validation: extend scheduler contract/perf tests (`tests/shared/concurrency/*`, `tests/perf/scheduler-*`, `tests/perf/indexing/runtime/*`) for adaptive scaling, fairness, backpressure, and alerting windows.
+  49. [ ] Add per-stage queue-depth snapshots every N seconds in huge runs.
+      - Touchpoints: `src/shared/concurrency.js`, `src/index/build/runtime/scheduler.js`, `src/index/build/runtime/workers.js`, and scheduler telemetry/reporting emitters.
+      - Acceptance target: sustain >75% effective utilization during heavy indexing phases on 8c/16t hardware without starvation spikes or queue blow-ups.
+      - Validation: extend scheduler contract/perf tests (`tests/shared/concurrency/*`, `tests/perf/scheduler-*`, `tests/perf/indexing/runtime/*`) for adaptive scaling, fairness, backpressure, and alerting windows.
+  50. [ ] Add automatic cap tuning from previous successful run profile for same repo family.
+      - Touchpoints: `src/shared/concurrency.js`, `src/index/build/runtime/scheduler.js`, `src/index/build/runtime/workers.js`, and scheduler telemetry/reporting emitters.
+      - Acceptance target: sustain >75% effective utilization during heavy indexing phases on 8c/16t hardware without starvation spikes or queue blow-ups.
+      - Validation: extend scheduler contract/perf tests (`tests/shared/concurrency/*`, `tests/perf/scheduler-*`, `tests/perf/indexing/runtime/*`) for adaptive scaling, fairness, backpressure, and alerting windows.
+  51. [ ] Rework tree-sitter planner to maintain continuous multi-wave execution until all grammar buckets drain.
+      - Touchpoints: tree-sitter planner/scheduler paths (`src/index/build/tree-sitter-scheduler/*`) plus stage orchestration integration points.
+      - Acceptance target: remove long single-wave critical paths for clike/cpp-heavy repos and reduce parser idle gaps; keep determinism unchanged.
+      - Validation: add planner wave/bucket tests and large-grammar shard tests under `tests/indexing/tree-sitter/*`, plus cap/guard tests for maxBytes/maxLines behavior.
+  52. [ ] Make grammar bucket sizing adaptive per grammar using observed rows/sec.
+      - Touchpoints: tree-sitter planner/scheduler paths (`src/index/build/tree-sitter-scheduler/*`) plus stage orchestration integration points.
+      - Acceptance target: remove long single-wave critical paths for clike/cpp-heavy repos and reduce parser idle gaps; keep determinism unchanged.
+      - Validation: add planner wave/bucket tests and large-grammar shard tests under `tests/indexing/tree-sitter/*`, plus cap/guard tests for maxBytes/maxLines behavior.
+  53. [ ] Increase shard counts for clike/cpp buckets automatically on very large repos.
+      - Touchpoints: tree-sitter planner/scheduler paths (`src/index/build/tree-sitter-scheduler/*`) plus stage orchestration integration points.
+      - Acceptance target: remove long single-wave critical paths for clike/cpp-heavy repos and reduce parser idle gaps; keep determinism unchanged.
+      - Validation: add planner wave/bucket tests and large-grammar shard tests under `tests/indexing/tree-sitter/*`, plus cap/guard tests for maxBytes/maxLines behavior.
+  54. [ ] Add path-aware bucketing so one giant directory doesn’t form a long critical path.
+      - Touchpoints: tree-sitter planner/scheduler paths (`src/index/build/tree-sitter-scheduler/*`) plus stage orchestration integration points.
+      - Acceptance target: remove long single-wave critical paths for clike/cpp-heavy repos and reduce parser idle gaps; keep determinism unchanged.
+      - Validation: add planner wave/bucket tests and large-grammar shard tests under `tests/indexing/tree-sitter/*`, plus cap/guard tests for maxBytes/maxLines behavior.
+  55. [ ] Add parser timeout escalation by file complexity heuristics.
+      - Touchpoints: tree-sitter planner/scheduler paths (`src/index/build/tree-sitter-scheduler/*`) plus stage orchestration integration points.
+      - Acceptance target: remove long single-wave critical paths for clike/cpp-heavy repos and reduce parser idle gaps; keep determinism unchanged.
+      - Validation: add planner wave/bucket tests and large-grammar shard tests under `tests/indexing/tree-sitter/*`, plus cap/guard tests for maxBytes/maxLines behavior.
+  56. [ ] Add parse skipping for known generated/vendor patterns by default in huge profile.
+      - Touchpoints: tree-sitter planner/scheduler paths (`src/index/build/tree-sitter-scheduler/*`) plus stage orchestration integration points.
+      - Acceptance target: remove long single-wave critical paths for clike/cpp-heavy repos and reduce parser idle gaps; keep determinism unchanged.
+      - Validation: add planner wave/bucket tests and large-grammar shard tests under `tests/indexing/tree-sitter/*`, plus cap/guard tests for maxBytes/maxLines behavior.
+  57. [ ] Add lightweight parse mode for relation extraction-only files.
+      - Touchpoints: tree-sitter planner/scheduler paths (`src/index/build/tree-sitter-scheduler/*`) plus stage orchestration integration points.
+      - Acceptance target: remove long single-wave critical paths for clike/cpp-heavy repos and reduce parser idle gaps; keep determinism unchanged.
+      - Validation: add planner wave/bucket tests and large-grammar shard tests under `tests/indexing/tree-sitter/*`, plus cap/guard tests for maxBytes/maxLines behavior.
+  58. [ ] Cache parser outputs by content hash for unchanged files between bench runs.
+      - Touchpoints: tree-sitter planner/scheduler paths (`src/index/build/tree-sitter-scheduler/*`) plus stage orchestration integration points.
+      - Acceptance target: remove long single-wave critical paths for clike/cpp-heavy repos and reduce parser idle gaps; keep determinism unchanged.
+      - Validation: add planner wave/bucket tests and large-grammar shard tests under `tests/indexing/tree-sitter/*`, plus cap/guard tests for maxBytes/maxLines behavior.
+  59. [ ] Add parser-worker warm pools per grammar to reduce startup churn.
+      - Touchpoints: tree-sitter planner/scheduler paths (`src/index/build/tree-sitter-scheduler/*`) plus stage orchestration integration points.
+      - Acceptance target: remove long single-wave critical paths for clike/cpp-heavy repos and reduce parser idle gaps; keep determinism unchanged.
+      - Validation: add planner wave/bucket tests and large-grammar shard tests under `tests/indexing/tree-sitter/*`, plus cap/guard tests for maxBytes/maxLines behavior.
+  60. [ ] Add telemetry for parser queue idle gaps to catch under-filled waves.
+      - Touchpoints: tree-sitter planner/scheduler paths (`src/index/build/tree-sitter-scheduler/*`) plus stage orchestration integration points.
+      - Acceptance target: remove long single-wave critical paths for clike/cpp-heavy repos and reduce parser idle gaps; keep determinism unchanged.
+      - Validation: add planner wave/bucket tests and large-grammar shard tests under `tests/indexing/tree-sitter/*`, plus cap/guard tests for maxBytes/maxLines behavior.
+  61. [ ] Enforce per-worker memory target bands dynamically (1-2GB) with worker-count scaling.
+      - Touchpoints: `src/index/build/workers/config.js`, `src/index/build/workers/pool.js`, `src/index/build/runtime/workers.js`, and memory telemetry surfaces.
+      - Acceptance target: enforce stable per-worker memory policies (1-2GB class) with higher throughput and no budget-violation regressions/OOM churn.
+      - Validation: extend worker resource-limit tests and memory budget tests (`tests/indexing/workers/*`, `tests/perf/indexing/postings/*`) to cover underflow/oversubscription/headroom-driven scaling.
+  62. [ ] Shift more budget to per-worker caches for hot dictionaries and symbol maps.
+      - Touchpoints: `src/index/build/workers/config.js`, `src/index/build/workers/pool.js`, `src/index/build/runtime/workers.js`, and memory telemetry surfaces.
+      - Acceptance target: enforce stable per-worker memory policies (1-2GB class) with higher throughput and no budget-violation regressions/OOM churn.
+      - Validation: extend worker resource-limit tests and memory budget tests (`tests/indexing/workers/*`, `tests/perf/indexing/postings/*`) to cover underflow/oversubscription/headroom-driven scaling.
+  63. [ ] Add bounded object pools for high-frequency relation/link objects.
+      - Touchpoints: `src/index/build/workers/config.js`, `src/index/build/workers/pool.js`, `src/index/build/runtime/workers.js`, and memory telemetry surfaces.
+      - Acceptance target: enforce stable per-worker memory policies (1-2GB class) with higher throughput and no budget-violation regressions/OOM churn.
+      - Validation: extend worker resource-limit tests and memory budget tests (`tests/indexing/workers/*`, `tests/perf/indexing/postings/*`) to cover underflow/oversubscription/headroom-driven scaling.
+  64. [ ] Replace repeated large-array copies with iterators/generators in hot loops.
+      - Touchpoints: `src/index/build/workers/config.js`, `src/index/build/workers/pool.js`, `src/index/build/runtime/workers.js`, and memory telemetry surfaces.
+      - Acceptance target: enforce stable per-worker memory policies (1-2GB class) with higher throughput and no budget-violation regressions/OOM churn.
+      - Validation: extend worker resource-limit tests and memory budget tests (`tests/indexing/workers/*`, `tests/perf/indexing/postings/*`) to cover underflow/oversubscription/headroom-driven scaling.
+  65. [ ] Add typed-array backed temporary buffers for dense metadata transforms.
+      - Touchpoints: `src/index/build/workers/config.js`, `src/index/build/workers/pool.js`, `src/index/build/runtime/workers.js`, and memory telemetry surfaces.
+      - Acceptance target: enforce stable per-worker memory policies (1-2GB class) with higher throughput and no budget-violation regressions/OOM churn.
+      - Validation: extend worker resource-limit tests and memory budget tests (`tests/indexing/workers/*`, `tests/perf/indexing/postings/*`) to cover underflow/oversubscription/headroom-driven scaling.
+  66. [ ] Add GC pressure telemetry per stage and per worker.
+      - Touchpoints: `src/index/build/workers/config.js`, `src/index/build/workers/pool.js`, `src/index/build/runtime/workers.js`, and memory telemetry surfaces.
+      - Acceptance target: enforce stable per-worker memory policies (1-2GB class) with higher throughput and no budget-violation regressions/OOM churn.
+      - Validation: extend worker resource-limit tests and memory budget tests (`tests/indexing/workers/*`, `tests/perf/indexing/postings/*`) to cover underflow/oversubscription/headroom-driven scaling.
+  67. [ ] Add automatic worker count reduction only when RSS+GC pressure jointly exceed thresholds.
+      - Touchpoints: `src/index/build/workers/config.js`, `src/index/build/workers/pool.js`, `src/index/build/runtime/workers.js`, and memory telemetry surfaces.
+      - Acceptance target: enforce stable per-worker memory policies (1-2GB class) with higher throughput and no budget-violation regressions/OOM churn.
+      - Validation: extend worker resource-limit tests and memory budget tests (`tests/indexing/workers/*`, `tests/perf/indexing/postings/*`) to cover underflow/oversubscription/headroom-driven scaling.
+  68. [ ] Increase write buffer budget per worker in huge profile when RSS headroom exists.
+      - Touchpoints: `src/index/build/workers/config.js`, `src/index/build/workers/pool.js`, `src/index/build/runtime/workers.js`, and memory telemetry surfaces.
+      - Acceptance target: enforce stable per-worker memory policies (1-2GB class) with higher throughput and no budget-violation regressions/OOM churn.
+      - Validation: extend worker resource-limit tests and memory budget tests (`tests/indexing/workers/*`, `tests/perf/indexing/postings/*`) to cover underflow/oversubscription/headroom-driven scaling.
+  69. [ ] Add optional NUMA-aware worker pinning for high-core servers.
+      - Touchpoints: `src/index/build/workers/config.js`, `src/index/build/workers/pool.js`, `src/index/build/runtime/workers.js`, and memory telemetry surfaces.
+      - Acceptance target: enforce stable per-worker memory policies (1-2GB class) with higher throughput and no budget-violation regressions/OOM churn.
+      - Validation: extend worker resource-limit tests and memory budget tests (`tests/indexing/workers/*`, `tests/perf/indexing/postings/*`) to cover underflow/oversubscription/headroom-driven scaling.
+  70. [ ] Add memory-budget presets per hardware class (desktop/server/CI).
+      - Touchpoints: `src/index/build/workers/config.js`, `src/index/build/workers/pool.js`, `src/index/build/runtime/workers.js`, and memory telemetry surfaces.
+      - Acceptance target: enforce stable per-worker memory policies (1-2GB class) with higher throughput and no budget-violation regressions/OOM churn.
+      - Validation: extend worker resource-limit tests and memory budget tests (`tests/indexing/workers/*`, `tests/perf/indexing/postings/*`) to cover underflow/oversubscription/headroom-driven scaling.
+  71. [ ] Add bench report section for stage overlap effectiveness (parse/infer/write concurrency overlap %).
+      - Touchpoints: bench harness/reporting and CI guardrails (`tools/bench/*`, `tests/perf/bench/*`, `docs/perf/*`, perf schemas/contracts).
+      - Acceptance target: benchmark outputs must include reproducible utilization/backpressure/stall telemetry and produce stable A/B recommendations per hardware profile.
+      - Validation: add schema-contract tests for new report fields and CI perf-gate tests that fail on stage-time/stall/utilization regressions in huge-repo lanes.
+  72. [ ] Add bench report section for per-core utilization over time, not only average.
+      - Touchpoints: bench harness/reporting and CI guardrails (`tools/bench/*`, `tests/perf/bench/*`, `docs/perf/*`, perf schemas/contracts).
+      - Acceptance target: benchmark outputs must include reproducible utilization/backpressure/stall telemetry and produce stable A/B recommendations per hardware profile.
+      - Validation: add schema-contract tests for new report fields and CI perf-gate tests that fail on stage-time/stall/utilization regressions in huge-repo lanes.
+  73. [ ] Add p95/p99 artifact stall durations in bench summary.
+      - Touchpoints: bench harness/reporting and CI guardrails (`tools/bench/*`, `tests/perf/bench/*`, `docs/perf/*`, perf schemas/contracts).
+      - Acceptance target: benchmark outputs must include reproducible utilization/backpressure/stall telemetry and produce stable A/B recommendations per hardware profile.
+      - Validation: add schema-contract tests for new report fields and CI perf-gate tests that fail on stage-time/stall/utilization regressions in huge-repo lanes.
+  74. [ ] Add “critical path reconstruction” in bench logs to show exact tail sequence.
+      - Touchpoints: bench harness/reporting and CI guardrails (`tools/bench/*`, `tests/perf/bench/*`, `docs/perf/*`, perf schemas/contracts).
+      - Acceptance target: benchmark outputs must include reproducible utilization/backpressure/stall telemetry and produce stable A/B recommendations per hardware profile.
+      - Validation: add schema-contract tests for new report fields and CI perf-gate tests that fail on stage-time/stall/utilization regressions in huge-repo lanes.
+  75. [ ] Add automated A/B sweeps for writeConcurrency, token limits, bundle sizes, and worker counts.
+      - Touchpoints: bench harness/reporting and CI guardrails (`tools/bench/*`, `tests/perf/bench/*`, `docs/perf/*`, perf schemas/contracts).
+      - Acceptance target: benchmark outputs must include reproducible utilization/backpressure/stall telemetry and produce stable A/B recommendations per hardware profile.
+      - Validation: add schema-contract tests for new report fields and CI perf-gate tests that fail on stage-time/stall/utilization regressions in huge-repo lanes.
+  76. [ ] Add automatic best-config recommendation output per repo/hardware tuple.
+      - Touchpoints: bench harness/reporting and CI guardrails (`tools/bench/*`, `tests/perf/bench/*`, `docs/perf/*`, perf schemas/contracts).
+      - Acceptance target: benchmark outputs must include reproducible utilization/backpressure/stall telemetry and produce stable A/B recommendations per hardware profile.
+      - Validation: add schema-contract tests for new report fields and CI perf-gate tests that fail on stage-time/stall/utilization regressions in huge-repo lanes.
+  77. [ ] Add perf guardrails in CI for stage durations, stall tails, and utilization floors.
+      - Touchpoints: bench harness/reporting and CI guardrails (`tools/bench/*`, `tests/perf/bench/*`, `docs/perf/*`, perf schemas/contracts).
+      - Acceptance target: benchmark outputs must include reproducible utilization/backpressure/stall telemetry and produce stable A/B recommendations per hardware profile.
+      - Validation: add schema-contract tests for new report fields and CI perf-gate tests that fail on stage-time/stall/utilization regressions in huge-repo lanes.
+  78. [ ] Add perf regression triage output that points to likely queue/stage roots.
+      - Touchpoints: bench harness/reporting and CI guardrails (`tools/bench/*`, `tests/perf/bench/*`, `docs/perf/*`, perf schemas/contracts).
+      - Acceptance target: benchmark outputs must include reproducible utilization/backpressure/stall telemetry and produce stable A/B recommendations per hardware profile.
+      - Validation: add schema-contract tests for new report fields and CI perf-gate tests that fail on stage-time/stall/utilization regressions in huge-repo lanes.
+  79. [ ] Add benchmark run reproducibility metadata (CPU governor, storage path, antivirus state, config hash).
+      - Touchpoints: bench harness/reporting and CI guardrails (`tools/bench/*`, `tests/perf/bench/*`, `docs/perf/*`, perf schemas/contracts).
+      - Acceptance target: benchmark outputs must include reproducible utilization/backpressure/stall telemetry and produce stable A/B recommendations per hardware profile.
+      - Validation: add schema-contract tests for new report fields and CI perf-gate tests that fail on stage-time/stall/utilization regressions in huge-repo lanes.
+  80. [ ] Add a canonical huge-repo profile that enables all high-yield knobs by default and disables low-value passes.
+      - Touchpoints: bench harness/reporting and CI guardrails (`tools/bench/*`, `tests/perf/bench/*`, `docs/perf/*`, perf schemas/contracts).
+      - Acceptance target: benchmark outputs must include reproducible utilization/backpressure/stall telemetry and produce stable A/B recommendations per hardware profile.
+      - Validation: add schema-contract tests for new report fields and CI perf-gate tests that fail on stage-time/stall/utilization regressions in huge-repo lanes.

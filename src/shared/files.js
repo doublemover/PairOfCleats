@@ -116,3 +116,71 @@ export async function pathExists(targetPath) {
     return false;
   }
 }
+
+/**
+ * Best-effort JSON reader for async paths.
+ *
+ * @param {string} filePath
+ * @param {{fallback?:any,maxBytes?:number|null}} [options]
+ * @returns {Promise<any>}
+ */
+export async function readJsonFileSafe(filePath, { fallback = null, maxBytes = null } = {}) {
+  if (!filePath) return fallback;
+  try {
+    if (Number.isFinite(maxBytes) && maxBytes > 0) {
+      const stat = await fsPromises.stat(filePath);
+      if (Number(stat.size) > Number(maxBytes)) return fallback;
+    }
+    const raw = await fsPromises.readFile(filePath, 'utf8');
+    return JSON.parse(raw);
+  } catch {
+    return fallback;
+  }
+}
+
+/**
+ * Best-effort JSON reader for sync tooling paths.
+ *
+ * @param {string} filePath
+ * @param {{fallback?:any,maxBytes?:number|null}} [options]
+ * @returns {any}
+ */
+export function readJsonFileSyncSafe(filePath, { fallback = null, maxBytes = null } = {}) {
+  if (!filePath || !fs.existsSync(filePath)) return fallback;
+  try {
+    if (Number.isFinite(maxBytes) && maxBytes > 0) {
+      const stat = fs.statSync(filePath);
+      if (Number(stat.size) > Number(maxBytes)) return fallback;
+    }
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch {
+    return fallback;
+  }
+}
+
+/**
+ * Read newline-delimited JSON rows from a file, skipping malformed rows.
+ *
+ * @param {string} filePath
+ * @returns {any[]}
+ */
+export function readJsonLinesSyncSafe(filePath) {
+  if (!filePath || !fs.existsSync(filePath)) return [];
+  try {
+    const raw = fs.readFileSync(filePath, 'utf8');
+    return raw
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        try {
+          return JSON.parse(line);
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}

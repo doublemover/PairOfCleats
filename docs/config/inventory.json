@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-21T03:47:14.077Z",
+  "generatedAt": "2026-02-21T05:06:49.866Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -3210,7 +3210,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 320,
+    "totalFlags": 315,
     "publicFlags": [
       "backend",
       "host",
@@ -3218,8 +3218,7 @@
       "mode",
       "port",
       "repo",
-      "top",
-      "watch"
+      "top"
     ],
     "internalFlags": [
       "additionalProperties",
@@ -3260,7 +3259,6 @@
       "collapse",
       "colorize",
       "column",
-      "command",
       "concurrency",
       "config",
       "controlFlowEnabled",
@@ -3344,7 +3342,6 @@
       "inputs",
       "install-root",
       "interactive",
-      "interval",
       "iterations",
       "justification",
       "keep",
@@ -3442,9 +3439,7 @@
       "pythonAst",
       "queries",
       "queries-dir",
-      "queue",
       "quiet",
-      "reason",
       "record",
       "refresh",
       "registry",
@@ -4835,22 +4830,6 @@
         ]
       },
       {
-        "file": "tools/service/indexer-service.js",
-        "flags": [
-          "command",
-          "concurrency",
-          "config",
-          "interval",
-          "json",
-          "mode",
-          "queue",
-          "reason",
-          "repo",
-          "stage",
-          "watch"
-        ]
-      },
-      {
         "file": "tools/setup/bootstrap.js",
         "flags": [
           "incremental",
@@ -5016,7 +4995,7 @@
     "duplicated": [
       {
         "flag": "repo",
-        "count": 59,
+        "count": 58,
         "files": [
           "src/integrations/tooling/api-contracts.js",
           "src/integrations/tooling/architecture-check.js",
@@ -5066,7 +5045,6 @@
           "tools/reports/compare-models.js",
           "tools/reports/metrics-dashboard.js",
           "tools/reports/report-code-map.js",
-          "tools/service/indexer-service.js",
           "tools/setup/bootstrap.js",
           "tools/setup/setup.js",
           "tools/sqlite/verify-extensions.js",
@@ -5081,7 +5059,7 @@
       },
       {
         "flag": "json",
-        "count": 54,
+        "count": 53,
         "files": [
           "src/integrations/tooling/api-contracts.js",
           "src/integrations/tooling/architecture-check.js",
@@ -5126,7 +5104,6 @@
           "tools/reports/compare-models.js",
           "tools/reports/metrics-dashboard.js",
           "tools/reports/report-code-map.js",
-          "tools/service/indexer-service.js",
           "tools/setup/bootstrap.js",
           "tools/setup/setup.js",
           "tools/sqlite/verify-extensions.js",
@@ -5185,7 +5162,7 @@
       },
       {
         "flag": "mode",
-        "count": 30,
+        "count": 29,
         "files": [
           "tests/map/map-build-determinism.test.js",
           "tests/map/map-build-heap-guard.test.js",
@@ -5215,8 +5192,7 @@
           "tools/index/validate.js",
           "tools/reports/combined-summary.js",
           "tools/reports/compare-models.js",
-          "tools/reports/report-code-map.js",
-          "tools/service/indexer-service.js"
+          "tools/reports/report-code-map.js"
         ]
       },
       {
@@ -5847,24 +5823,6 @@
         ]
       },
       {
-        "flag": "concurrency",
-        "count": 3,
-        "files": [
-          "tools/bench/vfs/parallel-manifest-build.js",
-          "tools/index/cache-gc.js",
-          "tools/service/indexer-service.js"
-        ]
-      },
-      {
-        "flag": "config",
-        "count": 3,
-        "files": [
-          "tools/config/reset.js",
-          "tools/config/validate.js",
-          "tools/service/indexer-service.js"
-        ]
-      },
-      {
         "flag": "includeUsages",
         "count": 3,
         "files": [
@@ -6014,6 +5972,22 @@
         "files": [
           "tools/analysis/explain-risk.js",
           "tools/bench/vfs/cdc-segmentation.js"
+        ]
+      },
+      {
+        "flag": "concurrency",
+        "count": 2,
+        "files": [
+          "tools/bench/vfs/parallel-manifest-build.js",
+          "tools/index/cache-gc.js"
+        ]
+      },
+      {
+        "flag": "config",
+        "count": 2,
+        "files": [
+          "tools/config/reset.js",
+          "tools/config/validate.js"
         ]
       },
       {
@@ -6337,14 +6311,6 @@
         ]
       },
       {
-        "flag": "stage",
-        "count": 2,
-        "files": [
-          "tools/index/assemble-pieces.js",
-          "tools/service/indexer-service.js"
-        ]
-      },
-      {
         "flag": "three-url",
         "count": 2,
         "files": [
@@ -6436,6 +6402,7 @@
       "tools/bench/language/cli.js",
       "tools/build/embeddings/cache-flush.js",
       "tools/config/inventory/scan.js",
+      "tools/service/indexer-service.js",
       "tools/sqlite/vector-extension.js"
     ]
   }
