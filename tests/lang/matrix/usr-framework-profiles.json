@@ -213,9 +213,11 @@
         }
       ],
       "edgeCaseCaseIds": [
+        "astro-component-style-scope",
         "astro-frontmatter-template-bridge",
         "astro-island-hydration",
-        "astro-route-collection"
+        "astro-route-collection",
+        "astro-template-slot-props"
       ],
       "requiredConformance": [
         "C4"
@@ -323,7 +325,9 @@
       "edgeCaseCaseIds": [
         "next-app-router-dynamic-segment",
         "next-client-server-boundary",
-        "next-route-handler-runtime"
+        "next-css-module-style-scope",
+        "next-route-handler-runtime",
+        "next-rsc-template-props"
       ],
       "requiredConformance": [
         "C4"
@@ -433,7 +437,8 @@
       "edgeCaseCaseIds": [
         "nuxt-pages-route-params",
         "nuxt-server-route-mapping",
-        "nuxt-sfc-style-scope"
+        "nuxt-sfc-style-scope",
+        "nuxt-template-composable-binding"
       ],
       "requiredConformance": [
         "C4"
@@ -542,6 +547,7 @@
       "edgeCaseCaseIds": [
         "react-css-module-scope",
         "react-hydration-boundary",
+        "react-jsx-prop-binding",
         "react-route-dynamic"
       ],
       "requiredConformance": [
@@ -757,7 +763,9 @@
         }
       ],
       "edgeCaseCaseIds": [
+        "sveltekit-component-style-scope",
         "sveltekit-load-data-binding",
+        "sveltekit-page-data-template",
         "sveltekit-route-param",
         "sveltekit-server-action-route"
       ],
