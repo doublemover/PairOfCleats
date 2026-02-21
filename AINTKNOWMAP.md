@@ -1072,10 +1072,10 @@ Intent: deterministic releases, reproducible packaging, and strict platform beha
 
 Tests:
 
-- [ ] `tests/tooling/release-check/smoke.test.js`
-- [ ] `tests/tooling/release-check/report-schema.test.js`
-- [ ] `tests/tooling/release-check/exit-codes.test.js`
-- [ ] `tests/tooling/release-check/deterministic-order.test.js`
+- [x] `tests/tooling/release-check/smoke.test.js`
+- [x] `tests/tooling/release-check/report-schema.test.js`
+- [x] `tests/tooling/release-check/exit-codes.test.js`
+- [x] `tests/tooling/release-check/deterministic-order.test.js`
 
 
 Touchpoints:
@@ -1092,11 +1092,11 @@ Touchpoints:
 
 Tests:
 
-- [ ] `tests/tooling/paths/paths-with-spaces.test.js`
-- [ ] `tests/tooling/paths/windows-paths-smoke.test.js`
-- [ ] `tests/tooling/paths/path-edge-cases.test.js`
-- [ ] `tests/tooling/paths/windows-drive-letter-normalization.test.js`
-- [ ] `tests/tooling/paths/mixed-separators-cli.test.js`
+- [x] `tests/tooling/paths/paths-with-spaces.test.js`
+- [x] `tests/tooling/paths/windows-paths-smoke.test.js`
+- [x] `tests/tooling/paths/path-edge-cases.test.js`
+- [x] `tests/tooling/paths/windows-drive-letter-normalization.test.js`
+- [x] `tests/tooling/paths/mixed-separators-cli.test.js`
 
 
 Touchpoints:
@@ -1118,13 +1118,13 @@ Touchpoints:
 
 Tests:
 
-- [ ] `tests/tooling/sublime/package-structure.test.js`
-- [ ] `tests/tooling/sublime/package-determinism.test.js`
-- [ ] `tests/tooling/vscode/extension-packaging.test.js`
-- [ ] `tests/tooling/vscode/vscode-extension.test.js` (updated)
-- [ ] Create `tests/tooling/vscode/toolchain-missing-policy.test.js` with strict missing-toolchain failure expectations.
-- [ ] `tests/tooling/sublime/package-archive-metadata.test.js` (new)
-- [ ] `tests/tooling/vscode/package-archive-metadata.test.js` (new)
+- [x] `tests/tooling/sublime/package-structure.test.js`
+- [x] `tests/tooling/sublime/package-determinism.test.js`
+- [x] `tests/tooling/vscode/extension-packaging.test.js`
+- [x] `tests/tooling/vscode/vscode-extension.test.js` (updated)
+- [x] Create `tests/tooling/vscode/toolchain-missing-policy.test.js` with strict missing-toolchain failure expectations.
+- [x] `tests/tooling/sublime/package-archive-metadata.test.js` (new)
+- [x] `tests/tooling/vscode/package-archive-metadata.test.js` (new)
 
 
 Touchpoints:
@@ -1145,8 +1145,8 @@ Touchpoints:
 
 Tests:
 
-- [ ] Update `tests/tooling/sublime/sublime-pycompile.test.js` for strict policy.
-- [ ] Update Python tooling tests to reflect required-toolchain behavior.
+- [x] Update `tests/tooling/sublime/sublime-pycompile.test.js` for strict policy.
+- [x] Update Python tooling tests to reflect required-toolchain behavior.
 
 
 Touchpoints:
@@ -1163,7 +1163,7 @@ Touchpoints:
 
 Tests:
 
-- [ ] `tests/services/service-mode-smoke.test.js`
+- [x] `tests/services/service-mode-smoke.test.js`
 
 
 Touchpoints:
@@ -1345,8 +1345,8 @@ Touchpoints:
 
 Tests:
 
-- [ ] Provider shape tests.
-- [ ] Unavailable-SCM deterministic failure tests.
+- [x] Provider shape tests.
+- [x] Unavailable-SCM deterministic failure tests.
 
 #### 5.2 Workspace manifest/config
 
@@ -1363,8 +1363,8 @@ Touchpoints:
 
 Tests:
 
-- [ ] Workspace schema validation tests.
-- [ ] Manifest determinism tests.
+- [x] Workspace schema validation tests.
+- [x] Manifest determinism tests.
 
 Exit criteria:
 
@@ -1391,8 +1391,8 @@ Touchpoints:
 
 Tests:
 
-- [ ] Runner format/path tests.
-- [ ] Watchdog behavior tests.
+- [x] Runner format/path tests.
+- [x] Watchdog behavior tests.
 
 #### 6.2 Coverage integration
 
@@ -1414,10 +1414,10 @@ Touchpoints:
 
 Tests:
 
-- [ ] Coverage flag parsing tests.
-- [ ] Coverage merge tests.
-- [ ] Coverage path-normalization determinism tests.
-- [ ] Coverage artifact schema validation tests.
+- [x] Coverage flag parsing tests.
+- [x] Coverage merge tests.
+- [x] Coverage path-normalization determinism tests.
+- [x] Coverage artifact schema validation tests.
 
 #### 6.3 Profiling hooks
 
@@ -1440,9 +1440,9 @@ Touchpoints:
 
 Tests:
 
-- [ ] Profile artifact contract tests.
-- [ ] Profile path/time normalization determinism tests.
-- [ ] Profile artifact schema validation tests.
+- [x] Profile artifact contract tests.
+- [x] Profile path/time normalization determinism tests.
+- [x] Profile artifact schema validation tests.
 
 Exit criteria:
 
@@ -1474,7 +1474,7 @@ Touchpoints:
 
 Tests:
 
-- [ ] CLI routing tests per ingest tool.
+- [x] CLI routing tests per ingest tool.
 
 #### 7.2 Error telemetry consistency
 
@@ -1490,7 +1490,7 @@ Touchpoints:
 
 Tests:
 
-- [ ] API/MCP/CLI error contract tests.
+- [x] API/MCP/CLI error contract tests.
 
 Exit criteria:
 
@@ -1542,10 +1542,10 @@ Intent: strict protocol boundary and deterministic orchestration.
 
 Tests:
 
-- [ ] `tests/shared/kill-tree.posix.test.js`
-- [ ] `tests/shared/kill-tree.windows.test.js`
-- [ ] `tests/tooling/install/setup-json-output.test.js`
-- [ ] `tests/tooling/install/bootstrap-json-output.test.js`
+- [x] `tests/shared/kill-tree.posix.test.js`
+- [x] `tests/shared/kill-tree.windows.test.js`
+- [x] `tests/tooling/install/setup-json-output.test.js`
+- [x] `tests/tooling/install/bootstrap-json-output.test.js`
 
 
 Touchpoints:
@@ -1573,9 +1573,9 @@ Touchpoints:
 
 Tests:
 
-- [ ] `tests/tui/protocol-v2-schema.test.js`
-- [ ] `tests/tui/protocol-v2-ordering.test.js`
-- [ ] parser/decoder/context propagation tests
+- [x] `tests/tui/protocol-v2-schema.test.js`
+- [x] `tests/tui/protocol-v2-ordering.test.js`
+- [x] parser/decoder/context propagation tests
 
 #### 9.2 Node supervisor lifecycle model
 
@@ -1586,9 +1586,9 @@ Tests:
 
 Tests:
 
-- [ ] `tests/tui/supervisor-lifecycle-state-machine.test.js`
-- [ ] `tests/tui/supervisor-retry-policy.test.js`
-- [ ] supervisor stream discipline and cancellation integration tests
+- [x] `tests/tui/supervisor-lifecycle-state-machine.test.js`
+- [x] `tests/tui/supervisor-retry-policy.test.js`
+- [x] supervisor stream discipline and cancellation integration tests
 
 
 Touchpoints:
@@ -1610,9 +1610,9 @@ Touchpoints:
 
 Tests:
 
-- [ ] `tests/dispatch/manifest-list.test.js`
-- [ ] `tests/dispatch/manifest-describe-search.test.js`
-- [ ] artifact indexing and search passthrough tests
+- [x] `tests/dispatch/manifest-list.test.js`
+- [x] `tests/dispatch/manifest-describe-search.test.js`
+- [x] artifact indexing and search passthrough tests
 
 
 Touchpoints:
@@ -1637,12 +1637,12 @@ Touchpoints:
 
 Tests:
 
-- [ ] Rust protocol decode tests
-- [ ] headless smoke test
-- [ ] cancel path integration
-- [ ] rendering responsiveness tests
-- [ ] target-triple artifact naming tests
-- [ ] toolchain pin/lockfile enforcement tests
+- [x] Rust protocol decode tests
+- [x] headless smoke test
+- [x] cancel path integration
+- [x] rendering responsiveness tests
+- [x] target-triple artifact naming tests
+- [x] toolchain pin/lockfile enforcement tests
 
 
 Touchpoints:
@@ -1667,9 +1667,9 @@ Touchpoints:
 
 Tests:
 
-- [ ] ignore-SIGTERM fixture
-- [ ] UI termination mid-job fixture
-- [ ] `tests/tui/cancel-propagation.test.js`
+- [x] ignore-SIGTERM fixture
+- [x] UI termination mid-job fixture
+- [x] `tests/tui/cancel-propagation.test.js`
 
 
 Touchpoints:
@@ -1695,10 +1695,10 @@ Touchpoints:
 
 Tests:
 
-- [ ] installer unit tests
-- [ ] wrapper behavior tests
-- [ ] `tests/tui/observability/session-correlation.test.js`
-- [ ] `tests/tui/observability/replay-determinism.test.js`
+- [x] installer unit tests
+- [x] wrapper behavior tests
+- [x] `tests/tui/observability/session-correlation.test.js`
+- [x] `tests/tui/observability/replay-determinism.test.js`
 
 Touchpoints:
 
@@ -1722,13 +1722,13 @@ Touchpoints:
 
 Tests:
 
-- [ ] `tests/tui/backpressure-credit-protocol.test.js` (new)
-- [ ] `tests/tui/list-virtualization-determinism.test.js` (new)
-- [ ] `tests/tui/frame-budget-under-load.test.js` (new)
-- [ ] `tests/tui/oversized-event-chunking.test.js` (new)
-- [ ] `tests/tui/session-snapshot-recovery.test.js` (new)
-- [ ] `tests/tui/terminal-capability-fallback.test.js` (new)
-- [ ] `tests/tui/input-throttle-ordering.test.js` (new)
+- [x] `tests/tui/backpressure-credit-protocol.test.js` (new)
+- [x] `tests/tui/list-virtualization-determinism.test.js` (new)
+- [x] `tests/tui/frame-budget-under-load.test.js` (new)
+- [x] `tests/tui/oversized-event-chunking.test.js` (new)
+- [x] `tests/tui/session-snapshot-recovery.test.js` (new)
+- [x] `tests/tui/terminal-capability-fallback.test.js` (new)
+- [x] `tests/tui/input-throttle-ordering.test.js` (new)
 
 Touchpoints:
 
@@ -1745,8 +1745,8 @@ Touchpoints:
 
 Exit criteria:
 
-- [ ] TUI/supervisor protocol, lifecycle, cancellation, install, and observability are strict and fully validated.
-- [ ] TUI event throughput, frame latency, and backpressure behavior remain stable under sustained high-volume runs.
+- [x] TUI/supervisor protocol, lifecycle, cancellation, install, and observability are strict and fully validated.
+- [x] TUI event throughput, frame latency, and backpressure behavior remain stable under sustained high-volume runs.
 
 ---
 

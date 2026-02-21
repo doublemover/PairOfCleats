@@ -47,6 +47,7 @@ const expected = [
   'smoke.fixture-search',
   'smoke.editor-sublime',
   'smoke.editor-vscode',
+  'smoke.tui-build',
   'smoke.service-mode'
 ];
 

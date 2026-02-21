@@ -38,6 +38,21 @@ const checksumPath = `${archivePath}.sha256`;
 const manifestPath = `${archivePath}.manifest.json`;
 const smoke = hasFlag('--smoke');
 
+const probeNpm = () => {
+  if (process.platform === 'win32') {
+    const probe = spawnSync('cmd.exe', ['/d', '/s', '/c', 'npm --version'], { encoding: 'utf8' });
+    if (probe.status === 0) {
+      return { ok: true, command: 'npm' };
+    }
+    return { ok: false, command: null };
+  }
+  const probe = spawnSync('npm', ['--version'], { encoding: 'utf8' });
+  if (probe.status === 0) {
+    return { ok: true, command: 'npm' };
+  }
+  return { ok: false, command: null };
+};
+
 if (!fs.existsSync(sourceDir)) {
   console.error(`VS Code package source not found: ${sourceDir}`);
   process.exit(1);
@@ -53,8 +68,8 @@ if (!fs.existsSync(path.join(sourceDir, 'extension.js'))) {
 
 try {
   assertPinnedPackagingToolchain({ requireNpm: true });
-  const npmProbe = spawnSync('npm', ['--version'], { encoding: 'utf8' });
-  if (npmProbe.status !== 0) {
+  const npmProbe = probeNpm();
+  if (!npmProbe.ok) {
     throw new Error('Packaging toolchain error: npm is required for VS Code packaging.');
   }
 } catch (err) {

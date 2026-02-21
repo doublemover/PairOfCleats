@@ -101,8 +101,8 @@ export const normalizePathForPlatform = (value, { platform = process.platform } 
     const slashed = text.replace(/\//g, '\\');
     const isUnc = slashed.startsWith('\\\\');
     let normalized = isUnc
-      ? `\\\\${slashed.slice(2).replace(/\+/g, '\\')}`
-      : slashed.replace(/\+/g, '\\');
+      ? `\\\\${slashed.slice(2).replace(/\\+/g, '\\')}`
+      : slashed.replace(/\\+/g, '\\');
     normalized = normalizeWindowsDriveLetter(normalized);
     return normalized;
   }
@@ -120,13 +120,14 @@ export const normalizePathForPlatform = (value, { platform = process.platform } 
  */
 export const joinPathSafe = (baseDir, segments, { platform = process.platform } = {}) => {
   if (!baseDir) return null;
+  const pathApi = platform === 'win32' ? path.win32 : path.posix;
   const normalizedBase = normalizePathForPlatform(baseDir, { platform });
   if (!normalizedBase) return null;
   const normalizedSegments = Array.isArray(segments)
     ? segments.map((entry) => normalizePathForPlatform(entry, { platform }))
     : [];
-  const resolved = path.resolve(normalizedBase, ...normalizedSegments);
-  const rel = path.relative(path.resolve(normalizedBase), resolved);
+  const resolved = pathApi.resolve(normalizedBase, ...normalizedSegments);
+  const rel = pathApi.relative(pathApi.resolve(normalizedBase), resolved);
   if (rel.startsWith('..') || isAbsolutePathNative(rel, platform)) {
     return null;
   }
