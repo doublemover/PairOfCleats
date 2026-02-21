@@ -136,7 +136,7 @@ Edge type notes:
 
 If changed-set flags are used and `--seed` is absent:
 - the tool SHOULD derive seeds deterministically (best-effort) and record warnings.
-- if the changed set resolves to empty (no usable repo-relative paths), the tool returns an empty impact set with a warning (`EMPTY_CHANGED_SET`).
+- if the changed set resolves to empty (no usable repo-relative paths), the tool MUST fail with `ERR_EMPTY_CHANGED_SET`.
 
 ### Output
 - JSON: `GraphImpactAnalysis` (validated)
