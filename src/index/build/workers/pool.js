@@ -165,6 +165,7 @@ export async function createIndexerWorkerPool(input = {}) {
     let activeTasks = 0;
     let shutdownWhenIdle = false;
     let pendingRestart = false;
+    let quantizeTypedTempBuffers = 0;
     const workerExecArgv = buildWorkerExecArgv();
     const heapPolicy = resolveWorkerHeapBudgetPolicy({
       targetPerWorkerMb: poolConfig.heapTargetMb,
@@ -252,6 +253,53 @@ export async function createIndexerWorkerPool(input = {}) {
         ? payload.vectors.length
         : null;
       target.levels = payload?.levels ?? null;
+    };
+    const normalizeQuantizeVectors = (vectors) => {
+      if (!Array.isArray(vectors) || vectors.length === 0) {
+        return { vectors: [], transferList: [], typedTempCount: 0 };
+      }
+      const normalizedVectors = new Array(vectors.length);
+      const transferList = [];
+      let typedTempCount = 0;
+      for (let i = 0; i < vectors.length; i += 1) {
+        const vec = vectors[i];
+        if (ArrayBuffer.isView(vec) && !(vec instanceof DataView)) {
+          normalizedVectors[i] = vec;
+          if (vec.byteOffset === 0 && vec.byteLength === vec.buffer.byteLength) {
+            transferList.push(vec.buffer);
+          }
+          continue;
+        }
+        if (Array.isArray(vec)) {
+          const typed = new Float32Array(vec.length);
+          for (let j = 0; j < vec.length; j += 1) {
+            const numeric = Number(vec[j]);
+            typed[j] = Number.isFinite(numeric) ? numeric : 0;
+          }
+          normalizedVectors[i] = typed;
+          transferList.push(typed.buffer);
+          typedTempCount += 1;
+          continue;
+        }
+        normalizedVectors[i] = vec;
+      }
+      return { vectors: normalizedVectors, transferList, typedTempCount };
+    };
+    const buildQuantizeRunPayload = (payload) => {
+      const basePayload = payload && typeof payload === 'object' ? payload : {};
+      const vectors = Array.isArray(basePayload.vectors) ? basePayload.vectors : null;
+      if (!vectors) {
+        return { payload: basePayload, transferList: [], typedTempCount: 0 };
+      }
+      const normalized = normalizeQuantizeVectors(vectors);
+      const runPayload = normalized.typedTempCount > 0
+        ? { ...basePayload, vectors: normalized.vectors }
+        : basePayload;
+      return {
+        payload: runPayload,
+        transferList: normalized.transferList,
+        typedTempCount: normalized.typedTempCount
+      };
     };
     const createPool = () => {
       const workerData = {
@@ -500,6 +548,7 @@ export async function createIndexerWorkerPool(input = {}) {
           restartAttempts,
           heapPolicy,
           heapLimitMb: Number(resourceLimits?.maxOldGenerationSizeMb) || null,
+          quantizeTypedTempBuffers,
           objectPools: {
             workerTaskMetrics: workerTaskMetricPool.stats(),
             tokenizePayloadMeta: tokenizePayloadMetaPool.stats(),
@@ -641,20 +690,12 @@ export async function createIndexerWorkerPool(input = {}) {
             }
             return null;
           }
-          const transferList = [];
-          if (Array.isArray(payload?.vectors)) {
-            for (const vec of payload.vectors) {
-              if (ArrayBuffer.isView(vec) && !(vec instanceof DataView)) {
-                if (vec.byteOffset === 0 && vec.byteLength === vec.buffer.byteLength) {
-                  transferList.push(vec.buffer);
-                }
-              }
-            }
-          }
+          const { payload: runPayload, transferList, typedTempCount } = buildQuantizeRunPayload(payload);
+          quantizeTypedTempBuffers += typedTempCount;
           const runOptions = transferList.length
             ? { name: 'quantizeVectors', transferList }
             : { name: 'quantizeVectors' };
-          const result = await pool.run(payload, runOptions);
+          const result = await pool.run(runPayload, runOptions);
           updatePoolMetrics();
           return result;
         } catch (err) {
