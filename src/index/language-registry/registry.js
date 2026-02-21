@@ -143,8 +143,6 @@ export function getLanguageForFile(ext, relPath) {
   const normalized = relPath || '';
   const descriptorMatch = resolveDescriptorLanguage(ext, normalized);
   if (descriptorMatch) return descriptorMatch;
-  const direct = LANGUAGE_REGISTRY.find((lang) => lang.match(ext, normalized)) || null;
-  if (direct) return direct;
   return resolveLinguistLanguage(ext, normalized);
 }
 

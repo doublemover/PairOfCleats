@@ -69,6 +69,12 @@ import {
 } from '../../../contracts/index-profile.js';
 
 const isObject = (value) => value && typeof value === 'object' && !Array.isArray(value);
+const INDEX_OPTIMIZATION_PROFILE_IDS = Object.freeze(['default', 'throughput', 'memory-saver']);
+
+export const normalizeIndexOptimizationProfile = (value) => {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  return INDEX_OPTIMIZATION_PROFILE_IDS.includes(normalized) ? normalized : 'default';
+};
 
 /**
  * Shared runtime telemetry collector for cross-stage in-flight gauges.
@@ -285,9 +291,13 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   }
   const profileId = assertKnownIndexProfileId(indexingConfig.profile);
   const profile = buildIndexProfileState(profileId);
+  const indexOptimizationProfile = normalizeIndexOptimizationProfile(
+    indexingConfig.indexOptimizationProfile
+  );
   indexingConfig = {
     ...indexingConfig,
-    profile: profile.id
+    profile: profile.id,
+    indexOptimizationProfile
   };
   const rawArgs = Array.isArray(rawArgv) ? rawArgv : [];
   const scmAnnotateOverride = rawArgs.includes('--scm-annotate')
@@ -1096,6 +1106,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     buildId,
     buildRoot,
     profile,
+    indexOptimizationProfile,
     recordsDir: triageConfig.recordsDir,
     recordsConfig,
     currentIndexRoot,

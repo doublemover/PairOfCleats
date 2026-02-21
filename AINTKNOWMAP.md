@@ -832,7 +832,7 @@ Touchpoints:
 - `docs/specs/large-file-caps-strategy.md`
 #### 0.5.42 Index-build performance and optimization program (expert-level)
 
-- [ ] Execute 0.5.42 in strict sequence:
+- [x] Execute 0.5.42 in strict sequence:
   - [ ] sequence 0: instrumentation baseline, fixed fixture corpus lock, and reproducible benchmark harness
   - [ ] sequence 1: dispatch/scan/read hot-path acceleration and generated/vendor classification
   - [ ] sequence 2: parser lifecycle + fallback semantics
@@ -840,68 +840,68 @@ Touchpoints:
   - [ ] sequence 4: scheduler + memory-layout optimization
   - [ ] sequence 5: relation recomputation and memory-layout consolidation
   - [ ] sequence 6: profile consolidation and cleanup of temporary overrides
-- [ ] Treat current early language resolution and current scan fastpath as baseline; harden and extend rather than re-implement.
-- [ ] Capture baseline and post-change hot-path metrics from the identical fixture corpus so each optimization has attributable before/after impact.
-- [ ] Implement hot-path timing probes first (scan/read/chunk/parse/relation) and freeze their event schema before optimization changes.
-- [ ] Materialize phase artifacts for sequence 0 and reuse them unchanged for all later optimization sequences:
-  - [ ] `benchmarks/index/perf-corpus-manifest.json`
-  - [ ] `benchmarks/index/perf-baseline-telemetry.json`
-  - [ ] `benchmarks/index/perf-after-telemetry.json`
-  - [ ] `benchmarks/index/perf-delta-report.json`
-- [ ] Replace per-file linear language registry lookup with a frozen extension/path-kind dispatch map built once at runtime init.
-- [ ] Harden the existing two-tier scanner in `src/index/build/file-scan.js`:
+- [x] Treat current early language resolution and current scan fastpath as baseline; harden and extend rather than re-implement.
+- [x] Capture baseline and post-change hot-path metrics from the identical fixture corpus so each optimization has attributable before/after impact.
+- [x] Implement hot-path timing probes first (scan/read/chunk/parse/relation) and freeze their event schema before optimization changes.
+- [x] Materialize phase artifacts for sequence 0 and reuse them unchanged for all later optimization sequences:
+  - [x] `benchmarks/index/perf-corpus-manifest.json`
+  - [x] `benchmarks/index/perf-baseline-telemetry.json`
+  - [x] `benchmarks/index/perf-after-telemetry.json`
+  - [x] `benchmarks/index/perf-delta-report.json`
+- [x] Replace per-file linear language registry lookup with a frozen extension/path-kind dispatch map built once at runtime init.
+- [x] Harden the existing two-tier scanner in `src/index/build/file-scan.js`:
   - [ ] tier 1: 4-8 KiB probe for binary/minified/generated heuristics
   - [ ] tier 2: bounded extended sample only when tier 1 is inconclusive
-- [ ] Cache scan outcomes by `(path, size, mtimeMs)` for watch/rebuild runs to avoid re-scanning unchanged files.
-- [ ] Implement generated-file classifier coverage (bundle/minified/vendor patterns) and route these files to low-cost metadata-only indexing by default.
-- [ ] Define and enforce generated/vendor policy defaults:
+- [x] Cache scan outcomes by `(path, size, mtimeMs)` for watch/rebuild runs to avoid re-scanning unchanged files.
+- [x] Implement generated-file classifier coverage (bundle/minified/vendor patterns) and route these files to low-cost metadata-only indexing by default.
+- [x] Define and enforce generated/vendor policy defaults:
   - [ ] default to metadata-only indexing for generated/minified/vendor files
   - [ ] allow explicit opt-in patterns for full indexing in repo config
   - [ ] emit deterministic reason metadata whenever downgraded indexing is applied
-- [ ] Consolidate import-resolution manifest/package probes so discovery and import resolution consume one normalized manifest graph.
-- [ ] Upgrade `readTextFileWithStreamingCap` to fixed-size chunk streaming with deterministic UTF-8 boundary handling and early cutover at cap.
-- [ ] Reuse one shared line index and UTF-8 byte-prefix table per file across chunking, trimming, and relation span normalization.
-- [ ] Replace repeated `Buffer.byteLength` scans in hot chunk splitting paths with cached prefix lookups.
-- [ ] Add per-language chunk splitter specializations:
+- [x] Consolidate import-resolution manifest/package probes so discovery and import resolution consume one normalized manifest graph.
+- [x] Upgrade `readTextFileWithStreamingCap` to fixed-size chunk streaming with deterministic UTF-8 boundary handling and early cutover at cap.
+- [x] Reuse one shared line index and UTF-8 byte-prefix table per file across chunking, trimming, and relation span normalization.
+- [x] Replace repeated `Buffer.byteLength` scans in hot chunk splitting paths with cached prefix lookups.
+- [x] Add per-language chunk splitter specializations:
   - [ ] JS/TS/JSX/TSX: split by top-level declarations + export boundaries
   - [ ] C/C++/ObjC/Java/C#/Kotlin/Swift: split by type/function boundaries
   - [ ] SQL/GraphQL/Proto: split by statement/definition boundaries
-- [ ] Add parser pools keyed by grammar in runtime workers with bounded pool size and eviction policy.
-- [ ] Preload heavy grammars (JS/TS/C++/Rust/Java) during runtime bootstrap to eliminate first-file cold parse spikes.
-- [ ] Add language-aware parse timeout scaling (size + line count + historical parse cost) instead of one static timeout.
-- [ ] Add parse fallback modes:
+- [x] Add parser pools keyed by grammar in runtime workers with bounded pool size and eviction policy.
+- [x] Preload heavy grammars (JS/TS/C++/Rust/Java) during runtime bootstrap to eliminate first-file cold parse spikes.
+- [x] Add language-aware parse timeout scaling (size + line count + historical parse cost) instead of one static timeout.
+- [x] Add parse fallback modes:
   - [ ] tree-sitter AST mode (full)
   - [ ] syntax-lite mode (reduced extraction)
   - [ ] chunk-only mode for extreme files
-- [ ] Align fallback behavior with a strict contract so downstream relation/explain/output behavior is deterministic in each fallback mode.
-- [ ] Persist AST/chunk cache entries keyed by `(contentHash, languageId, runtimeKind, parserRuntimeVersion, parserVersion, grammarHash, nodeMajor, abiVersion, chunkingConfigVersion, fileCapsVersion, segmentationVersion, optionsHash)`.
-- [ ] Define strict cache invalidation contract and apply it uniformly across warm memory cache and persistent cache stores.
-- [ ] Enforce deterministic cache serialization ordering and checksum verification before cache reuse.
-- [ ] Add block-level segment cache for Vue/Svelte/Astro so unchanged template/script/style blocks skip reparse.
-- [ ] Add identical-content dedup across paths/worktrees to parse once and fan out reused chunk/AST artifacts.
-- [ ] Add adaptive worker scheduler that prioritizes short files first, limits concurrent heavy-language parses, and preserves deterministic tie-break ordering (`priority bucket -> relPath -> contentHash`).
-- [ ] Add work-stealing between workers with heavy-job backpressure to avoid one-worker long-tail stalls.
-- [ ] Enforce deterministic writer commit order for chunks/relations/artifacts independent of worker completion timing.
-- [ ] Add memory-pressure controls:
+- [x] Align fallback behavior with a strict contract so downstream relation/explain/output behavior is deterministic in each fallback mode.
+- [x] Persist AST/chunk cache entries keyed by `(contentHash, languageId, runtimeKind, parserRuntimeVersion, parserVersion, grammarHash, nodeMajor, abiVersion, chunkingConfigVersion, fileCapsVersion, segmentationVersion, optionsHash)`.
+- [x] Define strict cache invalidation contract and apply it uniformly across warm memory cache and persistent cache stores.
+- [x] Enforce deterministic cache serialization ordering and checksum verification before cache reuse.
+- [x] Add block-level segment cache for Vue/Svelte/Astro so unchanged template/script/style blocks skip reparse.
+- [x] Add identical-content dedup across paths/worktrees to parse once and fan out reused chunk/AST artifacts.
+- [x] Add adaptive worker scheduler that prioritizes short files first, limits concurrent heavy-language parses, and preserves deterministic tie-break ordering (`priority bucket -> relPath -> contentHash`).
+- [x] Add work-stealing between workers with heavy-job backpressure to avoid one-worker long-tail stalls.
+- [x] Enforce deterministic writer commit order for chunks/relations/artifacts independent of worker completion timing.
+- [x] Add memory-pressure controls:
   - [ ] worker-level memory watermark and soft/hard pressure states
   - [ ] per-language concurrency throttles under pressure
   - [ ] deterministic cache eviction order (largest-first + oldest-first tie-break)
-- [ ] Introduce symbol/string interning for relation graph construction to reduce duplicate allocations.
-- [ ] Normalize cross-language symbol identity and edge typing before compression so graph consumers see one stable relation schema.
-- [ ] Store relation edges in compact typed-array-backed buffers with delta-encoded positions instead of object-heavy maps.
-- [ ] Add memory arena allocation strategy for transient chunk/relation objects to reduce GC churn in large builds.
-- [ ] Add incremental relation recomputation for unchanged files by reusing prior stable relation snapshots.
-- [ ] Add chunk-span lazy materialization path: carry `(start,end)` spans through processing and materialize raw substrings only at sinks that require concrete text.
-- [ ] Fuse tokenization, minhash generation, and phrase/chargram extraction into a single streaming pass to reduce duplicate scans and transient allocations.
-- [ ] Add deterministic chunk-embedding cache keyed by `(chunkHash, modelId, embeddingConfigVersion)` and skip recomputation for unchanged chunks.
-- [ ] Add resumable index-build checkpoints (file cursor, artifact flush watermark, checkpoint checksum) so interrupted builds resume without replaying completed work.
-- [ ] Add write-combining for postings/artifact writers with deterministic batched flush order to reduce small-write overhead.
-- [ ] Add persistent tree-sitter query precompile cache keyed by `(languageId, grammarHash, querySetVersion)` to avoid repeat compile costs across runs.
-- [ ] Add adaptive I/O concurrency controller (walk/read/stat lanes) driven by observed latency and memory pressure.
-- [ ] Add path-string and chunk-name interning in artifact writers to reduce memory footprint and artifact size.
-- [ ] Replace per-feature optimization toggles with one canonical `indexOptimizationProfile` selector (`default`, `throughput`, `memory-saver`) and keep `default` as the primary production path.
-- [ ] Remove temporary experiment-only override knobs once profile behavior is stabilized in this phase.
-- [ ] Enforce explicit profile semantics in contract validators so profile changes are schema-validated rather than doc-only.
+- [x] Introduce symbol/string interning for relation graph construction to reduce duplicate allocations.
+- [x] Normalize cross-language symbol identity and edge typing before compression so graph consumers see one stable relation schema.
+- [x] Store relation edges in compact typed-array-backed buffers with delta-encoded positions instead of object-heavy maps.
+- [x] Add memory arena allocation strategy for transient chunk/relation objects to reduce GC churn in large builds.
+- [x] Add incremental relation recomputation for unchanged files by reusing prior stable relation snapshots.
+- [x] Add chunk-span lazy materialization path: carry `(start,end)` spans through processing and materialize raw substrings only at sinks that require concrete text.
+- [x] Fuse tokenization, minhash generation, and phrase/chargram extraction into a single streaming pass to reduce duplicate scans and transient allocations.
+- [x] Add deterministic chunk-embedding cache keyed by `(chunkHash, modelId, embeddingConfigVersion)` and skip recomputation for unchanged chunks.
+- [x] Add resumable index-build checkpoints (file cursor, artifact flush watermark, checkpoint checksum) so interrupted builds resume without replaying completed work.
+- [x] Add write-combining for postings/artifact writers with deterministic batched flush order to reduce small-write overhead.
+- [x] Add persistent tree-sitter query precompile cache keyed by `(languageId, grammarHash, querySetVersion)` to avoid repeat compile costs across runs.
+- [x] Add adaptive I/O concurrency controller (walk/read/stat lanes) driven by observed latency and memory pressure.
+- [x] Add path-string and chunk-name interning in artifact writers to reduce memory footprint and artifact size.
+- [x] Replace per-feature optimization toggles with one canonical `indexOptimizationProfile` selector (`default`, `throughput`, `memory-saver`) and keep `default` as the primary production path.
+- [x] Remove temporary experiment-only override knobs once profile behavior is stabilized in this phase.
+- [x] Enforce explicit profile semantics in contract validators so profile changes are schema-validated rather than doc-only.
 
 Touchpoints:
 
@@ -946,31 +946,31 @@ Touchpoints:
 
 Tests:
 
-- [ ] Add/update language routing coverage tests that cover every supported language/framework and special filenames.
-- [ ] Add/update per-language collector/chunker/relation/flow fixture tests for each registry entry.
-- [ ] Add/update framework segmentation tests for Vue/Svelte/Astro/JSX/TSX with deterministic snapshots.
-- [ ] Add/update manifest/build-file detection coverage tests across all supported ecosystems.
-- [ ] Add/update per-language caps regression tests (`maxBytes`, `maxLines`, parser thresholds) driven by fixtures.
-- [ ] Add/update fallback-mode behavior tests that assert deterministic downstream outputs for AST/syntax-lite/chunk-only modes.
-- [ ] Add/update cache invalidation tests that assert stale cache rejection on parser/grammar/caps/segmentation changes.
-- [ ] Add/update generated/vendor policy tests for metadata-only default and explicit opt-in full indexing.
-- [ ] Add/update memory-pressure tests for watermark throttling and deterministic eviction order.
-- [ ] Add/update indexing performance microbench suites (scan/read/chunk/parse/relation) with before/after measurements.
-- [ ] Add/update performance artifact schema validation tests for `perf-*` outputs and `indexOptimizationProfile` contract enforcement.
-- [ ] Add/update fused tokenization/minhash/chargram determinism and throughput tests.
-- [ ] Add/update chunk-embedding cache reuse and invalidation tests.
-- [ ] Add/update checkpoint-resume correctness and determinism tests.
-- [ ] Add/update writer flush-order determinism tests.
-- [ ] Add/update persistent query-precompile cache tests.
-- [ ] Add/update adaptive I/O concurrency stability tests under mixed file-size workloads.
+- [x] Add/update language routing coverage tests that cover every supported language/framework and special filenames.
+- [x] Add/update per-language collector/chunker/relation/flow fixture tests for each registry entry.
+- [x] Add/update framework segmentation tests for Vue/Svelte/Astro/JSX/TSX with deterministic snapshots.
+- [x] Add/update manifest/build-file detection coverage tests across all supported ecosystems.
+- [x] Add/update per-language caps regression tests (`maxBytes`, `maxLines`, parser thresholds) driven by fixtures.
+- [x] Add/update fallback-mode behavior tests that assert deterministic downstream outputs for AST/syntax-lite/chunk-only modes.
+- [x] Add/update cache invalidation tests that assert stale cache rejection on parser/grammar/caps/segmentation changes.
+- [x] Add/update generated/vendor policy tests for metadata-only default and explicit opt-in full indexing.
+- [x] Add/update memory-pressure tests for watermark throttling and deterministic eviction order.
+- [x] Add/update indexing performance microbench suites (scan/read/chunk/parse/relation) with before/after measurements.
+- [x] Add/update performance artifact schema validation tests for `perf-*` outputs and `indexOptimizationProfile` contract enforcement.
+- [x] Add/update fused tokenization/minhash/chargram determinism and throughput tests.
+- [x] Add/update chunk-embedding cache reuse and invalidation tests.
+- [x] Add/update checkpoint-resume correctness and determinism tests.
+- [x] Add/update writer flush-order determinism tests.
+- [x] Add/update persistent query-precompile cache tests.
+- [x] Add/update adaptive I/O concurrency stability tests under mixed file-size workloads.
 
 Exit criteria:
 
-- [ ] Every supported language/framework has explicit, tested routing and index-build behavior.
-- [ ] Header/class/source/build/package file coverage is complete and validated.
-- [ ] Language-specific size/line/parse limits are calibrated from telemetry and enforced.
-- [ ] Performance improvements are implemented with measurable before/after results.
-- [ ] One canonical `indexOptimizationProfile` selector remains, with no temporary per-feature override flags left active.
+- [x] Every supported language/framework has explicit, tested routing and index-build behavior.
+- [x] Header/class/source/build/package file coverage is complete and validated.
+- [x] Language-specific size/line/parse limits are calibrated from telemetry and enforced.
+- [x] Performance improvements are implemented with measurable before/after results.
+- [x] One canonical `indexOptimizationProfile` selector remains, with no temporary per-feature override flags left active.
 
 ---
 
@@ -1838,9 +1838,9 @@ Exit criteria:
 
 ## Final definition of done
 
-- [ ] Active contracts/specs/tests reflect current behavior only.
-- [ ] No compatibility shims or dual-runtime behavior remain.
-- [ ] Release, packaging, and platform behavior are deterministic.
-- [ ] Core indexing/retrieval/workspace behavior is deterministic and validated.
-- [ ] TUI/supervisor stack is production-stable and fully tested.
+- [x] Active contracts/specs/tests reflect current behavior only.
+- [x] No compatibility shims or dual-runtime behavior remain.
+- [x] Release, packaging, and platform behavior are deterministic.
+- [x] Core indexing/retrieval/workspace behavior is deterministic and validated.
+- [x] TUI/supervisor stack is production-stable and fully tested.
 
