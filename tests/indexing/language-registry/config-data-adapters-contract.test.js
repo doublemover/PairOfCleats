@@ -24,7 +24,12 @@ const CASES = [
     text: '[dependencies]\nserde = "1.0"\nlocal = { path = "../local" }\n',
     expectedImports: ['dependency:serde', 'dependency:local', '../local']
   },
-  { id: 'xml', ext: '.xml', text: '<config><server port="8080"/></config>\n' },
+  {
+    id: 'xml',
+    ext: '.xml',
+    text: '<root xmlns:cfg="urn:cfg"><xsd:import schemaLocation="./cfg.xsd"/></root>\n',
+    expectedImports: ['namespace:cfg=urn:cfg', './cfg.xsd']
+  },
   {
     id: 'yaml',
     ext: '.yaml',

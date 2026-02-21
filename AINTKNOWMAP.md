@@ -761,9 +761,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.39e XML
 
-- [ ] Implement `.xml` routing and element/namespace-aware chunking behavior.
-- [ ] Implement and verify schema/import/include relation extraction behavior where supported.
-- [ ] Calibrate and commit XML caps for verbose build/config/schema files.
+- [x] Implement `.xml` routing and element/namespace-aware chunking behavior.
+- [x] Implement and verify schema/import/include relation extraction behavior where supported.
+- [x] Calibrate and commit XML caps for verbose build/config/schema files.
 
 
 Touchpoints:

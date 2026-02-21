@@ -76,6 +76,7 @@ import { collectRImports } from './import-collectors/r.js';
 import { collectScalaImports } from './import-collectors/scala.js';
 import { collectStarlarkImports } from './import-collectors/starlark.js';
 import { collectTomlImports } from './import-collectors/toml.js';
+import { collectXmlImports } from './import-collectors/xml.js';
 import { collectYamlImports } from './import-collectors/yaml.js';
 
 const {
@@ -1094,7 +1095,8 @@ export const LANGUAGE_REGISTRY = [
   }),
   createConfigDataAdapter({
     id: 'xml',
-    match: (ext) => XML_EXTS.has(ext)
+    match: (ext) => XML_EXTS.has(ext),
+    collectImports: collectXmlImports
   }),
   createConfigDataAdapter({
     id: 'yaml',
