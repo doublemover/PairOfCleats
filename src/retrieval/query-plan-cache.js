@@ -180,7 +180,19 @@ export function createQueryPlanDiskCache({
   ttlMs = DEFAULT_QUERY_PLAN_CACHE_TTL_MS,
   maxBytes = DEFAULT_QUERY_PLAN_DISK_MAX_BYTES
 } = {}) {
-  const base = createQueryPlanCache({ maxEntries, ttlMs });
+  let dirty = false;
+  const markDirty = () => {
+    dirty = true;
+  };
+  const base = createQueryPlanCache({
+    maxEntries,
+    ttlMs,
+    onEvict: ({ reason }) => {
+      if (reason === 'evict' || reason === 'expire') {
+        markDirty();
+      }
+    }
+  });
   if (!base.enabled) {
     return {
       ...base,
@@ -189,11 +201,6 @@ export function createQueryPlanDiskCache({
       isDirty: () => false
     };
   }
-
-  let dirty = false;
-  const markDirty = () => {
-    dirty = true;
-  };
 
   const load = () => {
     if (!cachePath) return 0;
@@ -261,7 +268,14 @@ export function createQueryPlanDiskCache({
     enabled: base.enabled,
     cache: base.cache,
     size: base.size,
-    get: base.get,
+    get(key, options = {}) {
+      const sizeBefore = base.size();
+      const value = base.get(key, options);
+      if (base.size() < sizeBefore) {
+        markDirty();
+      }
+      return value;
+    },
     set,
     delete: del,
     clear,

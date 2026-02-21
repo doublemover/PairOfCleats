@@ -408,13 +408,9 @@ export async function runSearchSession({
           if (hasCode && hasProse && hasExtractedProse && hasRecords) {
             cacheHit = true;
             entry.ts = Date.now();
-            if (queryCachePath) {
-              rememberQueryCacheEntry(queryCachePath, cacheKey, cacheSignature, entry, queryCacheMaxEntries);
-            }
+            rememberQueryCacheEntry(queryCachePath, cacheKey, cacheSignature, entry, queryCacheMaxEntries);
             if (!cacheData) {
-              cacheData = queryCachePath ? loadQueryCache(queryCachePath, {
-                prewarm: false
-              }) : null;
+              cacheData = loadQueryCache(queryCachePath, { prewarm: false });
             }
             if (cacheData && Array.isArray(cacheData.entries)) {
               const existingIndex = cacheData.entries.findIndex((candidate) => (
@@ -428,7 +424,7 @@ export async function runSearchSession({
               } else {
                 cacheData.entries.push(entry);
               }
-              cacheShouldPersist = true;
+              cacheShouldPersist = Boolean(queryCachePath);
             }
           }
         }
@@ -737,9 +733,13 @@ export async function runSearchSession({
     : (lanceActive ? 'lancedb' : (hnswActive ? 'hnsw' : 'js'));
 
   if (queryCacheEnabled && cacheKey) {
-    if (!cacheData && !cacheHit) cacheData = { version: 1, entries: [] };
+    if (!cacheData && !cacheHit && queryCachePath) {
+      cacheData = { version: 1, entries: [] };
+    }
     if (!cacheHit) {
-      cacheData.entries = cacheData.entries.filter((entry) => entry.key !== cacheKey);
+      if (cacheData && Array.isArray(cacheData.entries)) {
+        cacheData.entries = cacheData.entries.filter((entry) => entry.key !== cacheKey);
+      }
       const entry = {
         key: cacheKey,
         ts: Date.now(),
@@ -756,11 +756,11 @@ export async function runSearchSession({
           records: recordHits
         }
       };
-      cacheData.entries.push(entry);
-      if (queryCachePath) {
-        rememberQueryCacheEntry(queryCachePath, cacheKey, cacheSignature, entry, queryCacheMaxEntries);
+      if (cacheData && Array.isArray(cacheData.entries)) {
+        cacheData.entries.push(entry);
+        cacheShouldPersist = Boolean(queryCachePath);
       }
-      cacheShouldPersist = true;
+      rememberQueryCacheEntry(queryCachePath, cacheKey, cacheSignature, entry, queryCacheMaxEntries);
     }
     if (cacheShouldPersist && cacheData && queryCachePath) {
       pruneQueryCache(cacheData, queryCacheMaxEntries);

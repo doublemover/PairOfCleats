@@ -528,7 +528,7 @@ const createRowQueue = ({ maxPending = 0, onBackpressure = null, onResume = null
     }
   };
 
-  return { push, finish, iterator };
+  return { push, finish, cancel: finish, iterator };
 };
 
 const parseJsonlBufferEntries = (buffer, sourcePath, { maxBytes, requiredKeys, validationMode } = {}) => {
@@ -778,6 +778,8 @@ const readJsonLinesIteratorSingle = async function* (
       yield entry;
     }
   } finally {
+    queue.cancel();
+    if (stream) stream.destroy();
     await producer.catch(() => {});
   }
 };

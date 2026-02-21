@@ -7,6 +7,7 @@ import { mergeChunkMetaColdFields } from '../../chunk-meta-cold.js';
 import { normalizeMetaV2ForRead } from '../../meta-v2.js';
 import { formatHash64 } from '../../token-id.js';
 import {
+  createLoaderError,
   inflateColumnarRows
 } from './shared.js';
 import { tryLoadChunkMetaBinaryColumnar } from './binary-columnar.js';
@@ -72,18 +73,23 @@ const loadChunkMetaColdRows = async ({
   if (!sources?.paths?.length) return null;
   if (sources.format === 'json') {
     if (sources.paths.length > 1) {
-      throw new Error('Ambiguous JSON sources for chunk_meta_cold');
+      throw createLoaderError('ERR_MANIFEST_SOURCE_AMBIGUOUS', 'Ambiguous JSON sources for chunk_meta_cold');
     }
     const rows = readJsonFile(sources.paths[0], { maxBytes });
     return Array.isArray(rows) ? rows : null;
   }
   if (sources.format === 'columnar') {
     if (sources.paths.length > 1) {
-      throw new Error('Ambiguous columnar sources for chunk_meta_cold');
+      throw createLoaderError(
+        'ERR_MANIFEST_SOURCE_AMBIGUOUS',
+        'Ambiguous columnar sources for chunk_meta_cold'
+      );
     }
     const payload = readJsonFile(sources.paths[0], { maxBytes });
     const inflated = inflateColumnarRows(payload);
-    if (!inflated) throw new Error('Invalid columnar chunk_meta_cold payload');
+    if (!inflated) {
+      throw createLoaderError('ERR_ARTIFACT_INVALID', 'Invalid columnar chunk_meta_cold payload');
+    }
     return inflated;
   }
   return await readJsonLinesArray(sources.paths, {
@@ -168,6 +174,16 @@ export const loadChunkMeta = async (
   const requiredKeys = resolveJsonlRequiredKeys('chunk_meta');
   const validationMode = strict ? 'strict' : 'trusted';
   const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
+  const sources = resolveManifestArtifactSources({
+    dir,
+    manifest: resolvedManifest,
+    name: 'chunk_meta',
+    strict,
+    maxBytes
+  });
+  if (!sources?.paths?.length) {
+    throw createLoaderError('ERR_MANIFEST_ENTRY_MISSING', 'Missing manifest entry for chunk_meta');
+  }
   const maybeMergeCold = async (rows) => {
     if (!includeCold) return normalizeChunkMetaMetaV2(rows);
     const coldRows = await loadChunkMetaColdRows({
@@ -179,26 +195,16 @@ export const loadChunkMeta = async (
     });
     return normalizeChunkMetaMetaV2(mergeChunkMetaColdRows(rows, coldRows));
   };
-  if (preferBinaryColumnar) {
+  if (preferBinaryColumnar && sources.format === 'binary-columnar') {
     const binaryRows = tryLoadChunkMetaBinaryColumnar(dir, { maxBytes });
     if (binaryRows) {
       const merged = await maybeMergeCold(binaryRows);
       return maybeInflatePackedTokenIds(merged, materializeTokenIds);
     }
   }
-  const sources = resolveManifestArtifactSources({
-    dir,
-    manifest: resolvedManifest,
-    name: 'chunk_meta',
-    strict,
-    maxBytes
-  });
-  if (!sources?.paths?.length) {
-    throw new Error('Missing manifest entry for chunk_meta');
-  }
   if (sources.format === 'json') {
     if (sources.paths.length > 1) {
-      throw new Error('Ambiguous JSON sources for chunk_meta');
+      throw createLoaderError('ERR_MANIFEST_SOURCE_AMBIGUOUS', 'Ambiguous JSON sources for chunk_meta');
     }
     const rows = readJsonFile(sources.paths[0], { maxBytes });
     const merged = await maybeMergeCold(rows);
@@ -206,27 +212,25 @@ export const loadChunkMeta = async (
   }
   if (sources.format === 'columnar') {
     if (sources.paths.length > 1) {
-      throw new Error('Ambiguous columnar sources for chunk_meta');
+      throw createLoaderError('ERR_MANIFEST_SOURCE_AMBIGUOUS', 'Ambiguous columnar sources for chunk_meta');
     }
     const payload = readJsonFile(sources.paths[0], { maxBytes });
     const inflated = inflateColumnarRows(payload);
-    if (!inflated) throw new Error('Invalid columnar chunk_meta payload');
+    if (!inflated) {
+      throw createLoaderError('ERR_ARTIFACT_INVALID', 'Invalid columnar chunk_meta payload');
+    }
     const merged = await maybeMergeCold(inflated);
     return maybeInflatePackedTokenIds(merged, materializeTokenIds);
   }
   if (sources.format === 'binary-columnar') {
     const binaryRows = tryLoadChunkMetaBinaryColumnar(dir, { maxBytes });
     if (!binaryRows) {
-      throw new Error('Invalid binary-columnar chunk_meta payload');
+      throw createLoaderError('ERR_ARTIFACT_INVALID', 'Invalid binary-columnar chunk_meta payload');
     }
     const merged = await maybeMergeCold(binaryRows);
     return maybeInflatePackedTokenIds(merged, materializeTokenIds);
   }
-  const rows = await readJsonLinesArray(sources.paths, {
-    maxBytes,
-    requiredKeys,
-    validationMode
-  });
+  const rows = await readJsonLinesArray(sources.paths, { maxBytes, requiredKeys, validationMode });
   const merged = await maybeMergeCold(rows);
   return maybeInflatePackedTokenIds(merged, materializeTokenIds);
 };

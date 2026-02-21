@@ -647,16 +647,32 @@ export async function createIndexerWorkerPool(input = {}) {
       );
     };
     const maybeRestart = async () => {
-      if (permanentlyDisabled) return false;
-      if (!pendingRestart || !disabled) return false;
+      if (permanentlyDisabled) {
+        pendingRestart = false;
+        return false;
+      }
+      if (!pendingRestart) return false;
+      if (!disabled) {
+        pendingRestart = false;
+        return false;
+      }
       if (activeTasks > 0) return false;
       if (Date.now() < restartAtMs) return false;
       return ensurePool();
     };
     const ensurePool = async () => {
-      if (permanentlyDisabled) return false;
-      if (pool && !disabled) return true;
-      if (restartAttempts > maxRestartAttempts) return false;
+      if (permanentlyDisabled) {
+        pendingRestart = false;
+        return false;
+      }
+      if (pool && !disabled) {
+        pendingRestart = false;
+        return true;
+      }
+      if (restartAttempts > maxRestartAttempts) {
+        pendingRestart = false;
+        return false;
+      }
       if (!pendingRestart) return false;
       if (activeTasks > 0) return false;
       if (Date.now() < restartAtMs) return false;
@@ -1004,7 +1020,15 @@ export async function createIndexerWorkerPool(input = {}) {
             }
             return null;
           }
-          const { payload: runPayload, transferList, typedTempCount } = buildQuantizeRunPayload(payload);
+          const sanitizedPayload = sanitizePoolPayload(
+            payload,
+            sanitizeDictConfig(payload?.dictConfig)
+          );
+          const {
+            payload: runPayload,
+            transferList,
+            typedTempCount
+          } = buildQuantizeRunPayload(sanitizedPayload);
           quantizeTypedTempBuffers += typedTempCount;
           const runOptions = transferList.length
             ? { name: 'quantizeVectors', transferList }
@@ -1013,6 +1037,20 @@ export async function createIndexerWorkerPool(input = {}) {
           updatePoolMetrics();
           return result;
         } catch (err) {
+          const detail = summarizeError(err);
+          const opaqueFailure = !detail || detail === 'Error';
+          const errorName = err?.name || '';
+          const isCloneError = errorName.toLowerCase().includes('dataclone')
+            || errorName.toLowerCase().includes('datacloneerror')
+            || errorName.toLowerCase().includes('dataclone');
+          const reason = detail || err?.message || String(err);
+          if (isCloneError) {
+            await disablePermanently(reason || 'data-clone error');
+          } else if (opaqueFailure) {
+            await disablePermanently(reason || 'worker failure');
+          } else {
+            await scheduleRestart(reason);
+          }
           if (crashLogger?.enabled) {
             withPooledPayloadMeta(quantizePayloadMetaPool, (meta) => {
               assignQuantizePayloadMeta(meta, payload);

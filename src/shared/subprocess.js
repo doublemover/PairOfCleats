@@ -241,7 +241,8 @@ export function spawnSubprocess(command, args, options = {}) {
       const name = options.name ? `${options.name} ` : '';
       reject(new SubprocessError(`${name}exited with code ${exitCode ?? 'unknown'}`, result));
     };
-    if (Number.isFinite(toNumber(options.timeoutMs))) {
+    const resolvedTimeoutMs = toNumber(options.timeoutMs);
+    if (Number.isFinite(resolvedTimeoutMs) && resolvedTimeoutMs > 0) {
       timeoutId = setTimeout(() => {
         if (settled) return;
         settled = true;
@@ -265,7 +266,7 @@ export function spawnSubprocess(command, args, options = {}) {
           stderr: stderrCollector.toOutput(outputMode)
         });
         reject(new SubprocessTimeoutError('Subprocess timeout', result));
-      }, Math.max(0, toNumber(options.timeoutMs) || 0));
+      }, Math.max(1, resolvedTimeoutMs));
     }
     abortHandler = () => {
       if (settled) return;

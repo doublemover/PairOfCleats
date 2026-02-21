@@ -12,7 +12,10 @@ const buildCacheKey = (filePath) => {
       payload: {
         filePath,
         size: stat.size,
-        mtimeMs: stat.mtimeMs
+        mtimeMs: stat.mtimeMs,
+        ctimeMs: stat.ctimeMs,
+        ino: stat.ino || 0,
+        dev: stat.dev || 0
       }
     }).key;
   } catch {

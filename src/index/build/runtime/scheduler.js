@@ -177,7 +177,14 @@ export const resolveSchedulerConfig = ({
 
   const defaultCpu = coercePositiveInt(envelope?.concurrency?.cpuConcurrency?.value) || 1;
   const defaultIo = coercePositiveInt(envelope?.concurrency?.ioConcurrency?.value) || 1;
-  const defaultMem = coercePositiveInt(envelope?.concurrency?.cpuConcurrency?.value) || 1;
+  const totalMemBytes = Number(envelope?.concurrency?.totalMemBytes);
+  const reserveBytes = 2 * 1024 * 1024 * 1024;
+  const defaultMemByHeadroom = Number.isFinite(totalMemBytes) && totalMemBytes > reserveBytes
+    ? Math.floor((totalMemBytes - reserveBytes) / (1024 * 1024 * 1024))
+    : null;
+  const defaultMem = coercePositiveInt(defaultMemByHeadroom)
+    || coercePositiveInt(envelope?.concurrency?.embeddingConcurrency?.value)
+    || 1;
 
   const enabled = resolveBoolean({
     cliValue: argv?.scheduler,

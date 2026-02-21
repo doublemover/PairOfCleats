@@ -2240,7 +2240,12 @@ export async function writeIndexArtifacts(input) {
       piece: { type: 'chunks', name: 'filter_index' }
     });
   } else if (filterIndexFallback?.path) {
+    const normalizedFilterIndexPath = formatArtifactLabel(filterIndexFallback.path);
+    filterIndexFallback.piece.path = normalizedFilterIndexPath;
     addPieceFile(filterIndexFallback.piece, filterIndexFallback.path);
+    if (indexState?.filterIndex && typeof indexState.filterIndex === 'object') {
+      indexState.filterIndex.path = normalizedFilterIndexPath;
+    }
   }
   const minhashFromPostings = Array.isArray(postings.minhashSigs) && postings.minhashSigs.length
     ? postings.minhashSigs

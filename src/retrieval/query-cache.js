@@ -4,11 +4,12 @@ const QUERY_CACHE_VERSION = 1;
 const queryCacheDiskCache = new Map();
 const queryCacheHotEntries = new Map();
 const HOT_CACHE_MAX_ENTRIES_DEFAULT = 512;
+const MEMORY_CACHE_KEY = ':memory:query-cache';
 
 const readCacheFileSignature = (cachePath) => {
   try {
     const stat = fs.statSync(cachePath);
-    return `${stat.size}:${stat.mtimeMs}`;
+    return `${stat.size}:${stat.mtimeMs}:${stat.ctimeMs}:${stat.ino || 0}:${stat.dev || 0}`;
   } catch {
     return null;
   }
@@ -69,7 +70,7 @@ const normalizeLookupKey = (key, signature) => (
 );
 
 const resolveCachePathKey = (cachePath) => (
-  typeof cachePath === 'string' && cachePath ? cachePath : ''
+  typeof cachePath === 'string' && cachePath ? cachePath : MEMORY_CACHE_KEY
 );
 
 const ensureHotCache = (cachePath, maxEntries = HOT_CACHE_MAX_ENTRIES_DEFAULT) => {
@@ -86,6 +87,18 @@ const ensureHotCache = (cachePath, maxEntries = HOT_CACHE_MAX_ENTRIES_DEFAULT) =
     state.maxEntries = normalizePositiveInt(maxEntries, state.maxEntries || HOT_CACHE_MAX_ENTRIES_DEFAULT);
   }
   return state;
+};
+
+const clearHotCache = (cachePath) => {
+  const pathKey = resolveCachePathKey(cachePath);
+  if (!pathKey) return;
+  queryCacheHotEntries.delete(pathKey);
+};
+
+const clearDiskCache = (cachePath) => {
+  const pathKey = resolveCachePathKey(cachePath);
+  if (!pathKey) return;
+  queryCacheDiskCache.delete(pathKey);
 };
 
 const trimHotCache = (state) => {
@@ -146,6 +159,7 @@ const prewarmHotCache = ({
   if (!list.length) return;
   const state = ensureHotCache(cachePath, maxEntries);
   if (!state) return;
+  state.entries = new Map();
   const sorted = list
     .filter((entry) => entry?.key && entry?.signature)
     .sort((left, right) => Number(right?.ts || 0) - Number(left?.ts || 0))
@@ -167,7 +181,11 @@ const prewarmHotCache = ({
 export function loadQueryCache(cachePath, options = {}) {
   if (!cachePath) return createEmptyCache();
   const signature = readCacheFileSignature(cachePath);
-  if (!signature) return createEmptyCache();
+  if (!signature) {
+    clearDiskCache(cachePath);
+    clearHotCache(cachePath);
+    return createEmptyCache();
+  }
   const cached = queryCacheDiskCache.get(cachePath);
   if (cached?.signature === signature && cached?.value) {
     if (options.prewarm === true) {
@@ -181,7 +199,11 @@ export function loadQueryCache(cachePath, options = {}) {
   }
   try {
     const data = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
-    if (data && Array.isArray(data.entries)) {
+    if (
+      data
+      && Number(data.version) === QUERY_CACHE_VERSION
+      && Array.isArray(data.entries)
+    ) {
       queryCacheDiskCache.set(cachePath, { signature, value: data });
       rebuildLookup(data);
       if (options.prewarm === true) {
@@ -194,6 +216,8 @@ export function loadQueryCache(cachePath, options = {}) {
       return data;
     }
   } catch {}
+  clearDiskCache(cachePath);
+  clearHotCache(cachePath);
   return createEmptyCache();
 }
 

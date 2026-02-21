@@ -1,4 +1,12 @@
 import path from 'node:path';
+import { getCacheRoot } from '../../shared/cache-roots.js';
+
+const normalizeDir = (value) => {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return path.resolve(trimmed);
+};
 
 /**
  * Resolve the retrieval cache directory with a single fallback policy shared
@@ -8,7 +16,12 @@ import path from 'node:path';
  * @returns {string|null}
  */
 export const resolveRetrievalCacheDir = ({ queryCacheDir, metricsDir }) => (
-  queryCacheDir || metricsDir || null
+  normalizeDir(queryCacheDir)
+  || normalizeDir(metricsDir)
+  || (() => {
+    const cacheRoot = normalizeDir(getCacheRoot());
+    return cacheRoot ? path.join(cacheRoot, 'metrics') : null;
+  })()
 );
 
 /**
@@ -22,4 +35,3 @@ export const resolveRetrievalCachePath = ({ queryCacheDir, metricsDir, fileName 
   if (!cacheDir) return null;
   return path.join(cacheDir, fileName);
 };
-

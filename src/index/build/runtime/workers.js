@@ -324,12 +324,17 @@ export const createRuntimeQueues = ({
   const maxIoPending = Number.isFinite(pendingLimits?.io?.maxPending)
     ? pendingLimits.io.maxPending
     : Math.max(16, ioConcurrency * 4 * pendingScale);
-  const effectiveEmbeddingConcurrency = Number.isFinite(embeddingConcurrency) && embeddingConcurrency > 0
-    ? embeddingConcurrency
-    : Math.max(1, Math.min(cpuConcurrency || 1, fileConcurrency || 1));
+  const explicitEmbeddingConcurrency = Number.isFinite(embeddingConcurrency)
+    ? Math.max(0, Math.floor(embeddingConcurrency))
+    : null;
+  const effectiveEmbeddingConcurrency = explicitEmbeddingConcurrency == null
+    ? Math.max(1, Math.min(cpuConcurrency || 1, fileConcurrency || 1))
+    : explicitEmbeddingConcurrency;
   const maxEmbeddingPending = Number.isFinite(pendingLimits?.embedding?.maxPending)
     ? pendingLimits.embedding.maxPending
-    : Math.max(64, effectiveEmbeddingConcurrency * 8 * pendingScale);
+    : (effectiveEmbeddingConcurrency > 0
+      ? Math.max(64, effectiveEmbeddingConcurrency * 8 * pendingScale)
+      : 0);
   const resolvedProcConcurrency = coercePositiveInt(procConcurrency)
     ?? (Number.isFinite(pendingLimits?.proc?.concurrency)
       ? Math.max(1, Math.floor(pendingLimits.proc.concurrency))
@@ -374,7 +379,7 @@ export const createRuntimeQueues = ({
   );
   const maxEmbeddingPendingBytes = resolvePendingBytesLimit(
     pendingLimits?.embedding?.maxPendingBytes,
-    Math.max(24 * MiB, maxEmbeddingPending * 512 * 1024),
+    Math.max(24 * MiB, Math.max(1, maxEmbeddingPending) * 512 * 1024),
     0.2
   );
   const procPendingBytesLimit = resolvedProcConcurrency
@@ -446,7 +451,7 @@ export const createRuntimeQueues = ({
   const queues = createTaskQueues({
     ioConcurrency,
     cpuConcurrency: effectiveCpuConcurrency,
-    embeddingConcurrency,
+    embeddingConcurrency: effectiveEmbeddingConcurrency,
     procConcurrency: resolvedProcConcurrency,
     ioPendingLimit: maxIoPending,
     cpuPendingLimit: maxFilePending,

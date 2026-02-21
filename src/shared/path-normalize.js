@@ -1,4 +1,5 @@
 import path from 'node:path';
+import fs from 'node:fs';
 import { isAbsolutePathNative, toPosix } from './files.js';
 
 const stripDotPrefix = (value) => (
@@ -142,6 +143,23 @@ export const joinPathSafe = (baseDir, segments, { platform = process.platform } 
  */
 export const isPathUnderDir = (baseDir, targetPath) => {
   if (!baseDir || !targetPath) return false;
-  const rel = path.relative(path.resolve(baseDir), path.resolve(targetPath));
+  const resolveCanonicalPath = (inputPath) => {
+    let resolved = path.resolve(inputPath);
+    let remainder = '';
+    while (!fs.existsSync(resolved)) {
+      const parent = path.dirname(resolved);
+      if (!parent || parent === resolved) break;
+      remainder = path.join(path.basename(resolved), remainder);
+      resolved = parent;
+    }
+    let canonicalBase = resolved;
+    try {
+      canonicalBase = fs.realpathSync.native(resolved);
+    } catch {}
+    return remainder ? path.resolve(canonicalBase, remainder) : canonicalBase;
+  };
+  const canonicalBaseDir = resolveCanonicalPath(baseDir);
+  const canonicalTargetPath = resolveCanonicalPath(targetPath);
+  const rel = path.relative(canonicalBaseDir, canonicalTargetPath);
   return rel === '' || (!rel.startsWith('..') && !isAbsolutePathNative(rel));
 };

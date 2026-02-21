@@ -119,6 +119,16 @@ export async function loadIndex(dir, options) {
   const includeTokenIndexResolved = includeFilterIndex ? true : includeTokenIndex;
   const hnswConfig = normalizeHnswConfig(rawHnswConfig || {});
   const manifest = loadPiecesManifest(dir, { maxBytes: MAX_JSON_BYTES, strict });
+  const isOptionalArtifactMissing = (err, artifactName) => {
+    const code = typeof err?.code === 'string' ? err.code : '';
+    if (code === 'ERR_MANIFEST_ENTRY_MISSING') return true;
+    if (code === 'ERR_MANIFEST_MISSING') return true;
+    const message = String(err?.message || '');
+    if (artifactName && message.startsWith(`Missing manifest entry for ${artifactName}`)) return true;
+    return message.startsWith('Missing JSON artifact:')
+      || message.startsWith('Missing JSONL artifact:')
+      || message.startsWith('Missing manifest parts for');
+  };
   const loadOptionalObject = async (name) => {
     try {
       return await loadJsonObjectArtifact(dir, name, {
@@ -131,8 +141,10 @@ export async function loadIndex(dir, options) {
         console.warn(
           `[search] Skipping ${name}: ${err.message} Use sqlite backend for large repos.`
         );
+        return null;
       }
-      return null;
+      if (isOptionalArtifactMissing(err, name)) return null;
+      throw err;
     }
   };
   const loadOptionalArray = async (baseName) => {
@@ -143,8 +155,10 @@ export async function loadIndex(dir, options) {
         console.warn(
           `[search] Skipping ${baseName}: ${err.message} Use sqlite backend for large repos.`
         );
+        return null;
       }
-      return null;
+      if (isOptionalArtifactMissing(err, baseName)) return null;
+      throw err;
     }
   };
   const loadOptionalRows = (baseName, options = {}) => (async function* () {
@@ -158,7 +172,14 @@ export async function loadIndex(dir, options) {
         yield row;
       }
     } catch (err) {
-      if (err?.message?.startsWith('Missing manifest entry for')) {
+      const code = String(err?.code || '');
+      const message = String(err?.message || '');
+      const missingOptional = (
+        code === 'ERR_MANIFEST_ENTRY_MISSING'
+        || code === 'ERR_MANIFEST_MISSING'
+        || message.startsWith(`Missing manifest entry for ${baseName}`)
+      );
+      if (missingOptional) {
         return;
       }
       if (err?.code === 'ERR_JSON_TOO_LARGE') {

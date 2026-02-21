@@ -1,10 +1,13 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { MAX_JSON_BYTES } from '../constants.js';
+import { getBakPath } from '../cache.js';
 import { existsOrBak } from '../fs.js';
 import { readJsonFile, readJsonLinesArray, readJsonLinesArraySync, readJsonLinesIterator } from '../json.js';
 import { resolveJsonlRequiredKeys } from '../jsonl.js';
 import { loadPiecesManifest, resolveManifestArtifactSources } from '../manifest.js';
 import {
+  createLoaderError,
   assertNoShardIndexGaps,
   ensureOffsetsValid,
   inflateColumnarRows,
@@ -15,6 +18,13 @@ const resolveManifestMaxBytes = (maxBytes) => (
   Number.isFinite(Number(maxBytes)) ? Number(maxBytes) : MAX_JSON_BYTES
 );
 
+const resolveReadableArtifactPath = (targetPath) => {
+  if (fs.existsSync(targetPath)) return targetPath;
+  const backupPath = getBakPath(targetPath);
+  if (fs.existsSync(backupPath)) return backupPath;
+  return targetPath;
+};
+
 const resolveRequiredSources = ({
   dir,
   manifest,
@@ -24,9 +34,7 @@ const resolveRequiredSources = ({
 }) => {
   if (!manifest) {
     const manifestPath = path.join(dir, 'pieces', 'manifest.json');
-    const err = new Error(`Missing pieces manifest: ${manifestPath}`);
-    err.code = 'ERR_MANIFEST_MISSING';
-    throw err;
+    throw createLoaderError('ERR_MANIFEST_MISSING', `Missing pieces manifest: ${manifestPath}`);
   }
   let sources = resolveManifestArtifactSources({
     dir,
@@ -36,22 +44,45 @@ const resolveRequiredSources = ({
     maxBytes
   });
   if (!sources?.paths?.length) {
-    throw new Error(`Missing manifest entry for ${name}`);
+    throw createLoaderError('ERR_MANIFEST_ENTRY_MISSING', `Missing manifest entry for ${name}`);
   }
   const missingPaths = sources.paths.filter((target) => !existsOrBak(target));
   if (missingPaths.length) {
-    const err = new Error(`Missing manifest parts for ${name}: ${missingPaths.join(', ')}`);
-    err.code = 'ERR_ARTIFACT_PARTS_MISSING';
-    throw err;
+    throw createLoaderError(
+      'ERR_ARTIFACT_PARTS_MISSING',
+      `Missing manifest parts for ${name}: ${missingPaths.join(', ')}`
+    );
   }
+  const resolvedPaths = sources.paths.map(resolveReadableArtifactPath);
+  const resolvedOffsets = Array.isArray(sources.offsets)
+    ? sources.offsets.map(resolveReadableArtifactPath)
+    : null;
   if (sources.format === 'json' || sources.format === 'columnar') {
     if (sources.paths.length > 1) {
-      throw new Error(`Ambiguous ${sources.format.toUpperCase()} sources for ${name}`);
+      if (!strict) {
+        return {
+          ...sources,
+          paths: [resolvedPaths[0]],
+          offsets: resolvedOffsets ? [resolvedOffsets[0]] : null
+        };
+      }
+      throw createLoaderError(
+        'ERR_MANIFEST_SOURCE_AMBIGUOUS',
+        `Ambiguous ${sources.format.toUpperCase()} sources for ${name}`
+      );
     }
-    return sources;
+    return {
+      ...sources,
+      paths: resolvedPaths,
+      offsets: resolvedOffsets
+    };
   }
-  assertNoShardIndexGaps(sources.paths, name);
-  return sources;
+  assertNoShardIndexGaps(resolvedPaths, name);
+  return {
+    ...sources,
+    paths: resolvedPaths,
+    offsets: resolvedOffsets
+  };
 };
 
 const loadArrayPayloadFromSources = async (
@@ -64,7 +95,9 @@ const loadArrayPayloadFromSources = async (
   if (sources.format === 'columnar') {
     const payload = readJsonFile(sources.paths[0], { maxBytes });
     const inflated = inflateColumnarRows(payload);
-    if (!inflated) throw new Error(`Invalid columnar payload for ${baseName}`);
+    if (!inflated) {
+      throw createLoaderError('ERR_ARTIFACT_INVALID', `Invalid columnar payload for ${baseName}`);
+    }
     return inflated;
   }
   return await readJsonLinesArray(sources.paths, {
@@ -85,7 +118,9 @@ const loadArrayPayloadFromSourcesSync = (
   if (sources.format === 'columnar') {
     const payload = readJsonFile(sources.paths[0], { maxBytes });
     const inflated = inflateColumnarRows(payload);
-    if (!inflated) throw new Error(`Invalid columnar payload for ${baseName}`);
+    if (!inflated) {
+      throw createLoaderError('ERR_ARTIFACT_INVALID', `Invalid columnar payload for ${baseName}`);
+    }
     return inflated;
   }
   const out = [];
@@ -228,7 +263,7 @@ export const loadJsonArrayArtifactRows = async function* (
     const payload = readJsonFile(sources.paths[0], { maxBytes });
     const rows = iterateColumnarRows(payload);
     if (!rows) {
-      throw new Error(`Invalid columnar payload for ${baseName}`);
+      throw createLoaderError('ERR_ARTIFACT_INVALID', `Invalid columnar payload for ${baseName}`);
     }
     for (const row of rows) yield row;
     return;
@@ -247,13 +282,13 @@ export const loadJsonArrayArtifactRows = async function* (
  */
 const validateFileMetaRow = (row, label) => {
   if (!row || typeof row !== 'object' || Array.isArray(row)) {
-    throw new Error(`Invalid ${label} row: expected object`);
+    throw createLoaderError('ERR_ARTIFACT_INVALID', `Invalid ${label} row: expected object`);
   }
   if (!Number.isFinite(row.id)) {
-    throw new Error(`Invalid ${label} row: missing numeric id`);
+    throw createLoaderError('ERR_ARTIFACT_INVALID', `Invalid ${label} row: missing numeric id`);
   }
   if (typeof row.file !== 'string') {
-    throw new Error(`Invalid ${label} row: missing file path`);
+    throw createLoaderError('ERR_ARTIFACT_INVALID', `Invalid ${label} row: missing file path`);
   }
   return row;
 };
@@ -313,7 +348,7 @@ export const loadFileMetaRows = async function* (
   };
   const yieldJsonRows = (payload, label) => {
     if (!Array.isArray(payload)) {
-      throw new Error(`Invalid json payload for ${label}`);
+      throw createLoaderError('ERR_ARTIFACT_INVALID', `Invalid json payload for ${label}`);
     }
     return (function* () {
       for (const row of payload) {
@@ -324,7 +359,7 @@ export const loadFileMetaRows = async function* (
   const yieldColumnarRows = (payload, label) => {
     const iterator = iterateColumnarRows(payload);
     if (!iterator) {
-      throw new Error(`Invalid columnar payload for ${label}`);
+      throw createLoaderError('ERR_ARTIFACT_INVALID', `Invalid columnar payload for ${label}`);
     }
     return (function* () {
       for (const row of iterator) {
@@ -391,15 +426,21 @@ export const loadJsonObjectArtifact = async (
     maxBytes
   });
   if (!sources?.paths?.length) {
-    throw new Error(`Missing manifest entry for ${baseName}`);
+    throw createLoaderError('ERR_MANIFEST_ENTRY_MISSING', `Missing manifest entry for ${baseName}`);
   }
   if (sources.format !== 'json') {
-    throw new Error(`Unsupported JSON object format for ${baseName}: ${sources.format}`);
+    throw createLoaderError(
+      'ERR_MANIFEST_FORMAT_UNSUPPORTED',
+      `Unsupported JSON object format for ${baseName}: ${sources.format}`
+    );
   }
   if (sources.paths.length > 1) {
-    throw new Error(`Ambiguous JSON sources for ${baseName}`);
+    if (strict) {
+      throw createLoaderError('ERR_MANIFEST_SOURCE_AMBIGUOUS', `Ambiguous JSON sources for ${baseName}`);
+    }
+    return readJsonFile(resolveReadableArtifactPath(sources.paths[0]), { maxBytes });
   }
-  return readJsonFile(sources.paths[0], { maxBytes });
+  return readJsonFile(resolveReadableArtifactPath(sources.paths[0]), { maxBytes });
 };
 
 /**
@@ -435,15 +476,21 @@ export const loadJsonObjectArtifactSync = (
     maxBytes
   });
   if (!sources?.paths?.length) {
-    throw new Error(`Missing manifest entry for ${baseName}`);
+    throw createLoaderError('ERR_MANIFEST_ENTRY_MISSING', `Missing manifest entry for ${baseName}`);
   }
   if (sources.format !== 'json') {
-    throw new Error(`Unsupported JSON object format for ${baseName}: ${sources.format}`);
+    throw createLoaderError(
+      'ERR_MANIFEST_FORMAT_UNSUPPORTED',
+      `Unsupported JSON object format for ${baseName}: ${sources.format}`
+    );
   }
   if (sources.paths.length > 1) {
-    throw new Error(`Ambiguous JSON sources for ${baseName}`);
+    if (strict) {
+      throw createLoaderError('ERR_MANIFEST_SOURCE_AMBIGUOUS', `Ambiguous JSON sources for ${baseName}`);
+    }
+    return readJsonFile(resolveReadableArtifactPath(sources.paths[0]), { maxBytes });
   }
-  return readJsonFile(sources.paths[0], { maxBytes });
+  return readJsonFile(resolveReadableArtifactPath(sources.paths[0]), { maxBytes });
 };
 
 /**

@@ -86,6 +86,9 @@ export const resolveEmbeddingRuntime = async ({
   const embeddingEnabled = embeddingsConfig.enabled !== false
     && resolvedEmbeddingMode !== 'off'
     && !embeddingService;
+  if (!embeddingEnabled) {
+    embeddingConcurrency = 0;
+  }
   const useStubEmbeddings = resolvedEmbeddingMode === 'stub' || baseStubEmbeddings;
   const modelConfig = getModelConfig(rootDir, userConfig);
   const modelId = argv.model || modelConfig.id || DEFAULT_MODEL_ID;

@@ -257,7 +257,7 @@ export async function loadSearchIndexes({
   let resolvedLoadExtractedProse = runExtractedProse || loadExtractedProse;
   const disableOptionalExtractedProse = (reason = null) => {
     if (!resolvedLoadExtractedProse || resolvedRunExtractedProse) return false;
-    if (emitOutput && reason) {
+    if (reason) {
       console.warn(`[search] ${reason}; skipping extracted-prose comment joins.`);
     }
     resolvedLoadExtractedProse = false;
@@ -310,24 +310,28 @@ export async function loadSearchIndexes({
     runProse ? { mode: 'prose', dir: proseDir } : null,
     runRecords ? { mode: 'records', dir: recordsDir } : null,
     includeExtractedProseInCompatibility ? { mode: 'extracted-prose', dir: extractedProseDir } : null
-  ];
-  const compatibilityTargets = [];
-  for (const entry of compatibilityTargetCandidates) {
-    if (!entry || !entry.dir) continue;
-    if (await hasIndexMetaAsync(entry.dir)) {
-      compatibilityTargets.push(entry);
-    }
-  }
+  ].filter((entry) => entry && entry.dir);
+  const compatibilityChecks = await Promise.all(
+    compatibilityTargetCandidates.map(async (entry) => ({
+      entry,
+      hasMeta: await hasIndexMetaAsync(entry.dir)
+    }))
+  );
+  const compatibilityTargets = compatibilityChecks
+    .filter((check) => check.hasMeta)
+    .map((check) => check.entry);
   if (compatibilityTargets.length) {
-    const keys = new Map();
-    for (const entry of compatibilityTargets) {
-      const strictCompatibilityKey = strict && (entry.mode !== 'extracted-prose' || resolvedRunExtractedProse);
-      const { key } = readCompatibilityKey(entry.dir, {
-        maxBytes: MAX_JSON_BYTES,
-        strict: strictCompatibilityKey
-      });
-      keys.set(entry.mode, key);
-    }
+    const compatibilityResults = await Promise.all(
+      compatibilityTargets.map(async (entry) => {
+        const strictCompatibilityKey = strict && (entry.mode !== 'extracted-prose' || resolvedRunExtractedProse);
+        const { key } = readCompatibilityKey(entry.dir, {
+          maxBytes: MAX_JSON_BYTES,
+          strict: strictCompatibilityKey
+        });
+        return { mode: entry.mode, key };
+      })
+    );
+    const keys = new Map(compatibilityResults.map((entry) => [entry.mode, entry.key]));
     let keysToValidate = keys;
     const hasMixedCompatibilityKeys = (map) => (new Set(map.values())).size > 1;
     if (hasMixedCompatibilityKeys(keysToValidate) && !resolvedRunExtractedProse && keysToValidate.has('extracted-prose')) {
@@ -510,6 +514,7 @@ export async function loadSearchIndexes({
   warnPendingState(idxProse, 'prose', { emitOutput, useSqlite, annActive });
   warnPendingState(idxExtractedProse, 'extracted-prose', { emitOutput, useSqlite, annActive });
 
+  const relationLoadTasks = [];
   if (runCode) {
     idxCode.denseVec = resolveDenseVector(idxCode, 'code', resolvedDenseVectorMode);
     if (!idxCode.denseVec && idxCode?.state?.embeddings?.embeddingIdentity) {
@@ -518,10 +523,20 @@ export async function loadSearchIndexes({
     attachDenseVectorLoader(idxCode, 'code', codeIndexDir);
     idxCode.indexDir = codeIndexDir;
     if ((useSqlite || useLmdb) && needsFileRelations && !idxCode.fileRelations) {
-      idxCode.fileRelations = await loadFileRelations(rootDir, userConfig, 'code', { resolveOptions });
+      relationLoadTasks.push(
+        loadFileRelations(rootDir, userConfig, 'code', { resolveOptions })
+          .then((value) => {
+            idxCode.fileRelations = value;
+          })
+      );
     }
     if ((useSqlite || useLmdb) && needsRepoMap && !idxCode.repoMap) {
-      idxCode.repoMap = await loadRepoMap(rootDir, userConfig, 'code', { resolveOptions });
+      relationLoadTasks.push(
+        loadRepoMap(rootDir, userConfig, 'code', { resolveOptions })
+          .then((value) => {
+            idxCode.repoMap = value;
+          })
+      );
     }
   }
   if (runProse) {
@@ -532,10 +547,20 @@ export async function loadSearchIndexes({
     attachDenseVectorLoader(idxProse, 'prose', proseIndexDir);
     idxProse.indexDir = proseIndexDir;
     if ((useSqlite || useLmdb) && needsFileRelations && !idxProse.fileRelations) {
-      idxProse.fileRelations = await loadFileRelations(rootDir, userConfig, 'prose', { resolveOptions });
+      relationLoadTasks.push(
+        loadFileRelations(rootDir, userConfig, 'prose', { resolveOptions })
+          .then((value) => {
+            idxProse.fileRelations = value;
+          })
+      );
     }
     if ((useSqlite || useLmdb) && needsRepoMap && !idxProse.repoMap) {
-      idxProse.repoMap = await loadRepoMap(rootDir, userConfig, 'prose', { resolveOptions });
+      relationLoadTasks.push(
+        loadRepoMap(rootDir, userConfig, 'prose', { resolveOptions })
+          .then((value) => {
+            idxProse.repoMap = value;
+          })
+      );
     }
   }
   if (resolvedLoadExtractedProse) {
@@ -550,11 +575,24 @@ export async function loadSearchIndexes({
     attachDenseVectorLoader(idxExtractedProse, 'extracted-prose', extractedProseDir);
     idxExtractedProse.indexDir = extractedProseDir;
     if (needsFileRelations && !idxExtractedProse.fileRelations) {
-      idxExtractedProse.fileRelations = await loadFileRelations(rootDir, userConfig, 'extracted-prose', { resolveOptions });
+      relationLoadTasks.push(
+        loadFileRelations(rootDir, userConfig, 'extracted-prose', { resolveOptions })
+          .then((value) => {
+            idxExtractedProse.fileRelations = value;
+          })
+      );
     }
     if (needsRepoMap && !idxExtractedProse.repoMap) {
-      idxExtractedProse.repoMap = await loadRepoMap(rootDir, userConfig, 'extracted-prose', { resolveOptions });
+      relationLoadTasks.push(
+        loadRepoMap(rootDir, userConfig, 'extracted-prose', { resolveOptions })
+          .then((value) => {
+            idxExtractedProse.repoMap = value;
+          })
+      );
     }
+  }
+  if (relationLoadTasks.length) {
+    await Promise.all(relationLoadTasks);
   }
 
   if (runRecords) {
@@ -877,10 +915,12 @@ export async function loadSearchIndexes({
     return idx.tantivy;
   };
 
-  await attachTantivy(idxCode, 'code', codeIndexDir);
-  await attachTantivy(idxProse, 'prose', proseIndexDir);
-  await attachTantivy(idxExtractedProse, 'extracted-prose', extractedProseDir);
-  await attachTantivy(idxRecords, 'records', recordsDir);
+  await Promise.all([
+    attachTantivy(idxCode, 'code', codeIndexDir),
+    attachTantivy(idxProse, 'prose', proseIndexDir),
+    attachTantivy(idxExtractedProse, 'extracted-prose', extractedProseDir),
+    attachTantivy(idxRecords, 'records', recordsDir)
+  ]);
 
   if (tantivyRequired) {
     const missingModes = [];

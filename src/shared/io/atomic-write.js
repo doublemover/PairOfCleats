@@ -121,6 +121,9 @@ const writeAtomicPayload = async (targetPath, payload, {
     await fs.mkdir(parent, { recursive: true });
   }
   const tempPath = createTempPath(safeTargetPath);
+  if (mkdir && tempPath) {
+    await fs.mkdir(path.dirname(tempPath), { recursive: true });
+  }
   let handle = null;
   try {
     handle = await openWithRetry(tempPath, 'wx', mode);

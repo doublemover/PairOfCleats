@@ -1051,7 +1051,7 @@ export function createBuildScheduler(input = {}) {
     if (typeof fn !== 'function') {
       return Promise.reject(new Error('schedule requires a function'));
     }
-    if (!enabled || lowResourceMode) {
+    if (!enabled) {
       return Promise.resolve().then(fn);
     }
     if (shuttingDown) {

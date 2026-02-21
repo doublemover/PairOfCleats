@@ -315,6 +315,8 @@ export function createIndexCache({
 
 export async function loadIndexWithCache(cache, dir, options, loader) {
   if (!cache) return loader(dir, options);
+  const resolvedDir = path.resolve(String(dir || ''));
+  const canonicalDir = await fs.realpath(resolvedDir).catch(() => resolvedDir);
   const hnswKey = options?.includeHnsw ? JSON.stringify(options?.hnswConfig || {}) : 'no-hnsw';
   const denseKey = options?.denseVectorMode ? String(options.denseVectorMode) : '';
   const includeKey = [
@@ -325,13 +327,13 @@ export async function loadIndexWithCache(cache, dir, options, loader) {
     options?.includeRepoMap !== false ? 'repo-map' : 'no-repo-map',
     options?.includeTokenIndex !== false ? 'token' : 'no-token'
   ].join(',');
-  const cacheKey = `${dir}::${options?.modelIdDefault || ''}::${options?.fileChargramN || ''}::${hnswKey}::${denseKey}::${includeKey}`;
-  const signature = await buildIndexSignature(dir);
+  const cacheKey = `${canonicalDir}::${options?.modelIdDefault || ''}::${options?.fileChargramN || ''}::${hnswKey}::${denseKey}::${includeKey}`;
+  const signature = await buildIndexSignature(canonicalDir);
   const cached = cache.get(cacheKey);
   if (cached && cached.signature === signature) {
     return cached.value;
   }
-  const value = await loader(dir, options);
+  const value = await loader(canonicalDir, options);
   cache.set(cacheKey, { signature, value });
   return value;
 }

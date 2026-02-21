@@ -827,6 +827,14 @@ export async function validateIndexArtifacts(input = {}) {
         }
       }
 
+      const hasJsonVariant = (basePath) => (
+        fs.existsSync(basePath)
+        || fs.existsSync(`${basePath}.gz`)
+        || fs.existsSync(`${basePath}.zst`)
+      );
+      const readJsonVariant = (basePath) => (
+        hasJsonVariant(basePath) ? readJsonFile(basePath) : null
+      );
       const denseTargets = [
         { label: 'dense_vectors', name: 'dense_vectors', file: 'dense_vectors_uint8.json' },
         { label: 'dense_vectors_doc', name: 'dense_vectors_doc', file: 'dense_vectors_doc_uint8.json' },
@@ -837,8 +845,7 @@ export async function validateIndexArtifacts(input = {}) {
           ? readJsonArtifact(target.name)
           : (() => {
             const densePath = path.join(dir, target.file);
-            if (!fs.existsSync(densePath) && !fs.existsSync(`${densePath}.gz`)) return null;
-            return readJsonFile(densePath);
+            return readJsonVariant(densePath);
           })();
         if (!denseRaw) continue;
         const dense = normalizeDenseVectors(denseRaw);
@@ -886,7 +893,7 @@ export async function validateIndexArtifacts(input = {}) {
       for (const target of hnswTargets) {
         const hnswMeta = strict
           ? readJsonArtifact(target.metaName)
-          : (fs.existsSync(target.metaPath) ? readJsonFile(target.metaPath) : null);
+          : readJsonVariant(target.metaPath);
         if (!hnswMeta) continue;
         validateSchema(
           report,
@@ -942,7 +949,7 @@ export async function validateIndexArtifacts(input = {}) {
         for (const target of lanceTargets) {
           const meta = strict
             ? readJsonArtifact(target.metaName)
-            : (fs.existsSync(target.metaPath) ? readJsonFile(target.metaPath) : null);
+            : readJsonVariant(target.metaPath);
           if (!meta) continue;
           validateSchema(
             report,
@@ -975,7 +982,7 @@ export async function validateIndexArtifacts(input = {}) {
         ? readJsonArtifact('dense_vectors_sqlite_vec_meta')
         : (() => {
           const sqliteMetaPath = path.join(dir, 'dense_vectors_sqlite_vec.meta.json');
-          return fs.existsSync(sqliteMetaPath) ? readJsonFile(sqliteMetaPath) : null;
+          return readJsonVariant(sqliteMetaPath);
         })();
       if (sqliteVecMeta) {
         validateSchema(
