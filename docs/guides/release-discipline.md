@@ -26,30 +26,14 @@ Execution order:
 1. changelog validation for the current package version
 2. contract/spec drift gate (`tools/docs/contract-drift.js --fail`)
 3. Python toolchain policy gate (`tools/tooling/python-check.js`)
-4. essential reliability blockers
-5. smoke sequence in fixed order:
+4. smoke sequence in fixed order:
    - `pairofcleats --version`
    - fixture index build
    - fixture index validate (`--strict`)
    - fixture search
    - editor package smoke checks (Sublime then VS Code)
+   - TUI artifact manifest smoke check
    - service-mode smoke check
-
-## Essential blockers
-
-Release-check enforces these blockers:
-
-- `ops-health-contract` (`tests/ops/health-check-contract.test.js`)
-- `ops-failure-injection-contract` (`tests/ops/failure-injection/retrieval-hotpath.test.js`)
-- `ops-config-guardrails-contract` (`tests/ops/config/guardrails.test.js`)
-
-Override path (explicit and audit-visible):
-
-- `--allow-blocker-override`
-- `--override-id <blocker-id>` for each override
-- `--override-marker <ticket-or-incident-id>`
-
-Each override emits a `[release-override]` JSON audit record.
 
 ## Breaking release mode
 
@@ -63,7 +47,7 @@ This requires a non-empty `### Breaking` section for the current version in `CHA
 
 ## Removed permissive modes
 
-`--blockers-only` and `--no-blockers` are retired. Release checks are all-on and deterministic.
+Blocker-related flags are unsupported (`--blockers-only`, `--no-blockers`, `--allow-blocker-override`, `--override-id`, `--override-marker`).
 
 ## Python policy
 

@@ -52,15 +52,13 @@ const expected = [
   'changelog.entry',
   'contracts.drift',
   'toolchain.python',
-  'ops-health-contract',
-  'ops-failure-injection-contract',
-  'ops-config-guardrails-contract',
   'smoke.version',
   'smoke.fixture-index-build',
   'smoke.fixture-index-validate-strict',
   'smoke.fixture-search',
   'smoke.editor-sublime',
   'smoke.editor-vscode',
+  'smoke.tui-build',
   'smoke.service-mode'
 ];
 

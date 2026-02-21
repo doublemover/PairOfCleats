@@ -391,8 +391,14 @@ const main = async () => {
   const runId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const runLogDir = logDir ? path.join(logDir, `run-${runId}`) : '';
   const timingsPath = argv['timings-file'] ? path.resolve(ROOT, argv['timings-file']) : '';
-  const hasCoverageFlag = process.argv.includes('--coverage');
-  const coverageRequested = hasCoverageFlag || Boolean(argv['coverage-merge']) || Boolean(argv['coverage-changed']);
+  const hasCoverageFlag = process.argv.some((arg) => arg === '--coverage' || arg.startsWith('--coverage='));
+  const coveragePathProvided = typeof argv.coverage === 'string' && argv.coverage.trim().length > 0;
+  const coverageRequested = (
+    hasCoverageFlag
+    || coveragePathProvided
+    || Boolean(argv['coverage-merge'])
+    || Boolean(argv['coverage-changed'])
+  );
   const coverageDir = path.join(ROOT, '.c8', `run-${runId}`);
   const coverageOutputPath = (() => {
     const raw = typeof argv.coverage === 'string' ? argv.coverage.trim() : '';

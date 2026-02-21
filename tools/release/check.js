@@ -29,24 +29,6 @@ const readOption = (name) => {
   return '';
 };
 
-const readMultiOption = (name) => {
-  const flag = `--${name}`;
-  const values = [];
-  for (let i = 0; i < args.length; i += 1) {
-    const arg = args[i];
-    if (arg === flag) {
-      const next = args[i + 1];
-      if (typeof next === 'string' && next.trim()) values.push(next.trim());
-      continue;
-    }
-    if (typeof arg === 'string' && arg.startsWith(`${flag}=`)) {
-      const raw = arg.slice(flag.length + 1).trim();
-      if (raw) values.push(raw);
-    }
-  }
-  return values;
-};
-
 const normalizePath = (value) => String(value || '').replace(/\\/g, '/');
 const toIso = (value = Date.now()) => new Date(value).toISOString();
 const TESTING_ENV_KEY = 'PAIROFCLEATS_TESTING';
@@ -57,12 +39,19 @@ const manifestPathArg = readOption('manifest').trim();
 const reportPathInput = reportPathArg || 'release_check_report.json';
 const manifestPathInput = manifestPathArg || 'release-manifest.json';
 const requireBreaking = hasFlag('--breaking');
-const allowBlockerOverride = hasFlag('--allow-blocker-override');
 const dryRun = hasFlag('--dry-run');
 const dryRunFailStep = readOption('dry-run-fail-step').trim();
+const blockerFlagsUsed = (
+  hasFlag('--blockers-only')
+  || hasFlag('--no-blockers')
+  || hasFlag('--allow-blocker-override')
+  || hasOption('override-id')
+  || hasOption('override-ids')
+  || hasOption('override-marker')
+);
 
-if (hasFlag('--blockers-only') || hasFlag('--no-blockers')) {
-  console.error('release-check: --blockers-only and --no-blockers are retired. Required checks cannot be skipped.');
+if (blockerFlagsUsed) {
+  console.error('release-check: blocker-related flags are no longer supported.');
   process.exit(1);
 }
 
@@ -71,9 +60,6 @@ if (hasFlag('--help') || hasFlag('-h')) {
   console.error('');
   console.error('Options:');
   console.error('  --breaking                     Require non-empty "### Breaking" notes for current version.');
-  console.error('  --allow-blocker-override       Allow explicit blocker override for failing blockers.');
-  console.error('  --override-id <id>             Blocker ID to override (repeatable).');
-  console.error('  --override-marker <marker>     Required marker (ticket/incident ID) for overrides.');
   console.error('  --report <path>                Release check report output path.');
   console.error('  --manifest <path>              Release manifest output path.');
   console.error('  --dry-run                      Validate flow/order without executing commands.');
@@ -84,38 +70,6 @@ if (hasFlag('--help') || hasFlag('-h')) {
 const root = process.cwd();
 const reportPath = path.resolve(root, reportPathInput);
 const manifestPath = path.resolve(root, manifestPathInput);
-
-const overrideMarker = readOption('override-marker').trim();
-const hasOverrideMarkerOption = hasOption('override-marker');
-const overrideIds = new Set([
-  ...readMultiOption('override-id'),
-  ...readMultiOption('override-ids')
-    .flatMap((entry) => String(entry).split(',').map((value) => value.trim()))
-    .filter(Boolean)
-]);
-
-if (hasOverrideMarkerOption && (!overrideMarker || overrideMarker.startsWith('-'))) {
-  console.error('release-check: --override-marker requires a non-flag marker value.');
-  process.exit(1);
-}
-
-const ESSENTIAL_BLOCKERS = Object.freeze([
-  {
-    id: 'ops-health-contract',
-    owner: 'ops-runtime',
-    command: [process.execPath, 'tests/ops/health-check-contract.test.js']
-  },
-  {
-    id: 'ops-failure-injection-contract',
-    owner: 'ops-runtime',
-    command: [process.execPath, 'tests/ops/failure-injection/retrieval-hotpath.test.js']
-  },
-  {
-    id: 'ops-config-guardrails-contract',
-    owner: 'ops-runtime',
-    command: [process.execPath, 'tests/ops/config/guardrails.test.js']
-  }
-]);
 
 const SMOKE_STEPS = Object.freeze([
   {
@@ -348,7 +302,6 @@ const main = () => {
   const startedAtMs = Date.now();
   const startedAt = toIso(startedAtMs);
   const steps = [];
-  const overrides = [];
   let version = null;
   let ok = true;
 
@@ -422,31 +375,6 @@ const main = () => {
   steps.push(pythonToolchainStep);
   if (pythonToolchainStep.status === 'failed') ok = false;
 
-  for (const blocker of ESSENTIAL_BLOCKERS) {
-    const step = recordStep({
-      id: blocker.id,
-      phase: 'blockers',
-      label: blocker.id,
-      command: blocker.command,
-      allowOverride: true,
-      owner: blocker.owner
-    });
-    steps.push(step);
-    if (step.overridden) {
-      const audit = {
-        type: 'release-blocker-override',
-        blockerId: blocker.id,
-        owner: blocker.owner,
-        marker: overrideMarker,
-        at: step.finishedAt,
-        detail: step.stderrTail || step.stdoutTail || `exit ${step.exitCode}`
-      };
-      overrides.push(audit);
-      console.error(`[release-override] ${JSON.stringify(audit)}`);
-    }
-    if (step.status === 'failed') ok = false;
-  }
-
   for (const smokeStep of SMOKE_STEPS) {
     const step = recordStep({
       id: smokeStep.id,
@@ -457,12 +385,6 @@ const main = () => {
     });
     steps.push(step);
     if (step.status === 'failed') ok = false;
-  }
-
-  for (const overrideId of overrideIds) {
-    if (!steps.some((step) => step.id === overrideId && step.overridden)) {
-      console.error(`release-check: override marker unused for blocker ${overrideId}.`);
-    }
   }
 
   const finishedAtMs = Date.now();
@@ -480,15 +402,13 @@ const main = () => {
     releaseVersion: version,
     strict: {
       skipModesDisabled: true,
-      requiredChecks: ['changelog', 'contracts', 'blockers', 'smoke']
+      requiredChecks: ['changelog', 'contracts', 'toolchain', 'smoke']
     },
     summary: {
       total: steps.length,
       passed: passedCount,
-      failed: failedCount,
-      overridden: overrides.length
+      failed: failedCount
     },
-    overrides,
     checks: steps.map((step) => ({
       ...step,
       command: step.command.map((part) => String(part))

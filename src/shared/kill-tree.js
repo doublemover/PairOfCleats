@@ -3,7 +3,12 @@ import { spawnSync } from 'node:child_process';
 const DEFAULT_GRACE_MS = 5000;
 const DEFAULT_SIGNAL = 'SIGTERM';
 
-const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const wait = (ms) => new Promise((resolve) => {
+  const timer = setTimeout(resolve, ms);
+  if (typeof timer.unref === 'function') {
+    timer.unref();
+  }
+});
 
 const toGraceMs = (value) => {
   const parsed = Number(value);
