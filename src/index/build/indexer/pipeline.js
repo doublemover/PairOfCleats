@@ -371,6 +371,8 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   const heavyUtilizationStages = new Set(['processing', 'relations', 'postings', 'write']);
   let utilizationUnderTargetSinceMs = 0;
   let utilizationTargetWarningEmitted = false;
+  const queueUtilizationUnderTargetSinceMs = new Map();
+  const queueUtilizationWarningEmitted = new Set();
   let lastCpuUsage = process.cpuUsage();
   let lastCpuUsageAtMs = Date.now();
 
@@ -544,6 +546,56 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       }
     });
   };
+  const maybeWarnQueueUtilizationTarget = ({ snapshot, stage, step }) => {
+    const schedulerStats = snapshot?.scheduler;
+    const queues = schedulerStats?.queues && typeof schedulerStats.queues === 'object'
+      ? schedulerStats.queues
+      : null;
+    if (!queues) return;
+    const now = Date.now();
+    for (const [queueName, queueStats] of Object.entries(queues)) {
+      const pending = Math.max(0, Number(queueStats?.pending) || 0);
+      const running = Math.max(0, Number(queueStats?.running) || 0);
+      const demand = pending + running;
+      const key = String(queueName || '');
+      const warningKey = `${stage || 'unknown'}:${key}`;
+      if (!key || demand < 4) {
+        queueUtilizationUnderTargetSinceMs.delete(key);
+        queueUtilizationWarningEmitted.delete(warningKey);
+        continue;
+      }
+      const utilization = running / Math.max(1, demand);
+      if (!Number.isFinite(utilization) || utilization >= utilizationTarget) {
+        queueUtilizationUnderTargetSinceMs.delete(key);
+        queueUtilizationWarningEmitted.delete(warningKey);
+        continue;
+      }
+      const since = queueUtilizationUnderTargetSinceMs.get(key) || now;
+      queueUtilizationUnderTargetSinceMs.set(key, since);
+      const underMs = now - since;
+      if (underMs < utilizationAlertWindowMs) continue;
+      if (queueUtilizationWarningEmitted.has(warningKey)) continue;
+      queueUtilizationWarningEmitted.add(warningKey);
+      log(
+        `[perf] sustained queue utilization below target at ${stage}${step ? `/${step}` : ''}: ` +
+        `queue=${key}, utilization=${utilization.toFixed(2)}, target=${utilizationTarget.toFixed(2)}, ` +
+        `pending=${pending}, running=${running}, durationMs=${underMs}.`
+      );
+      stageCheckpoints.record({
+        stage: 'scheduler',
+        step: 'queue-utilization-target-breach',
+        label: `${stage}${step ? `/${step}` : ''}:${key}`,
+        extra: {
+          queue: key,
+          utilization,
+          target: utilizationTarget,
+          pending,
+          running,
+          durationMs: underMs
+        }
+      });
+    }
+  };
   /**
    * Record a stage checkpoint enriched with the current runtime snapshot.
    *
@@ -576,6 +628,11 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       step
     });
     maybeWarnUtilizationTarget({
+      snapshot: runtimeSnapshot,
+      stage,
+      step
+    });
+    maybeWarnQueueUtilizationTarget({
       snapshot: runtimeSnapshot,
       stage,
       step
