@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 
 /**
@@ -96,5 +97,22 @@ export function readFileRangeSync(filePath, start, end) {
     return buffer.subarray(0, bytesRead);
   } finally {
     if (fd !== null) fs.closeSync(fd);
+  }
+}
+
+/**
+ * Async existence probe for files or directories.
+ * Returns false for not-found and true for any existing target.
+ *
+ * @param {string} targetPath
+ * @returns {Promise<boolean>}
+ */
+export async function pathExists(targetPath) {
+  if (!targetPath) return false;
+  try {
+    await fsPromises.access(targetPath, fs.constants.F_OK);
+    return true;
+  } catch {
+    return false;
   }
 }

@@ -1504,15 +1504,15 @@ Exit criteria:
 
 Intent: eliminate sync FS from request-time paths with one strict signature flow.
 
-- [ ] Keep the now-async signature path as baseline and remove remaining sync request-time artifact reads.
-- [ ] Replace sync loaders in request path (`loadJsonArrayArtifactSync`, sync file existence probes) with async equivalents.
-- [ ] Ensure one signature strategy keyed by `index_state.json` + deterministic cache policy.
-- [ ] Remove redundant signature/read branches across retrieval/tooling entrypoints.
+- [x] Keep the now-async signature path as baseline and remove remaining sync request-time artifact reads.
+- [x] Replace sync loaders in request path (`loadJsonArrayArtifactSync`, sync file existence probes) with async equivalents.
+- [x] Ensure one signature strategy keyed by `index_state.json` + deterministic cache policy.
+- [x] Remove redundant signature/read branches across retrieval/tooling entrypoints.
 
 Tests:
 
-- [ ] No-sync-FS request-path tests (including async artifact loader usage in retrieval startup path).
-- [ ] Signature invalidation tests.
+- [x] No-sync-FS request-path tests (including async artifact loader usage in retrieval startup path).
+- [x] Signature invalidation tests.
 
 Touchpoints:
 
@@ -1526,7 +1526,7 @@ Touchpoints:
 
 Exit criteria:
 
-- [ ] Request-time signature and artifact-read path is async-only and deterministic.
+- [x] Request-time signature and artifact-read path is async-only and deterministic.
 
 ---
 

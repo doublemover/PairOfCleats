@@ -1,4 +1,3 @@
-import fsSync from 'node:fs';
 import path from 'node:path';
 import {
   applyAdaptiveDictConfig,
@@ -27,7 +26,7 @@ import { configureOutputCaches } from '../output.js';
 import { createSearchTelemetry } from './telemetry.js';
 import { getMissingFlagMessages, resolveIndexedFileCount } from './options.js';
 import { evaluateAutoSqliteThresholds, resolveIndexStats } from './auto-sqlite.js';
-import { hasIndexMeta, hasLmdbStore } from './index-loader.js';
+import { hasIndexMetaAsync, hasLmdbStore } from './index-loader.js';
 import { applyBranchFilter } from './branch-filter.js';
 import { createBackendContext } from './backend-context.js';
 import { resolveBackendSelection } from './policy.js';
@@ -44,6 +43,7 @@ import { stableStringify } from '../../shared/stable-json.js';
 import { RETRIEVAL_SPARSE_UNAVAILABLE_CODE } from '../sparse/requirements.js';
 import { resolveSqliteFtsRoutingByMode } from '../routing-policy.js';
 import { runWithOperationalFailurePolicy } from '../../shared/ops-failure-injection.js';
+import { pathExists } from '../../shared/files.js';
 import {
   buildQueryPlanCacheKey,
   buildQueryPlanConfigSignature,
@@ -364,7 +364,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
             err?.code || ERROR_CODES.NO_INDEX
           );
         }
-        if (!hasIndexMeta(modeDir)) {
+        if (!await hasIndexMetaAsync(modeDir)) {
           return bail(
             `[search] ${mode} index not found at ${modeDir} for --as-of ${asOfContext.ref}.`,
             1,
@@ -534,10 +534,13 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
         console.warn(`[search] ${warning}`);
       }
     }
-    const sqliteCodeAvailable = !sqliteRootsMixed && fsSync.existsSync(sqliteCodePath) && isSqliteReady(sqliteStateCode);
-    const sqliteProseAvailable = !sqliteRootsMixed && fsSync.existsSync(sqliteProsePath) && isSqliteReady(sqliteStateProse);
+    const sqliteCodePathExists = !sqliteRootsMixed && await pathExists(sqliteCodePath);
+    const sqliteProsePathExists = !sqliteRootsMixed && await pathExists(sqliteProsePath);
+    const sqliteExtractedPathExists = !sqliteRootsMixed && await pathExists(sqliteExtractedProsePath);
+    const sqliteCodeAvailable = sqliteCodePathExists && isSqliteReady(sqliteStateCode);
+    const sqliteProseAvailable = sqliteProsePathExists && isSqliteReady(sqliteStateProse);
     const sqliteExtractedProseAvailable = !sqliteRootsMixed
-      && fsSync.existsSync(sqliteExtractedProsePath)
+      && sqliteExtractedPathExists
       && isSqliteReady(sqliteStateExtractedProse);
     const sqliteAvailable = (!needsCode || sqliteCodeAvailable)
       && (!needsProse || sqliteProseAvailable)

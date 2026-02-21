@@ -1,7 +1,7 @@
 import { loadIndexWithCache } from '../index-cache.js';
 import { MAX_JSON_BYTES, loadJsonArrayArtifact } from '../../shared/artifact-io.js';
 import { hasLmdbStore } from '../../storage/lmdb/utils.js';
-import { hasChunkMetaArtifacts, resolveIndexDir } from '../cli-index.js';
+import { hasChunkMetaArtifacts, hasChunkMetaArtifactsAsync, resolveIndexDir } from '../cli-index.js';
 
 export { hasLmdbStore };
 
@@ -45,6 +45,10 @@ export async function loadIndexCached({
 
 export function hasIndexMeta(dir) {
   return hasChunkMetaArtifacts(dir);
+}
+
+export async function hasIndexMetaAsync(dir) {
+  return hasChunkMetaArtifactsAsync(dir);
 }
 
 export function warnPendingState(idx, label, { emitOutput, useSqlite, annActive }) {

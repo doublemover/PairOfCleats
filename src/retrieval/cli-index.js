@@ -1,6 +1,8 @@
 import fsSync from 'node:fs';
+import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { buildLocalCacheKey } from '../shared/cache-key.js';
+import { pathExists } from '../shared/files.js';
 import { getIndexDir } from '../../tools/shared/dict-utils.js';
 import { buildFilterIndex, hydrateFilterIndex } from './filter-index.js';
 import { createError, ERROR_CODES } from '../shared/error-codes.js';
@@ -25,6 +27,12 @@ const hasFile = (targetPath) => (
   || fsSync.existsSync(`${targetPath}.zst`)
 );
 
+const hasFileAsync = async (targetPath) => (
+  await pathExists(targetPath)
+  || await pathExists(`${targetPath}.gz`)
+  || await pathExists(`${targetPath}.zst`)
+);
+
 export function hasChunkMetaArtifacts(dir) {
   if (!dir) return false;
   const legacyCandidates = [
@@ -38,6 +46,36 @@ export function hasChunkMetaArtifacts(dir) {
     if (hasFile(path.join(dir, relPath))) return true;
   }
   if (fsSync.existsSync(path.join(dir, 'chunk_meta.parts'))) return true;
+  try {
+    const manifest = loadPiecesManifest(dir, { maxBytes: MAX_JSON_BYTES, strict: true });
+    const presence = resolveArtifactPresence(dir, 'chunk_meta', {
+      manifest,
+      maxBytes: MAX_JSON_BYTES,
+      strict: false
+    });
+    if (!presence || presence.format === 'missing') return false;
+    if (presence.error) return false;
+    if (presence.missingMeta) return false;
+    if (Array.isArray(presence.missingPaths) && presence.missingPaths.length) return false;
+    return Array.isArray(presence.paths) && presence.paths.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+export async function hasChunkMetaArtifactsAsync(dir) {
+  if (!dir) return false;
+  const legacyCandidates = [
+    'chunk_meta.json',
+    'chunk_meta.jsonl',
+    'chunk_meta.meta.json',
+    'chunk_meta.columnar.json',
+    'chunk_meta.binary-columnar.meta.json'
+  ];
+  for (const relPath of legacyCandidates) {
+    if (await hasFileAsync(path.join(dir, relPath))) return true;
+  }
+  if (await pathExists(path.join(dir, 'chunk_meta.parts'))) return true;
   try {
     const manifest = loadPiecesManifest(dir, { maxBytes: MAX_JSON_BYTES, strict: true });
     const presence = resolveArtifactPresence(dir, 'chunk_meta', {
@@ -139,9 +177,9 @@ export async function loadIndex(dir, options) {
       ? meta.path
       : `${baseName}.bin`;
     const absPath = path.join(dir, relPath);
-    if (!fsSync.existsSync(absPath)) return null;
+    if (!await pathExists(absPath)) return null;
     try {
-      const buffer = fsSync.readFileSync(absPath);
+      const buffer = await fsPromises.readFile(absPath);
       const view = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
       const dims = Number.isFinite(Number(meta.dims))
         ? Math.max(0, Math.floor(Number(meta.dims)))

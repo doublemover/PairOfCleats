@@ -1,8 +1,8 @@
-import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSubprocessSync } from '../../shared/subprocess.js';
+import { pathExists } from '../../shared/files.js';
 import {
-  hasIndexMeta,
+  hasIndexMetaAsync,
   loadFileRelations,
   loadIndexCached,
   loadRepoMap,
@@ -53,14 +53,14 @@ const normalizeIdentityNumber = (value) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
-const loadDenseArtifactFromLegacyPath = (dir, artifactName) => {
+const loadDenseArtifactFromLegacyPath = async (dir, artifactName) => {
   const candidates = DENSE_ARTIFACT_LEGACY_FILES[artifactName];
   if (!Array.isArray(candidates) || !candidates.length) return null;
   for (const relPath of candidates) {
     const absPath = path.join(dir, relPath);
-    const exists = fs.existsSync(absPath)
-      || fs.existsSync(`${absPath}.gz`)
-      || fs.existsSync(`${absPath}.zst`);
+    const exists = await pathExists(absPath)
+      || await pathExists(`${absPath}.gz`)
+      || await pathExists(`${absPath}.zst`);
     if (!exists) continue;
     try {
       return readJsonFile(absPath, { maxBytes: MAX_JSON_BYTES });
@@ -194,23 +194,23 @@ export async function loadSearchIndexes({
     }
   }
 
-  const resolveTantivyAvailability = (mode, indexDir) => {
+  const resolveTantivyAvailability = async (mode, indexDir) => {
     if (!tantivyEnabled || !indexDir) {
       return { dir: null, metaPath: null, meta: null, available: false };
     }
     const paths = resolveTantivyPaths(indexDir, mode, resolvedTantivyConfig);
     let meta = null;
-    if (paths.metaPath && fs.existsSync(paths.metaPath)) {
+    if (paths.metaPath && await pathExists(paths.metaPath)) {
       try {
         meta = readJsonFile(paths.metaPath, { maxBytes: MAX_JSON_BYTES });
       } catch {}
     }
-    const available = Boolean(meta && paths.dir && fs.existsSync(paths.dir));
+    const available = Boolean(meta && paths.dir && await pathExists(paths.dir));
     return { ...paths, meta, available };
   };
 
-  const ensureTantivyIndex = (mode, indexDir) => {
-    const availability = resolveTantivyAvailability(mode, indexDir);
+  const ensureTantivyIndex = async (mode, indexDir) => {
+    const availability = await resolveTantivyAvailability(mode, indexDir);
     if (availability.available) return availability;
     if (!tantivyRequired || !resolvedTantivyConfig.autoBuild) return availability;
     const toolRoot = resolveToolRoot();
@@ -282,7 +282,7 @@ export async function loadSearchIndexes({
         resolvedLoadExtractedProse = false;
         extractedProseDir = null;
       }
-      if (!hasIndexMeta(extractedProseDir)) {
+      if (!await hasIndexMetaAsync(extractedProseDir)) {
         if (resolvedRunExtractedProse && emitOutput) {
           console.warn('[search] extracted-prose index not found; skipping.');
         }
@@ -305,12 +305,19 @@ export async function loadSearchIndexes({
   }
 
   const includeExtractedProseInCompatibility = resolvedLoadExtractedProse;
-  const compatibilityTargets = [
+  const compatibilityTargetCandidates = [
     runCode ? { mode: 'code', dir: codeDir } : null,
     runProse ? { mode: 'prose', dir: proseDir } : null,
     runRecords ? { mode: 'records', dir: recordsDir } : null,
     includeExtractedProseInCompatibility ? { mode: 'extracted-prose', dir: extractedProseDir } : null
-  ].filter((entry) => entry && entry.dir && hasIndexMeta(entry.dir));
+  ];
+  const compatibilityTargets = [];
+  for (const entry of compatibilityTargetCandidates) {
+    if (!entry || !entry.dir) continue;
+    if (await hasIndexMetaAsync(entry.dir)) {
+      compatibilityTargets.push(entry);
+    }
+  }
   if (compatibilityTargets.length) {
     const keys = new Map();
     for (const entry of compatibilityTargets) {
@@ -417,7 +424,7 @@ export async function loadSearchIndexes({
             if (strict) continue;
           }
           if ((!loaded || !Array.isArray(loaded.vectors) || !loaded.vectors.length) && !strict) {
-            loaded = loadDenseArtifactFromLegacyPath(dir, artifactName);
+            loaded = await loadDenseArtifactFromLegacyPath(dir, artifactName);
           }
           if (!loaded || !Array.isArray(loaded.vectors) || !loaded.vectors.length) continue;
           if (!loaded.model && modelIdDefault) loaded.model = modelIdDefault;
@@ -622,7 +629,7 @@ export async function loadSearchIndexes({
         }
       }
     }
-    if (!meta && !strict && targetPaths.metaPath && fs.existsSync(targetPaths.metaPath)) {
+    if (!meta && !strict && targetPaths.metaPath && await pathExists(targetPaths.metaPath)) {
       try {
         meta = readJsonFile(targetPaths.metaPath, { maxBytes: MAX_JSON_BYTES });
       } catch {}
@@ -655,10 +662,10 @@ export async function loadSearchIndexes({
         }
       }
     }
-    if (!lanceDir && !strict && targetPaths.dir && fs.existsSync(targetPaths.dir)) {
+    if (!lanceDir && !strict && targetPaths.dir && await pathExists(targetPaths.dir)) {
       lanceDir = targetPaths.dir;
     }
-    const available = Boolean(meta && lanceDir && fs.existsSync(lanceDir));
+    const available = Boolean(meta && lanceDir && await pathExists(lanceDir));
     idx.lancedb = {
       target,
       dir: lanceDir || null,
@@ -858,9 +865,9 @@ export async function loadSearchIndexes({
     }
   }
 
-  const attachTantivy = (idx, mode, dir) => {
+  const attachTantivy = async (idx, mode, dir) => {
     if (!idx || !dir || !tantivyEnabled) return null;
-    const availability = ensureTantivyIndex(mode, dir);
+    const availability = await ensureTantivyIndex(mode, dir);
     idx.tantivy = {
       dir: availability.dir,
       metaPath: availability.metaPath,
@@ -870,10 +877,10 @@ export async function loadSearchIndexes({
     return idx.tantivy;
   };
 
-  attachTantivy(idxCode, 'code', codeIndexDir);
-  attachTantivy(idxProse, 'prose', proseIndexDir);
-  attachTantivy(idxExtractedProse, 'extracted-prose', extractedProseDir);
-  attachTantivy(idxRecords, 'records', recordsDir);
+  await attachTantivy(idxCode, 'code', codeIndexDir);
+  await attachTantivy(idxProse, 'prose', proseIndexDir);
+  await attachTantivy(idxExtractedProse, 'extracted-prose', extractedProseDir);
+  await attachTantivy(idxRecords, 'records', recordsDir);
 
   if (tantivyRequired) {
     const missingModes = [];
