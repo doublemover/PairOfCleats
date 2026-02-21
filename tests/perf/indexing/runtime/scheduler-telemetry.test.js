@@ -38,6 +38,22 @@ if (!stats.tokens?.cpu || stats.tokens.cpu.total !== 1) {
   console.error('scheduler telemetry test failed: token totals missing');
   process.exit(1);
 }
+if (!Number.isFinite(Number(stats?.adaptive?.intervalMs)) || Number(stats.adaptive.intervalMs) < 50) {
+  console.error('scheduler telemetry test failed: adaptive interval telemetry missing');
+  process.exit(1);
+}
+if (!['steady', 'burst', 'settle'].includes(String(stats?.adaptive?.mode || ''))) {
+  console.error('scheduler telemetry test failed: adaptive mode telemetry missing');
+  process.exit(1);
+}
+if (
+  !Number.isFinite(Number(stats?.adaptive?.smoothedUtilization))
+  || !Number.isFinite(Number(stats?.adaptive?.smoothedPendingPressure))
+  || !Number.isFinite(Number(stats?.adaptive?.smoothedStarvation))
+) {
+  console.error('scheduler telemetry test failed: adaptive smoothing telemetry missing');
+  process.exit(1);
+}
 const trace = stats?.telemetry?.schedulingTrace;
 if (!Array.isArray(trace) || trace.length < 2) {
   console.error('scheduler telemetry test failed: expected scheduling trace samples');

@@ -603,6 +603,12 @@ export function createBuildScheduler(input = {}) {
   const adaptiveMemoryPerTokenMb = Number.isFinite(Number(input.adaptiveMemoryPerTokenMb))
     ? Math.max(64, Math.floor(Number(input.adaptiveMemoryPerTokenMb)))
     : 1024;
+  let adaptiveCurrentIntervalMs = adaptiveMinIntervalMs;
+  let adaptiveMode = 'steady';
+  let smoothedUtilization = null;
+  let smoothedPendingPressure = null;
+  let smoothedStarvation = null;
+  let burstModeUntilMs = 0;
   const telemetryTickMs = Number.isFinite(Number(input.telemetryTickMs))
     ? Math.max(100, Math.floor(Number(input.telemetryTickMs)))
     : 250;
@@ -617,7 +623,7 @@ export function createBuildScheduler(input = {}) {
   const maybeAdaptTokens = () => {
     if (!adaptiveEnabled || shuttingDown) return;
     const now = nowMs();
-    if ((now - lastAdaptiveAt) < adaptiveMinIntervalMs) return;
+    if ((now - lastAdaptiveAt) < adaptiveCurrentIntervalMs) return;
     lastAdaptiveAt = now;
     let totalPending = 0;
     let totalPendingBytes = 0;
@@ -651,8 +657,29 @@ export function createBuildScheduler(input = {}) {
     const ioUtilization = tokens.io.total > 0 ? (tokens.io.used / tokens.io.total) : 0;
     const memUtilization = tokens.mem.total > 0 ? (tokens.mem.used / tokens.mem.total) : 0;
     const utilization = Math.max(cpuUtilization, ioUtilization, memUtilization);
+    const smooth = (prev, next, alpha = 0.25) => (
+      prev == null ? next : ((prev * (1 - alpha)) + (next * alpha))
+    );
+    smoothedUtilization = smooth(smoothedUtilization, utilization);
+    smoothedPendingPressure = smooth(
+      smoothedPendingPressure,
+      Math.max(totalPending / Math.max(1, tokenBudget), totalPendingBytes / Math.max(1, memoryTokenBudgetBytes))
+    );
+    smoothedStarvation = smooth(
+      smoothedStarvation,
+      queueOrder.length > 0 ? (starvedQueues / queueOrder.length) : 0
+    );
     const utilizationDeficit = utilization < adaptiveTargetUtilization;
+    const smoothedUtilizationDeficit = (smoothedUtilization ?? utilization) < adaptiveTargetUtilization;
     const severeUtilizationDeficit = utilization < (adaptiveTargetUtilization * 0.7);
+    const starvationScore = starvedQueues + Math.round((smoothedStarvation ?? 0) * 2);
+    if (pendingPressure || bytePressure || starvationScore > 0) {
+      adaptiveCurrentIntervalMs = Math.max(50, Math.floor(adaptiveMinIntervalMs * 0.5));
+    } else if (mostlyIdle) {
+      adaptiveCurrentIntervalMs = Math.min(2000, Math.max(adaptiveMinIntervalMs, Math.floor(adaptiveMinIntervalMs * 2)));
+    } else {
+      adaptiveCurrentIntervalMs = adaptiveMinIntervalMs;
+    }
     const totalMem = Number(os.totalmem()) || 0;
     const freeMem = Number(os.freemem()) || 0;
     const freeRatio = totalMem > 0 ? (freeMem / totalMem) : null;
@@ -677,6 +704,7 @@ export function createBuildScheduler(input = {}) {
     }
 
     if (memoryLowHeadroom) {
+      adaptiveMode = 'steady';
       tokens.cpu.total = Math.max(baselineLimits.cpu, tokens.cpu.used, tokens.cpu.total - adaptiveStep);
       tokens.io.total = Math.max(baselineLimits.io, tokens.io.used, tokens.io.total - adaptiveStep);
       tokens.mem.total = Math.max(
@@ -687,29 +715,53 @@ export function createBuildScheduler(input = {}) {
       return;
     }
 
-    const queueStarvation = starvedQueues > 0;
+    if (memoryHighHeadroom && pendingDemand && smoothedUtilizationDeficit) {
+      burstModeUntilMs = Math.max(burstModeUntilMs, now + 1500);
+    }
+    const burstMode = now < burstModeUntilMs;
+    const queueStarvation = starvationScore > 0;
     const shouldScaleFromHeadroom = memoryHighHeadroom
       && pendingDemand
-      && (utilizationDeficit || queueStarvation)
+      && (smoothedUtilizationDeficit || queueStarvation || burstMode)
       && (totalRunning > 0 || queueStarvation || severeUtilizationDeficit);
     const shouldScale = memoryHighHeadroom && (
       pendingPressure
       || bytePressure
       || queueStarvation
+      || burstMode
       || shouldScaleFromHeadroom
-      || (pendingDemand && utilizationDeficit)
+      || (pendingDemand && smoothedUtilizationDeficit)
     );
     if (shouldScale) {
+      adaptiveMode = burstMode ? 'burst' : 'steady';
       const pressureScale = pendingPressure || bytePressure;
       const scaleStep = (pressureScale && (queueStarvation || severeUtilizationDeficit))
         ? adaptiveStep + 2
         : ((pressureScale || queueStarvation) ? adaptiveStep + 1 : adaptiveStep);
-      const nextCpu = Math.min(maxLimits.cpu, tokens.cpu.total + scaleStep);
-      const nextIo = Math.min(maxLimits.io, tokens.io.total + scaleStep);
+      const effectiveScaleStep = burstMode ? (scaleStep + 1) : scaleStep;
+      const nextCpu = Math.min(maxLimits.cpu, tokens.cpu.total + effectiveScaleStep);
+      const nextIo = Math.min(maxLimits.io, tokens.io.total + effectiveScaleStep);
       const nextMem = Math.min(maxLimits.mem, memoryTokenHeadroomCap, tokens.mem.total + adaptiveStep);
       tokens.cpu.total = nextCpu;
       tokens.io.total = nextIo;
       tokens.mem.total = nextMem;
+      return;
+    }
+    const settleMode = !mostlyIdle
+      && !pendingDemand
+      && !bytePressure
+      && now >= burstModeUntilMs
+      && utilization >= adaptiveTargetUtilization
+      && (
+        tokens.cpu.total > baselineLimits.cpu
+        || tokens.io.total > baselineLimits.io
+        || tokens.mem.total > baselineLimits.mem
+      );
+    if (settleMode) {
+      adaptiveMode = 'settle';
+      tokens.cpu.total = Math.max(baselineLimits.cpu, tokens.cpu.used, tokens.cpu.total - adaptiveStep);
+      tokens.io.total = Math.max(baselineLimits.io, tokens.io.used, tokens.io.total - adaptiveStep);
+      tokens.mem.total = Math.max(baselineLimits.mem, tokens.mem.used, tokens.mem.total - adaptiveStep);
       return;
     }
 
@@ -723,6 +775,7 @@ export function createBuildScheduler(input = {}) {
     }
 
     if (mostlyIdle) {
+      adaptiveMode = 'steady';
       tokens.cpu.total = Math.max(baselineLimits.cpu, tokens.cpu.used, tokens.cpu.total - adaptiveStep);
       tokens.io.total = Math.max(baselineLimits.io, tokens.io.used, tokens.io.total - adaptiveStep);
       tokens.mem.total = Math.max(baselineLimits.mem, tokens.mem.used, tokens.mem.total - adaptiveStep);
@@ -989,7 +1042,12 @@ export function createBuildScheduler(input = {}) {
         step: adaptiveStep,
         memoryReserveMb: adaptiveMemoryReserveMb,
         memoryPerTokenMb: adaptiveMemoryPerTokenMb,
-        maxInFlightBytes: globalMaxInFlightBytes
+        maxInFlightBytes: globalMaxInFlightBytes,
+        intervalMs: adaptiveCurrentIntervalMs,
+        mode: adaptiveMode,
+        smoothedUtilization: smoothedUtilization ?? 0,
+        smoothedPendingPressure: smoothedPendingPressure ?? 0,
+        smoothedStarvation: smoothedStarvation ?? 0
       },
       utilization: {
         cpu: cpuUtilization,

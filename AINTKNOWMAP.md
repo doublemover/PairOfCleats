@@ -1988,15 +1988,15 @@ Exit criteria:
       - Touchpoints: `src/index/type-inference-crossfile/pipeline.js`, `src/index/build/incremental.js`, `src/shared/bundle-io.js`, and related cache identity/signature paths.
       - Acceptance target: reduce cross-file incremental bundle-update wall time by >=35% on huge repos while preserving relation/type/risk parity and deterministic bundle contents.
       - Validation: add incremental + cross-file tests for cache hit/miss behavior, unchanged-file skip behavior, deterministic output hashes, and fallback correctness when prefetch is partial.
-  36. [ ] Make scheduler adaptive interval dynamic (shorter under pressure, longer when stable).
+  36. [x] Make scheduler adaptive interval dynamic (shorter under pressure, longer when stable).
       - Touchpoints: `src/shared/concurrency.js`, `src/index/build/runtime/scheduler.js`, `src/index/build/runtime/workers.js`, and scheduler telemetry/reporting emitters.
       - Acceptance target: sustain >75% effective utilization during heavy indexing phases on 8c/16t hardware without starvation spikes or queue blow-ups.
       - Validation: extend scheduler contract/perf tests (`tests/shared/concurrency/*`, `tests/perf/scheduler-*`, `tests/perf/indexing/runtime/*`) for adaptive scaling, fairness, backpressure, and alerting windows.
-  37. [ ] Scale CPU/IO/mem tokens from smoothed utilization windows, not single snapshots.
+  37. [x] Scale CPU/IO/mem tokens from smoothed utilization windows, not single snapshots.
       - Touchpoints: `src/shared/concurrency.js`, `src/index/build/runtime/scheduler.js`, `src/index/build/runtime/workers.js`, and scheduler telemetry/reporting emitters.
       - Acceptance target: sustain >75% effective utilization during heavy indexing phases on 8c/16t hardware without starvation spikes or queue blow-ups.
       - Validation: extend scheduler contract/perf tests (`tests/shared/concurrency/*`, `tests/perf/scheduler-*`, `tests/perf/indexing/runtime/*`) for adaptive scaling, fairness, backpressure, and alerting windows.
-  38. [ ] Add queue starvation score into token scaling decisions with stronger weight.
+  38. [x] Add queue starvation score into token scaling decisions with stronger weight.
       - Touchpoints: `src/shared/concurrency.js`, `src/index/build/runtime/scheduler.js`, `src/index/build/runtime/workers.js`, and scheduler telemetry/reporting emitters.
       - Acceptance target: sustain >75% effective utilization during heavy indexing phases on 8c/16t hardware without starvation spikes or queue blow-ups.
       - Validation: extend scheduler contract/perf tests (`tests/shared/concurrency/*`, `tests/perf/scheduler-*`, `tests/perf/indexing/runtime/*`) for adaptive scaling, fairness, backpressure, and alerting windows.
@@ -2020,11 +2020,11 @@ Exit criteria:
       - Touchpoints: `src/shared/concurrency.js`, `src/index/build/runtime/scheduler.js`, `src/index/build/runtime/workers.js`, and scheduler telemetry/reporting emitters.
       - Acceptance target: sustain >75% effective utilization during heavy indexing phases on 8c/16t hardware without starvation spikes or queue blow-ups.
       - Validation: extend scheduler contract/perf tests (`tests/shared/concurrency/*`, `tests/perf/scheduler-*`, `tests/perf/indexing/runtime/*`) for adaptive scaling, fairness, backpressure, and alerting windows.
-  44. [ ] Add a scheduler “burst mode” when utilization is low and memory headroom is high.
+  44. [x] Add a scheduler “burst mode” when utilization is low and memory headroom is high.
       - Touchpoints: `src/shared/concurrency.js`, `src/index/build/runtime/scheduler.js`, `src/index/build/runtime/workers.js`, and scheduler telemetry/reporting emitters.
       - Acceptance target: sustain >75% effective utilization during heavy indexing phases on 8c/16t hardware without starvation spikes or queue blow-ups.
       - Validation: extend scheduler contract/perf tests (`tests/shared/concurrency/*`, `tests/perf/scheduler-*`, `tests/perf/indexing/runtime/*`) for adaptive scaling, fairness, backpressure, and alerting windows.
-  45. [ ] Add a scheduler “settle mode” to reduce oscillation after burst.
+  45. [x] Add a scheduler “settle mode” to reduce oscillation after burst.
       - Touchpoints: `src/shared/concurrency.js`, `src/index/build/runtime/scheduler.js`, `src/index/build/runtime/workers.js`, and scheduler telemetry/reporting emitters.
       - Acceptance target: sustain >75% effective utilization during heavy indexing phases on 8c/16t hardware without starvation spikes or queue blow-ups.
       - Validation: extend scheduler contract/perf tests (`tests/shared/concurrency/*`, `tests/perf/scheduler-*`, `tests/perf/indexing/runtime/*`) for adaptive scaling, fairness, backpressure, and alerting windows.
