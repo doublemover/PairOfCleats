@@ -222,7 +222,6 @@ Shared helpers (reusable elsewhere; all live under `src/shared/`):
 - `src/shared/binary/byte-writer.js` (buffered writer)
 - `src/shared/binary/varint.js`
 - `src/shared/binary/delta.js` (delta encode/decode for docIds)
-- `src/shared/binary/crc32.js` (CRC32C implementation with optional native acceleration via `@aws-crypto/crc32c`)
 - `src/shared/merge/merge-planner.js` (hierarchical merge planning for any sharded artifact)
 - `src/shared/json-stream/shard-writer.js` (iterable-based JSON shard writer for large arrays)
 
@@ -337,7 +336,6 @@ This keeps indexing mostly CPU-bound until disk becomes bottleneck.
 - `docs/guides/commands.md` (update): document spill config and debug `segmentFormat` usage.
 - `docs/testing/truth-table.md` (update): note spill behavior and perf-lane expectations.
 - `docs/testing/test-decomposition-regrouping.md` (update): add streaming shard writer expectations for token postings.
-- `docs/dependency_references/` (optional): mention `@aws-crypto/crc32c` as an optional acceleration dependency.
 
 ### JSDoc guidance (required for new/shared modules)
 All new modules in `src/shared/` and `src/index/build/spimi/` must include JSDoc that covers:
@@ -618,11 +616,11 @@ File: `tests/unit/spimi/binary-codec.unit.test.js`
 - Roundtrip varints and delta-encoded docId streams.
 - Assert error on malformed encodings.
 
-#### G) CRC32C correctness
-File: `tests/unit/spimi/crc32c.unit.test.js`
+#### G) Binary record integrity guards
+File: `tests/unit/spimi/binary-codec.unit.test.js`
 
-- Validate CRC32C against known test vectors.
-- Ensure fallback and native paths match results.
+- Validate malformed/truncated binary record handling.
+- Ensure decoder failures are deterministic and surfaced with actionable errors.
 
 #### H) Streaming shard writer
 File: `tests/unit/spimi/shard-writer-streaming.unit.test.js`
