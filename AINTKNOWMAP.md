@@ -50,8 +50,8 @@ Intent: remove ambiguity before code changes.
 
 Verification:
 
-- [ ] `tests/tooling/docs/spec-links-valid.test.js`
-- [ ] `tests/tooling/docs/config-inventory-sync.test.js`
+- [x] `tests/tooling/docs/spec-links-valid.test.js`
+- [x] `tests/tooling/docs/config-inventory-sync.test.js`
 
 ---
 
