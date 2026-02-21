@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-21T01:38:30.621Z",
+  "generatedAt": "2026-02-21T03:47:14.077Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -3041,6 +3041,7 @@
     {
       "name": "PAIROFCLEATS_TUI_DIST_DIR",
       "files": [
+        "tests/tui/build-verify-manifest.test.js",
         "tests/tui/headless-smoke.test.js",
         "tests/tui/installer-unit.test.js",
         "tools/config/inventory.js",
@@ -3051,16 +3052,17 @@
       "name": "PAIROFCLEATS_TUI_EVENT_LOG_DIR",
       "files": [
         "bin/pairofcleats-tui.js",
+        "src/shared/env.js",
         "tests/tui/observability/replay-determinism.test.js",
         "tests/tui/observability/session-correlation.test.js",
-        "tools/config/inventory.js",
-        "tools/tui/supervisor.js"
+        "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_TUI_INSTALL_ROOT",
       "files": [
         "bin/pairofcleats-tui.js",
+        "src/shared/env.js",
         "tests/tui/wrapper-behavior.test.js",
         "tools/config/inventory.js"
       ]
@@ -3076,10 +3078,10 @@
       "name": "PAIROFCLEATS_TUI_RUN_ID",
       "files": [
         "bin/pairofcleats-tui.js",
+        "src/shared/env.js",
         "tests/tui/observability/replay-determinism.test.js",
         "tests/tui/observability/session-correlation.test.js",
-        "tools/config/inventory.js",
-        "tools/tui/supervisor.js"
+        "tools/config/inventory.js"
       ]
     },
     {
@@ -3208,7 +3210,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 317,
+    "totalFlags": 320,
     "publicFlags": [
       "backend",
       "host",

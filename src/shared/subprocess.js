@@ -245,11 +245,15 @@ export function spawnSubprocess(command, args, options = {}) {
       timeoutId = setTimeout(() => {
         if (settled) return;
         settled = true;
+        try {
+          if (typeof child.unref === 'function') child.unref();
+        } catch {}
         killChildProcessTree(child, {
           killTree,
           killSignal,
           graceMs: killGraceMs,
-          detached
+          detached,
+          awaitGrace: false
         }).catch(() => {});
         cleanup();
         const result = buildResult({
@@ -266,11 +270,15 @@ export function spawnSubprocess(command, args, options = {}) {
     abortHandler = () => {
       if (settled) return;
       settled = true;
+      try {
+        if (typeof child.unref === 'function') child.unref();
+      } catch {}
       killChildProcessTree(child, {
         killTree,
         killSignal,
         graceMs: killGraceMs,
-        detached
+        detached,
+        awaitGrace: false
       }).catch(() => {});
       cleanup();
       const result = buildResult({
