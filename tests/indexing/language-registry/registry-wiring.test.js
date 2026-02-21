@@ -71,5 +71,7 @@ assert.equal(getLanguageForFile('.toml', 'config/app.toml')?.id, 'toml');
 assert.equal(getLanguageForFile('.xml', 'config/app.xml')?.id, 'xml');
 assert.equal(getLanguageForFile('.yaml', 'config/app.yaml')?.id, 'yaml');
 assert.equal(getLanguageForFile('.yml', 'config/app.yml')?.id, 'yaml');
+assert.equal(getLanguageForFile('.js', 'src/dockerfile-parser.js')?.id, 'javascript');
+assert.equal(getLanguageForFile('.js', 'src/makefile-helper.js')?.id, 'javascript');
 
 console.log('language registry wiring test passed');

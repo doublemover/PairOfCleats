@@ -126,15 +126,15 @@ const resolveDescriptorLanguage = (ext, relPath) => {
   if (baseName && DESCRIPTOR_FILENAME_MAP.has(baseName)) {
     return LANGUAGE_BY_ID.get(DESCRIPTOR_FILENAME_MAP.get(baseName)) || null;
   }
+  const extKey = normalizeLinguistName(ext);
+  if (extKey && DESCRIPTOR_EXTENSION_MAP.has(extKey)) {
+    return LANGUAGE_BY_ID.get(DESCRIPTOR_EXTENSION_MAP.get(extKey)) || null;
+  }
   if (baseName) {
     for (const entry of DESCRIPTOR_PREFIX_MAP) {
       if (!baseName.startsWith(entry.prefix)) continue;
       return LANGUAGE_BY_ID.get(entry.languageId) || null;
     }
-  }
-  const extKey = normalizeLinguistName(ext);
-  if (extKey && DESCRIPTOR_EXTENSION_MAP.has(extKey)) {
-    return LANGUAGE_BY_ID.get(DESCRIPTOR_EXTENSION_MAP.get(extKey)) || null;
   }
   return null;
 };

@@ -650,8 +650,36 @@ function collectSqlParserUsages(text, dialect, log) {
 export function collectSqlImports(text = '') {
   const imports = new Set();
   const lines = String(text || '').split('\n');
+  let inBlockComment = false;
   for (const rawLine of lines) {
-    const line = rawLine.trim();
+    let cleaned = '';
+    let idx = 0;
+    while (idx < rawLine.length) {
+      if (inBlockComment) {
+        const end = rawLine.indexOf('*/', idx);
+        if (end === -1) {
+          idx = rawLine.length;
+          break;
+        }
+        idx = end + 2;
+        inBlockComment = false;
+        continue;
+      }
+      const blockStart = rawLine.indexOf('/*', idx);
+      const lineCommentStart = rawLine.indexOf('--', idx);
+      if (blockStart === -1 && lineCommentStart === -1) {
+        cleaned += rawLine.slice(idx);
+        break;
+      }
+      if (lineCommentStart !== -1 && (blockStart === -1 || lineCommentStart < blockStart)) {
+        cleaned += rawLine.slice(idx, lineCommentStart);
+        break;
+      }
+      cleaned += rawLine.slice(idx, blockStart);
+      idx = blockStart + 2;
+      inBlockComment = true;
+    }
+    const line = cleaned.trim();
     if (!line || line.startsWith('--') || line.startsWith('/*')) continue;
     const psqlMatch = line.match(/^\\i(?:r)?\s+([^\s;]+)/i);
     if (psqlMatch?.[1]) imports.add(psqlMatch[1]);

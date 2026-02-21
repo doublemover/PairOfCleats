@@ -15,8 +15,8 @@ export const collectDockerfileImports = (text) => {
     }
     const instruction = parseDockerfileInstruction(line);
     if (!instruction) continue;
-    if (instruction.instruction === 'COPY' || instruction.instruction === 'ADD' || instruction.instruction === 'RUN') {
-      const fromFlag = line.match(/\bfrom(?:=|\s+)([^\s,]+)/i);
+    if (instruction.instruction === 'COPY' || instruction.instruction === 'ADD') {
+      const fromFlag = line.match(/\B--from=([^\s,]+)/i);
       if (fromFlag?.[1]) imports.add(fromFlag[1]);
     }
   }

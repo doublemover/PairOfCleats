@@ -75,15 +75,14 @@ export const collectYamlImports = (text) => {
     addAnchorsAndAliases(imports, line);
 
     const indent = line.length - line.trimStart().length;
-    if (listKeyIndent >= 0 && indent <= listKeyIndent) {
-      listKeyIndent = -1;
-    }
-
     const listMatch = trimmed.match(/^-+\s*(.+)$/);
-    if (listMatch && listKeyIndent >= 0) {
+    if (listMatch && listKeyIndent >= 0 && indent >= listKeyIndent) {
       const value = normalizeScalar(listMatch[1]);
       if (value) addImport(imports, value);
       continue;
+    }
+    if (listKeyIndent >= 0 && indent <= listKeyIndent) {
+      listKeyIndent = -1;
     }
 
     const keyValueMatch = line.match(/^\s*(['"]?[^'"#:]+['"]?)\s*:\s*(.*)$/);
