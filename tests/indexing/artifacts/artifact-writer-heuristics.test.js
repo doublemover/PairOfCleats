@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 
+import { applyTestEnv } from '../../helpers/test-env.js';
 import { createArtifactWriter } from '../../../src/index/build/artifacts/writer.js';
+
+applyTestEnv({ testing: '1' });
 
 const outDir = path.join(process.cwd(), '.testCache', 'artifact-writer-heuristics');
 const writes = [];

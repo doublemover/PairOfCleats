@@ -24,6 +24,9 @@ const LARGE_REPO_PARAM_TYPE_LIMIT = 3;
 const CROSS_FILE_CACHE_SCHEMA_VERSION = 1;
 const CROSS_FILE_CACHE_DIRNAME = 'cross-file-inference';
 const DYNAMIC_BUNDLE_TARGET_MS = 500;
+const SYMBOL_REF_CACHE_MAX_ENTRIES = 20000;
+const SYMBOL_REF_CACHE_TTL_MS = 5 * 60 * 1000;
+const BUNDLE_SIZING_P95_WINDOW = 32;
 
 const resolveCrossFileCacheRoot = ({ cacheRoot, rootDir }) => {
   if (typeof cacheRoot === 'string' && cacheRoot.trim()) {
@@ -227,6 +230,24 @@ export async function applyCrossFileInference({
   const chunkByUid = new Map();
   const fileSet = new Set();
   const symbolRefCache = new Map();
+  const pruneSymbolRefCache = (nowMs) => {
+    if (!symbolRefCache.size) return;
+    if (symbolRefCache.size > SYMBOL_REF_CACHE_MAX_ENTRIES) {
+      const toEvict = symbolRefCache.size - SYMBOL_REF_CACHE_MAX_ENTRIES;
+      const iter = symbolRefCache.keys();
+      for (let index = 0; index < toEvict; index += 1) {
+        const next = iter.next();
+        if (next.done) break;
+        symbolRefCache.delete(next.value);
+      }
+    }
+    const cutoff = nowMs - SYMBOL_REF_CACHE_TTL_MS;
+    for (const [key, entry] of symbolRefCache.entries()) {
+      if (!entry || Number(entry.ts) < cutoff) {
+        symbolRefCache.delete(key);
+      }
+    }
+  };
   const riskSeverityRank = { low: 1, medium: 2, high: 3 };
   const callSampleCounts = new Map();
   const confidenceForHop = (hops) => Math.max(0.2, FLOW_CONFIDENCE * (0.85 ** hops));
@@ -264,9 +285,16 @@ export async function applyCrossFileInference({
   }) => {
     const name = typeof targetName === 'string' ? targetName : null;
     if (!name) return null;
+    const now = Date.now();
     const cacheKey = `${fromFile || ''}\u0001${kindHint || ''}\u0001${name}`;
-    if (symbolRefCache.has(cacheKey)) {
-      return symbolRefCache.get(cacheKey);
+    const cached = symbolRefCache.get(cacheKey);
+    if (cached && Number(cached.ts) >= (now - SYMBOL_REF_CACHE_TTL_MS)) {
+      symbolRefCache.delete(cacheKey);
+      symbolRefCache.set(cacheKey, cached);
+      return cached.value;
+    }
+    if (cached) {
+      symbolRefCache.delete(cacheKey);
     }
     const resolved = resolveSymbolRef({
       targetName: name,
@@ -276,7 +304,10 @@ export async function applyCrossFileInference({
       symbolIndex: symbolResolver,
       fileSet
     });
-    symbolRefCache.set(cacheKey, resolved || null);
+    symbolRefCache.set(cacheKey, { value: resolved || null, ts: now });
+    if (symbolRefCache.size > SYMBOL_REF_CACHE_MAX_ENTRIES) {
+      pruneSymbolRefCache(now);
+    }
     return resolved || null;
   };
   const largeRepoBudget = chunks.length >= LARGE_REPO_CHUNK_THRESHOLD || fileSet.size >= LARGE_REPO_FILE_THRESHOLD
@@ -528,7 +559,10 @@ export async function applyCrossFileInference({
     targetBundleMs: DYNAMIC_BUNDLE_TARGET_MS,
     totalBundles: 0,
     lastBundleSize: 0,
-    avgBundleMs: 0
+    avgBundleMs: 0,
+    p95BundleMs: 0,
+    recentWindowSize: BUNDLE_SIZING_P95_WINDOW,
+    recentBundleDurationsMs: []
   };
   let currentBundleSize = bundleSizing.initialBundleSize;
   let chunkCursor = 0;
@@ -863,6 +897,17 @@ export async function applyCrossFileInference({
       }
     }
     const bundleDurationMs = Math.max(0, Date.now() - bundleStartedAt);
+    const recentDurations = bundleSizing.recentBundleDurationsMs;
+    recentDurations.push(bundleDurationMs);
+    while (recentDurations.length > bundleSizing.recentWindowSize) recentDurations.shift();
+    if (recentDurations.length) {
+      const sorted = recentDurations.slice().sort((a, b) => a - b);
+      const p95Index = Math.min(
+        sorted.length - 1,
+        Math.max(0, Math.ceil(sorted.length * 0.95) - 1)
+      );
+      bundleSizing.p95BundleMs = sorted[p95Index];
+    }
     bundleSizing.totalBundles += 1;
     bundleSizing.lastBundleSize = bundle.length;
     bundleSizing.avgBundleMs = bundleSizing.totalBundles === 1
@@ -872,13 +917,16 @@ export async function applyCrossFileInference({
         / bundleSizing.totalBundles
       );
     if (bundleSizing.enabled) {
-      if (bundleDurationMs > bundleSizing.targetBundleMs && currentBundleSize > bundleSizing.minBundleSize) {
+      const controlDurationMs = bundleSizing.p95BundleMs > 0
+        ? bundleSizing.p95BundleMs
+        : bundleDurationMs;
+      if (controlDurationMs > bundleSizing.targetBundleMs && currentBundleSize > bundleSizing.minBundleSize) {
         currentBundleSize = Math.max(
           bundleSizing.minBundleSize,
           Math.floor(currentBundleSize * 0.75)
         );
       } else if (
-        bundleDurationMs < (bundleSizing.targetBundleMs * 0.5)
+        controlDurationMs < (bundleSizing.targetBundleMs * 0.5)
         && currentBundleSize < bundleSizing.maxBundleSize
       ) {
         currentBundleSize = Math.min(
@@ -892,7 +940,8 @@ export async function applyCrossFileInference({
       ) {
         log(
           `[perf] cross-file bundle ${bundleSizing.totalBundles}: ` +
-          `size=${bundle.length}, durationMs=${bundleDurationMs}, nextSize=${currentBundleSize}.`
+          `size=${bundle.length}, durationMs=${bundleDurationMs}, p95Ms=${bundleSizing.p95BundleMs}, ` +
+          `nextSize=${currentBundleSize}.`
         );
       }
     }
