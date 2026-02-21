@@ -6,7 +6,12 @@ import { LANGUAGE_REGISTRY } from '../../../src/index/language-registry/registry
 applyTestEnv();
 
 const CASES = [
-  { id: 'ini', ext: '.ini', text: '[server]\nport=8080\n' },
+  {
+    id: 'ini',
+    ext: '.ini',
+    text: '[includes]\nfiles=./base.ini,./feature.cfg\n',
+    expectedImports: ['./base.ini', './feature.cfg']
+  },
   {
     id: 'json',
     ext: '.json',

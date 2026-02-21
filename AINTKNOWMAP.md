@@ -743,9 +743,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.39d INI
 
-- [ ] Implement `.ini`/`.cfg` routing and section/key chunking behavior.
-- [ ] Implement and verify include/reference extraction behavior where supported.
-- [ ] Calibrate and commit INI caps for legacy and infra configuration repositories.
+- [x] Implement `.ini`/`.cfg` routing and section/key chunking behavior.
+- [x] Implement and verify include/reference extraction behavior where supported.
+- [x] Calibrate and commit INI caps for legacy and infra configuration repositories.
 
 
 Touchpoints:

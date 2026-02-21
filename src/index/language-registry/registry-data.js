@@ -63,6 +63,7 @@ import { collectDockerfileImports } from './import-collectors/dockerfile.js';
 import { collectGraphqlImports } from './import-collectors/graphql.js';
 import { collectGroovyImports } from './import-collectors/groovy.js';
 import { collectHandlebarsImports } from './import-collectors/handlebars.js';
+import { collectIniImports } from './import-collectors/ini.js';
 import { collectJsonImports } from './import-collectors/json.js';
 import { collectJinjaImports } from './import-collectors/jinja.js';
 import { collectJuliaImports } from './import-collectors/julia.js';
@@ -1078,7 +1079,8 @@ export const LANGUAGE_REGISTRY = [
   }),
   createConfigDataAdapter({
     id: 'ini',
-    match: (ext) => INI_EXTS.has(ext)
+    match: (ext) => INI_EXTS.has(ext),
+    collectImports: collectIniImports
   }),
   createConfigDataAdapter({
     id: 'json',
