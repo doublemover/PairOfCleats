@@ -5,6 +5,7 @@ import { collectDockerfileImports } from '../../../src/index/language-registry/i
 import { collectGraphqlImports } from '../../../src/index/language-registry/import-collectors/graphql.js';
 import { collectGroovyImports } from '../../../src/index/language-registry/import-collectors/groovy.js';
 import { collectHandlebarsImports } from '../../../src/index/language-registry/import-collectors/handlebars.js';
+import { collectIniImports } from '../../../src/index/language-registry/import-collectors/ini.js';
 import { collectJsonImports } from '../../../src/index/language-registry/import-collectors/json.js';
 import { collectJinjaImports } from '../../../src/index/language-registry/import-collectors/jinja.js';
 import { collectJuliaImports } from '../../../src/index/language-registry/import-collectors/julia.js';
@@ -30,6 +31,17 @@ const expectSet = (label, actual, expected) => {
 };
 
 const cases = [
+  {
+    label: 'ini',
+    fn: collectIniImports,
+    text: [
+      '[includes]',
+      'files = ./base.ini, ./feature.cfg',
+      '[server]',
+      'schema = ./schema.ini'
+    ].join('\n'),
+    expected: ['./base.ini', './feature.cfg', './schema.ini']
+  },
   {
     label: 'toml',
     fn: collectTomlImports,
