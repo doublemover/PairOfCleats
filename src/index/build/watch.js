@@ -38,6 +38,7 @@ import { startParcelWatcher } from './watch/backends/parcel.js';
 import { createWatchAttemptManager } from './watch/attempts.js';
 import { MINIFIED_NAME_REGEX, normalizeRoot } from './watch/shared.js';
 import { isCodeEntryForPath, isProseEntryForPath } from './mode-routing.js';
+import { detectShebangLanguage } from './shebang.js';
 
 export { createDebouncedScheduler, acquireIndexLockWithBackoff };
 
@@ -308,7 +309,7 @@ export async function watchIndex({
     if (MINIFIED_NAME_REGEX.test(baseName.toLowerCase())) {
       return { skip: true, reason: 'minified', extra: { method: 'name' } };
     }
-    const ext = resolveSpecialCodeExt(baseName) || fileExt(absPath);
+    let ext = resolveSpecialCodeExt(baseName) || fileExt(absPath);
     let stat;
     try {
       stat = await fs.lstat(absPath);
@@ -318,7 +319,14 @@ export async function watchIndex({
     if (stat.isSymbolicLink()) {
       return { skip: true, reason: 'symlink' };
     }
-    const language = getLanguageForFile(ext, relPosix);
+    let language = getLanguageForFile(ext, relPosix);
+    if (!ext && !language && stat.isFile()) {
+      const shebang = await detectShebangLanguage(absPath);
+      if (shebang?.languageId) {
+        ext = shebang.ext || ext;
+        language = getLanguageForFile(ext, relPosix);
+      }
+    }
     const maxBytesForFile = resolveMaxBytesForFile(ext, language?.id || null, maxFileBytes, fileCaps);
     if (maxBytesForFile && stat.size > maxBytesForFile) {
       return {
