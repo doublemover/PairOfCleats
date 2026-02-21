@@ -34,6 +34,16 @@
       "blocking": true
     },
     {
+      "id": "astro-component-style-scope",
+      "frameworkProfile": "astro",
+      "category": "style",
+      "requiredEdgeKinds": [
+        "style_scopes"
+      ],
+      "requiredDiagnostics": [],
+      "blocking": true
+    },
+    {
       "id": "astro-frontmatter-template-bridge",
       "frameworkProfile": "astro",
       "category": "bridge",
@@ -64,6 +74,16 @@
       "blocking": true
     },
     {
+      "id": "astro-template-slot-props",
+      "frameworkProfile": "astro",
+      "category": "template",
+      "requiredEdgeKinds": [
+        "template_binds"
+      ],
+      "requiredDiagnostics": [],
+      "blocking": true
+    },
+    {
       "id": "next-app-router-dynamic-segment",
       "frameworkProfile": "next",
       "category": "route",
@@ -84,11 +104,31 @@
       "blocking": true
     },
     {
+      "id": "next-css-module-style-scope",
+      "frameworkProfile": "next",
+      "category": "style",
+      "requiredEdgeKinds": [
+        "style_scopes"
+      ],
+      "requiredDiagnostics": [],
+      "blocking": true
+    },
+    {
       "id": "next-route-handler-runtime",
       "frameworkProfile": "next",
       "category": "route",
       "requiredEdgeKinds": [
         "route_maps_to"
+      ],
+      "requiredDiagnostics": [],
+      "blocking": true
+    },
+    {
+      "id": "next-rsc-template-props",
+      "frameworkProfile": "next",
+      "category": "template",
+      "requiredEdgeKinds": [
+        "template_binds"
       ],
       "requiredDiagnostics": [],
       "blocking": true
@@ -124,6 +164,16 @@
       "blocking": true
     },
     {
+      "id": "nuxt-template-composable-binding",
+      "frameworkProfile": "nuxt",
+      "category": "template",
+      "requiredEdgeKinds": [
+        "template_binds"
+      ],
+      "requiredDiagnostics": [],
+      "blocking": true
+    },
+    {
       "id": "react-css-module-scope",
       "frameworkProfile": "react",
       "category": "style",
@@ -139,6 +189,16 @@
       "category": "hydration",
       "requiredEdgeKinds": [
         "hydration_boundary"
+      ],
+      "requiredDiagnostics": [],
+      "blocking": true
+    },
+    {
+      "id": "react-jsx-prop-binding",
+      "frameworkProfile": "react",
+      "category": "template",
+      "requiredEdgeKinds": [
+        "template_binds"
       ],
       "requiredDiagnostics": [],
       "blocking": true
@@ -185,11 +245,31 @@
       "blocking": true
     },
     {
+      "id": "sveltekit-component-style-scope",
+      "frameworkProfile": "sveltekit",
+      "category": "style",
+      "requiredEdgeKinds": [
+        "style_scopes"
+      ],
+      "requiredDiagnostics": [],
+      "blocking": true
+    },
+    {
       "id": "sveltekit-load-data-binding",
       "frameworkProfile": "sveltekit",
       "category": "route",
       "requiredEdgeKinds": [
         "route_maps_to",
+        "template_binds"
+      ],
+      "requiredDiagnostics": [],
+      "blocking": true
+    },
+    {
+      "id": "sveltekit-page-data-template",
+      "frameworkProfile": "sveltekit",
+      "category": "template",
+      "requiredEdgeKinds": [
         "template_binds"
       ],
       "requiredDiagnostics": [],
