@@ -104,8 +104,8 @@ const cases = [
       'service:',
       '  <<: *defaults',
       'include:',
-      '  - ./base.yaml',
-      '  - "./feature.yml"',
+      '- ./base.yaml',
+      '- "./feature.yml"',
       'extends: ./parent.yml'
     ].join('\n'),
     expected: ['anchor:defaults', 'alias:defaults', './base.yaml', './feature.yml', './parent.yml']
@@ -116,6 +116,7 @@ const cases = [
     text: [
       'FROM --platform=$BUILDPLATFORM node:18 AS base',
       'FROM base AS build',
+      'RUN echo from builder',
       'RUN --mount=type=bind,from=build,target=/src true',
       'COPY --from=base /src /dst'
     ].join('\n'),

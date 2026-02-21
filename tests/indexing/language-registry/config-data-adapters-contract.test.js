@@ -33,7 +33,7 @@ const CASES = [
   {
     id: 'yaml',
     ext: '.yaml',
-    text: 'defaults: &base\nservice:\n  <<: *base\ninclude:\n  - ./base.yml\n',
+    text: 'defaults: &base\nservice:\n  <<: *base\ninclude:\n- ./base.yml\n',
     expectedImports: ['anchor:base', 'alias:base', './base.yml']
   }
 ];

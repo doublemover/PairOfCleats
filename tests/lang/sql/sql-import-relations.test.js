@@ -10,6 +10,10 @@ const sqlText = [
   '\\ir patches/upgrade.sql',
   'SOURCE migrations/seed.sql;',
   '@@reports/common.sql',
+  '/*',
+  '\\i ignored/commented.sql',
+  'SOURCE ignored/commented-source.sql;',
+  '*/',
   'CREATE TABLE users(id INT PRIMARY KEY);'
 ].join('\n');
 
