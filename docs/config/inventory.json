@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-20T21:20:01.589Z",
+  "generatedAt": "2026-02-21T01:32:46.662Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -68,6 +68,7 @@
       "PAIROFCLEATS_NODE_OPTIONS",
       "PAIROFCLEATS_PREFER_MEMORY_BACKEND_ON_CACHE_HIT",
       "PAIROFCLEATS_PROFILE",
+      "PAIROFCLEATS_PROGRESS_CONTEXT",
       "PAIROFCLEATS_QUERY_CACHE_MEMORY_FRESH_MS",
       "PAIROFCLEATS_QUERY_CACHE_PREWARM",
       "PAIROFCLEATS_QUERY_CACHE_PREWARM_MAX_ENTRIES",
@@ -130,8 +131,16 @@
       "PAIROFCLEATS_TEST_TANTIVY",
       "PAIROFCLEATS_TEST_THREADS",
       "PAIROFCLEATS_TEST_TIMEOUT_MS",
+      "PAIROFCLEATS_TEST_WATCHDOG_MS",
       "PAIROFCLEATS_THREADS",
       "PAIROFCLEATS_TRACE_ARTIFACT_IO",
+      "PAIROFCLEATS_TUI_ALT_SCREEN",
+      "PAIROFCLEATS_TUI_DIST_DIR",
+      "PAIROFCLEATS_TUI_EVENT_LOG_DIR",
+      "PAIROFCLEATS_TUI_INSTALL_ROOT",
+      "PAIROFCLEATS_TUI_MOUSE",
+      "PAIROFCLEATS_TUI_RUN_ID",
+      "PAIROFCLEATS_TUI_UNICODE",
       "PAIROFCLEATS_UPDATE_SNAPSHOTS",
       "PAIROFCLEATS_UV_THREADPOOL_SIZE",
       "PAIROFCLEATS_VERBOSE",
@@ -2095,6 +2104,7 @@
         "tests/services/mcp/mcp-schema.test.js",
         "tests/services/mcp/repo-path-resolution.test.js",
         "tests/services/mcp/sdk-mode.test.js",
+        "tests/services/service-mode-smoke.test.js",
         "tests/shared/cache/cache-gc.test.js",
         "tests/shared/cache/cache-migration.test.js",
         "tests/shared/cache/cache-root-versioning.test.js",
@@ -2118,7 +2128,9 @@
         "tests/tooling/fixtures/fixture-empty.test.js",
         "tests/tooling/fixtures/fixture-eval.test.js",
         "tests/tooling/index-stats/index-stats-explicit-repo-path.test.js",
+        "tests/tooling/install/bootstrap-json-output.test.js",
         "tests/tooling/install/setup-index-detection.test.js",
+        "tests/tooling/install/setup-json-output.test.js",
         "tests/tooling/install/setup.test.js",
         "tests/tooling/install/uninstall.test.js",
         "tests/tooling/reports/metrics-dashboard.test.js",
@@ -2130,7 +2142,8 @@
         "tools/bench/index/scheduler-store-format.js",
         "tools/ci/run-suite.js",
         "tools/config/inventory.js",
-        "tools/reports/compare-models.js"
+        "tools/reports/compare-models.js",
+        "tools/service/indexer-service.js"
       ]
     },
     {
@@ -2186,8 +2199,8 @@
     {
       "name": "PAIROFCLEATS_EMBEDDINGS",
       "files": [
-        "src/integrations/mcp/protocol.js",
         "src/shared/env.js",
+        "src/shared/error-codes.js",
         "tests/cli/general/repo-root.test.js",
         "tests/cli/search/search-missing-index.test.js",
         "tests/cli/search/search-rrf.test.js",
@@ -2439,6 +2452,15 @@
       "files": [
         "tests/tooling/fixtures/fixture-parity.test.js",
         "tests/tooling/structural/structural-search.test.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_PROGRESS_CONTEXT",
+      "files": [
+        "src/shared/env.js",
+        "src/shared/progress.js",
+        "tests/tui/progress-context-propagation.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -2735,6 +2757,7 @@
         "tests/run.js",
         "tests/runner/harness/timeout-kills-tree.test.js",
         "tests/runner/harness/timeout-target.test.js",
+        "tests/runner/harness/watchdog-kills-tree.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -2878,6 +2901,7 @@
         "tests/run.js",
         "tests/runner/harness/timeout-kills-tree.test.js",
         "tests/runner/harness/timeout-target.test.js",
+        "tests/runner/harness/watchdog-kills-tree.test.js",
         "tests/runner/run-execution.js",
         "tools/config/inventory.js"
       ]
@@ -2958,6 +2982,13 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_TEST_WATCHDOG_MS",
+      "files": [
+        "tests/run.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_TESTING",
       "files": [
         "src/shared/env.js",
@@ -2997,6 +3028,64 @@
       "files": [
         "src/shared/env.js",
         "tests/helpers/triage.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TUI_ALT_SCREEN",
+      "files": [
+        "tests/tui/terminal-capability-fallback.test.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TUI_DIST_DIR",
+      "files": [
+        "tests/tui/headless-smoke.test.js",
+        "tests/tui/installer-unit.test.js",
+        "tools/config/inventory.js",
+        "tools/tui/targets.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TUI_EVENT_LOG_DIR",
+      "files": [
+        "bin/pairofcleats-tui.js",
+        "tests/tui/observability/replay-determinism.test.js",
+        "tests/tui/observability/session-correlation.test.js",
+        "tools/config/inventory.js",
+        "tools/tui/supervisor.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TUI_INSTALL_ROOT",
+      "files": [
+        "bin/pairofcleats-tui.js",
+        "tests/tui/wrapper-behavior.test.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TUI_MOUSE",
+      "files": [
+        "tests/tui/terminal-capability-fallback.test.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TUI_RUN_ID",
+      "files": [
+        "bin/pairofcleats-tui.js",
+        "tests/tui/observability/replay-determinism.test.js",
+        "tests/tui/observability/session-correlation.test.js",
+        "tools/config/inventory.js",
+        "tools/tui/supervisor.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TUI_UNICODE",
+      "files": [
+        "tests/tui/terminal-capability-fallback.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -3119,7 +3208,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 316,
+    "totalFlags": 320,
     "publicFlags": [
       "backend",
       "host",
@@ -3203,8 +3292,10 @@
       "enforce",
       "enforce-fts",
       "engine",
+      "event-log-dir",
       "evidence",
       "expires",
+      "ext",
       "extensions",
       "fail-fast",
       "failOnViolation",
@@ -3249,6 +3340,7 @@
       "index-root",
       "input",
       "inputs",
+      "install-root",
       "interactive",
       "interval",
       "iterations",
@@ -3407,6 +3499,7 @@
       "strict",
       "stub-embeddings",
       "table",
+      "target",
       "targets",
       "testPattern",
       "three-url",
@@ -3643,6 +3736,12 @@
         ]
       },
       {
+        "file": "tests/indexing/language-registry/config-data-adapters-contract.test.js",
+        "flags": [
+          "ext"
+        ]
+      },
+      {
         "file": "tests/indexing/language-registry/python-ast-heavy-skip.test.js",
         "flags": [
           "fileSizeBytes",
@@ -3690,6 +3789,12 @@
         "file": "tests/indexing/tree-sitter/tree-sitter-streaming-chunking.test.js",
         "flags": [
           "log",
+          "treeSitter"
+        ]
+      },
+      {
+        "file": "tests/indexing/tree-sitter/tree-sitter-xml-runtime.test.js",
+        "flags": [
           "treeSitter"
         ]
       },
@@ -4428,6 +4533,12 @@
         ]
       },
       {
+        "file": "tools/dispatch/manifest.js",
+        "flags": [
+          "json"
+        ]
+      },
+      {
         "file": "tools/download/dicts.js",
         "flags": [
           "dir",
@@ -4728,6 +4839,7 @@
           "concurrency",
           "config",
           "interval",
+          "json",
           "mode",
           "queue",
           "reason",
@@ -4740,6 +4852,7 @@
         "file": "tools/setup/bootstrap.js",
         "flags": [
           "incremental",
+          "json",
           "repo",
           "skip-artifacts",
           "skip-dicts",
@@ -4868,6 +4981,15 @@
         ]
       },
       {
+        "file": "tools/tui/install.js",
+        "flags": [
+          "event-log-dir",
+          "install-root",
+          "json",
+          "target"
+        ]
+      },
+      {
         "file": "tools/workspace/catalog.js",
         "flags": [
           "json",
@@ -4957,7 +5079,7 @@
       },
       {
         "flag": "json",
-        "count": 50,
+        "count": 54,
         "files": [
           "src/integrations/tooling/api-contracts.js",
           "src/integrations/tooling/architecture-check.js",
@@ -4989,6 +5111,7 @@
           "tools/config/dump.js",
           "tools/config/reset.js",
           "tools/config/validate.js",
+          "tools/dispatch/manifest.js",
           "tools/index/cache-gc.js",
           "tools/index/report-artifacts.js",
           "tools/index/stats.js",
@@ -5001,11 +5124,14 @@
           "tools/reports/compare-models.js",
           "tools/reports/metrics-dashboard.js",
           "tools/reports/report-code-map.js",
+          "tools/service/indexer-service.js",
+          "tools/setup/bootstrap.js",
           "tools/setup/setup.js",
           "tools/sqlite/verify-extensions.js",
           "tools/tooling/detect.js",
           "tools/tooling/doctor.js",
           "tools/tooling/install.js",
+          "tools/tui/install.js",
           "tools/workspace/catalog.js",
           "tools/workspace/manifest.js",
           "tools/workspace/status.js"
@@ -5161,6 +5287,21 @@
         ]
       },
       {
+        "flag": "treeSitter",
+        "count": 9,
+        "files": [
+          "src/lang/javascript/chunks.js",
+          "src/lang/typescript/chunks.js",
+          "tests/indexing/tree-sitter/tree-sitter-adaptive-budget.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-chunks.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-missing-grammar-fallback.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-streaming-chunking.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-xml-runtime.test.js",
+          "tests/lang/contracts/swift-prepare-tree-sitter-disabled.test.js",
+          "tools/bench/index/tree-sitter-load.js"
+        ]
+      },
+      {
         "flag": "format",
         "count": 8,
         "files": [
@@ -5200,20 +5341,6 @@
           "tools/ci/build-artifacts.js",
           "tools/download/extensions.js",
           "tools/eval/run.js"
-        ]
-      },
-      {
-        "flag": "treeSitter",
-        "count": 8,
-        "files": [
-          "src/lang/javascript/chunks.js",
-          "src/lang/typescript/chunks.js",
-          "tests/indexing/tree-sitter/tree-sitter-adaptive-budget.test.js",
-          "tests/indexing/tree-sitter/tree-sitter-chunks.test.js",
-          "tests/indexing/tree-sitter/tree-sitter-missing-grammar-fallback.test.js",
-          "tests/indexing/tree-sitter/tree-sitter-streaming-chunking.test.js",
-          "tests/lang/contracts/swift-prepare-tree-sitter-disabled.test.js",
-          "tools/bench/index/tree-sitter-load.js"
         ]
       },
       {
@@ -6273,7 +6400,6 @@
       }
     ],
     "dynamicOptionFiles": [
-      "bin/pairofcleats.js",
       "search.js",
       "src/index/build/args.js",
       "src/index/build/context-window.js",
@@ -6284,6 +6410,7 @@
       "src/index/chunking/formats/ini-toml.js",
       "src/index/chunking/formats/json.js",
       "src/index/chunking/formats/markdown.js",
+      "src/index/chunking/formats/xml.js",
       "src/index/chunking/formats/yaml.js",
       "src/index/language-registry/registry.js",
       "src/index/segments.js",
@@ -6297,6 +6424,7 @@
       "src/retrieval/federation/coordinator.js",
       "src/shared/cli-options.js",
       "src/shared/cli.js",
+      "src/shared/dispatch/env.js",
       "tests/indexing/chunking/chunker-options-forwarding.test.js",
       "tests/indexing/tree-sitter/tree-sitter-chunk-cache-reuse.test.js",
       "tests/indexing/tree-sitter/tree-sitter-memory-plateau.test.js",

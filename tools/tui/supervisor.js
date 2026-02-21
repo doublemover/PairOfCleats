@@ -489,7 +489,7 @@ const startJob = async (request) => {
           const { proto, event: eventName, ts, seq, runId: ignoredRunId, jobId: ignoredJobId, ...rest } = event;
           emit(eventName, {
             ...rest,
-            ...(typeof rest.stream === 'string' ? {} : { stream: 'stderr' })
+            ...(typeof rest.stream === 'string' ? {} : { stream: 'stdout' })
           }, { jobId });
           return;
         }
@@ -632,7 +632,23 @@ const startJob = async (request) => {
     }
   };
 
-  runAttempt(1).finally(() => {
+  runAttempt(1).catch(async (error) => {
+    if (job.finalized) return;
+    finalizeJob(job, {
+      status: 'failed',
+      exitCode: null,
+      signal: null,
+      durationMs: Math.max(0, Date.now() - job.startedAt),
+      result: null,
+      error: {
+        message: error?.message || String(error),
+        code: 'INVALID_REQUEST'
+      }
+    });
+    await emitArtifacts(job, request, {
+      cwd: request?.cwd ? path.resolve(String(request.cwd)) : process.cwd()
+    });
+  }).finally(() => {
     job.status = job.status === 'cancelled' ? 'cancelled' : (job.status || 'done');
   });
 };

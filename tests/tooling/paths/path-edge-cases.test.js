@@ -11,4 +11,11 @@ assert.equal(escaped, null, 'expected traversal join to be rejected');
 const safe = joinPathSafe('/tmp/pairofcleats', ['inside', 'file.txt'], { platform: 'posix' });
 assert.equal(safe, '/tmp/pairofcleats/inside/file.txt', 'expected safe join to resolve inside root');
 
+const normalizedWindows = normalizePathForPlatform('C:/repo//a+b\\\\file.js', { platform: 'win32' });
+assert.equal(
+  normalizedWindows,
+  'C:\\repo\\a+b\\file.js',
+  'expected Windows normalization to preserve plus characters and collapse duplicate separators'
+);
+
 console.log('path edge-cases test passed');
