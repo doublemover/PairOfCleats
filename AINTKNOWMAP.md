@@ -1579,10 +1579,10 @@ Tests:
 
 #### 9.2 Node supervisor lifecycle model
 
-- [ ] Use `docs/specs/node-supervisor-protocol.md` as canonical target and implement the missing supervisor runtime.
-- [ ] Implement `tools/tui/supervisor.js` with strict lifecycle states.
-- [ ] Enforce deterministic cancellation and child cleanup.
-- [ ] Emit structured lifecycle events.
+- [x] Use `docs/specs/node-supervisor-protocol.md` as canonical target and implement the missing supervisor runtime.
+- [x] Implement `tools/tui/supervisor.js` with strict lifecycle states.
+- [x] Enforce deterministic cancellation and child cleanup.
+- [x] Emit structured lifecycle events.
 
 Tests:
 

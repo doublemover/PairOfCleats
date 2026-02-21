@@ -1,11 +1,440 @@
 #!/usr/bin/env node
+import fs from 'node:fs';
+import path from 'node:path';
+import { spawnSubprocess } from '../../src/shared/subprocess.js';
+import { applyProgressContextEnv } from '../../src/shared/progress.js';
+import { createProgressLineDecoder } from '../../src/shared/cli/progress-stream.js';
+import { formatProgressEvent, PROGRESS_PROTOCOL } from '../../src/shared/cli/progress-events.js';
+import { resolveToolRoot } from '../shared/dict-utils.js';
 
-const args = process.argv.slice(2);
-if (args.includes('--help') || args.includes('-h')) {
-  process.stderr.write('Usage: node tools/tui/supervisor.js\n');
-  process.stderr.write('Runs the Node supervisor process for the terminal TUI.\n');
-  process.exit(0);
-}
+const ROOT = resolveToolRoot();
+const SUPERVISOR_PROTOCOL = 'poc.tui@1';
+const runId = `run-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
-process.stderr.write('TUI supervisor runtime is not yet initialized for this invocation.\n');
-process.exit(1);
+const pkg = (() => {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+  } catch {
+    return { version: '0.0.0' };
+  }
+})();
+
+const state = {
+  shuttingDown: false,
+  shutdownStartedAt: 0,
+  globalSeq: 0,
+  jobs: new Map()
+};
+
+const clampInt = (value, fallback, { min = 0, max = Number.MAX_SAFE_INTEGER } = {}) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(min, Math.min(max, Math.floor(parsed)));
+};
+
+const nowIso = () => new Date().toISOString();
+
+const getJob = (jobId) => (typeof jobId === 'string' ? state.jobs.get(jobId) : null);
+
+const nextSeq = (jobId = null) => {
+  if (!jobId) {
+    state.globalSeq += 1;
+    return state.globalSeq;
+  }
+  const job = getJob(jobId);
+  if (!job) {
+    state.globalSeq += 1;
+    return state.globalSeq;
+  }
+  job.seq += 1;
+  return job.seq;
+};
+
+const emit = (event, payload = {}, { jobId = null } = {}) => {
+  const entry = formatProgressEvent(event, {
+    runId,
+    ...(jobId ? { jobId } : {}),
+    seq: nextSeq(jobId),
+    ...payload
+  });
+  process.stdout.write(`${JSON.stringify(entry)}\n`);
+};
+
+const emitLog = (jobId, level, message, extra = {}) => {
+  emit('log', {
+    level,
+    message,
+    ...extra
+  }, { jobId });
+};
+
+const resolveRunRequest = (request) => {
+  if (typeof request?.command === 'string' && request.command.trim()) {
+    const command = request.command.trim();
+    const args = Array.isArray(request?.args) ? request.args.map((entry) => String(entry)) : [];
+    const cwd = request?.cwd ? path.resolve(String(request.cwd)) : process.cwd();
+    return { command, args, cwd };
+  }
+  const argv = Array.isArray(request?.argv)
+    ? request.argv.map((entry) => String(entry))
+    : [];
+  if (!argv.length) {
+    throw new Error('job:run requires non-empty argv array.');
+  }
+  const cwd = request?.cwd ? path.resolve(String(request.cwd)) : process.cwd();
+  const command = process.execPath;
+  const args = [path.join(ROOT, 'bin', 'pairofcleats.js'), ...argv];
+  return { command, args, cwd };
+};
+
+const resolveResultPolicy = (request) => {
+  const policy = request?.resultPolicy && typeof request.resultPolicy === 'object'
+    ? request.resultPolicy
+    : {};
+  const captureStdout = ['none', 'text', 'json'].includes(policy.captureStdout)
+    ? policy.captureStdout
+    : 'none';
+  const maxBytes = clampInt(policy.maxBytes, 1_000_000, { min: 1024, max: 64 * 1024 * 1024 });
+  return { captureStdout, maxBytes };
+};
+
+const resolveRetryPolicy = (request) => {
+  const retry = request?.retry && typeof request.retry === 'object' ? request.retry : {};
+  return {
+    maxAttempts: clampInt(retry.maxAttempts, 1, { min: 1, max: 5 }),
+    delayMs: clampInt(retry.delayMs, 0, { min: 0, max: 60_000 })
+  };
+};
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const parseResultFromStdout = (stdoutText, policy) => {
+  if (policy.captureStdout === 'none') return null;
+  const text = String(stdoutText || '').trim();
+  if (!text) return null;
+  if (policy.captureStdout === 'text') {
+    return text;
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+};
+
+const finalizeJob = (job, payload) => {
+  if (job.finalized) return;
+  job.finalized = true;
+  job.status = payload.status;
+  emit('job:end', payload, { jobId: job.id });
+};
+
+const startJob = async (request) => {
+  const jobId = String(request?.jobId || '').trim();
+  if (!jobId) {
+    throw new Error('job:run requires jobId.');
+  }
+  if (state.jobs.has(jobId)) {
+    throw new Error(`job already exists: ${jobId}`);
+  }
+  const title = String(request?.title || 'Job').trim() || 'Job';
+  const retryPolicy = resolveRetryPolicy(request);
+  const timeoutMs = clampInt(request?.timeoutMs, 0, { min: 0, max: 24 * 60 * 60 * 1000 });
+  const job = {
+    id: jobId,
+    title,
+    seq: 0,
+    status: 'accepted',
+    abortController: new AbortController(),
+    pid: null,
+    startedAt: Date.now(),
+    finalized: false
+  };
+  state.jobs.set(jobId, job);
+
+  emit('job:start', {
+    command: Array.isArray(request?.argv) ? request.argv : [],
+    cwd: request?.cwd ? path.resolve(String(request.cwd)) : process.cwd(),
+    title,
+    requested: {
+      progressMode: request?.progressMode || 'jsonl',
+      resultPolicy: resolveResultPolicy(request),
+      retry: retryPolicy
+    }
+  }, { jobId });
+
+  const runAttempt = async (attempt) => {
+    const { command, args, cwd } = resolveRunRequest(request);
+    const resultPolicy = resolveResultPolicy(request);
+    const envPatch = request?.envPatch && typeof request.envPatch === 'object' ? request.envPatch : {};
+    const env = applyProgressContextEnv({
+      ...process.env,
+      ...envPatch
+    }, {
+      runId,
+      jobId
+    });
+
+    const stdoutDecoder = createProgressLineDecoder({
+      strict: true,
+      maxLineBytes: resultPolicy.maxBytes,
+      onLine: ({ line, event }) => {
+        if (event) {
+          const { proto, event: eventName, ts, seq, runId: ignoredRunId, jobId: ignoredJobId, ...rest } = event;
+          emit(eventName, {
+            ...rest,
+            ...(typeof rest.stream === 'string' ? {} : { stream: 'stderr' })
+          }, { jobId });
+          return;
+        }
+        if (line.trim()) {
+          emitLog(jobId, 'info', line, { stream: 'stdout', pid: job.pid || null });
+        }
+      },
+      onOverflow: ({ overflowBytes }) => {
+        emitLog(jobId, 'warn', `stdout decoder overflow (${overflowBytes} bytes truncated).`, { stream: 'stdout' });
+      }
+    });
+
+    const stderrDecoder = createProgressLineDecoder({
+      strict: true,
+      maxLineBytes: resultPolicy.maxBytes,
+      onLine: ({ line, event }) => {
+        if (event) {
+          const { proto, event: eventName, ts, seq, runId: ignoredRunId, jobId: ignoredJobId, ...rest } = event;
+          emit(eventName, {
+            ...rest,
+            ...(typeof rest.stream === 'string' ? {} : { stream: 'stderr' })
+          }, { jobId });
+          return;
+        }
+        if (line.trim()) {
+          emitLog(jobId, 'info', line, { stream: 'stderr', pid: job.pid || null });
+        }
+      },
+      onOverflow: ({ overflowBytes }) => {
+        emitLog(jobId, 'warn', `stderr decoder overflow (${overflowBytes} bytes truncated).`, { stream: 'stderr' });
+      }
+    });
+
+    const startedAt = Date.now();
+
+    try {
+      const result = await spawnSubprocess(command, args, {
+        cwd,
+        env,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        rejectOnNonZeroExit: false,
+        signal: job.abortController.signal,
+        timeoutMs: timeoutMs > 0 ? timeoutMs : undefined,
+        onSpawn: (child) => {
+          job.pid = child?.pid || null;
+          job.status = 'running';
+          emit('job:spawn', {
+            pid: job.pid,
+            spawnedAt: nowIso()
+          }, { jobId });
+        },
+        onStdout: (chunk) => stdoutDecoder.push(chunk),
+        onStderr: (chunk) => stderrDecoder.push(chunk)
+      });
+
+      stdoutDecoder.flush();
+      stderrDecoder.flush();
+
+      const cancelled = job.abortController.signal.aborted;
+      const status = cancelled
+        ? 'cancelled'
+        : (result.exitCode === 0 ? 'done' : 'failed');
+      const payload = {
+        status,
+        exitCode: cancelled ? 130 : (result.exitCode ?? null),
+        signal: result.signal || null,
+        durationMs: Math.max(0, Date.now() - startedAt),
+        result: parseResultFromStdout(result.stdout, resultPolicy),
+        error: status === 'failed'
+          ? {
+            message: `job failed with exit code ${result.exitCode ?? 'unknown'}`,
+            code: 'JOB_FAILED'
+          }
+          : null
+      };
+
+      if (status === 'failed' && attempt < retryPolicy.maxAttempts) {
+        emitLog(jobId, 'warn', `attempt ${attempt} failed; retrying (${attempt + 1}/${retryPolicy.maxAttempts})`, {
+          attempt,
+          maxAttempts: retryPolicy.maxAttempts
+        });
+        if (retryPolicy.delayMs > 0) {
+          await sleep(retryPolicy.delayMs);
+        }
+        return runAttempt(attempt + 1);
+      }
+
+      finalizeJob(job, payload);
+    } catch (error) {
+      const cancelled = job.abortController.signal.aborted || error?.name === 'AbortError';
+      const payload = {
+        status: cancelled ? 'cancelled' : 'failed',
+        exitCode: cancelled ? 130 : null,
+        signal: null,
+        durationMs: Math.max(0, Date.now() - startedAt),
+        result: null,
+        error: {
+          message: error?.message || String(error),
+          code: cancelled ? 'CANCELLED' : 'SPAWN_FAILED'
+        }
+      };
+      if (!cancelled && attempt < retryPolicy.maxAttempts) {
+        emitLog(jobId, 'warn', `attempt ${attempt} failed; retrying (${attempt + 1}/${retryPolicy.maxAttempts})`, {
+          attempt,
+          maxAttempts: retryPolicy.maxAttempts,
+          error: payload.error.message
+        });
+        if (retryPolicy.delayMs > 0) {
+          await sleep(retryPolicy.delayMs);
+        }
+        return runAttempt(attempt + 1);
+      }
+      finalizeJob(job, payload);
+    }
+  };
+
+  runAttempt(1).finally(() => {
+    job.status = job.status === 'cancelled' ? 'cancelled' : (job.status || 'done');
+  });
+};
+
+const cancelJob = (jobId, reason = 'cancel_requested') => {
+  const job = getJob(jobId);
+  if (!job) return false;
+  if (job.finalized) return true;
+  job.status = 'cancelling';
+  emitLog(jobId, 'info', `cancelling job (${reason})`, { reason });
+  job.abortController.abort(reason);
+  return true;
+};
+
+const shutdown = async (reason = 'shutdown', exitCode = 0) => {
+  if (state.shuttingDown) return;
+  state.shuttingDown = true;
+  state.shutdownStartedAt = Date.now();
+  emitLog(null, 'info', 'supervisor shutdown requested', { reason });
+  for (const job of state.jobs.values()) {
+    cancelJob(job.id, reason);
+  }
+  const timeoutMs = 10_000;
+  while (Date.now() - state.shutdownStartedAt < timeoutMs) {
+    const active = Array.from(state.jobs.values()).some((job) => !job.finalized);
+    if (!active) break;
+    await sleep(50);
+  }
+  process.exit(exitCode);
+};
+
+const handleRequest = async (request) => {
+  if (!request || typeof request !== 'object' || Array.isArray(request)) {
+    emitLog(null, 'error', 'invalid request shape');
+    return;
+  }
+  if (request.proto !== SUPERVISOR_PROTOCOL) {
+    emitLog(null, 'error', 'invalid supervisor proto', { expected: SUPERVISOR_PROTOCOL });
+    return;
+  }
+  const op = String(request.op || '').trim();
+  if (!op) {
+    emitLog(null, 'error', 'request missing op');
+    return;
+  }
+  if (op === 'hello') {
+    emit('hello', {
+      supervisorVersion: pkg.version || '0.0.0',
+      capabilities: {
+        protocolVersion: PROGRESS_PROTOCOL,
+        supportsCancel: true,
+        supportsResultCapture: true
+      }
+    });
+    return;
+  }
+  if (op === 'job:run') {
+    try {
+      await startJob(request);
+    } catch (error) {
+      const jobId = typeof request.jobId === 'string' ? request.jobId : null;
+      emitLog(jobId, 'error', error?.message || String(error));
+      if (jobId && state.jobs.has(jobId)) {
+        const job = state.jobs.get(jobId);
+        finalizeJob(job, {
+          status: 'failed',
+          exitCode: null,
+          signal: null,
+          durationMs: 0,
+          result: null,
+          error: {
+            message: error?.message || String(error),
+            code: 'INVALID_REQUEST'
+          }
+        });
+      }
+    }
+    return;
+  }
+  if (op === 'job:cancel') {
+    const jobId = String(request.jobId || '').trim();
+    if (!jobId) {
+      emitLog(null, 'error', 'job:cancel missing jobId');
+      return;
+    }
+    cancelJob(jobId, request.reason || 'cancel_requested');
+    return;
+  }
+  if (op === 'shutdown') {
+    await shutdown(request.reason || 'shutdown', 0);
+    return;
+  }
+  emitLog(null, 'error', `unknown op: ${op}`);
+};
+
+let stdinCarry = '';
+process.stdin.setEncoding('utf8');
+process.stdin.on('data', (chunk) => {
+  const text = `${stdinCarry}${String(chunk || '')}`.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const parts = text.split('\n');
+  stdinCarry = parts.pop() || '';
+  for (const line of parts) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    let request;
+    try {
+      request = JSON.parse(trimmed);
+    } catch {
+      emitLog(null, 'error', 'invalid JSON request line');
+      continue;
+    }
+    handleRequest(request).catch((error) => {
+      emitLog(null, 'error', error?.message || String(error));
+    });
+  }
+});
+
+process.stdin.on('end', () => {
+  shutdown('stdin_closed', 0).catch(() => process.exit(0));
+});
+
+process.on('SIGINT', () => {
+  shutdown('sigint', 130).catch(() => process.exit(130));
+});
+
+process.on('SIGTERM', () => {
+  shutdown('sigterm', 130).catch(() => process.exit(130));
+});
+
+emit('hello', {
+  supervisorVersion: pkg.version || '0.0.0',
+  capabilities: {
+    protocolVersion: PROGRESS_PROTOCOL,
+    supportsCancel: true,
+    supportsResultCapture: true
+  }
+});
