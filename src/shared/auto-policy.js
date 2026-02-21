@@ -18,6 +18,55 @@ const IGNORE_DIRS = new Set([
   'out',
   'coverage'
 ]);
+const CANONICAL_HUGE_REPO_PROFILE_ID = 'huge-repo';
+const CANONICAL_HUGE_REPO_OVERRIDES = Object.freeze({
+  hugeRepoProfile: { enabled: true, id: CANONICAL_HUGE_REPO_PROFILE_ID },
+  pipelineOverlap: {
+    enabled: true,
+    inferPostings: true
+  },
+  artifacts: {
+    writeHeavyThresholdBytes: 64 * 1024 * 1024,
+    writeMassiveThresholdBytes: 384 * 1024 * 1024,
+    writeUltraLightThresholdBytes: 256 * 1024,
+    fieldPostingsShardsEnabled: true,
+    chunkMetaBinaryColumnar: true
+  },
+  scheduler: {
+    adaptive: true,
+    adaptiveTargetUtilization: 0.82,
+    adaptiveStep: 2,
+    queues: {
+      'stage1.postings': { weight: 5, priority: 20 },
+      'stage2.write': { weight: 5, priority: 20 },
+      'stage2.relations': { weight: 3, priority: 30 },
+      'stage4.sqlite': { weight: 5, priority: 20 },
+      'embeddings.compute': { weight: 2, priority: 35 },
+      'embeddings.io': { weight: 2, priority: 30 }
+    }
+  },
+  typeInferenceCrossFile: false,
+  riskAnalysisCrossFile: false,
+  riskInterprocedural: {
+    enabled: false
+  },
+  lexicon: {
+    relations: {
+      enabled: false
+    }
+  },
+  documentExtraction: {
+    enabled: false
+  },
+  commentExtraction: {
+    enabled: false
+  },
+  records: {
+    enabled: false
+  }
+});
+
+const clonePlain = (value) => JSON.parse(JSON.stringify(value));
 
 const clampQuality = (value) => {
   if (!value) return null;
@@ -142,38 +191,12 @@ const resolveHugeRepoProfile = ({ config = {}, repo = null }) => {
   const enabled = typeof profileConfig.enabled === 'boolean'
     ? profileConfig.enabled
     : repo?.huge === true;
-  const id = enabled ? 'huge-repo' : 'default';
+  const id = enabled ? CANONICAL_HUGE_REPO_PROFILE_ID : 'default';
   const reason = enabled
     ? (repo?.huge === true ? 'repo-size-threshold' : 'explicit-config')
     : 'disabled';
   const overrides = enabled
-    ? {
-      hugeRepoProfile: { enabled: true, id: 'huge-repo' },
-      typeInferenceCrossFile: false,
-      riskAnalysisCrossFile: false,
-      riskInterprocedural: {
-        enabled: false
-      },
-      lexicon: {
-        relations: {
-          enabled: false
-        }
-      },
-      pipelineOverlap: {
-        enabled: true,
-        inferPostings: true
-      },
-      scheduler: {
-        queues: {
-          'stage1.postings': { weight: 5, priority: 20 },
-          'stage2.write': { weight: 5, priority: 20 },
-          'stage2.relations': { weight: 3, priority: 30 },
-          'stage4.sqlite': { weight: 5, priority: 20 },
-          'embeddings.compute': { weight: 2, priority: 35 },
-          'embeddings.io': { weight: 2, priority: 30 }
-        }
-      }
-    }
+    ? clonePlain(CANONICAL_HUGE_REPO_OVERRIDES)
     : {};
   return {
     id,

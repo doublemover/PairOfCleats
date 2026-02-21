@@ -2164,7 +2164,7 @@ Exit criteria:
       - Touchpoints: bench harness/reporting and CI guardrails (`tools/bench/*`, `tests/perf/bench/*`, `docs/perf/*`, perf schemas/contracts).
       - Acceptance target: benchmark outputs must include reproducible utilization/backpressure/stall telemetry and produce stable A/B recommendations per hardware profile.
       - Validation: add schema-contract tests for new report fields and CI perf-gate tests that fail on stage-time/stall/utilization regressions in huge-repo lanes.
-  80. [ ] Add a canonical huge-repo profile that enables all high-yield knobs by default and disables low-value passes.
+  80. [x] Add a canonical huge-repo profile that enables all high-yield knobs by default and disables low-value passes.
       - Touchpoints: bench harness/reporting and CI guardrails (`tools/bench/*`, `tests/perf/bench/*`, `docs/perf/*`, perf schemas/contracts).
       - Acceptance target: benchmark outputs must include reproducible utilization/backpressure/stall telemetry and produce stable A/B recommendations per hardware profile.
       - Validation: add schema-contract tests for new report fields and CI perf-gate tests that fail on stage-time/stall/utilization regressions in huge-repo lanes.
