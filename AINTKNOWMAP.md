@@ -725,9 +725,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.39c TOML
 
-- [ ] Implement `.toml` routing and table/array-of-table chunking behavior.
-- [ ] Implement and verify dependency/config reference extraction behavior where supported.
-- [ ] Calibrate and commit TOML caps for large toolchain and package configuration files.
+- [x] Implement `.toml` routing and table/array-of-table chunking behavior.
+- [x] Implement and verify dependency/config reference extraction behavior where supported.
+- [x] Calibrate and commit TOML caps for large toolchain and package configuration files.
 
 
 Touchpoints:
