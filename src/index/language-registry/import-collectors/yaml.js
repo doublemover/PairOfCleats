@@ -66,9 +66,10 @@ export const collectYamlImports = (text) => {
 
   let listKeyIndent = -1;
   for (const rawLine of lines) {
-    if (!shouldScanLine(rawLine, precheck)) continue;
     const line = rawLine.replace(/\s+#.*$/, '');
     const trimmed = line.trim();
+    const isListContinuation = listKeyIndent >= 0 && /^-\s+/.test(trimmed);
+    if (!shouldScanLine(rawLine, precheck) && !isListContinuation) continue;
     if (!trimmed) continue;
 
     addAnchorsAndAliases(imports, line);
