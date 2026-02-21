@@ -1904,11 +1904,11 @@ Exit criteria:
       - Touchpoints: `src/index/build/artifacts-write.js`, `src/index/build/artifacts/writers/*`, `src/shared/json-stream.js`, and `src/shared/artifact-io/*` (prefer shared helpers over new local utilities).
       - Acceptance target: huge-repo write phase should eliminate >60s single-artifact tails; aim for no single required artifact exceeding 30s wall time in `swift`/`opencv` huge runs.
       - Validation: add/extend artifact write contract + perf tests under `tests/indexing/artifacts/*` and `tests/perf/indexing/artifacts/*`, including strict validation and deterministic output parity checks.
-  15. [ ] Reuse pre-serialized JSONL row strings anywhere multiple writers consume the same rows.
+  15. [x] Reuse pre-serialized JSONL row strings anywhere multiple writers consume the same rows.
       - Touchpoints: `src/index/build/artifacts-write.js`, `src/index/build/artifacts/writers/*`, `src/shared/json-stream.js`, and `src/shared/artifact-io/*` (prefer shared helpers over new local utilities).
       - Acceptance target: huge-repo write phase should eliminate >60s single-artifact tails; aim for no single required artifact exceeding 30s wall time in `swift`/`opencv` huge runs.
       - Validation: add/extend artifact write contract + perf tests under `tests/indexing/artifacts/*` and `tests/perf/indexing/artifacts/*`, including strict validation and deterministic output parity checks.
-  16. [ ] Parallelize compression work for large JSONL shards with bounded worker count.
+  16. [x] Parallelize compression work for large JSONL shards with bounded worker count.
       - Touchpoints: `src/index/build/artifacts-write.js`, `src/index/build/artifacts/writers/*`, `src/shared/json-stream.js`, and `src/shared/artifact-io/*` (prefer shared helpers over new local utilities).
       - Acceptance target: huge-repo write phase should eliminate >60s single-artifact tails; aim for no single required artifact exceeding 30s wall time in `swift`/`opencv` huge runs.
       - Validation: add/extend artifact write contract + perf tests under `tests/indexing/artifacts/*` and `tests/perf/indexing/artifacts/*`, including strict validation and deterministic output parity checks.
@@ -1936,7 +1936,7 @@ Exit criteria:
       - Touchpoints: `src/index/type-inference-crossfile/pipeline.js`, `src/index/build/incremental.js`, `src/shared/bundle-io.js`, and related cache identity/signature paths.
       - Acceptance target: reduce cross-file incremental bundle-update wall time by >=35% on huge repos while preserving relation/type/risk parity and deterministic bundle contents.
       - Validation: add incremental + cross-file tests for cache hit/miss behavior, unchanged-file skip behavior, deterministic output hashes, and fallback correctness when prefetch is partial.
-  23. [ ] Persist cross-file inference outputs by strong fingerprint and skip full recompute when unchanged.
+  23. [x] Persist cross-file inference outputs by strong fingerprint and skip full recompute when unchanged.
       - Touchpoints: `src/index/type-inference-crossfile/pipeline.js`, `src/index/build/incremental.js`, `src/shared/bundle-io.js`, and related cache identity/signature paths.
       - Acceptance target: reduce cross-file incremental bundle-update wall time by >=35% on huge repos while preserving relation/type/risk parity and deterministic bundle contents.
       - Validation: add incremental + cross-file tests for cache hit/miss behavior, unchanged-file skip behavior, deterministic output hashes, and fallback correctness when prefetch is partial.
@@ -1956,7 +1956,7 @@ Exit criteria:
       - Touchpoints: `src/index/type-inference-crossfile/pipeline.js`, `src/index/build/incremental.js`, `src/shared/bundle-io.js`, and related cache identity/signature paths.
       - Acceptance target: reduce cross-file incremental bundle-update wall time by >=35% on huge repos while preserving relation/type/risk parity and deterministic bundle contents.
       - Validation: add incremental + cross-file tests for cache hit/miss behavior, unchanged-file skip behavior, deterministic output hashes, and fallback correctness when prefetch is partial.
-  28. [ ] Add faster map-based dedupe paths for call/usage link construction on huge bundles.
+  28. [x] Add faster map-based dedupe paths for call/usage link construction on huge bundles.
       - Touchpoints: `src/index/type-inference-crossfile/pipeline.js`, `src/index/build/incremental.js`, `src/shared/bundle-io.js`, and related cache identity/signature paths.
       - Acceptance target: reduce cross-file incremental bundle-update wall time by >=35% on huge repos while preserving relation/type/risk parity and deterministic bundle contents.
       - Validation: add incremental + cross-file tests for cache hit/miss behavior, unchanged-file skip behavior, deterministic output hashes, and fallback correctness when prefetch is partial.
@@ -1980,7 +1980,7 @@ Exit criteria:
       - Touchpoints: `src/index/type-inference-crossfile/pipeline.js`, `src/index/build/incremental.js`, `src/shared/bundle-io.js`, and related cache identity/signature paths.
       - Acceptance target: reduce cross-file incremental bundle-update wall time by >=35% on huge repos while preserving relation/type/risk parity and deterministic bundle contents.
       - Validation: add incremental + cross-file tests for cache hit/miss behavior, unchanged-file skip behavior, deterministic output hashes, and fallback correctness when prefetch is partial.
-  34. [ ] Add early-stop budgets by repo scale for low-value inference edges in huge profile.
+  34. [x] Add early-stop budgets by repo scale for low-value inference edges in huge profile.
       - Touchpoints: `src/index/type-inference-crossfile/pipeline.js`, `src/index/build/incremental.js`, `src/shared/bundle-io.js`, and related cache identity/signature paths.
       - Acceptance target: reduce cross-file incremental bundle-update wall time by >=35% on huge repos while preserving relation/type/risk parity and deterministic bundle contents.
       - Validation: add incremental + cross-file tests for cache hit/miss behavior, unchanged-file skip behavior, deterministic output hashes, and fallback correctness when prefetch is partial.
@@ -2056,7 +2056,7 @@ Exit criteria:
       - Touchpoints: tree-sitter planner/scheduler paths (`src/index/build/tree-sitter-scheduler/*`) plus stage orchestration integration points.
       - Acceptance target: remove long single-wave critical paths for clike/cpp-heavy repos and reduce parser idle gaps; keep determinism unchanged.
       - Validation: add planner wave/bucket tests and large-grammar shard tests under `tests/indexing/tree-sitter/*`, plus cap/guard tests for maxBytes/maxLines behavior.
-  53. [ ] Increase shard counts for clike/cpp buckets automatically on very large repos.
+  53. [x] Increase shard counts for clike/cpp buckets automatically on very large repos.
       - Touchpoints: tree-sitter planner/scheduler paths (`src/index/build/tree-sitter-scheduler/*`) plus stage orchestration integration points.
       - Acceptance target: remove long single-wave critical paths for clike/cpp-heavy repos and reduce parser idle gaps; keep determinism unchanged.
       - Validation: add planner wave/bucket tests and large-grammar shard tests under `tests/indexing/tree-sitter/*`, plus cap/guard tests for maxBytes/maxLines behavior.
@@ -2068,7 +2068,7 @@ Exit criteria:
       - Touchpoints: tree-sitter planner/scheduler paths (`src/index/build/tree-sitter-scheduler/*`) plus stage orchestration integration points.
       - Acceptance target: remove long single-wave critical paths for clike/cpp-heavy repos and reduce parser idle gaps; keep determinism unchanged.
       - Validation: add planner wave/bucket tests and large-grammar shard tests under `tests/indexing/tree-sitter/*`, plus cap/guard tests for maxBytes/maxLines behavior.
-  56. [ ] Add parse skipping for known generated/vendor patterns by default in huge profile.
+  56. [x] Add parse skipping for known generated/vendor patterns by default in huge profile.
       - Touchpoints: tree-sitter planner/scheduler paths (`src/index/build/tree-sitter-scheduler/*`) plus stage orchestration integration points.
       - Acceptance target: remove long single-wave critical paths for clike/cpp-heavy repos and reduce parser idle gaps; keep determinism unchanged.
       - Validation: add planner wave/bucket tests and large-grammar shard tests under `tests/indexing/tree-sitter/*`, plus cap/guard tests for maxBytes/maxLines behavior.
@@ -2088,7 +2088,7 @@ Exit criteria:
       - Touchpoints: tree-sitter planner/scheduler paths (`src/index/build/tree-sitter-scheduler/*`) plus stage orchestration integration points.
       - Acceptance target: remove long single-wave critical paths for clike/cpp-heavy repos and reduce parser idle gaps; keep determinism unchanged.
       - Validation: add planner wave/bucket tests and large-grammar shard tests under `tests/indexing/tree-sitter/*`, plus cap/guard tests for maxBytes/maxLines behavior.
-  61. [ ] Enforce per-worker memory target bands dynamically (1-2GB) with worker-count scaling.
+  61. [x] Enforce per-worker memory target bands dynamically (1-2GB) with worker-count scaling.
       - Touchpoints: `src/index/build/workers/config.js`, `src/index/build/workers/pool.js`, `src/index/build/runtime/workers.js`, and memory telemetry surfaces.
       - Acceptance target: enforce stable per-worker memory policies (1-2GB class) with higher throughput and no budget-violation regressions/OOM churn.
       - Validation: extend worker resource-limit tests and memory budget tests (`tests/indexing/workers/*`, `tests/perf/indexing/postings/*`) to cover underflow/oversubscription/headroom-driven scaling.
@@ -2124,7 +2124,7 @@ Exit criteria:
       - Touchpoints: `src/index/build/workers/config.js`, `src/index/build/workers/pool.js`, `src/index/build/runtime/workers.js`, and memory telemetry surfaces.
       - Acceptance target: enforce stable per-worker memory policies (1-2GB class) with higher throughput and no budget-violation regressions/OOM churn.
       - Validation: extend worker resource-limit tests and memory budget tests (`tests/indexing/workers/*`, `tests/perf/indexing/postings/*`) to cover underflow/oversubscription/headroom-driven scaling.
-  70. [ ] Add memory-budget presets per hardware class (desktop/server/CI).
+  70. [x] Add memory-budget presets per hardware class (desktop/server/CI).
       - Touchpoints: `src/index/build/workers/config.js`, `src/index/build/workers/pool.js`, `src/index/build/runtime/workers.js`, and memory telemetry surfaces.
       - Acceptance target: enforce stable per-worker memory policies (1-2GB class) with higher throughput and no budget-violation regressions/OOM churn.
       - Validation: extend worker resource-limit tests and memory budget tests (`tests/indexing/workers/*`, `tests/perf/indexing/postings/*`) to cover underflow/oversubscription/headroom-driven scaling.
