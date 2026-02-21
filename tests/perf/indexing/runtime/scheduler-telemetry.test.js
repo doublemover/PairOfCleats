@@ -5,6 +5,7 @@ const scheduler = createBuildScheduler({
   cpuTokens: 1,
   ioTokens: 1,
   memoryTokens: 1,
+  traceIntervalMs: 100,
   queues: {
     telemetry: { priority: 10 }
   }
@@ -17,6 +18,7 @@ for (let i = 0; i < 3; i += 1) {
   );
 }
 await Promise.all(tasks);
+scheduler.setTelemetryOptions({ stage: 'telemetry-verify' });
 
 const stats = scheduler.stats();
 const queueStats = stats?.queues?.telemetry;
@@ -34,6 +36,16 @@ if (stats.counters.completed !== 3 || queueStats.completed !== 3) {
 }
 if (!stats.tokens?.cpu || stats.tokens.cpu.total !== 1) {
   console.error('scheduler telemetry test failed: token totals missing');
+  process.exit(1);
+}
+const trace = stats?.telemetry?.schedulingTrace;
+if (!Array.isArray(trace) || trace.length < 2) {
+  console.error('scheduler telemetry test failed: expected scheduling trace samples');
+  process.exit(1);
+}
+const latest = trace[trace.length - 1];
+if (!Number.isFinite(Number(latest?.tokens?.cpu?.total)) || !Number.isFinite(Number(latest?.tokens?.cpu?.used))) {
+  console.error('scheduler telemetry test failed: missing token total/used trace fields');
   process.exit(1);
 }
 

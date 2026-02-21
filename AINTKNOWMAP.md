@@ -2012,11 +2012,11 @@ Exit criteria:
       - Touchpoints: `src/shared/concurrency.js`, `src/index/build/runtime/scheduler.js`, `src/index/build/runtime/workers.js`, and scheduler telemetry/reporting emitters.
       - Acceptance target: sustain >75% effective utilization during heavy indexing phases on 8c/16t hardware without starvation spikes or queue blow-ups.
       - Validation: extend scheduler contract/perf tests (`tests/shared/concurrency/*`, `tests/perf/scheduler-*`, `tests/perf/indexing/runtime/*`) for adaptive scaling, fairness, backpressure, and alerting windows.
-  42. [ ] Add in-flight-bytes-aware gating so scheduler reacts to data volume, not only item counts.
+  42. [x] Add in-flight-bytes-aware gating so scheduler reacts to data volume, not only item counts.
       - Touchpoints: `src/shared/concurrency.js`, `src/index/build/runtime/scheduler.js`, `src/index/build/runtime/workers.js`, and scheduler telemetry/reporting emitters.
       - Acceptance target: sustain >75% effective utilization during heavy indexing phases on 8c/16t hardware without starvation spikes or queue blow-ups.
       - Validation: extend scheduler contract/perf tests (`tests/shared/concurrency/*`, `tests/perf/scheduler-*`, `tests/perf/indexing/runtime/*`) for adaptive scaling, fairness, backpressure, and alerting windows.
-  43. [ ] Add max pending-bytes caps per queue in addition to max pending-items.
+  43. [x] Add max pending-bytes caps per queue in addition to max pending-items.
       - Touchpoints: `src/shared/concurrency.js`, `src/index/build/runtime/scheduler.js`, `src/index/build/runtime/workers.js`, and scheduler telemetry/reporting emitters.
       - Acceptance target: sustain >75% effective utilization during heavy indexing phases on 8c/16t hardware without starvation spikes or queue blow-ups.
       - Validation: extend scheduler contract/perf tests (`tests/shared/concurrency/*`, `tests/perf/scheduler-*`, `tests/perf/indexing/runtime/*`) for adaptive scaling, fairness, backpressure, and alerting windows.
@@ -2036,11 +2036,11 @@ Exit criteria:
       - Touchpoints: `src/shared/concurrency.js`, `src/index/build/runtime/scheduler.js`, `src/index/build/runtime/workers.js`, and scheduler telemetry/reporting emitters.
       - Acceptance target: sustain >75% effective utilization during heavy indexing phases on 8c/16t hardware without starvation spikes or queue blow-ups.
       - Validation: extend scheduler contract/perf tests (`tests/shared/concurrency/*`, `tests/perf/scheduler-*`, `tests/perf/indexing/runtime/*`) for adaptive scaling, fairness, backpressure, and alerting windows.
-  48. [ ] Add scheduling traces (token totals/used over time) in bench output JSON for regression diffing.
+  48. [x] Add scheduling traces (token totals/used over time) in bench output JSON for regression diffing.
       - Touchpoints: `src/shared/concurrency.js`, `src/index/build/runtime/scheduler.js`, `src/index/build/runtime/workers.js`, and scheduler telemetry/reporting emitters.
       - Acceptance target: sustain >75% effective utilization during heavy indexing phases on 8c/16t hardware without starvation spikes or queue blow-ups.
       - Validation: extend scheduler contract/perf tests (`tests/shared/concurrency/*`, `tests/perf/scheduler-*`, `tests/perf/indexing/runtime/*`) for adaptive scaling, fairness, backpressure, and alerting windows.
-  49. [ ] Add per-stage queue-depth snapshots every N seconds in huge runs.
+  49. [x] Add per-stage queue-depth snapshots every N seconds in huge runs.
       - Touchpoints: `src/shared/concurrency.js`, `src/index/build/runtime/scheduler.js`, `src/index/build/runtime/workers.js`, and scheduler telemetry/reporting emitters.
       - Acceptance target: sustain >75% effective utilization during heavy indexing phases on 8c/16t hardware without starvation spikes or queue blow-ups.
       - Validation: extend scheduler contract/perf tests (`tests/shared/concurrency/*`, `tests/perf/scheduler-*`, `tests/perf/indexing/runtime/*`) for adaptive scaling, fairness, backpressure, and alerting windows.

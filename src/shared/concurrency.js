@@ -5,7 +5,7 @@ import { coerceUnitFraction } from './number-coerce.js';
 
 /**
  * Create shared task queues for IO, CPU, and embeddings work.
- * @param {{ioConcurrency:number,cpuConcurrency:number,embeddingConcurrency?:number,procConcurrency?:number,ioPendingLimit?:number,cpuPendingLimit?:number,embeddingPendingLimit?:number,procPendingLimit?:number}} input
+ * @param {{ioConcurrency:number,cpuConcurrency:number,embeddingConcurrency?:number,procConcurrency?:number,ioPendingLimit?:number,cpuPendingLimit?:number,embeddingPendingLimit?:number,procPendingLimit?:number,ioPendingBytesLimit?:number,cpuPendingBytesLimit?:number,embeddingPendingBytesLimit?:number,procPendingBytesLimit?:number}} input
  * @returns {{io:PQueue,cpu:PQueue,embedding:PQueue,proc?:PQueue}}
  */
 export function createTaskQueues({
@@ -16,7 +16,11 @@ export function createTaskQueues({
   ioPendingLimit,
   cpuPendingLimit,
   embeddingPendingLimit,
-  procPendingLimit
+  procPendingLimit,
+  ioPendingBytesLimit,
+  cpuPendingBytesLimit,
+  embeddingPendingBytesLimit,
+  procPendingBytesLimit
 }) {
   const io = new PQueue({ concurrency: Math.max(1, Math.floor(ioConcurrency || 1)) });
   const cpu = new PQueue({ concurrency: Math.max(1, Math.floor(cpuConcurrency || 1)) });
@@ -32,11 +36,19 @@ export function createTaskQueues({
     if (!Number.isFinite(limit) || limit <= 0) return;
     queue.maxPending = Math.floor(limit);
   };
+  const applyBytesLimit = (queue, limit) => {
+    if (!Number.isFinite(limit) || limit <= 0) return;
+    queue.maxPendingBytes = Math.floor(limit);
+  };
   applyLimit(io, ioPendingLimit);
   applyLimit(cpu, cpuPendingLimit);
   applyLimit(embedding, embeddingPendingLimit);
+  applyBytesLimit(io, ioPendingBytesLimit);
+  applyBytesLimit(cpu, cpuPendingBytesLimit);
+  applyBytesLimit(embedding, embeddingPendingBytesLimit);
   if (proc) {
     applyLimit(proc, procPendingLimit);
+    applyBytesLimit(proc, procPendingBytesLimit);
     return { io, cpu, embedding, proc };
   }
   return { io, cpu, embedding };
@@ -47,7 +59,7 @@ export function createTaskQueues({
  * @param {PQueue} queue
  * @param {Array<any>} items
  * @param {(item:any, ctx:{index:number,item:any,signal?:AbortSignal})=>Promise<any>} worker
- * @param {{collectResults?:boolean,onResult?:(result:any, ctx:{index:number,item:any,signal?:AbortSignal})=>Promise<void>,onError?:(error:any, ctx:{index:number,item:any,signal?:AbortSignal})=>Promise<void>,onProgress?:(state:{done:number,total:number})=>Promise<void>,bestEffort?:boolean,signal?:AbortSignal,abortError?:Error,retries?:number,retryDelayMs?:number,backoffMs?:number,onBeforeDispatch?:(ctx:{index:number,item:any,signal?:AbortSignal})=>Promise<void>}} [options]
+ * @param {{collectResults?:boolean,onResult?:(result:any, ctx:{index:number,item:any,signal?:AbortSignal})=>Promise<void>,onError?:(error:any, ctx:{index:number,item:any,signal?:AbortSignal})=>Promise<void>,onProgress?:(state:{done:number,total:number})=>Promise<void>,bestEffort?:boolean,signal?:AbortSignal,abortError?:Error,retries?:number,retryDelayMs?:number,backoffMs?:number,onBeforeDispatch?:(ctx:{index:number,item:any,signal?:AbortSignal})=>Promise<void>,estimateBytes?:(item:any, ctx:{index:number,item:any,signal?:AbortSignal})=>number}} [options]
  * @returns {Promise<any[]|null>}
  */
 export async function runWithQueue(queue, items, worker, options = {}) {
@@ -70,10 +82,35 @@ export async function runWithQueue(queue, items, worker, options = {}) {
   const results = collectResults ? new Array(list.length) : null;
   const pendingSignals = new Set();
   const maxPending = Number.isFinite(queue?.maxPending) ? queue.maxPending : null;
+  const maxPendingBytes = Number.isFinite(queue?.maxPendingBytes)
+    ? Math.max(1, Math.floor(Number(queue.maxPendingBytes)))
+    : null;
+  const estimateBytes = typeof options.estimateBytes === 'function'
+    ? options.estimateBytes
+    : null;
+  if (queue && !Number.isFinite(Number(queue.inflightBytes))) {
+    queue.inflightBytes = 0;
+  }
   let aborted = false;
   let firstError = null;
   const errors = [];
   let doneCount = 0;
+  const normalizePendingBytes = (value) => {
+    const parsed = Math.floor(Number(value));
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+  };
+  const resolveItemBytes = (item, ctx) => {
+    if (estimateBytes) return normalizePendingBytes(estimateBytes(item, ctx));
+    if (Number.isFinite(Number(item?.bytes))) return normalizePendingBytes(item.bytes);
+    if (Number.isFinite(Number(item?.size))) return normalizePendingBytes(item.size);
+    if (Number.isFinite(Number(item?.stat?.size))) return normalizePendingBytes(item.stat.size);
+    return 0;
+  };
+  const readInflightBytes = () => normalizePendingBytes(queue?.inflightBytes);
+  const setInflightBytes = (value) => {
+    if (!queue) return;
+    queue.inflightBytes = normalizePendingBytes(value);
+  };
   const markAborted = () => {
     if (aborted) return;
     aborted = true;
@@ -138,6 +175,7 @@ export async function runWithQueue(queue, items, worker, options = {}) {
   };
   const enqueue = async (item, index) => {
     const ctx = { index, item, signal };
+    let taskBytes = 0;
     if (aborted) return;
     if (signal?.aborted) {
       markAborted();
@@ -157,13 +195,45 @@ export async function runWithQueue(queue, items, worker, options = {}) {
         return;
       }
     }
+    try {
+      taskBytes = resolveItemBytes(item, ctx);
+    } catch (err) {
+      await recordError(err, ctx);
+      doneCount += 1;
+      await recordProgress();
+      return;
+    }
     if (maxPending) {
       while (pendingSignals.size >= maxPending && !aborted) {
         await Promise.race(pendingSignals);
       }
     }
+    if (maxPendingBytes && taskBytes > 0) {
+      while (!aborted) {
+        const inflightBytes = readInflightBytes();
+        const fits = inflightBytes + taskBytes <= maxPendingBytes;
+        const oversizeSingle = inflightBytes === 0 && pendingSignals.size === 0;
+        if (fits || oversizeSingle) break;
+        if (pendingSignals.size === 0) break;
+        await Promise.race(pendingSignals);
+      }
+    }
     if (aborted) return;
-    const task = queue.add(() => runWorker(item, ctx));
+    if (taskBytes > 0) {
+      setInflightBytes(readInflightBytes() + taskBytes);
+    }
+    let task;
+    try {
+      task = queue.add(() => runWorker(item, ctx), { bytes: taskBytes });
+    } catch (err) {
+      if (taskBytes > 0) {
+        setInflightBytes(readInflightBytes() - taskBytes);
+      }
+      await recordError(err, ctx);
+      doneCount += 1;
+      await recordProgress();
+      return;
+    }
     const settled = task.then(
       async () => {
         doneCount += 1;
@@ -178,6 +248,9 @@ export async function runWithQueue(queue, items, worker, options = {}) {
     pendingSignals.add(settled);
     void task.catch(() => {});
     const cleanup = settled.finally(() => {
+      if (taskBytes > 0) {
+        setInflightBytes(readInflightBytes() - taskBytes);
+      }
       pendingSignals.delete(settled);
     });
     void cleanup.catch(() => {});
@@ -217,8 +290,8 @@ export async function runWithConcurrency(items, limit, worker, options = {}) {
 /**
  * Create a build scheduler that coordinates CPU/IO/memory tokens across queues.
  * This is intentionally generic and can be wired into Stage1/2/4 and embeddings.
- * @param {{enabled?:boolean,lowResourceMode?:boolean,cpuTokens?:number,ioTokens?:number,memoryTokens?:number,starvationMs?:number,queues?:Record<string,{priority?:number,maxPending?:number}>}} input
- * @returns {{schedule:(queueName:string,tokens?:{cpu?:number,io?:number,mem?:number},fn?:()=>Promise<any>)=>Promise<any>,stats:()=>any,shutdown:()=>void,setLimits:(limits:{cpuTokens?:number,ioTokens?:number,memoryTokens?:number})=>void}}
+ * @param {{enabled?:boolean,lowResourceMode?:boolean,cpuTokens?:number,ioTokens?:number,memoryTokens?:number,starvationMs?:number,maxInFlightBytes?:number,queues?:Record<string,{priority?:number,maxPending?:number,maxPendingBytes?:number,maxInFlightBytes?:number}>,traceMaxSamples?:number,queueDepthSnapshotMaxSamples?:number,traceIntervalMs?:number,queueDepthSnapshotIntervalMs?:number,queueDepthSnapshotsEnabled?:boolean}} input
+ * @returns {{schedule:(queueName:string,tokens?:{cpu?:number,io?:number,mem?:number,bytes?:number},fn?:()=>Promise<any>)=>Promise<any>,stats:()=>any,shutdown:()=>void,setLimits:(limits:{cpuTokens?:number,ioTokens?:number,memoryTokens?:number})=>void,setTelemetryOptions:(options:{stage?:string,queueDepthSnapshotsEnabled?:boolean,queueDepthSnapshotIntervalMs?:number,traceIntervalMs?:number})=>void}}
  */
 export function createBuildScheduler(input = {}) {
   const enabled = input.enabled !== false;
@@ -247,11 +320,27 @@ export function createBuildScheduler(input = {}) {
     io: Math.max(baselineLimits.io, normalizeTokenPool(input.maxIoTokens ?? ioTokens)),
     mem: Math.max(baselineLimits.mem, normalizeTokenPool(input.maxMemoryTokens ?? memoryTokens))
   };
+  const normalizeByteLimit = (value) => {
+    const parsed = Math.floor(Number(value));
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  };
+  const normalizeByteCount = (value) => {
+    const parsed = Math.floor(Number(value));
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+  };
+  const normalizeRequest = (req = {}) => ({
+    cpu: Math.max(0, Math.floor(Number(req?.cpu || 0))),
+    io: Math.max(0, Math.floor(Number(req?.io || 0))),
+    mem: Math.max(0, Math.floor(Number(req?.mem || 0))),
+    bytes: normalizeByteCount(req?.bytes)
+  });
 
   const queueConfig = input.queues || {};
   const queues = new Map();
   const queueOrder = [];
   const nowMs = () => Date.now();
+  const globalMaxInFlightBytes = normalizeByteLimit(input.maxInFlightBytes);
+  const startedAtMs = nowMs();
   const counters = {
     scheduled: 0,
     started: 0,
@@ -261,10 +350,15 @@ export function createBuildScheduler(input = {}) {
     starvation: 0,
     rejectedByReason: {
       maxPending: 0,
+      maxPendingBytes: 0,
       shutdown: 0,
       cleared: 0
     }
   };
+  const totalInFlightBytes = () => queueOrder.reduce(
+    (sum, queue) => sum + normalizeByteCount(queue.inFlightBytes),
+    0
+  );
 
   const ensureQueue = (name) => {
     if (queues.has(name)) return queues.get(name);
@@ -274,7 +368,11 @@ export function createBuildScheduler(input = {}) {
       priority: Number.isFinite(Number(cfg.priority)) ? Number(cfg.priority) : 50,
       weight: Number.isFinite(Number(cfg.weight)) ? Math.max(1, Math.floor(Number(cfg.weight))) : 1,
       maxPending: Number.isFinite(Number(cfg.maxPending)) ? Math.max(1, Math.floor(Number(cfg.maxPending))) : null,
+      maxPendingBytes: normalizeByteLimit(cfg.maxPendingBytes),
+      maxInFlightBytes: normalizeByteLimit(cfg.maxInFlightBytes),
       pending: [],
+      pendingBytes: 0,
+      inFlightBytes: 0,
       running: 0,
       stats: {
         scheduled: 0,
@@ -283,7 +381,8 @@ export function createBuildScheduler(input = {}) {
         failed: 0,
         rejected: 0,
         starvation: 0,
-        rejectedMaxPending: 0
+        rejectedMaxPending: 0,
+        rejectedMaxPendingBytes: 0
       }
     };
     queues.set(name, state);
@@ -299,6 +398,12 @@ export function createBuildScheduler(input = {}) {
     }
     if (Number.isFinite(Number(config.maxPending))) {
       queue.maxPending = Math.max(1, Math.floor(Number(config.maxPending)));
+    }
+    if (config.maxPendingBytes != null) {
+      queue.maxPendingBytes = normalizeByteLimit(config.maxPendingBytes);
+    }
+    if (config.maxInFlightBytes != null) {
+      queue.maxInFlightBytes = normalizeByteLimit(config.maxInFlightBytes);
     }
     if (Number.isFinite(Number(config.weight))) {
       queue.weight = Math.max(1, Math.floor(Number(config.weight)));
@@ -318,6 +423,164 @@ export function createBuildScheduler(input = {}) {
       registerQueue(queueName, config);
     }
   };
+  const normalizeTelemetryStage = (value, fallback = 'init') => {
+    if (typeof value !== 'string') return fallback;
+    const trimmed = value.trim();
+    return trimmed || fallback;
+  };
+  let telemetryStage = normalizeTelemetryStage(input.telemetryStage, 'init');
+  let traceIntervalMs = Number.isFinite(Number(input.traceIntervalMs))
+    ? Math.max(100, Math.floor(Number(input.traceIntervalMs)))
+    : 1000;
+  let queueDepthSnapshotIntervalMs = Number.isFinite(Number(input.queueDepthSnapshotIntervalMs))
+    ? Math.max(1000, Math.floor(Number(input.queueDepthSnapshotIntervalMs)))
+    : 5000;
+  let queueDepthSnapshotsEnabled = input.queueDepthSnapshotsEnabled === true;
+  const traceMaxSamples = Number.isFinite(Number(input.traceMaxSamples))
+    ? Math.max(16, Math.floor(Number(input.traceMaxSamples)))
+    : 512;
+  const queueDepthSnapshotMaxSamples = Number.isFinite(Number(input.queueDepthSnapshotMaxSamples))
+    ? Math.max(16, Math.floor(Number(input.queueDepthSnapshotMaxSamples)))
+    : 512;
+  const schedulingTrace = [];
+  const queueDepthSnapshots = [];
+  let lastTraceAtMs = 0;
+  let lastQueueDepthSnapshotAtMs = 0;
+
+  const cloneTokenState = () => ({
+    cpu: { ...tokens.cpu },
+    io: { ...tokens.io },
+    mem: { ...tokens.mem }
+  });
+
+  const buildQueueDepthState = () => {
+    const byQueue = {};
+    let pending = 0;
+    let pendingBytes = 0;
+    let running = 0;
+    let inFlightBytes = 0;
+    for (const q of queueOrder) {
+      pending += q.pending.length;
+      pendingBytes += normalizeByteCount(q.pendingBytes);
+      running += q.running;
+      inFlightBytes += normalizeByteCount(q.inFlightBytes);
+      byQueue[q.name] = {
+        pending: q.pending.length,
+        pendingBytes: normalizeByteCount(q.pendingBytes),
+        running: q.running,
+        inFlightBytes: normalizeByteCount(q.inFlightBytes)
+      };
+    }
+    return { byQueue, pending, pendingBytes, running, inFlightBytes };
+  };
+
+  const appendBounded = (list, value, maxCount) => {
+    list.push(value);
+    while (list.length > maxCount) list.shift();
+  };
+
+  const captureSchedulingTrace = ({
+    now = nowMs(),
+    reason = 'interval',
+    force = false
+  } = {}) => {
+    if (!force && (now - lastTraceAtMs) < traceIntervalMs) return null;
+    const queueDepth = buildQueueDepthState();
+    const sample = {
+      at: new Date(now).toISOString(),
+      elapsedMs: Math.max(0, now - startedAtMs),
+      stage: telemetryStage,
+      reason,
+      tokens: cloneTokenState(),
+      activity: {
+        pending: queueDepth.pending,
+        pendingBytes: queueDepth.pendingBytes,
+        running: queueDepth.running,
+        inFlightBytes: queueDepth.inFlightBytes
+      },
+      queues: queueDepth.byQueue
+    };
+    lastTraceAtMs = now;
+    appendBounded(schedulingTrace, sample, traceMaxSamples);
+    return sample;
+  };
+
+  const captureQueueDepthSnapshot = ({
+    now = nowMs(),
+    reason = 'interval',
+    force = false
+  } = {}) => {
+    if (!queueDepthSnapshotsEnabled) return null;
+    if (!force && (now - lastQueueDepthSnapshotAtMs) < queueDepthSnapshotIntervalMs) return null;
+    const queueDepth = buildQueueDepthState();
+    const snapshot = {
+      at: new Date(now).toISOString(),
+      elapsedMs: Math.max(0, now - startedAtMs),
+      stage: telemetryStage,
+      reason,
+      pending: queueDepth.pending,
+      pendingBytes: queueDepth.pendingBytes,
+      running: queueDepth.running,
+      inFlightBytes: queueDepth.inFlightBytes,
+      queues: queueDepth.byQueue
+    };
+    lastQueueDepthSnapshotAtMs = now;
+    appendBounded(queueDepthSnapshots, snapshot, queueDepthSnapshotMaxSamples);
+    return snapshot;
+  };
+
+  const captureTelemetryIfDue = (reason = 'interval') => {
+    const now = nowMs();
+    captureSchedulingTrace({ now, reason });
+    captureQueueDepthSnapshot({ now, reason });
+  };
+
+  const cloneQueueDepthByName = (queuesByName = {}) => {
+    const out = {};
+    for (const [queueName, value] of Object.entries(queuesByName || {})) {
+      out[queueName] = {
+        pending: Number(value?.pending) || 0,
+        pendingBytes: Number(value?.pendingBytes) || 0,
+        running: Number(value?.running) || 0,
+        inFlightBytes: Number(value?.inFlightBytes) || 0
+      };
+    }
+    return out;
+  };
+
+  const cloneQueueDepthEntries = (entries) => entries.map((entry) => {
+    const queuesByName = {};
+    for (const [queueName, value] of Object.entries(entry?.queues || {})) {
+      queuesByName[queueName] = {
+        pending: Number(value?.pending) || 0,
+        pendingBytes: Number(value?.pendingBytes) || 0,
+        running: Number(value?.running) || 0,
+        inFlightBytes: Number(value?.inFlightBytes) || 0
+      };
+    }
+    return {
+      ...entry,
+      pendingBytes: Number(entry?.pendingBytes) || 0,
+      inFlightBytes: Number(entry?.inFlightBytes) || 0,
+      queues: queuesByName
+    };
+  });
+
+  const cloneTraceEntries = (entries) => entries.map((entry) => ({
+    ...entry,
+    tokens: {
+      cpu: { ...(entry?.tokens?.cpu || {}) },
+      io: { ...(entry?.tokens?.io || {}) },
+      mem: { ...(entry?.tokens?.mem || {}) }
+    },
+    activity: {
+      pending: Number(entry?.activity?.pending) || 0,
+      pendingBytes: Number(entry?.activity?.pendingBytes) || 0,
+      running: Number(entry?.activity?.running) || 0,
+      inFlightBytes: Number(entry?.activity?.inFlightBytes) || 0
+    },
+    queues: cloneQueueDepthByName(entry?.queues || {})
+  }));
 
   const tokenState = () => ({
     cpu: { total: cpuTokens, used: 0 },
@@ -340,6 +603,16 @@ export function createBuildScheduler(input = {}) {
   const adaptiveMemoryPerTokenMb = Number.isFinite(Number(input.adaptiveMemoryPerTokenMb))
     ? Math.max(64, Math.floor(Number(input.adaptiveMemoryPerTokenMb)))
     : 1024;
+  const telemetryTickMs = Number.isFinite(Number(input.telemetryTickMs))
+    ? Math.max(100, Math.floor(Number(input.telemetryTickMs)))
+    : 250;
+  const telemetryTimer = enabled && !lowResourceMode
+    ? setInterval(() => {
+      if (shuttingDown) return;
+      captureTelemetryIfDue('interval');
+    }, telemetryTickMs)
+    : null;
+  telemetryTimer?.unref?.();
 
   const maybeAdaptTokens = () => {
     if (!adaptiveEnabled || shuttingDown) return;
@@ -347,17 +620,39 @@ export function createBuildScheduler(input = {}) {
     if ((now - lastAdaptiveAt) < adaptiveMinIntervalMs) return;
     lastAdaptiveAt = now;
     let totalPending = 0;
+    let totalPendingBytes = 0;
     let totalRunning = 0;
+    let totalRunningBytes = 0;
+    let starvedQueues = 0;
     for (const q of queueOrder) {
       totalPending += q.pending.length;
+      totalPendingBytes += normalizeByteCount(q.pendingBytes);
       totalRunning += q.running;
+      totalRunningBytes += normalizeByteCount(q.inFlightBytes);
+      if (q.pending.length > 0 && q.running === 0) {
+        starvedQueues += 1;
+      }
     }
-    const pendingPressure = totalPending > Math.max(2, Math.floor((tokens.cpu.total + tokens.io.total) * 0.75));
-    const mostlyIdle = totalPending === 0 && totalRunning === 0;
+    const tokenBudget = Math.max(1, tokens.cpu.total + tokens.io.total);
+    const memoryTokenBudgetBytes = Math.max(1, tokens.mem.total) * adaptiveMemoryPerTokenMb * 1024 * 1024;
+    const pendingBytePressure = totalPendingBytes > Math.max(
+      4 * 1024 * 1024,
+      Math.floor(memoryTokenBudgetBytes * 0.2)
+    );
+    const runningBytePressure = totalRunningBytes > Math.max(
+      8 * 1024 * 1024,
+      Math.floor(memoryTokenBudgetBytes * 0.35)
+    );
+    const bytePressure = pendingBytePressure || runningBytePressure;
+    const pendingDemand = totalPending > 0;
+    const pendingPressure = totalPending > Math.max(1, Math.floor(tokenBudget * 0.35));
+    const mostlyIdle = totalPending === 0 && totalRunning === 0 && totalRunningBytes === 0;
     const cpuUtilization = tokens.cpu.total > 0 ? (tokens.cpu.used / tokens.cpu.total) : 0;
     const ioUtilization = tokens.io.total > 0 ? (tokens.io.used / tokens.io.total) : 0;
-    const utilization = Math.max(cpuUtilization, ioUtilization);
+    const memUtilization = tokens.mem.total > 0 ? (tokens.mem.used / tokens.mem.total) : 0;
+    const utilization = Math.max(cpuUtilization, ioUtilization, memUtilization);
     const utilizationDeficit = utilization < adaptiveTargetUtilization;
+    const severeUtilizationDeficit = utilization < (adaptiveTargetUtilization * 0.7);
     const totalMem = Number(os.totalmem()) || 0;
     const freeMem = Number(os.freemem()) || 0;
     const freeRatio = totalMem > 0 ? (freeMem / totalMem) : null;
@@ -392,12 +687,23 @@ export function createBuildScheduler(input = {}) {
       return;
     }
 
+    const queueStarvation = starvedQueues > 0;
     const shouldScaleFromHeadroom = memoryHighHeadroom
-      && totalPending > 0
-      && utilizationDeficit
-      && totalRunning >= Math.max(1, Math.floor((tokens.cpu.total + tokens.io.total) * 0.5));
-    if ((pendingPressure || shouldScaleFromHeadroom) && memoryHighHeadroom) {
-      const scaleStep = pendingPressure && utilizationDeficit ? adaptiveStep + 1 : adaptiveStep;
+      && pendingDemand
+      && (utilizationDeficit || queueStarvation)
+      && (totalRunning > 0 || queueStarvation || severeUtilizationDeficit);
+    const shouldScale = memoryHighHeadroom && (
+      pendingPressure
+      || bytePressure
+      || queueStarvation
+      || shouldScaleFromHeadroom
+      || (pendingDemand && utilizationDeficit)
+    );
+    if (shouldScale) {
+      const pressureScale = pendingPressure || bytePressure;
+      const scaleStep = (pressureScale && (queueStarvation || severeUtilizationDeficit))
+        ? adaptiveStep + 2
+        : ((pressureScale || queueStarvation) ? adaptiveStep + 1 : adaptiveStep);
       const nextCpu = Math.min(maxLimits.cpu, tokens.cpu.total + scaleStep);
       const nextIo = Math.min(maxLimits.io, tokens.io.total + scaleStep);
       const nextMem = Math.min(maxLimits.mem, memoryTokenHeadroomCap, tokens.mem.total + adaptiveStep);
@@ -410,7 +716,7 @@ export function createBuildScheduler(input = {}) {
     if (
       memoryHighHeadroom
       && headroomBytes > (adaptiveMemoryReserveMb * 1024 * 1024)
-      && totalPending > 0
+      && (totalPending > 0 || totalPendingBytes > 0)
       && tokens.mem.total < memoryTokenHeadroomCap
     ) {
       tokens.mem.total = Math.min(memoryTokenHeadroomCap, tokens.mem.total + adaptiveStep);
@@ -423,37 +729,58 @@ export function createBuildScheduler(input = {}) {
     }
   };
 
-  const canStart = (req) => {
-    const cpu = Math.max(0, Math.floor(Number(req?.cpu || 0)));
-    const io = Math.max(0, Math.floor(Number(req?.io || 0)));
-    const mem = Math.max(0, Math.floor(Number(req?.mem || 0)));
-    return (
-      tokens.cpu.used + cpu <= tokens.cpu.total &&
-      tokens.io.used + io <= tokens.io.total &&
-      tokens.mem.used + mem <= tokens.mem.total
-    );
+  const canStart = (queue, req) => {
+    const normalized = normalizeRequest(req);
+    if (
+      tokens.cpu.used + normalized.cpu > tokens.cpu.total
+      || tokens.io.used + normalized.io > tokens.io.total
+      || tokens.mem.used + normalized.mem > tokens.mem.total
+    ) {
+      return false;
+    }
+    const queueCap = queue?.maxInFlightBytes;
+    if (queueCap && normalized.bytes > 0) {
+      const queueBytes = normalizeByteCount(queue.inFlightBytes);
+      const oversizeSingle = queueBytes === 0;
+      if (!oversizeSingle && queueBytes + normalized.bytes > queueCap) {
+        return false;
+      }
+    }
+    if (globalMaxInFlightBytes && normalized.bytes > 0) {
+      const runningBytes = totalInFlightBytes();
+      const oversizeSingle = runningBytes === 0;
+      if (!oversizeSingle && runningBytes + normalized.bytes > globalMaxInFlightBytes) {
+        return false;
+      }
+    }
+    return true;
   };
 
-  const reserve = (req) => {
-    const cpu = Math.max(0, Math.floor(Number(req?.cpu || 0)));
-    const io = Math.max(0, Math.floor(Number(req?.io || 0)));
-    const mem = Math.max(0, Math.floor(Number(req?.mem || 0)));
-    tokens.cpu.used += cpu;
-    tokens.io.used += io;
-    tokens.mem.used += mem;
-    return { cpu, io, mem };
+  const reserve = (queue, req) => {
+    const normalized = normalizeRequest(req);
+    tokens.cpu.used += normalized.cpu;
+    tokens.io.used += normalized.io;
+    tokens.mem.used += normalized.mem;
+    if (queue && normalized.bytes > 0) {
+      queue.inFlightBytes = normalizeByteCount(queue.inFlightBytes) + normalized.bytes;
+    }
+    return normalized;
   };
 
-  const release = (used) => {
-    tokens.cpu.used = Math.max(0, tokens.cpu.used - (used?.cpu || 0));
-    tokens.io.used = Math.max(0, tokens.io.used - (used?.io || 0));
-    tokens.mem.used = Math.max(0, tokens.mem.used - (used?.mem || 0));
+  const release = (queue, used) => {
+    const normalized = normalizeRequest(used || {});
+    tokens.cpu.used = Math.max(0, tokens.cpu.used - normalized.cpu);
+    tokens.io.used = Math.max(0, tokens.io.used - normalized.io);
+    tokens.mem.used = Math.max(0, tokens.mem.used - normalized.mem);
+    if (queue && normalized.bytes > 0) {
+      queue.inFlightBytes = Math.max(0, normalizeByteCount(queue.inFlightBytes) - normalized.bytes);
+    }
   };
 
   const findStartableIndex = (queue) => {
     if (!queue?.pending?.length) return -1;
     for (let i = 0; i < queue.pending.length; i += 1) {
-      if (canStart(queue.pending[i].tokens)) return i;
+      if (canStart(queue, queue.pending[i].tokens)) return i;
     }
     return -1;
   };
@@ -490,8 +817,9 @@ export function createBuildScheduler(input = {}) {
       if (!pick) return;
       const { queue, starved, index } = pick;
       const next = queue.pending[index];
-      if (!next || !canStart(next.tokens)) return;
+      if (!next || !canStart(queue, next.tokens)) return;
       queue.pending.splice(index, 1);
+      queue.pendingBytes = Math.max(0, normalizeByteCount(queue.pendingBytes) - normalizeByteCount(next.bytes));
       queue.running += 1;
       queue.stats.started += 1;
       counters.started += 1;
@@ -499,7 +827,7 @@ export function createBuildScheduler(input = {}) {
         queue.stats.starvation += 1;
         counters.starvation += 1;
       }
-      const used = reserve(next.tokens);
+      const used = reserve(queue, next.tokens);
       const done = Promise.resolve()
         .then(next.fn)
         .then(
@@ -516,7 +844,7 @@ export function createBuildScheduler(input = {}) {
         )
         .finally(() => {
           queue.running -= 1;
-          release(used);
+          release(queue, used);
           pump();
         });
       void done;
@@ -539,6 +867,7 @@ export function createBuildScheduler(input = {}) {
       counters.rejectedByReason.shutdown += 1;
       return Promise.reject(new Error('scheduler is shut down'));
     }
+    const normalizedReq = normalizeRequest(tokensReq || {});
     const queue = ensureQueue(queueName);
     if (queue.maxPending && queue.pending.length >= queue.maxPending) {
       queue.stats.rejected += 1;
@@ -549,17 +878,34 @@ export function createBuildScheduler(input = {}) {
       counters.rejectedByReason.maxPending += 1;
       return Promise.reject(new Error(`queue ${queueName} is at maxPending`));
     }
+    if (queue.maxPendingBytes && normalizedReq.bytes > 0) {
+      const pendingBytes = normalizeByteCount(queue.pendingBytes);
+      const nextPendingBytes = pendingBytes + normalizedReq.bytes;
+      const oversizeSingle = pendingBytes === 0 && queue.pending.length === 0;
+      if (!oversizeSingle && nextPendingBytes > queue.maxPendingBytes) {
+        queue.stats.rejected += 1;
+        queue.stats.rejectedMaxPendingBytes += 1;
+        queue.stats.scheduled += 1;
+        counters.scheduled += 1;
+        counters.rejected += 1;
+        counters.rejectedByReason.maxPendingBytes += 1;
+        return Promise.reject(new Error(`queue ${queueName} is at maxPendingBytes`));
+      }
+    }
     return new Promise((resolve, reject) => {
       queue.pending.push({
-        tokens: tokensReq,
+        tokens: normalizedReq,
+        bytes: normalizedReq.bytes,
         fn,
         resolve,
         reject,
         enqueuedAt: nowMs()
       });
+      queue.pendingBytes = normalizeByteCount(queue.pendingBytes) + normalizedReq.bytes;
       maybeAdaptTokens();
       queue.stats.scheduled += 1;
       counters.scheduled += 1;
+      captureTelemetryIfDue('schedule');
       pump();
     });
   };
@@ -569,7 +915,9 @@ export function createBuildScheduler(input = {}) {
     if (!queue || !queue.pending.length) return 0;
     const error = new Error(reason);
     const cleared = queue.pending.splice(0, queue.pending.length);
+    let clearedBytes = 0;
     for (const item of cleared) {
+      clearedBytes += normalizeByteCount(item?.bytes);
       queue.stats.rejected += 1;
       counters.rejected += 1;
       counters.rejectedByReason.cleared += 1;
@@ -577,21 +925,31 @@ export function createBuildScheduler(input = {}) {
         item.reject(error);
       } catch {}
     }
+    queue.pendingBytes = Math.max(0, normalizeByteCount(queue.pendingBytes) - clearedBytes);
     return cleared.length;
   };
 
   const stats = () => {
+    captureTelemetryIfDue('stats');
     const queueStats = {};
     let totalPending = 0;
+    let totalPendingBytes = 0;
     let totalRunning = 0;
+    let totalInFlightBytesValue = 0;
     for (const q of queueOrder) {
       const oldest = q.pending.length ? nowMs() - q.pending[0].enqueuedAt : 0;
       totalPending += q.pending.length;
+      totalPendingBytes += normalizeByteCount(q.pendingBytes);
       totalRunning += q.running;
+      totalInFlightBytesValue += normalizeByteCount(q.inFlightBytes);
       queueStats[q.name] = {
         pending: q.pending.length,
+        pendingBytes: normalizeByteCount(q.pendingBytes),
         running: q.running,
+        inFlightBytes: normalizeByteCount(q.inFlightBytes),
         maxPending: q.maxPending,
+        maxPendingBytes: q.maxPendingBytes,
+        maxInFlightBytes: q.maxInFlightBytes,
         priority: q.priority,
         weight: q.weight,
         oldestWaitMs: oldest,
@@ -601,6 +959,7 @@ export function createBuildScheduler(input = {}) {
         failed: q.stats.failed,
         rejected: q.stats.rejected,
         rejectedMaxPending: q.stats.rejectedMaxPending,
+        rejectedMaxPendingBytes: q.stats.rejectedMaxPendingBytes,
         starvation: q.stats.starvation
       };
     }
@@ -618,7 +977,9 @@ export function createBuildScheduler(input = {}) {
       },
       activity: {
         pending: totalPending,
-        running: totalRunning
+        pendingBytes: totalPendingBytes,
+        running: totalRunning,
+        inFlightBytes: totalInFlightBytesValue
       },
       adaptive: {
         enabled: adaptiveEnabled,
@@ -627,7 +988,8 @@ export function createBuildScheduler(input = {}) {
         targetUtilization: adaptiveTargetUtilization,
         step: adaptiveStep,
         memoryReserveMb: adaptiveMemoryReserveMb,
-        memoryPerTokenMb: adaptiveMemoryPerTokenMb
+        memoryPerTokenMb: adaptiveMemoryPerTokenMb,
+        maxInFlightBytes: globalMaxInFlightBytes
       },
       utilization: {
         cpu: cpuUtilization,
@@ -639,12 +1001,21 @@ export function createBuildScheduler(input = {}) {
         cpu: { ...tokens.cpu },
         io: { ...tokens.io },
         mem: { ...tokens.mem }
+      },
+      telemetry: {
+        stage: telemetryStage,
+        traceIntervalMs,
+        queueDepthSnapshotIntervalMs,
+        queueDepthSnapshotsEnabled,
+        schedulingTrace: cloneTraceEntries(schedulingTrace),
+        queueDepthSnapshots: cloneQueueDepthEntries(queueDepthSnapshots)
       }
     };
   };
 
   const shutdown = () => {
     shuttingDown = true;
+    if (telemetryTimer) clearInterval(telemetryTimer);
   };
 
   const setLimits = (limits = {}) => {
@@ -660,8 +1031,31 @@ export function createBuildScheduler(input = {}) {
     tokens.cpu.total = cpuTokens;
     tokens.io.total = ioTokens;
     tokens.mem.total = memoryTokens;
+    captureSchedulingTrace({ reason: 'set-limits', force: true });
     pump();
   };
+
+  const setTelemetryOptions = (options = {}) => {
+    if (typeof options?.stage === 'string') {
+      telemetryStage = normalizeTelemetryStage(options.stage, telemetryStage);
+    }
+    if (Object.prototype.hasOwnProperty.call(options, 'queueDepthSnapshotsEnabled')) {
+      queueDepthSnapshotsEnabled = options.queueDepthSnapshotsEnabled === true;
+    }
+    if (Number.isFinite(Number(options?.traceIntervalMs))) {
+      traceIntervalMs = Math.max(100, Math.floor(Number(options.traceIntervalMs)));
+    }
+    if (Number.isFinite(Number(options?.queueDepthSnapshotIntervalMs))) {
+      queueDepthSnapshotIntervalMs = Math.max(1000, Math.floor(Number(options.queueDepthSnapshotIntervalMs)));
+    }
+    const now = nowMs();
+    captureSchedulingTrace({ now, reason: 'telemetry-options', force: true });
+    if (queueDepthSnapshotsEnabled) {
+      captureQueueDepthSnapshot({ now, reason: 'telemetry-options', force: true });
+    }
+  };
+
+  captureSchedulingTrace({ reason: 'init', force: true });
 
   return {
     schedule,
@@ -671,6 +1065,7 @@ export function createBuildScheduler(input = {}) {
     registerQueue,
     registerQueues,
     clearQueue,
+    setTelemetryOptions,
     enabled,
     lowResourceMode
   };
@@ -678,10 +1073,18 @@ export function createBuildScheduler(input = {}) {
 
 /**
  * Adapt a build scheduler queue to a PQueue-like interface used by runWithQueue.
- * @param {{scheduler:ReturnType<typeof createBuildScheduler>,queueName:string,tokens?:{cpu?:number,io?:number,mem?:number},maxPending?:number,concurrency?:number}} input
- * @returns {{add:(fn:()=>Promise<any>)=>Promise<any>,onIdle:()=>Promise<void>,clear:()=>void,maxPending?:number,concurrency?:number}}
+ * @param {{scheduler:ReturnType<typeof createBuildScheduler>,queueName:string,tokens?:{cpu?:number,io?:number,mem?:number},maxPending?:number,maxPendingBytes?:number,maxInFlightBytes?:number,concurrency?:number}} input
+ * @returns {{add:(fn:()=>Promise<any>,options?:{bytes?:number})=>Promise<any>,onIdle:()=>Promise<void>,clear:()=>void,maxPending?:number,maxPendingBytes?:number,maxInFlightBytes?:number,concurrency?:number}}
  */
-export function createSchedulerQueueAdapter({ scheduler, queueName, tokens, maxPending, concurrency }) {
+export function createSchedulerQueueAdapter({
+  scheduler,
+  queueName,
+  tokens,
+  maxPending,
+  maxPendingBytes,
+  maxInFlightBytes,
+  concurrency
+}) {
   if (!scheduler || typeof scheduler.schedule !== 'function') {
     throw new Error('Scheduler queue adapter requires a scheduler instance.');
   }
@@ -689,7 +1092,13 @@ export function createSchedulerQueueAdapter({ scheduler, queueName, tokens, maxP
     throw new Error('Scheduler queue adapter requires a queue name.');
   }
   scheduler.registerQueue?.(queueName, {
-    ...(Number.isFinite(Number(maxPending)) ? { maxPending: Math.max(1, Math.floor(Number(maxPending))) } : {})
+    ...(Number.isFinite(Number(maxPending)) ? { maxPending: Math.max(1, Math.floor(Number(maxPending))) } : {}),
+    ...(Number.isFinite(Number(maxPendingBytes))
+      ? { maxPendingBytes: Math.max(1, Math.floor(Number(maxPendingBytes))) }
+      : {}),
+    ...(Number.isFinite(Number(maxInFlightBytes))
+      ? { maxInFlightBytes: Math.max(1, Math.floor(Number(maxInFlightBytes))) }
+      : {})
   });
   const pending = new Set();
   let idleResolvers = [];
@@ -701,8 +1110,13 @@ export function createSchedulerQueueAdapter({ scheduler, queueName, tokens, maxP
       resolve();
     }
   };
-  const add = (fn) => {
-    const task = scheduler.schedule(queueName, tokens || { cpu: 1 }, fn);
+  const add = (fn, options = {}) => {
+    const bytesRaw = Number(options?.bytes);
+    const bytes = Number.isFinite(bytesRaw) && bytesRaw > 0 ? Math.floor(bytesRaw) : 0;
+    const tokenRequest = bytes > 0
+      ? { ...(tokens || { cpu: 1 }), bytes }
+      : (tokens || { cpu: 1 });
+    const task = scheduler.schedule(queueName, tokenRequest, fn);
     pending.add(task);
     task.finally(() => {
       pending.delete(task);
@@ -724,6 +1138,12 @@ export function createSchedulerQueueAdapter({ scheduler, queueName, tokens, maxP
     onIdle,
     clear,
     maxPending: Number.isFinite(Number(maxPending)) ? Math.floor(Number(maxPending)) : undefined,
+    maxPendingBytes: Number.isFinite(Number(maxPendingBytes))
+      ? Math.floor(Number(maxPendingBytes))
+      : undefined,
+    maxInFlightBytes: Number.isFinite(Number(maxInFlightBytes))
+      ? Math.floor(Number(maxInFlightBytes))
+      : undefined,
     concurrency: Number.isFinite(Number(concurrency)) ? Math.floor(Number(concurrency)) : undefined
   };
 }

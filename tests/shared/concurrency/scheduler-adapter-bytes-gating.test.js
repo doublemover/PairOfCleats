@@ -15,10 +15,10 @@ const queue = createSchedulerQueueAdapter({
   queueName: 'adapter-bytes',
   tokens: { cpu: 1 },
   maxPending: 4,
-  maxPendingBytes: 100,
   maxInFlightBytes: 100,
   concurrency: 2
 });
+scheduler.registerQueue('adapter-bytes', { maxPendingBytes: 100, maxInFlightBytes: 100 });
 
 let releaseFirst = null;
 const firstGate = new Promise((resolve) => {

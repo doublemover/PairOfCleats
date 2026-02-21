@@ -204,7 +204,7 @@ export const createRuntimeQueues = ({
     ? Math.max(1, Math.floor(Number(memoryPolicy.queueHeadroomScale)))
     : 1;
   const pendingScale = schedulerAdaptive
-    ? Math.max(2, memoryPendingScale)
+    ? Math.max(1, Math.min(3, memoryPendingScale))
     : memoryPendingScale;
   const maxFilePending = coercePositiveInt(tokenizeConfig?.maxPending)
     ?? (Number.isFinite(pendingLimits?.cpu?.maxPending)
@@ -226,6 +226,59 @@ export const createRuntimeQueues = ({
   const procPendingLimit = Number.isFinite(pendingLimits?.proc?.maxPending)
     ? Math.max(1, Math.floor(pendingLimits.proc.maxPending))
     : (resolvedProcConcurrency ? Math.max(4, resolvedProcConcurrency * 4) : null);
+  const MiB = 1024 * 1024;
+  const normalizeBytesLimit = (value) => {
+    const parsed = Math.floor(Number(value));
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  };
+  const runtimeQueueBudgetBytes = Number.isFinite(Number(memoryPolicy?.maxGlobalRssMb))
+    ? Math.max(
+      64 * MiB,
+      Math.floor(
+        Math.max(
+          0,
+          (Number(memoryPolicy.maxGlobalRssMb) || 0) - (Number(memoryPolicy?.reserveRssMb) || 0)
+        ) * MiB * 0.35
+      )
+    )
+    : null;
+  const clampByRuntimeBudget = (bytes, ratio) => {
+    if (!runtimeQueueBudgetBytes) return bytes;
+    return Math.max(8 * MiB, Math.min(bytes, Math.floor(runtimeQueueBudgetBytes * ratio)));
+  };
+  const resolvePendingBytesLimit = (configured, fallback, budgetRatio) => {
+    const explicit = normalizeBytesLimit(configured);
+    if (explicit) return explicit;
+    return clampByRuntimeBudget(fallback, budgetRatio);
+  };
+  const maxFilePendingBytes = resolvePendingBytesLimit(
+    pendingLimits?.cpu?.maxPendingBytes,
+    Math.max(64 * MiB, maxFilePending * 2 * MiB),
+    0.45
+  );
+  const maxIoPendingBytes = resolvePendingBytesLimit(
+    pendingLimits?.io?.maxPendingBytes,
+    Math.max(32 * MiB, maxIoPending * MiB),
+    0.25
+  );
+  const maxEmbeddingPendingBytes = resolvePendingBytesLimit(
+    pendingLimits?.embedding?.maxPendingBytes,
+    Math.max(24 * MiB, maxEmbeddingPending * 512 * 1024),
+    0.2
+  );
+  const procPendingBytesLimit = resolvedProcConcurrency
+    ? resolvePendingBytesLimit(
+      pendingLimits?.proc?.maxPendingBytes,
+      Math.max(16 * MiB, procPendingLimit * 512 * 1024),
+      0.1
+    )
+    : null;
+  const maxFileInFlightBytes = Math.max(16 * MiB, Math.floor(maxFilePendingBytes * 0.75));
+  const maxIoInFlightBytes = Math.max(16 * MiB, Math.floor(maxIoPendingBytes * 0.85));
+  const maxEmbeddingInFlightBytes = Math.max(12 * MiB, Math.floor(maxEmbeddingPendingBytes * 0.75));
+  const procInFlightBytesLimit = procPendingBytesLimit
+    ? Math.max(8 * MiB, Math.floor(procPendingBytesLimit * 0.75))
+    : null;
 
   if (scheduler && scheduler.enabled && scheduler.lowResourceMode !== true && typeof scheduler.schedule === 'function') {
     const cpuQueue = createSchedulerQueueAdapter({
@@ -233,6 +286,8 @@ export const createRuntimeQueues = ({
       queueName: SCHEDULER_QUEUE_NAMES.stage1Cpu,
       tokens: { cpu: 1 },
       maxPending: maxFilePending,
+      maxPendingBytes: maxFilePendingBytes,
+      maxInFlightBytes: maxFileInFlightBytes,
       concurrency: effectiveCpuConcurrency
     });
     const ioQueue = createSchedulerQueueAdapter({
@@ -240,6 +295,8 @@ export const createRuntimeQueues = ({
       queueName: SCHEDULER_QUEUE_NAMES.stage1Io,
       tokens: { io: 1 },
       maxPending: maxIoPending,
+      maxPendingBytes: maxIoPendingBytes,
+      maxInFlightBytes: maxIoInFlightBytes,
       concurrency: ioConcurrency
     });
     const embeddingQueue = createSchedulerQueueAdapter({
@@ -247,6 +304,8 @@ export const createRuntimeQueues = ({
       queueName: SCHEDULER_QUEUE_NAMES.embeddingsCompute,
       tokens: { cpu: 1 },
       maxPending: maxEmbeddingPending,
+      maxPendingBytes: maxEmbeddingPendingBytes,
+      maxInFlightBytes: maxEmbeddingInFlightBytes,
       concurrency: effectiveEmbeddingConcurrency
     });
     const procQueue = resolvedProcConcurrency
@@ -259,6 +318,8 @@ export const createRuntimeQueues = ({
         // blocking nested scheduling.
         tokens: { mem: 1 },
         maxPending: procPendingLimit,
+        maxPendingBytes: procPendingBytesLimit,
+        maxInFlightBytes: procInFlightBytesLimit,
         concurrency: resolvedProcConcurrency
       })
       : null;
@@ -279,8 +340,16 @@ export const createRuntimeQueues = ({
     ioPendingLimit: maxIoPending,
     cpuPendingLimit: maxFilePending,
     embeddingPendingLimit: maxEmbeddingPending,
-    procPendingLimit
+    procPendingLimit,
+    ioPendingBytesLimit: maxIoPendingBytes,
+    cpuPendingBytesLimit: maxFilePendingBytes,
+    embeddingPendingBytesLimit: maxEmbeddingPendingBytes,
+    procPendingBytesLimit
   });
+  if (queues.cpu) queues.cpu.maxInFlightBytes = maxFileInFlightBytes;
+  if (queues.io) queues.io.maxInFlightBytes = maxIoInFlightBytes;
+  if (queues.embedding) queues.embedding.maxInFlightBytes = maxEmbeddingInFlightBytes;
+  if (queues.proc && procInFlightBytesLimit) queues.proc.maxInFlightBytes = procInFlightBytesLimit;
   for (const queue of Object.values(queues)) {
     queue.inflightBytes = 0;
   }
