@@ -17,6 +17,7 @@ import { enqueueEmbeddingJob } from './embedding-queue.js';
 import { getTreeSitterStats, resetTreeSitterStats } from '../../../lang/tree-sitter.js';
 import { INDEX_PROFILE_VECTOR_ONLY } from '../../../contracts/index-profile.js';
 import { SCHEDULER_QUEUE_NAMES } from '../runtime/scheduler.js';
+import { writeSchedulerAutoTuneProfile } from '../runtime/scheduler-autotune-profile.js';
 import { formatHealthFailure, runIndexingHealthChecks } from '../../../shared/ops-health.js';
 import { runWithOperationalFailurePolicy } from '../../../shared/ops-failure-injection.js';
 import {
@@ -1077,6 +1078,13 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     const finalStage = stagePlan[stagePlan.length - 1];
     runtimeRef.overallProgress.advance({ message: `${mode} ${finalStage.label}` });
   }
+  await writeSchedulerAutoTuneProfile({
+    repoCacheRoot: runtimeRef.repoCacheRoot,
+    schedulerStats: getSchedulerStats(),
+    schedulerConfig: runtimeRef.schedulerConfig,
+    buildId: runtimeRef.buildId,
+    log
+  });
   await enqueueEmbeddingJob({ runtime: runtimeRef, mode, indexDir: outDir, abortSignal });
   crashLogger.updatePhase('done');
   cacheReporter.report();

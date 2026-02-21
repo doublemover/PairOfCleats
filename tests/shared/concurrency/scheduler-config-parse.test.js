@@ -77,4 +77,30 @@ assert.equal(defaults.queues['stage1.postings'].floorCpu, 1, 'expected postings 
 assert.equal(defaults.writeBackpressure.enabled, true, 'expected write backpressure enabled by default');
 assert.equal(defaults.writeBackpressure.pendingThreshold, 128, 'expected default write pending threshold');
 
+const autotuned = resolveSchedulerConfig({
+  argv: {},
+  rawArgv: ['node', 'script'],
+  envConfig: {},
+  indexingConfig: {},
+  envelope: {
+    concurrency: {
+      cpuConcurrency: { value: 4 },
+      ioConcurrency: { value: 4 }
+    }
+  },
+  autoTuneProfile: {
+    version: 1,
+    sourceBuildId: 'prev-build',
+    recommended: {
+      maxCpuTokens: 7,
+      maxIoTokens: 9,
+      maxMemoryTokens: 8
+    }
+  }
+});
+assert.equal(autotuned.maxCpuTokens, 7, 'expected max CPU tokens to use autotune recommendation');
+assert.equal(autotuned.maxIoTokens, 9, 'expected max IO tokens to use autotune recommendation');
+assert.equal(autotuned.maxMemoryTokens, 8, 'expected max memory tokens to use autotune recommendation');
+assert.equal(autotuned.autoTune.sourceBuildId, 'prev-build', 'expected autotune source build metadata');
+
 console.log('scheduler config parse test passed');

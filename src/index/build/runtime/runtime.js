@@ -56,6 +56,7 @@ import { buildFileScanConfig, buildShardConfig, formatBuildNonce, formatBuildTim
 import { resolveEmbeddingRuntime } from './embeddings.js';
 import { createBuildScheduler } from '../../../shared/concurrency.js';
 import { resolveSchedulerConfig } from './scheduler.js';
+import { loadSchedulerAutoTuneProfile } from './scheduler-autotune-profile.js';
 import { resolveTreeSitterRuntime, preloadTreeSitterRuntimeLanguages } from './tree-sitter.js';
 import {
   createRuntimeQueues,
@@ -361,13 +362,18 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     indexingConfig,
     cpuConcurrency: envelope?.concurrency?.cpuConcurrency?.value
   });
+  const schedulerAutoTuneProfile = await loadSchedulerAutoTuneProfile({
+    repoCacheRoot,
+    log: (line) => log(line)
+  });
   const schedulerConfig = resolveSchedulerConfig({
     argv,
     rawArgv,
     envConfig,
     indexingConfig,
     runtimeConfig: userConfig.runtime || null,
-    envelope
+    envelope,
+    autoTuneProfile: schedulerAutoTuneProfile
   });
   const scheduler = createBuildScheduler({
     enabled: schedulerConfig.enabled,

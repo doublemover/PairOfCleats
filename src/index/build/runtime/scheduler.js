@@ -149,7 +149,15 @@ export const SCHEDULER_QUEUE_NAMES = {
   embeddingsIo: 'embeddings.io'
 };
 
-export const resolveSchedulerConfig = ({ argv, rawArgv, envConfig, indexingConfig, runtimeConfig, envelope }) => {
+export const resolveSchedulerConfig = ({
+  argv,
+  rawArgv,
+  envConfig,
+  indexingConfig,
+  runtimeConfig,
+  envelope,
+  autoTuneProfile = null
+}) => {
   const schedulerConfig = (indexingConfig && indexingConfig.scheduler)
     || (runtimeConfig && runtimeConfig.scheduler)
     || {};
@@ -231,12 +239,24 @@ export const resolveSchedulerConfig = ({ argv, rawArgv, envConfig, indexingConfi
     fallback: true
   });
 
+  const autoTuneProfileState = autoTuneProfile && typeof autoTuneProfile === 'object'
+    ? autoTuneProfile
+    : null;
+  const autoTuneConfig = schedulerConfig?.autoTune && typeof schedulerConfig.autoTune === 'object'
+    ? schedulerConfig.autoTune
+    : {};
+  const autoTuneEnabled = autoTuneConfig.enabled !== false;
+  const autoTuneMaxCpu = autoTuneEnabled ? coercePositiveInt(autoTuneProfileState?.recommended?.maxCpuTokens) : null;
+  const autoTuneMaxIo = autoTuneEnabled ? coercePositiveInt(autoTuneProfileState?.recommended?.maxIoTokens) : null;
+  const autoTuneMaxMem = autoTuneEnabled ? coercePositiveInt(autoTuneProfileState?.recommended?.maxMemoryTokens) : null;
   const maxCpuTokens = resolveNumber({
     cliValue: argv?.['scheduler-max-cpu'] ?? argv?.schedulerMaxCpu,
     cliPresent: hasCliArg(rawArgv, '--scheduler-max-cpu'),
     envValue: envConfig?.schedulerMaxCpuTokens,
     configValue: schedulerConfig?.maxCpuTokens,
-    fallback: Math.max(cpuTokens, defaultCpu * 3),
+    fallback: autoTuneMaxCpu != null
+      ? Math.max(cpuTokens, autoTuneMaxCpu)
+      : Math.max(cpuTokens, defaultCpu * 3),
     allowZero: false
   });
 
@@ -245,7 +265,9 @@ export const resolveSchedulerConfig = ({ argv, rawArgv, envConfig, indexingConfi
     cliPresent: hasCliArg(rawArgv, '--scheduler-max-io'),
     envValue: envConfig?.schedulerMaxIoTokens,
     configValue: schedulerConfig?.maxIoTokens,
-    fallback: Math.max(ioTokens, defaultIo * 3),
+    fallback: autoTuneMaxIo != null
+      ? Math.max(ioTokens, autoTuneMaxIo)
+      : Math.max(ioTokens, defaultIo * 3),
     allowZero: false
   });
 
@@ -254,7 +276,9 @@ export const resolveSchedulerConfig = ({ argv, rawArgv, envConfig, indexingConfi
     cliPresent: hasCliArg(rawArgv, '--scheduler-max-mem'),
     envValue: envConfig?.schedulerMaxMemoryTokens,
     configValue: schedulerConfig?.maxMemoryTokens,
-    fallback: Math.max(memoryTokens, defaultMem * 3),
+    fallback: autoTuneMaxMem != null
+      ? Math.max(memoryTokens, autoTuneMaxMem)
+      : Math.max(memoryTokens, defaultMem * 3),
     allowZero: false
   });
   const adaptiveTargetUtilization = coerceUnitFraction(
@@ -326,6 +350,12 @@ export const resolveSchedulerConfig = ({ argv, rawArgv, envConfig, indexingConfi
     maxMemoryTokens: Math.max(1, maxMemoryTokens || 1),
     starvationMs,
     queues,
-    writeBackpressure
+    writeBackpressure,
+    autoTune: {
+      enabled: autoTuneEnabled,
+      sourceBuildId: typeof autoTuneProfileState?.sourceBuildId === 'string'
+        ? autoTuneProfileState.sourceBuildId
+        : null
+    }
   };
 };
