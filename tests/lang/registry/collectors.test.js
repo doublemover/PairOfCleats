@@ -18,6 +18,7 @@ import { collectRImports } from '../../../src/index/language-registry/import-col
 import { collectScalaImports } from '../../../src/index/language-registry/import-collectors/scala.js';
 import { collectStarlarkImports } from '../../../src/index/language-registry/import-collectors/starlark.js';
 import { collectTomlImports } from '../../../src/index/language-registry/import-collectors/toml.js';
+import { collectXmlImports } from '../../../src/index/language-registry/import-collectors/xml.js';
 import { collectYamlImports } from '../../../src/index/language-registry/import-collectors/yaml.js';
 
 const sort = (list) => list.slice().sort();
@@ -31,6 +32,25 @@ const expectSet = (label, actual, expected) => {
 };
 
 const cases = [
+  {
+    label: 'xml',
+    fn: collectXmlImports,
+    text: [
+      '<root xmlns:cfg="urn:cfg" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"',
+      '  xsi:schemaLocation="urn:cfg ./cfg.xsd">',
+      '  <xi:include href="./base.xml" />',
+      '  <xsd:import schemaLocation="./types.xsd" />',
+      '</root>'
+    ].join('\n'),
+    expected: [
+      'namespace:cfg=urn:cfg',
+      'namespace:xsi=http://www.w3.org/2001/XMLSchema-instance',
+      'urn:cfg',
+      './cfg.xsd',
+      './base.xml',
+      './types.xsd'
+    ]
+  },
   {
     label: 'ini',
     fn: collectIniImports,
