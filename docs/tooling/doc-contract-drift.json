@@ -1,32 +1,13 @@
 {
-  "generatedAt": "2026-02-21T05:36:16.698Z",
-  "ok": false,
+  "generatedAt": "2026-02-21T13:51:31.763Z",
+  "ok": true,
   "checks": {
     "searchCliFlags": {
       "doc": "docs/contracts/search-cli.md",
       "source": "src/retrieval/cli-args.js",
       "sourceCount": 95,
-      "docCount": 77,
-      "missingInDocs": [
-        "--allow-sparse-fallback",
-        "--allow-unsafe-mix",
-        "--as-of",
-        "--cohort",
-        "--concurrency",
-        "--debug-include-paths",
-        "--federated-strict",
-        "--fts-stemming",
-        "--fts-trigram",
-        "--include-disabled",
-        "--merge",
-        "--repo-filter",
-        "--rrf-k",
-        "--select",
-        "--snapshot",
-        "--tag",
-        "--top-per-repo",
-        "--workspace"
-      ],
+      "docCount": 95,
+      "missingInDocs": [],
       "extraInDocs": []
     },
     "searchContractFlags": {
@@ -119,68 +100,32 @@
       "doc": "docs/contracts/artifact-schemas.md",
       "source": "src/contracts/schemas/artifacts.js",
       "sourceCount": 69,
-      "docCount": 60,
-      "missingInDocs": [
-        "boilerplate_catalog",
-        "chunk_meta_cold",
-        "chunk_meta_cold_meta",
-        "determinism_report",
-        "extraction_report",
-        "field_tokens_meta",
-        "file_meta_meta",
-        "vfs_manifest_bloom",
-        "vocab_order"
-      ],
+      "docCount": 69,
+      "missingInDocs": [],
       "extraInDocs": []
     },
     "scoreBreakdown": {
       "doc": "docs/contracts/search-contract.md",
       "source": "src/retrieval/pipeline.js",
       "sourceCount": 0,
-      "docCount": 13,
+      "docCount": 0,
       "missingInDocs": [],
-      "extraInDocs": [
-        "ann",
-        "blend",
-        "confidence",
-        "confidenceByType",
-        "effectiveType",
-        "phrase",
-        "reasonCodes",
-        "rrf",
-        "selected",
-        "signals",
-        "sparse",
-        "symbol",
-        "type"
-      ]
+      "extraInDocs": []
     },
     "testRunnerLanes": {
       "doc": "docs/testing/test-runner-interface.md",
       "source": "tests/run.rules.jsonc",
       "sourceCount": 16,
-      "docCount": 11,
-      "missingInDocs": [
-        "backcompat",
-        "decomposed-drift",
-        "diagnostics-summary",
-        "gate",
-        "iq"
-      ],
+      "docCount": 16,
+      "missingInDocs": [],
       "extraInDocs": []
     },
     "testRegroupingLanes": {
       "doc": "docs/testing/test-decomposition-regrouping.md",
       "source": "tests/run.rules.jsonc",
       "sourceCount": 16,
-      "docCount": 11,
-      "missingInDocs": [
-        "backcompat",
-        "decomposed-drift",
-        "diagnostics-summary",
-        "gate",
-        "iq"
-      ],
+      "docCount": 16,
+      "missingInDocs": [],
       "extraInDocs": []
     }
   }

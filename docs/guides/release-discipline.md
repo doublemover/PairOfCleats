@@ -14,6 +14,8 @@ The command executes `tools/release/check.js` and always writes:
 
 - `release_check_report.json`
 - `release-manifest.json`
+- `docs/tooling/doc-contract-drift.json`
+- `docs/tooling/doc-contract-drift.md`
 
 Both artifacts use ISO-8601 timestamps and stable schema/order.
 

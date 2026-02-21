@@ -49,7 +49,8 @@ export const LANGUAGE_ROUTE_DESCRIPTORS = Object.freeze([
     adapterId: 'go',
     parserRoute: 'tree-sitter-go',
     capsProfile: 'go-default',
-    extensions: Object.freeze(['.go'])
+    extensions: Object.freeze(['.go']),
+    specialFilenames: Object.freeze(['go.mod'])
   }),
   Object.freeze({
     id: 'java',
@@ -242,7 +243,8 @@ export const LANGUAGE_ROUTE_DESCRIPTORS = Object.freeze([
     adapterId: 'proto',
     parserRoute: 'tree-sitter-proto',
     capsProfile: 'proto-default',
-    extensions: Object.freeze(['.proto'])
+    extensions: Object.freeze(['.proto']),
+    specialFilenames: Object.freeze(['buf.yaml', 'buf.gen.yaml'])
   }),
   Object.freeze({
     id: 'makefile',
@@ -281,21 +283,22 @@ export const LANGUAGE_ROUTE_DESCRIPTORS = Object.freeze([
     adapterId: 'json',
     parserRoute: 'structured-json',
     capsProfile: 'json-default',
-    extensions: Object.freeze(['.json'])
+    extensions: Object.freeze(['.json', '.jsonc', '.resolved'])
   }),
   Object.freeze({
     id: 'toml',
     adapterId: 'toml',
     parserRoute: 'structured-toml',
     capsProfile: 'toml-default',
-    extensions: Object.freeze(['.toml'])
+    extensions: Object.freeze(['.toml']),
+    specialFilenames: Object.freeze(['pipfile'])
   }),
   Object.freeze({
     id: 'xml',
     adapterId: 'xml',
     parserRoute: 'structured-xml',
     capsProfile: 'xml-default',
-    extensions: Object.freeze(['.xml'])
+    extensions: Object.freeze(['.xml', '.props', '.targets', '.csproj', '.config'])
   }),
   Object.freeze({
     id: 'yaml',

@@ -1,4 +1,4 @@
-import { lineHasAnyInsensitive, shouldScanLine } from './utils.js';
+import { lineHasAnyInsensitive, shouldScanLine, stripInlineCommentAware } from './utils.js';
 
 export const collectMakefileImports = (text) => {
   const imports = new Set();
@@ -11,7 +11,8 @@ export const collectMakefileImports = (text) => {
   };
   for (const line of lines) {
     if (!shouldScanLine(line, precheck)) continue;
-    const trimmed = line.replace(/#.*$/, '').trim();
+    const trimmed = stripInlineCommentAware(line, { markers: ['#'] }).trim();
+    if (!trimmed) continue;
     const includeMatch = trimmed.match(/^\s*(?:-?include|sinclude)\s+(.+)$/i);
     if (includeMatch) {
       const includeExpr = includeMatch[1];
@@ -26,7 +27,7 @@ export const collectMakefileImports = (text) => {
     if (!depMatch) continue;
     const deps = depMatch[1].split(/\s+/).map((entry) => entry.trim()).filter(Boolean);
     for (const dep of deps) {
-      if (dep === '|') continue;
+      if (dep === '|' || dep === '\\') continue;
       addImport(dep);
     }
   }

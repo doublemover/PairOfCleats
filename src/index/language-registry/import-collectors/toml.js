@@ -1,4 +1,9 @@
-import { lineHasAnyInsensitive, shouldScanLine } from './utils.js';
+import {
+  isPseudoImportToken,
+  lineHasAnyInsensitive,
+  shouldScanLine,
+  stripInlineCommentAware
+} from './utils.js';
 
 const REFERENCE_KEY_TOKENS = new Set([
   'include',
@@ -6,18 +11,17 @@ const REFERENCE_KEY_TOKENS = new Set([
   'import',
   'imports',
   'extends',
-  'path',
-  'file',
+  'ref',
+  '$ref',
   'schema',
   'source',
   'registry',
-  'git',
-  'url'
+  'git'
 ]);
 
 const addImport = (imports, value) => {
   const token = String(value || '').trim();
-  if (!token) return;
+  if (!token || isPseudoImportToken(token)) return;
   imports.add(token);
 };
 
@@ -94,7 +98,7 @@ export const collectTomlImports = (text) => {
   let currentSection = '';
   for (const rawLine of lines) {
     if (!shouldScanLine(rawLine, precheck)) continue;
-    const line = rawLine.replace(/#.*$/, '');
+    const line = stripInlineCommentAware(rawLine, { markers: ['#'] });
     const trimmed = line.trim();
     if (!trimmed) continue;
 
@@ -111,13 +115,12 @@ export const collectTomlImports = (text) => {
     const value = keyMatch[2];
 
     if (isDependencySection(currentSection)) {
-      addImport(imports, `dependency:${key}`);
       for (const token of collectDependencyReferences(value)) {
         addImport(imports, token);
       }
     }
 
-    if (!REFERENCE_KEY_TOKENS.has(keyLower) && !keyLower.endsWith('path') && !keyLower.endsWith('file')) continue;
+    if (!REFERENCE_KEY_TOKENS.has(keyLower)) continue;
     for (const token of collectTomlValues(value)) {
       addImport(imports, token);
     }

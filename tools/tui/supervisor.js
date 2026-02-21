@@ -280,14 +280,22 @@ const resolveRunRequest = (request) => {
 };
 
 const resolveResultPolicy = (request) => {
+  const fallbackPolicy = request && typeof request === 'object' ? request : {};
   const policy = request?.resultPolicy && typeof request.resultPolicy === 'object'
     ? request.resultPolicy
-    : {};
-  const captureStdout = ['none', 'text', 'json'].includes(policy.captureStdout)
-    ? policy.captureStdout
-    : 'none';
+    : fallbackPolicy;
+  const rawCaptureStdout = policy.captureStdout;
+  const captureStdout = ['none', 'text', 'json'].includes(rawCaptureStdout)
+    ? rawCaptureStdout
+    : (rawCaptureStdout === true ? 'text' : 'none');
   const maxBytes = clampInt(policy.maxBytes, 1_000_000, { min: 1024, max: 64 * 1024 * 1024 });
   return { captureStdout, maxBytes };
+};
+
+const cleanupFinalizedJob = (jobId) => {
+  const job = getJob(jobId);
+  if (!job || !job.finalized) return;
+  state.jobs.delete(jobId);
 };
 
 const resolveRetryPolicy = (request) => {
@@ -386,7 +394,7 @@ const collectJobArtifacts = async ({ request, cwd }) => {
   }
 
   if (dispatch?.id === 'index.build' || dispatch?.id === 'index.watch') {
-    for (const mode of ['code', 'prose', 'records']) {
+    for (const mode of ['code', 'prose', 'extracted-prose', 'records']) {
       const indexDir = getIndexDir(repoRoot, mode, userConfig);
       artifacts.push(await statArtifact({
         kind: `index:${mode}`,
@@ -406,7 +414,7 @@ const collectJobArtifacts = async ({ request, cwd }) => {
     artifacts.push(await statArtifact({
       kind: 'metrics:search-history',
       label: 'search history',
-      artifactPath: path.join(metricsDir, 'search-history.jsonl')
+      artifactPath: path.join(metricsDir, 'searchHistory')
     }));
   }
 
@@ -449,6 +457,7 @@ const emitArtifacts = async (job, request, { cwd } = {}) => {
       artifacts: [],
       artifactsIndexed: false,
       source: 'supervisor',
+      nonFatal: true,
       error: {
         message: error?.message || String(error),
         code: 'ARTIFACT_INDEX_FAILED'
@@ -684,13 +693,17 @@ const startJob = async (request) => {
     });
   }).finally(() => {
     job.status = job.status === 'cancelled' ? 'cancelled' : (job.status || 'done');
+    cleanupFinalizedJob(jobId);
   });
 };
 
 const cancelJob = (jobId, reason = 'cancel_requested') => {
   const job = getJob(jobId);
   if (!job) return false;
-  if (job.finalized) return true;
+  if (job.finalized) {
+    cleanupFinalizedJob(jobId);
+    return true;
+  }
   job.status = 'cancelling';
   job.cancelReason = reason;
   emitLog(jobId, 'info', `cancelling job (${reason})`, { reason });
@@ -774,6 +787,7 @@ const handleRequest = async (request) => {
             code: 'INVALID_REQUEST'
           }
         });
+        cleanupFinalizedJob(jobId);
       }
     }
     return;

@@ -23,22 +23,42 @@ const normalizeCoveragePath = (urlOrPath, root) => {
   return normalizePathForRepo(raw, root, { stripDot: true });
 };
 
-const summarizeRanges = (functions) => {
-  let covered = 0;
-  let total = 0;
-  for (const fn of Array.isArray(functions) ? functions : []) {
-    for (const range of Array.isArray(fn?.ranges) ? fn.ranges : []) {
-      total += 1;
-      if (Number(range?.count) > 0) covered += 1;
-    }
-  }
-  return { coveredRanges: covered, totalRanges: total };
-};
-
 const toRounded = (value) => {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return 0;
   return Number(numeric.toFixed(3));
+};
+
+const iterFunctionRanges = (functions) => {
+  const out = [];
+  const fnList = Array.isArray(functions) ? functions : [];
+  for (let fnIndex = 0; fnIndex < fnList.length; fnIndex += 1) {
+    const fn = fnList[fnIndex];
+    const ranges = Array.isArray(fn?.ranges) ? fn.ranges : [];
+    for (let rangeIndex = 0; rangeIndex < ranges.length; rangeIndex += 1) {
+      const range = ranges[rangeIndex];
+      const start = Number(range?.startOffset);
+      const end = Number(range?.endOffset);
+      const stableKey = Number.isFinite(start) && Number.isFinite(end)
+        ? `${start}:${end}`
+        : `${fnIndex}:${rangeIndex}`;
+      out.push({
+        key: stableKey,
+        covered: Number(range?.count) > 0
+      });
+    }
+  }
+  return out;
+};
+
+const readCoverageJsonSafe = async (filePath) => {
+  try {
+    const raw = await fsPromises.readFile(filePath, 'utf8');
+    return JSON.parse(raw);
+  } catch (error) {
+    console.error(`[coverage] skipping malformed coverage file: ${filePath} (${error?.message || error})`);
+    return null;
+  }
 };
 
 export const collectV8CoverageEntries = async ({ root, coverageDir }) => {
@@ -49,26 +69,36 @@ export const collectV8CoverageEntries = async ({ root, coverageDir }) => {
 
   const byPath = new Map();
   for (const fileName of files) {
-    const payload = JSON.parse(await fsPromises.readFile(path.join(coverageDir, fileName), 'utf8'));
+    const coveragePath = path.join(coverageDir, fileName);
+    const payload = await readCoverageJsonSafe(coveragePath);
+    if (!payload) continue;
     const rows = Array.isArray(payload?.result) ? payload.result : [];
     for (const row of rows) {
       const normalizedPath = normalizeCoveragePath(row?.url, root);
       if (!normalizedPath) continue;
-      const summary = summarizeRanges(row?.functions);
-      if (summary.totalRanges <= 0) continue;
-      const existing = byPath.get(normalizedPath) || { coveredRanges: 0, totalRanges: 0 };
-      existing.coveredRanges += summary.coveredRanges;
-      existing.totalRanges += summary.totalRanges;
+      const existing = byPath.get(normalizedPath) || new Map();
+      for (const range of iterFunctionRanges(row?.functions)) {
+        const wasCovered = existing.get(range.key) === true;
+        existing.set(range.key, wasCovered || range.covered);
+      }
       byPath.set(normalizedPath, existing);
     }
   }
 
   return Array.from(byPath.entries())
-    .map(([entryPath, metrics]) => ({
-      path: toPosix(entryPath),
-      coveredRanges: toRounded(metrics.coveredRanges),
-      totalRanges: toRounded(metrics.totalRanges)
-    }))
+    .map(([entryPath, rangeMap]) => {
+      const totalRanges = rangeMap.size;
+      let coveredRanges = 0;
+      for (const covered of rangeMap.values()) {
+        if (covered === true) coveredRanges += 1;
+      }
+      return {
+        path: toPosix(entryPath),
+        coveredRanges: toRounded(coveredRanges),
+        totalRanges: toRounded(totalRanges)
+      };
+    })
+    .filter((entry) => entry.totalRanges > 0)
     .sort((a, b) => a.path.localeCompare(b.path));
 };
 
@@ -80,8 +110,8 @@ export const mergeCoverageEntries = (coverageArtifacts) => {
       const key = toPosix(entry?.path || '');
       if (!key) continue;
       const existing = byPath.get(key) || { coveredRanges: 0, totalRanges: 0 };
-      existing.coveredRanges += Number(entry?.coveredRanges || 0);
-      existing.totalRanges += Number(entry?.totalRanges || 0);
+      existing.coveredRanges = Math.max(existing.coveredRanges, Number(entry?.coveredRanges || 0));
+      existing.totalRanges = Math.max(existing.totalRanges, Number(entry?.totalRanges || 0));
       byPath.set(key, existing);
     }
   }
@@ -120,11 +150,15 @@ export const filterCoverageEntriesToChanged = ({ entries, root }) => {
     cwd: root,
     encoding: 'utf8'
   });
-  if (diff.status !== 0) {
+  const untracked = spawnSync('git', ['ls-files', '--others', '--exclude-standard'], {
+    cwd: root,
+    encoding: 'utf8'
+  });
+  if (diff.status !== 0 || untracked.status !== 0) {
     return Array.isArray(entries) ? entries : [];
   }
   const changed = new Set(
-    String(diff.stdout || '')
+    `${String(diff.stdout || '')}\n${String(untracked.stdout || '')}`
       .split(/\r?\n/)
       .map((line) => toPosix(line.trim()))
       .filter(Boolean)

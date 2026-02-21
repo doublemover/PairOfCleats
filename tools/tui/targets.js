@@ -197,6 +197,12 @@ export const readBuildManifestSync = ({ root, verifyChecksum = true }) => {
     })
     : sha256Text(body);
   const payload = JSON.parse(body);
+  const targetsManifest = payload?.targetsManifest && typeof payload.targetsManifest === 'object'
+    ? {
+      file: normalizeString(payload.targetsManifest.file),
+      sha256: normalizeString(payload.targetsManifest.sha256).toLowerCase() || null
+    }
+    : { file: '', sha256: null };
   const artifacts = (Array.isArray(payload?.artifacts) ? payload.artifacts : [])
     .map((entry) => normalizeBuildManifestArtifact(entry, root))
     .filter((entry) => entry.triple && entry.artifactName && entry.artifactPath)
@@ -209,6 +215,7 @@ export const readBuildManifestSync = ({ root, verifyChecksum = true }) => {
     schemaVersion: Number(payload?.schemaVersion) || 0,
     mode: normalizeString(payload?.mode),
     pathPolicy: normalizeString(payload?.pathPolicy),
+    targetsManifest,
     artifacts
   };
 };

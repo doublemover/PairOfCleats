@@ -1,10 +1,10 @@
-import { lineHasAnyInsensitive, shouldScanLine } from './utils.js';
+import { isPseudoImportToken, lineHasAnyInsensitive, shouldScanLine } from './utils.js';
 
-const ATTRIBUTE_TOKENS = ['schemaLocation', 'href', 'src', 'location', 'file', 'path', 'url'];
+const ATTRIBUTE_TOKENS = ['schemaLocation', 'href', 'src', 'location', 'file', 'path', 'url', 'project'];
 
 const addImport = (imports, value) => {
   const token = String(value || '').trim();
-  if (!token) return;
+  if (!token || isPseudoImportToken(token)) return;
   imports.add(token);
 };
 
@@ -47,12 +47,6 @@ export const collectXmlImports = (text) => {
         }
       }
     }
-
-    const xmlnsMatches = Array.from(line.matchAll(/\bxmlns:([A-Za-z_][A-Za-z0-9_.-]*)\s*=\s*["']([^"']+)["']/g));
-    for (const match of xmlnsMatches) {
-      addImport(imports, `namespace:${match[1]}=${match[2]}`);
-    }
-
     const schemaLocationMatches = Array.from(line.matchAll(/\bxsi:schemaLocation\s*=\s*["']([^"']+)["']/g));
     for (const match of schemaLocationMatches) {
       parseSchemaLocation(match[1], imports);

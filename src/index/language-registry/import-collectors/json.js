@@ -1,3 +1,5 @@
+import { isPseudoImportToken } from './utils.js';
+
 const REFERENCE_KEY_TOKENS = new Set([
   '$ref',
   'ref',
@@ -7,18 +9,12 @@ const REFERENCE_KEY_TOKENS = new Set([
   'imports',
   'extends',
   'schema',
-  'path',
-  'paths',
-  'file',
-  'files',
-  'from',
-  'href',
-  'url'
+  'source'
 ]);
 
 const addImport = (imports, value) => {
   const token = String(value || '').trim();
-  if (!token) return;
+  if (!token || isPseudoImportToken(token)) return;
   imports.add(token);
 };
 
@@ -53,8 +49,6 @@ const traverseJson = (value, imports) => {
     const keyLower = key.toLowerCase();
     if (REFERENCE_KEY_TOKENS.has(keyLower)) {
       collectStringValues(nested, imports);
-    } else if ((keyLower.endsWith('path') || keyLower.endsWith('file')) && typeof nested === 'string') {
-      addImport(imports, nested);
     }
     traverseJson(nested, imports);
   }

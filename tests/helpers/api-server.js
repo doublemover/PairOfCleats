@@ -168,15 +168,21 @@ export const startApiServer = async ({
           data += chunk.toString();
         });
         res.on('end', () => {
-          try {
-            resolve({
-              status: res.statusCode || 0,
-              body: JSON.parse(data || '{}'),
-              headers: res.headers || {}
-            });
-          } catch (err) {
-            reject(err);
+          const contentType = String(res.headers?.['content-type'] || '').toLowerCase();
+          let json = null;
+          if (contentType.includes('application/json')) {
+            try {
+              json = JSON.parse(data || '{}');
+            } catch {
+              json = null;
+            }
           }
+          resolve({
+            status: res.statusCode || 0,
+            body: data,
+            json,
+            headers: res.headers || {}
+          });
         });
       }
     );

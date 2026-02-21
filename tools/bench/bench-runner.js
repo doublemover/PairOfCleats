@@ -5,6 +5,7 @@ import os from 'node:os';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 
+import { getEnvConfig } from '../../src/shared/env.js';
 import { resolveBenchSuite } from './suites/sweet16.js';
 
 const parseArgs = () => {
@@ -304,6 +305,7 @@ const runOne = ({ script, args, timeoutMs, tokens }) => {
 };
 
 const main = async () => {
+  const envConfig = getEnvConfig(process.env);
   const argv = parseArgs();
   if (argv.help) {
     const lines = [
@@ -523,8 +525,8 @@ const main = async () => {
       storageTier: detectStorageTier(tokens.indexDir || tokens.repoRoot || process.cwd()),
       storagePath: tokens.indexDir || tokens.repoRoot || process.cwd(),
       storageRoot: path.parse(tokens.indexDir || tokens.repoRoot || process.cwd()).root || null,
-      antivirusState: process.env.PAIROFCLEATS_BENCH_ANTIVIRUS_STATE || 'unknown',
-      cpuGovernor: process.env.PAIROFCLEATS_BENCH_CPU_GOVERNOR || 'unknown',
+      antivirusState: envConfig.benchAntivirusState || 'unknown',
+      cpuGovernor: envConfig.benchCpuGovernor || 'unknown',
       configHash: createHash('sha1').update(JSON.stringify({
         suite: argv.suite || null,
         scripts: entries.map((entry) => ({

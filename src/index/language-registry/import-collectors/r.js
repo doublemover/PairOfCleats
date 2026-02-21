@@ -1,4 +1,4 @@
-import { lineHasAny, shouldScanLine } from './utils.js';
+import { lineHasAny, shouldScanLine, stripInlineCommentAware } from './utils.js';
 
 export const collectRImports = (text) => {
   const imports = new Set();
@@ -11,11 +11,13 @@ export const collectRImports = (text) => {
   };
   for (const line of lines) {
     if (!shouldScanLine(line, precheck)) continue;
-    const library = line.match(/\b(?:library|require)\s*\(\s*['"]?([^'")]+)['"]?\s*\)/);
+    const cleaned = stripInlineCommentAware(line, { markers: ['#'] });
+    if (!cleaned.trim()) continue;
+    const library = cleaned.match(/\b(?:library|require)\s*\(\s*['"]?([^'")]+)['"]?\s*\)/);
     if (library?.[1]) addImport(library[1]);
-    const namespace = line.match(/\brequireNamespace\s*\(\s*['"]([^'"]+)['"]/);
+    const namespace = cleaned.match(/\brequireNamespace\s*\(\s*['"]([^'"]+)['"]/);
     if (namespace?.[1]) addImport(namespace[1]);
-    const sourceMatch = line.match(/\bsource\s*\(\s*['"]([^'"]+)['"]/);
+    const sourceMatch = cleaned.match(/\bsource\s*\(\s*['"]([^'"]+)['"]/);
     if (sourceMatch?.[1]) addImport(sourceMatch[1]);
   }
   return Array.from(imports);

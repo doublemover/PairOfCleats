@@ -42,9 +42,28 @@ export const parseDockerfileFromClause = (line) => {
   const parsed = parseDockerfileInstruction(line);
   if (!parsed || parsed.instruction !== 'FROM') return null;
   const args = parsed.args || [];
+  const skipOption = (startIndex) => {
+    const option = String(args[startIndex] || '');
+    if (!option.startsWith('--')) return startIndex;
+    const next = String(args[startIndex + 1] || '');
+    const hasInlineAssignment = option.includes('=');
+    if (hasInlineAssignment) {
+      const [, inlineValue = ''] = option.split(/=(.*)/, 2);
+      if (!inlineValue && next && next.toUpperCase() !== 'AS' && !next.startsWith('--')) {
+        return startIndex + 2;
+      }
+      return startIndex + 1;
+    }
+    if (next === '=') return startIndex + 3;
+    if (next && next.toUpperCase() !== 'AS' && !next.startsWith('--')) return startIndex + 2;
+    return startIndex + 1;
+  };
+
   let index = 0;
   while (index < args.length && String(args[index]).startsWith('--')) {
-    index += 1;
+    const nextIndex = skipOption(index);
+    if (nextIndex <= index) break;
+    index = nextIndex;
   }
   const image = args[index] || '';
   let stage = '';

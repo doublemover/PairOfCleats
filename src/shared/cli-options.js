@@ -51,6 +51,21 @@ export const SERVICE_INDEXER_OPTIONS = {
   json: { type: 'boolean', default: false }
 };
 
+export const SERVICE_API_OPTIONS = {
+  host: { type: 'string', default: '127.0.0.1' },
+  port: { type: 'string', default: '7345' },
+  output: { type: 'string', default: 'compact' },
+  json: { type: 'boolean', default: false },
+  quiet: { type: 'boolean', default: false },
+  repo: { type: 'string' },
+  'auth-token': { type: 'string' },
+  'allow-unauthenticated': { type: 'boolean', default: false },
+  'cors-allowed-origins': { type: 'string' },
+  'cors-allow-any': { type: 'boolean', default: false },
+  'allowed-repo-roots': { type: 'string' },
+  'max-body-bytes': { type: 'number' }
+};
+
 export const BENCH_OPTIONS = {
   ann: { type: 'boolean' },
   'no-ann': { type: 'boolean' },

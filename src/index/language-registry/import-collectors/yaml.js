@@ -1,4 +1,9 @@
-import { lineHasAnyInsensitive, shouldScanLine } from './utils.js';
+import {
+  isPseudoImportToken,
+  lineHasAnyInsensitive,
+  shouldScanLine,
+  stripInlineCommentAware
+} from './utils.js';
 
 const REFERENCE_KEY_TOKENS = new Set([
   'include',
@@ -8,15 +13,12 @@ const REFERENCE_KEY_TOKENS = new Set([
   'extends',
   'ref',
   '$ref',
-  'schema',
-  'path',
-  'file',
-  'from'
+  'schema'
 ]);
 
 const addImport = (imports, value) => {
   const token = String(value || '').trim();
-  if (!token) return;
+  if (!token || isPseudoImportToken(token)) return;
   imports.add(token);
 };
 
@@ -36,26 +38,10 @@ const collectInlineList = (value) => {
     .filter(Boolean);
 };
 
-const addAnchorsAndAliases = (imports, line) => {
-  let match;
-  const anchorRe = /(^|[^A-Za-z0-9_.-])&([A-Za-z0-9_.-]+)/g;
-  while ((match = anchorRe.exec(line)) !== null) {
-    addImport(imports, `anchor:${match[2]}`);
-    if (!match[0]) anchorRe.lastIndex += 1;
-  }
-  const aliasRe = /(^|[^A-Za-z0-9_.-])\*([A-Za-z0-9_.-]+)/g;
-  while ((match = aliasRe.exec(line)) !== null) {
-    addImport(imports, `alias:${match[2]}`);
-    if (!match[0]) aliasRe.lastIndex += 1;
-  }
-};
-
 export const collectYamlImports = (text) => {
   const imports = new Set();
   const lines = String(text || '').split('\n');
   const precheck = (value) => lineHasAnyInsensitive(value, [
-    '&',
-    '*',
     ':',
     'include',
     'import',
@@ -66,13 +52,14 @@ export const collectYamlImports = (text) => {
 
   let listKeyIndent = -1;
   for (const rawLine of lines) {
-    const line = rawLine.replace(/\s+#.*$/, '');
+    const line = stripInlineCommentAware(rawLine, {
+      markers: ['#'],
+      requireWhitespaceBefore: true
+    });
     const trimmed = line.trim();
     const isListContinuation = listKeyIndent >= 0 && /^-\s+/.test(trimmed);
     if (!shouldScanLine(rawLine, precheck) && !isListContinuation) continue;
     if (!trimmed) continue;
-
-    addAnchorsAndAliases(imports, line);
 
     const indent = line.length - line.trimStart().length;
     const listMatch = trimmed.match(/^-+\s*(.+)$/);
@@ -99,7 +86,7 @@ export const collectYamlImports = (text) => {
       addImport(imports, item);
     }
     const scalarValue = normalizeScalar(value);
-    if (scalarValue && !value.startsWith('[')) {
+    if (scalarValue && !value.startsWith('[') && !/^[*&][A-Za-z0-9_.-]+$/.test(scalarValue)) {
       addImport(imports, scalarValue);
     }
   }

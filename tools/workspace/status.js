@@ -25,7 +25,7 @@ export async function runWorkspaceStatusCli() {
   }
 
   const workspaceConfig = loadWorkspaceConfig(argv.workspace);
-  const { manifest, manifestPath } = await generateWorkspaceManifest(workspaceConfig, { write: true });
+  const { manifest, manifestPath } = await generateWorkspaceManifest(workspaceConfig, { write: false });
 
   if (argv.json) {
     console.log(JSON.stringify({

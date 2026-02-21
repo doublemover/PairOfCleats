@@ -44,8 +44,6 @@ const cases = [
       '</root>'
     ].join('\n'),
     expected: [
-      'namespace:cfg=urn:cfg',
-      'namespace:xsi=http://www.w3.org/2001/XMLSchema-instance',
       'urn:cfg',
       './cfg.xsd',
       './base.xml',
@@ -57,11 +55,11 @@ const cases = [
     fn: collectIniImports,
     text: [
       '[includes]',
-      'files = ./base.ini, ./feature.cfg',
+      'files = "./base.ini", "./feature#v1.cfg" ; trailing comment',
       '[server]',
       'schema = ./schema.ini'
     ].join('\n'),
-    expected: ['./base.ini', './feature.cfg', './schema.ini']
+    expected: ['./base.ini', './feature#v1.cfg', './schema.ini']
   },
   {
     label: 'toml',
@@ -70,10 +68,11 @@ const cases = [
       '[dependencies]',
       'serde = "1.0"',
       'localcrate = { path = "../localcrate" }',
+      'name = "pkg#name" # trailing comment',
       '[tool.poc]',
-      'include = ["./base.toml", "./feature.toml"]'
+      'include = ["./base.toml", "./feature#v1.toml"] # trailing comment'
     ].join('\n'),
-    expected: ['dependency:serde', 'dependency:localcrate', '../localcrate', './base.toml', './feature.toml']
+    expected: ['../localcrate', './base.toml', './feature#v1.toml']
   },
   {
     label: 'json',
@@ -82,14 +81,15 @@ const cases = [
       schema: 'https://schemas.acme.dev/service.json',
       service: {
         include: ['./base.json', './feature.json'],
-        configPath: 'configs/service.json'
+        configPath: 'configs/service.json',
+        metadataUrl: 'https://acme.dev/docs',
+        outputFile: 'build/out.json'
       }
     }),
     expected: [
       'https://schemas.acme.dev/service.json',
       './base.json',
-      './feature.json',
-      'configs/service.json'
+      './feature.json'
     ]
   },
   {
@@ -102,23 +102,25 @@ const cases = [
       '  <<: *defaults',
       'include:',
       '- ./base.yaml',
-      '- "./feature.yml"',
-      'extends: ./parent.yml'
+      '- "./feature#v1.yml" # trailing comment',
+      'extends: ./parent.yml',
+      'quoted: "http://example.com/#fragment"'
     ].join('\n'),
-    expected: ['anchor:defaults', 'alias:defaults', './base.yaml', './feature.yml', './parent.yml']
+    expected: ['./base.yaml', './feature#v1.yml', './parent.yml']
   },
   {
     label: 'dockerfile',
     fn: collectDockerfileImports,
     text: [
       'FROM --platform=$BUILDPLATFORM node:18 AS base',
+      'FROM --platform $TARGETPLATFORM ghcr.io/acme/runtime:1 AS runtime',
       'FROM base AS build',
       'RUN echo from builder',
       'RUN --mount=type=cache,target=/root/.cache \\',
       '    --mount=type=bind,from=ghcr.io/acme/builder:latest,target=/src true',
       'COPY --from=base /src /dst'
     ].join('\n'),
-    expected: ['node:18', 'base', 'build', 'ghcr.io/acme/builder:latest']
+    expected: ['node:18', 'base', 'runtime', 'ghcr.io/acme/runtime:1', 'build', 'ghcr.io/acme/builder:latest']
   },
   {
     label: 'makefile',
@@ -127,6 +129,7 @@ const cases = [
       'include shared.mk',
       '-include local.mk',
       'sinclude optional.mk',
+      '# include ignored.mk',
       'include $(wildcard mk/rules.mk mk/targets.mk)',
       'build/main.o: src/main.c',
       'app: src/main.o src/lib.o | build/.stamp'
@@ -150,9 +153,10 @@ const cases = [
     fn: collectGraphqlImports,
     text: [
       '#import \"common.graphql\"',
+      "# import 'shared.graphql'",
       'extend schema @link(url: \"https://specs.apollo.dev/federation/v2.6\", import: [\"@key\"])'
     ].join('\n'),
-    expected: ['common.graphql', 'https://specs.apollo.dev/federation/v2.6']
+    expected: ['common.graphql', 'shared.graphql', 'https://specs.apollo.dev/federation/v2.6']
   },
   {
     label: 'cmake',
@@ -215,7 +219,7 @@ const cases = [
       'import foo.bar.Baz',
       'class Worker extends foo.core.Base with foo.core.Logging'
     ].join('\n'),
-    expected: ['com.example.service', 'foo.bar.Baz', 'foo.core.Base', 'foo.core.Logging']
+    expected: ['foo.bar.Baz', 'foo.core.Base', 'foo.core.Logging']
   },
   {
     label: 'groovy',
@@ -225,16 +229,18 @@ const cases = [
       'import foo.bar.Baz',
       'class Worker extends foo.core.Base implements foo.api.Task'
     ].join('\n'),
-    expected: ['com.example.build', 'foo.bar.Baz', 'foo.core.Base', 'foo.api.Task']
+    expected: ['foo.bar.Baz', 'foo.core.Base', 'foo.api.Task']
   },
   {
     label: 'r',
     fn: collectRImports,
     text: [
+      '# library(ignored)',
       'library(ggplot2)',
       'require(\"dplyr\")',
       'requireNamespace(\"jsonlite\")',
-      'source(\"R/helpers.R\")'
+      'source(\"R/helpers.R\")',
+      '# source(\"R/ignored.R\")'
     ].join('\n'),
     expected: ['ggplot2', 'dplyr', 'jsonlite', 'R/helpers.R']
   },
@@ -242,23 +248,24 @@ const cases = [
     label: 'julia',
     fn: collectJuliaImports,
     text: [
-      'using Foo.Bar',
+      'using Foo.Bar, Baz.Quux: run',
       'import LinearAlgebra',
-      'include(\"kernels/fft.jl\")'
+      'include(\"kernels/fft.jl\")',
+      '# include(\"ignored.jl\")'
     ].join('\n'),
-    expected: ['Foo.Bar', 'LinearAlgebra', 'kernels/fft.jl']
+    expected: ['Foo.Bar', 'Baz.Quux', 'LinearAlgebra', 'kernels/fft.jl']
   },
   {
     label: 'handlebars',
     fn: collectHandlebarsImports,
-    text: '{{> partial-name}}',
-    expected: ['partial-name']
+    text: '{{> partial-name}} {{> "partials/nav"}}',
+    expected: ['partial-name', 'partials/nav']
   },
   {
     label: 'mustache',
     fn: collectMustacheImports,
-    text: '{{> other}}',
-    expected: ['other']
+    text: '{{> other}}{{> partials/footer}}',
+    expected: ['other', 'partials/footer']
   },
   {
     label: 'jinja',

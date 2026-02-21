@@ -26,8 +26,22 @@ const distDir = resolveBuildDistDir({ root });
 const manifestPath = path.join(distDir, TUI_BUILD_MANIFEST_FILE);
 const checksumPath = path.join(distDir, TUI_BUILD_MANIFEST_CHECKSUM_FILE);
 
-const verifyBuiltManifest = ({ rootDir, targets }) => {
+const verifyBuiltManifest = ({ rootDir, targets, targetsPath, targetsChecksum }) => {
   const buildManifest = readBuildManifestSync({ root: rootDir, verifyChecksum: true });
+  const expectedTargetsFile = toPosixRelative(rootDir, targetsPath);
+  if (buildManifest.targetsManifest?.file !== expectedTargetsFile) {
+    throw new Error(
+      `build manifest targets file mismatch: expected ${expectedTargetsFile}, got ${buildManifest.targetsManifest?.file || 'missing'}`
+    );
+  }
+  if (!buildManifest.targetsManifest?.sha256) {
+    throw new Error('build manifest missing targets manifest checksum binding');
+  }
+  if (buildManifest.targetsManifest.sha256 !== targetsChecksum) {
+    throw new Error(
+      `build manifest targets checksum mismatch: expected ${targetsChecksum}, got ${buildManifest.targetsManifest.sha256}`
+    );
+  }
   const artifactsByTriple = new Map(
     (Array.isArray(buildManifest.artifacts) ? buildManifest.artifacts : [])
       .map((artifact) => [artifact.triple, artifact])
@@ -73,7 +87,7 @@ const run = async () => {
   const targetsBody = await fsPromises.readFile(targetsPath, 'utf8');
   const targetsChecksum = sha256Text(targetsBody);
   if (verifyOnly) {
-    const verified = verifyBuiltManifest({ rootDir: root, targets });
+    const verified = verifyBuiltManifest({ rootDir: root, targets, targetsPath, targetsChecksum });
     process.stderr.write(`[tui-build] verified ${toPosixRelative(root, verified.manifestPath)}\n`);
     return;
   }

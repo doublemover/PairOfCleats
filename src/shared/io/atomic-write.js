@@ -160,7 +160,11 @@ export const atomicWriteText = async (targetPath, text, options = {}) => {
     encoding = 'utf8'
   } = options;
   const payload = Buffer.isBuffer(text)
-    ? text
+    ? (() => {
+      if (!newline) return text;
+      if (text.length > 0 && text[text.length - 1] === 0x0a) return text;
+      return Buffer.concat([text, Buffer.from('\n')]);
+    })()
     : (() => {
       const source = text == null ? '' : String(text);
       if (!newline) return source;

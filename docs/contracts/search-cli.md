@@ -17,12 +17,25 @@ This document defines the CLI interface and output contract for **search**.
 - `--repo <path>`: repo root (defaults to current directory)
 - `--mode code|prose|extracted-prose|records|both|all`: search mode
 - `--top <n>` (alias: `-n`, `--n`): number of results
+- `--top-per-repo <n>`: cap hits per repo in federated mode
 - `--json`: emit JSON output
 - `--compact`: compact JSON output
 - `--stats`: include stats payload
 - `--explain` / `--why`: include score explanation payload
 - `--matched`: include matched query tokens in text output
 - `--filter "<expr>"`: filter expression for file/lang/ext/type (see below)
+- `--concurrency <n>`: federated/per-repo execution concurrency
+- `--workspace <path>`: workspace manifest path for federated search
+- `--cohort <selector>`: cohort selector for federated runs
+- `--federated-strict`: fail federated runs on cohort/config mismatches
+- `--repo-filter <pattern>`: include/exclude repos in federated runs
+- `--select <selector>`: explicit result selection profile
+- `--merge <mode>`: result merge strategy override
+- `--snapshot <id>`: force snapshot id
+- `--as-of <selector>`: resolve snapshot by temporal selector
+- `--include-disabled`: include disabled workspace repos in federated runs
+- `--tag <name>`: filter repos/workspaces by tag
+- `--debug-include-paths`: include debug path traces in structured output
 
 ### Filter flags
 - `--file`, `--path`, `--lang`, `--ext`, `--type`
@@ -40,10 +53,15 @@ This document defines the CLI interface and output contract for **search**.
 - `--ann` / `--no-ann`
 - `--ann-backend auto|lancedb|sqlite|hnsw|js`
 - `--dense-vector-mode merged|code|doc|auto`
+- `--allow-sparse-fallback`: allow sparse fallback when ANN path is unavailable
+- `--allow-unsafe-mix`: allow mixed profile/index modes that are otherwise blocked
 - `--graph-ranking-max-work <n>`, `--graph-ranking-max-ms <n>`
 - `--graph-ranking-seeds top1|topK|none`, `--graph-ranking-seed-k <n>`
 - `--bm25-k1 <n>`, `--bm25-b <n>`
+- `--rrf-k <n>`: reciprocal-rank-fusion K override
 - `--fts-profile <profile>`
+- `--fts-stemming` / `--no-fts-stemming`
+- `--fts-trigram` / `--no-fts-trigram`
 - `--fts-weights <json|list>`
 - `--model <id>`
 - `--stub-embeddings`

@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { getRepoCacheRoot, getRepoRoot, getToolingConfig } from '../../shared/dict-utils.js';
+import { getEnvConfig } from '../../shared/env.js';
 import { uniqueTypes } from '../../integrations/tooling/providers/shared.js';
 import { readTextFile } from '../../shared/encoding.js';
 import { sha1 } from '../../shared/hash.js';
@@ -28,15 +29,6 @@ const SYMBOL_REF_CACHE_MAX_ENTRIES = 20000;
 const SYMBOL_REF_CACHE_TTL_MS = 5 * 60 * 1000;
 const BUNDLE_SIZING_P95_WINDOW = 32;
 const PROPAGATION_PARALLEL_MIN_BUNDLE = 96;
-
-const parseOptionalBoolean = (value) => {
-  if (value == null) return null;
-  const text = String(value).trim().toLowerCase();
-  if (!text) return null;
-  if (text === '1' || text === 'true') return true;
-  if (text === '0' || text === 'false') return false;
-  return null;
-};
 
 const parsePositiveInteger = (value, fallback) => {
   const numeric = Number(value);
@@ -595,10 +587,11 @@ export async function applyCrossFileInference({
     recentHeapDeltaBytes: []
   };
   let currentBundleSize = bundleSizing.initialBundleSize;
-  const envPropagationParallel = parseOptionalBoolean(process.env.PAIROFCLEATS_CROSSFILE_PROPAGATION_PARALLEL);
+  const envConfig = getEnvConfig(process.env);
+  const envPropagationParallel = envConfig.crossfilePropagationParallel;
   const propagationParallelEnabled = envPropagationParallel !== false;
   const propagationParallelMinBundle = parsePositiveInteger(
-    process.env.PAIROFCLEATS_CROSSFILE_PROPAGATION_PARALLEL_MIN_BUNDLE,
+    envConfig.crossfilePropagationParallelMinBundle,
     PROPAGATION_PARALLEL_MIN_BUNDLE
   );
   let propagationParallelLogged = false;

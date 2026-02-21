@@ -7,6 +7,7 @@ import {
 } from '../tools/shared/dict-utils.js';
 import {
   INDEX_BUILD_OPTIONS,
+  SERVICE_API_OPTIONS,
   SERVICE_INDEXER_OPTIONS,
   resolveCliOptionFlagSets
 } from '../src/shared/cli-options.js';
@@ -440,7 +441,12 @@ function resolveCommand(primary, rest) {
       });
     }
     if (sub === 'api') {
-      validateArgs(rest, ['host', 'port', 'repo', 'json'], ['host', 'port', 'repo']);
+      const { optionNames, valueOptionNames } = resolveCliOptionFlagSets(SERVICE_API_OPTIONS);
+      validateArgs(
+        rest,
+        optionNames,
+        valueOptionNames
+      );
       return { script: 'tools/api/server.js', extraArgs: [], args: rest };
     }
     if (sub === 'indexer') {

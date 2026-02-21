@@ -90,7 +90,7 @@ pairofcleats test [selectors...] [options] [-- <pass-through args>]
   - Hard timeout per test process.
   - Default: 30000, with lane overrides:
     - `ci-lite`: 15000
-    - `ci`: 90000
+    - `ci`: 60000
     - `ci-long`: 240000
   - When multiple lanes are requested, the runner picks the longest matching default.
   - On timeout, the runner terminates the entire process tree (SIGTERM then SIGKILL, or `taskkill` on Windows).
@@ -253,6 +253,13 @@ Current tags (in addition to lane names):
 - `storage`, `indexing`, `retrieval`, `lang`, `tooling`, `harness`, `smoke`
 - `sqlite`, `lmdb`, `jj`, `watch`, `embeddings`
 - `long`, `destructive`, `DelayedUntilPhase7_8`
+
+Additional active lanes:
+- `gate`
+- `backcompat`
+- `diagnostics-summary`
+- `iq`
+- `decomposed-drift`
 
 Refer to `tests/run.rules.jsonc` for the exact match rules.
 

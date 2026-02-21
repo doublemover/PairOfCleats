@@ -56,6 +56,7 @@ try {
   const start = await waitFor((event) => event.event === 'job:start' && event.jobId === jobId);
   const spawnEvent = await waitFor((event) => event.event === 'job:spawn' && event.jobId === jobId);
   const end = await waitFor((event) => event.event === 'job:end' && event.jobId === jobId);
+  await waitFor((event) => event.event === 'job:artifacts' && event.jobId === jobId);
 
   assert.equal(start.jobId, jobId);
   assert.equal(spawnEvent.jobId, jobId);
@@ -66,6 +67,32 @@ try {
   const spawnIndex = events.indexOf(spawnEvent);
   const endIndex = events.indexOf(end);
   assert(startIndex >= 0 && spawnIndex > startIndex && endIndex > spawnIndex, 'expected lifecycle ordering start -> spawn -> end');
+
+  send({
+    op: 'job:run',
+    jobId,
+    title: 'Lifecycle Reuse',
+    argv: ['search', '--help']
+  });
+  const secondStart = await waitFor((event) => (
+    event.event === 'job:start'
+    && event.jobId === jobId
+    && event.title === 'Lifecycle Reuse'
+  ));
+  const secondStartIndex = events.indexOf(secondStart);
+  const secondEnd = await waitFor((event) => (
+    event.event === 'job:end'
+    && event.jobId === jobId
+    && events.indexOf(event) > secondStartIndex
+  ));
+  assert.ok(secondStart, 'expected second run with same jobId to be accepted');
+  assert.ok(['done', 'failed', 'cancelled'].includes(secondEnd.status));
+  const duplicateIdErrors = events.filter((event) => (
+    event.event === 'log'
+    && event.level === 'error'
+    && String(event.message || '').includes('job already exists')
+  ));
+  assert.equal(duplicateIdErrors.length, 0, 'completed job IDs should be reusable');
 
   send({ op: 'shutdown', reason: 'test_complete' });
   await new Promise((resolve) => child.once('exit', resolve));

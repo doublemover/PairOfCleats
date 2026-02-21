@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-21T05:02:44.007Z",
+  "generatedAt": "2026-02-21T13:36:26.622Z",
   "scripts": [
     {
       "name": "api-server",
@@ -412,28 +412,73 @@
   ],
   "cliCommands": [
     {
-      "command": "pairofcleats service api",
-      "summary": "Run local HTTP JSON API service."
+      "command": "pairofcleats bootstrap",
+      "summary": "Fast bootstrap flow."
     },
     {
-      "command": "pairofcleats service indexer",
-      "summary": "Run indexer service queue/worker."
+      "command": "pairofcleats index build",
+      "summary": "Build file-backed indexes."
+    },
+    {
+      "command": "pairofcleats index validate",
+      "summary": "Validate index artifacts."
+    },
+    {
+      "command": "pairofcleats index watch",
+      "summary": "Watch and rebuild indexes."
     },
     {
       "command": "pairofcleats ingest ctags",
-      "summary": "Ingest ctags JSONL symbols into normalized records."
+      "summary": "Ingest ctags symbols."
     },
     {
       "command": "pairofcleats ingest gtags",
-      "summary": "Ingest GNU Global symbols into normalized records."
+      "summary": "Ingest GTAGS symbols."
     },
     {
       "command": "pairofcleats ingest lsif",
-      "summary": "Ingest LSIF dumps into normalized records."
+      "summary": "Ingest LSIF dump."
     },
     {
       "command": "pairofcleats ingest scip",
-      "summary": "Ingest SCIP indexes into normalized records."
+      "summary": "Ingest SCIP index."
+    },
+    {
+      "command": "pairofcleats search",
+      "summary": "Query indexed data."
+    },
+    {
+      "command": "pairofcleats service api",
+      "summary": "Run local API service."
+    },
+    {
+      "command": "pairofcleats service indexer",
+      "summary": "Run indexer service."
+    },
+    {
+      "command": "pairofcleats setup",
+      "summary": "Guided setup flow."
+    },
+    {
+      "command": "pairofcleats tui supervisor",
+      "summary": "Run Node supervisor process."
+    },
+    {
+      "command": "pairofcleats workspace build",
+      "summary": "Build workspace indexes."
+    },
+    {
+      "command": "pairofcleats workspace catalog",
+      "summary": "Inspect workspace catalog."
+    },
+    {
+      "command": "pairofcleats workspace manifest",
+      "summary": "Generate workspace manifest."
+    },
+    {
+      "command": "pairofcleats workspace status",
+      "summary": "Show workspace status."
     }
-  ]
+  ],
+  "phaseSpecDir": null
 }

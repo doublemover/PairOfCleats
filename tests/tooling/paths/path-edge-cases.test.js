@@ -18,4 +18,18 @@ assert.equal(
   'expected Windows normalization to preserve plus characters and collapse duplicate separators'
 );
 
+const normalizedLongWindows = normalizePathForPlatform('\\\\?\\c:\\repo\\src\\file.js', { platform: 'win32' });
+assert.equal(
+  normalizedLongWindows,
+  '\\\\?\\C:\\repo\\src\\file.js',
+  'expected long-path drive letter to normalize to uppercase'
+);
+
+const normalizedPosixDoubleSlash = normalizePathForPlatform('//host//share///folder/file.js', { platform: 'posix' });
+assert.equal(
+  normalizedPosixDoubleSlash,
+  '//host/share/folder/file.js',
+  'expected posix normalization to preserve double-slash root semantics'
+);
+
 console.log('path edge-cases test passed');

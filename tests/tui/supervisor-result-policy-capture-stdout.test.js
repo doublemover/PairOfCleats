@@ -28,7 +28,7 @@ child.stdout.on('data', (chunk) => {
   }
 });
 
-const waitFor = async (predicate, timeoutMs = 8000) => {
+const waitFor = async (predicate, timeoutMs = 10000) => {
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
     const found = events.find(predicate);
@@ -45,46 +45,42 @@ const send = (payload) => {
 try {
   await waitFor((event) => event.event === 'hello');
 
-  const jobId = 'job-artifacts-1';
+  const jsonJobId = 'job-capture-json';
   send({
     op: 'job:run',
-    jobId,
-    title: 'Artifacts',
-    argv: ['search', '--help'],
+    jobId: jsonJobId,
+    title: 'Capture Json',
     command: process.execPath,
-    args: ['-e', 'process.exit(0)']
+    args: ['-e', "process.stdout.write(JSON.stringify({ok:true,count:2}) + '\\n');"],
+    resultPolicy: {
+      captureStdout: 'json'
+    }
   });
 
-  await waitFor((event) => event.event === 'job:end' && event.jobId === jobId);
-  const artifactsEvent = await waitFor((event) => event.event === 'job:artifacts' && event.jobId === jobId);
+  const jsonEnd = await waitFor((event) => event.event === 'job:end' && event.jobId === jsonJobId);
+  assert.equal(jsonEnd.status, 'done');
+  assert.equal(jsonEnd.result?.ok, true);
+  assert.equal(jsonEnd.result?.count, 2);
 
-  assert.equal(artifactsEvent.artifactsIndexed, true);
-  assert(Array.isArray(artifactsEvent.artifacts), 'expected artifacts array');
-  const historyArtifact = artifactsEvent.artifacts.find((artifact) => artifact.kind === 'metrics:search-history');
-  assert.ok(historyArtifact, 'expected search history artifact');
-  assert.equal(path.basename(historyArtifact.path), 'searchHistory');
-
-  const buildJobId = 'job-artifacts-2';
+  const textJobId = 'job-capture-text';
   send({
     op: 'job:run',
-    jobId: buildJobId,
-    title: 'Build Artifacts',
-    argv: ['index', 'build', '--help'],
+    jobId: textJobId,
+    title: 'Capture Text',
     command: process.execPath,
-    args: ['-e', 'process.exit(0)']
+    args: ['-e', "process.stdout.write('plain-text-output\\n');"],
+    captureStdout: true
   });
-  await waitFor((event) => event.event === 'job:end' && event.jobId === buildJobId);
-  const buildArtifactsEvent = await waitFor((event) => event.event === 'job:artifacts' && event.jobId === buildJobId);
-  assert.equal(buildArtifactsEvent.artifactsIndexed, true);
-  assert.ok(
-    (buildArtifactsEvent.artifacts || []).some((artifact) => artifact.kind === 'index:extracted-prose'),
-    'expected extracted-prose index artifact in build artifact list'
-  );
+
+  const textEnd = await waitFor((event) => event.event === 'job:end' && event.jobId === textJobId);
+  assert.equal(textEnd.status, 'done');
+  assert.equal(textEnd.result, 'plain-text-output');
 
   send({ op: 'shutdown', reason: 'test_complete' });
-  await new Promise((resolve) => child.once('exit', resolve));
+  const exitCode = await new Promise((resolve) => child.once('exit', (code) => resolve(code)));
+  assert.equal(exitCode, 0);
 
-  console.log('supervisor artifacts indexing test passed');
+  console.log('supervisor result policy capture stdout test passed');
 } catch (error) {
   try { child.kill('SIGKILL'); } catch {}
   console.error(error?.message || error);

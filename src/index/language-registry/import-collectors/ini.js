@@ -1,4 +1,9 @@
-import { lineHasAnyInsensitive, shouldScanLine } from './utils.js';
+import {
+  isPseudoImportToken,
+  lineHasAnyInsensitive,
+  shouldScanLine,
+  stripInlineCommentAware
+} from './utils.js';
 
 const REFERENCE_KEY_TOKENS = new Set([
   'include',
@@ -6,24 +11,22 @@ const REFERENCE_KEY_TOKENS = new Set([
   'import',
   'imports',
   'extends',
-  'path',
-  'file',
+  'ref',
+  '$ref',
   'schema',
-  'url'
+  'source'
 ]);
 
 const REFERENCE_SECTION_TOKENS = new Set([
   'include',
   'includes',
   'import',
-  'imports',
-  'paths',
-  'files'
+  'imports'
 ]);
 
 const addImport = (imports, value) => {
   const token = String(value || '').trim();
-  if (!token) return;
+  if (!token || isPseudoImportToken(token)) return;
   imports.add(token);
 };
 
@@ -40,15 +43,14 @@ export const collectIniImports = (text) => {
     '=',
     'include',
     'import',
-    'path',
-    'file',
+    'ref',
     'schema'
   ]);
 
   let section = '';
   for (const rawLine of lines) {
     if (!shouldScanLine(rawLine, precheck)) continue;
-    const line = rawLine.replace(/[;#].*$/, '');
+    const line = stripInlineCommentAware(rawLine, { markers: [';', '#'] });
     const trimmed = line.trim();
     if (!trimmed) continue;
 

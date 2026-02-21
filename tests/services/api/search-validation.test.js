@@ -33,7 +33,7 @@ try {
     serverInfo,
     { headers: {} }
   );
-  if (missingContentType.status !== 415 || missingContentType.body?.code !== 'INVALID_REQUEST') {
+  if (missingContentType.status !== 415 || missingContentType.json?.code !== 'INVALID_REQUEST') {
     throw new Error('api-server should reject missing content-type');
   }
 
@@ -45,7 +45,7 @@ try {
     serverInfo,
     { headers: { 'Content-Type': 'application/json' } }
   );
-  if (tooLarge.status !== 413 || tooLarge.body?.code !== 'INVALID_REQUEST') {
+  if (tooLarge.status !== 413 || tooLarge.json?.code !== 'INVALID_REQUEST') {
     throw new Error('api-server should enforce body size limits');
   }
 

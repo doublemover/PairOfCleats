@@ -166,6 +166,7 @@ export function readJsonFileSyncSafe(filePath, { fallback = null, maxBytes = nul
  */
 export function readJsonLinesSyncSafe(filePath) {
   if (!filePath || !fs.existsSync(filePath)) return [];
+  const PARSE_FAILED = Symbol('PARSE_FAILED');
   try {
     const raw = fs.readFileSync(filePath, 'utf8');
     return raw
@@ -176,10 +177,10 @@ export function readJsonLinesSyncSafe(filePath) {
         try {
           return JSON.parse(line);
         } catch {
-          return null;
+          return PARSE_FAILED;
         }
       })
-      .filter(Boolean);
+      .filter((entry) => entry !== PARSE_FAILED);
   } catch {
     return [];
   }

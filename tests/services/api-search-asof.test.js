@@ -191,10 +191,33 @@ try {
     'diff list endpoint should include computed diff'
   );
 
+  const diffsListModeAlias = await requestJson('GET', '/index/diffs?mode=code', null, serverInfo);
+  assert.equal(diffsListModeAlias.status, 200);
+  assert.equal(diffsListModeAlias.body?.ok, true);
+  assert.ok(
+    Array.isArray(diffsListModeAlias.body?.diffs)
+    && diffsListModeAlias.body.diffs.some((entry) => entry.id === diff.diffId),
+    'diff list should accept mode alias query param'
+  );
+
   const diffShow = await requestJson('GET', `/index/diffs/${diff.diffId}`, null, serverInfo);
   assert.equal(diffShow.status, 200);
   assert.equal(diffShow.body?.ok, true);
   assert.equal(diffShow.body?.diff?.entry?.id, diff.diffId);
+
+  const diffShowShaped = await requestJson(
+    'GET',
+    `/index/diffs/${diff.diffId}?format=jsonl&mode=code&kind=file.modified&max-events=1`,
+    null,
+    serverInfo
+  );
+  assert.equal(diffShowShaped.status, 200);
+  assert.equal(diffShowShaped.body?.ok, true);
+  assert.ok(Array.isArray(diffShowShaped.body?.diff?.events), 'jsonl format should include events in diff payload');
+  assert.ok((diffShowShaped.body?.diff?.events || []).length <= 1, 'max-events should cap diff payload events');
+  for (const event of diffShowShaped.body?.diff?.events || []) {
+    assert.equal(event.kind, 'file.modified', 'kind filter should shape diff payload events');
+  }
 
   const diffEvents = await requestText(serverInfo, `/index/diffs/${diff.diffId}/events`);
   assert.equal(diffEvents.status, 200);
@@ -205,6 +228,22 @@ try {
     .filter(Boolean)
     .map((line) => JSON.parse(line));
   assert.ok(eventLines.length > 0, 'diff events endpoint should return at least one event');
+
+  const diffEventsShaped = await requestText(
+    serverInfo,
+    `/index/diffs/${diff.diffId}/events?mode=code&kind=file.modified&maxEvents=1`
+  );
+  assert.equal(diffEventsShaped.status, 200);
+  const shapedEventLines = diffEventsShaped.body
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => JSON.parse(line));
+  assert.ok(shapedEventLines.length <= 1, 'maxEvents should cap streamed diff events');
+  for (const event of shapedEventLines) {
+    assert.equal(event.kind, 'file.modified', 'kind filter should shape streamed diff events');
+  }
+
   const statusResponse = await requestJson('GET', '/status', null, serverInfo);
   assert.equal(statusResponse.status, 200);
   assert.equal(statusResponse.body?.ok, true);

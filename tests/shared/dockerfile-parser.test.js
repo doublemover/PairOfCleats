@@ -18,4 +18,18 @@ assert.deepEqual(
   'expected FROM clause parser to preserve image and stage'
 );
 
+const spacedFrom = parseDockerfileFromClause('FROM --platform $TARGETPLATFORM ghcr.io/acme/runtime:1 AS runtime');
+assert.deepEqual(
+  spacedFrom,
+  { image: 'ghcr.io/acme/runtime:1', stage: 'runtime', instruction: 'FROM' },
+  'expected FROM clause parser to support spaced option assignment'
+);
+
+const spacedEqualsFrom = parseDockerfileFromClause('FROM --platform = $TARGETPLATFORM ghcr.io/acme/runtime:2 AS final');
+assert.deepEqual(
+  spacedEqualsFrom,
+  { image: 'ghcr.io/acme/runtime:2', stage: 'final', instruction: 'FROM' },
+  'expected FROM clause parser to support spaced equals assignment'
+);
+
 console.log('dockerfile parser test passed');

@@ -7,6 +7,9 @@
 Schema contract:
 
 - `schemaVersion: 1`
+- `generatedAt: <iso8601>`
+- `runId: <string>`
+- `totalMs: <number>`
 - `pathPolicy: "repo-relative-posix"`
 - `timeUnit: "ms"`
 - `watchdog: { triggered, reason }`

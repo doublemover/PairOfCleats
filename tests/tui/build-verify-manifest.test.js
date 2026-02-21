@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { ensureTestingEnv } from '../helpers/test-env.js';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
@@ -13,6 +14,7 @@ const distRel = path.join('.testCache', 'tui-build-verify', 'dist');
 const distDir = path.join(root, distRel);
 const manifestPath = path.join(distDir, 'tui-artifacts-manifest.json');
 const checksumPath = `${manifestPath}.sha256`;
+const sha256 = (text) => crypto.createHash('sha256').update(text).digest('hex');
 
 await fsPromises.rm(distDir, { recursive: true, force: true });
 await fsPromises.mkdir(distDir, { recursive: true });
@@ -43,6 +45,21 @@ if (verifyOk.status !== 0) {
   console.error('tui verify manifest test failed: verify mode should pass on valid manifest');
   if (verifyOk.stderr) console.error(verifyOk.stderr.trim());
   process.exit(verifyOk.status ?? 1);
+}
+
+const manifest = JSON.parse(await fsPromises.readFile(manifestPath, 'utf8'));
+manifest.targetsManifest.sha256 = '0000000000000000000000000000000000000000000000000000000000000000';
+const tamperedBody = `${JSON.stringify(manifest, null, 2)}\n`;
+await fsPromises.writeFile(manifestPath, tamperedBody, 'utf8');
+await fsPromises.writeFile(
+  checksumPath,
+  `${sha256(tamperedBody)}  tui-artifacts-manifest.json\n`,
+  'utf8'
+);
+const verifyBadTargetsBinding = runBuild(['--verify-manifest']);
+if (verifyBadTargetsBinding.status === 0) {
+  console.error('tui verify manifest test failed: verify mode should fail on invalid targets manifest binding');
+  process.exit(1);
 }
 
 await fsPromises.writeFile(checksumPath, `0000000000000000000000000000000000000000000000000000000000000000  tui-artifacts-manifest.json\n`, 'utf8');

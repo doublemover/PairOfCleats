@@ -16,25 +16,25 @@ const CASES = [
     id: 'json',
     ext: '.json',
     text: '{"schema":"./schema.json","server":{"configPath":"./server.json"}}\n',
-    expectedImports: ['./schema.json', './server.json']
+    expectedImports: ['./schema.json']
   },
   {
     id: 'toml',
     ext: '.toml',
     text: '[dependencies]\nserde = "1.0"\nlocal = { path = "../local" }\n',
-    expectedImports: ['dependency:serde', 'dependency:local', '../local']
+    expectedImports: ['../local']
   },
   {
     id: 'xml',
     ext: '.xml',
     text: '<root xmlns:cfg="urn:cfg"><xsd:import schemaLocation="./cfg.xsd"/></root>\n',
-    expectedImports: ['namespace:cfg=urn:cfg', './cfg.xsd']
+    expectedImports: ['./cfg.xsd']
   },
   {
     id: 'yaml',
     ext: '.yaml',
     text: 'defaults: &base\nservice:\n  <<: *base\ninclude:\n- ./base.yml\n',
-    expectedImports: ['anchor:base', 'alias:base', './base.yml']
+    expectedImports: ['./base.yml']
   }
 ];
 

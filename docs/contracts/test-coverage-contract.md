@@ -11,6 +11,8 @@ Default output path:
 Schema contract:
 
 - `schemaVersion: 1`
+- `generatedAt: <iso8601>`
+- `runId: <string>`
 - `pathPolicy: "repo-relative-posix"`
 - `kind: "v8-range-summary"`
 - `summary: { files, coveredRanges, totalRanges }`

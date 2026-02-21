@@ -17,7 +17,7 @@ const main = async () => {
     throw new Error('workspace catalog requires --workspace <path>.');
   }
   const workspaceConfig = loadWorkspaceConfig(argv.workspace);
-  const { manifest, manifestPath } = await generateWorkspaceManifest(workspaceConfig, { write: true });
+  const { manifest, manifestPath } = await generateWorkspaceManifest(workspaceConfig, { write: false });
   const manifestByRepo = new Map((manifest.repos || []).map((entry) => [entry.repoId, entry]));
 
   const repos = workspaceConfig.repos

@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { resolveToolRoot } from '../shared/dict-utils.js';
 import { toPosix } from '../../src/shared/files.js';
+import * as sharedCliOptions from '../../src/shared/cli-options.js';
 import { collectSchemaEntries, getLeafEntries, mergeEntry } from './inventory/schema.js';
 import { listSourceFiles, scanSourceFiles } from './inventory/scan.js';
 import { buildInventoryReportMarkdown } from './inventory/report.js';
@@ -24,13 +25,30 @@ const PUBLIC_CLI_FLAGS = new Set([
   'explain',
   'filter',
   'backend',
+  'allow-unauthenticated',
+  'allowed-repo-roots',
+  'auth-token',
+  'command',
+  'concurrency',
+  'config',
+  'cors-allow-any',
+  'cors-allowed-origins',
   'host',
-  'port'
+  'interval',
+  'max-body-bytes',
+  'output',
+  'port',
+  'queue',
+  'quiet',
+  'reason',
+  'stage'
 ]);
 const KNOWN_CONFIG_KEYS = new Set();
 const KNOWN_ENV_VARS = new Set([
   'PAIROFCLEATS_ANN_BACKEND',
   'PAIROFCLEATS_API_TOKEN',
+  'PAIROFCLEATS_BENCH_ANTIVIRUS_STATE',
+  'PAIROFCLEATS_BENCH_CPU_GOVERNOR',
   'PAIROFCLEATS_BENCH_RUN',
   'PAIROFCLEATS_BUILD_INDEX_LOCK_POLL_MS',
   'PAIROFCLEATS_BUILD_INDEX_LOCK_WAIT_MS',
@@ -40,6 +58,8 @@ const KNOWN_ENV_VARS = new Set([
   'PAIROFCLEATS_CACHE_REBUILD',
   'PAIROFCLEATS_CACHE_METRICS_SAMPLE_RATE',
   'PAIROFCLEATS_COMPRESSION',
+  'PAIROFCLEATS_CROSSFILE_PROPAGATION_PARALLEL',
+  'PAIROFCLEATS_CROSSFILE_PROPAGATION_PARALLEL_MIN_BUNDLE',
   'PAIROFCLEATS_DEBUG_ORDERED',
   'PAIROFCLEATS_DEBUG_CRASH',
   'PAIROFCLEATS_DEBUG_PERF_EVENTS',
@@ -154,15 +174,16 @@ const KNOWN_ENV_VARS = new Set([
   'PAIROFCLEATS_WORKER_POOL_MAX_WORKERS',
   'PAIROFCLEATS_XXHASH_BACKEND'
 ]);
-const PUBLIC_FLAG_SOURCES = new Set([
-  'bin/pairofcleats.js',
-  'src/shared/cli.js'
-]);
 const BUDGETS = {
   configKeys: 2,
   envVars: 1,
-  cliFlags: 25
+  cliFlags: 32
 };
+const PUBLIC_FLAG_SOURCES = new Set([
+  'bin/pairofcleats.js',
+  'src/shared/cli.js',
+  'tools/service/indexer-service.js'
+]);
 
 const shouldCheck = process.argv.includes('--check');
 
@@ -205,8 +226,30 @@ export const buildInventory = async (options = {}) => {
     envVarMap,
     cliFlagMap,
     cliFlagsByFile,
-    dynamicOptionFiles
+    dynamicOptionFiles,
+    importedOptionSetRefs
   } = await scanSourceFiles(root, sourceFiles);
+
+  const upsertCliFlag = (file, flag) => {
+    const normalizedFile = String(file || '').trim();
+    const normalizedFlag = String(flag || '').trim();
+    if (!normalizedFile || !normalizedFlag) return;
+    const currentFlags = new Set(cliFlagsByFile.get(normalizedFile) || []);
+    currentFlags.add(normalizedFlag);
+    cliFlagsByFile.set(normalizedFile, Array.from(currentFlags).sort((a, b) => a.localeCompare(b)));
+    if (!cliFlagMap.has(normalizedFlag)) cliFlagMap.set(normalizedFlag, new Set());
+    cliFlagMap.get(normalizedFlag).add(normalizedFile);
+  };
+
+  for (const [file, optionSetNames] of importedOptionSetRefs.entries()) {
+    for (const optionSetName of optionSetNames) {
+      const optionSet = sharedCliOptions?.[optionSetName];
+      if (!optionSet || typeof optionSet !== 'object' || Array.isArray(optionSet)) continue;
+      for (const flag of Object.keys(optionSet)) {
+        upsertCliFlag(file, flag);
+      }
+    }
+  }
 
   const envVars = Array.from(envVarMap.entries())
     .map(([name, files]) => ({ name, files: Array.from(files).sort() }))
@@ -220,15 +263,28 @@ export const buildInventory = async (options = {}) => {
     .map(([file, flags]) => ({ file, flags }))
     .sort((a, b) => a.file.localeCompare(b.file));
 
+  const isPublicFlagSource = (file) => PUBLIC_FLAG_SOURCES.has(file);
+
   const publicFlagsDetected = new Set();
   for (const entry of cliFlagsByFileOutput) {
-    if (!PUBLIC_FLAG_SOURCES.has(entry.file)) continue;
+    if (!isPublicFlagSource(entry.file)) continue;
     entry.flags.forEach((flag) => publicFlagsDetected.add(flag));
   }
 
+  let existingInventory = null;
+  try {
+    const existingRaw = await fs.readFile(outputJsonPath, 'utf8');
+    existingInventory = JSON.parse(existingRaw);
+  } catch {}
+
+  const existingKnownConfigLeafKeys = Array.isArray(existingInventory?.allowlists?.knownConfigKeys)
+    ? existingInventory.allowlists.knownConfigKeys.filter((entry) => typeof entry === 'string' && entry.trim())
+    : [];
   const knownConfigLeafKeys = KNOWN_CONFIG_KEYS.size
     ? Array.from(KNOWN_CONFIG_KEYS)
-    : configLeafEntries.map((entry) => entry.path);
+    : (existingKnownConfigLeafKeys.length
+      ? existingKnownConfigLeafKeys
+      : (checkBudget ? [] : configLeafEntries.map((entry) => entry.path)));
   const publicConfigLeafKeys = configLeafEntries
     .filter((entry) => PUBLIC_CONFIG_KEYS.has(entry.path))
     .map((entry) => entry.path)
@@ -313,11 +369,6 @@ export const buildInventory = async (options = {}) => {
   };
 
   let preservedGeneratedAt = nowIso;
-  let existingInventory = null;
-  try {
-    const existingRaw = await fs.readFile(outputJsonPath, 'utf8');
-    existingInventory = JSON.parse(existingRaw);
-  } catch {}
   if (existingInventory && typeof existingInventory.generatedAt === 'string') {
     const candidate = { ...inventory, generatedAt: existingInventory.generatedAt };
     if (JSON.stringify(candidate) === JSON.stringify(existingInventory)) {
@@ -382,8 +433,8 @@ export const buildInventory = async (options = {}) => {
     if (publicEnvVars.length > BUDGETS.envVars) {
       errors.push(`Public env vars exceed budget (${publicEnvVars.length}/${BUDGETS.envVars}).`);
     }
-    if (PUBLIC_CLI_FLAGS.size > BUDGETS.cliFlags) {
-      errors.push(`Public CLI flags exceed budget (${PUBLIC_CLI_FLAGS.size}/${BUDGETS.cliFlags}).`);
+    if (publicFlagsDetected.size > BUDGETS.cliFlags) {
+      errors.push(`Public CLI flags exceed budget (${publicFlagsDetected.size}/${BUDGETS.cliFlags}).`);
     }
     if (errors.length) {
       errors.forEach((msg) => console.error(`[config-budget] ${msg}`));

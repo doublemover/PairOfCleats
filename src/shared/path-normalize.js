@@ -23,7 +23,7 @@ export const normalizeRepoRelativePath = (value, repoRoot, { stripDot = true } =
   }
   const abs = isAbsolutePathNative(raw) ? raw : path.resolve(repoRoot, raw);
   const rel = path.relative(repoRoot, abs);
-  if (!rel || rel.startsWith('..') || isAbsolutePathNative(rel)) return null;
+  if (rel.startsWith('..') || isAbsolutePathNative(rel)) return null;
   const normalized = toPosix(rel);
   return stripDot ? stripDotPrefix(normalized) : normalized;
 };
@@ -45,7 +45,7 @@ export const normalizePathForRepo = (value, repoRoot, { stripDot = true } = {}) 
   let normalized = raw;
   if (isAbsolutePathNative(raw)) {
     const rel = path.relative(repoRoot, raw);
-    if (rel && !rel.startsWith('..') && !isAbsolutePathNative(rel)) {
+    if (!rel.startsWith('..') && !isAbsolutePathNative(rel)) {
       normalized = rel;
     }
   }
@@ -73,9 +73,13 @@ export const normalizeFilePath = (value, { lower = false } = {}) => {
  */
 export const normalizeWindowsDriveLetter = (value) => {
   const text = String(value || '');
-  const match = WINDOWS_DRIVE_PREFIX_RE.exec(text);
+  const prefix = (text.startsWith('\\\\?\\') || text.startsWith('\\\\.\\'))
+    ? text.slice(0, 4)
+    : '';
+  const body = prefix ? text.slice(prefix.length) : text;
+  const match = WINDOWS_DRIVE_PREFIX_RE.exec(body);
   if (!match) return text;
-  return `${match[1].toUpperCase()}:${text.slice(2)}`;
+  return `${prefix}${match[1].toUpperCase()}:${body.slice(2)}`;
 };
 
 /**
@@ -107,7 +111,15 @@ export const normalizePathForPlatform = (value, { platform = process.platform } 
     normalized = normalizeWindowsDriveLetter(normalized);
     return normalized;
   }
-  return text.replace(/\\/g, '/').replace(/\/+/g, '/');
+  const slashed = text.replace(/\\/g, '/');
+  if (!slashed.startsWith('//')) {
+    return slashed.replace(/\/+/g, '/');
+  }
+  const rest = slashed
+    .slice(2)
+    .replace(/^\/+/g, '')
+    .replace(/\/+/g, '/');
+  return rest ? `//${rest}` : '//';
 };
 
 /**

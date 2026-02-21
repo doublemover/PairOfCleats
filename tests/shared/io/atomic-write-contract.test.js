@@ -18,6 +18,10 @@ assert.equal(fs.readFileSync(textPath, 'utf8'), 'alpha');
 await atomicWriteText(textPath, 'beta', { newline: true });
 assert.equal(fs.readFileSync(textPath, 'utf8'), 'beta\n');
 
+const bufferPath = path.join(tempRoot, 'buffer.txt');
+await atomicWriteText(bufferPath, Buffer.from('gamma', 'utf8'), { newline: true });
+assert.equal(fs.readFileSync(bufferPath, 'utf8'), 'gamma\n');
+
 const jsonPath = path.join(tempRoot, 'state.json');
 await atomicWriteJson(jsonPath, { ok: true, values: [1, 2, 3] }, { spaces: 2 });
 const jsonRaw = fs.readFileSync(jsonPath, 'utf8');

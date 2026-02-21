@@ -11,10 +11,14 @@ export const collectGraphqlImports = (text) => {
   };
   for (const line of lines) {
     if (!shouldScanLine(line, precheck)) continue;
-    const match = line.match(/^\s*#\s*import\s+\"([^\"]+)\"/i);
-    if (match?.[1]) addImport(match[1]);
-    const linkUrl = line.match(/@link\s*\([^)]*\burl\s*:\s*\"([^\"]+)\"/i);
-    if (linkUrl?.[1]) addImport(linkUrl[1]);
+    const importMatches = line.matchAll(/^\s*#\s*import\s+["']([^"']+)["']/gim);
+    for (const match of importMatches) {
+      if (match?.[1]) addImport(match[1]);
+    }
+    const linkUrls = line.matchAll(/@link\s*\([^)]*\burl\s*:\s*["']([^"']+)["']/gi);
+    for (const match of linkUrls) {
+      if (match?.[1]) addImport(match[1]);
+    }
   }
   return Array.from(imports);
 };
