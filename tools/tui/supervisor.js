@@ -6,11 +6,13 @@ import { applyProgressContextEnv } from '../../src/shared/progress.js';
 import { createProgressLineDecoder } from '../../src/shared/cli/progress-stream.js';
 import { formatProgressEvent, PROGRESS_PROTOCOL } from '../../src/shared/cli/progress-events.js';
 import { resolveDispatchRequest } from '../../src/shared/dispatch/resolve.js';
+import { stableStringify } from '../../src/shared/stable-json.js';
 import { getIndexDir, getMetricsDir, getRepoCacheRoot, loadUserConfig, resolveToolRoot } from '../shared/dict-utils.js';
 
 const ROOT = resolveToolRoot();
 const SUPERVISOR_PROTOCOL = 'poc.tui@1';
-const runId = `run-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+const runId = String(process.env.PAIROFCLEATS_TUI_RUN_ID || '').trim()
+  || `run-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
 const pkg = (() => {
   try {
@@ -19,6 +21,60 @@ const pkg = (() => {
     return { version: '0.0.0' };
   }
 })();
+
+const createEventLogRecorder = () => {
+  const requestedDir = String(process.env.PAIROFCLEATS_TUI_EVENT_LOG_DIR || '').trim();
+  if (!requestedDir) return null;
+  const logsDir = path.resolve(requestedDir);
+  const eventLogPath = path.join(logsDir, `${runId}.jsonl`);
+  const sessionMetaPath = path.join(logsDir, `${runId}.meta.json`);
+  try {
+    fs.mkdirSync(logsDir, { recursive: true });
+    const meta = {
+      schemaVersion: 1,
+      runId,
+      protocol: PROGRESS_PROTOCOL,
+      supervisorProtocol: SUPERVISOR_PROTOCOL,
+      supervisorVersion: pkg.version || '0.0.0',
+      pid: process.pid,
+      startedAt: new Date().toISOString(),
+      eventLogPath: path.relative(ROOT, eventLogPath).replace(/\\/g, '/')
+    };
+    fs.writeFileSync(sessionMetaPath, `${stableStringify(meta)}\n`, 'utf8');
+  } catch (error) {
+    process.stderr.write(`[supervisor] failed to initialize event log recorder: ${error?.message || error}\n`);
+    return null;
+  }
+  let closed = false;
+  return {
+    eventLogPath,
+    write(entry) {
+      if (closed) return;
+      try {
+        fs.appendFileSync(eventLogPath, `${JSON.stringify(entry)}\n`, 'utf8');
+      } catch (error) {
+        closed = true;
+        process.stderr.write(`[supervisor] disabled event log recorder: ${error?.message || error}\n`);
+      }
+    },
+    finalize(reason = 'shutdown') {
+      if (closed) return;
+      closed = true;
+      try {
+        const metaBody = fs.readFileSync(sessionMetaPath, 'utf8');
+        const existing = JSON.parse(metaBody);
+        const next = {
+          ...existing,
+          endedAt: new Date().toISOString(),
+          endReason: String(reason || 'shutdown').trim() || 'shutdown'
+        };
+        fs.writeFileSync(sessionMetaPath, `${stableStringify(next)}\n`, 'utf8');
+      } catch {}
+    }
+  };
+};
+
+const eventLogRecorder = createEventLogRecorder();
 
 const state = {
   shuttingDown: false,
@@ -59,6 +115,7 @@ const emit = (event, payload = {}, { jobId = null } = {}) => {
     ...payload
   });
   process.stdout.write(`${JSON.stringify(entry)}\n`);
+  eventLogRecorder?.write(entry);
 };
 
 const emitLog = (jobId, level, message, extra = {}) => {
@@ -473,6 +530,7 @@ const shutdown = async (reason = 'shutdown', exitCode = 0) => {
     if (!active) break;
     await sleep(50);
   }
+  eventLogRecorder?.finalize(reason);
   process.exit(exitCode);
 };
 

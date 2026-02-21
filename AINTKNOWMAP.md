@@ -1680,16 +1680,16 @@ Touchpoints:
 - `src/shared/progress.js`
 #### 9.6 Install/distribution and observability
 
-- [ ] Implement deterministic TUI install and wrapper flow:
+- [x] Implement deterministic TUI install and wrapper flow:
   - `bin/pairofcleats-tui.js`
   - `tools/tui/install.js`
-- [ ] Define one canonical target manifest consumed by build, installer, and wrapper resolution.
-- [ ] Publish deterministic binaries and checksums for supported targets.
-- [ ] Implement and verify checksum and executable metadata before wrapper launch.
-- [ ] Fail wrapper with actionable error when binary is missing/invalid.
-- [ ] Enforce deterministic install layout/cache policy (stable directories, file naming, cleanup semantics).
-- [ ] Add replayable event logs and run correlation.
-- [ ] Add/update TUI docs:
+- [x] Define one canonical target manifest consumed by build, installer, and wrapper resolution.
+- [x] Publish deterministic binaries and checksums for supported targets.
+- [x] Implement and verify checksum and executable metadata before wrapper launch.
+- [x] Fail wrapper with actionable error when binary is missing/invalid.
+- [x] Enforce deterministic install layout/cache policy (stable directories, file naming, cleanup semantics).
+- [x] Add replayable event logs and run correlation.
+- [x] Add/update TUI docs:
   - `docs/specs/tui-installation.md`
   - `docs/guides/tui.md`
 

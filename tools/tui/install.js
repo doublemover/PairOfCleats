@@ -2,62 +2,143 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import os from 'node:os';
 import { createCli } from '../../src/shared/cli.js';
+import { stableStringify } from '../../src/shared/stable-json.js';
+import {
+  TUI_INSTALL_LAYOUT_VERSION,
+  ensureExecutableModeSync,
+  isExecutableForPlatform,
+  readBuildManifestSync,
+  readTargetsManifest,
+  resolveHostTargetTriple,
+  resolveTargetForTriple,
+  resolveTuiInstallLayout,
+  sha256FileSync,
+  toPosixRelative,
+  writeStableJsonFile
+} from './targets.js';
 
 const argv = createCli({
   scriptName: 'tui-install',
   options: {
     json: { type: 'boolean', default: false },
     target: { type: 'string', default: '' },
-    'install-root': { type: 'string', default: '' }
+    'install-root': { type: 'string', default: '' },
+    'event-log-dir': { type: 'string', default: '' }
   }
 }).parse();
 
 const root = process.cwd();
-const targetsPath = path.join(root, 'tools', 'tui', 'targets.json');
-const distDir = path.join(root, 'dist', 'tui');
 
-const inferTarget = () => {
-  if (argv.target) return argv.target;
-  if (process.platform === 'win32') return 'x86_64-pc-windows-msvc';
-  if (process.platform === 'darwin') {
-    return os.arch() === 'arm64' ? 'aarch64-apple-darwin' : 'x86_64-apple-darwin';
+const resolveEventLogDir = ({ layout }) => {
+  if (argv['event-log-dir']) {
+    return path.resolve(argv['event-log-dir']);
   }
-  return 'x86_64-unknown-linux-gnu';
+  return layout.logsDir;
+};
+
+const pruneInstallBin = async ({ binDir, keepFile }) => {
+  if (!fs.existsSync(binDir)) return;
+  const entries = await fsPromises.readdir(binDir, { withFileTypes: true });
+  const tasks = entries
+    .filter((entry) => entry.name !== keepFile)
+    .map((entry) => fsPromises.rm(path.join(binDir, entry.name), { recursive: true, force: true }));
+  await Promise.all(tasks);
 };
 
 const main = async () => {
-  const payload = JSON.parse(await fsPromises.readFile(targetsPath, 'utf8'));
-  const targets = Array.isArray(payload?.targets) ? payload.targets : [];
-  const triple = inferTarget();
-  const target = targets.find((entry) => entry?.triple === triple);
+  const { targets } = await readTargetsManifest({ root });
+  const triple = argv.target ? String(argv.target).trim() : resolveHostTargetTriple();
+  const target = resolveTargetForTriple(targets, triple);
   if (!target) {
-    throw new Error(`unsupported target triple: ${triple}`);
+    throw new Error(`unsupported target triple: ${triple} (not present in tools/tui/targets.json)`);
   }
-  const artifactPath = path.join(distDir, String(target.artifactName));
-  const installRoot = argv['install-root']
-    ? path.resolve(argv['install-root'])
-    : path.join(root, '.cache', 'tui', triple);
-  const outputPath = path.join(installRoot, path.basename(artifactPath));
 
-  await fsPromises.mkdir(installRoot, { recursive: true });
-  if (!fs.existsSync(artifactPath)) {
-    throw new Error(`missing TUI artifact: ${path.relative(root, artifactPath)}`);
+  const buildManifest = readBuildManifestSync({ root, verifyChecksum: true });
+  const buildArtifact = resolveTargetForTriple(buildManifest.artifacts, triple);
+  if (!buildArtifact) {
+    throw new Error(`missing artifact row for ${triple} in ${toPosixRelative(root, buildManifest.manifestPath)}`);
   }
-  await fsPromises.copyFile(artifactPath, outputPath);
+  if (buildArtifact.artifactName !== target.artifactName) {
+    throw new Error(
+      `target manifest mismatch for ${triple}: expected ${target.artifactName}, got ${buildArtifact.artifactName}`
+    );
+  }
+  if (!buildArtifact.exists || !buildArtifact.absoluteArtifactPath || !fs.existsSync(buildArtifact.absoluteArtifactPath)) {
+    throw new Error(`missing TUI artifact: ${buildArtifact.artifactPath}`);
+  }
+  if (!buildArtifact.sha256) {
+    throw new Error(`build manifest is missing sha256 for ${buildArtifact.artifactPath}`);
+  }
+
+  const layout = resolveTuiInstallLayout({
+    root,
+    triple,
+    artifactName: target.artifactName,
+    installRoot: argv['install-root']
+  });
+  await fsPromises.mkdir(layout.tripleDir, { recursive: true });
+  await fsPromises.mkdir(layout.binDir, { recursive: true });
+  await fsPromises.mkdir(layout.logsDir, { recursive: true });
+
+  const tempBinaryPath = `${layout.binaryPath}.tmp-${process.pid}`;
+  await fsPromises.copyFile(buildArtifact.absoluteArtifactPath, tempBinaryPath);
+  ensureExecutableModeSync(tempBinaryPath);
+  await fsPromises.rename(tempBinaryPath, layout.binaryPath);
+  await pruneInstallBin({ binDir: layout.binDir, keepFile: target.artifactName });
+
+  const stat = await fsPromises.stat(layout.binaryPath);
+  const actualSha256 = sha256FileSync(layout.binaryPath);
+  if (actualSha256 !== buildArtifact.sha256) {
+    throw new Error(`installed artifact checksum mismatch for ${target.artifactName}`);
+  }
+  if (!isExecutableForPlatform(stat, process.platform)) {
+    throw new Error(`installed artifact is not executable for ${process.platform}: ${target.artifactName}`);
+  }
+
+  const eventLogDir = resolveEventLogDir({ layout });
+  await fsPromises.mkdir(eventLogDir, { recursive: true });
+
+  const metadata = {
+    schemaVersion: 1,
+    layoutVersion: TUI_INSTALL_LAYOUT_VERSION,
+    triple,
+    platform: target.platform,
+    artifactName: target.artifactName,
+    binary: {
+      path: toPosixRelative(root, layout.binaryPath),
+      sha256: actualSha256,
+      sizeBytes: stat.size,
+      executable: true,
+      mode: process.platform === 'win32' ? null : (stat.mode & 0o777)
+    },
+    source: {
+      buildManifestPath: toPosixRelative(root, buildManifest.manifestPath),
+      buildManifestChecksum: buildManifest.manifestChecksum,
+      artifactPath: buildArtifact.artifactPath,
+      artifactSha256: buildArtifact.sha256
+    },
+    observability: {
+      eventLogDir: toPosixRelative(root, eventLogDir)
+    }
+  };
+  await writeStableJsonFile(layout.metadataPath, metadata);
 
   const result = {
     ok: true,
     triple,
-    artifact: path.relative(root, artifactPath).replace(/\\/g, '/'),
-    installedTo: path.relative(root, outputPath).replace(/\\/g, '/')
+    artifact: buildArtifact.artifactPath,
+    installedTo: toPosixRelative(root, layout.binaryPath),
+    metadata: toPosixRelative(root, layout.metadataPath),
+    eventLogDir: toPosixRelative(root, eventLogDir),
+    checksum: actualSha256
   };
 
   if (argv.json) {
-    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    process.stdout.write(`${stableStringify(result)}\n`);
   } else {
     process.stderr.write(`[tui-install] installed ${result.artifact} -> ${result.installedTo}\n`);
+    process.stderr.write(`[tui-install] metadata ${result.metadata}\n`);
   }
 };
 

@@ -1,9 +1,16 @@
 #!/usr/bin/env node
-import crypto from 'node:crypto';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { stableStringify } from '../../src/shared/stable-json.js';
+import {
+  TUI_BUILD_MANIFEST_CHECKSUM_FILE,
+  TUI_BUILD_MANIFEST_FILE,
+  readTargetsManifest,
+  resolveTargetsPath,
+  sha256FileSync,
+  sha256Text
+} from './targets.js';
 
 const root = process.cwd();
 const args = process.argv.slice(2);
@@ -11,48 +18,15 @@ const hasFlag = (flag) => args.includes(flag);
 const smoke = hasFlag('--smoke');
 const verifyOnly = hasFlag('--verify-manifest');
 
-const targetsPath = path.join(root, 'tools', 'tui', 'targets.json');
 const distDir = path.join(root, 'dist', 'tui');
-const manifestPath = path.join(distDir, 'tui-artifacts-manifest.json');
-const checksumPath = `${manifestPath}.sha256`;
-
-const readTargets = async () => {
-  const payload = JSON.parse(await fsPromises.readFile(targetsPath, 'utf8'));
-  const targets = Array.isArray(payload?.targets) ? payload.targets : [];
-  return targets
-    .map((entry) => ({
-      triple: String(entry?.triple || '').trim(),
-      platform: String(entry?.platform || '').trim(),
-      artifactName: String(entry?.artifactName || '').trim()
-    }))
-    .filter((entry) => entry.triple && entry.artifactName)
-    .sort((a, b) => a.triple.localeCompare(b.triple));
-};
-
-const validateTargets = (targets) => {
-  const seenTriples = new Set();
-  const seenArtifacts = new Set();
-  for (const target of targets) {
-    if (seenTriples.has(target.triple)) {
-      throw new Error(`duplicate triple in tools/tui/targets.json: ${target.triple}`);
-    }
-    if (seenArtifacts.has(target.artifactName)) {
-      throw new Error(`duplicate artifactName in tools/tui/targets.json: ${target.artifactName}`);
-    }
-    seenTriples.add(target.triple);
-    seenArtifacts.add(target.artifactName);
-  }
-};
-
-const sha256File = (filePath) => {
-  const hash = crypto.createHash('sha256');
-  hash.update(fs.readFileSync(filePath));
-  return hash.digest('hex');
-};
+const manifestPath = path.join(distDir, TUI_BUILD_MANIFEST_FILE);
+const checksumPath = path.join(distDir, TUI_BUILD_MANIFEST_CHECKSUM_FILE);
 
 const run = async () => {
-  const targets = await readTargets();
-  validateTargets(targets);
+  const { targets } = await readTargetsManifest({ root });
+  const targetsPath = resolveTargetsPath(root);
+  const targetsBody = await fsPromises.readFile(targetsPath, 'utf8');
+  const targetsChecksum = sha256Text(targetsBody);
   if (verifyOnly) {
     process.stderr.write('[tui-build] target manifest verification passed.\n');
     return;
@@ -68,7 +42,7 @@ const run = async () => {
       artifactName: target.artifactName,
       artifactPath: path.relative(root, artifactPath).replace(/\\/g, '/'),
       exists,
-      sha256: exists ? sha256File(artifactPath) : null
+      sha256: exists ? sha256FileSync(artifactPath) : null
     };
   });
 
@@ -77,13 +51,17 @@ const run = async () => {
     tool: 'pairofcleats-tui',
     mode: smoke ? 'smoke' : 'plan',
     pathPolicy: 'repo-relative-posix',
+    targetsManifest: {
+      file: path.relative(root, targetsPath).replace(/\\/g, '/'),
+      sha256: targetsChecksum
+    },
     artifacts
   };
 
   const body = `${stableStringify(manifest)}\n`;
   await fsPromises.writeFile(manifestPath, body, 'utf8');
-  const checksum = crypto.createHash('sha256').update(body).digest('hex');
-  await fsPromises.writeFile(checksumPath, `${checksum}  ${path.basename(manifestPath)}\n`, 'utf8');
+  const checksum = sha256Text(body);
+  await fsPromises.writeFile(checksumPath, `${checksum}  ${TUI_BUILD_MANIFEST_FILE}\n`, 'utf8');
 
   process.stderr.write(`[tui-build] wrote ${path.relative(root, manifestPath)}\n`);
   process.stderr.write(`[tui-build] wrote ${path.relative(root, checksumPath)}\n`);

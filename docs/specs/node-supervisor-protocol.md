@@ -264,3 +264,14 @@ Supervisor MUST emit at least:
 - Supervisor emits only strict JSONL to stdout (no stray prints).
 - Cancellation test spawns a child that spawns a grandchild; cancel must kill both.
 - Protocol tests ensure unknown JSON isn’t misparsed as events.
+
+---
+
+## 11) Observability contract
+
+When `PAIROFCLEATS_TUI_EVENT_LOG_DIR` is set, supervisor must write replay artifacts:
+
+- `<eventLogDir>/<runId>.jsonl` containing the exact emitted protocol stream
+- `<eventLogDir>/<runId>.meta.json` with run/session metadata
+
+`PAIROFCLEATS_TUI_RUN_ID` may be provided by the wrapper; otherwise supervisor generates one.

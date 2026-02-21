@@ -232,6 +232,7 @@ Example:
 - MUST include `proto`, `runId`, `seq`, `ts` on every event.
 - MUST add `jobId` to every job/task/log event.
 - MUST NOT write any non-JSONL data to stdout.
+- When replay logging is enabled, MUST mirror the same serialized JSONL events to the replay log.
 
 ### 6.2 Child script rules (recommended, not required)
 - When invoked with `--progress jsonl`, scripts SHOULD:

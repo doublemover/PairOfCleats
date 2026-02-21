@@ -1,44 +1,66 @@
 # TUI Guide
 
-Status: Draft v1.0  
-Last updated: 2026-02-20T00:00:00Z
+Status: active  
+Last updated: 2026-02-21T00:00:00Z
 
-## Purpose
+## Commands
 
-Describe the canonical terminal-owned TUI flow backed by the Node supervisor and progress protocol v2.
+- Build manifest/checksums: `pairofcleats tui build`
+- Install target binary: `pairofcleats tui install`
+- Run supervisor directly: `pairofcleats tui supervisor`
+- Launch native TUI wrapper: `pairofcleats-tui`
 
-## Entry points
+## Typical flow
 
-- `bin/pairofcleats-tui.js` (wrapper)
-- `tools/tui/install.js` (install/update flow)
+1. `pairofcleats tui build`
+2. `pairofcleats tui install`
+3. `pairofcleats-tui`
 
-## Runtime model
+## Install layout
 
-1. TUI starts and handshakes with supervisor.
-2. Supervisor launches jobs and emits structured lifecycle/progress events.
-3. TUI renders jobs, tasks, and logs deterministically.
-4. Cancel/shutdown propagates to all child processes with bounded teardown.
+Default install root is repo-local:
 
-## Protocol expectations
+- `.cache/tui/install-v1/<triple>/bin/<artifactName>`
+- `.cache/tui/install-v1/<triple>/install-manifest.json`
+- `.cache/tui/install-v1/<triple>/logs/`
 
-- Progress events must be `proto: "poc.progress@2"`.
-- Line framing and size caps are enforced by shared progress stream decoder.
-- Unexpected event shapes are treated as hard protocol errors.
+Override root with:
 
-## Failure behavior
+- `PAIROFCLEATS_TUI_INSTALL_ROOT`
+- or `pairofcleats tui install --install-root <path>`
 
-- Missing/invalid TUI binary: fail fast with actionable message.
-- Supervisor protocol violation: fail current session and emit diagnostic.
-- Cancellation timeout: terminate remaining subprocess tree and close session.
+## Validation behavior
+
+Before launch, wrapper verifies:
+
+- target row from `tools/tui/targets.json`
+- install manifest shape/target match
+- binary existence + executable metadata
+- installed checksum vs install manifest
+- installed checksum vs build manifest (when available)
+
+On failure, wrapper exits non-zero with repair hints.
 
 ## Observability
 
-- Session correlation ID required for each run.
-- Replayable event logs required for debugging and determinism checks.
+Wrapper injects:
+
+- `PAIROFCLEATS_TUI_RUN_ID`
+- `PAIROFCLEATS_TUI_EVENT_LOG_DIR`
+
+Supervisor writes replay logs:
+
+- `<eventLogDir>/<runId>.jsonl`
+- `<eventLogDir>/<runId>.meta.json`
+
+Set a custom event log directory with:
+
+- `pairofcleats tui install --event-log-dir <path>`
+- or `PAIROFCLEATS_TUI_EVENT_LOG_DIR=<path>`
 
 ## Related specs
 
-- `docs/specs/tui-tool-contract.md`
+- `docs/specs/tui-installation.md`
+- `docs/specs/tui-build-and-release.md`
 - `docs/specs/node-supervisor-protocol.md`
 - `docs/specs/progress-protocol-v2.md`
-- `docs/specs/tui-installation.md`

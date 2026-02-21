@@ -1,174 +1,109 @@
-# TUI Installation & Distribution Spec (compile-on-install + prebuilt fallback)
+# TUI Installation and Distribution Spec
 
-This spec defines how the Rust Ratatui TUI binary is delivered in a Node/npm-based repo. It explicitly supports:
-- **Optional compile-on-install**
-- **Fallback to verified prebuilt binaries**
+Status: active  
+Last updated: 2026-02-21T00:00:00Z
 
-Status: **proposed design only** (not implemented in the current tree as of 2026-02-17).
-Any `tools/tui/*` paths in this document are planned touchpoints, not active commands.
+## Scope
 
-> This is analogous to the repo’s existing “download native binaries” flow for extensions (see `tools/download/extensions.js` and config in `tools/sqlite/vector-extension.js`).
+Define deterministic installation and launch behavior for `pairofcleats-tui`:
 
----
+- one canonical target catalog
+- deterministic artifact manifest/checksum outputs
+- deterministic install layout
+- strict wrapper validation before launch
+- replayable supervisor event logs with run correlation
 
-## 1) Goals / Non-goals
+## Canonical target catalog
 
-### Goals
-- `npm install` produces a usable `pairofcleats-tui` command on common platforms.
-- If Rust toolchain is present (and user opts in), compile locally.
-- Otherwise, download a prebuilt binary with integrity verification.
-- If neither works, fall back to the existing Node CLI with clear guidance.
+`tools/tui/targets.json` is the only target mapping source for:
 
-### Non-goals
-- Guarantee a Rust toolchain on all environments.
-- Compile by default in CI/consumer installs without user opt-in.
+- `tools/tui/build.js`
+- `tools/tui/install.js`
+- `bin/pairofcleats-tui.js`
 
----
+Required entry fields:
 
-## 2) User-facing commands
+- `triple`
+- `platform`
+- `artifactName`
 
-### 2.1 New bin entry
-Add to `package.json`:
-```json
-"bin": {
-  "pairofcleats": "bin/pairofcleats.js",
-  "pairofcleats-tui": "bin/pairofcleats-tui.js"
-}
-```
+`schemaVersion` must remain `1` until a deliberate version bump.
 
-### 2.2 Wrapper behavior (`bin/pairofcleats-tui.js`)
-- Locate native binary under `bin/native/`:
-  - `bin/native/pairofcleats-tui` (POSIX)
-  - `bin/native/pairofcleats-tui.exe` (Windows)
-- If present:
-  - `spawn`/`execFile` the native binary and forward args, inheriting stdio.
-- If missing:
-  - Print a concise message:
-    - how to enable build-on-install
-    - how to download prebuilt
-    - how to fall back to `pairofcleats` Node CLI
+## Build artifacts contract
 
----
+`node tools/tui/build.js --smoke` emits:
 
-## 3) Binary layout (repo)
-Recommended layout:
-- `bin/native/`
-  - `pairofcleats-tui[.exe]` (current platform)
-  - `manifest.json` (what was installed, version, sha256)
-- `crates/pairofcleats-tui/` (Rust source)
+- `dist/tui/tui-artifacts-manifest.json`
+- `dist/tui/tui-artifacts-manifest.json.sha256`
 
-Manifest example:
-```json
-{
-  "version": "0.3.0",
-  "installedAt": "2026-01-30T12:00:00.000Z",
-  "platform": "win32-x64",
-  "method": "download|build",
-  "sha256": "..."
-}
-```
+Manifest guarantees:
 
----
+- deterministic target ordering (by `triple`)
+- repo-relative POSIX artifact paths
+- per-target `sha256` when artifact exists
+- embedded checksum for `tools/tui/targets.json`
 
-## 4) Install-time flow
+Installers and wrappers treat the manifest checksum file as required integrity input.
 
-### 4.1 postinstall entrypoint
-Add to `package.json`:
-```json
-"scripts": {
-  "postinstall": "node tools/setup/postinstall.js && node tools/tui/install.js"
-}
-```
+## Install contract
 
-### 4.2 Installer logic (`tools/tui/install.js`)
-**High-level decision tree**
-1. If `PAIROFCLEATS_TUI_DISABLE=1` → do nothing.
-2. If `PAIROFCLEATS_TUI_BUILD=1` OR `npm_config_build_from_source=true`:
-   - If `cargo` is available:
-     - build from source (release)
-     - install binary into `bin/native/`
-   - Else:
-     - continue to download flow
-3. Attempt download prebuilt for `(platform, arch)` with verification.
-4. If download fails:
-   - emit warning and exit 0 (do not fail npm install)
-   - wrapper will guide user at runtime
+`node tools/tui/install.js` behavior:
 
-### 4.3 Compile-on-install details
-- Check `cargo` via `spawnSync("cargo", ["--version"])`.
-- Build command:
-  - `cargo build --release -p pairofcleats-tui`
-- Output binary path:
-  - `target/release/pairofcleats-tui[.exe]`
-- Copy to `bin/native/` and `chmod +x` on POSIX.
+1. Resolve target triple from `--target` or host platform/arch.
+2. Validate target against `tools/tui/targets.json`.
+3. Validate `dist/tui/tui-artifacts-manifest.json` against `dist/tui/tui-artifacts-manifest.json.sha256`.
+4. Validate artifact row and expected sha256 for chosen target.
+5. Install into deterministic layout.
+6. Emit `install-manifest.json` with source + binary metadata.
 
-**Opt-in knobs**
-- `PAIROFCLEATS_TUI_BUILD=1` (recommended primary)
-- `npm_config_build_from_source=true` (npm-style)
-- `PAIROFCLEATS_TUI_PROFILE=release|debug` (optional)
+Default layout:
 
-### 4.4 Prebuilt download details
-Follow the pattern and security posture of `tools/download/extensions.js`:
-- A **download allowlist** / explicit URLs
-- SHA-256 verification required
-- Archive extraction limits (if using `.tar.gz`/`.zip`):
-  - maxBytes, maxEntries, maxEntryBytes
+- `.cache/tui/install-v1/<triple>/bin/<artifactName>`
+- `.cache/tui/install-v1/<triple>/install-manifest.json`
+- `.cache/tui/install-v1/<triple>/logs/`
 
-**Recommended artifact naming**
-- `pairofcleats-tui-${version}-${platform}-${arch}.tar.gz`
-  - platform: `win32`, `darwin`, `linux`
-  - arch: `x64`, `arm64`
+Deterministic policy:
 
-**Config surface**
-- `.pairofcleats.json` additions:
-```json
-{
-  "tui": {
-    "enabled": true,
-    "install": {
-      "allowDownload": true,
-      "provider": "github-releases",
-      "baseUrl": "...",
-      "sha256": { "win32-x64": "...", "darwin-arm64": "..." }
-    }
-  }
-}
-```
+- keep exactly one binary filename per target in `bin/`
+- keep stable directory names (`install-v1`, `<triple>`, `bin`, `logs`)
+- verify installed checksum immediately after copy
+- enforce executable metadata before writing final install manifest
 
-(You can mirror the `sqlite.security.downloads` shape used by `tools/download/extensions.js` if you want a unified policy surface.)
+## Wrapper launch contract
 
----
+`bin/pairofcleats-tui.js` must fail fast when any validation fails:
 
-## 5) Fallback guidance (runtime)
-If the wrapper can’t find a binary:
-- Suggest:
-  1. `PAIROFCLEATS_TUI_BUILD=1 npm install` (build from source)
-  2. `node tools/tui/download.js` (planned command for prebuilt download)
-  3. Use Node CLI: `pairofcleats ...`
+- missing/invalid install manifest
+- target/artifact mismatch
+- missing/non-executable binary
+- checksum mismatch
 
----
+When valid, wrapper launches binary and injects:
 
-## 6) CI / release responsibilities
-To make prebuilt binaries available:
-- Add a CI job that builds the Rust binary for target triples.
-- Upload artifacts and publish checksums.
-- Ensure version matches `package.json` version.
+- `PAIROFCLEATS_TUI_RUN_ID`
+- `PAIROFCLEATS_TUI_EVENT_LOG_DIR`
 
----
+Wrapper hints must always include an actionable install/repair command.
 
-## 7) Testing
-- Installer unit tests:
-  - “cargo present” path produces binary + manifest
-  - “download path” verifies sha mismatch fails
-  - installer does not hard-fail npm install on missing binary
-- Wrapper test:
-  - when binary missing, exit code is non-zero and guidance printed
-  - when binary present, wrapper execs it
+## Observability and replay
 
----
+Node supervisor reads:
 
-## 8) Repository references
-- Existing “native download + verify” patterns:
-- `tools/download/extensions.js`
-- Process spawn helpers and kill-tree:
-  - `src/shared/subprocess.js`
+- `PAIROFCLEATS_TUI_RUN_ID` (optional override)
+- `PAIROFCLEATS_TUI_EVENT_LOG_DIR` (required for file replay logging)
+
+When log dir is set, supervisor writes:
+
+- `<eventLogDir>/<runId>.jsonl` (exact protocol stream replay)
+- `<eventLogDir>/<runId>.meta.json` (session metadata)
+
+Replay requirement:
+
+- log file lines must match emitted stdout protocol events for the same run.
+
+## Related docs
+
+- `docs/specs/tui-build-and-release.md`
+- `docs/specs/tui-tool-contract.md`
+- `docs/specs/node-supervisor-protocol.md`
+- `docs/specs/progress-protocol-v2.md`
