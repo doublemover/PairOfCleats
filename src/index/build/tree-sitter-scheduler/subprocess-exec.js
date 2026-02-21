@@ -16,7 +16,13 @@ const emitWarn = (message) => emitLine(message, process.stderr);
 const emitError = (message) => emitLine(message, process.stderr);
 
 const parseArgs = (argv) => {
-  const out = {};
+  const out = { grammarKeys: [] };
+  const pushGrammarKey = (value) => {
+    if (typeof value !== 'string') return;
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    out.grammarKeys.push(trimmed);
+  };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--outDir') {
@@ -24,8 +30,19 @@ const parseArgs = (argv) => {
       i += 1;
       continue;
     }
+    if (arg === '--profileOut') {
+      out.profileOut = argv[i + 1];
+      i += 1;
+      continue;
+    }
     if (arg === '--grammarKey') {
-      out.grammarKey = argv[i + 1];
+      pushGrammarKey(argv[i + 1]);
+      i += 1;
+      continue;
+    }
+    if (arg === '--grammarKeys') {
+      const raw = argv[i + 1];
+      for (const part of String(raw || '').split(',')) pushGrammarKey(part);
       i += 1;
       continue;
     }
@@ -33,10 +50,20 @@ const parseArgs = (argv) => {
       out.outDir = arg.split('=', 2)[1];
       continue;
     }
+    if (arg.startsWith('--profileOut=')) {
+      out.profileOut = arg.split('=', 2)[1];
+      continue;
+    }
     if (arg.startsWith('--grammarKey=')) {
-      out.grammarKey = arg.split('=', 2)[1];
+      pushGrammarKey(arg.split('=', 2)[1]);
+      continue;
+    }
+    if (arg.startsWith('--grammarKeys=')) {
+      const raw = arg.split('=', 2)[1];
+      for (const part of String(raw || '').split(',')) pushGrammarKey(part);
     }
   }
+  out.grammarKeys = Array.from(new Set(out.grammarKeys));
   return out;
 };
 
@@ -84,7 +111,10 @@ const loadJsonLines = async (filePath) => {
 const main = async () => {
   const args = parseArgs(process.argv.slice(2));
   const outDir = args.outDir;
-  const grammarKeyFilter = args.grammarKey || null;
+  const grammarKeyFilters = Array.isArray(args.grammarKeys) ? args.grammarKeys : [];
+  const profileOutPath = typeof args.profileOut === 'string' && args.profileOut
+    ? path.resolve(args.profileOut)
+    : null;
   if (!outDir) {
     emitError('[tree-sitter:schedule] missing --outDir');
     process.exit(2);
@@ -101,21 +131,34 @@ const main = async () => {
   if (!repoRoot || !mode || !grammarKeys.length) {
     throw new Error('[tree-sitter:schedule] invalid plan; missing repoRoot/mode/grammarKeys');
   }
-  if (grammarKeyFilter && !grammarKeys.includes(grammarKeyFilter)) {
-    throw new Error(`[tree-sitter:schedule] grammarKey not in plan: ${grammarKeyFilter}`);
+  for (const grammarKeyFilter of grammarKeyFilters) {
+    if (!grammarKeys.includes(grammarKeyFilter)) {
+      throw new Error(`[tree-sitter:schedule] grammarKey not in plan: ${grammarKeyFilter}`);
+    }
   }
 
   const groups = [];
-  const selectedKeys = grammarKeyFilter ? [grammarKeyFilter] : grammarKeys;
+  const selectedKeys = grammarKeyFilters.length ? grammarKeyFilters : grammarKeys;
+  const groupMetaByGrammarKey = plan?.groupMeta && typeof plan.groupMeta === 'object'
+    ? plan.groupMeta
+    : {};
   for (const grammarKey of selectedKeys) {
     const jobPath = paths.jobPathForGrammarKey(grammarKey);
     const jobs = await loadJsonLines(jobPath);
-    const languages = new Set();
-    for (const job of jobs) {
-      if (job?.languageId) languages.add(job.languageId);
+    const configuredLanguages = Array.isArray(groupMetaByGrammarKey?.[grammarKey]?.languages)
+      ? groupMetaByGrammarKey[grammarKey].languages
+      : null;
+    const languages = new Set(configuredLanguages || []);
+    if (!languages.size) {
+      for (const job of jobs) {
+        if (job?.languageId) languages.add(job.languageId);
+      }
     }
     groups.push({
       grammarKey,
+      baseGrammarKey: typeof groupMetaByGrammarKey?.[grammarKey]?.baseGrammarKey === 'string'
+        ? groupMetaByGrammarKey[grammarKey].baseGrammarKey
+        : grammarKey,
       languages: Array.from(languages),
       jobs
     });
@@ -143,13 +186,36 @@ const main = async () => {
     }
   }
 
-  await executeTreeSitterSchedulerPlan({
-    mode,
-    runtime,
-    groups,
-    outDir,
-    log: emitInfo
-  });
+  const profileRows = [];
+  for (const group of groups) {
+    const startedAt = Date.now();
+    await executeTreeSitterSchedulerPlan({
+      mode,
+      runtime,
+      groups: [group],
+      outDir,
+      log: emitInfo
+    });
+    profileRows.push({
+      baseGrammarKey: group.baseGrammarKey || group.grammarKey,
+      grammarKey: group.grammarKey,
+      rows: Array.isArray(group.jobs) ? group.jobs.length : 0,
+      durationMs: Math.max(1, Date.now() - startedAt),
+      at: new Date().toISOString()
+    });
+  }
+  if (profileOutPath) {
+    await fs.mkdir(path.dirname(profileOutPath), { recursive: true });
+    await fs.writeFile(
+      profileOutPath,
+      JSON.stringify({
+        schemaVersion: '1.0.0',
+        generatedAt: new Date().toISOString(),
+        rows: profileRows
+      }),
+      'utf8'
+    );
+  }
 };
 
 main().catch((err) => {

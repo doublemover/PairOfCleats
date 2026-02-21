@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { throwIfAborted } from '../../../shared/abort.js';
 import { runWithConcurrency } from '../../../shared/concurrency.js';
@@ -7,6 +8,11 @@ import { resolveRuntimeEnv } from '../../../shared/runtime-envelope.js';
 import { spawnSubprocess } from '../../../shared/subprocess.js';
 import { buildTreeSitterSchedulerPlan } from './plan.js';
 import { createTreeSitterSchedulerLookup } from './lookup.js';
+import {
+  loadTreeSitterSchedulerAdaptiveProfile,
+  mergeTreeSitterSchedulerAdaptiveProfile,
+  saveTreeSitterSchedulerAdaptiveProfile
+} from './adaptive-profile.js';
 
 const SCHEDULER_EXEC_PATH = fileURLToPath(new URL('./subprocess-exec.js', import.meta.url));
 const INDEX_LOAD_RETRY_ATTEMPTS = 8;
@@ -29,6 +35,107 @@ const resolveExecConcurrency = ({ schedulerConfig, grammarCount }) => {
     : 4;
   const auto = Math.max(1, Math.min(8, Math.floor((available || 1) / 2)));
   return Math.max(1, Math.min(grammarCount, auto));
+};
+
+const resolveExecutionOrder = (plan = {}) => {
+  const executionOrder = Array.isArray(plan?.executionOrder) ? plan.executionOrder : [];
+  if (executionOrder.length) return executionOrder.slice();
+  const grammarKeys = Array.isArray(plan?.grammarKeys) ? plan.grammarKeys : [];
+  return grammarKeys.slice();
+};
+
+const resolveWarmPoolLaneCount = ({
+  schedulerConfig,
+  baseGrammarKey,
+  keyCount,
+  execConcurrency
+}) => {
+  if (!Number.isFinite(keyCount) || keyCount <= 1) return 1;
+  const perGrammarRaw = Number(
+    schedulerConfig?.warmPoolPerGrammar
+      ?? schedulerConfig?.parserWarmPoolPerGrammar
+      ?? schedulerConfig?.warmPools?.[baseGrammarKey]
+  );
+  if (Number.isFinite(perGrammarRaw) && perGrammarRaw > 0) {
+    return Math.max(1, Math.min(keyCount, Math.floor(perGrammarRaw)));
+  }
+  if (keyCount < 4) return 1;
+  const byConcurrency = Number.isFinite(execConcurrency) && execConcurrency > 0
+    ? Math.max(1, Math.floor(execConcurrency / 2))
+    : 1;
+  const heuristic = keyCount >= 12 ? 3 : 2;
+  return Math.max(1, Math.min(keyCount, byConcurrency, heuristic));
+};
+
+/**
+ * Build per-grammar warm-pool tasks by partitioning ordered wave keys into a
+ * small number of long-lived subprocess lanes.
+ *
+ * @param {object} input
+ * @returns {Array<{taskId:string,baseGrammarKey:string,laneIndex:number,laneCount:number,grammarKeys:Array<string>,firstOrder:number}>}
+ */
+const buildWarmPoolTasks = ({
+  executionOrder,
+  groupMetaByGrammarKey,
+  schedulerConfig,
+  execConcurrency
+}) => {
+  const byBaseGrammar = new Map();
+  const order = Array.isArray(executionOrder) ? executionOrder : [];
+  for (let i = 0; i < order.length; i += 1) {
+    const grammarKey = order[i];
+    if (typeof grammarKey !== 'string' || !grammarKey) continue;
+    const groupMeta = groupMetaByGrammarKey?.[grammarKey] || {};
+    const baseGrammarKey = typeof groupMeta?.baseGrammarKey === 'string' && groupMeta.baseGrammarKey
+      ? groupMeta.baseGrammarKey
+      : grammarKey;
+    if (!byBaseGrammar.has(baseGrammarKey)) byBaseGrammar.set(baseGrammarKey, []);
+    byBaseGrammar.get(baseGrammarKey).push({ grammarKey, orderIndex: i });
+  }
+  const tasks = [];
+  for (const [baseGrammarKey, keyed] of byBaseGrammar.entries()) {
+    const laneCount = resolveWarmPoolLaneCount({
+      schedulerConfig,
+      baseGrammarKey,
+      keyCount: keyed.length,
+      execConcurrency
+    });
+    const lanes = Array.from({ length: laneCount }, () => []);
+    for (let i = 0; i < keyed.length; i += 1) {
+      lanes[i % laneCount].push(keyed[i]);
+    }
+    for (let laneIndex = 0; laneIndex < lanes.length; laneIndex += 1) {
+      const lane = lanes[laneIndex];
+      if (!lane.length) continue;
+      tasks.push({
+        taskId: `${baseGrammarKey}#pool${laneIndex + 1}`,
+        baseGrammarKey,
+        laneIndex: laneIndex + 1,
+        laneCount,
+        grammarKeys: lane.map((entry) => entry.grammarKey),
+        firstOrder: lane.reduce((min, entry) => Math.min(min, entry.orderIndex), Number.POSITIVE_INFINITY)
+      });
+    }
+  }
+  tasks.sort((a, b) => {
+    if (a.firstOrder !== b.firstOrder) return a.firstOrder - b.firstOrder;
+    return String(a.taskId).localeCompare(String(b.taskId));
+  });
+  return tasks;
+};
+
+const loadSubprocessProfile = async (profilePath) => {
+  if (!profilePath) return [];
+  try {
+    const raw = JSON.parse(await fs.readFile(profilePath, 'utf8'));
+    const fields = raw?.fields && typeof raw.fields === 'object' ? raw.fields : raw;
+    const rows = Array.isArray(fields?.rows) ? fields.rows : [];
+    return rows.filter((row) => row && typeof row === 'object');
+  } catch {
+    return [];
+  } finally {
+    try { await fs.rm(profilePath, { force: true }); } catch {}
+  }
 };
 
 /**
@@ -247,51 +354,78 @@ export const runTreeSitterScheduler = async ({
   const runtimeEnv = runtime?.envelope
     ? resolveRuntimeEnv(runtime.envelope, process.env)
     : process.env;
-  const grammarKeys = Array.isArray(planResult.plan?.grammarKeys) ? planResult.plan.grammarKeys : [];
+  const executionOrder = resolveExecutionOrder(planResult.plan);
+  const grammarKeys = Array.isArray(planResult.plan?.grammarKeys) && planResult.plan.grammarKeys.length
+    ? planResult.plan.grammarKeys
+    : executionOrder.slice();
+  const groupMetaByGrammarKey = planResult.plan?.groupMeta && typeof planResult.plan.groupMeta === 'object'
+    ? planResult.plan.groupMeta
+    : {};
   const idleGapStats = {
     samples: 0,
     totalMs: 0,
     maxMs: 0,
     thresholdMs: 25
   };
-  let lastGrammarCompletedAt = 0;
-  if (grammarKeys.length) {
+  let lastTaskCompletedAt = 0;
+  if (executionOrder.length) {
     const streamLogs = typeof log === 'function';
     const execConcurrency = resolveExecConcurrency({
       schedulerConfig,
-      grammarCount: grammarKeys.length
+      grammarCount: executionOrder.length
     });
+    const warmPoolTasks = buildWarmPoolTasks({
+      executionOrder,
+      groupMetaByGrammarKey,
+      schedulerConfig,
+      execConcurrency
+    });
+    const adaptiveSamples = [];
     await runWithConcurrency(
-      grammarKeys,
+      warmPoolTasks,
       execConcurrency,
-      async (grammarKey, ctx) => {
+      async (task, ctx) => {
         throwIfAborted(abortSignal);
         const now = Date.now();
-        if (lastGrammarCompletedAt > 0) {
-          const idleGapMs = Math.max(0, now - lastGrammarCompletedAt);
+        if (lastTaskCompletedAt > 0) {
+          const idleGapMs = Math.max(0, now - lastTaskCompletedAt);
           if (idleGapMs >= idleGapStats.thresholdMs) {
             idleGapStats.samples += 1;
             idleGapStats.totalMs += idleGapMs;
             idleGapStats.maxMs = Math.max(idleGapStats.maxMs, idleGapMs);
           }
         }
+        const grammarKeysForTask = Array.isArray(task?.grammarKeys) ? task.grammarKeys : [];
+        if (!grammarKeysForTask.length) return;
         if (log) {
-          log(`[tree-sitter:schedule] exec ${ctx.index + 1}/${grammarKeys.length}: ${grammarKey}`);
+          log(
+            `[tree-sitter:schedule] exec ${ctx.index + 1}/${warmPoolTasks.length}: ${task.taskId} `
+            + `(waves=${grammarKeysForTask.length}, lane=${task.laneIndex}/${task.laneCount})`
+          );
         }
-        const linePrefix = `[tree-sitter:schedule:${grammarKey}]`;
+        const linePrefix = `[tree-sitter:schedule:${task.taskId}]`;
         const stdoutBuffer = streamLogs
           ? createLineBuffer((line) => log(`${linePrefix} ${line}`))
           : null;
         const stderrBuffer = streamLogs
           ? createLineBuffer((line) => log(`${linePrefix} ${line}`))
           : null;
+        const profileOut = path.join(
+          outDir,
+          `.tree-sitter-scheduler-profile-${process.pid}-${ctx.index + 1}.json`
+        );
         try {
           // Avoid stdio='inherit' when we have a logger. Direct child writes bypass
           // the display/progress handlers and render underneath interactive bars.
           // Piping and relaying lines keeps all output on the parent render path.
           await spawnSubprocess(
             process.execPath,
-            [SCHEDULER_EXEC_PATH, '--outDir', outDir, '--grammarKey', grammarKey],
+            [
+              SCHEDULER_EXEC_PATH,
+              '--outDir', outDir,
+              '--grammarKeys', grammarKeysForTask.join(','),
+              '--profileOut', profileOut
+            ],
             {
               cwd: runtime?.root || undefined,
               env: runtimeEnv,
@@ -304,15 +438,32 @@ export const runTreeSitterScheduler = async ({
               onStderr: streamLogs ? (chunk) => stderrBuffer.push(chunk) : null
             }
           );
+          const profileRows = await loadSubprocessProfile(profileOut);
+          for (const row of profileRows) {
+            adaptiveSamples.push(row);
+          }
         } finally {
           stdoutBuffer?.flush();
           stderrBuffer?.flush();
-          lastGrammarCompletedAt = Date.now();
+          lastTaskCompletedAt = Date.now();
         }
         throwIfAborted(abortSignal);
       },
       { collectResults: false, signal: abortSignal }
     );
+    if (adaptiveSamples.length) {
+      const loaded = await loadTreeSitterSchedulerAdaptiveProfile({
+        runtime,
+        treeSitterConfig: runtime?.languageOptions?.treeSitter || null,
+        log
+      });
+      const merged = mergeTreeSitterSchedulerAdaptiveProfile(loaded.entriesByGrammarKey, adaptiveSamples);
+      await saveTreeSitterSchedulerAdaptiveProfile({
+        profilePath: loaded.profilePath,
+        entriesByGrammarKey: merged,
+        log
+      });
+    }
     throwIfAborted(abortSignal);
   }
 
@@ -352,3 +503,8 @@ export const runTreeSitterScheduler = async ({
       : null
   };
 };
+
+export const treeSitterSchedulerRunnerInternals = Object.freeze({
+  resolveExecutionOrder,
+  buildWarmPoolTasks
+});

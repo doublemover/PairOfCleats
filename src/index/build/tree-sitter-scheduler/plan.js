@@ -29,15 +29,22 @@ import {
 import { resolveTreeSitterSchedulerPaths } from './paths.js';
 import { createTreeSitterFileVersionSignature } from './file-signature.js';
 import { shouldSkipTreeSitterPlanningForPath } from './policy.js';
+import { loadTreeSitterSchedulerAdaptiveProfile } from './adaptive-profile.js';
 
 const TREE_SITTER_LANG_IDS = new Set(TREE_SITTER_LANGUAGE_IDS);
 const PLANNER_IO_CONCURRENCY_CAP = 32;
 const PLANNER_IO_LARGE_REPO_THRESHOLD = 20000;
 const TREE_SITTER_SKIP_SAMPLE_LIMIT_DEFAULT = 3;
 const HEAVY_GRAMMAR_BUCKET_LANGUAGES = new Set(['clike', 'cpp']);
-const HEAVY_GRAMMAR_BUCKET_TARGET_JOBS = 512;
+const HEAVY_GRAMMAR_BUCKET_TARGET_JOBS = 768;
 const HEAVY_GRAMMAR_BUCKET_MIN = 2;
 const HEAVY_GRAMMAR_BUCKET_MAX = 16;
+const ADAPTIVE_BUCKET_MIN_JOBS = 64;
+const ADAPTIVE_BUCKET_MAX_JOBS = 4096;
+const ADAPTIVE_BUCKET_TARGET_MS = 1200;
+const ADAPTIVE_WAVE_TARGET_MS = 900;
+const ADAPTIVE_WAVE_MIN_JOBS = 32;
+const ADAPTIVE_WAVE_MAX_JOBS = 2048;
 
 const countLines = (text, maxLines = null) => {
   if (!text) return 0;
@@ -121,43 +128,158 @@ const hashString = (value) => {
   return hash >>> 0;
 };
 
-const shardHeavyGrammarGroup = (group, schedulerConfig = {}) => {
+const resolveObservedRowsPerSec = (grammarKey, observedRowsPerSecByGrammar) => {
+  if (!(observedRowsPerSecByGrammar instanceof Map)) return null;
+  const raw = observedRowsPerSecByGrammar.get(grammarKey);
+  const parsed = Number(raw?.rowsPerSec ?? raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return parsed;
+};
+
+const resolveAdaptiveBucketTargetJobs = ({
+  group,
+  schedulerConfig = {},
+  observedRowsPerSecByGrammar = null
+}) => {
+  const languages = Array.isArray(group?.languages) ? group.languages : [];
+  const isHeavyLanguage = languages.some((languageId) => HEAVY_GRAMMAR_BUCKET_LANGUAGES.has(languageId));
+  const defaultTarget = Number.isFinite(Number(schedulerConfig.heavyGrammarBucketTargetJobs))
+    ? Math.max(ADAPTIVE_BUCKET_MIN_JOBS, Math.floor(Number(schedulerConfig.heavyGrammarBucketTargetJobs)))
+    : HEAVY_GRAMMAR_BUCKET_TARGET_JOBS;
+  const observedRowsPerSec = resolveObservedRowsPerSec(group?.grammarKey, observedRowsPerSecByGrammar);
+  if (Number.isFinite(observedRowsPerSec) && observedRowsPerSec > 0) {
+    const targetMsRaw = Number(schedulerConfig.adaptiveBucketTargetMs);
+    const targetMs = Number.isFinite(targetMsRaw) && targetMsRaw > 0
+      ? Math.floor(targetMsRaw)
+      : ADAPTIVE_BUCKET_TARGET_MS;
+    const projected = Math.floor((observedRowsPerSec * targetMs) / 1000);
+    return Math.max(ADAPTIVE_BUCKET_MIN_JOBS, Math.min(ADAPTIVE_BUCKET_MAX_JOBS, projected));
+  }
+  if (isHeavyLanguage) return defaultTarget;
+  return Math.max(ADAPTIVE_BUCKET_MIN_JOBS, Math.floor(defaultTarget * 1.5));
+};
+
+const resolveAdaptiveWaveTargetJobs = ({
+  group,
+  schedulerConfig = {},
+  observedRowsPerSecByGrammar = null
+}) => {
+  const observedRowsPerSec = resolveObservedRowsPerSec(group?.grammarKey, observedRowsPerSecByGrammar);
+  if (Number.isFinite(observedRowsPerSec) && observedRowsPerSec > 0) {
+    const targetMsRaw = Number(schedulerConfig.adaptiveWaveTargetMs);
+    const targetMs = Number.isFinite(targetMsRaw) && targetMsRaw > 0
+      ? Math.floor(targetMsRaw)
+      : ADAPTIVE_WAVE_TARGET_MS;
+    const projected = Math.floor((observedRowsPerSec * targetMs) / 1000);
+    return Math.max(ADAPTIVE_WAVE_MIN_JOBS, Math.min(ADAPTIVE_WAVE_MAX_JOBS, projected));
+  }
+  const fallback = resolveAdaptiveBucketTargetJobs({ group, schedulerConfig, observedRowsPerSecByGrammar });
+  return Math.max(ADAPTIVE_WAVE_MIN_JOBS, Math.min(ADAPTIVE_WAVE_MAX_JOBS, fallback));
+};
+
+/**
+ * Assign jobs to buckets by directory affinity while actively splitting very
+ * large directories so one subtree cannot monopolize the tail wave.
+ *
+ * @param {{jobs:Array<object>,bucketCount:number}} input
+ * @returns {Array<Array<object>>}
+ */
+const assignPathAwareBuckets = ({ jobs, bucketCount }) => {
+  const safeBucketCount = Math.max(1, Math.floor(Number(bucketCount) || 1));
+  if (safeBucketCount <= 1 || !Array.isArray(jobs) || jobs.length <= 1) {
+    return [Array.isArray(jobs) ? jobs.slice() : []];
+  }
+  const buckets = Array.from({ length: safeBucketCount }, () => []);
+  const bucketLoads = new Array(safeBucketCount).fill(0);
+  const jobsByDir = new Map();
+  for (const job of jobs) {
+    const key = job?.containerPath || job?.virtualPath || '';
+    const dirKey = toPosix(path.dirname(String(key || ''))).toLowerCase() || '.';
+    if (!jobsByDir.has(dirKey)) jobsByDir.set(dirKey, []);
+    jobsByDir.get(dirKey).push(job);
+  }
+  const groups = Array.from(jobsByDir.entries())
+    .map(([dirKey, dirJobs]) => ({ dirKey, dirJobs: dirJobs.slice().sort(sortJobs) }))
+    .sort((a, b) => {
+      const sizeDelta = b.dirJobs.length - a.dirJobs.length;
+      if (sizeDelta !== 0) return sizeDelta;
+      return compareStrings(a.dirKey, b.dirKey);
+    });
+  const totalJobs = jobs.length;
+  const idealBucketLoad = Math.max(1, Math.ceil(totalJobs / safeBucketCount));
+  const bigDirThreshold = Math.max(idealBucketLoad, Math.floor(idealBucketLoad * 1.5));
+  const findLeastLoadedBucket = () => {
+    let bestIndex = 0;
+    let bestLoad = bucketLoads[0];
+    for (let i = 1; i < bucketLoads.length; i += 1) {
+      const load = bucketLoads[i];
+      if (load < bestLoad) {
+        bestLoad = load;
+        bestIndex = i;
+      }
+    }
+    return bestIndex;
+  };
+  for (const group of groups) {
+    const dirJobs = group.dirJobs;
+    if (!dirJobs.length) continue;
+    if (dirJobs.length >= bigDirThreshold) {
+      for (const job of dirJobs) {
+        const key = job?.containerPath || job?.virtualPath || '';
+        const hashedIndex = hashString(key) % safeBucketCount;
+        const leastLoadedIndex = findLeastLoadedBucket();
+        const chosenIndex = bucketLoads[hashedIndex] <= (bucketLoads[leastLoadedIndex] + 1)
+          ? hashedIndex
+          : leastLoadedIndex;
+        buckets[chosenIndex].push(job);
+        bucketLoads[chosenIndex] += 1;
+      }
+      continue;
+    }
+    const bucketIndex = findLeastLoadedBucket();
+    buckets[bucketIndex].push(...dirJobs);
+    bucketLoads[bucketIndex] += dirJobs.length;
+  }
+  return buckets.map((bucketJobs) => bucketJobs.sort(sortJobs));
+};
+
+const shardGrammarGroup = ({
+  group,
+  schedulerConfig = {},
+  observedRowsPerSecByGrammar = null
+}) => {
   const jobs = Array.isArray(group?.jobs) ? group.jobs : [];
   if (!jobs.length) return [];
   const languages = Array.isArray(group?.languages) ? group.languages : [];
   const isHeavyLanguage = languages.some((languageId) => HEAVY_GRAMMAR_BUCKET_LANGUAGES.has(languageId));
-  if (!isHeavyLanguage) return [group];
-  const rawEnabled = schedulerConfig.heavyGrammarBucketSharding;
+  const rawEnabled = schedulerConfig.heavyGrammarBucketSharding ?? schedulerConfig.bucketSharding;
   if (rawEnabled === false) return [group];
-  const targetJobs = Number.isFinite(Number(schedulerConfig.heavyGrammarBucketTargetJobs))
-    ? Math.max(64, Math.floor(Number(schedulerConfig.heavyGrammarBucketTargetJobs)))
-    : HEAVY_GRAMMAR_BUCKET_TARGET_JOBS;
+  const targetJobs = resolveAdaptiveBucketTargetJobs({
+    group,
+    schedulerConfig,
+    observedRowsPerSecByGrammar
+  });
   const minBuckets = Number.isFinite(Number(schedulerConfig.heavyGrammarBucketMin))
-    ? Math.max(1, Math.floor(Number(schedulerConfig.heavyGrammarBucketMin)))
-    : HEAVY_GRAMMAR_BUCKET_MIN;
+    ? Math.max(isHeavyLanguage ? 2 : 1, Math.floor(Number(schedulerConfig.heavyGrammarBucketMin)))
+    : (isHeavyLanguage ? HEAVY_GRAMMAR_BUCKET_MIN : 1);
   const maxBuckets = Number.isFinite(Number(schedulerConfig.heavyGrammarBucketMax))
     ? Math.max(minBuckets, Math.floor(Number(schedulerConfig.heavyGrammarBucketMax)))
-    : HEAVY_GRAMMAR_BUCKET_MAX;
+    : (isHeavyLanguage ? HEAVY_GRAMMAR_BUCKET_MAX : Math.max(8, HEAVY_GRAMMAR_BUCKET_MAX));
   const bucketCount = Math.max(
     minBuckets,
     Math.min(maxBuckets, Math.ceil(jobs.length / targetJobs))
   );
-  if (bucketCount <= 1 || jobs.length < Math.max(64, targetJobs)) return [group];
-
-  const buckets = Array.from({ length: bucketCount }, () => []);
-  for (const job of jobs) {
-    const key = job?.containerPath || job?.virtualPath || '';
-    const bucketIndex = hashString(key) % bucketCount;
-    buckets[bucketIndex].push(job);
-  }
+  if (bucketCount <= 1 || jobs.length < Math.max(ADAPTIVE_BUCKET_MIN_JOBS, targetJobs)) return [group];
+  const buckets = assignPathAwareBuckets({ jobs, bucketCount });
   const out = [];
   for (let bucketIndex = 0; bucketIndex < buckets.length; bucketIndex += 1) {
     const bucketJobs = buckets[bucketIndex];
     if (!bucketJobs.length) continue;
-    bucketJobs.sort(sortJobs);
+    const bucketKey = `${group.grammarKey}~b${String(bucketIndex + 1).padStart(2, '0')}of${String(bucketCount).padStart(2, '0')}`;
     out.push({
-      grammarKey: `${group.grammarKey}~b${String(bucketIndex + 1).padStart(2, '0')}of${String(bucketCount).padStart(2, '0')}`,
+      grammarKey: bucketKey,
       baseGrammarKey: group.grammarKey,
+      bucketKey,
       shard: {
         bucketIndex: bucketIndex + 1,
         bucketCount
@@ -167,6 +289,79 @@ const shardHeavyGrammarGroup = (group, schedulerConfig = {}) => {
     });
   }
   return out.length ? out : [group];
+};
+
+const splitGrammarBucketIntoWaves = ({
+  group,
+  schedulerConfig = {},
+  observedRowsPerSecByGrammar = null
+}) => {
+  const jobs = Array.isArray(group?.jobs) ? group.jobs : [];
+  if (!jobs.length) return [];
+  const targetJobs = resolveAdaptiveWaveTargetJobs({
+    group,
+    schedulerConfig,
+    observedRowsPerSecByGrammar
+  });
+  const waveSize = Math.max(ADAPTIVE_WAVE_MIN_JOBS, targetJobs);
+  if (jobs.length <= waveSize) {
+    return [{
+      ...group,
+      bucketKey: group?.bucketKey || group?.grammarKey || null,
+      wave: { waveIndex: 1, waveCount: 1 }
+    }];
+  }
+  const waveCount = Math.max(1, Math.ceil(jobs.length / waveSize));
+  const baseKey = group?.grammarKey || 'unknown';
+  const bucketKey = group?.bucketKey || baseKey;
+  const out = [];
+  for (let waveIndex = 0; waveIndex < waveCount; waveIndex += 1) {
+    const start = waveIndex * waveSize;
+    const end = Math.min(start + waveSize, jobs.length);
+    const waveJobs = jobs.slice(start, end);
+    if (!waveJobs.length) continue;
+    out.push({
+      ...group,
+      grammarKey: `${baseKey}~w${String(waveIndex + 1).padStart(2, '0')}of${String(waveCount).padStart(2, '0')}`,
+      bucketKey,
+      wave: { waveIndex: waveIndex + 1, waveCount },
+      jobs: waveJobs
+    });
+  }
+  return out.length ? out : [group];
+};
+
+const buildContinuousWaveExecutionOrder = (groups) => {
+  const byBucket = new Map();
+  const entries = Array.isArray(groups) ? groups : [];
+  for (const group of entries) {
+    if (!group?.grammarKey) continue;
+    const bucketKey = group.bucketKey || group.grammarKey;
+    if (!byBucket.has(bucketKey)) byBucket.set(bucketKey, []);
+    byBucket.get(bucketKey).push(group);
+  }
+  const bucketKeys = Array.from(byBucket.keys()).sort(compareStrings);
+  let maxWaveCount = 1;
+  for (const bucketKey of bucketKeys) {
+    const list = byBucket.get(bucketKey) || [];
+    list.sort((a, b) => {
+      const waveA = Number(a?.wave?.waveIndex || 1);
+      const waveB = Number(b?.wave?.waveIndex || 1);
+      if (waveA !== waveB) return waveA - waveB;
+      return compareStrings(a?.grammarKey || '', b?.grammarKey || '');
+    });
+    const waveCount = list.reduce((max, item) => Math.max(max, Number(item?.wave?.waveCount || 1)), 1);
+    maxWaveCount = Math.max(maxWaveCount, waveCount);
+  }
+  const order = [];
+  for (let waveIndex = 1; waveIndex <= maxWaveCount; waveIndex += 1) {
+    for (const bucketKey of bucketKeys) {
+      const list = byBucket.get(bucketKey) || [];
+      const next = list.find((item) => Number(item?.wave?.waveIndex || 1) === waveIndex);
+      if (next?.grammarKey) order.push(next.grammarKey);
+    }
+  }
+  return order.length ? order : entries.map((group) => group.grammarKey).filter(Boolean);
 };
 
 /**
@@ -473,6 +668,11 @@ export const buildTreeSitterSchedulerPlan = async ({
           segmentUid,
           effectiveExt: segmentExt
         });
+        const relationExtractionOnly = entry?.treeSitterRelationOnly === true
+          || entry?.relationExtractionOnly === true
+          || entry?.relationsOnly === true
+          || segment?.meta?.relationExtractionOnly === true
+          || segment?.meta?.relationOnly === true;
 
         requiredLanguages.add(languageId);
         jobs.push({
@@ -486,6 +686,7 @@ export const buildTreeSitterSchedulerPlan = async ({
           effectiveExt: segmentExt,
           segmentStart: segment.start,
           segmentEnd: segment.end,
+          parseMode: relationExtractionOnly ? 'lightweight-relations' : 'full',
           fileVersionSignature,
           segment
         });
@@ -536,6 +737,11 @@ export const buildTreeSitterSchedulerPlan = async ({
     }
   }
 
+  const { entriesByGrammarKey: observedRowsPerSecByGrammar } = await loadTreeSitterSchedulerAdaptiveProfile({
+    runtime,
+    treeSitterConfig,
+    log
+  });
   const grammarKeys = Array.from(groups.keys()).sort(compareStrings);
   const baseGroupList = grammarKeys.map((grammarKey) => {
     const group = groups.get(grammarKey);
@@ -549,21 +755,48 @@ export const buildTreeSitterSchedulerPlan = async ({
   const schedulerConfig = treeSitterConfig?.scheduler || {};
   const groupList = [];
   for (const group of baseGroupList) {
-    const sharded = shardHeavyGrammarGroup(group, schedulerConfig);
-    for (const entry of sharded) {
-      groupList.push(entry);
+    const sharded = shardGrammarGroup({
+      group,
+      schedulerConfig,
+      observedRowsPerSecByGrammar
+    });
+    for (const bucketGroup of sharded) {
+      const waves = splitGrammarBucketIntoWaves({
+        group: bucketGroup,
+        schedulerConfig,
+        observedRowsPerSecByGrammar
+      });
+      for (const wave of waves) {
+        groupList.push(wave);
+      }
     }
   }
+  const executionOrder = buildContinuousWaveExecutionOrder(groupList);
   const finalGrammarKeys = groupList.map((group) => group.grammarKey).sort(compareStrings);
+  const groupMeta = {};
+  for (const group of groupList) {
+    if (!group?.grammarKey) continue;
+    groupMeta[group.grammarKey] = {
+      baseGrammarKey: group.baseGrammarKey || group.grammarKey,
+      bucketKey: group.bucketKey || group.grammarKey,
+      wave: group.wave || null,
+      shard: group.shard || null,
+      languages: Array.isArray(group.languages) ? group.languages : [],
+      jobs: Array.isArray(group.jobs) ? group.jobs.length : 0
+    };
+  }
 
   const plan = {
     schemaVersion: '1.0.0',
     generatedAt: new Date().toISOString(),
     mode,
     repoRoot: runtime.root,
+    repoCacheRoot: runtime?.repoCacheRoot || null,
     outDir,
     jobs: groupList.reduce((sum, group) => sum + group.jobs.length, 0),
     grammarKeys: finalGrammarKeys,
+    executionOrder,
+    groupMeta,
     requiredNativeLanguages: requiredNative,
     treeSitterConfig
   };
@@ -577,3 +810,12 @@ export const buildTreeSitterSchedulerPlan = async ({
   skipLogger.flush();
   return { plan, groups: groupList, paths };
 };
+
+export const treeSitterSchedulerPlannerInternals = Object.freeze({
+  resolveAdaptiveBucketTargetJobs,
+  resolveAdaptiveWaveTargetJobs,
+  assignPathAwareBuckets,
+  shardGrammarGroup,
+  splitGrammarBucketIntoWaves,
+  buildContinuousWaveExecutionOrder
+});
