@@ -139,6 +139,14 @@ export function getProgressContext(env = process.env) {
   return normalizeProgressContext(env.PAIROFCLEATS_PROGRESS_CONTEXT);
 }
 
+export function getTuiEnvConfig(env = process.env) {
+  return {
+    runId: normalizeString(env.PAIROFCLEATS_TUI_RUN_ID),
+    eventLogDir: normalizeString(env.PAIROFCLEATS_TUI_EVENT_LOG_DIR),
+    installRoot: normalizeString(env.PAIROFCLEATS_TUI_INSTALL_ROOT)
+  };
+}
+
 export function getTestEnvConfig(env = process.env) {
   if (!isTesting(env)) {
     return {

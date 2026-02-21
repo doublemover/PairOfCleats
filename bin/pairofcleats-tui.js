@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { getTuiEnvConfig } from '../src/shared/env.js';
 import {
   isExecutableForPlatform,
   readBuildManifestSync,
@@ -16,7 +17,8 @@ import {
 } from '../tools/tui/targets.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const installRootOverride = String(process.env.PAIROFCLEATS_TUI_INSTALL_ROOT || '').trim();
+const tuiEnvConfig = getTuiEnvConfig(process.env);
+const installRootOverride = tuiEnvConfig.installRoot;
 
 const fail = (message, hints = []) => {
   console.error(`[tui] ${message}`);
@@ -123,12 +125,12 @@ const resolveRuntime = () => {
 
 const { binaryPath, eventLogDir } = resolveRuntime();
 const args = process.argv.slice(2);
-const runId = String(process.env.PAIROFCLEATS_TUI_RUN_ID || '').trim()
+const runId = tuiEnvConfig.runId
   || `tui-${Date.now().toString(36)}-${process.pid}`;
 const env = {
   ...process.env,
   PAIROFCLEATS_TUI_RUN_ID: runId,
-  PAIROFCLEATS_TUI_EVENT_LOG_DIR: String(process.env.PAIROFCLEATS_TUI_EVENT_LOG_DIR || '').trim() || eventLogDir
+  PAIROFCLEATS_TUI_EVENT_LOG_DIR: tuiEnvConfig.eventLogDir || eventLogDir
 };
 const result = spawnSync(binaryPath, args, { stdio: 'inherit', env });
 process.exit(result.status ?? 1);

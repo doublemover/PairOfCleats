@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSubprocess } from '../../src/shared/subprocess.js';
+import { getTuiEnvConfig } from '../../src/shared/env.js';
 import { applyProgressContextEnv } from '../../src/shared/progress.js';
 import { createProgressLineDecoder } from '../../src/shared/cli/progress-stream.js';
 import { formatProgressEvent, PROGRESS_PROTOCOL } from '../../src/shared/cli/progress-events.js';
@@ -11,7 +12,8 @@ import { getIndexDir, getMetricsDir, getRepoCacheRoot, loadUserConfig, resolveTo
 
 const ROOT = resolveToolRoot();
 const SUPERVISOR_PROTOCOL = 'poc.tui@1';
-const runId = String(process.env.PAIROFCLEATS_TUI_RUN_ID || '').trim()
+const tuiEnvConfig = getTuiEnvConfig(process.env);
+const runId = tuiEnvConfig.runId
   || `run-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
 const pkg = (() => {
@@ -23,7 +25,7 @@ const pkg = (() => {
 })();
 
 const createEventLogRecorder = () => {
-  const requestedDir = String(process.env.PAIROFCLEATS_TUI_EVENT_LOG_DIR || '').trim();
+  const requestedDir = tuiEnvConfig.eventLogDir;
   if (!requestedDir) return null;
   const logsDir = path.resolve(requestedDir);
   const eventLogPath = path.join(logsDir, `${runId}.jsonl`);
