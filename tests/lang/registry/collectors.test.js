@@ -128,9 +128,10 @@ const cases = [
       '-include local.mk',
       'sinclude optional.mk',
       'include $(wildcard mk/rules.mk mk/targets.mk)',
+      'build/main.o: src/main.c',
       'app: src/main.o src/lib.o | build/.stamp'
     ].join('\n'),
-    expected: ['shared.mk', 'local.mk', 'optional.mk', 'mk/rules.mk', 'mk/targets.mk', 'src/main.o', 'src/lib.o', 'build/.stamp']
+    expected: ['shared.mk', 'local.mk', 'optional.mk', 'mk/rules.mk', 'mk/targets.mk', 'src/main.c', 'src/main.o', 'src/lib.o', 'build/.stamp']
   },
   {
     label: 'proto',

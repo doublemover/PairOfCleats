@@ -22,7 +22,7 @@ export const collectMakefileImports = (text) => {
         for (const part of includeExpr.split(/\s+/).filter(Boolean)) addImport(part);
       }
     }
-    const depMatch = trimmed.match(/^[A-Za-z0-9_.%-]+(?:\s+[A-Za-z0-9_.%-]+)*\s*:\s*([^=].*)$/);
+    const depMatch = trimmed.match(/^[A-Za-z0-9_./%-]+(?:\s+[A-Za-z0-9_./%-]+)*\s*:\s*([^=].*)$/);
     if (!depMatch) continue;
     const deps = depMatch[1].split(/\s+/).map((entry) => entry.trim()).filter(Boolean);
     for (const dep of deps) {
