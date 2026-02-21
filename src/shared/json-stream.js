@@ -512,8 +512,8 @@ export async function writeJsonLinesShardedAsync(input) {
  * Stream a JSON array to disk without holding the full string in memory.
  * @param {string} filePath
  * @param {Iterable<any>} items
- * @param {{trailingNewline?:boolean,compression?:string|null,atomic?:boolean,gzipOptions?:object,highWaterMark?:number,signal?:AbortSignal}} [options]
- * @returns {Promise<void>}
+ * @param {{trailingNewline?:boolean,compression?:string|null,atomic?:boolean,gzipOptions?:object,highWaterMark?:number,signal?:AbortSignal,checksumAlgo?:string|null}} [options]
+ * @returns {Promise<{bytes:number,checksum:string|null,checksumAlgo:string|null,checksumHash:string|null}>}
  */
 export async function writeJsonArrayFile(filePath, items, options = {}) {
   const {
@@ -522,14 +522,16 @@ export async function writeJsonArrayFile(filePath, items, options = {}) {
     atomic = false,
     gzipOptions = null,
     highWaterMark = null,
-    signal = null
+    signal = null,
+    checksumAlgo = null
   } = options;
-  const { stream, done } = createJsonWriteStream(filePath, {
+  const { stream, done, getBytesWritten, getChecksum, checksumAlgo: resolvedChecksumAlgo } = createJsonWriteStream(filePath, {
     compression,
     atomic,
     gzipOptions,
     highWaterMark,
-    signal
+    signal,
+    checksumAlgo
   });
   try {
     await writeChunk(stream, '[');
@@ -538,6 +540,13 @@ export async function writeJsonArrayFile(filePath, items, options = {}) {
     if (trailingNewline) await writeChunk(stream, '\n');
     stream.end();
     await done;
+    const checksum = typeof getChecksum === 'function' ? getChecksum() : null;
+    return {
+      bytes: Number.isFinite(getBytesWritten?.()) ? getBytesWritten() : 0,
+      checksum: checksum || null,
+      checksumAlgo: resolvedChecksumAlgo || null,
+      checksumHash: checksum && resolvedChecksumAlgo ? `${resolvedChecksumAlgo}:${checksum}` : null
+    };
   } catch (err) {
     try { stream.destroy(err); } catch {}
     try { await done; } catch {}
@@ -548,8 +557,8 @@ export async function writeJsonArrayFile(filePath, items, options = {}) {
 /**
  * Stream a JSON object with one or more array fields to disk.
  * @param {string} filePath
- * @param {{fields?:object,arrays?:object,trailingNewline?:boolean,compression?:string|null,atomic?:boolean,gzipOptions?:object,highWaterMark?:number,signal?:AbortSignal}} input
- * @returns {Promise<void>}
+ * @param {{fields?:object,arrays?:object,trailingNewline?:boolean,compression?:string|null,atomic?:boolean,gzipOptions?:object,highWaterMark?:number,signal?:AbortSignal,checksumAlgo?:string|null}} input
+ * @returns {Promise<{bytes:number,checksum:string|null,checksumAlgo:string|null,checksumHash:string|null}>}
  */
 export async function writeJsonObjectFile(filePath, input = {}) {
   const {
@@ -560,14 +569,16 @@ export async function writeJsonObjectFile(filePath, input = {}) {
     atomic = false,
     gzipOptions = null,
     highWaterMark = null,
-    signal = null
+    signal = null,
+    checksumAlgo = null
   } = input;
-  const { stream, done } = createJsonWriteStream(filePath, {
+  const { stream, done, getBytesWritten, getChecksum, checksumAlgo: resolvedChecksumAlgo } = createJsonWriteStream(filePath, {
     compression,
     atomic,
     gzipOptions,
     highWaterMark,
-    signal
+    signal,
+    checksumAlgo
   });
   try {
     await writeChunk(stream, '{');
@@ -591,6 +602,13 @@ export async function writeJsonObjectFile(filePath, input = {}) {
     if (trailingNewline) await writeChunk(stream, '\n');
     stream.end();
     await done;
+    const checksum = typeof getChecksum === 'function' ? getChecksum() : null;
+    return {
+      bytes: Number.isFinite(getBytesWritten?.()) ? getBytesWritten() : 0,
+      checksum: checksum || null,
+      checksumAlgo: resolvedChecksumAlgo || null,
+      checksumHash: checksum && resolvedChecksumAlgo ? `${resolvedChecksumAlgo}:${checksum}` : null
+    };
   } catch (err) {
     try { stream.destroy(err); } catch {}
     try { await done; } catch {}

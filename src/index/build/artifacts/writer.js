@@ -83,6 +83,7 @@ export const createArtifactWriter = ({
           ...payload,
           compression,
           gzipOptions: compressionGzipOptions,
+          checksumAlgo: 'sha1',
           atomic: true
         }),
         { priority, estimatedBytes }
@@ -94,7 +95,7 @@ export const createArtifactWriter = ({
         const rawPath = artifactPath(base, false);
         enqueueWrite(
           formatArtifactLabel(rawPath),
-          () => writeJsonObjectFile(rawPath, { ...payload, atomic: true }),
+          () => writeJsonObjectFile(rawPath, { ...payload, checksumAlgo: 'sha1', atomic: true }),
           { priority, estimatedBytes }
         );
         if (piece) {
@@ -106,7 +107,7 @@ export const createArtifactWriter = ({
     const rawPath = artifactPath(base, false);
     enqueueWrite(
       formatArtifactLabel(rawPath),
-      () => writeJsonObjectFile(rawPath, { ...payload, atomic: true }),
+      () => writeJsonObjectFile(rawPath, { ...payload, checksumAlgo: 'sha1', atomic: true }),
       { priority, estimatedBytes }
     );
     if (piece) {
@@ -133,6 +134,7 @@ export const createArtifactWriter = ({
         () => writeJsonArrayFile(gzPath, items, {
           compression,
           gzipOptions: compressionGzipOptions,
+          checksumAlgo: 'sha1',
           atomic: true
         }),
         { priority, estimatedBytes }
@@ -144,7 +146,7 @@ export const createArtifactWriter = ({
         const rawPath = artifactPath(base, false);
         enqueueWrite(
           formatArtifactLabel(rawPath),
-          () => writeJsonArrayFile(rawPath, items, { atomic: true }),
+          () => writeJsonArrayFile(rawPath, items, { checksumAlgo: 'sha1', atomic: true }),
           { priority, estimatedBytes }
         );
         if (piece) {
@@ -156,7 +158,7 @@ export const createArtifactWriter = ({
     const rawPath = artifactPath(base, false);
     enqueueWrite(
       formatArtifactLabel(rawPath),
-      () => writeJsonArrayFile(rawPath, items, { atomic: true }),
+      () => writeJsonArrayFile(rawPath, items, { checksumAlgo: 'sha1', atomic: true }),
       { priority, estimatedBytes }
     );
     if (piece) {
@@ -180,11 +182,11 @@ export const createArtifactWriter = ({
     const estimateArraySerializationMs = (rows) => {
       if (!Array.isArray(rows) || !rows.length) return 0;
       const sampleSize = Math.min(rows.length, 128);
-      const startedAt = Date.now();
+      const startedAtNs = process.hrtime.bigint();
       for (let index = 0; index < sampleSize; index += 1) {
         JSON.stringify(rows[index]);
       }
-      const elapsedMs = Math.max(0, Date.now() - startedAt);
+      const elapsedMs = Number(process.hrtime.bigint() - startedAtNs) / 1_000_000;
       if (elapsedMs <= 0) return 0;
       return Math.ceil((elapsedMs / sampleSize) * rows.length);
     };
@@ -253,6 +255,7 @@ export const createArtifactWriter = ({
               ...(predictedSerializeMs > 0 ? { predictedSerializeMs } : {})
             }
           },
+          checksumAlgo: 'sha1',
           atomic: true
         });
         for (let i = 0; i < result.parts.length; i += 1) {

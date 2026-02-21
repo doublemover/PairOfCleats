@@ -1860,35 +1860,35 @@ Exit criteria:
       - Touchpoints: `src/index/build/artifacts-write.js`, `src/index/build/artifacts/writers/*`, `src/shared/json-stream.js`, and `src/shared/artifact-io/*` (prefer shared helpers over new local utilities).
       - Acceptance target: huge-repo write phase should eliminate >60s single-artifact tails; aim for no single required artifact exceeding 30s wall time in `swift`/`opencv` huge runs.
       - Validation: add/extend artifact write contract + perf tests under `tests/indexing/artifacts/*` and `tests/perf/indexing/artifacts/*`, including strict validation and deterministic output parity checks.
-  4.  [ ] Stream field_postings directly to sharded outputs without first materializing the full in-memory object.
+  4.  [x] Stream field_postings directly to sharded outputs without first materializing the full in-memory object.
       - Touchpoints: `src/index/build/artifacts-write.js`, `src/index/build/artifacts/writers/*`, `src/shared/json-stream.js`, and `src/shared/artifact-io/*` (prefer shared helpers over new local utilities).
       - Acceptance target: huge-repo write phase should eliminate >60s single-artifact tails; aim for no single required artifact exceeding 30s wall time in `swift`/`opencv` huge runs.
       - Validation: add/extend artifact write contract + perf tests under `tests/indexing/artifacts/*` and `tests/perf/indexing/artifacts/*`, including strict validation and deterministic output parity checks.
-  5.  [ ] Emit optional field_postings binary-columnar form for faster write and load paths on huge repos.
+  5.  [x] Emit optional field_postings binary-columnar form for faster write and load paths on huge repos.
       - Touchpoints: `src/index/build/artifacts-write.js`, `src/index/build/artifacts/writers/*`, `src/shared/json-stream.js`, and `src/shared/artifact-io/*` (prefer shared helpers over new local utilities).
       - Acceptance target: huge-repo write phase should eliminate >60s single-artifact tails; aim for no single required artifact exceeding 30s wall time in `swift`/`opencv` huge runs.
       - Validation: add/extend artifact write contract + perf tests under `tests/indexing/artifacts/*` and `tests/perf/indexing/artifacts/*`, including strict validation and deterministic output parity checks.
-  6.  [ ] Add chunked field_postings merge writer that writes per-field partitions as they’re produced.
+  6.  [x] Add chunked field_postings merge writer that writes per-field partitions as they’re produced.
       - Touchpoints: `src/index/build/artifacts-write.js`, `src/index/build/artifacts/writers/*`, `src/shared/json-stream.js`, and `src/shared/artifact-io/*` (prefer shared helpers over new local utilities).
       - Acceptance target: huge-repo write phase should eliminate >60s single-artifact tails; aim for no single required artifact exceeding 30s wall time in `swift`/`opencv` huge runs.
       - Validation: add/extend artifact write contract + perf tests under `tests/indexing/artifacts/*` and `tests/perf/indexing/artifacts/*`, including strict validation and deterministic output parity checks.
-  7.  [ ] Add adaptive shard count for field_postings based on estimated bytes and disk throughput profile.
+  7.  [x] Add adaptive shard count for field_postings based on estimated bytes and disk throughput profile.
       - Touchpoints: `src/index/build/artifacts-write.js`, `src/index/build/artifacts/writers/*`, `src/shared/json-stream.js`, and `src/shared/artifact-io/*` (prefer shared helpers over new local utilities).
       - Acceptance target: huge-repo write phase should eliminate >60s single-artifact tails; aim for no single required artifact exceeding 30s wall time in `swift`/`opencv` huge runs.
       - Validation: add/extend artifact write contract + perf tests under `tests/indexing/artifacts/*` and `tests/perf/indexing/artifacts/*`, including strict validation and deterministic output parity checks.
-  8.  [ ] Add adaptive shard count for chunk_meta based on row count and measured write throughput.
+  8.  [x] Add adaptive shard count for chunk_meta based on row count and measured write throughput.
       - Touchpoints: `src/index/build/artifacts-write.js`, `src/index/build/artifacts/writers/*`, `src/shared/json-stream.js`, and `src/shared/artifact-io/*` (prefer shared helpers over new local utilities).
       - Acceptance target: huge-repo write phase should eliminate >60s single-artifact tails; aim for no single required artifact exceeding 30s wall time in `swift`/`opencv` huge runs.
       - Validation: add/extend artifact write contract + perf tests under `tests/indexing/artifacts/*` and `tests/perf/indexing/artifacts/*`, including strict validation and deterministic output parity checks.
-  9.  [ ] Start chunk_meta.binary-columnar generation as soon as hot rows are available, not after all other writes enqueue.
+  9.  [x] Start chunk_meta.binary-columnar generation as soon as hot rows are available, not after all other writes enqueue.
       - Touchpoints: `src/index/build/artifacts-write.js`, `src/index/build/artifacts/writers/*`, `src/shared/json-stream.js`, and `src/shared/artifact-io/*` (prefer shared helpers over new local utilities).
       - Acceptance target: huge-repo write phase should eliminate >60s single-artifact tails; aim for no single required artifact exceeding 30s wall time in `swift`/`opencv` huge runs.
       - Validation: add/extend artifact write contract + perf tests under `tests/indexing/artifacts/*` and `tests/perf/indexing/artifacts/*`, including strict validation and deterministic output parity checks.
-  10. [ ] Add a “write tail rescue” mode that temporarily boosts tokens for the last 2-3 stalled artifacts.
+  10. [x] Add a “write tail rescue” mode that temporarily boosts tokens for the last 2-3 stalled artifacts.
       - Touchpoints: `src/index/build/artifacts-write.js`, `src/index/build/artifacts/writers/*`, `src/shared/json-stream.js`, and `src/shared/artifact-io/*` (prefer shared helpers over new local utilities).
       - Acceptance target: huge-repo write phase should eliminate >60s single-artifact tails; aim for no single required artifact exceeding 30s wall time in `swift`/`opencv` huge runs.
       - Validation: add/extend artifact write contract + perf tests under `tests/indexing/artifacts/*` and `tests/perf/indexing/artifacts/*`, including strict validation and deterministic output parity checks.
-  11. [ ] Add per-artifact serialization-vs-disk timing split to identify CPU-bound vs IO-bound stalls.
+  11. [x] Add per-artifact serialization-vs-disk timing split to identify CPU-bound vs IO-bound stalls.
       - Touchpoints: `src/index/build/artifacts-write.js`, `src/index/build/artifacts/writers/*`, `src/shared/json-stream.js`, and `src/shared/artifact-io/*` (prefer shared helpers over new local utilities).
       - Acceptance target: huge-repo write phase should eliminate >60s single-artifact tails; aim for no single required artifact exceeding 30s wall time in `swift`/`opencv` huge runs.
       - Validation: add/extend artifact write contract + perf tests under `tests/indexing/artifacts/*` and `tests/perf/indexing/artifacts/*`, including strict validation and deterministic output parity checks.
@@ -1900,7 +1900,7 @@ Exit criteria:
       - Touchpoints: `src/index/build/artifacts-write.js`, `src/index/build/artifacts/writers/*`, `src/shared/json-stream.js`, and `src/shared/artifact-io/*` (prefer shared helpers over new local utilities).
       - Acceptance target: huge-repo write phase should eliminate >60s single-artifact tails; aim for no single required artifact exceeding 30s wall time in `swift`/`opencv` huge runs.
       - Validation: add/extend artifact write contract + perf tests under `tests/indexing/artifacts/*` and `tests/perf/indexing/artifacts/*`, including strict validation and deterministic output parity checks.
-  14. [ ] Add direct FD streaming for the largest artifact paths to reduce intermediate buffer churn.
+  14. [x] Add direct FD streaming for the largest artifact paths to reduce intermediate buffer churn.
       - Touchpoints: `src/index/build/artifacts-write.js`, `src/index/build/artifacts/writers/*`, `src/shared/json-stream.js`, and `src/shared/artifact-io/*` (prefer shared helpers over new local utilities).
       - Acceptance target: huge-repo write phase should eliminate >60s single-artifact tails; aim for no single required artifact exceeding 30s wall time in `swift`/`opencv` huge runs.
       - Validation: add/extend artifact write contract + perf tests under `tests/indexing/artifacts/*` and `tests/perf/indexing/artifacts/*`, including strict validation and deterministic output parity checks.
@@ -1916,7 +1916,7 @@ Exit criteria:
       - Touchpoints: `src/index/build/artifacts-write.js`, `src/index/build/artifacts/writers/*`, `src/shared/json-stream.js`, and `src/shared/artifact-io/*` (prefer shared helpers over new local utilities).
       - Acceptance target: huge-repo write phase should eliminate >60s single-artifact tails; aim for no single required artifact exceeding 30s wall time in `swift`/`opencv` huge runs.
       - Validation: add/extend artifact write contract + perf tests under `tests/indexing/artifacts/*` and `tests/perf/indexing/artifacts/*`, including strict validation and deterministic output parity checks.
-  18. [ ] Add streaming checksum computation during artifact write instead of second-pass reads.
+  18. [x] Add streaming checksum computation during artifact write instead of second-pass reads.
       - Touchpoints: `src/index/build/artifacts-write.js`, `src/index/build/artifacts/writers/*`, `src/shared/json-stream.js`, and `src/shared/artifact-io/*` (prefer shared helpers over new local utilities).
       - Acceptance target: huge-repo write phase should eliminate >60s single-artifact tails; aim for no single required artifact exceeding 30s wall time in `swift`/`opencv` huge runs.
       - Validation: add/extend artifact write contract + perf tests under `tests/indexing/artifacts/*` and `tests/perf/indexing/artifacts/*`, including strict validation and deterministic output parity checks.

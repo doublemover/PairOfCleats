@@ -957,7 +957,9 @@ export const enqueueChunkMetaArtifacts = async ({
         // Start binary-columnar generation early so it overlaps other long
         // artifact writes instead of becoming the final tail.
         priority: 225,
-        estimatedBytes: binaryColumnarEstimatedBytes
+        estimatedBytes: binaryColumnarEstimatedBytes,
+        eagerStart: true,
+        laneHint: 'massive'
       }
     );
     addPieceFile({

@@ -25,23 +25,37 @@ export const writePiecesManifest = async ({
     Math.min(4, sortedEntries.length),
     async (entry) => {
       const absPath = path.join(outDir, fromPosix(entry.path));
-      let bytes = null;
+      let bytes = Number.isFinite(Number(entry?.bytes))
+        ? Math.max(0, Number(entry.bytes))
+        : null;
       let checksum = null;
       let checksumAlgo = null;
       let statError = null;
       let checksumError = null;
+      let stat = null;
       try {
-        const stat = await fs.stat(absPath);
-        bytes = stat.size;
+        stat = await fs.stat(absPath);
       } catch (err) {
         throw new Error(`Pieces manifest failed to stat ${entry.path}: ${err?.message || err}`);
       }
-      try {
-        const result = await checksumFile(absPath);
-        checksum = result?.value || null;
-        checksumAlgo = result?.algo || null;
-      } catch (err) {
-        throw new Error(`Pieces manifest failed to checksum ${entry.path}: ${err?.message || err}`);
+      if (!Number.isFinite(bytes)) {
+        bytes = stat.size;
+      }
+      if (typeof entry?.checksum === 'string' && entry.checksum.includes(':')) {
+        const [algo, value] = entry.checksum.split(':');
+        if (algo && value) {
+          checksumAlgo = String(algo).trim().toLowerCase();
+          checksum = String(value).trim().toLowerCase();
+        }
+      }
+      if (!checksum || !checksumAlgo) {
+        try {
+          const result = await checksumFile(absPath);
+          checksum = result?.value || null;
+          checksumAlgo = result?.algo || null;
+        } catch (err) {
+          throw new Error(`Pieces manifest failed to checksum ${entry.path}: ${err?.message || err}`);
+        }
       }
       if (!checksum || !checksumAlgo) {
         throw new Error(`Pieces manifest missing checksum for ${entry.path}`);
