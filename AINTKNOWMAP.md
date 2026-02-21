@@ -980,9 +980,9 @@ Intent: strict deterministic contracts and guardrails.
 
 #### 1.1 Contract versioning and strict schema enforcement
 
-- [ ] Align active contract-versioning rules with existing release discipline and schema-version helpers.
-- [ ] Require strict schema validation for active versions.
-- [ ] Remove stale fields/spec clauses during the cutover, do not keep compatibility aliases.
+- [x] Align active contract-versioning rules with existing release discipline and schema-version helpers.
+- [x] Require strict schema validation for active versions.
+- [x] Remove stale fields/spec clauses during the cutover, do not keep compatibility aliases.
 
 Touchpoints:
 
@@ -994,13 +994,13 @@ Touchpoints:
 
 Tests:
 
-- [ ] Update contract parser tests to strict active-schema expectations.
+- [x] Update contract parser tests to strict active-schema expectations.
 
 #### 1.2 Path normalization policy (storage vs IO)
 
-- [ ] Enforce one canonical stored path format (`/` separators).
-- [ ] Enforce explicit normalization boundaries at IO edges.
-- [ ] Remove conflicting path-handling behaviors.
+- [x] Enforce one canonical stored path format (`/` separators).
+- [x] Enforce explicit normalization boundaries at IO edges.
+- [x] Remove conflicting path-handling behaviors.
 
 Touchpoints:
 
@@ -1011,12 +1011,12 @@ Touchpoints:
 
 Tests:
 
-- [ ] Drive-letter, UNC, and POSIX normalization tests with strict expected outputs.
+- [x] Drive-letter, UNC, and POSIX normalization tests with strict expected outputs.
 
 #### 1.3 Deterministic serialization and hashing
 
-- [ ] Enforce stable JSON ordering for all hashed artifacts.
-- [ ] Define canonical hash inputs and remove ambiguous fields.
+- [x] Enforce stable JSON ordering for all hashed artifacts.
+- [x] Define canonical hash inputs and remove ambiguous fields.
 
 Touchpoints:
 
@@ -1025,13 +1025,13 @@ Touchpoints:
 
 Tests:
 
-- [ ] Repeated-run hash stability tests.
+- [x] Repeated-run hash stability tests.
 
 #### 1.4 Spec contract consolidation
 
-- [ ] Harden the existing unified guardrail entrypoint (`tools/ci/run-suite.js`) and keep all contract checks registered through it.
-- [ ] Require each guardrail to define scope and remediation command.
-- [ ] Remove duplicated/overlapping guardrail checks.
+- [x] Harden the existing unified guardrail entrypoint (`tools/ci/run-suite.js`) and keep all contract checks registered through it.
+- [x] Require each guardrail to define scope and remediation command.
+- [x] Remove duplicated/overlapping guardrail checks.
 
 Touchpoints:
 
@@ -1042,13 +1042,13 @@ Touchpoints:
 
 Tests:
 
-- [ ] Guardrail registry coverage test.
+- [x] Guardrail registry coverage test.
 
 Exit criteria:
 
-- [ ] Active contracts are strict, deterministic, and fully tested.
-- [ ] Path and serialization policy is singular and enforced.
-- [ ] Guardrails are unified.
+- [x] Active contracts are strict, deterministic, and fully tested.
+- [x] Path and serialization policy is singular and enforced.
+- [x] Guardrails are unified.
 
 ---
 
@@ -1188,11 +1188,11 @@ Intent: deterministic artifact writing with strict validators.
 
 #### 3.1 Deterministic trimming policy
 
-- [ ] Add a shared trimming helper and use it across writers.
-- [ ] Define one deterministic trim order.
-- [ ] Emit trim counters in stats.
-- [ ] Emit trim policy metadata required by contract (`trimPolicyVersion`, `trimReasonCounts`, deterministic reason taxonomy).
-- [ ] Align writer outputs with `docs/contracts/artifact-trimming-policy.md` and schema index references.
+- [x] Add a shared trimming helper and use it across writers.
+- [x] Define one deterministic trim order.
+- [x] Emit trim counters in stats.
+- [x] Emit trim policy metadata required by contract (`trimPolicyVersion`, `trimReasonCounts`, deterministic reason taxonomy).
+- [x] Align writer outputs with `docs/contracts/artifact-trimming-policy.md` and schema index references.
 
 Touchpoints:
 
@@ -1206,15 +1206,15 @@ Touchpoints:
 
 Tests:
 
-- [ ] Oversized-row trim determinism tests per writer.
-- [ ] Required-field invariants after trim.
-- [ ] Trim counter emission tests.
+- [x] Oversized-row trim determinism tests per writer.
+- [x] Required-field invariants after trim.
+- [x] Trim counter emission tests.
 
 #### 3.2 Determinism report
 
-- [ ] Emit `determinism_report.json` with source reasons.
-- [ ] Update validators to require this artifact where configured.
-- [ ] Remove ambiguous nondeterministic-field handling.
+- [x] Emit `determinism_report.json` with source reasons.
+- [x] Update validators to require this artifact where configured.
+- [x] Remove ambiguous nondeterministic-field handling.
 
 Touchpoints:
 
@@ -1225,11 +1225,11 @@ Touchpoints:
 
 Tests:
 
-- [ ] Determinism report schema and emission tests.
+- [x] Determinism report schema and emission tests.
 
 Exit criteria:
 
-- [ ] Trim and determinism behaviors are strict and validator-enforced.
+- [x] Trim and determinism behaviors are strict and validator-enforced.
 
 ---
 
@@ -1239,8 +1239,8 @@ Intent: deterministic output contracts and strict behavior.
 
 #### 4.1 Search startup performance
 
-- [ ] Harden existing startup checkpoint reporting (`startup.backend`, `startup.search`) and freeze deterministic stage schema.
-- [ ] Remove slow init paths from `search --help` and search fast paths.
+- [x] Harden existing startup checkpoint reporting (`startup.backend`, `startup.search`) and freeze deterministic stage schema.
+- [x] Remove slow init paths from `search --help` and search fast paths.
 
 Touchpoints:
 
@@ -1251,14 +1251,14 @@ Touchpoints:
 
 Tests:
 
-- [ ] Startup checkpoint ordering test.
-- [ ] Search help fastpath test.
+- [x] Startup checkpoint ordering test.
+- [x] Search help fastpath test.
 
 #### 4.2 Explain schema normalization
 
-- [ ] Define strict explain schema with explicit version.
-- [ ] Enforce deterministic field ordering.
-- [ ] Remove stale explain fields and docs.
+- [x] Define strict explain schema with explicit version.
+- [x] Enforce deterministic field ordering.
+- [x] Remove stale explain fields and docs.
 
 Touchpoints:
 
@@ -1269,13 +1269,13 @@ Touchpoints:
 
 Tests:
 
-- [ ] Explain schema validation tests.
-- [ ] Explain snapshot updates.
+- [x] Explain schema validation tests.
+- [x] Explain snapshot updates.
 
 #### 4.3 Graph ranking controls
 
-- [ ] Keep one `--graph-ranking` behavior.
-- [ ] Enforce membership invariant strictly.
+- [x] Keep one `--graph-ranking` behavior.
+- [x] Enforce membership invariant strictly.
 
 Touchpoints:
 
@@ -1286,14 +1286,14 @@ Touchpoints:
 
 Tests:
 
-- [ ] Graph ranking toggle tests.
-- [ ] Membership invariant tests.
+- [x] Graph ranking toggle tests.
+- [x] Membership invariant tests.
 
 #### 4.4 Search output overhaul
 
-- [ ] Implement deterministic human output modes.
-- [ ] Implement strict JSON output contract with version field.
-- [ ] Gate heavy fields explicitly and remove ambiguous defaults.
+- [x] Implement deterministic human output modes.
+- [x] Implement strict JSON output contract with version field.
+- [x] Gate heavy fields explicitly and remove ambiguous defaults.
 
 Touchpoints:
 
@@ -1304,13 +1304,13 @@ Touchpoints:
 
 Tests:
 
-- [ ] Human and JSON snapshot updates.
-- [ ] Deterministic ordering tests.
+- [x] Human and JSON snapshot updates.
+- [x] Deterministic ordering tests.
 
 #### 4.5 Impact analysis strictness
 
-- [ ] Enforce strict empty-input behavior with stable error code.
-- [ ] Remove permissive empty-input behavior.
+- [x] Enforce strict empty-input behavior with stable error code.
+- [x] Remove permissive empty-input behavior.
 
 Touchpoints:
 
@@ -1320,11 +1320,11 @@ Touchpoints:
 
 Tests:
 
-- [ ] Strict empty-input error tests.
+- [x] Strict empty-input error tests.
 
 Exit criteria:
 
-- [ ] Search/graph behaviors are strict, deterministic, and reflected in updated specs/tests.
+- [x] Search/graph behaviors are strict, deterministic, and reflected in updated specs/tests.
 
 ---
 
@@ -1757,12 +1757,12 @@ Exit criteria:
 Intent: evaluate acceleration and, if adopted, cut over cleanly without dual runtime paths.
 #### 10.1 Feasibility and decision
 
-- [ ] Define ABI strategy and parity harness.
-- [ ] Define explicit ABI/runtime boundary contract: ownership model, allocation/free responsibility, panic/error isolation, cancellation semantics.
-- [ ] Define versioned runtime negotiation handshake (`abiVersion`, runtime kind, feature bits) and deterministic failure modes for mismatches.
-- [ ] Define deterministic fallback semantics when native runtime is unavailable/invalid so retrieval behavior remains contract-stable.
-- [ ] Reconcile existing native-accel specs with executable harness and measurable acceptance criteria.
-- [ ] Decide go/no-go with explicit acceptance criteria.
+- [x] Define ABI strategy and parity harness.
+- [x] Define explicit ABI/runtime boundary contract: ownership model, allocation/free responsibility, panic/error isolation, cancellation semantics.
+- [x] Define versioned runtime negotiation handshake (`abiVersion`, runtime kind, feature bits) and deterministic failure modes for mismatches.
+- [x] Define deterministic fallback semantics when native runtime is unavailable/invalid so retrieval behavior remains contract-stable.
+- [x] Reconcile existing native-accel specs with executable harness and measurable acceptance criteria.
+- [x] Decide go/no-go with explicit acceptance criteria.
 
 Touchpoints:
 
@@ -1776,15 +1776,15 @@ Touchpoints:
 
 Tests:
 
-- [ ] `tests/retrieval/native/feasibility-parity-harness.test.js` (new)
-- [ ] `tests/retrieval/native/abi-handshake-version-mismatch.test.js` (new)
-- [ ] `tests/retrieval/native/fallback-contract.test.js` (new)
+- [x] `tests/retrieval/native/feasibility-parity-harness.test.js` (new)
+- [x] `tests/retrieval/native/abi-handshake-version-mismatch.test.js` (new)
+- [x] `tests/retrieval/native/fallback-contract.test.js` (new)
 
 #### 10.1b If no-go: closure and cleanup
 
-- [ ] Remove or archive experimental native acceleration scaffolding introduced during feasibility work.
-- [ ] Freeze the no-go decision in active specs/docs and update capability surfaces so runtime selection remains single-path.
-- [ ] Keep parity harness artifacts for auditability, but mark acceleration implementation tasks as closed-not-adopted.
+- [x] Remove or archive experimental native acceleration scaffolding introduced during feasibility work.
+- [x] Freeze the no-go decision in active specs/docs and update capability surfaces so runtime selection remains single-path.
+- [x] Keep parity harness artifacts for auditability, but mark acceleration implementation tasks as closed-not-adopted.
 
 Touchpoints:
 
@@ -1797,29 +1797,29 @@ Touchpoints:
 
 Tests:
 
-- [ ] No-go capability surface tests (native runtime disabled/absent still matches canonical behavior).
-- [ ] No-go docs/spec consistency tests.
+- [x] No-go capability surface tests (native runtime disabled/absent still matches canonical behavior).
+- [x] No-go docs/spec consistency tests.
 
 #### 10.2 If go: hard cutover plan
 
-- [ ] Implement bitmap/top-k/ANN/worker acceleration with deterministic contracts.
-- [ ] Enforce ABI boundary wrappers with explicit ownership/lifetime rules and deterministic panic/error mapping.
-- [ ] Enforce canonical native-result serialization ordering before parity comparison/output handoff.
-- [ ] Enforce deterministic cancellation and shutdown resource cleanup in native worker paths.
-- [ ] Remove superseded codepaths in the same cutover.
-- [ ] Update retrieval specs/tests to active behavior only.
+- [x] Implement bitmap/top-k/ANN/worker acceleration with deterministic contracts. (N/A: no-go decision)
+- [x] Enforce ABI boundary wrappers with explicit ownership/lifetime rules and deterministic panic/error mapping. (N/A: no-go decision)
+- [x] Enforce canonical native-result serialization ordering before parity comparison/output handoff. (N/A: no-go decision)
+- [x] Enforce deterministic cancellation and shutdown resource cleanup in native worker paths. (N/A: no-go decision)
+- [x] Remove superseded codepaths in the same cutover. (N/A: no-go decision)
+- [x] Update retrieval specs/tests to active behavior only. (N/A: no-go decision)
 
 Tests:
 
-- [ ] `tests/retrieval/native/bitmap-equivalence.test.js` (new)
-- [ ] `tests/retrieval/native/topk-equivalence.test.js` (new)
-- [ ] `tests/retrieval/native/topk-adversarial-tie-parity.test.js` (new)
-- [ ] `tests/retrieval/native/ann-equivalence.test.js` (new)
-- [ ] `tests/retrieval/native/ann-preflight-error-taxonomy.test.js` (new)
-- [ ] `tests/retrieval/native/worker-offload-equivalence.test.js` (new)
-- [ ] `tests/retrieval/native/worker-cancel.test.js` (new)
-- [ ] `tests/retrieval/native/panic-isolation.test.js` (new)
-- [ ] `tests/retrieval/native/resource-cleanup-determinism.test.js` (new)
+- [x] `tests/retrieval/native/bitmap-equivalence.test.js` (new) (N/A: no-go decision)
+- [x] `tests/retrieval/native/topk-equivalence.test.js` (new) (N/A: no-go decision)
+- [x] `tests/retrieval/native/topk-adversarial-tie-parity.test.js` (new) (N/A: no-go decision)
+- [x] `tests/retrieval/native/ann-equivalence.test.js` (new) (N/A: no-go decision)
+- [x] `tests/retrieval/native/ann-preflight-error-taxonomy.test.js` (new) (N/A: no-go decision)
+- [x] `tests/retrieval/native/worker-offload-equivalence.test.js` (new) (N/A: no-go decision)
+- [x] `tests/retrieval/native/worker-cancel.test.js` (new) (N/A: no-go decision)
+- [x] `tests/retrieval/native/panic-isolation.test.js` (new) (N/A: no-go decision)
+- [x] `tests/retrieval/native/resource-cleanup-determinism.test.js` (new) (N/A: no-go decision)
 
 Touchpoints:
 
@@ -1832,7 +1832,7 @@ Touchpoints:
 
 Exit criteria:
 
-- [ ] Decision made and implemented as a single active path.
+- [x] Decision made and implemented as a single active path.
 
 ---
 
