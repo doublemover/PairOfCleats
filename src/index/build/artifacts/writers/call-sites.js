@@ -8,8 +8,14 @@ import {
 import { sha1 } from '../../../../shared/hash.js';
 import { fromPosix } from '../../../../shared/files.js';
 import { buildCallSiteId } from '../../../callsite-id.js';
-import { createOffsetsMeta } from '../helpers.js';
+import {
+  createOffsetsMeta,
+  createTrimStats,
+  recordArtifactTelemetry,
+  recordTrimStats
+} from '../helpers.js';
 import { applyByteBudget } from '../../byte-budget.js';
+import { buildTrimMetadata, TRIM_REASONS } from '../trim-policy.js';
 import {
   buildJsonlVariantPaths,
   buildShardedPartEntries,
@@ -24,6 +30,9 @@ const MAX_ARG_TEXT_LEN = 80;
 const MAX_EVIDENCE_ITEMS = 6;
 const MAX_EVIDENCE_LEN = 32;
 const MAX_ROW_BYTES = 32768;
+const measureRowBytes = (row) => (
+  Buffer.byteLength(JSON.stringify(row), 'utf8') + 1
+);
 
 const normalizeText = (value) => {
   if (value === null || value === undefined) return '';
@@ -75,23 +84,38 @@ const buildSnippetHash = (calleeRaw, args) => {
 };
 
 const maybeTrimRow = (row) => {
-  const byteLength = Buffer.byteLength(JSON.stringify(row), 'utf8');
-  if (byteLength <= MAX_ROW_BYTES) return row;
+  const byteLength = measureRowBytes(row);
+  if (byteLength <= MAX_ROW_BYTES) {
+    return { row, trimmed: false, trimReasons: [] };
+  }
+  const trimReasons = [TRIM_REASONS.rowOversize];
   const trimmed = { ...row };
   if (Array.isArray(trimmed.args) && trimmed.args.length) {
     trimmed.args = [];
+    trimReasons.push(TRIM_REASONS.callSitesClearArgs);
   }
   if (Array.isArray(trimmed.evidence) && trimmed.evidence.length) {
     trimmed.evidence = [];
+    trimReasons.push(TRIM_REASONS.callSitesClearEvidence);
   }
-  if (trimmed.kwargs) trimmed.kwargs = null;
-  if (trimmed.snippetHash) trimmed.snippetHash = null;
-  const nextBytes = Buffer.byteLength(JSON.stringify(trimmed), 'utf8');
-  if (nextBytes <= MAX_ROW_BYTES) return trimmed;
-  return null;
+  if (trimmed.kwargs) {
+    trimmed.kwargs = null;
+    trimReasons.push(TRIM_REASONS.callSitesClearKwargs);
+  }
+  if (trimmed.snippetHash) {
+    trimmed.snippetHash = null;
+    trimReasons.push(TRIM_REASONS.callSitesClearSnippetHash);
+  }
+  const nextBytes = measureRowBytes(trimmed);
+  if (nextBytes <= MAX_ROW_BYTES) return { row: trimmed, trimmed: true, trimReasons };
+  return {
+    row: null,
+    trimmed: false,
+    trimReasons: [...trimReasons, TRIM_REASONS.dropRowOverBudget]
+  };
 };
 
-const buildCallSiteRow = ({ chunk, detail }) => {
+const buildCallSiteRow = ({ chunk, detail, stats }) => {
   const calleeRaw = normalizeText(detail.calleeRaw || detail.callee);
   const calleeNormalized = normalizeText(detail.calleeNormalized) || deriveCalleeNormalized(calleeRaw);
   const file = normalizeText(chunk.file);
@@ -134,7 +158,17 @@ const buildCallSiteRow = ({ chunk, detail }) => {
     targetCandidates: Array.isArray(detail.targetCandidates) ? detail.targetCandidates.filter(Boolean) : [],
     snippetHash: detail.snippetHash || buildSnippetHash(calleeRaw, args)
   };
-  return maybeTrimRow(row);
+  const trimmedResult = maybeTrimRow(row);
+  if (!trimmedResult.row) {
+    recordTrimStats(stats, { dropped: true, trimReasons: trimmedResult.trimReasons });
+    return null;
+  }
+  recordTrimStats(stats, {
+    rowBytes: measureRowBytes(trimmedResult.row),
+    trimmed: trimmedResult.trimmed,
+    trimReasons: trimmedResult.trimReasons
+  });
+  return trimmedResult.row;
 };
 
 const sortCallSites = (rows) => {
@@ -152,7 +186,7 @@ const sortCallSites = (rows) => {
   return rows;
 };
 
-export const createCallSites = ({ chunks }) => {
+export const createCallSites = ({ chunks, stats = null } = {}) => {
   const rows = [];
   for (const chunk of chunks || []) {
     const details = Array.isArray(chunk?.codeRelations?.callDetails)
@@ -160,7 +194,7 @@ export const createCallSites = ({ chunks }) => {
       : [];
     if (!details.length) continue;
     for (const detail of details) {
-      const row = buildCallSiteRow({ chunk, detail });
+      const row = buildCallSiteRow({ chunk, detail, stats });
       if (row) rows.push(row);
     }
   }
@@ -181,11 +215,13 @@ export const enqueueCallSitesArtifacts = ({
   log = null,
   stageCheckpoints
 }) => {
-  const rows = createCallSites({ chunks: state?.chunks || [] });
+  const stats = createTrimStats();
+  const rows = createCallSites({ chunks: state?.chunks || [], stats });
   if (!rows.length && !forceEmpty) return null;
 
   const resolvedMaxBytes = Number.isFinite(Number(maxJsonBytes)) ? Math.floor(Number(maxJsonBytes)) : 0;
   const { totalBytes, maxLineBytes } = measureJsonlRows(rows);
+  const trimMetadata = buildTrimMetadata(stats);
   const jsonlExtension = resolveJsonlExtension(compression);
   const callSitesPath = path.join(outDir, `call_sites.${jsonlExtension}`);
   const callSitesMetaPath = path.join(outDir, 'call_sites.meta.json');
@@ -201,12 +237,26 @@ export const enqueueCallSitesArtifacts = ({
     throw new Error(`call_sites row exceeds max JSON size (${maxLineBytes} bytes).`);
   }
   const useShards = resolvedMaxBytes && totalBytes > resolvedMaxBytes;
-  applyByteBudget({
+  const budgetInfo = applyByteBudget({
     budget: byteBudget,
     totalBytes,
     label: 'call_sites',
     stageCheckpoints,
     logger: log
+  });
+  recordArtifactTelemetry(stageCheckpoints, {
+    stage: 'stage2',
+    artifact: 'call_sites',
+    rows: stats.totalRows || rows.length,
+    bytes: totalBytes,
+    maxRowBytes: Math.max(maxLineBytes, stats.maxRowBytes || 0),
+    trimmedRows: stats.trimmedRows || 0,
+    droppedRows: stats.droppedRows || 0,
+    extra: {
+      format: useShards ? 'jsonl-sharded' : 'jsonl',
+      budget: budgetInfo,
+      trim: trimMetadata
+    }
   });
   if (!useShards) {
     enqueueWrite(
@@ -279,7 +329,10 @@ export const enqueueCallSitesArtifacts = ({
         compression,
         result,
         parts,
-        extensions: offsetsMeta ? { offsets: offsetsMeta } : undefined
+        extensions: {
+          trim: trimMetadata,
+          ...(offsetsMeta ? { offsets: offsetsMeta } : {})
+        }
       });
       for (let i = 0; i < result.parts.length; i += 1) {
         const relPath = result.parts[i];
