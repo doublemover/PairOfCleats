@@ -1058,26 +1058,26 @@ Intent: deterministic releases, reproducible packaging, and strict platform beha
 
 #### 2.1 Deterministic release-check
 
-- [ ] Keep `tools/release/check.js` canonical (current baseline: changelog + essential blockers), then extend it into full deterministic release validation.
-- [ ] Add `npm run release-check`.
-- [ ] Enforce fixed smoke sequence:
-  - [ ] `pairofcleats --version`
-  - [ ] fixture index build
-  - [ ] fixture index validate (`--strict`)
-  - [ ] fixture search
-  - [ ] editor package smoke checks
-  - [ ] service-mode smoke checks
-- [ ] Emit `release_check_report.json` with stable schema and ISO timestamps.
-- [ ] Emit `release-manifest.json` with checksums and artifact inventory.
-- [ ] Run contract/spec drift checks as part of release-check flow before smoke steps.
-- [ ] Remove permissive modes that skip required checks.
+- [x] Keep `tools/release/check.js` canonical (current baseline: changelog + essential blockers), then extend it into full deterministic release validation.
+- [x] Add `npm run release-check`.
+- [x] Enforce fixed smoke sequence:
+  - [x] `pairofcleats --version`
+  - [x] fixture index build
+  - [x] fixture index validate (`--strict`)
+  - [x] fixture search
+  - [x] editor package smoke checks
+  - [x] service-mode smoke checks
+- [x] Emit `release_check_report.json` with stable schema and ISO timestamps.
+- [x] Emit `release-manifest.json` with checksums and artifact inventory.
+- [x] Run contract/spec drift checks as part of release-check flow before smoke steps.
+- [x] Remove permissive modes that skip required checks.
 
 Tests:
 
-- [ ] `tests/tooling/release-check/smoke.test.js`
-- [ ] `tests/tooling/release-check/report-schema.test.js`
-- [ ] `tests/tooling/release-check/exit-codes.test.js`
-- [ ] `tests/tooling/release-check/deterministic-order.test.js`
+- [x] `tests/tooling/release-check/smoke.test.js`
+- [x] `tests/tooling/release-check/report-schema.test.js`
+- [x] `tests/tooling/release-check/exit-codes.test.js`
+- [x] `tests/tooling/release-check/deterministic-order.test.js`
 
 
 Touchpoints:
@@ -1088,17 +1088,17 @@ Touchpoints:
 - `docs/guides/release-discipline.md`
 #### 2.2 Cross-platform path safety
 
-- [ ] Audit release-critical path joins and normalization.
-- [ ] Replace brittle concatenation with path-safe helpers.
-- [ ] Enforce path behavior for spaces, drive letters, mixed separators, UNC.
+- [x] Audit release-critical path joins and normalization.
+- [x] Replace brittle concatenation with path-safe helpers.
+- [x] Enforce path behavior for spaces, drive letters, mixed separators, UNC.
 
 Tests:
 
-- [ ] `tests/tooling/paths/paths-with-spaces.test.js`
-- [ ] `tests/tooling/paths/windows-paths-smoke.test.js`
-- [ ] `tests/tooling/paths/path-edge-cases.test.js`
-- [ ] `tests/tooling/paths/windows-drive-letter-normalization.test.js`
-- [ ] `tests/tooling/paths/mixed-separators-cli.test.js`
+- [x] `tests/tooling/paths/paths-with-spaces.test.js`
+- [x] `tests/tooling/paths/windows-paths-smoke.test.js`
+- [x] `tests/tooling/paths/path-edge-cases.test.js`
+- [x] `tests/tooling/paths/windows-drive-letter-normalization.test.js`
+- [x] `tests/tooling/paths/mixed-separators-cli.test.js`
 
 
 Touchpoints:
@@ -1109,24 +1109,24 @@ Touchpoints:
 - `docs/guides/path-handling.md`
 #### 2.3 Reproducible editor packaging
 
-- [ ] Implement deterministic Sublime packaging (`tools/package-sublime.js`).
-- [ ] Implement deterministic VS Code packaging (`tools/package-vscode.js`).
-- [ ] Enforce deterministic archive layout rules (stable entry ordering, normalized root prefix, normalized path separators).
-- [ ] Normalize archive metadata (`mtime`, `uid/gid`, mode bits) and enforce fixed compression method/level for reproducible outputs across hosts.
-- [ ] Emit and verify per-archive checksum manifests during packaging runs.
-- [ ] Enforce pinned packaging toolchains.
-- [ ] Fail packaging jobs when required toolchains are unavailable.
-- [ ] Update editor integration docs to reflect active packaging flow.
+- [x] Implement deterministic Sublime packaging (`tools/package-sublime.js`).
+- [x] Implement deterministic VS Code packaging (`tools/package-vscode.js`).
+- [x] Enforce deterministic archive layout rules (stable entry ordering, normalized root prefix, normalized path separators).
+- [x] Normalize archive metadata (`mtime`, `uid/gid`, mode bits) and enforce fixed compression method/level for reproducible outputs across hosts.
+- [x] Emit and verify per-archive checksum manifests during packaging runs.
+- [x] Enforce pinned packaging toolchains.
+- [x] Fail packaging jobs when required toolchains are unavailable.
+- [x] Update editor integration docs to reflect active packaging flow.
 
 Tests:
 
-- [ ] `tests/tooling/sublime/package-structure.test.js`
-- [ ] `tests/tooling/sublime/package-determinism.test.js`
-- [ ] `tests/tooling/vscode/extension-packaging.test.js`
-- [ ] `tests/tooling/vscode/vscode-extension.test.js` (updated)
-- [ ] Create `tests/tooling/vscode/toolchain-missing-policy.test.js` with strict missing-toolchain failure expectations.
-- [ ] `tests/tooling/sublime/package-archive-metadata.test.js` (new)
-- [ ] `tests/tooling/vscode/package-archive-metadata.test.js` (new)
+- [x] `tests/tooling/sublime/package-structure.test.js`
+- [x] `tests/tooling/sublime/package-determinism.test.js`
+- [x] `tests/tooling/vscode/extension-packaging.test.js`
+- [x] `tests/tooling/vscode/vscode-extension.test.js` (updated)
+- [x] Create `tests/tooling/vscode/toolchain-missing-policy.test.js` with strict missing-toolchain failure expectations.
+- [x] `tests/tooling/sublime/package-archive-metadata.test.js` (new)
+- [x] `tests/tooling/vscode/package-archive-metadata.test.js` (new)
 
 
 Touchpoints:
@@ -1140,15 +1140,15 @@ Touchpoints:
 - `sublime/`
 #### 2.4 Python toolchain policy
 
-- [ ] Decide and document whether Python is a required runtime dependency for local tooling flows.
-- [ ] If required, enforce preflight failure when missing.
-- [ ] Remove skip-based semantics from core tooling paths.
-- [ ] Keep optional best-effort behavior only in explicitly optional commands.
+- [x] Decide and document whether Python is a required runtime dependency for local tooling flows.
+- [x] If required, enforce preflight failure when missing.
+- [x] Remove skip-based semantics from core tooling paths.
+- [x] Keep optional best-effort behavior only in explicitly optional commands.
 
 Tests:
 
-- [ ] Update `tests/tooling/sublime/sublime-pycompile.test.js` for strict policy.
-- [ ] Update Python tooling tests to reflect required-toolchain behavior.
+- [x] Update `tests/tooling/sublime/sublime-pycompile.test.js` for strict policy.
+- [x] Update Python tooling tests to reflect required-toolchain behavior.
 
 
 Touchpoints:
@@ -1159,13 +1159,13 @@ Touchpoints:
 - `package.json`
 #### 2.5 Service-mode bundle and enforcement
 
-- [ ] Define canonical one-command service-mode run path.
-- [ ] Document required env, queue paths, and security defaults.
-- [ ] Make service-mode smoke part of standard release validation flow.
+- [x] Define canonical one-command service-mode run path.
+- [x] Document required env, queue paths, and security defaults.
+- [x] Make service-mode smoke part of standard release validation flow.
 
 Tests:
 
-- [ ] `tests/services/service-mode-smoke.test.js`
+- [x] `tests/services/service-mode-smoke.test.js`
 
 
 Touchpoints:
@@ -1177,8 +1177,8 @@ Touchpoints:
 
 Exit criteria:
 
-- [ ] Release-check and platform safety behaviors are deterministic and enforced.
-- [ ] Packaging and service-mode checks are mandatory in standard release validation.
+- [x] Release-check and platform safety behaviors are deterministic and enforced.
+- [x] Packaging and service-mode checks are mandatory in standard release validation.
 
 ---
 
@@ -1334,9 +1334,9 @@ Intent: strict SCM/workspace contracts and deterministic manifests.
 
 #### 5.1 SCM provider contract
 
-- [ ] Define strict provider return contracts for git/jj.
-- [ ] Enforce deterministic failure behavior for unavailable SCM.
-- [ ] Remove inconsistent provider edge behavior.
+- [x] Define strict provider return contracts for git/jj.
+- [x] Enforce deterministic failure behavior for unavailable SCM.
+- [x] Remove inconsistent provider edge behavior.
 
 Touchpoints:
 
@@ -1347,14 +1347,14 @@ Touchpoints:
 
 Tests:
 
-- [ ] Provider shape tests.
-- [ ] Unavailable-SCM deterministic failure tests.
+- [x] Provider shape tests.
+- [x] Unavailable-SCM deterministic failure tests.
 
 #### 5.2 Workspace manifest/config
 
-- [ ] Enforce strict schema validation for workspace config/manifest.
-- [ ] Emit deterministic `workspace_manifest.json`.
-- [ ] Document one canonical emission flow.
+- [x] Enforce strict schema validation for workspace config/manifest.
+- [x] Emit deterministic `workspace_manifest.json`.
+- [x] Document one canonical emission flow.
 
 Touchpoints:
 
@@ -1365,12 +1365,12 @@ Touchpoints:
 
 Tests:
 
-- [ ] Workspace schema validation tests.
-- [ ] Manifest determinism tests.
+- [x] Workspace schema validation tests.
+- [x] Manifest determinism tests.
 
 Exit criteria:
 
-- [ ] SCM/workspace contracts are strict and deterministic.
+- [x] SCM/workspace contracts are strict and deterministic.
 
 ---
 
@@ -1380,8 +1380,8 @@ Intent: strict test telemetry and profiling contracts.
 
 #### 6.1 Timings ledger and watchdog
 
-- [ ] Harden existing `--log-times` / `--timings-file` output into a versioned schema with strict field guarantees.
-- [ ] Add hung-test watchdog with enforced behavior.
+- [x] Harden existing `--log-times` / `--timings-file` output into a versioned schema with strict field guarantees.
+- [x] Add hung-test watchdog with enforced behavior.
 
 Touchpoints:
 
@@ -1393,16 +1393,16 @@ Touchpoints:
 
 Tests:
 
-- [ ] Runner format/path tests.
-- [ ] Watchdog behavior tests.
+- [x] Runner format/path tests.
+- [x] Watchdog behavior tests.
 
 #### 6.2 Coverage integration
 
-- [ ] Implement `--coverage`, `--coverage-merge`, and `--coverage-changed` in `tests/run.js`.
-- [ ] Define a versioned coverage artifact schema and deterministic merge ordering (normalized repo-relative `/` paths + stable file ordering).
-- [ ] Enforce coverage artifact schema validation in contract validators (not docs only).
-- [ ] Enforce documented output locations and schema.
-- [ ] Normalize all coverage paths before write/merge to eliminate platform-dependent path drift.
+- [x] Implement `--coverage`, `--coverage-merge`, and `--coverage-changed` in `tests/run.js`.
+- [x] Define a versioned coverage artifact schema and deterministic merge ordering (normalized repo-relative `/` paths + stable file ordering).
+- [x] Enforce coverage artifact schema validation in contract validators (not docs only).
+- [x] Enforce documented output locations and schema.
+- [x] Normalize all coverage paths before write/merge to eliminate platform-dependent path drift.
 
 Touchpoints:
 
@@ -1416,17 +1416,17 @@ Touchpoints:
 
 Tests:
 
-- [ ] Coverage flag parsing tests.
-- [ ] Coverage merge tests.
-- [ ] Coverage path-normalization determinism tests.
-- [ ] Coverage artifact schema validation tests.
+- [x] Coverage flag parsing tests.
+- [x] Coverage merge tests.
+- [x] Coverage path-normalization determinism tests.
+- [x] Coverage artifact schema validation tests.
 
 #### 6.3 Profiling hooks
 
-- [ ] Implement and enforce `--profile` output contract in the test runner.
-- [ ] Emit deterministic `profile.json` schema with explicit version, normalized path fields, fixed time units, and stable key ordering.
-- [ ] Enforce profile artifact schema validation in contract validators (not docs only).
-- [ ] Enforce deterministic numeric formatting/rounding for timing fields to avoid host-dependent serialization drift.
+- [x] Implement and enforce `--profile` output contract in the test runner.
+- [x] Emit deterministic `profile.json` schema with explicit version, normalized path fields, fixed time units, and stable key ordering.
+- [x] Enforce profile artifact schema validation in contract validators (not docs only).
+- [x] Enforce deterministic numeric formatting/rounding for timing fields to avoid host-dependent serialization drift.
 
 Touchpoints:
 
@@ -1442,13 +1442,13 @@ Touchpoints:
 
 Tests:
 
-- [ ] Profile artifact contract tests.
-- [ ] Profile path/time normalization determinism tests.
-- [ ] Profile artifact schema validation tests.
+- [x] Profile artifact contract tests.
+- [x] Profile path/time normalization determinism tests.
+- [x] Profile artifact schema validation tests.
 
 Exit criteria:
 
-- [ ] Runner/coverage/profile outputs are stable and documented.
+- [x] Runner/coverage/profile outputs are stable and documented.
 
 ---
 
@@ -1458,8 +1458,8 @@ Intent: strict CLI routing and error-code consistency.
 
 #### 7.1 Ingest CLI wrappers
 
-- [ ] Add and enforce `pairofcleats ingest <ctags|gtags|lsif|scip>` routes in `bin/pairofcleats.js` (current ingest scripts are separate commands).
-- [ ] Update ingest docs and command inventory.
+- [x] Add and enforce `pairofcleats ingest <ctags|gtags|lsif|scip>` routes in `bin/pairofcleats.js` (current ingest scripts are separate commands).
+- [x] Update ingest docs and command inventory.
 
 Touchpoints:
 
@@ -1476,12 +1476,12 @@ Touchpoints:
 
 Tests:
 
-- [ ] CLI routing tests per ingest tool.
+- [x] CLI routing tests per ingest tool.
 
 #### 7.2 Error telemetry consistency
 
-- [ ] Enforce one error code registry and namespace strategy.
-- [ ] Attach `code + hint` consistently across CLI/API/MCP error payloads.
+- [x] Enforce one error code registry and namespace strategy.
+- [x] Attach `code + hint` consistently across CLI/API/MCP error payloads.
 
 Touchpoints:
 
@@ -1492,11 +1492,11 @@ Touchpoints:
 
 Tests:
 
-- [ ] API/MCP/CLI error contract tests.
+- [x] API/MCP/CLI error contract tests.
 
 Exit criteria:
 
-- [ ] Ingest and error telemetry surfaces are strict and uniform.
+- [x] Ingest and error telemetry surfaces are strict and uniform.
 
 ---
 
@@ -1536,18 +1536,18 @@ Intent: strict protocol boundary and deterministic orchestration.
 
 #### 9.0 Preparation: tool contract and kill-tree unification
 
-- [ ] Reconcile and freeze `docs/specs/tui-tool-contract.md` against actual supervisor/tool behavior.
-- [ ] Bootstrap missing TUI/supervisor scaffolding directories (`tools/tui/`, `tests/tui/`) and command wrapper entrypoints.
-- [ ] Enforce stdout/stderr contracts for all supervisor-driven tools.
-- [ ] Add shared kill-tree helper (`src/shared/kill-tree.js`) and replace fragmented implementations.
-- [ ] Add stdout guard (`src/shared/cli/stdout-guard.js`).
+- [x] Reconcile and freeze `docs/specs/tui-tool-contract.md` against actual supervisor/tool behavior.
+- [x] Bootstrap missing TUI/supervisor scaffolding directories (`tools/tui/`, `tests/tui/`) and command wrapper entrypoints.
+- [x] Enforce stdout/stderr contracts for all supervisor-driven tools.
+- [x] Add shared kill-tree helper (`src/shared/kill-tree.js`) and replace fragmented implementations.
+- [x] Add stdout guard (`src/shared/cli/stdout-guard.js`).
 
 Tests:
 
-- [ ] `tests/shared/kill-tree.posix.test.js`
-- [ ] `tests/shared/kill-tree.windows.test.js`
-- [ ] `tests/tooling/install/setup-json-output.test.js`
-- [ ] `tests/tooling/install/bootstrap-json-output.test.js`
+- [x] `tests/shared/kill-tree.posix.test.js`
+- [x] `tests/shared/kill-tree.windows.test.js`
+- [x] `tests/tooling/install/setup-json-output.test.js`
+- [x] `tests/tooling/install/bootstrap-json-output.test.js`
 
 
 Touchpoints:
@@ -1559,10 +1559,10 @@ Touchpoints:
 - `src/shared/subprocess.js`
 #### 9.1 Protocol v2, context propagation, shared decoder
 
-- [ ] Reconcile `docs/specs/progress-protocol-v2.md` with runtime implementation and enforce it strictly in code.
-- [ ] Enforce strict `proto: "poc.progress@2"` event parsing.
-- [ ] Add `PAIROFCLEATS_PROGRESS_CONTEXT` propagation.
-- [ ] Implement `src/shared/cli/progress-stream.js` with strict line framing and size cap.
+- [x] Reconcile `docs/specs/progress-protocol-v2.md` with runtime implementation and enforce it strictly in code.
+- [x] Enforce strict `proto: "poc.progress@2"` event parsing.
+- [x] Add `PAIROFCLEATS_PROGRESS_CONTEXT` propagation.
+- [x] Implement `src/shared/cli/progress-stream.js` with strict line framing and size cap.
 
 Touchpoints:
 
@@ -1575,22 +1575,22 @@ Touchpoints:
 
 Tests:
 
-- [ ] `tests/tui/protocol-v2-schema.test.js`
-- [ ] `tests/tui/protocol-v2-ordering.test.js`
-- [ ] parser/decoder/context propagation tests
+- [x] `tests/tui/protocol-v2-schema.test.js`
+- [x] `tests/tui/protocol-v2-ordering.test.js`
+- [x] parser/decoder/context propagation tests
 
 #### 9.2 Node supervisor lifecycle model
 
-- [ ] Use `docs/specs/node-supervisor-protocol.md` as canonical target and implement the missing supervisor runtime.
-- [ ] Implement `tools/tui/supervisor.js` with strict lifecycle states.
-- [ ] Enforce deterministic cancellation and child cleanup.
-- [ ] Emit structured lifecycle events.
+- [x] Use `docs/specs/node-supervisor-protocol.md` as canonical target and implement the missing supervisor runtime.
+- [x] Implement `tools/tui/supervisor.js` with strict lifecycle states.
+- [x] Enforce deterministic cancellation and child cleanup.
+- [x] Emit structured lifecycle events.
 
 Tests:
 
-- [ ] `tests/tui/supervisor-lifecycle-state-machine.test.js`
-- [ ] `tests/tui/supervisor-retry-policy.test.js`
-- [ ] supervisor stream discipline and cancellation integration tests
+- [x] `tests/tui/supervisor-lifecycle-state-machine.test.js`
+- [x] `tests/tui/supervisor-retry-policy.test.js`
+- [x] supervisor stream discipline and cancellation integration tests
 
 
 Touchpoints:
@@ -1601,20 +1601,20 @@ Touchpoints:
 - `src/shared/progress.js`
 #### 9.3 Dispatch reconciliation and artifact indexing pass
 
-- [ ] Implement dispatcher rewrite per `docs/specs/dispatcher-rewrite-and-search-reconciliation.md`.
-- [ ] Remove brittle search allowlists; keep one strict search argument surface.
-- [ ] Implement shared dispatch modules:
+- [x] Implement dispatcher rewrite per `docs/specs/dispatcher-rewrite-and-search-reconciliation.md`.
+- [x] Remove brittle search allowlists; keep one strict search argument surface.
+- [x] Implement shared dispatch modules:
   - `src/shared/dispatch/registry.js`
   - `src/shared/dispatch/manifest.js`
   - `src/shared/dispatch/resolve.js`
   - `src/shared/dispatch/env.js`
-- [ ] Implement artifact pass per `docs/specs/supervisor-artifacts-indexing-pass.md` and emit `job:artifacts`.
+- [x] Implement artifact pass per `docs/specs/supervisor-artifacts-indexing-pass.md` and emit `job:artifacts`.
 
 Tests:
 
-- [ ] `tests/dispatch/manifest-list.test.js`
-- [ ] `tests/dispatch/manifest-describe-search.test.js`
-- [ ] artifact indexing and search passthrough tests
+- [x] `tests/dispatch/manifest-list.test.js`
+- [x] `tests/dispatch/manifest-describe-search.test.js`
+- [x] artifact indexing and search passthrough tests
 
 
 Touchpoints:
@@ -1628,23 +1628,23 @@ Touchpoints:
 - `src/shared/dispatch/env.js` (new)
 #### 9.4 Rust Ratatui TUI MVP
 
-- [ ] Create `crates/pairofcleats-tui/` skeleton.
-- [ ] Implement supervisor handshake/run/cancel/shutdown integration.
-- [ ] Implement deterministic jobs/tasks/logs UI model.
-- [ ] Guarantee terminal restoration on normal and error exits.
-- [ ] Pin Rust toolchain + crate dependency versions and enforce lockfile-based reproducible builds.
-- [ ] Define deterministic target-triple to artifact-name mapping used by build, install, and wrapper resolution paths.
-- [ ] Integrate cross-platform TUI build flow in release tooling so produced artifacts/checksums are generated from one canonical pipeline.
-- [ ] Wire Node-side command and release integration for TUI build/install flows (command registry, package scripts, release-check inclusion).
+- [x] Create `crates/pairofcleats-tui/` skeleton.
+- [x] Implement supervisor handshake/run/cancel/shutdown integration.
+- [x] Implement deterministic jobs/tasks/logs UI model.
+- [x] Guarantee terminal restoration on normal and error exits.
+- [x] Pin Rust toolchain + crate dependency versions and enforce lockfile-based reproducible builds.
+- [x] Define deterministic target-triple to artifact-name mapping used by build, install, and wrapper resolution paths.
+- [x] Integrate cross-platform TUI build flow in release tooling so produced artifacts/checksums are generated from one canonical pipeline.
+- [x] Wire Node-side command and release integration for TUI build/install flows (command registry, package scripts, release-check inclusion).
 
 Tests:
 
-- [ ] Rust protocol decode tests
-- [ ] headless smoke test
-- [ ] cancel path integration
-- [ ] rendering responsiveness tests
-- [ ] target-triple artifact naming tests
-- [ ] toolchain pin/lockfile enforcement tests
+- [x] Rust protocol decode tests
+- [x] headless smoke test
+- [x] cancel path integration
+- [x] rendering responsiveness tests
+- [x] target-triple artifact naming tests
+- [x] toolchain pin/lockfile enforcement tests
 
 
 Touchpoints:
@@ -1663,15 +1663,15 @@ Touchpoints:
 - `bin/pairofcleats-tui.js` (new)
 #### 9.5 Cancellation and never-hang guarantees
 
-- [ ] Propagate cancellation/deadlines through all stages.
-- [ ] Enforce bounded shutdown and watchdog behavior.
-- [ ] Eliminate orphan process scenarios.
+- [x] Propagate cancellation/deadlines through all stages.
+- [x] Enforce bounded shutdown and watchdog behavior.
+- [x] Eliminate orphan process scenarios.
 
 Tests:
 
-- [ ] ignore-SIGTERM fixture
-- [ ] UI termination mid-job fixture
-- [ ] `tests/tui/cancel-propagation.test.js`
+- [x] ignore-SIGTERM fixture
+- [x] UI termination mid-job fixture
+- [x] `tests/tui/cancel-propagation.test.js`
 
 
 Touchpoints:
@@ -1682,25 +1682,25 @@ Touchpoints:
 - `src/shared/progress.js`
 #### 9.6 Install/distribution and observability
 
-- [ ] Implement deterministic TUI install and wrapper flow:
+- [x] Implement deterministic TUI install and wrapper flow:
   - `bin/pairofcleats-tui.js`
   - `tools/tui/install.js`
-- [ ] Define one canonical target manifest consumed by build, installer, and wrapper resolution.
-- [ ] Publish deterministic binaries and checksums for supported targets.
-- [ ] Implement and verify checksum and executable metadata before wrapper launch.
-- [ ] Fail wrapper with actionable error when binary is missing/invalid.
-- [ ] Enforce deterministic install layout/cache policy (stable directories, file naming, cleanup semantics).
-- [ ] Add replayable event logs and run correlation.
-- [ ] Add/update TUI docs:
+- [x] Define one canonical target manifest consumed by build, installer, and wrapper resolution.
+- [x] Publish deterministic binaries and checksums for supported targets.
+- [x] Implement and verify checksum and executable metadata before wrapper launch.
+- [x] Fail wrapper with actionable error when binary is missing/invalid.
+- [x] Enforce deterministic install layout/cache policy (stable directories, file naming, cleanup semantics).
+- [x] Add replayable event logs and run correlation.
+- [x] Add/update TUI docs:
   - `docs/specs/tui-installation.md`
   - `docs/guides/tui.md`
 
 Tests:
 
-- [ ] installer unit tests
-- [ ] wrapper behavior tests
-- [ ] `tests/tui/observability/session-correlation.test.js`
-- [ ] `tests/tui/observability/replay-determinism.test.js`
+- [x] installer unit tests
+- [x] wrapper behavior tests
+- [x] `tests/tui/observability/session-correlation.test.js`
+- [x] `tests/tui/observability/replay-determinism.test.js`
 
 Touchpoints:
 
@@ -1713,24 +1713,24 @@ Touchpoints:
 
 #### 9.7 TUI runtime throughput and interaction latency hardening
 
-- [ ] Implement supervisor-to-TUI credit-based backpressure with bounded queues and deterministic coalesce/drop policy under overload.
-- [ ] Implement viewport virtualization for jobs/tasks/log panes with ring-buffer retention and deterministic truncation semantics.
-- [ ] Implement frame scheduler with fixed render budget and dirty-region diff rendering to cap CPU under high event volume.
-- [ ] Implement oversized event/log payload chunking with deterministic reassembly and overflow behavior.
-- [ ] Implement persistent session snapshot/recovery (`last-state.json`) so TUI restores prior view state after restart.
-- [ ] Implement terminal capability negotiation (color/unicode/mouse/alt-screen) with deterministic degraded rendering modes.
-- [ ] Implement input throttling/debouncing for high key-repeat scenarios with deterministic command dispatch ordering.
-- [ ] Add in-TUI performance telemetry (event lag, render time, queue depth) and emit structured runtime metrics.
+- [x] Implement supervisor-to-TUI credit-based backpressure with bounded queues and deterministic coalesce/drop policy under overload.
+- [x] Implement viewport virtualization for jobs/tasks/log panes with ring-buffer retention and deterministic truncation semantics.
+- [x] Implement frame scheduler with fixed render budget and dirty-region diff rendering to cap CPU under high event volume.
+- [x] Implement oversized event/log payload chunking with deterministic reassembly and overflow behavior.
+- [x] Implement persistent session snapshot/recovery (`last-state.json`) so TUI restores prior view state after restart.
+- [x] Implement terminal capability negotiation (color/unicode/mouse/alt-screen) with deterministic degraded rendering modes.
+- [x] Implement input throttling/debouncing for high key-repeat scenarios with deterministic command dispatch ordering.
+- [x] Add in-TUI performance telemetry (event lag, render time, queue depth) and emit structured runtime metrics.
 
 Tests:
 
-- [ ] `tests/tui/backpressure-credit-protocol.test.js` (new)
-- [ ] `tests/tui/list-virtualization-determinism.test.js` (new)
-- [ ] `tests/tui/frame-budget-under-load.test.js` (new)
-- [ ] `tests/tui/oversized-event-chunking.test.js` (new)
-- [ ] `tests/tui/session-snapshot-recovery.test.js` (new)
-- [ ] `tests/tui/terminal-capability-fallback.test.js` (new)
-- [ ] `tests/tui/input-throttle-ordering.test.js` (new)
+- [x] `tests/tui/backpressure-credit-protocol.test.js` (new)
+- [x] `tests/tui/list-virtualization-determinism.test.js` (new)
+- [x] `tests/tui/frame-budget-under-load.test.js` (new)
+- [x] `tests/tui/oversized-event-chunking.test.js` (new)
+- [x] `tests/tui/session-snapshot-recovery.test.js` (new)
+- [x] `tests/tui/terminal-capability-fallback.test.js` (new)
+- [x] `tests/tui/input-throttle-ordering.test.js` (new)
 
 Touchpoints:
 
@@ -1747,8 +1747,8 @@ Touchpoints:
 
 Exit criteria:
 
-- [ ] TUI/supervisor protocol, lifecycle, cancellation, install, and observability are strict and fully validated.
-- [ ] TUI event throughput, frame latency, and backpressure behavior remain stable under sustained high-volume runs.
+- [x] TUI/supervisor protocol, lifecycle, cancellation, install, and observability are strict and fully validated.
+- [x] TUI event throughput, frame latency, and backpressure behavior remain stable under sustained high-volume runs.
 
 ---
 

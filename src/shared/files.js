@@ -64,6 +64,19 @@ export function isAbsolutePathAny(value) {
 }
 
 /**
+ * Detect UNC paths (e.g. `\\\\server\\share\\path`) with conservative checks.
+ * @param {string} value
+ * @returns {boolean}
+ */
+export function isUncPath(value) {
+  if (typeof value !== 'string') return false;
+  const text = value.replace(/\//g, '\\');
+  if (!text.startsWith('\\\\')) return false;
+  const parts = text.slice(2).split('\\').filter(Boolean);
+  return parts.length >= 2;
+}
+
+/**
  * Read a byte range from a file (synchronous).
  * @param {string} filePath
  * @param {number} start

@@ -2,6 +2,7 @@ import { writeProgressEvent } from './progress-events.js';
 import { normalizeProgressMode, resolveTerminal } from './display/terminal.js';
 import { formatCount } from './display/text.js';
 import { renderDisplay } from './display/render.js';
+import { getProgressContext } from '../env.js';
 
 export function createDisplay(options = {}) {
   const stream = options.stream || process.stderr;
@@ -26,6 +27,15 @@ export function createDisplay(options = {}) {
   const progressLogIntervalMs = Number.isFinite(options.progressLogIntervalMs)
     ? Math.max(100, Math.floor(options.progressLogIntervalMs))
     : 1000;
+  const progressContext = options.progressContext && typeof options.progressContext === 'object'
+    ? options.progressContext
+    : (getProgressContext() || null);
+  const contextPatch = progressContext && typeof progressContext === 'object'
+    ? {
+      ...(progressContext.runId ? { runId: progressContext.runId } : {}),
+      ...(progressContext.jobId ? { jobId: progressContext.jobId } : {})
+    }
+    : {};
 
   const state = {
     tasks: new Map(),
@@ -51,6 +61,7 @@ export function createDisplay(options = {}) {
 
   const writeJsonLog = (level, message, meta) => {
     writeProgressEvent(stream, 'log', {
+      ...contextPatch,
       level,
       message,
       meta: meta && typeof meta === 'object' ? meta : null
@@ -130,6 +141,7 @@ export function createDisplay(options = {}) {
   const emitTaskEvent = (event, task, extra = {}) => {
     if (!progressEnabled) return;
     writeProgressEvent(stream, event, {
+      ...contextPatch,
       taskId: task.id,
       name: task.name,
       current: task.current,

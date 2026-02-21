@@ -9,7 +9,7 @@ See `docs/config/inventory-notes.md` for ownership and overlap analysis.
 - Config keys: 295
 - Config leaf keys: 237
 - Public config keys: 2
-- Env vars: 115
+- Env vars: 124
 - Public env vars: 1
 - CLI flags: 317
 - Public CLI flags: 8
@@ -43,7 +43,7 @@ See `docs/config/inventory-notes.md` for ownership and overlap analysis.
 - PAIROFCLEATS_CACHE_METRICS_SAMPLE_RATE (2 files)
 - PAIROFCLEATS_CACHE_NAMESPACE (2 files)
 - PAIROFCLEATS_CACHE_REBUILD (3 files)
-- PAIROFCLEATS_CACHE_ROOT (95 files)
+- PAIROFCLEATS_CACHE_ROOT (99 files)
 - PAIROFCLEATS_COMPRESSION (2 files)
 - PAIROFCLEATS_DEBUG_CRASH (2 files)
 - PAIROFCLEATS_DEBUG_ORDERED (2 files)
@@ -75,6 +75,7 @@ See `docs/config/inventory-notes.md` for ownership and overlap analysis.
 - PAIROFCLEATS_NODE_OPTIONS (5 files)
 - PAIROFCLEATS_PREFER_MEMORY_BACKEND_ON_CACHE_HIT (2 files)
 - PAIROFCLEATS_PROFILE (3 files)
+- PAIROFCLEATS_PROGRESS_CONTEXT (4 files)
 - PAIROFCLEATS_QUERY_CACHE_MEMORY_FRESH_MS (2 files)
 - PAIROFCLEATS_QUERY_CACHE_PREWARM (2 files)
 - PAIROFCLEATS_QUERY_CACHE_PREWARM_MAX_ENTRIES (2 files)
@@ -114,7 +115,7 @@ See `docs/config/inventory-notes.md` for ownership and overlap analysis.
 - PAIROFCLEATS_SUITE_MODE (2 files)
 - PAIROFCLEATS_SUMMARY_CACHE_MAX (2 files)
 - PAIROFCLEATS_TEST_ALLOW_MISSING_COMPAT_KEY (5 files)
-- PAIROFCLEATS_TEST_ALLOW_TIMEOUT_TARGET (4 files)
+- PAIROFCLEATS_TEST_ALLOW_TIMEOUT_TARGET (5 files)
 - PAIROFCLEATS_TEST_API_STARTUP_TIMEOUT_MS (5 files)
 - PAIROFCLEATS_TEST_CACHE_SUFFIX (12 files)
 - PAIROFCLEATS_TEST_CODE_MAP_BUDGET_MS (2 files)
@@ -127,7 +128,7 @@ See `docs/config/inventory-notes.md` for ownership and overlap analysis.
 - PAIROFCLEATS_TEST_MAX_OLD_SPACE_MB (2 files)
 - PAIROFCLEATS_TEST_MCP_DELAY_MS (4 files)
 - PAIROFCLEATS_TEST_NODE_OPTIONS (2 files)
-- PAIROFCLEATS_TEST_PID_FILE (5 files)
+- PAIROFCLEATS_TEST_PID_FILE (6 files)
 - PAIROFCLEATS_TEST_RETRIES (4 files)
 - PAIROFCLEATS_TEST_SQLITE_P95_MAX_MS (2 files)
 - PAIROFCLEATS_TEST_STUB_DOCX_EXTRACT (7 files)
@@ -136,9 +137,17 @@ See `docs/config/inventory-notes.md` for ownership and overlap analysis.
 - PAIROFCLEATS_TEST_TANTIVY (2 files)
 - PAIROFCLEATS_TEST_THREADS (2 files)
 - PAIROFCLEATS_TEST_TIMEOUT_MS (4 files)
+- PAIROFCLEATS_TEST_WATCHDOG_MS (2 files)
 - PAIROFCLEATS_TESTING (15 files)
 - PAIROFCLEATS_THREADS (10 files)
 - PAIROFCLEATS_TRACE_ARTIFACT_IO (3 files)
+- PAIROFCLEATS_TUI_ALT_SCREEN (2 files)
+- PAIROFCLEATS_TUI_DIST_DIR (4 files)
+- PAIROFCLEATS_TUI_EVENT_LOG_DIR (5 files)
+- PAIROFCLEATS_TUI_INSTALL_ROOT (3 files)
+- PAIROFCLEATS_TUI_MOUSE (2 files)
+- PAIROFCLEATS_TUI_RUN_ID (5 files)
+- PAIROFCLEATS_TUI_UNICODE (2 files)
 - PAIROFCLEATS_UPDATE_SNAPSHOTS (2 files)
 - PAIROFCLEATS_UV_THREADPOOL_SIZE (5 files)
 - PAIROFCLEATS_VERBOSE (2 files)
@@ -161,7 +170,7 @@ additionalProperties, all, allow-unauthenticated, allowed-repo-roots, ann, ann-m
 ## CLI flags (duplicated across files)
 
 - repo (59 files)
-- json (50 files)
+- json (54 files)
 - out (38 files)
 - mode (30 files)
 - seed (15 files)
@@ -657,6 +666,10 @@ config, json, repo
 
 extensions, include-prose, min-count, out, repo
 
+### tools/dispatch/manifest.js
+
+json
+
 ### tools/download/dicts.js
 
 dir, force, lang, repo, sha256, update, url
@@ -747,11 +760,11 @@ cache-dir, collapse, focus, format, include, index-root, json, max-edges, max-fi
 
 ### tools/service/indexer-service.js
 
-command, concurrency, config, interval, mode, queue, reason, repo, stage, watch
+command, concurrency, config, interval, json, mode, queue, reason, repo, stage, watch
 
 ### tools/setup/bootstrap.js
 
-incremental, repo, skip-artifacts, skip-dicts, skip-index, skip-install, skip-tooling, validate-config, with-sqlite
+incremental, json, repo, skip-artifacts, skip-dicts, skip-index, skip-install, skip-tooling, validate-config, with-sqlite
 
 ### tools/setup/setup.js
 
@@ -788,6 +801,10 @@ code, evidence, expires, finding, justification, meta, record, repo, reviewer, s
 ### tools/triage/ingest.js
 
 build-index, in, incremental, meta, repo, source, stub-embeddings
+
+### tools/tui/install.js
+
+event-log-dir, install-root, json, target
 
 ### tools/workspace/catalog.js
 
@@ -1105,7 +1122,6 @@ tooling.vfs.tokenMode (string)
 
 Dynamic CLI options detected in these files; verify flags manually:
 
-- bin/pairofcleats.js
 - search.js
 - src/index/build/args.js
 - src/index/build/context-window.js
@@ -1130,6 +1146,7 @@ Dynamic CLI options detected in these files; verify flags manually:
 - src/retrieval/federation/coordinator.js
 - src/shared/cli-options.js
 - src/shared/cli.js
+- src/shared/dispatch/env.js
 - tests/indexing/chunking/chunker-options-forwarding.test.js
 - tests/indexing/tree-sitter/tree-sitter-chunk-cache-reuse.test.js
 - tests/indexing/tree-sitter/tree-sitter-memory-plateau.test.js

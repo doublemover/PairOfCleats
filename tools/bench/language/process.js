@@ -1,7 +1,7 @@
 import { runCommand } from '../../shared/cli-utils.js';
 import { spawnSubprocess } from '../../../src/shared/subprocess.js';
+import { createProgressLineDecoder } from '../../../src/shared/cli/progress-stream.js';
 import { parseProgressEventLine } from '../../../src/shared/cli/progress-events.js';
-import { normalizeEol } from '../../../src/shared/eol.js';
 
 export const createProcessRunner = ({
   appendLog,
@@ -88,31 +88,33 @@ export const createProcessRunner = ({
     };
     setActiveChild({ pid: null }, label);
     writeLog(`[start] ${label}`);
-    const carry = { stdout: '', stderr: '' };
     const handleLine = (line) => {
-      const event = parseProgressEventLine(line);
+      const event = line ? parseProgressEventLine(line, { strict: true }) : null;
       if (event && typeof onProgressEvent === 'function') {
         onProgressEvent(event);
         return;
       }
       appendLog(line);
     };
-    const handleChunk = (chunk, key) => {
-      const text = carry[key] + chunk.toString('utf8');
-      const normalized = normalizeEol(text);
-      const parts = normalized.split('\n');
-      carry[key] = parts.pop() || '';
-      for (const line of parts) handleLine(line);
-    };
+    const stdoutDecoder = createProgressLineDecoder({
+      strict: true,
+      onLine: ({ line }) => handleLine(line),
+      onOverflow: () => writeLog('[warn] truncated oversized stdout progress line')
+    });
+    const stderrDecoder = createProgressLineDecoder({
+      strict: true,
+      onLine: ({ line }) => handleLine(line),
+      onOverflow: () => writeLog('[warn] truncated oversized stderr progress line')
+    });
     try {
       const result = await spawnSubprocess(cmd, args, {
         ...spawnOptions,
         onSpawn: (child) => setActiveChild(child, label),
-        onStdout: (chunk) => handleChunk(chunk, 'stdout'),
-        onStderr: (chunk) => handleChunk(chunk, 'stderr')
+        onStdout: (chunk) => stdoutDecoder.push(chunk),
+        onStderr: (chunk) => stderrDecoder.push(chunk)
       });
-      if (carry.stdout) handleLine(carry.stdout);
-      if (carry.stderr) handleLine(carry.stderr);
+      stdoutDecoder.flush();
+      stderrDecoder.flush();
       const code = result.exitCode;
       writeLog(`[finish] ${label} code=${code}`);
       clearActiveChild({ pid: result.pid });

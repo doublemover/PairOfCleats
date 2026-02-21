@@ -6,6 +6,7 @@ import { sha1 } from '../shared/hash.js';
 import { stableStringify } from '../shared/stable-json.js';
 import { atomicWriteText } from '../shared/io/atomic-write.js';
 import { isAbsolutePathNative } from '../shared/files.js';
+import { validateWorkspaceManifest } from '../contracts/validators/workspace.js';
 import {
   getCacheRoot,
   getCurrentBuildInfo,
@@ -586,6 +587,10 @@ export const generateWorkspaceManifest = async (workspaceConfigOrPath, {
   };
 
   manifest.manifestHash = computeManifestHash(manifest);
+  const validation = validateWorkspaceManifest(manifest);
+  if (!validation.ok) {
+    throw new Error(`Workspace manifest schema validation failed: ${validation.errors.join('; ')}`);
+  }
   const outputPath = manifestPath || getWorkspaceManifestPath(workspaceConfig);
   if (write) {
     await atomicWriteText(outputPath, stableStringify(manifest), { newline: true });

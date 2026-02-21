@@ -2,6 +2,13 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { isAbsolutePathNative } from '../src/shared/files.js';
+import { stableStringify } from '../src/shared/stable-json.js';
+import { normalizePathForRepo } from '../src/shared/path-normalize.js';
+import {
+  validateTestCoverageArtifact,
+  validateTestTimingsArtifact,
+  validateTestProfileArtifact
+} from '../src/contracts/validators/test-artifacts.js';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { loadRunConfig, loadRunRules } from './runner/run-config.js';
 import {
@@ -29,6 +36,7 @@ import { runTests } from './runner/run-execution.js';
 import { summarizeResults } from './runner/run-results.js';
 import {
   buildJsonReport,
+  buildTimingsPayload,
   createInitReporter,
   createOrderedReporter,
   renderHeader,
@@ -39,6 +47,14 @@ import {
   writeTestRunTimes,
   writeTimings
 } from './runner/run-reporting.js';
+import {
+  buildCoverageArtifact,
+  collectV8CoverageEntries,
+  filterCoverageEntriesToChanged,
+  loadCoverageArtifactsFromPath,
+  mergeCoverageEntries,
+  writeCoverageArtifact
+} from '../tools/testing/coverage/index.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TESTS_DIR = path.join(ROOT, 'tests');
@@ -59,8 +75,15 @@ const INHERITED_PAIROFCLEATS_ENV_ALLOWLIST = new Set([
   'PAIROFCLEATS_TEST_ALLOW_MISSING_COMPAT_KEY',
   'PAIROFCLEATS_TEST_LOG_SILENT',
   'PAIROFCLEATS_TEST_ALLOW_TIMEOUT_TARGET',
-  'PAIROFCLEATS_TEST_PID_FILE'
+  'PAIROFCLEATS_TEST_PID_FILE',
+  'NODE_V8_COVERAGE'
 ]);
+
+const toRoundedMs = (value) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 0;
+  return Number(numeric.toFixed(3));
+};
 
 const scrubInheritedPairOfCleatsEnv = (env) => {
   if (!env || typeof env !== 'object') return;
@@ -335,6 +358,10 @@ const main = async () => {
     process.env.PAIROFCLEATS_TEST_THREADS ?? '',
     10
   );
+  const envWatchdog = Number.parseInt(
+    process.env.PAIROFCLEATS_TEST_WATCHDOG_MS ?? '',
+    10
+  );
 
   const defaultRetries = process.env.CI ? 1 : 0;
   const retries = resolveRetries({ cli: argv.retries, env: envRetries, defaultRetries });
@@ -364,6 +391,27 @@ const main = async () => {
   const runId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const runLogDir = logDir ? path.join(logDir, `run-${runId}`) : '';
   const timingsPath = argv['timings-file'] ? path.resolve(ROOT, argv['timings-file']) : '';
+  const hasCoverageFlag = process.argv.includes('--coverage');
+  const coverageRequested = hasCoverageFlag || Boolean(argv['coverage-merge']) || Boolean(argv['coverage-changed']);
+  const coverageDir = path.join(ROOT, '.c8', `run-${runId}`);
+  const coverageOutputPath = (() => {
+    const raw = typeof argv.coverage === 'string' ? argv.coverage.trim() : '';
+    if (raw) return isAbsolutePathNative(raw) ? raw : path.resolve(ROOT, raw);
+    return path.join(ROOT, '.c8', `coverage-${runId}.json`);
+  })();
+  const coverageMergePath = typeof argv['coverage-merge'] === 'string' && argv['coverage-merge'].trim()
+    ? path.resolve(ROOT, argv['coverage-merge'].trim())
+    : '';
+  const hasProfileFlag = process.argv.includes('--profile');
+  const profileRequested = hasProfileFlag || Boolean(argv.profile);
+  const profilePath = (() => {
+    const raw = typeof argv.profile === 'string' ? argv.profile.trim() : '';
+    if (raw) return isAbsolutePathNative(raw) ? raw : path.resolve(ROOT, raw);
+    return path.join(ROOT, '.testLogs', `profile-${runId}.json`);
+  })();
+  const watchdogMs = Number.isFinite(argv['watchdog-ms'])
+    ? Math.max(0, Math.floor(argv['watchdog-ms']))
+    : (Number.isFinite(envWatchdog) ? Math.max(0, Math.floor(envWatchdog)) : 0);
   const defaultJobs = Math.max(1, resolvePhysicalCores());
   const jobs = Number.isFinite(argv.jobs)
     ? Math.max(1, Math.floor(argv.jobs))
@@ -395,6 +443,11 @@ const main = async () => {
     : (Number.isFinite(envThreads) ? Math.max(1, Math.floor(envThreads)) : null);
   if (Number.isFinite(threadsOverride)) {
     baseEnv.PAIROFCLEATS_THREADS = String(threadsOverride);
+  }
+  if (coverageRequested) {
+    await fsPromises.rm(coverageDir, { recursive: true, force: true });
+    await fsPromises.mkdir(coverageDir, { recursive: true });
+    baseEnv.NODE_V8_COVERAGE = coverageDir;
   }
   const maxOldSpaceMb = Number.isFinite(argv['max-old-space-mb'])
     ? Math.max(256, Math.floor(argv['max-old-space-mb']))
@@ -455,7 +508,12 @@ const main = async () => {
     redoExitCodes: REDO_EXIT_CODES,
     maxOutputBytes: MAX_OUTPUT_BYTES,
     borderPattern: BORDER_PATTERN,
-    laneLabel
+    laneLabel,
+    watchdogMs,
+    watchdogState: {
+      triggered: false,
+      reason: null
+    }
   };
 
   context.initReporter = createInitReporter({ context });
@@ -516,10 +574,92 @@ const main = async () => {
   }
 
   if (timingsPath) {
-    await writeTimings({ timingsPath, results: finalResults, totalMs, runId });
+    const timingsArtifact = buildTimingsPayload({
+      results: finalResults,
+      totalMs,
+      runId,
+      watchdogState: context.watchdogState
+    });
+    const timingsValidation = validateTestTimingsArtifact(timingsArtifact);
+    if (!timingsValidation.ok) {
+      console.error(`timings artifact validation failed: ${timingsValidation.errors.join('; ')}`);
+      process.exit(2);
+    }
+    await writeTimings({
+      timingsPath,
+      payload: timingsArtifact
+    });
   }
   if (logTimesPath) {
     await writeTestRunTimes({ logTimesPath, results: finalResults });
+  }
+
+  if (coverageRequested) {
+    const coverageArtifacts = [];
+    if (coverageMergePath) {
+      coverageArtifacts.push(...await loadCoverageArtifactsFromPath(coverageMergePath));
+    }
+    const currentEntries = await collectV8CoverageEntries({
+      root: ROOT,
+      coverageDir
+    });
+    coverageArtifacts.push(buildCoverageArtifact({ runId, entries: currentEntries }));
+    let mergedEntries = mergeCoverageEntries(coverageArtifacts);
+    if (argv['coverage-changed']) {
+      mergedEntries = filterCoverageEntriesToChanged({ entries: mergedEntries, root: ROOT });
+    }
+    const coverageArtifact = buildCoverageArtifact({ runId, entries: mergedEntries });
+    const coverageValidation = validateTestCoverageArtifact(coverageArtifact);
+    if (!coverageValidation.ok) {
+      console.error(`coverage artifact validation failed: ${coverageValidation.errors.join('; ')}`);
+      process.exit(2);
+    }
+    const written = await writeCoverageArtifact({
+      artifact: coverageArtifact,
+      outputPath: coverageOutputPath
+    });
+    if (!argv.quiet) {
+      consoleStream.write(`coverage artifact: ${written}\n`);
+    }
+  }
+
+  if (profileRequested) {
+    const orderedTests = finalResults
+      .slice()
+      .sort((a, b) => String(a.id || '').localeCompare(String(b.id || '')))
+      .map((result) => ({
+        id: result.id,
+        path: normalizePathForRepo(result.relPath || '', ROOT, { stripDot: true }) || '',
+        lane: result.lane || '',
+        status: result.status,
+        durationMs: toRoundedMs(result.durationMs)
+      }));
+    const profileArtifact = {
+      schemaVersion: 1,
+      generatedAt: new Date().toISOString(),
+      runId,
+      pathPolicy: 'repo-relative-posix',
+      timeUnit: 'ms',
+      summary: {
+        totalMs: toRoundedMs(totalMs),
+        tests: orderedTests.length,
+        passed: orderedTests.filter((entry) => entry.status === 'passed').length,
+        failed: orderedTests.filter((entry) => entry.status === 'failed').length,
+        skipped: orderedTests.filter((entry) => entry.status === 'skipped').length,
+        watchdogTriggered: Boolean(context.watchdogState?.triggered)
+      },
+      tests: orderedTests
+    };
+    const profileValidation = validateTestProfileArtifact(profileArtifact);
+    if (!profileValidation.ok) {
+      console.error(`profile artifact validation failed: ${profileValidation.errors.join('; ')}`);
+      process.exit(2);
+    }
+    await fsPromises.mkdir(path.dirname(profilePath), { recursive: true });
+    await fsPromises.writeFile(profilePath, `${stableStringify(profileArtifact)}\n`, 'utf8');
+    if (!argv.quiet) {
+      consoleStream.write(`profile artifact: ${profilePath}\n`);
+    }
   }
 
   const timeoutCount = finalResults.filter((result) => result.timedOut).length;

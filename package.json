@@ -7,7 +7,8 @@
     "node": ">=24.13.0"
   },
   "bin": {
-    "pairofcleats": "bin/pairofcleats.js"
+    "pairofcleats": "bin/pairofcleats.js",
+    "pairofcleats-tui": "bin/pairofcleats-tui.js"
   },
   "description": "Hybrid semantic indexer and search utility for codebases",
   "scripts": {
@@ -27,6 +28,7 @@
     "generate-repo-dict": "node tools/dicts/generate-repo-dict.js",
     "tooling-detect": "node tools/tooling/detect.js",
     "tooling-install": "node tools/tooling/install.js",
+    "python:check": "node tools/tooling/python-check.js",
     "ctags-ingest": "node tools/ingest/ctags.js",
     "scip-ingest": "node tools/ingest/scip.js",
     "lsif-ingest": "node tools/ingest/lsif.js",
@@ -51,9 +53,13 @@
     "lexicon:validate": "node tools/lexicon/validate.js",
     "lexicon:report": "node tools/lexicon/report.js",
     "env:check": "node tools/ci/check-env-usage.js",
-    "release-check": "node tools/release/check.js",
-    "release-check:breaking": "node tools/release/check.js --breaking",
-    "release-check:blockers": "node tools/release/check.js --blockers-only",
+    "release-check": "node tools/release/check.js --report release_check_report.json --manifest release-manifest.json",
+    "release-check:breaking": "node tools/release/check.js --breaking --report release_check_report.json --manifest release-manifest.json",
+    "package-sublime": "node tools/package-sublime.js",
+    "package-vscode": "node tools/package-vscode.js",
+    "tui:supervisor": "node tools/tui/supervisor.js",
+    "tui:build": "node tools/tui/build.js --smoke",
+    "tui:install": "node tools/tui/install.js --json",
     "uninstall": "node tools/tooling/uninstall.js",
     "api-server": "node tools/api/server.js",
     "mcp-server": "node tools/mcp/server.js",

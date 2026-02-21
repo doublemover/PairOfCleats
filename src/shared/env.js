@@ -14,6 +14,23 @@ const normalizeOptionalBoolean = (value) => {
   return normalizeBoolean(text);
 };
 
+const normalizeProgressContext = (value) => {
+  const text = normalizeString(value);
+  if (!text) return null;
+  try {
+    const parsed = JSON.parse(text);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+    const runId = normalizeString(parsed.runId);
+    const jobId = normalizeString(parsed.jobId);
+    const out = {};
+    if (runId) out.runId = runId;
+    if (jobId) out.jobId = jobId;
+    return Object.keys(out).length ? out : null;
+  } catch {
+    return null;
+  }
+};
+
 const normalizeNumber = (value) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
@@ -113,7 +130,20 @@ export function getEnvConfig(env = process.env) {
     extensionsDir: normalizeString(env.PAIROFCLEATS_EXTENSIONS_DIR),
     mcpQueueMax: normalizeNumber(env.PAIROFCLEATS_MCP_QUEUE_MAX),
     mcpMaxBufferBytes: normalizeNumber(env.PAIROFCLEATS_MCP_MAX_BUFFER_BYTES),
-    mcpToolTimeoutMs: normalizeNumber(env.PAIROFCLEATS_MCP_TOOL_TIMEOUT_MS)
+    mcpToolTimeoutMs: normalizeNumber(env.PAIROFCLEATS_MCP_TOOL_TIMEOUT_MS),
+    progressContext: normalizeProgressContext(env.PAIROFCLEATS_PROGRESS_CONTEXT)
+  };
+}
+
+export function getProgressContext(env = process.env) {
+  return normalizeProgressContext(env.PAIROFCLEATS_PROGRESS_CONTEXT);
+}
+
+export function getTuiEnvConfig(env = process.env) {
+  return {
+    runId: normalizeString(env.PAIROFCLEATS_TUI_RUN_ID),
+    eventLogDir: normalizeString(env.PAIROFCLEATS_TUI_EVENT_LOG_DIR),
+    installRoot: normalizeString(env.PAIROFCLEATS_TUI_INSTALL_ROOT)
   };
 }
 

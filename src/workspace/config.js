@@ -4,6 +4,7 @@ import { readJsoncFile } from '../shared/jsonc.js';
 import { stableStringify } from '../shared/stable-json.js';
 import { sha1 } from '../shared/hash.js';
 import { createError, ERROR_CODES } from '../shared/error-codes.js';
+import { validateWorkspaceConfigResolved } from '../contracts/validators/workspace.js';
 import { getRepoId, resolveRepoRoot } from '../../tools/shared/dict-utils.js';
 import { normalizeIdentityPath, toRealPathSync } from './identity.js';
 
@@ -573,5 +574,20 @@ export const loadWorkspaceConfig = (workspacePath, {
     repoSetId: computeRepoSetId(reposResolved)
   };
   resolved.workspaceConfigHash = computeWorkspaceConfigHash(resolved);
+  const validation = validateWorkspaceConfigResolved(resolved);
+  if (!validation.ok) {
+    throwWorkspaceIssues(validation.errors.map((message, index) => (
+      createWorkspaceIssue(
+        WORKSPACE_ERROR_CODES.INVALID_SHAPE,
+        `Resolved workspace contract validation failed (${index + 1}/${validation.errors.length}): ${message}`,
+        {
+          path: '$',
+          field: 'workspace',
+          reason: 'schema',
+          hint: 'Update workspace loader output to match contract schema.'
+        }
+      )
+    )));
+  }
   return resolved;
 };

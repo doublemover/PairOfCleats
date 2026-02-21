@@ -26,6 +26,8 @@ const payload = await response.json();
 
 assert.equal(payload.ok, false, 'expected error payload');
 assert.ok(payload.code, 'expected error code in payload');
+assert.ok(payload.namespaceCode, 'expected namespaced error code in payload');
+assert.ok(typeof payload.hint === 'string' && payload.hint.length > 0, 'expected error hint in payload');
 
 server.close();
 if (typeof router.close === 'function') router.close();
