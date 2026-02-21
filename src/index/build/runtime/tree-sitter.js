@@ -75,8 +75,8 @@ export const resolveTreeSitterRuntime = (indexingConfig) => {
   );
   const heavyGrammarDefaults = {
     ...TREE_SITTER_CAPS_BASELINES,
-    tsx: TREE_SITTER_CAPS_BASELINES.typescript || { maxBytes: 320 * 1024, maxLines: 5000, maxParseMs: 1500 },
-    jsx: TREE_SITTER_CAPS_BASELINES.javascript || { maxBytes: 320 * 1024, maxLines: 5000, maxParseMs: 1500 },
+    tsx: { maxBytes: 288 * 1024, maxLines: 4200, maxParseMs: 1600 },
+    jsx: { maxBytes: 256 * 1024, maxLines: 3600, maxParseMs: 1400 },
     cpp: TREE_SITTER_CAPS_BASELINES.clike || { maxBytes: 512 * 1024, maxLines: 8000, maxParseMs: 2200 },
     objc: TREE_SITTER_CAPS_BASELINES.clike || { maxBytes: 512 * 1024, maxLines: 8000, maxParseMs: 2200 }
   };

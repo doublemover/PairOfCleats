@@ -49,7 +49,7 @@ const DEFAULT_BASELINE = Object.freeze({ maxBytes: 256 * 1024, maxLines: 4000, m
 const LANGUAGE_BASELINE_OVERRIDES = Object.freeze({
   clike: Object.freeze({ maxBytes: 640 * 1024, maxLines: 10000, maxParseMs: 2600 }),
   cmake: Object.freeze({ maxBytes: 320 * 1024, maxLines: 5000, maxParseMs: 1500 }),
-  javascript: Object.freeze({ maxBytes: 320 * 1024, maxLines: 5000, maxParseMs: 1500 }),
+  javascript: Object.freeze({ maxBytes: 320 * 1024, maxLines: 5200, maxParseMs: 1500 }),
   dockerfile: Object.freeze({ maxBytes: 288 * 1024, maxLines: 4500, maxParseMs: 1200 }),
   dart: Object.freeze({ maxBytes: 384 * 1024, maxLines: 6500, maxParseMs: 1800 }),
   makefile: Object.freeze({ maxBytes: 320 * 1024, maxLines: 5500, maxParseMs: 1200 }),
@@ -62,7 +62,13 @@ const LANGUAGE_BASELINE_OVERRIDES = Object.freeze({
   r: Object.freeze({ maxBytes: 320 * 1024, maxLines: 5500, maxParseMs: 1600 }),
   scala: Object.freeze({ maxBytes: 448 * 1024, maxLines: 7000, maxParseMs: 1900 }),
   starlark: Object.freeze({ maxBytes: 384 * 1024, maxLines: 6000, maxParseMs: 1700 }),
-  typescript: Object.freeze({ maxBytes: 320 * 1024, maxLines: 5000, maxParseMs: 1500 }),
+  typescript: Object.freeze({ maxBytes: 384 * 1024, maxLines: 6500, maxParseMs: 1800 }),
+  python: Object.freeze({ maxBytes: 512 * 1024, maxLines: 9000, maxParseMs: 2100 }),
+  ruby: Object.freeze({ maxBytes: 384 * 1024, maxLines: 6500, maxParseMs: 1700 }),
+  php: Object.freeze({ maxBytes: 512 * 1024, maxLines: 8500, maxParseMs: 2100 }),
+  lua: Object.freeze({ maxBytes: 320 * 1024, maxLines: 5500, maxParseMs: 1600 }),
+  perl: Object.freeze({ maxBytes: 512 * 1024, maxLines: 9000, maxParseMs: 2200 }),
+  shell: Object.freeze({ maxBytes: 320 * 1024, maxLines: 5500, maxParseMs: 1600 }),
   yaml: Object.freeze({ maxBytes: 224 * 1024, maxLines: 3500, maxParseMs: 1100 }),
   xml: Object.freeze({ maxBytes: 256 * 1024, maxLines: 4000, maxParseMs: 1200 })
 });

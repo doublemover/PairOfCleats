@@ -14,6 +14,20 @@ const DEFAULT_OBJECTIVEC_CAPS_BY_EXT = Object.freeze({
   })
 });
 
+const DEFAULT_EXTENSION_CAPS = Object.freeze({
+  '.js': Object.freeze({ maxBytes: 320 * 1024, maxLines: 5200 }),
+  '.mjs': Object.freeze({ maxBytes: 320 * 1024, maxLines: 5200 }),
+  '.cjs': Object.freeze({ maxBytes: 320 * 1024, maxLines: 5200 }),
+  '.ts': Object.freeze({ maxBytes: 384 * 1024, maxLines: 6500 }),
+  '.mts': Object.freeze({ maxBytes: 384 * 1024, maxLines: 6500 }),
+  '.cts': Object.freeze({ maxBytes: 384 * 1024, maxLines: 6500 }),
+  '.jsx': Object.freeze({ maxBytes: 256 * 1024, maxLines: 3600 }),
+  '.tsx': Object.freeze({ maxBytes: 288 * 1024, maxLines: 4200 }),
+  '.vue': Object.freeze({ maxBytes: 256 * 1024, maxLines: 3500 }),
+  '.svelte': Object.freeze({ maxBytes: 224 * 1024, maxLines: 3200 }),
+  '.astro': Object.freeze({ maxBytes: 256 * 1024, maxLines: 3600 })
+});
+
 /**
  * Normalize a numeric cap value to a non-negative integer.
  * @param {unknown} value
@@ -178,6 +192,10 @@ export const resolveFileCapsAndGuardrails = (indexingConfig) => {
     byMode: normalizeCapsByMode(fileCapsConfig.byMode || {})
   };
   for (const [ext, entry] of Object.entries(DEFAULT_OBJECTIVEC_CAPS_BY_EXT)) {
+    if (fileCaps.byExt[ext]) continue;
+    fileCaps.byExt[ext] = { ...entry };
+  }
+  for (const [ext, entry] of Object.entries(DEFAULT_EXTENSION_CAPS)) {
     if (fileCaps.byExt[ext]) continue;
     fileCaps.byExt[ext] = { ...entry };
   }
