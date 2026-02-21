@@ -5,6 +5,7 @@ import { collectDockerfileImports } from '../../../src/index/language-registry/i
 import { collectGraphqlImports } from '../../../src/index/language-registry/import-collectors/graphql.js';
 import { collectGroovyImports } from '../../../src/index/language-registry/import-collectors/groovy.js';
 import { collectHandlebarsImports } from '../../../src/index/language-registry/import-collectors/handlebars.js';
+import { collectJsonImports } from '../../../src/index/language-registry/import-collectors/json.js';
 import { collectJinjaImports } from '../../../src/index/language-registry/import-collectors/jinja.js';
 import { collectJuliaImports } from '../../../src/index/language-registry/import-collectors/julia.js';
 import { collectMakefileImports } from '../../../src/index/language-registry/import-collectors/makefile.js';
@@ -28,6 +29,27 @@ const expectSet = (label, actual, expected) => {
 };
 
 const cases = [
+  {
+    label: 'json',
+    fn: collectJsonImports,
+    text: JSON.stringify({
+      schema: 'https://schemas.acme.dev/service.json',
+      service: {
+        include: ['./base.json', './feature.json'],
+        configPath: 'configs/service.json'
+      }
+    }),
+    expected: [
+      'keypath:schema',
+      'keypath:service',
+      'keypath:service.include',
+      'keypath:service.configPath',
+      'https://schemas.acme.dev/service.json',
+      './base.json',
+      './feature.json',
+      'configs/service.json'
+    ]
+  },
   {
     label: 'yaml',
     fn: collectYamlImports,

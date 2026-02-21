@@ -707,9 +707,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.39b JSON
 
-- [ ] Implement `.json` routing and deterministic structural chunking behavior.
-- [ ] Implement and verify key-path and reference-style relation extraction behavior where supported.
-- [ ] Calibrate and commit JSON caps for large generated manifests and lockfiles.
+- [x] Implement `.json` routing and deterministic structural chunking behavior.
+- [x] Implement and verify key-path and reference-style relation extraction behavior where supported.
+- [x] Calibrate and commit JSON caps for large generated manifests and lockfiles.
 
 
 Touchpoints:

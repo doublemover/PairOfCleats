@@ -7,7 +7,12 @@ applyTestEnv();
 
 const CASES = [
   { id: 'ini', ext: '.ini', text: '[server]\nport=8080\n' },
-  { id: 'json', ext: '.json', text: '{"server":{"port":8080}}\n' },
+  {
+    id: 'json',
+    ext: '.json',
+    text: '{"schema":"./schema.json","server":{"configPath":"./server.json"}}\n',
+    expectedImports: ['keypath:schema', 'keypath:server', 'keypath:server.configPath', './schema.json', './server.json']
+  },
   { id: 'toml', ext: '.toml', text: '[server]\nport=8080\n' },
   { id: 'xml', ext: '.xml', text: '<config><server port="8080"/></config>\n' },
   {
