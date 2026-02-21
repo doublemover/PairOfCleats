@@ -101,8 +101,8 @@ export const normalizePathForPlatform = (value, { platform = process.platform } 
     const slashed = text.replace(/\//g, '\\');
     const isUnc = slashed.startsWith('\\\\');
     let normalized = isUnc
-      ? `\\\\${slashed.slice(2).replace(/\+/g, '\\')}`
-      : slashed.replace(/\+/g, '\\');
+      ? `\\\\${slashed.slice(2).replace(/\\+/g, '\\')}`
+      : slashed.replace(/\\+/g, '\\');
     normalized = normalizeWindowsDriveLetter(normalized);
     return normalized;
   }
