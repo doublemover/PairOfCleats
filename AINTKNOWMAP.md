@@ -1661,9 +1661,9 @@ Touchpoints:
 - `bin/pairofcleats-tui.js` (new)
 #### 9.5 Cancellation and never-hang guarantees
 
-- [ ] Propagate cancellation/deadlines through all stages.
-- [ ] Enforce bounded shutdown and watchdog behavior.
-- [ ] Eliminate orphan process scenarios.
+- [x] Propagate cancellation/deadlines through all stages.
+- [x] Enforce bounded shutdown and watchdog behavior.
+- [x] Eliminate orphan process scenarios.
 
 Tests:
 

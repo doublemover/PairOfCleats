@@ -245,12 +245,15 @@ const startJob = async (request) => {
   const title = String(request?.title || 'Job').trim() || 'Job';
   const retryPolicy = resolveRetryPolicy(request);
   const timeoutMs = clampInt(request?.timeoutMs, 0, { min: 0, max: 24 * 60 * 60 * 1000 });
+  const deadlineMs = clampInt(request?.deadlineMs, 0, { min: 0, max: Number.MAX_SAFE_INTEGER });
+  const inactivityWatchdogMs = clampInt(request?.watchdogMs, 0, { min: 0, max: 60 * 60 * 1000 });
   const job = {
     id: jobId,
     title,
     seq: 0,
     status: 'accepted',
     abortController: new AbortController(),
+    cancelReason: null,
     pid: null,
     startedAt: Date.now(),
     finalized: false
@@ -279,11 +282,20 @@ const startJob = async (request) => {
       runId,
       jobId
     });
+    let lastActivityAt = Date.now();
+
+    const timeoutFromDeadline = deadlineMs > 0
+      ? Math.max(1, deadlineMs - Date.now())
+      : 0;
+    const effectiveTimeoutMs = timeoutMs > 0 && timeoutFromDeadline > 0
+      ? Math.min(timeoutMs, timeoutFromDeadline)
+      : (timeoutMs > 0 ? timeoutMs : timeoutFromDeadline || undefined);
 
     const stdoutDecoder = createProgressLineDecoder({
       strict: true,
       maxLineBytes: resultPolicy.maxBytes,
       onLine: ({ line, event }) => {
+        lastActivityAt = Date.now();
         if (event) {
           const { proto, event: eventName, ts, seq, runId: ignoredRunId, jobId: ignoredJobId, ...rest } = event;
           emit(eventName, {
@@ -297,6 +309,7 @@ const startJob = async (request) => {
         }
       },
       onOverflow: ({ overflowBytes }) => {
+        lastActivityAt = Date.now();
         emitLog(jobId, 'warn', `stdout decoder overflow (${overflowBytes} bytes truncated).`, { stream: 'stdout' });
       }
     });
@@ -305,6 +318,7 @@ const startJob = async (request) => {
       strict: true,
       maxLineBytes: resultPolicy.maxBytes,
       onLine: ({ line, event }) => {
+        lastActivityAt = Date.now();
         if (event) {
           const { proto, event: eventName, ts, seq, runId: ignoredRunId, jobId: ignoredJobId, ...rest } = event;
           emit(eventName, {
@@ -318,11 +332,29 @@ const startJob = async (request) => {
         }
       },
       onOverflow: ({ overflowBytes }) => {
+        lastActivityAt = Date.now();
         emitLog(jobId, 'warn', `stderr decoder overflow (${overflowBytes} bytes truncated).`, { stream: 'stderr' });
       }
     });
 
     const startedAt = Date.now();
+    let watchdogTimer = null;
+    const stopWatchdog = () => {
+      if (watchdogTimer) {
+        clearInterval(watchdogTimer);
+        watchdogTimer = null;
+      }
+    };
+    if (inactivityWatchdogMs > 0) {
+      watchdogTimer = setInterval(() => {
+        if (job.finalized || job.abortController.signal.aborted) return;
+        if (Date.now() - lastActivityAt < inactivityWatchdogMs) return;
+        job.cancelReason = 'watchdog_timeout';
+        emitLog(jobId, 'warn', `watchdog timeout (${inactivityWatchdogMs}ms inactivity)`);
+        job.abortController.abort('watchdog_timeout');
+      }, Math.min(500, inactivityWatchdogMs));
+      if (typeof watchdogTimer.unref === 'function') watchdogTimer.unref();
+    }
 
     try {
       const result = await spawnSubprocess(command, args, {
@@ -331,10 +363,11 @@ const startJob = async (request) => {
         stdio: ['ignore', 'pipe', 'pipe'],
         rejectOnNonZeroExit: false,
         signal: job.abortController.signal,
-        timeoutMs: timeoutMs > 0 ? timeoutMs : undefined,
+        timeoutMs: effectiveTimeoutMs,
         onSpawn: (child) => {
           job.pid = child?.pid || null;
           job.status = 'running';
+          lastActivityAt = Date.now();
           emit('job:spawn', {
             pid: job.pid,
             spawnedAt: nowIso()
@@ -380,6 +413,7 @@ const startJob = async (request) => {
       await emitArtifacts(job, request, { cwd });
     } catch (error) {
       const cancelled = job.abortController.signal.aborted || error?.name === 'AbortError';
+      const cancelReason = job.cancelReason || String(job.abortController.signal.reason || '');
       const payload = {
         status: cancelled ? 'cancelled' : 'failed',
         exitCode: cancelled ? 130 : null,
@@ -388,7 +422,7 @@ const startJob = async (request) => {
         result: null,
         error: {
           message: error?.message || String(error),
-          code: cancelled ? 'CANCELLED' : 'SPAWN_FAILED'
+          code: cancelled ? (cancelReason || 'CANCELLED') : 'SPAWN_FAILED'
         }
       };
       if (!cancelled && attempt < retryPolicy.maxAttempts) {
@@ -404,6 +438,8 @@ const startJob = async (request) => {
       }
       finalizeJob(job, payload);
       await emitArtifacts(job, request, { cwd });
+    } finally {
+      stopWatchdog();
     }
   };
 
@@ -417,6 +453,7 @@ const cancelJob = (jobId, reason = 'cancel_requested') => {
   if (!job) return false;
   if (job.finalized) return true;
   job.status = 'cancelling';
+  job.cancelReason = reason;
   emitLog(jobId, 'info', `cancelling job (${reason})`, { reason });
   job.abortController.abort(reason);
   return true;
