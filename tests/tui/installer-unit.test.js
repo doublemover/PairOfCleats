@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { ensureTestingEnv } from '../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -9,43 +10,20 @@ import { spawnSync } from 'node:child_process';
 import { stableStringify } from '../../src/shared/stable-json.js';
 import { resolveHostTargetTriple, resolveTargetForTriple, readTargetsManifestSync } from '../../tools/tui/targets.js';
 
+ensureTestingEnv(process.env);
+
 const root = process.cwd();
-const distDir = path.join(root, 'dist', 'tui');
+const testDistRel = path.join('.testLogs', 'tui', 'installer-unit', 'dist');
+const distDir = path.join(root, testDistRel);
 const installScript = path.join(root, 'tools', 'tui', 'install.js');
 const manifestPath = path.join(distDir, 'tui-artifacts-manifest.json');
 const checksumPath = path.join(distDir, 'tui-artifacts-manifest.json.sha256');
-const backupPaths = new Map();
-const createdPaths = new Set();
+let installRoot = '';
 
 const sha256 = (text) => crypto.createHash('sha256').update(text).digest('hex');
 
-const backupFile = async (filePath) => {
-  if (!fs.existsSync(filePath)) return;
-  const backupPath = `${filePath}.bak-${process.pid}-${Date.now()}`;
-  await fsPromises.rename(filePath, backupPath);
-  backupPaths.set(filePath, backupPath);
-};
-
-const restoreBackups = async () => {
-  for (const [original, backup] of backupPaths.entries()) {
-    if (fs.existsSync(original)) {
-      await fsPromises.rm(original, { force: true, recursive: true });
-    }
-    if (fs.existsSync(backup)) {
-      await fsPromises.rename(backup, original);
-    }
-  }
-};
-
-const removeCreated = async () => {
-  for (const filePath of createdPaths.values()) {
-    if (!backupPaths.has(filePath) && fs.existsSync(filePath)) {
-      await fsPromises.rm(filePath, { recursive: true, force: true });
-    }
-  }
-};
-
 try {
+  await fsPromises.rm(distDir, { recursive: true, force: true });
   await fsPromises.mkdir(distDir, { recursive: true });
 
   const { targets } = readTargetsManifestSync({ root });
@@ -54,9 +32,6 @@ try {
   assert(target, `expected target in tools/tui/targets.json for ${triple}`);
 
   const artifactPath = path.join(distDir, target.artifactName);
-  await backupFile(artifactPath);
-  await backupFile(manifestPath);
-  await backupFile(checksumPath);
 
   await fsPromises.writeFile(
     artifactPath,
@@ -68,7 +43,6 @@ try {
   if (process.platform !== 'win32') {
     await fsPromises.chmod(artifactPath, 0o755);
   }
-  createdPaths.add(artifactPath);
 
   const manifest = {
     schemaVersion: 1,
@@ -97,14 +71,19 @@ try {
     `${sha256(manifestBody)}  ${path.basename(manifestPath)}\n`,
     'utf8'
   );
-  createdPaths.add(manifestPath);
-  createdPaths.add(checksumPath);
 
-  const installRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'poc-tui-install-'));
+  installRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'poc-tui-install-'));
   const result = spawnSync(
     process.execPath,
     [installScript, '--json', '--target', triple, '--install-root', installRoot],
-    { cwd: root, encoding: 'utf8' }
+    {
+      cwd: root,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        PAIROFCLEATS_TUI_DIST_DIR: testDistRel
+      }
+    }
   );
 
   assert.equal(result.status, 0, result.stderr || 'install script exited non-zero');
@@ -124,6 +103,8 @@ try {
 
   console.log('tui installer unit test passed');
 } finally {
-  await removeCreated();
-  await restoreBackups();
+  await fsPromises.rm(distDir, { recursive: true, force: true });
+  if (installRoot) {
+    await fsPromises.rm(installRoot, { recursive: true, force: true });
+  }
 }

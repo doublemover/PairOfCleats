@@ -1,6 +1,9 @@
 #!/usr/bin/env node
+import { ensureTestingEnv } from '../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import { createProgressLineDecoder } from '../../src/shared/cli/progress-stream.js';
+
+ensureTestingEnv(process.env);
 
 const seen = [];
 let overflowCount = 0;

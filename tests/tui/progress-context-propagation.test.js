@@ -1,6 +1,9 @@
 #!/usr/bin/env node
+import { ensureTestingEnv } from '../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import { createDisplay } from '../../src/shared/cli/display.js';
+
+ensureTestingEnv(process.env);
 
 const writes = [];
 const stream = {

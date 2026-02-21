@@ -11,6 +11,7 @@ export const TUI_BUILD_MANIFEST_CHECKSUM_FILE = `${TUI_BUILD_MANIFEST_FILE}.sha2
 export const TUI_INSTALL_LAYOUT_VERSION = 1;
 export const TUI_INSTALL_LAYOUT_DIR = `install-v${TUI_INSTALL_LAYOUT_VERSION}`;
 export const TUI_INSTALL_METADATA_FILE = 'install-manifest.json';
+export const TUI_BUILD_DIST_DIR_ENV = 'PAIROFCLEATS_TUI_DIST_DIR';
 
 const normalizeString = (value) => String(value || '').trim();
 
@@ -91,6 +92,12 @@ const normalizeTargetsPayload = (payload, sourcePath) => {
 };
 
 export const resolveTargetsPath = (root) => path.join(root, 'tools', 'tui', 'targets.json');
+
+export const resolveBuildDistDir = ({ root, env = process.env } = {}) => {
+  const override = normalizeString(env?.[TUI_BUILD_DIST_DIR_ENV]);
+  if (override) return path.resolve(root, override);
+  return path.join(root, 'dist', 'tui');
+};
 
 export const readTargetsManifestSync = ({ root }) => {
   const targetsPath = resolveTargetsPath(root);
@@ -175,7 +182,7 @@ const normalizeBuildManifestArtifact = (entry, root) => ({
 });
 
 export const readBuildManifestSync = ({ root, verifyChecksum = true }) => {
-  const distDir = path.join(root, 'dist', 'tui');
+  const distDir = resolveBuildDistDir({ root });
   const manifestPath = path.join(distDir, TUI_BUILD_MANIFEST_FILE);
   const checksumPath = path.join(distDir, TUI_BUILD_MANIFEST_CHECKSUM_FILE);
   if (!fs.existsSync(manifestPath)) {

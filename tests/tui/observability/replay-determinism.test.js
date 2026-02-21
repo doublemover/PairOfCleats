@@ -1,10 +1,13 @@
 #!/usr/bin/env node
+import { ensureTestingEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+
+ensureTestingEnv(process.env);
 
 const root = process.cwd();
 const supervisorPath = path.join(root, 'tools', 'tui', 'supervisor.js');

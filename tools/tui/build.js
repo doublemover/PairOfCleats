@@ -7,6 +7,7 @@ import {
   TUI_BUILD_MANIFEST_CHECKSUM_FILE,
   TUI_BUILD_MANIFEST_FILE,
   readTargetsManifest,
+  resolveBuildDistDir,
   resolveTargetsPath,
   sha256FileSync,
   sha256Text
@@ -18,7 +19,7 @@ const hasFlag = (flag) => args.includes(flag);
 const smoke = hasFlag('--smoke');
 const verifyOnly = hasFlag('--verify-manifest');
 
-const distDir = path.join(root, 'dist', 'tui');
+const distDir = resolveBuildDistDir({ root });
 const manifestPath = path.join(distDir, TUI_BUILD_MANIFEST_FILE);
 const checksumPath = path.join(distDir, TUI_BUILD_MANIFEST_CHECKSUM_FILE);
 

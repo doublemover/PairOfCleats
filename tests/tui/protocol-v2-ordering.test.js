@@ -1,7 +1,10 @@
 #!/usr/bin/env node
+import { ensureTestingEnv } from '../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import { createProgressLineDecoder } from '../../src/shared/cli/progress-stream.js';
 import { formatProgressEvent } from '../../src/shared/cli/progress-events.js';
+
+ensureTestingEnv(process.env);
 
 const lines = [
   formatProgressEvent('task:start', { runId: 'run-1', jobId: 'job-1', seq: 1, taskId: 'a', name: 'A' }),

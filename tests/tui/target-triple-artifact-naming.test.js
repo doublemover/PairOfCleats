@@ -1,6 +1,9 @@
 #!/usr/bin/env node
+import { ensureTestingEnv } from '../helpers/test-env.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+
+ensureTestingEnv(process.env);
 
 const root = process.cwd();
 const targetsPath = path.join(root, 'tools', 'tui', 'targets.json');

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { ensureTestingEnv } from '../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
@@ -10,6 +11,8 @@ import {
   resolveHostTargetTriple,
   resolveTargetForTriple
 } from '../../tools/tui/targets.js';
+
+ensureTestingEnv(process.env);
 
 const root = process.cwd();
 const wrapperPath = path.join(root, 'bin', 'pairofcleats-tui.js');

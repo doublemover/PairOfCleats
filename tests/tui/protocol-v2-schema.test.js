@@ -1,6 +1,9 @@
 #!/usr/bin/env node
+import { ensureTestingEnv } from '../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import { formatProgressEvent, parseProgressEventLine, PROGRESS_PROTOCOL } from '../../src/shared/cli/progress-events.js';
+
+ensureTestingEnv(process.env);
 
 const event = formatProgressEvent('task:progress', {
   runId: 'run-1',
