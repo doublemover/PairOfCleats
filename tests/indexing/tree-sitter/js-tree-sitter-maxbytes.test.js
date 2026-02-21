@@ -5,6 +5,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig, toRealPathSync } from '../../../tools/shared/dict-utils.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { LANGUAGE_CAPS_BASELINES } from '../../../src/index/build/runtime/caps-calibration.js';
 import { resolveFileCapsAndGuardrails } from '../../../src/index/build/runtime/caps.js';
 
 const root = process.cwd();
@@ -18,7 +19,12 @@ await fsPromises.mkdir(srcDir, { recursive: true });
 
 const expectedConfig = loadUserConfig(repoRoot);
 const expectedCaps = resolveFileCapsAndGuardrails(expectedConfig?.indexing || {});
-const maxBytes = Number(expectedCaps?.fileCaps?.byLanguage?.javascript?.maxBytes) || (512 * 1024);
+const maxBytes = Number(expectedCaps?.fileCaps?.byLanguage?.javascript?.maxBytes)
+  || Number(LANGUAGE_CAPS_BASELINES.javascript?.maxBytes);
+if (!Number.isFinite(maxBytes) || maxBytes <= 0) {
+  console.error('JS tree-sitter maxBytes test setup failed: unresolved calibrated maxBytes.');
+  process.exit(1);
+}
 
 const payload = 'a'.repeat(maxBytes + 64);
 const bigFilePath = path.join(srcDir, 'big.js');
