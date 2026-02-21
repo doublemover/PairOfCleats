@@ -1557,10 +1557,10 @@ Touchpoints:
 - `src/shared/subprocess.js`
 #### 9.1 Protocol v2, context propagation, shared decoder
 
-- [ ] Reconcile `docs/specs/progress-protocol-v2.md` with runtime implementation and enforce it strictly in code.
-- [ ] Enforce strict `proto: "poc.progress@2"` event parsing.
-- [ ] Add `PAIROFCLEATS_PROGRESS_CONTEXT` propagation.
-- [ ] Implement `src/shared/cli/progress-stream.js` with strict line framing and size cap.
+- [x] Reconcile `docs/specs/progress-protocol-v2.md` with runtime implementation and enforce it strictly in code.
+- [x] Enforce strict `proto: "poc.progress@2"` event parsing.
+- [x] Add `PAIROFCLEATS_PROGRESS_CONTEXT` propagation.
+- [x] Implement `src/shared/cli/progress-stream.js` with strict line framing and size cap.
 
 Touchpoints:
 
