@@ -38,6 +38,18 @@ assert.deepEqual(
   'expected mixed writes to split concurrency between heavy and light lanes'
 );
 
+const mixedLanesReserve = resolveArtifactLaneConcurrency({
+  writeConcurrency: 12,
+  lightWrites: 10,
+  heavyWrites: 40,
+  hostConcurrency: 16
+});
+assert.deepEqual(
+  mixedLanesReserve,
+  { heavyConcurrency: 8, lightConcurrency: 4 },
+  'expected mixed writes to reserve multiple light-lane slots under heavy backlog'
+);
+
 const heavyOnly = resolveArtifactLaneConcurrency({
   writeConcurrency: 8,
   lightWrites: 0,
@@ -46,8 +58,8 @@ const heavyOnly = resolveArtifactLaneConcurrency({
 });
 assert.deepEqual(
   heavyOnly,
-  { heavyConcurrency: 6, lightConcurrency: 0 },
-  'expected heavy-only writes to preserve heavy lane policy'
+  { heavyConcurrency: 8, lightConcurrency: 0 },
+  'expected heavy-only writes to use full write concurrency'
 );
 
 const heavyOverride = resolveArtifactLaneConcurrency({

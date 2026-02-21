@@ -1892,7 +1892,7 @@ Exit criteria:
       - Touchpoints: `src/index/build/artifacts-write.js`, `src/index/build/artifacts/writers/*`, `src/shared/json-stream.js`, and `src/shared/artifact-io/*` (prefer shared helpers over new local utilities).
       - Acceptance target: huge-repo write phase should eliminate >60s single-artifact tails; aim for no single required artifact exceeding 30s wall time in `swift`/`opencv` huge runs.
       - Validation: add/extend artifact write contract + perf tests under `tests/indexing/artifacts/*` and `tests/perf/indexing/artifacts/*`, including strict validation and deterministic output parity checks.
-  12. [ ] Add per-artifact p50/p95 queue delay histograms and persist them in bench outputs.
+  12. [x] Add per-artifact p50/p95 queue delay histograms and persist them in bench outputs.
       - Touchpoints: `src/index/build/artifacts-write.js`, `src/index/build/artifacts/writers/*`, `src/shared/json-stream.js`, and `src/shared/artifact-io/*` (prefer shared helpers over new local utilities).
       - Acceptance target: huge-repo write phase should eliminate >60s single-artifact tails; aim for no single required artifact exceeding 30s wall time in `swift`/`opencv` huge runs.
       - Validation: add/extend artifact write contract + perf tests under `tests/indexing/artifacts/*` and `tests/perf/indexing/artifacts/*`, including strict validation and deterministic output parity checks.
@@ -1920,7 +1920,7 @@ Exit criteria:
       - Touchpoints: `src/index/build/artifacts-write.js`, `src/index/build/artifacts/writers/*`, `src/shared/json-stream.js`, and `src/shared/artifact-io/*` (prefer shared helpers over new local utilities).
       - Acceptance target: huge-repo write phase should eliminate >60s single-artifact tails; aim for no single required artifact exceeding 30s wall time in `swift`/`opencv` huge runs.
       - Validation: add/extend artifact write contract + perf tests under `tests/indexing/artifacts/*` and `tests/perf/indexing/artifacts/*`, including strict validation and deterministic output parity checks.
-  19. [ ] Add “no heavy write slot reservation” guard in all write-path variants (including future lane logic).
+  19. [x] Add “no heavy write slot reservation” guard in all write-path variants (including future lane logic).
       - Touchpoints: `src/index/build/artifacts-write.js`, `src/index/build/artifacts/writers/*`, `src/shared/json-stream.js`, and `src/shared/artifact-io/*` (prefer shared helpers over new local utilities).
       - Acceptance target: huge-repo write phase should eliminate >60s single-artifact tails; aim for no single required artifact exceeding 30s wall time in `swift`/`opencv` huge runs.
       - Validation: add/extend artifact write contract + perf tests under `tests/indexing/artifacts/*` and `tests/perf/indexing/artifacts/*`, including strict validation and deterministic output parity checks.

@@ -167,24 +167,137 @@ const resolveArtifactLaneConcurrency = ({
   }
   if (!hasLight) {
     return {
-      heavyConcurrency: Math.min(totalWriteConcurrency, Math.min(heavyWriteCount, dynamicHeavyTarget)),
+      // Heavy-only queues should consume full writer concurrency; memory pressure
+      // is already bounded by scheduler tokens and per-write mem costs.
+      heavyConcurrency: Math.min(totalWriteConcurrency, heavyWriteCount),
       lightConcurrency: 0
     };
   }
 
-  const maxHeavyBudget = totalWriteConcurrency > 1
-    ? totalWriteConcurrency - 1
-    : totalWriteConcurrency;
-  const heavyConcurrency = Math.max(
+  const heavySkewedBacklog = heavyWriteCount >= Math.max(4, lightWriteCount * 2);
+  const lightReserveRatio = heavySkewedBacklog ? 0.2 : 0.33;
+  const lightReserveFloor = heavySkewedBacklog ? 2 : 1;
+  const lightReserveCap = Math.max(0, totalWriteConcurrency - 1);
+  const effectiveLightReserveFloor = Math.min(lightReserveCap, lightReserveFloor);
+  const lightReserve = lightReserveCap > 0
+    ? Math.max(
+      effectiveLightReserveFloor,
+      Math.min(
+        lightWriteCount,
+        lightReserveCap,
+        Math.ceil(totalWriteConcurrency * lightReserveRatio)
+      )
+    )
+    : 0;
+  const maxHeavyBudget = Math.max(1, totalWriteConcurrency - lightReserve);
+  let heavyConcurrency = Math.max(
     1,
     Math.min(heavyWriteCount, dynamicHeavyTarget, maxHeavyBudget)
   );
-  const lightConcurrencyBudget = Math.max(0, totalWriteConcurrency - heavyConcurrency);
+  let lightConcurrencyBudget = Math.max(0, totalWriteConcurrency - heavyConcurrency);
+  const minimumLightBudget = Math.min(lightWriteCount, lightReserve);
+  if (lightConcurrencyBudget < minimumLightBudget && heavyConcurrency > 1) {
+    const shift = Math.min(
+      minimumLightBudget - lightConcurrencyBudget,
+      heavyConcurrency - 1
+    );
+    heavyConcurrency -= shift;
+    lightConcurrencyBudget += shift;
+  }
   const lightConcurrency = Math.min(lightWriteCount, lightConcurrencyBudget);
 
   return {
     heavyConcurrency,
     lightConcurrency
+  };
+};
+
+const LARGE_ARTIFACT_WRITE_BYTES = 256 * 1024 * 1024;
+const HUGE_ARTIFACT_WRITE_BYTES = 768 * 1024 * 1024;
+const ARTIFACT_QUEUE_DELAY_BUCKETS_MS = Object.freeze([
+  0,
+  1,
+  2,
+  4,
+  8,
+  16,
+  32,
+  64,
+  128,
+  256,
+  512,
+  1000,
+  2000,
+  5000,
+  10000,
+  30000,
+  60000
+]);
+
+/**
+ * Estimate scheduler memory-token cost for a single artifact write.
+ *
+ * Small/medium writes are primarily IO-bound and should not be throttled by
+ * memory tokens. Very large writes still consume explicit memory budget.
+ *
+ * @param {number|null|undefined} estimatedBytes
+ * @returns {number}
+ */
+const resolveArtifactWriteMemTokens = (estimatedBytes) => {
+  const bytes = Number(estimatedBytes);
+  if (!Number.isFinite(bytes) || bytes <= 0) return 0;
+  if (bytes >= HUGE_ARTIFACT_WRITE_BYTES) return 2;
+  if (bytes >= LARGE_ARTIFACT_WRITE_BYTES) return 1;
+  return 0;
+};
+
+const resolvePercentileMs = (samples, ratio) => {
+  if (!Array.isArray(samples) || !samples.length) return 0;
+  if (!Number.isFinite(ratio)) return samples[0];
+  const clampedRatio = Math.max(0, Math.min(1, ratio));
+  const index = Math.min(samples.length - 1, Math.max(0, Math.ceil(clampedRatio * samples.length) - 1));
+  return samples[index];
+};
+
+const summarizeQueueDelayHistogram = (samples) => {
+  if (!Array.isArray(samples) || !samples.length) return null;
+  const normalized = samples
+    .map((entry) => Number(entry))
+    .filter((entry) => Number.isFinite(entry) && entry >= 0)
+    .map((entry) => Math.round(entry))
+    .sort((a, b) => a - b);
+  if (!normalized.length) return null;
+  const bucketCounts = new Array(ARTIFACT_QUEUE_DELAY_BUCKETS_MS.length).fill(0);
+  let overflowCount = 0;
+  for (const value of normalized) {
+    let bucketIndex = -1;
+    for (let index = 0; index < ARTIFACT_QUEUE_DELAY_BUCKETS_MS.length; index += 1) {
+      if (value <= ARTIFACT_QUEUE_DELAY_BUCKETS_MS[index]) {
+        bucketIndex = index;
+        break;
+      }
+    }
+    if (bucketIndex >= 0) bucketCounts[bucketIndex] += 1;
+    else overflowCount += 1;
+  }
+  const buckets = [];
+  for (let index = 0; index < ARTIFACT_QUEUE_DELAY_BUCKETS_MS.length; index += 1) {
+    const count = bucketCounts[index];
+    if (!count) continue;
+    buckets.push({
+      leMs: ARTIFACT_QUEUE_DELAY_BUCKETS_MS[index],
+      count
+    });
+  }
+  return {
+    unit: 'ms',
+    sampleCount: normalized.length,
+    minMs: normalized[0],
+    maxMs: normalized[normalized.length - 1],
+    p50Ms: resolvePercentileMs(normalized, 0.5),
+    p95Ms: resolvePercentileMs(normalized, 0.95),
+    buckets,
+    overflowCount
   };
 };
 
@@ -793,6 +906,7 @@ export async function writeIndexArtifacts(input) {
   const activeWriteBytes = new Map();
   let writeHeartbeatTimer = null;
   const artifactMetrics = new Map();
+  const artifactQueueDelaySamples = new Map();
   const writeLogIntervalMs = 1000;
   const writeProgressMeta = { stage: 'write', mode, taskId: `write:${mode}:artifacts` };
   const configuredWriteStallThresholds = Array.isArray(artifactConfig.writeStallThresholdsSeconds)
@@ -880,7 +994,20 @@ export async function writeIndexArtifacts(input) {
   const recordArtifactMetric = (label, metric) => {
     if (!label) return;
     const existing = artifactMetrics.get(label) || { path: label };
-    artifactMetrics.set(label, { ...existing, ...metric });
+    const nextMetric = { ...existing, ...metric };
+    const queueDelayMs = Number(metric?.queueDelayMs);
+    if (Number.isFinite(queueDelayMs) && queueDelayMs >= 0) {
+      const samples = artifactQueueDelaySamples.get(label) || [];
+      samples.push(Math.round(queueDelayMs));
+      artifactQueueDelaySamples.set(label, samples);
+      const queueDelayHistogram = summarizeQueueDelayHistogram(samples);
+      if (queueDelayHistogram) {
+        nextMetric.queueDelayHistogram = queueDelayHistogram;
+        nextMetric.queueDelayP50Ms = queueDelayHistogram.p50Ms;
+        nextMetric.queueDelayP95Ms = queueDelayHistogram.p95Ms;
+      }
+    }
+    artifactMetrics.set(label, nextMetric);
   };
   const startWriteHeartbeat = () => {
     if (writeProgressHeartbeatMs <= 0 || writeHeartbeatTimer) return;
@@ -1897,12 +2024,13 @@ export async function writeIndexArtifacts(input) {
     });
     const scheduleWriteJob = (fn, estimatedBytes) => {
       if (!scheduler?.schedule || typeof fn !== 'function') return fn();
-      const memTokens = Number.isFinite(Number(estimatedBytes)) && Number(estimatedBytes) >= (64 * 1024 * 1024)
-        ? 2
-        : 1;
+      const memTokens = resolveArtifactWriteMemTokens(estimatedBytes);
+      const tokens = memTokens > 0
+        ? { io: 1, mem: memTokens }
+        : { io: 1 };
       return scheduler.schedule(
         SCHEDULER_QUEUE_NAMES.stage2Write,
-        { io: 1, mem: memTokens },
+        tokens,
         fn
       );
     };
