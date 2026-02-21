@@ -17,6 +17,7 @@ for (const test of tests) {
   const result = spawnSubprocessSync(process.execPath, [test.file], {
     stdio: 'inherit',
     rejectOnNonZeroExit: false,
+    cwd: repoRoot,
     env: runtimeEnv
   });
   if (result.exitCode !== 0) {

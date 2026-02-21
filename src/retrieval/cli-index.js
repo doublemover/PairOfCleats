@@ -123,8 +123,9 @@ export async function loadIndex(dir, options) {
     const code = typeof err?.code === 'string' ? err.code : '';
     if (code === 'ERR_MANIFEST_ENTRY_MISSING') return true;
     if (code === 'ERR_MANIFEST_MISSING') return true;
+    if (code === 'ERR_ARTIFACT_PARTS_MISSING') return true;
     const message = String(err?.message || '');
-    if (artifactName && message.startsWith(`Missing manifest entry for ${artifactName}`)) return true;
+    void artifactName;
     return message.startsWith('Missing JSON artifact:')
       || message.startsWith('Missing JSONL artifact:')
       || message.startsWith('Missing manifest parts for');
@@ -172,14 +173,7 @@ export async function loadIndex(dir, options) {
         yield row;
       }
     } catch (err) {
-      const code = String(err?.code || '');
-      const message = String(err?.message || '');
-      const missingOptional = (
-        code === 'ERR_MANIFEST_ENTRY_MISSING'
-        || code === 'ERR_MANIFEST_MISSING'
-        || message.startsWith(`Missing manifest entry for ${baseName}`)
-      );
-      if (missingOptional) {
+      if (isOptionalArtifactMissing(err, baseName)) {
         return;
       }
       if (err?.code === 'ERR_JSON_TOO_LARGE') {

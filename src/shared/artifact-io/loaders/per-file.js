@@ -1,7 +1,7 @@
 import { fromPosix } from '../../files.js';
 import { isPathUnderDir, joinPathSafe } from '../../path-normalize.js';
 import { MAX_JSON_BYTES } from '../constants.js';
-import { existsOrBak } from '../fs.js';
+import { existsOrBak, resolvePathOrBak } from '../fs.js';
 import {
   OFFSETS_COMPRESSION,
   OFFSETS_FORMAT,
@@ -198,20 +198,24 @@ const loadSymbolRowsForFile = async (
   if (!sources.parts.every(existsOrBak) || !sources.offsets.every(existsOrBak)) {
     return loadFullRows();
   }
+  const resolvedDataPath = resolvePathOrBak(dataPath);
+  const resolvedOffsetsPath = resolvePathOrBak(offsetsPath);
+  const resolvedParts = sources.parts.map((entry) => resolvePathOrBak(entry));
+  const resolvedPartOffsets = sources.offsets.map((entry) => resolvePathOrBak(entry));
   let offsetsCount;
   let start;
   let end;
   let rowIndexes;
   try {
-    offsetsCount = await resolveOffsetsCount(offsetsPath);
+    offsetsCount = await resolveOffsetsCount(resolvedOffsetsPath);
     if (resolvedFileId + 1 >= offsetsCount) return loadFullRows();
-    const offsets = await readOffsetsAt(offsetsPath, [resolvedFileId, resolvedFileId + 1]);
+    const offsets = await readOffsetsAt(resolvedOffsetsPath, [resolvedFileId, resolvedFileId + 1]);
     start = offsets.get(resolvedFileId);
     end = offsets.get(resolvedFileId + 1);
     if (!Number.isFinite(start) || !Number.isFinite(end)) return loadFullRows();
     if (end < start) return loadFullRows();
     if (end === start) return [];
-    rowIndexes = await readVarintDeltasAt(dataPath, start, end);
+    rowIndexes = await readVarintDeltasAt(resolvedDataPath, start, end);
   } catch {
     return loadFullRows();
   }
@@ -225,8 +229,8 @@ const loadSymbolRowsForFile = async (
   for (const rowIndex of rowIndexes) {
     const resolved = resolvePartIndex(sources.counts, rowIndex);
     if (!resolved) continue;
-    const partPath = sources.parts[resolved.partIndex];
-    const partOffsets = sources.offsets[resolved.partIndex];
+    const partPath = resolvedParts[resolved.partIndex];
+    const partOffsets = resolvedPartOffsets[resolved.partIndex];
     if (!validatedParts.has(resolved.partIndex)) {
       try {
         await ensureOffsetsValid(partPath, partOffsets);

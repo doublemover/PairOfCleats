@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { MAX_JSON_BYTES } from '../constants.js';
-import { existsOrBak } from '../fs.js';
+import { existsOrBak, resolvePathOrBak } from '../fs.js';
 import { createPackedChecksumValidator } from '../checksum.js';
 import { loadPiecesManifest, resolveManifestArtifactSources } from '../manifest.js';
 import { readJsonFileCached, warnMaterializeFallback } from './shared.js';
@@ -47,7 +47,9 @@ export const loadMinhashSignatures = async (
     if (!existsOrBak(packedPath) || !existsOrBak(metaPath)) {
       throw new Error('Missing packed minhash signature artifacts');
     }
-    const metaRaw = readJsonFileCached(metaPath, { maxBytes });
+    const resolvedPackedPath = resolvePathOrBak(packedPath);
+    const resolvedMetaPath = resolvePathOrBak(metaPath);
+    const metaRaw = readJsonFileCached(resolvedMetaPath, { maxBytes });
     const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
     const dims = Number.isFinite(Number(meta?.dims)) ? Math.max(0, Math.floor(Number(meta.dims))) : 0;
     const count = Number.isFinite(Number(meta?.count)) ? Math.max(0, Math.floor(Number(meta.count))) : 0;
@@ -57,7 +59,7 @@ export const loadMinhashSignatures = async (
     const checksumValidator = createPackedChecksumValidator(meta, {
       label: 'Packed minhash signatures'
     });
-    const buffer = fs.readFileSync(packedPath);
+    const buffer = fs.readFileSync(resolvedPackedPath);
     checksumValidator?.update(buffer);
     checksumValidator?.verify();
     const total = dims * count;
@@ -133,7 +135,9 @@ export const loadMinhashSignatureRows = async function* (
     if (!existsOrBak(packedPath) || !existsOrBak(metaPath)) {
       throw new Error('Missing packed minhash signature artifacts');
     }
-    const metaRaw = readJsonFileCached(metaPath, { maxBytes });
+    const resolvedPackedPath = resolvePathOrBak(packedPath);
+    const resolvedMetaPath = resolvePathOrBak(metaPath);
+    const metaRaw = readJsonFileCached(resolvedMetaPath, { maxBytes });
     const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
     const dims = Number.isFinite(Number(meta?.dims)) ? Math.max(0, Math.floor(Number(meta.dims))) : 0;
     const count = Number.isFinite(Number(meta?.count)) ? Math.max(0, Math.floor(Number(meta.count))) : 0;
@@ -145,11 +149,11 @@ export const loadMinhashSignatureRows = async function* (
     });
     const bytesPerSig = dims * 4;
     const totalBytes = bytesPerSig * count;
-    const stat = await fsPromises.stat(packedPath);
+    const stat = await fsPromises.stat(resolvedPackedPath);
     if (stat.size < totalBytes) {
       throw new Error('Packed minhash signatures truncated');
     }
-    const handle = await fsPromises.open(packedPath, 'r');
+    const handle = await fsPromises.open(resolvedPackedPath, 'r');
     const resolvedBatchSize = Math.max(1, Math.floor(Number(batchSize)) || 2048);
     const buffer = Buffer.allocUnsafe(resolvedBatchSize * bytesPerSig);
     try {

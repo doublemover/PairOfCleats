@@ -6,7 +6,7 @@ import { coerceUnitFraction } from './number-coerce.js';
 /**
  * Create shared task queues for IO, CPU, and embeddings work.
  * @param {{ioConcurrency:number,cpuConcurrency:number,embeddingConcurrency?:number,procConcurrency?:number,ioPendingLimit?:number,cpuPendingLimit?:number,embeddingPendingLimit?:number,procPendingLimit?:number,ioPendingBytesLimit?:number,cpuPendingBytesLimit?:number,embeddingPendingBytesLimit?:number,procPendingBytesLimit?:number}} input
- * @returns {{io:PQueue,cpu:PQueue,embedding:PQueue,proc?:PQueue}}
+ * @returns {{io:PQueue,cpu:PQueue,embedding:PQueue|null,proc?:PQueue}}
  */
 export function createTaskQueues({
   ioConcurrency,
@@ -24,10 +24,13 @@ export function createTaskQueues({
 }) {
   const io = new PQueue({ concurrency: Math.max(1, Math.floor(ioConcurrency || 1)) });
   const cpu = new PQueue({ concurrency: Math.max(1, Math.floor(cpuConcurrency || 1)) });
-  const embeddingLimit = Number.isFinite(Number(embeddingConcurrency))
-    ? Math.max(1, Math.floor(Number(embeddingConcurrency)))
+  const embeddingConcurrencyRaw = Number(embeddingConcurrency);
+  const embeddingLimit = Number.isFinite(embeddingConcurrencyRaw)
+    ? Math.floor(embeddingConcurrencyRaw)
     : Math.max(1, Math.floor(cpuConcurrency || 1));
-  const embedding = new PQueue({ concurrency: embeddingLimit });
+  const embedding = embeddingLimit > 0
+    ? new PQueue({ concurrency: embeddingLimit })
+    : null;
   const procLimit = Number.isFinite(Number(procConcurrency))
     ? Math.max(1, Math.floor(Number(procConcurrency)))
     : null;
@@ -42,10 +45,10 @@ export function createTaskQueues({
   };
   applyLimit(io, ioPendingLimit);
   applyLimit(cpu, cpuPendingLimit);
-  applyLimit(embedding, embeddingPendingLimit);
+  if (embedding) applyLimit(embedding, embeddingPendingLimit);
   applyBytesLimit(io, ioPendingBytesLimit);
   applyBytesLimit(cpu, cpuPendingBytesLimit);
-  applyBytesLimit(embedding, embeddingPendingBytesLimit);
+  if (embedding) applyBytesLimit(embedding, embeddingPendingBytesLimit);
   if (proc) {
     applyLimit(proc, procPendingLimit);
     applyBytesLimit(proc, procPendingBytesLimit);

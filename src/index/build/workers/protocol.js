@@ -51,3 +51,19 @@ export const sanitizePoolPayload = (payload, dictConfig) => {
   }
   return safe;
 };
+
+export const sanitizeQuantizePayload = (payload) => {
+  if (!payload || typeof payload !== 'object') {
+    return { vectors: [] };
+  }
+  const safe = {
+    vectors: Array.isArray(payload.vectors) ? payload.vectors : []
+  };
+  const minVal = Number(payload.minVal);
+  if (Number.isFinite(minVal)) safe.minVal = minVal;
+  const maxVal = Number(payload.maxVal);
+  if (Number.isFinite(maxVal)) safe.maxVal = maxVal;
+  const levels = Number(payload.levels);
+  if (Number.isFinite(levels)) safe.levels = levels;
+  return safe;
+};

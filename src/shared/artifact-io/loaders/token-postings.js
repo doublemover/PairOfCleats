@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { MAX_JSON_BYTES } from '../constants.js';
-import { existsOrBak } from '../fs.js';
+import { existsOrBak, resolvePathOrBak } from '../fs.js';
 import { readJsonFile } from '../json.js';
 import { createPackedChecksumValidator } from '../checksum.js';
 import { loadPiecesManifest, resolveManifestArtifactSources } from '../manifest.js';
@@ -85,7 +85,9 @@ export const loadTokenPostings = (
     if (!existsOrBak(metaPath)) {
       throw new Error('Missing token_postings packed meta');
     }
-    const metaRaw = readJsonFileCached(metaPath, { maxBytes });
+    const resolvedPackedPath = resolvePathOrBak(packedPath);
+    const resolvedMetaPath = resolvePathOrBak(metaPath);
+    const metaRaw = readJsonFileCached(resolvedMetaPath, { maxBytes });
     const fields = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
     const arrays = metaRaw?.arrays && typeof metaRaw.arrays === 'object' ? metaRaw.arrays : metaRaw;
     const vocab = Array.isArray(arrays?.vocab) ? arrays.vocab : [];
@@ -98,7 +100,8 @@ export const loadTokenPostings = (
     if (!existsOrBak(offsetsPath)) {
       throw new Error('Missing token_postings packed offsets');
     }
-    const offsetsBuffer = fs.readFileSync(offsetsPath);
+    const resolvedOffsetsPath = resolvePathOrBak(offsetsPath);
+    const offsetsBuffer = fs.readFileSync(resolvedOffsetsPath);
     const offsetsChecksum = createManifestChecksumValidator(
       offsetsPath,
       'token_postings_offsets',
@@ -154,7 +157,7 @@ export const loadTokenPostings = (
       }
     };
     const fallbackFullRead = () => {
-      const buffer = fs.readFileSync(packedPath);
+      const buffer = fs.readFileSync(resolvedPackedPath);
       const fallbackChecksum = createManifestChecksumValidator(
         packedPath,
         'token_postings',
@@ -168,7 +171,7 @@ export const loadTokenPostings = (
     };
     let fd = null;
     try {
-      fd = fs.openSync(packedPath, 'r');
+      fd = fs.openSync(resolvedPackedPath, 'r');
       let startToken = 0;
       while (startToken < totalTokens) {
         let endToken = Math.min(totalTokens, startToken + resolvedWindowTokens);

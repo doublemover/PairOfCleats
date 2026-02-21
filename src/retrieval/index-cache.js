@@ -9,6 +9,16 @@ export const INDEX_SIGNATURE_TTL_MS = 5 * 60 * 1000;
 const INDEX_SIGNATURE_CACHE_MAX_ENTRIES = 256;
 const indexSignatureCache = new Map();
 
+const canonicalizeIndexDir = async (dir) => {
+  const resolved = path.resolve(String(dir || ''));
+  if (!resolved) return null;
+  try {
+    return await fs.realpath(resolved);
+  } catch {
+    return resolved;
+  }
+};
+
 const INDEX_FILES = [
   'phrase_ngrams.json',
   'chargram_postings.json',
@@ -229,11 +239,13 @@ const jsonlArtifactSignature = async (dir, baseName) => {
 
 export async function buildIndexSignature(dir) {
   if (!dir) return null;
-  const stateInfo = await indexStateSignature(dir);
+  const canonicalDir = await canonicalizeIndexDir(dir);
+  if (!canonicalDir) return null;
+  const stateInfo = await indexStateSignature(canonicalDir);
   if (stateInfo?.signature) {
     const cacheKey = stateInfo.buildId
-      ? `${dir}|build:${stateInfo.buildId}`
-      : `${dir}|state:${stateInfo.signature}`;
+      ? `${canonicalDir}|build:${stateInfo.buildId}`
+      : `${canonicalDir}|state:${stateInfo.signature}`;
     const cached = getCachedSignature(cacheKey);
     if (cached) return cached;
     const signature = `index_state:${stateInfo.signature}`;
@@ -241,12 +253,12 @@ export async function buildIndexSignature(dir) {
     return signature;
   }
   const [chunkMetaSig, tokenPostingsSig, fileRelationsSig, repoMapSig, ...fileSigs] = await Promise.all([
-    chunkMetaSignature(dir),
-    tokenPostingsSignature(dir),
-    jsonlArtifactSignature(dir, 'file_relations'),
-    jsonlArtifactSignature(dir, 'repo_map'),
+    chunkMetaSignature(canonicalDir),
+    tokenPostingsSignature(canonicalDir),
+    jsonlArtifactSignature(canonicalDir, 'file_relations'),
+    jsonlArtifactSignature(canonicalDir, 'repo_map'),
     ...INDEX_FILES.map(async (name) => {
-      const target = path.join(dir, name);
+      const target = path.join(canonicalDir, name);
       const sig = await fileSignature(target);
       return `${name}:${sig || 'missing'}`;
     })

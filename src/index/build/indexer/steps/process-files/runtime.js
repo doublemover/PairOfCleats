@@ -40,14 +40,14 @@ export const createShardRuntime = (baseRuntime, { fileConcurrency, importConcurr
   const destroyQueues = async () => {
     const idles = [
       queues.io.onIdle(),
-      queues.cpu.onIdle(),
-      queues.embedding.onIdle()
+      queues.cpu.onIdle()
     ];
+    if (queues.embedding?.onIdle) idles.push(queues.embedding.onIdle());
     if (queues.proc?.onIdle) idles.push(queues.proc.onIdle());
     await Promise.all(idles);
     queues.io.clear();
     queues.cpu.clear();
-    queues.embedding.clear();
+    if (queues.embedding?.clear) queues.embedding.clear();
     if (queues.proc?.clear) queues.proc.clear();
   };
   const destroy = async () => {

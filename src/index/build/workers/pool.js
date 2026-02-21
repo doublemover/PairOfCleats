@@ -18,7 +18,7 @@ import {
   resolveWorkerResourceLimits,
   shouldDownscaleWorkersForPressure
 } from './config.js';
-import { sanitizePoolPayload, summarizeError } from './protocol.js';
+import { sanitizePoolPayload, sanitizeQuantizePayload, summarizeError } from './protocol.js';
 
 /**
  * Build a deterministic NUMA assignment plan for worker slots.
@@ -1020,10 +1020,7 @@ export async function createIndexerWorkerPool(input = {}) {
             }
             return null;
           }
-          const sanitizedPayload = sanitizePoolPayload(
-            payload,
-            sanitizeDictConfig(payload?.dictConfig)
-          );
+          const sanitizedPayload = sanitizeQuantizePayload(payload);
           const {
             payload: runPayload,
             transferList,

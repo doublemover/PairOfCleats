@@ -415,15 +415,17 @@ export const createRuntimeQueues = ({
       maxInFlightBytes: maxIoInFlightBytes,
       concurrency: ioConcurrency
     });
-    const embeddingQueue = createSchedulerQueueAdapter({
-      scheduler,
-      queueName: SCHEDULER_QUEUE_NAMES.embeddingsCompute,
-      tokens: { cpu: 1 },
-      maxPending: maxEmbeddingPending,
-      maxPendingBytes: maxEmbeddingPendingBytes,
-      maxInFlightBytes: maxEmbeddingInFlightBytes,
-      concurrency: effectiveEmbeddingConcurrency
-    });
+    const embeddingQueue = effectiveEmbeddingConcurrency > 0
+      ? createSchedulerQueueAdapter({
+        scheduler,
+        queueName: SCHEDULER_QUEUE_NAMES.embeddingsCompute,
+        tokens: { cpu: 1 },
+        maxPending: maxEmbeddingPending,
+        maxPendingBytes: maxEmbeddingPendingBytes,
+        maxInFlightBytes: maxEmbeddingInFlightBytes,
+        concurrency: effectiveEmbeddingConcurrency
+      })
+      : null;
     const procQueue = resolvedProcConcurrency
       ? createSchedulerQueueAdapter({
         scheduler,
@@ -443,6 +445,7 @@ export const createRuntimeQueues = ({
       ? { io: ioQueue, cpu: cpuQueue, embedding: embeddingQueue, proc: procQueue }
       : { io: ioQueue, cpu: cpuQueue, embedding: embeddingQueue };
     for (const queue of Object.values(queues)) {
+      if (!queue || typeof queue !== 'object') continue;
       queue.inflightBytes = 0;
     }
     return { queues, maxFilePending, maxIoPending, maxEmbeddingPending };
@@ -467,6 +470,7 @@ export const createRuntimeQueues = ({
   if (queues.embedding) queues.embedding.maxInFlightBytes = maxEmbeddingInFlightBytes;
   if (queues.proc && procInFlightBytesLimit) queues.proc.maxInFlightBytes = procInFlightBytesLimit;
   for (const queue of Object.values(queues)) {
+    if (!queue || typeof queue !== 'object') continue;
     queue.inflightBytes = 0;
   }
   return { queues, maxFilePending, maxIoPending, maxEmbeddingPending };
