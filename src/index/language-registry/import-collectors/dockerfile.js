@@ -27,9 +27,34 @@ const extractRunMountSources = (line) => {
   return out;
 };
 
+const toLogicalDockerfileLines = (text) => {
+  const out = [];
+  const lines = String(text || '').split(/\r?\n/);
+  let current = '';
+  for (const rawLine of lines) {
+    const line = String(rawLine || '');
+    const trimmed = line.trim();
+    if (!trimmed) {
+      if (current) {
+        out.push(current.trim());
+        current = '';
+      }
+      continue;
+    }
+    const withoutContinuation = line.replace(/\\\s*$/, '').trim();
+    current = current ? `${current} ${withoutContinuation}`.trim() : withoutContinuation;
+    const hasContinuation = /\\\s*$/.test(line);
+    if (hasContinuation) continue;
+    out.push(current.trim());
+    current = '';
+  }
+  if (current) out.push(current.trim());
+  return out;
+};
+
 export const collectDockerfileImports = (text) => {
   const imports = new Set();
-  const lines = String(text || '').split(/\r?\n/);
+  const lines = toLogicalDockerfileLines(text);
   const precheck = (value) => lineHasAnyInsensitive(value, ['from', 'copy', 'add', '--mount']);
 
   for (const line of lines) {

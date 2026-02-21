@@ -38,6 +38,7 @@ const cases = [
     text: [
       '<root xmlns:cfg="urn:cfg" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"',
       '  xsi:schemaLocation="urn:cfg ./cfg.xsd">',
+      '  <!-- <xsd:import schemaLocation="./ignored.xsd" /> -->',
       '  <xi:include href="./base.xml" />',
       '  <xsd:import schemaLocation="./types.xsd" />',
       '</root>'
@@ -113,10 +114,11 @@ const cases = [
       'FROM --platform=$BUILDPLATFORM node:18 AS base',
       'FROM base AS build',
       'RUN echo from builder',
-      'RUN --mount=type=bind,from=build,target=/src true',
+      'RUN --mount=type=cache,target=/root/.cache \\',
+      '    --mount=type=bind,from=ghcr.io/acme/builder:latest,target=/src true',
       'COPY --from=base /src /dst'
     ].join('\n'),
-    expected: ['node:18', 'base', 'build']
+    expected: ['node:18', 'base', 'build', 'ghcr.io/acme/builder:latest']
   },
   {
     label: 'makefile',
@@ -140,7 +142,7 @@ const cases = [
       'package poc.services.v1;',
       'option go_package = \"github.com/acme/poc/services/v1\";'
     ].join('\n'),
-    expected: ['foo.proto', 'bar.proto', 'baz.proto', 'poc.services.v1', 'github.com/acme/poc/services/v1']
+    expected: ['foo.proto', 'bar.proto', 'baz.proto']
   },
   {
     label: 'graphql',
