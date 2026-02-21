@@ -70,6 +70,15 @@ const loadDenseArtifactFromLegacyPath = (dir, artifactName) => {
 };
 
 const numbersEqual = (left, right) => Math.abs(left - right) <= 1e-9;
+const isMissingManifestLikeError = (err) => {
+  const code = String(err?.code || '');
+  const message = String(err?.message || '');
+  return code === 'ERR_MANIFEST_MISSING'
+    || code === 'ERR_MANIFEST_INVALID'
+    || code === 'ERR_COMPATIBILITY_KEY_MISSING'
+    || /Missing pieces manifest/i.test(message)
+    || /Missing compatibilityKey/i.test(message);
+};
 
 const extractEmbeddingIdentity = (meta) => {
   if (!meta || typeof meta !== 'object') return null;
@@ -246,6 +255,15 @@ export async function loadSearchIndexes({
   let extractedProseDir = null;
   let resolvedRunExtractedProse = runExtractedProse;
   let resolvedLoadExtractedProse = runExtractedProse || loadExtractedProse;
+  const disableOptionalExtractedProse = (reason = null) => {
+    if (!resolvedLoadExtractedProse || resolvedRunExtractedProse) return false;
+    if (emitOutput && reason) {
+      console.warn(`[search] ${reason}; skipping extracted-prose comment joins.`);
+    }
+    resolvedLoadExtractedProse = false;
+    extractedProseDir = null;
+    return true;
+  };
   if (resolvedLoadExtractedProse) {
     if (resolvedRunExtractedProse && (searchMode === 'extracted-prose' || searchMode === 'default')) {
       extractedProseDir = requireIndexDir(rootDir, 'extracted-prose', userConfig, {
@@ -283,14 +301,16 @@ export async function loadSearchIndexes({
     if (runCode) ensureManifest(codeDir);
     if (runProse) ensureManifest(proseDir);
     if (runRecords) ensureManifest(recordsDir);
-    if (resolvedLoadExtractedProse) ensureManifest(extractedProseDir);
+    if (resolvedRunExtractedProse && resolvedLoadExtractedProse) ensureManifest(extractedProseDir);
   }
 
+  const includeExtractedProseInCompatibility = resolvedLoadExtractedProse
+    && (resolvedRunExtractedProse || !strict);
   const compatibilityTargets = [
     runCode ? { mode: 'code', dir: codeDir } : null,
     runProse ? { mode: 'prose', dir: proseDir } : null,
     runRecords ? { mode: 'records', dir: recordsDir } : null,
-    resolvedLoadExtractedProse ? { mode: 'extracted-prose', dir: extractedProseDir } : null
+    includeExtractedProseInCompatibility ? { mode: 'extracted-prose', dir: extractedProseDir } : null
   ].filter((entry) => entry && entry.dir && hasIndexMeta(entry.dir));
   if (compatibilityTargets.length) {
     const keys = new Map();
@@ -424,25 +444,32 @@ export async function loadSearchIndexes({
     : { ...EMPTY_INDEX };
   let idxExtractedProse = { ...EMPTY_INDEX };
   if (resolvedLoadExtractedProse) {
-    if (useSqlite) {
-      try {
-        idxExtractedProse = loadIndexFromSqlite('extracted-prose', {
-          includeDense: needsAnnArtifacts && !lazyDenseVectorsEnabled,
-          includeMinhash: needsAnnArtifacts,
-          includeChunks: sqliteContextChunks,
-          includeFilterIndex: needsFilterIndex
-        });
-      } catch {
+    try {
+      if (useSqlite) {
+        try {
+          idxExtractedProse = loadIndexFromSqlite('extracted-prose', {
+            includeDense: needsAnnArtifacts && !lazyDenseVectorsEnabled,
+            includeMinhash: needsAnnArtifacts,
+            includeChunks: sqliteContextChunks,
+            includeFilterIndex: needsFilterIndex
+          });
+        } catch {
+          idxExtractedProse = await loadIndexCachedLocal(extractedProseDir, {
+            ...loadOptions,
+            includeHnsw: annActive && resolvedRunExtractedProse
+          }, 'extracted-prose');
+        }
+      } else {
         idxExtractedProse = await loadIndexCachedLocal(extractedProseDir, {
           ...loadOptions,
           includeHnsw: annActive && resolvedRunExtractedProse
         }, 'extracted-prose');
       }
-    } else {
-      idxExtractedProse = await loadIndexCachedLocal(extractedProseDir, {
-        ...loadOptions,
-        includeHnsw: annActive && resolvedRunExtractedProse
-      }, 'extracted-prose');
+    } catch (err) {
+      if (!disableOptionalExtractedProse('optional extracted-prose artifacts unavailable') || !isMissingManifestLikeError(err)) {
+        throw err;
+      }
+      idxExtractedProse = { ...EMPTY_INDEX };
     }
   }
   const idxCode = runCode
@@ -684,7 +711,7 @@ export async function loadSearchIndexes({
   if (needsAnnArtifacts) {
     attachTasks.push(() => attachLanceDb(idxCode, 'code', codeIndexDir));
     attachTasks.push(() => attachLanceDb(idxProse, 'prose', proseIndexDir));
-    if (resolvedLoadExtractedProse) {
+    if (resolvedRunExtractedProse && resolvedLoadExtractedProse) {
       attachTasks.push(() => attachLanceDb(idxExtractedProse, 'extracted-prose', extractedProseDir));
     }
   }
