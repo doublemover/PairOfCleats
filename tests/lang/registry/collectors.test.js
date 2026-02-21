@@ -85,10 +85,6 @@ const cases = [
       }
     }),
     expected: [
-      'keypath:schema',
-      'keypath:service',
-      'keypath:service.include',
-      'keypath:service.configPath',
       'https://schemas.acme.dev/service.json',
       './base.json',
       './feature.json',
