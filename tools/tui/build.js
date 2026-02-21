@@ -6,11 +6,13 @@ import { stableStringify } from '../../src/shared/stable-json.js';
 import {
   TUI_BUILD_MANIFEST_CHECKSUM_FILE,
   TUI_BUILD_MANIFEST_FILE,
+  readBuildManifestSync,
   readTargetsManifest,
   resolveBuildDistDir,
   resolveTargetsPath,
   sha256FileSync,
-  sha256Text
+  sha256Text,
+  toPosixRelative
 } from './targets.js';
 
 const root = process.cwd();
@@ -23,13 +25,55 @@ const distDir = resolveBuildDistDir({ root });
 const manifestPath = path.join(distDir, TUI_BUILD_MANIFEST_FILE);
 const checksumPath = path.join(distDir, TUI_BUILD_MANIFEST_CHECKSUM_FILE);
 
+const verifyBuiltManifest = ({ rootDir, targets }) => {
+  const buildManifest = readBuildManifestSync({ root: rootDir, verifyChecksum: true });
+  const artifactsByTriple = new Map(
+    (Array.isArray(buildManifest.artifacts) ? buildManifest.artifacts : [])
+      .map((artifact) => [artifact.triple, artifact])
+  );
+  for (const target of targets) {
+    const artifact = artifactsByTriple.get(target.triple);
+    if (!artifact) {
+      throw new Error(
+        `build manifest missing target ${target.triple} (${toPosixRelative(rootDir, buildManifest.manifestPath)})`
+      );
+    }
+    if (artifact.artifactName !== target.artifactName) {
+      throw new Error(
+        `build manifest artifact mismatch for ${target.triple}: expected ${target.artifactName}, got ${artifact.artifactName}`
+      );
+    }
+    const onDiskExists = Boolean(artifact.absoluteArtifactPath && fs.existsSync(artifact.absoluteArtifactPath));
+    if (artifact.exists !== onDiskExists) {
+      throw new Error(
+        `build manifest exists mismatch for ${target.triple}: manifest=${artifact.exists} disk=${onDiskExists}`
+      );
+    }
+    if (!artifact.exists) {
+      if (artifact.sha256) {
+        throw new Error(`build manifest has sha256 for missing artifact: ${artifact.artifactPath}`);
+      }
+      continue;
+    }
+    if (!artifact.sha256) {
+      throw new Error(`build manifest missing sha256 for ${artifact.artifactPath}`);
+    }
+    const actualSha = sha256FileSync(artifact.absoluteArtifactPath);
+    if (actualSha !== artifact.sha256) {
+      throw new Error(`build manifest sha256 mismatch for ${artifact.artifactPath}`);
+    }
+  }
+  return buildManifest;
+};
+
 const run = async () => {
   const { targets } = await readTargetsManifest({ root });
   const targetsPath = resolveTargetsPath(root);
   const targetsBody = await fsPromises.readFile(targetsPath, 'utf8');
   const targetsChecksum = sha256Text(targetsBody);
   if (verifyOnly) {
-    process.stderr.write('[tui-build] target manifest verification passed.\n');
+    const verified = verifyBuiltManifest({ rootDir: root, targets });
+    process.stderr.write(`[tui-build] verified ${toPosixRelative(root, verified.manifestPath)}\n`);
     return;
   }
 

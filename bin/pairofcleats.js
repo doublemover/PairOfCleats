@@ -436,13 +436,13 @@ function resolveCommand(primary, rest) {
       });
     }
     if (sub === 'api') {
-      validateArgs(rest, ['host', 'port', 'repo'], ['host', 'port', 'repo']);
+      validateArgs(rest, ['host', 'port', 'repo', 'json'], ['host', 'port', 'repo']);
       return { script: 'tools/api/server.js', extraArgs: [], args: rest };
     }
     if (sub === 'indexer') {
       validateArgs(
         rest,
-        ['config', 'repo', 'mode', 'reason', 'stage', 'command', 'watch', 'interval', 'concurrency', 'queue'],
+        ['config', 'repo', 'mode', 'reason', 'stage', 'command', 'watch', 'interval', 'concurrency', 'queue', 'json'],
         ['config', 'repo', 'mode', 'reason', 'stage', 'command', 'interval', 'concurrency', 'queue']
       );
       return { script: 'tools/service/indexer-service.js', extraArgs: [], args: rest };

@@ -339,13 +339,45 @@ const statArtifact = async ({ kind, label, artifactPath }) => {
   }
 };
 
+const resolveRepoArgFromTokens = (tokens) => {
+  const list = Array.isArray(tokens) ? tokens.map((entry) => String(entry)) : [];
+  for (let i = 0; i < list.length; i += 1) {
+    const token = list[i];
+    if (token === '--') break;
+    if (token === '--repo') {
+      const next = list[i + 1];
+      if (typeof next === 'string' && next.trim()) return next.trim();
+      continue;
+    }
+    if (token.startsWith('--repo=')) {
+      const value = token.slice('--repo='.length).trim();
+      if (value) return value;
+    }
+  }
+  return null;
+};
+
+const resolveRequestRepoRoot = ({ request, cwd }) => {
+  const baseCwd = request?.cwd
+    ? path.resolve(String(request.cwd))
+    : path.resolve(cwd || process.cwd());
+  const argv = Array.isArray(request?.argv) ? request.argv : [];
+  const args = Array.isArray(request?.args) ? request.args : [];
+  const repoArg = resolveRepoArgFromTokens(argv) || resolveRepoArgFromTokens(args);
+  if (repoArg) {
+    return path.resolve(baseCwd, repoArg);
+  }
+  if (request?.repoRoot) {
+    return path.resolve(String(request.repoRoot));
+  }
+  return baseCwd;
+};
+
 const collectJobArtifacts = async ({ request, cwd }) => {
   const artifacts = [];
   const argv = Array.isArray(request?.argv) ? request.argv.map((entry) => String(entry)) : [];
   const dispatch = resolveDispatchRequest(argv);
-  const repoRoot = request?.repoRoot
-    ? path.resolve(String(request.repoRoot))
-    : path.resolve(cwd || process.cwd());
+  const repoRoot = resolveRequestRepoRoot({ request, cwd });
   let userConfig = null;
   try {
     userConfig = loadUserConfig(repoRoot);
