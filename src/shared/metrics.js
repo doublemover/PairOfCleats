@@ -123,6 +123,18 @@ const ensureMetrics = () => {
       buckets: [0.001, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10],
       registers: [registry]
     }),
+    workerGcPressure: new Gauge({
+      name: 'pairofcleats_worker_gc_pressure_ratio',
+      help: 'Estimated GC pressure ratio by worker thread.',
+      labelNames: ['pool', 'worker', 'stage'],
+      registers: [registry]
+    }),
+    stageGcPressure: new Gauge({
+      name: 'pairofcleats_stage_gc_pressure_ratio',
+      help: 'Estimated GC pressure ratio by indexing stage.',
+      labelNames: ['stage'],
+      registers: [registry]
+    }),
     workerRetries: new Counter({
       name: 'pairofcleats_worker_retries_total',
       help: 'Worker pool restart attempts.',
@@ -205,6 +217,11 @@ const normalizeSeconds = (value) => {
   if (!Number.isFinite(parsed) || parsed < 0) return 0;
   return parsed;
 };
+const normalizeRatio = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return 0;
+  return Math.max(0, Math.min(1, parsed));
+};
 
 /**
  * Observe index duration metrics.
@@ -269,6 +286,30 @@ export function observeWorkerTaskDuration({ pool, task, worker, status, seconds 
     worker: worker ? String(worker) : 'unknown',
     status: normalizeStatus(status)
   }, normalizeSeconds(seconds));
+}
+
+/**
+ * Set worker GC pressure ratio.
+ * @param {{ pool: string, worker: string|number, stage: string, value: number }} input
+ */
+export function setWorkerGcPressure({ pool, worker, stage, value }) {
+  ensureMetrics();
+  metrics.workerGcPressure.set({
+    pool: normalizePool(pool),
+    worker: worker ? String(worker) : 'unknown',
+    stage: normalizeStage(stage)
+  }, normalizeRatio(value));
+}
+
+/**
+ * Set stage GC pressure ratio.
+ * @param {{ stage: string, value: number }} input
+ */
+export function setStageGcPressure({ stage, value }) {
+  ensureMetrics();
+  metrics.stageGcPressure.set({
+    stage: normalizeStage(stage)
+  }, normalizeRatio(value));
 }
 
 /**

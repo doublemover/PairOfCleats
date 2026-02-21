@@ -506,6 +506,8 @@ export const resolveWorkerPoolRuntimeConfig = ({ indexingConfig, envConfig, cpuC
  * @param {Set<string>|string[]|null} input.codeDictLanguages
  * @param {object} input.postingsConfig
  * @param {object} input.treeSitterConfig
+ * @param {object|null} [input.memoryPolicy]
+ * @param {string} [input.stage]
  * @param {boolean} input.debugCrash
  * @param {(line:string)=>void} input.log
  * @returns {Promise<{workerPools:object,workerPool:object|null,quantizePool:object|null}>}
@@ -521,6 +523,8 @@ export const createRuntimeWorkerPools = async ({
   codeDictLanguages,
   postingsConfig,
   treeSitterConfig,
+  memoryPolicy = null,
+  stage = 'stage1',
   debugCrash,
   log
 }) => {
@@ -544,6 +548,8 @@ export const createRuntimeWorkerPools = async ({
       codeDictLanguages,
       postingsConfig,
       treeSitterConfig,
+      memoryPolicy,
+      stage,
       crashLogger: workerCrashLogger,
       log
     });

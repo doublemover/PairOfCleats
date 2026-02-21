@@ -1,10 +1,13 @@
 import util from 'node:util';
 import { fileURLToPath } from 'node:url';
+import os from 'node:os';
 import { log as defaultLog } from '../../../shared/progress.js';
 import {
   incWorkerRetries,
   observeWorkerTaskDuration,
+  setStageGcPressure,
   setWorkerActiveTasks,
+  setWorkerGcPressure,
   setWorkerQueueDepth
 } from '../../../shared/metrics.js';
 import { createBoundedObjectPool } from '../../../shared/bounded-object-pool.js';
@@ -30,8 +33,10 @@ import { sanitizePoolPayload, summarizeError } from './protocol.js';
  * @param {Set<string>|string[]|null} [input.codeDictLanguages]
  * @param {object} [input.postingsConfig]
  * @param {object} [input.treeSitterConfig]
+ * @param {object|null} [input.memoryPolicy]
  * @param {object|null} [input.crashLogger]
  * @param {(line:string)=>void} [input.log]
+ * @param {string} [input.stage]
  * @param {'tokenize'|'quantize'|string} [input.poolName]
  * @returns {Promise<object|null>}
  */
@@ -46,8 +51,10 @@ export async function createIndexerWorkerPool(input = {}) {
     codeDictLanguages,
     postingsConfig,
     treeSitterConfig,
+    memoryPolicy = null,
     crashLogger = null,
     log = defaultLog,
+    stage = 'stage1',
     poolName = 'tokenize'
   } = input;
   const poolLabel = typeof poolName === 'string' && poolName.trim()
@@ -301,6 +308,78 @@ export async function createIndexerWorkerPool(input = {}) {
         typedTempCount: normalized.typedTempCount
       };
     };
+    const normalizedStage = typeof stage === 'string' && stage.trim()
+      ? stage.trim().toLowerCase()
+      : 'unknown';
+    const maxGlobalRssBytes = Number.isFinite(Number(memoryPolicy?.maxGlobalRssMb))
+      ? Math.max(1, Math.floor(Number(memoryPolicy.maxGlobalRssMb) * 1024 * 1024))
+      : Math.max(1, Math.floor(Number(os.totalmem() || 0) * 0.9));
+    const gcSampleIntervalMs = 25;
+    const gcByWorker = new Map();
+    let lastGcSampleAt = 0;
+    let gcSampleCount = 0;
+    let gcGlobalPressure = 0;
+    let gcGlobalHeapUtilization = 0;
+    let gcGlobalRssPressure = 0;
+    const clampRatio = (value) => {
+      const parsed = Number(value);
+      if (!Number.isFinite(parsed)) return 0;
+      return Math.max(0, Math.min(1, parsed));
+    };
+    const updateGcTelemetry = (workerId, durationMs = null) => {
+      const now = Date.now();
+      if ((now - lastGcSampleAt) < gcSampleIntervalMs) return;
+      lastGcSampleAt = now;
+      const usage = process.memoryUsage();
+      const heapUsed = Number(usage?.heapUsed) || 0;
+      const heapTotal = Number(usage?.heapTotal) || 0;
+      const rss = Number(usage?.rss) || 0;
+      const heapUtilization = heapTotal > 0
+        ? clampRatio(heapUsed / heapTotal)
+        : 0;
+      const rssPressure = maxGlobalRssBytes
+        ? clampRatio(rss / maxGlobalRssBytes)
+        : 0;
+      const pressureRatio = clampRatio(Math.max(heapUtilization, rssPressure));
+      gcSampleCount += 1;
+      gcGlobalPressure = pressureRatio;
+      gcGlobalHeapUtilization = heapUtilization;
+      gcGlobalRssPressure = rssPressure;
+      setStageGcPressure({ stage: normalizedStage, value: pressureRatio });
+      if (workerId == null) return;
+      const key = String(workerId);
+      const previous = gcByWorker.get(key) || {
+        worker: key,
+        samples: 0,
+        lastDurationMs: null,
+        pressureRatio: 0,
+        heapUtilization: 0,
+        rssPressure: 0,
+        rssBytes: 0,
+        heapUsedBytes: 0,
+        heapTotalBytes: 0,
+        updatedAt: null
+      };
+      const next = {
+        ...previous,
+        samples: previous.samples + 1,
+        lastDurationMs: Number.isFinite(durationMs) ? Math.max(0, durationMs) : previous.lastDurationMs,
+        pressureRatio,
+        heapUtilization,
+        rssPressure,
+        rssBytes: rss,
+        heapUsedBytes: heapUsed,
+        heapTotalBytes: heapTotal,
+        updatedAt: new Date(now).toISOString()
+      };
+      gcByWorker.set(key, next);
+      setWorkerGcPressure({
+        pool: poolLabel,
+        worker: key,
+        stage: normalizedStage,
+        value: pressureRatio
+      });
+    };
     const createPool = () => {
       const workerData = {
         dictConfig: sanitizeDictConfig(dictConfig),
@@ -449,6 +528,7 @@ export async function createIndexerWorkerPool(input = {}) {
               seconds: labels.seconds
             });
           });
+          updateGcTelemetry(message.threadId, Number(message.durationMs));
           return;
         }
         if (message.type === 'worker-crash') {
@@ -549,6 +629,16 @@ export async function createIndexerWorkerPool(input = {}) {
           heapPolicy,
           heapLimitMb: Number(resourceLimits?.maxOldGenerationSizeMb) || null,
           quantizeTypedTempBuffers,
+          gcPressure: {
+            stage: normalizedStage,
+            samples: gcSampleCount,
+            global: {
+              pressureRatio: gcGlobalPressure,
+              heapUtilization: gcGlobalHeapUtilization,
+              rssPressure: gcGlobalRssPressure
+            },
+            workers: Array.from(gcByWorker.values())
+          },
           objectPools: {
             workerTaskMetrics: workerTaskMetricPool.stats(),
             tokenizePayloadMeta: tokenizePayloadMetaPool.stats(),
