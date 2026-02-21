@@ -20,7 +20,8 @@ const parseSchemaLocation = (value, imports) => {
 
 export const collectXmlImports = (text) => {
   const imports = new Set();
-  const lines = String(text || '').split('\n');
+  const source = String(text || '').replace(/<!--[\s\S]*?-->/g, '\n');
+  const lines = source.split('\n');
   const precheck = (value) => lineHasAnyInsensitive(value, [
     '<',
     'include',
