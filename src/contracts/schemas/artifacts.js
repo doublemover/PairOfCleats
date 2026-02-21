@@ -1498,6 +1498,42 @@ export const ARTIFACT_SCHEMA_DEFS = {
   extraction_report: extractionReportSchema,
   lexicon_relation_filter_report: lexiconRelationFilterReportSchema,
   boilerplate_catalog: boilerplateCatalogSchema,
+  determinism_report: {
+    type: 'object',
+    required: [
+      'schemaVersion',
+      'generatedAt',
+      'mode',
+      'stableHashExclusions',
+      'sourceReasons',
+      'normalizedStateHash'
+    ],
+    properties: {
+      schemaVersion: { type: 'integer', minimum: 1 },
+      generatedAt: { type: 'string' },
+      mode: nullableString,
+      stableHashExclusions: {
+        type: 'array',
+        items: { type: 'string' }
+      },
+      sourceReasons: {
+        type: 'array',
+        items: {
+          type: 'object',
+          required: ['path', 'category', 'reason', 'source'],
+          properties: {
+            path: { type: 'string' },
+            category: { type: 'string' },
+            reason: { type: 'string' },
+            source: { type: 'string' }
+          },
+          additionalProperties: false
+        }
+      },
+      normalizedStateHash: nullableString
+    },
+    additionalProperties: false
+  },
   pieces_manifest: {
     type: 'object',
     required: ['version', 'artifactSurfaceVersion', 'pieces'],
