@@ -13,6 +13,11 @@ import {
   OFFSETS_FORMAT,
   OFFSETS_FORMAT_VERSION
 } from '../../../shared/artifact-io/offsets.js';
+import {
+  TRIM_POLICY_VERSION,
+  TRIM_REASONS,
+  addTrimReasons
+} from './trim-policy.js';
 
 const GRAPH_RELATION_GRAPHS = ['callGraph', 'usageGraph', 'importGraph'];
 const GRAPH_RELATION_ORDER = new Map(GRAPH_RELATION_GRAPHS.map((name, index) => [name, index]));
@@ -73,6 +78,7 @@ export const trackBytesForRow = (stats, row, { stringified = null, maxJsonBytes 
 };
 
 export const createTrimStats = () => ({
+  trimPolicyVersion: TRIM_POLICY_VERSION,
   totalRows: 0,
   trimmedRows: 0,
   droppedRows: 0,
@@ -81,7 +87,8 @@ export const createTrimStats = () => ({
   totalBytes: 0,
   maxRowBytes: 0,
   runsSpilled: 0,
-  spillBytes: 0
+  spillBytes: 0,
+  trimReasonCounts: {}
 });
 
 export const recordTrimStats = (stats, {
@@ -89,7 +96,8 @@ export const recordTrimStats = (stats, {
   trimmed = false,
   dropped = false,
   deduped = false,
-  dedupeCollision = false
+  dedupeCollision = false,
+  trimReasons = null
 } = {}) => {
   if (!stats) return;
   stats.totalRows += (dropped || deduped) ? 0 : 1;
@@ -97,6 +105,11 @@ export const recordTrimStats = (stats, {
   if (dropped) stats.droppedRows += 1;
   if (deduped) stats.dedupedRows += 1;
   if (dedupeCollision) stats.dedupeCollisions += 1;
+  if (Array.isArray(trimReasons) && trimReasons.length) {
+    addTrimReasons(stats, trimReasons);
+  }
+  if (deduped) addTrimReasons(stats, [TRIM_REASONS.deduped]);
+  if (dedupeCollision) addTrimReasons(stats, [TRIM_REASONS.dedupeCollision]);
   if (rowBytes) {
     stats.totalBytes += rowBytes;
     stats.maxRowBytes = Math.max(stats.maxRowBytes, rowBytes);
@@ -192,12 +205,13 @@ export const createRowSpillCollector = ({
       dropped = false,
       dedupeHash = null,
       dedupeFingerprint = null,
+      trimReasons = null,
       line = null,
       lineBytes = null
     } = {}
   ) => {
     if (!row || dropped) {
-      recordTrimStats(stats, { dropped: true });
+      recordTrimStats(stats, { dropped: true, trimReasons });
       return;
     }
     if (dedupeHash != null) {
@@ -225,7 +239,7 @@ export const createRowSpillCollector = ({
       err.code = 'ERR_JSON_TOO_LARGE';
       throw err;
     }
-    recordTrimStats(stats, { rowBytes: resolvedBytes, trimmed });
+    recordTrimStats(stats, { rowBytes: resolvedBytes, trimmed, trimReasons });
     buffer.push(wrapRow(row, { line: resolvedLine, lineBytes: resolvedBytes }));
     bufferBytes += resolvedBytes;
     const overflow = (maxBufferBytes && bufferBytes >= maxBufferBytes)
