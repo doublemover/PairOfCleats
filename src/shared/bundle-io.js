@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { Worker } from 'node:worker_threads';
 import { Packr, Unpackr } from 'msgpackr';
 import { sha1, checksumString } from './hash.js';
 import { estimateJsonBytes } from './cache.js';
@@ -17,6 +18,9 @@ const BUNDLE_PATCH_SUFFIX = '.patch.jsonl';
 const MAX_BUNDLE_PATCH_BYTES = 8 * 1024 * 1024;
 const MAX_BUNDLE_PATCH_ENTRIES = 64;
 const MAX_BUNDLE_PATCH_ENTRY_BYTES = 2 * 1024 * 1024;
+const BUNDLE_WORKER_OFFLOAD_THRESHOLD_BYTES = 4 * 1024 * 1024;
+const BUNDLE_WORKER_MAX_PAYLOAD_BYTES = 32 * 1024 * 1024;
+const BUNDLE_WORKER_TIMEOUT_MS = 15000;
 const BUNDLE_PATCH_FIELD_KEYS = [
   'file',
   'hash',
@@ -32,6 +36,7 @@ const BUNDLE_PATCH_FIELD_KEY_SET = new Set(BUNDLE_PATCH_FIELD_KEYS);
 
 const packr = new Packr({ useRecords: false, structuredClone: true });
 const unpackr = new Unpackr({ useRecords: false });
+const bundleTransformWorkerUrl = new URL('./workers/bundle-transform-worker.js', import.meta.url);
 
 const isPlainObject = (value) => !!value && typeof value === 'object' && value.constructor === Object;
 
@@ -50,10 +55,69 @@ const normalizeBundlePayload = (value) => {
 };
 
 const checksumBundlePayload = async (payload) => {
-  const estimate = estimateJsonBytes(payload);
+  const estimate = estimatePayloadBytes(payload);
   if (estimate && estimate > MAX_BUNDLE_CHECKSUM_BYTES) return null;
+  if (shouldOffloadBundleTransform(estimate)) {
+    const workerResult = await runBundleTransformWorker({
+      operation: 'normalize-checksum',
+      payload: { bundle: payload }
+    });
+    if (workerResult.ok) {
+      const checksum = workerResult.result?.checksum;
+      if (checksum && typeof checksum === 'object') return checksum;
+    }
+  }
   return checksumString(stableStringify(payload));
 };
+
+const estimatePayloadBytes = (value) => {
+  const estimate = estimateJsonBytes(value);
+  if (!Number.isFinite(estimate) || estimate <= 0) return 0;
+  return Math.floor(estimate);
+};
+
+const shouldOffloadBundleTransform = (payloadBytes) => Number.isFinite(payloadBytes)
+  && payloadBytes >= BUNDLE_WORKER_OFFLOAD_THRESHOLD_BYTES
+  && payloadBytes <= BUNDLE_WORKER_MAX_PAYLOAD_BYTES;
+
+const runBundleTransformWorker = ({ operation, payload, timeoutMs = BUNDLE_WORKER_TIMEOUT_MS }) => (
+  new Promise((resolve) => {
+    const worker = new Worker(bundleTransformWorkerUrl, {
+      workerData: { operation, payload },
+      type: 'module'
+    });
+    let settled = false;
+    const settle = (result) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(result);
+      worker.terminate().catch(() => {});
+    };
+    const timer = setTimeout(() => {
+      settle({ ok: false, reason: 'timeout' });
+    }, Math.max(500, Math.floor(Number(timeoutMs) || BUNDLE_WORKER_TIMEOUT_MS)));
+    timer.unref?.();
+    worker.once('message', (message) => {
+      if (message?.ok === true) {
+        settle({ ok: true, result: message.result });
+        return;
+      }
+      settle({ ok: false, reason: message?.error || 'worker-error' });
+    });
+    worker.once('error', (err) => {
+      settle({ ok: false, reason: err?.message || String(err) });
+    });
+    worker.once('exit', (code) => {
+      if (settled) return;
+      if (code === 0) {
+        settle({ ok: false, reason: 'missing-worker-result' });
+        return;
+      }
+      settle({ ok: false, reason: `worker-exit-${code}` });
+    });
+  })
+);
 
 const clearBundlePatchFile = async (bundlePath) => {
   try {
@@ -118,6 +182,28 @@ const buildBundlePatch = ({ previousBundle, nextBundle }) => {
     chunks: chunks || null,
     set: setCount > 0 ? set : null
   };
+};
+
+const buildBundlePatchAsync = async ({ previousBundle, nextBundle }) => {
+  const payload = { previousBundle, nextBundle };
+  const payloadBytes = estimatePayloadBytes(payload);
+  if (shouldOffloadBundleTransform(payloadBytes)) {
+    const workerResult = await runBundleTransformWorker({
+      operation: 'build-patch',
+      payload
+    });
+    if (workerResult.ok) {
+      const patch = workerResult.result;
+      if (!patch) return null;
+      return {
+        format: BUNDLE_PATCH_FORMAT_TAG,
+        version: BUNDLE_PATCH_VERSION,
+        chunks: patch.chunks || null,
+        set: patch.set || null
+      };
+    }
+  }
+  return buildBundlePatch({ previousBundle, nextBundle });
 };
 
 const validateBundlePatch = (patch) => {
@@ -268,7 +354,7 @@ export async function writeBundlePatch({
   if (resolvedFormat !== 'json') {
     return { applied: false, reason: 'unsupported-format' };
   }
-  const patch = buildBundlePatch({ previousBundle, nextBundle });
+  const patch = await buildBundlePatchAsync({ previousBundle, nextBundle });
   if (!patch) return { applied: false, reason: 'no-changes' };
   const serialized = `${JSON.stringify(patch)}\n`;
   const bytes = Buffer.byteLength(serialized, 'utf8');
@@ -311,8 +397,23 @@ export async function writeBundlePatch({
 export async function writeBundleFile({ bundlePath, bundle, format = 'json' }) {
   const resolvedFormat = normalizeBundleFormat(format);
   if (resolvedFormat === 'msgpack') {
-    const normalized = normalizeBundlePayload(bundle);
-    const checksum = await checksumBundlePayload(normalized);
+    const bundleEstimate = estimatePayloadBytes(bundle);
+    let normalized = null;
+    let checksum = null;
+    if (shouldOffloadBundleTransform(bundleEstimate)) {
+      const workerResult = await runBundleTransformWorker({
+        operation: 'normalize-checksum',
+        payload: { bundle }
+      });
+      if (workerResult.ok && workerResult.result) {
+        normalized = workerResult.result.normalized;
+        checksum = workerResult.result.checksum || null;
+      }
+    }
+    if (!normalized) {
+      normalized = normalizeBundlePayload(bundle);
+      checksum = await checksumBundlePayload(normalized);
+    }
     const envelope = {
       format: BUNDLE_FORMAT_TAG,
       version: BUNDLE_VERSION,
