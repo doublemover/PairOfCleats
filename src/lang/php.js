@@ -192,17 +192,18 @@ function extractVisibility(modifiers) {
  */
 export function collectPhpImports(text) {
   if (!text) return [];
-  const hasUse = text.includes('use ');
-  const hasInclude = text.includes('include');
-  const hasRequire = text.includes('require');
+  const lowered = text.toLowerCase();
+  const hasUse = lowered.includes('use ');
+  const hasInclude = lowered.includes('include');
+  const hasRequire = lowered.includes('require');
   if (!hasUse && !hasInclude && !hasRequire) return [];
   const imports = new Set();
   const lines = text.split('\n');
   for (const line of lines) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('#')) continue;
-    if (trimmed.startsWith('use ')) {
-      const match = trimmed.match(/^use\s+([^;]+);/);
+    if (/^use\s+/i.test(trimmed)) {
+      const match = trimmed.match(/^use\s+([^;]+);/i);
       if (!match) continue;
       const raw = match[1].trim();
       raw.split(',').forEach((part) => {

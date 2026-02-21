@@ -8,8 +8,11 @@ applyTestEnv();
 const text = [
   '<?php',
   'use App\\Util\\Helper;',
+  'UsE App\\Util\\Logger as LogAlias;',
   "include_once './bootstrap.php';",
+  "INCLUDE './legacy.php';",
   "require 'lib/runtime.php';",
+  "REQUIRE '../legacy/runtime2.php';",
   "require_once('../vendor/autoload.php');",
   'final class Service {',
   '  public function run(): void {',
@@ -21,7 +24,7 @@ const text = [
 const imports = collectPhpImports(text).slice().sort();
 assert.deepEqual(
   imports,
-  ['../vendor/autoload.php', './bootstrap.php', 'App\\Util\\Helper', 'lib/runtime.php'],
+  ['../legacy/runtime2.php', '../vendor/autoload.php', './bootstrap.php', './legacy.php', 'App\\Util\\Helper', 'App\\Util\\Logger', 'lib/runtime.php'],
   'expected PHP collector to include use/include/require specifiers'
 );
 
