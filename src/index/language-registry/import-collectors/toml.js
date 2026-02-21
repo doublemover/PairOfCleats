@@ -48,6 +48,25 @@ const collectTomlValues = (value) => {
   return scalar ? [scalar] : [];
 };
 
+const collectDependencyReferences = (value) => {
+  const trimmed = String(value || '').trim();
+  if (!trimmed) return [];
+
+  const inlineTablePathMatches = Array.from(trimmed.matchAll(/\b(?:path|file|git|registry|url)\s*=\s*["']([^"']+)["']/g));
+  if (inlineTablePathMatches.length) {
+    return inlineTablePathMatches
+      .map((match) => normalizeTomlValue(match[1]))
+      .filter(Boolean);
+  }
+
+  const scalar = normalizeTomlValue(trimmed);
+  if (!scalar) return [];
+  if (scalar.includes('/') || scalar.startsWith('.') || scalar.includes(':')) {
+    return [scalar];
+  }
+  return [];
+};
+
 const isDependencySection = (sectionName) => {
   const normalized = String(sectionName || '').toLowerCase();
   return normalized === 'dependencies'
@@ -93,6 +112,9 @@ export const collectTomlImports = (text) => {
 
     if (isDependencySection(currentSection)) {
       addImport(imports, `dependency:${key}`);
+      for (const token of collectDependencyReferences(value)) {
+        addImport(imports, token);
+      }
     }
 
     if (!REFERENCE_KEY_TOKENS.has(keyLower) && !keyLower.endsWith('path') && !keyLower.endsWith('file')) continue;
