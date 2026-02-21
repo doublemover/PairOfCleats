@@ -23,6 +23,16 @@ const hugePolicy = await buildAutoPolicy({
   repo: { ...baseRepo, huge: true }
 });
 assertEqual('auto quality on huge repo', hugePolicy.quality.value, 'balanced');
+assertEqual(
+  'huge profile write queue weight',
+  hugePolicy?.indexing?.hugeRepoProfile?.overrides?.scheduler?.queues?.['stage2.write']?.weight,
+  5
+);
+assertEqual(
+  'huge profile sqlite queue weight',
+  hugePolicy?.indexing?.hugeRepoProfile?.overrides?.scheduler?.queues?.['stage4.sqlite']?.weight,
+  5
+);
 
 const explicitPolicy = await buildAutoPolicy({
   config: { quality: 'balanced' },

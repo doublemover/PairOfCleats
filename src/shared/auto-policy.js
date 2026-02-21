@@ -162,6 +162,16 @@ const resolveHugeRepoProfile = ({ config = {}, repo = null }) => {
       pipelineOverlap: {
         enabled: true,
         inferPostings: true
+      },
+      scheduler: {
+        queues: {
+          'stage1.postings': { weight: 5, priority: 20 },
+          'stage2.write': { weight: 5, priority: 20 },
+          'stage2.relations': { weight: 3, priority: 30 },
+          'stage4.sqlite': { weight: 5, priority: 20 },
+          'embeddings.compute': { weight: 2, priority: 35 },
+          'embeddings.io': { weight: 2, priority: 30 }
+        }
       }
     }
     : {};
