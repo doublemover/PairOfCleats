@@ -57,8 +57,10 @@ import {
 } from '../../contracts/index-profile.js';
 import { resolveArtifactWriteConcurrency } from './artifacts/write-concurrency.js';
 import {
+  buildDeterminismReport,
   buildExtractionReport,
-  buildLexiconRelationFilterReport
+  buildLexiconRelationFilterReport,
+  stripIndexStateNondeterministicFields
 } from './artifacts/reporting.js';
 import {
   cleanupVectorOnlySparseArtifacts,
@@ -1054,10 +1056,13 @@ export async function writeIndexArtifacts(input) {
   if (indexState && typeof indexState === 'object') {
     const indexStatePath = path.join(outDir, 'index_state.json');
     const indexStateMetaPath = path.join(outDir, 'index_state.meta.json');
-    const stableState = { ...indexState };
-    if ('generatedAt' in stableState) delete stableState.generatedAt;
-    if ('updatedAt' in stableState) delete stableState.updatedAt;
+    const determinismReportPath = path.join(outDir, 'determinism_report.json');
+    const stableState = stripIndexStateNondeterministicFields(indexState, { forStableHash: true });
     const stableHash = sha1(stableStringifyForSignature(stableState));
+    const determinismReport = buildDeterminismReport({
+      mode,
+      indexState
+    });
     let canSkipIndexState = false;
     try {
       if (fsSync.existsSync(indexStateMetaPath) && fsSync.existsSync(indexStatePath)) {
@@ -1081,6 +1086,15 @@ export async function writeIndexArtifacts(input) {
         atomic: true
       });
     };
+    enqueueWrite(
+      formatArtifactLabel(determinismReportPath),
+      async () => {
+        await writeJsonObjectFile(determinismReportPath, {
+          fields: determinismReport,
+          atomic: true
+        });
+      }
+    );
     if (!canSkipIndexState) {
       enqueueWrite(
         formatArtifactLabel(indexStatePath),
@@ -1125,6 +1139,7 @@ export async function writeIndexArtifacts(input) {
       );
     }
     addPieceFile({ type: 'stats', name: 'index_state', format: 'json' }, indexStatePath);
+    addPieceFile({ type: 'stats', name: 'determinism_report', format: 'json' }, determinismReportPath);
   }
   const { enqueueJsonObject, enqueueJsonArray, enqueueJsonArraySharded } = createArtifactWriter({
     outDir,
@@ -1754,7 +1769,8 @@ export async function writeIndexArtifacts(input) {
       gzipOptions: symbolsCompression === 'gzip' ? compressionGzipOptions : null,
       enqueueWrite,
       addPieceFile,
-      formatArtifactLabel
+      formatArtifactLabel,
+      stageCheckpoints
     });
     const symbolOccurrencesCompression = resolveShardCompression('symbol_occurrences');
     await enqueueSymbolOccurrencesArtifacts({

@@ -534,6 +534,18 @@ export async function validateIndexArtifacts(input = {}) {
         validateIdPostings(report, mode, 'filter_index', fileChunks, chunkMeta.length);
       }
 
+      const determinismReport = readJsonArtifact('determinism_report');
+      if (determinismReport) {
+        validateSchema(
+          report,
+          mode,
+          'determinism_report',
+          determinismReport,
+          'Rebuild index artifacts for this mode.',
+          { strictSchema: strict }
+        );
+      }
+
       if (indexState) {
         validateSchema(report, mode, 'index_state', indexState, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
         if (strict && !isSupportedVersion(indexState?.artifactSurfaceVersion, ARTIFACT_SURFACE_VERSION)) {

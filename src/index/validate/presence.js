@@ -180,6 +180,9 @@ export const createArtifactPresenceHelpers = ({
     if (name === 'index_state') {
       return fs.existsSync(path.join(dir, 'index_state.json'));
     }
+    if (name === 'determinism_report') {
+      return fs.existsSync(path.join(dir, 'determinism_report.json'));
+    }
     if (name === 'filelists') {
       return fs.existsSync(path.join(dir, '.filelists.json'));
     }
