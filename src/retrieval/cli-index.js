@@ -443,20 +443,30 @@ export async function getIndexSignature(options) {
     explicitRef = false,
     asOfContext = null
   } = options;
-  const fileSignature = (filePath) => {
+  const safeStat = async (targetPath) => {
+    try {
+      return await fsSync.promises.stat(targetPath);
+    } catch {
+      return null;
+    }
+  };
+  const fileSignature = async (filePath) => {
     try {
       if (!filePath) return null;
       let statPath = path.resolve(filePath);
-      if (!fsSync.existsSync(statPath) && statPath.endsWith('.json')) {
-        const zstPath = `${filePath}.zst`;
-        const gzPath = `${filePath}.gz`;
-        if (fsSync.existsSync(zstPath)) {
+      let stat = await safeStat(statPath);
+      if (!stat && statPath.endsWith('.json')) {
+        const zstPath = path.resolve(`${filePath}.zst`);
+        stat = await safeStat(zstPath);
+        if (stat) {
           statPath = zstPath;
-        } else if (fsSync.existsSync(gzPath)) {
-          statPath = gzPath;
+        } else {
+          const gzPath = path.resolve(`${filePath}.gz`);
+          stat = await safeStat(gzPath);
+          if (stat) statPath = gzPath;
         }
       }
-      const stat = fsSync.statSync(statPath);
+      if (!stat) return null;
       return `${stat.size}:${stat.mtimeMs}`;
     } catch {
       return null;
@@ -496,13 +506,18 @@ export async function getIndexSignature(options) {
     : null;
 
   if (useSqlite) {
+    const [codeSig, proseSig, extractedSig] = await Promise.all([
+      fileSignature(sqliteCodePath),
+      fileSignature(sqliteProsePath),
+      needsExtractedProse ? fileSignature(sqliteExtractedProsePath) : Promise.resolve(null)
+    ]);
     return {
       backend: backendLabel,
       asOf: asOfSignature,
       sqlite: {
-        code: fileSignature(sqliteCodePath),
-        prose: fileSignature(sqliteProsePath),
-        extractedProse: needsExtractedProse ? fileSignature(sqliteExtractedProsePath) : null
+        code: codeSig,
+        prose: proseSig,
+        extractedProse: extractedSig
       },
       modes: modeSignatures
     };
