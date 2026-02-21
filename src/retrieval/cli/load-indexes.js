@@ -466,7 +466,7 @@ export async function loadSearchIndexes({
         }, 'extracted-prose');
       }
     } catch (err) {
-      if (!disableOptionalExtractedProse('optional extracted-prose artifacts unavailable') || !isMissingManifestLikeError(err)) {
+      if (!isMissingManifestLikeError(err) || !disableOptionalExtractedProse('optional extracted-prose artifacts unavailable')) {
         throw err;
       }
       idxExtractedProse = { ...EMPTY_INDEX };
