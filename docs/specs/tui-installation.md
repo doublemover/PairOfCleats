@@ -96,6 +96,7 @@ When log dir is set, supervisor writes:
 
 - `<eventLogDir>/<runId>.jsonl` (exact protocol stream replay)
 - `<eventLogDir>/<runId>.meta.json` (session metadata)
+- `<eventLogDir>/<runId>.runtime.jsonl` (runtime telemetry stream)
 
 Replay requirement:
 

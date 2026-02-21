@@ -159,6 +159,29 @@ Example:
 {"proto":"poc.progress@2","event":"job:artifacts","ts":"2026-02-04T12:00:10.010Z","seq":501,"runId":"run-1","jobId":"job-1","artifactsIndexed":true,"artifacts":[{"kind":"index","label":"sqlite","path":"C:/repo/.cache/index-sqlite","exists":true,"bytes":12345,"mtime":"2026-02-04T12:00:09.000Z","mime":"application/x-sqlite3"}]}
 ```
 
+#### `runtime:metrics`
+Supervisor runtime telemetry event used for queue depth, drop/coalesce counters, and throughput signals.
+
+Example:
+```json
+{"proto":"poc.progress@2","event":"runtime:metrics","ts":"2026-02-04T12:00:10.020Z","seq":502,"runId":"run-1","flow":{"credits":384,"queueDepth":3,"sent":1200,"dropped":4,"coalesced":21,"chunked":2}}
+```
+
+#### `event:chunk`
+Chunk envelope for oversized events/log payloads. Receivers must reassemble ordered chunks by `chunkId`.
+
+Fields:
+- `chunkId`: stable chunk stream id
+- `chunkEvent`: original event type
+- `chunkIndex`: zero-based chunk index
+- `chunkCount`: total chunks
+- `chunk`: serialized slice payload
+
+Example:
+```json
+{"proto":"poc.progress@2","event":"event:chunk","ts":"2026-02-04T12:00:10.030Z","seq":503,"runId":"run-1","jobId":"job-1","chunkId":"run-1-chunk-9","chunkEvent":"log","chunkIndex":0,"chunkCount":3,"chunk":"{\"proto\":\"poc.progress@2\"..."}
+```
+
 ### 5.3 Task progress events (from `src/shared/cli/display.js`)
 
 These are already emitted by `createDisplay()` when `--progress jsonl`.

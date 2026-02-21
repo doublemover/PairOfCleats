@@ -1711,14 +1711,14 @@ Touchpoints:
 
 #### 9.7 TUI runtime throughput and interaction latency hardening
 
-- [ ] Implement supervisor-to-TUI credit-based backpressure with bounded queues and deterministic coalesce/drop policy under overload.
-- [ ] Implement viewport virtualization for jobs/tasks/log panes with ring-buffer retention and deterministic truncation semantics.
-- [ ] Implement frame scheduler with fixed render budget and dirty-region diff rendering to cap CPU under high event volume.
-- [ ] Implement oversized event/log payload chunking with deterministic reassembly and overflow behavior.
-- [ ] Implement persistent session snapshot/recovery (`last-state.json`) so TUI restores prior view state after restart.
-- [ ] Implement terminal capability negotiation (color/unicode/mouse/alt-screen) with deterministic degraded rendering modes.
-- [ ] Implement input throttling/debouncing for high key-repeat scenarios with deterministic command dispatch ordering.
-- [ ] Add in-TUI performance telemetry (event lag, render time, queue depth) and emit structured runtime metrics.
+- [x] Implement supervisor-to-TUI credit-based backpressure with bounded queues and deterministic coalesce/drop policy under overload.
+- [x] Implement viewport virtualization for jobs/tasks/log panes with ring-buffer retention and deterministic truncation semantics.
+- [x] Implement frame scheduler with fixed render budget and dirty-region diff rendering to cap CPU under high event volume.
+- [x] Implement oversized event/log payload chunking with deterministic reassembly and overflow behavior.
+- [x] Implement persistent session snapshot/recovery (`last-state.json`) so TUI restores prior view state after restart.
+- [x] Implement terminal capability negotiation (color/unicode/mouse/alt-screen) with deterministic degraded rendering modes.
+- [x] Implement input throttling/debouncing for high key-repeat scenarios with deterministic command dispatch ordering.
+- [x] Add in-TUI performance telemetry (event lag, render time, queue depth) and emit structured runtime metrics.
 
 Tests:
 

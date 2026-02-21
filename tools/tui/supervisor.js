@@ -76,11 +76,31 @@ const createEventLogRecorder = () => {
 
 const eventLogRecorder = createEventLogRecorder();
 
+const FLOW_DEFAULT_CREDITS = 512;
+const FLOW_MAX_CREDITS = 10_000;
+const FLOW_QUEUE_MAX = 2048;
+const FLOW_MAX_EVENT_CHARS = 16 * 1024;
+const FLOW_CHUNK_CHARS = 4096;
+const FLOW_METRICS_INTERVAL_MS = 1000;
+const CRITICAL_EVENTS = new Set(['hello', 'job:start', 'job:spawn', 'job:end', 'job:artifacts', 'runtime:metrics']);
+
 const state = {
   shuttingDown: false,
   shutdownStartedAt: 0,
   globalSeq: 0,
-  jobs: new Map()
+  jobs: new Map(),
+  flow: {
+    credits: FLOW_DEFAULT_CREDITS,
+    queue: [],
+    queueMax: FLOW_QUEUE_MAX,
+    maxEventChars: FLOW_MAX_EVENT_CHARS,
+    chunkChars: FLOW_CHUNK_CHARS,
+    sent: 0,
+    dropped: 0,
+    coalesced: 0,
+    chunked: 0,
+    chunkSeq: 0
+  }
 };
 
 const clampInt = (value, fallback, { min = 0, max = Number.MAX_SAFE_INTEGER } = {}) => {
@@ -107,15 +127,106 @@ const nextSeq = (jobId = null) => {
   return job.seq;
 };
 
-const emit = (event, payload = {}, { jobId = null } = {}) => {
+const nextChunkId = () => {
+  state.flow.chunkSeq += 1;
+  return `${runId}-chunk-${state.flow.chunkSeq}`;
+};
+
+const writeEvent = (entry) => {
+  process.stdout.write(`${JSON.stringify(entry)}\n`);
+  eventLogRecorder?.write(entry);
+  state.flow.sent += 1;
+};
+
+const queueFlowEntry = (entry) => {
+  const queue = state.flow.queue;
+  if (queue.length < state.flow.queueMax) {
+    queue.push(entry);
+    return;
+  }
+  if (entry.event === 'task:progress') {
+    const replacementIndex = queue.findLastIndex((queued) => (
+      queued.event === 'task:progress'
+      && queued.jobId === entry.jobId
+      && queued.taskId === entry.taskId
+    ));
+    if (replacementIndex >= 0) {
+      queue[replacementIndex] = entry;
+      state.flow.coalesced += 1;
+      return;
+    }
+  }
+  if (entry.event === 'log') {
+    const dropIndex = queue.findIndex((queued) => queued.event === 'log');
+    if (dropIndex >= 0) {
+      queue.splice(dropIndex, 1);
+      state.flow.dropped += 1;
+    }
+  } else {
+    queue.shift();
+    state.flow.dropped += 1;
+  }
+  queue.push(entry);
+};
+
+const drainFlowQueue = () => {
+  while (state.flow.credits > 0 && state.flow.queue.length > 0) {
+    const next = state.flow.queue.shift();
+    if (!next) break;
+    state.flow.credits -= 1;
+    writeEvent(next);
+  }
+};
+
+const emitEntry = (entry, { critical = false } = {}) => {
+  if (critical || state.flow.credits > 0) {
+    if (!critical) {
+      state.flow.credits = Math.max(0, state.flow.credits - 1);
+    }
+    writeEvent(entry);
+    return;
+  }
+  queueFlowEntry(entry);
+};
+
+const splitEventPayloadIntoChunks = (entry) => {
+  const serialized = JSON.stringify(entry);
+  if (serialized.length <= state.flow.maxEventChars || entry.event === 'event:chunk') {
+    return null;
+  }
+  const chunkId = nextChunkId();
+  const chunks = [];
+  for (let offset = 0; offset < serialized.length; offset += state.flow.chunkChars) {
+    chunks.push(serialized.slice(offset, offset + state.flow.chunkChars));
+  }
+  state.flow.chunked += 1;
+  return chunks.map((chunk, index) => formatProgressEvent('event:chunk', {
+    runId,
+    ...(entry.jobId ? { jobId: entry.jobId } : {}),
+    seq: nextSeq(entry.jobId || null),
+    chunkId,
+    chunkEvent: entry.event,
+    chunkIndex: index,
+    chunkCount: chunks.length,
+    chunk
+  }));
+};
+
+const emit = (event, payload = {}, { jobId = null, critical = false } = {}) => {
   const entry = formatProgressEvent(event, {
     runId,
     ...(jobId ? { jobId } : {}),
     seq: nextSeq(jobId),
     ...payload
   });
-  process.stdout.write(`${JSON.stringify(entry)}\n`);
-  eventLogRecorder?.write(entry);
+  const chunked = splitEventPayloadIntoChunks(entry);
+  if (Array.isArray(chunked)) {
+    for (const chunkEntry of chunked) {
+      emitEntry(chunkEntry, { critical });
+    }
+    return;
+  }
+  emitEntry(entry, { critical: critical || CRITICAL_EVENTS.has(event) });
 };
 
 const emitLog = (jobId, level, message, extra = {}) => {
@@ -124,6 +235,27 @@ const emitLog = (jobId, level, message, extra = {}) => {
     message,
     ...extra
   }, { jobId });
+};
+
+const addFlowCredits = (value) => {
+  const credits = clampInt(value, 0, { min: 0, max: FLOW_MAX_CREDITS });
+  if (credits <= 0) return 0;
+  state.flow.credits = Math.min(FLOW_MAX_CREDITS, state.flow.credits + credits);
+  drainFlowQueue();
+  return credits;
+};
+
+const emitRuntimeMetrics = () => {
+  emit('runtime:metrics', {
+    flow: {
+      credits: state.flow.credits,
+      queueDepth: state.flow.queue.length,
+      sent: state.flow.sent,
+      dropped: state.flow.dropped,
+      coalesced: state.flow.coalesced,
+      chunked: state.flow.chunked
+    }
+  }, { critical: true });
 };
 
 const resolveRunRequest = (request) => {
@@ -519,6 +651,9 @@ const cancelJob = (jobId, reason = 'cancel_requested') => {
 const shutdown = async (reason = 'shutdown', exitCode = 0) => {
   if (state.shuttingDown) return;
   state.shuttingDown = true;
+  if (runtimeMetricsTimer) {
+    clearInterval(runtimeMetricsTimer);
+  }
   state.shutdownStartedAt = Date.now();
   emitLog(null, 'info', 'supervisor shutdown requested', { reason });
   for (const job of state.jobs.values()) {
@@ -554,9 +689,20 @@ const handleRequest = async (request) => {
       capabilities: {
         protocolVersion: PROGRESS_PROTOCOL,
         supportsCancel: true,
-        supportsResultCapture: true
+        supportsResultCapture: true,
+        supportsFlowControl: true,
+        supportsChunking: true
       }
-    });
+    }, { critical: true });
+    emitRuntimeMetrics();
+    return;
+  }
+  if (op === 'flow:credit') {
+    const added = addFlowCredits(request.credits);
+    emitRuntimeMetrics();
+    if (added <= 0) {
+      emitLog(null, 'warn', 'ignored invalid flow:credit request', { credits: request.credits });
+    }
     return;
   }
   if (op === 'job:run') {
@@ -637,6 +783,16 @@ emit('hello', {
   capabilities: {
     protocolVersion: PROGRESS_PROTOCOL,
     supportsCancel: true,
-    supportsResultCapture: true
+    supportsResultCapture: true,
+    supportsFlowControl: true,
+    supportsChunking: true
   }
-});
+}, { critical: true });
+
+const runtimeMetricsTimer = setInterval(() => {
+  if (state.shuttingDown) return;
+  emitRuntimeMetrics();
+}, FLOW_METRICS_INTERVAL_MS);
+if (typeof runtimeMetricsTimer.unref === 'function') {
+  runtimeMetricsTimer.unref();
+}

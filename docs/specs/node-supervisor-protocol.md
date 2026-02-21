@@ -145,6 +145,18 @@ Supervisor behavior:
 - emit final `log` lines as needed
 - exit 0
 
+### 4.5 `flow:credit`
+Adds protocol credits so the supervisor can drain queued non-critical events.
+
+```json
+{"proto":"poc.tui@1","op":"flow:credit","credits":64}
+```
+
+Supervisor behavior:
+- increment available credits by `credits` (bounded cap)
+- drain queued events in deterministic FIFO order
+- enforce deterministic overload policy (task-progress coalesce, oldest-log drop first)
+
 ---
 
 ## 5) Job spawning & env resolution
@@ -243,6 +255,8 @@ Supervisor MUST emit at least:
 - forwarded child events (`task:*`, `log`)
 - `job:end` exactly once, containing exit code/signal/duration and optional result
 - `job:artifacts` after `job:end` when artifact indexing is enabled
+- `runtime:metrics` periodically for queue/backpressure telemetry
+- `event:chunk` when payload chunking is used for oversized events/logs
 
 ---
 

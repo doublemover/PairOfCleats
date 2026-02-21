@@ -6,6 +6,8 @@ export const PROGRESS_EVENTS = new Set([
   'job:spawn',
   'job:end',
   'job:artifacts',
+  'runtime:metrics',
+  'event:chunk',
   'task:start',
   'task:progress',
   'task:end',

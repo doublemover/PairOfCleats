@@ -11,6 +11,7 @@ Defines deterministic build metadata for Rust TUI artifacts and their Node-side 
   - `triple`
   - `platform`
   - `artifactName`
+- This mapping is consumed directly by build, install, and wrapper resolution (`tools/tui/targets.js`).
 
 ## Build Manifest
 
@@ -25,6 +26,7 @@ Manifest contract:
 - deterministic target ordering by triple
 - `pathPolicy: "repo-relative-posix"`
 - per-target `sha256` recorded when artifact exists
+- includes checksum for `tools/tui/targets.json` to detect target-map drift
 
 ## Release Integration
 

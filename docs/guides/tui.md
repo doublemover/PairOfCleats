@@ -16,6 +16,15 @@ Last updated: 2026-02-21T00:00:00Z
 2. `pairofcleats tui install`
 3. `pairofcleats-tui`
 
+Runtime controls:
+
+- `[r]` queue job run
+- `[c]` cancel selected job
+- `[q]` graceful shutdown
+- `[j]/[k]` log viewport scroll
+- `[n]/[m]` job viewport scroll
+- `[u]/[i]` task viewport scroll
+
 ## Install layout
 
 Default install root is repo-local:
@@ -52,11 +61,17 @@ Supervisor writes replay logs:
 
 - `<eventLogDir>/<runId>.jsonl`
 - `<eventLogDir>/<runId>.meta.json`
+- `<eventLogDir>/<runId>.runtime.jsonl`
 
 Set a custom event log directory with:
 
 - `pairofcleats tui install --event-log-dir <path>`
 - or `PAIROFCLEATS_TUI_EVENT_LOG_DIR=<path>`
+
+Session snapshot restore path:
+
+- default `.cache/tui/last-state.json`
+- override with `PAIROFCLEATS_TUI_SNAPSHOT_PATH`
 
 ## Related specs
 
@@ -64,3 +79,4 @@ Set a custom event log directory with:
 - `docs/specs/tui-build-and-release.md`
 - `docs/specs/node-supervisor-protocol.md`
 - `docs/specs/progress-protocol-v2.md`
+- `docs/specs/tui-performance-and-backpressure.md`
