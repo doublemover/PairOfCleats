@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
+import { createTimeoutError, runWithTimeout } from '../../shared/promise-timeout.js';
 
 const require = createRequire(import.meta.url);
 
@@ -79,20 +80,13 @@ export const resolveFailureReason = (reason, fallback = 'extract_failed') => (
 
 export const withTimeout = async (operation, timeoutMs) => {
   const timeout = normalizePositiveInt(timeoutMs, DEFAULT_DOCUMENT_EXTRACTION_POLICY.extractTimeoutMs);
-  let timer = null;
-  try {
-    const timeoutPromise = new Promise((_, reject) => {
-      timer = setTimeout(() => {
-        const err = new Error('Document extraction timed out');
-        err.code = 'EXTRACT_TIMEOUT';
-        reject(err);
-      }, timeout);
-      timer.unref?.();
-    });
-    return await Promise.race([Promise.resolve().then(operation), timeoutPromise]);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
+  return runWithTimeout(operation, {
+    timeoutMs: timeout,
+    errorFactory: () => createTimeoutError({
+      message: 'Document extraction timed out',
+      code: 'EXTRACT_TIMEOUT'
+    })
+  });
 };
 
 export const sha256Hex = (buffer) => createHash('sha256').update(buffer).digest('hex');

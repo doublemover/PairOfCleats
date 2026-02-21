@@ -19,6 +19,18 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
   const maxPendingBeforeBackpressure = Number.isFinite(options.maxPendingBeforeBackpressure)
     ? Math.max(1, Math.floor(options.maxPendingBeforeBackpressure))
     : 0;
+  const maxPendingEmergencyFactor = Number.isFinite(Number(options.maxPendingEmergencyFactor))
+    ? Math.max(1.25, Number(options.maxPendingEmergencyFactor))
+    : 4;
+  const maxPendingEmergency = maxPendingBeforeBackpressure > 0
+    ? Math.max(
+      maxPendingBeforeBackpressure + 1,
+      Math.min(
+        4096,
+        Math.floor(maxPendingBeforeBackpressure * maxPendingEmergencyFactor)
+      )
+    )
+    : 0;
   const pending = new Map();
   const completed = new Set();
   const startIndex = Number.isFinite(options.startIndex)
@@ -55,6 +67,7 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
   const capacityWaiters = new Set();
   let abortError = null;
   let lastActivityAt = Date.now();
+  let emergencyCapacityActive = false;
 
   const emitLog = (message, meta) => {
     if (!logFn) return;
@@ -77,14 +90,42 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
     emitLog(`${message}${suffix}`, { kind: 'debug' });
   };
 
+  const shouldEnableEmergencyCapacity = () => (
+    maxPendingBeforeBackpressure > 0
+    && maxPendingEmergency > maxPendingBeforeBackpressure
+    && expectedCount != null
+    && seenCount < expectedCount
+    && stallMs > 0
+    && pending.size > maxPendingBeforeBackpressure
+    && (Date.now() - lastActivityAt) >= stallMs
+  );
+
+  const setEmergencyCapacityActive = (active, reason = null) => {
+    if (emergencyCapacityActive === active) return;
+    emergencyCapacityActive = active;
+    const action = active ? 'enabled' : 'disabled';
+    const reasonText = reason ? ` (${reason})` : '';
+    emitLog(
+      `[ordered] emergency capacity ${action}${reasonText}; pending=${pending.size}; limit=${maxPendingBeforeBackpressure}; emergencyLimit=${maxPendingEmergency}`,
+      { kind: active ? 'warning' : 'status' }
+    );
+  };
+
+  const refreshEmergencyCapacity = (reason = null) => {
+    setEmergencyCapacityActive(shouldEnableEmergencyCapacity(), reason);
+    return emergencyCapacityActive;
+  };
+
   const noteAdvance = () => {
     const now = Date.now();
     lastAdvanceAt = now;
     lastActivityAt = now;
+    setEmergencyCapacityActive(false, 'progress');
   };
 
   const noteActivity = () => {
     lastActivityAt = Date.now();
+    setEmergencyCapacityActive(false, 'activity');
   };
 
   const rejectCapacityWaiters = (err) => {
@@ -105,7 +146,11 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
       rejectCapacityWaiters(abortError || new Error('Ordered appender aborted.'));
       return;
     }
-    if (maxPendingBeforeBackpressure > 0 && pending.size > maxPendingBeforeBackpressure) return;
+    const emergencyActive = refreshEmergencyCapacity('capacity-check');
+    const maxPendingAllowed = emergencyActive
+      ? maxPendingEmergency
+      : maxPendingBeforeBackpressure;
+    if (maxPendingAllowed > 0 && pending.size > maxPendingAllowed) return;
     const waiters = Array.from(capacityWaiters);
     capacityWaiters.clear();
     for (const waiter of waiters) {
@@ -119,7 +164,11 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
     if (aborted) {
       return Promise.reject(abortError || new Error('Ordered appender aborted.'));
     }
-    if (maxPendingBeforeBackpressure <= 0 || pending.size <= maxPendingBeforeBackpressure) {
+    const emergencyActive = refreshEmergencyCapacity('wait');
+    const maxPendingAllowed = emergencyActive
+      ? maxPendingEmergency
+      : maxPendingBeforeBackpressure;
+    if (maxPendingAllowed <= 0 || pending.size <= maxPendingAllowed) {
       return Promise.resolve();
     }
     return new Promise((resolve, reject) => {
@@ -128,10 +177,20 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
   };
 
   const scheduleStallCheck = () => {
-    if (!logFn || stallMs <= 0) return;
+    if (stallMs <= 0) return;
     if (stallTimer) return;
     stallTimer = setTimeout(() => {
       stallTimer = null;
+      if (!pending.size) {
+        setEmergencyCapacityActive(false, 'drained');
+        return;
+      }
+      refreshEmergencyCapacity('stall');
+      resolveCapacityWaiters();
+      if (!logFn) {
+        scheduleStallCheck();
+        return;
+      }
       if (!pending.size) return;
       if (pending.has(nextIndex)) {
         scheduleStallCheck();
@@ -277,6 +336,7 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
   const abort = (err) => {
     if (aborted) return;
     aborted = true;
+    setEmergencyCapacityActive(false, 'abort');
     abortError = err instanceof Error ? err : new Error(String(err || 'Ordered appender aborted.'));
     if (stallTimer) {
       clearTimeout(stallTimer);

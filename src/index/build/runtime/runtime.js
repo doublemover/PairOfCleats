@@ -158,11 +158,15 @@ const resolveStage1Queues = (indexingConfig = {}) => {
   });
   const orderedMaxPending = coercePositiveInt(ordered.maxPending);
   const orderedBucketSize = coercePositiveInt(ordered.bucketSize);
+  const orderedMaxPendingEmergencyFactor = Number(ordered.maxPendingEmergencyFactor);
   const watchdogSlowFileMs = coerceNonNegativeInt(
     watchdog.slowFileMs ?? stage1.fileWatchdogMs
   );
   const watchdogMaxSlowFileMs = coerceNonNegativeInt(
     watchdog.maxSlowFileMs ?? stage1.fileWatchdogMaxMs
+  );
+  const watchdogHardTimeoutMs = coerceNonNegativeInt(
+    watchdog.hardTimeoutMs ?? stage1.fileWatchdogHardMs
   );
   const watchdogBytesPerStep = coercePositiveInt(watchdog.bytesPerStep);
   const watchdogLinesPerStep = coercePositiveInt(watchdog.linesPerStep);
@@ -181,11 +185,16 @@ const resolveStage1Queues = (indexingConfig = {}) => {
     },
     ordered: {
       maxPending: orderedMaxPending,
-      bucketSize: orderedBucketSize
+      bucketSize: orderedBucketSize,
+      maxPendingEmergencyFactor: Number.isFinite(orderedMaxPendingEmergencyFactor)
+        && orderedMaxPendingEmergencyFactor > 1
+        ? orderedMaxPendingEmergencyFactor
+        : null
     },
     watchdog: {
       slowFileMs: watchdogSlowFileMs,
       maxSlowFileMs: watchdogMaxSlowFileMs,
+      hardTimeoutMs: watchdogHardTimeoutMs,
       bytesPerStep: watchdogBytesPerStep,
       linesPerStep: watchdogLinesPerStep,
       stepMs: watchdogStepMs

@@ -4,6 +4,7 @@ import { getEnvConfig } from '../../../../shared/env.js';
 import { fileExt, toPosix } from '../../../../shared/files.js';
 import { countLinesForEntries } from '../../../../shared/file-stats.js';
 import { log, logLine, showProgress } from '../../../../shared/progress.js';
+import { createTimeoutError, runWithTimeout } from '../../../../shared/promise-timeout.js';
 import { coerceNonNegativeInt, coercePositiveInt } from '../../../../shared/number-coerce.js';
 import { throwIfAborted } from '../../../../shared/abort.js';
 import { compareStrings } from '../../../../shared/sort.js';
@@ -29,6 +30,9 @@ const FILE_WATCHDOG_DEFAULT_MAX_MS = 120000;
 const FILE_WATCHDOG_DEFAULT_BYTES_PER_STEP = 256 * 1024;
 const FILE_WATCHDOG_DEFAULT_LINES_PER_STEP = 2000;
 const FILE_WATCHDOG_DEFAULT_STEP_MS = 1000;
+const FILE_HARD_TIMEOUT_DEFAULT_MS = 300000;
+const FILE_HARD_TIMEOUT_MAX_MS = 1800000;
+const FILE_HARD_TIMEOUT_SLOW_MULTIPLIER = 3;
 const DEFAULT_POSTINGS_ROWS_PER_PENDING = 300;
 const DEFAULT_POSTINGS_BYTES_PER_PENDING = 12 * 1024 * 1024;
 const DEFAULT_POSTINGS_PENDING_SCALE = 3;
@@ -91,7 +95,7 @@ export const createOrderedCompletionTracker = () => {
   return { track, throwIfFailed, wait };
 };
 
-const resolveFileWatchdogConfig = (runtime) => {
+export const resolveFileWatchdogConfig = (runtime) => {
   const config = runtime?.stage1Queues?.watchdog || {};
   const slowFileMs = coerceNonNegativeInt(config.slowFileMs) ?? FILE_WATCHDOG_DEFAULT_MS;
   const maxSlowFileMs = coerceNonNegativeInt(config.maxSlowFileMs)
@@ -99,16 +103,19 @@ const resolveFileWatchdogConfig = (runtime) => {
   const bytesPerStep = coercePositiveInt(config.bytesPerStep) ?? FILE_WATCHDOG_DEFAULT_BYTES_PER_STEP;
   const linesPerStep = coercePositiveInt(config.linesPerStep) ?? FILE_WATCHDOG_DEFAULT_LINES_PER_STEP;
   const stepMs = coercePositiveInt(config.stepMs) ?? FILE_WATCHDOG_DEFAULT_STEP_MS;
+  const hardTimeoutMs = coerceNonNegativeInt(config.hardTimeoutMs)
+    ?? Math.max(FILE_HARD_TIMEOUT_DEFAULT_MS, maxSlowFileMs * FILE_HARD_TIMEOUT_SLOW_MULTIPLIER);
   return {
     slowFileMs: Math.max(0, slowFileMs),
     maxSlowFileMs: Math.max(0, maxSlowFileMs),
+    hardTimeoutMs: Math.max(0, hardTimeoutMs),
     bytesPerStep,
     linesPerStep,
     stepMs
   };
 };
 
-const resolveFileWatchdogMs = (watchdogConfig, entry) => {
+export const resolveFileWatchdogMs = (watchdogConfig, entry) => {
   if (!watchdogConfig || watchdogConfig.slowFileMs <= 0) return 0;
   const fileBytes = coerceNonNegativeInt(entry?.stat?.size) ?? 0;
   const fileLines = coerceNonNegativeInt(entry?.lines) ?? 0;
@@ -117,6 +124,20 @@ const resolveFileWatchdogMs = (watchdogConfig, entry) => {
   const extraSteps = Math.max(byteSteps, lineSteps);
   const timeoutMs = watchdogConfig.slowFileMs + (extraSteps * watchdogConfig.stepMs);
   return Math.min(watchdogConfig.maxSlowFileMs, timeoutMs);
+};
+
+export const resolveFileHardTimeoutMs = (watchdogConfig, entry, softTimeoutMs = 0) => {
+  if (!watchdogConfig || watchdogConfig.hardTimeoutMs <= 0) return 0;
+  const fileBytes = coerceNonNegativeInt(entry?.stat?.size) ?? 0;
+  const fileLines = coerceNonNegativeInt(entry?.lines) ?? 0;
+  const byteSteps = Math.floor(fileBytes / Math.max(1, watchdogConfig.bytesPerStep || FILE_WATCHDOG_DEFAULT_BYTES_PER_STEP));
+  const lineSteps = Math.floor(fileLines / Math.max(1, watchdogConfig.linesPerStep || FILE_WATCHDOG_DEFAULT_LINES_PER_STEP));
+  const sizeSteps = Math.max(byteSteps, lineSteps);
+  const sizeScaledTimeout = watchdogConfig.hardTimeoutMs + (sizeSteps * Math.max(1, watchdogConfig.stepMs || FILE_WATCHDOG_DEFAULT_STEP_MS));
+  const softScaledTimeout = Number.isFinite(softTimeoutMs) && softTimeoutMs > 0
+    ? Math.ceil(softTimeoutMs * 2)
+    : 0;
+  return Math.min(FILE_HARD_TIMEOUT_MAX_MS, Math.max(watchdogConfig.hardTimeoutMs, sizeScaledTimeout, softScaledTimeout));
 };
 
 export const shouldBypassPostingsBackpressure = ({
@@ -192,7 +213,7 @@ const resolvePostingsQueueConfig = (runtime) => {
  * head-of-line file is still processing.
  *
  * @param {object} runtime
- * @returns {{maxPendingBeforeBackpressure:number}}
+ * @returns {{maxPendingBeforeBackpressure:number,maxPendingEmergencyFactor:number|undefined}}
  */
 const resolveOrderedAppenderConfig = (runtime) => {
   const config = runtime?.stage1Queues?.ordered || {};
@@ -205,7 +226,13 @@ const resolveOrderedAppenderConfig = (runtime) => {
   const maxPendingBeforeBackpressure = coercePositiveInt(config.maxPending)
     ?? cpuPending
     ?? Math.max(64, fileConcurrency * 12);
-  return { maxPendingBeforeBackpressure };
+  const maxPendingEmergencyFactor = Number(config.maxPendingEmergencyFactor);
+  return {
+    maxPendingBeforeBackpressure,
+    maxPendingEmergencyFactor: Number.isFinite(maxPendingEmergencyFactor) && maxPendingEmergencyFactor > 1
+      ? maxPendingEmergencyFactor
+      : undefined
+  };
 };
 
 const resolveTreeSitterPlannerEntries = ({ entries, root }) => {
@@ -526,6 +553,7 @@ export const processFiles = async ({
         bucketSize: coercePositiveInt(runtime?.stage1Queues?.ordered?.bucketSize)
         ?? Math.max(128, runtime.fileConcurrency * 32),
         maxPendingBeforeBackpressure: orderedAppenderConfig.maxPendingBeforeBackpressure,
+        maxPendingEmergencyFactor: orderedAppenderConfig.maxPendingEmergencyFactor,
         log: (message, meta = {}) => logLine(message, { ...meta, mode, stage: 'processing' }),
         stallMs: debugOrdered ? 5000 : undefined,
         debugOrdered
@@ -618,6 +646,7 @@ export const processFiles = async ({
             const rel = entry.rel || toPosix(path.relative(runtimeRef.root, entry.abs));
             const watchdogStart = Date.now();
             const fileWatchdogMs = resolveFileWatchdogMs(fileWatchdogConfig, entry);
+            const fileHardTimeoutMs = resolveFileHardTimeoutMs(fileWatchdogConfig, entry, fileWatchdogMs);
             let watchdog = null;
             if (fileWatchdogMs > 0) {
               watchdog = setTimeout(() => {
@@ -665,8 +694,37 @@ export const processFiles = async ({
               shardId: shardMeta?.id || null
             });
             try {
-              return await processFile(entry, stableFileIndex);
+              return await runWithTimeout(
+                () => processFile(entry, stableFileIndex),
+                {
+                  timeoutMs: fileHardTimeoutMs,
+                  errorFactory: () => createTimeoutError({
+                    message: `File processing timed out after ${fileHardTimeoutMs}ms (${rel})`,
+                    code: 'FILE_PROCESS_TIMEOUT',
+                    retryable: false,
+                    meta: {
+                      file: rel,
+                      fileIndex: stableFileIndex,
+                      timeoutMs: fileHardTimeoutMs
+                    }
+                  })
+                }
+              );
             } catch (err) {
+              if (err?.code === 'FILE_PROCESS_TIMEOUT') {
+                logLine(
+                  `[watchdog] hard-timeout file ${stableFileIndex ?? '?'} ${rel} (${fileHardTimeoutMs}ms)`,
+                  {
+                    kind: 'warning',
+                    mode,
+                    stage: 'processing',
+                    file: rel,
+                    fileIndex: stableFileIndex,
+                    timeoutMs: fileHardTimeoutMs,
+                    shardId: shardMeta?.id || null
+                  }
+                );
+              }
               crashLogger.logError({
                 phase: 'processing',
                 mode,
@@ -738,8 +796,11 @@ export const processFiles = async ({
                 ? entry.orderIndex
                 : (Number.isFinite(entry?.canonicalOrderIndex) ? entry.canonicalOrderIndex : entryIndex);
               const rel = entry?.rel || toPosix(path.relative(runtimeRef.root, entry?.abs || ''));
+              const timeoutText = err?.code === 'FILE_PROCESS_TIMEOUT' && Number.isFinite(err?.meta?.timeoutMs)
+                ? ` timeout=${err.meta.timeoutMs}ms`
+                : '';
               logLine(
-                `[ordered] skipping failed file ${orderIndex} ${rel} (${err?.message || err})`,
+                `[ordered] skipping failed file ${orderIndex} ${rel}${timeoutText} (${err?.message || err})`,
                 {
                   kind: 'warning',
                   mode,

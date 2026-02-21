@@ -159,6 +159,7 @@ export async function runWithQueue(queue, items, worker, options = {}) {
       try {
         result = await worker(item, ctx);
       } catch (err) {
+        if (err?.retryable === false) throw err;
         attempt += 1;
         if (attempt > retries) throw err;
         if (delayMs > 0) {
