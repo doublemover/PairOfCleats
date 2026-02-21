@@ -189,8 +189,10 @@ export const resolveThreadLimitsConfig = ({ argv, rawArgv, envConfig, indexingCo
  *   effectiveWorkerHeapMb:number,
  *   perWorkerCacheMb:number,
  *   perWorkerWriteBufferMb:number,
- *   rssHeadroomMb:number|null,
- *   cacheHotsetTargetMb:number,
+  *   rssHeadroomMb:number|null,
+  *   cacheHotsetTargetMb:number,
+ *   hugeProfileWriteBufferBoosted:boolean,
+ *   writeBufferHeadroomBoostMb:number,
  *   queueHeadroomScale:number
  * }}
  */
@@ -227,7 +229,19 @@ export const resolveRuntimeMemoryPolicy = ({ indexingConfig, cpuConcurrency }) =
     reserveRssMb
   });
   const perWorkerCacheMb = budgetSplit.perWorkerCacheMb;
-  const perWorkerWriteBufferMb = budgetSplit.perWorkerWriteBufferMb;
+  let perWorkerWriteBufferMb = budgetSplit.perWorkerWriteBufferMb;
+  const hugeRepoProfileEnabled = indexingConfig?.hugeRepoProfile?.enabled === true;
+  let writeBufferHeadroomBoostMb = 0;
+  if (hugeRepoProfileEnabled && Number.isFinite(budgetSplit.rssHeadroomMb)) {
+    const perWorkerRssHeadroomMb = Math.max(0, Math.floor(budgetSplit.rssHeadroomMb / Math.max(1, workerCount)));
+    const projectedPerWorkerMb = perWorkerCacheMb + perWorkerWriteBufferMb + effectiveWorkerHeapMb;
+    const sparePerWorkerMb = Math.max(0, perWorkerRssHeadroomMb - projectedPerWorkerMb);
+    if (sparePerWorkerMb >= 128) {
+      const configuredBoostCapMb = coerceRuntimeBudgetMb(memoryConfig.hugeWriteBufferBoostMaxMb, 64) || 512;
+      writeBufferHeadroomBoostMb = Math.min(configuredBoostCapMb, Math.floor(sparePerWorkerMb * 0.5));
+      perWorkerWriteBufferMb += writeBufferHeadroomBoostMb;
+    }
+  }
   const projectedBudgetMb = workerCount * (
     effectiveWorkerHeapMb + perWorkerCacheMb + perWorkerWriteBufferMb
   );
@@ -244,6 +258,8 @@ export const resolveRuntimeMemoryPolicy = ({ indexingConfig, cpuConcurrency }) =
     perWorkerWriteBufferMb,
     rssHeadroomMb: budgetSplit.rssHeadroomMb,
     cacheHotsetTargetMb: budgetSplit.cacheHotsetTargetMb,
+    hugeProfileWriteBufferBoosted: writeBufferHeadroomBoostMb > 0,
+    writeBufferHeadroomBoostMb,
     queueHeadroomScale
   };
 };
