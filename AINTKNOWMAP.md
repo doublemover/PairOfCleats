@@ -2096,7 +2096,7 @@ Exit criteria:
       - Touchpoints: `src/index/build/workers/config.js`, `src/index/build/workers/pool.js`, `src/index/build/runtime/workers.js`, and memory telemetry surfaces.
       - Acceptance target: enforce stable per-worker memory policies (1-2GB class) with higher throughput and no budget-violation regressions/OOM churn.
       - Validation: extend worker resource-limit tests and memory budget tests (`tests/indexing/workers/*`, `tests/perf/indexing/postings/*`) to cover underflow/oversubscription/headroom-driven scaling.
-  63. [ ] Add bounded object pools for high-frequency relation/link objects.
+  63. [x] Add bounded object pools for high-frequency relation/link objects.
       - Touchpoints: `src/index/build/workers/config.js`, `src/index/build/workers/pool.js`, `src/index/build/runtime/workers.js`, and memory telemetry surfaces.
       - Acceptance target: enforce stable per-worker memory policies (1-2GB class) with higher throughput and no budget-violation regressions/OOM churn.
       - Validation: extend worker resource-limit tests and memory budget tests (`tests/indexing/workers/*`, `tests/perf/indexing/postings/*`) to cover underflow/oversubscription/headroom-driven scaling.
