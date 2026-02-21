@@ -16,6 +16,7 @@ import { collectRazorImports } from '../../../src/index/language-registry/import
 import { collectRImports } from '../../../src/index/language-registry/import-collectors/r.js';
 import { collectScalaImports } from '../../../src/index/language-registry/import-collectors/scala.js';
 import { collectStarlarkImports } from '../../../src/index/language-registry/import-collectors/starlark.js';
+import { collectTomlImports } from '../../../src/index/language-registry/import-collectors/toml.js';
 import { collectYamlImports } from '../../../src/index/language-registry/import-collectors/yaml.js';
 
 const sort = (list) => list.slice().sort();
@@ -29,6 +30,18 @@ const expectSet = (label, actual, expected) => {
 };
 
 const cases = [
+  {
+    label: 'toml',
+    fn: collectTomlImports,
+    text: [
+      '[dependencies]',
+      'serde = "1.0"',
+      'localcrate = { path = "../localcrate" }',
+      '[tool.poc]',
+      'include = ["./base.toml", "./feature.toml"]'
+    ].join('\n'),
+    expected: ['dependency:serde', 'dependency:localcrate', '../localcrate', './base.toml', './feature.toml']
+  },
   {
     label: 'json',
     fn: collectJsonImports,

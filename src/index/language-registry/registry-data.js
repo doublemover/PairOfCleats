@@ -74,6 +74,7 @@ import { collectRazorImports } from './import-collectors/razor.js';
 import { collectRImports } from './import-collectors/r.js';
 import { collectScalaImports } from './import-collectors/scala.js';
 import { collectStarlarkImports } from './import-collectors/starlark.js';
+import { collectTomlImports } from './import-collectors/toml.js';
 import { collectYamlImports } from './import-collectors/yaml.js';
 
 const {
@@ -1086,7 +1087,8 @@ export const LANGUAGE_REGISTRY = [
   }),
   createConfigDataAdapter({
     id: 'toml',
-    match: (ext) => TOML_EXTS.has(ext)
+    match: (ext) => TOML_EXTS.has(ext),
+    collectImports: collectTomlImports
   }),
   createConfigDataAdapter({
     id: 'xml',

@@ -13,7 +13,12 @@ const CASES = [
     text: '{"schema":"./schema.json","server":{"configPath":"./server.json"}}\n',
     expectedImports: ['keypath:schema', 'keypath:server', 'keypath:server.configPath', './schema.json', './server.json']
   },
-  { id: 'toml', ext: '.toml', text: '[server]\nport=8080\n' },
+  {
+    id: 'toml',
+    ext: '.toml',
+    text: '[dependencies]\nserde = "1.0"\nlocal = { path = "../local" }\n',
+    expectedImports: ['dependency:serde', 'dependency:local', '../local']
+  },
   { id: 'xml', ext: '.xml', text: '<config><server port="8080"/></config>\n' },
   {
     id: 'yaml',
