@@ -6,7 +6,6 @@ import { log, logLine, showProgress } from '../../shared/progress.js';
 import { MAX_JSON_BYTES, readJsonFile, loadJsonArrayArtifact } from '../../shared/artifact-io.js';
 import { toPosix } from '../../shared/files.js';
 import { writeJsonObjectFile } from '../../shared/json-stream.js';
-import { runWithConcurrency } from '../../shared/concurrency.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
 import { ensureDiskSpace } from '../../shared/disk-space.js';
 import { estimateJsonBytes } from '../../shared/cache.js';
@@ -75,7 +74,8 @@ import { packMinhashSignatures } from './artifacts/minhash-packed.js';
 export {
   resolveArtifactWriteConcurrency,
   buildLexiconRelationFilterReport,
-  resolveArtifactLaneConcurrency
+  resolveArtifactLaneConcurrency,
+  createAdaptiveWriteConcurrencyController
 };
 
 /**
@@ -209,6 +209,152 @@ const resolveArtifactLaneConcurrency = ({
   return {
     heavyConcurrency,
     lightConcurrency
+  };
+};
+
+const clampWriteConcurrency = (value, fallback = 1) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return Math.max(1, Math.floor(Number(fallback) || 1));
+  }
+  return Math.max(1, Math.floor(parsed));
+};
+
+/**
+ * Adaptive write-concurrency controller for artifact writes.
+ *
+ * Concurrency scales up with backlog pressure and scales down when write stalls
+ * are sustained, replacing fixed-cap behavior during long write tails.
+ *
+ * @param {object} input
+ * @param {number} input.maxConcurrency
+ * @param {number} [input.minConcurrency]
+ * @param {number|null} [input.initialConcurrency]
+ * @param {number} [input.scaleUpBacklogPerSlot]
+ * @param {number} [input.scaleDownBacklogPerSlot]
+ * @param {number} [input.stallScaleDownSeconds]
+ * @param {number} [input.stallScaleUpGuardSeconds]
+ * @param {number} [input.scaleUpCooldownMs]
+ * @param {number} [input.scaleDownCooldownMs]
+ * @param {() => number} [input.now]
+ * @param {(event:{reason:string,from:number,to:number,pendingWrites:number,activeWrites:number,longestStallSec:number}) => void} [input.onChange]
+ * @returns {{observe:(snapshot?:{pendingWrites?:number,activeWrites?:number,longestStallSec?:number})=>number,getCurrentConcurrency:()=>number,getLimits:()=>{min:number,max:number}}}
+ */
+const createAdaptiveWriteConcurrencyController = (input = {}) => {
+  const maxConcurrency = clampWriteConcurrency(input.maxConcurrency, 1);
+  const minConcurrency = Math.min(
+    maxConcurrency,
+    clampWriteConcurrency(input.minConcurrency, 1)
+  );
+  const initialFallback = Math.max(
+    minConcurrency,
+    Math.min(maxConcurrency, Math.ceil(maxConcurrency * 0.6))
+  );
+  let currentConcurrency = clampWriteConcurrency(input.initialConcurrency, initialFallback);
+  currentConcurrency = Math.max(minConcurrency, Math.min(maxConcurrency, currentConcurrency));
+  const scaleUpBacklogPerSlot = Number.isFinite(Number(input.scaleUpBacklogPerSlot))
+    ? Math.max(1, Number(input.scaleUpBacklogPerSlot))
+    : 1.75;
+  const scaleDownBacklogPerSlot = Number.isFinite(Number(input.scaleDownBacklogPerSlot))
+    ? Math.max(0, Number(input.scaleDownBacklogPerSlot))
+    : 0.5;
+  const stallScaleDownSeconds = Number.isFinite(Number(input.stallScaleDownSeconds))
+    ? Math.max(1, Math.floor(Number(input.stallScaleDownSeconds)))
+    : 20;
+  const stallScaleUpGuardSeconds = Number.isFinite(Number(input.stallScaleUpGuardSeconds))
+    ? Math.max(1, Math.floor(Number(input.stallScaleUpGuardSeconds)))
+    : 8;
+  const scaleUpCooldownMs = Number.isFinite(Number(input.scaleUpCooldownMs))
+    ? Math.max(0, Math.floor(Number(input.scaleUpCooldownMs)))
+    : 400;
+  const scaleDownCooldownMs = Number.isFinite(Number(input.scaleDownCooldownMs))
+    ? Math.max(0, Math.floor(Number(input.scaleDownCooldownMs)))
+    : 1200;
+  const now = typeof input.now === 'function' ? input.now : () => Date.now();
+  const onChange = typeof input.onChange === 'function' ? input.onChange : null;
+
+  let lastScaleUpAt = Number.NEGATIVE_INFINITY;
+  let lastScaleDownAt = Number.NEGATIVE_INFINITY;
+
+  const emitChange = (reason, from, to, snapshot) => {
+    if (!onChange || from === to) return;
+    onChange({
+      reason,
+      from,
+      to,
+      pendingWrites: snapshot.pendingWrites,
+      activeWrites: snapshot.activeWrites,
+      longestStallSec: snapshot.longestStallSec
+    });
+  };
+
+  const observe = (snapshot = {}) => {
+    const pendingWrites = Math.max(0, Math.floor(Number(snapshot.pendingWrites) || 0));
+    const activeWrites = Math.max(0, Math.floor(Number(snapshot.activeWrites) || 0));
+    const longestStallSec = Number.isFinite(Number(snapshot.longestStallSec))
+      ? Math.max(0, Number(snapshot.longestStallSec))
+      : 0;
+    const nowValue = now();
+    const timestamp = Number.isFinite(Number(nowValue)) ? Number(nowValue) : Date.now();
+    const backlogPerSlot = pendingWrites / Math.max(1, currentConcurrency);
+    const from = currentConcurrency;
+
+    const canScaleDown = currentConcurrency > minConcurrency
+      && (timestamp - lastScaleDownAt) >= scaleDownCooldownMs;
+    if (
+      canScaleDown
+      && pendingWrites > 0
+      && longestStallSec >= stallScaleDownSeconds
+      && backlogPerSlot <= Math.max(1, scaleUpBacklogPerSlot)
+    ) {
+      currentConcurrency -= 1;
+      lastScaleDownAt = timestamp;
+      emitChange('stall', from, currentConcurrency, {
+        pendingWrites,
+        activeWrites,
+        longestStallSec
+      });
+      return currentConcurrency;
+    }
+    if (
+      canScaleDown
+      && pendingWrites <= 1
+      && activeWrites < currentConcurrency
+      && backlogPerSlot <= scaleDownBacklogPerSlot
+    ) {
+      currentConcurrency -= 1;
+      lastScaleDownAt = timestamp;
+      emitChange('drain', from, currentConcurrency, {
+        pendingWrites,
+        activeWrites,
+        longestStallSec
+      });
+      return currentConcurrency;
+    }
+
+    const canScaleUp = currentConcurrency < maxConcurrency
+      && (timestamp - lastScaleUpAt) >= scaleUpCooldownMs;
+    if (
+      canScaleUp
+      && pendingWrites > 0
+      && backlogPerSlot >= scaleUpBacklogPerSlot
+      && longestStallSec <= stallScaleUpGuardSeconds
+    ) {
+      currentConcurrency += 1;
+      lastScaleUpAt = timestamp;
+      emitChange('backlog', from, currentConcurrency, {
+        pendingWrites,
+        activeWrites,
+        longestStallSec
+      });
+    }
+    return currentConcurrency;
+  };
+
+  return {
+    observe,
+    getCurrentConcurrency: () => currentConcurrency,
+    getLimits: () => ({ min: minConcurrency, max: maxConcurrency })
   };
 };
 
@@ -976,6 +1122,43 @@ export async function writeIndexArtifacts(input) {
   const heavyWriteConcurrencyOverride = Number.isFinite(Number(artifactConfig.writeHeavyConcurrency))
     ? Math.max(1, Math.floor(Number(artifactConfig.writeHeavyConcurrency)))
     : null;
+  const adaptiveWriteConcurrencyEnabled = artifactConfig.writeAdaptiveConcurrency !== false;
+  const adaptiveWriteMinConcurrency = Number.isFinite(Number(artifactConfig.writeAdaptiveMinConcurrency))
+    ? Math.max(1, Math.floor(Number(artifactConfig.writeAdaptiveMinConcurrency)))
+    : 1;
+  const adaptiveWriteStartConcurrencyOverride = Number.isFinite(Number(artifactConfig.writeAdaptiveStartConcurrency))
+    ? Math.max(1, Math.floor(Number(artifactConfig.writeAdaptiveStartConcurrency)))
+    : null;
+  const adaptiveWriteScaleUpBacklogPerSlot = Number.isFinite(
+    Number(artifactConfig.writeAdaptiveScaleUpBacklogPerSlot)
+  )
+    ? Math.max(1, Number(artifactConfig.writeAdaptiveScaleUpBacklogPerSlot))
+    : 1.75;
+  const adaptiveWriteScaleDownBacklogPerSlot = Number.isFinite(
+    Number(artifactConfig.writeAdaptiveScaleDownBacklogPerSlot)
+  )
+    ? Math.max(0, Number(artifactConfig.writeAdaptiveScaleDownBacklogPerSlot))
+    : 0.5;
+  const adaptiveWriteStallScaleDownSeconds = Number.isFinite(
+    Number(artifactConfig.writeAdaptiveStallScaleDownSeconds)
+  )
+    ? Math.max(1, Math.floor(Number(artifactConfig.writeAdaptiveStallScaleDownSeconds)))
+    : 20;
+  const adaptiveWriteStallScaleUpGuardSeconds = Number.isFinite(
+    Number(artifactConfig.writeAdaptiveStallScaleUpGuardSeconds)
+  )
+    ? Math.max(1, Math.floor(Number(artifactConfig.writeAdaptiveStallScaleUpGuardSeconds)))
+    : 8;
+  const adaptiveWriteScaleUpCooldownMs = Number.isFinite(
+    Number(artifactConfig.writeAdaptiveScaleUpCooldownMs)
+  )
+    ? Math.max(0, Math.floor(Number(artifactConfig.writeAdaptiveScaleUpCooldownMs)))
+    : 400;
+  const adaptiveWriteScaleDownCooldownMs = Number.isFinite(
+    Number(artifactConfig.writeAdaptiveScaleDownCooldownMs)
+  )
+    ? Math.max(0, Math.floor(Number(artifactConfig.writeAdaptiveScaleDownCooldownMs)))
+    : 1200;
   const writeStallAlerts = new Map();
   const updateWriteInFlightTelemetry = () => {
     if (!telemetry || typeof telemetry.setInFlightBytes !== 'function') return;
@@ -987,6 +1170,16 @@ export async function writeIndexArtifacts(input) {
       bytes,
       count: activeWrites.size
     });
+  };
+  const getLongestWriteStallSeconds = () => {
+    if (!activeWrites.size) return 0;
+    const now = Date.now();
+    let longest = 0;
+    for (const startedAt of activeWrites.values()) {
+      const elapsed = Math.max(0, now - (Number(startedAt) || now));
+      if (elapsed > longest) longest = elapsed;
+    }
+    return Math.max(0, Math.round(longest / 1000));
   };
   let enqueueSeq = 0;
   const formatArtifactLabel = (filePath) => toPosix(path.relative(outDir, filePath));
@@ -2037,21 +2230,83 @@ export async function writeIndexArtifacts(input) {
   if (totalWrites) {
     const artifactLabel = totalWrites === 1 ? 'artifact' : 'artifacts';
     logLine(`Writing index files (${totalWrites} ${artifactLabel})...`, { kind: 'status' });
-    const { cap: writeConcurrencyCap } = resolveArtifactWriteConcurrency({
+    const { cap: writeConcurrencyCap, override: writeConcurrencyOverride } = resolveArtifactWriteConcurrency({
       artifactConfig,
       totalWrites
     });
     const writeConcurrency = Math.max(1, Math.min(totalWrites, writeConcurrencyCap));
+    const adaptiveWriteInitialConcurrency = adaptiveWriteConcurrencyEnabled
+      ? (
+        adaptiveWriteStartConcurrencyOverride
+        || (writeConcurrencyOverride
+          ? writeConcurrency
+          : Math.max(adaptiveWriteMinConcurrency, Math.ceil(writeConcurrency * 0.6)))
+      )
+      : writeConcurrency;
+    const writeConcurrencyController = createAdaptiveWriteConcurrencyController({
+      maxConcurrency: writeConcurrency,
+      minConcurrency: adaptiveWriteMinConcurrency,
+      initialConcurrency: adaptiveWriteInitialConcurrency,
+      scaleUpBacklogPerSlot: adaptiveWriteScaleUpBacklogPerSlot,
+      scaleDownBacklogPerSlot: adaptiveWriteScaleDownBacklogPerSlot,
+      stallScaleDownSeconds: adaptiveWriteStallScaleDownSeconds,
+      stallScaleUpGuardSeconds: adaptiveWriteStallScaleUpGuardSeconds,
+      scaleUpCooldownMs: adaptiveWriteScaleUpCooldownMs,
+      scaleDownCooldownMs: adaptiveWriteScaleDownCooldownMs,
+      onChange: ({ reason, from, to, pendingWrites, longestStallSec }) => {
+        const stallSuffix = longestStallSec > 0 ? `, stall=${longestStallSec}s` : '';
+        logLine(
+          `[perf] adaptive artifact write concurrency ${from} -> ${to} (${reason}, pending=${pendingWrites}${stallSuffix})`,
+          { kind: 'status' }
+        );
+      }
+    });
     const hostConcurrency = typeof os.availableParallelism === 'function'
       ? os.availableParallelism()
       : (Array.isArray(os.cpus()) ? os.cpus().length : 1);
-    const { heavyConcurrency, lightConcurrency } = resolveArtifactLaneConcurrency({
-      writeConcurrency,
-      lightWrites: lightWrites.length,
-      heavyWrites: heavyWrites.length,
+    const laneQueues = {
+      light: lightWrites.slice(),
+      heavy: heavyWrites.slice()
+    };
+    const laneActive = {
+      light: 0,
+      heavy: 0
+    };
+    let activeCount = 0;
+    let laneTurn = 'heavy';
+    let fatalWriteError = null;
+    const inFlightWrites = new Set();
+    const getActiveWriteConcurrency = () => (
+      adaptiveWriteConcurrencyEnabled
+        ? writeConcurrencyController.getCurrentConcurrency()
+        : writeConcurrency
+    );
+    const observeAdaptiveWriteConcurrency = () => {
+      if (!adaptiveWriteConcurrencyEnabled) return getActiveWriteConcurrency();
+      return writeConcurrencyController.observe({
+        pendingWrites: laneQueues.light.length + laneQueues.heavy.length,
+        activeWrites: activeCount,
+        longestStallSec: getLongestWriteStallSeconds()
+      });
+    };
+    const resolveLaneBudgets = () => resolveArtifactLaneConcurrency({
+      writeConcurrency: getActiveWriteConcurrency(),
+      lightWrites: laneQueues.light.length + laneActive.light,
+      heavyWrites: laneQueues.heavy.length + laneActive.heavy,
       heavyWriteConcurrencyOverride,
       hostConcurrency
     });
+    const pickDispatchLane = (budgets) => {
+      const lightAvailable = laneQueues.light.length > 0
+        && laneActive.light < Math.max(0, budgets.lightConcurrency);
+      const heavyAvailable = laneQueues.heavy.length > 0
+        && laneActive.heavy < Math.max(0, budgets.heavyConcurrency);
+      if (!lightAvailable && !heavyAvailable) return null;
+      if (lightAvailable && !heavyAvailable) return 'light';
+      if (heavyAvailable && !lightAvailable) return 'heavy';
+      laneTurn = laneTurn === 'light' ? 'heavy' : 'light';
+      return laneTurn;
+    };
     const scheduleWriteJob = (fn, estimatedBytes) => {
       if (!scheduler?.schedule || typeof fn !== 'function') return fn();
       const memTokens = resolveArtifactWriteMemTokens(estimatedBytes);
@@ -2064,64 +2319,90 @@ export async function writeIndexArtifacts(input) {
         fn
       );
     };
-    const runWriteLane = async (laneWrites, laneConcurrency) => {
-      if (!Array.isArray(laneWrites) || !laneWrites.length || laneConcurrency < 1) return;
-      await runWithConcurrency(
-        laneWrites,
-        laneConcurrency,
-        async ({ label, job, estimatedBytes, enqueuedAt }) => {
-          const activeLabel = label || '(unnamed artifact)';
-          const started = Date.now();
-          const queueDelayMs = Math.max(0, started - (Number(enqueuedAt) || started));
-          activeWrites.set(activeLabel, started);
-          activeWriteBytes.set(activeLabel, Number.isFinite(estimatedBytes) ? estimatedBytes : 0);
-          updateWriteInFlightTelemetry();
+    const runSingleWrite = async ({ label, job, estimatedBytes, enqueuedAt }, laneName) => {
+      const activeLabel = label || '(unnamed artifact)';
+      const started = Date.now();
+      const queueDelayMs = Math.max(0, started - (Number(enqueuedAt) || started));
+      const startedConcurrency = getActiveWriteConcurrency();
+      activeWrites.set(activeLabel, started);
+      activeWriteBytes.set(activeLabel, Number.isFinite(estimatedBytes) ? estimatedBytes : 0);
+      updateWriteInFlightTelemetry();
+      try {
+        await scheduleWriteJob(job, estimatedBytes);
+        const durationMs = Date.now() - started;
+        let bytes = null;
+        if (label) {
           try {
-            await scheduleWriteJob(job, estimatedBytes);
-            const durationMs = Date.now() - started;
-            let bytes = null;
-            if (label) {
-              try {
-                const stat = await fs.stat(path.join(outDir, label));
-                bytes = stat.size;
-              } catch {}
-            }
-            const throughputBytesPerSec = Number.isFinite(bytes) && durationMs > 0
-              ? Math.round(bytes / (durationMs / 1000))
-              : null;
-            recordArtifactMetric(label, {
-              queueDelayMs,
-              waitMs: queueDelayMs,
-              durationMs,
-              bytes,
-              estimatedBytes: Number.isFinite(estimatedBytes) ? estimatedBytes : null,
-              throughputBytesPerSec
-            });
-          } finally {
-            activeWrites.delete(activeLabel);
-            activeWriteBytes.delete(activeLabel);
-            updateWriteInFlightTelemetry();
-            writeStallAlerts.delete(activeLabel);
-            logWriteProgress(label);
-          }
-        },
-        { collectResults: false }
-      );
+            const stat = await fs.stat(path.join(outDir, label));
+            bytes = stat.size;
+          } catch {}
+        }
+        const throughputBytesPerSec = Number.isFinite(bytes) && durationMs > 0
+          ? Math.round(bytes / (durationMs / 1000))
+          : null;
+        recordArtifactMetric(label, {
+          queueDelayMs,
+          waitMs: queueDelayMs,
+          durationMs,
+          bytes,
+          estimatedBytes: Number.isFinite(estimatedBytes) ? estimatedBytes : null,
+          throughputBytesPerSec,
+          lane: laneName,
+          writeConcurrencyAtStart: startedConcurrency
+        });
+      } finally {
+        activeWrites.delete(activeLabel);
+        activeWriteBytes.delete(activeLabel);
+        updateWriteInFlightTelemetry();
+        writeStallAlerts.delete(activeLabel);
+        logWriteProgress(label);
+      }
+    };
+    const dispatchWrites = () => {
+      observeAdaptiveWriteConcurrency();
+      while (!fatalWriteError) {
+        const activeConcurrency = getActiveWriteConcurrency();
+        if (activeCount >= activeConcurrency) break;
+        const budgets = resolveLaneBudgets();
+        const laneName = pickDispatchLane(budgets);
+        if (!laneName) break;
+        const entry = laneQueues[laneName].shift();
+        if (!entry) continue;
+        laneActive[laneName] += 1;
+        activeCount += 1;
+        const tracked = runSingleWrite(entry, laneName)
+          .then(() => ({ ok: true }))
+          .catch((error) => ({ ok: false, error }))
+          .finally(() => {
+            laneActive[laneName] = Math.max(0, laneActive[laneName] - 1);
+            activeCount = Math.max(0, activeCount - 1);
+          });
+        inFlightWrites.add(tracked);
+        tracked
+          .finally(() => {
+            inFlightWrites.delete(tracked);
+          })
+          .catch(() => {});
+      }
     };
     startWriteHeartbeat();
     try {
-      const canRunInParallel = heavyConcurrency > 0 &&
-        lightConcurrency > 0 &&
-        (heavyConcurrency + lightConcurrency) <= writeConcurrency;
-      if (canRunInParallel) {
-        await Promise.all([
-          runWriteLane(lightWrites, lightConcurrency),
-          runWriteLane(heavyWrites, heavyConcurrency)
-        ]);
-      } else {
-        // Preserve global write cap even when one lane has no active budget.
-        await runWriteLane(lightWrites, Math.min(writeConcurrency, lightWrites.length));
-        await runWriteLane(heavyWrites, Math.min(writeConcurrency, heavyWrites.length));
+      dispatchWrites();
+      while (inFlightWrites.size > 0 || laneQueues.light.length > 0 || laneQueues.heavy.length > 0) {
+        if (fatalWriteError) break;
+        if (!inFlightWrites.size) {
+          dispatchWrites();
+          if (!inFlightWrites.size) break;
+        }
+        const settled = await Promise.race(inFlightWrites);
+        if (!settled?.ok) {
+          fatalWriteError = settled?.error || new Error('artifact write failed');
+          break;
+        }
+        dispatchWrites();
+      }
+      if (fatalWriteError) {
+        throw fatalWriteError;
       }
     } finally {
       stopWriteHeartbeat();
