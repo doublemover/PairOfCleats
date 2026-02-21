@@ -33,7 +33,7 @@ const INDEX_STATE_NONDETERMINISTIC_FIELDS = Object.freeze([
     category: 'run_identity',
     reason: 'buildId includes timestamp and invocation identity.',
     source: 'src/index/build/runtime/runtime.js',
-    excludeFromStableHash: false
+    excludeFromStableHash: true
   },
   {
     path: 'stage',
