@@ -1,5 +1,5 @@
 import fs from 'node:fs/promises';
-import { availableParallelism } from 'node:os';
+import { availableParallelism, cpus } from 'node:os';
 import path from 'node:path';
 import { sha1 } from '../../shared/hash.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
@@ -60,11 +60,17 @@ const shouldVerifyHash = (fileStat, cachedEntry) => (
 );
 
 const MAX_SHARED_HASH_READ_ENTRIES = 256;
-const DEFAULT_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY = 8;
-const MAX_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY = 32;
+const DEFAULT_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY = 12;
+const MAX_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY = 64;
+const HIGH_VOLUME_INCREMENTAL_BUNDLE_UPDATE_THRESHOLD = 16384;
+const MAX_HIGH_VOLUME_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY = 96;
+const HOT_CROSS_FILE_BUNDLE_UPDATE_WINDOW_MS = 10 * 60 * 1000;
 const ENV_CONFIG = getEnvConfig();
 
-const resolveIncrementalBundleUpdateConcurrency = (totalUpdates) => {
+const resolveIncrementalBundleUpdateConcurrency = ({
+  totalUpdates,
+  cpuIdleRatio = null
+}) => {
   const updates = Number.isFinite(Number(totalUpdates)) && totalUpdates > 0
     ? Math.floor(Number(totalUpdates))
     : 1;
@@ -75,11 +81,61 @@ const resolveIncrementalBundleUpdateConcurrency = (totalUpdates) => {
   const cpuCount = typeof availableParallelism === 'function'
     ? Math.max(1, Math.floor(availableParallelism()))
     : DEFAULT_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY;
-  const derived = Math.max(
+  const baseline = Math.max(
     DEFAULT_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY,
-    Math.min(MAX_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY, cpuCount * 2)
+    Math.min(MAX_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY, cpuCount * 3)
   );
-  return Math.min(updates, derived);
+  let resolved = baseline;
+  if (updates >= HIGH_VOLUME_INCREMENTAL_BUNDLE_UPDATE_THRESHOLD) {
+    const highVolume = Math.max(
+      baseline,
+      Math.min(MAX_HIGH_VOLUME_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY, cpuCount * 4)
+    );
+    resolved = highVolume;
+  }
+  if (Number.isFinite(cpuIdleRatio)) {
+    const idle = Math.max(0, Math.min(1, Number(cpuIdleRatio)));
+    if (idle >= 0.5) {
+      resolved = Math.min(MAX_HIGH_VOLUME_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY, Math.ceil(resolved * 1.25));
+    } else if (idle <= 0.15) {
+      resolved = Math.max(DEFAULT_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY, Math.floor(resolved * 0.75));
+    }
+  }
+  return Math.min(updates, resolved);
+};
+
+/**
+ * Sample system CPU idle ratio over a short interval.
+ *
+ * @param {number} [sampleMs=40]
+ * @returns {Promise<number|null>}
+ */
+const sampleCpuIdleRatio = async (sampleMs = 40) => {
+  try {
+    const start = cpus();
+    if (!Array.isArray(start) || !start.length) return null;
+    await new Promise((resolve) => setTimeout(resolve, Math.max(10, Math.floor(Number(sampleMs) || 40))));
+    const end = cpus();
+    if (!Array.isArray(end) || end.length !== start.length) return null;
+    let idleDelta = 0;
+    let totalDelta = 0;
+    for (let i = 0; i < start.length; i += 1) {
+      const a = start[i]?.times || {};
+      const b = end[i]?.times || {};
+      const idle = Math.max(0, Number(b.idle || 0) - Number(a.idle || 0));
+      const user = Math.max(0, Number(b.user || 0) - Number(a.user || 0));
+      const nice = Math.max(0, Number(b.nice || 0) - Number(a.nice || 0));
+      const sys = Math.max(0, Number(b.sys || 0) - Number(a.sys || 0));
+      const irq = Math.max(0, Number(b.irq || 0) - Number(a.irq || 0));
+      const total = idle + user + nice + sys + irq;
+      idleDelta += idle;
+      totalDelta += total;
+    }
+    if (!Number.isFinite(totalDelta) || totalDelta <= 0) return null;
+    return Math.max(0, Math.min(1, idleDelta / totalDelta));
+  } catch {
+    return null;
+  }
 };
 
 const resolveSharedReadCache = (sharedReadState) => (
@@ -173,6 +229,57 @@ const readFileBufferAndHash = async ({
 const normalizeIncrementalRelPath = (value) => {
   const normalized = normalizeFilePath(value, { lower: process.platform === 'win32' });
   return normalized.startsWith('./') ? normalized.slice(2) : normalized;
+};
+
+const resolvePrefetchedVfsRows = (store, normalizedFile, rawFile) => {
+  if (store && typeof store.get === 'function') {
+    if (store.has(normalizedFile)) {
+      return { hit: true, rows: store.get(normalizedFile) || null };
+    }
+    if (store.has(rawFile)) {
+      return { hit: true, rows: store.get(rawFile) || null };
+    }
+    return { hit: false, rows: null };
+  }
+  if (store && typeof store === 'object') {
+    if (Object.prototype.hasOwnProperty.call(store, normalizedFile)) {
+      return { hit: true, rows: store[normalizedFile] || null };
+    }
+    if (Object.prototype.hasOwnProperty.call(store, rawFile)) {
+      return { hit: true, rows: store[rawFile] || null };
+    }
+  }
+  return { hit: false, rows: null };
+};
+
+const comparePendingCrossFileBundleUpdates = (a, b) => {
+  const aMtime = Number(a?.entry?.mtimeMs) || 0;
+  const bMtime = Number(b?.entry?.mtimeMs) || 0;
+  if (aMtime !== bMtime) return bMtime - aMtime;
+  const aChunks = Array.isArray(a?.fileChunks) ? a.fileChunks.length : 0;
+  const bChunks = Array.isArray(b?.fileChunks) ? b.fileChunks.length : 0;
+  if (aChunks !== bChunks) return bChunks - aChunks;
+  return String(a?.normalizedFile || a?.file || '').localeCompare(String(b?.normalizedFile || b?.file || ''));
+};
+
+const isHotPendingCrossFileBundleUpdate = (pendingUpdate, nowMs = Date.now()) => {
+  const mtimeMs = Number(pendingUpdate?.entry?.mtimeMs) || 0;
+  return mtimeMs > 0 && (nowMs - mtimeMs) <= HOT_CROSS_FILE_BUNDLE_UPDATE_WINDOW_MS;
+};
+
+const prioritizePendingCrossFileBundleUpdates = (pendingUpdates, { nowMs = Date.now() } = {}) => {
+  const hot = [];
+  const cold = [];
+  for (const pendingUpdate of pendingUpdates) {
+    if (isHotPendingCrossFileBundleUpdate(pendingUpdate, nowMs)) {
+      hot.push(pendingUpdate);
+    } else {
+      cold.push(pendingUpdate);
+    }
+  }
+  hot.sort(comparePendingCrossFileBundleUpdates);
+  cold.sort(comparePendingCrossFileBundleUpdates);
+  return hot.concat(cold);
 };
 
 /**
@@ -717,27 +824,73 @@ export async function updateBundlesWithChunks({
     const bundleName = entry?.bundle || resolveBundleFilename(file, resolvedBundleFormat);
     const fileChunks = chunkMap.get(normalizedFile);
     if (!bundleName || !fileChunks) continue;
-    pendingUpdates.push({ file, normalizedFile, entry, bundleName, fileChunks });
+    pendingUpdates.push({
+      file,
+      normalizedFile,
+      entry,
+      bundleName,
+      bundleFormat: resolveBundleFormatFromName(bundleName, resolvedBundleFormat),
+      fileChunks
+    });
   }
   if (!pendingUpdates.length) return;
+  const prioritizedPendingUpdates = prioritizePendingCrossFileBundleUpdates(pendingUpdates, { nowMs: startedAt });
+  const hasPrefetchedRowsStore = !!(
+    existingVfsManifestRowsByFile
+    && (
+      typeof existingVfsManifestRowsByFile.get === 'function'
+      || typeof existingVfsManifestRowsByFile === 'object'
+    )
+  );
+  let prefetchHits = 0;
+  if (hasPrefetchedRowsStore) {
+    for (const pending of prioritizedPendingUpdates) {
+      if (resolvePrefetchedVfsRows(
+        existingVfsManifestRowsByFile,
+        pending.normalizedFile,
+        pending.file
+      ).hit) {
+        prefetchHits += 1;
+      }
+    }
+  }
+  const prefetchCoverage = prioritizedPendingUpdates.length
+    ? (prefetchHits / prioritizedPendingUpdates.length)
+    : 0;
+  const skipFallbackReadForPrefetchMisses = hasPrefetchedRowsStore && prefetchCoverage >= 0.95;
+  if (
+    hasPrefetchedRowsStore
+    && !skipFallbackReadForPrefetchMisses
+    && typeof log === 'function'
+  ) {
+    log(
+      `[incremental] bundle VFS prefetch coverage ${(prefetchCoverage * 100).toFixed(1)}%; ` +
+      'reading misses from existing bundles.'
+    );
+  }
   let bundleUpdates = 0;
   let bundleFailures = 0;
   let nextProgressUpdate = 500;
-  const updateTotal = pendingUpdates.length;
-  const workerCount = resolveIncrementalBundleUpdateConcurrency(updateTotal);
+  const updateTotal = prioritizedPendingUpdates.length;
+  const cpuIdleRatio = await sampleCpuIdleRatio();
+  const workerCount = resolveIncrementalBundleUpdateConcurrency({
+    totalUpdates: updateTotal,
+    cpuIdleRatio
+  });
   let cursor = 0;
   const workers = Array.from({ length: workerCount }, async () => {
     for (;;) {
       const index = cursor;
       cursor += 1;
-      if (index >= pendingUpdates.length) break;
+      if (index >= prioritizedPendingUpdates.length) break;
       const {
         file,
         normalizedFile,
         entry,
         bundleName,
+        bundleFormat,
         fileChunks
-      } = pendingUpdates[index];
+      } = prioritizedPendingUpdates[index];
       let relations = null;
       if (fileRelations) {
         relations = typeof fileRelations.get === 'function'
@@ -746,28 +899,17 @@ export async function updateBundlesWithChunks({
       }
       const bundlePath = path.join(bundleDir, bundleName);
       let vfsManifestRows = null;
-      let hasPrefetchedVfsRows = false;
-      if (existingVfsManifestRowsByFile && typeof existingVfsManifestRowsByFile.get === 'function') {
-        if (existingVfsManifestRowsByFile.has(normalizedFile)) {
-          vfsManifestRows = existingVfsManifestRowsByFile.get(normalizedFile) || null;
-          hasPrefetchedVfsRows = true;
-        } else if (existingVfsManifestRowsByFile.has(file)) {
-          vfsManifestRows = existingVfsManifestRowsByFile.get(file) || null;
-          hasPrefetchedVfsRows = true;
-        }
-      } else if (existingVfsManifestRowsByFile && typeof existingVfsManifestRowsByFile === 'object') {
-        if (Object.prototype.hasOwnProperty.call(existingVfsManifestRowsByFile, normalizedFile)) {
-          vfsManifestRows = existingVfsManifestRowsByFile[normalizedFile] || null;
-          hasPrefetchedVfsRows = true;
-        } else if (Object.prototype.hasOwnProperty.call(existingVfsManifestRowsByFile, file)) {
-          vfsManifestRows = existingVfsManifestRowsByFile[file] || null;
-          hasPrefetchedVfsRows = true;
-        }
-      }
-      if (!hasPrefetchedVfsRows) {
+      const prefetched = resolvePrefetchedVfsRows(
+        existingVfsManifestRowsByFile,
+        normalizedFile,
+        file
+      );
+      if (prefetched.hit) {
+        vfsManifestRows = prefetched.rows;
+      } else if (!skipFallbackReadForPrefetchMisses) {
         try {
           const existing = await readBundleFile(bundlePath, {
-            format: resolveBundleFormatFromName(bundleName, resolvedBundleFormat)
+            format: bundleFormat
           });
           vfsManifestRows = Array.isArray(existing?.bundle?.vfsManifestRows)
             ? existing.bundle.vfsManifestRows
@@ -790,7 +932,7 @@ export async function updateBundlesWithChunks({
         await writeBundleFile({
           bundlePath,
           bundle,
-          format: resolveBundleFormatFromName(bundleName, resolvedBundleFormat)
+          format: bundleFormat
         });
         bundleUpdates += 1;
       } catch {

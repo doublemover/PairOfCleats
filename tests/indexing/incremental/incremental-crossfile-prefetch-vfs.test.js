@@ -29,21 +29,25 @@ const sourceRowsByFile = new Map([
   ['src/b.js', [{ virtualPath: '/vfs/src/b.js', languageId: 'javascript' }]]
 ]);
 
-for (const [relKey, vfsRows] of sourceRowsByFile.entries()) {
-  const entry = await writeIncrementalBundle({
-    enabled: true,
-    bundleDir,
-    relKey,
-    fileStat: sharedStat,
-    fileHash: `hash:${relKey}`,
-    fileChunks: [{ file: relKey, chunkId: `${relKey}:seed`, text: 'seed' }],
-    fileRelations: { imports: [] },
-    vfsManifestRows: vfsRows,
-    bundleFormat: 'json'
-  });
-  assert.ok(entry, `expected manifest entry for ${relKey}`);
-  manifest.files[relKey] = entry;
-}
+const seedBundles = async () => {
+  for (const [relKey, vfsRows] of sourceRowsByFile.entries()) {
+    const entry = await writeIncrementalBundle({
+      enabled: true,
+      bundleDir,
+      relKey,
+      fileStat: sharedStat,
+      fileHash: `hash:${relKey}`,
+      fileChunks: [{ file: relKey, chunkId: `${relKey}:seed`, text: 'seed' }],
+      fileRelations: { imports: [] },
+      vfsManifestRows: vfsRows,
+      bundleFormat: 'json'
+    });
+    assert.ok(entry, `expected manifest entry for ${relKey}`);
+    manifest.files[relKey] = entry;
+  }
+};
+
+await seedBundles();
 
 const prefetchedRowsByFile = await preloadIncrementalBundleVfsRows({
   enabled: true,
@@ -84,6 +88,44 @@ for (const [relKey, entry] of Object.entries(manifest.files)) {
     loaded.bundle?.vfsManifestRows || null,
     sourceRowsByFile.get(relKey) || null,
     `expected VFS rows to be preserved for ${relKey}`
+  );
+}
+
+await fs.rm(bundleDir, { recursive: true, force: true });
+await fs.mkdir(bundleDir, { recursive: true });
+await seedBundles();
+
+const partialPrefetchedRows = new Map([
+  ['src/a.js', prefetchedRowsByFile.get('src/a.js') || null]
+]);
+
+await updateBundlesWithChunks({
+  enabled: true,
+  manifest,
+  bundleDir,
+  bundleFormat: 'json',
+  chunks: [
+    { file: 'src/a.js', chunkId: 'a:new2', text: 'updated a again' },
+    { file: 'src/b.js', chunkId: 'b:new2', text: 'updated b again' }
+  ],
+  fileRelations: new Map([
+    ['src/a.js', { imports: ['./dep-a.js'] }],
+    ['src/b.js', { imports: ['./dep-b.js'] }]
+  ]),
+  existingVfsManifestRowsByFile: partialPrefetchedRows,
+  log: () => {}
+});
+
+for (const [relKey, entry] of Object.entries(manifest.files)) {
+  const bundlePath = path.join(bundleDir, entry.bundle);
+  const loaded = await readBundleFile(bundlePath, {
+    format: resolveBundleFormatFromName(entry.bundle, 'json')
+  });
+  assert.ok(loaded?.ok, `expected partially-prefetched bundle for ${relKey}`);
+  assert.deepEqual(
+    loaded.bundle?.vfsManifestRows || null,
+    sourceRowsByFile.get(relKey) || null,
+    `expected partial prefetch fallback to preserve VFS rows for ${relKey}`
   );
 }
 
