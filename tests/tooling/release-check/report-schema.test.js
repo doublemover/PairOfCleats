@@ -68,4 +68,11 @@ if (!Array.isArray(manifest.artifacts) || manifest.artifacts.length === 0) {
   process.exit(1);
 }
 
+const reportRel = path.relative(root, reportPath).replace(/\\/g, '/');
+const reportArtifact = manifest.artifacts.find((entry) => entry.path === reportRel);
+if (!reportArtifact || reportArtifact.exists !== true || !Number.isFinite(reportArtifact.sizeBytes) || !reportArtifact.sha256) {
+  console.error('report-schema test failed: report artifact metadata missing or invalid');
+  process.exit(1);
+}
+
 console.log('release-check report schema test passed');

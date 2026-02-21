@@ -313,7 +313,6 @@ const writeOutputs = (reportPayload, manifestPayload) => {
 const collectManifestArtifacts = (steps) => {
   const inventory = new Set([
     normalizePath(path.relative(root, reportPath)),
-    normalizePath(path.relative(root, manifestPath)),
     'docs/tooling/doc-contract-drift.json',
     'docs/tooling/doc-contract-drift.md'
   ]);
@@ -501,9 +500,11 @@ const main = () => {
     schemaVersion: 1,
     generatedAt: finishedAt,
     reportPath: normalizePath(path.relative(root, reportPath)),
-    artifacts: collectManifestArtifacts(steps)
+    artifacts: []
   };
 
+  writeOutputs(report, manifest);
+  manifest.artifacts = collectManifestArtifacts(steps);
   writeOutputs(report, manifest);
 
   if (!report.ok) {
