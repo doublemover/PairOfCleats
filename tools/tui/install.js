@@ -4,6 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { stableStringify } from '../../src/shared/stable-json.js';
+import { resolveRepoRootArg } from '../shared/dict-utils.js';
 import {
   TUI_INSTALL_LAYOUT_VERSION,
   ensureExecutableModeSync,
@@ -28,7 +29,7 @@ const argv = createCli({
   }
 }).parse();
 
-const root = process.cwd();
+const root = resolveRepoRootArg(null, process.cwd());
 
 const resolveEventLogDir = ({ layout }) => {
   if (argv['event-log-dir']) {

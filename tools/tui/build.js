@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import { resolveRepoRootArg } from '../shared/dict-utils.js';
 import { stableStringify } from '../../src/shared/stable-json.js';
 import {
   TUI_BUILD_MANIFEST_CHECKSUM_FILE,
@@ -15,7 +16,7 @@ import {
   toPosixRelative
 } from './targets.js';
 
-const root = process.cwd();
+const root = resolveRepoRootArg(null, process.cwd());
 const args = process.argv.slice(2);
 const hasFlag = (flag) => args.includes(flag);
 const smoke = hasFlag('--smoke');

@@ -15,6 +15,7 @@ ensureTestingEnv(process.env);
 const root = process.cwd();
 const testDistRel = path.join('.testLogs', 'tui', 'installer-unit', 'dist');
 const distDir = path.join(root, testDistRel);
+const invokeCwd = path.join(root, '.testLogs', 'tui', 'installer-unit', 'cwd', 'nested');
 const installScript = path.join(root, 'tools', 'tui', 'install.js');
 const manifestPath = path.join(distDir, 'tui-artifacts-manifest.json');
 const checksumPath = path.join(distDir, 'tui-artifacts-manifest.json.sha256');
@@ -25,6 +26,7 @@ const sha256 = (text) => crypto.createHash('sha256').update(text).digest('hex');
 try {
   await fsPromises.rm(distDir, { recursive: true, force: true });
   await fsPromises.mkdir(distDir, { recursive: true });
+  await fsPromises.mkdir(invokeCwd, { recursive: true });
 
   const { targets } = readTargetsManifestSync({ root });
   const triple = resolveHostTargetTriple({ platform: process.platform, arch: os.arch() });
@@ -77,7 +79,7 @@ try {
     process.execPath,
     [installScript, '--json', '--target', triple, '--install-root', installRoot],
     {
-      cwd: root,
+      cwd: invokeCwd,
       encoding: 'utf8',
       env: {
         ...process.env,

@@ -10,12 +10,14 @@ const root = process.cwd();
 const buildScript = path.join(root, 'tools', 'tui', 'build.js');
 const testDistRel = path.join('.testLogs', 'tui', 'headless-smoke', 'dist');
 const testDistDir = path.join(root, testDistRel);
+const invokeCwd = path.join(root, '.testLogs', 'tui', 'headless-smoke', 'cwd', 'nested');
 const manifestPath = path.join(testDistDir, 'tui-artifacts-manifest.json');
 const checksumPath = `${manifestPath}.sha256`;
 fs.rmSync(testDistDir, { recursive: true, force: true });
+fs.mkdirSync(invokeCwd, { recursive: true });
 
 const result = spawnSync(process.execPath, [buildScript, '--smoke'], {
-  cwd: root,
+  cwd: invokeCwd,
   encoding: 'utf8',
   env: {
     ...process.env,
