@@ -1,6 +1,7 @@
 import { encodeVarint64List } from '../../../../../shared/artifact-io/varint.js';
 import { parseHash64 } from '../../../../../shared/token-id.js';
 import { stableOrderWithComparator } from '../../../../../shared/order.js';
+import { TRIM_POLICY_VERSION } from '../../trim-policy.js';
 import { compactChunkMetaEntry, compareChunkMetaChunks } from './shared.js';
 
 /**
@@ -66,10 +67,12 @@ export const createChunkMetaIterator = ({
   order = null
 }) => {
   const stats = {
+    trimPolicyVersion: TRIM_POLICY_VERSION,
     trimmedMetaV2: 0,
     trimmedEntries: 0,
     trimmedSamples: [],
-    trimmedFields: {}
+    trimmedFields: {},
+    trimReasonCounts: {}
   };
   const sampleLimit = 5;
   const recordTrimSample = (entry) => {
@@ -182,6 +185,7 @@ export const createChunkMetaIterator = ({
     stats.trimmedEntries = 0;
     stats.trimmedSamples.length = 0;
     stats.trimmedFields = {};
+    stats.trimReasonCounts = {};
   };
   return chunkMetaIterator;
 };

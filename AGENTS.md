@@ -66,6 +66,7 @@
 
 ## Roadmap & Phase Tracking
 - Roadmaps (e.g., `GIGAROADMAP.md`) contain current work plans.
+- `AINTKNOWMAP.md` is the authoritative active roadmap sequence for current hard-cutover execution.
 - When working on a phase, mark it as in progress, update as you go.
 - When writing status log entries or marking when something was last changed, use ISO 8601 timestamps instead of just the date
 - Checkboxes should be completed only at the same time you commit the work that completes them.
@@ -77,4 +78,8 @@
 - When all tasks in a phase are complete and concerns addressed: 
 	- Remove that phase and append it to `COMPLETED_PHASES.md` blindly
 	- Do not look inside `COMPLETED_PHASES.md` or worry about ordering, it is a dump file.
+- Hard cutover policy is mandatory for roadmap execution:
+	- Keep one active behavior per surface; do not keep compatibility shims or dual-write/dual-read paths after a phase cutover.
+	- Remove superseded flags/paths/contracts in the same phase where replacement behavior is introduced.
+	- Keep specs/tests in lockstep with the active behavior in the same change set.
 

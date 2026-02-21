@@ -200,11 +200,11 @@ This document maps user-visible behavior to implementation, configuration switch
   - Config: `retrieval.annCandidate*` and `search.rrf.k`.
   - Tests: `tests/ops/config/guardrails.test.js`.
   - Limitations: guardrails currently target candidate-window and RRF risks; they do not validate every retrieval knob combination.
-- Claim: release checks only block on essential operational reliability contracts and provide explicit audited overrides.
-  - Implementation: `tools/release/check.js` (`--blockers-only`, blocker ownership metadata, audited overrides), `.github/workflows/ci.yml` (gate job calls `npm run release-check:blockers`).
-  - Config: `--allow-blocker-override`, `--override-id`, `--override-marker`.
-  - Tests: `tests/ops/release-gates/essential-blockers.test.js`.
-  - Limitations: blocker scope is intentionally narrow and does not replace full CI lane coverage.
+- Claim: release checks enforce deterministic changelog + contract drift + python policy + smoke flow, and reject blocker-specific flags.
+  - Implementation: `tools/release/check.js` (deterministic required step set; unsupported blocker flag rejection), `.github/workflows/ci.yml` (gate job runs lint/config/env checks and the gate lane).
+  - Config: `--breaking`, `--report`, `--manifest`, `--dry-run`, `--dry-run-fail-step`.
+  - Tests: `tests/tooling/release-check/smoke.test.js`, `tests/tooling/release-check/deterministic-order.test.js`, `tests/ops/release-gates/blocker-flags-unsupported.test.js`.
+  - Limitations: release-check is a deterministic preflight and does not replace full CI lane coverage.
 - Claim: runtime emits lightweight warnings for abnormal retrieval memory growth and index artifact growth.
   - Implementation: `src/shared/ops-resource-visibility.js`, `src/retrieval/cli/telemetry.js` (`emitResourceWarnings`), `src/retrieval/cli.js` (warning emission), `src/index/build/indexer/pipeline.js` (index growth warning).
   - Config: threshold constants in `RESOURCE_GROWTH_THRESHOLDS`.

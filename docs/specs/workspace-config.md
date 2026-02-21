@@ -388,6 +388,15 @@ Use these existing utilities:
 - `resolveRepoRoot`, `getRepoId` -- `tools/shared/dict-utils.js`
 - `createError`, `ERROR_CODES` -- `src/shared/errors.js` / `src/shared/error-codes.js` (or workspace-local errors)
 
+### 8.3 Contract validator
+
+Resolved workspace payloads are validated against:
+
+- `src/contracts/schemas/workspace.js` (`workspaceConfigResolved`)
+- `src/contracts/validators/workspace.js` (`validateWorkspaceConfigResolved`)
+
+Validation failures are hard errors.
+
 ---
 
 ## 9. Tests (must be automated)

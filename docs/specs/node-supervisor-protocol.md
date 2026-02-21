@@ -145,6 +145,18 @@ Supervisor behavior:
 - emit final `log` lines as needed
 - exit 0
 
+### 4.5 `flow:credit`
+Adds protocol credits so the supervisor can drain queued non-critical events.
+
+```json
+{"proto":"poc.tui@1","op":"flow:credit","credits":64}
+```
+
+Supervisor behavior:
+- increment available credits by `credits` (bounded cap)
+- drain queued events in deterministic FIFO order
+- enforce deterministic overload policy (task-progress coalesce, oldest-log drop first)
+
 ---
 
 ## 5) Job spawning & env resolution
@@ -243,6 +255,8 @@ Supervisor MUST emit at least:
 - forwarded child events (`task:*`, `log`)
 - `job:end` exactly once, containing exit code/signal/duration and optional result
 - `job:artifacts` after `job:end` when artifact indexing is enabled
+- `runtime:metrics` periodically for queue/backpressure telemetry
+- `event:chunk` when payload chunking is used for oversized events/logs
 
 ---
 
@@ -264,3 +278,14 @@ Supervisor MUST emit at least:
 - Supervisor emits only strict JSONL to stdout (no stray prints).
 - Cancellation test spawns a child that spawns a grandchild; cancel must kill both.
 - Protocol tests ensure unknown JSON isn’t misparsed as events.
+
+---
+
+## 11) Observability contract
+
+When `PAIROFCLEATS_TUI_EVENT_LOG_DIR` is set, supervisor must write replay artifacts:
+
+- `<eventLogDir>/<runId>.jsonl` containing the exact emitted protocol stream
+- `<eventLogDir>/<runId>.meta.json` with run/session metadata
+
+`PAIROFCLEATS_TUI_RUN_ID` may be provided by the wrapper; otherwise supervisor generates one.

@@ -17,6 +17,7 @@ import { pickMinLimit, resolveFileCaps } from './file-processor/read.js';
 import { getEnvConfig } from '../../shared/env.js';
 import { MINIFIED_NAME_REGEX, normalizeRoot } from './watch/shared.js';
 import { isCodeEntryForPath, isProseEntryForPath } from './mode-routing.js';
+import { detectShebangLanguage } from './shebang.js';
 
 const DOCUMENT_EXTS = new Set(['.pdf', '.docx']);
 const MAX_FILES_LIMIT_REASON = 'max_files_reached';
@@ -24,7 +25,7 @@ const MAX_FILES_LIMIT_REASON = 'max_files_reached';
 /**
  * Recursively discover indexable files under a directory.
  * @param {{root:string,mode:'code'|'prose'|'extracted-prose',recordsDir?:string|null,ignoreMatcher:import('ignore').Ignore,skippedFiles:Array, maxFileBytes:number|null,fileCaps?:object,maxDepth?:number|null,maxFiles?:number|null}} input
- * @returns {Promise<Array<{abs:string,rel:string,stat:import('node:fs').Stats}>>}
+ * @returns {Promise<Array<{abs:string,rel:string,stat:import('node:fs').Stats,ext:string}>>}
  */
 export async function discoverFiles({
   root,
@@ -64,7 +65,7 @@ export async function discoverFiles({
 /**
  * Discover files for multiple modes in a single traversal.
  * @param {{root:string,modes:Array<'code'|'prose'|'extracted-prose'>,recordsDir?:string|null,ignoreMatcher:import('ignore').Ignore,skippedByMode:Record<string,Array>,maxFileBytes:number|null,fileCaps?:object,maxDepth?:number|null,maxFiles?:number|null}} input
- * @returns {Promise<Record<string,Array<{abs:string,rel:string,stat:import('node:fs').Stats}>>>}
+ * @returns {Promise<Record<string,Array<{abs:string,rel:string,stat:import('node:fs').Stats,ext:string}>>>}
  */
 export async function discoverFilesForModes({
   root,
@@ -250,12 +251,9 @@ export async function discoverEntries({
     }
     throwIfAborted(abortSignal);
     const baseName = path.basename(absPath);
-    const ext = resolveSpecialCodeExt(baseName) || fileExt(absPath);
+    let ext = resolveSpecialCodeExt(baseName) || fileExt(absPath);
     const isManifest = isManifestFile(baseName);
     const isLock = isLockFile(baseName);
-    const language = getLanguageForFile(ext, relPosix);
-    const isSpecialLanguage = !!language && !EXTS_CODE.has(ext) && !EXTS_PROSE.has(ext);
-    const isSpecial = isSpecialCodeFile(baseName) || isManifest || isLock || isSpecialLanguage;
     if (MINIFIED_NAME_REGEX.test(baseName.toLowerCase())) {
       recordSkip(absPath, 'minified', { method: 'name' });
       return;
@@ -281,6 +279,16 @@ export async function discoverEntries({
         recordSkip(absPath, 'symlink');
         return;
       }
+      let language = getLanguageForFile(ext, relPosix);
+      if (!ext && !language && stat.isFile()) {
+        const shebang = await detectShebangLanguage(absPath);
+        if (shebang?.languageId) {
+          ext = shebang.ext || ext;
+          language = getLanguageForFile(ext, relPosix);
+        }
+      }
+      const isSpecialLanguage = !!language && !EXTS_CODE.has(ext) && !EXTS_PROSE.has(ext);
+      const isSpecial = isSpecialCodeFile(baseName) || isManifest || isLock || isSpecialLanguage;
       const maxBytesForFile = resolveMaxBytesForFile(ext, language?.id || null);
       if (maxBytesForFile && stat.size > maxBytesForFile) {
         recordSkip(absPath, 'oversize', {
@@ -415,7 +423,7 @@ function filterEntriesByMode(entries, mode, skippedFiles, documentExtractionConf
       if (skippedFiles) skippedFiles.push({ file: entry.abs, reason: 'unsupported' });
       continue;
     }
-    output.push({ abs: entry.abs, rel: entry.rel, stat: entry.stat });
+    output.push({ abs: entry.abs, rel: entry.rel, stat: entry.stat, ext: entry.ext });
   }
   return output;
 }

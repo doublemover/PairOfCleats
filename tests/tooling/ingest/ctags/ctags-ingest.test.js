@@ -7,6 +7,7 @@ import { spawnSync } from 'node:child_process';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'ctags-ingest');
+const cliPath = path.join(root, 'bin', 'pairofcleats.js');
 const repoRoot = path.join(root, 'tests', 'fixtures', 'sample');
 const inputPath = path.join(root, 'tests', 'fixtures', 'ctags', 'tags.jsonl');
 const outPath = path.join(tempRoot, 'ctags.jsonl');
@@ -16,7 +17,7 @@ await fsPromises.rm(tempRoot, { recursive: true, force: true });
 
 const result = spawnSync(
   process.execPath,
-  [path.join(root, 'tools', 'ingest', 'ctags.js'), '--repo', repoRoot, '--input', inputPath, '--out', outPath, '--json'],
+  [cliPath, 'ingest', 'ctags', '--repo', repoRoot, '--input', inputPath, '--out', outPath, '--json'],
   { encoding: 'utf8' }
 );
 if (result.status !== 0) {

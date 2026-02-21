@@ -32,6 +32,7 @@ See `docs/guides/mcp.md` for MCP server modes, capabilities, and error codes.
 | `build-lmdb-index` | indexing | no |  |
 | `build-tantivy-index` | indexing | no |  |
 | `cache-gc` | tooling | no |  |
+| `caps:calibrate` | tooling | no |  |
 | `ci-build` | release | no |  |
 | `ci-restore` | release | no |  |
 | `clean-artifacts` | tooling | no |  |
@@ -60,12 +61,14 @@ See `docs/guides/mcp.md` for MCP server modes, capabilities, and error codes.
 | `map-iso` | tooling | no |  |
 | `mcp-server` | tooling | no |  |
 | `metrics-dashboard` | tooling | no |  |
+| `package-sublime` | tooling | no |  |
+| `package-vscode` | tooling | no |  |
 | `parity:matrix` | tooling | no |  |
 | `patch` | tooling | no |  |
 | `postinstall` | tooling | no |  |
+| `python:check` | tooling | no |  |
 | `rebuild:native` | tooling | no |  |
 | `release-check` | release | no |  |
-| `release-check:blockers` | release | no |  |
 | `release-check:breaking` | release | no |  |
 | `repair:native` | tooling | no |  |
 | `report-artifacts` | tooling | no |  |
@@ -77,6 +80,9 @@ See `docs/guides/mcp.md` for MCP server modes, capabilities, and error codes.
 | `summary-report` | tooling | no |  |
 | `tooling-detect` | tooling | no |  |
 | `tooling-install` | tooling | no |  |
+| `tui:build` | tooling | no |  |
+| `tui:install` | tooling | no |  |
+| `tui:supervisor` | tooling | no |  |
 | `uninstall` | tooling | no |  |
 | `verify-extensions` | tooling | no |  |
 | `verify:native` | tooling | no |  |

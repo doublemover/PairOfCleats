@@ -1,5 +1,5 @@
 import { loadIndexWithCache } from '../index-cache.js';
-import { MAX_JSON_BYTES, loadJsonArrayArtifactSync } from '../../shared/artifact-io.js';
+import { MAX_JSON_BYTES, loadJsonArrayArtifact } from '../../shared/artifact-io.js';
 import { hasLmdbStore } from '../../storage/lmdb/utils.js';
 import { hasChunkMetaArtifacts, resolveIndexDir } from '../cli-index.js';
 
@@ -72,10 +72,13 @@ export function resolveDenseVector(idx, mode, denseVectorMode) {
   return idx.denseVec || null;
 }
 
-export function loadFileRelations(rootDir, userConfig, mode, options = {}) {
+export async function loadFileRelations(rootDir, userConfig, mode, options = {}) {
   try {
     const dir = resolveIndexDir(rootDir, mode, userConfig, options.resolveOptions || {});
-    const raw = loadJsonArrayArtifactSync(dir, 'file_relations', { maxBytes: MAX_JSON_BYTES });
+    const raw = await loadJsonArrayArtifact(dir, 'file_relations', {
+      maxBytes: MAX_JSON_BYTES,
+      strict: false
+    });
     if (!Array.isArray(raw)) return null;
     const map = new Map();
     for (const entry of raw) {
@@ -88,10 +91,13 @@ export function loadFileRelations(rootDir, userConfig, mode, options = {}) {
   }
 }
 
-export function loadRepoMap(rootDir, userConfig, mode, options = {}) {
+export async function loadRepoMap(rootDir, userConfig, mode, options = {}) {
   try {
     const dir = resolveIndexDir(rootDir, mode, userConfig, options.resolveOptions || {});
-    const raw = loadJsonArrayArtifactSync(dir, 'repo_map', { maxBytes: MAX_JSON_BYTES });
+    const raw = await loadJsonArrayArtifact(dir, 'repo_map', {
+      maxBytes: MAX_JSON_BYTES,
+      strict: false
+    });
     return Array.isArray(raw) ? raw : null;
   } catch {
     return null;

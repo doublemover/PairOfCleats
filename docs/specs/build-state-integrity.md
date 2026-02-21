@@ -14,6 +14,7 @@ Make `build_state.json` concurrency-safe, validated, and useful for debugging.
 - `currentPhase` (replace ambiguous `phase`)
 - `orderingLedger` (ordering hashes + seeds)
 - Diagnostics: buildId, buildRoot, stage/mode, startedAt/finishedAt, counts, tokenizationKey/cacheSignature.
+- Determinism companion artifact: `determinism_report.json` (field reasons + stable-hash exclusions).
 
 ## Suggested schema excerpt (draft)
 ```

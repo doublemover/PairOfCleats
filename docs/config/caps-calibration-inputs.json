@@ -1,0 +1,1255 @@
+{
+  "schemaVersion": "caps-calibration-v1",
+  "generatedAt": "2026-02-20T23:10:00Z",
+  "source": "deterministic-language-baseline",
+  "languages": [
+    {
+      "id": "clike",
+      "parserRoute": "tree-sitter-clike",
+      "capsProfile": "clike-default",
+      "telemetry": {
+        "bytes": {
+          "p50": 163840,
+          "p95": 491520,
+          "p99": 622592
+        },
+        "lines": {
+          "p50": 2500,
+          "p95": 7500,
+          "p99": 9500
+        },
+        "tokens": {
+          "p50": 25000,
+          "p95": 75000,
+          "p99": 100000
+        },
+        "chunks": {
+          "p50": 4,
+          "p95": 18,
+          "p99": 28
+        },
+        "parseMs": {
+          "p50": 390,
+          "p95": 1690,
+          "p99": 2600
+        }
+      }
+    },
+    {
+      "id": "cmake",
+      "parserRoute": "tree-sitter-cmake",
+      "capsProfile": "cmake-default",
+      "telemetry": {
+        "bytes": {
+          "p50": 81920,
+          "p95": 245760,
+          "p99": 311296
+        },
+        "lines": {
+          "p50": 1250,
+          "p95": 3750,
+          "p99": 4750
+        },
+        "tokens": {
+          "p50": 12500,
+          "p95": 37500,
+          "p99": 50000
+        },
+        "chunks": {
+          "p50": 4,
+          "p95": 18,
+          "p99": 28
+        },
+        "parseMs": {
+          "p50": 225,
+          "p95": 975,
+          "p99": 1500
+        }
+      }
+    },
+    {
+      "id": "csharp",
+      "parserRoute": "tree-sitter-c-sharp",
+      "capsProfile": "csharp-default",
+      "telemetry": {
+        "bytes": {
+          "p50": 114688,
+          "p95": 344064,
+          "p99": 435814
+        },
+        "lines": {
+          "p50": 1750,
+          "p95": 5250,
+          "p99": 6650
+        },
+        "tokens": {
+          "p50": 17500,
+          "p95": 52500,
+          "p99": 70000
+        },
+        "chunks": {
+          "p50": 4,
+          "p95": 18,
+          "p99": 28
+        },
+        "parseMs": {
+          "p50": 285,
+          "p95": 1235,
+          "p99": 1900
+        }
+      }
+    },
+    {
+      "id": "css",
+      "parserRoute": "tree-sitter-css",
+      "capsProfile": "css-default",
+      "telemetry": {
+        "bytes": {
+          "p50": 65536,
+          "p95": 196608,
+          "p99": 249036
+        },
+        "lines": {
+          "p50": 1125,
+          "p95": 3375,
+          "p99": 4275
+        },
+        "tokens": {
+          "p50": 11250,
+          "p95": 33750,
+          "p99": 45000
+        },
+        "chunks": {
+          "p50": 4,
+          "p95": 18,
+          "p99": 28
+        },
+        "parseMs": {
+          "p50": 210,
+          "p95": 910,
+          "p99": 1400
+        }
+      }
+    },
+    {
+      "id": "dart",
+      "parserRoute": "tree-sitter-dart",
+      "capsProfile": "dart-default",
+      "telemetry": {
+        "bytes": {
+          "p50": 98304,
+          "p95": 294912,
+          "p99": 373555
+        },
+        "lines": {
+          "p50": 1625,
+          "p95": 4875,
+          "p99": 6175
+        },
+        "tokens": {
+          "p50": 16250,
+          "p95": 48750,
+          "p99": 65000
+        },
+        "chunks": {
+          "p50": 4,
+          "p95": 18,
+          "p99": 28
+        },
+        "parseMs": {
+          "p50": 270,
+          "p95": 1170,
+          "p99": 1800
+        }
+      }
+    },
+    {
+      "id": "dockerfile",
+      "parserRoute": "line-parser-dockerfile",
+      "capsProfile": "dockerfile-default",
+      "telemetry": {
+        "bytes": {
+          "p50": 73728,
+          "p95": 221184,
+          "p99": 280166
+        },
+        "lines": {
+          "p50": 1125,
+          "p95": 3375,
+          "p99": 4275
+        },
+        "tokens": {
+          "p50": 11250,
+          "p95": 33750,
+          "p99": 45000
+        },
+        "chunks": {
+          "p50": 4,
+          "p95": 18,
+          "p99": 28
+        },
+        "parseMs": {
+          "p50": 180,
+          "p95": 780,
+          "p99": 1200
+        }
+      }
+    },
+    {
+      "id": "go",
+      "parserRoute": "tree-sitter-go",
+      "capsProfile": "go-default",
+      "telemetry": {
+        "bytes": {
+          "p50": 98304,
+          "p95": 294912,
+          "p99": 373555
+        },
+        "lines": {
+          "p50": 1500,
+          "p95": 4500,
+          "p99": 5700
+        },
+        "tokens": {
+          "p50": 15000,
+          "p95": 45000,
+          "p99": 60000
+        },
+        "chunks": {
+          "p50": 4,
+          "p95": 18,
+          "p99": 28
+        },
+        "parseMs": {
+          "p50": 225,
+          "p95": 975,
+          "p99": 1500
+        }
+      }
+    },
+    {
+      "id": "graphql",
+      "parserRoute": "tree-sitter-graphql",
+      "capsProfile": "graphql-default",
+      "telemetry": {
+        "bytes": {
+          "p50": 81920,
+          "p95": 245760,
+          "p99": 311296
+        },
+        "lines": {
+          "p50": 1250,
+          "p95": 3750,
+          "p99": 4750
+        },
+        "tokens": {
+          "p50": 12500,
+          "p95": 37500,
+          "p99": 50000
+        },
+        "chunks": {
+          "p50": 4,
+          "p95": 18,
+          "p99": 28
+        },
+        "parseMs": {
+          "p50": 225,
+          "p95": 975,
+          "p99": 1500
+        }
+      }
+    },
+    {
+      "id": "groovy",
+      "parserRoute": "tree-sitter-groovy",
+      "capsProfile": "groovy-default",
+      "telemetry": {
+        "bytes": {
+          "p50": 98304,
+          "p95": 294912,
+          "p99": 373555
+        },
+        "lines": {
+          "p50": 1500,
+          "p95": 4500,
+          "p99": 5700
+        },
+        "tokens": {
+          "p50": 15000,
+          "p95": 45000,
+          "p99": 60000
+        },
+        "chunks": {
+          "p50": 4,
+          "p95": 18,
+          "p99": 28
+        },
+        "parseMs": {
+          "p50": 255,
+          "p95": 1105,
+          "p99": 1700
+        }
+      }
+    },
+    {
+      "id": "handlebars",
+      "parserRoute": "tree-sitter-handlebars",
+      "capsProfile": "handlebars-default",
+      "telemetry": {
+        "bytes": {
+          "p50": 49152,
+          "p95": 147456,
+          "p99": 186777
+        },
+        "lines": {
+          "p50": 750,
+          "p95": 2250,
+          "p99": 2850
+        },
+        "tokens": {
+          "p50": 7500,
+          "p95": 22500,
+          "p99": 30000
+        },
+        "chunks": {
+          "p50": 4,
+          "p95": 18,
+          "p99": 28
+        },
+        "parseMs": {
+          "p50": 165,
+          "p95": 715,
+          "p99": 1100
+        }
+      }
+    },
+    {
+      "id": "html",
+      "parserRoute": "tree-sitter-html",
+      "capsProfile": "html-default",
+      "telemetry": {
+        "bytes": {
+          "p50": 65536,
+          "p95": 196608,
+          "p99": 249036
+        },
+        "lines": {
+          "p50": 1000,
+          "p95": 3000,
+          "p99": 3800
+        },
+        "tokens": {
+          "p50": 10000,
+          "p95": 30000,
+          "p99": 40000
+        },
+        "chunks": {
+          "p50": 4,
+          "p95": 18,
+          "p99": 28
+        },
+        "parseMs": {
+          "p50": 210,
+          "p95": 910,
+          "p99": 1400
+        }
+      }
+    },
+    {
+      "id": "ini",
+      "parserRoute": "structured-ini",
+      "capsProfile": "ini-default",
+      "telemetry": {
+        "bytes": {
+          "p50": 49152,
+          "p95": 147456,
+          "p99": 186777
+        },
+        "lines": {
+          "p50": 750,
+          "p95": 2250,
+          "p99": 2850
+        },
+        "tokens": {
+          "p50": 7500,
+          "p95": 22500,
+          "p99": 30000
+        },
+        "chunks": {
+          "p50": 4,
+          "p95": 18,
+          "p99": 28
+        },
+        "parseMs": {
+          "p50": 135,
+          "p95": 585,
+          "p99": 900
+        }
+      }
+    },
+    {
+      "id": "java",
+      "parserRoute": "tree-sitter-java",
+      "capsProfile": "java-default",
+      "telemetry": {
+        "bytes": {
+          "p50": 114688,
+          "p95": 344064,
+          "p99": 435814
+        },
+        "lines": {
+          "p50": 1750,
+          "p95": 5250,
+          "p99": 6650
+        },
+        "tokens": {
+          "p50": 17500,
+          "p95": 52500,
+          "p99": 70000
+        },
+        "chunks": {
+          "p50": 4,
+          "p95": 18,
+          "p99": 28
+        },
+        "parseMs": {
+          "p50": 285,
+          "p95": 1235,
+          "p99": 1900
+        }
+      }
+    },
+    {
+      "id": "javascript",
+      "parserRoute": "tree-sitter-js",
+      "capsProfile": "javascript-default",
+      "telemetry": {
+        "bytes": {
+          "p50": 81920,
+          "p95": 245760,
+          "p99": 311296
+        },
+        "lines": {
+          "p50": 1250,
+          "p95": 3750,
+          "p99": 4750
+        },
+        "tokens": {
+          "p50": 12500,
+          "p95": 37500,
+          "p99": 50000
+        },
+        "chunks": {
+          "p50": 4,
+          "p95": 18,
+          "p99": 28
+        },
+        "parseMs": {
+          "p50": 225,
+          "p95": 975,
+          "p99": 1500
+        }
+      }
+    },
+    {
+      "id": "jinja",
+      "parserRoute": "tree-sitter-jinja",
+      "capsProfile": "jinja-default",
+      "telemetry": {
+        "bytes": {
+          "p50": 57344,
+          "p95": 172032,
+          "p99": 217907
+        },
+        "lines": {
+          "p50": 875,
+          "p95": 2625,
+          "p99": 3325
+        },
+        "tokens": {
+          "p50": 8750,
+          "p95": 26250,
+          "p99": 35000
+        },
+        "chunks": {
+          "p50": 4,
+          "p95": 18,
+          "p99": 28
+        },
+        "parseMs": {
+          "p50": 180,
+          "p95": 780,
+          "p99": 1200
+        }
+      }
+    },
+    {
+      "id": "json",
+      "parserRoute": "structured-json",
+      "capsProfile": "json-default",
+      "telemetry": {
+        "bytes": {
+          "p50": 65536,
+          "p95": 196608,
+          "p99": 249036
+        },
+        "lines": {
+          "p50": 1000,
+          "p95": 3000,
+          "p99": 3800
+        },
+        "tokens": {
+          "p50": 10000,
+          "p95": 30000,
+          "p99": 40000
+        },
+        "chunks": {
+          "p50": 4,
+          "p95": 18,
+          "p99": 28
+        },
+        "parseMs": {
+          "p50": 150,
+          "p95": 650,
+          "p99": 1000
+        }
+      }
+    },
+    {
+      "id": "julia",
+      "parserRoute": "tree-sitter-julia",
+      "capsProfile": "julia-default",
+      "telemetry": {
+        "bytes": {
+          "p50": 98304,
+          "p95": 294912,
+          "p99": 373555
+        },
+        "lines": {
+          "p50": 1500,
+          "p95": 4500,
+          "p99": 5700
+        },
+        "tokens": {
+          "p50": 15000,
+          "p95": 45000,
+          "p99": 60000
+        },
+        "chunks": {
+          "p50": 4,
+          "p95": 18,
+          "p99": 28
+        },
+        "parseMs": {
+          "p50": 255,
+          "p95": 1105,
+          "p99": 1700
+        }
+      }
+    },
+    {
+      "id": "kotlin",
+      "parserRoute": "tree-sitter-kotlin",
+      "capsProfile": "kotlin-default",
+      "telemetry": {
+        "bytes": {
+          "p50": 98304,
+          "p95": 294912,
+          "p99": 373555
+        },
+        "lines": {
+          "p50": 1625,
+          "p95": 4875,
+          "p99": 6175
+        },
+        "tokens": {
+          "p50": 16250,
+          "p95": 48750,
+          "p99": 65000
+        },
+        "chunks": {
+          "p50": 4,
+          "p95": 18,
+          "p99": 28
+        },
+        "parseMs": {
+          "p50": 270,
+          "p95": 1170,
+          "p99": 1800
+        }
+      }
+    },
+    {
+      "id": "lua",
+      "parserRoute": "tree-sitter-lua",
+      "capsProfile": "lua-default",
+      "telemetry": {
+        "bytes": {
+          "p50": 65536,
+          "p95": 196608,
+          "p99": 249036
+        },
+        "lines": {
+          "p50": 1125,
+          "p95": 3375,
+          "p99": 4275
+        },
+        "tokens": {
+          "p50": 11250,
+          "p95": 33750,
+          "p99": 45000
+        },
+        "chunks": {
+          "p50": 4,
+          "p95": 18,
+          "p99": 28
+        },
+        "parseMs": {
+          "p50": 210,
+          "p95": 910,
+          "p99": 1400
+        }
+      }
+    },
+    {
+      "id": "makefile",
+      "parserRoute": "line-parser-makefile",
+      "capsProfile": "makefile-default",
+      "telemetry": {
+        "bytes": {
+          "p50": 81920,
+          "p95": 245760,
+          "p99": 311296
+        },
+        "lines": {
+          "p50": 1375,
+          "p95": 4125,
+          "p99": 5225
+        },
+        "tokens": {
+          "p50": 13750,
+          "p95": 41250,
+          "p99": 55000
+        },
+        "chunks": {
+          "p50": 4,
+          "p95": 18,
+          "p99": 28
+        },
+        "parseMs": {
+          "p50": 180,
+          "p95": 780,
+          "p99": 1200
+        }
+      }
+    },
+    {
+      "id": "mustache",
+      "parserRoute": "tree-sitter-mustache",
+      "capsProfile": "mustache-default",
+      "telemetry": {
+        "bytes": {
+          "p50": 49152,
+          "p95": 147456,
+          "p99": 186777
+        },
+        "lines": {
+          "p50": 750,
+          "p95": 2250,
+          "p99": 2850
+        },
+        "tokens": {
+          "p50": 7500,
+          "p95": 22500,
+          "p99": 30000
+        },
+        "chunks": {
+          "p50": 4,
+          "p95": 18,
+          "p99": 28
+        },
+        "parseMs": {
+          "p50": 165,
+          "p95": 715,
+          "p99": 1100
+        }
+      }
+    },
+    {
+      "id": "nix",
+      "parserRoute": "tree-sitter-nix",
+      "capsProfile": "nix-default",
+      "telemetry": {
+        "bytes": {
+          "p50": 81920,
+          "p95": 245760,
+          "p99": 311296
+        },
+        "lines": {
+          "p50": 1250,
+          "p95": 3750,
+          "p99": 4750
+        },
+        "tokens": {
+          "p50": 12500,
+          "p95": 37500,
+          "p99": 50000
+        },
+        "chunks": {
+          "p50": 4,
+          "p95": 18,
+          "p99": 28
+        },
+        "parseMs": {
+          "p50": 225,
+          "p95": 975,
+          "p99": 1500
+        }
+      }
+    },
+    {
+      "id": "perl",
+      "parserRoute": "tree-sitter-perl",
+      "capsProfile": "perl-default",
+      "telemetry": {
+        "bytes": {
+          "p50": 81920,
+          "p95": 245760,
+          "p99": 311296
+        },
+        "lines": {
+          "p50": 1250,
+          "p95": 3750,
+          "p99": 4750
+        },
+        "tokens": {
+          "p50": 12500,
+          "p95": 37500,
+          "p99": 50000
+        },
+        "chunks": {
+          "p50": 4,
+          "p95": 18,
+          "p99": 28
+        },
+        "parseMs": {
+          "p50": 225,
+          "p95": 975,
+          "p99": 1500
+        }
+      }
+    },
+    {
+      "id": "php",
+      "parserRoute": "tree-sitter-php",
+      "capsProfile": "php-default",
+      "telemetry": {
+        "bytes": {
+          "p50": 98304,
+          "p95": 294912,
+          "p99": 373555
+        },
+        "lines": {
+          "p50": 1500,
+          "p95": 4500,
+          "p99": 5700
+        },
+        "tokens": {
+          "p50": 15000,
+          "p95": 45000,
+          "p99": 60000
+        },
+        "chunks": {
+          "p50": 4,
+          "p95": 18,
+          "p99": 28
+        },
+        "parseMs": {
+          "p50": 255,
+          "p95": 1105,
+          "p99": 1700
+        }
+      }
+    },
+    {
+      "id": "proto",
+      "parserRoute": "tree-sitter-proto",
+      "capsProfile": "proto-default",
+      "telemetry": {
+        "bytes": {
+          "p50": 81920,
+          "p95": 245760,
+          "p99": 311296
+        },
+        "lines": {
+          "p50": 1250,
+          "p95": 3750,
+          "p99": 4750
+        },
+        "tokens": {
+          "p50": 12500,
+          "p95": 37500,
+          "p99": 50000
+        },
+        "chunks": {
+          "p50": 4,
+          "p95": 18,
+          "p99": 28
+        },
+        "parseMs": {
+          "p50": 225,
+          "p95": 975,
+          "p99": 1500
+        }
+      }
+    },
+    {
+      "id": "python",
+      "parserRoute": "python-ast-tree-sitter",
+      "capsProfile": "python-default",
+      "telemetry": {
+        "bytes": {
+          "p50": 98304,
+          "p95": 294912,
+          "p99": 373555
+        },
+        "lines": {
+          "p50": 1500,
+          "p95": 4500,
+          "p99": 5700
+        },
+        "tokens": {
+          "p50": 15000,
+          "p95": 45000,
+          "p99": 60000
+        },
+        "chunks": {
+          "p50": 4,
+          "p95": 18,
+          "p99": 28
+        },
+        "parseMs": {
+          "p50": 270,
+          "p95": 1170,
+          "p99": 1800
+        }
+      }
+    },
+    {
+      "id": "r",
+      "parserRoute": "tree-sitter-r",
+      "capsProfile": "r-default",
+      "telemetry": {
+        "bytes": {
+          "p50": 81920,
+          "p95": 245760,
+          "p99": 311296
+        },
+        "lines": {
+          "p50": 1375,
+          "p95": 4125,
+          "p99": 5225
+        },
+        "tokens": {
+          "p50": 13750,
+          "p95": 41250,
+          "p99": 55000
+        },
+        "chunks": {
+          "p50": 4,
+          "p95": 18,
+          "p99": 28
+        },
+        "parseMs": {
+          "p50": 240,
+          "p95": 1040,
+          "p99": 1600
+        }
+      }
+    },
+    {
+      "id": "razor",
+      "parserRoute": "tree-sitter-razor",
+      "capsProfile": "razor-default",
+      "telemetry": {
+        "bytes": {
+          "p50": 57344,
+          "p95": 172032,
+          "p99": 217907
+        },
+        "lines": {
+          "p50": 875,
+          "p95": 2625,
+          "p99": 3325
+        },
+        "tokens": {
+          "p50": 8750,
+          "p95": 26250,
+          "p99": 35000
+        },
+        "chunks": {
+          "p50": 4,
+          "p95": 18,
+          "p99": 28
+        },
+        "parseMs": {
+          "p50": 180,
+          "p95": 780,
+          "p99": 1200
+        }
+      }
+    },
+    {
+      "id": "ruby",
+      "parserRoute": "tree-sitter-ruby",
+      "capsProfile": "ruby-default",
+      "telemetry": {
+        "bytes": {
+          "p50": 81920,
+          "p95": 245760,
+          "p99": 311296
+        },
+        "lines": {
+          "p50": 1250,
+          "p95": 3750,
+          "p99": 4750
+        },
+        "tokens": {
+          "p50": 12500,
+          "p95": 37500,
+          "p99": 50000
+        },
+        "chunks": {
+          "p50": 4,
+          "p95": 18,
+          "p99": 28
+        },
+        "parseMs": {
+          "p50": 225,
+          "p95": 975,
+          "p99": 1500
+        }
+      }
+    },
+    {
+      "id": "rust",
+      "parserRoute": "tree-sitter-rust",
+      "capsProfile": "rust-default",
+      "telemetry": {
+        "bytes": {
+          "p50": 98304,
+          "p95": 294912,
+          "p99": 373555
+        },
+        "lines": {
+          "p50": 1500,
+          "p95": 4500,
+          "p99": 5700
+        },
+        "tokens": {
+          "p50": 15000,
+          "p95": 45000,
+          "p99": 60000
+        },
+        "chunks": {
+          "p50": 4,
+          "p95": 18,
+          "p99": 28
+        },
+        "parseMs": {
+          "p50": 255,
+          "p95": 1105,
+          "p99": 1700
+        }
+      }
+    },
+    {
+      "id": "scala",
+      "parserRoute": "tree-sitter-scala",
+      "capsProfile": "scala-default",
+      "telemetry": {
+        "bytes": {
+          "p50": 114688,
+          "p95": 344064,
+          "p99": 435814
+        },
+        "lines": {
+          "p50": 1750,
+          "p95": 5250,
+          "p99": 6650
+        },
+        "tokens": {
+          "p50": 17500,
+          "p95": 52500,
+          "p99": 70000
+        },
+        "chunks": {
+          "p50": 4,
+          "p95": 18,
+          "p99": 28
+        },
+        "parseMs": {
+          "p50": 285,
+          "p95": 1235,
+          "p99": 1900
+        }
+      }
+    },
+    {
+      "id": "shell",
+      "parserRoute": "tree-sitter-shell",
+      "capsProfile": "shell-default",
+      "telemetry": {
+        "bytes": {
+          "p50": 65536,
+          "p95": 196608,
+          "p99": 249036
+        },
+        "lines": {
+          "p50": 1000,
+          "p95": 3000,
+          "p99": 3800
+        },
+        "tokens": {
+          "p50": 10000,
+          "p95": 30000,
+          "p99": 40000
+        },
+        "chunks": {
+          "p50": 4,
+          "p95": 18,
+          "p99": 28
+        },
+        "parseMs": {
+          "p50": 195,
+          "p95": 845,
+          "p99": 1300
+        }
+      }
+    },
+    {
+      "id": "sql",
+      "parserRoute": "tree-sitter-sql",
+      "capsProfile": "sql-default",
+      "telemetry": {
+        "bytes": {
+          "p50": 98304,
+          "p95": 294912,
+          "p99": 373555
+        },
+        "lines": {
+          "p50": 1625,
+          "p95": 4875,
+          "p99": 6175
+        },
+        "tokens": {
+          "p50": 16250,
+          "p95": 48750,
+          "p99": 65000
+        },
+        "chunks": {
+          "p50": 4,
+          "p95": 18,
+          "p99": 28
+        },
+        "parseMs": {
+          "p50": 270,
+          "p95": 1170,
+          "p99": 1800
+        }
+      }
+    },
+    {
+      "id": "starlark",
+      "parserRoute": "tree-sitter-starlark",
+      "capsProfile": "starlark-default",
+      "telemetry": {
+        "bytes": {
+          "p50": 98304,
+          "p95": 294912,
+          "p99": 373555
+        },
+        "lines": {
+          "p50": 1500,
+          "p95": 4500,
+          "p99": 5700
+        },
+        "tokens": {
+          "p50": 15000,
+          "p95": 45000,
+          "p99": 60000
+        },
+        "chunks": {
+          "p50": 4,
+          "p95": 18,
+          "p99": 28
+        },
+        "parseMs": {
+          "p50": 255,
+          "p95": 1105,
+          "p99": 1700
+        }
+      }
+    },
+    {
+      "id": "swift",
+      "parserRoute": "tree-sitter-swift",
+      "capsProfile": "swift-default",
+      "telemetry": {
+        "bytes": {
+          "p50": 114688,
+          "p95": 344064,
+          "p99": 435814
+        },
+        "lines": {
+          "p50": 1750,
+          "p95": 5250,
+          "p99": 6650
+        },
+        "tokens": {
+          "p50": 17500,
+          "p95": 52500,
+          "p99": 70000
+        },
+        "chunks": {
+          "p50": 4,
+          "p95": 18,
+          "p99": 28
+        },
+        "parseMs": {
+          "p50": 300,
+          "p95": 1300,
+          "p99": 2000
+        }
+      }
+    },
+    {
+      "id": "toml",
+      "parserRoute": "structured-toml",
+      "capsProfile": "toml-default",
+      "telemetry": {
+        "bytes": {
+          "p50": 57344,
+          "p95": 172032,
+          "p99": 217907
+        },
+        "lines": {
+          "p50": 875,
+          "p95": 2625,
+          "p99": 3325
+        },
+        "tokens": {
+          "p50": 8750,
+          "p95": 26250,
+          "p99": 35000
+        },
+        "chunks": {
+          "p50": 4,
+          "p95": 18,
+          "p99": 28
+        },
+        "parseMs": {
+          "p50": 135,
+          "p95": 585,
+          "p99": 900
+        }
+      }
+    },
+    {
+      "id": "typescript",
+      "parserRoute": "tree-sitter-ts",
+      "capsProfile": "typescript-default",
+      "telemetry": {
+        "bytes": {
+          "p50": 81920,
+          "p95": 245760,
+          "p99": 311296
+        },
+        "lines": {
+          "p50": 1250,
+          "p95": 3750,
+          "p99": 4750
+        },
+        "tokens": {
+          "p50": 12500,
+          "p95": 37500,
+          "p99": 50000
+        },
+        "chunks": {
+          "p50": 4,
+          "p95": 18,
+          "p99": 28
+        },
+        "parseMs": {
+          "p50": 225,
+          "p95": 975,
+          "p99": 1500
+        }
+      }
+    },
+    {
+      "id": "xml",
+      "parserRoute": "structured-xml",
+      "capsProfile": "xml-default",
+      "telemetry": {
+        "bytes": {
+          "p50": 65536,
+          "p95": 196608,
+          "p99": 249036
+        },
+        "lines": {
+          "p50": 1000,
+          "p95": 3000,
+          "p99": 3800
+        },
+        "tokens": {
+          "p50": 10000,
+          "p95": 30000,
+          "p99": 40000
+        },
+        "chunks": {
+          "p50": 4,
+          "p95": 18,
+          "p99": 28
+        },
+        "parseMs": {
+          "p50": 180,
+          "p95": 780,
+          "p99": 1200
+        }
+      }
+    },
+    {
+      "id": "yaml",
+      "parserRoute": "structured-yaml",
+      "capsProfile": "yaml-default",
+      "telemetry": {
+        "bytes": {
+          "p50": 57344,
+          "p95": 172032,
+          "p99": 217907
+        },
+        "lines": {
+          "p50": 875,
+          "p95": 2625,
+          "p99": 3325
+        },
+        "tokens": {
+          "p50": 8750,
+          "p95": 26250,
+          "p99": 35000
+        },
+        "chunks": {
+          "p50": 4,
+          "p95": 18,
+          "p99": 28
+        },
+        "parseMs": {
+          "p50": 165,
+          "p95": 715,
+          "p99": 1100
+        }
+      }
+    }
+  ]
+}

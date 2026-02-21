@@ -24,6 +24,7 @@ import {
   createOffsetsMeta,
   recordArtifactTelemetry
 } from '../../helpers.js';
+import { buildTrimMetadata } from '../../trim-policy.js';
 import { applyByteBudget } from '../../../byte-budget.js';
 import {
   buildJsonlVariantPaths,
@@ -314,6 +315,17 @@ export const enqueueChunkMetaArtifacts = async ({
   const trimmedFieldsPayload = trimmedFields && Object.keys(trimmedFields).length
     ? trimmedFields
     : null;
+  const trimMaxRowBytes = Math.max(jsonlScan?.maxRowBytes || 0, measured?.maxRowBytes || 0);
+  const trimMetadata = {
+    ...buildTrimMetadata(chunkMetaIterator.stats, {
+      trimmedFields: trimmedFieldsPayload,
+      trimmedRows: trimmedEntries,
+      droppedRows: 0,
+      maxRowBytes: trimMaxRowBytes
+    }),
+    trimmedEntries,
+    trimmedMetaV2
+  };
   if (resolvedUseJsonl && jsonlScan) {
     const budgetInfo = applyByteBudget({
       budget: byteBudget,
@@ -344,8 +356,7 @@ export const enqueueChunkMetaArtifacts = async ({
         adaptiveSharding: streamingAdaptiveSharding,
         hotColdSplit: enableHotColdSplit,
         coldBytes: jsonlScan.coldJsonlBytes || 0,
-        trimmedMetaV2,
-        trimmedFields: trimmedFieldsPayload,
+        trim: trimMetadata,
         order: orderInfo,
         budget: budgetInfo
       }
@@ -369,8 +380,7 @@ export const enqueueChunkMetaArtifacts = async ({
       extra: {
         format: 'json',
         hotColdSplit: false,
-        trimmedMetaV2,
-        trimmedFields: trimmedFieldsPayload,
+        trim: trimMetadata,
         budget: budgetInfo
       }
     });
@@ -656,11 +666,7 @@ export const enqueueChunkMetaArtifacts = async ({
             result,
             parts,
             extensions: {
-              trim: {
-                trimmedEntries,
-                trimmedMetaV2,
-                trimmedFields: trimmedFieldsPayload
-              },
+              trim: trimMetadata,
               ...(bucketSize ? { orderBuckets: { size: bucketSize, count: buckets.length } } : {}),
               ...(offsetsMeta ? { offsets: offsetsMeta } : {})
             }

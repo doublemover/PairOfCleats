@@ -28,7 +28,7 @@ Tools that produce machine output or long-running work MUST support:
 - **stdout**
   - When `--json` is used: emit exactly **one** JSON object on stdout.
   - No additional stdout lines in `--json` mode.
-  - Enforce with a **stdout guard** (fail fast if non‑JSON bytes are written).
+  - Enforce with a **stdout guard** (fail fast if non‑JSON bytes are written) via `src/shared/cli/stdout-guard.js`.
 - **stderr**
   - Human logs and progress only.
   - When `--progress jsonl`: stderr must emit **only** JSONL protocol events (v2).

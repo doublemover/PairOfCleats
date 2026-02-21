@@ -38,5 +38,9 @@ const multiChunks = chunkYaml(multiDoc, 'config.yml', { yamlChunking: { mode: 't
 const multiNames = new Set(multiChunks.map((chunk) => chunk.name));
 expect(multiNames.has('first'), 'Missing first doc chunk.');
 expect(multiNames.has('second'), 'Missing second doc chunk.');
+const firstChunk = multiChunks.find((chunk) => chunk.name === 'first');
+const secondChunk = multiChunks.find((chunk) => chunk.name === 'second');
+expect(firstChunk?.meta?.documentIndex === 0, 'Expected first doc chunk documentIndex=0.');
+expect(secondChunk?.meta?.documentIndex === 1, 'Expected second doc chunk documentIndex=1.');
 
 console.log('Chunking YAML test passed.');

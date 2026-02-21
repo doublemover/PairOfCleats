@@ -19,6 +19,7 @@ import {
   writePerFileVarintIndex
 } from '../helpers.js';
 import { applyByteBudget } from '../../byte-budget.js';
+import { buildTrimMetadata, TRIM_REASONS } from '../trim-policy.js';
 import {
   buildJsonlVariantPaths,
   buildShardedPartEntries,
@@ -82,13 +83,18 @@ const isValidSymbolRefEndpoint = (ref) => {
 };
 
 const trimSymbolRef = (ref) => {
-  if (!ref || typeof ref !== 'object') return ref;
+  if (!ref || typeof ref !== 'object') return { ref, trimReasons: [] };
+  const trimReasons = [];
   const trimmed = { ...ref };
-  if (Array.isArray(trimmed.candidates) && trimmed.candidates.length) {
+  if (Array.isArray(trimmed.candidates) && trimmed.candidates.length > 5) {
     trimmed.candidates = trimmed.candidates.slice(0, Math.min(trimmed.candidates.length, 5));
+    trimReasons.push(TRIM_REASONS.symbolRefTrimCandidates);
   }
-  if (trimmed.importHint) trimmed.importHint = null;
-  return trimmed;
+  if (trimmed.importHint) {
+    trimmed.importHint = null;
+    trimReasons.push(TRIM_REASONS.symbolRefClearImportHint);
+  }
+  return { ref: trimmed, trimReasons };
 };
 
 const maybeTrimRow = (row) => {
@@ -98,16 +104,57 @@ const maybeTrimRow = (row) => {
   );
   const rowBytes = measureRowBytes(row);
   if (rowBytes <= MAX_ROW_BYTES) {
-    return { row: required(row) ? row : null, trimmed: false };
+    if (!required(row)) {
+      return {
+        row: null,
+        trimmed: false,
+        trimReasons: [TRIM_REASONS.dropRequiredFields]
+      };
+    }
+    return { row, trimmed: false, trimReasons: [] };
   }
+  const trimReasons = [TRIM_REASONS.rowOversize];
   const trimmed = { ...row };
-  if (trimmed.evidence) delete trimmed.evidence;
-  if (trimmed.reason) trimmed.reason = null;
-  if (Number.isFinite(trimmed.confidence)) trimmed.confidence = null;
-  if (fits(trimmed)) return { row: required(trimmed) ? trimmed : null, trimmed: true };
-  trimmed.to = trimSymbolRef(trimmed.to);
-  if (fits(trimmed)) return { row: required(trimmed) ? trimmed : null, trimmed: true };
-  return { row: null, trimmed: false };
+  if (trimmed.evidence) {
+    delete trimmed.evidence;
+    trimReasons.push(TRIM_REASONS.symbolEdgesDropEvidence);
+  }
+  if (trimmed.reason) {
+    trimmed.reason = null;
+    trimReasons.push(TRIM_REASONS.symbolEdgesClearReason);
+  }
+  if (Number.isFinite(trimmed.confidence)) {
+    trimmed.confidence = null;
+    trimReasons.push(TRIM_REASONS.symbolEdgesClearConfidence);
+  }
+  if (fits(trimmed)) {
+    if (!required(trimmed)) {
+      return {
+        row: null,
+        trimmed: false,
+        trimReasons: [...trimReasons, TRIM_REASONS.dropRequiredFields]
+      };
+    }
+    return { row: trimmed, trimmed: true, trimReasons };
+  }
+  const trimmedRef = trimSymbolRef(trimmed.to);
+  trimmed.to = trimmedRef.ref;
+  trimReasons.push(...trimmedRef.trimReasons);
+  if (fits(trimmed)) {
+    if (!required(trimmed)) {
+      return {
+        row: null,
+        trimmed: false,
+        trimReasons: [...trimReasons, TRIM_REASONS.dropRequiredFields]
+      };
+    }
+    return { row: trimmed, trimmed: true, trimReasons };
+  }
+  return {
+    row: null,
+    trimmed: false,
+    trimReasons: [...trimReasons, TRIM_REASONS.dropRowOverBudget]
+  };
 };
 
 const collectRows = async (chunks, { outDir, maxJsonBytes }) => {
@@ -140,7 +187,7 @@ const collectRows = async (chunks, { outDir, maxJsonBytes }) => {
         const ref = link?.to || link?.ref || null;
         if (!ref) continue;
         if (!isValidSymbolRefEndpoint(ref)) continue;
-        const { row, trimmed } = maybeTrimRow({
+        const { row, trimmed, trimReasons } = maybeTrimRow({
           v: 1,
           type: link?.edgeKind || 'call',
           from,
@@ -149,7 +196,7 @@ const collectRows = async (chunks, { outDir, maxJsonBytes }) => {
           reason: normalizeText(link?.reason),
           evidence: link?.evidence || undefined
         });
-        await collector.append(row, { trimmed, dropped: !row });
+        await collector.append(row, { trimmed, dropped: !row, trimReasons });
       }
     }
   }
@@ -281,6 +328,7 @@ export const enqueueSymbolEdgesArtifacts = async ({
   }
   const useShards = maxJsonBytes && totalBytes > maxJsonBytes && !useColumnar;
   const formatLabel = useColumnar ? 'columnar' : (useShards ? 'jsonl-sharded' : 'jsonl');
+  const trimMetadata = buildTrimMetadata(stats);
   const budgetInfo = applyByteBudget({
     budget: byteBudget,
     totalBytes,
@@ -300,7 +348,8 @@ export const enqueueSymbolEdgesArtifacts = async ({
       format: formatLabel,
       budget: budgetInfo,
       runsSpilled: stats?.runsSpilled || 0,
-      spillBytes: stats?.spillBytes || 0
+      spillBytes: stats?.spillBytes || 0,
+      trim: trimMetadata
     }
   });
   if (!totalRows) {
@@ -496,11 +545,7 @@ export const enqueueSymbolEdgesArtifacts = async ({
         result,
         parts,
         extensions: {
-          trim: {
-            trimmedRows: stats?.trimmedRows || 0,
-            droppedRows: stats?.droppedRows || 0,
-            maxRowBytes: stats?.maxRowBytes || 0
-          },
+          trim: trimMetadata,
           ...(offsetsMeta ? { offsets: offsetsMeta } : {})
         }
       });

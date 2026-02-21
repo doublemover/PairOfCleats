@@ -19,6 +19,7 @@ import {
   writePerFileVarintIndex
 } from '../helpers.js';
 import { applyByteBudget } from '../../byte-budget.js';
+import { buildTrimMetadata, TRIM_REASONS } from '../trim-policy.js';
 import {
   buildJsonlVariantPaths,
   buildShardedPartEntries,
@@ -82,13 +83,18 @@ const isValidSymbolRefEndpoint = (ref) => {
 };
 
 const trimSymbolRef = (ref) => {
-  if (!ref || typeof ref !== 'object') return ref;
+  if (!ref || typeof ref !== 'object') return { ref, trimReasons: [] };
+  const trimReasons = [];
   const trimmed = { ...ref };
-  if (Array.isArray(trimmed.candidates) && trimmed.candidates.length) {
+  if (Array.isArray(trimmed.candidates) && trimmed.candidates.length > 5) {
     trimmed.candidates = trimmed.candidates.slice(0, Math.min(trimmed.candidates.length, 5));
+    trimReasons.push(TRIM_REASONS.symbolRefTrimCandidates);
   }
-  if (trimmed.importHint) trimmed.importHint = null;
-  return trimmed;
+  if (trimmed.importHint) {
+    trimmed.importHint = null;
+    trimReasons.push(TRIM_REASONS.symbolRefClearImportHint);
+  }
+  return { ref: trimmed, trimReasons };
 };
 
 const maybeTrimRow = (row) => {
@@ -98,13 +104,48 @@ const maybeTrimRow = (row) => {
   );
   const rowBytes = measureRowBytes(row);
   if (rowBytes <= MAX_ROW_BYTES) {
-    return { row: required(row) ? row : null, trimmed: false };
+    if (!required(row)) {
+      return {
+        row: null,
+        trimmed: false,
+        trimReasons: [TRIM_REASONS.dropRequiredFields]
+      };
+    }
+    return { row, trimmed: false, trimReasons: [] };
   }
+  const trimReasons = [TRIM_REASONS.rowOversize];
   const trimmed = { ...row, range: null };
-  if (fits(trimmed)) return { row: required(trimmed) ? trimmed : null, trimmed: true };
-  trimmed.ref = trimSymbolRef(trimmed.ref);
-  if (fits(trimmed)) return { row: required(trimmed) ? trimmed : null, trimmed: true };
-  return { row: null, trimmed: false };
+  if (row.range != null) {
+    trimReasons.push(TRIM_REASONS.symbolOccurrencesClearRange);
+  }
+  if (fits(trimmed)) {
+    if (!required(trimmed)) {
+      return {
+        row: null,
+        trimmed: false,
+        trimReasons: [...trimReasons, TRIM_REASONS.dropRequiredFields]
+      };
+    }
+    return { row: trimmed, trimmed: true, trimReasons };
+  }
+  const trimmedRef = trimSymbolRef(trimmed.ref);
+  trimmed.ref = trimmedRef.ref;
+  trimReasons.push(...trimmedRef.trimReasons);
+  if (fits(trimmed)) {
+    if (!required(trimmed)) {
+      return {
+        row: null,
+        trimmed: false,
+        trimReasons: [...trimReasons, TRIM_REASONS.dropRequiredFields]
+      };
+    }
+    return { row: trimmed, trimmed: true, trimReasons };
+  }
+  return {
+    row: null,
+    trimmed: false,
+    trimReasons: [...trimReasons, TRIM_REASONS.dropRowOverBudget]
+  };
 };
 
 const buildRange = (detail) => (
@@ -140,28 +181,28 @@ const collectRows = async (chunks, { outDir, maxJsonBytes }) => {
         const ref = detail?.calleeRef || detail?.symbolRef || null;
         if (!ref) continue;
         if (!isValidSymbolRefEndpoint(ref)) continue;
-        const { row, trimmed } = maybeTrimRow({
+        const { row, trimmed, trimReasons } = maybeTrimRow({
           v: 1,
           host,
           role: 'call',
           ref,
           range: buildRange(detail)
         });
-        await collector.append(row, { trimmed, dropped: !row });
+        await collector.append(row, { trimmed, dropped: !row, trimReasons });
       }
     } else if (Array.isArray(relations.callLinks)) {
       for (const link of relations.callLinks) {
         const ref = link?.to || link?.ref || null;
         if (!ref) continue;
         if (!isValidSymbolRefEndpoint(ref)) continue;
-        const { row, trimmed } = maybeTrimRow({
+        const { row, trimmed, trimReasons } = maybeTrimRow({
           v: 1,
           host,
           role: 'call',
           ref,
           range: null
         });
-        await collector.append(row, { trimmed, dropped: !row });
+        await collector.append(row, { trimmed, dropped: !row, trimReasons });
       }
     }
 
@@ -170,14 +211,14 @@ const collectRows = async (chunks, { outDir, maxJsonBytes }) => {
         const ref = link?.to || link?.ref || null;
         if (!ref) continue;
         if (!isValidSymbolRefEndpoint(ref)) continue;
-        const { row, trimmed } = maybeTrimRow({
+        const { row, trimmed, trimReasons } = maybeTrimRow({
           v: 1,
           host,
           role: 'usage',
           ref,
           range: null
         });
-        await collector.append(row, { trimmed, dropped: !row });
+        await collector.append(row, { trimmed, dropped: !row, trimReasons });
       }
     }
   }
@@ -305,6 +346,7 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
   }
   const useShards = maxJsonBytes && totalBytes > maxJsonBytes && !useColumnar;
   const formatLabel = useColumnar ? 'columnar' : (useShards ? 'jsonl-sharded' : 'jsonl');
+  const trimMetadata = buildTrimMetadata(stats);
   const budgetInfo = applyByteBudget({
     budget: byteBudget,
     totalBytes,
@@ -324,7 +366,8 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
       format: formatLabel,
       budget: budgetInfo,
       runsSpilled: stats?.runsSpilled || 0,
-      spillBytes: stats?.spillBytes || 0
+      spillBytes: stats?.spillBytes || 0,
+      trim: trimMetadata
     }
   });
   if (!totalRows) {
@@ -519,11 +562,7 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
         result,
         parts,
         extensions: {
-          trim: {
-            trimmedRows: stats?.trimmedRows || 0,
-            droppedRows: stats?.droppedRows || 0,
-            maxRowBytes: stats?.maxRowBytes || 0
-          },
+          trim: trimMetadata,
           ...(offsetsMeta ? { offsets: offsetsMeta } : {})
         }
       });

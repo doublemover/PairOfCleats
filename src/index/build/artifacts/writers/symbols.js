@@ -6,7 +6,13 @@ import {
   writeJsonObjectFile
 } from '../../../../shared/json-stream.js';
 import { fromPosix } from '../../../../shared/files.js';
-import { createOffsetsMeta } from '../helpers.js';
+import {
+  createOffsetsMeta,
+  createTrimStats,
+  recordArtifactTelemetry,
+  recordTrimStats
+} from '../helpers.js';
+import { buildTrimMetadata, TRIM_REASONS } from '../trim-policy.js';
 import {
   buildJsonlVariantPaths,
   buildShardedPartEntries,
@@ -17,6 +23,9 @@ import {
 } from './_common.js';
 
 const MAX_ROW_BYTES = 32768;
+const measureRowBytes = (row) => (
+  Buffer.byteLength(JSON.stringify(row), 'utf8') + 1
+);
 
 const normalizeText = (value) => {
   if (value === null || value === undefined) return null;
@@ -25,19 +34,39 @@ const normalizeText = (value) => {
 };
 
 const maybeTrimRow = (row) => {
-  const fits = (value) => Buffer.byteLength(JSON.stringify(value), 'utf8') + 1 <= MAX_ROW_BYTES;
-  if (fits(row)) return row;
+  const fits = (value) => measureRowBytes(value) <= MAX_ROW_BYTES;
+  if (fits(row)) return { row, trimmed: false, trimReasons: [] };
+  const trimReasons = [TRIM_REASONS.rowOversize];
   const trimmed = { ...row };
-  if (trimmed.signature) trimmed.signature = null;
-  if (trimmed.name) trimmed.name = null;
-  if (trimmed.kind) trimmed.kind = null;
-  if (trimmed.lang) trimmed.lang = null;
-  if (trimmed.extensions) delete trimmed.extensions;
-  if (fits(trimmed)) return trimmed;
-  return null;
+  if (trimmed.signature) {
+    trimmed.signature = null;
+    trimReasons.push(TRIM_REASONS.symbolsClearSignature);
+  }
+  if (trimmed.name) {
+    trimmed.name = null;
+    trimReasons.push(TRIM_REASONS.symbolsClearName);
+  }
+  if (trimmed.kind) {
+    trimmed.kind = null;
+    trimReasons.push(TRIM_REASONS.symbolsClearKind);
+  }
+  if (trimmed.lang) {
+    trimmed.lang = null;
+    trimReasons.push(TRIM_REASONS.symbolsClearLang);
+  }
+  if (trimmed.extensions) {
+    delete trimmed.extensions;
+    trimReasons.push(TRIM_REASONS.symbolsDropExtensions);
+  }
+  if (fits(trimmed)) return { row: trimmed, trimmed: true, trimReasons };
+  return {
+    row: null,
+    trimmed: false,
+    trimReasons: [...trimReasons, TRIM_REASONS.dropRowOverBudget]
+  };
 };
 
-const buildSymbolRow = (chunk) => {
+const buildSymbolRow = (chunk, stats) => {
   if (!chunk) return null;
   const meta = chunk.metaV2 || {};
   const symbol = meta.symbol || null;
@@ -71,13 +100,23 @@ const buildSymbolRow = (chunk) => {
     qualifiedName,
     signature: normalizeText(meta.signature || chunk.docmeta?.signature)
   };
-  return maybeTrimRow(row);
+  const trimmedResult = maybeTrimRow(row);
+  if (!trimmedResult.row) {
+    recordTrimStats(stats, { dropped: true, trimReasons: trimmedResult.trimReasons });
+    return null;
+  }
+  recordTrimStats(stats, {
+    rowBytes: measureRowBytes(trimmedResult.row),
+    trimmed: trimmedResult.trimmed,
+    trimReasons: trimmedResult.trimReasons
+  });
+  return trimmedResult.row;
 };
 
-const buildRows = (chunks) => {
+const buildRows = (chunks, stats = null) => {
   const rows = [];
   for (const chunk of chunks || []) {
-    const row = buildSymbolRow(chunk);
+    const row = buildSymbolRow(chunk, stats);
     if (row) rows.push(row);
   }
   rows.sort((a, b) => {
@@ -107,15 +146,31 @@ export const enqueueSymbolsArtifacts = async ({
   gzipOptions = null,
   enqueueWrite,
   addPieceFile,
-  formatArtifactLabel
+  formatArtifactLabel,
+  stageCheckpoints = null
 }) => {
-  const rows = buildRows(state?.chunks || []);
+  const stats = createTrimStats();
+  const rows = buildRows(state?.chunks || [], stats);
+  const trimMetadata = buildTrimMetadata(stats);
   if (!rows.length) {
     await removeArtifacts([
       ...buildJsonlVariantPaths({ outDir, baseName: 'symbols' }),
       path.join(outDir, 'symbols.meta.json'),
       path.join(outDir, 'symbols.parts')
     ]);
+    recordArtifactTelemetry(stageCheckpoints, {
+      stage: 'stage2',
+      artifact: 'symbols',
+      rows: 0,
+      bytes: 0,
+      maxRowBytes: 0,
+      trimmedRows: 0,
+      droppedRows: stats.droppedRows || 0,
+      extra: {
+        format: 'none',
+        trim: trimMetadata
+      }
+    });
     return;
   }
 
@@ -124,6 +179,19 @@ export const enqueueSymbolsArtifacts = async ({
     throw new Error(`symbols row exceeds max JSON size (${measurement.maxLineBytes} bytes).`);
   }
   const useShards = maxJsonBytes && measurement.totalBytes > maxJsonBytes;
+  recordArtifactTelemetry(stageCheckpoints, {
+    stage: 'stage2',
+    artifact: 'symbols',
+    rows: stats.totalRows || rows.length,
+    bytes: measurement.totalBytes,
+    maxRowBytes: Math.max(measurement.maxLineBytes, stats.maxRowBytes || 0),
+    trimmedRows: stats.trimmedRows || 0,
+    droppedRows: stats.droppedRows || 0,
+    extra: {
+      format: useShards ? 'jsonl-sharded' : 'jsonl',
+      trim: trimMetadata
+    }
+  });
   const jsonlExtension = resolveJsonlExtension(compression);
   const symbolsPath = path.join(outDir, `symbols.${jsonlExtension}`);
   const symbolsMetaPath = path.join(outDir, 'symbols.meta.json');
@@ -199,7 +267,10 @@ export const enqueueSymbolsArtifacts = async ({
         compression,
         result,
         parts,
-        extensions: offsetsMeta ? { offsets: offsetsMeta } : undefined
+        extensions: {
+          trim: trimMetadata,
+          ...(offsetsMeta ? { offsets: offsetsMeta } : {})
+        }
       });
       for (let i = 0; i < result.parts.length; i += 1) {
         const relPath = result.parts[i];

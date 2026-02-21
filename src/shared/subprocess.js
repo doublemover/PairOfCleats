@@ -1,4 +1,5 @@
 import { spawn, spawnSync } from 'node:child_process';
+import { killChildProcessTree } from './kill-tree.js';
 
 const DEFAULT_MAX_OUTPUT_BYTES = 1_000_000;
 const DEFAULT_KILL_GRACE_MS = 5000;
@@ -105,40 +106,6 @@ const createCollector = ({ enabled, maxOutputBytes, encoding }) => {
     return lines;
   };
   return { push, toOutput };
-};
-
-const killProcessTree = (child, { killTree, killSignal, killGraceMs, detached }) => {
-  if (!child || !child.pid) return;
-  if (process.platform === 'win32') {
-    if (killTree !== false) {
-      try {
-        spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
-      } catch {}
-    }
-    try {
-      child.kill();
-    } catch {}
-    return;
-  }
-  const useProcessGroup = killTree !== false && detached === true;
-  try {
-    if (useProcessGroup) {
-      process.kill(-child.pid, killSignal);
-    } else {
-      child.kill(killSignal);
-    }
-  } catch {}
-  if (killGraceMs > 0) {
-    setTimeout(() => {
-      try {
-        if (useProcessGroup) {
-          process.kill(-child.pid, 'SIGKILL');
-        } else {
-          child.kill('SIGKILL');
-        }
-      } catch {}
-    }, killGraceMs).unref?.();
-  }
 };
 
 const buildResult = ({ pid, exitCode, signal, startedAt, stdout, stderr }) => ({
@@ -278,7 +245,16 @@ export function spawnSubprocess(command, args, options = {}) {
       timeoutId = setTimeout(() => {
         if (settled) return;
         settled = true;
-        killProcessTree(child, { killTree, killSignal, killGraceMs, detached });
+        try {
+          if (typeof child.unref === 'function') child.unref();
+        } catch {}
+        killChildProcessTree(child, {
+          killTree,
+          killSignal,
+          graceMs: killGraceMs,
+          detached,
+          awaitGrace: false
+        }).catch(() => {});
         cleanup();
         const result = buildResult({
           pid: child.pid,
@@ -294,7 +270,16 @@ export function spawnSubprocess(command, args, options = {}) {
     abortHandler = () => {
       if (settled) return;
       settled = true;
-      killProcessTree(child, { killTree, killSignal, killGraceMs, detached });
+      try {
+        if (typeof child.unref === 'function') child.unref();
+      } catch {}
+      killChildProcessTree(child, {
+        killTree,
+        killSignal,
+        graceMs: killGraceMs,
+        detached,
+        awaitGrace: false
+      }).catch(() => {});
       cleanup();
       const result = buildResult({
         pid: child.pid,

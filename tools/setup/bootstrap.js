@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
+import { createStdoutGuard } from '../../src/shared/cli/stdout-guard.js';
 import { runCommand, runCommandOrExit } from '../shared/cli-utils.js';
 import { getDictionaryPaths, getDictConfig, getRepoCacheRoot, getRuntimeConfig, getToolingConfig, resolveRepoConfig, resolveRuntimeEnv, resolveToolRoot } from '../shared/dict-utils.js';
 import { getVectorExtensionConfig, resolveVectorExtensionPath } from '../sqlite/vector-extension.js';
@@ -17,6 +18,7 @@ const argv = createCli({
     'skip-artifacts': { type: 'boolean', default: false },
     'skip-tooling': { type: 'boolean', default: false },
     'validate-config': { type: 'boolean', default: false },
+    json: { type: 'boolean', default: false },
     repo: { type: 'string' }
   },
   aliases: { s: 'with-sqlite', i: 'incremental' }
@@ -24,6 +26,18 @@ const argv = createCli({
 
 const { repoRoot: root, userConfig } = resolveRepoConfig(argv.repo);
 const toolRoot = resolveToolRoot();
+const jsonOutput = argv.json === true;
+const stdoutGuard = createStdoutGuard({ enabled: jsonOutput, stream: process.stdout, label: 'bootstrap stdout' });
+const summary = {
+  root,
+  incremental: false,
+  restoredArtifacts: false,
+  steps: {}
+};
+
+const recordStep = (name, data) => {
+  summary.steps[name] = { ...(summary.steps[name] || {}), ...data };
+};
 const configPath = path.join(root, '.pairofcleats.json');
 if (argv['validate-config'] && fs.existsSync(configPath)) {
   const result = runCommand(
@@ -42,6 +56,7 @@ const vectorExtension = getVectorExtensionConfig(root, userConfig);
 const repoCacheRoot = getRepoCacheRoot(root, userConfig);
 const incrementalCacheRoot = path.join(repoCacheRoot, 'incremental');
 const useIncremental = argv.incremental || fs.existsSync(incrementalCacheRoot);
+summary.incremental = useIncremental;
 if (useIncremental) {
   console.error('[bootstrap] Incremental indexing enabled.');
 }
@@ -62,7 +77,12 @@ if (!argv['skip-install']) {
   const nodeModules = path.join(root, 'node_modules');
   if (!fs.existsSync(nodeModules)) {
     run('npm', ['install'], 'npm install');
+    recordStep('install', { skipped: false, installed: true });
+  } else {
+    recordStep('install', { skipped: false, installed: false });
   }
+} else {
+  recordStep('install', { skipped: true });
 }
 
 if (!argv['skip-dicts']) {
@@ -74,18 +94,26 @@ if (!argv['skip-dicts']) {
   const dictionaryPaths = await getDictionaryPaths(root, dictConfig);
   if (dictionaryPaths.length) {
     console.error(`[bootstrap] Wordlists enabled (${dictionaryPaths.length} file(s)).`);
+    recordStep('dictionaries', { skipped: false, available: true, count: dictionaryPaths.length });
   } else {
     console.warn('[bootstrap] No wordlists found; identifier splitting will be limited.');
+    recordStep('dictionaries', { skipped: false, available: false, count: 0 });
   }
+} else {
+  recordStep('dictionaries', { skipped: true });
 }
 
 if (vectorExtension.enabled) {
   const extPath = resolveVectorExtensionPath(vectorExtension);
   if (!extPath || !fs.existsSync(extPath)) {
     console.warn('[bootstrap] SQLite ANN extension missing; run node tools/download/extensions.js to install.');
+    recordStep('extensions', { skipped: false, available: false });
   } else {
     console.error(`[bootstrap] SQLite ANN extension found (${extPath}).`);
+    recordStep('extensions', { skipped: false, available: true, path: extPath });
   }
+} else {
+  recordStep('extensions', { skipped: true, enabled: false });
 }
 
 if (!argv['skip-tooling']) {
@@ -110,9 +138,11 @@ if (!argv['skip-tooling']) {
       }
     } catch {
       console.warn('[bootstrap] Failed to parse tooling detection output.');
+      recordStep('tooling', { skipped: false, detectParsed: false });
     }
   } else if (detectResult.status !== 0) {
     console.warn('[bootstrap] Tooling detection failed.');
+    recordStep('tooling', { skipped: false, detectOk: false });
   }
 
   const pyrightEnsureArgs = [
@@ -148,10 +178,14 @@ if (!argv['skip-tooling']) {
       }
     } catch {
       console.warn('[bootstrap] Failed to parse pyright tooling ensure output.');
+      recordStep('tooling', { skipped: false, pyrightEnsureParsed: false });
     }
   } else {
     console.warn('[bootstrap] Failed to ensure pyright tooling; pyright-langserver may be unavailable.');
+    recordStep('tooling', { skipped: false, pyrightEnsureOk: false });
   }
+} else {
+  recordStep('tooling', { skipped: true });
 }
 
 if (!argv['skip-artifacts'] && fs.existsSync(path.join(artifactsDir, 'manifest.json'))) {
@@ -162,18 +196,29 @@ if (!argv['skip-artifacts'] && fs.existsSync(path.join(artifactsDir, 'manifest.j
   );
   restoredArtifacts = result.ok;
 }
+summary.restoredArtifacts = restoredArtifacts;
+recordStep('artifacts', { skipped: argv['skip-artifacts'] === true, restored: restoredArtifacts });
 
 if (!argv['skip-index'] && !restoredArtifacts) {
   const indexArgs = [path.join(toolRoot, 'build_index.js')];
   if (useIncremental) indexArgs.push('--incremental');
   run(process.execPath, indexArgs, 'build index');
+  recordStep('index', { skipped: false, built: true });
+} else {
+  recordStep('index', { skipped: argv['skip-index'] === true, built: false });
 }
 
 if (argv['with-sqlite']) {
   const sqliteArgs = [path.join(toolRoot, 'build_index.js'), '--stage', '4'];
   if (useIncremental) sqliteArgs.push('--incremental');
   run(process.execPath, sqliteArgs, 'build sqlite index');
+  recordStep('sqlite', { skipped: false, built: true });
+} else {
+  recordStep('sqlite', { skipped: true, built: false });
 }
 
 console.error('[bootstrap] Tip: run pairofcleats index validate to verify index artifacts.');
 console.error('\nBootstrap complete.');
+if (jsonOutput) {
+  stdoutGuard.writeJson(summary);
+}

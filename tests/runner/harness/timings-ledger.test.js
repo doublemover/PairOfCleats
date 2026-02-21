@@ -33,8 +33,29 @@ try {
   process.exit(1);
 }
 
+if (payload.schemaVersion !== 1) {
+  console.error('timings ledger test failed: expected schemaVersion=1');
+  process.exit(1);
+}
+if (payload.pathPolicy !== 'repo-relative-posix' || payload.timeUnit !== 'ms') {
+  console.error('timings ledger test failed: expected pathPolicy/timeUnit contract');
+  process.exit(1);
+}
+if (!payload.watchdog || typeof payload.watchdog.triggered !== 'boolean') {
+  console.error('timings ledger test failed: expected watchdog block');
+  process.exit(1);
+}
 if (!Array.isArray(payload.tests) || payload.tests.length !== 1) {
   console.error('timings ledger test failed: expected one test entry');
+  process.exit(1);
+}
+const row = payload.tests[0];
+if (typeof row.path !== 'string' || row.path.includes('\\')) {
+  console.error('timings ledger test failed: expected POSIX-normalized test path');
+  process.exit(1);
+}
+if (!Number.isFinite(Number(row.durationMs))) {
+  console.error('timings ledger test failed: expected numeric durationMs');
   process.exit(1);
 }
 

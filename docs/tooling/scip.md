@@ -5,6 +5,8 @@ Use the SCIP ingest tool to import symbol occurrences from a SCIP JSON or JSONL 
 ## CLI
 
 ```bash
+pairofcleats ingest scip --repo . --input scip.jsonl
+
 node tools/ingest/scip.js --repo . --input scip.jsonl
 
 # Or via npm

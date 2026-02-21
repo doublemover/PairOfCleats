@@ -45,3 +45,7 @@ pip-wheel-metadata/
 worktrees/
 .worktrees/
 GIGAROADMAP.html
+
+# Rust
+target/
+**/target/

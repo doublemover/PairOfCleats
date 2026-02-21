@@ -11,14 +11,18 @@ const CLIKE_IMPORTER_EXTS = new Set([
   '.cc',
   '.cpp',
   '.cxx',
+  '.cppm',
   '.h',
   '.hh',
   '.hpp',
   '.hxx',
   '.def',
+  '.ixx',
   '.ipp',
   '.inl',
+  '.modulemap',
   '.inc',
+  '.tpp',
   '.m',
   '.mm'
 ]);
@@ -28,14 +32,18 @@ const PATH_LIKE_IMPORTER_EXTS = new Set([
   '.cc',
   '.cpp',
   '.cxx',
+  '.cppm',
   '.h',
   '.hh',
   '.hpp',
   '.hxx',
   '.def',
+  '.ixx',
   '.ipp',
   '.inl',
+  '.modulemap',
   '.inc',
+  '.tpp',
   '.m',
   '.mm',
   '.cmake',
@@ -60,12 +68,16 @@ const PATH_LIKE_SPEC_EXTS = new Set([
   '.cc',
   '.cpp',
   '.cxx',
+  '.cppm',
   '.h',
   '.hh',
   '.hpp',
   '.hxx',
+  '.ixx',
   '.ipp',
   '.inl',
+  '.modulemap',
+  '.tpp',
   '.inc',
   '.cmake',
   '.mk',
@@ -391,7 +403,7 @@ const resolveClikeIncludeImport = ({ spec, importerInfo, lookup }) => {
   return resolveWithLanguageExtensionsFromBases({
     bases: baseCandidates,
     lookup,
-    extensions: ['.h', '.hpp', '.hh', '.hxx', '.inc', '.inl']
+    extensions: ['.h', '.hpp', '.hh', '.hxx', '.inc', '.inl', '.ipp', '.tpp', '.ixx', '.cppm', '.modulemap']
   });
 };
 

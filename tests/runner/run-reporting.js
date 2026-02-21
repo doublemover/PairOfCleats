@@ -719,20 +719,35 @@ export const writeJUnit = async ({ junitPath, results, totalMs }) => {
   await fsPromises.writeFile(junitPath, xml, 'utf8');
 };
 
-export const writeTimings = async ({ timingsPath, results, totalMs, runId }) => {
-  if (!timingsPath) return;
-  await fsPromises.mkdir(path.dirname(timingsPath), { recursive: true });
-  const payload = {
+export const buildTimingsPayload = ({ results, totalMs, runId, watchdogState = null }) => {
+  const ordered = results
+    .slice()
+    .sort((a, b) => String(a.id || '').localeCompare(String(b.id || '')));
+  return {
+    schemaVersion: 1,
+    generatedAt: new Date().toISOString(),
     runId,
     totalMs,
-    tests: results.map((result) => ({
+    pathPolicy: 'repo-relative-posix',
+    timeUnit: 'ms',
+    watchdog: {
+      triggered: Boolean(watchdogState?.triggered),
+      reason: watchdogState?.reason || null
+    },
+    tests: ordered.map((result) => ({
       id: result.id,
+      path: String(result.relPath || '').replace(/\\/g, '/'),
       lane: result.lane,
       status: result.status,
-      durationMs: result.durationMs
+      durationMs: Number(Number(result.durationMs || 0).toFixed(3))
     }))
   };
-  await fsPromises.writeFile(timingsPath, `${JSON.stringify(payload)}\n`, 'utf8');
+};
+
+export const writeTimings = async ({ timingsPath, payload }) => {
+  if (!timingsPath) return;
+  await fsPromises.mkdir(path.dirname(timingsPath), { recursive: true });
+  await fsPromises.writeFile(timingsPath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
 };
 
 export const writeTestRunTimes = async ({ logTimesPath, results }) => {

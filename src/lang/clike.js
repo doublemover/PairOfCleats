@@ -26,6 +26,20 @@ import path from 'node:path';
  * Supports C/C++/ObjC declarations with heuristic parsing.
  */
 
+const OBJC_HEADER_EXTENSIONS = new Set(['.h', '.hh', '.hpp', '.hxx']);
+const OBJC_HEADER_MARKER_RE = /(^\s*@(?:interface|implementation|protocol|property|class|end)\b)|(^\s*[+-]\s*\([^)]*\)\s*[A-Za-z_][A-Za-z0-9_:]*)/m;
+const OBJC_FRAMEWORK_IMPORT_RE = /^\s*#\s*import\s*[<"](?:Foundation|UIKit|AppKit|Core[A-Za-z0-9_]+)\//m;
+
+function isObjcContext(ext, text = '') {
+  const normalizedExt = String(ext || '').trim().toLowerCase();
+  if (normalizedExt && isObjc(normalizedExt)) return true;
+  if (!OBJC_HEADER_EXTENSIONS.has(normalizedExt)) return false;
+  const source = String(text || '');
+  if (!source) return false;
+  if (!source.includes('@') && !source.includes('#import')) return false;
+  return OBJC_HEADER_MARKER_RE.test(source) || OBJC_FRAMEWORK_IMPORT_RE.test(source);
+}
+
 function normalizeCLikeTypeName(raw) {
   if (!raw) return '';
   return raw.split(/[<\s:]/)[0];
@@ -252,7 +266,7 @@ function findCLikeDocStartLine(lines, startLineIdx) {
 }
 
 /**
- * Collect #include imports from C-like source.
+ * Collect #include/#import imports from C-like source.
  * @param {string} text
  * @returns {string[]}
  */
@@ -261,7 +275,7 @@ export function collectCLikeImports(text) {
   const imports = new Set();
   const lines = text.split('\n');
   for (const line of lines) {
-    const match = line.match(/^\s*#\s*include\s*[<"]([^>"]+)[>"]/);
+    const match = line.match(/^\s*#\s*(?:include|import)\s*[<"]([^>"]+)[>"]/);
     if (match) imports.add(match[1]);
   }
   return Array.from(imports);
@@ -273,9 +287,10 @@ function stripCLikeComments(text) {
     .replace(/\/\/.*$/gm, ' ');
 }
 
-function resolveCLikeKeywordSets(ext) {
-  if (ext && isObjc(ext)) return { callKeywords: OBJC_CALL_KEYWORDS, usageSkip: OBJC_USAGE_SKIP };
-  if (ext && isCpp(ext)) return { callKeywords: CPP_CALL_KEYWORDS, usageSkip: CPP_USAGE_SKIP };
+function resolveCLikeKeywordSets(ext, text = '') {
+  const normalizedExt = String(ext || '').trim().toLowerCase();
+  if (isObjcContext(normalizedExt, text)) return { callKeywords: OBJC_CALL_KEYWORDS, usageSkip: OBJC_USAGE_SKIP };
+  if (normalizedExt && isCpp(normalizedExt)) return { callKeywords: CPP_CALL_KEYWORDS, usageSkip: CPP_USAGE_SKIP };
   return { callKeywords: CLIKE_CALL_KEYWORDS, usageSkip: CLIKE_USAGE_SKIP };
 }
 
@@ -368,13 +383,14 @@ function collectCLikeCallsAndUsages(text, keywordSets = {}) {
  * @returns {Array<{start:number,end:number,name:string,kind:string,meta:Object}>|null}
  */
 export function buildCLikeChunks(text, ext, options = {}) {
-  const treeChunks = buildTreeSitterChunks({ text, ext, options, languageId: null });
+  const normalizedExt = String(ext || '').trim().toLowerCase();
+  const treeChunks = buildTreeSitterChunks({ text, ext: normalizedExt, options, languageId: null });
   if (treeChunks && treeChunks.length) return treeChunks;
   const lineIndex = buildLineIndex(text);
   const lines = text.split('\n');
   const decls = [];
   const typeDecls = [];
-  const objc = isObjc(ext);
+  const objc = isObjcContext(normalizedExt, text);
 
   const addDecl = (entry, isType = false) => {
     decls.push(entry);
@@ -387,7 +403,7 @@ export function buildCLikeChunks(text, ext, options = {}) {
     const start = match.index;
     const startLine = offsetToLine(lineIndex, start);
     const line = lines[startLine - 1] || '';
-    if (isCLike(ext) && isCommentLine(line)) continue;
+    if (isCLike(normalizedExt) && isCommentLine(line)) continue;
     const bounds = findCLikeBodyBounds(text, start);
     if (!Number.isFinite(bounds.bodyStart) || bounds.bodyStart === -1) continue;
     const signature = sliceSignature(text, start, bounds.bodyStart);
@@ -566,10 +582,10 @@ export function buildCLikeRelations(text, relPath, options = {}) {
   const callPairs = new Set();
   const usages = new Set();
   const clikeChunks = Array.isArray(relPath) ? relPath : null;
-  const ext = typeof relPath === 'string'
+  const ext = String(typeof relPath === 'string'
     ? path.extname(relPath)
-    : (typeof options?.ext === 'string' ? options.ext : '');
-  const keywordSets = resolveCLikeKeywordSets(ext);
+    : (typeof options?.ext === 'string' ? options.ext : '')).trim().toLowerCase();
+  const keywordSets = resolveCLikeKeywordSets(ext, text);
   if (Array.isArray(clikeChunks)) {
     for (const chunk of clikeChunks) {
       if (!chunk || !chunk.name || chunk.start == null || chunk.end == null) continue;

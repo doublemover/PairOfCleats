@@ -27,14 +27,23 @@ await write(
   'clang/unittests/Frontend/PCHPreambleTest.cpp',
   '#include "//./header1.h"\n'
 );
+await write('clang/unittests/Frontend/header1.h', '#pragma once\n');
 await write(
   'clang/unittests/Tooling/Syntax/TokensTest.cpp',
   '#include "./foo.h"\n'
 );
+await write('clang/unittests/Tooling/Syntax/foo.h', '#pragma once\n');
+await write(
+  'clang/unittests/Tooling/Syntax/UnresolvedNoiseTest.cpp',
+  '#include "//./missing.h"\n'
+);
 await write(
   'libc/utils/hdrgen/tests/expected_output/subdir/test.h',
-  '#include "../__llvm-libc-common.h"\n#include "../llvm-libc-types/type_a.h"\n'
+  '#include "../__llvm-libc-common.h"\n#include "../llvm-libc-types/type_a.h"\n#include "../llvm-libc-types/type_b.h"\n'
 );
+await write('libc/utils/hdrgen/tests/expected_output/__llvm-libc-common.h', '#pragma once\n');
+await write('libc/utils/hdrgen/tests/expected_output/llvm-libc-types/type_a.h', '#pragma once\n');
+await write('libc/utils/hdrgen/tests/expected_output/llvm-libc-types/type_b.h', '#pragma once\n');
 
 const entryPaths = [
   'llvm/unittests/CodeGen/AllocationOrderTest.cpp',
@@ -42,8 +51,14 @@ const entryPaths = [
   'ci/monolithic-linux.sh',
   '.ci/utils.sh',
   'clang/unittests/Frontend/PCHPreambleTest.cpp',
+  'clang/unittests/Frontend/header1.h',
   'clang/unittests/Tooling/Syntax/TokensTest.cpp',
-  'libc/utils/hdrgen/tests/expected_output/subdir/test.h'
+  'clang/unittests/Tooling/Syntax/foo.h',
+  'clang/unittests/Tooling/Syntax/UnresolvedNoiseTest.cpp',
+  'libc/utils/hdrgen/tests/expected_output/subdir/test.h',
+  'libc/utils/hdrgen/tests/expected_output/__llvm-libc-common.h',
+  'libc/utils/hdrgen/tests/expected_output/llvm-libc-types/type_a.h',
+  'libc/utils/hdrgen/tests/expected_output/llvm-libc-types/type_b.h'
 ];
 
 const entries = entryPaths.map((rel) => ({ abs: path.join(tempRoot, rel), rel }));
@@ -52,9 +67,11 @@ const importsByFile = {
   'ci/monolithic-linux.sh': ['.ci/utils.sh'],
   'clang/unittests/Frontend/PCHPreambleTest.cpp': ['//./header1.h'],
   'clang/unittests/Tooling/Syntax/TokensTest.cpp': ['./foo.h'],
+  'clang/unittests/Tooling/Syntax/UnresolvedNoiseTest.cpp': ['//./missing.h'],
   'libc/utils/hdrgen/tests/expected_output/subdir/test.h': [
     '../__llvm-libc-common.h',
-    '../llvm-libc-types/type_a.h'
+    '../llvm-libc-types/type_a.h',
+    '../llvm-libc-types/type_b.h'
   ]
 };
 
@@ -79,6 +96,25 @@ assert.deepEqual(
   relations.get('ci/monolithic-linux.sh')?.importLinks || [],
   ['ci/utils.sh'],
   'expected .ci path import to resolve from repo root'
+);
+assert.deepEqual(
+  relations.get('clang/unittests/Frontend/PCHPreambleTest.cpp')?.importLinks || [],
+  ['clang/unittests/Frontend/header1.h'],
+  'expected //./ include form to resolve against importer directory'
+);
+assert.deepEqual(
+  relations.get('clang/unittests/Tooling/Syntax/TokensTest.cpp')?.importLinks || [],
+  ['clang/unittests/Tooling/Syntax/foo.h'],
+  'expected ./ include form to resolve against importer directory'
+);
+assert.deepEqual(
+  relations.get('libc/utils/hdrgen/tests/expected_output/subdir/test.h')?.importLinks || [],
+  [
+    'libc/utils/hdrgen/tests/expected_output/__llvm-libc-common.h',
+    'libc/utils/hdrgen/tests/expected_output/llvm-libc-types/type_a.h',
+    'libc/utils/hdrgen/tests/expected_output/llvm-libc-types/type_b.h'
+  ],
+  'expected libc relative includes to resolve within expected_output fixture tree'
 );
 assert.equal(
   (result?.graph?.warnings || []).length,

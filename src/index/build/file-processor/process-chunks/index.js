@@ -536,6 +536,7 @@ export const processChunks = async (context) => {
   const tokenBuffers = createTokenizationBuffers();
   const dictWordsCache = new Map();
   const effectiveLangCache = new Map();
+  const segmentRelationsCache = new Map();
   const codeTexts = embeddingEnabled ? [] : null;
   const docTexts = embeddingEnabled ? [] : null;
   const wantsFieldTokens = postingsConfig?.fielded !== false
@@ -793,7 +794,8 @@ export const processChunks = async (context) => {
       startLine,
       endLine,
       totalLines,
-      fileFrameworkProfile
+      fileFrameworkProfile,
+      segmentRelationsCache
     });
     if (enrichment?.skip) {
       return enrichment.skip;

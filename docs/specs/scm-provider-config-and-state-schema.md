@@ -145,14 +145,9 @@ Notes:
 }
 ```
 
-Back-compat rule:
-- Keep existing `repo.commit` and `repo.branch` fields for Git where feasible, but treat `repo.provider` and `repo.head.*` as authoritative.
-
-### Migration checklist (legacy repo fields)
-- Keep writing `repo.commit` and `repo.branch` for Git during Phase 13 for back-compat.
-- Keep `repo.isRepo` until downstream consumers stop reading it.
-- Update all readers to prefer `repo.provider` + `repo.head.*`.
-- Remove legacy fields once all downstream consumers migrate (target: next major schema bump).
+Strict rule:
+- `repo.provider` and `repo.head.*` are canonical.
+- Legacy duplicate fields are not authoritative and must not introduce conflicting values.
 
 ## BuildId rules
 

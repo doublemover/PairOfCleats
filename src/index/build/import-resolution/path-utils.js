@@ -10,6 +10,15 @@ export const stripSpecifier = (spec) => {
   return raw.trim();
 };
 
+export const normalizeImportSpecifier = (spec) => {
+  const stripped = stripSpecifier(spec);
+  if (!stripped) return '';
+  if (stripped.startsWith('//./') || stripped.startsWith('//../')) {
+    return stripped.slice(2);
+  }
+  return stripped;
+};
+
 export const normalizeRelPath = (value) => {
   if (!value) return '';
   const normalized = path.posix.normalize(toPosix(String(value)));

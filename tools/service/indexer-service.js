@@ -43,7 +43,8 @@ const argv = createCli({
     watch: { type: 'boolean', default: false },
     interval: { type: 'number' },
     concurrency: { type: 'number' },
-    queue: { type: 'string', default: 'index' }
+    queue: { type: 'string', default: 'index' },
+    json: { type: 'boolean', default: false }
   }
 }).parse();
 
@@ -69,6 +70,14 @@ const resolveRepoEntryForArg = (repoArg) => resolveRepoEntry(repoArg, repoEntrie
 const formatJobId = () => `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
 
 const toolRoot = resolveToolRoot();
+
+const printPayload = (payload) => {
+  if (argv.json) {
+    console.log(JSON.stringify(payload));
+    return;
+  }
+  console.log(JSON.stringify(payload, null, 2));
+};
 
 
 function logThreadpoolInfo(repoRoot, label = 'indexer') {
@@ -282,7 +291,7 @@ const handleSync = async () => {
     const result = await ensureRepo(entry, baseDir, policy);
     results.push({ id: entry.id || entry.path, ...result });
   }
-  console.log(JSON.stringify({ ok: true, results }, null, 2));
+  printPayload({ ok: true, results });
 };
 
 const handleEnqueue = async () => {
@@ -310,12 +319,32 @@ const handleEnqueue = async () => {
     console.error(result.message || 'Failed to enqueue job.');
     process.exit(1);
   }
-  console.log(JSON.stringify({ ok: true, job: result.job }, null, 2));
+  printPayload({ ok: true, job: result.job });
 };
 
 const handleStatus = async () => {
   const summary = await queueSummary(queueDir, resolvedQueueName);
-  console.log(JSON.stringify({ ok: true, queue: summary, name: resolvedQueueName }, null, 2));
+  printPayload({ ok: true, queue: summary, name: resolvedQueueName });
+};
+
+const handleSmoke = async () => {
+  await ensureQueueDir(queueDir);
+  const summary = await queueSummary(queueDir, resolvedQueueName);
+  const canonicalCommand = `pairofcleats service indexer work --watch --config \"${configPath}\" --queue ${resolvedQueueName}`;
+  const payload = {
+    ok: true,
+    canonicalCommand,
+    configPath,
+    queueDir,
+    queueName: resolvedQueueName,
+    queueSummary: summary,
+    requiredEnv: ['PAIROFCLEATS_CACHE_ROOT'],
+    securityDefaults: {
+      allowShell: config?.security?.allowShell === true,
+      allowPathEscape: config?.security?.allowPathEscape === true
+    }
+  };
+  printPayload(payload);
 };
 
 const processQueueOnce = async (metrics) => {
@@ -440,12 +469,12 @@ const handleWork = async () => {
     });
     await Promise.all(workers);
     if (metrics.processed) {
-      console.log(JSON.stringify({
+      printPayload({
         ok: true,
         queue: resolvedQueueName,
         metrics,
         at: new Date().toISOString()
-      }, null, 2));
+      });
     }
   };
   await runBatch();
@@ -482,9 +511,11 @@ if (command === 'sync') {
   await handleWork();
 } else if (command === 'status') {
   await handleStatus();
+} else if (command === 'smoke') {
+  await handleSmoke();
 } else if (command === 'serve') {
   await handleServe();
 } else {
-  console.error('Usage: indexer-service <sync|enqueue|work|status|serve> [--queue index|embeddings] [--stage stage1|stage2|stage3|stage4]');
+  console.error('Usage: indexer-service <sync|enqueue|work|status|smoke|serve> [--queue index|embeddings] [--stage stage1|stage2|stage3|stage4]');
   process.exit(1);
 }

@@ -9,7 +9,8 @@
   ],
   "inputs": {
     "frameworkProfiles": "tests/lang/matrix/usr-framework-profiles.json",
-    "frameworkEdgeCases": "tests/lang/matrix/usr-framework-edge-cases.json"
+    "frameworkEdgeCases": "tests/lang/matrix/usr-framework-edge-cases.json",
+    "frameworkFixtureBundle": "tests/fixtures/usr/framework-canonicalization/usr-framework-canonicalization-bundle.json"
   },
   "requiredFrameworkProfiles": [
     "react",

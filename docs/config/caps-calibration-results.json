@@ -1,0 +1,359 @@
+{
+  "schemaVersion": "caps-calibration-v1",
+  "generatedAt": "2026-02-20T23:10:00Z",
+  "fileCapsByLanguage": {
+    "clike": {
+      "maxBytes": 655360,
+      "maxLines": 10000
+    },
+    "cmake": {
+      "maxBytes": 327680,
+      "maxLines": 5000
+    },
+    "csharp": {
+      "maxBytes": 458752,
+      "maxLines": 7000
+    },
+    "css": {
+      "maxBytes": 262144,
+      "maxLines": 4500
+    },
+    "dart": {
+      "maxBytes": 393216,
+      "maxLines": 6500
+    },
+    "dockerfile": {
+      "maxBytes": 294912,
+      "maxLines": 4500
+    },
+    "go": {
+      "maxBytes": 393216,
+      "maxLines": 6000
+    },
+    "graphql": {
+      "maxBytes": 327680,
+      "maxLines": 5000
+    },
+    "groovy": {
+      "maxBytes": 393216,
+      "maxLines": 6000
+    },
+    "handlebars": {
+      "maxBytes": 196608,
+      "maxLines": 3000
+    },
+    "html": {
+      "maxBytes": 262144,
+      "maxLines": 4000
+    },
+    "ini": {
+      "maxBytes": 196608,
+      "maxLines": 3000
+    },
+    "java": {
+      "maxBytes": 458752,
+      "maxLines": 7000
+    },
+    "javascript": {
+      "maxBytes": 327680,
+      "maxLines": 5000
+    },
+    "jinja": {
+      "maxBytes": 229376,
+      "maxLines": 3500
+    },
+    "json": {
+      "maxBytes": 262144,
+      "maxLines": 4000
+    },
+    "julia": {
+      "maxBytes": 393216,
+      "maxLines": 6000
+    },
+    "kotlin": {
+      "maxBytes": 393216,
+      "maxLines": 6500
+    },
+    "lua": {
+      "maxBytes": 262144,
+      "maxLines": 4500
+    },
+    "makefile": {
+      "maxBytes": 327680,
+      "maxLines": 5500
+    },
+    "mustache": {
+      "maxBytes": 196608,
+      "maxLines": 3000
+    },
+    "nix": {
+      "maxBytes": 327680,
+      "maxLines": 5000
+    },
+    "perl": {
+      "maxBytes": 327680,
+      "maxLines": 5000
+    },
+    "php": {
+      "maxBytes": 393216,
+      "maxLines": 6000
+    },
+    "proto": {
+      "maxBytes": 327680,
+      "maxLines": 5000
+    },
+    "python": {
+      "maxBytes": 393216,
+      "maxLines": 6000
+    },
+    "r": {
+      "maxBytes": 327680,
+      "maxLines": 5500
+    },
+    "razor": {
+      "maxBytes": 229376,
+      "maxLines": 3500
+    },
+    "ruby": {
+      "maxBytes": 327680,
+      "maxLines": 5000
+    },
+    "rust": {
+      "maxBytes": 393216,
+      "maxLines": 6000
+    },
+    "scala": {
+      "maxBytes": 458752,
+      "maxLines": 7000
+    },
+    "shell": {
+      "maxBytes": 262144,
+      "maxLines": 4000
+    },
+    "sql": {
+      "maxBytes": 393216,
+      "maxLines": 6500
+    },
+    "starlark": {
+      "maxBytes": 393216,
+      "maxLines": 6000
+    },
+    "swift": {
+      "maxBytes": 458752,
+      "maxLines": 7000
+    },
+    "toml": {
+      "maxBytes": 229376,
+      "maxLines": 3500
+    },
+    "typescript": {
+      "maxBytes": 327680,
+      "maxLines": 5000
+    },
+    "xml": {
+      "maxBytes": 262144,
+      "maxLines": 4000
+    },
+    "yaml": {
+      "maxBytes": 229376,
+      "maxLines": 3500
+    }
+  },
+  "treeSitterByLanguage": {
+    "clike": {
+      "maxBytes": 655360,
+      "maxLines": 10000,
+      "maxParseMs": 2600
+    },
+    "cmake": {
+      "maxBytes": 327680,
+      "maxLines": 5000,
+      "maxParseMs": 1500
+    },
+    "csharp": {
+      "maxBytes": 458752,
+      "maxLines": 7000,
+      "maxParseMs": 1900
+    },
+    "css": {
+      "maxBytes": 262144,
+      "maxLines": 4500,
+      "maxParseMs": 1400
+    },
+    "dart": {
+      "maxBytes": 393216,
+      "maxLines": 6500,
+      "maxParseMs": 1800
+    },
+    "dockerfile": {
+      "maxBytes": 294912,
+      "maxLines": 4500,
+      "maxParseMs": 1200
+    },
+    "go": {
+      "maxBytes": 393216,
+      "maxLines": 6000,
+      "maxParseMs": 1500
+    },
+    "graphql": {
+      "maxBytes": 327680,
+      "maxLines": 5000,
+      "maxParseMs": 1500
+    },
+    "groovy": {
+      "maxBytes": 393216,
+      "maxLines": 6000,
+      "maxParseMs": 1700
+    },
+    "handlebars": {
+      "maxBytes": 196608,
+      "maxLines": 3000,
+      "maxParseMs": 1100
+    },
+    "html": {
+      "maxBytes": 262144,
+      "maxLines": 4000,
+      "maxParseMs": 1400
+    },
+    "ini": {
+      "maxBytes": 196608,
+      "maxLines": 3000,
+      "maxParseMs": 900
+    },
+    "java": {
+      "maxBytes": 458752,
+      "maxLines": 7000,
+      "maxParseMs": 1900
+    },
+    "javascript": {
+      "maxBytes": 327680,
+      "maxLines": 5000,
+      "maxParseMs": 1500
+    },
+    "jinja": {
+      "maxBytes": 229376,
+      "maxLines": 3500,
+      "maxParseMs": 1200
+    },
+    "json": {
+      "maxBytes": 262144,
+      "maxLines": 4000,
+      "maxParseMs": 1000
+    },
+    "julia": {
+      "maxBytes": 393216,
+      "maxLines": 6000,
+      "maxParseMs": 1700
+    },
+    "kotlin": {
+      "maxBytes": 393216,
+      "maxLines": 6500,
+      "maxParseMs": 1800
+    },
+    "lua": {
+      "maxBytes": 262144,
+      "maxLines": 4500,
+      "maxParseMs": 1400
+    },
+    "makefile": {
+      "maxBytes": 327680,
+      "maxLines": 5500,
+      "maxParseMs": 1200
+    },
+    "mustache": {
+      "maxBytes": 196608,
+      "maxLines": 3000,
+      "maxParseMs": 1100
+    },
+    "nix": {
+      "maxBytes": 327680,
+      "maxLines": 5000,
+      "maxParseMs": 1500
+    },
+    "perl": {
+      "maxBytes": 327680,
+      "maxLines": 5000,
+      "maxParseMs": 1500
+    },
+    "php": {
+      "maxBytes": 393216,
+      "maxLines": 6000,
+      "maxParseMs": 1700
+    },
+    "proto": {
+      "maxBytes": 327680,
+      "maxLines": 5000,
+      "maxParseMs": 1500
+    },
+    "python": {
+      "maxBytes": 393216,
+      "maxLines": 6000,
+      "maxParseMs": 1800
+    },
+    "r": {
+      "maxBytes": 327680,
+      "maxLines": 5500,
+      "maxParseMs": 1600
+    },
+    "razor": {
+      "maxBytes": 229376,
+      "maxLines": 3500,
+      "maxParseMs": 1200
+    },
+    "ruby": {
+      "maxBytes": 327680,
+      "maxLines": 5000,
+      "maxParseMs": 1500
+    },
+    "rust": {
+      "maxBytes": 393216,
+      "maxLines": 6000,
+      "maxParseMs": 1700
+    },
+    "scala": {
+      "maxBytes": 458752,
+      "maxLines": 7000,
+      "maxParseMs": 1900
+    },
+    "shell": {
+      "maxBytes": 262144,
+      "maxLines": 4000,
+      "maxParseMs": 1300
+    },
+    "sql": {
+      "maxBytes": 393216,
+      "maxLines": 6500,
+      "maxParseMs": 1800
+    },
+    "starlark": {
+      "maxBytes": 393216,
+      "maxLines": 6000,
+      "maxParseMs": 1700
+    },
+    "swift": {
+      "maxBytes": 458752,
+      "maxLines": 7000,
+      "maxParseMs": 2000
+    },
+    "toml": {
+      "maxBytes": 229376,
+      "maxLines": 3500,
+      "maxParseMs": 900
+    },
+    "typescript": {
+      "maxBytes": 327680,
+      "maxLines": 5000,
+      "maxParseMs": 1500
+    },
+    "xml": {
+      "maxBytes": 262144,
+      "maxLines": 4000,
+      "maxParseMs": 1200
+    },
+    "yaml": {
+      "maxBytes": 229376,
+      "maxLines": 3500,
+      "maxParseMs": 1100
+    }
+  }
+}

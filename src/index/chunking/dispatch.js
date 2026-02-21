@@ -57,6 +57,7 @@ import { chunkYaml } from './formats/yaml.js';
 import { buildChunksFromLineHeadings, buildLineIndexFromLines } from './helpers.js';
 import { applyChunkingLimits } from './limits.js';
 import { getTreeSitterOptions } from './tree-sitter.js';
+import { parseDockerfileFromClause, parseDockerfileInstruction } from '../../shared/dockerfile.js';
 
 const applyFormatMeta = (chunks, format, kind) => {
   if (!chunks) return null;
@@ -125,13 +126,18 @@ const chunkByLineRegex = (text, matcher, options = {}, context = null) => {
 const chunkDockerfile = (text, context = null) => {
   const { lines, lineIndex } = splitLinesWithIndex(text, context);
   const headings = [];
-  const rx = /^\s*([A-Z][A-Z0-9_-]+)\b/;
   for (let i = 0; i < lines.length; ++i) {
     const line = lines[i];
     if (line.length > MAX_REGEX_LINE) continue;
-    if (!line || (line[0] < 'A' || line[0] > 'Z')) continue;
-    const match = line.match(rx);
-    if (match) headings.push({ line: i, title: match[1] });
+    const parsed = parseDockerfileInstruction(line);
+    if (!parsed) continue;
+    if (parsed.instruction === 'FROM') {
+      const from = parseDockerfileFromClause(line);
+      const fromTarget = from?.stage || from?.image || 'FROM';
+      headings.push({ line: i, title: `FROM ${fromTarget}` });
+      continue;
+    }
+    headings.push({ line: i, title: parsed.instruction });
   }
   const chunks = buildChunksFromLineHeadings(text, headings, lineIndex);
   if (chunks && chunks.length) {

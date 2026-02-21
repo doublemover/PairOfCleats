@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 import { createCli } from '../../src/shared/cli.js';
+import { createStdoutGuard } from '../../src/shared/cli/stdout-guard.js';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { buildToolingReport, detectTool, normalizeLanguageList, resolveToolsById, resolveToolsForLanguages, selectInstallPlan } from './utils.js';
 import { getToolingConfig, resolveRepoRootArg } from '../shared/dict-utils.js';
-import { emitJson } from '../shared/cli-utils.js';
 
 const argv = createCli({
   scriptName: 'tooling-install',
@@ -25,6 +25,11 @@ const root = resolveRepoRootArg(explicitRoot);
 const toolingConfig = getToolingConfig(root);
 const scope = argv.scope || toolingConfig.installScope || 'cache';
 const allowFallback = argv['no-fallback'] ? false : toolingConfig.allowGlobalFallback !== false;
+const stdoutGuard = createStdoutGuard({
+  enabled: argv.json === true,
+  stream: process.stdout,
+  label: 'tooling-install stdout'
+});
 const languageOverride = normalizeLanguageList(argv.languages);
 const toolOverride = normalizeLanguageList(argv.tools);
 
@@ -64,7 +69,7 @@ for (const tool of tools) {
 if (argv['dry-run']) {
   const payload = { root, scope, allowFallback, actions, results };
   if (argv.json) {
-    emitJson(payload);
+    stdoutGuard.writeJson(payload);
   } else {
     console.error('[tooling-install] Dry run. Planned actions:');
     for (const action of actions) {
@@ -87,7 +92,7 @@ for (const action of actions) {
 
 const payload = { root, scope, allowFallback, actions, results };
 if (argv.json) {
-  emitJson(payload);
+  stdoutGuard.writeJson(payload);
 } else {
   const failed = results.filter((entry) => entry.status === 'failed');
   if (failed.length) {

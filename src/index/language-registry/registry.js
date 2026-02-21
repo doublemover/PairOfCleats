@@ -1,6 +1,7 @@
 import path from 'node:path';
 import * as linguistLanguages from 'linguist-languages';
 import { LANGUAGE_REGISTRY } from './registry-data.js';
+import { LANGUAGE_ROUTE_DESCRIPTORS } from './descriptors.js';
 const LANGUAGE_BY_ID = new Map(LANGUAGE_REGISTRY.map((lang) => [lang.id, lang]));
 const normalizeLinguistName = (value) => String(value || '').trim().toLowerCase();
 const LINGUIST_NAME_TO_ID = new Map([
@@ -64,6 +65,33 @@ const resolveLinguistId = (name, entry) => {
 
 const LINGUIST_EXTENSION_MAP = new Map();
 const LINGUIST_FILENAME_MAP = new Map();
+const DESCRIPTOR_EXTENSION_MAP = new Map();
+const DESCRIPTOR_FILENAME_MAP = new Map();
+const DESCRIPTOR_PREFIX_MAP = [];
+
+for (const descriptor of LANGUAGE_ROUTE_DESCRIPTORS) {
+  const languageId = descriptor?.id;
+  if (!languageId || !LANGUAGE_BY_ID.has(languageId)) continue;
+  for (const ext of descriptor?.extensions || []) {
+    const key = String(ext || '').toLowerCase();
+    if (key && !DESCRIPTOR_EXTENSION_MAP.has(key)) {
+      DESCRIPTOR_EXTENSION_MAP.set(key, languageId);
+    }
+  }
+  for (const filename of descriptor?.specialFilenames || []) {
+    const key = String(filename || '').toLowerCase();
+    if (key && !DESCRIPTOR_FILENAME_MAP.has(key)) {
+      DESCRIPTOR_FILENAME_MAP.set(key, languageId);
+    }
+  }
+  for (const prefix of descriptor?.specialPrefixes || []) {
+    const key = String(prefix || '').toLowerCase();
+    if (key) {
+      DESCRIPTOR_PREFIX_MAP.push({ prefix: key, languageId });
+    }
+  }
+}
+
 for (const [name, entry] of Object.entries(linguistLanguages || {})) {
   const languageId = resolveLinguistId(name, entry);
   if (!languageId || !LANGUAGE_BY_ID.has(languageId)) continue;
@@ -93,8 +121,28 @@ const resolveLinguistLanguage = (ext, relPath) => {
   return null;
 };
 
+const resolveDescriptorLanguage = (ext, relPath) => {
+  const baseName = normalizeLinguistName(path.basename(relPath || ''));
+  if (baseName && DESCRIPTOR_FILENAME_MAP.has(baseName)) {
+    return LANGUAGE_BY_ID.get(DESCRIPTOR_FILENAME_MAP.get(baseName)) || null;
+  }
+  const extKey = normalizeLinguistName(ext);
+  if (extKey && DESCRIPTOR_EXTENSION_MAP.has(extKey)) {
+    return LANGUAGE_BY_ID.get(DESCRIPTOR_EXTENSION_MAP.get(extKey)) || null;
+  }
+  if (baseName) {
+    for (const entry of DESCRIPTOR_PREFIX_MAP) {
+      if (!(baseName === entry.prefix || baseName.startsWith(`${entry.prefix}.`))) continue;
+      return LANGUAGE_BY_ID.get(entry.languageId) || null;
+    }
+  }
+  return null;
+};
+
 export function getLanguageForFile(ext, relPath) {
   const normalized = relPath || '';
+  const descriptorMatch = resolveDescriptorLanguage(ext, normalized);
+  if (descriptorMatch) return descriptorMatch;
   const direct = LANGUAGE_REGISTRY.find((lang) => lang.match(ext, normalized)) || null;
   if (direct) return direct;
   return resolveLinguistLanguage(ext, normalized);

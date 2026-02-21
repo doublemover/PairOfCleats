@@ -7,6 +7,7 @@ import { spawnSync } from 'node:child_process';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'scip-ingest');
+const cliPath = path.join(root, 'bin', 'pairofcleats.js');
 const repoRoot = path.join(root, 'tests', 'fixtures', 'sample');
 const inputPath = path.join(root, 'tests', 'fixtures', 'scip', 'index.json');
 const outPath = path.join(tempRoot, 'scip.jsonl');
@@ -16,7 +17,7 @@ await fsPromises.rm(tempRoot, { recursive: true, force: true });
 
 const result = spawnSync(
   process.execPath,
-  [path.join(root, 'tools', 'ingest', 'scip.js'), '--repo', repoRoot, '--input', inputPath, '--out', outPath, '--json'],
+  [cliPath, 'ingest', 'scip', '--repo', repoRoot, '--input', inputPath, '--out', outPath, '--json'],
   { encoding: 'utf8' }
 );
 if (result.status !== 0) {

@@ -318,7 +318,9 @@ export function createFileProcessor(options) {
       : path.relative(root, abs);
     const fileStructural = structuralMatches?.get(relKey) || null;
     if (seenFiles) seenFiles.add(relKey);
-    const ext = resolveExt(abs);
+    const ext = typeof fileEntry === 'object' && typeof fileEntry.ext === 'string'
+      ? fileEntry.ext
+      : resolveExt(abs);
     const languageHint = getLanguageForFile(ext, relKey);
     let fileLanguageId = languageHint?.id || null;
     let fileLineCount = 0;

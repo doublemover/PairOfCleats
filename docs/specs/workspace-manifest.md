@@ -4,7 +4,7 @@
 
 - **Spec version:** 1 (schemaVersion = 1)
 - **Audience:** PairOfCleats contributors implementing workspace catalog/manifest generation used by federated search and federated caching.
-- **Implementation status:** planned (no generator in repo yet).
+- **Implementation status:** active (`src/workspace/manifest.js`).
 
 This spec is intended to be *implementation-ready* and consistent with existing build pointer and cache conventions in `tools/shared/dict-utils.js`.
 
@@ -358,6 +358,8 @@ Examples:
   - `generateWorkspaceManifest(workspaceConfigResolved, options?): WorkspaceManifestV1`
   - `readWorkspaceManifest(path): WorkspaceManifestV1`
   - `computeManifestHash(manifestLike): string`
+- `src/contracts/schemas/workspace.js`
+- `src/contracts/validators/workspace.js`
 
 ### 9.2 Preferred existing helpers
 
@@ -366,6 +368,15 @@ Examples:
 - `stableStringify` -- `src/shared/stable-json.js`
 - `sha1` -- `src/shared/hash.js`
 - `readJsoncFile` -- `src/shared/jsonc.js` (for workspace config only; manifest is pure JSON)
+
+### 9.3 Contract validator
+
+Manifest payloads are validated against:
+
+- `src/contracts/schemas/workspace.js` (`workspaceManifest`)
+- `src/contracts/validators/workspace.js` (`validateWorkspaceManifest`)
+
+Validation failures are hard errors.
 
 ---
 

@@ -9,6 +9,7 @@ Tool failures (CallToolResult with `isError: true`) MUST include a JSON payload
 with these keys:
 
 - `code` (string): one of the codes below.
+- `namespaceCode` (string): normalized namespaced value (`poc.<lowercase_code>`).
 - `message` (string): human-readable summary.
 - Optional fields: `stderr`, `stdout`, `timeoutMs`, `exitCode`, `hint`.
 

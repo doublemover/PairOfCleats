@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-17T10:37:55.719Z",
+  "generatedAt": "2026-02-21T02:02:04.437Z",
   "scripts": [
     {
       "name": "api-server",
@@ -75,6 +75,12 @@
     },
     {
       "name": "cache-gc",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "caps:calibrate",
       "category": "tooling",
       "ciAllowed": false,
       "replacement": null
@@ -248,6 +254,18 @@
       "replacement": null
     },
     {
+      "name": "package-sublime",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "package-vscode",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
       "name": "parity:matrix",
       "category": "tooling",
       "ciAllowed": false,
@@ -266,6 +284,12 @@
       "replacement": null
     },
     {
+      "name": "python:check",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
       "name": "rebuild:native",
       "category": "tooling",
       "ciAllowed": false,
@@ -273,12 +297,6 @@
     },
     {
       "name": "release-check",
-      "category": "release",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "release-check:blockers",
       "category": "release",
       "ciAllowed": false,
       "replacement": null
@@ -345,6 +363,24 @@
     },
     {
       "name": "tooling-install",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "tui:build",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "tui:install",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "tui:supervisor",
       "category": "tooling",
       "ciAllowed": false,
       "replacement": null

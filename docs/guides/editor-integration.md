@@ -1,46 +1,53 @@
 # Editor Integration
 
 ## CLI contract for editor tooling
+
 Editor integrations shell out to the CLI and expect JSON output.
-- The VS Code extension uses `--json`.
-- The Sublime Text integration is designed to use `--json` to retain full metadata.
 
-The JSON payload contains the following top-level keys:
-- `backend`: the selected backend (`memory`, `sqlite`, `sqlite-fts`, `lmdb`).
-- `code`, `prose`, `extractedProse`, `records`: arrays of result hits (may be empty).
-- `stats`: search timing, cache, and backend metadata (only when `--stats` or `--explain` is used).
+- VS Code uses `--json`.
+- Sublime Text uses `--json` for structured result metadata.
 
-Compact hit fields (subset, for `--json --compact`):
-- `file`: repo-relative path for the chunk.
-- `startLine`, `endLine`: 1-based line numbers for editor navigation.
-- `start`, `end`: byte offsets (optional).
-- `kind`, `name`, `headline`.
-- `score`, `scoreType`, `sparseScore`, `annScore`.
-- `scoreBreakdown` (optional when `--explain` is used).
+The JSON payload includes top-level search buckets (`code`, `prose`, `extractedProse`, `records`) plus backend and optional stats/explain fields.
 
-Editor integrations should prefer `file` + `startLine` for navigation. If line
-numbers are missing, fall back to file-only navigation.
+## Deterministic packaging flow
 
-## VS Code extension (CLI shell-out)
-The bundled VS Code extension lives in `extensions/vscode` and defines a single
-command: `PairOfCleats: Search`. It:
-- prompts for a query
-- runs `pairofcleats search --json`
-- shows a Quick Pick for results
-- opens the selected file at `startLine`
+Canonical packaging commands:
 
-### Settings
-- `pairofcleats.cliPath`: override the CLI command or point to a JS entrypoint.
-- `pairofcleats.cliArgs`: arguments inserted before the `search` command.
-- `pairofcleats.searchMode`: default search mode (code + prose + extracted-prose by default).
-- `pairofcleats.searchBackend`: optional backend override.
-- `pairofcleats.searchAnn`: enable/disable ANN usage.
-- `pairofcleats.maxResults`: max results to request.
-- `pairofcleats.extraSearchArgs`: extra search flags appended to the CLI call.
+```bash
+npm run package-sublime
+npm run package-vscode
+```
 
-### Notes
-- If `cliPath` is empty and the workspace contains `bin/pairofcleats.js`, the
-  extension uses `node` with that entrypoint. Otherwise it falls back to the
-  `pairofcleats` binary in PATH.
-- The extension assumes a trusted local workspace and does not attempt to
-  sandbox CLI execution.
+Smoke checks (used by release-check):
+
+```bash
+node tools/package-sublime.js --smoke
+node tools/package-vscode.js --smoke
+```
+
+Packaging behavior is deterministic:
+
+- stable file ordering
+- normalized archive roots (`PairOfCleats/`, `extension/`)
+- fixed archive metadata (`mtime`, mode bits)
+- per-archive SHA-256 output and JSON manifest
+
+See `docs/specs/editor-packaging-determinism.md` for contract details.
+
+## VS Code extension
+
+The bundled VS Code extension lives in `extensions/vscode` and defines `PairOfCleats: Search`.
+
+Settings:
+
+- `pairofcleats.cliPath`
+- `pairofcleats.cliArgs`
+- `pairofcleats.searchMode`
+- `pairofcleats.searchBackend`
+- `pairofcleats.searchAnn`
+- `pairofcleats.maxResults`
+- `pairofcleats.extraSearchArgs`
+
+## Sublime package
+
+The Sublime package source lives under `sublime/PairOfCleats` and is emitted as `dist/sublime/pairofcleats.sublime-package`.

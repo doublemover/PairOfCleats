@@ -78,6 +78,7 @@ const runBuildAndReadManifest = (writeConcurrency) => {
 
 const NON_DETERMINISTIC_ARTIFACT_PATHS = new Set([
   '.filelists.json',
+  'determinism_report.json',
   'graph_relations.meta.json',
   'index_state.json',
   'risk_interprocedural_stats.json',

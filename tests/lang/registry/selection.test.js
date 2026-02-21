@@ -11,7 +11,12 @@ const expectId = (ext, relPath, expected) => {
 };
 
 expectId('.js', 'src/app.js', 'javascript');
+expectId('.mjs', 'src/app.mjs', 'javascript');
+expectId('.cjs', 'src/app.cjs', 'javascript');
+expectId('.jsx', 'src/App.jsx', 'javascript');
 expectId('.ts', 'src/app.ts', 'typescript');
+expectId('.mts', 'src/app.mts', 'typescript');
+expectId('.cts', 'src/app.cts', 'typescript');
 expectId('.tsx', 'src/App.tsx', 'typescript');
 expectId('.py', 'src/app.py', 'python');
 expectId('.rs', 'src/lib.rs', 'rust');

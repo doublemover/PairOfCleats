@@ -63,6 +63,8 @@ import { collectDockerfileImports } from './import-collectors/dockerfile.js';
 import { collectGraphqlImports } from './import-collectors/graphql.js';
 import { collectGroovyImports } from './import-collectors/groovy.js';
 import { collectHandlebarsImports } from './import-collectors/handlebars.js';
+import { collectIniImports } from './import-collectors/ini.js';
+import { collectJsonImports } from './import-collectors/json.js';
 import { collectJinjaImports } from './import-collectors/jinja.js';
 import { collectJuliaImports } from './import-collectors/julia.js';
 import { collectMakefileImports } from './import-collectors/makefile.js';
@@ -73,6 +75,9 @@ import { collectRazorImports } from './import-collectors/razor.js';
 import { collectRImports } from './import-collectors/r.js';
 import { collectScalaImports } from './import-collectors/scala.js';
 import { collectStarlarkImports } from './import-collectors/starlark.js';
+import { collectTomlImports } from './import-collectors/toml.js';
+import { collectXmlImports } from './import-collectors/xml.js';
+import { collectYamlImports } from './import-collectors/yaml.js';
 
 const {
   buildKotlinChunks,
@@ -151,7 +156,13 @@ const YAML_EXTS = new Set(['.yaml', '.yml']);
 
 const isMakefilePath = (relPath) => MAKEFILE_BASENAMES.has(getPathBasename(relPath));
 
-const isDockerfilePath = (relPath) => getPathBasename(relPath).startsWith('dockerfile');
+const isDockerfilePath = (relPath) => {
+  const baseName = getPathBasename(relPath);
+  return baseName === 'dockerfile'
+    || baseName.startsWith('dockerfile.')
+    || baseName === 'containerfile'
+    || baseName.startsWith('containerfile.');
+};
 
 const isProtoConfigPath = (relPath) => {
   const name = getPathBasename(relPath);
@@ -560,12 +571,12 @@ const createHeuristicManagedAdapter = ({
   return adapter;
 };
 
-const createConfigDataAdapter = ({ id, match }) => ({
+const createConfigDataAdapter = ({ id, match, collectImports = () => [] }) => ({
   id,
   match,
-  collectImports: () => [],
+  collectImports: (text, options) => collectImports(text, options),
   prepare: async () => ({}),
-  buildRelations: () => buildSimpleRelations({ imports: [] }),
+  buildRelations: ({ text, options }) => buildSimpleRelations({ imports: collectImports(text, options) }),
   extractDocMeta: () => ({}),
   flow: () => null,
   attachName: false
@@ -1075,22 +1086,27 @@ export const LANGUAGE_REGISTRY = [
   }),
   createConfigDataAdapter({
     id: 'ini',
-    match: (ext) => INI_EXTS.has(ext)
+    match: (ext) => INI_EXTS.has(ext),
+    collectImports: collectIniImports
   }),
   createConfigDataAdapter({
     id: 'json',
-    match: (ext) => JSON_EXTS.has(ext)
+    match: (ext) => JSON_EXTS.has(ext),
+    collectImports: collectJsonImports
   }),
   createConfigDataAdapter({
     id: 'toml',
-    match: (ext) => TOML_EXTS.has(ext)
+    match: (ext) => TOML_EXTS.has(ext),
+    collectImports: collectTomlImports
   }),
   createConfigDataAdapter({
     id: 'xml',
-    match: (ext) => XML_EXTS.has(ext)
+    match: (ext) => XML_EXTS.has(ext),
+    collectImports: collectXmlImports
   }),
   createConfigDataAdapter({
     id: 'yaml',
-    match: (ext) => YAML_EXTS.has(ext)
+    match: (ext) => YAML_EXTS.has(ext),
+    collectImports: collectYamlImports
   })
 ];

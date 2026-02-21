@@ -5,6 +5,9 @@ Use the GTAGS ingest tool to convert `global -x` output into normalized JSONL.
 ## CLI
 
 ```bash
+# Preferred wrapper route
+pairofcleats ingest gtags --repo . --run
+
 # Run global -x inside the repo
 node tools/ingest/gtags.js --repo . --run
 

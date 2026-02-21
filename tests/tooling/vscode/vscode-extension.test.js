@@ -6,6 +6,8 @@ const root = process.cwd();
 const extensionDir = path.join(root, 'extensions', 'vscode');
 const manifestPath = path.join(extensionDir, 'package.json');
 const entryPath = path.join(extensionDir, 'extension.js');
+const packagingScriptPath = path.join(root, 'tools', 'package-vscode.js');
+const determinismSpecPath = path.join(root, 'docs', 'specs', 'editor-packaging-determinism.md');
 
 if (!fs.existsSync(manifestPath)) {
   console.error('VS Code extension manifest missing.');
@@ -13,6 +15,14 @@ if (!fs.existsSync(manifestPath)) {
 }
 if (!fs.existsSync(entryPath)) {
   console.error('VS Code extension entrypoint missing.');
+  process.exit(1);
+}
+if (!fs.existsSync(packagingScriptPath)) {
+  console.error('VS Code deterministic packaging script missing.');
+  process.exit(1);
+}
+if (!fs.existsSync(determinismSpecPath)) {
+  console.error('Editor packaging determinism spec missing.');
   process.exit(1);
 }
 

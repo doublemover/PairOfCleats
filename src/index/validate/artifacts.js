@@ -11,6 +11,10 @@ export const buildArtifactLists = (userConfig, postingsConfig, { profileId = nul
     ? ['chunk_meta', 'token_postings']
     : ['chunk_meta', 'dense_vectors'];
   const strictOnlyRequiredArtifacts = ['index_state', 'filelists'];
+  const determinismReportEnabled = userConfig?.indexing?.artifacts?.determinismReport === true;
+  if (determinismReportEnabled) {
+    strictOnlyRequiredArtifacts.push('determinism_report');
+  }
   if (sparseEnabled && postingsConfig.enablePhraseNgrams) requiredArtifacts.push('phrase_ngrams');
   if (sparseEnabled && postingsConfig.enableChargrams) requiredArtifacts.push('chargram_postings');
   const optionalArtifacts = [

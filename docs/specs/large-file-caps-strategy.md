@@ -1,7 +1,7 @@
 # Spec: Large-file Cap Strategy and Resolution Contract
 
-Status: Active v2.0  
-Last updated: 2026-02-20T00:00:00Z
+Status: Active v2.1  
+Last updated: 2026-02-20T23:10:00Z
 
 ## Goals
 
@@ -9,6 +9,7 @@ Last updated: 2026-02-20T00:00:00Z
 2. Ensure cap enforcement is deterministic and user-visible.
 3. Resolve caps using extension, language, and mode hints where applicable.
 4. Keep skip/reuse behavior consistent across discover, watch, pre-read, cached reuse, and CPU stages.
+5. Keep language-aware cap defaults deterministic and reproducible via calibration artifacts.
 
 ## Non-goals
 
@@ -25,6 +26,17 @@ Semantics:
 2. Apply `fileCaps.byExt[ext]` and `fileCaps.byLanguage[languageId]`.
 3. For each dimension (`maxBytes`, `maxLines`), use strictest (`min`) among applicable limits.
 4. Apply runtime guardrail clamps from `runtime/caps.js`.
+
+## Language-aware calibration artifacts
+
+Language-aware defaults are derived from calibration artifacts and committed in-repo.
+
+- Inputs: `docs/config/caps-calibration-inputs.json`
+- Results: `docs/config/caps-calibration-results.json`
+- Runtime baseline source: `src/index/build/runtime/caps-calibration.js`
+- Regeneration command: `npm run caps:calibrate`
+
+These artifacts are deterministic and versioned; cap updates must update both files in the same change.
 
 ## Active stage behavior
 
@@ -79,4 +91,4 @@ When a file is skipped due to size/line caps, emit deterministic metadata with:
 
 ## Compatibility policy
 
-No legacy extension-only cap behavior is supported.
+No legacy extension-only cap behavior is supported. Language-aware defaults are always active.
