@@ -92,6 +92,30 @@ export const segmentAstro = ({ text, relPath }) => {
   const segments = [];
   let templateStart = null;
   let templateEnd = null;
+  const extractAstroAttributeValue = (attr) => {
+    if (!attr || typeof attr !== 'object') return '';
+    const raw = attr.value;
+    if (typeof raw === 'string') return raw.trim();
+    if (Array.isArray(raw)) {
+      const joined = raw
+        .map((entry) => {
+          if (typeof entry === 'string') return entry;
+          if (entry && typeof entry === 'object') {
+            if (typeof entry.data === 'string') return entry.data;
+            if (typeof entry.value === 'string') return entry.value;
+          }
+          return '';
+        })
+        .join('')
+        .trim();
+      return joined;
+    }
+    if (raw && typeof raw === 'object') {
+      if (typeof raw.data === 'string') return raw.data.trim();
+      if (typeof raw.value === 'string') return raw.value.trim();
+    }
+    return '';
+  };
   const updateTemplateRange = (node) => {
     if (!node || typeof node !== 'object') return;
     if (node.type === 'frontmatter' || node.type === 'root' || node.type === 'fragment') return;
@@ -133,7 +157,8 @@ export const segmentAstro = ({ text, relPath }) => {
       if (end == null || childEnd > end) end = childEnd;
     }
     if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return;
-    const languageId = normalizeLanguageHint(node?.attributes?.find?.((attr) => attr?.name === 'lang')?.value, fallbackLang);
+    const langAttr = node?.attributes?.find?.((attr) => String(attr?.name || '').toLowerCase() === 'lang');
+    const languageId = normalizeLanguageHint(extractAstroAttributeValue(langAttr), fallbackLang);
     segments.push({
       type: 'embedded',
       languageId,
