@@ -481,10 +481,10 @@ export async function loadSearchIndexes({
     attachDenseVectorLoader(idxCode, 'code', codeIndexDir);
     idxCode.indexDir = codeIndexDir;
     if ((useSqlite || useLmdb) && needsFileRelations && !idxCode.fileRelations) {
-      idxCode.fileRelations = loadFileRelations(rootDir, userConfig, 'code', { resolveOptions });
+      idxCode.fileRelations = await loadFileRelations(rootDir, userConfig, 'code', { resolveOptions });
     }
     if ((useSqlite || useLmdb) && needsRepoMap && !idxCode.repoMap) {
-      idxCode.repoMap = loadRepoMap(rootDir, userConfig, 'code', { resolveOptions });
+      idxCode.repoMap = await loadRepoMap(rootDir, userConfig, 'code', { resolveOptions });
     }
   }
   if (runProse) {
@@ -495,10 +495,10 @@ export async function loadSearchIndexes({
     attachDenseVectorLoader(idxProse, 'prose', proseIndexDir);
     idxProse.indexDir = proseIndexDir;
     if ((useSqlite || useLmdb) && needsFileRelations && !idxProse.fileRelations) {
-      idxProse.fileRelations = loadFileRelations(rootDir, userConfig, 'prose', { resolveOptions });
+      idxProse.fileRelations = await loadFileRelations(rootDir, userConfig, 'prose', { resolveOptions });
     }
     if ((useSqlite || useLmdb) && needsRepoMap && !idxProse.repoMap) {
-      idxProse.repoMap = loadRepoMap(rootDir, userConfig, 'prose', { resolveOptions });
+      idxProse.repoMap = await loadRepoMap(rootDir, userConfig, 'prose', { resolveOptions });
     }
   }
   if (resolvedLoadExtractedProse) {
@@ -513,10 +513,10 @@ export async function loadSearchIndexes({
     attachDenseVectorLoader(idxExtractedProse, 'extracted-prose', extractedProseDir);
     idxExtractedProse.indexDir = extractedProseDir;
     if (needsFileRelations && !idxExtractedProse.fileRelations) {
-      idxExtractedProse.fileRelations = loadFileRelations(rootDir, userConfig, 'extracted-prose', { resolveOptions });
+      idxExtractedProse.fileRelations = await loadFileRelations(rootDir, userConfig, 'extracted-prose', { resolveOptions });
     }
     if (needsRepoMap && !idxExtractedProse.repoMap) {
-      idxExtractedProse.repoMap = loadRepoMap(rootDir, userConfig, 'extracted-prose', { resolveOptions });
+      idxExtractedProse.repoMap = await loadRepoMap(rootDir, userConfig, 'extracted-prose', { resolveOptions });
     }
   }
 
