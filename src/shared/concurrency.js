@@ -299,6 +299,7 @@ export function createBuildScheduler(input = {}) {
   const starvationMs = Number.isFinite(Number(input.starvationMs))
     ? Math.max(0, Math.floor(Number(input.starvationMs)))
     : 30000;
+  const WAIT_TIME_SAMPLE_LIMIT = 64;
   const normalizeTokenPool = (value) => {
     if (value == null) return 1;
     const parsed = Math.floor(Number(value));
@@ -334,6 +335,17 @@ export function createBuildScheduler(input = {}) {
     mem: Math.max(0, Math.floor(Number(req?.mem || 0))),
     bytes: normalizeByteCount(req?.bytes)
   });
+  const resolvePercentile = (values, ratio) => {
+    if (!Array.isArray(values) || !values.length) return 0;
+    const normalized = values
+      .map((entry) => Number(entry))
+      .filter((entry) => Number.isFinite(entry) && entry >= 0)
+      .sort((a, b) => a - b);
+    if (!normalized.length) return 0;
+    const clamped = Math.max(0, Math.min(1, Number(ratio) || 0));
+    const index = Math.min(normalized.length - 1, Math.max(0, Math.ceil(normalized.length * clamped) - 1));
+    return normalized[index];
+  };
 
   const queueConfig = input.queues || {};
   const queues = new Map();
@@ -384,6 +396,9 @@ export function createBuildScheduler(input = {}) {
         failed: 0,
         rejected: 0,
         starvation: 0,
+        lastWaitMs: 0,
+        waitP95Ms: 0,
+        waitSamples: [],
         rejectedMaxPending: 0,
         rejectedMaxPendingBytes: 0
       }
@@ -434,6 +449,19 @@ export function createBuildScheduler(input = {}) {
     for (const [queueName, config] of Object.entries(configMap)) {
       registerQueue(queueName, config);
     }
+  };
+
+  const recordQueueWaitTime = (queue, waitedMs) => {
+    if (!queue?.stats) return;
+    const normalized = Math.max(0, Math.floor(Number(waitedMs) || 0));
+    queue.stats.lastWaitMs = normalized;
+    const samples = Array.isArray(queue.stats.waitSamples)
+      ? queue.stats.waitSamples
+      : [];
+    samples.push(normalized);
+    while (samples.length > WAIT_TIME_SAMPLE_LIMIT) samples.shift();
+    queue.stats.waitSamples = samples;
+    queue.stats.waitP95Ms = resolvePercentile(samples, 0.95);
   };
   const normalizeTelemetryStage = (value, fallback = 'init') => {
     if (typeof value !== 'string') return fallback;
@@ -870,14 +898,18 @@ export function createBuildScheduler(input = {}) {
       if (!q.pending.length) continue;
       const index = findStartableIndex(q);
       if (index < 0) continue;
-      const waited = nowMs() - q.pending[0].enqueuedAt;
+      const waited = nowMs() - q.pending[index].enqueuedAt;
       if (waited >= starvationMs && (!starving || waited > starving.waited)) {
         starving = { queue: q, waited, index };
         continue;
       }
       const weightBoostMs = Math.max(1, Number(q.weight) || 1) * 250;
       const priorityPenaltyMs = Math.max(0, Number(q.priority) || 0) * 5;
-      const score = waited + weightBoostMs - priorityPenaltyMs;
+      // Fairness aging by wait-time percentile: once a queue's current wait
+      // exceeds its own p95 wait, boost the score to pull tail work forward.
+      const waitP95Ms = Number(q.stats?.waitP95Ms) || 0;
+      const agingBoostMs = waitP95Ms > 0 ? Math.max(0, waited - waitP95Ms) : 0;
+      const score = waited + weightBoostMs + agingBoostMs - priorityPenaltyMs;
       if (!picked || score > picked.score) {
         picked = { queue: q, index, score };
       }
@@ -904,6 +936,7 @@ export function createBuildScheduler(input = {}) {
         queue.stats.starvation += 1;
         counters.starvation += 1;
       }
+      recordQueueWaitTime(queue, nowMs() - next.enqueuedAt);
       const used = reserve(queue, next.tokens);
       const done = Promise.resolve()
         .then(next.fn)
@@ -1040,7 +1073,10 @@ export function createBuildScheduler(input = {}) {
         rejected: q.stats.rejected,
         rejectedMaxPending: q.stats.rejectedMaxPending,
         rejectedMaxPendingBytes: q.stats.rejectedMaxPendingBytes,
-        starvation: q.stats.starvation
+        starvation: q.stats.starvation,
+        lastWaitMs: q.stats.lastWaitMs,
+        waitP95Ms: q.stats.waitP95Ms,
+        waitSampleCount: Array.isArray(q.stats.waitSamples) ? q.stats.waitSamples.length : 0
       };
     }
     const resolveUtilization = (used, total) => (
