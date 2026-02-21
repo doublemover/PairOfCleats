@@ -151,6 +151,12 @@ const SMOKE_STEPS = Object.freeze([
     artifacts: ['dist/vscode/pairofcleats.vsix', 'dist/vscode/pairofcleats.vsix.sha256']
   },
   {
+    id: 'smoke.tui-build',
+    label: 'tui artifact manifest smoke',
+    command: [process.execPath, 'tools/tui/build.js', '--smoke'],
+    artifacts: ['dist/tui/tui-artifacts-manifest.json', 'dist/tui/tui-artifacts-manifest.json.sha256']
+  },
+  {
     id: 'smoke.service-mode',
     label: 'service-mode smoke check',
     command: [process.execPath, 'tools/service/indexer-service.js', 'smoke', '--json']

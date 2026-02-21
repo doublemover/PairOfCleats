@@ -480,13 +480,19 @@ function resolveCommand(primary, rest) {
   if (primary === 'tui') {
     const sub = rest.shift();
     if (!sub || isHelpCommand(sub)) {
-      failCli('tui requires a subcommand: supervisor', {
+      failCli('tui requires a subcommand: supervisor, build, install', {
         code: ERROR_CODES.INVALID_REQUEST,
         showHelp: true
       });
     }
     if (sub === 'supervisor') {
       return { script: 'tools/tui/supervisor.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'build') {
+      return { script: 'tools/tui/build.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'install') {
+      return { script: 'tools/tui/install.js', extraArgs: [], args: rest };
     }
     failCli(`Unknown tui subcommand: ${sub}`, {
       code: ERROR_CODES.INVALID_REQUEST,
@@ -913,6 +919,8 @@ Ingest:
 
 TUI:
   tui supervisor          Run Node supervisor for terminal-owned TUI sessions
+  tui build               Generate deterministic TUI artifact manifest/checksums
+  tui install             Install the selected TUI artifact locally
 
 Dispatch:
   dispatch list           List shared dispatch manifest entries

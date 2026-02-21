@@ -1626,14 +1626,14 @@ Touchpoints:
 - `src/shared/dispatch/env.js` (new)
 #### 9.4 Rust Ratatui TUI MVP
 
-- [ ] Create `crates/pairofcleats-tui/` skeleton.
-- [ ] Implement supervisor handshake/run/cancel/shutdown integration.
-- [ ] Implement deterministic jobs/tasks/logs UI model.
-- [ ] Guarantee terminal restoration on normal and error exits.
-- [ ] Pin Rust toolchain + crate dependency versions and enforce lockfile-based reproducible builds.
-- [ ] Define deterministic target-triple to artifact-name mapping used by build, install, and wrapper resolution paths.
-- [ ] Integrate cross-platform TUI build flow in release tooling so produced artifacts/checksums are generated from one canonical pipeline.
-- [ ] Wire Node-side command and release integration for TUI build/install flows (command registry, package scripts, release-check inclusion).
+- [x] Create `crates/pairofcleats-tui/` skeleton.
+- [x] Implement supervisor handshake/run/cancel/shutdown integration.
+- [x] Implement deterministic jobs/tasks/logs UI model.
+- [x] Guarantee terminal restoration on normal and error exits.
+- [x] Pin Rust toolchain + crate dependency versions and enforce lockfile-based reproducible builds.
+- [x] Define deterministic target-triple to artifact-name mapping used by build, install, and wrapper resolution paths.
+- [x] Integrate cross-platform TUI build flow in release tooling so produced artifacts/checksums are generated from one canonical pipeline.
+- [x] Wire Node-side command and release integration for TUI build/install flows (command registry, package scripts, release-check inclusion).
 
 Tests:
 

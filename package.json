@@ -7,7 +7,8 @@
     "node": ">=24.13.0"
   },
   "bin": {
-    "pairofcleats": "bin/pairofcleats.js"
+    "pairofcleats": "bin/pairofcleats.js",
+    "pairofcleats-tui": "bin/pairofcleats-tui.js"
   },
   "description": "Hybrid semantic indexer and search utility for codebases",
   "scripts": {
@@ -55,6 +56,9 @@
     "release-check:breaking": "node tools/release/check.js --breaking --report release_check_report.json --manifest release-manifest.json",
     "package-sublime": "node tools/package-sublime.js",
     "package-vscode": "node tools/package-vscode.js",
+    "tui:supervisor": "node tools/tui/supervisor.js",
+    "tui:build": "node tools/tui/build.js --smoke",
+    "tui:install": "node tools/tui/install.js --json",
     "uninstall": "node tools/tooling/uninstall.js",
     "api-server": "node tools/api/server.js",
     "mcp-server": "node tools/mcp/server.js",
