@@ -26,9 +26,95 @@
       "properties": {
         "ok": { "type": "integer", "minimum": 0 },
         "error": { "type": "integer", "minimum": 0 },
-        "timeout": { "type": "integer", "minimum": 0 }
+        "timeout": { "type": "integer", "minimum": 0 },
+        "artifactStallDurationMs": {
+          "anyOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "required": ["count", "p95", "p99", "max"],
+              "properties": {
+                "count": { "type": "integer", "minimum": 0 },
+                "p95": { "type": "number", "minimum": 0 },
+                "p99": { "type": "number", "minimum": 0 },
+                "max": { "type": "number", "minimum": 0 }
+              },
+              "additionalProperties": true
+            }
+          ]
+        },
+        "stageOverlap": {
+          "type": "object",
+          "required": ["count", "avgPct", "p50Pct", "p95Pct", "maxPct", "rows"],
+          "properties": {
+            "count": { "type": "integer", "minimum": 0 },
+            "avgPct": { "type": "number", "minimum": 0, "maximum": 100 },
+            "p50Pct": { "type": "number", "minimum": 0, "maximum": 100 },
+            "p95Pct": { "type": "number", "minimum": 0, "maximum": 100 },
+            "maxPct": { "type": "number", "minimum": 0, "maximum": 100 },
+            "rows": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["script", "totalMs", "overlapMs", "overlapPct"],
+                "properties": {
+                  "script": { "type": "string" },
+                  "totalMs": { "type": "number", "minimum": 0 },
+                  "parseMs": { "anyOf": [{ "type": "number", "minimum": 0 }, { "type": "null" }] },
+                  "inferMs": { "anyOf": [{ "type": "number", "minimum": 0 }, { "type": "null" }] },
+                  "writeMs": { "anyOf": [{ "type": "number", "minimum": 0 }, { "type": "null" }] },
+                  "overlapMs": { "type": "number", "minimum": 0 },
+                  "overlapPct": { "type": "number", "minimum": 0, "maximum": 100 }
+                },
+                "additionalProperties": true
+              }
+            }
+          },
+          "additionalProperties": true
+        },
+        "perCoreUtilization": {
+          "type": "object",
+          "required": ["sampleCount", "avgPct", "minPct", "maxPct", "p50Pct", "p95Pct", "timeline"],
+          "properties": {
+            "sampleCount": { "type": "integer", "minimum": 0 },
+            "avgPct": { "type": "number", "minimum": 0, "maximum": 100 },
+            "minPct": { "type": "number", "minimum": 0, "maximum": 100 },
+            "maxPct": { "type": "number", "minimum": 0, "maximum": 100 },
+            "p50Pct": { "type": "number", "minimum": 0, "maximum": 100 },
+            "p95Pct": { "type": "number", "minimum": 0, "maximum": 100 },
+            "timeline": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["script", "sample", "utilizationPct"],
+                "properties": {
+                  "script": { "type": "string" },
+                  "sample": { "type": "integer", "minimum": 0 },
+                  "atMs": { "anyOf": [{ "type": "number", "minimum": 0 }, { "type": "null" }] },
+                  "utilizationPct": { "type": "number", "minimum": 0, "maximum": 100 }
+                },
+                "additionalProperties": true
+              }
+            }
+          },
+          "additionalProperties": true
+        },
+        "criticalPath": {
+          "type": "object",
+          "required": ["scripts", "artifacts", "reconstructedTail"],
+          "properties": {
+            "scripts": { "type": "array" },
+            "artifacts": { "type": "array" },
+            "reconstructedTail": { "type": "array" }
+          },
+          "additionalProperties": true
+        },
+        "triageHints": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
       },
-      "additionalProperties": false
+      "additionalProperties": true
     },
     "results": {
       "type": "array",

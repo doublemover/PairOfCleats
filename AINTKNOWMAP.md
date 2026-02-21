@@ -2128,35 +2128,35 @@ Exit criteria:
       - Touchpoints: `src/index/build/workers/config.js`, `src/index/build/workers/pool.js`, `src/index/build/runtime/workers.js`, and memory telemetry surfaces.
       - Acceptance target: enforce stable per-worker memory policies (1-2GB class) with higher throughput and no budget-violation regressions/OOM churn.
       - Validation: extend worker resource-limit tests and memory budget tests (`tests/indexing/workers/*`, `tests/perf/indexing/postings/*`) to cover underflow/oversubscription/headroom-driven scaling.
-  71. [ ] Add bench report section for stage overlap effectiveness (parse/infer/write concurrency overlap %).
+  71. [x] Add bench report section for stage overlap effectiveness (parse/infer/write concurrency overlap %).
       - Touchpoints: bench harness/reporting and CI guardrails (`tools/bench/*`, `tests/perf/bench/*`, `docs/perf/*`, perf schemas/contracts).
       - Acceptance target: benchmark outputs must include reproducible utilization/backpressure/stall telemetry and produce stable A/B recommendations per hardware profile.
       - Validation: add schema-contract tests for new report fields and CI perf-gate tests that fail on stage-time/stall/utilization regressions in huge-repo lanes.
-  72. [ ] Add bench report section for per-core utilization over time, not only average.
+  72. [x] Add bench report section for per-core utilization over time, not only average.
       - Touchpoints: bench harness/reporting and CI guardrails (`tools/bench/*`, `tests/perf/bench/*`, `docs/perf/*`, perf schemas/contracts).
       - Acceptance target: benchmark outputs must include reproducible utilization/backpressure/stall telemetry and produce stable A/B recommendations per hardware profile.
       - Validation: add schema-contract tests for new report fields and CI perf-gate tests that fail on stage-time/stall/utilization regressions in huge-repo lanes.
-  73. [ ] Add p95/p99 artifact stall durations in bench summary.
+  73. [x] Add p95/p99 artifact stall durations in bench summary.
       - Touchpoints: bench harness/reporting and CI guardrails (`tools/bench/*`, `tests/perf/bench/*`, `docs/perf/*`, perf schemas/contracts).
       - Acceptance target: benchmark outputs must include reproducible utilization/backpressure/stall telemetry and produce stable A/B recommendations per hardware profile.
       - Validation: add schema-contract tests for new report fields and CI perf-gate tests that fail on stage-time/stall/utilization regressions in huge-repo lanes.
-  74. [ ] Add “critical path reconstruction” in bench logs to show exact tail sequence.
+  74. [x] Add “critical path reconstruction” in bench logs to show exact tail sequence.
       - Touchpoints: bench harness/reporting and CI guardrails (`tools/bench/*`, `tests/perf/bench/*`, `docs/perf/*`, perf schemas/contracts).
       - Acceptance target: benchmark outputs must include reproducible utilization/backpressure/stall telemetry and produce stable A/B recommendations per hardware profile.
       - Validation: add schema-contract tests for new report fields and CI perf-gate tests that fail on stage-time/stall/utilization regressions in huge-repo lanes.
-  75. [ ] Add automated A/B sweeps for writeConcurrency, token limits, bundle sizes, and worker counts.
+  75. [x] Add automated A/B sweeps for writeConcurrency, token limits, bundle sizes, and worker counts.
       - Touchpoints: bench harness/reporting and CI guardrails (`tools/bench/*`, `tests/perf/bench/*`, `docs/perf/*`, perf schemas/contracts).
       - Acceptance target: benchmark outputs must include reproducible utilization/backpressure/stall telemetry and produce stable A/B recommendations per hardware profile.
       - Validation: add schema-contract tests for new report fields and CI perf-gate tests that fail on stage-time/stall/utilization regressions in huge-repo lanes.
-  76. [ ] Add automatic best-config recommendation output per repo/hardware tuple.
+  76. [x] Add automatic best-config recommendation output per repo/hardware tuple.
       - Touchpoints: bench harness/reporting and CI guardrails (`tools/bench/*`, `tests/perf/bench/*`, `docs/perf/*`, perf schemas/contracts).
       - Acceptance target: benchmark outputs must include reproducible utilization/backpressure/stall telemetry and produce stable A/B recommendations per hardware profile.
       - Validation: add schema-contract tests for new report fields and CI perf-gate tests that fail on stage-time/stall/utilization regressions in huge-repo lanes.
-  77. [ ] Add perf guardrails in CI for stage durations, stall tails, and utilization floors.
+  77. [x] Add perf guardrails in CI for stage durations, stall tails, and utilization floors.
       - Touchpoints: bench harness/reporting and CI guardrails (`tools/bench/*`, `tests/perf/bench/*`, `docs/perf/*`, perf schemas/contracts).
       - Acceptance target: benchmark outputs must include reproducible utilization/backpressure/stall telemetry and produce stable A/B recommendations per hardware profile.
       - Validation: add schema-contract tests for new report fields and CI perf-gate tests that fail on stage-time/stall/utilization regressions in huge-repo lanes.
-  78. [ ] Add perf regression triage output that points to likely queue/stage roots.
+  78. [x] Add perf regression triage output that points to likely queue/stage roots.
       - Touchpoints: bench harness/reporting and CI guardrails (`tools/bench/*`, `tests/perf/bench/*`, `docs/perf/*`, perf schemas/contracts).
       - Acceptance target: benchmark outputs must include reproducible utilization/backpressure/stall telemetry and produce stable A/B recommendations per hardware profile.
       - Validation: add schema-contract tests for new report fields and CI perf-gate tests that fail on stage-time/stall/utilization regressions in huge-repo lanes.

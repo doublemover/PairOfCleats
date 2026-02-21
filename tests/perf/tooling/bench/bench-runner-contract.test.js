@@ -45,8 +45,12 @@ const runFixture = async (name, lines) => {
   assert.ok(report?.runner?.storageTier, 'expected storageTier reproducibility metadata');
   assert.ok(report?.runner?.antivirusState, 'expected antivirusState reproducibility metadata');
   assert.ok(report?.runner?.cpuGovernor, 'expected cpuGovernor reproducibility metadata');
+  assert.ok(report?.summary?.stageOverlap, 'expected stage overlap summary');
+  assert.ok(report?.summary?.perCoreUtilization, 'expected per-core utilization summary');
+  assert.ok(report?.summary?.criticalPath, 'expected critical path summary');
+  assert.ok(Array.isArray(report?.summary?.triageHints), 'expected triage hints array');
   assert.ok(Array.isArray(report.results) && report.results.length === 1, 'expected single result');
-  return report.results[0];
+  return report;
 };
 
 const baseExpect = {
@@ -86,7 +90,8 @@ const cases = [
 ];
 
 for (const testCase of cases) {
-  const canonicalEntry = await runFixture(`${testCase.name}-canonical`, testCase.lines);
+  const canonicalReport = await runFixture(`${testCase.name}-canonical`, testCase.lines);
+  const canonicalEntry = canonicalReport.results[0];
   assert.equal(canonicalEntry.ok, true);
   assert.equal(canonicalEntry.parsed?.baseline?.metrics?.duration, baseExpect.baselineDuration);
   assert.equal(canonicalEntry.parsed?.current?.metrics?.duration, baseExpect.currentDuration);
@@ -101,8 +106,11 @@ for (const testCase of cases) {
     ...testCase.lines.map((line) => `  ${line}  `),
     'unrelated trailer line'
   ];
-  const noisyEntry = await runFixture(`${testCase.name}-noisy`, noisyLines);
+  const noisyReport = await runFixture(`${testCase.name}-noisy`, noisyLines);
+  const noisyEntry = noisyReport.results[0];
   assert.deepEqual(noisyEntry.parsed, canonicalEntry.parsed);
+  assert.equal(typeof canonicalReport.summary.perCoreUtilization.avgPct, 'number');
+  assert.equal(typeof canonicalReport.summary.stageOverlap.avgPct, 'number');
 }
 
 console.log('bench runner contract test passed');
