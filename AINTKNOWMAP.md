@@ -1984,7 +1984,7 @@ Exit criteria:
       - Touchpoints: `src/index/type-inference-crossfile/pipeline.js`, `src/index/build/incremental.js`, `src/shared/bundle-io.js`, and related cache identity/signature paths.
       - Acceptance target: reduce cross-file incremental bundle-update wall time by >=35% on huge repos while preserving relation/type/risk parity and deterministic bundle contents.
       - Validation: add incremental + cross-file tests for cache hit/miss behavior, unchanged-file skip behavior, deterministic output hashes, and fallback correctness when prefetch is partial.
-  35. [ ] Add optional “huge repo inference lite” profile that keeps high-signal links only.
+  35. [x] Add optional “huge repo inference lite” profile that keeps high-signal links only.
       - Touchpoints: `src/index/type-inference-crossfile/pipeline.js`, `src/index/build/incremental.js`, `src/shared/bundle-io.js`, and related cache identity/signature paths.
       - Acceptance target: reduce cross-file incremental bundle-update wall time by >=35% on huge repos while preserving relation/type/risk parity and deterministic bundle contents.
       - Validation: add incremental + cross-file tests for cache hit/miss behavior, unchanged-file skip behavior, deterministic output hashes, and fallback correctness when prefetch is partial.

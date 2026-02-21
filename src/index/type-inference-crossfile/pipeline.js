@@ -222,7 +222,9 @@ export async function applyCrossFileInference({
   useTooling = false,
   enableTypeInference = true,
   enableRiskCorrelation = false,
-  fileRelations = null
+  fileRelations = null,
+  inferenceLite = false,
+  inferenceLiteHighSignalOnly = true
 }) {
   if (!enabled) {
     return { linkedCalls: 0, linkedUsages: 0, inferredReturns: 0, riskFlows: 0 };
@@ -337,6 +339,9 @@ export async function applyCrossFileInference({
       paramTypeLimit: LARGE_REPO_PARAM_TYPE_LIMIT
     }
     : null;
+  const inferenceLiteEnabled = inferenceLite === true;
+  const inferenceLiteHighSignalOnlyMode = inferenceLiteEnabled
+    && inferenceLiteHighSignalOnly !== false;
   const callSampleLimit = largeRepoBudget?.callSampleLimit ?? 25;
   const paramTypeLimit = largeRepoBudget?.paramTypeLimit ?? 5;
   if (largeRepoBudget && typeof log === 'function') {
@@ -345,6 +350,12 @@ export async function applyCrossFileInference({
       + `(chunks=${chunks.length}, files=${fileSet.size}, `
       + `callPerChunk=${largeRepoBudget.maxCallLinksPerChunk}, `
       + `usagePerChunk=${largeRepoBudget.maxUsageLinksPerChunk}).`
+    );
+  }
+  if (inferenceLiteEnabled && typeof log === 'function') {
+    log(
+      `[perf] huge repo inference lite enabled `
+      + `(highSignalOnly=${inferenceLiteHighSignalOnlyMode ? 'true' : 'false'}).`
     );
   }
   const resolvedCacheRoot = cacheEnabled === false
@@ -391,6 +402,7 @@ export async function applyCrossFileInference({
             droppedCallSummaries: Number(cacheStats?.droppedCallSummaries) || 0,
             droppedUsageLinks: Number(cacheStats?.droppedUsageLinks) || 0,
             bundleSizing: cacheStats?.bundleSizing || null,
+            inferenceLiteEnabled: cacheStats?.inferenceLiteEnabled === true,
             cacheHit: true,
             fingerprint: crossFileFingerprint
           };
@@ -624,6 +636,7 @@ export async function applyCrossFileInference({
         || (Array.isArray(relations.callDetails) && relations.callDetails.length > 0);
       const hasUsageSignals = Array.isArray(relations.usages) && relations.usages.length > 0;
       const hasFileUsageSignals = !hasUsageSignals
+        && !inferenceLiteEnabled
         && Array.isArray(fileRelation?.usages)
         && fileRelation.usages.length > 0
         && typeof chunk?.file === 'string'
@@ -754,6 +767,7 @@ export async function applyCrossFileInference({
 
       const hasChunkUsageSource = Array.isArray(relations.usages);
       const useFileUsageFallback = !hasChunkUsageSource
+      && !inferenceLiteEnabled
       && Array.isArray(fileRelation?.usages)
       && typeof chunk?.file === 'string'
       && !fileUsageFallbackApplied.has(chunk.file);
@@ -854,6 +868,9 @@ export async function applyCrossFileInference({
             }
           }
         }
+        if (inferenceLiteEnabled && inferenceLiteHighSignalOnlyMode) {
+          return;
+        }
 
         const { calls: returnCalls } = await getReturnCalls(chunk);
         if (!returnCalls.size) return;
@@ -903,6 +920,7 @@ export async function applyCrossFileInference({
       };
 
       const runRiskPropagation = () => {
+        if (inferenceLiteEnabled && inferenceLiteHighSignalOnlyMode) return;
         if (!callLinks.length) return;
         const callerRisk = chunk.docmeta?.risk;
         const callerSources = Array.isArray(callerRisk?.sources) ? callerRisk.sources : [];
@@ -946,18 +964,23 @@ export async function applyCrossFileInference({
       };
 
       if (enableTypeInference) {
-        if (useParallelPropagation && enableRiskCorrelation && callLinks.length) {
+        if (
+          useParallelPropagation
+          && enableRiskCorrelation
+          && callLinks.length
+          && !(inferenceLiteEnabled && inferenceLiteHighSignalOnlyMode)
+        ) {
           await Promise.all([
             runTypePropagation(),
             Promise.resolve().then(() => runRiskPropagation())
           ]);
         } else {
           await runTypePropagation();
-          if (enableRiskCorrelation) {
+          if (enableRiskCorrelation && !(inferenceLiteEnabled && inferenceLiteHighSignalOnlyMode)) {
             runRiskPropagation();
           }
         }
-      } else if (enableRiskCorrelation) {
+      } else if (enableRiskCorrelation && !(inferenceLiteEnabled && inferenceLiteHighSignalOnlyMode)) {
         runRiskPropagation();
       }
     }
@@ -1061,7 +1084,8 @@ export async function applyCrossFileInference({
           droppedCallLinks,
           droppedCallSummaries,
           droppedUsageLinks,
-          bundleSizing
+          bundleSizing,
+          inferenceLiteEnabled
         },
         rows
       }), 'utf8');
@@ -1077,6 +1101,7 @@ export async function applyCrossFileInference({
     droppedCallSummaries,
     droppedUsageLinks,
     bundleSizing,
+    inferenceLiteEnabled,
     cacheHit: false,
     fingerprint: crossFileFingerprint
   };
