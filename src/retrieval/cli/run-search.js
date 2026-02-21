@@ -37,6 +37,7 @@ import { resolveRunConfig } from './resolve-run-config.js';
 import { resolveRequiredArtifacts } from './required-artifacts.js';
 import { loadSearchIndexes } from './load-indexes.js';
 import { executeSearchAndEmit } from './search-execution.js';
+import { resolveRetrievalCachePath } from './cache-paths.js';
 import { DEFAULT_CODE_DICT_LANGUAGES, normalizeCodeDictLanguages } from '../../shared/code-dictionaries.js';
 import { compileFilterPredicates } from '../output/filters.js';
 import { stableStringify } from '../../shared/stable-json.js';
@@ -188,13 +189,16 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     const queryCacheDir = getQueryCacheDir(rootDir, userConfig);
     const policy = await getAutoPolicy(rootDir, userConfig);
     if (!queryPlanCache) {
-      const queryPlanCachePath = path.join(
-        queryCacheDir || metricsDir,
-        'queryPlanCache.json'
-      );
-      queryPlanCache = createQueryPlanDiskCache({ path: queryPlanCachePath });
-      if (typeof queryPlanCache?.load === 'function') {
-        queryPlanCache.load();
+      const queryPlanCachePath = resolveRetrievalCachePath({
+        queryCacheDir,
+        metricsDir,
+        fileName: 'queryPlanCache.json'
+      });
+      if (queryPlanCachePath) {
+        queryPlanCache = createQueryPlanDiskCache({ path: queryPlanCachePath });
+        if (typeof queryPlanCache?.load === 'function') {
+          queryPlanCache.load();
+        }
       }
     }
     let normalized;

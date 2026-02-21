@@ -25,6 +25,7 @@ import { resolveStubDims } from '../../shared/embedding.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import { stableStringifyForSignature } from '../../shared/stable-json.js';
 import { resolveSqliteFtsRoutingByMode } from '../routing-policy.js';
+import { resolveRetrievalCachePath } from './cache-paths.js';
 
 /**
  * Execute one retrieval session, including query cache lookup, per-mode search,
@@ -278,8 +279,11 @@ export async function runSearchSession({
       : null
   };
 
-  const cacheDir = queryCacheDir || metricsDir;
-  const queryCachePath = path.join(cacheDir, 'queryCache.json');
+  const queryCachePath = resolveRetrievalCachePath({
+    queryCacheDir,
+    metricsDir,
+    fileName: 'queryCache.json'
+  });
   if (queryCacheEnabled) {
     const signature = await getIndexSignature({
       useSqlite,
@@ -381,10 +385,10 @@ export async function runSearchSession({
       if (entry) cacheHotPathHit = true;
     }
     if (!entry) {
-      cacheData = loadQueryCache(queryCachePath, {
+      cacheData = queryCachePath ? loadQueryCache(queryCachePath, {
         prewarm: cachePrewarmEnabled,
         prewarmMaxEntries: cachePrewarmLimit
-      });
+      }) : null;
       entry = findQueryCacheEntry(cacheData, cacheKey, cacheSignature, {
         cachePath: queryCachePath,
         strategy: cacheStrategy,
@@ -404,11 +408,13 @@ export async function runSearchSession({
           if (hasCode && hasProse && hasExtractedProse && hasRecords) {
             cacheHit = true;
             entry.ts = Date.now();
-            rememberQueryCacheEntry(queryCachePath, cacheKey, cacheSignature, entry, queryCacheMaxEntries);
+            if (queryCachePath) {
+              rememberQueryCacheEntry(queryCachePath, cacheKey, cacheSignature, entry, queryCacheMaxEntries);
+            }
             if (!cacheData) {
-              cacheData = loadQueryCache(queryCachePath, {
+              cacheData = queryCachePath ? loadQueryCache(queryCachePath, {
                 prewarm: false
-              });
+              }) : null;
             }
             if (cacheData && Array.isArray(cacheData.entries)) {
               const existingIndex = cacheData.entries.findIndex((candidate) => (
@@ -751,10 +757,12 @@ export async function runSearchSession({
         }
       };
       cacheData.entries.push(entry);
-      rememberQueryCacheEntry(queryCachePath, cacheKey, cacheSignature, entry, queryCacheMaxEntries);
+      if (queryCachePath) {
+        rememberQueryCacheEntry(queryCachePath, cacheKey, cacheSignature, entry, queryCacheMaxEntries);
+      }
       cacheShouldPersist = true;
     }
-    if (cacheShouldPersist && cacheData) {
+    if (cacheShouldPersist && cacheData && queryCachePath) {
       pruneQueryCache(cacheData, queryCacheMaxEntries);
       try {
         await atomicWriteJson(queryCachePath, cacheData, { spaces: 2 });
