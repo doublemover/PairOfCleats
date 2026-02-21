@@ -1478,8 +1478,8 @@ Tests:
 
 #### 7.2 Error telemetry consistency
 
-- [ ] Enforce one error code registry and namespace strategy.
-- [ ] Attach `code + hint` consistently across CLI/API/MCP error payloads.
+- [x] Enforce one error code registry and namespace strategy.
+- [x] Attach `code + hint` consistently across CLI/API/MCP error payloads.
 
 Touchpoints:
 

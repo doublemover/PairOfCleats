@@ -53,6 +53,9 @@ for (const mode of modes) {
     if (invalidPayload.code !== ERROR_CODES.INVALID_REQUEST) {
       throw new Error(`[${mode}] index_status missing repo should return INVALID_REQUEST`);
     }
+    if (invalidPayload.namespaceCode !== 'poc.invalid_request') {
+      throw new Error(`[${mode}] index_status missing repo should include namespaced error code`);
+    }
     if (!invalidPayload.message?.includes('Repo path not found')) {
       throw new Error(`[${mode}] index_status missing repo error payload missing message`);
     }
@@ -75,6 +78,10 @@ for (const mode of modes) {
     if (missingPayload.code !== ERROR_CODES.NO_INDEX) {
       console.error(`[${mode}] missing index payload:`, JSON.stringify(missingPayload, null, 2));
       throw new Error(`[${mode}] search missing index should return NO_INDEX`);
+    }
+    if (missingPayload.namespaceCode !== 'poc.no_index') {
+      console.error(`[${mode}] missing index payload:`, JSON.stringify(missingPayload, null, 2));
+      throw new Error(`[${mode}] search missing index should include namespaced error code`);
     }
     if (!missingPayload.message?.toLowerCase().includes('index')) {
       console.error(`[${mode}] missing index payload:`, JSON.stringify(missingPayload, null, 2));

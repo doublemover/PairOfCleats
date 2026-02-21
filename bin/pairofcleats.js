@@ -15,6 +15,7 @@ import { resolveRuntimeEnvelope, resolveRuntimeEnv as resolveRuntimeEnvFromEnvel
 import { createCli } from '../src/shared/cli.js';
 import { INDEX_BUILD_OPTIONS } from '../src/shared/cli-options.js';
 import { spawnSubprocessSync } from '../src/shared/subprocess.js';
+import { buildErrorPayload, ERROR_CODES, isErrorCode } from '../src/shared/error-codes.js';
 
 const ROOT = resolveToolRoot();
 
@@ -34,14 +35,18 @@ if (isVersionCommand(command)) {
 const primary = args.shift();
 const resolved = resolveCommand(primary, args);
 if (!resolved) {
-  console.error(`Unknown command: ${primary}`);
-  printHelp();
-  process.exit(1);
+  failCli(`Unknown command: ${primary}`, {
+    code: ERROR_CODES.INVALID_REQUEST,
+    showHelp: true
+  });
 }
 
 runScript(resolved.script, resolved.extraArgs, resolved.args).catch((err) => {
-  console.error(err?.message || err);
-  process.exit(1);
+  const code = isErrorCode(err?.code) ? err.code : ERROR_CODES.INTERNAL;
+  failCli(err?.message || String(err), {
+    code,
+    hint: err?.hint || null
+  });
 });
 
 function resolveCommand(primary, rest) {
@@ -179,17 +184,19 @@ function resolveCommand(primary, rest) {
   if (primary === 'search') {
     const backend = readFlagValue(rest, 'backend');
     if (backend && !['auto', 'sqlite', 'sqlite-fts', 'lmdb'].includes(backend.toLowerCase())) {
-      console.error(`Unsupported --backend ${backend}. Use auto|sqlite|sqlite-fts|lmdb.`);
-      process.exit(1);
+      failCli(`Unsupported --backend ${backend}. Use auto|sqlite|sqlite-fts|lmdb.`, {
+        code: ERROR_CODES.INVALID_REQUEST
+      });
     }
     return { script: 'search.js', extraArgs: [], args: rest };
   }
   if (primary === 'workspace') {
     const sub = rest.shift();
     if (!sub || isHelpCommand(sub)) {
-      console.error('workspace requires a subcommand: manifest, status, build, catalog');
-      printHelp();
-      process.exit(1);
+      failCli('workspace requires a subcommand: manifest, status, build, catalog', {
+        code: ERROR_CODES.INVALID_REQUEST,
+        showHelp: true
+      });
     }
     if (sub === 'manifest') {
       validateArgs(rest, ['workspace', 'json'], ['workspace']);
@@ -219,9 +226,10 @@ function resolveCommand(primary, rest) {
       validateArgs(rest, ['workspace', 'json'], ['workspace']);
       return { script: 'tools/workspace/catalog.js', extraArgs: [], args: rest };
     }
-    console.error(`Unknown workspace subcommand: ${sub}`);
-    printHelp();
-    process.exit(1);
+    failCli(`Unknown workspace subcommand: ${sub}`, {
+      code: ERROR_CODES.INVALID_REQUEST,
+      showHelp: true
+    });
   }
   if (primary === 'setup') {
     validateArgs(rest, [], []);
@@ -234,9 +242,10 @@ function resolveCommand(primary, rest) {
   if (primary === 'cache') {
     const sub = rest.shift();
     if (!sub || isHelpCommand(sub)) {
-      console.error('cache requires a subcommand: clear, gc');
-      printHelp();
-      process.exit(1);
+      failCli('cache requires a subcommand: clear, gc', {
+        code: ERROR_CODES.INVALID_REQUEST,
+        showHelp: true
+      });
     }
     if (sub === 'clear') {
       validateArgs(rest, ['all', 'force', 'cache-root'], ['cache-root']);
@@ -271,16 +280,18 @@ function resolveCommand(primary, rest) {
       );
       return { script: 'tools/index/cache-gc.js', extraArgs: [], args: rest };
     }
-    console.error(`Unknown cache subcommand: ${sub}`);
-    printHelp();
-    process.exit(1);
+    failCli(`Unknown cache subcommand: ${sub}`, {
+      code: ERROR_CODES.INVALID_REQUEST,
+      showHelp: true
+    });
   }
   if (primary === 'report') {
     const sub = rest.shift();
     if (!sub || isHelpCommand(sub)) {
-      console.error('report requires a subcommand: map, eval, compare-models, metrics');
-      printHelp();
-      process.exit(1);
+      failCli('report requires a subcommand: map, eval, compare-models, metrics', {
+        code: ERROR_CODES.INVALID_REQUEST,
+        showHelp: true
+      });
     }
     if (sub === 'map') {
       validateArgs(
@@ -411,16 +422,18 @@ function resolveCommand(primary, rest) {
       validateArgs(rest, ['json', 'out', 'repo', 'top'], ['out', 'repo', 'top']);
       return { script: 'tools/reports/metrics-dashboard.js', extraArgs: [], args: rest };
     }
-    console.error(`Unknown report subcommand: ${sub}`);
-    printHelp();
-    process.exit(1);
+    failCli(`Unknown report subcommand: ${sub}`, {
+      code: ERROR_CODES.INVALID_REQUEST,
+      showHelp: true
+    });
   }
   if (primary === 'service') {
     const sub = rest.shift();
     if (!sub || isHelpCommand(sub)) {
-      console.error('service requires a subcommand: api, indexer');
-      printHelp();
-      process.exit(1);
+      failCli('service requires a subcommand: api, indexer', {
+        code: ERROR_CODES.INVALID_REQUEST,
+        showHelp: true
+      });
     }
     if (sub === 'api') {
       validateArgs(rest, ['host', 'port', 'repo'], ['host', 'port', 'repo']);
@@ -434,16 +447,18 @@ function resolveCommand(primary, rest) {
       );
       return { script: 'tools/service/indexer-service.js', extraArgs: [], args: rest };
     }
-    console.error(`Unknown service subcommand: ${sub}`);
-    printHelp();
-    process.exit(1);
+    failCli(`Unknown service subcommand: ${sub}`, {
+      code: ERROR_CODES.INVALID_REQUEST,
+      showHelp: true
+    });
   }
   if (primary === 'ingest') {
     const sub = rest.shift();
     if (!sub || isHelpCommand(sub)) {
-      console.error('ingest requires a subcommand: ctags, gtags, lsif, scip');
-      printHelp();
-      process.exit(1);
+      failCli('ingest requires a subcommand: ctags, gtags, lsif, scip', {
+        code: ERROR_CODES.INVALID_REQUEST,
+        showHelp: true
+      });
     }
     if (sub === 'ctags') {
       return { script: 'tools/ingest/ctags.js', extraArgs: [], args: rest };
@@ -457,9 +472,10 @@ function resolveCommand(primary, rest) {
     if (sub === 'scip') {
       return { script: 'tools/ingest/scip.js', extraArgs: [], args: rest };
     }
-    console.error(`Unknown ingest subcommand: ${sub}`);
-    printHelp();
-    process.exit(1);
+    failCli(`Unknown ingest subcommand: ${sub}`, {
+      code: ERROR_CODES.INVALID_REQUEST,
+      showHelp: true
+    });
   }
   if (primary === 'graph-context') {
     validateArgs(
@@ -681,39 +697,44 @@ function resolveCommand(primary, rest) {
   if (primary === 'tooling') {
     const sub = rest.shift();
     if (!sub || isHelpCommand(sub)) {
-      console.error('tooling requires a subcommand: doctor');
-      printHelp();
-      process.exit(1);
+      failCli('tooling requires a subcommand: doctor', {
+        code: ERROR_CODES.INVALID_REQUEST,
+        showHelp: true
+      });
     }
     if (sub === 'doctor') {
       validateArgs(rest, ['repo', 'json', 'strict', 'non-strict'], ['repo']);
       return { script: 'tools/tooling/doctor.js', extraArgs: [], args: rest };
     }
-    console.error(`Unknown tooling subcommand: ${sub}`);
-    printHelp();
-    process.exit(1);
+    failCli(`Unknown tooling subcommand: ${sub}`, {
+      code: ERROR_CODES.INVALID_REQUEST,
+      showHelp: true
+    });
   }
   if (primary === 'lmdb') {
     const sub = rest.shift();
     if (!sub || isHelpCommand(sub)) {
-      console.error('lmdb requires a subcommand: build');
-      printHelp();
-      process.exit(1);
+      failCli('lmdb requires a subcommand: build', {
+        code: ERROR_CODES.INVALID_REQUEST,
+        showHelp: true
+      });
     }
     if (sub === 'build') {
       validateArgs(rest, ['repo', 'mode', 'index-root', 'as-of', 'snapshot', 'validate'], ['repo', 'mode', 'index-root', 'as-of', 'snapshot']);
       return { script: 'tools/build/lmdb-index.js', extraArgs: [], args: rest };
     }
-    console.error(`Unknown lmdb subcommand: ${sub}`);
-    printHelp();
-    process.exit(1);
+    failCli(`Unknown lmdb subcommand: ${sub}`, {
+      code: ERROR_CODES.INVALID_REQUEST,
+      showHelp: true
+    });
   }
   if (primary === 'risk') {
     const sub = rest.shift();
     if (!sub || isHelpCommand(sub)) {
-      console.error('risk requires a subcommand: explain');
-      printHelp();
-      process.exit(1);
+      failCli('risk requires a subcommand: explain', {
+        code: ERROR_CODES.INVALID_REQUEST,
+        showHelp: true
+      });
     }
     if (sub === 'explain') {
       validateArgs(
@@ -723,9 +744,10 @@ function resolveCommand(primary, rest) {
       );
       return { script: 'tools/analysis/explain-risk.js', extraArgs: [], args: rest };
     }
-    console.error(`Unknown risk subcommand: ${sub}`);
-    printHelp();
-    process.exit(1);
+    failCli(`Unknown risk subcommand: ${sub}`, {
+      code: ERROR_CODES.INVALID_REQUEST,
+      showHelp: true
+    });
   }
   return null;
 }
@@ -762,8 +784,9 @@ function validateArgs(args, allowedFlags, valueFlags) {
     }
   }
   if (errors.length) {
-    console.error(errors.join('\n'));
-    process.exit(1);
+    failCli(errors.join('\n'), {
+      code: ERROR_CODES.INVALID_REQUEST
+    });
   }
 }
 
@@ -786,8 +809,9 @@ function readFlagValue(args, name) {
 async function runScript(scriptPath, extraArgs, restArgs) {
   const resolved = path.join(ROOT, scriptPath);
   if (!fs.existsSync(resolved)) {
-    console.error(`Script not found: ${resolved}`);
-    process.exit(1);
+    failCli(`Script not found: ${resolved}`, {
+      code: ERROR_CODES.NOT_FOUND
+    });
   }
   const repoOverride = extractRepoArg(restArgs);
   const repoRoot = repoOverride ? path.resolve(repoOverride) : resolveRepoRoot(process.cwd());
@@ -925,4 +949,20 @@ Graph:
 Risk:
   risk explain            Explain interprocedural risk flows
 `);
+}
+
+function failCli(message, { code = ERROR_CODES.INVALID_REQUEST, hint = null, showHelp = false, exitCode = 1 } = {}) {
+  const payload = buildErrorPayload({
+    code,
+    message,
+    details: hint ? { hint } : {}
+  });
+  process.stderr.write(`[${payload.code}] ${payload.message}\n`);
+  if (payload.hint) {
+    process.stderr.write(`hint: ${payload.hint}\n`);
+  }
+  if (showHelp) {
+    printHelp();
+  }
+  process.exit(exitCode);
 }

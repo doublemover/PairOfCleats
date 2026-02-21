@@ -1,4 +1,5 @@
 import { redactAbsolutePaths } from './redact.js';
+import { buildErrorPayload, ERROR_CODES } from '../../src/shared/error-codes.js';
 
 const VALIDATION_POINTER_RE = /^#?(\/[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*)$/;
 const VALIDATION_MESSAGE_RE = /\s+(has unknown field|missing required field|must\b)/i;
@@ -65,7 +66,11 @@ export const sendJson = (res, statusCode, payload, headers = {}) => {
  */
 export const sendError = (res, statusCode, code, message, details = {}, headers = {}) => {
   const { code: ignored, ...rest } = details || {};
-  const rawPayload = { ok: false, code, message, ...rest };
+  const rawPayload = buildErrorPayload({
+    code: code || ERROR_CODES.INTERNAL,
+    message,
+    details: rest
+  });
   const redactedPayload = redactAbsolutePaths(rawPayload);
   if (Array.isArray(rawPayload.errors) && Array.isArray(redactedPayload?.errors)) {
     redactedPayload.errors = rawPayload.errors.map((entry, index) => (
