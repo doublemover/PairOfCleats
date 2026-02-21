@@ -1,4 +1,5 @@
 import { createRowSpillCollector, compareChunkMetaRows } from '../../helpers.js';
+import { addTrimReason, TRIM_REASONS } from '../../trim-policy.js';
 import {
   ORDER_BUCKET_MIN,
   ORDER_BUCKET_TARGET,
@@ -186,10 +187,13 @@ const recordTrimmedField = (stats, field) => {
   stats.trimmedFields[field] = (stats.trimmedFields[field] || 0) + 1;
 };
 
-const recordTrimmedFields = (stats, fields) => {
+const recordTrimmedFields = (stats, fields, reason = null) => {
   if (!stats || !fields) return;
   for (const field of fields) {
     recordTrimmedField(stats, field);
+  }
+  if (reason && fields.length) {
+    addTrimReason(stats, reason);
   }
 };
 
@@ -236,6 +240,7 @@ export const compactChunkMetaEntry = (entry, maxBytes, stats = null) => {
   if (!resolvedMax) return entry;
   const fits = (value) => Buffer.byteLength(JSON.stringify(value), 'utf8') + 1 <= resolvedMax;
   if (fits(entry)) return entry;
+  addTrimReason(stats, TRIM_REASONS.rowOversize);
   const trimmed = { ...entry };
   const tokenFields = [];
   if ('tokens' in trimmed) {
@@ -254,7 +259,7 @@ export const compactChunkMetaEntry = (entry, maxBytes, stats = null) => {
     delete trimmed.ngrams;
     tokenFields.push('ngrams');
   }
-  recordTrimmedFields(stats, tokenFields);
+  recordTrimmedFields(stats, tokenFields, TRIM_REASONS.chunkMetaDropTokenFields);
   if (fits(trimmed)) return trimmed;
   const contextFields = [];
   if ('preContext' in trimmed) {
@@ -273,7 +278,7 @@ export const compactChunkMetaEntry = (entry, maxBytes, stats = null) => {
     delete trimmed.segment;
     contextFields.push('segment');
   }
-  recordTrimmedFields(stats, contextFields);
+  recordTrimmedFields(stats, contextFields, TRIM_REASONS.chunkMetaDropContextFields);
   if (fits(trimmed)) return trimmed;
   const dropFields = [
     'docmeta',
@@ -293,9 +298,10 @@ export const compactChunkMetaEntry = (entry, maxBytes, stats = null) => {
       droppedFields.push(field);
     }
   }
-  recordTrimmedFields(stats, droppedFields);
+  recordTrimmedFields(stats, droppedFields, TRIM_REASONS.chunkMetaDropOptionalFields);
   if (fits(trimmed)) return trimmed;
 
+  addTrimReason(stats, TRIM_REASONS.chunkMetaFallbackMinimal);
   recordTrimmedField(stats, 'fallback');
   const fallback = {
     id: toFiniteOrNull(trimmed.id),
@@ -317,11 +323,18 @@ export const compactChunkMetaEntry = (entry, maxBytes, stats = null) => {
 
   const textKeys = ['file', 'virtualPath', 'name', 'kind', 'ext', 'lang', 'chunkUid', 'chunkId'];
   const perFieldBudget = Math.max(24, Math.floor((resolvedMax * 0.6) / textKeys.length));
+  let truncatedFallbackText = false;
   for (const key of textKeys) {
     if (typeof fallback[key] !== 'string') continue;
     const next = truncateUtf8ByBytes(fallback[key], perFieldBudget);
-    if (next !== fallback[key]) recordTrimmedField(stats, key);
+    if (next !== fallback[key]) {
+      recordTrimmedField(stats, key);
+      truncatedFallbackText = true;
+    }
     fallback[key] = next;
+  }
+  if (truncatedFallbackText) {
+    addTrimReason(stats, TRIM_REASONS.chunkMetaTruncateFallbackText);
   }
   if (fits(fallback)) return fallback;
 
@@ -333,6 +346,7 @@ export const compactChunkMetaEntry = (entry, maxBytes, stats = null) => {
     if (fallback[key] == null) continue;
     fallback[key] = null;
     recordTrimmedField(stats, key);
+    addTrimReason(stats, TRIM_REASONS.chunkMetaClearFallbackText);
     if (fits(fallback)) return fallback;
   }
 
