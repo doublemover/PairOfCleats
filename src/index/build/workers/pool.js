@@ -7,6 +7,7 @@ import {
   setWorkerActiveTasks,
   setWorkerQueueDepth
 } from '../../../shared/metrics.js';
+import { createBoundedObjectPool } from '../../../shared/bounded-object-pool.js';
 import {
   buildWorkerExecArgv,
   resolveMemoryWorkerCap,
@@ -145,6 +146,75 @@ export async function createIndexerWorkerPool(input = {}) {
       minPerWorkerMb: heapPolicy.minPerWorkerMb,
       maxPerWorkerMb: heapPolicy.maxPerWorkerMb
     });
+    const workerTaskMetricPool = createBoundedObjectPool({
+      maxSize: 1024,
+      create: () => ({
+        pool: 'unknown',
+        task: 'unknown',
+        worker: 'unknown',
+        status: 'unknown',
+        seconds: 0
+      }),
+      reset: (entry) => {
+        entry.pool = 'unknown';
+        entry.task = 'unknown';
+        entry.worker = 'unknown';
+        entry.status = 'unknown';
+        entry.seconds = 0;
+        return entry;
+      }
+    });
+    const tokenizePayloadMetaPool = createBoundedObjectPool({
+      maxSize: 512,
+      create: () => ({ file: null, size: null, textLength: null, mode: null, ext: null }),
+      reset: (entry) => {
+        entry.file = null;
+        entry.size = null;
+        entry.textLength = null;
+        entry.mode = null;
+        entry.ext = null;
+        return entry;
+      }
+    });
+    const quantizePayloadMetaPool = createBoundedObjectPool({
+      maxSize: 512,
+      create: () => ({ vectorCount: null, levels: null }),
+      reset: (entry) => {
+        entry.vectorCount = null;
+        entry.levels = null;
+        return entry;
+      }
+    });
+    const crashPayloadMetaPool = createBoundedObjectPool({
+      maxSize: 64,
+      create: () => ({ threadId: null }),
+      reset: (entry) => {
+        entry.threadId = null;
+        return entry;
+      }
+    });
+    const withPooledPayloadMeta = (poolForMeta, assign, fn) => {
+      const meta = poolForMeta.acquire();
+      assign(meta);
+      try {
+        return fn(meta);
+      } finally {
+        poolForMeta.release(meta);
+      }
+    };
+    const assignTokenizePayloadMeta = (target, payload) => {
+      target.file = payload && typeof payload.file === 'string' ? payload.file : null;
+      target.size = payload && Number.isFinite(payload.size) ? payload.size : null;
+      target.textLength = payload && typeof payload.text === 'string' ? payload.text.length : null;
+      target.mode = payload?.mode || null;
+      target.ext = payload?.ext || null;
+    };
+    const assignQuantizePayloadMeta = (target, payload) => {
+      target.vectorCount = payload && Array.isArray(payload.vectors)
+        ? payload.vectors.length
+        : null;
+      target.levels = payload?.levels ?? null;
+    };
     const createPool = () => {
       const workerData = {
         dictConfig: sanitizeDictConfig(dictConfig),
@@ -289,12 +359,20 @@ export async function createIndexerWorkerPool(input = {}) {
       poolInstance.on('message', (message) => {
         if (!message || typeof message !== 'object') return;
         if (message.type === 'worker-task') {
-          observeWorkerTaskDuration({
-            pool: poolLabel,
-            task: message.task,
-            worker: message.threadId,
-            status: message.status,
-            seconds: Number(message.durationMs) / 1000
+          withPooledPayloadMeta(workerTaskMetricPool, (labels) => {
+            labels.pool = poolLabel;
+            labels.task = message.task;
+            labels.worker = message.threadId != null ? String(message.threadId) : 'unknown';
+            labels.status = message.status;
+            labels.seconds = Number(message.durationMs) / 1000;
+          }, (labels) => {
+            observeWorkerTaskDuration({
+              pool: labels.pool,
+              task: labels.task,
+              worker: labels.worker,
+              status: labels.status,
+              seconds: labels.seconds
+            });
           });
           return;
         }
@@ -308,20 +386,22 @@ export async function createIndexerWorkerPool(input = {}) {
           const suffix = [cloneIssue, `${taskHint}${stageHint}`.trim()].filter(Boolean).join(' | ');
           log(`Worker crash reported: ${detail}${suffix ? ` | ${suffix}` : ''}`);
           if (crashLogger?.enabled) {
-            crashLogger.logError({
-              phase: 'worker-thread',
-              message: message.message || 'worker crash',
-              stack: message.stack || null,
-              name: message.name || null,
-              code: null,
-              task: message.label || null,
-              cloneIssue: message.cloneIssue || null,
-              cloneStage: message.stage || null,
-              payloadMeta: {
-                threadId: message.threadId ?? null
-              },
-              raw: message.raw || null,
-              cause: message.cause || null
+            withPooledPayloadMeta(crashPayloadMetaPool, (meta) => {
+              meta.threadId = message.threadId ?? null;
+            }, (payloadMeta) => {
+              crashLogger.logError({
+                phase: 'worker-thread',
+                message: message.message || 'worker crash',
+                stack: message.stack || null,
+                name: message.name || null,
+                code: null,
+                task: message.label || null,
+                cloneIssue: message.cloneIssue || null,
+                cloneStage: message.stage || null,
+                payloadMeta,
+                raw: message.raw || null,
+                cause: message.cause || null
+              });
             });
           }
         }
@@ -392,7 +472,13 @@ export async function createIndexerWorkerPool(input = {}) {
           pendingRestart,
           restartAttempts,
           heapPolicy,
-          heapLimitMb: Number(resourceLimits?.maxOldGenerationSizeMb) || null
+          heapLimitMb: Number(resourceLimits?.maxOldGenerationSizeMb) || null,
+          objectPools: {
+            workerTaskMetrics: workerTaskMetricPool.stats(),
+            tokenizePayloadMeta: tokenizePayloadMetaPool.stats(),
+            quantizePayloadMeta: quantizePayloadMetaPool.stats(),
+            crashPayloadMeta: crashPayloadMetaPool.stats()
+          }
         };
       },
       dictConfig: sanitizeDictConfig(dictConfig),
@@ -418,22 +504,18 @@ export async function createIndexerWorkerPool(input = {}) {
         try {
           if (disabled && !(await ensurePool())) {
             if (crashLogger?.enabled) {
-              crashLogger.logError({
-                phase: 'worker-tokenize',
-                message: 'worker pool unavailable',
-                stack: null,
-                name: 'Error',
-                code: null,
-                task: 'tokenizeChunk',
-                payloadMeta: payload
-                  ? {
-                    file: typeof payload.file === 'string' ? payload.file : null,
-                    size: Number.isFinite(payload.size) ? payload.size : null,
-                    textLength: typeof payload.text === 'string' ? payload.text.length : null,
-                    mode: payload.mode || null,
-                    ext: payload.ext || null
-                  }
-                  : null
+              withPooledPayloadMeta(tokenizePayloadMetaPool, (meta) => {
+                assignTokenizePayloadMeta(meta, payload);
+              }, (payloadMeta) => {
+                crashLogger.logError({
+                  phase: 'worker-tokenize',
+                  message: 'worker pool unavailable',
+                  stack: null,
+                  name: 'Error',
+                  code: null,
+                  task: 'tokenizeChunk',
+                  payloadMeta: payload ? payloadMeta : null
+                });
               });
             }
             return null;
@@ -460,41 +542,37 @@ export async function createIndexerWorkerPool(input = {}) {
             await scheduleRestart(reason);
           }
           if (crashLogger?.enabled) {
-            crashLogger.logError({
-              phase: 'worker-tokenize',
-              message: detail || err?.message || String(err),
-              stack: err?.stack || null,
-              name: err?.name || null,
-              code: err?.code || null,
-              task: 'tokenizeChunk',
-              payloadMeta: payload
-                ? {
-                  file: typeof payload.file === 'string' ? payload.file : null,
-                  size: Number.isFinite(payload.size) ? payload.size : null,
-                  textLength: typeof payload.text === 'string' ? payload.text.length : null,
-                  mode: payload.mode || null,
-                  ext: payload.ext || null
-                }
-                : null,
-              raw: util.inspect(err, { depth: 4, breakLength: 120, showHidden: true, getters: true }),
-              errors: Array.isArray(err?.errors)
-                ? err.errors.map((inner) => ({
-                  message: inner?.message || String(inner),
-                  stack: inner?.stack || null,
-                  name: inner?.name || null,
-                  code: inner?.code || null,
-                  raw: util.inspect(inner, { depth: 3, breakLength: 120, showHidden: true, getters: true })
-                }))
-                : null,
-              cause: err?.cause
-                ? {
-                  message: err.cause?.message || String(err.cause),
-                  stack: err.cause?.stack || null,
-                  name: err.cause?.name || null,
-                  code: err.cause?.code || null,
-                  raw: util.inspect(err.cause, { depth: 3, breakLength: 120, showHidden: true, getters: true })
-                }
-                : null
+            withPooledPayloadMeta(tokenizePayloadMetaPool, (meta) => {
+              assignTokenizePayloadMeta(meta, payload);
+            }, (payloadMeta) => {
+              crashLogger.logError({
+                phase: 'worker-tokenize',
+                message: detail || err?.message || String(err),
+                stack: err?.stack || null,
+                name: err?.name || null,
+                code: err?.code || null,
+                task: 'tokenizeChunk',
+                payloadMeta: payload ? payloadMeta : null,
+                raw: util.inspect(err, { depth: 4, breakLength: 120, showHidden: true, getters: true }),
+                errors: Array.isArray(err?.errors)
+                  ? err.errors.map((inner) => ({
+                    message: inner?.message || String(inner),
+                    stack: inner?.stack || null,
+                    name: inner?.name || null,
+                    code: inner?.code || null,
+                    raw: util.inspect(inner, { depth: 3, breakLength: 120, showHidden: true, getters: true })
+                  }))
+                  : null,
+                cause: err?.cause
+                  ? {
+                    message: err.cause?.message || String(err.cause),
+                    stack: err.cause?.stack || null,
+                    name: err.cause?.name || null,
+                    code: err.cause?.code || null,
+                    raw: util.inspect(err.cause, { depth: 3, breakLength: 120, showHidden: true, getters: true })
+                  }
+                  : null
+              });
             });
           }
           return null;
@@ -520,21 +598,18 @@ export async function createIndexerWorkerPool(input = {}) {
         try {
           if (disabled && !(await ensurePool())) {
             if (crashLogger?.enabled) {
-              crashLogger.logError({
-                phase: 'worker-quantize',
-                message: 'worker pool unavailable',
-                stack: null,
-                name: 'Error',
-                code: null,
-                task: 'quantizeVectors',
-                payloadMeta: payload
-                  ? {
-                    vectorCount: Array.isArray(payload.vectors)
-                      ? payload.vectors.length
-                      : null,
-                    levels: payload.levels ?? null
-                  }
-                  : null
+              withPooledPayloadMeta(quantizePayloadMetaPool, (meta) => {
+                assignQuantizePayloadMeta(meta, payload);
+              }, (payloadMeta) => {
+                crashLogger.logError({
+                  phase: 'worker-quantize',
+                  message: 'worker pool unavailable',
+                  stack: null,
+                  name: 'Error',
+                  code: null,
+                  task: 'quantizeVectors',
+                  payloadMeta: payload ? payloadMeta : null
+                });
               });
             }
             return null;
@@ -557,38 +632,37 @@ export async function createIndexerWorkerPool(input = {}) {
           return result;
         } catch (err) {
           if (crashLogger?.enabled) {
-            crashLogger.logError({
-              phase: 'worker-quantize',
-              message: err?.message || String(err),
-              stack: err?.stack || null,
-              name: err?.name || null,
-              code: err?.code || null,
-              task: 'quantizeVectors',
-              payloadMeta: payload
-                ? {
-                  vectorCount: Array.isArray(payload.vectors) ? payload.vectors.length : null,
-                  levels: payload.levels ?? null
-                }
-                : null,
-              raw: util.inspect(err, { depth: 4, breakLength: 120, showHidden: true, getters: true }),
-              errors: Array.isArray(err?.errors)
-                ? err.errors.map((inner) => ({
-                  message: inner?.message || String(inner),
-                  stack: inner?.stack || null,
-                  name: inner?.name || null,
-                  code: inner?.code || null,
-                  raw: util.inspect(inner, { depth: 3, breakLength: 120, showHidden: true, getters: true })
-                }))
-                : null,
-              cause: err?.cause
-                ? {
-                  message: err.cause?.message || String(err.cause),
-                  stack: err.cause?.stack || null,
-                  name: err.cause?.name || null,
-                  code: err.cause?.code || null,
-                  raw: util.inspect(err.cause, { depth: 3, breakLength: 120, showHidden: true, getters: true })
-                }
-                : null
+            withPooledPayloadMeta(quantizePayloadMetaPool, (meta) => {
+              assignQuantizePayloadMeta(meta, payload);
+            }, (payloadMeta) => {
+              crashLogger.logError({
+                phase: 'worker-quantize',
+                message: err?.message || String(err),
+                stack: err?.stack || null,
+                name: err?.name || null,
+                code: err?.code || null,
+                task: 'quantizeVectors',
+                payloadMeta: payload ? payloadMeta : null,
+                raw: util.inspect(err, { depth: 4, breakLength: 120, showHidden: true, getters: true }),
+                errors: Array.isArray(err?.errors)
+                  ? err.errors.map((inner) => ({
+                    message: inner?.message || String(inner),
+                    stack: inner?.stack || null,
+                    name: inner?.name || null,
+                    code: inner?.code || null,
+                    raw: util.inspect(inner, { depth: 3, breakLength: 120, showHidden: true, getters: true })
+                  }))
+                  : null,
+                cause: err?.cause
+                  ? {
+                    message: err.cause?.message || String(err.cause),
+                    stack: err.cause?.stack || null,
+                    name: err.cause?.name || null,
+                    code: err.cause?.code || null,
+                    raw: util.inspect(err.cause, { depth: 3, breakLength: 120, showHidden: true, getters: true })
+                  }
+                  : null
+              });
             });
           }
           return null;
