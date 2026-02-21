@@ -22,7 +22,7 @@ try {
   const valid = loadUserConfig(tempRoot);
   assert.equal(valid?.indexing?.artifacts?.writeConcurrency, 8, 'expected valid writeConcurrency to load');
 
-  const invalidValues = [0, 33, 1.5, 'many'];
+  const invalidValues = [0, 65, 1.5, 'many'];
   for (const value of invalidValues) {
     await writeConfig(value);
     let failed = false;

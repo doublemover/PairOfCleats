@@ -61,6 +61,7 @@ const defaults = resolveSchedulerConfig({
 
 assert.equal(defaults.enabled, true, 'expected scheduler to default on');
 assert.equal(defaults.lowResourceMode, false, 'expected low-resource to default off');
+assert.equal(defaults.adaptive, true, 'expected adaptive scheduler mode to default on');
 assert.equal(defaults.cpuTokens, 1, 'expected cpu token clamp to 1');
 assert.equal(defaults.ioTokens, 1, 'expected io token clamp to 1');
 assert.equal(defaults.memoryTokens, 1, 'expected memory token clamp to 1');

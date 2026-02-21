@@ -14,7 +14,18 @@ const highVolume = resolveArtifactWriteConcurrency({
   totalWrites: 200,
   availableParallelism: 32
 });
-assert.deepEqual(highVolume, { cap: 24, override: false }, 'expected high-volume default write cap to scale up to 24');
+assert.deepEqual(highVolume, { cap: 32, override: false }, 'expected available CPU to cap high-volume write concurrency');
+
+const highVolumeWideHost = resolveArtifactWriteConcurrency({
+  artifactConfig: {},
+  totalWrites: 200,
+  availableParallelism: 96
+});
+assert.deepEqual(
+  highVolumeWideHost,
+  { cap: 48, override: false },
+  'expected high-volume default write cap to scale up to 48 on wide hosts'
+);
 
 const cpuBound = resolveArtifactWriteConcurrency({
   artifactConfig: {},

@@ -1,17 +1,17 @@
 import os from 'node:os';
 
 const ARTIFACT_WRITE_CONCURRENCY_MIN = 1;
-const ARTIFACT_WRITE_CONCURRENCY_MAX = 32;
+const ARTIFACT_WRITE_CONCURRENCY_MAX = 64;
 const ARTIFACT_WRITE_DEFAULT_MAX = 16;
 const ARTIFACT_WRITE_HIGH_VOLUME_THRESHOLD = 64;
-const ARTIFACT_WRITE_HIGH_VOLUME_DEFAULT_MAX = 24;
+const ARTIFACT_WRITE_HIGH_VOLUME_DEFAULT_MAX = 48;
 
 /**
  * Resolve artifact writer concurrency with a dynamic default and bounded override.
  *
  * Defaults are intentionally tiered:
  * - standard builds: up to 16 concurrent writes
- * - high-volume builds (many artifact files): up to 24 concurrent writes
+ * - high-volume builds (many artifact files): up to 48 concurrent writes
  *
  * Explicit `indexing.artifacts.writeConcurrency` config always wins, and
  * `availableParallelism` is exposed for deterministic tests.
@@ -34,7 +34,7 @@ export const resolveArtifactWriteConcurrency = ({
     const isInt = Number.isInteger(parsed);
     if (!isInt || parsed < ARTIFACT_WRITE_CONCURRENCY_MIN || parsed > ARTIFACT_WRITE_CONCURRENCY_MAX) {
       const err = new Error(
-        '[config] indexing.artifacts.writeConcurrency must be an integer in range 1..32.'
+        '[config] indexing.artifacts.writeConcurrency must be an integer in range 1..64.'
       );
       err.code = 'ERR_CONFIG_ARTIFACT_WRITE_CONCURRENCY';
       throw err;

@@ -885,6 +885,9 @@ export const enqueueChunkMetaArtifacts = async ({
     });
   }
   if (chunkMetaBinaryColumnar) {
+    const binaryColumnarEstimatedBytes = Number.isFinite(Number(chunkMetaEstimatedJsonlBytes))
+      ? Math.max(0, Math.floor(Number(chunkMetaEstimatedJsonlBytes)))
+      : null;
     enqueueWrite(
       formatArtifactLabel(binaryMetaPath),
       async () => {
@@ -949,6 +952,12 @@ export const enqueueChunkMetaArtifacts = async ({
           },
           atomic: true
         });
+      },
+      {
+        // Start binary-columnar generation early so it overlaps other long
+        // artifact writes instead of becoming the final tail.
+        priority: 225,
+        estimatedBytes: binaryColumnarEstimatedBytes
       }
     );
     addPieceFile({

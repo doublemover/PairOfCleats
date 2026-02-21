@@ -179,7 +179,7 @@ export const resolveSchedulerConfig = ({ argv, rawArgv, envConfig, indexingConfi
     cliPresent: hasCliArg(rawArgv, '--scheduler-adaptive') || hasCliArg(rawArgv, '--no-scheduler-adaptive'),
     envValue: envConfig?.schedulerAdaptive,
     configValue: schedulerConfig?.adaptive,
-    fallback: false
+    fallback: true
   });
 
   const maxCpuTokens = resolveNumber({
