@@ -282,6 +282,47 @@ const prioritizePendingCrossFileBundleUpdates = (pendingUpdates, { nowMs = Date.
   return hot.concat(cold);
 };
 
+const buildChunkReuseSignature = (chunks) => (
+  Array.isArray(chunks)
+    ? chunks.map((chunk) => {
+      const chunkId = chunk?.chunkId || chunk?.chunkUid || '';
+      const start = Number(chunk?.start) || 0;
+      const end = Number(chunk?.end) || 0;
+      const hash = typeof chunk?.hash === 'string' ? chunk.hash : '';
+      const textLength = typeof chunk?.text === 'string' ? chunk.text.length : 0;
+      return `${chunkId}:${start}:${end}:${hash}:${textLength}`;
+    }).join('|')
+    : ''
+);
+
+const buildStableJsonSignature = (value) => {
+  try {
+    return JSON.stringify(value ?? null);
+  } catch {
+    return '';
+  }
+};
+
+const shouldReuseExistingBundle = (existingBundle, nextBundle) => {
+  if (!existingBundle || !nextBundle) return false;
+  if (existingBundle.hash !== nextBundle.hash) return false;
+  if (existingBundle.mtimeMs !== nextBundle.mtimeMs) return false;
+  if (existingBundle.size !== nextBundle.size) return false;
+  if (buildChunkReuseSignature(existingBundle.chunks) !== buildChunkReuseSignature(nextBundle.chunks)) {
+    return false;
+  }
+  if (buildStableJsonSignature(existingBundle.fileRelations) !== buildStableJsonSignature(nextBundle.fileRelations)) {
+    return false;
+  }
+  if (buildStableJsonSignature(existingBundle.vfsManifestRows) !== buildStableJsonSignature(nextBundle.vfsManifestRows)) {
+    return false;
+  }
+  if ((existingBundle.encoding || null) !== (nextBundle.encoding || null)) return false;
+  if ((existingBundle.encodingFallback || null) !== (nextBundle.encodingFallback || null)) return false;
+  if ((existingBundle.encodingConfidence || null) !== (nextBundle.encodingConfidence || null)) return false;
+  return true;
+};
+
 /**
  * Initialize incremental cache state for a mode.
  * @param {{repoCacheRoot:string,mode:'code'|'prose',enabled:boolean,tokenizationKey?:string,log?:(msg:string)=>void}} input
@@ -869,6 +910,7 @@ export async function updateBundlesWithChunks({
     );
   }
   let bundleUpdates = 0;
+  let bundleSkipped = 0;
   let bundleFailures = 0;
   let nextProgressUpdate = 500;
   const updateTotal = prioritizedPendingUpdates.length;
@@ -899,6 +941,7 @@ export async function updateBundlesWithChunks({
       }
       const bundlePath = path.join(bundleDir, bundleName);
       let vfsManifestRows = null;
+      let existingBundle = null;
       const prefetched = resolvePrefetchedVfsRows(
         existingVfsManifestRowsByFile,
         normalizedFile,
@@ -911,9 +954,17 @@ export async function updateBundlesWithChunks({
           const existing = await readBundleFile(bundlePath, {
             format: bundleFormat
           });
+          existingBundle = existing?.bundle || null;
           vfsManifestRows = Array.isArray(existing?.bundle?.vfsManifestRows)
             ? existing.bundle.vfsManifestRows
             : null;
+        } catch {}
+      } else {
+        try {
+          const existing = await readBundleFile(bundlePath, {
+            format: bundleFormat
+          });
+          existingBundle = existing?.bundle || null;
         } catch {}
       }
       const bundle = {
@@ -928,6 +979,10 @@ export async function updateBundlesWithChunks({
         encodingFallback: typeof entry.encodingFallback === 'boolean' ? entry.encodingFallback : null,
         encodingConfidence: Number.isFinite(entry.encodingConfidence) ? entry.encodingConfidence : null
       };
+      if (shouldReuseExistingBundle(existingBundle, bundle)) {
+        bundleSkipped += 1;
+        continue;
+      }
       try {
         await writeBundleFile({
           bundlePath,
@@ -949,8 +1004,9 @@ export async function updateBundlesWithChunks({
   if (bundleUpdates || bundleFailures) {
     const durationMs = Math.max(0, Date.now() - startedAt);
     const failureText = bundleFailures > 0 ? `, ${bundleFailures} failed` : '';
+    const skippedText = bundleSkipped > 0 ? `, ${bundleSkipped} reused` : '';
     log(
-      `Cross-file inference updated ${bundleUpdates} incremental bundle(s)${failureText} `
+      `Cross-file inference updated ${bundleUpdates} incremental bundle(s)${skippedText}${failureText} `
       + `in ${durationMs}ms (workers=${workerCount}).`
     );
   }
