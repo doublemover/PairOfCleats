@@ -21,6 +21,94 @@ import {
 import { sanitizePoolPayload, summarizeError } from './protocol.js';
 
 /**
+ * Build a deterministic NUMA assignment plan for worker slots.
+ *
+ * This is an advisory policy layer for worker-thread pools: it computes stable
+ * node assignments and emits node hints in worker metadata/stats. On unsupported
+ * hosts it degrades to an explicit inactive reason.
+ *
+ * @param {{config?:object,maxWorkers:number}} input
+ * @returns {{enabled:boolean,active:boolean,reason:string|null,strategy:string,nodeCount:number,assignments:number[]}}
+ */
+const resolveNumaPinningPlan = ({ config, maxWorkers }) => {
+  const policy = config?.numaPinning && typeof config.numaPinning === 'object'
+    ? config.numaPinning
+    : { enabled: false };
+  if (policy.enabled !== true) {
+    return {
+      enabled: false,
+      active: false,
+      reason: 'disabled',
+      strategy: 'interleave',
+      nodeCount: 1,
+      assignments: []
+    };
+  }
+  if (process.platform !== 'linux') {
+    return {
+      enabled: true,
+      active: false,
+      reason: 'unsupported-platform',
+      strategy: policy.strategy || 'interleave',
+      nodeCount: 1,
+      assignments: []
+    };
+  }
+  const cpuCount = Array.isArray(os.cpus()) ? os.cpus().length : 0;
+  const minCpuCores = Number.isFinite(Number(policy.minCpuCores))
+    ? Math.max(1, Math.floor(Number(policy.minCpuCores)))
+    : 24;
+  if (!Number.isFinite(cpuCount) || cpuCount < minCpuCores) {
+    return {
+      enabled: true,
+      active: false,
+      reason: 'insufficient-cpu-cores',
+      strategy: policy.strategy || 'interleave',
+      nodeCount: 1,
+      assignments: []
+    };
+  }
+  const requestedNodes = Number.isFinite(Number(policy.nodeCount))
+    ? Math.max(1, Math.floor(Number(policy.nodeCount)))
+    : null;
+  const inferredNodes = Number.isFinite(cpuCount)
+    ? Math.max(1, Math.floor(cpuCount / 16))
+    : 1;
+  const nodeCount = Math.max(1, Math.min(requestedNodes || inferredNodes, maxWorkers));
+  if (nodeCount <= 1) {
+    return {
+      enabled: true,
+      active: false,
+      reason: 'single-node-topology',
+      strategy: policy.strategy || 'interleave',
+      nodeCount: 1,
+      assignments: []
+    };
+  }
+  const strategy = policy.strategy === 'compact' ? 'compact' : 'interleave';
+  const workers = Math.max(1, Math.floor(Number(maxWorkers) || 1));
+  const assignments = new Array(workers);
+  if (strategy === 'compact') {
+    const workersPerNode = Math.max(1, Math.ceil(workers / nodeCount));
+    for (let slot = 0; slot < workers; slot += 1) {
+      assignments[slot] = Math.min(nodeCount - 1, Math.floor(slot / workersPerNode));
+    }
+  } else {
+    for (let slot = 0; slot < workers; slot += 1) {
+      assignments[slot] = slot % nodeCount;
+    }
+  }
+  return {
+    enabled: true,
+    active: true,
+    reason: null,
+    strategy,
+    nodeCount,
+    assignments
+  };
+};
+
+/**
  * Create a single indexer worker pool with crash logging, restart handling,
  * and task-level instrumentation.
  *
@@ -191,6 +279,12 @@ export async function createIndexerWorkerPool(input = {}) {
     let pendingRestart = false;
     let quantizeTypedTempBuffers = 0;
     let effectiveMaxWorkers = configuredMaxWorkers;
+    let numaPinningPlan = resolveNumaPinningPlan({
+      config: poolConfig,
+      maxWorkers: effectiveMaxWorkers
+    });
+    const workerNumaNodeByThreadId = new Map();
+    let workerCreateOrdinal = 0;
     let pressureDownscaleEvents = 0;
     let lastPressureDownscaleAtMs = 0;
     const workerExecArgv = buildWorkerExecArgv();
@@ -404,9 +498,28 @@ export async function createIndexerWorkerPool(input = {}) {
     };
     const createPool = () => {
       currentResourceLimits = resolveResourceLimitsForWorkers(effectiveMaxWorkers);
+      numaPinningPlan = resolveNumaPinningPlan({
+        config: poolConfig,
+        maxWorkers: effectiveMaxWorkers
+      });
+      workerNumaNodeByThreadId.clear();
+      workerCreateOrdinal = 0;
       const workerData = {
         dictConfig: sanitizeDictConfig(dictConfig),
-        postingsConfig: postingsConfig || {}
+        postingsConfig: postingsConfig || {},
+        numaPinning: numaPinningPlan.active
+          ? {
+            active: true,
+            strategy: numaPinningPlan.strategy,
+            nodeCount: numaPinningPlan.nodeCount,
+            assignments: Array.isArray(numaPinningPlan.assignments)
+              ? Array.from(numaPinningPlan.assignments)
+              : []
+          }
+          : {
+            active: false,
+            reason: numaPinningPlan.reason || 'disabled'
+          }
       };
       if (dictSharedForPool?.bytes && dictSharedForPool?.offsets) {
         workerData.dictShared = dictSharedForPool;
@@ -638,6 +751,20 @@ export async function createIndexerWorkerPool(input = {}) {
       });
       poolInstance.on('workerCreate', (worker) => {
         if (!worker) return;
+        const threadId = worker.threadId ?? worker.id ?? worker.worker?.threadId;
+        if (numaPinningPlan.active && Number.isFinite(Number(threadId))) {
+          const assignments = Array.isArray(numaPinningPlan.assignments)
+            ? numaPinningPlan.assignments
+            : [];
+          if (assignments.length > 0) {
+            const slot = workerCreateOrdinal % assignments.length;
+            const node = assignments[slot];
+            workerCreateOrdinal += 1;
+            if (Number.isFinite(Number(node))) {
+              workerNumaNodeByThreadId.set(Number(threadId), Math.floor(Number(node)));
+            }
+          }
+        }
         const target = typeof worker.on === 'function'
           ? worker
           : (worker?.worker && typeof worker.worker.on === 'function'
@@ -654,6 +781,9 @@ export async function createIndexerWorkerPool(input = {}) {
           });
         });
         target.on('exit', (code) => {
+          if (Number.isFinite(Number(threadId))) {
+            workerNumaNodeByThreadId.delete(Number(threadId));
+          }
           if (code === 0) return;
           log(`Worker thread exited with code ${code}.`);
           crashLogger.logError({
@@ -665,6 +795,18 @@ export async function createIndexerWorkerPool(input = {}) {
       });
     };
     pool = createPool();
+    if (poolConfig?.numaPinning?.enabled === true) {
+      if (numaPinningPlan.active) {
+        log(
+          `Worker pool NUMA pinning active (${poolLabel}): strategy=${numaPinningPlan.strategy}, ` +
+          `nodes=${numaPinningPlan.nodeCount}, workers=${effectiveMaxWorkers}.`
+        );
+      } else {
+        log(
+          `Worker pool NUMA pinning not active (${poolLabel}): ${numaPinningPlan.reason || 'disabled'}.`
+        );
+      }
+    }
     attachPoolListeners(pool);
     updatePoolMetrics();
     return {
@@ -701,6 +843,15 @@ export async function createIndexerWorkerPool(input = {}) {
             lastEventAt: lastPressureDownscaleAtMs
               ? new Date(lastPressureDownscaleAtMs).toISOString()
               : null
+          },
+          numaPinning: {
+            enabled: poolConfig?.numaPinning?.enabled === true,
+            active: numaPinningPlan.active === true,
+            reason: numaPinningPlan.reason || null,
+            strategy: numaPinningPlan.strategy || null,
+            nodeCount: Number(numaPinningPlan.nodeCount) || 1,
+            workersAssigned: workerNumaNodeByThreadId.size,
+            assignments: Object.fromEntries(workerNumaNodeByThreadId.entries())
           },
           gcPressure: {
             stage: normalizedStage,

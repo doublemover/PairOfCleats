@@ -14,6 +14,7 @@ const normalizeEnabled = (raw) => {
 const WORKER_HEAP_TARGET_MIN_MB = 1024;
 const WORKER_HEAP_TARGET_DEFAULT_MB = 1536;
 const WORKER_HEAP_TARGET_MAX_MB = 2048;
+const NUMA_PINNING_STRATEGIES = new Set(['interleave', 'compact']);
 
 /**
  * Downscale worker count only when both signals indicate sustained pressure.
@@ -321,6 +322,18 @@ export function normalizeWorkerPoolConfig(raw = {}, options = {}) {
   const downscaleMinWorkers = downscaleMinWorkersRaw != null
     ? Math.max(1, Math.min(maxWorkers, downscaleMinWorkersRaw))
     : Math.max(1, Math.floor(maxWorkers * 0.5));
+  const numaConfig = raw?.numaPinning && typeof raw.numaPinning === 'object'
+    ? raw.numaPinning
+    : {};
+  const numaStrategyRaw = typeof numaConfig.strategy === 'string'
+    ? numaConfig.strategy.trim().toLowerCase()
+    : '';
+  const numaStrategy = NUMA_PINNING_STRATEGIES.has(numaStrategyRaw)
+    ? numaStrategyRaw
+    : 'interleave';
+  const numaMinCpuCores = coercePositiveIntMinOne(numaConfig.minCpuCores) || 24;
+  const numaNodeCount = coercePositiveIntMinOne(numaConfig.nodeCount);
+  const numaEnabled = numaConfig.enabled === true;
   return {
     enabled,
     maxWorkers,
@@ -338,7 +351,13 @@ export function normalizeWorkerPoolConfig(raw = {}, options = {}) {
     downscaleRssThreshold,
     downscaleGcThreshold,
     downscaleCooldownMs,
-    downscaleMinWorkers
+    downscaleMinWorkers,
+    numaPinning: {
+      enabled: numaEnabled,
+      strategy: numaStrategy,
+      minCpuCores: numaMinCpuCores,
+      nodeCount: numaNodeCount
+    }
   };
 }
 
