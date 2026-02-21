@@ -9,7 +9,8 @@ import {
   readBundleFile,
   resolveBundleFilename,
   resolveBundleFormatFromName,
-  writeBundleFile
+  writeBundleFile,
+  writeBundlePatch
 } from '../../shared/bundle-io.js';
 import { normalizeFilePath } from '../../shared/path-normalize.js';
 import { getEnvConfig } from '../../shared/env.js';
@@ -910,6 +911,7 @@ export async function updateBundlesWithChunks({
     );
   }
   let bundleUpdates = 0;
+  let bundlePatched = 0;
   let bundleSkipped = 0;
   let bundleFailures = 0;
   let nextProgressUpdate = 500;
@@ -949,22 +951,18 @@ export async function updateBundlesWithChunks({
       );
       if (prefetched.hit) {
         vfsManifestRows = prefetched.rows;
-      } else if (!skipFallbackReadForPrefetchMisses) {
+      }
+      if (!prefetched.hit || !skipFallbackReadForPrefetchMisses || bundleFormat === 'json') {
         try {
           const existing = await readBundleFile(bundlePath, {
             format: bundleFormat
           });
           existingBundle = existing?.bundle || null;
-          vfsManifestRows = Array.isArray(existing?.bundle?.vfsManifestRows)
-            ? existing.bundle.vfsManifestRows
-            : null;
-        } catch {}
-      } else {
-        try {
-          const existing = await readBundleFile(bundlePath, {
-            format: bundleFormat
-          });
-          existingBundle = existing?.bundle || null;
+          if (!prefetched.hit) {
+            vfsManifestRows = Array.isArray(existing?.bundle?.vfsManifestRows)
+              ? existing.bundle.vfsManifestRows
+              : null;
+          }
         } catch {}
       }
       const bundle = {
@@ -982,6 +980,25 @@ export async function updateBundlesWithChunks({
       if (shouldReuseExistingBundle(existingBundle, bundle)) {
         bundleSkipped += 1;
         continue;
+      }
+      if (existingBundle && bundleFormat === 'json') {
+        try {
+          const patchResult = await writeBundlePatch({
+            bundlePath,
+            previousBundle: existingBundle,
+            nextBundle: bundle,
+            format: bundleFormat
+          });
+          if (patchResult?.applied) {
+            bundleUpdates += 1;
+            bundlePatched += 1;
+            continue;
+          }
+          if (patchResult?.reason === 'no-changes') {
+            bundleSkipped += 1;
+            continue;
+          }
+        } catch {}
       }
       try {
         await writeBundleFile({
@@ -1001,12 +1018,13 @@ export async function updateBundlesWithChunks({
     }
   });
   await Promise.all(workers);
-  if (bundleUpdates || bundleFailures) {
+  if (bundleUpdates || bundleSkipped || bundleFailures) {
     const durationMs = Math.max(0, Date.now() - startedAt);
-    const failureText = bundleFailures > 0 ? `, ${bundleFailures} failed` : '';
-    const skippedText = bundleSkipped > 0 ? `, ${bundleSkipped} reused` : '';
+    const failureText = bundleFailures > 0 ? `, failed ${bundleFailures}` : '';
+    const patchedText = bundlePatched > 0 ? `, patched ${bundlePatched}` : '';
+    const skippedText = bundleSkipped > 0 ? `, reused ${bundleSkipped}` : '';
     log(
-      `Cross-file inference updated ${bundleUpdates} incremental bundle(s)${skippedText}${failureText} `
+      `Cross-file inference updated ${bundleUpdates} incremental bundle(s)${patchedText}${skippedText}${failureText} `
       + `in ${durationMs}ms (workers=${workerCount}).`
     );
   }
