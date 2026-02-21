@@ -644,11 +644,51 @@ function collectSqlParserUsages(text, dialect, log) {
 }
 
 /**
- * Collect imports from SQL source (none).
+ * Collect imports from SQL source.
  * @returns {string[]}
  */
-export function collectSqlImports() {
-  return [];
+export function collectSqlImports(text = '') {
+  const imports = new Set();
+  const lines = String(text || '').split('\n');
+  let inBlockComment = false;
+  for (const rawLine of lines) {
+    let cleaned = '';
+    let idx = 0;
+    while (idx < rawLine.length) {
+      if (inBlockComment) {
+        const end = rawLine.indexOf('*/', idx);
+        if (end === -1) {
+          idx = rawLine.length;
+          break;
+        }
+        idx = end + 2;
+        inBlockComment = false;
+        continue;
+      }
+      const blockStart = rawLine.indexOf('/*', idx);
+      const lineCommentStart = rawLine.indexOf('--', idx);
+      if (blockStart === -1 && lineCommentStart === -1) {
+        cleaned += rawLine.slice(idx);
+        break;
+      }
+      if (lineCommentStart !== -1 && (blockStart === -1 || lineCommentStart < blockStart)) {
+        cleaned += rawLine.slice(idx, lineCommentStart);
+        break;
+      }
+      cleaned += rawLine.slice(idx, blockStart);
+      idx = blockStart + 2;
+      inBlockComment = true;
+    }
+    const line = cleaned.trim();
+    if (!line || line.startsWith('--') || line.startsWith('/*')) continue;
+    const psqlMatch = line.match(/^\\i(?:r)?\s+([^\s;]+)/i);
+    if (psqlMatch?.[1]) imports.add(psqlMatch[1]);
+    const sourceMatch = line.match(/^source\s+([^\s;]+)/i);
+    if (sourceMatch?.[1]) imports.add(sourceMatch[1]);
+    const oracleMatch = line.match(/^@@\s*([^\s;]+)/);
+    if (oracleMatch?.[1]) imports.add(oracleMatch[1]);
+  }
+  return Array.from(imports);
 }
 
 /**
@@ -701,6 +741,7 @@ export function buildSqlChunks(text, options = {}) {
 export function buildSqlRelations(text, sqlChunks, options = {}) {
   const exports = new Set();
   const usages = new Set();
+  const imports = collectSqlImports(text);
   if (Array.isArray(sqlChunks)) {
     for (const chunk of sqlChunks) {
       if (!chunk || !chunk.name) continue;
@@ -712,11 +753,11 @@ export function buildSqlRelations(text, sqlChunks, options = {}) {
     if (entry) usages.add(entry);
   }
   return {
-    imports: [],
+    imports,
     exports: Array.from(exports),
     calls: [],
     usages: Array.from(usages),
-    importLinks: []
+    importLinks: imports.slice()
   };
 }
 

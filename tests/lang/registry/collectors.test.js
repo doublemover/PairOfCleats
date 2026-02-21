@@ -5,6 +5,8 @@ import { collectDockerfileImports } from '../../../src/index/language-registry/i
 import { collectGraphqlImports } from '../../../src/index/language-registry/import-collectors/graphql.js';
 import { collectGroovyImports } from '../../../src/index/language-registry/import-collectors/groovy.js';
 import { collectHandlebarsImports } from '../../../src/index/language-registry/import-collectors/handlebars.js';
+import { collectIniImports } from '../../../src/index/language-registry/import-collectors/ini.js';
+import { collectJsonImports } from '../../../src/index/language-registry/import-collectors/json.js';
 import { collectJinjaImports } from '../../../src/index/language-registry/import-collectors/jinja.js';
 import { collectJuliaImports } from '../../../src/index/language-registry/import-collectors/julia.js';
 import { collectMakefileImports } from '../../../src/index/language-registry/import-collectors/makefile.js';
@@ -15,6 +17,9 @@ import { collectRazorImports } from '../../../src/index/language-registry/import
 import { collectRImports } from '../../../src/index/language-registry/import-collectors/r.js';
 import { collectScalaImports } from '../../../src/index/language-registry/import-collectors/scala.js';
 import { collectStarlarkImports } from '../../../src/index/language-registry/import-collectors/starlark.js';
+import { collectTomlImports } from '../../../src/index/language-registry/import-collectors/toml.js';
+import { collectXmlImports } from '../../../src/index/language-registry/import-collectors/xml.js';
+import { collectYamlImports } from '../../../src/index/language-registry/import-collectors/yaml.js';
 
 const sort = (list) => list.slice().sort();
 const expectSet = (label, actual, expected) => {
@@ -28,76 +33,219 @@ const expectSet = (label, actual, expected) => {
 
 const cases = [
   {
+    label: 'xml',
+    fn: collectXmlImports,
+    text: [
+      '<root xmlns:cfg="urn:cfg" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"',
+      '  xsi:schemaLocation="urn:cfg ./cfg.xsd">',
+      '  <!-- <xsd:import schemaLocation="./ignored.xsd" /> -->',
+      '  <xi:include href="./base.xml" />',
+      '  <xsd:import schemaLocation="./types.xsd" />',
+      '</root>'
+    ].join('\n'),
+    expected: [
+      'namespace:cfg=urn:cfg',
+      'namespace:xsi=http://www.w3.org/2001/XMLSchema-instance',
+      'urn:cfg',
+      './cfg.xsd',
+      './base.xml',
+      './types.xsd'
+    ]
+  },
+  {
+    label: 'ini',
+    fn: collectIniImports,
+    text: [
+      '[includes]',
+      'files = ./base.ini, ./feature.cfg',
+      '[server]',
+      'schema = ./schema.ini'
+    ].join('\n'),
+    expected: ['./base.ini', './feature.cfg', './schema.ini']
+  },
+  {
+    label: 'toml',
+    fn: collectTomlImports,
+    text: [
+      '[dependencies]',
+      'serde = "1.0"',
+      'localcrate = { path = "../localcrate" }',
+      '[tool.poc]',
+      'include = ["./base.toml", "./feature.toml"]'
+    ].join('\n'),
+    expected: ['dependency:serde', 'dependency:localcrate', '../localcrate', './base.toml', './feature.toml']
+  },
+  {
+    label: 'json',
+    fn: collectJsonImports,
+    text: JSON.stringify({
+      schema: 'https://schemas.acme.dev/service.json',
+      service: {
+        include: ['./base.json', './feature.json'],
+        configPath: 'configs/service.json'
+      }
+    }),
+    expected: [
+      'https://schemas.acme.dev/service.json',
+      './base.json',
+      './feature.json',
+      'configs/service.json'
+    ]
+  },
+  {
+    label: 'yaml',
+    fn: collectYamlImports,
+    text: [
+      'defaults: &defaults',
+      '  image: node:20',
+      'service:',
+      '  <<: *defaults',
+      'include:',
+      '- ./base.yaml',
+      '- "./feature.yml"',
+      'extends: ./parent.yml'
+    ].join('\n'),
+    expected: ['anchor:defaults', 'alias:defaults', './base.yaml', './feature.yml', './parent.yml']
+  },
+  {
     label: 'dockerfile',
     fn: collectDockerfileImports,
-    text: 'FROM node:18 AS base\nCOPY --from=base /src /dst',
-    expected: ['node:18', 'base']
+    text: [
+      'FROM --platform=$BUILDPLATFORM node:18 AS base',
+      'FROM base AS build',
+      'RUN echo from builder',
+      'RUN --mount=type=cache,target=/root/.cache \\',
+      '    --mount=type=bind,from=ghcr.io/acme/builder:latest,target=/src true',
+      'COPY --from=base /src /dst'
+    ].join('\n'),
+    expected: ['node:18', 'base', 'build', 'ghcr.io/acme/builder:latest']
   },
   {
     label: 'makefile',
     fn: collectMakefileImports,
-    text: 'include shared.mk\n-include local.mk',
-    expected: ['shared.mk', 'local.mk']
+    text: [
+      'include shared.mk',
+      '-include local.mk',
+      'sinclude optional.mk',
+      'include $(wildcard mk/rules.mk mk/targets.mk)',
+      'app: src/main.o src/lib.o | build/.stamp'
+    ].join('\n'),
+    expected: ['shared.mk', 'local.mk', 'optional.mk', 'mk/rules.mk', 'mk/targets.mk', 'src/main.o', 'src/lib.o', 'build/.stamp']
   },
   {
     label: 'proto',
     fn: collectProtoImports,
-    text: 'import \"foo.proto\";\nimport public \"bar.proto\";',
-    expected: ['foo.proto', 'bar.proto']
+    text: [
+      'import \"foo.proto\";',
+      'import public \"bar.proto\";',
+      'import weak \"baz.proto\";',
+      'package poc.services.v1;',
+      'option go_package = \"github.com/acme/poc/services/v1\";'
+    ].join('\n'),
+    expected: ['foo.proto', 'bar.proto', 'baz.proto']
   },
   {
     label: 'graphql',
     fn: collectGraphqlImports,
-    text: '#import \"common.graphql\"',
-    expected: ['common.graphql']
+    text: [
+      '#import \"common.graphql\"',
+      'extend schema @link(url: \"https://specs.apollo.dev/federation/v2.6\", import: [\"@key\"])'
+    ].join('\n'),
+    expected: ['common.graphql', 'https://specs.apollo.dev/federation/v2.6']
   },
   {
     label: 'cmake',
     fn: collectCmakeImports,
-    text: 'include(foo)\nadd_subdirectory(bar)\nfind_package(Baz)',
-    expected: ['foo', 'bar', 'Baz']
+    text: [
+      'include(foo)',
+      'add_subdirectory(bar)',
+      'find_package(Baz)',
+      'target_link_libraries(app PRIVATE core::lib extra_lib)',
+      'add_dependencies(app codegen)'
+    ].join('\n'),
+    expected: ['foo', 'bar', 'Baz', 'core::lib', 'extra_lib', 'codegen']
   },
   {
     label: 'starlark',
     fn: collectStarlarkImports,
-    text: 'load(\"//path:target\", \"x\")',
-    expected: ['//path:target']
+    text: [
+      'load(\"//path:target\", \"x\")',
+      'bazel_dep(name = \"rules_cc\", version = \"0.0.1\")',
+      'use_extension(\"//tools:deps.bzl\", \"deps\")',
+      'local_path_override(module_name = \"custom\", path = \"../third_party/custom\")'
+    ].join('\n'),
+    expected: ['//path:target', '@rules_cc', '//tools:deps.bzl', '../third_party/custom']
   },
   {
     label: 'nix',
     fn: collectNixImports,
-    text: 'import ./module.nix\ncallPackage ../pkg.nix {}',
-    expected: ['./module.nix', '../pkg.nix']
+    text: [
+      'import ./module.nix',
+      'callPackage ../pkg.nix {}',
+      'imports = [ ./hosts/default.nix ../shared/infra.nix ];',
+      'inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";',
+      'inputs.local.path = ../local-override;'
+    ].join('\n'),
+    expected: [
+      './module.nix',
+      '../pkg.nix',
+      './hosts/default.nix',
+      '../shared/infra.nix',
+      'github:NixOS/nixpkgs/nixos-24.11',
+      '../local-override'
+    ]
   },
   {
     label: 'dart',
     fn: collectDartImports,
-    text: "import 'package:foo/bar.dart';",
-    expected: ['package:foo/bar.dart']
+    text: [
+      "import 'package:foo/bar.dart';",
+      "export 'src/public_api.dart';",
+      "part 'src/model.g.dart';",
+      "part of 'package:foo/app.dart';"
+    ].join('\n'),
+    expected: ['package:foo/bar.dart', 'src/public_api.dart', 'src/model.g.dart', 'package:foo/app.dart']
   },
   {
     label: 'scala',
     fn: collectScalaImports,
-    text: 'import foo.bar.Baz',
-    expected: ['foo.bar.Baz']
+    text: [
+      'package com.example.service',
+      'import foo.bar.Baz',
+      'class Worker extends foo.core.Base with foo.core.Logging'
+    ].join('\n'),
+    expected: ['com.example.service', 'foo.bar.Baz', 'foo.core.Base', 'foo.core.Logging']
   },
   {
     label: 'groovy',
     fn: collectGroovyImports,
-    text: 'import foo.bar.Baz',
-    expected: ['foo.bar.Baz']
+    text: [
+      'package com.example.build',
+      'import foo.bar.Baz',
+      'class Worker extends foo.core.Base implements foo.api.Task'
+    ].join('\n'),
+    expected: ['com.example.build', 'foo.bar.Baz', 'foo.core.Base', 'foo.api.Task']
   },
   {
     label: 'r',
     fn: collectRImports,
-    text: 'library(ggplot2)\nrequire(\"dplyr\")',
-    expected: ['ggplot2', 'dplyr']
+    text: [
+      'library(ggplot2)',
+      'require(\"dplyr\")',
+      'requireNamespace(\"jsonlite\")',
+      'source(\"R/helpers.R\")'
+    ].join('\n'),
+    expected: ['ggplot2', 'dplyr', 'jsonlite', 'R/helpers.R']
   },
   {
     label: 'julia',
     fn: collectJuliaImports,
-    text: 'using Foo.Bar',
-    expected: ['Foo.Bar']
+    text: [
+      'using Foo.Bar',
+      'import LinearAlgebra',
+      'include(\"kernels/fft.jl\")'
+    ].join('\n'),
+    expected: ['Foo.Bar', 'LinearAlgebra', 'kernels/fft.jl']
   },
   {
     label: 'handlebars',

@@ -71,5 +71,9 @@ assert.equal(getLanguageForFile('.toml', 'config/app.toml')?.id, 'toml');
 assert.equal(getLanguageForFile('.xml', 'config/app.xml')?.id, 'xml');
 assert.equal(getLanguageForFile('.yaml', 'config/app.yaml')?.id, 'yaml');
 assert.equal(getLanguageForFile('.yml', 'config/app.yml')?.id, 'yaml');
+assert.equal(getLanguageForFile('.js', 'src/dockerfile-parser.js')?.id, 'javascript');
+assert.equal(getLanguageForFile('.js', 'src/makefile-helper.js')?.id, 'javascript');
+assert.equal(getLanguageForFile('', 'misc/dockerfiles'), null, 'expected dockerfiles basename not to match dockerfile prefix route');
+assert.equal(getLanguageForFile('', 'misc/makefile_backup'), null, 'expected makefile_backup basename not to match makefile prefix route');
 
 console.log('language registry wiring test passed');

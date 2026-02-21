@@ -41,12 +41,12 @@ This roadmap consolidates all duplicated sections in `FUTUREROADMAP.md` into one
 
 Intent: remove ambiguity before code changes.
 
-- [ ] Resolve all open decisions in `FUTUREROADMAP.md` decision registers.
-- [ ] Declare canonical command/file names where duplicates exist:
-  - [ ] keep `tools/release/check.js` as canonical release runner
-  - [ ] keep one canonical test path per concern
-- [ ] Remove duplicate roadmap fragments from active planning docs and keep one authoritative sequence.
-- [ ] Enforce hard cutover policy in `AGENTS.md` roadmap process notes.
+- [x] Resolve all open decisions in `FUTUREROADMAP.md` decision registers.
+- [x] Declare canonical command/file names where duplicates exist:
+  - [x] keep `tools/release/check.js` as canonical release runner
+  - [x] keep one canonical test path per concern
+- [x] Remove duplicate roadmap fragments from active planning docs and keep one authoritative sequence.
+- [x] Enforce hard cutover policy in `AGENTS.md` roadmap process notes.
 
 Verification:
 
@@ -61,13 +61,13 @@ Intent: hard cutover to fully language-aware indexing, with no blind spots in ex
 
 #### 0.5.0 Phase prelude: shared baselines and execution discipline
 
-- [ ] Execute Phase 0.5 in this order: `0.5.40` (descriptor + manifest canon) -> `0.5.41` (caps telemetry/calibration) -> `0.5.1..0.5.39e` (language/framework implementation passes) -> `0.5.42` (performance optimization program).
-- [ ] Enforce shared-file workstreams to reduce thrash: one routing/descriptor workstream, one caps workstream, one fixture/test workstream; each shared file is patched once per workstream, not repeatedly per language.
-- [ ] Enforce a concrete per-subphase implementation contract for every `0.5.x` language/framework section:
+- [x] Execute Phase 0.5 in this order: `0.5.40` (descriptor + manifest canon) -> `0.5.41` (caps telemetry/calibration) -> `0.5.1..0.5.39e` (language/framework implementation passes) -> `0.5.42` (performance optimization program).
+- [x] Enforce shared-file workstreams to reduce thrash: one routing/descriptor workstream, one caps workstream, one fixture/test workstream; each shared file is patched once per workstream, not repeatedly per language.
+- [x] Enforce a concrete per-subphase implementation contract for every `0.5.x` language/framework section:
   - [ ] deliverable A: descriptor/spec patch (extensions, special filenames, parser route, adapter ID, caps profile)
   - [ ] deliverable B: code-path patch (routing + chunking + relations/flow/docmeta in listed touchpoints)
   - [ ] deliverable C: fixture/test patch (routing + collector/chunker/relation/flow + caps regression coverage)
-- [ ] Require each subphase commit series to include explicit artifact outputs (`descriptor diff`, `caps profile diff`, `fixture/test diff`) so validation work is always tied to concrete code changes.
+- [x] Require each subphase commit series to include explicit artifact outputs (`descriptor diff`, `caps profile diff`, `fixture/test diff`) so validation work is always tied to concrete code changes.
 
 Touchpoints:
 
@@ -78,6 +78,8 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 - `tests/indexing/language-registry/*`
 - `tests/indexing/chunking/*`
+
+Execution contract reference: `docs/guides/phase-0.5-execution-contract.md`.
 
 #### 0.5.1 JavaScript
 
@@ -272,9 +274,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.13 C and C++
 
-- [ ] Expand and enforce C/C++ extension coverage, including headers/modules (`.h`, `.hh`, `.hpp`, `.hxx`, `.c`, `.cc`, `.cpp`, `.cxx`, `.ipp`, `.ixx`, `.cppm`, `.tpp`, `.inl`, `.modulemap`).
-- [ ] Implement and verify include graph extraction and relation modeling for headers, sources, and module units.
-- [ ] Calibrate and commit C/C++ caps for large translation units and header-heavy repos.
+- [x] Expand and enforce C/C++ extension coverage, including headers/modules (`.h`, `.hh`, `.hpp`, `.hxx`, `.c`, `.cc`, `.cpp`, `.cxx`, `.ipp`, `.ixx`, `.cppm`, `.tpp`, `.inl`, `.modulemap`).
+- [x] Implement and verify include graph extraction and relation modeling for headers, sources, and module units.
+- [x] Calibrate and commit C/C++ caps for large translation units and header-heavy repos.
 
 
 Touchpoints:
@@ -287,9 +289,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.14 Objective-C
 
-- [ ] Implement Objective-C coverage (`.m`, `.mm`, Objective-C headers) and routing through C-like pipelines.
-- [ ] Implement and verify import/include extraction across ObjC and ObjC++ files.
-- [ ] Calibrate and commit Objective-C caps for mixed UIKit/macOS codebases.
+- [x] Implement Objective-C coverage (`.m`, `.mm`, Objective-C headers) and routing through C-like pipelines.
+- [x] Implement and verify import/include extraction across ObjC and ObjC++ files.
+- [x] Calibrate and commit Objective-C caps for mixed UIKit/macOS codebases.
 
 
 Touchpoints:
@@ -487,9 +489,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.27 SQL
 
-- [ ] Implement `.sql` routing and dialect-aware chunking behavior.
-- [ ] Implement and verify relation extraction for schema/table/function references where supported.
-- [ ] Calibrate and commit SQL caps for migration-heavy and warehouse-scale schema files.
+- [x] Implement `.sql` routing and dialect-aware chunking behavior.
+- [x] Implement and verify relation extraction for schema/table/function references where supported.
+- [x] Calibrate and commit SQL caps for migration-heavy and warehouse-scale schema files.
 
 
 Touchpoints:
@@ -503,9 +505,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.28 GraphQL
 
-- [ ] Implement `.graphql`/`.gql` routing and operation/schema chunking behavior.
-- [ ] Implement and verify relation extraction for fragments, operations, and schema references.
-- [ ] Calibrate and commit GraphQL caps for large federated schemas.
+- [x] Implement `.graphql`/`.gql` routing and operation/schema chunking behavior.
+- [x] Implement and verify relation extraction for fragments, operations, and schema references.
+- [x] Calibrate and commit GraphQL caps for large federated schemas.
 
 
 Touchpoints:
@@ -519,9 +521,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.29 Proto
 
-- [ ] Implement `.proto` routing and message/service/import extraction behavior.
-- [ ] Implement and verify relation extraction across multi-file proto packages.
-- [ ] Calibrate and commit Proto caps for large generated-interface repos.
+- [x] Implement `.proto` routing and message/service/import extraction behavior.
+- [x] Implement and verify relation extraction across multi-file proto packages.
+- [x] Calibrate and commit Proto caps for large generated-interface repos.
 
 
 Touchpoints:
@@ -535,9 +537,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.30 CMake
 
-- [ ] Implement `.cmake` and `CMakeLists.txt` routing.
-- [ ] Implement and verify target/dependency relation extraction for build graphs.
-- [ ] Calibrate and commit CMake caps for large multi-project build configurations.
+- [x] Implement `.cmake` and `CMakeLists.txt` routing.
+- [x] Implement and verify target/dependency relation extraction for build graphs.
+- [x] Calibrate and commit CMake caps for large multi-project build configurations.
 
 
 Touchpoints:
@@ -550,9 +552,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.31 Starlark/Bazel
 
-- [ ] Implement `.bzl`, `BUILD`, `WORKSPACE`, and related Bazel file routing.
-- [ ] Implement and verify load/target relation extraction across Bazel module graphs.
-- [ ] Calibrate and commit Starlark/Bazel caps for monorepo-scale build definitions.
+- [x] Implement `.bzl`, `BUILD`, `WORKSPACE`, and related Bazel file routing.
+- [x] Implement and verify load/target relation extraction across Bazel module graphs.
+- [x] Calibrate and commit Starlark/Bazel caps for monorepo-scale build definitions.
 
 
 Touchpoints:
@@ -565,9 +567,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.32 Nix
 
-- [ ] Implement `.nix` routing and import/attribute extraction behavior.
-- [ ] Implement and verify relation extraction across flake/module boundaries.
-- [ ] Calibrate and commit Nix caps for large flake-based infra repositories.
+- [x] Implement `.nix` routing and import/attribute extraction behavior.
+- [x] Implement and verify relation extraction across flake/module boundaries.
+- [x] Calibrate and commit Nix caps for large flake-based infra repositories.
 
 
 Touchpoints:
@@ -580,9 +582,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.33 Makefile
 
-- [ ] Implement `Makefile`/`makefile`/`GNUmakefile` routing and deterministic chunking.
-- [ ] Implement and verify target/include relation extraction for layered builds.
-- [ ] Calibrate and commit Makefile caps for generated and aggregate build files.
+- [x] Implement `Makefile`/`makefile`/`GNUmakefile` routing and deterministic chunking.
+- [x] Implement and verify target/include relation extraction for layered builds.
+- [x] Calibrate and commit Makefile caps for generated and aggregate build files.
 
 
 Touchpoints:
@@ -596,9 +598,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.34 Dockerfile
 
-- [ ] Implement `Dockerfile` and prefixed Dockerfile naming patterns routing.
-- [ ] Implement and verify stage/instruction chunking and dependency relation extraction.
-- [ ] Calibrate and commit Dockerfile caps for multi-stage enterprise images.
+- [x] Implement `Dockerfile` and prefixed Dockerfile naming patterns routing.
+- [x] Implement and verify stage/instruction chunking and dependency relation extraction.
+- [x] Calibrate and commit Dockerfile caps for multi-stage enterprise images.
 
 
 Touchpoints:
@@ -612,9 +614,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.35 Dart
 
-- [ ] Implement `.dart` routing and import/type relation extraction behavior.
-- [ ] Implement and verify chunking and relation extraction for Flutter and server Dart code.
-- [ ] Calibrate and commit Dart caps for generated model-heavy repositories.
+- [x] Implement `.dart` routing and import/type relation extraction behavior.
+- [x] Implement and verify chunking and relation extraction for Flutter and server Dart code.
+- [x] Calibrate and commit Dart caps for generated model-heavy repositories.
 
 
 Touchpoints:
@@ -627,9 +629,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.36 Scala
 
-- [ ] Implement `.scala` routing and package/import/type extraction behavior.
-- [ ] Implement and verify relation extraction for trait/object/class-heavy code.
-- [ ] Calibrate and commit Scala caps for large Spark and backend codebases.
+- [x] Implement `.scala` routing and package/import/type extraction behavior.
+- [x] Implement and verify relation extraction for trait/object/class-heavy code.
+- [x] Calibrate and commit Scala caps for large Spark and backend codebases.
 
 
 Touchpoints:
@@ -642,9 +644,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.37 Groovy
 
-- [ ] Implement `.groovy` routing and import/class extraction behavior.
-- [ ] Implement and verify relation extraction for Gradle and runtime Groovy scripts.
-- [ ] Calibrate and commit Groovy caps for DSL and script-heavy build repos.
+- [x] Implement `.groovy` routing and import/class extraction behavior.
+- [x] Implement and verify relation extraction for Gradle and runtime Groovy scripts.
+- [x] Calibrate and commit Groovy caps for DSL and script-heavy build repos.
 
 
 Touchpoints:
@@ -657,9 +659,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.38 R
 
-- [ ] Implement `.r` routing and function/source extraction behavior.
-- [ ] Implement and verify relation extraction for sourced scripts and package-style layouts.
-- [ ] Calibrate and commit R caps for analysis notebooks/scripts with long procedural files.
+- [x] Implement `.r` routing and function/source extraction behavior.
+- [x] Implement and verify relation extraction for sourced scripts and package-style layouts.
+- [x] Calibrate and commit R caps for analysis notebooks/scripts with long procedural files.
 
 
 Touchpoints:
@@ -672,9 +674,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.39 Julia
 
-- [ ] Implement `.jl` routing and module/include extraction behavior.
-- [ ] Implement and verify relation extraction across package/module boundaries.
-- [ ] Calibrate and commit Julia caps for scientific code with long numeric kernels.
+- [x] Implement `.jl` routing and module/include extraction behavior.
+- [x] Implement and verify relation extraction across package/module boundaries.
+- [x] Calibrate and commit Julia caps for scientific code with long numeric kernels.
 
 
 Touchpoints:
@@ -687,9 +689,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.39a YAML
 
-- [ ] Implement `.yaml`/`.yml` routing and top-level/document-aware chunking behavior.
-- [ ] Implement and verify anchor/alias/include-style reference extraction behavior where supported.
-- [ ] Calibrate and commit YAML caps for large CI/deployment/config monoliths.
+- [x] Implement `.yaml`/`.yml` routing and top-level/document-aware chunking behavior.
+- [x] Implement and verify anchor/alias/include-style reference extraction behavior where supported.
+- [x] Calibrate and commit YAML caps for large CI/deployment/config monoliths.
 
 
 Touchpoints:
@@ -705,9 +707,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.39b JSON
 
-- [ ] Implement `.json` routing and deterministic structural chunking behavior.
-- [ ] Implement and verify key-path and reference-style relation extraction behavior where supported.
-- [ ] Calibrate and commit JSON caps for large generated manifests and lockfiles.
+- [x] Implement `.json` routing and deterministic structural chunking behavior.
+- [x] Implement and verify key-path and reference-style relation extraction behavior where supported.
+- [x] Calibrate and commit JSON caps for large generated manifests and lockfiles.
 
 
 Touchpoints:
@@ -723,9 +725,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.39c TOML
 
-- [ ] Implement `.toml` routing and table/array-of-table chunking behavior.
-- [ ] Implement and verify dependency/config reference extraction behavior where supported.
-- [ ] Calibrate and commit TOML caps for large toolchain and package configuration files.
+- [x] Implement `.toml` routing and table/array-of-table chunking behavior.
+- [x] Implement and verify dependency/config reference extraction behavior where supported.
+- [x] Calibrate and commit TOML caps for large toolchain and package configuration files.
 
 
 Touchpoints:
@@ -741,9 +743,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.39d INI
 
-- [ ] Implement `.ini`/`.cfg` routing and section/key chunking behavior.
-- [ ] Implement and verify include/reference extraction behavior where supported.
-- [ ] Calibrate and commit INI caps for legacy and infra configuration repositories.
+- [x] Implement `.ini`/`.cfg` routing and section/key chunking behavior.
+- [x] Implement and verify include/reference extraction behavior where supported.
+- [x] Calibrate and commit INI caps for legacy and infra configuration repositories.
 
 
 Touchpoints:
@@ -759,9 +761,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.39e XML
 
-- [ ] Implement `.xml` routing and element/namespace-aware chunking behavior.
-- [ ] Implement and verify schema/import/include relation extraction behavior where supported.
-- [ ] Calibrate and commit XML caps for verbose build/config/schema files.
+- [x] Implement `.xml` routing and element/namespace-aware chunking behavior.
+- [x] Implement and verify schema/import/include relation extraction behavior where supported.
+- [x] Calibrate and commit XML caps for verbose build/config/schema files.
 
 
 Touchpoints:
@@ -778,24 +780,24 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.40 Build/package manifest and special-file catalog
 
-- [ ] Expand `MANIFEST_FILES` / `LOCK_FILES` to full supported ecosystem coverage; current detection is still partial.
-  - [ ] JS/TS: `package.json`, lockfiles
-  - [ ] Python: `requirements.txt`, `pyproject.toml`, `Pipfile`, locks
-  - [ ] Ruby: `Gemfile`, `Gemfile.lock`
-  - [ ] PHP: `composer.json`, `composer.lock`
-  - [ ] Go: `go.mod`, `go.sum`
-  - [ ] Rust: `Cargo.toml`, `Cargo.lock`
-  - [ ] Java/Kotlin/Groovy/Scala: `pom.xml`, `build.gradle`, `build.gradle.kts`, `settings.gradle`, `settings.gradle.kts`
-  - [ ] C#: `.sln`, `.csproj`, `.props`, `.targets`, `Directory.Build.props`
-  - [ ] Swift: `Package.swift`, `Package.resolved`
-  - [ ] Dart: `pubspec.yaml`, `pubspec.lock`
-  - [ ] R: `DESCRIPTION`
-  - [ ] Julia: `Project.toml`, `Manifest.toml`
-  - [ ] C/C++/ObjC and infra: `CMakeLists.txt`, `Makefile`, `BUILD`, `WORKSPACE`, `Dockerfile`, `buf.yaml`, `buf.gen.yaml`, `flake.nix`
-- [ ] Define one canonical language descriptor contract (extensions, special filenames, parser route, adapter ID, caps profile) and treat it as the only editable source for language routing.
-- [ ] Generate extension/special-file tables and registry dispatch maps from the canonical language descriptor to eliminate manual drift across constants, discovery, and language registry modules.
-- [ ] Keep manifest/special-file logic singular across discovery, tooling helpers, and language catalog specs.
-- [ ] Add strict parity tests that assert manifest/special-file detection coverage for every supported ecosystem and special filename.
+- [x] Expand `MANIFEST_FILES` / `LOCK_FILES` to full supported ecosystem coverage; current detection is still partial.
+  - [x] JS/TS: `package.json`, lockfiles
+  - [x] Python: `requirements.txt`, `pyproject.toml`, `Pipfile`, locks
+  - [x] Ruby: `Gemfile`, `Gemfile.lock`
+  - [x] PHP: `composer.json`, `composer.lock`
+  - [x] Go: `go.mod`, `go.sum`
+  - [x] Rust: `Cargo.toml`, `Cargo.lock`
+  - [x] Java/Kotlin/Groovy/Scala: `pom.xml`, `build.gradle`, `build.gradle.kts`, `settings.gradle`, `settings.gradle.kts`
+  - [x] C#: `.sln`, `.csproj`, `.props`, `.targets`, `Directory.Build.props`
+  - [x] Swift: `Package.swift`, `Package.resolved`
+  - [x] Dart: `pubspec.yaml`, `pubspec.lock`
+  - [x] R: `DESCRIPTION`
+  - [x] Julia: `Project.toml`, `Manifest.toml`
+  - [x] C/C++/ObjC and infra: `CMakeLists.txt`, `Makefile`, `BUILD`, `WORKSPACE`, `Dockerfile`, `buf.yaml`, `buf.gen.yaml`, `flake.nix`
+- [x] Define one canonical language descriptor contract (extensions, special filenames, parser route, adapter ID, caps profile) and treat it as the only editable source for language routing.
+- [x] Generate extension/special-file tables and registry dispatch maps from the canonical language descriptor to eliminate manual drift across constants, discovery, and language registry modules.
+- [x] Keep manifest/special-file logic singular across discovery, tooling helpers, and language catalog specs.
+- [x] Add strict parity tests that assert manifest/special-file detection coverage for every supported ecosystem and special filename.
 
 
 Touchpoints:
@@ -811,11 +813,11 @@ Touchpoints:
 - `docs/specs/import-resolution.md`
 #### 0.5.41 Language-specific limits calibration program
 
-- [ ] Build a language-by-language telemetry baseline (p50/p95/p99 bytes, lines, tokens, chunk counts, parse times).
-- [ ] Set strict per-language `maxBytes`/`maxLines`/tree-sitter thresholds from measured distributions instead of one global default.
-- [ ] Add per-language cap regression fixtures covering common real-world files and edge-case oversized files.
-- [ ] Emit deterministic calibration artifacts (`caps-calibration-inputs.json`, `caps-calibration-results.json`) and keep them versioned so cap updates are reproducible and reviewable.
-- [ ] Update `docs/specs/large-file-caps-strategy.md` and related contracts to reflect active language-aware behavior only.
+- [x] Build a language-by-language telemetry baseline (p50/p95/p99 bytes, lines, tokens, chunk counts, parse times).
+- [x] Set strict per-language `maxBytes`/`maxLines`/tree-sitter thresholds from measured distributions instead of one global default.
+- [x] Add per-language cap regression fixtures covering common real-world files and edge-case oversized files.
+- [x] Emit deterministic calibration artifacts (`caps-calibration-inputs.json`, `caps-calibration-results.json`) and keep them versioned so cap updates are reproducible and reviewable.
+- [x] Update `docs/specs/large-file-caps-strategy.md` and related contracts to reflect active language-aware behavior only.
 
 
 Touchpoints:
