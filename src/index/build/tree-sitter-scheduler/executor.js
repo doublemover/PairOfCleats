@@ -66,6 +66,106 @@ const attachSegmentMeta = ({
   return adjusted;
 };
 
+const clampPositiveInt = (value, fallback) => {
+  const parsed = Math.floor(Number(value));
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return parsed;
+};
+
+const resolveEscalatedParseTimeoutMs = ({
+  baseTimeoutMs,
+  segmentText,
+  parseMode
+}) => {
+  const base = clampPositiveInt(baseTimeoutMs, 400);
+  const text = typeof segmentText === 'string' ? segmentText : '';
+  const bytes = Buffer.byteLength(text, 'utf8');
+  let lines = 1;
+  for (let i = 0; i < text.length; i += 1) {
+    if (text.charCodeAt(i) === 10) lines += 1;
+  }
+  let multiplier = 1;
+  if (bytes >= (2 * 1024 * 1024) || lines >= 12000) multiplier = 4;
+  else if (bytes >= (1024 * 1024) || lines >= 6000) multiplier = 3;
+  else if (bytes >= (512 * 1024) || lines >= 3000) multiplier = 2;
+  if (parseMode === 'lightweight-relations') multiplier = Math.max(1, Math.floor(multiplier * 0.75));
+  return Math.max(base, Math.min(8000, base * multiplier));
+};
+
+const buildSchedulerCacheKey = ({
+  languageId,
+  parseMode,
+  expectedSignature,
+  segmentStart,
+  segmentEnd
+}) => ([
+  'ts-scheduler',
+  String(languageId || ''),
+  String(parseMode || 'full'),
+  String(expectedSignature?.hash || ''),
+  String(expectedSignature?.size ?? ''),
+  String(expectedSignature?.mtimeMs ?? ''),
+  String(segmentStart ?? ''),
+  String(segmentEnd ?? '')
+].join(':'));
+
+const buildTreeSitterOptionsForJob = ({
+  strictTreeSitter,
+  runtime,
+  log,
+  job,
+  segmentText,
+  expectedSignature
+}) => {
+  const languageId = job?.languageId || null;
+  const parseMode = job?.parseMode || 'full';
+  const baseConfig = strictTreeSitter && typeof strictTreeSitter === 'object'
+    ? strictTreeSitter
+    : {};
+  const byLanguage = baseConfig.byLanguage && typeof baseConfig.byLanguage === 'object'
+    ? { ...baseConfig.byLanguage }
+    : {};
+  const perLanguage = byLanguage[languageId] && typeof byLanguage[languageId] === 'object'
+    ? { ...byLanguage[languageId] }
+    : {};
+  const baseParseTimeout = perLanguage.maxParseMs ?? baseConfig.maxParseMs ?? 400;
+  perLanguage.maxParseMs = resolveEscalatedParseTimeoutMs({
+    baseTimeoutMs: baseParseTimeout,
+    segmentText,
+    parseMode
+  });
+  if (parseMode === 'lightweight-relations') {
+    perLanguage.maxChunkNodes = Math.min(clampPositiveInt(perLanguage.maxChunkNodes, 1024), 1024);
+    perLanguage.maxAstNodes = Math.min(clampPositiveInt(perLanguage.maxAstNodes, 100_000), 100_000);
+  }
+  byLanguage[languageId] = perLanguage;
+  const cacheRoot = runtime?.repoCacheRoot
+    ? path.join(runtime.repoCacheRoot, 'tree-sitter-scheduler', 'chunk-cache')
+    : null;
+  const treeSitter = {
+    ...baseConfig,
+    byLanguage,
+    cachePersistent: Boolean(cacheRoot),
+    cachePersistentDir: cacheRoot || undefined
+  };
+  if (parseMode === 'lightweight-relations') {
+    treeSitter.useQueries = false;
+    treeSitter.adaptive = false;
+    treeSitter.configChunking = false;
+  }
+  return {
+    treeSitter,
+    treeSitterCacheKey: buildSchedulerCacheKey({
+      languageId,
+      parseMode,
+      expectedSignature,
+      segmentStart: job?.segmentStart,
+      segmentEnd: job?.segmentEnd
+    }),
+    log
+  };
+};
+
 export const executeTreeSitterSchedulerPlan = async ({
   mode,
   runtime,
@@ -301,11 +401,19 @@ export const executeTreeSitterSchedulerPlan = async ({
         const endOffset = segmentEnd > segmentStart ? segmentEnd - 1 : segmentStart;
         const segmentEndLine = offsetToLine(currentLineIndex, endOffset);
 
+        const optionsForJob = buildTreeSitterOptionsForJob({
+          strictTreeSitter,
+          runtime,
+          log,
+          job,
+          segmentText,
+          expectedSignature
+        });
         const chunks = buildTreeSitterChunks({
           text: segmentText,
           languageId,
           ext: segmentExt,
-          options: treeSitterOptions
+          options: optionsForJob
         });
         if (!Array.isArray(chunks) || !chunks.length) {
           // In strict mode buildTreeSitterChunks should throw on failures. If it
@@ -440,3 +548,9 @@ export const executeTreeSitterSchedulerPlan = async ({
     }
   };
 };
+
+export const treeSitterSchedulerExecutorInternals = Object.freeze({
+  resolveEscalatedParseTimeoutMs,
+  buildSchedulerCacheKey,
+  buildTreeSitterOptionsForJob
+});

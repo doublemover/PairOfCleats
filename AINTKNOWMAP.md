@@ -2064,7 +2064,7 @@ Exit criteria:
       - Touchpoints: tree-sitter planner/scheduler paths (`src/index/build/tree-sitter-scheduler/*`) plus stage orchestration integration points.
       - Acceptance target: remove long single-wave critical paths for clike/cpp-heavy repos and reduce parser idle gaps; keep determinism unchanged.
       - Validation: add planner wave/bucket tests and large-grammar shard tests under `tests/indexing/tree-sitter/*`, plus cap/guard tests for maxBytes/maxLines behavior.
-  55. [ ] Add parser timeout escalation by file complexity heuristics.
+  55. [x] Add parser timeout escalation by file complexity heuristics.
       - Touchpoints: tree-sitter planner/scheduler paths (`src/index/build/tree-sitter-scheduler/*`) plus stage orchestration integration points.
       - Acceptance target: remove long single-wave critical paths for clike/cpp-heavy repos and reduce parser idle gaps; keep determinism unchanged.
       - Validation: add planner wave/bucket tests and large-grammar shard tests under `tests/indexing/tree-sitter/*`, plus cap/guard tests for maxBytes/maxLines behavior.
@@ -2072,11 +2072,11 @@ Exit criteria:
       - Touchpoints: tree-sitter planner/scheduler paths (`src/index/build/tree-sitter-scheduler/*`) plus stage orchestration integration points.
       - Acceptance target: remove long single-wave critical paths for clike/cpp-heavy repos and reduce parser idle gaps; keep determinism unchanged.
       - Validation: add planner wave/bucket tests and large-grammar shard tests under `tests/indexing/tree-sitter/*`, plus cap/guard tests for maxBytes/maxLines behavior.
-  57. [ ] Add lightweight parse mode for relation extraction-only files.
+  57. [x] Add lightweight parse mode for relation extraction-only files.
       - Touchpoints: tree-sitter planner/scheduler paths (`src/index/build/tree-sitter-scheduler/*`) plus stage orchestration integration points.
       - Acceptance target: remove long single-wave critical paths for clike/cpp-heavy repos and reduce parser idle gaps; keep determinism unchanged.
       - Validation: add planner wave/bucket tests and large-grammar shard tests under `tests/indexing/tree-sitter/*`, plus cap/guard tests for maxBytes/maxLines behavior.
-  58. [ ] Cache parser outputs by content hash for unchanged files between bench runs.
+  58. [x] Cache parser outputs by content hash for unchanged files between bench runs.
       - Touchpoints: tree-sitter planner/scheduler paths (`src/index/build/tree-sitter-scheduler/*`) plus stage orchestration integration points.
       - Acceptance target: remove long single-wave critical paths for clike/cpp-heavy repos and reduce parser idle gaps; keep determinism unchanged.
       - Validation: add planner wave/bucket tests and large-grammar shard tests under `tests/indexing/tree-sitter/*`, plus cap/guard tests for maxBytes/maxLines behavior.
