@@ -15,7 +15,8 @@ import {
   buildWorkerExecArgv,
   resolveMemoryWorkerCap,
   resolveWorkerHeapBudgetPolicy,
-  resolveWorkerResourceLimits
+  resolveWorkerResourceLimits,
+  shouldDownscaleWorkersForPressure
 } from './config.js';
 import { sanitizePoolPayload, summarizeError } from './protocol.js';
 
@@ -163,6 +164,22 @@ export async function createIndexerWorkerPool(input = {}) {
   const restartBaseDelayMs = 5000;
   const restartMaxDelayMs = 10000;
   try {
+    const configuredMaxWorkers = Number.isFinite(poolConfig?.maxWorkers)
+      ? Math.max(1, Math.floor(poolConfig.maxWorkers))
+      : 1;
+    const autoDownscaleOnPressure = poolConfig?.autoDownscaleOnPressure !== false;
+    const downscaleMinWorkers = Number.isFinite(poolConfig?.downscaleMinWorkers)
+      ? Math.max(1, Math.min(configuredMaxWorkers, Math.floor(poolConfig.downscaleMinWorkers)))
+      : Math.max(1, Math.floor(configuredMaxWorkers * 0.5));
+    const downscaleRssThreshold = Number.isFinite(poolConfig?.downscaleRssThreshold)
+      ? Math.max(0.5, Math.min(0.99, Number(poolConfig.downscaleRssThreshold)))
+      : 0.9;
+    const downscaleGcThreshold = Number.isFinite(poolConfig?.downscaleGcThreshold)
+      ? Math.max(0.5, Math.min(0.99, Number(poolConfig.downscaleGcThreshold)))
+      : 0.85;
+    const downscaleCooldownMs = Number.isFinite(poolConfig?.downscaleCooldownMs)
+      ? Math.max(1000, Math.floor(Number(poolConfig.downscaleCooldownMs)))
+      : 15000;
     let pool = null;
     let disabled = false;
     let permanentlyDisabled = false;
@@ -173,17 +190,21 @@ export async function createIndexerWorkerPool(input = {}) {
     let shutdownWhenIdle = false;
     let pendingRestart = false;
     let quantizeTypedTempBuffers = 0;
+    let effectiveMaxWorkers = configuredMaxWorkers;
+    let pressureDownscaleEvents = 0;
+    let lastPressureDownscaleAtMs = 0;
     const workerExecArgv = buildWorkerExecArgv();
     const heapPolicy = resolveWorkerHeapBudgetPolicy({
       targetPerWorkerMb: poolConfig.heapTargetMb,
       minPerWorkerMb: poolConfig.heapMinMb,
       maxPerWorkerMb: poolConfig.heapMaxMb
     });
-    const resourceLimits = resolveWorkerResourceLimits(poolConfig.maxWorkers, {
+    const resolveResourceLimitsForWorkers = (maxWorkers) => resolveWorkerResourceLimits(maxWorkers, {
       targetPerWorkerMb: heapPolicy.targetPerWorkerMb,
       minPerWorkerMb: heapPolicy.minPerWorkerMb,
       maxPerWorkerMb: heapPolicy.maxPerWorkerMb
     });
+    let currentResourceLimits = resolveResourceLimitsForWorkers(effectiveMaxWorkers);
     const serializedDictWords = dictSharedForPool?.bytes && dictSharedForPool?.offsets
       ? null
       : normalizeStringArray(dictWordsForPool);
@@ -328,7 +349,7 @@ export async function createIndexerWorkerPool(input = {}) {
     };
     const updateGcTelemetry = (workerId, durationMs = null) => {
       const now = Date.now();
-      if ((now - lastGcSampleAt) < gcSampleIntervalMs) return;
+      if ((now - lastGcSampleAt) < gcSampleIntervalMs) return null;
       lastGcSampleAt = now;
       const usage = process.memoryUsage();
       const heapUsed = Number(usage?.heapUsed) || 0;
@@ -379,8 +400,10 @@ export async function createIndexerWorkerPool(input = {}) {
         stage: normalizedStage,
         value: pressureRatio
       });
+      return { rssPressure, gcPressure: heapUtilization, pressureRatio };
     };
     const createPool = () => {
+      currentResourceLimits = resolveResourceLimitsForWorkers(effectiveMaxWorkers);
       const workerData = {
         dictConfig: sanitizeDictConfig(dictConfig),
         postingsConfig: postingsConfig || {}
@@ -404,12 +427,12 @@ export async function createIndexerWorkerPool(input = {}) {
       }
       return new Piscina({
         filename: fileURLToPath(new URL('./indexer-worker.js', import.meta.url)),
-        maxThreads: poolConfig.maxWorkers,
+        maxThreads: effectiveMaxWorkers,
         idleTimeout: poolConfig.idleTimeoutMs,
         taskTimeout: poolConfig.taskTimeoutMs,
         recordTiming: true,
         execArgv: workerExecArgv,
-        ...(resourceLimits ? { resourceLimits } : {}),
+        ...(currentResourceLimits ? { resourceLimits: currentResourceLimits } : {}),
         workerData
       });
     };
@@ -472,6 +495,44 @@ export async function createIndexerWorkerPool(input = {}) {
       }
       if (reason) log(`Worker pool disabled: ${reason} (retry in ${delayMs}ms).`);
     };
+    const scheduleReconfigureRestart = async (reason) => {
+      if (permanentlyDisabled) return;
+      disabled = true;
+      pendingRestart = true;
+      restartAtMs = Date.now() + 50;
+      if (activeTasks === 0) {
+        await shutdownPool();
+      } else {
+        shutdownWhenIdle = true;
+      }
+      if (reason) log(`Worker pool reconfigure: ${reason}`);
+    };
+    const maybeReduceWorkersOnPressure = async ({ rssPressure, gcPressure }) => {
+      if (!autoDownscaleOnPressure || permanentlyDisabled) return;
+      if (disabled || pendingRestart || restarting) return;
+      if (!shouldDownscaleWorkersForPressure({
+        rssPressure,
+        gcPressure,
+        rssThreshold: downscaleRssThreshold,
+        gcThreshold: downscaleGcThreshold
+      })) {
+        return;
+      }
+      if (effectiveMaxWorkers <= downscaleMinWorkers) return;
+      const now = Date.now();
+      if ((now - lastPressureDownscaleAtMs) < downscaleCooldownMs) return;
+      const nextWorkers = Math.max(downscaleMinWorkers, effectiveMaxWorkers - 1);
+      if (nextWorkers >= effectiveMaxWorkers) return;
+      const previousWorkers = effectiveMaxWorkers;
+      effectiveMaxWorkers = nextWorkers;
+      pressureDownscaleEvents += 1;
+      lastPressureDownscaleAtMs = now;
+      await scheduleReconfigureRestart(
+        `rssPressure=${rssPressure.toFixed(3)} gcPressure=${gcPressure.toFixed(3)} ` +
+        `thresholds(rss=${downscaleRssThreshold.toFixed(2)},gc=${downscaleGcThreshold.toFixed(2)}) ` +
+        `workers ${previousWorkers}->${nextWorkers}.`
+      );
+    };
     const maybeRestart = async () => {
       if (permanentlyDisabled) return false;
       if (!pendingRestart || !disabled) return false;
@@ -528,7 +589,10 @@ export async function createIndexerWorkerPool(input = {}) {
               seconds: labels.seconds
             });
           });
-          updateGcTelemetry(message.threadId, Number(message.durationMs));
+          const pressureSample = updateGcTelemetry(message.threadId, Number(message.durationMs));
+          if (pressureSample) {
+            void maybeReduceWorkersOnPressure(pressureSample).catch(() => {});
+          }
           return;
         }
         if (message.type === 'worker-crash') {
@@ -611,24 +675,33 @@ export async function createIndexerWorkerPool(input = {}) {
       },
       stats() {
         const queued = Number.isFinite(pool?.queueSize) ? pool.queueSize : 0;
-        const maxWorkers = Number.isFinite(poolConfig?.maxWorkers)
-          ? Math.max(1, Math.floor(poolConfig.maxWorkers))
-          : 1;
-        const queueUtilization = maxWorkers > 0
-          ? Math.max(0, Math.min(1, (activeTasks + queued) / maxWorkers))
+        const queueUtilization = effectiveMaxWorkers > 0
+          ? Math.max(0, Math.min(1, (activeTasks + queued) / effectiveMaxWorkers))
           : null;
         return {
           pool: poolLabel,
           activeTasks,
           queuedTasks: queued,
-          maxWorkers,
+          maxWorkers: effectiveMaxWorkers,
+          configuredMaxWorkers,
           utilization: queueUtilization,
           disabled,
           pendingRestart,
           restartAttempts,
           heapPolicy,
-          heapLimitMb: Number(resourceLimits?.maxOldGenerationSizeMb) || null,
+          heapLimitMb: Number(currentResourceLimits?.maxOldGenerationSizeMb) || null,
           quantizeTypedTempBuffers,
+          pressureDownscale: {
+            enabled: autoDownscaleOnPressure,
+            rssThreshold: downscaleRssThreshold,
+            gcThreshold: downscaleGcThreshold,
+            minWorkers: downscaleMinWorkers,
+            cooldownMs: downscaleCooldownMs,
+            events: pressureDownscaleEvents,
+            lastEventAt: lastPressureDownscaleAtMs
+              ? new Date(lastPressureDownscaleAtMs).toISOString()
+              : null
+          },
           gcPressure: {
             stage: normalizedStage,
             samples: gcSampleCount,

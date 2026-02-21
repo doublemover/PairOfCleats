@@ -1,6 +1,6 @@
 import os from 'node:os';
 import { getEnvConfig } from '../../../shared/env.js';
-import { coercePositiveIntMinOne } from '../../../shared/number-coerce.js';
+import { coerceClampedFraction, coercePositiveIntMinOne } from '../../../shared/number-coerce.js';
 
 const normalizeEnabled = (raw) => {
   if (raw === true || raw === false) return raw;
@@ -14,6 +14,29 @@ const normalizeEnabled = (raw) => {
 const WORKER_HEAP_TARGET_MIN_MB = 1024;
 const WORKER_HEAP_TARGET_DEFAULT_MB = 1536;
 const WORKER_HEAP_TARGET_MAX_MB = 2048;
+
+/**
+ * Downscale worker count only when both signals indicate sustained pressure.
+ * This avoids reducing concurrency for transient RSS spikes or GC-only blips.
+ *
+ * @param {object} input
+ * @param {number} input.rssPressure
+ * @param {number} input.gcPressure
+ * @param {number} input.rssThreshold
+ * @param {number} input.gcThreshold
+ * @returns {boolean}
+ */
+export const shouldDownscaleWorkersForPressure = ({
+  rssPressure,
+  gcPressure,
+  rssThreshold,
+  gcThreshold
+}) => Number.isFinite(rssPressure)
+    && Number.isFinite(gcPressure)
+    && Number.isFinite(rssThreshold)
+    && Number.isFinite(gcThreshold)
+    && rssPressure >= rssThreshold
+    && gcPressure >= gcThreshold;
 
 /**
  * Build worker `execArgv` by removing parent heap flags so worker limits can
@@ -281,6 +304,23 @@ export function normalizeWorkerPoolConfig(raw = {}, options = {}) {
   const normalizedHeapMaxMb = heapMaxMb != null && normalizedHeapMinMb != null
     ? Math.max(heapMaxMb, normalizedHeapMinMb)
     : heapMaxMb;
+  const autoDownscaleOnPressure = raw.autoDownscaleOnPressure !== false;
+  const downscaleRssThreshold = coerceClampedFraction(
+    raw.downscaleRssThreshold,
+    { min: 0.5, max: 0.99, allowZero: false }
+  ) ?? 0.9;
+  const downscaleGcThreshold = coerceClampedFraction(
+    raw.downscaleGcThreshold,
+    { min: 0.5, max: 0.99, allowZero: false }
+  ) ?? 0.85;
+  const downscaleCooldownMsRaw = Number(raw.downscaleCooldownMs);
+  const downscaleCooldownMs = Number.isFinite(downscaleCooldownMsRaw) && downscaleCooldownMsRaw > 0
+    ? Math.max(1000, Math.floor(downscaleCooldownMsRaw))
+    : 15000;
+  const downscaleMinWorkersRaw = coercePositiveIntMinOne(raw.downscaleMinWorkers);
+  const downscaleMinWorkers = downscaleMinWorkersRaw != null
+    ? Math.max(1, Math.min(maxWorkers, downscaleMinWorkersRaw))
+    : Math.max(1, Math.floor(maxWorkers * 0.5));
   return {
     enabled,
     maxWorkers,
@@ -293,7 +333,12 @@ export function normalizeWorkerPoolConfig(raw = {}, options = {}) {
     quantizeMaxWorkers,
     heapTargetMb,
     heapMinMb: normalizedHeapMinMb,
-    heapMaxMb: normalizedHeapMaxMb
+    heapMaxMb: normalizedHeapMaxMb,
+    autoDownscaleOnPressure,
+    downscaleRssThreshold,
+    downscaleGcThreshold,
+    downscaleCooldownMs,
+    downscaleMinWorkers
   };
 }
 
