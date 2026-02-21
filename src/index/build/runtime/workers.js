@@ -8,6 +8,94 @@ import { createIndexerWorkerPools, resolveWorkerPoolConfig } from '../worker-poo
 import { resolveWorkerHeapBudgetPolicy, resolveWorkerResourceLimits } from '../workers/config.js';
 import { createCrashLogger } from '../crash-log.js';
 
+const MIN_RUNTIME_CACHE_MB = 64;
+const MIN_RUNTIME_WRITE_BUFFER_MB = 64;
+const DEFAULT_HOT_DICTIONARY_MB = 192;
+const DEFAULT_HOT_SYMBOL_MAP_MB = 96;
+
+const coerceRuntimeBudgetMb = (value, min = 1) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return Math.max(min, Math.floor(parsed));
+};
+
+/**
+ * Resolve per-worker cache and write-buffer budgets.
+ *
+ * Policy math:
+ * 1. Start from heap-scaled defaults so smaller heaps stay conservative.
+ * 2. Raise cache budget to at least the dictionary/symbol "hotset" footprint.
+ * 3. Respect per-worker RSS headroom by capping non-heap memory usage.
+ * 4. Leave write buffers bounded; caches are prioritized for dictionary/symbol
+ *    lookups because those structures are repeatedly touched across tasks.
+ *
+ * @param {object} input
+ * @param {object} input.memoryConfig
+ * @param {number} input.effectiveWorkerHeapMb
+ * @param {number} input.workerCount
+ * @param {number|null} input.maxGlobalRssMb
+ * @param {number} input.reserveRssMb
+ * @returns {{perWorkerCacheMb:number,perWorkerWriteBufferMb:number,rssHeadroomMb:number|null,cacheHotsetTargetMb:number}}
+ */
+const resolvePerWorkerCacheAndWriteBudget = ({
+  memoryConfig,
+  effectiveWorkerHeapMb,
+  workerCount,
+  maxGlobalRssMb,
+  reserveRssMb
+}) => {
+  const explicitCacheMb = coerceRuntimeBudgetMb(memoryConfig?.perWorkerCacheMb, MIN_RUNTIME_CACHE_MB);
+  const explicitWriteBufferMb = coerceRuntimeBudgetMb(
+    memoryConfig?.perWorkerWriteBufferMb,
+    MIN_RUNTIME_WRITE_BUFFER_MB
+  );
+  const hotDictionaryMb = coerceRuntimeBudgetMb(memoryConfig?.hotDictionaryMb, 1)
+    || DEFAULT_HOT_DICTIONARY_MB;
+  const hotSymbolMapMb = coerceRuntimeBudgetMb(memoryConfig?.hotSymbolMapMb, 1)
+    || DEFAULT_HOT_SYMBOL_MAP_MB;
+  const cacheHotsetTargetMb = hotDictionaryMb + hotSymbolMapMb;
+  const defaultCacheMb = Math.max(192, Math.min(1024, Math.floor(effectiveWorkerHeapMb * 0.5)));
+  const defaultWriteBufferMb = Math.max(128, Math.min(640, Math.floor(effectiveWorkerHeapMb * 0.35)));
+
+  const rssHeadroomMb = Number.isFinite(maxGlobalRssMb) && maxGlobalRssMb > 0
+    ? Math.max(256, Math.floor(maxGlobalRssMb - reserveRssMb))
+    : null;
+  const perWorkerRssBudgetMb = Number.isFinite(rssHeadroomMb)
+    ? Math.max(256, Math.floor(rssHeadroomMb / Math.max(1, workerCount)))
+    : null;
+  const nonHeapBudgetMb = Number.isFinite(perWorkerRssBudgetMb)
+    ? Math.max(
+      MIN_RUNTIME_CACHE_MB + MIN_RUNTIME_WRITE_BUFFER_MB,
+      Math.floor(perWorkerRssBudgetMb - Math.max(1, effectiveWorkerHeapMb))
+    )
+    : null;
+
+  let perWorkerCacheMb = explicitCacheMb ?? Math.max(defaultCacheMb, cacheHotsetTargetMb);
+  if (Number.isFinite(nonHeapBudgetMb)) {
+    const cacheCeiling = Math.max(128, Math.floor(nonHeapBudgetMb * 0.8));
+    perWorkerCacheMb = Math.max(MIN_RUNTIME_CACHE_MB, Math.min(perWorkerCacheMb, cacheCeiling));
+  }
+
+  let perWorkerWriteBufferMb = explicitWriteBufferMb ?? defaultWriteBufferMb;
+  if (Number.isFinite(nonHeapBudgetMb)) {
+    const remaining = Math.max(
+      MIN_RUNTIME_WRITE_BUFFER_MB,
+      Math.floor(nonHeapBudgetMb - perWorkerCacheMb)
+    );
+    perWorkerWriteBufferMb = Math.max(
+      MIN_RUNTIME_WRITE_BUFFER_MB,
+      Math.min(perWorkerWriteBufferMb, remaining)
+    );
+  }
+
+  return {
+    perWorkerCacheMb,
+    perWorkerWriteBufferMb,
+    rssHeadroomMb,
+    cacheHotsetTargetMb
+  };
+};
+
 /**
  * Resolve runtime thread/concurrency limits from CLI, env, and config, and
  * emit advisory warnings when IO concurrency is likely to outpace libuv.
@@ -101,6 +189,8 @@ export const resolveThreadLimitsConfig = ({ argv, rawArgv, envConfig, indexingCo
  *   effectiveWorkerHeapMb:number,
  *   perWorkerCacheMb:number,
  *   perWorkerWriteBufferMb:number,
+ *   rssHeadroomMb:number|null,
+ *   cacheHotsetTargetMb:number,
  *   queueHeadroomScale:number
  * }}
  */
@@ -129,12 +219,15 @@ export const resolveRuntimeMemoryPolicy = ({ indexingConfig, cpuConcurrency }) =
   const maxGlobalRssMb = Number.isFinite(totalMemMb) && totalMemMb > 0
     ? Math.max(2048, Math.floor(totalMemMb * 0.9))
     : null;
-  const perWorkerCacheMb = Number.isFinite(Number(memoryConfig.perWorkerCacheMb))
-    ? Math.max(64, Math.floor(Number(memoryConfig.perWorkerCacheMb)))
-    : Math.max(128, Math.min(512, Math.floor(effectiveWorkerHeapMb * 0.35)));
-  const perWorkerWriteBufferMb = Number.isFinite(Number(memoryConfig.perWorkerWriteBufferMb))
-    ? Math.max(64, Math.floor(Number(memoryConfig.perWorkerWriteBufferMb)))
-    : Math.max(128, Math.min(768, Math.floor(effectiveWorkerHeapMb * 0.45)));
+  const budgetSplit = resolvePerWorkerCacheAndWriteBudget({
+    memoryConfig,
+    effectiveWorkerHeapMb,
+    workerCount,
+    maxGlobalRssMb,
+    reserveRssMb
+  });
+  const perWorkerCacheMb = budgetSplit.perWorkerCacheMb;
+  const perWorkerWriteBufferMb = budgetSplit.perWorkerWriteBufferMb;
   const projectedBudgetMb = workerCount * (
     effectiveWorkerHeapMb + perWorkerCacheMb + perWorkerWriteBufferMb
   );
@@ -149,6 +242,8 @@ export const resolveRuntimeMemoryPolicy = ({ indexingConfig, cpuConcurrency }) =
     effectiveWorkerHeapMb,
     perWorkerCacheMb,
     perWorkerWriteBufferMb,
+    rssHeadroomMb: budgetSplit.rssHeadroomMb,
+    cacheHotsetTargetMb: budgetSplit.cacheHotsetTargetMb,
     queueHeadroomScale
   };
 };
