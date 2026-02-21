@@ -41,24 +41,22 @@ const collectStringValues = (value, out, maxDepth = 3) => {
   }
 };
 
-const traverseJson = (value, imports, path = []) => {
+const traverseJson = (value, imports) => {
   if (Array.isArray(value)) {
     for (const item of value) {
-      traverseJson(item, imports, path);
+      traverseJson(item, imports);
     }
     return;
   }
   if (!value || typeof value !== 'object') return;
   for (const [key, nested] of Object.entries(value)) {
-    const keyPath = [...path, key].join('.');
-    addImport(imports, `keypath:${keyPath}`);
     const keyLower = key.toLowerCase();
     if (REFERENCE_KEY_TOKENS.has(keyLower)) {
       collectStringValues(nested, imports);
     } else if ((keyLower.endsWith('path') || keyLower.endsWith('file')) && typeof nested === 'string') {
       addImport(imports, nested);
     }
-    traverseJson(nested, imports, [...path, key]);
+    traverseJson(nested, imports);
   }
 };
 

@@ -132,7 +132,7 @@ const resolveDescriptorLanguage = (ext, relPath) => {
   }
   if (baseName) {
     for (const entry of DESCRIPTOR_PREFIX_MAP) {
-      if (!baseName.startsWith(entry.prefix)) continue;
+      if (!(baseName === entry.prefix || baseName.startsWith(`${entry.prefix}.`))) continue;
       return LANGUAGE_BY_ID.get(entry.languageId) || null;
     }
   }

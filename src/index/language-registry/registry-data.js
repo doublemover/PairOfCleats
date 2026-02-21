@@ -156,7 +156,13 @@ const YAML_EXTS = new Set(['.yaml', '.yml']);
 
 const isMakefilePath = (relPath) => MAKEFILE_BASENAMES.has(getPathBasename(relPath));
 
-const isDockerfilePath = (relPath) => getPathBasename(relPath).startsWith('dockerfile');
+const isDockerfilePath = (relPath) => {
+  const baseName = getPathBasename(relPath);
+  return baseName === 'dockerfile'
+    || baseName.startsWith('dockerfile.')
+    || baseName === 'containerfile'
+    || baseName.startsWith('containerfile.');
+};
 
 const isProtoConfigPath = (relPath) => {
   const name = getPathBasename(relPath);
