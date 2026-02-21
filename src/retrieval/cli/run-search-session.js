@@ -1,7 +1,7 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { incCacheEvent } from '../../shared/metrics.js';
-import { MAX_JSON_BYTES, readJsonFile } from '../../shared/artifact-io.js';
+import { MAX_JSON_BYTES } from '../../shared/artifact-io.js';
 import { ERROR_CODES } from '../../shared/error-codes.js';
 import { createSearchPipeline } from '../pipeline.js';
 import { buildQueryCacheKey, getIndexSignature } from '../cli-index.js';
@@ -145,6 +145,19 @@ export async function runSearchSession({
   signal,
   stageTracker
 }) {
+  const readJsonFileAsync = async (filePath, maxBytes = MAX_JSON_BYTES) => {
+    if (!filePath) return null;
+    try {
+      const stat = await fsSync.promises.stat(filePath);
+      if (!Number.isFinite(stat?.size) || stat.size < 0 || stat.size > maxBytes) {
+        return null;
+      }
+      const raw = await fsSync.promises.readFile(filePath, 'utf8');
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  };
   const resolvedDenseMode = typeof resolvedDenseVectorMode === 'string'
     ? resolvedDenseVectorMode.trim().toLowerCase()
     : 'merged';
@@ -626,22 +639,14 @@ export async function runSearchSession({
     if (!idx?.indexDir) return null;
     const metaPath = path.join(idx.indexDir, 'context_index.meta.json');
     const dataPath = path.join(idx.indexDir, 'context_index.json');
-    if (!fsSync.existsSync(metaPath) || !fsSync.existsSync(dataPath)) return null;
-    let meta = null;
-    try {
-      meta = readJsonFile(metaPath, { maxBytes: MAX_JSON_BYTES });
-    } catch {
-      return null;
-    }
+    const meta = await readJsonFileAsync(metaPath);
+    if (!meta) return null;
     if (!meta?.signature || meta.version !== 1) return null;
     const signature = await buildIndexSignature(idx.indexDir);
     if (signature !== meta.signature) return null;
-    try {
-      const raw = readJsonFile(dataPath, { maxBytes: MAX_JSON_BYTES });
-      return hydrateContextIndex(raw);
-    } catch {
-      return null;
-    }
+    const raw = await readJsonFileAsync(dataPath);
+    if (!raw) return null;
+    return hydrateContextIndex(raw);
   };
   const persistContextIndexCache = async (idx, contextIndex) => {
     if (!idx?.indexDir || !contextIndex) return;
