@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
+import { SERVICE_INDEXER_OPTIONS } from '../../src/shared/cli-options.js';
 import { isAbsolutePathNative } from '../../src/shared/files.js';
 import { formatDurationMs } from '../../src/shared/time-format.js';
 import { spawnSubprocess } from '../../src/shared/subprocess.js';
@@ -33,19 +34,7 @@ import { runLoggedSubprocess } from './subprocess-log.js';
 
 const argv = createCli({
   scriptName: 'indexer-service',
-  options: {
-    config: { type: 'string' },
-    repo: { type: 'string' },
-    mode: { type: 'string', default: 'all' },
-    reason: { type: 'string' },
-    stage: { type: 'string' },
-    command: { type: 'string' },
-    watch: { type: 'boolean', default: false },
-    interval: { type: 'number' },
-    concurrency: { type: 'number' },
-    queue: { type: 'string', default: 'index' },
-    json: { type: 'boolean', default: false }
-  }
+  options: SERVICE_INDEXER_OPTIONS
 }).parse();
 
 const command = argv.command || String(argv._[0] || '');

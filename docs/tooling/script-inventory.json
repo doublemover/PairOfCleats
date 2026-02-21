@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-21T02:02:04.437Z",
+  "generatedAt": "2026-02-21T05:02:44.007Z",
   "scripts": [
     {
       "name": "api-server",
@@ -408,6 +408,32 @@
       "category": "indexing",
       "ciAllowed": false,
       "replacement": null
+    }
+  ],
+  "cliCommands": [
+    {
+      "command": "pairofcleats service api",
+      "summary": "Run local HTTP JSON API service."
+    },
+    {
+      "command": "pairofcleats service indexer",
+      "summary": "Run indexer service queue/worker."
+    },
+    {
+      "command": "pairofcleats ingest ctags",
+      "summary": "Ingest ctags JSONL symbols into normalized records."
+    },
+    {
+      "command": "pairofcleats ingest gtags",
+      "summary": "Ingest GNU Global symbols into normalized records."
+    },
+    {
+      "command": "pairofcleats ingest lsif",
+      "summary": "Ingest LSIF dumps into normalized records."
+    },
+    {
+      "command": "pairofcleats ingest scip",
+      "summary": "Ingest SCIP indexes into normalized records."
     }
   ]
 }

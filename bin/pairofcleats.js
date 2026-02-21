@@ -5,7 +5,11 @@ import {
   resolveRepoRoot,
   resolveToolRoot
 } from '../tools/shared/dict-utils.js';
-import { INDEX_BUILD_OPTIONS } from '../src/shared/cli-options.js';
+import {
+  INDEX_BUILD_OPTIONS,
+  SERVICE_INDEXER_OPTIONS,
+  resolveCliOptionFlagSets
+} from '../src/shared/cli-options.js';
 import { spawnSubprocessSync } from '../src/shared/subprocess.js';
 import { buildErrorPayload, ERROR_CODES, isErrorCode } from '../src/shared/error-codes.js';
 import { resolveDispatchRuntimeEnv } from '../src/shared/dispatch/env.js';
@@ -440,10 +444,11 @@ function resolveCommand(primary, rest) {
       return { script: 'tools/api/server.js', extraArgs: [], args: rest };
     }
     if (sub === 'indexer') {
+      const { optionNames, valueOptionNames } = resolveCliOptionFlagSets(SERVICE_INDEXER_OPTIONS);
       validateArgs(
         rest,
-        ['config', 'repo', 'mode', 'reason', 'stage', 'command', 'watch', 'interval', 'concurrency', 'queue', 'json'],
-        ['config', 'repo', 'mode', 'reason', 'stage', 'command', 'interval', 'concurrency', 'queue']
+        optionNames,
+        valueOptionNames
       );
       return { script: 'tools/service/indexer-service.js', extraArgs: [], args: rest };
     }

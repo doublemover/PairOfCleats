@@ -3,6 +3,10 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import yargs from 'yargs/yargs';
 import { hideBin } from 'yargs/helpers';
+import {
+  SERVICE_INDEXER_OPTIONS,
+  resolveCliOptionFlagSets
+} from '../../src/shared/cli-options.js';
 
 const parseArgs = () => {
   const parser = yargs(hideBin(process.argv))
@@ -38,6 +42,33 @@ const ciAllowlist = new Set([
   'verify'
 ]);
 
+const CLI_ENTRYPOINTS = Object.freeze([
+  Object.freeze({
+    command: 'pairofcleats service api',
+    summary: 'Run local HTTP JSON API service.'
+  }),
+  Object.freeze({
+    command: 'pairofcleats service indexer',
+    summary: 'Run indexer service queue/worker.'
+  }),
+  Object.freeze({
+    command: 'pairofcleats ingest ctags',
+    summary: 'Ingest ctags JSONL symbols into normalized records.'
+  }),
+  Object.freeze({
+    command: 'pairofcleats ingest gtags',
+    summary: 'Ingest GNU Global symbols into normalized records.'
+  }),
+  Object.freeze({
+    command: 'pairofcleats ingest lsif',
+    summary: 'Ingest LSIF dumps into normalized records.'
+  }),
+  Object.freeze({
+    command: 'pairofcleats ingest scip',
+    summary: 'Ingest SCIP indexes into normalized records.'
+  })
+]);
+
 const readPhaseSpecs = async (root) => {
   const phaseDir = path.join(root, 'docs', 'phases', 'phase-3');
   try {
@@ -62,11 +93,21 @@ const main = async () => {
     ciAllowed: ciAllowlist.has(name) || name.startsWith('test:'),
     replacement: null
   }));
+  const { optionNames: serviceIndexerFlags, valueOptionNames: serviceIndexerValueFlags } = resolveCliOptionFlagSets(
+    SERVICE_INDEXER_OPTIONS
+  );
   const phaseSpecs = await readPhaseSpecs(root);
 
   const jsonPath = path.resolve(root, argv.json);
   await fsPromises.mkdir(path.dirname(jsonPath), { recursive: true });
-  await fsPromises.writeFile(jsonPath, `${JSON.stringify({ generatedAt: new Date().toISOString(), scripts: inventory }, null, 2)}\n`);
+  await fsPromises.writeFile(
+    jsonPath,
+    `${JSON.stringify({
+      generatedAt: new Date().toISOString(),
+      scripts: inventory,
+      cliCommands: CLI_ENTRYPOINTS
+    }, null, 2)}\n`
+  );
 
   const markdownPath = path.resolve(root, argv.markdown);
   const lines = [
@@ -76,6 +117,12 @@ const main = async () => {
     '',
     '## Phase 3 specs',
     ...phaseSpecs.map((spec) => `- \`${spec}\``),
+    '',
+    '## CLI entrypoints',
+    ...CLI_ENTRYPOINTS.map((entry) => `- \`${entry.command}\` - ${entry.summary}`),
+    '- `pairofcleats service indexer` flags:',
+    `  - allowed: ${serviceIndexerFlags.map((flag) => `--${flag}`).join(', ')}`,
+    `  - requires values: ${serviceIndexerValueFlags.map((flag) => `--${flag}`).join(', ')}`,
     '',
     '## Stable entrypoints',
     '- `node tests/run.js` (repo-local test runner)',
