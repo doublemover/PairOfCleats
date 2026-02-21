@@ -75,6 +75,7 @@ export {
   resolveArtifactWriteConcurrency,
   buildLexiconRelationFilterReport,
   resolveArtifactLaneConcurrency,
+  resolveArtifactLaneConcurrencyWithUltraLight,
   createAdaptiveWriteConcurrencyController
 };
 
@@ -209,6 +210,83 @@ const resolveArtifactLaneConcurrency = ({
   return {
     heavyConcurrency,
     lightConcurrency
+  };
+};
+
+/**
+ * Resolve write-lane concurrency when an ultra-light queue is present.
+ *
+ * Ultra-light artifacts reserve at least one slot (bounded) whenever mixed with
+ * other lanes so tiny metadata writes never wait behind long heavy tails.
+ *
+ * @param {object} input
+ * @param {number} input.writeConcurrency
+ * @param {number} input.ultraLightWrites
+ * @param {number} input.lightWrites
+ * @param {number} input.heavyWrites
+ * @param {number|null} [input.heavyWriteConcurrencyOverride]
+ * @param {number} [input.hostConcurrency]
+ * @returns {{ultraLightConcurrency:number,lightConcurrency:number,heavyConcurrency:number}}
+ */
+const resolveArtifactLaneConcurrencyWithUltraLight = ({
+  writeConcurrency,
+  ultraLightWrites,
+  lightWrites,
+  heavyWrites,
+  heavyWriteConcurrencyOverride = null,
+  hostConcurrency = 1
+}) => {
+  const totalWriteConcurrency = Math.max(1, Math.floor(Number(writeConcurrency) || 1));
+  const ultraLightWriteCount = Math.max(0, Math.floor(Number(ultraLightWrites) || 0));
+  const lightWriteCount = Math.max(0, Math.floor(Number(lightWrites) || 0));
+  const heavyWriteCount = Math.max(0, Math.floor(Number(heavyWrites) || 0));
+  if (!ultraLightWriteCount && !lightWriteCount && !heavyWriteCount) {
+    return {
+      ultraLightConcurrency: 0,
+      lightConcurrency: 0,
+      heavyConcurrency: 0
+    };
+  }
+  if (!lightWriteCount && !heavyWriteCount) {
+    return {
+      ultraLightConcurrency: Math.min(totalWriteConcurrency, ultraLightWriteCount),
+      lightConcurrency: 0,
+      heavyConcurrency: 0
+    };
+  }
+
+  const ultraLightReserveTarget = ultraLightWriteCount > 0
+    ? Math.max(1, Math.min(2, Math.ceil(totalWriteConcurrency * 0.25)))
+    : 0;
+  const maxUltraReserve = Math.max(0, totalWriteConcurrency - 1);
+  let ultraLightConcurrency = ultraLightWriteCount > 0
+    ? Math.min(ultraLightWriteCount, ultraLightReserveTarget, maxUltraReserve)
+    : 0;
+  if (ultraLightWriteCount > 0 && ultraLightConcurrency < 1 && totalWriteConcurrency > 0) {
+    ultraLightConcurrency = 1;
+  }
+  const remainingConcurrency = Math.max(0, totalWriteConcurrency - ultraLightConcurrency);
+  if (remainingConcurrency <= 0) {
+    return {
+      ultraLightConcurrency,
+      lightConcurrency: 0,
+      heavyConcurrency: 0
+    };
+  }
+  const base = resolveArtifactLaneConcurrency({
+    writeConcurrency: remainingConcurrency,
+    lightWrites: lightWriteCount,
+    heavyWrites: heavyWriteCount,
+    heavyWriteConcurrencyOverride,
+    hostConcurrency
+  });
+  if (base.lightConcurrency === 0 && base.heavyConcurrency === 0 && ultraLightWriteCount > 0) {
+    ultraLightConcurrency = Math.min(totalWriteConcurrency, ultraLightWriteCount);
+  }
+  return {
+    ultraLightConcurrency,
+    lightConcurrency: base.lightConcurrency,
+    heavyConcurrency: base.heavyConcurrency
   };
 };
 
@@ -1122,6 +1200,20 @@ export async function writeIndexArtifacts(input) {
   const heavyWriteConcurrencyOverride = Number.isFinite(Number(artifactConfig.writeHeavyConcurrency))
     ? Math.max(1, Math.floor(Number(artifactConfig.writeHeavyConcurrency)))
     : null;
+  const ultraLightWriteThresholdBytes = Number.isFinite(Number(artifactConfig.writeUltraLightThresholdBytes))
+    ? Math.max(1024, Math.floor(Number(artifactConfig.writeUltraLightThresholdBytes)))
+    : (64 * 1024);
+  const forcedUltraLightWritePatterns = Array.isArray(artifactConfig.writeUltraLightLabelPatterns)
+    ? artifactConfig.writeUltraLightLabelPatterns
+      .filter((entry) => typeof entry === 'string' && entry.trim())
+      .map((entry) => new RegExp(entry))
+    : [
+      /(^|\/)\.filelists\.json$/,
+      /(^|\/).*\.meta\.json$/,
+      /(^|\/)determinism_report\.json$/,
+      /(^|\/)vocab_order\.json$/,
+      /(^|\/)pieces\/manifest\.json$/
+    ];
   const adaptiveWriteConcurrencyEnabled = artifactConfig.writeAdaptiveConcurrency !== false;
   const adaptiveWriteMinConcurrency = Number.isFinite(Number(artifactConfig.writeAdaptiveMinConcurrency))
     ? Math.max(1, Math.floor(Number(artifactConfig.writeAdaptiveMinConcurrency)))
@@ -1327,15 +1419,24 @@ export async function writeIndexArtifacts(input) {
   );
   const splitWriteLanes = (entries) => {
     const ordered = scheduleWrites(entries);
-    const lanes = { light: [], heavy: [] };
+    const lanes = { ultraLight: [], light: [], heavy: [] };
     for (const entry of ordered) {
       const estimated = Number(entry?.estimatedBytes);
       const label = typeof entry?.label === 'string' ? entry.label : '';
       const isForcedHeavy = forcedHeavyWritePatterns.some((pattern) => pattern.test(label));
+      const isForcedUltraLight = forcedUltraLightWritePatterns.some((pattern) => pattern.test(label));
       const isHeavyBySize = Number.isFinite(estimated) && estimated >= heavyWriteThresholdBytes;
       const isHeavy = isForcedHeavy || isHeavyBySize;
-      if (isHeavy) lanes.heavy.push(entry);
-      else lanes.light.push(entry);
+      const isUltraLightBySize = Number.isFinite(estimated)
+        && estimated > 0
+        && estimated <= ultraLightWriteThresholdBytes;
+      if (isHeavy) {
+        lanes.heavy.push(entry);
+      } else if (isForcedUltraLight || isUltraLightBySize) {
+        lanes.ultraLight.push(entry);
+      } else {
+        lanes.light.push(entry);
+      }
     }
     return lanes;
   };
@@ -2225,8 +2326,12 @@ export async function writeIndexArtifacts(input) {
       piece: { type: 'postings', name: 'vocab_order' }
     });
   }
-  const { light: lightWrites, heavy: heavyWrites } = splitWriteLanes(writes);
-  totalWrites = lightWrites.length + heavyWrites.length;
+  const {
+    ultraLight: ultraLightWrites,
+    light: lightWrites,
+    heavy: heavyWrites
+  } = splitWriteLanes(writes);
+  totalWrites = ultraLightWrites.length + lightWrites.length + heavyWrites.length;
   if (totalWrites) {
     const artifactLabel = totalWrites === 1 ? 'artifact' : 'artifacts';
     logLine(`Writing index files (${totalWrites} ${artifactLabel})...`, { kind: 'status' });
@@ -2265,10 +2370,12 @@ export async function writeIndexArtifacts(input) {
       ? os.availableParallelism()
       : (Array.isArray(os.cpus()) ? os.cpus().length : 1);
     const laneQueues = {
+      ultraLight: ultraLightWrites.slice(),
       light: lightWrites.slice(),
       heavy: heavyWrites.slice()
     };
     const laneActive = {
+      ultraLight: 0,
       light: 0,
       heavy: 0
     };
@@ -2284,23 +2391,27 @@ export async function writeIndexArtifacts(input) {
     const observeAdaptiveWriteConcurrency = () => {
       if (!adaptiveWriteConcurrencyEnabled) return getActiveWriteConcurrency();
       return writeConcurrencyController.observe({
-        pendingWrites: laneQueues.light.length + laneQueues.heavy.length,
+        pendingWrites: laneQueues.ultraLight.length + laneQueues.light.length + laneQueues.heavy.length,
         activeWrites: activeCount,
         longestStallSec: getLongestWriteStallSeconds()
       });
     };
-    const resolveLaneBudgets = () => resolveArtifactLaneConcurrency({
+    const resolveLaneBudgets = () => resolveArtifactLaneConcurrencyWithUltraLight({
       writeConcurrency: getActiveWriteConcurrency(),
+      ultraLightWrites: laneQueues.ultraLight.length + laneActive.ultraLight,
       lightWrites: laneQueues.light.length + laneActive.light,
       heavyWrites: laneQueues.heavy.length + laneActive.heavy,
       heavyWriteConcurrencyOverride,
       hostConcurrency
     });
     const pickDispatchLane = (budgets) => {
+      const ultraLightAvailable = laneQueues.ultraLight.length > 0
+        && laneActive.ultraLight < Math.max(0, budgets.ultraLightConcurrency);
       const lightAvailable = laneQueues.light.length > 0
         && laneActive.light < Math.max(0, budgets.lightConcurrency);
       const heavyAvailable = laneQueues.heavy.length > 0
         && laneActive.heavy < Math.max(0, budgets.heavyConcurrency);
+      if (ultraLightAvailable) return 'ultraLight';
       if (!lightAvailable && !heavyAvailable) return null;
       if (lightAvailable && !heavyAvailable) return 'light';
       if (heavyAvailable && !lightAvailable) return 'heavy';
@@ -2388,7 +2499,12 @@ export async function writeIndexArtifacts(input) {
     startWriteHeartbeat();
     try {
       dispatchWrites();
-      while (inFlightWrites.size > 0 || laneQueues.light.length > 0 || laneQueues.heavy.length > 0) {
+      while (
+        inFlightWrites.size > 0
+        || laneQueues.ultraLight.length > 0
+        || laneQueues.light.length > 0
+        || laneQueues.heavy.length > 0
+      ) {
         if (fatalWriteError) break;
         if (!inFlightWrites.size) {
           dispatchWrites();
