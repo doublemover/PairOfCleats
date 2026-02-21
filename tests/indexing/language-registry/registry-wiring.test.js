@@ -72,7 +72,12 @@ assert.equal(getLanguageForFile('.xml', 'config/app.xml')?.id, 'xml');
 assert.equal(getLanguageForFile('.yaml', 'config/app.yaml')?.id, 'yaml');
 assert.equal(getLanguageForFile('.yml', 'config/app.yml')?.id, 'yaml');
 assert.equal(getLanguageForFile('.js', 'src/dockerfile-parser.js')?.id, 'javascript');
+assert.equal(getLanguageForFile('.mjs', 'src/dockerfile-parser.mjs')?.id, 'javascript');
+assert.equal(getLanguageForFile('.cjs', 'src/dockerfile-parser.cjs')?.id, 'javascript');
 assert.equal(getLanguageForFile('.js', 'src/makefile-helper.js')?.id, 'javascript');
+assert.equal(getLanguageForFile('.ts', 'src/dockerfile-parser.ts')?.id, 'typescript');
+assert.equal(getLanguageForFile('.mts', 'src/dockerfile-parser.mts')?.id, 'typescript');
+assert.equal(getLanguageForFile('.cts', 'src/dockerfile-parser.cts')?.id, 'typescript');
 assert.equal(getLanguageForFile('', 'misc/dockerfiles'), null, 'expected dockerfiles basename not to match dockerfile prefix route');
 assert.equal(getLanguageForFile('', 'misc/makefile_backup'), null, 'expected makefile_backup basename not to match makefile prefix route');
 

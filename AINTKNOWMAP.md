@@ -83,9 +83,9 @@ Execution contract reference: `docs/guides/phase-0.5-execution-contract.md`.
 
 #### 0.5.1 JavaScript
 
-- [ ] Implement and enforce canonical JS source extension routing (`.js`, `.mjs`, `.cjs`) and remove any conflicting heuristics.
-- [ ] Implement and verify JS index build wiring end-to-end: collect imports, chunking, relations, control/data flow, doc metadata extraction.
-- [ ] Calibrate and commit JS `fileCaps` and tree-sitter thresholds from repo telemetry (token density, average LOC/file, p95 file size) and set strict defaults.
+- [x] Implement and enforce canonical JS source extension routing (`.js`, `.mjs`, `.cjs`) and remove any conflicting heuristics.
+- [x] Implement and verify JS index build wiring end-to-end: collect imports, chunking, relations, control/data flow, doc metadata extraction.
+- [x] Calibrate and commit JS `fileCaps` and tree-sitter thresholds from repo telemetry (token density, average LOC/file, p95 file size) and set strict defaults.
 
 
 Touchpoints:
@@ -99,9 +99,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.2 TypeScript
 
-- [ ] Implement and enforce TS extension routing (`.ts`, `.mts`, `.cts`, declaration files where intentionally included/excluded).
-- [ ] Implement and verify TS index build wiring end-to-end, including type-centric relation extraction paths.
-- [ ] Calibrate and commit TS `fileCaps` and parse limits separately from JS based on TS verbosity and declaration-heavy files.
+- [x] Implement and enforce TS extension routing (`.ts`, `.mts`, `.cts`, declaration files where intentionally included/excluded).
+- [x] Implement and verify TS index build wiring end-to-end, including type-centric relation extraction paths.
+- [x] Calibrate and commit TS `fileCaps` and parse limits separately from JS based on TS verbosity and declaration-heavy files.
 
 
 Touchpoints:
@@ -115,9 +115,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.3 JSX and TSX
 
-- [ ] Implement and verify `.jsx`/`.tsx` segmentation and parser routing as first-class code paths.
-- [ ] Enforce deterministic mixed-markup/chunk boundaries and relation extraction behavior.
-- [ ] Add strict caps tuned to high token density in component files.
+- [x] Implement and verify `.jsx`/`.tsx` segmentation and parser routing as first-class code paths.
+- [x] Enforce deterministic mixed-markup/chunk boundaries and relation extraction behavior.
+- [x] Add strict caps tuned to high token density in component files.
 
 
 Touchpoints:
@@ -133,9 +133,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.4 Vue
 
-- [ ] Implement and verify `.vue` segmentation across template/script/style blocks and ensure complete indexing of each embedded language segment.
-- [ ] Ensure relation/flow coverage includes both script setup and classic script blocks.
-- [ ] Calibrate and commit `.vue` caps to prevent under-indexing of large SFCs while guarding parse cost.
+- [x] Implement and verify `.vue` segmentation across template/script/style blocks and ensure complete indexing of each embedded language segment.
+- [x] Ensure relation/flow coverage includes both script setup and classic script blocks.
+- [x] Calibrate and commit `.vue` caps to prevent under-indexing of large SFCs while guarding parse cost.
 
 
 Touchpoints:
@@ -150,9 +150,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.5 Svelte
 
-- [ ] Implement and verify `.svelte` segmentation and routing for script/context/style/template sections.
-- [ ] Ensure import/relation extraction covers both module and instance script contexts.
-- [ ] Calibrate and commit `.svelte` caps for component-heavy repos with large templating blocks.
+- [x] Implement and verify `.svelte` segmentation and routing for script/context/style/template sections.
+- [x] Ensure import/relation extraction covers both module and instance script contexts.
+- [x] Calibrate and commit `.svelte` caps for component-heavy repos with large templating blocks.
 
 
 Touchpoints:
@@ -167,9 +167,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.6 Astro
 
-- [ ] Implement and verify `.astro` segmentation and embedded-language indexing fidelity.
-- [ ] Ensure imports/relations from frontmatter and embedded scripts are deterministic.
-- [ ] Calibrate and commit `.astro` caps for mixed markup/script payloads.
+- [x] Implement and verify `.astro` segmentation and embedded-language indexing fidelity.
+- [x] Ensure imports/relations from frontmatter and embedded scripts are deterministic.
+- [x] Calibrate and commit `.astro` caps for mixed markup/script payloads.
 
 
 Touchpoints:
@@ -184,9 +184,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.7 Python
 
-- [ ] Implement `.py` coverage plus package/module boundary handling for import graph extraction.
-- [ ] Implement and verify Python collector/chunker/relation/flow wiring and doc metadata extraction.
-- [ ] Calibrate and commit Python caps for high-LOC modules and verbose docstring-heavy files.
+- [x] Implement `.py` coverage plus package/module boundary handling for import graph extraction.
+- [x] Implement and verify Python collector/chunker/relation/flow wiring and doc metadata extraction.
+- [x] Calibrate and commit Python caps for high-LOC modules and verbose docstring-heavy files.
 
 
 Touchpoints:
@@ -199,9 +199,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.8 Ruby
 
-- [ ] Implement `.rb` routing and module/class extraction behavior.
-- [ ] Implement and verify Ruby imports (`require`/`require_relative`) and relation modeling.
-- [ ] Calibrate and commit Ruby caps for DSL-heavy files and metaprogramming-heavy codebases.
+- [x] Implement `.rb` routing and module/class extraction behavior.
+- [x] Implement and verify Ruby imports (`require`/`require_relative`) and relation modeling.
+- [x] Calibrate and commit Ruby caps for DSL-heavy files and metaprogramming-heavy codebases.
 
 
 Touchpoints:
@@ -214,9 +214,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.9 PHP
 
-- [ ] Implement `.php` routing and namespace/class/function extraction behavior.
-- [ ] Implement and verify import/usage extraction (`use`, include/require patterns) and relation wiring.
-- [ ] Calibrate and commit PHP caps for mixed HTML/PHP and framework-style monolith files.
+- [x] Implement `.php` routing and namespace/class/function extraction behavior.
+- [x] Implement and verify import/usage extraction (`use`, include/require patterns) and relation wiring.
+- [x] Calibrate and commit PHP caps for mixed HTML/PHP and framework-style monolith files.
 
 
 Touchpoints:
@@ -229,9 +229,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.10 Lua
 
-- [ ] Implement `.lua` routing and module import extraction behavior.
-- [ ] Implement and verify chunk/relation extraction quality for table-heavy and script-style code.
-- [ ] Calibrate and commit Lua caps for plugin-style repos with large script bundles.
+- [x] Implement `.lua` routing and module import extraction behavior.
+- [x] Implement and verify chunk/relation extraction quality for table-heavy and script-style code.
+- [x] Calibrate and commit Lua caps for plugin-style repos with large script bundles.
 
 
 Touchpoints:
@@ -244,9 +244,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.11 Perl
 
-- [ ] Implement `.pl`/`.pm` routing and package/module extraction coverage.
-- [ ] Implement and verify Perl import/require relation extraction.
-- [ ] Calibrate and commit Perl caps for legacy monolithic script styles.
+- [x] Implement `.pl`/`.pm` routing and package/module extraction coverage.
+- [x] Implement and verify Perl import/require relation extraction.
+- [x] Calibrate and commit Perl caps for legacy monolithic script styles.
 
 
 Touchpoints:
@@ -259,9 +259,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.12 Shell
 
-- [ ] Implement `.sh`, `.bash`, `.zsh` routing and shebang-aware indexing behavior.
-- [ ] Implement and verify shell include/source extraction and command relation heuristics.
-- [ ] Calibrate and commit shell caps for large deployment/CI scripts.
+- [x] Implement `.sh`, `.bash`, `.zsh` routing and shebang-aware indexing behavior.
+- [x] Implement and verify shell include/source extraction and command relation heuristics.
+- [x] Calibrate and commit shell caps for large deployment/CI scripts.
 
 
 Touchpoints:

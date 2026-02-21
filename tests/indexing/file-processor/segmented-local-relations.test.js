@@ -39,6 +39,19 @@ const vueText = [
 ].join('\n');
 await fs.writeFile(vuePath, vueText, 'utf8');
 
+const astroPath = path.join(repoRoot, 'src', 'Page.astro');
+const astroText = [
+  '---',
+  "import Layout from './Layout.astro';",
+  "import { dateLabel } from './date';",
+  '---',
+  '<script>',
+  "import hydrate from './client.js';",
+  '</script>',
+  '<Layout>{dateLabel()}</Layout>'
+].join('\n');
+await fs.writeFile(astroPath, astroText, 'utf8');
+
 const { processFile } = createFileProcessor({
   root: repoRoot,
   mode: 'code',
@@ -110,5 +123,10 @@ assert.equal(svelteImports.has('./Card.svelte'), true, 'expected instance-script
 const vueImports = await processAndCollectImports(vuePath, 'src/App.vue', vueText);
 assert.equal(vueImports.has('./boot'), true, 'expected classic-script import from segmented vue file');
 assert.equal(vueImports.has('./Card.vue'), true, 'expected script-setup import from segmented vue file');
+
+const astroImports = await processAndCollectImports(astroPath, 'src/Page.astro', astroText);
+assert.equal(astroImports.has('./Layout.astro'), true, 'expected frontmatter component import from segmented astro file');
+assert.equal(astroImports.has('./date'), true, 'expected frontmatter module import from segmented astro file');
+assert.equal(astroImports.has('./client.js'), true, 'expected embedded script import from segmented astro file');
 
 console.log('segmented local relations test passed');

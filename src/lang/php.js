@@ -239,12 +239,29 @@ export function buildPhpChunks(text) {
 
   const typeRe = /^\s*(?:#[^\n]*\s*)?(?:(?:abstract|final|public|protected|private)\s+)*(class|interface|trait)\s+([A-Za-z_][A-Za-z0-9_]*)/;
   const funcRe = /^\s*(?:#[^\n]*\s*)?(?:(?:public|protected|private|static)\s+)*function\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/;
+  const namespaceRe = /^\s*namespace\s+([A-Za-z_][A-Za-z0-9_\\]*)\s*(?:[;{])/;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('*') || trimmed.startsWith('#')) continue;
-    let match = trimmed.match(typeRe);
+    let match = trimmed.match(namespaceRe);
+    if (match) {
+      const start = lineIndex[i] + line.indexOf(match[0]);
+      const end = lineIndex[i] + line.length;
+      const meta = {
+        startLine: i + 1,
+        endLine: offsetToLine(lineIndex, end),
+        signature: trimmed,
+        docstring: extractDocComment(lines, i),
+        attributes: collectAttributes(lines, i, trimmed),
+        visibility: 'public',
+        modifiers: []
+      };
+      decls.push({ start, end, name: match[1], kind: 'NamespaceDeclaration', meta });
+      continue;
+    }
+    match = trimmed.match(typeRe);
     if (match) {
       const start = lineIndex[i] + line.indexOf(match[0]);
       const bounds = findCLikeBodyBounds(text, start);
@@ -361,8 +378,15 @@ export function buildPhpRelations(text, phpChunks) {
   if (Array.isArray(phpChunks)) {
     for (const chunk of phpChunks) {
       if (!chunk || !chunk.name || chunk.start == null || chunk.end == null) continue;
+      if (chunk.kind === 'NamespaceDeclaration'
+        || chunk.kind === 'ClassDeclaration'
+        || chunk.kind === 'InterfaceDeclaration'
+        || chunk.kind === 'TraitDeclaration'
+        || chunk.kind === 'FunctionDeclaration') {
+        exports.add(chunk.name);
+      }
       const mods = Array.isArray(chunk.meta?.modifiers) ? chunk.meta.modifiers : [];
-      if (mods.includes('public')) exports.add(chunk.name);
+      if (chunk.kind === 'MethodDeclaration' && mods.includes('public')) exports.add(chunk.name);
       if (!['MethodDeclaration', 'FunctionDeclaration'].includes(chunk.kind)) continue;
       const bounds = findCLikeBodyBounds(text, chunk.start);
       const scanStart = bounds.bodyStart > -1 && bounds.bodyStart < chunk.end ? bounds.bodyStart + 1 : chunk.start;

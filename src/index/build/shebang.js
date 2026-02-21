@@ -26,7 +26,7 @@ const resolveInterpreterToken = (tokens) => {
 };
 
 const detectShebangLanguageIdFromLine = (line) => {
-  const raw = String(line || '').trimStart();
+  const raw = String(line || '');
   if (!raw.startsWith('#!')) return null;
   const tokens = splitShebangTokens(raw.slice(2));
   const interpreter = resolveInterpreterToken(tokens);

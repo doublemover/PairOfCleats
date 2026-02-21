@@ -105,10 +105,16 @@ export const buildChunkEnrichment = ({
       try {
         const segmentId = chunk?.segment?.segmentId || null;
         const cacheKey = segmentId || `${chunkLanguageId || 'unknown'}:${chunk.start}:${chunk.end}`;
+        const segmentStart = Number(chunk?.segment?.start);
+        const segmentEnd = Number(chunk?.segment?.end);
+        const hasSegmentBounds = Number.isFinite(segmentStart) && Number.isFinite(segmentEnd) && segmentEnd > segmentStart;
+        const relationText = segmentId && hasSegmentBounds
+          ? text.slice(segmentStart, segmentEnd)
+          : resolvedChunkText;
         let localRelations = segmentRelationsCache?.get(cacheKey);
         if (!localRelations) {
           localRelations = activeLang.buildRelations({
-            text: resolvedChunkText,
+            text: relationText,
             relPath: chunk?.segment?.segmentId || null,
             context: {},
             options: languageOptions
