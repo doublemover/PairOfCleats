@@ -13,8 +13,12 @@ export const createArtifactWriter = ({
   compressionMode,
   compressionKeepRaw,
   compressionGzipOptions,
+  compressionMinBytes = 0,
+  compressionMaxBytes = 0,
   compressibleArtifacts,
-  compressionOverrides
+  compressionOverrides,
+  jsonArraySerializeShardThresholdMs = 0,
+  jsonArraySerializeShardMaxBytes = 0
 }) => {
   const resolveCompressedSuffix = (mode) => (mode === 'zstd' ? 'json.zst' : 'json.gz');
   const artifactPath = (base, mode) => path.join(
@@ -27,10 +31,26 @@ export const createArtifactWriter = ({
       ? compressionOverrides[base]
       : null
   );
-  const resolveCompression = (base, compressible) => {
+  const shouldSkipCompressionForSize = (estimatedBytes) => {
+    const bytes = Number.isFinite(Number(estimatedBytes))
+      ? Math.max(0, Math.floor(Number(estimatedBytes)))
+      : 0;
+    if (bytes <= 0) return false;
+    if (Number.isFinite(Number(compressionMinBytes)) && Number(compressionMinBytes) > 0 && bytes < Number(compressionMinBytes)) {
+      return true;
+    }
+    if (Number.isFinite(Number(compressionMaxBytes)) && Number(compressionMaxBytes) > 0 && bytes > Number(compressionMaxBytes)) {
+      return true;
+    }
+    return false;
+  };
+  const resolveCompression = (base, compressible, estimatedBytes = null) => {
     const override = resolveOverride(base);
     if (override) {
       return override.enabled ? override.mode : null;
+    }
+    if (shouldSkipCompressionForSize(estimatedBytes)) {
+      return null;
     }
     return compressionEnabled && compressible && compressibleArtifacts.has(base)
       ? compressionMode
@@ -53,7 +73,7 @@ export const createArtifactWriter = ({
       estimatedBytes = null
     } = {}
   ) => {
-    const compression = resolveCompression(base, compressible);
+    const compression = resolveCompression(base, compressible, estimatedBytes);
     const keepRaw = resolveKeepRaw(base);
     if (compression) {
       const gzPath = artifactPath(base, compression);
@@ -104,7 +124,7 @@ export const createArtifactWriter = ({
       estimatedBytes = null
     } = {}
   ) => {
-    const compression = resolveCompression(base, compressible);
+    const compression = resolveCompression(base, compressible, estimatedBytes);
     const keepRaw = resolveKeepRaw(base);
     if (compression) {
       const gzPath = artifactPath(base, compression);
@@ -157,10 +177,33 @@ export const createArtifactWriter = ({
       offsets = null
     } = {}
   ) => {
+    const estimateArraySerializationMs = (rows) => {
+      if (!Array.isArray(rows) || !rows.length) return 0;
+      const sampleSize = Math.min(rows.length, 128);
+      const startedAt = Date.now();
+      for (let index = 0; index < sampleSize; index += 1) {
+        JSON.stringify(rows[index]);
+      }
+      const elapsedMs = Math.max(0, Date.now() - startedAt);
+      if (elapsedMs <= 0) return 0;
+      return Math.ceil((elapsedMs / sampleSize) * rows.length);
+    };
     const resolvedEstimatedBytes = Number.isFinite(Number(estimatedBytes))
       ? Math.max(0, Math.floor(Number(estimatedBytes)))
       : estimateJsonBytes(items);
-    const resolvedMaxBytes = Number.isFinite(Number(maxBytes)) ? Math.max(0, Math.floor(Number(maxBytes))) : 0;
+    let resolvedMaxBytes = Number.isFinite(Number(maxBytes)) ? Math.max(0, Math.floor(Number(maxBytes))) : 0;
+    const serializationThresholdMs = Number.isFinite(Number(jsonArraySerializeShardThresholdMs))
+      ? Math.max(0, Math.floor(Number(jsonArraySerializeShardThresholdMs)))
+      : 0;
+    let predictedSerializeMs = 0;
+    if (serializationThresholdMs > 0 && Array.isArray(items) && items.length) {
+      predictedSerializeMs = estimateArraySerializationMs(items);
+      if (predictedSerializeMs >= serializationThresholdMs) {
+        resolvedMaxBytes = Number.isFinite(Number(jsonArraySerializeShardMaxBytes)) && Number(jsonArraySerializeShardMaxBytes) > 0
+          ? Math.floor(Number(jsonArraySerializeShardMaxBytes))
+          : Math.max(1024 * 1024, Math.floor(resolvedEstimatedBytes / 4));
+      }
+    }
     if (!resolvedMaxBytes || resolvedEstimatedBytes <= resolvedMaxBytes) {
       enqueueJsonArray(base, items, { compressible: false, piece });
       return;
@@ -205,7 +248,10 @@ export const createArtifactWriter = ({
             targetMaxBytes: result.targetMaxBytes,
             parts,
             ...(result.offsets ? { offsets: result.offsets } : {}),
-            extensions: metaExtensions || undefined
+            extensions: {
+              ...(metaExtensions || {}),
+              ...(predictedSerializeMs > 0 ? { predictedSerializeMs } : {})
+            }
           },
           atomic: true
         });

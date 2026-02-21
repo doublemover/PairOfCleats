@@ -233,6 +233,15 @@ const ARTIFACT_QUEUE_DELAY_BUCKETS_MS = Object.freeze([
   30000,
   60000
 ]);
+const VALIDATION_CRITICAL_ARTIFACT_PATTERNS = Object.freeze([
+  /(^|\/)index_state\.json$/,
+  /(^|\/)metrics\.json$/,
+  /(^|\/)chunk_meta(?:\.|$)/,
+  /(^|\/)file_meta(?:\.|$)/,
+  /(^|\/)token_postings(?:\.|$)/,
+  /(^|\/)field_postings(?:\.|$)/,
+  /(^|\/)pieces\/manifest\.json$/
+]);
 
 /**
  * Estimate scheduler memory-token cost for a single artifact write.
@@ -300,6 +309,10 @@ const summarizeQueueDelayHistogram = (samples) => {
     overflowCount
   };
 };
+
+const isValidationCriticalArtifact = (label) => (
+  typeof label === 'string' && VALIDATION_CRITICAL_ARTIFACT_PATTERNS.some((pattern) => pattern.test(label))
+);
 
 /**
  * Write index artifacts and metrics.
@@ -371,6 +384,8 @@ export async function writeIndexArtifacts(input) {
     compressionMode,
     compressionKeepRaw,
     compressionGzipOptions,
+    compressionMinBytes,
+    compressionMaxBytes,
     compressibleArtifacts,
     compressionOverrides
   } = resolveCompressionConfig(indexingConfig);
@@ -392,6 +407,12 @@ export async function writeIndexArtifacts(input) {
   const artifactMode = typeof artifactConfig.mode === 'string'
     ? artifactConfig.mode.toLowerCase()
     : 'auto';
+  const jsonArraySerializeShardThresholdMs = Number.isFinite(Number(artifactConfig.jsonArraySerializeShardThresholdMs))
+    ? Math.max(0, Math.floor(Number(artifactConfig.jsonArraySerializeShardThresholdMs)))
+    : 1500;
+  const jsonArraySerializeShardMaxBytes = Number.isFinite(Number(artifactConfig.jsonArraySerializeShardMaxBytes))
+    ? Math.max(1024 * 1024, Math.floor(Number(artifactConfig.jsonArraySerializeShardMaxBytes)))
+    : (64 * 1024 * 1024);
   const fileMetaFormatConfig = typeof artifactConfig.fileMetaFormat === 'string'
     ? artifactConfig.fileMetaFormat.toLowerCase()
     : null;
@@ -1089,6 +1110,11 @@ export async function writeIndexArtifacts(input) {
   const resolveWriteWeight = (entry) => {
     if (!entry || typeof entry !== 'object') return 0;
     let weight = Number.isFinite(entry.priority) ? entry.priority : 0;
+    if (isValidationCriticalArtifact(entry.label)) {
+      // Keep strict-validation-critical artifacts ahead of optional debug/derived
+      // outputs when the write queue is saturated.
+      weight += 500;
+    }
     // Keep FIFO ordering unless a write has explicit priority.
     if (weight > 0 && Number.isFinite(entry.estimatedBytes) && entry.estimatedBytes > 0) {
       weight += Math.log2(entry.estimatedBytes + 1);
@@ -1277,8 +1303,12 @@ export async function writeIndexArtifacts(input) {
     compressionMode,
     compressionKeepRaw,
     compressionGzipOptions,
+    compressionMinBytes,
+    compressionMaxBytes,
     compressibleArtifacts,
-    compressionOverrides
+    compressionOverrides,
+    jsonArraySerializeShardThresholdMs,
+    jsonArraySerializeShardMaxBytes
   });
   if (state.importResolutionGraph) {
     const importGraphDir = path.join(outDir, 'artifacts');
