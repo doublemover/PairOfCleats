@@ -477,6 +477,22 @@ function resolveCommand(primary, rest) {
       showHelp: true
     });
   }
+  if (primary === 'tui') {
+    const sub = rest.shift();
+    if (!sub || isHelpCommand(sub)) {
+      failCli('tui requires a subcommand: supervisor', {
+        code: ERROR_CODES.INVALID_REQUEST,
+        showHelp: true
+      });
+    }
+    if (sub === 'supervisor') {
+      return { script: 'tools/tui/supervisor.js', extraArgs: [], args: rest };
+    }
+    failCli(`Unknown tui subcommand: ${sub}`, {
+      code: ERROR_CODES.INVALID_REQUEST,
+      showHelp: true
+    });
+  }
   if (primary === 'graph-context') {
     validateArgs(
       rest,
@@ -921,6 +937,9 @@ Ingest:
   ingest gtags            Ingest GNU Global symbols into normalized records
   ingest lsif             Ingest LSIF dumps into normalized records
   ingest scip             Ingest SCIP indexes into normalized records
+
+TUI:
+  tui supervisor          Run Node supervisor for terminal-owned TUI sessions
 
 Tooling:
   tooling doctor          Inspect tooling availability and config

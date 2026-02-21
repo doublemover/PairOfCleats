@@ -1534,11 +1534,11 @@ Intent: strict protocol boundary and deterministic orchestration.
 
 #### 9.0 Preparation: tool contract and kill-tree unification
 
-- [ ] Reconcile and freeze `docs/specs/tui-tool-contract.md` against actual supervisor/tool behavior.
-- [ ] Bootstrap missing TUI/supervisor scaffolding directories (`tools/tui/`, `tests/tui/`) and command wrapper entrypoints.
-- [ ] Enforce stdout/stderr contracts for all supervisor-driven tools.
-- [ ] Add shared kill-tree helper (`src/shared/kill-tree.js`) and replace fragmented implementations.
-- [ ] Add stdout guard (`src/shared/cli/stdout-guard.js`).
+- [x] Reconcile and freeze `docs/specs/tui-tool-contract.md` against actual supervisor/tool behavior.
+- [x] Bootstrap missing TUI/supervisor scaffolding directories (`tools/tui/`, `tests/tui/`) and command wrapper entrypoints.
+- [x] Enforce stdout/stderr contracts for all supervisor-driven tools.
+- [x] Add shared kill-tree helper (`src/shared/kill-tree.js`) and replace fragmented implementations.
+- [x] Add stdout guard (`src/shared/cli/stdout-guard.js`).
 
 Tests:
 
