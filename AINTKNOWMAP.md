@@ -1848,15 +1848,15 @@ Exit criteria:
 
 ## Last Phase
 
-  1.  [ ] Add an adaptive writeConcurrency controller that scales up/down during a run from live queue depth and stall duration instead of a fixed cap.
+  1.  [x] Add an adaptive writeConcurrency controller that scales up/down during a run from live queue depth and stall duration instead of a fixed cap.
       - Touchpoints: `src/index/build/artifacts-write.js`, `src/index/build/artifacts/writers/*`, `src/shared/json-stream.js`, and `src/shared/artifact-io/*` (prefer shared helpers over new local utilities).
       - Acceptance target: huge-repo write phase should eliminate >60s single-artifact tails; aim for no single required artifact exceeding 30s wall time in `swift`/`opencv` huge runs.
       - Validation: add/extend artifact write contract + perf tests under `tests/indexing/artifacts/*` and `tests/perf/indexing/artifacts/*`, including strict validation and deterministic output parity checks.
-  2.  [ ] Add a dedicated ultra-light write queue for tiny JSON/meta artifacts so they never wait behind field_postings/packed binaries.
+  2.  [x] Add a dedicated ultra-light write queue for tiny JSON/meta artifacts so they never wait behind field_postings/packed binaries.
       - Touchpoints: `src/index/build/artifacts-write.js`, `src/index/build/artifacts/writers/*`, `src/shared/json-stream.js`, and `src/shared/artifact-io/*` (prefer shared helpers over new local utilities).
       - Acceptance target: huge-repo write phase should eliminate >60s single-artifact tails; aim for no single required artifact exceeding 30s wall time in `swift`/`opencv` huge runs.
       - Validation: add/extend artifact write contract + perf tests under `tests/indexing/artifacts/*` and `tests/perf/indexing/artifacts/*`, including strict validation and deterministic output parity checks.
-  3.  [ ] Add a third “massive artifact” lane (field_postings, packed postings, binary-columnar outputs) with independent token budgeting.
+  3.  [x] Add a third “massive artifact” lane (field_postings, packed postings, binary-columnar outputs) with independent token budgeting.
       - Touchpoints: `src/index/build/artifacts-write.js`, `src/index/build/artifacts/writers/*`, `src/shared/json-stream.js`, and `src/shared/artifact-io/*` (prefer shared helpers over new local utilities).
       - Acceptance target: huge-repo write phase should eliminate >60s single-artifact tails; aim for no single required artifact exceeding 30s wall time in `swift`/`opencv` huge runs.
       - Validation: add/extend artifact write contract + perf tests under `tests/indexing/artifacts/*` and `tests/perf/indexing/artifacts/*`, including strict validation and deterministic output parity checks.
@@ -1948,7 +1948,7 @@ Exit criteria:
       - Touchpoints: `src/index/type-inference-crossfile/pipeline.js`, `src/index/build/incremental.js`, `src/shared/bundle-io.js`, and related cache identity/signature paths.
       - Acceptance target: reduce cross-file incremental bundle-update wall time by >=35% on huge repos while preserving relation/type/risk parity and deterministic bundle contents.
       - Validation: add incremental + cross-file tests for cache hit/miss behavior, unchanged-file skip behavior, deterministic output hashes, and fallback correctness when prefetch is partial.
-  26. [ ] Add partial bundle patch writes (append/replace segments) instead of full rewrite where format allows.
+  26. [x] Add partial bundle patch writes (append/replace segments) instead of full rewrite where format allows.
       - Touchpoints: `src/index/type-inference-crossfile/pipeline.js`, `src/index/build/incremental.js`, `src/shared/bundle-io.js`, and related cache identity/signature paths.
       - Acceptance target: reduce cross-file incremental bundle-update wall time by >=35% on huge repos while preserving relation/type/risk parity and deterministic bundle contents.
       - Validation: add incremental + cross-file tests for cache hit/miss behavior, unchanged-file skip behavior, deterministic output hashes, and fallback correctness when prefetch is partial.
@@ -1968,7 +1968,7 @@ Exit criteria:
       - Touchpoints: `src/index/type-inference-crossfile/pipeline.js`, `src/index/build/incremental.js`, `src/shared/bundle-io.js`, and related cache identity/signature paths.
       - Acceptance target: reduce cross-file incremental bundle-update wall time by >=35% on huge repos while preserving relation/type/risk parity and deterministic bundle contents.
       - Validation: add incremental + cross-file tests for cache hit/miss behavior, unchanged-file skip behavior, deterministic output hashes, and fallback correctness when prefetch is partial.
-  31. [ ] Add opportunistic parallelism in risk/type propagation loops when bundle is large enough.
+  31. [x] Add opportunistic parallelism in risk/type propagation loops when bundle is large enough.
       - Touchpoints: `src/index/type-inference-crossfile/pipeline.js`, `src/index/build/incremental.js`, `src/shared/bundle-io.js`, and related cache identity/signature paths.
       - Acceptance target: reduce cross-file incremental bundle-update wall time by >=35% on huge repos while preserving relation/type/risk parity and deterministic bundle contents.
       - Validation: add incremental + cross-file tests for cache hit/miss behavior, unchanged-file skip behavior, deterministic output hashes, and fallback correctness when prefetch is partial.

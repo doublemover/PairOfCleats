@@ -76,6 +76,7 @@ export {
   buildLexiconRelationFilterReport,
   resolveArtifactLaneConcurrency,
   resolveArtifactLaneConcurrencyWithUltraLight,
+  resolveArtifactLaneConcurrencyWithMassive,
   createAdaptiveWriteConcurrencyController
 };
 
@@ -285,6 +286,127 @@ const resolveArtifactLaneConcurrencyWithUltraLight = ({
   }
   return {
     ultraLightConcurrency,
+    lightConcurrency: base.lightConcurrency,
+    heavyConcurrency: base.heavyConcurrency
+  };
+};
+
+/**
+ * Resolve lane concurrency with ultra-light + massive write lanes.
+ *
+ * Massive artifacts reserve dedicated slots and tokens so very large outputs
+ * (packed/binary-columnar/field postings) do not monopolize the general lane.
+ *
+ * @param {object} input
+ * @param {number} input.writeConcurrency
+ * @param {number} input.ultraLightWrites
+ * @param {number} input.massiveWrites
+ * @param {number} input.lightWrites
+ * @param {number} input.heavyWrites
+ * @param {number|null} [input.heavyWriteConcurrencyOverride]
+ * @param {number} [input.hostConcurrency]
+ * @returns {{ultraLightConcurrency:number,massiveConcurrency:number,lightConcurrency:number,heavyConcurrency:number}}
+ */
+const resolveArtifactLaneConcurrencyWithMassive = ({
+  writeConcurrency,
+  ultraLightWrites,
+  massiveWrites,
+  lightWrites,
+  heavyWrites,
+  heavyWriteConcurrencyOverride = null,
+  hostConcurrency = 1
+}) => {
+  const totalWriteConcurrency = Math.max(1, Math.floor(Number(writeConcurrency) || 1));
+  const ultraLightWriteCount = Math.max(0, Math.floor(Number(ultraLightWrites) || 0));
+  const massiveWriteCount = Math.max(0, Math.floor(Number(massiveWrites) || 0));
+  const lightWriteCount = Math.max(0, Math.floor(Number(lightWrites) || 0));
+  const heavyWriteCount = Math.max(0, Math.floor(Number(heavyWrites) || 0));
+  if (!ultraLightWriteCount && !massiveWriteCount && !lightWriteCount && !heavyWriteCount) {
+    return {
+      ultraLightConcurrency: 0,
+      massiveConcurrency: 0,
+      lightConcurrency: 0,
+      heavyConcurrency: 0
+    };
+  }
+  if (!massiveWriteCount && !lightWriteCount && !heavyWriteCount) {
+    return {
+      ultraLightConcurrency: Math.min(totalWriteConcurrency, ultraLightWriteCount),
+      massiveConcurrency: 0,
+      lightConcurrency: 0,
+      heavyConcurrency: 0
+    };
+  }
+  if (!ultraLightWriteCount && !lightWriteCount && !heavyWriteCount) {
+    return {
+      ultraLightConcurrency: 0,
+      massiveConcurrency: Math.min(totalWriteConcurrency, massiveWriteCount),
+      lightConcurrency: 0,
+      heavyConcurrency: 0
+    };
+  }
+
+  const nonUltraWriteCount = massiveWriteCount + lightWriteCount + heavyWriteCount;
+  const ultraLightReserveTarget = ultraLightWriteCount > 0
+    ? Math.max(1, Math.min(2, Math.ceil(totalWriteConcurrency * 0.25)))
+    : 0;
+  const maxUltraReserve = Math.max(0, totalWriteConcurrency - (nonUltraWriteCount > 0 ? 1 : 0));
+  let ultraLightConcurrency = ultraLightWriteCount > 0
+    ? Math.min(ultraLightWriteCount, ultraLightReserveTarget, maxUltraReserve)
+    : 0;
+  if (ultraLightWriteCount > 0 && ultraLightConcurrency < 1 && totalWriteConcurrency > 0) {
+    ultraLightConcurrency = 1;
+  }
+
+  const regularWriteCount = lightWriteCount + heavyWriteCount;
+  const remainingAfterUltra = Math.max(0, totalWriteConcurrency - ultraLightConcurrency);
+  if (regularWriteCount === 0) {
+    return {
+      ultraLightConcurrency,
+      massiveConcurrency: Math.min(massiveWriteCount, remainingAfterUltra),
+      lightConcurrency: 0,
+      heavyConcurrency: 0
+    };
+  }
+  const massiveReserveTarget = massiveWriteCount > 0
+    ? Math.max(1, Math.min(2, Math.ceil(totalWriteConcurrency * 0.33)))
+    : 0;
+  const maxMassiveReserve = Math.max(0, remainingAfterUltra - (regularWriteCount > 0 ? 1 : 0));
+  let massiveConcurrency = massiveWriteCount > 0
+    ? Math.min(massiveWriteCount, massiveReserveTarget, maxMassiveReserve)
+    : 0;
+  if (
+    massiveWriteCount > 0
+    && massiveConcurrency < 1
+    && remainingAfterUltra > 0
+    && regularWriteCount > 0
+  ) {
+    massiveConcurrency = 1;
+  }
+
+  const remainingConcurrency = Math.max(
+    0,
+    totalWriteConcurrency - ultraLightConcurrency - massiveConcurrency
+  );
+  if (remainingConcurrency <= 0) {
+    return {
+      ultraLightConcurrency,
+      massiveConcurrency,
+      lightConcurrency: 0,
+      heavyConcurrency: 0
+    };
+  }
+
+  const base = resolveArtifactLaneConcurrency({
+    writeConcurrency: remainingConcurrency,
+    lightWrites: lightWriteCount,
+    heavyWrites: heavyWriteCount,
+    heavyWriteConcurrencyOverride,
+    hostConcurrency
+  });
+  return {
+    ultraLightConcurrency,
+    massiveConcurrency,
     lightConcurrency: base.lightConcurrency,
     heavyConcurrency: base.heavyConcurrency
   };
@@ -1214,6 +1336,25 @@ export async function writeIndexArtifacts(input) {
       /(^|\/)vocab_order\.json$/,
       /(^|\/)pieces\/manifest\.json$/
     ];
+  const massiveWriteThresholdBytes = Number.isFinite(Number(artifactConfig.writeMassiveThresholdBytes))
+    ? Math.max(8 * 1024 * 1024, Math.floor(Number(artifactConfig.writeMassiveThresholdBytes)))
+    : (128 * 1024 * 1024);
+  const forcedMassiveWritePatterns = Array.isArray(artifactConfig.writeMassiveLabelPatterns)
+    ? artifactConfig.writeMassiveLabelPatterns
+      .filter((entry) => typeof entry === 'string' && entry.trim())
+      .map((entry) => new RegExp(entry))
+    : [
+      /(^|\/)field_postings(?:\.|$)/,
+      /(^|\/)token_postings\.packed(?:\.|$)/,
+      /(^|\/)token_postings\.binary-columnar(?:\.|$)/,
+      /(^|\/)chunk_meta\.binary-columnar(?:\.|$)/
+    ];
+  const massiveWriteIoTokens = Number.isFinite(Number(artifactConfig.writeMassiveIoTokens))
+    ? Math.max(1, Math.floor(Number(artifactConfig.writeMassiveIoTokens)))
+    : 2;
+  const massiveWriteMemTokens = Number.isFinite(Number(artifactConfig.writeMassiveMemTokens))
+    ? Math.max(0, Math.floor(Number(artifactConfig.writeMassiveMemTokens)))
+    : 2;
   const adaptiveWriteConcurrencyEnabled = artifactConfig.writeAdaptiveConcurrency !== false;
   const adaptiveWriteMinConcurrency = Number.isFinite(Number(artifactConfig.writeAdaptiveMinConcurrency))
     ? Math.max(1, Math.floor(Number(artifactConfig.writeAdaptiveMinConcurrency)))
@@ -1419,18 +1560,28 @@ export async function writeIndexArtifacts(input) {
   );
   const splitWriteLanes = (entries) => {
     const ordered = scheduleWrites(entries);
-    const lanes = { ultraLight: [], light: [], heavy: [] };
+    const lanes = {
+      ultraLight: [],
+      light: [],
+      heavy: [],
+      massive: []
+    };
     for (const entry of ordered) {
       const estimated = Number(entry?.estimatedBytes);
       const label = typeof entry?.label === 'string' ? entry.label : '';
+      const isForcedMassive = forcedMassiveWritePatterns.some((pattern) => pattern.test(label));
       const isForcedHeavy = forcedHeavyWritePatterns.some((pattern) => pattern.test(label));
       const isForcedUltraLight = forcedUltraLightWritePatterns.some((pattern) => pattern.test(label));
+      const isMassiveBySize = Number.isFinite(estimated) && estimated >= massiveWriteThresholdBytes;
+      const isMassive = isForcedMassive || isMassiveBySize;
       const isHeavyBySize = Number.isFinite(estimated) && estimated >= heavyWriteThresholdBytes;
       const isHeavy = isForcedHeavy || isHeavyBySize;
       const isUltraLightBySize = Number.isFinite(estimated)
         && estimated > 0
         && estimated <= ultraLightWriteThresholdBytes;
-      if (isHeavy) {
+      if (isMassive) {
+        lanes.massive.push(entry);
+      } else if (isHeavy) {
         lanes.heavy.push(entry);
       } else if (isForcedUltraLight || isUltraLightBySize) {
         lanes.ultraLight.push(entry);
@@ -2328,10 +2479,11 @@ export async function writeIndexArtifacts(input) {
   }
   const {
     ultraLight: ultraLightWrites,
+    massive: massiveWrites,
     light: lightWrites,
     heavy: heavyWrites
   } = splitWriteLanes(writes);
-  totalWrites = ultraLightWrites.length + lightWrites.length + heavyWrites.length;
+  totalWrites = ultraLightWrites.length + massiveWrites.length + lightWrites.length + heavyWrites.length;
   if (totalWrites) {
     const artifactLabel = totalWrites === 1 ? 'artifact' : 'artifacts';
     logLine(`Writing index files (${totalWrites} ${artifactLabel})...`, { kind: 'status' });
@@ -2371,16 +2523,18 @@ export async function writeIndexArtifacts(input) {
       : (Array.isArray(os.cpus()) ? os.cpus().length : 1);
     const laneQueues = {
       ultraLight: ultraLightWrites.slice(),
+      massive: massiveWrites.slice(),
       light: lightWrites.slice(),
       heavy: heavyWrites.slice()
     };
     const laneActive = {
       ultraLight: 0,
+      massive: 0,
       light: 0,
       heavy: 0
     };
     let activeCount = 0;
-    let laneTurn = 'heavy';
+    let laneTurn = 'massive';
     let fatalWriteError = null;
     const inFlightWrites = new Set();
     const getActiveWriteConcurrency = () => (
@@ -2391,14 +2545,18 @@ export async function writeIndexArtifacts(input) {
     const observeAdaptiveWriteConcurrency = () => {
       if (!adaptiveWriteConcurrencyEnabled) return getActiveWriteConcurrency();
       return writeConcurrencyController.observe({
-        pendingWrites: laneQueues.ultraLight.length + laneQueues.light.length + laneQueues.heavy.length,
+        pendingWrites: laneQueues.ultraLight.length
+          + laneQueues.massive.length
+          + laneQueues.light.length
+          + laneQueues.heavy.length,
         activeWrites: activeCount,
         longestStallSec: getLongestWriteStallSeconds()
       });
     };
-    const resolveLaneBudgets = () => resolveArtifactLaneConcurrencyWithUltraLight({
+    const resolveLaneBudgets = () => resolveArtifactLaneConcurrencyWithMassive({
       writeConcurrency: getActiveWriteConcurrency(),
       ultraLightWrites: laneQueues.ultraLight.length + laneActive.ultraLight,
+      massiveWrites: laneQueues.massive.length + laneActive.massive,
       lightWrites: laneQueues.light.length + laneActive.light,
       heavyWrites: laneQueues.heavy.length + laneActive.heavy,
       heavyWriteConcurrencyOverride,
@@ -2407,23 +2565,43 @@ export async function writeIndexArtifacts(input) {
     const pickDispatchLane = (budgets) => {
       const ultraLightAvailable = laneQueues.ultraLight.length > 0
         && laneActive.ultraLight < Math.max(0, budgets.ultraLightConcurrency);
+      const massiveAvailable = laneQueues.massive.length > 0
+        && laneActive.massive < Math.max(0, budgets.massiveConcurrency);
       const lightAvailable = laneQueues.light.length > 0
         && laneActive.light < Math.max(0, budgets.lightConcurrency);
       const heavyAvailable = laneQueues.heavy.length > 0
         && laneActive.heavy < Math.max(0, budgets.heavyConcurrency);
       if (ultraLightAvailable) return 'ultraLight';
-      if (!lightAvailable && !heavyAvailable) return null;
-      if (lightAvailable && !heavyAvailable) return 'light';
-      if (heavyAvailable && !lightAvailable) return 'heavy';
-      laneTurn = laneTurn === 'light' ? 'heavy' : 'light';
-      return laneTurn;
+      const candidates = [];
+      if (massiveAvailable) candidates.push('massive');
+      if (lightAvailable) candidates.push('light');
+      if (heavyAvailable) candidates.push('heavy');
+      if (!candidates.length) return null;
+      if (candidates.length === 1) return candidates[0];
+      const dispatchOrder = ['massive', 'light', 'heavy'];
+      const startIndex = dispatchOrder.indexOf(laneTurn);
+      for (let offset = 1; offset <= dispatchOrder.length; offset += 1) {
+        const index = (startIndex + offset + dispatchOrder.length) % dispatchOrder.length;
+        const laneName = dispatchOrder[index];
+        if (candidates.includes(laneName)) {
+          laneTurn = laneName;
+          return laneName;
+        }
+      }
+      return candidates[0];
     };
-    const scheduleWriteJob = (fn, estimatedBytes) => {
-      if (!scheduler?.schedule || typeof fn !== 'function') return fn();
+    const resolveWriteSchedulerTokens = (estimatedBytes, laneName) => {
       const memTokens = resolveArtifactWriteMemTokens(estimatedBytes);
-      const tokens = memTokens > 0
-        ? { io: 1, mem: memTokens }
-        : { io: 1 };
+      if (laneName === 'massive') {
+        const massiveMem = Math.max(memTokens, massiveWriteMemTokens);
+        return massiveMem > 0
+          ? { io: massiveWriteIoTokens, mem: massiveMem }
+          : { io: massiveWriteIoTokens };
+      }
+      return memTokens > 0 ? { io: 1, mem: memTokens } : { io: 1 };
+    };
+    const scheduleWriteJob = (fn, tokens) => {
+      if (!scheduler?.schedule || typeof fn !== 'function') return fn();
       return scheduler.schedule(
         SCHEDULER_QUEUE_NAMES.stage2Write,
         tokens,
@@ -2439,7 +2617,8 @@ export async function writeIndexArtifacts(input) {
       activeWriteBytes.set(activeLabel, Number.isFinite(estimatedBytes) ? estimatedBytes : 0);
       updateWriteInFlightTelemetry();
       try {
-        await scheduleWriteJob(job, estimatedBytes);
+        const schedulerTokens = resolveWriteSchedulerTokens(estimatedBytes, laneName);
+        await scheduleWriteJob(job, schedulerTokens);
         const durationMs = Date.now() - started;
         let bytes = null;
         if (label) {
@@ -2459,6 +2638,8 @@ export async function writeIndexArtifacts(input) {
           estimatedBytes: Number.isFinite(estimatedBytes) ? estimatedBytes : null,
           throughputBytesPerSec,
           lane: laneName,
+          schedulerIoTokens: schedulerTokens.io || 0,
+          schedulerMemTokens: schedulerTokens.mem || 0,
           writeConcurrencyAtStart: startedConcurrency
         });
       } finally {
@@ -2502,6 +2683,7 @@ export async function writeIndexArtifacts(input) {
       while (
         inFlightWrites.size > 0
         || laneQueues.ultraLight.length > 0
+        || laneQueues.massive.length > 0
         || laneQueues.light.length > 0
         || laneQueues.heavy.length > 0
       ) {
