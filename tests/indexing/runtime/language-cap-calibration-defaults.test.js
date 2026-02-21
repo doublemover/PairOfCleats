@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { applyTestEnv } from '../../helpers/test-env.js';
 import { resolveFileCapsAndGuardrails } from '../../../src/index/build/runtime/caps.js';
 import { LANGUAGE_CAPS_BASELINES } from '../../../src/index/build/runtime/caps-calibration.js';
+
+applyTestEnv();
 
 const { fileCaps } = resolveFileCapsAndGuardrails({
   maxFileBytes: 5 * 1024 * 1024,
@@ -20,5 +23,20 @@ assert.equal(fileCaps.byExt['.m']?.maxBytes, clikeBaseline.maxBytes, 'expected .
 assert.equal(fileCaps.byExt['.m']?.maxLines, clikeBaseline.maxLines, 'expected .m maxLines to default to clike baseline');
 assert.equal(fileCaps.byExt['.mm']?.maxBytes, clikeBaseline.maxBytes, 'expected .mm maxBytes to default to clike baseline');
 assert.equal(fileCaps.byExt['.mm']?.maxLines, clikeBaseline.maxLines, 'expected .mm maxLines to default to clike baseline');
+
+const partialOverride = resolveFileCapsAndGuardrails({
+  maxFileBytes: 5 * 1024 * 1024,
+  fileCaps: {
+    byLanguage: {
+      javascript: { maxBytes: 64 * 1024 }
+    }
+  }
+});
+assert.equal(partialOverride.fileCaps.byLanguage.javascript.maxBytes, 64 * 1024, 'expected language maxBytes override to apply');
+assert.equal(
+  partialOverride.fileCaps.byLanguage.javascript.maxLines,
+  LANGUAGE_CAPS_BASELINES.javascript.maxLines,
+  'expected language maxLines baseline to be preserved for partial overrides'
+);
 
 console.log('language cap calibration defaults test passed');

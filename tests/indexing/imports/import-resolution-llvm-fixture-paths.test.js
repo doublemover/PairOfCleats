@@ -34,6 +34,10 @@ await write(
 );
 await write('clang/unittests/Tooling/Syntax/foo.h', '#pragma once\n');
 await write(
+  'clang/unittests/Tooling/Syntax/UnresolvedNoiseTest.cpp',
+  '#include "//./missing.h"\n'
+);
+await write(
   'libc/utils/hdrgen/tests/expected_output/subdir/test.h',
   '#include "../__llvm-libc-common.h"\n#include "../llvm-libc-types/type_a.h"\n#include "../llvm-libc-types/type_b.h"\n'
 );
@@ -50,6 +54,7 @@ const entryPaths = [
   'clang/unittests/Frontend/header1.h',
   'clang/unittests/Tooling/Syntax/TokensTest.cpp',
   'clang/unittests/Tooling/Syntax/foo.h',
+  'clang/unittests/Tooling/Syntax/UnresolvedNoiseTest.cpp',
   'libc/utils/hdrgen/tests/expected_output/subdir/test.h',
   'libc/utils/hdrgen/tests/expected_output/__llvm-libc-common.h',
   'libc/utils/hdrgen/tests/expected_output/llvm-libc-types/type_a.h',
@@ -62,6 +67,7 @@ const importsByFile = {
   'ci/monolithic-linux.sh': ['.ci/utils.sh'],
   'clang/unittests/Frontend/PCHPreambleTest.cpp': ['//./header1.h'],
   'clang/unittests/Tooling/Syntax/TokensTest.cpp': ['./foo.h'],
+  'clang/unittests/Tooling/Syntax/UnresolvedNoiseTest.cpp': ['//./missing.h'],
   'libc/utils/hdrgen/tests/expected_output/subdir/test.h': [
     '../__llvm-libc-common.h',
     '../llvm-libc-types/type_a.h',

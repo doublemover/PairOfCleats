@@ -80,10 +80,19 @@ export const resolveTreeSitterRuntime = (indexingConfig) => {
     cpp: TREE_SITTER_CAPS_BASELINES.clike || { maxBytes: 512 * 1024, maxLines: 8000, maxParseMs: 2200 },
     objc: TREE_SITTER_CAPS_BASELINES.clike || { maxBytes: 512 * 1024, maxLines: 8000, maxParseMs: 2200 }
   };
-  const mergedTreeSitterByLanguage = {
-    ...heavyGrammarDefaults,
-    ...treeSitterByLanguage
-  };
+  const mergedTreeSitterByLanguage = { ...heavyGrammarDefaults };
+  for (const [languageId, override] of Object.entries(treeSitterByLanguage)) {
+    const baseline = mergedTreeSitterByLanguage[languageId] || {
+      maxBytes: null,
+      maxLines: null,
+      maxParseMs: null
+    };
+    mergedTreeSitterByLanguage[languageId] = {
+      maxBytes: override.maxBytes != null ? override.maxBytes : baseline.maxBytes,
+      maxLines: override.maxLines != null ? override.maxLines : baseline.maxLines,
+      maxParseMs: override.maxParseMs != null ? override.maxParseMs : baseline.maxParseMs
+    };
+  }
   const treeSitterConfigChunking = treeSitterConfig.configChunking === true;
   const treeSitterSchedulerConfig = treeSitterConfig.scheduler
     && typeof treeSitterConfig.scheduler === 'object'

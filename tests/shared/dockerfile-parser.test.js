@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { applyTestEnv } from '../helpers/test-env.js';
 import { parseDockerfileFromClause, parseDockerfileInstruction } from '../../src/shared/dockerfile.js';
+
+applyTestEnv();
 
 const runInstruction = parseDockerfileInstruction('RUN echo hello');
 assert.equal(runInstruction?.instruction, 'RUN', 'expected RUN instruction to parse');

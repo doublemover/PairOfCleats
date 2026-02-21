@@ -162,13 +162,19 @@ export const resolveFileCapsAndGuardrails = (indexingConfig) => {
   for (const [languageId, entry] of Object.entries(LANGUAGE_CAPS_BASELINES)) {
     defaultByLanguageCaps[languageId] = normalizeCapEntry(entry);
   }
+  const byLanguageOverrides = normalizeCapsByLanguage(fileCapsConfig.byLanguage || {});
+  const mergedByLanguageCaps = { ...defaultByLanguageCaps };
+  for (const [languageId, override] of Object.entries(byLanguageOverrides)) {
+    const baseline = mergedByLanguageCaps[languageId] || { maxBytes: null, maxLines: null };
+    mergedByLanguageCaps[languageId] = {
+      maxBytes: override.maxBytes != null ? override.maxBytes : baseline.maxBytes,
+      maxLines: override.maxLines != null ? override.maxLines : baseline.maxLines
+    };
+  }
   const fileCaps = {
     default: normalizeCapEntry(fileCapsConfig.default || {}),
     byExt: normalizeCapsByExt(fileCapsConfig.byExt || {}),
-    byLanguage: {
-      ...defaultByLanguageCaps,
-      ...normalizeCapsByLanguage(fileCapsConfig.byLanguage || {})
-    },
+    byLanguage: mergedByLanguageCaps,
     byMode: normalizeCapsByMode(fileCapsConfig.byMode || {})
   };
   for (const [ext, entry] of Object.entries(DEFAULT_OBJECTIVEC_CAPS_BY_EXT)) {
