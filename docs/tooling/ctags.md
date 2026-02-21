@@ -5,6 +5,9 @@ Use the ctags ingest tool to normalize ctags JSON into a cache-backed JSONL arti
 ## CLI
 
 ```bash
+# Preferred wrapper route
+pairofcleats ingest ctags --repo . --run
+
 # Run ctags directly (default when no --input is provided)
 node tools/ingest/ctags.js --repo . --run
 

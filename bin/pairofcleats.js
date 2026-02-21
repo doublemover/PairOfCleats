@@ -438,6 +438,29 @@ function resolveCommand(primary, rest) {
     printHelp();
     process.exit(1);
   }
+  if (primary === 'ingest') {
+    const sub = rest.shift();
+    if (!sub || isHelpCommand(sub)) {
+      console.error('ingest requires a subcommand: ctags, gtags, lsif, scip');
+      printHelp();
+      process.exit(1);
+    }
+    if (sub === 'ctags') {
+      return { script: 'tools/ingest/ctags.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'gtags') {
+      return { script: 'tools/ingest/gtags.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'lsif') {
+      return { script: 'tools/ingest/lsif.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'scip') {
+      return { script: 'tools/ingest/scip.js', extraArgs: [], args: rest };
+    }
+    console.error(`Unknown ingest subcommand: ${sub}`);
+    printHelp();
+    process.exit(1);
+  }
   if (primary === 'graph-context') {
     validateArgs(
       rest,
@@ -868,6 +891,12 @@ Workspace:
 Service:
   service api             Run local HTTP JSON API
   service indexer         Run indexer service queue/worker
+
+Ingest:
+  ingest ctags            Ingest ctags JSONL symbols into normalized records
+  ingest gtags            Ingest GNU Global symbols into normalized records
+  ingest lsif             Ingest LSIF dumps into normalized records
+  ingest scip             Ingest SCIP indexes into normalized records
 
 Tooling:
   tooling doctor          Inspect tooling availability and config

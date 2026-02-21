@@ -1456,8 +1456,8 @@ Intent: strict CLI routing and error-code consistency.
 
 #### 7.1 Ingest CLI wrappers
 
-- [ ] Add and enforce `pairofcleats ingest <ctags|gtags|lsif|scip>` routes in `bin/pairofcleats.js` (current ingest scripts are separate commands).
-- [ ] Update ingest docs and command inventory.
+- [x] Add and enforce `pairofcleats ingest <ctags|gtags|lsif|scip>` routes in `bin/pairofcleats.js` (current ingest scripts are separate commands).
+- [x] Update ingest docs and command inventory.
 
 Touchpoints:
 
