@@ -1,5 +1,6 @@
 import os from 'node:os';
 import { getEnvConfig } from '../../../shared/env.js';
+import { coercePositiveIntMinOne } from '../../../shared/number-coerce.js';
 
 const normalizeEnabled = (raw) => {
   if (raw === true || raw === false) return raw;
@@ -8,12 +9,6 @@ const normalizeEnabled = (raw) => {
   if (value === 'false') return false;
   if (value === 'auto') return 'auto';
   return 'auto';
-};
-
-const parsePositiveInt = (value) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed <= 0) return null;
-  return Math.max(1, Math.floor(parsed));
 };
 
 const WORKER_HEAP_TARGET_MIN_MB = 1024;
@@ -61,30 +56,30 @@ export const resolveWorkerHeapBudgetPolicy = (options = {}) => {
   const envConfig = options?.envConfig && typeof options.envConfig === 'object'
     ? options.envConfig
     : getEnvConfig();
-  const envTargetMb = parsePositiveInt(envConfig?.workerPoolHeapTargetMb);
-  const envMinMb = parsePositiveInt(envConfig?.workerPoolHeapMinMb);
-  const envMaxMb = parsePositiveInt(envConfig?.workerPoolHeapMaxMb);
+  const envTargetMb = coercePositiveIntMinOne(envConfig?.workerPoolHeapTargetMb);
+  const envMinMb = coercePositiveIntMinOne(envConfig?.workerPoolHeapMinMb);
+  const envMaxMb = coercePositiveIntMinOne(envConfig?.workerPoolHeapMaxMb);
   const totalMemMb = Math.floor(os.totalmem() / (1024 * 1024));
   const autoTargetMb = Number.isFinite(totalMemMb) && totalMemMb >= 65536
     ? WORKER_HEAP_TARGET_MAX_MB
     : Number.isFinite(totalMemMb) && totalMemMb >= 24576
       ? WORKER_HEAP_TARGET_DEFAULT_MB
       : WORKER_HEAP_TARGET_MIN_MB;
-  const minPerWorkerMb = parsePositiveInt(options.minPerWorkerMb)
+  const minPerWorkerMb = coercePositiveIntMinOne(options.minPerWorkerMb)
     || envMinMb
     || WORKER_HEAP_TARGET_MIN_MB;
   const maxPerWorkerMb = Math.max(
     minPerWorkerMb,
     Math.min(
       process.platform === 'win32' ? 8192 : 16384,
-      parsePositiveInt(options.maxPerWorkerMb) || envMaxMb || WORKER_HEAP_TARGET_MAX_MB
+      coercePositiveIntMinOne(options.maxPerWorkerMb) || envMaxMb || WORKER_HEAP_TARGET_MAX_MB
     )
   );
   const targetPerWorkerMb = Math.max(
     minPerWorkerMb,
     Math.min(
       maxPerWorkerMb,
-      parsePositiveInt(options.targetPerWorkerMb) || envTargetMb || autoTargetMb || WORKER_HEAP_TARGET_DEFAULT_MB
+      coercePositiveIntMinOne(options.targetPerWorkerMb) || envTargetMb || autoTargetMb || WORKER_HEAP_TARGET_DEFAULT_MB
     )
   );
   return {
@@ -277,9 +272,9 @@ export function normalizeWorkerPoolConfig(raw = {}, options = {}) {
   const quantizeMaxWorkers = Number.isFinite(quantizeMaxWorkersRaw) && quantizeMaxWorkersRaw > 0
     ? Math.max(1, Math.floor(quantizeMaxWorkersRaw))
     : null;
-  const heapTargetMb = parsePositiveInt(raw.heapTargetMb);
-  const heapMinMb = parsePositiveInt(raw.heapMinMb);
-  const heapMaxMb = parsePositiveInt(raw.heapMaxMb);
+  const heapTargetMb = coercePositiveIntMinOne(raw.heapTargetMb);
+  const heapMinMb = coercePositiveIntMinOne(raw.heapMinMb);
+  const heapMaxMb = coercePositiveIntMinOne(raw.heapMaxMb);
   const normalizedHeapMinMb = heapMinMb != null && heapMaxMb != null
     ? Math.min(heapMinMb, heapMaxMb)
     : heapMinMb;
@@ -326,15 +321,15 @@ export function resolveWorkerPoolConfig(raw = {}, envConfig = null, options = {}
       config.enabled = 'auto';
     }
   }
-  const maxWorkersOverride = parsePositiveInt(envConfig?.workerPoolMaxWorkers);
+  const maxWorkersOverride = coercePositiveIntMinOne(envConfig?.workerPoolMaxWorkers);
   if (maxWorkersOverride != null) {
     config.maxWorkers = hardMaxWorkers != null
       ? Math.min(maxWorkersOverride, hardMaxWorkers)
       : maxWorkersOverride;
   }
-  const heapTargetOverride = parsePositiveInt(envConfig?.workerPoolHeapTargetMb);
-  const heapMinOverride = parsePositiveInt(envConfig?.workerPoolHeapMinMb);
-  const heapMaxOverride = parsePositiveInt(envConfig?.workerPoolHeapMaxMb);
+  const heapTargetOverride = coercePositiveIntMinOne(envConfig?.workerPoolHeapTargetMb);
+  const heapMinOverride = coercePositiveIntMinOne(envConfig?.workerPoolHeapMinMb);
+  const heapMaxOverride = coercePositiveIntMinOne(envConfig?.workerPoolHeapMaxMb);
   if (heapTargetOverride != null) config.heapTargetMb = heapTargetOverride;
   if (heapMinOverride != null) config.heapMinMb = heapMinOverride;
   if (heapMaxOverride != null) config.heapMaxMb = heapMaxOverride;

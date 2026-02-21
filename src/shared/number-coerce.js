@@ -11,6 +11,19 @@ export const coercePositiveInt = (value) => {
 };
 
 /**
+ * Coerce a value to a positive integer, clamping fractional positive values
+ * to at least `1`.
+ *
+ * @param {unknown} value
+ * @returns {number|null}
+ */
+export const coercePositiveIntMinOne = (value) => {
+  const coerced = coercePositiveInt(value);
+  if (coerced == null) return null;
+  return Math.max(1, coerced);
+};
+
+/**
  * Coerce a value to a non-negative integer.
  *
  * @param {unknown} value
