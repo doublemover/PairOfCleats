@@ -91,25 +91,55 @@ export async function createIndexerWorkerPool(input = {}) {
       byLanguage: raw.byLanguage && typeof raw.byLanguage === 'object' ? raw.byLanguage : {}
     };
   };
+  function *iterateStringEntries(value) {
+    if (!value) return;
+    if (typeof value === 'string') {
+      yield value;
+      return;
+    }
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        if (typeof entry === 'string') yield entry;
+      }
+      return;
+    }
+    if (value instanceof Set) {
+      for (const entry of value.values()) {
+        if (typeof entry === 'string') yield entry;
+      }
+      return;
+    }
+    if (typeof value[Symbol.iterator] === 'function') {
+      for (const entry of value) {
+        if (typeof entry === 'string') yield entry;
+      }
+    }
+  }
   const normalizeStringArray = (value) => {
-    if (!Array.isArray(value)) return [];
-    return value.filter((entry) => typeof entry === 'string');
+    if (!Array.isArray(value)) {
+      return Array.from(iterateStringEntries(value));
+    }
+    // Fast path: avoid large array copies when the input is already string-only.
+    for (let i = 0; i < value.length; i += 1) {
+      if (typeof value[i] !== 'string') {
+        return Array.from(iterateStringEntries(value));
+      }
+    }
+    return value;
   };
   const normalizeCodeDictLanguages = (value) => {
     if (!value) return [];
-    if (value instanceof Set) return Array.from(value).filter((entry) => typeof entry === 'string');
-    if (Array.isArray(value)) return normalizeStringArray(value);
-    return [];
+    return normalizeStringArray(value);
   };
   const serializeCodeDictWordsByLanguage = (value) => {
     if (!value) return null;
-    const entries = value instanceof Map ? Array.from(value.entries()) : Object.entries(value);
+    const entries = value instanceof Map
+      ? value.entries()
+      : Object.entries(value);
     const out = {};
     for (const [lang, words] of entries) {
       if (typeof lang !== 'string' || !lang) continue;
-      const list = Array.isArray(words)
-        ? normalizeStringArray(words)
-        : (words instanceof Set ? Array.from(words).filter((entry) => typeof entry === 'string') : []);
+      const list = normalizeStringArray(words);
       if (list.length) out[lang] = list;
     }
     return Object.keys(out).length ? out : null;
@@ -146,6 +176,14 @@ export async function createIndexerWorkerPool(input = {}) {
       minPerWorkerMb: heapPolicy.minPerWorkerMb,
       maxPerWorkerMb: heapPolicy.maxPerWorkerMb
     });
+    const serializedDictWords = dictSharedForPool?.bytes && dictSharedForPool?.offsets
+      ? null
+      : normalizeStringArray(dictWordsForPool);
+    const serializedCodeDictWords = normalizeStringArray(codeDictWordsForPool);
+    const serializedCodeDictByLanguage = serializeCodeDictWordsByLanguage(codeDictWordsByLanguageForPool);
+    const serializedCodeDictLanguages = normalizeCodeDictLanguages(codeDictLanguagesForPool);
+    const hasCodeDictLangs = codeDictLanguagesForPool != null;
+    const serializedTreeSitterPayload = sanitizeTreeSitterConfig(treeSitterConfig);
     const workerTaskMetricPool = createBoundedObjectPool({
       maxSize: 1024,
       create: () => ({
@@ -222,31 +260,20 @@ export async function createIndexerWorkerPool(input = {}) {
       };
       if (dictSharedForPool?.bytes && dictSharedForPool?.offsets) {
         workerData.dictShared = dictSharedForPool;
-      } else {
-        workerData.dictWords = Array.isArray(dictWordsForPool)
-          ? dictWordsForPool
-          : Array.from(dictWordsForPool || []);
+      } else if (serializedDictWords.length) {
+        workerData.dictWords = serializedDictWords;
       }
-      const codeDictWordsList = codeDictWordsForPool instanceof Set
-        ? Array.from(codeDictWordsForPool)
-        : normalizeStringArray(codeDictWordsForPool);
-      if (codeDictWordsList.length) {
-        workerData.codeDictWords = codeDictWordsList;
+      if (serializedCodeDictWords.length) {
+        workerData.codeDictWords = serializedCodeDictWords;
       }
-      const codeDictByLanguage = serializeCodeDictWordsByLanguage(codeDictWordsByLanguageForPool);
-      if (codeDictByLanguage) {
-        workerData.codeDictWordsByLanguage = codeDictByLanguage;
+      if (serializedCodeDictByLanguage) {
+        workerData.codeDictWordsByLanguage = serializedCodeDictByLanguage;
       }
-      const hasCodeDictLangs = codeDictLanguagesForPool != null;
-      const codeDictLangList = normalizeCodeDictLanguages(codeDictLanguagesForPool);
-      if (hasCodeDictLangs) {
-        workerData.codeDictLanguages = codeDictLangList;
-      } else if (codeDictLangList.length) {
-        workerData.codeDictLanguages = codeDictLangList;
+      if (hasCodeDictLangs || serializedCodeDictLanguages.length) {
+        workerData.codeDictLanguages = serializedCodeDictLanguages;
       }
-      const treeSitterPayload = sanitizeTreeSitterConfig(treeSitterConfig);
-      if (treeSitterPayload) {
-        workerData.treeSitter = treeSitterPayload;
+      if (serializedTreeSitterPayload) {
+        workerData.treeSitter = serializedTreeSitterPayload;
       }
       return new Piscina({
         filename: fileURLToPath(new URL('./indexer-worker.js', import.meta.url)),
