@@ -367,6 +367,9 @@ export function createBuildScheduler(input = {}) {
       name,
       priority: Number.isFinite(Number(cfg.priority)) ? Number(cfg.priority) : 50,
       weight: Number.isFinite(Number(cfg.weight)) ? Math.max(1, Math.floor(Number(cfg.weight))) : 1,
+      floorCpu: Number.isFinite(Number(cfg.floorCpu)) ? Math.max(0, Math.floor(Number(cfg.floorCpu))) : 0,
+      floorIo: Number.isFinite(Number(cfg.floorIo)) ? Math.max(0, Math.floor(Number(cfg.floorIo))) : 0,
+      floorMem: Number.isFinite(Number(cfg.floorMem)) ? Math.max(0, Math.floor(Number(cfg.floorMem))) : 0,
       maxPending: Number.isFinite(Number(cfg.maxPending)) ? Math.max(1, Math.floor(Number(cfg.maxPending))) : null,
       maxPendingBytes: normalizeByteLimit(cfg.maxPendingBytes),
       maxInFlightBytes: normalizeByteLimit(cfg.maxInFlightBytes),
@@ -407,6 +410,15 @@ export function createBuildScheduler(input = {}) {
     }
     if (Number.isFinite(Number(config.weight))) {
       queue.weight = Math.max(1, Math.floor(Number(config.weight)));
+    }
+    if (Number.isFinite(Number(config.floorCpu))) {
+      queue.floorCpu = Math.max(0, Math.floor(Number(config.floorCpu)));
+    }
+    if (Number.isFinite(Number(config.floorIo))) {
+      queue.floorIo = Math.max(0, Math.floor(Number(config.floorIo)));
+    }
+    if (Number.isFinite(Number(config.floorMem))) {
+      queue.floorMem = Math.max(0, Math.floor(Number(config.floorMem)));
     }
     queueOrder.sort((a, b) => a.priority - b.priority || a.name.localeCompare(b.name));
   };
@@ -639,6 +651,18 @@ export function createBuildScheduler(input = {}) {
         starvedQueues += 1;
       }
     }
+    let floorCpu = 0;
+    let floorIo = 0;
+    let floorMem = 0;
+    for (const q of queueOrder) {
+      if ((q.pending.length + q.running) <= 0) continue;
+      floorCpu = Math.max(floorCpu, Number(q.floorCpu) || 0);
+      floorIo = Math.max(floorIo, Number(q.floorIo) || 0);
+      floorMem = Math.max(floorMem, Number(q.floorMem) || 0);
+    }
+    const cpuFloor = Math.max(baselineLimits.cpu, floorCpu);
+    const ioFloor = Math.max(baselineLimits.io, floorIo);
+    const memFloor = Math.max(baselineLimits.mem, floorMem);
     const tokenBudget = Math.max(1, tokens.cpu.total + tokens.io.total);
     const memoryTokenBudgetBytes = Math.max(1, tokens.mem.total) * adaptiveMemoryPerTokenMb * 1024 * 1024;
     const pendingBytePressure = totalPendingBytes > Math.max(
@@ -705,10 +729,10 @@ export function createBuildScheduler(input = {}) {
 
     if (memoryLowHeadroom) {
       adaptiveMode = 'steady';
-      tokens.cpu.total = Math.max(baselineLimits.cpu, tokens.cpu.used, tokens.cpu.total - adaptiveStep);
-      tokens.io.total = Math.max(baselineLimits.io, tokens.io.used, tokens.io.total - adaptiveStep);
+      tokens.cpu.total = Math.max(cpuFloor, tokens.cpu.used, tokens.cpu.total - adaptiveStep);
+      tokens.io.total = Math.max(ioFloor, tokens.io.used, tokens.io.total - adaptiveStep);
       tokens.mem.total = Math.max(
-        baselineLimits.mem,
+        memFloor,
         tokens.mem.used,
         Math.min(memoryTokenHeadroomCap, tokens.mem.total - adaptiveStep)
       );
@@ -759,9 +783,9 @@ export function createBuildScheduler(input = {}) {
       );
     if (settleMode) {
       adaptiveMode = 'settle';
-      tokens.cpu.total = Math.max(baselineLimits.cpu, tokens.cpu.used, tokens.cpu.total - adaptiveStep);
-      tokens.io.total = Math.max(baselineLimits.io, tokens.io.used, tokens.io.total - adaptiveStep);
-      tokens.mem.total = Math.max(baselineLimits.mem, tokens.mem.used, tokens.mem.total - adaptiveStep);
+      tokens.cpu.total = Math.max(cpuFloor, tokens.cpu.used, tokens.cpu.total - adaptiveStep);
+      tokens.io.total = Math.max(ioFloor, tokens.io.used, tokens.io.total - adaptiveStep);
+      tokens.mem.total = Math.max(memFloor, tokens.mem.used, tokens.mem.total - adaptiveStep);
       return;
     }
 
@@ -776,9 +800,9 @@ export function createBuildScheduler(input = {}) {
 
     if (mostlyIdle) {
       adaptiveMode = 'steady';
-      tokens.cpu.total = Math.max(baselineLimits.cpu, tokens.cpu.used, tokens.cpu.total - adaptiveStep);
-      tokens.io.total = Math.max(baselineLimits.io, tokens.io.used, tokens.io.total - adaptiveStep);
-      tokens.mem.total = Math.max(baselineLimits.mem, tokens.mem.used, tokens.mem.total - adaptiveStep);
+      tokens.cpu.total = Math.max(cpuFloor, tokens.cpu.used, tokens.cpu.total - adaptiveStep);
+      tokens.io.total = Math.max(ioFloor, tokens.io.used, tokens.io.total - adaptiveStep);
+      tokens.mem.total = Math.max(memFloor, tokens.mem.used, tokens.mem.total - adaptiveStep);
     }
   };
 
@@ -1003,6 +1027,9 @@ export function createBuildScheduler(input = {}) {
         maxPending: q.maxPending,
         maxPendingBytes: q.maxPendingBytes,
         maxInFlightBytes: q.maxInFlightBytes,
+        floorCpu: q.floorCpu,
+        floorIo: q.floorIo,
+        floorMem: q.floorMem,
         priority: q.priority,
         weight: q.weight,
         oldestWaitMs: oldest,

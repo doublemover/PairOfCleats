@@ -45,24 +45,30 @@ const resolveQueueConfig = (value) => {
     const priority = coerceNonNegativeInt(config.priority);
     const maxPending = coercePositiveInt(config.maxPending);
     const weight = coercePositiveInt(config.weight);
+    const floorCpu = coerceNonNegativeInt(config.floorCpu);
+    const floorIo = coerceNonNegativeInt(config.floorIo);
+    const floorMem = coerceNonNegativeInt(config.floorMem);
     resolved[name] = {
       ...(priority != null ? { priority } : {}),
       ...(maxPending != null ? { maxPending } : {}),
-      ...(weight != null ? { weight } : {})
+      ...(weight != null ? { weight } : {}),
+      ...(floorCpu != null ? { floorCpu } : {}),
+      ...(floorIo != null ? { floorIo } : {}),
+      ...(floorMem != null ? { floorMem } : {})
     };
   }
   return resolved;
 };
 
 const SCHEDULER_DEFAULT_QUEUE_CONFIG = Object.freeze({
-  'stage1.cpu': Object.freeze({ priority: 40, weight: 3 }),
-  'stage1.io': Object.freeze({ priority: 35, weight: 2 }),
+  'stage1.cpu': Object.freeze({ priority: 40, weight: 3, floorCpu: 1 }),
+  'stage1.io': Object.freeze({ priority: 35, weight: 2, floorIo: 1 }),
   'stage1.proc': Object.freeze({ priority: 45, weight: 2 }),
-  'stage1.postings': Object.freeze({ priority: 25, weight: 4 }),
-  'stage2.write': Object.freeze({ priority: 25, weight: 4 }),
+  'stage1.postings': Object.freeze({ priority: 25, weight: 4, floorCpu: 1 }),
+  'stage2.write': Object.freeze({ priority: 25, weight: 4, floorIo: 1 }),
   'stage2.relations': Object.freeze({ priority: 30, weight: 3 }),
-  'stage2.relations.io': Object.freeze({ priority: 30, weight: 2 }),
-  'stage4.sqlite': Object.freeze({ priority: 20, weight: 5 }),
+  'stage2.relations.io': Object.freeze({ priority: 30, weight: 2, floorIo: 1 }),
+  'stage4.sqlite': Object.freeze({ priority: 20, weight: 5, floorIo: 1 }),
   'embeddings.compute': Object.freeze({ priority: 35, weight: 3 }),
   'embeddings.io': Object.freeze({ priority: 30, weight: 2 })
 });
