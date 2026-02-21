@@ -304,8 +304,7 @@ export async function loadSearchIndexes({
     if (resolvedRunExtractedProse && resolvedLoadExtractedProse) ensureManifest(extractedProseDir);
   }
 
-  const includeExtractedProseInCompatibility = resolvedLoadExtractedProse
-    && (resolvedRunExtractedProse || !strict);
+  const includeExtractedProseInCompatibility = resolvedLoadExtractedProse;
   const compatibilityTargets = [
     runCode ? { mode: 'code', dir: codeDir } : null,
     runProse ? { mode: 'prose', dir: proseDir } : null,
@@ -315,7 +314,11 @@ export async function loadSearchIndexes({
   if (compatibilityTargets.length) {
     const keys = new Map();
     for (const entry of compatibilityTargets) {
-      const { key } = readCompatibilityKey(entry.dir, { maxBytes: MAX_JSON_BYTES, strict });
+      const strictCompatibilityKey = strict && (entry.mode !== 'extracted-prose' || resolvedRunExtractedProse);
+      const { key } = readCompatibilityKey(entry.dir, {
+        maxBytes: MAX_JSON_BYTES,
+        strict: strictCompatibilityKey
+      });
       keys.set(entry.mode, key);
     }
     let keysToValidate = keys;
