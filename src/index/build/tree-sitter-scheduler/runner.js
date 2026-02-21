@@ -248,6 +248,13 @@ export const runTreeSitterScheduler = async ({
     ? resolveRuntimeEnv(runtime.envelope, process.env)
     : process.env;
   const grammarKeys = Array.isArray(planResult.plan?.grammarKeys) ? planResult.plan.grammarKeys : [];
+  const idleGapStats = {
+    samples: 0,
+    totalMs: 0,
+    maxMs: 0,
+    thresholdMs: 25
+  };
+  let lastGrammarCompletedAt = 0;
   if (grammarKeys.length) {
     const streamLogs = typeof log === 'function';
     const execConcurrency = resolveExecConcurrency({
@@ -259,6 +266,15 @@ export const runTreeSitterScheduler = async ({
       execConcurrency,
       async (grammarKey, ctx) => {
         throwIfAborted(abortSignal);
+        const now = Date.now();
+        if (lastGrammarCompletedAt > 0) {
+          const idleGapMs = Math.max(0, now - lastGrammarCompletedAt);
+          if (idleGapMs >= idleGapStats.thresholdMs) {
+            idleGapStats.samples += 1;
+            idleGapStats.totalMs += idleGapMs;
+            idleGapStats.maxMs = Math.max(idleGapStats.maxMs, idleGapMs);
+          }
+        }
         if (log) {
           log(`[tree-sitter:schedule] exec ${ctx.index + 1}/${grammarKeys.length}: ${grammarKey}`);
         }
@@ -291,6 +307,7 @@ export const runTreeSitterScheduler = async ({
         } finally {
           stdoutBuffer?.flush();
           stderrBuffer?.flush();
+          lastGrammarCompletedAt = Date.now();
         }
         throwIfAborted(abortSignal);
       },
@@ -322,7 +339,16 @@ export const runTreeSitterScheduler = async ({
       return Array.isArray(segments) ? segments.map((segment) => ({ ...segment })) : null;
     },
     schedulerStats: planResult.plan
-      ? { grammarKeys: (planResult.plan.grammarKeys || []).length, jobs: planResult.plan.jobs || 0 }
+      ? {
+        grammarKeys: (planResult.plan.grammarKeys || []).length,
+        jobs: planResult.plan.jobs || 0,
+        parserQueueIdleGaps: {
+          samples: idleGapStats.samples,
+          totalMs: idleGapStats.totalMs,
+          maxMs: idleGapStats.maxMs,
+          avgMs: idleGapStats.samples > 0 ? Math.round(idleGapStats.totalMs / idleGapStats.samples) : 0
+        }
+      }
       : null
   };
 };

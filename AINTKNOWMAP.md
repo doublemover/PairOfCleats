@@ -2084,7 +2084,7 @@ Exit criteria:
       - Touchpoints: tree-sitter planner/scheduler paths (`src/index/build/tree-sitter-scheduler/*`) plus stage orchestration integration points.
       - Acceptance target: remove long single-wave critical paths for clike/cpp-heavy repos and reduce parser idle gaps; keep determinism unchanged.
       - Validation: add planner wave/bucket tests and large-grammar shard tests under `tests/indexing/tree-sitter/*`, plus cap/guard tests for maxBytes/maxLines behavior.
-  60. [ ] Add telemetry for parser queue idle gaps to catch under-filled waves.
+  60. [x] Add telemetry for parser queue idle gaps to catch under-filled waves.
       - Touchpoints: tree-sitter planner/scheduler paths (`src/index/build/tree-sitter-scheduler/*`) plus stage orchestration integration points.
       - Acceptance target: remove long single-wave critical paths for clike/cpp-heavy repos and reduce parser idle gaps; keep determinism unchanged.
       - Validation: add planner wave/bucket tests and large-grammar shard tests under `tests/indexing/tree-sitter/*`, plus cap/guard tests for maxBytes/maxLines behavior.
