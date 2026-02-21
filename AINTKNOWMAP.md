@@ -304,9 +304,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.15 Go
 
-- [ ] Implement `.go` routing and package/import extraction behavior.
-- [ ] Implement and verify Go chunking/relations/flow extraction for multi-package repos.
-- [ ] Calibrate and commit Go caps for generated code and large monorepo package layouts.
+- [x] Implement `.go` routing and package/import extraction behavior.
+- [x] Implement and verify Go chunking/relations/flow extraction for multi-package repos.
+- [x] Calibrate and commit Go caps for generated code and large monorepo package layouts.
 
 
 Touchpoints:
@@ -319,9 +319,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.16 Java
 
-- [ ] Implement `.java` routing and class/interface/annotation extraction behavior.
-- [ ] Implement and verify package/import and relation extraction across deep package trees.
-- [ ] Calibrate and commit Java caps for verbose enterprise classes and generated sources.
+- [x] Implement `.java` routing and class/interface/annotation extraction behavior.
+- [x] Implement and verify package/import and relation extraction across deep package trees.
+- [x] Calibrate and commit Java caps for verbose enterprise classes and generated sources.
 
 
 Touchpoints:
@@ -334,9 +334,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.17 CSharp
 
-- [ ] Implement `.cs` routing and namespace/class/interface extraction behavior.
-- [ ] Implement and verify using/import relation extraction and partial-class handling.
-- [ ] Calibrate and commit C# caps for large solution codebases.
+- [x] Implement `.cs` routing and namespace/class/interface extraction behavior.
+- [x] Implement and verify using/import relation extraction and partial-class handling.
+- [x] Calibrate and commit C# caps for large solution codebases.
 
 
 Touchpoints:
@@ -349,9 +349,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.18 Kotlin
 
-- [ ] Implement `.kt` and `.kts` routing and class/object/function extraction behavior.
-- [ ] Implement and verify import and relation extraction for multiplatform and Gradle Kotlin DSL usage.
-- [ ] Calibrate and commit Kotlin caps for coroutine-heavy and DSL-heavy files.
+- [x] Implement `.kt` and `.kts` routing and class/object/function extraction behavior.
+- [x] Implement and verify import and relation extraction for multiplatform and Gradle Kotlin DSL usage.
+- [x] Calibrate and commit Kotlin caps for coroutine-heavy and DSL-heavy files.
 
 
 Touchpoints:
@@ -364,9 +364,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.19 Rust
 
-- [ ] Implement `.rs` routing and module/use extraction behavior.
-- [ ] Implement and verify relation extraction across module trees and macro-heavy files.
-- [ ] Calibrate and commit Rust caps for macro-expanded and generated code patterns.
+- [x] Implement `.rs` routing and module/use extraction behavior.
+- [x] Implement and verify relation extraction across module trees and macro-heavy files.
+- [x] Calibrate and commit Rust caps for macro-expanded and generated code patterns.
 
 
 Touchpoints:
@@ -379,9 +379,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.20 Swift
 
-- [ ] Implement `.swift` routing and type/function extraction behavior.
-- [ ] Implement and verify import and relation extraction for package and Xcode-style layouts.
-- [ ] Calibrate and commit Swift caps for protocol-heavy and extension-heavy files.
+- [x] Implement `.swift` routing and type/function extraction behavior.
+- [x] Implement and verify import and relation extraction for package and Xcode-style layouts.
+- [x] Calibrate and commit Swift caps for protocol-heavy and extension-heavy files.
 
 
 Touchpoints:
@@ -394,9 +394,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.21 HTML
 
-- [ ] Implement `.html`/`.htm` routing and deterministic chunking behavior.
-- [ ] Implement and verify link/script/style reference extraction as relations where supported.
-- [ ] Calibrate and commit HTML caps for large template bundles.
+- [x] Implement `.html`/`.htm` routing and deterministic chunking behavior.
+- [x] Implement and verify link/script/style reference extraction as relations where supported.
+- [x] Calibrate and commit HTML caps for large template bundles.
 
 
 Touchpoints:
@@ -410,9 +410,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.22 CSS
 
-- [ ] Implement `.css` routing and selector/token chunking behavior.
-- [ ] Implement and verify import and dependency relation extraction (`@import`, asset references).
-- [ ] Calibrate and commit CSS caps for large design-system stylesheets.
+- [x] Implement `.css` routing and selector/token chunking behavior.
+- [x] Implement and verify import and dependency relation extraction (`@import`, asset references).
+- [x] Calibrate and commit CSS caps for large design-system stylesheets.
 
 
 Touchpoints:
@@ -425,9 +425,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.23 Handlebars
 
-- [ ] Implement `.hbs`/`.handlebars` routing and template relation extraction behavior.
-- [ ] Implement and verify mixed template/code chunk boundaries.
-- [ ] Calibrate and commit Handlebars caps for server-rendered template repositories.
+- [x] Implement `.hbs`/`.handlebars` routing and template relation extraction behavior.
+- [x] Implement and verify mixed template/code chunk boundaries.
+- [x] Calibrate and commit Handlebars caps for server-rendered template repositories.
 
 
 Touchpoints:
@@ -441,9 +441,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.24 Mustache
 
-- [ ] Implement `.mustache` routing and template parse/chunk behavior.
-- [ ] Implement and verify section/partial relation extraction behavior.
-- [ ] Calibrate and commit Mustache caps for large template inventories.
+- [x] Implement `.mustache` routing and template parse/chunk behavior.
+- [x] Implement and verify section/partial relation extraction behavior.
+- [x] Calibrate and commit Mustache caps for large template inventories.
 
 
 Touchpoints:
@@ -457,9 +457,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.25 Jinja
 
-- [ ] Implement `.j2`/`.jinja`/`.jinja2` routing and template relation extraction behavior.
-- [ ] Implement and verify include/extend/import template relation modeling.
-- [ ] Calibrate and commit Jinja caps for backend template-heavy repos.
+- [x] Implement `.j2`/`.jinja`/`.jinja2` routing and template relation extraction behavior.
+- [x] Implement and verify include/extend/import template relation modeling.
+- [x] Calibrate and commit Jinja caps for backend template-heavy repos.
 
 
 Touchpoints:
@@ -473,9 +473,9 @@ Touchpoints:
 - `src/index/build/runtime/caps.js`
 #### 0.5.26 Razor
 
-- [ ] Implement `.cshtml`/`.razor` routing and template-code segmentation behavior.
-- [ ] Implement and verify relation extraction from mixed Razor/C# surfaces.
-- [ ] Calibrate and commit Razor caps for componentized UI repositories.
+- [x] Implement `.cshtml`/`.razor` routing and template-code segmentation behavior.
+- [x] Implement and verify relation extraction from mixed Razor/C# surfaces.
+- [x] Calibrate and commit Razor caps for componentized UI repositories.
 
 
 Touchpoints:
