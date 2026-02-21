@@ -2008,7 +2008,7 @@ Exit criteria:
       - Touchpoints: `src/shared/concurrency.js`, `src/index/build/runtime/scheduler.js`, `src/index/build/runtime/workers.js`, and scheduler telemetry/reporting emitters.
       - Acceptance target: sustain >75% effective utilization during heavy indexing phases on 8c/16t hardware without starvation spikes or queue blow-ups.
       - Validation: extend scheduler contract/perf tests (`tests/shared/concurrency/*`, `tests/perf/scheduler-*`, `tests/perf/indexing/runtime/*`) for adaptive scaling, fairness, backpressure, and alerting windows.
-  41. [ ] Add explicit backpressure from write queue into stage1/stage2 producers when write tail grows.
+  41. [x] Add explicit backpressure from write queue into stage1/stage2 producers when write tail grows.
       - Touchpoints: `src/shared/concurrency.js`, `src/index/build/runtime/scheduler.js`, `src/index/build/runtime/workers.js`, and scheduler telemetry/reporting emitters.
       - Acceptance target: sustain >75% effective utilization during heavy indexing phases on 8c/16t hardware without starvation spikes or queue blow-ups.
       - Validation: extend scheduler contract/perf tests (`tests/shared/concurrency/*`, `tests/perf/scheduler-*`, `tests/perf/indexing/runtime/*`) for adaptive scaling, fairness, backpressure, and alerting windows.

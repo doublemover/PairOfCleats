@@ -46,6 +46,11 @@ assert.equal(resolved.starvationMs, 9999, 'expected env starvation to be used');
 assert.equal(resolved.queues.custom.priority, 7);
 assert.equal(resolved.queues.custom.maxPending, 9);
 assert.equal(resolved.queues.custom.floorCpu, 2);
+assert.equal(resolved.writeBackpressure.writeQueue, 'stage2.write');
+assert.ok(
+  Array.isArray(resolved.writeBackpressure.producerQueues)
+  && resolved.writeBackpressure.producerQueues.includes('stage1.cpu')
+);
 
 const defaults = resolveSchedulerConfig({
   argv: {},
@@ -69,5 +74,7 @@ assert.equal(defaults.memoryTokens, 1, 'expected memory token clamp to 1');
 assert.equal(defaults.starvationMs, 30000, 'expected default starvation window');
 assert.equal(defaults.queues['stage2.write'].floorIo, 1, 'expected critical write queue floor');
 assert.equal(defaults.queues['stage1.postings'].floorCpu, 1, 'expected postings queue floor');
+assert.equal(defaults.writeBackpressure.enabled, true, 'expected write backpressure enabled by default');
+assert.equal(defaults.writeBackpressure.pendingThreshold, 128, 'expected default write pending threshold');
 
 console.log('scheduler config parse test passed');

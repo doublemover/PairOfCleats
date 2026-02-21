@@ -60,6 +60,49 @@ const resolveQueueConfig = (value) => {
   return resolved;
 };
 
+const DEFAULT_WRITE_BACKPRESSURE = Object.freeze({
+  enabled: true,
+  writeQueue: 'stage2.write',
+  producerQueues: Object.freeze([
+    'stage1.cpu',
+    'stage1.io',
+    'stage1.postings',
+    'stage2.relations',
+    'stage2.relations.io'
+  ]),
+  pendingThreshold: 128,
+  pendingBytesThreshold: 256 * 1024 * 1024,
+  oldestWaitMsThreshold: 15000
+});
+
+const resolveWriteBackpressureConfig = (value) => {
+  const config = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  const writeQueue = typeof config.writeQueue === 'string' && config.writeQueue.trim()
+    ? config.writeQueue.trim()
+    : DEFAULT_WRITE_BACKPRESSURE.writeQueue;
+  const producerQueues = Array.isArray(config.producerQueues)
+    ? config.producerQueues
+      .filter((entry) => typeof entry === 'string' && entry.trim())
+      .map((entry) => entry.trim())
+    : Array.from(DEFAULT_WRITE_BACKPRESSURE.producerQueues);
+  const pendingThreshold = coercePositiveInt(config.pendingThreshold)
+    ?? DEFAULT_WRITE_BACKPRESSURE.pendingThreshold;
+  const pendingBytesThreshold = coercePositiveInt(config.pendingBytesThreshold)
+    ?? DEFAULT_WRITE_BACKPRESSURE.pendingBytesThreshold;
+  const oldestWaitMsThreshold = coercePositiveInt(config.oldestWaitMsThreshold)
+    ?? DEFAULT_WRITE_BACKPRESSURE.oldestWaitMsThreshold;
+  return {
+    enabled: config.enabled !== false,
+    writeQueue,
+    producerQueues: producerQueues.length
+      ? producerQueues
+      : Array.from(DEFAULT_WRITE_BACKPRESSURE.producerQueues),
+    pendingThreshold,
+    pendingBytesThreshold,
+    oldestWaitMsThreshold
+  };
+};
+
 const SCHEDULER_DEFAULT_QUEUE_CONFIG = Object.freeze({
   'stage1.cpu': Object.freeze({ priority: 40, weight: 3, floorCpu: 1 }),
   'stage1.io': Object.freeze({ priority: 35, weight: 2, floorIo: 1 }),
@@ -261,6 +304,9 @@ export const resolveSchedulerConfig = ({ argv, rawArgv, envConfig, indexingConfi
     SCHEDULER_DEFAULT_QUEUE_CONFIG,
     resolveQueueConfig(schedulerConfig?.queues)
   );
+  const writeBackpressure = resolveWriteBackpressureConfig(
+    schedulerConfig?.writeBackpressure
+  );
 
   return {
     enabled,
@@ -279,6 +325,7 @@ export const resolveSchedulerConfig = ({ argv, rawArgv, envConfig, indexingConfi
     maxIoTokens: Math.max(1, maxIoTokens || 1),
     maxMemoryTokens: Math.max(1, maxMemoryTokens || 1),
     starvationMs,
-    queues
+    queues,
+    writeBackpressure
   };
 };

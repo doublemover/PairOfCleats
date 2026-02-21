@@ -290,7 +290,7 @@ export async function runWithConcurrency(items, limit, worker, options = {}) {
 /**
  * Create a build scheduler that coordinates CPU/IO/memory tokens across queues.
  * This is intentionally generic and can be wired into Stage1/2/4 and embeddings.
- * @param {{enabled?:boolean,lowResourceMode?:boolean,cpuTokens?:number,ioTokens?:number,memoryTokens?:number,starvationMs?:number,maxInFlightBytes?:number,queues?:Record<string,{priority?:number,maxPending?:number,maxPendingBytes?:number,maxInFlightBytes?:number}>,traceMaxSamples?:number,queueDepthSnapshotMaxSamples?:number,traceIntervalMs?:number,queueDepthSnapshotIntervalMs?:number,queueDepthSnapshotsEnabled?:boolean}} input
+ * @param {{enabled?:boolean,lowResourceMode?:boolean,cpuTokens?:number,ioTokens?:number,memoryTokens?:number,starvationMs?:number,maxInFlightBytes?:number,queues?:Record<string,{priority?:number,maxPending?:number,maxPendingBytes?:number,maxInFlightBytes?:number}>,traceMaxSamples?:number,queueDepthSnapshotMaxSamples?:number,traceIntervalMs?:number,queueDepthSnapshotIntervalMs?:number,queueDepthSnapshotsEnabled?:boolean,writeBackpressure?:{enabled?:boolean,writeQueue?:string,producerQueues?:string[],pendingThreshold?:number,pendingBytesThreshold?:number,oldestWaitMsThreshold?:number}}} input
  * @returns {{schedule:(queueName:string,tokens?:{cpu?:number,io?:number,mem?:number,bytes?:number},fn?:()=>Promise<any>)=>Promise<any>,stats:()=>any,shutdown:()=>void,setLimits:(limits:{cpuTokens?:number,ioTokens?:number,memoryTokens?:number})=>void,setTelemetryOptions:(options:{stage?:string,queueDepthSnapshotsEnabled?:boolean,queueDepthSnapshotIntervalMs?:number,traceIntervalMs?:number})=>void}}
  */
 export function createBuildScheduler(input = {}) {
@@ -350,6 +350,41 @@ export function createBuildScheduler(input = {}) {
   const queueConfig = input.queues || {};
   const queues = new Map();
   const queueOrder = [];
+  const normalizeQueueName = (value) => (
+    typeof value === 'string' && value.trim() ? value.trim() : null
+  );
+  const writeBackpressureInput = input.writeBackpressure
+    && typeof input.writeBackpressure === 'object'
+    ? input.writeBackpressure
+    : null;
+  const writeBackpressure = {
+    enabled: writeBackpressureInput?.enabled !== false,
+    writeQueue: normalizeQueueName(writeBackpressureInput?.writeQueue) || 'stage2.write',
+    producerQueues: new Set(
+      Array.isArray(writeBackpressureInput?.producerQueues)
+        ? writeBackpressureInput.producerQueues
+          .map((entry) => normalizeQueueName(entry))
+          .filter(Boolean)
+        : ['stage1.cpu', 'stage1.io', 'stage1.postings', 'stage2.relations', 'stage2.relations.io']
+    ),
+    pendingThreshold: Number.isFinite(Number(writeBackpressureInput?.pendingThreshold))
+      ? Math.max(1, Math.floor(Number(writeBackpressureInput.pendingThreshold)))
+      : 128,
+    pendingBytesThreshold: Number.isFinite(Number(writeBackpressureInput?.pendingBytesThreshold))
+      ? Math.max(1, Math.floor(Number(writeBackpressureInput.pendingBytesThreshold)))
+      : (256 * 1024 * 1024),
+    oldestWaitMsThreshold: Number.isFinite(Number(writeBackpressureInput?.oldestWaitMsThreshold))
+      ? Math.max(1, Math.floor(Number(writeBackpressureInput.oldestWaitMsThreshold)))
+      : 15000
+  };
+  const writeBackpressureState = {
+    active: false,
+    reasons: [],
+    queue: writeBackpressure.writeQueue,
+    pending: 0,
+    pendingBytes: 0,
+    oldestWaitMs: 0
+  };
   const nowMs = () => Date.now();
   const globalMaxInFlightBytes = normalizeByteLimit(input.maxInFlightBytes);
   const startedAtMs = nowMs();
@@ -436,6 +471,41 @@ export function createBuildScheduler(input = {}) {
       queue.floorMem = Math.max(0, Math.floor(Number(config.floorMem)));
     }
     queueOrder.sort((a, b) => a.priority - b.priority || a.name.localeCompare(b.name));
+  };
+
+  const evaluateWriteBackpressure = () => {
+    if (!writeBackpressure.enabled) {
+      writeBackpressureState.active = false;
+      writeBackpressureState.reasons = [];
+      writeBackpressureState.pending = 0;
+      writeBackpressureState.pendingBytes = 0;
+      writeBackpressureState.oldestWaitMs = 0;
+      return writeBackpressureState;
+    }
+    const writeQueue = queues.get(writeBackpressure.writeQueue);
+    if (!writeQueue) {
+      writeBackpressureState.active = false;
+      writeBackpressureState.reasons = [];
+      writeBackpressureState.pending = 0;
+      writeBackpressureState.pendingBytes = 0;
+      writeBackpressureState.oldestWaitMs = 0;
+      return writeBackpressureState;
+    }
+    const pending = writeQueue.pending.length;
+    const pendingBytes = normalizeByteCount(writeQueue.pendingBytes);
+    const oldestWaitMs = pending > 0
+      ? Math.max(0, nowMs() - Number(writeQueue.pending[0]?.enqueuedAt || nowMs()))
+      : 0;
+    const reasons = [];
+    if (pending >= writeBackpressure.pendingThreshold) reasons.push('pending');
+    if (pendingBytes >= writeBackpressure.pendingBytesThreshold) reasons.push('pendingBytes');
+    if (oldestWaitMs >= writeBackpressure.oldestWaitMsThreshold) reasons.push('oldestWaitMs');
+    writeBackpressureState.active = reasons.length > 0;
+    writeBackpressureState.reasons = reasons;
+    writeBackpressureState.pending = pending;
+    writeBackpressureState.pendingBytes = pendingBytes;
+    writeBackpressureState.oldestWaitMs = oldestWaitMs;
+    return writeBackpressureState;
   };
 
   const registerQueue = (queueName, config = {}) => {
@@ -537,6 +607,10 @@ export function createBuildScheduler(input = {}) {
         pendingBytes: queueDepth.pendingBytes,
         running: queueDepth.running,
         inFlightBytes: queueDepth.inFlightBytes
+      },
+      backpressure: {
+        ...evaluateWriteBackpressure(),
+        reasons: Array.from(writeBackpressureState.reasons || [])
       },
       queues: queueDepth.byQueue
     };
@@ -836,6 +910,14 @@ export function createBuildScheduler(input = {}) {
 
   const canStart = (queue, req) => {
     const normalized = normalizeRequest(req);
+    const backpressureState = evaluateWriteBackpressure();
+    const producerBlocked = backpressureState.active
+      && queue
+      && queue.name !== writeBackpressure.writeQueue
+      && writeBackpressure.producerQueues.has(queue.name);
+    if (producerBlocked) {
+      return false;
+    }
     if (
       tokens.cpu.used + normalized.cpu > tokens.cpu.total
       || tokens.io.used + normalized.io > tokens.io.total
@@ -1110,7 +1192,11 @@ export function createBuildScheduler(input = {}) {
         mode: adaptiveMode,
         smoothedUtilization: smoothedUtilization ?? 0,
         smoothedPendingPressure: smoothedPendingPressure ?? 0,
-        smoothedStarvation: smoothedStarvation ?? 0
+        smoothedStarvation: smoothedStarvation ?? 0,
+        writeBackpressure: {
+          ...evaluateWriteBackpressure(),
+          producerQueues: Array.from(writeBackpressure.producerQueues)
+        }
       },
       utilization: {
         cpu: cpuUtilization,
