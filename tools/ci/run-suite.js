@@ -6,6 +6,7 @@ import yargs from 'yargs/yargs';
 import { hideBin } from 'yargs/helpers';
 import { spawnSubprocess } from '../../src/shared/subprocess.js';
 import { getRuntimeConfig, loadUserConfig, resolveRuntimeEnv } from '../shared/dict-utils.js';
+import { USR_GUARDRAIL_GATES, validateUsrGuardrailGates } from './usr/guardrails.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const DEFAULT_DIAGNOSTICS = path.join(ROOT, '.diagnostics');
@@ -67,45 +68,6 @@ const SCRIPT_COVERAGE_GROUPS = Object.freeze([
   'fixtures',
   'tools'
 ]);
-const USR_GUARDRAIL_GATES = Object.freeze([
-  {
-    item: 35,
-    label: 'USR guardrail (item 35: framework canonicalization)',
-    script: 'tools/ci/usr/item35-framework-canonicalization-gate.js',
-    report: 'usr-section-35-framework-canonicalization-report.json'
-  },
-  {
-    item: 36,
-    label: 'USR guardrail (item 36: backward-compatibility matrix)',
-    script: 'tools/ci/usr/item36-backcompat-matrix-gate.js',
-    report: 'usr-section-36-backcompat-matrix-report.json'
-  },
-  {
-    item: 37,
-    label: 'USR guardrail (item 37: governance drift)',
-    script: 'tools/ci/usr/item37-governance-drift-gate.js',
-    report: 'usr-section-37-governance-drift-report.json'
-  },
-  {
-    item: 38,
-    label: 'USR guardrail (item 38: catalog contract)',
-    script: 'tools/ci/usr/item38-catalog-contract-gate.js',
-    report: 'usr-section-38-catalog-contract-report.json'
-  },
-  {
-    item: 39,
-    label: 'USR guardrail (item 39: normalization linking identity)',
-    script: 'tools/ci/usr/item39-normalization-linking-identity-gate.js',
-    report: 'usr-section-39-normalization-linking-report.json'
-  },
-  {
-    item: 40,
-    label: 'USR guardrail (item 40: pipeline incremental transforms)',
-    script: 'tools/ci/usr/item40-pipeline-incremental-transforms-gate.js',
-    report: 'usr-section-40-pipeline-incremental-report.json'
-  }
-]);
-
 const buildUsrGateSteps = (diagnosticsDir) => USR_GUARDRAIL_GATES.map((gate) => ({
   label: gate.label,
   command: process.execPath,
@@ -163,6 +125,7 @@ const main = async () => {
     env.PAIROFCLEATS_TEST_LOG_DIR = logDir;
   }
   const capabilityJson = path.join(diagnosticsDir, 'capabilities.json');
+  validateUsrGuardrailGates();
 
   if (!argv['dry-run']) {
     await ensureDir(path.dirname(junitPath));
