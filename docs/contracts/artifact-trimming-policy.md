@@ -35,6 +35,40 @@ Each trimmed artifact path must record:
 - `trimmedFields`
 - `trimReasonCounts`
 
+Trim metadata is emitted under `extensions.trim` for sharded JSONL meta artifacts,
+and in stage checkpoint telemetry for unsharded outputs.
+
+## Trim reason taxonomy
+
+Reasons are deterministic keys and must be emitted in stable taxonomy order:
+
+- `row_oversize`
+- `drop_required_fields`
+- `drop_row_over_budget`
+- `deduped`
+- `dedupe_collision`
+- `call_sites_clear_args`
+- `call_sites_clear_evidence`
+- `call_sites_clear_kwargs`
+- `call_sites_clear_snippet_hash`
+- `symbols_clear_signature`
+- `symbols_clear_name`
+- `symbols_clear_kind`
+- `symbols_clear_lang`
+- `symbols_drop_extensions`
+- `symbol_occurrences_clear_range`
+- `symbol_ref_trim_candidates`
+- `symbol_ref_clear_import_hint`
+- `symbol_edges_drop_evidence`
+- `symbol_edges_clear_reason`
+- `symbol_edges_clear_confidence`
+- `chunk_meta_drop_token_fields`
+- `chunk_meta_drop_context_fields`
+- `chunk_meta_drop_optional_fields`
+- `chunk_meta_fallback_minimal`
+- `chunk_meta_truncate_fallback_text`
+- `chunk_meta_clear_fallback_text`
+
 ## Compatibility policy
 
 No legacy trim modes are supported. Active policy is authoritative.
