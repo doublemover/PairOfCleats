@@ -80,11 +80,12 @@ try {
   assert(progressEvents.length >= 2, 'expected progress updates for multi-chunk batch');
   const firstProgress = progressEvents[0];
   const lastProgress = progressEvents[progressEvents.length - 1];
-  assert.equal(firstProgress?.step, 'SCM Git Meta');
+  assert.equal(firstProgress?.step, 'SCM Meta');
   assert.equal(firstProgress?.current, 0);
   assert.equal(firstProgress?.total, 5);
   assert.equal(firstProgress?.meta?.taskId, 'scm:git:file-meta-batch');
   assert.equal(firstProgress?.meta?.ephemeral, true);
+  assert.equal(firstProgress?.meta?.message, undefined);
   assert.equal(lastProgress?.current, lastProgress?.total);
 
   inFlight = 0;

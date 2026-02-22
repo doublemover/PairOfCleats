@@ -280,15 +280,11 @@ export const gitProvider = {
     const baseProgressMeta = {
       taskId: 'scm:git:file-meta-batch',
       stage: 'scm',
-      mode: 'git-file-meta',
       unit: 'chunks',
       ephemeral: true
     };
     if (shouldEmitProgress) {
-      showProgress('SCM Git Meta', 0, chunks.length, {
-        ...baseProgressMeta,
-        message: `chunks 0/${chunks.length} | concurrency ${batchConcurrency}`
-      });
+      showProgress('SCM Meta', 0, chunks.length, baseProgressMeta);
     }
     let completedChunks = 0;
     const chunkResults = await runWithBoundedConcurrency(chunks, batchConcurrency, async (chunk) => {
@@ -314,10 +310,7 @@ export const gitProvider = {
       }
       completedChunks += 1;
       if (shouldEmitProgress) {
-        showProgress('SCM Git Meta', completedChunks, chunks.length, {
-          ...baseProgressMeta,
-          message: `chunks ${completedChunks}/${chunks.length} | concurrency ${batchConcurrency}`
-        });
+        showProgress('SCM Meta', completedChunks, chunks.length, baseProgressMeta);
       }
       return {
         ok: true,
