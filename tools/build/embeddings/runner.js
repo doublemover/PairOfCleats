@@ -212,19 +212,6 @@ const buildPathLookupKeys = (value) => {
   return Array.from(keys).filter(Boolean);
 };
 
-const compareMappingEntries = (left, right) => {
-  const leftStart = left?.start == null ? Number.MAX_SAFE_INTEGER : left.start;
-  const rightStart = right?.start == null ? Number.MAX_SAFE_INTEGER : right.start;
-  if (leftStart !== rightStart) return leftStart - rightStart;
-  const leftEnd = left?.end == null ? Number.MAX_SAFE_INTEGER : left.end;
-  const rightEnd = right?.end == null ? Number.MAX_SAFE_INTEGER : right.end;
-  if (leftEnd !== rightEnd) return leftEnd - rightEnd;
-  const leftIndex = Number.isFinite(left?.index) ? left.index : Number.MAX_SAFE_INTEGER;
-  const rightIndex = Number.isFinite(right?.index) ? right.index : Number.MAX_SAFE_INTEGER;
-  if (leftIndex !== rightIndex) return leftIndex - rightIndex;
-  return String(left?.filePath || '').localeCompare(String(right?.filePath || ''));
-};
-
 const pushMappingBucket = (bucketMap, key, entry) => {
   if (!key) return;
   if (!bucketMap.has(key)) {
@@ -254,12 +241,6 @@ const buildMappingEntry = ({ index, filePath, chunk }) => {
     start: normalizeRangeBoundary(chunk?.start),
     end: normalizeRangeBoundary(chunk?.end)
   };
-};
-
-const sortBucketMapValues = (bucketMap) => {
-  for (const values of bucketMap.values()) {
-    values.sort(compareMappingEntries);
-  }
 };
 
 const createIncrementalChunkMappingIndex = (chunksByFile) => {
@@ -337,8 +318,6 @@ const createIncrementalChunkMappingIndex = (chunksByFile) => {
         pathAliases.add(stableChunkPath);
       }
     }
-    sortBucketMapValues(mapping.anchorBuckets);
-    sortBucketMapValues(mapping.segmentBuckets);
     fileMappings.set(normalizedFile, mapping);
     for (const aliasPath of pathAliases) {
       for (const lookupKey of buildPathLookupKeys(aliasPath)) {
@@ -346,8 +325,6 @@ const createIncrementalChunkMappingIndex = (chunksByFile) => {
       }
     }
   }
-  sortBucketMapValues(globalAnchorBuckets);
-  sortBucketMapValues(globalSegmentBuckets);
   return {
     fileMappings,
     fileAliases,
