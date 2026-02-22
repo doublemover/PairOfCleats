@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-22T15:57:07.344Z",
+  "generatedAt": "2026-02-22T16:01:48.211Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2404,6 +2404,24 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_INDEX_DAEMON",
+      "files": [
+        "src/index/build/runtime/runtime.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_INDEX_DAEMON_SESSION",
+      "files": [
+        "src/index/build/runtime/runtime.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_INDEXER_SERVICE_EXECUTION",
+      "files": [
+        "tools/service/indexer-service.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_IO_OVERSUBSCRIBE",
       "files": [
         "src/shared/runtime-envelope.js",
@@ -3314,7 +3332,11 @@
   "envVarsPublic": [
     "PAIROFCLEATS_API_TOKEN"
   ],
-  "envVarsUnknown": [],
+  "envVarsUnknown": [
+    "PAIROFCLEATS_INDEXER_SERVICE_EXECUTION",
+    "PAIROFCLEATS_INDEX_DAEMON",
+    "PAIROFCLEATS_INDEX_DAEMON_SESSION"
+  ],
   "cliFlags": {
     "totalFlags": 346,
     "publicFlags": [
