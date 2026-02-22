@@ -34,6 +34,13 @@ const ensurePosixList = (entries) => (
 
 const GIT_META_BATCH_FORMAT_PREFIX = '__POC_GIT_META__';
 const GIT_META_BATCH_CHUNK_SIZE = 96;
+const GIT_META_BATCH_SMALL_REPO_CHUNK_MAX = 2;
+
+const toPositiveIntOrNull = (value) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return null;
+  return Math.max(1, Math.floor(numeric));
+};
 
 const toUniquePosixFiles = (filesPosix = [], repoRoot = null) => {
   const out = [];
@@ -60,15 +67,85 @@ const chunkList = (items, size) => {
   return chunks;
 };
 
+const runWithBoundedConcurrency = async (items, concurrency, worker) => {
+  const list = Array.isArray(items) ? items : [];
+  if (!list.length) return [];
+  const resolvedConcurrency = Number.isFinite(Number(concurrency)) && Number(concurrency) > 0
+    ? Math.max(1, Math.floor(Number(concurrency)))
+    : 1;
+  const maxWorkers = Math.min(list.length, resolvedConcurrency);
+  const out = new Array(list.length);
+  let cursor = 0;
+  const runWorker = async () => {
+    while (true) {
+      const index = cursor;
+      cursor += 1;
+      if (index >= list.length) return;
+      out[index] = await worker(list[index], index);
+    }
+  };
+  await Promise.all(Array.from({ length: maxWorkers }, () => runWorker()));
+  return out;
+};
+
+const parseGitMetaBatchOutput = ({ stdout, repoRoot }) => {
+  const fileMetaByPath = Object.create(null);
+  let currentMeta = null;
+  for (const row of String(stdout || '').split(/\r?\n/)) {
+    const line = String(row || '').trim();
+    if (!line) continue;
+    if (line.startsWith(GIT_META_BATCH_FORMAT_PREFIX)) {
+      const payload = line.slice(GIT_META_BATCH_FORMAT_PREFIX.length);
+      const [lastModifiedAtRaw, ...authorParts] = payload.split('\0');
+      const lastModifiedAt = String(lastModifiedAtRaw || '').trim() || null;
+      const lastAuthor = authorParts.join('\0').trim() || null;
+      currentMeta = { lastModifiedAt, lastAuthor };
+      continue;
+    }
+    if (!currentMeta) continue;
+    const fileKey = toRepoPosixPath(line, repoRoot);
+    if (!fileKey || fileMetaByPath[fileKey]) continue;
+    fileMetaByPath[fileKey] = {
+      lastModifiedAt: currentMeta.lastModifiedAt,
+      lastAuthor: currentMeta.lastAuthor,
+      churn: null,
+      churnAdded: null,
+      churnDeleted: null,
+      churnCommits: null
+    };
+  }
+  return fileMetaByPath;
+};
+
 let gitQueue = null;
 let gitQueueConcurrency = null;
 
 const resolveGitConfig = () => {
   const config = getScmRuntimeConfig() || {};
+  const runtimeConfig = config.runtime && typeof config.runtime === 'object'
+    ? config.runtime
+    : {};
+  const runtimeThreadFloor = Math.max(
+    toPositiveIntOrNull(runtimeConfig.fileConcurrency) || 1,
+    toPositiveIntOrNull(runtimeConfig.cpuConcurrency) || 1
+  );
   const maxConcurrentProcesses = Number.isFinite(Number(config.maxConcurrentProcesses))
     ? Math.max(1, Math.floor(Number(config.maxConcurrentProcesses)))
-    : 8;
-  return { maxConcurrentProcesses };
+    : (runtimeThreadFloor > 1 ? runtimeThreadFloor : 8);
+  const gitMetaBatchConfig = config.gitMetaBatch && typeof config.gitMetaBatch === 'object'
+    ? config.gitMetaBatch
+    : {};
+  const smallRepoChunkMax = Number.isFinite(Number(gitMetaBatchConfig.smallRepoChunkMax))
+    ? Math.max(1, Math.floor(Number(gitMetaBatchConfig.smallRepoChunkMax)))
+    : GIT_META_BATCH_SMALL_REPO_CHUNK_MAX;
+  const minParallelChunks = Number.isFinite(Number(gitMetaBatchConfig.minParallelChunks))
+    ? Math.max(1, Math.floor(Number(gitMetaBatchConfig.minParallelChunks)))
+    : runtimeThreadFloor;
+  return {
+    maxConcurrentProcesses,
+    smallRepoChunkMax,
+    minParallelChunks
+  };
 };
 
 const getQueue = (concurrency) => {
@@ -185,7 +262,17 @@ export const gitProvider = {
     const resolvedTimeoutMs = Number.isFinite(Number(timeoutMs)) && Number(timeoutMs) > 0
       ? Math.max(5000, Math.floor(Number(timeoutMs)))
       : 15000;
-    for (const chunk of chunks) {
+    const forceSequential = chunks.length <= config.smallRepoChunkMax;
+    const batchConcurrency = forceSequential
+      ? 1
+      : Math.max(
+        1,
+        Math.min(
+          chunks.length,
+          Math.max(config.maxConcurrentProcesses, config.minParallelChunks)
+        )
+      );
+    const chunkResults = await runWithBoundedConcurrency(chunks, batchConcurrency, async (chunk) => {
       const args = [
         '-C',
         repoRoot,
@@ -206,29 +293,19 @@ export const gitProvider = {
       if (result.exitCode !== 0) {
         return { ok: false, reason: 'unavailable' };
       }
-      let currentMeta = null;
-      for (const row of String(result.stdout || '').split(/\r?\n/)) {
-        const line = String(row || '').trim();
-        if (!line) continue;
-        if (line.startsWith(GIT_META_BATCH_FORMAT_PREFIX)) {
-          const payload = line.slice(GIT_META_BATCH_FORMAT_PREFIX.length);
-          const [lastModifiedAtRaw, ...authorParts] = payload.split('\0');
-          const lastModifiedAt = String(lastModifiedAtRaw || '').trim() || null;
-          const lastAuthor = authorParts.join('\0').trim() || null;
-          currentMeta = { lastModifiedAt, lastAuthor };
-          continue;
-        }
-        if (!currentMeta) continue;
-        const fileKey = toRepoPosixPath(line, repoRoot);
+      return {
+        ok: true,
+        fileMetaByPath: parseGitMetaBatchOutput({ stdout: result.stdout, repoRoot })
+      };
+    });
+    for (const chunkResult of chunkResults) {
+      if (!chunkResult?.ok) {
+        return { ok: false, reason: 'unavailable' };
+      }
+      const chunkMeta = chunkResult.fileMetaByPath || {};
+      for (const [fileKey, meta] of Object.entries(chunkMeta)) {
         if (!fileKey || fileMetaByPath[fileKey]) continue;
-        fileMetaByPath[fileKey] = {
-          lastModifiedAt: currentMeta.lastModifiedAt,
-          lastAuthor: currentMeta.lastAuthor,
-          churn: null,
-          churnAdded: null,
-          churnDeleted: null,
-          churnCommits: null
-        };
+        fileMetaByPath[fileKey] = meta;
       }
     }
     return { fileMetaByPath };
