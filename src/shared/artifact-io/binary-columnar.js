@@ -30,10 +30,12 @@ export const resolveBinaryColumnarWriteHints = (input = {}) => {
   const rowCount = toBoundedNonNegativeInt(input?.rowCount);
   const estimatedBytes = toBoundedNonNegativeInt(input?.estimatedBytes);
   const preallocateEnabled = input?.presize !== false;
-  const maxPreallocateBytes = toBoundedNonNegativeInt(
-    input?.maxPreallocateBytes,
-    MAX_BINARY_COLUMNAR_PREALLOCATE_BYTES
-  ) || MAX_BINARY_COLUMNAR_PREALLOCATE_BYTES;
+  const maxPreallocateBytes = input?.maxPreallocateBytes == null
+    ? MAX_BINARY_COLUMNAR_PREALLOCATE_BYTES
+    : toBoundedNonNegativeInt(
+      input.maxPreallocateBytes,
+      MAX_BINARY_COLUMNAR_PREALLOCATE_BYTES
+    );
   const preallocateBytes = preallocateEnabled && estimatedBytes > 0
     ? Math.min(maxPreallocateBytes, estimatedBytes)
     : 0;

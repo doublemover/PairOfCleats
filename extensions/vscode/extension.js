@@ -110,6 +110,28 @@ const REPO_MARKERS = Array.isArray(REPO_MARKERS_RAW)
   ? REPO_MARKERS_RAW.map((value) => String(value)).filter(Boolean)
   : DEFAULT_EDITOR_CONFIG_CONTRACT.repoRoot.markers;
 const VSCODE_REPO_WALKUP = readContract(['repoRoot', 'vscode', 'walkUpFromWorkspaceFolder'], false) === true;
+const VALID_ENV_SOURCES = new Set(['process', 'settings']);
+
+function normalizeEnvMergeOrder(order) {
+  const normalized = [];
+  if (Array.isArray(order)) {
+    for (const value of order) {
+      const key = String(value || '').trim().toLowerCase();
+      if (!VALID_ENV_SOURCES.has(key)) continue;
+      if (normalized.includes(key)) continue;
+      normalized.push(key);
+    }
+  }
+  return normalized.length > 0 ? normalized : ['process', 'settings'];
+}
+
+const VSCODE_ENV_MERGE_ORDER = Object.freeze(normalizeEnvMergeOrder(
+  readContract(['env', 'mergeOrder'], DEFAULT_EDITOR_CONFIG_CONTRACT.env.mergeOrder)
+));
+const VSCODE_ENV_STRINGIFY_VALUES = readContract(
+  ['env', 'stringifyValues'],
+  DEFAULT_EDITOR_CONFIG_CONTRACT.env.stringifyValues
+) !== false;
 
 function normalizeStringArray(value) {
   return Array.isArray(value) ? value.map((item) => String(item)) : [];
@@ -156,10 +178,12 @@ function resolveCli(repoRoot, config) {
 
   if (configuredPath) {
     const resolvedPath = resolveConfigPath(repoRoot, configuredPath);
-    if (resolvedPath.toLowerCase().endsWith(CLI_JS_EXTENSION)) {
-      return { command: process.execPath, argsPrefix: [resolvedPath, ...extraArgs] };
+    if (resolvedPath && fs.existsSync(resolvedPath)) {
+      if (resolvedPath.toLowerCase().endsWith(CLI_JS_EXTENSION)) {
+        return { command: process.execPath, argsPrefix: [resolvedPath, ...extraArgs] };
+      }
+      return { command: resolvedPath, argsPrefix: extraArgs };
     }
-    return { command: resolvedPath, argsPrefix: extraArgs };
   }
 
   if (repoRoot) {
@@ -192,14 +216,24 @@ function buildArgs(query, repoRoot, config) {
 }
 
 function buildSpawnEnv(config) {
-  const env = { ...process.env };
   const extraEnv = config.get(VSCODE_SETTINGS.envKey);
-  if (!extraEnv || typeof extraEnv !== 'object' || Array.isArray(extraEnv)) {
-    return env;
-  }
-  for (const [key, value] of Object.entries(extraEnv)) {
-    if (!key) continue;
-    env[String(key)] = String(value);
+  const settingsEnv = extraEnv && typeof extraEnv === 'object' && !Array.isArray(extraEnv)
+    ? extraEnv
+    : null;
+  const env = {};
+  for (const source of VSCODE_ENV_MERGE_ORDER) {
+    if (source === 'process') {
+      Object.assign(env, process.env);
+      continue;
+    }
+    if (source === 'settings' && settingsEnv) {
+      for (const [key, value] of Object.entries(settingsEnv)) {
+        if (!key) continue;
+        const normalizedValue = VSCODE_ENV_STRINGIFY_VALUES ? String(value) : value;
+        if (normalizedValue === undefined) continue;
+        env[String(key)] = normalizedValue;
+      }
+    }
   }
   return env;
 }

@@ -325,7 +325,7 @@ const createSchedulerCrashTracker = ({
       failedGrammarKeys,
       degradedVirtualPaths
     });
-    await enqueuePersist(bundle);
+    void enqueuePersist(bundle);
   };
 
   return {

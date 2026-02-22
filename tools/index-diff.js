@@ -51,15 +51,70 @@ const buildExplainPayload = ({ diffId, summary, events }) => {
   };
 };
 
-const normalizeDiffBooleanFlag = (value, fallback = false) => (
+const DIFF_BOOLEAN_FLAGS = new Set([
+  'detect-renames',
+  'include-relations',
+  'allow-mismatch',
+  'persist',
+  'persist-unsafe'
+]);
+
+const parseExplicitDiffBooleanOverrides = (rawArgs = []) => {
+  const overrides = new Map();
+  const args = Array.isArray(rawArgs) ? rawArgs : [];
+  for (let index = 0; index < args.length; index += 1) {
+    const token = String(args[index] || '');
+    if (!token.startsWith('--')) continue;
+    if (token.startsWith('--no-')) {
+      const flagName = token.slice('--no-'.length);
+      if (DIFF_BOOLEAN_FLAGS.has(flagName)) {
+        overrides.set(flagName, false);
+      }
+      continue;
+    }
+    const equalIndex = token.indexOf('=');
+    if (equalIndex > 2) {
+      const flagName = token.slice(2, equalIndex);
+      if (DIFF_BOOLEAN_FLAGS.has(flagName)) {
+        overrides.set(flagName, token.slice(equalIndex + 1));
+      }
+      continue;
+    }
+    const flagName = token.slice(2);
+    if (!DIFF_BOOLEAN_FLAGS.has(flagName)) continue;
+    const next = args[index + 1];
+    if (next != null && !String(next).startsWith('-')) {
+      overrides.set(flagName, next);
+      index += 1;
+    } else {
+      overrides.set(flagName, true);
+    }
+  }
+  return overrides;
+};
+
+const parseKnownDiffBoolean = (value) => (
   normalizeBooleanString(value, {
-    fallback,
+    fallback: null,
+    nullish: null,
+    empty: null,
     trueTokens: BOOLEAN_TRUE_TOKENS_NO_ON,
     falseTokens: BOOLEAN_FALSE_TOKENS_NO_OFF
   })
 );
 
+const normalizeDiffBooleanFlag = (value, fallback = false, flagName = 'flag') => {
+  const parsed = parseKnownDiffBoolean(value);
+  if (parsed != null) return parsed;
+  if (value == null || String(value).trim().length === 0) return fallback;
+  throw new Error(
+    `Invalid value for --${flagName}: ${value}. ` +
+    `Expected one of: ${[...BOOLEAN_TRUE_TOKENS_NO_ON, ...BOOLEAN_FALSE_TOKENS_NO_OFF].join(', ')}`
+  );
+};
+
 export async function runDiffCli(rawArgs = process.argv.slice(2)) {
+  const explicitBooleanOverrides = parseExplicitDiffBooleanOverrides(rawArgs);
   const parser = yargs(rawArgs)
     .scriptName('index-diff')
     .parserConfiguration({
@@ -94,27 +149,28 @@ export async function runDiffCli(rawArgs = process.argv.slice(2)) {
       try {
         const { repoRoot, userConfig } = resolveRepoConfig(argv.repo);
         const diffDefaults = resolveDiffDefaults(userConfig);
+        const resolveBooleanArg = (flagName, fallback) => normalizeDiffBooleanFlag(
+          explicitBooleanOverrides.has(flagName)
+            ? explicitBooleanOverrides.get(flagName)
+            : argv[flagName],
+          fallback,
+          flagName
+        );
         const result = await computeIndexDiff({
           repoRoot,
           userConfig,
           from: argv.from,
           to: argv.to,
           modes: argv.modes ?? diffDefaults.compute.modes.join(','),
-          detectRenames: normalizeDiffBooleanFlag(
-            argv['detect-renames'],
-            diffDefaults.compute.detectRenames
-          ),
-          includeRelations: normalizeDiffBooleanFlag(
-            argv['include-relations'],
-            diffDefaults.compute.includeRelations
-          ),
-          allowMismatch: normalizeDiffBooleanFlag(argv['allow-mismatch'], false),
+          detectRenames: resolveBooleanArg('detect-renames', diffDefaults.compute.detectRenames),
+          includeRelations: resolveBooleanArg('include-relations', diffDefaults.compute.includeRelations),
+          allowMismatch: resolveBooleanArg('allow-mismatch', false),
           maxChangedFiles: argv['max-changed-files'] ?? diffDefaults.compute.maxChangedFiles,
           maxChunksPerFile: argv['max-chunks-per-file'] ?? diffDefaults.compute.maxChunksPerFile,
           maxEvents: argv['max-events'] ?? diffDefaults.compute.maxEvents,
           maxBytes: argv['max-bytes'] ?? diffDefaults.compute.maxBytes,
-          persist: normalizeDiffBooleanFlag(argv.persist, diffDefaults.compute.persist),
-          persistUnsafe: normalizeDiffBooleanFlag(argv['persist-unsafe'], false),
+          persist: resolveBooleanArg('persist', diffDefaults.compute.persist),
+          persistUnsafe: resolveBooleanArg('persist-unsafe', false),
           waitMs: argv['wait-ms'],
           dryRun: argv['dry-run'] === true
         });

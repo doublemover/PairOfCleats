@@ -918,6 +918,7 @@ export const runCrossFileInference = async ({
       fileRelations: state.fileRelations,
       plan: budgetPlan
     });
+    state.fileRelations = inferenceFileRelations;
     state.crossFileInferenceBudgetStats = budgetStats;
     const formatCount = (value) => Number.isFinite(value) ? value.toLocaleString() : '0';
     const formatRatio = (value) => `${(safeDivide(Number(value) || 0, 1) * 100).toFixed(2)}%`;
