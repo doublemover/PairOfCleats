@@ -14,6 +14,7 @@ const repoRoot = path.resolve('C:/repo');
 let inFlight = 0;
 let maxInFlight = 0;
 let logCallCount = 0;
+let observedChunkSizes = [];
 let progressEvents = [];
 let restoreProgressHandlers = () => {};
 
@@ -51,6 +52,7 @@ try {
       await sleep(20);
       const separatorIndex = args.indexOf('--');
       const files = separatorIndex >= 0 ? args.slice(separatorIndex + 1) : [];
+      observedChunkSizes.push(files.length);
       return {
         exitCode: 0,
         stdout: buildBatchStdout(files),
@@ -87,10 +89,12 @@ try {
   assert.equal(firstProgress?.meta?.ephemeral, true);
   assert.equal(firstProgress?.meta?.message, undefined);
   assert.equal(lastProgress?.current, lastProgress?.total);
+  assert.equal(Math.max(...observedChunkSizes), 96, 'expected default chunk size 96 for non-huge file sets');
 
   inFlight = 0;
   maxInFlight = 0;
   logCallCount = 0;
+  observedChunkSizes = [];
   progressEvents = [];
 
   const smallFiles = Array.from({ length: 96 * 2 }, (_unused, index) => `src/small-${index}.js`);
@@ -111,6 +115,7 @@ try {
   inFlight = 0;
   maxInFlight = 0;
   logCallCount = 0;
+  observedChunkSizes = [];
   setScmRuntimeConfig({
     runtime: {
       fileConcurrency: 3,
@@ -140,6 +145,7 @@ try {
   inFlight = 0;
   maxInFlight = 0;
   logCallCount = 0;
+  observedChunkSizes = [];
   setScmRuntimeConfig({
     runtime: {
       fileConcurrency: 32,
@@ -169,6 +175,7 @@ try {
   inFlight = 0;
   maxInFlight = 0;
   logCallCount = 0;
+  observedChunkSizes = [];
   setScmRuntimeConfig({
     maxConcurrentProcesses: 1,
     runtime: {
@@ -191,6 +198,36 @@ try {
     maxInFlight,
     1,
     `expected explicit maxConcurrentProcesses=1 to hard-cap SCM fanout; observed ${maxInFlight}`
+  );
+
+  inFlight = 0;
+  maxInFlight = 0;
+  logCallCount = 0;
+  observedChunkSizes = [];
+  setScmRuntimeConfig({
+    runtime: {
+      fileConcurrency: 32,
+      cpuConcurrency: 16
+    }
+  });
+  const hugeRepoFiles = Array.from(
+    { length: 8000 },
+    (_unused, index) => `src/huge-repo-${index}.js`
+  );
+  const hugeRepoResult = await gitProvider.getFileMetaBatch({
+    repoRoot,
+    filesPosix: hugeRepoFiles,
+    timeoutMs: 5000
+  });
+  assert.ok(hugeRepoResult?.fileMetaByPath);
+  assert.equal(Object.keys(hugeRepoResult.fileMetaByPath).length, hugeRepoFiles.length);
+  assert(
+    Math.max(...observedChunkSizes) <= 16,
+    `expected adaptive huge-repo chunk size <=16; observed max chunk size ${Math.max(...observedChunkSizes)}`
+  );
+  assert(
+    maxInFlight <= 16,
+    `expected huge-repo batching to respect cpu thread cap 16; observed ${maxInFlight}`
   );
 } finally {
   restoreProgressHandlers();
