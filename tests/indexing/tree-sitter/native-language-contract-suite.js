@@ -6,6 +6,9 @@ import { runTreeSitterScheduler } from '../../../src/index/build/tree-sitter-sch
 import { getUnavailableNativeGrammars } from './native-availability.js';
 
 const toPosix = (value) => String(value || '').split(path.sep).join('/');
+const toCanonicalGrammarKey = (value) => String(value || '')
+  .trim()
+  .replace(/~b\d+of\d+$/i, '');
 
 export const NATIVE_LANGUAGE_CONTRACT_FIXTURES = Object.freeze([
   {
@@ -343,8 +346,9 @@ export async function runNativeLanguageContractSuite({
     const key = `${fixture.containerPath}::${fixture.languageId}`;
     const row = rowsByFixture.get(key);
     assert.ok(row, `missing scheduler row for ${fixture.languageId} (${fixture.file})`);
+    const actualCanonicalGrammarKey = toCanonicalGrammarKey(row.grammarKey);
     assert.equal(
-      row.grammarKey,
+      actualCanonicalGrammarKey,
       fixture.grammarKey,
       `unexpected grammar key for ${fixture.languageId} (${fixture.file})`
     );
@@ -403,7 +407,8 @@ export async function runNativeLanguageContractSuite({
   const expectedGrammarKeys = new Set(fixtures.map((fixture) => fixture.grammarKey));
   const observedGrammarKeys = new Set();
   for (const row of rowsByFixture.values()) {
-    if (row?.grammarKey) observedGrammarKeys.add(row.grammarKey);
+    const canonicalGrammarKey = toCanonicalGrammarKey(row?.grammarKey);
+    if (canonicalGrammarKey) observedGrammarKeys.add(canonicalGrammarKey);
   }
   for (const grammarKey of expectedGrammarKeys) {
     assert.ok(observedGrammarKeys.has(grammarKey), `missing grammar key coverage for ${grammarKey}`);
