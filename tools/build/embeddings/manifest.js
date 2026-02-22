@@ -61,6 +61,13 @@ export const updatePieceManifest = async ({ indexDir, mode, totalChunks, dims })
     };
   }
   const priorPieces = Array.isArray(existing.pieces) ? existing.pieces : [];
+  const priorEmbeddingPiecesByKey = new Map();
+  for (const entry of priorPieces) {
+    if (!entry || entry.type !== 'embeddings') continue;
+    const name = typeof entry.name === 'string' ? entry.name : '';
+    const relPath = typeof entry.path === 'string' ? entry.path : '';
+    priorEmbeddingPiecesByKey.set(`${name}|${relPath}`, entry);
+  }
   const retained = [];
   for (const entry of priorPieces) {
     if (!entry || entry.type === 'embeddings') continue;
@@ -124,7 +131,16 @@ export const updatePieceManifest = async ({ indexDir, mode, totalChunks, dims })
         checksumAlgo = result?.algo || null;
       }
     } catch {}
+    const priorEmbedding = priorEmbeddingPiecesByKey.get(`${entry.name}|${entry.path}`);
+    const preserved = priorEmbedding && typeof priorEmbedding === 'object'
+      ? { ...priorEmbedding }
+      : {};
+    delete preserved.bytes;
+    delete preserved.checksum;
+    delete preserved.statError;
+    delete preserved.checksumError;
     enriched.push({
+      ...preserved,
       ...entry,
       bytes,
       checksum: checksum && checksumAlgo ? `${checksumAlgo}:${checksum}` : null

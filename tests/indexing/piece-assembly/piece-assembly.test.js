@@ -364,6 +364,8 @@ const piecesEquiv = loadPiecesManifestPieces(assembledEquiv);
 const normalizePiece = (entry) => {
   if (!entry || typeof entry !== 'object') return entry;
   const normalized = { ...entry };
+  delete normalized.tier;
+  delete normalized.layout;
   if (normalized.statError == null) delete normalized.statError;
   if (normalized.checksumError == null) delete normalized.checksumError;
   if (normalized.bytes == null || Number.isFinite(normalized.bytes)) delete normalized.bytes;

@@ -13,14 +13,22 @@ const tinySkip = resolveExtractedProsePrefilterDecision({
 assert.equal(tinySkip?.reason, 'extracted-prose-prefilter', 'expected prefilter skip reason for tiny files');
 assert.equal(tinySkip?.prefilterClass, 'tiny-file', 'expected tiny-file class');
 
-const codeSkip = resolveExtractedProsePrefilterDecision({
+const codeAllowed = resolveExtractedProsePrefilterDecision({
   relPath: 'src/main.js',
   ext: '.js',
   mode: 'extracted-prose',
   languageId: 'javascript',
   fileStat: { size: 2048 }
 });
-assert.equal(codeSkip?.prefilterClass, 'code-language', 'expected code-language class for extracted-prose code file');
+assert.equal(codeAllowed, null, 'expected recognized code language to pass extracted-prose prefilter');
+
+const unknownSkip = resolveExtractedProsePrefilterDecision({
+  relPath: 'src/main.js',
+  ext: '.js',
+  mode: 'extracted-prose',
+  fileStat: { size: 2048 }
+});
+assert.equal(unknownSkip?.prefilterClass, 'non-doc-extension', 'expected unknown non-doc extension to be prefiltered');
 
 const docsAllowed = resolveExtractedProsePrefilterDecision({
   relPath: 'docs/guide.md',

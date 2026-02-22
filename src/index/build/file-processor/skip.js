@@ -77,6 +77,12 @@ export const resolveExtractedProsePrefilterDecision = ({
   const normalizedExt = String(ext || '').trim().toLowerCase();
   const normalizedPath = normalizeProseProbePath(relPath || absPath || '');
   const fileBytes = Number(fileStat?.size);
+  const normalizedLanguage = typeof languageId === 'string'
+    ? languageId.trim().toLowerCase()
+    : '';
+  const codeLanguage = normalizedLanguage
+    && normalizedLanguage !== 'markdown'
+    && normalizedLanguage !== 'text';
   if (normalizedPath && EXTRACTED_PROSE_LOW_YIELD_PATHS.some((part) => normalizedPath.includes(part))) {
     return {
       reason: 'extracted-prose-prefilter',
@@ -84,6 +90,7 @@ export const resolveExtractedProsePrefilterDecision = ({
       pathHint: normalizedPath
     };
   }
+  if (codeLanguage) return null;
   if (EXTRACTED_PROSE_ALLOWED_EXTS.has(normalizedExt)) return null;
   if (Number.isFinite(fileBytes) && fileBytes > 0 && fileBytes < minBytes) {
     return {
@@ -91,16 +98,6 @@ export const resolveExtractedProsePrefilterDecision = ({
       prefilterClass: 'tiny-file',
       bytes: Math.floor(fileBytes),
       minBytes
-    };
-  }
-  const normalizedLanguage = typeof languageId === 'string'
-    ? languageId.trim().toLowerCase()
-    : '';
-  if (normalizedLanguage && normalizedLanguage !== 'markdown' && normalizedLanguage !== 'text') {
-    return {
-      reason: 'extracted-prose-prefilter',
-      prefilterClass: 'code-language',
-      languageId: normalizedLanguage
     };
   }
   if (normalizedExt && !EXTRACTED_PROSE_ALLOWED_EXTS.has(normalizedExt)) {
