@@ -175,7 +175,14 @@ export function buildMetaV2({ chunk, docmeta, toolInfo, analysisPolicy }) {
   const parser = docmeta?.parser && typeof docmeta.parser === 'object'
     ? {
       name: normalizeString(docmeta.parser.name),
-      version: normalizeString(docmeta.parser.version)
+      version: normalizeString(docmeta.parser.version),
+      mode: normalizeString(docmeta.parser.mode),
+      fallbackMode: normalizeString(docmeta.parser.fallbackMode),
+      reasonCode: normalizeString(docmeta.parser.reasonCode),
+      reason: normalizeString(docmeta.parser.reason),
+      deterministic: typeof docmeta.parser.deterministic === 'boolean'
+        ? docmeta.parser.deterministic
+        : null
     }
     : null;
 

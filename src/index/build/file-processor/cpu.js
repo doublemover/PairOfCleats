@@ -826,6 +826,14 @@ export const processFileCpu = async (context) => {
     throw new Error(`[tree-sitter:schedule] Tree-sitter enabled but scheduler is missing for ${relKey}.`);
   }
   let sc = [];
+  const chunkingDiagnostics = {
+    treeSitterEnabled,
+    schedulerRequired: mustUseTreeSitterScheduler,
+    scheduledSegmentCount: 0,
+    fallbackSegmentCount: 0,
+    schedulerMissingCount: 0,
+    usedHeuristicChunking: false
+  };
   updateCrashStage('chunking');
   try {
     const fallbackSegments = [];
@@ -985,8 +993,12 @@ export const processFileCpu = async (context) => {
         }
       );
     }
+    chunkingDiagnostics.scheduledSegmentCount = scheduled.length;
+    chunkingDiagnostics.fallbackSegmentCount = fallbackSegments.length;
+    chunkingDiagnostics.schedulerMissingCount = schedulerMissingCount;
 
     if (fallbackSegments.length) {
+      chunkingDiagnostics.usedHeuristicChunking = true;
       const fallbackChunks = chunkSegments({
         text,
         ext,
@@ -1104,6 +1116,7 @@ export const processFileCpu = async (context) => {
     addEmbeddingDuration,
     showLineProgress,
     totalLines,
+    chunkingDiagnostics,
     failFile,
     buildStage
   });
