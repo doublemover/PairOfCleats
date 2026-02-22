@@ -833,7 +833,7 @@ Touchpoints:
 #### 0.5.42 Index-build performance and optimization program (expert-level)
 
 - [x] Execute 0.5.42 in strict sequence:
-  - [ ] sequence 0: instrumentation baseline, fixed fixture corpus lock, and reproducible benchmark harness
+  - [x] sequence 0: instrumentation baseline, fixed fixture corpus lock, and reproducible benchmark harness
   - [x] sequence 1: dispatch/scan/read hot-path acceleration and generated/vendor classification
   - [x] sequence 2: parser lifecycle + fallback semantics
   - [ ] sequence 3: cache architecture + invalidation correctness
