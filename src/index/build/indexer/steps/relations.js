@@ -9,6 +9,7 @@ import {
 } from '../../imports.js';
 import { prepareImportResolutionFsMeta, resolveImportLinks } from '../../import-resolution.js';
 import {
+  applyImportResolutionCacheFileSetDiffInvalidation,
   loadImportResolutionCache,
   saveImportResolutionCache,
   updateImportResolutionDiagnosticsCache
@@ -732,6 +733,29 @@ export const postScanImports = async ({
   });
   if (cacheEnabled) {
     ({ cache, cachePath } = await loadImportResolutionCache({ incrementalState, log }));
+    cacheStats = {
+      files: 0,
+      filesHashed: 0,
+      filesReused: 0,
+      filesInvalidated: 0,
+      specs: 0,
+      specsReused: 0,
+      specsComputed: 0,
+      packageInvalidated: false,
+      fileSetInvalidated: false,
+      lookupReused: false,
+      lookupInvalidated: false,
+      invalidationReasons: Object.create(null),
+      fileSetDelta: { added: 0, removed: 0 },
+      filesNeighborhoodInvalidated: 0,
+      staleEdgeInvalidated: 0
+    };
+    applyImportResolutionCacheFileSetDiffInvalidation({
+      cache,
+      entries,
+      cacheStats,
+      log
+    });
     fileHashes = new Map();
     const manifestFiles = incrementalState?.manifest?.files || {};
     for (const [file, entry] of Object.entries(manifestFiles)) {

@@ -2,10 +2,22 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
+import { sha1 } from '../../shared/hash.js';
 
 const CACHE_VERSION = 3;
 const CACHE_FILE = 'import-resolution-cache.json';
 const CACHE_DIAGNOSTICS_VERSION = 1;
+const IMPORT_SPEC_CANDIDATE_EXTENSIONS = Object.freeze([
+  '.js',
+  '.jsx',
+  '.ts',
+  '.tsx',
+  '.mjs',
+  '.cjs',
+  '.json',
+  '.node',
+  '.d.ts'
+]);
 
 const isObject = (value) => (
   value && typeof value === 'object' && !Array.isArray(value)
@@ -104,6 +116,104 @@ const createEmptyCache = () => ({
   lookup: null,
   diagnostics: null
 });
+
+const normalizeRelPath = (value) => {
+  if (typeof value !== 'string') return null;
+  const normalized = value.replace(/\\/g, '/').trim();
+  if (!normalized) return null;
+  const trimmed = normalized.replace(/^\.\/+/, '');
+  const compact = path.posix.normalize(trimmed);
+  if (!compact || compact === '.' || compact.startsWith('../') || compact === '..') return null;
+  return compact;
+};
+
+const collectCurrentFileSetFromEntries = (entries) => {
+  const fileSet = new Set();
+  for (const entry of Array.isArray(entries) ? entries : []) {
+    const rel = typeof entry === 'string'
+      ? entry
+      : (
+        typeof entry?.rel === 'string'
+          ? entry.rel
+          : null
+      );
+    const key = normalizeRelPath(rel);
+    if (!key) continue;
+    fileSet.add(key);
+  }
+  return fileSet;
+};
+
+const computeFileSetFingerprintFromSet = (fileSet) => {
+  if (!(fileSet instanceof Set) || fileSet.size === 0) return null;
+  const ordered = Array.from(fileSet.values()).sort((a, b) => a.localeCompare(b));
+  return sha1(ordered.map((entry) => `${entry}\n`).join(''));
+};
+
+const collectDependencyNeighborhood = (files) => {
+  const forward = new Map();
+  const reverse = new Map();
+  const unresolvedRelativeSpecs = new Map();
+  if (!isObject(files)) {
+    return { forward, reverse, unresolvedRelativeSpecs };
+  }
+  for (const [rawImporter, rawFileCache] of Object.entries(files)) {
+    const importer = normalizeRelPath(rawImporter);
+    if (!importer) continue;
+    const specs = isObject(rawFileCache?.specs) ? rawFileCache.specs : null;
+    if (!specs) continue;
+    for (const [rawSpec, rawSpecCache] of Object.entries(specs)) {
+      const spec = typeof rawSpec === 'string' ? rawSpec.trim() : '';
+      if (!spec) continue;
+      const resolvedPath = normalizeRelPath(rawSpecCache?.resolvedPath);
+      if (resolvedPath) {
+        if (!forward.has(importer)) forward.set(importer, new Set());
+        forward.get(importer).add(resolvedPath);
+        if (!reverse.has(resolvedPath)) reverse.set(resolvedPath, new Set());
+        reverse.get(resolvedPath).add(importer);
+      }
+      const resolvedType = typeof rawSpecCache?.resolvedType === 'string'
+        ? rawSpecCache.resolvedType
+        : '';
+      if (resolvedType !== 'unresolved') continue;
+      const relativeSpec = spec.startsWith('.') || spec.startsWith('/');
+      if (!relativeSpec) continue;
+      if (!unresolvedRelativeSpecs.has(importer)) unresolvedRelativeSpecs.set(importer, new Set());
+      unresolvedRelativeSpecs.get(importer).add(spec);
+    }
+  }
+  return { forward, reverse, unresolvedRelativeSpecs };
+};
+
+const resolveRelativeImportCandidates = (importer, specifier) => {
+  const normalizedImporter = normalizeRelPath(importer);
+  const normalizedSpecifier = typeof specifier === 'string'
+    ? specifier.trim().replace(/\\/g, '/')
+    : '';
+  if (!normalizedImporter || !normalizedSpecifier) return [];
+  if (!(normalizedSpecifier.startsWith('.') || normalizedSpecifier.startsWith('/'))) return [];
+  const importerDir = path.posix.dirname(normalizedImporter);
+  const joined = normalizedSpecifier.startsWith('/')
+    ? normalizedSpecifier.slice(1)
+    : path.posix.join(importerDir === '.' ? '' : importerDir, normalizedSpecifier);
+  const base = normalizeRelPath(joined);
+  if (!base) return [];
+  const candidates = new Set([base]);
+  const hasExt = Boolean(path.posix.extname(base));
+  if (!hasExt) {
+    for (const ext of IMPORT_SPEC_CANDIDATE_EXTENSIONS) {
+      candidates.add(`${base}${ext}`);
+      candidates.add(path.posix.join(base, `index${ext}`));
+    }
+  }
+  return Array.from(candidates.values());
+};
+
+const addReasonCount = (target, key, count = 1) => {
+  if (!isObject(target) || !key) return;
+  const nextCount = Number(target[key]) || 0;
+  target[key] = nextCount + Math.max(0, Math.floor(Number(count) || 0));
+};
 
 const buildCategoryDelta = (previous, current) => {
   const previousCounts = normalizeCategoryCounts(previous || {});
@@ -232,6 +342,170 @@ export const saveImportResolutionCache = async ({ cache, cachePath } = {}) => {
   } catch {
     // ignore cache write failures
   }
+};
+
+/**
+ * Apply precise import-resolution cache invalidation from file-set diffs.
+ *
+ * This keeps unaffected importer entries warm by invalidating only changed
+ * files and their dependency neighborhood, plus unresolved-relative stale
+ * edges that can become valid when new files appear.
+ *
+ * @param {{
+ *   cache?:object|null,
+ *   entries?:Array<object|string>|null,
+ *   cacheStats?:object|null,
+ *   log?:(message:string)=>void
+ * }} [input]
+ * @returns {{
+ *   fileSetChanged:boolean,
+ *   added:number,
+ *   removed:number,
+ *   invalidated:number,
+ *   staleEdgeInvalidated:number,
+ *   usedFallbackGlobal:boolean
+ * }|null}
+ */
+export const applyImportResolutionCacheFileSetDiffInvalidation = ({
+  cache,
+  entries,
+  cacheStats = null,
+  log = null
+} = {}) => {
+  if (!isObject(cache)) return null;
+  if (!isObject(cache.files)) cache.files = {};
+  const currentFileSet = collectCurrentFileSetFromEntries(entries);
+  const currentFingerprint = computeFileSetFingerprintFromSet(currentFileSet);
+  const previousFingerprint = typeof cache.fileSetFingerprint === 'string' && cache.fileSetFingerprint
+    ? cache.fileSetFingerprint
+    : null;
+  const previousLookupSet = new Set(
+    Array.isArray(cache.lookup?.fileSet)
+      ? cache.lookup.fileSet
+        .map((entry) => normalizeRelPath(entry))
+        .filter(Boolean)
+      : []
+  );
+  const addedFiles = new Set();
+  const removedFiles = new Set();
+  for (const file of currentFileSet.values()) {
+    if (!previousLookupSet.has(file)) addedFiles.add(file);
+  }
+  for (const file of previousLookupSet.values()) {
+    if (!currentFileSet.has(file)) removedFiles.add(file);
+  }
+  const hasDiffByLookup = addedFiles.size > 0 || removedFiles.size > 0;
+  const hasDiffByFingerprint = Boolean(
+    previousFingerprint
+    && currentFingerprint
+    && previousFingerprint !== currentFingerprint
+  );
+  const seededFingerprint = !previousFingerprint && Boolean(currentFingerprint);
+  const fileSetChanged = seededFingerprint || hasDiffByLookup || hasDiffByFingerprint;
+  let invalidated = 0;
+  let staleEdgeInvalidated = 0;
+  let usedFallbackGlobal = false;
+  let neighborhoodInvalidated = 0;
+
+  if (fileSetChanged && (hasDiffByLookup || hasDiffByFingerprint)) {
+    const { forward, reverse, unresolvedRelativeSpecs } = collectDependencyNeighborhood(cache.files);
+    const invalidationSet = new Set();
+    const markInvalidated = (filePath) => {
+      const key = normalizeRelPath(filePath);
+      if (!key || !Object.prototype.hasOwnProperty.call(cache.files, key)) return false;
+      if (invalidationSet.has(key)) return false;
+      invalidationSet.add(key);
+      return true;
+    };
+    for (const changed of [...addedFiles, ...removedFiles]) {
+      if (markInvalidated(changed)) neighborhoodInvalidated += 1;
+      const incoming = reverse.get(changed);
+      if (incoming) {
+        for (const importer of incoming.values()) {
+          if (markInvalidated(importer)) neighborhoodInvalidated += 1;
+        }
+      }
+      const outgoing = forward.get(changed);
+      if (outgoing) {
+        for (const dependent of outgoing.values()) {
+          if (markInvalidated(dependent)) neighborhoodInvalidated += 1;
+        }
+      }
+    }
+    if (addedFiles.size > 0) {
+      for (const [importer, unresolvedSpecs] of unresolvedRelativeSpecs.entries()) {
+        if (invalidationSet.has(importer)) continue;
+        let stale = false;
+        for (const unresolvedSpec of unresolvedSpecs.values()) {
+          const candidates = resolveRelativeImportCandidates(importer, unresolvedSpec);
+          if (!candidates.some((candidate) => addedFiles.has(candidate))) continue;
+          stale = true;
+          break;
+        }
+        if (stale && markInvalidated(importer)) {
+          staleEdgeInvalidated += 1;
+        }
+      }
+    }
+    // Compatibility fallback: if lookup-set diff is unavailable but file-set hash
+    // changed, we cannot build a safe neighborhood and must reset cached files.
+    if (!hasDiffByLookup && hasDiffByFingerprint) {
+      usedFallbackGlobal = true;
+      for (const filePath of Object.keys(cache.files)) {
+        invalidationSet.add(filePath);
+      }
+    }
+    for (const filePath of invalidationSet.values()) {
+      if (!Object.prototype.hasOwnProperty.call(cache.files, filePath)) continue;
+      delete cache.files[filePath];
+      invalidated += 1;
+    }
+    cache.lookup = null;
+    cache.cacheKey = null;
+  }
+
+  if (currentFingerprint) {
+    cache.fileSetFingerprint = currentFingerprint;
+  } else if (seededFingerprint) {
+    cache.fileSetFingerprint = null;
+  }
+
+  if (isObject(cacheStats)) {
+    cacheStats.fileSetInvalidated = fileSetChanged;
+    cacheStats.fileSetDelta = {
+      added: addedFiles.size,
+      removed: removedFiles.size
+    };
+    cacheStats.filesNeighborhoodInvalidated = Number(cacheStats.filesNeighborhoodInvalidated || 0) + neighborhoodInvalidated;
+    cacheStats.staleEdgeInvalidated = Number(cacheStats.staleEdgeInvalidated || 0) + staleEdgeInvalidated;
+    if (!isObject(cacheStats.invalidationReasons)) {
+      cacheStats.invalidationReasons = Object.create(null);
+    }
+    if (seededFingerprint) addReasonCount(cacheStats.invalidationReasons, 'seeded_file_set', 1);
+    if (hasDiffByLookup || hasDiffByFingerprint) addReasonCount(cacheStats.invalidationReasons, 'file_set_diff', 1);
+    if (neighborhoodInvalidated > 0) addReasonCount(cacheStats.invalidationReasons, 'dependency_neighborhood', neighborhoodInvalidated);
+    if (staleEdgeInvalidated > 0) addReasonCount(cacheStats.invalidationReasons, 'stale_unresolved_edge', staleEdgeInvalidated);
+    if (usedFallbackGlobal) addReasonCount(cacheStats.invalidationReasons, 'fallback_global_reset', 1);
+  }
+
+  if (fileSetChanged && typeof log === 'function') {
+    log(
+      `[imports] cache file-set diff: added=${addedFiles.size}, removed=${removedFiles.size}, ` +
+      `invalidated=${invalidated} (neighborhood=${neighborhoodInvalidated}, stale-edge=${staleEdgeInvalidated}).`
+    );
+    if (usedFallbackGlobal) {
+      log('[imports] cache file-set diff fallback: full importer cache reset (lookup diff unavailable).');
+    }
+  }
+
+  return {
+    fileSetChanged,
+    added: addedFiles.size,
+    removed: removedFiles.size,
+    invalidated,
+    staleEdgeInvalidated,
+    usedFallbackGlobal
+  };
 };
 
 export const updateImportResolutionDiagnosticsCache = ({
