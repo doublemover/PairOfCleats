@@ -83,6 +83,7 @@ export {
   resolveArtifactLaneConcurrency,
   resolveArtifactLaneConcurrencyWithUltraLight,
   resolveArtifactLaneConcurrencyWithMassive,
+  resolveArtifactWorkClassConcurrency,
   createAdaptiveWriteConcurrencyController,
   resolveWriteStartTimestampMs,
   resolveArtifactWriteFsStrategy,
@@ -421,6 +422,109 @@ const resolveArtifactLaneConcurrencyWithMassive = ({
     lightConcurrency: base.lightConcurrency,
     heavyConcurrency: base.heavyConcurrency
   };
+};
+
+/**
+ * Resolve independent work-class concurrency budgets.
+ *
+ * Work classes map to write lanes as:
+ * `small -> ultraLight+light`, `medium -> heavy`, `large -> massive`.
+ *
+ * @param {object} input
+ * @param {number} input.writeConcurrency
+ * @param {number} input.smallWrites
+ * @param {number} input.mediumWrites
+ * @param {number} input.largeWrites
+ * @param {number|null} [input.smallConcurrencyOverride]
+ * @param {number|null} [input.mediumConcurrencyOverride]
+ * @param {number|null} [input.largeConcurrencyOverride]
+ * @param {number} [input.hostConcurrency]
+ * @returns {{smallConcurrency:number,mediumConcurrency:number,largeConcurrency:number}}
+ */
+const resolveArtifactWorkClassConcurrency = ({
+  writeConcurrency,
+  smallWrites,
+  mediumWrites,
+  largeWrites,
+  smallConcurrencyOverride = null,
+  mediumConcurrencyOverride = null,
+  largeConcurrencyOverride = null,
+  hostConcurrency = 1
+}) => {
+  const totalWriteConcurrency = Math.max(1, Math.floor(Number(writeConcurrency) || 1));
+  const smallWriteCount = Math.max(0, Math.floor(Number(smallWrites) || 0));
+  const mediumWriteCount = Math.max(0, Math.floor(Number(mediumWrites) || 0));
+  const largeWriteCount = Math.max(0, Math.floor(Number(largeWrites) || 0));
+  if (!smallWriteCount && !mediumWriteCount && !largeWriteCount) {
+    return {
+      smallConcurrency: 0,
+      mediumConcurrency: 0,
+      largeConcurrency: 0
+    };
+  }
+
+  const parseOverride = (value) => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed <= 0) return null;
+    return Math.max(1, Math.floor(parsed));
+  };
+  const clampToWrites = (value, count) => Math.max(0, Math.min(count, Math.floor(Number(value) || 0)));
+
+  const seeded = resolveArtifactLaneConcurrencyWithMassive({
+    writeConcurrency: totalWriteConcurrency,
+    ultraLightWrites: 0,
+    massiveWrites: largeWriteCount,
+    lightWrites: smallWriteCount,
+    heavyWrites: mediumWriteCount,
+    hostConcurrency
+  });
+
+  const smallOverride = parseOverride(smallConcurrencyOverride);
+  const mediumOverride = parseOverride(mediumConcurrencyOverride);
+  const largeOverride = parseOverride(largeConcurrencyOverride);
+  let budgets = {
+    smallConcurrency: clampToWrites(
+      smallOverride ?? seeded.lightConcurrency,
+      smallWriteCount
+    ),
+    mediumConcurrency: clampToWrites(
+      mediumOverride ?? seeded.heavyConcurrency,
+      mediumWriteCount
+    ),
+    largeConcurrency: clampToWrites(
+      largeOverride ?? seeded.massiveConcurrency,
+      largeWriteCount
+    )
+  };
+
+  let totalBudget = budgets.smallConcurrency + budgets.mediumConcurrency + budgets.largeConcurrency;
+  if (totalBudget > totalWriteConcurrency) {
+    let overflow = totalBudget - totalWriteConcurrency;
+    for (const className of ['smallConcurrency', 'mediumConcurrency', 'largeConcurrency']) {
+      if (overflow <= 0) break;
+      const shift = Math.min(overflow, budgets[className]);
+      budgets[className] -= shift;
+      overflow -= shift;
+    }
+    totalBudget = budgets.smallConcurrency + budgets.mediumConcurrency + budgets.largeConcurrency;
+  }
+
+  if (totalBudget < totalWriteConcurrency) {
+    let spare = totalWriteConcurrency - totalBudget;
+    const remainingCapacity = {
+      largeConcurrency: Math.max(0, largeWriteCount - budgets.largeConcurrency),
+      mediumConcurrency: Math.max(0, mediumWriteCount - budgets.mediumConcurrency),
+      smallConcurrency: Math.max(0, smallWriteCount - budgets.smallConcurrency)
+    };
+    for (const className of ['largeConcurrency', 'mediumConcurrency', 'smallConcurrency']) {
+      if (spare <= 0) break;
+      const grow = Math.min(spare, remainingCapacity[className]);
+      budgets[className] += grow;
+      spare -= grow;
+    }
+  }
+
+  return budgets;
 };
 
 const clampWriteConcurrency = (value, fallback = 1) => {
@@ -1830,6 +1934,29 @@ export async function writeIndexArtifacts(input) {
   const massiveWriteMemTokens = Number.isFinite(Number(artifactConfig.writeMassiveMemTokens))
     ? Math.max(0, Math.floor(Number(artifactConfig.writeMassiveMemTokens)))
     : 2;
+  const resolveWorkClassOverride = (...values) => {
+    for (const candidate of values) {
+      const parsed = Number(candidate);
+      if (Number.isFinite(parsed) && parsed > 0) {
+        return Math.max(1, Math.floor(parsed));
+      }
+    }
+    return null;
+  };
+  const workClassSmallConcurrencyOverride = resolveWorkClassOverride(
+    artifactConfig.writeSmallConcurrency,
+    artifactConfig.writeWorkClassSmallConcurrency
+  );
+  const workClassMediumConcurrencyOverride = resolveWorkClassOverride(
+    artifactConfig.writeMediumConcurrency,
+    artifactConfig.writeWorkClassMediumConcurrency,
+    artifactConfig.writeHeavyConcurrency
+  );
+  const workClassLargeConcurrencyOverride = resolveWorkClassOverride(
+    artifactConfig.writeLargeConcurrency,
+    artifactConfig.writeWorkClassLargeConcurrency,
+    artifactConfig.writeMassiveConcurrency
+  );
   const adaptiveWriteConcurrencyEnabled = artifactConfig.writeAdaptiveConcurrency !== false;
   const adaptiveWriteMinConcurrency = Number.isFinite(Number(artifactConfig.writeAdaptiveMinConcurrency))
     ? Math.max(1, Math.floor(Number(artifactConfig.writeAdaptiveMinConcurrency)))
@@ -3356,7 +3483,6 @@ export async function writeIndexArtifacts(input) {
       heavy: 0
     };
     let activeCount = 0;
-    let laneTurn = 'massive';
     let fatalWriteError = null;
     const inFlightWrites = new Set();
     let forcedTailRescueConcurrency = null;
@@ -3418,15 +3544,49 @@ export async function writeIndexArtifacts(input) {
         longestStallSec: rescueState.longestStallSec
       });
     };
-    const resolveLaneBudgets = () => resolveArtifactLaneConcurrencyWithMassive({
-      writeConcurrency: getActiveWriteConcurrency(),
-      ultraLightWrites: laneQueues.ultraLight.length + laneActive.ultraLight,
-      massiveWrites: laneQueues.massive.length + laneActive.massive,
-      lightWrites: laneQueues.light.length + laneActive.light,
-      heavyWrites: laneQueues.heavy.length + laneActive.heavy,
-      heavyWriteConcurrencyOverride,
-      hostConcurrency
-    });
+    const resolveLaneBudgets = () => {
+      const ultraLightWritesTotal = laneQueues.ultraLight.length + laneActive.ultraLight;
+      const lightWritesTotal = laneQueues.light.length + laneActive.light;
+      const mediumWritesTotal = laneQueues.heavy.length + laneActive.heavy;
+      const largeWritesTotal = laneQueues.massive.length + laneActive.massive;
+      const workClass = resolveArtifactWorkClassConcurrency({
+        writeConcurrency: getActiveWriteConcurrency(),
+        smallWrites: ultraLightWritesTotal + lightWritesTotal,
+        mediumWrites: mediumWritesTotal,
+        largeWrites: largeWritesTotal,
+        smallConcurrencyOverride: workClassSmallConcurrencyOverride,
+        mediumConcurrencyOverride: workClassMediumConcurrencyOverride,
+        largeConcurrencyOverride: workClassLargeConcurrencyOverride,
+        hostConcurrency
+      });
+      const smallBudget = Math.max(0, workClass.smallConcurrency);
+      let ultraLightConcurrency = 0;
+      let lightConcurrency = 0;
+      if (smallBudget > 0) {
+        if (ultraLightWritesTotal > 0) {
+          const ultraReserve = Math.max(1, Math.min(2, smallBudget));
+          ultraLightConcurrency = Math.min(ultraLightWritesTotal, ultraReserve);
+        }
+        const remainingAfterUltra = Math.max(0, smallBudget - ultraLightConcurrency);
+        lightConcurrency = Math.min(lightWritesTotal, remainingAfterUltra);
+        let remainingAfterLight = Math.max(0, smallBudget - ultraLightConcurrency - lightConcurrency);
+        if (remainingAfterLight > 0 && lightWritesTotal > lightConcurrency) {
+          const growLight = Math.min(remainingAfterLight, lightWritesTotal - lightConcurrency);
+          lightConcurrency += growLight;
+          remainingAfterLight -= growLight;
+        }
+        if (remainingAfterLight > 0 && ultraLightWritesTotal > ultraLightConcurrency) {
+          ultraLightConcurrency += Math.min(remainingAfterLight, ultraLightWritesTotal - ultraLightConcurrency);
+        }
+      }
+      return {
+        ultraLightConcurrency,
+        massiveConcurrency: workClass.largeConcurrency,
+        lightConcurrency,
+        heavyConcurrency: workClass.mediumConcurrency,
+        workClass
+      };
+    };
     const pickDispatchLane = (budgets) => {
       const ultraLightAvailable = laneQueues.ultraLight.length > 0
         && laneActive.ultraLight < Math.max(0, budgets.ultraLightConcurrency);
@@ -3437,23 +3597,10 @@ export async function writeIndexArtifacts(input) {
       const heavyAvailable = laneQueues.heavy.length > 0
         && laneActive.heavy < Math.max(0, budgets.heavyConcurrency);
       if (ultraLightAvailable) return 'ultraLight';
-      const candidates = [];
-      if (massiveAvailable) candidates.push('massive');
-      if (lightAvailable) candidates.push('light');
-      if (heavyAvailable) candidates.push('heavy');
-      if (!candidates.length) return null;
-      if (candidates.length === 1) return candidates[0];
-      const dispatchOrder = ['massive', 'light', 'heavy'];
-      const startIndex = dispatchOrder.indexOf(laneTurn);
-      for (let offset = 1; offset <= dispatchOrder.length; offset += 1) {
-        const index = (startIndex + offset + dispatchOrder.length) % dispatchOrder.length;
-        const laneName = dispatchOrder[index];
-        if (candidates.includes(laneName)) {
-          laneTurn = laneName;
-          return laneName;
-        }
-      }
-      return candidates[0];
+      if (massiveAvailable) return 'massive';
+      if (heavyAvailable) return 'heavy';
+      if (lightAvailable) return 'light';
+      return null;
     };
     const takeLaneDispatchEntries = (laneName) => {
       const queue = Array.isArray(laneQueues?.[laneName]) ? laneQueues[laneName] : null;

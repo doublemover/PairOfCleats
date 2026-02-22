@@ -1068,7 +1068,7 @@ Last revised: 2026-02-22T05:44:04.8332760-05:00
 - Touchpoints: `tools/bench/language/metrics.js`, `tools/bench/language/report.js`, `tools/reports/show-throughput.js`, `tests/tooling/reports/show-throughput-language-normalization.test.js`
 
 ### UB-096: Artifact writer work-class queues
-- Status: [ ]
+- Status: [x]
 - Observation:
   - Large and tiny artifact writes compete in same adaptive queue.
 - Tasks:
@@ -1076,6 +1076,11 @@ Last revised: 2026-02-22T05:44:04.8332760-05:00
   - Prioritize draining long-tail large artifacts earlier.
 - Exit criteria:
   - Lower tail stalls and better write-time predictability.
+- Completion: 2026-02-22T09:31:41.8004818-05:00
+- Validation:
+  - `node tests/indexing/artifacts/artifact-write-work-class-concurrency.test.js`
+  - `node tests/indexing/artifacts/artifact-write-ultra-light-lane-concurrency.test.js`
+  - `node tests/indexing/artifacts/artifact-write-massive-lane-concurrency.test.js`
 - Improvement Intent (What): artifact writer tail behavior
 - Improvement Method (How): work-class queues with class-specific concurrency.
 - Integrated Betterments: classify artifact writes into size classes with independent queue policies; preemptively drain large artifacts earlier; monitor tail-latency by class for feedback tuning.
