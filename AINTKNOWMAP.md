@@ -64,9 +64,9 @@ Intent: hard cutover to fully language-aware indexing, with no blind spots in ex
 - [x] Execute Phase 0.5 in this order: `0.5.40` (descriptor + manifest canon) -> `0.5.41` (caps telemetry/calibration) -> `0.5.1..0.5.39e` (language/framework implementation passes) -> `0.5.42` (performance optimization program).
 - [x] Enforce shared-file workstreams to reduce thrash: one routing/descriptor workstream, one caps workstream, one fixture/test workstream; each shared file is patched once per workstream, not repeatedly per language.
 - [x] Enforce a concrete per-subphase implementation contract for every `0.5.x` language/framework section:
-  - [ ] deliverable A: descriptor/spec patch (extensions, special filenames, parser route, adapter ID, caps profile)
-  - [ ] deliverable B: code-path patch (routing + chunking + relations/flow/docmeta in listed touchpoints)
-  - [ ] deliverable C: fixture/test patch (routing + collector/chunker/relation/flow + caps regression coverage)
+  - [x] deliverable A: descriptor/spec patch (extensions, special filenames, parser route, adapter ID, caps profile)
+  - [x] deliverable B: code-path patch (routing + chunking + relations/flow/docmeta in listed touchpoints)
+  - [x] deliverable C: fixture/test patch (routing + collector/chunker/relation/flow + caps regression coverage)
 - [x] Require each subphase commit series to include explicit artifact outputs (`descriptor diff`, `caps profile diff`, `fixture/test diff`) so validation work is always tied to concrete code changes.
 
 Touchpoints:
@@ -834,8 +834,8 @@ Touchpoints:
 
 - [x] Execute 0.5.42 in strict sequence:
   - [ ] sequence 0: instrumentation baseline, fixed fixture corpus lock, and reproducible benchmark harness
-  - [ ] sequence 1: dispatch/scan/read hot-path acceleration and generated/vendor classification
-  - [ ] sequence 2: parser lifecycle + fallback semantics
+  - [x] sequence 1: dispatch/scan/read hot-path acceleration and generated/vendor classification
+  - [x] sequence 2: parser lifecycle + fallback semantics
   - [ ] sequence 3: cache architecture + invalidation correctness
   - [ ] sequence 4: scheduler + memory-layout optimization
   - [ ] sequence 5: relation recomputation and memory-layout consolidation
@@ -855,24 +855,24 @@ Touchpoints:
 - [x] Cache scan outcomes by `(path, size, mtimeMs)` for watch/rebuild runs to avoid re-scanning unchanged files.
 - [x] Implement generated-file classifier coverage (bundle/minified/vendor patterns) and route these files to low-cost metadata-only indexing by default.
 - [x] Define and enforce generated/vendor policy defaults:
-  - [ ] default to metadata-only indexing for generated/minified/vendor files
-  - [ ] allow explicit opt-in patterns for full indexing in repo config
-  - [ ] emit deterministic reason metadata whenever downgraded indexing is applied
+  - [x] default to metadata-only indexing for generated/minified/vendor files
+  - [x] allow explicit opt-in patterns for full indexing in repo config
+  - [x] emit deterministic reason metadata whenever downgraded indexing is applied
 - [x] Consolidate import-resolution manifest/package probes so discovery and import resolution consume one normalized manifest graph.
 - [x] Upgrade `readTextFileWithStreamingCap` to fixed-size chunk streaming with deterministic UTF-8 boundary handling and early cutover at cap.
 - [x] Reuse one shared line index and UTF-8 byte-prefix table per file across chunking, trimming, and relation span normalization.
 - [x] Replace repeated `Buffer.byteLength` scans in hot chunk splitting paths with cached prefix lookups.
 - [x] Add per-language chunk splitter specializations:
-  - [ ] JS/TS/JSX/TSX: split by top-level declarations + export boundaries
-  - [ ] C/C++/ObjC/Java/C#/Kotlin/Swift: split by type/function boundaries
-  - [ ] SQL/GraphQL/Proto: split by statement/definition boundaries
+  - [x] JS/TS/JSX/TSX: split by top-level declarations + export boundaries
+  - [x] C/C++/ObjC/Java/C#/Kotlin/Swift: split by type/function boundaries
+  - [x] SQL/GraphQL/Proto: split by statement/definition boundaries
 - [x] Add parser pools keyed by grammar in runtime workers with bounded pool size and eviction policy.
 - [x] Preload heavy grammars (JS/TS/C++/Rust/Java) during runtime bootstrap to eliminate first-file cold parse spikes.
 - [x] Add language-aware parse timeout scaling (size + line count + historical parse cost) instead of one static timeout.
 - [x] Add parse fallback modes:
-  - [ ] tree-sitter AST mode (full)
-  - [ ] syntax-lite mode (reduced extraction)
-  - [ ] chunk-only mode for extreme files
+  - [x] tree-sitter AST mode (full)
+  - [x] syntax-lite mode (reduced extraction)
+  - [x] chunk-only mode for extreme files
 - [x] Align fallback behavior with a strict contract so downstream relation/explain/output behavior is deterministic in each fallback mode.
 - [x] Persist AST/chunk cache entries keyed by `(contentHash, languageId, runtimeKind, parserRuntimeVersion, parserVersion, grammarHash, nodeMajor, abiVersion, chunkingConfigVersion, fileCapsVersion, segmentationVersion, optionsHash)`.
 - [x] Define strict cache invalidation contract and apply it uniformly across warm memory cache and persistent cache stores.

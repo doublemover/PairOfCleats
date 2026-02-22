@@ -333,6 +333,89 @@ export const coalesceHeavyChunks = (chunks, maxChunks) => {
 };
 
 /**
+ * Resolve deterministic parser fallback mode for one file.
+ *
+ * Transition order is strict:
+ * 1) heavy tokenization skip => `chunk-only`
+ * 2) heavy-file downshift => `syntax-lite`
+ * 3) heuristic fallback chunking => `syntax-lite`
+ * 4) otherwise => `ast-full`
+ *
+ * @param {{
+ *   mode:string,
+ *   heavyFileDownshift:boolean,
+ *   heavyFileSkipTokenization:boolean,
+ *   chunkingDiagnostics?:{
+ *     usedHeuristicChunking?:boolean,
+ *     usedHeuristicCodeChunking?:boolean,
+ *     codeFallbackSegmentCount?:number,
+ *     schedulerMissingCount?:number,
+ *     fallbackSegmentCount?:number
+ *   }|null
+ * }} input
+ * @returns {{
+ *   mode:'ast-full'|'syntax-lite'|'chunk-only',
+ *   reasonCode:string|null,
+ *   reason:string|null
+ * }}
+ */
+const resolveParserFallbackProfile = ({
+  mode,
+  heavyFileDownshift,
+  heavyFileSkipTokenization,
+  chunkingDiagnostics = null
+}) => {
+  const diagnostics = chunkingDiagnostics && typeof chunkingDiagnostics === 'object'
+    ? chunkingDiagnostics
+    : {};
+  const schedulerMissingCount = Number.isFinite(Number(diagnostics.schedulerMissingCount))
+    ? Math.max(0, Math.floor(Number(diagnostics.schedulerMissingCount)))
+    : 0;
+  const codeFallbackSegmentCount = Number.isFinite(Number(diagnostics.codeFallbackSegmentCount))
+    ? Math.max(0, Math.floor(Number(diagnostics.codeFallbackSegmentCount)))
+    : 0;
+  const usedHeuristicCodeChunking = diagnostics.usedHeuristicCodeChunking === true;
+  const schedulerRequired = diagnostics.schedulerRequired === true;
+  const treeSitterWasEnabled = diagnostics.treeSitterEnabled === true;
+  const codeFallbackIndicatesParserLoss = usedHeuristicCodeChunking || codeFallbackSegmentCount > 0;
+  const fallbackIndicatesParserLoss = (schedulerRequired || treeSitterWasEnabled)
+    && (codeFallbackIndicatesParserLoss || schedulerMissingCount > 0);
+  if (mode !== 'code') {
+    return {
+      mode: 'chunk-only',
+      reasonCode: 'USR-R-HEURISTIC-ONLY',
+      reason: 'non-code-mode'
+    };
+  }
+  if (heavyFileSkipTokenization) {
+    return {
+      mode: 'chunk-only',
+      reasonCode: 'USR-R-RESOURCE-BUDGET-EXCEEDED',
+      reason: 'heavy-file-tokenization-skip'
+    };
+  }
+  if (heavyFileDownshift) {
+    return {
+      mode: 'syntax-lite',
+      reasonCode: 'USR-R-RESOURCE-BUDGET-EXCEEDED',
+      reason: 'heavy-file-downshift'
+    };
+  }
+  if (fallbackIndicatesParserLoss) {
+    return {
+      mode: 'syntax-lite',
+      reasonCode: schedulerMissingCount > 0 ? 'USR-R-PARSER-UNAVAILABLE' : 'USR-R-HEURISTIC-ONLY',
+      reason: schedulerMissingCount > 0 ? 'scheduler-miss' : 'heuristic-fallback'
+    };
+  }
+  return {
+    mode: 'ast-full',
+    reasonCode: null,
+    reason: null
+  };
+};
+
+/**
  * Process raw structural chunks into final chunk payload rows for one file.
  *
  * This stage coordinates enrichment, tokenization, optional worker offload,
@@ -410,6 +493,7 @@ export const processChunks = async (context) => {
     addEmbeddingDuration,
     showLineProgress,
     totalLines,
+    chunkingDiagnostics,
     failFile,
     buildStage
   } = context;
@@ -504,6 +588,15 @@ export const processChunks = async (context) => {
       log(`[perf] heavy-file tokenization skipped for ${relKey}.`);
     }
   }
+  const parserFallbackProfile = resolveParserFallbackProfile({
+    mode,
+    heavyFileDownshift,
+    heavyFileSkipTokenization,
+    chunkingDiagnostics
+  });
+  const parserMode = parserFallbackProfile.mode;
+  const parserIsAstFull = parserMode === 'ast-full';
+  const parserIsChunkOnly = parserMode === 'chunk-only';
 
   const strictIdentity = analysisPolicy?.identity?.strict !== false;
   const chunkUidNamespaceKey = mode === 'extracted-prose' ? 'repo:extracted-prose' : 'repo';
@@ -580,8 +673,8 @@ export const processChunks = async (context) => {
   let fileComplexity = {};
   let fileLint = [];
   if (isJsLike(ext) && mode === 'code') {
-    const effectiveComplexityEnabled = complexityEnabled && !heavyFileDownshift;
-    const effectiveLintEnabled = lintEnabled && !heavyFileDownshift;
+    const effectiveComplexityEnabled = complexityEnabled && !heavyFileDownshift && parserIsAstFull;
+    const effectiveLintEnabled = lintEnabled && !heavyFileDownshift && parserIsAstFull;
     if (effectiveComplexityEnabled) {
       const cacheKey = fileHash ? `${rel}:${fileHash}` : rel;
       let cachedComplexity = complexityCache.get(cacheKey);
@@ -678,10 +771,14 @@ export const processChunks = async (context) => {
   const baseRiskAnalysisEnabled = typeof analysisPolicy?.risk?.enabled === 'boolean'
     ? analysisPolicy.risk.enabled
     : riskAnalysisEnabled;
-  const effectiveTypeInferenceEnabled = heavyFileDownshift ? false : baseTypeInferenceEnabled;
-  const effectiveRiskAnalysisEnabled = heavyFileDownshift ? false : baseRiskAnalysisEnabled;
-  const effectiveRelationsEnabled = heavyFileDownshift ? false : relationsEnabled;
-  const effectiveTokenizeEnabled = tokenizeEnabled && !heavyFileSkipTokenization;
+  const effectiveTypeInferenceEnabled = parserIsAstFull ? baseTypeInferenceEnabled : false;
+  const effectiveRiskAnalysisEnabled = parserIsAstFull ? baseRiskAnalysisEnabled : false;
+  const effectiveRelationsEnabled = parserIsChunkOnly
+    ? false
+    : (heavyFileDownshift ? false : relationsEnabled);
+  const effectiveTokenizeEnabled = tokenizeEnabled
+    && !heavyFileSkipTokenization
+    && !(mode === 'code' && parserIsChunkOnly);
   const resolveFrameworkProfile = createFrameworkProfileResolver({
     relPath: rel,
     ext: containerExt,
@@ -802,6 +899,39 @@ export const processChunks = async (context) => {
     }
     let { codeRelations, docmeta } = enrichment;
     docmeta = normalizeDocMeta(docmeta);
+    if (
+      chunkMode === 'code'
+      && chunkLanguageId === 'sql'
+      && (!docmeta?.dialect || typeof docmeta.dialect !== 'string')
+    ) {
+      // Scheduler/fallback chunk paths can skip SQL dialect propagation from
+      // language prepare context; enforce deterministic dialect metadata here.
+      const resolveSqlDialect = typeof languageOptions?.resolveSqlDialect === 'function'
+        ? languageOptions.resolveSqlDialect
+        : null;
+      const resolvedSqlDialect = resolveSqlDialect
+        ? resolveSqlDialect(effectiveExt || containerExt || '')
+        : (languageOptions?.sql?.dialect || 'generic');
+      const normalizedSqlDialect = typeof resolvedSqlDialect === 'string' && resolvedSqlDialect.trim()
+        ? resolvedSqlDialect.trim().toLowerCase()
+        : 'generic';
+      docmeta = {
+        ...docmeta,
+        dialect: normalizedSqlDialect
+      };
+    }
+    const parserMetadata = {
+      ...(docmeta?.parser && typeof docmeta.parser === 'object' ? docmeta.parser : {}),
+      mode: parserMode,
+      fallbackMode: parserMode,
+      reasonCode: parserFallbackProfile.reasonCode,
+      reason: parserFallbackProfile.reason,
+      deterministic: true
+    };
+    docmeta = {
+      ...docmeta,
+      parser: parserMetadata
+    };
 
     let assignedRanges = [];
     let commentFieldTokens = [];
@@ -1151,6 +1281,9 @@ export const processChunks = async (context) => {
       coalesceRatio,
       outputRatio,
       skipTokenization: heavyFileSkipTokenization,
+      parserMode,
+      parserReasonCode: parserFallbackProfile.reasonCode,
+      parserReason: parserFallbackProfile.reason,
       throughputChunksPerSecond,
       processingDurationMs,
       heavyReasonBytes: heavyByBytes,

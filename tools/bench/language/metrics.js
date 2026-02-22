@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { buildIgnoreMatcher } from '../../../src/index/build/ignore.js';
+import { buildGeneratedPolicyConfig } from '../../../src/index/build/generated-policy.js';
 import { tokenizeComments } from '../../../src/index/build/file-processor/cpu/tokenizer.js';
 import { discoverFilesForModes } from '../../../src/index/build/discover.js';
 import { extractDocx } from '../../../src/index/extractors/docx.js';
@@ -273,12 +274,13 @@ const countExtractedProseLinesForEntries = async (entries, {
 
 export const buildLineStats = async (repoPath, userConfig) => {
   const modes = ['code', 'prose', 'extracted-prose', 'records'];
-  const { ignoreMatcher } = await buildIgnoreMatcher({ root: repoPath, userConfig });
-  const skippedByMode = { code: [], prose: [], 'extracted-prose': [], records: [] };
-  const maxFileBytes = resolveMaxFileBytes(userConfig);
   const indexingConfig = userConfig?.indexing && typeof userConfig.indexing === 'object'
     ? userConfig.indexing
     : {};
+  const generatedPolicy = buildGeneratedPolicyConfig(indexingConfig);
+  const { ignoreMatcher } = await buildIgnoreMatcher({ root: repoPath, userConfig, generatedPolicy });
+  const skippedByMode = { code: [], prose: [], 'extracted-prose': [], records: [] };
+  const maxFileBytes = resolveMaxFileBytes(userConfig);
   const normalizedCommentsConfig = normalizeCommentConfig(indexingConfig.comments || {});
   const documentExtractionConfig = indexingConfig.documentExtraction || null;
   const triageConfig = getTriageConfig(repoPath, userConfig);
@@ -290,6 +292,7 @@ export const buildLineStats = async (repoPath, userConfig) => {
     recordsDir: triageConfig.recordsDir,
     recordsConfig,
     ignoreMatcher,
+    generatedPolicy,
     skippedByMode,
     maxFileBytes
   });

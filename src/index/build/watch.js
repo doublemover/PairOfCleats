@@ -36,9 +36,14 @@ import { resolveMaxBytesForFile, resolveMaxDepthCap, resolveMaxFilesCap, isIndex
 import { startChokidarWatcher } from './watch/backends/chokidar.js';
 import { startParcelWatcher } from './watch/backends/parcel.js';
 import { createWatchAttemptManager } from './watch/attempts.js';
-import { MINIFIED_NAME_REGEX, normalizeRoot } from './watch/shared.js';
+import { normalizeRoot } from './watch/shared.js';
 import { isCodeEntryForPath, isProseEntryForPath } from './mode-routing.js';
 import { detectShebangLanguage } from './shebang.js';
+import {
+  buildGeneratedPolicyConfig,
+  buildGeneratedPolicyDowngradePayload,
+  resolveGeneratedPolicyDecision
+} from './generated-policy.js';
 
 export { createDebouncedScheduler, acquireIndexLockWithBackoff };
 
@@ -78,6 +83,9 @@ export async function watchIndex({
   const root = runtimeRef.root;
   const recordsRoot = resolveRecordsRoot(root, runtimeRef.recordsDir);
   const ignoreMatcher = runtimeRef.ignoreMatcher;
+  const generatedPolicy = runtimeRef.generatedPolicy && typeof runtimeRef.generatedPolicy === 'object'
+    ? runtimeRef.generatedPolicy
+    : buildGeneratedPolicyConfig({});
   const maxFileBytes = runtimeRef.maxFileBytes;
   const fileCaps = runtimeRef.fileCaps;
   const guardrails = runtimeRef.guardrails || {};
@@ -306,8 +314,21 @@ export async function watchIndex({
       return { skip: true, reason: 'ignored' };
     }
     const baseName = path.basename(absPath);
-    if (MINIFIED_NAME_REGEX.test(baseName.toLowerCase())) {
-      return { skip: true, reason: 'minified', extra: { method: 'name' } };
+    const generatedPolicyDecision = resolveGeneratedPolicyDecision({
+      generatedPolicy,
+      relPath: relPosix,
+      absPath,
+      baseName
+    });
+    if (generatedPolicyDecision?.downgrade) {
+      return {
+        skip: true,
+        reason: generatedPolicyDecision.classification || 'generated',
+        extra: {
+          indexMode: generatedPolicyDecision.indexMode,
+          downgrade: buildGeneratedPolicyDowngradePayload(generatedPolicyDecision)
+        }
+      };
     }
     let ext = resolveSpecialCodeExt(baseName) || fileExt(absPath);
     let stat;
@@ -675,6 +696,7 @@ export async function watchIndex({
     scmProviderImpl: runtimeRef.scmProviderImpl,
     scmRepoRoot: runtimeRef.scmRepoRoot,
     ignoreMatcher,
+    generatedPolicy,
     skippedByMode,
     maxFileBytes,
     fileCaps,
