@@ -28,16 +28,19 @@ import {
 } from '../file-processor/tree-sitter.js';
 import { resolveTreeSitterSchedulerPaths } from './paths.js';
 import { createTreeSitterFileVersionSignature } from './file-signature.js';
-import { shouldSkipTreeSitterPlanningForPath } from './policy.js';
+import {
+  isHighCardinalityTreeSitterGrammar,
+  resolveTreeSitterLaneGuardrails,
+  shouldSkipTreeSitterPlanningForPath
+} from './policy.js';
 import { loadTreeSitterSchedulerAdaptiveProfile } from './adaptive-profile.js';
 
 const TREE_SITTER_LANG_IDS = new Set(TREE_SITTER_LANGUAGE_IDS);
 const PLANNER_IO_CONCURRENCY_CAP = 32;
 const PLANNER_IO_LARGE_REPO_THRESHOLD = 20000;
 const TREE_SITTER_SKIP_SAMPLE_LIMIT_DEFAULT = 3;
-const HEAVY_GRAMMAR_BUCKET_LANGUAGES = new Set(['clike', 'cpp']);
 const HEAVY_GRAMMAR_BUCKET_TARGET_JOBS = 768;
-const HEAVY_GRAMMAR_BUCKET_MIN = 2;
+const HEAVY_GRAMMAR_BUCKET_MIN = 1;
 const HEAVY_GRAMMAR_BUCKET_MAX = 16;
 const ADAPTIVE_BUCKET_MIN_JOBS = 64;
 const ADAPTIVE_BUCKET_MAX_JOBS = 4096;
@@ -45,6 +48,9 @@ const ADAPTIVE_BUCKET_TARGET_MS = 1200;
 const ADAPTIVE_WAVE_TARGET_MS = 900;
 const ADAPTIVE_WAVE_MIN_JOBS = 32;
 const ADAPTIVE_WAVE_MAX_JOBS = 2048;
+const ESTIMATED_COST_BASELINE_PER_JOB = 40;
+const MIN_ESTIMATED_PARSE_COST = 1;
+const MAX_BUCKET_REBALANCE_ITERATIONS = 4;
 
 const countLines = (text, maxLines = null) => {
   if (!text) return 0;
@@ -128,12 +134,185 @@ const hashString = (value) => {
   return hash >>> 0;
 };
 
-const resolveObservedRowsPerSec = (grammarKey, observedRowsPerSecByGrammar) => {
-  if (!(observedRowsPerSecByGrammar instanceof Map)) return null;
-  const raw = observedRowsPerSecByGrammar.get(grammarKey);
-  const parsed = Number(raw?.rowsPerSec ?? raw);
-  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+const normalizePositiveNumber = (value, fallback = null) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
   return parsed;
+};
+
+const normalizePositiveInt = (value, fallback = null) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.max(1, Math.floor(parsed));
+};
+
+const isWordLikeCharCode = (code) => (
+  (code >= 48 && code <= 57)
+  || (code >= 65 && code <= 90)
+  || (code >= 97 && code <= 122)
+  || code === 95
+  || code === 36
+);
+
+const isWhitespaceCharCode = (code) => (
+  code === 9 || code === 10 || code === 13 || code === 32 || code === 12
+);
+
+/**
+ * Estimate parse cost from segment content using line count and token density.
+ * Token estimation uses a single pass scanner to keep planner overhead bounded.
+ *
+ * @param {string} text
+ * @returns {{lineCount:number,tokenCount:number,tokenDensity:number,estimatedParseCost:number}}
+ */
+const estimateSegmentParseCost = (text) => {
+  if (!text) {
+    return {
+      lineCount: 0,
+      tokenCount: 0,
+      tokenDensity: 0,
+      estimatedParseCost: MIN_ESTIMATED_PARSE_COST
+    };
+  }
+  let lineCount = 1;
+  let tokenCount = 0;
+  let inWord = false;
+  let nonWhitespaceChars = 0;
+  for (let i = 0; i < text.length; i += 1) {
+    const code = text.charCodeAt(i);
+    if (code === 10) lineCount += 1;
+    if (isWhitespaceCharCode(code)) {
+      inWord = false;
+      continue;
+    }
+    nonWhitespaceChars += 1;
+    if (isWordLikeCharCode(code)) {
+      if (!inWord) {
+        tokenCount += 1;
+        inWord = true;
+      }
+    } else {
+      tokenCount += 1;
+      inWord = false;
+    }
+  }
+  const safeLineCount = Math.max(1, lineCount);
+  const tokenDensity = tokenCount / safeLineCount;
+  const charDensity = nonWhitespaceChars / safeLineCount;
+  const tokenMultiplier = 1 + Math.min(2.5, tokenDensity / 18);
+  const charMultiplier = 1 + Math.min(1.5, charDensity / 90);
+  const estimatedParseCost = Math.max(
+    MIN_ESTIMATED_PARSE_COST,
+    Math.round(safeLineCount * ((tokenMultiplier * 0.7) + (charMultiplier * 0.3)))
+  );
+  return {
+    lineCount: safeLineCount,
+    tokenCount,
+    tokenDensity,
+    estimatedParseCost
+  };
+};
+
+const resolveJobEstimatedParseCost = (job) => {
+  const estimated = normalizePositiveNumber(job?.estimatedParseCost);
+  if (estimated) return estimated;
+  const span = normalizePositiveNumber(
+    Number(job?.segmentEnd) - Number(job?.segmentStart),
+    MIN_ESTIMATED_PARSE_COST
+  );
+  return Math.max(MIN_ESTIMATED_PARSE_COST, Math.ceil(span / 64));
+};
+
+const summarizeGrammarJobs = (jobs) => {
+  const list = Array.isArray(jobs) ? jobs : [];
+  if (!list.length) {
+    return {
+      jobCount: 0,
+      totalEstimatedCost: 0,
+      avgCost: 0,
+      minCost: 0,
+      maxCost: 0,
+      p95Cost: 0,
+      skewRatio: 0
+    };
+  }
+  const costs = list
+    .map((job) => resolveJobEstimatedParseCost(job))
+    .filter((value) => Number.isFinite(value) && value > 0)
+    .sort((a, b) => a - b);
+  if (!costs.length) {
+    return {
+      jobCount: list.length,
+      totalEstimatedCost: list.length,
+      avgCost: 1,
+      minCost: 1,
+      maxCost: 1,
+      p95Cost: 1,
+      skewRatio: 1
+    };
+  }
+  const totalEstimatedCost = costs.reduce((sum, value) => sum + value, 0);
+  const jobCount = list.length;
+  const avgCost = totalEstimatedCost / Math.max(1, jobCount);
+  const minCost = costs[0];
+  const maxCost = costs[costs.length - 1];
+  const p95Cost = costs[Math.max(0, Math.floor((costs.length - 1) * 0.95))];
+  const skewRatio = maxCost / Math.max(1, avgCost);
+  return {
+    jobCount,
+    totalEstimatedCost,
+    avgCost,
+    minCost,
+    maxCost,
+    p95Cost,
+    skewRatio
+  };
+};
+
+const resolveObservedProfileEntry = (grammarKey, observedRowsPerSecByGrammar) => {
+  if (!(observedRowsPerSecByGrammar instanceof Map) || !grammarKey) return null;
+  const raw = observedRowsPerSecByGrammar.get(grammarKey);
+  if (!raw || typeof raw !== 'object') {
+    const parsed = normalizePositiveNumber(raw, null);
+    return parsed ? { rowsPerSec: parsed } : null;
+  }
+  return raw;
+};
+
+const resolveObservedRowsPerSec = (grammarKey, observedRowsPerSecByGrammar) => {
+  const entry = resolveObservedProfileEntry(grammarKey, observedRowsPerSecByGrammar);
+  if (!entry) return null;
+  return normalizePositiveNumber(entry?.rowsPerSec, null);
+};
+
+const resolveObservedCostPerSec = (grammarKey, observedRowsPerSecByGrammar) => {
+  const entry = resolveObservedProfileEntry(grammarKey, observedRowsPerSecByGrammar);
+  if (!entry) return null;
+  return normalizePositiveNumber(entry?.costPerSec, null);
+};
+
+const resolveObservedTailDurationMs = (grammarKey, observedRowsPerSecByGrammar) => {
+  const entry = resolveObservedProfileEntry(grammarKey, observedRowsPerSecByGrammar);
+  if (!entry) return null;
+  return normalizePositiveNumber(entry?.tailDurationMs, null);
+};
+
+const resolveObservedLaneState = (grammarKey, observedRowsPerSecByGrammar) => {
+  const entry = resolveObservedProfileEntry(grammarKey, observedRowsPerSecByGrammar);
+  if (!entry || typeof entry !== 'object') return null;
+  const laneState = entry?.laneState;
+  if (!laneState || typeof laneState !== 'object') return null;
+  const bucketCount = normalizePositiveInt(laneState.bucketCount, null);
+  const cooldownSteps = Math.max(0, Math.floor(Number(laneState.cooldownSteps) || 0));
+  const lastAction = laneState.lastAction === 'split' || laneState.lastAction === 'merge'
+    ? laneState.lastAction
+    : 'hold';
+  if (!bucketCount) return null;
+  return {
+    bucketCount,
+    cooldownSteps,
+    lastAction
+  };
 };
 
 const resolveAdaptiveBucketTargetJobs = ({
@@ -141,8 +320,6 @@ const resolveAdaptiveBucketTargetJobs = ({
   schedulerConfig = {},
   observedRowsPerSecByGrammar = null
 }) => {
-  const languages = Array.isArray(group?.languages) ? group.languages : [];
-  const isHeavyLanguage = languages.some((languageId) => HEAVY_GRAMMAR_BUCKET_LANGUAGES.has(languageId));
   const defaultTarget = Number.isFinite(Number(schedulerConfig.heavyGrammarBucketTargetJobs))
     ? Math.max(ADAPTIVE_BUCKET_MIN_JOBS, Math.floor(Number(schedulerConfig.heavyGrammarBucketTargetJobs)))
     : HEAVY_GRAMMAR_BUCKET_TARGET_JOBS;
@@ -155,8 +332,7 @@ const resolveAdaptiveBucketTargetJobs = ({
     const projected = Math.floor((observedRowsPerSec * targetMs) / 1000);
     return Math.max(ADAPTIVE_BUCKET_MIN_JOBS, Math.min(ADAPTIVE_BUCKET_MAX_JOBS, projected));
   }
-  if (isHeavyLanguage) return defaultTarget;
-  return Math.max(ADAPTIVE_BUCKET_MIN_JOBS, Math.floor(defaultTarget * 1.5));
+  return Math.max(ADAPTIVE_BUCKET_MIN_JOBS, defaultTarget);
 };
 
 const resolveAdaptiveWaveTargetJobs = ({
@@ -177,6 +353,118 @@ const resolveAdaptiveWaveTargetJobs = ({
   return Math.max(ADAPTIVE_WAVE_MIN_JOBS, Math.min(ADAPTIVE_WAVE_MAX_JOBS, fallback));
 };
 
+const resolveAdaptiveBucketTargetCost = ({
+  group,
+  schedulerConfig = {},
+  observedRowsPerSecByGrammar = null
+}) => {
+  const baselineCostPerJob = normalizePositiveNumber(
+    schedulerConfig.estimatedParseCostPerJobBaseline,
+    ESTIMATED_COST_BASELINE_PER_JOB
+  );
+  const observedCostPerSec = resolveObservedCostPerSec(group?.grammarKey, observedRowsPerSecByGrammar);
+  if (Number.isFinite(observedCostPerSec) && observedCostPerSec > 0) {
+    const targetMsRaw = Number(schedulerConfig.adaptiveBucketTargetMs);
+    const targetMs = Number.isFinite(targetMsRaw) && targetMsRaw > 0
+      ? Math.floor(targetMsRaw)
+      : ADAPTIVE_BUCKET_TARGET_MS;
+    const projected = Math.floor((observedCostPerSec * targetMs) / 1000);
+    return Math.max(
+      baselineCostPerJob * ADAPTIVE_BUCKET_MIN_JOBS,
+      Math.min(baselineCostPerJob * ADAPTIVE_BUCKET_MAX_JOBS, projected)
+    );
+  }
+  const targetJobs = resolveAdaptiveBucketTargetJobs({ group, schedulerConfig, observedRowsPerSecByGrammar });
+  return Math.max(
+    baselineCostPerJob * ADAPTIVE_BUCKET_MIN_JOBS,
+    targetJobs * baselineCostPerJob
+  );
+};
+
+const resolveAdaptiveWaveTargetCost = ({
+  group,
+  schedulerConfig = {},
+  observedRowsPerSecByGrammar = null
+}) => {
+  const baselineCostPerJob = normalizePositiveNumber(
+    schedulerConfig.estimatedParseCostPerJobBaseline,
+    ESTIMATED_COST_BASELINE_PER_JOB
+  );
+  const observedCostPerSec = resolveObservedCostPerSec(group?.grammarKey, observedRowsPerSecByGrammar);
+  if (Number.isFinite(observedCostPerSec) && observedCostPerSec > 0) {
+    const targetMsRaw = Number(schedulerConfig.adaptiveWaveTargetMs);
+    const targetMs = Number.isFinite(targetMsRaw) && targetMsRaw > 0
+      ? Math.floor(targetMsRaw)
+      : ADAPTIVE_WAVE_TARGET_MS;
+    const projected = Math.floor((observedCostPerSec * targetMs) / 1000);
+    return Math.max(
+      baselineCostPerJob * ADAPTIVE_WAVE_MIN_JOBS,
+      Math.min(baselineCostPerJob * ADAPTIVE_WAVE_MAX_JOBS, projected)
+    );
+  }
+  const targetJobs = resolveAdaptiveWaveTargetJobs({ group, schedulerConfig, observedRowsPerSecByGrammar });
+  return Math.max(
+    baselineCostPerJob * ADAPTIVE_WAVE_MIN_JOBS,
+    targetJobs * baselineCostPerJob
+  );
+};
+
+const summarizeLoadDistribution = (loads) => {
+  const normalized = Array.isArray(loads)
+    ? loads.map((value) => Number(value) || 0)
+    : [];
+  if (!normalized.length) {
+    return {
+      loads: [],
+      total: 0,
+      avg: 0,
+      min: 0,
+      minNonZero: 0,
+      max: 0,
+      spreadRatio: 0,
+      imbalanceRatio: 0,
+      stdDev: 0
+    };
+  }
+  const total = normalized.reduce((sum, value) => sum + value, 0);
+  const avg = total / normalized.length;
+  const min = normalized.reduce((acc, value) => Math.min(acc, value), Number.POSITIVE_INFINITY);
+  const max = normalized.reduce((acc, value) => Math.max(acc, value), Number.NEGATIVE_INFINITY);
+  const nonZero = normalized.filter((value) => value > 0);
+  const minNonZero = nonZero.length ? Math.min(...nonZero) : 0;
+  const variance = normalized.reduce((sum, value) => {
+    const delta = value - avg;
+    return sum + (delta * delta);
+  }, 0) / normalized.length;
+  const stdDev = Math.sqrt(Math.max(0, variance));
+  return {
+    loads: normalized,
+    total,
+    avg,
+    min,
+    minNonZero,
+    max,
+    spreadRatio: minNonZero > 0 ? (max / minNonZero) : (max > 0 ? max : 0),
+    imbalanceRatio: avg > 0 ? (max / avg) : 0,
+    stdDev
+  };
+};
+
+const summarizeBucketMetrics = (buckets) => {
+  const list = Array.isArray(buckets) ? buckets : [];
+  const costLoads = list.map((bucketJobs) => (
+    (Array.isArray(bucketJobs) ? bucketJobs : [])
+      .reduce((sum, job) => sum + resolveJobEstimatedParseCost(job), 0)
+  ));
+  const jobLoads = list.map((bucketJobs) => (
+    Array.isArray(bucketJobs) ? bucketJobs.length : 0
+  ));
+  return {
+    cost: summarizeLoadDistribution(costLoads),
+    jobs: summarizeLoadDistribution(jobLoads)
+  };
+};
+
 /**
  * Assign jobs to buckets by directory affinity while actively splitting very
  * large directories so one subtree cannot monopolize the tail wave.
@@ -190,7 +478,8 @@ const assignPathAwareBuckets = ({ jobs, bucketCount }) => {
     return [Array.isArray(jobs) ? jobs.slice() : []];
   }
   const buckets = Array.from({ length: safeBucketCount }, () => []);
-  const bucketLoads = new Array(safeBucketCount).fill(0);
+  const bucketCostLoads = new Array(safeBucketCount).fill(0);
+  const bucketJobLoads = new Array(safeBucketCount).fill(0);
   const jobsByDir = new Map();
   for (const job of jobs) {
     const key = job?.containerPath || job?.virtualPath || '';
@@ -199,21 +488,28 @@ const assignPathAwareBuckets = ({ jobs, bucketCount }) => {
     jobsByDir.get(dirKey).push(job);
   }
   const groups = Array.from(jobsByDir.entries())
-    .map(([dirKey, dirJobs]) => ({ dirKey, dirJobs: dirJobs.slice().sort(sortJobs) }))
+    .map(([dirKey, dirJobs]) => ({
+      dirKey,
+      dirJobs: dirJobs.slice().sort(sortJobs),
+      dirEstimatedCost: dirJobs.reduce((sum, job) => sum + resolveJobEstimatedParseCost(job), 0)
+    }))
     .sort((a, b) => {
+      const costDelta = b.dirEstimatedCost - a.dirEstimatedCost;
+      if (costDelta !== 0) return costDelta;
       const sizeDelta = b.dirJobs.length - a.dirJobs.length;
       if (sizeDelta !== 0) return sizeDelta;
       return compareStrings(a.dirKey, b.dirKey);
     });
-  const totalJobs = jobs.length;
-  const idealBucketLoad = Math.max(1, Math.ceil(totalJobs / safeBucketCount));
-  const bigDirThreshold = Math.max(idealBucketLoad, Math.floor(idealBucketLoad * 1.5));
+  const totalEstimatedCost = jobs.reduce((sum, job) => sum + resolveJobEstimatedParseCost(job), 0);
+  const averageJobCost = totalEstimatedCost / Math.max(1, jobs.length);
+  const idealBucketCost = Math.max(1, totalEstimatedCost / safeBucketCount);
+  const bigDirThreshold = Math.max(idealBucketCost * 1.15, averageJobCost * 3);
   const findLeastLoadedBucket = () => {
     let bestIndex = 0;
-    let bestLoad = bucketLoads[0];
-    for (let i = 1; i < bucketLoads.length; i += 1) {
-      const load = bucketLoads[i];
-      if (load < bestLoad) {
+    let bestLoad = bucketCostLoads[0];
+    for (let i = 1; i < bucketCostLoads.length; i += 1) {
+      const load = bucketCostLoads[i];
+      if (load < bestLoad || (load === bestLoad && bucketJobLoads[i] < bucketJobLoads[bestIndex])) {
         bestLoad = load;
         bestIndex = i;
       }
@@ -223,24 +519,70 @@ const assignPathAwareBuckets = ({ jobs, bucketCount }) => {
   for (const group of groups) {
     const dirJobs = group.dirJobs;
     if (!dirJobs.length) continue;
-    if (dirJobs.length >= bigDirThreshold) {
-      for (const job of dirJobs) {
+    if (group.dirEstimatedCost >= bigDirThreshold && dirJobs.length > 1) {
+      const sortedByCost = dirJobs.slice().sort((a, b) => {
+        const costDelta = resolveJobEstimatedParseCost(b) - resolveJobEstimatedParseCost(a);
+        if (costDelta !== 0) return costDelta;
+        return sortJobs(a, b);
+      });
+      for (const job of sortedByCost) {
+        const jobCost = resolveJobEstimatedParseCost(job);
         const key = job?.containerPath || job?.virtualPath || '';
         const hashedIndex = hashString(key) % safeBucketCount;
         const leastLoadedIndex = findLeastLoadedBucket();
-        const chosenIndex = bucketLoads[hashedIndex] <= (bucketLoads[leastLoadedIndex] + 1)
+        const chooseHashed = (bucketCostLoads[hashedIndex] + jobCost)
+          <= ((bucketCostLoads[leastLoadedIndex] + jobCost) * 1.08);
+        const chosenIndex = chooseHashed
           ? hashedIndex
           : leastLoadedIndex;
         buckets[chosenIndex].push(job);
-        bucketLoads[chosenIndex] += 1;
+        bucketCostLoads[chosenIndex] += jobCost;
+        bucketJobLoads[chosenIndex] += 1;
       }
       continue;
     }
     const bucketIndex = findLeastLoadedBucket();
     buckets[bucketIndex].push(...dirJobs);
-    bucketLoads[bucketIndex] += dirJobs.length;
+    bucketCostLoads[bucketIndex] += group.dirEstimatedCost;
+    bucketJobLoads[bucketIndex] += dirJobs.length;
   }
   return buckets.map((bucketJobs) => bucketJobs.sort(sortJobs));
+};
+
+const applyBucketCountGuardrails = ({
+  desiredBucketCount,
+  minBuckets,
+  maxBuckets,
+  laneState,
+  guardrails,
+  hasSplitPressure = false,
+  hasMergePressure = false
+}) => {
+  let resolved = Math.max(minBuckets, Math.min(maxBuckets, Math.floor(desiredBucketCount || 1)));
+  const priorBucketCount = normalizePositiveInt(laneState?.bucketCount, null);
+  if (!priorBucketCount) return resolved;
+  if (resolved > priorBucketCount) {
+    const delta = resolved - priorBucketCount;
+    resolved = priorBucketCount + Math.min(guardrails.maxStepUp, delta);
+    const ratio = resolved / Math.max(1, priorBucketCount);
+    if (ratio < guardrails.splitHysteresisRatio && !hasSplitPressure) {
+      resolved = priorBucketCount;
+    }
+    if (laneState?.cooldownSteps > 0 && laneState?.lastAction === 'merge' && !hasSplitPressure) {
+      resolved = priorBucketCount;
+    }
+  } else if (resolved < priorBucketCount) {
+    const delta = priorBucketCount - resolved;
+    resolved = priorBucketCount - Math.min(guardrails.maxStepDown, delta);
+    const ratio = resolved / Math.max(1, priorBucketCount);
+    if (ratio > guardrails.mergeHysteresisRatio && !hasMergePressure) {
+      resolved = priorBucketCount;
+    }
+    if (laneState?.cooldownSteps > 0 && laneState?.lastAction === 'split' && !hasMergePressure) {
+      resolved = priorBucketCount;
+    }
+  }
+  return Math.max(minBuckets, Math.min(maxBuckets, resolved));
 };
 
 const shardGrammarGroup = ({
@@ -250,8 +592,19 @@ const shardGrammarGroup = ({
 }) => {
   const jobs = Array.isArray(group?.jobs) ? group.jobs : [];
   if (!jobs.length) return [];
-  const languages = Array.isArray(group?.languages) ? group.languages : [];
-  const isHeavyLanguage = languages.some((languageId) => HEAVY_GRAMMAR_BUCKET_LANGUAGES.has(languageId));
+  const guardrails = resolveTreeSitterLaneGuardrails(schedulerConfig);
+  const jobStats = summarizeGrammarJobs(jobs);
+  const observedTailDurationMs = resolveObservedTailDurationMs(
+    group?.grammarKey,
+    observedRowsPerSecByGrammar
+  ) || 0;
+  const highCardinality = isHighCardinalityTreeSitterGrammar({
+    schedulerConfig,
+    jobCount: jobStats.jobCount,
+    totalEstimatedCost: jobStats.totalEstimatedCost,
+    skewRatio: jobStats.skewRatio,
+    tailDurationMs: observedTailDurationMs
+  });
   const rawEnabled = schedulerConfig.heavyGrammarBucketSharding ?? schedulerConfig.bucketSharding;
   if (rawEnabled === false) return [group];
   const targetJobs = resolveAdaptiveBucketTargetJobs({
@@ -259,22 +612,109 @@ const shardGrammarGroup = ({
     schedulerConfig,
     observedRowsPerSecByGrammar
   });
+  const targetCost = resolveAdaptiveBucketTargetCost({
+    group,
+    schedulerConfig,
+    observedRowsPerSecByGrammar
+  });
   const minBuckets = Number.isFinite(Number(schedulerConfig.heavyGrammarBucketMin))
-    ? Math.max(isHeavyLanguage ? 2 : 1, Math.floor(Number(schedulerConfig.heavyGrammarBucketMin)))
-    : (isHeavyLanguage ? HEAVY_GRAMMAR_BUCKET_MIN : 1);
+    ? Math.max(1, Math.floor(Number(schedulerConfig.heavyGrammarBucketMin)))
+    : HEAVY_GRAMMAR_BUCKET_MIN;
   const maxBuckets = Number.isFinite(Number(schedulerConfig.heavyGrammarBucketMax))
     ? Math.max(minBuckets, Math.floor(Number(schedulerConfig.heavyGrammarBucketMax)))
-    : (isHeavyLanguage ? HEAVY_GRAMMAR_BUCKET_MAX : Math.max(8, HEAVY_GRAMMAR_BUCKET_MAX));
-  const bucketCount = Math.max(
-    minBuckets,
-    Math.min(maxBuckets, Math.ceil(jobs.length / targetJobs))
+    : HEAVY_GRAMMAR_BUCKET_MAX;
+  const minBucketsForLoad = highCardinality ? Math.max(2, minBuckets) : minBuckets;
+  let desiredBucketCount = Math.max(
+    minBucketsForLoad,
+    Math.min(
+      maxBuckets,
+      Math.max(
+        Math.ceil(jobStats.totalEstimatedCost / Math.max(1, targetCost)),
+        Math.ceil(jobStats.jobCount / Math.max(1, targetJobs))
+      )
+    )
   );
-  if (bucketCount <= 1 || jobs.length < Math.max(ADAPTIVE_BUCKET_MIN_JOBS, targetJobs)) return [group];
-  const buckets = assignPathAwareBuckets({ jobs, bucketCount });
+  const hasSplitPressure = jobStats.skewRatio >= guardrails.highCardinalitySkewRatio
+    || observedTailDurationMs >= guardrails.tailSplitMs;
+  const hasMergePressure = jobStats.totalEstimatedCost
+    <= (targetCost * guardrails.mergeHysteresisRatio);
+  if (hasSplitPressure && desiredBucketCount < maxBuckets) {
+    desiredBucketCount = Math.min(maxBuckets, desiredBucketCount + 1);
+  }
+  if (hasMergePressure && desiredBucketCount > minBucketsForLoad && !hasSplitPressure) {
+    desiredBucketCount = Math.max(minBucketsForLoad, desiredBucketCount - 1);
+  }
+  const laneState = resolveObservedLaneState(group?.grammarKey, observedRowsPerSecByGrammar);
+  let bucketCount = applyBucketCountGuardrails({
+    desiredBucketCount,
+    minBuckets: minBucketsForLoad,
+    maxBuckets,
+    laneState,
+    guardrails,
+    hasSplitPressure,
+    hasMergePressure
+  });
+  const priorBucketCount = normalizePositiveInt(laneState?.bucketCount, null);
+  const guardrailMinBucketCount = priorBucketCount
+    ? Math.max(minBucketsForLoad, priorBucketCount - guardrails.maxStepDown)
+    : minBucketsForLoad;
+  const guardrailMaxBucketCount = priorBucketCount
+    ? Math.min(maxBuckets, priorBucketCount + guardrails.maxStepUp)
+    : maxBuckets;
+  bucketCount = Math.max(guardrailMinBucketCount, Math.min(guardrailMaxBucketCount, bucketCount));
+  if (bucketCount <= 1 && !highCardinality) {
+    return [{
+      ...group,
+      estimatedParseCost: jobStats.totalEstimatedCost,
+      laneMetrics: {
+        targetJobs,
+        targetCost,
+        highCardinality,
+        bucketMetrics: summarizeBucketMetrics([jobs]),
+        laneState
+      }
+    }];
+  }
+  let buckets = assignPathAwareBuckets({ jobs, bucketCount });
+  let bucketMetrics = summarizeBucketMetrics(buckets);
+  let lastDirection = 0;
+  for (let i = 0; i < MAX_BUCKET_REBALANCE_ITERATIONS; i += 1) {
+    const overloaded = bucketMetrics.cost.max > (targetCost * guardrails.splitHysteresisRatio);
+    const underloaded = bucketMetrics.cost.max < (targetCost * guardrails.mergeHysteresisRatio);
+    const splitForImbalance = Number.isFinite(bucketMetrics.cost.spreadRatio)
+      && bucketMetrics.cost.spreadRatio >= guardrails.splitImbalanceRatio;
+    const mergeForBalance = Number.isFinite(bucketMetrics.cost.spreadRatio)
+      && bucketMetrics.cost.spreadRatio <= guardrails.mergeImbalanceRatio;
+    if (
+      (hasSplitPressure || overloaded || splitForImbalance)
+      && bucketCount < guardrailMaxBucketCount
+      && lastDirection >= 0
+    ) {
+      bucketCount += 1;
+      buckets = assignPathAwareBuckets({ jobs, bucketCount });
+      bucketMetrics = summarizeBucketMetrics(buckets);
+      lastDirection = 1;
+      continue;
+    }
+    if (
+      !hasSplitPressure
+      && (hasMergePressure || (underloaded && mergeForBalance))
+      && bucketCount > guardrailMinBucketCount
+      && lastDirection <= 0
+    ) {
+      bucketCount -= 1;
+      buckets = assignPathAwareBuckets({ jobs, bucketCount });
+      bucketMetrics = summarizeBucketMetrics(buckets);
+      lastDirection = -1;
+      continue;
+    }
+    break;
+  }
   const out = [];
   for (let bucketIndex = 0; bucketIndex < buckets.length; bucketIndex += 1) {
     const bucketJobs = buckets[bucketIndex];
     if (!bucketJobs.length) continue;
+    const bucketEstimatedCost = bucketJobs.reduce((sum, job) => sum + resolveJobEstimatedParseCost(job), 0);
     const bucketKey = `${group.grammarKey}~b${String(bucketIndex + 1).padStart(2, '0')}of${String(bucketCount).padStart(2, '0')}`;
     out.push({
       grammarKey: bucketKey,
@@ -284,8 +724,16 @@ const shardGrammarGroup = ({
         bucketIndex: bucketIndex + 1,
         bucketCount
       },
-      languages,
-      jobs: bucketJobs
+      languages: Array.isArray(group?.languages) ? group.languages : [],
+      jobs: bucketJobs,
+      estimatedParseCost: bucketEstimatedCost,
+      laneMetrics: {
+        targetJobs,
+        targetCost,
+        highCardinality,
+        bucketMetrics,
+        laneState
+      }
     });
   }
   return out.length ? out : [group];
@@ -298,34 +746,60 @@ const splitGrammarBucketIntoWaves = ({
 }) => {
   const jobs = Array.isArray(group?.jobs) ? group.jobs : [];
   if (!jobs.length) return [];
+  const totalEstimatedCost = jobs.reduce((sum, job) => sum + resolveJobEstimatedParseCost(job), 0);
   const targetJobs = resolveAdaptiveWaveTargetJobs({
     group,
     schedulerConfig,
     observedRowsPerSecByGrammar
   });
-  const waveSize = Math.max(ADAPTIVE_WAVE_MIN_JOBS, targetJobs);
-  if (jobs.length <= waveSize) {
+  const targetCost = resolveAdaptiveWaveTargetCost({
+    group,
+    schedulerConfig,
+    observedRowsPerSecByGrammar
+  });
+  const minWaveJobs = Math.max(1, Math.min(ADAPTIVE_WAVE_MIN_JOBS, targetJobs));
+  const maxWaveJobs = Math.max(minWaveJobs, Math.min(ADAPTIVE_WAVE_MAX_JOBS, targetJobs * 2));
+  if (jobs.length <= minWaveJobs || totalEstimatedCost <= targetCost) {
     return [{
       ...group,
       bucketKey: group?.bucketKey || group?.grammarKey || null,
-      wave: { waveIndex: 1, waveCount: 1 }
+      wave: { waveIndex: 1, waveCount: 1 },
+      estimatedParseCost: totalEstimatedCost
     }];
   }
-  const waveCount = Math.max(1, Math.ceil(jobs.length / waveSize));
+  const waves = [];
+  let currentWaveJobs = [];
+  let currentWaveCost = 0;
+  for (const job of jobs) {
+    const jobCost = resolveJobEstimatedParseCost(job);
+    const wouldExceedCost = (currentWaveCost + jobCost) > targetCost;
+    const hasReachedMinJobs = currentWaveJobs.length >= minWaveJobs;
+    const hasReachedMaxJobs = currentWaveJobs.length >= maxWaveJobs;
+    if (currentWaveJobs.length && (hasReachedMaxJobs || (wouldExceedCost && hasReachedMinJobs))) {
+      waves.push({ jobs: currentWaveJobs, estimatedParseCost: currentWaveCost });
+      currentWaveJobs = [];
+      currentWaveCost = 0;
+    }
+    currentWaveJobs.push(job);
+    currentWaveCost += jobCost;
+  }
+  if (currentWaveJobs.length) {
+    waves.push({ jobs: currentWaveJobs, estimatedParseCost: currentWaveCost });
+  }
+  const waveCount = Math.max(1, waves.length);
   const baseKey = group?.grammarKey || 'unknown';
   const bucketKey = group?.bucketKey || baseKey;
   const out = [];
-  for (let waveIndex = 0; waveIndex < waveCount; waveIndex += 1) {
-    const start = waveIndex * waveSize;
-    const end = Math.min(start + waveSize, jobs.length);
-    const waveJobs = jobs.slice(start, end);
+  for (let waveIndex = 0; waveIndex < waves.length; waveIndex += 1) {
+    const waveJobs = waves[waveIndex]?.jobs || [];
     if (!waveJobs.length) continue;
     out.push({
       ...group,
       grammarKey: `${baseKey}~w${String(waveIndex + 1).padStart(2, '0')}of${String(waveCount).padStart(2, '0')}`,
       bucketKey,
       wave: { waveIndex: waveIndex + 1, waveCount },
-      jobs: waveJobs
+      jobs: waveJobs,
+      estimatedParseCost: waves[waveIndex].estimatedParseCost
     });
   }
   return out.length ? out : [group];
@@ -368,6 +842,87 @@ const buildContinuousWaveExecutionOrder = (groups) => {
     }
   }
   return order.length ? order : entries.map((group) => group.grammarKey).filter(Boolean);
+};
+
+const buildLaneDiagnostics = (groups) => {
+  const byBaseGrammar = new Map();
+  const entries = Array.isArray(groups) ? groups : [];
+  for (const group of entries) {
+    if (!group?.grammarKey) continue;
+    const baseGrammarKey = group.baseGrammarKey || group.grammarKey;
+    if (!byBaseGrammar.has(baseGrammarKey)) byBaseGrammar.set(baseGrammarKey, []);
+    byBaseGrammar.get(baseGrammarKey).push(group);
+  }
+  const diagnosticsByBaseGrammar = {};
+  const imbalanceRatios = [];
+  for (const [baseGrammarKey, items] of byBaseGrammar.entries()) {
+    const bucketCostByKey = new Map();
+    const bucketJobsByKey = new Map();
+    const waveCountsByBucketKey = new Map();
+    let totalJobs = 0;
+    let totalEstimatedCost = 0;
+    let highCardinality = false;
+    for (const group of items) {
+      const bucketKey = group.bucketKey || group.grammarKey;
+      const jobs = Array.isArray(group.jobs) ? group.jobs.length : 0;
+      const estimatedParseCost = normalizePositiveNumber(
+        group.estimatedParseCost,
+        Array.isArray(group.jobs)
+          ? group.jobs.reduce((sum, job) => sum + resolveJobEstimatedParseCost(job), 0)
+          : 0
+      ) || 0;
+      totalJobs += jobs;
+      totalEstimatedCost += estimatedParseCost;
+      bucketCostByKey.set(bucketKey, (bucketCostByKey.get(bucketKey) || 0) + estimatedParseCost);
+      bucketJobsByKey.set(bucketKey, (bucketJobsByKey.get(bucketKey) || 0) + jobs);
+      waveCountsByBucketKey.set(bucketKey, (waveCountsByBucketKey.get(bucketKey) || 0) + 1);
+      if (group?.laneMetrics?.highCardinality === true) highCardinality = true;
+    }
+    const bucketCostLoads = Array.from(bucketCostByKey.values());
+    const bucketJobLoads = Array.from(bucketJobsByKey.values());
+    const bucketCostStats = summarizeLoadDistribution(bucketCostLoads);
+    const bucketJobStats = summarizeLoadDistribution(bucketJobLoads);
+    const waveDepthStats = summarizeLoadDistribution(Array.from(waveCountsByBucketKey.values()));
+    imbalanceRatios.push(bucketCostStats.imbalanceRatio || 0);
+    diagnosticsByBaseGrammar[baseGrammarKey] = {
+      bucketCount: bucketCostLoads.length,
+      totalJobs,
+      totalEstimatedCost,
+      avgEstimatedCostPerJob: totalJobs > 0 ? (totalEstimatedCost / totalJobs) : 0,
+      highCardinality,
+      bucketCost: {
+        avg: bucketCostStats.avg,
+        max: bucketCostStats.max,
+        min: bucketCostStats.min,
+        imbalanceRatio: bucketCostStats.imbalanceRatio,
+        spreadRatio: bucketCostStats.spreadRatio,
+        stdDev: bucketCostStats.stdDev
+      },
+      bucketJobs: {
+        avg: bucketJobStats.avg,
+        max: bucketJobStats.max,
+        min: bucketJobStats.min,
+        imbalanceRatio: bucketJobStats.imbalanceRatio,
+        spreadRatio: bucketJobStats.spreadRatio,
+        stdDev: bucketJobStats.stdDev
+      },
+      waveDepth: {
+        avg: waveDepthStats.avg,
+        max: waveDepthStats.max,
+        min: waveDepthStats.min
+      }
+    };
+  }
+  const imbalanceSummary = summarizeLoadDistribution(imbalanceRatios);
+  return {
+    byBaseGrammar: diagnosticsByBaseGrammar,
+    summary: {
+      grammarCount: Object.keys(diagnosticsByBaseGrammar).length,
+      avgImbalanceRatio: imbalanceSummary.avg,
+      maxImbalanceRatio: imbalanceSummary.max,
+      minImbalanceRatio: imbalanceSummary.min
+    }
+  };
 };
 
 /**
@@ -679,6 +1234,10 @@ export const buildTreeSitterSchedulerPlan = async ({
           || entry?.relationsOnly === true
           || segment?.meta?.relationExtractionOnly === true
           || segment?.meta?.relationOnly === true;
+        const parseEstimate = estimateSegmentParseCost(segmentText);
+        const estimatedParseCost = relationExtractionOnly
+          ? Math.max(MIN_ESTIMATED_PARSE_COST, Math.floor(parseEstimate.estimatedParseCost * 0.75))
+          : parseEstimate.estimatedParseCost;
 
         requiredLanguages.add(languageId);
         jobs.push({
@@ -693,6 +1252,10 @@ export const buildTreeSitterSchedulerPlan = async ({
           segmentStart: segment.start,
           segmentEnd: segment.end,
           parseMode: relationExtractionOnly ? 'lightweight-relations' : 'full',
+          estimatedLineCount: parseEstimate.lineCount,
+          estimatedTokenCount: parseEstimate.tokenCount,
+          estimatedTokenDensity: parseEstimate.tokenDensity,
+          estimatedParseCost,
           fileVersionSignature,
           segment
         });
@@ -778,17 +1341,37 @@ export const buildTreeSitterSchedulerPlan = async ({
     }
   }
   const executionOrder = buildContinuousWaveExecutionOrder(groupList);
+  const laneDiagnostics = buildLaneDiagnostics(groupList);
   const finalGrammarKeys = groupList.map((group) => group.grammarKey).sort(compareStrings);
   const groupMeta = {};
   for (const group of groupList) {
     if (!group?.grammarKey) continue;
+    const jobCount = Array.isArray(group.jobs) ? group.jobs.length : 0;
+    const estimatedParseCost = normalizePositiveNumber(
+      group.estimatedParseCost,
+      Array.isArray(group.jobs)
+        ? group.jobs.reduce((sum, job) => sum + resolveJobEstimatedParseCost(job), 0)
+        : 0
+    ) || 0;
+    const laneMetrics = group?.laneMetrics && typeof group.laneMetrics === 'object'
+      ? group.laneMetrics
+      : {};
+    const bucketCostMetrics = laneMetrics?.bucketMetrics?.cost || {};
     groupMeta[group.grammarKey] = {
       baseGrammarKey: group.baseGrammarKey || group.grammarKey,
       bucketKey: group.bucketKey || group.grammarKey,
       wave: group.wave || null,
       shard: group.shard || null,
       languages: Array.isArray(group.languages) ? group.languages : [],
-      jobs: Array.isArray(group.jobs) ? group.jobs.length : 0
+      jobs: jobCount,
+      estimatedParseCost,
+      avgEstimatedParseCostPerJob: jobCount > 0 ? (estimatedParseCost / jobCount) : 0,
+      highCardinality: laneMetrics?.highCardinality === true,
+      targetJobs: normalizePositiveInt(laneMetrics?.targetJobs, null),
+      targetCost: normalizePositiveNumber(laneMetrics?.targetCost, null),
+      laneImbalanceRatio: normalizePositiveNumber(bucketCostMetrics?.imbalanceRatio, null),
+      laneSpreadRatio: normalizePositiveNumber(bucketCostMetrics?.spreadRatio, null),
+      laneState: laneMetrics?.laneState || null
     };
   }
 
@@ -803,6 +1386,7 @@ export const buildTreeSitterSchedulerPlan = async ({
     grammarKeys: finalGrammarKeys,
     executionOrder,
     groupMeta,
+    laneDiagnostics,
     requiredNativeLanguages: requiredNative,
     treeSitterConfig
   };
@@ -818,10 +1402,16 @@ export const buildTreeSitterSchedulerPlan = async ({
 };
 
 export const treeSitterSchedulerPlannerInternals = Object.freeze({
+  estimateSegmentParseCost,
+  summarizeGrammarJobs,
   resolveAdaptiveBucketTargetJobs,
   resolveAdaptiveWaveTargetJobs,
+  resolveAdaptiveBucketTargetCost,
+  resolveAdaptiveWaveTargetCost,
   assignPathAwareBuckets,
+  summarizeBucketMetrics,
   shardGrammarGroup,
   splitGrammarBucketIntoWaves,
-  buildContinuousWaveExecutionOrder
+  buildContinuousWaveExecutionOrder,
+  buildLaneDiagnostics
 });

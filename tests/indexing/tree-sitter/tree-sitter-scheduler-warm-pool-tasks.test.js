@@ -39,9 +39,9 @@ assert.ok(
 const javaTasks = tasks.filter((entry) => entry.baseGrammarKey === 'java');
 assert.equal(javaTasks.length, 1, 'expected single lane for grammar with single key');
 
-const largeExecutionOrder = Array.from({ length: 64 }, (_unused, index) => `ruby~b${String(index + 1).padStart(2, '0')}~w01`);
+const largeExecutionOrder = Array.from({ length: 64 }, (_unused, index) => `php~b${String(index + 1).padStart(2, '0')}~w01`);
 const largeGroupMeta = Object.fromEntries(
-  largeExecutionOrder.map((grammarKey) => [grammarKey, { baseGrammarKey: 'ruby' }])
+  largeExecutionOrder.map((grammarKey) => [grammarKey, { baseGrammarKey: 'php' }])
 );
 const largeTasks = buildWarmPoolTasks({
   executionOrder: largeExecutionOrder,
@@ -49,13 +49,13 @@ const largeTasks = buildWarmPoolTasks({
   schedulerConfig: {},
   execConcurrency: 16
 });
-const rubyLargeTasks = largeTasks.filter((entry) => entry.baseGrammarKey === 'ruby');
+const phpLargeTasks = largeTasks.filter((entry) => entry.baseGrammarKey === 'php');
 assert.equal(
-  rubyLargeTasks.length,
+  phpLargeTasks.length,
   8,
-  'expected large single-language waves to split into higher lane count under available concurrency'
+  'expected large mono-language waves to split into higher lane count under available concurrency'
 );
-const laneSizes = rubyLargeTasks.map((entry) => entry.grammarKeys.length).sort((a, b) => a - b);
+const laneSizes = phpLargeTasks.map((entry) => entry.grammarKeys.length).sort((a, b) => a - b);
 assert.ok(laneSizes[0] >= 8 && laneSizes[laneSizes.length - 1] <= 8, 'expected balanced lane partitioning for large wave sets');
 
 assert.deepEqual(
