@@ -1,7 +1,6 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
-import { getEnvConfig } from '../../shared/env.js';
 import { getRecentLogEvents } from '../../shared/progress.js';
 import { createTempPath } from '../../shared/json-stream/atomic.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
@@ -9,7 +8,6 @@ import { normalizeFailureEvent, validateFailureEvent } from './failure-taxonomy.
 
 const formatTimestamp = () => new Date().toISOString();
 const RENAME_RETRY_CODES = new Set(['EEXIST', 'EPERM', 'ENOTEMPTY', 'EACCES', 'EXDEV']);
-const isCrashLogAnnouncementEnabled = (value = null) => value !== false;
 
 const safeStringify = (value) => {
   try {
@@ -40,7 +38,7 @@ const writeJsonAtomicSync = (filePath, value) => {
   }
 };
 
-export async function createCrashLogger({ repoCacheRoot, enabled, log }) {
+export async function createCrashLogger({ repoCacheRoot, enabled }) {
   if (!enabled || !repoCacheRoot) {
     return {
       enabled: false,
@@ -89,10 +87,6 @@ export async function createCrashLogger({ repoCacheRoot, enabled, log }) {
   };
 
   void appendLine('crash-logger initialized', { path: logPath }).catch(() => {});
-
-  if (log && isCrashLogAnnouncementEnabled(getEnvConfig().crashLogAnnounce)) {
-    log(`Crash logging enabled: ${logPath}`);
-  }
 
   return {
     enabled: true,

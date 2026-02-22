@@ -423,7 +423,7 @@ export const runTreeSitterScheduler = async ({
         if (!grammarKeysForTask.length) return;
         if (log) {
           log(
-            `[tree-sitter:schedule] exec ${ctx.index + 1}/${warmPoolTasks.length}: ${task.taskId} `
+            `[tree-sitter:schedule] batch ${ctx.index + 1}/${warmPoolTasks.length}: ${task.taskId} `
             + `(waves=${grammarKeysForTask.length}, lane=${task.laneIndex}/${task.laneCount})`
           );
         }

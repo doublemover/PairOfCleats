@@ -474,9 +474,14 @@ export const enqueueChunkMetaArtifacts = async ({
 
   if (resolvedUseJsonl) {
     if (resolvedUseShards) {
-      log(`[chunk_meta] writing sharded JSONL -> ${path.join(outDir, 'chunk_meta.parts')}`);
+      const shardPath = path.join(outDir, 'chunk_meta.parts');
+      log('[chunk_meta] writing sharded JSONL', {
+        fileOnlyLine: `[chunk_meta] writing sharded JSONL -> ${shardPath}`
+      });
     } else {
-      log(`[chunk_meta] writing JSONL -> ${jsonlPath}`);
+      log('[chunk_meta] writing JSONL', {
+        fileOnlyLine: `[chunk_meta] writing JSONL -> ${jsonlPath}`
+      });
     }
     if (chunkMetaStreaming) {
       log('[chunk_meta] streaming mode enabled (single-pass JSONL writer).');
@@ -485,9 +490,14 @@ export const enqueueChunkMetaArtifacts = async ({
       log('[chunk_meta] hot/cold split enabled for JSONL artifacts.');
     }
   } else if (resolvedUseColumnar) {
-    log(`[chunk_meta] writing columnar -> ${columnarPath}`);
+    log('[chunk_meta] writing columnar', {
+      fileOnlyLine: `[chunk_meta] writing columnar -> ${columnarPath}`
+    });
   } else {
-    log(`[chunk_meta] writing JSON -> ${path.join(outDir, 'chunk_meta.json')}`);
+    const jsonPath = path.join(outDir, 'chunk_meta.json');
+    log('[chunk_meta] writing JSON', {
+      fileOnlyLine: `[chunk_meta] writing JSON -> ${jsonPath}`
+    });
   }
 
   if (resolvedUseJsonl) {

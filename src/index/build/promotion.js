@@ -85,6 +85,8 @@ export async function promoteBuild({
   };
   await fs.mkdir(buildsRoot, { recursive: true });
   await atomicWriteJson(currentPath, payload, { spaces: 0 });
-  log(`[build] updated current.json -> ${currentPath}`);
+  log('[build] updated current.json', {
+    fileOnlyLine: `[build] updated current.json -> ${currentPath}`
+  });
   return payload;
 }

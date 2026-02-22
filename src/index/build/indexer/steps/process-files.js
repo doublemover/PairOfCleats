@@ -394,11 +394,11 @@ export const processFiles = async ({
     });
     if (plannerInput.skipped > 0) {
       log(
-        `[tree-sitter:schedule] Prefiltered ${plannerInput.skipped} non-actionable entries `
-        + `before planner (${plannerInput.entries.length} remaining).`
+        `[tree-sitter:schedule] prefilter: skipped ${plannerInput.skipped} entries; `
+        + `${plannerInput.entries.length} queued for planning.`
       );
     }
-    log('[tree-sitter:schedule] Building global tree-sitter plan (VFS batched by grammar)...');
+    log('[tree-sitter:schedule] planning global batches...');
     treeSitterScheduler = await runTreeSitterScheduler({
       mode,
       runtime,
@@ -411,8 +411,8 @@ export const processFiles = async ({
     const schedStats = treeSitterScheduler?.stats ? treeSitterScheduler.stats() : null;
     if (schedStats) {
       log(
-        `[tree-sitter:schedule] Ready: grammarKeys=${schedStats.grammarKeys} indexEntries=${schedStats.indexEntries} ` +
-        `cache=${schedStats.cacheEntries}`
+        `[tree-sitter:schedule] plan ready: grammars=${schedStats.grammarKeys} ` +
+        `entries=${schedStats.indexEntries} cache=${schedStats.cacheEntries}`
       );
     }
   }
@@ -422,7 +422,7 @@ export const processFiles = async ({
     try {
       await treeSitterScheduler.close();
     } catch (err) {
-      log(`[tree-sitter:schedule] close failed: ${err?.message || err}`);
+      log(`[tree-sitter:schedule] scheduler close failed: ${err?.message || err}`);
     }
   };
   let stallSnapshotTimer = null;
