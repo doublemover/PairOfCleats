@@ -568,13 +568,19 @@ const resolveSchedulerTaskTimeoutMs = ({
   const timeoutPerJobMs = Number.isFinite(timeoutPerJobMsRaw) && timeoutPerJobMsRaw >= 0
     ? Math.floor(timeoutPerJobMsRaw)
     : DEFAULT_SCHEDULER_TASK_TIMEOUT_PER_JOB_MS;
+  const resolveTaskGroupJobs = (grammarKey) => {
+    if (!(groupByGrammarKey instanceof Map) || !grammarKey) return 0;
+    const group = groupByGrammarKey.get(grammarKey);
+    if (Array.isArray(group?.jobs)) return group.jobs.length;
+    const jobs = Number(group?.jobs);
+    if (!Number.isFinite(jobs) || jobs <= 0) return 0;
+    return Math.floor(jobs);
+  };
   const grammarKeysForTask = Array.isArray(task?.grammarKeys) ? task.grammarKeys : [];
   const waveCount = grammarKeysForTask.length;
   let jobCount = 0;
   for (const grammarKey of grammarKeysForTask) {
-    const jobs = Number(groupByGrammarKey.get(grammarKey)?.jobs);
-    if (!Number.isFinite(jobs) || jobs <= 0) continue;
-    jobCount += Math.floor(jobs);
+    jobCount += resolveTaskGroupJobs(grammarKey);
   }
   const computedTimeoutMs = timeoutBaseMs + (waveCount * timeoutPerWaveMs) + (jobCount * timeoutPerJobMs);
   return clampSchedulerTaskTimeoutMs(computedTimeoutMs, maxTimeoutRaw);

@@ -92,6 +92,20 @@ assert.ok(
   Number.isFinite(timeoutByWorkload) && timeoutByWorkload > 0,
   'expected scheduler task timeout resolver to return a positive timeout'
 );
+const timeoutByArrayWorkload = resolveSchedulerTaskTimeoutMs({
+  schedulerConfig: {},
+  task: { grammarKeys: ['php~b01~w01', 'php~b02~w01', 'php~b03~w01'] },
+  groupByGrammarKey: new Map([
+    ['php~b01~w01', { jobs: Array.from({ length: 200 }, () => ({})) }],
+    ['php~b02~w01', { jobs: Array.from({ length: 150 }, () => ({})) }],
+    ['php~b03~w01', { jobs: Array.from({ length: 100 }, () => ({})) }]
+  ])
+});
+assert.equal(
+  timeoutByArrayWorkload,
+  timeoutByWorkload,
+  'expected timeout resolver to count job arrays the same as numeric job counts'
+);
 const timeoutExplicit = resolveSchedulerTaskTimeoutMs({
   schedulerConfig: { subprocessTimeoutMs: 45000 },
   task: { grammarKeys: ['php~b01~w01'] },
