@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { normalizeLimit, normalizeRatio, normalizeDepth } from './caps.js';
+import { buildGeneratedPolicyConfig } from '../generated-policy.js';
 
 export const formatBuildTimestamp = (date) => (
   // Keep second precision for shorter build roots on Windows path-length
@@ -47,3 +48,7 @@ export const buildShardConfig = (indexingConfig) => {
     maxShardLines: normalizeLimit(shardsConfig.maxShardLines, 200000)
   };
 };
+
+export const buildGeneratedIndexingPolicyConfig = (indexingConfig) => (
+  buildGeneratedPolicyConfig(indexingConfig || {})
+);

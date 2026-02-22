@@ -157,6 +157,7 @@ export function createFileProcessor(options) {
     fileCaps = null,
     maxFileBytes = null,
     fileScan = null,
+    generatedPolicy = null,
     skippedFiles = null,
     embeddingEnabled = true,
     embeddingNormalize = true,
@@ -360,7 +361,9 @@ export function createFileProcessor(options) {
       languageId: fileLanguageId,
       mode,
       maxFileBytes,
-      bypassBinaryMinifiedSkip: documentExtractionEnabled && isDocumentExt(ext)
+      bypassBinaryMinifiedSkip: documentExtractionEnabled && isDocumentExt(ext),
+      rel: relKey,
+      generatedPolicy
     });
     if (preReadSkip) {
       const { reason, ...extra } = preReadSkip;

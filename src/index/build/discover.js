@@ -18,6 +18,10 @@ import { getEnvConfig } from '../../shared/env.js';
 import { MINIFIED_NAME_REGEX, normalizeRoot } from './watch/shared.js';
 import { isCodeEntryForPath, isProseEntryForPath } from './mode-routing.js';
 import { detectShebangLanguage } from './shebang.js';
+import {
+  buildGeneratedPolicyDowngradePayload,
+  resolveGeneratedPolicyDecision
+} from './generated-policy.js';
 
 const DOCUMENT_EXTS = new Set(['.pdf', '.docx']);
 const MAX_FILES_LIMIT_REASON = 'max_files_reached';
@@ -37,6 +41,7 @@ export async function discoverFiles({
   scmProviderImpl = null,
   scmRepoRoot = null,
   ignoreMatcher,
+  generatedPolicy = null,
   skippedFiles,
   maxFileBytes = null,
   fileCaps = null,
@@ -52,6 +57,7 @@ export async function discoverFiles({
     scmProviderImpl,
     scmRepoRoot,
     ignoreMatcher,
+    generatedPolicy,
     maxFileBytes,
     fileCaps,
     maxDepth,
@@ -77,6 +83,7 @@ export async function discoverFilesForModes({
   scmProviderImpl = null,
   scmRepoRoot = null,
   ignoreMatcher,
+  generatedPolicy = null,
   skippedByMode,
   maxFileBytes = null,
   fileCaps = null,
@@ -92,6 +99,7 @@ export async function discoverFilesForModes({
     scmProviderImpl,
     scmRepoRoot,
     ignoreMatcher,
+    generatedPolicy,
     maxFileBytes,
     fileCaps,
     maxDepth,
@@ -124,6 +132,7 @@ export async function discoverEntries({
   scmProviderImpl = null,
   scmRepoRoot = null,
   ignoreMatcher,
+  generatedPolicy = null,
   maxFileBytes = null,
   fileCaps = null,
   maxDepth = null,
@@ -254,16 +263,29 @@ export async function discoverEntries({
     let ext = resolveSpecialCodeExt(baseName) || fileExt(absPath);
     const isManifest = isManifestFile(baseName);
     const isLock = isLockFile(baseName);
-    if (MINIFIED_NAME_REGEX.test(baseName.toLowerCase())) {
-      recordSkip(absPath, 'minified', { method: 'name' });
-      return;
-    }
     if (path.isAbsolute(relPosix)) {
       recordSkip(absPath, 'ignored', { reason: 'absolute-rel-path' });
       return;
     }
     if (ignoreMatcher.ignores(relPosix)) {
       recordSkip(absPath, 'ignored');
+      return;
+    }
+    if ((!generatedPolicy || generatedPolicy.enabled === false) && MINIFIED_NAME_REGEX.test(baseName.toLowerCase())) {
+      recordSkip(absPath, 'minified', { method: 'name' });
+      return;
+    }
+    const generatedPolicyDecision = resolveGeneratedPolicyDecision({
+      generatedPolicy,
+      relPath: relPosix,
+      absPath,
+      baseName
+    });
+    if (generatedPolicyDecision?.downgrade) {
+      recordSkip(absPath, generatedPolicyDecision.classification || 'generated', {
+        indexMode: generatedPolicyDecision.indexMode,
+        downgrade: buildGeneratedPolicyDowngradePayload(generatedPolicyDecision)
+      });
       return;
     }
     try {

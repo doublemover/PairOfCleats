@@ -555,6 +555,7 @@ export const runStage = async (stage, context, { allowSqlite = true } = {}) => {
           scmProviderImpl: runtime.scmProviderImpl,
           scmRepoRoot: runtime.scmRepoRoot,
           ignoreMatcher: runtime.ignoreMatcher,
+          generatedPolicy: runtime.generatedPolicy,
           maxFileBytes: runtime.maxFileBytes,
           fileCaps: runtime.fileCaps,
           maxDepth: runtime.guardrails?.maxDepth ?? null,

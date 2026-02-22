@@ -39,6 +39,10 @@ import { createWatchAttemptManager } from './watch/attempts.js';
 import { MINIFIED_NAME_REGEX, normalizeRoot } from './watch/shared.js';
 import { isCodeEntryForPath, isProseEntryForPath } from './mode-routing.js';
 import { detectShebangLanguage } from './shebang.js';
+import {
+  buildGeneratedPolicyDowngradePayload,
+  resolveGeneratedPolicyDecision
+} from './generated-policy.js';
 
 export { createDebouncedScheduler, acquireIndexLockWithBackoff };
 
@@ -78,6 +82,7 @@ export async function watchIndex({
   const root = runtimeRef.root;
   const recordsRoot = resolveRecordsRoot(root, runtimeRef.recordsDir);
   const ignoreMatcher = runtimeRef.ignoreMatcher;
+  const generatedPolicy = runtimeRef.generatedPolicy || null;
   const maxFileBytes = runtimeRef.maxFileBytes;
   const fileCaps = runtimeRef.fileCaps;
   const guardrails = runtimeRef.guardrails || {};
@@ -306,7 +311,23 @@ export async function watchIndex({
       return { skip: true, reason: 'ignored' };
     }
     const baseName = path.basename(absPath);
-    if (MINIFIED_NAME_REGEX.test(baseName.toLowerCase())) {
+    const generatedPolicyDecision = resolveGeneratedPolicyDecision({
+      generatedPolicy,
+      relPath: relPosix,
+      absPath,
+      baseName
+    });
+    if (generatedPolicyDecision?.downgrade) {
+      return {
+        skip: true,
+        reason: generatedPolicyDecision.classification || 'generated',
+        extra: {
+          indexMode: generatedPolicyDecision.indexMode,
+          downgrade: buildGeneratedPolicyDowngradePayload(generatedPolicyDecision)
+        }
+      };
+    }
+    if ((!generatedPolicy || generatedPolicy.enabled === false) && MINIFIED_NAME_REGEX.test(baseName.toLowerCase())) {
       return { skip: true, reason: 'minified', extra: { method: 'name' } };
     }
     let ext = resolveSpecialCodeExt(baseName) || fileExt(absPath);
@@ -675,6 +696,7 @@ export async function watchIndex({
     scmProviderImpl: runtimeRef.scmProviderImpl,
     scmRepoRoot: runtimeRef.scmRepoRoot,
     ignoreMatcher,
+    generatedPolicy,
     skippedByMode,
     maxFileBytes,
     fileCaps,

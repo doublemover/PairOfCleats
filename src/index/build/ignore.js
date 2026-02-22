@@ -3,13 +3,17 @@ import path from 'node:path';
 import ignore from 'ignore';
 import { SKIP_DIRS, SKIP_FILES, SKIP_GLOBS } from '../constants.js';
 import { isAbsolutePathNative, toPosix } from '../../shared/files.js';
+import {
+  GENERATED_POLICY_DEFAULT_SKIP_DIRS,
+  GENERATED_POLICY_DEFAULT_SKIP_GLOBS
+} from './generated-policy.js';
 
 /**
  * Build ignore matcher for indexing.
- * @param {{root:string,userConfig:object}} input
+ * @param {{root:string,userConfig:object,generatedPolicy?:object|null}} input
  * @returns {Promise<{ignoreMatcher:import('ignore').Ignore,config:object,ignoreFiles:string[],warnings:Array<object>}>}
  */
-export async function buildIgnoreMatcher({ root, userConfig }) {
+export async function buildIgnoreMatcher({ root, userConfig, generatedPolicy = null }) {
   const resolvedConfig = userConfig && typeof userConfig === 'object' ? userConfig : {};
   const config = {
     useDefaultSkips: resolvedConfig.useDefaultSkips !== false,
@@ -20,11 +24,18 @@ export async function buildIgnoreMatcher({ root, userConfig }) {
   };
 
   const ignoreMatcher = ignore();
+  const generatedPolicyEnabled = generatedPolicy?.enabled !== false;
   if (config.useDefaultSkips) {
+    const skipDirs = generatedPolicyEnabled
+      ? Array.from(SKIP_DIRS).filter((dir) => !GENERATED_POLICY_DEFAULT_SKIP_DIRS.has(dir))
+      : Array.from(SKIP_DIRS);
+    const skipGlobs = generatedPolicyEnabled
+      ? Array.from(SKIP_GLOBS).filter((glob) => !GENERATED_POLICY_DEFAULT_SKIP_GLOBS.has(glob))
+      : Array.from(SKIP_GLOBS);
     const defaultIgnorePatterns = [
-      ...Array.from(SKIP_DIRS, (dir) => `${dir}/`),
+      ...Array.from(skipDirs, (dir) => `${dir}/`),
       ...Array.from(SKIP_FILES),
-      ...Array.from(SKIP_GLOBS)
+      ...Array.from(skipGlobs)
     ];
     ignoreMatcher.add(defaultIgnorePatterns);
   }
@@ -122,6 +133,13 @@ export async function buildIgnoreMatcher({ root, userConfig }) {
   };
   if (config.extraIgnore.length) {
     ignoreMatcher.add(expandExtraIgnore(config.extraIgnore));
+  }
+  const generatedIncludePatterns = generatedPolicyEnabled
+    ? (generatedPolicy?.includePatterns || [])
+    : [];
+  if (generatedIncludePatterns.length) {
+    const includeUnignore = generatedIncludePatterns.map((pattern) => `!${pattern}`);
+    ignoreMatcher.add(expandExtraIgnore(includeUnignore));
   }
 
   return { ignoreMatcher, config, ignoreFiles: loadedFiles, warnings };

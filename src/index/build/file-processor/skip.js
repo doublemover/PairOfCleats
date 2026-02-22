@@ -1,6 +1,10 @@
 import path from 'node:path';
 import { pickMinLimit, resolveFileCaps } from './read.js';
 import { detectBinary, isMinifiedName, readFileSample } from '../file-scan.js';
+import {
+  buildGeneratedPolicyDowngradePayload,
+  resolveGeneratedPolicyDecision
+} from '../generated-policy.js';
 
 const isGeneratedDocsetPath = (absPath) => {
   const normalized = String(absPath || '').replace(/\\/g, '/').toLowerCase();
@@ -23,6 +27,7 @@ const isGeneratedDocsetPath = (absPath) => {
  */
 export async function resolvePreReadSkip({
   abs,
+  rel = null,
   fileEntry,
   fileStat,
   ext,
@@ -32,12 +37,25 @@ export async function resolvePreReadSkip({
   languageId = null,
   mode = null,
   maxFileBytes = null,
-  bypassBinaryMinifiedSkip = false
+  bypassBinaryMinifiedSkip = false,
+  generatedPolicy = null
 }) {
   const shouldBypassSkipReason = (reason) => (
     bypassBinaryMinifiedSkip === true
     && (reason === 'binary' || reason === 'minified')
   );
+  const toGeneratedPolicySkip = (decision) => ({
+    reason: decision?.classification || 'generated',
+    indexMode: decision?.indexMode || 'metadata-only',
+    downgrade: buildGeneratedPolicyDowngradePayload(decision)
+  });
+  const resolvePolicyDecision = (scanSkip = null) => resolveGeneratedPolicyDecision({
+    generatedPolicy,
+    relPath: rel || null,
+    absPath: abs,
+    baseName: path.basename(abs),
+    scanSkip
+  });
   const capsByExt = resolveFileCaps(fileCaps, ext, languageId, mode);
   const effectiveMaxBytes = pickMinLimit(maxFileBytes, capsByExt.maxBytes);
   if (effectiveMaxBytes && fileStat.size > effectiveMaxBytes) {
@@ -49,10 +67,19 @@ export async function resolvePreReadSkip({
       maxBytes: effectiveMaxBytes
     };
   }
-  const scanState = typeof fileEntry === 'object' ? fileEntry.scan : null;
+  const scanState = fileEntry && typeof fileEntry === 'object' ? fileEntry.scan : null;
+  const baselinePolicyDecision = resolvePolicyDecision(scanState?.skip || null);
+  if (baselinePolicyDecision?.downgrade) {
+    return toGeneratedPolicySkip(baselinePolicyDecision);
+  }
+  const allowMinifiedByPolicyInclude = baselinePolicyDecision?.policy === 'include'
+    && baselinePolicyDecision?.indexMode === 'full';
   if (scanState?.skip) {
     const { reason, ...extra } = scanState.skip;
     const resolvedReason = reason || 'oversize';
+    if (resolvedReason === 'minified' && allowMinifiedByPolicyInclude) {
+      return null;
+    }
     if (shouldBypassSkipReason(resolvedReason)) {
       // Document extraction can process PDF/DOCX bytes directly; keep size/line
       // caps enforced but bypass text-oriented pre-read binary/minified checks.
@@ -67,7 +94,7 @@ export async function resolvePreReadSkip({
   if (isGeneratedDocsetPath(abs)) {
     return { reason: 'generated-docset' };
   }
-  if (!bypassBinaryMinifiedSkip && isMinifiedName(path.basename(abs))) {
+  if (!bypassBinaryMinifiedSkip && isMinifiedName(path.basename(abs)) && !allowMinifiedByPolicyInclude) {
     return { reason: 'minified', method: 'name' };
   }
   const knownLines = Number(fileEntry?.lines);
@@ -88,8 +115,15 @@ export async function resolvePreReadSkip({
       readSample: readFileSample
     }));
     if (scanResult?.skip) {
+      const scanDecision = resolvePolicyDecision(scanResult.skip);
+      if (scanDecision?.downgrade) {
+        return toGeneratedPolicySkip(scanDecision);
+      }
       const { reason, ...extra } = scanResult.skip;
       const resolvedReason = reason || 'oversize';
+      if (resolvedReason === 'minified' && scanDecision?.policy === 'include') {
+        return null;
+      }
       if (shouldBypassSkipReason(resolvedReason)) {
         return null;
       }

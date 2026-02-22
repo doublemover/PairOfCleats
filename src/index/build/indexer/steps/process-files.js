@@ -656,6 +656,7 @@ export const processFiles = async ({
         fileCaps: runtimeRef.fileCaps,
         maxFileBytes: runtimeRef.maxFileBytes,
         fileScan: runtimeRef.fileScan,
+        generatedPolicy: runtimeRef.generatedPolicy,
         featureMetrics: runtimeRef.featureMetrics,
         perfEventLogger,
         buildStage: runtimeRef.stage,

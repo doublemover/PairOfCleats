@@ -52,7 +52,13 @@ import {
   normalizeDictSignaturePath
 } from './normalize.js';
 import { buildAnalysisPolicy } from './policy.js';
-import { buildFileScanConfig, buildShardConfig, formatBuildNonce, formatBuildTimestamp } from './config.js';
+import {
+  buildFileScanConfig,
+  buildGeneratedIndexingPolicyConfig,
+  buildShardConfig,
+  formatBuildNonce,
+  formatBuildTimestamp
+} from './config.js';
 import { resolveEmbeddingRuntime } from './embeddings.js';
 import { createBuildScheduler } from '../../../shared/concurrency.js';
 import { resolveSchedulerConfig } from './scheduler.js';
@@ -871,13 +877,14 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   const dictSharedPayload = shouldShareDict ? createSharedDictionary(dictWords) : null;
   const dictShared = dictSharedPayload ? createSharedDictionaryView(dictSharedPayload) : null;
   logInit('dictionaries', dictStartedAt);
+  const generatedPolicy = buildGeneratedIndexingPolicyConfig(indexingConfig);
 
   const {
     ignoreMatcher,
     config: ignoreConfig,
     ignoreFiles,
     warnings: ignoreWarnings
-  } = await timeInit('ignore rules', () => buildIgnoreMatcher({ root, userConfig }));
+  } = await timeInit('ignore rules', () => buildIgnoreMatcher({ root, userConfig, generatedPolicy }));
   const cacheConfig = getCacheRuntimeConfig(root, userConfig);
   const verboseCache = envConfig.verbose === true;
 
@@ -1217,6 +1224,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     getChunkEmbedding,
     getChunkEmbeddings,
     languageOptions,
+    generatedPolicy,
     ignoreMatcher,
     ignoreConfig,
     ignoreFiles,

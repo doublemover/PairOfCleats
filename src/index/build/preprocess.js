@@ -10,6 +10,10 @@ import { discoverEntries } from './discover.js';
 import { createRecordsClassifier, shouldSniffRecordContent } from './records.js';
 import { pickMinLimit } from './runtime/limits.js';
 import { isCodeEntryForPath, isProseEntryForPath } from './mode-routing.js';
+import {
+  buildGeneratedPolicyDowngradePayload,
+  resolveGeneratedPolicyDecision
+} from './generated-policy.js';
 
 const DOCUMENT_EXTS = new Set(['.pdf', '.docx']);
 const isDocumentExt = (ext) => DOCUMENT_EXTS.has(String(ext || '').toLowerCase());
@@ -87,6 +91,7 @@ export async function preprocessFiles({
   scmProviderImpl = null,
   scmRepoRoot = null,
   ignoreMatcher,
+  generatedPolicy = null,
   maxFileBytes = null,
   fileCaps = null,
   maxDepth = null,
@@ -107,6 +112,7 @@ export async function preprocessFiles({
     scmProviderImpl,
     scmRepoRoot,
     ignoreMatcher,
+    generatedPolicy,
     maxFileBytes,
     fileCaps,
     maxDepth,
@@ -134,8 +140,28 @@ export async function preprocessFiles({
         && isDocumentExt(entry.ext)
         && scanResult?.skip?.reason === 'binary'
       );
+      const policyDecision = resolveGeneratedPolicyDecision({
+        generatedPolicy,
+        relPath: entry.rel,
+        absPath: entry.abs,
+        baseName: path.basename(entry.abs),
+        scanSkip: scanResult?.skip || null
+      });
+      if (policyDecision?.downgrade) {
+        entry.skip = {
+          reason: policyDecision.classification || 'generated',
+          indexMode: policyDecision.indexMode,
+          downgrade: buildGeneratedPolicyDowngradePayload(policyDecision)
+        };
+        scanSkips.push({ file: entry.abs, ...entry.skip });
+        return;
+      }
       if (scanResult?.skip) {
-        if (!bypassBinarySkip) {
+        const scanReason = scanResult.skip.reason || 'oversize';
+        const allowMinifiedByInclude = scanReason === 'minified'
+          && policyDecision?.policy === 'include'
+          && policyDecision?.indexMode === 'full';
+        if (!bypassBinarySkip && !allowMinifiedByInclude) {
           entry.skip = scanResult.skip;
           scanSkips.push({ file: entry.abs, reason: scanResult.skip.reason, ...scanResult.skip });
           return;
