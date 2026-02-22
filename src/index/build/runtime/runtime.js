@@ -77,6 +77,10 @@ import {
 
 const isObject = (value) => value && typeof value === 'object' && !Array.isArray(value);
 const INDEX_OPTIMIZATION_PROFILE_IDS = Object.freeze(['default', 'throughput', 'memory-saver']);
+const coerceOptionalNonNegativeInt = (value) => {
+  if (value === null || value === undefined) return null;
+  return coerceNonNegativeInt(value);
+};
 
 export const normalizeIndexOptimizationProfile = (value) => {
   const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
@@ -165,13 +169,13 @@ const resolveStage1Queues = (indexingConfig = {}) => {
   const orderedMaxPending = coercePositiveInt(ordered.maxPending);
   const orderedBucketSize = coercePositiveInt(ordered.bucketSize);
   const orderedMaxPendingEmergencyFactor = Number(ordered.maxPendingEmergencyFactor);
-  const watchdogSlowFileMs = coerceNonNegativeInt(
+  const watchdogSlowFileMs = coerceOptionalNonNegativeInt(
     watchdog.slowFileMs ?? stage1.fileWatchdogMs
   );
-  const watchdogMaxSlowFileMs = coerceNonNegativeInt(
+  const watchdogMaxSlowFileMs = coerceOptionalNonNegativeInt(
     watchdog.maxSlowFileMs ?? stage1.fileWatchdogMaxMs
   );
-  const watchdogHardTimeoutMs = coerceNonNegativeInt(
+  const watchdogHardTimeoutMs = coerceOptionalNonNegativeInt(
     watchdog.hardTimeoutMs ?? stage1.fileWatchdogHardMs
   );
   const watchdogBytesPerStep = coercePositiveInt(watchdog.bytesPerStep);
