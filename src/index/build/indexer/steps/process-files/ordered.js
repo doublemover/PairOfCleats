@@ -90,15 +90,20 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
     emitLog(`${message}${suffix}`, { kind: 'debug' });
   };
 
-  const shouldEnableEmergencyCapacity = () => (
-    maxPendingBeforeBackpressure > 0
-    && maxPendingEmergency > maxPendingBeforeBackpressure
-    && expectedCount != null
+  const hasUnseenExpectedWork = () => (
+    expectedCount != null
     && seenCount < expectedCount
-    && stallMs > 0
-    && pending.size > maxPendingBeforeBackpressure
-    && (Date.now() - lastActivityAt) >= stallMs
   );
+
+  const shouldEnableEmergencyCapacity = () => {
+    if (maxPendingBeforeBackpressure <= 0) return false;
+    if (maxPendingEmergency <= maxPendingBeforeBackpressure) return false;
+    if (!hasUnseenExpectedWork()) return false;
+    if (pending.size <= maxPendingBeforeBackpressure) return false;
+    if (emergencyCapacityActive) return true;
+    if (stallMs <= 0) return false;
+    return (Date.now() - lastActivityAt) >= stallMs;
+  };
 
   const setEmergencyCapacityActive = (active, reason = null) => {
     if (emergencyCapacityActive === active) return;
@@ -125,7 +130,6 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
 
   const noteActivity = () => {
     lastActivityAt = Date.now();
-    setEmergencyCapacityActive(false, 'activity');
   };
 
   const rejectCapacityWaiters = (err) => {
@@ -147,10 +151,10 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
       return;
     }
     const emergencyActive = refreshEmergencyCapacity('capacity-check');
-    const maxPendingAllowed = emergencyActive
-      ? maxPendingEmergency
-      : maxPendingBeforeBackpressure;
-    if (maxPendingAllowed > 0 && pending.size > maxPendingAllowed) return;
+    if (!emergencyActive) {
+      const maxPendingAllowed = maxPendingBeforeBackpressure;
+      if (maxPendingAllowed > 0 && pending.size > maxPendingAllowed) return;
+    }
     const waiters = Array.from(capacityWaiters);
     capacityWaiters.clear();
     for (const waiter of waiters) {
@@ -180,10 +184,10 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
       return Promise.resolve();
     }
     const emergencyActive = refreshEmergencyCapacity('wait');
-    const maxPendingAllowed = emergencyActive
-      ? maxPendingEmergency
-      : maxPendingBeforeBackpressure;
-    if (maxPendingAllowed <= 0 || pending.size <= maxPendingAllowed) {
+    if (emergencyActive) {
+      return Promise.resolve();
+    }
+    if (maxPendingBeforeBackpressure <= 0 || pending.size <= maxPendingBeforeBackpressure) {
       return Promise.resolve();
     }
     return new Promise((resolve, reject) => {
