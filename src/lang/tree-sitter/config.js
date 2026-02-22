@@ -20,6 +20,16 @@ const LANGUAGE_GRAMMAR_KEYS = {
   go: 'native:go',
   rust: 'native:rust',
   java: 'native:java',
+  dart: 'native:dart',
+  scala: 'native:scala',
+  groovy: 'native:groovy',
+  r: 'native:r',
+  julia: 'native:julia',
+  ruby: 'native:ruby',
+  php: 'native:php',
+  perl: 'native:perl',
+  shell: 'native:shell',
+  sql: 'native:sql',
   css: 'native:css',
   html: 'native:html',
   lua: 'native:lua'
@@ -53,6 +63,33 @@ const JS_TS_CONFIG = {
 };
 
 const XML_NAME_NODE_TYPES = new Set(['Name']);
+const SQL_DECL_HEAD_RE = /^\s*create\s+(?:or\s+replace\s+)?(?:temporary\s+|temp\s+)?(?:table|view|index|function|procedure|trigger|type|schema)\s+(?:if\s+not\s+exists\s+)?([A-Za-z_][A-Za-z0-9_.$"]*)/i;
+
+/**
+ * SQL grammars vary by dialect and package version; some expose `name` fields
+ * and others only expose statement text. Keep this resolver permissive so
+ * scheduler/strict paths still get stable chunk names across grammar variants.
+ *
+ * @param {object|null} node
+ * @param {string} rawText
+ * @returns {string|null}
+ */
+const resolveSqlTreeSitterName = (node, rawText) => {
+  if (!node || typeof rawText !== 'string') return null;
+  if (typeof node.childForFieldName === 'function') {
+    const nameNode = node.childForFieldName('name') || node.childForFieldName('identifier');
+    if (nameNode) {
+      const raw = rawText.slice(nameNode.startIndex, nameNode.endIndex).trim();
+      if (raw) return raw;
+    }
+  }
+  const raw = rawText.slice(node.startIndex, node.endIndex);
+  if (!raw) return null;
+  const firstLine = raw.split('\n', 1)[0] || raw;
+  const match = firstLine.match(SQL_DECL_HEAD_RE);
+  if (match?.[1]) return match[1].replace(/^"|"$/g, '');
+  return null;
+};
 
 const resolveXmlName = (node, rawText) => {
   if (!node || typeof rawText !== 'string') return null;
@@ -444,6 +481,270 @@ const LANG_CONFIG = {
     },
     docComments: { linePrefixes: ['//'], blockStarts: ['/**'] },
     nameFields: ['name']
+  },
+  dart: {
+    typeNodes: new Set([
+      'class_definition',
+      'enum_declaration',
+      'extension_declaration',
+      'extension_type_declaration',
+      'mixin_declaration',
+      'mixin_application_class'
+    ]),
+    memberNodes: new Set([
+      'function_signature',
+      'method_signature',
+      'local_function_declaration',
+      'constructor_signature',
+      'constant_constructor_signature',
+      'factory_constructor_signature',
+      'redirecting_factory_constructor_signature'
+    ]),
+    kindMap: {
+      class_definition: 'ClassDeclaration',
+      enum_declaration: 'EnumDeclaration',
+      extension_declaration: 'ExtensionDeclaration',
+      extension_type_declaration: 'ExtensionDeclaration',
+      mixin_declaration: 'MixinDeclaration',
+      mixin_application_class: 'MixinDeclaration',
+      function_signature: 'FunctionDeclaration',
+      method_signature: 'MethodDeclaration',
+      local_function_declaration: 'FunctionDeclaration',
+      constructor_signature: 'ConstructorDeclaration',
+      constant_constructor_signature: 'ConstructorDeclaration',
+      factory_constructor_signature: 'ConstructorDeclaration',
+      redirecting_factory_constructor_signature: 'ConstructorDeclaration'
+    },
+    docComments: { linePrefixes: ['///', '//'] },
+    nameFields: ['name']
+  },
+  scala: {
+    typeNodes: new Set([
+      'class_definition',
+      'object_definition',
+      'trait_definition',
+      'enum_definition'
+    ]),
+    memberNodes: new Set([
+      'function_definition',
+      'function_declaration',
+      'extension_definition'
+    ]),
+    kindMap: {
+      class_definition: 'ClassDeclaration',
+      object_definition: 'ObjectDeclaration',
+      trait_definition: 'TraitDeclaration',
+      enum_definition: 'EnumDeclaration',
+      function_definition: 'FunctionDeclaration',
+      function_declaration: 'FunctionDeclaration',
+      extension_definition: 'ExtensionDeclaration'
+    },
+    docComments: { linePrefixes: ['//'] },
+    nameFields: ['name']
+  },
+  groovy: {
+    typeNodes: new Set([
+      'class_declaration',
+      'interface_declaration',
+      'enum_declaration',
+      'module_declaration'
+    ]),
+    memberNodes: new Set([
+      'method_declaration',
+      'constructor_declaration',
+      'function_definition'
+    ]),
+    kindMap: {
+      class_declaration: 'ClassDeclaration',
+      interface_declaration: 'InterfaceDeclaration',
+      enum_declaration: 'EnumDeclaration',
+      module_declaration: 'ModuleDeclaration',
+      method_declaration: 'MethodDeclaration',
+      constructor_declaration: 'ConstructorDeclaration',
+      function_definition: 'FunctionDeclaration'
+    },
+    docComments: { linePrefixes: ['//'], blockStarts: ['/**'] },
+    nameFields: ['name']
+  },
+  r: {
+    typeNodes: new Set([]),
+    memberNodes: new Set([
+      'function_definition'
+    ]),
+    kindMap: {
+      function_definition: 'FunctionDeclaration'
+    },
+    docComments: { linePrefixes: ['#'] },
+    nameFields: ['name'],
+    resolveName: (node, rawText) => {
+      if (!node || node.type !== 'function_definition' || typeof rawText !== 'string') return null;
+      const raw = rawText.slice(node.startIndex, node.endIndex);
+      if (!raw) return null;
+      const match = raw.match(/^\s*([A-Za-z_][A-Za-z0-9_.]*)\s*(?:<-|=)\s*function\b/);
+      if (match?.[1]) return match[1];
+      const lineStart = rawText.lastIndexOf('\n', Math.max(0, node.startIndex - 1)) + 1;
+      const prefix = rawText.slice(lineStart, node.startIndex);
+      const lhsMatch = prefix.match(/([A-Za-z_][A-Za-z0-9_.]*)\s*(?:<-|=)\s*$/);
+      return lhsMatch?.[1] || null;
+    }
+  },
+  julia: {
+    typeNodes: new Set([
+      'module_definition',
+      'baremodule',
+      'struct_definition'
+    ]),
+    memberNodes: new Set([
+      'function_definition',
+      'macro_definition'
+    ]),
+    kindMap: {
+      module_definition: 'ModuleDeclaration',
+      baremodule: 'ModuleDeclaration',
+      struct_definition: 'StructDeclaration',
+      function_definition: 'FunctionDeclaration',
+      macro_definition: 'MacroDeclaration'
+    },
+    docComments: { linePrefixes: ['#'] },
+    nameFields: ['name'],
+    resolveName: (node, rawText) => {
+      if (!node || typeof rawText !== 'string') return null;
+      const raw = rawText.slice(node.startIndex, node.endIndex);
+      if (!raw) return null;
+      if (node.type === 'function_definition') {
+        const fnMatch = raw.match(/^\s*function\s+([A-Za-z_][A-Za-z0-9_!.]*)\b/);
+        if (fnMatch?.[1]) return fnMatch[1];
+      }
+      if (node.type === 'macro_definition') {
+        const macroMatch = raw.match(/^\s*macro\s+([A-Za-z_][A-Za-z0-9_!]*)\b/);
+        if (macroMatch?.[1]) return macroMatch[1];
+      }
+      if (node.type === 'struct_definition') {
+        const structMatch = raw.match(/^\s*(?:mutable\s+)?struct\s+([A-Za-z_][A-Za-z0-9_!]*)\b/);
+        if (structMatch?.[1]) return structMatch[1];
+      }
+      if (node.type === 'module_definition' || node.type === 'baremodule') {
+        const moduleMatch = raw.match(/^\s*(?:baremodule|module)\s+([A-Za-z_][A-Za-z0-9_!]*)\b/);
+        if (moduleMatch?.[1]) return moduleMatch[1];
+      }
+      return null;
+    }
+  },
+  ruby: {
+    typeNodes: new Set([
+      'class',
+      'module'
+    ]),
+    memberNodes: new Set([
+      'method',
+      'singleton_method'
+    ]),
+    kindMap: {
+      class: 'ClassDeclaration',
+      module: 'ModuleDeclaration',
+      method: 'MethodDeclaration',
+      singleton_method: 'MethodDeclaration'
+    },
+    docComments: { linePrefixes: ['#'] },
+    nameFields: ['name']
+  },
+  php: {
+    typeNodes: new Set([
+      'namespace_definition',
+      'class_declaration',
+      'interface_declaration',
+      'trait_declaration'
+    ]),
+    memberNodes: new Set([
+      'function_definition',
+      'method_declaration'
+    ]),
+    kindMap: {
+      namespace_definition: 'NamespaceDeclaration',
+      class_declaration: 'ClassDeclaration',
+      interface_declaration: 'InterfaceDeclaration',
+      trait_declaration: 'TraitDeclaration',
+      function_definition: 'FunctionDeclaration',
+      method_declaration: 'MethodDeclaration'
+    },
+    docComments: { linePrefixes: ['#', '//'], blockStarts: ['/**'] },
+    nameFields: ['name']
+  },
+  perl: {
+    typeNodes: new Set([
+      'package_statement',
+      'package_declaration'
+    ]),
+    memberNodes: new Set([
+      'subroutine_definition',
+      'function_definition',
+      'method_declaration'
+    ]),
+    kindMap: {
+      package_statement: 'PackageDeclaration',
+      package_declaration: 'PackageDeclaration',
+      subroutine_definition: 'FunctionDeclaration',
+      function_definition: 'FunctionDeclaration',
+      method_declaration: 'MethodDeclaration'
+    },
+    docComments: { linePrefixes: ['#'] },
+    nameFields: ['name']
+  },
+  shell: {
+    typeNodes: new Set([]),
+    memberNodes: new Set([
+      'function_definition'
+    ]),
+    kindMap: {
+      function_definition: 'FunctionDeclaration'
+    },
+    docComments: { linePrefixes: ['#'] },
+    nameFields: ['name']
+  },
+  sql: {
+    typeNodes: new Set([
+      'create_table_statement',
+      'create_view_statement',
+      'create_index_statement',
+      'create_function_statement',
+      'create_procedure_statement',
+      'create_trigger_statement',
+      'create_type_statement',
+      'create_schema_statement',
+      'create_table',
+      'create_view',
+      'create_index',
+      'create_function',
+      'create_procedure',
+      'create_trigger',
+      'create_type',
+      'create_schema'
+    ]),
+    memberNodes: new Set([
+      'function_definition'
+    ]),
+    kindMap: {
+      create_table_statement: 'TableDeclaration',
+      create_view_statement: 'ViewDeclaration',
+      create_index_statement: 'IndexDeclaration',
+      create_function_statement: 'FunctionDeclaration',
+      create_procedure_statement: 'ProcedureDeclaration',
+      create_trigger_statement: 'TriggerDeclaration',
+      create_type_statement: 'TypeDeclaration',
+      create_schema_statement: 'SchemaDeclaration',
+      create_table: 'TableDeclaration',
+      create_view: 'ViewDeclaration',
+      create_index: 'IndexDeclaration',
+      create_function: 'FunctionDeclaration',
+      create_procedure: 'ProcedureDeclaration',
+      create_trigger: 'TriggerDeclaration',
+      create_type: 'TypeDeclaration',
+      create_schema: 'SchemaDeclaration',
+      function_definition: 'FunctionDeclaration'
+    },
+    docComments: { linePrefixes: ['--'], blockStarts: ['/*'], blockEnd: '*/' },
+    nameFields: ['name', 'identifier'],
+    resolveName: resolveSqlTreeSitterName
   },
   html: {
     typeNodes: new Set([

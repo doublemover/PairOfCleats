@@ -1,37 +1,33 @@
 {
   "formatVersion": 1,
-  "languageId": "javascript",
+  "languageId": "groovy",
   "keywords": [
+    "abstract",
     "as",
-    "async",
-    "await",
+    "assert",
     "break",
     "case",
     "catch",
     "class",
     "const",
     "continue",
-    "debugger",
+    "def",
     "default",
-    "delete",
     "do",
     "else",
     "enum",
-    "export",
     "extends",
+    "final",
     "finally",
     "for",
-    "from",
-    "function",
+    "goto",
     "if",
     "implements",
     "import",
     "in",
     "instanceof",
     "interface",
-    "let",
     "new",
-    "of",
     "package",
     "private",
     "protected",
@@ -42,37 +38,31 @@
     "switch",
     "this",
     "throw",
+    "trait",
     "try",
-    "typeof",
-    "var",
-    "void",
-    "while",
-    "with",
-    "yield"
+    "while"
   ],
   "literals": [
     "false",
     "null",
-    "true",
-    "undefined"
+    "true"
   ],
-  "types": [],
-  "builtins": [
-    "array",
-    "console",
-    "date",
-    "error",
-    "json",
-    "map",
-    "math",
-    "promise",
-    "set"
+  "types": [
+    "boolean",
+    "byte",
+    "char",
+    "double",
+    "float",
+    "int",
+    "long",
+    "object",
+    "short",
+    "string",
+    "void"
   ],
-  "modules": [
-    "fs",
-    "path"
-  ],
+  "builtins": [],
+  "modules": [],
   "notes": [
-    "Expanded JavaScript keyword/literal coverage for lexicon stopword filtering."
+    "Language-specific lexicon for keyword/literal stopword filtering."
   ]
 }

@@ -1,0 +1,30 @@
+{
+  "formatVersion": 1,
+  "languageId": "handlebars",
+  "keywords": [
+    "/each",
+    "/if",
+    "/unless",
+    "/with",
+    "#each",
+    "#if",
+    "#unless",
+    "#with",
+    "else",
+    "lookup",
+    "partial",
+    "this"
+  ],
+  "literals": [
+    "false",
+    "null",
+    "true",
+    "undefined"
+  ],
+  "types": [],
+  "builtins": [],
+  "modules": [],
+  "notes": [
+    "Language-specific lexicon for keyword/literal stopword filtering."
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "formatVersion": 1,
+  "languageId": "razor",
+  "keywords": [
+    "@await",
+    "@case",
+    "@catch",
+    "@code",
+    "@default",
+    "@else",
+    "@elseif",
+    "@finally",
+    "@for",
+    "@foreach",
+    "@functions",
+    "@if",
+    "@inject",
+    "@layout",
+    "@model",
+    "@namespace",
+    "@page",
+    "@section",
+    "@switch",
+    "@try",
+    "@using",
+    "@while"
+  ],
+  "literals": [
+    "false",
+    "null",
+    "true"
+  ],
+  "types": [],
+  "builtins": [],
+  "modules": [],
+  "notes": [
+    "Language-specific lexicon for keyword/literal stopword filtering."
+  ]
+}

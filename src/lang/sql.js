@@ -2,6 +2,7 @@ import { buildLineIndex, offsetToLine } from '../shared/lines.js';
 import { extractDocComment } from './shared.js';
 import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
 import { createRequire } from 'node:module';
+import { buildTreeSitterChunks } from './tree-sitter.js';
 
 const require = createRequire(import.meta.url);
 let sqlParserInstance = null;
@@ -698,6 +699,17 @@ export function collectSqlImports(text = '') {
  * @returns {Array<{start:number,end:number,name:string,kind:string,meta:Object}>|null}
  */
 export function buildSqlChunks(text, options = {}) {
+  const treeChunks = buildTreeSitterChunks({ text, languageId: 'sql', options });
+  if (treeChunks && treeChunks.length) {
+    const dialect = options.dialect || 'generic';
+    return treeChunks.map((chunk) => ({
+      ...chunk,
+      meta: {
+        ...(chunk.meta || {}),
+        dialect
+      }
+    }));
+  }
   const lineIndex = buildLineIndex(text);
   const lines = text.includes('--') || text.includes('/*')
     ? text.split('\n')

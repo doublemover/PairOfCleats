@@ -1,0 +1,20 @@
+{
+  "formatVersion": 1,
+  "languageId": "xml",
+  "keywords": [
+    "attlist",
+    "cdata",
+    "doctype",
+    "element",
+    "entity",
+    "namespace",
+    "xml"
+  ],
+  "literals": [],
+  "types": [],
+  "builtins": [],
+  "modules": [],
+  "notes": [
+    "Language-specific lexicon for keyword/literal stopword filtering."
+  ]
+}

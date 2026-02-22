@@ -1,0 +1,27 @@
+{
+  "formatVersion": 1,
+  "languageId": "nix",
+  "keywords": [
+    "assert",
+    "else",
+    "if",
+    "in",
+    "inherit",
+    "let",
+    "or",
+    "rec",
+    "then",
+    "with"
+  ],
+  "literals": [
+    "false",
+    "null",
+    "true"
+  ],
+  "types": [],
+  "builtins": [],
+  "modules": [],
+  "notes": [
+    "Language-specific lexicon for keyword/literal stopword filtering."
+  ]
+}

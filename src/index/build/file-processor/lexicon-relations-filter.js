@@ -224,9 +224,17 @@ export const filterRawRelationsWithLexicon = (rawRelations, {
       if (!Array.isArray(entry) || entry.length < 2) continue;
       const caller = entry[0];
       const callee = entry[1];
+      const normalizedCallee = normalizeToken(String(callee ?? ''));
       const base = normalizeToken(extractSymbolBaseName(callee));
       if (!base) continue;
-      if (dropSet.has(base)) {
+      // Preserve qualified member lookups (for example `obj.default`) so
+      // keyword-like member names do not get dropped as bare-language tokens.
+      const qualifiedMemberCall = normalizedCallee.includes('.')
+        || normalizedCallee.includes('::')
+        || normalizedCallee.includes('->')
+        || normalizedCallee.includes('#')
+        || normalizedCallee.includes('/');
+      if (dropSet.has(base) && !qualifiedMemberCall) {
         stats.droppedCalls += 1;
         bumpCategory(stats.droppedCallsByCategory, classifyToken(base, resolvedLexicon));
         continue;

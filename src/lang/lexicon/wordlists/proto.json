@@ -1,0 +1,57 @@
+{
+  "formatVersion": 1,
+  "languageId": "proto",
+  "keywords": [
+    "enum",
+    "extend",
+    "extensions",
+    "group",
+    "import",
+    "map",
+    "message",
+    "oneof",
+    "option",
+    "optional",
+    "package",
+    "public",
+    "repeated",
+    "required",
+    "reserved",
+    "returns",
+    "rpc",
+    "service",
+    "stream",
+    "syntax",
+    "to",
+    "weak"
+  ],
+  "literals": [
+    "false",
+    "inf",
+    "nan",
+    "null",
+    "true"
+  ],
+  "types": [
+    "bool",
+    "bytes",
+    "double",
+    "fixed32",
+    "fixed64",
+    "float",
+    "int32",
+    "int64",
+    "sfixed32",
+    "sfixed64",
+    "sint32",
+    "sint64",
+    "string",
+    "uint32",
+    "uint64"
+  ],
+  "builtins": [],
+  "modules": [],
+  "notes": [
+    "Language-specific lexicon for keyword/literal stopword filtering."
+  ]
+}

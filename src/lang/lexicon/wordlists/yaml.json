@@ -1,0 +1,24 @@
+{
+  "formatVersion": 1,
+  "languageId": "yaml",
+  "keywords": [
+    "anchor",
+    "merge",
+    "tag"
+  ],
+  "literals": [
+    "false",
+    "no",
+    "null",
+    "off",
+    "on",
+    "true",
+    "yes"
+  ],
+  "types": [],
+  "builtins": [],
+  "modules": [],
+  "notes": [
+    "Language-specific lexicon for keyword/literal stopword filtering."
+  ]
+}

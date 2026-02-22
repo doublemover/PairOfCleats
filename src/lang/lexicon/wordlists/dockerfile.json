@@ -1,0 +1,31 @@
+{
+  "formatVersion": 1,
+  "languageId": "dockerfile",
+  "keywords": [
+    "add",
+    "arg",
+    "cmd",
+    "copy",
+    "entrypoint",
+    "env",
+    "expose",
+    "from",
+    "healthcheck",
+    "label",
+    "maintainer",
+    "onbuild",
+    "run",
+    "shell",
+    "stopsignal",
+    "user",
+    "volume",
+    "workdir"
+  ],
+  "literals": [],
+  "types": [],
+  "builtins": [],
+  "modules": [],
+  "notes": [
+    "Language-specific lexicon for keyword/literal stopword filtering."
+  ]
+}

@@ -3,6 +3,7 @@ import { findCLikeBodyBounds } from './clike.js';
 import { collectAttributes, extractDocComment, sliceSignature } from './shared.js';
 import { readSignatureLines } from './shared/signature-lines.js';
 import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
+import { buildTreeSitterChunks } from './tree-sitter.js';
 
 /**
  * PHP language chunking and relations.
@@ -228,7 +229,9 @@ export function collectPhpImports(text) {
  * @param {string} text
  * @returns {Array<{start:number,end:number,name:string,kind:string,meta:Object}>|null}
  */
-export function buildPhpChunks(text) {
+export function buildPhpChunks(text, options = {}) {
+  const treeChunks = buildTreeSitterChunks({ text, languageId: 'php', options });
+  if (treeChunks && treeChunks.length) return treeChunks;
   const lineIndex = buildLineIndex(text);
   const lines = text.split('\n');
   const decls = [];

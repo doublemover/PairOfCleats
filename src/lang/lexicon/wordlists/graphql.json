@@ -1,0 +1,39 @@
+{
+  "formatVersion": 1,
+  "languageId": "graphql",
+  "keywords": [
+    "directive",
+    "enum",
+    "extend",
+    "fragment",
+    "implements",
+    "input",
+    "interface",
+    "mutation",
+    "on",
+    "query",
+    "repeatable",
+    "scalar",
+    "schema",
+    "subscription",
+    "type",
+    "union"
+  ],
+  "literals": [
+    "false",
+    "null",
+    "true"
+  ],
+  "types": [
+    "boolean",
+    "float",
+    "id",
+    "int",
+    "string"
+  ],
+  "builtins": [],
+  "modules": [],
+  "notes": [
+    "Language-specific lexicon for keyword/literal stopword filtering."
+  ]
+}

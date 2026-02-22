@@ -1,0 +1,33 @@
+{
+  "formatVersion": 1,
+  "languageId": "r",
+  "keywords": [
+    "break",
+    "else",
+    "for",
+    "function",
+    "if",
+    "in",
+    "next",
+    "repeat",
+    "while"
+  ],
+  "literals": [
+    "false",
+    "inf",
+    "na",
+    "na_complex_",
+    "na_integer_",
+    "na_real_",
+    "na_string_",
+    "nan",
+    "null",
+    "true"
+  ],
+  "types": [],
+  "builtins": [],
+  "modules": [],
+  "notes": [
+    "Language-specific lexicon for keyword/literal stopword filtering."
+  ]
+}

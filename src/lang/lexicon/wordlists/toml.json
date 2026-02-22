@@ -1,0 +1,17 @@
+{
+  "formatVersion": 1,
+  "languageId": "toml",
+  "keywords": [],
+  "literals": [
+    "false",
+    "inf",
+    "nan",
+    "true"
+  ],
+  "types": [],
+  "builtins": [],
+  "modules": [],
+  "notes": [
+    "Language-specific lexicon for keyword/literal stopword filtering."
+  ]
+}

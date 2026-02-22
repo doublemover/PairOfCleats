@@ -55,6 +55,48 @@ const NATIVE_GRAMMAR_MODULES = Object.freeze({
   go: { moduleName: 'tree-sitter-go' },
   rust: { moduleName: 'tree-sitter-rust' },
   java: { moduleName: 'tree-sitter-java' },
+  dart: {
+    moduleName: '@sengac/tree-sitter-dart',
+    fallbackExportKeys: ['dart', 'language', 'default']
+  },
+  scala: {
+    moduleName: 'tree-sitter-scala',
+    fallbackExportKeys: ['scala', 'language', 'default']
+  },
+  groovy: {
+    moduleName: 'tree-sitter-groovy',
+    fallbackExportKeys: ['groovy', 'language', 'default']
+  },
+  r: {
+    moduleName: '@eagleoutice/tree-sitter-r',
+    fallbackExportKeys: ['r', 'language', 'default']
+  },
+  julia: {
+    moduleName: 'tree-sitter-julia',
+    fallbackExportKeys: ['julia', 'language', 'default']
+  },
+  ruby: {
+    moduleName: 'tree-sitter-ruby',
+    fallbackExportKeys: ['ruby', 'language', 'default']
+  },
+  php: {
+    moduleName: 'tree-sitter-php',
+    exportKey: 'php',
+    fallbackExportKeys: ['php', 'php_only', 'language', 'default']
+  },
+  perl: {
+    moduleName: '@ganezdragon/tree-sitter-perl',
+    fallbackExportKeys: ['perl', 'language', 'default']
+  },
+  shell: {
+    moduleName: 'tree-sitter-bash',
+    exportKey: 'bash',
+    fallbackExportKeys: ['bash', 'language', 'default']
+  },
+  sql: {
+    moduleName: '@derekstride/tree-sitter-sql',
+    fallbackExportKeys: ['sql', 'language', 'default']
+  },
   css: { moduleName: 'tree-sitter-css', prebuildBinary: 'tree-sitter-css.node' },
   html: { moduleName: 'tree-sitter-html' },
   lua: {

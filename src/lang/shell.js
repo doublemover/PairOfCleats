@@ -3,6 +3,7 @@ import { findCLikeBodyBounds } from './clike.js';
 import { extractDocComment, sliceSignature } from './shared.js';
 import { readSignatureLines } from './shared/signature-lines.js';
 import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
+import { buildTreeSitterChunks } from './tree-sitter.js';
 
 /**
  * Shell (lite) language chunking and relations.
@@ -128,7 +129,9 @@ export function collectShellImports(text) {
  * @param {string} text
  * @returns {Array<{start:number,end:number,name:string,kind:string,meta:Object}>|null}
  */
-export function buildShellChunks(text) {
+export function buildShellChunks(text, options = {}) {
+  const treeChunks = buildTreeSitterChunks({ text, languageId: 'shell', options });
+  if (treeChunks && treeChunks.length) return treeChunks;
   const lineIndex = buildLineIndex(text);
   const lines = text.split('\n');
   const decls = [];
