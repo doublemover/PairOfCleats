@@ -28,8 +28,11 @@ npm run bench-embedding-models -- --models Xenova/bge-base-en-v1.5 --dataset pat
 
 Default behavior is tuned for smoke runs:
 
+- default model set is `Xenova/bge-small-en-v1.5,Xenova/bge-base-en-v1.5`
+- default baseline is `Xenova/bge-base-en-v1.5`
 - `--incremental` defaults to `true`
 - `--skip-compare` defaults to `true`
+- `--json` defaults to `true`
 - eval dataset defaults to `tests/fixtures/sample/eval.json` when `--dataset` is omitted
 - `--limit` defaults to `20` (applies to eval dataset and compare query set)
 - `--heap-mb` defaults to `8192` for child build processes

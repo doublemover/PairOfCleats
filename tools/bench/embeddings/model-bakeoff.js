@@ -15,7 +15,6 @@ import {
   resolveBakeoffStage4Modes
 } from './model-bakeoff-lib.js';
 import {
-  DEFAULT_MODEL_ID,
   getCacheRoot,
   getDictConfig,
   getModelConfig,
@@ -25,6 +24,9 @@ import {
   resolveRuntimeEnv,
   resolveToolRoot
 } from '../../shared/dict-utils.js';
+
+const DEFAULT_BAKEOFF_MODELS = ['Xenova/bge-small-en-v1.5', 'Xenova/bge-base-en-v1.5'];
+const DEFAULT_BAKEOFF_BASELINE = 'Xenova/bge-base-en-v1.5';
 
 const rawArgs = process.argv.slice(2);
 const normalizeWrappedCliValue = (value) => String(value || '')
@@ -57,7 +59,7 @@ const argv = createCli({
     checkpoint: { type: 'string' },
     'cache-root': { type: 'string' },
     out: { type: 'string' },
-    json: { type: 'boolean', default: false }
+    json: { type: 'boolean', default: true }
   }
 }).parse();
 const positionalArgs = Array.isArray(argv._)
@@ -91,7 +93,9 @@ const configCacheRoot = typeof userConfig.cache?.root === 'string' && userConfig
 const models = (() => {
   if (argv.models) return parseModelList(argv.models);
   if (positionalModelsArg) return parseModelList(positionalModelsArg);
-  return configCompareModels.length ? configCompareModels : [modelConfig.id || DEFAULT_MODEL_ID];
+  return configCompareModels.length
+    ? configCompareModels
+    : DEFAULT_BAKEOFF_MODELS;
 })();
 if (!models.length) {
   console.error('No models specified. Use --models or configure models.compare.');
@@ -99,9 +103,17 @@ if (!models.length) {
 }
 
 const baseline = (() => {
-  if (!argv.baseline) return models[0];
+  if (!argv.baseline) {
+    return models.includes(DEFAULT_BAKEOFF_BASELINE)
+      ? DEFAULT_BAKEOFF_BASELINE
+      : models[0];
+  }
   const selected = String(argv.baseline).trim();
-  if (!selected) return models[0];
+  if (!selected) {
+    return models.includes(DEFAULT_BAKEOFF_BASELINE)
+      ? DEFAULT_BAKEOFF_BASELINE
+      : models[0];
+  }
   if (!models.includes(selected)) {
     console.error(`Baseline "${selected}" is not in --models.`);
     process.exit(1);
