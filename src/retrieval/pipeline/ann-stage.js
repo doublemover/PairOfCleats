@@ -2,7 +2,9 @@ import { createError, ERROR_CODES } from '../../shared/error-codes.js';
 import { ANN_PROVIDER_IDS } from '../ann/types.js';
 import { isEmbeddingReady } from '../ann/utils.js';
 import {
+  ANN_ADAPTIVE_ROUTE,
   ANN_CANDIDATE_POLICY_REASONS,
+  resolveAnnAdaptiveStrategy,
   resolveAnnCandidateSet
 } from '../scoring/ann-candidate-policy.js';
 import { VECTOR_REQUIRED_CODE } from './constants.js';
@@ -25,6 +27,7 @@ export const runAnnStage = async ({
   meta,
   queryEmbedding,
   queryTokens,
+  searchTopN,
   expandedTopN,
   annEnabledForMode,
   vectorOnlyProfile,
@@ -56,6 +59,7 @@ export const runAnnStage = async ({
   let annHits = [];
   let annSource = null;
   let warned = false;
+  let annAdaptiveStrategy = null;
 
   if (!annEnabledForMode) {
     if (vectorOnlyProfile) {
@@ -148,6 +152,13 @@ export const runAnnStage = async ({
     if (providerRuntime.isProviderCoolingDown(provider, mode)) {
       return { hits: [], succeeded: false };
     }
+    const providerId = provider?.id;
+    const adaptiveTopN = Number.isFinite(Number(annAdaptiveStrategy?.budget?.providerTopN?.[providerId]))
+      ? Number(annAdaptiveStrategy.budget.providerTopN[providerId])
+      : null;
+    const resolvedTopN = Number.isFinite(adaptiveTopN) && adaptiveTopN > 0
+      ? Math.max(1, Math.floor(adaptiveTopN))
+      : expandedTopN;
     const normalizedCandidateSet = normalizeAnnCandidateSet(provider, candidateSet);
     const startedAtNs = process.hrtime.bigint();
     try {
@@ -155,9 +166,12 @@ export const runAnnStage = async ({
         idx,
         mode,
         embedding: queryEmbedding,
-        topN: expandedTopN,
+        topN: resolvedTopN,
         candidateSet: normalizedCandidateSet,
-        signal
+        signal,
+        budget: annAdaptiveStrategy?.budget || null,
+        route: annAdaptiveStrategy?.route || null,
+        features: annAdaptiveStrategy?.features || null
       });
       const elapsedMs = Number(process.hrtime.bigint() - startedAtNs) / 1e6;
       providerRuntime.recordProviderSuccess(provider, mode, { latencyMs: elapsedMs });
@@ -180,66 +194,97 @@ export const runAnnStage = async ({
 
   if (annEnabledForMode && vectorActive) {
     const providers = getAnnProviders();
+    const providerCount = providers instanceof Map ? providers.size : 0;
+    annAdaptiveStrategy = resolveAnnAdaptiveStrategy({
+      mode,
+      queryTokens,
+      candidatePolicy: annCandidatePolicy.explain,
+      candidateSet: annCandidateBase,
+      meta,
+      searchTopN,
+      expandedTopN,
+      adaptiveProvidersEnabled,
+      vectorOnlyProfile,
+      filtersActive: filtersEnabled,
+      providerCount,
+      providerOrder: annOrder
+    });
+    const routedBackends = Array.isArray(annAdaptiveStrategy?.providerOrder)
+      && annAdaptiveStrategy.providerOrder.length
+      ? annAdaptiveStrategy.providerOrder
+      : annOrder;
     const orderedBackends = providerRuntime.resolveAnnBackends(
       providers,
       mode,
-      annOrder,
+      routedBackends,
       adaptiveProvidersEnabled
     );
     annMetrics.providerOrder = orderedBackends;
     annMetrics.providerAdaptive = adaptiveProvidersEnabled;
-    for (const backend of orderedBackends) {
-      const provider = providers.get(backend);
-      if (!provider || typeof provider.query !== 'function') continue;
-      if (typeof provider.preflight !== 'function' && providerRuntime.isProviderCoolingDown(provider, mode)) continue;
-      let providerInitiallyAvailable = false;
-      try {
-        providerInitiallyAvailable = provider.isAvailable({ idx, mode, embedding: queryEmbedding }) === true;
-      } catch {
-        providerInitiallyAvailable = false;
-      }
-      if (!providerInitiallyAvailable) continue;
-      const preflightOk = await providerRuntime.ensureProviderPreflight(provider, {
-        idx,
-        mode,
-        embedding: queryEmbedding,
-        signal
-      });
-      if (!preflightOk) continue;
-      const resolveProviderAvailability = () => {
+    const bypassToSparse = annAdaptiveStrategy.route === ANN_ADAPTIVE_ROUTE.SPARSE
+      && !vectorOnlyProfile;
+    if (!bypassToSparse) {
+      for (const backend of orderedBackends) {
+        const provider = providers.get(backend);
+        if (!provider || typeof provider.query !== 'function') continue;
+        if (typeof provider.preflight !== 'function' && providerRuntime.isProviderCoolingDown(provider, mode)) continue;
+        let providerInitiallyAvailable = false;
         try {
-          return provider.isAvailable({ idx, mode, embedding: queryEmbedding }) === true;
+          providerInitiallyAvailable = provider.isAvailable({ idx, mode, embedding: queryEmbedding }) === true;
         } catch {
-          return false;
+          providerInitiallyAvailable = false;
         }
-      };
-      const primaryResult = await runAnnQuery(provider, annCandidates);
-      annHits = primaryResult.hits;
-      if (primaryResult.succeeded && (annHits.length > 0 || resolveProviderAvailability())) {
-        providerAvailable = true;
-      }
-      if (!annHits.length && shouldTryAnnFallback) {
-        const fallbackCandidates = resolveAnnFallback();
-        if (fallbackCandidates) {
-          const fallbackResult = await runAnnQuery(provider, fallbackCandidates);
-          annHits = fallbackResult.hits;
-          if (fallbackResult.succeeded && (annHits.length > 0 || resolveProviderAvailability())) {
-            providerAvailable = true;
+        if (!providerInitiallyAvailable) continue;
+        const preflightOk = await providerRuntime.ensureProviderPreflight(provider, {
+          idx,
+          mode,
+          embedding: queryEmbedding,
+          signal
+        });
+        if (!preflightOk) continue;
+        const resolveProviderAvailability = () => {
+          try {
+            return provider.isAvailable({ idx, mode, embedding: queryEmbedding }) === true;
+          } catch {
+            return false;
+          }
+        };
+        const primaryResult = await runAnnQuery(provider, annCandidates);
+        annHits = primaryResult.hits;
+        if (primaryResult.succeeded && (annHits.length > 0 || resolveProviderAvailability())) {
+          providerAvailable = true;
+        }
+        if (!annHits.length && shouldTryAnnFallback) {
+          const fallbackCandidates = resolveAnnFallback();
+          if (fallbackCandidates) {
+            const fallbackResult = await runAnnQuery(provider, fallbackCandidates);
+            annHits = fallbackResult.hits;
+            if (fallbackResult.succeeded && (annHits.length > 0 || resolveProviderAvailability())) {
+              providerAvailable = true;
+            }
           }
         }
+        if (annHits.length) {
+          annSource = provider?.id || backend;
+          break;
+        }
       }
-      if (annHits.length) {
-        annSource = provider?.id || backend;
-        break;
-      }
+    } else {
+      providerAvailable = providerCount > 0;
     }
-    if (!providerAvailable && annCandidateBase && annCandidateBase.size > 0) {
+    if (!providerAvailable && !bypassToSparse && annCandidateBase && annCandidateBase.size > 0) {
       warnAnnFallback(`Vector ANN unavailable for ${mode}.`);
       warned = true;
     }
   }
 
-  if (annEnabledForMode && !annHits.length) {
+  const bypassedToSparse = annAdaptiveStrategy?.route === ANN_ADAPTIVE_ROUTE.SPARSE
+    && !vectorOnlyProfile;
+
+  if (annEnabledForMode && !annHits.length && !bypassedToSparse) {
+    const adaptiveTopN = Number.isFinite(Number(annAdaptiveStrategy?.budget?.topN))
+      ? Math.max(1, Math.floor(Number(annAdaptiveStrategy.budget.topN)))
+      : expandedTopN;
     let minhashCandidates = annCandidatePolicy.set;
     if (
       annCandidatePolicy.reason === ANN_CANDIDATE_POLICY_REASONS.FILTERS_ACTIVE_ALLOWED_IDX
@@ -275,13 +320,13 @@ export const runAnnStage = async ({
     const allowMinhashFallback = minhashFallbackTotal > 0
       && (!minhashLimit || minhashFallbackTotal <= minhashLimit);
     if (allowMinhashCandidates && !minhashCandidatesEmpty) {
-      annHits = rankMinhash(idx, queryTokens, expandedTopN, minhashCandidates);
+      annHits = rankMinhash(idx, queryTokens, adaptiveTopN, minhashCandidates);
       if (annHits.length) annSource = 'minhash';
     }
     if (!annHits.length && allowMinhashFallback) {
       const fallbackCandidates = minhashFallback || resolveAnnFallback();
       if (fallbackCandidates) {
-        annHits = rankMinhash(idx, queryTokens, expandedTopN, fallbackCandidates);
+        annHits = rankMinhash(idx, queryTokens, adaptiveTopN, fallbackCandidates);
         if (annHits.length) annSource = 'minhash';
       }
     }
@@ -297,6 +342,12 @@ export const runAnnStage = async ({
   annMetrics.vectorOnlyProfile = vectorOnlyProfile;
   annMetrics.candidatePolicyConfig = annCandidatePolicyConfig;
   annMetrics.candidatePolicy = annCandidatePolicy.explain;
+  annMetrics.route = annAdaptiveStrategy?.route || ANN_ADAPTIVE_ROUTE.VECTOR;
+  annMetrics.routeReason = annAdaptiveStrategy?.routeReason || null;
+  annMetrics.orderReason = annAdaptiveStrategy?.orderReason || null;
+  annMetrics.budget = annAdaptiveStrategy?.budget || null;
+  annMetrics.features = annAdaptiveStrategy?.features || null;
+  annMetrics.bypassedToSparse = bypassedToSparse;
 
   const annCapabilityUnavailable = !vectorActive || !providerAvailable;
   const emptyIndex = !Array.isArray(meta) || meta.length === 0;

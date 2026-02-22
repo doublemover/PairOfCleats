@@ -5,6 +5,9 @@
  * @property {ArrayLike<number>|null} embedding
  * @property {number} topN
  * @property {Set<number>|null} candidateSet
+ * @property {object|null} [budget]
+ * @property {string|null} [route]
+ * @property {object|null} [features]
  */
 
 /**

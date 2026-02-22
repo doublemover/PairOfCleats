@@ -1,3 +1,5 @@
+import { ANN_PROVIDER_IDS } from '../ann/types.js';
+
 export const ANN_CANDIDATE_POLICY_SCHEMA_VERSION = 1;
 
 export const ANN_CANDIDATE_POLICY_REASONS = Object.freeze({
@@ -6,6 +8,30 @@ export const ANN_CANDIDATE_POLICY_REASONS = Object.freeze({
   TOO_SMALL_NO_FILTERS: 'tooSmallNoFilters',
   FILTERS_ACTIVE_ALLOWED_IDX: 'filtersActiveAllowedIdx',
   OK: 'ok'
+});
+
+export const ANN_ADAPTIVE_ROUTE = Object.freeze({
+  VECTOR: 'vector',
+  SPARSE: 'sparse'
+});
+
+export const ANN_ADAPTIVE_ROUTE_REASONS = Object.freeze({
+  VECTOR_ONLY_REQUIRED: 'vectorOnlyRequired',
+  ADAPTIVE_DISABLED: 'adaptiveDisabled',
+  FILTERS_ACTIVE: 'filtersActive',
+  NO_PROVIDERS: 'noProviders',
+  SMALL_INDEX_BYPASS: 'smallIndexBypass',
+  LOW_CANDIDATE_BYPASS: 'lowCandidateBypass',
+  QUERY_CLASS_BYPASS: 'queryClassBypass',
+  ROUTE_VECTOR: 'routeVector'
+});
+
+export const ANN_ADAPTIVE_ORDER_REASONS = Object.freeze({
+  UNCHANGED: 'unchanged',
+  SMALL_CANDIDATE_SET: 'smallCandidateSet',
+  LARGE_INDEX: 'largeIndex',
+  SYMBOL_HEAVY_QUERY: 'symbolHeavyQuery',
+  PROSE_HEAVY_MODE: 'proseHeavyMode'
 });
 
 const normalizePositiveInt = (value, fallback) => {
@@ -57,6 +83,282 @@ const intersectSets = (left, right) => {
     if (lookup.has(id)) out.add(id);
   }
   return out;
+};
+
+const normalizeNonNegativeInt = (value, fallback = 0) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return fallback;
+  return Math.max(0, Math.floor(parsed));
+};
+
+const clampInt = (value, min, max) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return min;
+  return Math.min(max, Math.max(min, Math.floor(parsed)));
+};
+
+const resolveQueryClass = (queryTokens) => {
+  const tokens = Array.isArray(queryTokens)
+    ? queryTokens.filter((token) => typeof token === 'string' && token.trim())
+    : [];
+  let charCount = 0;
+  let symbolCount = 0;
+  for (const token of tokens) {
+    for (const ch of token) {
+      charCount += 1;
+      if (/[^0-9A-Za-z_]/.test(ch)) symbolCount += 1;
+    }
+  }
+  const symbolRatio = charCount > 0 ? (symbolCount / charCount) : 0;
+  const tokenCount = tokens.length;
+  const short = tokenCount > 0 && tokenCount <= 2 && charCount <= 18;
+  return {
+    tokenCount,
+    charCount,
+    symbolRatio,
+    symbolHeavy: symbolRatio >= 0.3,
+    short
+  };
+};
+
+const reorderWithPreference = (baseOrder, preferredOrder) => {
+  const ranked = new Map();
+  preferredOrder.forEach((backend, index) => ranked.set(backend, index));
+  const withIndex = baseOrder.map((backend, index) => ({ backend, index }));
+  withIndex.sort((a, b) => {
+    const rankA = ranked.has(a.backend) ? ranked.get(a.backend) : Number.MAX_SAFE_INTEGER;
+    const rankB = ranked.has(b.backend) ? ranked.get(b.backend) : Number.MAX_SAFE_INTEGER;
+    if (rankA !== rankB) return rankA - rankB;
+    return a.index - b.index;
+  });
+  return withIndex.map((entry) => entry.backend);
+};
+
+const resolveOrderHeuristic = ({
+  mode,
+  candidateSize,
+  docCount,
+  queryClass
+}) => {
+  if (queryClass.symbolHeavy) {
+    return {
+      reason: ANN_ADAPTIVE_ORDER_REASONS.SYMBOL_HEAVY_QUERY,
+      order: [
+        ANN_PROVIDER_IDS.HNSW,
+        ANN_PROVIDER_IDS.SQLITE_VECTOR,
+        ANN_PROVIDER_IDS.LANCEDB,
+        ANN_PROVIDER_IDS.DENSE
+      ]
+    };
+  }
+  if (docCount >= 50000 || candidateSize >= 10000) {
+    return {
+      reason: ANN_ADAPTIVE_ORDER_REASONS.LARGE_INDEX,
+      order: [
+        ANN_PROVIDER_IDS.HNSW,
+        ANN_PROVIDER_IDS.LANCEDB,
+        ANN_PROVIDER_IDS.SQLITE_VECTOR,
+        ANN_PROVIDER_IDS.DENSE
+      ]
+    };
+  }
+  if (candidateSize > 0 && candidateSize <= 128) {
+    return {
+      reason: ANN_ADAPTIVE_ORDER_REASONS.SMALL_CANDIDATE_SET,
+      order: [
+        ANN_PROVIDER_IDS.DENSE,
+        ANN_PROVIDER_IDS.SQLITE_VECTOR,
+        ANN_PROVIDER_IDS.HNSW,
+        ANN_PROVIDER_IDS.LANCEDB
+      ]
+    };
+  }
+  if (mode === 'prose' || mode === 'extracted-prose') {
+    return {
+      reason: ANN_ADAPTIVE_ORDER_REASONS.PROSE_HEAVY_MODE,
+      order: [
+        ANN_PROVIDER_IDS.LANCEDB,
+        ANN_PROVIDER_IDS.HNSW,
+        ANN_PROVIDER_IDS.SQLITE_VECTOR,
+        ANN_PROVIDER_IDS.DENSE
+      ]
+    };
+  }
+  return {
+    reason: ANN_ADAPTIVE_ORDER_REASONS.UNCHANGED,
+    order: []
+  };
+};
+
+const resolveAdaptiveRoute = ({
+  adaptiveProvidersEnabled,
+  vectorOnlyProfile,
+  filtersActive,
+  providerCount,
+  docCount,
+  candidateSize,
+  queryClass
+}) => {
+  if (vectorOnlyProfile) {
+    return {
+      route: ANN_ADAPTIVE_ROUTE.VECTOR,
+      reason: ANN_ADAPTIVE_ROUTE_REASONS.VECTOR_ONLY_REQUIRED
+    };
+  }
+  if (!adaptiveProvidersEnabled) {
+    return {
+      route: ANN_ADAPTIVE_ROUTE.VECTOR,
+      reason: ANN_ADAPTIVE_ROUTE_REASONS.ADAPTIVE_DISABLED
+    };
+  }
+  if (filtersActive) {
+    return {
+      route: ANN_ADAPTIVE_ROUTE.VECTOR,
+      reason: ANN_ADAPTIVE_ROUTE_REASONS.FILTERS_ACTIVE
+    };
+  }
+  if (providerCount <= 0) {
+    return {
+      route: ANN_ADAPTIVE_ROUTE.VECTOR,
+      reason: ANN_ADAPTIVE_ROUTE_REASONS.NO_PROVIDERS
+    };
+  }
+  if (docCount > 0 && docCount <= 64) {
+    return {
+      route: ANN_ADAPTIVE_ROUTE.SPARSE,
+      reason: ANN_ADAPTIVE_ROUTE_REASONS.SMALL_INDEX_BYPASS
+    };
+  }
+  if (candidateSize > 0 && candidateSize <= 16) {
+    return {
+      route: ANN_ADAPTIVE_ROUTE.SPARSE,
+      reason: ANN_ADAPTIVE_ROUTE_REASONS.LOW_CANDIDATE_BYPASS
+    };
+  }
+  if (queryClass.short && queryClass.symbolHeavy && candidateSize > 0 && candidateSize <= 64) {
+    return {
+      route: ANN_ADAPTIVE_ROUTE.SPARSE,
+      reason: ANN_ADAPTIVE_ROUTE_REASONS.QUERY_CLASS_BYPASS
+    };
+  }
+  return {
+    route: ANN_ADAPTIVE_ROUTE.VECTOR,
+    reason: ANN_ADAPTIVE_ROUTE_REASONS.ROUTE_VECTOR
+  };
+};
+
+/**
+ * Resolve per-query ANN route, backend ordering, and budget.
+ * This is a lightweight heuristic policy (the "learned" path comes from
+ * provider runtime EWMA/cooldown signals layered on top of this order).
+ *
+ * @param {object} input
+ * @returns {{
+ *   route:string,
+ *   routeReason:string,
+ *   orderReason:string,
+ *   providerOrder:string[],
+ *   budget:object,
+ *   features:object
+ * }}
+ */
+export const resolveAnnAdaptiveStrategy = ({
+  mode = 'code',
+  queryTokens = [],
+  candidatePolicy = null,
+  candidateSet = null,
+  meta = null,
+  searchTopN = 10,
+  expandedTopN = 30,
+  adaptiveProvidersEnabled = false,
+  vectorOnlyProfile = false,
+  filtersActive = false,
+  providerCount = 0,
+  providerOrder = []
+} = {}) => {
+  const queryClass = resolveQueryClass(queryTokens);
+  const candidateSizePolicy = Number.isFinite(Number(candidatePolicy?.candidateSize))
+    ? Number(candidatePolicy.candidateSize)
+    : null;
+  const candidateSize = candidateSizePolicy != null
+    ? normalizeNonNegativeInt(candidateSizePolicy)
+    : normalizeNonNegativeInt(candidateSet?.size, 0);
+  const docCount = Array.isArray(meta)
+    ? normalizeNonNegativeInt(meta.length)
+    : normalizeNonNegativeInt(candidatePolicy?.inputSize, candidateSize);
+  const minTopN = Math.max(1, normalizePositiveInt(searchTopN, 10));
+  const maxTopN = Math.max(minTopN, normalizePositiveInt(expandedTopN, minTopN * 3));
+  let topN = maxTopN;
+  if (candidateSize > 0) {
+    const candidateCap = Math.max(minTopN, Math.ceil(candidateSize * 1.25));
+    topN = Math.min(topN, candidateCap);
+  }
+  if (queryClass.symbolHeavy && topN < maxTopN) {
+    topN = Math.min(maxTopN, topN + Math.max(2, Math.floor(minTopN / 2)));
+  }
+  if (mode === 'records') {
+    topN = Math.max(minTopN, Math.min(topN, minTopN * 2));
+  }
+  topN = clampInt(topN, minTopN, maxTopN);
+  const efScale = docCount >= 50000 ? 1.5 : (docCount >= 10000 ? 1.25 : 1);
+  let hnswEfSearch = Math.round((topN * 4 * efScale) + (queryClass.symbolHeavy ? 16 : 0));
+  if (candidateSize > 0) {
+    hnswEfSearch = Math.min(hnswEfSearch, Math.max(24, candidateSize * 2));
+  }
+  hnswEfSearch = clampInt(hnswEfSearch, 24, 512);
+
+  const routeDecision = resolveAdaptiveRoute({
+    adaptiveProvidersEnabled,
+    vectorOnlyProfile,
+    filtersActive,
+    providerCount,
+    docCount,
+    candidateSize,
+    queryClass
+  });
+
+  const baseOrder = Array.isArray(providerOrder)
+    ? providerOrder.filter((backend, index, arr) => arr.indexOf(backend) === index)
+    : [];
+  const orderHeuristic = resolveOrderHeuristic({
+    mode,
+    candidateSize,
+    docCount,
+    queryClass
+  });
+  const reordered = orderHeuristic.reason === ANN_ADAPTIVE_ORDER_REASONS.UNCHANGED
+    ? baseOrder
+    : reorderWithPreference(baseOrder, orderHeuristic.order);
+
+  return {
+    route: routeDecision.route,
+    routeReason: routeDecision.reason,
+    orderReason: orderHeuristic.reason,
+    providerOrder: reordered,
+    budget: {
+      topN,
+      hnswEfSearch,
+      providerTopN: {
+        [ANN_PROVIDER_IDS.DENSE]: topN,
+        [ANN_PROVIDER_IDS.HNSW]: topN,
+        [ANN_PROVIDER_IDS.SQLITE_VECTOR]: topN,
+        [ANN_PROVIDER_IDS.LANCEDB]: Math.max(topN, Math.min(maxTopN * 2, Math.ceil(topN * 1.25)))
+      }
+    },
+    features: {
+      mode,
+      docCount,
+      candidateSize,
+      queryTokenCount: queryClass.tokenCount,
+      queryCharCount: queryClass.charCount,
+      querySymbolRatio: Number(queryClass.symbolRatio.toFixed(4)),
+      querySymbolHeavy: queryClass.symbolHeavy,
+      queryShort: queryClass.short,
+      filtersActive: filtersActive === true,
+      adaptiveProvidersEnabled: adaptiveProvidersEnabled === true,
+      providerCount: normalizeNonNegativeInt(providerCount)
+    }
+  };
 };
 
 /**

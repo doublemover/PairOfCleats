@@ -471,6 +471,7 @@ export function createSearchPipeline(context) {
           meta,
           queryEmbedding,
           queryTokens,
+          searchTopN,
           expandedTopN,
           annEnabledForMode,
           vectorOnlyProfile,

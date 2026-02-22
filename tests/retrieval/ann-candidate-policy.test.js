@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import {
+  ANN_ADAPTIVE_ORDER_REASONS,
+  ANN_ADAPTIVE_ROUTE,
+  ANN_ADAPTIVE_ROUTE_REASONS,
   ANN_CANDIDATE_POLICY_REASONS,
+  resolveAnnAdaptiveStrategy,
   resolveAnnCandidateSet
 } from '../../src/retrieval/scoring/ann-candidate-policy.js';
 
@@ -88,5 +92,88 @@ const ok = resolveAnnCandidateSet({
 });
 assert.equal(ok.reason, ANN_CANDIDATE_POLICY_REASONS.OK, 'unexpected ok reason');
 assert.equal(ok.set?.size, 16, 'expected constrained candidate set');
+
+const adaptiveSmallIndex = resolveAnnAdaptiveStrategy({
+  mode: 'code',
+  queryTokens: ['alpha'],
+  candidatePolicy: ok.explain,
+  candidateSet: new Set([1, 2, 3]),
+  meta: Array.from({ length: 12 }),
+  searchTopN: 5,
+  expandedTopN: 15,
+  adaptiveProvidersEnabled: true,
+  vectorOnlyProfile: false,
+  filtersActive: false,
+  providerCount: 2,
+  providerOrder: ['lancedb', 'sqlite-vector', 'hnsw', 'js']
+});
+assert.equal(
+  adaptiveSmallIndex.route,
+  ANN_ADAPTIVE_ROUTE.SPARSE,
+  'expected sparse bypass route for very small index'
+);
+assert.equal(
+  adaptiveSmallIndex.routeReason,
+  ANN_ADAPTIVE_ROUTE_REASONS.SMALL_INDEX_BYPASS,
+  'expected small-index bypass reason'
+);
+
+const adaptiveSymbolQuery = resolveAnnAdaptiveStrategy({
+  mode: 'code',
+  queryTokens: ['::$$##'],
+  candidatePolicy: ok.explain,
+  candidateSet: new Set(Array.from({ length: 512 }, (_, i) => i)),
+  meta: Array.from({ length: 20000 }),
+  searchTopN: 10,
+  expandedTopN: 30,
+  adaptiveProvidersEnabled: true,
+  vectorOnlyProfile: false,
+  filtersActive: false,
+  providerCount: 4,
+  providerOrder: ['lancedb', 'sqlite-vector', 'hnsw', 'js']
+});
+assert.equal(
+  adaptiveSymbolQuery.orderReason,
+  ANN_ADAPTIVE_ORDER_REASONS.SYMBOL_HEAVY_QUERY,
+  'expected symbol-heavy order reason'
+);
+assert.equal(
+  adaptiveSymbolQuery.providerOrder[0],
+  'hnsw',
+  'expected hnsw to be preferred for symbol-heavy query class'
+);
+assert.ok(
+  adaptiveSymbolQuery.budget.hnswEfSearch >= 24,
+  'expected hnsw efSearch budget floor'
+);
+assert.ok(
+  adaptiveSymbolQuery.budget.providerTopN.lancedb >= adaptiveSymbolQuery.budget.providerTopN.hnsw,
+  'expected lancedb to receive equal/higher probe budget'
+);
+
+const adaptiveDisabled = resolveAnnAdaptiveStrategy({
+  mode: 'code',
+  queryTokens: ['alpha'],
+  candidatePolicy: ok.explain,
+  candidateSet: new Set([1, 2, 3]),
+  meta: Array.from({ length: 200 }),
+  searchTopN: 5,
+  expandedTopN: 15,
+  adaptiveProvidersEnabled: false,
+  vectorOnlyProfile: false,
+  filtersActive: false,
+  providerCount: 4,
+  providerOrder: ['lancedb', 'sqlite-vector', 'hnsw', 'js']
+});
+assert.equal(
+  adaptiveDisabled.route,
+  ANN_ADAPTIVE_ROUTE.VECTOR,
+  'expected vector route when adaptive path is disabled'
+);
+assert.equal(
+  adaptiveDisabled.routeReason,
+  ANN_ADAPTIVE_ROUTE_REASONS.ADAPTIVE_DISABLED,
+  'expected adaptive-disabled route reason'
+);
 
 console.log('ann candidate policy test passed');

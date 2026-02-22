@@ -414,7 +414,7 @@ Primary targets:
 - Touchpoints: `src/retrieval/query-parse.js`, `src/retrieval/query-intent.js`, `src/retrieval/cli/query-plan.js`, `tests/retrieval/query/golden-query-corpus.test.js`, `tests/retrieval/query/query-intent.test.js`, `tests/retrieval/query/query-parse-language-profile.test.js`
 
 ### UB-041: ANN candidate strategy optimization
-- Status: [ ]
+- Status: [x]
 - Problem:
   - ANN path may not be ideal for small or sparse indexes.
 - Tasks:
@@ -425,10 +425,23 @@ Primary targets:
   - Search latency and hit-rate A/B tests memory vs sqlite vs ann mixed mode.
 - Exit criteria:
   - Lower avg/search latency with stable or better hit rate.
+- Completion: 2026-02-22T08:52:14.0563258-05:00
+- Validation:
+  - `node tests/retrieval/ann-candidate-policy.test.js`
+  - `node tests/retrieval/pipeline/ann-adaptive-routing.test.js`
+  - `node tests/retrieval/ann/ann-provider-gating-parity.test.js`
+  - `node tests/retrieval/pipeline/ann-fallback-filtered-too-large.test.js`
+  - `node tests/retrieval/pipeline/ann-fallback-preserves-bitmap-candidates.test.js`
+  - `node tests/retrieval/pipeline/ann-fallback-nonvector.test.js`
+  - `node tests/retrieval/pipeline/ann-optional-skip.test.js`
+  - `node tests/retrieval/pipeline/ann-preflight.test.js`
+  - `node tests/retrieval/pipeline/retrieval-stage-checkpoints.test.js`
+  - `node tests/retrieval/ann/hnsw-ann.test.js`
+  - `node tests/retrieval/ann/ann-parity.test.js`
 - Improvement Intent (What): ANN latency-quality balance
 - Improvement Method (How): per-query ANN routing and adaptive candidate budgets.
 - Integrated Betterments: implement per-query ANN on/off oracle using cheap prefeatures; tune candidate budget dynamically from first-pass confidence and entropy; add safety fallback to sparse-only when ANN confidence is low.
-- Touchpoints: `src/retrieval/pipeline/ann-stage.js`, `src/retrieval/scoring/ann-candidate-policy.js`, `src/retrieval/ann/providers/hnsw.js`, `src/retrieval/ann/providers/lancedb.js`, `src/retrieval/ann/providers/sqlite-vec.js`, `tests/retrieval/ann-candidate-policy.test.js`, `tests/retrieval/ann/hnsw-ann.test.js`
+- Touchpoints: `src/retrieval/pipeline.js`, `src/retrieval/pipeline/ann-stage.js`, `src/retrieval/scoring/ann-candidate-policy.js`, `src/retrieval/ann/providers/hnsw.js`, `src/retrieval/ann/providers/lancedb.js`, `src/retrieval/ann/providers/sqlite-vec.js`, `src/retrieval/ann/types.js`, `tests/retrieval/ann-candidate-policy.test.js`, `tests/retrieval/pipeline/ann-adaptive-routing.test.js`, `tests/retrieval/ann/ann-provider-gating-parity.test.js`, `tests/retrieval/ann/hnsw-ann.test.js`
 
 ### UB-042: Extracted-prose mapping coverage uplift
 - Status: [x]

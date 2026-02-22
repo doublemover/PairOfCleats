@@ -8,6 +8,13 @@ export function createSqliteVectorAnnProvider({
 }) {
   const hasRanker = typeof rankVectorAnnSqlite === 'function';
   const isBackendReady = (mode) => Boolean(vectorAnnState?.[mode]?.available);
+  const resolveTopN = (topN, budget) => {
+    const budgetTopN = Number(budget?.providerTopN?.[ANN_PROVIDER_IDS.SQLITE_VECTOR]);
+    if (Number.isFinite(budgetTopN) && budgetTopN > 0) {
+      return Math.max(1, Math.floor(budgetTopN));
+    }
+    return Math.max(1, Number(topN) || 1);
+  };
 
   return {
     id: ANN_PROVIDER_IDS.SQLITE_VECTOR,
@@ -15,7 +22,8 @@ export function createSqliteVectorAnnProvider({
       embedding,
       backendReady: hasRanker && isBackendReady(mode)
     }),
-    query: ({ mode, embedding, topN, candidateSet, signal }) => {
+    query: ({ mode, embedding, topN, candidateSet, signal, budget }) => {
+      const resolvedTopN = resolveTopN(topN, budget);
       if (!canRunAnnQuery({
         signal,
         embedding,
@@ -24,7 +32,7 @@ export function createSqliteVectorAnnProvider({
       })) {
         return [];
       }
-      const hits = rankVectorAnnSqlite(mode, embedding, topN, candidateSet);
+      const hits = rankVectorAnnSqlite(mode, embedding, resolvedTopN, candidateSet);
       if (hits.length && vectorAnnUsed && mode in vectorAnnUsed) {
         vectorAnnUsed[mode] = true;
       }

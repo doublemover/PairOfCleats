@@ -9,6 +9,13 @@ export function createLanceDbAnnProvider({
 }) {
   const isEnabled = lancedbConfig?.enabled !== false;
   const isBackendReady = (idx, mode) => Boolean(idx?.lancedb?.available || lanceAnnState?.[mode]?.available);
+  const resolveTopN = (topN, budget) => {
+    const budgetTopN = Number(budget?.providerTopN?.[ANN_PROVIDER_IDS.LANCEDB]);
+    if (Number.isFinite(budgetTopN) && budgetTopN > 0) {
+      return Math.max(1, Math.floor(budgetTopN));
+    }
+    return Math.max(1, Number(topN) || 1);
+  };
 
   return {
     id: ANN_PROVIDER_IDS.LANCEDB,
@@ -17,7 +24,8 @@ export function createLanceDbAnnProvider({
       enabled: isEnabled,
       backendReady: isBackendReady(idx, mode)
     }),
-    query: async ({ idx, mode, embedding, topN, candidateSet, signal }) => {
+    query: async ({ idx, mode, embedding, topN, candidateSet, signal, budget }) => {
+      const resolvedTopN = resolveTopN(topN, budget);
       if (!canRunAnnQuery({
         signal,
         embedding,
@@ -30,7 +38,7 @@ export function createLanceDbAnnProvider({
       const hits = await rankLanceDb({
         lancedbInfo: idx.lancedb,
         queryEmbedding: embedding,
-        topN,
+        topN: resolvedTopN,
         candidateSet,
         config: lancedbConfig
       });

@@ -46,6 +46,34 @@ assert.deepEqual(
   }),
   []
 );
+const hnswEfCalls = [];
+const hnswHits = hnsw.query({
+  idx: {
+    hnsw: {
+      available: true,
+      space: 'cosine',
+      index: {
+        setEf: (value) => hnswEfCalls.push(value),
+        getCurrentCount: () => 2,
+        searchKnn: () => ({
+          neighbors: [1],
+          distances: [0.1]
+        })
+      }
+    }
+  },
+  mode: 'code',
+  embedding,
+  topN: 2,
+  candidateSet: null,
+  signal: null,
+  budget: {
+    hnswEfSearch: 77
+  }
+});
+assert.equal(hnswEfCalls[0], 77, 'expected hnsw provider to apply per-query efSearch budget');
+assert.equal(hnswHits.length, 1, 'expected hnsw hits from fake index');
+assert.equal(hnswHits[0].idx, 1, 'expected fake hnsw hit idx');
 
 const lancedb = createLanceDbAnnProvider({
   lancedbConfig: { enabled: true },
