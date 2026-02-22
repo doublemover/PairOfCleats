@@ -13,11 +13,11 @@ const ADAPTIVE_SURFACE_KEYS = Object.freeze([
 
 const DEFAULT_ADAPTIVE_SURFACE_QUEUE_MAP = Object.freeze({
   'stage1.cpu': 'parse',
-  'stage1.io': 'parse',
   // Intentionally not mapped:
+  // stage1.io can be awaited from within stage1.cpu tasks.
+  // stage1.postings can also run nested/blocked behind stage1.cpu progress.
   // stage1.proc can be awaited from within stage1.cpu tasks.
   // Sharing the same adaptive surface cap can deadlock nested scheduling.
-  'stage1.postings': 'parse',
   'stage2.relations': 'inference',
   'stage2.relations.io': 'inference',
   'stage2.write': 'artifactWrite',
