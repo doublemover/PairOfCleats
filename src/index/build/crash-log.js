@@ -9,6 +9,17 @@ import { normalizeFailureEvent, validateFailureEvent } from './failure-taxonomy.
 
 const formatTimestamp = () => new Date().toISOString();
 const RENAME_RETRY_CODES = new Set(['EEXIST', 'EPERM', 'ENOTEMPTY', 'EACCES', 'EXDEV']);
+const CRASH_RETENTION_SCHEMA_VERSION = '1.0.0';
+const CRASH_RETENTION_BUNDLE_FILE = 'retained-crash-bundle.json';
+const CRASH_RETENTION_MARKER_FILE = 'retained-crash-bundle.consistency.json';
+const CRASH_RETENTION_LOG_TAIL_LIMIT = 100;
+const CRASH_RETENTION_SCHEDULER_EVENT_LIMIT = 40;
+const RETAINED_CRASH_LOG_BASENAMES = new Set([
+  'index-crash.log',
+  'index-crash-state.json',
+  'index-crash-events.json',
+  'index-crash-forensics-index.json'
+]);
 
 const safeStringify = (value) => {
   try {
@@ -32,6 +43,336 @@ const computeForensicSignature = (payload) => {
   } catch {
     return sha1(String(payload || '')).slice(0, 20);
   }
+};
+
+const extractLogTailLines = (text, limit = CRASH_RETENTION_LOG_TAIL_LIMIT) => {
+  const rows = String(text || '')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (!rows.length) return [];
+  return rows.slice(-Math.max(1, Math.floor(limit)));
+};
+
+const normalizeSchedulerEventEntry = (entry) => {
+  if (!entry) return null;
+  if (typeof entry === 'string') {
+    const message = entry.trim();
+    if (!message) return null;
+    return {
+      ts: formatTimestamp(),
+      message
+    };
+  }
+  if (typeof entry !== 'object') return null;
+  const message = typeof entry.message === 'string'
+    ? entry.message.trim()
+    : (
+      typeof entry.line === 'string'
+        ? entry.line.trim()
+        : ''
+    );
+  if (!message) return null;
+  const normalized = {
+    ts: typeof entry.ts === 'string' && entry.ts ? entry.ts : formatTimestamp(),
+    message
+  };
+  if (typeof entry.source === 'string' && entry.source) normalized.source = entry.source;
+  if (typeof entry.stage === 'string' && entry.stage) normalized.stage = entry.stage;
+  if (typeof entry.taskId === 'string' && entry.taskId) normalized.taskId = entry.taskId;
+  if (typeof entry.level === 'string' && entry.level) normalized.level = entry.level;
+  return normalized;
+};
+
+const mergeSchedulerEvents = ({ schedulerEvents = [], crashLogTail = [] }) => {
+  const merged = [];
+  const seen = new Set();
+  const push = (entry) => {
+    const normalized = normalizeSchedulerEventEntry(entry);
+    if (!normalized) return;
+    if (!normalized.message.includes('[tree-sitter:schedule]')) return;
+    const key = sha1(`${normalized.message}|${normalized.stage || ''}|${normalized.taskId || ''}|${normalized.source || ''}`);
+    if (seen.has(key)) return;
+    seen.add(key);
+    merged.push(normalized);
+  };
+  for (const entry of Array.isArray(schedulerEvents) ? schedulerEvents : []) {
+    push(entry);
+  }
+  for (const line of Array.isArray(crashLogTail) ? crashLogTail : []) {
+    push({ source: 'index-crash.log', line });
+  }
+  if (merged.length <= CRASH_RETENTION_SCHEDULER_EVENT_LIMIT) return merged;
+  return merged.slice(-CRASH_RETENTION_SCHEDULER_EVENT_LIMIT);
+};
+
+const mergeParserMetadata = ({ parserMetadata = [], payload = null }) => {
+  if (!payload || typeof payload !== 'object') return parserMetadata;
+  const entries = Array.isArray(parserMetadata) ? parserMetadata.slice() : [];
+  const seen = new Set(entries.map((entry) => sha1(safeStringify(entry))));
+  const maybePush = (candidate) => {
+    if (!candidate || typeof candidate !== 'object') return;
+    const serialized = safeStringify(candidate);
+    const digest = sha1(serialized);
+    if (seen.has(digest)) return;
+    seen.add(digest);
+    entries.push(candidate);
+  };
+  maybePush(payload?.parser);
+  const events = Array.isArray(payload?.events) ? payload.events : [];
+  for (const event of events) maybePush(event?.parser);
+  const bundle = payload?.bundle && typeof payload.bundle === 'object' ? payload.bundle : null;
+  if (bundle) {
+    maybePush(bundle?.parser);
+    const bundleEvents = Array.isArray(bundle?.events) ? bundle.events : [];
+    for (const event of bundleEvents) maybePush(event?.parser);
+  }
+  return entries;
+};
+
+const ensureParentDir = async (targetPath) => {
+  await fs.mkdir(path.dirname(targetPath), { recursive: true });
+};
+
+const renameWithFallback = async (tempPath, targetPath) => {
+  try {
+    await fs.rename(tempPath, targetPath);
+  } catch (err) {
+    if (!RENAME_RETRY_CODES.has(err?.code)) throw err;
+    try {
+      await fs.rm(targetPath, { force: true });
+    } catch {}
+    await fs.rename(tempPath, targetPath);
+  }
+};
+
+const copyFileAtomic = async (sourcePath, targetPath) => {
+  const tempPath = createTempPath(targetPath);
+  try {
+    await ensureParentDir(targetPath);
+    await ensureParentDir(tempPath);
+    const payload = await fs.readFile(sourcePath);
+    await fs.writeFile(tempPath, payload);
+    await renameWithFallback(tempPath, targetPath);
+    return {
+      bytes: payload.length,
+      sha1: sha1(payload)
+    };
+  } catch (err) {
+    try {
+      await fs.rm(tempPath, { force: true });
+    } catch {}
+    throw err;
+  }
+};
+
+const listFilesRecursive = async (rootDir) => {
+  const out = [];
+  const walk = async (dirPath) => {
+    let rows = [];
+    try {
+      rows = await fs.readdir(dirPath, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const row of rows) {
+      const next = path.join(dirPath, row.name);
+      if (row.isDirectory()) {
+        await walk(next);
+        continue;
+      }
+      if (!row.isFile()) continue;
+      out.push(next);
+    }
+  };
+  await walk(rootDir);
+  return out;
+};
+
+const selectCrashArtifacts = async ({ repoCacheRoot }) => {
+  const resolvedRepoCacheRoot = path.resolve(String(repoCacheRoot || ''));
+  const logsDir = path.join(resolvedRepoCacheRoot, 'logs');
+  const selected = [];
+  for (const basename of RETAINED_CRASH_LOG_BASENAMES) {
+    const sourcePath = path.join(logsDir, basename);
+    if (!fsSync.existsSync(sourcePath)) continue;
+    selected.push({
+      sourcePath,
+      relativePath: path.join('logs', basename)
+    });
+  }
+  const forensicsDir = path.join(logsDir, 'forensics');
+  if (fsSync.existsSync(forensicsDir)) {
+    const files = await listFilesRecursive(forensicsDir);
+    for (const sourcePath of files) {
+      if (!sourcePath.endsWith('.json')) continue;
+      const relativeForensics = path.relative(logsDir, sourcePath);
+      selected.push({
+        sourcePath,
+        relativePath: path.join('logs', relativeForensics)
+      });
+    }
+  }
+  const durableDir = path.join(path.dirname(resolvedRepoCacheRoot), '_crash-forensics');
+  if (fsSync.existsSync(durableDir)) {
+    const repoToken = sanitizePathToken(path.basename(resolvedRepoCacheRoot), 'repo');
+    const durableFiles = await listFilesRecursive(durableDir);
+    for (const sourcePath of durableFiles) {
+      const base = path.basename(sourcePath);
+      if (!base.endsWith('crash-forensics.json')) continue;
+      if (!base.startsWith(`${repoToken}-`)) continue;
+      selected.push({
+        sourcePath,
+        relativePath: path.join('external', '_crash-forensics', base)
+      });
+    }
+  }
+  return selected;
+};
+
+/**
+ * Retain crash diagnostics in a durable run-level directory before cache cleanup.
+ *
+ * @param {object} input
+ * @param {string} input.repoCacheRoot
+ * @param {string} input.diagnosticsRoot
+ * @param {string} [input.repoLabel]
+ * @param {string} [input.repoSlug]
+ * @param {string} [input.runId]
+ * @param {object|null} [input.failure]
+ * @param {object|null} [input.runtime]
+ * @param {object|null} [input.environment]
+ * @param {Array<object|string>} [input.schedulerEvents]
+ * @param {Array<string>} [input.logTail]
+ * @returns {Promise<object|null>}
+ */
+export async function retainCrashArtifacts({
+  repoCacheRoot,
+  diagnosticsRoot,
+  repoLabel = null,
+  repoSlug = null,
+  runId = null,
+  failure = null,
+  runtime = null,
+  environment = null,
+  schedulerEvents = [],
+  logTail = []
+} = {}) {
+  if (!repoCacheRoot || !diagnosticsRoot) return null;
+  const resolvedRepoCacheRoot = path.resolve(repoCacheRoot);
+  const resolvedDiagnosticsRoot = path.resolve(diagnosticsRoot);
+  const artifactCandidates = await selectCrashArtifacts({ repoCacheRoot: resolvedRepoCacheRoot });
+  const repoToken = sanitizePathToken(repoSlug || repoLabel || path.basename(resolvedRepoCacheRoot), 'repo');
+  const targetDir = path.join(resolvedDiagnosticsRoot, repoToken);
+  const copiedArtifacts = [];
+  const copyErrors = [];
+  let parserMetadata = [];
+  let crashLogTail = [];
+
+  for (const artifact of artifactCandidates) {
+    const sourcePath = artifact?.sourcePath;
+    const relativePath = artifact?.relativePath;
+    if (!sourcePath || !relativePath) continue;
+    const targetPath = path.join(targetDir, relativePath);
+    try {
+      const copied = await copyFileAtomic(sourcePath, targetPath);
+      copiedArtifacts.push({
+        sourcePath,
+        path: targetPath,
+        relativePath,
+        bytes: copied.bytes,
+        sha1: copied.sha1
+      });
+      if (path.basename(sourcePath) === 'index-crash.log') {
+        try {
+          const crashLogText = await fs.readFile(targetPath, 'utf8');
+          crashLogTail = extractLogTailLines(crashLogText);
+        } catch {}
+      }
+      if (sourcePath.endsWith('.json')) {
+        try {
+          const payload = JSON.parse(await fs.readFile(targetPath, 'utf8'));
+          parserMetadata = mergeParserMetadata({ parserMetadata, payload });
+        } catch {}
+      }
+    } catch (err) {
+      copyErrors.push({
+        sourcePath,
+        relativePath,
+        message: err?.message || String(err)
+      });
+    }
+  }
+
+  const resolvedSchedulerEvents = mergeSchedulerEvents({
+    schedulerEvents,
+    crashLogTail
+  });
+  const resolvedLogTail = Array.isArray(logTail)
+    ? logTail
+      .map((line) => String(line || '').trim())
+      .filter(Boolean)
+      .slice(-CRASH_RETENTION_LOG_TAIL_LIMIT)
+    : [];
+  if (!copiedArtifacts.length && !copyErrors.length && !resolvedSchedulerEvents.length) {
+    return null;
+  }
+  const retainedAt = formatTimestamp();
+  const bundleWithoutChecksum = {
+    schemaVersion: CRASH_RETENTION_SCHEMA_VERSION,
+    retainedAt,
+    runId: runId || null,
+    repoLabel: repoLabel || null,
+    repoCacheRoot: resolvedRepoCacheRoot,
+    failure: failure || null,
+    runtime: runtime || null,
+    environment: {
+      nodeVersion: process.version,
+      platform: process.platform,
+      arch: process.arch,
+      ...(environment && typeof environment === 'object' ? environment : {})
+    },
+    parserMetadata,
+    schedulerEvents: resolvedSchedulerEvents,
+    logTail: resolvedLogTail,
+    copiedArtifacts: copiedArtifacts.map((entry) => ({
+      path: entry.path,
+      relativePath: entry.relativePath,
+      bytes: entry.bytes,
+      checksum: `sha1:${entry.sha1}`
+    })),
+    copyErrors
+  };
+  const checksum = sha1(JSON.stringify(bundleWithoutChecksum));
+  const bundle = {
+    ...bundleWithoutChecksum,
+    consistency: {
+      marker: 'complete',
+      checksum: `sha1:${checksum}`
+    }
+  };
+  const bundlePath = path.join(targetDir, CRASH_RETENTION_BUNDLE_FILE);
+  const markerPath = path.join(targetDir, CRASH_RETENTION_MARKER_FILE);
+  await atomicWriteJson(bundlePath, bundle, { spaces: 2 });
+  await atomicWriteJson(markerPath, {
+    schemaVersion: CRASH_RETENTION_SCHEMA_VERSION,
+    generatedAt: retainedAt,
+    marker: 'complete',
+    checksum: `sha1:${checksum}`,
+    bundleFile: path.basename(bundlePath),
+    artifactCount: copiedArtifacts.length,
+    copyErrorCount: copyErrors.length
+  }, { spaces: 2 });
+  return {
+    bundlePath,
+    markerPath,
+    diagnosticsDir: targetDir,
+    artifactCount: copiedArtifacts.length,
+    copyErrorCount: copyErrors.length,
+    parserMetadataCount: parserMetadata.length,
+    schedulerEventCount: resolvedSchedulerEvents.length,
+    checksum: `sha1:${checksum}`
+  };
 };
 
 const writeJsonAtomicSync = (filePath, value) => {

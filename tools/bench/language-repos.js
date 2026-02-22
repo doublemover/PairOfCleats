@@ -18,6 +18,7 @@ import {
 } from './language/repos.js';
 import { isInside, isRootPath } from '../shared/path-utils.js';
 import { createProcessRunner } from './language/process.js';
+import { buildBenchEnvironmentMetadata } from './language/logging.js';
 import {
   buildLineStats,
   formatGb,
@@ -27,6 +28,7 @@ import {
   validateEncodingFixtures
 } from './language/metrics.js';
 import { buildReportOutput, printSummary } from './language/report.js';
+import { retainCrashArtifacts } from '../../src/index/build/crash-log.js';
 import { createToolDisplay } from '../shared/cli-display.js';
 import { parseCommaList } from '../shared/text-utils.js';
 
@@ -96,6 +98,7 @@ const {
 } = parseBenchLanguageArgs();
 
 const baseEnv = { ...process.env };
+const benchEnvironmentMetadata = buildBenchEnvironmentMetadata(baseEnv);
 const quietMode = argv.quiet === true || argv.json === true;
 const display = createToolDisplay({
   argv,
@@ -119,6 +122,7 @@ const repoLogsEnabled = !(typeof argv.log === 'string' && argv.log.trim());
 let masterLogStream = null;
 let repoLogStream = null;
 let repoLogPath = null;
+const runDiagnosticsRoot = path.join(resultsRoot, 'logs', 'bench-language', `${runSuffix}-diagnostics`);
 
 const initMasterLog = () => {
   if (masterLogStream) return;
@@ -550,6 +554,7 @@ if (argv.list) {
     cacheRoot,
     resultsRoot,
     logsRoot: path.dirname(masterLogPath),
+    diagnosticsRoot: runDiagnosticsRoot,
     runSuffix,
     masterLog: masterLogPath,
     languages: Object.keys(config),
@@ -564,6 +569,7 @@ if (argv.list) {
     writeListLine(`- repos: ${reposRoot}`);
     writeListLine(`- cache: ${cacheRoot}`);
     writeListLine(`- results: ${resultsRoot}`);
+    writeListLine(`- diagnostics: ${runDiagnosticsRoot}`);
     if (USR_GUARDRAIL_BENCHMARKS.length) {
       writeListLine('- usr guardrail benchmarks:');
       for (const bench of USR_GUARDRAIL_BENCHMARKS) {
@@ -651,6 +657,53 @@ const cleanRepoCache = async ({ repoCacheRoot, repoLabel }) => {
   }
 };
 
+const attachCrashRetention = async ({
+  task,
+  repoLabel,
+  repoPath,
+  repoCacheRoot,
+  outFile,
+  failureReason,
+  failureCode = null,
+  schedulerEvents = []
+}) => {
+  if (dryRun || !repoCacheRoot) return null;
+  try {
+    const crashRetention = await retainCrashArtifacts({
+      repoCacheRoot,
+      diagnosticsRoot: runDiagnosticsRoot,
+      repoLabel,
+      repoSlug: task?.logSlug || null,
+      runId: runSuffix,
+      failure: {
+        reason: failureReason || 'unknown',
+        code: Number.isFinite(Number(failureCode)) ? Number(failureCode) : null
+      },
+      runtime: {
+        runSuffix,
+        language: task?.language || null,
+        tier: task?.tier || null,
+        repo: task?.repo || null,
+        repoPath,
+        repoCacheRoot,
+        outFile: outFile || null
+      },
+      environment: benchEnvironmentMetadata,
+      schedulerEvents: Array.isArray(schedulerEvents) ? schedulerEvents : [],
+      logTail: logHistory.slice(-20)
+    });
+    if (crashRetention?.bundlePath) {
+      appendLog(`[diagnostics] retained crash evidence for ${repoLabel}.`, 'warn', {
+        fileOnlyLine: `[diagnostics] Crash bundle: ${crashRetention.bundlePath}`
+      });
+    }
+    return crashRetention;
+  } catch (err) {
+    appendLog(`[diagnostics] retention failed for ${repoLabel}: ${err?.message || err}`, 'warn');
+    return null;
+  }
+};
+
 for (const task of tasks) {
   const repoPath = resolveRepoDir({ reposRoot, repo: task.repo, language: task.language });
   await fsPromises.mkdir(path.dirname(repoPath), { recursive: true });
@@ -695,6 +748,16 @@ for (const task of tasks) {
         });
         if (!cloneResult.ok) {
           appendLog(`[error] clone failed for ${repoLabel}; continuing.`, 'error');
+          const crashRetention = await attachCrashRetention({
+            task,
+            repoLabel,
+            repoPath,
+            repoCacheRoot,
+            outFile: null,
+            failureReason: 'clone',
+            failureCode: cloneResult.code ?? null,
+            schedulerEvents: cloneResult.schedulerEvents || []
+          });
           completeBenchRepo();
           appendLog('[metrics] failed (clone)');
           results.push({
@@ -704,7 +767,10 @@ for (const task of tasks) {
             summary: null,
             failed: true,
             failureReason: 'clone',
-            failureCode: cloneResult.code ?? null
+            failureCode: cloneResult.code ?? null,
+            ...(crashRetention
+              ? { diagnostics: { crashRetention } }
+              : {})
           });
           continue;
         }
@@ -886,6 +952,17 @@ for (const task of tasks) {
           appendLog(`[error] disk full while benchmarking ${repoLabel}; continuing.`, 'error');
         }
         appendLog(`[error] benchmark failed for ${repoLabel}; continuing.`, 'error');
+        const failureReason = diskFull ? 'disk-full' : 'bench';
+        const crashRetention = await attachCrashRetention({
+          task,
+          repoLabel,
+          repoPath,
+          repoCacheRoot,
+          outFile,
+          failureReason,
+          failureCode: benchResult.code ?? null,
+          schedulerEvents: benchResult.schedulerEvents || []
+        });
         completeBenchRepo();
         appendLog('[metrics] failed (bench)');
         results.push({
@@ -894,8 +971,11 @@ for (const task of tasks) {
           outFile,
           summary: null,
           failed: true,
-          failureReason: diskFull ? 'disk-full' : 'bench',
-          failureCode: benchResult.code ?? null
+          failureReason,
+          failureCode: benchResult.code ?? null,
+          ...(crashRetention
+            ? { diagnostics: { crashRetention } }
+            : {})
         });
         continue;
       }
@@ -905,6 +985,16 @@ for (const task of tasks) {
       } catch (err) {
         appendLog(`[error] failed to read bench report for ${repoLabel}; continuing.`, 'error');
         if (err && err.message) display.error(err.message);
+        const crashRetention = await attachCrashRetention({
+          task,
+          repoLabel,
+          repoPath,
+          repoCacheRoot,
+          outFile,
+          failureReason: 'report',
+          failureCode: null,
+          schedulerEvents: benchResult.schedulerEvents || []
+        });
         completeBenchRepo();
         appendLog('[metrics] failed (report)');
         results.push({
@@ -914,7 +1004,10 @@ for (const task of tasks) {
           summary: null,
           failed: true,
           failureReason: 'report',
-          failureCode: null
+          failureCode: null,
+          ...(crashRetention
+            ? { diagnostics: { crashRetention } }
+            : {})
         });
         continue;
       }
@@ -954,6 +1047,10 @@ if (!quietMode) {
   printSummary('Overall', output.overallSummary, results.length, quietMode, {
     writeLine: (line) => appendLog(line)
   });
+  const retainedCount = Number(output?.diagnostics?.crashRetention?.retainedCount) || 0;
+  if (retainedCount > 0) {
+    appendLog(`[diagnostics] retained crash bundles: ${retainedCount}`);
+  }
 }
 
 if (argv.out) {

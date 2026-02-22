@@ -1,5 +1,37 @@
 import { log } from '../../../src/shared/progress.js';
 
+const resolveCrashRetention = (entry) => {
+  const direct = entry?.crashRetention && typeof entry.crashRetention === 'object'
+    ? entry.crashRetention
+    : null;
+  if (direct) return direct;
+  const nested = entry?.diagnostics?.crashRetention && typeof entry.diagnostics.crashRetention === 'object'
+    ? entry.diagnostics.crashRetention
+    : null;
+  return nested;
+};
+
+const buildCrashRetentionSummary = (results) => {
+  const retained = [];
+  for (const entry of Array.isArray(results) ? results : []) {
+    const crashRetention = resolveCrashRetention(entry);
+    if (!crashRetention?.bundlePath) continue;
+    retained.push({
+      language: entry.language,
+      tier: entry.tier,
+      repo: entry.repo,
+      bundlePath: crashRetention.bundlePath,
+      markerPath: crashRetention.markerPath || null,
+      diagnosticsDir: crashRetention.diagnosticsDir || null,
+      checksum: crashRetention.checksum || null
+    });
+  }
+  return {
+    retainedCount: retained.length,
+    retained
+  };
+};
+
 export const summarizeResults = (items) => {
   const valid = items.filter((entry) => entry.summary);
   if (!valid.length) return null;
@@ -96,12 +128,16 @@ export const buildReportOutput = ({ configPath, cacheRoot, resultsRoot, results,
     };
   }
   const overallSummary = summarizeResults(results);
+  const crashRetention = buildCrashRetentionSummary(results);
   return {
     generatedAt: new Date().toISOString(),
     config: configPath,
     cacheRoot,
     resultsRoot,
     tasks: results,
+    diagnostics: {
+      crashRetention
+    },
     groupedSummary,
     overallSummary
   };

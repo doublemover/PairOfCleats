@@ -4,6 +4,9 @@ import { createProgressLineDecoder } from '../../../src/shared/cli/progress-stre
 import { parseProgressEventLine } from '../../../src/shared/cli/progress-events.js';
 import path from 'node:path';
 
+const SCHEDULER_EVENT_WINDOW = 40;
+const SCHEDULER_EVENT_MARKER = '[tree-sitter:schedule]';
+
 export const createProcessRunner = ({
   appendLog,
   writeLog,
@@ -92,10 +95,39 @@ export const createProcessRunner = ({
       stdio: ['ignore', 'pipe', 'pipe'],
       rejectOnNonZeroExit: false
     };
+    const schedulerEvents = [];
+    const pushSchedulerEvent = ({ message = '', source = 'stream', level = null, stage = null, taskId = null } = {}) => {
+      const resolvedMessage = String(message || '').trim();
+      if (!resolvedMessage || !resolvedMessage.includes(SCHEDULER_EVENT_MARKER)) return;
+      schedulerEvents.push({
+        ts: new Date().toISOString(),
+        source,
+        message: resolvedMessage,
+        ...(typeof level === 'string' && level ? { level } : {}),
+        ...(typeof stage === 'string' && stage ? { stage } : {}),
+        ...(typeof taskId === 'string' && taskId ? { taskId } : {})
+      });
+      if (schedulerEvents.length > SCHEDULER_EVENT_WINDOW) schedulerEvents.shift();
+    };
+    const getSchedulerEvents = () => schedulerEvents.slice();
     setActiveChild({ pid: null }, label);
     writeLog(`[start] ${label}`);
     const handleLine = (line) => {
       const event = line ? parseProgressEventLine(line, { strict: true }) : null;
+      if (event) {
+        pushSchedulerEvent({
+          source: 'progress-event',
+          message: event?.message || '',
+          level: event?.level || null,
+          stage: event?.stage || null,
+          taskId: event?.taskId || null
+        });
+      } else {
+        pushSchedulerEvent({
+          source: 'stream',
+          message: line
+        });
+      }
       if (event && typeof onProgressEvent === 'function') {
         onProgressEvent(event);
         return;
@@ -125,7 +157,7 @@ export const createProcessRunner = ({
       writeLog(`[finish] ${label} code=${code}`);
       clearActiveChild(result.pid);
       if (code === 0) {
-        return { ok: true };
+        return { ok: true, schedulerEvents: getSchedulerEvents() };
       }
       appendLog(`[run] failed: ${label}`);
       writeLog(`[error] run failed: ${label}`);
@@ -143,8 +175,10 @@ export const createProcessRunner = ({
         logExit('failure', code ?? 1);
         process.exit(code ?? 1);
       }
-      return { ok: false, code: code ?? 1 };
+      return { ok: false, code: code ?? 1, schedulerEvents: getSchedulerEvents() };
     } catch (err) {
+      stdoutDecoder.flush();
+      stderrDecoder.flush();
       const message = err?.message || err;
       writeLog(`[error] ${label} spawn failed: ${message}`);
       clearActiveChild(err?.result?.pid ?? null);
@@ -159,7 +193,7 @@ export const createProcessRunner = ({
         logExit('failure', err?.exitCode ?? 1);
         process.exit(err?.exitCode ?? 1);
       }
-      return { ok: false, code: err?.exitCode ?? 1 };
+      return { ok: false, code: err?.exitCode ?? 1, schedulerEvents: getSchedulerEvents() };
     }
   };
 
