@@ -22,6 +22,12 @@ export const BENCH_PROGRESS_CONFIDENCE_THRESHOLDS = Object.freeze({
   high: 0.75,
   medium: 0.5
 });
+export const BENCH_PROGRESS_CONFIDENCE_COMPONENT_WEIGHTS = Object.freeze({
+  heartbeatRegularity: 0.35,
+  queueAge: 0.25,
+  inFlightSpread: 0.2,
+  stallEvents: 0.2
+});
 
 const BENCH_DIAGNOSTIC_EVENT_TYPE_SET = new Set(BENCH_DIAGNOSTIC_EVENT_TYPES);
 
@@ -53,6 +59,94 @@ export const formatBenchProgressConfidence = (value) => {
   if (!Number.isFinite(score)) return 'unknown';
   const bucket = classifyBenchProgressConfidence(score);
   return `${bucket} ${(Math.max(0, Math.min(1, score)) * 100).toFixed(1)}%`;
+};
+
+const clamp01 = (value) => Math.max(0, Math.min(1, Number(value) || 0));
+
+const toSafeSampleCount = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 0;
+};
+
+const resolveComponentScore = (value) => {
+  if (value == null || value === '') return null;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return null;
+  return clamp01(parsed);
+};
+
+/**
+ * Combine normalized UB-098 confidence components into one stable score.
+ * Missing components are omitted from weighting so partial telemetry remains useful.
+ */
+export const computeBenchProgressConfidence = ({
+  heartbeatRegularityScore,
+  queueAgeScore,
+  inFlightSpreadScore,
+  stallEventsScore,
+  heartbeatSamples = 0,
+  queueSamples = 0,
+  inFlightSamples = 0,
+  stallSamples = 0
+} = {}) => {
+  const componentInputs = [
+    {
+      key: 'heartbeatRegularity',
+      score: resolveComponentScore(heartbeatRegularityScore),
+      weight: BENCH_PROGRESS_CONFIDENCE_COMPONENT_WEIGHTS.heartbeatRegularity,
+      samples: toSafeSampleCount(heartbeatSamples)
+    },
+    {
+      key: 'queueAge',
+      score: resolveComponentScore(queueAgeScore),
+      weight: BENCH_PROGRESS_CONFIDENCE_COMPONENT_WEIGHTS.queueAge,
+      samples: toSafeSampleCount(queueSamples)
+    },
+    {
+      key: 'inFlightSpread',
+      score: resolveComponentScore(inFlightSpreadScore),
+      weight: BENCH_PROGRESS_CONFIDENCE_COMPONENT_WEIGHTS.inFlightSpread,
+      samples: toSafeSampleCount(inFlightSamples)
+    },
+    {
+      key: 'stallEvents',
+      score: resolveComponentScore(stallEventsScore),
+      weight: BENCH_PROGRESS_CONFIDENCE_COMPONENT_WEIGHTS.stallEvents,
+      samples: toSafeSampleCount(stallSamples)
+    }
+  ];
+
+  let weightedSum = 0;
+  let weightSum = 0;
+  for (const entry of componentInputs) {
+    if (!Number.isFinite(entry.score)) continue;
+    weightedSum += entry.score * entry.weight;
+    weightSum += entry.weight;
+  }
+  const score = weightSum > 0 ? clamp01(weightedSum / weightSum) : null;
+  const bucket = classifyBenchProgressConfidence(score);
+  return {
+    schemaVersion: BENCH_PROGRESS_CONFIDENCE_SCHEMA_VERSION,
+    score,
+    bucket,
+    text: formatBenchProgressConfidence(score),
+    components: Object.fromEntries(
+      componentInputs.map((entry) => [
+        entry.key,
+        {
+          score: entry.score,
+          weight: entry.weight,
+          samples: entry.samples
+        }
+      ])
+    ),
+    samples: {
+      heartbeat: toSafeSampleCount(heartbeatSamples),
+      queueAge: toSafeSampleCount(queueSamples),
+      inFlight: toSafeSampleCount(inFlightSamples),
+      stallEvents: toSafeSampleCount(stallSamples)
+    }
+  };
 };
 
 export const buildBenchDiagnosticSignature = ({

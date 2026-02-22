@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { buildIgnoreMatcher } from '../../../src/index/build/ignore.js';
 import { buildGeneratedPolicyConfig } from '../../../src/index/build/generated-policy.js';
 import { tokenizeComments } from '../../../src/index/build/file-processor/cpu/tokenizer.js';
@@ -140,6 +141,27 @@ export const STAGE_TIMING_BREAKDOWN_KEYS = Object.freeze([
   'embedding'
 ]);
 const INDEX_METRICS_MODES = Object.freeze(['code', 'prose', 'extracted-prose', 'records']);
+const THROUGHPUT_MODE_KEY_BY_METRICS_MODE = Object.freeze({
+  code: 'code',
+  prose: 'prose',
+  'extracted-prose': 'extractedProse',
+  records: 'records'
+});
+const THROUGHPUT_LEDGER_STAGE_KEYS_INTERNAL = Object.freeze([
+  'total',
+  'discovery',
+  'importScan',
+  'scmMeta',
+  'parseChunk',
+  'inference',
+  'artifactWrite',
+  'embedding'
+]);
+
+export const THROUGHPUT_LEDGER_SCHEMA_VERSION = 1;
+export const THROUGHPUT_LEDGER_DIFF_SCHEMA_VERSION = 1;
+export const THROUGHPUT_LEDGER_MODALITY_KEYS = INDEX_METRICS_MODES;
+export const THROUGHPUT_LEDGER_STAGE_KEYS = THROUGHPUT_LEDGER_STAGE_KEYS_INTERNAL;
 
 const toSafeDurationMs = (value) => {
   const parsed = Number(value);
@@ -149,6 +171,104 @@ const toSafeDurationMs = (value) => {
 const toSafeCount = (value) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : 0;
+};
+
+const toNullableNumber = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+};
+
+const computeRatePerSec = (amount, durationMs) => {
+  const value = toNullableNumber(amount);
+  const duration = toNullableNumber(durationMs);
+  if (!Number.isFinite(value) || !Number.isFinite(duration) || duration <= 0) return null;
+  return value / (duration / 1000);
+};
+
+const resolveStageDurationsFromModeMetrics = (modeMetrics) => {
+  const timings = modeMetrics?.timings || {};
+  const stageTimingBreakdown = timings?.stageTimingBreakdown || {};
+  return {
+    total: toNullableNumber(timings.totalMs),
+    discovery: toNullableNumber(timings.discoverMs),
+    importScan: toNullableNumber(timings.importsMs),
+    scmMeta: toNullableNumber(timings.scmMetaMs),
+    parseChunk: toNullableNumber(stageTimingBreakdown?.parseChunk?.totalMs),
+    inference: toNullableNumber(stageTimingBreakdown?.inference?.totalMs),
+    artifactWrite: toNullableNumber(timings.writeMs),
+    embedding: toNullableNumber(stageTimingBreakdown?.embedding?.totalMs)
+  };
+};
+
+const resolveModeCountsForLedger = ({
+  modeMetrics = null,
+  throughputEntry = null,
+  indexingEntry = null
+} = {}) => {
+  const files = toNullableNumber(throughputEntry?.files)
+    ?? toNullableNumber(modeMetrics?.files?.candidates)
+    ?? toNullableNumber(indexingEntry?.files);
+  const chunks = toNullableNumber(throughputEntry?.chunks)
+    ?? toNullableNumber(modeMetrics?.chunks?.total);
+  const tokens = toNullableNumber(throughputEntry?.tokens)
+    ?? toNullableNumber(modeMetrics?.tokens?.total);
+  const bytes = toNullableNumber(throughputEntry?.bytes)
+    ?? toNullableNumber(modeMetrics?.bytes?.total)
+    ?? toNullableNumber(indexingEntry?.bytes);
+  return { files, chunks, tokens, bytes };
+};
+
+const buildLedgerStageEntry = ({ counts, durationMs }) => {
+  const duration = toNullableNumber(durationMs);
+  return {
+    durationMs: duration,
+    files: toNullableNumber(counts?.files),
+    chunks: toNullableNumber(counts?.chunks),
+    tokens: toNullableNumber(counts?.tokens),
+    bytes: toNullableNumber(counts?.bytes),
+    filesPerSec: computeRatePerSec(counts?.files, duration),
+    chunksPerSec: computeRatePerSec(counts?.chunks, duration),
+    tokensPerSec: computeRatePerSec(counts?.tokens, duration),
+    bytesPerSec: computeRatePerSec(counts?.bytes, duration)
+  };
+};
+
+const hasLedgerStageValues = (stageEntry) => (
+  Number.isFinite(stageEntry?.durationMs)
+  || Number.isFinite(stageEntry?.chunks)
+  || Number.isFinite(stageEntry?.tokens)
+  || Number.isFinite(stageEntry?.bytes)
+  || Number.isFinite(stageEntry?.files)
+);
+
+const buildThroughputLedgerSignature = ({ repoPath, summary, modalities }) => {
+  const fingerprint = JSON.stringify({
+    repoPath: repoPath || null,
+    buildMs: summary?.buildMs || null,
+    modalities: Object.fromEntries(
+      Object.entries(modalities || {}).map(([modeKey, modeEntry]) => [
+        modeKey,
+        Object.fromEntries(
+          Object.entries(modeEntry?.stages || {}).map(([stageKey, stageEntry]) => [
+            stageKey,
+            {
+              durationMs: stageEntry?.durationMs ?? null,
+              files: stageEntry?.files ?? null,
+              chunks: stageEntry?.chunks ?? null,
+              tokens: stageEntry?.tokens ?? null,
+              bytes: stageEntry?.bytes ?? null
+            }
+          ])
+        )
+      ])
+    )
+  });
+  const digest = crypto
+    .createHash('sha1')
+    .update(fingerprint)
+    .digest('hex')
+    .slice(0, 16);
+  return `ub095:v1:${digest}`;
 };
 
 const createBucket = () => ({
@@ -412,6 +532,169 @@ export const buildStageTimingProfileForTask = ({ repoPath, summary }) => {
   profile.stages.sqliteBuild += toSafeDurationMs(summary?.buildMs?.sqlite);
   profile.stages.embedding += toSafeDurationMs(summary?.buildMs?.embedding);
   return finalizeStageTimingProfile(profile);
+};
+
+export const isValidThroughputLedger = (ledger) => {
+  if (!ledger || typeof ledger !== 'object') return false;
+  if (ledger.schemaVersion !== THROUGHPUT_LEDGER_SCHEMA_VERSION) return false;
+  const modalities = ledger.modalities;
+  if (!modalities || typeof modalities !== 'object') return false;
+  return Object.keys(modalities).length > 0;
+};
+
+export const buildThroughputLedgerForTask = ({
+  repoPath = null,
+  summary = null,
+  throughput = null,
+  indexingSummary = null,
+  metricsByMode = null
+} = {}) => {
+  const resolvedMetricsByMode = metricsByMode && typeof metricsByMode === 'object'
+    ? metricsByMode
+    : (repoPath ? loadRepoIndexMetrics(repoPath) : {});
+  const modalities = {};
+  const stageCoverage = Object.fromEntries(THROUGHPUT_LEDGER_STAGE_KEYS_INTERNAL.map((stage) => [stage, 0]));
+
+  for (const modeKey of INDEX_METRICS_MODES) {
+    const throughputKey = THROUGHPUT_MODE_KEY_BY_METRICS_MODE[modeKey];
+    const modeMetrics = resolvedMetricsByMode?.[modeKey] || null;
+    const throughputEntry = throughput?.[throughputKey] || null;
+    const indexingEntry = indexingSummary?.modes?.[modeKey] || null;
+    const counts = resolveModeCountsForLedger({
+      modeMetrics,
+      throughputEntry,
+      indexingEntry
+    });
+    const stageDurations = resolveStageDurationsFromModeMetrics(modeMetrics);
+    const stages = {};
+    let hasAnyStageValues = false;
+
+    for (const stageKey of THROUGHPUT_LEDGER_STAGE_KEYS_INTERNAL) {
+      const fallbackDuration = stageKey === 'total'
+        ? (toNullableNumber(throughputEntry?.totalMs) ?? toNullableNumber(indexingEntry?.durationMs))
+        : null;
+      const stageEntry = buildLedgerStageEntry({
+        counts,
+        durationMs: stageDurations[stageKey] ?? fallbackDuration
+      });
+      if (hasLedgerStageValues(stageEntry)) {
+        hasAnyStageValues = true;
+        stageCoverage[stageKey] += 1;
+      }
+      stages[stageKey] = stageEntry;
+    }
+
+    if (!hasAnyStageValues) continue;
+    modalities[modeKey] = {
+      mode: modeKey,
+      throughputKey,
+      stages
+    };
+  }
+
+  if (!Object.keys(modalities).length) return null;
+  return {
+    schemaVersion: THROUGHPUT_LEDGER_SCHEMA_VERSION,
+    generatedAt: new Date().toISOString(),
+    runSignature: buildThroughputLedgerSignature({ repoPath, summary, modalities }),
+    modalities,
+    stageCoverage
+  };
+};
+
+const meanNumeric = (values) => {
+  const numeric = (Array.isArray(values) ? values : [])
+    .map((value) => Number(value))
+    .filter(Number.isFinite);
+  if (!numeric.length) return null;
+  return numeric.reduce((sum, value) => sum + value, 0) / numeric.length;
+};
+
+export const computeThroughputLedgerRegression = ({
+  currentLedger = null,
+  baselineLedgers = [],
+  metric = 'chunksPerSec',
+  regressionThresholdPct = -0.08
+} = {}) => {
+  if (!isValidThroughputLedger(currentLedger)) return null;
+  const baselineEntries = (Array.isArray(baselineLedgers) ? baselineLedgers : [])
+    .filter((entry) => isValidThroughputLedger(entry));
+  if (!baselineEntries.length) {
+    return {
+      schemaVersion: THROUGHPUT_LEDGER_DIFF_SCHEMA_VERSION,
+      metric,
+      baselineCount: 0,
+      comparedEntries: 0,
+      regressionThresholdPct,
+      regressions: [],
+      improvements: []
+    };
+  }
+
+  const baselineMap = new Map();
+  for (const baseline of baselineEntries) {
+    for (const [modeKey, modeEntry] of Object.entries(baseline.modalities || {})) {
+      for (const [stageKey, stageEntry] of Object.entries(modeEntry?.stages || {})) {
+        const rate = Number(stageEntry?.[metric]);
+        if (!Number.isFinite(rate) || rate <= 0) continue;
+        const key = `${modeKey}:${stageKey}`;
+        if (!baselineMap.has(key)) baselineMap.set(key, []);
+        baselineMap.get(key).push(rate);
+      }
+    }
+  }
+
+  const regressions = [];
+  const improvements = [];
+  let comparedEntries = 0;
+  const threshold = Number(regressionThresholdPct);
+  const resolvedThreshold = Number.isFinite(threshold) ? threshold : -0.08;
+
+  for (const [modeKey, modeEntry] of Object.entries(currentLedger.modalities || {})) {
+    for (const [stageKey, stageEntry] of Object.entries(modeEntry?.stages || {})) {
+      const currentRate = Number(stageEntry?.[metric]);
+      if (!Number.isFinite(currentRate) || currentRate <= 0) continue;
+      const key = `${modeKey}:${stageKey}`;
+      const baselineRates = baselineMap.get(key) || [];
+      const baselineRate = meanNumeric(baselineRates);
+      if (!Number.isFinite(baselineRate) || baselineRate <= 0) continue;
+      const deltaRate = currentRate - baselineRate;
+      const deltaPct = deltaRate / baselineRate;
+      comparedEntries += 1;
+      const row = {
+        modality: modeKey,
+        stage: stageKey,
+        metric,
+        currentRate,
+        baselineRate,
+        deltaRate,
+        deltaPct,
+        baselineSamples: baselineRates.length
+      };
+      if (deltaPct <= resolvedThreshold) {
+        regressions.push(row);
+      } else if (deltaPct >= Math.abs(resolvedThreshold)) {
+        improvements.push(row);
+      }
+    }
+  }
+
+  regressions.sort((left, right) => (
+    Number(left.deltaPct) - Number(right.deltaPct)
+  ) || left.modality.localeCompare(right.modality) || left.stage.localeCompare(right.stage));
+  improvements.sort((left, right) => (
+    Number(right.deltaPct) - Number(left.deltaPct)
+  ) || left.modality.localeCompare(right.modality) || left.stage.localeCompare(right.stage));
+
+  return {
+    schemaVersion: THROUGHPUT_LEDGER_DIFF_SCHEMA_VERSION,
+    metric,
+    baselineCount: baselineEntries.length,
+    comparedEntries,
+    regressionThresholdPct: resolvedThreshold,
+    regressions,
+    improvements
+  };
 };
 
 const resolveMaxFileBytes = (userConfig) => {

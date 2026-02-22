@@ -3,15 +3,21 @@ import path from 'node:path';
 import { log } from '../../../src/shared/progress.js';
 import {
   STAGE_TIMING_SCHEMA_VERSION,
+  THROUGHPUT_LEDGER_DIFF_SCHEMA_VERSION,
+  THROUGHPUT_LEDGER_SCHEMA_VERSION,
+  buildThroughputLedgerForTask,
   buildStageTimingProfileForTask,
+  computeThroughputLedgerRegression,
   computeLowHitSeverity,
   createEmptyStageTimingProfile,
   finalizeStageTimingProfile,
+  isValidThroughputLedger,
   mergeStageTimingProfile
 } from './metrics.js';
 import {
   BENCH_DIAGNOSTIC_EVENT_TYPES,
   BENCH_DIAGNOSTIC_STREAM_SCHEMA_VERSION,
+  BENCH_PROGRESS_CONFIDENCE_SCHEMA_VERSION,
   buildBenchDiagnosticEventId,
   buildBenchDiagnosticSignature,
   normalizeBenchDiagnosticText
@@ -50,8 +56,18 @@ const buildCrashRetentionSummary = (results) => {
 };
 
 const DIAGNOSTIC_STREAM_FILE_SUFFIX = '.diagnostics.jsonl';
+const PROGRESS_CONFIDENCE_STREAM_FILE_SUFFIX = '.progress-confidence.jsonl';
 
-const listDiagnosticsStreamFiles = (resultsRoot) => {
+const loadJsonFileSync = (filePath) => {
+  try {
+    if (!filePath || !fs.existsSync(filePath)) return null;
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch {
+    return null;
+  }
+};
+
+const listBenchStreamFiles = (resultsRoot, suffix) => {
   if (!resultsRoot) return [];
   const root = path.join(resultsRoot, 'logs', 'bench-language');
   if (!fs.existsSync(root)) return [];
@@ -71,13 +87,17 @@ const listDiagnosticsStreamFiles = (resultsRoot) => {
         queue.push(resolved);
         continue;
       }
-      if (entry.isFile() && entry.name.endsWith(DIAGNOSTIC_STREAM_FILE_SUFFIX)) {
+      if (entry.isFile() && entry.name.endsWith(String(suffix || ''))) {
         files.push(resolved);
       }
     }
   }
   return files.sort((left, right) => left.localeCompare(right));
 };
+
+const listDiagnosticsStreamFiles = (resultsRoot) => (
+  listBenchStreamFiles(resultsRoot, DIAGNOSTIC_STREAM_FILE_SUFFIX)
+);
 
 const parseDiagnosticEventLine = (line) => {
   const trimmed = String(line || '').trim();
@@ -169,6 +189,130 @@ const buildDiagnosticsStreamSummary = (resultsRoot) => {
     ),
     required,
     unknownTypeCount,
+    malformedLines
+  };
+};
+
+const parseProgressConfidenceLine = (line) => {
+  const trimmed = String(line || '').trim();
+  if (!trimmed) return null;
+  let parsed;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+  const scoreRaw = Number(parsed.score);
+  const score = Number.isFinite(scoreRaw) ? Math.max(0, Math.min(1, scoreRaw)) : null;
+  const bucket = typeof parsed.bucket === 'string' && parsed.bucket.trim()
+    ? parsed.bucket.trim().toLowerCase()
+    : 'unknown';
+  const label = typeof parsed.label === 'string' && parsed.label.trim()
+    ? parsed.label.trim()
+    : 'run';
+  return {
+    score,
+    bucket,
+    label,
+    reason: typeof parsed.reason === 'string' ? parsed.reason.trim() : null,
+    ts: typeof parsed.ts === 'string' ? parsed.ts : null
+  };
+};
+
+const buildProgressConfidenceSummary = (resultsRoot) => {
+  const files = listBenchStreamFiles(resultsRoot, PROGRESS_CONFIDENCE_STREAM_FILE_SUFFIX);
+  const bucketCounts = new Map();
+  const perFile = [];
+  const allScores = [];
+  const lowConfidenceEvents = [];
+  const latestByLabel = new Map();
+  let eventCount = 0;
+  let malformedLines = 0;
+
+  for (const filePath of files) {
+    let raw = '';
+    try {
+      raw = fs.readFileSync(filePath, 'utf8');
+    } catch {
+      continue;
+    }
+    const fileBucketCounts = new Map();
+    const fileScores = [];
+    const lines = raw.split(/\r?\n/);
+    for (const line of lines) {
+      if (!line || !line.trim()) continue;
+      const parsed = parseProgressConfidenceLine(line);
+      if (!parsed) {
+        malformedLines += 1;
+        continue;
+      }
+      eventCount += 1;
+      const bucket = parsed.bucket || 'unknown';
+      bucketCounts.set(bucket, (bucketCounts.get(bucket) || 0) + 1);
+      fileBucketCounts.set(bucket, (fileBucketCounts.get(bucket) || 0) + 1);
+      if (Number.isFinite(parsed.score)) {
+        allScores.push(parsed.score);
+        fileScores.push(parsed.score);
+        lowConfidenceEvents.push({
+          path: filePath,
+          label: parsed.label,
+          score: parsed.score,
+          bucket: parsed.bucket,
+          reason: parsed.reason || null,
+          ts: parsed.ts || null
+        });
+      }
+      if (parsed.label) {
+        const prior = latestByLabel.get(parsed.label);
+        const parsedTime = Date.parse(parsed.ts || '');
+        const priorTime = Date.parse(prior?.ts || '');
+        if (!prior || (Number.isFinite(parsedTime) && (!Number.isFinite(priorTime) || parsedTime >= priorTime))) {
+          latestByLabel.set(parsed.label, {
+            label: parsed.label,
+            score: parsed.score,
+            bucket: parsed.bucket,
+            reason: parsed.reason || null,
+            ts: parsed.ts || null
+          });
+        }
+      }
+    }
+    perFile.push({
+      path: filePath,
+      eventCount: Array.from(fileBucketCounts.values()).reduce((sum, count) => sum + count, 0),
+      avgScore: fileScores.length
+        ? fileScores.reduce((sum, value) => sum + value, 0) / fileScores.length
+        : null,
+      minScore: fileScores.length ? Math.min(...fileScores) : null,
+      countsByBucket: Object.fromEntries(
+        Array.from(fileBucketCounts.entries()).sort(([left], [right]) => left.localeCompare(right))
+      )
+    });
+  }
+
+  lowConfidenceEvents.sort((left, right) => (
+    Number(left.score) - Number(right.score)
+  ) || String(left.label || '').localeCompare(String(right.label || '')));
+
+  const avgScore = allScores.length
+    ? allScores.reduce((sum, score) => sum + score, 0) / allScores.length
+    : null;
+
+  return {
+    schemaVersion: BENCH_PROGRESS_CONFIDENCE_SCHEMA_VERSION,
+    fileCount: files.length,
+    files: perFile,
+    eventCount,
+    avgScore,
+    minScore: allScores.length ? Math.min(...allScores) : null,
+    maxScore: allScores.length ? Math.max(...allScores) : null,
+    countsByBucket: Object.fromEntries(
+      Array.from(bucketCounts.entries()).sort(([left], [right]) => left.localeCompare(right))
+    ),
+    lowConfidenceEvents: lowConfidenceEvents.slice(0, 20),
+    latestByLabel: Array.from(latestByLabel.values())
+      .sort((left, right) => String(left.label).localeCompare(String(right.label))),
     malformedLines
   };
 };
@@ -461,16 +605,105 @@ export const printSummary = (
   }
 };
 
-export const buildReportOutput = ({ configPath, cacheRoot, resultsRoot, results, config }) => {
-  const tasks = results.map((entry) => ({
-    ...entry,
-    stageTimingProfile: entry?.summary
-      ? buildStageTimingProfileForTask({
-        repoPath: entry.repoPath,
-        summary: entry.summary
+const resolveTaskPayload = (entry) => {
+  if (!entry?.outFile) return null;
+  return loadJsonFileSync(entry.outFile);
+};
+
+const resolveTaskRepoIdentity = (entry, payload) => (
+  entry?.repoPath
+  || payload?.repo?.root
+  || payload?.artifacts?.repo?.root
+  || `${entry?.language || 'unknown'}/${entry?.repo || 'unknown'}`
+);
+
+const resolveTaskThroughputLedger = ({ entry, payload }) => {
+  const existing = payload?.artifacts?.throughputLedger;
+  if (isValidThroughputLedger(existing)) return existing;
+  return buildThroughputLedgerForTask({
+    repoPath: entry?.repoPath || payload?.repo?.root || payload?.artifacts?.repo?.root || null,
+    summary: entry?.summary || payload?.summary || null,
+    throughput: payload?.artifacts?.throughput || null,
+    indexingSummary: payload?.artifacts?.indexing || null
+  });
+};
+
+const applyThroughputLedgerDiffs = (tasks) => {
+  const historyByRepo = new Map();
+  const out = [];
+  for (const task of tasks) {
+    const repoIdentity = task.repoIdentity;
+    const baseline = historyByRepo.get(repoIdentity) || [];
+    const throughputLedgerDiff = isValidThroughputLedger(task.throughputLedger)
+      ? computeThroughputLedgerRegression({
+        currentLedger: task.throughputLedger,
+        baselineLedgers: baseline.slice(-3),
+        metric: 'chunksPerSec'
       })
-      : null
-  }));
+      : null;
+    const nextTask = {
+      ...task,
+      throughputLedgerDiff
+    };
+    out.push(nextTask);
+    if (isValidThroughputLedger(task.throughputLedger)) {
+      historyByRepo.set(repoIdentity, [...baseline, task.throughputLedger]);
+    }
+  }
+  return out;
+};
+
+const buildThroughputLedgerSummary = (tasks) => {
+  const rows = [];
+  for (const entry of tasks) {
+    const regressions = entry?.throughputLedgerDiff?.regressions || [];
+    for (const regression of regressions.slice(0, 3)) {
+      rows.push({
+        language: entry.language,
+        tier: entry.tier,
+        repo: entry.repo,
+        repoIdentity: entry.repoIdentity,
+        modality: regression.modality,
+        stage: regression.stage,
+        metric: regression.metric,
+        currentRate: regression.currentRate,
+        baselineRate: regression.baselineRate,
+        deltaRate: regression.deltaRate,
+        deltaPct: regression.deltaPct,
+        baselineSamples: regression.baselineSamples
+      });
+    }
+  }
+  rows.sort((left, right) => (
+    Number(left.deltaPct) - Number(right.deltaPct)
+  ) || String(left.repoIdentity).localeCompare(String(right.repoIdentity)));
+  return {
+    schemaVersion: THROUGHPUT_LEDGER_SCHEMA_VERSION,
+    diffSchemaVersion: THROUGHPUT_LEDGER_DIFF_SCHEMA_VERSION,
+    taskCount: tasks.length,
+    ledgerTaskCount: tasks.filter((entry) => isValidThroughputLedger(entry?.throughputLedger)).length,
+    diffTaskCount: tasks.filter((entry) => entry?.throughputLedgerDiff?.baselineCount > 0).length,
+    topRegressions: rows.slice(0, 20)
+  };
+};
+
+export const buildReportOutput = ({ configPath, cacheRoot, resultsRoot, results, config }) => {
+  const tasksWithTelemetry = results.map((entry) => {
+    const payload = resolveTaskPayload(entry);
+    const throughputLedger = resolveTaskThroughputLedger({ entry, payload });
+    return {
+      ...entry,
+      repoIdentity: resolveTaskRepoIdentity(entry, payload),
+      stageTimingProfile: entry?.summary
+        ? buildStageTimingProfileForTask({
+          repoPath: entry.repoPath,
+          summary: entry.summary
+        })
+        : null,
+      throughputLedger
+    };
+  });
+  const tasks = applyThroughputLedgerDiffs(tasksWithTelemetry);
   const groupedResults = new Map();
   for (const entry of tasks) {
     if (!groupedResults.has(entry.language)) groupedResults.set(entry.language, []);
@@ -487,6 +720,8 @@ export const buildReportOutput = ({ configPath, cacheRoot, resultsRoot, results,
   const overallSummary = summarizeResults(tasks);
   const crashRetention = buildCrashRetentionSummary(tasks);
   const diagnosticsStream = buildDiagnosticsStreamSummary(resultsRoot);
+  const progressConfidence = buildProgressConfidenceSummary(resultsRoot);
+  const throughputLedger = buildThroughputLedgerSummary(tasks);
   const stageTimingTasks = tasks
     .filter((entry) => entry?.stageTimingProfile)
     .map((entry) => ({
@@ -510,8 +745,10 @@ export const buildReportOutput = ({ configPath, cacheRoot, resultsRoot, results,
     tasks,
     diagnostics: {
       crashRetention,
-      stream: diagnosticsStream
+      stream: diagnosticsStream,
+      progressConfidence
     },
+    throughputLedger,
     stageTiming: {
       schemaVersion: STAGE_TIMING_SCHEMA_VERSION,
       tasks: stageTimingTasks,

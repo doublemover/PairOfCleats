@@ -1080,7 +1080,7 @@ Last revised: 2026-02-22T05:44:04.8332760-05:00
 - Touchpoints: `src/index/build/artifacts-write.js`, `tools/build/embeddings/runner.js`, `src/index/build/runtime/runtime.js`, `tests/indexing/embeddings/embeddings-memory-plateau.test.js`
 
 ### UB-095: Stage-level throughput ledger per modality
-- Status: [ ]
+- Status: [x]
 - Observation:
   - Throughput lines exist but are hard to compare longitudinally.
 - Tasks:
@@ -1088,6 +1088,12 @@ Last revised: 2026-02-22T05:44:04.8332760-05:00
   - Add diff tooling for regressions across runs.
 - Exit criteria:
   - Fast identification of where throughput regressed.
+- Completion: 2026-02-22T09:58:10.6789274-05:00
+- Validation:
+  - `node tests/tooling/reports/show-throughput-language-normalization.test.js`
+  - `node tests/tooling/reports/show-throughput-ledger-diff.test.js`
+  - `node tests/tooling/reports/bench-language-throughput-ledger-report.test.js`
+  - `node tests/tooling/reports/show-throughput-ignore-usr.test.js`
 - Improvement Intent (What): throughput regression detection
 - Improvement Method (How): persistent stage/modality throughput ledger and deltas.
 - Integrated Betterments: persist throughput ledger per modality and stage with run signatures; compute regression deltas against rolling baseline; expose top regressions in one-line run summary.
@@ -1127,7 +1133,7 @@ Last revised: 2026-02-22T05:44:04.8332760-05:00
 - Touchpoints: `src/storage/sqlite/build/runner.js`, `tools/bench/sqlite/build-from-bundles.js`, `src/index/build/runtime/runtime.js`, `tests/storage/sqlite/sqlite-incremental-memory-profile.test.js`
 
 ### UB-098: Bench run progress confidence index
-- Status: [ ]
+- Status: [x]
 - Observation:
   - During long runs, operators need confidence score for hang-risk and ETA accuracy.
 - Tasks:
@@ -1135,6 +1141,14 @@ Last revised: 2026-02-22T05:44:04.8332760-05:00
   - Display confidence in interactive progress output and persist to report.
 - Exit criteria:
   - Better operator trust and faster anomaly triage.
+- Completion: 2026-02-22T09:58:10.6789274-05:00
+- Validation:
+  - `node tests/perf/bench/bench-language-progress-parse.test.js`
+  - `node tests/perf/bench/bench-language-progress-confidence.test.js`
+  - `node tests/perf/bench/bench-language-process-progress-confidence.test.js`
+  - `node tests/perf/bench/bench-language-process-diagnostics-stream.test.js`
+  - `node tests/perf/bench/bench-language-process-scheduler-events.test.js`
+  - `node tests/tooling/reports/bench-language-diagnostics-summary-report.test.js`
 - Improvement Intent (What): operator trust in progress/ETA
 - Improvement Method (How): confidence index derived from heartbeat/stall/queue metrics.
 - Integrated Betterments: compute progress confidence from heartbeat, stall rate, queue age variance, and throughput stability; surface confidence in progress UI and report files; trigger proactive diagnostics when confidence drops sharply.

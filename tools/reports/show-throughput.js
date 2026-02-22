@@ -3,6 +3,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { color } from '../../src/retrieval/cli/ansi.js';
 import { getMetricsDir, loadUserConfig } from '../shared/dict-utils.js';
+import {
+  THROUGHPUT_LEDGER_DIFF_SCHEMA_VERSION,
+  THROUGHPUT_LEDGER_SCHEMA_VERSION,
+  buildThroughputLedgerForTask,
+  computeThroughputLedgerRegression,
+  isValidThroughputLedger
+} from '../bench/language/metrics.js';
 
 const resultsRoot = path.join(process.cwd(), 'benchmarks', 'results');
 const refreshJson = process.argv.includes('--refresh-json');
@@ -793,6 +800,78 @@ const loadOrComputeBenchAnalysis = ({ payload, featureMetrics, indexingSummary }
   return { analysis: computed, changed: true };
 };
 
+const resolveRepoIdentity = ({ payload, file }) => (
+  payload?.repo?.root
+  || payload?.artifacts?.repo?.root
+  || payload?.artifacts?.repo?.cacheRoot
+  || String(file || '').replace(/\.json$/i, '')
+);
+
+const loadOrComputeThroughputLedger = ({ payload, indexingSummary }) => {
+  const existing = payload?.artifacts?.throughputLedger;
+  if (isValidThroughputLedger(existing)) {
+    return { throughputLedger: existing, changed: false };
+  }
+  const computed = buildThroughputLedgerForTask({
+    repoPath: payload?.repo?.root || payload?.artifacts?.repo?.root || null,
+    summary: payload?.summary || payload?.runs?.[0] || null,
+    throughput: payload?.artifacts?.throughput || null,
+    indexingSummary: indexingSummary || payload?.artifacts?.indexing || null
+  });
+  if (!isValidThroughputLedger(computed)) {
+    return { throughputLedger: null, changed: false };
+  }
+  if (!payload.artifacts || typeof payload.artifacts !== 'object') payload.artifacts = {};
+  payload.artifacts.throughputLedger = computed;
+  return { throughputLedger: computed, changed: true };
+};
+
+const applyRunThroughputLedgerDiffs = (runs) => {
+  const historyByRepo = new Map();
+  for (const run of runs) {
+    if (!isValidThroughputLedger(run?.throughputLedger)) {
+      run.throughputLedgerDiff = null;
+      continue;
+    }
+    const repoIdentity = run.repoIdentity;
+    const history = historyByRepo.get(repoIdentity) || [];
+    run.throughputLedgerDiff = computeThroughputLedgerRegression({
+      currentLedger: run.throughputLedger,
+      baselineLedgers: history.slice(-3),
+      metric: 'chunksPerSec'
+    });
+    history.push(run.throughputLedger);
+    historyByRepo.set(repoIdentity, history);
+  }
+};
+
+const collectRunLedgerRegressions = (runs) => {
+  const rows = [];
+  for (const run of runs) {
+    const regressions = run?.throughputLedgerDiff?.regressions || [];
+    for (const regression of regressions.slice(0, 3)) {
+      rows.push({
+        file: run.file,
+        repoIdentity: run.repoIdentity,
+        modality: regression.modality,
+        stage: regression.stage,
+        deltaPct: regression.deltaPct,
+        deltaRate: regression.deltaRate,
+        currentRate: regression.currentRate,
+        baselineRate: regression.baselineRate
+      });
+    }
+  }
+  rows.sort((left, right) => (
+    Number(left.deltaPct) - Number(right.deltaPct)
+  ) || String(left.repoIdentity || '').localeCompare(String(right.repoIdentity || '')));
+  return rows;
+};
+
+const formatPct = (value) => (
+  Number.isFinite(value) ? `${(value * 100).toFixed(1)}%` : 'n/a'
+);
+
 if (!fs.existsSync(resultsRoot)) {
   console.error(`No benchmark results found at ${resultsRoot}`);
   process.exit(1);
@@ -818,6 +897,7 @@ const languageTotals = new Map();
 const modeTotalsGlobal = createModeTotalsMap();
 const reposWithMetrics = new Set();
 const astGraphTotalsGlobal = { repos: 0, totals: createAstGraphTotals(), observed: createAstGraphObserved() };
+const ledgerRegressionsGlobal = [];
 
 console.error(color.bold(color.cyan('Benchmark Performance Overview')));
 console.error(color.gray(`Root: ${resultsRoot}`));
@@ -828,7 +908,9 @@ if (refreshJson) {
 
 for (const dir of folders) {
   const folderPath = path.join(resultsRoot, dir.name);
-  const files = fs.readdirSync(folderPath).filter((name) => name.endsWith('.json'));
+  const files = fs.readdirSync(folderPath)
+    .filter((name) => name.endsWith('.json'))
+    .sort((left, right) => left.localeCompare(right));
   const runs = [];
   const throughputs = [];
   const modeTotalsFolder = createModeTotalsMap();
@@ -858,12 +940,28 @@ for (const dir of folders) {
       indexingSummary
     });
     if (analysisChanged) dirty = true;
+    const { throughputLedger, changed: throughputLedgerChanged } = loadOrComputeThroughputLedger({
+      payload,
+      indexingSummary
+    });
+    if (throughputLedgerChanged && refreshJson) dirty = true;
     if (dirty && refreshJson) {
       try {
         fs.writeFileSync(resultPath, JSON.stringify(payload, null, 2));
       } catch {}
     }
-    runs.push({ file, summary, throughput, analysis, indexingSummary });
+    const repoIdentity = resolveRepoIdentity({ payload, file });
+    const generatedAtMs = Date.parse(payload?.generatedAt || payload?.summary?.generatedAt || '');
+    runs.push({
+      file,
+      summary,
+      throughput,
+      analysis,
+      indexingSummary,
+      throughputLedger,
+      repoIdentity,
+      generatedAtMs: Number.isFinite(generatedAtMs) ? generatedAtMs : null
+    });
     throughputs.push(throughput);
     mergeTotals(totalThroughput.code, throughput.code);
     mergeTotals(totalThroughput.prose, throughput.prose);
@@ -871,34 +969,34 @@ for (const dir of folders) {
     mergeTotals(totalThroughput.records, throughput.records);
     mergeTotals(totalThroughput.lmdb.code, throughput?.lmdb?.code);
     mergeTotals(totalThroughput.lmdb.prose, throughput?.lmdb?.prose);
-    const repoIdentity = payload.repo?.root
+    const repoIdentityForMetrics = payload.repo?.root
       || payload?.artifacts?.repo?.root
       || payload?.artifacts?.repo?.cacheRoot
       || null;
     if (isValidIndexingSummary(indexingSummary)) {
-      if (repoIdentity && !folderReposWithMetrics.has(repoIdentity)) {
+      if (repoIdentityForMetrics && !folderReposWithMetrics.has(repoIdentityForMetrics)) {
         mergeModeTotalsFromIndexingSummary(indexingSummary, modeTotalsFolder);
-        folderReposWithMetrics.add(repoIdentity);
+        folderReposWithMetrics.add(repoIdentityForMetrics);
       }
-      if (repoIdentity && !reposWithMetrics.has(repoIdentity)) {
+      if (repoIdentityForMetrics && !reposWithMetrics.has(repoIdentityForMetrics)) {
         mergeModeTotalsFromIndexingSummary(indexingSummary, modeTotalsGlobal);
         collectLanguageLinesFromSummary(indexingSummary, languageTotals);
-        reposWithMetrics.add(repoIdentity);
+        reposWithMetrics.add(repoIdentityForMetrics);
       }
-    } else if (repoIdentity && !folderReposWithMetrics.has(repoIdentity)) {
+    } else if (repoIdentityForMetrics && !folderReposWithMetrics.has(repoIdentityForMetrics)) {
       const metrics = resolvedFeatureMetrics || loadFeatureMetricsForPayload(payload);
       if (metrics) {
         mergeModeTotalsFromFeatureMetrics(metrics, modeTotalsFolder);
-        folderReposWithMetrics.add(repoIdentity);
+        folderReposWithMetrics.add(repoIdentityForMetrics);
       }
     }
-    if (repoIdentity && !reposWithMetrics.has(repoIdentity) && !isValidIndexingSummary(indexingSummary)) {
+    if (repoIdentityForMetrics && !reposWithMetrics.has(repoIdentityForMetrics) && !isValidIndexingSummary(indexingSummary)) {
       const metrics = resolvedFeatureMetrics || loadFeatureMetricsForPayload(payload);
       if (metrics) {
         collectLanguageLines(metrics, languageTotals);
         mergeModeTotalsFromFeatureMetrics(metrics, modeTotalsGlobal);
       }
-      reposWithMetrics.add(repoIdentity);
+      reposWithMetrics.add(repoIdentityForMetrics);
     }
     if (analysis && hasAstGraphValues(analysis.totals)) {
       astGraphTotalsFolder.repos += 1;
@@ -917,6 +1015,20 @@ for (const dir of folders) {
   if (!runs.length) {
     console.error(color.gray('  No benchmark JSON files found.'));
     continue;
+  }
+
+  runs.sort((left, right) => {
+    const leftTime = Number(left.generatedAtMs);
+    const rightTime = Number(right.generatedAtMs);
+    if (Number.isFinite(leftTime) && Number.isFinite(rightTime) && leftTime !== rightTime) {
+      return leftTime - rightTime;
+    }
+    return String(left.file).localeCompare(String(right.file));
+  });
+  applyRunThroughputLedgerDiffs(runs);
+  const folderLedgerRegressions = collectRunLedgerRegressions(runs);
+  if (folderLedgerRegressions.length) {
+    ledgerRegressionsGlobal.push(...folderLedgerRegressions.map((entry) => ({ ...entry, folder: dir.name })));
   }
 
   const avgCode = meanThroughput(throughputs, (throughput) => throughput?.code || null);
@@ -987,6 +1099,13 @@ for (const dir of folders) {
         `classes ${formatAstField(astGraphTotalsFolder, 'classes')} | ` +
         `functions ${formatAstField(astGraphTotalsFolder, 'functions')} | ` +
         `imports ${formatAstField(astGraphTotalsFolder, 'imports')}`
+      );
+    }
+    if (folderLedgerRegressions.length) {
+      const top = folderLedgerRegressions[0];
+      console.error(
+        `  ledger regression ${top.repoIdentity} ${top.modality}/${top.stage} ` +
+        `${formatPct(top.deltaPct)} (${formatNumber(top.deltaRate)} ch/s vs ${formatNumber(top.baselineRate)})`
       );
     }
     continue;
@@ -1081,6 +1200,16 @@ for (const dir of folders) {
       `file links ${formatAstField(astGraphTotalsFolder, 'fileLinks')} | ` +
       `graph links ${formatAstField(astGraphTotalsFolder, 'graphLinks')}`
     );
+  }
+  if (folderLedgerRegressions.length) {
+    console.error(`  ${color.bold('Top Throughput Regressions')}:`);
+    for (const regression of folderLedgerRegressions.slice(0, 5)) {
+      console.error(
+        `    ${regression.repoIdentity} | ${regression.modality}/${regression.stage} | ` +
+        `${formatPct(regression.deltaPct)} | ` +
+        `${formatNumber(regression.currentRate)} vs ${formatNumber(regression.baselineRate)} ch/s`
+      );
+    }
   }
 
   const runRows = runs.map((run) => {
@@ -1237,6 +1366,21 @@ for (const { label, pick } of THROUGHPUT_GROUPS) {
     `${formatBytesPerSec(bytesPerSec)} | ` +
     `${formatNumber(filesPerSec)} files/s`
   );
+}
+if (ledgerRegressionsGlobal.length) {
+  ledgerRegressionsGlobal.sort((left, right) => (
+    Number(left.deltaPct) - Number(right.deltaPct)
+  ) || String(left.repoIdentity || '').localeCompare(String(right.repoIdentity || '')));
+  console.error(color.bold(
+    `Top Throughput Regressions (schema v${THROUGHPUT_LEDGER_SCHEMA_VERSION}/diff v${THROUGHPUT_LEDGER_DIFF_SCHEMA_VERSION})`
+  ));
+  for (const entry of ledgerRegressionsGlobal.slice(0, 8)) {
+    console.error(
+      `  ${entry.folder}/${entry.repoIdentity} ${entry.modality}/${entry.stage}: ` +
+      `${formatPct(entry.deltaPct)} | ` +
+      `${formatNumber(entry.currentRate)} vs ${formatNumber(entry.baselineRate)} ch/s`
+    );
+  }
 }
 if (hasAstGraphValues(astGraphTotalsGlobal.totals)) {
   const astPairs = [

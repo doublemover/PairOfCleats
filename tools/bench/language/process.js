@@ -6,6 +6,8 @@ import { createProgressLineDecoder } from '../../../src/shared/cli/progress-stre
 import { parseProgressEventLine } from '../../../src/shared/cli/progress-events.js';
 import {
   BENCH_DIAGNOSTIC_STREAM_SCHEMA_VERSION,
+  computeBenchProgressConfidence,
+  formatBenchProgressConfidence,
   buildBenchDiagnosticEventId,
   buildBenchDiagnosticSignature,
   normalizeBenchDiagnosticText
@@ -14,10 +16,15 @@ import {
 const SCHEDULER_EVENT_WINDOW = 40;
 const SCHEDULER_EVENT_MARKER = '[tree-sitter:schedule]';
 const DIAGNOSTIC_STREAM_SUFFIX = '.diagnostics.jsonl';
+const PROGRESS_CONFIDENCE_STREAM_SUFFIX = '.progress-confidence.jsonl';
 const DIAGNOSTIC_REPEAT_COUNT = 5;
 const DIAGNOSTIC_REPEAT_INTERVAL_MS = 30 * 1000;
+const PROGRESS_CONFIDENCE_EMIT_INTERVAL_MS = 15 * 1000;
+const PROGRESS_CONFIDENCE_EMIT_DELTA = 0.07;
 const QUEUE_DELAY_HOTSPOT_MS = 250;
 const QUEUE_DEPTH_HOTSPOT = 3;
+const HEARTBEAT_STALL_THRESHOLD_MS = 30 * 1000;
+const MAX_PROGRESS_SAMPLES = 240;
 
 const PARSER_CRASH_PATTERNS = Object.freeze([
   /\bparser\b[\s\S]{0,80}\b(?:crash|crashed|fatal|abort|aborted)\b/i,
@@ -55,6 +62,103 @@ const resolveDiagnosticsStreamPath = (logEntry) => {
   if (!target) return null;
   if (target.endsWith('.log')) return `${target.slice(0, -4)}${DIAGNOSTIC_STREAM_SUFFIX}`;
   return `${target}${DIAGNOSTIC_STREAM_SUFFIX}`;
+};
+
+const resolveProgressConfidenceStreamPath = (logEntry) => {
+  const target = toText(logEntry);
+  if (!target) return null;
+  if (target.endsWith('.log')) return `${target.slice(0, -4)}${PROGRESS_CONFIDENCE_STREAM_SUFFIX}`;
+  return `${target}${PROGRESS_CONFIDENCE_STREAM_SUFFIX}`;
+};
+
+const toFiniteNonNegative = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+};
+
+const appendSample = (target, value, maxSize = MAX_PROGRESS_SAMPLES) => {
+  if (!Array.isArray(target)) return;
+  const parsed = toFiniteNonNegative(value);
+  if (!Number.isFinite(parsed)) return;
+  target.push(parsed);
+  if (target.length > maxSize) target.shift();
+};
+
+const mean = (values) => {
+  if (!Array.isArray(values) || !values.length) return null;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+};
+
+const stdDev = (values, avg = mean(values)) => {
+  if (!Array.isArray(values) || values.length < 2 || !Number.isFinite(avg)) return null;
+  const variance = values.reduce((sum, value) => {
+    const delta = value - avg;
+    return sum + (delta * delta);
+  }, 0) / values.length;
+  return Math.sqrt(Math.max(0, variance));
+};
+
+const percentile = (values, ratio) => {
+  if (!Array.isArray(values) || !values.length) return null;
+  const sorted = values
+    .map((value) => Number(value))
+    .filter((value) => Number.isFinite(value) && value >= 0)
+    .sort((left, right) => left - right);
+  if (!sorted.length) return null;
+  const clamped = Math.max(0, Math.min(1, Number(ratio) || 0));
+  const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil(sorted.length * clamped) - 1));
+  return sorted[index];
+};
+
+const clamp01 = (value) => Math.max(0, Math.min(1, Number(value) || 0));
+
+const formatCompactDuration = (value) => {
+  if (!Number.isFinite(value)) return 'n/a';
+  if (value < 1000) return `${Math.round(value)}ms`;
+  return `${(value / 1000).toFixed(1)}s`;
+};
+
+const resolveQueueAgeMs = ({ message, event }) => {
+  const eventCandidates = [
+    event?.queueAgeMs,
+    event?.queueDelayMs,
+    event?.meta?.queueAgeMs,
+    event?.meta?.queueDelayMs,
+    event?.meta?.watchdog?.queueDelayMs
+  ];
+  for (const candidate of eventCandidates) {
+    const parsed = toFiniteNonNegative(candidate);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  const text = String(message || '');
+  if (!text) return null;
+  const match = text.match(/\bqueue(?:\s|-)?(?:age|delay|wait|dwell)\b[^0-9]{0,24}(\d+(?:\.\d+)?)\s*ms\b/i);
+  if (!match) return null;
+  return toFiniteNonNegative(match[1]);
+};
+
+const resolveInFlightCount = ({ message, event }) => {
+  const eventCandidates = [
+    event?.inFlight,
+    event?.inflight,
+    event?.inFlightCount,
+    event?.activeWorkers,
+    event?.meta?.inFlight,
+    event?.meta?.inFlightCount,
+    event?.meta?.activeWorkers,
+    event?.meta?.queueDepth
+  ];
+  for (const candidate of eventCandidates) {
+    const parsed = toFiniteNonNegative(candidate);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  const text = String(message || '');
+  if (!text) return null;
+  const inFlightMatch = text.match(/\bin(?:\s|-)?flight\b[^0-9]{0,12}(\d+)\b/i);
+  if (inFlightMatch) return toFiniteNonNegative(inFlightMatch[1]);
+  const depthMatch = text.match(/\bqueue(?:\s|-)?depth\b[^0-9]{0,8}(\d+)\b/i);
+  if (depthMatch) return toFiniteNonNegative(depthMatch[1]);
+  return null;
 };
 
 const appendJsonLineSync = (filePath, payload) => {
@@ -195,10 +299,33 @@ export const createProcessRunner = ({
     const diagnosticStreams = Array.from(
       new Set(resolveLogPaths().map(resolveDiagnosticsStreamPath).filter(Boolean))
     );
+    const progressConfidenceStreams = Array.from(
+      new Set(resolveLogPaths().map(resolveProgressConfidenceStreamPath).filter(Boolean))
+    );
     const schedulerEvents = [];
     let diagnosticEventCount = 0;
     const diagnosticCountByType = new Map();
     const diagnosticCountById = new Map();
+    const heartbeatIntervalsMs = [];
+    const queueAgeSamplesMs = [];
+    const inFlightSamples = [];
+    const progressConfidenceComponents = {
+      heartbeatRegularityScore: null,
+      queueAgeScore: null,
+      inFlightSpreadScore: null,
+      stallEventsScore: null
+    };
+    const progressConfidenceStats = {
+      heartbeatCount: 0,
+      queueSamples: 0,
+      inFlightSamples: 0,
+      stallEvents: 0,
+      lastHeartbeatMs: null,
+      confidenceEvents: 0,
+      lastScore: null,
+      lastBucket: 'unknown',
+      lastEmitMs: 0
+    };
 
     const buildDiagnosticsSummary = () => ({
       schemaVersion: BENCH_DIAGNOSTIC_STREAM_SCHEMA_VERSION,
@@ -210,6 +337,200 @@ export const createProcessRunner = ({
           .sort(([left], [right]) => String(left).localeCompare(String(right)))
       )
     });
+
+    const updateProgressConfidenceComponentScores = () => {
+      const heartbeatMean = mean(heartbeatIntervalsMs);
+      const heartbeatStd = stdDev(heartbeatIntervalsMs, heartbeatMean);
+      if (Number.isFinite(heartbeatMean) && heartbeatMean > 0 && Number.isFinite(heartbeatStd)) {
+        const jitter = heartbeatStd / heartbeatMean;
+        const longGapCount = heartbeatIntervalsMs.filter((value) => value >= HEARTBEAT_STALL_THRESHOLD_MS).length;
+        const longGapRatio = heartbeatIntervalsMs.length > 0 ? longGapCount / heartbeatIntervalsMs.length : 0;
+        progressConfidenceComponents.heartbeatRegularityScore = clamp01(1 - (jitter / 1.1) - (longGapRatio * 0.4));
+      } else {
+        progressConfidenceComponents.heartbeatRegularityScore = null;
+      }
+
+      const queueP90 = percentile(queueAgeSamplesMs, 0.9);
+      const queueMean = mean(queueAgeSamplesMs);
+      const queueStd = stdDev(queueAgeSamplesMs, queueMean);
+      if (Number.isFinite(queueP90) && Number.isFinite(queueMean) && Number.isFinite(queueStd)) {
+        const queueJitter = queueMean > 0 ? (queueStd / queueMean) : 0;
+        progressConfidenceComponents.queueAgeScore = clamp01(1 - (queueP90 / 2500) - (queueJitter * 0.2));
+      } else if (Number.isFinite(queueP90)) {
+        progressConfidenceComponents.queueAgeScore = clamp01(1 - (queueP90 / 2500));
+      } else {
+        progressConfidenceComponents.queueAgeScore = null;
+      }
+
+      const inFlightMean = mean(inFlightSamples);
+      const inFlightStd = stdDev(inFlightSamples, inFlightMean);
+      if (Number.isFinite(inFlightMean) && inFlightMean > 0 && inFlightSamples.length >= 2) {
+        const min = Math.min(...inFlightSamples);
+        const max = Math.max(...inFlightSamples);
+        const spread = (max - min) / Math.max(1, inFlightMean);
+        const jitterPenalty = Number.isFinite(inFlightStd) ? (inFlightStd / Math.max(1, inFlightMean)) : 0;
+        progressConfidenceComponents.inFlightSpreadScore = clamp01(1 - (spread / 2) - (jitterPenalty * 0.25));
+      } else {
+        progressConfidenceComponents.inFlightSpreadScore = null;
+      }
+
+      const stallRate = progressConfidenceStats.heartbeatCount > 0
+        ? progressConfidenceStats.stallEvents / Math.max(1, progressConfidenceStats.heartbeatCount)
+        : (progressConfidenceStats.stallEvents > 0 ? 1 : 0);
+      progressConfidenceComponents.stallEventsScore = clamp01(1 - (stallRate / 0.18));
+    };
+
+    const buildProgressConfidenceSnapshot = () => {
+      updateProgressConfidenceComponentScores();
+      const queueP90 = percentile(queueAgeSamplesMs, 0.9);
+      const queueMean = mean(queueAgeSamplesMs);
+      const inFlightMean = mean(inFlightSamples);
+      const inFlightMin = inFlightSamples.length ? Math.min(...inFlightSamples) : null;
+      const inFlightMax = inFlightSamples.length ? Math.max(...inFlightSamples) : null;
+      const confidence = computeBenchProgressConfidence({
+        heartbeatRegularityScore: progressConfidenceComponents.heartbeatRegularityScore,
+        queueAgeScore: progressConfidenceComponents.queueAgeScore,
+        inFlightSpreadScore: progressConfidenceComponents.inFlightSpreadScore,
+        stallEventsScore: progressConfidenceComponents.stallEventsScore,
+        heartbeatSamples: heartbeatIntervalsMs.length,
+        queueSamples: queueAgeSamplesMs.length,
+        inFlightSamples: inFlightSamples.length,
+        stallSamples: progressConfidenceStats.heartbeatCount
+      });
+      return {
+        ...confidence,
+        streamPaths: progressConfidenceStreams,
+        heartbeat: {
+          count: progressConfidenceStats.heartbeatCount,
+          meanIntervalMs: mean(heartbeatIntervalsMs),
+          p95IntervalMs: percentile(heartbeatIntervalsMs, 0.95)
+        },
+        queueAge: {
+          count: queueAgeSamplesMs.length,
+          meanMs: queueMean,
+          p90Ms: queueP90
+        },
+        inFlight: {
+          count: inFlightSamples.length,
+          mean: inFlightMean,
+          min: inFlightMin,
+          max: inFlightMax
+        },
+        stallEvents: progressConfidenceStats.stallEvents,
+        confidenceEvents: progressConfidenceStats.confidenceEvents
+      };
+    };
+
+    const buildProgressConfidenceSummary = () => {
+      const snapshot = buildProgressConfidenceSnapshot();
+      return {
+        ...snapshot,
+        generatedAt: new Date().toISOString()
+      };
+    };
+
+    const emitProgressConfidenceSample = ({
+      reason = 'periodic',
+      source = 'stream',
+      force = false,
+      interactive = true
+    } = {}) => {
+      const now = Date.now();
+      const snapshot = buildProgressConfidenceSnapshot();
+      const score = Number(snapshot?.score);
+      const priorScore = Number(progressConfidenceStats.lastScore);
+      const changed = Number.isFinite(score)
+        && (!Number.isFinite(priorScore) || Math.abs(score - priorScore) >= PROGRESS_CONFIDENCE_EMIT_DELTA);
+      const bucketChanged = snapshot?.bucket && snapshot.bucket !== progressConfidenceStats.lastBucket;
+      const periodic = now - progressConfidenceStats.lastEmitMs >= PROGRESS_CONFIDENCE_EMIT_INTERVAL_MS;
+      if (!force && !periodic && !changed && !bucketChanged) return;
+
+      progressConfidenceStats.lastEmitMs = now;
+      progressConfidenceStats.lastScore = Number.isFinite(score) ? score : null;
+      progressConfidenceStats.lastBucket = snapshot?.bucket || 'unknown';
+      progressConfidenceStats.confidenceEvents += 1;
+
+      const payload = {
+        schemaVersion: snapshot.schemaVersion,
+        ts: new Date().toISOString(),
+        label,
+        command: toText(cmd) || null,
+        source: toText(source) || 'stream',
+        reason: toText(reason) || 'periodic',
+        score: snapshot.score,
+        bucket: snapshot.bucket,
+        text: snapshot.text,
+        components: snapshot.components,
+        samples: snapshot.samples,
+        heartbeat: snapshot.heartbeat,
+        queueAge: snapshot.queueAge,
+        inFlight: snapshot.inFlight,
+        stallEvents: snapshot.stallEvents
+      };
+      for (const filePath of progressConfidenceStreams) {
+        appendJsonLineSync(filePath, payload);
+      }
+
+      if (!interactive) return;
+      const level = snapshot.bucket === 'low' ? 'warn' : 'info';
+      const confidenceText = formatBenchProgressConfidence(snapshot.score);
+      const inFlightSpread = Number.isFinite(snapshot.inFlight?.max) && Number.isFinite(snapshot.inFlight?.min)
+        ? (snapshot.inFlight.max - snapshot.inFlight.min)
+        : null;
+      appendLog(
+        `[progress] confidence ${confidenceText} | ` +
+        `hb ${formatCompactDuration(snapshot.heartbeat?.meanIntervalMs)} (p95 ${formatCompactDuration(snapshot.heartbeat?.p95IntervalMs)}) | ` +
+        `queue p90 ${formatCompactDuration(snapshot.queueAge?.p90Ms)} | ` +
+        `in-flight spread ${Number.isFinite(inFlightSpread) ? inFlightSpread.toFixed(1) : 'n/a'} | ` +
+        `stalls ${snapshot.stallEvents}`,
+        level
+      );
+    };
+
+    const observeProgressTelemetry = ({ message = '', event = null, source = 'stream' } = {}) => {
+      const now = Date.now();
+      const eventName = String(event?.event || '').toLowerCase();
+      const hasHeartbeatSignal = eventName.startsWith('task:')
+        && (eventName === 'task:start' || eventName === 'task:progress' || eventName === 'task:end');
+      if (hasHeartbeatSignal) {
+        if (Number.isFinite(progressConfidenceStats.lastHeartbeatMs)) {
+          const intervalMs = Math.max(0, now - progressConfidenceStats.lastHeartbeatMs);
+          appendSample(heartbeatIntervalsMs, intervalMs);
+          if (intervalMs >= HEARTBEAT_STALL_THRESHOLD_MS) {
+            progressConfidenceStats.stallEvents += 1;
+          }
+        }
+        progressConfidenceStats.lastHeartbeatMs = now;
+        progressConfidenceStats.heartbeatCount += 1;
+      }
+
+      const queueAgeMs = resolveQueueAgeMs({ message, event });
+      if (Number.isFinite(queueAgeMs)) {
+        appendSample(queueAgeSamplesMs, queueAgeMs);
+        progressConfidenceStats.queueSamples = queueAgeSamplesMs.length;
+      }
+      const inFlight = resolveInFlightCount({ message, event });
+      if (Number.isFinite(inFlight)) {
+        appendSample(inFlightSamples, inFlight);
+        progressConfidenceStats.inFlightSamples = inFlightSamples.length;
+      }
+
+      emitProgressConfidenceSample({
+        reason: hasHeartbeatSignal ? eventName : 'line',
+        source,
+        interactive: hasHeartbeatSignal
+      });
+    };
+
+    const noteStallEvent = ({ source = 'stream', reason = 'stall-event' } = {}) => {
+      progressConfidenceStats.stallEvents += 1;
+      emitProgressConfidenceSample({
+        reason,
+        source,
+        force: true,
+        interactive: true
+      });
+    };
 
     const maybeEmitInteractiveDiagnostic = ({ eventType, eventId, message }) => {
       const key = String(eventId || '');
@@ -274,6 +595,12 @@ export const createProcessRunner = ({
         appendJsonLineSync(filePath, payload);
       }
       maybeEmitInteractiveDiagnostic({ eventType, eventId, message: payload.message });
+      if (eventType === 'queue_delay_hotspot' || eventType === 'artifact_tail_stall') {
+        noteStallEvent({
+          source: payload.source,
+          reason: eventType
+        });
+      }
     };
 
     const inspectDiagnostic = ({ line, event, source }) => {
@@ -326,6 +653,11 @@ export const createProcessRunner = ({
           message: textLine
         });
       }
+      observeProgressTelemetry({
+        message: parsedEvent?.message || textLine,
+        event: parsedEvent,
+        source: parsedEvent ? 'progress-event' : source
+      });
       if (parsedEvent && typeof onProgressEvent === 'function') {
         onProgressEvent(parsedEvent);
         return;
@@ -354,11 +686,18 @@ export const createProcessRunner = ({
       const code = result.exitCode;
       writeLog(`[finish] ${label} code=${code}`);
       clearActiveChild(result.pid);
+      emitProgressConfidenceSample({
+        reason: 'process-exit',
+        source: 'exit',
+        force: true,
+        interactive: false
+      });
       if (code === 0) {
         return {
           ok: true,
           schedulerEvents: getSchedulerEvents(),
-          diagnostics: buildDiagnosticsSummary()
+          diagnostics: buildDiagnosticsSummary(),
+          progressConfidence: buildProgressConfidenceSummary()
         };
       }
       appendLog(`[run] failed: ${label}`);
@@ -381,7 +720,8 @@ export const createProcessRunner = ({
         ok: false,
         code: code ?? 1,
         schedulerEvents: getSchedulerEvents(),
-        diagnostics: buildDiagnosticsSummary()
+        diagnostics: buildDiagnosticsSummary(),
+        progressConfidence: buildProgressConfidenceSummary()
       };
     } catch (err) {
       stdoutDecoder.flush();
@@ -400,11 +740,18 @@ export const createProcessRunner = ({
         logExit('failure', err?.exitCode ?? 1);
         process.exit(err?.exitCode ?? 1);
       }
+      emitProgressConfidenceSample({
+        reason: 'spawn-error',
+        source: 'error',
+        force: true,
+        interactive: false
+      });
       return {
         ok: false,
         code: err?.exitCode ?? 1,
         schedulerEvents: getSchedulerEvents(),
-        diagnostics: buildDiagnosticsSummary()
+        diagnostics: buildDiagnosticsSummary(),
+        progressConfidence: buildProgressConfidenceSummary()
       };
     }
   };
