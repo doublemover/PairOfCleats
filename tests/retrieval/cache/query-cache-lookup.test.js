@@ -63,4 +63,24 @@ assert.ok(
 assert.equal(prewarmedHit?.key, 'k1', 'expected prewarm hit for requested key');
 assert.equal(prewarmedHit?.signature, 's1', 'expected prewarm hit for requested signature');
 
+loadQueryCache(cachePath, { prewarm: true, prewarmMaxEntries: 0.5 });
+const fractionalCapHit = findQueryCacheEntry(
+  { version: 1, entries: [] },
+  'k1',
+  's1',
+  { cachePath, strategy: 'memory-first', memoryFreshMs: 60_000 }
+);
+assert.ok(fractionalCapHit, 'expected fractional prewarm cap to retain at least one hot entry');
+const fractionalCapMiss = findQueryCacheEntry(
+  { version: 1, entries: [] },
+  'k2',
+  's2',
+  { cachePath, strategy: 'memory-first', memoryFreshMs: 60_000 }
+);
+assert.equal(
+  fractionalCapMiss,
+  null,
+  'expected fractional prewarm cap to clamp to one entry instead of disabling trim'
+);
+
 console.log('query cache lookup test passed');

@@ -69,6 +69,15 @@ const resolveCachePathKey = (cachePath) => (
   typeof cachePath === 'string' && cachePath ? cachePath : MEMORY_CACHE_KEY
 );
 
+const normalizeHotCacheMaxEntries = (
+  value,
+  fallback = HOT_CACHE_MAX_ENTRIES_DEFAULT
+) => {
+  const fallbackEntries = normalizePositiveInt(fallback, HOT_CACHE_MAX_ENTRIES_DEFAULT);
+  const normalized = normalizePositiveInt(value, fallbackEntries);
+  return Math.max(1, normalized ?? HOT_CACHE_MAX_ENTRIES_DEFAULT);
+};
+
 const ensureHotCache = (cachePath, maxEntries = HOT_CACHE_MAX_ENTRIES_DEFAULT) => {
   const pathKey = resolveCachePathKey(cachePath);
   if (!pathKey) return null;
@@ -76,11 +85,14 @@ const ensureHotCache = (cachePath, maxEntries = HOT_CACHE_MAX_ENTRIES_DEFAULT) =
   if (!state) {
     state = {
       entries: new Map(),
-      maxEntries: normalizePositiveInt(maxEntries, HOT_CACHE_MAX_ENTRIES_DEFAULT)
+      maxEntries: normalizeHotCacheMaxEntries(maxEntries, HOT_CACHE_MAX_ENTRIES_DEFAULT)
     };
     queryCacheHotEntries.set(pathKey, state);
   } else if (maxEntries != null) {
-    state.maxEntries = normalizePositiveInt(maxEntries, state.maxEntries || HOT_CACHE_MAX_ENTRIES_DEFAULT);
+    state.maxEntries = normalizeHotCacheMaxEntries(
+      maxEntries,
+      state.maxEntries || HOT_CACHE_MAX_ENTRIES_DEFAULT
+    );
   }
   return state;
 };
@@ -99,7 +111,7 @@ const clearDiskCache = (cachePath) => {
 
 const trimHotCache = (state) => {
   if (!state?.entries || !(state.entries instanceof Map)) return;
-  const maxEntries = normalizePositiveInt(state.maxEntries, HOT_CACHE_MAX_ENTRIES_DEFAULT);
+  const maxEntries = normalizeHotCacheMaxEntries(state.maxEntries, HOT_CACHE_MAX_ENTRIES_DEFAULT);
   if (state.entries.size <= maxEntries) return;
   const sorted = sortAndTrimEntriesByNewest(Array.from(state.entries.entries()), {
     maxEntries,
@@ -160,7 +172,10 @@ const prewarmHotCache = ({
   const sorted = sortAndTrimEntriesByNewest(
     list.filter((entry) => entry?.key && entry?.signature),
     {
-      maxEntries: normalizePositiveInt(maxEntries, HOT_CACHE_MAX_ENTRIES_DEFAULT)
+      maxEntries: normalizeHotCacheMaxEntries(
+        maxEntries,
+        state.maxEntries || HOT_CACHE_MAX_ENTRIES_DEFAULT
+      )
     }
   );
   for (const entry of sorted) {
@@ -191,7 +206,7 @@ export function loadQueryCache(cachePath, options = {}) {
       prewarmHotCache({
         cachePath,
         entries: cached.value.entries,
-        maxEntries: normalizePositiveInt(options.prewarmMaxEntries, HOT_CACHE_MAX_ENTRIES_DEFAULT)
+        maxEntries: options.prewarmMaxEntries
       });
     }
     return cached.value;
@@ -209,7 +224,7 @@ export function loadQueryCache(cachePath, options = {}) {
         prewarmHotCache({
           cachePath,
           entries: data.entries,
-          maxEntries: normalizePositiveInt(options.prewarmMaxEntries, HOT_CACHE_MAX_ENTRIES_DEFAULT)
+          maxEntries: options.prewarmMaxEntries
         });
       }
       return data;
@@ -268,7 +283,7 @@ export function findQueryCacheEntry(cache, key, signature, options = {}) {
         key,
         signature,
         entry,
-        maxEntries: normalizePositiveInt(options?.maxHotEntries, HOT_CACHE_MAX_ENTRIES_DEFAULT)
+        maxEntries: options?.maxHotEntries
       });
     }
     return entry;
@@ -293,7 +308,7 @@ export function rememberQueryCacheEntry(cachePath, key, signature, entry, maxEnt
     key,
     signature,
     entry,
-    maxEntries: normalizePositiveInt(maxEntries, HOT_CACHE_MAX_ENTRIES_DEFAULT)
+    maxEntries
   });
 }
 
