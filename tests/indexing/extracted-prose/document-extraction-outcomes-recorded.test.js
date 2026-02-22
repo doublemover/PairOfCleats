@@ -2,23 +2,20 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { getCurrentBuildInfo, getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { buildMinimalDocxBuffer } from '../../helpers/document-fixtures.js';
+import {
+  normalizeFixturePath,
+  readExtractedProseArtifacts,
+  runExtractedProseBuild,
+  setupExtractedProseFixture
+} from '../../helpers/extracted-prose-fixture.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
-const normalizePath = (value) => String(value || '').replace(/\\/g, '/').toLowerCase();
-
-const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'phase17-document-extraction-outcomes');
-const repoRoot = path.join(tempRoot, 'repo');
-const cacheRoot = path.join(tempRoot, 'cache');
-
-await fs.rm(tempRoot, { recursive: true, force: true });
-await fs.mkdir(path.join(repoRoot, 'docs'), { recursive: true });
-await fs.mkdir(cacheRoot, { recursive: true });
-await fs.writeFile(path.join(repoRoot, 'docs', 'ok.pdf'), Buffer.from('phase17 outcomes pdf ok', 'utf8'));
-await fs.writeFile(path.join(repoRoot, 'docs', 'skip.docx'), buildMinimalDocxBuffer(['phase17 outcomes docx skip']));
+const { root, repoRoot, cacheRoot, docsDir } = await setupExtractedProseFixture(
+  'phase17-document-extraction-outcomes'
+);
+await fs.writeFile(path.join(docsDir, 'ok.pdf'), Buffer.from('phase17 outcomes pdf ok', 'utf8'));
+await fs.writeFile(path.join(docsDir, 'skip.docx'), buildMinimalDocxBuffer(['phase17 outcomes docx skip']));
 
 const env = applyTestEnv({
   cacheRoot,
@@ -37,23 +34,13 @@ const env = applyTestEnv({
   }
 });
 
-const buildResult = spawnSync(
-  process.execPath,
-  [path.join(root, 'build_index.js'), '--repo', repoRoot, '--mode', 'extracted-prose', '--stub-embeddings'],
-  { cwd: repoRoot, env, stdio: 'inherit' }
-);
-assert.equal(buildResult.status, 0, 'expected extracted-prose build to succeed');
+runExtractedProseBuild({ root, repoRoot, env });
 
-const userConfig = loadUserConfig(repoRoot);
-const buildInfo = getCurrentBuildInfo(repoRoot, userConfig, { mode: 'extracted-prose' });
-const indexRoot = buildInfo?.activeRoot || buildInfo?.buildRoot || null;
-assert.ok(indexRoot, 'expected extracted-prose build root');
-
-const indexDir = getIndexDir(repoRoot, 'extracted-prose', userConfig, { indexRoot });
-const report = JSON.parse(await fs.readFile(path.join(indexDir, 'extraction_report.json'), 'utf8'));
+const { extractionReport: report } = await readExtractedProseArtifacts(repoRoot);
+assert.ok(report, 'expected extraction_report.json');
 const files = Array.isArray(report?.files) ? report.files : [];
-const okPdf = files.find((entry) => normalizePath(entry?.file).endsWith('docs/ok.pdf'));
-const skippedDocx = files.find((entry) => normalizePath(entry?.file).endsWith('docs/skip.docx'));
+const okPdf = files.find((entry) => normalizeFixturePath(entry?.file).endsWith('docs/ok.pdf'));
+const skippedDocx = files.find((entry) => normalizeFixturePath(entry?.file).endsWith('docs/skip.docx'));
 
 assert.ok(okPdf, 'expected PDF report entry');
 assert.ok(skippedDocx, 'expected DOCX report entry');

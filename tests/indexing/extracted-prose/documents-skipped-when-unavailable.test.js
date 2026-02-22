@@ -2,11 +2,11 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { buildMinimalDocxBuffer, buildMinimalPdfBuffer } from '../../helpers/document-fixtures.js';
 import {
   findFixtureEntryBySuffix,
-  inspectExtractedProseState,
+  readExtractedProseArtifacts,
+  runExtractedProseBuild,
   setupExtractedProseFixture
 } from '../../helpers/extracted-prose-fixture.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
@@ -34,18 +34,10 @@ const env = applyTestEnv({
   }
 });
 
-const buildResult = spawnSync(
-  process.execPath,
-  [path.join(root, 'build_index.js'), '--repo', repoRoot, '--mode', 'extracted-prose', '--stub-embeddings'],
-  { cwd: repoRoot, env, stdio: 'inherit' }
-);
-assert.equal(buildResult.status, 0, 'expected extracted-prose build to succeed');
+runExtractedProseBuild({ root, repoRoot, env });
 
-const state = inspectExtractedProseState(repoRoot);
-const indexRoot = state.indexRoot;
-assert.ok(indexRoot, 'expected extracted-prose build root');
-
-const fileLists = JSON.parse(await fs.readFile(state.fileListsPath, 'utf8'));
+const { fileLists } = await readExtractedProseArtifacts(repoRoot);
+assert.ok(fileLists, 'expected .filelists.json');
 const skippedSample = Array.isArray(fileLists?.skipped?.sample) ? fileLists.skipped.sample : [];
 
 const skippedPdf = findFixtureEntryBySuffix(skippedSample, 'docs/sample.pdf');

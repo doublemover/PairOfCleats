@@ -1,26 +1,23 @@
 #!/usr/bin/env node
 import crypto from 'node:crypto';
-import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { getCurrentBuildInfo, loadUserConfig } from '../../../tools/shared/dict-utils.js';
+import {
+  findFixtureEntryBySuffix,
+  readExtractedProseArtifacts,
+  runExtractedProseBuild,
+  setupExtractedProseFixture
+} from '../../helpers/extracted-prose-fixture.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
 const sha256 = (buffer) => crypto.createHash('sha256').update(buffer).digest('hex');
-const normalizePath = (value) => String(value || '').replace(/\\/g, '/').toLowerCase();
 
-const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'phase17-document-checksums-counts');
-const repoRoot = path.join(tempRoot, 'repo');
-const cacheRoot = path.join(tempRoot, 'cache');
+const { root, repoRoot, cacheRoot, docsDir } = await setupExtractedProseFixture(
+  'phase17-document-checksums-counts'
+);
 
-await fsPromises.rm(tempRoot, { recursive: true, force: true });
-await fsPromises.mkdir(path.join(repoRoot, 'docs'), { recursive: true });
-await fsPromises.mkdir(cacheRoot, { recursive: true });
-
-const pdfPath = path.join(repoRoot, 'docs', 'sample.pdf');
-const docxPath = path.join(repoRoot, 'docs', 'sample.docx');
+const pdfPath = path.join(docsDir, 'sample.pdf');
+const docxPath = path.join(docsDir, 'sample.docx');
 const pdfBuffer = Buffer.from('stub pdf checksum payload', 'utf8');
 const docxBuffer = Buffer.from('stub docx checksum payload', 'utf8');
 await fsPromises.writeFile(pdfPath, pdfBuffer);
@@ -43,45 +40,17 @@ const env = applyTestEnv({
   }
 });
 
-const buildResult = spawnSync(
-  process.execPath,
-  [
-    path.join(root, 'build_index.js'),
-    '--repo',
-    repoRoot,
-    '--mode',
-    'extracted-prose',
-    '--stub-embeddings'
-  ],
-  {
-    cwd: repoRoot,
-    env,
-    stdio: 'inherit'
-  }
-);
-if (buildResult.status !== 0) {
+try {
+  runExtractedProseBuild({ root, repoRoot, env });
+} catch {
   console.error('document checksum/count test failed: build_index failed');
-  process.exit(buildResult.status ?? 1);
-}
-
-const userConfig = loadUserConfig(repoRoot);
-const currentBuild = getCurrentBuildInfo(repoRoot, userConfig, { mode: 'extracted-prose' });
-const indexRoot = currentBuild?.activeRoot || currentBuild?.buildRoot || null;
-if (!indexRoot) {
-  console.error('document checksum/count test failed: missing build root');
   process.exit(1);
 }
 
-const buildStatePath = path.join(indexRoot, 'build_state.json');
-if (!fs.existsSync(buildStatePath)) {
-  console.error('document checksum/count test failed: missing build_state.json');
-  process.exit(1);
-}
-const buildState = JSON.parse(await fsPromises.readFile(buildStatePath, 'utf8'));
-const extraction = buildState?.documentExtraction?.['extracted-prose'];
+const { extraction } = await readExtractedProseArtifacts(repoRoot);
 const files = Array.isArray(extraction?.files) ? extraction.files : [];
-const pdfEntry = files.find((entry) => normalizePath(entry?.file).endsWith('docs/sample.pdf'));
-const docxEntry = files.find((entry) => normalizePath(entry?.file).endsWith('docs/sample.docx'));
+const pdfEntry = findFixtureEntryBySuffix(files, 'docs/sample.pdf');
+const docxEntry = findFixtureEntryBySuffix(files, 'docs/sample.docx');
 if (!pdfEntry || !docxEntry) {
   console.error('document checksum/count test failed: missing expected extraction file entries');
   process.exit(1);

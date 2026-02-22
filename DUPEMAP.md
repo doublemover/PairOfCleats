@@ -1,6 +1,6 @@
 # DUPEMAP
 
-Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during sweep)
+Generated: 2026-02-22T22:40:00.000Z (working draft; actively updated during sweep)
 
 ## Method
 
@@ -18,7 +18,7 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - `tools`: `295`
 - Additional covered surfaces: `bin`, `extensions`, `sublime`, root scripts/config.
 
-## Implementation Matrix (2026-02-22T07:54:57.6384014-05:00)
+## Implementation Matrix (2026-02-22T22:40:00.000Z)
 
 - Totals:
 - `closed`: `70`
@@ -57,6 +57,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Shared-module fix:
 - Extract one `resolveFormat(argv)` helper in a shared CLI utility module and import everywhere.
 
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
+
 ### 2) Duplicated `mergeCaps(baseCaps, overrides)` logic
 
 - Files:
@@ -70,6 +72,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - New cap fields can be omitted or merged differently in one CLI.
 - Shared-module fix:
 - Create `mergeOverrideCaps(baseCaps, overrides)` in shared tooling helpers.
+
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
 
 ### 3) Repeated graph metadata loading sequence
 
@@ -86,6 +90,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Shared-module fix:
 - Build `prepareGraphInputs({ repoRoot, indexDir, strict })` to centralize metadata plumbing.
 
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
+
 ### 4) Repeated graph cache key + graph index loading
 
 - Files:
@@ -101,6 +107,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Shared-module fix:
 - Add `prepareGraphIndex({ repoRoot, indexDir, selection })` helper reused by all CLIs.
 
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
+
 ### 5) Identical `parseList` list-normalization helpers
 
 - Files:
@@ -114,6 +122,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Shared-module fix:
 - Move to `src/shared/cli-helpers.js` as `parseList`.
 
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
+
 ### 6) Duplicated changed-file parsing (`--changed`, `--changed-file`)
 
 - Files:
@@ -125,6 +135,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Path validation and changed-file behavior become inconsistent.
 - Shared-module fix:
 - Extract `parseChangedInputs(argv, repoRoot)` helper.
+
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
 
 ### 7) Duplicated output rendering and error emission pattern
 
@@ -141,6 +153,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Shared-module fix:
 - Introduce `renderCliResult({ format, renderMd, payload, errorCode })`.
 
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
+
 ### 8) Redundant repo-path wrapper around shared normalize function
 
 - Files:
@@ -152,6 +166,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Extra wrappers hide common behavior and invite accidental divergence when expanded.
 - Shared-module fix:
 - Use shared `normalizeRepoRelativePath` directly or create one shared wrapper used by both.
+
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
 
 ### 9) Repeated path normalization in extracted-prose tests
 
@@ -166,6 +182,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Shared-module fix:
 - Add `tests/helpers/path-normalize.js` (or re-export `src/shared/path-normalize.js`) and reuse it.
 
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): regression found in newer extracted-prose tests; path matching now reuses shared fixture normalization helpers and migrated tests.
+
 ### 10) Duplicated extracted-prose fixture setup
 
 - Files:
@@ -178,6 +196,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Fixture setup changes (paths/env/flags) require multi-file edits and can desynchronize.
 - Shared-module fix:
 - Create `tests/helpers/extracted-prose-fixture.js` to encapsulate setup and index-build steps.
+
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): regression found in newer extracted-prose tests; fixture scaffolding and build invocation now flow through shared extracted-prose fixture helpers.
 
 ### 11) Repeated document-extraction state inspection
 
@@ -192,6 +212,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Shared-module fix:
 - Add helper(s) returning parsed state + normalized extracted-prose entry per path.
 
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): regression found in newer extracted-prose tests; build-state and artifact reads now flow through shared extracted-prose artifact readers for deterministic inspection.
+
 ### 12) Repeated TUI supervisor session wiring in tests
 
 - Files:
@@ -204,6 +226,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Race condition fixes and timeout tuning applied inconsistently.
 - Shared-module fix:
 - Create `tests/helpers/tui-supervisor-session.js` exposing spawn/send/waitForEvent utilities.
+
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
 
 ### 13) Repeated search test lifecycle (repo scaffold + index + search run)
 
@@ -220,6 +244,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Shared-module fix:
 - Introduce `tests/helpers/search-runner.js` for setup, command execution, and parsed response.
 
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
+
 ### 14) Duplicate `spawnSync` command-wrapper patterns in fixtures
 
 - Files:
@@ -232,6 +258,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Shared-module fix:
 - Centralize in `tests/helpers/run-command.js`.
 
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
+
 ### 15) Repeated install/uninstall workspace scaffolding
 
 - Files:
@@ -243,6 +271,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Inconsistent setup can produce false negatives/positives in install behavior tests.
 - Shared-module fix:
 - Extract shared helper for install test workspace bootstrapping and post-checks.
+
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
 
 ### 16) Editor integrations reimplement shared CLI config resolution
 
@@ -258,6 +288,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Shared-module fix:
 - Define canonical editor-integration config behavior in shared tooling module or schema-driven contract and align both adapters.
 
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
+
 ### 17) Duplicate `copyDir` helper behavior in CI artifact scripts
 
 - Files:
@@ -269,6 +301,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Copy semantics diverge between artifact build and restore flows.
 - Shared-module fix:
 - Move to `tools/shared/fs-copy.js` (or an existing shared fs helper module).
+
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
 
 ### 18) Repeated subprocess spawn + exit/error handling in tools
 
@@ -283,6 +317,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Shared-module fix:
 - Standardize on one command-runner helper for sync child execution and failure handling.
 
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
+
 ### 19) Repeated repo/config/env bootstrap flow
 
 - Files:
@@ -296,6 +332,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Shared-module fix:
 - Introduce one shared `bootstrapRuntime(argv)` returning `{ repoRoot, userConfig, runtimeConfig, baseEnv }`.
 
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
+
 ### 20) Duplicated git metadata read/check logic
 
 - Files:
@@ -307,6 +345,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Commit-detection behavior can drift and create hard-to-debug CI mismatches.
 - Shared-module fix:
 - Extract a shared `readRepoGitState(root)` helper.
+
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
 
 ### 21) Duplicate `parseMeta` implementation across triage scripts
 
@@ -320,6 +360,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Shared-module fix:
 - Create shared triage metadata parser utility.
 
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
+
 ### 22) Duplicate `name=url` source parsing in download tooling
 
 - Files:
@@ -331,6 +373,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Users get inconsistent parsing behavior depending on download surface.
 - Shared-module fix:
 - Consolidate to one shared source-spec parser.
+
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
 
 ### 23) Repeated manifest JSON read/write boilerplate
 
@@ -344,6 +388,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Shared-module fix:
 - Add shared manifest manager (`readManifest`/`writeManifest`) in tooling utilities.
 
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
+
 ### 24) Duplicate safe-JSON-read try/catch pattern
 
 - Files:
@@ -355,6 +401,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Silent parse failures can differ in logs or fallback semantics.
 - Shared-module fix:
 - Reuse a single `safeReadJson(path, { onError })` helper across scripts.
+
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
 
 ### 25) Local `emitJson` helpers duplicated despite shared CLI utilities
 
@@ -368,6 +416,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Shared-module fix:
 - Reuse shared `emitJson` from tooling utilities everywhere.
 
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
+
 ### 26) Local `emitError` helpers duplicated in index tooling
 
 - Files:
@@ -379,6 +429,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Error payload shape and stderr fallback behavior can drift.
 - Shared-module fix:
 - Add one shared error emitter with consistent JSON/stderr contract.
+
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
 
 ### 27) Duplicate `normalizeNumber` helper in index CLIs
 
@@ -392,6 +444,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Shared-module fix:
 - Move number normalization to shared CLI numeric helper.
 
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
+
 ### 28) Duplicate comma-list parsing with dedupe
 
 - Files:
@@ -403,6 +457,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Accepted input formats and dedupe behavior diverge.
 - Shared-module fix:
 - Create shared `parseCommaList(value, fallback)` helper.
+
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
 
 ### 29) Version resolution duplicated across entrypoints despite shared helper
 
@@ -418,6 +474,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Shared-module fix:
 - Use `tools/shared/dict-utils/tool.js` version helper consistently.
 
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
+
 ### 30) Boolean string parsing reimplemented across CLI/config/env surfaces
 
 - Files:
@@ -431,6 +489,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Shared-module fix:
 - Standardize on one shared boolean normalization function.
 
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
+
 ### 31) Duplicated config-path resolution in config tools
 
 - Files:
@@ -442,6 +502,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Config command behavior diverges for missing/explicit paths.
 - Shared-module fix:
 - Extract `resolveUserConfigPath(argv, repoRoot)` helper.
+
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
 
 ### 32) Recursive directory traversal logic reimplemented
 
@@ -455,6 +517,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Shared-module fix:
 - Move deterministic traversal to shared fs utility.
 
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
+
 ### 33) Path separator normalization reimplemented despite shared function
 
 - Files:
@@ -466,6 +530,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Regex/path edge-case behavior can drift across tools.
 - Shared-module fix:
 - Reuse `src/shared/files.js` path normalization helper.
+
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
 
 ### 34) Indexing section default-resolution duplicated
 
@@ -479,6 +545,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Shared-module fix:
 - Introduce shared `getIndexingSection(userConfig, key, defaults)` helper.
 
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
+
 ### 35) Manifest parsing reimplemented in artifact consistency tests
 
 - Files:
@@ -490,6 +558,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Tests bypass canonical manifest strictness/size/schema behavior.
 - Shared-module fix:
 - Use `loadPiecesManifest()` from `src/shared/artifact-io/manifest.js`.
+
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
 
 ### 36) Manifest parsing reimplemented in embeddings tests
 
@@ -503,6 +573,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Shared-module fix:
 - Replace ad hoc parsing with `loadPiecesManifest()` and shared manifest utilities.
 
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
+
 ### 37) Manifest parsing reimplemented in piece-assembly tests
 
 - Files:
@@ -513,6 +585,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Redundant parsing logic increases maintenance burden and inconsistency risk.
 - Shared-module fix:
 - Load once through shared helper and reuse normalized manifest object.
+
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
 
 ### 38) Manifest parsing reimplemented in validator risk tests
 
@@ -525,6 +599,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Shared-module fix:
 - Seed scenario via `loadPiecesManifest()` then mutate test-specific fields.
 
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
+
 ### 39) Manifest parsing reimplemented in unknown-piece validation test
 
 - Files:
@@ -535,6 +611,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Inconsistent strictness with production validator behavior.
 - Shared-module fix:
 - Reuse shared manifest loader in test scaffolding.
+
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
 
 ### 40) Manifest parsing reimplemented in strict unknown-artifact validation test
 
@@ -547,6 +625,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Shared-module fix:
 - Use shared loader + artifact presence resolution helpers.
 
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
+
 ### 41) Manifest parsing reimplemented in required-keys validation test
 
 - Files:
@@ -558,6 +638,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Shared-module fix:
 - Route manifest loading through shared helper.
 
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
+
 ### 42) Manifest parsing reimplemented in file-name-collision validation test
 
 - Files:
@@ -568,6 +650,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Edge-case coverage may mismatch runtime parsing on malformed inputs.
 - Shared-module fix:
 - Replace manual parse with shared loader before mutation.
+
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
 
 ### 43) Docs tooling CLIs reimplement shared parser scaffolding
 
@@ -582,6 +666,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - CLI behavior drift across docs tools when parser policy changes.
 - Shared-module fix:
 - Use `src/shared/cli.js` `createCli(...)` to centralize parser defaults.
+
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
 
 ### 44) CI/bench CLIs reimplement parser scaffolding instead of shared CLI wrapper
 
@@ -599,6 +685,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Shared-module fix:
 - Route all through `createCli` shared wrapper.
 
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
+
 ### 45) Chunk-row normalization duplicated across SQLite ingest surfaces
 
 - Files:
@@ -610,6 +698,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Schema evolution and chunk integrity behavior diverge across ingest pathways.
 - Shared-module fix:
 - Introduce shared `normalizeChunkForSqlite(chunk)` utility.
+
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
 
 ### 46) File-manifest row generation duplicated across ingest/compact flows
 
@@ -624,6 +714,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Shared-module fix:
 - Extract `buildFileManifestRows(...)` shared helper.
 
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
+
 ### 47) Normalized manifest map construction reimplemented
 
 - Files:
@@ -635,6 +727,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Path-key canonicalization differences produce mismatched lookups.
 - Shared-module fix:
 - Create shared manifest-entry collector utility.
+
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
 
 ### 48) Docmeta signature/document extraction duplicated
 
@@ -648,6 +742,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Shared-module fix:
 - Centralize extraction helper in shared chunk-meta utilities.
 
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
+
 ### 49) Batched insert buffering logic reimplemented
 
 - Files:
@@ -658,6 +754,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Flush policy changes require multi-site edits and can desync metrics.
 - Shared-module fix:
 - Add generic `createBatchInserter({ batchSize, byteBudget, insertFn })`.
+
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
 
 ### 50) Chunk-meta source format dispatch duplicated
 
@@ -671,6 +769,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Shared-module fix:
 - Build shared `resolveChunkMetaSources(indexDir)` dispatcher.
 
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
+
 ### 51) JSONL reading helper reimplemented in tooling
 
 - Files:
@@ -682,6 +782,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Parser fixes/compression handling updates diverge.
 - Shared-module fix:
 - Reuse shared reader from artifact source utilities.
+
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
 
 ### 52) Chunk-meta part path normalization duplicated
 
@@ -696,6 +798,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Shared-module fix:
 - Extract `expandChunkMetaParts(metaFields, baseDir)`.
 
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
+
 ### 53) Chunk-count aggregation logic repeated
 
 - Files:
@@ -707,6 +811,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Dedup/count semantics drift.
 - Shared-module fix:
 - Share `accumulateFileCounts(chunks)` helper.
+
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
 
 ### 54) Chunk-meta shard discovery order duplicated
 
@@ -720,6 +826,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Shared-module fix:
 - Add shared `locateChunkMetaShards(indexDir)` function.
 
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
+
 ### 55) Positive-integer guardrail normalization duplicated
 
 - Files:
@@ -731,6 +839,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Guardrail semantics diverge between CLI normalization and runtime pipeline enforcement.
 - Shared-module fix:
 - Add shared `normalizePositiveInt(value, fallback, min)` helper.
+
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
 
 ### 56) Search result limit normalization duplicated across backends
 
@@ -745,6 +855,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Shared-module fix:
 - Centralize query-limit normalization helper consumed by all retrieval backends.
 
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
+
 ### 57) Numeric clamp helpers duplicated in SQLite modules
 
 - Files:
@@ -758,6 +870,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Shared-module fix:
 - Use one shared clamp utility in `src/shared`.
 
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
+
 ### 58) Dense vector mode normalization duplicated
 
 - Files:
@@ -769,6 +883,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Unsupported-mode handling can differ across entrypoints.
 - Shared-module fix:
 - Extract shared `normalizeDenseVectorMode` function.
+
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
 
 ### 59) File signature probing duplicated for cache/index metadata
 
@@ -782,6 +898,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Shared-module fix:
 - Move to shared file-signature helper in retrieval/shared fs metadata module.
 
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
+
 ### 60) File-relations path lookup logic duplicated
 
 - Files:
@@ -794,6 +912,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Shared-module fix:
 - Consolidate into one shared file-relation resolver.
 
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
+
 ### 61) Optional artifact loader error-plumbing duplicated
 
 - Files:
@@ -804,6 +924,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Inconsistent warning and fallback behavior across optional artifact types.
 - Shared-module fix:
 - Add generic `loadOptionalArtifact(loader, fallback)` wrapper for shared error handling.
+
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
 
 ### 62) Chunk-meta artifact existence checks duplicated
 
@@ -817,6 +939,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Shared-module fix:
 - Create one shared chunk-meta presence predicate.
 
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
+
 ### 63) Cache eviction/trimming logic duplicated
 
 - Files:
@@ -829,6 +953,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Shared-module fix:
 - Reuse shared eviction utility with TTL + max-entry policy.
 
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
+
 ### 64) Boolean normalization reimplemented in retrieval CLI options
 
 - Files:
@@ -840,6 +966,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Different accepted truthy/falsy inputs depending on call path.
 - Shared-module fix:
 - Standardize on shared boolean normalizer (or shared superset function).
+
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
 
 ### 65) Query-file parsing/normalization duplicated across reports and tests
 
@@ -854,6 +982,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Query ingestion behavior diverges across benches/reports/parity tests.
 - Shared-module fix:
 - Extract shared `loadQueriesFromFile(filePath)` helper.
+
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
 
 ### 66) Search CLI invocation harness duplicated across evaluators/tests
 
@@ -870,6 +1000,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Shared-module fix:
 - Use one shared `runSearchCli({ ... })` helper for all evaluator surfaces.
 
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
+
 ### 67) Duration formatting duplicated in benchmark/parity reporting
 
 - Files:
@@ -881,6 +1013,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Reporting formats and unit conversions diverge.
 - Shared-module fix:
 - Reuse shared duration-format utility.
+
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
 
 ### 68) Index/artifact ensure-build flow duplicated for parity/reporting
 
@@ -894,6 +1028,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Shared-module fix:
 - Extract shared `ensureParityIndexes(...)` helper.
 
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
+
 ### 69) Mean aggregation helpers duplicated
 
 - Files:
@@ -906,6 +1042,8 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Shared-module fix:
 - Move to shared stats helper module.
 
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.
+
 ### 70) Top-N/limit parsing and query slicing duplicated
 
 - Files:
@@ -917,3 +1055,5 @@ Generated: 2026-02-22T11:22:16.9483525Z (working draft; actively updated during 
 - Query-selection semantics diverge across test/benchmark runners.
 - Shared-module fix:
 - Create shared query option normalization helper.
+
+- Audit (2026-02-22T22:35:00.000Z): Manual re-audit (8x detail): verified implementation remains complete with no new duplicate-helper regressions in the scoped files.

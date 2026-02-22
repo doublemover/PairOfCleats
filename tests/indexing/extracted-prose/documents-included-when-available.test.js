@@ -2,10 +2,10 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import {
   findFixtureEntryBySuffix,
-  inspectExtractedProseState,
+  readExtractedProseArtifacts,
+  runExtractedProseBuild,
   setupExtractedProseFixture
 } from '../../helpers/extracted-prose-fixture.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
@@ -33,19 +33,9 @@ const env = applyTestEnv({
   }
 });
 
-const buildResult = spawnSync(
-  process.execPath,
-  [path.join(root, 'build_index.js'), '--repo', repoRoot, '--mode', 'extracted-prose', '--stub-embeddings'],
-  { cwd: repoRoot, env, stdio: 'inherit' }
-);
-assert.equal(buildResult.status, 0, 'expected extracted-prose build to succeed');
+runExtractedProseBuild({ root, repoRoot, env });
 
-const state = inspectExtractedProseState(repoRoot);
-const indexRoot = state.indexRoot;
-assert.ok(indexRoot, 'expected extracted-prose build root');
-
-const buildState = JSON.parse(await fs.readFile(state.buildStatePath, 'utf8'));
-const extraction = buildState?.documentExtraction?.['extracted-prose'];
+const { extraction } = await readExtractedProseArtifacts(repoRoot);
 assert.ok(extraction, 'expected document extraction summary in build_state');
 
 const files = Array.isArray(extraction?.files) ? extraction.files : [];

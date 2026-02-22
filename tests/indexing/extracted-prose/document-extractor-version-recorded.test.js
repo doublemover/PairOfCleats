@@ -1,11 +1,10 @@
 #!/usr/bin/env node
-import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import {
   findFixtureEntryBySuffix,
-  inspectExtractedProseState,
+  readExtractedProseArtifacts,
+  runExtractedProseBuild,
   setupExtractedProseFixture
 } from '../../helpers/extracted-prose-fixture.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
@@ -31,41 +30,14 @@ const env = applyTestEnv({
   }
 });
 
-const buildResult = spawnSync(
-  process.execPath,
-  [
-    path.join(root, 'build_index.js'),
-    '--repo',
-    repoRoot,
-    '--mode',
-    'extracted-prose',
-    '--stub-embeddings'
-  ],
-  {
-    cwd: repoRoot,
-    env,
-    stdio: 'inherit'
-  }
-);
-if (buildResult.status !== 0) {
+try {
+  runExtractedProseBuild({ root, repoRoot, env });
+} catch {
   console.error('document extractor version test failed: build_index failed');
-  process.exit(buildResult.status ?? 1);
-}
-
-const state = inspectExtractedProseState(repoRoot);
-const indexRoot = state.indexRoot;
-if (!indexRoot) {
-  console.error('document extractor version test failed: missing build root');
   process.exit(1);
 }
 
-const buildStatePath = state.buildStatePath;
-if (!fs.existsSync(buildStatePath)) {
-  console.error('document extractor version test failed: missing build_state.json');
-  process.exit(1);
-}
-const buildState = JSON.parse(await fsPromises.readFile(buildStatePath, 'utf8'));
-const extraction = buildState?.documentExtraction?.['extracted-prose'];
+const { extraction } = await readExtractedProseArtifacts(repoRoot);
 if (!extraction) {
   console.error('document extractor version test failed: missing build_state.documentExtraction.extracted-prose');
   process.exit(1);
