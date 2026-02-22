@@ -243,8 +243,8 @@ const captureProcessStackSnapshot = (frameLimit = PROCESS_SNAPSHOT_DEFAULT_FRAME
       const report = process.report.getReport();
       const stackFrames = Array.isArray(report?.javascriptStack?.stack)
         ? report.javascriptStack.stack
-            .map((entry) => String(entry || '').trim())
-            .filter(Boolean)
+          .map((entry) => String(entry || '').trim())
+          .filter(Boolean)
         : [];
       return {
         source: 'process.report',
