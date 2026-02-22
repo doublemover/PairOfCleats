@@ -135,6 +135,35 @@ try {
     maxInFlight <= 3,
     `expected runtime thread hints to cap default queue at 3; observed ${maxInFlight}`
   );
+
+  inFlight = 0;
+  maxInFlight = 0;
+  logCallCount = 0;
+  setScmRuntimeConfig({
+    runtime: {
+      fileConcurrency: 32,
+      cpuConcurrency: 16
+    }
+  });
+  const cpuBoundFiles = Array.from(
+    { length: 96 * 24 },
+    (_unused, index) => `src/cpu-bound-${index}.js`
+  );
+  const cpuBoundResult = await gitProvider.getFileMetaBatch({
+    repoRoot,
+    filesPosix: cpuBoundFiles,
+    timeoutMs: 5000
+  });
+  assert.ok(cpuBoundResult?.fileMetaByPath);
+  assert.equal(Object.keys(cpuBoundResult.fileMetaByPath).length, cpuBoundFiles.length);
+  assert(
+    maxInFlight >= 16,
+    `expected SCM default concurrency to follow cpu threads (>=16); observed ${maxInFlight}`
+  );
+  assert(
+    maxInFlight <= 16,
+    `expected SCM default concurrency to cap at cpu threads 16; observed ${maxInFlight}`
+  );
 } finally {
   restoreProgressHandlers();
   setScmCommandRunner(defaultRunner);

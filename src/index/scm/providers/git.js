@@ -126,10 +126,9 @@ const resolveGitConfig = () => {
   const runtimeConfig = config.runtime && typeof config.runtime === 'object'
     ? config.runtime
     : {};
-  const runtimeThreadFloor = Math.max(
-    toPositiveIntOrNull(runtimeConfig.fileConcurrency) || 1,
-    toPositiveIntOrNull(runtimeConfig.cpuConcurrency) || 1
-  );
+  const runtimeThreadFloor = toPositiveIntOrNull(runtimeConfig.cpuConcurrency)
+    || toPositiveIntOrNull(runtimeConfig.fileConcurrency)
+    || 1;
   const maxConcurrentProcesses = Number.isFinite(Number(config.maxConcurrentProcesses))
     ? Math.max(1, Math.floor(Number(config.maxConcurrentProcesses)))
     : (runtimeThreadFloor > 1 ? runtimeThreadFloor : 8);
