@@ -1895,6 +1895,90 @@ export const processFiles = async ({
         .map((entry) => `${entry.file || 'unknown'}#${entry.orderIndex ?? '?'}@${Math.round((entry.elapsedMs || 0) / 1000)}s`)
         .join(', ')
     );
+    const STALL_DIAGNOSTIC_QUEUE_NAMES = ['stage1.cpu', 'stage1.io', 'stage1.postings'];
+    const buildSchedulerStallSnapshot = () => {
+      if (typeof runtime?.scheduler?.stats !== 'function') return null;
+      const stats = runtime.scheduler.stats();
+      if (!stats || typeof stats !== 'object') return null;
+      const queues = stats?.queues && typeof stats.queues === 'object' ? stats.queues : {};
+      const summarizeQueue = (queueName) => {
+        const queue = queues?.[queueName];
+        if (!queue || typeof queue !== 'object') return null;
+        return {
+          name: queueName,
+          surface: queue.surface || null,
+          pending: Number(queue.pending) || 0,
+          running: Number(queue.running) || 0,
+          pendingBytes: Number(queue.pendingBytes) || 0,
+          inFlightBytes: Number(queue.inFlightBytes) || 0,
+          oldestWaitMs: Number(queue.oldestWaitMs) || 0
+        };
+      };
+      const highlightedQueues = STALL_DIAGNOSTIC_QUEUE_NAMES
+        .map((queueName) => summarizeQueue(queueName))
+        .filter(Boolean);
+      const topPendingQueues = Object.entries(queues)
+        .map(([name, queue]) => ({
+          name,
+          surface: queue?.surface || null,
+          pending: Number(queue?.pending) || 0,
+          running: Number(queue?.running) || 0,
+          oldestWaitMs: Number(queue?.oldestWaitMs) || 0
+        }))
+        .filter((entry) => entry.pending > 0 || entry.running > 0)
+        .sort((left, right) => {
+          if (right.pending !== left.pending) return right.pending - left.pending;
+          if (right.running !== left.running) return right.running - left.running;
+          return right.oldestWaitMs - left.oldestWaitMs;
+        })
+        .slice(0, 8);
+      const parseSurface = stats?.adaptive?.surfaces?.parse && typeof stats.adaptive.surfaces.parse === 'object'
+        ? {
+          minConcurrency: Number(stats.adaptive.surfaces.parse.minConcurrency) || 0,
+          maxConcurrency: Number(stats.adaptive.surfaces.parse.maxConcurrency) || 0,
+          currentConcurrency: Number(stats.adaptive.surfaces.parse.currentConcurrency) || 0,
+          running: Number(stats.adaptive.surfaces.parse.snapshot?.running) || 0,
+          pending: Number(stats.adaptive.surfaces.parse.snapshot?.pending) || 0
+        }
+        : null;
+      return {
+        activity: {
+          pending: Number(stats?.activity?.pending) || 0,
+          running: Number(stats?.activity?.running) || 0
+        },
+        utilization: {
+          cpu: Number(stats?.utilization?.cpu) || 0,
+          io: Number(stats?.utilization?.io) || 0,
+          mem: Number(stats?.utilization?.mem) || 0
+        },
+        parseSurface,
+        highlightedQueues,
+        topPendingQueues
+      };
+    };
+    const formatSchedulerStallSummary = (snapshot) => {
+      if (!snapshot || typeof snapshot !== 'object') return null;
+      const parse = snapshot.parseSurface && typeof snapshot.parseSurface === 'object'
+        ? snapshot.parseSurface
+        : null;
+      const queueByName = new Map(
+        (Array.isArray(snapshot.highlightedQueues) ? snapshot.highlightedQueues : [])
+          .map((entry) => [entry.name, entry])
+      );
+      const formatQueue = (name) => {
+        const queue = queueByName.get(name);
+        if (!queue) return `${name}=n/a`;
+        return `${name}=r${queue.running}/p${queue.pending}/wait${Math.round((queue.oldestWaitMs || 0) / 1000)}s`;
+      };
+      return [
+        parse
+          ? `parse=r${parse.running}/p${parse.pending}/cap${parse.currentConcurrency}`
+          : 'parse=n/a',
+        formatQueue('stage1.cpu'),
+        formatQueue('stage1.io'),
+        formatQueue('stage1.postings')
+      ].join(' ');
+    };
     const buildProcessingStallSnapshot = ({
       reason = 'stall_snapshot',
       idleMs = null,
@@ -1916,6 +2000,7 @@ export const processFiles = async ({
         ownershipPrefix: stage1OwnershipPrefix,
         limit: 8
       });
+      const schedulerSnapshot = buildSchedulerStallSnapshot();
       return {
         reason,
         generatedAt: new Date(now).toISOString(),
@@ -1932,6 +2017,7 @@ export const processFiles = async ({
         queueDelayMs: summarizeQueueDelay(),
         stalledFiles,
         trackedSubprocesses,
+        scheduler: schedulerSnapshot,
         process: captureProcessSnapshot({
           includeStack,
           frameLimit: includeStack ? 16 : 8,
@@ -2121,6 +2207,15 @@ export const processFiles = async ({
           watchdogSnapshot: snapshot
         }
       );
+      const schedulerSummary = formatSchedulerStallSummary(snapshot?.scheduler);
+      if (schedulerSummary) {
+        logLine(`[watchdog] scheduler snapshot: ${schedulerSummary}`, {
+          kind: 'error',
+          mode,
+          stage: 'processing',
+          scheduler: snapshot?.scheduler || null
+        });
+      }
       if (Array.isArray(snapshot?.stalledFiles) && snapshot.stalledFiles.length) {
         logLine(`[watchdog] stalled files: ${toStalledFileText(snapshot.stalledFiles)}`, {
           kind: 'error',
@@ -2193,6 +2288,15 @@ export const processFiles = async ({
           watchdogSnapshot: snapshot
         }
       );
+      const schedulerSummary = formatSchedulerStallSummary(snapshot?.scheduler);
+      if (schedulerSummary) {
+        logLine(`[watchdog] scheduler snapshot: ${schedulerSummary}`, {
+          kind: 'warning',
+          mode,
+          stage: 'processing',
+          scheduler: snapshot?.scheduler || null
+        });
+      }
       if (Array.isArray(snapshot?.stalledFiles) && snapshot.stalledFiles.length) {
         logLine(`[watchdog] oldest in-flight: ${toStalledFileText(snapshot.stalledFiles)}`, {
           kind: 'warning',

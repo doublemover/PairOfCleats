@@ -18,6 +18,7 @@ const RETAINED_CRASH_LOG_BASENAMES = new Set([
   'index-crash.log',
   'index-crash-state.json',
   'index-crash-events.json',
+  'index-crash-file-trace.ndjson',
   'index-crash-forensics-index.json'
 ]);
 
@@ -402,6 +403,7 @@ export async function createCrashLogger({ repoCacheRoot, enabled }) {
       enabled: false,
       updatePhase: () => {},
       updateFile: () => {},
+      traceFileStage: () => {},
       logError: () => {},
       persistForensicBundle: async () => null
     };
@@ -410,6 +412,7 @@ export async function createCrashLogger({ repoCacheRoot, enabled }) {
   const statePath = path.join(logsDir, 'index-crash-state.json');
   const logPath = path.join(logsDir, 'index-crash.log');
   const eventsPath = path.join(logsDir, 'index-crash-events.json');
+  const tracePath = path.join(logsDir, 'index-crash-file-trace.ndjson');
   const forensicsDir = path.join(logsDir, 'forensics');
   const forensicsIndexPath = path.join(logsDir, 'index-crash-forensics-index.json');
   const forensicSignatures = new Set();
@@ -419,6 +422,7 @@ export async function createCrashLogger({ repoCacheRoot, enabled }) {
   try {
     await fs.mkdir(logsDir, { recursive: true });
     await fs.appendFile(logPath, '');
+    await fs.appendFile(tracePath, '');
   } catch {}
 
   const writeState = async (state) => {
@@ -433,6 +437,17 @@ export async function createCrashLogger({ repoCacheRoot, enabled }) {
     const line = `[${formatTimestamp()}] ${message}${suffix}\n`;
     try {
       await fs.appendFile(logPath, line);
+    } catch {}
+  };
+  const appendTrace = async (event) => {
+    if (!event || typeof event !== 'object') return;
+    const payload = {
+      ts: formatTimestamp(),
+      phase: event.phase || currentPhase || null,
+      ...event
+    };
+    try {
+      await fs.appendFile(tracePath, `${safeStringify(payload)}\n`);
     } catch {}
   };
   const writeStateSync = (state) => {
@@ -516,6 +531,9 @@ export async function createCrashLogger({ repoCacheRoot, enabled }) {
     updateFile(entry) {
       currentFile = entry || null;
       void writeState({ phase: entry?.phase || 'file', file: entry || null }).catch(() => {});
+    },
+    traceFileStage(entry) {
+      void appendTrace(entry).catch(() => {});
     },
     logError(error) {
       const baseEvent = normalizeFailureEvent({
