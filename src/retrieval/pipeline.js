@@ -30,6 +30,107 @@ import {
 } from './pipeline/constants.js';
 import { INDEX_PROFILE_VECTOR_ONLY } from '../contracts/index-profile.js';
 
+const normalizeTokenList = (value) => (
+  Array.isArray(value)
+    ? value
+      .map((token) => (typeof token === 'string' ? token.trim() : ''))
+      .filter(Boolean)
+    : []
+);
+
+const resolveTokenStats = (queryTokens) => {
+  const tokens = normalizeTokenList(queryTokens);
+  const uniqueCount = new Set(tokens).size;
+  let charCount = 0;
+  let symbolCount = 0;
+  for (const token of tokens) {
+    for (const ch of token) {
+      charCount += 1;
+      if (/[^0-9A-Za-z_]/.test(ch)) symbolCount += 1;
+    }
+  }
+  const diversity = tokens.length > 0 ? uniqueCount / tokens.length : 0;
+  const symbolRatio = charCount > 0 ? symbolCount / charCount : 0;
+  return {
+    tokens,
+    tokenCount: tokens.length,
+    uniqueCount,
+    diversity,
+    symbolRatio
+  };
+};
+
+const resolveSparseConfidence = ({ sparseHits, searchTopN }) => {
+  const hits = Array.isArray(sparseHits) ? sparseHits : [];
+  const topScore = Number(hits[0]?.score);
+  const secondScore = Number(hits[1]?.score);
+  const hasScoreGap = Number.isFinite(topScore)
+    && topScore > 0
+    && Number.isFinite(secondScore)
+    && secondScore >= 0
+    && (topScore - secondScore) / topScore >= 0.2;
+  return {
+    hitCount: hits.length,
+    hasScoreGap,
+    high: hits.length >= Math.max(searchTopN * 2, 8) && hasScoreGap,
+    weak: hits.length < Math.max(3, Math.ceil(searchTopN * 0.8))
+  };
+};
+
+export const resolveAdaptiveRerankBudget = ({
+  searchTopN = 10,
+  baseTopkSlack = 8,
+  queryTokens = [],
+  sparseHits = [],
+  annHits = []
+} = {}) => {
+  const safeTopN = Math.max(1, Math.floor(Number(searchTopN) || 1));
+  const baseSlack = Math.max(0, Math.floor(Number(baseTopkSlack) || 0));
+  const tokenStats = resolveTokenStats(queryTokens);
+  const sparseConfidence = resolveSparseConfidence({
+    sparseHits,
+    searchTopN: safeTopN
+  });
+  const annHitCount = Array.isArray(annHits) ? annHits.length : 0;
+  const lowEntropy = tokenStats.tokenCount <= 2 && tokenStats.symbolRatio < 0.25;
+  const highEntropy = tokenStats.tokenCount >= 7
+    || tokenStats.diversity >= 0.9
+    || tokenStats.symbolRatio >= 0.35;
+  let topkSlack = baseSlack;
+  let reason = 'baseline';
+
+  if (sparseConfidence.high && lowEntropy) {
+    topkSlack = Math.max(4, Math.ceil(safeTopN * 0.25));
+    reason = 'high_confidence_low_entropy';
+  } else if (highEntropy || sparseConfidence.weak || annHitCount >= safeTopN * 2) {
+    topkSlack = Math.max(baseSlack, Math.ceil(safeTopN * 0.9));
+    reason = 'high_entropy_or_low_confidence';
+  } else if (tokenStats.tokenCount <= 3 && tokenStats.symbolRatio < 0.3) {
+    topkSlack = Math.max(6, Math.ceil(safeTopN * 0.35));
+    reason = 'moderate_confidence_short_query';
+  }
+
+  topkSlack = Math.max(0, Math.min(200, Math.floor(topkSlack)));
+  return {
+    topkSlack,
+    rerankCap: safeTopN + topkSlack,
+    reason,
+    tokenStats: {
+      tokenCount: tokenStats.tokenCount,
+      uniqueCount: tokenStats.uniqueCount,
+      diversity: tokenStats.diversity,
+      symbolRatio: tokenStats.symbolRatio
+    },
+    sparseConfidence: {
+      hitCount: sparseConfidence.hitCount,
+      hasScoreGap: sparseConfidence.hasScoreGap,
+      high: sparseConfidence.high,
+      weak: sparseConfidence.weak
+    },
+    annHitCount
+  };
+};
+
 /**
  * Create a search pipeline runner bound to a shared context.
  * @param {object} context
@@ -164,11 +265,11 @@ export function createSearchPipeline(context) {
     : Math.max(2, Math.floor(Number(postingsConfig.chargramMaxTokenLength)));
   const searchTopN = Math.max(1, Number(topN) || 1);
   const expandedTopN = searchTopN * 3;
-  const topkSlack = Math.max(8, Math.min(100, Math.ceil(searchTopN * 0.5)));
+  const baseTopkSlack = Math.max(8, Math.min(100, Math.ceil(searchTopN * 0.5)));
   const maxCandidateCap = Number.isFinite(Number(maxCandidates)) && Number(maxCandidates) > 0
     ? Math.floor(Number(maxCandidates))
     : null;
-  const poolBase = Math.max(searchTopN + topkSlack, expandedTopN * 4, 256);
+  const poolBase = Math.max(searchTopN + baseTopkSlack, expandedTopN * 4, 256);
   const poolCap = Math.min(
     Math.max(poolBase, maxCandidateCap || 0),
     MAX_POOL_ENTRIES
@@ -503,6 +604,14 @@ export function createSearchPipeline(context) {
       ));
       candidates = annResult.candidates;
       let { annHits, annSource, annCandidatePolicy } = annResult;
+      const rerankBudget = resolveAdaptiveRerankBudget({
+        searchTopN,
+        baseTopkSlack,
+        queryTokens,
+        sparseHits: bmHits,
+        annHits
+      });
+      const topkSlack = rerankBudget.topkSlack;
 
       const fusionBuffer = scoreBufferPool.acquire({
         fields: [
@@ -516,7 +625,7 @@ export function createSearchPipeline(context) {
           'blendInfo'
         ],
         numericFields: ['idx', 'score'],
-        capacity: Math.max(bmHits.length + annHits.length, searchTopN + topkSlack)
+        capacity: Math.max(bmHits.length + annHits.length, rerankBudget.rerankCap)
       });
       trackReleaseBuffer(fusionBuffer);
       const fusionResult = runStage('fusion', () => (
@@ -560,6 +669,7 @@ export function createSearchPipeline(context) {
       }
 
       const rankMetrics = {};
+      rankMetrics.rerankBudget = rerankBudget;
       const ranked = runStage('rank', rankMetrics, () => (
         runRankStage({
           idx,

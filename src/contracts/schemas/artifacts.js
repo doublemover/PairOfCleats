@@ -342,6 +342,16 @@ const pieceEntry = {
     statError: nullableString,
     checksumError: nullableString,
     compression: nullableString,
+    tier: nullableString,
+    layout: {
+      type: ['object', 'null'],
+      properties: {
+        order: nullableInt,
+        group: nullableString,
+        contiguous: nullableBool
+      },
+      additionalProperties: false
+    },
     count: nullableInt,
     dims: nullableInt,
     schemaVersion: semverString,

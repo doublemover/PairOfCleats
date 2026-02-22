@@ -85,6 +85,75 @@ const toRoundedMs = (value) => {
   return Number(numeric.toFixed(3));
 };
 
+const resolvePerfBudgetPath = (value) => {
+  if (typeof value !== 'string') return '';
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  return path.resolve(ROOT, trimmed);
+};
+
+const toPerfBudgetMap = (value) => (
+  value && typeof value === 'object' && !Array.isArray(value)
+    ? value
+    : {}
+);
+
+const resolvePerfBudgetValue = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return Math.max(1, Math.floor(parsed));
+};
+
+const loadPerfBudgetConfig = async (budgetPath) => {
+  if (!budgetPath) return null;
+  const parsed = JSON.parse(await fsPromises.readFile(budgetPath, 'utf8'));
+  const tests = toPerfBudgetMap(parsed?.tests);
+  const laneMaxDurationMs = toPerfBudgetMap(parsed?.laneMaxDurationMs);
+  const toleranceFractionRaw = Number(parsed?.toleranceFraction);
+  const toleranceFraction = Number.isFinite(toleranceFractionRaw)
+    ? Math.max(0, Math.min(1, toleranceFractionRaw))
+    : 0;
+  return {
+    sourcePath: budgetPath,
+    defaultMaxDurationMs: resolvePerfBudgetValue(parsed?.defaultMaxDurationMs),
+    tests,
+    laneMaxDurationMs,
+    toleranceFraction
+  };
+};
+
+const resolvePerfBudgetForResult = ({ result, budgetConfig }) => {
+  if (!budgetConfig || !result) return null;
+  const testBudget = resolvePerfBudgetValue(budgetConfig.tests?.[result.id]);
+  if (testBudget != null) return testBudget;
+  const laneBudget = resolvePerfBudgetValue(budgetConfig.laneMaxDurationMs?.[result.lane]);
+  if (laneBudget != null) return laneBudget;
+  return budgetConfig.defaultMaxDurationMs;
+};
+
+const evaluatePerfBudgetRegressions = ({ results, budgetConfig }) => {
+  if (!budgetConfig) return [];
+  const output = [];
+  const tolerance = Number(budgetConfig.toleranceFraction) || 0;
+  for (const result of results) {
+    if (!result || result.status !== 'passed') continue;
+    const durationMs = Number(result.durationMs);
+    if (!Number.isFinite(durationMs) || durationMs < 0) continue;
+    const budgetMs = resolvePerfBudgetForResult({ result, budgetConfig });
+    if (!Number.isFinite(budgetMs) || budgetMs <= 0) continue;
+    const thresholdMs = budgetMs * (1 + tolerance);
+    if (durationMs <= thresholdMs) continue;
+    output.push({
+      id: result.id,
+      lane: result.lane || '',
+      durationMs: toRoundedMs(durationMs),
+      budgetMs,
+      thresholdMs: toRoundedMs(thresholdMs)
+    });
+  }
+  return output;
+};
+
 const scrubInheritedPairOfCleatsEnv = (env) => {
   if (!env || typeof env !== 'object') return;
   for (const key of Object.keys(env)) {
@@ -184,6 +253,16 @@ const main = async () => {
 
   const lanes = resolveLanes(requestedLanes, runRules.knownLanes);
   const lanesList = Array.from(lanes).sort();
+  const perfBudgetPath = resolvePerfBudgetPath(argv['perf-budget-file']);
+  let perfBudgetConfig = null;
+  if (perfBudgetPath) {
+    try {
+      perfBudgetConfig = await loadPerfBudgetConfig(perfBudgetPath);
+    } catch (error) {
+      console.error(`failed to load perf budget file ${perfBudgetPath}: ${error?.message || error}`);
+      process.exit(2);
+    }
+  }
   const configOverride = typeof argv.config === 'string' && argv.config.trim() ? argv.config.trim() : '';
   const runConfig = loadRunConfig({ root: ROOT, configPath: configOverride || undefined });
   const timeoutOverrides = runConfig.timeoutOverrides && typeof runConfig.timeoutOverrides === 'object'
@@ -552,6 +631,25 @@ const main = async () => {
   const finalResults = ordered ? ordered.results : results;
   const totalMs = Date.now() - startedAt;
   const summary = summarizeResults(finalResults, totalMs);
+  const perfBudgetViolations = evaluatePerfBudgetRegressions({
+    results: finalResults,
+    budgetConfig: perfBudgetConfig
+  });
+  if (perfBudgetViolations.length > 0) {
+    const sourceLabel = perfBudgetConfig?.sourcePath
+      ? normalizePathForRepo(perfBudgetConfig.sourcePath, ROOT, { stripDot: true })
+      : '(inline)';
+    console.error(
+      `[perf] regression budget violations=${perfBudgetViolations.length} source=${sourceLabel}`
+    );
+    for (const violation of perfBudgetViolations.slice(0, 25)) {
+      console.error(
+        `[perf] ${violation.id} lane=${violation.lane || 'n/a'} `
+        + `duration=${violation.durationMs}ms budget=${violation.budgetMs}ms `
+        + `threshold=${violation.thresholdMs}ms`
+      );
+    }
+  }
   if (showSummary) {
     renderSummary({
       context,
@@ -670,9 +768,12 @@ const main = async () => {
 
   const timeoutCount = finalResults.filter((result) => result.timedOut).length;
   const failCount = finalResults.filter((result) => result.status === 'failed' && !result.timedOut).length;
-  const exitCode = argv['allow-timeouts']
+  const baseExitCode = argv['allow-timeouts']
     ? (failCount > 0 ? 1 : 0)
     : (summary.failed > 0 ? 1 : 0);
+  const exitCode = perfBudgetViolations.length > 0
+    ? 1
+    : baseExitCode;
   process.exit(exitCode);
 };
 

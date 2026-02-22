@@ -1,0 +1,6 @@
+pytest
+asyncio
+pydantic
+dataclass
+virtualenv
+typehint

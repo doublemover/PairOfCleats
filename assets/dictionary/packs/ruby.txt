@@ -1,0 +1,6 @@
+activerecord
+bundler
+gemfile
+rspec
+sidekiq
+zeitwerk

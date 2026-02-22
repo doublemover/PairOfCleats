@@ -785,24 +785,36 @@ export function smartChunk({
   mode,
   context = {}
 }) {
+  const limitContext = context && typeof context === 'object'
+    ? {
+      ...context,
+      relPath: relPath || context.relPath || null,
+      ext: ext || context.ext || null,
+      mode: mode || context.mode || null
+    }
+    : {
+      relPath,
+      ext,
+      mode
+    };
   if (mode === 'prose') {
     const chunker = resolveChunker(PROSE_CHUNKERS, ext, relPath);
     if (chunker) {
       const chunks = chunker.chunk({ text, ext, relPath, context });
-      if (chunks && chunks.length) return applyChunkingLimits(chunks, text, context);
+      if (chunks && chunks.length) return applyChunkingLimits(chunks, text, limitContext);
     }
-    return applyChunkingLimits(chunkLargeProseFallback(text, context), text, context);
+    return applyChunkingLimits(chunkLargeProseFallback(text, context), text, limitContext);
   }
   if (mode === 'code') {
     const codeChunker = resolveChunker(CODE_CHUNKERS, ext, relPath);
     if (codeChunker) {
       const chunks = codeChunker.chunk({ text, ext, relPath, context });
-      if (chunks && chunks.length) return applyChunkingLimits(chunks, text, context);
+      if (chunks && chunks.length) return applyChunkingLimits(chunks, text, limitContext);
     }
     const formatChunker = resolveChunker(CODE_FORMAT_CHUNKERS, ext, relPath);
     if (formatChunker) {
       const chunks = formatChunker.chunk({ text, ext, relPath, context });
-      if (chunks && chunks.length) return applyChunkingLimits(chunks, text, context);
+      if (chunks && chunks.length) return applyChunkingLimits(chunks, text, limitContext);
     }
   }
   const fallbackChunkSize = 800;
@@ -817,5 +829,5 @@ export function smartChunk({
       meta: {}
     });
   }
-  return applyChunkingLimits(out, text, context);
+  return applyChunkingLimits(out, text, limitContext);
 }

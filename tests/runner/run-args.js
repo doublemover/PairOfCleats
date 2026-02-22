@@ -31,6 +31,7 @@ export const parseArgs = () => {
     .option('log-dir', { type: 'string', default: '' })
     .option('log-times', { type: 'string', default: null })
     .option('timings-file', { type: 'string', default: '' })
+    .option('perf-budget-file', { type: 'string', default: '' })
     .option('watchdog-ms', { type: 'number' })
     .option('coverage', { type: 'string', default: '' })
     .option('coverage-merge', { type: 'string', default: '' })

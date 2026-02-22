@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { getDictConfig } from '../config.js';
 import { isTestingEnv } from '../../../src/shared/env.js';
 import { getDefaultCacheRoot } from '../cache.js';
@@ -11,6 +12,101 @@ import {
   normalizeCodeDictLanguage,
   normalizeCodeDictLanguages
 } from '../../../src/shared/code-dictionaries.js';
+
+const BUNDLED_CODE_DICTIONARY_MANIFEST = 'manifest.json';
+const BUNDLED_CODE_DICTIONARY_RELATIVE_ROOT = path.join('assets', 'dictionary', 'packs');
+const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
+
+const resolveBundledCodeDictionaryRoot = () => (
+  path.resolve(MODULE_DIR, '../../../', BUNDLED_CODE_DICTIONARY_RELATIVE_ROOT)
+);
+
+const loadBundledCodeDictionaryManifest = async (baseDir) => {
+  const manifestPath = path.join(baseDir, BUNDLED_CODE_DICTIONARY_MANIFEST);
+  try {
+    const parsed = JSON.parse(await fsPromises.readFile(manifestPath, 'utf8'));
+    if (!parsed || typeof parsed !== 'object') return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+};
+
+const toBundledList = (value) => (
+  Array.isArray(value)
+    ? value
+      .map((entry) => String(entry || '').trim())
+      .filter(Boolean)
+    : []
+);
+
+const resolveBundledLanguageEntries = (manifest) => {
+  const value = manifest?.languages;
+  if (!value || typeof value !== 'object') return new Map();
+  const out = new Map();
+  for (const [languageIdRaw, filesRaw] of Object.entries(value)) {
+    const languageId = normalizeCodeDictLanguage(languageIdRaw);
+    if (!languageId) continue;
+    const files = toBundledList(filesRaw);
+    if (!files.length) continue;
+    out.set(languageId, files);
+  }
+  return out;
+};
+
+const resolveBundledCommonEntries = (manifest) => {
+  const files = toBundledList(manifest?.common);
+  return files.length ? files : [];
+};
+
+const resolveBundledCodeDictionaryPaths = async ({ languages = null } = {}) => {
+  const baseDir = resolveBundledCodeDictionaryRoot();
+  const manifest = await loadBundledCodeDictionaryManifest(baseDir);
+  if (!manifest) {
+    return {
+      baseDir,
+      profileVersion: null,
+      common: [],
+      byLanguage: new Map(),
+      all: []
+    };
+  }
+  const languageFilter = languages instanceof Set ? languages : null;
+  const addIfExists = async (bucket, relativePath) => {
+    const resolved = path.join(baseDir, relativePath);
+    try {
+      const stat = await fsPromises.stat(resolved);
+      if (!stat.isFile()) return;
+      bucket.push(resolved);
+    } catch {}
+  };
+  const common = [];
+  for (const relativePath of resolveBundledCommonEntries(manifest)) {
+    await addIfExists(common, relativePath);
+  }
+  const byLanguage = new Map();
+  for (const [languageId, relativePaths] of resolveBundledLanguageEntries(manifest).entries()) {
+    if (languageFilter && !languageFilter.has(languageId)) continue;
+    const files = [];
+    for (const relativePath of relativePaths) {
+      await addIfExists(files, relativePath);
+    }
+    if (files.length) byLanguage.set(languageId, files);
+  }
+  const all = [
+    ...common,
+    ...Array.from(byLanguage.values()).flat()
+  ];
+  return {
+    baseDir,
+    profileVersion: typeof manifest?.profileVersion === 'string'
+      ? manifest.profileVersion
+      : null,
+    common,
+    byLanguage,
+    all: Array.from(new Set(all)).sort()
+  };
+};
 
 /**
  * Resolve the path for the repo-specific dictionary file.
@@ -156,6 +252,7 @@ export async function getCodeDictionaryPaths(repoRoot, dictConfig = null, option
   const baseDir = path.join(config.dir, CODE_DICT_DIR_NAME);
   const hasLanguageFilter = Array.isArray(options.languages) || options.languages instanceof Set;
   const allowedLanguages = hasLanguageFilter ? normalizeCodeDictLanguages(options.languages) : null;
+  const useBundledFallback = options.useBundledFallback !== false;
   const allowCommon = !hasLanguageFilter || allowedLanguages.size > 0;
   const { root: rootFiles, byDir } = await listTxtFilesNested(baseDir);
   const common = new Set();
@@ -189,15 +286,39 @@ export async function getCodeDictionaryPaths(repoRoot, dictConfig = null, option
     }
   }
   const commonList = Array.from(common).sort();
-  const allList = Array.from(all).sort();
   for (const [lang, files] of byLanguage.entries()) {
     files.sort();
     byLanguage.set(lang, files);
   }
+  let bundled = null;
+  if (useBundledFallback) {
+    bundled = await resolveBundledCodeDictionaryPaths({
+      languages: allowedLanguages
+    });
+    const addBundledCommon = allowCommon && commonList.length === 0;
+    if (addBundledCommon) {
+      for (const filePath of bundled.common) {
+        if (!common.has(filePath)) common.add(filePath);
+        all.add(filePath);
+      }
+    }
+    for (const [lang, bundledFiles] of bundled.byLanguage.entries()) {
+      const existing = byLanguage.get(lang) || [];
+      if (existing.length > 0) continue;
+      byLanguage.set(lang, bundledFiles.slice().sort());
+      for (const filePath of bundledFiles) {
+        all.add(filePath);
+      }
+    }
+  }
+  const mergedCommon = Array.from(common).sort();
+  const mergedAll = Array.from(all).sort();
   return {
     baseDir,
-    common: commonList,
+    common: mergedCommon,
     byLanguage,
-    all: allList
+    all: mergedAll,
+    bundleProfileVersion: bundled?.profileVersion || null,
+    bundledBaseDir: bundled?.baseDir || null
   };
 }

@@ -1024,7 +1024,10 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     code: {
       files: codeDictPaths.all.length,
       words: codeDictWordsAll.size,
-      languages: Array.from(codeDictWordsByLanguage.keys()).sort()
+      languages: Array.from(codeDictWordsByLanguage.keys()).sort(),
+      bundleProfileVersion: typeof codeDictPaths?.bundleProfileVersion === 'string'
+        ? codeDictPaths.bundleProfileVersion
+        : null
     }
   };
   const LARGE_DICT_SHARED_THRESHOLD = 200000;
@@ -1053,7 +1056,13 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     const langs = dictSummary.code.languages && dictSummary.code.languages.length
       ? ` (${dictSummary.code.languages.join(', ')})`
       : '';
-    log(`Code dictionaries enabled: ${dictSummary.code.files} file(s), ${dictSummary.code.words.toLocaleString()} words${langs}.`);
+    const bundleSuffix = dictSummary.code.bundleProfileVersion
+      ? ` [bundle=${dictSummary.code.bundleProfileVersion}]`
+      : '';
+    log(
+      `Code dictionaries enabled: ${dictSummary.code.files} file(s), `
+      + `${dictSummary.code.words.toLocaleString()} words${langs}${bundleSuffix}.`
+    );
   } else if (codeDictEnabled) {
     log('Code dictionaries enabled: no code dictionary files found for gated languages.');
   } else {

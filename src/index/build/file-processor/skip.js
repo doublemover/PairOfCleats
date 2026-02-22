@@ -17,6 +17,102 @@ const isGeneratedDocsetPath = (absPath) => {
   return false;
 };
 
+const EXTRACTED_PROSE_ALLOWED_EXTS = new Set([
+  '.md',
+  '.markdown',
+  '.mdx',
+  '.rst',
+  '.adoc',
+  '.asciidoc',
+  '.txt',
+  '.pdf',
+  '.docx',
+  '.rtf',
+  '.html',
+  '.htm',
+  '.xml'
+]);
+const EXTRACTED_PROSE_LOW_YIELD_PATHS = [
+  '/node_modules/',
+  '/vendor/',
+  '/dist/',
+  '/build/',
+  '/coverage/',
+  '/.git/'
+];
+const EXTRACTED_PROSE_MIN_BYTES = 256;
+
+const normalizeProseProbePath = (value) => String(value || '').replace(/\\/g, '/').toLowerCase();
+
+const resolveExtractedProsePrefilterPolicy = (generatedPolicy = null) => {
+  if (!generatedPolicy || typeof generatedPolicy !== 'object') {
+    return { enabled: true, minBytes: EXTRACTED_PROSE_MIN_BYTES };
+  }
+  const extractedProse = generatedPolicy.extractedProse && typeof generatedPolicy.extractedProse === 'object'
+    ? generatedPolicy.extractedProse
+    : {};
+  const prefilter = extractedProse.prefilter && typeof extractedProse.prefilter === 'object'
+    ? extractedProse.prefilter
+    : {};
+  const enabled = prefilter.enabled !== false;
+  const minBytesRaw = Number(prefilter.minBytes);
+  const minBytes = Number.isFinite(minBytesRaw) && minBytesRaw > 0
+    ? Math.max(64, Math.floor(minBytesRaw))
+    : EXTRACTED_PROSE_MIN_BYTES;
+  return { enabled, minBytes };
+};
+
+export const resolveExtractedProsePrefilterDecision = ({
+  relPath = null,
+  absPath = null,
+  ext = null,
+  mode = null,
+  languageId = null,
+  fileStat = null,
+  generatedPolicy = null
+} = {}) => {
+  if (mode !== 'extracted-prose') return null;
+  const { enabled, minBytes } = resolveExtractedProsePrefilterPolicy(generatedPolicy);
+  if (!enabled) return null;
+  const normalizedExt = String(ext || '').trim().toLowerCase();
+  const normalizedPath = normalizeProseProbePath(relPath || absPath || '');
+  const fileBytes = Number(fileStat?.size);
+  if (normalizedPath && EXTRACTED_PROSE_LOW_YIELD_PATHS.some((part) => normalizedPath.includes(part))) {
+    return {
+      reason: 'extracted-prose-prefilter',
+      prefilterClass: 'low-yield-path',
+      pathHint: normalizedPath
+    };
+  }
+  if (EXTRACTED_PROSE_ALLOWED_EXTS.has(normalizedExt)) return null;
+  if (Number.isFinite(fileBytes) && fileBytes > 0 && fileBytes < minBytes) {
+    return {
+      reason: 'extracted-prose-prefilter',
+      prefilterClass: 'tiny-file',
+      bytes: Math.floor(fileBytes),
+      minBytes
+    };
+  }
+  const normalizedLanguage = typeof languageId === 'string'
+    ? languageId.trim().toLowerCase()
+    : '';
+  if (normalizedLanguage && normalizedLanguage !== 'markdown' && normalizedLanguage !== 'text') {
+    return {
+      reason: 'extracted-prose-prefilter',
+      prefilterClass: 'code-language',
+      languageId: normalizedLanguage
+    };
+  }
+  if (normalizedExt && !EXTRACTED_PROSE_ALLOWED_EXTS.has(normalizedExt)) {
+    return {
+      reason: 'extracted-prose-prefilter',
+      prefilterClass: 'non-doc-extension',
+      ext: normalizedExt
+    };
+  }
+  return null;
+};
+
 /**
  * Resolve pre-read skip decisions (caps/minified/binary scanner) before full
  * file decode. Supports a document-extraction bypass for binary/minified
@@ -81,6 +177,18 @@ export async function resolvePreReadSkip({
       bytes: fileStat.size,
       maxBytes: effectiveMaxBytes
     };
+  }
+  const extractedProsePrefilterSkip = resolveExtractedProsePrefilterDecision({
+    relPath: rel,
+    absPath: abs,
+    ext,
+    mode,
+    languageId,
+    fileStat,
+    generatedPolicy: effectiveGeneratedPolicy
+  });
+  if (extractedProsePrefilterSkip) {
+    return extractedProsePrefilterSkip;
   }
   const scanState = fileEntry && typeof fileEntry === 'object' ? fileEntry.scan : null;
   const baselinePolicyDecision = isRecordEntry

@@ -1,16 +1,149 @@
 import { buildLineIndex, offsetToLine } from '../../shared/lines.js';
 
 const DEFAULT_CHUNK_GUARDRAIL_MAX_BYTES = 200 * 1024;
+const CHUNK_ROLE_SRC = 'src';
+const CHUNK_ROLE_TEST = 'test';
+const CHUNK_ROLE_DOCS = 'docs';
+const CHUNK_ROLE_CONFIG = 'config';
 const HIGH_SURROGATE_MIN = 0xd800;
 const HIGH_SURROGATE_MAX = 0xdbff;
 const LOW_SURROGATE_MIN = 0xdc00;
 const LOW_SURROGATE_MAX = 0xdfff;
+const TEST_PATH_PATTERN = /(?:^|\/)(?:test|tests|spec|specs|__tests__|__mocks__)(?:\/|$)/i;
+const DOCS_PATH_PATTERN = /(?:^|\/)(?:doc|docs|documentation|guides|manual|wiki)(?:\/|$)/i;
+const CONFIG_PATH_PATTERN = /(?:^|\/)(?:config|configs|cfg|settings|etc)(?:\/|$)/i;
+const TEST_FILE_PATTERN = /(?:^|[./_-])(?:test|tests|spec)\.[^.]+$/i;
+const DOCS_EXTENSIONS = new Set(['.md', '.markdown', '.mdx', '.rst', '.adoc', '.txt']);
+const CONFIG_EXTENSIONS = new Set([
+  '.json',
+  '.jsonc',
+  '.yaml',
+  '.yml',
+  '.toml',
+  '.ini',
+  '.cfg',
+  '.conf',
+  '.properties',
+  '.env',
+  '.xml'
+]);
+const DEFAULT_LANGUAGE_ROLE_LIMITS = Object.freeze({
+  [CHUNK_ROLE_TEST]: Object.freeze({ maxLines: 220, maxBytes: 96 * 1024 }),
+  [CHUNK_ROLE_DOCS]: Object.freeze({ maxLines: 320, maxBytes: 160 * 1024 }),
+  [CHUNK_ROLE_CONFIG]: Object.freeze({ maxLines: 180, maxBytes: 72 * 1024 }),
+  javascript: Object.freeze({
+    [CHUNK_ROLE_SRC]: Object.freeze({ maxLines: 260, maxBytes: 128 * 1024 }),
+    [CHUNK_ROLE_TEST]: Object.freeze({ maxLines: 180, maxBytes: 88 * 1024 })
+  }),
+  typescript: Object.freeze({
+    [CHUNK_ROLE_SRC]: Object.freeze({ maxLines: 260, maxBytes: 128 * 1024 }),
+    [CHUNK_ROLE_TEST]: Object.freeze({ maxLines: 170, maxBytes: 84 * 1024 })
+  }),
+  python: Object.freeze({
+    [CHUNK_ROLE_SRC]: Object.freeze({ maxLines: 300, maxBytes: 136 * 1024 }),
+    [CHUNK_ROLE_TEST]: Object.freeze({ maxLines: 210, maxBytes: 96 * 1024 })
+  }),
+  markdown: Object.freeze({
+    [CHUNK_ROLE_DOCS]: Object.freeze({ maxLines: 340, maxBytes: 180 * 1024 })
+  })
+});
 
 const normalizeChunkLimit = (value) => {
   const num = Number(value);
   if (!Number.isFinite(num)) return null;
   const limit = Math.max(0, Math.floor(num));
   return limit > 0 ? limit : null;
+};
+
+const normalizeChunkingRole = (value) => {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  if (!normalized) return CHUNK_ROLE_SRC;
+  if (
+    normalized === CHUNK_ROLE_TEST
+    || normalized === CHUNK_ROLE_DOCS
+    || normalized === CHUNK_ROLE_CONFIG
+    || normalized === CHUNK_ROLE_SRC
+  ) {
+    return normalized;
+  }
+  return CHUNK_ROLE_SRC;
+};
+
+const normalizePathForRole = (value) => (
+  String(value || '').replace(/\\/g, '/').trim().toLowerCase()
+);
+
+const normalizeExt = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!normalized) return '';
+  return normalized.startsWith('.') ? normalized : `.${normalized}`;
+};
+
+export const resolveChunkingFileRole = ({
+  relPath = null,
+  ext = null,
+  mode = null,
+  explicitRole = null
+} = {}) => {
+  const provided = normalizeChunkingRole(explicitRole);
+  if (provided !== CHUNK_ROLE_SRC || explicitRole) return provided;
+  if (mode === 'prose' || mode === 'extracted-prose') return CHUNK_ROLE_DOCS;
+  const normalizedPath = normalizePathForRole(relPath);
+  const normalizedExt = normalizeExt(ext || (normalizedPath.includes('.')
+    ? normalizedPath.slice(normalizedPath.lastIndexOf('.'))
+    : ''));
+  if (TEST_PATH_PATTERN.test(normalizedPath) || TEST_FILE_PATTERN.test(normalizedPath)) {
+    return CHUNK_ROLE_TEST;
+  }
+  if (DOCS_PATH_PATTERN.test(normalizedPath) || DOCS_EXTENSIONS.has(normalizedExt)) {
+    return CHUNK_ROLE_DOCS;
+  }
+  if (CONFIG_PATH_PATTERN.test(normalizedPath) || CONFIG_EXTENSIONS.has(normalizedExt)) {
+    return CHUNK_ROLE_CONFIG;
+  }
+  return CHUNK_ROLE_SRC;
+};
+
+const resolveChunkingLanguageKey = (context = {}) => {
+  const fromContext = typeof context?.languageId === 'string'
+    ? context.languageId
+    : (typeof context?.lang === 'string' ? context.lang : null);
+  const normalizedContext = fromContext ? fromContext.trim().toLowerCase() : '';
+  if (normalizedContext) return normalizedContext;
+  const ext = normalizeExt(context?.ext);
+  if (ext === '.ts' || ext === '.tsx') return 'typescript';
+  if (ext === '.js' || ext === '.jsx' || ext === '.mjs' || ext === '.cjs') return 'javascript';
+  if (ext === '.py') return 'python';
+  if (ext === '.md' || ext === '.mdx' || ext === '.markdown') return 'markdown';
+  return '';
+};
+
+const normalizeRoleOverride = (value) => {
+  if (!value || typeof value !== 'object') return null;
+  const maxBytes = normalizeChunkLimit(value.maxBytes);
+  const maxLines = normalizeChunkLimit(value.maxLines);
+  if (maxBytes == null && maxLines == null) return null;
+  return { maxBytes, maxLines };
+};
+
+const resolveOverrideFromLanguageRoleMap = ({
+  map = null,
+  languageKey = '',
+  role = CHUNK_ROLE_SRC
+} = {}) => {
+  if (!map || typeof map !== 'object') return null;
+  const fromLanguage = languageKey && map[languageKey] && typeof map[languageKey] === 'object'
+    ? normalizeRoleOverride(map[languageKey][role] || map[languageKey].default || null)
+    : null;
+  if (fromLanguage) return fromLanguage;
+  const fromRole = normalizeRoleOverride(map[role] || map.default || null);
+  return fromRole;
+};
+
+const mergeChunkLimit = (baseValue, overrideValue) => {
+  if (baseValue == null) return overrideValue ?? null;
+  if (overrideValue == null) return baseValue;
+  return Math.min(baseValue, overrideValue);
 };
 
 /**
@@ -37,9 +170,36 @@ export const resolveChunkingLimits = (context) => {
   const raw = context?.chunking && typeof context.chunking === 'object'
     ? context.chunking
     : {};
+  const relPath = context?.relPath || context?.file || context?.filePath || null;
+  const role = resolveChunkingFileRole({
+    relPath,
+    ext: context?.ext || null,
+    mode: context?.mode || null,
+    explicitRole: context?.fileRole
+  });
+  const languageKey = resolveChunkingLanguageKey({
+    ...context,
+    ext: context?.ext || context?.fileExt || null
+  });
+  const roleDefaultsEnabled = raw.useLanguageRoleDefaults !== false;
+  const defaultsOverride = roleDefaultsEnabled
+    ? resolveOverrideFromLanguageRoleMap({
+      map: DEFAULT_LANGUAGE_ROLE_LIMITS,
+      languageKey,
+      role
+    })
+    : null;
+  const configuredOverride = resolveOverrideFromLanguageRoleMap({
+    map: raw.languageRoleLimits,
+    languageKey,
+    role
+  });
+  const effectiveOverride = configuredOverride || defaultsOverride;
+  const rawMaxBytes = normalizeChunkLimit(raw.maxBytes);
+  const rawMaxLines = normalizeChunkLimit(raw.maxLines);
   return {
-    maxBytes: normalizeChunkLimit(raw.maxBytes),
-    maxLines: normalizeChunkLimit(raw.maxLines)
+    maxBytes: mergeChunkLimit(rawMaxBytes, effectiveOverride?.maxBytes ?? null),
+    maxLines: mergeChunkLimit(rawMaxLines, effectiveOverride?.maxLines ?? null)
   };
 };
 

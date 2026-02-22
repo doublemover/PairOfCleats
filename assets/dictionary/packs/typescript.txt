@@ -1,0 +1,6 @@
+namespace
+typeguard
+readonly
+tsconfig
+declaration
+mappedtype

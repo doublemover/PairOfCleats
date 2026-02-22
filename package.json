@@ -26,6 +26,7 @@
     "download-extensions": "node tools/download/extensions.js",
     "verify-extensions": "node tools/sqlite/verify-extensions.js",
     "generate-repo-dict": "node tools/dicts/generate-repo-dict.js",
+    "dict:build-pack": "node tools/dictionary/build-pack.js",
     "tooling-detect": "node tools/tooling/detect.js",
     "tooling-install": "node tools/tooling/install.js",
     "python:check": "node tools/tooling/python-check.js",

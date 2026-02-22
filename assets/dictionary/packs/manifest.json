@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "profileVersion": "bench-2026.02",
+  "generatedAt": "2026-02-22T09:25:00-05:00",
+  "common": [
+    "common.txt"
+  ],
+  "languages": {
+    "javascript": ["javascript.txt"],
+    "typescript": ["typescript.txt"],
+    "python": ["python.txt"],
+    "ruby": ["ruby.txt"],
+    "go": ["go.txt"],
+    "java": ["java.txt"]
+  }
+}

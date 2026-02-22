@@ -632,13 +632,17 @@ Primary targets:
 - Touchpoints: `src/index/build/runtime/runtime.js`, `src/index/build/indexer/steps/process-files.js`, `tools/bench/language/config.js`, `tests/perf/bench/bench-language-repos.test.js`
 
 ### UB-071: Language-aware chunk sizing
-- Status: [ ]
+- Status: [x]
 - Observation:
   - Uniform chunking can hurt both throughput and retrieval quality.
 - Tasks:
   - Tune chunk size/window by language and file role (library, tests, config).
 - Exit criteria:
   - Better hit rates and fewer chunks for same coverage.
+- Completion: 2026-02-22T09:35:21.3008108-05:00
+- Validation:
+  - `node tests/indexing/chunking/language-role-sensitive.test.js`
+  - `node tests/indexing/chunking/chunking-limits.test.js`
 - Improvement Intent (What): chunking quality/efficiency
 - Improvement Method (How): language-role-aware chunk sizing with sensitivity checks.
 - Integrated Betterments: tune chunk size by language and file role (src/test/docs/config); add anti-fragmentation guardrails for short files; include chunk-size sensitivity analysis in benchmark reports.
@@ -688,7 +692,7 @@ Primary targets:
 - Touchpoints: `src/index/build/runtime/runtime.js`, `src/index/build/artifacts-write.js`, `src/index/build/indexer/steps/process-files.js`, `src/shared/cache/policy.js`, `tests/indexing/embeddings/embeddings-memory-plateau.test.js`
 
 ### UB-075: Deterministic performance regression gates
-- Status: [ ]
+- Status: [x]
 - Observation:
   - Regressions are detectable but not consistently blocked.
 - Tasks:
@@ -696,6 +700,10 @@ Primary targets:
   - Hard-fail regressions beyond tolerance windows.
 - Exit criteria:
   - Performance regressions caught pre-merge.
+- Completion: 2026-02-22T09:35:21.3008108-05:00
+- Validation:
+  - `node tests/perf/bench/bench-language-regression-gate.test.js`
+  - `node tests/runner/harness/timings-ledger.test.js`
 - Improvement Intent (What): regression prevention
 - Improvement Method (How): deterministic perf budgets and confidence-aware CI gates.
 - Integrated Betterments: define per-stage budget gates with confidence intervals; separate hard-fail regressions from warning-only drift; add flake-resistant regression detection with repeated micro-runs.
@@ -728,7 +736,7 @@ Last revised: 2026-02-22T05:44:04.8332760-05:00
 ## Third Sweep: Additional Advanced Opportunities
 
 ### UB-076: Early extracted-prose eligibility prefilter
-- Status: [ ]
+- Status: [x]
 - Observation:
   - Some repos scan hundreds of extracted-prose files but produce very few extracted-prose chunks.
 - Tasks:
@@ -736,13 +744,17 @@ Last revised: 2026-02-22T05:44:04.8332760-05:00
   - Record skip reasons for auditability.
 - Exit criteria:
   - Reduced extracted-prose stage time on low-yield repos.
+- Completion: 2026-02-22T09:35:21.3008108-05:00
+- Validation:
+  - `node tests/indexing/extracted-prose/extracted-prose-prefilter.test.js`
+  - `node tests/indexing/extracted-prose/document-extraction-outcomes-recorded.test.js`
 - Improvement Intent (What): extracted-prose preprocessing cost
 - Improvement Method (How): low-cost eligibility probes and measured prefilter precision.
 - Integrated Betterments: use low-cost lexical probes before extracted-prose scheduling; add opt-out override for repositories where extraction is critical; log precision/recall of prefilter decisions.
 - Touchpoints: `src/index/chunking/formats/document-common.js`, `src/index/build/file-processor/skip.js`, `src/index/build/indexer/steps/process-files.js`, `tests/indexing/extracted-prose/extraction-report.test.js`
 
 ### UB-077: Code dictionary acquisition program
-- Status: [ ]
+- Status: [x]
 - Observation:
   - Logs repeatedly show no code dictionary files for gated languages.
 - Tasks:
@@ -750,6 +762,10 @@ Last revised: 2026-02-22T05:44:04.8332760-05:00
   - Version and ship dictionaries by language profile.
 - Exit criteria:
   - Improved token normalization and hit rate for symbol-heavy queries.
+- Completion: 2026-02-22T09:35:21.3008108-05:00
+- Validation:
+  - `node tests/shared/dictionary/dictionary-pack-fallback.test.js`
+  - `node tests/retrieval/query/query-intent-path-heuristics.test.js`
 - Improvement Intent (What): tokenization quality
 - Improvement Method (How): curated language dictionary packs with versioning and rollback.
 - Integrated Betterments: build dictionary ingestion pipeline with dedupe and quality scoring; version dictionary packs by language and benchmark epoch; add rollback path for dictionary regressions.
@@ -814,7 +830,7 @@ Last revised: 2026-02-22T05:44:04.8332760-05:00
 - Touchpoints: `src/shared/artifact-io/compression.js`, `src/shared/artifact-io/fs.js`, `src/shared/artifact-io/loaders/core.js`, `src/shared/chunk-meta-cold.js`, `tests/shared/artifact-io/jsonl-stream-roundtrip.test.js`, `tests/shared/artifact-io/artifact-io-bench-contract.test.js`
 
 ### UB-081: Query-time adaptive rerank budget
-- Status: [ ]
+- Status: [x]
 - Observation:
   - Query latency outliers likely spend disproportionate time in candidate handling.
 - Tasks:
@@ -822,6 +838,11 @@ Last revised: 2026-02-22T05:44:04.8332760-05:00
   - Cap expensive rerank on low-value tails while preserving top precision.
 - Exit criteria:
   - Reduced p95 query latency with stable top-k quality.
+- Completion: 2026-02-22T09:35:21.3008108-05:00
+- Validation:
+  - `node tests/retrieval/pipeline/adaptive-rerank-budget.test.js`
+  - `node tests/retrieval/ann-candidate-policy-explain.test.js`
+  - `node tests/retrieval/filters/query-syntax/phrases-and-scorebreakdown.test.js`
 - Improvement Intent (What): query p95 latency
 - Improvement Method (How): adaptive rerank budgets based on intent and confidence.
 - Integrated Betterments: apply rerank budget caps by query intent and candidate confidence; add p95 latency guard that trims rerank depth when needed; track quality delta of rerank cuts.

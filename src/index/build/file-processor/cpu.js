@@ -26,6 +26,7 @@ import { buildLineIndex } from '../../../shared/lines.js';
 import { formatError } from './meta.js';
 import { processChunks } from './process-chunks.js';
 import { buildVfsVirtualPath } from '../../tooling/vfs.js';
+import { resolveChunkingFileRole } from '../../chunking/limits.js';
 import { shouldSkipTreeSitterPlanningForPath } from '../tree-sitter-scheduler/policy.js';
 import {
   resolveSegmentExt,
@@ -805,6 +806,16 @@ export const processFileCpu = async (context) => {
   }
   const segmentContext = {
     ...languageContext,
+    relPath: relKey,
+    ext,
+    mode,
+    languageId: fileLanguageId || null,
+    fileRole: resolveChunkingFileRole({
+      relPath: relKey,
+      ext,
+      mode,
+      explicitRole: languageContext?.fileRole || null
+    }),
     yamlChunking: languageOptions?.yamlChunking,
     chunking: languageOptions?.chunking,
     documentExtraction: extractedDocumentFile
