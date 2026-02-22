@@ -71,14 +71,14 @@ const defaults = resolveSchedulerConfig({
 assert.equal(defaults.enabled, true, 'expected scheduler to default on');
 assert.equal(defaults.lowResourceMode, false, 'expected low-resource to default off');
 assert.equal(defaults.adaptive, true, 'expected adaptive scheduler mode to default on');
-assert.equal(defaults.cpuTokens, 1, 'expected cpu token clamp to 1');
-assert.equal(defaults.ioTokens, 1, 'expected io token clamp to 1');
-assert.equal(defaults.memoryTokens, 1, 'expected memory token clamp to 1');
+assert.equal(defaults.cpuTokens, 2, 'expected throughput-first default cpu tokens');
+assert.equal(defaults.ioTokens, 2, 'expected throughput-first default io tokens');
+assert.equal(defaults.memoryTokens, 2, 'expected throughput-first default memory tokens');
 assert.equal(defaults.starvationMs, 30000, 'expected default starvation window');
-assert.equal(defaults.queues['stage2.write'].floorIo, 1, 'expected critical write queue floor');
+assert.equal(defaults.queues['stage2.write'].floorIo, 2, 'expected critical write queue floor');
 assert.equal(defaults.queues['stage1.postings'].floorCpu, 1, 'expected postings queue floor');
 assert.equal(defaults.writeBackpressure.enabled, true, 'expected write backpressure enabled by default');
-assert.equal(defaults.writeBackpressure.pendingThreshold, 128, 'expected default write pending threshold');
+assert.equal(defaults.writeBackpressure.pendingThreshold, 256, 'expected default write pending threshold');
 
 const autotuned = resolveSchedulerConfig({
   argv: {},

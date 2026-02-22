@@ -56,7 +56,7 @@ export const DEFAULT_CACHE_MB = {
   formatShort: 16,
   lint: 16,
   complexity: 16,
-  gitMeta: 16
+  gitMeta: 32
 };
 
 export const DEFAULT_CACHE_TTL_MS = {
@@ -66,7 +66,7 @@ export const DEFAULT_CACHE_TTL_MS = {
   formatShort: 0,
   lint: 0,
   complexity: 0,
-  gitMeta: 0
+  gitMeta: 5 * 60 * 1000
 };
 
 export const mbToBytes = (value) => {

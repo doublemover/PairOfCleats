@@ -65,11 +65,11 @@ export const resolveTreeSitterRuntime = (indexingConfig) => {
   const treeSitterConfig = indexingConfig.treeSitter || {};
   const treeSitterEnabled = treeSitterConfig.enabled !== false;
   const treeSitterLanguages = treeSitterConfig.languages || {};
-  // Keep a conservative global ceiling by default so oversized JS payloads
-  // are rejected early and do not trigger expensive parser/minified heuristics.
-  const treeSitterMaxBytes = normalizeLimit(treeSitterConfig.maxBytes, 512 * 1024);
-  const treeSitterMaxLines = normalizeLimit(treeSitterConfig.maxLines, 10000);
-  const treeSitterMaxParseMs = normalizeLimit(treeSitterConfig.maxParseMs, 1000);
+  // Throughput-first default caps: keep limits bounded, but high enough to
+  // avoid unnecessary fallback chunking on larger real-world source files.
+  const treeSitterMaxBytes = normalizeLimit(treeSitterConfig.maxBytes, 768 * 1024);
+  const treeSitterMaxLines = normalizeLimit(treeSitterConfig.maxLines, 16000);
+  const treeSitterMaxParseMs = normalizeLimit(treeSitterConfig.maxParseMs, 1600);
   const treeSitterByLanguage = normalizeTreeSitterByLanguage(
     treeSitterConfig.byLanguage || {}
   );

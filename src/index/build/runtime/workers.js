@@ -217,7 +217,7 @@ export const resolveRuntimeMemoryPolicy = ({ indexingConfig, cpuConcurrency }) =
     : workerHeapPolicy.targetPerWorkerMb;
   const reserveRssMb = Number.isFinite(Number(memoryConfig.reserveRssMb))
     ? Math.max(512, Math.floor(Number(memoryConfig.reserveRssMb)))
-    : 2048;
+    : 1024;
   const maxGlobalRssMb = Number.isFinite(totalMemMb) && totalMemMb > 0
     ? Math.max(2048, Math.floor(totalMemMb * 0.9))
     : null;
@@ -246,8 +246,8 @@ export const resolveRuntimeMemoryPolicy = ({ indexingConfig, cpuConcurrency }) =
     effectiveWorkerHeapMb + perWorkerCacheMb + perWorkerWriteBufferMb
   );
   const queueHeadroomScale = Number.isFinite(maxGlobalRssMb) && maxGlobalRssMb > 0
-    ? (projectedBudgetMb < Math.max(512, maxGlobalRssMb - reserveRssMb) ? 3 : 2)
-    : 2;
+    ? (projectedBudgetMb < Math.max(512, maxGlobalRssMb - reserveRssMb) ? 4 : 3)
+    : 3;
   return {
     totalMemMb,
     maxGlobalRssMb,
@@ -315,15 +315,15 @@ export const createRuntimeQueues = ({
     ? Math.max(1, Math.floor(Number(memoryPolicy.queueHeadroomScale)))
     : 1;
   const pendingScale = schedulerAdaptive
-    ? Math.max(1, Math.min(3, memoryPendingScale))
+    ? Math.max(1, Math.min(4, memoryPendingScale))
     : memoryPendingScale;
   const maxFilePending = coercePositiveInt(tokenizeConfig?.maxPending)
     ?? (Number.isFinite(pendingLimits?.cpu?.maxPending)
       ? pendingLimits.cpu.maxPending
-      : Math.max(64, effectiveCpuConcurrency * 8 * pendingScale));
+      : Math.max(128, effectiveCpuConcurrency * 12 * pendingScale));
   const maxIoPending = Number.isFinite(pendingLimits?.io?.maxPending)
     ? pendingLimits.io.maxPending
-    : Math.max(16, ioConcurrency * 4 * pendingScale);
+    : Math.max(32, ioConcurrency * 6 * pendingScale);
   const explicitEmbeddingConcurrency = Number.isFinite(embeddingConcurrency)
     ? Math.max(0, Math.floor(embeddingConcurrency))
     : null;
@@ -333,7 +333,7 @@ export const createRuntimeQueues = ({
   const maxEmbeddingPending = Number.isFinite(pendingLimits?.embedding?.maxPending)
     ? pendingLimits.embedding.maxPending
     : (effectiveEmbeddingConcurrency > 0
-      ? Math.max(64, effectiveEmbeddingConcurrency * 8 * pendingScale)
+      ? Math.max(128, effectiveEmbeddingConcurrency * 12 * pendingScale)
       : 0);
   const resolvedProcConcurrency = coercePositiveInt(procConcurrency)
     ?? (Number.isFinite(pendingLimits?.proc?.concurrency)
@@ -341,7 +341,7 @@ export const createRuntimeQueues = ({
       : null);
   const procPendingLimit = Number.isFinite(pendingLimits?.proc?.maxPending)
     ? Math.max(1, Math.floor(pendingLimits.proc.maxPending))
-    : (resolvedProcConcurrency ? Math.max(4, resolvedProcConcurrency * 4) : null);
+    : (resolvedProcConcurrency ? Math.max(8, resolvedProcConcurrency * 6) : null);
   const MiB = 1024 * 1024;
   const normalizeBytesLimit = (value) => {
     const parsed = Math.floor(Number(value));
@@ -354,7 +354,7 @@ export const createRuntimeQueues = ({
         Math.max(
           0,
           (Number(memoryPolicy.maxGlobalRssMb) || 0) - (Number(memoryPolicy?.reserveRssMb) || 0)
-        ) * MiB * 0.35
+        ) * MiB * 0.5
       )
     )
     : null;
@@ -369,23 +369,23 @@ export const createRuntimeQueues = ({
   };
   const maxFilePendingBytes = resolvePendingBytesLimit(
     pendingLimits?.cpu?.maxPendingBytes,
-    Math.max(64 * MiB, maxFilePending * 2 * MiB),
+    Math.max(96 * MiB, Math.floor(maxFilePending * 2.5 * MiB)),
     0.45
   );
   const maxIoPendingBytes = resolvePendingBytesLimit(
     pendingLimits?.io?.maxPendingBytes,
-    Math.max(32 * MiB, maxIoPending * MiB),
+    Math.max(48 * MiB, Math.floor(maxIoPending * 1.5 * MiB)),
     0.25
   );
   const maxEmbeddingPendingBytes = resolvePendingBytesLimit(
     pendingLimits?.embedding?.maxPendingBytes,
-    Math.max(24 * MiB, Math.max(1, maxEmbeddingPending) * 512 * 1024),
+    Math.max(48 * MiB, Math.max(1, maxEmbeddingPending) * 768 * 1024),
     0.2
   );
   const procPendingBytesLimit = resolvedProcConcurrency
     ? resolvePendingBytesLimit(
       pendingLimits?.proc?.maxPendingBytes,
-      Math.max(16 * MiB, procPendingLimit * 512 * 1024),
+      Math.max(24 * MiB, procPendingLimit * 768 * 1024),
       0.1
     )
     : null;
@@ -503,7 +503,14 @@ export const resolveWorkerPoolRuntimeConfig = ({ indexingConfig, envConfig, cpuC
   const fileBoundTarget = Math.max(cpuTarget, Math.min(32, fileTarget));
   const workerPoolDefaultMax = Math.max(
     1,
-    Math.min(dynamicHardMaxWorkers, Math.max(oversubscribeTarget, fileBoundTarget))
+    Math.min(
+      dynamicHardMaxWorkers,
+      Math.max(
+        cpuTarget,
+        oversubscribeTarget + 4,
+        fileBoundTarget + 2
+      )
+    )
   );
   return resolveWorkerPoolConfig(
     indexingConfig.workerPool || {},

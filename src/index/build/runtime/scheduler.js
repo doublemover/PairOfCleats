@@ -70,8 +70,8 @@ const DEFAULT_WRITE_BACKPRESSURE = Object.freeze({
     'stage2.relations',
     'stage2.relations.io'
   ]),
-  pendingThreshold: 128,
-  pendingBytesThreshold: 256 * 1024 * 1024,
+  pendingThreshold: 256,
+  pendingBytesThreshold: 512 * 1024 * 1024,
   oldestWaitMsThreshold: 15000
 });
 
@@ -104,16 +104,16 @@ const resolveWriteBackpressureConfig = (value) => {
 };
 
 const SCHEDULER_DEFAULT_QUEUE_CONFIG = Object.freeze({
-  'stage1.cpu': Object.freeze({ priority: 40, weight: 3, floorCpu: 1 }),
-  'stage1.io': Object.freeze({ priority: 35, weight: 2, floorIo: 1 }),
+  'stage1.cpu': Object.freeze({ priority: 45, weight: 4, floorCpu: 1 }),
+  'stage1.io': Object.freeze({ priority: 38, weight: 3, floorIo: 1 }),
   'stage1.proc': Object.freeze({ priority: 45, weight: 2 }),
-  'stage1.postings': Object.freeze({ priority: 25, weight: 4, floorCpu: 1 }),
-  'stage2.write': Object.freeze({ priority: 25, weight: 4, floorIo: 1 }),
-  'stage2.relations': Object.freeze({ priority: 30, weight: 3 }),
-  'stage2.relations.io': Object.freeze({ priority: 30, weight: 2, floorIo: 1 }),
-  'stage4.sqlite': Object.freeze({ priority: 20, weight: 5, floorIo: 1 }),
-  'embeddings.compute': Object.freeze({ priority: 35, weight: 3 }),
-  'embeddings.io': Object.freeze({ priority: 30, weight: 2 })
+  'stage1.postings': Object.freeze({ priority: 30, weight: 5, floorCpu: 1 }),
+  'stage2.write': Object.freeze({ priority: 30, weight: 5, floorIo: 2 }),
+  'stage2.relations': Object.freeze({ priority: 32, weight: 4, floorCpu: 1 }),
+  'stage2.relations.io': Object.freeze({ priority: 32, weight: 3, floorIo: 1 }),
+  'stage4.sqlite': Object.freeze({ priority: 30, weight: 6, floorCpu: 1, floorIo: 2 }),
+  'embeddings.compute': Object.freeze({ priority: 38, weight: 4, floorCpu: 1 }),
+  'embeddings.io': Object.freeze({ priority: 32, weight: 3, floorIo: 1 })
 });
 
 const mergeQueueConfig = (defaults, overrides) => {
@@ -207,7 +207,7 @@ export const resolveSchedulerConfig = ({
     cliPresent: cliCpuPresent,
     envValue: envConfig?.schedulerCpuTokens,
     configValue: schedulerConfig?.cpuTokens,
-    fallback: defaultCpu,
+    fallback: Math.max(1, Math.ceil(defaultCpu * 1.5)),
     allowZero: false
   });
 
@@ -216,7 +216,7 @@ export const resolveSchedulerConfig = ({
     cliPresent: cliIoPresent,
     envValue: envConfig?.schedulerIoTokens,
     configValue: schedulerConfig?.ioTokens,
-    fallback: defaultIo,
+    fallback: Math.max(1, Math.ceil(defaultIo * 1.5)),
     allowZero: false
   });
 
@@ -225,7 +225,7 @@ export const resolveSchedulerConfig = ({
     cliPresent: cliMemPresent,
     envValue: envConfig?.schedulerMemoryTokens,
     configValue: schedulerConfig?.memoryTokens,
-    fallback: defaultMem,
+    fallback: Math.max(1, Math.ceil(defaultMem * 1.25)),
     allowZero: false
   });
 
@@ -263,7 +263,7 @@ export const resolveSchedulerConfig = ({
     configValue: schedulerConfig?.maxCpuTokens,
     fallback: autoTuneMaxCpu != null
       ? Math.max(cpuTokens, autoTuneMaxCpu)
-      : Math.max(cpuTokens, defaultCpu * 3),
+      : Math.max(cpuTokens, defaultCpu * 4),
     allowZero: false
   });
 
@@ -274,7 +274,7 @@ export const resolveSchedulerConfig = ({
     configValue: schedulerConfig?.maxIoTokens,
     fallback: autoTuneMaxIo != null
       ? Math.max(ioTokens, autoTuneMaxIo)
-      : Math.max(ioTokens, defaultIo * 3),
+      : Math.max(ioTokens, defaultIo * 4),
     allowZero: false
   });
 
@@ -285,7 +285,7 @@ export const resolveSchedulerConfig = ({
     configValue: schedulerConfig?.maxMemoryTokens,
     fallback: autoTuneMaxMem != null
       ? Math.max(memoryTokens, autoTuneMaxMem)
-      : Math.max(memoryTokens, defaultMem * 3),
+      : Math.max(memoryTokens, defaultMem * 4),
     allowZero: false
   });
   const adaptiveTargetUtilization = coerceUnitFraction(
@@ -306,7 +306,7 @@ export const resolveSchedulerConfig = ({
     cliPresent: false,
     envValue: envConfig?.schedulerMemoryReserveMb,
     configValue: schedulerConfig?.memoryReserveMb,
-    fallback: 2048,
+    fallback: 1024,
     allowZero: true
   });
   const adaptiveMemoryPerTokenMb = resolveNumber({
@@ -314,7 +314,7 @@ export const resolveSchedulerConfig = ({
     cliPresent: false,
     envValue: envConfig?.schedulerMemoryPerTokenMb,
     configValue: schedulerConfig?.memoryPerTokenMb,
-    fallback: 1024,
+    fallback: 768,
     allowZero: false
   });
   const utilizationAlertTarget = coerceUnitFraction(

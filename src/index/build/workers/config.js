@@ -332,11 +332,11 @@ export function normalizeWorkerPoolConfig(raw = {}, options = {}) {
   const downscaleRssThreshold = coerceClampedFraction(
     raw.downscaleRssThreshold,
     { min: 0.5, max: 0.99, allowZero: false }
-  ) ?? 0.9;
+  ) ?? 0.95;
   const downscaleGcThreshold = coerceClampedFraction(
     raw.downscaleGcThreshold,
     { min: 0.5, max: 0.99, allowZero: false }
-  ) ?? 0.85;
+  ) ?? 0.92;
   const downscaleCooldownMsRaw = Number(raw.downscaleCooldownMs);
   const downscaleCooldownMs = Number.isFinite(downscaleCooldownMsRaw) && downscaleCooldownMsRaw > 0
     ? Math.max(1000, Math.floor(downscaleCooldownMsRaw))
@@ -348,11 +348,11 @@ export function normalizeWorkerPoolConfig(raw = {}, options = {}) {
   const memoryWatermarkSoft = coerceClampedFraction(
     raw.memoryWatermarkSoft,
     { min: 0.7, max: 0.995, allowZero: false }
-  ) ?? 0.97;
+  ) ?? 0.985;
   const configuredMemoryWatermarkHard = coerceClampedFraction(
     raw.memoryWatermarkHard,
     { min: 0.75, max: 0.999, allowZero: false }
-  ) ?? 0.992;
+  ) ?? 0.995;
   const memoryWatermarkHard = Math.min(
     0.999,
     Math.max(memoryWatermarkSoft + 0.01, configuredMemoryWatermarkHard)
@@ -370,13 +370,13 @@ export function normalizeWorkerPoolConfig(raw = {}, options = {}) {
   ));
   const softMaxPerLanguage = coercePositiveIntMinOne(
     pressureThrottleConfig.softMaxPerLanguage
-  ) ?? Math.max(2, Math.min(maxWorkers, Math.max(4, Math.floor(maxWorkers * 0.85))));
+  ) ?? Math.max(3, Math.min(maxWorkers, Math.max(6, Math.floor(maxWorkers * 0.9))));
   const hardMaxPerLanguageRaw = coerceNonNegativeInt(
     pressureThrottleConfig.hardMaxPerLanguage
   );
   const hardMaxPerLanguage = Math.min(
     softMaxPerLanguage,
-    hardMaxPerLanguageRaw ?? Math.max(1, Math.floor(softMaxPerLanguage * 0.5))
+    hardMaxPerLanguageRaw ?? Math.max(2, Math.floor(softMaxPerLanguage * 0.5))
   );
   const pressureCacheMaxEntries = coercePositiveIntMinOne(raw.pressureCacheMaxEntries) ?? 2048;
   const blockHeavyOnHardPressure = pressureThrottleConfig.blockHeavyOnHardPressure !== false;
