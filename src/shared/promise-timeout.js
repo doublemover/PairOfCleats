@@ -77,7 +77,6 @@ export const runWithTimeout = async (operation, input = {}) => {
         }
         reject(timeoutError);
       }, timeoutMs);
-      timer.unref?.();
     });
     return await Promise.race([Promise.resolve().then(() => operation(timeoutSignal)), timeoutPromise]);
   } finally {
