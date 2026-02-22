@@ -113,14 +113,15 @@ assert.equal(result.status, 0, result.stderr || result.stdout);
 
 const output = stripAnsi(result.stderr);
 const lines = output.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+const languageSummaryLine = lines.find((line) => line.startsWith('Lines by Language (top ')) || '';
 
 assert.equal(lines.some((line) => line.includes('{.python}')), false, 'expected pandoc language tags to be normalized');
 assert.equal(lines.some((line) => line.includes('{.xml}')), false, 'expected pandoc extension tags to be normalized');
 assert.equal(lines.some((line) => /^hs:\s+/i.test(line)), false, 'expected hs alias to normalize to haskell');
-assert.equal(lines.some((line) => /^python:\s+15$/i.test(line)), true, 'expected python lines to be preserved');
-assert.equal(lines.some((line) => /^xml:\s+1$/i.test(line)), true, 'expected xml lines to be preserved');
-assert.equal(lines.some((line) => /^haskell:\s+69$/i.test(line)), true, 'expected haskell aliases to merge into one bucket');
-assert.equal(lines.some((line) => /^unknown:\s+2$/i.test(line)), true, 'expected unresolved languages to remain explicitly tracked');
+assert.equal(languageSummaryLine.includes('python 15'), true, 'expected python lines to be preserved');
+assert.equal(languageSummaryLine.includes('xml 1'), true, 'expected xml lines to be preserved');
+assert.equal(languageSummaryLine.includes('haskell 69'), true, 'expected haskell aliases to merge into one bucket');
+assert.equal(languageSummaryLine.includes('unknown 2'), true, 'expected unresolved languages to remain explicitly tracked');
 
 await fsPromises.rm(tmpRoot, { recursive: true, force: true });
 

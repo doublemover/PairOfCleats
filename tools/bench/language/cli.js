@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { createCli } from '../../../src/shared/cli.js';
 import { BENCH_OPTIONS, mergeCliOptions, validateBenchArgs } from '../../../src/shared/cli-options.js';
-import { resolveToolRoot } from '../../shared/dict-utils.js';
+import { getCacheRoot, resolveToolRoot } from '../../shared/dict-utils.js';
 
 const parseMs = (value, fallback) => {
   const parsed = Number(value);
@@ -81,7 +81,7 @@ export const parseBenchLanguageArgs = (rawArgs = process.argv.slice(2)) => {
   const runSuffix = buildRunSuffix();
   const configPath = path.resolve(argv.config || path.join(scriptRoot, 'benchmarks', 'repos.json'));
   const reposRoot = path.resolve(argv.root || path.join(scriptRoot, 'benchmarks', 'repos'));
-  const cacheRootBase = path.resolve(argv['cache-root'] || path.join(scriptRoot, 'benchmarks', 'cache'));
+  const cacheRootBase = path.resolve(argv['cache-root'] || path.join(getCacheRoot(), 'bench-language'));
   const cacheSuffixRaw = typeof argv['cache-suffix'] === 'string' ? argv['cache-suffix'].trim() : '';
   const cacheRun = argv['cache-run'] === true;
   const cacheSuffix = cacheSuffixRaw || (cacheRun ? runSuffix : '');

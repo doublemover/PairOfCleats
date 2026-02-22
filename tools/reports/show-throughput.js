@@ -7,6 +7,7 @@ import { getMetricsDir, loadUserConfig } from '../shared/dict-utils.js';
 const resultsRoot = path.join(process.cwd(), 'benchmarks', 'results');
 const refreshJson = process.argv.includes('--refresh-json');
 const deepAnalysis = process.argv.includes('--deep-analysis') || refreshJson;
+const verboseOutput = process.argv.includes('--verbose');
 const includeUsrGuardrails = process.argv.includes('--include-usr');
 const NON_REPO_RESULTS_FOLDERS = new Set(['logs', 'usr']);
 
@@ -196,6 +197,7 @@ const formatModeThroughputLine = ({ label, entry }) => {
     `${tokens} tokens/s  | ${bytes} MB/s | ${files} files/s`
   );
 };
+const formatModeChunkRate = (label, entry) => `${label} ${formatNumber(entry?.chunksPerSec)}`;
 const SECTION_META_LEFT_WIDTH = `${formatFixed(0, { digits: 1, width: 5 })} chunks/s  `.length;
 const formatSectionMetaLine = ({ label, left, right }) => (
   `  ${label.padStart(8)}: ${String(left || '').padEnd(SECTION_META_LEFT_WIDTH)}| ${String(right || '')}`
@@ -921,6 +923,75 @@ for (const dir of folders) {
   const avgProse = meanThroughput(throughputs, (throughput) => throughput?.prose || null);
   const avgXProse = meanThroughput(throughputs, (throughput) => throughput?.extractedProse || null);
   const avgRecords = meanThroughput(throughputs, (throughput) => throughput?.records || null);
+  const compactModeLine = [
+    formatModeChunkRate('code', avgCode),
+    formatModeChunkRate('prose', avgProse),
+    formatModeChunkRate('xprose', avgXProse),
+    formatModeChunkRate('records', avgRecords)
+  ].join(' | ');
+  console.error(`  ch/s ${compactModeLine}`);
+
+  const summaries = runs.map((r) => r.summary).filter(Boolean);
+  const buildIndexMs = summaries.length ? mean(collect(summaries, (s) => s.buildMs?.index)) : null;
+  const buildSqliteMs = summaries.length ? mean(collect(summaries, (s) => s.buildMs?.sqlite)) : null;
+  const wallPerQuery = summaries.length ? mean(collect(summaries, (s) => s.queryWallMsPerQuery)) : null;
+  const wallPerSearch = summaries.length ? mean(collect(summaries, (s) => s.queryWallMsPerSearch)) : null;
+  const backendLatency = {};
+  if (summaries.length) {
+    for (const summary of summaries) {
+      const latency = summary.latencyMs || {};
+      for (const [backend, stats] of Object.entries(latency)) {
+        if (!backendLatency[backend]) backendLatency[backend] = { mean: [], p95: [] };
+        if (Number.isFinite(stats?.mean)) backendLatency[backend].mean.push(stats.mean);
+        if (Number.isFinite(stats?.p95)) backendLatency[backend].p95.push(stats.p95);
+      }
+    }
+  }
+  const memoryMean = mean(backendLatency.memory?.mean || []);
+  const memoryP95 = mean(backendLatency.memory?.p95 || []);
+  const sqliteMean = mean(backendLatency.sqlite?.mean || []);
+  const sqliteP95 = mean(backendLatency.sqlite?.p95 || []);
+
+  if (!verboseOutput) {
+    const aggregateIndexed = Array.from(modeTotalsFolder.values()).reduce(
+      (acc, entry) => {
+        acc.lines += Number.isFinite(entry.lines) ? entry.lines : 0;
+        acc.files += Number.isFinite(entry.files) ? entry.files : 0;
+        acc.bytes += Number.isFinite(entry.bytes) ? entry.bytes : 0;
+        acc.durationMs += Number.isFinite(entry.durationMs) ? entry.durationMs : 0;
+        return acc;
+      },
+      { lines: 0, files: 0, bytes: 0, durationMs: 0 }
+    );
+    if (aggregateIndexed.lines > 0 || aggregateIndexed.files > 0) {
+      const aggregateLinesPerSec = aggregateIndexed.durationMs > 0
+        ? (aggregateIndexed.lines / (aggregateIndexed.durationMs / 1000))
+        : null;
+      console.error(
+        `  indexed ${formatCount(aggregateIndexed.lines)} lines | ` +
+        `${formatCount(aggregateIndexed.files)} files | ${formatBytes(aggregateIndexed.bytes)} | ` +
+        `${formatNumber(aggregateLinesPerSec)} lines/s`
+      );
+    }
+    if (summaries.length) {
+      console.error(
+        `  perf build ${formatMs(buildIndexMs)} + sqlite ${formatMs(buildSqliteMs)} | ` +
+        `query ${formatMs(wallPerQuery)} | search ${formatMs(wallPerSearch)} | ` +
+        `lat mem/sql ${formatNumber(memoryMean)}ms/${formatNumber(sqliteMean)}ms`
+      );
+    }
+    if (hasAstGraphValues(astGraphTotalsFolder.totals)) {
+      const coverage = runs.length ? `${astGraphTotalsFolder.repos}/${runs.length}` : `${astGraphTotalsFolder.repos}/0`;
+      console.error(
+        `  ast (${coverage}) symbols ${formatAstField(astGraphTotalsFolder, 'symbols')} | ` +
+        `classes ${formatAstField(astGraphTotalsFolder, 'classes')} | ` +
+        `functions ${formatAstField(astGraphTotalsFolder, 'functions')} | ` +
+        `imports ${formatAstField(astGraphTotalsFolder, 'imports')}`
+      );
+    }
+    continue;
+  }
+
   console.error(`  ${formatModeThroughputLine({ label: 'Code', entry: avgCode })}`);
   console.error(`  ${formatModeThroughputLine({ label: 'Prose', entry: avgProse })}`);
   console.error(`  ${formatModeThroughputLine({ label: 'XProse', entry: avgXProse })}`);
@@ -972,10 +1043,7 @@ for (const dir of folders) {
     );
   }
 
-  const summaries = runs.map((r) => r.summary).filter(Boolean);
   if (summaries.length) {
-    const buildIndexMs = mean(collect(summaries, (s) => s.buildMs?.index));
-    const buildSqliteMs = mean(collect(summaries, (s) => s.buildMs?.sqlite));
     console.error(
       formatSectionMetaLine({
         label: 'Build',
@@ -984,8 +1052,6 @@ for (const dir of folders) {
       })
     );
 
-    const wallPerQuery = mean(collect(summaries, (s) => s.queryWallMsPerQuery));
-    const wallPerSearch = mean(collect(summaries, (s) => s.queryWallMsPerSearch));
     console.error(
       formatSectionMetaLine({
         label: 'Query',
@@ -993,20 +1059,6 @@ for (const dir of folders) {
         right: `avg/search ${formatMs(wallPerSearch)}`
       })
     );
-
-    const backendLatency = {};
-    for (const summary of summaries) {
-      const latency = summary.latencyMs || {};
-      for (const [backend, stats] of Object.entries(latency)) {
-        if (!backendLatency[backend]) backendLatency[backend] = { mean: [], p95: [] };
-        if (Number.isFinite(stats?.mean)) backendLatency[backend].mean.push(stats.mean);
-        if (Number.isFinite(stats?.p95)) backendLatency[backend].p95.push(stats.p95);
-      }
-    }
-    const memoryMean = mean(backendLatency.memory?.mean || []);
-    const memoryP95 = mean(backendLatency.memory?.p95 || []);
-    const sqliteMean = mean(backendLatency.sqlite?.mean || []);
-    const sqliteP95 = mean(backendLatency.sqlite?.p95 || []);
     console.error('  Latency');
     console.error(
       `      mem: ${formatNumber(memoryMean)}ms` +
@@ -1252,11 +1304,25 @@ if (totalsByModeRows.length) {
 if (languageTotals.size) {
   const sortedLanguages = Array.from(languageTotals.entries())
     .sort((a, b) => b[1] - a[1]);
-  const languageWidth = Math.max(...sortedLanguages.map(([language]) => language.length));
-  const countWidth = Math.max(...sortedLanguages.map(([, lines]) => formatCount(lines).length));
+  const languageDisplayLimit = verboseOutput ? sortedLanguages.length : 12;
+  const displayed = sortedLanguages.slice(0, languageDisplayLimit);
+  const omitted = sortedLanguages.slice(languageDisplayLimit);
+  const omittedLines = omitted.reduce((sum, [, lines]) => sum + (Number(lines) || 0), 0);
   console.error('');
-  console.error('Lines by Language:');
-  for (const [language, lines] of sortedLanguages) {
-    console.error(`  ${language.padStart(languageWidth)}: ${formatCount(lines).padStart(countWidth)} `);
+  if (!verboseOutput) {
+    const summary = displayed
+      .map(([language, lines]) => `${language} ${formatCount(lines)}`)
+      .join(' | ');
+    const omittedLabel = omitted.length
+      ? ` | other ${formatCount(omittedLines)} (${omitted.length})`
+      : '';
+    console.error(`Lines by Language (top ${displayed.length}): ${summary}${omittedLabel}`);
+  } else {
+    const languageWidth = Math.max(...displayed.map(([language]) => language.length));
+    const countWidth = Math.max(...displayed.map(([, lines]) => formatCount(lines).length));
+    console.error('Lines by Language:');
+    for (const [language, lines] of displayed) {
+      console.error(`  ${language.padStart(languageWidth)}: ${formatCount(lines).padStart(countWidth)} `);
+    }
   }
 }
