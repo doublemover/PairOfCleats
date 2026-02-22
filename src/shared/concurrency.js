@@ -1587,8 +1587,13 @@ export function createBuildScheduler(input = {}) {
     if (adaptiveSurfaceControllersEnabled && queue?.surface) {
       const surfaceState = adaptiveSurfaceStates.get(queue.surface);
       if (surfaceState) {
+        // Surface caps should constrain CPU-heavy work. Pure IO/memory tasks are
+        // often dependencies of CPU tasks already counted against the same
+        // surface; blocking them can deadlock nested scheduling (CPU -> IO/proc).
+        const bypassSurfaceCap = normalized.cpu === 0
+          && (normalized.io > 0 || normalized.mem > 0);
         const running = countSurfaceRunning(queue.surface);
-        if (running >= surfaceState.currentConcurrency) {
+        if (!bypassSurfaceCap && running >= surfaceState.currentConcurrency) {
           return false;
         }
       }
