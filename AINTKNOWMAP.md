@@ -838,7 +838,7 @@ Touchpoints:
   - [x] sequence 2: parser lifecycle + fallback semantics
   - [x] sequence 3: cache architecture + invalidation correctness
   - [x] sequence 4: scheduler + memory-layout optimization
-  - [ ] sequence 5: relation recomputation and memory-layout consolidation
+  - [x] sequence 5: relation recomputation and memory-layout consolidation
   - [ ] sequence 6: profile consolidation and cleanup of temporary overrides
 - [x] Treat current early language resolution and current scan fastpath as baseline; harden and extend rather than re-implement.
 - [x] Capture baseline and post-change hot-path metrics from the identical fixture corpus so each optimization has attributable before/after impact.
