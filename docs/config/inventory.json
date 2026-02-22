@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-22T16:01:48.211Z",
+  "generatedAt": "2026-02-22T16:50:19.175Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -3115,6 +3115,7 @@
         "tests/indexer/call-sites/call-sites-emit-artifacts-none.test.js",
         "tests/indexer/call-sites/call-sites-empty-required.test.js",
         "tests/indexing/crash-log-retention.test.js",
+        "tests/indexing/postings/postings-real-bench-contract.test.js",
         "tests/indexing/tree-sitter/perl-native-reset-regression.test.js",
         "tests/ops/failure-injection/retrieval-hotpath.test.js",
         "tests/perf/bench/bench-language-regression-gate.test.js",
@@ -3276,6 +3277,7 @@
         "tests/indexing/incremental/incremental-tokenization-cache.test.js",
         "tests/indexing/map/code-map-guardrails.test.js",
         "tests/indexing/map/code-map-performance.test.js",
+        "tests/indexing/postings/postings-real-bench-contract.test.js",
         "tests/indexing/postings/vector-only-missing-embeddings-is-error.test.js",
         "tests/indexing/postings/vector-only-service-embeddings-pending-artifacts.test.js",
         "tests/indexing/scm/no-scm-build-id.test.js",

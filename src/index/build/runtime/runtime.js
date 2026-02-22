@@ -660,7 +660,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     : daemonDeterministicArg !== false;
   const daemonHealthConfig = daemonHealthArg || (
     daemonConfig.health && typeof daemonConfig.health === 'object'
-    ? daemonConfig.health
+      ? daemonConfig.health
       : null
   );
   const daemonSession = acquireRuntimeDaemonSession({

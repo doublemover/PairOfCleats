@@ -45,6 +45,7 @@ retrieval/ann/hnsw-atomic
 storage/sqlite/sqlite-auto-backend
 indexing/config/index-config-dump
 indexing/language-fixture/postings-integrity
+indexing/postings/chunk-meta-determinism
 indexing/embeddings/cache-partial-reuse
 indexing/shards/shard-merge
 retrieval/ann/hnsw-ann

@@ -73,8 +73,8 @@ retrieval/filters/file-and-token/punctuation-tokenization
 retrieval/filters/query-syntax/phrases-and-scorebreakdown
 cli/build-index/build-index-all
 services/api/core-api
+services/indexer/indexer-service
 retrieval/cache/query-cache-extracted-prose
-indexing/postings/chunk-meta-determinism
 indexing/embeddings/embeddings-determinism
 indexing/tree-sitter/js-tree-sitter-maxbytes
 lang/rust/prose-rust-exclusion
