@@ -54,17 +54,11 @@ const luaParser = getNativeTreeSitterParser('lua', {
   treeSitter: { enabled: true, nativeOnly: true, strict: true },
   log: () => {}
 });
-if (luaParser) {
-  assert.ok(
-    !luaPreflight.unavailable.includes('lua'),
-    'expected lua preflight to stay available when parser activation succeeds'
-  );
-} else {
-  assert.ok(
-    luaPreflight.unavailable.includes('lua'),
-    'expected lua preflight to mark unavailable when parser activation fails'
-  );
-}
+assert.ok(luaParser, 'expected lua parser to activate in native runtime');
+assert.ok(
+  !luaPreflight.unavailable.includes('lua'),
+  'expected lua preflight to stay available when parser activation succeeds'
+);
 
 const runtime = {
   root,

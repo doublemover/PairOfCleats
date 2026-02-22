@@ -100,7 +100,8 @@ export const NATIVE_GRAMMAR_MODULES = Object.freeze({
   css: { moduleName: 'tree-sitter-css', prebuildBinary: 'tree-sitter-css.node' },
   html: { moduleName: 'tree-sitter-html' },
   lua: {
-    moduleName: 'tree-sitter-lua',
+    moduleName: '@tree-sitter-grammars/tree-sitter-lua',
+    prebuildBinary: '@tree-sitter-grammars+tree-sitter-lua.node',
     fallbackExportKeys: ['lua', 'language', 'default']
   },
   swift: { moduleName: 'tree-sitter-swift' }
