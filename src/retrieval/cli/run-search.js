@@ -1084,6 +1084,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       exitOnError,
       annActive,
       filtersActive: queryPlan.filtersActive,
+      chunkAuthorFilterActive: Array.isArray(chunkAuthorFilter) ? chunkAuthorFilter.length > 0 : Boolean(chunkAuthorFilter),
       contextExpansionEnabled,
       graphRankingEnabled,
       sqliteFtsRequested: sqliteFtsEnabled,

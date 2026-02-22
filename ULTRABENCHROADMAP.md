@@ -1033,7 +1033,7 @@ Last revised: 2026-02-22T05:44:04.8332760-05:00
 - Touchpoints: `src/index/scm/providers/git.js`, `src/index/scm/file-meta-snapshot.js`, `src/index/scm/runner.js`, `tests/indexing/git/git-meta-timeout-backoff.test.js`, `tests/indexing/git/git-meta-warning-details.test.js`
 
 ### UB-091: SCM metadata lazy hydration at query time
-- Status: [ ]
+- Status: [x]
 - Observation:
   - Some SCM fields are not needed during indexing for every file.
 - Tasks:
@@ -1041,6 +1041,11 @@ Last revised: 2026-02-22T05:44:04.8332760-05:00
   - Cache hydrated metadata by build signature.
 - Exit criteria:
   - Lower indexing overhead without losing filter capability.
+- Completion: 2026-02-22T10:18:54.7628643-05:00
+- Validation:
+  - `node tests/retrieval/filters/git-metadata/chunk-author.test.js`
+  - `node tests/retrieval/pipeline/ann-lazy-import.test.js`
+  - `node tests/retrieval/backend/vector-only-compatibility-key-mismatch.test.js`
 - Improvement Intent (What): indexing-time SCM cost
 - Improvement Method (How): lazy hydration of expensive SCM fields only when queried.
 - Integrated Betterments: decouple mandatory vs optional SCM fields in contracts; lazily hydrate optional fields only on matching filters; cache hydrated values with strict build-signature keys.
