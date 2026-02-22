@@ -234,6 +234,7 @@ export const createJsonlBatchWriter = (filePath, options = {}) => {
     gzipOptions = null,
     highWaterMark = null,
     signal = null,
+    preallocateBytes = null,
     blockSize = null,
     pool = null,
     workerCount = null,
@@ -248,7 +249,8 @@ export const createJsonlBatchWriter = (filePath, options = {}) => {
     compression: useWorkerCompression ? null : resolvedCompression,
     atomic,
     highWaterMark,
-    signal
+    signal,
+    preallocateBytes
   });
 
   let ownedPool = false;

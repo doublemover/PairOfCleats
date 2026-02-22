@@ -229,7 +229,7 @@ Primary targets:
 ## Phase 2: Artifact + SQLite Pipeline Optimization
 
 ### UB-020: Artifact tail-stall elimination
-- Status: [ ]
+- Status: [x]
 - Problem:
   - Some repos show tail rescue and long artifact stall windows (notably fastlane).
 - Tasks:
@@ -241,10 +241,15 @@ Primary targets:
   - Artifact writer benchmark with many small artifacts and mixed sizes.
 - Exit criteria:
   - Max stall for artifact writes reduced substantially (target <4s).
+- Completion: 2026-02-22T07:48:45.6634023-05:00
+- Validation:
+  - `node tests/indexing/artifacts/artifact-write-adaptive-concurrency-controller.test.js`
+  - `node tests/indexing/artifacts/artifact-write-ultra-light-lane-concurrency.test.js`
+  - `node tests/perf/artifact-io/streaming-vs-full.test.js`
 - Improvement Intent (What): artifact write tail latency
 - Improvement Method (How): write coalescing, tail-first scheduling, and latency class telemetry.
 - Integrated Betterments: add write coalescing for micro-artifacts under a byte threshold; pre-sort tail artifacts by predicted write cost to reduce long-tail stalls; capture filesystem-level write latency histogram to tune queue classes.
-- Touchpoints: `src/index/build/artifacts-write.js`, `src/shared/artifact-io.js`, `src/shared/artifact-io/jsonl.js`, `src/shared/artifact-io/binary-columnar.js`, `tests/indexing/artifacts/artifact-write-adaptive-concurrency-controller.test.js`, `tests/indexing/artifacts/artifact-write-ultra-light-lane-concurrency.test.js`, `tests/perf/artifact-io/streaming-vs-full.test.js`
+- Touchpoints: `src/index/build/artifacts-write.js`, `src/index/build/artifacts/writer.js`, `src/shared/artifact-io.js`, `src/shared/artifact-io/jsonl.js`, `src/shared/artifact-io/binary-columnar.js`, `src/shared/json-stream.js`, `src/shared/json-stream/streams.js`, `src/shared/json-stream/jsonl-batch.js`, `tests/indexing/artifacts/artifact-write-adaptive-concurrency-controller.test.js`, `tests/indexing/artifacts/artifact-write-ultra-light-lane-concurrency.test.js`, `tests/perf/artifact-io/streaming-vs-full.test.js`
 
 ### UB-021: Persistent binary artifact preference
 - Status: [x]

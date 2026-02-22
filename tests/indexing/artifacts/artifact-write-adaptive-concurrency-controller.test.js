@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 
-import { createAdaptiveWriteConcurrencyController } from '../../../src/index/build/artifacts-write.js';
+import {
+  createAdaptiveWriteConcurrencyController,
+  resolveArtifactWriteFsStrategy,
+  resolveArtifactWriteLatencyClass
+} from '../../../src/index/build/artifacts-write.js';
 
 let nowMs = 0;
 const controller = createAdaptiveWriteConcurrencyController({
@@ -81,6 +85,38 @@ assert.equal(
   cooledController.observe({ pendingWrites: 6, activeWrites: 3, longestStallSec: 0 }),
   4,
   'expected scale-up cooldown to expire after configured window'
+);
+
+const ntfsStrategy = resolveArtifactWriteFsStrategy({
+  platform: 'win32',
+  artifactConfig: {
+    writeFsStrategy: 'auto'
+  }
+});
+assert.equal(ntfsStrategy.mode, 'ntfs', 'expected windows auto strategy to default ntfs mode');
+assert.equal(ntfsStrategy.microCoalescing, true, 'expected micro-coalescing enabled by default');
+
+const genericStrategy = resolveArtifactWriteFsStrategy({
+  platform: 'linux',
+  artifactConfig: {
+    writeFsStrategy: 'generic',
+    writeTailWorker: false,
+    writeJsonlPresize: false
+  }
+});
+assert.equal(genericStrategy.mode, 'generic', 'expected explicit generic strategy');
+assert.equal(genericStrategy.tailWorker, false, 'expected tail worker toggle to apply');
+assert.equal(genericStrategy.presizeJsonl, false, 'expected jsonl presize toggle to apply');
+
+assert.equal(
+  resolveArtifactWriteLatencyClass({ queueDelayMs: 2, durationMs: 20, bytes: 2048 }),
+  'micro:instant',
+  'expected short micro write to classify as instant'
+);
+assert.equal(
+  resolveArtifactWriteLatencyClass({ queueDelayMs: 2500, durationMs: 100, bytes: 40 * 1024 * 1024 }),
+  'large:tail',
+  'expected long queued large write to classify as tail'
 );
 
 console.log('artifact write adaptive concurrency controller test passed');

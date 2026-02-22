@@ -108,3 +108,41 @@ export const parseJsonlLine = (
   }
   return parsed;
 };
+
+const toNonNegativeInt = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return 0;
+  return Math.max(0, Math.floor(parsed));
+};
+
+/**
+ * Resolve shape-aware JSONL write hints for large streaming artifacts.
+ *
+ * @param {{estimatedBytes?:number,rowCount?:number,largeThresholdBytes?:number,maxPresizeBytes?:number,headroomRatio?:number}} [input]
+ * @returns {{estimatedBytes:number,rowCount:number,isLarge:boolean,presizeBytes:number}}
+ */
+export const resolveJsonlWriteShapeHints = (input = {}) => {
+  const estimatedBytes = toNonNegativeInt(input?.estimatedBytes);
+  const rowCount = toNonNegativeInt(input?.rowCount);
+  const largeThresholdBytes = toNonNegativeInt(input?.largeThresholdBytes) || (32 * 1024 * 1024);
+  const maxPresizeBytes = toNonNegativeInt(input?.maxPresizeBytes) || (512 * 1024 * 1024);
+  const headroomRatio = Number.isFinite(Number(input?.headroomRatio))
+    ? Math.max(0, Math.min(0.5, Number(input.headroomRatio)))
+    : 0.08;
+  const isLarge = estimatedBytes >= largeThresholdBytes;
+  if (!isLarge || !estimatedBytes) {
+    return {
+      estimatedBytes,
+      rowCount,
+      isLarge,
+      presizeBytes: 0
+    };
+  }
+  const presizeCandidate = Math.ceil(estimatedBytes * (1 + headroomRatio));
+  return {
+    estimatedBytes,
+    rowCount,
+    isLarge,
+    presizeBytes: Math.min(maxPresizeBytes, Math.max(estimatedBytes, presizeCandidate))
+  };
+};

@@ -51,7 +51,10 @@ import { applyByteBudget, resolveByteBudgetMap } from './byte-budget.js';
 import { CHARGRAM_HASH_META } from '../../shared/chargram-hash.js';
 import { createOrderingHasher } from '../../shared/order.js';
 import { computePackedChecksum } from '../../shared/artifact-io/checksum.js';
-import { writeBinaryRowFrames } from '../../shared/artifact-io/binary-columnar.js';
+import {
+  resolveBinaryColumnarWriteHints,
+  writeBinaryRowFrames
+} from '../../shared/artifact-io/binary-columnar.js';
 import {
   INDEX_PROFILE_VECTOR_ONLY,
   normalizeIndexProfileId
@@ -80,7 +83,11 @@ export {
   resolveArtifactLaneConcurrencyWithUltraLight,
   resolveArtifactLaneConcurrencyWithMassive,
   createAdaptiveWriteConcurrencyController,
-  resolveWriteStartTimestampMs
+  resolveWriteStartTimestampMs,
+  resolveArtifactWriteFsStrategy,
+  resolveArtifactWriteLatencyClass,
+  selectTailWorkerWriteEntry,
+  selectMicroWriteBatch
 };
 
 /**
@@ -602,6 +609,18 @@ const ARTIFACT_QUEUE_DELAY_BUCKETS_MS = Object.freeze([
   30000,
   60000
 ]);
+const ARTIFACT_LATENCY_CLASSES = Object.freeze([
+  { maxMs: 64, name: 'instant' },
+  { maxMs: 256, name: 'fast' },
+  { maxMs: 1000, name: 'steady' },
+  { maxMs: 4000, name: 'slow' }
+]);
+const ARTIFACT_SIZE_CLASSES = Object.freeze([
+  { maxBytes: 64 * 1024, name: 'micro' },
+  { maxBytes: 1024 * 1024, name: 'small' },
+  { maxBytes: 16 * 1024 * 1024, name: 'medium' },
+  { maxBytes: 128 * 1024 * 1024, name: 'large' }
+]);
 const VALIDATION_CRITICAL_ARTIFACT_PATTERNS = Object.freeze([
   /(^|\/)index_state\.json$/,
   /(^|\/)metrics\.json$/,
@@ -702,6 +721,225 @@ const resolveArtifactWriteThroughputProfile = (perfProfile) => {
     if (throughput != null) return throughput;
   }
   return null;
+};
+
+const normalizeStrategyMode = (value) => {
+  const mode = typeof value === 'string' ? value.trim().toLowerCase() : 'auto';
+  if (mode === 'ntfs' || mode === 'generic' || mode === 'auto') return mode;
+  return 'auto';
+};
+
+const toNonNegativeNumberOrNull = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return null;
+  return parsed;
+};
+
+/**
+ * Resolve filesystem strategy toggles for artifact writes.
+ *
+ * @param {{artifactConfig?:object,platform?:string}} [input]
+ * @returns {{mode:'ntfs'|'generic',detectedNtfs:boolean,microCoalescing:boolean,tailWorker:boolean,presizeJsonl:boolean,microBatchMaxCount:number,microBatchMaxBytes:number}}
+ */
+const resolveArtifactWriteFsStrategy = (input = {}) => {
+  const artifactConfig = input?.artifactConfig && typeof input.artifactConfig === 'object'
+    ? input.artifactConfig
+    : {};
+  const platform = typeof input?.platform === 'string'
+    ? input.platform
+    : process.platform;
+  const detectedNtfs = platform === 'win32';
+  const explicitMode = normalizeStrategyMode(artifactConfig.writeFsStrategy);
+  const legacyNtfsStrategy = artifactConfig.writeNtfsStrategy;
+  let mode = explicitMode === 'auto'
+    ? (detectedNtfs ? 'ntfs' : 'generic')
+    : explicitMode;
+  if (legacyNtfsStrategy === true) mode = 'ntfs';
+  if (legacyNtfsStrategy === false) mode = 'generic';
+  const ntfsMode = mode === 'ntfs';
+  const microBatchMaxCount = Number.isFinite(Number(artifactConfig.writeMicroCoalesceMaxBatchCount))
+    ? Math.max(2, Math.floor(Number(artifactConfig.writeMicroCoalesceMaxBatchCount)))
+    : (ntfsMode ? 12 : 8);
+  const microBatchMaxBytes = Number.isFinite(Number(artifactConfig.writeMicroCoalesceMaxBatchBytes))
+    ? Math.max(16 * 1024, Math.floor(Number(artifactConfig.writeMicroCoalesceMaxBatchBytes)))
+    : (ntfsMode ? 512 * 1024 : 256 * 1024);
+  return {
+    mode,
+    detectedNtfs,
+    microCoalescing: artifactConfig.writeMicroCoalesce !== false,
+    tailWorker: artifactConfig.writeTailWorker !== false,
+    presizeJsonl: artifactConfig.writeJsonlPresize !== false,
+    microBatchMaxCount,
+    microBatchMaxBytes
+  };
+};
+
+const resolveArtifactWriteSizeClass = (metric = {}) => {
+  const bytes = toNonNegativeNumberOrNull(metric?.bytes) ?? toNonNegativeNumberOrNull(metric?.estimatedBytes);
+  if (bytes == null) return 'unknown';
+  for (const threshold of ARTIFACT_SIZE_CLASSES) {
+    if (bytes <= threshold.maxBytes) return threshold.name;
+  }
+  return 'huge';
+};
+
+/**
+ * Classify per-artifact write latency into stable buckets for telemetry.
+ *
+ * @param {{queueDelayMs?:number,durationMs?:number,bytes?:number,estimatedBytes?:number}} metric
+ * @returns {string}
+ */
+const resolveArtifactWriteLatencyClass = (metric = {}) => {
+  const queueDelayMs = Math.max(0, Number(metric?.queueDelayMs) || 0);
+  const durationMs = Math.max(0, Number(metric?.durationMs) || 0);
+  const totalMs = queueDelayMs + durationMs;
+  const sizeClass = resolveArtifactWriteSizeClass(metric);
+  if (queueDelayMs >= 2000 || totalMs > 4000) return `${sizeClass}:tail`;
+  for (const threshold of ARTIFACT_LATENCY_CLASSES) {
+    if (totalMs <= threshold.maxMs) return `${sizeClass}:${threshold.name}`;
+  }
+  return `${sizeClass}:tail`;
+};
+
+const summarizeArtifactLatencyClasses = (metrics) => {
+  if (!Array.isArray(metrics) || !metrics.length) return null;
+  const counts = {};
+  for (const metric of metrics) {
+    const latencyClass = resolveArtifactWriteLatencyClass(metric);
+    counts[latencyClass] = (counts[latencyClass] || 0) + 1;
+  }
+  const classes = Object.keys(counts)
+    .sort((a, b) => a.localeCompare(b))
+    .map((name) => ({ name, count: counts[name] }));
+  return {
+    total: metrics.length,
+    classes
+  };
+};
+
+const resolveTailWorkerComparator = (laneOrder) => {
+  const order = Array.isArray(laneOrder) && laneOrder.length
+    ? laneOrder
+    : ['massive', 'heavy', 'light', 'ultraLight'];
+  const rankByLane = new Map(order.map((laneName, index) => [laneName, index]));
+  return (left, right) => {
+    const leftEstimated = toNonNegativeNumberOrNull(left?.entry?.estimatedBytes);
+    const rightEstimated = toNonNegativeNumberOrNull(right?.entry?.estimatedBytes);
+    if (leftEstimated != null && rightEstimated != null && leftEstimated !== rightEstimated) {
+      return rightEstimated - leftEstimated;
+    }
+    if (leftEstimated != null && rightEstimated == null) return -1;
+    if (leftEstimated == null && rightEstimated != null) return 1;
+    const leftPriority = Number.isFinite(Number(left?.entry?.priority))
+      ? Number(left.entry.priority)
+      : 0;
+    const rightPriority = Number.isFinite(Number(right?.entry?.priority))
+      ? Number(right.entry.priority)
+      : 0;
+    if (leftPriority !== rightPriority) return rightPriority - leftPriority;
+    const leftLaneRank = rankByLane.has(left?.laneName) ? rankByLane.get(left.laneName) : Number.MAX_SAFE_INTEGER;
+    const rightLaneRank = rankByLane.has(right?.laneName) ? rankByLane.get(right.laneName) : Number.MAX_SAFE_INTEGER;
+    if (leftLaneRank !== rightLaneRank) return leftLaneRank - rightLaneRank;
+    const leftSeq = Number.isFinite(Number(left?.entry?.seq)) ? Number(left.entry.seq) : Number.MAX_SAFE_INTEGER;
+    const rightSeq = Number.isFinite(Number(right?.entry?.seq)) ? Number(right.entry.seq) : Number.MAX_SAFE_INTEGER;
+    if (leftSeq !== rightSeq) return leftSeq - rightSeq;
+    const leftLabel = typeof left?.entry?.label === 'string' ? left.entry.label : '';
+    const rightLabel = typeof right?.entry?.label === 'string' ? right.entry.label : '';
+    return leftLabel.localeCompare(rightLabel);
+  };
+};
+
+/**
+ * Select a single pending write for the dedicated tail worker.
+ *
+ * Selection is deterministic: higher predicted write cost first, then priority,
+ * then lane rank and enqueue sequence.
+ *
+ * @param {{ultraLight?:Array<object>,massive?:Array<object>,light?:Array<object>,heavy?:Array<object}} laneQueues
+ * @param {{laneOrder?:Array<string>}} [options]
+ * @returns {{laneName:string,entry:object}|null}
+ */
+const selectTailWorkerWriteEntry = (laneQueues, options = {}) => {
+  const laneOrder = Array.isArray(options?.laneOrder) && options.laneOrder.length
+    ? options.laneOrder
+    : ['massive', 'heavy', 'light', 'ultraLight'];
+  const compare = resolveTailWorkerComparator(laneOrder);
+  let best = null;
+  for (const laneName of laneOrder) {
+    const queue = Array.isArray(laneQueues?.[laneName]) ? laneQueues[laneName] : null;
+    if (!queue || !queue.length) continue;
+    for (let index = 0; index < queue.length; index += 1) {
+      const candidate = { laneName, index, entry: queue[index] };
+      if (!best || compare(candidate, best) < 0) {
+        best = candidate;
+      }
+    }
+  }
+  if (!best) return null;
+  const queue = laneQueues[best.laneName];
+  const removed = queue.splice(best.index, 1);
+  const entry = removed[0];
+  if (!entry) return null;
+  return {
+    laneName: best.laneName,
+    entry
+  };
+};
+
+const isMicroCoalescibleWrite = (entry, maxEntryBytes) => {
+  if (!entry || typeof entry !== 'object') return false;
+  if (entry.prefetched) return false;
+  if (typeof entry.job !== 'function') return false;
+  const estimatedBytes = toNonNegativeNumberOrNull(entry.estimatedBytes);
+  if (estimatedBytes == null || estimatedBytes <= 0) return false;
+  return estimatedBytes <= Math.max(1024, Math.floor(Number(maxEntryBytes) || 0));
+};
+
+/**
+ * Select a deterministic micro-write batch from a queue head.
+ *
+ * @param {Array<object>} queue
+ * @param {{maxEntries?:number,maxBytes?:number,maxEntryBytes?:number}} [options]
+ * @returns {{entries:Array<object>,estimatedBytes:number}}
+ */
+const selectMicroWriteBatch = (queue, options = {}) => {
+  const entries = [];
+  if (!Array.isArray(queue) || !queue.length) {
+    return { entries, estimatedBytes: 0 };
+  }
+  const maxEntries = Number.isFinite(Number(options?.maxEntries))
+    ? Math.max(1, Math.floor(Number(options.maxEntries)))
+    : 8;
+  const maxBytes = Number.isFinite(Number(options?.maxBytes))
+    ? Math.max(0, Math.floor(Number(options.maxBytes)))
+    : (256 * 1024);
+  const maxEntryBytes = Number.isFinite(Number(options?.maxEntryBytes))
+    ? Math.max(1024, Math.floor(Number(options.maxEntryBytes)))
+    : (64 * 1024);
+  const first = queue.shift();
+  if (!first) {
+    return { entries, estimatedBytes: 0 };
+  }
+  const firstEstimatedBytes = toNonNegativeNumberOrNull(first.estimatedBytes) ?? 0;
+  entries.push(first);
+  if (
+    maxEntries <= 1
+    || maxBytes <= 0
+    || !isMicroCoalescibleWrite(first, maxEntryBytes)
+    || firstEstimatedBytes > maxBytes
+  ) {
+    return { entries, estimatedBytes: firstEstimatedBytes };
+  }
+  let totalEstimatedBytes = firstEstimatedBytes;
+  while (queue.length > 0 && entries.length < maxEntries) {
+    const candidate = queue[0];
+    if (!isMicroCoalescibleWrite(candidate, maxEntryBytes)) break;
+    const estimated = toNonNegativeNumberOrNull(candidate.estimatedBytes) ?? 0;
+    if (estimated <= 0 || (totalEstimatedBytes + estimated) > maxBytes) break;
+    entries.push(queue.shift());
+    totalEstimatedBytes += estimated;
+  }
+  return { entries, estimatedBytes: totalEstimatedBytes };
 };
 
 /**
@@ -841,6 +1079,11 @@ export async function writeIndexArtifacts(input) {
       : null;
   };
   const artifactConfig = indexingConfig.artifacts || {};
+  const writeFsStrategy = resolveArtifactWriteFsStrategy({ artifactConfig });
+  const writeJsonlShapeAware = artifactConfig.writeJsonlShapeAware !== false;
+  const writeJsonlLargeThresholdBytes = Number.isFinite(Number(artifactConfig.writeJsonlLargeThresholdBytes))
+    ? Math.max(1024 * 1024, Math.floor(Number(artifactConfig.writeJsonlLargeThresholdBytes)))
+    : (32 * 1024 * 1024);
   const artifactMode = typeof artifactConfig.mode === 'string'
     ? artifactConfig.mode.toLowerCase()
     : 'auto';
@@ -1565,6 +1808,10 @@ export async function writeIndexArtifacts(input) {
   const writeTailRescueBoostMemTokens = Number.isFinite(Number(artifactConfig.writeTailRescueBoostMemTokens))
     ? Math.max(0, Math.floor(Number(artifactConfig.writeTailRescueBoostMemTokens)))
     : 1;
+  const writeTailWorkerEnabled = writeFsStrategy.tailWorker;
+  const writeTailWorkerMaxPending = Number.isFinite(Number(artifactConfig.writeTailWorkerMaxPending))
+    ? Math.max(1, Math.floor(Number(artifactConfig.writeTailWorkerMaxPending)))
+    : Math.max(2, writeTailRescueMaxPending + 1);
   const writeStallAlerts = new Map();
   const updateWriteInFlightTelemetry = () => {
     if (!telemetry || typeof telemetry.setInFlightBytes !== 'function') return;
@@ -1975,7 +2222,10 @@ export async function writeIndexArtifacts(input) {
     compressibleArtifacts,
     compressionOverrides,
     jsonArraySerializeShardThresholdMs,
-    jsonArraySerializeShardMaxBytes
+    jsonArraySerializeShardMaxBytes,
+    jsonlShapeAware: writeJsonlShapeAware,
+    jsonlLargeThresholdBytes: writeJsonlLargeThresholdBytes,
+    jsonlPresizeEnabled: writeFsStrategy.presizeJsonl
   });
   if (state.importResolutionGraph) {
     const importGraphDir = path.join(outDir, 'artifacts');
@@ -2613,11 +2863,17 @@ export async function writeIndexArtifacts(input) {
               });
             }
           })();
+          const binaryWriteHints = resolveBinaryColumnarWriteHints({
+            estimatedBytes: fieldPostingsEstimatedBytes,
+            rowCount: fieldNames.length,
+            presize: writeFsStrategy.presizeJsonl
+          });
           const frames = await writeBinaryRowFrames({
             rowBuffers: rowPayloads,
             dataPath: fieldPostingsBinaryDataPath,
             offsetsPath: fieldPostingsBinaryOffsetsPath,
-            lengthsPath: fieldPostingsBinaryLengthsPath
+            lengthsPath: fieldPostingsBinaryLengthsPath,
+            writeHints: binaryWriteHints
           });
           const serializationMs = Math.max(0, Date.now() - serializationStartedAt);
           const diskStartedAt = Date.now();
@@ -2629,7 +2885,8 @@ export async function writeIndexArtifacts(input) {
               data: path.basename(fieldPostingsBinaryDataPath),
               offsets: path.basename(fieldPostingsBinaryOffsetsPath),
               lengths: path.basename(fieldPostingsBinaryLengthsPath),
-              estimatedSourceBytes: fieldPostingsEstimatedBytes
+              estimatedSourceBytes: fieldPostingsEstimatedBytes,
+              preallocatedBytes: Number.isFinite(frames?.preallocatedBytes) ? frames.preallocatedBytes : 0
             },
             checksumAlgo: 'sha1',
             atomic: true
@@ -2964,6 +3221,13 @@ export async function writeIndexArtifacts(input) {
     const inFlightWrites = new Set();
     let forcedTailRescueConcurrency = null;
     let tailRescueActive = false;
+    let tailWorkerActive = 0;
+    const pendingWriteCount = () => (
+      laneQueues.ultraLight.length
+      + laneQueues.massive.length
+      + laneQueues.light.length
+      + laneQueues.heavy.length
+    );
     const getActiveWriteConcurrency = () => (
       forcedTailRescueConcurrency != null
         ? Math.max(
@@ -2979,10 +3243,7 @@ export async function writeIndexArtifacts(input) {
         )
     );
     const resolveTailRescueState = () => {
-      const pendingWrites = laneQueues.ultraLight.length
-        + laneQueues.massive.length
-        + laneQueues.light.length
-        + laneQueues.heavy.length;
+      const pendingWrites = pendingWriteCount();
       const remainingWrites = pendingWrites + activeCount;
       const longestStallSec = getLongestWriteStallSeconds();
       const active = writeTailRescueEnabled
@@ -3012,10 +3273,7 @@ export async function writeIndexArtifacts(input) {
       forcedTailRescueConcurrency = rescueState.active ? writeConcurrency : null;
       if (!adaptiveWriteConcurrencyEnabled) return getActiveWriteConcurrency();
       return writeConcurrencyController.observe({
-        pendingWrites: laneQueues.ultraLight.length
-          + laneQueues.massive.length
-          + laneQueues.light.length
-          + laneQueues.heavy.length,
+        pendingWrites: pendingWriteCount(),
         activeWrites: activeCount,
         longestStallSec: rescueState.longestStallSec
       });
@@ -3057,6 +3315,20 @@ export async function writeIndexArtifacts(input) {
       }
       return candidates[0];
     };
+    const takeLaneDispatchEntries = (laneName) => {
+      const queue = Array.isArray(laneQueues?.[laneName]) ? laneQueues[laneName] : null;
+      if (!queue || !queue.length) return [];
+      if (laneName === 'ultraLight' && writeFsStrategy.microCoalescing) {
+        const batch = selectMicroWriteBatch(queue, {
+          maxEntries: writeFsStrategy.microBatchMaxCount,
+          maxBytes: writeFsStrategy.microBatchMaxBytes,
+          maxEntryBytes: ultraLightWriteThresholdBytes
+        });
+        return Array.isArray(batch?.entries) ? batch.entries.filter(Boolean) : [];
+      }
+      const entry = queue.shift();
+      return entry ? [entry] : [];
+    };
     const resolveWriteSchedulerTokens = (estimatedBytes, laneName, rescueBoost = false) => {
       const memTokens = resolveArtifactWriteMemTokens(estimatedBytes);
       if (laneName === 'massive') {
@@ -3082,7 +3354,7 @@ export async function writeIndexArtifacts(input) {
     const runSingleWrite = async (
       { label, job, estimatedBytes, enqueuedAt, prefetched, prefetchStartedAt },
       laneName,
-      { rescueBoost = false } = {}
+      { rescueBoost = false, tailWorker = false, batchSize = 1, batchIndex = 0 } = {}
     ) => {
       const activeLabel = label || '(unnamed artifact)';
       const dispatchStartedAt = Date.now();
@@ -3117,6 +3389,12 @@ export async function writeIndexArtifacts(input) {
         const throughputBytesPerSec = Number.isFinite(bytes) && durationMs > 0
           ? Math.round(bytes / (durationMs / 1000))
           : null;
+        const latencyClass = resolveArtifactWriteLatencyClass({
+          queueDelayMs,
+          durationMs,
+          bytes,
+          estimatedBytes
+        });
         recordArtifactMetric(label, {
           queueDelayMs,
           waitMs: queueDelayMs,
@@ -3128,6 +3406,11 @@ export async function writeIndexArtifacts(input) {
           diskMs,
           directFdStreaming: writeResult?.directFdStreaming === true,
           tailRescueBoosted: rescueBoost === true,
+          tailWorker: tailWorker === true,
+          batchSize: batchSize > 1 ? batchSize : null,
+          batchIndex: batchSize > 1 ? batchIndex + 1 : null,
+          latencyClass,
+          fsStrategyMode: writeFsStrategy.mode,
           checksum: typeof writeResult?.checksum === 'string' ? writeResult.checksum : null,
           checksumAlgo: typeof writeResult?.checksumAlgo === 'string' ? writeResult.checksumAlgo : null,
           lane: laneName,
@@ -3149,30 +3432,74 @@ export async function writeIndexArtifacts(input) {
         logWriteProgress(label);
       }
     };
+    const runWriteBatch = async (entries, laneName, options = {}) => {
+      const list = Array.isArray(entries) ? entries.filter(Boolean) : [];
+      if (!list.length) return;
+      if (list.length === 1) {
+        await runSingleWrite(list[0], laneName, options);
+        return;
+      }
+      for (let index = 0; index < list.length; index += 1) {
+        await runSingleWrite(list[index], laneName, {
+          ...options,
+          batchSize: list.length,
+          batchIndex: index
+        });
+      }
+    };
     const dispatchWrites = () => {
       observeAdaptiveWriteConcurrency();
       while (!fatalWriteError) {
         const activeConcurrency = getActiveWriteConcurrency();
-        if (activeCount >= activeConcurrency) break;
+        const remainingWrites = pendingWriteCount() + activeCount;
+        const tailWorkerEligible = writeTailWorkerEnabled
+          && tailWorkerActive < 1
+          && remainingWrites > 0
+          && remainingWrites <= writeTailWorkerMaxPending;
+        const concurrencyLimit = activeConcurrency + (tailWorkerEligible ? 1 : 0);
+        if (activeCount >= concurrencyLimit) break;
         const rescueState = resolveTailRescueState();
         const budgets = resolveLaneBudgets();
-        const laneName = pickDispatchLane(budgets);
-        if (!laneName) break;
-        const entry = laneQueues[laneName].shift();
-        if (!entry) continue;
-        laneActive[laneName] += 1;
+        let laneName = pickDispatchLane(budgets);
+        let dispatchEntries = laneName ? takeLaneDispatchEntries(laneName) : [];
+        let usedTailWorker = false;
+        if (
+          (!laneName || dispatchEntries.length === 0)
+          && tailWorkerEligible
+          && activeCount >= activeConcurrency
+        ) {
+          const tailSelection = selectTailWorkerWriteEntry(laneQueues, {
+            laneOrder: ['massive', 'heavy', 'light', 'ultraLight']
+          });
+          if (tailSelection?.entry) {
+            laneName = tailSelection.laneName;
+            dispatchEntries = [tailSelection.entry];
+            usedTailWorker = true;
+          }
+        }
+        if (!laneName || dispatchEntries.length === 0) break;
+        if (usedTailWorker) {
+          tailWorkerActive += 1;
+        } else {
+          laneActive[laneName] += 1;
+        }
         activeCount += 1;
-        const tracked = runSingleWrite(
-          entry,
+        const tracked = runWriteBatch(
+          dispatchEntries,
           laneName,
           {
-            rescueBoost: rescueState.active && laneName !== 'ultraLight'
+            rescueBoost: rescueState.active && laneName !== 'ultraLight',
+            tailWorker: usedTailWorker
           }
         )
           .then(() => ({ ok: true }))
           .catch((error) => ({ ok: false, error }))
           .finally(() => {
-            laneActive[laneName] = Math.max(0, laneActive[laneName] - 1);
+            if (usedTailWorker) {
+              tailWorkerActive = Math.max(0, tailWorkerActive - 1);
+            } else {
+              laneActive[laneName] = Math.max(0, laneActive[laneName] - 1);
+            }
             activeCount = Math.max(0, activeCount - 1);
           });
         inFlightWrites.add(tracked);
@@ -3304,9 +3631,12 @@ export async function writeIndexArtifacts(input) {
     }
   }
   if (timing) {
+    const artifactLatencyClasses = summarizeArtifactLatencyClasses(Array.from(artifactMetrics.values()));
     timing.cleanup = {
       profileId,
-      actions: cleanupActions
+      actions: cleanupActions,
+      writeFsStrategy,
+      artifactLatencyClasses
     };
     timing.artifacts = Array.from(artifactMetrics.values()).sort((a, b) => {
       const aPath = String(a?.path || '');

@@ -4,6 +4,7 @@ import { decodeVarint64List, encodeVarint64List } from './varint.js';
 
 const OFFSET_BYTES = 8;
 const MAX_SAFE_BIGINT = BigInt(Number.MAX_SAFE_INTEGER);
+const MAX_BINARY_COLUMNAR_PREALLOCATE_BYTES = 1024 * 1024 * 1024;
 
 const toSafeNonNegativeInt = (value, label) => {
   const parsed = Number(value);
@@ -11,6 +12,36 @@ const toSafeNonNegativeInt = (value, label) => {
     throw new Error(`Invalid ${label}: ${value}`);
   }
   return parsed;
+};
+
+const toBoundedNonNegativeInt = (value, maxValue = Number.MAX_SAFE_INTEGER) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return 0;
+  return Math.min(Math.floor(parsed), Math.floor(maxValue));
+};
+
+/**
+ * Resolve optional binary-columnar write hints for large row-frame payloads.
+ *
+ * @param {{estimatedBytes?:number,rowCount?:number,presize?:boolean,maxPreallocateBytes?:number}} [input]
+ * @returns {{rowCount:number,estimatedBytes:number,preallocateBytes:number}}
+ */
+export const resolveBinaryColumnarWriteHints = (input = {}) => {
+  const rowCount = toBoundedNonNegativeInt(input?.rowCount);
+  const estimatedBytes = toBoundedNonNegativeInt(input?.estimatedBytes);
+  const preallocateEnabled = input?.presize !== false;
+  const maxPreallocateBytes = toBoundedNonNegativeInt(
+    input?.maxPreallocateBytes,
+    MAX_BINARY_COLUMNAR_PREALLOCATE_BYTES
+  ) || MAX_BINARY_COLUMNAR_PREALLOCATE_BYTES;
+  const preallocateBytes = preallocateEnabled && estimatedBytes > 0
+    ? Math.min(maxPreallocateBytes, estimatedBytes)
+    : 0;
+  return {
+    rowCount,
+    estimatedBytes,
+    preallocateBytes
+  };
 };
 
 /**
@@ -90,21 +121,30 @@ const toAsyncIterable = (rows) => {
  * Stream row-frame payloads to disk while generating offset/length sidecars.
  * This avoids materializing a full in-memory data buffer for large artifacts.
  *
- * @param {{rowBuffers:Iterable<Buffer|Uint8Array|string>|AsyncIterable<Buffer|Uint8Array|string>,dataPath:string,offsetsPath:string,lengthsPath:string}} input
- * @returns {Promise<{count:number,totalBytes:number}>}
+ * @param {{rowBuffers:Iterable<Buffer|Uint8Array|string>|AsyncIterable<Buffer|Uint8Array|string>,dataPath:string,offsetsPath:string,lengthsPath:string,preallocateBytes?:number,writeHints?:{preallocateBytes?:number}}} input
+ * @returns {Promise<{count:number,totalBytes:number,preallocatedBytes:number}>}
  */
 export const writeBinaryRowFrames = async ({
   rowBuffers,
   dataPath,
   offsetsPath,
-  lengthsPath
+  lengthsPath,
+  preallocateBytes = null,
+  writeHints = null
 }) => {
+  const resolvedPreallocateBytes = toBoundedNonNegativeInt(
+    preallocateBytes ?? writeHints?.preallocateBytes,
+    MAX_BINARY_COLUMNAR_PREALLOCATE_BYTES
+  );
   const offsets = [];
   const lengths = [];
   let cursor = 0;
   let count = 0;
   const handle = await fs.open(dataPath, 'w');
   try {
+    if (resolvedPreallocateBytes > 0) {
+      await handle.truncate(resolvedPreallocateBytes);
+    }
     for await (const row of toAsyncIterable(rowBuffers)) {
       const payload = Buffer.isBuffer(row) ? row : Buffer.from(row || '');
       offsets.push(cursor);
@@ -115,6 +155,9 @@ export const writeBinaryRowFrames = async ({
       }
       count += 1;
     }
+    if (resolvedPreallocateBytes > 0 && cursor !== resolvedPreallocateBytes) {
+      await handle.truncate(cursor);
+    }
   } finally {
     await handle.close();
   }
@@ -122,7 +165,8 @@ export const writeBinaryRowFrames = async ({
   await fs.writeFile(lengthsPath, encodeVarint64List(lengths));
   return {
     count,
-    totalBytes: cursor
+    totalBytes: cursor,
+    preallocatedBytes: resolvedPreallocateBytes
   };
 };
 

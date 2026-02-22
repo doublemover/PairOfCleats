@@ -30,6 +30,13 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const RETRYABLE_RM_CODES = new Set(['EBUSY', 'EPERM', 'EACCES', 'EMFILE', 'ENOTEMPTY']);
 let pendingDeleteCounter = 0;
+const MAX_PREALLOCATE_BYTES = 2 * 1024 * 1024 * 1024;
+
+const resolvePreallocateBytes = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return 0;
+  return Math.min(MAX_PREALLOCATE_BYTES, Math.max(0, Math.floor(parsed)));
+};
 
 /**
  * Build a target-scoped tombstone name used when direct deletion fails.
@@ -106,7 +113,8 @@ const cleanupPendingDeleteTombstones = async (targetPath) => {
   } catch {}
 };
 
-const createExclusiveAtomicFileStream = (filePath, highWaterMark) => {
+const createExclusiveAtomicFileStream = (filePath, highWaterMark, preallocateBytes = 0) => {
+  const preallocate = resolvePreallocateBytes(preallocateBytes);
   let lastErr = null;
   let preferFallback = false;
   for (let attempt = 0; attempt < 8; attempt += 1) {
@@ -114,6 +122,14 @@ const createExclusiveAtomicFileStream = (filePath, highWaterMark) => {
     try {
       fs.mkdirSync(path.dirname(tempPath), { recursive: true });
       const fd = fs.openSync(tempPath, 'wx');
+      if (preallocate > 0) {
+        try {
+          fs.ftruncateSync(fd, preallocate);
+        } catch (err) {
+          try { fs.closeSync(fd); } catch {}
+          throw err;
+        }
+      }
       const fileStream = fs.createWriteStream(tempPath, {
         fd,
         autoClose: true,
@@ -135,6 +151,25 @@ const createExclusiveAtomicFileStream = (filePath, highWaterMark) => {
     }
   }
   throw lastErr || new Error(`Failed to allocate unique atomic temp file for ${filePath}`);
+};
+
+const createPreallocatedFileStream = (targetPath, highWaterMark, preallocateBytes = 0) => {
+  fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+  const fd = fs.openSync(targetPath, 'w');
+  const preallocate = resolvePreallocateBytes(preallocateBytes);
+  if (preallocate > 0) {
+    try {
+      fs.ftruncateSync(fd, preallocate);
+    } catch (err) {
+      try { fs.closeSync(fd); } catch {}
+      throw err;
+    }
+  }
+  return fs.createWriteStream(targetPath, {
+    fd,
+    autoClose: true,
+    ...(highWaterMark ? { highWaterMark } : {})
+  });
 };
 
 const createByteCounter = (maxBytes, highWaterMark, checksumAlgo = null) => {
@@ -181,23 +216,23 @@ export const createJsonWriteStream = (filePath, options = {}) => {
     atomic = false,
     signal = null,
     maxBytes = null,
-    checksumAlgo = null
+    checksumAlgo = null,
+    preallocateBytes = null
   } = options;
   const highWaterMark = normalizeHighWaterMark(options.highWaterMark);
+  const resolvedPreallocateBytes = compression
+    ? 0
+    : resolvePreallocateBytes(preallocateBytes);
   if (signal?.aborted) {
     throw createAbortError();
   }
-  const tempRef = atomic ? createExclusiveAtomicFileStream(filePath, highWaterMark) : null;
+  const tempRef = atomic
+    ? createExclusiveAtomicFileStream(filePath, highWaterMark, resolvedPreallocateBytes)
+    : null;
   const targetPath = atomic ? tempRef.tempPath : filePath;
-  if (!atomic) {
-    fs.mkdirSync(path.dirname(targetPath), { recursive: true });
-  }
   const fileStream = atomic
     ? tempRef.fileStream
-    : fs.createWriteStream(
-      targetPath,
-      highWaterMark ? { highWaterMark } : undefined
-    );
+    : createPreallocatedFileStream(targetPath, highWaterMark, resolvedPreallocateBytes);
   const {
     counter,
     getBytes,
@@ -273,6 +308,9 @@ export const createJsonWriteStream = (filePath, options = {}) => {
           if (isOverLimit()) {
             throw new Error('JSON stream exceeded maxBytes.');
           }
+          if (resolvedPreallocateBytes > 0) {
+            await fsPromises.truncate(targetPath, getBytes());
+          }
           if (atomic) {
             await replaceFile(targetPath, filePath);
             committed = true;
@@ -308,6 +346,9 @@ export const createJsonWriteStream = (filePath, options = {}) => {
           if (isOverLimit()) {
             throw new Error('JSON stream exceeded maxBytes.');
           }
+          if (resolvedPreallocateBytes > 0) {
+            await fsPromises.truncate(targetPath, getBytes());
+          }
           if (atomic) {
             await replaceFile(targetPath, filePath);
             committed = true;
@@ -340,6 +381,9 @@ export const createJsonWriteStream = (filePath, options = {}) => {
       .then(async () => {
         if (isOverLimit()) {
           throw new Error('JSON stream exceeded maxBytes.');
+        }
+        if (resolvedPreallocateBytes > 0) {
+          await fsPromises.truncate(targetPath, getBytes());
         }
         if (atomic) {
           await replaceFile(targetPath, filePath);

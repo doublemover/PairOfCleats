@@ -1,6 +1,7 @@
 import path from 'node:path';
 
 import { writeJsonArrayFile, writeJsonObjectFile, writeJsonLinesSharded } from '../../../shared/json-stream.js';
+import { resolveJsonlWriteShapeHints } from '../../../shared/artifact-io.js';
 import { estimateJsonBytes } from '../../../shared/cache.js';
 import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../contracts/versioning.js';
 
@@ -18,7 +19,11 @@ export const createArtifactWriter = ({
   compressibleArtifacts,
   compressionOverrides,
   jsonArraySerializeShardThresholdMs = 0,
-  jsonArraySerializeShardMaxBytes = 0
+  jsonArraySerializeShardMaxBytes = 0,
+  jsonlShapeAware = true,
+  jsonlLargeThresholdBytes = (32 * 1024 * 1024),
+  jsonlPresizeEnabled = false,
+  jsonlPresizeMaxBytes = (512 * 1024 * 1024)
 }) => {
   const resolveCompressedSuffix = (mode) => (mode === 'zstd' ? 'json.zst' : 'json.gz');
   const artifactPath = (base, mode) => path.join(
@@ -200,6 +205,14 @@ export const createArtifactWriter = ({
     const resolvedEstimatedBytes = Number.isFinite(Number(estimatedBytes))
       ? Math.max(0, Math.floor(Number(estimatedBytes)))
       : estimateJsonBytes(items);
+    const shapeHints = jsonlShapeAware
+      ? resolveJsonlWriteShapeHints({
+        estimatedBytes: resolvedEstimatedBytes,
+        rowCount: Array.isArray(items) ? items.length : null,
+        largeThresholdBytes: jsonlLargeThresholdBytes,
+        maxPresizeBytes: jsonlPresizeMaxBytes
+      })
+      : { isLarge: false, presizeBytes: 0 };
     let resolvedMaxBytes = Number.isFinite(Number(maxBytes)) ? Math.max(0, Math.floor(Number(maxBytes))) : 0;
     const serializationThresholdMs = Number.isFinite(Number(jsonArraySerializeShardThresholdMs))
       ? Math.max(0, Math.floor(Number(jsonArraySerializeShardThresholdMs)))
@@ -217,6 +230,17 @@ export const createArtifactWriter = ({
       enqueueJsonArray(base, items, { compressible: false, piece });
       return;
     }
+    const preallocatePartBytes = jsonlPresizeEnabled && shapeHints.isLarge
+      ? Math.max(
+        0,
+        Math.floor(
+          Math.min(
+            shapeHints.presizeBytes || 0,
+            resolvedMaxBytes > 0 ? resolvedMaxBytes : (shapeHints.presizeBytes || 0)
+          )
+        )
+      )
+      : 0;
     const partsDirName = `${base}.parts`;
     const partPrefix = `${base}.part-`;
     const partsDirPath = path.join(outDir, partsDirName);
@@ -235,7 +259,8 @@ export const createArtifactWriter = ({
           atomic: true,
           compression: compression || null,
           gzipOptions: compression ? gzipOptions : null,
-          offsets: resolvedOffsets
+          offsets: resolvedOffsets,
+          preallocatePartBytes
         });
         const parts = result.parts.map((part, index) => ({
           path: part,
@@ -259,7 +284,8 @@ export const createArtifactWriter = ({
             ...(result.offsets ? { offsets: result.offsets } : {}),
             extensions: {
               ...(metaExtensions || {}),
-              ...(predictedSerializeMs > 0 ? { predictedSerializeMs } : {})
+              ...(predictedSerializeMs > 0 ? { predictedSerializeMs } : {}),
+              ...(preallocatePartBytes > 0 ? { preallocatePartBytes } : {})
             }
           },
           checksumAlgo: 'sha1',

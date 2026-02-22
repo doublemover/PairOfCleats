@@ -18,6 +18,17 @@ const resolveShardLimits = ({ maxBytes, maxItems }) => ({
   maxItems: normalizeShardLimit(maxItems)
 });
 
+const JSONL_PREALLOCATE_THRESHOLD_BYTES = 16 * 1024 * 1024;
+
+const resolveJsonlPartPreallocateBytes = ({ compression, maxBytes, preallocatePartBytes }) => {
+  if (compression) return 0;
+  const explicit = normalizeShardLimit(preallocatePartBytes);
+  if (explicit > 0) return explicit;
+  const shardCap = normalizeShardLimit(maxBytes);
+  if (shardCap >= JSONL_PREALLOCATE_THRESHOLD_BYTES) return shardCap;
+  return 0;
+};
+
 /**
  * Prefer a cached JSONL payload when producers have already serialized a row.
  * This keeps fanout writers from paying `JSON.stringify` repeatedly for
@@ -43,7 +54,7 @@ export const resolveJsonlExtension = (value) => {
  * Stream JSON lines to disk (one JSON object per line).
  * @param {string} filePath
  * @param {Iterable<any>} items
- * @param {{trailingNewline?:boolean,compression?:string|null,atomic?:boolean,gzipOptions?:object,highWaterMark?:number,signal?:AbortSignal,offsets?:{path:string,atomic?:boolean},maxBytes?:number}} [options]
+ * @param {{trailingNewline?:boolean,compression?:string|null,atomic?:boolean,gzipOptions?:object,highWaterMark?:number,signal?:AbortSignal,offsets?:{path:string,atomic?:boolean},maxBytes?:number,preallocateBytes?:number}} [options]
  * @returns {Promise<void>}
  */
 export async function writeJsonLinesFile(filePath, items, options = {}) {
@@ -54,7 +65,8 @@ export async function writeJsonLinesFile(filePath, items, options = {}) {
     highWaterMark = null,
     signal = null,
     offsets = null,
-    maxBytes = null
+    maxBytes = null,
+    preallocateBytes = null
   } = options;
   const resolvedMaxBytes = Number.isFinite(Number(maxBytes)) ? Math.max(0, Math.floor(Number(maxBytes))) : 0;
   if (offsets?.path && compression) {
@@ -65,7 +77,8 @@ export async function writeJsonLinesFile(filePath, items, options = {}) {
     atomic,
     gzipOptions,
     highWaterMark,
-    signal
+    signal,
+    preallocateBytes
   });
   const offsetsWriter = offsets?.path
     ? createOffsetsWriter(offsets.path, { atomic: offsets.atomic ?? atomic, highWaterMark })
@@ -105,7 +118,7 @@ export async function writeJsonLinesFile(filePath, items, options = {}) {
  * Stream JSON lines to disk from an async iterable.
  * @param {string} filePath
  * @param {AsyncIterable<any>|Iterable<any>} items
- * @param {{trailingNewline?:boolean,compression?:string|null,atomic?:boolean,gzipOptions?:object,highWaterMark?:number,signal?:AbortSignal,offsets?:{path:string,atomic?:boolean},maxBytes?:number}} [options]
+ * @param {{trailingNewline?:boolean,compression?:string|null,atomic?:boolean,gzipOptions?:object,highWaterMark?:number,signal?:AbortSignal,offsets?:{path:string,atomic?:boolean},maxBytes?:number,preallocateBytes?:number}} [options]
  * @returns {Promise<void>}
  */
 export async function writeJsonLinesFileAsync(filePath, items, options = {}) {
@@ -116,7 +129,8 @@ export async function writeJsonLinesFileAsync(filePath, items, options = {}) {
     highWaterMark = null,
     signal = null,
     offsets = null,
-    maxBytes = null
+    maxBytes = null,
+    preallocateBytes = null
   } = options;
   const resolvedMaxBytes = Number.isFinite(Number(maxBytes)) ? Math.max(0, Math.floor(Number(maxBytes))) : 0;
   if (offsets?.path && compression) {
@@ -127,7 +141,8 @@ export async function writeJsonLinesFileAsync(filePath, items, options = {}) {
     atomic,
     gzipOptions,
     highWaterMark,
-    signal
+    signal,
+    preallocateBytes
   });
   const offsetsWriter = offsets?.path
     ? createOffsetsWriter(offsets.path, { atomic: offsets.atomic ?? atomic, highWaterMark })
@@ -165,7 +180,7 @@ export async function writeJsonLinesFileAsync(filePath, items, options = {}) {
 
 /**
  * Stream JSON lines into sharded JSONL files.
- * @param {{dir:string,partsDirName:string,partPrefix:string,items:Iterable<any>,maxBytes:number,maxItems?:number,atomic?:boolean,compression?:string|null,gzipOptions?:object,highWaterMark?:number,signal?:AbortSignal,offsets?:{suffix?:string,atomic?:boolean}}} input
+ * @param {{dir:string,partsDirName:string,partPrefix:string,items:Iterable<any>,maxBytes:number,maxItems?:number,atomic?:boolean,compression?:string|null,gzipOptions?:object,highWaterMark?:number,signal?:AbortSignal,offsets?:{suffix?:string,atomic?:boolean},preallocatePartBytes?:number}} input
  * @returns {Promise<{parts:string[],counts:number[],bytes:number[],total:number,totalBytes:number,partsDir:string,maxPartRecords:number,maxPartBytes:number,targetMaxBytes:number|null,offsets?:string[]}>}
  */
 export async function writeJsonLinesSharded(input) {
@@ -181,13 +196,19 @@ export async function writeJsonLinesSharded(input) {
     gzipOptions = null,
     highWaterMark = null,
     signal = null,
-    offsets = null
+    offsets = null,
+    preallocatePartBytes = null
   } = input || {};
   const resolvedCompression = compression === 'none' ? null : compression;
   if (offsets && resolvedCompression) {
     throw new Error('JSONL offsets require uncompressed output (compressed shards must be scanned).');
   }
   const { maxBytes: resolvedMaxBytes, maxItems: resolvedMaxItems } = resolveShardLimits({ maxBytes, maxItems });
+  const resolvedPartPreallocateBytes = resolveJsonlPartPreallocateBytes({
+    compression: resolvedCompression,
+    maxBytes: resolvedMaxBytes,
+    preallocatePartBytes
+  });
   const partsDir = path.join(dir, partsDirName);
   const tempPartsDir = createTempPath(partsDir);
   await fsPromises.rm(tempPartsDir, { recursive: true, force: true });
@@ -251,7 +272,8 @@ export async function writeJsonLinesSharded(input) {
       gzipOptions,
       highWaterMark,
       signal,
-      pool: compressionPool
+      pool: compressionPool,
+      preallocateBytes: resolvedPartPreallocateBytes
     });
     if (offsets) {
       const suffix = typeof offsets.suffix === 'string' ? offsets.suffix : 'offsets.bin';
@@ -342,7 +364,7 @@ export async function writeJsonLinesSharded(input) {
 
 /**
  * Stream JSON lines into sharded JSONL files from an async iterable.
- * @param {{dir:string,partsDirName:string,partPrefix:string,items:AsyncIterable<any>|Iterable<any>,maxBytes:number,maxItems?:number,atomic?:boolean,compression?:string|null,gzipOptions?:object,highWaterMark?:number,signal?:AbortSignal,offsets?:{suffix?:string,atomic?:boolean}}} input
+ * @param {{dir:string,partsDirName:string,partPrefix:string,items:AsyncIterable<any>|Iterable<any>,maxBytes:number,maxItems?:number,atomic?:boolean,compression?:string|null,gzipOptions?:object,highWaterMark?:number,signal?:AbortSignal,offsets?:{suffix?:string,atomic?:boolean},preallocatePartBytes?:number}} input
  * @returns {Promise<{parts:string[],counts:number[],bytes:number[],total:number,totalBytes:number,partsDir:string,maxPartRecords:number,maxPartBytes:number,targetMaxBytes:number|null,offsets?:string[]}>}
  */
 export async function writeJsonLinesShardedAsync(input) {
@@ -358,13 +380,19 @@ export async function writeJsonLinesShardedAsync(input) {
     gzipOptions = null,
     highWaterMark = null,
     signal = null,
-    offsets = null
+    offsets = null,
+    preallocatePartBytes = null
   } = input || {};
   const resolvedCompression = compression === 'none' ? null : compression;
   if (offsets && resolvedCompression) {
     throw new Error('JSONL offsets require uncompressed output (compressed shards must be scanned).');
   }
   const { maxBytes: resolvedMaxBytes, maxItems: resolvedMaxItems } = resolveShardLimits({ maxBytes, maxItems });
+  const resolvedPartPreallocateBytes = resolveJsonlPartPreallocateBytes({
+    compression: resolvedCompression,
+    maxBytes: resolvedMaxBytes,
+    preallocatePartBytes
+  });
   const partsDir = path.join(dir, partsDirName);
   const tempPartsDir = createTempPath(partsDir);
   await fsPromises.rm(tempPartsDir, { recursive: true, force: true });
@@ -428,7 +456,8 @@ export async function writeJsonLinesShardedAsync(input) {
       gzipOptions,
       highWaterMark,
       signal,
-      pool: compressionPool
+      pool: compressionPool,
+      preallocateBytes: resolvedPartPreallocateBytes
     });
     if (offsets) {
       const suffix = typeof offsets.suffix === 'string' ? offsets.suffix : 'offsets.bin';

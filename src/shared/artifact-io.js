@@ -1,5 +1,13 @@
 export { MAX_JSON_BYTES } from './artifact-io/constants.js';
-export { resolveJsonlRequiredKeys, parseJsonlLine } from './artifact-io/jsonl.js';
+export {
+  resolveJsonlRequiredKeys,
+  parseJsonlLine,
+  resolveJsonlWriteShapeHints
+} from './artifact-io/jsonl.js';
+export {
+  resolveBinaryColumnarWriteHints,
+  writeBinaryRowFrames
+} from './artifact-io/binary-columnar.js';
 export {
   readJsonFile,
   readJsonLinesArray,
