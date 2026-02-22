@@ -137,6 +137,22 @@ const cases = [
     expected: ['shared.mk', 'local.mk', 'optional.mk', 'mk/rules.mk', 'mk/targets.mk', 'src/main.c', 'src/main.o', 'src/lib.o', 'build/.stamp']
   },
   {
+    label: 'makefile-noise-filtering',
+    fn: collectMakefileImports,
+    text: [
+      'include ./rules.mk',
+      'publish: //api.github.com/repos/jgm/pandoc/releases',
+      'headers: //raw.githubusercontent.com/nemequ/hedley/master/hedley.h',
+      'app: ./dep.mk .FORCE .SYMBOLIC .obj /LIBPATH:"$(LUALIB)" //OPT:REF //DYNAMICBASE:NO $(OBJDIR)'
+    ].join('\n'),
+    expected: [
+      './rules.mk',
+      './dep.mk',
+      'https://api.github.com/repos/jgm/pandoc/releases',
+      'https://raw.githubusercontent.com/nemequ/hedley/master/hedley.h'
+    ]
+  },
+  {
     label: 'proto',
     fn: collectProtoImports,
     text: [

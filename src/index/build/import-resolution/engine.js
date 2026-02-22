@@ -30,6 +30,7 @@ import { normalizeImportSpecifier, normalizeRelPath, resolveWithinRoot, sortStri
 import { createTsConfigLoader, resolveTsPaths } from './tsconfig-resolution.js';
 
 const ABSOLUTE_SYSTEM_PATH_PREFIX_RX = /^\/(?:etc|usr|opt|var|bin|sbin|lib|lib64|dev|proc|sys|run|tmp|home|root)(?:\/|$)/i;
+const SCHEME_RELATIVE_URL_RX = /^\/\/[A-Za-z0-9.-]+\.[A-Za-z]{2,}(?:[/:]|$)/i;
 const DEFAULT_UNRESOLVED_NOISE_PREFIXES = ['node:', '@types/', 'internal/'];
 
 const insertResolutionCache = (cache, key, value) => {
@@ -169,6 +170,7 @@ export function resolveImportLinks({
   }
 
   const shouldTreatAbsoluteSpecifierAsExternal = ({ spec, importerInfo }) => {
+    if (SCHEME_RELATIVE_URL_RX.test(spec || '')) return true;
     if (!spec || !spec.startsWith('/')) return false;
     if (!importerInfo) return false;
     const supportsAbsoluteExternal = importerInfo.isShell || importerInfo.isPathLike || importerInfo.isClike;

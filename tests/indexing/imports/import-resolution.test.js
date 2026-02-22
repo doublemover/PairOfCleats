@@ -92,7 +92,7 @@ const entries = [
 const importsByFile = {
   'src/a/index.js': ['./utils'],
   'src/b/index.js': ['./utils'],
-  'src/main.ts': ['@lib/util', 'react'],
+  'src/main.ts': ['@lib/util', 'react', '//cdn.example.com/lib.js'],
   'src/pkg/src/deep/feature.js': ['.', '..', '../..', '../../..'],
   'src/pkg2/src/deep/feature.js': ['.', '..', '../..', '../../..'],
   'lib/rake.rb': ['rake/version', 'json'],
@@ -142,7 +142,7 @@ assert.ok(!relA.importLinks.includes('src/b/utils.js'));
 assert.ok(!relB.importLinks.includes('src/a/utils.js'));
 
 assert.deepEqual(relMain.importLinks, ['src/lib/util.ts']);
-assert.deepEqual(relMain.externalImports, ['react']);
+assert.deepEqual(relMain.externalImports, ['//cdn.example.com/lib.js', 'react']);
 assert.ok(!relMain.importLinks.includes('react'));
 assert.deepEqual(relPkgFeature.importLinks, ['src/index.js', 'src/pkg/src/deep/index.js', 'src/pkg/src/index.js']);
 assert.deepEqual(relPkg2Feature.importLinks, ['src/index.js', 'src/pkg2/src/deep/index.js', 'src/pkg2/src/index.ts']);
