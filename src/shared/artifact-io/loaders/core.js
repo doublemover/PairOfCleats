@@ -248,6 +248,23 @@ const parseBinaryColumnarMeta = ({
   return { raw, fields, count };
 };
 
+const assertBinaryPartWithinMaxBytes = (targetPath, maxBytes, label) => {
+  if (!Number.isFinite(Number(maxBytes)) || Number(maxBytes) <= 0) return;
+  let size = null;
+  try {
+    size = Number(fs.statSync(targetPath)?.size);
+  } catch {
+    size = null;
+  }
+  if (!Number.isFinite(size) || size < 0) return;
+  if (size > Number(maxBytes)) {
+    throw createLoaderError(
+      'ERR_ARTIFACT_TOO_LARGE',
+      `${label} exceeds maxBytes (${size} > ${Number(maxBytes)})`
+    );
+  }
+};
+
 const loadBinaryColumnarJsonRows = ({
   dir,
   baseName,
@@ -292,6 +309,9 @@ const loadBinaryColumnarJsonRows = ({
   const resolvedDataPath = resolveReadableArtifactPath(dataPathFromMeta);
   const resolvedOffsetsPath = resolveReadableArtifactPath(offsetsPathFromMeta);
   const resolvedLengthsPath = resolveReadableArtifactPath(lengthsPathFromMeta);
+  assertBinaryPartWithinMaxBytes(resolvedDataPath, maxBytes, `${baseName} binary-columnar data`);
+  assertBinaryPartWithinMaxBytes(resolvedOffsetsPath, maxBytes, `${baseName} binary-columnar offsets`);
+  assertBinaryPartWithinMaxBytes(resolvedLengthsPath, maxBytes, `${baseName} binary-columnar lengths`);
   const dataBuffer = fs.readFileSync(resolvedDataPath);
   const offsetsBuffer = fs.readFileSync(resolvedOffsetsPath);
   const lengthsBuffer = fs.readFileSync(resolvedLengthsPath);
@@ -335,7 +355,11 @@ const loadBinaryColumnarJsonRows = ({
     dataPath: resolvedDataPath,
     offsetsPath: resolvedOffsetsPath,
     lengthsPath: resolvedLengthsPath,
-    count
+    count,
+    dataBuffer,
+    offsetsBuffer,
+    lengthsBuffer,
+    maxBytes
   });
   if (!payloads) {
     throw createLoaderError(
