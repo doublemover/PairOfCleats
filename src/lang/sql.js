@@ -699,22 +699,28 @@ export function collectSqlImports(text = '') {
  * @returns {Array<{start:number,end:number,name:string,kind:string,meta:Object}>|null}
  */
 export function buildSqlChunks(text, options = {}) {
+  const statements = splitSqlStatements(text);
   const treeChunks = buildTreeSitterChunks({ text, languageId: 'sql', options });
   if (treeChunks && treeChunks.length) {
-    const dialect = options.dialect || 'generic';
-    return treeChunks.map((chunk) => ({
-      ...chunk,
-      meta: {
-        ...(chunk.meta || {}),
-        dialect
-      }
-    }));
+    // SQL grammars can miss trailing/simple statements in mixed constructs
+    // (for example function bodies followed by standalone SELECT statements).
+    // When parser chunk count is lower than statement-split coverage, prefer
+    // statement splits to avoid dropping searchable SQL units.
+    if (!statements.length || treeChunks.length >= statements.length) {
+      const dialect = options.dialect || 'generic';
+      return treeChunks.map((chunk) => ({
+        ...chunk,
+        meta: {
+          ...(chunk.meta || {}),
+          dialect
+        }
+      }));
+    }
   }
   const lineIndex = buildLineIndex(text);
   const lines = text.includes('--') || text.includes('/*')
     ? text.split('\n')
     : null;
-  const statements = splitSqlStatements(text);
   if (!statements.length) return null;
 
   const dialect = options.dialect || 'generic';

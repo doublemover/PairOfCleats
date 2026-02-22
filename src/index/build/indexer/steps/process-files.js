@@ -24,6 +24,7 @@ import { buildOrderedAppender } from './process-files/ordered.js';
 import { createShardRuntime, resolveCheckpointBatchSize } from './process-files/runtime.js';
 import { SCHEDULER_QUEUE_NAMES } from '../../runtime/scheduler.js';
 import { INDEX_PROFILE_VECTOR_ONLY } from '../../../../contracts/index-profile.js';
+import { prepareScmFileMetaSnapshot } from '../../../scm/file-meta-snapshot.js';
 
 const FILE_WATCHDOG_DEFAULT_MS = 10000;
 const FILE_WATCHDOG_DEFAULT_MAX_MS = 120000;
@@ -395,6 +396,33 @@ export const processFiles = async ({
 
   try {
     assignFileIndexes(entries);
+    const scmFilesPosix = entries.map((entry) => (
+      entry?.rel
+        ? toPosix(entry.rel)
+        : toPosix(path.relative(runtime.root, entry?.abs || ''))
+    ));
+    const scmSnapshotConfig = runtime?.scmConfig?.snapshot || {};
+    const scmSnapshotEnabled = scmSnapshotConfig.enabled !== false;
+    let scmFileMetaByPath = null;
+    if (scmSnapshotEnabled) {
+      const scmSnapshot = await prepareScmFileMetaSnapshot({
+        repoCacheRoot: runtime.repoCacheRoot,
+        provider: runtime.scmProvider,
+        providerImpl: runtime.scmProviderImpl,
+        repoRoot: runtime.scmRepoRoot,
+        repoProvenance: runtime.repoProvenance,
+        filesPosix: scmFilesPosix,
+        includeChurn: scmSnapshotConfig.includeChurn === true,
+        timeoutMs: Number.isFinite(Number(scmSnapshotConfig.timeoutMs))
+          ? Number(scmSnapshotConfig.timeoutMs)
+          : runtime?.scmConfig?.timeoutMs,
+        maxFallbackConcurrency: Number.isFinite(Number(scmSnapshotConfig.maxFallbackConcurrency))
+          ? Number(scmSnapshotConfig.maxFallbackConcurrency)
+          : runtime.procConcurrency,
+        log
+      });
+      scmFileMetaByPath = scmSnapshot?.fileMetaByPath || null;
+    }
 
     const structuralMatches = await loadStructuralMatches({
       repoRoot: runtime.root,
@@ -592,6 +620,7 @@ export const processFiles = async ({
         scmProviderImpl: runtimeRef.scmProviderImpl,
         scmRepoRoot: runtimeRef.scmRepoRoot,
         scmConfig: runtimeRef.scmConfig,
+        scmFileMetaByPath,
         languageOptions: runtimeRef.languageOptions,
         postingsConfig: runtimeRef.postingsConfig,
         segmentsConfig: runtimeRef.segmentsConfig,

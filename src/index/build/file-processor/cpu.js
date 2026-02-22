@@ -270,6 +270,7 @@ export const processFileCpu = async (context) => {
     scmProviderImpl,
     scmRepoRoot,
     scmConfig,
+    scmFileMetaByPath,
     languageOptions,
     astDataflowEnabled,
     controlFlowEnabled,
@@ -594,11 +595,40 @@ export const processFileCpu = async (context) => {
   const runScmTask = typeof runProc === 'function' ? runProc : (fn) => fn();
   let scmMetaUnavailableReason = null;
   if (!skipScmForProseRoute && scmActive && filePosix) {
-    if (typeof scmProviderImpl.getFileMeta === 'function') {
+    const includeChurn = resolvedGitChurnEnabled
+      && !scmFastPath
+      && (fileStat?.size ?? 0) <= SCM_CHURN_MAX_BYTES;
+    const snapshotMeta = (() => {
+      if (!scmFileMetaByPath) return null;
+      if (typeof scmFileMetaByPath.get === 'function') {
+        return scmFileMetaByPath.get(filePosix) || null;
+      }
+      return scmFileMetaByPath[filePosix] || null;
+    })();
+    const snapshotHasIdentity = Boolean(snapshotMeta && (snapshotMeta.lastModifiedAt || snapshotMeta.lastAuthor));
+    const snapshotMissingRequestedChurn = Boolean(
+      snapshotHasIdentity
+      && includeChurn
+      && !Number.isFinite(snapshotMeta.churn)
+      && !Number.isFinite(snapshotMeta.churnAdded)
+      && !Number.isFinite(snapshotMeta.churnDeleted)
+    );
+    if (snapshotHasIdentity && !snapshotMissingRequestedChurn) {
+      fileGitMeta = {
+        last_modified: snapshotMeta.lastModifiedAt ?? null,
+        last_author: snapshotMeta.lastAuthor ?? null,
+        churn: Number.isFinite(snapshotMeta.churn) ? snapshotMeta.churn : null,
+        churn_added: Number.isFinite(snapshotMeta.churnAdded) ? snapshotMeta.churnAdded : null,
+        churn_deleted: Number.isFinite(snapshotMeta.churnDeleted) ? snapshotMeta.churnDeleted : null,
+        churn_commits: Number.isFinite(snapshotMeta.churnCommits) ? snapshotMeta.churnCommits : null
+      };
+    } else if (snapshotMeta && !snapshotHasIdentity) {
+      scmMetaUnavailableReason = 'unavailable';
+    } else if (
+      typeof scmProviderImpl.getFileMeta === 'function'
+      && (!snapshotMeta || snapshotMissingRequestedChurn)
+    ) {
       await runScmTask(async () => {
-        const includeChurn = resolvedGitChurnEnabled
-          && !scmFastPath
-          && (fileStat?.size ?? 0) <= SCM_CHURN_MAX_BYTES;
         const fileMeta = await Promise.resolve(scmProviderImpl.getFileMeta({
           repoRoot: scmRepoRoot,
           filePosix,

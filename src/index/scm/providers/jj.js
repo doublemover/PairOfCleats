@@ -198,6 +198,22 @@ const toJjFileset = (relPath) => {
   return `root-file:"${escaped}"`;
 };
 
+const toUniquePosixFiles = (filesPosix = [], repoRoot = null) => {
+  const out = [];
+  const seen = new Set();
+  for (const raw of Array.isArray(filesPosix) ? filesPosix : []) {
+    const normalized = toPosix(String(raw || ''));
+    if (!normalized) continue;
+    const key = repoRoot
+      ? toPosix(path.relative(repoRoot, path.join(repoRoot, normalized)))
+      : normalized;
+    if (!key || key.startsWith('../') || seen.has(key)) continue;
+    seen.add(key);
+    out.push(key);
+  }
+  return out;
+};
+
 export const jjProvider = {
   name: 'jj',
   detect({ startPath }) {
@@ -373,6 +389,29 @@ export const jjProvider = {
       churnDeleted: includeChurn ? churnDeleted : null,
       churnCommits: includeChurn ? churnCommits : null
     };
+  },
+  async getFileMetaBatch({ repoRoot, filesPosix, timeoutMs, includeChurn = true }) {
+    const normalizedFiles = toUniquePosixFiles(filesPosix, repoRoot);
+    const fileMetaByPath = Object.create(null);
+    if (!normalizedFiles.length) return { fileMetaByPath };
+    for (const filePosix of normalizedFiles) {
+      const meta = await this.getFileMeta({
+        repoRoot,
+        filePosix,
+        timeoutMs,
+        includeChurn
+      });
+      if (!meta || meta.ok === false) continue;
+      fileMetaByPath[filePosix] = {
+        lastModifiedAt: meta.lastModifiedAt || null,
+        lastAuthor: meta.lastAuthor || null,
+        churn: Number.isFinite(meta.churn) ? meta.churn : null,
+        churnAdded: Number.isFinite(meta.churnAdded) ? meta.churnAdded : null,
+        churnDeleted: Number.isFinite(meta.churnDeleted) ? meta.churnDeleted : null,
+        churnCommits: Number.isFinite(meta.churnCommits) ? meta.churnCommits : null
+      };
+    }
+    return { fileMetaByPath };
   },
   async annotate({ repoRoot, filePosix, timeoutMs, signal }) {
     const config = resolveJjConfig();

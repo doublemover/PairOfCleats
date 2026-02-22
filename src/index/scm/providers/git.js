@@ -32,6 +32,34 @@ const ensurePosixList = (entries) => (
     .filter(Boolean)
 );
 
+const GIT_META_BATCH_FORMAT_PREFIX = '__POC_GIT_META__';
+const GIT_META_BATCH_CHUNK_SIZE = 96;
+
+const toUniquePosixFiles = (filesPosix = [], repoRoot = null) => {
+  const out = [];
+  const seen = new Set();
+  for (const raw of Array.isArray(filesPosix) ? filesPosix : []) {
+    const normalized = repoRoot
+      ? toRepoPosixPath(raw, repoRoot)
+      : toPosix(String(raw || ''));
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    out.push(normalized);
+  }
+  return out;
+};
+
+const chunkList = (items, size) => {
+  const chunkSize = Number.isFinite(Number(size)) && Number(size) > 0
+    ? Math.max(1, Math.floor(Number(size)))
+    : 1;
+  const chunks = [];
+  for (let i = 0; i < items.length; i += chunkSize) {
+    chunks.push(items.slice(i, i + chunkSize));
+  }
+  return chunks;
+};
+
 let gitQueue = null;
 let gitQueueConcurrency = null;
 
@@ -145,6 +173,65 @@ export const gitProvider = {
       churnDeleted: Number.isFinite(meta.churn_deleted) ? meta.churn_deleted : null,
       churnCommits: Number.isFinite(meta.churn_commits) ? meta.churn_commits : null
     };
+  },
+  async getFileMetaBatch({ repoRoot, filesPosix, timeoutMs }) {
+    const config = resolveGitConfig();
+    const normalizedFiles = toUniquePosixFiles(filesPosix, repoRoot);
+    if (!normalizedFiles.length) {
+      return { fileMetaByPath: Object.create(null) };
+    }
+    const fileMetaByPath = Object.create(null);
+    const chunks = chunkList(normalizedFiles, GIT_META_BATCH_CHUNK_SIZE);
+    const resolvedTimeoutMs = Number.isFinite(Number(timeoutMs)) && Number(timeoutMs) > 0
+      ? Math.max(5000, Math.floor(Number(timeoutMs)))
+      : 15000;
+    for (const chunk of chunks) {
+      const args = [
+        '-C',
+        repoRoot,
+        'log',
+        '--date=iso-strict',
+        `--format=${GIT_META_BATCH_FORMAT_PREFIX}%aI%x00%an`,
+        '--name-only',
+        '--',
+        ...chunk
+      ];
+      const result = await runGitTask(() => runScmCommand('git', args, {
+        outputMode: 'string',
+        captureStdout: true,
+        captureStderr: true,
+        rejectOnNonZeroExit: false,
+        timeoutMs: resolvedTimeoutMs
+      }), { useQueue: config.maxConcurrentProcesses > 1 });
+      if (result.exitCode !== 0) {
+        return { ok: false, reason: 'unavailable' };
+      }
+      let currentMeta = null;
+      for (const row of String(result.stdout || '').split(/\r?\n/)) {
+        const line = String(row || '').trim();
+        if (!line) continue;
+        if (line.startsWith(GIT_META_BATCH_FORMAT_PREFIX)) {
+          const payload = line.slice(GIT_META_BATCH_FORMAT_PREFIX.length);
+          const [lastModifiedAtRaw, ...authorParts] = payload.split('\0');
+          const lastModifiedAt = String(lastModifiedAtRaw || '').trim() || null;
+          const lastAuthor = authorParts.join('\0').trim() || null;
+          currentMeta = { lastModifiedAt, lastAuthor };
+          continue;
+        }
+        if (!currentMeta) continue;
+        const fileKey = toRepoPosixPath(line, repoRoot);
+        if (!fileKey || fileMetaByPath[fileKey]) continue;
+        fileMetaByPath[fileKey] = {
+          lastModifiedAt: currentMeta.lastModifiedAt,
+          lastAuthor: currentMeta.lastAuthor,
+          churn: null,
+          churnAdded: null,
+          churnDeleted: null,
+          churnCommits: null
+        };
+      }
+    }
+    return { fileMetaByPath };
   },
   async annotate({ repoRoot, filePosix, timeoutMs, signal }) {
     const absPath = path.join(repoRoot, filePosix);

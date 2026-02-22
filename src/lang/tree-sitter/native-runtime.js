@@ -288,6 +288,13 @@ export function preflightNativeTreeSitterGrammars(languageIds = [], { log } = {}
     const loaded = loadNativeTreeSitterGrammar(languageId, { log });
     if (!loaded?.language) {
       unavailable.push(languageId);
+      continue;
+    }
+    // Validate parser activation during preflight so invalid native bindings are
+    // excluded from scheduler plans before execution starts.
+    const parser = getNativeTreeSitterParser(languageId, { log });
+    if (!parser) {
+      unavailable.push(languageId);
     }
   }
   return {

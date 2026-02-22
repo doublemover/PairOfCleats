@@ -8,11 +8,12 @@ const REQUIRED_METHODS = [
   'getFileMeta'
 ];
 
-const OPTIONAL_METHODS = ['annotate'];
+const OPTIONAL_METHODS = ['annotate', 'getFileMetaBatch'];
 const FILE_LIST_UNAVAILABLE_REASONS = new Set(['unavailable']);
 const CHANGED_FILES_UNAVAILABLE_REASONS = new Set(['unsupported', 'unavailable']);
 const FILE_META_UNAVAILABLE_REASONS = new Set(['unsupported', 'unavailable']);
 const ANNOTATE_UNAVAILABLE_REASONS = new Set(['disabled', 'unsupported', 'timeout', 'unavailable']);
+const FILE_META_BATCH_UNAVAILABLE_REASONS = new Set(['unsupported', 'unavailable']);
 
 export const normalizeProviderName = (value) => {
   const name = typeof value === 'string' ? value.trim().toLowerCase() : '';
@@ -55,19 +56,38 @@ export const assertScmProvider = (provider) => {
     }
     return normalizeReason(result, allowedReasons);
   };
+  const normalizeFileMetaValue = (meta) => {
+    const value = meta && typeof meta === 'object' ? meta : {};
+    return {
+      lastModifiedAt: typeof value.lastModifiedAt === 'string' ? value.lastModifiedAt : null,
+      lastAuthor: typeof value.lastAuthor === 'string' ? value.lastAuthor : null,
+      churn: Number.isFinite(value.churn) ? Number(value.churn) : null,
+      churnAdded: Number.isFinite(value.churnAdded) ? Number(value.churnAdded) : null,
+      churnDeleted: Number.isFinite(value.churnDeleted) ? Number(value.churnDeleted) : null,
+      churnCommits: Number.isFinite(value.churnCommits) ? Number(value.churnCommits) : null
+    };
+  };
   const normalizeFileMeta = (result) => {
     if (result && result.ok === false) {
       return normalizeReason(result, FILE_META_UNAVAILABLE_REASONS);
     }
-    const meta = result && typeof result === 'object' ? result : {};
-    return {
-      lastModifiedAt: typeof meta.lastModifiedAt === 'string' ? meta.lastModifiedAt : null,
-      lastAuthor: typeof meta.lastAuthor === 'string' ? meta.lastAuthor : null,
-      churn: Number.isFinite(meta.churn) ? Number(meta.churn) : null,
-      churnAdded: Number.isFinite(meta.churnAdded) ? Number(meta.churnAdded) : null,
-      churnDeleted: Number.isFinite(meta.churnDeleted) ? Number(meta.churnDeleted) : null,
-      churnCommits: Number.isFinite(meta.churnCommits) ? Number(meta.churnCommits) : null
-    };
+    return normalizeFileMetaValue(result);
+  };
+  const normalizeFileMetaBatch = (result) => {
+    if (result && result.ok === false) {
+      return normalizeReason(result, FILE_META_BATCH_UNAVAILABLE_REASONS);
+    }
+    const source = result?.fileMetaByPath;
+    const entries = source && typeof source === 'object'
+      ? Object.entries(source)
+      : [];
+    const fileMetaByPath = Object.create(null);
+    for (const [rawPath, rawMeta] of entries) {
+      const key = String(rawPath || '').replace(/\\/g, '/').trim();
+      if (!key) continue;
+      fileMetaByPath[key] = normalizeFileMetaValue(rawMeta);
+    }
+    return { fileMetaByPath };
   };
   const normalizeProvenance = (result, input) => {
     const root = typeof result?.root === 'string'
@@ -162,6 +182,16 @@ export const assertScmProvider = (provider) => {
           return { lines };
         }
         return normalizeReason(result, ANNOTATE_UNAVAILABLE_REASONS);
+      } catch {
+        return { ok: false, reason: 'unavailable' };
+      }
+    };
+  }
+  if (typeof provider.getFileMetaBatch === 'function') {
+    wrapped.getFileMetaBatch = async (input) => {
+      try {
+        const result = await Promise.resolve(provider.getFileMetaBatch(input));
+        return normalizeFileMetaBatch(result);
       } catch {
         return { ok: false, reason: 'unavailable' };
       }

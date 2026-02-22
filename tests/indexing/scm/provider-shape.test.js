@@ -29,6 +29,14 @@ const wrapped = assertScmProvider({
   getFileMeta() {
     return { churn: 4, churnAdded: 3, churnDeleted: 1, churnCommits: 2 };
   },
+  getFileMetaBatch() {
+    return {
+      fileMetaByPath: {
+        'src/z.js': { churn: 1, lastAuthor: 'z-author' },
+        'src/a.js': { churnAdded: 2, churnDeleted: 3 }
+      }
+    };
+  },
   annotate() {
     return {
       lines: [
@@ -52,6 +60,14 @@ assert.deepEqual(provenance.head.bookmarks, ['a', 'z']);
 const meta = await wrapped.getFileMeta({ repoRoot: '/repo', filePosix: 'src/a.js' });
 assert.equal(meta.churn, 4);
 assert.equal(meta.lastModifiedAt, null);
+
+const batchMeta = await wrapped.getFileMetaBatch({
+  repoRoot: '/repo',
+  filesPosix: ['src/z.js', 'src/a.js']
+});
+assert.equal(batchMeta.fileMetaByPath['src/z.js'].lastAuthor, 'z-author');
+assert.equal(batchMeta.fileMetaByPath['src/a.js'].churnAdded, 2);
+assert.equal(batchMeta.fileMetaByPath['src/a.js'].churnDeleted, 3);
 
 const annotate = await wrapped.annotate({ repoRoot: '/repo', filePosix: 'src/a.js', timeoutMs: 10 });
 assert.deepEqual(annotate.lines.map((entry) => entry.line), [1, 2]);

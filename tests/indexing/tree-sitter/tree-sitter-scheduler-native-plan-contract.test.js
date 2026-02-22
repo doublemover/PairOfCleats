@@ -5,6 +5,7 @@ import path from 'node:path';
 
 import { buildTreeSitterSchedulerPlan } from '../../../src/index/build/tree-sitter-scheduler/plan.js';
 import {
+  getNativeTreeSitterParser,
   preflightNativeTreeSitterGrammars,
   resolveNativeTreeSitterTarget
 } from '../../../src/lang/tree-sitter/native-runtime.js';
@@ -47,6 +48,23 @@ assert.ok(
   Array.isArray(preflightFail.missing) && preflightFail.missing.includes('this-language-does-not-exist'),
   'expected missing language reported in preflight result'
 );
+
+const luaPreflight = preflightNativeTreeSitterGrammars(['lua']);
+const luaParser = getNativeTreeSitterParser('lua', {
+  treeSitter: { enabled: true, nativeOnly: true, strict: true },
+  log: () => {}
+});
+if (luaParser) {
+  assert.ok(
+    !luaPreflight.unavailable.includes('lua'),
+    'expected lua preflight to stay available when parser activation succeeds'
+  );
+} else {
+  assert.ok(
+    luaPreflight.unavailable.includes('lua'),
+    'expected lua preflight to mark unavailable when parser activation fails'
+  );
+}
 
 const runtime = {
   root,
