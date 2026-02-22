@@ -160,9 +160,24 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
     }
   };
 
-  const waitForCapacity = () => {
+  const waitForCapacity = (input = null) => {
+    let orderIndex = null;
+    let bypassWindow = 0;
+    if (Number.isFinite(input)) {
+      orderIndex = Math.floor(Number(input));
+    } else if (input && typeof input === 'object') {
+      if (Number.isFinite(input.orderIndex)) {
+        orderIndex = Math.floor(Number(input.orderIndex));
+      }
+      if (Number.isFinite(input.bypassWindow)) {
+        bypassWindow = Math.max(0, Math.floor(Number(input.bypassWindow)));
+      }
+    }
     if (aborted) {
       return Promise.reject(abortError || new Error('Ordered appender aborted.'));
+    }
+    if (Number.isFinite(orderIndex) && orderIndex <= (nextIndex + bypassWindow)) {
+      return Promise.resolve();
     }
     const emergencyActive = refreshEmergencyCapacity('wait');
     const maxPendingAllowed = emergencyActive
@@ -552,6 +567,24 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
     },
     peekNextIndex() {
       return nextIndex;
+    },
+    snapshot() {
+      const keys = Array.from(pending.keys())
+        .filter((value) => Number.isFinite(value))
+        .sort((a, b) => a - b);
+      return {
+        nextIndex,
+        pendingCount: pending.size,
+        pendingHead: keys.slice(0, 8),
+        seenCount,
+        expectedCount,
+        completedCount: completed.size,
+        maxPendingBeforeBackpressure,
+        maxPendingEmergency,
+        emergencyCapacityActive,
+        lastAdvanceAt,
+        lastActivityAt
+      };
     },
     waitForCapacity,
     abort
