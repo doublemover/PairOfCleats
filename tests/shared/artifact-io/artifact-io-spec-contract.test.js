@@ -6,6 +6,7 @@ import {
   loadJsonArrayArtifact,
   loadJsonArrayArtifactRows
 } from '../../../src/shared/artifact-io/loaders.js';
+import { encodeBinaryRowFrames } from '../../../src/shared/artifact-io/binary-columnar.js';
 import {
   prepareArtifactIoTestDir,
   writePiecesManifest
@@ -60,6 +61,35 @@ await assert.rejects(
   () => loadJsonArrayArtifact(partialDir, 'sample', { strict: false }),
   (err) => err?.code === 'ERR_ARTIFACT_PARTS_MISSING',
   'partial shard sequences must fail deterministically'
+);
+
+const binaryMissingSidecarsDir = path.join(testRoot, 'binary-missing-sidecars');
+await fs.mkdir(path.join(binaryMissingSidecarsDir, 'pieces'), { recursive: true });
+const encoded = encodeBinaryRowFrames([Buffer.from('{"id":1}', 'utf8')]);
+await fs.writeFile(
+  path.join(binaryMissingSidecarsDir, 'sample.binary-columnar.bin'),
+  encoded.dataBuffer
+);
+await fs.writeFile(
+  path.join(binaryMissingSidecarsDir, 'sample.binary-columnar.meta.json'),
+  JSON.stringify({
+    fields: {
+      format: 'binary-columnar-v1',
+      count: 1,
+      data: 'sample.binary-columnar.bin',
+      offsets: 'sample.binary-columnar.offsets.bin',
+      lengths: 'sample.binary-columnar.lengths.varint'
+    }
+  }, null, 2)
+);
+await writePiecesManifest(binaryMissingSidecarsDir, [
+  { name: 'sample', path: 'sample.binary-columnar.bin', format: 'binary-columnar' },
+  { name: 'sample_binary_columnar_meta', path: 'sample.binary-columnar.meta.json', format: 'json' }
+]);
+await assert.rejects(
+  () => loadJsonArrayArtifact(binaryMissingSidecarsDir, 'sample', { strict: true }),
+  (err) => err?.code === 'ERR_MANIFEST_INCOMPLETE' || err?.code === 'ERR_ARTIFACT_PARTS_MISSING',
+  'binary-columnar manifests must include offsets/lengths sidecars for strict loads'
 );
 
 console.log('artifact io spec contract test passed');

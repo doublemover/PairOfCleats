@@ -72,9 +72,15 @@ const toArtifactNameSet = (values) => {
 
 const DEFAULT_HOT_ARTIFACTS = Object.freeze([
   'chunk_meta',
+  'chunk_meta.binary-columnar',
+  'chunk_meta.binary-columnar_meta',
   'chunk_uid_map',
   'file_meta',
+  'file_meta.binary-columnar',
+  'file_meta.binary-columnar_meta',
   'token_postings',
+  'token_postings.binary-columnar',
+  'token_postings.binary-columnar_meta',
   'token_postings_packed',
   'token_postings_binary-columnar',
   'token_postings_binary-columnar_meta',

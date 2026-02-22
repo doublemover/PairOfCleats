@@ -601,7 +601,7 @@ Primary targets:
 - Touchpoints: `src/index/build/runtime/runtime.js`, `src/index/build/tree-sitter-scheduler/adaptive-profile.js`, `src/retrieval/routing-policy.js`, `tools/bench/language/metrics.js`, `tools/bench/language/report.js`
 
 ### UB-063: Storage format modernization
-- Status: [ ]
+- Status: [x]
 - Opportunity:
   - Further reductions possible with consolidated columnar formats.
 - Tasks:
@@ -611,6 +611,16 @@ Primary targets:
   - Full parity and determinism suite on representative repos.
 - Exit criteria:
   - Lower I/O, smaller disk footprint, faster reload.
+- Completion: 2026-02-22T10:37:35.7687230-05:00
+- Validation:
+  - `node tests/shared/artifact-io/artifact-io-format-parity.test.js`
+  - `node tests/shared/artifact-io/artifact-io-spec-contract.test.js`
+  - `node tests/shared/artifact-io/prefer-binary-columnar-loaders.test.js`
+  - `node tests/shared/artifact-io/loader-fallbacks.test.js`
+  - `node tests/shared/artifact-io/jsonl-fuzz.test.js`
+  - `node tests/shared/artifact-io/compression-tier-resolution.test.js`
+  - `node tests/indexing/validate/index-validate-binary-columnar-manifest-names.test.js`
+  - `node tests/retrieval/pipeline/index-loader-meta-layouts.test.js`
 - Improvement Intent (What): artifact storage efficiency
 - Improvement Method (How): modernized formats with parity gates and hard cutovers.
 - Integrated Betterments: run full artifact parity checks before each format cutover; enforce strict deprecation timeline and remove legacy readers in same phase; add binary corruption sentinel checks on load.

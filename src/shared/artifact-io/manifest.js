@@ -235,6 +235,107 @@ const resolveManifestEntries = (manifest, name) => {
   return map.get(name) || [];
 };
 
+const sortManifestEntries = (entries) => (
+  entries
+    .slice()
+    .sort((a, b) => {
+      const layoutDiff = resolveManifestEntryLayoutOrder(a) - resolveManifestEntryLayoutOrder(b);
+      if (Number.isFinite(layoutDiff) && layoutDiff !== 0) return layoutDiff;
+      const aPath = a?.path || '';
+      const bPath = b?.path || '';
+      return aPath < bPath ? -1 : (aPath > bPath ? 1 : 0);
+    })
+);
+
+const resolveNamedManifestEntry = ({
+  manifest,
+  name,
+  strict,
+  code = 'ERR_MANIFEST_INVALID'
+}) => {
+  const entries = sortManifestEntries(resolveManifestEntries(manifest, name));
+  if (!entries.length) return null;
+  if (entries.length > 1 && strict) {
+    const err = new Error(`Multiple manifest entries for ${name}`);
+    err.code = code;
+    throw err;
+  }
+  return entries[0] || null;
+};
+
+const resolveNamedManifestPath = ({
+  dir,
+  manifest,
+  names,
+  strict,
+  code = 'ERR_MANIFEST_INVALID'
+}) => {
+  for (const candidate of names) {
+    const entry = resolveNamedManifestEntry({
+      manifest,
+      name: candidate,
+      strict,
+      code
+    });
+    if (!entry) continue;
+    const targetPath = resolveManifestPath(dir, entry.path, strict);
+    if (!targetPath) continue;
+    return { name: candidate, entry, path: targetPath };
+  }
+  return null;
+};
+
+const resolveBinaryColumnarSidecars = ({ dir, manifest, name, strict }) => {
+  const meta = resolveNamedManifestPath({
+    dir,
+    manifest,
+    strict,
+    names: [`${name}_binary_columnar_meta`, `${name}_meta`]
+  });
+  const offsets = resolveNamedManifestPath({
+    dir,
+    manifest,
+    strict,
+    names: [`${name}_binary_columnar_offsets`, `${name}_offsets`]
+  });
+  const lengths = resolveNamedManifestPath({
+    dir,
+    manifest,
+    strict,
+    names: [`${name}_binary_columnar_lengths`, `${name}_lengths`]
+  });
+  return {
+    metaPath: meta?.path || null,
+    offsetsPath: offsets?.path || null,
+    lengthsPath: lengths?.path || null,
+    metaName: meta?.name || null,
+    offsetsName: offsets?.name || null,
+    lengthsName: lengths?.name || null
+  };
+};
+
+export const resolveManifestPieceByPath = ({
+  manifest,
+  dir,
+  targetPath,
+  expectedName = null
+}) => {
+  if (!manifest || typeof manifest !== 'object') return null;
+  if (!dir || !targetPath) return null;
+  const resolvedRoot = path.resolve(dir);
+  const resolvedTarget = path.resolve(targetPath);
+  const relative = path.relative(resolvedRoot, resolvedTarget);
+  if (!relative || relative.startsWith('..') || isAbsolutePathNative(relative)) return null;
+  const relPath = toPosix(relative);
+  const pieces = Array.isArray(manifest?.pieces) ? manifest.pieces : [];
+  return pieces.find((entry) => {
+    if (!entry || typeof entry !== 'object') return false;
+    if (typeof entry.path !== 'string' || entry.path !== relPath) return false;
+    if (expectedName && entry.name !== expectedName) return false;
+    return true;
+  }) || null;
+};
+
 const inferEntryFormat = (entry) => {
   if (entry && typeof entry.format === 'string' && entry.format) return entry.format;
   const pathValue = typeof entry?.path === 'string' ? entry.path : '';
@@ -319,14 +420,12 @@ export const resolveMetaFormat = (meta, fallback) => {
 export const resolveManifestArtifactSources = ({ dir, manifest, name, strict, maxBytes = MAX_JSON_BYTES }) => {
   if (!manifest) return null;
   const entries = resolveManifestEntries(manifest, name);
-  const metaEntries = resolveManifestEntries(manifest, `${name}_meta`);
-  if (metaEntries.length > 1 && strict) {
-    const err = new Error(`Multiple manifest entries for ${name}_meta`);
-    err.code = 'ERR_MANIFEST_INVALID';
-    throw err;
-  }
-  if (metaEntries.length === 1) {
-    const metaEntry = metaEntries[0];
+  const metaEntry = resolveNamedManifestEntry({
+    manifest,
+    name: `${name}_meta`,
+    strict
+  });
+  if (metaEntry) {
     const metaPath = resolveManifestPath(dir, metaEntry.path, strict);
     if (metaPath) {
       const cachedMeta = readCache(metaPath);
@@ -376,13 +475,7 @@ export const resolveManifestArtifactSources = ({ dir, manifest, name, strict, ma
     }
   }
   if (!entries.length) return null;
-  let resolvedEntries = entries.slice().sort((a, b) => {
-    const layoutDiff = resolveManifestEntryLayoutOrder(a) - resolveManifestEntryLayoutOrder(b);
-    if (Number.isFinite(layoutDiff) && layoutDiff !== 0) return layoutDiff;
-    const aPath = a?.path || '';
-    const bPath = b?.path || '';
-    return aPath < bPath ? -1 : (aPath > bPath ? 1 : 0);
-  });
+  let resolvedEntries = sortManifestEntries(entries);
   if (resolvedEntries.length > 1 && strict) {
     if (canResolveSingleVariantEntry(resolvedEntries)) {
       const selected = selectCanonicalVariantEntry(
@@ -400,10 +493,24 @@ export const resolveManifestArtifactSources = ({ dir, manifest, name, strict, ma
     .map((entry) => resolveManifestPath(dir, entry?.path, strict))
     .filter(Boolean);
   if (!paths.length) return null;
+  const format = inferEntryFormat(resolvedEntries[0]);
+  const binaryColumnar = format === 'binary-columnar'
+    ? resolveBinaryColumnarSidecars({ dir, manifest, name, strict })
+    : null;
   return {
-    format: inferEntryFormat(resolvedEntries[0]),
+    format,
     paths,
-    entries: resolvedEntries
+    entries: resolvedEntries,
+    ...(binaryColumnar
+      ? {
+        binaryColumnar: {
+          ...binaryColumnar,
+          dataPath: paths[0],
+          dataName: name
+        },
+        metaPath: binaryColumnar.metaPath
+      }
+      : {})
   };
 };
 
