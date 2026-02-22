@@ -117,6 +117,14 @@ const cloneJsonValue = (value) => {
   return JSON.parse(JSON.stringify(value));
 };
 
+/**
+ * Delete a nested dot-path from an object clone.
+ *
+ * Missing intermediate segments are ignored without throwing.
+ *
+ * @param {object} target
+ * @param {string} pathValue
+ */
 const deletePath = (target, pathValue) => {
   if (!target || typeof target !== 'object') return;
   const segments = String(pathValue || '').split('.').filter(Boolean);
@@ -286,10 +294,23 @@ export const buildExtractionReport = ({
   };
 };
 
+/**
+ * Return a copy of the nondeterministic index-state field registry.
+ *
+ * @returns {Array<{path:string,category:string,reason:string,source:string,excludeFromStableHash:boolean}>}
+ */
 export const getIndexStateNondeterministicFields = () => (
   INDEX_STATE_NONDETERMINISTIC_FIELDS.map((entry) => ({ ...entry }))
 );
 
+/**
+ * Remove known nondeterministic index-state fields for stable reporting/hash
+ * generation.
+ *
+ * @param {object} indexState
+ * @param {{forStableHash?:boolean}} [options]
+ * @returns {object}
+ */
 export const stripIndexStateNondeterministicFields = (indexState, { forStableHash = true } = {}) => {
   if (!indexState || typeof indexState !== 'object') return indexState;
   const next = cloneJsonValue(indexState);
@@ -302,6 +323,13 @@ export const stripIndexStateNondeterministicFields = (indexState, { forStableHas
   return next;
 };
 
+/**
+ * Build a determinism report that records excluded volatile fields and the
+ * stable hash of the normalized state payload.
+ *
+ * @param {{mode?:string|null,indexState?:object}} [input]
+ * @returns {{schemaVersion:number,generatedAt:string,mode:string|null,stableHashExclusions:string[],sourceReasons:Array<{path:string,category:string,reason:string,source:string}>,normalizedStateHash:string|null}}
+ */
 export const buildDeterminismReport = ({ mode, indexState } = {}) => {
   const stripped = stripIndexStateNondeterministicFields(indexState, { forStableHash: true });
   const normalizedStateHash = stripped && typeof stripped === 'object'

@@ -179,6 +179,16 @@ const formatProgressLine = ({ jobId, stage, state }) => {
   return `[indexer] job ${jobId} ${stage || state?.stage || 'stage'} ${status} | ${progressText}${phaseNote} | elapsed ${elapsedText} | eta ${etaText}`;
 };
 
+/**
+ * Poll build-state artifacts for the active job so long-running work emits
+ * periodic progress updates in service worker logs.
+ *
+ * Returns an async cleanup callback that stops timers and closes tracked
+ * lifecycle resources.
+ *
+ * @param {{job:{id:string},repoPath:string,stage?:string|null}} input
+ * @returns {() => Promise<void>}
+ */
 const startBuildProgressMonitor = ({ job, repoPath, stage }) => {
   if (!job || !repoPath) return async () => {};
   const repoCacheRoot = getRepoCacheRoot(repoPath);
@@ -336,6 +346,13 @@ const handleSmoke = async () => {
   printPayload(payload);
 };
 
+/**
+ * Claim and process one queue job, including retries, subprocess execution,
+ * heartbeat maintenance, and final completion updates.
+ *
+ * @param {{processed:number,succeeded:number,failed:number,retried:number}} metrics
+ * @returns {Promise<boolean>} true when a job was claimed; false when queue is empty.
+ */
 const processQueueOnce = async (metrics) => {
   const queueConfig = queueName === 'embeddings'
     ? (config.embeddings?.queue || {})

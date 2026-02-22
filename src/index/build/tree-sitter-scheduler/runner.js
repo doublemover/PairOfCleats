@@ -37,6 +37,16 @@ const resolveExecConcurrency = ({ schedulerConfig, grammarCount }) => {
   return Math.max(1, Math.min(grammarCount, auto));
 };
 
+/**
+ * Resolve deterministic execution order for scheduler tasks.
+ *
+ * Newer plans provide `executionOrder`; older plans only include `grammarKeys`.
+ * We preserve backward compatibility by falling back to `grammarKeys` and
+ * always returning a copy so callers can mutate safely.
+ *
+ * @param {{executionOrder?:string[],grammarKeys?:string[]}} [plan]
+ * @returns {string[]}
+ */
 const resolveExecutionOrder = (plan = {}) => {
   const executionOrder = Array.isArray(plan?.executionOrder) ? plan.executionOrder : [];
   if (executionOrder.length) return executionOrder.slice();

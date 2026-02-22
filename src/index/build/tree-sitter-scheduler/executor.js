@@ -109,6 +109,21 @@ const buildSchedulerCacheKey = ({
   String(segmentEnd ?? '')
 ].join(':'));
 
+/**
+ * Build per-job tree-sitter options for scheduler execution.
+ *
+ * This injects parse-mode-specific limits, stable cache-key inputs, and a
+ * cache directory rooted under the repo cache when available.
+ *
+ * @param {object} input
+ * @param {object|null} input.strictTreeSitter
+ * @param {object|null} input.runtime
+ * @param {(line:string)=>void|null} input.log
+ * @param {{languageId?:string,parseMode?:string,segmentStart?:number,segmentEnd?:number}} input.job
+ * @param {string} input.segmentText
+ * @param {{hash?:string,size?:number,mtimeMs?:number}|null} input.expectedSignature
+ * @returns {{treeSitter:object,treeSitterCacheKey:string,log:(line:string)=>void|null}}
+ */
 const buildTreeSitterOptionsForJob = ({
   strictTreeSitter,
   runtime,

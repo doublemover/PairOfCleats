@@ -20,6 +20,35 @@ pairofcleats service indexer smoke --json
 
 - `PAIROFCLEATS_CACHE_ROOT` (recommended explicit value in CI/release flows)
 
+Minimal `service-config.json`:
+
+```json
+{
+  "repos": [],
+  "queue": {
+    "maxQueued": 20,
+    "maxRetries": 2
+  },
+  "worker": {
+    "concurrency": 1
+  },
+  "embeddings": {
+    "queue": {
+      "maxQueued": 10,
+      "maxRetries": 2
+    },
+    "worker": {
+      "concurrency": 1,
+      "maxMemoryMb": 4096
+    }
+  },
+  "sync": {
+    "policy": "pull",
+    "intervalMs": 300000
+  }
+}
+```
+
 Default queue paths:
 
 - `service/queue/queue.json` for index jobs

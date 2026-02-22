@@ -20,6 +20,11 @@ Schema contract:
 
 Paths are normalized to repo-relative POSIX form and entries are sorted by path.
 
+Merge semantics (`--coverage-merge`):
+
+- Entry merge is cumulative by `path` (`coveredRanges += ...`, `totalRanges += ...`).
+- Values are clamped per entry so `coveredRanges <= totalRanges` before aggregation.
+
 ## Flags
 
 - `--coverage[=<path>]`: enable coverage capture and artifact write

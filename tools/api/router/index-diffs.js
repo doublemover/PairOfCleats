@@ -55,6 +55,14 @@ const parseDiffFormat = (raw) => {
   throw err;
 };
 
+/**
+ * Parse diff event shaping/filter options from query parameters.
+ *
+ * Supports both kebab-case and camelCase aliases for compatibility.
+ *
+ * @param {URLSearchParams} searchParams
+ * @returns {{modes:string[],kinds:string[],maxEvents:number|null,maxBytes:number|null}}
+ */
 const parseDiffShapingOptions = (searchParams) => ({
   modes: parseStringListFromSearchParams(searchParams, ['mode', 'modes']),
   kinds: parseStringListFromSearchParams(searchParams, ['kind', 'kinds']),
@@ -69,6 +77,15 @@ const parseDiffShapingOptions = (searchParams) => ({
   )
 });
 
+/**
+ * Apply event-mode/kind filtering and output bounds for diff event payloads.
+ *
+ * `maxEvents` is applied first, then `maxBytes` is applied to JSONL line size.
+ *
+ * @param {Array<object>} events
+ * @param {{modes?:string[],kinds?:string[],maxEvents?:number|null,maxBytes?:number|null}} options
+ * @returns {Array<object>}
+ */
 const shapeDiffEvents = (events, options) => {
   const list = Array.isArray(events) ? events : [];
   const modeFilter = Array.isArray(options?.modes) && options.modes.length
@@ -103,6 +120,13 @@ const handleRepoResolveError = (res, err, corsHeaders) => {
   sendError(res, status, code, err?.message || 'Invalid repo path.', {}, corsHeaders || {});
 };
 
+/**
+ * Decode diff id path segments and convert malformed URI encoding into a
+ * consistent INVALID_REQUEST error.
+ *
+ * @param {string} rawValue
+ * @returns {string}
+ */
 const decodeDiffId = (rawValue) => {
   try {
     return decodeURIComponent(rawValue || '');

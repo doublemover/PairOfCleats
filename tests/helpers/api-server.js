@@ -7,6 +7,33 @@ import { attachSilentLogging } from './test-env.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
+/**
+ * Launch the API server test harness and expose request helpers.
+ *
+ * `requestJson` parses JSON responses and returns `body` as an object.
+ * `requestRaw` always returns raw `body` text and best-effort parsed `json`
+ * when the response advertises `application/json`.
+ *
+ * @returns {Promise<{
+ *   server: import('node:child_process').ChildProcessWithoutNullStreams,
+ *   serverInfo: Record<string, unknown>,
+ *   requestJson: (
+ *     method: string,
+ *     requestPath: string,
+ *     body: unknown,
+ *     serverInfo: {host?: string, port?: number},
+ *     options?: {headers?: Record<string, string>, auth?: boolean}
+ *   ) => Promise<{status: number, body: Record<string, unknown>, headers: import('node:http').IncomingHttpHeaders}>,
+ *   requestRaw: (
+ *     method: string,
+ *     requestPath: string,
+ *     body: unknown,
+ *     serverInfo: {host?: string, port?: number},
+ *     options?: {headers?: Record<string, string>, auth?: boolean}
+ *   ) => Promise<{status: number, body: string, json: Record<string, unknown>|null, headers: import('node:http').IncomingHttpHeaders}>,
+ *   stop: () => Promise<void>
+ * }>}
+ */
 export const startApiServer = async ({
   repoRoot,
   allowedRoots = [],

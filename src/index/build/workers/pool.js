@@ -268,6 +268,15 @@ export async function createIndexerWorkerPool(input = {}) {
     const downscaleCooldownMs = Number.isFinite(poolConfig?.downscaleCooldownMs)
       ? Math.max(1000, Math.floor(Number(poolConfig.downscaleCooldownMs)))
       : 15000;
+    const upscaleCooldownMs = Number.isFinite(poolConfig?.upscaleCooldownMs)
+      ? Math.max(1000, Math.floor(Number(poolConfig.upscaleCooldownMs)))
+      : Math.max(1000, downscaleCooldownMs);
+    const upscaleRssThreshold = Number.isFinite(poolConfig?.upscaleRssThreshold)
+      ? Math.max(0.4, Math.min(downscaleRssThreshold, Number(poolConfig.upscaleRssThreshold)))
+      : Math.max(0.4, downscaleRssThreshold - 0.1);
+    const upscaleGcThreshold = Number.isFinite(poolConfig?.upscaleGcThreshold)
+      ? Math.max(0.4, Math.min(downscaleGcThreshold, Number(poolConfig.upscaleGcThreshold)))
+      : Math.max(0.4, downscaleGcThreshold - 0.1);
     let pool = null;
     let disabled = false;
     let permanentlyDisabled = false;
@@ -286,7 +295,9 @@ export async function createIndexerWorkerPool(input = {}) {
     const workerNumaNodeByThreadId = new Map();
     let workerCreateOrdinal = 0;
     let pressureDownscaleEvents = 0;
+    let pressureUpscaleEvents = 0;
     let lastPressureDownscaleAtMs = 0;
+    let lastPressureUpscaleAtMs = 0;
     const workerExecArgv = buildWorkerExecArgv();
     const heapPolicy = resolveWorkerHeapBudgetPolicy({
       targetPerWorkerMb: poolConfig.heapTargetMb,
@@ -620,15 +631,38 @@ export async function createIndexerWorkerPool(input = {}) {
       }
       if (reason) log(`Worker pool reconfigure: ${reason}`);
     };
+    /**
+     * Adapt pool size in response to pressure samples with hysteresis:
+     * - downscale quickly when pressure breaches thresholds
+     * - upscale gradually only after sustained recovery
+     */
     const maybeReduceWorkersOnPressure = async ({ rssPressure, gcPressure }) => {
       if (!autoDownscaleOnPressure || permanentlyDisabled) return;
       if (disabled || pendingRestart || restarting) return;
-      if (!shouldDownscaleWorkersForPressure({
+      const pressureHigh = shouldDownscaleWorkersForPressure({
         rssPressure,
         gcPressure,
         rssThreshold: downscaleRssThreshold,
         gcThreshold: downscaleGcThreshold
-      })) {
+      });
+      if (!pressureHigh) {
+        const pressureRecovered = rssPressure <= upscaleRssThreshold && gcPressure <= upscaleGcThreshold;
+        if (!pressureRecovered) return;
+        if (effectiveMaxWorkers >= configuredMaxWorkers) return;
+        const now = Date.now();
+        if ((now - lastPressureDownscaleAtMs) < upscaleCooldownMs) return;
+        if ((now - lastPressureUpscaleAtMs) < upscaleCooldownMs) return;
+        const nextWorkers = Math.min(configuredMaxWorkers, effectiveMaxWorkers + 1);
+        if (nextWorkers <= effectiveMaxWorkers) return;
+        const previousWorkers = effectiveMaxWorkers;
+        effectiveMaxWorkers = nextWorkers;
+        pressureUpscaleEvents += 1;
+        lastPressureUpscaleAtMs = now;
+        await scheduleReconfigureRestart(
+          `rssPressure=${rssPressure.toFixed(3)} gcPressure=${gcPressure.toFixed(3)} ` +
+          `recovery(rss<=${upscaleRssThreshold.toFixed(2)},gc<=${upscaleGcThreshold.toFixed(2)}) ` +
+          `workers ${previousWorkers}->${nextWorkers}.`
+        );
         return;
       }
       if (effectiveMaxWorkers <= downscaleMinWorkers) return;
@@ -856,6 +890,10 @@ export async function createIndexerWorkerPool(input = {}) {
             minWorkers: downscaleMinWorkers,
             cooldownMs: downscaleCooldownMs,
             events: pressureDownscaleEvents,
+            recoveryEvents: pressureUpscaleEvents,
+            upscaleCooldownMs,
+            upscaleRssThreshold,
+            upscaleGcThreshold,
             lastEventAt: lastPressureDownscaleAtMs
               ? new Date(lastPressureDownscaleAtMs).toISOString()
               : null

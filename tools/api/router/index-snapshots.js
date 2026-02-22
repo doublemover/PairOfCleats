@@ -25,6 +25,13 @@ const handleRepoResolveError = (res, err, corsHeaders) => {
   sendError(res, status, code, err?.message || 'Invalid repo path.', {}, corsHeaders || {});
 };
 
+/**
+ * Decode snapshot id path segments and normalize malformed URI encoding into
+ * INVALID_REQUEST handling.
+ *
+ * @param {string} rawValue
+ * @returns {string}
+ */
 const decodeSnapshotId = (rawValue) => {
   try {
     return decodeURIComponent(rawValue || '');

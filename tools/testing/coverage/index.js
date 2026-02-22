@@ -61,6 +61,15 @@ const readCoverageJsonSafe = async (filePath) => {
   }
 };
 
+/**
+ * Collect and merge V8 coverage JSON rows into per-file range summaries.
+ *
+ * Range keys are de-duplicated by stable offsets within each file and merged
+ * across all coverage artifacts found in `coverageDir`.
+ *
+ * @param {{root:string,coverageDir:string|null|undefined}} input
+ * @returns {Promise<Array<{path:string,coveredRanges:number,totalRanges:number}>>}
+ */
 export const collectV8CoverageEntries = async ({ root, coverageDir }) => {
   if (!coverageDir || !fs.existsSync(coverageDir)) return [];
   const files = (await fsPromises.readdir(coverageDir))
@@ -102,6 +111,15 @@ export const collectV8CoverageEntries = async ({ root, coverageDir }) => {
     .sort((a, b) => a.path.localeCompare(b.path));
 };
 
+/**
+ * Merge summary coverage artifacts by path using additive totals.
+ *
+ * This operates on summarized artifacts (`coveredRanges`/`totalRanges`) rather
+ * than raw ranges, so merge semantics are cumulative across artifacts.
+ *
+ * @param {Array<{entries?:Array<{path?:string,coveredRanges?:number,totalRanges?:number}>}>} coverageArtifacts
+ * @returns {Array<{path:string,coveredRanges:number,totalRanges:number}>}
+ */
 export const mergeCoverageEntries = (coverageArtifacts) => {
   const byPath = new Map();
   for (const artifact of Array.isArray(coverageArtifacts) ? coverageArtifacts : []) {
@@ -129,6 +147,12 @@ export const mergeCoverageEntries = (coverageArtifacts) => {
     .sort((a, b) => a.path.localeCompare(b.path));
 };
 
+/**
+ * Load one coverage artifact file or all JSON artifacts in a directory.
+ *
+ * @param {string|null|undefined} inputPath
+ * @returns {Promise<object[]>}
+ */
 export const loadCoverageArtifactsFromPath = async (inputPath) => {
   if (!inputPath) return [];
   const resolved = path.resolve(inputPath);
@@ -150,6 +174,12 @@ export const loadCoverageArtifactsFromPath = async (inputPath) => {
   return out;
 };
 
+/**
+ * Keep only coverage entries that match current changed/untracked repo files.
+ *
+ * @param {{entries:Array<{path:string}>,root:string}} input
+ * @returns {Array<{path:string,coveredRanges:number,totalRanges:number}>}
+ */
 export const filterCoverageEntriesToChanged = ({ entries, root }) => {
   const diff = spawnSync('git', ['diff', '--name-only', 'HEAD'], {
     cwd: root,
@@ -173,6 +203,12 @@ export const filterCoverageEntriesToChanged = ({ entries, root }) => {
     .filter((entry) => changed.has(toPosix(entry.path)));
 };
 
+/**
+ * Build a stable coverage artifact payload and summary row.
+ *
+ * @param {{runId:string,entries:Array<{path:string,coveredRanges:number,totalRanges:number}>}} input
+ * @returns {{schemaVersion:number,generatedAt:string,runId:string,pathPolicy:string,kind:string,summary:{files:number,coveredRanges:number,totalRanges:number},entries:Array<{path:string,coveredRanges:number,totalRanges:number}>}}
+ */
 export const buildCoverageArtifact = ({ runId, entries }) => {
   const sortedEntries = (Array.isArray(entries) ? entries : []).slice().sort((a, b) => a.path.localeCompare(b.path));
   const summary = sortedEntries.reduce((acc, entry) => {
@@ -194,6 +230,12 @@ export const buildCoverageArtifact = ({ runId, entries }) => {
   };
 };
 
+/**
+ * Persist a coverage artifact JSON payload to disk.
+ *
+ * @param {{artifact:object,outputPath:string}} input
+ * @returns {Promise<string>}
+ */
 export const writeCoverageArtifact = async ({ artifact, outputPath }) => {
   const resolved = path.resolve(outputPath);
   await fsPromises.mkdir(path.dirname(resolved), { recursive: true });

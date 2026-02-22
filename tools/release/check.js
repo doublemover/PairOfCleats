@@ -140,7 +140,6 @@ const recordStep = ({
   command,
   cwd = root,
   env = process.env,
-  allowOverride = false,
   owner = null,
   artifacts = []
 }) => {
@@ -181,11 +180,7 @@ const recordStep = ({
 
   const finishedAtMs = Date.now();
   const failed = result.status !== 0;
-  let overridden = false;
-  if (failed && allowOverride) {
-    const canOverride = allowBlockerOverride && overrideMarker && overrideIds.has(id);
-    overridden = Boolean(canOverride);
-  }
+  const overridden = false;
 
   return {
     id,
