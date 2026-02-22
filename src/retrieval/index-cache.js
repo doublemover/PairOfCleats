@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createLruCache } from '../shared/cache.js';
 import { incCacheEviction, setCacheSize } from '../shared/metrics.js';
+import { probeFileSignature } from '../shared/file-signature.js';
 
 const DEFAULT_INDEX_CACHE_MAX_ENTRIES = 4;
 const DEFAULT_INDEX_CACHE_TTL_MS = 15 * 60 * 1000;
@@ -89,14 +90,6 @@ const setCachedSignature = (cacheKey, signature) => {
   pruneIndexSignatureCache(now);
 };
 
-const safeStat = async (statPath, useBigInt) => {
-  try {
-    return await fs.stat(statPath, useBigInt ? { bigint: true } : undefined);
-  } catch {
-    return null;
-  }
-};
-
 const indexStateSignature = async (dir) => {
   if (!dir) return null;
   const statePath = path.join(dir, 'index_state.json');
@@ -119,39 +112,9 @@ const indexStateSignature = async (dir) => {
   return statSig ? { signature: `stat:${statSig}`, buildId: null } : null;
 };
 
-const fileSignature = async (filePath) => {
-  try {
-    let statPath = filePath;
-    let stat = await safeStat(statPath, true);
-    if (!stat && !filePath.endsWith('.gz') && !filePath.endsWith('.zst')) {
-      const zstPath = `${filePath}.zst`;
-      stat = await safeStat(zstPath, true);
-      if (stat) {
-        statPath = zstPath;
-      } else {
-        const gzPath = `${filePath}.gz`;
-        stat = await safeStat(gzPath, true);
-        if (stat) statPath = gzPath;
-      }
-    }
-    // Prefer nanosecond mtime precision when available so that successive writes within the
-    // same millisecond still invalidate the cache (observed on Windows runners).
-    if (!stat) stat = await safeStat(statPath, false);
-    if (!stat) return null;
-    const size = typeof stat.size === 'bigint' ? stat.size : BigInt(stat.size);
-    const mtimeNs = stat.mtimeNs
-      ?? (typeof stat.mtimeMs === 'bigint'
-        ? stat.mtimeMs * 1000000n
-        : BigInt(Math.trunc(Number(stat.mtimeMs) * 1_000_000)));
-    const ctimeNs = stat.ctimeNs
-      ?? (typeof stat.ctimeMs === 'bigint'
-        ? stat.ctimeMs * 1000000n
-        : BigInt(Math.trunc(Number(stat.ctimeMs) * 1_000_000)));
-    return `${size.toString()}:${mtimeNs.toString()}:${ctimeNs.toString()}`;
-  } catch {
-    return null;
-  }
-};
+export { probeFileSignature };
+
+const fileSignature = (filePath) => probeFileSignature(filePath, { compressedSiblings: 'always' });
 
 const shardSignature = async (dir, prefix) => {
   try {

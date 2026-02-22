@@ -148,7 +148,8 @@ export const enqueueRiskInterproceduralArtifacts = ({
       enqueueWrite,
       addPieceFile,
       formatArtifactLabel,
-      log
+      log,
+      forceEmpty: true
     });
     if (flowsExpected) {
       flowsRef = writeJsonlArtifact({

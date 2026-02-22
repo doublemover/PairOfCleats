@@ -8,6 +8,7 @@ import { normalizeDependabot } from '../../src/integrations/triage/normalize/dep
 import { normalizeAwsInspector } from '../../src/integrations/triage/normalize/aws-inspector.js';
 import { normalizeGeneric } from '../../src/integrations/triage/normalize/generic.js';
 import { renderRecordMarkdown } from '../../src/integrations/triage/render.js';
+import { parseMetaArgs } from '../shared/input-parsers.js';
 
 const argv = createCli({
   scriptName: 'triage-ingest',
@@ -35,7 +36,7 @@ if (!source || !inputPath) {
 const runtimeConfig = getRuntimeConfig(repoRoot, userConfig);
 const baseEnv = resolveRuntimeEnv(runtimeConfig, process.env);
 const triageConfig = getTriageConfig(repoRoot, userConfig);
-const meta = parseMeta(argv.meta);
+const meta = parseMetaArgs(argv.meta);
 
 const normalizer = resolveNormalizer(source);
 if (!normalizer) {
@@ -116,18 +117,6 @@ function resolveNormalizer(sourceValue) {
   if (sourceValue === 'aws_inspector') return normalizeAwsInspector;
   if (sourceValue === 'generic') return normalizeGeneric;
   return null;
-}
-
-function parseMeta(metaArg) {
-  const entries = Array.isArray(metaArg) ? metaArg : (metaArg ? [metaArg] : []);
-  const meta = {};
-  for (const entry of entries) {
-    const [rawKey, ...rest] = String(entry).split('=');
-    const key = rawKey.trim();
-    if (!key) continue;
-    meta[key] = rest.join('=').trim();
-  }
-  return meta;
 }
 
 async function loadInputEntries(filePath) {

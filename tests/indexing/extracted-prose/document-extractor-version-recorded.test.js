@@ -3,19 +3,17 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { getCurrentBuildInfo, loadUserConfig } from '../../../tools/shared/dict-utils.js';
+import {
+  findFixtureEntryBySuffix,
+  inspectExtractedProseState,
+  setupExtractedProseFixture
+} from '../../helpers/extracted-prose-fixture.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
-const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'phase17-document-extractor-version');
-const repoRoot = path.join(tempRoot, 'repo');
-const cacheRoot = path.join(tempRoot, 'cache');
-const normalizePath = (value) => String(value || '').replace(/\\/g, '/').toLowerCase();
-
-await fsPromises.rm(tempRoot, { recursive: true, force: true });
-await fsPromises.mkdir(path.join(repoRoot, 'docs'), { recursive: true });
-await fsPromises.mkdir(cacheRoot, { recursive: true });
-await fsPromises.writeFile(path.join(repoRoot, 'docs', 'sample.pdf'), 'stub pdf extraction text');
+const { root, repoRoot, cacheRoot, docsDir } = await setupExtractedProseFixture(
+  'phase17-document-extractor-version'
+);
+await fsPromises.writeFile(path.join(docsDir, 'sample.pdf'), 'stub pdf extraction text');
 
 const env = applyTestEnv({
   cacheRoot,
@@ -54,15 +52,14 @@ if (buildResult.status !== 0) {
   process.exit(buildResult.status ?? 1);
 }
 
-const userConfig = loadUserConfig(repoRoot);
-const currentBuild = getCurrentBuildInfo(repoRoot, userConfig, { mode: 'extracted-prose' });
-const indexRoot = currentBuild?.activeRoot || currentBuild?.buildRoot || null;
+const state = inspectExtractedProseState(repoRoot);
+const indexRoot = state.indexRoot;
 if (!indexRoot) {
   console.error('document extractor version test failed: missing build root');
   process.exit(1);
 }
 
-const buildStatePath = path.join(indexRoot, 'build_state.json');
+const buildStatePath = state.buildStatePath;
 if (!fs.existsSync(buildStatePath)) {
   console.error('document extractor version test failed: missing build_state.json');
   process.exit(1);
@@ -73,9 +70,7 @@ if (!extraction) {
   console.error('document extractor version test failed: missing build_state.documentExtraction.extracted-prose');
   process.exit(1);
 }
-const entry = Array.isArray(extraction.files)
-  ? extraction.files.find((item) => normalizePath(item?.file).endsWith('docs/sample.pdf'))
-  : null;
+const entry = findFixtureEntryBySuffix(extraction.files, 'docs/sample.pdf');
 if (!entry) {
   console.error('document extractor version test failed: missing extraction file entry for sample.pdf');
   process.exit(1);

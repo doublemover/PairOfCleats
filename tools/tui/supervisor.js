@@ -8,21 +8,21 @@ import { createProgressLineDecoder } from '../../src/shared/cli/progress-stream.
 import { formatProgressEvent, PROGRESS_PROTOCOL } from '../../src/shared/cli/progress-events.js';
 import { resolveDispatchRequest } from '../../src/shared/dispatch/resolve.js';
 import { stableStringify } from '../../src/shared/stable-json.js';
-import { getIndexDir, getMetricsDir, getRepoCacheRoot, loadUserConfig, resolveToolRoot } from '../shared/dict-utils.js';
+import {
+  getIndexDir,
+  getMetricsDir,
+  getRepoCacheRoot,
+  getToolVersion,
+  loadUserConfig,
+  resolveToolRoot
+} from '../shared/dict-utils.js';
 
 const ROOT = resolveToolRoot();
 const SUPERVISOR_PROTOCOL = 'poc.tui@1';
 const tuiEnvConfig = getTuiEnvConfig(process.env);
 const runId = tuiEnvConfig.runId
   || `run-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-
-const pkg = (() => {
-  try {
-    return JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
-  } catch {
-    return { version: '0.0.0' };
-  }
-})();
+const supervisorVersion = getToolVersion() || '0.0.0';
 
 const createEventLogRecorder = () => {
   const requestedDir = tuiEnvConfig.eventLogDir;
@@ -37,7 +37,7 @@ const createEventLogRecorder = () => {
       runId,
       protocol: PROGRESS_PROTOCOL,
       supervisorProtocol: SUPERVISOR_PROTOCOL,
-      supervisorVersion: pkg.version || '0.0.0',
+      supervisorVersion,
       pid: process.pid,
       startedAt: new Date().toISOString(),
       eventLogPath: path.relative(ROOT, eventLogPath).replace(/\\/g, '/')
@@ -956,7 +956,7 @@ const handleRequest = async (request) => {
   }
   if (op === 'hello') {
     emit('hello', {
-      supervisorVersion: pkg.version || '0.0.0',
+      supervisorVersion,
       capabilities: {
         protocolVersion: PROGRESS_PROTOCOL,
         supportsCancel: true,
@@ -1051,7 +1051,7 @@ process.on('SIGTERM', () => {
 });
 
 emit('hello', {
-  supervisorVersion: pkg.version || '0.0.0',
+  supervisorVersion,
   capabilities: {
     protocolVersion: PROGRESS_PROTOCOL,
     supportsCancel: true,

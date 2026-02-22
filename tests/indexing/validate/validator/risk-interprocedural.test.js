@@ -7,6 +7,7 @@ import { buildCallSiteId } from '../../../../src/index/callsite-id.js';
 import { validateIndexArtifacts } from '../../../../src/index/validate.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../../src/contracts/versioning.js';
 import { createBaseIndex, defaultUserConfig } from '../helpers.js';
+import { updatePiecesManifest } from '../../../helpers/pieces-manifest.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'validator-risk-interprocedural');
@@ -242,16 +243,15 @@ await writeJsonl(path.join(indexDir, 'risk_flows.jsonl'), riskFlows);
 await fs.writeFile(path.join(indexDir, 'risk_interprocedural_stats.json'), JSON.stringify(stats, null, 2));
 await fs.writeFile(path.join(indexDir, 'chunk_uid_map.json'), JSON.stringify(chunkUidMap, null, 2));
 
-const manifestPath = path.join(indexDir, 'pieces', 'manifest.json');
-const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'));
-manifest.pieces.push(
-  { type: 'relations', name: 'call_sites', format: 'jsonl', path: 'call_sites.jsonl' },
-  { type: 'chunks', name: 'chunk_uid_map', format: 'json', path: 'chunk_uid_map.json' },
-  { type: 'risk', name: 'risk_summaries', format: 'jsonl', path: 'risk_summaries.jsonl' },
-  { type: 'risk', name: 'risk_flows', format: 'jsonl', path: 'risk_flows.jsonl' },
-  { type: 'risk', name: 'risk_interprocedural_stats', format: 'json', path: 'risk_interprocedural_stats.json' }
-);
-await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2));
+await updatePiecesManifest(indexDir, (manifest) => {
+  manifest.pieces.push(
+    { type: 'relations', name: 'call_sites', format: 'jsonl', path: 'call_sites.jsonl' },
+    { type: 'chunks', name: 'chunk_uid_map', format: 'json', path: 'chunk_uid_map.json' },
+    { type: 'risk', name: 'risk_summaries', format: 'jsonl', path: 'risk_summaries.jsonl' },
+    { type: 'risk', name: 'risk_flows', format: 'jsonl', path: 'risk_flows.jsonl' },
+    { type: 'risk', name: 'risk_interprocedural_stats', format: 'json', path: 'risk_interprocedural_stats.json' }
+  );
+});
 
 let report = await validateIndexArtifacts({
   root: repoRoot,

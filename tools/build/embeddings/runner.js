@@ -30,6 +30,7 @@ import {
 import { resolveOnnxModelPath } from '../../../src/shared/onnx-embeddings.js';
 import { fromPosix, toPosix } from '../../../src/shared/files.js';
 import { getEnvConfig, isTestingEnv } from '../../../src/shared/env.js';
+import { normalizeDenseVectorMode } from '../../../src/shared/dense-vector-mode.js';
 import { spawnSubprocess } from '../../../src/shared/subprocess.js';
 import {
   normalizeBundleFormat,
@@ -1019,12 +1020,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
   const hnswIsolateOverride = typeof embeddingsConfig?.hnsw?.isolate === 'boolean'
     ? embeddingsConfig.hnsw.isolate
     : null;
-  const normalizeDenseVectorMode = (value) => {
-    const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
-    if (raw === 'code' || raw === 'doc' || raw === 'auto' || raw === 'merged') return raw;
-    return 'merged';
-  };
-  const denseVectorMode = normalizeDenseVectorMode(userConfig?.search?.denseVectorMode);
+  const denseVectorMode = normalizeDenseVectorMode(userConfig?.search?.denseVectorMode, 'merged');
   const readJsonOptional = (filePath) => {
     if (!filePath || !fsSync.existsSync(filePath)) return null;
     try {

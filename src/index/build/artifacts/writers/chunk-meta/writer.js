@@ -1,7 +1,12 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { log } from '../../../../../shared/progress.js';
-import { MAX_JSON_BYTES } from '../../../../../shared/artifact-io.js';
+import {
+  CHUNK_META_PART_PREFIX,
+  CHUNK_META_PARTS_DIR,
+  expandMetaPartPaths,
+  MAX_JSON_BYTES
+} from '../../../../../shared/artifact-io.js';
 import { writeBinaryRowFrames } from '../../../../../shared/artifact-io/binary-columnar.js';
 import { ensureDiskSpace, formatBytes } from '../../../../../shared/disk-space.js';
 import { createOrderingHasher } from '../../../../../shared/order.js';
@@ -17,7 +22,6 @@ import {
   writeJsonLinesShardedAsync,
   writeJsonObjectFile
 } from '../../../../../shared/json-stream.js';
-import { fromPosix } from '../../../../../shared/files.js';
 import { isTestingEnv } from '../../../../../shared/env.js';
 import { mergeSortedRuns } from '../../../../../shared/merge.js';
 import {
@@ -90,6 +94,7 @@ export const enqueueChunkMetaArtifacts = async ({
       await fs.rm(targetPath, { recursive: true, force: true });
     } catch {}
   };
+  const expandPartPaths = (parts) => expandMetaPartPaths(parts, outDir);
   let enableHotColdSplit = chunkMetaStreaming !== true;
   const projectHotEntry = (entry) => (
     enableHotColdSplit ? stripChunkMetaColdFields(entry) : entry
@@ -450,7 +455,7 @@ export const enqueueChunkMetaArtifacts = async ({
       // When writing unsharded JSONL output, remove any stale shard artifacts.
       // The loader prefers chunk_meta.meta.json / chunk_meta.parts over chunk_meta.jsonl.
       await removeArtifact(path.join(outDir, 'chunk_meta.meta.json'));
-      await removeArtifact(path.join(outDir, 'chunk_meta.parts'));
+      await removeArtifact(path.join(outDir, CHUNK_META_PARTS_DIR));
       await removeArtifact(path.join(outDir, 'chunk_meta_cold.meta.json'));
       await removeArtifact(path.join(outDir, 'chunk_meta_cold.parts'));
     }
@@ -458,7 +463,7 @@ export const enqueueChunkMetaArtifacts = async ({
     await removeJsonlVariants();
     await removeColdJsonlVariants();
     await removeArtifact(path.join(outDir, 'chunk_meta.meta.json'));
-    await removeArtifact(path.join(outDir, 'chunk_meta.parts'));
+    await removeArtifact(path.join(outDir, CHUNK_META_PARTS_DIR));
     await removeArtifact(path.join(outDir, 'chunk_meta_cold.meta.json'));
     await removeArtifact(path.join(outDir, 'chunk_meta_cold.parts'));
     if (!resolvedUseColumnar) {
@@ -474,7 +479,7 @@ export const enqueueChunkMetaArtifacts = async ({
 
   if (resolvedUseJsonl) {
     if (resolvedUseShards) {
-      const shardPath = path.join(outDir, 'chunk_meta.parts');
+      const shardPath = path.join(outDir, CHUNK_META_PARTS_DIR);
       log('[chunk_meta] writing sharded JSONL', {
         fileOnlyLine: `[chunk_meta] writing sharded JSONL -> ${shardPath}`
       });
@@ -601,8 +606,8 @@ export const enqueueChunkMetaArtifacts = async ({
           const result = itemsAsync
             ? await writeJsonLinesShardedAsync({
               dir: outDir,
-              partsDirName: 'chunk_meta.parts',
-              partPrefix: 'chunk_meta.part-',
+              partsDirName: CHUNK_META_PARTS_DIR,
+              partPrefix: CHUNK_META_PART_PREFIX,
               items,
               maxBytes: resolvedMaxJsonBytes,
               maxItems: chunkMetaShardSize,
@@ -613,8 +618,8 @@ export const enqueueChunkMetaArtifacts = async ({
             })
             : await writeJsonLinesSharded({
               dir: outDir,
-              partsDirName: 'chunk_meta.parts',
-              partPrefix: 'chunk_meta.part-',
+              partsDirName: CHUNK_META_PARTS_DIR,
+              partPrefix: CHUNK_META_PART_PREFIX,
               items,
               maxBytes: resolvedMaxJsonBytes,
               maxItems: chunkMetaShardSize,
@@ -631,15 +636,13 @@ export const enqueueChunkMetaArtifacts = async ({
               || (Array.isArray(result.offsets) && result.offsets.length === 1)
             );
           if (canPromoteFromSinglePart) {
-            const relPath = result.parts[0];
-            const absPath = path.join(outDir, fromPosix(relPath));
+            const absPath = expandPartPaths(result.parts)[0];
             await replaceFile(absPath, jsonlPath);
             if (offsetsPath && Array.isArray(result.offsets) && result.offsets[0]) {
-              const relOffsetPath = result.offsets[0];
-              const absOffsetPath = path.join(outDir, fromPosix(relOffsetPath));
+              const absOffsetPath = expandPartPaths(result.offsets)[0];
               await replaceFile(absOffsetPath, offsetsPath);
             }
-            await removeArtifact(path.join(outDir, 'chunk_meta.parts'));
+            await removeArtifact(path.join(outDir, CHUNK_META_PARTS_DIR));
             await removeArtifact(metaPath);
             addPieceFile({
               type: 'chunks',
@@ -681,9 +684,9 @@ export const enqueueChunkMetaArtifacts = async ({
               ...(offsetsMeta ? { offsets: offsetsMeta } : {})
             }
           });
+          const chunkMetaPartPaths = expandPartPaths(result.parts);
           for (let i = 0; i < result.parts.length; i += 1) {
-            const relPath = result.parts[i];
-            const absPath = path.join(outDir, fromPosix(relPath));
+            const absPath = chunkMetaPartPaths[i];
             addPieceFile({
               type: 'chunks',
               name: 'chunk_meta',
@@ -693,10 +696,10 @@ export const enqueueChunkMetaArtifacts = async ({
             }, absPath);
           }
           if (Array.isArray(result.offsets)) {
+            const chunkMetaOffsetPaths = expandPartPaths(result.offsets);
             for (let i = 0; i < result.offsets.length; i += 1) {
-              const relPath = result.offsets[i];
-              if (!relPath) continue;
-              const absPath = path.join(outDir, fromPosix(relPath));
+              const absPath = chunkMetaOffsetPaths[i];
+              if (!absPath) continue;
               addPieceFile({
                 type: 'chunks',
                 name: 'chunk_meta_offsets',
@@ -758,9 +761,9 @@ export const enqueueChunkMetaArtifacts = async ({
                 ...(offsetsMeta ? { offsets: offsetsMeta } : {})
               }
             });
+            const chunkMetaColdPartPaths = expandPartPaths(result.parts);
             for (let i = 0; i < result.parts.length; i += 1) {
-              const relPath = result.parts[i];
-              const absPath = path.join(outDir, fromPosix(relPath));
+              const absPath = chunkMetaColdPartPaths[i];
               addPieceFile({
                 type: 'chunks',
                 name: 'chunk_meta_cold',
@@ -770,10 +773,10 @@ export const enqueueChunkMetaArtifacts = async ({
               }, absPath);
             }
             if (Array.isArray(result.offsets)) {
+              const chunkMetaColdOffsetPaths = expandPartPaths(result.offsets);
               for (let i = 0; i < result.offsets.length; i += 1) {
-                const relPath = result.offsets[i];
-                if (!relPath) continue;
-                const absPath = path.join(outDir, fromPosix(relPath));
+                const absPath = chunkMetaColdOffsetPaths[i];
+                if (!absPath) continue;
                 addPieceFile({
                   type: 'chunks',
                   name: 'chunk_meta_cold_offsets',

@@ -1,4 +1,5 @@
 import { isPlainObject } from './config.js';
+import { normalizeBooleanString } from './boolean-normalization.js';
 
 const normalizeString = (value) => {
   if (typeof value !== 'string') return '';
@@ -6,28 +7,23 @@ const normalizeString = (value) => {
 };
 
 const normalizeBoolean = (value) => {
-  const normalized = String(value ?? '').trim().toLowerCase();
-  return normalized === '1'
-    || normalized === 'true'
-    || normalized === 'yes'
-    || normalized === 'on';
+  return normalizeBooleanString(value, { fallback: false });
 };
 
-const normalizeOptionalBoolean = (value) => {
-  if (value == null) return null;
-  const text = String(value).trim();
-  if (!text) return null;
-  return normalizeBoolean(text);
+export const normalizeOptionalBoolean = (value) => {
+  return normalizeBooleanString(value, {
+    fallback: false,
+    nullish: null,
+    empty: null
+  });
 };
 
 const normalizeOptionalDisableFlag = (value) => {
-  if (value == null) return null;
-  const text = String(value).trim().toLowerCase();
-  if (!text) return null;
-  if (text === '0' || text === 'false' || text === 'off' || text === 'no') {
-    return false;
-  }
-  return true;
+  return normalizeBooleanString(value, {
+    fallback: true,
+    nullish: null,
+    empty: null
+  });
 };
 
 const normalizeProgressContext = (value) => {

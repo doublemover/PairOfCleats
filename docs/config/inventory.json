@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-22T09:09:43.102Z",
+  "generatedAt": "2026-02-22T13:14:34.515Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2160,7 +2160,6 @@
         "tests/storage/vector-extension/vector-extension-missing.test.js",
         "tests/tooling/dict-utils/paths-builds-root.test.js",
         "tests/tooling/eval/eval-quality.test.js",
-        "tests/tooling/fixtures/fixture-empty.test.js",
         "tests/tooling/fixtures/fixture-eval.test.js",
         "tests/tooling/index-stats/index-stats-explicit-repo-path.test.js",
         "tests/tooling/install/bootstrap-json-output.test.js",
@@ -2323,7 +2322,6 @@
         "tests/storage/sqlite/sqlite-missing-dep.test.js",
         "tests/storage/sqlite/sqlite-sidecar-cleanup.test.js",
         "tests/tooling/eval/eval-quality.test.js",
-        "tests/tooling/fixtures/fixture-empty.test.js",
         "tests/tooling/fixtures/fixture-eval.test.js",
         "tests/tooling/reports/summary/summary-report-helpers.js",
         "tests/tooling/script-coverage/script-coverage.runner.js",
@@ -3284,7 +3282,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 320,
+    "totalFlags": 343,
     "publicFlags": [
       "allow-unauthenticated",
       "allowed-repo-roots",
@@ -3314,6 +3312,7 @@
       "additionalProperties",
       "all",
       "ann",
+      "ann-backends",
       "ann-mode",
       "ann-modes",
       "apply",
@@ -3346,6 +3345,7 @@
       "collapse",
       "colorize",
       "column",
+      "components",
       "controlFlowEnabled",
       "count",
       "ctags",
@@ -3353,6 +3353,7 @@
       "depth",
       "destination",
       "detectRenames",
+      "diagnostics",
       "dict",
       "dims",
       "dir",
@@ -3368,6 +3369,8 @@
       "draw-labels",
       "draw-members",
       "dry-run",
+      "duplicate-bucket",
+      "duplicate-rate",
       "edgeTypes",
       "edits",
       "emitArtifact",
@@ -3380,6 +3383,7 @@
       "expires",
       "ext",
       "extensions",
+      "fail",
       "fail-fast",
       "failOnViolation",
       "failOnWarn",
@@ -3405,6 +3409,7 @@
       "groups",
       "hashes",
       "hops",
+      "import-rate",
       "in",
       "include",
       "include-prose",
@@ -3426,10 +3431,12 @@
       "install-root",
       "interactive",
       "iterations",
+      "junit",
       "justification",
       "keep",
       "keep-backup",
       "keys",
+      "lane",
       "lang",
       "languages",
       "limit",
@@ -3443,6 +3450,7 @@
       "log",
       "log-dir",
       "lookups",
+      "markdown",
       "maskBits",
       "match-mode",
       "max",
@@ -3487,6 +3495,7 @@
       "min-rank-corr",
       "minBytes",
       "minConfidence",
+      "missing-rate",
       "missingDocHashRate",
       "model",
       "model-out",
@@ -3508,10 +3517,13 @@
       "options",
       "out",
       "out-dir",
+      "out-json",
+      "out-md",
       "outDir",
       "pack",
       "path",
       "perf",
+      "phase-spec-dir",
       "platform",
       "pretty",
       "progress",
@@ -3520,10 +3532,14 @@
       "pythonAst",
       "queries",
       "queries-dir",
+      "query",
       "record",
       "refresh",
+      "refs",
       "registry",
       "repeats",
+      "repo-current",
+      "require",
       "require-dicts",
       "require-index",
       "require-sqlite",
@@ -3561,6 +3577,7 @@
       "skip-index",
       "skip-install",
       "skip-models",
+      "skip-prechecks",
       "skip-script-coverage",
       "skip-sqlite",
       "skip-tooling",
@@ -3570,14 +3587,17 @@
       "sort",
       "source",
       "source-rule",
+      "sqlite",
       "sqlite-backend",
       "status",
       "strict",
       "stub-embeddings",
+      "symbols",
       "table",
       "target",
       "targets",
       "testPattern",
+      "threads",
       "three-url",
       "timeout-ms",
       "token-postings-size",
@@ -3598,6 +3618,7 @@
       "validate-config",
       "verbose",
       "verify",
+      "warmup",
       "wasd-acceleration",
       "wasd-drag",
       "wasd-max-speed",
@@ -4362,6 +4383,38 @@
         ]
       },
       {
+        "file": "tools/bench/micro/hash.js",
+        "flags": [
+          "iterations",
+          "json",
+          "out",
+          "samples",
+          "size",
+          "warmup"
+        ]
+      },
+      {
+        "file": "tools/bench/micro/run.js",
+        "flags": [
+          "ann-backends",
+          "backend",
+          "build",
+          "clean",
+          "components",
+          "json",
+          "mode",
+          "out",
+          "query",
+          "repo",
+          "repo-current",
+          "runs",
+          "sqlite",
+          "stub-embeddings",
+          "threads",
+          "warmup"
+        ]
+      },
+      {
         "file": "tools/bench/query-generator.js",
         "flags": [
           "count",
@@ -4371,6 +4424,21 @@
           "out",
           "repo",
           "seed"
+        ]
+      },
+      {
+        "file": "tools/bench/symbol-resolution-bench.js",
+        "flags": [
+          "duplicate-bucket",
+          "duplicate-rate",
+          "files",
+          "import-rate",
+          "json",
+          "missing-rate",
+          "refs",
+          "seed",
+          "symbols",
+          "warmup"
         ]
       },
       {
@@ -4596,11 +4664,31 @@
         ]
       },
       {
+        "file": "tools/ci/capability-gate.js",
+        "flags": [
+          "json",
+          "mode",
+          "require"
+        ]
+      },
+      {
         "file": "tools/ci/restore-artifacts.js",
         "flags": [
           "force",
           "from",
           "repo"
+        ]
+      },
+      {
+        "file": "tools/ci/run-suite.js",
+        "flags": [
+          "diagnostics",
+          "dry-run",
+          "junit",
+          "lane",
+          "log-dir",
+          "mode",
+          "skip-prechecks"
         ]
       },
       {
@@ -4652,6 +4740,29 @@
         ]
       },
       {
+        "file": "tools/docs/contract-drift.js",
+        "flags": [
+          "fail",
+          "out-json",
+          "out-md",
+          "root"
+        ]
+      },
+      {
+        "file": "tools/docs/export-artifact-schema-index.js",
+        "flags": [
+          "out",
+          "root"
+        ]
+      },
+      {
+        "file": "tools/docs/repo-inventory.js",
+        "flags": [
+          "json",
+          "root"
+        ]
+      },
+      {
         "file": "tools/docs/script-inventory.js",
         "flags": [
           "command",
@@ -4659,7 +4770,9 @@
           "config",
           "interval",
           "json",
+          "markdown",
           "mode",
+          "phase-spec-dir",
           "queue",
           "reason",
           "repo",
@@ -5018,6 +5131,13 @@
         ]
       },
       {
+        "file": "tools/test_times/report.js",
+        "flags": [
+          "input",
+          "top"
+        ]
+      },
+      {
         "file": "tools/tooling/detect.js",
         "flags": [
           "json",
@@ -5127,7 +5247,7 @@
     "duplicated": [
       {
         "flag": "repo",
-        "count": 59,
+        "count": 60,
         "files": [
           "bin/pairofcleats.js",
           "src/integrations/tooling/api-contracts.js",
@@ -5145,6 +5265,7 @@
           "tools/bench/map/build-map-streaming.js",
           "tools/bench/map/viewer-fps.js",
           "tools/bench/map/viewer-lod-stress.js",
+          "tools/bench/micro/run.js",
           "tools/bench/query-generator.js",
           "tools/build/compact-sqlite-index.js",
           "tools/build/embeddings/cli.js",
@@ -5192,7 +5313,7 @@
       },
       {
         "flag": "json",
-        "count": 54,
+        "count": 59,
         "files": [
           "bin/pairofcleats.js",
           "src/integrations/tooling/api-contracts.js",
@@ -5208,7 +5329,10 @@
           "tools/bench/index/tree-sitter-load.js",
           "tools/bench/map/build-map-memory.js",
           "tools/bench/map/build-map-streaming.js",
+          "tools/bench/micro/hash.js",
+          "tools/bench/micro/run.js",
           "tools/bench/query-generator.js",
+          "tools/bench/symbol-resolution-bench.js",
           "tools/bench/vfs/bloom-negative-lookup.js",
           "tools/bench/vfs/cdc-segmentation.js",
           "tools/bench/vfs/coalesce-docs.js",
@@ -5221,10 +5345,12 @@
           "tools/bench/vfs/segment-hash-cache.js",
           "tools/bench/vfs/token-uri-encode.js",
           "tools/bench/vfs/vfsidx-lookup.js",
+          "tools/ci/capability-gate.js",
           "tools/config/dump.js",
           "tools/config/reset.js",
           "tools/config/validate.js",
           "tools/dispatch/manifest.js",
+          "tools/docs/repo-inventory.js",
           "tools/docs/script-inventory.js",
           "tools/index/cache-gc.js",
           "tools/index/report-artifacts.js",
@@ -5252,7 +5378,7 @@
       },
       {
         "flag": "out",
-        "count": 38,
+        "count": 41,
         "files": [
           "tests/fixtures/medium/generate.js",
           "tests/retrieval/parity/parity.test.js",
@@ -5264,6 +5390,8 @@
           "tools/bench/map/build-map-streaming.js",
           "tools/bench/map/viewer-fps.js",
           "tools/bench/map/viewer-lod-stress.js",
+          "tools/bench/micro/hash.js",
+          "tools/bench/micro/run.js",
           "tools/bench/query-generator.js",
           "tools/bench/vfs/bloom-negative-lookup.js",
           "tools/bench/vfs/cdc-segmentation.js",
@@ -5280,6 +5408,7 @@
           "tools/ci/build-artifacts.js",
           "tools/config/generate-demo-config.js",
           "tools/dicts/generate-repo-dict.js",
+          "tools/docs/export-artifact-schema-index.js",
           "tools/download/extensions.js",
           "tools/eval/run.js",
           "tools/index/assemble-pieces.js",
@@ -5296,7 +5425,7 @@
       },
       {
         "flag": "mode",
-        "count": 31,
+        "count": 34,
         "files": [
           "bin/pairofcleats.js",
           "tests/map/map-build-determinism.test.js",
@@ -5313,6 +5442,7 @@
           "tools/bench/map/build-map-streaming.js",
           "tools/bench/map/viewer-fps.js",
           "tools/bench/map/viewer-lod-stress.js",
+          "tools/bench/micro/run.js",
           "tools/bench/query-generator.js",
           "tools/bench/vfs/cold-start-cache.js",
           "tools/bench/vfs/io-batching.js",
@@ -5321,6 +5451,8 @@
           "tools/build/embeddings/cli.js",
           "tools/build/lmdb-index.js",
           "tools/build/tantivy-index.js",
+          "tools/ci/capability-gate.js",
+          "tools/ci/run-suite.js",
           "tools/docs/script-inventory.js",
           "tools/index/assemble-pieces.js",
           "tools/index/compact-pieces.js",
@@ -5333,7 +5465,7 @@
       },
       {
         "flag": "seed",
-        "count": 15,
+        "count": 16,
         "files": [
           "src/integrations/tooling/context-pack.js",
           "src/integrations/tooling/graph-context.js",
@@ -5342,6 +5474,7 @@
           "tools/bench/graph/context-pack-latency.js",
           "tools/bench/graph/neighborhood-index-dir.js",
           "tools/bench/query-generator.js",
+          "tools/bench/symbol-resolution-bench.js",
           "tools/bench/vfs/bloom-negative-lookup.js",
           "tools/bench/vfs/cdc-segmentation.js",
           "tools/bench/vfs/coalesce-docs.js",
@@ -5371,8 +5504,9 @@
       },
       {
         "flag": "samples",
-        "count": 10,
+        "count": 11,
         "files": [
+          "tools/bench/micro/hash.js",
           "tools/bench/vfs/bloom-negative-lookup.js",
           "tools/bench/vfs/coalesce-docs.js",
           "tools/bench/vfs/cold-start-cache.js",
@@ -5417,6 +5551,20 @@
         ]
       },
       {
+        "flag": "dry-run",
+        "count": 8,
+        "files": [
+          "tools/build/compact-sqlite-index.js",
+          "tools/ci/run-suite.js",
+          "tools/index/cache-gc.js",
+          "tools/index/clean-artifacts.js",
+          "tools/index/compact-pieces.js",
+          "tools/reports/parity-matrix.js",
+          "tools/tooling/install.js",
+          "tools/tooling/uninstall.js"
+        ]
+      },
+      {
         "flag": "format",
         "count": 8,
         "files": [
@@ -5428,6 +5576,20 @@
           "src/integrations/tooling/suggest-tests.js",
           "tools/analysis/structural-search.js",
           "tools/reports/report-code-map.js"
+        ]
+      },
+      {
+        "flag": "input",
+        "count": 8,
+        "files": [
+          "tools/bench/vfs/hash-routing-lookup.js",
+          "tools/bench/vfs/vfsidx-lookup.js",
+          "tools/index/assemble-pieces.js",
+          "tools/ingest/ctags.js",
+          "tools/ingest/gtags.js",
+          "tools/ingest/lsif.js",
+          "tools/ingest/scip.js",
+          "tools/test_times/report.js"
         ]
       },
       {
@@ -5459,16 +5621,17 @@
         ]
       },
       {
-        "flag": "dry-run",
-        "count": 7,
+        "flag": "top",
+        "count": 8,
         "files": [
-          "tools/build/compact-sqlite-index.js",
-          "tools/index/cache-gc.js",
-          "tools/index/clean-artifacts.js",
-          "tools/index/compact-pieces.js",
+          "tests/retrieval/parity/parity.test.js",
+          "tests/tooling/fixtures/fixture-eval.test.js",
+          "tools/eval/run.js",
+          "tools/reports/combined-summary.js",
+          "tools/reports/compare-models.js",
+          "tools/reports/metrics-dashboard.js",
           "tools/reports/parity-matrix.js",
-          "tools/tooling/install.js",
-          "tools/tooling/uninstall.js"
+          "tools/test_times/report.js"
         ]
       },
       {
@@ -5485,19 +5648,6 @@
         ]
       },
       {
-        "flag": "input",
-        "count": 7,
-        "files": [
-          "tools/bench/vfs/hash-routing-lookup.js",
-          "tools/bench/vfs/vfsidx-lookup.js",
-          "tools/index/assemble-pieces.js",
-          "tools/ingest/ctags.js",
-          "tools/ingest/gtags.js",
-          "tools/ingest/lsif.js",
-          "tools/ingest/scip.js"
-        ]
-      },
-      {
         "flag": "progress",
         "count": 7,
         "files": [
@@ -5511,6 +5661,19 @@
         ]
       },
       {
+        "flag": "root",
+        "count": 7,
+        "files": [
+          "tools/bench/vfs/cold-start-cache.js",
+          "tools/docs/contract-drift.js",
+          "tools/docs/export-artifact-schema-index.js",
+          "tools/docs/repo-inventory.js",
+          "tools/setup/setup.js",
+          "tools/tooling/detect.js",
+          "tools/tooling/install.js"
+        ]
+      },
+      {
         "flag": "scope",
         "count": 7,
         "files": [
@@ -5521,19 +5684,6 @@
           "tools/bench/map/viewer-lod-stress.js",
           "tools/reports/report-code-map.js",
           "tools/tooling/install.js"
-        ]
-      },
-      {
-        "flag": "top",
-        "count": 7,
-        "files": [
-          "tests/retrieval/parity/parity.test.js",
-          "tests/tooling/fixtures/fixture-eval.test.js",
-          "tools/eval/run.js",
-          "tools/reports/combined-summary.js",
-          "tools/reports/compare-models.js",
-          "tools/reports/metrics-dashboard.js",
-          "tools/reports/parity-matrix.js"
         ]
       },
       {
@@ -5586,6 +5736,18 @@
         ]
       },
       {
+        "flag": "iterations",
+        "count": 6,
+        "files": [
+          "tools/bench/graph/context-pack-latency.js",
+          "tools/bench/graph/neighborhood-cache.js",
+          "tools/bench/graph/neighborhood-index-dir.js",
+          "tools/bench/graph/render-sort.js",
+          "tools/bench/graph/store-lazy-load.js",
+          "tools/bench/micro/hash.js"
+        ]
+      },
+      {
         "flag": "ann",
         "count": 5,
         "files": [
@@ -5605,6 +5767,17 @@
           "tests/lang/contracts/dynamic-heuristic-adapters.test.js",
           "tests/lang/contracts/managed-heuristic-adapters.test.js",
           "tests/lang/contracts/template-heuristic-adapters.test.js"
+        ]
+      },
+      {
+        "flag": "backend",
+        "count": 5,
+        "files": [
+          "tests/tooling/fixtures/fixture-eval.test.js",
+          "tools/bench/micro/run.js",
+          "tools/eval/run.js",
+          "tools/reports/compare-models.js",
+          "tools/reports/parity-matrix.js"
         ]
       },
       {
@@ -5648,17 +5821,6 @@
           "tools/bench/graph-caps-harness.js",
           "tools/bench/graph/context-pack-latency.js",
           "tools/bench/graph/neighborhood-index-dir.js",
-          "tools/bench/graph/store-lazy-load.js"
-        ]
-      },
-      {
-        "flag": "iterations",
-        "count": 5,
-        "files": [
-          "tools/bench/graph/context-pack-latency.js",
-          "tools/bench/graph/neighborhood-cache.js",
-          "tools/bench/graph/neighborhood-index-dir.js",
-          "tools/bench/graph/render-sort.js",
           "tools/bench/graph/store-lazy-load.js"
         ]
       },
@@ -5740,6 +5902,28 @@
         ]
       },
       {
+        "flag": "size",
+        "count": 5,
+        "files": [
+          "tools/bench/graph/render-sort.js",
+          "tools/bench/micro/hash.js",
+          "tools/bench/vfs/cdc-segmentation.js",
+          "tools/bench/vfs/io-batching.js",
+          "tools/bench/vfs/segment-hash-cache.js"
+        ]
+      },
+      {
+        "flag": "stub-embeddings",
+        "count": 5,
+        "files": [
+          "tools/bench/micro/run.js",
+          "tools/build/embeddings/cli.js",
+          "tools/reports/compare-models.js",
+          "tools/triage/context-pack.js",
+          "tools/triage/ingest.js"
+        ]
+      },
+      {
         "flag": "top-k-by-degree",
         "count": 5,
         "files": [
@@ -5758,16 +5942,6 @@
           "tools/cache/clear-cache.js",
           "tools/index/clean-artifacts.js",
           "tools/index/report-artifacts.js"
-        ]
-      },
-      {
-        "flag": "backend",
-        "count": 4,
-        "files": [
-          "tests/tooling/fixtures/fixture-eval.test.js",
-          "tools/eval/run.js",
-          "tools/reports/compare-models.js",
-          "tools/reports/parity-matrix.js"
         ]
       },
       {
@@ -5931,23 +6105,13 @@
         ]
       },
       {
-        "flag": "root",
+        "flag": "runs",
         "count": 4,
         "files": [
-          "tools/bench/vfs/cold-start-cache.js",
-          "tools/setup/setup.js",
-          "tools/tooling/detect.js",
-          "tools/tooling/install.js"
-        ]
-      },
-      {
-        "flag": "size",
-        "count": 4,
-        "files": [
-          "tools/bench/graph/render-sort.js",
-          "tools/bench/vfs/cdc-segmentation.js",
-          "tools/bench/vfs/io-batching.js",
-          "tools/bench/vfs/segment-hash-cache.js"
+          "tools/bench/map/build-map-memory.js",
+          "tools/bench/map/build-map-streaming.js",
+          "tools/bench/micro/run.js",
+          "tools/bench/vfs/merge-runs-heap.js"
         ]
       },
       {
@@ -5961,16 +6125,6 @@
         ]
       },
       {
-        "flag": "stub-embeddings",
-        "count": 4,
-        "files": [
-          "tools/build/embeddings/cli.js",
-          "tools/reports/compare-models.js",
-          "tools/triage/context-pack.js",
-          "tools/triage/ingest.js"
-        ]
-      },
-      {
         "flag": "args",
         "count": 3,
         "files": [
@@ -5980,12 +6134,39 @@
         ]
       },
       {
+        "flag": "build",
+        "count": 3,
+        "files": [
+          "tools/bench/micro/run.js",
+          "tools/reports/combined-summary.js",
+          "tools/reports/compare-models.js"
+        ]
+      },
+      {
+        "flag": "files",
+        "count": 3,
+        "files": [
+          "tools/bench/symbol-resolution-bench.js",
+          "tools/bench/vfs/coalesce-docs.js",
+          "tools/bench/vfs/io-batching.js"
+        ]
+      },
+      {
         "flag": "includeUsages",
         "count": 3,
         "files": [
           "src/integrations/tooling/context-pack.js",
           "tests/retrieval/context-expansion/context-expansion-reason-precedence.test.js",
           "tests/retrieval/context/context-expansion.test.js"
+        ]
+      },
+      {
+        "flag": "log-dir",
+        "count": 3,
+        "files": [
+          "tests/runner/all.js",
+          "tests/tooling/script-coverage/script-coverage.runner.js",
+          "tools/ci/run-suite.js"
         ]
       },
       {
@@ -6025,15 +6206,6 @@
         ]
       },
       {
-        "flag": "runs",
-        "count": 3,
-        "files": [
-          "tools/bench/map/build-map-memory.js",
-          "tools/bench/map/build-map-streaming.js",
-          "tools/bench/vfs/merge-runs-heap.js"
-        ]
-      },
-      {
         "flag": "segments",
         "count": 3,
         "files": [
@@ -6049,6 +6221,15 @@
           "bin/pairofcleats.js",
           "tools/docs/script-inventory.js",
           "tools/index/assemble-pieces.js"
+        ]
+      },
+      {
+        "flag": "warmup",
+        "count": 3,
+        "files": [
+          "tools/bench/micro/hash.js",
+          "tools/bench/micro/run.js",
+          "tools/bench/symbol-resolution-bench.js"
         ]
       },
       {
@@ -6082,14 +6263,6 @@
         "files": [
           "tools/bench/vfs/io-batching.js",
           "tools/build/embeddings/cli.js"
-        ]
-      },
-      {
-        "flag": "build",
-        "count": 2,
-        "files": [
-          "tools/reports/combined-summary.js",
-          "tools/reports/compare-models.js"
         ]
       },
       {
@@ -6138,6 +6311,14 @@
         "files": [
           "tools/analysis/explain-risk.js",
           "tools/bench/vfs/cdc-segmentation.js"
+        ]
+      },
+      {
+        "flag": "clean",
+        "count": 2,
+        "files": [
+          "tests/fixtures/medium/generate.js",
+          "tools/bench/micro/run.js"
         ]
       },
       {
@@ -6237,14 +6418,6 @@
         ]
       },
       {
-        "flag": "files",
-        "count": 2,
-        "files": [
-          "tools/bench/vfs/coalesce-docs.js",
-          "tools/bench/vfs/io-batching.js"
-        ]
-      },
-      {
         "flag": "fixture",
         "count": 2,
         "files": [
@@ -6290,14 +6463,6 @@
         "files": [
           "tools/bench/vfs/io-batching.js",
           "tools/bench/vfs/partial-lsp-open.js"
-        ]
-      },
-      {
-        "flag": "log-dir",
-        "count": 2,
-        "files": [
-          "tests/runner/all.js",
-          "tests/tooling/script-coverage/script-coverage.runner.js"
         ]
       },
       {

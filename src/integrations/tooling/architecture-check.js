@@ -6,26 +6,14 @@ import { createCli } from '../../shared/cli.js';
 import { toPosix } from '../../shared/files.js';
 import { normalizeOptionalNumber } from '../../shared/limits.js';
 import { readJsoncFile } from '../../shared/jsonc.js';
+import { emitCliOutput, resolveFormat } from './cli-helpers.js';
 import { buildArchitectureReport, parseArchitectureRules } from '../../graph/architecture.js';
 import { renderArchitectureReport } from '../../retrieval/output/architecture.js';
 import { validateArchitectureReport } from '../../contracts/validators/analysis.js';
-import { buildIndexSignature } from '../../retrieval/index-cache.js';
 import { hasIndexMeta } from '../../retrieval/cli/index-loader.js';
 import { resolveIndexDir } from '../../retrieval/cli-index.js';
-import {
-  MAX_JSON_BYTES,
-  loadPiecesManifest,
-  readCompatibilityKey
-} from '../../shared/artifact-io.js';
-import { createGraphStore } from '../../graph/store.js';
+import { prepareGraphIndex, prepareGraphInputs } from './graph-helpers.js';
 import { loadUserConfig, resolveRepoRoot } from '../../../tools/shared/dict-utils.js';
-
-const resolveFormat = (argv) => {
-  const raw = argv.format || (argv.json ? 'json' : 'json');
-  const format = String(raw).trim().toLowerCase();
-  if (format === 'md' || format === 'markdown') return 'md';
-  return 'json';
-};
 
 const loadRulesFile = (rulesPath) => {
   const ext = path.extname(rulesPath).toLowerCase();
@@ -74,17 +62,19 @@ export async function runArchitectureCheckCli(rawArgs = process.argv.slice(2)) {
     throw new Error(`Code index not found at ${indexDir}.`);
   }
 
-  const manifest = loadPiecesManifest(indexDir, { maxBytes: MAX_JSON_BYTES, strict: true });
-  const graphStore = createGraphStore({ indexDir, manifest, strict: true, maxBytes: MAX_JSON_BYTES });
-  const graphRelations = graphStore.hasArtifact('graph_relations')
-    ? await graphStore.loadGraph()
-    : null;
-
-  const { key: indexCompatKey } = readCompatibilityKey(indexDir, {
-    maxBytes: MAX_JSON_BYTES,
+  const graphInputs = await prepareGraphInputs({
+    repoRoot,
+    indexDir,
     strict: true
   });
-  const indexSignature = await buildIndexSignature(indexDir);
+  const { graphRelations } = await prepareGraphIndex({
+    repoRoot,
+    indexDir,
+    strict: true,
+    graphInputs,
+    includeGraphIndex: false,
+    includeGraphRelations: true
+  });
 
   const caps = {
     maxViolations: normalizeOptionalNumber(argv.maxViolations),
@@ -95,8 +85,8 @@ export async function runArchitectureCheckCli(rawArgs = process.argv.slice(2)) {
     rules: parsedRules.rules,
     graphRelations,
     caps,
-    indexCompatKey: indexCompatKey || null,
-    indexSignature: indexSignature || null,
+    indexCompatKey: graphInputs.indexCompatKey || null,
+    indexSignature: graphInputs.indexSignature || null,
     repo: toPosix(path.relative(process.cwd(), repoRoot) || '.'),
     indexDir: toPosix(path.relative(process.cwd(), indexDir) || '.'),
     repoRoot
@@ -115,12 +105,11 @@ export async function runArchitectureCheckCli(rawArgs = process.argv.slice(2)) {
     throw error;
   }
 
-  if (format === 'md') {
-    console.log(renderArchitectureReport(report));
-  } else {
-    console.log(JSON.stringify(report, null, 2));
-  }
-  return report;
+  return emitCliOutput({
+    format,
+    payload: report,
+    renderMarkdown: renderArchitectureReport
+  });
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

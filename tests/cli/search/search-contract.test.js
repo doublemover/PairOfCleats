@@ -1,64 +1,29 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { applyTestEnv } from '../../helpers/test-env.js';
-import { makeTempDir } from '../../helpers/temp.js';
+import { createSearchLifecycle } from '../../helpers/search-lifecycle.js';
 
-const root = process.cwd();
-const tempRoot = await makeTempDir('pairofcleats-search-contract-');
-const repoRoot = path.join(tempRoot, 'repo');
-const cacheRoot = path.join(tempRoot, 'cache');
-
-await fsPromises.mkdir(repoRoot, { recursive: true });
-await fsPromises.mkdir(cacheRoot, { recursive: true });
+const { repoRoot, runSearchPayload, buildIndex } = await createSearchLifecycle({
+  tempPrefix: 'pairofcleats-search-contract-'
+});
 
 await fsPromises.writeFile(
   path.join(repoRoot, 'README.md'),
   '# Sample\n\nalpha bravo\n'
 );
 
-const env = applyTestEnv({
-  cacheRoot,
-  embeddings: 'stub',
-  testConfig: {
-    indexing: {
-      scm: { provider: 'none' }
-    }
-  }
+buildIndex({
+  label: 'build index for search contract',
+  mode: 'prose'
 });
 
-const buildResult = spawnSync(
-  process.execPath,
-  [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot],
-  { cwd: repoRoot, env, stdio: 'inherit' }
-);
-
-if (buildResult.status !== 0) {
-  console.error('Failed: build index for search contract');
-  process.exit(buildResult.status ?? 1);
-}
-
-const searchPath = path.join(root, 'search.js');
-const result = spawnSync(
-  process.execPath,
-  [searchPath, 'alpha', '--mode', 'prose', '--json', '--stats', '--backend', 'memory', '--no-ann', '--repo', repoRoot],
-  { cwd: repoRoot, env, encoding: 'utf8' }
-);
-
-if (result.status !== 0) {
-  console.error('Failed: search contract run');
-  if (result.stderr) console.error(result.stderr.trim());
-  process.exit(result.status ?? 1);
-}
-
-let payload = null;
-try {
-  payload = JSON.parse(result.stdout || '{}');
-} catch {
-  console.error('Failed: search contract returned invalid JSON');
-  process.exit(1);
-}
+const payload = runSearchPayload('alpha', {
+  label: 'search contract run',
+  mode: 'prose',
+  stats: true,
+  backend: 'memory',
+  annEnabled: false
+});
 
 if (!payload || typeof payload !== 'object') {
   console.error('Failed: search contract payload missing');

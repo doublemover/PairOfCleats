@@ -1,51 +1,28 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { getCombinedOutput } from '../../helpers/stdio.js';
-import { applyTestEnv } from '../../helpers/test-env.js';
-import { makeTempDir } from '../../helpers/temp.js';
+import { createSearchLifecycle } from '../../helpers/search-lifecycle.js';
 
-const root = process.cwd();
-const tempRoot = await makeTempDir('pairofcleats-explain-symbol-');
-const repoRoot = path.join(tempRoot, 'repo');
-const cacheRoot = path.join(tempRoot, 'cache');
-
-await fsPromises.mkdir(repoRoot, { recursive: true });
-await fsPromises.mkdir(cacheRoot, { recursive: true });
+const { repoRoot, buildIndex, runSearch } = await createSearchLifecycle({
+  tempPrefix: 'pairofcleats-explain-symbol-',
+  extraEnv: {
+    PAIROFCLEATS_WORKER_POOL: 'off'
+  }
+});
 
 await fsPromises.writeFile(
   path.join(repoRoot, 'symbol.js'),
   'export function boostExample() { return "symbol boost test"; }\n'
 );
 
-const env = applyTestEnv({
-  cacheRoot,
-  embeddings: 'stub',
-  testConfig: {
-    indexing: {
-      scm: { provider: 'none' }
-    }
-  },
-  extraEnv: {
-    PAIROFCLEATS_WORKER_POOL: 'off'
-  }
+buildIndex({
+  label: 'build_index',
+  mode: 'code'
 });
 
-const buildResult = spawnSync(
-  process.execPath,
-  [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot],
-  { cwd: repoRoot, env, stdio: 'inherit' }
-);
-if (buildResult.status !== 0) {
-  console.error('Failed: build_index');
-  process.exit(buildResult.status ?? 1);
-}
-
-const searchResult = spawnSync(
-  process.execPath,
+const searchResult = runSearch(
   [
-    path.join(root, 'search.js'),
     'boostExample',
     '--mode',
     'code',
@@ -54,13 +31,15 @@ const searchResult = spawnSync(
     '--repo',
     repoRoot
   ],
-  { encoding: 'utf8', env }
+  'search explain symbol',
+  {
+    stdio: 'pipe',
+    encoding: 'utf8',
+    onFailure: (failed) => {
+      if (failed.stderr) console.error(failed.stderr.trim());
+    }
+  }
 );
-if (searchResult.status !== 0) {
-  console.error('Search failed.');
-  if (searchResult.stderr) console.error(searchResult.stderr.trim());
-  process.exit(searchResult.status ?? 1);
-}
 
 const output = getCombinedOutput(searchResult);
 if (!output.includes('Symbol')) {

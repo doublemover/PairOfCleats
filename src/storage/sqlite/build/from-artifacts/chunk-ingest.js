@@ -1,13 +1,49 @@
 import { performance } from 'node:perf_hooks';
-import { resolveChunkId } from '../../../../index/chunk-id.js';
+import {
+  buildFileManifestRows,
+  normalizeChunkForSqlite
+} from '../../build-helpers.js';
 import { normalizeFilePath } from '../../utils.js';
 import {
   CHUNK_META_REQUIRED_KEYS,
-  inflateColumnarRows,
-  readJson,
-  readJsonLinesFile,
-  resolveChunkMetaSources
+  iterateChunkMetaSources,
+  resolveChunkMetaSourceKind,
+  resolveChunkMetaSources,
+  resolveManifestByNormalized
 } from './sources.js';
+
+const createBatchInserter = ({
+  batchSize,
+  maxBatchBytes = null,
+  estimateRowBytes = null,
+  insertBatch,
+  onFlush = null
+}) => {
+  const rows = [];
+  let batchBytes = 0;
+  const flush = () => {
+    if (!rows.length) return 0;
+    const pending = rows.splice(0, rows.length);
+    insertBatch(pending);
+    batchBytes = 0;
+    if (typeof onFlush === 'function') onFlush();
+    return pending.length;
+  };
+  const push = (row) => {
+    rows.push(row);
+    if (typeof estimateRowBytes === 'function') {
+      const estimate = Number(estimateRowBytes(row));
+      if (Number.isFinite(estimate) && estimate > 0) {
+        batchBytes += estimate;
+      }
+    }
+    if ((batchSize > 0 && rows.length >= batchSize)
+      || (maxBatchBytes > 0 && batchBytes >= maxBatchBytes)) {
+      flush();
+    }
+  };
+  return { push, flush };
+};
 
 /**
  * Create chunk/file-meta ingestion helpers bound to sqlite state.
@@ -25,14 +61,13 @@ export const createChunkIngestor = (ctx) => {
     insertFileMetaStage,
     insertChunkStage,
     insertFileManifest,
-    manifestByNormalized
+    manifestByNormalized: manifestByNormalizedInput
   } = ctx;
+  const manifestByNormalized = resolveManifestByNormalized(manifestByNormalizedInput);
 
   const ingestFileMetaRows = async (fileMetaSource) => {
     if (!fileMetaSource) return 0;
     const start = performance.now();
-    const rows = [];
-    let batchBytes = 0;
     const maxBatchBytes = resolvedBatchSize * 4096;
     let count = 0;
     const insertTx = db.transaction((batch) => {
@@ -40,13 +75,6 @@ export const createChunkIngestor = (ctx) => {
         insertFileMetaStage.run(row);
       }
     });
-    const flush = () => {
-      if (!rows.length) return;
-      insertTx(rows);
-      rows.length = 0;
-      batchBytes = 0;
-      recordBatch('fileMetaBatches');
-    };
     const estimateRowBytes = (row) => {
       if (!row) return 0;
       let bytes = 128;
@@ -56,6 +84,13 @@ export const createChunkIngestor = (ctx) => {
       if (row.hashAlgo) bytes += row.hashAlgo.length;
       return bytes;
     };
+    const batchInserter = createBatchInserter({
+      batchSize: resolvedBatchSize,
+      maxBatchBytes,
+      estimateRowBytes,
+      insertBatch: (batch) => insertTx(batch),
+      onFlush: () => recordBatch('fileMetaBatches')
+    });
     const handleRow = (entry) => {
       if (!entry || !Number.isFinite(entry.id)) return;
       const normalizedFile = normalizeFilePath(entry.file);
@@ -81,10 +116,8 @@ export const createChunkIngestor = (ctx) => {
         churn_deleted: typeof entry.churn_deleted === 'number' ? entry.churn_deleted : null,
         churn_commits: typeof entry.churn_commits === 'number' ? entry.churn_commits : null
       };
-      rows.push(row);
-      batchBytes += estimateRowBytes(row);
+      batchInserter.push(row);
       count += 1;
-      if (rows.length >= resolvedBatchSize || batchBytes >= maxBatchBytes) flush();
     };
     if (Array.isArray(fileMetaSource)) {
       for (const entry of fileMetaSource) {
@@ -95,80 +128,29 @@ export const createChunkIngestor = (ctx) => {
         handleRow(entry);
       }
     }
-    flush();
+    batchInserter.flush();
     recordTable('file_meta_stage', count, performance.now() - start);
     return count;
   };
 
   const buildChunkRowBase = (chunk, targetMode) => {
-    const resolvedFile = normalizeFilePath(chunk.file || null);
-    const resolvedExt = chunk.ext || null;
-    const resolvedExternalDocs = chunk.externalDocs || null;
-    const resolvedLastModified = chunk.last_modified || null;
-    const resolvedLastAuthor = chunk.last_author || null;
-    const resolvedChurn = typeof chunk.churn === 'number' ? chunk.churn : null;
-    const resolvedChurnAdded = typeof chunk.churn_added === 'number' ? chunk.churn_added : null;
-    const resolvedChurnDeleted = typeof chunk.churn_deleted === 'number' ? chunk.churn_deleted : null;
-    const resolvedChurnCommits = typeof chunk.churn_commits === 'number' ? chunk.churn_commits : null;
     const tokensArray = Array.isArray(chunk.tokens) ? chunk.tokens : [];
-    const hasTokens = tokensArray.length > 0;
-    const tokensText = hasTokens ? tokensArray.join(' ') : null;
-    if (hasTokens) {
+    if (tokensArray.length > 0) {
       bumpChunkMetaCounter('tokenTextMaterialized', 1);
     } else {
       bumpChunkMetaCounter('tokenTextSkipped', 1);
     }
-    const signatureText = typeof chunk.docmeta?.signature === 'string'
-      ? chunk.docmeta.signature
-      : (typeof chunk.signature === 'string' ? chunk.signature : null);
-    const docText = typeof chunk.docmeta?.doc === 'string' ? chunk.docmeta.doc : null;
-    const stableChunkId = resolveChunkId(chunk);
-    return {
-      id: Number.isFinite(chunk.id) ? chunk.id : null,
-      chunk_id: stableChunkId,
+    return normalizeChunkForSqlite(chunk, {
       mode: targetMode,
-      file_id: Number.isFinite(chunk.fileId) ? chunk.fileId : null,
-      file: resolvedFile,
-      start: chunk.start,
-      end: chunk.end,
-      startLine: chunk.startLine || null,
-      endLine: chunk.endLine || null,
-      ext: resolvedExt,
-      kind: chunk.kind || null,
-      name: chunk.name || null,
-      metaV2_json: chunk.metaV2 ? JSON.stringify(chunk.metaV2) : null,
-      signature: signatureText,
-      headline: chunk.headline || null,
-      doc: docText,
-      preContext: chunk.preContext ? JSON.stringify(chunk.preContext) : null,
-      postContext: chunk.postContext ? JSON.stringify(chunk.postContext) : null,
-      weight: typeof chunk.weight === 'number' ? chunk.weight : 1,
-      tokens: tokensArray.length ? JSON.stringify(tokensArray) : null,
-      tokensText,
-      ngrams: chunk.ngrams ? JSON.stringify(chunk.ngrams) : null,
-      codeRelations: chunk.codeRelations ? JSON.stringify(chunk.codeRelations) : null,
-      docmeta: chunk.docmeta ? JSON.stringify(chunk.docmeta) : null,
-      stats: chunk.stats ? JSON.stringify(chunk.stats) : null,
-      complexity: chunk.complexity ? JSON.stringify(chunk.complexity) : null,
-      lint: chunk.lint ? JSON.stringify(chunk.lint) : null,
-      externalDocs: resolvedExternalDocs ? JSON.stringify(resolvedExternalDocs) : null,
-      last_modified: resolvedLastModified,
-      last_author: resolvedLastAuthor,
-      churn: resolvedChurn,
-      churn_added: resolvedChurnAdded,
-      churn_deleted: resolvedChurnDeleted,
-      churn_commits: resolvedChurnCommits,
-      chunk_authors: (() => {
-        const authors = Array.isArray(chunk.chunk_authors)
-          ? chunk.chunk_authors
-          : (Array.isArray(chunk.chunkAuthors) ? chunk.chunkAuthors : null);
-        return authors ? JSON.stringify(authors) : null;
-      })()
-    };
+      id: Number.isFinite(chunk.id) ? chunk.id : null,
+      includeFileId: true,
+      fileId: Number.isFinite(chunk.fileId) ? chunk.fileId : null,
+      normalizeText: (value) => (value || null),
+      emptyTokensText: null
+    });
   };
 
   const createChunkMetaStageIngestor = ({ targetMode, sourceKind }) => {
-    const rows = [];
     const start = performance.now();
     const insert = db.transaction((batch) => {
       for (const row of batch) {
@@ -176,14 +158,6 @@ export const createChunkIngestor = (ctx) => {
       }
     });
     const maxBatchBytes = resolvedBatchSize * 4096;
-    let batchBytes = 0;
-    const flush = () => {
-      if (!rows.length) return;
-      insert(rows);
-      rows.length = 0;
-      batchBytes = 0;
-      recordBatch('chunkMetaBatches');
-    };
     const estimateRowBytes = (row) => {
       if (!row) return 0;
       let bytes = 128;
@@ -193,6 +167,13 @@ export const createChunkIngestor = (ctx) => {
       if (row.tokensText) bytes += row.tokensText.length;
       return bytes;
     };
+    const batchInserter = createBatchInserter({
+      batchSize: resolvedBatchSize,
+      maxBatchBytes,
+      estimateRowBytes,
+      insertBatch: (batch) => insert(batch),
+      onFlush: () => recordBatch('chunkMetaBatches')
+    });
     let chunkCount = 0;
     bumpChunkMetaCounter('passes', 1);
     const handleChunk = (chunk, fallbackId = null) => {
@@ -201,18 +182,16 @@ export const createChunkIngestor = (ctx) => {
         chunk.id = Number.isFinite(fallbackId) ? fallbackId : chunkCount;
       }
       const row = buildChunkRowBase(chunk, targetMode);
-      rows.push(row);
-      batchBytes += estimateRowBytes(row);
+      batchInserter.push(row);
       chunkCount += 1;
       bumpChunkMetaCounter('rows', 1);
       if (sourceKind === 'jsonl') {
         bumpChunkMetaCounter('streamedRows', 1);
       }
       bumpChunkMetaBucket('sourceRows', sourceKind, 1);
-      if (rows.length >= resolvedBatchSize || batchBytes >= maxBatchBytes) flush();
     };
     const finish = () => {
-      flush();
+      batchInserter.flush();
       recordTable('chunks_stage', chunkCount, performance.now() - start);
       return chunkCount;
     };
@@ -222,28 +201,16 @@ export const createChunkIngestor = (ctx) => {
   const ingestChunkMetaPieces = async (targetMode, indexDir, chunkMetaSources = null) => {
     const sources = chunkMetaSources || resolveChunkMetaSources(indexDir);
     if (!sources) return { count: 0 };
-    const sourceKind = sources.format === 'jsonl' ? 'jsonl' : (sources.format === 'columnar' ? 'columnar' : 'json');
+    const sourceKind = resolveChunkMetaSourceKind(sources.format);
     const ingestor = createChunkMetaStageIngestor({ targetMode, sourceKind });
-    if (sources.format === 'json') {
-      bumpChunkMetaBucket('sourceFiles', 'json', 1);
-      const data = readJson(sources.paths[0]);
-      if (Array.isArray(data)) {
-        for (const chunk of data) ingestor.handleChunk(chunk);
+    await iterateChunkMetaSources(
+      sources,
+      (chunk, index) => ingestor.handleChunk(chunk, index),
+      {
+        requiredKeys: CHUNK_META_REQUIRED_KEYS,
+        onSourceFile: (_, kind) => bumpChunkMetaBucket('sourceFiles', kind, 1)
       }
-    } else if (sources.format === 'columnar') {
-      bumpChunkMetaBucket('sourceFiles', 'columnar', 1);
-      const data = inflateColumnarRows(readJson(sources.paths[0]));
-      if (Array.isArray(data)) {
-        for (const chunk of data) ingestor.handleChunk(chunk);
-      }
-    } else {
-      for (const chunkPath of sources.paths) {
-        if (chunkPath) {
-          bumpChunkMetaBucket('sourceFiles', 'jsonl', 1);
-        }
-        await readJsonLinesFile(chunkPath, ingestor.handleChunk, { requiredKeys: CHUNK_META_REQUIRED_KEYS });
-      }
-    }
+    );
     return { count: ingestor.finish() };
   };
 
@@ -352,39 +319,47 @@ export const createChunkIngestor = (ctx) => {
       GROUP BY c.file
     `).all(targetMode);
     if (!rows.length) return;
+    const fileCounts = new Map();
+    const fallbackByNormalized = new Map();
+    for (const row of rows) {
+      const normalizedFile = normalizeFilePath(row.file);
+      if (!normalizedFile) continue;
+      const chunkCount = Number(row.chunk_count);
+      fileCounts.set(normalizedFile, Number.isFinite(chunkCount) ? chunkCount : 0);
+      const fileSize = Number(row.file_size);
+      fallbackByNormalized.set(normalizedFile, {
+        file_hash: row.file_hash || null,
+        file_size: Number.isFinite(fileSize) ? fileSize : null
+      });
+    }
+    const manifestRows = buildFileManifestRows({
+      mode: targetMode,
+      fileCounts,
+      manifestByNormalized,
+      fallbackByNormalized
+    });
+    if (!manifestRows.length) return;
     const insertTx = db.transaction((batch) => {
-      for (const row of batch) {
-        const normalizedFile = normalizeFilePath(row.file);
-        if (!normalizedFile) continue;
-        const entry = manifestByNormalized.get(normalizedFile)?.entry || null;
-        const hash = entry?.hash || row.file_hash || null;
-        const mtimeMs = Number.isFinite(entry?.mtimeMs) ? entry.mtimeMs : null;
-        const size = Number.isFinite(entry?.size)
-          ? entry.size
-          : (Number.isFinite(row.file_size) ? row.file_size : null);
+      for (const manifestRow of batch) {
         insertFileManifest.run(
-          targetMode,
-          normalizedFile,
-          hash,
-          mtimeMs,
-          size,
-          row.chunk_count
+          manifestRow.mode,
+          manifestRow.file,
+          manifestRow.hash,
+          manifestRow.mtimeMs,
+          manifestRow.size,
+          manifestRow.chunk_count
         );
       }
     });
-    const batch = [];
-    for (const entry of rows) {
-      batch.push(entry);
-      if (batch.length >= resolvedBatchSize) {
-        insertTx(batch);
-        batch.length = 0;
-        recordBatch('fileManifestBatches');
-      }
+    const batchInserter = createBatchInserter({
+      batchSize: resolvedBatchSize,
+      insertBatch: (batch) => insertTx(batch),
+      onFlush: () => recordBatch('fileManifestBatches')
+    });
+    for (const manifestRow of manifestRows) {
+      batchInserter.push(manifestRow);
     }
-    if (batch.length) {
-      insertTx(batch);
-      recordBatch('fileManifestBatches');
-    }
+    batchInserter.flush();
     recordTable('file_manifest', rows.length, performance.now() - start);
   };
 

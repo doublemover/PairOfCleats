@@ -16,6 +16,8 @@ import {
   resolveExpectedHash,
   verifyDownloadHash
 } from '../shared/download-utils.js';
+import { parseNameUrlSources } from '../shared/input-parsers.js';
+import { readJsonFileSafe, writeJsonFile } from '../shared/json-utils.js';
 import { getBinarySuffix, getPlatformKey, getVectorExtensionConfig, resolveVectorExtensionPath } from '../sqlite/vector-extension.js';
 import { fetchDownloadUrl } from './shared-fetch.js';
 
@@ -66,12 +68,7 @@ const extensionDir = config.dir;
 await fs.mkdir(extensionDir, { recursive: true });
 
 const manifestPath = path.join(extensionDir, 'extensions.json');
-let manifest = {};
-try {
-  manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8')) || {};
-} catch {
-  manifest = {};
-}
+let manifest = (await readJsonFileSafe(manifestPath, {})) || {};
 
 const FILE_MODE = 0o644;
 const DIR_MODE = 0o755;
@@ -431,28 +428,6 @@ async function findFile(rootDir, targetName, suffix) {
 }
 
 /**
- * Parse name=url inputs for extension downloads.
- * @param {string|string[]|null} input
- * @param {string} suffix
- * @returns {Array<{name:string,url:string,file:string}>}
- */
-function parseUrls(input, suffix, hashes = null) {
-  if (!input) return [];
-  const items = Array.isArray(input) ? input : [input];
-  const sources = [];
-  for (const item of items) {
-    const eq = item.indexOf('=');
-    if (eq <= 0 || eq >= item.length - 1) continue;
-    const name = item.slice(0, eq);
-    const url = item.slice(eq + 1);
-    const fileName = name.includes('.') ? name : `${name}${suffix}`;
-    const sha256 = hashes && hashes[name] ? hashes[name] : null;
-    sources.push({ name, url, file: fileName, sha256 });
-  }
-  return sources;
-}
-
-/**
  * Resolve a download source from configuration overrides.
  * @param {object} cfg
  * @returns {{name:string,url:string,file:string}|null}
@@ -480,7 +455,10 @@ function resolveSourceFromConfig(cfg) {
 }
 
 const suffix = getBinarySuffix(config.platform);
-const sources = parseUrls(argv.url, suffix, hashOverrides);
+const sources = parseNameUrlSources(argv.url, {
+  hashes: hashOverrides,
+  fileNameFromName: (name) => (name.includes('.') ? name : `${name}${suffix}`)
+});
 if (!sources.length) {
   const fallback = resolveSourceFromConfig(config);
   if (fallback?.url) sources.push(fallback);
@@ -630,7 +608,7 @@ for (let i = 0; i < sources.length; i++) {
 }
 display.showProgress('Downloads', sources.length, sources.length, { stage: 'extensions' });
 
-await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+await writeJsonFile(manifestPath, manifest, { trailingNewline: true });
 
 const downloaded = results.filter((r) => !r.skipped).length;
 const skipped = results.filter((r) => r.skipped).length;

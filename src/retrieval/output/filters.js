@@ -18,6 +18,7 @@ import { matchMetaFilters, resolveReturnTypes } from './filters/meta.js';
 import { normalizeList, normalizePhraseList, matchList, truthy } from './filters/predicates.js';
 import { matchStructural } from './filters/structural.js';
 import { normalizeFilePath } from '../../shared/path-normalize.js';
+import { resolveFileRelations as resolveFileRelationLookup } from '../file-relations-resolver.js';
 
 export function compileFilterPredicates(filters = {}, { fileChargramN = null } = {}) {
   const normalize = (value) => String(value || '').toLowerCase();
@@ -145,13 +146,9 @@ const resolveFilterState = ({
     preferBitmap: options.preferBitmap === true,
     bitmapMinSize: resolvedBitmapMinSize
   });
-  const resolveFileRelations = (filePath) => {
-    if (!filePath || !fileRelations) return null;
-    if (typeof fileRelations.get === 'function') {
-      return fileRelations.get(filePath) || null;
-    }
-    return fileRelations[filePath] || null;
-  };
+  const resolveFileRelations = (filePath) => (
+    resolveFileRelationLookup(fileRelations, filePath, caseFile)
+  );
   const normalizeToken = caseTokens ? (value) => String(value || '') : normalize;
 
   const indexedCandidates = [];

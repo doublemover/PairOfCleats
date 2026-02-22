@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {
+  getToolVersion,
   resolveRepoRoot,
   resolveToolRoot
 } from '../tools/shared/dict-utils.js';
@@ -886,12 +887,7 @@ function isVersionCommand(value) {
 }
 
 function readVersion() {
-  try {
-    const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
-    return pkg.version || '0.0.0';
-  } catch {
-    return '0.0.0';
-  }
+  return getToolVersion() || '0.0.0';
 }
 
 function printHelp() {

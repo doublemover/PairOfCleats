@@ -1,146 +1,23 @@
 #!/usr/bin/env node
 import { fileURLToPath } from 'node:url';
 import yargs from 'yargs/yargs';
-import { ERROR_CODES } from '../src/shared/error-codes.js';
 import { resolveRepoConfig } from './shared/dict-utils.js';
+import { emitJson } from './shared/cli-utils.js';
+import {
+  emitCliError,
+  resolveDiffDefaults
+} from './shared/index-cli-utils.js';
+import {
+  BOOLEAN_FALSE_TOKENS_NO_OFF,
+  BOOLEAN_TRUE_TOKENS_NO_ON,
+  normalizeBooleanString
+} from '../src/shared/boolean-normalization.js';
 import {
   computeIndexDiff,
   listDiffs,
   pruneDiffs,
   showDiff
 } from '../src/index/diffs/compute.js';
-
-const emitJson = (payload) => {
-  process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
-};
-
-const emitError = (err, asJson) => {
-  const code = err?.code || ERROR_CODES.INTERNAL;
-  const message = err?.message || String(err);
-  if (asJson) {
-    emitJson({ ok: false, code, message });
-  } else {
-    process.stderr.write(`${message}\n`);
-  }
-};
-
-const normalizeBoolean = (value, fallback = false) => {
-  if (value == null) return fallback;
-  if (typeof value === 'boolean') return value;
-  const normalized = String(value).trim().toLowerCase();
-  if (['1', 'true', 'yes'].includes(normalized)) return true;
-  if (['0', 'false', 'no'].includes(normalized)) return false;
-  return fallback;
-};
-
-const DEFAULT_DIFF_RETENTION = Object.freeze({
-  keep: 50,
-  maxAgeDays: 30
-});
-
-const DEFAULT_DIFF_COMPUTE = Object.freeze({
-  modes: ['code'],
-  detectRenames: true,
-  includeRelations: true,
-  maxChangedFiles: 200,
-  maxChunksPerFile: 500,
-  maxEvents: 20000,
-  maxBytes: 2 * 1024 * 1024,
-  persist: true
-});
-
-const normalizeNumber = (value, fallback, minimum = 0) => {
-  const num = Number(value);
-  if (!Number.isFinite(num)) return fallback;
-  return Math.max(minimum, Math.floor(num));
-};
-
-const normalizeModes = (value, fallback = DEFAULT_DIFF_COMPUTE.modes) => {
-  const raw = Array.isArray(value)
-    ? value
-    : String(value || '')
-      .split(',')
-      .map((token) => token.trim())
-      .filter(Boolean);
-  const selected = raw.length ? raw : fallback;
-  const deduped = [];
-  for (const mode of selected) {
-    const normalized = String(mode || '').trim().toLowerCase();
-    if (!normalized || deduped.includes(normalized)) continue;
-    deduped.push(normalized);
-  }
-  return deduped.length ? deduped : [...DEFAULT_DIFF_COMPUTE.modes];
-};
-
-const resolveDiffDefaults = (userConfig) => {
-  const diffs = (
-    userConfig
-    && userConfig.indexing
-    && typeof userConfig.indexing === 'object'
-    && !Array.isArray(userConfig.indexing)
-    && userConfig.indexing.diffs
-    && typeof userConfig.indexing.diffs === 'object'
-    && !Array.isArray(userConfig.indexing.diffs)
-  )
-    ? userConfig.indexing.diffs
-    : null;
-  if (!diffs) {
-    return {
-      keep: DEFAULT_DIFF_RETENTION.keep,
-      maxAgeDays: DEFAULT_DIFF_RETENTION.maxAgeDays,
-      compute: { ...DEFAULT_DIFF_COMPUTE, modes: [...DEFAULT_DIFF_COMPUTE.modes] }
-    };
-  }
-  const compute = (
-    diffs.compute
-    && typeof diffs.compute === 'object'
-    && !Array.isArray(diffs.compute)
-  )
-    ? diffs.compute
-    : {};
-  return {
-    keep: normalizeNumber(
-      diffs.keep ?? diffs.maxDiffs,
-      DEFAULT_DIFF_RETENTION.keep
-    ),
-    maxAgeDays: normalizeNumber(
-      diffs.maxAgeDays ?? diffs.retainDays,
-      DEFAULT_DIFF_RETENTION.maxAgeDays
-    ),
-    compute: {
-      modes: normalizeModes(compute.modes),
-      detectRenames: normalizeBoolean(compute.detectRenames, DEFAULT_DIFF_COMPUTE.detectRenames),
-      includeRelations: normalizeBoolean(
-        compute.includeRelations,
-        DEFAULT_DIFF_COMPUTE.includeRelations
-      ),
-      maxChangedFiles: normalizeNumber(
-        compute.maxChangedFiles,
-        DEFAULT_DIFF_COMPUTE.maxChangedFiles,
-        1
-      ),
-      maxChunksPerFile: normalizeNumber(
-        compute.maxChunksPerFile,
-        DEFAULT_DIFF_COMPUTE.maxChunksPerFile,
-        1
-      ),
-      maxEvents: normalizeNumber(
-        compute.maxEvents ?? diffs.maxEvents,
-        DEFAULT_DIFF_COMPUTE.maxEvents,
-        1
-      ),
-      maxBytes: normalizeNumber(
-        compute.maxBytes ?? diffs.maxBytes,
-        DEFAULT_DIFF_COMPUTE.maxBytes,
-        1
-      ),
-      persist: normalizeBoolean(
-        compute.persist ?? compute.persistEvents,
-        DEFAULT_DIFF_COMPUTE.persist
-      )
-    }
-  };
-};
 
 const buildExplainPayload = ({ diffId, summary, events }) => {
   const byFile = new Map();
@@ -173,6 +50,14 @@ const buildExplainPayload = ({ diffId, summary, events }) => {
     topChangedFiles
   };
 };
+
+const normalizeDiffBooleanFlag = (value, fallback = false) => (
+  normalizeBooleanString(value, {
+    fallback,
+    trueTokens: BOOLEAN_TRUE_TOKENS_NO_ON,
+    falseTokens: BOOLEAN_FALSE_TOKENS_NO_OFF
+  })
+);
 
 export async function runDiffCli(rawArgs = process.argv.slice(2)) {
   const parser = yargs(rawArgs)
@@ -215,21 +100,21 @@ export async function runDiffCli(rawArgs = process.argv.slice(2)) {
           from: argv.from,
           to: argv.to,
           modes: argv.modes ?? diffDefaults.compute.modes.join(','),
-          detectRenames: normalizeBoolean(
+          detectRenames: normalizeDiffBooleanFlag(
             argv['detect-renames'],
             diffDefaults.compute.detectRenames
           ),
-          includeRelations: normalizeBoolean(
+          includeRelations: normalizeDiffBooleanFlag(
             argv['include-relations'],
             diffDefaults.compute.includeRelations
           ),
-          allowMismatch: normalizeBoolean(argv['allow-mismatch'], false),
+          allowMismatch: normalizeDiffBooleanFlag(argv['allow-mismatch'], false),
           maxChangedFiles: argv['max-changed-files'] ?? diffDefaults.compute.maxChangedFiles,
           maxChunksPerFile: argv['max-chunks-per-file'] ?? diffDefaults.compute.maxChunksPerFile,
           maxEvents: argv['max-events'] ?? diffDefaults.compute.maxEvents,
           maxBytes: argv['max-bytes'] ?? diffDefaults.compute.maxBytes,
-          persist: normalizeBoolean(argv.persist, diffDefaults.compute.persist),
-          persistUnsafe: normalizeBoolean(argv['persist-unsafe'], false),
+          persist: normalizeDiffBooleanFlag(argv.persist, diffDefaults.compute.persist),
+          persistUnsafe: normalizeDiffBooleanFlag(argv['persist-unsafe'], false),
           waitMs: argv['wait-ms'],
           dryRun: argv['dry-run'] === true
         });
@@ -242,7 +127,7 @@ export async function runDiffCli(rawArgs = process.argv.slice(2)) {
           );
         }
       } catch (err) {
-        emitError(err, argv.json === true);
+        emitCliError(err, argv.json === true);
         process.exitCode = 1;
       }
     }
@@ -271,7 +156,7 @@ export async function runDiffCli(rawArgs = process.argv.slice(2)) {
           }
         }
       } catch (err) {
-        emitError(err, argv.json === true);
+        emitCliError(err, argv.json === true);
         process.exitCode = 1;
       }
     }
@@ -308,7 +193,7 @@ export async function runDiffCli(rawArgs = process.argv.slice(2)) {
           process.stderr.write(`${JSON.stringify(result.summary, null, 2)}\n`);
         }
       } catch (err) {
-        emitError(err, argv.json === true);
+        emitCliError(err, argv.json === true);
         process.exitCode = 1;
       }
     }
@@ -355,7 +240,7 @@ export async function runDiffCli(rawArgs = process.argv.slice(2)) {
           }
         }
       } catch (err) {
-        emitError(err, argv.json === true);
+        emitCliError(err, argv.json === true);
         process.exitCode = 1;
       }
     }
@@ -390,7 +275,7 @@ export async function runDiffCli(rawArgs = process.argv.slice(2)) {
           process.stderr.write(`${prefix}Pruned ${result.removed.length} diff(s)\n`);
         }
       } catch (err) {
-        emitError(err, argv.json === true);
+        emitCliError(err, argv.json === true);
         process.exitCode = 1;
       }
     }
@@ -401,7 +286,7 @@ export async function runDiffCli(rawArgs = process.argv.slice(2)) {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   runDiffCli().catch((err) => {
-    emitError(err, false);
+    emitCliError(err, false);
     process.exit(1);
   });
 }

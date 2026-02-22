@@ -4,6 +4,7 @@ import { createLruCache } from '../shared/cache.js';
 import { incCacheEvent, incCacheEviction, setCacheSize } from '../shared/metrics.js';
 import { buildLocalCacheKey } from '../shared/cache-key.js';
 import { createTempPath } from '../shared/json-stream/atomic.js';
+import { sortAndTrimEntriesByNewest } from './cache-trim.js';
 import {
   QUERY_PLAN_SCHEMA_VERSION,
   QUERY_PARSER_VERSION,
@@ -142,12 +143,11 @@ const prepareDiskEntries = (entries, { maxEntries, ttlMs, now }) => {
     .filter((entry) => entry && entry.key && entry.entry)
     .map((entry) => ({ key: entry.key, entry: entry.entry }))
     .filter((entry) => entry.entry && typeof entry.entry.ts === 'number')
-    .filter((entry) => !ttl || (nowMs - entry.entry.ts) <= ttl)
-    .sort((a, b) => (b.entry.ts || 0) - (a.entry.ts || 0));
-  if (limit > 0 && filtered.length > limit) {
-    return filtered.slice(0, limit);
-  }
-  return filtered;
+    .filter((entry) => !ttl || (nowMs - entry.entry.ts) <= ttl);
+  return sortAndTrimEntriesByNewest(filtered, {
+    maxEntries: limit > 0 ? limit : null,
+    selectTimestamp: (entry) => entry?.entry?.ts
+  });
 };
 
 const trimEntriesBySize = (entries, maxBytes) => {

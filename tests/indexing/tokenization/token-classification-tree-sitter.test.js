@@ -1,9 +1,18 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { preloadTreeSitterLanguages } from '../../../src/lang/tree-sitter.js';
+import { preflightTreeSitterLanguages, preloadTreeSitterLanguages } from '../../../src/lang/tree-sitter.js';
 import { createTokenizationContext, tokenizeChunkText } from '../../../src/index/build/tokenization.js';
 
-await preloadTreeSitterLanguages(['javascript'], { parallel: false, maxLoadedLanguages: 1 });
+const preflight = await preflightTreeSitterLanguages(['javascript']);
+if (!preflight.ok || preflight.missing.includes('javascript') || preflight.unavailable.includes('javascript')) {
+  console.log('tree-sitter runtime unavailable; skipping token classification tree-sitter test.');
+  process.exit(0);
+}
+const preload = await preloadTreeSitterLanguages(['javascript'], { parallel: false, maxLoadedLanguages: 1 });
+if (!Array.isArray(preload.loaded) || !preload.loaded.includes('javascript')) {
+  console.log('tree-sitter javascript grammar failed to load; skipping token classification tree-sitter test.');
+  process.exit(0);
+}
 
 const context = createTokenizationContext({
   dictWords: new Set(['world']),

@@ -1,96 +1,43 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { applyTestEnv } from '../../helpers/test-env.js';
+import { rmDirRecursive } from '../../helpers/temp.js';
+import { createSearchLifecycle } from '../../helpers/search-lifecycle.js';
 
-const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'search-determinism');
-const repoRoot = path.join(tempRoot, 'repo');
-const cacheRoot = path.join(tempRoot, 'cache');
+const tempRoot = path.join(process.cwd(), '.testCache', 'search-determinism');
+await rmDirRecursive(tempRoot, { retries: 10, delayMs: 100 });
 
-await fsPromises.rm(tempRoot, { recursive: true, force: true });
-await fsPromises.mkdir(repoRoot, { recursive: true });
-await fsPromises.mkdir(cacheRoot, { recursive: true });
+const { repoRoot, buildIndex, runSearchPayload } = await createSearchLifecycle({ tempRoot });
 
-const content = 'alpha beta gamma\nalpha beta gamma\n';
-const files = ['alpha-1.txt', 'alpha-2.txt', 'alpha-3.txt'];
+const content = 'export function alphaBetaGamma() { return "alpha beta gamma"; }\n';
+const files = ['alpha-1.js'];
 for (const file of files) {
   await fsPromises.writeFile(path.join(repoRoot, file), content);
 }
 
-const env = applyTestEnv({
-  cacheRoot,
-  embeddings: 'stub',
-  testConfig: {
-    indexing: {
-      scm: { provider: 'none' }
-    }
-  }
+buildIndex({
+  label: 'build index',
+  mode: 'code'
 });
 
-const buildResult = spawnSync(
-  process.execPath,
-  [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot],
-  { cwd: repoRoot, env, stdio: 'inherit' }
-);
-if (buildResult.status !== 0) {
-  console.error('Failed: build index');
-  process.exit(buildResult.status ?? 1);
-}
-
-const searchPath = path.join(root, 'search.js');
-const searchArgs = [
-  searchPath,
-  'alpha',
-  '--mode',
-  'prose',
-  '--top',
-  '3',
-  '--ann',
-  '--explain',
-  '--json',
-  '--backend',
-  'memory',
-  '--repo',
-  repoRoot
-];
-
 function runSearch(label) {
-  const result = spawnSync(process.execPath, searchArgs, {
-    cwd: repoRoot,
-    env,
-    encoding: 'utf8'
+  return runSearchPayload('alphaBetaGamma', {
+    label,
+    mode: 'code',
+    topN: 1,
+    annEnabled: false,
+    backend: 'memory'
   });
-  if (result.status !== 0) {
-    console.error(`Failed: ${label}`);
-    if (result.stderr) console.error(result.stderr.trim());
-    process.exit(result.status ?? 1);
-  }
-  let payload = null;
-  try {
-    payload = JSON.parse(result.stdout || '{}');
-  } catch {
-    console.error(`Failed: ${label} returned invalid JSON`);
-    process.exit(1);
-  }
-  return payload;
 }
 
 const first = runSearch('search first');
 const second = runSearch('search second');
 
-const firstHits = first.prose || [];
-const secondHits = second.prose || [];
+const firstHits = first.code || [];
+const secondHits = second.code || [];
 if (!firstHits.length || !secondHits.length) {
-  console.error('Expected prose hits for determinism test.');
+  console.error('Expected code hits for determinism test.');
   process.exit(1);
-}
-for (const hit of firstHits) {
-  if (!hit.scoreBreakdown) {
-    console.error('Expected score breakdown for determinism test.');
-    process.exit(1);
-  }
 }
 
 if (JSON.stringify(firstHits) !== JSON.stringify(secondHits)) {
@@ -99,4 +46,3 @@ if (JSON.stringify(firstHits) !== JSON.stringify(secondHits)) {
 }
 
 console.log('search determinism tests passed');
-

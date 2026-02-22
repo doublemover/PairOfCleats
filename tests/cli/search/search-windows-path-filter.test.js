@@ -1,74 +1,37 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { applyTestEnv } from '../../helpers/test-env.js';
 import { rmDirRecursive } from '../../helpers/temp.js';
+import { createSearchLifecycle } from '../../helpers/search-lifecycle.js';
 
-const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'windows-path-filter');
-const repoRoot = path.join(tempRoot, 'repo');
-const cacheRoot = path.join(tempRoot, 'cache');
-
+const tempRoot = path.join(process.cwd(), '.testCache', 'windows-path-filter');
 await rmDirRecursive(tempRoot, { retries: 10, delayMs: 100 });
-await fsPromises.mkdir(path.join(repoRoot, 'src', 'nested'), { recursive: true });
-await fsPromises.mkdir(cacheRoot, { recursive: true });
 
-await fsPromises.writeFile(
-  path.join(repoRoot, 'src', 'nested', 'util.js'),
-  'export function winPathFilter() { return "windows path filter"; }\n'
-);
-
-const env = applyTestEnv({
-  cacheRoot,
-  embeddings: 'stub',
-  testConfig: {
-    indexing: {
-      scm: { provider: 'none' }
-    }
-  },
+const { repoRoot, buildIndex, runSearchPayload } = await createSearchLifecycle({
+  tempRoot,
   extraEnv: {
     PAIROFCLEATS_WORKER_POOL: 'off'
   }
 });
 
-const buildResult = spawnSync(
-  process.execPath,
-  [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot],
-  { cwd: repoRoot, env, stdio: 'inherit' }
+await fsPromises.mkdir(path.join(repoRoot, 'src', 'nested'), { recursive: true });
+await fsPromises.writeFile(
+  path.join(repoRoot, 'src', 'nested', 'util.js'),
+  'export function winPathFilter() { return "windows path filter"; }\n'
 );
-if (buildResult.status !== 0) {
-  console.error('Failed: build_index');
-  process.exit(buildResult.status ?? 1);
-}
+
+buildIndex({
+  label: 'build_index',
+  mode: 'code'
+});
 
 function runSearch(extraArgs) {
-  const result = spawnSync(
-    process.execPath,
-    [
-      path.join(root, 'search.js'),
-      'windows path filter',
-      '--json',
-      '--mode',
-      'code',
-      '--no-ann',
-      '--repo',
-      repoRoot,
-      ...extraArgs
-    ],
-    { encoding: 'utf8', env }
-  );
-  if (result.status !== 0) {
-    console.error('Search failed.');
-    if (result.stderr) console.error(result.stderr.trim());
-    process.exit(result.status ?? 1);
-  }
-  try {
-    return JSON.parse(result.stdout || '{}');
-  } catch {
-    console.error('Search output was not valid JSON.');
-    process.exit(1);
-  }
+  return runSearchPayload('windows path filter', {
+    label: 'search windows path filter',
+    mode: 'code',
+    annEnabled: false,
+    extraArgs
+  });
 }
 
 const filePayload = runSearch(['--file', 'src\\nested\\util.js']);
@@ -84,4 +47,3 @@ if (!Array.isArray(pathPayload.code) || pathPayload.code.length === 0) {
 }
 
 console.log('windows path filter test passed');
-

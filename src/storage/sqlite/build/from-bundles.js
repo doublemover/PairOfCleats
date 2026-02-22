@@ -1,5 +1,12 @@
 import { performance } from 'node:perf_hooks';
-import { buildChunkRow, buildTokenFrequency, prepareVectorAnnInsert } from '../build-helpers.js';
+import {
+  buildChunkRow,
+  buildFileManifestRows,
+  buildTokenFrequency,
+  bumpFileCount,
+  createFileCountMap,
+  prepareVectorAnnInsert
+} from '../build-helpers.js';
 import { CREATE_INDEXES_SQL } from '../schema.js';
 import {
   normalizeFilePath
@@ -16,7 +23,7 @@ import {
   toSqliteRowId
 } from '../vector.js';
 import { resolveQuantizationParams } from '../quantization.js';
-import { normalizeManifestFiles } from './manifest.js';
+import { createManifestLookup } from './from-artifacts/sources.js';
 import {
   beginSqliteBuildTransaction,
   closeSqliteBuildDatabase,
@@ -103,7 +110,8 @@ export async function buildDatabaseFromBundles({
     recordTable
   } = createBuildExecutionContext({ batchSize, inputBytes, statementStrategy, stats });
   const manifestFiles = incrementalData.manifest.files || {};
-  const manifestLookup = normalizeManifestFiles(manifestFiles);
+  const manifestLookup = createManifestLookup(manifestFiles);
+  const manifestByNormalized = manifestLookup.map;
   // Preserve manifest insertion order so fallback doc-id assignment for bundles
   // without explicit chunk ids matches chunk_meta row ordering.
   const manifestEntries = [...manifestLookup.entries];
@@ -200,12 +208,8 @@ export async function buildDatabaseFromBundles({
     let totalLen = 0;
     const validationStats = { chunks: 0, dense: 0, minhash: 0 };
 
-    const fileCounts = new Map();
-    const fileEmbeddingCounts = new Map();
-    for (const record of manifestEntries) {
-      fileCounts.set(record.normalized, 0);
-      fileEmbeddingCounts.set(record.normalized, 0);
-    }
+    const fileCounts = createFileCountMap(manifestEntries);
+    const fileEmbeddingCounts = createFileCountMap(manifestEntries);
 
     const vectorExtension = vectorConfig?.extension || {};
     const vectorAnnEnabled = vectorConfig?.enabled === true;
@@ -544,7 +548,7 @@ export async function buildDatabaseFromBundles({
         recordBatch('bundleChunkBatches');
       }
 
-      fileCounts.set(normalizedFile, (fileCounts.get(normalizedFile) || 0) + chunkCount);
+      bumpFileCount(fileCounts, normalizedFile, chunkCount);
     };
 
     let count = 0;
@@ -619,22 +623,25 @@ export async function buildDatabaseFromBundles({
     insertTokenStats.run(mode, totalDocs ? totalLen / totalDocs : 0, totalDocs);
     recordTable('token_stats', 1, 0);
 
-    const insertManifestTx = db.transaction(() => {
-      for (const [file, chunkCount] of fileCounts.entries()) {
-        const normalizedFile = normalizeFilePath(file);
-        const entry = manifestLookup.map.get(normalizedFile)?.entry || null;
+    const manifestRows = buildFileManifestRows({
+      mode,
+      fileCounts,
+      manifestByNormalized
+    });
+    const insertManifestTx = db.transaction((rows) => {
+      for (const manifestRow of rows) {
         insertFileManifest.run(
-          mode,
-          normalizedFile,
-          entry?.hash || null,
-          Number.isFinite(entry?.mtimeMs) ? entry.mtimeMs : null,
-          Number.isFinite(entry?.size) ? entry.size : null,
-          chunkCount
+          manifestRow.mode,
+          manifestRow.file,
+          manifestRow.hash,
+          manifestRow.mtimeMs,
+          manifestRow.size,
+          manifestRow.chunk_count
         );
       }
     });
     const manifestStart = performance.now();
-    insertManifestTx();
+    insertManifestTx(manifestRows);
     recordTable('file_manifest', fileCounts.size, performance.now() - manifestStart);
 
     recordTable('chunks', chunkRows, insertBatchMs);

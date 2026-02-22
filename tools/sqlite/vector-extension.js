@@ -4,6 +4,7 @@ import path from 'node:path';
 import { getExtensionsDir, loadUserConfig } from '../shared/dict-utils.js';
 import { incAnnCandidatePushdown, incFallback } from '../../src/shared/metrics.js';
 import { isAbsolutePathNative, toPosix } from '../../src/shared/files.js';
+import { normalizePositiveInt } from '../../src/shared/limits.js';
 import { createWarnOnce } from '../../src/shared/logging/warn-once.js';
 import { normalizeEmbeddingDims } from '../../src/retrieval/ann/dims.js';
 
@@ -450,7 +451,7 @@ export function queryVectorAnn(db, config, embedding, topN, candidateSet) {
       'clipping/padding query vector to index dims.'
     );
   }
-  const limit = Math.max(1, Number(topN) || 1);
+  const limit = normalizePositiveInt(topN, 1) || 1;
   const getCandidateSize = (value) => {
     if (!value) return 0;
     if (Number.isFinite(Number(value.size))) return Number(value.size);

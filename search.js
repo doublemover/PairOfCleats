@@ -1,7 +1,5 @@
 #!/usr/bin/env node
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { getToolVersion } from './tools/dict-utils/tool.js';
 
 const args = process.argv.slice(2);
 if (hasHelpArg(args)) {
@@ -51,13 +49,5 @@ Examples:
 }
 
 function printVersion() {
-  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)));
-  const pkgPath = path.join(root, 'package.json');
-  try {
-    const raw = fs.readFileSync(pkgPath, 'utf8');
-    const pkg = JSON.parse(raw);
-    process.stdout.write(`${pkg.version || '0.0.0'}\n`);
-  } catch {
-    process.stdout.write('0.0.0\n');
-  }
+  process.stdout.write(`${getToolVersion() || '0.0.0'}\n`);
 }

@@ -2,12 +2,23 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
-import readline from 'node:readline';
 import { createCli } from '../../src/shared/cli.js';
 import { writeJsonLinesFile, writeJsonObjectFile } from '../../src/shared/json-stream.js';
 import { checksumFile } from '../../src/shared/hash.js';
-import { readJsonFile, readJsonLinesArray } from '../../src/shared/artifact-io.js';
+import {
+  CHUNK_META_PART_PREFIX,
+  CHUNK_META_PARTS_DIR,
+  TOKEN_POSTINGS_PART_PREFIX,
+  TOKEN_POSTINGS_SHARDS_DIR,
+  expandMetaPartPaths,
+  listShardFiles
+} from '../../src/shared/artifact-io.js';
 import { fromPosix } from '../../src/shared/files.js';
+import {
+  iterateChunkMetaSources,
+  readJson,
+  resolveChunkMetaShardedLayout
+} from '../../src/storage/sqlite/build/from-artifacts/sources.js';
 import { getIndexDir, resolveRepoConfig } from '../shared/dict-utils.js';
 
 const argv = createCli({
@@ -27,76 +38,9 @@ const modeArg = (argv.mode || 'code').toLowerCase();
 const modes = modeArg === 'all' ? ['code', 'prose', 'extracted-prose', 'records'] : [modeArg];
 const dryRun = argv['dry-run'] === true;
 
-const listShardFiles = (dir, prefix) => {
-  if (!fsSync.existsSync(dir)) return [];
-  return fsSync
-    .readdirSync(dir)
-    .filter((name) => name.startsWith(prefix) && (
-      name.endsWith('.jsonl')
-      || name.endsWith('.jsonl.gz')
-      || name.endsWith('.jsonl.zst')
-    ))
-    .sort()
-    .map((name) => path.join(dir, name));
-};
-
-const readJsonLinesFile = async (filePath, onEntry) => {
-  if (filePath.endsWith('.gz') || filePath.endsWith('.zst')) {
-    const entries = await readJsonLinesArray(filePath);
-    for (const entry of entries) {
-      const result = onEntry(entry);
-      if (result && typeof result.then === 'function') {
-        await result;
-      }
-    }
-    return;
-  }
-  const stream = fsSync.createReadStream(filePath, { encoding: 'utf8' });
-  const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
-  for await (const line of rl) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-    const result = onEntry(JSON.parse(trimmed));
-    if (result && typeof result.then === 'function') {
-      await result;
-    }
-  }
-};
-
-const readJson = async (filePath) => readJsonFile(filePath);
-
-const normalizeMetaParts = (parts) => (
-  Array.isArray(parts)
-    ? parts
-      .map((part) => (typeof part === 'string' ? part : part?.path))
-      .filter(Boolean)
-    : []
-);
-
-const resolveChunkMetaParts = async (indexDir) => {
-  const metaPath = path.join(indexDir, 'chunk_meta.meta.json');
-  const partsDir = path.join(indexDir, 'chunk_meta.parts');
-  if (!fsSync.existsSync(metaPath) && !fsSync.existsSync(partsDir)) return null;
-  let parts = [];
-  let metaFields = null;
-  if (fsSync.existsSync(metaPath)) {
-    const meta = await readJson(metaPath);
-    metaFields = meta.fields || meta;
-    const entries = normalizeMetaParts(metaFields.parts);
-    if (entries.length) {
-      parts = entries.map((name) => path.join(indexDir, name));
-    }
-  }
-  if (!parts.length) {
-    parts = listShardFiles(partsDir, 'chunk_meta.part-');
-  }
-  if (!parts.length) return null;
-  return { metaPath, partsDir, parts, metaFields };
-};
-
 const resolveTokenPostingsParts = async (indexDir) => {
   const metaPath = path.join(indexDir, 'token_postings.meta.json');
-  const shardsDir = path.join(indexDir, 'token_postings.shards');
+  const shardsDir = path.join(indexDir, TOKEN_POSTINGS_SHARDS_DIR);
   if (!fsSync.existsSync(metaPath) && !fsSync.existsSync(shardsDir)) return null;
   let parts = [];
   let metaFields = null;
@@ -105,21 +49,14 @@ const resolveTokenPostingsParts = async (indexDir) => {
     const meta = await readJson(metaPath);
     metaFields = meta.fields || meta;
     metaArrays = meta.arrays || meta;
-    const entries = normalizeMetaParts(metaFields.parts);
-    if (entries.length) {
-      parts = entries.map((name) => path.join(indexDir, name));
-    }
+    parts = expandMetaPartPaths(metaFields.parts, indexDir);
   }
   if (!parts.length) {
-    parts = fsSync
-      .readdirSync(shardsDir)
-      .filter((name) => name.startsWith('token_postings.part-') && (
-        name.endsWith('.json')
-        || name.endsWith('.json.gz')
-        || name.endsWith('.json.zst')
-      ))
-      .sort()
-      .map((name) => path.join(shardsDir, name));
+    parts = listShardFiles(
+      shardsDir,
+      TOKEN_POSTINGS_PART_PREFIX,
+      ['.json', '.json.gz', '.json.zst']
+    );
   }
   if (!parts.length) return null;
   return { metaPath, shardsDir, parts, metaFields, metaArrays };
@@ -159,9 +96,9 @@ const replaceDirAtomic = async (sourceDir, targetDir) => {
 };
 
 const compactChunkMeta = async (indexDir, targetSize) => {
-  const resolved = await resolveChunkMetaParts(indexDir);
+  const resolved = resolveChunkMetaShardedLayout(indexDir);
   if (!resolved) return null;
-  const { metaPath, partsDir, parts, metaFields } = resolved;
+  const { metaPath, partsDir, parts, metaFields, sources } = resolved;
   const totalChunks = Number.isFinite(metaFields?.totalRecords)
     ? metaFields.totalRecords
     : (Number.isFinite(metaFields?.totalChunks) ? metaFields.totalChunks : null);
@@ -172,7 +109,7 @@ const compactChunkMeta = async (indexDir, targetSize) => {
       : (Number.isFinite(metaFields?.shardSize) ? metaFields.shardSize : 100000));
   if (parts.length <= 1 || target <= 0) return null;
 
-  const tmpDir = path.join(indexDir, 'chunk_meta.parts.compact');
+  const tmpDir = path.join(indexDir, `${CHUNK_META_PARTS_DIR}.compact`);
   if (!dryRun) {
     await fs.rm(tmpDir, { recursive: true, force: true });
     await fs.mkdir(tmpDir, { recursive: true });
@@ -187,8 +124,8 @@ const compactChunkMeta = async (indexDir, targetSize) => {
   let totalBytes = 0;
   const flush = async () => {
     if (!buffer.length) return;
-    const name = `chunk_meta.part-${String(partIndex).padStart(5, '0')}.jsonl`;
-    const relPath = path.posix.join('chunk_meta.parts', name);
+    const name = `${CHUNK_META_PART_PREFIX}${String(partIndex).padStart(5, '0')}.jsonl`;
+    const relPath = path.posix.join(CHUNK_META_PARTS_DIR, name);
     const outPath = path.join(tmpDir, name);
     let outBytes = 0;
     if (!dryRun) {
@@ -205,14 +142,12 @@ const compactChunkMeta = async (indexDir, targetSize) => {
     partIndex += 1;
   };
 
-  for (const partPath of parts) {
-    await readJsonLinesFile(partPath, async (entry) => {
-      buffer.push(entry);
-      if (buffer.length >= target) {
-        await flush();
-      }
-    });
-  }
+  await iterateChunkMetaSources(sources, async (entry) => {
+    buffer.push(entry);
+    if (buffer.length >= target) {
+      await flush();
+    }
+  });
   await flush();
   if (Number.isFinite(totalChunks) && total !== totalChunks) {
     throw new Error(`chunk_meta count mismatch (${total} !== ${totalChunks})`);
@@ -261,7 +196,7 @@ const compactTokenPostings = async (indexDir, targetSize) => {
     : (Number.isFinite(metaFields?.shardSize) ? metaFields.shardSize : 50000);
   if (parts.length <= 1 || target <= 0) return null;
 
-  const tmpDir = path.join(indexDir, 'token_postings.shards.compact');
+  const tmpDir = path.join(indexDir, `${TOKEN_POSTINGS_SHARDS_DIR}.compact`);
   if (!dryRun) {
     await fs.rm(tmpDir, { recursive: true, force: true });
     await fs.mkdir(tmpDir, { recursive: true });
@@ -274,8 +209,8 @@ const compactTokenPostings = async (indexDir, targetSize) => {
   let partIndex = 0;
   const flush = async () => {
     if (!vocabBuffer.length) return;
-    const name = `token_postings.part-${String(partIndex).padStart(5, '0')}.json`;
-    const relPath = path.posix.join('token_postings.shards', name);
+    const name = `${TOKEN_POSTINGS_PART_PREFIX}${String(partIndex).padStart(5, '0')}.json`;
+    const relPath = path.posix.join(TOKEN_POSTINGS_SHARDS_DIR, name);
     const outPath = path.join(tmpDir, name);
     if (!dryRun) {
       await writeJsonObjectFile(outPath, {

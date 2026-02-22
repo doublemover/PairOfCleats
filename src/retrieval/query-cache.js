@@ -1,4 +1,6 @@
 import fs from 'node:fs';
+import { normalizePositiveInt } from '../shared/limits.js';
+import { sortAndTrimEntriesByNewest } from './cache-trim.js';
 
 const QUERY_CACHE_VERSION = 1;
 const queryCacheDiskCache = new Map();
@@ -59,12 +61,6 @@ const getLookup = (cache) => {
 
 const createEmptyCache = () => ({ version: QUERY_CACHE_VERSION, entries: [] });
 
-const normalizePositiveInt = (value, fallback = null) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
-  return Math.max(1, Math.floor(parsed));
-};
-
 const normalizeLookupKey = (key, signature) => (
   key && signature ? `${key}::${signature}` : null
 );
@@ -105,10 +101,11 @@ const trimHotCache = (state) => {
   if (!state?.entries || !(state.entries instanceof Map)) return;
   const maxEntries = normalizePositiveInt(state.maxEntries, HOT_CACHE_MAX_ENTRIES_DEFAULT);
   if (state.entries.size <= maxEntries) return;
-  const sorted = Array.from(state.entries.entries()).sort((left, right) => (
-    Number(right[1]?.ts || 0) - Number(left[1]?.ts || 0)
-  ));
-  state.entries = new Map(sorted.slice(0, maxEntries));
+  const sorted = sortAndTrimEntriesByNewest(Array.from(state.entries.entries()), {
+    maxEntries,
+    selectTimestamp: (entry) => entry?.[1]?.ts
+  });
+  state.entries = new Map(sorted);
 };
 
 const rememberHotCacheEntry = ({
@@ -160,10 +157,12 @@ const prewarmHotCache = ({
   const state = ensureHotCache(cachePath, maxEntries);
   if (!state) return;
   state.entries = new Map();
-  const sorted = list
-    .filter((entry) => entry?.key && entry?.signature)
-    .sort((left, right) => Number(right?.ts || 0) - Number(left?.ts || 0))
-    .slice(0, normalizePositiveInt(maxEntries, HOT_CACHE_MAX_ENTRIES_DEFAULT));
+  const sorted = sortAndTrimEntriesByNewest(
+    list.filter((entry) => entry?.key && entry?.signature),
+    {
+      maxEntries: normalizePositiveInt(maxEntries, HOT_CACHE_MAX_ENTRIES_DEFAULT)
+    }
+  );
   for (const entry of sorted) {
     const lookupKey = normalizeLookupKey(entry.key, entry.signature);
     if (!lookupKey) continue;

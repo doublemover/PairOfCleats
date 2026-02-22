@@ -1,19 +1,17 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import yargs from 'yargs/yargs';
-import { hideBin } from 'yargs/helpers';
+import { createCli } from '../../src/shared/cli.js';
 
-const parseArgs = () => {
-  const parser = yargs(hideBin(process.argv))
-    .scriptName('pairofcleats test-times')
-    .option('input', { type: 'string', demandOption: true })
-    .option('top', { type: 'number', default: 20 })
-    .help()
-    .alias('h', 'help')
-    .strictOptions();
-  return parser.parse();
-};
+const parseArgs = () => createCli({
+  scriptName: 'pairofcleats test-times',
+  options: {
+    input: { type: 'string', demandOption: true },
+    top: { type: 'number', default: 20 }
+  }
+})
+  .strictOptions()
+  .parse();
 
 const main = async () => {
   const argv = parseArgs();

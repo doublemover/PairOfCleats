@@ -4,9 +4,10 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { createToolDisplay } from '../shared/cli-display.js';
-import { spawnSubprocessSync } from '../../src/shared/subprocess.js';
-import simpleGit from 'simple-git';
-import { getIndexDir, getRuntimeConfig, resolveRepoConfig, resolveRuntimeEnv, resolveSqlitePaths, resolveToolRoot } from '../shared/dict-utils.js';
+import { runSubprocessOrExit } from '../shared/cli-utils.js';
+import { readRepoGitState } from '../shared/git-state.js';
+import { bootstrapRuntime, getIndexDir, resolveSqlitePaths, resolveToolRoot } from '../shared/dict-utils.js';
+import { copyDirIfExists } from '../shared/fs-utils.js';
 
 const argv = createCli({
   scriptName: 'ci-build',
@@ -34,10 +35,8 @@ const updateProgress = (message) => {
   display.showProgress('CI', stepIndex, totalSteps, { stage: 'ci', message });
 };
 
-const { repoRoot: root, userConfig } = resolveRepoConfig(argv.repo);
+const { repoRoot: root, userConfig, runtimeEnv: baseEnv } = bootstrapRuntime(argv.repo);
 const scriptRoot = resolveToolRoot();
-const runtimeConfig = getRuntimeConfig(root, userConfig);
-const baseEnv = resolveRuntimeEnv(runtimeConfig, process.env);
 const outDir = argv.out ? path.resolve(argv.out) : path.join(root, 'ci-artifacts');
 const codeDir = getIndexDir(root, 'code', userConfig);
 const proseDir = getIndexDir(root, 'prose', userConfig);
@@ -65,16 +64,15 @@ const sanitizeRemoteUrl = (value) => {
  * @param {string} label
  */
 function run(cmd, args, label) {
-  const result = spawnSubprocessSync(cmd, args, {
+  runSubprocessOrExit({
+    command: cmd,
+    args,
+    label,
     stdio: 'inherit',
     env: baseEnv,
-    rejectOnNonZeroExit: false
+    logError: logger.error,
+    onFailure: () => display.close()
   });
-  if (result.exitCode !== 0) {
-    logger.error(`Failed: ${label || cmd}`);
-    display.close();
-    process.exit(result.exitCode ?? 1);
-  }
 }
 
 if (!argv['skip-build']) {
@@ -117,22 +115,9 @@ updateProgress('pack artifacts');
 await fsPromises.rm(outDir, { recursive: true, force: true });
 await fsPromises.mkdir(outDir, { recursive: true });
 
-/**
- * Copy a directory if it exists.
- * @param {string} src
- * @param {string} dest
- * @returns {Promise<boolean>}
- */
-async function copyDir(src, dest) {
-  if (!fs.existsSync(src)) return false;
-  await fsPromises.mkdir(dest, { recursive: true });
-  await fsPromises.cp(src, dest, { recursive: true });
-  return true;
-}
-
 const copied = {
-  code: await copyDir(codeDir, path.join(outDir, 'index-code')),
-  prose: await copyDir(proseDir, path.join(outDir, 'index-prose')),
+  code: await copyDirIfExists(codeDir, path.join(outDir, 'index-code')),
+  prose: await copyDirIfExists(proseDir, path.join(outDir, 'index-prose')),
   sqlite: {
     code: false,
     prose: false
@@ -166,21 +151,10 @@ if (!argv['skip-sqlite']) {
   }
 }
 
-const git = simpleGit({ baseDir: root });
-let commit = null;
-let dirty = null;
-let remote = null;
-try {
-  commit = (await git.revparse(['HEAD'])).trim();
-  dirty = !(await git.status()).isClean();
-  const remotes = await git.getRemotes(true);
-  const origin = remotes.find((r) => r.name === 'origin') || remotes[0];
-  remote = sanitizeRemoteUrl(origin?.refs?.fetch || null);
-} catch {
-  commit = null;
-  dirty = null;
-  remote = null;
-}
+const gitState = await readRepoGitState(root, { includeRemote: true });
+const commit = gitState.head;
+const dirty = gitState.dirty;
+const remote = sanitizeRemoteUrl(gitState.remote);
 
 const manifest = {
   version: 3,

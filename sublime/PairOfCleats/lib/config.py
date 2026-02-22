@@ -1,8 +1,91 @@
+import json
 import os
 
 import sublime
 
 SETTINGS_FILE = 'PairOfCleats.sublime-settings'
+
+DEFAULT_EDITOR_CONFIG_CONTRACT = {
+    'schemaVersion': 1,
+    'repoRoot': {
+        'markers': ['.pairofcleats.json', '.git'],
+        'vscode': {
+            'walkUpFromWorkspaceFolder': False
+        },
+        'sublime': {
+            'walkUpFromHints': True
+        }
+    },
+    'cli': {
+        'defaultCommand': 'pairofcleats',
+        'repoRelativeEntrypoint': 'bin/pairofcleats.js',
+        'jsEntrypointExtension': '.js'
+    },
+    'settings': {
+        'vscode': {
+            'namespace': 'pairofcleats',
+            'cliPathKey': 'cliPath',
+            'cliArgsKey': 'cliArgs',
+            'extraSearchArgsKey': 'extraSearchArgs',
+            'modeKey': 'searchMode',
+            'backendKey': 'searchBackend',
+            'annKey': 'searchAnn',
+            'maxResultsKey': 'maxResults',
+            'envKey': 'env'
+        },
+        'sublime': {
+            'cliPathKey': 'pairofcleats_path',
+            'nodePathKey': 'node_path',
+            'envKey': 'env'
+        }
+    },
+    'env': {
+        'mergeOrder': ['process', 'settings'],
+        'stringifyValues': True
+    }
+}
+
+
+def _load_editor_config_contract():
+    contract_path = os.path.abspath(
+        os.path.join(
+            os.path.dirname(__file__),
+            '..',
+            '..',
+            '..',
+            'docs',
+            'tooling',
+            'editor-config-contract.json'
+        )
+    )
+    try:
+        with open(contract_path, 'r', encoding='utf-8') as handle:
+            loaded = json.load(handle)
+        if isinstance(loaded, dict):
+            return loaded
+    except Exception:
+        pass
+    return DEFAULT_EDITOR_CONFIG_CONTRACT
+
+
+EDITOR_CONFIG_CONTRACT = _load_editor_config_contract()
+
+
+def _contract_get(path_parts, fallback):
+    current = EDITOR_CONFIG_CONTRACT
+    for key in path_parts:
+        if not isinstance(current, dict) or key not in current:
+            return fallback
+        current = current[key]
+    if current is None:
+        return fallback
+    return current
+
+
+_SUBLIME_SETTING_KEYS = _contract_get(['settings', 'sublime'], {})
+CLI_PATH_KEY = str(_SUBLIME_SETTING_KEYS.get('cliPathKey') or 'pairofcleats_path')
+NODE_PATH_KEY = str(_SUBLIME_SETTING_KEYS.get('nodePathKey') or 'node_path')
+ENV_KEY = str(_SUBLIME_SETTING_KEYS.get('envKey') or 'env')
 
 DEFAULT_SETTINGS = {
     'pairofcleats_path': '',
@@ -85,10 +168,10 @@ def extract_project_settings(window):
 def merge_settings(base, overrides):
     merged = dict(base)
     for key, value in overrides.items():
-        if key == 'env' and isinstance(value, dict):
-            env = dict(merged.get('env') or {})
+        if _is_env_key(key) and isinstance(value, dict):
+            env = dict(_get_env_settings(merged) or {})
             env.update(value)
-            merged['env'] = env
+            merged[ENV_KEY] = env
         else:
             merged[key] = value
     return merged
@@ -96,7 +179,7 @@ def merge_settings(base, overrides):
 
 def build_env(settings):
     env = dict(os.environ)
-    extra = settings.get('env') or {}
+    extra = _get_env_settings(settings)
     if isinstance(extra, dict):
         for key, value in extra.items():
             if key:
@@ -126,11 +209,11 @@ def validate_settings(settings, repo_root=None):
             'open_results_in must be one of: quick_panel, new_tab, output_panel.'
         )
 
-    env = settings.get('env')
+    env = _get_env_settings(settings)
     if env is not None and not isinstance(env, dict):
         errors.append('env must be a JSON object (dictionary).')
 
-    cli_path = settings.get('pairofcleats_path')
+    cli_path = _setting_value(settings, CLI_PATH_KEY, 'pairofcleats_path')
     if cli_path and (os.path.isabs(cli_path) or repo_root):
         resolved = _resolve_path(repo_root, cli_path)
         if resolved and not os.path.exists(resolved):
@@ -138,7 +221,7 @@ def validate_settings(settings, repo_root=None):
                 'pairofcleats_path does not exist: {0}'.format(resolved)
             )
 
-    node_path = settings.get('node_path')
+    node_path = _setting_value(settings, NODE_PATH_KEY, 'node_path')
     if node_path and os.path.isabs(node_path):
         if not os.path.exists(node_path):
             errors.append(
@@ -237,3 +320,19 @@ def _validate_number_setting(errors, settings, key, allow_zero=False):
             errors.append('{0} must be 0 or higher.'.format(key))
     elif value <= 0:
         errors.append('{0} must be greater than 0.'.format(key))
+
+
+def _is_env_key(key):
+    return key == ENV_KEY or key == 'env'
+
+
+def _get_env_settings(settings):
+    if ENV_KEY in settings:
+        return settings.get(ENV_KEY)
+    return settings.get('env')
+
+
+def _setting_value(settings, primary_key, fallback_key):
+    if primary_key in settings:
+        return settings.get(primary_key)
+    return settings.get(fallback_key)

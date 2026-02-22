@@ -8,6 +8,7 @@ import { applyTestEnv, DEFAULT_TEST_ENV_KEYS, syncProcessEnv } from '../../helpe
 import { rmDirRecursive } from '../../helpers/temp.js';
 import { loadChunkMeta, loadGraphRelationsSync, loadTokenPostings } from '../../../src/shared/artifact-io.js';
 import { stableStringify } from '../../../src/shared/stable-json.js';
+import { loadPiecesManifestPieces, resolvePiecesManifestPath } from '../../helpers/pieces-manifest.js';
 applyTestEnv();
 
 const root = process.cwd();
@@ -246,7 +247,7 @@ if (serializeTokenIndex(tokenIndexRepeat) !== serializeTokenIndex(tokenIndex)) {
   process.exit(1);
 }
 
-const manifestPath = path.join(outputDir, 'pieces', 'manifest.json');
+const manifestPath = resolvePiecesManifestPath(outputDir);
 if (!fs.existsSync(manifestPath)) {
   console.error(`Missing pieces manifest: ${manifestPath}`);
   process.exit(1);
@@ -358,10 +359,8 @@ if (stableStringify(postingsAll) !== stableStringify(postingsEquiv)) {
   process.exit(1);
 }
 
-const manifestAll = JSON.parse(await fsPromises.readFile(path.join(indexAll, 'pieces', 'manifest.json'), 'utf8'));
-const manifestEquiv = JSON.parse(await fsPromises.readFile(path.join(assembledEquiv, 'pieces', 'manifest.json'), 'utf8'));
-const piecesAll = Array.isArray(manifestAll.pieces) ? manifestAll.pieces : [];
-const piecesEquiv = Array.isArray(manifestEquiv.pieces) ? manifestEquiv.pieces : [];
+const piecesAll = loadPiecesManifestPieces(indexAll);
+const piecesEquiv = loadPiecesManifestPieces(assembledEquiv);
 const normalizePiece = (entry) => {
   if (!entry || typeof entry !== 'object') return entry;
   const normalized = { ...entry };

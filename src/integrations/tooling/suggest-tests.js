@@ -1,75 +1,21 @@
-import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createCli } from '../../shared/cli.js';
 import { toPosix } from '../../shared/files.js';
 import { normalizeOptionalNumber } from '../../shared/limits.js';
-import { normalizeRepoRelativePath } from '../../shared/path-normalize.js';
 import { buildSuggestTestsReport } from '../../graph/suggest-tests.js';
 import { renderSuggestTestsReport } from '../../retrieval/output/suggest-tests.js';
 import { validateSuggestTests } from '../../contracts/validators/analysis.js';
-import { buildIndexSignature } from '../../retrieval/index-cache.js';
 import { hasIndexMeta } from '../../retrieval/cli/index-loader.js';
 import { resolveIndexDir } from '../../retrieval/cli-index.js';
-import {
-  MAX_JSON_BYTES,
-  loadPiecesManifest,
-  readCompatibilityKey
-} from '../../shared/artifact-io.js';
-import { createGraphStore } from '../../graph/store.js';
+import { prepareGraphIndex, prepareGraphInputs } from './graph-helpers.js';
 import { loadUserConfig, resolveRepoRoot } from '../../../tools/shared/dict-utils.js';
-
-const parseList = (value) => {
-  if (!value) return [];
-  if (Array.isArray(value)) {
-    return value.map((entry) => String(entry)).map((entry) => entry.trim()).filter(Boolean);
-  }
-  return String(value)
-    .split(',')
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-};
-
-const resolveFormat = (argv) => {
-  const formatRaw = argv.format || (argv.json ? 'json' : 'json');
-  const format = String(formatRaw).trim().toLowerCase();
-  if (format === 'md' || format === 'markdown') return 'md';
-  return 'json';
-};
-
-const resolveRepoRelativePath = (raw, repoRoot) => (
-  normalizeRepoRelativePath(raw, repoRoot)
-);
-
-const parseChangedInputs = ({ changed, changedFile }, repoRoot) => {
-  const entries = [];
-  for (const item of parseList(changed)) {
-    entries.push(item);
-  }
-  if (changedFile) {
-    const contents = fs.readFileSync(String(changedFile), 'utf8');
-    for (const line of contents.split(/\r?\n/)) {
-      const trimmed = line.trim();
-      if (trimmed) entries.push(trimmed);
-    }
-  }
-  const resolved = [];
-  for (const entry of entries) {
-    const rel = resolveRepoRelativePath(entry, repoRoot);
-    if (!rel) continue;
-    resolved.push(rel);
-  }
-  return resolved;
-};
-
-const mergeCaps = (baseCaps, overrides) => {
-  const merged = { ...(baseCaps || {}) };
-  for (const [key, value] of Object.entries(overrides)) {
-    if (value == null) continue;
-    merged[key] = value;
-  }
-  return merged;
-};
+import {
+  emitCliOutput,
+  mergeCaps,
+  parseChangedInputs,
+  resolveFormat
+} from './cli-helpers.js';
 
 export async function runSuggestTestsCli(rawArgs = process.argv.slice(2)) {
   const cli = createCli({
@@ -124,17 +70,19 @@ export async function runSuggestTestsCli(rawArgs = process.argv.slice(2)) {
   };
   const caps = mergeCaps(baseCaps, capOverrides);
 
-  const manifest = loadPiecesManifest(indexDir, { maxBytes: MAX_JSON_BYTES, strict: true });
-  const graphStore = createGraphStore({ indexDir, manifest, strict: true, maxBytes: MAX_JSON_BYTES });
-  const graphRelations = graphStore.hasArtifact('graph_relations')
-    ? await graphStore.loadGraph()
-    : null;
-
-  const { key: indexCompatKey } = readCompatibilityKey(indexDir, {
-    maxBytes: MAX_JSON_BYTES,
+  const graphInputs = await prepareGraphInputs({
+    repoRoot,
+    indexDir,
     strict: true
   });
-  const indexSignature = await buildIndexSignature(indexDir);
+  const { graphRelations } = await prepareGraphIndex({
+    repoRoot,
+    indexDir,
+    strict: true,
+    graphInputs,
+    includeGraphIndex: false,
+    includeGraphRelations: true
+  });
 
   const report = buildSuggestTestsReport({
     changed,
@@ -142,8 +90,8 @@ export async function runSuggestTestsCli(rawArgs = process.argv.slice(2)) {
     repoRoot,
     testPatterns: argv.testPattern,
     caps,
-    indexCompatKey: indexCompatKey || null,
-    indexSignature: indexSignature || null,
+    indexCompatKey: graphInputs.indexCompatKey || null,
+    indexSignature: graphInputs.indexSignature || null,
     repo: toPosix(path.relative(process.cwd(), repoRoot) || '.'),
     indexDir: toPosix(path.relative(process.cwd(), indexDir) || '.')
   });
@@ -153,12 +101,11 @@ export async function runSuggestTestsCli(rawArgs = process.argv.slice(2)) {
     throw new Error(`Suggest-tests schema validation failed: ${validation.errors.join('; ')}`);
   }
 
-  if (format === 'md') {
-    console.log(renderSuggestTestsReport(report));
-  } else {
-    console.log(JSON.stringify(report, null, 2));
-  }
-  return report;
+  return emitCliOutput({
+    format,
+    payload: report,
+    renderMarkdown: renderSuggestTestsReport
+  });
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

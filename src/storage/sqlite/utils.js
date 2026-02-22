@@ -12,7 +12,14 @@ import {
   readJsonFile
 } from '../../shared/artifact-io.js';
 import { normalizeFilePath as normalizeFilePathShared } from '../../shared/path-normalize.js';
+import { clamp } from '../../shared/limits.js';
 import { logLine } from '../../shared/progress.js';
+import { loadOptionalSyncWithFallback } from '../../shared/optional-artifact-fallback.js';
+import {
+  hasChunkMetaArtifactsSync,
+  loadOptionalWithFallback,
+  iterateOptionalWithFallback
+} from '../../shared/index-artifact-helpers.js';
 
 /**
  * Split an array into fixed-size chunks.
@@ -38,7 +45,6 @@ const SQLITE_WAL_MEDIUM_BYTES = 24 * BYTES_PER_MB;
 const SQLITE_WAL_HIGH_BYTES = 96 * BYTES_PER_MB;
 const SQLITE_TX_ROWS_MIN = 2000;
 const SQLITE_TX_ROWS_MAX = 250000;
-const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 const toPositiveFinite = (value) => {
   const numeric = Number(value);
   return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
@@ -320,6 +326,10 @@ export function readJson(filePath) {
   return readJsonFile(filePath, { maxBytes: MAX_JSON_BYTES });
 }
 
+const warnOptionalTooLarge = (name, err) => {
+  console.warn(`[sqlite] Skipping ${name}: ${err.message}`);
+};
+
 /**
  * Read JSON from disk if it exists; otherwise return null.
  * @param {string} dir
@@ -327,122 +337,65 @@ export function readJson(filePath) {
  * @returns {any|null}
  */
 export function loadOptional(dir, name) {
+  if (!dir || !name) return null;
   const target = path.join(dir, name);
-  const hasTarget = fs.existsSync(target) || fs.existsSync(`${target}.bak`);
-  const hasGz = name.endsWith('.json')
-    && (fs.existsSync(`${target}.gz`) || fs.existsSync(`${target}.gz.bak`));
-  const hasZst = name.endsWith('.json')
-    && (fs.existsSync(`${target}.zst`) || fs.existsSync(`${target}.zst.bak`));
-  if (!hasTarget && !hasGz && !hasZst) {
-    return null;
-  }
-  try {
-    return readJson(target);
-  } catch (err) {
-    if (err?.code === 'ERR_JSON_TOO_LARGE') {
-      console.warn(`[sqlite] Skipping ${name}: ${err.message}`);
-      return null;
-    }
-    throw err;
-  }
+  return loadOptionalSyncWithFallback(
+    () => readJson(target),
+    { name, onTooLarge: warnOptionalTooLarge }
+  );
 }
-
-const isOptionalArtifactMissingError = (err) => (
-  err?.code === 'ERR_ARTIFACT_PARTS_MISSING'
-  || err?.code === 'ERR_MANIFEST_MISSING'
-  || /Missing index artifact/.test(err?.message || '')
-  || /Missing manifest entry for /.test(err?.message || '')
-);
 
 export async function loadOptionalArrayArtifact(dir, name) {
   if (!dir || !name) return null;
-  try {
-    return await loadJsonArrayArtifact(dir, name, { maxBytes: MAX_JSON_BYTES, strict: false });
-  } catch (err) {
-    if (err?.code === 'ERR_JSON_TOO_LARGE') {
-      console.warn(`[sqlite] Skipping ${name}: ${err.message}`);
-      return null;
-    }
-    if (isOptionalArtifactMissingError(err)) {
-      return null;
-    }
-    throw err;
-  }
+  return loadOptionalWithFallback(
+    () => loadJsonArrayArtifact(dir, name, { maxBytes: MAX_JSON_BYTES, strict: false }),
+    { name, onTooLarge: warnOptionalTooLarge }
+  );
 }
 
 export function loadOptionalArrayArtifactRows(dir, name, { materialize = false } = {}) {
-  return (async function* () {
-    if (!dir || !name) return;
-    try {
-      for await (const row of loadJsonArrayArtifactRows(dir, name, {
-        maxBytes: MAX_JSON_BYTES,
-        strict: false,
-        materialize
-      })) {
-        yield row;
-      }
-    } catch (err) {
-      if (err?.code === 'ERR_JSON_TOO_LARGE') {
-        console.warn(`[sqlite] Skipping ${name}: ${err.message}`);
-        return;
-      }
-      if (isOptionalArtifactMissingError(err)) {
-        return;
-      }
-      throw err;
-    }
-  })();
+  if (!dir || !name) {
+    return (async function* () {})();
+  }
+  return iterateOptionalWithFallback(
+    () => loadJsonArrayArtifactRows(dir, name, {
+      maxBytes: MAX_JSON_BYTES,
+      strict: false,
+      materialize
+    }),
+    { name, onTooLarge: warnOptionalTooLarge }
+  );
 }
 
 export function loadOptionalFileMetaRows(
   dir,
   { materialize = false } = {}
 ) {
-  return (async function* () {
-    if (!dir) return;
-    try {
-      for await (const row of loadFileMetaRows(dir, {
-        maxBytes: MAX_JSON_BYTES,
-        strict: false,
-        materialize
-      })) {
-        yield row;
-      }
-    } catch (err) {
-      if (err?.code === 'ERR_JSON_TOO_LARGE') {
-        console.warn(`[sqlite] Skipping file_meta: ${err.message}`);
-        return;
-      }
-      if (isOptionalArtifactMissingError(err)) {
-        return;
-      }
-      throw err;
-    }
-  })();
+  if (!dir) {
+    return (async function* () {})();
+  }
+  return iterateOptionalWithFallback(
+    () => loadFileMetaRows(dir, {
+      maxBytes: MAX_JSON_BYTES,
+      strict: false,
+      materialize
+    }),
+    { name: 'file_meta', onTooLarge: warnOptionalTooLarge }
+  );
 }
 
 export function loadOptionalMinhashRows(dir, { materialize = false } = {}) {
-  return (async function* () {
-    if (!dir) return;
-    try {
-      for await (const row of loadMinhashSignatureRows(dir, {
-        maxBytes: MAX_JSON_BYTES,
-        strict: false,
-        materialize
-      })) {
-        yield row;
-      }
-    } catch (err) {
-      if (err?.code === 'ERR_JSON_TOO_LARGE') {
-        console.warn(`[sqlite] Skipping minhash_signatures: ${err.message}`);
-        return;
-      }
-      if (isOptionalArtifactMissingError(err)) {
-        return;
-      }
-      throw err;
-    }
-  })();
+  if (!dir) {
+    return (async function* () {})();
+  }
+  return iterateOptionalWithFallback(
+    () => loadMinhashSignatureRows(dir, {
+      maxBytes: MAX_JSON_BYTES,
+      strict: false,
+      materialize
+    }),
+    { name: 'minhash_signatures', onTooLarge: warnOptionalTooLarge }
+  );
 }
 
 const loadOptionalDenseBinary = (dir, baseName, modelId) => {
@@ -565,19 +518,7 @@ export function loadSqliteIndexOptionalArtifacts(dir, { modelId = null } = {}) {
  * @returns {object|null}
  */
 export async function loadIndex(dir, modelId) {
-  const chunkMetaPath = path.join(dir, 'chunk_meta.json');
-  const chunkMetaJsonlPath = path.join(dir, 'chunk_meta.jsonl');
-  const chunkMetaMetaPath = path.join(dir, 'chunk_meta.meta.json');
-  const chunkMetaCompressedPaths = [
-    `${chunkMetaPath}.gz`,
-    `${chunkMetaPath}.zst`,
-    `${chunkMetaJsonlPath}.gz`,
-    `${chunkMetaJsonlPath}.zst`
-  ];
-  if (!fs.existsSync(chunkMetaPath)
-    && !fs.existsSync(chunkMetaJsonlPath)
-    && !fs.existsSync(chunkMetaMetaPath)
-    && !chunkMetaCompressedPaths.some((target) => fs.existsSync(target))) {
+  if (!hasChunkMetaArtifactsSync(dir)) {
     return null;
   }
   const chunkMeta = await loadChunkMeta(dir, { maxBytes: MAX_JSON_BYTES });

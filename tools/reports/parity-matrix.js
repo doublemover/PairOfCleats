@@ -11,6 +11,7 @@ import {
   resolveToolRoot
 } from '../shared/dict-utils.js';
 import { parseCommaList } from '../shared/text-utils.js';
+import { readQueryFile } from '../shared/query-file-utils.js';
 
 const argv = createCli({
   scriptName: 'parity-matrix',
@@ -89,43 +90,13 @@ const appendArgs = (args, flag, value) => {
   args.push(flag, String(value));
 };
 
-async function loadQueriesFromFile(filePath) {
-  const raw = await fsPromises.readFile(filePath, 'utf8');
-  if (filePath.endsWith('.json')) {
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) {
-      return parsed
-        .map((entry) => {
-          if (typeof entry === 'string') return entry;
-          if (entry && typeof entry.query === 'string') return entry.query;
-          return null;
-        })
-        .filter(Boolean);
-    }
-    if (Array.isArray(parsed.queries)) {
-      return parsed.queries
-        .map((entry) => {
-          if (typeof entry === 'string') return entry;
-          if (entry && typeof entry.query === 'string') return entry.query;
-          return null;
-        })
-        .filter(Boolean);
-    }
-    return [];
-  }
-  return raw
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line && !line.startsWith('#'));
-}
-
 async function resolveQueryFile() {
   if (argv.queries) {
     const resolved = path.resolve(argv.queries);
     if (!fs.existsSync(resolved)) {
       throw new Error(`Query file not found: ${resolved}`);
     }
-    const queries = await loadQueriesFromFile(resolved);
+    const queries = await readQueryFile(resolved, { allowJson: true, jsonMode: 'query-field' });
     return { path: resolved, source: 'file', count: queries.length };
   }
 
@@ -145,7 +116,7 @@ async function resolveQueryFile() {
   const combined = [];
   for (const file of files) {
     const filePath = path.join(queriesDir, file);
-    const lines = await loadQueriesFromFile(filePath);
+    const lines = await readQueryFile(filePath, { allowJson: true, jsonMode: 'query-field' });
     for (const line of lines) {
       if (seen.has(line)) continue;
       seen.add(line);

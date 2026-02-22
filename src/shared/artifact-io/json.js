@@ -793,6 +793,17 @@ export const readJsonLinesIterator = function (filePath, options = {}) {
   })();
 };
 
+export const readJsonLinesEachAwait = async (
+  filePath,
+  onEntry,
+  { maxBytes = MAX_JSON_BYTES, requiredKeys = null, validationMode = 'strict' } = {}
+) => {
+  if (typeof onEntry !== 'function') return;
+  for await (const entry of readJsonLinesIterator(filePath, { maxBytes, requiredKeys, validationMode })) {
+    await onEntry(entry);
+  }
+};
+
 
 export const readJsonLinesArray = async (
   filePath,

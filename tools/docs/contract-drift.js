@@ -2,22 +2,22 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import yargs from 'yargs/yargs';
-import { hideBin } from 'yargs/helpers';
+import { createCli } from '../../src/shared/cli.js';
 import { ARTIFACT_SCHEMA_DEFS } from '../../src/contracts/registry.js';
 import { readJsoncFile } from '../../src/shared/jsonc.js';
 import { resolveToolRoot } from '../shared/dict-utils.js';
 
 const ROOT = resolveToolRoot();
 
-const parseArgs = () => yargs(hideBin(process.argv))
-  .scriptName('pairofcleats doc-contract-drift')
-  .option('root', { type: 'string' })
-  .option('out-json', { type: 'string', default: 'docs/tooling/doc-contract-drift.json' })
-  .option('out-md', { type: 'string', default: 'docs/tooling/doc-contract-drift.md' })
-  .option('fail', { type: 'boolean', default: false })
-  .help()
-  .alias('h', 'help')
+const parseArgs = () => createCli({
+  scriptName: 'pairofcleats doc-contract-drift',
+  options: {
+    root: { type: 'string' },
+    'out-json': { type: 'string', default: 'docs/tooling/doc-contract-drift.json' },
+    'out-md': { type: 'string', default: 'docs/tooling/doc-contract-drift.md' },
+    fail: { type: 'boolean', default: false }
+  }
+})
   .strictOptions()
   .parse();
 

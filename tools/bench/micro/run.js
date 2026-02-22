@@ -1,7 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import yargs from 'yargs/yargs';
-import { hideBin } from 'yargs/helpers';
+import { createCli } from '../../../src/shared/cli.js';
 import { buildIndex } from '../../../src/integrations/core/index.js';
 import { createSqliteDbCache } from '../../../src/retrieval/sqlite-cache.js';
 import { getIndexDir, resolveRepoRoot, resolveToolRoot } from '../../shared/dict-utils.js';
@@ -13,89 +12,90 @@ import { runSearchBenchmark } from './search.js';
 const toolRoot = resolveToolRoot();
 const defaultRepo = path.resolve(toolRoot, 'tests', 'fixtures', 'sample');
 
-const rawArgs = hideBin(process.argv);
-const argv = yargs(rawArgs)
-  .option('repo', {
-    type: 'string',
-    describe: 'Repo root to benchmark',
-    default: defaultRepo
-  })
-  .option('repo-current', {
-    type: 'boolean',
-    describe: 'Use current working repo root instead of the fixture default',
-    default: false
-  })
-  .option('mode', {
-    type: 'string',
-    describe: 'Index/search mode (code|prose)',
-    default: 'code'
-  })
-  .option('query', {
-    type: 'string',
-    describe: 'Search query for microbench runs',
-    default: 'function'
-  })
-  .option('backend', {
-    type: 'string',
-    describe: 'Search backend (memory|sqlite|sqlite-fts)',
-    default: 'memory'
-  })
-  .option('ann-backends', {
-    type: 'string',
-    describe: 'Comma-separated ANN backends for ann-backends component (sqlite-vector,lancedb,hnsw,js)',
-    default: 'sqlite-vector,lancedb'
-  })
-  .option('runs', {
-    type: 'number',
-    describe: 'Warm run count per component',
-    default: 5
-  })
-  .option('warmup', {
-    type: 'number',
-    describe: 'Warmup runs discarded before measuring warm stats',
-    default: 1
-  })
-  .option('threads', {
-    type: 'number',
-    describe: 'Index build worker threads',
-    default: 0
-  })
-  .option('build', {
-    type: 'boolean',
-    describe: 'Build indexes before search benchmarks',
-    default: true
-  })
-  .option('clean', {
-    type: 'boolean',
-    describe: 'Clean repo cache before cold index build',
-    default: true
-  })
-  .option('sqlite', {
-    type: 'boolean',
-    describe: 'Enable SQLite builds during index benchmark',
-    default: false
-  })
-  .option('stub-embeddings', {
-    type: 'boolean',
-    describe: 'Use stub embeddings for index build',
-    default: true
-  })
-  .option('components', {
-    type: 'string',
-    describe: 'Comma-separated component list: index-build,sparse,dense,hybrid,ann-backends',
-    default: 'index-build,sparse,dense,hybrid'
-  })
-  .option('json', {
-    type: 'boolean',
-    describe: 'Emit JSON output only',
-    default: false
-  })
-  .option('out', {
-    type: 'string',
-    describe: 'Write JSON results to a file'
-  })
-  .help()
-  .argv;
+const rawArgs = process.argv.slice(2);
+const argv = createCli({
+  options: {
+    repo: {
+      type: 'string',
+      describe: 'Repo root to benchmark',
+      default: defaultRepo
+    },
+    'repo-current': {
+      type: 'boolean',
+      describe: 'Use current working repo root instead of the fixture default',
+      default: false
+    },
+    mode: {
+      type: 'string',
+      describe: 'Index/search mode (code|prose)',
+      default: 'code'
+    },
+    query: {
+      type: 'string',
+      describe: 'Search query for microbench runs',
+      default: 'function'
+    },
+    backend: {
+      type: 'string',
+      describe: 'Search backend (memory|sqlite|sqlite-fts)',
+      default: 'memory'
+    },
+    'ann-backends': {
+      type: 'string',
+      describe: 'Comma-separated ANN backends for ann-backends component (sqlite-vector,lancedb,hnsw,js)',
+      default: 'sqlite-vector,lancedb'
+    },
+    runs: {
+      type: 'number',
+      describe: 'Warm run count per component',
+      default: 5
+    },
+    warmup: {
+      type: 'number',
+      describe: 'Warmup runs discarded before measuring warm stats',
+      default: 1
+    },
+    threads: {
+      type: 'number',
+      describe: 'Index build worker threads',
+      default: 0
+    },
+    build: {
+      type: 'boolean',
+      describe: 'Build indexes before search benchmarks',
+      default: true
+    },
+    clean: {
+      type: 'boolean',
+      describe: 'Clean repo cache before cold index build',
+      default: true
+    },
+    sqlite: {
+      type: 'boolean',
+      describe: 'Enable SQLite builds during index benchmark',
+      default: false
+    },
+    'stub-embeddings': {
+      type: 'boolean',
+      describe: 'Use stub embeddings for index build',
+      default: true
+    },
+    components: {
+      type: 'string',
+      describe: 'Comma-separated component list: index-build,sparse,dense,hybrid,ann-backends',
+      default: 'index-build,sparse,dense,hybrid'
+    },
+    json: {
+      type: 'boolean',
+      describe: 'Emit JSON output only',
+      default: false
+    },
+    out: {
+      type: 'string',
+      describe: 'Write JSON results to a file'
+    }
+  }
+}).parse();
 
 const hasRepoArg = rawArgs.includes('--repo');
 const repoRoot = argv['repo-current'] && !hasRepoArg

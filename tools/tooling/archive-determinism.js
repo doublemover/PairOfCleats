@@ -4,6 +4,8 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import AdmZip from 'adm-zip';
+import { toPosix } from '../../src/shared/files.js';
+import { listFilesRecursive } from '../shared/fs-utils.js';
 
 const FIXED_MTIME = new Date('2000-01-01T00:00:00.000Z');
 const FIXED_MTIME_ISO = FIXED_MTIME.toISOString();
@@ -14,36 +16,12 @@ const DEFAULT_EXCLUDES = [
   /\.pyc$/
 ];
 
-const toPosix = (value) => String(value || '').replace(/\\/g, '/');
-
 const matchesExclude = (relPath, excludes) => {
   const posixPath = toPosix(relPath);
   return excludes.some((pattern) => pattern.test(posixPath));
 };
 
 const stableSort = (items) => items.slice().sort((a, b) => a.localeCompare(b));
-
-const listFilesRecursive = async (rootDir, {
-  excludes = DEFAULT_EXCLUDES,
-  baseDir = rootDir
-} = {}) => {
-  const entries = await fsPromises.readdir(rootDir, { withFileTypes: true });
-  const sorted = entries.slice().sort((a, b) => a.name.localeCompare(b.name));
-  const out = [];
-  for (const entry of sorted) {
-    const absPath = path.join(rootDir, entry.name);
-    const relPath = toPosix(path.relative(baseDir, absPath));
-    if (matchesExclude(relPath, excludes)) continue;
-    if (entry.isDirectory()) {
-      const nested = await listFilesRecursive(absPath, { excludes, baseDir });
-      out.push(...nested);
-      continue;
-    }
-    if (!entry.isFile()) continue;
-    out.push({ absPath, relPath });
-  }
-  return out;
-};
 
 const detectFileMode = async (filePath) => {
   const stat = await fsPromises.stat(filePath);
@@ -91,7 +69,11 @@ export const buildDeterministicZip = async ({
   fixedMtime = FIXED_MTIME
 }) => {
   const sourceRoot = path.resolve(sourceDir);
-  const files = await listFilesRecursive(sourceRoot, { excludes, baseDir: sourceRoot });
+  const files = await listFilesRecursive(sourceRoot, {
+    baseDir: sourceRoot,
+    sortEntries: true,
+    include: ({ relPath }) => !matchesExclude(relPath, excludes)
+  });
   const sortedFiles = files.sort((a, b) => a.relPath.localeCompare(b.relPath));
   const zip = new AdmZip();
   const entries = [];

@@ -1,10 +1,9 @@
 import { performance } from 'node:perf_hooks';
+import { clamp } from '../../../shared/limits.js';
 
 const BYTES_PER_MB = 1024 * 1024;
 const SQLITE_MMAP_TARGET_MB = 8 * 1024;
 const ANALYZE_THRESHOLD_BYTES = 128 * BYTES_PER_MB;
-
-const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
 const readPragma = (db, pragma) => {
   try {

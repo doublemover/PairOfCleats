@@ -10,6 +10,7 @@ import {
   resolveNativeTreeSitterTarget
 } from '../../../src/lang/tree-sitter/native-runtime.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { skipIfNativeGrammarsUnavailable } from './native-availability.js';
 
 applyTestEnv({ testing: '1' });
 
@@ -48,6 +49,9 @@ assert.ok(
   Array.isArray(preflightFail.missing) && preflightFail.missing.includes('this-language-does-not-exist'),
   'expected missing language reported in preflight result'
 );
+if (skipIfNativeGrammarsUnavailable(['javascript', 'lua'], 'tree-sitter scheduler native plan contract')) {
+  process.exit(0);
+}
 
 const luaPreflight = preflightNativeTreeSitterGrammars(['lua']);
 const luaParser = getNativeTreeSitterParser('lua', {

@@ -3,6 +3,12 @@ import { fileURLToPath } from 'node:url';
 import yargs from 'yargs/yargs';
 import { createError, ERROR_CODES } from '../src/shared/error-codes.js';
 import { resolveRepoConfig } from './shared/dict-utils.js';
+import { emitJson } from './shared/cli-utils.js';
+import {
+  emitCliError,
+  parseCommaString,
+  resolveSnapshotDefaults
+} from './shared/index-cli-utils.js';
 import {
   createPointerSnapshot,
   listSnapshots,
@@ -13,99 +19,9 @@ import {
 import { freezeSnapshot, gcSnapshots } from '../src/index/snapshots/freeze.js';
 
 const parseTags = (value, repeated = []) => {
-  const csv = String(value || '')
-    .split(',')
-    .map((token) => token.trim())
-    .filter(Boolean);
+  const csv = parseCommaString(value);
   const all = [...csv, ...repeated.map((tag) => String(tag || '').trim()).filter(Boolean)];
   return all;
-};
-
-const DEFAULT_SNAPSHOT_RETENTION = Object.freeze({
-  keepPointer: 25,
-  keepFrozen: 10,
-  maxAgeDays: 30,
-  protectedTagGlobs: ['release', 'keep-*'],
-  stagingMaxAgeHours: 24
-});
-
-const normalizeNumber = (value, fallback, minimum = 0) => {
-  const num = Number(value);
-  if (!Number.isFinite(num)) return fallback;
-  return Math.max(minimum, Math.floor(num));
-};
-
-const normalizeTagGlobs = (value, fallback) => {
-  const raw = Array.isArray(value)
-    ? value
-    : String(value || '')
-      .split(',')
-      .map((token) => token.trim())
-      .filter(Boolean);
-  const selected = raw.length ? raw : fallback;
-  const deduped = [];
-  for (const tag of selected) {
-    const normalized = String(tag || '').trim();
-    if (!normalized || deduped.includes(normalized)) continue;
-    deduped.push(normalized);
-  }
-  return deduped.length ? deduped : [...fallback];
-};
-
-const resolveSnapshotDefaults = (userConfig) => {
-  const snapshots = (
-    userConfig
-    && userConfig.indexing
-    && typeof userConfig.indexing === 'object'
-    && !Array.isArray(userConfig.indexing)
-    && userConfig.indexing.snapshots
-    && typeof userConfig.indexing.snapshots === 'object'
-    && !Array.isArray(userConfig.indexing.snapshots)
-  )
-    ? userConfig.indexing.snapshots
-    : null;
-  if (!snapshots) {
-    return {
-      ...DEFAULT_SNAPSHOT_RETENTION,
-      protectedTagGlobs: [...DEFAULT_SNAPSHOT_RETENTION.protectedTagGlobs]
-    };
-  }
-  return {
-    keepPointer: normalizeNumber(
-      snapshots.keepPointer ?? snapshots.maxPointerSnapshots,
-      DEFAULT_SNAPSHOT_RETENTION.keepPointer
-    ),
-    keepFrozen: normalizeNumber(
-      snapshots.keepFrozen ?? snapshots.maxFrozenSnapshots,
-      DEFAULT_SNAPSHOT_RETENTION.keepFrozen
-    ),
-    maxAgeDays: normalizeNumber(
-      snapshots.maxAgeDays ?? snapshots.retainDays,
-      DEFAULT_SNAPSHOT_RETENTION.maxAgeDays
-    ),
-    protectedTagGlobs: normalizeTagGlobs(
-      snapshots.protectedTagGlobs ?? snapshots.keepTags,
-      DEFAULT_SNAPSHOT_RETENTION.protectedTagGlobs
-    ),
-    stagingMaxAgeHours: normalizeNumber(
-      snapshots.stagingMaxAgeHours,
-      DEFAULT_SNAPSHOT_RETENTION.stagingMaxAgeHours
-    )
-  };
-};
-
-const emitJson = (payload) => {
-  process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
-};
-
-const emitError = (err, asJson) => {
-  const code = err?.code || ERROR_CODES.INTERNAL;
-  const message = err?.message || String(err);
-  if (asJson) {
-    emitJson({ ok: false, code, message });
-  } else {
-    process.stderr.write(`${message}\n`);
-  }
 };
 
 export async function runSnapshotCli(rawArgs = process.argv.slice(2)) {
@@ -154,7 +70,7 @@ export async function runSnapshotCli(rawArgs = process.argv.slice(2)) {
           );
         }
       } catch (err) {
-        emitError(err, argv.json === true);
+        emitCliError(err, argv.json === true);
         process.exitCode = 1;
       }
     }
@@ -197,7 +113,7 @@ export async function runSnapshotCli(rawArgs = process.argv.slice(2)) {
           );
         }
       } catch (err) {
-        emitError(err, argv.json === true);
+        emitCliError(err, argv.json === true);
         process.exitCode = 1;
       }
     }
@@ -240,7 +156,7 @@ export async function runSnapshotCli(rawArgs = process.argv.slice(2)) {
           process.stderr.write(`${prefix}GC removed ${result.removed.length} snapshot(s)\n`);
         }
       } catch (err) {
-        emitError(err, argv.json === true);
+        emitCliError(err, argv.json === true);
         process.exitCode = 1;
       }
     }
@@ -273,7 +189,7 @@ export async function runSnapshotCli(rawArgs = process.argv.slice(2)) {
           process.stderr.write(`${prefix}Pruned ${result.removed.length} snapshot(s)\n`);
         }
       } catch (err) {
-        emitError(err, argv.json === true);
+        emitCliError(err, argv.json === true);
         process.exitCode = 1;
       }
     }
@@ -299,7 +215,7 @@ export async function runSnapshotCli(rawArgs = process.argv.slice(2)) {
           }
         }
       } catch (err) {
-        emitError(err, argv.json === true);
+        emitCliError(err, argv.json === true);
         process.exitCode = 1;
       }
     }
@@ -330,7 +246,7 @@ export async function runSnapshotCli(rawArgs = process.argv.slice(2)) {
           process.stderr.write(`${JSON.stringify(result.snapshot, null, 2)}\n`);
         }
       } catch (err) {
-        emitError(err, argv.json === true);
+        emitCliError(err, argv.json === true);
         process.exitCode = 1;
       }
     }
@@ -361,7 +277,7 @@ export async function runSnapshotCli(rawArgs = process.argv.slice(2)) {
           process.stderr.write(`Removed snapshot ${result.removed}\n`);
         }
       } catch (err) {
-        emitError(err, argv.json === true);
+        emitCliError(err, argv.json === true);
         process.exitCode = 1;
       }
     }
@@ -372,7 +288,7 @@ export async function runSnapshotCli(rawArgs = process.argv.slice(2)) {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   runSnapshotCli().catch((err) => {
-    emitError(err, false);
+    emitCliError(err, false);
     process.exit(1);
   });
 }

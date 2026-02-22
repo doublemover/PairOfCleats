@@ -3,9 +3,10 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
-import { spawnSubprocessSync } from '../../src/shared/subprocess.js';
 import { resolveAnnSetting, resolveBaseline, resolveCompareModels } from '../../src/experimental/compare/config.js';
-import { DEFAULT_MODEL_ID, getIndexDir, getRuntimeConfig, resolveRepoConfig, resolveRuntimeEnv, resolveSqlitePaths, resolveToolRoot } from '../shared/dict-utils.js';
+import { runSubprocessOrExit } from '../shared/cli-utils.js';
+import { DEFAULT_MODEL_ID, bootstrapRuntime, resolveSqlitePaths, resolveToolRoot } from '../shared/dict-utils.js';
+import { ensureParityArtifacts } from '../shared/parity-indexes.js';
 
 const rawArgs = process.argv.slice(2);
 const argv = createCli({
@@ -27,9 +28,7 @@ const argv = createCli({
   }
 }).parse();
 
-const { repoRoot: root, userConfig } = resolveRepoConfig(argv.repo);
-const runtimeConfig = getRuntimeConfig(root, userConfig);
-const baseEnv = resolveRuntimeEnv(runtimeConfig, process.env);
+const { repoRoot: root, userConfig, runtimeEnv: baseEnv } = bootstrapRuntime(argv.repo);
 const scriptRoot = resolveToolRoot();
 
 const configCompare = Array.isArray(userConfig.models?.compare) ? userConfig.models.compare : [];
@@ -60,6 +59,7 @@ const reportPaths = {
   paritySqliteFts: path.join(root, 'docs', 'parity-sqlite-fts-ann.json'),
   combined: path.join(root, 'docs', 'combined-summary.json')
 };
+const resolveSqlitePathsForRoot = () => resolveSqlitePaths(root, userConfig);
 
 /**
  * Run a node script and exit on failure.
@@ -68,60 +68,46 @@ const reportPaths = {
  * @returns {void}
  */
 function runNode(args, label) {
-  const result = spawnSubprocessSync(process.execPath, args, {
+  runSubprocessOrExit({
+    command: process.execPath,
+    args,
+    label,
     stdio: 'inherit',
     cwd: root,
-    env: baseEnv,
-    rejectOnNonZeroExit: false
+    env: baseEnv
   });
-  if (result.exitCode !== 0) {
-    console.error(`Failed: ${label}`);
-    process.exit(result.exitCode ?? 1);
-  }
-}
-
-/**
- * Resolve the best index directory for a mode.
- * @param {'code'|'prose'} mode
- * @returns {string}
- */
-function resolveIndexDir(mode) {
-  const cached = getIndexDir(root, mode, userConfig);
-  const cachedMeta = path.join(cached, 'chunk_meta.json');
-  if (fs.existsSync(cachedMeta)) return cached;
-  const local = path.join(root, `index-${mode}`);
-  const localMeta = path.join(local, 'chunk_meta.json');
-  if (fs.existsSync(localMeta)) return local;
-  return cached;
 }
 
 /**
  * Ensure index and SQLite artifacts exist for parity runs.
- * @returns {void}
+ * @returns {Promise<void>}
  */
-function ensureParityIndexes() {
-  const codeMeta = path.join(resolveIndexDir('code'), 'chunk_meta.json');
-  const proseMeta = path.join(resolveIndexDir('prose'), 'chunk_meta.json');
-  if (!fs.existsSync(codeMeta) || !fs.existsSync(proseMeta)) {
-    if (!buildEnabled) {
-      console.error('Index missing for parity. Re-run with --build.');
-      process.exit(1);
+async function ensureParityIndexes() {
+  const state = await ensureParityArtifacts({
+    root,
+    userConfig,
+    chunkMetaCandidates: ['chunk_meta.json'],
+    resolveSqlitePathsForRoot,
+    canBuild: buildEnabled,
+    buildIndex: () => {
+      const args = [path.join(scriptRoot, 'build_index.js'), '--repo', root];
+      if (argv.incremental) args.push('--incremental');
+      runNode(args, 'build index');
+    },
+    buildSqlite: () => {
+      const args = [path.join(scriptRoot, 'build_index.js'), '--stage', '4', '--repo', root];
+      if (argv.incremental) args.push('--incremental');
+      runNode(args, 'build sqlite index');
     }
-    const args = [path.join(scriptRoot, 'build_index.js'), '--repo', root];
-    if (argv.incremental) args.push('--incremental');
-    runNode(args, 'build index');
-  }
+  });
 
-  const sqlitePaths = resolveSqlitePaths(root, userConfig);
-  const sqliteMissing = !fs.existsSync(sqlitePaths.codePath) || !fs.existsSync(sqlitePaths.prosePath);
-  if (sqliteMissing) {
-    if (!buildEnabled) {
-      console.error('SQLite index missing for parity. Re-run with --build.');
-      process.exit(1);
-    }
-    const args = [path.join(scriptRoot, 'build_index.js'), '--stage', '4', '--repo', root];
-    if (argv.incremental) args.push('--incremental');
-    runNode(args, 'build sqlite index');
+  if (state.missingIndex.length) {
+    console.error('Index missing for parity. Re-run with --build.');
+    process.exit(1);
+  }
+  if (state.missingSqlite) {
+    console.error('SQLite index missing for parity. Re-run with --build.');
+    process.exit(1);
   }
 }
 
@@ -187,7 +173,7 @@ runNode(
   'compare models (sqlite)'
 );
 
-ensureParityIndexes();
+await ensureParityIndexes();
 runNode(buildParityArgs({ backend: 'sqlite', outPath: reportPaths.paritySqlite }), 'parity sqlite');
 runNode(buildParityArgs({ backend: 'sqlite-fts', outPath: reportPaths.paritySqliteFts }), 'parity sqlite-fts');
 

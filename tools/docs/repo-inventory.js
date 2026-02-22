@@ -1,34 +1,21 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import yargs from 'yargs/yargs';
-import { hideBin } from 'yargs/helpers';
+import { createCli } from '../../src/shared/cli.js';
 import { toPosix } from '../../src/shared/files.js';
+import { listFilesRecursive } from '../shared/fs-utils.js';
 
-const parseArgs = () => {
-  const parser = yargs(hideBin(process.argv))
-    .scriptName('pairofcleats repo-inventory')
-    .option('root', { type: 'string' })
-    .option('json', { type: 'string', default: 'docs/tooling/repo-inventory.json' })
-    .help()
-    .alias('h', 'help')
-    .strictOptions();
-  return parser.parse();
-};
-
-const listFiles = async (dir) => {
-  const entries = await fsPromises.readdir(dir, { withFileTypes: true });
-  const files = [];
-  for (const entry of entries) {
-    const fullPath = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      files.push(...await listFiles(fullPath));
-    } else if (entry.isFile()) {
-      files.push(fullPath);
-    }
+const parseArgs = () => createCli({
+  scriptName: 'pairofcleats repo-inventory',
+  options: {
+    root: { type: 'string' },
+    json: { type: 'string', default: 'docs/tooling/repo-inventory.json' }
   }
-  return files;
-};
+})
+  .strictOptions()
+  .parse();
+
+const listFiles = async (dir) => (await listFilesRecursive(dir)).map((entry) => entry.absPath);
 
 const collectDocs = async (root) => {
   const docsDir = path.join(root, 'docs');

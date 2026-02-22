@@ -1,25 +1,23 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import yargs from 'yargs/yargs';
-import { hideBin } from 'yargs/helpers';
+import { createCli } from '../../src/shared/cli.js';
 import {
   SERVICE_INDEXER_OPTIONS,
   resolveCliOptionFlagSets
 } from '../../src/shared/cli-options.js';
 import { listDispatchManifest } from '../../src/shared/dispatch/manifest.js';
 
-const parseArgs = () => {
-  const parser = yargs(hideBin(process.argv))
-    .scriptName('pairofcleats script-inventory')
-    .option('json', { type: 'string', default: 'docs/tooling/script-inventory.json' })
-    .option('markdown', { type: 'string', default: 'docs/guides/commands.md' })
-    .option('phase-spec-dir', { type: 'string' })
-    .help()
-    .alias('h', 'help')
-    .strictOptions();
-  return parser.parse();
-};
+const parseArgs = () => createCli({
+  scriptName: 'pairofcleats script-inventory',
+  options: {
+    json: { type: 'string', default: 'docs/tooling/script-inventory.json' },
+    markdown: { type: 'string', default: 'docs/guides/commands.md' },
+    'phase-spec-dir': { type: 'string' }
+  }
+})
+  .strictOptions()
+  .parse();
 
 const categoryFor = (name) => {
   if (name === 'lint' || name === 'format') return 'lint';

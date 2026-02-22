@@ -29,6 +29,7 @@ import {
   MAX_POOL_ENTRIES
 } from './pipeline/constants.js';
 import { INDEX_PROFILE_VECTOR_ONLY } from '../contracts/index-profile.js';
+import { normalizePositiveInt } from '../shared/limits.js';
 
 const normalizeTokenList = (value) => (
   Array.isArray(value)
@@ -235,15 +236,9 @@ export function createSearchPipeline(context) {
     caseFile: filters?.caseFile === true
   };
   const annCandidatePolicyConfig = {
-    cap: Number.isFinite(Number(annCandidateCap))
-      ? Math.max(1, Math.floor(Number(annCandidateCap)))
-      : null,
-    minDocCount: Number.isFinite(Number(annCandidateMinDocCount))
-      ? Math.max(1, Math.floor(Number(annCandidateMinDocCount)))
-      : null,
-    maxDocCount: Number.isFinite(Number(annCandidateMaxDocCount))
-      ? Math.max(1, Math.floor(Number(annCandidateMaxDocCount)))
-      : null
+    cap: normalizePositiveInt(annCandidateCap),
+    minDocCount: normalizePositiveInt(annCandidateMinDocCount),
+    maxDocCount: normalizePositiveInt(annCandidateMaxDocCount)
   };
   const rrfEnabled = rrf?.enabled !== false;
   const rrfK = Number.isFinite(Number(rrf?.k))
@@ -263,7 +258,7 @@ export function createSearchPipeline(context) {
   const chargramMaxTokenLength = postingsConfig?.chargramMaxTokenLength == null
     ? null
     : Math.max(2, Math.floor(Number(postingsConfig.chargramMaxTokenLength)));
-  const searchTopN = Math.max(1, Number(topN) || 1);
+  const searchTopN = normalizePositiveInt(topN, 1) || 1;
   const expandedTopN = searchTopN * 3;
   const baseTopkSlack = Math.max(8, Math.min(100, Math.ceil(searchTopN * 0.5)));
   const maxCandidateCap = Number.isFinite(Number(maxCandidates)) && Number(maxCandidates) > 0

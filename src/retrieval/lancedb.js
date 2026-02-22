@@ -3,6 +3,7 @@ import { distanceToSimilarity } from '../shared/ann-similarity.js';
 import { tryImport } from '../shared/optional-deps.js';
 import { normalizeLanceDbConfig } from '../shared/lancedb.js';
 import { createWarnOnce } from '../shared/logging/warn-once.js';
+import { normalizePositiveInt } from '../shared/limits.js';
 import { normalizeEmbeddingDims } from './ann/dims.js';
 
 const CANDIDATE_PUSH_LIMIT = 500;
@@ -242,7 +243,7 @@ export async function rankLanceDb({
   }
   if (!table || typeof table.search !== 'function') return [];
 
-  const limitBase = Math.max(1, Number(topN) || 1);
+  const limitBase = normalizePositiveInt(topN, 1) || 1;
   const getCandidateCount = (value) => {
     if (!value) return 0;
     if (Number.isFinite(Number(value.size))) return Number(value.size);

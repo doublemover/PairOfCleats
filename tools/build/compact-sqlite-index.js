@@ -16,6 +16,12 @@ import {
   toSqliteRowId
 } from '../../src/storage/sqlite/vector.js';
 import { resolveQuantizationParams } from '../../src/storage/sqlite/quantization.js';
+import {
+  buildFileManifestRows,
+  bumpFileCount,
+  extractChunkDocmetaFieldsFromJson
+} from '../../src/storage/sqlite/build-helpers.js';
+import { collectManifestByNormalized } from '../../src/storage/sqlite/build/from-artifacts/sources.js';
 import { updateSqliteState } from '../../src/storage/sqlite/build/index-state.js';
 
 let Database;
@@ -219,13 +225,13 @@ export async function compactDatabase(input) {
     'INSERT OR REPLACE INTO file_manifest (mode, file, hash, mtimeMs, size, chunk_count) VALUES (?, ?, ?, ?, ?, ?)'
   );
 
-  const fileManifest = new Map();
   const fileManifestStmt = sourceDb.prepare(
     'SELECT file, hash, mtimeMs, size FROM file_manifest WHERE mode = ?'
   );
-  for (const row of fileManifestStmt.iterate(mode)) {
-    fileManifest.set(normalizeFilePath(row.file), row);
-  }
+  const fileManifest = collectManifestByNormalized(fileManifestStmt.iterate(mode), {
+    fileFromRecord: (row) => row?.file,
+    entryFromRecord: (row) => row
+  });
 
   const docIdMap = new Map();
   const fileCounts = new Map();
@@ -250,15 +256,7 @@ export async function compactDatabase(input) {
       insertChunk.run(chunkRow);
 
       const tokensText = parseTokens(row.tokens).join(' ');
-      let signature = null;
-      let doc = null;
-      if (row.docmeta) {
-        try {
-          const meta = JSON.parse(row.docmeta);
-          signature = typeof meta?.signature === 'string' ? meta.signature : null;
-          doc = typeof meta?.doc === 'string' ? meta.doc : null;
-        } catch {}
-      }
+      const { signature, doc } = extractChunkDocmetaFieldsFromJson(row.docmeta);
       insertFts.run({
         id: newId,
         file: normalizedFile,
@@ -270,7 +268,7 @@ export async function compactDatabase(input) {
         tokensText
       });
 
-      fileCounts.set(normalizedFile, (fileCounts.get(normalizedFile) || 0) + 1);
+      bumpFileCount(fileCounts, normalizedFile);
     }
   });
   insertChunksTx();
@@ -440,20 +438,24 @@ export async function compactDatabase(input) {
     typeof stats.total_docs === 'number' ? stats.total_docs : 0
   );
 
-  const insertManifestTx = outDb.transaction(() => {
-    for (const [file, count] of fileCounts.entries()) {
-      const meta = fileManifest.get(file);
+  const manifestRows = buildFileManifestRows({
+    mode,
+    fileCounts,
+    manifestByNormalized: fileManifest
+  });
+  const insertManifestTx = outDb.transaction((rows) => {
+    for (const manifestRow of rows) {
       insertFileManifest.run(
-        mode,
-        file,
-        meta?.hash || null,
-        Number.isFinite(meta?.mtimeMs) ? meta.mtimeMs : null,
-        Number.isFinite(meta?.size) ? meta.size : null,
-        count
+        manifestRow.mode,
+        manifestRow.file,
+        manifestRow.hash,
+        manifestRow.mtimeMs,
+        manifestRow.size,
+        manifestRow.chunk_count
       );
     }
   });
-  insertManifestTx();
+  insertManifestTx(manifestRows);
 
   outDb.exec('VACUUM');
   const afterStats = {

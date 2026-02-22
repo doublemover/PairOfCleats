@@ -6,7 +6,12 @@ import { spawnSync } from 'node:child_process';
 import { performance } from 'node:perf_hooks';
 import { fileURLToPath } from 'node:url';
 import { createCli } from '../../../src/shared/cli.js';
-import { getIndexDir, loadUserConfig, resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';
+import { readQueryFileSafe, resolveTopNAndLimit, selectQueriesByLimit } from '../../../tools/shared/query-file-utils.js';
+import { runSearchCliWithSpawnSync } from '../../../tools/shared/search-cli-harness.js';
+import { mean, meanNullable } from '../../../tools/shared/stats-utils.js';
+import { loadUserConfig, resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';
+import { ensureParityArtifacts } from '../../../tools/shared/parity-indexes.js';
+import { formatParityDuration } from '../../helpers/duration-format.js';
 import { runSqliteBuild } from '../../helpers/sqlite-builder.js';
 
 const argv = createCli({
@@ -32,7 +37,6 @@ const argv = createCli({
 
 const root = process.cwd();
 const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
-const repoArgs = ['--repo', root];
 const userConfig = loadUserConfig(root);
 const isTestRun = process.env.PAIROFCLEATS_TESTING === '1';
 if (isTestRun && !process.env.PAIROFCLEATS_CACHE_ROOT) {
@@ -48,81 +52,52 @@ if (!fsSync.existsSync(searchPath)) {
   process.exit(1);
 }
 
-function resolveIndexDir(mode) {
-  const cached = getIndexDir(root, mode, userConfig);
-  const hasMeta = (dir) => (
-    fsSync.existsSync(path.join(dir, 'chunk_meta.json'))
-    || fsSync.existsSync(path.join(dir, 'chunk_meta.jsonl'))
-    || fsSync.existsSync(path.join(dir, 'chunk_meta.meta.json'))
-  );
-  if (hasMeta(cached)) return cached;
-  const local = path.join(root, `index-${mode}`);
-  if (hasMeta(local)) return local;
-  return cached;
-}
-
-function resolveChunkMetaPath(dir) {
-  const candidates = ['chunk_meta.json', 'chunk_meta.jsonl', 'chunk_meta.meta.json'];
-  for (const name of candidates) {
-    const candidate = path.join(dir, name);
-    if (fsSync.existsSync(candidate)) return candidate;
+const parityArtifacts = await ensureParityArtifacts({
+  root,
+  userConfig,
+  resolveSqlitePathsForRoot,
+  canBuild: isTestRun,
+  buildIndexOnSqliteMissing: true,
+  buildSqliteAfterIndexBuild: true,
+  buildIndex: () => {
+    const env = { ...process.env };
+    if (!env.PAIROFCLEATS_EMBEDDINGS) {
+      env.PAIROFCLEATS_EMBEDDINGS = 'stub';
+    }
+    process.env.PAIROFCLEATS_EMBEDDINGS = env.PAIROFCLEATS_EMBEDDINGS;
+    const runBuildStage = (stage) => spawnSync(
+      process.execPath,
+      [path.join(scriptRoot, 'build_index.js'), '--stage', stage, '--stub-embeddings', '--repo', root],
+      { env, cwd: root, stdio: 'inherit' }
+    );
+    const annWanted = argv.ann !== false;
+    const stages = annWanted ? ['1', '3'] : ['1'];
+    for (const stage of stages) {
+      const buildResult = runBuildStage(stage);
+      if (buildResult.status !== 0) {
+        console.error(`Parity test failed: build index stage ${stage}`);
+        process.exit(buildResult.status ?? 1);
+      }
+    }
+  },
+  buildSqlite: async () => {
+    await runSqliteBuild(root);
   }
-  return path.join(dir, 'chunk_meta.json');
-}
+});
+const sqlitePaths = parityArtifacts.sqlitePaths || resolveSqlitePathsForRoot();
 
-function requireIndex(mode) {
-  const dir = resolveIndexDir(mode);
-  const metaPath = resolveChunkMetaPath(dir);
-  if (!fsSync.existsSync(metaPath)) {
-    console.error(`Missing ${metaPath}. Build the index first.`);
+for (const mode of ['code', 'prose']) {
+  const modeState = parityArtifacts.indexByMode[mode];
+  if (!modeState?.exists) {
+    const fallbackMetaPath = path.join(root, `index-${mode}`, 'chunk_meta.json');
+    console.error(`Missing ${modeState?.metaPath || fallbackMetaPath}. Build the index first.`);
     process.exit(1);
   }
 }
 
-async function ensureParityIndexes() {
-  if (!isTestRun) return;
-  const missingIndex = ['code', 'prose'].some((mode) => {
-    const dir = resolveIndexDir(mode);
-    const metaPath = resolveChunkMetaPath(dir);
-    return !fsSync.existsSync(metaPath);
-  });
-  const sqlitePaths = resolveSqlitePathsForRoot();
-  const missingSqlite = !fsSync.existsSync(sqlitePaths.codePath) || !fsSync.existsSync(sqlitePaths.prosePath);
-  if (!missingIndex && !missingSqlite) return;
-
-  const env = { ...process.env };
-  if (!env.PAIROFCLEATS_EMBEDDINGS) {
-    env.PAIROFCLEATS_EMBEDDINGS = 'stub';
-  }
-  process.env.PAIROFCLEATS_EMBEDDINGS = env.PAIROFCLEATS_EMBEDDINGS;
-
-  const runBuildStage = (stage) => spawnSync(
-    process.execPath,
-    [path.join(scriptRoot, 'build_index.js'), '--stage', stage, '--stub-embeddings', '--repo', root],
-    { env, cwd: root, stdio: 'inherit' }
-  );
-  const annWanted = argv.ann !== false;
-  const stages = annWanted ? ['1', '3'] : ['1'];
-  for (const stage of stages) {
-    const buildResult = runBuildStage(stage);
-    if (buildResult.status !== 0) {
-      console.error(`Parity test failed: build index stage ${stage}`);
-      process.exit(buildResult.status ?? 1);
-    }
-  }
-
-  await runSqliteBuild(root);
-}
-
-await ensureParityIndexes();
-const sqlitePaths = resolveSqlitePathsForRoot();
-
-requireIndex('code');
-requireIndex('prose');
-
-const missing = [];
-if (!fsSync.existsSync(sqlitePaths.codePath)) missing.push(`code=${sqlitePaths.codePath}`);
-if (!fsSync.existsSync(sqlitePaths.prosePath)) missing.push(`prose=${sqlitePaths.prosePath}`);
+const missing = parityArtifacts.missingSqliteEntries.map(
+  (entry) => `${entry.mode}=${entry.path || ''}`
+);
 if (missing.length) {
   console.error(`SQLite index not found (${missing.join(', ')}). Run "pairofcleats index build --stage 4" first.`);
   process.exit(1);
@@ -147,33 +122,19 @@ const fallbackQueries = [
   'cache'
 ];
 
-async function loadQueries(filePath) {
-  try {
-    const raw = await fs.readFile(filePath, 'utf8');
-    if (filePath.endsWith('.json')) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed.map(String).filter(Boolean);
-      if (Array.isArray(parsed.queries)) return parsed.queries.map(String).filter(Boolean);
-      return [];
-    }
-    return raw
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter((line) => line && !line.startsWith('#'));
-  } catch {
-    return [];
-  }
-}
-
-const loadedQueries = await loadQueries(queriesPath);
+const loadedQueries = await readQueryFileSafe(queriesPath, { allowJson: true, jsonMode: 'stringify' });
 const queries = loadedQueries.length ? loadedQueries : fallbackQueries;
 if (!loadedQueries.length) {
   console.warn(`Query file not found or empty; using fallback queries (${queries.length}).`);
 }
 
-const topN = Math.max(1, parseInt(argv.top, 10) || 5);
-const limit = Math.max(0, parseInt(argv.limit, 10) || 0);
-const selectedQueries = limit > 0 ? queries.slice(0, limit) : queries;
+const { topN, limit } = resolveTopNAndLimit({
+  top: argv.top,
+  limit: argv.limit,
+  defaultTop: 5,
+  defaultLimit: 0
+});
+const selectedQueries = selectQueriesByLimit(queries, limit);
 const annEnabled = argv.ann !== false;
 const annArg = annEnabled ? '--ann' : '--no-ann';
 const sqliteBackendRaw = String(argv['sqlite-backend'] || 'sqlite').toLowerCase();
@@ -183,44 +144,27 @@ if (!['sqlite', 'sqlite-fts', 'fts'].includes(sqliteBackendRaw)) {
 }
 const sqliteBackend = sqliteBackendRaw === 'fts' ? 'sqlite-fts' : sqliteBackendRaw;
 
-const formatDuration = (ms) => {
-  if (!Number.isFinite(ms) || ms <= 0) return '0ms';
-  if (ms < 1000) return `${Math.round(ms)}ms`;
-  const secs = ms / 1000;
-  if (secs < 60) return `${secs.toFixed(1)}s`;
-  const mins = Math.floor(secs / 60);
-  const rem = secs - (mins * 60);
-  return `${mins}m${rem.toFixed(0)}s`;
-};
-
 function runSearch(query, backend) {
-  const args = [
-    searchPath,
-    query,
-    '--json',
-    '--stats',
-    '--compact',
-    '--backend',
-    backend,
-    '-n',
-    String(topN),
-    annArg,
-    ...repoArgs
-  ];
-  const start = performance.now();
-  const result = spawnSync(process.execPath, args, {
-    encoding: 'utf8',
-    maxBuffer: 50 * 1024 * 1024
-  });
-  const wallMs = performance.now() - start;
-  if (result.status !== 0) {
+  try {
+    return runSearchCliWithSpawnSync({
+      query,
+      searchPath,
+      stats: true,
+      compact: true,
+      backend,
+      topN,
+      annArg,
+      repo: root,
+      maxBuffer: 50 * 1024 * 1024,
+      now: () => performance.now()
+    });
+  } catch (err) {
+    if (err?.code !== 'ERR_SEARCH_CLI_EXIT') throw err;
     console.error(`Search failed for backend=${backend} query="${query}"`);
-    if (result.error?.message) console.error(result.error.message.trim());
-    if (result.stderr) console.error(result.stderr.trim());
-    process.exit(result.status || 1);
+    if (err.spawnError?.message) console.error(String(err.spawnError.message).trim());
+    if (err.stderr) console.error(String(err.stderr).trim());
+    process.exit(err.exitCode || 1);
   }
-  const payload = JSON.parse(result.stdout);
-  return { payload, wallMs };
 }
 
 function hitKey(hit, index) {
@@ -297,18 +241,6 @@ function summarizeMatch(memoryHits, sqliteHits) {
   };
 }
 
-function mean(values) {
-  const nums = values.filter((v) => Number.isFinite(v));
-  if (!nums.length) return 0;
-  return nums.reduce((a, b) => a + b, 0) / nums.length;
-}
-
-function meanNullable(values) {
-  const nums = values.filter((v) => Number.isFinite(v));
-  if (!nums.length) return null;
-  return nums.reduce((a, b) => a + b, 0) / nums.length;
-}
-
 function toMb(bytes) {
   return bytes ? bytes / (1024 * 1024) : 0;
 }
@@ -345,9 +277,9 @@ for (const query of selectedQueries) {
   const queryElapsed = performance.now() - queryStart;
   console.log(
     `[parity] ${completed}/${totalQueries} (${Math.round((completed / totalQueries) * 100)}%) ` +
-    `query="${query}" last=${formatDuration(queryElapsed)} ` +
-    `mem=${formatDuration(memRun.wallMs)} sqlite=${formatDuration(sqlRun.wallMs)} ` +
-    `elapsed=${formatDuration(elapsed)} eta=${formatDuration(remaining)}`
+    `query="${query}" last=${formatParityDuration(queryElapsed)} ` +
+    `mem=${formatParityDuration(memRun.wallMs)} sqlite=${formatParityDuration(sqlRun.wallMs)} ` +
+    `elapsed=${formatParityDuration(elapsed)} eta=${formatParityDuration(remaining)}`
   );
 }
 

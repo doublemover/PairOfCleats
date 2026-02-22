@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import { runTreeSitterScheduler } from '../../../src/index/build/tree-sitter-scheduler/runner.js';
+import { getUnavailableNativeGrammars } from './native-availability.js';
 
 const toPosix = (value) => String(value || '').split(path.sep).join('/');
 
@@ -287,6 +288,16 @@ export async function runNativeLanguageContractSuite({
     abs: path.join(fixtureDir, fixture.file),
     containerPath: null
   }));
+  const requiredLanguages = Array.from(new Set(fixtures.map((fixture) => fixture.languageId)));
+  const { unavailable } = getUnavailableNativeGrammars(requiredLanguages);
+  if (unavailable.length) {
+    return {
+      fixturesCovered: 0,
+      grammarKeysCovered: 0,
+      skipped: true,
+      unavailable
+    };
+  }
 
   await fs.rm(testRoot, { recursive: true, force: true });
   await fs.mkdir(fixtureDir, { recursive: true });
@@ -400,6 +411,8 @@ export async function runNativeLanguageContractSuite({
 
   return {
     fixturesCovered: fixtures.length,
-    grammarKeysCovered: observedGrammarKeys.size
+    grammarKeysCovered: observedGrammarKeys.size,
+    skipped: false,
+    unavailable: []
   };
 }

@@ -13,6 +13,8 @@ import {
   resolveExpectedHash,
   verifyDownloadHash
 } from '../shared/download-utils.js';
+import { parseNameUrlSources } from '../shared/input-parsers.js';
+import { readJsonFileSafe, writeJsonFile } from '../shared/json-utils.js';
 
 const DEFAULT_MAX_DOWNLOAD_BYTES = 64 * 1024 * 1024;
 
@@ -38,12 +40,7 @@ await fs.mkdir(path.join(dictDir, 'slang'), { recursive: true });
 await fs.mkdir(path.join(dictDir, 'repos'), { recursive: true });
 
 const manifestPath = path.join(dictDir, 'dictionaries.json');
-let manifest = {};
-try {
-  manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8')) || {};
-} catch {
-  manifest = {};
-}
+let manifest = (await readJsonFileSafe(manifestPath, {})) || {};
 
 const hashOverrides = parseHashOverrides(argv.sha256);
 const downloadPolicy = resolveDownloadPolicy(userConfig, { defaultMaxBytes: DEFAULT_MAX_DOWNLOAD_BYTES });
@@ -55,26 +52,6 @@ const SOURCES = {
     file: 'en.txt'
   }
 };
-
-/**
- * Parse URL sources from name=url inputs.
- * @param {string|string[]|null} input
- * @returns {Array<{name:string,url:string,file:string}>}
- */
-function parseUrls(input, hashes = null) {
-  if (!input) return [];
-  const items = Array.isArray(input) ? input : [input];
-  const sources = [];
-  for (const item of items) {
-    const eq = item.indexOf('=');
-    if (eq <= 0 || eq >= item.length - 1) continue;
-    const name = item.slice(0, eq);
-    const url = item.slice(eq + 1);
-    const sha256 = hashes && hashes[name] ? hashes[name] : null;
-    sources.push({ name, url, file: `${name}.txt`, sha256 });
-  }
-  return sources;
-}
 
 const streamToFile = (stream, outputPath, { maxBytes, expectedHash, policy }) => new Promise((resolve, reject) => {
   let total = 0;
@@ -201,7 +178,10 @@ for (const lang of langs) {
   if (src) sources.push(src);
 }
 
-const urlSources = parseUrls(argv.url, hashOverrides);
+const urlSources = parseNameUrlSources(argv.url, {
+  hashes: hashOverrides,
+  fileNameFromName: (name) => `${name}.txt`
+});
 sources.push(...urlSources);
 
 if (!sources.length) {
@@ -219,7 +199,7 @@ for (const source of sources) {
   }
 }
 
-await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+await writeJsonFile(manifestPath, manifest, { trailingNewline: true });
 
 const downloaded = results.filter((r) => !r.skipped).length;
 const skipped = results.filter((r) => r.skipped).length;

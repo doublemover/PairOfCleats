@@ -17,8 +17,10 @@ import {
 } from '../filters.js';
 import { resolveSearchMode } from '../cli-args.js';
 import { getMissingFlagMessages, resolveBm25Defaults } from './options.js';
-import { normalizeOptionalNumber } from '../../shared/limits.js';
-import { getEnvConfig } from '../../shared/env.js';
+import { normalizeOptionalNumber, normalizePositiveInt } from '../../shared/limits.js';
+import { getEnvConfig, normalizeOptionalBoolean } from '../../shared/env.js';
+import { normalizeBooleanString } from '../../shared/boolean-normalization.js';
+import { normalizeDenseVectorMode } from '../../shared/dense-vector-mode.js';
 
 export const OP_CONFIG_GUARDRAIL_CODES = Object.freeze({
   ANN_CANDIDATE_BOUNDS_INVALID: 'op_guardrail_ann_candidate_bounds_invalid',
@@ -86,16 +88,6 @@ const validateOperationalGuardrails = ({
   }
 };
 
-const normalizeDenseVectorMode = (value) => {
-  if (typeof value !== 'string') return null;
-  const trimmed = value.trim().toLowerCase();
-  if (!trimmed) return null;
-  if (trimmed === 'merged' || trimmed === 'code' || trimmed === 'doc' || trimmed === 'auto') {
-    return trimmed;
-  }
-  return null;
-};
-
 const normalizeStorageTier = (value) => {
   if (typeof value !== 'string') return null;
   const normalized = value.trim().toLowerCase();
@@ -111,13 +103,11 @@ const normalizeQueryCacheStrategy = (value) => {
 };
 
 const normalizeBooleanOverride = (value) => {
-  if (typeof value === 'boolean') return value;
-  if (value == null) return null;
-  const normalized = String(value).trim().toLowerCase();
-  if (!normalized) return null;
-  if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
-  if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
-  return null;
+  return normalizeBooleanString(value, {
+    fallback: null,
+    nullish: null,
+    empty: null
+  });
 };
 
 /**
@@ -232,11 +222,6 @@ export function normalizeSearchOptions({
   const searchConfig = userConfig?.search || {};
   const retrievalConfig = userConfig?.retrieval || {};
   const envConfig = getEnvConfig();
-  const normalizePositiveInt = (value, fallback) => {
-    const parsed = normalizeOptionalNumber(value);
-    if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
-    return Math.max(1, Math.floor(parsed));
-  };
   const maxCandidates = normalizeOptionalNumber(searchConfig.maxCandidates);
   const annFlagPresent = rawArgs.includes('--ann') || rawArgs.includes('--no-ann');
   const policyAnn = policy?.retrieval?.ann?.enabled;
@@ -312,9 +297,8 @@ export function normalizeSearchOptions({
   const queryCacheStrategy = normalizeQueryCacheStrategy(
     envConfig.queryCacheStrategy || queryCacheConfig.strategy
   ) || (storageTier === 'fast' ? 'memory-first' : OP_RETRIEVAL_DEFAULTS.queryCacheStrategy);
-  const queryCachePrewarmOverride = normalizeBooleanOverride(
-    envConfig.queryCachePrewarm ?? queryCacheConfig.prewarm
-  );
+  const queryCachePrewarmOverride = normalizeOptionalBoolean(envConfig.queryCachePrewarm)
+    ?? normalizeBooleanOverride(queryCacheConfig.prewarm);
   const queryCachePrewarm = queryCachePrewarmOverride == null
     ? storageTier === 'fast'
     : queryCachePrewarmOverride;
@@ -332,10 +316,12 @@ export function normalizeSearchOptions({
     && typeof retrievalConfig.sqliteTailLatency === 'object'
     ? retrievalConfig.sqliteTailLatency
     : {};
-  const sqliteTailLatencyTuning = normalizeBooleanOverride(
-    envConfig.sqliteTailLatencyTuning
-      ?? sqliteTailLatencyConfig.enabled
-      ?? retrievalConfig.sqliteTailLatencyTuning
+  const sqliteTailLatencyTuning = (
+    normalizeOptionalBoolean(envConfig.sqliteTailLatencyTuning)
+    ?? normalizeBooleanOverride(
+      sqliteTailLatencyConfig.enabled
+        ?? retrievalConfig.sqliteTailLatencyTuning
+    )
   ) === true;
   const sqliteFtsOverfetchRowCapRaw = normalizeOptionalNumber(
     envConfig.sqliteFtsOverfetchRowCap
@@ -370,8 +356,9 @@ export function normalizeSearchOptions({
   ) {
     sqliteFtsOverfetch.chunkSize = sqliteFtsOverfetch.rowCap;
   }
-  const preferMemoryBackendOnCacheHit = normalizeBooleanOverride(
-    envConfig.preferMemoryBackendOnCacheHit ?? retrievalConfig.preferMemoryBackendOnCacheHit
+  const preferMemoryBackendOnCacheHit = (
+    normalizeOptionalBoolean(envConfig.preferMemoryBackendOnCacheHit)
+    ?? normalizeBooleanOverride(retrievalConfig.preferMemoryBackendOnCacheHit)
   ) === true;
   const sqliteReadPragmas = {
     storageTier,
@@ -469,7 +456,7 @@ export function normalizeSearchOptions({
 
   const explain = argv.explain === true || argv.why === true;
   const configDenseVectorRaw = userConfig?.search?.denseVectorMode;
-  const configDenseVectorMode = normalizeDenseVectorMode(configDenseVectorRaw) || 'merged';
+  const configDenseVectorMode = normalizeDenseVectorMode(configDenseVectorRaw, 'merged');
   const cliDenseVectorRaw = argv['dense-vector-mode'];
   const cliDenseVectorMode = cliDenseVectorRaw != null
     ? normalizeDenseVectorMode(cliDenseVectorRaw)

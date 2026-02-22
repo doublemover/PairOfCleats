@@ -4,21 +4,20 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { repoRoot } from '../../helpers/root.js';
+import { setupToolingInstallWorkspace } from '../../helpers/tooling-install-fixture.js';
 applyTestEnv();
-const root = repoRoot();
-const baseDir = path.join(root, '.testCache', 'uninstall');
-const repoDir = path.join(baseDir, 'repo');
-const cacheRoot = path.join(baseDir, 'cache');
+const {
+  root,
+  tempRoot: baseDir,
+  repoRoot: repoDir,
+  cacheRoot
+} = await setupToolingInstallWorkspace('uninstall');
 const dictDir = path.join(cacheRoot, 'dictionaries');
 const modelsDir = path.join(cacheRoot, 'models');
 const appDataRoot = path.join(baseDir, 'LocalAppData');
 const defaultCacheRoot = path.join(appDataRoot, 'PairOfCleats');
 const extensionsDir = path.join(defaultCacheRoot, 'extensions');
 
-await fsPromises.rm(baseDir, { recursive: true, force: true });
-await fsPromises.mkdir(repoDir, { recursive: true });
-await fsPromises.mkdir(cacheRoot, { recursive: true });
 await fsPromises.mkdir(dictDir, { recursive: true });
 await fsPromises.mkdir(modelsDir, { recursive: true });
 await fsPromises.mkdir(extensionsDir, { recursive: true });
@@ -36,7 +35,8 @@ await fsPromises.writeFile(path.join(modelsDir, 'model.bin'), 'model');
 await fsPromises.writeFile(path.join(extensionsDir, 'vec0.dll'), 'ext');
 
 const env = {
-  ...process.env,  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
+  ...process.env,
+  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
   LOCALAPPDATA: appDataRoot
 };
 

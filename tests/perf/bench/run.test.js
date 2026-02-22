@@ -6,6 +6,8 @@ import { fork, spawnSync } from 'node:child_process';
 import { createCli } from '../../../src/shared/cli.js';
 import { BENCH_OPTIONS, validateBenchArgs } from '../../../src/shared/cli-options.js';
 import { createDisplay } from '../../../src/shared/cli/display.js';
+import { buildSearchCliArgs } from '../../../tools/shared/search-cli-harness.js';
+import { readQueryFileSafe, resolveTopNAndLimit, selectQueriesByLimit } from '../../../tools/shared/query-file-utils.js';
 import { getIndexDir, getRuntimeConfig, loadUserConfig, resolveRuntimeEnv, resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';
 import { getEnvConfig } from '../../../src/shared/env.js';
 import { runWithConcurrency } from '../../../src/shared/concurrency.js';
@@ -13,6 +15,7 @@ import os from 'node:os';
 import { createSafeRegex, normalizeSafeRegexConfig } from '../../../src/shared/safe-regex.js';
 import { build as buildHistogram } from 'hdr-histogram-js';
 import { applyTestEnv, attachSilentLogging } from '../../helpers/test-env.js';
+import { formatBenchDuration as formatDuration, formatBenchDurationMs as formatDurationMs } from '../../helpers/duration-format.js';
 import { runSqliteBuild } from '../../helpers/sqlite-builder.js';
 
 applyTestEnv();
@@ -72,26 +75,18 @@ const queryWorkerPath = path.join(root, 'tests', 'perf', 'bench', 'query-worker.
 const defaultQueriesPath = path.join(root, 'tests', 'retrieval', 'parity', 'parity-queries.txt');
 const queriesPath = argv.queries ? path.resolve(argv.queries) : defaultQueriesPath;
 
-async function loadQueries(filePath) {
-  try {
-    const raw = await fs.readFile(filePath, 'utf8');
-    return raw
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter((line) => line && !line.startsWith('#'));
-  } catch {
-    return [];
-  }
-}
-
-const queries = await loadQueries(queriesPath);
+const queries = await readQueryFileSafe(queriesPath, { allowJson: false });
 if (!queries.length) {
   fatalExit(`No queries found at ${queriesPath}`);
 }
 
-const topN = Math.max(1, parseInt(argv.top, 10) || 5);
-const limit = Math.max(0, parseInt(argv.limit, 10) || 0);
-const selectedQueries = limit > 0 ? queries.slice(0, limit) : queries;
+const { topN, limit } = resolveTopNAndLimit({
+  top: argv.top,
+  limit: argv.limit,
+  defaultTop: 5,
+  defaultLimit: 0
+});
+const selectedQueries = selectQueriesByLimit(queries, limit);
 const annFlagPresent = rawArgs.includes('--ann') || rawArgs.includes('--no-ann');
 const annEnabled = annFlagPresent ? argv.ann === true : true;
 const annArg = annEnabled ? '--ann' : '--no-ann';
@@ -202,23 +197,22 @@ function formatQueryPreview(query, maxChars = 120) {
 }
 
 function buildSearchArgs(query, backend) {
-  const args = [
+  const extraArgs = [];
+  if (bm25K1Arg) extraArgs.push('--bm25-k1', String(bm25K1Arg));
+  if (bm25BArg) extraArgs.push('--bm25-b', String(bm25BArg));
+  if (ftsProfileArg) extraArgs.push('--fts-profile', String(ftsProfileArg));
+  if (ftsWeightsArg) extraArgs.push('--fts-weights', String(ftsWeightsArg));
+  return buildSearchCliArgs({
     query,
-    '--json',
-    '--json',
-    '--stats',
-    '--backend',
+    json: true,
+    jsonCount: 2,
+    stats: true,
     backend,
-    '-n',
-    String(topN),
-    annArg
-  ];
-  if (repoArg) args.push('--repo', repoArg);
-  if (bm25K1Arg) args.push('--bm25-k1', String(bm25K1Arg));
-  if (bm25BArg) args.push('--bm25-b', String(bm25BArg));
-  if (ftsProfileArg) args.push('--fts-profile', String(ftsProfileArg));
-  if (ftsWeightsArg) args.push('--fts-weights', String(ftsWeightsArg));
-  return args;
+    topN,
+    annArg,
+    repo: repoArg,
+    extraArgs
+  });
 }
 
 function createSearchWorker(label, env) {
@@ -355,22 +349,6 @@ function stripMaxOldSpaceFlag(options) {
 
 function formatGb(mb) {
   return `${(mb / 1024).toFixed(1)} GB`;
-}
-
-function formatDuration(ms) {
-  const total = Math.max(0, Math.floor(ms / 1000));
-  const hours = Math.floor(total / 3600);
-  const minutes = Math.floor((total % 3600) / 60);
-  const seconds = total % 60;
-  if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
-  if (minutes > 0) return `${minutes}m ${seconds}s`;
-  return `${seconds}s`;
-}
-
-function formatDurationMs(ms) {
-  if (!Number.isFinite(ms)) return 'n/a';
-  if (ms < 1000) return `${Math.max(0, Math.round(ms))}ms`;
-  return formatDuration(ms);
 }
 
 function formatRate(value, unit) {

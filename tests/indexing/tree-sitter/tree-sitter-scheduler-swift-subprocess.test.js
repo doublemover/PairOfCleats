@@ -5,6 +5,7 @@ import path from 'node:path';
 
 import { runTreeSitterScheduler } from '../../../src/index/build/tree-sitter-scheduler/runner.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { skipIfNativeGrammarsUnavailable } from './native-availability.js';
 
 applyTestEnv({ testing: '1' });
 
@@ -13,6 +14,9 @@ const outDir = path.join(root, '.testCache', 'tree-sitter-scheduler-swift', 'ind
 const swiftAbs = path.join(root, 'tests', 'fixtures', 'tree-sitter', 'swift.swift');
 
 const log = () => {};
+if (skipIfNativeGrammarsUnavailable(['swift'], 'tree-sitter scheduler swift subprocess')) {
+  process.exit(0);
+}
 
 await fs.rm(outDir, { recursive: true, force: true });
 await fs.mkdir(outDir, { recursive: true });

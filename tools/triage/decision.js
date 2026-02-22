@@ -6,6 +6,7 @@ import { getTriageConfig, resolveRepoConfig } from '../shared/dict-utils.js';
 import { buildRecordId } from '../../src/integrations/triage/record-utils.js';
 import { applyRoutingMeta } from '../../src/integrations/triage/normalize/helpers.js';
 import { renderRecordMarkdown } from '../../src/integrations/triage/render.js';
+import { parseMetaArgs } from '../shared/input-parsers.js';
 
 const argv = createCli({
   scriptName: 'triage-decision',
@@ -51,7 +52,7 @@ try {
   process.exit(1);
 }
 
-const meta = parseMeta(argv.meta);
+const meta = parseMetaArgs(argv.meta);
 const createdAt = new Date().toISOString();
 
 const decisionRecord = {
@@ -97,18 +98,6 @@ console.log(JSON.stringify({
   jsonPath,
   mdPath
 }, null, 2));
-
-function parseMeta(metaArg) {
-  const entries = Array.isArray(metaArg) ? metaArg : (metaArg ? [metaArg] : []);
-  const meta = {};
-  for (const entry of entries) {
-    const [rawKey, ...rest] = String(entry).split('=');
-    const key = rawKey.trim();
-    if (!key) continue;
-    meta[key] = rest.join('=').trim();
-  }
-  return meta;
-}
 
 function toArray(value) {
   if (!value) return [];

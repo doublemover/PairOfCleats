@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
-import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
-import { resolveRepoRootArg } from '../shared/dict-utils.js';
+import { normalizeBooleanString } from '../../src/shared/boolean-normalization.js';
+import { resolveRepoConfigPath, resolveRepoRootArg } from '../shared/dict-utils.js';
 import { emitJson } from '../shared/cli-utils.js';
 import { DEFAULT_USER_CONFIG_TEMPLATE } from './default-template.js';
 
@@ -17,19 +17,11 @@ const argv = createCli({
   }
 }).parse();
 
-const isTruthy = (value) => {
-  if (value == null) return false;
-  const normalized = String(value).trim().toLowerCase();
-  return ['1', 'true', 'yes', 'on'].includes(normalized);
-};
-
 const forceRequested = argv.force
-  || isTruthy(process.env.npm_config_force);
+  || normalizeBooleanString(process.env.npm_config_force, { fallback: false });
 
 const repoRoot = resolveRepoRootArg(argv.repo);
-const configPath = argv.config
-  ? path.resolve(argv.config)
-  : path.join(repoRoot, '.pairofcleats.json');
+const configPath = resolveRepoConfigPath(repoRoot, argv.config);
 const existing = fs.existsSync(configPath);
 const result = {
   ok: true,

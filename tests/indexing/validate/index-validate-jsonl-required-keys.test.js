@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { validateIndexArtifacts } from '../../../src/index/validate.js';
 import { createBaseIndex, defaultUserConfig } from './helpers.js';
+import { updatePiecesManifest } from '../../helpers/pieces-manifest.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'index-validate-jsonl-required');
@@ -15,16 +16,15 @@ const { repoRoot, indexRoot, indexDir } = await createBaseIndex({ rootDir: tempR
 await fs.rm(path.join(indexDir, 'chunk_meta.json'), { force: true });
 await fs.writeFile(path.join(indexDir, 'chunk_meta.jsonl'), '{"id":1,"start":0}\n');
 
-const manifestPath = path.join(indexDir, 'pieces', 'manifest.json');
-const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'));
-const chunkEntry = manifest.pieces.find((piece) => piece.name === 'chunk_meta');
-if (chunkEntry) {
-  chunkEntry.path = 'chunk_meta.jsonl';
-  chunkEntry.format = 'jsonl';
-} else {
-  manifest.pieces.push({ type: 'chunks', name: 'chunk_meta', format: 'jsonl', path: 'chunk_meta.jsonl' });
-}
-await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2));
+await updatePiecesManifest(indexDir, (manifest) => {
+  const chunkEntry = manifest.pieces.find((piece) => piece.name === 'chunk_meta');
+  if (chunkEntry) {
+    chunkEntry.path = 'chunk_meta.jsonl';
+    chunkEntry.format = 'jsonl';
+  } else {
+    manifest.pieces.push({ type: 'chunks', name: 'chunk_meta', format: 'jsonl', path: 'chunk_meta.jsonl' });
+  }
+});
 
 const report = await validateIndexArtifacts({
   root: repoRoot,

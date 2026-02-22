@@ -1,43 +1,43 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import yargs from 'yargs/yargs';
-import { hideBin } from 'yargs/helpers';
+import { createCli } from '../../../src/shared/cli.js';
 import { resolveXxhashBackend } from '../../../src/shared/hash/xxhash-backend.js';
 import { formatStats, summarizeDurations } from './utils.js';
 
-const argv = yargs(hideBin(process.argv))
-  .option('size', {
-    type: 'number',
-    describe: 'Payload size in bytes',
-    default: 1024 * 1024
-  })
-  .option('iterations', {
-    type: 'number',
-    describe: 'Total iterations per backend',
-    default: 2000
-  })
-  .option('samples', {
-    type: 'number',
-    describe: 'Sample buckets for timing stats',
-    default: 10
-  })
-  .option('warmup', {
-    type: 'number',
-    describe: 'Warmup iterations per backend',
-    default: 200
-  })
-  .option('json', {
-    type: 'boolean',
-    describe: 'Emit JSON output only',
-    default: false
-  })
-  .option('out', {
-    type: 'string',
-    describe: 'Write JSON results to a file'
-  })
-  .help()
-  .argv;
+const argv = createCli({
+  options: {
+    size: {
+      type: 'number',
+      describe: 'Payload size in bytes',
+      default: 1024 * 1024
+    },
+    iterations: {
+      type: 'number',
+      describe: 'Total iterations per backend',
+      default: 2000
+    },
+    samples: {
+      type: 'number',
+      describe: 'Sample buckets for timing stats',
+      default: 10
+    },
+    warmup: {
+      type: 'number',
+      describe: 'Warmup iterations per backend',
+      default: 200
+    },
+    json: {
+      type: 'boolean',
+      describe: 'Emit JSON output only',
+      default: false
+    },
+    out: {
+      type: 'string',
+      describe: 'Write JSON results to a file'
+    }
+  }
+}).parse();
 
 const size = Math.max(1, Math.floor(argv.size));
 const iterations = Math.max(1, Math.floor(argv.iterations));

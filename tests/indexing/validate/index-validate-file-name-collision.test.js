@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { validateIndexArtifacts } from '../../../src/index/validate.js';
 import { createBaseIndex, defaultUserConfig } from './helpers.js';
+import { updatePiecesManifest } from '../../helpers/pieces-manifest.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'index-validate-name-collision');
@@ -18,10 +19,9 @@ const repoMap = [
 ];
 await fs.writeFile(path.join(indexDir, 'repo_map.json'), JSON.stringify(repoMap, null, 2));
 
-const manifestPath = path.join(indexDir, 'pieces', 'manifest.json');
-const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'));
-manifest.pieces.push({ type: 'chunks', name: 'repo_map', format: 'json', path: 'repo_map.json' });
-await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2));
+await updatePiecesManifest(indexDir, (manifest) => {
+  manifest.pieces.push({ type: 'chunks', name: 'repo_map', format: 'json', path: 'repo_map.json' });
+});
 
 const report = await validateIndexArtifacts({
   root: repoRoot,

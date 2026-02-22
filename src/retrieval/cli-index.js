@@ -1,4 +1,3 @@
-import fsSync from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { buildLocalCacheKey } from '../shared/cache-key.js';
@@ -7,6 +6,7 @@ import { getIndexDir } from '../../tools/shared/dict-utils.js';
 import { buildFilterIndex, hydrateFilterIndex } from './filter-index.js';
 import { createError, ERROR_CODES } from '../shared/error-codes.js';
 import { buildIndexSignature } from './index-cache.js';
+import { probeFileSignature } from '../shared/file-signature.js';
 import {
   MAX_JSON_BYTES,
   loadChunkMeta,
@@ -16,81 +16,24 @@ import {
   loadJsonObjectArtifact,
   loadMinhashSignatures,
   loadPiecesManifest,
-  resolveArtifactPresence,
   resolveBinaryArtifactPath
 } from '../shared/artifact-io.js';
 import { loadHnswIndex, normalizeHnswConfig, resolveHnswPaths, resolveHnswTarget } from '../shared/hnsw.js';
-
-const hasFile = (targetPath) => (
-  fsSync.existsSync(targetPath)
-  || fsSync.existsSync(`${targetPath}.gz`)
-  || fsSync.existsSync(`${targetPath}.zst`)
-);
-
-const hasFileAsync = async (targetPath) => (
-  await pathExists(targetPath)
-  || await pathExists(`${targetPath}.gz`)
-  || await pathExists(`${targetPath}.zst`)
-);
+import {
+  hasChunkMetaArtifactsSync as hasChunkMetaArtifactsShared,
+  hasChunkMetaArtifactsAsync as hasChunkMetaArtifactsAsyncShared,
+  isOptionalArtifactMissingError,
+  isOptionalArtifactTooLargeError,
+  loadOptionalWithFallback,
+  iterateOptionalWithFallback
+} from '../shared/index-artifact-helpers.js';
 
 export function hasChunkMetaArtifacts(dir) {
-  if (!dir) return false;
-  const legacyCandidates = [
-    'chunk_meta.json',
-    'chunk_meta.jsonl',
-    'chunk_meta.meta.json',
-    'chunk_meta.columnar.json',
-    'chunk_meta.binary-columnar.meta.json'
-  ];
-  for (const relPath of legacyCandidates) {
-    if (hasFile(path.join(dir, relPath))) return true;
-  }
-  if (fsSync.existsSync(path.join(dir, 'chunk_meta.parts'))) return true;
-  try {
-    const manifest = loadPiecesManifest(dir, { maxBytes: MAX_JSON_BYTES, strict: true });
-    const presence = resolveArtifactPresence(dir, 'chunk_meta', {
-      manifest,
-      maxBytes: MAX_JSON_BYTES,
-      strict: false
-    });
-    if (!presence || presence.format === 'missing') return false;
-    if (presence.error) return false;
-    if (presence.missingMeta) return false;
-    if (Array.isArray(presence.missingPaths) && presence.missingPaths.length) return false;
-    return Array.isArray(presence.paths) && presence.paths.length > 0;
-  } catch {
-    return false;
-  }
+  return hasChunkMetaArtifactsShared(dir);
 }
 
 export async function hasChunkMetaArtifactsAsync(dir) {
-  if (!dir) return false;
-  const legacyCandidates = [
-    'chunk_meta.json',
-    'chunk_meta.jsonl',
-    'chunk_meta.meta.json',
-    'chunk_meta.columnar.json',
-    'chunk_meta.binary-columnar.meta.json'
-  ];
-  for (const relPath of legacyCandidates) {
-    if (await hasFileAsync(path.join(dir, relPath))) return true;
-  }
-  if (await pathExists(path.join(dir, 'chunk_meta.parts'))) return true;
-  try {
-    const manifest = loadPiecesManifest(dir, { maxBytes: MAX_JSON_BYTES, strict: true });
-    const presence = resolveArtifactPresence(dir, 'chunk_meta', {
-      manifest,
-      maxBytes: MAX_JSON_BYTES,
-      strict: false
-    });
-    if (!presence || presence.format === 'missing') return false;
-    if (presence.error) return false;
-    if (presence.missingMeta) return false;
-    if (Array.isArray(presence.missingPaths) && presence.missingPaths.length) return false;
-    return Array.isArray(presence.paths) && presence.paths.length > 0;
-  } catch {
-    return false;
-  }
+  return hasChunkMetaArtifactsAsyncShared(dir);
 }
 
 /**
@@ -119,72 +62,42 @@ export async function loadIndex(dir, options) {
   const includeTokenIndexResolved = includeFilterIndex ? true : includeTokenIndex;
   const hnswConfig = normalizeHnswConfig(rawHnswConfig || {});
   const manifest = loadPiecesManifest(dir, { maxBytes: MAX_JSON_BYTES, strict });
-  const isOptionalArtifactMissing = (err, artifactName) => {
-    const code = typeof err?.code === 'string' ? err.code : '';
-    if (code === 'ERR_MANIFEST_ENTRY_MISSING') return true;
-    if (code === 'ERR_MANIFEST_MISSING') return true;
-    if (code === 'ERR_ARTIFACT_PARTS_MISSING') return true;
-    const message = String(err?.message || '');
-    void artifactName;
-    return message.startsWith('Missing JSON artifact:')
-      || message.startsWith('Missing JSONL artifact:')
-      || message.startsWith('Missing manifest parts for');
+  const warnOptionalTooLarge = (name, err) => {
+    console.warn(
+      `[search] Skipping ${name}: ${err.message} Use sqlite backend for large repos.`
+    );
   };
-  const loadOptionalObject = async (name) => {
-    try {
-      return await loadJsonObjectArtifact(dir, name, {
+  const loadOptionalObject = (name) => (
+    loadOptionalWithFallback(
+      () => loadJsonObjectArtifact(dir, name, {
         maxBytes: MAX_JSON_BYTES,
         manifest,
         strict
-      });
-    } catch (err) {
-      if (err?.code === 'ERR_JSON_TOO_LARGE') {
-        console.warn(
-          `[search] Skipping ${name}: ${err.message} Use sqlite backend for large repos.`
-        );
-        return null;
-      }
-      if (isOptionalArtifactMissing(err, name)) return null;
-      throw err;
-    }
-  };
-  const loadOptionalArray = async (baseName) => {
-    try {
-      return await loadJsonArrayArtifact(dir, baseName, { maxBytes: MAX_JSON_BYTES, manifest, strict });
-    } catch (err) {
-      if (err?.code === 'ERR_JSON_TOO_LARGE') {
-        console.warn(
-          `[search] Skipping ${baseName}: ${err.message} Use sqlite backend for large repos.`
-        );
-        return null;
-      }
-      if (isOptionalArtifactMissing(err, baseName)) return null;
-      throw err;
-    }
-  };
-  const loadOptionalRows = (baseName, options = {}) => (async function* () {
-    try {
-      for await (const row of loadJsonArrayArtifactRows(dir, baseName, {
+      }),
+      { name, onTooLarge: warnOptionalTooLarge }
+    )
+  );
+  const loadOptionalArray = (baseName) => (
+    loadOptionalWithFallback(
+      () => loadJsonArrayArtifact(dir, baseName, {
+        maxBytes: MAX_JSON_BYTES,
+        manifest,
+        strict
+      }),
+      { name: baseName, onTooLarge: warnOptionalTooLarge }
+    )
+  );
+  const loadOptionalRows = (baseName, options = {}) => (
+    iterateOptionalWithFallback(
+      () => loadJsonArrayArtifactRows(dir, baseName, {
         maxBytes: MAX_JSON_BYTES,
         manifest,
         strict,
         ...options
-      })) {
-        yield row;
-      }
-    } catch (err) {
-      if (isOptionalArtifactMissing(err, baseName)) {
-        return;
-      }
-      if (err?.code === 'ERR_JSON_TOO_LARGE') {
-        console.warn(
-          `[search] Skipping ${baseName}: ${err.message} Use sqlite backend for large repos.`
-        );
-        return;
-      }
-      throw err;
-    }
-  })();
+      }),
+      { name: baseName, onTooLarge: warnOptionalTooLarge }
+    )
+  );
   const loadOptionalDenseBinary = async (artifactName, baseName) => {
     const meta = await loadOptionalObject(`${artifactName}_binary_meta`);
     if (!meta || typeof meta !== 'object') return null;
@@ -393,9 +306,9 @@ export async function loadIndex(dir, options) {
     } catch (err) {
       const message = String(err?.message || '');
       const missingOptional = !strict && (
-        err?.code === 'ERR_MANIFEST_MISSING'
+        isOptionalArtifactMissingError(err)
         || err?.code === 'ERR_MANIFEST_INVALID'
-        || err?.code === 'ERR_JSON_TOO_LARGE'
+        || isOptionalArtifactTooLargeError(err)
         || /Missing manifest entry for token_postings/i.test(message)
       );
       if (!missingOptional) throw err;
@@ -496,35 +409,9 @@ export async function getIndexSignature(options) {
     explicitRef = false,
     asOfContext = null
   } = options;
-  const safeStat = async (targetPath) => {
-    try {
-      return await fsSync.promises.stat(targetPath);
-    } catch {
-      return null;
-    }
-  };
-  const fileSignature = async (filePath) => {
-    try {
-      if (!filePath) return null;
-      let statPath = path.resolve(filePath);
-      let stat = await safeStat(statPath);
-      if (!stat && statPath.endsWith('.json')) {
-        const zstPath = path.resolve(`${filePath}.zst`);
-        stat = await safeStat(zstPath);
-        if (stat) {
-          statPath = zstPath;
-        } else {
-          const gzPath = path.resolve(`${filePath}.gz`);
-          stat = await safeStat(gzPath);
-          if (stat) statPath = gzPath;
-        }
-      }
-      if (!stat) return null;
-      return `${stat.size}:${stat.mtimeMs}`;
-    } catch {
-      return null;
-    }
-  };
+  const fileSignature = async (filePath) => (
+    probeFileSignature(filePath, { compressedSiblings: 'json', format: 'legacy' })
+  );
   const resolveOptions = {
     indexDirByMode,
     indexBaseRootByMode,

@@ -3,8 +3,8 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig, resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';
+import { runNode } from '../../helpers/run-node.js';
 import { runSqliteBuild } from '../../helpers/sqlite-builder.js';
 
 const root = process.cwd();
@@ -20,26 +20,12 @@ const cacheRoot = path.join(root, '.testCache', 'fixture-empty');
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 
-const env = {
-  ...process.env,  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
-};
-applyTestEnv();
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
+const env = applyTestEnv({
+  cacheRoot,
+  embeddings: 'stub'
+});
 
-function run(args, label) {
-  const result = spawnSync(process.execPath, args, {
-    cwd: fixtureRoot,
-    env,
-    stdio: 'inherit'
-  });
-  if (result.status !== 0) {
-    console.error(`Failed: ${label}`);
-    process.exit(result.status ?? 1);
-  }
-}
-
-run([buildIndexPath, '--stub-embeddings', '--repo', fixtureRoot], 'build index (empty)');
+runNode([buildIndexPath, '--stub-embeddings', '--repo', fixtureRoot], 'build index (empty)', fixtureRoot, env);
 await runSqliteBuild(fixtureRoot);
 
 const userConfig = loadUserConfig(fixtureRoot);
@@ -74,4 +60,3 @@ if (!fs.existsSync(sqlitePaths.prosePath)) {
 }
 
 console.log('Empty fixture indexing test passed');
-

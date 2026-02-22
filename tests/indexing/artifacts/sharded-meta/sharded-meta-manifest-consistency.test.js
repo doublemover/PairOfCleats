@@ -5,6 +5,7 @@ import path from 'node:path';
 import { createChunkMetaIterator, enqueueChunkMetaArtifacts } from '../../../../src/index/build/artifacts/writers/chunk-meta.js';
 import { writePiecesManifest } from '../../../../src/index/build/artifacts/checksums.js';
 import { toPosix } from '../../../../src/shared/files.js';
+import { loadPiecesManifestPieces } from '../../../helpers/pieces-manifest.js';
 
 const root = process.cwd();
 const cacheRoot = path.join(root, '.testCache', 'sharded-meta-manifest');
@@ -65,10 +66,7 @@ await writePiecesManifest({
 
 const metaPath = path.join(outDir, 'chunk_meta.meta.json');
 const meta = JSON.parse(await fs.readFile(metaPath, 'utf8'));
-const manifestPath = path.join(outDir, 'pieces', 'manifest.json');
-const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'));
-const manifestFields = manifest.fields && typeof manifest.fields === 'object' ? manifest.fields : manifest;
-const pieces = Array.isArray(manifestFields.pieces) ? manifestFields.pieces : [];
+const pieces = loadPiecesManifestPieces(outDir);
 
 const hasMeta = pieces.some((piece) => piece?.name === 'chunk_meta_meta' && piece?.path === 'chunk_meta.meta.json');
 assert.ok(hasMeta, 'expected chunk_meta.meta.json to be listed in pieces manifest');

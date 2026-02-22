@@ -1,20 +1,18 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import yargs from 'yargs/yargs';
-import { hideBin } from 'yargs/helpers';
+import { createCli } from '../../src/shared/cli.js';
 import { buildArtifactSchemaIndex } from '../../src/shared/artifact-schema-index.js';
 
-const parseArgs = () => {
-  const parser = yargs(hideBin(process.argv))
-    .scriptName('pairofcleats artifact-schema-index')
-    .option('root', { type: 'string' })
-    .option('out', { type: 'string', default: 'docs/contracts/artifact-schema-index.json' })
-    .help()
-    .alias('h', 'help')
-    .strictOptions();
-  return parser.parse();
-};
+const parseArgs = () => createCli({
+  scriptName: 'pairofcleats artifact-schema-index',
+  options: {
+    root: { type: 'string' },
+    out: { type: 'string', default: 'docs/contracts/artifact-schema-index.json' }
+  }
+})
+  .strictOptions()
+  .parse();
 
 const main = async () => {
   const argv = parseArgs();

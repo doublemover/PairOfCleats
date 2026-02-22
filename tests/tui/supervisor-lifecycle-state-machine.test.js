@@ -1,49 +1,14 @@
 #!/usr/bin/env node
 import { ensureTestingEnv } from '../helpers/test-env.js';
+import { createSupervisorSession } from '../helpers/supervisor-session.js';
 import assert from 'node:assert/strict';
-import path from 'node:path';
-import { spawn } from 'node:child_process';
 
 ensureTestingEnv(process.env);
 
-const root = process.cwd();
-const supervisorPath = path.join(root, 'tools', 'tui', 'supervisor.js');
-
-const child = spawn(process.execPath, [supervisorPath], {
-  cwd: root,
-  stdio: ['pipe', 'pipe', 'pipe']
-});
-child.stderr.on('data', () => {});
-
-const events = [];
-let carry = '';
-child.stdout.on('data', (chunk) => {
-  const text = `${carry}${String(chunk)}`.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-  const parts = text.split('\n');
-  carry = parts.pop() || '';
-  for (const line of parts) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-    events.push(JSON.parse(trimmed));
-  }
-});
-
-const waitFor = async (predicate, timeoutMs = 8000) => {
-  const started = Date.now();
-  while (Date.now() - started < timeoutMs) {
-    const found = events.find(predicate);
-    if (found) return found;
-    await new Promise((resolve) => setTimeout(resolve, 20));
-  }
-  throw new Error('timeout waiting for supervisor event');
-};
-
-const send = (payload) => {
-  child.stdin.write(`${JSON.stringify({ proto: 'poc.tui@1', ...payload })}\n`);
-};
+const { events, waitForEvent, send, shutdown, forceKill } = createSupervisorSession();
 
 try {
-  await waitFor((event) => event.event === 'hello');
+  await waitForEvent((event) => event.event === 'hello');
 
   const jobId = 'job-lifecycle-1';
   send({
@@ -53,10 +18,10 @@ try {
     argv: ['search', '--help']
   });
 
-  const start = await waitFor((event) => event.event === 'job:start' && event.jobId === jobId);
-  const spawnEvent = await waitFor((event) => event.event === 'job:spawn' && event.jobId === jobId);
-  const end = await waitFor((event) => event.event === 'job:end' && event.jobId === jobId);
-  await waitFor((event) => event.event === 'job:artifacts' && event.jobId === jobId);
+  const start = await waitForEvent((event) => event.event === 'job:start' && event.jobId === jobId);
+  const spawnEvent = await waitForEvent((event) => event.event === 'job:spawn' && event.jobId === jobId);
+  const end = await waitForEvent((event) => event.event === 'job:end' && event.jobId === jobId);
+  await waitForEvent((event) => event.event === 'job:artifacts' && event.jobId === jobId);
 
   assert.equal(start.jobId, jobId);
   assert.equal(spawnEvent.jobId, jobId);
@@ -74,13 +39,13 @@ try {
     title: 'Lifecycle Reuse',
     argv: ['search', '--help']
   });
-  const secondStart = await waitFor((event) => (
+  const secondStart = await waitForEvent((event) => (
     event.event === 'job:start'
     && event.jobId === jobId
     && event.title === 'Lifecycle Reuse'
   ));
   const secondStartIndex = events.indexOf(secondStart);
-  const secondEnd = await waitFor((event) => (
+  const secondEnd = await waitForEvent((event) => (
     event.event === 'job:end'
     && event.jobId === jobId
     && events.indexOf(event) > secondStartIndex
@@ -94,12 +59,11 @@ try {
   ));
   assert.equal(duplicateIdErrors.length, 0, 'completed job IDs should be reusable');
 
-  send({ op: 'shutdown', reason: 'test_complete' });
-  await new Promise((resolve) => child.once('exit', resolve));
+  await shutdown();
 
   console.log('supervisor lifecycle state machine test passed');
 } catch (error) {
-  try { child.kill('SIGKILL'); } catch {}
+  forceKill();
   console.error(error?.message || error);
   process.exit(1);
 }

@@ -4,8 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { normalizePathForRepo } from '../../../src/shared/path-normalize.js';
-
-const toPosix = (value) => String(value || '').replace(/\\/g, '/');
+import { toPosix } from '../../../src/shared/files.js';
 
 const normalizeCoveragePath = (urlOrPath, root) => {
   if (!urlOrPath) return null;

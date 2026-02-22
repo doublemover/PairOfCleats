@@ -2,8 +2,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import yargs from 'yargs/yargs';
-import { hideBin } from 'yargs/helpers';
+import { createCli } from '../../src/shared/cli.js';
 import { spawnSubprocess } from '../../src/shared/subprocess.js';
 import { getRuntimeConfig, loadUserConfig, resolveRuntimeEnv } from '../shared/dict-utils.js';
 import { USR_GUARDRAIL_GATES, validateUsrGuardrailGates } from './usr/guardrails.js';
@@ -17,21 +16,20 @@ const DEFAULT_CACHE_ROOT = path.join(ROOT, '.ci-cache', 'pairofcleats');
 const npmCommand = process.platform === 'win32' ? 'cmd' : 'npm';
 const npmPrefix = process.platform === 'win32' ? ['/c', 'npm'] : [];
 
-const parseArgs = () => {
-  const parser = yargs(hideBin(process.argv))
-    .scriptName('pairofcleats ci-suite')
-    .option('mode', { type: 'string', default: 'ci', choices: ['ci', 'nightly'] })
-    .option('lane', { type: 'string', default: '' })
-    .option('skip-prechecks', { type: 'boolean', default: false })
-    .option('dry-run', { type: 'boolean', default: false })
-    .option('junit', { type: 'string', default: DEFAULT_JUNIT })
-    .option('diagnostics', { type: 'string', default: DEFAULT_DIAGNOSTICS })
-    .option('log-dir', { type: 'string', default: DEFAULT_LOG_DIR })
-    .help()
-    .alias('h', 'help')
-    .strictOptions();
-  return parser.parse();
-};
+const parseArgs = () => createCli({
+  scriptName: 'pairofcleats ci-suite',
+  options: {
+    mode: { type: 'string', default: 'ci', choices: ['ci', 'nightly'] },
+    lane: { type: 'string', default: '' },
+    'skip-prechecks': { type: 'boolean', default: false },
+    'dry-run': { type: 'boolean', default: false },
+    junit: { type: 'string', default: DEFAULT_JUNIT },
+    diagnostics: { type: 'string', default: DEFAULT_DIAGNOSTICS },
+    'log-dir': { type: 'string', default: DEFAULT_LOG_DIR }
+  }
+})
+  .strictOptions()
+  .parse();
 
 const isCi = () => Boolean(process.env.CI || process.env.GITHUB_ACTIONS);
 

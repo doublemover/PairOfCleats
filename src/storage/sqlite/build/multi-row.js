@@ -1,9 +1,6 @@
-const DEFAULT_SQLITE_MAX_VARIABLES = 999;
+import { clampInt } from '../../../shared/limits.js';
 
-const clampInt = (value, min, max) => {
-  if (!Number.isFinite(value)) return min;
-  return Math.min(max, Math.max(min, Math.floor(value)));
-};
+const DEFAULT_SQLITE_MAX_VARIABLES = 999;
 
 const normalizeInsertClause = (value) => {
   const normalized = typeof value === 'string' ? value.trim().toUpperCase() : '';

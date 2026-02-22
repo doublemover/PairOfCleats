@@ -7,6 +7,7 @@ import { getStatus } from '../../src/integrations/core/status.js';
 import { validateIndexArtifacts } from '../../src/index/validate.js';
 import { loadJsonArrayArtifactRows } from '../../src/shared/artifact-io/loaders.js';
 import { getMetricsDir, resolveRepoConfig } from '../shared/dict-utils.js';
+import { readJsonFileSyncSafe } from '../shared/json-utils.js';
 
 const argv = createCli({
   scriptName: 'report-artifacts',
@@ -22,12 +23,7 @@ const metricsDir = getMetricsDir(root, userConfig);
 const status = await getStatus({ repoRoot: root, includeAll: argv.all });
 
 const readJson = (targetPath) => {
-  if (!fs.existsSync(targetPath)) return null;
-  try {
-    return JSON.parse(fs.readFileSync(targetPath, 'utf8'));
-  } catch {
-    return null;
-  }
+  return readJsonFileSyncSafe(targetPath, null);
 };
 
 const indexMetrics = {

@@ -5,6 +5,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { applyTestEnv, syncProcessEnv } from '../../helpers/test-env.js';
+import { loadPiecesManifestPieces, resolvePiecesManifestPath } from '../../helpers/pieces-manifest.js';
 applyTestEnv();
 
 const root = process.cwd();
@@ -35,21 +36,19 @@ run([path.join(root, 'tools', 'build/embeddings.js'), '--stub-embeddings', '--re
 
 const userConfig = loadUserConfig(fixtureRoot);
 const codeDir = getIndexDir(fixtureRoot, 'code', userConfig);
-const manifestPath = path.join(codeDir, 'pieces', 'manifest.json');
+const manifestPath = resolvePiecesManifestPath(codeDir);
 if (!fs.existsSync(manifestPath)) {
   console.error(`Missing pieces manifest at ${manifestPath}`);
   process.exit(1);
 }
 
-let manifestRaw;
+let pieces;
 try {
-  manifestRaw = JSON.parse(await fsPromises.readFile(manifestPath, 'utf8'));
+  pieces = loadPiecesManifestPieces(codeDir);
 } catch {
   console.error('Failed to parse pieces manifest JSON.');
   process.exit(1);
 }
-const manifest = manifestRaw?.fields && typeof manifestRaw.fields === 'object' ? manifestRaw.fields : manifestRaw;
-const pieces = Array.isArray(manifest?.pieces) ? manifest.pieces : [];
 const byName = new Map();
 for (const entry of pieces) {
   if (entry && typeof entry.name === 'string') {

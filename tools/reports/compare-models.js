@@ -3,22 +3,23 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { spawnSubprocessSync } from '../../src/shared/subprocess.js';
 import { createCli } from '../../src/shared/cli.js';
 import { getEnvConfig } from '../../src/shared/env.js';
 import { normalizeEmbeddingProvider, normalizeOnnxConfig, resolveOnnxModelPath } from '../../src/shared/onnx-embeddings.js';
 import { isAbsolutePathNative } from '../../src/shared/files.js';
 import { resolveVersionedCacheRoot } from '../../src/shared/cache-roots.js';
 import { resolveAnnSetting, resolveBaseline, resolveCompareModels } from '../../src/experimental/compare/config.js';
+import { readQueryFileSafe, resolveTopNAndLimit, selectQueriesByLimit } from '../shared/query-file-utils.js';
+import { runSearchCliWithSubprocessSync } from '../shared/search-cli-harness.js';
+import { mean, meanNullable } from '../shared/stats-utils.js';
+import { runSubprocessOrExit } from '../shared/cli-utils.js';
 import {
   DEFAULT_MODEL_ID,
+  bootstrapRuntime,
   getCacheRoot,
   getDictConfig,
   getModelConfig,
   getRepoId,
-  getRuntimeConfig,
-  resolveRepoConfig,
-  resolveRuntimeEnv,
   resolveSqlitePaths,
   resolveToolRoot
 } from '../shared/dict-utils.js';
@@ -49,11 +50,9 @@ const argv = createCli({
   aliases: { n: 'top', q: 'queries' }
 }).parse();
 
-const { repoRoot: root, userConfig } = resolveRepoConfig(argv.repo);
+const { repoRoot: root, userConfig, runtimeEnv: baseEnv } = bootstrapRuntime(argv.repo);
 const scriptRoot = resolveToolRoot();
 const envConfig = getEnvConfig();
-const runtimeConfig = getRuntimeConfig(root, userConfig);
-const baseEnv = resolveRuntimeEnv(runtimeConfig, process.env);
 const embeddingsConfig = userConfig.indexing?.embeddings || {};
 const embeddingProvider = normalizeEmbeddingProvider(embeddingsConfig.provider, { strict: true });
 const embeddingOnnx = normalizeOnnxConfig(embeddingsConfig.onnx || {});
@@ -244,15 +243,13 @@ function ensureIndex(modelCacheRoot) {
  */
 function runCommand(args, env, label) {
   const stdio = argv.json ? ['ignore', 'ignore', 'ignore'] : 'inherit';
-  const result = spawnSubprocessSync(process.execPath, args, {
+  runSubprocessOrExit({
+    command: process.execPath,
+    args,
+    label,
     env,
-    stdio,
-    rejectOnNonZeroExit: false
+    stdio
   });
-  if (result.exitCode !== 0) {
-    console.error(`Failed: ${label}`);
-    process.exit(result.exitCode ?? 1);
-  }
 }
 
 /**
@@ -262,60 +259,25 @@ function runCommand(args, env, label) {
  * @returns {{payload:object,wallMs:number}}
  */
 function runSearch(query, env) {
-  const args = [
-    path.join(scriptRoot, 'search.js'),
-    query,
-    '--json',
-    '--stats',
-    '--backend',
-    backend,
-    '-n',
-    String(topN),
-    annArg,
-    '--repo',
-    root
-  ];
-  if (modeArg && modeArg !== 'both') {
-    args.push('--mode', modeArg);
-  }
-  const start = Date.now();
-  const result = spawnSubprocessSync(process.execPath, args, {
-    env,
-    captureStdout: true,
-    captureStderr: true,
-    outputMode: 'string',
-    rejectOnNonZeroExit: false
-  });
-  const wallMs = Date.now() - start;
-  if (result.exitCode !== 0) {
-    console.error(`Search failed for query="${query}" (model=${resolveModelLabel(env)})`);
-    if (result.stderr) console.error(String(result.stderr).trim());
-    process.exit(result.exitCode ?? 1);
-  }
-  const payload = JSON.parse(result.stdout || '{}');
-  return { payload, wallMs };
-}
-
-/**
- * Load queries from a text or JSON file.
- * @param {string} filePath
- * @returns {Promise<string[]>}
- */
-async function loadQueries(filePath) {
   try {
-    const raw = await fsPromises.readFile(filePath, 'utf8');
-    if (filePath.endsWith('.json')) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed.map(String).filter(Boolean);
-      if (Array.isArray(parsed.queries)) return parsed.queries.map(String).filter(Boolean);
-      return [];
-    }
-    return raw
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter((line) => line && !line.startsWith('#'));
-  } catch {
-    return [];
+    return runSearchCliWithSubprocessSync({
+      query,
+      searchPath: path.join(scriptRoot, 'search.js'),
+      stats: true,
+      backend,
+      topN,
+      annArg,
+      repo: root,
+      mode: modeArg && modeArg !== 'both' ? modeArg : null,
+      env,
+      now: Date.now,
+      jsonFallback: '{}'
+    });
+  } catch (err) {
+    if (err?.code !== 'ERR_SEARCH_CLI_EXIT') throw err;
+    console.error(`Search failed for query="${query}" (model=${resolveModelLabel(env)})`);
+    if (err.stderr) console.error(String(err.stderr).trim());
+    process.exit(err.exitCode ?? 1);
   }
 }
 
@@ -326,15 +288,19 @@ const defaultQueryCandidates = [
 ];
 const defaultQueriesPath = defaultQueryCandidates.find((candidate) => fs.existsSync(candidate)) || defaultQueryCandidates[0];
 const queriesPath = argv.queries ? path.resolve(argv.queries) : defaultQueriesPath;
-const queries = await loadQueries(queriesPath);
+const queries = await readQueryFileSafe(queriesPath, { allowJson: true, jsonMode: 'stringify' });
 if (!queries.length) {
   console.error(`No queries found at ${queriesPath}`);
   process.exit(1);
 }
 
-const topN = Math.max(1, parseInt(argv.top, 10) || 5);
-const limit = Math.max(0, parseInt(argv.limit, 10) || 0);
-const selectedQueries = limit > 0 ? queries.slice(0, limit) : queries;
+const { topN, limit } = resolveTopNAndLimit({
+  top: argv.top,
+  limit: argv.limit,
+  defaultTop: 5,
+  defaultLimit: 0
+});
+const selectedQueries = selectQueriesByLimit(queries, limit);
 
 if (sqliteBackend && buildSqlite) {
   if (!buildIndex && !ensureIndex(getModelCacheRoot(models[0]))) {
@@ -453,28 +419,6 @@ function compareHits(baseHits, otherHits) {
 
   const top1Same = baseKeys[0] && otherKeys[0] ? baseKeys[0] === otherKeys[0] : false;
   return { overlap, avgDelta, rankCorr, top1Same };
-}
-
-/**
- * Compute mean of numeric values.
- * @param {number[]} values
- * @returns {number}
- */
-function mean(values) {
-  const nums = values.filter((v) => Number.isFinite(v));
-  if (!nums.length) return 0;
-  return nums.reduce((a, b) => a + b, 0) / nums.length;
-}
-
-/**
- * Compute mean of numeric values; return null if none.
- * @param {number[]} values
- * @returns {number|null}
- */
-function meanNullable(values) {
-  const nums = values.filter((v) => Number.isFinite(v));
-  if (!nums.length) return null;
-  return nums.reduce((a, b) => a + b, 0) / nums.length;
 }
 
 for (const entry of results) {

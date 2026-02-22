@@ -19,6 +19,13 @@ const warnedNonStrictFallback = new Set();
 const warnedUnsafePaths = new Set();
 const manifestPieceIndexCache = new WeakMap();
 
+export const CHUNK_META_PARTS_DIR = 'chunk_meta.parts';
+export const CHUNK_META_PART_PREFIX = 'chunk_meta.part-';
+export const CHUNK_META_PART_EXTENSIONS = ['.jsonl', '.jsonl.gz', '.jsonl.zst'];
+export const TOKEN_POSTINGS_SHARDS_DIR = 'token_postings.shards';
+export const TOKEN_POSTINGS_PART_PREFIX = 'token_postings.part-';
+export const TOKEN_POSTINGS_PART_EXTENSIONS = ['.json', '.json.gz', '.json.zst'];
+
 const normalizeManifest = (raw) => {
   if (!raw || typeof raw !== 'object') return null;
   const source = raw.fields && typeof raw.fields === 'object' ? raw.fields : raw;
@@ -405,6 +412,87 @@ export const normalizeMetaParts = (parts) => {
       return null;
     })
     .filter(Boolean);
+};
+
+export const expandMetaPartPaths = (parts, baseDir) => {
+  if (!baseDir || typeof baseDir !== 'string') return [];
+  const entries = normalizeMetaParts(parts);
+  if (!entries.length) return [];
+  return entries.map((part) => path.join(baseDir, fromPosix(part)));
+};
+
+export const expandChunkMetaParts = (metaFields, baseDir) => (
+  expandMetaPartPaths(metaFields?.parts, baseDir)
+);
+
+export const listShardFiles = (dir, prefix, extensions = ['.json', '.jsonl']) => {
+  if (!dir || typeof dir !== 'string' || !fs.existsSync(dir)) return [];
+  const allowed = Array.isArray(extensions) && extensions.length
+    ? extensions
+    : ['.json', '.jsonl'];
+  return fs
+    .readdirSync(dir)
+    .filter((name) => name.startsWith(prefix) && allowed.some((ext) => name.endsWith(ext)))
+    .sort()
+    .map((name) => path.join(dir, name));
+};
+
+export const locateChunkMetaShards = (
+  dir,
+  {
+    metaPath = null,
+    partsDir = null,
+    metaFields = null,
+    maxBytes = MAX_JSON_BYTES
+  } = {}
+) => {
+  if (!dir || typeof dir !== 'string') {
+    return {
+      parts: [],
+      metaPath: null,
+      partsDir: null,
+      meta: null,
+      missing: [],
+      source: null
+    };
+  }
+  const resolvedMetaPath = typeof metaPath === 'string' && metaPath
+    ? metaPath
+    : path.join(dir, 'chunk_meta.meta.json');
+  const resolvedPartsDir = typeof partsDir === 'string' && partsDir
+    ? partsDir
+    : path.join(dir, CHUNK_META_PARTS_DIR);
+  let meta = metaFields?.fields && typeof metaFields.fields === 'object'
+    ? metaFields.fields
+    : metaFields;
+  if (!meta && fs.existsSync(resolvedMetaPath)) {
+    const metaRaw = readJsonFile(resolvedMetaPath, { maxBytes });
+    meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
+  }
+  const metaPartNames = normalizeMetaParts(meta?.parts);
+  const metaParts = expandChunkMetaParts(meta, dir);
+  if (metaParts.length) {
+    const missing = metaParts
+      .map((candidate, index) => ({ candidate, relPath: metaPartNames[index] || null }))
+      .filter((entry) => !fs.existsSync(entry.candidate))
+      .map((entry) => entry.relPath || entry.candidate);
+    return {
+      parts: metaParts,
+      metaPath: fs.existsSync(resolvedMetaPath) ? resolvedMetaPath : null,
+      partsDir: resolvedPartsDir,
+      meta: meta || null,
+      missing,
+      source: 'meta'
+    };
+  }
+  return {
+    parts: listShardFiles(resolvedPartsDir, CHUNK_META_PART_PREFIX, CHUNK_META_PART_EXTENSIONS),
+    metaPath: fs.existsSync(resolvedMetaPath) ? resolvedMetaPath : null,
+    partsDir: resolvedPartsDir,
+    meta: meta || null,
+    missing: [],
+    source: 'directory'
+  };
 };
 
 export const resolveMetaFormat = (meta, fallback) => {

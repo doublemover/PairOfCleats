@@ -1,77 +1,24 @@
-import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createCli } from '../../shared/cli.js';
 import { toPosix } from '../../shared/files.js';
 import { normalizeOptionalNumber } from '../../shared/limits.js';
-import { normalizeRepoRelativePath } from '../../shared/path-normalize.js';
 import { parseSeedRef } from '../../shared/seed-ref.js';
+import {
+  emitCliError,
+  emitCliOutput,
+  mergeCaps,
+  parseChangedInputs,
+  parseList,
+  resolveFormat
+} from './cli-helpers.js';
 import { buildImpactAnalysis, IMPACT_EMPTY_CHANGED_SET_CODE } from '../../graph/impact.js';
 import { renderGraphImpact } from '../../retrieval/output/graph-impact.js';
 import { validateGraphImpact } from '../../contracts/validators/analysis.js';
-import { buildIndexSignature } from '../../retrieval/index-cache.js';
 import { hasIndexMeta } from '../../retrieval/cli/index-loader.js';
 import { resolveIndexDir } from '../../retrieval/cli-index.js';
-import {
-  MAX_JSON_BYTES,
-  loadPiecesManifest,
-  readCompatibilityKey
-} from '../../shared/artifact-io.js';
-import { buildGraphIndexCacheKey, createGraphStore } from '../../graph/store.js';
+import { prepareGraphIndex, prepareGraphInputs } from './graph-helpers.js';
 import { loadUserConfig, resolveRepoRoot } from '../../../tools/shared/dict-utils.js';
-
-const parseList = (value) => {
-  if (!value) return [];
-  if (Array.isArray(value)) {
-    return value.map((entry) => String(entry)).map((entry) => entry.trim()).filter(Boolean);
-  }
-  return String(value)
-    .split(',')
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-};
-
-
-const resolveFormat = (argv) => {
-  const formatRaw = argv.format || (argv.json ? 'json' : 'json');
-  const format = String(formatRaw).trim().toLowerCase();
-  if (format === 'md' || format === 'markdown') return 'md';
-  return 'json';
-};
-
-const resolveRepoRelativePath = (raw, repoRoot) => (
-  normalizeRepoRelativePath(raw, repoRoot)
-);
-
-const parseChangedInputs = ({ changed, changedFile }, repoRoot) => {
-  const entries = [];
-  for (const item of parseList(changed)) {
-    entries.push(item);
-  }
-  if (changedFile) {
-    const contents = fs.readFileSync(String(changedFile), 'utf8');
-    for (const line of contents.split(/\r?\n/)) {
-      const trimmed = line.trim();
-      if (trimmed) entries.push(trimmed);
-    }
-  }
-  const resolved = [];
-  for (const entry of entries) {
-    const rel = resolveRepoRelativePath(entry, repoRoot);
-    if (!rel) continue;
-    resolved.push(rel);
-  }
-  return resolved;
-};
-
-const mergeCaps = (baseCaps, overrides) => {
-  const merged = { ...(baseCaps || {}) };
-  for (const [key, value] of Object.entries(overrides)) {
-    if (value == null) continue;
-    merged[key] = value;
-  }
-  return merged;
-};
 
 const createImpactInputError = (code, message) => {
   const err = new Error(message);
@@ -156,27 +103,18 @@ export async function runImpactCli(rawArgs = process.argv.slice(2)) {
       minConfidence
     };
 
-    const manifest = loadPiecesManifest(indexDir, { maxBytes: MAX_JSON_BYTES, strict: true });
-    const { key: indexCompatKey } = readCompatibilityKey(indexDir, {
-      maxBytes: MAX_JSON_BYTES,
+    const graphInputs = await prepareGraphInputs({
+      repoRoot,
+      indexDir,
       strict: true
     });
-    const indexSignature = await buildIndexSignature(indexDir);
-    const graphStore = createGraphStore({ indexDir, manifest, strict: true, maxBytes: MAX_JSON_BYTES });
     const graphSelection = graphs.length ? graphs : null;
-    const includeCsr = graphStore.hasArtifact('graph_relations_csr');
-    const graphCacheKey = buildGraphIndexCacheKey({
-      indexSignature,
+    const { graphIndex } = await prepareGraphIndex({
       repoRoot,
-      graphs: graphSelection,
-      includeCsr
-    });
-    const graphIndex = await graphStore.loadGraphIndex({
-      repoRoot,
-      cacheKey: graphCacheKey,
-      indexSignature,
-      graphs: graphSelection,
-      includeCsr
+      indexDir,
+      selection: graphSelection,
+      strict: true,
+      graphInputs
     });
 
     const payload = buildImpactAnalysis({
@@ -187,8 +125,8 @@ export async function runImpactCli(rawArgs = process.argv.slice(2)) {
       depth: Math.max(0, Math.floor(Number(argv.depth))),
       edgeFilters,
       caps,
-      indexCompatKey: indexCompatKey || null,
-      indexSignature: indexSignature || null,
+      indexCompatKey: graphInputs.indexCompatKey || null,
+      indexSignature: graphInputs.indexSignature || null,
       repo: toPosix(path.relative(process.cwd(), repoRoot) || '.'),
       indexDir: toPosix(path.relative(process.cwd(), indexDir) || '.')
     });
@@ -209,24 +147,17 @@ export async function runImpactCli(rawArgs = process.argv.slice(2)) {
       throw new Error(`GraphImpact schema validation failed: ${validation.errors.join('; ')}`);
     }
 
-    if (format === 'md') {
-      console.log(renderGraphImpact(payload));
-      return payload;
-    }
-
-    console.log(JSON.stringify(payload, null, 2));
-    return payload;
+    return emitCliOutput({
+      format,
+      payload,
+      renderMarkdown: renderGraphImpact
+    });
   } catch (err) {
     const message = err?.message || String(err);
     const code = err?.code === IMPACT_EMPTY_CHANGED_SET_CODE
       ? IMPACT_EMPTY_CHANGED_SET_CODE
       : 'ERR_GRAPH_IMPACT';
-    if (format === 'json') {
-      console.log(JSON.stringify({ ok: false, code, message }, null, 2));
-    } else {
-      console.error(message);
-    }
-    return { ok: false, code, message };
+    return emitCliError({ format, code, message });
   }
 }
 

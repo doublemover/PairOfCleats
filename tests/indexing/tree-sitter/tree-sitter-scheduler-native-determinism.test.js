@@ -6,6 +6,7 @@ import path from 'node:path';
 import { runTreeSitterScheduler } from '../../../src/index/build/tree-sitter-scheduler/runner.js';
 import { resolveTreeSitterSchedulerPaths } from '../../../src/index/build/tree-sitter-scheduler/paths.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { skipIfNativeGrammarsUnavailable } from './native-availability.js';
 
 applyTestEnv({ testing: '1' });
 
@@ -23,6 +24,12 @@ const fixtureRelPaths = [
 const entries = fixtureRelPaths.map((relPath) => path.join(root, ...relPath.split('/')));
 for (const absPath of entries) {
   await fs.access(absPath);
+}
+if (skipIfNativeGrammarsUnavailable(
+  ['javascript', 'typescript', 'python', 'yaml', 'rust'],
+  'tree-sitter scheduler native determinism'
+)) {
+  process.exit(0);
 }
 
 const runtime = {

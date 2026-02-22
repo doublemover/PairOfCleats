@@ -70,6 +70,48 @@ export function runCommandOrExit(label, cmd, args, options = {}) {
 }
 
 /**
+ * Run a subprocess via shared spawn wrapper and exit on non-zero status.
+ * @param {{
+ *   command:string,
+ *   args:string[],
+ *   label?:string,
+ *   cwd?:string,
+ *   env?:NodeJS.ProcessEnv,
+ *   stdio?:import('node:child_process').SpawnSyncOptions['stdio'],
+ *   shell?:boolean|string,
+ *   logError?:(message:string)=>void,
+ *   onFailure?:(result:object)=>void
+ * }} options
+ * @returns {object}
+ */
+export function runSubprocessOrExit(options) {
+  const {
+    command,
+    args,
+    label,
+    cwd,
+    env,
+    stdio = 'inherit',
+    shell,
+    logError = console.error,
+    onFailure
+  } = options || {};
+  const result = spawnSubprocessSync(command, Array.isArray(args) ? args : [], {
+    cwd,
+    env,
+    stdio,
+    shell,
+    rejectOnNonZeroExit: false
+  });
+  if (result.exitCode !== 0) {
+    logError(`Failed: ${label || command}`);
+    if (typeof onFailure === 'function') onFailure(result);
+    process.exit(result.exitCode ?? 1);
+  }
+  return result;
+}
+
+/**
  * Emit JSON to stdout with a trailing newline.
  * @param {unknown} payload
  * @param {NodeJS.WritableStream} [stream]

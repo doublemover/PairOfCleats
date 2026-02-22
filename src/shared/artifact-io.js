@@ -13,6 +13,7 @@ export {
   readJsonLinesArray,
   readJsonLinesArraySync,
   readJsonLinesEach,
+  readJsonLinesEachAwait,
   readJsonLinesIterator
 } from './artifact-io/json.js';
 export {
@@ -22,11 +23,22 @@ export {
   setArtifactReadObserver
 } from './artifact-io/telemetry.js';
 export {
+  CHUNK_META_PART_EXTENSIONS,
+  CHUNK_META_PART_PREFIX,
+  CHUNK_META_PARTS_DIR,
+  expandChunkMetaParts,
+  expandMetaPartPaths,
   loadPiecesManifest,
+  listShardFiles,
+  locateChunkMetaShards,
+  normalizeMetaParts,
   readCompatibilityKey,
   resolveArtifactPresence,
   resolveBinaryArtifactPath,
-  resolveDirArtifactPath
+  resolveDirArtifactPath,
+  TOKEN_POSTINGS_PART_EXTENSIONS,
+  TOKEN_POSTINGS_PART_PREFIX,
+  TOKEN_POSTINGS_SHARDS_DIR
 } from './artifact-io/manifest.js';
 export {
   loadJsonArrayArtifact,

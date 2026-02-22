@@ -1,6 +1,5 @@
 #!/usr/bin/env node
-import yargs from 'yargs/yargs';
-import { hideBin } from 'yargs/helpers';
+import { createCli } from '../../src/shared/cli.js';
 import { buildSymbolIndex, resolveSymbolRef } from '../../src/index/type-inference-crossfile/resolver.js';
 
 const nowMs = () => Number(process.hrtime.bigint()) / 1e6;
@@ -21,59 +20,60 @@ const createRng = (seedValue) => {
   };
 };
 
-const argv = yargs(hideBin(process.argv))
-  .option('symbols', {
-    type: 'number',
-    describe: 'Number of symbol definitions to synthesize',
-    default: 100000
-  })
-  .option('refs', {
-    type: 'number',
-    describe: 'Number of symbol references to resolve',
-    default: 200000
-  })
-  .option('files', {
-    type: 'number',
-    describe: 'Number of files to spread symbols across',
-    default: 2000
-  })
-  .option('import-rate', {
-    type: 'number',
-    describe: 'Fraction of refs that use import bindings',
-    default: 0.25
-  })
-  .option('duplicate-rate', {
-    type: 'number',
-    describe: 'Fraction of symbol names that are duplicates',
-    default: 0.1
-  })
-  .option('duplicate-bucket', {
-    type: 'number',
-    describe: 'Distinct duplicate name buckets',
-    default: 50
-  })
-  .option('missing-rate', {
-    type: 'number',
-    describe: 'Fraction of refs that target missing names',
-    default: 0.05
-  })
-  .option('warmup', {
-    type: 'number',
-    describe: 'Warmup passes before measurement',
-    default: 1
-  })
-  .option('seed', {
-    type: 'number',
-    describe: 'Seed for deterministic random generation',
-    default: 7
-  })
-  .option('json', {
-    type: 'boolean',
-    describe: 'Emit JSON summary only',
-    default: false
-  })
-  .help()
-  .argv;
+const argv = createCli({
+  options: {
+    symbols: {
+      type: 'number',
+      describe: 'Number of symbol definitions to synthesize',
+      default: 100000
+    },
+    refs: {
+      type: 'number',
+      describe: 'Number of symbol references to resolve',
+      default: 200000
+    },
+    files: {
+      type: 'number',
+      describe: 'Number of files to spread symbols across',
+      default: 2000
+    },
+    'import-rate': {
+      type: 'number',
+      describe: 'Fraction of refs that use import bindings',
+      default: 0.25
+    },
+    'duplicate-rate': {
+      type: 'number',
+      describe: 'Fraction of symbol names that are duplicates',
+      default: 0.1
+    },
+    'duplicate-bucket': {
+      type: 'number',
+      describe: 'Distinct duplicate name buckets',
+      default: 50
+    },
+    'missing-rate': {
+      type: 'number',
+      describe: 'Fraction of refs that target missing names',
+      default: 0.05
+    },
+    warmup: {
+      type: 'number',
+      describe: 'Warmup passes before measurement',
+      default: 1
+    },
+    seed: {
+      type: 'number',
+      describe: 'Seed for deterministic random generation',
+      default: 7
+    },
+    json: {
+      type: 'boolean',
+      describe: 'Emit JSON summary only',
+      default: false
+    }
+  }
+}).parse();
 
 const symbolCount = Math.max(1, Math.floor(argv.symbols));
 const refCount = Math.max(1, Math.floor(argv.refs));

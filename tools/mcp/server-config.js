@@ -1,12 +1,11 @@
-import fs from 'node:fs';
 import path from 'node:path';
 import { getToolCatalog } from '../../src/integrations/mcp/defs.js';
 import { getEnvConfig } from '../../src/shared/env.js';
 import {
   DEFAULT_MODEL_ID,
+  getToolVersion,
   loadUserConfig,
-  resolveRepoRoot,
-  resolveToolRoot
+  resolveRepoRoot
 } from '../shared/dict-utils.js';
 import { parseTimeoutMs, resolveToolTimeoutMs } from './repo.js';
 
@@ -30,8 +29,7 @@ const parseIntEnv = (value) => {
 };
 
 export function getMcpServerConfig(repoPath = null) {
-  const toolRoot = resolveToolRoot();
-  const pkg = JSON.parse(fs.readFileSync(path.join(toolRoot, 'package.json'), 'utf8'));
+  const serverVersion = getToolVersion() || '0.0.0';
   const configRoot = resolveRepoRoot(repoPath ? path.resolve(repoPath) : process.cwd());
   const userConfig = loadUserConfig(configRoot);
   const mcpConfig = userConfig?.mcp && typeof userConfig.mcp === 'object' ? userConfig.mcp : {};
@@ -57,7 +55,7 @@ export function getMcpServerConfig(repoPath = null) {
     toolDefs: toolCatalog.tools,
     schemaVersion: toolCatalog.schemaVersion,
     toolVersion: toolCatalog.toolVersion,
-    serverInfo: { name: 'PairOfCleats', version: pkg.version },
+    serverInfo: { name: 'PairOfCleats', version: serverVersion },
     userConfig,
     envConfig,
     queueMax,

@@ -3,10 +3,12 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
-import simpleGit from 'simple-git';
 import { getIndexDir, resolveRepoConfig, resolveSqlitePaths } from '../shared/dict-utils.js';
 import { checksumFile, sha1File } from '../../src/shared/hash.js';
 import { fromPosix, isAbsolutePathNative, toPosix } from '../../src/shared/files.js';
+import { copyDirIfExists } from '../shared/fs-utils.js';
+import { readRepoGitState } from '../shared/git-state.js';
+import { readJsonFileSyncSafe } from '../shared/json-utils.js';
 
 const argv = createCli({
   scriptName: 'ci-restore',
@@ -25,24 +27,15 @@ if (!fs.existsSync(manifestPath)) {
   process.exit(1);
 }
 
-let manifest = null;
-try {
-  manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-} catch {
+const MANIFEST_PARSE_FAILED = Symbol('manifestParseFailed');
+const manifest = readJsonFileSyncSafe(manifestPath, MANIFEST_PARSE_FAILED);
+if (manifest === MANIFEST_PARSE_FAILED) {
   console.error(`Failed to read ${manifestPath}`);
   process.exit(1);
 }
 
-let commitMatch = true;
-try {
-  const git = simpleGit({ baseDir: root });
-  const commit = (await git.revparse(['HEAD'])).trim();
-  if (manifest.commit && commit && manifest.commit !== commit) {
-    commitMatch = false;
-  }
-} catch {
-  commitMatch = !manifest.commit;
-}
+const gitState = await readRepoGitState(root);
+const commitMatch = !manifest.commit || (Boolean(gitState.head) && manifest.commit === gitState.head);
 
 if (!commitMatch && !argv.force) {
   console.error('CI artifacts do not match current commit (use --force to override).');
@@ -52,20 +45,6 @@ if (!commitMatch && !argv.force) {
 const codeDir = getIndexDir(root, 'code', userConfig);
 const proseDir = getIndexDir(root, 'prose', userConfig);
 const sqlitePaths = resolveSqlitePaths(root, userConfig);
-
-/**
- * Copy a directory from the artifact bundle into the repo cache.
- * @param {string} src
- * @param {string} dest
- * @returns {Promise<boolean>}
- */
-async function copyDir(src, dest) {
-  if (!fs.existsSync(src)) return false;
-  await fsPromises.rm(dest, { recursive: true, force: true });
-  await fsPromises.mkdir(dest, { recursive: true });
-  await fsPromises.cp(src, dest, { recursive: true });
-  return true;
-}
 
 const parseChecksum = (value) => {
   if (!value || typeof value !== 'string') return null;
@@ -130,8 +109,8 @@ async function validatePiecesManifest(indexDir, label) {
 }
 
 const copied = {
-  code: await copyDir(path.join(fromDir, 'index-code'), codeDir),
-  prose: await copyDir(path.join(fromDir, 'index-prose'), proseDir),
+  code: await copyDirIfExists(path.join(fromDir, 'index-code'), codeDir, { clearDestination: true }),
+  prose: await copyDirIfExists(path.join(fromDir, 'index-prose'), proseDir, { clearDestination: true }),
   sqlite: {
     code: false,
     prose: false

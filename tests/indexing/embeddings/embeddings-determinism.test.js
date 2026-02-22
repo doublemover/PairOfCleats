@@ -7,6 +7,7 @@ import path from 'node:path';
 import { getCacheRoot } from '../../../src/shared/cache-roots.js';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { loadPiecesManifestPieces } from '../../helpers/pieces-manifest.js';
 
 const sha256File = async (filePath) => crypto
   .createHash('sha256')
@@ -64,11 +65,9 @@ const denseFiles = [
   path.join(codeDir, 'dense_vectors_doc_uint8.json'),
   path.join(codeDir, 'dense_vectors_code_uint8.json')
 ];
-const manifestPath = path.join(codeDir, 'pieces', 'manifest.json');
 
 const readEmbeddingPieces = async () => {
-  const raw = JSON.parse(await fsPromises.readFile(manifestPath, 'utf8'));
-  const pieces = Array.isArray(raw?.pieces) ? raw.pieces : [];
+  const pieces = loadPiecesManifestPieces(codeDir);
   return pieces
     .filter((entry) => entry && entry.type === 'embeddings')
     .map((entry) => ({

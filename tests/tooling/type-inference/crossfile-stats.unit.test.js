@@ -4,7 +4,7 @@ import path from 'node:path';
 import { applyCrossFileInference } from '../../../src/index/type-inference-crossfile.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, '.testCache', 'type-inference-crossfile-stats');
+const tempRoot = path.join(root, '.testCache', 'type-inference-crossfile-stats-unit');
 const statsRoot = path.join(tempRoot, 'stats');
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(statsRoot, { recursive: true });

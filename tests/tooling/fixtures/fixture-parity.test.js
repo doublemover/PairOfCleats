@@ -3,8 +3,8 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { createCli } from '../../../src/shared/cli.js';
+import { runNode } from '../../helpers/run-node.js';
 import { runSqliteBuild } from '../../helpers/sqlite-builder.js';
 
 const root = process.cwd();
@@ -38,29 +38,6 @@ function resolveFixtures() {
   return [argv.fixture];
 }
 
-function run(args, label, cwd, env) {
-  const result = spawnSync(process.execPath, args, {
-    cwd,
-    env,
-    timeout: timeoutMs,
-    killSignal: 'SIGTERM',
-    stdio: 'inherit'
-  });
-  if (result.status !== 0) {
-    const details = [];
-    if (result.error?.code === 'ETIMEDOUT') {
-      details.push(`timeout after ${timeoutMs}ms`);
-    }
-    if (result.signal) details.push(`signal ${result.signal}`);
-    if (result.error && result.error.code !== 'ETIMEDOUT') {
-      details.push(result.error.message || String(result.error));
-    }
-    const suffix = details.length ? ` (${details.join(', ')})` : '';
-    console.error(`Failed: ${label}${suffix}`);
-    process.exit(result.status ?? 1);
-  }
-}
-
 const fixtures = resolveFixtures();
 if (!fixtures.length) {
   console.error('No fixtures found.');
@@ -89,7 +66,13 @@ for (const fixtureName of fixtures) {
     console.log(`[fixture-parity] profile=${resolvedProfile}`);
   }
 
-  run([path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', fixtureRoot], `build index (${fixtureName})`, fixtureRoot, env);
+  runNode(
+    [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', fixtureRoot],
+    `build index (${fixtureName})`,
+    fixtureRoot,
+    env,
+    { timeoutMs }
+  );
   await runSqliteBuild(fixtureRoot);
 
   const queriesPath = path.join(fixtureRoot, 'queries.txt');
@@ -97,16 +80,22 @@ for (const fixtureName of fixtures) {
     ? queriesPath
     : path.join(root, 'tests', 'retrieval', 'parity', 'parity-queries.txt');
 
-  run([
-    path.join(root, 'tests', 'retrieval', 'parity', 'parity.test.js'),
-    '--no-ann',
-    '--queries',
-    queryFile,
-    '--search',
-    path.join(root, 'search.js'),
-    '--top',
-    '5'
-  ], `parity (${fixtureName})`, fixtureRoot, env);
+  runNode(
+    [
+      path.join(root, 'tests', 'retrieval', 'parity', 'parity.test.js'),
+      '--no-ann',
+      '--queries',
+      queryFile,
+      '--search',
+      path.join(root, 'search.js'),
+      '--top',
+      '5'
+    ],
+    `parity (${fixtureName})`,
+    fixtureRoot,
+    env,
+    { timeoutMs }
+  );
 }
 
 console.log('Fixture parity tests passed');

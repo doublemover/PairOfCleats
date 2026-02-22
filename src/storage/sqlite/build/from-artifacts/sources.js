@@ -1,45 +1,80 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
 import {
+  normalizeFilePath,
   readJson,
   loadOptionalFileMetaRows,
   loadSqliteIndexOptionalArtifacts
 } from '../../utils.js';
+import { normalizeManifestFiles } from '../manifest.js';
 import {
+  CHUNK_META_PARTS_DIR,
   MAX_JSON_BYTES,
+  TOKEN_POSTINGS_PART_EXTENSIONS,
+  TOKEN_POSTINGS_PART_PREFIX,
+  TOKEN_POSTINGS_SHARDS_DIR,
+  expandMetaPartPaths,
+  listShardFiles,
+  locateChunkMetaShards,
   loadTokenPostings,
-  readJsonLinesEach,
+  readJsonLinesEachAwait,
   resolveArtifactPresence,
   resolveJsonlRequiredKeys
 } from '../../../../shared/artifact-io.js';
-
-const listShardFiles = (dir, prefix, extensions) => {
-  if (!dir || typeof dir !== 'string' || !fsSync.existsSync(dir)) return [];
-  const allowed = Array.isArray(extensions) && extensions.length
-    ? extensions
-    : ['.json', '.jsonl'];
-  return fsSync
-    .readdirSync(dir)
-    .filter((name) => name.startsWith(prefix) && allowed.some((ext) => name.endsWith(ext)))
-    .sort()
-    .map((name) => path.join(dir, name));
-};
 
 const resolveFirstExistingPath = (basePath) => {
   const candidates = [basePath, `${basePath}.gz`, `${basePath}.zst`];
   return candidates.find((candidate) => fsSync.existsSync(candidate)) || null;
 };
 
-const normalizeMetaParts = (parts) => (
-  Array.isArray(parts)
-    ? parts
-      .map((part) => {
-        if (typeof part === 'string') return part;
-        return typeof part?.path === 'string' ? part.path : null;
-      })
-      .filter(Boolean)
-    : []
-);
+export const collectManifestByNormalized = (
+  records,
+  {
+    fileFromRecord = (record) => record?.file,
+    entryFromRecord = (record) => record?.entry
+  } = {}
+) => {
+  const map = new Map();
+  if (!records || typeof records[Symbol.iterator] !== 'function') return map;
+  for (const record of records) {
+    const file = fileFromRecord(record);
+    const normalized = normalizeFilePath(file);
+    if (!normalized) continue;
+    map.set(normalized, {
+      file: typeof file === 'string' && file ? file : normalized,
+      normalized,
+      entry: entryFromRecord(record)
+    });
+  }
+  return map;
+};
+
+export const resolveManifestByNormalized = (manifestLike) => {
+  if (manifestLike instanceof Map) return manifestLike;
+  if (manifestLike && typeof manifestLike === 'object') {
+    if (manifestLike.map instanceof Map) return manifestLike.map;
+    if (Array.isArray(manifestLike.entries)) {
+      return collectManifestByNormalized(manifestLike.entries, {
+        fileFromRecord: (record) => record?.normalized || record?.file,
+        entryFromRecord: (record) => record?.entry ?? null
+      });
+    }
+  }
+  const entries = Object.entries(manifestLike || {}).map(([file, entry]) => ({ file, entry }));
+  return collectManifestByNormalized(entries, {
+    fileFromRecord: (record) => record?.file,
+    entryFromRecord: (record) => record?.entry ?? null
+  });
+};
+
+export const createManifestLookup = (manifestFiles) => {
+  const lookup = normalizeManifestFiles(manifestFiles || {});
+  return {
+    entries: Array.isArray(lookup.entries) ? lookup.entries : [],
+    map: resolveManifestByNormalized(lookup),
+    conflicts: Array.isArray(lookup.conflicts) ? lookup.conflicts : []
+  };
+};
 
 export const inflateColumnarRows = (payload) => {
   if (!payload || typeof payload !== 'object') return null;
@@ -83,46 +118,60 @@ export const resolveChunkMetaSources = (dir) => {
   if (Array.isArray(presence?.paths) && presence.paths.length) {
     return {
       format: presence.format === 'json' || presence.format === 'columnar' ? presence.format : 'jsonl',
-      paths: presence.paths
+      paths: presence.paths,
+      metaPath: presence.metaPath || null,
+      meta: presence.meta || null
     };
   }
   const metaPath = path.join(dir, 'chunk_meta.meta.json');
-  const partsDir = path.join(dir, 'chunk_meta.parts');
+  const partsDir = path.join(dir, CHUNK_META_PARTS_DIR);
   if (fsSync.existsSync(metaPath) || fsSync.existsSync(partsDir)) {
-    let parts = [];
-    if (fsSync.existsSync(metaPath)) {
-      const metaRaw = readJson(metaPath);
-      const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
-      const entries = normalizeMetaParts(meta?.parts);
-      if (entries.length) {
-        const missing = [];
-        parts = entries.map((name) => {
-          const candidate = path.join(dir, name);
-          if (!fsSync.existsSync(candidate)) missing.push(name);
-          return candidate;
-        });
-        if (missing.length) {
-          throw new Error(`[sqlite] chunk_meta parts missing: ${missing.join(', ')}`);
-        }
-      }
+    const located = locateChunkMetaShards(dir, {
+      metaPath,
+      partsDir,
+      maxBytes: MAX_JSON_BYTES
+    });
+    if (Array.isArray(located.missing) && located.missing.length) {
+      throw new Error(`[sqlite] chunk_meta parts missing: ${located.missing.join(', ')}`);
     }
-    if (!parts.length) {
-      parts = listShardFiles(partsDir, 'chunk_meta.part-', ['.jsonl', '.jsonl.gz', '.jsonl.zst']);
-    }
-    if (parts.length) {
-      return { format: 'jsonl', paths: parts };
+    if (Array.isArray(located.parts) && located.parts.length) {
+      return {
+        format: 'jsonl',
+        paths: located.parts,
+        metaPath: located.metaPath || null,
+        meta: located.meta || null
+      };
     }
   }
 
   const jsonlResolved = resolveFirstExistingPath(path.join(dir, 'chunk_meta.jsonl'));
   if (jsonlResolved) {
-    return { format: 'jsonl', paths: [jsonlResolved] };
+    return { format: 'jsonl', paths: [jsonlResolved], metaPath: null, meta: null };
   }
   const jsonResolved = resolveFirstExistingPath(path.join(dir, 'chunk_meta.json'));
   if (jsonResolved) {
-    return { format: 'json', paths: [jsonResolved] };
+    return { format: 'json', paths: [jsonResolved], metaPath: null, meta: null };
   }
   return null;
+};
+
+export const resolveChunkMetaShardedLayout = (dir, chunkMetaSources = null) => {
+  if (!dir || typeof dir !== 'string') return null;
+  const sources = chunkMetaSources || resolveChunkMetaSources(dir);
+  if (!sources || resolveChunkMetaSourceKind(sources.format) !== 'jsonl') return null;
+  const parts = Array.isArray(sources.paths) ? sources.paths.filter(Boolean) : [];
+  if (!parts.length) return null;
+  const rawMeta = sources.meta;
+  const metaFields = rawMeta?.fields && typeof rawMeta.fields === 'object'
+    ? rawMeta.fields
+    : rawMeta;
+  return {
+    sources,
+    parts,
+    metaPath: sources.metaPath || path.join(dir, 'chunk_meta.meta.json'),
+    partsDir: path.join(dir, CHUNK_META_PARTS_DIR),
+    metaFields
+  };
 };
 
 export const resolveTokenPostingsSources = (dir) => {
@@ -131,21 +180,18 @@ export const resolveTokenPostingsSources = (dir) => {
   }
   if (!dir) return null;
   const metaPath = path.join(dir, 'token_postings.meta.json');
-  const shardsDir = path.join(dir, 'token_postings.shards');
+  const shardsDir = path.join(dir, TOKEN_POSTINGS_SHARDS_DIR);
   if (!fsSync.existsSync(metaPath) && !fsSync.existsSync(shardsDir)) return null;
   let parts = [];
   if (fsSync.existsSync(metaPath)) {
     try {
       const metaRaw = readJson(metaPath);
       const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
-      const entries = normalizeMetaParts(meta?.parts);
-      if (entries.length) {
-        parts = entries.map((name) => path.join(dir, name));
-      }
+      parts = expandMetaPartPaths(meta?.parts, dir);
     } catch {}
   }
   if (!parts.length) {
-    parts = listShardFiles(shardsDir, 'token_postings.part-', ['.json', '.json.gz', '.json.zst']);
+    parts = listShardFiles(shardsDir, TOKEN_POSTINGS_PART_PREFIX, TOKEN_POSTINGS_PART_EXTENSIONS);
   }
   return parts.length ? { metaPath, parts } : null;
 };
@@ -181,13 +227,81 @@ export const normalizeTfPostingRows = (posting) => {
   return Array.from(merged.entries()).sort((a, b) => a[0] - b[0]);
 };
 
+export const resolveChunkMetaSourceKind = (format) => (
+  format === 'jsonl' ? 'jsonl' : (format === 'columnar' ? 'columnar' : 'json')
+);
+
 export const CHUNK_META_REQUIRED_KEYS = resolveJsonlRequiredKeys('chunk_meta');
 
 export const readJsonLinesFile = async (
   filePath,
   onEntry,
   { maxBytes = MAX_JSON_BYTES, requiredKeys = null } = {}
-) => readJsonLinesEach(filePath, onEntry, { maxBytes, requiredKeys });
+) => readJsonLinesEachAwait(filePath, onEntry, { maxBytes, requiredKeys });
+
+export const iterateChunkMetaSources = async (
+  sources,
+  onEntry,
+  {
+    requiredKeys = CHUNK_META_REQUIRED_KEYS,
+    onSourceFile = null
+  } = {}
+) => {
+  if (!sources || typeof onEntry !== 'function') {
+    return { sourceKind: 'json', sourceFiles: 0, count: 0 };
+  }
+  const sourceKind = resolveChunkMetaSourceKind(sources.format);
+  const paths = Array.isArray(sources.paths) ? sources.paths : [];
+  let sourceFiles = 0;
+  let count = 0;
+  const emitSourceFile = async (filePath) => {
+    if (!filePath) return;
+    sourceFiles += 1;
+    if (typeof onSourceFile === 'function') {
+      const result = onSourceFile(filePath, sourceKind);
+      if (result && typeof result.then === 'function') await result;
+    }
+  };
+  const emitEntry = async (entry) => {
+    const result = onEntry(entry, count);
+    if (result && typeof result.then === 'function') await result;
+    count += 1;
+  };
+  if (sourceKind === 'json') {
+    const sourcePath = paths[0];
+    if (sourcePath) {
+      await emitSourceFile(sourcePath);
+      const rows = readJson(sourcePath);
+      if (Array.isArray(rows)) {
+        for (const row of rows) {
+          await emitEntry(row);
+        }
+      }
+    }
+    return { sourceKind, sourceFiles, count };
+  }
+  if (sourceKind === 'columnar') {
+    const sourcePath = paths[0];
+    if (sourcePath) {
+      await emitSourceFile(sourcePath);
+      const rows = inflateColumnarRows(readJson(sourcePath));
+      if (Array.isArray(rows)) {
+        for (const row of rows) {
+          await emitEntry(row);
+        }
+      }
+    }
+    return { sourceKind, sourceFiles, count };
+  }
+  for (const sourcePath of paths) {
+    if (!sourcePath) continue;
+    await emitSourceFile(sourcePath);
+    await readJsonLinesFile(sourcePath, async (entry) => {
+      await emitEntry(entry);
+    }, { requiredKeys });
+  }
+  return { sourceKind, sourceFiles, count };
+};
 
 /**
  * Load artifact pieces required for sqlite builds.

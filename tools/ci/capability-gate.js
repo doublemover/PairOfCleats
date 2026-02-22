@@ -3,8 +3,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import yargs from 'yargs/yargs';
-import { hideBin } from 'yargs/helpers';
+import { createCli } from '../../src/shared/cli.js';
 import { getCapabilities } from '../../src/shared/capabilities.js';
 import { ERROR_CODES } from '../../src/shared/error-codes.js';
 
@@ -13,17 +12,16 @@ const require = createRequire(import.meta.url);
 
 const DEFAULT_JSON_PATH = path.join(ROOT, '.diagnostics', 'capabilities.json');
 
-const parseArgs = () => {
-  const parser = yargs(hideBin(process.argv))
-    .scriptName('pairofcleats capability-gate')
-    .option('mode', { type: 'string', default: 'ci', choices: ['ci', 'nightly'] })
-    .option('require', { type: 'string', array: true, default: [] })
-    .option('json', { type: 'string', default: '' })
-    .help()
-    .alias('h', 'help')
-    .strictOptions();
-  return parser.parse();
-};
+const parseArgs = () => createCli({
+  scriptName: 'pairofcleats capability-gate',
+  options: {
+    mode: { type: 'string', default: 'ci', choices: ['ci', 'nightly'] },
+    require: { type: 'string', array: true, default: [] },
+    json: { type: 'string', default: '' }
+  }
+})
+  .strictOptions()
+  .parse();
 
 const serializeError = (error) => {
   if (!error) return null;

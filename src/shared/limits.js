@@ -9,6 +9,29 @@ export const normalizeOptionalNumber = (value) => {
 };
 
 /**
+ * Clamp a numeric value between inclusive bounds.
+ * @param {number} value
+ * @param {number} min
+ * @param {number} max
+ * @returns {number}
+ */
+export const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+/**
+ * Clamp a value to an integer range, using a fallback when invalid.
+ * @param {unknown} value
+ * @param {number} min
+ * @param {number} max
+ * @param {number} [fallback=min]
+ * @returns {number}
+ */
+export const clampInt = (value, min, max, fallback = min) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return clamp(Math.floor(parsed), min, max);
+};
+
+/**
  * Normalize an integer value to a finite integer or null.
  * @param {unknown} value
  * @returns {number|null}

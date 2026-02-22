@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "repoRoot": {
+    "markers": [
+      ".pairofcleats.json",
+      ".git"
+    ],
+    "vscode": {
+      "walkUpFromWorkspaceFolder": false
+    },
+    "sublime": {
+      "walkUpFromHints": true
+    }
+  },
+  "cli": {
+    "defaultCommand": "pairofcleats",
+    "repoRelativeEntrypoint": "bin/pairofcleats.js",
+    "jsEntrypointExtension": ".js"
+  },
+  "settings": {
+    "vscode": {
+      "namespace": "pairofcleats",
+      "cliPathKey": "cliPath",
+      "cliArgsKey": "cliArgs",
+      "extraSearchArgsKey": "extraSearchArgs",
+      "modeKey": "searchMode",
+      "backendKey": "searchBackend",
+      "annKey": "searchAnn",
+      "maxResultsKey": "maxResults",
+      "envKey": "env"
+    },
+    "sublime": {
+      "cliPathKey": "pairofcleats_path",
+      "nodePathKey": "node_path",
+      "envKey": "env"
+    }
+  },
+  "env": {
+    "mergeOrder": [
+      "process",
+      "settings"
+    ],
+    "stringifyValues": true
+  }
+}

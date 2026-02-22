@@ -5,6 +5,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { writePiecesManifest } from '../../../../src/index/build/artifacts/checksums.js';
 import { applyTestEnv } from '../../../helpers/test-env.js';
+import { loadPiecesManifestPieces } from '../../../helpers/pieces-manifest.js';
 
 applyTestEnv({ testing: '1' });
 
@@ -34,8 +35,8 @@ await writePiecesManifest({
   indexState: { stage: 'stage1' }
 });
 
-const manifest = JSON.parse(await fs.readFile(path.join(outDir, 'pieces', 'manifest.json'), 'utf8'));
-const entry = manifest?.pieces?.find((piece) => piece?.path === 'chunk_meta.json');
+const pieces = loadPiecesManifestPieces(outDir);
+const entry = pieces.find((piece) => piece?.path === 'chunk_meta.json');
 assert.ok(entry, 'expected manifest entry for chunk_meta.json');
 assert.equal(entry.checksum, `sha1:${checksum}`, 'expected precomputed checksum to be preserved');
 assert.equal(entry.bytes, Buffer.byteLength(payload, 'utf8'), 'expected precomputed bytes to be preserved');

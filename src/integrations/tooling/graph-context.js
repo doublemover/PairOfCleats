@@ -4,46 +4,14 @@ import { createCli } from '../../shared/cli.js';
 import { toPosix } from '../../shared/files.js';
 import { normalizeOptionalNumber } from '../../shared/limits.js';
 import { parseSeedRef } from '../../shared/seed-ref.js';
+import { emitCliError, emitCliOutput, mergeCaps, parseList, resolveFormat } from './cli-helpers.js';
 import { buildGraphContextPack } from '../../graph/context-pack.js';
 import { renderGraphContextPack } from '../../retrieval/output/graph-context-pack.js';
 import { validateGraphContextPack } from '../../contracts/validators/analysis.js';
-import { buildIndexSignature } from '../../retrieval/index-cache.js';
 import { hasIndexMeta } from '../../retrieval/cli/index-loader.js';
 import { resolveIndexDir } from '../../retrieval/cli-index.js';
-import {
-  MAX_JSON_BYTES,
-  loadPiecesManifest,
-  readCompatibilityKey
-} from '../../shared/artifact-io.js';
-import { buildGraphIndexCacheKey, createGraphStore } from '../../graph/store.js';
+import { prepareGraphIndex, prepareGraphInputs } from './graph-helpers.js';
 import { loadUserConfig, resolveRepoRoot } from '../../../tools/shared/dict-utils.js';
-
-const parseList = (value) => {
-  if (!value) return [];
-  if (Array.isArray(value)) {
-    return value.map((entry) => String(entry)).map((entry) => entry.trim()).filter(Boolean);
-  }
-  return String(value)
-    .split(',')
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-};
-
-const resolveFormat = (argv) => {
-  const formatRaw = argv.format || (argv.json ? 'json' : 'json');
-  const format = String(formatRaw).trim().toLowerCase();
-  if (format === 'md' || format === 'markdown') return 'md';
-  return 'json';
-};
-
-const mergeCaps = (baseCaps, overrides) => {
-  const merged = { ...(baseCaps || {}) };
-  for (const [key, value] of Object.entries(overrides)) {
-    if (value == null) continue;
-    merged[key] = value;
-  }
-  return merged;
-};
 
 export async function runGraphContextCli(rawArgs = process.argv.slice(2)) {
   const cli = createCli({
@@ -115,27 +83,18 @@ export async function runGraphContextCli(rawArgs = process.argv.slice(2)) {
       minConfidence
     };
 
-    const manifest = loadPiecesManifest(indexDir, { maxBytes: MAX_JSON_BYTES, strict: true });
-    const { key: indexCompatKey } = readCompatibilityKey(indexDir, {
-      maxBytes: MAX_JSON_BYTES,
+    const graphInputs = await prepareGraphInputs({
+      repoRoot,
+      indexDir,
       strict: true
     });
-    const indexSignature = await buildIndexSignature(indexDir);
-    const graphStore = createGraphStore({ indexDir, manifest, strict: true, maxBytes: MAX_JSON_BYTES });
     const graphSelection = includeAllGraphs ? null : graphs;
-    const includeCsr = graphStore.hasArtifact('graph_relations_csr');
-    const graphCacheKey = buildGraphIndexCacheKey({
-      indexSignature,
+    const { graphIndex } = await prepareGraphIndex({
       repoRoot,
-      graphs: graphSelection,
-      includeCsr
-    });
-    const graphIndex = await graphStore.loadGraphIndex({
-      repoRoot,
-      cacheKey: graphCacheKey,
-      indexSignature,
-      graphs: graphSelection,
-      includeCsr
+      indexDir,
+      selection: graphSelection,
+      strict: true,
+      graphInputs
     });
 
     const pack = buildGraphContextPack({
@@ -146,8 +105,8 @@ export async function runGraphContextCli(rawArgs = process.argv.slice(2)) {
       edgeFilters,
       caps,
       includePaths: argv.includePaths === true,
-      indexCompatKey: indexCompatKey || null,
-      indexSignature: indexSignature || null,
+      indexCompatKey: graphInputs.indexCompatKey || null,
+      indexSignature: graphInputs.indexSignature || null,
       repo: toPosix(path.relative(process.cwd(), repoRoot) || '.'),
       indexDir: toPosix(path.relative(process.cwd(), indexDir) || '.')
     });
@@ -157,21 +116,14 @@ export async function runGraphContextCli(rawArgs = process.argv.slice(2)) {
       throw new Error(`GraphContextPack schema validation failed: ${validation.errors.join('; ')}`);
     }
 
-    if (format === 'md') {
-      console.log(renderGraphContextPack(pack));
-      return pack;
-    }
-
-    console.log(JSON.stringify(pack, null, 2));
-    return pack;
+    return emitCliOutput({
+      format,
+      payload: pack,
+      renderMarkdown: renderGraphContextPack
+    });
   } catch (err) {
     const message = err?.message || String(err);
-    if (format === 'json') {
-      console.log(JSON.stringify({ ok: false, code: 'ERR_GRAPH_CONTEXT', message }, null, 2));
-    } else {
-      console.error(message);
-    }
-    return { ok: false, code: 'ERR_GRAPH_CONTEXT', message };
+    return emitCliError({ format, code: 'ERR_GRAPH_CONTEXT', message });
   }
 }
 

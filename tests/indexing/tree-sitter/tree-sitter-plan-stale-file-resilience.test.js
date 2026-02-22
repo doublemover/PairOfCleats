@@ -6,6 +6,7 @@ import path from 'node:path';
 import { buildTreeSitterSchedulerPlan } from '../../../src/index/build/tree-sitter-scheduler/plan.js';
 import { executeTreeSitterSchedulerPlan } from '../../../src/index/build/tree-sitter-scheduler/executor.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { skipIfNativeGrammarsUnavailable } from './native-availability.js';
 
 applyTestEnv({ testing: '1' });
 
@@ -13,6 +14,9 @@ const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'tree-sitter-plan-stale-file-resilience');
 const sourcePath = path.join(tempRoot, 'sample.js');
 const outDir = path.join(tempRoot, 'out', 'index-code');
+if (skipIfNativeGrammarsUnavailable(['javascript'], 'tree-sitter scheduler stale-plan resilience')) {
+  process.exit(0);
+}
 
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(outDir, { recursive: true });
