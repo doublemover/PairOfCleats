@@ -3,9 +3,11 @@ import assert from 'node:assert/strict';
 
 import { ensureTestingEnv } from '../../helpers/test-env.js';
 import {
+  resolveFileLifecycleDurations,
   resolveFileHardTimeoutMs,
   resolveFileWatchdogConfig,
-  resolveFileWatchdogMs
+  resolveFileWatchdogMs,
+  shouldTriggerSlowFileWarning
 } from '../../../src/index/build/indexer/steps/process-files.js';
 
 ensureTestingEnv(process.env);
@@ -99,6 +101,42 @@ assert.equal(
   1500,
   'expected explicit slowFileMs to override adaptive huge-repo threshold'
 );
+
+const queueDelayedLifecycle = resolveFileLifecycleDurations({
+  enqueuedAtMs: 1_000,
+  dequeuedAtMs: 9_000,
+  parseStartAtMs: 9_000,
+  parseEndAtMs: 9_800,
+  writeStartAtMs: 9_810,
+  writeEndAtMs: 9_900
+});
+assert.equal(queueDelayedLifecycle.queueDelayMs, 8_000, 'expected queue delay to capture enqueue->dequeue wait');
+assert.equal(queueDelayedLifecycle.activeDurationMs, 800, 'expected active duration to capture parse-only window');
+assert.equal(
+  shouldTriggerSlowFileWarning({
+    activeDurationMs: queueDelayedLifecycle.activeDurationMs,
+    thresholdMs: 1000
+  }),
+  false,
+  'expected slow-file warning gate to ignore long queue delay when active time is below threshold'
+);
+assert.equal(
+  shouldTriggerSlowFileWarning({
+    activeDurationMs: 1_200,
+    thresholdMs: 1_000
+  }),
+  true,
+  'expected slow-file warning gate to trigger once active processing exceeds threshold'
+);
+
+const clampedLifecycle = resolveFileLifecycleDurations({
+  enqueuedAtMs: 10_000,
+  dequeuedAtMs: 9_000,
+  parseStartAtMs: 12_000,
+  parseEndAtMs: 11_500
+});
+assert.equal(clampedLifecycle.queueDelayMs, 0, 'expected negative queue duration to clamp to zero');
+assert.equal(clampedLifecycle.activeDurationMs, 0, 'expected negative active duration to clamp to zero');
 
 console.log('file watchdog hard timeout test passed');
 

@@ -104,11 +104,19 @@ export const normalizeIndexOptimizationProfile = (value) => {
  * @returns {{
  *   setInFlightBytes:(channel:string, input?:{bytes?:number,count?:number})=>void,
  *   clearInFlightBytes:(channel:string)=>void,
- *   readInFlightBytes:()=>{total:number,channels:Record<string,{bytes:number,count:number}>}
+ *   readInFlightBytes:()=>{total:number,channels:Record<string,{bytes:number,count:number}>},
+ *   recordDuration:(channel:string, durationMs:number)=>void,
+ *   clearDurationHistogram:(channel:string)=>void,
+ *   readDurationHistograms:()=>Record<string,{
+ *     count:number,totalMs:number,minMs:number,maxMs:number,avgMs:number,
+ *     bucketsMs:number[],counts:number[],overflow:number
+ *   }>
  * }}
  */
 const createRuntimeTelemetry = () => {
   const channels = new Map();
+  const DEFAULT_DURATION_BUCKETS_MS = Object.freeze([50, 100, 250, 500, 1000, 2000, 5000, 10000, 30000, 60000]);
+  const durationHistograms = new Map();
   const setInFlightBytes = (channel, input = {}) => {
     if (!channel) return;
     const bytes = Number(input?.bytes);
@@ -133,10 +141,80 @@ const createRuntimeTelemetry = () => {
     }
     return { total, channels: out };
   };
+  const coerceDurationMs = (value) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+  };
+  const resolveHistogramState = (channel) => {
+    const key = String(channel);
+    const existing = durationHistograms.get(key);
+    if (existing) return existing;
+    const bucketsMs = DEFAULT_DURATION_BUCKETS_MS.slice();
+    const state = {
+      bucketsMs,
+      counts: new Array(bucketsMs.length).fill(0),
+      overflow: 0,
+      count: 0,
+      totalMs: 0,
+      minMs: null,
+      maxMs: 0
+    };
+    durationHistograms.set(key, state);
+    return state;
+  };
+  const recordDuration = (channel, durationMs) => {
+    if (!channel) return;
+    const duration = coerceDurationMs(durationMs);
+    const state = resolveHistogramState(channel);
+    state.count += 1;
+    state.totalMs += duration;
+    state.minMs = state.minMs == null ? duration : Math.min(state.minMs, duration);
+    state.maxMs = Math.max(state.maxMs, duration);
+    let bucketIndex = -1;
+    for (let i = 0; i < state.bucketsMs.length; i += 1) {
+      if (duration <= state.bucketsMs[i]) {
+        bucketIndex = i;
+        break;
+      }
+    }
+    if (bucketIndex >= 0) {
+      state.counts[bucketIndex] += 1;
+    } else {
+      state.overflow += 1;
+    }
+  };
+  const clearDurationHistogram = (channel) => {
+    if (!channel) return;
+    durationHistograms.delete(String(channel));
+  };
+  const readDurationHistograms = () => {
+    const out = {};
+    for (const [name, value] of durationHistograms.entries()) {
+      const count = Number(value?.count) || 0;
+      const totalMs = Number(value?.totalMs) || 0;
+      const minMs = value?.minMs == null ? 0 : (Number(value.minMs) || 0);
+      const maxMs = Number(value?.maxMs) || 0;
+      const avgMs = count > 0 ? totalMs / count : 0;
+      out[name] = {
+        count,
+        totalMs,
+        minMs,
+        maxMs,
+        avgMs,
+        bucketsMs: Array.isArray(value?.bucketsMs) ? value.bucketsMs.slice() : [],
+        counts: Array.isArray(value?.counts) ? value.counts.slice() : [],
+        overflow: Number(value?.overflow) || 0
+      };
+    }
+    return out;
+  };
   return {
     setInFlightBytes,
     clearInFlightBytes,
-    readInFlightBytes
+    readInFlightBytes,
+    recordDuration,
+    clearDurationHistogram,
+    readDurationHistograms
   };
 };
 

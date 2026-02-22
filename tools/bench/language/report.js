@@ -1,4 +1,11 @@
 import { log } from '../../../src/shared/progress.js';
+import {
+  STAGE_TIMING_SCHEMA_VERSION,
+  buildStageTimingProfileForTask,
+  createEmptyStageTimingProfile,
+  finalizeStageTimingProfile,
+  mergeStageTimingProfile
+} from './metrics.js';
 
 const resolveCrashRetention = (entry) => {
   const direct = entry?.crashRetention && typeof entry.crashRetention === 'object'
@@ -75,13 +82,24 @@ export const summarizeResults = (items) => {
       values.reduce((a, b) => a + b, 0) / values.length
     ])
   );
+  const stageTimingMerged = createEmptyStageTimingProfile();
+  let stageTimingSamples = 0;
+  for (const entry of valid) {
+    if (!entry?.stageTimingProfile) continue;
+    mergeStageTimingProfile(stageTimingMerged, entry.stageTimingProfile);
+    stageTimingSamples += 1;
+  }
+  const stageTiming = stageTimingSamples > 0
+    ? finalizeStageTimingProfile(stageTimingMerged)
+    : null;
   return {
     backends,
     latencyMsAvg,
     hitRate,
     resultCountAvg,
     memoryRssAvgMb,
-    buildMs: Object.keys(buildMs).length ? buildMs : null
+    buildMs: Object.keys(buildMs).length ? buildMs : null,
+    stageTiming
   };
 };
 
@@ -114,8 +132,17 @@ export const printSummary = (
 };
 
 export const buildReportOutput = ({ configPath, cacheRoot, resultsRoot, results, config }) => {
+  const tasks = results.map((entry) => ({
+    ...entry,
+    stageTimingProfile: entry?.summary
+      ? buildStageTimingProfileForTask({
+        repoPath: entry.repoPath,
+        summary: entry.summary
+      })
+      : null
+  }));
   const groupedResults = new Map();
-  for (const entry of results) {
+  for (const entry of tasks) {
     if (!groupedResults.has(entry.language)) groupedResults.set(entry.language, []);
     groupedResults.get(entry.language).push(entry);
   }
@@ -127,16 +154,36 @@ export const buildReportOutput = ({ configPath, cacheRoot, resultsRoot, results,
       summary: summarizeResults(items)
     };
   }
-  const overallSummary = summarizeResults(results);
-  const crashRetention = buildCrashRetentionSummary(results);
+  const overallSummary = summarizeResults(tasks);
+  const crashRetention = buildCrashRetentionSummary(tasks);
+  const stageTimingTasks = tasks
+    .filter((entry) => entry?.stageTimingProfile)
+    .map((entry) => ({
+      language: entry.language,
+      tier: entry.tier,
+      repo: entry.repo,
+      repoPath: entry.repoPath || null,
+      outFile: entry.outFile || null,
+      stageTiming: entry.stageTimingProfile
+    }));
+  const stageTimingGrouped = Object.fromEntries(
+    Object.entries(groupedSummary)
+      .map(([language, payload]) => [language, payload?.summary?.stageTiming || null])
+  );
   return {
     generatedAt: new Date().toISOString(),
     config: configPath,
     cacheRoot,
     resultsRoot,
-    tasks: results,
+    tasks,
     diagnostics: {
       crashRetention
+    },
+    stageTiming: {
+      schemaVersion: STAGE_TIMING_SCHEMA_VERSION,
+      tasks: stageTimingTasks,
+      grouped: stageTimingGrouped,
+      overall: overallSummary?.stageTiming || null
     },
     groupedSummary,
     overallSummary

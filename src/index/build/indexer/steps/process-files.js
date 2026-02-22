@@ -51,10 +51,105 @@ const DEFAULT_POSTINGS_BYTES_PER_PENDING = 12 * 1024 * 1024;
 const DEFAULT_POSTINGS_PENDING_SCALE = 4;
 const LEXICON_FILTER_LOG_LIMIT = 5;
 const MB = 1024 * 1024;
+const STAGE_TIMING_SCHEMA_VERSION = 1;
+const STAGE_TIMING_SIZE_BINS = Object.freeze([
+  Object.freeze({ id: '0-16kb', maxBytes: 16 * 1024 }),
+  Object.freeze({ id: '16-64kb', maxBytes: 64 * 1024 }),
+  Object.freeze({ id: '64-256kb', maxBytes: 256 * 1024 }),
+  Object.freeze({ id: '256kb-1mb', maxBytes: 1024 * 1024 }),
+  Object.freeze({ id: '1mb-4mb', maxBytes: 4 * 1024 * 1024 }),
+  Object.freeze({ id: '4mb+', maxBytes: Number.POSITIVE_INFINITY })
+]);
+const FILE_QUEUE_DELAY_HISTOGRAM_BUCKETS_MS = Object.freeze([50, 100, 250, 500, 1000, 2000, 5000, 10000, 30000, 60000]);
 
 const coerceOptionalNonNegativeInt = (value) => {
   if (value === null || value === undefined) return null;
   return coerceNonNegativeInt(value);
+};
+const clampDurationMs = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+};
+const toIsoTimestamp = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? new Date(parsed).toISOString() : null;
+};
+
+export const resolveStageTimingSizeBin = (bytes) => {
+  const safeBytes = coerceNonNegativeInt(bytes) ?? 0;
+  for (const bin of STAGE_TIMING_SIZE_BINS) {
+    if (safeBytes <= bin.maxBytes) return bin.id;
+  }
+  return STAGE_TIMING_SIZE_BINS[STAGE_TIMING_SIZE_BINS.length - 1].id;
+};
+
+export const createDurationHistogram = (bucketsMs = FILE_QUEUE_DELAY_HISTOGRAM_BUCKETS_MS) => {
+  const normalizedBuckets = Array.from(
+    new Set(
+      (Array.isArray(bucketsMs) ? bucketsMs : [])
+        .map((value) => coerceNonNegativeInt(value))
+        .filter((value) => value != null && value >= 0)
+    )
+  ).sort((a, b) => a - b);
+  const bucketList = normalizedBuckets.length
+    ? normalizedBuckets
+    : FILE_QUEUE_DELAY_HISTOGRAM_BUCKETS_MS.slice();
+  const counts = new Array(bucketList.length).fill(0);
+  let overflow = 0;
+  return {
+    observe(value) {
+      const durationMs = clampDurationMs(value);
+      let matched = false;
+      for (let i = 0; i < bucketList.length; i += 1) {
+        if (durationMs <= bucketList[i]) {
+          counts[i] += 1;
+          matched = true;
+          break;
+        }
+      }
+      if (!matched) overflow += 1;
+    },
+    snapshot() {
+      return {
+        bucketsMs: bucketList.slice(),
+        counts: counts.slice(),
+        overflow
+      };
+    }
+  };
+};
+
+export const resolveFileLifecycleDurations = (lifecycle = {}) => {
+  const enqueuedAtMs = Number(lifecycle?.enqueuedAtMs);
+  const dequeuedAtMs = Number(lifecycle?.dequeuedAtMs);
+  const parseStartAtMs = Number(lifecycle?.parseStartAtMs);
+  const parseEndAtMs = Number(lifecycle?.parseEndAtMs);
+  const writeStartAtMs = Number(lifecycle?.writeStartAtMs);
+  const writeEndAtMs = Number(lifecycle?.writeEndAtMs);
+  const queueDelayMs = Number.isFinite(enqueuedAtMs) && Number.isFinite(dequeuedAtMs)
+    ? Math.max(0, dequeuedAtMs - enqueuedAtMs)
+    : 0;
+  const activeDurationMs = Number.isFinite(parseStartAtMs) && Number.isFinite(parseEndAtMs)
+    ? Math.max(0, parseEndAtMs - parseStartAtMs)
+    : 0;
+  const writeDurationMs = Number.isFinite(writeStartAtMs) && Number.isFinite(writeEndAtMs)
+    ? Math.max(0, writeEndAtMs - writeStartAtMs)
+    : 0;
+  const totalDurationMs = Number.isFinite(enqueuedAtMs) && Number.isFinite(writeEndAtMs)
+    ? Math.max(0, writeEndAtMs - enqueuedAtMs)
+    : (queueDelayMs + activeDurationMs + writeDurationMs);
+  return {
+    queueDelayMs,
+    activeDurationMs,
+    writeDurationMs,
+    totalDurationMs
+  };
+};
+
+export const shouldTriggerSlowFileWarning = ({ activeDurationMs, thresholdMs }) => {
+  const threshold = Number(thresholdMs);
+  if (!Number.isFinite(threshold) || threshold <= 0) return false;
+  return clampDurationMs(activeDurationMs) >= threshold;
 };
 
 const normalizeOwnershipSegment = (value, fallback = 'unknown') => {
@@ -597,6 +692,153 @@ export const processFiles = async ({
     };
   }
   const processStart = Date.now();
+  const stageTimingBreakdown = {
+    parseChunk: { totalMs: 0, byLanguage: new Map(), bySizeBin: new Map() },
+    inference: { totalMs: 0, byLanguage: new Map(), bySizeBin: new Map() },
+    embedding: { totalMs: 0, byLanguage: new Map(), bySizeBin: new Map() }
+  };
+  const queueDelayHistogram = createDurationHistogram(FILE_QUEUE_DELAY_HISTOGRAM_BUCKETS_MS);
+  const queueDelaySummary = { count: 0, totalMs: 0, minMs: null, maxMs: 0 };
+  const lifecycleByOrderIndex = new Map();
+  const lifecycleByRelKey = new Map();
+  const queueDelayTelemetryChannel = 'stage1.file-queue-delay';
+  runtime?.telemetry?.clearDurationHistogram?.(queueDelayTelemetryChannel);
+  const ensureLifecycleRecord = ({
+    orderIndex,
+    file = null,
+    fileIndex = null,
+    shardId = null
+  } = {}) => {
+    if (!Number.isFinite(orderIndex)) return null;
+    const normalizedOrderIndex = Math.floor(orderIndex);
+    const existing = lifecycleByOrderIndex.get(normalizedOrderIndex);
+    if (existing) {
+      if (file && !existing.file) existing.file = file;
+      if (Number.isFinite(fileIndex) && !Number.isFinite(existing.fileIndex)) {
+        existing.fileIndex = Math.floor(fileIndex);
+      }
+      if (shardId && !existing.shardId) existing.shardId = shardId;
+      return existing;
+    }
+    const created = {
+      orderIndex: normalizedOrderIndex,
+      file: file || null,
+      fileIndex: Number.isFinite(fileIndex) ? Math.floor(fileIndex) : null,
+      shardId: shardId || null,
+      enqueuedAtMs: null,
+      dequeuedAtMs: null,
+      parseStartAtMs: null,
+      parseEndAtMs: null,
+      writeStartAtMs: null,
+      writeEndAtMs: null
+    };
+    lifecycleByOrderIndex.set(normalizedOrderIndex, created);
+    return created;
+  };
+  const updateStageTimingBucket = (bucketMap, key, { durationMs = 0, files = 1, bytes = 0, lines = 0 } = {}) => {
+    const bucketKey = key || 'unknown';
+    const entry = bucketMap.get(bucketKey) || {
+      files: 0,
+      totalMs: 0,
+      bytes: 0,
+      lines: 0
+    };
+    entry.files += Math.max(0, Math.floor(Number(files) || 0));
+    entry.totalMs += clampDurationMs(durationMs);
+    entry.bytes += Math.max(0, Math.floor(Number(bytes) || 0));
+    entry.lines += Math.max(0, Math.floor(Number(lines) || 0));
+    bucketMap.set(bucketKey, entry);
+  };
+  const recordStageTimingSample = (section, {
+    languageId = null,
+    bytes = 0,
+    lines = 0,
+    durationMs = 0
+  } = {}) => {
+    const sectionBucket = stageTimingBreakdown[section];
+    if (!sectionBucket) return;
+    const safeDurationMs = clampDurationMs(durationMs);
+    if (safeDurationMs <= 0) return;
+    const safeBytes = Math.max(0, Math.floor(Number(bytes) || 0));
+    const safeLines = Math.max(0, Math.floor(Number(lines) || 0));
+    const normalizedLanguage = languageId || 'unknown';
+    const sizeBin = resolveStageTimingSizeBin(safeBytes);
+    sectionBucket.totalMs += safeDurationMs;
+    updateStageTimingBucket(sectionBucket.byLanguage, normalizedLanguage, {
+      durationMs: safeDurationMs,
+      files: 1,
+      bytes: safeBytes,
+      lines: safeLines
+    });
+    updateStageTimingBucket(sectionBucket.bySizeBin, sizeBin, {
+      durationMs: safeDurationMs,
+      files: 1,
+      bytes: safeBytes,
+      lines: safeLines
+    });
+  };
+  const observeQueueDelay = (durationMs) => {
+    const safeDurationMs = clampDurationMs(durationMs);
+    queueDelaySummary.count += 1;
+    queueDelaySummary.totalMs += safeDurationMs;
+    queueDelaySummary.minMs = queueDelaySummary.minMs == null
+      ? safeDurationMs
+      : Math.min(queueDelaySummary.minMs, safeDurationMs);
+    queueDelaySummary.maxMs = Math.max(queueDelaySummary.maxMs, safeDurationMs);
+    queueDelayHistogram.observe(safeDurationMs);
+    runtime?.telemetry?.recordDuration?.(queueDelayTelemetryChannel, safeDurationMs);
+  };
+  const finalizeBreakdownBucket = (bucketMap) => (
+    Object.fromEntries(
+      Array.from(bucketMap.entries())
+        .sort((a, b) => compareStrings(a[0], b[0]))
+        .map(([key, value]) => {
+          const totalMs = clampDurationMs(value?.totalMs);
+          const files = Math.max(0, Math.floor(Number(value?.files) || 0));
+          const bytes = Math.max(0, Math.floor(Number(value?.bytes) || 0));
+          const lines = Math.max(0, Math.floor(Number(value?.lines) || 0));
+          return [key, {
+            files,
+            totalMs,
+            avgMs: files > 0 ? totalMs / files : 0,
+            bytes,
+            lines
+          }];
+        })
+    )
+  );
+  const buildStageTimingBreakdownPayload = () => ({
+    schemaVersion: STAGE_TIMING_SCHEMA_VERSION,
+    parseChunk: {
+      totalMs: clampDurationMs(stageTimingBreakdown.parseChunk.totalMs),
+      byLanguage: finalizeBreakdownBucket(stageTimingBreakdown.parseChunk.byLanguage),
+      bySizeBin: finalizeBreakdownBucket(stageTimingBreakdown.parseChunk.bySizeBin)
+    },
+    inference: {
+      totalMs: clampDurationMs(stageTimingBreakdown.inference.totalMs),
+      byLanguage: finalizeBreakdownBucket(stageTimingBreakdown.inference.byLanguage),
+      bySizeBin: finalizeBreakdownBucket(stageTimingBreakdown.inference.bySizeBin)
+    },
+    embedding: {
+      totalMs: clampDurationMs(stageTimingBreakdown.embedding.totalMs),
+      byLanguage: finalizeBreakdownBucket(stageTimingBreakdown.embedding.byLanguage),
+      bySizeBin: finalizeBreakdownBucket(stageTimingBreakdown.embedding.bySizeBin)
+    },
+    watchdog: {
+      queueDelayMs: {
+        summary: {
+          count: Math.max(0, Math.floor(queueDelaySummary.count)),
+          totalMs: clampDurationMs(queueDelaySummary.totalMs),
+          minMs: queueDelaySummary.minMs == null ? 0 : clampDurationMs(queueDelaySummary.minMs),
+          maxMs: clampDurationMs(queueDelaySummary.maxMs),
+          avgMs: queueDelaySummary.count > 0
+            ? clampDurationMs(queueDelaySummary.totalMs) / queueDelaySummary.count
+            : 0
+        },
+        histogram: queueDelayHistogram.snapshot()
+      }
+    }
+  });
   const ioQueueConcurrency = Number.isFinite(runtime?.queues?.io?.concurrency)
     ? runtime.queues.io.concurrency
     : runtime.ioConcurrency;
@@ -697,6 +939,7 @@ export const processFiles = async ({
     const scmSnapshotEnabled = scmSnapshotConfig.enabled !== false;
     let scmFileMetaByPath = null;
     if (scmSnapshotEnabled) {
+      const scmMetaStart = Date.now();
       const scmSnapshot = await prepareScmFileMetaSnapshot({
         repoCacheRoot: runtime.repoCacheRoot,
         provider: runtime.scmProvider,
@@ -714,6 +957,9 @@ export const processFiles = async ({
         log
       });
       scmFileMetaByPath = scmSnapshot?.fileMetaByPath || null;
+      if (timing && typeof timing === 'object') {
+        timing.scmMetaMs = Math.max(0, Date.now() - scmMetaStart);
+      }
     }
 
     const structuralMatches = await loadStructuralMatches({
@@ -788,16 +1034,37 @@ export const processFiles = async ({
       }
       return Array.from(out).sort((a, b) => a - b);
     })();
+    const resolveResultLifecycleRecord = (result, shardMeta = null) => {
+      if (!result || typeof result !== 'object') return null;
+      const fromRelKey = result.relKey && lifecycleByRelKey.has(result.relKey)
+        ? lifecycleByRelKey.get(result.relKey)
+        : null;
+      const fromOrderIndex = Number.isFinite(result?.orderIndex)
+        ? Math.floor(result.orderIndex)
+        : null;
+      const resolvedOrderIndex = Number.isFinite(fromRelKey)
+        ? fromRelKey
+        : (Number.isFinite(fromOrderIndex) ? fromOrderIndex : null);
+      if (!Number.isFinite(resolvedOrderIndex)) return null;
+      return ensureLifecycleRecord({
+        orderIndex: resolvedOrderIndex,
+        file: result.relKey || result.abs || null,
+        fileIndex: result.fileIndex,
+        shardId: shardMeta?.id || null
+      });
+    };
     const applyFileResult = async (result, stateRef, shardMeta) => {
       if (!result) return;
+      const lifecycle = resolveResultLifecycleRecord(result, shardMeta);
+      if (lifecycle && !Number.isFinite(lifecycle.writeStartAtMs)) {
+        lifecycle.writeStartAtMs = Date.now();
+      }
       if (result.fileMetrics) {
         recordFileMetric(perfProfile, result.fileMetrics);
       }
       for (const chunk of result.chunks) {
         appendChunkWithRetention(stateRef, chunk, state);
       }
-      stateRef.scannedFilesTimes.push({ file: result.abs, duration_ms: result.durationMs, cached: result.cached });
-      stateRef.scannedFiles.push(result.abs);
       if (result.manifestEntry) {
         if (shardMeta?.id) result.manifestEntry.shard = shardMeta.id;
         incrementalState.manifest.files[result.relKey] = result.manifestEntry;
@@ -857,6 +1124,37 @@ export const processFiles = async ({
           stateRef.vfsManifestStats = stateRef.vfsManifestCollector.stats;
         }
         await stateRef.vfsManifestCollector.appendRows(result.vfsManifestRows, { log });
+      }
+      if (lifecycle) {
+        lifecycle.writeEndAtMs = Date.now();
+      }
+      const lifecycleDurations = lifecycle ? resolveFileLifecycleDurations(lifecycle) : null;
+      stateRef.scannedFilesTimes.push({
+        file: result.abs,
+        duration_ms: clampDurationMs(result.durationMs),
+        cached: result.cached,
+        ...(lifecycle
+          ? {
+            lifecycle: {
+              enqueuedAt: toIsoTimestamp(lifecycle.enqueuedAtMs),
+              dequeuedAt: toIsoTimestamp(lifecycle.dequeuedAtMs),
+              parseStartAt: toIsoTimestamp(lifecycle.parseStartAtMs),
+              parseEndAt: toIsoTimestamp(lifecycle.parseEndAtMs),
+              writeStartAt: toIsoTimestamp(lifecycle.writeStartAtMs),
+              writeEndAt: toIsoTimestamp(lifecycle.writeEndAtMs)
+            },
+            queue_delay_ms: lifecycleDurations?.queueDelayMs || 0,
+            active_duration_ms: lifecycleDurations?.activeDurationMs || 0,
+            write_duration_ms: lifecycleDurations?.writeDurationMs || 0
+          }
+          : {})
+      });
+      stateRef.scannedFiles.push(result.abs);
+      if (result.relKey && Number.isFinite(lifecycle?.orderIndex)) {
+        lifecycleByRelKey.delete(result.relKey);
+      }
+      if (Number.isFinite(lifecycle?.orderIndex)) {
+        lifecycleByOrderIndex.delete(lifecycle.orderIndex);
       }
     };
     const orderedAppender = buildOrderedAppender(
@@ -1159,6 +1457,19 @@ export const processFiles = async ({
       const runEntryBatch = async (batchEntries) => {
         const orderedCompletionTracker = createOrderedCompletionTracker();
         const orderedBatchEntries = sortEntriesByOrderIndex(batchEntries);
+        for (let i = 0; i < orderedBatchEntries.length; i += 1) {
+          const entry = orderedBatchEntries[i];
+          const orderIndex = resolveEntryOrderIndex(entry, i);
+          const lifecycle = ensureLifecycleRecord({
+            orderIndex,
+            file: entry?.rel || toPosix(path.relative(runtimeRef.root, entry?.abs || '')),
+            fileIndex: Number.isFinite(entry?.fileIndex) ? entry.fileIndex : null,
+            shardId: shardMeta?.id || null
+          });
+          if (lifecycle && !Number.isFinite(lifecycle.enqueuedAtMs)) {
+            lifecycle.enqueuedAtMs = Date.now();
+          }
+        }
         activeOrderedCompletionTracker = orderedCompletionTracker;
         try {
           await runWithQueue(
@@ -1171,24 +1482,49 @@ export const processFiles = async ({
                 ? entry.fileIndex
                 : (Number.isFinite(queueIndex) ? queueIndex + 1 : null);
               const rel = entry.rel || toPosix(path.relative(runtimeRef.root, entry.abs));
-              const watchdogStart = Date.now();
+              const activeStartAtMs = Date.now();
               const fileWatchdogMs = resolveFileWatchdogMs(fileWatchdogConfig, entry);
               const fileHardTimeoutMs = resolveFileHardTimeoutMs(fileWatchdogConfig, entry, fileWatchdogMs);
               let watchdog = null;
+              const lifecycle = ensureLifecycleRecord({
+                orderIndex,
+                file: rel,
+                fileIndex: stableFileIndex,
+                shardId: shardMeta?.id || null
+              });
+              if (lifecycle) {
+                if (!Number.isFinite(lifecycle.dequeuedAtMs)) {
+                  lifecycle.dequeuedAtMs = activeStartAtMs;
+                }
+                if (!Number.isFinite(lifecycle.parseStartAtMs)) {
+                  lifecycle.parseStartAtMs = activeStartAtMs;
+                }
+                const lifecycleDurations = resolveFileLifecycleDurations(lifecycle);
+                observeQueueDelay(lifecycleDurations.queueDelayMs);
+              }
               if (Number.isFinite(orderIndex)) {
                 inFlightFiles.set(orderIndex, {
                   orderIndex,
                   file: rel,
                   fileIndex: stableFileIndex,
                   shardId: shardMeta?.id || null,
-                  startedAt: Date.now()
+                  startedAt: activeStartAtMs
                 });
               }
               if (fileWatchdogMs > 0) {
                 watchdog = setTimeout(() => {
-                  const elapsedMs = Date.now() - watchdogStart;
+                  const activeDurationMs = Math.max(0, Date.now() - activeStartAtMs);
+                  if (!shouldTriggerSlowFileWarning({
+                    activeDurationMs,
+                    thresholdMs: fileWatchdogMs
+                  })) {
+                    return;
+                  }
+                  const queueDelayMs = lifecycle
+                    ? resolveFileLifecycleDurations(lifecycle).queueDelayMs
+                    : 0;
                   const lineText = Number.isFinite(entry.lines) ? ` lines ${entry.lines}` : '';
-                  logLine(`[watchdog] slow file ${stableFileIndex ?? '?'} ${rel} (${elapsedMs}ms)${lineText}`, {
+                  logLine(`[watchdog] slow file ${stableFileIndex ?? '?'} ${rel} (${activeDurationMs}ms)${lineText}`, {
                     kind: 'file-watchdog',
                     mode,
                     stage: 'processing',
@@ -1196,7 +1532,9 @@ export const processFiles = async ({
                     fileIndex: stableFileIndex,
                     total: progress.total,
                     lines: entry.lines || null,
-                    durationMs: elapsedMs,
+                    durationMs: activeDurationMs,
+                    activeDurationMs,
+                    queueDelayMs,
                     thresholdMs: fileWatchdogMs
                   });
                 }, fileWatchdogMs);
@@ -1321,6 +1659,9 @@ export const processFiles = async ({
                 });
                 throw err;
               } finally {
+                if (lifecycle) {
+                  lifecycle.parseEndAtMs = Date.now();
+                }
                 if (watchdog) {
                   clearTimeout(watchdog);
                 }
@@ -1355,7 +1696,50 @@ export const processFiles = async ({
                   showProgress('Shard', shardProgress.count, shardProgress.total, shardProgress.meta);
                 }
                 if (!result) {
+                  if (entry?.rel) lifecycleByRelKey.delete(entry.rel);
+                  if (Number.isFinite(orderIndex)) {
+                    lifecycleByOrderIndex.delete(Math.floor(orderIndex));
+                  }
                   return orderedAppender.skip(orderIndex);
+                }
+                if (Number.isFinite(orderIndex)) {
+                  result.orderIndex = Math.floor(orderIndex);
+                }
+                if (result?.relKey && Number.isFinite(orderIndex)) {
+                  lifecycleByRelKey.set(result.relKey, Math.floor(orderIndex));
+                }
+                const lifecycle = ensureLifecycleRecord({
+                  orderIndex,
+                  file: result?.relKey || entry?.rel || null,
+                  fileIndex: result?.fileIndex ?? entry?.fileIndex ?? null,
+                  shardId: shardMeta?.id || null
+                });
+                if (lifecycle && !Number.isFinite(lifecycle.parseEndAtMs)) {
+                  lifecycle.parseEndAtMs = Date.now();
+                }
+                const fileMetrics = result?.fileMetrics;
+                if (fileMetrics && typeof fileMetrics === 'object') {
+                  const bytes = Math.max(0, Math.floor(Number(fileMetrics.bytes) || 0));
+                  const lines = Math.max(0, Math.floor(Number(fileMetrics.lines) || 0));
+                  const languageId = fileMetrics.languageId || getLanguageForFile(entry?.ext, entry?.rel)?.id || 'unknown';
+                  recordStageTimingSample('parseChunk', {
+                    languageId,
+                    bytes,
+                    lines,
+                    durationMs: clampDurationMs(fileMetrics.parseMs) + clampDurationMs(fileMetrics.tokenizeMs)
+                  });
+                  recordStageTimingSample('inference', {
+                    languageId,
+                    bytes,
+                    lines,
+                    durationMs: clampDurationMs(fileMetrics.enrichMs)
+                  });
+                  recordStageTimingSample('embedding', {
+                    languageId,
+                    bytes,
+                    lines,
+                    durationMs: clampDurationMs(fileMetrics.embeddingMs)
+                  });
                 }
                 const reservation = sparsePostingsEnabled && postingsQueue
                   ? await (() => {
@@ -1398,6 +1782,10 @@ export const processFiles = async ({
                     shardId: shardMeta?.id || null
                   }
                 );
+                if (entry?.rel) lifecycleByRelKey.delete(entry.rel);
+                if (Number.isFinite(orderIndex)) {
+                  lifecycleByOrderIndex.delete(Math.floor(orderIndex));
+                }
                 await orderedAppender.skip(orderIndex);
               },
               retries: 2,
@@ -1711,6 +2099,14 @@ export const processFiles = async ({
     showProgress('Files', progress.total, progress.total, { stage: 'processing', mode });
     checkpoint.finish();
     timing.processMs = Date.now() - processStart;
+    const stageTimingBreakdownPayload = buildStageTimingBreakdownPayload();
+    if (timing && typeof timing === 'object') {
+      timing.stageTimingBreakdown = stageTimingBreakdownPayload;
+      timing.watchdog = {
+        ...(timing.watchdog && typeof timing.watchdog === 'object' ? timing.watchdog : {}),
+        queueDelayMs: stageTimingBreakdownPayload?.watchdog?.queueDelayMs || null
+      };
+    }
     const parseSkipCount = state.skippedFiles.filter((entry) => entry?.reason === 'parse-error').length;
     const relationSkipCount = state.skippedFiles.filter((entry) => entry?.reason === 'relation-error').length;
     const skipTotal = parseSkipCount + relationSkipCount;
@@ -1743,6 +2139,7 @@ export const processFiles = async ({
       detachExternalAbort();
     }
     runtime?.telemetry?.clearInFlightBytes?.('stage1.postings-queue');
+    runtime?.telemetry?.clearDurationHistogram?.(queueDelayTelemetryChannel);
     await runCleanupWithTimeout({
       label: 'perf-event-logger.close',
       cleanup: () => perfEventLogger.close(),

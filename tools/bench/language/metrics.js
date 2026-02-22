@@ -16,7 +16,7 @@ import { readTextFile } from '../../../src/shared/encoding.js';
 import { buildLineIndex, offsetToLine } from '../../../src/shared/lines.js';
 import { countLinesForEntries } from '../../../src/shared/file-stats.js';
 import { formatDurationMs } from '../../../src/shared/time-format.js';
-import { getTriageConfig } from '../../shared/dict-utils.js';
+import { getMetricsDir, getTriageConfig, loadUserConfig } from '../../shared/dict-utils.js';
 import { emitBenchLog } from './logging.js';
 
 export const formatDuration = (ms) => formatDurationMs(ms);
@@ -63,6 +63,297 @@ export const formatMetricSummary = (summary) => {
     parts.push(`embed ${summary.embeddingProvider}`);
   }
   return parts.length ? `Metrics: ${parts.join(' | ')}` : 'Metrics: pending';
+};
+
+export const STAGE_TIMING_SCHEMA_VERSION = 1;
+export const STAGE_TIMING_STAGE_KEYS = Object.freeze([
+  'discovery',
+  'importScan',
+  'scmMeta',
+  'parseChunk',
+  'inference',
+  'artifactWrite',
+  'embedding',
+  'sqliteBuild'
+]);
+export const STAGE_TIMING_BREAKDOWN_KEYS = Object.freeze([
+  'parseChunk',
+  'inference',
+  'embedding'
+]);
+const INDEX_METRICS_MODES = Object.freeze(['code', 'prose', 'extracted-prose', 'records']);
+
+const toSafeDurationMs = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+};
+
+const toSafeCount = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : 0;
+};
+
+const createBucket = () => ({
+  files: 0,
+  totalMs: 0,
+  bytes: 0,
+  lines: 0
+});
+
+const mergeBucket = (target, source) => {
+  const next = target && typeof target === 'object' ? target : createBucket();
+  next.files = toSafeCount(next.files) + toSafeCount(source?.files);
+  next.totalMs = toSafeDurationMs(next.totalMs) + toSafeDurationMs(source?.totalMs);
+  next.bytes = toSafeCount(next.bytes) + toSafeCount(source?.bytes);
+  next.lines = toSafeCount(next.lines) + toSafeCount(source?.lines);
+  return next;
+};
+
+const mergeBucketMap = (target = {}, source = {}) => {
+  const out = { ...target };
+  if (!source || typeof source !== 'object') return out;
+  for (const [key, value] of Object.entries(source)) {
+    out[key] = mergeBucket(out[key], value);
+  }
+  return out;
+};
+
+const finalizeBucketMap = (input = {}) => (
+  Object.fromEntries(
+    Object.entries(input)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([key, value]) => {
+        const files = toSafeCount(value?.files);
+        const totalMs = toSafeDurationMs(value?.totalMs);
+        const bytes = toSafeCount(value?.bytes);
+        const lines = toSafeCount(value?.lines);
+        return [key, {
+          files,
+          totalMs,
+          avgMs: files > 0 ? totalMs / files : 0,
+          bytes,
+          lines
+        }];
+      })
+  )
+);
+
+const createQueueDelaySummary = () => ({
+  count: 0,
+  totalMs: 0,
+  minMs: 0,
+  maxMs: 0,
+  avgMs: 0
+});
+
+const createQueueDelayHistogram = () => ({
+  bucketsMs: [],
+  counts: [],
+  overflow: 0
+});
+
+export const createEmptyStageTimingProfile = () => ({
+  schemaVersion: STAGE_TIMING_SCHEMA_VERSION,
+  stages: Object.fromEntries(STAGE_TIMING_STAGE_KEYS.map((key) => [key, 0])),
+  breakdown: Object.fromEntries(
+    STAGE_TIMING_BREAKDOWN_KEYS.map((key) => [
+      key,
+      {
+        totalMs: 0,
+        byLanguage: {},
+        bySizeBin: {}
+      }
+    ])
+  ),
+  watchdog: {
+    queueDelayMs: {
+      summary: createQueueDelaySummary(),
+      histogram: createQueueDelayHistogram()
+    }
+  }
+});
+
+const mergeHistogram = (target = createQueueDelayHistogram(), source = {}) => {
+  const sourceBuckets = Array.isArray(source?.bucketsMs) ? source.bucketsMs.map(toSafeDurationMs) : [];
+  const sourceCounts = Array.isArray(source?.counts) ? source.counts.map(toSafeCount) : [];
+  if (!target.bucketsMs.length && sourceBuckets.length) {
+    target.bucketsMs = sourceBuckets.slice();
+    target.counts = new Array(sourceBuckets.length).fill(0);
+  }
+  const sameShape = target.bucketsMs.length === sourceBuckets.length
+    && target.bucketsMs.every((value, index) => value === sourceBuckets[index]);
+  if (sameShape) {
+    for (let i = 0; i < target.counts.length; i += 1) {
+      target.counts[i] = toSafeCount(target.counts[i]) + toSafeCount(sourceCounts[i]);
+    }
+    target.overflow = toSafeCount(target.overflow) + toSafeCount(source?.overflow);
+  }
+  return target;
+};
+
+const mergeQueueDelay = (target = createQueueDelaySummary(), source = {}) => {
+  const targetCount = toSafeCount(target.count);
+  const sourceCount = toSafeCount(source?.count);
+  const sourceTotalMs = toSafeDurationMs(source?.totalMs);
+  const sourceMinMs = toSafeDurationMs(source?.minMs);
+  const sourceMaxMs = toSafeDurationMs(source?.maxMs);
+  const nextCount = targetCount + sourceCount;
+  const nextTotalMs = toSafeDurationMs(target.totalMs) + sourceTotalMs;
+  let nextMinMs = 0;
+  if (targetCount > 0 && sourceCount > 0) {
+    nextMinMs = Math.min(toSafeDurationMs(target.minMs), sourceMinMs);
+  } else if (targetCount > 0) {
+    nextMinMs = toSafeDurationMs(target.minMs);
+  } else if (sourceCount > 0) {
+    nextMinMs = sourceMinMs;
+  }
+  const nextMaxMs = Math.max(toSafeDurationMs(target.maxMs), sourceMaxMs);
+  return {
+    count: nextCount,
+    totalMs: nextTotalMs,
+    minMs: Number.isFinite(nextMinMs) ? nextMinMs : 0,
+    maxMs: nextMaxMs,
+    avgMs: nextCount > 0 ? nextTotalMs / nextCount : 0
+  };
+};
+
+export const mergeStageTimingProfile = (target, source) => {
+  const next = target || createEmptyStageTimingProfile();
+  if (!source || typeof source !== 'object') return next;
+  for (const stageKey of STAGE_TIMING_STAGE_KEYS) {
+    next.stages[stageKey] = toSafeDurationMs(next.stages[stageKey]) + toSafeDurationMs(source?.stages?.[stageKey]);
+  }
+  for (const sectionKey of STAGE_TIMING_BREAKDOWN_KEYS) {
+    const sourceSection = source?.breakdown?.[sectionKey];
+    if (!sourceSection || typeof sourceSection !== 'object') continue;
+    const targetSection = next.breakdown[sectionKey] || {
+      totalMs: 0,
+      byLanguage: {},
+      bySizeBin: {}
+    };
+    targetSection.totalMs = toSafeDurationMs(targetSection.totalMs) + toSafeDurationMs(sourceSection.totalMs);
+    targetSection.byLanguage = mergeBucketMap(targetSection.byLanguage, sourceSection.byLanguage);
+    targetSection.bySizeBin = mergeBucketMap(targetSection.bySizeBin, sourceSection.bySizeBin);
+    next.breakdown[sectionKey] = targetSection;
+  }
+  const sourceQueueDelay = source?.watchdog?.queueDelayMs || {};
+  const targetQueueDelay = next?.watchdog?.queueDelayMs || {
+    summary: createQueueDelaySummary(),
+    histogram: createQueueDelayHistogram()
+  };
+  targetQueueDelay.summary = mergeQueueDelay(targetQueueDelay.summary, sourceQueueDelay.summary);
+  targetQueueDelay.histogram = mergeHistogram(targetQueueDelay.histogram, sourceQueueDelay.histogram);
+  next.watchdog.queueDelayMs = targetQueueDelay;
+  return next;
+};
+
+export const finalizeStageTimingProfile = (profile) => {
+  const source = profile && typeof profile === 'object'
+    ? profile
+    : createEmptyStageTimingProfile();
+  const stages = {};
+  for (const stageKey of STAGE_TIMING_STAGE_KEYS) {
+    stages[stageKey] = toSafeDurationMs(source?.stages?.[stageKey]);
+  }
+  const breakdown = {};
+  for (const sectionKey of STAGE_TIMING_BREAKDOWN_KEYS) {
+    const section = source?.breakdown?.[sectionKey] || {};
+    breakdown[sectionKey] = {
+      totalMs: toSafeDurationMs(section.totalMs),
+      byLanguage: finalizeBucketMap(section.byLanguage),
+      bySizeBin: finalizeBucketMap(section.bySizeBin)
+    };
+  }
+  const queueDelaySource = source?.watchdog?.queueDelayMs || {};
+  const queueSummary = mergeQueueDelay(createQueueDelaySummary(), queueDelaySource.summary);
+  const queueHistogram = mergeHistogram(createQueueDelayHistogram(), queueDelaySource.histogram);
+  const stageTotalMs = STAGE_TIMING_STAGE_KEYS
+    .reduce((sum, stageKey) => sum + toSafeDurationMs(stages[stageKey]), 0);
+  return {
+    schemaVersion: STAGE_TIMING_SCHEMA_VERSION,
+    stages,
+    stageTotalMs,
+    breakdown,
+    watchdog: {
+      queueDelayMs: {
+        summary: queueSummary,
+        histogram: queueHistogram
+      }
+    }
+  };
+};
+
+const extractTimingBreakdown = (timings = {}) => {
+  const fallbackBreakdown = timings?.stageTimingBreakdown && typeof timings.stageTimingBreakdown === 'object'
+    ? timings.stageTimingBreakdown
+    : {};
+  const out = createEmptyStageTimingProfile();
+  out.stages.discovery = toSafeDurationMs(timings.discoverMs);
+  out.stages.importScan = toSafeDurationMs(timings.importsMs);
+  out.stages.scmMeta = toSafeDurationMs(timings.scmMetaMs);
+  out.stages.artifactWrite = toSafeDurationMs(timings.writeMs);
+  for (const sectionKey of STAGE_TIMING_BREAKDOWN_KEYS) {
+    const section = fallbackBreakdown?.[sectionKey];
+    if (!section || typeof section !== 'object') continue;
+    out.stages[sectionKey] = toSafeDurationMs(section.totalMs);
+    out.breakdown[sectionKey].totalMs = toSafeDurationMs(section.totalMs);
+    out.breakdown[sectionKey].byLanguage = mergeBucketMap(
+      out.breakdown[sectionKey].byLanguage,
+      section.byLanguage
+    );
+    out.breakdown[sectionKey].bySizeBin = mergeBucketMap(
+      out.breakdown[sectionKey].bySizeBin,
+      section.bySizeBin
+    );
+  }
+  const queueDelaySource = fallbackBreakdown?.watchdog?.queueDelayMs || timings?.watchdog?.queueDelayMs || {};
+  out.watchdog.queueDelayMs.summary = mergeQueueDelay(
+    out.watchdog.queueDelayMs.summary,
+    queueDelaySource.summary
+  );
+  out.watchdog.queueDelayMs.histogram = mergeHistogram(
+    out.watchdog.queueDelayMs.histogram,
+    queueDelaySource.histogram
+  );
+  return out;
+};
+
+const readJsonFileSync = (filePath) => {
+  try {
+    if (!fs.existsSync(filePath)) return null;
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch {
+    return null;
+  }
+};
+
+const loadRepoIndexMetrics = (repoPath) => {
+  try {
+    const userConfig = loadUserConfig(repoPath);
+    const metricsDir = getMetricsDir(repoPath, userConfig);
+    const metricsByMode = {};
+    for (const mode of INDEX_METRICS_MODES) {
+      const metricsPath = path.join(metricsDir, `index-${mode}.json`);
+      const payload = readJsonFileSync(metricsPath);
+      if (payload) metricsByMode[mode] = payload;
+    }
+    return metricsByMode;
+  } catch {
+    return {};
+  }
+};
+
+export const buildStageTimingProfileForTask = ({ repoPath, summary }) => {
+  const profile = createEmptyStageTimingProfile();
+  if (repoPath) {
+    const metricsByMode = loadRepoIndexMetrics(repoPath);
+    for (const metrics of Object.values(metricsByMode)) {
+      mergeStageTimingProfile(profile, extractTimingBreakdown(metrics?.timings));
+    }
+  }
+  profile.stages.sqliteBuild += toSafeDurationMs(summary?.buildMs?.sqlite);
+  profile.stages.embedding += toSafeDurationMs(summary?.buildMs?.embedding);
+  return finalizeStageTimingProfile(profile);
 };
 
 const resolveMaxFileBytes = (userConfig) => {
