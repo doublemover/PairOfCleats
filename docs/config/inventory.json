@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-22T03:10:36.794Z",
+  "generatedAt": "2026-02-22T03:26:07.441Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -55,6 +55,7 @@
       "PAIROFCLEATS_CACHE_REBUILD",
       "PAIROFCLEATS_CACHE_ROOT",
       "PAIROFCLEATS_COMPRESSION",
+      "PAIROFCLEATS_CRASH_LOG_ANNOUNCE",
       "PAIROFCLEATS_CROSSFILE_PROPAGATION_PARALLEL",
       "PAIROFCLEATS_CROSSFILE_PROPAGATION_PARALLEL_MIN_BUNDLE",
       "PAIROFCLEATS_DEBUG_CRASH",
@@ -2192,7 +2193,8 @@
       "files": [
         "src/index/build/crash-log.js",
         "tests/indexing/crash-log-announcement.test.js",
-        "tools/bench/language-repos.js"
+        "tools/bench/language-repos.js",
+        "tools/config/inventory.js"
       ]
     },
     {
@@ -3279,9 +3281,7 @@
   "envVarsPublic": [
     "PAIROFCLEATS_API_TOKEN"
   ],
-  "envVarsUnknown": [
-    "PAIROFCLEATS_CRASH_LOG_ANNOUNCE"
-  ],
+  "envVarsUnknown": [],
   "cliFlags": {
     "totalFlags": 320,
     "publicFlags": [
