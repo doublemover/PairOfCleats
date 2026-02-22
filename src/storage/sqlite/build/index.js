@@ -4,3 +4,8 @@ export {
   resolveRecordsIncrementalCapability,
   setRecordsIncrementalCapability
 } from './imports.js';
+
+export {
+  resolveSqliteBatchSize,
+  resolveSqliteIngestPlan
+} from '../utils.js';

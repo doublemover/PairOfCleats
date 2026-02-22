@@ -296,7 +296,7 @@ Primary targets:
 - Touchpoints: `src/integrations/triage/index-records.js`, `src/index/build/indexer/steps/incremental.js`, `src/storage/sqlite/build/runner.js`, `src/storage/sqlite/build/index.js`, `src/storage/sqlite/build/imports.js`, `tools/bench/sqlite/build-from-bundles.js`, `tests/storage/sqlite/sqlite-incremental-no-change.test.js`, `tests/storage/sqlite/sqlite-skip-empty-records-rebuild.test.js`
 
 ### UB-023: SQLite ingest parallelism and transaction shape tuning
-- Status: [ ]
+- Status: [x]
 - Problem:
   - SQLite build still contributes meaningful runtime share.
 - Tasks:
@@ -307,6 +307,11 @@ Primary targets:
   - SQLite microbench suite on representative corpus sizes.
 - Exit criteria:
   - Lower sqlite build ms without corruption or query regressions.
+- Completion: 2026-02-22T07:59:39.2545028-05:00
+- Validation:
+  - `node tests/storage/sqlite/sqlite-incremental-transaction-boundary.test.js`
+  - `node tests/storage/sqlite/sqlite-jsonl-streaming-zstd.test.js`
+  - `node tests/storage/sqlite/sqlite-batch-size-adaptive.test.js`
 - Improvement Intent (What): sqlite ingest throughput
 - Improvement Method (How): adaptive batch/transaction shapes and optimized index build ordering.
 - Integrated Betterments: introduce adaptive transaction chunk sizes based on WAL growth and fsync latency; defer secondary index creation until after bulk load for large batches; add rollback-safe partial-rebuild checkpointing for long sqlite jobs.

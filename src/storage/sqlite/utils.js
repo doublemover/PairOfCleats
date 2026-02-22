@@ -30,33 +30,243 @@ export function chunkArray(items, size = 900) {
 
 const SQLITE_BATCH_MIN = 50;
 const SQLITE_BATCH_MAX = 2000;
+const SQLITE_DEFAULT_BATCH = 1000;
+const SQLITE_DEFAULT_PAGE_SIZE = 4096;
 const BYTES_PER_MB = 1024 * 1024;
+const SQLITE_WAL_LOW_BYTES = 4 * BYTES_PER_MB;
+const SQLITE_WAL_MEDIUM_BYTES = 24 * BYTES_PER_MB;
+const SQLITE_WAL_HIGH_BYTES = 96 * BYTES_PER_MB;
+const SQLITE_TX_ROWS_MIN = 2000;
+const SQLITE_TX_ROWS_MAX = 250000;
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+const toPositiveFinite = (value) => {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
+};
+const normalizeJournalMode = (value) => {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLowerCase();
+  return normalized || null;
+};
 
-/**
- * Resolve a batch size for sqlite inserts based on input size.
- * @param {{batchSize?:number|null,inputBytes?:number|null,rowCount?:number|null}} [options]
- * @returns {number}
- */
-export function resolveSqliteBatchSize(options = {}) {
-  const requested = Number(options.batchSize);
-  if (Number.isFinite(requested) && requested > 0) {
+const resolveSqliteBatchInputs = (options = {}) => {
+  const batchHint = options.batchSize && typeof options.batchSize === 'object' && !Array.isArray(options.batchSize)
+    ? options.batchSize
+    : null;
+  const requested = toPositiveFinite(batchHint?.requested ?? batchHint?.batchSize ?? options.batchSize);
+  const inputBytes = toPositiveFinite(batchHint?.inputBytes ?? options.inputBytes) || 0;
+  const repoBytes = toPositiveFinite(batchHint?.repoBytes ?? options.repoBytes) || inputBytes;
+  const rowCount = toPositiveFinite(batchHint?.rowCount ?? options.rowCount) || 0;
+  const fileCount = toPositiveFinite(batchHint?.fileCount ?? options.fileCount) || 0;
+  const pageSize = Math.max(
+    512,
+    Math.floor(toPositiveFinite(batchHint?.pageSize ?? options.pageSize) || SQLITE_DEFAULT_PAGE_SIZE)
+  );
+  const journalMode = normalizeJournalMode(batchHint?.journalMode ?? options.journalMode);
+  const walEnabledInput = batchHint?.walEnabled ?? options.walEnabled;
+  const walEnabled = typeof walEnabledInput === 'boolean'
+    ? walEnabledInput
+    : journalMode === 'wal';
+  const walBytes = toPositiveFinite(batchHint?.walBytes ?? options.walBytes) || 0;
+  return {
+    requested,
+    inputBytes,
+    repoBytes,
+    rowCount,
+    fileCount,
+    pageSize,
+    journalMode,
+    walEnabled,
+    walBytes
+  };
+};
+
+const resolveSqliteWalPressure = ({ walEnabled, walBytes }) => {
+  if (!walEnabled) return 'off';
+  if (walBytes >= SQLITE_WAL_HIGH_BYTES) return 'high';
+  if (walBytes >= SQLITE_WAL_MEDIUM_BYTES) return 'medium';
+  if (walBytes >= SQLITE_WAL_LOW_BYTES) return 'low';
+  return 'none';
+};
+
+const resolveSqliteBaseBatchSize = ({ requested, inputBytes, rowCount }) => {
+  if (requested != null) {
     return clamp(Math.floor(requested), SQLITE_BATCH_MIN, SQLITE_BATCH_MAX);
   }
-  let resolved = 1000;
-  const inputBytes = Number(options.inputBytes);
-  if (Number.isFinite(inputBytes) && inputBytes > 0) {
+  let resolved = SQLITE_DEFAULT_BATCH;
+  if (inputBytes > 0) {
     if (inputBytes >= 2048 * BYTES_PER_MB) resolved = 200;
     else if (inputBytes >= 512 * BYTES_PER_MB) resolved = 400;
     else if (inputBytes >= 128 * BYTES_PER_MB) resolved = 700;
   }
-  const rowCount = Number(options.rowCount);
-  if (Number.isFinite(rowCount) && rowCount > 0) {
+  if (rowCount > 0) {
     if (rowCount >= 1_000_000) resolved = Math.min(resolved, 200);
     else if (rowCount >= 200_000) resolved = Math.min(resolved, 400);
     else if (rowCount >= 50_000) resolved = Math.min(resolved, 700);
   }
   return clamp(resolved, SQLITE_BATCH_MIN, SQLITE_BATCH_MAX);
+};
+
+const applySqliteRuntimeBatchAdjustments = ({
+  baseBatchSize,
+  pageSize,
+  walEnabled,
+  walBytes,
+  journalMode
+}) => {
+  let resolved = baseBatchSize;
+  if (pageSize >= 16384) resolved = Math.round(resolved * 1.28);
+  else if (pageSize >= 8192) resolved = Math.round(resolved * 1.14);
+  else if (pageSize <= 2048) resolved = Math.round(resolved * 0.84);
+  const walPressure = resolveSqliteWalPressure({ walEnabled, walBytes });
+  if (walEnabled) {
+    if (walPressure === 'high') resolved = Math.round(resolved * 0.55);
+    else if (walPressure === 'medium') resolved = Math.round(resolved * 0.72);
+    else if (walPressure === 'low') resolved = Math.round(resolved * 0.86);
+  } else if (journalMode && !['off', 'memory'].includes(journalMode)) {
+    resolved = Math.round(resolved * 0.9);
+  }
+  return {
+    batchSize: clamp(resolved, SQLITE_BATCH_MIN, SQLITE_BATCH_MAX),
+    walPressure
+  };
+};
+
+const resolveSqliteRepoTier = ({ repoBytes, rowCount }) => {
+  if (repoBytes >= 1536 * BYTES_PER_MB || rowCount >= 1_000_000) return 'xlarge';
+  if (repoBytes >= 512 * BYTES_PER_MB || rowCount >= 250_000) return 'large';
+  if (repoBytes >= 128 * BYTES_PER_MB || rowCount >= 75_000) return 'medium';
+  return 'small';
+};
+
+const resolveSqliteTransactionRows = ({
+  repoTier,
+  pageSize,
+  walPressure
+}) => {
+  let rows = 64000;
+  if (repoTier === 'xlarge') rows = 12000;
+  else if (repoTier === 'large') rows = 22000;
+  else if (repoTier === 'medium') rows = 36000;
+  if (pageSize >= 16384) rows = Math.round(rows * 1.25);
+  else if (pageSize >= 8192) rows = Math.round(rows * 1.12);
+  else if (pageSize <= 2048) rows = Math.round(rows * 0.82);
+  if (walPressure === 'high') rows = Math.round(rows * 0.45);
+  else if (walPressure === 'medium') rows = Math.round(rows * 0.65);
+  else if (walPressure === 'low') rows = Math.round(rows * 0.82);
+  return clamp(rows, SQLITE_TX_ROWS_MIN, SQLITE_TX_ROWS_MAX);
+};
+
+const resolveSqliteRowsPerFile = ({ rowCount, fileCount }) => {
+  if (rowCount > 0 && fileCount > 0) {
+    return clamp(Math.round(rowCount / fileCount), 1, SQLITE_TX_ROWS_MAX);
+  }
+  if (rowCount > 0) {
+    return clamp(Math.round(Math.sqrt(rowCount)), 1, SQLITE_TX_ROWS_MAX);
+  }
+  return 12;
+};
+
+/**
+ * Resolve sqlite ingest shape metadata (batch sizing and transaction hints).
+ * @param {{
+ *   batchSize?:number|{requested?:number|null,pageSize?:number|null,journalMode?:string|null,walEnabled?:boolean|null,walBytes?:number|null,rowCount?:number|null,fileCount?:number|null,repoBytes?:number|null,inputBytes?:number|null}|null,
+ *   inputBytes?:number|null,
+ *   repoBytes?:number|null,
+ *   rowCount?:number|null,
+ *   fileCount?:number|null,
+ *   pageSize?:number|null,
+ *   journalMode?:string|null,
+ *   walEnabled?:boolean|null,
+ *   walBytes?:number|null
+ * }} [options]
+ * @returns {{
+ *   batchSize:number,
+ *   transactionRows:number,
+ *   batchesPerTransaction:number,
+ *   filesPerTransaction:number,
+ *   rowsPerFile:number,
+ *   repoTier:'small'|'medium'|'large'|'xlarge',
+ *   walPressure:'off'|'none'|'low'|'medium'|'high',
+ *   pageSize:number,
+ *   journalMode:string|null,
+ *   walEnabled:boolean,
+ *   walBytes:number,
+ *   rowCount:number,
+ *   fileCount:number,
+ *   repoBytes:number,
+ *   inputBytes:number
+ * }}
+ */
+export function resolveSqliteIngestPlan(options = {}) {
+  const input = resolveSqliteBatchInputs(options);
+  const baseBatchSize = resolveSqliteBaseBatchSize(input);
+  const runtimeAdjusted = input.requested != null
+    ? {
+      batchSize: clamp(Math.floor(input.requested), SQLITE_BATCH_MIN, SQLITE_BATCH_MAX),
+      walPressure: resolveSqliteWalPressure(input)
+    }
+    : applySqliteRuntimeBatchAdjustments({
+      baseBatchSize,
+      pageSize: input.pageSize,
+      walEnabled: input.walEnabled,
+      walBytes: input.walBytes,
+      journalMode: input.journalMode
+    });
+  const batchSize = runtimeAdjusted.batchSize;
+  const repoTier = resolveSqliteRepoTier(input);
+  const transactionRows = resolveSqliteTransactionRows({
+    repoTier,
+    pageSize: input.pageSize,
+    walPressure: runtimeAdjusted.walPressure
+  });
+  const rowsPerFile = resolveSqliteRowsPerFile(input);
+  const filesPerTransaction = clamp(
+    Math.round(transactionRows / Math.max(rowsPerFile, 1)),
+    1,
+    2000
+  );
+  const batchesPerTransaction = clamp(
+    Math.round(transactionRows / Math.max(batchSize, 1)),
+    1,
+    2000
+  );
+  return {
+    batchSize,
+    transactionRows,
+    batchesPerTransaction,
+    filesPerTransaction,
+    rowsPerFile,
+    repoTier,
+    walPressure: runtimeAdjusted.walPressure,
+    pageSize: input.pageSize,
+    journalMode: input.journalMode,
+    walEnabled: input.walEnabled,
+    walBytes: input.walBytes,
+    rowCount: input.rowCount,
+    fileCount: input.fileCount,
+    repoBytes: input.repoBytes,
+    inputBytes: input.inputBytes
+  };
+};
+
+/**
+ * Resolve a batch size for sqlite inserts based on input size.
+ * @param {{
+ *   batchSize?:number|object|null,
+ *   inputBytes?:number|null,
+ *   repoBytes?:number|null,
+ *   rowCount?:number|null,
+ *   fileCount?:number|null,
+ *   pageSize?:number|null,
+ *   journalMode?:string|null,
+ *   walEnabled?:boolean|null,
+ *   walBytes?:number|null
+ * }} [options]
+ * @returns {number}
+ */
+export function resolveSqliteBatchSize(options = {}) {
+  return resolveSqliteIngestPlan(options).batchSize;
 }
 
 /**

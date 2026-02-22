@@ -47,7 +47,7 @@ import {
   countMissingBundleFiles,
   listIncrementalBundleFiles
 } from './runner/incremental.js';
-import { resolveRecordsIncrementalCapability } from './index.js';
+import { resolveRecordsIncrementalCapability, resolveSqliteIngestPlan } from './index.js';
 import {
   hasVectorTableAtPath,
   readSqliteCounts,
@@ -66,6 +66,102 @@ export { normalizeValidateMode } from './runner/options.js';
 const BUNDLE_LOADER_WORKER_PATH = fileURLToPath(new URL('./bundle-loader-worker.js', import.meta.url));
 const SQLITE_ZERO_STATE_SCHEMA_VERSION = '1.0.0';
 const SQLITE_ZERO_STATE_MANIFEST_FILE = 'sqlite-zero-state.json';
+const SQLITE_DEFAULT_PAGE_SIZE = 4096;
+
+const readPragmaSimple = (db, name) => {
+  if (!db || !name) return null;
+  try {
+    return db.pragma(name, { simple: true });
+  } catch {
+    return null;
+  }
+};
+
+const probeSqliteTargetRuntime = ({ Database, dbPath }) => {
+  const runtime = {
+    pageSize: SQLITE_DEFAULT_PAGE_SIZE,
+    journalMode: null,
+    walEnabled: false,
+    walBytes: 0,
+    dbBytes: 0,
+    source: 'default'
+  };
+  if (!dbPath) return runtime;
+  try {
+    runtime.dbBytes = Number(fsSync.statSync(dbPath).size) || 0;
+  } catch {}
+  try {
+    runtime.walBytes = Number(fsSync.statSync(`${dbPath}-wal`).size) || 0;
+  } catch {}
+  if (!fsSync.existsSync(dbPath)) {
+    runtime.walEnabled = runtime.walBytes > 0;
+    runtime.source = runtime.walEnabled ? 'wal-sidecar' : 'missing-db';
+    return runtime;
+  }
+  let probeDb = null;
+  try {
+    probeDb = new Database(dbPath, { readonly: true, fileMustExist: true });
+    const pageSize = Number(readPragmaSimple(probeDb, 'page_size'));
+    if (Number.isFinite(pageSize) && pageSize > 0) {
+      runtime.pageSize = Math.max(512, Math.floor(pageSize));
+    }
+    const journalModeRaw = readPragmaSimple(probeDb, 'journal_mode');
+    runtime.journalMode = typeof journalModeRaw === 'string'
+      ? journalModeRaw.trim().toLowerCase()
+      : null;
+    runtime.walEnabled = runtime.journalMode === 'wal' || runtime.walBytes > 0;
+    runtime.source = 'pragma';
+  } catch {
+    runtime.walEnabled = runtime.walBytes > 0;
+    runtime.source = runtime.walEnabled ? 'wal-sidecar' : 'stat';
+  } finally {
+    try {
+      probeDb?.close();
+    } catch {}
+  }
+  return runtime;
+};
+
+const resolveAdaptiveBatchConfig = ({
+  requestedBatchSize,
+  runtime,
+  inputBytes = 0,
+  rowCount = 0,
+  fileCount = 0,
+  repoBytes = 0
+}) => {
+  const resolvedRuntime = runtime && typeof runtime === 'object' ? runtime : {};
+  const numericInputBytes = Number(inputBytes);
+  const numericRepoBytes = Number(repoBytes);
+  const runtimeDbBytes = Number(resolvedRuntime.dbBytes);
+  const config = {
+    requested: Number.isFinite(requestedBatchSize) && requestedBatchSize > 0
+      ? Math.floor(requestedBatchSize)
+      : null,
+    pageSize: resolvedRuntime.pageSize ?? SQLITE_DEFAULT_PAGE_SIZE,
+    journalMode: resolvedRuntime.journalMode ?? null,
+    walEnabled: resolvedRuntime.walEnabled === true,
+    walBytes: Number.isFinite(Number(resolvedRuntime.walBytes)) && Number(resolvedRuntime.walBytes) > 0
+      ? Number(resolvedRuntime.walBytes)
+      : 0,
+    inputBytes: Number.isFinite(numericInputBytes) && numericInputBytes > 0
+      ? numericInputBytes
+      : 0,
+    rowCount: Number.isFinite(Number(rowCount)) && Number(rowCount) > 0
+      ? Number(rowCount)
+      : 0,
+    fileCount: Number.isFinite(Number(fileCount)) && Number(fileCount) > 0
+      ? Number(fileCount)
+      : 0,
+    repoBytes: Math.max(
+      Number.isFinite(numericRepoBytes) && numericRepoBytes > 0 ? numericRepoBytes : 0,
+      Number.isFinite(numericInputBytes) && numericInputBytes > 0 ? numericInputBytes : 0,
+      Number.isFinite(runtimeDbBytes) && runtimeDbBytes > 0 ? runtimeDbBytes : 0
+    )
+  };
+  const plan = resolveSqliteIngestPlan({ batchSize: config });
+  return { config, plan };
+};
 
 const resolveSqliteZeroStateManifestPath = (modeIndexDir) => (
   modeIndexDir ? path.join(modeIndexDir, 'pieces', SQLITE_ZERO_STATE_MANIFEST_FILE) : null
@@ -425,6 +521,13 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
       const logDetails = [];
       const modeChunkCountHint = resolveChunkMetaTotalRecords(modeIndexDir);
       const modeDenseCountHint = resolveExpectedDenseCount(indexPieces?.[mode]?.denseVec);
+      const modeRowCountHint = Number.isFinite(Number(modeChunkCountHint)) && Number(modeChunkCountHint) > 0
+        ? Number(modeChunkCountHint)
+        : 0;
+      const sqliteRuntime = probeSqliteTargetRuntime({
+        Database,
+        dbPath: outputPath
+      });
       if (emitOutput) {
         log(`${modeLabel} build start`, {
           fileOnlyLine: `${modeLabel} building ${mode} index -> ${outputPath}`
@@ -551,6 +654,11 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
         const expectedDenseCount = resolveExpectedDenseCount(pieces?.denseVec);
         const modeSupportsDense = mode === 'code' || mode === 'prose' || mode === 'extracted-prose';
         const denseArtifactsRequired = modeSupportsDense && expectedDenseCount > 0;
+        const artifactManifestFiles = pieces?.manifestFiles;
+        const artifactFileCountHint = artifactManifestFiles && typeof artifactManifestFiles === 'object'
+          ? Object.keys(artifactManifestFiles).length
+          : 0;
+        const repoFileCountHint = Math.max(incrementalFileCount, artifactFileCountHint);
         const bundleManifest = incrementalData?.manifest || null;
         const recordsIncrementalCapability = mode === 'records'
           ? resolveRecordsIncrementalCapability(bundleManifest)
@@ -595,6 +703,44 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
           extension: modeVectorExtension,
           enabled: vectorAnnEnabled && (mode === 'code' || mode === 'prose' || mode === 'extracted-prose')
         };
+        let activeBatchConfig = null;
+        let activeIngestPlan = null;
+        const applyAdaptivePlan = ({ inputBytesHint = 0, fileCountHint = repoFileCountHint, repoBytesHint = 0 } = {}) => {
+          const resolved = resolveAdaptiveBatchConfig({
+            requestedBatchSize: batchSizeOverride,
+            runtime: sqliteRuntime,
+            inputBytes: inputBytesHint,
+            rowCount: modeRowCountHint,
+            fileCount: fileCountHint,
+            repoBytes: repoBytesHint
+          });
+          activeBatchConfig = resolved.config;
+          activeIngestPlan = resolved.plan;
+          sqliteStats.sqliteRuntime = {
+            pageSize: sqliteRuntime.pageSize,
+            journalMode: sqliteRuntime.journalMode,
+            walEnabled: sqliteRuntime.walEnabled,
+            walBytes: sqliteRuntime.walBytes,
+            source: sqliteRuntime.source
+          };
+          sqliteStats.ingestPlan = {
+            ...activeIngestPlan,
+            source: sqliteRuntime.source
+          };
+          sqliteStats.transactionBoundaries = {
+            rowsPerTransaction: activeIngestPlan.transactionRows,
+            batchesPerTransaction: activeIngestPlan.batchesPerTransaction,
+            filesPerTransaction: activeIngestPlan.filesPerTransaction,
+            repoTier: activeIngestPlan.repoTier,
+            walPressure: activeIngestPlan.walPressure
+          };
+          return resolved;
+        };
+        applyAdaptivePlan({
+          inputBytesHint: sqliteRuntime.dbBytes,
+          fileCountHint: repoFileCountHint,
+          repoBytesHint: sqliteRuntime.dbBytes
+        });
         stageCheckpoints.record({
           stage: 'stage4',
           step: 'start',
@@ -610,7 +756,13 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
             recordsIncrementalCapabilityExplicit: mode === 'records'
               ? (recordsIncrementalCapability.explicit === true ? 1 : 0)
               : null,
-            inputSource: resolvedInput.source === 'incremental' ? 1 : 0
+            inputSource: resolvedInput.source === 'incremental' ? 1 : 0,
+            pageSize: activeIngestPlan?.pageSize ?? null,
+            walBytes: activeIngestPlan?.walBytes ?? null,
+            walPressure: activeIngestPlan?.walPressure ?? null,
+            adaptiveBatchSize: activeIngestPlan?.batchSize ?? null,
+            transactionRows: activeIngestPlan?.transactionRows ?? null,
+            transactionFiles: activeIngestPlan?.filesPerTransaction ?? null
           }
         });
 
@@ -633,7 +785,7 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
             expectedDense: pieces?.denseVec || null,
             logger: externalLogger || { log, warn, error },
             inputBytes,
-            batchSize: batchSizeOverride,
+            batchSize: activeBatchConfig,
             stats: sqliteStats
           });
           if (updateResult?.used) {
@@ -663,6 +815,9 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
               extra: {
                 outputBytes: Number(stat?.size) || 0,
                 batchSize: sqliteStats.batchSize ?? null,
+                transactionRows: sqliteStats.transactionBoundaries?.rowsPerTransaction ?? null,
+                transactionFiles: sqliteStats.transactionBoundaries?.filesPerTransaction ?? null,
+                walPressure: sqliteStats.transactionBoundaries?.walPressure ?? null,
                 validationMs: sqliteStats.validationMs ?? null,
                 pragmas: sqliteStats.pragmas ?? null,
                 rows: {
@@ -722,6 +877,11 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
         if (resolvedInput.source === 'incremental' && resolvedInput.bundleDir) {
           const estimate = await estimateDirBytes(incrementalBundleDir);
           inputBytes = estimate.bytes;
+          applyAdaptivePlan({
+            inputBytesHint: inputBytes,
+            fileCountHint: incrementalFileCount || repoFileCountHint,
+            repoBytesHint: Math.max(sqliteRuntime.dbBytes || 0, inputBytes || 0)
+          });
           await ensureDiskSpace({
             targetPath: outDir,
             requiredBytes: Math.max(estimate.bytes * 2, 64 * 1024 * 1024),
@@ -741,7 +901,7 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
             workerPath: BUNDLE_LOADER_WORKER_PATH,
             logger: externalLogger || { log, warn, error },
             inputBytes,
-            batchSize: batchSizeOverride,
+            batchSize: activeBatchConfig,
             stats: sqliteStats
           });
           const missingDense = denseArtifactsRequired && bundleResult?.denseCount === 0;
@@ -755,6 +915,11 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
             const manifestLine = formatBundleManifest(bundleManifest);
             if (manifestLine) log(`[sqlite] bundle manifest ${mode}: ${manifestLine}.`);
             resolvedInput = { source: 'artifacts', indexDir: modeIndexDir };
+            applyAdaptivePlan({
+              inputBytesHint: inputBytes,
+              fileCountHint: artifactFileCountHint || repoFileCountHint,
+              repoBytesHint: Math.max(sqliteRuntime.dbBytes || 0, inputBytes || 0)
+            });
             await buildDatabaseFromArtifacts({
               Database,
               index: pieces,
@@ -766,7 +931,7 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
               logger: externalLogger || { log, warn, error },
               task: workTask,
               inputBytes,
-              batchSize: batchSizeOverride,
+              batchSize: activeBatchConfig,
               stats: sqliteStats
             });
           } else {
@@ -774,6 +939,11 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
         } else {
           const estimate = await estimateDirBytes(modeIndexDir);
           inputBytes = estimate.bytes;
+          applyAdaptivePlan({
+            inputBytesHint: inputBytes,
+            fileCountHint: artifactFileCountHint || repoFileCountHint,
+            repoBytesHint: Math.max(sqliteRuntime.dbBytes || 0, inputBytes || 0)
+          });
           await ensureDiskSpace({
             targetPath: outDir,
             requiredBytes: Math.max(estimate.bytes * 2, 64 * 1024 * 1024),
@@ -790,7 +960,7 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
             logger: externalLogger || { log, warn, error },
             task: workTask,
             inputBytes,
-            batchSize: batchSizeOverride,
+            batchSize: activeBatchConfig,
             stats: sqliteStats
           });
         }
@@ -827,6 +997,9 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
             inputBytes,
             outputBytes: Number(stat?.size) || 0,
             batchSize: sqliteStats.batchSize ?? null,
+            transactionRows: sqliteStats.transactionBoundaries?.rowsPerTransaction ?? null,
+            transactionFiles: sqliteStats.transactionBoundaries?.filesPerTransaction ?? null,
+            walPressure: sqliteStats.transactionBoundaries?.walPressure ?? null,
             validationMs: sqliteStats.validationMs ?? null,
             pragmas: sqliteStats.pragmas ?? null,
             rows: {
