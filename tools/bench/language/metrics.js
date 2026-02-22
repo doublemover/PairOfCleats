@@ -573,8 +573,11 @@ export const buildThroughputLedgerForTask = ({
       const fallbackDuration = stageKey === 'total'
         ? (toNullableNumber(throughputEntry?.totalMs) ?? toNullableNumber(indexingEntry?.durationMs))
         : null;
+      // Only `total` currently has trustworthy aggregate counters. Avoid
+      // emitting misleading per-stage throughput derived from global counts.
+      const stageCounts = stageKey === 'total' ? counts : null;
       const stageEntry = buildLedgerStageEntry({
-        counts,
+        counts: stageCounts,
         durationMs: stageDurations[stageKey] ?? fallbackDuration
       });
       if (hasLedgerStageValues(stageEntry)) {

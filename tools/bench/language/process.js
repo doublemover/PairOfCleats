@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSubprocess } from '../../../src/shared/subprocess.js';
 import { killProcessTree as killPidTree } from '../../../src/shared/kill-tree.js';
@@ -161,12 +162,23 @@ const resolveInFlightCount = ({ message, event }) => {
   return null;
 };
 
-const appendJsonLineSync = (filePath, payload) => {
+const appendJsonLineQueued = (queueByPath, filePath, payload) => {
+  if (!(queueByPath instanceof Map)) return;
   if (!filePath) return;
-  try {
-    fs.mkdirSync(path.dirname(filePath), { recursive: true });
-    fs.appendFileSync(filePath, `${JSON.stringify(payload)}\n`, 'utf8');
-  } catch {}
+  const prior = queueByPath.get(filePath) || Promise.resolve();
+  const next = prior
+    .catch(() => {})
+    .then(async () => {
+      await fsPromises.mkdir(path.dirname(filePath), { recursive: true });
+      await fsPromises.appendFile(filePath, `${JSON.stringify(payload)}\n`, 'utf8');
+    })
+    .catch(() => {});
+  queueByPath.set(filePath, next);
+};
+
+const flushQueuedJsonLines = async (queueByPath) => {
+  if (!(queueByPath instanceof Map) || queueByPath.size === 0) return;
+  await Promise.all(Array.from(queueByPath.values()).map((pending) => pending.catch(() => {})));
 };
 
 const matchesAnyPattern = (text, patterns) => patterns.some((pattern) => pattern.test(text));
@@ -303,6 +315,7 @@ export const createProcessRunner = ({
       new Set(resolveLogPaths().map(resolveProgressConfidenceStreamPath).filter(Boolean))
     );
     const schedulerEvents = [];
+    const telemetryWriteQueues = new Map();
     let diagnosticEventCount = 0;
     const diagnosticCountByType = new Map();
     const diagnosticCountById = new Map();
@@ -468,7 +481,7 @@ export const createProcessRunner = ({
         stallEvents: snapshot.stallEvents
       };
       for (const filePath of progressConfidenceStreams) {
-        appendJsonLineSync(filePath, payload);
+        appendJsonLineQueued(telemetryWriteQueues, filePath, payload);
       }
 
       if (!interactive) return;
@@ -592,7 +605,7 @@ export const createProcessRunner = ({
         taskId: toText(taskId) || null
       };
       for (const filePath of diagnosticStreams) {
-        appendJsonLineSync(filePath, payload);
+        appendJsonLineQueued(telemetryWriteQueues, filePath, payload);
       }
       maybeEmitInteractiveDiagnostic({ eventType, eventId, message: payload.message });
       if (eventType === 'queue_delay_hotspot' || eventType === 'artifact_tail_stall') {
@@ -693,6 +706,7 @@ export const createProcessRunner = ({
         interactive: false
       });
       if (code === 0) {
+        await flushQueuedJsonLines(telemetryWriteQueues);
         return {
           ok: true,
           schedulerEvents: getSchedulerEvents(),
@@ -713,9 +727,11 @@ export const createProcessRunner = ({
         writeLog('[hint] Enable Windows long paths and set `git config --global core.longpaths true` or use a shorter --root path.');
       }
       if (!continueOnError) {
+        await flushQueuedJsonLines(telemetryWriteQueues);
         logExit('failure', code ?? 1);
         process.exit(code ?? 1);
       }
+      await flushQueuedJsonLines(telemetryWriteQueues);
       return {
         ok: false,
         code: code ?? 1,
@@ -737,6 +753,7 @@ export const createProcessRunner = ({
         logHistory.slice(-10).forEach((line) => writeLog(`[error] ${line}`));   
       }
       if (!continueOnError) {
+        await flushQueuedJsonLines(telemetryWriteQueues);
         logExit('failure', err?.exitCode ?? 1);
         process.exit(err?.exitCode ?? 1);
       }
@@ -746,6 +763,7 @@ export const createProcessRunner = ({
         force: true,
         interactive: false
       });
+      await flushQueuedJsonLines(telemetryWriteQueues);
       return {
         ok: false,
         code: err?.exitCode ?? 1,
