@@ -645,13 +645,17 @@ Primary targets:
 - Touchpoints: `src/index/chunking.js`, `src/index/chunking/dispatch.js`, `src/index/chunking/limits.js`, `src/index/chunking/formats/markdown.js`, `tests/indexing/chunking/chunking-limits.test.js`, `tests/lang/typescript/typescript-chunk-boundaries.test.js`
 
 ### UB-072: Query-set quality expansion for benchmarks
-- Status: [ ]
+- Status: [x]
 - Observation:
   - Current query sets may not fully stress semantic and long-tail retrieval.
 - Tasks:
   - Expand benchmark queries with weighted intent classes and adversarial cases.
 - Exit criteria:
   - Better signal for relevance and latency regressions.
+- Completion: 2026-02-22T09:23:23.3905423-05:00
+- Validation:
+  - `node tests/perf/bench/bench-query-generator-language-family.test.js`
+  - `node tests/retrieval/query/golden-query-corpus.test.js`
 - Improvement Intent (What): benchmark signal quality
 - Improvement Method (How): richer/adversarial query sets and anti-overfit rotation.
 - Integrated Betterments: add adversarial and long-tail query classes per language; include negative controls to detect false-positive-heavy ranking; rotate query subsets to prevent overfitting to static corpus.
@@ -983,7 +987,7 @@ Last revised: 2026-02-22T05:44:04.8332760-05:00
 - Touchpoints: `src/index/scm/file-meta-snapshot.js`, `src/retrieval/output/filters/meta.js`, `src/retrieval/output/filters/file.js`, `src/retrieval/cli/load-indexes.js`, `tests/retrieval/filters/git-metadata/chunk-author.test.js`
 
 ### UB-092: Benchmark query-set specialization by language family
-- Status: [ ]
+- Status: [x]
 - Observation:
   - Generic query sets may under-represent language-specific retrieval failures.
 - Tasks:
@@ -991,6 +995,10 @@ Last revised: 2026-02-22T05:44:04.8332760-05:00
   - Add weighted scoring for symbol, type, API, and behavior intent classes.
 - Exit criteria:
   - Better precision in identifying language-specific retrieval regressions.
+- Completion: 2026-02-22T09:23:23.3905423-05:00
+- Validation:
+  - `node tests/perf/bench/bench-query-generator-language-family.test.js`
+  - `node tests/retrieval/query/golden-query-corpus.test.js`
 - Improvement Intent (What): language-specific benchmark precision
 - Improvement Method (How): specialized query packs per language family.
 - Integrated Betterments: maintain language-family benchmark packs and rotate query seeds; add per-language relevance labels for deeper quality signal; include miss-class distribution in reports.

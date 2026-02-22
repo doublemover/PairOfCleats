@@ -81,5 +81,59 @@
     "intentReason": "signals mixed or weak",
     "intentParseStrategy": "grammar",
     "intentFallbackReason": null
+  },
+  {
+    "id": "api_signature",
+    "parseStrategy": "grammar",
+    "parseFallbackReason": null,
+    "includeTerms": [
+      "createRouter",
+      "options",
+      ":",
+      "Router"
+    ],
+    "excludeTerms": [],
+    "phrases": [],
+    "excludePhrases": [],
+    "astType": "and",
+    "intentType": "mixed",
+    "intentReason": "signals mixed or weak",
+    "intentParseStrategy": "grammar",
+    "intentFallbackReason": null
+  },
+  {
+    "id": "behavior_negated_phrase",
+    "parseStrategy": "grammar",
+    "parseFallbackReason": null,
+    "includeTerms": [],
+    "excludeTerms": [
+      "deprecated"
+    ],
+    "phrases": [
+      "retry policy"
+    ],
+    "excludePhrases": [],
+    "astType": "and",
+    "intentType": "mixed",
+    "intentReason": "signals mixed or weak",
+    "intentParseStrategy": "grammar",
+    "intentFallbackReason": null
+  },
+  {
+    "id": "type_and_symbol",
+    "parseStrategy": "grammar",
+    "parseFallbackReason": null,
+    "includeTerms": [
+      "RuntimeConfig",
+      "SessionManager"
+    ],
+    "excludeTerms": [],
+    "phrases": [],
+    "excludePhrases": [],
+    "astType": "and",
+    "intentType": "mixed",
+    "intentReason": "signals mixed or weak",
+    "intentParseStrategy": "grammar",
+    "intentFallbackReason": null
   }
 ]

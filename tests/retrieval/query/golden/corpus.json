@@ -18,5 +18,17 @@
   {
     "id": "inventory_list",
     "query": "tokens:[alpha,beta]"
+  },
+  {
+    "id": "api_signature",
+    "query": "createRouter(options): Router"
+  },
+  {
+    "id": "behavior_negated_phrase",
+    "query": "\"retry policy\" -deprecated"
+  },
+  {
+    "id": "type_and_symbol",
+    "query": "RuntimeConfig SessionManager"
   }
 ]
