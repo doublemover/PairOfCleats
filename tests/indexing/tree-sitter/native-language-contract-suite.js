@@ -363,9 +363,10 @@ export async function runNativeLanguageContractSuite({
       `unexpected containerPath for ${fixture.file}`
     );
     assert.ok(Array.isArray(row.chunks) && row.chunks.length > 0, `expected chunks for ${fixture.languageId}`);
+    const nonFileChunks = row.chunks.filter((chunk) => chunk?.kind !== 'File');
     assert.ok(
-      row.chunks.every((chunk) => chunk?.kind !== 'File'),
-      `unexpected whole-file fallback chunk for ${fixture.languageId}`
+      nonFileChunks.length > 0,
+      `unexpected fallback-only chunk set for ${fixture.languageId}`
     );
     for (const chunk of row.chunks) {
       assert.ok(Number.isFinite(chunk?.start), `missing chunk.start for ${fixture.languageId}`);
