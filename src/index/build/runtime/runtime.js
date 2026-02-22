@@ -520,7 +520,8 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     maxMemoryTokens: schedulerConfig.maxMemoryTokens,
     starvationMs: schedulerConfig.starvationMs,
     queues: schedulerConfig.queues,
-    writeBackpressure: schedulerConfig.writeBackpressure
+    writeBackpressure: schedulerConfig.writeBackpressure,
+    adaptiveSurfaces: schedulerConfig.adaptiveSurfaces
   });
   const stage1Queues = resolveStage1Queues(indexingConfig);
   const triageConfig = getTriageConfig(root, userConfig);

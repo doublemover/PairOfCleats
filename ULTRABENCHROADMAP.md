@@ -154,7 +154,7 @@ Primary targets:
 - Touchpoints: `src/index/build/indexer/steps/process-files.js`, `src/index/build/runtime/runtime.js`, `tests/indexing/stage1/process-files-progress-heartbeat.test.js`, `tests/indexing/stage1/file-watchdog-hard-timeout.test.js`, `tests/perf/scheduler-starvation-detection.test.js`
 
 ### UB-012: Adaptive concurrency controller by stage and pressure
-- Status: [ ]
+- Status: [x]
 - Problem:
   - Static concurrency is suboptimal across mixed repo shapes.
 - Tasks:
@@ -165,10 +165,22 @@ Primary targets:
   - Load test with small/mid/large repos verifies no throughput regression and no starvation.
 - Exit criteria:
   - P95 build time drops; no increase in failure rate.
+- Completion: 2026-02-22T07:13:25.5229095-05:00
+- Validation:
+  - `node tests/shared/concurrency/scheduler-adaptive-surfaces.test.js`
+  - `node tests/shared/concurrency/scheduler-contract.test.js`
+  - `node tests/shared/concurrency/scheduler-write-backpressure.test.js`
+  - `node tests/shared/concurrency/scheduler-adapter-bytes-gating.test.js`
+  - `node tests/perf/scheduler-core.test.js`
+  - `node tests/perf/scheduler-fairness.test.js`
+  - `node tests/perf/scheduler-starvation-detection.test.js`
+  - `node tests/perf/indexing/runtime/scheduler-telemetry.test.js`
+  - `node tests/indexing/runtime/scheduler-autotune-profile.test.js`
+  - `node tests/indexing/artifacts/artifact-write-adaptive-concurrency-controller.test.js`
 - Improvement Intent (What): end-to-end throughput stability
 - Improvement Method (How): adaptive concurrency with hysteresis and replayable decisions.
 - Integrated Betterments: gate adaptive decisions behind hysteresis to prevent concurrency oscillation; use control-loop cooldown windows to avoid overreacting to transient spikes; log every adaptive decision with input features for offline replay.
-- Touchpoints: `src/index/build/runtime/runtime.js`, `src/index/build/tree-sitter-scheduler/adaptive-profile.js`, `src/index/build/tree-sitter-scheduler/plan.js`, `src/index/build/artifacts-write.js`, `tools/build/embeddings/runner.js`, `tests/indexing/runtime/scheduler-autotune-profile.test.js`, `tests/indexing/artifacts/artifact-write-adaptive-concurrency-controller.test.js`
+- Touchpoints: `src/shared/concurrency.js`, `src/index/build/runtime/scheduler.js`, `src/index/build/runtime/runtime.js`, `tests/shared/concurrency/scheduler-adaptive-surfaces.test.js`, `tests/indexing/runtime/scheduler-autotune-profile.test.js`, `tests/indexing/artifacts/artifact-write-adaptive-concurrency-controller.test.js`
 
 ### UB-013: Ruby-heavy scheduler lane rebalance
 - Status: [x]

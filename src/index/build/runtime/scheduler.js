@@ -5,6 +5,7 @@ import {
 } from '../../../shared/number-coerce.js';
 
 const normalizeBoolean = (value) => value === true || value === 'true' || value === '1';
+const isObject = (value) => value && typeof value === 'object' && !Array.isArray(value);
 
 const normalizeOptionalBoolean = (value) => {
   if (value == null) return null;
@@ -38,26 +39,88 @@ const resolveNumber = ({ cliValue, cliPresent, envValue, configValue, fallback, 
 };
 
 const resolveQueueConfig = (value) => {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  if (!isObject(value)) return {};
   const resolved = {};
   for (const [name, config] of Object.entries(value)) {
-    if (!config || typeof config !== 'object') continue;
+    if (!isObject(config)) continue;
     const priority = coerceNonNegativeInt(config.priority);
     const maxPending = coercePositiveInt(config.maxPending);
     const weight = coercePositiveInt(config.weight);
     const floorCpu = coerceNonNegativeInt(config.floorCpu);
     const floorIo = coerceNonNegativeInt(config.floorIo);
     const floorMem = coerceNonNegativeInt(config.floorMem);
+    const surface = typeof config.surface === 'string' && config.surface.trim()
+      ? config.surface.trim()
+      : null;
     resolved[name] = {
       ...(priority != null ? { priority } : {}),
       ...(maxPending != null ? { maxPending } : {}),
       ...(weight != null ? { weight } : {}),
       ...(floorCpu != null ? { floorCpu } : {}),
       ...(floorIo != null ? { floorIo } : {}),
-      ...(floorMem != null ? { floorMem } : {})
+      ...(floorMem != null ? { floorMem } : {}),
+      ...(surface ? { surface } : {})
     };
   }
   return resolved;
+};
+
+const resolveAdaptiveSurfacesConfig = (value) => {
+  if (!isObject(value)) return null;
+  const resolved = {};
+  if (Object.prototype.hasOwnProperty.call(value, 'enabled')) {
+    resolved.enabled = value.enabled !== false;
+  }
+  const decisionTraceMaxSamples = coercePositiveInt(value.decisionTraceMaxSamples);
+  if (decisionTraceMaxSamples != null) {
+    resolved.decisionTraceMaxSamples = decisionTraceMaxSamples;
+  }
+  const sourceSurfaces = isObject(value.surfaces) ? value.surfaces : value;
+  const surfaceConfig = {};
+  for (const [surfaceName, config] of Object.entries(sourceSurfaces)) {
+    if (!isObject(config)) continue;
+    if (surfaceName === 'enabled' || surfaceName === 'decisionTraceMaxSamples' || surfaceName === 'surfaces') {
+      continue;
+    }
+    const normalized = {
+      ...(Array.isArray(config.queues)
+        ? {
+          queues: config.queues
+            .filter((entry) => typeof entry === 'string' && entry.trim())
+            .map((entry) => entry.trim())
+        }
+        : {})
+    };
+    const numericFields = [
+      'minConcurrency',
+      'maxConcurrency',
+      'initialConcurrency',
+      'upBacklogPerSlot',
+      'downBacklogPerSlot',
+      'upWaitMs',
+      'downWaitMs',
+      'upCooldownMs',
+      'downCooldownMs',
+      'oscillationGuardMs',
+      'targetUtilization',
+      'ioPressureThreshold',
+      'memoryPressureThreshold',
+      'gcPressureThreshold'
+    ];
+    for (const field of numericFields) {
+      const valueRaw = Number(config[field]);
+      if (Number.isFinite(valueRaw)) {
+        normalized[field] = valueRaw;
+      }
+    }
+    if (Object.keys(normalized).length > 0) {
+      surfaceConfig[surfaceName] = normalized;
+    }
+  }
+  if (Object.keys(surfaceConfig).length > 0) {
+    resolved.surfaces = surfaceConfig;
+  }
+  return Object.keys(resolved).length > 0 ? resolved : null;
 };
 
 const DEFAULT_WRITE_BACKPRESSURE = Object.freeze({
@@ -338,6 +401,9 @@ export const resolveSchedulerConfig = ({
   const writeBackpressure = resolveWriteBackpressureConfig(
     schedulerConfig?.writeBackpressure
   );
+  const adaptiveSurfaces = resolveAdaptiveSurfacesConfig(
+    schedulerConfig?.adaptiveSurfaces
+  );
 
   return {
     enabled,
@@ -358,6 +424,7 @@ export const resolveSchedulerConfig = ({
     starvationMs,
     queues,
     writeBackpressure,
+    adaptiveSurfaces,
     autoTune: {
       enabled: autoTuneEnabled,
       sourceBuildId: typeof autoTuneProfileState?.sourceBuildId === 'string'
