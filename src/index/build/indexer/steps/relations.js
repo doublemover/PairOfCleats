@@ -861,7 +861,8 @@ export const runCrossFileInference = async ({
   state,
   crashLogger,
   featureMetrics,
-  relationsEnabled,
+  relationsEnabled = true,
+  crossFileInferenceEnabled = relationsEnabled,
   abortSignal = null
 }) => {
   throwIfAborted(abortSignal);
@@ -884,6 +885,7 @@ export const runCrossFileInference = async ({
   const riskInterproceduralEmitArtifacts = runtime.riskInterproceduralConfig?.emitArtifacts || null;
   const shouldBuildRiskSummaries = mode === 'code'
     && (riskInterproceduralEnabled || riskInterproceduralEmitArtifacts === 'jsonl');
+  const allowCrossFileInference = crossFileInferenceEnabled !== false;
   const useTooling = typeof policy?.typeInference?.tooling?.enabled === 'boolean'
     ? policy.typeInference.tooling.enabled
     : (typeInferenceEnabled && typeInferenceCrossFileEnabled && runtime.toolingEnabled);
@@ -899,10 +901,14 @@ export const runCrossFileInference = async ({
     )
   );
   const inferenceLiteHighSignalOnly = hugeRepoInferenceLiteConfig.highSignalOnly !== false;
-  const enableCrossFileTypeInference = typeInferenceEnabled && typeInferenceCrossFileEnabled;
-  const crossFileEnabled = typeInferenceCrossFileEnabled
+  const enableCrossFileTypeInference = allowCrossFileInference
+    && typeInferenceEnabled
+    && typeInferenceCrossFileEnabled;
+  const crossFileEnabled = allowCrossFileInference && (
+    typeInferenceCrossFileEnabled
     || riskAnalysisCrossFileEnabled
-    || riskInterproceduralEnabled;
+    || riskInterproceduralEnabled
+  );
   if (mode === 'code' && crossFileEnabled) {
     crashLogger.updatePhase('cross-file');
     const budgetPlan = buildCrossFileInferenceBudgetPlan({

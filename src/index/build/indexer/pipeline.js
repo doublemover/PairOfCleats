@@ -1193,7 +1193,8 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
           state,
           crashLogger,
           featureMetrics,
-          relationsEnabled: crossFileInferenceEnabled,
+          relationsEnabled: importGraphEnabled,
+          crossFileInferenceEnabled,
           abortSignal
         })
       )
@@ -1203,7 +1204,8 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
         state,
         crashLogger,
         featureMetrics,
-        relationsEnabled: crossFileInferenceEnabled,
+        relationsEnabled: importGraphEnabled,
+        crossFileInferenceEnabled,
         abortSignal
       }));
     crossFileEnabled = relationsResult?.crossFileEnabled === true;

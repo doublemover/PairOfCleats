@@ -785,37 +785,50 @@ export const resolveShardSubsetMinOrderIndex = (workItem) => {
   return Number.isFinite(minIndex) ? Math.floor(minIndex) : null;
 };
 
+const resolveShardWorkItemMinOrderIndex = (workItem) => {
+  const precomputed = Number(workItem?.firstOrderIndex);
+  if (Number.isFinite(precomputed)) return Math.floor(precomputed);
+  return resolveShardSubsetMinOrderIndex(workItem);
+};
+
 export const buildDeterministicShardMergePlan = (workItems = []) => {
   const list = Array.isArray(workItems)
     ? workItems.filter((workItem) => workItem && typeof workItem === 'object')
     : [];
-  return [...list]
-    .sort((a, b) => {
-      const aMin = resolveShardSubsetMinOrderIndex(a);
-      const bMin = resolveShardSubsetMinOrderIndex(b);
-      const aOrder = Number.isFinite(aMin) ? aMin : Number.MAX_SAFE_INTEGER;
-      const bOrder = Number.isFinite(bMin) ? bMin : Number.MAX_SAFE_INTEGER;
+  return list
+    .map((workItem) => ({
+      workItem,
+      firstOrderIndex: resolveShardWorkItemMinOrderIndex(workItem)
+    }))
+    .sort((left, right) => {
+      const aOrder = Number.isFinite(left.firstOrderIndex) ? left.firstOrderIndex : Number.MAX_SAFE_INTEGER;
+      const bOrder = Number.isFinite(right.firstOrderIndex) ? right.firstOrderIndex : Number.MAX_SAFE_INTEGER;
       if (aOrder !== bOrder) return aOrder - bOrder;
-      const aShard = String(a?.shard?.id || a?.shard?.label || '');
-      const bShard = String(b?.shard?.id || b?.shard?.label || '');
+      const aShard = String(left.workItem?.shard?.id || left.workItem?.shard?.label || '');
+      const bShard = String(right.workItem?.shard?.id || right.workItem?.shard?.label || '');
       const shardCmp = compareStrings(aShard, bShard);
       if (shardCmp !== 0) return shardCmp;
-      const aPartIndex = Number.isFinite(a?.partIndex) ? Math.floor(a.partIndex) : 1;
-      const bPartIndex = Number.isFinite(b?.partIndex) ? Math.floor(b.partIndex) : 1;
+      const aPartIndex = Number.isFinite(left.workItem?.partIndex) ? Math.floor(left.workItem.partIndex) : 1;
+      const bPartIndex = Number.isFinite(right.workItem?.partIndex) ? Math.floor(right.workItem.partIndex) : 1;
       if (aPartIndex !== bPartIndex) return aPartIndex - bPartIndex;
-      const aPartTotal = Number.isFinite(a?.partTotal) ? Math.floor(a.partTotal) : 1;
-      const bPartTotal = Number.isFinite(b?.partTotal) ? Math.floor(b.partTotal) : 1;
+      const aPartTotal = Number.isFinite(left.workItem?.partTotal) ? Math.floor(left.workItem.partTotal) : 1;
+      const bPartTotal = Number.isFinite(right.workItem?.partTotal) ? Math.floor(right.workItem.partTotal) : 1;
       return aPartTotal - bPartTotal;
     })
-    .map((workItem, index) => ({
-      mergeIndex: index + 1,
-      subsetId: resolveShardSubsetId(workItem),
-      shardId: workItem?.shard?.id || null,
-      partIndex: Number.isFinite(workItem?.partIndex) ? Math.floor(workItem.partIndex) : 1,
-      partTotal: Number.isFinite(workItem?.partTotal) ? Math.floor(workItem.partTotal) : 1,
-      firstOrderIndex: resolveShardSubsetMinOrderIndex(workItem),
-      fileCount: Array.isArray(workItem?.entries) ? workItem.entries.length : 0
-    }));
+    .map((entry, index) => {
+      const workItem = entry.workItem;
+      return {
+        mergeIndex: index + 1,
+        subsetId: resolveShardSubsetId(workItem),
+        shardId: workItem?.shard?.id || null,
+        partIndex: Number.isFinite(workItem?.partIndex) ? Math.floor(workItem.partIndex) : 1,
+        partTotal: Number.isFinite(workItem?.partTotal) ? Math.floor(workItem.partTotal) : 1,
+        firstOrderIndex: Number.isFinite(entry.firstOrderIndex)
+          ? entry.firstOrderIndex
+          : null,
+        fileCount: Array.isArray(workItem?.entries) ? workItem.entries.length : 0
+      };
+    });
 };
 
 export const resolveClusterSubsetRetryConfig = (runtime) => {
@@ -1851,6 +1864,7 @@ export const processFiles = async ({
     let stage1StallAbortTriggered = false;
     let stage1StallSoftKickAttempts = 0;
     let stage1StallSoftKickSuccessCount = 0;
+    let stage1StallSoftKickResetCount = 0;
     let stage1StallSoftKickInFlight = false;
     let lastStallSoftKickAt = 0;
     let activeOrderedCompletionTracker = null;
@@ -2973,6 +2987,11 @@ export const processFiles = async ({
       tick() {
         this.count += 1;
         lastProgressAt = Date.now();
+        if (stage1StallSoftKickAttempts > 0) {
+          stage1StallSoftKickAttempts = 0;
+          lastStallSoftKickAt = 0;
+          stage1StallSoftKickResetCount += 1;
+        }
         showProgress('Files', this.count, this.total, { stage: 'processing', mode });
         checkpoint.tick();
       }
@@ -3088,7 +3107,8 @@ export const processFiles = async ({
       };
       const shardWorkPlan = buildShardWorkPlan().map((workItem) => ({
         ...workItem,
-        subsetId: resolveShardSubsetId(workItem)
+        subsetId: resolveShardSubsetId(workItem),
+        firstOrderIndex: resolveShardWorkItemMinOrderIndex(workItem)
       }));
       const shardMergePlan = buildDeterministicShardMergePlan(shardWorkPlan);
       const mergeOrderBySubsetId = new Map(
@@ -3130,10 +3150,8 @@ export const processFiles = async ({
       });
       if (shardBatches.length) {
         shardBatches = shardBatches.map((batch) => [...batch].sort((a, b) => {
-          const aMin = resolveShardSubsetMinOrderIndex(a);
-          const bMin = resolveShardSubsetMinOrderIndex(b);
-          const aOrder = Number.isFinite(aMin) ? aMin : Number.MAX_SAFE_INTEGER;
-          const bOrder = Number.isFinite(bMin) ? bMin : Number.MAX_SAFE_INTEGER;
+          const aOrder = Number.isFinite(a?.firstOrderIndex) ? a.firstOrderIndex : Number.MAX_SAFE_INTEGER;
+          const bOrder = Number.isFinite(b?.firstOrderIndex) ? b.firstOrderIndex : Number.MAX_SAFE_INTEGER;
           if (aOrder !== bOrder) return aOrder - bOrder;
           const aMerge = Number.isFinite(a?.mergeIndex) ? a.mergeIndex : Number.MAX_SAFE_INTEGER;
           const bMerge = Number.isFinite(b?.mergeIndex) ? b.mergeIndex : Number.MAX_SAFE_INTEGER;
@@ -3443,6 +3461,7 @@ export const processFiles = async ({
         stallRecovery: {
           softKickAttempts: stage1StallSoftKickAttempts,
           softKickSuccessfulAttempts: stage1StallSoftKickSuccessCount,
+          softKickResetCount: stage1StallSoftKickResetCount,
           softKickThresholdMs: stage1StallSoftKickMs,
           softKickCooldownMs: stage1StallSoftKickCooldownMs,
           softKickMaxAttempts: stage1StallSoftKickMaxAttempts,
