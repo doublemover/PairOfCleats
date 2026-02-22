@@ -642,6 +642,19 @@ const selectDeterministicFileSample = ({ fileEntries, mode, maxFiles, seed }) =>
   return selected.map((entry) => [entry.filePath, entry.items]);
 };
 
+/**
+ * Inline HNSW builders are fed during per-file embedding compute and therefore
+ * only observe processed files. When sampling is active we must defer HNSW
+ * construction until after missing vectors are filled so backend counts remain
+ * aligned with chunk_meta length for validation.
+ *
+ * @param {{enabled:boolean,hnswIsolate:boolean,samplingActive:boolean}} input
+ * @returns {boolean}
+ */
+const shouldUseInlineHnswBuilders = ({ enabled, hnswIsolate, samplingActive }) => (
+  enabled === true && hnswIsolate !== true && samplingActive !== true
+);
+
 const refreshIncrementalBundlesWithEmbeddings = async ({
   mode,
   incremental,
@@ -1665,6 +1678,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
           );
         }
         const sampledChunksByFile = new Map(sampledFileEntries);
+        const samplingActive = sampledChunkCount < totalChunks;
 
         stageCheckpoints = createStageCheckpointRecorder({
           buildRoot: modeIndexRoot,
@@ -1701,7 +1715,17 @@ export async function runBuildEmbeddingsWithConfig(config) {
         const hnswIsolate = hnswConfig.enabled
           ? (hnswIsolateOverride ?? isTestingEnv())
           : false;
-        const hnswEnabled = hnswConfig.enabled && !hnswIsolate;
+        const hnswEnabled = shouldUseInlineHnswBuilders({
+          enabled: hnswConfig.enabled,
+          hnswIsolate,
+          samplingActive
+        });
+        if (hnswConfig.enabled && !hnswIsolate && samplingActive) {
+          log(
+            `[embeddings] ${mode}: deferring HNSW build until post-fill because sampling is active ` +
+            `(${sampledChunkCount}/${totalChunks} chunks).`
+          );
+        }
         const hnswBuilders = hnswEnabled ? {
           merged: createHnswBuilder({
             enabled: hnswConfig.enabled,
