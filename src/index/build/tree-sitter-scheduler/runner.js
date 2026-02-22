@@ -26,6 +26,8 @@ const SUBPROCESS_INJECTED_CRASH_PREFIX = '[tree-sitter:schedule] injected-crash 
 const CRASH_BUNDLE_SCHEMA_VERSION = '1.0.0';
 const CRASH_BUNDLE_FILE = 'crash-forensics.json';
 const DEFAULT_DURABLE_DIR = '_crash-forensics';
+const SUBPROCESS_GRAMMAR_PROGRESS_RE = /^\[tree-sitter:schedule\]\s+(\S+):\s+(start|done)\b/i;
+const SUBPROCESS_OUTPUT_TAIL_LINES = 24;
 const require = createRequire(import.meta.url);
 const packageVersionCache = new Map();
 
@@ -80,6 +82,60 @@ const parseSubprocessCrashEvents = (error) => {
     } catch {}
   }
   return out;
+};
+
+const splitNonEmptyLines = (value) => String(value || '')
+  .split(/\r?\n/)
+  .map((line) => line.trim())
+  .filter(Boolean);
+
+const tailLines = (value, maxLines = SUBPROCESS_OUTPUT_TAIL_LINES) => {
+  const lines = splitNonEmptyLines(value);
+  if (!lines.length) return [];
+  if (!Number.isFinite(maxLines) || maxLines <= 0) return lines;
+  if (lines.length <= maxLines) return lines;
+  return lines.slice(lines.length - maxLines);
+};
+
+const isSubprocessCrashExit = ({ exitCode, signal }) => {
+  if (typeof signal === 'string' && signal) return true;
+  if (!Number.isFinite(exitCode)) return false;
+  if (exitCode < 0) return true;
+  // Windows NTSTATUS-style fatal exits (e.g. 0xC0000005 access violation).
+  return exitCode >= 0xC0000000;
+};
+
+const inferFailedGrammarKeysFromSubprocessOutput = ({ grammarKeysForTask, stdout = '', stderr = '' }) => {
+  const keys = Array.isArray(grammarKeysForTask)
+    ? grammarKeysForTask.filter((key) => typeof key === 'string' && key)
+    : [];
+  if (!keys.length) return [];
+  const keySet = new Set(keys);
+  const started = new Set();
+  const done = new Set();
+  const lifecycleLines = [
+    ...splitNonEmptyLines(stdout),
+    ...splitNonEmptyLines(stderr)
+  ];
+  for (const line of lifecycleLines) {
+    const match = line.match(SUBPROCESS_GRAMMAR_PROGRESS_RE);
+    if (!match) continue;
+    const grammarKey = String(match[1] || '').trim();
+    const phase = String(match[2] || '').toLowerCase();
+    if (!grammarKey || !keySet.has(grammarKey)) continue;
+    if (phase === 'start') {
+      started.add(grammarKey);
+      continue;
+    }
+    if (phase === 'done') done.add(grammarKey);
+  }
+  const firstUndoneIndex = keys.findIndex((grammarKey) => !done.has(grammarKey));
+  if (firstUndoneIndex >= 0) {
+    return keys.slice(firstUndoneIndex);
+  }
+  // If all keys logged "done" but the subprocess still crashed, attribute to
+  // the final grammar key so diagnostics are still actionable.
+  return [keys[keys.length - 1]];
 };
 
 const resolveParserMetadata = (languageId) => {
@@ -231,7 +287,9 @@ const createSchedulerCrashTracker = ({
     stage,
     error,
     taskId = null,
-    markFailed = true
+    markFailed = true,
+    taskGrammarKeys = null,
+    inferredFailedGrammarKeys = null
   }) => {
     if (!grammarKey) return;
     if (markFailed) {
@@ -249,6 +307,8 @@ const createSchedulerCrashTracker = ({
     const firstSubprocessEvent = subprocessCrashEvents[0] || null;
     const exitCode = Number(error?.result?.exitCode);
     const signal = typeof error?.result?.signal === 'string' ? error.result.signal : null;
+    const stdoutTail = tailLines(error?.result?.stdout);
+    const stderrTail = tailLines(error?.result?.stderr);
     const resolvedStage = typeof stage === 'string' && stage
       ? stage
       : (typeof firstSubprocessEvent?.stage === 'string' ? firstSubprocessEvent.stage : 'scheduler-subprocess');
@@ -287,7 +347,15 @@ const createSchedulerCrashTracker = ({
           signal,
           durationMs: Number.isFinite(Number(error?.result?.durationMs))
             ? Number(error.result.durationMs)
-            : null
+            : null,
+          stdoutTail,
+          stderrTail
+        },
+        task: {
+          taskGrammarKeys: Array.isArray(taskGrammarKeys) ? taskGrammarKeys.slice() : [],
+          inferredFailedGrammarKeys: Array.isArray(inferredFailedGrammarKeys)
+            ? inferredFailedGrammarKeys.slice()
+            : []
         },
         taskIds: taskId ? [taskId] : [],
         errorMessage: error?.message || String(error),
@@ -314,6 +382,12 @@ const createSchedulerCrashTracker = ({
           subprocess: {
             exitCode: Number.isFinite(exitCode) ? exitCode : null,
             signal
+          },
+          task: {
+            taskGrammarKeys: Array.isArray(taskGrammarKeys) ? taskGrammarKeys.slice() : [],
+            inferredFailedGrammarKeys: Array.isArray(inferredFailedGrammarKeys)
+              ? inferredFailedGrammarKeys.slice()
+              : []
           }
         });
       }
@@ -832,18 +906,31 @@ export const runTreeSitterScheduler = async ({
           if (abortSignal?.aborted) throw err;
           const subprocessCrashEvents = parseSubprocessCrashEvents(err);
           const exitCode = Number(err?.result?.exitCode);
-          const containsCrashEvent = subprocessCrashEvents.length > 0 || exitCode === 86;
+          const signal = typeof err?.result?.signal === 'string' ? err.result.signal : null;
+          const hasInjectedCrashExit = exitCode === 86;
+          const hasNativeCrashExit = isSubprocessCrashExit({ exitCode, signal });
+          const containsCrashEvent = subprocessCrashEvents.length > 0 || hasInjectedCrashExit || hasNativeCrashExit;
           if (!containsCrashEvent) throw err;
+          const inferredFailedGrammarKeys = inferFailedGrammarKeysFromSubprocessOutput({
+            grammarKeysForTask,
+            stdout: err?.result?.stdout,
+            stderr: err?.result?.stderr
+          });
+          const failureKeys = inferredFailedGrammarKeys.length
+            ? inferredFailedGrammarKeys
+            : grammarKeysForTask;
           const crashStage = typeof subprocessCrashEvents[0]?.stage === 'string'
             ? subprocessCrashEvents[0].stage
             : 'scheduler-subprocess';
-          for (const grammarKey of grammarKeysForTask) {
+          for (const grammarKey of failureKeys) {
             await crashTracker.recordFailure({
               grammarKey,
               stage: crashStage,
               error: err,
               taskId: task.taskId,
-              markFailed: true
+              markFailed: true,
+              taskGrammarKeys: grammarKeysForTask,
+              inferredFailedGrammarKeys
             });
           }
           return;
@@ -951,5 +1038,7 @@ export const runTreeSitterScheduler = async ({
 
 export const treeSitterSchedulerRunnerInternals = Object.freeze({
   resolveExecutionOrder,
-  buildWarmPoolTasks
+  buildWarmPoolTasks,
+  isSubprocessCrashExit,
+  inferFailedGrammarKeysFromSubprocessOutput
 });
