@@ -78,6 +78,26 @@ const MODE_METRICS = [
   ['extracted-prose', 'Extracted Prose'],
   ['records', 'Records']
 ];
+const LANGUAGE_KEY_ALIASES = new Map([
+  ['js', 'javascript'],
+  ['mjs', 'javascript'],
+  ['cjs', 'javascript'],
+  ['ts', 'typescript'],
+  ['py', 'python'],
+  ['rb', 'ruby'],
+  ['sh', 'shell'],
+  ['bash', 'shell'],
+  ['zsh', 'shell'],
+  ['yml', 'yaml'],
+  ['md', 'markdown'],
+  ['htm', 'html'],
+  ['cs', 'csharp'],
+  ['kt', 'kotlin'],
+  ['hbs', 'handlebars'],
+  ['jinja2', 'jinja'],
+  ['cshtml', 'razor'],
+  ['hs', 'haskell']
+]);
 const THROUGHPUT_GROUPS = [
   { label: 'Code throughput', pick: (throughput) => throughput?.code || null },
   { label: 'Prose throughput', pick: (throughput) => throughput?.prose || null },
@@ -252,6 +272,45 @@ const loadFeatureMetricsCached = (repoRoot) => {
   return metrics || null;
 };
 
+const extractPandocFenceLanguage = (value) => {
+  const match = String(value || '').match(/^\{([^}]*)\}$/);
+  if (!match) return null;
+  const body = String(match[1] || '').trim();
+  if (!body) return null;
+  const tokens = body.split(/\s+/).filter(Boolean);
+  for (const token of tokens) {
+    const normalized = String(token || '').trim().toLowerCase();
+    if (!normalized) continue;
+    if (normalized.startsWith('.')) {
+      const className = normalized.slice(1);
+      if (className) return className;
+    }
+    if (normalized.startsWith('class=')) {
+      const className = normalized.slice('class='.length).replace(/^['"]|['"]$/g, '');
+      if (className) return className.replace(/^\./, '');
+    }
+  }
+  return null;
+};
+
+const normalizeMetricsLanguageKey = (rawLanguage) => {
+  let normalized = String(rawLanguage || '').trim().toLowerCase();
+  if (!normalized) return 'unknown';
+  const pandocFenceLanguage = extractPandocFenceLanguage(normalized);
+  if (pandocFenceLanguage) normalized = pandocFenceLanguage;
+  normalized = normalized
+    .replace(/^`+|`+$/g, '')
+    .replace(/^\./, '')
+    .replace(/^\{+|\}+$/g, '')
+    .trim();
+  if (!normalized) return 'unknown';
+  if (normalized === 'unknown' || normalized === 'n/a' || normalized === 'none' || normalized === 'null') {
+    return 'unknown';
+  }
+  const alias = LANGUAGE_KEY_ALIASES.get(normalized);
+  return alias || normalized;
+};
+
 const collectLanguageLines = (metrics, totals) => {
   if (!metrics || !metrics.modes) return;
   for (const modeEntry of Object.values(metrics.modes)) {
@@ -259,7 +318,8 @@ const collectLanguageLines = (metrics, totals) => {
     for (const [language, bucket] of Object.entries(languages)) {
       const lines = Number(bucket?.lines) || 0;
       if (!lines) continue;
-      totals.set(language, (totals.get(language) || 0) + lines);
+      const normalizedLanguage = normalizeMetricsLanguageKey(language);
+      totals.set(normalizedLanguage, (totals.get(normalizedLanguage) || 0) + lines);
     }
   }
 };
@@ -302,7 +362,8 @@ const buildIndexingSummaryFromFeatureMetrics = (metrics) => {
     for (const [language, bucket] of Object.entries(languages)) {
       const lines = Number(bucket?.lines);
       if (!Number.isFinite(lines) || lines <= 0) continue;
-      languageLines[language] = (languageLines[language] || 0) + lines;
+      const normalizedLanguage = normalizeMetricsLanguageKey(language);
+      languageLines[normalizedLanguage] = (languageLines[normalizedLanguage] || 0) + lines;
     }
   }
 
@@ -400,7 +461,8 @@ const collectLanguageLinesFromSummary = (indexingSummary, totals) => {
   for (const [language, linesValue] of Object.entries(languageLines)) {
     const lines = Number(linesValue);
     if (!Number.isFinite(lines) || lines <= 0) continue;
-    totals.set(language, (totals.get(language) || 0) + lines);
+    const normalizedLanguage = normalizeMetricsLanguageKey(language);
+    totals.set(normalizedLanguage, (totals.get(normalizedLanguage) || 0) + lines);
   }
 };
 

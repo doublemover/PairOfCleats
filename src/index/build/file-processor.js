@@ -34,6 +34,14 @@ import {
 const DOCUMENT_EXTS = new Set(['.pdf', '.docx']);
 
 const isDocumentExt = (ext) => DOCUMENT_EXTS.has(ext);
+const normalizeFallbackLanguageFromExt = (ext) => {
+  const raw = typeof ext === 'string' ? ext.trim().toLowerCase() : '';
+  if (!raw) return null;
+  const stripped = raw.startsWith('.') ? raw.slice(1) : raw;
+  if (!stripped) return null;
+  const normalized = stripped.replace(/[^a-z0-9._+-]/g, '');
+  return normalized || null;
+};
 
 const buildPdfExtractionText = (pages) => {
   const units = [];
@@ -698,8 +706,9 @@ export function createFileProcessor(options) {
       return null;
     }
 
+    const metricsLanguageId = fileLanguageId || normalizeFallbackLanguageFromExt(ext) || null;
     const { languageLines: resolvedLanguageLines, languageSetKey: resolvedLanguageSetKey } =
-      finalizeLanguageLines({ fileLineCount, fileLanguageId });
+      finalizeLanguageLines({ fileLineCount, fileLanguageId: metricsLanguageId });
     if (resolvedLanguageLines) {
       languageLines = resolvedLanguageLines;
       languageSetKey = resolvedLanguageSetKey;
