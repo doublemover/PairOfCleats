@@ -810,6 +810,7 @@ export const processFiles = async ({
     };
   }
   const processStart = Date.now();
+  const stageFileWatchdogConfig = resolveFileWatchdogConfig(runtime, { repoFileCount: stageFileCount });
   const stageTimingBreakdown = {
     parseChunk: { totalMs: 0, byLanguage: new Map(), bySizeBin: new Map() },
     inference: { totalMs: 0, byLanguage: new Map(), bySizeBin: new Map() },
@@ -916,7 +917,9 @@ export const processFiles = async ({
   const observeWatchdogNearThreshold = ({
     activeDurationMs = 0,
     thresholdMs = 0,
-    triggeredSlowWarning = false
+    triggeredSlowWarning = false,
+    lowerFraction = stageFileWatchdogConfig?.nearThresholdLowerFraction,
+    upperFraction = stageFileWatchdogConfig?.nearThresholdUpperFraction
   } = {}) => {
     const threshold = Number(thresholdMs);
     if (!Number.isFinite(threshold) || threshold <= 0) return;
@@ -931,8 +934,8 @@ export const processFiles = async ({
     if (isNearThresholdSlowFileDuration({
       activeDurationMs: activeMs,
       thresholdMs: threshold,
-      lowerFraction: fileWatchdogConfig?.nearThresholdLowerFraction,
-      upperFraction: fileWatchdogConfig?.nearThresholdUpperFraction
+      lowerFraction,
+      upperFraction
     })) {
       watchdogNearThreshold.nearThresholdCount += 1;
     }
@@ -992,11 +995,11 @@ export const processFiles = async ({
         slowWarningCount: watchdogNearThreshold.slowWarningCount,
         thresholdTotalMs: watchdogNearThreshold.thresholdTotalMs,
         activeTotalMs: watchdogNearThreshold.activeTotalMs,
-        lowerFraction: fileWatchdogConfig?.nearThresholdLowerFraction,
-        upperFraction: fileWatchdogConfig?.nearThresholdUpperFraction,
-        alertFraction: fileWatchdogConfig?.nearThresholdAlertFraction,
-        minSamples: fileWatchdogConfig?.nearThresholdMinSamples,
-        slowFileMs: fileWatchdogConfig?.slowFileMs
+        lowerFraction: stageFileWatchdogConfig?.nearThresholdLowerFraction,
+        upperFraction: stageFileWatchdogConfig?.nearThresholdUpperFraction,
+        alertFraction: stageFileWatchdogConfig?.nearThresholdAlertFraction,
+        minSamples: stageFileWatchdogConfig?.nearThresholdMinSamples,
+        slowFileMs: stageFileWatchdogConfig?.slowFileMs
       })
     }
   });
@@ -1828,7 +1831,9 @@ export const processFiles = async ({
                 observeWatchdogNearThreshold({
                   activeDurationMs,
                   thresholdMs: fileWatchdogMs,
-                  triggeredSlowWarning
+                  triggeredSlowWarning,
+                  lowerFraction: fileWatchdogConfig?.nearThresholdLowerFraction,
+                  upperFraction: fileWatchdogConfig?.nearThresholdUpperFraction
                 });
                 if (lifecycle) {
                   lifecycle.parseEndAtMs = Date.now();
