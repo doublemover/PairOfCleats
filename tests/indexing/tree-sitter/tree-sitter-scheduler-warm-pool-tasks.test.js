@@ -63,6 +63,11 @@ assert.deepEqual(
   ['native:lua', 'native:yaml'],
   'expected executionOrder to be returned unchanged when provided'
 );
+assert.deepEqual(
+  resolveExecutionOrder({ jobs: 0, grammarKeys: [] }),
+  [],
+  'expected empty scheduler plans to resolve to an empty execution order'
+);
 assert.throws(
   () => resolveExecutionOrder({ grammarKeys: ['native:lua'] }),
   /missing executionOrder/i,

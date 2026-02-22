@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-22T04:17:50.218Z",
+  "generatedAt": "2026-02-22T09:09:43.102Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -3067,6 +3067,7 @@
         "tests/helpers/test-env.js",
         "tests/indexer/call-sites/call-sites-emit-artifacts-none.test.js",
         "tests/indexer/call-sites/call-sites-empty-required.test.js",
+        "tests/indexing/tree-sitter/perl-native-reset-regression.test.js",
         "tests/ops/failure-injection/retrieval-hotpath.test.js",
         "tests/retrieval/parity/parity.test.js",
         "tests/services/mcp/repo-path-resolution.test.js",
@@ -3884,6 +3885,12 @@
         "flags": [
           "include",
           "strict"
+        ]
+      },
+      {
+        "file": "tests/indexing/tree-sitter/perl-native-reset-regression.test.js",
+        "flags": [
+          "treeSitter"
         ]
       },
       {
@@ -5379,6 +5386,22 @@
         ]
       },
       {
+        "flag": "treeSitter",
+        "count": 10,
+        "files": [
+          "src/lang/javascript/chunks.js",
+          "src/lang/typescript/chunks.js",
+          "tests/indexing/tree-sitter/perl-native-reset-regression.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-adaptive-budget.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-chunks.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-missing-grammar-fallback.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-streaming-chunking.test.js",
+          "tests/indexing/tree-sitter/tree-sitter-xml-runtime.test.js",
+          "tests/lang/contracts/swift-prepare-tree-sitter-disabled.test.js",
+          "tools/bench/index/tree-sitter-load.js"
+        ]
+      },
+      {
         "flag": "include",
         "count": 9,
         "files": [
@@ -5391,21 +5414,6 @@
           "tools/bench/map/viewer-fps.js",
           "tools/bench/map/viewer-lod-stress.js",
           "tools/reports/report-code-map.js"
-        ]
-      },
-      {
-        "flag": "treeSitter",
-        "count": 9,
-        "files": [
-          "src/lang/javascript/chunks.js",
-          "src/lang/typescript/chunks.js",
-          "tests/indexing/tree-sitter/tree-sitter-adaptive-budget.test.js",
-          "tests/indexing/tree-sitter/tree-sitter-chunks.test.js",
-          "tests/indexing/tree-sitter/tree-sitter-missing-grammar-fallback.test.js",
-          "tests/indexing/tree-sitter/tree-sitter-streaming-chunking.test.js",
-          "tests/indexing/tree-sitter/tree-sitter-xml-runtime.test.js",
-          "tests/lang/contracts/swift-prepare-tree-sitter-disabled.test.js",
-          "tools/bench/index/tree-sitter-load.js"
         ]
       },
       {

@@ -41,19 +41,28 @@ const resolveExecConcurrency = ({ schedulerConfig, grammarCount }) => {
  * Resolve deterministic execution order for scheduler tasks.
  *
  * `executionOrder` is the canonical scheduler plan contract. Missing or empty
- * execution order indicates stale/corrupt plan artifacts and must fail closed.
+ * execution order indicates stale/corrupt plan artifacts and must fail closed,
+ * except for empty no-op plans that schedule no grammar work.
  *
  * @param {{executionOrder?:string[]}} [plan]
  * @returns {string[]}
  */
 const resolveExecutionOrder = (plan = {}) => {
   const executionOrder = Array.isArray(plan?.executionOrder) ? plan.executionOrder : [];
-  if (!executionOrder.length) {
-    throw new Error(
-      '[tree-sitter:schedule] scheduler plan missing executionOrder; rebuild scheduler artifacts.'
-    );
+  if (executionOrder.length) {
+    return executionOrder.slice();
   }
-  return executionOrder.slice();
+  const grammarKeys = Array.isArray(plan?.grammarKeys)
+    ? plan.grammarKeys.filter((key) => typeof key === 'string' && key)
+    : [];
+  const plannedJobsRaw = Number(plan?.jobs);
+  const hasPlannedJobs = Number.isFinite(plannedJobsRaw) ? plannedJobsRaw > 0 : false;
+  if (!grammarKeys.length && !hasPlannedJobs) {
+    return [];
+  }
+  throw new Error(
+    '[tree-sitter:schedule] scheduler plan missing executionOrder; rebuild scheduler artifacts.'
+  );
 };
 
 const resolveWarmPoolLaneCount = ({
