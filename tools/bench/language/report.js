@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { log } from '../../../src/shared/progress.js';
 import {
   STAGE_TIMING_SCHEMA_VERSION,
@@ -6,6 +8,13 @@ import {
   finalizeStageTimingProfile,
   mergeStageTimingProfile
 } from './metrics.js';
+import {
+  BENCH_DIAGNOSTIC_EVENT_TYPES,
+  BENCH_DIAGNOSTIC_STREAM_SCHEMA_VERSION,
+  buildBenchDiagnosticEventId,
+  buildBenchDiagnosticSignature,
+  normalizeBenchDiagnosticText
+} from './logging.js';
 
 const resolveCrashRetention = (entry) => {
   const direct = entry?.crashRetention && typeof entry.crashRetention === 'object'
@@ -36,6 +45,130 @@ const buildCrashRetentionSummary = (results) => {
   return {
     retainedCount: retained.length,
     retained
+  };
+};
+
+const DIAGNOSTIC_STREAM_FILE_SUFFIX = '.diagnostics.jsonl';
+
+const listDiagnosticsStreamFiles = (resultsRoot) => {
+  if (!resultsRoot) return [];
+  const root = path.join(resultsRoot, 'logs', 'bench-language');
+  if (!fs.existsSync(root)) return [];
+  const files = [];
+  const queue = [root];
+  while (queue.length) {
+    const current = queue.pop();
+    let entries = [];
+    try {
+      entries = fs.readdirSync(current, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      const resolved = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        queue.push(resolved);
+        continue;
+      }
+      if (entry.isFile() && entry.name.endsWith(DIAGNOSTIC_STREAM_FILE_SUFFIX)) {
+        files.push(resolved);
+      }
+    }
+  }
+  return files.sort((left, right) => left.localeCompare(right));
+};
+
+const parseDiagnosticEventLine = (line) => {
+  const trimmed = String(line || '').trim();
+  if (!trimmed) return null;
+  let parsed;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+  const eventType = typeof parsed.eventType === 'string' ? parsed.eventType.trim() : '';
+  const signature = typeof parsed.signature === 'string'
+    ? parsed.signature
+    : buildBenchDiagnosticSignature({
+      eventType,
+      stage: parsed.stage || '',
+      taskId: parsed.taskId || '',
+      source: parsed.source || '',
+      message: normalizeBenchDiagnosticText(parsed.message || '', { maxLength: 220 })
+    });
+  const eventId = typeof parsed.eventId === 'string' && parsed.eventId.trim()
+    ? parsed.eventId.trim()
+    : buildBenchDiagnosticEventId({ eventType, signature });
+  const message = typeof parsed.message === 'string' ? parsed.message : '';
+  return {
+    eventType,
+    eventId,
+    signature,
+    message
+  };
+};
+
+const buildDiagnosticsStreamSummary = (resultsRoot) => {
+  const files = listDiagnosticsStreamFiles(resultsRoot);
+  const countsByType = new Map();
+  const uniqueEventIds = new Set();
+  const knownTypes = new Set(BENCH_DIAGNOSTIC_EVENT_TYPES);
+  const perFile = [];
+  let eventCount = 0;
+  let malformedLines = 0;
+
+  for (const filePath of files) {
+    let raw = '';
+    try {
+      raw = fs.readFileSync(filePath, 'utf8');
+    } catch {
+      continue;
+    }
+    const fileCounts = new Map();
+    const lines = raw.split(/\r?\n/);
+    for (const line of lines) {
+      if (!line || !line.trim()) continue;
+      const parsed = parseDiagnosticEventLine(line);
+      if (!parsed) {
+        malformedLines += 1;
+        continue;
+      }
+      if (!parsed.eventType) continue;
+      eventCount += 1;
+      uniqueEventIds.add(parsed.eventId);
+      countsByType.set(parsed.eventType, (countsByType.get(parsed.eventType) || 0) + 1);
+      fileCounts.set(parsed.eventType, (fileCounts.get(parsed.eventType) || 0) + 1);
+    }
+    perFile.push({
+      path: filePath,
+      eventCount: Array.from(fileCounts.values()).reduce((sum, count) => sum + count, 0),
+      countsByType: Object.fromEntries(
+        Array.from(fileCounts.entries()).sort(([left], [right]) => left.localeCompare(right))
+      )
+    });
+  }
+
+  const required = Object.fromEntries(
+    BENCH_DIAGNOSTIC_EVENT_TYPES.map((type) => [type, countsByType.get(type) || 0])
+  );
+  const unknownTypeCount = Array.from(countsByType.entries())
+    .filter(([type]) => !knownTypes.has(type))
+    .reduce((sum, [, count]) => sum + count, 0);
+
+  return {
+    schemaVersion: BENCH_DIAGNOSTIC_STREAM_SCHEMA_VERSION,
+    fileCount: files.length,
+    files: perFile,
+    eventCount,
+    uniqueEventCount: uniqueEventIds.size,
+    countsByType: Object.fromEntries(
+      Array.from(countsByType.entries()).sort(([left], [right]) => left.localeCompare(right))
+    ),
+    required,
+    unknownTypeCount,
+    malformedLines
   };
 };
 
@@ -156,6 +289,7 @@ export const buildReportOutput = ({ configPath, cacheRoot, resultsRoot, results,
   }
   const overallSummary = summarizeResults(tasks);
   const crashRetention = buildCrashRetentionSummary(tasks);
+  const diagnosticsStream = buildDiagnosticsStreamSummary(resultsRoot);
   const stageTimingTasks = tasks
     .filter((entry) => entry?.stageTimingProfile)
     .map((entry) => ({
@@ -177,7 +311,8 @@ export const buildReportOutput = ({ configPath, cacheRoot, resultsRoot, results,
     resultsRoot,
     tasks,
     diagnostics: {
-      crashRetention
+      crashRetention,
+      stream: diagnosticsStream
     },
     stageTiming: {
       schemaVersion: STAGE_TIMING_SCHEMA_VERSION,
