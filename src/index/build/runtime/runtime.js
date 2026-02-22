@@ -699,8 +699,8 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     : Math.max(
       1,
       Math.floor(
-        fileConcurrency
-        || cpuConcurrency
+        cpuConcurrency
+        || fileConcurrency
         || ioConcurrency
         || 1
       )
