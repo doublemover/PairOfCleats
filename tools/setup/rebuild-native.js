@@ -2,28 +2,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { listNativeTreeSitterGrammarModuleNames } from '../../src/lang/tree-sitter/native-runtime.js';
 
 const REQUIRED_NATIVE_PACKAGES = [
-  'tree-sitter',
-  'tree-sitter-c',
-  'tree-sitter-c-sharp',
-  'tree-sitter-cpp',
-  'tree-sitter-css',
-  'tree-sitter-go',
-  'tree-sitter-html',
-  'tree-sitter-java',
-  'tree-sitter-javascript',
-  'tree-sitter-json',
-  'tree-sitter-kotlin',
-  'tree-sitter-objc',
-  'tree-sitter-python',
-  'tree-sitter-rust',
-  'tree-sitter-swift',
-  'tree-sitter-typescript',
-  '@tree-sitter-grammars/tree-sitter-markdown',
-  '@tree-sitter-grammars/tree-sitter-toml',
-  '@tree-sitter-grammars/tree-sitter-xml',
-  '@tree-sitter-grammars/tree-sitter-yaml',
+  ...listNativeTreeSitterGrammarModuleNames(),
   'better-sqlite3',
   'hnswlib-node',
   'onnxruntime-node',

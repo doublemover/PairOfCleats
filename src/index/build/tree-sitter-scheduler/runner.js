@@ -211,6 +211,19 @@ const buildPlannedSegmentsByContainer = (groups) => {
   return byContainer;
 };
 
+const buildScheduledLanguageSet = (groups) => {
+  const scheduled = new Set();
+  const entries = Array.isArray(groups) ? groups : [];
+  for (const group of entries) {
+    const languages = Array.isArray(group?.languages) ? group.languages : [];
+    for (const languageId of languages) {
+      if (typeof languageId !== 'string' || !languageId) continue;
+      scheduled.add(languageId);
+    }
+  }
+  return scheduled;
+};
+
 const parseIndexRows = (text, indexPath) => {
   const rows = new Map();
   let invalidRows = 0;
@@ -489,10 +502,12 @@ export const runTreeSitterScheduler = async ({
     log
   });
   const plannedSegmentsByContainer = buildPlannedSegmentsByContainer(planResult.groups);
+  const scheduledLanguageIds = buildScheduledLanguageSet(planResult.groups);
 
   return {
     ...lookup,
     plan: planResult.plan,
+    scheduledLanguageIds,
     plannedSegmentsByContainer,
     loadPlannedSegments: (containerPath) => {
       if (!containerPath || !plannedSegmentsByContainer.has(containerPath)) return null;

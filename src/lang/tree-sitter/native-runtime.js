@@ -15,7 +15,7 @@ const nativeTreeSitterState = {
 const DEFAULT_PARSER_CACHE_SIZE = 4;
 const MAX_PARSER_CACHE_SIZE = 64;
 
-const NATIVE_GRAMMAR_MODULES = Object.freeze({
+export const NATIVE_GRAMMAR_MODULES = Object.freeze({
   javascript: {
     moduleName: 'tree-sitter-javascript',
     exportKey: 'javascript',
@@ -106,6 +106,14 @@ const NATIVE_GRAMMAR_MODULES = Object.freeze({
   swift: { moduleName: 'tree-sitter-swift' }
 });
 
+export const listNativeTreeSitterGrammarModuleNames = () => (
+  Array.from(new Set(
+    Object.values(NATIVE_GRAMMAR_MODULES)
+      .map((spec) => (typeof spec?.moduleName === 'string' ? spec.moduleName : null))
+      .filter(Boolean)
+  )).sort()
+);
+
 const resolveGrammarModule = (languageId) => NATIVE_GRAMMAR_MODULES[languageId] || null;
 
 const resolveParserCacheSize = (options = {}) => {
@@ -159,6 +167,12 @@ const normalizeLanguageBinding = (languageValue, grammarModule) => {
     if (nested) return nested;
   }
   if (!languageValue || typeof languageValue !== 'object') return null;
+  if (
+    languageValue.nodeTypeInfo
+    && (typeof languageValue.fieldIdForName === 'function' || typeof languageValue.name === 'string')
+  ) {
+    return languageValue;
+  }
   if (languageValue.language && languageValue.nodeTypeInfo) return languageValue;
   if (grammarModule && grammarModule.nodeTypeInfo && languageValue === grammarModule.language) {
     return grammarModule;

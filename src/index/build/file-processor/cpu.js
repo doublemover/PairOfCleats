@@ -707,6 +707,12 @@ export const processFileCpu = async (context) => {
     && treeSitterScheduler
     && typeof treeSitterScheduler.loadChunks === 'function';
   const treeSitterStrict = treeSitterConfigForMode?.strict === true;
+  const schedulerLanguageIds = treeSitterScheduler?.scheduledLanguageIds;
+  const schedulerLanguageSet = schedulerLanguageIds instanceof Set
+    ? schedulerLanguageIds
+    : (Array.isArray(schedulerLanguageIds)
+      ? new Set(schedulerLanguageIds.filter((languageId) => typeof languageId === 'string' && languageId))
+      : null);
   let segments;
   let segmentsFromSchedulerPlan = false;
   updateCrashStage('segments');
@@ -795,9 +801,11 @@ export const processFileCpu = async (context) => {
       const segmentExt = resolveSegmentExt(ext, segment);
       const rawLanguageId = segment.languageId || lang?.id || null;
       const resolvedLang = resolveTreeSitterLanguageForSegment(rawLanguageId, segmentExt);
+      const schedulerSupportsLanguage = !schedulerLanguageSet || schedulerLanguageSet.has(resolvedLang);
       const canUseTreeSitter = resolvedLang
         && TREE_SITTER_LANG_IDS.has(resolvedLang)
         && isTreeSitterSchedulerLanguage(resolvedLang)
+        && schedulerSupportsLanguage
         && isTreeSitterEnabled(treeSitterOptions, resolvedLang);
       if (!canUseTreeSitter) {
         fallbackSegments.push(segment);
