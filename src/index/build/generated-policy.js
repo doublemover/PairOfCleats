@@ -85,6 +85,7 @@ const GENERATED_FILENAME_PATTERNS = Object.freeze([
   /\.d\.(?:ts|mts|cts)(?:\.map)?$/i,
   /\.tsbuildinfo$/i
 ]);
+const GENERATED_POLICY_DOCUMENT_EXTS = new Set(['.pdf', '.docx']);
 
 const normalizePattern = (value) => {
   if (typeof value !== 'string') return null;
@@ -143,8 +144,11 @@ const classifyByPathOrName = ({ relPath, baseName }) => {
   const normalizedRel = String(relPath || '').toLowerCase();
   const boundedPath = `/${normalizedRel.replace(/^\/+|\/+$/g, '')}/`;
   const normalizedBase = String(baseName || '').toLowerCase();
+  const baseExt = path.extname(normalizedBase);
 
-  if (MINIFIED_NAME_REGEX.test(normalizedBase)) {
+  // Keep generated-policy minified routing focused on text assets. Document
+  // extraction has explicit binary/minified bypass logic for PDF/DOCX files.
+  if (MINIFIED_NAME_REGEX.test(normalizedBase) && !GENERATED_POLICY_DOCUMENT_EXTS.has(baseExt)) {
     return { classification: 'minified', source: 'filename-pattern' };
   }
   for (const part of VENDOR_PATH_PARTS) {

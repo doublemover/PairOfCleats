@@ -82,6 +82,7 @@ export async function watchIndex({
   };
   const root = runtimeRef.root;
   const recordsRoot = resolveRecordsRoot(root, runtimeRef.recordsDir);
+  const normalizedRecordsRoot = recordsRoot ? normalizeRoot(recordsRoot) : null;
   const ignoreMatcher = runtimeRef.ignoreMatcher;
   const generatedPolicy = runtimeRef.generatedPolicy && typeof runtimeRef.generatedPolicy === 'object'
     ? runtimeRef.generatedPolicy
@@ -304,6 +305,10 @@ export async function watchIndex({
     if (!relPosix || relPosix === '.' || relPosix.startsWith('..')) {
       return { skip: true, reason: 'outside-root' };
     }
+    const normalizedAbs = normalizeRoot(absPath);
+    const inRecordsRoot = normalizedRecordsRoot
+      ? normalizedAbs.startsWith(`${normalizedRecordsRoot}${path.sep}`)
+      : false;
     if (maxDepthCap != null) {
       const depth = relPosix.split('/').length - 1;
       if (depth > maxDepthCap) {
@@ -314,22 +319,6 @@ export async function watchIndex({
       return { skip: true, reason: 'ignored' };
     }
     const baseName = path.basename(absPath);
-    const generatedPolicyDecision = resolveGeneratedPolicyDecision({
-      generatedPolicy,
-      relPath: relPosix,
-      absPath,
-      baseName
-    });
-    if (generatedPolicyDecision?.downgrade) {
-      return {
-        skip: true,
-        reason: generatedPolicyDecision.classification || 'generated',
-        extra: {
-          indexMode: generatedPolicyDecision.indexMode,
-          downgrade: buildGeneratedPolicyDowngradePayload(generatedPolicyDecision)
-        }
-      };
-    }
     let ext = resolveSpecialCodeExt(baseName) || fileExt(absPath);
     let stat;
     try {
@@ -364,18 +353,33 @@ export async function watchIndex({
     const isSpecialLanguage = !!language && !EXTS_CODE.has(ext) && !EXTS_PROSE.has(ext);
     const isSpecial = isSpecialCodeFile(baseName) || isManifestFile(baseName) || isLockFile(baseName) || isSpecialLanguage;
     let record = null;
-    const normalizedRecordsRoot = recordsRoot ? normalizeRoot(recordsRoot) : null;
-    if (normalizedRecordsRoot) {
-      const normalizedAbs = normalizeRoot(absPath);
-      if (normalizedAbs.startsWith(`${normalizedRecordsRoot}${path.sep}`)) {
-        record = { source: 'triage', recordType: 'record', reason: 'records-dir' };
-      }
+    if (inRecordsRoot) {
+      record = { source: 'triage', recordType: 'record', reason: 'records-dir' };
     }
     if (!record && recordsClassifier) {
       const sampleText = shouldSniffRecordContent(ext)
         ? await readRecordSample(absPath, recordsClassifier.config?.sniffBytes)
         : '';
       record = recordsClassifier.classify({ absPath, relPath: relPosix, ext, sampleText });
+    }
+    // Preserve records routing even when generated-policy heuristics match.
+    if (!record) {
+      const generatedPolicyDecision = resolveGeneratedPolicyDecision({
+        generatedPolicy,
+        relPath: relPosix,
+        absPath,
+        baseName
+      });
+      if (generatedPolicyDecision?.downgrade) {
+        return {
+          skip: true,
+          reason: generatedPolicyDecision.classification || 'generated',
+          extra: {
+            indexMode: generatedPolicyDecision.indexMode,
+            downgrade: buildGeneratedPolicyDowngradePayload(generatedPolicyDecision)
+          }
+        };
+      }
     }
     return {
       skip: false,

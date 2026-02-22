@@ -267,6 +267,11 @@ export async function discoverEntries({
     let ext = resolveSpecialCodeExt(baseName) || fileExt(absPath);
     const isManifest = isManifestFile(baseName);
     const isLock = isLockFile(baseName);
+    const preclassifiedRecord = inRecordsRoot
+      ? { source: 'triage', recordType: 'record', reason: 'records-dir' }
+      : (recordsClassifier
+        ? recordsClassifier.classify({ absPath, relPath: relPosix, ext })
+        : null);
     if (path.isAbsolute(relPosix)) {
       recordSkip(absPath, 'ignored', { reason: 'absolute-rel-path' });
       return;
@@ -275,18 +280,22 @@ export async function discoverEntries({
       recordSkip(absPath, 'ignored');
       return;
     }
-    const generatedPolicyDecision = resolveGeneratedPolicyDecision({
-      generatedPolicy: effectiveGeneratedPolicy,
-      relPath: relPosix,
-      absPath,
-      baseName
-    });
-    if (generatedPolicyDecision?.downgrade) {
-      recordSkip(absPath, generatedPolicyDecision.classification || 'generated', {
-        indexMode: generatedPolicyDecision.indexMode,
-        downgrade: buildGeneratedPolicyDowngradePayload(generatedPolicyDecision)
+    // Record candidates (records root / include-glob / known record extensions)
+    // are routed first so generated-policy heuristics do not suppress records.
+    if (!preclassifiedRecord) {
+      const generatedPolicyDecision = resolveGeneratedPolicyDecision({
+        generatedPolicy: effectiveGeneratedPolicy,
+        relPath: relPosix,
+        absPath,
+        baseName
       });
-      return;
+      if (generatedPolicyDecision?.downgrade) {
+        recordSkip(absPath, generatedPolicyDecision.classification || 'generated', {
+          indexMode: generatedPolicyDecision.indexMode,
+          downgrade: buildGeneratedPolicyDowngradePayload(generatedPolicyDecision)
+        });
+        return;
+      }
     }
     try {
       let stat;
@@ -324,9 +333,8 @@ export async function discoverEntries({
       if (maxFilesValue && acceptedCount >= maxFilesValue) {
         return;
       }
-      const record = inRecordsRoot
-        ? { source: 'triage', recordType: 'record', reason: 'records-dir' }
-        : (recordsClassifier
+      const record = preclassifiedRecord
+        || (recordsClassifier
           ? recordsClassifier.classify({ absPath, relPath: relPosix, ext })
           : null);
       entries.push({

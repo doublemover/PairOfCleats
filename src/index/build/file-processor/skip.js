@@ -44,9 +44,15 @@ export async function resolvePreReadSkip({
   const effectiveGeneratedPolicy = generatedPolicy && typeof generatedPolicy === 'object'
     ? generatedPolicy
     : buildGeneratedPolicyConfig({});
+  // Records mode keeps deterministic record ingestion semantics and should not
+  // be downgraded by generated/minified/vendor policy heuristics.
+  const isRecordEntry = mode === 'records' || Boolean(fileEntry?.record);
   const shouldBypassSkipReason = (reason) => (
-    bypassBinaryMinifiedSkip === true
-    && (reason === 'binary' || reason === 'minified')
+    (
+      bypassBinaryMinifiedSkip === true
+      && (reason === 'binary' || reason === 'minified')
+    )
+    || (isRecordEntry && reason === 'minified')
   );
   const shouldBypassPolicyDecision = (decision) => (
     bypassBinaryMinifiedSkip === true
@@ -77,7 +83,9 @@ export async function resolvePreReadSkip({
     };
   }
   const scanState = fileEntry && typeof fileEntry === 'object' ? fileEntry.scan : null;
-  const baselinePolicyDecision = resolvePolicyDecision(scanState?.skip || null);
+  const baselinePolicyDecision = isRecordEntry
+    ? null
+    : resolvePolicyDecision(scanState?.skip || null);
   if (baselinePolicyDecision?.downgrade) {
     if (shouldBypassPolicyDecision(baselinePolicyDecision)) {
       return null;
@@ -106,7 +114,10 @@ export async function resolvePreReadSkip({
   if (isGeneratedDocsetPath(abs)) {
     return { reason: 'generated-docset' };
   }
-  if (!bypassBinaryMinifiedSkip && isMinifiedName(path.basename(abs)) && !allowMinifiedByPolicyInclude) {
+  if (!isRecordEntry
+    && !bypassBinaryMinifiedSkip
+    && isMinifiedName(path.basename(abs))
+    && !allowMinifiedByPolicyInclude) {
     return { reason: 'minified', method: 'name' };
   }
   const knownLines = Number(fileEntry?.lines);
@@ -127,7 +138,7 @@ export async function resolvePreReadSkip({
       readSample: readFileSample
     }));
     if (scanResult?.skip) {
-      const scanDecision = resolvePolicyDecision(scanResult.skip);
+      const scanDecision = isRecordEntry ? null : resolvePolicyDecision(scanResult.skip);
       if (scanDecision?.downgrade) {
         if (shouldBypassPolicyDecision(scanDecision)) {
           return null;

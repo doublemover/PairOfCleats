@@ -26,6 +26,16 @@ assert.equal(minifiedDefault?.downgrade, true, 'minified files should default to
 assert.equal(minifiedDefault?.classification, 'minified');
 assert.equal(minifiedDefault?.source, 'filename-pattern');
 
+const minifiedDocumentDefault = resolveGeneratedPolicyDecision({
+  generatedPolicy: basePolicy,
+  relPath: 'docs/report.min.pdf'
+});
+assert.equal(
+  minifiedDocumentDefault,
+  null,
+  'document extraction inputs (.pdf/.docx) should not be downgraded by minified-name heuristics'
+);
+
 const vendorDefault = resolveGeneratedPolicyDecision({
   generatedPolicy: basePolicy,
   relPath: 'vendor/sdk/index.js'

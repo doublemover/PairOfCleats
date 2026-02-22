@@ -71,4 +71,28 @@ assert.equal(excludeSkip?.downgrade?.reasonCode, GENERATED_POLICY_REASON_CODE);
 assert.equal(excludeSkip?.indexMode, 'metadata-only');
 assert.equal(excludeSkip?.downgrade?.policy, 'exclude');
 
+const recordsMinifiedPath = path.join(tempRoot, 'src', 'generated', 'full', 'record.min.json');
+await fs.writeFile(recordsMinifiedPath, '{"id":"r-1"}\n', 'utf8');
+const recordsMinifiedStat = await fs.stat(recordsMinifiedPath);
+const recordsMinifiedSkip = await resolvePreReadSkip({
+  abs: recordsMinifiedPath,
+  rel: 'src/generated/full/record.min.json',
+  fileEntry: { record: { source: 'triage', recordType: 'record' } },
+  fileStat: recordsMinifiedStat,
+  ext: '.json',
+  mode: 'records',
+  fileCaps: null,
+  fileScanner: {
+    scanFile: async () => ({
+      checkedBinary: true,
+      checkedMinified: true,
+      skip: null
+    }),
+    binary: { maxNonTextRatio: 0.3 }
+  },
+  runIo: async (fn) => fn(),
+  generatedPolicy: includePolicy
+});
+assert.equal(recordsMinifiedSkip, null, 'records entries should not be dropped by minified filename checks');
+
 console.log('generated policy pre-read skip test passed');

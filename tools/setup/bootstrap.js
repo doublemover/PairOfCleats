@@ -52,12 +52,15 @@ const recordStep = (name, data) => {
  * @returns {Promise<{ok:boolean,status:number|null}>}
  */
 const streamChildOutputToStderr = async (cmd, args, { cwd = root, env = process.env } = {}) => {
+  // execaSync defaults to 100 MB maxBuffer; raise the Windows npm fallback cap
+  // so `bootstrap --json` does not fail before emitting the final summary.
   if (process.platform === 'win32' && String(cmd || '').toLowerCase() === 'npm') {
     const npmResult = runCommand(cmd, args, {
       cwd,
       env,
       stdio: 'pipe',
-      encoding: 'utf8'
+      encoding: 'utf8',
+      maxBuffer: 1024 * 1024 * 1024
     });
     relayChildOutputToStderr(npmResult);
     return {

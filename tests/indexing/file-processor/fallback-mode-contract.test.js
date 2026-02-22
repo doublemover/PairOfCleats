@@ -172,6 +172,44 @@ assert.deepEqual(
   'syntax-lite parser metadata should be deterministic across runs'
 );
 
+const syntaxLiteHeavyDownshift = await processChunks({
+  ...baseContext,
+  languageOptions: {
+    heavyFile: {
+      enabled: true,
+      maxBytes: 1,
+      maxLines: 10_000,
+      maxChunks: 10_000,
+      skipTokenization: true,
+      skipTokenizationMaxBytes: 10_000_000,
+      skipTokenizationMaxLines: 10_000_000,
+      skipTokenizationMaxChunks: 10_000_000
+    }
+  },
+  chunkingDiagnostics: {
+    treeSitterEnabled: true,
+    schedulerRequired: true,
+    usedHeuristicChunking: false,
+    fallbackSegmentCount: 0,
+    schedulerMissingCount: 0
+  }
+});
+assert.equal(syntaxLiteHeavyDownshift.chunks[0].metaV2?.parser?.mode, 'syntax-lite');
+assert.equal(
+  syntaxLiteHeavyDownshift.chunks[0].metaV2?.parser?.reasonCode,
+  'USR-R-RESOURCE-BUDGET-EXCEEDED'
+);
+assert.equal(
+  syntaxLiteHeavyDownshift.chunks[0].docmeta?.risk,
+  undefined,
+  'heavy-file syntax-lite should disable risk metadata'
+);
+assert.equal(
+  syntaxLiteHeavyDownshift.chunks[0].docmeta?.inferredTypes,
+  undefined,
+  'heavy-file syntax-lite should disable type inference metadata'
+);
+
 const chunkOnly = await processChunks({
   ...baseContext,
   languageOptions: {
