@@ -363,10 +363,10 @@ await processFileCpu(createContext({
 assert.equal(pyGeneratedMetaCalls, 1, 'expected generated python files to keep SCM file metadata');
 assert.equal(pyGeneratedAnnotateCalls, 0, 'expected generated python files to skip SCM annotate');
 
-let legacyIncludeChurn = null;
-const legacyScmProvider = {
+let legacyMetaIgnoredIncludeChurn = null;
+const legacyMetaIgnoredScmProvider = {
   async getFileMeta(args) {
-    legacyIncludeChurn = args?.includeChurn ?? null;
+    legacyMetaIgnoredIncludeChurn = args?.includeChurn ?? null;
     return { ok: false };
   },
   async annotate() {
@@ -381,16 +381,20 @@ await processFileCpu(createContext({
   text: jsText,
   fileStat: jsStat,
   languageHint: jsLanguageHint,
-  scmProviderImpl: legacyScmProvider,
-  fileHash: 'scm-annotate-fast-timeout-legacy-churn-off',
+  scmProviderImpl: legacyMetaIgnoredScmProvider,
+  fileHash: 'scm-annotate-fast-timeout-ignore-legacy-meta',
   scmConfig: { annotate: {}, meta: { includeChurn: false } }
 }));
-assert.equal(legacyIncludeChurn, false, 'expected legacy scm meta.includeChurn=false to disable churn metadata');
+assert.equal(
+  legacyMetaIgnoredIncludeChurn,
+  true,
+  'expected legacy scm meta.includeChurn to be ignored under hard-cut SCM churn policy'
+);
 
-let legacyWithPolicyIncludeChurn = null;
-const legacyWithPolicyScmProvider = {
+let policyOverrideIncludeChurn = null;
+const policyOverrideScmProvider = {
   async getFileMeta(args) {
-    legacyWithPolicyIncludeChurn = args?.includeChurn ?? null;
+    policyOverrideIncludeChurn = args?.includeChurn ?? null;
     return { ok: false };
   },
   async annotate() {
@@ -405,15 +409,15 @@ await processFileCpu(createContext({
   text: jsText,
   fileStat: jsStat,
   languageHint: jsLanguageHint,
-  scmProviderImpl: legacyWithPolicyScmProvider,
-  fileHash: 'scm-annotate-fast-timeout-legacy-churn-policy-override',
+  scmProviderImpl: policyOverrideScmProvider,
+  fileHash: 'scm-annotate-fast-timeout-policy-override',
   scmConfig: { annotate: {}, meta: { includeChurn: false } },
   analysisPolicy: { git: { churn: true } }
 }));
 assert.equal(
-  legacyWithPolicyIncludeChurn,
+  policyOverrideIncludeChurn,
   true,
-  'expected analysis policy git.churn to override legacy scm meta.includeChurn'
+  'expected analysis policy git.churn=true to enable churn metadata'
 );
 
 let explicitTimeoutMs = null;
