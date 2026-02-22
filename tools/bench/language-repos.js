@@ -215,11 +215,7 @@ const appendLog = (line, level = 'info', meta = null) => {
   if (logHistory.length > logHistoryLimit) logHistory.shift();
 };
 const writeListLine = (line) => {
-  if (quietMode) {
-    process.stderr.write(`${line}\n`);
-    return;
-  }
-  appendLog(line);
+  appendLog(line, 'info', { forceOutput: true });
 };
 let benchInFlightFraction = 0;
 let updateBenchProgress = () => {};

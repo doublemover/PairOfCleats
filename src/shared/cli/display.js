@@ -86,7 +86,8 @@ export function createDisplay(options = {}) {
       writeJsonLog(level, message, meta);
       return;
     }
-    if (quiet && level !== 'error') return;
+    const forceOutput = meta && typeof meta === 'object' && meta.forceOutput === true;
+    if (quiet && level !== 'error' && !forceOutput) return;
     const baseLine = message || '';
     const prefix = level === 'warn' ? '[warn] ' : (level === 'error' ? '[error] ' : '');
     const line = `${prefix}${baseLine}`.trim();
