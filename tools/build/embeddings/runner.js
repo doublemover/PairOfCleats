@@ -183,15 +183,21 @@ const refreshIncrementalBundlesWithEmbeddings = async ({
   }
 
   const resolvedBundleFormat = normalizeBundleFormat(manifest.bundleFormat);
-  let attempted = 0;
+  const scanned = manifestEntries.length;
+  let eligible = 0;
   let rewritten = 0;
   let covered = 0;
+  let skippedNoMapping = 0;
+  let skippedInvalidBundle = 0;
+  let skippedEmptyBundle = 0;
 
   for (const [filePath, entry] of manifestEntries) {
-    attempted += 1;
     const normalizedFile = toPosix(filePath);
     const chunkMapping = chunkIndexByFile.get(normalizedFile) || null;
-    if (!chunkMapping) continue;
+    if (!chunkMapping) {
+      skippedNoMapping += 1;
+      continue;
+    }
     const bundleName = entry?.bundle || resolveBundleFilename(filePath, resolvedBundleFormat);
     const bundlePath = path.join(incremental.bundleDir, bundleName);
     const bundleFormat = resolveBundleFormatFromName(bundleName, resolvedBundleFormat);
@@ -201,9 +207,17 @@ const refreshIncrementalBundlesWithEmbeddings = async ({
     } catch {
       existing = null;
     }
-    if (!existing?.ok || !Array.isArray(existing.bundle?.chunks)) continue;
+    if (!existing?.ok || !Array.isArray(existing.bundle?.chunks)) {
+      skippedInvalidBundle += 1;
+      continue;
+    }
 
     const bundle = existing.bundle;
+    if (!bundle.chunks.length) {
+      skippedEmptyBundle += 1;
+      continue;
+    }
+    eligible += 1;
     let fallbackCursor = 0;
     let changed = false;
     let fileCovered = true;
@@ -254,7 +268,9 @@ const refreshIncrementalBundlesWithEmbeddings = async ({
     }
   }
 
-  const completeCoverage = attempted > 0 && covered === attempted;
+  const completeCoverage = eligible > 0
+    ? covered === eligible
+    : skippedInvalidBundle === 0;
   let manifestWritten = false;
   if (completeCoverage) {
     manifest.bundleEmbeddings = true;
@@ -269,13 +285,30 @@ const refreshIncrementalBundlesWithEmbeddings = async ({
     }
   }
 
-  if (attempted > 0) {
+  if (scanned > 0) {
+    const skippedNotes = [];
+    if (skippedNoMapping > 0) skippedNotes.push(`noMapping=${skippedNoMapping}`);
+    if (skippedEmptyBundle > 0) skippedNotes.push(`empty=${skippedEmptyBundle}`);
+    if (skippedInvalidBundle > 0) skippedNotes.push(`invalid=${skippedInvalidBundle}`);
+    const skippedSuffix = skippedNotes.length ? ` (skipped ${skippedNotes.join(', ')})` : '';
+    const coverageText = eligible > 0 ? `${covered}/${eligible}` : 'n/a';
     log(
-      `[embeddings] ${mode}: refreshed ${rewritten}/${attempted} incremental bundles; ` +
-      `embedding coverage ${covered}/${attempted}.`
+      `[embeddings] ${mode}: refreshed ${rewritten}/${eligible} eligible incremental bundles; ` +
+      `embedding coverage ${coverageText}${skippedSuffix}.`
     );
   }
-  return { attempted, rewritten, manifestWritten, completeCoverage };
+  return {
+    attempted: eligible,
+    eligible,
+    rewritten,
+    covered,
+    scanned,
+    skippedNoMapping,
+    skippedInvalidBundle,
+    skippedEmptyBundle,
+    manifestWritten,
+    completeCoverage
+  };
 };
 
 /**
@@ -881,6 +914,10 @@ export async function runBuildEmbeddingsWithConfig(config) {
   const modeTask = display.task('Embeddings', { total: modes.length, stage: 'embeddings' });
   let completedModes = 0;
   const writerStatsByMode = {};
+  const hnswIsolateState = {
+    disabled: false,
+    reason: null
+  };
 
   try {
     for (const mode of modes) {
@@ -1800,6 +1837,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
             mode,
             hnswConfig,
             hnswIsolate,
+            isolateState: hnswIsolateState,
             hnswBuilders,
             hnswPaths: stagedHnswPaths,
             vectors: { merged: mergedVectors, doc: docVectors, code: codeVectors },

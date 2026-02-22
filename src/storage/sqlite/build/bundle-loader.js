@@ -40,7 +40,7 @@ const resolveWorkerResourceLimits = (maxWorkers) => {
 };
 
 export const createBundleLoader = ({ bundleThreads, workerPath }) => {
-  const useWorkers = Number.isFinite(bundleThreads) && bundleThreads > 1;
+  const useWorkers = Number.isFinite(bundleThreads) && bundleThreads > 1 && Boolean(workerPath);
   const pool = useWorkers && workerPath
     ? new Piscina({
       filename: workerPath,
@@ -49,6 +49,19 @@ export const createBundleLoader = ({ bundleThreads, workerPath }) => {
       resourceLimits: resolveWorkerResourceLimits(bundleThreads)
     })
     : null;
+  let workerAvailable = Boolean(pool);
+
+  const loadBundleDirect = async (bundlePath, file) => {
+    const result = await readBundleFile(bundlePath);
+    if (!result.ok) {
+      return {
+        file,
+        ok: false,
+        reason: `bundle read failed (${bundlePath}): ${result.reason || 'invalid bundle'}`
+      };
+    }
+    return { file, ok: true, bundle: result.bundle };
+  };
 
   const loadBundle = async ({ bundleDir, entry, file }) => {
     const bundleName = entry?.bundle;
@@ -60,23 +73,19 @@ export const createBundleLoader = ({ bundleThreads, workerPath }) => {
       return { file, ok: false, reason: `bundle file missing (${bundlePath})` };
     }
     try {
-      if (pool) {
-        const result = await pool.run({ bundlePath });
-        if (!result?.ok) {
-          const reason = result?.reason || 'invalid bundle';
-          return { file, ok: false, reason: `bundle read failed (${bundlePath}): ${reason}` };
+      if (pool && workerAvailable) {
+        try {
+          const result = await pool.run({ bundlePath });
+          if (!result?.ok) {
+            const reason = result?.reason || 'invalid bundle';
+            return { file, ok: false, reason: `bundle read failed (${bundlePath}): ${reason}` };
+          }
+          return { file, ok: true, bundle: result.bundle };
+        } catch {
+          workerAvailable = false;
         }
-        return { file, ok: true, bundle: result.bundle };
       }
-      const result = await readBundleFile(bundlePath);
-      if (!result.ok) {
-        return {
-          file,
-          ok: false,
-          reason: `bundle read failed (${bundlePath}): ${result.reason || 'invalid bundle'}`
-        };
-      }
-      return { file, ok: true, bundle: result.bundle };
+      return await loadBundleDirect(bundlePath, file);
     } catch (err) {
       return { file, ok: false, reason: `bundle read failed (${bundlePath}): ${err?.message || err}` };
     }

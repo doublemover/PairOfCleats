@@ -42,6 +42,18 @@ if (manifestStage2.bundleEmbeddings !== false) {
   console.error('Expected stage2 manifest to mark bundleEmbeddings=false.');
   process.exit(1);
 }
+const firstManifestFile = Object.keys(manifestStage2.files || {})[0];
+if (!firstManifestFile) {
+  console.error('Expected stage2 manifest to contain at least one file entry.');
+  process.exit(1);
+}
+manifestStage2.files['phantom/missing.js'] = {
+  ...manifestStage2.files[firstManifestFile],
+  // Keep bundle metadata intentionally valid while forcing a file key that
+  // will not appear in stage3 chunk mappings.
+  bundle: manifestStage2.files[firstManifestFile]?.bundle
+};
+fs.writeFileSync(manifestPath, JSON.stringify(manifestStage2, null, 2));
 
 run(
   [

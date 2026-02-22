@@ -972,19 +972,6 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       }
     }
   });
-  if (runtimeRef.incrementalEnabled === true) {
-    const existingVfsManifestRowsByFile = mode === 'code' && crossFileEnabled && incrementalBundleVfsRowsPromise
-      ? await incrementalBundleVfsRowsPromise
-      : null;
-    await updateIncrementalBundles({
-      runtime: runtimeRef,
-      incrementalState,
-      state,
-      existingVfsManifestRowsByFile,
-      log
-    });
-  }
-
   const envConfig = getEnvConfig();
   if (envConfig.verbose === true && tokenizationStats.chunks) {
     const avgTokens = (tokenizationStats.tokens / tokenizationStats.chunks).toFixed(1);
@@ -1036,6 +1023,20 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     shardSummary,
     stageCheckpoints
   });
+  if (runtimeRef.incrementalEnabled === true) {
+    // Write incremental bundles after artifact finalization so bundle metaV2
+    // stays byte-for-byte aligned with emitted chunk_meta.
+    const existingVfsManifestRowsByFile = mode === 'code' && crossFileEnabled && incrementalBundleVfsRowsPromise
+      ? await incrementalBundleVfsRowsPromise
+      : null;
+    await updateIncrementalBundles({
+      runtime: runtimeRef,
+      incrementalState,
+      state,
+      existingVfsManifestRowsByFile,
+      log
+    });
+  }
   const vfsStats = state.vfsManifestStats || state.vfsManifestCollector?.stats || null;
   const vfsExtra = vfsStats
     ? {

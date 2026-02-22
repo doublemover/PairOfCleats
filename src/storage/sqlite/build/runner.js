@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { fileURLToPath } from 'node:url';
 import { createTempPath } from '../../../shared/json-stream.js';
 import { resolveTaskFactory } from '../../../shared/cli/noop-task.js';
 import { updateSqliteState } from './index-state.js';
@@ -58,6 +59,8 @@ import {
 } from './runner/logging.js';
 
 export { normalizeValidateMode } from './runner/options.js';
+
+const BUNDLE_LOADER_WORKER_PATH = fileURLToPath(new URL('./bundle-loader-worker.js', import.meta.url));
 
 /**
  * Build sqlite indexes without CLI parsing.
@@ -659,6 +662,7 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
             validateMode,
             vectorConfig: resolvedVectorConfig,
             modelConfig,
+            workerPath: BUNDLE_LOADER_WORKER_PATH,
             logger: externalLogger || { log, warn, error },
             inputBytes,
             batchSize: batchSizeOverride,

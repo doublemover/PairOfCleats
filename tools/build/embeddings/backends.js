@@ -5,6 +5,7 @@ export const writeHnswBackends = async ({
   mode,
   hnswConfig,
   hnswIsolate,
+  isolateState,
   hnswBuilders,
   hnswPaths,
   vectors,
@@ -25,7 +26,13 @@ export const writeHnswBackends = async ({
   };
   if (!hnswConfig?.enabled) return results;
   let isolateEnabled = hnswIsolate === true;
-  let isolateFailureMessage = null;
+  let isolateFailureMessage = isolateState?.disabled === true
+    ? (isolateState?.reason || 'HNSW isolate disabled after previous failure.')
+    : null;
+  if (isolateState?.disabled === true) {
+    isolateEnabled = false;
+  }
+  let loggedReuseAfterFallback = false;
 
   const entries = [
     {
@@ -73,6 +80,10 @@ export const writeHnswBackends = async ({
         } catch (err) {
           isolateEnabled = false;
           isolateFailureMessage = err?.message || String(err);
+          if (isolateState && typeof isolateState === 'object') {
+            isolateState.disabled = true;
+            isolateState.reason = isolateFailureMessage;
+          }
           warn(
             `[embeddings] ${entry.label}: HNSW isolate failed; falling back to in-process writer ` +
             `(${isolateFailureMessage}).`
@@ -119,10 +130,13 @@ export const writeHnswBackends = async ({
             logger
           });
           if (isolateFailureMessage) {
-            log(
-              `[embeddings] ${entry.label}: used in-process HNSW writer after isolate fallback ` +
-              `(${isolateFailureMessage}).`
-            );
+            if (!loggedReuseAfterFallback) {
+              log(
+                `[embeddings] ${mode}: using in-process HNSW writer ` +
+                `after isolate fallback (${isolateFailureMessage}).`
+              );
+              loggedReuseAfterFallback = true;
+            }
           }
         }
       }
