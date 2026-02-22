@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSubprocess } from '../../src/shared/subprocess.js';
+import { captureProcessSnapshot, snapshotTrackedSubprocesses, spawnSubprocess } from '../../src/shared/subprocess.js';
 import { getTuiEnvConfig } from '../../src/shared/env.js';
 import { applyProgressContextEnv } from '../../src/shared/progress.js';
 import { createProgressLineDecoder } from '../../src/shared/cli/progress-stream.js';
@@ -85,6 +85,9 @@ const FLOW_MAX_EVENT_CHARS = 16 * 1024;
 const FLOW_CHUNK_CHARS = 4096;
 const FLOW_METRICS_INTERVAL_MS = 1000;
 const CRITICAL_EVENTS = new Set(['hello', 'job:start', 'job:spawn', 'job:end', 'job:artifacts', 'runtime:metrics']);
+const WATCHDOG_MAX_MS = 60 * 60 * 1000;
+const WATCHDOG_SOFT_KICK_COOLDOWN_DEFAULT_MS = 10_000;
+const WATCHDOG_SOFT_KICK_MAX_ATTEMPTS_DEFAULT = 2;
 
 const state = {
   shuttingDown: false,
@@ -306,6 +309,104 @@ const resolveRetryPolicy = (request) => {
   };
 };
 
+const resolveWatchdogConfigSource = (request) => {
+  const rawWatchdog = request?.watchdog && typeof request.watchdog === 'object'
+    ? request.watchdog
+    : {};
+  const runStageWatchdog = rawWatchdog?.stages?.run && typeof rawWatchdog.stages.run === 'object'
+    ? rawWatchdog.stages.run
+    : {};
+  return { rawWatchdog, runStageWatchdog };
+};
+
+const resolveWatchdogPolicy = (request) => {
+  const { rawWatchdog, runStageWatchdog } = resolveWatchdogConfigSource(request);
+  const hardTimeoutMs = clampInt(
+    runStageWatchdog.hardTimeoutMs
+      ?? runStageWatchdog.timeoutMs
+      ?? rawWatchdog.hardTimeoutMs
+      ?? rawWatchdog.timeoutMs
+      ?? request?.watchdogMs,
+    0,
+    { min: 0, max: WATCHDOG_MAX_MS }
+  );
+  const heartbeatMs = clampInt(
+    runStageWatchdog.heartbeatMs
+      ?? runStageWatchdog.progressHeartbeatMs
+      ?? rawWatchdog.heartbeatMs
+      ?? rawWatchdog.progressHeartbeatMs,
+    hardTimeoutMs > 0
+      ? Math.max(250, Math.min(5000, Math.floor(hardTimeoutMs / 4)))
+      : 0,
+    { min: 0, max: WATCHDOG_MAX_MS }
+  );
+  const configuredSoftKickMs = clampInt(
+    runStageWatchdog.softKickMs
+      ?? runStageWatchdog.stallSoftKickMs
+      ?? rawWatchdog.softKickMs
+      ?? rawWatchdog.stallSoftKickMs,
+    -1,
+    { min: 0, max: WATCHDOG_MAX_MS }
+  );
+  let softKickMs = configuredSoftKickMs >= 0
+    ? configuredSoftKickMs
+    : (hardTimeoutMs > 0 ? Math.max(250, Math.floor(hardTimeoutMs * 0.5)) : 0);
+  if (hardTimeoutMs > 0 && softKickMs >= hardTimeoutMs) {
+    softKickMs = Math.max(1, hardTimeoutMs - 1);
+  }
+  const softKickCooldownMs = clampInt(
+    runStageWatchdog.softKickCooldownMs
+      ?? rawWatchdog.softKickCooldownMs,
+    WATCHDOG_SOFT_KICK_COOLDOWN_DEFAULT_MS,
+    { min: 0, max: WATCHDOG_MAX_MS }
+  );
+  const softKickMaxAttempts = clampInt(
+    runStageWatchdog.softKickMaxAttempts
+      ?? rawWatchdog.softKickMaxAttempts,
+    WATCHDOG_SOFT_KICK_MAX_ATTEMPTS_DEFAULT,
+    { min: 0, max: 8 }
+  );
+  return {
+    hardTimeoutMs,
+    heartbeatMs,
+    softKickMs,
+    softKickCooldownMs,
+    softKickMaxAttempts
+  };
+};
+
+const buildSupervisorWatchdogSnapshot = ({
+  job,
+  idleMs = 0,
+  source = 'watchdog',
+  includeStack = true
+} = {}) => ({
+  source,
+  capturedAt: nowIso(),
+  idleMs: Math.max(0, Math.floor(Number(idleMs) || 0)),
+  job: {
+    id: job?.id || null,
+    status: job?.status || null,
+    pid: job?.pid || null,
+    startedAt: Number.isFinite(Number(job?.startedAt))
+      ? new Date(Number(job.startedAt)).toISOString()
+      : null
+  },
+  flow: {
+    credits: state.flow.credits,
+    queueDepth: state.flow.queue.length,
+    sent: state.flow.sent,
+    dropped: state.flow.dropped,
+    coalesced: state.flow.coalesced
+  },
+  trackedSubprocesses: snapshotTrackedSubprocesses({ limit: 6 }),
+  process: captureProcessSnapshot({
+    includeStack,
+    frameLimit: includeStack ? 12 : 8,
+    handleTypeLimit: 8
+  })
+});
+
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const parseResultFromStdout = (stdoutText, policy) => {
@@ -478,7 +579,7 @@ const startJob = async (request) => {
   const retryPolicy = resolveRetryPolicy(request);
   const timeoutMs = clampInt(request?.timeoutMs, 0, { min: 0, max: 24 * 60 * 60 * 1000 });
   const deadlineMs = clampInt(request?.deadlineMs, 0, { min: 0, max: Number.MAX_SAFE_INTEGER });
-  const inactivityWatchdogMs = clampInt(request?.watchdogMs, 0, { min: 0, max: 60 * 60 * 1000 });
+  const watchdogPolicy = resolveWatchdogPolicy(request);
   const job = {
     id: jobId,
     title,
@@ -499,7 +600,8 @@ const startJob = async (request) => {
     requested: {
       progressMode: request?.progressMode || 'jsonl',
       resultPolicy: resolveResultPolicy(request),
-      retry: retryPolicy
+      retry: retryPolicy,
+      watchdog: watchdogPolicy
     }
   }, { jobId });
 
@@ -571,20 +673,126 @@ const startJob = async (request) => {
 
     const startedAt = Date.now();
     let watchdogTimer = null;
+    let watchdogLastHeartbeatAt = 0;
+    let watchdogSoftKickAttempts = 0;
+    let watchdogSoftKickInFlight = false;
+    let watchdogLastSoftKickAt = 0;
     const stopWatchdog = () => {
       if (watchdogTimer) {
         clearInterval(watchdogTimer);
         watchdogTimer = null;
       }
     };
-    if (inactivityWatchdogMs > 0) {
+    const emitWatchdogHeartbeat = (idleMs) => {
+      if (watchdogPolicy.heartbeatMs <= 0) return;
+      const nowMs = Date.now();
+      if (watchdogLastHeartbeatAt > 0 && (nowMs - watchdogLastHeartbeatAt) < watchdogPolicy.heartbeatMs) return;
+      watchdogLastHeartbeatAt = nowMs;
+      const snapshot = buildSupervisorWatchdogSnapshot({
+        job,
+        idleMs,
+        source: 'watchdog_heartbeat',
+        includeStack: false
+      });
+      emitLog(
+        jobId,
+        'info',
+        `watchdog heartbeat idle=${Math.floor(idleMs)}ms pid=${job.pid || 'n/a'}`,
+        {
+          watchdogPhase: 'heartbeat',
+          idleMs: Math.floor(idleMs),
+          watchdogSnapshot: snapshot
+        }
+      );
+    };
+    const runSoftKick = (idleMs) => {
+      if (watchdogSoftKickInFlight || job.finalized || job.abortController.signal.aborted) return;
+      watchdogSoftKickInFlight = true;
+      watchdogSoftKickAttempts += 1;
+      watchdogLastSoftKickAt = Date.now();
+      const snapshot = buildSupervisorWatchdogSnapshot({
+        job,
+        idleMs,
+        source: 'watchdog_soft_kick',
+        includeStack: true
+      });
+      emitLog(
+        jobId,
+        'warn',
+        `watchdog soft-kick attempt ${watchdogSoftKickAttempts}/${watchdogPolicy.softKickMaxAttempts} `
+          + `(idle=${Math.floor(idleMs)}ms)`,
+        {
+          watchdogPhase: 'soft-kick',
+          softKickAttempt: watchdogSoftKickAttempts,
+          softKickMaxAttempts: watchdogPolicy.softKickMaxAttempts,
+          idleMs: Math.floor(idleMs),
+          watchdogSnapshot: snapshot
+        }
+      );
+      emit('job:watchdog', {
+        phase: 'soft-kick',
+        idleMs: Math.floor(idleMs),
+        attempt: watchdogSoftKickAttempts,
+        maxAttempts: watchdogPolicy.softKickMaxAttempts,
+        snapshot
+      }, { jobId, critical: true });
+      try {
+        if (Number.isFinite(Number(job.pid)) && Number(job.pid) > 0 && process.platform !== 'win32') {
+          process.kill(Number(job.pid), 'SIGCONT');
+        }
+      } catch {}
+      watchdogSoftKickInFlight = false;
+    };
+    if (watchdogPolicy.hardTimeoutMs > 0 || watchdogPolicy.softKickMs > 0 || watchdogPolicy.heartbeatMs > 0) {
+      const pollMs = Math.max(
+        250,
+        Math.min(
+          1000,
+          Math.floor(Math.max(watchdogPolicy.hardTimeoutMs || watchdogPolicy.heartbeatMs || 1000, 1000) / 4)
+        )
+      );
       watchdogTimer = setInterval(() => {
         if (job.finalized || job.abortController.signal.aborted) return;
-        if (Date.now() - lastActivityAt < inactivityWatchdogMs) return;
+        const nowMs = Date.now();
+        const idleMs = Math.max(0, nowMs - lastActivityAt);
+        if (watchdogPolicy.heartbeatMs > 0 && idleMs >= watchdogPolicy.heartbeatMs) {
+          emitWatchdogHeartbeat(idleMs);
+        }
+        if (
+          watchdogPolicy.softKickMs > 0
+          && idleMs >= watchdogPolicy.softKickMs
+          && watchdogSoftKickAttempts < watchdogPolicy.softKickMaxAttempts
+          && (watchdogPolicy.softKickCooldownMs <= 0 || nowMs - watchdogLastSoftKickAt >= watchdogPolicy.softKickCooldownMs)
+        ) {
+          runSoftKick(idleMs);
+        }
+        if (watchdogPolicy.hardTimeoutMs <= 0 || idleMs < watchdogPolicy.hardTimeoutMs) return;
+        const snapshot = buildSupervisorWatchdogSnapshot({
+          job,
+          idleMs,
+          source: 'watchdog_hard_timeout',
+          includeStack: true
+        });
         job.cancelReason = 'watchdog_timeout';
-        emitLog(jobId, 'warn', `watchdog timeout (${inactivityWatchdogMs}ms inactivity)`);
+        emitLog(
+          jobId,
+          'warn',
+          `watchdog timeout (${watchdogPolicy.hardTimeoutMs}ms inactivity)`,
+          {
+            watchdogPhase: 'hard-timeout',
+            idleMs: Math.floor(idleMs),
+            watchdogSnapshot: snapshot
+          }
+        );
+        emit('job:watchdog', {
+          phase: 'hard-timeout',
+          idleMs: Math.floor(idleMs),
+          hardTimeoutMs: watchdogPolicy.hardTimeoutMs,
+          softKickAttempts: watchdogSoftKickAttempts,
+          snapshot
+        }, { jobId, critical: true });
         job.abortController.abort('watchdog_timeout');
-      }, Math.min(500, inactivityWatchdogMs));
+      }, pollMs);
       if (typeof watchdogTimer.unref === 'function') watchdogTimer.unref();
     }
 

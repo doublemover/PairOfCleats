@@ -480,7 +480,7 @@ Primary targets:
 ## Phase 5: Logging, Diagnostics, and Operator UX
 
 ### UB-050: Structured diagnostics stream
-- Status: [ ]
+- Status: [x]
 - Problem:
   - Important runtime issues are mixed with verbose output and duplicated in all/repo logs.
 - Tasks:
@@ -491,13 +491,17 @@ Primary targets:
   - Snapshot tests for interactive output and JSON schema tests.
 - Exit criteria:
   - Operators can quickly identify exact root causes without scanning huge logs.
+- Completion: 2026-02-22T09:04:12-05:00
+- Validation:
+  - `node tests/perf/bench/bench-language-process-diagnostics-stream.test.js`
+  - `node tests/tooling/reports/bench-language-diagnostics-summary-report.test.js`
 - Improvement Intent (What): diagnostic clarity
 - Improvement Method (How): structured event stream + dedupe/rate limiting + compact summaries.
 - Integrated Betterments: standardize diagnostic event schema with versioned contracts; add event dedupe keys and per-category rate limits; include lightweight human-readable summaries that reference durable JSON event files.
 - Touchpoints: `tools/bench/language/logging.js`, `tools/bench/language/process.js`, `tools/bench/language/report.js`, `src/index/build/crash-log.js`, `src/index/build/indexer/steps/process-files.js`, `tests/perf/bench/bench-language-progress-parse.test.js`, `tests/tooling/reports/summary/summary-report.test.js`
 
 ### UB-051: Hang detection and forced-progress policy
-- Status: [ ]
+- Status: [x]
 - Problem:
   - Historical hangs had poor diagnosability and delayed recovery.
 - Tasks:
@@ -508,6 +512,13 @@ Primary targets:
   - Simulated deadlock/hang fixtures validating diagnostics and recovery actions.
 - Exit criteria:
   - No silent stalls; every stall produces actionable diagnostics.
+- Completion: 2026-02-22T09:13:30.6601186-05:00
+- Validation:
+  - `node tests/indexing/stage1/process-files-stall-snapshot-policy.test.js`
+  - `node tests/indexing/stage1/process-files-progress-heartbeat.test.js`
+  - `node tests/indexing/stage1/file-watchdog-hard-timeout.test.js`
+  - `node tests/shared/subprocess/abort-kills-child.test.js`
+  - `node tests/runner/harness/watchdog-kills-tree.test.js`
 - Improvement Intent (What): hang recovery reliability
 - Improvement Method (How): staged recovery policy and mandatory stuck-state snapshots.
 - Integrated Betterments: add staged recovery policy (warn, soft kick, selective restart, hard fail); record thread/queue/process snapshots before any forced termination; add "stuck on file" definitive marker with last active operation.

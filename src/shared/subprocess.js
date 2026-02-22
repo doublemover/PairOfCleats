@@ -6,6 +6,13 @@ const DEFAULT_MAX_OUTPUT_BYTES = 1_000_000;
 const DEFAULT_KILL_GRACE_MS = 5000;
 const TRACKED_SUBPROCESS_FORCE_GRACE_MS = 0;
 const TRACKED_SUBPROCESS_TERMINATION_SIGNALS = Object.freeze(['SIGINT', 'SIGTERM']);
+const TRACKED_SUBPROCESS_SNAPSHOT_DEFAULT_LIMIT = 8;
+const TRACKED_SUBPROCESS_SNAPSHOT_MAX_LIMIT = 256;
+const TRACKED_SUBPROCESS_ARGS_PREVIEW_MAX = 4;
+const PROCESS_SNAPSHOT_DEFAULT_FRAME_LIMIT = 12;
+const PROCESS_SNAPSHOT_MAX_FRAME_LIMIT = 64;
+const PROCESS_SNAPSHOT_DEFAULT_HANDLE_TYPE_LIMIT = 8;
+const PROCESS_SNAPSHOT_MAX_HANDLE_TYPE_LIMIT = 64;
 
 const SHELL_MODE_DISABLED_ERROR = (
   'spawnSubprocess shell mode is disabled for security; pass an executable and args with shell=false.'
@@ -26,6 +33,7 @@ const normalizeTrackedOwnershipId = (value) => {
 };
 
 const normalizeTrackedScope = (value) => normalizeTrackedOwnershipId(value);
+const normalizeTrackedOwnershipPrefix = (value) => normalizeTrackedOwnershipId(value);
 
 const resolveTrackedOwnershipId = (options = {}) => (
   normalizeTrackedOwnershipId(options.ownershipId ?? options.ownerId)
@@ -47,6 +55,22 @@ const entryMatchesOwnershipId = (entry, ownershipId) => {
   return resolveEntryOwnershipId(entry) === ownershipId
     || normalizeTrackedScope(entry?.scope) === ownershipId;
 };
+
+const entryMatchesOwnershipPrefix = (entry, ownershipPrefix) => {
+  if (!ownershipPrefix) return true;
+  const ownershipId = resolveEntryOwnershipId(entry);
+  if (ownershipId && ownershipId.startsWith(ownershipPrefix)) return true;
+  const scope = normalizeTrackedScope(entry?.scope);
+  return Boolean(scope && scope.startsWith(ownershipPrefix));
+};
+
+const entryMatchesTrackedFilters = (entry, {
+  ownershipId = null,
+  ownershipPrefix = null
+} = {}) => (
+  entryMatchesOwnershipId(entry, ownershipId)
+  && entryMatchesOwnershipPrefix(entry, ownershipPrefix)
+);
 
 export class SubprocessError extends Error {
   constructor(message, result, cause) {
@@ -101,6 +125,113 @@ const resolveExpectedExitCodes = (value) => {
     return normalized.length ? normalized : [0];
   }
   return [0];
+};
+
+const resolveSnapshotLimit = (value, fallback = TRACKED_SUBPROCESS_SNAPSHOT_DEFAULT_LIMIT) => {
+  const parsed = toNumber(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.max(1, Math.min(TRACKED_SUBPROCESS_SNAPSHOT_MAX_LIMIT, Math.floor(parsed)));
+};
+
+const resolveFrameLimit = (value) => {
+  const parsed = toNumber(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return PROCESS_SNAPSHOT_DEFAULT_FRAME_LIMIT;
+  return Math.max(1, Math.min(PROCESS_SNAPSHOT_MAX_FRAME_LIMIT, Math.floor(parsed)));
+};
+
+const resolveHandleTypeLimit = (value) => {
+  const parsed = toNumber(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return PROCESS_SNAPSHOT_DEFAULT_HANDLE_TYPE_LIMIT;
+  return Math.max(1, Math.min(PROCESS_SNAPSHOT_MAX_HANDLE_TYPE_LIMIT, Math.floor(parsed)));
+};
+
+const toIsoTimestamp = (value) => {
+  const parsed = toNumber(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return new Date(parsed).toISOString();
+};
+
+const toSafeArgList = (value) => {
+  if (!Array.isArray(value)) return [];
+  return value.map((entry) => String(entry));
+};
+
+const toSafeArgsPreview = (args) => (
+  Array.isArray(args)
+    ? args.slice(0, TRACKED_SUBPROCESS_ARGS_PREVIEW_MAX).map((entry) => String(entry))
+    : []
+);
+
+const coerceTypeName = (value) => {
+  if (!value) return 'unknown';
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed || 'unknown';
+  }
+  if (typeof value === 'function') {
+    const trimmed = String(value.name || '').trim();
+    return trimmed || 'anonymous';
+  }
+  if (typeof value === 'object' && typeof value.constructor?.name === 'string') {
+    const trimmed = value.constructor.name.trim();
+    if (trimmed) return trimmed;
+  }
+  return typeof value;
+};
+
+const summarizeResourceTypes = (list, typeLimit) => {
+  const counts = new Map();
+  for (const entry of list) {
+    const type = coerceTypeName(entry);
+    counts.set(type, (counts.get(type) || 0) + 1);
+  }
+  const sorted = Array.from(counts.entries())
+    .sort((left, right) => {
+      const delta = right[1] - left[1];
+      if (delta !== 0) return delta;
+      return left[0].localeCompare(right[0]);
+    })
+    .slice(0, typeLimit)
+    .map(([type, count]) => ({ type, count }));
+  return {
+    count: list.length,
+    byType: sorted
+  };
+};
+
+const captureProcessStackSnapshot = (frameLimit = PROCESS_SNAPSHOT_DEFAULT_FRAME_LIMIT) => {
+  const safeFrameLimit = resolveFrameLimit(frameLimit);
+  let reportError = null;
+  try {
+    if (process.report && typeof process.report.getReport === 'function') {
+      const report = process.report.getReport();
+      const stackFrames = Array.isArray(report?.javascriptStack?.stack)
+        ? report.javascriptStack.stack
+            .map((entry) => String(entry || '').trim())
+            .filter(Boolean)
+        : [];
+      return {
+        source: 'process.report',
+        message: typeof report?.javascriptStack?.message === 'string'
+          ? report.javascriptStack.message
+          : null,
+        frames: stackFrames.slice(0, safeFrameLimit)
+      };
+    }
+  } catch (error) {
+    reportError = error?.message || String(error);
+  }
+  const fallbackStack = String(new Error('process snapshot').stack || '');
+  const fallbackFrames = fallbackStack
+    .split(/\r?\n/)
+    .slice(1, safeFrameLimit + 1)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  return {
+    source: 'error.stack',
+    message: reportError,
+    frames: fallbackFrames
+  };
 };
 
 const coerceOutputMode = (value) => (value === 'lines' ? 'lines' : 'string');
@@ -231,7 +362,7 @@ export const withTrackedSubprocessSignalScope = async (signal, scope, operation)
  * This is used by lifecycle hooks (exit/signals/uncaught exceptions) and can
  * also be invoked by callers that need deterministic cleanup boundaries.
  *
- * @param {{reason?:string,force?:boolean,scope?:string|null,ownershipId?:string|null}} [input]
+ * @param {{reason?:string,force?:boolean,scope?:string|null,ownershipId?:string|null,ownershipPrefix?:string|null}} [input]
  * @returns {Promise<{
  *   reason:string,
  *   tracked:number,
@@ -239,6 +370,7 @@ export const withTrackedSubprocessSignalScope = async (signal, scope, operation)
  *   failures:number,
  *   scope:string|null,
  *   ownershipId:string|null,
+ *   ownershipPrefix:string|null,
  *   targetedPids:number[],
  *   terminatedPids:number[],
  *   ownershipIds:string[],
@@ -257,13 +389,18 @@ export const terminateTrackedSubprocesses = async ({
   reason = 'shutdown',
   force = false,
   scope = null,
-  ownershipId = null
+  ownershipId = null,
+  ownershipPrefix = null
 } = {}) => {
   const normalizedScope = normalizeTrackedScope(scope);
   const normalizedOwnershipId = normalizeTrackedOwnershipId(ownershipId) || normalizedScope;
+  const normalizedOwnershipPrefix = normalizeTrackedOwnershipPrefix(ownershipPrefix);
   const entries = [];
   for (const [entryKey, entry] of trackedSubprocesses.entries()) {
-    if (!entryMatchesOwnershipId(entry, normalizedOwnershipId)) continue;
+    if (!entryMatchesTrackedFilters(entry, {
+      ownershipId: normalizedOwnershipId,
+      ownershipPrefix: normalizedOwnershipPrefix
+    })) continue;
     const removed = removeTrackedSubprocess(entryKey);
     if (removed) entries.push(removed);
   }
@@ -275,6 +412,7 @@ export const terminateTrackedSubprocesses = async ({
       failures: 0,
       scope: normalizedScope,
       ownershipId: normalizedOwnershipId,
+      ownershipPrefix: normalizedOwnershipPrefix,
       targetedPids: [],
       terminatedPids: [],
       ownershipIds: [],
@@ -354,6 +492,7 @@ export const terminateTrackedSubprocesses = async ({
     failures,
     scope: normalizedScope,
     ownershipId: normalizedOwnershipId,
+    ownershipPrefix: normalizedOwnershipPrefix,
     targetedPids,
     terminatedPids,
     ownershipIds,
@@ -436,6 +575,10 @@ export const registerChildProcessForCleanup = (child, options = {}) => {
     detached: options.detached === true,
     scope,
     ownershipId,
+    command: typeof options.command === 'string' ? options.command : null,
+    args: toSafeArgList(options.args),
+    name: typeof options.name === 'string' ? options.name : null,
+    startedAtMs: toNumber(options.startedAtMs) || Date.now(),
     onClose: null
   };
   entry.onClose = () => {
@@ -456,6 +599,117 @@ export const getTrackedSubprocessCount = (scope = null) => {
     if (entryMatchesOwnershipId(entry, ownershipId)) count += 1;
   }
   return count;
+};
+
+export const snapshotTrackedSubprocesses = ({
+  scope = null,
+  ownershipId = null,
+  ownershipPrefix = null,
+  limit = TRACKED_SUBPROCESS_SNAPSHOT_DEFAULT_LIMIT,
+  includeArgs = false
+} = {}) => {
+  const normalizedScope = normalizeTrackedScope(scope);
+  const normalizedOwnershipId = normalizeTrackedOwnershipId(ownershipId) || normalizedScope;
+  const normalizedOwnershipPrefix = normalizeTrackedOwnershipPrefix(ownershipPrefix);
+  const safeLimit = resolveSnapshotLimit(limit);
+  const nowMs = Date.now();
+  const entries = [];
+  for (const entry of trackedSubprocesses.values()) {
+    if (!entryMatchesTrackedFilters(entry, {
+      ownershipId: normalizedOwnershipId,
+      ownershipPrefix: normalizedOwnershipPrefix
+    })) {
+      continue;
+    }
+    const pid = Number.isFinite(Number(entry?.child?.pid)) ? Number(entry.child.pid) : null;
+    const startedAtMs = toNumber(entry?.startedAtMs);
+    const args = toSafeArgList(entry?.args);
+    const snapshotEntry = {
+      pid,
+      scope: normalizeTrackedScope(entry?.scope),
+      ownershipId: resolveEntryOwnershipId(entry),
+      command: typeof entry?.command === 'string' && entry.command.trim()
+        ? entry.command.trim()
+        : null,
+      name: typeof entry?.name === 'string' && entry.name.trim() ? entry.name.trim() : null,
+      startedAt: toIsoTimestamp(startedAtMs),
+      elapsedMs: Number.isFinite(startedAtMs) ? Math.max(0, nowMs - startedAtMs) : null,
+      killTree: entry?.killTree !== false,
+      killSignal: typeof entry?.killSignal === 'string' ? entry.killSignal : null,
+      killGraceMs: resolveKillGraceMs(entry?.killGraceMs),
+      detached: entry?.detached === true
+    };
+    if (includeArgs) {
+      snapshotEntry.args = args;
+    } else {
+      snapshotEntry.argsPreview = toSafeArgsPreview(args);
+      snapshotEntry.argCount = args.length;
+    }
+    entries.push(snapshotEntry);
+  }
+  entries.sort((left, right) => {
+    const leftElapsed = Number.isFinite(left?.elapsedMs) ? left.elapsedMs : -1;
+    const rightElapsed = Number.isFinite(right?.elapsedMs) ? right.elapsedMs : -1;
+    if (leftElapsed !== rightElapsed) return rightElapsed - leftElapsed;
+    const leftPid = Number.isFinite(left?.pid) ? left.pid : Number.MAX_SAFE_INTEGER;
+    const rightPid = Number.isFinite(right?.pid) ? right.pid : Number.MAX_SAFE_INTEGER;
+    if (leftPid !== rightPid) return leftPid - rightPid;
+    return String(left?.ownershipId || '').localeCompare(String(right?.ownershipId || ''));
+  });
+  return {
+    scope: normalizedScope,
+    ownershipId: normalizedOwnershipId,
+    ownershipPrefix: normalizedOwnershipPrefix,
+    total: entries.length,
+    returned: Math.min(entries.length, safeLimit),
+    truncated: entries.length > safeLimit,
+    entries: entries.slice(0, safeLimit)
+  };
+};
+
+export const captureProcessSnapshot = ({
+  includeStack = true,
+  frameLimit = PROCESS_SNAPSHOT_DEFAULT_FRAME_LIMIT,
+  handleTypeLimit = PROCESS_SNAPSHOT_DEFAULT_HANDLE_TYPE_LIMIT
+} = {}) => {
+  const nowMs = Date.now();
+  const safeHandleTypeLimit = resolveHandleTypeLimit(handleTypeLimit);
+  const getActiveHandles = process['_getActiveHandles'];
+  const getActiveRequests = process['_getActiveRequests'];
+  let activeHandles = [];
+  let activeRequests = [];
+  try {
+    activeHandles = typeof getActiveHandles === 'function'
+      ? getActiveHandles.call(process)
+      : [];
+  } catch {
+    activeHandles = [];
+  }
+  try {
+    activeRequests = typeof getActiveRequests === 'function'
+      ? getActiveRequests.call(process)
+      : [];
+  } catch {
+    activeRequests = [];
+  }
+  const usage = typeof process.memoryUsage === 'function'
+    ? process.memoryUsage()
+    : {};
+  return {
+    capturedAt: toIsoTimestamp(nowMs),
+    pid: process.pid,
+    uptimeSec: Math.max(0, Math.floor(typeof process.uptime === 'function' ? process.uptime() : 0)),
+    memory: {
+      rssBytes: Number.isFinite(Number(usage?.rss)) ? Number(usage.rss) : null,
+      heapTotalBytes: Number.isFinite(Number(usage?.heapTotal)) ? Number(usage.heapTotal) : null,
+      heapUsedBytes: Number.isFinite(Number(usage?.heapUsed)) ? Number(usage.heapUsed) : null,
+      externalBytes: Number.isFinite(Number(usage?.external)) ? Number(usage.external) : null,
+      arrayBuffersBytes: Number.isFinite(Number(usage?.arrayBuffers)) ? Number(usage.arrayBuffers) : null
+    },
+    activeHandles: summarizeResourceTypes(activeHandles, safeHandleTypeLimit),
+    activeRequests: summarizeResourceTypes(activeRequests, safeHandleTypeLimit),
+    stack: includeStack ? captureProcessStackSnapshot(frameLimit) : null
+  };
 };
 
 export function spawnSubprocess(command, args, options = {}) {
@@ -521,7 +775,11 @@ export function spawnSubprocess(command, args, options = {}) {
         killGraceMs,
         detached,
         scope: cleanupScope,
-        ownershipId: inheritedOwnershipId || cleanupScope
+        ownershipId: inheritedOwnershipId || cleanupScope,
+        command,
+        args,
+        name: options.name || null,
+        startedAtMs: startedAt
       });
     }
     if (options.input != null && child.stdin) {
