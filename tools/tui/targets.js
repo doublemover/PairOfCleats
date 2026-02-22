@@ -6,6 +6,7 @@ import path from 'node:path';
 import { stableStringify } from '../../src/shared/stable-json.js';
 
 export const TUI_TARGETS_SCHEMA_VERSION = 1;
+export const TUI_BUILD_MANIFEST_SCHEMA_VERSION = 2;
 export const TUI_BUILD_MANIFEST_FILE = 'tui-artifacts-manifest.json';
 export const TUI_BUILD_MANIFEST_CHECKSUM_FILE = `${TUI_BUILD_MANIFEST_FILE}.sha256`;
 export const TUI_INSTALL_LAYOUT_VERSION = 1;
@@ -197,12 +198,25 @@ export const readBuildManifestSync = ({ root, verifyChecksum = true }) => {
     })
     : sha256Text(body);
   const payload = JSON.parse(body);
+  const schemaVersion = Number(payload?.schemaVersion);
+  if (!Number.isFinite(schemaVersion) || Math.trunc(schemaVersion) !== TUI_BUILD_MANIFEST_SCHEMA_VERSION) {
+    throw new Error(
+      `unsupported build manifest schemaVersion in ${toPosixRelative(root, manifestPath)}: ` +
+      `${payload?.schemaVersion} (expected ${TUI_BUILD_MANIFEST_SCHEMA_VERSION})`
+    );
+  }
   const targetsManifest = payload?.targetsManifest && typeof payload.targetsManifest === 'object'
     ? {
       file: normalizeString(payload.targetsManifest.file),
       sha256: normalizeString(payload.targetsManifest.sha256).toLowerCase() || null
     }
-    : { file: '', sha256: null };
+    : null;
+  if (!targetsManifest?.file) {
+    throw new Error(`build manifest missing targets manifest file binding: ${toPosixRelative(root, manifestPath)}`);
+  }
+  if (!targetsManifest?.sha256) {
+    throw new Error(`build manifest missing targets manifest checksum binding: ${toPosixRelative(root, manifestPath)}`);
+  }
   const artifacts = (Array.isArray(payload?.artifacts) ? payload.artifacts : [])
     .map((entry) => normalizeBuildManifestArtifact(entry, root))
     .filter((entry) => entry.triple && entry.artifactName && entry.artifactPath)
@@ -212,7 +226,7 @@ export const readBuildManifestSync = ({ root, verifyChecksum = true }) => {
     manifestPath,
     checksumPath,
     manifestChecksum,
-    schemaVersion: Number(payload?.schemaVersion) || 0,
+    schemaVersion,
     mode: normalizeString(payload?.mode),
     pathPolicy: normalizeString(payload?.pathPolicy),
     targetsManifest,

@@ -5,6 +5,7 @@ import path from 'node:path';
 import { resolveRepoRootArg } from '../shared/dict-utils.js';
 import { stableStringify } from '../../src/shared/stable-json.js';
 import {
+  TUI_BUILD_MANIFEST_SCHEMA_VERSION,
   TUI_BUILD_MANIFEST_CHECKSUM_FILE,
   TUI_BUILD_MANIFEST_FILE,
   readBuildManifestSync,
@@ -107,7 +108,7 @@ const run = async () => {
   });
 
   const manifest = {
-    schemaVersion: 1,
+    schemaVersion: TUI_BUILD_MANIFEST_SCHEMA_VERSION,
     tool: 'pairofcleats-tui',
     mode: smoke ? 'smoke' : 'plan',
     pathPolicy: 'repo-relative-posix',

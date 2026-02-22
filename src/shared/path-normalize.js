@@ -7,6 +7,28 @@ const stripDotPrefix = (value) => (
 );
 const WINDOWS_DRIVE_PREFIX_RE = /^([a-zA-Z]):/;
 
+const hasWindowsPathHint = (value) => {
+  const text = String(value || '');
+  if (!text) return false;
+  if (text.startsWith('\\\\')) return true;
+  if (text.length < 3) return false;
+  const code = text.charCodeAt(0);
+  const isAsciiLetter = (code >= 65 && code <= 90) || (code >= 97 && code <= 122);
+  return isAsciiLetter && text[1] === ':' && (text[2] === '\\' || text[2] === '/');
+};
+
+const shouldUseWin32PathApi = (repoRoot, rawPath) => {
+  const repoText = String(repoRoot || '');
+  const rawText = String(rawPath || '');
+  if (isAbsolutePathNative(repoText, 'win32') || hasWindowsPathHint(repoText)) {
+    return true;
+  }
+  if (isAbsolutePathNative(rawText, 'win32') || hasWindowsPathHint(rawText)) {
+    return true;
+  }
+  return false;
+};
+
 /**
  * Normalize a path into repo-relative form, or return null when outside root.
  * @param {unknown} value
@@ -21,9 +43,16 @@ export const normalizeRepoRelativePath = (value, repoRoot, { stripDot = true } =
     const normalized = toPosix(raw);
     return stripDot ? stripDotPrefix(normalized) : normalized;
   }
-  const abs = isAbsolutePathNative(raw) ? raw : path.resolve(repoRoot, raw);
-  const rel = path.relative(repoRoot, abs);
-  if (rel.startsWith('..') || isAbsolutePathNative(rel)) return null;
+  const useWin32 = shouldUseWin32PathApi(repoRoot, raw);
+  const platform = useWin32 ? 'win32' : 'posix';
+  const pathApi = useWin32 ? path.win32 : path.posix;
+  const normalizedRoot = normalizePathForPlatform(repoRoot, { platform });
+  const normalizedRaw = normalizePathForPlatform(raw, { platform });
+  const abs = isAbsolutePathNative(normalizedRaw, platform)
+    ? normalizedRaw
+    : pathApi.resolve(normalizedRoot, normalizedRaw);
+  const rel = pathApi.relative(normalizedRoot, abs);
+  if (rel.startsWith('..') || isAbsolutePathNative(rel, platform)) return null;
   const normalized = toPosix(rel);
   return stripDot ? stripDotPrefix(normalized) : normalized;
 };

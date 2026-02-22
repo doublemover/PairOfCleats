@@ -47,7 +47,7 @@ try {
   }
 
   const manifest = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     tool: 'pairofcleats-tui',
     mode: 'smoke',
     pathPolicy: 'repo-relative-posix',
