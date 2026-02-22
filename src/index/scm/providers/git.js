@@ -35,6 +35,10 @@ const ensurePosixList = (entries) => (
 
 const GIT_META_BATCH_FORMAT_PREFIX = '__POC_GIT_META__';
 const GIT_META_BATCH_CHUNK_SIZE = 96;
+const GIT_META_BATCH_CHUNK_SIZE_LARGE = 48;
+const GIT_META_BATCH_CHUNK_SIZE_HUGE = 16;
+const GIT_META_BATCH_FILESET_LARGE_MIN = 4000;
+const GIT_META_BATCH_FILESET_HUGE_MIN = 8000;
 const GIT_META_BATCH_SMALL_REPO_CHUNK_MAX = 2;
 
 const toPositiveIntOrNull = (value) => {
@@ -66,6 +70,19 @@ const chunkList = (items, size) => {
     chunks.push(items.slice(i, i + chunkSize));
   }
   return chunks;
+};
+
+const resolveGitMetaBatchChunkSize = (fileCount) => {
+  const totalFiles = Number.isFinite(Number(fileCount))
+    ? Math.max(0, Math.floor(Number(fileCount)))
+    : 0;
+  if (totalFiles >= GIT_META_BATCH_FILESET_HUGE_MIN) {
+    return GIT_META_BATCH_CHUNK_SIZE_HUGE;
+  }
+  if (totalFiles >= GIT_META_BATCH_FILESET_LARGE_MIN) {
+    return GIT_META_BATCH_CHUNK_SIZE_LARGE;
+  }
+  return GIT_META_BATCH_CHUNK_SIZE;
 };
 
 const runWithBoundedConcurrency = async (items, concurrency, worker) => {
@@ -259,7 +276,8 @@ export const gitProvider = {
       return { fileMetaByPath: Object.create(null) };
     }
     const fileMetaByPath = Object.create(null);
-    const chunks = chunkList(normalizedFiles, GIT_META_BATCH_CHUNK_SIZE);
+    const batchChunkSize = resolveGitMetaBatchChunkSize(normalizedFiles.length);
+    const chunks = chunkList(normalizedFiles, batchChunkSize);
     const resolvedTimeoutMs = Number.isFinite(Number(timeoutMs)) && Number(timeoutMs) > 0
       ? Math.max(5000, Math.floor(Number(timeoutMs)))
       : 15000;
