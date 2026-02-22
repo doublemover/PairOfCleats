@@ -34,6 +34,17 @@ assert.equal(vendorDefault?.downgrade, true, 'vendor files should default to met
 assert.equal(vendorDefault?.classification, 'vendor');
 assert.equal(vendorDefault?.source, 'path-pattern');
 
+const vendorDefaultWithoutPolicyObject = resolveGeneratedPolicyDecision({
+  relPath: 'vendor/sdk/index.js'
+});
+assert.equal(
+  vendorDefaultWithoutPolicyObject?.downgrade,
+  true,
+  'generated policy defaults must apply even when policy object is omitted'
+);
+assert.equal(vendorDefaultWithoutPolicyObject?.classification, 'vendor');
+assert.equal(vendorDefaultWithoutPolicyObject?.source, 'path-pattern');
+
 const generatedDefault = resolveGeneratedPolicyDecision({
   generatedPolicy: basePolicy,
   relPath: 'src/models/generated/types.generated.ts'

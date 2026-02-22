@@ -36,4 +36,44 @@ assert.ok(protoKeys.has('package widgets|NamespaceDeclaration'), 'missing Proto 
 assert.ok(protoKeys.has('service WidgetService|ServiceDeclaration'), 'missing Proto service boundary');
 assert.ok(protoKeys.has('rpc GetWidget|MethodDeclaration'), 'missing Proto rpc boundary');
 
+const graphqlExtendSchemaChunks = smartChunk({
+  text: [
+    'extend schema {',
+    '  query: Query',
+    '}',
+    '',
+    'extend type Query {',
+    '  ping: String',
+    '}'
+  ].join('\n'),
+  ext: '.graphql',
+  mode: 'code'
+});
+const graphqlExtendSchemaKeys = toKeySet(graphqlExtendSchemaChunks);
+assert.ok(
+  graphqlExtendSchemaKeys.has('extend schema|SchemaDeclaration'),
+  'missing GraphQL schema extension boundary'
+);
+assert.ok(
+  graphqlExtendSchemaKeys.has('extend type Query|TypeDeclaration'),
+  'missing GraphQL type extension boundary'
+);
+
+const protoQualifiedExtendChunks = smartChunk({
+  text: [
+    'syntax = "proto3";',
+    '',
+    'extend google.protobuf.MessageOptions {',
+    '  string owner = 51234;',
+    '}'
+  ].join('\n'),
+  ext: '.proto',
+  mode: 'code'
+});
+const protoQualifiedExtendKeys = toKeySet(protoQualifiedExtendChunks);
+assert.ok(
+  protoQualifiedExtendKeys.has('extend google.protobuf.MessageOptions|ExtendDeclaration'),
+  'missing Proto qualified extend boundary'
+);
+
 console.log('SQL/GraphQL/Proto chunk boundaries test passed');

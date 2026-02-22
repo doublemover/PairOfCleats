@@ -169,7 +169,11 @@ const chunkMakefile = (text, context = null) => {
 const chunkProto = (text, context = null) => {
   const { lines, lineIndex } = splitLinesWithIndex(text, context);
   const headings = [];
-  const blockRx = /^\s*(message|enum|service|extend|oneof)\s+([A-Za-z_][A-Za-z0-9_]*)/;
+  const blockRx = /^\s*(message|enum|service|oneof)\s+([A-Za-z_][A-Za-z0-9_]*)/;
+  // `extend` targets may be fully qualified (for example
+  // `extend google.protobuf.MessageOptions`), so allow dotted paths and an
+  // optional leading dot for package-qualified symbols.
+  const extendRx = /^\s*extend\s+(\.?[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)/;
   const rpcRx = /^\s*rpc\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/;
   const syntaxRx = /^\s*syntax\s*=\s*["'][^"']+["']\s*;/;
   const packageRx = /^\s*package\s+([A-Za-z_][A-Za-z0-9_.]*)\s*;/;
@@ -216,6 +220,17 @@ const chunkProto = (text, context = null) => {
       });
       continue;
     }
+    const extendMatch = line.match(extendRx);
+    if (extendMatch) {
+      const name = extendMatch[1];
+      headings.push({
+        line: i,
+        title: `extend ${name}`,
+        kind: 'ExtendDeclaration',
+        definitionType: 'extend'
+      });
+      continue;
+    }
     const blockMatch = line.match(blockRx);
     if (blockMatch) {
       const keyword = blockMatch[1];
@@ -248,7 +263,9 @@ const chunkGraphql = (text, context = null) => {
   const headings = [];
   const blockRx = /^\s*(schema|type|interface|enum|union|input|scalar|directive|fragment)\b\s*([A-Za-z_][A-Za-z0-9_]*)?/;
   const operationRx = /^\s*(query|mutation|subscription)\s+([A-Za-z_][A-Za-z0-9_]*)/;
-  const extendRx = /^\s*extend\s+(schema|type|interface|enum|union|input|scalar)\s+([A-Za-z_][A-Za-z0-9_]*)/;
+  // GraphQL allows both `extend type Name` and `extend schema { ... }` with
+  // no schema identifier.
+  const extendRx = /^\s*extend\s+(schema|type|interface|enum|union|input|scalar)\b(?:\s+([A-Za-z_][A-Za-z0-9_]*))?/;
   const kindByKeyword = {
     schema: 'SchemaDeclaration',
     type: 'TypeDeclaration',
@@ -285,7 +302,9 @@ const chunkGraphql = (text, context = null) => {
     const extendMatch = line.match(extendRx);
     if (extendMatch) {
       const definitionType = `extend-${extendMatch[1]}`;
-      const title = `extend ${extendMatch[1]} ${extendMatch[2]}`;
+      const title = extendMatch[2]
+        ? `extend ${extendMatch[1]} ${extendMatch[2]}`
+        : `extend ${extendMatch[1]}`;
       headings.push({
         line: i,
         title,

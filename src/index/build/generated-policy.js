@@ -13,10 +13,17 @@ const GENERATED_POLICY_SOURCES = new Set([
   'content-heuristic',
   'explicit-policy'
 ]);
+const EMPTY_PATTERNS = Object.freeze([]);
+const DEFAULT_GENERATED_POLICY_CONFIG = Object.freeze({
+  enabled: true,
+  includePatterns: EMPTY_PATTERNS,
+  excludePatterns: EMPTY_PATTERNS,
+  includeCompiled: EMPTY_PATTERNS,
+  excludeCompiled: EMPTY_PATTERNS
+});
 
-// These entries remain in SKIP_DIRS/SKIP_GLOBS for backward-compatible defaults.
-// Runtime ignore construction removes them when generated-policy is enabled so
-// they can be deterministically downgraded instead of silently ignored.
+// These entries stay in SKIP_DIRS/SKIP_GLOBS so runtime ignore construction can
+// remove them and route matching files through deterministic policy downgrades.
 export const GENERATED_POLICY_DEFAULT_SKIP_DIRS = new Set([
   '__generated__',
   'generated',
@@ -184,11 +191,10 @@ const buildGeneratedPolicyBaseDecision = ({ relPath, baseName, scanSkip }) => {
 export const buildGeneratedPolicyConfig = (indexingConfig = {}) => {
   const generatedPolicy = indexingConfig?.generatedPolicy;
   const rawPolicy = generatedPolicy && typeof generatedPolicy === 'object' ? generatedPolicy : {};
-  const enabled = generatedPolicy !== false && rawPolicy.enabled !== false;
   const includePatterns = normalizePatternList(rawPolicy.include);
   const excludePatterns = normalizePatternList(rawPolicy.exclude);
   return {
-    enabled,
+    enabled: true,
     includePatterns,
     excludePatterns,
     includeCompiled: compilePatternMatchers(includePatterns),
@@ -219,8 +225,7 @@ export const resolveGeneratedPolicyDecision = ({
 }) => {
   const policy = generatedPolicy && typeof generatedPolicy === 'object'
     ? generatedPolicy
-    : null;
-  if (!policy || policy.enabled === false) return null;
+    : DEFAULT_GENERATED_POLICY_CONFIG;
   const normalizedRelPath = normalizeRelPath({ relPath, absPath });
   if (!normalizedRelPath) return null;
   const normalizedBaseName = normalizeBaseName({ baseName, relPath: normalizedRelPath, absPath });
