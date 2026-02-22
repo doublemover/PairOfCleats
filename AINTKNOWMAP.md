@@ -851,7 +851,7 @@ Touchpoints:
 - [x] Replace per-file linear language registry lookup with a frozen extension/path-kind dispatch map built once at runtime init.
 - [x] Harden the existing two-tier scanner in `src/index/build/file-scan.js`:
   - [x] tier 1: 4-8 KiB probe for binary/minified/generated heuristics
-  - [ ] tier 2: bounded extended sample only when tier 1 is inconclusive
+  - [x] tier 2: bounded extended sample only when tier 1 is inconclusive
 - [x] Cache scan outcomes by `(path, size, mtimeMs)` for watch/rebuild runs to avoid re-scanning unchanged files.
 - [x] Implement generated-file classifier coverage (bundle/minified/vendor patterns) and route these files to low-cost metadata-only indexing by default.
 - [x] Define and enforce generated/vendor policy defaults:
