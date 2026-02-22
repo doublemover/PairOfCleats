@@ -103,6 +103,16 @@ const handleRepoResolveError = (res, err, corsHeaders) => {
   sendError(res, status, code, err?.message || 'Invalid repo path.', {}, corsHeaders || {});
 };
 
+const decodeDiffId = (rawValue) => {
+  try {
+    return decodeURIComponent(rawValue || '');
+  } catch {
+    const err = new Error('Invalid diff id: malformed URI encoding.');
+    err.code = ERROR_CODES.INVALID_REQUEST;
+    throw err;
+  }
+};
+
 export const handleIndexDiffsRoute = async ({
   req,
   res,
@@ -155,7 +165,13 @@ export const handleIndexDiffsRoute = async ({
   const suffix = pathname.slice(diffPrefix.length);
   if (!suffix) return false;
   const parts = suffix.split('/').filter(Boolean);
-  const diffId = decodeURIComponent(parts[0] || '');
+  let diffId = '';
+  try {
+    diffId = decodeDiffId(parts[0] || '');
+  } catch (err) {
+    sendError(res, 400, ERROR_CODES.INVALID_REQUEST, err?.message || 'Invalid diff id.', {}, corsHeaders || {});
+    return true;
+  }
   const tail = parts.slice(1);
 
   if (tail.length === 1 && tail[0] === 'events') {

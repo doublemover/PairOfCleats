@@ -25,6 +25,16 @@ const handleRepoResolveError = (res, err, corsHeaders) => {
   sendError(res, status, code, err?.message || 'Invalid repo path.', {}, corsHeaders || {});
 };
 
+const decodeSnapshotId = (rawValue) => {
+  try {
+    return decodeURIComponent(rawValue || '');
+  } catch {
+    const err = new Error('Invalid snapshot id: malformed URI encoding.');
+    err.code = ERROR_CODES.INVALID_REQUEST;
+    throw err;
+  }
+};
+
 /**
  * Parse JSON body and emit a consistent error response on parse failure.
  *
@@ -152,7 +162,20 @@ export const handleIndexSnapshotsRoute = async ({
 
   const snapshotPrefix = '/index/snapshots/';
   if (pathname.startsWith(snapshotPrefix) && req.method === 'GET') {
-    const snapshotId = decodeURIComponent(pathname.slice(snapshotPrefix.length));
+    let snapshotId = '';
+    try {
+      snapshotId = decodeSnapshotId(pathname.slice(snapshotPrefix.length));
+    } catch (err) {
+      sendError(
+        res,
+        400,
+        ERROR_CODES.INVALID_REQUEST,
+        err?.message || 'Invalid snapshot id.',
+        {},
+        corsHeaders || {}
+      );
+      return true;
+    }
     if (!snapshotId) return false;
 
     let repoPath = '';
