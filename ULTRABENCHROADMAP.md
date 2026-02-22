@@ -828,7 +828,7 @@ Last revised: 2026-02-22T05:44:04.8332760-05:00
 - Touchpoints: `src/retrieval/pipeline/rank-stage.js`, `src/retrieval/pipeline/topk.js`, `src/retrieval/scoring/ann-candidate-policy.js`, `src/retrieval/routing-policy.js`, `tests/retrieval/ann-candidate-policy-explain.test.js`, `tests/retrieval/filters/query-syntax/phrases-and-scorebreakdown.test.js`
 
 ### UB-082: Import graph cache invalidation precision
-- Status: [ ]
+- Status: [x]
 - Observation:
   - Import cache invalidation appears during heavy runs and may be over-broad.
 - Tasks:
@@ -836,6 +836,11 @@ Last revised: 2026-02-22T05:44:04.8332760-05:00
   - Avoid global invalidations unless schema/engine changes.
 - Exit criteria:
   - Fewer expensive import recomputes on incremental runs.
+- Completion: 2026-02-22T09:31:55.3063940-05:00
+- Validation:
+  - `node tests/indexing/imports/import-cache-neighborhood-invalidation.test.js`
+  - `node tests/indexing/imports/cache-invalidation.test.js`
+  - `node tests/indexing/imports/import-graph-incremental-reuse.test.js`
 - Improvement Intent (What): import cache correctness/perf
 - Improvement Method (How): neighborhood-level invalidation and stale-edge detection.
 - Integrated Betterments: invalidate import cache by dependency neighborhood instead of global hash only; add stale-edge detector to prevent silent cache poisoning; include invalidation reason telemetry.
