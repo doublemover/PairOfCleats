@@ -355,6 +355,7 @@ const repoHeadSchema = {
   properties: {
     commitId: nullableString,
     changeId: nullableString,
+    operationId: nullableString,
     branch: nullableString,
     bookmarks: { type: ['array', 'null'], items: { type: 'string' } },
     author: nullableString,

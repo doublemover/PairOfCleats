@@ -75,6 +75,7 @@ Machine-readable index:
 - `extraction_report` (object): requires `schemaVersion`, `generatedAt`, `mode`, `counts`, `timings`.
 - `boilerplate_catalog` (array): extracted boilerplate signature rows for reuse/skip heuristics.
 - `builds_current` (object): requires `buildId`, `buildRoot`, `promotedAt`, `artifactSurfaceVersion`. Optional: `buildRoots`, `buildRootsByMode`, `buildRootsByStage`, `stage`, `modes`, `configHash`, `compatibilityKey`, `tool`, `repo`, `extensions`.
+  - When `repo.head` is present, supported keys include `commitId`, `changeId`, `operationId`, `branch`, `bookmarks`, `author`, and `timestamp`.
 - `snapshots_manifest` (object): requires `version`, `updatedAt`, `snapshots`, `tags`.
 - `snapshot_record` (object): requires `version`, `snapshotId`, `createdAt`, `kind`, `tags`, `pointer`.
 - `snapshot_frozen` (object): requires `version`, `snapshotId`, `frozenAt`, `method`, `frozenRoot`, `included`, `verification`.
