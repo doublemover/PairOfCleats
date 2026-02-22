@@ -224,7 +224,7 @@ export const runAnnStage = async ({
     annMetrics.providerAdaptive = adaptiveProvidersEnabled;
     const sparseRouteRequested = annAdaptiveStrategy.route === ANN_ADAPTIVE_ROUTE.SPARSE
       && !vectorOnlyProfile;
-    const bypassToSparse = sparseRouteRequested && orderedBackends.length <= 1;
+    const bypassToSparse = sparseRouteRequested;
     effectiveRoute = bypassToSparse ? ANN_ADAPTIVE_ROUTE.SPARSE : ANN_ADAPTIVE_ROUTE.VECTOR;
     if (!bypassToSparse) {
       for (const backend of orderedBackends) {

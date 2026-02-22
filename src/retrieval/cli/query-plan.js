@@ -96,16 +96,6 @@ export function buildQueryPlan({
   const embeddingQueryText = [...parsedQuery.includeTerms, ...parsedQuery.phrases]
     .join(' ')
     .trim() || query;
-  const intentInfo = classifyQuery({
-    query,
-    tokens: queryTokens,
-    phrases: parsedQuery.phrases,
-    filters: { file: fileFilter },
-    parseStrategy: parseResult.strategy,
-    parseFallbackReason: parseResult.fallbackReason
-  });
-  const fieldWeights = resolveIntentFieldWeights(fieldWeightsConfig, intentInfo);
-  const resolvedDenseVectorMode = resolveIntentVectorMode(denseVectorMode, intentInfo);
 
   const filters = {
     type: searchType,
@@ -163,6 +153,16 @@ export function buildQueryPlan({
     excludePhrases: excludePhraseNgrams,
     excludePhraseRange
   };
+  const intentInfo = classifyQuery({
+    query,
+    tokens: queryTokens,
+    phrases: parsedQuery.phrases,
+    filters,
+    parseStrategy: parseResult.strategy,
+    parseFallbackReason: parseResult.fallbackReason
+  });
+  const fieldWeights = resolveIntentFieldWeights(fieldWeightsConfig, intentInfo);
+  const resolvedDenseVectorMode = resolveIntentVectorMode(denseVectorMode, intentInfo);
   const filtersActive = hasActiveFilters(filters);
   const filterPredicates = compileFilterPredicates(filters, { fileChargramN });
 
