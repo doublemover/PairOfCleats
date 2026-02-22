@@ -220,6 +220,17 @@ export function getDocumentExtractorTestConfig(env = process.env) {
   };
 }
 
+export function getTreeSitterSchedulerCrashInjectionTokens(env = process.env) {
+  const raw = normalizeString(env.PAIROFCLEATS_TEST_TREE_SITTER_SCHEDULER_CRASH);
+  if (!raw) return new Set();
+  return new Set(
+    raw
+      .split(',')
+      .map((part) => normalizeString(part).toLowerCase())
+      .filter(Boolean)
+  );
+}
+
 export function getLanceDbEnv(env = process.env) {
   return {
     child: normalizeBoolean(env.PAIROFCLEATS_LANCEDB_CHILD),

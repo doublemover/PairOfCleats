@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { warmupNativeTreeSitterParsers } from '../../../lang/tree-sitter/native-runtime.js';
+import { getTreeSitterSchedulerCrashInjectionTokens } from '../../../shared/env.js';
 import { resolveTreeSitterSchedulerPaths } from './paths.js';
 import { executeTreeSitterSchedulerPlan } from './executor.js';
 
@@ -17,16 +18,7 @@ const emitError = (message) => emitLine(message, process.stderr);
 const INJECTED_CRASH_PREFIX = '[tree-sitter:schedule] injected-crash ';
 const CRASH_EVENT_PREFIX = '[tree-sitter:schedule] crash-event ';
 
-const parseCrashInjectionTokens = () => {
-  const raw = process.env.PAIROFCLEATS_TEST_TREE_SITTER_SCHEDULER_CRASH;
-  if (typeof raw !== 'string' || !raw.trim()) return new Set();
-  return new Set(
-    raw
-      .split(',')
-      .map((part) => String(part || '').trim().toLowerCase())
-      .filter(Boolean)
-  );
-};
+const parseCrashInjectionTokens = () => getTreeSitterSchedulerCrashInjectionTokens();
 
 const shouldInjectCrashForGroup = (group, injectionTokens) => {
   if (!(injectionTokens instanceof Set) || injectionTokens.size === 0) return false;
