@@ -847,7 +847,7 @@ export async function writeIndexArtifacts(input) {
     Number(artifactConfig.chunkMetaJsonlEstimateThresholdBytes)
   )
     ? Math.max(1, Math.floor(Number(artifactConfig.chunkMetaJsonlEstimateThresholdBytes)))
-    : (8 * 1024 * 1024);
+    : (1 * 1024 * 1024);
   const chunkMetaShardSizeRaw = Number(artifactConfig.chunkMetaShardSize);
   const chunkMetaShardSizeExplicit = Number.isFinite(chunkMetaShardSizeRaw);
   const chunkMetaShardSize = chunkMetaShardSizeExplicit

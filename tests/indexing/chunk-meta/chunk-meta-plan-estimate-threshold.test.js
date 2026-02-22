@@ -53,4 +53,23 @@ const smallPlan = resolveChunkMetaPlan({
 
 assert.equal(smallPlan.chunkMetaUseJsonl, false, 'expected small estimated payload to keep default JSON mode');
 
+const defaultThresholdCount = 6000;
+const defaultThresholdPlan = resolveChunkMetaPlan({
+  chunks: Array.from({ length: defaultThresholdCount }, (_, i) => ({ id: i })),
+  chunkMetaIterator: buildIterator({ count: defaultThresholdCount, payloadSize: 128 }),
+  artifactMode: 'auto',
+  chunkMetaFormatConfig: null,
+  chunkMetaStreaming: false,
+  chunkMetaBinaryColumnar: false,
+  chunkMetaJsonlThreshold: 200000,
+  chunkMetaShardSize: 100000,
+  maxJsonBytes: 128 * 1024 * 1024
+});
+
+assert.equal(
+  defaultThresholdPlan.chunkMetaUseJsonl,
+  true,
+  'expected default estimate threshold to force JSONL for ~1MB+ payloads'
+);
+
 console.log('chunk_meta plan estimate threshold test passed');
