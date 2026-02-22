@@ -4,7 +4,15 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { sha1 } from '../../../src/shared/hash.js';
 import { resolveImportLinks } from '../../../src/index/build/import-resolution.js';
-import { loadImportResolutionCache, saveImportResolutionCache } from '../../../src/index/build/import-resolution-cache.js';
+import {
+  loadImportResolutionCache,
+  saveImportResolutionCache,
+  updateImportResolutionDiagnosticsCache
+} from '../../../src/index/build/import-resolution-cache.js';
+import {
+  enrichUnresolvedImportSamples,
+  summarizeUnresolvedImportTaxonomy
+} from '../../../src/index/build/imports.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'import-graph-unresolved-refresh');
@@ -49,8 +57,20 @@ const runResolution = async (entries) => {
     cache,
     fileHashes
   });
+  const unresolvedSamples = enrichUnresolvedImportSamples(result.unresolvedSamples || []);
+  const unresolvedTaxonomy = summarizeUnresolvedImportTaxonomy(unresolvedSamples);
+  const cacheDiagnostics = updateImportResolutionDiagnosticsCache({
+    cache,
+    unresolvedTaxonomy,
+    unresolvedTotal: result?.stats?.unresolved
+  });
   await saveImportResolutionCache({ cache, cachePath });
-  return { relations, cacheStats: result.cacheStats };
+  return {
+    relations,
+    cacheStats: result.cacheStats,
+    unresolvedTaxonomy,
+    cacheDiagnostics
+  };
 };
 
 const entriesInitial = [
@@ -60,6 +80,13 @@ const entriesInitial = [
 const first = await runResolution(entriesInitial);
 const firstLinks = first.relations.get('src/main.js')?.importLinks || [];
 assert.equal(firstLinks.length, 0, 'expected unresolved import to remain empty');
+assert.equal(first.unresolvedTaxonomy.total, 1, 'expected unresolved taxonomy total to capture unresolved import');
+assert.equal(first.cacheDiagnostics?.unresolvedTrend?.previous, null);
+assert.equal(first.cacheDiagnostics?.unresolvedTrend?.current?.total, 1);
+assert.deepEqual(
+  Object.fromEntries(Object.entries(first.cacheDiagnostics?.unresolvedTrend?.current?.categories || {})),
+  { missing_file: 1 }
+);
 
 await writeFile('src/missing.js', 'export const ok = true;\n');
 const entriesUpdated = [
@@ -73,5 +100,18 @@ incrementalState.manifest.files = Object.fromEntries(
 const second = await runResolution(entriesUpdated);
 const secondLinks = second.relations.get('src/main.js')?.importLinks || [];
 assert.deepEqual(secondLinks, ['src/missing.js']);
+assert.equal(second.unresolvedTaxonomy.total, 0, 'expected unresolved taxonomy to clear after file is added');
+assert.equal(second.cacheDiagnostics?.unresolvedTrend?.previous?.total, 1);
+assert.equal(second.cacheDiagnostics?.unresolvedTrend?.current?.total, 0);
+assert.equal(second.cacheDiagnostics?.unresolvedTrend?.deltaTotal, -1);
+assert.deepEqual(
+  Object.fromEntries(Object.entries(second.cacheDiagnostics?.unresolvedTrend?.deltaByCategory || {})),
+  { missing_file: -1 }
+);
+
+const { cache: persistedCache } = await loadImportResolutionCache({ incrementalState });
+assert.equal(persistedCache?.diagnostics?.unresolvedTrend?.current?.total, 0);
+assert.equal(persistedCache?.diagnostics?.unresolvedTrend?.previous?.total, 1);
+assert.equal(persistedCache?.diagnostics?.unresolvedTrend?.deltaTotal, -1);
 
 console.log('import graph unresolved refresh test passed');

@@ -206,7 +206,7 @@ Primary targets:
 - Touchpoints: `src/index/build/tree-sitter-scheduler/plan.js`, `src/index/build/tree-sitter-scheduler/policy.js`, `src/index/build/tree-sitter-scheduler/adaptive-profile.js`, `tests/indexing/tree-sitter/tree-sitter-scheduler-adaptive-planner.test.js`, `tests/perf/scheduler-fairness.test.js`, `tests/perf/scheduler-core.test.js`
 
 ### UB-014: Cross-file inference budget tuning by evidence
-- Status: [ ]
+- Status: [x]
 - Problem:
   - Inference can overrun on huge code graphs without clear ROI tracking.
 - Tasks:
@@ -217,6 +217,10 @@ Primary targets:
   - Quality/perf A/B tests on large repos.
 - Exit criteria:
   - Lower build time with no relevance drop.
+- Completion: 2026-02-22T07:20:31.7330513-05:00
+- Validation:
+  - `node tests/indexing/risk/interprocedural/artifacts-written.test.js`
+  - `node tests/indexing/risk/interprocedural/summary-only-status.test.js`
 - Improvement Intent (What): inference cost efficiency
 - Improvement Method (How): ROI-based edge retention and confidence-weighted pruning.
 - Integrated Betterments: track downstream retrieval lift per inference edge class before keeping expensive links; add confidence-weighted pruning for weak relation edges; add hard cap by memory budget to prevent inference blowups.
@@ -872,7 +876,7 @@ Last revised: 2026-02-22T05:44:04.8332760-05:00
 - Touchpoints: `src/index/build/runtime/runtime.js`, `src/index/build/indexer/indexer.js`, `src/shared/cache.js`, `src/shared/cache-key.js`, `tests/indexing/cache/workspace-global-cache-reuse.test.js`
 
 ### UB-089: Import unresolved taxonomy and suppression policy
-- Status: [ ]
+- Status: [x]
 - Observation:
   - Unresolved imports in rspec/pandoc include likely fixture-only or intentionally missing modules.
 - Tasks:
@@ -880,6 +884,10 @@ Last revised: 2026-02-22T05:44:04.8332760-05:00
   - Suppress known-benign categories from hot log path while preserving file diagnostics.
 - Exit criteria:
   - Lower noise with better actionable unresolved import reporting.
+- Completion: 2026-02-22T07:17:05.7728265-05:00
+- Validation:
+  - `node tests/indexing/imports/import-resolution-language-coverage.test.js`
+  - `node tests/indexing/imports/import-graph-unresolved-refresh.test.js`
 - Improvement Intent (What): unresolved-import log usefulness
 - Improvement Method (How): category taxonomy + benign suppression in live output.
 - Integrated Betterments: enrich unresolved taxonomy with confidence and suggested remediation; suppress known-benign categories in live stream but persist full file logs; add unresolved trend tracking across runs.

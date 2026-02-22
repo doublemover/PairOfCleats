@@ -3,6 +3,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { resolveImportLinks } from '../../../src/index/build/import-resolution.js';
+import {
+  classifyUnresolvedImportSample,
+  enrichUnresolvedImportSamples,
+  summarizeUnresolvedImportTaxonomy
+} from '../../../src/index/build/imports.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, '.testCache', 'import-resolution-language-coverage');
@@ -159,7 +164,7 @@ const importsByFile = {
   'src/App/Main.cs': ['App.Util.Helper'],
   'Sources/Core/Main.swift': ['CoreNetworking'],
   'src/lib.rs': ['crate::util::parser'],
-  'scripts/main.sh': ['lib/helpers.sh'],
+  'scripts/main.sh': ['lib/helpers.sh', './lib/missing.sh'],
   'scripts/system.sh': ['/etc/bash_completion', '/usr/local/share/chruby/auto.sh'],
   'cmake/main.cmake': ['modules/common.cmake'],
   'cmake/sub/main.cmake': ['../modules/common.cmake'],
@@ -176,7 +181,7 @@ const importsByFile = {
 
 const relations = new Map(Object.keys(importsByFile).map((file) => [file, { imports: importsByFile[file].slice() }]));
 
-resolveImportLinks({
+const resolution = resolveImportLinks({
   root: tempRoot,
   entries,
   importsByFile,
@@ -233,5 +238,47 @@ assertLinks(
   'unittests/runtime/CompatibilityOverrideRuntime.cpp',
   ['stdlib/public/CompatibilityOverride/CompatibilityOverrideRuntime.def']
 );
+
+const realUnresolvedSamples = enrichUnresolvedImportSamples(resolution.unresolvedSamples || []);
+assert.equal(realUnresolvedSamples.length, 1, 'expected one unresolved sample from shell include coverage');
+assert.equal(realUnresolvedSamples[0].specifier, './lib/missing.sh');
+assert.equal(realUnresolvedSamples[0].category, 'missing_file');
+
+const taxonomySamples = enrichUnresolvedImportSamples([
+  ...realUnresolvedSamples,
+  { importer: 'tests/__fixtures__/case.test.js', specifier: './missing-fixture.js', reason: 'unresolved' },
+  { importer: 'src/main.js', specifier: 'fsevents', reason: 'optional dependency not installed' },
+  { importer: 'src/main.js', specifier: '.\\windows\\path\\module.js', reason: 'unresolved' },
+  { importer: 'src/main.js', specifier: './utlis.jss', reason: 'unresolved' }
+]);
+const taxonomy = summarizeUnresolvedImportTaxonomy(taxonomySamples);
+const taxonomyBySpecifier = Object.fromEntries(
+  taxonomySamples.map((sample) => [sample.specifier, sample.category])
+);
+assert.equal(taxonomyBySpecifier['./missing-fixture.js'], 'fixture');
+assert.equal(taxonomyBySpecifier.fsevents, 'optional_dependency');
+assert.equal(taxonomyBySpecifier['.\\windows\\path\\module.js'], 'path_normalization');
+assert.equal(taxonomyBySpecifier['./utlis.jss'], 'typo');
+assert.equal(taxonomyBySpecifier['./lib/missing.sh'], 'missing_file');
+assert.equal(taxonomy.liveSuppressed, 2);
+assert.equal(taxonomy.actionable, 3);
+assert.deepEqual(
+  Object.fromEntries(Object.entries(taxonomy.categories)),
+  {
+    fixture: 1,
+    missing_file: 1,
+    optional_dependency: 1,
+    path_normalization: 1,
+    typo: 1
+  }
+);
+
+const parseErrorCategory = classifyUnresolvedImportSample({
+  importer: 'src/broken.js',
+  specifier: './module.js',
+  reason: 'parse_error'
+});
+assert.equal(parseErrorCategory.category, 'parse_error');
+assert.equal(parseErrorCategory.suppressLive, false);
 
 console.log('import resolution language coverage tests passed');

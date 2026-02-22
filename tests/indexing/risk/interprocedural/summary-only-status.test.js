@@ -2,6 +2,11 @@
 import assert from 'node:assert/strict';
 import { buildRiskSummaries } from '../../../../src/index/risk-interprocedural/summaries.js';
 import { computeInterproceduralRisk } from '../../../../src/index/risk-interprocedural/engine.js';
+import {
+  applyCrossFileInferenceBudgetPlan,
+  buildCrossFileInferenceBudgetPlan,
+  buildCrossFileInferenceRoiMetrics
+} from '../../../../src/index/build/indexer/steps/relations.js';
 
 const sourceChunk = {
   file: 'src/source.js',
@@ -66,5 +71,85 @@ assert.equal(result.status, 'ok');
 assert.equal(result.stats?.status, 'ok');
 assert.equal(result.stats?.reason, null);
 assert.equal(result.stats?.effectiveConfig?.summaryOnly, true);
+
+const makeSignals = (count, prefix) => (
+  Array.from({ length: count }, (_, index) => `${prefix}.${index}`)
+);
+
+const inferenceChunks = [
+  {
+    file: 'src/source.js',
+    codeRelations: {
+      calls: makeSignals(180, 'source.call'),
+      callDetails: makeSignals(220, 'source.detail'),
+      usages: makeSignals(260, 'source.usage')
+    }
+  },
+  {
+    file: 'src/other.js',
+    codeRelations: {
+      calls: makeSignals(170, 'other.call'),
+      callDetails: makeSignals(210, 'other.detail'),
+      usages: makeSignals(250, 'other.usage')
+    }
+  }
+];
+
+const fileRelations = new Map([
+  ['src/source.js', { usages: makeSignals(320, 'source.fileUsage') }],
+  ['src/other.js', { usages: makeSignals(300, 'other.fileUsage') }]
+]);
+
+const budgetPlan = buildCrossFileInferenceBudgetPlan({
+  chunks: inferenceChunks,
+  fileRelations,
+  inferenceLiteEnabled: true
+});
+assert.equal(budgetPlan?.schemaVersion, 1);
+assert.equal(budgetPlan?.inferenceLiteEnabled, true);
+
+const budgeted = applyCrossFileInferenceBudgetPlan({
+  chunks: inferenceChunks,
+  fileRelations,
+  plan: budgetPlan
+});
+const budgetStats = budgeted?.budgetStats;
+assert.ok(budgetStats, 'expected budget stats payload');
+assert.ok(budgetStats.dropped.callSignals > 0, 'expected call signal budget drop');
+assert.ok(budgetStats.dropped.callDetailSignals > 0, 'expected call-detail budget drop');
+assert.ok(budgetStats.dropped.chunkUsageSignals > 0, 'expected chunk usage budget drop');
+assert.ok(budgetStats.dropped.fileUsageSignals > 0, 'expected file usage budget drop');
+assert.equal(
+  budgetStats.input.callSignals,
+  budgetStats.retained.callSignals + budgetStats.dropped.callSignals
+);
+assert.equal(
+  budgetStats.input.callDetailSignals,
+  budgetStats.retained.callDetailSignals + budgetStats.dropped.callDetailSignals
+);
+assert.equal(
+  budgetStats.input.chunkUsageSignals,
+  budgetStats.retained.chunkUsageSignals + budgetStats.dropped.chunkUsageSignals
+);
+assert.equal(
+  budgetStats.input.fileUsageSignals,
+  budgetStats.retained.fileUsageSignals + budgetStats.dropped.fileUsageSignals
+);
+
+const roi = buildCrossFileInferenceRoiMetrics({
+  crossFileStats: {
+    linkedCalls: 12,
+    linkedUsages: 18,
+    inferredReturns: 5,
+    riskFlows: 3
+  },
+  budgetStats,
+  durationMs: 87
+});
+assert.equal(roi.linkAdditions, 30);
+assert.equal(roi.contributionSignal, 8);
+assert.ok(roi.retainedLinksAfterFiltering > 0, 'expected non-zero retained link count');
+assert.ok(roi.linkRetentionRate > 0, 'expected non-zero retention rate');
+assert.ok(roi.contributionPerAddedLink > 0, 'expected non-zero contribution per added link');
 
 console.log('risk interprocedural summary-only status test passed');

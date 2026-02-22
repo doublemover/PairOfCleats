@@ -15,6 +15,252 @@ let cjsInitPromise = null;
 
 const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
 
+export const UNRESOLVED_IMPORT_CATEGORIES = Object.freeze({
+  FIXTURE: 'fixture',
+  OPTIONAL_DEPENDENCY: 'optional_dependency',
+  TYPO: 'typo',
+  PATH_NORMALIZATION: 'path_normalization',
+  MISSING_FILE: 'missing_file',
+  MISSING_DEPENDENCY: 'missing_dependency',
+  PARSE_ERROR: 'parse_error',
+  UNKNOWN: 'unknown'
+});
+
+export const LIVE_UNRESOLVED_IMPORT_SUPPRESSED_CATEGORIES = Object.freeze([
+  UNRESOLVED_IMPORT_CATEGORIES.FIXTURE,
+  UNRESOLVED_IMPORT_CATEGORIES.OPTIONAL_DEPENDENCY
+]);
+
+const LIVE_UNRESOLVED_IMPORT_SUPPRESSED_SET = new Set(LIVE_UNRESOLVED_IMPORT_SUPPRESSED_CATEGORIES);
+const FIXTURE_HINT_SEGMENTS = [
+  '/fixture/',
+  '/fixtures/',
+  '/__fixtures__/',
+  '/test/',
+  '/tests/',
+  '/__tests__/',
+  '/spec/',
+  '/specs/',
+  '/expected_output/',
+  '/golden/',
+  '/mocks/',
+  '/mock/'
+];
+const OPTIONAL_DEPENDENCY_PACKAGE_HINTS = new Set([
+  'bufferutil',
+  'canvas',
+  'fsevents',
+  'pg-native',
+  'sharp',
+  'supports-color',
+  'utf-8-validate'
+]);
+const TYPO_EXTENSION_HINTS = [
+  '.csx',
+  '.goo',
+  '.jav',
+  '.jss',
+  '.jsxs',
+  '.jsxx',
+  '.ktt',
+  '.pyy',
+  '.swfit',
+  '.tss',
+  '.tsxx'
+];
+const TYPO_TOKEN_HINTS = [
+  'confg',
+  'funciton',
+  'resposne',
+  'teh',
+  'utlis'
+];
+
+const normalizeForClassifier = (value) => (
+  typeof value === 'string' ? value.trim().replace(/\\/g, '/') : ''
+);
+
+const normalizeLowerForClassifier = (value) => normalizeForClassifier(value).toLowerCase();
+
+const extractPackageRoot = (specifier) => {
+  const normalized = normalizeForClassifier(specifier);
+  if (!normalized) return '';
+  if (normalized.startsWith('@')) {
+    const segments = normalized.split('/');
+    if (segments.length >= 2) return `${segments[0]}/${segments[1]}`;
+    return normalized;
+  }
+  const slash = normalized.indexOf('/');
+  return slash === -1 ? normalized : normalized.slice(0, slash);
+};
+
+const hasFixtureHint = ({ importer, specifier }) => {
+  const importerLower = normalizeLowerForClassifier(importer);
+  const specLower = normalizeLowerForClassifier(specifier);
+  return FIXTURE_HINT_SEGMENTS.some((segment) => importerLower.includes(segment) || specLower.includes(segment));
+};
+
+const hasOptionalDependencyHint = ({ importer, specifier, reason }) => {
+  const reasonLower = normalizeLowerForClassifier(reason);
+  if (reasonLower.includes('optional')) return true;
+  const specNormalized = normalizeForClassifier(specifier);
+  if (!specNormalized) return false;
+  const specLower = specNormalized.toLowerCase();
+  if (specLower.includes('?optional') || specLower.includes('#optional')) return true;
+  const importerLower = normalizeLowerForClassifier(importer);
+  if (importerLower.includes('/optional/')) return true;
+  const packageRoot = extractPackageRoot(specNormalized).toLowerCase();
+  return OPTIONAL_DEPENDENCY_PACKAGE_HINTS.has(packageRoot);
+};
+
+const hasPathNormalizationHint = (specifier) => {
+  const raw = typeof specifier === 'string' ? specifier : '';
+  const normalized = normalizeForClassifier(specifier);
+  if (!normalized) return false;
+  if (/[A-Za-z]:[\\/]/.test(raw)) return true;
+  if (raw.includes('\\')) return true;
+  if (normalized.includes('/./') || normalized.endsWith('/.') || normalized.includes('/../')) return true;
+  if (/(^|[^:])\/\/+/.test(normalized)) return true;
+  if (/%2f|%5c/i.test(normalized)) return true;
+  return false;
+};
+
+const hasTypoHint = (specifier) => {
+  const normalized = normalizeForClassifier(specifier);
+  if (!normalized) return false;
+  const lower = normalized.toLowerCase();
+  if (/\s/.test(normalized)) return true;
+  if (TYPO_EXTENSION_HINTS.some((hint) => lower.endsWith(hint))) return true;
+  const stem = lower.split('/').pop() || '';
+  return TYPO_TOKEN_HINTS.some((hint) => stem.includes(hint));
+};
+
+const toSortedCategoryCounts = (counts) => {
+  const entries = counts instanceof Map
+    ? Array.from(counts.entries())
+    : Object.entries(counts || {});
+  entries.sort((a, b) => sortStrings(a[0], b[0]));
+  const output = Object.create(null);
+  for (const [category, count] of entries) {
+    if (!category) continue;
+    const numeric = Number(count);
+    output[category] = Number.isFinite(numeric) && numeric > 0 ? Math.floor(numeric) : 0;
+  }
+  return output;
+};
+
+const classifyCategory = ({ importer, specifier, reason }) => {
+  const normalizedSpecifier = normalizeForClassifier(specifier);
+  const normalizedReason = normalizeForClassifier(reason);
+  const isRelative = normalizedSpecifier.startsWith('.')
+    || normalizedSpecifier.startsWith('/')
+    || normalizedSpecifier.startsWith('\\');
+  if (normalizedReason.toLowerCase().includes('parse')) {
+    return {
+      category: UNRESOLVED_IMPORT_CATEGORIES.PARSE_ERROR,
+      confidence: 0.95,
+      suggestedRemediation: 'Fix parse errors in the importer before resolving imports.'
+    };
+  }
+  if (hasFixtureHint({ importer, specifier: normalizedSpecifier })) {
+    return {
+      category: UNRESOLVED_IMPORT_CATEGORIES.FIXTURE,
+      confidence: 0.9,
+      suggestedRemediation: 'Keep fixture-only unresolved imports suppressed or map fixture roots explicitly.'
+    };
+  }
+  if (hasOptionalDependencyHint({ importer, specifier: normalizedSpecifier, reason: normalizedReason })) {
+    return {
+      category: UNRESOLVED_IMPORT_CATEGORIES.OPTIONAL_DEPENDENCY,
+      confidence: 0.87,
+      suggestedRemediation: 'Document optional dependency behavior or install the dependency for full resolution.'
+    };
+  }
+  if (hasPathNormalizationHint(specifier)) {
+    return {
+      category: UNRESOLVED_IMPORT_CATEGORIES.PATH_NORMALIZATION,
+      confidence: 0.83,
+      suggestedRemediation: 'Normalize path separators and collapse redundant path segments in the import specifier.'
+    };
+  }
+  if (hasTypoHint(normalizedSpecifier)) {
+    return {
+      category: UNRESOLVED_IMPORT_CATEGORIES.TYPO,
+      confidence: 0.75,
+      suggestedRemediation: 'Check for spelling mistakes in the import path or module name.'
+    };
+  }
+  if (isRelative) {
+    return {
+      category: UNRESOLVED_IMPORT_CATEGORIES.MISSING_FILE,
+      confidence: 0.68,
+      suggestedRemediation: 'Verify the target file exists and that relative pathing matches repository layout.'
+    };
+  }
+  if (normalizedSpecifier) {
+    return {
+      category: UNRESOLVED_IMPORT_CATEGORIES.MISSING_DEPENDENCY,
+      confidence: 0.72,
+      suggestedRemediation: 'Install or map the dependency path so import resolution can locate it.'
+    };
+  }
+  return {
+    category: UNRESOLVED_IMPORT_CATEGORIES.UNKNOWN,
+    confidence: 0.5,
+    suggestedRemediation: 'Inspect import parser output for malformed or empty unresolved specifiers.'
+  };
+};
+
+const unresolvedSortKey = (sample) => (
+  `${sample.importer || ''}|${sample.specifier || ''}|${sample.reason || ''}|${sample.category || ''}`
+);
+
+export const classifyUnresolvedImportSample = (sample) => {
+  const importer = typeof sample?.importer === 'string' ? normalizeForClassifier(sample.importer) : '';
+  const specifier = typeof sample?.specifier === 'string' ? sample.specifier.trim() : '';
+  const reason = typeof sample?.reason === 'string' && sample.reason.trim()
+    ? sample.reason.trim()
+    : 'unresolved';
+  const classified = classifyCategory({ importer, specifier, reason });
+  return {
+    importer,
+    specifier,
+    reason,
+    category: classified.category,
+    confidence: classified.confidence,
+    suggestedRemediation: classified.suggestedRemediation,
+    suppressLive: LIVE_UNRESOLVED_IMPORT_SUPPRESSED_SET.has(classified.category)
+  };
+};
+
+export const enrichUnresolvedImportSamples = (samples) => {
+  if (!Array.isArray(samples) || samples.length === 0) return [];
+  const deduped = new Map();
+  for (const sample of samples) {
+    const classified = classifyUnresolvedImportSample(sample);
+    const key = `${classified.importer}|${classified.specifier}|${classified.reason}`;
+    if (!deduped.has(key)) deduped.set(key, classified);
+  }
+  return Array.from(deduped.values()).sort((a, b) => sortStrings(unresolvedSortKey(a), unresolvedSortKey(b)));
+};
+
+export const summarizeUnresolvedImportTaxonomy = (samples) => {
+  const normalized = enrichUnresolvedImportSamples(samples);
+  const categoryCounts = new Map();
+  let liveSuppressed = 0;
+  for (const sample of normalized) {
+    categoryCounts.set(sample.category, (categoryCounts.get(sample.category) || 0) + 1);
+    if (sample.suppressLive) liveSuppressed += 1;
+  }
+  return {
+    total: normalized.length,
+    actionable: Math.max(0, normalized.length - liveSuppressed),
+    liveSuppressed,
+    categories: toSortedCategoryCounts(categoryCounts),
+    liveSuppressedCategories: LIVE_UNRESOLVED_IMPORT_SUPPRESSED_CATEGORIES.slice()
+  };
+};
+
 const ensureEsModuleLexer = async () => {
   if (!esModuleInitPromise) {
     if (typeof initEsModuleLexer === 'function') {
