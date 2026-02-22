@@ -571,9 +571,13 @@ const resolveWriteStartTimestampMs = (prefetchedStartMs, fallbackNowMs = Date.no
  * @param {number} [input.stallScaleUpGuardSeconds]
  * @param {number} [input.scaleUpCooldownMs]
  * @param {number} [input.scaleDownCooldownMs]
+ * @param {number} [input.memoryPressureHighThreshold]
+ * @param {number} [input.memoryPressureLowThreshold]
+ * @param {number} [input.gcPressureHighThreshold]
+ * @param {number} [input.gcPressureLowThreshold]
  * @param {() => number} [input.now]
- * @param {(event:{reason:string,from:number,to:number,pendingWrites:number,activeWrites:number,longestStallSec:number}) => void} [input.onChange]
- * @returns {{observe:(snapshot?:{pendingWrites?:number,activeWrites?:number,longestStallSec?:number})=>number,getCurrentConcurrency:()=>number,getLimits:()=>{min:number,max:number}}}
+ * @param {(event:{reason:string,from:number,to:number,pendingWrites:number,activeWrites:number,longestStallSec:number,memoryPressure:number|null,gcPressure:number|null,rssUtilization:number|null}) => void} [input.onChange]
+ * @returns {{observe:(snapshot?:{pendingWrites?:number,activeWrites?:number,longestStallSec?:number,memoryPressure?:number|null,gcPressure?:number|null,rssUtilization?:number|null})=>number,getCurrentConcurrency:()=>number,getLimits:()=>{min:number,max:number}}}
  */
 const createAdaptiveWriteConcurrencyController = (input = {}) => {
   const maxConcurrency = clampWriteConcurrency(input.maxConcurrency, 1);
@@ -605,6 +609,18 @@ const createAdaptiveWriteConcurrencyController = (input = {}) => {
   const scaleDownCooldownMs = Number.isFinite(Number(input.scaleDownCooldownMs))
     ? Math.max(0, Math.floor(Number(input.scaleDownCooldownMs)))
     : 1200;
+  const memoryPressureHighThreshold = Number.isFinite(Number(input.memoryPressureHighThreshold))
+    ? Math.max(0, Math.min(1, Number(input.memoryPressureHighThreshold)))
+    : 0.9;
+  const memoryPressureLowThreshold = Number.isFinite(Number(input.memoryPressureLowThreshold))
+    ? Math.max(0, Math.min(memoryPressureHighThreshold, Number(input.memoryPressureLowThreshold)))
+    : 0.62;
+  const gcPressureHighThreshold = Number.isFinite(Number(input.gcPressureHighThreshold))
+    ? Math.max(0, Math.min(1, Number(input.gcPressureHighThreshold)))
+    : 0.4;
+  const gcPressureLowThreshold = Number.isFinite(Number(input.gcPressureLowThreshold))
+    ? Math.max(0, Math.min(gcPressureHighThreshold, Number(input.gcPressureLowThreshold)))
+    : 0.2;
   const now = typeof input.now === 'function' ? input.now : () => Date.now();
   const onChange = typeof input.onChange === 'function' ? input.onChange : null;
 
@@ -619,7 +635,10 @@ const createAdaptiveWriteConcurrencyController = (input = {}) => {
       to,
       pendingWrites: snapshot.pendingWrites,
       activeWrites: snapshot.activeWrites,
-      longestStallSec: snapshot.longestStallSec
+      longestStallSec: snapshot.longestStallSec,
+      memoryPressure: snapshot.memoryPressure,
+      gcPressure: snapshot.gcPressure,
+      rssUtilization: snapshot.rssUtilization
     });
   };
 
@@ -629,13 +648,45 @@ const createAdaptiveWriteConcurrencyController = (input = {}) => {
     const longestStallSec = Number.isFinite(Number(snapshot.longestStallSec))
       ? Math.max(0, Number(snapshot.longestStallSec))
       : 0;
+    const memoryPressure = Number.isFinite(Number(snapshot.memoryPressure))
+      ? Math.max(0, Math.min(1, Number(snapshot.memoryPressure)))
+      : null;
+    const gcPressure = Number.isFinite(Number(snapshot.gcPressure))
+      ? Math.max(0, Math.min(1, Number(snapshot.gcPressure)))
+      : null;
+    const rssUtilization = Number.isFinite(Number(snapshot.rssUtilization))
+      ? Math.max(0, Math.min(1, Number(snapshot.rssUtilization)))
+      : null;
     const nowValue = now();
     const timestamp = Number.isFinite(Number(nowValue)) ? Number(nowValue) : Date.now();
     const backlogPerSlot = pendingWrites / Math.max(1, currentConcurrency);
     const from = currentConcurrency;
+    const highMemoryPressure = (
+      (memoryPressure != null && memoryPressure >= memoryPressureHighThreshold)
+      || (gcPressure != null && gcPressure >= gcPressureHighThreshold)
+      || (rssUtilization != null && rssUtilization >= memoryPressureHighThreshold)
+    );
+    const lowMemoryPressure = (
+      (memoryPressure == null || memoryPressure <= memoryPressureLowThreshold)
+      && (gcPressure == null || gcPressure <= gcPressureLowThreshold)
+      && (rssUtilization == null || rssUtilization <= memoryPressureLowThreshold)
+    );
 
     const canScaleDown = currentConcurrency > minConcurrency
       && (timestamp - lastScaleDownAt) >= scaleDownCooldownMs;
+    if (canScaleDown && highMemoryPressure) {
+      currentConcurrency -= 1;
+      lastScaleDownAt = timestamp;
+      emitChange('memory-pressure', from, currentConcurrency, {
+        pendingWrites,
+        activeWrites,
+        longestStallSec,
+        memoryPressure,
+        gcPressure,
+        rssUtilization
+      });
+      return currentConcurrency;
+    }
     if (
       canScaleDown
       && pendingWrites > 0
@@ -647,7 +698,10 @@ const createAdaptiveWriteConcurrencyController = (input = {}) => {
       emitChange('stall', from, currentConcurrency, {
         pendingWrites,
         activeWrites,
-        longestStallSec
+        longestStallSec,
+        memoryPressure,
+        gcPressure,
+        rssUtilization
       });
       return currentConcurrency;
     }
@@ -662,7 +716,10 @@ const createAdaptiveWriteConcurrencyController = (input = {}) => {
       emitChange('drain', from, currentConcurrency, {
         pendingWrites,
         activeWrites,
-        longestStallSec
+        longestStallSec,
+        memoryPressure,
+        gcPressure,
+        rssUtilization
       });
       return currentConcurrency;
     }
@@ -680,7 +737,27 @@ const createAdaptiveWriteConcurrencyController = (input = {}) => {
       emitChange('backlog', from, currentConcurrency, {
         pendingWrites,
         activeWrites,
-        longestStallSec
+        longestStallSec,
+        memoryPressure,
+        gcPressure,
+        rssUtilization
+      });
+    } else if (
+      canScaleUp
+      && pendingWrites > 0
+      && lowMemoryPressure
+      && backlogPerSlot >= Math.max(0.75, scaleUpBacklogPerSlot * 0.6)
+      && longestStallSec <= Math.max(1, stallScaleUpGuardSeconds * 0.75)
+    ) {
+      currentConcurrency += 1;
+      lastScaleUpAt = timestamp;
+      emitChange('memory-headroom', from, currentConcurrency, {
+        pendingWrites,
+        activeWrites,
+        longestStallSec,
+        memoryPressure,
+        gcPressure,
+        rssUtilization
       });
     }
     return currentConcurrency;
@@ -1121,7 +1198,8 @@ export async function writeIndexArtifacts(input) {
     stageCheckpoints,
     telemetry = null,
     riskInterproceduralEmitArtifacts = null,
-    repoProvenance = null
+    repoProvenance = null,
+    tinyRepoFastPath = null
   } = input;
   const orderingStage = indexState?.stage || 'stage2';
   const recordOrdering = async (artifact, ordering, rule) => {
@@ -1150,6 +1228,8 @@ export async function writeIndexArtifacts(input) {
     };
   };
   const indexingConfig = userConfig?.indexing || {};
+  const tinyRepoMinimalArtifacts = tinyRepoFastPath?.active === true
+    && tinyRepoFastPath?.minimalArtifacts === true;
   const profileId = normalizeIndexProfileId(indexState?.profile?.id || indexingConfig.profile);
   const vectorOnlyProfile = profileId === INDEX_PROFILE_VECTOR_ONLY;
   const sparseArtifactsEnabled = !vectorOnlyProfile;
@@ -2298,7 +2378,7 @@ export async function writeIndexArtifacts(input) {
     }
     return lanes;
   };
-  if (mode === 'extracted-prose' && documentExtractionEnabled) {
+  if (mode === 'extracted-prose' && documentExtractionEnabled && !tinyRepoMinimalArtifacts) {
     const extractionReportPath = path.join(outDir, 'extraction_report.json');
     const extractionReport = buildExtractionReport({
       state,
@@ -2317,7 +2397,9 @@ export async function writeIndexArtifacts(input) {
     );
     addPieceFile({ type: 'stats', name: 'extraction_report', format: 'json' }, extractionReportPath);
   }
-  const lexiconRelationFilterReport = buildLexiconRelationFilterReport({ state, mode });
+  const lexiconRelationFilterReport = tinyRepoMinimalArtifacts
+    ? { files: [] }
+    : buildLexiconRelationFilterReport({ state, mode });
   if (Array.isArray(lexiconRelationFilterReport.files) && lexiconRelationFilterReport.files.length) {
     const lexiconReportPath = path.join(outDir, 'lexicon_relation_filter_report.json');
     enqueueWrite(
@@ -2340,7 +2422,9 @@ export async function writeIndexArtifacts(input) {
       };
     }
   }
-  const boilerplateCatalog = buildBoilerplateCatalog(state?.chunks);
+  const boilerplateCatalog = tinyRepoMinimalArtifacts
+    ? []
+    : buildBoilerplateCatalog(state?.chunks);
   if (boilerplateCatalog.length) {
     const boilerplateCatalogPath = path.join(outDir, 'boilerplate_catalog.json');
     enqueueWrite(
@@ -3459,10 +3543,27 @@ export async function writeIndexArtifacts(input) {
       stallScaleUpGuardSeconds: adaptiveWriteStallScaleUpGuardSeconds,
       scaleUpCooldownMs: adaptiveWriteScaleUpCooldownMs,
       scaleDownCooldownMs: adaptiveWriteScaleDownCooldownMs,
-      onChange: ({ reason, from, to, pendingWrites, longestStallSec }) => {
+      onChange: ({
+        reason,
+        from,
+        to,
+        pendingWrites,
+        longestStallSec,
+        memoryPressure,
+        gcPressure,
+        rssUtilization
+      }) => {
         const stallSuffix = longestStallSec > 0 ? `, stall=${longestStallSec}s` : '';
+        const memorySuffix = (
+          Number.isFinite(memoryPressure) || Number.isFinite(gcPressure) || Number.isFinite(rssUtilization)
+        )
+          ? `, mem=${Number.isFinite(memoryPressure) ? memoryPressure.toFixed(2) : 'n/a'},` +
+            ` gc=${Number.isFinite(gcPressure) ? gcPressure.toFixed(2) : 'n/a'},` +
+            ` rss=${Number.isFinite(rssUtilization) ? rssUtilization.toFixed(2) : 'n/a'}`
+          : '';
         logLine(
-          `[perf] adaptive artifact write concurrency ${from} -> ${to} (${reason}, pending=${pendingWrites}${stallSuffix})`,
+          `[perf] adaptive artifact write concurrency ${from} -> ${to} ` +
+          `(${reason}, pending=${pendingWrites}${stallSuffix}${memorySuffix})`,
           { kind: 'status' }
         );
       }
@@ -3538,10 +3639,15 @@ export async function writeIndexArtifacts(input) {
       }
       forcedTailRescueConcurrency = rescueState.active ? writeConcurrency : null;
       if (!adaptiveWriteConcurrencyEnabled) return getActiveWriteConcurrency();
+      const schedulerStats = scheduler?.stats ? scheduler.stats() : null;
+      const memorySignals = schedulerStats?.adaptive?.signals?.memory || null;
       return writeConcurrencyController.observe({
         pendingWrites: pendingWriteCount(),
         activeWrites: activeCount,
-        longestStallSec: rescueState.longestStallSec
+        longestStallSec: rescueState.longestStallSec,
+        memoryPressure: Number(memorySignals?.pressureScore),
+        gcPressure: Number(memorySignals?.gcPressureScore),
+        rssUtilization: Number(memorySignals?.rssUtilization)
       });
     };
     const resolveLaneBudgets = () => {

@@ -35,6 +35,28 @@ export function getDefaultCacheRoot() {
 }
 
 /**
+ * Resolve a coarse filesystem profile for cache and artifact tuning.
+ *
+ * The profile is intentionally conservative; unknown platforms fall back to
+ * `generic` handling in higher layers.
+ *
+ * @param {string|null|undefined} [baseRoot]
+ * @param {string} [platform]
+ * @returns {'ntfs'|'posix'|'unknown'}
+ */
+export function resolveCacheFilesystemProfile(baseRoot = null, platform = process.platform) {
+  const normalizedPlatform = typeof platform === 'string' ? platform.toLowerCase() : '';
+  if (normalizedPlatform === 'win32') return 'ntfs';
+  if (normalizedPlatform === 'linux' || normalizedPlatform === 'darwin' || normalizedPlatform === 'freebsd') {
+    return 'posix';
+  }
+  const rootText = String(baseRoot || '');
+  if (/^[a-zA-Z]:[\\/]/.test(rootText)) return 'ntfs';
+  if (rootText.startsWith('/')) return 'posix';
+  return 'unknown';
+}
+
+/**
  * Resolve the base (unversioned) cache root directory.
  * @returns {string}
  */

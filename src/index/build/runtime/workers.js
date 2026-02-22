@@ -203,6 +203,26 @@ export const resolveRuntimeMemoryPolicy = ({ indexingConfig, cpuConcurrency }) =
   const memoryConfig = indexingConfig?.memory && typeof indexingConfig.memory === 'object'
     ? indexingConfig.memory
     : {};
+  const highMemoryProfileConfig = memoryConfig?.highMemoryProfile
+    && typeof memoryConfig.highMemoryProfile === 'object'
+    ? memoryConfig.highMemoryProfile
+    : {};
+  const highMemoryThresholdMb = Number.isFinite(Number(highMemoryProfileConfig.thresholdMb))
+    ? Math.max(4096, Math.floor(Number(highMemoryProfileConfig.thresholdMb)))
+    : 16 * 1024;
+  const highMemoryAutoEnabled = Number.isFinite(totalMemMb) && totalMemMb >= highMemoryThresholdMb;
+  const highMemoryProfileEnabled = typeof highMemoryProfileConfig.enabled === 'boolean'
+    ? highMemoryProfileConfig.enabled
+    : highMemoryAutoEnabled;
+  const highMemoryCacheScale = Number.isFinite(Number(highMemoryProfileConfig.cacheScale))
+    ? Math.max(1, Number(highMemoryProfileConfig.cacheScale))
+    : 1.25;
+  const highMemoryWriteBufferScale = Number.isFinite(Number(highMemoryProfileConfig.writeBufferScale))
+    ? Math.max(1, Number(highMemoryProfileConfig.writeBufferScale))
+    : 1.2;
+  const highMemoryPostingsScale = Number.isFinite(Number(highMemoryProfileConfig.postingsScale))
+    ? Math.max(1, Number(highMemoryProfileConfig.postingsScale))
+    : 1.15;
   const workerHeapPolicy = resolveWorkerHeapBudgetPolicy({
     targetPerWorkerMb: memoryConfig.workerHeapTargetMb,
     minPerWorkerMb: memoryConfig.workerHeapMinMb,
@@ -228,8 +248,24 @@ export const resolveRuntimeMemoryPolicy = ({ indexingConfig, cpuConcurrency }) =
     maxGlobalRssMb,
     reserveRssMb
   });
-  const perWorkerCacheMb = budgetSplit.perWorkerCacheMb;
+  let perWorkerCacheMb = budgetSplit.perWorkerCacheMb;
   let perWorkerWriteBufferMb = budgetSplit.perWorkerWriteBufferMb;
+  let highMemoryProfileApplied = false;
+  if (highMemoryProfileEnabled && Number.isFinite(budgetSplit.rssHeadroomMb)) {
+    const perWorkerRssHeadroomMb = Math.max(0, Math.floor(budgetSplit.rssHeadroomMb / Math.max(1, workerCount)));
+    const projectedBasePerWorkerMb = effectiveWorkerHeapMb + perWorkerCacheMb + perWorkerWriteBufferMb;
+    const sparePerWorkerMb = Math.max(0, perWorkerRssHeadroomMb - projectedBasePerWorkerMb);
+    if (sparePerWorkerMb >= 192) {
+      const cacheBoostMb = Math.min(sparePerWorkerMb, Math.floor(perWorkerCacheMb * (highMemoryCacheScale - 1)));
+      const writeBoostMb = Math.min(
+        Math.max(0, sparePerWorkerMb - cacheBoostMb),
+        Math.floor(perWorkerWriteBufferMb * (highMemoryWriteBufferScale - 1))
+      );
+      perWorkerCacheMb += Math.max(0, cacheBoostMb);
+      perWorkerWriteBufferMb += Math.max(0, writeBoostMb);
+      highMemoryProfileApplied = cacheBoostMb > 0 || writeBoostMb > 0;
+    }
+  }
   const hugeRepoProfileEnabled = indexingConfig?.hugeRepoProfile?.enabled === true;
   let writeBufferHeadroomBoostMb = 0;
   if (hugeRepoProfileEnabled && Number.isFinite(budgetSplit.rssHeadroomMb)) {
@@ -246,7 +282,9 @@ export const resolveRuntimeMemoryPolicy = ({ indexingConfig, cpuConcurrency }) =
     effectiveWorkerHeapMb + perWorkerCacheMb + perWorkerWriteBufferMb
   );
   const queueHeadroomScale = Number.isFinite(maxGlobalRssMb) && maxGlobalRssMb > 0
-    ? (projectedBudgetMb < Math.max(512, maxGlobalRssMb - reserveRssMb) ? 4 : 3)
+    ? (projectedBudgetMb < Math.max(512, maxGlobalRssMb - reserveRssMb)
+      ? (highMemoryProfileApplied ? 5 : 4)
+      : 3)
     : 3;
   return {
     totalMemMb,
@@ -260,6 +298,15 @@ export const resolveRuntimeMemoryPolicy = ({ indexingConfig, cpuConcurrency }) =
     cacheHotsetTargetMb: budgetSplit.cacheHotsetTargetMb,
     hugeProfileWriteBufferBoosted: writeBufferHeadroomBoostMb > 0,
     writeBufferHeadroomBoostMb,
+    highMemoryProfile: {
+      enabled: highMemoryProfileEnabled,
+      autoEnabled: highMemoryAutoEnabled,
+      applied: highMemoryProfileApplied,
+      thresholdMb: highMemoryThresholdMb,
+      cacheScale: highMemoryCacheScale,
+      writeBufferScale: highMemoryWriteBufferScale,
+      postingsScale: highMemoryPostingsScale
+    },
     queueHeadroomScale
   };
 };

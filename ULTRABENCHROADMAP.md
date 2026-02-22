@@ -619,13 +619,17 @@ Primary targets:
 ## Second Sweep: Additional Opportunities Discovered
 
 ### UB-070: Small-repo overhead floor reduction
-- Status: [ ]
+- Status: [x]
 - Observation:
   - Tiny repos still pay substantial fixed costs.
 - Tasks:
   - Add fast path profile for tiny repos (<5k lines): reduced preprocessing overhead, tighter stage graph, minimal artifact set.
 - Exit criteria:
   - Significantly lower wall-clock for small repos.
+- Completion: 2026-02-22T10:15:22.1838981-05:00
+- Validation:
+  - `node tests/indexing/runtime/tiny-repo-fast-path.test.js`
+  - `node tests/perf/bench/bench-language-repos.test.js`
 - Improvement Intent (What): small-repo runtime floor
 - Improvement Method (How): tiny-repo fast-path and reduced stage graph.
 - Integrated Betterments: create tiny-repo fast-path profile with reduced stage graph and fewer artifacts; use startup cache warming from previous runs; add hard upper-bound runtime target for tiny repos.
@@ -666,26 +670,34 @@ Primary targets:
 - Touchpoints: `tools/bench/query-generator.js`, `tests/retrieval/query/golden/corpus.json`, `tests/retrieval/query/golden/expected.json`, `tests/retrieval/query/golden-query-corpus.test.js`
 
 ### UB-073: OS/filesystem profile presets
-- Status: [ ]
+- Status: [x]
 - Observation:
   - NTFS write behavior and process startup costs differ from POSIX assumptions.
 - Tasks:
   - Add platform-specific defaults for artifact writer, subprocess fanout, and fsync policy.
 - Exit criteria:
   - Lower platform-specific variance and better out-of-box performance.
+- Completion: 2026-02-22T10:15:22.1838981-05:00
+- Validation:
+  - `node tests/indexing/runtime/platform-runtime-preset.test.js`
+  - `node tests/storage/sqlite/sqlite-wal-size-limit.test.js`
 - Improvement Intent (What): platform throughput consistency
 - Improvement Method (How): OS/filesystem-specific presets and startup calibration.
 - Integrated Betterments: maintain platform-specific concurrency presets by filesystem type; include startup overhead calibration probe at run begin; auto-select tuned defaults unless explicitly overridden.
 - Touchpoints: `src/index/build/runtime/runtime.js`, `src/index/build/artifacts-write.js`, `src/shared/subprocess.js`, `src/shared/cache-roots.js`, `tests/storage/sqlite/sqlite-wal-size-limit.test.js`
 
 ### UB-074: Memory headroom exploitation profile
-- Status: [ ]
+- Status: [x]
 - Observation:
   - High available RAM indicates room for bigger caches and wider in-memory batching.
 - Tasks:
   - Add high-memory profile that scales caches, postings buffers, and merge batch sizes safely.
 - Exit criteria:
   - Increased throughput on high-RAM systems without OOM risk.
+- Completion: 2026-02-22T10:15:22.1838981-05:00
+- Validation:
+  - `node tests/indexing/runtime/memory-policy-high-memory-profile.test.js`
+  - `node tests/indexing/embeddings/embeddings-memory-plateau.test.js`
 - Improvement Intent (What): memory-to-throughput conversion
 - Improvement Method (How): headroom-aware cache/buffer scaling with safety guards.
 - Integrated Betterments: use headroom-aware cache expansion with safety guard thresholds; add preemptive compaction triggers before memory cliffs; expose memory policy telemetry per stage.
@@ -1072,7 +1084,7 @@ Last revised: 2026-02-22T05:44:04.8332760-05:00
 - Touchpoints: `tools/bench/language/report.js`, `tools/bench/language/metrics.js`, `src/retrieval/query-intent.js`, `src/retrieval/rankers.js`, `tests/retrieval/query/query-intent.test.js`
 
 ### UB-094: RSS-aware embedding/write scheduling
-- Status: [ ]
+- Status: [x]
 - Observation:
   - Large repos show high RSS in query stage; scheduling can better exploit headroom safely.
 - Tasks:
@@ -1080,6 +1092,11 @@ Last revised: 2026-02-22T05:44:04.8332760-05:00
   - Prefer throughput expansion when memory headroom is abundant.
 - Exit criteria:
   - Improved throughput on high-memory hosts without instability.
+- Completion: 2026-02-22T10:15:22.1838981-05:00
+- Validation:
+  - `node tests/indexing/artifacts/artifact-write-adaptive-concurrency-controller.test.js`
+  - `node tests/indexing/embeddings/embeddings-writer-adaptive-pending.test.js`
+  - `node tests/indexing/embeddings/embeddings-memory-plateau.test.js`
 - Improvement Intent (What): throughput under high RAM
 - Improvement Method (How): rss-aware embedding/write scheduling policies.
 - Integrated Betterments: incorporate rss, gc pause, and allocator pressure into scheduler decisions; permit burst concurrency only while under headroom thresholds; record memory-driven adaptation decisions.
@@ -1125,7 +1142,7 @@ Last revised: 2026-02-22T05:44:04.8332760-05:00
 - Touchpoints: `src/index/build/artifacts-write.js`, `src/shared/scheduler/debounce.js`, `tests/indexing/artifacts/artifact-write-adaptive-concurrency-controller.test.js`, `tests/indexing/artifacts/dynamic-write-concurrency-preserves-order.test.js`
 
 ### UB-097: Incremental bundle parser worker autotune by modality
-- Status: [ ]
+- Status: [x]
 - Observation:
   - Fixed parser worker count may be suboptimal across modalities and repo sizes.
 - Tasks:
@@ -1133,6 +1150,10 @@ Last revised: 2026-02-22T05:44:04.8332760-05:00
   - Add safety caps for low-count modalities.
 - Exit criteria:
   - Lower sqlite build time and smoother CPU utilization.
+- Completion: 2026-02-22T10:15:22.1838981-05:00
+- Validation:
+  - `node tests/storage/sqlite/sqlite-bundle-worker-autotune.test.js`
+  - `node tests/storage/sqlite/sqlite-incremental-memory-profile.test.js`
 - Improvement Intent (What): sqlite bundle parse efficiency
 - Improvement Method (How): modality-aware parser worker autotuning.
 - Integrated Betterments: auto-tune bundle parser workers from modality bundle count and average bundle bytes; add rapid convergence guard to avoid oscillation; store tuned values for repeat repos.

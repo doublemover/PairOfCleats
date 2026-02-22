@@ -23,6 +23,7 @@ import { normalizeSegmentsConfig } from '../../segments.js';
 import { log } from '../../../shared/progress.js';
 import { getEnvConfig, isTestingEnv } from '../../../shared/env.js';
 import { isAbsolutePathNative } from '../../../shared/files.js';
+import { resolveCacheFilesystemProfile } from '../../../shared/cache-roots.js';
 import { buildAutoPolicy } from '../../../shared/auto-policy.js';
 import { buildIgnoreMatcher } from '../ignore.js';
 import { normalizePostingsConfig } from '../../../shared/postings-config.js';
@@ -64,6 +65,7 @@ import { createBuildScheduler } from '../../../shared/concurrency.js';
 import { resolveSchedulerConfig } from './scheduler.js';
 import { loadSchedulerAutoTuneProfile } from './scheduler-autotune-profile.js';
 import { resolveTreeSitterRuntime, preloadTreeSitterRuntimeLanguages } from './tree-sitter.js';
+import { resolveSubprocessFanoutPreset } from '../../../shared/subprocess.js';
 import {
   createRuntimeQueues,
   resolveRuntimeMemoryPolicy,
@@ -96,6 +98,107 @@ const buildStage1SubprocessOwnershipPrefix = ({ buildId } = {}) => (
 export const normalizeIndexOptimizationProfile = (value) => {
   const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
   return INDEX_OPTIMIZATION_PROFILE_IDS.includes(normalized) ? normalized : 'default';
+};
+
+export const resolvePlatformRuntimePreset = ({
+  platform = process.platform,
+  filesystemProfile = 'unknown',
+  cpuCount = 1,
+  indexingConfig = {}
+} = {}) => {
+  const presetsConfig = indexingConfig?.platformPresets && typeof indexingConfig.platformPresets === 'object'
+    ? indexingConfig.platformPresets
+    : {};
+  if (presetsConfig.enabled === false) {
+    return {
+      enabled: false,
+      presetId: 'disabled',
+      filesystemProfile,
+      subprocessFanout: resolveSubprocessFanoutPreset({ platform, cpuCount, filesystemProfile }),
+      overrides: null
+    };
+  }
+  const artifactsConfig = indexingConfig?.artifacts && typeof indexingConfig.artifacts === 'object'
+    ? indexingConfig.artifacts
+    : {};
+  const scmConfig = indexingConfig?.scm && typeof indexingConfig.scm === 'object'
+    ? indexingConfig.scm
+    : {};
+  const subprocessFanout = resolveSubprocessFanoutPreset({ platform, cpuCount, filesystemProfile });
+  const overrides = {};
+  if (typeof artifactsConfig.writeFsStrategy !== 'string' || !artifactsConfig.writeFsStrategy.trim()) {
+    overrides.artifacts = {
+      writeFsStrategy: filesystemProfile === 'ntfs' ? 'ntfs' : 'generic'
+    };
+  }
+  if (!Number.isFinite(Number(scmConfig.maxConcurrentProcesses)) || Number(scmConfig.maxConcurrentProcesses) <= 0) {
+    overrides.scm = {
+      maxConcurrentProcesses: subprocessFanout.maxParallelismHint
+    };
+  }
+  if (platform === 'win32') {
+    const schedulerConfig = indexingConfig?.scheduler && typeof indexingConfig.scheduler === 'object'
+      ? indexingConfig.scheduler
+      : {};
+    if (!schedulerConfig?.writeBackpressure || typeof schedulerConfig.writeBackpressure !== 'object') {
+      overrides.scheduler = {
+        writeBackpressure: {
+          pendingBytesThreshold: 384 * 1024 * 1024,
+          oldestWaitMsThreshold: 12000
+        }
+      };
+    }
+  }
+  return {
+    enabled: true,
+    presetId: `${platform}:${filesystemProfile}`,
+    filesystemProfile,
+    subprocessFanout,
+    overrides: Object.keys(overrides).length ? overrides : null
+  };
+};
+
+export const runStartupCalibrationProbe = async ({
+  cacheRoot,
+  enabled = true
+} = {}) => {
+  if (!enabled || !cacheRoot) {
+    return {
+      enabled: false,
+      probeBytes: 0,
+      writeReadMs: 0,
+      cleanupMs: 0
+    };
+  }
+  const probeDir = path.join(cacheRoot, 'runtime-calibration');
+  const probePath = path.join(probeDir, `probe-${process.pid}.tmp`);
+  const probeBytes = 8 * 1024;
+  const payload = Buffer.alloc(probeBytes, 97);
+  const writeReadStart = Date.now();
+  try {
+    await fs.mkdir(probeDir, { recursive: true });
+    await fs.writeFile(probePath, payload);
+    await fs.readFile(probePath);
+  } catch (err) {
+    return {
+      enabled: true,
+      probeBytes,
+      writeReadMs: Math.max(0, Date.now() - writeReadStart),
+      cleanupMs: 0,
+      error: err?.message || String(err)
+    };
+  }
+  const writeReadMs = Math.max(0, Date.now() - writeReadStart);
+  const cleanupStart = Date.now();
+  try {
+    await fs.rm(probePath, { force: true });
+  } catch {}
+  return {
+    enabled: true,
+    probeBytes,
+    writeReadMs,
+    cleanupMs: Math.max(0, Date.now() - cleanupStart)
+  };
 };
 
 /**
@@ -415,6 +518,17 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   if (stageOverrides) {
     indexingConfig = mergeConfig(indexingConfig, stageOverrides);
   }
+  const cacheRootCandidate = (userConfig.cache && userConfig.cache.root) || getCacheRoot();
+  const filesystemProfile = resolveCacheFilesystemProfile(cacheRootCandidate, process.platform);
+  const platformRuntimePreset = resolvePlatformRuntimePreset({
+    platform: process.platform,
+    filesystemProfile,
+    cpuCount: os.cpus().length,
+    indexingConfig
+  });
+  if (platformRuntimePreset?.overrides) {
+    indexingConfig = mergeConfig(indexingConfig, platformRuntimePreset.overrides);
+  }
   const profileId = assertKnownIndexProfileId(indexingConfig.profile);
   const profile = buildIndexProfileState(profileId);
   const indexOptimizationProfile = normalizeIndexOptimizationProfile(
@@ -441,12 +555,35 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   });
   setScmRuntimeConfig(scmConfig);
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
-  const cacheRoot = (userConfig.cache && userConfig.cache.root) || getCacheRoot();
+  const cacheRoot = cacheRootCandidate;
   const cacheRootSource = userConfig.cache?.root
     ? 'config'
     : (envConfig.cacheRoot ? 'env' : 'default');
   log(`[init] cache root (${cacheRootSource}): ${path.resolve(cacheRoot)}`);
   log(`[init] repo cache root: ${path.resolve(repoCacheRoot)}`);
+  if (platformRuntimePreset?.enabled !== false) {
+    const fanoutHint = platformRuntimePreset?.subprocessFanout?.maxParallelismHint;
+    const fanoutReason = platformRuntimePreset?.subprocessFanout?.reason || 'unknown';
+    log(
+      `[init] platform preset: ${platformRuntimePreset?.presetId || 'default'} ` +
+      `(fs=${filesystemProfile}, subprocessFanout=${fanoutHint || 'n/a'}, reason=${fanoutReason}).`
+    );
+  }
+  const startupCalibrationEnabled = indexingConfig?.platformPresets?.startupCalibration !== false;
+  const startupCalibration = await timeInit('startup calibration', () => runStartupCalibrationProbe({
+    cacheRoot,
+    enabled: startupCalibrationEnabled
+  }));
+  if (startupCalibration?.enabled) {
+    if (startupCalibration?.error) {
+      log(`[init] startup calibration probe degraded: ${startupCalibration.error}`);
+    } else {
+      log(
+        `[init] startup calibration: io=${startupCalibration.writeReadMs}ms ` +
+        `(bytes=${startupCalibration.probeBytes}).`
+      );
+    }
+  }
   const envelope = await timeInit('runtime envelope', () => resolveRuntimeEnvelope({
     argv,
     rawArgv,
@@ -1122,6 +1259,15 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     `workerCache=${runtimeMemoryPolicy.perWorkerCacheMb}MB, ` +
     `writeBuffer=${runtimeMemoryPolicy.perWorkerWriteBufferMb}MB.`
   );
+  if (runtimeMemoryPolicy?.highMemoryProfile?.enabled) {
+    const mode = runtimeMemoryPolicy.highMemoryProfile.applied ? 'applied' : 'eligible';
+    log(
+      `High-memory profile (${mode}): threshold=${runtimeMemoryPolicy.highMemoryProfile.thresholdMb}MB, ` +
+      `cacheScale=${runtimeMemoryPolicy.highMemoryProfile.cacheScale}x, ` +
+      `writeScale=${runtimeMemoryPolicy.highMemoryProfile.writeBufferScale}x, ` +
+      `postingsScale=${runtimeMemoryPolicy.highMemoryProfile.postingsScale}x.`
+    );
+  }
   if (!astDataflowEnabled) {
     log('AST dataflow metadata disabled via indexing.astDataflow.');
   }
@@ -1291,6 +1437,8 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     rawArgv,
     userConfig,
     repoCacheRoot,
+    platformRuntimePreset,
+    startupCalibration,
     buildId,
     buildRoot,
     profile,

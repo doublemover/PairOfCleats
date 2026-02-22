@@ -922,14 +922,23 @@ const resolvePostingsQueueConfig = (runtime) => {
   const projectedWriteBufferBytes = Number.isFinite(perWorkerWriteBufferMb) && perWorkerWriteBufferMb > 0
     ? Math.floor(perWorkerWriteBufferMb * MB * Math.max(1, cpuConcurrency))
     : 0;
-  const maxPendingRows = coercePositiveInt(config.maxPendingRows)
+  const highMemoryProfile = runtime?.memoryPolicy?.highMemoryProfile || {};
+  const highMemoryPostingsScale = Number(highMemoryProfile?.postingsScale);
+  const postingsScale = highMemoryProfile?.applied === true
+    && Number.isFinite(highMemoryPostingsScale)
+    && highMemoryPostingsScale > 1
+    ? highMemoryPostingsScale
+    : 1;
+  const basePendingRows = coercePositiveInt(config.maxPendingRows)
     ?? Math.max(DEFAULT_POSTINGS_ROWS_PER_PENDING, baseMaxPending * DEFAULT_POSTINGS_ROWS_PER_PENDING);
-  const maxPendingBytes = coercePositiveInt(config.maxPendingBytes)
+  const basePendingBytes = coercePositiveInt(config.maxPendingBytes)
     ?? Math.max(
       DEFAULT_POSTINGS_BYTES_PER_PENDING,
       baseMaxPending * DEFAULT_POSTINGS_BYTES_PER_PENDING,
       projectedWriteBufferBytes
     );
+  const maxPendingRows = Math.max(DEFAULT_POSTINGS_ROWS_PER_PENDING, Math.floor(basePendingRows * postingsScale));
+  const maxPendingBytes = Math.max(DEFAULT_POSTINGS_BYTES_PER_PENDING, Math.floor(basePendingBytes * postingsScale));
   const maxHeapFraction = Number(config.maxHeapFraction);
   return {
     maxPending: baseMaxPending,

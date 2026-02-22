@@ -67,6 +67,8 @@ const BUNDLE_LOADER_WORKER_PATH = fileURLToPath(new URL('./bundle-loader-worker.
 const SQLITE_ZERO_STATE_SCHEMA_VERSION = '1.0.0';
 const SQLITE_ZERO_STATE_MANIFEST_FILE = 'sqlite-zero-state.json';
 const SQLITE_DEFAULT_PAGE_SIZE = 4096;
+const SQLITE_BUNDLE_WORKER_PROFILE_SCHEMA_VERSION = '1.0.0';
+const SQLITE_BUNDLE_WORKER_PROFILE_FILE = 'bundle-worker-autotune.json';
 
 const readPragmaSimple = (db, name) => {
   if (!db || !name) return null;
@@ -161,6 +163,137 @@ const resolveAdaptiveBatchConfig = ({
   };
   const plan = resolveSqliteIngestPlan({ batchSize: config });
   return { config, plan };
+};
+
+const resolveSqliteBundleWorkerProfilePath = (repoCacheRoot) => (
+  repoCacheRoot
+    ? path.join(repoCacheRoot, 'sqlite', SQLITE_BUNDLE_WORKER_PROFILE_FILE)
+    : null
+);
+
+const loadSqliteBundleWorkerProfile = async (repoCacheRoot) => {
+  const profilePath = resolveSqliteBundleWorkerProfilePath(repoCacheRoot);
+  if (!profilePath) {
+    return {
+      profilePath: null,
+      profile: { schemaVersion: SQLITE_BUNDLE_WORKER_PROFILE_SCHEMA_VERSION, updatedAt: null, modes: {} }
+    };
+  }
+  try {
+    const raw = JSON.parse(await fs.readFile(profilePath, 'utf8'));
+    const modes = raw?.modes && typeof raw.modes === 'object' ? raw.modes : {};
+    return {
+      profilePath,
+      profile: {
+        schemaVersion: SQLITE_BUNDLE_WORKER_PROFILE_SCHEMA_VERSION,
+        updatedAt: typeof raw?.updatedAt === 'string' ? raw.updatedAt : null,
+        modes
+      }
+    };
+  } catch {
+    return {
+      profilePath,
+      profile: { schemaVersion: SQLITE_BUNDLE_WORKER_PROFILE_SCHEMA_VERSION, updatedAt: null, modes: {} }
+    };
+  }
+};
+
+const saveSqliteBundleWorkerProfile = async ({ profilePath, profile }) => {
+  if (!profilePath || !profile || typeof profile !== 'object') return;
+  const payload = {
+    schemaVersion: SQLITE_BUNDLE_WORKER_PROFILE_SCHEMA_VERSION,
+    updatedAt: new Date().toISOString(),
+    modes: profile.modes && typeof profile.modes === 'object' ? profile.modes : {}
+  };
+  await fs.mkdir(path.dirname(profilePath), { recursive: true });
+  await atomicWriteJson(profilePath, payload, { spaces: 2 });
+};
+
+const estimateBundleAverageBytes = (bundleDir, manifestFiles) => {
+  if (!bundleDir || !manifestFiles || typeof manifestFiles !== 'object') return 0;
+  const sampleNames = [];
+  for (const entry of Object.values(manifestFiles)) {
+    const bundleName = typeof entry?.bundle === 'string' ? entry.bundle : '';
+    if (!bundleName || sampleNames.includes(bundleName)) continue;
+    sampleNames.push(bundleName);
+    if (sampleNames.length >= 32) break;
+  }
+  if (!sampleNames.length) return 0;
+  let total = 0;
+  let count = 0;
+  for (const bundleName of sampleNames) {
+    const bundlePath = path.join(bundleDir, bundleName);
+    try {
+      const stat = fsSync.statSync(bundlePath);
+      const size = Number(stat?.size);
+      if (!Number.isFinite(size) || size <= 0) continue;
+      total += size;
+      count += 1;
+    } catch {}
+  }
+  if (!count) return 0;
+  return Math.floor(total / count);
+};
+
+const resolveBundleWorkerAutotune = ({
+  mode,
+  manifestFiles,
+  bundleDir,
+  threadLimits,
+  envConfig,
+  profile
+}) => {
+  const explicitBundleThreads = Number(envConfig?.bundleThreads);
+  const concurrencyFloor = 1;
+  const cpuHint = Number.isFinite(Number(threadLimits?.fileConcurrency))
+    ? Math.max(1, Math.floor(Number(threadLimits.fileConcurrency)))
+    : 1;
+  const hostCpu = typeof os.availableParallelism === 'function'
+    ? os.availableParallelism()
+    : (Array.isArray(os.cpus()) ? os.cpus().length : 1);
+  const upperBound = Math.max(1, Math.min(16, Math.max(cpuHint, hostCpu)));
+  const bundleCount = manifestFiles && typeof manifestFiles === 'object'
+    ? Object.keys(manifestFiles).length
+    : 0;
+  if (Number.isFinite(explicitBundleThreads) && explicitBundleThreads > 0) {
+    return {
+      threads: Math.max(concurrencyFloor, Math.min(upperBound, Math.floor(explicitBundleThreads))),
+      reason: 'explicit-env',
+      bundleCount,
+      avgBundleBytes: estimateBundleAverageBytes(bundleDir, manifestFiles)
+    };
+  }
+  let desired = bundleCount >= 96 ? 8
+    : bundleCount >= 48 ? 6
+      : bundleCount >= 16 ? 4
+        : bundleCount >= 8 ? 2
+          : 1;
+  const avgBundleBytes = estimateBundleAverageBytes(bundleDir, manifestFiles);
+  if (avgBundleBytes >= 4 * 1024 * 1024) desired = Math.max(1, desired - 2);
+  else if (avgBundleBytes >= 1024 * 1024) desired = Math.max(1, desired - 1);
+  else if (avgBundleBytes > 0 && avgBundleBytes <= 192 * 1024) desired += 1;
+  if (mode === 'records') desired = Math.max(1, Math.floor(desired * 0.5));
+  if (mode === 'extracted-prose') desired = Math.max(1, desired - 1);
+  const lowCountSafetyCap = bundleCount > 0 && bundleCount < 16
+    ? Math.max(1, Math.ceil(bundleCount / 2))
+    : upperBound;
+  desired = Math.max(concurrencyFloor, Math.min(upperBound, lowCountSafetyCap, desired));
+  const priorMode = profile?.modes && typeof profile.modes === 'object'
+    ? profile.modes[mode]
+    : null;
+  const priorThreads = Number(priorMode?.threads);
+  // Rapid-convergence guard: move by at most one worker per run.
+  if (Number.isFinite(priorThreads) && priorThreads > 0) {
+    const clampedPrior = Math.max(concurrencyFloor, Math.min(upperBound, Math.floor(priorThreads)));
+    if (desired > clampedPrior + 1) desired = clampedPrior + 1;
+    if (desired < clampedPrior - 1) desired = clampedPrior - 1;
+  }
+  return {
+    threads: Math.max(concurrencyFloor, Math.min(upperBound, desired)),
+    reason: 'autotune',
+    bundleCount,
+    avgBundleBytes
+  };
 };
 
 const resolveSqliteZeroStateManifestPath = (modeIndexDir) => (
@@ -466,6 +599,10 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
     );
     const indexDir = modeArg === 'all' ? null : resolveIndexDir(modeArg);
     const repoCacheRoot = options.repoCacheRoot || runtime?.repoCacheRoot || getRepoCacheRoot(root, userConfig);
+    const {
+      profilePath: bundleWorkerProfilePath,
+      profile: bundleWorkerProfile
+    } = await loadSqliteBundleWorkerProfile(repoCacheRoot);
     const incrementalRequested = argv.incremental === true;
     const requestedBatchSize = Number(argv['batch-size'] ?? options.batchSize);
     const batchSizeOverride = Number.isFinite(requestedBatchSize) && requestedBatchSize > 0
@@ -695,6 +832,32 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
         resolvedInput = hasIncrementalBundles
           ? { source: 'incremental', bundleDir: incrementalBundleDir }
           : { source: 'artifacts', indexDir: modeIndexDir };
+        const bundleWorkerAutotune = resolveBundleWorkerAutotune({
+          mode,
+          manifestFiles: incrementalFiles,
+          bundleDir: incrementalBundleDir,
+          threadLimits,
+          envConfig,
+          profile: bundleWorkerProfile
+        });
+        const envConfigForMode = {
+          ...envConfig,
+          bundleThreads: bundleWorkerAutotune.threads
+        };
+        sqliteStats.bundleWorkerAutotune = {
+          mode,
+          threads: bundleWorkerAutotune.threads,
+          reason: bundleWorkerAutotune.reason,
+          bundleCount: bundleWorkerAutotune.bundleCount,
+          avgBundleBytes: bundleWorkerAutotune.avgBundleBytes
+        };
+        if (emitOutput && hasIncrementalBundles) {
+          log(
+            `[sqlite] bundle worker autotune ${mode}: threads=${bundleWorkerAutotune.threads} ` +
+            `(reason=${bundleWorkerAutotune.reason}, bundles=${bundleWorkerAutotune.bundleCount}, ` +
+            `avgBundleBytes=${bundleWorkerAutotune.avgBundleBytes}).`
+          );
+        }
         const modeVectorExtension = resolveVectorExtensionConfigForMode(vectorExtension, mode, {
           sharedDb: sqliteSharedDb
         });
@@ -892,7 +1055,7 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
             outPath: tempOutputPath,
             mode,
             incrementalData,
-            envConfig,
+            envConfig: envConfigForMode,
             threadLimits,
             emitOutput,
             validateMode,
@@ -1053,6 +1216,19 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
             note: 'vector table missing after build'
           });
         }
+        if (sqliteStats?.bundleWorkerAutotune && bundleWorkerProfile?.modes) {
+          bundleWorkerProfile.modes[mode] = {
+            threads: sqliteStats.bundleWorkerAutotune.threads,
+            reason: sqliteStats.bundleWorkerAutotune.reason,
+            bundleCount: sqliteStats.bundleWorkerAutotune.bundleCount,
+            avgBundleBytes: sqliteStats.bundleWorkerAutotune.avgBundleBytes,
+            updatedAt: new Date().toISOString()
+          };
+          await saveSqliteBundleWorkerProfile({
+            profilePath: bundleWorkerProfilePath,
+            profile: bundleWorkerProfile
+          });
+        }
         done += 1;
         buildModeTask.set(done, modeList.length, { message: `${mode} done` });
       } catch (err) {
@@ -1104,3 +1280,8 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
     finalize();
   }
 }
+
+export const sqliteBuildRunnerInternals = Object.freeze({
+  resolveSqliteBundleWorkerProfilePath,
+  resolveBundleWorkerAutotune
+});

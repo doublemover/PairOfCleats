@@ -105,6 +105,42 @@ const toNumber = (value) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+/**
+ * Resolve a conservative subprocess fanout preset for platform/filesystem.
+ *
+ * Callers can use this as a baseline and still apply explicit config
+ * overrides. The preset intentionally prefers stability over maximal fanout on
+ * higher startup-cost environments.
+ *
+ * @param {{platform?:string,cpuCount?:number,filesystemProfile?:'ntfs'|'posix'|'unknown'}} [input]
+ * @returns {{maxParallelismHint:number,reason:string}}
+ */
+export const resolveSubprocessFanoutPreset = (input = {}) => {
+  const platform = typeof input.platform === 'string' ? input.platform : process.platform;
+  const filesystemProfile = typeof input.filesystemProfile === 'string'
+    ? input.filesystemProfile
+    : 'unknown';
+  const cpuCount = Number.isFinite(Number(input.cpuCount))
+    ? Math.max(1, Math.floor(Number(input.cpuCount)))
+    : 1;
+  if (platform === 'win32' || filesystemProfile === 'ntfs') {
+    return {
+      maxParallelismHint: Math.max(1, Math.min(cpuCount, Math.ceil(cpuCount * 0.75))),
+      reason: 'win32-ntfs-startup-cost'
+    };
+  }
+  if (filesystemProfile === 'posix') {
+    return {
+      maxParallelismHint: Math.max(1, cpuCount),
+      reason: 'posix-default'
+    };
+  }
+  return {
+    maxParallelismHint: Math.max(1, Math.min(cpuCount, Math.ceil(cpuCount * 0.85))),
+    reason: 'generic-conservative'
+  };
+};
+
 const resolveMaxOutputBytes = (value) => {
   const parsed = toNumber(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_MAX_OUTPUT_BYTES;

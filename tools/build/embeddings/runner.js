@@ -1775,7 +1775,48 @@ export async function runBuildEmbeddingsWithConfig(config) {
         const writerMaxPending = schedulerIoMaxPending
           ? Math.max(1, Math.min(defaultWriterMaxPending, schedulerIoMaxPending))
           : defaultWriterMaxPending;
-        const writerQueue = createBoundedWriterQueue({ scheduleIo, maxPending: writerMaxPending });
+        const writerAdaptiveCeiling = Math.max(writerMaxPending, Math.min(16, writerMaxPending * 2));
+        const writerAdaptiveFloor = Math.max(1, Math.min(writerMaxPending, Math.ceil(writerMaxPending * 0.5)));
+        const writerAdaptiveStepMs = Number.isFinite(Number(indexingConfig?.embeddings?.writerAdaptiveStepMs))
+          ? Math.max(100, Math.floor(Number(indexingConfig.embeddings.writerAdaptiveStepMs)))
+          : 500;
+        const writerAdaptiveRssLow = Number.isFinite(Number(indexingConfig?.embeddings?.writerAdaptiveRssLow))
+          ? Math.max(0, Math.min(1, Number(indexingConfig.embeddings.writerAdaptiveRssLow)))
+          : 0.62;
+        const writerAdaptiveRssHigh = Number.isFinite(Number(indexingConfig?.embeddings?.writerAdaptiveRssHigh))
+          ? Math.max(writerAdaptiveRssLow, Math.min(1, Number(indexingConfig.embeddings.writerAdaptiveRssHigh)))
+          : 0.9;
+        let writerAdaptiveLimit = writerMaxPending;
+        let writerAdaptiveLastAdjustAt = 0;
+        const resolveAdaptiveWriterLimit = () => {
+          const nowMs = Date.now();
+          if ((nowMs - writerAdaptiveLastAdjustAt) < writerAdaptiveStepMs) {
+            return writerAdaptiveLimit;
+          }
+          const schedulerStats = scheduler?.stats?.();
+          const memorySignals = schedulerStats?.adaptive?.signals?.memory || null;
+          const rssUtilization = Number(memorySignals?.rssUtilization);
+          const gcPressure = Number(memorySignals?.gcPressureScore);
+          if (!Number.isFinite(rssUtilization) || !Number.isFinite(gcPressure)) {
+            return writerAdaptiveLimit;
+          }
+          if (rssUtilization >= writerAdaptiveRssHigh || gcPressure >= 0.4) {
+            writerAdaptiveLimit = Math.max(writerAdaptiveFloor, writerAdaptiveLimit - 1);
+            writerAdaptiveLastAdjustAt = nowMs;
+            return writerAdaptiveLimit;
+          }
+          if (rssUtilization <= writerAdaptiveRssLow && gcPressure <= 0.2) {
+            writerAdaptiveLimit = Math.min(writerAdaptiveCeiling, writerAdaptiveLimit + 1);
+            writerAdaptiveLastAdjustAt = nowMs;
+            return writerAdaptiveLimit;
+          }
+          return writerAdaptiveLimit;
+        };
+        const writerQueue = createBoundedWriterQueue({
+          scheduleIo,
+          maxPending: writerMaxPending,
+          resolveMaxPending: resolveAdaptiveWriterLimit
+        });
         const cacheShardHandlePool = createShardAppendHandlePool();
 
         let sharedZeroVec = new Float32Array(0);

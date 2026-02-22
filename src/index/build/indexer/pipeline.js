@@ -195,6 +195,75 @@ export const shouldElideModalityProcessingStage = ({ fileCount, chunkCount }) =>
   Number(fileCount) === 0 && Number(chunkCount) === 0
 );
 
+const estimateEntryBytes = (entry) => {
+  const statSize = Number(entry?.stat?.size);
+  if (Number.isFinite(statSize) && statSize >= 0) return statSize;
+  const entrySize = Number(entry?.size);
+  if (Number.isFinite(entrySize) && entrySize >= 0) return entrySize;
+  return 0;
+};
+
+const estimateRepoLinesFromEntries = (entries = []) => {
+  let totalBytes = 0;
+  for (const entry of entries) {
+    totalBytes += estimateEntryBytes(entry);
+  }
+  // Conservative estimate; source trees with short lines still remain under
+  // tiny thresholds due the explicit file/byte guards.
+  const estimatedLines = Math.floor(totalBytes / 48);
+  return {
+    totalBytes,
+    estimatedLines
+  };
+};
+
+export const resolveTinyRepoFastPath = ({ runtime, entries = [] } = {}) => {
+  const config = runtime?.indexingConfig?.tinyRepoFastPath
+    && typeof runtime.indexingConfig.tinyRepoFastPath === 'object'
+    ? runtime.indexingConfig.tinyRepoFastPath
+    : {};
+  const enabled = config.enabled === true;
+  if (!enabled) {
+    return {
+      enabled: false,
+      active: false,
+      reason: 'disabled-or-unconfigured',
+      estimatedLines: 0,
+      totalBytes: 0,
+      fileCount: Array.isArray(entries) ? entries.length : 0
+    };
+  }
+  const fileCount = Array.isArray(entries) ? entries.length : 0;
+  const { totalBytes, estimatedLines } = estimateRepoLinesFromEntries(entries);
+  const maxEstimatedLines = Number.isFinite(Number(config.maxEstimatedLines))
+    ? Math.max(1000, Math.floor(Number(config.maxEstimatedLines)))
+    : 5000;
+  const maxFiles = Number.isFinite(Number(config.maxFiles))
+    ? Math.max(1, Math.floor(Number(config.maxFiles)))
+    : 256;
+  const maxBytes = Number.isFinite(Number(config.maxBytes))
+    ? Math.max(64 * 1024, Math.floor(Number(config.maxBytes)))
+    : 3 * 1024 * 1024;
+  const active = fileCount > 0
+    && fileCount <= maxFiles
+    && totalBytes <= maxBytes
+    && estimatedLines <= maxEstimatedLines;
+  return {
+    enabled: true,
+    active,
+    reason: active ? 'threshold-match' : 'threshold-miss',
+    estimatedLines,
+    totalBytes,
+    fileCount,
+    maxEstimatedLines,
+    maxFiles,
+    maxBytes,
+    disableImportGraph: active && config.disableImportGraph !== false,
+    disableCrossFileInference: active && config.disableCrossFileInference !== false,
+    minimalArtifacts: active && config.minimalArtifacts !== false
+  };
+};
+
 /**
  * Build the effective feature toggle set for a mode from runtime settings,
  * analysis policy flags, and index profile behavior.
@@ -789,14 +858,37 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   }, { stage: 'stage1', mode });
   throwIfAborted(abortSignal);
   const dictConfig = applyAdaptiveDictConfig(runtime.dictConfig, allEntries.length);
-  const runtimeRef = dictConfig === runtime.dictConfig
+  const tinyRepoFastPath = resolveTinyRepoFastPath({ runtime, entries: allEntries });
+  const tinyRepoFastPathActive = tinyRepoFastPath.active === true;
+  const runtimeRefBase = dictConfig === runtime.dictConfig
     ? runtime
     : { ...runtime, dictConfig };
+  const runtimeRef = tinyRepoFastPathActive
+    ? {
+      ...runtimeRefBase,
+      // Tiny-repo fast path: disable expensive cross-file analysis passes.
+      typeInferenceEnabled: false,
+      typeInferenceCrossFileEnabled: false,
+      riskAnalysisCrossFileEnabled: false,
+      tinyRepoFastPath
+    }
+    : runtimeRefBase;
   const vectorOnlyShortcuts = resolveVectorOnlyShortcutPolicy(runtimeRef);
   state.vectorOnlyShortcuts = vectorOnlyShortcuts.enabled
     ? {
       disableImportGraph: vectorOnlyShortcuts.disableImportGraph,
       disableCrossFileInference: vectorOnlyShortcuts.disableCrossFileInference
+    }
+    : null;
+  state.tinyRepoFastPath = tinyRepoFastPathActive
+    ? {
+      active: true,
+      estimatedLines: tinyRepoFastPath.estimatedLines,
+      totalBytes: tinyRepoFastPath.totalBytes,
+      fileCount: tinyRepoFastPath.fileCount,
+      disableImportGraph: tinyRepoFastPath.disableImportGraph,
+      disableCrossFileInference: tinyRepoFastPath.disableCrossFileInference,
+      minimalArtifacts: tinyRepoFastPath.minimalArtifacts
     }
     : null;
   if (vectorOnlyShortcuts.enabled) {
@@ -806,12 +898,31 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       + `disableCrossFileInference=${vectorOnlyShortcuts.disableCrossFileInference}.`
     );
   }
+  if (tinyRepoFastPathActive) {
+    log(
+      `[tiny_repo] fast path active: files=${tinyRepoFastPath.fileCount}, ` +
+      `bytes=${tinyRepoFastPath.totalBytes}, estimatedLines=${tinyRepoFastPath.estimatedLines}, ` +
+      `disableImportGraph=${tinyRepoFastPath.disableImportGraph}, ` +
+      `disableCrossFileInference=${tinyRepoFastPath.disableCrossFileInference}, ` +
+      `minimalArtifacts=${tinyRepoFastPath.minimalArtifacts}.`
+    );
+  }
   await updateBuildState(runtimeRef.buildRoot, {
     analysisShortcuts: {
       [mode]: {
         profileId: vectorOnlyShortcuts.profileId,
         disableImportGraph: vectorOnlyShortcuts.disableImportGraph,
-        disableCrossFileInference: vectorOnlyShortcuts.disableCrossFileInference
+        disableCrossFileInference: vectorOnlyShortcuts.disableCrossFileInference,
+        tinyRepoFastPath: tinyRepoFastPathActive
+          ? {
+            estimatedLines: tinyRepoFastPath.estimatedLines,
+            totalBytes: tinyRepoFastPath.totalBytes,
+            fileCount: tinyRepoFastPath.fileCount,
+            disableImportGraph: tinyRepoFastPath.disableImportGraph,
+            disableCrossFileInference: tinyRepoFastPath.disableCrossFileInference,
+            minimalArtifacts: tinyRepoFastPath.minimalArtifacts
+          }
+          : null
       }
     }
   });
@@ -867,8 +978,12 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   }
 
   const relationsEnabled = runtimeRef.stage !== 'stage1';
-  const importGraphEnabled = relationsEnabled && !vectorOnlyShortcuts.disableImportGraph;
-  const crossFileInferenceEnabled = relationsEnabled && !vectorOnlyShortcuts.disableCrossFileInference;
+  const importGraphEnabled = relationsEnabled
+    && !vectorOnlyShortcuts.disableImportGraph
+    && !(tinyRepoFastPathActive && tinyRepoFastPath.disableImportGraph);
+  const crossFileInferenceEnabled = relationsEnabled
+    && !vectorOnlyShortcuts.disableCrossFileInference
+    && !(tinyRepoFastPathActive && tinyRepoFastPath.disableCrossFileInference);
   advanceStage(stagePlan[1]);
   let { importResult, scanPlan } = await preScanImports({
     runtime: runtimeRef,
@@ -1065,11 +1180,24 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   }
 
   advanceStage(stagePlan[3]);
-  const { crossFileEnabled, graphRelations } = await (runtimeRef.scheduler?.schedule
-    ? runtimeRef.scheduler.schedule(
-      SCHEDULER_QUEUE_NAMES.stage2Relations,
-      { cpu: 1, mem: 1 },
-      () => runCrossFileInference({
+  let crossFileEnabled = false;
+  let graphRelations = null;
+  if (crossFileInferenceEnabled || importGraphEnabled) {
+    const relationsResult = await (runtimeRef.scheduler?.schedule
+      ? runtimeRef.scheduler.schedule(
+        SCHEDULER_QUEUE_NAMES.stage2Relations,
+        { cpu: 1, mem: 1 },
+        () => runCrossFileInference({
+          runtime: runtimeRef,
+          mode,
+          state,
+          crashLogger,
+          featureMetrics,
+          relationsEnabled: crossFileInferenceEnabled,
+          abortSignal
+        })
+      )
+      : runCrossFileInference({
         runtime: runtimeRef,
         mode,
         state,
@@ -1077,17 +1205,12 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
         featureMetrics,
         relationsEnabled: crossFileInferenceEnabled,
         abortSignal
-      })
-    )
-    : runCrossFileInference({
-      runtime: runtimeRef,
-      mode,
-      state,
-      crashLogger,
-      featureMetrics,
-      relationsEnabled: crossFileInferenceEnabled,
-      abortSignal
-    }));
+      }));
+    crossFileEnabled = relationsResult?.crossFileEnabled === true;
+    graphRelations = relationsResult?.graphRelations || null;
+  } else if (tinyRepoFastPathActive) {
+    log(`[tiny_repo] skipping relations stage for ${mode} (tiny-repo fast path).`);
+  }
   throwIfAborted(abortSignal);
   recordStageCheckpoint({
     stage: 'stage2',
@@ -1125,7 +1248,8 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       graphs: summarizeGraphRelations(graphRelations),
       shortcuts: {
         importGraphEnabled,
-        crossFileInferenceEnabled
+        crossFileInferenceEnabled,
+        tinyRepoFastPathActive
       }
     }
   });
@@ -1254,5 +1378,6 @@ export const indexerPipelineInternals = Object.freeze({
   buildModalitySparsityEntryKey,
   readModalitySparsityProfile,
   writeModalitySparsityEntry,
-  shouldElideModalityProcessingStage
+  shouldElideModalityProcessingStage,
+  resolveTinyRepoFastPath
 });

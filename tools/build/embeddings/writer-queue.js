@@ -1,11 +1,22 @@
-export const createBoundedWriterQueue = ({ scheduleIo, maxPending } = {}) => {
+export const createBoundedWriterQueue = ({
+  scheduleIo,
+  maxPending,
+  resolveMaxPending,
+  onAdjust
+} = {}) => {
   const resolvedMaxPending = Number.isFinite(Number(maxPending))
     ? Math.max(1, Math.floor(Number(maxPending)))
     : 1;
+  const resolveDynamicMaxPending = typeof resolveMaxPending === 'function' ? resolveMaxPending : null;
+  const onAdjustCallback = typeof onAdjust === 'function' ? onAdjust : null;
 
   const pending = new Set();
   const stats = {
     maxPending: resolvedMaxPending,
+    currentMaxPending: resolvedMaxPending,
+    peakDynamicMaxPending: resolvedMaxPending,
+    minDynamicMaxPending: resolvedMaxPending,
+    adjustments: 0,
     waits: 0,
     peakPending: 0,
     scheduled: 0,
@@ -26,8 +37,30 @@ export const createBoundedWriterQueue = ({ scheduleIo, maxPending } = {}) => {
     return settled;
   };
 
+  const getEffectiveMaxPending = () => {
+    if (!resolveDynamicMaxPending) return stats.currentMaxPending;
+    const resolved = Number(resolveDynamicMaxPending({
+      pending: pending.size,
+      maxPending: stats.currentMaxPending
+    }));
+    const next = Number.isFinite(resolved) && resolved > 0
+      ? Math.max(1, Math.floor(resolved))
+      : stats.currentMaxPending;
+    const prior = stats.currentMaxPending;
+    stats.currentMaxPending = next;
+    stats.peakDynamicMaxPending = Math.max(stats.peakDynamicMaxPending, next);
+    stats.minDynamicMaxPending = Math.min(stats.minDynamicMaxPending, next);
+    if (next !== prior) {
+      stats.adjustments += 1;
+      if (onAdjustCallback) {
+        onAdjustCallback({ from: prior, to: next, pending: pending.size });
+      }
+    }
+    return next;
+  };
+
   const awaitSlot = async () => {
-    while (pending.size >= resolvedMaxPending) {
+    while (pending.size >= getEffectiveMaxPending()) {
       stats.waits += 1;
       await Promise.race(pending);
     }

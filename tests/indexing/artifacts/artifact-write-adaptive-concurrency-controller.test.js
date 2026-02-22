@@ -87,6 +87,52 @@ assert.equal(
   'expected scale-up cooldown to expire after configured window'
 );
 
+let memoryNowMs = 0;
+const memoryEvents = [];
+const memoryController = createAdaptiveWriteConcurrencyController({
+  maxConcurrency: 6,
+  minConcurrency: 2,
+  initialConcurrency: 4,
+  scaleUpBacklogPerSlot: 1.2,
+  stallScaleDownSeconds: 10,
+  scaleUpCooldownMs: 0,
+  scaleDownCooldownMs: 0,
+  now: () => memoryNowMs,
+  onChange: (event) => {
+    memoryEvents.push(event);
+  }
+});
+
+memoryNowMs += 1;
+assert.equal(
+  memoryController.observe({
+    pendingWrites: 4,
+    activeWrites: 4,
+    longestStallSec: 0,
+    memoryPressure: 0.95,
+    gcPressure: 0.1,
+    rssUtilization: 0.82
+  }),
+  3,
+  'expected high memory pressure to scale concurrency down'
+);
+assert.equal(memoryEvents.at(-1)?.reason, 'memory-pressure', 'expected memory-pressure event reason');
+
+memoryNowMs += 1;
+assert.equal(
+  memoryController.observe({
+    pendingWrites: 3,
+    activeWrites: 2,
+    longestStallSec: 0,
+    memoryPressure: 0.42,
+    gcPressure: 0.08,
+    rssUtilization: 0.41
+  }),
+  4,
+  'expected low pressure + backlog to restore concurrency'
+);
+assert.equal(memoryEvents.at(-1)?.reason, 'memory-headroom', 'expected memory-headroom event reason');
+
 const ntfsStrategy = resolveArtifactWriteFsStrategy({
   platform: 'win32',
   artifactConfig: {

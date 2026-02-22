@@ -39,6 +39,7 @@ export const writeIndexArtifactsForMode = async ({
   stageCheckpoints
 }) => {
   const metaDebug = runtime?.argv?.verbose === true || runtime?.verboseCache === true;
+  const tinyRepoFastPath = state?.tinyRepoFastPath || runtime?.tinyRepoFastPath || null;
   const metaCheck = finalizeMetaV2({
     chunks: state.chunks,
     toolInfo: runtime.toolInfo,
@@ -161,6 +162,7 @@ export const writeIndexArtifactsForMode = async ({
     graphRelations,
     riskInterproceduralEmitArtifacts,
     repoProvenance: runtime.repoProvenance,
+    tinyRepoFastPath,
     indexState: {
       generatedAt: new Date().toISOString(),
       artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
@@ -200,7 +202,8 @@ export const writeIndexArtifactsForMode = async ({
         gitBlame: typeof runtime.analysisPolicy?.git?.blame === 'boolean'
           ? runtime.analysisPolicy.git.blame
           : runtime.gitBlameEnabled,
-        vectorOnlyShortcuts: state.vectorOnlyShortcuts || null
+        vectorOnlyShortcuts: state.vectorOnlyShortcuts || null,
+        tinyRepoFastPath
       },
       shards: runtime.shards?.enabled
         ? { enabled: true, plan: shardSummary }
