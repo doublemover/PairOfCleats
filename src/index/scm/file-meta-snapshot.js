@@ -2,6 +2,7 @@ import path from 'node:path';
 import PQueue from 'p-queue';
 import { toPosix, readJsonFileSafe } from '../../shared/files.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
+import { buildScmFreshnessGuard, getScmRuntimeConfigEpoch } from './runtime.js';
 
 const SCM_FILE_META_SNAPSHOT_SCHEMA_VERSION = 1;
 const SCM_FILE_META_SNAPSHOT_NAME = 'file-meta-v1.json';
@@ -64,6 +65,74 @@ const toUniqueFiles = (filesPosix = []) => {
   return out;
 };
 
+const attachGuardedMetaIndex = ({
+  fileMetaByPath,
+  provider,
+  repoRoot,
+  includeChurn,
+  freshnessGuard
+}) => {
+  if (!fileMetaByPath || typeof fileMetaByPath !== 'object') return fileMetaByPath;
+  const index = new Map();
+  for (const [rawPath, rawMeta] of Object.entries(fileMetaByPath)) {
+    const key = normalizeFileKey(rawPath);
+    if (!key) continue;
+    index.set(key, normalizeMeta(rawMeta));
+  }
+  let guardEpoch = -1;
+  let guardFresh = true;
+  const isFresh = () => {
+    if (!freshnessGuard?.key) return true;
+    const epoch = getScmRuntimeConfigEpoch();
+    if (epoch === guardEpoch) return guardFresh;
+    guardEpoch = epoch;
+    const runtimeGuard = buildScmFreshnessGuard({
+      provider,
+      repoRoot,
+      includeChurn
+    });
+    guardFresh = runtimeGuard.key === freshnessGuard.key;
+    return guardFresh;
+  };
+  Object.defineProperty(fileMetaByPath, 'get', {
+    enumerable: false,
+    configurable: true,
+    value: (filePosix) => {
+      if (!isFresh()) return null;
+      const key = normalizeFileKey(filePosix);
+      if (!key) return null;
+      return index.get(key) || null;
+    }
+  });
+  Object.defineProperty(fileMetaByPath, 'has', {
+    enumerable: false,
+    configurable: true,
+    value: (filePosix) => {
+      if (!isFresh()) return false;
+      const key = normalizeFileKey(filePosix);
+      return Boolean(key && index.has(key));
+    }
+  });
+  Object.defineProperty(fileMetaByPath, 'size', {
+    enumerable: false,
+    configurable: true,
+    value: index.size
+  });
+  Object.defineProperty(fileMetaByPath, 'freshness', {
+    enumerable: false,
+    configurable: true,
+    value: freshnessGuard?.key ? {
+      provider: freshnessGuard.provider || provider || null,
+      repoRoot: freshnessGuard.repoRoot || normalizeRepoRoot(repoRoot) || null,
+      headId: freshnessGuard.headId || null,
+      includeChurn: includeChurn === true,
+      configSignature: freshnessGuard.configSignature || null,
+      key: freshnessGuard.key
+    } : null
+  });
+  return fileMetaByPath;
+};
+
 const resolveChangedFileSet = async ({
   providerImpl,
   repoRoot,
@@ -92,7 +161,8 @@ const runBatchFetch = async ({
   repoRoot,
   filesPosix,
   includeChurn,
-  timeoutMs
+  timeoutMs,
+  headId
 }) => {
   if (!providerImpl || typeof providerImpl.getFileMetaBatch !== 'function') {
     return { ok: false, reason: 'unsupported' };
@@ -101,7 +171,8 @@ const runBatchFetch = async ({
     repoRoot,
     filesPosix,
     includeChurn,
-    timeoutMs
+    timeoutMs,
+    headId
   });
   if (!result || result.ok === false || !result.fileMetaByPath || typeof result.fileMetaByPath !== 'object') {
     return { ok: false, reason: result?.reason || 'unavailable' };
@@ -118,7 +189,8 @@ const runPerFileFetch = async ({
   filesPosix,
   includeChurn,
   timeoutMs,
-  maxConcurrency
+  maxConcurrency,
+  headId
 }) => {
   const queue = new PQueue({
     concurrency: Number.isFinite(Number(maxConcurrency)) && Number(maxConcurrency) > 0
@@ -131,7 +203,8 @@ const runPerFileFetch = async ({
       repoRoot,
       filePosix,
       includeChurn,
-      timeoutMs
+      timeoutMs,
+      headId
     });
     if (!meta || meta.ok === false) return;
     fileMetaByPath[filePosix] = normalizeMeta(meta);
@@ -183,6 +256,13 @@ export const prepareScmFileMetaSnapshot = async ({
   const snapshotPath = resolveScmFileMetaSnapshotPath(repoCacheRoot);
   const headId = resolveHeadId(repoProvenance);
   const dirty = resolveDirty(repoProvenance);
+  const freshnessGuard = buildScmFreshnessGuard({
+    provider: activeProvider,
+    repoRoot: resolvedRepoRoot,
+    repoProvenance,
+    repoHeadId: headId,
+    includeChurn
+  });
   const cached = await readJsonFileSafe(snapshotPath, { fallback: null, maxBytes: 64 * 1024 * 1024 });
   const cachedRoot = normalizeRepoRoot(cached?.repoRoot);
   const compatibleCached = cached
@@ -196,9 +276,16 @@ export const prepareScmFileMetaSnapshot = async ({
   const cachedFiles = compatibleCached ? normalizeFileMetaMap(cached.files) : Object.create(null);
   const cachedHeadId = compatibleCached ? String(cached.headId || '') : null;
   const cachedIncludeChurn = compatibleCached ? cached.includeChurn === true : false;
-  const canReuseByHead = Boolean(headId && cachedHeadId && headId === cachedHeadId && dirty === false);
+  const cachedConfigSignature = compatibleCached && typeof cached.configSignature === 'string' && cached.configSignature
+    ? cached.configSignature
+    : null;
+  const hasConfigSignaturePair = Boolean(freshnessGuard.configSignature && cachedConfigSignature);
+  const configCompatible = !hasConfigSignaturePair
+    || cachedConfigSignature === freshnessGuard.configSignature;
+  const canReuseByHead = configCompatible
+    && Boolean(headId && cachedHeadId && headId === cachedHeadId && dirty === false);
   let changedFileSet = null;
-  if (!canReuseByHead && compatibleCached && !dirty && cachedIncludeChurn === includeChurn) {
+  if (!canReuseByHead && compatibleCached && configCompatible && !dirty && cachedIncludeChurn === includeChurn) {
     changedFileSet = await resolveChangedFileSet({
       providerImpl,
       repoRoot,
@@ -209,7 +296,7 @@ export const prepareScmFileMetaSnapshot = async ({
 
   const reusable = Object.create(null);
   let reused = 0;
-  if (cachedIncludeChurn === includeChurn) {
+  if (configCompatible && cachedIncludeChurn === includeChurn) {
     for (const filePosix of targetFiles) {
       const meta = cachedFiles[filePosix];
       if (!meta) continue;
@@ -237,7 +324,8 @@ export const prepareScmFileMetaSnapshot = async ({
       repoRoot,
       filesPosix: missing,
       includeChurn,
-      timeoutMs: resolvedTimeoutMs
+      timeoutMs: resolvedTimeoutMs,
+      headId
     });
     if (batch.ok) {
       fetchedMap = batch.fileMetaByPath;
@@ -248,7 +336,8 @@ export const prepareScmFileMetaSnapshot = async ({
         filesPosix: missing,
         includeChurn,
         timeoutMs: resolvedTimeoutMs,
-        maxConcurrency: maxFallbackConcurrency
+        maxConcurrency: maxFallbackConcurrency,
+        headId
       });
       source = reused > 0 ? 'mixed-fallback' : 'fallback';
     }
@@ -257,7 +346,7 @@ export const prepareScmFileMetaSnapshot = async ({
   }
 
   const persisted = Object.create(null);
-  if (compatibleCached && cachedIncludeChurn === includeChurn) {
+  if (configCompatible && compatibleCached && cachedIncludeChurn === includeChurn) {
     for (const [filePosix, meta] of Object.entries(cachedFiles)) {
       if (changedFileSet && changedFileSet.has(filePosix)) continue;
       persisted[filePosix] = meta;
@@ -274,6 +363,8 @@ export const prepareScmFileMetaSnapshot = async ({
     headId: headId || null,
     dirty,
     includeChurn: includeChurn === true,
+    freshnessKey: freshnessGuard.key || null,
+    configSignature: freshnessGuard.configSignature || null,
     updatedAt: new Date().toISOString(),
     files: persisted
   };
@@ -284,6 +375,13 @@ export const prepareScmFileMetaSnapshot = async ({
     const meta = persisted[filePosix];
     if (meta) fileMetaByPath[filePosix] = meta;
   }
+  attachGuardedMetaIndex({
+    fileMetaByPath,
+    provider: activeProvider,
+    repoRoot: resolvedRepoRoot,
+    includeChurn,
+    freshnessGuard
+  });
   const fetched = Object.keys(fetchedMap).length;
   if (logFn) {
     logFn(

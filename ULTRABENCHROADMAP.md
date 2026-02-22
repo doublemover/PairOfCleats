@@ -313,7 +313,7 @@ Primary targets:
 - Touchpoints: `src/index/scm/providers/git.js`, `src/index/scm/file-meta-snapshot.js`, `src/index/scm/runner.js`, `src/index/build/runtime/runtime.js`, `tests/indexing/git/git-meta-timeout-backoff.test.js`, `tests/indexing/git/git-meta-warning-details.test.js`
 
 ### UB-031: Repository-level git metadata prefetch
-- Status: [ ]
+- Status: [x]
 - Problem:
   - Per-file metadata gathering can be expensive when repeated.
 - Tasks:
@@ -324,6 +324,13 @@ Primary targets:
   - Throughput test compares per-file vs prefetch model.
 - Exit criteria:
   - Lower SCM overhead and reduced subprocess churn.
+- Completion: 2026-02-22T07:08:37.7066082-05:00
+- Validation:
+  - `node tests/indexing/scm/file-meta-snapshot-reuse.test.js`
+  - `node tests/indexing/scm/git-provider-meta-batch-parallel.test.js`
+  - `node tests/indexing/file-processor/scm-file-meta-snapshot-fastpath.test.js`
+  - `node tests/indexing/scm/build-state-repo-provenance.test.js`
+  - `node tests/indexing/scm/index-build-git-provider.test.js`
 - Improvement Intent (What): git metadata collection speed
 - Improvement Method (How): batched prefetch, locality-aware execution, and reusable caches.
 - Integrated Betterments: batch git calls by directory locality to improve cache hits in git internals; keep a short-lived process pool for git subprocess reuse; add corruption-safe cache invalidation keyed by HEAD and index config signature.

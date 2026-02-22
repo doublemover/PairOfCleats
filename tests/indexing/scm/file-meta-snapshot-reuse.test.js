@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { prepareScmFileMetaSnapshot, resolveScmFileMetaSnapshotPath } from '../../../src/index/scm/file-meta-snapshot.js';
+import { getScmRuntimeConfig, setScmRuntimeConfig } from '../../../src/index/scm/runtime.js';
 import { ensureTestingEnv } from '../../helpers/test-env.js';
 
 ensureTestingEnv(process.env);
@@ -16,6 +17,7 @@ const files = ['src/a.js', 'src/b.js', 'src/c.js'];
 let head = 'headA';
 let changedCalls = 0;
 const batchCalls = [];
+const defaultScmRuntimeConfig = getScmRuntimeConfig();
 const providerImpl = {
   async getChangedFiles({ fromRef, toRef }) {
     changedCalls += 1;
@@ -42,6 +44,7 @@ const providerImpl = {
 };
 
 try {
+  setScmRuntimeConfig({ repoHeadId: 'headA', snapshotSalt: 'v1' });
   const first = await prepareScmFileMetaSnapshot({
     repoCacheRoot: cacheRoot,
     provider: 'git',
@@ -54,8 +57,10 @@ try {
   assert.equal(first.stats.fetched, 3, 'expected first snapshot to fetch all files');
   assert.equal(first.stats.reused, 0, 'expected first snapshot to reuse nothing');
   assert.equal(first.fileMetaByPath['src/a.js'].lastAuthor, 'headA:src/a.js');
+  assert.equal(first.fileMetaByPath.get('src/a.js')?.lastAuthor, 'headA:src/a.js');
 
   head = 'headB';
+  setScmRuntimeConfig({ repoHeadId: 'headB', snapshotSalt: 'v1' });
   const second = await prepareScmFileMetaSnapshot({
     repoCacheRoot: cacheRoot,
     provider: 'git',
@@ -70,6 +75,7 @@ try {
   assert.equal(second.fileMetaByPath['src/a.js'].lastAuthor, 'headA:src/a.js');
   assert.equal(second.fileMetaByPath['src/b.js'].lastAuthor, 'headB:src/b.js');
 
+  setScmRuntimeConfig({ repoHeadId: 'headB', snapshotSalt: 'v1' });
   const third = await prepareScmFileMetaSnapshot({
     repoCacheRoot: cacheRoot,
     provider: 'git',
@@ -81,14 +87,42 @@ try {
   });
   assert.equal(third.stats.source, 'cache', 'expected full cache reuse at same head');
   assert.equal(third.stats.fetched, 0, 'expected no fetches at same head');
+  assert.equal(third.fileMetaByPath.get('src/a.js')?.lastAuthor, 'headA:src/a.js');
+
+  setScmRuntimeConfig({ repoHeadId: 'headB', snapshotSalt: 'v2' });
+  const fourth = await prepareScmFileMetaSnapshot({
+    repoCacheRoot: cacheRoot,
+    provider: 'git',
+    providerImpl,
+    repoRoot,
+    repoProvenance: { head: { commitId: 'headB' }, dirty: false },
+    filesPosix: files,
+    includeChurn: false
+  });
+  assert.equal(
+    fourth.stats.reused,
+    0,
+    'expected config-signature guard to prevent stale same-head snapshot reuse'
+  );
+  assert.equal(fourth.stats.fetched, 3, 'expected config-signature mismatch to trigger a refetch');
+  assert.equal(fourth.fileMetaByPath.get('src/a.js')?.lastAuthor, 'headB:src/a.js');
+
+  setScmRuntimeConfig({ repoHeadId: 'headA', snapshotSalt: 'v2' });
+  assert.equal(
+    fourth.fileMetaByPath.get('src/a.js'),
+    null,
+    'expected runtime head mismatch to invalidate guarded snapshot lookups'
+  );
 
   assert.equal(changedCalls >= 1, true, 'expected changed-files provider call');
   assert.deepEqual(batchCalls[0], ['src/a.js', 'src/b.js', 'src/c.js']);
   assert.deepEqual(batchCalls[1], ['src/b.js']);
+  assert.deepEqual(batchCalls[2], ['src/a.js', 'src/b.js', 'src/c.js']);
 
   const snapshotPath = resolveScmFileMetaSnapshotPath(cacheRoot);
   assert.equal(fs.existsSync(snapshotPath), true, 'expected snapshot file to persist');
 } finally {
+  setScmRuntimeConfig(defaultScmRuntimeConfig);
   fs.rmSync(cacheRoot, { recursive: true, force: true });
 }
 

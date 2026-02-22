@@ -834,6 +834,8 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     );
   setScmRuntimeConfig({
     ...scmConfig,
+    repoHeadId: scmHeadId || null,
+    repoProvenance,
     maxConcurrentProcesses: normalizedScmMaxConcurrentProcesses,
     runtime: {
       cpuCount,
