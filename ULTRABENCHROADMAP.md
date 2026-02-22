@@ -247,7 +247,7 @@ Primary targets:
 - Touchpoints: `src/index/build/artifacts-write.js`, `src/shared/artifact-io.js`, `src/shared/artifact-io/jsonl.js`, `src/shared/artifact-io/binary-columnar.js`, `tests/indexing/artifacts/artifact-write-adaptive-concurrency-controller.test.js`, `tests/indexing/artifacts/artifact-write-ultra-light-lane-concurrency.test.js`, `tests/perf/artifact-io/streaming-vs-full.test.js`
 
 ### UB-021: Persistent binary artifact preference
-- Status: [ ]
+- Status: [x]
 - Problem:
   - JSON serialization overhead remains significant for large metadata sets.
 - Tasks:
@@ -258,10 +258,16 @@ Primary targets:
   - Determinism + parity tests binary vs JSON fallback reads.
 - Exit criteria:
   - Lower write/read wall time and reduced memory spikes.
+- Completion: 2026-02-22T07:24:49.5329514-05:00
+- Validation:
+  - `node tests/shared/artifact-io/prefer-binary-columnar-loaders.test.js`
+  - `node tests/indexing/contracts/loader-matrix-parity.test.js`
+  - `node tests/indexing/artifacts/packed-artifact-fastpath.test.js`
+  - `node tests/indexing/chunk-meta/chunk-meta-hot-cold-split.test.js`
 - Improvement Intent (What): artifact I/O speed
 - Improvement Method (How): binary-first storage/load path with strict schema evolution.
 - Integrated Betterments: adopt binary-first read path with JSON as strict debug fallback only; add schema evolution metadata with explicit hard cutovers; add cross-platform binary compatibility checks (endianness/version guards).
-- Touchpoints: `src/shared/artifact-io/loaders/binary-columnar.js`, `src/shared/artifact-io/loaders/chunk-meta.js`, `src/shared/artifact-io/manifest.js`, `src/shared/chunk-meta-cold.js`, `tests/shared/artifact-io/prefer-binary-columnar-loaders.test.js`, `tests/indexing/artifacts/packed-artifact-fastpath.test.js`
+- Touchpoints: `src/shared/artifact-io/loaders/binary-columnar.js`, `src/shared/artifact-io/loaders/chunk-meta.js`, `src/shared/artifact-io/loaders/token-postings.js`, `src/shared/artifact-io/manifest.js`, `src/shared/chunk-meta-cold.js`, `tests/shared/artifact-io/prefer-binary-columnar-loaders.test.js`, `tests/indexing/artifacts/packed-artifact-fastpath.test.js`
 
 ### UB-022: Records incremental-bundle parity
 - Status: [ ]

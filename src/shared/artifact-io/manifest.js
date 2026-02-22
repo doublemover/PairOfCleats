@@ -22,6 +22,17 @@ const normalizeManifest = (raw) => {
   return { ...source, pieces };
 };
 
+export const resolveManifestBinaryColumnarPreference = (
+  manifest,
+  { fallback = true } = {}
+) => {
+  const preferFromManifest = manifest?.reader?.preferBinaryColumnar;
+  if (typeof preferFromManifest === 'boolean') {
+    return preferFromManifest;
+  }
+  return fallback !== false;
+};
+
 const normalizeCompatibilityKey = (value) => {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();

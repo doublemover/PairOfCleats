@@ -89,8 +89,15 @@ assert.equal(chunkMetaDefault[0]?.file, 'json.cc', 'expected manifest JSON chunk
 const chunkMetaPreferred = await loadChunkMeta(testRoot, { strict: true, preferBinaryColumnar: true });
 assert.equal(
   chunkMetaPreferred[0]?.file,
-  'json.cc',
-  'expected chunk_meta preference to honor manifest format when binary is not declared'
+  'binary.cc',
+  'expected chunk_meta preference to use binary-columnar fast path when available'
+);
+
+const chunkMetaImplicitPreference = await loadChunkMeta(testRoot, { strict: true });
+assert.equal(
+  chunkMetaImplicitPreference[0]?.file,
+  'binary.cc',
+  'expected chunk_meta loader default to prefer binary-columnar when available'
 );
 
 await writePiecesManifest(testRoot, [
@@ -110,5 +117,12 @@ assert.equal(postingsDefault?.vocab?.[0], 'json_tok', 'expected manifest JSON to
 const postingsPreferred = loadTokenPostings(testRoot, { strict: true, preferBinaryColumnar: true });
 assert.equal(postingsPreferred?.vocab?.[0], 'binary_tok', 'expected binary token_postings when preference is enabled');
 assert.deepEqual(postingsPreferred?.postings?.[0], [[1, 2], [5, 1]], 'expected binary postings payload to be decoded');
+
+const postingsImplicitPreference = loadTokenPostings(testRoot, { strict: true });
+assert.equal(
+  postingsImplicitPreference?.vocab?.[0],
+  'binary_tok',
+  'expected token_postings loader default to prefer binary-columnar when available'
+);
 
 console.log('prefer binary-columnar loaders test passed');

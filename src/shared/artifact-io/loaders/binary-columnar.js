@@ -6,6 +6,27 @@ import { decodeBinaryRowFrameLengths, decodeU64Offsets } from '../binary-columna
 import { decodeVarint64List } from '../varint.js';
 import { readJsonFileCached } from './shared.js';
 
+const SUPPORTED_BINARY_COLUMNAR_FORMAT = 'binary-columnar-v1';
+const SUPPORTED_BINARY_BYTE_ORDER = new Set(['le', 'little', 'little-endian']);
+
+const assertSupportedBinaryColumnarMeta = (metaRaw, label) => {
+  const fields = metaRaw?.fields && typeof metaRaw.fields === 'object'
+    ? metaRaw.fields
+    : metaRaw;
+  const format = typeof fields?.format === 'string' ? fields.format.trim().toLowerCase() : '';
+  if (format && format !== SUPPORTED_BINARY_COLUMNAR_FORMAT) {
+    throw new Error(
+      `Unsupported ${label} format: ${fields.format}; expected ${SUPPORTED_BINARY_COLUMNAR_FORMAT}`
+    );
+  }
+  const byteOrderRaw = typeof fields?.byteOrder === 'string'
+    ? fields.byteOrder.trim().toLowerCase()
+    : '';
+  if (byteOrderRaw && !SUPPORTED_BINARY_BYTE_ORDER.has(byteOrderRaw)) {
+    throw new Error(`Unsupported ${label} byteOrder: ${fields.byteOrder}`);
+  }
+};
+
 /**
  * Load framed binary-columnar row payload slices.
  *
@@ -66,6 +87,7 @@ const tryLoadChunkMetaBinaryColumnar = (dir, { maxBytes = MAX_JSON_BYTES } = {})
   const metaPath = path.join(dir, 'chunk_meta.binary-columnar.meta.json');
   if (!existsOrBak(metaPath)) return null;
   const metaRaw = readJsonFileCached(resolvePathOrBak(metaPath), { maxBytes });
+  assertSupportedBinaryColumnarMeta(metaRaw, 'chunk_meta binary-columnar');
   const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
   const fileTable = Array.isArray(metaRaw?.arrays?.fileTable) ? metaRaw.arrays.fileTable : [];
   const count = Number.isFinite(Number(meta?.count)) ? Math.max(0, Math.floor(Number(meta.count))) : 0;
@@ -129,9 +151,14 @@ const tryLoadTokenPostingsBinaryColumnar = (dir, { maxBytes = MAX_JSON_BYTES } =
   const metaPath = path.join(dir, 'token_postings.binary-columnar.meta.json');
   if (!existsOrBak(metaPath)) return null;
   const metaRaw = readJsonFileCached(resolvePathOrBak(metaPath), { maxBytes });
+  assertSupportedBinaryColumnarMeta(metaRaw, 'token_postings binary-columnar');
   const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
   const arrays = metaRaw?.arrays && typeof metaRaw.arrays === 'object' ? metaRaw.arrays : {};
   const count = Number.isFinite(Number(meta?.count)) ? Math.max(0, Math.floor(Number(meta.count))) : 0;
+  const vocab = Array.isArray(arrays.vocab) ? arrays.vocab : [];
+  const vocabIds = Array.isArray(arrays.vocabIds) ? arrays.vocabIds : [];
+  if (count > 0 && vocab.length === 0) return null;
+  if (vocabIds.length > 0 && vocabIds.length !== vocab.length) return null;
   const dataPath = path.join(dir, typeof meta?.data === 'string' ? meta.data : 'token_postings.binary-columnar.bin');
   const offsetsPath = path.join(
     dir,
@@ -152,8 +179,6 @@ const tryLoadTokenPostingsBinaryColumnar = (dir, { maxBytes = MAX_JSON_BYTES } =
   for (let i = 0; i < payloads.length; i += 1) {
     postings[i] = decodePostingPairsVarint(payloads[i]);
   }
-  const vocab = Array.isArray(arrays.vocab) ? arrays.vocab : [];
-  const vocabIds = Array.isArray(arrays.vocabIds) ? arrays.vocabIds : [];
   const docLengths = Array.isArray(arrays.docLengths) ? arrays.docLengths : [];
   return {
     ...meta,

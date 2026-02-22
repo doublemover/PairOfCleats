@@ -1,7 +1,11 @@
 import { MAX_JSON_BYTES } from '../constants.js';
 import { readJsonFile, readJsonLinesArray } from '../json.js';
 import { resolveJsonlRequiredKeys } from '../jsonl.js';
-import { loadPiecesManifest, resolveManifestArtifactSources } from '../manifest.js';
+import {
+  loadPiecesManifest,
+  resolveManifestArtifactSources,
+  resolveManifestBinaryColumnarPreference
+} from '../manifest.js';
 import { decodeVarint64List } from '../varint.js';
 import { mergeChunkMetaColdFields } from '../../chunk-meta-cold.js';
 import { normalizeMetaV2ForRead } from '../../meta-v2.js';
@@ -166,7 +170,7 @@ export const loadChunkMeta = async (
     maxBytes = MAX_JSON_BYTES,
     manifest = null,
     strict = true,
-    preferBinaryColumnar = false,
+    preferBinaryColumnar = true,
     materializeTokenIds = false,
     includeCold = true
   } = {}
@@ -174,6 +178,9 @@ export const loadChunkMeta = async (
   const requiredKeys = resolveJsonlRequiredKeys('chunk_meta');
   const validationMode = strict ? 'strict' : 'trusted';
   const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
+  const useBinaryColumnar = resolveManifestBinaryColumnarPreference(resolvedManifest, {
+    fallback: preferBinaryColumnar
+  });
   const sources = resolveManifestArtifactSources({
     dir,
     manifest: resolvedManifest,
@@ -195,7 +202,7 @@ export const loadChunkMeta = async (
     });
     return normalizeChunkMetaMetaV2(mergeChunkMetaColdRows(rows, coldRows));
   };
-  if (preferBinaryColumnar && sources.format === 'binary-columnar') {
+  if (useBinaryColumnar) {
     const binaryRows = tryLoadChunkMetaBinaryColumnar(dir, { maxBytes });
     if (binaryRows) {
       const merged = await maybeMergeCold(binaryRows);

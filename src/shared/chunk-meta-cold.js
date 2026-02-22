@@ -1,4 +1,5 @@
 const hasOwn = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
+export const CHUNK_META_COLD_SCHEMA_VERSION = 1;
 
 export const CHUNK_META_COLD_FIELDS = Object.freeze([
   'preContext',

@@ -4,7 +4,11 @@ import { MAX_JSON_BYTES } from '../constants.js';
 import { existsOrBak, resolvePathOrBak } from '../fs.js';
 import { readJsonFile } from '../json.js';
 import { createPackedChecksumValidator } from '../checksum.js';
-import { loadPiecesManifest, resolveManifestArtifactSources } from '../manifest.js';
+import {
+  loadPiecesManifest,
+  resolveManifestArtifactSources,
+  resolveManifestBinaryColumnarPreference
+} from '../manifest.js';
 import {
   DEFAULT_PACKED_BLOCK_SIZE,
   decodePackedOffsets,
@@ -41,12 +45,15 @@ export const loadTokenPostings = (
     maxBytes = MAX_JSON_BYTES,
     manifest = null,
     strict = true,
-    preferBinaryColumnar = false,
+    preferBinaryColumnar = true,
     packedWindowTokens = 1024,
     packedWindowBytes = 16 * 1024 * 1024
   } = {}
 ) => {
   const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
+  const useBinaryColumnar = resolveManifestBinaryColumnarPreference(resolvedManifest, {
+    fallback: preferBinaryColumnar
+  });
   const resolveManifestPiece = (targetPath, expectedName = null) => {
     if (!resolvedManifest || typeof resolvedManifest !== 'object') return null;
     const pieces = Array.isArray(resolvedManifest.pieces) ? resolvedManifest.pieces : [];
@@ -270,7 +277,7 @@ export const loadTokenPostings = (
       docLengths
     };
   };
-  if (preferBinaryColumnar) {
+  if (useBinaryColumnar) {
     const binary = tryLoadTokenPostingsBinaryColumnar(dir, { maxBytes });
     if (binary) return binary;
   }

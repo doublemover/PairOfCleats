@@ -5,6 +5,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
+import { loadTokenPostings } from '../../../src/shared/artifact-io/loaders.js';
 
 const root = process.cwd();
 const cacheRoot = path.join(root, '.testCache', 'packed-artifact-fastpath');
@@ -90,6 +91,12 @@ for (const file of forbidden) {
     console.error(`Expected artifact to be skipped: ${file}`);
     process.exit(1);
   }
+}
+
+const tokenIndex = loadTokenPostings(indexDir, { strict: true });
+if (!Array.isArray(tokenIndex?.postings) || tokenIndex.postings.length === 0) {
+  console.error('Expected packed/binary token_postings loader to return postings rows.');
+  process.exit(1);
 }
 
 console.log('packed artifact fastpath test passed');
