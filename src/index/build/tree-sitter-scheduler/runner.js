@@ -28,6 +28,13 @@ const CRASH_BUNDLE_FILE = 'crash-forensics.json';
 const DEFAULT_DURABLE_DIR = '_crash-forensics';
 const SUBPROCESS_GRAMMAR_PROGRESS_RE = /^\[tree-sitter:schedule\]\s+(\S+):\s+(start|done)\b/i;
 const SUBPROCESS_OUTPUT_TAIL_LINES = 24;
+const DEFAULT_WARM_POOL_MIN_KEYS_FOR_SPLIT = 8;
+const DEFAULT_SCHEDULER_TASK_TIMEOUT_MS = 120000;
+const DEFAULT_SCHEDULER_TASK_TIMEOUT_BASE_MS = 30000;
+const DEFAULT_SCHEDULER_TASK_TIMEOUT_PER_WAVE_MS = 15000;
+const DEFAULT_SCHEDULER_TASK_TIMEOUT_PER_JOB_MS = 120;
+const MIN_SCHEDULER_TASK_TIMEOUT_MS = 10000;
+const MAX_SCHEDULER_TASK_TIMEOUT_MS = 30 * 60 * 1000;
 const require = createRequire(import.meta.url);
 const packageVersionCache = new Map();
 
@@ -483,7 +490,14 @@ const resolveWarmPoolLaneCount = ({
   if (Number.isFinite(perGrammarRaw) && perGrammarRaw > 0) {
     return Math.max(1, Math.min(keyCount, Math.floor(perGrammarRaw)));
   }
-  if (keyCount < 4) return 1;
+  const configuredMinKeysRaw = Number(
+    schedulerConfig?.warmPoolMinKeysForSplit
+      ?? schedulerConfig?.warmPoolSplitMinKeys
+  );
+  const minKeysForSplit = Number.isFinite(configuredMinKeysRaw) && configuredMinKeysRaw > 0
+    ? Math.max(2, Math.floor(configuredMinKeysRaw))
+    : DEFAULT_WARM_POOL_MIN_KEYS_FOR_SPLIT;
+  if (keyCount < minKeysForSplit) return 1;
   const byConcurrency = Number.isFinite(execConcurrency) && execConcurrency > 0
     ? Math.max(1, Math.floor(execConcurrency / 2))
     : 1;
@@ -498,6 +512,72 @@ const resolveWarmPoolLaneCount = ({
     heuristic = 3;
   }
   return Math.max(1, Math.min(keyCount, byConcurrency, heuristic));
+};
+
+const clampSchedulerTaskTimeoutMs = (value, maxValue = MAX_SCHEDULER_TASK_TIMEOUT_MS) => {
+  const parsed = Number(value);
+  const resolvedMax = Number.isFinite(Number(maxValue)) && Number(maxValue) >= MIN_SCHEDULER_TASK_TIMEOUT_MS
+    ? Math.floor(Number(maxValue))
+    : MAX_SCHEDULER_TASK_TIMEOUT_MS;
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return Math.min(DEFAULT_SCHEDULER_TASK_TIMEOUT_MS, resolvedMax);
+  }
+  const normalized = Math.floor(parsed);
+  return Math.max(MIN_SCHEDULER_TASK_TIMEOUT_MS, Math.min(resolvedMax, normalized));
+};
+
+const resolveSchedulerTaskTimeoutMs = ({
+  schedulerConfig,
+  task,
+  groupByGrammarKey
+}) => {
+  const explicitTimeoutRaw = Number(
+    schedulerConfig?.subprocessTimeoutMs
+      ?? schedulerConfig?.taskTimeoutMs
+  );
+  const maxTimeoutRaw = Number(
+    schedulerConfig?.subprocessTimeoutMaxMs
+      ?? schedulerConfig?.taskTimeoutMaxMs
+      ?? MAX_SCHEDULER_TASK_TIMEOUT_MS
+  );
+  if (Number.isFinite(explicitTimeoutRaw) && explicitTimeoutRaw > 0) {
+    return clampSchedulerTaskTimeoutMs(explicitTimeoutRaw, maxTimeoutRaw);
+  }
+
+  const timeoutBaseMsRaw = Number(
+    schedulerConfig?.subprocessTimeoutBaseMs
+      ?? schedulerConfig?.taskTimeoutBaseMs
+      ?? DEFAULT_SCHEDULER_TASK_TIMEOUT_BASE_MS
+  );
+  const timeoutPerWaveMsRaw = Number(
+    schedulerConfig?.subprocessTimeoutPerWaveMs
+      ?? schedulerConfig?.taskTimeoutPerWaveMs
+      ?? DEFAULT_SCHEDULER_TASK_TIMEOUT_PER_WAVE_MS
+  );
+  const timeoutPerJobMsRaw = Number(
+    schedulerConfig?.subprocessTimeoutPerJobMs
+      ?? schedulerConfig?.taskTimeoutPerJobMs
+      ?? DEFAULT_SCHEDULER_TASK_TIMEOUT_PER_JOB_MS
+  );
+  const timeoutBaseMs = Number.isFinite(timeoutBaseMsRaw) && timeoutBaseMsRaw > 0
+    ? Math.floor(timeoutBaseMsRaw)
+    : DEFAULT_SCHEDULER_TASK_TIMEOUT_BASE_MS;
+  const timeoutPerWaveMs = Number.isFinite(timeoutPerWaveMsRaw) && timeoutPerWaveMsRaw >= 0
+    ? Math.floor(timeoutPerWaveMsRaw)
+    : DEFAULT_SCHEDULER_TASK_TIMEOUT_PER_WAVE_MS;
+  const timeoutPerJobMs = Number.isFinite(timeoutPerJobMsRaw) && timeoutPerJobMsRaw >= 0
+    ? Math.floor(timeoutPerJobMsRaw)
+    : DEFAULT_SCHEDULER_TASK_TIMEOUT_PER_JOB_MS;
+  const grammarKeysForTask = Array.isArray(task?.grammarKeys) ? task.grammarKeys : [];
+  const waveCount = grammarKeysForTask.length;
+  let jobCount = 0;
+  for (const grammarKey of grammarKeysForTask) {
+    const jobs = Number(groupByGrammarKey.get(grammarKey)?.jobs);
+    if (!Number.isFinite(jobs) || jobs <= 0) continue;
+    jobCount += Math.floor(jobs);
+  }
+  const computedTimeoutMs = timeoutBaseMs + (waveCount * timeoutPerWaveMs) + (jobCount * timeoutPerJobMs);
+  return clampSchedulerTaskTimeoutMs(computedTimeoutMs, maxTimeoutRaw);
 };
 
 /**
@@ -857,10 +937,15 @@ export const runTreeSitterScheduler = async ({
         }
         const grammarKeysForTask = Array.isArray(task?.grammarKeys) ? task.grammarKeys : [];
         if (!grammarKeysForTask.length) return;
+        const taskTimeoutMs = resolveSchedulerTaskTimeoutMs({
+          schedulerConfig,
+          task,
+          groupByGrammarKey
+        });
         if (log) {
           log(
             `[tree-sitter:schedule] batch ${ctx.index + 1}/${warmPoolTasks.length}: ${task.taskId} `
-            + `(waves=${grammarKeysForTask.length}, lane=${task.laneIndex}/${task.laneCount})`
+            + `(waves=${grammarKeysForTask.length}, lane=${task.laneIndex}/${task.laneCount}, timeout=${taskTimeoutMs}ms)`
           );
         }
         const linePrefix = `[tree-sitter:schedule:${task.taskId}]`;
@@ -892,6 +977,7 @@ export const runTreeSitterScheduler = async ({
               stdio: ['ignore', 'pipe', 'pipe'],
               shell: false,
               signal: abortSignal,
+              timeoutMs: taskTimeoutMs,
               killTree: true,
               rejectOnNonZeroExit: true,
               onStdout: streamLogs ? (chunk) => stdoutBuffer.push(chunk) : null,
@@ -909,7 +995,11 @@ export const runTreeSitterScheduler = async ({
           const signal = typeof err?.result?.signal === 'string' ? err.result.signal : null;
           const hasInjectedCrashExit = exitCode === 86;
           const hasNativeCrashExit = isSubprocessCrashExit({ exitCode, signal });
-          const containsCrashEvent = subprocessCrashEvents.length > 0 || hasInjectedCrashExit || hasNativeCrashExit;
+          const isTimeoutExit = err?.code === 'SUBPROCESS_TIMEOUT';
+          const containsCrashEvent = subprocessCrashEvents.length > 0
+            || hasInjectedCrashExit
+            || hasNativeCrashExit
+            || isTimeoutExit;
           if (!containsCrashEvent) throw err;
           const inferredFailedGrammarKeys = inferFailedGrammarKeysFromSubprocessOutput({
             grammarKeysForTask,
@@ -919,9 +1009,15 @@ export const runTreeSitterScheduler = async ({
           const failureKeys = inferredFailedGrammarKeys.length
             ? inferredFailedGrammarKeys
             : grammarKeysForTask;
+          if (isTimeoutExit && typeof log === 'function') {
+            log(
+              `[tree-sitter:schedule] subprocess timeout in ${task.taskId} after ${taskTimeoutMs}ms; ` +
+              `degrading ${failureKeys.join(', ')}`
+            );
+          }
           const crashStage = typeof subprocessCrashEvents[0]?.stage === 'string'
             ? subprocessCrashEvents[0].stage
-            : 'scheduler-subprocess';
+            : (isTimeoutExit ? 'scheduler-subprocess-timeout' : 'scheduler-subprocess');
           for (const grammarKey of failureKeys) {
             await crashTracker.recordFailure({
               grammarKey,
@@ -1040,5 +1136,6 @@ export const treeSitterSchedulerRunnerInternals = Object.freeze({
   resolveExecutionOrder,
   buildWarmPoolTasks,
   isSubprocessCrashExit,
-  inferFailedGrammarKeysFromSubprocessOutput
+  inferFailedGrammarKeysFromSubprocessOutput,
+  resolveSchedulerTaskTimeoutMs
 });
