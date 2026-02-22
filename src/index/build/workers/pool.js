@@ -20,6 +20,132 @@ import {
 } from './config.js';
 import { sanitizePoolPayload, sanitizeQuantizePayload, summarizeError } from './protocol.js';
 
+const PRESSURE_STATE_NORMAL = 'normal';
+const PRESSURE_STATE_SOFT = 'soft-pressure';
+const PRESSURE_STATE_HARD = 'hard-pressure';
+const PRESSURE_STATES = new Set([
+  PRESSURE_STATE_NORMAL,
+  PRESSURE_STATE_SOFT,
+  PRESSURE_STATE_HARD
+]);
+
+const clampRatio = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return 0;
+  return Math.max(0, Math.min(1, parsed));
+};
+
+const normalizeLanguageId = (value) => (
+  typeof value === 'string' && value.trim()
+    ? value.trim().toLowerCase()
+    : ''
+);
+
+const toFiniteTimestamp = (value, fallback = 0) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+};
+
+export const resolveMemoryPressureState = ({
+  pressureRatio,
+  watermarkSoft = 0.94,
+  watermarkHard = 0.985,
+  currentState = PRESSURE_STATE_NORMAL
+}) => {
+  const ratio = clampRatio(pressureRatio);
+  const soft = clampRatio(watermarkSoft);
+  const hard = Math.max(soft, clampRatio(watermarkHard));
+  const prior = PRESSURE_STATES.has(currentState) ? currentState : PRESSURE_STATE_NORMAL;
+  const softRecover = Math.max(0, soft - 0.02);
+  const hardRecover = Math.max(softRecover, hard - 0.02);
+  if (prior === PRESSURE_STATE_HARD) {
+    if (ratio >= hardRecover) return PRESSURE_STATE_HARD;
+    if (ratio >= softRecover) return PRESSURE_STATE_SOFT;
+    return PRESSURE_STATE_NORMAL;
+  }
+  if (prior === PRESSURE_STATE_SOFT) {
+    if (ratio >= hard) return PRESSURE_STATE_HARD;
+    if (ratio >= softRecover) return PRESSURE_STATE_SOFT;
+    return PRESSURE_STATE_NORMAL;
+  }
+  if (ratio >= hard) return PRESSURE_STATE_HARD;
+  if (ratio >= soft) return PRESSURE_STATE_SOFT;
+  return PRESSURE_STATE_NORMAL;
+};
+
+export const resolveLanguageThrottleLimit = ({
+  pressureState = PRESSURE_STATE_NORMAL,
+  languageId = '',
+  throttleConfig = {}
+}) => {
+  if (throttleConfig?.enabled === false) return Number.POSITIVE_INFINITY;
+  const state = PRESSURE_STATES.has(pressureState) ? pressureState : PRESSURE_STATE_NORMAL;
+  if (state === PRESSURE_STATE_NORMAL) return Number.POSITIVE_INFINITY;
+  const normalizedLanguageId = normalizeLanguageId(languageId);
+  const heavyLanguages = throttleConfig?.heavyLanguages instanceof Set
+    ? throttleConfig.heavyLanguages
+    : new Set(
+      Array.isArray(throttleConfig?.heavyLanguages)
+        ? throttleConfig.heavyLanguages.map((entry) => normalizeLanguageId(entry)).filter(Boolean)
+        : []
+    );
+  const softMax = Number.isFinite(Number(throttleConfig?.softMaxPerLanguage))
+    ? Math.max(1, Math.floor(Number(throttleConfig.softMaxPerLanguage)))
+    : 4;
+  const hardMax = Number.isFinite(Number(throttleConfig?.hardMaxPerLanguage))
+    ? Math.max(0, Math.floor(Number(throttleConfig.hardMaxPerLanguage)))
+    : 2;
+  const normalizedHardMax = Math.min(softMax, Math.max(0, hardMax));
+  const isHeavyLanguage = heavyLanguages.has(normalizedLanguageId);
+  const blockHeavyOnHardPressure = throttleConfig?.blockHeavyOnHardPressure !== false;
+  if (state === PRESSURE_STATE_HARD) {
+    if (!isHeavyLanguage) return Number.POSITIVE_INFINITY;
+    if (blockHeavyOnHardPressure) return 0;
+    return normalizedHardMax;
+  }
+  if (!isHeavyLanguage) return Number.POSITIVE_INFINITY;
+  return softMax;
+};
+
+export const evictDeterministicPressureCacheEntries = ({
+  cache,
+  maxEntries
+}) => {
+  if (!(cache instanceof Map)) return [];
+  const normalizedMaxEntries = Number.isFinite(Number(maxEntries))
+    ? Math.max(1, Math.floor(Number(maxEntries)))
+    : 0;
+  if (!normalizedMaxEntries || cache.size <= normalizedMaxEntries) return [];
+  const overflow = cache.size - normalizedMaxEntries;
+  const ranked = Array.from(cache.entries())
+    .map(([key, value]) => {
+      const sizeBytes = Number(value?.sizeBytes);
+      return {
+        key,
+        sizeBytes: Number.isFinite(sizeBytes) && sizeBytes >= 0 ? sizeBytes : 0,
+        firstSeenAt: toFiniteTimestamp(value?.firstSeenAt, 0)
+      };
+    })
+    .sort((a, b) => {
+      if (a.sizeBytes !== b.sizeBytes) return b.sizeBytes - a.sizeBytes;
+      if (a.firstSeenAt !== b.firstSeenAt) return a.firstSeenAt - b.firstSeenAt;
+      return String(a.key).localeCompare(String(b.key));
+    });
+  const evicted = [];
+  for (let i = 0; i < overflow; i += 1) {
+    const entry = ranked[i];
+    if (!entry) break;
+    if (cache.delete(entry.key)) {
+      evicted.push({
+        key: entry.key,
+        sizeBytes: entry.sizeBytes,
+        firstSeenAt: entry.firstSeenAt
+      });
+    }
+  }
+  return evicted;
+};
+
 /**
  * Build a deterministic NUMA assignment plan for worker slots.
  *
@@ -277,6 +403,41 @@ export async function createIndexerWorkerPool(input = {}) {
     const upscaleGcThreshold = Number.isFinite(poolConfig?.upscaleGcThreshold)
       ? Math.max(0.4, Math.min(downscaleGcThreshold, Number(poolConfig.upscaleGcThreshold)))
       : Math.max(0.4, downscaleGcThreshold - 0.1);
+    const memoryPressureConfig = poolConfig?.memoryPressure
+      && typeof poolConfig.memoryPressure === 'object'
+      ? poolConfig.memoryPressure
+      : {};
+    const pressureWatermarkSoft = Number.isFinite(Number(memoryPressureConfig?.watermarkSoft))
+      ? clampRatio(memoryPressureConfig.watermarkSoft)
+      : 0.97;
+    const pressureWatermarkHard = Number.isFinite(Number(memoryPressureConfig?.watermarkHard))
+      ? Math.max(pressureWatermarkSoft, clampRatio(memoryPressureConfig.watermarkHard))
+      : Math.max(pressureWatermarkSoft, 0.992);
+    const pressureCacheMaxEntries = Number.isFinite(Number(memoryPressureConfig?.cacheMaxEntries))
+      ? Math.max(1, Math.floor(Number(memoryPressureConfig.cacheMaxEntries)))
+      : 2048;
+    const rawLanguageThrottle = memoryPressureConfig?.languageThrottle
+      && typeof memoryPressureConfig.languageThrottle === 'object'
+      ? memoryPressureConfig.languageThrottle
+      : {};
+    const throttleHeavyLanguageSet = new Set(
+      Array.isArray(rawLanguageThrottle?.heavyLanguages)
+        ? rawLanguageThrottle.heavyLanguages.map((entry) => normalizeLanguageId(entry)).filter(Boolean)
+        : []
+    );
+    const languageThrottleSoftMax = Number.isFinite(Number(rawLanguageThrottle?.softMaxPerLanguage))
+      ? Math.max(1, Math.floor(Number(rawLanguageThrottle.softMaxPerLanguage)))
+      : Math.max(2, Math.min(configuredMaxWorkers, Math.max(4, Math.floor(configuredMaxWorkers * 0.85))));
+    const languageThrottleHardMax = Number.isFinite(Number(rawLanguageThrottle?.hardMaxPerLanguage))
+      ? Math.max(0, Math.floor(Number(rawLanguageThrottle.hardMaxPerLanguage)))
+      : Math.max(1, Math.floor(languageThrottleSoftMax * 0.5));
+    const languageThrottleConfig = {
+      enabled: rawLanguageThrottle?.enabled !== false,
+      heavyLanguages: throttleHeavyLanguageSet,
+      softMaxPerLanguage: languageThrottleSoftMax,
+      hardMaxPerLanguage: Math.min(languageThrottleSoftMax, languageThrottleHardMax),
+      blockHeavyOnHardPressure: rawLanguageThrottle?.blockHeavyOnHardPressure !== false
+    };
     let pool = null;
     let disabled = false;
     let permanentlyDisabled = false;
@@ -298,6 +459,18 @@ export async function createIndexerWorkerPool(input = {}) {
     let pressureUpscaleEvents = 0;
     let lastPressureDownscaleAtMs = 0;
     let lastPressureUpscaleAtMs = 0;
+    let pressureState = PRESSURE_STATE_NORMAL;
+    let pressureTransitions = 0;
+    let lastPressureTransitionAtMs = 0;
+    let pressureThrottleWaitCount = 0;
+    let pressureThrottleWaitMs = 0;
+    let pressureHardBlockCount = 0;
+    let pressureCacheEvictionCount = 0;
+    let pressureCacheEvictionBytes = 0;
+    const tokenizeInFlightByLanguage = new Map();
+    const pressureThrottleWaitersByLanguage = new Map();
+    const pressureCache = new Map();
+    let pressureCacheOrdinal = 0;
     const workerExecArgv = buildWorkerExecArgv();
     const heapPolicy = resolveWorkerHeapBudgetPolicy({
       targetPerWorkerMb: poolConfig.heapTargetMb,
@@ -387,6 +560,164 @@ export async function createIndexerWorkerPool(input = {}) {
         : null;
       target.levels = payload?.levels ?? null;
     };
+    const notifyThrottleWaiters = (languageId = null) => {
+      const keys = [];
+      if (typeof languageId === 'string' && languageId) keys.push(languageId);
+      keys.push('*');
+      for (const key of keys) {
+        const waiters = pressureThrottleWaitersByLanguage.get(key);
+        if (!waiters || waiters.size === 0) continue;
+        pressureThrottleWaitersByLanguage.delete(key);
+        for (const resolve of waiters.values()) {
+          try {
+            resolve();
+          } catch {}
+        }
+      }
+    };
+    const registerThrottleWaiter = (languageId, resolve) => {
+      const key = typeof languageId === 'string' && languageId ? languageId : '*';
+      let waiters = pressureThrottleWaitersByLanguage.get(key);
+      if (!waiters) {
+        waiters = new Set();
+        pressureThrottleWaitersByLanguage.set(key, waiters);
+      }
+      waiters.add(resolve);
+      return () => {
+        const current = pressureThrottleWaitersByLanguage.get(key);
+        if (!current) return;
+        current.delete(resolve);
+        if (current.size === 0) {
+          pressureThrottleWaitersByLanguage.delete(key);
+        }
+      };
+    };
+    const waitForThrottleSignal = (languageId) => new Promise((resolve) => {
+      let settled = false;
+      const onResolve = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        releaseLang();
+        releaseAll();
+        resolve();
+      };
+      const releaseLang = registerThrottleWaiter(languageId, onResolve);
+      const releaseAll = registerThrottleWaiter('*', onResolve);
+      const timer = setTimeout(onResolve, 50);
+      if (typeof timer?.unref === 'function') timer.unref();
+    });
+    const updatePressureState = ({ pressureRatio, rssPressure, gcPressure, reason = 'sample' }) => {
+      const nextState = resolveMemoryPressureState({
+        pressureRatio,
+        watermarkSoft: pressureWatermarkSoft,
+        watermarkHard: pressureWatermarkHard,
+        currentState: pressureState
+      });
+      if (nextState === pressureState) return nextState;
+      const previousState = pressureState;
+      pressureState = nextState;
+      pressureTransitions += 1;
+      lastPressureTransitionAtMs = Date.now();
+      log(
+        `[workers] pressure state ${previousState}->${nextState} ` +
+        `(ratio=${clampRatio(pressureRatio).toFixed(3)}, rss=${clampRatio(rssPressure).toFixed(3)}, ` +
+        `heap=${clampRatio(gcPressure).toFixed(3)}, reason=${reason}).`
+      );
+      notifyThrottleWaiters();
+      return nextState;
+    };
+    const readProcessPressureSample = () => {
+      const usage = process.memoryUsage();
+      const heapUsed = Number(usage?.heapUsed) || 0;
+      const heapTotal = Number(usage?.heapTotal) || 0;
+      const rss = Number(usage?.rss) || 0;
+      const heapUtilization = heapTotal > 0
+        ? clampRatio(heapUsed / heapTotal)
+        : 0;
+      const rssPressure = maxGlobalRssBytes
+        ? clampRatio(rss / maxGlobalRssBytes)
+        : 0;
+      const pressureRatio = clampRatio(Math.max(heapUtilization, rssPressure));
+      return { heapUsed, heapTotal, rss, heapUtilization, rssPressure, pressureRatio };
+    };
+    const resolvePayloadSizeBytes = (payload) => {
+      if (payload && Number.isFinite(Number(payload.size)) && Number(payload.size) >= 0) {
+        return Math.floor(Number(payload.size));
+      }
+      if (typeof payload?.text === 'string') {
+        return Buffer.byteLength(payload.text, 'utf8');
+      }
+      return 0;
+    };
+    const recordPressureCacheEntry = (payload) => {
+      if (!(pressureCache instanceof Map)) return;
+      const languageId = normalizeLanguageId(payload?.languageId);
+      const mode = typeof payload?.mode === 'string' ? payload.mode.toLowerCase() : '';
+      if (!languageId || mode !== 'code') return;
+      const fileKey = typeof payload?.file === 'string' && payload.file.trim()
+        ? payload.file.trim()
+        : null;
+      const key = fileKey || `${languageId}:anon:${pressureCacheOrdinal++}`;
+      const sizeBytes = resolvePayloadSizeBytes(payload);
+      const prior = pressureCache.get(key);
+      pressureCache.set(key, {
+        languageId,
+        sizeBytes,
+        firstSeenAt: prior?.firstSeenAt ?? Date.now()
+      });
+      const evicted = evictDeterministicPressureCacheEntries({
+        cache: pressureCache,
+        maxEntries: pressureCacheMaxEntries
+      });
+      if (!evicted.length) return;
+      pressureCacheEvictionCount += evicted.length;
+      for (const entry of evicted) {
+        pressureCacheEvictionBytes += Number(entry?.sizeBytes) || 0;
+      }
+    };
+    const acquireLanguageThrottleSlot = async (payload) => {
+      const languageId = normalizeLanguageId(payload?.languageId);
+      const mode = typeof payload?.mode === 'string' ? payload.mode.toLowerCase() : '';
+      if (!languageId || mode !== 'code') return null;
+      while (true) {
+        const sample = readProcessPressureSample();
+        updatePressureState({
+          pressureRatio: sample.pressureRatio,
+          rssPressure: sample.rssPressure,
+          gcPressure: sample.heapUtilization,
+          reason: 'tokenize-admission'
+        });
+        const limit = resolveLanguageThrottleLimit({
+          pressureState,
+          languageId,
+          throttleConfig: languageThrottleConfig
+        });
+        const active = Number(tokenizeInFlightByLanguage.get(languageId) || 0);
+        if (!Number.isFinite(limit) || active < limit) {
+          tokenizeInFlightByLanguage.set(languageId, active + 1);
+          return { languageId, limit };
+        }
+        if (limit === 0) {
+          pressureHardBlockCount += 1;
+        }
+        const waitStart = Date.now();
+        await waitForThrottleSignal(languageId);
+        pressureThrottleWaitCount += 1;
+        pressureThrottleWaitMs += Math.max(0, Date.now() - waitStart);
+      }
+    };
+    const releaseLanguageThrottleSlot = (slot) => {
+      const languageId = normalizeLanguageId(slot?.languageId);
+      if (!languageId) return;
+      const current = Number(tokenizeInFlightByLanguage.get(languageId) || 0);
+      if (current <= 1) {
+        tokenizeInFlightByLanguage.delete(languageId);
+      } else {
+        tokenizeInFlightByLanguage.set(languageId, current - 1);
+      }
+      notifyThrottleWaiters(languageId);
+    };
     const normalizeQuantizeVectors = (vectors) => {
       if (!Array.isArray(vectors) || vectors.length === 0) {
         return { vectors: [], transferList: [], typedTempCount: 0 };
@@ -447,30 +778,28 @@ export async function createIndexerWorkerPool(input = {}) {
     let gcGlobalPressure = 0;
     let gcGlobalHeapUtilization = 0;
     let gcGlobalRssPressure = 0;
-    const clampRatio = (value) => {
-      const parsed = Number(value);
-      if (!Number.isFinite(parsed)) return 0;
-      return Math.max(0, Math.min(1, parsed));
-    };
     const updateGcTelemetry = (workerId, durationMs = null) => {
       const now = Date.now();
       if ((now - lastGcSampleAt) < gcSampleIntervalMs) return null;
       lastGcSampleAt = now;
-      const usage = process.memoryUsage();
-      const heapUsed = Number(usage?.heapUsed) || 0;
-      const heapTotal = Number(usage?.heapTotal) || 0;
-      const rss = Number(usage?.rss) || 0;
-      const heapUtilization = heapTotal > 0
-        ? clampRatio(heapUsed / heapTotal)
-        : 0;
-      const rssPressure = maxGlobalRssBytes
-        ? clampRatio(rss / maxGlobalRssBytes)
-        : 0;
-      const pressureRatio = clampRatio(Math.max(heapUtilization, rssPressure));
+      const {
+        heapUsed,
+        heapTotal,
+        rss,
+        heapUtilization,
+        rssPressure,
+        pressureRatio
+      } = readProcessPressureSample();
       gcSampleCount += 1;
       gcGlobalPressure = pressureRatio;
       gcGlobalHeapUtilization = heapUtilization;
       gcGlobalRssPressure = rssPressure;
+      updatePressureState({
+        pressureRatio,
+        rssPressure,
+        gcPressure: heapUtilization,
+        reason: 'worker-task'
+      });
       setStageGcPressure({ stage: normalizedStage, value: pressureRatio });
       if (workerId == null) return;
       const key = String(workerId);
@@ -898,6 +1227,32 @@ export async function createIndexerWorkerPool(input = {}) {
               ? new Date(lastPressureDownscaleAtMs).toISOString()
               : null
           },
+          memoryPressure: {
+            state: pressureState,
+            transitions: pressureTransitions,
+            lastTransitionAt: lastPressureTransitionAtMs
+              ? new Date(lastPressureTransitionAtMs).toISOString()
+              : null,
+            watermarkSoft: pressureWatermarkSoft,
+            watermarkHard: pressureWatermarkHard,
+            languageThrottle: {
+              enabled: languageThrottleConfig.enabled !== false,
+              heavyLanguages: Array.from(languageThrottleConfig.heavyLanguages || []),
+              softMaxPerLanguage: languageThrottleConfig.softMaxPerLanguage,
+              hardMaxPerLanguage: languageThrottleConfig.hardMaxPerLanguage,
+              blockHeavyOnHardPressure: languageThrottleConfig.blockHeavyOnHardPressure !== false,
+              waitCount: pressureThrottleWaitCount,
+              waitMs: pressureThrottleWaitMs,
+              hardBlockCount: pressureHardBlockCount,
+              activeByLanguage: Object.fromEntries(tokenizeInFlightByLanguage.entries())
+            },
+            cacheEviction: {
+              maxEntries: pressureCacheMaxEntries,
+              entries: pressureCache.size,
+              evictions: pressureCacheEvictionCount,
+              evictedBytes: pressureCacheEvictionBytes
+            }
+          },
           numaPinning: {
             enabled: poolConfig?.numaPinning?.enabled === true,
             active: numaPinningPlan.active === true,
@@ -945,6 +1300,7 @@ export async function createIndexerWorkerPool(input = {}) {
       async tokenizeChunk(payload) {
         activeTasks += 1;
         updatePoolMetrics();
+        let throttleSlot = null;
         try {
           if (disabled && !(await ensurePool())) {
             if (crashLogger?.enabled) {
@@ -964,6 +1320,8 @@ export async function createIndexerWorkerPool(input = {}) {
             }
             return null;
           }
+          recordPressureCacheEntry(payload);
+          throttleSlot = await acquireLanguageThrottleSlot(payload);
           const result = await pool.run(
             sanitizePoolPayload(payload, sanitizeDictConfig(payload?.dictConfig)),
             { name: 'tokenizeChunk' }
@@ -1021,6 +1379,7 @@ export async function createIndexerWorkerPool(input = {}) {
           }
           return null;
         } finally {
+          releaseLanguageThrottleSlot(throttleSlot);
           activeTasks = Math.max(0, activeTasks - 1);
           updatePoolMetrics();
           if (activeTasks === 0) {
@@ -1136,6 +1495,7 @@ export async function createIndexerWorkerPool(input = {}) {
       async destroy() {
         disabled = true;
         restartAttempts = maxRestartAttempts + 1;
+        notifyThrottleWaiters();
         await shutdownPool();
       }
     };
