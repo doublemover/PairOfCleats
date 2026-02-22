@@ -38,6 +38,92 @@ const gunzipWithLimit = (buffer, maxBytes, sourcePath) => {
 
 const stripBak = (filePath) => (filePath.endsWith('.bak') ? filePath.slice(0, -4) : filePath);
 
+export const ARTIFACT_COMPRESSION_TIERS = Object.freeze(['hot', 'warm', 'cold']);
+
+const normalizeTierName = (value, fallback = 'warm') => {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  if (normalized === 'hot' || normalized === 'warm' || normalized === 'cold') return normalized;
+  return fallback;
+};
+
+const normalizeArtifactName = (value) => (
+  typeof value === 'string'
+    ? value
+      .trim()
+      .toLowerCase()
+      .replace(/\\/g, '/')
+      .replace(/\.json(?:l)?(?:\.(?:gz|zst))?$/i, '')
+      .replace(/\.packed\.bin$/i, '')
+      .replace(/\.bin$/i, '')
+      .replace(/\.meta$/i, '')
+      .replace(/(^|\/)pieces\//, '')
+    : ''
+);
+
+const toArtifactNameSet = (values) => {
+  const out = new Set();
+  if (!Array.isArray(values)) return out;
+  for (const value of values) {
+    const normalized = normalizeArtifactName(value);
+    if (normalized) out.add(normalized);
+  }
+  return out;
+};
+
+const DEFAULT_HOT_ARTIFACTS = Object.freeze([
+  'chunk_meta',
+  'chunk_uid_map',
+  'file_meta',
+  'token_postings',
+  'token_postings_packed',
+  'token_postings_binary-columnar',
+  'token_postings_binary-columnar_meta',
+  'dense_vectors_uint8',
+  'dense_vectors_doc_uint8',
+  'dense_vectors_code_uint8',
+  'dense_meta'
+]);
+
+const DEFAULT_COLD_ARTIFACTS = Object.freeze([
+  'repo_map',
+  'risk_summaries',
+  'risk_flows',
+  'call_sites',
+  'graph_relations',
+  'graph_relations_meta',
+  'determinism_report',
+  'extraction_report',
+  'vocab_order'
+]);
+
+/**
+ * Resolve hot/warm/cold compression tier for an artifact surface.
+ *
+ * @param {string} artifactName
+ * @param {{
+ *   hotArtifacts?: string[],
+ *   coldArtifacts?: string[],
+ *   defaultTier?: 'hot'|'warm'|'cold'
+ * }} [options]
+ * @returns {'hot'|'warm'|'cold'}
+ */
+export const resolveArtifactCompressionTier = (
+  artifactName,
+  {
+    hotArtifacts = DEFAULT_HOT_ARTIFACTS,
+    coldArtifacts = DEFAULT_COLD_ARTIFACTS,
+    defaultTier = 'warm'
+  } = {}
+) => {
+  const normalizedName = normalizeArtifactName(artifactName);
+  if (!normalizedName) return normalizeTierName(defaultTier, 'warm');
+  const hotSet = toArtifactNameSet(hotArtifacts);
+  const coldSet = toArtifactNameSet(coldArtifacts);
+  if (hotSet.has(normalizedName)) return 'hot';
+  if (coldSet.has(normalizedName)) return 'cold';
+  return normalizeTierName(defaultTier, 'warm');
+};
+
 export const detectCompression = (filePath) => {
   const target = stripBak(filePath);
   if (target.endsWith('.gz')) return 'gzip';

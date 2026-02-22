@@ -5,7 +5,11 @@ import { getBakPath } from '../cache.js';
 import { existsOrBak } from '../fs.js';
 import { readJsonFile, readJsonLinesArray, readJsonLinesArraySync, readJsonLinesIterator } from '../json.js';
 import { resolveJsonlRequiredKeys } from '../jsonl.js';
-import { loadPiecesManifest, resolveManifestArtifactSources } from '../manifest.js';
+import {
+  loadPiecesManifest,
+  resolveManifestArtifactSources,
+  resolveManifestMmapHotLayoutPreference
+} from '../manifest.js';
 import {
   createLoaderError,
   assertNoShardIndexGaps,
@@ -17,6 +21,28 @@ import {
 const resolveManifestMaxBytes = (maxBytes) => (
   Number.isFinite(Number(maxBytes)) ? Number(maxBytes) : MAX_JSON_BYTES
 );
+
+const resolveSourceLayoutSummary = ({ manifest, sources }) => {
+  const entries = Array.isArray(sources?.entries) ? sources.entries : [];
+  if (!entries.length) return null;
+  const preferMmapHotLayout = resolveManifestMmapHotLayoutPreference(manifest);
+  let hotCount = 0;
+  let hotContiguousCount = 0;
+  for (const entry of entries) {
+    const tier = typeof entry?.tier === 'string' ? entry.tier.trim().toLowerCase() : '';
+    const layout = entry?.layout && typeof entry.layout === 'object' ? entry.layout : null;
+    const contiguous = layout?.contiguous === true;
+    if (tier === 'hot') {
+      hotCount += 1;
+      if (contiguous) hotContiguousCount += 1;
+    }
+  }
+  return {
+    preferMmapHotLayout,
+    hotCount,
+    hotContiguousCount
+  };
+};
 
 const resolveReadableArtifactPath = (targetPath) => {
   if (fs.existsSync(targetPath)) return targetPath;
@@ -57,13 +83,15 @@ const resolveRequiredSources = ({
   const resolvedOffsets = Array.isArray(sources.offsets)
     ? sources.offsets.map(resolveReadableArtifactPath)
     : null;
+  const layout = resolveSourceLayoutSummary({ manifest, sources });
   if (sources.format === 'json' || sources.format === 'columnar') {
     if (sources.paths.length > 1) {
       if (!strict) {
         return {
           ...sources,
           paths: [resolvedPaths[0]],
-          offsets: resolvedOffsets ? [resolvedOffsets[0]] : null
+          offsets: resolvedOffsets ? [resolvedOffsets[0]] : null,
+          layout
         };
       }
       throw createLoaderError(
@@ -74,14 +102,16 @@ const resolveRequiredSources = ({
     return {
       ...sources,
       paths: resolvedPaths,
-      offsets: resolvedOffsets
+      offsets: resolvedOffsets,
+      layout
     };
   }
   assertNoShardIndexGaps(resolvedPaths, name);
   return {
     ...sources,
     paths: resolvedPaths,
-    offsets: resolvedOffsets
+    offsets: resolvedOffsets,
+    layout
   };
 };
 

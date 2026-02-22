@@ -795,7 +795,7 @@ Last revised: 2026-02-22T05:44:04.8332760-05:00
 - Touchpoints: `tools/bench/language/repos.js`, `tools/bench/language/process.js`, `tools/bench/language/config.js`, `tools/bench/language/locks.js`, `tests/perf/bench/bench-language-lock.test.js`
 
 ### UB-080: Artifact compression and mmap-friendly layout
-- Status: [ ]
+- Status: [x]
 - Observation:
   - Artifact volume is high; read-path can benefit from contiguous layout.
 - Tasks:
@@ -803,6 +803,11 @@ Last revised: 2026-02-22T05:44:04.8332760-05:00
   - Re-layout hot artifacts for mmap-friendly contiguous reads.
 - Exit criteria:
   - Lower disk footprint and faster warm-load behavior.
+- Completion: 2026-02-22T09:28:44.6286009-05:00
+- Validation:
+  - `node tests/shared/artifact-io/compression-tier-resolution.test.js`
+  - `node tests/shared/artifact-io/manifest-mmap-hot-layout.test.js`
+  - `node tests/shared/artifact-io/artifact-io-spec-contract.test.js`
 - Improvement Intent (What): artifact footprint and load speed
 - Improvement Method (How): hot/warm/cold compression tiers and mmap-friendly layout.
 - Integrated Betterments: classify artifacts into hot/warm/cold tiers before compression decisions; optimize layout for sequential mmap reads in hot paths; add compression CPU budget guardrails.

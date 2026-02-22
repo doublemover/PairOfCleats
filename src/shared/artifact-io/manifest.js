@@ -1,7 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { MAX_JSON_BYTES } from './constants.js';
-import { existsOrBak } from './fs.js';
+import {
+  existsOrBak,
+  resolveManifestEntryLayoutOrder,
+  resolveManifestEntryTier
+} from './fs.js';
 import { readJsonFile } from './json.js';
 import { readCache, writeCache } from './cache.js';
 import { getTestEnvConfig } from '../env.js';
@@ -27,6 +31,17 @@ export const resolveManifestBinaryColumnarPreference = (
   { fallback = true } = {}
 ) => {
   const preferFromManifest = manifest?.reader?.preferBinaryColumnar;
+  if (typeof preferFromManifest === 'boolean') {
+    return preferFromManifest;
+  }
+  return fallback !== false;
+};
+
+export const resolveManifestMmapHotLayoutPreference = (
+  manifest,
+  { fallback = true } = {}
+) => {
+  const preferFromManifest = manifest?.reader?.preferMmapHotLayout;
   if (typeof preferFromManifest === 'boolean') {
     return preferFromManifest;
   }
@@ -242,6 +257,18 @@ const resolveCompressionPreference = (entry) => {
   return 2;
 };
 
+const isCompressedVariant = (entry) => {
+  const value = typeof entry?.path === 'string' ? entry.path.toLowerCase() : '';
+  return value.endsWith('.zst') || value.endsWith('.gz');
+};
+
+const resolveHotLayoutPreference = (entry, preferMmapHotLayout) => {
+  if (!preferMmapHotLayout) return 1;
+  const tier = resolveManifestEntryTier(entry, 'warm');
+  if (tier !== 'hot') return 1;
+  return isCompressedVariant(entry) ? 1 : 0;
+};
+
 const canResolveSingleVariantEntry = (entries) => {
   const basePaths = new Set(
     entries
@@ -251,12 +278,17 @@ const canResolveSingleVariantEntry = (entries) => {
   return basePaths.size === 1;
 };
 
-const selectCanonicalVariantEntry = (entries) => (
+const selectCanonicalVariantEntry = (entries, { preferMmapHotLayout = true } = {}) => (
   entries
     .slice()
     .sort((a, b) => {
+      const hotLayoutDiff = resolveHotLayoutPreference(a, preferMmapHotLayout)
+        - resolveHotLayoutPreference(b, preferMmapHotLayout);
+      if (hotLayoutDiff !== 0) return hotLayoutDiff;
       const compressionDiff = resolveCompressionPreference(a) - resolveCompressionPreference(b);
       if (compressionDiff !== 0) return compressionDiff;
+      const layoutDiff = resolveManifestEntryLayoutOrder(a) - resolveManifestEntryLayoutOrder(b);
+      if (Number.isFinite(layoutDiff) && layoutDiff !== 0) return layoutDiff;
       const left = a?.path || '';
       const right = b?.path || '';
       return left < right ? -1 : (left > right ? 1 : 0);
@@ -345,13 +377,18 @@ export const resolveManifestArtifactSources = ({ dir, manifest, name, strict, ma
   }
   if (!entries.length) return null;
   let resolvedEntries = entries.slice().sort((a, b) => {
+    const layoutDiff = resolveManifestEntryLayoutOrder(a) - resolveManifestEntryLayoutOrder(b);
+    if (Number.isFinite(layoutDiff) && layoutDiff !== 0) return layoutDiff;
     const aPath = a?.path || '';
     const bPath = b?.path || '';
     return aPath < bPath ? -1 : (aPath > bPath ? 1 : 0);
   });
   if (resolvedEntries.length > 1 && strict) {
     if (canResolveSingleVariantEntry(resolvedEntries)) {
-      const selected = selectCanonicalVariantEntry(resolvedEntries);
+      const selected = selectCanonicalVariantEntry(
+        resolvedEntries,
+        { preferMmapHotLayout: resolveManifestMmapHotLayoutPreference(manifest) }
+      );
       resolvedEntries = selected ? [selected] : resolvedEntries;
     } else {
       const err = new Error(`Ambiguous manifest entries for ${name}`);

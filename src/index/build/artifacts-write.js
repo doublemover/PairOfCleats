@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { log, logLine, showProgress } from '../../shared/progress.js';
 import { MAX_JSON_BYTES, readJsonFile, loadJsonArrayArtifact } from '../../shared/artifact-io.js';
+import { resolveArtifactCompressionTier } from '../../shared/artifact-io/compression.js';
 import { toPosix } from '../../shared/files.js';
 import { writeJsonObjectFile } from '../../shared/json-stream.js';
 import { createJsonWriteStream, writeChunk } from '../../shared/json-stream/streams.js';
@@ -1064,9 +1065,81 @@ export async function writeIndexArtifacts(input) {
     compressibleArtifacts,
     compressionOverrides
   } = resolveCompressionConfig(indexingConfig);
+  const artifactConfig = indexingConfig.artifacts || {};
+  const compressionTierConfig = (
+    artifactConfig.compressionTiers && typeof artifactConfig.compressionTiers === 'object'
+      ? artifactConfig.compressionTiers
+      : {}
+  );
+  const compressionTiersEnabled = compressionTierConfig.enabled !== false;
+  const compressionTierHotNoCompression = compressionTierConfig.hotNoCompression !== false;
+  const compressionTierColdForceCompression = compressionTierConfig.coldForceCompression !== false;
+  const normalizeTierArtifactList = (value) => (
+    Array.isArray(value)
+      ? value.filter((entry) => typeof entry === 'string' && entry.trim())
+      : []
+  );
+  const defaultHotTierArtifacts = [
+    'chunk_meta',
+    'chunk_uid_map',
+    'file_meta',
+    'token_postings',
+    'token_postings_packed',
+    'token_postings_binary-columnar',
+    'dense_vectors_uint8',
+    'dense_vectors_doc_uint8',
+    'dense_vectors_code_uint8',
+    'dense_meta',
+    'index_state',
+    'pieces_manifest'
+  ];
+  const defaultColdTierArtifacts = [
+    'repo_map',
+    'risk_summaries',
+    'risk_flows',
+    'call_sites',
+    'graph_relations',
+    'graph_relations_meta',
+    'determinism_report',
+    'extraction_report',
+    'vocab_order'
+  ];
+  const tierHotArtifacts = normalizeTierArtifactList(compressionTierConfig.hotArtifacts);
+  const tierColdArtifacts = normalizeTierArtifactList(compressionTierConfig.coldArtifacts);
+  const resolveArtifactTier = (artifactName) => resolveArtifactCompressionTier(artifactName, {
+    hotArtifacts: tierHotArtifacts.length ? tierHotArtifacts : defaultHotTierArtifacts,
+    coldArtifacts: tierColdArtifacts.length ? tierColdArtifacts : defaultColdTierArtifacts,
+    defaultTier: 'warm'
+  });
+  const tieredCompressionOverrides = {
+    ...(compressionOverrides && typeof compressionOverrides === 'object'
+      ? compressionOverrides
+      : {})
+  };
+  if (compressionTiersEnabled) {
+    for (const artifactName of compressibleArtifacts) {
+      if (Object.prototype.hasOwnProperty.call(tieredCompressionOverrides, artifactName)) continue;
+      const tier = resolveArtifactTier(artifactName);
+      if (tier === 'hot' && compressionTierHotNoCompression) {
+        tieredCompressionOverrides[artifactName] = {
+          enabled: false,
+          mode: compressionMode,
+          keepRaw: true
+        };
+        continue;
+      }
+      if (tier === 'cold' && compressionTierColdForceCompression && compressionEnabled && compressionMode) {
+        tieredCompressionOverrides[artifactName] = {
+          enabled: true,
+          mode: compressionMode,
+          keepRaw: compressionKeepRaw
+        };
+      }
+    }
+  }
   const resolveCompressionOverride = (base) => (
-    compressionOverrides && Object.prototype.hasOwnProperty.call(compressionOverrides, base)
-      ? compressionOverrides[base]
+    tieredCompressionOverrides && Object.prototype.hasOwnProperty.call(tieredCompressionOverrides, base)
+      ? tieredCompressionOverrides[base]
       : null
   );
   const resolveShardCompression = (base) => {
@@ -1078,7 +1151,6 @@ export async function writeIndexArtifacts(input) {
       ? compressionMode
       : null;
   };
-  const artifactConfig = indexingConfig.artifacts || {};
   const writeFsStrategy = resolveArtifactWriteFsStrategy({ artifactConfig });
   const writeJsonlShapeAware = artifactConfig.writeJsonlShapeAware !== false;
   const writeJsonlLargeThresholdBytes = Number.isFinite(Number(artifactConfig.writeJsonlLargeThresholdBytes))
@@ -1838,9 +1910,48 @@ export async function writeIndexArtifacts(input) {
   const formatArtifactLabel = (filePath) => toPosix(path.relative(outDir, filePath));
   const pieceEntries = [];
   const pieceEntriesByPath = new Map();
+  let mmapHotLayoutOrder = 0;
+  const resolvePieceTier = (entry, normalizedPath) => {
+    const explicitTier = typeof entry?.tier === 'string' ? entry.tier.trim().toLowerCase() : null;
+    if (explicitTier === 'hot' || explicitTier === 'warm' || explicitTier === 'cold') {
+      return explicitTier;
+    }
+    const candidateName = typeof entry?.name === 'string' && entry.name
+      ? entry.name
+      : normalizedPath;
+    return resolveArtifactTier(candidateName);
+  };
   const addPieceFile = (entry, filePath) => {
     const normalizedPath = formatArtifactLabel(filePath);
-    const normalizedEntry = { ...entry, path: normalizedPath };
+    const tier = resolvePieceTier(entry, normalizedPath);
+    const existingLayout = entry?.layout && typeof entry.layout === 'object'
+      ? { ...entry.layout }
+      : {};
+    if (tier === 'hot') {
+      if (!Number.isFinite(Number(existingLayout.order))) {
+        existingLayout.order = mmapHotLayoutOrder;
+        mmapHotLayoutOrder += 1;
+      }
+      existingLayout.group = typeof existingLayout.group === 'string' && existingLayout.group
+        ? existingLayout.group
+        : 'mmap-hot';
+      if (typeof existingLayout.contiguous !== 'boolean') {
+        existingLayout.contiguous = true;
+      }
+    } else {
+      existingLayout.group = typeof existingLayout.group === 'string' && existingLayout.group
+        ? existingLayout.group
+        : (tier === 'cold' ? 'cold-storage' : 'warm-storage');
+      if (typeof existingLayout.contiguous !== 'boolean') {
+        existingLayout.contiguous = false;
+      }
+    }
+    const normalizedEntry = {
+      ...entry,
+      tier,
+      layout: existingLayout,
+      path: normalizedPath
+    };
     pieceEntries.push(normalizedEntry);
     if (!pieceEntriesByPath.has(normalizedPath)) {
       pieceEntriesByPath.set(normalizedPath, []);
@@ -2220,7 +2331,7 @@ export async function writeIndexArtifacts(input) {
     compressionMinBytes,
     compressionMaxBytes,
     compressibleArtifacts,
-    compressionOverrides,
+    compressionOverrides: tieredCompressionOverrides,
     jsonArraySerializeShardThresholdMs,
     jsonArraySerializeShardMaxBytes,
     jsonlShapeAware: writeJsonlShapeAware,
