@@ -199,7 +199,10 @@ const isDiskFullMessage = (line) => {
 };
 const appendLog = (line, level = 'info', meta = null) => {
   if (!line) return;
-  writeLog(line);
+  const fileOnlyLine = meta && typeof meta === 'object' && typeof meta.fileOnlyLine === 'string'
+    ? meta.fileOnlyLine
+    : null;
+  writeLog(fileOnlyLine || line);
   if (level === 'error') {
     display.error(line, meta);
   } else if (level === 'warn') {

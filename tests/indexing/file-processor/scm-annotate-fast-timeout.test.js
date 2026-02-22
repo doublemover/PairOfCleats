@@ -148,7 +148,7 @@ await processFileCpu(createContext({
   fileHash: 'scm-annotate-fast-timeout-yml'
 }));
 assert.equal(yamlAnnotateCalls, 1, 'expected annotate to run for .yml files');
-assert.equal(yamlTimeoutMs, 750, 'expected .yml annotate timeout to clamp to 750ms by default');
+assert.equal(yamlTimeoutMs, 5000, 'expected .yml annotate timeout to clamp to 5000ms by default');
 assert.equal(yamlMetaTimeoutMs, 250, 'expected .yml meta timeout to clamp to 250ms by default');
 assert.equal(yamlIncludeChurn, false, 'expected fast-path .yml churn metadata to be disabled');
 
@@ -223,7 +223,7 @@ await processFileCpu(createContext({
   fileHash: 'scm-annotate-fast-timeout-java'
 }));
 assert.equal(javaAnnotateCalls, 1, 'expected annotate to run for .java files');
-assert.equal(javaTimeoutMs, 750, 'expected .java annotate timeout to clamp for large Java files');
+assert.equal(javaTimeoutMs, 5000, 'expected .java annotate timeout to clamp for large Java files');
 assert.equal(javaMetaTimeoutMs, 250, 'expected .java meta timeout to clamp for large Java files');
 assert.equal(javaIncludeChurn, false, 'expected fast-path large .java churn metadata to be disabled');
 
@@ -295,7 +295,7 @@ await processFileCpu(createContext({
   fileHash: 'scm-annotate-fast-timeout-swift'
 }));
 assert.equal(swiftAnnotateCalls, 1, 'expected annotate to run for .swift files');
-assert.equal(swiftTimeoutMs, 750, 'expected .swift annotate timeout to clamp to 750ms');
+assert.equal(swiftTimeoutMs, 5000, 'expected .swift annotate timeout to clamp to 5000ms');
 assert.equal(swiftMetaTimeoutMs, 250, 'expected .swift meta timeout to clamp to 250ms');
 
 const pyAbs = path.join(root, 'tests', 'fixtures', 'sample', 'src', 'sample.py');
@@ -332,7 +332,7 @@ await processFileCpu(createContext({
   fileHash: 'scm-annotate-fast-timeout-py'
 }));
 assert.equal(pyAnnotateCalls, 1, 'expected annotate to run for .py files');
-assert.equal(pyTimeoutMs, 750, 'expected .py annotate timeout to clamp to 750ms');
+assert.equal(pyTimeoutMs, 5000, 'expected .py annotate timeout to clamp to 5000ms');
 assert.equal(pyMetaTimeoutMs, 250, 'expected .py meta timeout to clamp to 250ms');
 assert.equal(pyIncludeChurn, false, 'expected fast-path .py churn metadata to be disabled');
 
@@ -443,7 +443,7 @@ await processFileCpu(createContext({
   scmConfig: { timeoutMs: 333, annotate: { timeoutMs: 4321 } },
   analysisPolicy: { git: { churn: false } }
 }));
-assert.equal(explicitTimeoutMs, 750, 'expected explicit annotate timeout to still respect fast-path clamp');
+assert.equal(explicitTimeoutMs, 4321, 'expected explicit annotate timeout to respect 5000ms fast-path cap');
 assert.equal(explicitMetaTimeoutMs, 250, 'expected explicit meta timeout to still respect fast-path clamp');
 assert.equal(explicitIncludeChurn, false, 'expected churn flag to respect analysis policy');
 
@@ -509,7 +509,7 @@ await processFileCpu(createContext({
 }));
 assert.equal(
   forcedCapAnnotateTimeoutMs,
-  750,
+  5000,
   'expected benchmark hotspot paths to keep fast annotate timeout caps even with allowSlowTimeouts'
 );
 assert.equal(

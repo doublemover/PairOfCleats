@@ -72,22 +72,22 @@ export async function buildDatabaseFromBundles({
   optimize,
   stats
 }) {
-  const log = (message) => {
+  const log = (message, meta = null) => {
     if (!emitOutput || !message) return;
     if (logger?.log) {
-      logger.log(message);
+      logger.log(message, meta);
       return;
     }
     console.error(message);
   };
-  const warn = (message) => {
+  const warn = (message, meta = null) => {
     if (!emitOutput || !message) return;
     if (logger?.warn) {
-      logger.warn(message);
+      logger.warn(message, meta);
       return;
     }
     if (logger?.log) {
-      logger.log(message);
+      logger.log(message, meta);
       return;
     }
     console.warn(message);
@@ -104,9 +104,9 @@ export async function buildDatabaseFromBundles({
   } = createBuildExecutionContext({ batchSize, inputBytes, statementStrategy, stats });
   const manifestFiles = incrementalData.manifest.files || {};
   const manifestLookup = normalizeManifestFiles(manifestFiles);
-  const manifestEntries = [...manifestLookup.entries].sort((a, b) => (
-    String(a?.normalized || a?.file || '').localeCompare(String(b?.normalized || b?.file || ''))
-  ));
+  // Preserve manifest insertion order so fallback doc-id assignment for bundles
+  // without explicit chunk ids matches chunk_meta row ordering.
+  const manifestEntries = [...manifestLookup.entries];
   if (!manifestEntries.length) {
     return { count: 0, denseCount: 0, reason: 'incremental manifest empty' };
   }
@@ -138,8 +138,9 @@ export async function buildDatabaseFromBundles({
     lastProgressLog = now;
     lastLoggedPercentBucket = Math.max(lastLoggedPercentBucket, percentBucket);
     const percent = percentValue.toFixed(1);
-    const suffix = file ? ` | ${file}` : '';
-    log(`[sqlite] bundles ${processedFiles}/${totalFiles} (${percent}%)${suffix}`);
+    const summaryLine = `[sqlite] bundles ${processedFiles}/${totalFiles} (${percent}%)`;
+    const fileOnlyLine = file ? `${summaryLine} | ${file}` : summaryLine;
+    log(summaryLine, { fileOnlyLine });
   };
   if (emitOutput) {
     log(`[sqlite] Using incremental bundles for ${mode} (${totalFiles} files).`);

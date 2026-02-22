@@ -392,7 +392,8 @@ export const runTreeSitterScheduler = async ({
   };
   let lastTaskCompletedAt = 0;
   if (executionOrder.length) {
-    const streamLogs = typeof log === 'function';
+    const streamLogs = typeof log === 'function'
+      && (runtime?.argv?.verbose === true || runtime?.languageOptions?.treeSitter?.debugScheduler === true);
     const execConcurrency = resolveExecConcurrency({
       schedulerConfig,
       grammarCount: executionOrder.length
@@ -452,7 +453,7 @@ export const runTreeSitterScheduler = async ({
             {
               cwd: runtime?.root || undefined,
               env: runtimeEnv,
-              stdio: streamLogs ? ['ignore', 'pipe', 'pipe'] : 'inherit',
+              stdio: ['ignore', 'pipe', 'pipe'],
               shell: false,
               signal: abortSignal,
               killTree: true,

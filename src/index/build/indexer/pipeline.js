@@ -972,8 +972,8 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       }
     }
   });
-  if (mode === 'code' && crossFileEnabled) {
-    const existingVfsManifestRowsByFile = incrementalBundleVfsRowsPromise
+  if (runtimeRef.incrementalEnabled === true) {
+    const existingVfsManifestRowsByFile = mode === 'code' && crossFileEnabled && incrementalBundleVfsRowsPromise
       ? await incrementalBundleVfsRowsPromise
       : null;
     await updateIncrementalBundles({

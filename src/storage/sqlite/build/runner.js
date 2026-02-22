@@ -390,7 +390,9 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
       const logDetails = [];
       const modeChunkCountHint = resolveChunkMetaTotalRecords(modeIndexDir);
       if (emitOutput) {
-        log(`${modeLabel} building ${mode} index -> ${outputPath}`);
+        log(`${modeLabel} building index`, {
+          fileOnlyLine: `${modeLabel} building ${mode} index -> ${outputPath}`
+        });
       }
       const buildState = await updateSqliteState({
         root,
@@ -615,10 +617,15 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
               stats: sqliteStats
             });
             if (emitOutput) {
-              log(
-                `${modeLabel} sqlite incremental update applied at ${outputPath} (${counts.code || 0} code, ` +
+              const summaryLine = (
+                `${modeLabel} incremental update applied (${counts.code || 0} code, ` +
                 `${counts.prose || 0} prose, ${counts['extracted-prose'] || 0} extracted-prose).`
               );
+              log(summaryLine, {
+                fileOnlyLine:
+                  `${modeLabel} sqlite incremental update applied at ${outputPath} (${counts.code || 0} code, ` +
+                  `${counts.prose || 0} prose, ${counts['extracted-prose'] || 0} extracted-prose).`
+              });
             }
             done += 1;
             buildModeTask.set(done, modeList.length, { message: `${mode} done` });
@@ -767,10 +774,15 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
           stats: sqliteStats
         });
         if (emitOutput) {
-          log(
-            `${modeLabel} ${mode} index built at ${outputPath} (${counts.code || 0} code, ` +
+          const summaryLine = (
+            `${modeLabel} index built (${counts.code || 0} code, ` +
             `${counts.prose || 0} prose, ${counts['extracted-prose'] || 0} extracted-prose).`
           );
+          log(summaryLine, {
+            fileOnlyLine:
+              `${modeLabel} ${mode} index built at ${outputPath} (${counts.code || 0} code, ` +
+              `${counts.prose || 0} prose, ${counts['extracted-prose'] || 0} extracted-prose).`
+          });
         }
         if (resolvedInput.source === 'artifacts' && !resolvedInput.indexDir) {
           throw new Error('Index directory missing for artifact build.');
