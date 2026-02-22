@@ -469,6 +469,60 @@ const extractionReportFile = {
   additionalProperties: false
 };
 
+const extractionReportLowYieldBailout = {
+  type: 'object',
+  required: [
+    'enabled',
+    'triggered',
+    'reason',
+    'qualityImpact',
+    'seed',
+    'warmupWindowSize',
+    'warmupSampleSize',
+    'sampledFiles',
+    'sampledYieldedFiles',
+    'sampledChunkCount',
+    'observedYieldRatio',
+    'minYieldRatio',
+    'minYieldedFiles',
+    'skippedFiles',
+    'decisionAtOrderIndex',
+    'decisionAt',
+    'deterministic',
+    'downgradedRecall'
+  ],
+  properties: {
+    enabled: { type: 'boolean' },
+    triggered: { type: 'boolean' },
+    reason: nullableString,
+    qualityImpact: nullableString,
+    seed: nullableString,
+    warmupWindowSize: intId,
+    warmupSampleSize: intId,
+    sampledFiles: intId,
+    sampledYieldedFiles: intId,
+    sampledChunkCount: intId,
+    observedYieldRatio: { type: 'number' },
+    minYieldRatio: { type: 'number' },
+    minYieldedFiles: intId,
+    skippedFiles: intId,
+    decisionAtOrderIndex: nullableInt,
+    decisionAt: nullableString,
+    deterministic: { type: 'boolean' },
+    downgradedRecall: { type: 'boolean' }
+  },
+  additionalProperties: false
+};
+
+const extractionReportQuality = {
+  type: 'object',
+  required: ['lowYieldBailout'],
+  properties: {
+    lowYieldBailout: extractionReportLowYieldBailout
+  },
+  additionalProperties: false
+};
+
 const extractionReportSchema = {
   type: 'object',
   required: [
@@ -477,6 +531,7 @@ const extractionReportSchema = {
     'generatedAt',
     'chunkerVersion',
     'extractionConfigDigest',
+    'quality',
     'counts',
     'extractors',
     'files'
@@ -487,6 +542,7 @@ const extractionReportSchema = {
     generatedAt: { type: 'string' },
     chunkerVersion: { type: 'string' },
     extractionConfigDigest: { type: 'string' },
+    quality: extractionReportQuality,
     counts: {
       type: 'object',
       required: ['total', 'ok', 'skipped', 'byReason'],

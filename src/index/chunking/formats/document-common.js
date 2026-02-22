@@ -7,11 +7,99 @@ export const DOCUMENT_CHUNKING_DEFAULTS = Object.freeze({
   minCharsPerChunk: 400,
   maxTokensPerChunk: 700
 });
+export const EXTRACTED_PROSE_LOW_YIELD_BAILOUT_DEFAULTS = Object.freeze({
+  enabled: true,
+  warmupSampleSize: 48,
+  warmupWindowMultiplier: 4,
+  minYieldRatio: 0.08,
+  minYieldedFiles: 2,
+  seed: 'extracted-prose-low-yield-v1'
+});
 
 const normalizePositiveInt = (value, fallback) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
   return Math.floor(parsed);
+};
+const normalizeBoolean = (value, fallback) => {
+  if (typeof value === 'boolean') return value;
+  return fallback;
+};
+const normalizeRatio = (value, fallback) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 1) return fallback;
+  return parsed;
+};
+const normalizeString = (value, fallback) => {
+  const raw = typeof value === 'string' ? value.trim() : '';
+  return raw || fallback;
+};
+
+export const normalizeExtractedProseLowYieldBailoutConfig = (value = null) => {
+  const config = value && typeof value === 'object' ? value : {};
+  const defaults = EXTRACTED_PROSE_LOW_YIELD_BAILOUT_DEFAULTS;
+  const warmupSampleSize = normalizePositiveInt(config.warmupSampleSize, defaults.warmupSampleSize);
+  const warmupWindowMultiplier = normalizePositiveInt(
+    config.warmupWindowMultiplier,
+    defaults.warmupWindowMultiplier
+  );
+  return {
+    enabled: normalizeBoolean(config.enabled, defaults.enabled),
+    warmupSampleSize,
+    warmupWindowMultiplier,
+    warmupWindowSize: Math.max(
+      warmupSampleSize,
+      Math.floor(warmupSampleSize * warmupWindowMultiplier)
+    ),
+    minYieldRatio: normalizeRatio(config.minYieldRatio, defaults.minYieldRatio),
+    minYieldedFiles: normalizePositiveInt(config.minYieldedFiles, defaults.minYieldedFiles),
+    seed: normalizeString(config.seed, defaults.seed)
+  };
+};
+
+export const scoreDeterministicSampleKey = ({ key, seed }) => {
+  const digest = createHash('sha256')
+    .update(`${String(seed || '')}|${String(key || '')}`, 'utf8')
+    .digest('hex');
+  const prefix = digest.slice(0, 8);
+  const score = Number.parseInt(prefix, 16);
+  return Number.isFinite(score) ? score : Number.MAX_SAFE_INTEGER;
+};
+
+export const selectDeterministicWarmupSample = ({
+  values,
+  sampleSize,
+  seed,
+  resolveKey
+} = {}) => {
+  const list = Array.isArray(values) ? values : [];
+  if (!list.length) return [];
+  const requested = Number(sampleSize);
+  const target = Number.isFinite(requested) && requested > 0
+    ? Math.min(list.length, Math.floor(requested))
+    : 0;
+  if (target <= 0) return [];
+  const keyFor = typeof resolveKey === 'function'
+    ? resolveKey
+    : (entry) => String(entry || '');
+  return list
+    .map((entry, index) => {
+      const key = String(keyFor(entry) || '');
+      return {
+        entry,
+        index,
+        key,
+        score: scoreDeterministicSampleKey({ key, seed })
+      };
+    })
+    .sort((left, right) => {
+      if (left.score !== right.score) return left.score - right.score;
+      if (left.key < right.key) return -1;
+      if (left.key > right.key) return 1;
+      return left.index - right.index;
+    })
+    .slice(0, target)
+    .map((item) => item.entry);
 };
 
 export const normalizeDocumentChunkingBudgets = (context = null) => {

@@ -90,6 +90,10 @@ import {
 } from './maintenance.js';
 import { createBuildEmbeddingsContext } from './context.js';
 import { loadIndexState, writeIndexState } from './state.js';
+import {
+  normalizeExtractedProseLowYieldBailoutConfig,
+  selectDeterministicWarmupSample
+} from '../../../src/index/chunking/formats/document-common.js';
 
 const EMBEDDINGS_TOOLS_DIR = path.dirname(fileURLToPath(import.meta.url));
 const COMPACT_SQLITE_SCRIPT = path.join(EMBEDDINGS_TOOLS_DIR, '..', 'compact-sqlite-index.js');
@@ -148,6 +152,7 @@ const refreshIncrementalBundlesWithEmbeddings = async ({
   mergedVectors,
   embeddingMode,
   embeddingIdentityKey,
+  lowYieldBailout,
   scheduleIo,
   log,
   warn
@@ -159,7 +164,8 @@ const refreshIncrementalBundlesWithEmbeddings = async ({
   const manifestFiles = manifest.files && typeof manifest.files === 'object'
     ? manifest.files
     : {};
-  const manifestEntries = Object.entries(manifestFiles);
+  const manifestEntries = Object.entries(manifestFiles)
+    .sort((left, right) => (left[0] < right[0] ? -1 : left[0] > right[0] ? 1 : 0));
   if (!manifestEntries.length) {
     return { attempted: 0, rewritten: 0, manifestWritten: false, completeCoverage: false };
   }
@@ -184,6 +190,34 @@ const refreshIncrementalBundlesWithEmbeddings = async ({
 
   const resolvedBundleFormat = normalizeBundleFormat(manifest.bundleFormat);
   const scanned = manifestEntries.length;
+  const lowYieldConfig = normalizeExtractedProseLowYieldBailoutConfig(lowYieldBailout);
+  const lowYieldEnabled = mode === 'extracted-prose' && lowYieldConfig.enabled !== false;
+  const warmupWindowSize = lowYieldEnabled
+    ? Math.max(1, Math.min(scanned, Math.floor(lowYieldConfig.warmupWindowSize)))
+    : 0;
+  const warmupWindowEntries = lowYieldEnabled
+    ? manifestEntries.slice(0, warmupWindowSize)
+    : [];
+  const warmupSampleSize = lowYieldEnabled
+    ? Math.max(0, Math.min(warmupWindowEntries.length, Math.floor(lowYieldConfig.warmupSampleSize)))
+    : 0;
+  const sampledWarmupEntries = lowYieldEnabled
+    ? selectDeterministicWarmupSample({
+      values: warmupWindowEntries,
+      sampleSize: warmupSampleSize,
+      seed: lowYieldConfig.seed,
+      resolveKey: (entry) => entry?.[0] || ''
+    })
+    : [];
+  const sampledWarmupFiles = new Set(sampledWarmupEntries.map((entry) => toPosix(entry?.[0])));
+  const observedWarmupFiles = new Set();
+  let warmupObserved = 0;
+  let warmupMapped = 0;
+  let lowYieldDecisionMade = false;
+  let lowYieldBailoutTriggered = false;
+  let lowYieldBailoutSkipped = 0;
+  let lowYieldBailoutSummary = null;
+  let processedEntries = 0;
   let eligible = 0;
   let rewritten = 0;
   let covered = 0;
@@ -192,8 +226,41 @@ const refreshIncrementalBundlesWithEmbeddings = async ({
   let skippedEmptyBundle = 0;
 
   for (const [filePath, entry] of manifestEntries) {
+    if (lowYieldBailoutTriggered) break;
+    processedEntries += 1;
     const normalizedFile = toPosix(filePath);
     const chunkMapping = chunkIndexByFile.get(normalizedFile) || null;
+    if (
+      lowYieldEnabled
+      && sampledWarmupFiles.has(normalizedFile)
+      && !observedWarmupFiles.has(normalizedFile)
+    ) {
+      observedWarmupFiles.add(normalizedFile);
+      warmupObserved += 1;
+      if (chunkMapping) warmupMapped += 1;
+      if (!lowYieldDecisionMade && warmupObserved >= warmupSampleSize) {
+        lowYieldDecisionMade = true;
+        const observedYieldRatio = warmupObserved > 0 ? warmupMapped / warmupObserved : 0;
+        const minYieldedFiles = Math.min(
+          Math.max(1, Math.floor(Number(lowYieldConfig.minYieldedFiles) || 1)),
+          Math.max(1, warmupObserved)
+        );
+        lowYieldBailoutTriggered = observedYieldRatio < lowYieldConfig.minYieldRatio
+          && warmupMapped < minYieldedFiles;
+        lowYieldBailoutSummary = {
+          enabled: lowYieldEnabled,
+          triggered: lowYieldBailoutTriggered,
+          seed: lowYieldConfig.seed,
+          warmupWindowSize,
+          warmupSampleSize,
+          sampledFiles: warmupObserved,
+          sampledMappedFiles: warmupMapped,
+          observedYieldRatio,
+          minYieldRatio: lowYieldConfig.minYieldRatio,
+          minYieldedFiles
+        };
+      }
+    }
     if (!chunkMapping) {
       skippedNoMapping += 1;
       continue;
@@ -268,6 +335,10 @@ const refreshIncrementalBundlesWithEmbeddings = async ({
     }
   }
 
+  if (lowYieldBailoutTriggered) {
+    lowYieldBailoutSkipped = Math.max(0, scanned - processedEntries);
+  }
+
   const completeCoverage = eligible > 0
     ? covered === eligible
     : skippedInvalidBundle === 0;
@@ -290,12 +361,22 @@ const refreshIncrementalBundlesWithEmbeddings = async ({
     if (skippedNoMapping > 0) skippedNotes.push(`noMapping=${skippedNoMapping}`);
     if (skippedEmptyBundle > 0) skippedNotes.push(`empty=${skippedEmptyBundle}`);
     if (skippedInvalidBundle > 0) skippedNotes.push(`invalid=${skippedInvalidBundle}`);
+    if (lowYieldBailoutSkipped > 0) skippedNotes.push(`lowYieldBailout=${lowYieldBailoutSkipped}`);
     const skippedSuffix = skippedNotes.length ? ` (skipped ${skippedNotes.join(', ')})` : '';
     const coverageText = eligible > 0 ? `${covered}/${eligible}` : 'n/a';
     log(
       `[embeddings] ${mode}: refreshed ${rewritten}/${eligible} eligible incremental bundles; ` +
       `embedding coverage ${coverageText}${skippedSuffix}.`
     );
+    if (lowYieldBailoutTriggered) {
+      const ratioPct = ((lowYieldBailoutSummary?.observedYieldRatio || 0) * 100).toFixed(1);
+      warn(
+        `[embeddings] ${mode}: low-yield bailout engaged after ${warmupObserved} warmup files `
+          + `(mapped=${warmupMapped}, ratio=${ratioPct}%, `
+          + `threshold=${Math.round(lowYieldConfig.minYieldRatio * 100)}%); `
+          + 'quality marker: reduced-extracted-prose-recall.'
+      );
+    }
   }
   return {
     attempted: eligible,
@@ -306,6 +387,8 @@ const refreshIncrementalBundlesWithEmbeddings = async ({
     skippedNoMapping,
     skippedInvalidBundle,
     skippedEmptyBundle,
+    lowYieldBailoutSkipped,
+    lowYieldBailout: lowYieldBailoutSummary,
     manifestWritten,
     completeCoverage
   };
@@ -369,6 +452,9 @@ export async function runBuildEmbeddingsWithConfig(config) {
     setHeartbeat
   } = createBuildEmbeddingsContext({ argv });
   const embeddingNormalize = embeddingsConfig.normalize !== false;
+  const extractedProseLowYieldBailout = normalizeExtractedProseLowYieldBailoutConfig(
+    indexingConfig?.extractedProse?.lowYieldBailout
+  );
   const isVectorLike = (value) => {
     if (Array.isArray(value)) return true;
     return ArrayBuffer.isView(value) && !(value instanceof DataView);
@@ -1767,6 +1853,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
           mergedVectors,
           embeddingMode: resolvedEmbeddingMode,
           embeddingIdentityKey: cacheIdentityKey,
+          lowYieldBailout: extractedProseLowYieldBailout,
           scheduleIo,
           log,
           warn

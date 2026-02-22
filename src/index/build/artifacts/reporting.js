@@ -170,6 +170,54 @@ const buildExtractionIdentityHash = ({
   String(extractionConfigDigest || '')
 ].join('|'));
 
+const buildExtractedProseLowYieldQualityMarker = (state) => {
+  const raw = state?.extractedProseLowYieldBailout
+    && typeof state.extractedProseLowYieldBailout === 'object'
+    ? state.extractedProseLowYieldBailout
+    : {};
+  const triggered = raw.triggered === true;
+  return {
+    enabled: raw.enabled === true,
+    triggered,
+    reason: typeof raw.reason === 'string' ? raw.reason : null,
+    qualityImpact: typeof raw.qualityImpact === 'string' ? raw.qualityImpact : null,
+    seed: typeof raw.seed === 'string' ? raw.seed : null,
+    warmupWindowSize: Number.isFinite(Number(raw.warmupWindowSize))
+      ? Math.max(0, Math.floor(Number(raw.warmupWindowSize)))
+      : 0,
+    warmupSampleSize: Number.isFinite(Number(raw.warmupSampleSize))
+      ? Math.max(0, Math.floor(Number(raw.warmupSampleSize)))
+      : 0,
+    sampledFiles: Number.isFinite(Number(raw.sampledFiles))
+      ? Math.max(0, Math.floor(Number(raw.sampledFiles)))
+      : 0,
+    sampledYieldedFiles: Number.isFinite(Number(raw.sampledYieldedFiles))
+      ? Math.max(0, Math.floor(Number(raw.sampledYieldedFiles)))
+      : 0,
+    sampledChunkCount: Number.isFinite(Number(raw.sampledChunkCount))
+      ? Math.max(0, Math.floor(Number(raw.sampledChunkCount)))
+      : 0,
+    observedYieldRatio: Number.isFinite(Number(raw.observedYieldRatio))
+      ? Math.max(0, Math.min(1, Number(raw.observedYieldRatio)))
+      : 0,
+    minYieldRatio: Number.isFinite(Number(raw.minYieldRatio))
+      ? Math.max(0, Math.min(1, Number(raw.minYieldRatio)))
+      : 0,
+    minYieldedFiles: Number.isFinite(Number(raw.minYieldedFiles))
+      ? Math.max(0, Math.floor(Number(raw.minYieldedFiles)))
+      : 0,
+    skippedFiles: Number.isFinite(Number(raw.skippedFiles))
+      ? Math.max(0, Math.floor(Number(raw.skippedFiles)))
+      : 0,
+    decisionAtOrderIndex: Number.isFinite(Number(raw.decisionAtOrderIndex))
+      ? Math.floor(Number(raw.decisionAtOrderIndex))
+      : null,
+    decisionAt: typeof raw.decisionAt === 'string' ? raw.decisionAt : null,
+    deterministic: typeof raw.seed === 'string' && raw.seed.length > 0,
+    downgradedRecall: triggered
+  };
+};
+
 /**
  * Build deterministic extracted-document provenance report rows.
  *
@@ -283,6 +331,9 @@ export const buildExtractionReport = ({
     generatedAt: new Date().toISOString(),
     chunkerVersion: DOCUMENT_CHUNKER_VERSION,
     extractionConfigDigest: configDigest,
+    quality: {
+      lowYieldBailout: buildExtractedProseLowYieldQualityMarker(state)
+    },
     counts: {
       total: files.length,
       ok: okCount,

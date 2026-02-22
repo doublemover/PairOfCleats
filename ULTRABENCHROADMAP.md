@@ -869,7 +869,7 @@ Last revised: 2026-02-22T05:44:04.8332760-05:00
 - Touchpoints: `src/index/build/indexer/steps/process-files.js`, `src/index/build/runtime/runtime.js`, `tools/bench/language/logging.js`, `tests/indexing/stage1/process-files-progress-heartbeat.test.js`
 
 ### UB-087: Extracted-prose low-yield bailout
-- Status: [ ]
+- Status: [x]
 - Observation:
   - Some repos scan many extracted-prose files with tiny chunk yield (for example rspec).
 - Tasks:
@@ -877,10 +877,16 @@ Last revised: 2026-02-22T05:44:04.8332760-05:00
   - Keep deterministic sampling and explicit quality marker.
 - Exit criteria:
   - Reduced extracted-prose stage time on low-yield repos.
+- Completion: 2026-02-22T08:07:01.0466967-05:00
+- Validation:
+  - `node tests/indexing/extracted-prose/extraction-report.test.js`
+  - `node tests/indexing/extracted-prose/document-extraction-outcomes-recorded.test.js`
+  - `node tests/indexing/extracted-prose/document-bytes-hash-stable.test.js`
+  - `node tests/indexing/stage1/watchdog-near-threshold-anomaly.test.js`
 - Improvement Intent (What): low-yield extracted-prose runtime waste
 - Improvement Method (How): ROI-based bailout after deterministic warmup sample.
 - Integrated Betterments: add extracted-prose warmup sample and ROI-based continuation decision; keep deterministic sampling seeds for reproducibility; expose bailout reason and expected quality impact.
-- Touchpoints: `src/index/chunking/formats/document-common.js`, `src/index/build/indexer/steps/process-files.js`, `tools/build/embeddings/runner.js`, `tests/indexing/extracted-prose/extraction-report.test.js`
+- Touchpoints: `src/index/chunking/formats/document-common.js`, `src/index/build/indexer/steps/process-files.js`, `src/index/build/artifacts/reporting.js`, `src/contracts/schemas/artifacts.js`, `tools/build/embeddings/runner.js`, `tools/dict-utils/config.js`, `tests/indexing/extracted-prose/extraction-report.test.js`
 
 ### UB-088: Modality sparsity profile cache
 - Status: [x]

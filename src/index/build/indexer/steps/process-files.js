@@ -30,6 +30,10 @@ import { createShardRuntime, resolveCheckpointBatchSize } from './process-files/
 import { SCHEDULER_QUEUE_NAMES } from '../../runtime/scheduler.js';
 import { INDEX_PROFILE_VECTOR_ONLY } from '../../../../contracts/index-profile.js';
 import { prepareScmFileMetaSnapshot } from '../../../scm/file-meta-snapshot.js';
+import {
+  normalizeExtractedProseLowYieldBailoutConfig,
+  selectDeterministicWarmupSample
+} from '../../../chunking/formats/document-common.js';
 
 const FILE_WATCHDOG_DEFAULT_MS = 10000;
 const FILE_WATCHDOG_DEFAULT_MAX_MS = 120000;
@@ -65,6 +69,7 @@ const STAGE_TIMING_SIZE_BINS = Object.freeze([
   Object.freeze({ id: '4mb+', maxBytes: Number.POSITIVE_INFINITY })
 ]);
 const FILE_QUEUE_DELAY_HISTOGRAM_BUCKETS_MS = Object.freeze([50, 100, 250, 500, 1000, 2000, 5000, 10000, 30000, 60000]);
+const EXTRACTED_PROSE_LOW_YIELD_SKIP_REASON = 'extracted-prose-low-yield-bailout';
 
 const coerceOptionalNonNegativeInt = (value) => {
   if (value === null || value === undefined) return null;
@@ -574,6 +579,134 @@ export const sortEntriesByOrderIndex = (entries) => {
     .map((item) => item.entry);
 };
 
+const resolveExtractedProseLowYieldBailoutConfig = (runtime) => {
+  const extractedProseConfig = runtime?.indexingConfig?.extractedProse
+    && typeof runtime.indexingConfig.extractedProse === 'object'
+    ? runtime.indexingConfig.extractedProse
+    : {};
+  return normalizeExtractedProseLowYieldBailoutConfig(extractedProseConfig.lowYieldBailout);
+};
+
+const buildExtractedProseLowYieldBailoutState = ({ mode, runtime, entries }) => {
+  if (mode !== 'extracted-prose') return null;
+  const config = resolveExtractedProseLowYieldBailoutConfig(runtime);
+  const sortedEntries = sortEntriesByOrderIndex(entries);
+  const warmupWindowSize = Math.max(
+    1,
+    Math.min(sortedEntries.length, Math.floor(config.warmupWindowSize))
+  );
+  const warmupWindowEntries = sortedEntries.slice(0, warmupWindowSize);
+  const warmupSampleSize = Math.max(
+    0,
+    Math.min(warmupWindowEntries.length, Math.floor(config.warmupSampleSize))
+  );
+  const sampledEntries = selectDeterministicWarmupSample({
+    values: warmupWindowEntries,
+    sampleSize: warmupSampleSize,
+    seed: config.seed,
+    resolveKey: (entry) => entry?.rel || toPosix(entry?.abs || '')
+  });
+  const sampledOrderIndices = new Set();
+  for (const entry of sampledEntries) {
+    const orderIndex = resolveEntryOrderIndex(entry, null);
+    if (!Number.isFinite(orderIndex)) continue;
+    sampledOrderIndices.add(Math.floor(orderIndex));
+  }
+  return {
+    enabled: config.enabled !== false && sampledOrderIndices.size > 0,
+    config,
+    warmupWindowSize,
+    warmupSampleSize,
+    sampledOrderIndices,
+    observedOrderIndices: new Set(),
+    observedSamples: 0,
+    yieldedSamples: 0,
+    sampledChunkCount: 0,
+    decisionMade: false,
+    triggered: false,
+    decisionAtOrderIndex: null,
+    decisionAtMs: null,
+    skippedFiles: 0
+  };
+};
+
+const observeExtractedProseLowYieldSample = ({ bailout, orderIndex, result }) => {
+  if (!bailout?.enabled) return null;
+  if (!Number.isFinite(orderIndex)) return null;
+  const normalizedOrderIndex = Math.floor(orderIndex);
+  if (!bailout.sampledOrderIndices.has(normalizedOrderIndex)) return null;
+  if (bailout.observedOrderIndices.has(normalizedOrderIndex)) return null;
+  bailout.observedOrderIndices.add(normalizedOrderIndex);
+  bailout.observedSamples += 1;
+  const chunkCount = Array.isArray(result?.chunks) ? result.chunks.length : 0;
+  const safeChunkCount = Math.max(0, Math.floor(Number(chunkCount) || 0));
+  if (safeChunkCount > 0) {
+    bailout.yieldedSamples += 1;
+  }
+  bailout.sampledChunkCount += safeChunkCount;
+  if (bailout.decisionMade || bailout.observedSamples < bailout.warmupSampleSize) {
+    return null;
+  }
+  const observedYieldRatio = bailout.observedSamples > 0
+    ? bailout.yieldedSamples / bailout.observedSamples
+    : 0;
+  const minYieldedFiles = Math.min(
+    Math.max(1, Math.floor(Number(bailout.config.minYieldedFiles) || 1)),
+    Math.max(1, bailout.observedSamples)
+  );
+  const lowRatio = observedYieldRatio < bailout.config.minYieldRatio;
+  const lowYieldedCount = bailout.yieldedSamples < minYieldedFiles;
+  bailout.decisionMade = true;
+  bailout.triggered = lowRatio && lowYieldedCount;
+  bailout.decisionAtOrderIndex = normalizedOrderIndex;
+  bailout.decisionAtMs = Date.now();
+  return {
+    triggered: bailout.triggered,
+    observedYieldRatio,
+    yieldedSamples: bailout.yieldedSamples,
+    observedSamples: bailout.observedSamples,
+    sampledChunkCount: bailout.sampledChunkCount,
+    minYieldRatio: bailout.config.minYieldRatio,
+    minYieldedFiles
+  };
+};
+
+const shouldSkipExtractedProseForLowYield = ({ bailout, orderIndex }) => {
+  if (!bailout?.enabled || !bailout.triggered) return false;
+  if (!Number.isFinite(orderIndex)) return true;
+  const normalizedOrderIndex = Math.floor(orderIndex);
+  if (bailout.sampledOrderIndices.has(normalizedOrderIndex)) return false;
+  if (Number.isFinite(bailout.decisionAtOrderIndex) && normalizedOrderIndex <= bailout.decisionAtOrderIndex) {
+    return false;
+  }
+  return true;
+};
+
+const buildExtractedProseLowYieldBailoutSummary = (bailout) => {
+  if (!bailout) return null;
+  const observedYieldRatio = bailout.observedSamples > 0
+    ? bailout.yieldedSamples / bailout.observedSamples
+    : 0;
+  return {
+    enabled: bailout.enabled === true,
+    triggered: bailout.triggered === true,
+    reason: bailout.triggered ? EXTRACTED_PROSE_LOW_YIELD_SKIP_REASON : null,
+    qualityImpact: bailout.triggered ? 'reduced-extracted-prose-recall' : null,
+    seed: bailout.config.seed,
+    warmupWindowSize: bailout.warmupWindowSize,
+    warmupSampleSize: bailout.warmupSampleSize,
+    sampledFiles: bailout.observedSamples,
+    sampledYieldedFiles: bailout.yieldedSamples,
+    sampledChunkCount: bailout.sampledChunkCount,
+    observedYieldRatio,
+    minYieldRatio: bailout.config.minYieldRatio,
+    minYieldedFiles: bailout.config.minYieldedFiles,
+    skippedFiles: bailout.skippedFiles,
+    decisionAtOrderIndex: bailout.decisionAtOrderIndex,
+    decisionAt: toIsoTimestamp(bailout.decisionAtMs)
+  };
+};
+
 const assignFileIndexes = (entries) => {
   if (!Array.isArray(entries)) return;
   for (let i = 0; i < entries.length; i += 1) {
@@ -816,6 +949,11 @@ export const processFiles = async ({
     inference: { totalMs: 0, byLanguage: new Map(), bySizeBin: new Map() },
     embedding: { totalMs: 0, byLanguage: new Map(), bySizeBin: new Map() }
   };
+  const extractedProseLowYieldBailout = buildExtractedProseLowYieldBailoutState({
+    mode,
+    runtime,
+    entries
+  });
   const queueDelayHistogram = createDurationHistogram(FILE_QUEUE_DELAY_HISTOGRAM_BUCKETS_MS);
   const queueDelaySummary = { count: 0, totalMs: 0, minMs: null, maxMs: 0 };
   const watchdogNearThreshold = {
@@ -976,6 +1114,7 @@ export const processFiles = async ({
       byLanguage: finalizeBreakdownBucket(stageTimingBreakdown.embedding.byLanguage),
       bySizeBin: finalizeBreakdownBucket(stageTimingBreakdown.embedding.bySizeBin)
     },
+    extractedProseLowYieldBailout: buildExtractedProseLowYieldBailoutSummary(extractedProseLowYieldBailout),
     watchdog: {
       queueDelayMs: {
         summary: {
@@ -1646,6 +1785,36 @@ export const processFiles = async ({
                 ? entry.fileIndex
                 : (Number.isFinite(queueIndex) ? queueIndex + 1 : null);
               const rel = entry.rel || toPosix(path.relative(runtimeRef.root, entry.abs));
+              if (shouldSkipExtractedProseForLowYield({
+                bailout: extractedProseLowYieldBailout,
+                orderIndex
+              })) {
+                const skippedAtMs = Date.now();
+                const lifecycle = ensureLifecycleRecord({
+                  orderIndex,
+                  file: rel,
+                  fileIndex: stableFileIndex,
+                  shardId: shardMeta?.id || null
+                });
+                if (lifecycle) {
+                  lifecycle.dequeuedAtMs = lifecycle.dequeuedAtMs ?? skippedAtMs;
+                  lifecycle.parseStartAtMs = lifecycle.parseStartAtMs ?? skippedAtMs;
+                  lifecycle.parseEndAtMs = skippedAtMs;
+                  lifecycle.writeStartAtMs = skippedAtMs;
+                  lifecycle.writeEndAtMs = skippedAtMs;
+                }
+                if (Array.isArray(stateRef.skippedFiles)) {
+                  stateRef.skippedFiles.push({
+                    file: rel,
+                    reason: EXTRACTED_PROSE_LOW_YIELD_SKIP_REASON,
+                    stage: 'process-files',
+                    mode: 'extracted-prose',
+                    qualityImpact: 'reduced-extracted-prose-recall'
+                  });
+                }
+                extractedProseLowYieldBailout.skippedFiles += 1;
+                return null;
+              }
               const activeStartAtMs = Date.now();
               const fileWatchdogMs = resolveFileWatchdogMs(fileWatchdogConfig, entry);
               const fileHardTimeoutMs = resolveFileHardTimeoutMs(fileWatchdogConfig, entry, fileWatchdogMs);
@@ -1866,6 +2035,27 @@ export const processFiles = async ({
                 const entryIndex = Number.isFinite(ctx?.index) ? ctx.index : 0;
                 const entry = orderedBatchEntries[entryIndex];
                 const orderIndex = resolveEntryOrderIndex(entry, entryIndex);
+                const bailoutDecision = observeExtractedProseLowYieldSample({
+                  bailout: extractedProseLowYieldBailout,
+                  orderIndex,
+                  result
+                });
+                if (bailoutDecision?.triggered) {
+                  const ratioPct = (bailoutDecision.observedYieldRatio * 100).toFixed(1);
+                  logLine(
+                    `[stage1:extracted-prose] low-yield bailout engaged after `
+                      + `${bailoutDecision.observedSamples} warmup files `
+                      + `(yield=${bailoutDecision.yieldedSamples}, ratio=${ratioPct}%, `
+                      + `threshold=${Math.round(bailoutDecision.minYieldRatio * 100)}%).`,
+                    {
+                      kind: 'warning',
+                      mode,
+                      stage: 'processing',
+                      qualityImpact: 'reduced-extracted-prose-recall',
+                      extractedProseLowYieldBailout: bailoutDecision
+                    }
+                  );
+                }
                 progress.tick();
                 if (shardProgress) {
                   shardProgress.count += 1;
@@ -1943,6 +2133,11 @@ export const processFiles = async ({
                 const entryIndex = Number.isFinite(ctx?.index) ? ctx.index : 0;
                 const entry = orderedBatchEntries[entryIndex];
                 const orderIndex = resolveEntryOrderIndex(entry, entryIndex);
+                observeExtractedProseLowYieldSample({
+                  bailout: extractedProseLowYieldBailout,
+                  orderIndex,
+                  result: null
+                });
                 const rel = entry?.rel || toPosix(path.relative(runtimeRef.root, entry?.abs || ''));
                 const timeoutText = err?.code === 'FILE_PROCESS_TIMEOUT' && Number.isFinite(err?.meta?.timeoutMs)
                   ? ` timeout=${err.meta.timeoutMs}ms`
@@ -2276,6 +2471,7 @@ export const processFiles = async ({
     checkpoint.finish();
     timing.processMs = Date.now() - processStart;
     const stageTimingBreakdownPayload = buildStageTimingBreakdownPayload();
+    const extractedProseLowYieldSummary = buildExtractedProseLowYieldBailoutSummary(extractedProseLowYieldBailout);
     const watchdogNearThresholdSummary = stageTimingBreakdownPayload?.watchdog?.nearThreshold;
     if (watchdogNearThresholdSummary?.anomaly) {
       const ratioPct = (watchdogNearThresholdSummary.nearThresholdRatio * 100).toFixed(1);
@@ -2301,11 +2497,15 @@ export const processFiles = async ({
     }
     if (timing && typeof timing === 'object') {
       timing.stageTimingBreakdown = stageTimingBreakdownPayload;
+      timing.extractedProseLowYieldBailout = extractedProseLowYieldSummary;
       timing.watchdog = {
         ...(timing.watchdog && typeof timing.watchdog === 'object' ? timing.watchdog : {}),
         queueDelayMs: stageTimingBreakdownPayload?.watchdog?.queueDelayMs || null,
         nearThreshold: stageTimingBreakdownPayload?.watchdog?.nearThreshold || null
       };
+    }
+    if (state && typeof state === 'object') {
+      state.extractedProseLowYieldBailout = extractedProseLowYieldSummary;
     }
     const parseSkipCount = state.skippedFiles.filter((entry) => entry?.reason === 'parse-error').length;
     const relationSkipCount = state.skippedFiles.filter((entry) => entry?.reason === 'relation-error').length;
@@ -2324,7 +2524,13 @@ export const processFiles = async ({
     }
     logLexiconFilterAggregate({ state, logFn: log });
 
-    return { tokenizationStats, shardSummary, shardPlan, postingsQueueStats };
+    return {
+      tokenizationStats,
+      shardSummary,
+      shardPlan,
+      postingsQueueStats,
+      extractedProseLowYieldBailout: extractedProseLowYieldSummary
+    };
   } finally {
     if (typeof stallSnapshotTimer === 'object' && stallSnapshotTimer) {
       clearInterval(stallSnapshotTimer);

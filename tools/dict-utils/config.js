@@ -127,6 +127,7 @@ function normalizeUserConfig(baseConfig, repoRoot = null) {
     if (isPlainObject(indexing.lexicon)) normalizedIndexing.lexicon = indexing.lexicon;
     if (indexing.codeMap) normalizedIndexing.codeMap = indexing.codeMap;
     if (indexing.records) normalizedIndexing.records = indexing.records;
+    if (indexing.extractedProse) normalizedIndexing.extractedProse = indexing.extractedProse;
     if (indexing.embeddings) normalizedIndexing.embeddings = indexing.embeddings;
     if (indexing.pythonAst) normalizedIndexing.pythonAst = indexing.pythonAst;
     if (indexing.typeInference) normalizedIndexing.typeInference = indexing.typeInference;

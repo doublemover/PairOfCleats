@@ -20,6 +20,12 @@ await fs.mkdir(path.join(repoRoot, 'docs'), { recursive: true });
 await fs.mkdir(cacheRoot, { recursive: true });
 await fs.writeFile(path.join(repoRoot, 'docs', 'sample.pdf'), Buffer.from('phase17 extraction report pdf', 'utf8'));
 await fs.writeFile(path.join(repoRoot, 'docs', 'sample.docx'), Buffer.from('phase17 extraction report docx', 'utf8'));
+for (let i = 1; i <= 6; i += 1) {
+  await fs.writeFile(
+    path.join(repoRoot, `a-low-yield-${i}.js`),
+    `const v${i} = ${i};\nexport default v${i};\n`
+  );
+}
 
 const env = applyTestEnv({
   cacheRoot,
@@ -28,7 +34,17 @@ const env = applyTestEnv({
     indexing: {
       scm: { provider: 'none' },
       treeSitter: { enabled: false },
-      documentExtraction: { enabled: true }
+      documentExtraction: { enabled: true },
+      extractedProse: {
+        lowYieldBailout: {
+          enabled: true,
+          warmupSampleSize: 4,
+          warmupWindowMultiplier: 1,
+          minYieldRatio: 0.75,
+          minYieldedFiles: 2,
+          seed: 'phase17-low-yield-seed'
+        }
+      }
     }
   },
   extraEnv: {
@@ -56,6 +72,28 @@ assert.equal(report?.schemaVersion, 1, 'expected extraction report schemaVersion
 assert.equal(report?.mode, 'extracted-prose', 'expected extraction report mode');
 assert.ok(Array.isArray(report?.files) && report.files.length >= 2, 'expected report file entries');
 assert.ok(Array.isArray(report?.extractors) && report.extractors.length >= 1, 'expected report extractor entries');
+const lowYieldMarker = report?.quality?.lowYieldBailout;
+assert.ok(lowYieldMarker && typeof lowYieldMarker === 'object', 'expected extracted-prose quality marker');
+assert.equal(lowYieldMarker?.enabled, true, 'expected low-yield bailout marker enabled');
+assert.equal(lowYieldMarker?.triggered, true, 'expected low-yield bailout trigger');
+assert.equal(
+  lowYieldMarker?.reason,
+  'extracted-prose-low-yield-bailout',
+  'expected low-yield bailout reason'
+);
+assert.equal(
+  lowYieldMarker?.qualityImpact,
+  'reduced-extracted-prose-recall',
+  'expected low-yield quality marker'
+);
+assert.equal(lowYieldMarker?.seed, 'phase17-low-yield-seed', 'expected deterministic warmup seed');
+assert.ok(
+  Number(lowYieldMarker?.sampledFiles) >= 4,
+  'expected low-yield warmup sample accounting'
+);
+assert.equal(lowYieldMarker?.sampledYieldedFiles, 0, 'expected zero warmup yield for synthetic low-yield files');
+assert.equal(lowYieldMarker?.deterministic, true, 'expected deterministic warmup marker');
+assert.equal(lowYieldMarker?.downgradedRecall, true, 'expected downgraded recall marker');
 
 const schemaCheck = validateArtifact('extraction_report', report);
 assert.equal(schemaCheck.ok, true, `expected extraction report schema validation: ${schemaCheck.errors.join('; ')}`);
