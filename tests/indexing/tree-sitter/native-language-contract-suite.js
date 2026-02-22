@@ -374,23 +374,27 @@ export async function runNativeLanguageContractSuite({
       assert.equal(typeof chunk?.name, 'string', `missing chunk.name for ${fixture.languageId}`);
       assert.ok(chunk.name.trim().length > 0, `empty chunk.name for ${fixture.languageId}`);
       assert.ok(chunk.meta && typeof chunk.meta === 'object', `missing chunk.meta for ${fixture.languageId}`);
-      assert.ok(
-        Number.isFinite(chunk.meta.startLine) && Number.isFinite(chunk.meta.endLine),
-        `missing chunk line metadata for ${fixture.languageId}`
-      );
-      assert.ok(
-        chunk.meta.endLine >= chunk.meta.startLine,
-        `invalid chunk line metadata for ${fixture.languageId}`
-      );
-      assert.equal(
-        typeof chunk.meta.signature,
-        'string',
-        `missing chunk signature metadata for ${fixture.languageId}`
-      );
-      assert.ok(
-        chunk.meta.signature.trim().length > 0,
-        `empty chunk signature metadata for ${fixture.languageId}`
-      );
+      if (!fallbackOnly) {
+        assert.ok(
+          Number.isFinite(chunk.meta.startLine) && Number.isFinite(chunk.meta.endLine),
+          `missing chunk line metadata for ${fixture.languageId}`
+        );
+        assert.ok(
+          chunk.meta.endLine >= chunk.meta.startLine,
+          `invalid chunk line metadata for ${fixture.languageId}`
+        );
+        assert.equal(
+          typeof chunk.meta.signature,
+          'string',
+          `missing chunk signature metadata for ${fixture.languageId}`
+        );
+        assert.ok(
+          chunk.meta.signature.trim().length > 0,
+          `empty chunk signature metadata for ${fixture.languageId}`
+        );
+      } else {
+        assert.equal(chunk.kind, 'File', `expected fallback-only File chunk for ${fixture.languageId}`);
+      }
       assert.ok(
         chunk.meta.docstring == null || typeof chunk.meta.docstring === 'string',
         `invalid chunk docstring metadata for ${fixture.languageId}`
