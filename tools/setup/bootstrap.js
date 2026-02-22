@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { createStdoutGuard } from '../../src/shared/cli/stdout-guard.js';
-import { runCommand, runCommandOrExit } from '../shared/cli-utils.js';
+import { runCommand } from '../shared/cli-utils.js';
 import { getDictionaryPaths, getDictConfig, getRepoCacheRoot, getRuntimeConfig, getToolingConfig, resolveRepoConfig, resolveRuntimeEnv, resolveToolRoot } from '../shared/dict-utils.js';
 import { getVectorExtensionConfig, resolveVectorExtensionPath } from '../sqlite/vector-extension.js';
 
@@ -38,13 +38,25 @@ const summary = {
 const recordStep = (name, data) => {
   summary.steps[name] = { ...(summary.steps[name] || {}), ...data };
 };
+
+const relayChildOutputToStderr = (result) => {
+  if (!jsonOutput || !result || typeof result !== 'object') return;
+  if (typeof result.stdout === 'string' && result.stdout.length > 0) {
+    process.stderr.write(result.stdout);
+  }
+  if (typeof result.stderr === 'string' && result.stderr.length > 0) {
+    process.stderr.write(result.stderr);
+  }
+};
+
 const configPath = path.join(root, '.pairofcleats.json');
 if (argv['validate-config'] && fs.existsSync(configPath)) {
   const result = runCommand(
     process.execPath,
     [path.join(toolRoot, 'tools', 'config', 'validate.js'), '--config', configPath],
-    { cwd: root, stdio: 'inherit' }
+    { cwd: root, stdio: jsonOutput ? 'pipe' : 'inherit', encoding: 'utf8' }
   );
+  relayChildOutputToStderr(result);
   if (!result.ok) {
     process.exit(result.status ?? 1);
   }
@@ -70,7 +82,17 @@ let restoredArtifacts = false;
  * @param {string} label
  */
 function run(cmd, args, label) {
-  runCommandOrExit(label || cmd, cmd, args, { cwd: root, stdio: 'inherit', env: baseEnv });
+  const result = runCommand(cmd, args, {
+    cwd: root,
+    stdio: jsonOutput ? 'pipe' : 'inherit',
+    encoding: 'utf8',
+    env: baseEnv
+  });
+  relayChildOutputToStderr(result);
+  if (!result.ok) {
+    console.error(`Failed: ${label || cmd}`);
+    process.exit(result.status ?? 1);
+  }
 }
 
 if (!argv['skip-install']) {
@@ -192,8 +214,9 @@ if (!argv['skip-artifacts'] && fs.existsSync(path.join(artifactsDir, 'manifest.j
   const result = runCommand(
     process.execPath,
     [path.join(toolRoot, 'tools', 'ci', 'restore-artifacts.js'), '--from', artifactsDir],
-    { cwd: root, stdio: 'inherit', env: baseEnv }
+    { cwd: root, stdio: jsonOutput ? 'pipe' : 'inherit', encoding: 'utf8', env: baseEnv }
   );
+  relayChildOutputToStderr(result);
   restoredArtifacts = result.ok;
 }
 summary.restoredArtifacts = restoredArtifacts;

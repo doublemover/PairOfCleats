@@ -5,6 +5,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { getTuiEnvConfig } from '../src/shared/env.js';
+import { exitLikeChild } from '../src/tui/wrapper-exit.js';
 import {
   isExecutableForPlatform,
   readBuildManifestSync,
@@ -133,4 +134,4 @@ const env = {
   PAIROFCLEATS_TUI_EVENT_LOG_DIR: tuiEnvConfig.eventLogDir || eventLogDir
 };
 const result = spawnSync(binaryPath, args, { stdio: 'inherit', env });
-process.exit(result.status ?? 1);
+exitLikeChild(result);
