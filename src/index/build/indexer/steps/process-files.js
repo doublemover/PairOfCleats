@@ -35,6 +35,7 @@ const FILE_WATCHDOG_DEFAULT_STEP_MS = 1000;
 const FILE_HARD_TIMEOUT_DEFAULT_MS = 300000;
 const FILE_HARD_TIMEOUT_MAX_MS = 1800000;
 const FILE_HARD_TIMEOUT_SLOW_MULTIPLIER = 3;
+const FILE_PROCESS_CLEANUP_TIMEOUT_DEFAULT_MS = 30000;
 const DEFAULT_POSTINGS_ROWS_PER_PENDING = 300;
 const DEFAULT_POSTINGS_BYTES_PER_PENDING = 12 * 1024 * 1024;
 const DEFAULT_POSTINGS_PENDING_SCALE = 3;
@@ -145,6 +146,69 @@ export const resolveFileHardTimeoutMs = (watchdogConfig, entry, softTimeoutMs = 
     ? Math.ceil(softTimeoutMs * 2)
     : 0;
   return Math.min(FILE_HARD_TIMEOUT_MAX_MS, Math.max(watchdogConfig.hardTimeoutMs, sizeScaledTimeout, softScaledTimeout));
+};
+
+export const resolveProcessCleanupTimeoutMs = (runtime) => {
+  const config = runtime?.stage1Queues?.watchdog || {};
+  const configured = coerceOptionalNonNegativeInt(config.cleanupTimeoutMs);
+  if (configured === 0) return 0;
+  return configured ?? FILE_PROCESS_CLEANUP_TIMEOUT_DEFAULT_MS;
+};
+
+export const runCleanupWithTimeout = async ({
+  label,
+  cleanup,
+  timeoutMs = FILE_PROCESS_CLEANUP_TIMEOUT_DEFAULT_MS,
+  log = null,
+  logMeta = null,
+  onTimeout = null
+}) => {
+  if (typeof cleanup !== 'function') return { skipped: true, timedOut: false, elapsedMs: 0 };
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    const startAtMs = Date.now();
+    await cleanup();
+    return { skipped: false, timedOut: false, elapsedMs: Date.now() - startAtMs };
+  }
+  const startedAtMs = Date.now();
+  try {
+    await runWithTimeout(
+      () => cleanup(),
+      {
+        timeoutMs,
+        errorFactory: () => createTimeoutError({
+          message: `[cleanup] ${label || 'cleanup'} timed out after ${timeoutMs}ms`,
+          code: 'PROCESS_CLEANUP_TIMEOUT',
+          retryable: false,
+          meta: {
+            label: label || 'cleanup',
+            timeoutMs
+          }
+        })
+      }
+    );
+    return { skipped: false, timedOut: false, elapsedMs: Date.now() - startedAtMs };
+  } catch (err) {
+    if (err?.code !== 'PROCESS_CLEANUP_TIMEOUT') throw err;
+    const elapsedMs = Date.now() - startedAtMs;
+    if (typeof log === 'function') {
+      log(
+        `[cleanup] ${label || 'cleanup'} timed out after ${timeoutMs}ms; continuing.`,
+        {
+          kind: 'warning',
+          ...(logMeta && typeof logMeta === 'object' ? logMeta : {}),
+          cleanupLabel: label || 'cleanup',
+          timeoutMs,
+          elapsedMs
+        }
+      );
+    }
+    if (typeof onTimeout === 'function') {
+      try {
+        await onTimeout(err);
+      } catch {}
+    }
+    return { skipped: false, timedOut: true, elapsedMs, error: err };
+  }
 };
 
 export const shouldBypassPostingsBackpressure = ({
@@ -419,13 +483,10 @@ export const processFiles = async ({
 
   const closeTreeSitterScheduler = async () => {
     if (!treeSitterScheduler || typeof treeSitterScheduler.close !== 'function') return;
-    try {
-      await treeSitterScheduler.close();
-    } catch (err) {
-      log(`[tree-sitter:schedule] scheduler close failed: ${err?.message || err}`);
-    }
+    await treeSitterScheduler.close();
   };
   let stallSnapshotTimer = null;
+  const cleanupTimeoutMs = resolveProcessCleanupTimeoutMs(runtime);
 
   try {
     assignFileIndexes(entries);
@@ -1293,8 +1354,43 @@ export const processFiles = async ({
       clearInterval(stallSnapshotTimer);
     }
     runtime?.telemetry?.clearInFlightBytes?.('stage1.postings-queue');
-    await perfEventLogger.close();
-    await closeTreeSitterScheduler();
+    await runCleanupWithTimeout({
+      label: 'perf-event-logger.close',
+      cleanup: () => perfEventLogger.close(),
+      timeoutMs: cleanupTimeoutMs,
+      log: (line, meta) => logLine(line, {
+        ...(meta || {}),
+        mode,
+        stage: 'processing'
+      })
+    });
+    await runCleanupWithTimeout({
+      label: 'tree-sitter-scheduler.close',
+      cleanup: () => closeTreeSitterScheduler(),
+      timeoutMs: cleanupTimeoutMs,
+      log: (line, meta) => logLine(line, {
+        ...(meta || {}),
+        mode,
+        stage: 'processing'
+      }),
+      onTimeout: async () => {
+        const cleanup = await terminateTrackedSubprocesses({
+          reason: 'tree_sitter_scheduler_close_timeout',
+          force: true
+        });
+        if (cleanup?.attempted > 0) {
+          logLine(
+            `[cleanup] forced termination of ${cleanup.attempted} tracked subprocess(es) after scheduler close timeout.`,
+            {
+              kind: 'warning',
+              mode,
+              stage: 'processing',
+              cleanup
+            }
+          );
+        }
+      }
+    });
   }
 };
 
