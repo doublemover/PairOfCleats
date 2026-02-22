@@ -1,14 +1,15 @@
 #!/usr/bin/env node
-import { ensureFixtureIndex, runSearch } from '../../helpers/fixture-index.js';
+import { createInProcessSearchRunner, ensureFixtureIndex } from '../../helpers/fixture-index.js';
 
 const { fixtureRoot, env } = await ensureFixtureIndex({
   fixtureName: 'languages',
-  cacheName: 'language-fixture'
+  cacheName: 'language-fixture',
+  cacheScope: 'shared',
+  requiredModes: ['code']
 });
+const runSearch = createInProcessSearchRunner({ fixtureRoot, env });
 
-const payload = runSearch({
-  fixtureRoot,
-  env,
+const payload = await runSearch({
   query: 'load',
   mode: 'code',
   args: ['--branches', '1']

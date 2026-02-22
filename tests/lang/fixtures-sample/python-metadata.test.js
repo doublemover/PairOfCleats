@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
-import { ensureFixtureIndex, runSearch } from '../../helpers/fixture-index.js';
+import { createInProcessSearchRunner, ensureFixtureIndex } from '../../helpers/fixture-index.js';
 
 const hasPython = () => {
   const candidates = ['python', 'python3'];
@@ -18,12 +18,13 @@ if (!hasPython()) {
 
 const { fixtureRoot, env } = await ensureFixtureIndex({
   fixtureName: 'sample',
-  cacheName: 'fixture-sample-python'
+  cacheName: 'fixture-sample-python',
+  cacheScope: 'shared',
+  requiredModes: ['code']
 });
+const runSearch = createInProcessSearchRunner({ fixtureRoot, env });
 
-const payload = runSearch({
-  fixtureRoot,
-  env,
+const payload = await runSearch({
   query: 'message',
   mode: 'code',
   args: ['--backend', 'memory']
