@@ -839,7 +839,7 @@ Touchpoints:
   - [x] sequence 3: cache architecture + invalidation correctness
   - [x] sequence 4: scheduler + memory-layout optimization
   - [x] sequence 5: relation recomputation and memory-layout consolidation
-  - [ ] sequence 6: profile consolidation and cleanup of temporary overrides
+  - [x] sequence 6: profile consolidation and cleanup of temporary overrides
 - [x] Treat current early language resolution and current scan fastpath as baseline; harden and extend rather than re-implement.
 - [x] Capture baseline and post-change hot-path metrics from the identical fixture corpus so each optimization has attributable before/after impact.
 - [x] Implement hot-path timing probes first (scan/read/chunk/parse/relation) and freeze their event schema before optimization changes.
