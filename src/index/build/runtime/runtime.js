@@ -270,6 +270,19 @@ const resolveStage1Queues = (indexingConfig = {}) => {
   const watchdogBytesPerStep = coercePositiveInt(watchdog.bytesPerStep);
   const watchdogLinesPerStep = coercePositiveInt(watchdog.linesPerStep);
   const watchdogStepMs = coercePositiveInt(watchdog.stepMs);
+  const watchdogNearThresholdLowerFraction = coerceClampedFraction(
+    watchdog.nearThresholdLowerFraction,
+    { min: 0, max: 1, allowZero: false }
+  );
+  const watchdogNearThresholdUpperFraction = coerceClampedFraction(
+    watchdog.nearThresholdUpperFraction,
+    { min: 0, max: 1, allowZero: false }
+  );
+  const watchdogNearThresholdAlertFraction = coerceClampedFraction(
+    watchdog.nearThresholdAlertFraction,
+    { min: 0, max: 1, allowZero: false }
+  );
+  const watchdogNearThresholdMinSamples = coercePositiveInt(watchdog.nearThresholdMinSamples);
 
   return {
     tokenize: {
@@ -296,7 +309,11 @@ const resolveStage1Queues = (indexingConfig = {}) => {
       hardTimeoutMs: watchdogHardTimeoutMs,
       bytesPerStep: watchdogBytesPerStep,
       linesPerStep: watchdogLinesPerStep,
-      stepMs: watchdogStepMs
+      stepMs: watchdogStepMs,
+      nearThresholdLowerFraction: watchdogNearThresholdLowerFraction,
+      nearThresholdUpperFraction: watchdogNearThresholdUpperFraction,
+      nearThresholdAlertFraction: watchdogNearThresholdAlertFraction,
+      nearThresholdMinSamples: watchdogNearThresholdMinSamples
     }
   };
 };

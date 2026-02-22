@@ -38,6 +38,10 @@ const FILE_WATCHDOG_HUGE_REPO_BASE_MS = 20000;
 const FILE_WATCHDOG_DEFAULT_BYTES_PER_STEP = 256 * 1024;
 const FILE_WATCHDOG_DEFAULT_LINES_PER_STEP = 2000;
 const FILE_WATCHDOG_DEFAULT_STEP_MS = 1000;
+const FILE_WATCHDOG_NEAR_THRESHOLD_LOWER_FRACTION = 0.85;
+const FILE_WATCHDOG_NEAR_THRESHOLD_UPPER_FRACTION = 1;
+const FILE_WATCHDOG_NEAR_THRESHOLD_ALERT_FRACTION = 0.6;
+const FILE_WATCHDOG_NEAR_THRESHOLD_MIN_SAMPLES = 20;
 const FILE_HARD_TIMEOUT_DEFAULT_MS = 300000;
 const FILE_HARD_TIMEOUT_MAX_MS = 1800000;
 const FILE_HARD_TIMEOUT_SLOW_MULTIPLIER = 3;
@@ -65,6 +69,12 @@ const FILE_QUEUE_DELAY_HISTOGRAM_BUCKETS_MS = Object.freeze([50, 100, 250, 500, 
 const coerceOptionalNonNegativeInt = (value) => {
   if (value === null || value === undefined) return null;
   return coerceNonNegativeInt(value);
+};
+const coerceClampedFractionOrDefault = (value, fallback, { min = 0, max = 1, allowZero = false } = {}) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  if ((!allowZero && parsed <= 0) || parsed < min || parsed > max) return fallback;
+  return parsed;
 };
 const clampDurationMs = (value) => {
   const parsed = Number(value);
@@ -150,6 +160,85 @@ export const shouldTriggerSlowFileWarning = ({ activeDurationMs, thresholdMs }) 
   const threshold = Number(thresholdMs);
   if (!Number.isFinite(threshold) || threshold <= 0) return false;
   return clampDurationMs(activeDurationMs) >= threshold;
+};
+
+export const isNearThresholdSlowFileDuration = ({
+  activeDurationMs,
+  thresholdMs,
+  lowerFraction = FILE_WATCHDOG_NEAR_THRESHOLD_LOWER_FRACTION,
+  upperFraction = FILE_WATCHDOG_NEAR_THRESHOLD_UPPER_FRACTION
+} = {}) => {
+  const threshold = Number(thresholdMs);
+  if (!Number.isFinite(threshold) || threshold <= 0) return false;
+  const clampedLower = coerceClampedFractionOrDefault(lowerFraction, FILE_WATCHDOG_NEAR_THRESHOLD_LOWER_FRACTION, {
+    min: 0,
+    max: 1,
+    allowZero: false
+  });
+  const clampedUpper = coerceClampedFractionOrDefault(upperFraction, FILE_WATCHDOG_NEAR_THRESHOLD_UPPER_FRACTION, {
+    min: 0,
+    max: 1,
+    allowZero: false
+  });
+  const normalizedUpper = Math.max(clampedLower, clampedUpper);
+  const durationMs = clampDurationMs(activeDurationMs);
+  const lowerBoundMs = threshold * clampedLower;
+  const upperBoundMs = threshold * normalizedUpper;
+  return durationMs >= lowerBoundMs && durationMs < upperBoundMs;
+};
+
+export const buildWatchdogNearThresholdSummary = ({
+  sampleCount = 0,
+  nearThresholdCount = 0,
+  slowWarningCount = 0,
+  thresholdTotalMs = 0,
+  activeTotalMs = 0,
+  lowerFraction = FILE_WATCHDOG_NEAR_THRESHOLD_LOWER_FRACTION,
+  upperFraction = FILE_WATCHDOG_NEAR_THRESHOLD_UPPER_FRACTION,
+  alertFraction = FILE_WATCHDOG_NEAR_THRESHOLD_ALERT_FRACTION,
+  minSamples = FILE_WATCHDOG_NEAR_THRESHOLD_MIN_SAMPLES,
+  slowFileMs = FILE_WATCHDOG_DEFAULT_MS
+} = {}) => {
+  const safeSampleCount = Math.max(0, Math.floor(Number(sampleCount) || 0));
+  const safeNearThresholdCount = Math.max(0, Math.floor(Number(nearThresholdCount) || 0));
+  const safeSlowWarningCount = Math.max(0, Math.floor(Number(slowWarningCount) || 0));
+  const nearThresholdRatio = safeSampleCount > 0
+    ? Math.min(1, safeNearThresholdCount / safeSampleCount)
+    : 0;
+  const clampedAlertFraction = coerceClampedFractionOrDefault(
+    alertFraction,
+    FILE_WATCHDOG_NEAR_THRESHOLD_ALERT_FRACTION,
+    { min: 0, max: 1, allowZero: false }
+  );
+  const safeMinSamples = Math.max(1, Math.floor(Number(minSamples) || FILE_WATCHDOG_NEAR_THRESHOLD_MIN_SAMPLES));
+  const anomaly = safeSampleCount >= safeMinSamples
+    && nearThresholdRatio >= clampedAlertFraction;
+  const safeSlowFileMs = Math.max(1, Math.floor(Number(slowFileMs) || FILE_WATCHDOG_DEFAULT_MS));
+  const suggestedSlowFileMs = anomaly
+    ? Math.max(safeSlowFileMs + 1, Math.ceil(safeSlowFileMs * 1.25))
+    : null;
+  return {
+    sampleCount: safeSampleCount,
+    nearThresholdCount: safeNearThresholdCount,
+    slowWarningCount: safeSlowWarningCount,
+    nearThresholdRatio,
+    avgThresholdMs: safeSampleCount > 0 ? clampDurationMs(thresholdTotalMs) / safeSampleCount : 0,
+    avgActiveMs: safeSampleCount > 0 ? clampDurationMs(activeTotalMs) / safeSampleCount : 0,
+    lowerFraction: coerceClampedFractionOrDefault(lowerFraction, FILE_WATCHDOG_NEAR_THRESHOLD_LOWER_FRACTION, {
+      min: 0,
+      max: 1,
+      allowZero: false
+    }),
+    upperFraction: coerceClampedFractionOrDefault(upperFraction, FILE_WATCHDOG_NEAR_THRESHOLD_UPPER_FRACTION, {
+      min: 0,
+      max: 1,
+      allowZero: false
+    }),
+    alertFraction: clampedAlertFraction,
+    minSamples: safeMinSamples,
+    anomaly,
+    suggestedSlowFileMs
+  };
 };
 
 const normalizeOwnershipSegment = (value, fallback = 'unknown') => {
@@ -240,6 +329,31 @@ export const resolveFileWatchdogConfig = (runtime, { repoFileCount = 0 } = {}) =
   const bytesPerStep = coercePositiveInt(config.bytesPerStep) ?? FILE_WATCHDOG_DEFAULT_BYTES_PER_STEP;
   const linesPerStep = coercePositiveInt(config.linesPerStep) ?? FILE_WATCHDOG_DEFAULT_LINES_PER_STEP;
   const stepMs = coercePositiveInt(config.stepMs) ?? FILE_WATCHDOG_DEFAULT_STEP_MS;
+  const nearThresholdLowerFraction = coerceClampedFractionOrDefault(
+    config.nearThresholdLowerFraction,
+    FILE_WATCHDOG_NEAR_THRESHOLD_LOWER_FRACTION,
+    { min: 0, max: 1, allowZero: false }
+  );
+  const nearThresholdUpperFraction = Math.max(
+    nearThresholdLowerFraction,
+    coerceClampedFractionOrDefault(
+      config.nearThresholdUpperFraction,
+      FILE_WATCHDOG_NEAR_THRESHOLD_UPPER_FRACTION,
+      { min: 0, max: 1, allowZero: false }
+    )
+  );
+  const nearThresholdAlertFraction = coerceClampedFractionOrDefault(
+    config.nearThresholdAlertFraction,
+    FILE_WATCHDOG_NEAR_THRESHOLD_ALERT_FRACTION,
+    { min: 0, max: 1, allowZero: false }
+  );
+  const nearThresholdMinSamples = Math.max(
+    1,
+    Math.floor(
+      Number(config.nearThresholdMinSamples)
+      || FILE_WATCHDOG_NEAR_THRESHOLD_MIN_SAMPLES
+    )
+  );
   const hardTimeoutMs = coerceOptionalNonNegativeInt(config.hardTimeoutMs)
     ?? Math.max(FILE_HARD_TIMEOUT_DEFAULT_MS, maxSlowFileMs * FILE_HARD_TIMEOUT_SLOW_MULTIPLIER);
   return {
@@ -249,6 +363,10 @@ export const resolveFileWatchdogConfig = (runtime, { repoFileCount = 0 } = {}) =
     bytesPerStep,
     linesPerStep,
     stepMs,
+    nearThresholdLowerFraction,
+    nearThresholdUpperFraction,
+    nearThresholdAlertFraction,
+    nearThresholdMinSamples,
     adaptiveSlowFloorMs
   };
 };
@@ -699,6 +817,13 @@ export const processFiles = async ({
   };
   const queueDelayHistogram = createDurationHistogram(FILE_QUEUE_DELAY_HISTOGRAM_BUCKETS_MS);
   const queueDelaySummary = { count: 0, totalMs: 0, minMs: null, maxMs: 0 };
+  const watchdogNearThreshold = {
+    sampleCount: 0,
+    nearThresholdCount: 0,
+    slowWarningCount: 0,
+    thresholdTotalMs: 0,
+    activeTotalMs: 0
+  };
   const lifecycleByOrderIndex = new Map();
   const lifecycleByRelKey = new Map();
   const queueDelayTelemetryChannel = 'stage1.file-queue-delay';
@@ -788,6 +913,30 @@ export const processFiles = async ({
     queueDelayHistogram.observe(safeDurationMs);
     runtime?.telemetry?.recordDuration?.(queueDelayTelemetryChannel, safeDurationMs);
   };
+  const observeWatchdogNearThreshold = ({
+    activeDurationMs = 0,
+    thresholdMs = 0,
+    triggeredSlowWarning = false
+  } = {}) => {
+    const threshold = Number(thresholdMs);
+    if (!Number.isFinite(threshold) || threshold <= 0) return;
+    const activeMs = clampDurationMs(activeDurationMs);
+    watchdogNearThreshold.sampleCount += 1;
+    watchdogNearThreshold.thresholdTotalMs += threshold;
+    watchdogNearThreshold.activeTotalMs += activeMs;
+    if (triggeredSlowWarning) {
+      watchdogNearThreshold.slowWarningCount += 1;
+      return;
+    }
+    if (isNearThresholdSlowFileDuration({
+      activeDurationMs: activeMs,
+      thresholdMs: threshold,
+      lowerFraction: fileWatchdogConfig?.nearThresholdLowerFraction,
+      upperFraction: fileWatchdogConfig?.nearThresholdUpperFraction
+    })) {
+      watchdogNearThreshold.nearThresholdCount += 1;
+    }
+  };
   const finalizeBreakdownBucket = (bucketMap) => (
     Object.fromEntries(
       Array.from(bucketMap.entries())
@@ -836,7 +985,19 @@ export const processFiles = async ({
             : 0
         },
         histogram: queueDelayHistogram.snapshot()
-      }
+      },
+      nearThreshold: buildWatchdogNearThresholdSummary({
+        sampleCount: watchdogNearThreshold.sampleCount,
+        nearThresholdCount: watchdogNearThreshold.nearThresholdCount,
+        slowWarningCount: watchdogNearThreshold.slowWarningCount,
+        thresholdTotalMs: watchdogNearThreshold.thresholdTotalMs,
+        activeTotalMs: watchdogNearThreshold.activeTotalMs,
+        lowerFraction: fileWatchdogConfig?.nearThresholdLowerFraction,
+        upperFraction: fileWatchdogConfig?.nearThresholdUpperFraction,
+        alertFraction: fileWatchdogConfig?.nearThresholdAlertFraction,
+        minSamples: fileWatchdogConfig?.nearThresholdMinSamples,
+        slowFileMs: fileWatchdogConfig?.slowFileMs
+      })
     }
   });
   const ioQueueConcurrency = Number.isFinite(runtime?.queues?.io?.concurrency)
@@ -1659,6 +1820,16 @@ export const processFiles = async ({
                 });
                 throw err;
               } finally {
+                const activeDurationMs = Math.max(0, Date.now() - activeStartAtMs);
+                const triggeredSlowWarning = shouldTriggerSlowFileWarning({
+                  activeDurationMs,
+                  thresholdMs: fileWatchdogMs
+                });
+                observeWatchdogNearThreshold({
+                  activeDurationMs,
+                  thresholdMs: fileWatchdogMs,
+                  triggeredSlowWarning
+                });
                 if (lifecycle) {
                   lifecycle.parseEndAtMs = Date.now();
                 }
@@ -2100,11 +2271,35 @@ export const processFiles = async ({
     checkpoint.finish();
     timing.processMs = Date.now() - processStart;
     const stageTimingBreakdownPayload = buildStageTimingBreakdownPayload();
+    const watchdogNearThresholdSummary = stageTimingBreakdownPayload?.watchdog?.nearThreshold;
+    if (watchdogNearThresholdSummary?.anomaly) {
+      const ratioPct = (watchdogNearThresholdSummary.nearThresholdRatio * 100).toFixed(1);
+      const lowerPct = (watchdogNearThresholdSummary.lowerFraction * 100).toFixed(0);
+      const upperPct = (watchdogNearThresholdSummary.upperFraction * 100).toFixed(0);
+      const suggestedSlowFileMs = Number(watchdogNearThresholdSummary.suggestedSlowFileMs);
+      const suggestionText = Number.isFinite(suggestedSlowFileMs) && suggestedSlowFileMs > 0
+        ? `consider stage1.watchdog.slowFileMs=${Math.floor(suggestedSlowFileMs)}`
+        : 'consider raising stage1.watchdog.slowFileMs';
+      logLine(
+        `[watchdog] near-threshold anomaly: ${watchdogNearThresholdSummary.nearThresholdCount}`
+          + `/${watchdogNearThresholdSummary.sampleCount} files (${ratioPct}%) in ${lowerPct}-${upperPct}% window; `
+          + `${suggestionText}.`,
+        {
+          kind: 'warning',
+          mode,
+          stage: 'processing',
+          watchdog: {
+            nearThreshold: watchdogNearThresholdSummary
+          }
+        }
+      );
+    }
     if (timing && typeof timing === 'object') {
       timing.stageTimingBreakdown = stageTimingBreakdownPayload;
       timing.watchdog = {
         ...(timing.watchdog && typeof timing.watchdog === 'object' ? timing.watchdog : {}),
-        queueDelayMs: stageTimingBreakdownPayload?.watchdog?.queueDelayMs || null
+        queueDelayMs: stageTimingBreakdownPayload?.watchdog?.queueDelayMs || null,
+        nearThreshold: stageTimingBreakdownPayload?.watchdog?.nearThreshold || null
       };
     }
     const parseSkipCount = state.skippedFiles.filter((entry) => entry?.reason === 'parse-error').length;

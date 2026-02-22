@@ -801,7 +801,7 @@ Last revised: 2026-02-22T05:44:04.8332760-05:00
 - Touchpoints: `src/index/build/tree-sitter-scheduler/plan.js`, `src/index/build/tree-sitter-scheduler/policy.js`, `src/index/build/tree-sitter-scheduler/adaptive-profile.js`, `tests/indexing/tree-sitter/tree-sitter-scheduler-adaptive-planner.test.js`
 
 ### UB-086: Watchdog near-threshold anomaly detector
-- Status: [ ]
+- Status: [x]
 - Observation:
   - A large fraction of slow-file lines cluster around 10s, indicating threshold-bound behavior.
 - Tasks:
@@ -809,6 +809,12 @@ Last revised: 2026-02-22T05:44:04.8332760-05:00
   - Auto-suggest runtime tuning in diagnostics output.
 - Exit criteria:
   - Operators can distinguish true slow files vs threshold artifacts immediately.
+- Completion: 2026-02-22T06:56:23.3753592-05:00
+- Validation:
+  - `node tests/indexing/stage1/watchdog-near-threshold-anomaly.test.js`
+  - `node tests/indexing/stage1/file-watchdog-hard-timeout.test.js`
+  - `node tests/indexing/stage1/process-files-progress-heartbeat.test.js`
+  - `node tests/tooling/reports/bench-language-stage-timing-report.test.js`
 - Improvement Intent (What): watchdog false-positive visibility
 - Improvement Method (How): near-threshold anomaly ratios with auto tuning hints.
 - Integrated Betterments: compute near-threshold ratio per stage and repo; trigger targeted diagnostics when ratio exceeds budget; recommend adaptive threshold settings directly in summary output.
