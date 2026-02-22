@@ -69,4 +69,17 @@ if (quantKey === baseKey) {
   process.exit(1);
 }
 
+const formattingKey = buildEmbeddingIdentityKey(buildEmbeddingIdentity({
+  ...base,
+  inputFormatting: {
+    family: 'e5',
+    queryPrefix: 'query: ',
+    passagePrefix: 'passage: '
+  }
+}));
+if (formattingKey === baseKey) {
+  console.error('embedding identity test failed: inputFormatting change did not update key');
+  process.exit(1);
+}
+
 console.log('embedding identity tests passed');

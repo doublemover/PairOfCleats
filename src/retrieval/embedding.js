@@ -1,4 +1,8 @@
 import { getEmbeddingAdapter } from '../shared/embedding-adapter.js';
+import {
+  formatEmbeddingInput,
+  resolveEmbeddingInputFormatting
+} from '../shared/embedding-input-format.js';
 import { getEnvConfig } from '../shared/env.js';
 import { createWarnOnce } from '../shared/logging/warn-once.js';
 
@@ -22,6 +26,7 @@ const resolveEnvEmbeddingMode = (value) => {
  * @param {number} options.dims
  * @param {string} options.modelDir
  * @param {boolean} options.useStub
+ * @param {{family?:string,queryPrefix?:string|null,passagePrefix?:string|null}|null} [options.inputFormatting]
  * @returns {Promise<number[]|null>}
  */
 export async function getQueryEmbedding({
@@ -33,7 +38,8 @@ export async function getQueryEmbedding({
   provider,
   onnxConfig,
   rootDir,
-  normalize
+  normalize,
+  inputFormatting = null
 }) {
   try {
     const envMode = resolveEnvEmbeddingMode(getEnvConfig().embeddings);
@@ -49,7 +55,15 @@ export async function getQueryEmbedding({
       onnxConfig,
       normalize
     });
-    const embedding = await adapter.embedOne(text);
+    const resolvedInputFormatting = inputFormatting && typeof inputFormatting === 'object'
+      ? inputFormatting
+      : resolveEmbeddingInputFormatting(modelId);
+    const formattedText = formatEmbeddingInput(text, {
+      modelId,
+      kind: 'query',
+      formatting: resolvedInputFormatting
+    });
+    const embedding = await adapter.embedOne(formattedText);
     if (!embedding || !embedding.length) return null;
     return embedding;
   } catch (err) {

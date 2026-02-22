@@ -59,6 +59,19 @@ const normalizeIdentityNumber = (value) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+const normalizeIdentityInputFormatting = (value) => {
+  if (!value || typeof value !== 'object') return null;
+  const family = normalizeModel(value.family) || 'default';
+  const queryPrefix = normalizeModel(value.queryPrefix);
+  const passagePrefix = normalizeModel(value.passagePrefix);
+  if (family === 'default' && !queryPrefix && !passagePrefix) return null;
+  return {
+    family,
+    queryPrefix: queryPrefix || null,
+    passagePrefix: passagePrefix || null
+  };
+};
+
 const loadDenseArtifactFromLegacyPath = async (dir, artifactName) => {
   const candidates = DENSE_ARTIFACT_LEGACY_FILES[artifactName];
   if (!Array.isArray(candidates) || !candidates.length) return null;
@@ -104,6 +117,8 @@ const extractEmbeddingIdentity = (meta) => {
   if (maxVal != null) identity.maxVal = maxVal;
   const levels = normalizeIdentityNumber(meta.levels ?? quantization?.levels);
   if (levels != null) identity.levels = levels;
+  const inputFormatting = normalizeIdentityInputFormatting(meta.inputFormatting);
+  if (inputFormatting) identity.inputFormatting = inputFormatting;
   return identity;
 };
 
@@ -1259,6 +1274,21 @@ export async function loadSearchIndexes({
           expected: leftModel,
           actual: rightModel
         });
+      }
+      const leftFormatting = normalizeIdentityInputFormatting(reference.identity?.inputFormatting);
+      const rightFormatting = normalizeIdentityInputFormatting(source.identity?.inputFormatting);
+      if (leftFormatting && rightFormatting) {
+        const leftFormattingKey = JSON.stringify(leftFormatting);
+        const rightFormattingKey = JSON.stringify(rightFormatting);
+        if (leftFormattingKey !== rightFormattingKey) {
+          mismatches.push({
+            mode,
+            source: source.name,
+            field: 'inputFormatting',
+            expected: leftFormattingKey,
+            actual: rightFormattingKey
+          });
+        }
       }
 
       for (const field of quantFields) {

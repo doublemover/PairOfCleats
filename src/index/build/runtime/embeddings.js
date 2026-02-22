@@ -3,6 +3,7 @@ import { DEFAULT_MODEL_ID, getModelConfig } from '../../../shared/dict-utils.js'
 import { createEmbedder } from '../../embedding.js';
 import { resolveAutoEmbeddingBatchSize } from '../../../shared/embedding-batch.js';
 import { buildEmbeddingIdentity, buildEmbeddingIdentityKey } from '../../../shared/embedding-identity.js';
+import { resolveEmbeddingInputFormatting } from '../../../shared/embedding-input-format.js';
 import { resolveStubDims } from '../../../shared/embedding.js';
 import { normalizeEmbeddingProvider, normalizeOnnxConfig, resolveOnnxModelPath } from '../../../shared/onnx-embeddings.js';
 import { resolveQuantizationParams } from '../../../storage/sqlite/quantization.js';
@@ -90,6 +91,7 @@ export const resolveEmbeddingRuntime = async ({
   const useStubEmbeddings = resolvedEmbeddingMode === 'stub' || baseStubEmbeddings;
   const modelConfig = getModelConfig(rootDir, userConfig);
   const modelId = argv.model || modelConfig.id || DEFAULT_MODEL_ID;
+  const embeddingInputFormatting = resolveEmbeddingInputFormatting(modelId);
   const modelsDir = modelConfig.dir;
   if (modelsDir) {
     try {
@@ -144,6 +146,7 @@ export const resolveEmbeddingRuntime = async ({
     normalize: embeddingNormalize,
     truncation: 'truncate',
     maxLength: null,
+    inputFormatting: embeddingInputFormatting,
     quantization: {
       version: 1,
       minVal: quantization.minVal,
@@ -166,6 +169,7 @@ export const resolveEmbeddingRuntime = async ({
     embeddingProvider,
     embeddingOnnx,
     embeddingNormalize,
+    embeddingInputFormatting,
     embeddingQueue: {
       dir: embeddingQueueDir || null,
       maxQueued: embeddingQueueMaxQueued

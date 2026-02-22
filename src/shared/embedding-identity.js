@@ -1,9 +1,9 @@
 import { sha1 } from './hash.js';
 
 /** Embedding identity schema version. */
-export const EMBEDDING_IDENTITY_VERSION = 2;
+export const EMBEDDING_IDENTITY_VERSION = 3;
 /** Embedding identity fingerprint tag used in cache keys. */
-export const EMBEDDING_IDENTITY_FINGERPRINT = 'embeddings-v2';
+export const EMBEDDING_IDENTITY_FINGERPRINT = 'embeddings-v3';
 
 const normalizeString = (value) => {
   if (typeof value !== 'string') return null;
@@ -29,6 +29,19 @@ const normalizeArray = (value) => {
   return normalized.length ? normalized : null;
 };
 
+const normalizeInputFormatting = (value) => {
+  if (!value || typeof value !== 'object') return null;
+  const family = normalizeString(value.family) || 'default';
+  const queryPrefix = normalizeString(value.queryPrefix);
+  const passagePrefix = normalizeString(value.passagePrefix);
+  if (!queryPrefix && !passagePrefix && family === 'default') return null;
+  return {
+    family,
+    queryPrefix: queryPrefix || null,
+    passagePrefix: passagePrefix || null
+  };
+};
+
 /**
  * Build a normalized embedding identity payload.
  *
@@ -46,6 +59,7 @@ const normalizeArray = (value) => {
  * @param {boolean} [options.normalize]
  * @param {string} [options.truncation]
  * @param {number} [options.maxLength]
+ * @param {{family?:string,queryPrefix?:string|null,passagePrefix?:string|null}} [options.inputFormatting]
  * @param {object} [options.quantization]
  * @param {object} [options.onnx]
  * @returns {object}
@@ -61,6 +75,7 @@ export const buildEmbeddingIdentity = ({
   normalize,
   truncation,
   maxLength,
+  inputFormatting,
   quantization,
   onnx
 } = {}) => {
@@ -79,6 +94,7 @@ export const buildEmbeddingIdentity = ({
     normalize: normalize !== false,
     truncation: normalizeString(truncation) || 'truncate',
     maxLength: normalizeInt(maxLength),
+    inputFormatting: normalizeInputFormatting(inputFormatting),
     quantization: {
       version: normalizeInt(quant.version) ?? 1,
       minVal: normalizeNumber(quant.minVal) ?? -1,

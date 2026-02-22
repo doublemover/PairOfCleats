@@ -1,5 +1,10 @@
 import { getEmbeddingAdapter } from '../shared/embedding-adapter.js';
 import {
+  formatEmbeddingInput,
+  formatEmbeddingInputs,
+  resolveEmbeddingInputFormatting
+} from '../shared/embedding-input-format.js';
+import {
   normalizeEmbeddingVector,
   quantizeEmbeddingVector,
   quantizeEmbeddingVectorUint8
@@ -45,13 +50,24 @@ export function createEmbedder({
     onnxConfig: onnx,
     normalize
   });
+  const inputFormatting = resolveEmbeddingInputFormatting(modelId);
 
   async function getChunkEmbedding(text) {
-    return adapter.embedOne(text);
+    const payload = formatEmbeddingInput(text, {
+      modelId,
+      kind: 'passage',
+      formatting: inputFormatting
+    });
+    return adapter.embedOne(payload);
   }
 
   async function getChunkEmbeddings(texts) {
-    return adapter.embed(texts);
+    const payloads = formatEmbeddingInputs(texts, {
+      modelId,
+      kind: 'passage',
+      formatting: inputFormatting
+    });
+    return adapter.embed(payloads);
   }
   // Surface adapter concurrency capability so embedding pipelines can safely
   // decide whether code/doc batches may run in parallel.

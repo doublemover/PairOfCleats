@@ -278,6 +278,16 @@ export async function runSearchSession({
       ? Math.max(1, Math.floor(Number(sqliteFtsOverfetch.chunkSize)))
       : null
   };
+  const extractEmbeddingInputFormatting = (idx) => {
+    const formatting = idx?.state?.embeddings?.embeddingIdentity?.inputFormatting;
+    return formatting && typeof formatting === 'object' ? formatting : null;
+  };
+  const embeddingInputFormattingByMode = {
+    code: extractEmbeddingInputFormatting(idxCode),
+    prose: extractEmbeddingInputFormatting(idxProse),
+    extractedProse: extractEmbeddingInputFormatting(idxExtractedProse),
+    records: extractEmbeddingInputFormatting(idxRecords)
+  };
 
   const queryCachePath = resolveRetrievalCachePath({
     queryCacheDir,
@@ -352,7 +362,8 @@ export async function runSearchSession({
       embeddings: {
         provider: embeddingProvider,
         onnxModel: embeddingOnnx.modelPath || null,
-        onnxTokenizer: embeddingOnnx.tokenizerId || null
+        onnxTokenizer: embeddingOnnx.tokenizerId || null,
+        inputFormattingByMode: embeddingInputFormattingByMode
       },
       contextExpansion: {
         enabled: contextExpansionEnabled,
@@ -459,10 +470,13 @@ export async function runSearchSession({
     ?? null
   );
   const embeddingCache = new Map();
-  const getEmbeddingForModel = async (modelId, dims, normalize) => {
+  const getEmbeddingForModel = async (modelId, dims, normalize, inputFormatting) => {
     throwIfAborted();
     if (!modelId) return null;
     const normalizeFlag = normalize !== false;
+    const formatting = inputFormatting && typeof inputFormatting === 'object'
+      ? inputFormatting
+      : null;
     const resolvedDims = useStubEmbeddings
       ? resolveStubDims(dims)
       : (Number.isFinite(Number(dims)) ? Math.floor(Number(dims)) : null);
@@ -472,6 +486,7 @@ export async function runSearchSession({
         modelId,
         dims: useStubEmbeddings ? resolvedDims : null,
         normalize: normalizeFlag,
+        inputFormatting: formatting,
         stub: useStubEmbeddings
       }
     }).key;
@@ -489,7 +504,8 @@ export async function runSearchSession({
       provider: embeddingProvider,
       onnxConfig: embeddingOnnx,
       rootDir,
-      normalize: normalizeFlag
+      normalize: normalizeFlag,
+      inputFormatting: formatting
     });
     embeddingCache.set(cacheKeyLocal, embedding);
     return embedding;
@@ -498,28 +514,32 @@ export async function runSearchSession({
     ? await getEmbeddingForModel(
       modelIds.code,
       resolveEmbeddingDims('code', idxCode),
-      resolveEmbeddingNormalize(idxCode)
+      resolveEmbeddingNormalize(idxCode),
+      embeddingInputFormattingByMode.code
     )
     : null;
   const queryEmbeddingProse = needsEmbedding && runProse && hasAnn('prose', idxProse)
     ? await getEmbeddingForModel(
       modelIds.prose,
       resolveEmbeddingDims('prose', idxProse),
-      resolveEmbeddingNormalize(idxProse)
+      resolveEmbeddingNormalize(idxProse),
+      embeddingInputFormattingByMode.prose
     )
     : null;
   const queryEmbeddingExtractedProse = needsEmbedding && runExtractedProse && hasAnn('extracted-prose', idxExtractedProse)
     ? await getEmbeddingForModel(
       modelIds.extractedProse,
       resolveEmbeddingDims('extracted-prose', idxExtractedProse),
-      resolveEmbeddingNormalize(idxExtractedProse)
+      resolveEmbeddingNormalize(idxExtractedProse),
+      embeddingInputFormattingByMode.extractedProse
     )
     : null;
   const queryEmbeddingRecords = needsEmbedding && runRecords && hasAnn('records', idxRecords)
     ? await getEmbeddingForModel(
       modelIds.records,
       resolveEmbeddingDims('records', idxRecords),
-      resolveEmbeddingNormalize(idxRecords)
+      resolveEmbeddingNormalize(idxRecords),
+      embeddingInputFormattingByMode.records
     )
     : null;
   throwIfAborted();

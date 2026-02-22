@@ -50,7 +50,7 @@ Written per mode directory:
 }
 ```
 
-`identity` is the normalized embedding identity (see `src/shared/embedding-identity.js`).
+`identity` is the normalized embedding identity (see `src/shared/embedding-identity.js`), including model-aware input formatting policy (for example E5/BGE query/passage prefixes) when configured.
 
 ## Cache index (files/cache.index.json)
 
@@ -128,7 +128,7 @@ cacheKey = buildCacheKey({
 - `file` is the normalized repo-relative POSIX path.
 - `fileHash` comes from manifest metadata when available, otherwise computed from file contents.
 - `chunkSignature` is `sha1(start:end:docSignature)` per chunk (docSignature is sha1 of `chunk.docmeta.doc`), joined by `|`.
-- `identityKey` is sha1 of the normalized embedding identity (provider, modelId, dims, quantization, pooling, truncation, etc).
+- `identityKey` is sha1 of the normalized embedding identity (provider, modelId, dims, quantization, pooling, truncation, inputFormatting, etc).
 - `featureFlags` are normalized and sorted per the cache-key spec.
 
 An entry is valid only when:
