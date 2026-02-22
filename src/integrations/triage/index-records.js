@@ -5,6 +5,11 @@ import { SimpleMinHash } from '../../index/minhash.js';
 import { getHeadline } from '../../index/headline.js';
 import { STOP, SYN } from '../../index/constants.js';
 import { createIndexState, appendChunk } from '../../index/build/state.js';
+import {
+  loadIncrementalState,
+  pruneIncrementalManifest,
+  writeIncrementalBundle
+} from '../../index/build/incremental.js';
 import { buildPostings } from '../../index/build/postings.js';
 import { writeIndexArtifacts } from '../../index/build/artifacts.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
@@ -14,11 +19,13 @@ import { assignChunkUids } from '../../index/identity/chunk-uid.js';
 import { getLanguageForFile } from '../../index/language-registry.js';
 import { buildIndexStateArtifactsBlock } from '../../index/build/index-state-profile.js';
 import { toPosix } from '../../shared/files.js';
+import { sha1 } from '../../shared/hash.js';
 import { extractNgrams, splitId, splitWordsWithDict, stem } from '../../shared/tokenize.js';
 import { forEachRollingChargramHash } from '../../shared/chargram-hash.js';
 import { log, showProgress } from '../../shared/progress.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { isPathUnderDir } from '../../shared/path-normalize.js';
+import { setRecordsIncrementalCapability } from '../../storage/sqlite/build/index.js';
 import { promoteRecordFields } from './record-utils.js';
 
 /**
@@ -72,6 +79,21 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
   const timing = { start: Date.now() };
 
   const state = createIndexState({ postingsConfig });
+  const incrementalState = await loadIncrementalState({
+    repoCacheRoot: runtime.repoCacheRoot,
+    mode: 'records',
+    enabled: runtime.incrementalEnabled === true,
+    bundleFormat: runtime.incrementalBundleFormat,
+    log
+  });
+  if (incrementalState?.manifest) {
+    incrementalState.manifest.bundleEmbeddings = runtime.embeddingEnabled === true;
+    incrementalState.manifest.bundleEmbeddingMode = runtime.embeddingMode || null;
+    incrementalState.manifest.bundleEmbeddingIdentityKey = runtime.embeddingIdentityKey || null;
+    incrementalState.manifest.bundleEmbeddingStage = runtime.stage || null;
+    setRecordsIncrementalCapability(incrementalState.manifest, true);
+  }
+  const seenFiles = new Set();
   const recordSources = [];
   const seenAbs = new Set();
   const discoveredEntries = Array.isArray(discovery?.entries) ? discovery.entries : [];
@@ -119,6 +141,8 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
     }
     if (!text) continue;
     text = text.normalize('NFKD');
+    const fileStat = await fs.stat(absPath).catch(() => null);
+    if (!fileStat) continue;
 
     const isTriage = recordEntry.source === 'triage'
       && recordsDir
@@ -196,6 +220,8 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
       ...(fieldTokens ? { fieldTokens } : {})
     };
     chunkPayload.chunkId = buildChunkId(chunkPayload);
+    const chunkId = state.chunks.length;
+    chunkPayload.id = chunkId;
     await assignChunkUids({
       chunks: [chunkPayload],
       fileText: text,
@@ -204,6 +230,24 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
       strict: true,
       log
     });
+    const manifestEntry = await writeIncrementalBundle({
+      enabled: incrementalState.enabled,
+      bundleDir: incrementalState.bundleDir,
+      relKey: recordFile,
+      fileStat,
+      fileHash: sha1(text),
+      fileChunks: [{ ...chunkPayload }],
+      fileRelations: null,
+      vfsManifestRows: null,
+      bundleFormat: incrementalState.bundleFormat,
+      fileEncoding: 'utf8',
+      fileEncodingFallback: false,
+      fileEncodingConfidence: 1
+    });
+    if (manifestEntry) {
+      incrementalState.manifest.files[recordFile] = manifestEntry;
+    }
+    seenFiles.add(recordFile);
 
     appendChunk(
       state,
@@ -301,10 +345,17 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
     timing,
     root: runtime.root,
     userConfig: runtime.userConfig,
-    incrementalEnabled: false,
+    incrementalEnabled: runtime.incrementalEnabled === true,
     fileCounts: { candidates: recordSources.length },
     indexState,
     repoProvenance: runtime.repoProvenance
+  });
+  await pruneIncrementalManifest({
+    enabled: incrementalState.enabled,
+    manifest: incrementalState.manifest,
+    manifestPath: incrementalState.manifestPath,
+    bundleDir: incrementalState.bundleDir,
+    seenFiles
   });
 }
 

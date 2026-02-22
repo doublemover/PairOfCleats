@@ -6,6 +6,7 @@ import {
   updateBundlesWithChunks
 } from '../../incremental.js';
 import { configureScmMetaCache } from '../../../scm/cache.js';
+import { setRecordsIncrementalCapability } from '../../../../storage/sqlite/build/index.js';
 import { log } from '../../../../shared/progress.js';
 
 export const loadIncrementalPlan = async ({
@@ -33,6 +34,9 @@ export const loadIncrementalPlan = async ({
     incrementalState.manifest.bundleEmbeddingMode = runtime.embeddingMode || null;
     incrementalState.manifest.bundleEmbeddingIdentityKey = runtime.embeddingIdentityKey || null;
     incrementalState.manifest.bundleEmbeddingStage = runtime.stage || null;
+    if (mode === 'records') {
+      setRecordsIncrementalCapability(incrementalState.manifest, true);
+    }
   }
   configureScmMetaCache({
     provider: runtime.scmProvider,

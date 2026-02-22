@@ -99,6 +99,9 @@ export const formatVectorAnnState = (state) => {
 export const formatBundleManifest = (manifest) => {
   if (!manifest || typeof manifest !== 'object') return null;
   const parts = [];
+  if (manifest.bundleRecordsIncremental !== undefined) {
+    parts.push(`bundleRecordsIncremental=${manifest.bundleRecordsIncremental === true}`);
+  }
   if (manifest.bundleEmbeddings !== undefined) {
     parts.push(`bundleEmbeddings=${manifest.bundleEmbeddings}`);
   }

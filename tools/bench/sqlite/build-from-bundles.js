@@ -4,6 +4,7 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { writeBundleFile } from '../../../src/shared/bundle-io.js';
+import { setRecordsIncrementalCapability } from '../../../src/storage/sqlite/build/index.js';
 import { buildDatabaseFromBundles } from '../../../src/storage/sqlite/build/from-bundles.js';
 
 let Database = null;
@@ -35,19 +36,30 @@ const parseArgs = () => {
 const args = parseArgs();
 const fileCount = Number(args.files) || 20;
 const chunksPerFile = Number(args.chunks) || 6;
-const mode = ['baseline', 'current', 'compare'].includes(String(args.mode).toLowerCase())
+const benchMode = ['baseline', 'current', 'compare'].includes(String(args.mode).toLowerCase())
   ? String(args.mode).toLowerCase()
   : 'compare';
+const sqliteMode = ['code', 'prose', 'extracted-prose', 'records'].includes(
+  String(args['sqlite-mode'] || '').toLowerCase()
+)
+  ? String(args['sqlite-mode']).toLowerCase()
+  : 'code';
 
 const tempRoot = path.join(process.cwd(), '.benchCache', 'sqlite-build-from-bundles');
 const bundleDir = path.join(tempRoot, 'bundles');
-const outPathBaseline = path.join(tempRoot, 'index-code-baseline.db');
-const outPathCurrent = path.join(tempRoot, 'index-code-current.db');
+const outPathBaseline = path.join(tempRoot, `index-${sqliteMode}-baseline.db`);
+const outPathCurrent = path.join(tempRoot, `index-${sqliteMode}-current.db`);
 
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(bundleDir, { recursive: true });
 
 const manifest = { files: {} };
+if (sqliteMode === 'records') {
+  setRecordsIncrementalCapability(manifest, true);
+}
+const chunkKind = sqliteMode === 'records'
+  ? 'Record'
+  : (sqliteMode === 'code' ? 'code' : 'prose');
 const buildChunks = (file, suffix) => {
   const chunks = [];
   for (let i = 0; i < chunksPerFile; i += 1) {
@@ -57,7 +69,7 @@ const buildChunks = (file, suffix) => {
       end: i * 10 + 5,
       startLine: i + 1,
       endLine: i + 1,
-      kind: 'code',
+      kind: chunkKind,
       name: `fn${suffix}-${i}`,
       tokens: [`tok-${suffix}`, `tok-${i}`]
     });
@@ -89,7 +101,7 @@ const runBuild = async ({ label, outPath, buildPragmas, optimize }) => {
   const result = await buildDatabaseFromBundles({
     Database,
     outPath,
-    mode: 'code',
+    mode: sqliteMode,
     incrementalData: { manifest, bundleDir },
     envConfig,
     threadLimits,
@@ -108,7 +120,9 @@ const runBuild = async ({ label, outPath, buildPragmas, optimize }) => {
     process.exit(1);
   }
 
-  console.log(`[bench] build-from-bundles ${label} files=${fileCount} chunks=${result.count} ms=${durationMs.toFixed(1)}`);
+  console.log(
+    `[bench] build-from-bundles ${label} mode=${sqliteMode} files=${fileCount} chunks=${result.count} ms=${durationMs.toFixed(1)}`
+  );
   if (stats.pragmas) {
     console.log(`[bench] ${label} pragmas`, stats.pragmas);
   }
@@ -120,7 +134,7 @@ const runBuild = async ({ label, outPath, buildPragmas, optimize }) => {
 
 let baselineResult = null;
 let currentResult = null;
-if (mode !== 'current') {
+if (benchMode !== 'current') {
   baselineResult = await runBuild({
     label: 'baseline',
     outPath: outPathBaseline,
@@ -128,7 +142,7 @@ if (mode !== 'current') {
     optimize: false
   });
 }
-if (mode !== 'baseline') {
+if (benchMode !== 'baseline') {
   currentResult = await runBuild({
     label: 'current',
     outPath: outPathCurrent,

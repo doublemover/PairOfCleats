@@ -270,7 +270,7 @@ Primary targets:
 - Touchpoints: `src/shared/artifact-io/loaders/binary-columnar.js`, `src/shared/artifact-io/loaders/chunk-meta.js`, `src/shared/artifact-io/loaders/token-postings.js`, `src/shared/artifact-io/manifest.js`, `src/shared/chunk-meta-cold.js`, `tests/shared/artifact-io/prefer-binary-columnar-loaders.test.js`, `tests/indexing/artifacts/packed-artifact-fastpath.test.js`
 
 ### UB-022: Records incremental-bundle parity
-- Status: [ ]
+- Status: [x]
 - Problem:
   - `records` path repeatedly falls back to artifacts.
 - Tasks:
@@ -281,10 +281,14 @@ Primary targets:
   - Records incremental integration test on fixture with non-empty records.
 - Exit criteria:
   - Records path uses incremental bundles where available.
+- Completion: 2026-02-22T07:40:52.8074912-05:00
+- Validation:
+  - `node tests/storage/sqlite/sqlite-incremental-no-change.test.js`
+  - `node tests/storage/sqlite/sqlite-skip-empty-records-rebuild.test.js`
 - Improvement Intent (What): records-path incremental speed
 - Improvement Method (How): records bundle parity and manifest capability support.
 - Integrated Betterments: create records bundle schema parity checklist so code/prose/records stay aligned; add compatibility validator for records incremental manifests; add targeted benchmark proving records incremental ROI on non-empty repos.
-- Touchpoints: `src/storage/sqlite/build/runner.js`, `src/storage/sqlite/build/index.js`, `src/storage/sqlite/build/imports.js`, `tools/bench/sqlite/build-from-bundles.js`, `tests/storage/sqlite/sqlite-incremental-no-change.test.js`, `tests/storage/sqlite/sqlite-skip-empty-records-rebuild.test.js`
+- Touchpoints: `src/integrations/triage/index-records.js`, `src/index/build/indexer/steps/incremental.js`, `src/storage/sqlite/build/runner.js`, `src/storage/sqlite/build/index.js`, `src/storage/sqlite/build/imports.js`, `tools/bench/sqlite/build-from-bundles.js`, `tests/storage/sqlite/sqlite-incremental-no-change.test.js`, `tests/storage/sqlite/sqlite-skip-empty-records-rebuild.test.js`
 
 ### UB-023: SQLite ingest parallelism and transaction shape tuning
 - Status: [ ]

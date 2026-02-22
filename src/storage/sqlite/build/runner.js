@@ -47,6 +47,7 @@ import {
   countMissingBundleFiles,
   listIncrementalBundleFiles
 } from './runner/incremental.js';
+import { resolveRecordsIncrementalCapability } from './index.js';
 import {
   hasVectorTableAtPath,
   readSqliteCounts,
@@ -551,7 +552,15 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
         const modeSupportsDense = mode === 'code' || mode === 'prose' || mode === 'extracted-prose';
         const denseArtifactsRequired = modeSupportsDense && expectedDenseCount > 0;
         const bundleManifest = incrementalData?.manifest || null;
+        const recordsIncrementalCapability = mode === 'records'
+          ? resolveRecordsIncrementalCapability(bundleManifest)
+          : { supported: true, explicit: false, reason: null };
+        const recordsIncrementalSupported = recordsIncrementalCapability.supported === true;
         let bundleSkipReason = null;
+        if (!recordsIncrementalSupported) {
+          bundleSkipReason = recordsIncrementalCapability.reason;
+          hasIncrementalBundles = false;
+        }
         if (hasIncrementalBundles
           && denseArtifactsRequired
           && bundleManifest?.bundleEmbeddings !== true) {
@@ -595,11 +604,23 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
             incrementalFiles: incrementalFileCount,
             incrementalBundlesCount: incrementalBundleCount,
             missingBundles: missingBundleCount,
+            recordsIncrementalSupported: mode === 'records'
+              ? (recordsIncrementalSupported ? 1 : 0)
+              : null,
+            recordsIncrementalCapabilityExplicit: mode === 'records'
+              ? (recordsIncrementalCapability.explicit === true ? 1 : 0)
+              : null,
             inputSource: resolvedInput.source === 'incremental' ? 1 : 0
           }
         });
 
-        if (incrementalRequested && fsSync.existsSync(outputPath) && incrementalData?.manifest && missingBundleCount === 0) {
+        if (
+          incrementalRequested
+          && fsSync.existsSync(outputPath)
+          && incrementalData?.manifest
+          && missingBundleCount === 0
+          && recordsIncrementalSupported
+        ) {
           const updateResult = await incrementalUpdateDatabase({
             Database,
             outPath: outputPath,
@@ -685,6 +706,13 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
           if (emitOutput && updateResult?.used === false && updateResult.reason) {
             warn(`[sqlite] incremental update skipped for ${mode}: ${updateResult.reason}.`);
           }
+        } else if (
+          incrementalRequested
+          && fsSync.existsSync(outputPath)
+          && incrementalData?.manifest
+          && !recordsIncrementalSupported
+        ) {
+          warn(`[sqlite] incremental update skipped for ${mode}: ${recordsIncrementalCapability.reason}.`);
         } else if (incrementalRequested && fsSync.existsSync(outputPath) && incrementalData?.manifest && missingBundleCount > 0) {
           warn(`[sqlite] incremental update skipped for ${mode}: bundle file missing (${missingBundleCount}).`);
         }
