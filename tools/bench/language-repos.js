@@ -863,11 +863,13 @@ for (const task of tasks) {
     if (dryRun) {
       appendLog(`[dry-run] node ${benchArgs.join(' ')}`);
     } else {
+      const benchProcessEnv = { ...repoEnvBase };
+      if (!Object.prototype.hasOwnProperty.call(benchProcessEnv, 'PAIROFCLEATS_CRASH_LOG_ANNOUNCE')) {
+        benchProcessEnv.PAIROFCLEATS_CRASH_LOG_ANNOUNCE = '0';
+      }
       const benchResult = await processRunner.runProcess(`bench ${repoLabel}`, process.execPath, benchArgs, {
         cwd: scriptRoot,
-        env: {
-          ...repoEnvBase
-        },
+        env: benchProcessEnv,
         continueOnError: true
       });
       if (!benchResult.ok) {

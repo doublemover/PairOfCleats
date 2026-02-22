@@ -8,6 +8,14 @@ import { normalizeFailureEvent, validateFailureEvent } from './failure-taxonomy.
 
 const formatTimestamp = () => new Date().toISOString();
 const RENAME_RETRY_CODES = new Set(['EEXIST', 'EPERM', 'ENOTEMPTY', 'EACCES', 'EXDEV']);
+const isCrashLogAnnouncementEnabled = (value = process.env.PAIROFCLEATS_CRASH_LOG_ANNOUNCE) => {
+  if (value === undefined || value === null) return true;
+  const normalized = String(value).trim().toLowerCase();
+  return normalized !== '0'
+    && normalized !== 'false'
+    && normalized !== 'off'
+    && normalized !== 'no';
+};
 
 const safeStringify = (value) => {
   try {
@@ -86,7 +94,9 @@ export async function createCrashLogger({ repoCacheRoot, enabled, log }) {
     } catch {}
   };
 
-  if (log) {
+  void appendLine('crash-logger initialized', { path: logPath }).catch(() => {});
+
+  if (log && isCrashLogAnnouncementEnabled()) {
     log(`Crash logging enabled: ${logPath}`);
   }
 
