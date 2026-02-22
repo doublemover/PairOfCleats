@@ -34,7 +34,15 @@ const env = applyTestEnv({
   testConfig: {
     quality: 'max',
     indexing: {
-      scm: { provider: 'none' }
+      scm: { provider: 'none' },
+      generatedPolicy: {
+        extractedProse: {
+          prefilter: { enabled: false }
+        }
+      },
+      extractedProse: {
+        prefilter: { enabled: false }
+      }
     }
   }
 });

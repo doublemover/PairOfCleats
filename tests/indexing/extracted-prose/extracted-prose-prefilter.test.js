@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 
 import { resolveExtractedProsePrefilterDecision } from '../../../src/index/build/file-processor/skip.js';
+import { buildGeneratedPolicyConfig } from '../../../src/index/build/generated-policy.js';
 
 const tinySkip = resolveExtractedProsePrefilterDecision({
   relPath: 'src/main.js',
@@ -43,5 +44,23 @@ const policyDisabled = resolveExtractedProsePrefilterDecision({
   }
 });
 assert.equal(policyDisabled, null, 'expected generated policy to disable extracted-prose prefilter');
+
+const runtimePolicyDisabled = resolveExtractedProsePrefilterDecision({
+  relPath: 'src/main.js',
+  ext: '.js',
+  mode: 'extracted-prose',
+  languageId: 'javascript',
+  fileStat: { size: 4096 },
+  generatedPolicy: buildGeneratedPolicyConfig({
+    extractedProse: {
+      prefilter: { enabled: false }
+    }
+  })
+});
+assert.equal(
+  runtimePolicyDisabled,
+  null,
+  'expected build-generated policy to preserve extracted-prose prefilter overrides'
+);
 
 console.log('extracted prose prefilter test passed');

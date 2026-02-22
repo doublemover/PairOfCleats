@@ -86,6 +86,8 @@ const GENERATED_FILENAME_PATTERNS = Object.freeze([
   /\.tsbuildinfo$/i
 ]);
 const GENERATED_POLICY_DOCUMENT_EXTS = new Set(['.pdf', '.docx']);
+const EXTRACTED_PROSE_PREFILTER_MIN_BYTES = 256;
+const EXTRACTED_PROSE_PREFILTER_MIN_BYTES_FLOOR = 64;
 
 const normalizePattern = (value) => {
   if (typeof value !== 'string') return null;
@@ -185,6 +187,33 @@ const buildGeneratedPolicyBaseDecision = ({ relPath, baseName, scanSkip }) => {
   return classifyByPathOrName({ relPath, baseName });
 };
 
+const normalizeExtractedProsePrefilter = (value) => {
+  if (!value || typeof value !== 'object') return null;
+  const enabled = value.enabled !== false;
+  const minBytesRaw = Number(value.minBytes);
+  const minBytes = Number.isFinite(minBytesRaw) && minBytesRaw > 0
+    ? Math.max(EXTRACTED_PROSE_PREFILTER_MIN_BYTES_FLOOR, Math.floor(minBytesRaw))
+    : EXTRACTED_PROSE_PREFILTER_MIN_BYTES;
+  return { enabled, minBytes };
+};
+
+const resolveExtractedProsePolicyConfig = (indexingConfig = {}, rawPolicy = {}) => {
+  const generatedExtractedProse = rawPolicy.extractedProse && typeof rawPolicy.extractedProse === 'object'
+    ? rawPolicy.extractedProse
+    : null;
+  const indexingExtractedProse = indexingConfig.extractedProse && typeof indexingConfig.extractedProse === 'object'
+    ? indexingConfig.extractedProse
+    : null;
+  const prefilterRaw = generatedExtractedProse?.prefilter && typeof generatedExtractedProse.prefilter === 'object'
+    ? generatedExtractedProse.prefilter
+    : (indexingExtractedProse?.prefilter && typeof indexingExtractedProse.prefilter === 'object'
+      ? indexingExtractedProse.prefilter
+      : null);
+  const prefilter = normalizeExtractedProsePrefilter(prefilterRaw);
+  if (!prefilter) return null;
+  return { prefilter };
+};
+
 /**
  * Build normalized generated/minified/vendor policy runtime configuration.
  *
@@ -196,11 +225,13 @@ export const buildGeneratedPolicyConfig = (indexingConfig = {}) => {
   const rawPolicy = generatedPolicy && typeof generatedPolicy === 'object' ? generatedPolicy : {};
   const includePatterns = normalizePatternList(rawPolicy.include);
   const excludePatterns = normalizePatternList(rawPolicy.exclude);
+  const extractedProse = resolveExtractedProsePolicyConfig(indexingConfig, rawPolicy);
   return {
     includePatterns,
     excludePatterns,
     includeCompiled: compilePatternMatchers(includePatterns),
-    excludeCompiled: compilePatternMatchers(excludePatterns)
+    excludeCompiled: compilePatternMatchers(excludePatterns),
+    ...(extractedProse ? { extractedProse } : {})
   };
 };
 
