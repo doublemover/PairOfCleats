@@ -24,7 +24,10 @@ export async function buildIgnoreMatcher({ root, userConfig, generatedPolicy = n
   };
 
   const ignoreMatcher = ignore();
-  const generatedPolicyEnabled = generatedPolicy?.enabled !== false;
+  // Generated-policy default-skip filtering is an explicit opt-in.
+  // Legacy callers that do not pass a policy object must retain baseline
+  // SKIP_DIRS/SKIP_GLOBS behavior.
+  const generatedPolicyEnabled = generatedPolicy?.enabled === true;
   if (config.useDefaultSkips) {
     const skipDirs = generatedPolicyEnabled
       ? Array.from(SKIP_DIRS).filter((dir) => !GENERATED_POLICY_DEFAULT_SKIP_DIRS.has(dir))
