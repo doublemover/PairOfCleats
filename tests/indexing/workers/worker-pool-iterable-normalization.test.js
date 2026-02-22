@@ -32,7 +32,7 @@ if (!workerPool) {
   process.exit(0);
 }
 
-const result = await workerPool.runTokenize({
+const result = await workerPool.tokenizeChunk({
   text: 'const value = alphaBeta',
   mode: 'code',
   ext: '.ts'

@@ -21,6 +21,13 @@ const OPTIONAL_NATIVE_PACKAGES = [
   're2',
   '@node-rs/xxhash'
 ];
+const TREE_SITTER_PERL_PACKAGE = '@ganezdragon/tree-sitter-perl';
+const TREE_SITTER_PERL_PATCH_VERSION = '1.1.1';
+const TREE_SITTER_PERL_PATCH_MARKERS = [
+  'dynamic STRING queue in C',
+  'clearStringQueue(scanner->heredoc.heredoc_identifier_queue);',
+  'clearBoolQueue(scanner->heredoc.heredoc_allows_interpolation);'
+];
 
 const root = process.cwd();
 const verifyOnly = process.argv.includes('--verify');
@@ -31,6 +38,46 @@ const resolveNodeModulesPath = (pkgName) => (
 );
 
 const isInstalled = (pkgName) => fs.existsSync(resolveNodeModulesPath(pkgName));
+
+const readInstalledPackageVersion = (pkgName) => {
+  try {
+    const packageJsonPath = path.join(resolveNodeModulesPath(pkgName), 'package.json');
+    const raw = fs.readFileSync(packageJsonPath, 'utf8');
+    const parsed = JSON.parse(raw);
+    return typeof parsed?.version === 'string' ? parsed.version : null;
+  } catch {
+    return null;
+  }
+};
+
+const verifyPerlScannerPatch = () => {
+  if (!isInstalled(TREE_SITTER_PERL_PACKAGE)) {
+    return { ok: false, message: `${TREE_SITTER_PERL_PACKAGE} is missing` };
+  }
+  const version = readInstalledPackageVersion(TREE_SITTER_PERL_PACKAGE);
+  if (version !== TREE_SITTER_PERL_PATCH_VERSION) {
+    return { ok: true, message: null };
+  }
+  const scannerPath = path.join(resolveNodeModulesPath(TREE_SITTER_PERL_PACKAGE), 'src', 'scanner.c');
+  let scannerSource = '';
+  try {
+    scannerSource = fs.readFileSync(scannerPath, 'utf8');
+  } catch (err) {
+    return {
+      ok: false,
+      message: `failed to read scanner source (${err?.message || err})`
+    };
+  }
+  for (const marker of TREE_SITTER_PERL_PATCH_MARKERS) {
+    if (!scannerSource.includes(marker)) {
+      return {
+        ok: false,
+        message: `patched scanner markers missing in ${scannerPath}`
+      };
+    }
+  }
+  return { ok: true, message: null };
+};
 
 const rebuildPackage = (pkgName, { buildFromSource = false } = {}) => {
   const args = ['rebuild', pkgName];
@@ -205,6 +252,19 @@ const getRequiredPackageFailures = async ({ label = 'verify:native' } = {}) => {
         missing: false,
         message: result.message || 'required package is not loadable'
       });
+      continue;
+    }
+
+    if (pkgName === TREE_SITTER_PERL_PACKAGE) {
+      const perlPatchCheck = verifyPerlScannerPatch();
+      if (!perlPatchCheck.ok) {
+        console.error(`[${label}] required perl scanner patch check failed (${pkgName}): ${perlPatchCheck.message}`);
+        failures.push({
+          pkgName,
+          missing: false,
+          message: perlPatchCheck.message || 'perl scanner patch check failed'
+        });
+      }
     }
   }
 
@@ -239,7 +299,9 @@ const repairRequiredPackages = async () => {
     }
 
     console.error(`[repair:native] rebuilding required package: ${failure.pkgName}`);
-    const rebuildResult = rebuildPackage(failure.pkgName);
+    const rebuildResult = rebuildPackage(failure.pkgName, {
+      buildFromSource: failure.pkgName === TREE_SITTER_PERL_PACKAGE
+    });
     if (!rebuildResult.ok) {
       console.error(`[repair:native] failed required package ${failure.pkgName}: ${rebuildResult.message}`);
       repairFailures += 1;
@@ -273,6 +335,13 @@ const repairRequiredPackages = async () => {
         }
       }
     }
+    if (failure.pkgName === TREE_SITTER_PERL_PACKAGE) {
+      const perlPatchCheck = verifyPerlScannerPatch();
+      if (!perlPatchCheck.ok) {
+        console.error(`[repair:native] perl scanner patch check failed (${failure.pkgName}): ${perlPatchCheck.message}`);
+        repairFailures += 1;
+      }
+    }
   }
 
   if (repairFailures > 0) {
@@ -304,10 +373,20 @@ for (const pkgName of REQUIRED_NATIVE_PACKAGES) {
   }
 
   console.error(`[rebuild:native] rebuilding required package: ${pkgName}`);
-  const result = rebuildPackage(pkgName);
+  const result = rebuildPackage(pkgName, {
+    buildFromSource: pkgName === TREE_SITTER_PERL_PACKAGE
+  });
   if (!result.ok) {
     console.error(`[rebuild:native] failed required package ${pkgName}: ${result.message}`);
     requiredFailures += 1;
+    continue;
+  }
+  if (pkgName === TREE_SITTER_PERL_PACKAGE) {
+    const perlPatchCheck = verifyPerlScannerPatch();
+    if (!perlPatchCheck.ok) {
+      console.error(`[rebuild:native] perl scanner patch check failed (${pkgName}): ${perlPatchCheck.message}`);
+      requiredFailures += 1;
+    }
   }
 }
 

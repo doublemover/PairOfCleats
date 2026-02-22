@@ -69,5 +69,36 @@ assert.ok(
   'expected null hardTimeoutMs to keep hard timeout enabled'
 );
 
+const adaptiveHugeRepoConfig = resolveFileWatchdogConfig(
+  { stage1Queues: { watchdog: {} } },
+  { repoFileCount: 4000 }
+);
+assert.equal(
+  adaptiveHugeRepoConfig.slowFileMs,
+  20000,
+  'expected huge repo default to raise base slow-file threshold'
+);
+assert.equal(
+  adaptiveHugeRepoConfig.maxSlowFileMs,
+  120000,
+  'expected adaptive slow-file threshold to preserve max slow timeout floor'
+);
+
+const explicitSlowOnHugeRepoConfig = resolveFileWatchdogConfig(
+  {
+    stage1Queues: {
+      watchdog: {
+        slowFileMs: 1500
+      }
+    }
+  },
+  { repoFileCount: 4000 }
+);
+assert.equal(
+  explicitSlowOnHugeRepoConfig.slowFileMs,
+  1500,
+  'expected explicit slowFileMs to override adaptive huge-repo threshold'
+);
+
 console.log('file watchdog hard timeout test passed');
 

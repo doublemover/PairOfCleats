@@ -52,7 +52,7 @@ try {
 
   const runs = [];
   for (let i = 0; i < 50; i += 1) {
-    runs.push(workerPool.runTokenize({
+    runs.push(workerPool.tokenizeChunk({
       text: sample,
       mode: 'code',
       ext: '.js',
@@ -74,7 +74,7 @@ try {
 
   if (workerPool.pool?.destroy) {
     await workerPool.pool.destroy();
-    await workerPool.runTokenize({
+    await workerPool.tokenizeChunk({
       text: sample,
       mode: 'code',
       ext: '.js',
@@ -82,7 +82,7 @@ try {
       size: sample.length
     });
     await new Promise((resolve) => setTimeout(resolve, 1200));
-    const restarted = await workerPool.runTokenize({
+    const restarted = await workerPool.tokenizeChunk({
       text: sample,
       mode: 'code',
       ext: '.js',

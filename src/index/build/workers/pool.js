@@ -46,6 +46,19 @@ const toFiniteTimestamp = (value, fallback = 0) => {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
 };
 
+/**
+ * Collapse raw RSS/heap pressure into a hysteresis-aware pressure state.
+ *
+ * Hysteresis prevents flapping between states when pressure hovers near the
+ * threshold boundaries.
+ *
+ * @param {object} input
+ * @param {number} input.pressureRatio
+ * @param {number} [input.watermarkSoft]
+ * @param {number} [input.watermarkHard]
+ * @param {'normal'|'soft-pressure'|'hard-pressure'} [input.currentState]
+ * @returns {'normal'|'soft-pressure'|'hard-pressure'}
+ */
 export const resolveMemoryPressureState = ({
   pressureRatio,
   watermarkSoft = 0.985,
@@ -73,6 +86,19 @@ export const resolveMemoryPressureState = ({
   return PRESSURE_STATE_NORMAL;
 };
 
+/**
+ * Resolve the per-language concurrency limit under memory pressure.
+ *
+ * Heavy languages can be throttled (or blocked) while pressure is elevated;
+ * non-heavy languages remain effectively unbounded so the queue can continue
+ * draining lighter work.
+ *
+ * @param {object} input
+ * @param {'normal'|'soft-pressure'|'hard-pressure'} [input.pressureState]
+ * @param {string} [input.languageId]
+ * @param {object} [input.throttleConfig]
+ * @returns {number}
+ */
 export const resolveLanguageThrottleLimit = ({
   pressureState = PRESSURE_STATE_NORMAL,
   languageId = '',
@@ -107,6 +133,17 @@ export const resolveLanguageThrottleLimit = ({
   return softMax;
 };
 
+/**
+ * Deterministically evict pressure-cache entries to a target size.
+ *
+ * Eviction order is stable: larger entries first, then older entries, then key
+ * name. This keeps behavior reproducible across runs and test environments.
+ *
+ * @param {object} input
+ * @param {Map<string,{sizeBytes?:number,firstSeenAt?:number}>} input.cache
+ * @param {number} input.maxEntries
+ * @returns {Array<{key:string,sizeBytes:number,firstSeenAt:number}>}
+ */
 export const evictDeterministicPressureCacheEntries = ({
   cache,
   maxEntries
@@ -1390,10 +1427,6 @@ export async function createIndexerWorkerPool(input = {}) {
             await maybeRestart();
           }
         }
-      },
-      async runTokenize(payload) {
-        // Backward-compat alias for tests and callers that still use runTokenize.
-        return this.tokenizeChunk(payload);
       },
       async runQuantize(payload) {
         activeTasks += 1;

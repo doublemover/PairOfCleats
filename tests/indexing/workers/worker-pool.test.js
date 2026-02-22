@@ -36,7 +36,7 @@ if (!workerPool) {
 const context = createTokenizationContext({ dictWords, dictConfig, postingsConfig });
 const sample = 'helloWorld fooBar';
 const syncTokens = tokenizeChunkText({ text: sample, mode: 'code', ext: '.js', context });
-const workerTokens = await workerPool.runTokenize({ text: sample, mode: 'code', ext: '.js' });
+const workerTokens = await workerPool.tokenizeChunk({ text: sample, mode: 'code', ext: '.js' });
 
 if (JSON.stringify(syncTokens.tokens) !== JSON.stringify(workerTokens.tokens)) {
   console.error('worker pool test failed: tokens mismatch.');

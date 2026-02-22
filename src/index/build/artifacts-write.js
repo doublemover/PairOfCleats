@@ -79,7 +79,8 @@ export {
   resolveArtifactLaneConcurrency,
   resolveArtifactLaneConcurrencyWithUltraLight,
   resolveArtifactLaneConcurrencyWithMassive,
-  createAdaptiveWriteConcurrencyController
+  createAdaptiveWriteConcurrencyController,
+  resolveWriteStartTimestampMs
 };
 
 /**
@@ -420,6 +421,26 @@ const clampWriteConcurrency = (value, fallback = 1) => {
     return Math.max(1, Math.floor(Number(fallback) || 1));
   }
   return Math.max(1, Math.floor(parsed));
+};
+
+/**
+ * Resolve artifact write start timestamp for queue-delay/stall telemetry.
+ *
+ * Prefetched writes may provide a pre-dispatch timestamp; non-prefetched
+ * writes should use the current dispatch time instead of coercing nullish
+ * values (for example `Number(null) === 0`, which skews elapsed metrics).
+ *
+ * @param {number|string|null|undefined} prefetchedStartMs
+ * @param {number} [fallbackNowMs]
+ * @returns {number}
+ */
+const resolveWriteStartTimestampMs = (prefetchedStartMs, fallbackNowMs = Date.now()) => {
+  const fallback = Number.isFinite(Number(fallbackNowMs))
+    ? Number(fallbackNowMs)
+    : Date.now();
+  const prefetched = Number(prefetchedStartMs);
+  if (Number.isFinite(prefetched) && prefetched > 0) return prefetched;
+  return fallback;
 };
 
 /**
@@ -3064,9 +3085,8 @@ export async function writeIndexArtifacts(input) {
       { rescueBoost = false } = {}
     ) => {
       const activeLabel = label || '(unnamed artifact)';
-      const started = Number.isFinite(Number(prefetchStartedAt))
-        ? Number(prefetchStartedAt)
-        : Date.now();
+      const dispatchStartedAt = Date.now();
+      const started = resolveWriteStartTimestampMs(prefetchStartedAt, dispatchStartedAt);
       const queueDelayMs = Math.max(0, started - (Number(enqueuedAt) || started));
       const startedConcurrency = getActiveWriteConcurrency();
       activeWrites.set(activeLabel, started);

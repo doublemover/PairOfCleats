@@ -8,7 +8,11 @@ import { createTimeoutError, runWithTimeout } from '../../../../shared/promise-t
 import { coerceNonNegativeInt, coercePositiveInt } from '../../../../shared/number-coerce.js';
 import { throwIfAborted } from '../../../../shared/abort.js';
 import { compareStrings } from '../../../../shared/sort.js';
-import { getTrackedSubprocessCount, terminateTrackedSubprocesses } from '../../../../shared/subprocess.js';
+import {
+  getTrackedSubprocessCount,
+  terminateTrackedSubprocesses,
+  withTrackedSubprocessSignalScope
+} from '../../../../shared/subprocess.js';
 import { createBuildCheckpoint } from '../../build-state.js';
 import { createFileProcessor } from '../../file-processor.js';
 import { getLanguageForFile } from '../../../language-registry.js';
@@ -29,6 +33,8 @@ import { prepareScmFileMetaSnapshot } from '../../../scm/file-meta-snapshot.js';
 
 const FILE_WATCHDOG_DEFAULT_MS = 10000;
 const FILE_WATCHDOG_DEFAULT_MAX_MS = 120000;
+const FILE_WATCHDOG_HUGE_REPO_FILE_MIN = 3000;
+const FILE_WATCHDOG_HUGE_REPO_BASE_MS = 20000;
 const FILE_WATCHDOG_DEFAULT_BYTES_PER_STEP = 256 * 1024;
 const FILE_WATCHDOG_DEFAULT_LINES_PER_STEP = 2000;
 const FILE_WATCHDOG_DEFAULT_STEP_MS = 1000;
@@ -36,6 +42,8 @@ const FILE_HARD_TIMEOUT_DEFAULT_MS = 300000;
 const FILE_HARD_TIMEOUT_MAX_MS = 1800000;
 const FILE_HARD_TIMEOUT_SLOW_MULTIPLIER = 3;
 const FILE_PROCESS_CLEANUP_TIMEOUT_DEFAULT_MS = 30000;
+const FILE_PROGRESS_HEARTBEAT_DEFAULT_MS = 30000;
+const FILE_STALL_SNAPSHOT_DEFAULT_MS = 30000;
 const DEFAULT_POSTINGS_ROWS_PER_PENDING = 300;
 const DEFAULT_POSTINGS_BYTES_PER_PENDING = 12 * 1024 * 1024;
 const DEFAULT_POSTINGS_PENDING_SCALE = 4;
@@ -103,9 +111,20 @@ export const createOrderedCompletionTracker = () => {
   return { track, throwIfFailed, wait };
 };
 
-export const resolveFileWatchdogConfig = (runtime) => {
+export const resolveFileWatchdogConfig = (runtime, { repoFileCount = 0 } = {}) => {
   const config = runtime?.stage1Queues?.watchdog || {};
-  const slowFileMs = coerceOptionalNonNegativeInt(config.slowFileMs) ?? FILE_WATCHDOG_DEFAULT_MS;
+  const configuredSlowFileMs = coerceOptionalNonNegativeInt(config.slowFileMs);
+  const hasExplicitSlowFileMs = configuredSlowFileMs != null;
+  const normalizedRepoFileCount = Number.isFinite(Number(repoFileCount))
+    ? Math.max(0, Math.floor(Number(repoFileCount)))
+    : 0;
+  const adaptiveSlowFloorMs = !hasExplicitSlowFileMs && normalizedRepoFileCount >= FILE_WATCHDOG_HUGE_REPO_FILE_MIN
+    ? FILE_WATCHDOG_HUGE_REPO_BASE_MS
+    : 0;
+  const slowFileMs = Math.max(
+    configuredSlowFileMs ?? FILE_WATCHDOG_DEFAULT_MS,
+    adaptiveSlowFloorMs
+  );
   const maxSlowFileMs = coerceOptionalNonNegativeInt(config.maxSlowFileMs)
     ?? Math.max(FILE_WATCHDOG_DEFAULT_MAX_MS, slowFileMs);
   const bytesPerStep = coercePositiveInt(config.bytesPerStep) ?? FILE_WATCHDOG_DEFAULT_BYTES_PER_STEP;
@@ -119,7 +138,8 @@ export const resolveFileWatchdogConfig = (runtime) => {
     hardTimeoutMs: Math.max(0, hardTimeoutMs),
     bytesPerStep,
     linesPerStep,
-    stepMs
+    stepMs,
+    adaptiveSlowFloorMs
   };
 };
 
@@ -153,6 +173,40 @@ export const resolveProcessCleanupTimeoutMs = (runtime) => {
   const configured = coerceOptionalNonNegativeInt(config.cleanupTimeoutMs);
   if (configured === 0) return 0;
   return configured ?? FILE_PROCESS_CLEANUP_TIMEOUT_DEFAULT_MS;
+};
+
+export const buildFileProgressHeartbeatText = ({
+  count = 0,
+  total = 0,
+  startedAtMs = Date.now(),
+  nowMs = Date.now(),
+  inFlight = 0,
+  trackedSubprocesses = 0
+} = {}) => {
+  const safeTotal = Number.isFinite(Number(total)) ? Math.max(0, Math.floor(Number(total))) : 0;
+  const safeCount = Number.isFinite(Number(count))
+    ? Math.max(0, Math.min(safeTotal || Number.MAX_SAFE_INTEGER, Math.floor(Number(count))))
+    : 0;
+  const safeNowMs = Number.isFinite(Number(nowMs)) ? Number(nowMs) : Date.now();
+  const safeStartedAtMs = Number.isFinite(Number(startedAtMs)) ? Number(startedAtMs) : safeNowMs;
+  const elapsedMs = Math.max(1, safeNowMs - safeStartedAtMs);
+  const elapsedSec = Math.floor(elapsedMs / 1000);
+  const ratePerSec = safeCount > 0 ? (safeCount / (elapsedMs / 1000)) : 0;
+  const remaining = safeTotal > safeCount ? (safeTotal - safeCount) : 0;
+  const etaSec = ratePerSec > 0 ? Math.ceil(remaining / ratePerSec) : null;
+  const percent = safeTotal > 0
+    ? ((safeCount / safeTotal) * 100).toFixed(1)
+    : '0.0';
+  const etaText = Number.isFinite(etaSec) ? `${etaSec}s` : 'n/a';
+  const safeInFlight = Number.isFinite(Number(inFlight)) ? Math.max(0, Math.floor(Number(inFlight))) : 0;
+  const safeTracked = Number.isFinite(Number(trackedSubprocesses))
+    ? Math.max(0, Math.floor(Number(trackedSubprocesses)))
+    : 0;
+  return (
+    `[watchdog] progress ${safeCount}/${safeTotal} (${percent}%) `
+    + `elapsed=${elapsedSec}s rate=${ratePerSec.toFixed(2)} files/s eta=${etaText} `
+    + `inFlight=${safeInFlight} trackedSubprocesses=${safeTracked}`
+  );
 };
 
 export const runCleanupWithTimeout = async ({
@@ -486,10 +540,12 @@ export const processFiles = async ({
     await treeSitterScheduler.close();
   };
   let stallSnapshotTimer = null;
+  let progressHeartbeatTimer = null;
   const cleanupTimeoutMs = resolveProcessCleanupTimeoutMs(runtime);
 
   try {
     assignFileIndexes(entries);
+    const repoFileCount = Array.isArray(entries) ? entries.length : 0;
     const scmFilesPosix = entries.map((entry) => (
       entry?.rel
         ? toPosix(entry.rel)
@@ -679,9 +735,13 @@ export const processFiles = async ({
     );
     const inFlightFiles = new Map();
     const stallSnapshotConfig = runtime?.stage1Queues?.watchdog || {};
-    const stallSnapshotMs = coerceOptionalNonNegativeInt(stallSnapshotConfig.stallSnapshotMs) ?? 120000;
+    const stallSnapshotMs = coerceOptionalNonNegativeInt(stallSnapshotConfig.stallSnapshotMs)
+      ?? FILE_STALL_SNAPSHOT_DEFAULT_MS;
+    const progressHeartbeatMs = coerceOptionalNonNegativeInt(stallSnapshotConfig.progressHeartbeatMs)
+      ?? FILE_PROGRESS_HEARTBEAT_DEFAULT_MS;
     let lastProgressAt = Date.now();
     let lastStallSnapshotAt = 0;
+    let watchdogAdaptiveLogged = false;
     const toStallFileSummary = (entry) => {
       if (!entry || typeof entry !== 'object') return null;
       const startedAt = Number(entry.startedAt) || Date.now();
@@ -740,6 +800,39 @@ export const processFiles = async ({
           stage: 'processing'
         });
       }
+    };
+    const emitProcessingProgressHeartbeat = () => {
+      if (progressHeartbeatMs <= 0 || !progress) return;
+      if (progress.count >= progress.total) return;
+      const now = Date.now();
+      const trackedSubprocesses = getTrackedSubprocessCount();
+      const oldestInFlight = Array.from(inFlightFiles.values())
+        .map((value) => toStallFileSummary(value))
+        .filter(Boolean)
+        .sort((a, b) => (b.elapsedMs || 0) - (a.elapsedMs || 0))
+        .slice(0, 3)
+        .map((entry) => `${entry.file || 'unknown'}@${Math.round((entry.elapsedMs || 0) / 1000)}s`);
+      const oldestText = oldestInFlight.length ? ` oldest=${oldestInFlight.join(',')}` : '';
+      logLine(
+        `${buildFileProgressHeartbeatText({
+          count: progress.count,
+          total: progress.total,
+          startedAtMs: processStart,
+          nowMs: now,
+          inFlight: inFlightFiles.size,
+          trackedSubprocesses
+        })}${oldestText}`,
+        {
+          kind: 'status',
+          mode,
+          stage: 'processing',
+          progressDone: progress.count,
+          progressTotal: progress.total,
+          inFlight: inFlightFiles.size,
+          trackedSubprocesses,
+          oldestInFlight
+        }
+      );
     };
     const processEntries = async ({ entries: shardEntries, runtime: runtimeRef, shardMeta = null, stateRef }) => {
       const shardLabel = shardMeta?.label || shardMeta?.id || null;
@@ -816,7 +909,14 @@ export const processFiles = async ({
         buildStage: runtimeRef.stage,
         abortSignal
       });
-      const fileWatchdogConfig = resolveFileWatchdogConfig(runtimeRef);
+      const fileWatchdogConfig = resolveFileWatchdogConfig(runtimeRef, { repoFileCount });
+      if (!watchdogAdaptiveLogged && Number(fileWatchdogConfig.adaptiveSlowFloorMs) > 0) {
+        watchdogAdaptiveLogged = true;
+        log(
+          `[watchdog] large repo detected (${repoFileCount.toLocaleString()} files); `
+          + `slow-file base threshold raised to ${fileWatchdogConfig.slowFileMs}ms.`
+        );
+      }
       const runEntryBatch = async (batchEntries) => {
         const orderedCompletionTracker = createOrderedCompletionTracker();
         const orderedBatchEntries = sortEntriesByOrderIndex(batchEntries);
@@ -888,9 +988,14 @@ export const processFiles = async ({
               size: entry.stat?.size || null,
               shardId: shardMeta?.id || null
             });
+            const fileCleanupScope = `stage1:file:${mode}:${stableFileIndex ?? '?'}:${rel}`;
             try {
               return await runWithTimeout(
-                (signal) => processFile(entry, stableFileIndex, { signal }),
+                (signal) => withTrackedSubprocessSignalScope(
+                  signal,
+                  fileCleanupScope,
+                  () => processFile(entry, stableFileIndex, { signal })
+                ),
                 {
                   timeoutMs: fileHardTimeoutMs,
                   errorFactory: () => createTimeoutError({
@@ -921,11 +1026,12 @@ export const processFiles = async ({
                 );
                 const cleanup = await terminateTrackedSubprocesses({
                   reason: `stage1_file_timeout:${rel}`,
-                  force: false
+                  force: false,
+                  scope: fileCleanupScope
                 });
                 if (cleanup?.attempted > 0) {
                   logLine(
-                    `[watchdog] cleaned ${cleanup.attempted} tracked subprocess(es) after timeout`,
+                    `[watchdog] cleaned ${cleanup.attempted} tracked subprocess(es) after timeout (scoped)`,
                     {
                       kind: 'warning',
                       mode,
@@ -933,6 +1039,7 @@ export const processFiles = async ({
                       file: rel,
                       fileIndex: stableFileIndex,
                       timeoutMs: fileHardTimeoutMs,
+                      cleanupScope: fileCleanupScope,
                       cleanup
                     }
                   );
@@ -1122,6 +1229,12 @@ export const processFiles = async ({
         emitProcessingStallSnapshot();
       }, Math.min(30000, Math.max(10000, Math.floor(stallSnapshotMs / 2))));
       stallSnapshotTimer.unref?.();
+    }
+    if (progressHeartbeatMs > 0) {
+      progressHeartbeatTimer = setInterval(() => {
+        emitProcessingProgressHeartbeat();
+      }, progressHeartbeatMs);
+      progressHeartbeatTimer.unref?.();
     }
     if (shardPlan && shardPlan.length > 1) {
       const shardExecutionPlan = [...shardPlan].sort((a, b) => {
@@ -1352,6 +1465,9 @@ export const processFiles = async ({
   } finally {
     if (typeof stallSnapshotTimer === 'object' && stallSnapshotTimer) {
       clearInterval(stallSnapshotTimer);
+    }
+    if (typeof progressHeartbeatTimer === 'object' && progressHeartbeatTimer) {
+      clearInterval(progressHeartbeatTimer);
     }
     runtime?.telemetry?.clearInFlightBytes?.('stage1.postings-queue');
     await runCleanupWithTimeout({

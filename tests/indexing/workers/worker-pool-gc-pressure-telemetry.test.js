@@ -21,7 +21,7 @@ if (!workerPool) {
   process.exit(0);
 }
 
-await workerPool.runTokenize({
+await workerPool.tokenizeChunk({
   text: 'alphaBeta gammaDelta',
   mode: 'code',
   ext: '.js',

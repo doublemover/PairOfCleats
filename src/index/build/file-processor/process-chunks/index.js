@@ -667,8 +667,8 @@ export const processChunks = async (context) => {
     && workerPool.shouldUseForFile
     ? workerPool.shouldUseForFile(fileBytes)
     : false;
-  const runTokenize = useWorkerForTokens && typeof workerPool?.runTokenize === 'function'
-    ? (payload) => (runProc ? runProc(() => workerPool.runTokenize(payload)) : workerPool.runTokenize(payload))
+  const runTokenize = useWorkerForTokens && typeof workerPool?.tokenizeChunk === 'function'
+    ? (payload) => (runProc ? runProc(() => workerPool.tokenizeChunk(payload)) : workerPool.tokenizeChunk(payload))
     : null;
   let fileComplexity = {};
   let fileLint = [];
