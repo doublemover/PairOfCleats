@@ -2528,6 +2528,31 @@ export async function writeIndexArtifacts(input) {
   const minhashFromPostings = Array.isArray(postings.minhashSigs) && postings.minhashSigs.length
     ? postings.minhashSigs
     : null;
+  const minhashSamplingMeta = postings?.minhashGuard?.sampled === true
+    ? {
+      mode: typeof postings?.minhashGuard?.mode === 'string'
+        ? postings.minhashGuard.mode
+        : 'sampled-minified',
+      maxDocs: Number.isFinite(Number(postings?.minhashGuard?.maxDocs))
+        ? Math.max(0, Math.floor(Number(postings.minhashGuard.maxDocs)))
+        : null,
+      totalDocs: Number.isFinite(Number(postings?.minhashGuard?.totalDocs))
+        ? Math.max(0, Math.floor(Number(postings.minhashGuard.totalDocs)))
+        : null,
+      signatureLength: Number.isFinite(Number(postings?.minhashGuard?.signatureLength))
+        ? Math.max(0, Math.floor(Number(postings.minhashGuard.signatureLength)))
+        : null,
+      sampledSignatureLength: Number.isFinite(Number(postings?.minhashGuard?.sampledSignatureLength))
+        ? Math.max(0, Math.floor(Number(postings.minhashGuard.sampledSignatureLength)))
+        : null,
+      hashStride: Number.isFinite(Number(postings?.minhashGuard?.hashStride))
+        ? Math.max(1, Math.floor(Number(postings.minhashGuard.hashStride)))
+        : null,
+      density: Number.isFinite(Number(postings?.minhashGuard?.density))
+        ? Number(postings.minhashGuard.density)
+        : null
+    }
+    : null;
   const minhashStream = postings.minhashStream && Array.isArray(state?.chunks) && state.chunks.length;
   const minhashCount = minhashFromPostings
     ? postings.minhashSigs.length
@@ -2575,7 +2600,10 @@ export async function writeIndexArtifacts(input) {
     ]);
   }
   if (sparseArtifactsEnabled && !skipMinhashJsonForLarge) {
-    enqueueJsonObject('minhash_signatures', { arrays: { signatures: minhashIterable } }, {
+    enqueueJsonObject('minhash_signatures', {
+      fields: minhashSamplingMeta ? { sampling: minhashSamplingMeta } : undefined,
+      arrays: { signatures: minhashIterable }
+    }, {
       piece: {
         type: 'postings',
         name: 'minhash_signatures',
@@ -2597,7 +2625,8 @@ export async function writeIndexArtifacts(input) {
             endian: 'le',
             dims: packedMinhash.dims,
             count: packedMinhash.count,
-            checksum: packedChecksum.hash
+            checksum: packedChecksum.hash,
+            ...(minhashSamplingMeta ? { sampling: minhashSamplingMeta } : {})
           },
           atomic: true
         });

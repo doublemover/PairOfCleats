@@ -756,7 +756,7 @@ Last revised: 2026-02-22T05:44:04.8332760-05:00
 - Touchpoints: `src/shared/dictionary.js`, `src/retrieval/cli-dictionary.js`, `src/index/build/file-processor/relations.js`, `assets/dictionary/` (new), `tests/retrieval/query/query-intent-path-heuristics.test.js`
 
 ### UB-078: Minhash/summary strategy for large indexes
-- Status: [ ]
+- Status: [x]
 - Observation:
   - Large indexes skip minhash signatures entirely at current threshold.
 - Tasks:
@@ -764,6 +764,11 @@ Last revised: 2026-02-22T05:44:04.8332760-05:00
   - Evaluate incremental minhash generation to reduce full-pass cost.
 - Exit criteria:
   - Better dedupe/similarity metadata with bounded overhead.
+- Completion: 2026-02-22T09:24:40.1781756-05:00
+- Validation:
+  - `node tests/indexing/artifacts/minhash-sampled-plan.test.js`
+  - `node tests/indexing/artifacts/minhash-max-docs-guard.test.js`
+  - `node tests/indexing/artifacts/minhash-packed-roundtrip.test.js`
 - Improvement Intent (What): minhash utility on large indexes
 - Improvement Method (How): sampled/minified signatures instead of hard skipping.
 - Integrated Betterments: use sampled minhash mode instead of all-or-nothing skipping; add adaptive signature density by corpus size; include similarity-quality checks to confirm utility.
