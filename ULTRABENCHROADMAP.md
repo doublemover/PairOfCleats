@@ -553,7 +553,7 @@ Primary targets:
 ## Phase 6: Large, Sweeping Improvements (High Leverage)
 
 ### UB-060: Persistent daemonized indexing service mode
-- Status: [ ]
+- Status: [x]
 - Opportunity:
   - Cold-start and repeated setup costs remain material across repos.
 - Tasks:
@@ -563,13 +563,18 @@ Primary targets:
   - Determinism tests daemon vs one-shot mode.
 - Exit criteria:
   - Reduced per-repo startup overhead and improved throughput on batch runs.
+- Completion: 2026-02-22T10:40:02.8194186-05:00
+- Validation:
+  - `node tests/indexing/runtime/daemon-session-behavior.test.js`
+  - `node tests/tools/service/indexer-service-daemon-mode.test.js`
+  - `node tests/services/indexer/indexer-service.test.js`
 - Improvement Intent (What): repeated-run startup overhead
 - Improvement Method (How): daemonized warm runtime with deterministic isolation mode.
 - Integrated Betterments: isolate daemon worker state per job namespace to avoid cross-run contamination; add deterministic mode that reproduces one-shot ordering exactly; add daemon health probes and auto-recycle on leak signatures.
 - Touchpoints: `src/index/build/runtime/runtime.js`, `src/index/build/indexer/indexer.js`, `src/index/build/tree-sitter-scheduler/runner.js`, `src/shared/embedding-adapter.js`, `src/shared/cache-roots.js`, `tools/bench/language/process.js`
 
 ### UB-061: Distributed stage execution (optional cluster mode)
-- Status: [ ]
+- Status: [x]
 - Opportunity:
   - Massive repos can exceed single-host optimal throughput.
 - Tasks:
@@ -579,6 +584,11 @@ Primary targets:
   - Multi-worker deterministic output tests.
 - Exit criteria:
   - Substantial wall-clock reduction on very large repos.
+- Completion: 2026-02-22T10:40:40.0286300-05:00
+- Validation:
+  - `node tests/indexing/shards/cluster-mode-deterministic-merge.test.js`
+  - `node tests/indexing/shards/cluster-retry-subset-recovery.test.js`
+  - `node tests/indexing/shards/shard-merge.test.js`
 - Improvement Intent (What): large-repo wall-clock
 - Improvement Method (How): distributed shard execution with deterministic merge.
 - Integrated Betterments: enforce deterministic shard merge order with stable IDs; add network/backpressure-aware scheduling for distributed workers; add partial failure recovery that retries shard subsets only.

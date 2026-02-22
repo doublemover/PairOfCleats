@@ -1,11 +1,15 @@
 #!/usr/bin/env node
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { SERVICE_INDEXER_OPTIONS } from '../../src/shared/cli-options.js';
+import { parseBuildArgs } from '../../src/index/build/args.js';
+import { buildIndex } from '../../src/integrations/core/index.js';
 import { isAbsolutePathNative } from '../../src/shared/files.js';
 import { formatDurationMs } from '../../src/shared/time-format.js';
+import { setProgressHandlers } from '../../src/shared/progress.js';
 import { spawnSubprocess } from '../../src/shared/subprocess.js';
 import { createLifecycleRegistry } from '../../src/shared/lifecycle/registry.js';
 import {
@@ -53,6 +57,12 @@ const resolvedQueueName = resolveQueueName(queueName, {
   stage: argv.stage || null,
   mode: argv.mode || null
 });
+const serviceExecutionModeRaw = process.env.PAIROFCLEATS_INDEXER_SERVICE_EXECUTION
+  || config?.worker?.executionMode
+  || 'subprocess';
+const serviceExecutionMode = String(serviceExecutionModeRaw || '').trim().toLowerCase() === 'daemon'
+  ? 'daemon'
+  : 'subprocess';
 
 const resolveRepoEntryForArg = (repoArg) => resolveRepoEntry(repoArg, repoEntries, baseDir);
 
@@ -252,7 +262,7 @@ const spawnWithLog = async (args, extraEnv = {}, logPath = null) => {
   return Number.isFinite(result.exitCode) ? result.exitCode : 1;
 };
 
-const runBuildIndex = (repoPath, mode, stage, extraArgs = null, logPath = null) => {
+const runBuildIndexSubprocess = (repoPath, mode, stage, extraArgs = null, logPath = null) => {
   const buildPath = path.join(toolRoot, 'build_index.js');
   const args = [buildPath];
   if (Array.isArray(extraArgs) && extraArgs.length) {
@@ -266,6 +276,119 @@ const runBuildIndex = (repoPath, mode, stage, extraArgs = null, logPath = null) 
   const runtimeConfig = getRuntimeConfig(repoPath, userConfig);
   const runtimeEnv = resolveRuntimeEnv(runtimeConfig, process.env);
   return spawnWithLog(args, runtimeEnv, logPath);
+};
+
+const toSafeSegment = (value, fallback = 'default') => {
+  if (typeof value !== 'string') return fallback;
+  const trimmed = value.trim();
+  if (!trimmed) return fallback;
+  return trimmed.replace(/[^a-zA-Z0-9._:-]+/g, '_');
+};
+
+const buildDaemonSessionKey = ({
+  repoPath,
+  queueName: daemonQueueName = 'index',
+  namespace = null
+} = {}) => {
+  const resolvedRepo = path.resolve(repoPath || process.cwd());
+  const canonicalRepo = process.platform === 'win32'
+    ? resolvedRepo.toLowerCase()
+    : resolvedRepo;
+  const digest = crypto.createHash('sha1').update(canonicalRepo).digest('hex').slice(0, 12);
+  const queueSegment = toSafeSegment(daemonQueueName, 'index');
+  const namespaceSegment = toSafeSegment(namespace || 'service-indexer', 'service-indexer');
+  return `${namespaceSegment}:${queueSegment}:${digest}`;
+};
+
+const appendDaemonLogLine = async (logPath, line) => {
+  if (!logPath || !line) return;
+  try {
+    await fsPromises.mkdir(path.dirname(logPath), { recursive: true });
+    await fsPromises.appendFile(logPath, `${line}\n`);
+  } catch (err) {
+    console.error(`[indexer] failed writing daemon log (${logPath}): ${err?.message || err}`);
+  }
+};
+
+const resolveBuildIndexArgs = (repoPath, mode, stage, extraArgs = null) => {
+  if (Array.isArray(extraArgs) && extraArgs.length) return extraArgs.slice();
+  const args = ['--repo', repoPath];
+  if (mode && mode !== 'both') args.push('--mode', mode);
+  if (stage) args.push('--stage', stage);
+  return args;
+};
+
+const sanitizeBuildArgv = (argvValue) => {
+  const next = {};
+  for (const [key, value] of Object.entries(argvValue || {})) {
+    if (key === '_' || key === '$0' || key === 'help' || key === 'h') continue;
+    next[key] = value;
+  }
+  return next;
+};
+
+const runBuildIndexDaemon = async (
+  repoPath,
+  mode,
+  stage,
+  extraArgs = null,
+  logPath = null,
+  daemonOptions = {}
+) => {
+  const rawArgs = resolveBuildIndexArgs(repoPath, mode, stage, extraArgs);
+  const daemonDeterministic = daemonOptions?.deterministic !== false;
+  const daemonHealth = daemonOptions?.health && typeof daemonOptions.health === 'object'
+    ? daemonOptions.health
+    : null;
+  const daemonSessionKey = buildDaemonSessionKey({
+    repoPath,
+    queueName: daemonOptions?.queueName || 'index',
+    namespace: daemonOptions?.sessionNamespace || null
+  });
+  const startedAt = Date.now();
+  await appendDaemonLogLine(
+    logPath,
+    `[daemon] started ${new Date(startedAt).toISOString()} sessionKey=${daemonSessionKey} args=${JSON.stringify(rawArgs)}`
+  );
+  try {
+    const { argv: parsedArgv } = parseBuildArgs(rawArgs);
+    const buildArgv = sanitizeBuildArgv(parsedArgv);
+    const resolvedRepo = buildArgv.repo || repoPath;
+    await buildIndex(resolvedRepo, {
+      ...buildArgv,
+      rawArgv: rawArgs,
+      daemonEnabled: true,
+      daemonDeterministic,
+      daemonSessionKey,
+      daemonHealth
+    });
+    const durationMs = Math.max(0, Date.now() - startedAt);
+    await appendDaemonLogLine(logPath, `[daemon] completed durationMs=${durationMs}`);
+    return {
+      exitCode: 0,
+      executionMode: 'daemon',
+      daemon: {
+        sessionKey: daemonSessionKey,
+        deterministic: daemonDeterministic,
+        durationMs
+      }
+    };
+  } catch (err) {
+    const durationMs = Math.max(0, Date.now() - startedAt);
+    const message = err?.message || String(err);
+    await appendDaemonLogLine(logPath, `[daemon] failed durationMs=${durationMs} error=${message}`);
+    console.error(`[indexer] daemon build failed: ${message}`);
+    return {
+      exitCode: 1,
+      executionMode: 'daemon',
+      daemon: {
+        sessionKey: daemonSessionKey,
+        deterministic: daemonDeterministic,
+        durationMs,
+        error: message
+      }
+    };
+  }
 };
 
 const runBuildEmbeddings = (repoPath, mode, indexRoot, extraEnv = {}, logPath = null) => {
@@ -382,7 +505,11 @@ const processQueueOnce = async (metrics) => {
     ? startBuildProgressMonitor({ job, repoPath: job.repo, stage: job.stage })
     : (async () => {});
   jobLifecycle.registerCleanup(() => stopProgress(), { label: 'indexer-service-progress-stop' });
-  let exitCode;
+  let runResult = {
+    exitCode: 1,
+    executionMode: 'subprocess',
+    daemon: null
+  };
   try {
     if (queueName === 'embeddings') {
       const normalized = normalizeEmbeddingJob(job);
@@ -390,7 +517,17 @@ const processQueueOnce = async (metrics) => {
         console.error(`[indexer] embedding job ${job.id} repoRoot mismatch (repo=${job.repo}, repoRoot=${job.repoRoot}); using repoRoot.`);
       }
       if (!normalized.buildRoot) {
-        await completeJob(queueDir, job.id, 'failed', { exitCode: 1, error: 'missing buildRoot for embedding job' }, resolvedQueueName);
+        await completeJob(
+          queueDir,
+          job.id,
+          'failed',
+          {
+            exitCode: 1,
+            error: 'missing buildRoot for embedding job',
+            executionMode: 'subprocess'
+          },
+          resolvedQueueName
+        );
         return true;
       }
       if (!fs.existsSync(normalized.buildRoot)) {
@@ -398,7 +535,11 @@ const processQueueOnce = async (metrics) => {
           queueDir,
           job.id,
           'failed',
-          { exitCode: 1, error: `embedding buildRoot missing: ${normalized.buildRoot}` },
+          {
+            exitCode: 1,
+            error: `embedding buildRoot missing: ${normalized.buildRoot}`,
+            executionMode: 'subprocess'
+          },
           resolvedQueueName
         );
         return true;
@@ -412,22 +553,62 @@ const processQueueOnce = async (metrics) => {
           console.error(`[indexer] embedding job ${job.id} indexDir not under buildRoot; continuing with buildRoot only.`);
         }
       }
-      exitCode = await jobLifecycle.registerPromise(runBuildEmbeddings(
-        normalized.repoRoot || job.repo,
-        job.mode,
-        normalized.buildRoot,
-        extraEnv,
-        logPath
-      ), { label: 'indexer-service-run-embeddings' });
-    } else {
-      exitCode = await jobLifecycle.registerPromise(
-        runBuildIndex(job.repo, job.mode, job.stage, job.args, logPath),
-        { label: 'indexer-service-run-index' }
+      const exitCode = await jobLifecycle.registerPromise(
+        runBuildEmbeddings(
+          normalized.repoRoot || job.repo,
+          job.mode,
+          normalized.buildRoot,
+          extraEnv,
+          logPath
+        ),
+        { label: 'indexer-service-run-embeddings' }
       );
+      runResult = {
+        exitCode,
+        executionMode: 'subprocess',
+        daemon: null
+      };
+    } else {
+      if (serviceExecutionMode === 'daemon') {
+        const daemonWorkerConfig = config.worker?.daemon && typeof config.worker.daemon === 'object'
+          ? config.worker.daemon
+          : {};
+        runResult = await jobLifecycle.registerPromise(
+          runBuildIndexDaemon(
+            job.repo,
+            job.mode,
+            job.stage,
+            job.args,
+            logPath,
+            {
+              queueName: resolvedQueueName,
+              deterministic: daemonWorkerConfig.deterministic !== false,
+              sessionNamespace: daemonWorkerConfig.sessionNamespace || null,
+              health: daemonWorkerConfig.health || null
+            }
+          ),
+          { label: 'indexer-service-run-index-daemon' }
+        );
+      } else {
+        const exitCode = await jobLifecycle.registerPromise(
+          runBuildIndexSubprocess(job.repo, job.mode, job.stage, job.args, logPath),
+          { label: 'indexer-service-run-index-subprocess' }
+        );
+        runResult = {
+          exitCode,
+          executionMode: 'subprocess',
+          daemon: null
+        };
+      }
     }
   } finally {
     await jobLifecycle.close().catch(() => {});
   }
+  const exitCode = Number.isFinite(runResult?.exitCode) ? runResult.exitCode : 1;
+  const executionMode = runResult?.executionMode === 'daemon' ? 'daemon' : 'subprocess';
+  const daemonResult = runResult?.daemon && typeof runResult.daemon === 'object'
+    ? runResult.daemon
+    : null;
   const status = exitCode === 0 ? 'done' : 'failed';
   const attempts = Number.isFinite(job.attempts) ? job.attempts : 0;
   const maxRetries = Number.isFinite(job.maxRetries)
@@ -440,7 +621,14 @@ const processQueueOnce = async (metrics) => {
       queueDir,
       job.id,
       'queued',
-      { exitCode, retry: true, attempts: nextAttempts, error: `exit ${exitCode}` },
+      {
+        exitCode,
+        retry: true,
+        attempts: nextAttempts,
+        error: `exit ${exitCode}`,
+        executionMode,
+        daemon: daemonResult
+      },
       resolvedQueueName
     );
     return true;
@@ -450,7 +638,18 @@ const processQueueOnce = async (metrics) => {
   } else {
     metrics.failed += 1;
   }
-  await completeJob(queueDir, job.id, status, { exitCode, error: `exit ${exitCode}` }, resolvedQueueName);
+  await completeJob(
+    queueDir,
+    job.id,
+    status,
+    {
+      exitCode,
+      error: `exit ${exitCode}`,
+      executionMode,
+      daemon: daemonResult
+    },
+    resolvedQueueName
+  );
   return true;
 };
 
@@ -459,9 +658,15 @@ const handleWork = async () => {
   const workerConfig = queueName === 'embeddings'
     ? (config.embeddings?.worker || {})
     : (config.worker || {});
-  const concurrency = Number.isFinite(Number(argv.concurrency))
+  const requestedConcurrency = Number.isFinite(Number(argv.concurrency))
     ? Math.max(1, Number(argv.concurrency))
     : (workerConfig.concurrency || 1);
+  const concurrency = serviceExecutionMode === 'daemon' && queueName === 'index'
+    ? 1
+    : requestedConcurrency;
+  if (concurrency !== requestedConcurrency) {
+    console.error(`[indexer] daemon execution enforces concurrency=1 (requested=${requestedConcurrency}).`);
+  }
   const intervalMs = Number.isFinite(Number(argv.interval))
     ? Math.max(100, Number(argv.interval))
     : (config.sync?.intervalMs || 5000);

@@ -25,6 +25,7 @@ import { getEnvConfig, isTestingEnv } from '../../../shared/env.js';
 import { isAbsolutePathNative } from '../../../shared/files.js';
 import { resolveCacheFilesystemProfile } from '../../../shared/cache-roots.js';
 import { buildAutoPolicy } from '../../../shared/auto-policy.js';
+import { warmEmbeddingAdapter } from '../../../shared/embedding-adapter.js';
 import { buildIgnoreMatcher } from '../ignore.js';
 import { normalizePostingsConfig } from '../../../shared/postings-config.js';
 import { createSharedDictionary, createSharedDictionaryView } from '../../../shared/dictionary.js';
@@ -66,6 +67,17 @@ import { resolveSchedulerConfig } from './scheduler.js';
 import { loadSchedulerAutoTuneProfile } from './scheduler-autotune-profile.js';
 import { resolveTreeSitterRuntime, preloadTreeSitterRuntimeLanguages } from './tree-sitter.js';
 import { resolveSubprocessFanoutPreset } from '../../../shared/subprocess.js';
+import {
+  acquireRuntimeDaemonSession,
+  createRuntimeDaemonJobContext,
+  getDaemonDictionaryCacheEntry,
+  setDaemonDictionaryCacheEntry,
+  getDaemonTreeSitterCacheEntry,
+  setDaemonTreeSitterCacheEntry,
+  hasDaemonEmbeddingWarmKey,
+  addDaemonEmbeddingWarmKey
+} from './daemon-session.js';
+import { resolveLearnedAutoProfileSelection } from './learned-auto-profile.js';
 import {
   createRuntimeQueues,
   resolveRuntimeMemoryPolicy,
@@ -198,6 +210,28 @@ export const runStartupCalibrationProbe = async ({
     probeBytes,
     writeReadMs,
     cleanupMs: Math.max(0, Date.now() - cleanupStart)
+  };
+};
+
+const cloneSet = (source) => new Set(source instanceof Set ? source : []);
+
+const cloneMapOfSets = (source) => {
+  if (!(source instanceof Map)) return new Map();
+  return new Map(
+    Array.from(source.entries()).map(([key, value]) => [key, cloneSet(value)])
+  );
+};
+
+const cloneDaemonDictionaryEntry = (entry) => {
+  if (!entry || typeof entry !== 'object') return null;
+  return {
+    dictWords: cloneSet(entry.dictWords),
+    codeDictCommonWords: cloneSet(entry.codeDictCommonWords),
+    codeDictWordsAll: cloneSet(entry.codeDictWordsAll),
+    codeDictWordsByLanguage: cloneMapOfSets(entry.codeDictWordsByLanguage),
+    dictSummary: entry.dictSummary && typeof entry.dictSummary === 'object'
+      ? JSON.parse(JSON.stringify(entry.dictSummary))
+      : null
   };
 };
 
@@ -518,6 +552,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   if (stageOverrides) {
     indexingConfig = mergeConfig(indexingConfig, stageOverrides);
   }
+  const repoCacheRoot = getRepoCacheRoot(root, userConfig);
   const cacheRootCandidate = (userConfig.cache && userConfig.cache.root) || getCacheRoot();
   const filesystemProfile = resolveCacheFilesystemProfile(cacheRootCandidate, process.platform);
   const platformRuntimePreset = resolvePlatformRuntimePreset({
@@ -528,6 +563,15 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   });
   if (platformRuntimePreset?.overrides) {
     indexingConfig = mergeConfig(indexingConfig, platformRuntimePreset.overrides);
+  }
+  const learnedAutoProfile = await timeInit('learned auto profile', () => resolveLearnedAutoProfileSelection({
+    root,
+    repoCacheRoot,
+    indexingConfig,
+    log
+  }));
+  if (learnedAutoProfile?.applied && learnedAutoProfile?.overrides) {
+    indexingConfig = mergeConfig(indexingConfig, learnedAutoProfile.overrides);
   }
   const profileId = assertKnownIndexProfileId(indexingConfig.profile);
   const profile = buildIndexProfileState(profileId);
@@ -554,7 +598,6 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     benchRun: envConfig.benchRun === true
   });
   setScmRuntimeConfig(scmConfig);
-  const repoCacheRoot = getRepoCacheRoot(root, userConfig);
   const cacheRoot = cacheRootCandidate;
   const cacheRootSource = userConfig.cache?.root
     ? 'config'
@@ -583,6 +626,41 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
         `(bytes=${startupCalibration.probeBytes}).`
       );
     }
+  }
+  const daemonConfig = indexingConfig?.daemon && typeof indexingConfig.daemon === 'object'
+    ? indexingConfig.daemon
+    : {};
+  const daemonEnabledFromArg = argv.daemon === true || argv.daemonEnabled === true;
+  const daemonSessionKeyFromArg = typeof argv.daemonSessionKey === 'string'
+    ? argv.daemonSessionKey.trim()
+    : '';
+  const daemonDeterministicArg = typeof argv.daemonDeterministic === 'boolean'
+    ? argv.daemonDeterministic
+    : null;
+  const daemonHealthArg = argv.daemonHealth && typeof argv.daemonHealth === 'object'
+    ? argv.daemonHealth
+    : null;
+  const daemonEnabled = daemonEnabledFromArg
+    || daemonConfig.enabled === true
+    || process.env.PAIROFCLEATS_INDEX_DAEMON === '1';
+  const daemonDeterministic = daemonDeterministicArg === null
+    ? daemonConfig.deterministic !== false
+    : daemonDeterministicArg !== false;
+  const daemonHealthConfig = daemonHealthArg || (
+    daemonConfig.health && typeof daemonConfig.health === 'object'
+    ? daemonConfig.health
+      : null
+  );
+  const daemonSession = acquireRuntimeDaemonSession({
+    enabled: daemonEnabled,
+    sessionKey: daemonSessionKeyFromArg || daemonConfig.sessionKey || process.env.PAIROFCLEATS_INDEX_DAEMON_SESSION || null,
+    cacheRoot,
+    deterministic: daemonDeterministic,
+    profile: profile.id,
+    health: daemonHealthConfig
+  });
+  if (daemonSession) {
+    log(`[init] daemon session: ${daemonSession.key} (jobs=${daemonSession.jobsProcessed}, deterministic=${daemonSession.deterministic !== false}).`);
   }
   const envelope = await timeInit('runtime envelope', () => resolveRuntimeEnvelope({
     argv,
@@ -736,6 +814,10 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   }
   const buildId = resolvedIndexRoot ? path.basename(buildRoot) : computedBuildId;
   const stage1SubprocessOwnershipPrefix = buildStage1SubprocessOwnershipPrefix({ buildId });
+  const daemonJobContext = createRuntimeDaemonJobContext(daemonSession, {
+    root,
+    buildId
+  });
   if (buildRoot) {
     const suffix = resolvedIndexRoot ? ' (override)' : '';
     log(`[init] build root: ${buildRoot}${suffix}`);
@@ -1036,6 +1118,29 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     getChunkEmbedding,
     getChunkEmbeddings
   } = embeddingRuntime;
+  const daemonPrewarmEmbeddings = daemonConfig.prewarmEmbeddings !== false;
+  const embeddingWarmKey = `${embeddingProvider || 'unknown'}:${modelId || 'none'}:${modelsDir || 'none'}:${embeddingNormalize !== false}`;
+  const daemonEmbeddingWarmHit = daemonSession
+    ? hasDaemonEmbeddingWarmKey(daemonSession, embeddingWarmKey)
+    : false;
+  if (
+    daemonSession
+    && daemonPrewarmEmbeddings
+    && embeddingEnabled
+    && useStubEmbeddings !== true
+    && !daemonEmbeddingWarmHit
+  ) {
+    await timeInit('embedding prewarm', () => warmEmbeddingAdapter({
+      rootDir: root,
+      provider: embeddingProvider,
+      onnxConfig: embeddingOnnx,
+      normalize: embeddingNormalize,
+      useStub: false,
+      modelId,
+      modelsDir
+    }));
+    addDaemonEmbeddingWarmKey(daemonSession, embeddingWarmKey);
+  }
   const pythonAstRuntimeConfig = {
     ...pythonAstConfig,
     defaultMaxWorkers: Math.min(4, fileConcurrency),
@@ -1083,55 +1188,11 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   const dictConfig = getDictConfig(root, userConfig);
   const dictDir = dictConfig?.dir;
   const dictionaryPaths = await getDictionaryPaths(root, dictConfig);
-  const dictWords = new Set();
-  for (const dictFile of dictionaryPaths) {
-    try {
-      const contents = await fs.readFile(dictFile, 'utf8');
-      for (const line of contents.split(/\r?\n/)) {
-        const trimmed = line.trim();
-        if (trimmed) dictWords.add(trimmed);
-      }
-    } catch {}
-  }
   const codeDictLanguages = normalizeCodeDictLanguages(DEFAULT_CODE_DICT_LANGUAGES);
   const codeDictEnabled = codeDictLanguages.size > 0;
   const codeDictPaths = codeDictEnabled
     ? await getCodeDictionaryPaths(root, dictConfig, { languages: Array.from(codeDictLanguages) })
     : { baseDir: path.join(dictDir || '', 'code-dicts'), common: [], byLanguage: new Map(), all: [] };
-  const codeDictCommonWords = new Set();
-  const codeDictWordsByLanguage = new Map();
-  const codeDictWordsAll = new Set();
-  const addCodeWord = (target, word) => {
-    if (!word) return;
-    const normalized = word.toLowerCase();
-    if (!normalized) return;
-    target.add(normalized);
-    codeDictWordsAll.add(normalized);
-  };
-  for (const dictFile of codeDictPaths.common) {
-    try {
-      const contents = await fs.readFile(dictFile, 'utf8');
-      for (const line of contents.split(/\r?\n/)) {
-        const trimmed = line.trim();
-        if (trimmed) addCodeWord(codeDictCommonWords, trimmed);
-      }
-    } catch {}
-  }
-  for (const [lang, dictFiles] of codeDictPaths.byLanguage.entries()) {
-    const words = new Set();
-    for (const dictFile of dictFiles) {
-      try {
-        const contents = await fs.readFile(dictFile, 'utf8');
-        for (const line of contents.split(/\r?\n/)) {
-          const trimmed = line.trim();
-          if (trimmed) addCodeWord(words, trimmed);
-        }
-      } catch {}
-    }
-    if (words.size) {
-      codeDictWordsByLanguage.set(lang, words);
-    }
-  }
   const dictSignatureParts = [];
   for (const dictFile of dictionaryPaths) {
     const signaturePath = normalizeDictSignaturePath({ dictFile, dictDir, repoRoot: root });
@@ -1155,6 +1216,60 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   const dictSignature = dictSignatureParts.length
     ? sha1(dictSignatureParts.join('|'))
     : null;
+  const cachedDaemonDict = cloneDaemonDictionaryEntry(
+    daemonSession && dictSignature
+      ? getDaemonDictionaryCacheEntry(daemonSession, dictSignature)
+      : null
+  );
+  const dictWords = cachedDaemonDict?.dictWords || new Set();
+  const codeDictCommonWords = cachedDaemonDict?.codeDictCommonWords || new Set();
+  const codeDictWordsByLanguage = cachedDaemonDict?.codeDictWordsByLanguage || new Map();
+  const codeDictWordsAll = cachedDaemonDict?.codeDictWordsAll || new Set();
+  const daemonDictCacheHit = Boolean(cachedDaemonDict);
+  if (!daemonDictCacheHit) {
+    for (const dictFile of dictionaryPaths) {
+      try {
+        const contents = await fs.readFile(dictFile, 'utf8');
+        for (const line of contents.split(/\r?\n/)) {
+          const trimmed = line.trim();
+          if (trimmed) dictWords.add(trimmed);
+        }
+      } catch {}
+    }
+    const addCodeWord = (target, word) => {
+      if (!word) return;
+      const normalized = word.toLowerCase();
+      if (!normalized) return;
+      target.add(normalized);
+      codeDictWordsAll.add(normalized);
+    };
+    for (const dictFile of codeDictPaths.common) {
+      try {
+        const contents = await fs.readFile(dictFile, 'utf8');
+        for (const line of contents.split(/\r?\n/)) {
+          const trimmed = line.trim();
+          if (trimmed) addCodeWord(codeDictCommonWords, trimmed);
+        }
+      } catch {}
+    }
+    for (const [lang, dictFiles] of codeDictPaths.byLanguage.entries()) {
+      const words = new Set();
+      for (const dictFile of dictFiles) {
+        try {
+          const contents = await fs.readFile(dictFile, 'utf8');
+          for (const line of contents.split(/\r?\n/)) {
+            const trimmed = line.trim();
+            if (trimmed) addCodeWord(words, trimmed);
+          }
+        } catch {}
+      }
+      if (words.size) {
+        codeDictWordsByLanguage.set(lang, words);
+      }
+    }
+  } else {
+    log('[init] dictionaries loaded from daemon warm cache.');
+  }
   const dictSummary = {
     files: dictionaryPaths.length,
     words: dictWords.size,
@@ -1167,6 +1282,15 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
         : null
     }
   };
+  if (daemonSession && dictSignature && !daemonDictCacheHit) {
+    setDaemonDictionaryCacheEntry(daemonSession, dictSignature, {
+      dictWords,
+      codeDictCommonWords,
+      codeDictWordsAll,
+      codeDictWordsByLanguage,
+      dictSummary
+    });
+  }
   const LARGE_DICT_SHARED_THRESHOLD = 200000;
   const shouldShareDict = dictSummary.words
     && (workerPoolConfig.enabled !== false || dictSummary.words >= LARGE_DICT_SHARED_THRESHOLD);
@@ -1280,17 +1404,32 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   if (!treeSitterEnabled) {
     log('Tree-sitter chunking disabled via indexing.treeSitter.enabled.');
   } else {
-    const preloadStart = Date.now();
-    const preloadCount = await preloadTreeSitterRuntimeLanguages({
-      treeSitterEnabled,
-      treeSitterLanguages,
-      treeSitterPreload,
-      treeSitterPreloadConcurrency,
-      observedLanguages: null,
-      log
+    const preloadCacheKey = JSON.stringify({
+      languages: Array.isArray(treeSitterLanguages)
+        ? treeSitterLanguages.slice().sort()
+        : [],
+      preload: treeSitterPreload !== false,
+      preloadConcurrency: Number(treeSitterPreloadConcurrency) || 0
     });
-    if (preloadCount > 0) {
-      logInit('tree-sitter preload', preloadStart);
+    const cachedPreloadCount = Number(getDaemonTreeSitterCacheEntry(daemonSession, preloadCacheKey));
+    if (Number.isFinite(cachedPreloadCount) && cachedPreloadCount >= 0) {
+      if (cachedPreloadCount > 0) {
+        log(`[init] tree-sitter preload warm hit (${cachedPreloadCount} languages).`);
+      }
+    } else {
+      const preloadStart = Date.now();
+      const preloadCount = await preloadTreeSitterRuntimeLanguages({
+        treeSitterEnabled,
+        treeSitterLanguages,
+        treeSitterPreload,
+        treeSitterPreloadConcurrency,
+        observedLanguages: null,
+        log
+      });
+      setDaemonTreeSitterCacheEntry(daemonSession, preloadCacheKey, preloadCount);
+      if (preloadCount > 0) {
+        logInit('tree-sitter preload', preloadStart);
+      }
     }
   }
   if (typeInferenceEnabled) {
@@ -1439,6 +1578,39 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     repoCacheRoot,
     platformRuntimePreset,
     startupCalibration,
+    learnedAutoProfile,
+    daemon: daemonSession
+      ? {
+        enabled: true,
+        sessionKey: daemonSession.key,
+        deterministic: daemonSession.deterministic !== false,
+        jobContext: daemonJobContext,
+        generation: daemonSession.generation || 1,
+        generationJobsProcessed: daemonSession.generationJobsProcessed || 0,
+        jobsProcessed: daemonSession.jobsProcessed,
+        recycle: {
+          count: daemonSession.recycleCount || 0,
+          lastAt: daemonSession.lastRecycleAt || null,
+          lastReasons: daemonSession.lastRecycleReasons || []
+        },
+        warmCaches: {
+          dictionaries: daemonSession.dictCache?.size || 0,
+          treeSitterPreload: daemonSession.treeSitterPreloadCache?.size || 0,
+          embeddings: daemonSession.embeddingWarmKeys?.size || 0
+        }
+      }
+      : {
+        enabled: false,
+        sessionKey: null,
+        deterministic: true,
+        jobContext: null,
+        jobsProcessed: 0,
+        warmCaches: {
+          dictionaries: 0,
+          treeSitterPreload: 0,
+          embeddings: 0
+        }
+      },
     buildId,
     buildRoot,
     profile,
