@@ -4,6 +4,7 @@ import { log } from '../../../src/shared/progress.js';
 import {
   STAGE_TIMING_SCHEMA_VERSION,
   buildStageTimingProfileForTask,
+  computeLowHitSeverity,
   createEmptyStageTimingProfile,
   finalizeStageTimingProfile,
   mergeStageTimingProfile
@@ -172,6 +173,202 @@ const buildDiagnosticsStreamSummary = (resultsRoot) => {
   };
 };
 
+const REMEDIATION_SCHEMA_VERSION = 1;
+const LOW_HIT_THRESHOLD = 0.82;
+
+const roundValue = (value, digits = 4) => {
+  if (!Number.isFinite(Number(value))) return null;
+  const scale = 10 ** Math.max(0, Math.floor(Number(digits) || 0));
+  return Math.round(Number(value) * scale) / scale;
+};
+
+const clamp01 = (value) => Math.max(0, Math.min(1, Number(value) || 0));
+
+const buildSuggestion = ({
+  suggestionId,
+  component,
+  title,
+  score,
+  reason,
+  targetFiles,
+  severity
+}) => ({
+  suggestionId,
+  component,
+  title,
+  score: roundValue(clamp01(score), 3),
+  reason,
+  targetFiles: Array.isArray(targetFiles) ? targetFiles : [],
+  loop: {
+    accepted: false,
+    baseline: {
+      bestHitRate: roundValue(severity.bestHitRate, 4),
+      queryWallMsPerSearch: roundValue(severity.queryWallMsPerSearch, 2),
+      avgResultCount: roundValue(severity.avgResultCount, 3)
+    },
+    postChange: null,
+    delta: null
+  }
+});
+
+const buildRankedRemediationSuggestions = ({ severity }) => {
+  const suggestions = [];
+  if (!Number.isFinite(severity?.bestHitRate) || !Number.isFinite(severity?.hitGap)) return suggestions;
+
+  suggestions.push(buildSuggestion({
+    suggestionId: 'query.intent-weight-rebalance',
+    component: 'ranker',
+    title: 'Rebalance intent weights by language family',
+    score: 0.45 + (severity.hitGap * 1.35) + (severity.scarcityPressure * 0.25),
+    reason: (
+      `best hit ${(severity.bestHitRate * 100).toFixed(1)}% is below ` +
+      `${(severity.lowHitThreshold * 100).toFixed(1)}%; calibrate symbol/type/api/behavior weights.`
+    ),
+    targetFiles: [
+      'tools/bench/query-generator.js',
+      'benchmarks/repos.json'
+    ],
+    severity
+  }));
+
+  if (severity.scarcityPressure > 0.05 || severity.bestHitRate < (severity.lowHitThreshold * 0.9)) {
+    suggestions.push(buildSuggestion({
+      suggestionId: 'tokenizer.language-family-pack',
+      component: 'tokenizer',
+      title: 'Expand language-family tokenizer coverage',
+      score: 0.30 + (severity.hitGap * 1.15) + (severity.scarcityPressure * 0.35),
+      reason: (
+        `avg hits/search ${roundValue(severity.avgResultCount, 2) ?? 'n/a'} indicates sparse recall; ` +
+        'prioritize dictionary/token normalization updates for this family.'
+      ),
+      targetFiles: [
+        'src/retrieval/query-intent.js',
+        'tools/bench/query-generator.js'
+      ],
+      severity
+    }));
+  }
+
+  if (severity.latencyPressure > 0) {
+    suggestions.push(buildSuggestion({
+      suggestionId: 'ranker.rerank-budget',
+      component: 'ranker',
+      title: 'Tune rerank budget for low-hit queries',
+      score: 0.20 + (severity.hitGap * 0.85) + (severity.latencyPressure * 0.65),
+      reason: (
+        `query/search latency ${roundValue(severity.queryWallMsPerSearch, 1) ?? 'n/a'}ms with low hit rate; ` +
+        'tighten rerank depth and rebalance first-pass confidence thresholds.'
+      ),
+      targetFiles: [
+        'src/retrieval/pipeline/rank-stage.js',
+        'src/retrieval/scoring/ann-candidate-policy.js'
+      ],
+      severity
+    }));
+  }
+
+  if ((severity.avgResultCount || 0) < 1.2 || severity.bestHitRate < 0.6) {
+    suggestions.push(buildSuggestion({
+      suggestionId: 'indexing.chunking-balance',
+      component: 'indexing',
+      title: 'Tune chunking/normalization for recall',
+      score: 0.15 + (severity.hitGap * 0.75) + (severity.scarcityPressure * 0.4),
+      reason: (
+        'low result density suggests chunk boundary or normalization drift; tune language-role chunk sizing and indexing presets.'
+      ),
+      targetFiles: [
+        'src/index/chunking/dispatch.js',
+        'src/index/chunking/limits.js'
+      ],
+      severity
+    }));
+  }
+
+  return suggestions
+    .sort((left, right) => Number(right.score) - Number(left.score))
+    .map((entry, index) => ({
+      ...entry,
+      rank: index + 1
+    }));
+};
+
+const buildRemediationSummary = (tasks) => {
+  const remediationRows = [];
+  const aggregateSuggestions = new Map();
+  const validTasks = (Array.isArray(tasks) ? tasks : []).filter((entry) => entry?.summary);
+  for (const entry of validTasks) {
+    const severity = computeLowHitSeverity({
+      summary: entry.summary,
+      lowHitThreshold: LOW_HIT_THRESHOLD
+    });
+    if (!Number.isFinite(severity?.bestHitRate) || severity.bestHitRate >= LOW_HIT_THRESHOLD) continue;
+    const rankedSuggestions = buildRankedRemediationSuggestions({ severity });
+    for (const suggestion of rankedSuggestions) {
+      if (!aggregateSuggestions.has(suggestion.suggestionId)) {
+        aggregateSuggestions.set(suggestion.suggestionId, {
+          suggestionId: suggestion.suggestionId,
+          title: suggestion.title,
+          component: suggestion.component,
+          uses: 0,
+          scoreTotal: 0,
+          repos: []
+        });
+      }
+      const bucket = aggregateSuggestions.get(suggestion.suggestionId);
+      bucket.uses += 1;
+      bucket.scoreTotal += Number(suggestion.score) || 0;
+      bucket.repos.push(`${entry.language}/${entry.repo}`);
+    }
+    remediationRows.push({
+      language: entry.language,
+      tier: entry.tier,
+      repo: entry.repo,
+      repoPath: entry.repoPath || null,
+      outFile: entry.outFile || null,
+      bestHitRate: roundValue(severity.bestHitRate, 4),
+      lowHitThreshold: LOW_HIT_THRESHOLD,
+      hitGap: roundValue(severity.hitGap, 4),
+      avgResultCount: roundValue(severity.avgResultCount, 3),
+      queryWallMsPerSearch: roundValue(severity.queryWallMsPerSearch, 2),
+      queryWallMsPerQuery: roundValue(severity.queryWallMsPerQuery, 2),
+      severityScore: roundValue(severity.severityScore, 3),
+      rankedSuggestions
+    });
+  }
+  remediationRows.sort((left, right) => (
+    Number(right.severityScore || 0) - Number(left.severityScore || 0)
+  ));
+  const topSuggestions = Array.from(aggregateSuggestions.values())
+    .map((entry) => ({
+      suggestionId: entry.suggestionId,
+      title: entry.title,
+      component: entry.component,
+      uses: entry.uses,
+      avgScore: roundValue(entry.uses > 0 ? (entry.scoreTotal / entry.uses) : 0, 3),
+      repos: entry.repos.sort((left, right) => left.localeCompare(right))
+    }))
+    .sort((left, right) => (Number(right.avgScore || 0) - Number(left.avgScore || 0))
+      || (Number(right.uses || 0) - Number(left.uses || 0))
+      || left.suggestionId.localeCompare(right.suggestionId));
+  const totalSuggestions = remediationRows.reduce((sum, entry) => (
+    sum + (Array.isArray(entry.rankedSuggestions) ? entry.rankedSuggestions.length : 0)
+  ), 0);
+  return {
+    schemaVersion: REMEDIATION_SCHEMA_VERSION,
+    lowHitThreshold: LOW_HIT_THRESHOLD,
+    reposConsidered: validTasks.length,
+    lowHitCount: remediationRows.length,
+    lowHitRepos: remediationRows,
+    topSuggestions,
+    loop: {
+      trackedSuggestions: totalSuggestions,
+      acceptedSuggestions: 0,
+      pendingSuggestions: totalSuggestions,
+      postChangeDeltaReady: false
+    }
+  };
+};
+
 export const summarizeResults = (items) => {
   const valid = items.filter((entry) => entry.summary);
   if (!valid.length) return null;
@@ -304,6 +501,7 @@ export const buildReportOutput = ({ configPath, cacheRoot, resultsRoot, results,
     Object.entries(groupedSummary)
       .map(([language, payload]) => [language, payload?.summary?.stageTiming || null])
   );
+  const remediation = buildRemediationSummary(tasks);
   return {
     generatedAt: new Date().toISOString(),
     config: configPath,
@@ -320,6 +518,7 @@ export const buildReportOutput = ({ configPath, cacheRoot, resultsRoot, results,
       grouped: stageTimingGrouped,
       overall: overallSummary?.stageTiming || null
     },
+    remediation,
     groupedSummary,
     overallSummary
   };

@@ -65,6 +65,64 @@ export const formatMetricSummary = (summary) => {
   return parts.length ? `Metrics: ${parts.join(' | ')}` : 'Metrics: pending';
 };
 
+const toFiniteRate = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return null;
+  return Math.max(0, Math.min(1, parsed));
+};
+
+const toFiniteNumber = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+export const getBestHitRate = (summary) => {
+  if (!summary || typeof summary !== 'object') return null;
+  const candidates = Object.values(summary.hitRate || {})
+    .map(toFiniteRate)
+    .filter(Number.isFinite);
+  if (!candidates.length) return null;
+  return Math.max(...candidates);
+};
+
+export const computeLowHitSeverity = ({
+  summary,
+  lowHitThreshold = 0.82
+} = {}) => {
+  const bestHitRate = getBestHitRate(summary);
+  const resultCountAvg = Object.values(summary?.resultCountAvg || {})
+    .map(toFiniteNumber)
+    .filter(Number.isFinite);
+  const avgResultCount = resultCountAvg.length
+    ? resultCountAvg.reduce((sum, value) => sum + value, 0) / resultCountAvg.length
+    : null;
+  const queryWallMsPerSearch = toFiniteNumber(summary?.queryWallMsPerSearch);
+  const queryWallMsPerQuery = toFiniteNumber(summary?.queryWallMsPerQuery);
+  const hitGap = Number.isFinite(bestHitRate)
+    ? Math.max(0, lowHitThreshold - bestHitRate)
+    : null;
+  const scarcityPressure = Number.isFinite(avgResultCount)
+    ? Math.max(0, 1.5 - avgResultCount) / 1.5
+    : 0;
+  const latencyPressure = Number.isFinite(queryWallMsPerSearch)
+    ? Math.max(0, queryWallMsPerSearch - 120) / 480
+    : 0;
+  const severityScore = Number.isFinite(hitGap)
+    ? Math.max(0, Math.min(1, (hitGap / Math.max(0.01, lowHitThreshold)) + (0.2 * scarcityPressure) + (0.1 * latencyPressure)))
+    : null;
+  return {
+    lowHitThreshold,
+    bestHitRate,
+    hitGap,
+    avgResultCount,
+    queryWallMsPerSearch,
+    queryWallMsPerQuery,
+    scarcityPressure,
+    latencyPressure,
+    severityScore
+  };
+};
+
 export const STAGE_TIMING_SCHEMA_VERSION = 1;
 export const STAGE_TIMING_STAGE_KEYS = Object.freeze([
   'discovery',

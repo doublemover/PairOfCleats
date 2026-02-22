@@ -1016,7 +1016,7 @@ Last revised: 2026-02-22T05:44:04.8332760-05:00
 - Touchpoints: `tools/bench/query-generator.js`, `benchmarks/repos.json`, `tests/retrieval/query/golden/corpus.json`, `tests/retrieval/query/golden-query-corpus.test.js`
 
 ### UB-093: Low-hit remediation loop (auto-generated patch suggestions)
-- Status: [ ]
+- Status: [x]
 - Observation:
   - Persistent low-hit repos are identifiable (`z`, `inspect.lua`, `pandoc`, `luasocket`, `rake`, `fastlane`).
 - Tasks:
@@ -1024,6 +1024,11 @@ Last revised: 2026-02-22T05:44:04.8332760-05:00
   - Track acceptance and post-change delta automatically.
 - Exit criteria:
   - Faster cycle from low-hit detection to actionable code change.
+- Completion: 2026-02-22T09:28:29.5723031-05:00
+- Validation:
+  - `node tests/tooling/reports/bench-language-low-hit-remediation-report.test.js`
+  - `node tests/tooling/reports/bench-language-stage-timing-report.test.js`
+  - `node tests/tooling/reports/bench-language-summarize.test.js`
 - Improvement Intent (What): low-hit remediation cycle time
 - Improvement Method (How): automated miss clustering and ranked tuning suggestions.
 - Integrated Betterments: auto-generate ranked remediation proposals from miss clusters; map each suggestion to affected ranking/tokenization components; require before/after scorecards before acceptance.
