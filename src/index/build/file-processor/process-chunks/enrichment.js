@@ -58,6 +58,9 @@ export const buildChunkEnrichment = ({
   addSettingMetric,
   addEnrichDuration,
   updateCrashStage,
+  parserMode = null,
+  parserReasonCode = null,
+  parserReason = null,
   failFile,
   diagnostics,
   startLine,
@@ -149,13 +152,30 @@ export const buildChunkEnrichment = ({
     let flowMeta = null;
     if (activeLang && typeof activeLang.flow === 'function') {
       try {
-        updateCrashStage('flow', { chunkIndex });
+        updateCrashStage('flow:start', {
+          chunkIndex,
+          chunkMode,
+          languageId: chunkLanguageId || null,
+          activeLanguageId: activeLang?.id || null,
+          parserMode,
+          parserReasonCode,
+          parserReason
+        });
         const flowStart = Date.now();
         flowMeta = activeLang.flow({
           text,
           chunk,
           context: activeContext,
           options: languageOptions
+        });
+        updateCrashStage('flow:done', {
+          chunkIndex,
+          chunkMode,
+          languageId: chunkLanguageId || null,
+          activeLanguageId: activeLang?.id || null,
+          parserMode,
+          parserReasonCode,
+          hasFlowMeta: Boolean(flowMeta)
         });
         const flowDurationMs = Date.now() - flowStart;
         if (flowDurationMs > 0) {
@@ -170,6 +190,16 @@ export const buildChunkEnrichment = ({
           }
         }
       } catch (err) {
+        updateCrashStage('flow:error', {
+          chunkIndex,
+          chunkMode,
+          languageId: chunkLanguageId || null,
+          activeLanguageId: activeLang?.id || null,
+          parserMode,
+          parserReasonCode,
+          errorName: err?.name || null,
+          errorCode: err?.code || null
+        });
         return { skip: failFile('relation-error', 'flow', err, diagnostics) };
       }
     }

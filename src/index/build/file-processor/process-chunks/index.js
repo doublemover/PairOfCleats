@@ -495,21 +495,27 @@ export const processChunks = async (context) => {
     totalLines,
     chunkingDiagnostics,
     failFile,
-    buildStage
+    buildStage,
+    fileIndex = null
   } = context;
 
   const containerExt = ext;
   const containerLanguageId = fileLanguageId || lang?.id || null;
   const updateCrashStage = (substage, extra = {}) => {
     if (!crashLogger?.enabled) return;
-    crashLogger.updateFile({
+    const entry = {
       phase: 'processing',
       mode,
       stage: buildStage || null,
+      fileIndex: Number.isFinite(fileIndex) ? fileIndex : null,
       file: relKey,
       substage,
       ...extra
-    });
+    };
+    crashLogger.updateFile(entry);
+    if (typeof crashLogger.traceFileStage === 'function') {
+      crashLogger.traceFileStage(entry);
+    }
   };
   const sourceChunks = Array.isArray(sc) ? sc : [];
   const processChunksStartedAt = Date.now();
@@ -597,6 +603,14 @@ export const processChunks = async (context) => {
   const parserMode = parserFallbackProfile.mode;
   const parserIsAstFull = parserMode === 'ast-full';
   const parserIsChunkOnly = parserMode === 'chunk-only';
+  updateCrashStage('parser-profile', {
+    parserMode,
+    parserReasonCode: parserFallbackProfile.reasonCode,
+    parserReason: parserFallbackProfile.reason,
+    heavyFileDownshift,
+    heavyFileSkipTokenization,
+    totalChunks: chunksForProcessing.length
+  });
 
   const strictIdentity = analysisPolicy?.identity?.strict !== false;
   const chunkUidNamespaceKey = mode === 'extracted-prose' ? 'repo:extracted-prose' : 'repo';
@@ -796,12 +810,6 @@ export const processChunks = async (context) => {
 
   for (let ci = 0; ci < chunksForProcessing.length; ++ci) {
     const c = chunksForProcessing[ci];
-    updateCrashStage('chunk', {
-      chunkIndex: ci,
-      chunkId: c?.chunkId || null,
-      start: c?.start ?? null,
-      end: c?.end ?? null
-    });
     const ctext = text.slice(c.start, c.end);
     let tokenText = ctext;
     const lineRange = chunkLineRanges[ci] || { startLine: 1, endLine: fileLineCount || 1 };
@@ -820,6 +828,20 @@ export const processChunks = async (context) => {
     }
     const effectiveLanguageId = effectiveLang?.id || c.segment?.languageId || containerLanguageId || 'unknown';
     const chunkLanguageId = effectiveLanguageId;
+    updateCrashStage('chunk', {
+      chunkIndex: ci,
+      chunkId: c?.chunkId || null,
+      start: c?.start ?? null,
+      end: c?.end ?? null,
+      chunkMode,
+      chunkLanguageId: chunkLanguageId || null,
+      parserMode,
+      parserReasonCode: parserFallbackProfile.reasonCode,
+      parserReason: parserFallbackProfile.reason,
+      effectiveExt: effectiveExt || null,
+      segmentLanguageId: c.segment?.languageId || null,
+      segmentExt: c.segment?.ext || null
+    });
     const dictCacheKey = `${chunkMode}:${chunkLanguageId || ''}`;
     let dictWordsForChunk = dictWordsCache.get(dictCacheKey);
     if (!dictWordsForChunk) {
@@ -886,6 +908,9 @@ export const processChunks = async (context) => {
       addSettingMetric,
       addEnrichDuration,
       updateCrashStage,
+      parserMode,
+      parserReasonCode: parserFallbackProfile.reasonCode,
+      parserReason: parserFallbackProfile.reason,
       failFile,
       diagnostics,
       startLine,
@@ -1000,7 +1025,13 @@ export const processChunks = async (context) => {
     if (effectiveTokenizeEnabled && runTokenize && !pretokenized) {
       try {
         const tokenStart = Date.now();
-        updateCrashStage('tokenize-worker', { chunkIndex: ci });
+        updateCrashStage('tokenize-worker', {
+          chunkIndex: ci,
+          chunkMode,
+          chunkLanguageId: chunkLanguageId || null,
+          parserMode,
+          parserReasonCode: parserFallbackProfile.reasonCode
+        });
         tokenPayload = await runTokenize({
           text: tokenText,
           mode: chunkMode,
@@ -1010,6 +1041,15 @@ export const processChunks = async (context) => {
           size: fileStat.size,
           // chargramTokens is intentionally omitted (see note above).
           ...(workerDictOverride ? { dictConfig: workerDictOverride } : {})
+        });
+        updateCrashStage('tokenize-worker:done', {
+          chunkIndex: ci,
+          chunkMode,
+          chunkLanguageId: chunkLanguageId || null,
+          parserMode,
+          parserReasonCode: parserFallbackProfile.reasonCode,
+          hasPayload: Boolean(tokenPayload),
+          tokenCount: Array.isArray(tokenPayload?.tokens) ? tokenPayload.tokens.length : 0
         });
         const tokenDurationMs = Date.now() - tokenStart;
         addTokenizeDuration(tokenDurationMs);
@@ -1052,7 +1092,13 @@ export const processChunks = async (context) => {
     }
     if (effectiveTokenizeEnabled && !tokenPayload) {
       const tokenStart = Date.now();
-      updateCrashStage('tokenize', { chunkIndex: ci });
+      updateCrashStage('tokenize', {
+        chunkIndex: ci,
+        chunkMode,
+        chunkLanguageId: chunkLanguageId || null,
+        parserMode,
+        parserReasonCode: parserFallbackProfile.reasonCode
+      });
       tokenPayload = tokenizeChunkText({
         text: tokenText,
         mode: chunkMode,
@@ -1088,22 +1134,71 @@ export const processChunks = async (context) => {
       // Tokenization workers intentionally do not run tree-sitter classification to avoid
       // multiplying parser/grammar memory across --threads. Attach buckets here using the
       // main thread tree-sitter runtime (global caps).
-      const classification = classifyTokenBuckets({
-        text: tokenText,
-        tokens: Array.isArray(tokenPayload.tokens) ? tokenPayload.tokens : [],
-        languageId: chunkLanguageId,
-        ext: effectiveExt,
-        dictWords: dictWordsForChunk,
-        dictConfig,
-        context: fileTokenContext
+      const tokenList = Array.isArray(tokenPayload.tokens) ? tokenPayload.tokens : [];
+      const tokenClassificationRuntime = fileTokenContext?.tokenClassificationRuntime;
+      updateCrashStage('token-classification:start', {
+        chunkIndex: ci,
+        chunkMode,
+        chunkLanguageId: chunkLanguageId || null,
+        parserMode,
+        parserReasonCode: parserFallbackProfile.reasonCode,
+        tokenCount: tokenList.length,
+        treeSitterEnabled: tokenClassificationRuntime?.treeSitterEnabled !== false,
+        remainingChunks: Number.isFinite(tokenClassificationRuntime?.remainingChunks)
+          ? tokenClassificationRuntime.remainingChunks
+          : null,
+        remainingBytes: Number.isFinite(tokenClassificationRuntime?.remainingBytes)
+          ? tokenClassificationRuntime.remainingBytes
+          : null
       });
-      tokenPayload = {
-        ...tokenPayload,
-        identifierTokens: classification.identifierTokens,
-        keywordTokens: classification.keywordTokens,
-        operatorTokens: classification.operatorTokens,
-        literalTokens: classification.literalTokens
-      };
+      try {
+        const classification = classifyTokenBuckets({
+          text: tokenText,
+          tokens: tokenList,
+          languageId: chunkLanguageId,
+          ext: effectiveExt,
+          dictWords: dictWordsForChunk,
+          dictConfig,
+          context: fileTokenContext
+        });
+        updateCrashStage('token-classification:done', {
+          chunkIndex: ci,
+          chunkMode,
+          chunkLanguageId: chunkLanguageId || null,
+          parserMode,
+          parserReasonCode: parserFallbackProfile.reasonCode,
+          identifierCount: Array.isArray(classification?.identifierTokens)
+            ? classification.identifierTokens.length
+            : 0,
+          keywordCount: Array.isArray(classification?.keywordTokens)
+            ? classification.keywordTokens.length
+            : 0,
+          operatorCount: Array.isArray(classification?.operatorTokens)
+            ? classification.operatorTokens.length
+            : 0,
+          literalCount: Array.isArray(classification?.literalTokens)
+            ? classification.literalTokens.length
+            : 0
+        });
+        tokenPayload = {
+          ...tokenPayload,
+          identifierTokens: classification.identifierTokens,
+          keywordTokens: classification.keywordTokens,
+          operatorTokens: classification.operatorTokens,
+          literalTokens: classification.literalTokens
+        };
+      } catch (err) {
+        updateCrashStage('token-classification:error', {
+          chunkIndex: ci,
+          chunkMode,
+          chunkLanguageId: chunkLanguageId || null,
+          parserMode,
+          parserReasonCode: parserFallbackProfile.reasonCode,
+          errorName: err?.name || null,
+          errorCode: err?.code || null
+        });
+        throw err;
+      }
     }
 
     const {

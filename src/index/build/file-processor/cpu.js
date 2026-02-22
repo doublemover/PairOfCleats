@@ -351,7 +351,7 @@ export const processFileCpu = async (context) => {
 
   const updateCrashStage = (substage, extra = {}) => {
     if (!crashLogger?.enabled) return;
-    crashLogger.updateFile({
+    const entry = {
       phase: 'processing',
       mode,
       stage: buildStage || null,
@@ -359,7 +359,11 @@ export const processFileCpu = async (context) => {
       file: relKey,
       substage,
       ...extra
-    });
+    };
+    crashLogger.updateFile(entry);
+    if (typeof crashLogger.traceFileStage === 'function') {
+      crashLogger.traceFileStage(entry);
+    }
   };
 
   const failFile = (reason, stage, err, extra = {}) => ({
@@ -449,7 +453,7 @@ export const processFileCpu = async (context) => {
   const runTreeSitter = shouldSerializeLanguageContext ? runTreeSitterSerial : (fn) => fn();
   let lang = null;
   let languageContext = {};
-  updateCrashStage('tree-sitter');
+  updateCrashStage('tree-sitter:start');
   try {
     ({ lang, context: languageContext } = await buildLanguageAnalysisContext({
       ext,
@@ -463,7 +467,15 @@ export const processFileCpu = async (context) => {
       primaryLanguageId,
       runTreeSitter
     }));
+    updateCrashStage('tree-sitter:done', {
+      languageId: lang?.id || null,
+      hasLanguageContext: Boolean(languageContext && typeof languageContext === 'object')
+    });
   } catch (err) {
+    updateCrashStage('tree-sitter:error', {
+      errorName: err?.name || null,
+      errorCode: err?.code || null
+    });
     if (languageOptions?.skipOnParseError) {
       return {
         chunks: [],
@@ -1028,12 +1040,26 @@ export const processFileCpu = async (context) => {
       }
       schedulerLookupItems.push(item);
     }
+    updateCrashStage('chunking:scheduler:plan', {
+      scheduledSegmentCount: scheduled.length,
+      schedulerLookupItems: schedulerLookupItems.length,
+      fallbackSegmentCount: fallbackSegments.length,
+      schedulerDegradedCount
+    });
     const batchChunks = schedulerLookupItems.length > 0
       && schedulerLoadChunksBatch
-      ? await schedulerLoadChunksBatch(
-        schedulerLookupItems.map((item) => item.virtualPath),
-        schedulerLoadOptions
-      )
+      ? await (async () => {
+        const virtualPaths = schedulerLookupItems.map((item) => item.virtualPath);
+        updateCrashStage('chunking:scheduler:load-batch:start', {
+          itemCount: virtualPaths.length
+        });
+        const chunks = await schedulerLoadChunksBatch(virtualPaths, schedulerLoadOptions);
+        updateCrashStage('chunking:scheduler:load-batch:done', {
+          itemCount: virtualPaths.length,
+          loadedCount: Array.isArray(chunks) ? chunks.length : null
+        });
+        return chunks;
+      })()
       : null;
     if (Array.isArray(batchChunks) && batchChunks.length === schedulerLookupItems.length) {
       for (let i = 0; i < schedulerLookupItems.length; i += 1) {
@@ -1074,7 +1100,16 @@ export const processFileCpu = async (context) => {
           codeFallbackSegmentCount += 1;
           continue;
         }
+        updateCrashStage('chunking:scheduler:load-one:start', {
+          label: item.label,
+          virtualPath: item.virtualPath
+        });
         const chunks = await loadChunk(item.virtualPath);
+        updateCrashStage('chunking:scheduler:load-one:done', {
+          label: item.label,
+          virtualPath: item.virtualPath,
+          chunkCount: Array.isArray(chunks) ? chunks.length : null
+        });
         if (!Array.isArray(chunks) || !chunks.length) {
           const hasScheduledEntry = treeSitterScheduler?.index instanceof Map
             ? treeSitterScheduler.index.has(item.virtualPath)
@@ -1139,6 +1174,10 @@ export const processFileCpu = async (context) => {
     if (fallbackSegments.length) {
       chunkingDiagnostics.usedHeuristicChunking = true;
       chunkingDiagnostics.usedHeuristicCodeChunking = codeFallbackSegmentCount > 0;
+      updateCrashStage('chunking:fallback:start', {
+        fallbackSegmentCount: fallbackSegments.length,
+        codeFallbackSegmentCount
+      });
       const fallbackChunks = chunkSegments({
         text,
         ext,
@@ -1149,6 +1188,10 @@ export const processFileCpu = async (context) => {
         context: segmentContext
       });
       if (Array.isArray(fallbackChunks) && fallbackChunks.length) sc.push(...fallbackChunks);
+      updateCrashStage('chunking:fallback:done', {
+        fallbackSegmentCount: fallbackSegments.length,
+        fallbackChunkCount: Array.isArray(fallbackChunks) ? fallbackChunks.length : 0
+      });
     }
 
     if (sc.length > 1) {
@@ -1186,6 +1229,18 @@ export const processFileCpu = async (context) => {
     throw error;
   }
   addParseDuration(Date.now() - parseStart);
+  updateCrashStage('chunking:profile', {
+    totalChunks: sc.length,
+    treeSitterEnabled: chunkingDiagnostics.treeSitterEnabled,
+    schedulerRequired: chunkingDiagnostics.schedulerRequired,
+    scheduledSegmentCount: chunkingDiagnostics.scheduledSegmentCount,
+    fallbackSegmentCount: chunkingDiagnostics.fallbackSegmentCount,
+    codeFallbackSegmentCount: chunkingDiagnostics.codeFallbackSegmentCount,
+    schedulerMissingCount: chunkingDiagnostics.schedulerMissingCount,
+    schedulerDegradedCount: chunkingDiagnostics.schedulerDegradedCount,
+    usedHeuristicChunking: chunkingDiagnostics.usedHeuristicChunking,
+    usedHeuristicCodeChunking: chunkingDiagnostics.usedHeuristicCodeChunking
+  });
 
   updateCrashStage('process-chunks');
   const chunkResult = await processChunks({
@@ -1258,7 +1313,8 @@ export const processFileCpu = async (context) => {
     totalLines,
     chunkingDiagnostics,
     failFile,
-    buildStage
+    buildStage,
+    fileIndex
   });
 
   if (chunkResult?.skip) {
