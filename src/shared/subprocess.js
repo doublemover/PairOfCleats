@@ -5,10 +5,6 @@ const DEFAULT_MAX_OUTPUT_BYTES = 1_000_000;
 const DEFAULT_KILL_GRACE_MS = 5000;
 const TRACKED_SUBPROCESS_FORCE_GRACE_MS = 0;
 const TRACKED_SUBPROCESS_TERMINATION_SIGNALS = Object.freeze(['SIGINT', 'SIGTERM']);
-const TRACKED_SUBPROCESS_SIGNAL_EXIT_CODES = Object.freeze({
-  SIGINT: 130,
-  SIGTERM: 143
-});
 
 const SHELL_MODE_DISABLED_ERROR = (
   'spawnSubprocess shell mode is disabled for security; pass an executable and args with shell=false.'
@@ -18,6 +14,7 @@ const trackedSubprocesses = new Map();
 let trackedSubprocessHooksInstalled = false;
 let trackedSubprocessShutdownTriggered = false;
 let trackedSubprocessShutdownPromise = null;
+const signalForwardInFlight = new Set();
 
 export class SubprocessError extends Error {
   constructor(message, result, cause) {
@@ -195,14 +192,16 @@ const triggerTrackedSubprocessShutdown = (reason) => {
   return trackedSubprocessShutdownPromise;
 };
 
-const exitForTrackedSubprocessSignal = (signal) => {
-  const exitCode = Number.isFinite(Number(TRACKED_SUBPROCESS_SIGNAL_EXIT_CODES[signal]))
-    ? Number(TRACKED_SUBPROCESS_SIGNAL_EXIT_CODES[signal])
-    : 1;
-  process.exitCode = exitCode;
+const forwardSignalToDefault = (signal) => {
+  const normalizedSignal = typeof signal === 'string' ? signal.trim() : '';
+  if (!normalizedSignal || signalForwardInFlight.has(normalizedSignal)) return;
+  signalForwardInFlight.add(normalizedSignal);
   try {
-    process.exit(exitCode);
+    process.kill(process.pid, normalizedSignal);
   } catch {}
+  setImmediate(() => {
+    signalForwardInFlight.delete(normalizedSignal);
+  });
 };
 
 const installTrackedSubprocessHooks = () => {
@@ -217,9 +216,12 @@ const installTrackedSubprocessHooks = () => {
   for (const signal of TRACKED_SUBPROCESS_TERMINATION_SIGNALS) {
     try {
       process.once(signal, () => {
+        const hasAdditionalSignalHandlers = process.listenerCount(signal) > 0;
         void triggerTrackedSubprocessShutdown(`signal_${String(signal || '').toLowerCase()}`)
           .finally(() => {
-            exitForTrackedSubprocessSignal(signal);
+            if (!hasAdditionalSignalHandlers) {
+              forwardSignalToDefault(signal);
+            }
           });
       });
     } catch {}

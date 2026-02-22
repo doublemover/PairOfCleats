@@ -24,6 +24,13 @@ const isAlive = (pid) => {
 const inlineScript = [
   "import { spawn } from 'node:child_process';",
   "import { registerChildProcessForCleanup } from './src/shared/subprocess.js';",
+  "process.on('SIGTERM', () => {",
+  "  process.stdout.write('CUSTOM_HANDLER\\n');",
+  "  setTimeout(() => {",
+  "    process.stdout.write('CUSTOM_DONE\\n');",
+  '    process.exit(0);',
+  '  }, 100);',
+  '});',
   "const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000);'], {",
   "  stdio: 'ignore',",
   "  detached: process.platform !== 'win32'",
@@ -61,16 +68,16 @@ assert.ok(pidMatch, `expected TRACKED_PID in stdout, got: ${stdout || '<empty>'}
 const trackedPid = Number(pidMatch[1]);
 assert.ok(Number.isFinite(trackedPid) && trackedPid > 0, 'expected tracked child pid from helper process');
 
-const terminatedBySignal = closeResult.signal === 'SIGTERM';
-const terminatedByCode = closeResult.exitCode === 143;
-const terminatedByWindowsSignalCode = closeResult.exitCode === 1;
+assert.equal(stdout.includes('CUSTOM_HANDLER'), true, 'expected custom SIGTERM handler to run');
+assert.equal(stdout.includes('CUSTOM_DONE'), true, 'expected custom SIGTERM handler completion marker');
 assert.equal(
-  terminatedBySignal || terminatedByCode || terminatedByWindowsSignalCode,
-  true,
-  `expected helper process to terminate via SIGTERM forwarding; exitCode=${closeResult.exitCode} signal=${closeResult.signal} stderr=${stderr || '<empty>'}`
+  closeResult.exitCode,
+  0,
+  `expected custom handler to control shutdown exit code; signal=${closeResult.signal} stderr=${stderr || '<empty>'}`
 );
+assert.equal(closeResult.signal, null, 'expected custom handler shutdown to be code-based');
 
 const childTerminated = await waitFor(() => !isAlive(trackedPid), 5000);
-assert.equal(childTerminated, true, 'expected tracked child process to be terminated after SIGTERM cleanup');
+assert.equal(childTerminated, true, 'expected tracked child process to be terminated during custom shutdown');
 
-console.log('tracked subprocess signal cleanup test passed');
+console.log('tracked subprocess signal custom-handler test passed');
