@@ -57,6 +57,13 @@ const coerceOptionalNonNegativeInt = (value) => {
   return coerceNonNegativeInt(value);
 };
 
+const normalizeOwnershipSegment = (value, fallback = 'unknown') => {
+  if (typeof value !== 'string') return fallback;
+  const trimmed = value.trim();
+  if (!trimmed) return fallback;
+  return trimmed.replace(/[^a-zA-Z0-9._:-]+/g, '_');
+};
+
 export const resolveChunkProcessingFeatureFlags = (runtime) => {
   const vectorOnlyProfile = runtime?.profile?.id === INDEX_PROFILE_VECTOR_ONLY;
   return {
@@ -195,6 +202,33 @@ export const resolveStage1StallAbortTimeoutMs = (runtime, watchdogConfig = null)
     return Math.max(FILE_STALL_ABORT_MIN_MS, Math.floor(hardTimeoutMs * 2));
   }
   return FILE_STALL_ABORT_DEFAULT_MS;
+};
+
+export const resolveStage1FileSubprocessOwnershipPrefix = (runtime, mode = 'unknown') => {
+  const configuredPrefix = typeof runtime?.subprocessOwnership?.stage1FilePrefix === 'string'
+    ? runtime.subprocessOwnership.stage1FilePrefix.trim()
+    : '';
+  if (configuredPrefix) {
+    return `${configuredPrefix}:${normalizeOwnershipSegment(mode, 'mode')}`;
+  }
+  const fallbackBuildId = normalizeOwnershipSegment(runtime?.buildId, 'build');
+  return `stage1:${fallbackBuildId}:${normalizeOwnershipSegment(mode, 'mode')}`;
+};
+
+export const buildStage1FileSubprocessOwnershipId = ({
+  runtime,
+  mode = 'unknown',
+  fileIndex = null,
+  rel = '',
+  shardId = null
+} = {}) => {
+  const prefix = resolveStage1FileSubprocessOwnershipPrefix(runtime, mode);
+  const normalizedFileIndex = Number.isFinite(Number(fileIndex))
+    ? Math.max(0, Math.floor(Number(fileIndex)))
+    : 'na';
+  const normalizedRel = normalizeOwnershipSegment(rel, 'unknown_file');
+  const normalizedShardId = normalizeOwnershipSegment(String(shardId || 'none'), 'none');
+  return `${prefix}:shard:${normalizedShardId}:file:${normalizedFileIndex}:${normalizedRel}`;
 };
 
 export const buildFileProgressHeartbeatText = ({
@@ -529,6 +563,39 @@ export const processFiles = async ({
   throwIfAborted(effectiveAbortSignal);
   log('Processing and indexing files...');
   crashLogger.updatePhase('processing');
+  const stageFileCount = Array.isArray(entries) ? entries.length : 0;
+  const stageChunkCount = Array.isArray(state?.chunks) ? state.chunks.length : 0;
+  if (stageFileCount === 0 && stageChunkCount === 0) {
+    logLine(
+      `[stage1:${mode}] processing elided (zero modality: files=0 chunks=0).`,
+      {
+        kind: 'info',
+        mode,
+        stage: 'processing',
+        event: 'stage_elided',
+        fileCount: 0,
+        chunkCount: 0
+      }
+    );
+    if (timing && typeof timing === 'object') timing.processMs = 0;
+    if (state && typeof state === 'object') {
+      state.modalityStageElisions = {
+        ...(state.modalityStageElisions || {}),
+        [mode]: {
+          source: 'process-files-guard',
+          fileCount: 0,
+          chunkCount: 0
+        }
+      };
+    }
+    return {
+      tokenizationStats: null,
+      shardSummary: null,
+      shardPlan: [],
+      postingsQueueStats: null,
+      stageElided: true
+    };
+  }
   const processStart = Date.now();
   const ioQueueConcurrency = Number.isFinite(runtime?.queues?.io?.concurrency)
     ? runtime.queues.io.concurrency
@@ -1162,12 +1229,18 @@ export const processFiles = async ({
                 size: entry.stat?.size || null,
                 shardId: shardMeta?.id || null
               });
-              const fileCleanupScope = `stage1:file:${mode}:${stableFileIndex ?? '?'}:${rel}`;
+              const fileSubprocessOwnershipId = buildStage1FileSubprocessOwnershipId({
+                runtime: runtimeRef,
+                mode,
+                fileIndex: stableFileIndex,
+                rel,
+                shardId: shardMeta?.id || null
+              });
               try {
                 return await runWithTimeout(
                   (signal) => withTrackedSubprocessSignalScope(
                     signal,
-                    fileCleanupScope,
+                    fileSubprocessOwnershipId,
                     () => processFile(entry, stableFileIndex, { signal })
                   ),
                   {
@@ -1180,7 +1253,8 @@ export const processFiles = async ({
                       meta: {
                         file: rel,
                         fileIndex: stableFileIndex,
-                        timeoutMs: fileHardTimeoutMs
+                        timeoutMs: fileHardTimeoutMs,
+                        ownershipId: fileSubprocessOwnershipId
                       }
                     })
                   }
@@ -1196,17 +1270,26 @@ export const processFiles = async ({
                       file: rel,
                       fileIndex: stableFileIndex,
                       timeoutMs: fileHardTimeoutMs,
+                      ownershipId: fileSubprocessOwnershipId,
                       shardId: shardMeta?.id || null
                     }
                   );
                   const cleanup = await terminateTrackedSubprocesses({
-                    reason: `stage1_file_timeout:${rel}`,
+                    reason: `stage1_file_timeout:${fileSubprocessOwnershipId}`,
                     force: false,
-                    scope: fileCleanupScope
+                    ownershipId: fileSubprocessOwnershipId
                   });
                   if (cleanup?.attempted > 0) {
+                    const terminatedPids = Array.isArray(cleanup.terminatedPids)
+                      ? cleanup.terminatedPids
+                      : [];
+                    const terminatedOwnershipIds = Array.isArray(cleanup.terminatedOwnershipIds)
+                      ? cleanup.terminatedOwnershipIds
+                      : [];
                     logLine(
-                      `[watchdog] cleaned ${cleanup.attempted} tracked subprocess(es) after timeout (scoped)`,
+                      `[watchdog] cleaned ${cleanup.attempted} tracked subprocess(es) after timeout (scoped) `
+                        + `pids=${terminatedPids.length ? terminatedPids.join(',') : 'none'} `
+                        + `ownership=${terminatedOwnershipIds.length ? terminatedOwnershipIds.join(',') : fileSubprocessOwnershipId}`,
                       {
                         kind: 'warning',
                         mode,
@@ -1214,7 +1297,11 @@ export const processFiles = async ({
                         file: rel,
                         fileIndex: stableFileIndex,
                         timeoutMs: fileHardTimeoutMs,
-                        cleanupScope: fileCleanupScope,
+                        cleanupScope: fileSubprocessOwnershipId,
+                        cleanupOwnershipId: fileSubprocessOwnershipId,
+                        cleanupTerminatedPids: terminatedPids,
+                        cleanupTerminatedOwnershipIds: terminatedOwnershipIds,
+                        cleanupKillAudit: Array.isArray(cleanup.killAudit) ? cleanup.killAudit : [],
                         cleanup
                       }
                     );

@@ -62,7 +62,7 @@ Primary targets:
 - Touchpoints: `src/index/build/tree-sitter-scheduler/subprocess-exec.js`, `src/index/build/tree-sitter-scheduler/runner.js`, `src/index/build/tree-sitter-scheduler/executor.js`, `src/index/chunking/tree-sitter.js`, `src/index/build/indexer/steps/process-files.js`, `src/index/build/crash-log.js`, `tests/indexing/tree-sitter/tree-sitter-scheduler-native-language-contract.test.js`, `tests/lang/perl/perl-package-chunks.test.js`
 
 ### UB-002: Per-file timeout cleanup scoping
-- Status: [ ]
+- Status: [x]
 - Problem:
   - Timeout cleanup can still risk over-broad process termination if not fully scoped to file-owned subprocesses.
 - Tasks:
@@ -73,13 +73,19 @@ Primary targets:
   - Multi-file concurrency test with one intentional timeout; verify unrelated parser workers survive.
 - Exit criteria:
   - Timeout recovery is local; no cascading file failures.
+- Completion: 2026-02-22T06:22:10.0851476-05:00
+- Validation:
+  - `node tests/indexing/stage1/process-files-cleanup-timeout.test.js`
+  - `node tests/shared/subprocess/tracked-shutdown-cleanup.test.js`
+  - `node tests/shared/subprocess/tracked-signal-scope-binding.test.js`
+  - `node tests/shared/subprocess/timeout-kills-child.test.js`
 - Improvement Intent (What): timeout isolation correctness
 - Improvement Method (How): strict subprocess ownership and scoped TERM->KILL cleanup.
 - Integrated Betterments: enforce child-process ownership tokens at spawn time (not inferred later); add TERM->KILL escalation with bounded grace and measured latency; add chaos test lane with mixed successful and timed-out files to prove no cross-owner termination.
 - Touchpoints: `src/index/build/indexer/steps/process-files.js`, `src/shared/subprocess.js`, `src/index/build/runtime/runtime.js`, `tests/indexing/stage1/process-files-cleanup-timeout.test.js`, `tests/shared/subprocess/tracked-shutdown-cleanup.test.js`, `tests/shared/subprocess/tracked-signal-scope-binding.test.js`
 
 ### UB-003: Crash-log retention policy
-- Status: [ ]
+- Status: [x]
 - Problem:
   - Crash logs can disappear after cache cleanup, reducing postmortem quality.
 - Tasks:
@@ -89,6 +95,12 @@ Primary targets:
   - Failure test verifies crash evidence exists after cleanup.
 - Exit criteria:
   - Every hard failure has durable forensics in run logs.
+- Completion: 2026-02-22T06:22:10.0851476-05:00
+- Validation:
+  - `node tests/indexing/crash-log-retention.test.js`
+  - `node tests/perf/bench/bench-language-process-scheduler-events.test.js`
+  - `node tests/perf/bench/bench-language-report-crash-retention.test.js`
+  - `node tests/indexing/crash-log-announcement.test.js`
 - Improvement Intent (What): failure forensics quality
 - Improvement Method (How): durable crash bundles with scheduler and queue snapshots.
 - Integrated Betterments: write crash bundles atomically with checksum to avoid partial logs; include last scheduler decisions and queue state snapshot for root cause context; add retention policy tiers (failed repo, failed run, flaky signature) with automatic pruning.
@@ -705,7 +717,7 @@ Last revised: 2026-02-22T05:44:04.8332760-05:00
 ## Fourth Sweep: Second Log Pass Additions (Newly Finished Repos)
 
 ### UB-083: Zero-modality stage elision (index build)
-- Status: [ ]
+- Status: [x]
 - Observation:
   - Repos like `ruby/ruby/rake` run prose/extracted/records stages with zero chunks and still pay artifact-write overhead.
 - Tasks:
@@ -713,13 +725,16 @@ Last revised: 2026-02-22T05:44:04.8332760-05:00
   - Emit one concise "stage elided" metric event per modality.
 - Exit criteria:
   - No artifact-write work for empty modalities.
+- Completion: 2026-02-22T06:22:10.0851476-05:00
+- Validation:
+  - `node tests/indexing/stage1/process-files-zero-modality-elision.test.js`
 - Improvement Intent (What): empty-modality index overhead
 - Improvement Method (How): stage elision before queue/materialization setup.
 - Integrated Betterments: elide empty modality stages before queue construction to reduce overhead; cache modality emptiness by signature for repeat runs; add explicit "elided stage" counters in reports.
 - Touchpoints: `src/index/build/indexer/steps/process-files.js`, `src/index/build/indexer/indexer.js`, `src/index/build/runtime/runtime.js`, `tests/indexing/language-fixture/chunk-meta-exists.test.js`
 
 ### UB-084: Zero-modality sqlite elision
-- Status: [ ]
+- Status: [x]
 - Observation:
   - Empty modalities still run sqlite build/fallback paths.
 - Tasks:
@@ -727,6 +742,10 @@ Last revised: 2026-02-22T05:44:04.8332760-05:00
   - Store explicit zero-state in manifest to keep load path deterministic.
 - Exit criteria:
   - Reduced sqlite build time on sparse repos.
+- Completion: 2026-02-22T06:22:10.0851476-05:00
+- Validation:
+  - `node tests/storage/sqlite/sqlite-skip-empty-code-rebuild.test.js`
+  - `node tests/storage/sqlite/sqlite-skip-empty-records-rebuild.test.js`
 - Improvement Intent (What): empty-modality sqlite overhead
 - Improvement Method (How): sqlite build bypass with deterministic zero-state markers.
 - Integrated Betterments: skip sqlite writers for empty modalities and bypass no-op manifests where safe; preserve deterministic zero-state markers for load-time correctness; add guard tests for accidental table creation.
@@ -775,7 +794,7 @@ Last revised: 2026-02-22T05:44:04.8332760-05:00
 - Touchpoints: `src/index/chunking/formats/document-common.js`, `src/index/build/indexer/steps/process-files.js`, `tools/build/embeddings/runner.js`, `tests/indexing/extracted-prose/extraction-report.test.js`
 
 ### UB-088: Modality sparsity profile cache
-- Status: [ ]
+- Status: [x]
 - Observation:
   - Same repo characteristics recur across runs.
 - Tasks:
@@ -783,6 +802,10 @@ Last revised: 2026-02-22T05:44:04.8332760-05:00
   - Pre-apply stage skip/elision policy on subsequent runs.
 - Exit criteria:
   - Faster repeat benchmarks with unchanged source trees.
+- Completion: 2026-02-22T06:22:10.0851476-05:00
+- Validation:
+  - `node tests/indexing/cache/modality-sparsity-profile.test.js`
+  - `node tests/indexing/stage1/process-files-zero-modality-elision.test.js`
 - Improvement Intent (What): repeat-run efficiency
 - Improvement Method (How): modality sparsity profile cache keyed by repo signature.
 - Integrated Betterments: persist modality sparsity profile with strict signature invalidation; add aging policy for stale profiles; allow explicit manual override for experimentation.

@@ -4,7 +4,9 @@ import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { createTempPath } from '../../../shared/json-stream.js';
+import { atomicWriteJson } from '../../../shared/io/atomic-write.js';
 import { resolveTaskFactory } from '../../../shared/cli/noop-task.js';
+import { sha1 } from '../../../shared/hash.js';
 import { updateSqliteState } from './index-state.js';
 import { getEnvConfig } from '../../../shared/env.js';
 import { resolveRuntimeEnvelope } from '../../../shared/runtime-envelope.js';
@@ -61,6 +63,35 @@ import {
 export { normalizeValidateMode } from './runner/options.js';
 
 const BUNDLE_LOADER_WORKER_PATH = fileURLToPath(new URL('./bundle-loader-worker.js', import.meta.url));
+const SQLITE_ZERO_STATE_SCHEMA_VERSION = '1.0.0';
+const SQLITE_ZERO_STATE_MANIFEST_FILE = 'sqlite-zero-state.json';
+
+const resolveSqliteZeroStateManifestPath = (modeIndexDir) => (
+  modeIndexDir ? path.join(modeIndexDir, 'pieces', SQLITE_ZERO_STATE_MANIFEST_FILE) : null
+);
+
+const writeSqliteZeroStateManifest = async ({
+  modeIndexDir,
+  mode,
+  outputPath,
+  chunkCount,
+  denseCount
+}) => {
+  const manifestPath = resolveSqliteZeroStateManifestPath(modeIndexDir);
+  if (!manifestPath) return null;
+  const payload = {
+    schemaVersion: SQLITE_ZERO_STATE_SCHEMA_VERSION,
+    generatedAt: new Date().toISOString(),
+    mode,
+    outputPath: outputPath || null,
+    chunkCount: Number.isFinite(Number(chunkCount)) ? Number(chunkCount) : 0,
+    denseCount: Number.isFinite(Number(denseCount)) ? Number(denseCount) : 0
+  };
+  payload.checksum = sha1(JSON.stringify(payload));
+  await fs.mkdir(path.dirname(manifestPath), { recursive: true });
+  await atomicWriteJson(manifestPath, payload, { spaces: 2 });
+  return manifestPath;
+};
 
 /**
  * Build sqlite indexes without CLI parsing.
@@ -392,6 +423,7 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
       const outDir = path.dirname(outputPath);
       const logDetails = [];
       const modeChunkCountHint = resolveChunkMetaTotalRecords(modeIndexDir);
+      const modeDenseCountHint = resolveExpectedDenseCount(indexPieces?.[mode]?.denseVec);
       if (emitOutput) {
         log(`${modeLabel} build start`, {
           fileOnlyLine: `${modeLabel} building ${mode} index -> ${outputPath}`
@@ -409,21 +441,33 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
         note: null
       });
 
-      if (modeChunkCountHint === 0
-        && fsSync.existsSync(outputPath)) {
-        const existingRows = readSqliteModeCount({
-          Database,
-          dbPath: outputPath,
-          mode
-        });
+      const modeIsZeroState = modeChunkCountHint === 0 && modeDenseCountHint === 0;
+      if (modeIsZeroState) {
+        const outputExists = fsSync.existsSync(outputPath);
+        const existingRows = outputExists
+          ? readSqliteModeCount({
+            Database,
+            dbPath: outputPath,
+            mode
+          })
+          : 0;
         if (existingRows === 0) {
+          const zeroStateManifestPath = await writeSqliteZeroStateManifest({
+            modeIndexDir,
+            mode,
+            outputPath,
+            chunkCount: modeChunkCountHint,
+            denseCount: modeDenseCountHint
+          });
           stageCheckpoints.record({
             stage: 'stage4',
             step: `skip-empty-${mode}`,
             extra: {
               modeArtifactsRows: 0,
               mode,
-              existingRows: 0
+              existingRows: outputExists ? 0 : null,
+              denseCount: modeDenseCountHint,
+              zeroStateManifestPath
             }
           });
           await updateSqliteState({
@@ -436,13 +480,17 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
             schemaVersion: SCHEMA_VERSION,
             threadLimits,
             note: `skipped empty ${mode} rebuild`,
-            stats: { skipped: true, reason: `empty-${mode}-artifacts` }
+            stats: {
+              skipped: true,
+              reason: `empty-${mode}-artifacts`,
+              zeroStateManifestPath
+            }
           });
           if (emitOutput) {
             if (mode === 'records') {
-              log(`${modeLabel} skipping records sqlite rebuild (artifacts empty; existing db empty).`);
+              log(`${modeLabel} skipping records sqlite rebuild (artifacts empty; zero-state).`);
             } else {
-              log(`${modeLabel} skipping sqlite rebuild (artifacts empty; existing db empty).`);
+              log(`${modeLabel} skipping sqlite rebuild (artifacts empty; zero-state).`);
             }
           }
           done += 1;

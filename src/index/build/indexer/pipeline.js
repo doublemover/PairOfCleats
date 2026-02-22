@@ -1,8 +1,10 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
+import path from 'node:path';
 import { applyAdaptiveDictConfig, getIndexDir, getMetricsDir } from '../../../shared/dict-utils.js';
 import { buildRecordsIndexForRepo } from '../../../integrations/triage/index-records.js';
 import { createCacheReporter, createLruCache, estimateFileTextBytes } from '../../../shared/cache.js';
+import { atomicWriteJson } from '../../../shared/io/atomic-write.js';
 import { getEnvConfig } from '../../../shared/env.js';
 import { log, showProgress } from '../../../shared/progress.js';
 import { throwIfAborted } from '../../../shared/abort.js';
@@ -94,6 +96,104 @@ export const resolveVectorOnlyShortcutPolicy = (runtime) => {
     disableCrossFileInference: vectorOnly ? config.disableCrossFileInference !== false : false
   };
 };
+
+const MODALITY_SPARSITY_SCHEMA_VERSION = '1.0.0';
+const MODALITY_SPARSITY_PROFILE_FILE = 'modality-sparsity-profile.json';
+const MODALITY_SPARSITY_MAX_ENTRIES = 512;
+
+const createEmptyModalitySparsityProfile = () => ({
+  schemaVersion: MODALITY_SPARSITY_SCHEMA_VERSION,
+  updatedAt: null,
+  entries: {}
+});
+
+export const resolveModalitySparsityProfilePath = (runtime) => {
+  const repoCacheRoot = typeof runtime?.repoCacheRoot === 'string' ? runtime.repoCacheRoot : '';
+  if (!repoCacheRoot) return null;
+  return path.join(repoCacheRoot, MODALITY_SPARSITY_PROFILE_FILE);
+};
+
+export const buildModalitySparsityEntryKey = ({ mode, cacheSignature }) => (
+  `${String(mode || 'unknown')}:${String(cacheSignature || 'nosig')}`
+);
+
+const normalizeModalitySparsityProfile = (profile) => {
+  if (!profile || typeof profile !== 'object') return createEmptyModalitySparsityProfile();
+  const entries = profile.entries && typeof profile.entries === 'object' ? profile.entries : {};
+  return {
+    schemaVersion: typeof profile.schemaVersion === 'string'
+      ? profile.schemaVersion
+      : MODALITY_SPARSITY_SCHEMA_VERSION,
+    updatedAt: typeof profile.updatedAt === 'string' ? profile.updatedAt : null,
+    entries
+  };
+};
+
+export const readModalitySparsityProfile = async (runtime) => {
+  const profilePath = resolveModalitySparsityProfilePath(runtime);
+  if (!profilePath) {
+    return { profilePath: null, profile: createEmptyModalitySparsityProfile() };
+  }
+  try {
+    const raw = await fs.readFile(profilePath, 'utf8');
+    const parsed = normalizeModalitySparsityProfile(JSON.parse(raw));
+    return { profilePath, profile: parsed };
+  } catch {
+    return { profilePath, profile: createEmptyModalitySparsityProfile() };
+  }
+};
+
+const trimModalitySparsityEntries = (entries = {}) => {
+  const list = Object.entries(entries);
+  if (list.length <= MODALITY_SPARSITY_MAX_ENTRIES) return entries;
+  list.sort((a, b) => {
+    const aTs = Date.parse(a?.[1]?.updatedAt || 0) || 0;
+    const bTs = Date.parse(b?.[1]?.updatedAt || 0) || 0;
+    return bTs - aTs;
+  });
+  const keep = list.slice(0, MODALITY_SPARSITY_MAX_ENTRIES);
+  return Object.fromEntries(keep);
+};
+
+export const writeModalitySparsityEntry = async ({
+  runtime,
+  profilePath,
+  profile,
+  mode,
+  cacheSignature,
+  fileCount,
+  chunkCount,
+  elided,
+  source
+}) => {
+  if (!profilePath) return;
+  const now = new Date().toISOString();
+  const key = buildModalitySparsityEntryKey({ mode, cacheSignature });
+  const next = normalizeModalitySparsityProfile(profile);
+  next.updatedAt = now;
+  next.entries = {
+    ...next.entries,
+    [key]: {
+      schemaVersion: MODALITY_SPARSITY_SCHEMA_VERSION,
+      key,
+      mode,
+      cacheSignature: cacheSignature || null,
+      fileCount: Number.isFinite(Number(fileCount)) ? Number(fileCount) : 0,
+      chunkCount: Number.isFinite(Number(chunkCount)) ? Number(chunkCount) : 0,
+      elided: elided === true,
+      source: source || null,
+      repoRoot: runtime?.root || null,
+      updatedAt: now
+    }
+  };
+  next.entries = trimModalitySparsityEntries(next.entries);
+  await fs.mkdir(path.dirname(profilePath), { recursive: true });
+  await atomicWriteJson(profilePath, next, { spaces: 2 });
+};
+
+export const shouldElideModalityProcessingStage = ({ fileCount, chunkCount }) => (
+  Number(fileCount) === 0 && Number(chunkCount) === 0
+);
 
 /**
  * Build the effective feature toggle set for a mode from runtime settings,
@@ -734,6 +834,16 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       }
     }
   });
+  const {
+    profilePath: modalitySparsityProfilePath,
+    profile: modalitySparsityProfile
+  } = await readModalitySparsityProfile(runtimeRef);
+  const modalitySparsityKey = buildModalitySparsityEntryKey({ mode, cacheSignature });
+  const cachedModalitySparsity = modalitySparsityProfile?.entries?.[modalitySparsityKey] || null;
+  const cachedZeroModality = shouldElideModalityProcessingStage({
+    fileCount: cachedModalitySparsity?.fileCount ?? null,
+    chunkCount: cachedModalitySparsity?.chunkCount ?? null
+  });
   const { incrementalState, reused } = await loadIncrementalPlan({
     runtime: runtimeRef,
     mode,
@@ -786,34 +896,66 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   });
   throwIfAborted(abortSignal);
 
-  const contextWin = await estimateContextWindow({
-    files: allEntries.map((entry) => entry.abs),
-    root: runtimeRef.root,
-    mode,
-    languageOptions: runtimeRef.languageOptions
+  const shouldElideProcessingStage = shouldElideModalityProcessingStage({
+    fileCount: allEntries.length,
+    chunkCount: state?.chunks?.length || 0
   });
-  log(`Auto-selected context window: ${contextWin} lines`);
 
-  advanceStage(stagePlan[2]);
-  const processResult = await processFiles({
-    mode,
-    runtime: runtimeRef,
-    discovery,
-    outDir,
-    entries: allEntries,
-    contextWin,
-    timing,
-    crashLogger,
-    state,
-    perfProfile,
-    cacheReporter,
-    seenFiles,
-    incrementalState,
-    relationsEnabled,
-    shardPerfProfile,
-    fileTextCache,
-    abortSignal
-  });
+  let processResult = {
+    tokenizationStats: null,
+    shardSummary: null,
+    postingsQueueStats: null,
+    stageElided: false
+  };
+  if (shouldElideProcessingStage) {
+    const elisionSource = cachedZeroModality ? 'sparsity-cache-hit' : 'discovery';
+    advanceStage(stagePlan[2]);
+    processResult = {
+      ...processResult,
+      stageElided: true
+    };
+    log(
+      `[stage1:${mode}] processing stage elided (zero modality: files=0, chunks=0; source=${elisionSource}).`
+    );
+    state.modalityStageElisions = {
+      ...(state.modalityStageElisions || {}),
+      [mode]: {
+        source: elisionSource,
+        cacheSignature,
+        fileCount: 0,
+        chunkCount: 0
+      }
+    };
+  } else {
+    const contextWin = await estimateContextWindow({
+      files: allEntries.map((entry) => entry.abs),
+      root: runtimeRef.root,
+      mode,
+      languageOptions: runtimeRef.languageOptions
+    });
+    log(`Auto-selected context window: ${contextWin} lines`);
+
+    advanceStage(stagePlan[2]);
+    processResult = await processFiles({
+      mode,
+      runtime: runtimeRef,
+      discovery,
+      outDir,
+      entries: allEntries,
+      contextWin,
+      timing,
+      crashLogger,
+      state,
+      perfProfile,
+      cacheReporter,
+      seenFiles,
+      incrementalState,
+      relationsEnabled,
+      shardPerfProfile,
+      fileTextCache,
+      abortSignal
+    });
+  }
   throwIfAborted(abortSignal);
   const { tokenizationStats, shardSummary, postingsQueueStats } = processResult;
   const summarizePostingsQueue = (stats) => {
@@ -839,7 +981,9 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       fieldPostings: countFieldEntries(state.fieldPostings),
       fieldDocLengths: countFieldArrayEntries(state.fieldDocLengths),
       treeSitter: getTreeSitterStats(),
-      postingsQueue: summarizePostingsQueue(postingsQueueStats)
+      postingsQueue: summarizePostingsQueue(postingsQueueStats),
+      stageElided: processResult?.stageElided === true,
+      sparsityCacheHit: processResult?.stageElided === true && cachedZeroModality === true
     }
   });
   await updateBuildState(runtimeRef.buildRoot, {
@@ -850,6 +994,19 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
         skipped: state.skippedFiles?.length || 0
       }
     }
+  });
+  await writeModalitySparsityEntry({
+    runtime: runtimeRef,
+    profilePath: modalitySparsityProfilePath,
+    profile: modalitySparsityProfile,
+    mode,
+    cacheSignature,
+    fileCount: allEntries.length,
+    chunkCount: state.chunks?.length || 0,
+    elided: processResult?.stageElided === true,
+    source: processResult?.stageElided === true
+      ? (cachedZeroModality ? 'sparsity-cache-hit' : 'discovery')
+      : 'observed'
   });
   if (mode === 'extracted-prose') {
     const extractionSummary = summarizeDocumentExtractionForMode(state);
@@ -1091,3 +1248,11 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   cacheReporter.report();
   await stageCheckpoints.flush();
 }
+
+export const indexerPipelineInternals = Object.freeze({
+  resolveModalitySparsityProfilePath,
+  buildModalitySparsityEntryKey,
+  readModalitySparsityProfile,
+  writeModalitySparsityEntry,
+  shouldElideModalityProcessingStage
+});

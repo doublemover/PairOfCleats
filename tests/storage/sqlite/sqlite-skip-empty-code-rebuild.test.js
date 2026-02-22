@@ -20,6 +20,7 @@ const buildRoot = path.join(tempRoot, 'build-root');
 const codeIndexDir = path.join(buildRoot, 'index-code');
 const sqliteDir = path.join(buildRoot, 'index-sqlite');
 const outputPath = path.join(sqliteDir, 'index-code.db');
+const zeroStateManifestPath = path.join(codeIndexDir, 'pieces', 'sqlite-zero-state.json');
 
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(path.join(repoRoot, 'src'), { recursive: true });
@@ -38,12 +39,6 @@ applyTestEnv({
 });
 
 await fs.writeFile(path.join(codeIndexDir, 'chunk_meta.json'), '[]\n', 'utf8');
-
-const seedDb = new Database(outputPath);
-seedDb.exec('CREATE TABLE chunks (id INTEGER PRIMARY KEY, mode TEXT NOT NULL);');
-seedDb.close();
-
-const before = await fs.stat(outputPath);
 const logs = [];
 await buildSqliteIndex({
   root: repoRoot,
@@ -59,13 +54,49 @@ await buildSqliteIndex({
   },
   exitOnError: false
 });
+
+assert.equal(
+  await fs.access(outputPath).then(() => true).catch(() => false),
+  false,
+  'expected first-run empty code sqlite build to skip creating db'
+);
+assert.equal(
+  await fs.access(zeroStateManifestPath).then(() => true).catch(() => false),
+  true,
+  'expected zero-state manifest for empty code mode'
+);
+assert.equal(
+  logs.some((line) => line.includes('skipping sqlite rebuild (artifacts empty; zero-state).')),
+  true,
+  'expected zero-state skip log for empty code rebuild'
+);
+
+const seedDb = new Database(outputPath);
+seedDb.exec('CREATE TABLE chunks (id INTEGER PRIMARY KEY, mode TEXT NOT NULL);');
+seedDb.close();
+const before = await fs.stat(outputPath);
+const secondRunLogs = [];
+await buildSqliteIndex({
+  root: repoRoot,
+  mode: 'code',
+  indexRoot: buildRoot,
+  out: outputPath,
+  codeDir: codeIndexDir,
+  emitOutput: true,
+  logger: {
+    log: (message) => secondRunLogs.push(String(message || '')),
+    warn: (message) => secondRunLogs.push(String(message || '')),
+    error: (message) => secondRunLogs.push(String(message || ''))
+  },
+  exitOnError: false
+});
 const after = await fs.stat(outputPath);
 
 assert.equal(after.mtimeMs, before.mtimeMs, 'expected empty code sqlite db to remain unchanged');
 assert.equal(
-  logs.some((line) => line.includes('skipping sqlite rebuild (artifacts empty; existing db empty).')),
+  secondRunLogs.some((line) => line.includes('skipping sqlite rebuild (artifacts empty; zero-state).')),
   true,
-  'expected generic skip log for empty code rebuild'
+  'expected repeat zero-state skip log for empty code rebuild'
 );
 
 console.log('sqlite skip empty code rebuild test passed');

@@ -82,6 +82,17 @@ const coerceOptionalNonNegativeInt = (value) => {
   return coerceNonNegativeInt(value);
 };
 
+const normalizeOwnershipSegment = (value, fallback = 'unknown') => {
+  if (typeof value !== 'string') return fallback;
+  const trimmed = value.trim();
+  if (!trimmed) return fallback;
+  return trimmed.replace(/[^a-zA-Z0-9._:-]+/g, '_');
+};
+
+const buildStage1SubprocessOwnershipPrefix = ({ buildId } = {}) => (
+  `stage1:${normalizeOwnershipSegment(buildId, 'build')}`
+);
+
 export const normalizeIndexOptimizationProfile = (value) => {
   const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
   return INDEX_OPTIMIZATION_PROFILE_IDS.includes(normalized) ? normalized : 'default';
@@ -490,6 +501,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     }
   }
   const buildId = resolvedIndexRoot ? path.basename(buildRoot) : computedBuildId;
+  const stage1SubprocessOwnershipPrefix = buildStage1SubprocessOwnershipPrefix({ buildId });
   if (buildRoot) {
     const suffix = resolvedIndexRoot ? ' (override)' : '';
     log(`[init] build root: ${buildRoot}${suffix}`);
@@ -1225,6 +1237,9 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     memoryPolicy: runtimeMemoryPolicy,
     telemetry,
     stage1Queues,
+    subprocessOwnership: {
+      stage1FilePrefix: stage1SubprocessOwnershipPrefix
+    },
     procConcurrency,
     incrementalEnabled,
     incrementalBundleFormat,

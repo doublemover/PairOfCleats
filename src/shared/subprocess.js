@@ -16,13 +16,36 @@ let trackedSubprocessHooksInstalled = false;
 let trackedSubprocessShutdownTriggered = false;
 let trackedSubprocessShutdownPromise = null;
 const signalForwardInFlight = new Set();
-const trackedScopeByAbortSignal = new WeakMap();
+const trackedOwnershipIdByAbortSignal = new WeakMap();
 const trackedSubprocessScopeContext = new AsyncLocalStorage();
 
-const normalizeTrackedScope = (value) => {
+const normalizeTrackedOwnershipId = (value) => {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
+};
+
+const normalizeTrackedScope = (value) => normalizeTrackedOwnershipId(value);
+
+const resolveTrackedOwnershipId = (options = {}) => (
+  normalizeTrackedOwnershipId(options.ownershipId ?? options.ownerId)
+  || normalizeTrackedOwnershipId(options.scope ?? options.cleanupScope)
+);
+
+const resolveTrackedScope = (options = {}) => (
+  normalizeTrackedScope(options.scope ?? options.cleanupScope)
+  || normalizeTrackedScope(options.ownershipId ?? options.ownerId)
+);
+
+const resolveEntryOwnershipId = (entry) => (
+  normalizeTrackedOwnershipId(entry?.ownershipId)
+  || normalizeTrackedOwnershipId(entry?.scope)
+);
+
+const entryMatchesOwnershipId = (entry, ownershipId) => {
+  if (!ownershipId) return true;
+  return resolveEntryOwnershipId(entry) === ownershipId
+    || normalizeTrackedScope(entry?.scope) === ownershipId;
 };
 
 export class SubprocessError extends Error {
@@ -181,22 +204,25 @@ export const withTrackedSubprocessSignalScope = async (signal, scope, operation)
   if (typeof operation !== 'function') {
     throw new TypeError('withTrackedSubprocessSignalScope requires an operation function.');
   }
-  const normalizedScope = normalizeTrackedScope(scope);
-  if (!normalizedScope) {
+  const ownershipId = normalizeTrackedOwnershipId(scope);
+  if (!ownershipId) {
     return Promise.resolve().then(() => operation());
   }
   const bindSignal = signal && typeof signal === 'object';
   const runOperation = async () => {
-    if (bindSignal) trackedScopeByAbortSignal.set(signal, normalizedScope);
+    if (bindSignal) trackedOwnershipIdByAbortSignal.set(signal, ownershipId);
     try {
       return await operation();
     } finally {
-      if (bindSignal && trackedScopeByAbortSignal.get(signal) === normalizedScope) {
-        trackedScopeByAbortSignal.delete(signal);
+      if (bindSignal && trackedOwnershipIdByAbortSignal.get(signal) === ownershipId) {
+        trackedOwnershipIdByAbortSignal.delete(signal);
       }
     }
   };
-  return trackedSubprocessScopeContext.run({ scope: normalizedScope }, runOperation);
+  return trackedSubprocessScopeContext.run(
+    { scope: ownershipId, ownershipId },
+    runOperation
+  );
 };
 
 /**
@@ -205,18 +231,39 @@ export const withTrackedSubprocessSignalScope = async (signal, scope, operation)
  * This is used by lifecycle hooks (exit/signals/uncaught exceptions) and can
  * also be invoked by callers that need deterministic cleanup boundaries.
  *
- * @param {{reason?:string,force?:boolean,scope?:string|null}} [input]
- * @returns {Promise<{reason:string,tracked:number,attempted:number,failures:number,scope:string|null}>}
+ * @param {{reason?:string,force?:boolean,scope?:string|null,ownershipId?:string|null}} [input]
+ * @returns {Promise<{
+ *   reason:string,
+ *   tracked:number,
+ *   attempted:number,
+ *   failures:number,
+ *   scope:string|null,
+ *   ownershipId:string|null,
+ *   targetedPids:number[],
+ *   terminatedPids:number[],
+ *   ownershipIds:string[],
+ *   terminatedOwnershipIds:string[],
+ *   killAudit:Array<{
+ *     pid:number|null,
+ *     scope:string|null,
+ *     ownershipId:string|null,
+ *     terminated:boolean,
+ *     forced:boolean,
+ *     error:string|null
+ *   }>
+ * }>}
  */
 export const terminateTrackedSubprocesses = async ({
   reason = 'shutdown',
   force = false,
-  scope = null
+  scope = null,
+  ownershipId = null
 } = {}) => {
   const normalizedScope = normalizeTrackedScope(scope);
+  const normalizedOwnershipId = normalizeTrackedOwnershipId(ownershipId) || normalizedScope;
   const entries = [];
   for (const [entryKey, entry] of trackedSubprocesses.entries()) {
-    if (normalizedScope && entry?.scope !== normalizedScope) continue;
+    if (!entryMatchesOwnershipId(entry, normalizedOwnershipId)) continue;
     const removed = removeTrackedSubprocess(entryKey);
     if (removed) entries.push(removed);
   }
@@ -226,10 +273,26 @@ export const terminateTrackedSubprocesses = async ({
       tracked: 0,
       attempted: 0,
       failures: 0,
-      scope: normalizedScope
+      scope: normalizedScope,
+      ownershipId: normalizedOwnershipId,
+      targetedPids: [],
+      terminatedPids: [],
+      ownershipIds: [],
+      terminatedOwnershipIds: [],
+      killAudit: []
     };
   }
-  const settled = await Promise.allSettled(entries.map((entry) => killChildProcessTree(entry.child, {
+  const killTargets = entries.map((entry) => ({
+    pid: Number.isFinite(Number(entry?.child?.pid)) ? Number(entry.child.pid) : null,
+    scope: normalizeTrackedScope(entry?.scope),
+    ownershipId: resolveEntryOwnershipId(entry),
+    child: entry.child,
+    killTree: entry.killTree,
+    killSignal: entry.killSignal,
+    killGraceMs: entry.killGraceMs,
+    detached: entry.detached
+  }));
+  const settled = await Promise.allSettled(killTargets.map((entry) => killChildProcessTree(entry.child, {
     killTree: entry.killTree,
     killSignal: entry.killSignal,
     graceMs: force ? TRACKED_SUBPROCESS_FORCE_GRACE_MS : entry.killGraceMs,
@@ -237,12 +300,65 @@ export const terminateTrackedSubprocesses = async ({
     awaitGrace: force === true
   })));
   const failures = settled.filter((result) => result.status === 'rejected').length;
+  const killAudit = settled
+    .map((result, index) => {
+      const target = killTargets[index];
+      if (result.status === 'rejected') {
+        return {
+          pid: target.pid,
+          scope: target.scope,
+          ownershipId: target.ownershipId,
+          terminated: false,
+          forced: false,
+          error: result.reason?.message || String(result.reason || 'unknown_kill_error')
+        };
+      }
+      return {
+        pid: target.pid,
+        scope: target.scope,
+        ownershipId: target.ownershipId,
+        terminated: result.value?.terminated === true,
+        forced: result.value?.forced === true,
+        error: null
+      };
+    })
+    .sort((left, right) => {
+      const leftPid = Number.isFinite(left?.pid) ? left.pid : Number.MAX_SAFE_INTEGER;
+      const rightPid = Number.isFinite(right?.pid) ? right.pid : Number.MAX_SAFE_INTEGER;
+      if (leftPid !== rightPid) return leftPid - rightPid;
+      const leftOwnership = String(left?.ownershipId || '');
+      const rightOwnership = String(right?.ownershipId || '');
+      return leftOwnership.localeCompare(rightOwnership);
+    });
+  const targetedPids = killAudit
+    .map((entry) => entry.pid)
+    .filter((pid) => Number.isFinite(pid));
+  const terminatedPids = killAudit
+    .filter((entry) => entry.terminated === true && Number.isFinite(entry.pid))
+    .map((entry) => entry.pid);
+  const ownershipIds = [...new Set(
+    killAudit
+      .map((entry) => entry.ownershipId)
+      .filter((value) => typeof value === 'string' && value.length > 0)
+  )].sort((left, right) => left.localeCompare(right));
+  const terminatedOwnershipIds = [...new Set(
+    killAudit
+      .filter((entry) => entry.terminated === true)
+      .map((entry) => entry.ownershipId)
+      .filter((value) => typeof value === 'string' && value.length > 0)
+  )].sort((left, right) => left.localeCompare(right));
   return {
     reason,
     tracked: entries.length,
     attempted: entries.length,
     failures,
-    scope: normalizedScope
+    scope: normalizedScope,
+    ownershipId: normalizedOwnershipId,
+    targetedPids,
+    terminatedPids,
+    ownershipIds,
+    terminatedOwnershipIds,
+    killAudit
   };
 };
 
@@ -310,13 +426,16 @@ export const registerChildProcessForCleanup = (child, options = {}) => {
   }
   installTrackedSubprocessHooks();
   const entryKey = Symbol(`tracked-subprocess:${child.pid}`);
+  const scope = resolveTrackedScope(options);
+  const ownershipId = resolveTrackedOwnershipId(options) || scope;
   const entry = {
     child,
     killTree: options.killTree !== false,
     killSignal: options.killSignal || 'SIGTERM',
     killGraceMs: resolveKillGraceMs(options.killGraceMs),
     detached: options.detached === true,
-    scope: normalizeTrackedScope(options.scope ?? options.cleanupScope),
+    scope,
+    ownershipId,
     onClose: null
   };
   entry.onClose = () => {
@@ -330,11 +449,11 @@ export const registerChildProcessForCleanup = (child, options = {}) => {
 };
 
 export const getTrackedSubprocessCount = (scope = null) => {
-  const normalizedScope = normalizeTrackedScope(scope);
-  if (!normalizedScope) return trackedSubprocesses.size;
+  const ownershipId = normalizeTrackedOwnershipId(scope);
+  if (!ownershipId) return trackedSubprocesses.size;
   let count = 0;
   for (const entry of trackedSubprocesses.values()) {
-    if (entry?.scope === normalizedScope) count += 1;
+    if (entryMatchesOwnershipId(entry, ownershipId)) count += 1;
   }
   return count;
 };
@@ -360,10 +479,13 @@ export function spawnSubprocess(command, args, options = {}) {
       ? options.cleanupOnParentExit
       : !(options.unref === true && detached === true);
     const abortSignal = options.signal || null;
+    const trackedScopeContext = trackedSubprocessScopeContext.getStore() || null;
+    const inheritedOwnershipId = normalizeTrackedOwnershipId(options.ownershipId ?? options.ownerId)
+      || normalizeTrackedOwnershipId(trackedOwnershipIdByAbortSignal.get(abortSignal))
+      || normalizeTrackedOwnershipId(trackedScopeContext?.ownershipId ?? trackedScopeContext?.scope);
     const cleanupScope = normalizeTrackedScope(options.cleanupScope)
       || normalizeTrackedScope(options.scope)
-      || normalizeTrackedScope(trackedScopeByAbortSignal.get(abortSignal))
-      || normalizeTrackedScope(trackedSubprocessScopeContext.getStore()?.scope);
+      || inheritedOwnershipId;
     if (abortSignal?.aborted) {
       const result = buildResult({
         pid: null,
@@ -398,7 +520,8 @@ export function spawnSubprocess(command, args, options = {}) {
         killSignal,
         killGraceMs,
         detached,
-        scope: cleanupScope
+        scope: cleanupScope,
+        ownershipId: inheritedOwnershipId || cleanupScope
       });
     }
     if (options.input != null && child.stdin) {

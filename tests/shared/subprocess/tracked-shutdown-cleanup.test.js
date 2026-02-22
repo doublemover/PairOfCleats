@@ -38,27 +38,45 @@ const childB = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000);'], {
 assert.ok(Number.isFinite(childA.pid) && childA.pid > 0, 'expected childA pid');
 assert.ok(Number.isFinite(childB.pid) && childB.pid > 0, 'expected childB pid');
 
+const ownershipA = 'scope-a';
+const ownershipB = 'scope-b';
+
 const unregisterA = registerChildProcessForCleanup(childA, {
   killTree: true,
   detached: process.platform !== 'win32',
-  scope: 'scope-a'
+  scope: ownershipA,
+  ownershipId: ownershipA
 });
 const unregisterB = registerChildProcessForCleanup(childB, {
   killTree: true,
   detached: process.platform !== 'win32',
-  scope: 'scope-b'
+  scope: ownershipB,
+  ownershipId: ownershipB
 });
 
 assert.equal(getTrackedSubprocessCount(), 2, 'expected both children to be tracked');
-assert.equal(getTrackedSubprocessCount('scope-a'), 1, 'expected one child in scope-a');
-assert.equal(getTrackedSubprocessCount('scope-b'), 1, 'expected one child in scope-b');
+assert.equal(getTrackedSubprocessCount(ownershipA), 1, 'expected one child in scope-a');
+assert.equal(getTrackedSubprocessCount(ownershipB), 1, 'expected one child in scope-b');
 
-const scopedSummary = await terminateTrackedSubprocesses({ reason: 'test-scoped', force: true, scope: 'scope-a' });
+const scopedSummary = await terminateTrackedSubprocesses({
+  reason: 'test-scoped',
+  force: true,
+  ownershipId: ownershipA
+});
 assert.equal(scopedSummary.attempted, 1, 'expected scoped cleanup to target only one child');
 assert.equal(scopedSummary.failures, 0, 'expected scoped cleanup to succeed');
-assert.equal(scopedSummary.scope, 'scope-a', 'expected scoped cleanup summary to include scope');
+assert.equal(scopedSummary.ownershipId, ownershipA, 'expected scoped cleanup summary to include ownership id');
+assert.ok(scopedSummary.terminatedPids.includes(childA.pid), 'expected scoped cleanup pid audit to include childA');
+assert.ok(
+  scopedSummary.terminatedOwnershipIds.includes(ownershipA),
+  'expected scoped cleanup ownership audit to include scope-a'
+);
+assert.ok(
+  scopedSummary.killAudit.some((entry) => entry.pid === childA.pid && entry.ownershipId === ownershipA),
+  'expected kill-audit entry for childA ownership'
+);
 assert.equal(getTrackedSubprocessCount(), 1, 'expected one tracked child to remain after scoped cleanup');
-assert.equal(getTrackedSubprocessCount('scope-b'), 1, 'expected scope-b child to remain tracked');
+assert.equal(getTrackedSubprocessCount(ownershipB), 1, 'expected scope-b child to remain tracked');
 
 const childATerminated = await waitFor(() => !isAlive(childA.pid), 5000);
 assert.equal(childATerminated, true, 'expected scope-a child to be terminated by scoped cleanup');
@@ -67,6 +85,11 @@ assert.equal(isAlive(childB.pid), true, 'expected scope-b child to remain alive 
 const summary = await terminateTrackedSubprocesses({ reason: 'test', force: true });
 assert.equal(summary.attempted, 1, 'expected remaining tracked child cleanup attempt');
 assert.equal(summary.failures, 0, 'expected remaining tracked child cleanup to succeed');
+assert.ok(summary.terminatedPids.includes(childB.pid), 'expected remaining cleanup pid audit to include childB');
+assert.ok(
+  summary.terminatedOwnershipIds.includes(ownershipB),
+  'expected remaining cleanup ownership audit to include scope-b'
+);
 assert.equal(getTrackedSubprocessCount(), 0, 'expected tracked child registry to be empty');
 
 const childBTerminated = await waitFor(() => !isAlive(childB.pid), 5000);

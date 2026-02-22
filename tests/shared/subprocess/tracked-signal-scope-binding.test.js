@@ -37,13 +37,22 @@ assert.ok(scopedTrackedCount > 0, 'expected at least one subprocess in bound sco
 const scopedSummary = await terminateTrackedSubprocesses({
   reason: 'signal-scope-test',
   force: true,
-  scope
+  ownershipId: scope
 });
 assert.ok(
   scopedSummary.attempted >= scopedTrackedCount,
   'expected scoped terminate to kill inherited-scope subprocesses'
 );
 assert.equal(scopedSummary.failures, 0, 'expected scoped terminate to succeed');
+assert.equal(scopedSummary.ownershipId, scope, 'expected scoped terminate to report ownership id');
+assert.ok(
+  scopedSummary.terminatedOwnershipIds.includes(scope),
+  'expected terminated ownership list to include inherited scope'
+);
+assert.ok(
+  scopedSummary.killAudit.every((entry) => entry.ownershipId === scope),
+  'expected kill-audit ownership ids to stay scoped'
+);
 
 await pending;
 assert.equal(getTrackedSubprocessCount(scope), 0, 'expected scope registry to be empty after terminate');
