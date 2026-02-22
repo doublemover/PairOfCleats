@@ -87,10 +87,13 @@ export const renderDisplay = ({
   };
   const displayTasks = orderedTasks.filter((task) => !shouldHideTask(task));
   const now = Date.now();
+  const runningNow = Math.floor(now / 1000) * 1000;
   const extrasByTask = displayTasks.map((task) => {
-    const snapshotNow = Number.isFinite(task?.lastUpdateMs)
-      ? Math.max(0, Number(task.lastUpdateMs))
-      : now;
+    const snapshotNow = task?.status === 'running'
+      ? runningNow
+      : (Number.isFinite(task?.lastUpdateMs)
+        ? Math.max(0, Number(task.lastUpdateMs))
+        : now);
     return buildProgressExtras(task, snapshotNow);
   });
   const benchPrefixes = displayTasks.map((task, index) => {
