@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import { getBenchMirrorRefreshMs } from '../../src/shared/env.js';
 import { getRuntimeConfig, loadUserConfig, resolveRuntimeEnv } from '../shared/dict-utils.js';
 import { parseBenchLanguageArgs } from './language/cli.js';
 import { loadBenchConfig } from './language/config.js';
@@ -100,7 +101,7 @@ const {
   wantsSqlite
 } = parseBenchLanguageArgs();
 const mirrorCacheRoot = resolveMirrorCacheRoot({ reposRoot });
-const mirrorRefreshMs = resolveMirrorRefreshMs(process.env.PAIROFCLEATS_BENCH_MIRROR_REFRESH_MS);
+const mirrorRefreshMs = resolveMirrorRefreshMs(getBenchMirrorRefreshMs());
 
 const baseEnv = { ...process.env };
 const benchEnvironmentMetadata = buildBenchEnvironmentMetadata(baseEnv);

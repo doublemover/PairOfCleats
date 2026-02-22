@@ -103,6 +103,7 @@ export function getEnvConfig(env = process.env) {
     benchRun: normalizeBoolean(env.PAIROFCLEATS_BENCH_RUN),
     benchAntivirusState: normalizeString(env.PAIROFCLEATS_BENCH_ANTIVIRUS_STATE),
     benchCpuGovernor: normalizeString(env.PAIROFCLEATS_BENCH_CPU_GOVERNOR),
+    benchMirrorRefreshMs: normalizeNumber(env.PAIROFCLEATS_BENCH_MIRROR_REFRESH_MS),
     fileCacheMax: normalizeNumber(env.PAIROFCLEATS_FILE_CACHE_MAX),
     summaryCacheMax: normalizeNumber(env.PAIROFCLEATS_SUMMARY_CACHE_MAX),
     importGraph: normalizeOptionalBoolean(env.PAIROFCLEATS_IMPORT_GRAPH),
@@ -229,6 +230,10 @@ export function getTreeSitterSchedulerCrashInjectionTokens(env = process.env) {
       .map((part) => normalizeString(part).toLowerCase())
       .filter(Boolean)
   );
+}
+
+export function getBenchMirrorRefreshMs(env = process.env) {
+  return normalizeNumber(env.PAIROFCLEATS_BENCH_MIRROR_REFRESH_MS);
 }
 
 export function getLanceDbEnv(env = process.env) {
