@@ -63,6 +63,8 @@ export const resolveMirrorRepoPath = ({ mirrorCacheRoot, repo } = {}) => (
 );
 
 export const resolveMirrorRefreshMs = (value, fallback = DEFAULT_MIRROR_REFRESH_MS) => {
+  if (value == null) return fallback;
+  if (typeof value === 'string' && value.trim().length === 0) return fallback;
   const parsed = Number(value);
   if (Number.isFinite(parsed) && parsed >= 0) return Math.floor(parsed);
   return fallback;
