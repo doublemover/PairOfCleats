@@ -836,7 +836,7 @@ Touchpoints:
   - [x] sequence 0: instrumentation baseline, fixed fixture corpus lock, and reproducible benchmark harness
   - [x] sequence 1: dispatch/scan/read hot-path acceleration and generated/vendor classification
   - [x] sequence 2: parser lifecycle + fallback semantics
-  - [ ] sequence 3: cache architecture + invalidation correctness
+  - [x] sequence 3: cache architecture + invalidation correctness
   - [ ] sequence 4: scheduler + memory-layout optimization
   - [ ] sequence 5: relation recomputation and memory-layout consolidation
   - [ ] sequence 6: profile consolidation and cleanup of temporary overrides
