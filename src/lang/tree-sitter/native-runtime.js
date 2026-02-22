@@ -274,17 +274,23 @@ export function preflightNativeTreeSitterGrammars(languageIds = [], { log } = {}
   const missing = [];
   const unavailable = [];
   if (!unique.length) return { ok: true, missing, unavailable };
-  const ready = initNativeTreeSitter({ log });
-  if (!ready) {
-    unavailable.push(...unique);
-    return { ok: false, missing, unavailable };
-  }
+  const supported = [];
   for (const languageId of unique) {
-    const target = resolveNativeTreeSitterTarget(languageId);
-    if (!target) {
+    if (!resolveNativeTreeSitterTarget(languageId)) {
       missing.push(languageId);
       continue;
     }
+    supported.push(languageId);
+  }
+  if (!supported.length) {
+    return { ok: false, missing, unavailable };
+  }
+  const ready = initNativeTreeSitter({ log });
+  if (!ready) {
+    unavailable.push(...supported);
+    return { ok: false, missing, unavailable };
+  }
+  for (const languageId of supported) {
     const loaded = loadNativeTreeSitterGrammar(languageId, { log });
     if (!loaded?.language) {
       unavailable.push(languageId);

@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { listNativeTreeSitterGrammarModuleNames } from '../../src/lang/tree-sitter/native-runtime.js';
 
 const REQUIRED_NATIVE_PACKAGES = [
+  'tree-sitter',
   ...listNativeTreeSitterGrammarModuleNames(),
   'better-sqlite3',
   'hnswlib-node',
@@ -91,6 +92,60 @@ const runPackageInstallScript = (pkgName, { buildFromSource = false } = {}) => {
 };
 
 const probePackage = async (pkgName) => {
+  /**
+   * `npm ci --ignore-scripts` can leave tree-sitter core loadable but not
+   * actually usable with rebuilt grammars. Probe parser activation explicitly
+   * so `verify:native` / `repair:native` detect this CI-only failure mode.
+   */
+  if (pkgName === 'tree-sitter') {
+    const parserProbeScript = `
+      try {
+        const Parser = require('tree-sitter');
+        const js = require('tree-sitter-javascript');
+        const parser = new Parser();
+        const candidates = [js, js.javascript, js.language, js.default].filter(Boolean);
+        let activated = false;
+        let lastError = null;
+        for (const language of candidates) {
+          try {
+            parser.setLanguage(language);
+            const tree = parser.parse('function ok() { return 1; }');
+            if (!tree || !tree.rootNode) {
+              throw new Error('tree-sitter parser activation produced no tree');
+            }
+            activated = true;
+            break;
+          } catch (err) {
+            lastError = err;
+          }
+        }
+        if (!activated) {
+          throw lastError || new Error('tree-sitter parser activation failed');
+        }
+        process.exit(0);
+      } catch (err) {
+        const message = err && err.message ? err.message : String(err);
+        console.error(message);
+        process.exit(1);
+      }
+    `.trim();
+
+    const parserProbeResult = spawnSync(process.execPath, ['-e', parserProbeScript], {
+      cwd: root,
+      encoding: 'utf8'
+    });
+
+    if (parserProbeResult.status === 0) {
+      return { ok: true, message: null };
+    }
+
+    const message = (parserProbeResult.stderr || parserProbeResult.stdout || '').trim();
+    return {
+      ok: false,
+      message: message || 'failed to activate tree-sitter parser'
+    };
+  }
+
   const probeScript = `
     const pkg = process.argv[1];
     (async () => {
