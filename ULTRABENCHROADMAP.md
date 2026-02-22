@@ -775,7 +775,7 @@ Last revised: 2026-02-22T05:44:04.8332760-05:00
 - Touchpoints: `src/index/minhash.js`, `src/index/build/postings/minhash.js`, `src/shared/artifact-io/loaders/minhash.js`, `tests/indexing/artifacts/minhash-packed-roundtrip.test.js`, `tests/indexing/artifacts/minhash-max-docs-guard.test.js`
 
 ### UB-079: Local mirror clone cache for bench repos
-- Status: [ ]
+- Status: [x]
 - Observation:
   - Re-clone and cold fetch overhead can add avoidable run time variance.
 - Tasks:
@@ -783,6 +783,12 @@ Last revised: 2026-02-22T05:44:04.8332760-05:00
   - Create working copies from local mirror references instead of full remote clone.
 - Exit criteria:
   - Reduced clone/setup wall time and network variance.
+- Completion: 2026-02-22T09:26:07.9367619-05:00
+- Validation:
+  - `node tests/perf/bench/bench-language-mirror-cache.test.js`
+  - `node tests/perf/bench/bench-language-repos.test.js`
+  - `node tests/perf/bench/bench-language-repo-preflight.test.js`
+  - `node tests/perf/bench/bench-language-lock.test.js`
 - Improvement Intent (What): repo acquisition overhead
 - Improvement Method (How): local mirror clone cache with integrity checks.
 - Integrated Betterments: adopt local mirror fetch with staggered refresh windows; validate mirror integrity before checkout; add fallback to direct clone only on mirror failure.

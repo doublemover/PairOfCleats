@@ -13,8 +13,11 @@ import {
   needsIndexArtifacts,
   needsSqliteArtifacts,
   resolveCloneTool,
+  resolveMirrorCacheRoot,
+  resolveMirrorRefreshMs,
   resolveRepoCacheRoot,
-  resolveRepoDir
+  resolveRepoDir,
+  tryMirrorClone
 } from './language/repos.js';
 import { isInside, isRootPath } from '../shared/path-utils.js';
 import { createProcessRunner } from './language/process.js';
@@ -96,6 +99,8 @@ const {
   backendList,
   wantsSqlite
 } = parseBenchLanguageArgs();
+const mirrorCacheRoot = resolveMirrorCacheRoot({ reposRoot });
+const mirrorRefreshMs = resolveMirrorRefreshMs(process.env.PAIROFCLEATS_BENCH_MIRROR_REFRESH_MS);
 
 const baseEnv = { ...process.env };
 const benchEnvironmentMetadata = buildBenchEnvironmentMetadata(baseEnv);
@@ -552,6 +557,8 @@ if (argv.list) {
     config: configPath,
     repoRoot: reposRoot,
     cacheRoot,
+    cloneMirrorCacheRoot: mirrorCacheRoot,
+    cloneMirrorRefreshMs: mirrorRefreshMs,
     resultsRoot,
     logsRoot: path.dirname(masterLogPath),
     diagnosticsRoot: runDiagnosticsRoot,
@@ -568,6 +575,8 @@ if (argv.list) {
     writeListLine(`- config: ${configPath}`);
     writeListLine(`- repos: ${reposRoot}`);
     writeListLine(`- cache: ${cacheRoot}`);
+    writeListLine(`- clone mirror cache: ${mirrorCacheRoot}`);
+    writeListLine(`- clone mirror refresh ms: ${mirrorRefreshMs}`);
     writeListLine(`- results: ${resultsRoot}`);
     writeListLine(`- diagnostics: ${runDiagnosticsRoot}`);
     if (USR_GUARDRAIL_BENCHMARKS.length) {
@@ -596,8 +605,14 @@ if (cloneEnabled && !dryRun) {
 await fsPromises.mkdir(reposRoot, { recursive: true });
 await fsPromises.mkdir(resultsRoot, { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
+if (cloneEnabled && !dryRun && cloneTool?.supportsMirrorClone) {
+  await fsPromises.mkdir(mirrorCacheRoot, { recursive: true });
+}
 initMasterLog();
 appendLog(`[clone] tool=${cloneTool ? cloneTool.label : 'disabled'}`);
+if (cloneEnabled && !dryRun && cloneTool?.supportsMirrorClone) {
+  appendLog(`[clone] mirror cache=${mirrorCacheRoot} refresh-ms=${mirrorRefreshMs}`);
+}
 const usrGuardrailBenchmarks = await runUsrGuardrailBenchmarks();
 
 const benchScript = path.join(scriptRoot, 'tests', 'perf', 'bench', 'run.test.js');
@@ -741,38 +756,64 @@ for (const task of tasks) {
       }
       updateBenchProgress();
       if (!dryRun && cloneEnabled && cloneTool) {
-        const args = cloneTool.buildArgs(task.repo, repoPath);
-        const cloneResult = await processRunner.runProcess(`clone ${task.repo}`, cloneTool.label, args, {
-          env: buildNonInteractiveGitEnv(process.env),
-          continueOnError: true
-        });
-        if (!cloneResult.ok) {
-          appendLog(`[error] clone failed for ${repoLabel}; continuing.`, 'error');
-          const crashRetention = await attachCrashRetention({
-            task,
-            repoLabel,
+        let clonedFromMirror = false;
+        if (cloneTool.supportsMirrorClone) {
+          const mirrorClone = tryMirrorClone({
+            repo: task.repo,
             repoPath,
-            repoCacheRoot,
-            outFile: null,
-            failureReason: 'clone',
-            failureCode: cloneResult.code ?? null,
-            schedulerEvents: cloneResult.schedulerEvents || []
+            mirrorCacheRoot,
+            mirrorRefreshMs,
+            onLog: appendLog
           });
-          completeBenchRepo();
-          appendLog('[metrics] failed (clone)');
-          results.push({
-            ...task,
-            repoPath,
-            outFile: null,
-            summary: null,
-            failed: true,
-            failureReason: 'clone',
-            failureCode: cloneResult.code ?? null,
-            ...(crashRetention
-              ? { diagnostics: { crashRetention } }
-              : {})
+          if (mirrorClone.ok) {
+            clonedFromMirror = true;
+            appendLog(`[clone] mirror ${mirrorClone.mirrorAction} for ${repoLabel}.`, 'info', {
+              fileOnlyLine: `[clone] mirror ${mirrorClone.mirrorAction} ${task.repo} -> ${repoPath} (${mirrorClone.mirrorPath})`
+            });
+          } else if (mirrorClone.attempted) {
+            appendLog(
+              `[clone] mirror unavailable for ${repoLabel}; falling back to direct clone (${mirrorClone.reason || 'unknown'}).`,
+              'warn'
+            );
+            try {
+              await fsPromises.rm(repoPath, { recursive: true, force: true });
+            } catch {}
+          }
+        }
+        if (!clonedFromMirror) {
+          const args = cloneTool.buildArgs(task.repo, repoPath);
+          const cloneResult = await processRunner.runProcess(`clone ${task.repo}`, cloneTool.label, args, {
+            env: buildNonInteractiveGitEnv(process.env),
+            continueOnError: true
           });
-          continue;
+          if (!cloneResult.ok) {
+            appendLog(`[error] clone failed for ${repoLabel}; continuing.`, 'error');
+            const crashRetention = await attachCrashRetention({
+              task,
+              repoLabel,
+              repoPath,
+              repoCacheRoot,
+              outFile: null,
+              failureReason: 'clone',
+              failureCode: cloneResult.code ?? null,
+              schedulerEvents: cloneResult.schedulerEvents || []
+            });
+            completeBenchRepo();
+            appendLog('[metrics] failed (clone)');
+            results.push({
+              ...task,
+              repoPath,
+              outFile: null,
+              summary: null,
+              failed: true,
+              failureReason: 'clone',
+              failureCode: cloneResult.code ?? null,
+              ...(crashRetention
+                ? { diagnostics: { crashRetention } }
+                : {})
+            });
+            continue;
+          }
         }
       }
     }

@@ -13,6 +13,7 @@ const canRun = (cmd, args) => {
   }
 };
 const DEFAULT_PREFLIGHT_TIMEOUT_MS = 120000;
+export const DEFAULT_MIRROR_REFRESH_MS = 4 * 60 * 60 * 1000;
 
 export const buildNonInteractiveGitEnv = (baseEnv = process.env) => ({
   ...baseEnv,
@@ -34,6 +35,162 @@ const firstOutputLine = (result) => {
     .map((line) => line.trim())
     .find(Boolean);
   return text || 'no output';
+};
+
+const runGit = (args, { timeoutMs = DEFAULT_PREFLIGHT_TIMEOUT_MS } = {}) => {
+  return runCommand('git', args, {
+    encoding: 'utf8',
+    timeout: timeoutMs,
+    env: buildNonInteractiveGitEnv()
+  });
+};
+
+const sanitizeRepoMirrorName = (repo) => (
+  String(repo || '')
+    .trim()
+    .replace(/[\\/]+/g, '__')
+    .replace(/[^a-z0-9_.-]+/gi, '_')
+    .replace(/^_+|_+$/g, '')
+    || 'repo'
+);
+
+export const resolveMirrorCacheRoot = ({ reposRoot } = {}) => (
+  path.join(path.resolve(reposRoot || process.cwd()), '.mirror-cache')
+);
+
+export const resolveMirrorRepoPath = ({ mirrorCacheRoot, repo } = {}) => (
+  path.join(path.resolve(mirrorCacheRoot || process.cwd()), `${sanitizeRepoMirrorName(repo)}.git`)
+);
+
+export const resolveMirrorRefreshMs = (value, fallback = DEFAULT_MIRROR_REFRESH_MS) => {
+  const parsed = Number(value);
+  if (Number.isFinite(parsed) && parsed >= 0) return Math.floor(parsed);
+  return fallback;
+};
+
+export const shouldRefreshMirror = ({ mirrorPath, refreshMs = DEFAULT_MIRROR_REFRESH_MS } = {}) => {
+  if (!mirrorPath || !fs.existsSync(mirrorPath)) return true;
+  const refreshWindowMs = resolveMirrorRefreshMs(refreshMs, DEFAULT_MIRROR_REFRESH_MS);
+  if (refreshWindowMs <= 0) return true;
+  try {
+    const stat = fs.statSync(mirrorPath);
+    const ageMs = Date.now() - stat.mtimeMs;
+    return ageMs >= refreshWindowMs;
+  } catch {
+    return true;
+  }
+};
+
+const ensureMirrorUpToDate = ({
+  repo,
+  mirrorPath,
+  refreshMs = DEFAULT_MIRROR_REFRESH_MS,
+  timeoutMs = DEFAULT_PREFLIGHT_TIMEOUT_MS
+}) => {
+  if (!canRun('git', ['--version'])) {
+    return { ok: false, reason: 'git unavailable', action: 'disabled', mirrorPath };
+  }
+  const remoteUrl = `https://github.com/${repo}.git`;
+  const exists = fs.existsSync(mirrorPath);
+  if (!exists) {
+    const cloneResult = runGit(['clone', '--mirror', remoteUrl, mirrorPath], { timeoutMs });
+    if (!cloneResult.ok) {
+      return {
+        ok: false,
+        reason: firstOutputLine(cloneResult),
+        action: 'clone-failed',
+        mirrorPath,
+        remoteUrl
+      };
+    }
+    return { ok: true, action: 'cloned', mirrorPath, remoteUrl };
+  }
+  if (!shouldRefreshMirror({ mirrorPath, refreshMs })) {
+    return { ok: true, action: 'reused', mirrorPath, remoteUrl };
+  }
+  const refreshResult = runGit(['-C', mirrorPath, 'remote', 'update', '--prune'], { timeoutMs });
+  if (!refreshResult.ok) {
+    return {
+      ok: false,
+      reason: firstOutputLine(refreshResult),
+      action: 'refresh-failed',
+      mirrorPath,
+      remoteUrl
+    };
+  }
+  return { ok: true, action: 'updated', mirrorPath, remoteUrl };
+};
+
+export const tryMirrorClone = ({
+  repo,
+  repoPath,
+  mirrorCacheRoot,
+  mirrorRefreshMs = DEFAULT_MIRROR_REFRESH_MS,
+  timeoutMs = DEFAULT_PREFLIGHT_TIMEOUT_MS,
+  onLog = null
+}) => {
+  if (!repo || !repoPath || !mirrorCacheRoot) {
+    return { attempted: false, ok: false, reason: 'missing mirror inputs' };
+  }
+  if (!canRun('git', ['--version'])) {
+    return { attempted: false, ok: false, reason: 'git unavailable' };
+  }
+  try {
+    fs.mkdirSync(mirrorCacheRoot, { recursive: true });
+  } catch (err) {
+    return { attempted: true, ok: false, reason: err?.message || String(err) };
+  }
+  const mirrorPath = resolveMirrorRepoPath({ mirrorCacheRoot, repo });
+  const mirrorStatus = ensureMirrorUpToDate({
+    repo,
+    mirrorPath,
+    refreshMs: mirrorRefreshMs,
+    timeoutMs
+  });
+  if (!mirrorStatus.ok) {
+    return {
+      attempted: true,
+      ok: false,
+      reason: mirrorStatus.reason || 'mirror sync failed',
+      mirrorPath,
+      mirrorAction: mirrorStatus.action
+    };
+  }
+  const cloneResult = runGit([
+    '-c',
+    'core.longpaths=true',
+    '-c',
+    'checkout.workers=0',
+    '-c',
+    'checkout.thresholdForParallelism=0',
+    'clone',
+    mirrorPath,
+    repoPath
+  ], { timeoutMs });
+  if (!cloneResult.ok) {
+    return {
+      attempted: true,
+      ok: false,
+      reason: firstOutputLine(cloneResult),
+      mirrorPath,
+      mirrorAction: mirrorStatus.action
+    };
+  }
+  const remoteUrl = `https://github.com/${repo}.git`;
+  const remoteSetResult = runGit(['-C', repoPath, 'remote', 'set-url', 'origin', remoteUrl], { timeoutMs });
+  if (!remoteSetResult.ok && typeof onLog === 'function') {
+    onLog(
+      `[clone] mirror clone succeeded but remote reset failed (${path.basename(repoPath)}): ${firstOutputLine(remoteSetResult)}`,
+      'warn'
+    );
+  }
+  return {
+    attempted: true,
+    ok: true,
+    mirrorPath,
+    mirrorAction: mirrorStatus.action,
+    remoteUrl
+  };
 };
 
 export const parseSubmoduleStatusLines = (value) => {
@@ -175,6 +332,7 @@ export const resolveCloneTool = ({ onLog = null } = {}) => {
   if (preferGit) {
     return {
       label: 'git',
+      supportsMirrorClone: true,
       buildArgs: (repo, repoPath) => [
         '-c',
         'core.longpaths=true',
@@ -191,12 +349,14 @@ export const resolveCloneTool = ({ onLog = null } = {}) => {
   if (ghAvailable) {
     return {
       label: 'gh',
+      supportsMirrorClone: false,
       buildArgs: (repo, repoPath) => ['repo', 'clone', repo, repoPath]
     };
   }
   if (gitAvailable) {
     return {
       label: 'git',
+      supportsMirrorClone: true,
       buildArgs: (repo, repoPath) => [
         '-c',
         'checkout.workers=0',

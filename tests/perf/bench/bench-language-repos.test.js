@@ -18,6 +18,12 @@ assert.ok(payload.languages.includes('javascript'), 'javascript language missing
 assert.ok(payload.languages.includes('shell'), 'shell language missing');
 assert.ok(Array.isArray(payload.tasks), 'tasks array missing');
 assert.ok(payload.tasks.length > 0, 'no benchmark tasks listed');
+assert.equal(typeof payload.cloneMirrorCacheRoot, 'string', 'mirror cache root missing from list payload');
+assert.equal(
+  Number.isFinite(Number(payload.cloneMirrorRefreshMs)),
+  true,
+  'mirror refresh window missing from list payload'
+);
 
 const quietListResult = spawnSync(process.execPath, [scriptPath, '--list', '--quiet', '--tier', 'typical'], {
   encoding: 'utf8'
