@@ -128,6 +128,17 @@ export const getScmProvider = (name) => {
   return PROVIDER_REGISTRY[normalized] || PROVIDER_REGISTRY.none;
 };
 
+export const getScmProviderContract = (name) => {
+  const providerImpl = getScmProvider(name);
+  return {
+    name: providerImpl.name,
+    adapter: providerImpl.adapter || 'experimental',
+    metadataCapabilities: {
+      ...(providerImpl.metadataCapabilities || {})
+    }
+  };
+};
+
 export const getScmProviderAndRoot = ({ provider, startPath, log } = {}) => {
   const selection = resolveScmProvider({ provider, startPath, log });
   const providerImpl = getScmProvider(selection.provider);

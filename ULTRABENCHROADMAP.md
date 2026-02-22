@@ -368,7 +368,7 @@ Primary targets:
 - Touchpoints: `src/index/scm/providers/git.js`, `src/index/scm/cache.js`, `src/index/scm/file-meta-snapshot.js`, `src/index/scm/runtime.js`, `tests/indexing/scm/git-provider-meta-batch-parallel.test.js`, `tests/indexing/scm/file-meta-snapshot-reuse.test.js`
 
 ### UB-032: Multi-SCM abstraction (Git + JJ readiness)
-- Status: [ ]
+- Status: [x]
 - Problem:
   - Current tuning is Git-centric.
 - Tasks:
@@ -379,6 +379,11 @@ Primary targets:
   - Provider contract test lane with fake SCM fixtures.
 - Exit criteria:
   - SCM layer handles provider differences cleanly.
+- Completion: 2026-02-22T07:55:24.3365490-05:00
+- Validation:
+  - `node tests/indexing/scm/provider-shape.test.js`
+  - `node tests/indexing/scm/jj-head-parse.test.js`
+  - `node tests/indexing/scm/unavailable-deterministic-failure.test.js`
 - Improvement Intent (What): SCM extensibility/robustness
 - Improvement Method (How): capability contracts and provider conformance testing.
 - Integrated Betterments: define strict SCM capability matrix (author, time, branch, churn) and fail closed for unsupported fields; enforce provider conformance tests with golden fixtures; add JJ parity dashboard to track feature gaps over time.

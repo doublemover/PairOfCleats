@@ -32,6 +32,37 @@ export const parseJjFileListOutput = ({ output, nullDelimited = false }) => (
   nullDelimited ? parseJjNullSeparated(output) : parseJjLines(output)
 );
 
+const normalizeJjScalar = (value) => {
+  const normalized = String(value || '').trim();
+  return normalized || null;
+};
+
+export const parseJjBookmarks = (value) => {
+  const list = Array.isArray(value)
+    ? value
+    : String(value || '')
+      .replace(/[\[\]]/g, ' ')
+      .split(/[\s,]+/);
+  const unique = Array.from(new Set(
+    list
+      .map((entry) => String(entry || '').trim())
+      .filter(Boolean)
+  )).sort((a, b) => a.localeCompare(b));
+  return unique.length ? unique : null;
+};
+
+export const parseJjHeadOutput = ({ logOutput, bookmarksOutput = '' }) => {
+  const rows = parseJjJsonLines(logOutput);
+  const first = rows[0] && typeof rows[0] === 'object' ? rows[0] : {};
+  return {
+    commitId: normalizeJjScalar(first.commit_id),
+    changeId: normalizeJjScalar(first.change_id),
+    author: normalizeJjScalar(first.author),
+    timestamp: normalizeJjScalar(first.timestamp),
+    bookmarks: parseJjBookmarks(bookmarksOutput)
+  };
+};
+
 const filterBySubdir = (entries, repoRoot, subdir) => {
   if (!subdir) return entries;
   const scope = toRepoPosixPath(subdir, repoRoot);

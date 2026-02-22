@@ -490,8 +490,22 @@ const runGitMetaBatchFetch = async ({ repoRoot, filesPosix, timeoutMs, config })
   return { ok: true, fileMetaByPath };
 };
 
+const GIT_METADATA_CAPABILITIES = Object.freeze({
+  author: true,
+  time: true,
+  branch: true,
+  churn: true,
+  commitId: true,
+  changeId: false,
+  operationId: false,
+  bookmarks: false,
+  annotateCommitId: false
+});
+
 export const gitProvider = {
   name: 'git',
+  adapter: 'parity',
+  metadataCapabilities: GIT_METADATA_CAPABILITIES,
   detect({ startPath }) {
     const repoRoot = findGitRoot(startPath || process.cwd());
     return repoRoot ? { ok: true, provider: 'git', repoRoot, detectedBy: 'git-root' } : { ok: false };

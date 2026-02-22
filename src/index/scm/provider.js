@@ -9,11 +9,54 @@ const REQUIRED_METHODS = [
 ];
 
 const OPTIONAL_METHODS = ['annotate', 'getFileMetaBatch'];
+const ADAPTER_MODES = Object.freeze(['parity', 'experimental', 'disabled']);
+const DEFAULT_ADAPTER_MODE_BY_PROVIDER = Object.freeze({
+  git: 'parity',
+  jj: 'experimental',
+  none: 'disabled'
+});
+const DEFAULT_METADATA_CAPABILITIES = Object.freeze({
+  author: false,
+  time: false,
+  branch: false,
+  churn: false,
+  commitId: false,
+  changeId: false,
+  operationId: false,
+  bookmarks: false,
+  annotateCommitId: false
+});
 const FILE_LIST_UNAVAILABLE_REASONS = new Set(['unavailable']);
 const CHANGED_FILES_UNAVAILABLE_REASONS = new Set(['unsupported', 'unavailable']);
 const FILE_META_UNAVAILABLE_REASONS = new Set(['unsupported', 'unavailable']);
 const ANNOTATE_UNAVAILABLE_REASONS = new Set(['disabled', 'unsupported', 'timeout', 'unavailable']);
 const FILE_META_BATCH_UNAVAILABLE_REASONS = new Set(['unsupported', 'unavailable']);
+
+const normalizeMetadataCapabilities = (value) => {
+  const candidate = value && typeof value === 'object'
+    ? { ...DEFAULT_METADATA_CAPABILITIES, ...value }
+    : DEFAULT_METADATA_CAPABILITIES;
+  return Object.freeze({
+    author: candidate.author === true,
+    time: candidate.time === true,
+    branch: candidate.branch === true,
+    churn: candidate.churn === true,
+    commitId: candidate.commitId === true,
+    changeId: candidate.changeId === true,
+    operationId: candidate.operationId === true,
+    bookmarks: candidate.bookmarks === true,
+    annotateCommitId: candidate.annotateCommitId === true
+  });
+};
+
+const normalizeAdapterMode = (value, providerName) => {
+  const raw = typeof value === 'string'
+    ? value
+    : (value && typeof value === 'object' ? value.mode : '');
+  const mode = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+  if (ADAPTER_MODES.includes(mode)) return mode;
+  return DEFAULT_ADAPTER_MODE_BY_PROVIDER[providerName] || 'experimental';
+};
 
 export const normalizeProviderName = (value) => {
   const name = typeof value === 'string' ? value.trim().toLowerCase() : '';
@@ -38,6 +81,13 @@ export const assertScmProvider = (provider) => {
       throw new Error(`SCM provider ${name} ${method} must be a function.`);
     }
   }
+  if (provider.metadataCapabilities != null && (
+    typeof provider.metadataCapabilities !== 'object' || Array.isArray(provider.metadataCapabilities)
+  )) {
+    throw new Error(`SCM provider ${name} metadataCapabilities must be an object.`);
+  }
+  const metadataCapabilities = normalizeMetadataCapabilities(provider.metadataCapabilities);
+  const adapter = normalizeAdapterMode(provider.adapter, name);
   const normalizeReason = (result, allowedReasons, fallbackReason = 'unavailable') => {
     const reason = typeof result?.reason === 'string' ? result.reason : '';
     return {
@@ -59,13 +109,25 @@ export const assertScmProvider = (provider) => {
   const normalizeFileMetaValue = (meta) => {
     const value = meta && typeof meta === 'object' ? meta : {};
     return {
-      lastCommitId: typeof value.lastCommitId === 'string' ? value.lastCommitId : null,
-      lastModifiedAt: typeof value.lastModifiedAt === 'string' ? value.lastModifiedAt : null,
-      lastAuthor: typeof value.lastAuthor === 'string' ? value.lastAuthor : null,
-      churn: Number.isFinite(value.churn) ? Number(value.churn) : null,
-      churnAdded: Number.isFinite(value.churnAdded) ? Number(value.churnAdded) : null,
-      churnDeleted: Number.isFinite(value.churnDeleted) ? Number(value.churnDeleted) : null,
-      churnCommits: Number.isFinite(value.churnCommits) ? Number(value.churnCommits) : null
+      lastCommitId: metadataCapabilities.commitId && typeof value.lastCommitId === 'string'
+        ? value.lastCommitId
+        : null,
+      lastModifiedAt: metadataCapabilities.time && typeof value.lastModifiedAt === 'string'
+        ? value.lastModifiedAt
+        : null,
+      lastAuthor: metadataCapabilities.author && typeof value.lastAuthor === 'string'
+        ? value.lastAuthor
+        : null,
+      churn: metadataCapabilities.churn && Number.isFinite(value.churn) ? Number(value.churn) : null,
+      churnAdded: metadataCapabilities.churn && Number.isFinite(value.churnAdded)
+        ? Number(value.churnAdded)
+        : null,
+      churnDeleted: metadataCapabilities.churn && Number.isFinite(value.churnDeleted)
+        ? Number(value.churnDeleted)
+        : null,
+      churnCommits: metadataCapabilities.churn && Number.isFinite(value.churnCommits)
+        ? Number(value.churnCommits)
+        : null
     };
   };
   const normalizeFileMeta = (result) => {
@@ -100,25 +162,45 @@ export const assertScmProvider = (provider) => {
       provider: name,
       root,
       head: head ? {
-        commitId: typeof head.commitId === 'string' ? head.commitId : null,
-        changeId: typeof head.changeId === 'string' ? head.changeId : null,
-        operationId: typeof head.operationId === 'string' ? head.operationId : null,
-        branch: typeof head.branch === 'string' ? head.branch : null,
-        bookmarks: Array.isArray(head.bookmarks) ? [...head.bookmarks].sort((a, b) => a.localeCompare(b)) : bookmarks,
-        author: typeof head.author === 'string' ? head.author : null,
-        timestamp: typeof head.timestamp === 'string' ? head.timestamp : null
+        commitId: metadataCapabilities.commitId && typeof head.commitId === 'string'
+          ? head.commitId
+          : null,
+        changeId: metadataCapabilities.changeId && typeof head.changeId === 'string'
+          ? head.changeId
+          : null,
+        operationId: metadataCapabilities.operationId && typeof head.operationId === 'string'
+          ? head.operationId
+          : null,
+        branch: metadataCapabilities.branch && typeof head.branch === 'string'
+          ? head.branch
+          : null,
+        bookmarks: metadataCapabilities.bookmarks
+          ? (Array.isArray(head.bookmarks) ? [...head.bookmarks].sort((a, b) => a.localeCompare(b)) : bookmarks)
+          : null,
+        author: metadataCapabilities.author && typeof head.author === 'string'
+          ? head.author
+          : null,
+        timestamp: metadataCapabilities.time && typeof head.timestamp === 'string'
+          ? head.timestamp
+          : null
       } : null,
       dirty: typeof result?.dirty === 'boolean' ? result.dirty : null,
       detectedBy: typeof result?.detectedBy === 'string' ? result.detectedBy : null,
-      commit: typeof result?.commit === 'string' ? result.commit : (typeof head?.commitId === 'string' ? head.commitId : null),
-      branch: typeof result?.branch === 'string' ? result.branch : (typeof head?.branch === 'string' ? head.branch : null),
+      commit: metadataCapabilities.commitId
+        ? (typeof result?.commit === 'string' ? result.commit : (typeof head?.commitId === 'string' ? head.commitId : null))
+        : null,
+      branch: metadataCapabilities.branch
+        ? (typeof result?.branch === 'string' ? result.branch : (typeof head?.branch === 'string' ? head.branch : null))
+        : null,
       isRepo: typeof result?.isRepo === 'boolean' ? result.isRepo : (name === 'none' ? false : null),
-      bookmarks
+      bookmarks: metadataCapabilities.bookmarks ? bookmarks : null
     };
   };
   const wrapped = {
     ...provider,
     name,
+    adapter,
+    metadataCapabilities,
     detect(input) {
       try {
         const result = provider.detect(input);
@@ -176,8 +258,8 @@ export const assertScmProvider = (provider) => {
           const lines = result.lines
             .map((entry, index) => ({
               line: Number.isFinite(Number(entry?.line)) ? Math.max(1, Math.floor(Number(entry.line))) : index + 1,
-              author: String(entry?.author || 'unknown'),
-              commitId: entry?.commitId ? String(entry.commitId) : null
+              author: metadataCapabilities.author ? String(entry?.author || 'unknown') : 'unknown',
+              commitId: metadataCapabilities.annotateCommitId && entry?.commitId ? String(entry.commitId) : null
             }))
             .sort((a, b) => a.line - b.line);
           return { lines };

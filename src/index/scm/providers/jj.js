@@ -10,6 +10,7 @@ import { log } from '../../../shared/progress.js';
 import {
   normalizeJjPathList,
   parseJjFileListOutput,
+  parseJjHeadOutput,
   parseJjJsonLines
 } from './jj-parse.js';
 
@@ -27,6 +28,17 @@ let jjQueueConcurrency = null;
 const pinnedOperations = new Map();
 const snapshotPromises = new Map();
 const DEFAULT_CHANGED_FILES_MAX = 10000;
+const JJ_METADATA_CAPABILITIES = Object.freeze({
+  author: true,
+  time: true,
+  branch: false,
+  churn: true,
+  commitId: true,
+  changeId: true,
+  operationId: true,
+  bookmarks: true,
+  annotateCommitId: false
+});
 
 const resolveJjConfig = () => {
   const config = getScmRuntimeConfig() || {};
@@ -216,6 +228,8 @@ const toUniquePosixFiles = (filesPosix = [], repoRoot = null) => {
 
 export const jjProvider = {
   name: 'jj',
+  adapter: 'experimental',
+  metadataCapabilities: JJ_METADATA_CAPABILITIES,
   detect({ startPath }) {
     const repoRoot = findJjRoot(startPath || process.cwd());
     return repoRoot ? { ok: true, provider: 'jj', repoRoot, detectedBy: 'jj-root' } : { ok: false };
@@ -260,26 +274,19 @@ export const jjProvider = {
       repoRoot,
       args: ['log', '--no-graph', '-n', '1', '-r', '@', '-T', template]
     });
-    const rows = logResult.exitCode === 0 ? parseJjJsonLines(logResult.stdout) : [];
-    const headRow = rows[0] || {};
-    const commitId = headRow.commit_id || null;
-    const changeId = headRow.change_id || null;
-    const author = headRow.author || null;
-    const timestamp = headRow.timestamp || null;
-    let bookmarks = null;
     const bookmarksResult = await runJjCommand({
       repoRoot,
       args: ['log', '--no-graph', '-n', '1', '-r', '@', '-T', 'bookmarks']
     });
-    if (bookmarksResult.exitCode === 0) {
-      const raw = String(bookmarksResult.stdout || '').trim();
-      if (raw) {
-        bookmarks = raw
-          .replace(/[\[\]]/g, ' ')
-          .split(/[\s,]+/)
-          .filter(Boolean);
-      }
-    }
+    const parsedHead = parseJjHeadOutput({
+      logOutput: logResult.exitCode === 0 ? logResult.stdout : '',
+      bookmarksOutput: bookmarksResult.exitCode === 0 ? bookmarksResult.stdout : ''
+    });
+    const commitId = parsedHead.commitId;
+    const changeId = parsedHead.changeId;
+    const author = parsedHead.author;
+    const timestamp = parsedHead.timestamp;
+    const bookmarks = parsedHead.bookmarks;
     let dirty = null;
     const dirtyResult = await runJjCommand({
       repoRoot,
@@ -344,6 +351,7 @@ export const jjProvider = {
     const template = includeChurn
       ? [
         'json({',
+        '"commit_id": commit_id.short(12),',
         '"author": author.name(),',
         '"timestamp": author.timestamp().utc().format("%Y-%m-%dT%H:%M:%SZ"),',
         `"added": self.diff(${filesetLiteral}).stat().total_added(),`,
@@ -352,6 +360,7 @@ export const jjProvider = {
       ].join(' ')
       : [
         'json({',
+        '"commit_id": commit_id.short(12),',
         '"author": author.name(),',
         '"timestamp": author.timestamp().utc().format("%Y-%m-%dT%H:%M:%SZ")',
         '})'
@@ -382,6 +391,7 @@ export const jjProvider = {
       }
     }
     return {
+      lastCommitId: first.commit_id || null,
       lastModifiedAt: first.timestamp || null,
       lastAuthor: first.author || null,
       churn: includeChurn ? churnAdded + churnDeleted : null,
@@ -403,6 +413,7 @@ export const jjProvider = {
       });
       if (!meta || meta.ok === false) continue;
       fileMetaByPath[filePosix] = {
+        lastCommitId: meta.lastCommitId || null,
         lastModifiedAt: meta.lastModifiedAt || null,
         lastAuthor: meta.lastAuthor || null,
         churn: Number.isFinite(meta.churn) ? meta.churn : null,
