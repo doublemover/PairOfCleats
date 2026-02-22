@@ -4,6 +4,7 @@ import path from 'node:path';
 import { gitProvider } from '../../../src/index/scm/providers/git.js';
 import { getScmRuntimeConfig, setScmRuntimeConfig } from '../../../src/index/scm/runtime.js';
 import { getScmCommandRunner, setScmCommandRunner } from '../../../src/index/scm/runner.js';
+import { setProgressHandlers } from '../../../src/shared/progress.js';
 
 const defaultRunner = getScmCommandRunner();
 const defaultScmConfig = getScmRuntimeConfig();
@@ -13,6 +14,8 @@ const repoRoot = path.resolve('C:/repo');
 let inFlight = 0;
 let maxInFlight = 0;
 let logCallCount = 0;
+let progressEvents = [];
+let restoreProgressHandlers = () => {};
 
 const buildBatchStdout = (files) => {
   const rows = [];
@@ -24,6 +27,11 @@ const buildBatchStdout = (files) => {
 };
 
 try {
+  restoreProgressHandlers = setProgressHandlers({
+    showProgress: (step, current, total, meta) => {
+      progressEvents.push({ step, current, total, meta });
+    }
+  });
   setScmRuntimeConfig({
     maxConcurrentProcesses: 4,
     runtime: {
@@ -69,10 +77,20 @@ try {
     maxInFlight <= 4,
     `expected batched git log calls to respect queue cap 4; observed ${maxInFlight}`
   );
+  assert(progressEvents.length >= 2, 'expected progress updates for multi-chunk batch');
+  const firstProgress = progressEvents[0];
+  const lastProgress = progressEvents[progressEvents.length - 1];
+  assert.equal(firstProgress?.step, 'SCM Git Meta');
+  assert.equal(firstProgress?.current, 0);
+  assert.equal(firstProgress?.total, 5);
+  assert.equal(firstProgress?.meta?.taskId, 'scm:git:file-meta-batch');
+  assert.equal(firstProgress?.meta?.ephemeral, true);
+  assert.equal(lastProgress?.current, lastProgress?.total);
 
   inFlight = 0;
   maxInFlight = 0;
   logCallCount = 0;
+  progressEvents = [];
 
   const smallFiles = Array.from({ length: 96 * 2 }, (_unused, index) => `src/small-${index}.js`);
   const smallResult = await gitProvider.getFileMetaBatch({
@@ -118,6 +136,7 @@ try {
     `expected runtime thread hints to cap default queue at 3; observed ${maxInFlight}`
   );
 } finally {
+  restoreProgressHandlers();
   setScmCommandRunner(defaultRunner);
   setScmRuntimeConfig(defaultScmConfig);
 }
