@@ -11,6 +11,7 @@ import { findUpwards } from '../../../shared/fs/find-upwards.js';
 import { runScmCommand } from '../runner.js';
 import { toRepoPosixPath } from '../paths.js';
 import { getScmRuntimeConfig } from '../runtime.js';
+import { showProgress } from '../../../shared/progress.js';
 
 const parseNullSeparated = (value) => (
   String(value || '')
@@ -272,6 +273,21 @@ export const gitProvider = {
           Math.max(config.maxConcurrentProcesses, config.minParallelChunks)
         )
       );
+    const shouldEmitProgress = chunks.length > 1;
+    const baseProgressMeta = {
+      taskId: 'scm:git:file-meta-batch',
+      stage: 'scm',
+      mode: 'git-file-meta',
+      unit: 'chunks',
+      ephemeral: true
+    };
+    if (shouldEmitProgress) {
+      showProgress('SCM Git Meta', 0, chunks.length, {
+        ...baseProgressMeta,
+        message: `chunks 0/${chunks.length} | concurrency ${batchConcurrency}`
+      });
+    }
+    let completedChunks = 0;
     const chunkResults = await runWithBoundedConcurrency(chunks, batchConcurrency, async (chunk) => {
       const args = [
         '-C',
@@ -292,6 +308,13 @@ export const gitProvider = {
       }), { useQueue: config.maxConcurrentProcesses > 1 });
       if (result.exitCode !== 0) {
         return { ok: false, reason: 'unavailable' };
+      }
+      completedChunks += 1;
+      if (shouldEmitProgress) {
+        showProgress('SCM Git Meta', completedChunks, chunks.length, {
+          ...baseProgressMeta,
+          message: `chunks ${completedChunks}/${chunks.length} | concurrency ${batchConcurrency}`
+        });
       }
       return {
         ok: true,
