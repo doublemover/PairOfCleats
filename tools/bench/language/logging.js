@@ -17,6 +17,11 @@ export const BENCH_DIAGNOSTIC_EVENT_TYPES = Object.freeze([
   'artifact_tail_stall',
   'fallback_used'
 ]);
+export const BENCH_PROGRESS_CONFIDENCE_SCHEMA_VERSION = 1;
+export const BENCH_PROGRESS_CONFIDENCE_THRESHOLDS = Object.freeze({
+  high: 0.75,
+  medium: 0.5
+});
 
 const BENCH_DIAGNOSTIC_EVENT_TYPE_SET = new Set(BENCH_DIAGNOSTIC_EVENT_TYPES);
 
@@ -33,6 +38,21 @@ export const normalizeBenchDiagnosticText = (value, { maxLength = 160 } = {}) =>
   if (!Number.isFinite(Number(maxLength)) || Number(maxLength) <= 0) return text;
   const limit = Math.floor(Number(maxLength));
   return text.length <= limit ? text : text.slice(0, limit);
+};
+
+export const classifyBenchProgressConfidence = (value) => {
+  const score = Number(value);
+  if (!Number.isFinite(score)) return 'unknown';
+  if (score >= BENCH_PROGRESS_CONFIDENCE_THRESHOLDS.high) return 'high';
+  if (score >= BENCH_PROGRESS_CONFIDENCE_THRESHOLDS.medium) return 'medium';
+  return 'low';
+};
+
+export const formatBenchProgressConfidence = (value) => {
+  const score = Number(value);
+  if (!Number.isFinite(score)) return 'unknown';
+  const bucket = classifyBenchProgressConfidence(score);
+  return `${bucket} ${(Math.max(0, Math.min(1, score)) * 100).toFixed(1)}%`;
 };
 
 export const buildBenchDiagnosticSignature = ({
