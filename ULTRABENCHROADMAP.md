@@ -595,7 +595,7 @@ Primary targets:
 - Touchpoints: `src/index/build/indexer/indexer.js`, `src/index/build/indexer/steps/process-files.js`, `src/index/build/artifacts-write.js`, `src/shared/subprocess.js`, `tools/bench/bench-runner.js`
 
 ### UB-062: Learned auto-profile selection
-- Status: [ ]
+- Status: [x]
 - Opportunity:
   - Static profile selection misses repo-specific optimal settings.
 - Tasks:
@@ -605,6 +605,10 @@ Primary targets:
   - Offline replay evaluation against historical bench runs.
 - Exit criteria:
   - Better median and p95 performance without manual tuning.
+- Completion: 2026-02-22T10:41:51.3752331-05:00
+- Validation:
+  - `node tests/indexing/runtime/learned-auto-profile-selection.test.js`
+  - `node tests/indexing/runtime/index-optimization-profile.test.js`
 - Improvement Intent (What): profile selection quality
 - Improvement Method (How): learned policy with conservative objective and shadow rollout.
 - Integrated Betterments: train with conservative objective that penalizes regressions heavily; require explainable feature importances for chosen profile; add shadow-evaluation mode before enabling profile decisions.

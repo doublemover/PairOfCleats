@@ -112,6 +112,17 @@ export const normalizeIndexOptimizationProfile = (value) => {
   return INDEX_OPTIMIZATION_PROFILE_IDS.includes(normalized) ? normalized : 'default';
 };
 
+export const applyLearnedAutoProfileSelection = ({
+  indexingConfig = {},
+  learnedAutoProfile = null
+} = {}) => {
+  if (!isObject(indexingConfig)) return {};
+  if (!isObject(learnedAutoProfile)) return indexingConfig;
+  if (learnedAutoProfile.applied !== true) return indexingConfig;
+  if (!isObject(learnedAutoProfile.overrides)) return indexingConfig;
+  return mergeConfig(indexingConfig, learnedAutoProfile.overrides);
+};
+
 export const resolvePlatformRuntimePreset = ({
   platform = process.platform,
   filesystemProfile = 'unknown',
@@ -570,9 +581,10 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     indexingConfig,
     log
   }));
-  if (learnedAutoProfile?.applied && learnedAutoProfile?.overrides) {
-    indexingConfig = mergeConfig(indexingConfig, learnedAutoProfile.overrides);
-  }
+  indexingConfig = applyLearnedAutoProfileSelection({
+    indexingConfig,
+    learnedAutoProfile
+  });
   const profileId = assertKnownIndexProfileId(indexingConfig.profile);
   const profile = buildIndexProfileState(profileId);
   const indexOptimizationProfile = normalizeIndexOptimizationProfile(
