@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { closeJsonRpcWriter, createFramedJsonRpcParser, getJsonRpcWriter } from '../../../shared/jsonrpc.js';
+import { registerChildProcessForCleanup } from '../../../shared/subprocess.js';
 
 /**
  * Convert a local path to a file:// URI.
@@ -81,6 +82,7 @@ export function createLspClient(options) {
   let parser = null;
   let writer = null;
   let writerClosed = false;
+  let unregisterChildProcess = null;
   let nextId = 1;
   const pending = new Map();
   let generation = 0;
@@ -118,6 +120,14 @@ export function createLspClient(options) {
     const err = new Error('LSP transport closed.');
     err.code = 'ERR_LSP_TRANSPORT_CLOSED';
     rejectPending(err);
+  };
+
+  const clearTrackedChild = () => {
+    if (!unregisterChildProcess) return;
+    try {
+      unregisterChildProcess();
+    } catch {}
+    unregisterChildProcess = null;
   };
 
   const send = (payload) => {
@@ -191,6 +201,7 @@ export function createLspClient(options) {
       if (proc.killed || proc.exitCode !== null || writerClosed) {
         if (proc.stdin) closeJsonRpcWriter(proc.stdin);
         parser?.dispose();
+        clearTrackedChild();
         proc = null;
         writer = null;
         writerClosed = true;
@@ -211,6 +222,10 @@ export function createLspClient(options) {
       ? spawn(spawnCmd, spawnOptions)
       : spawn(spawnCmd, spawnArgs, spawnOptions);
     proc = child;
+    unregisterChildProcess = registerChildProcessForCleanup(child, {
+      killTree: true,
+      detached: false
+    });
     const childParser = createFramedJsonRpcParser({
       onMessage: handleMessage,
       onError: (err) => {
@@ -274,6 +289,7 @@ export function createLspClient(options) {
       parser = null;
       writer = null;
       writerClosed = true;
+      clearTrackedChild();
       if (child?.stdin) closeJsonRpcWriter(child.stdin);
       backoffMs = backoffMs ? Math.min(backoffMs * 2, 5000) : 250;
       nextStartAt = Date.now() + backoffMs;
@@ -286,6 +302,7 @@ export function createLspClient(options) {
       parser = null;
       writer = null;
       writerClosed = true;
+      clearTrackedChild();
       if (child?.stdin) closeJsonRpcWriter(child.stdin);
       backoffMs = backoffMs ? Math.min(backoffMs * 2, 5000) : 250;
       nextStartAt = Date.now() + backoffMs;
@@ -370,6 +387,7 @@ export function createLspClient(options) {
       current.kill();
     } catch {}
     proc = null;
+    clearTrackedChild();
     writer = null;
     writerClosed = true;
     backoffMs = 0;

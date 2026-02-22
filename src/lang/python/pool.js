@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import { createInterface } from 'node:readline';
 import { PYTHON_AST_SCRIPT } from './ast-script.js';
 import { findPythonExecutable } from './executable.js';
+import { registerChildProcessForCleanup } from '../../shared/subprocess.js';
 
 const PYTHON_AST_DEFAULTS = {
   enabled: true,
@@ -193,6 +194,10 @@ function createPythonAstPool({ pythonBin, config, log }) {
 
   const handleWorkerExit = (worker, reason, options = {}) => {
     if (worker.exited) return;
+    try {
+      worker.unregisterChild?.();
+    } catch {}
+    worker.unregisterChild = null;
     if (options.forceKill) {
       try {
         worker.proc.kill();
@@ -245,10 +250,15 @@ function createPythonAstPool({ pythonBin, config, log }) {
     const proc = spawn(pythonBin, ['-u', '-c', PYTHON_AST_SCRIPT], {
       stdio: ['pipe', 'pipe', 'pipe']
     });
+    const unregisterChild = registerChildProcessForCleanup(proc, {
+      killTree: true,
+      detached: false
+    });
     proc.unref();
     const worker = {
       id: state.workers.length + 1,
       proc,
+      unregisterChild,
       pending: new Map(),
       busy: false,
       busySince: 0,

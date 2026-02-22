@@ -3,10 +3,15 @@ import { killChildProcessTree } from './kill-tree.js';
 
 const DEFAULT_MAX_OUTPUT_BYTES = 1_000_000;
 const DEFAULT_KILL_GRACE_MS = 5000;
+const TRACKED_SUBPROCESS_FORCE_GRACE_MS = 0;
 
 const SHELL_MODE_DISABLED_ERROR = (
   'spawnSubprocess shell mode is disabled for security; pass an executable and args with shell=false.'
 );
+
+const trackedSubprocesses = new Map();
+let trackedSubprocessHooksInstalled = false;
+let trackedSubprocessShutdownTriggered = false;
 
 export class SubprocessError extends Error {
   constructor(message, result, cause) {
@@ -135,6 +140,90 @@ const trimOutput = (value, maxBytes, encoding, mode) => {
   return lines;
 };
 
+const removeTrackedSubprocess = (entryKey) => {
+  const entry = trackedSubprocesses.get(entryKey);
+  if (!entry) return null;
+  trackedSubprocesses.delete(entryKey);
+  try {
+    entry.child?.off('close', entry.onClose);
+  } catch {}
+  return entry;
+};
+
+export const terminateTrackedSubprocesses = async ({
+  reason = 'shutdown',
+  force = false
+} = {}) => {
+  const entries = Array.from(trackedSubprocesses.keys())
+    .map((entryKey) => removeTrackedSubprocess(entryKey))
+    .filter(Boolean);
+  if (!entries.length) {
+    return {
+      reason,
+      tracked: 0,
+      attempted: 0,
+      failures: 0
+    };
+  }
+  const settled = await Promise.allSettled(entries.map((entry) => killChildProcessTree(entry.child, {
+    killTree: entry.killTree,
+    killSignal: entry.killSignal,
+    graceMs: force ? TRACKED_SUBPROCESS_FORCE_GRACE_MS : entry.killGraceMs,
+    detached: entry.detached,
+    awaitGrace: force === true
+  })));
+  const failures = settled.filter((result) => result.status === 'rejected').length;
+  return {
+    reason,
+    tracked: entries.length,
+    attempted: entries.length,
+    failures
+  };
+};
+
+const triggerTrackedSubprocessShutdown = (reason) => {
+  if (trackedSubprocessShutdownTriggered) return;
+  trackedSubprocessShutdownTriggered = true;
+  void terminateTrackedSubprocesses({ reason, force: true }).catch(() => {});
+};
+
+const installTrackedSubprocessHooks = () => {
+  if (trackedSubprocessHooksInstalled) return;
+  trackedSubprocessHooksInstalled = true;
+  process.once('exit', () => {
+    triggerTrackedSubprocessShutdown('process_exit');
+  });
+  process.on('uncaughtExceptionMonitor', () => {
+    triggerTrackedSubprocessShutdown('uncaught_exception');
+  });
+};
+
+export const registerChildProcessForCleanup = (child, options = {}) => {
+  if (!child || !child.pid) {
+    return () => {};
+  }
+  installTrackedSubprocessHooks();
+  const entryKey = Symbol(`tracked-subprocess:${child.pid}`);
+  const entry = {
+    child,
+    killTree: options.killTree !== false,
+    killSignal: options.killSignal || 'SIGTERM',
+    killGraceMs: resolveKillGraceMs(options.killGraceMs),
+    detached: options.detached === true,
+    onClose: null
+  };
+  entry.onClose = () => {
+    removeTrackedSubprocess(entryKey);
+  };
+  trackedSubprocesses.set(entryKey, entry);
+  child.once('close', entry.onClose);
+  return () => {
+    removeTrackedSubprocess(entryKey);
+  };
+};
+
+export const getTrackedSubprocessCount = () => trackedSubprocesses.size;
+
 export function spawnSubprocess(command, args, options = {}) {
   return new Promise((resolve, reject) => {
     const startedAt = Date.now();
@@ -152,6 +241,9 @@ export function spawnSubprocess(command, args, options = {}) {
     const killTree = options.killTree !== false;
     const killSignal = options.killSignal || 'SIGTERM';
     const killGraceMs = resolveKillGraceMs(options.killGraceMs);
+    const cleanupOnParentExit = typeof options.cleanupOnParentExit === 'boolean'
+      ? options.cleanupOnParentExit
+      : !(options.unref === true && detached === true);
     const abortSignal = options.signal || null;
     if (abortSignal?.aborted) {
       const result = buildResult({
@@ -180,6 +272,15 @@ export function spawnSubprocess(command, args, options = {}) {
       return;
     }
     const child = spawn(command, args, { cwd: options.cwd, env: options.env, stdio, shell: false, detached });
+    let unregisterTrackedChild = () => {};
+    if (cleanupOnParentExit) {
+      unregisterTrackedChild = registerChildProcessForCleanup(child, {
+        killTree,
+        killSignal,
+        killGraceMs,
+        detached
+      });
+    }
     if (options.input != null && child.stdin) {
       try {
         child.stdin.write(options.input);
@@ -222,6 +323,7 @@ export function spawnSubprocess(command, args, options = {}) {
       if (abortHandler && abortSignal) {
         abortSignal.removeEventListener('abort', abortHandler);
       }
+      unregisterTrackedChild();
       if (onStdoutData && child.stdout) child.stdout.off('data', onStdoutData);
       if (onStderrData && child.stderr) child.stderr.off('data', onStderrData);
     };
