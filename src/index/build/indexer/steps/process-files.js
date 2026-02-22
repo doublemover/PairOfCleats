@@ -40,6 +40,11 @@ const DEFAULT_POSTINGS_PENDING_SCALE = 3;
 const LEXICON_FILTER_LOG_LIMIT = 5;
 const MB = 1024 * 1024;
 
+const coerceOptionalNonNegativeInt = (value) => {
+  if (value === null || value === undefined) return null;
+  return coerceNonNegativeInt(value);
+};
+
 export const resolveChunkProcessingFeatureFlags = (runtime) => {
   const vectorOnlyProfile = runtime?.profile?.id === INDEX_PROFILE_VECTOR_ONLY;
   return {
@@ -98,13 +103,13 @@ export const createOrderedCompletionTracker = () => {
 
 export const resolveFileWatchdogConfig = (runtime) => {
   const config = runtime?.stage1Queues?.watchdog || {};
-  const slowFileMs = coerceNonNegativeInt(config.slowFileMs) ?? FILE_WATCHDOG_DEFAULT_MS;
-  const maxSlowFileMs = coerceNonNegativeInt(config.maxSlowFileMs)
+  const slowFileMs = coerceOptionalNonNegativeInt(config.slowFileMs) ?? FILE_WATCHDOG_DEFAULT_MS;
+  const maxSlowFileMs = coerceOptionalNonNegativeInt(config.maxSlowFileMs)
     ?? Math.max(FILE_WATCHDOG_DEFAULT_MAX_MS, slowFileMs);
   const bytesPerStep = coercePositiveInt(config.bytesPerStep) ?? FILE_WATCHDOG_DEFAULT_BYTES_PER_STEP;
   const linesPerStep = coercePositiveInt(config.linesPerStep) ?? FILE_WATCHDOG_DEFAULT_LINES_PER_STEP;
   const stepMs = coercePositiveInt(config.stepMs) ?? FILE_WATCHDOG_DEFAULT_STEP_MS;
-  const hardTimeoutMs = coerceNonNegativeInt(config.hardTimeoutMs)
+  const hardTimeoutMs = coerceOptionalNonNegativeInt(config.hardTimeoutMs)
     ?? Math.max(FILE_HARD_TIMEOUT_DEFAULT_MS, maxSlowFileMs * FILE_HARD_TIMEOUT_SLOW_MULTIPLIER);
   return {
     slowFileMs: Math.max(0, slowFileMs),

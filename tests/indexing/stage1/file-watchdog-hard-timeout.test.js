@@ -45,5 +45,29 @@ assert.ok(
   'expected default hard timeout floor for unconfigured watchdog hard timeout'
 );
 
+const nullOverrideConfig = resolveFileWatchdogConfig({
+  stage1Queues: {
+    watchdog: {
+      slowFileMs: null,
+      maxSlowFileMs: null,
+      hardTimeoutMs: null
+    }
+  }
+});
+assert.equal(
+  nullOverrideConfig.slowFileMs,
+  10000,
+  'expected null slowFileMs to use default watchdog timeout'
+);
+assert.equal(
+  nullOverrideConfig.maxSlowFileMs,
+  120000,
+  'expected null maxSlowFileMs to use default watchdog max timeout'
+);
+assert.ok(
+  nullOverrideConfig.hardTimeoutMs >= 300000,
+  'expected null hardTimeoutMs to keep hard timeout enabled'
+);
+
 console.log('file watchdog hard timeout test passed');
 
