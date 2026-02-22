@@ -41,10 +41,10 @@ const argv = createCli({
     backend: { type: 'string', default: 'sqlite' },
     mode: { type: 'string', default: 'both' },
     top: { type: 'number', default: 10 },
-    limit: { type: 'number', default: 120 },
+    limit: { type: 'number', default: 20 },
     'heap-mb': { type: 'number', default: 8192 },
-    'embedding-sample-files': { type: 'number', default: 600 },
-    'embedding-sample-seed': { type: 'string', default: 'bakeoff-v1' },
+    'embedding-sample-files': { type: 'number', default: 50 },
+    'embedding-sample-seed': { type: 'string', default: 'quick-smoke' },
     build: { type: 'boolean', default: true },
     incremental: { type: 'boolean', default: true },
     'build-sqlite': { type: 'boolean' },
@@ -345,7 +345,9 @@ const { buildIndexScript, evalScript, compareScript } = resolveBakeoffScriptPath
 });
 const datasetPath = argv.dataset
   ? path.resolve(normalizeWrappedCliValue(argv.dataset))
-  : (positionalDatasetArg ? path.resolve(positionalDatasetArg) : null);
+  : (positionalDatasetArg
+    ? path.resolve(positionalDatasetArg)
+    : path.join(root, 'tests', 'fixtures', 'sample', 'eval.json'));
 const queriesPath = argv.queries ? path.resolve(argv.queries) : null;
 
 const assertScriptExists = (scriptPath, label) => {

@@ -30,10 +30,11 @@ Default behavior is tuned for smoke runs:
 
 - `--incremental` defaults to `true`
 - `--skip-compare` defaults to `true`
-- `--limit` defaults to `120` (applies to eval dataset and compare query set)
+- eval dataset defaults to `tests/fixtures/sample/eval.json` when `--dataset` is omitted
+- `--limit` defaults to `20` (applies to eval dataset and compare query set)
 - `--heap-mb` defaults to `8192` for child build processes
-- `--embedding-sample-files` defaults to `600` per mode (deterministic sampling; unsampled chunks use zero-vector fallback)
-- `--embedding-sample-seed` defaults to `bakeoff-v1`
+- `--embedding-sample-files` defaults to `50` per mode (deterministic sampling; unsampled chunks use zero-vector fallback)
+- `--embedding-sample-seed` defaults to `quick-smoke`
 - `--resume` defaults to `true` and reuses completed model entries from the checkpoint file
 - if sparse artifacts already exist for a model cache, build runs jump to `--stage 3` (embeddings) instead of full stage1/2 rebuild
 - sqlite stage runs are isolated per mode (`code`, `prose`, `extracted-prose`, `records`) to reduce long-run stage4 instability risk
