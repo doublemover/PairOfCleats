@@ -35,6 +35,21 @@ export const mergeIndexInput = ({ input, dir, state, mergeState }) => {
   if (Array.isArray(input.callSites) && input.callSites.length) {
     mergeState.mergedCallSites.push(...input.callSites);
   }
+  if (Array.isArray(input.riskSummaries) && input.riskSummaries.length) {
+    if (!Array.isArray(state.riskSummaries)) state.riskSummaries = [];
+    state.riskSummaries.push(...input.riskSummaries);
+  }
+  if (Array.isArray(input.riskFlows) && input.riskFlows.length) {
+    if (!Array.isArray(state.riskFlows)) state.riskFlows = [];
+    state.riskFlows.push(...input.riskFlows);
+  }
+  if (
+    input.riskInterproceduralStats
+    && typeof input.riskInterproceduralStats === 'object'
+    && !state.riskInterproceduralStats
+  ) {
+    state.riskInterproceduralStats = { ...input.riskInterproceduralStats };
+  }
 
   const vocab = Array.isArray(input.tokenPostings?.vocab) ? input.tokenPostings.vocab : [];
   const postings = Array.isArray(input.tokenPostings?.postings) ? input.tokenPostings.postings : [];

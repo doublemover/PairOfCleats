@@ -21,7 +21,8 @@ const buildReport = () => ({
 
 const { fixtureRoot, env, userConfig, codeDir } = await ensureFixtureIndex({
   fixtureName: 'sample',
-  cacheName: 'sqlite-metav2-parity'
+  cacheName: 'sqlite-metav2-parity',
+  cacheScope: 'shared'
 });
 await ensureFixtureSqlite({ fixtureRoot, userConfig, env });
 

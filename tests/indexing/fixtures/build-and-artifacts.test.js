@@ -5,7 +5,8 @@ import { ensureFixtureIndex, ensureFixtureSqlite, loadFixtureMetricsDir } from '
 
 const { fixtureRoot, env, userConfig, codeDir, proseDir } = await ensureFixtureIndex({
   fixtureName: 'sample',
-  cacheName: 'fixture-sample'
+  cacheName: 'fixture-sample',
+  cacheScope: 'shared'
 });
 
 const sqlitePaths = await ensureFixtureSqlite({ fixtureRoot, userConfig, env });

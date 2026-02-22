@@ -54,6 +54,17 @@ assert.equal(
 );
 
 assert.equal(resolveMirrorRefreshMs('60000'), 60000, 'expected numeric mirror refresh override');
+assert.equal(resolveMirrorRefreshMs('0'), 0, 'expected explicit zero mirror refresh override');
+assert.equal(
+  resolveMirrorRefreshMs(null, 1234),
+  1234,
+  'expected null mirror refresh override to use fallback'
+);
+assert.equal(
+  resolveMirrorRefreshMs(undefined, 1234),
+  1234,
+  'expected undefined mirror refresh override to use fallback'
+);
 assert.equal(
   resolveMirrorRefreshMs('invalid', 1234),
   1234,

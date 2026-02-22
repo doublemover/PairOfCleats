@@ -7,6 +7,7 @@ import { getIndexDir, loadUserConfig } from '../../tools/shared/dict-utils.js';
 import { applyTestEnv } from './test-env.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const VALID_CACHE_SCOPES = new Set(['isolated', 'shared']);
 
 const runGit = (args, label, cwd, envOverride = {}) => {
   const result = spawnSync('git', args, {
@@ -55,124 +56,189 @@ const buildIndex = (repoRoot, env) => {
   }
 };
 
-export const ensureSearchFiltersRepo = async () => {
+const normalizeCacheScope = (cacheScope) => {
+  const normalized = String(cacheScope || 'shared').trim().toLowerCase();
+  if (!VALID_CACHE_SCOPES.has(normalized)) {
+    throw new Error(`Unsupported cacheScope: ${cacheScope}`);
+  }
+  return normalized;
+};
+
+const sleep = (delayMs) => new Promise((resolve) => {
+  setTimeout(resolve, delayMs);
+});
+
+const isStaleLock = async (lockDir, staleMs) => {
+  try {
+    const stat = await fsPromises.stat(lockDir);
+    return Date.now() - stat.mtimeMs > staleMs;
+  } catch {
+    return false;
+  }
+};
+
+const withDirectoryLock = async (
+  lockDir,
+  callback,
+  {
+    pollMs = 120,
+    staleMs = 10 * 60 * 1000,
+    maxWaitMs = 15 * 60 * 1000
+  } = {}
+) => {
+  const startedAt = Date.now();
+  while (true) {
+    try {
+      await fsPromises.mkdir(lockDir);
+      break;
+    } catch (error) {
+      if (error?.code !== 'EEXIST') throw error;
+      if (await isStaleLock(lockDir, staleMs)) {
+        await fsPromises.rm(lockDir, { recursive: true, force: true });
+        continue;
+      }
+      if (Date.now() - startedAt > maxWaitMs) {
+        throw new Error(`Timed out waiting for search-filters lock at ${lockDir}`);
+      }
+      await sleep(pollMs);
+    }
+  }
+  try {
+    return await callback();
+  } finally {
+    await fsPromises.rm(lockDir, { recursive: true, force: true });
+  }
+};
+
+export const ensureSearchFiltersRepo = async ({ cacheScope = 'shared' } = {}) => {
   if (!hasGit()) {
     console.log('[skip] git not available');
     return null;
   }
+  const normalizedCacheScope = normalizeCacheScope(cacheScope);
   const tempRoot = path.join(ROOT, '.testCache', 'search-filters');
   const runSuffix = `${Date.now()}-${process.pid}-${Math.random().toString(16).slice(2, 8)}`;
-  const repoRoot = path.join(tempRoot, `repo-${runSuffix}`);
-  const cacheRoot = path.join(tempRoot, `cache-${runSuffix}`);
-  await fsPromises.mkdir(repoRoot, { recursive: true });
-  await fsPromises.mkdir(cacheRoot, { recursive: true });
+  const repoRoot = normalizedCacheScope === 'shared'
+    ? path.join(tempRoot, 'repo')
+    : path.join(tempRoot, `repo-${runSuffix}`);
+  const cacheRoot = normalizedCacheScope === 'shared'
+    ? path.join(tempRoot, 'cache')
+    : path.join(tempRoot, `cache-${runSuffix}`);
+  const lockDir = normalizedCacheScope === 'shared'
+    ? path.join(tempRoot, '.bootstrap.lock')
+    : path.join(tempRoot, `.bootstrap-${runSuffix}.lock`);
 
-  const requiredFiles = [
-    'alpha.txt',
-    'beta.txt',
-    'CaseFile.TXT',
-    'sample.js'
-  ];
-  const gitDir = path.join(repoRoot, '.git');
-  const needsBootstrap = !fs.existsSync(gitDir)
-    || requiredFiles.some((filename) => !fs.existsSync(path.join(repoRoot, filename)));
+  return withDirectoryLock(lockDir, async () => {
+    await fsPromises.mkdir(repoRoot, { recursive: true });
+    await fsPromises.mkdir(cacheRoot, { recursive: true });
 
-  if (needsBootstrap) {
-    if (!fs.existsSync(gitDir)) {
-      runGit(['init'], 'git init', repoRoot);
+    const requiredFiles = [
+      'alpha.txt',
+      'beta.txt',
+      'CaseFile.TXT',
+      'sample.js'
+    ];
+    const gitDir = path.join(repoRoot, '.git');
+    const needsBootstrap = !fs.existsSync(gitDir)
+      || requiredFiles.some((filename) => !fs.existsSync(path.join(repoRoot, filename)));
+
+    if (needsBootstrap) {
+      if (!fs.existsSync(gitDir)) {
+        runGit(['init'], 'git init', repoRoot);
+      }
+      runGit(['config', 'user.email', 'test@example.com'], 'git config email', repoRoot);
+      runGit(['config', 'user.name', 'Test User'], 'git config name', repoRoot);
+
+      const dayMs = 24 * 60 * 60 * 1000;
+      const now = Date.now();
+      const dateOld = new Date(now - 5 * dayMs).toISOString();
+      const dateNew = new Date(now - 1 * dayMs).toISOString();
+
+      const ensureFileCommit = async ({
+        filename,
+        content,
+        author,
+        date,
+        message,
+        label
+      }) => {
+        const filePath = path.join(repoRoot, filename);
+        if (fs.existsSync(filePath)) return;
+        await fsPromises.writeFile(filePath, content);
+        runGit(['add', filename], `git add ${label}`, repoRoot);
+        runGit(
+          ['commit', '-m', message, '--author', author, '--date', date],
+          `git commit ${label}`,
+          repoRoot,
+          { GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date }
+        );
+      };
+
+      await ensureFileCommit({
+        filename: 'alpha.txt',
+        content: 'alpha beta\nalpha beta\n',
+        author: 'Alice <alice@example.com>',
+        date: dateOld,
+        message: 'add alpha',
+        label: 'alpha'
+      });
+      await ensureFileCommit({
+        filename: 'beta.txt',
+        content: 'alpha gamma\nalpha delta\n',
+        author: 'Bob <bob@example.com>',
+        date: dateNew,
+        message: 'add beta',
+        label: 'beta'
+      });
+      await ensureFileCommit({
+        filename: 'CaseFile.TXT',
+        content: 'AlphaCase alpha\n',
+        author: 'Casey <casey@example.com>',
+        date: dateNew,
+        message: 'add case file',
+        label: 'CaseFile'
+      });
+      await ensureFileCommit({
+        filename: 'sample.js',
+        content: 'const equal = (a, b) => a && b;\nfunction check(a, b) {\n  return a && b;\n}\n',
+        author: 'Dana <dana@example.com>',
+        date: dateNew,
+        message: 'add sample.js',
+        label: 'sample.js'
+      });
     }
-    runGit(['config', 'user.email', 'test@example.com'], 'git config email', repoRoot);
-    runGit(['config', 'user.name', 'Test User'], 'git config name', repoRoot);
 
-    const dayMs = 24 * 60 * 60 * 1000;
-    const now = Date.now();
-    const dateOld = new Date(now - 5 * dayMs).toISOString();
-    const dateNew = new Date(now - 1 * dayMs).toISOString();
-
-    const ensureFileCommit = async ({
-      filename,
-      content,
-      author,
-      date,
-      message,
-      label
-    }) => {
-      const filePath = path.join(repoRoot, filename);
-      if (fs.existsSync(filePath)) return;
-      await fsPromises.writeFile(filePath, content);
-      runGit(['add', filename], `git add ${label}`, repoRoot);
-      runGit(
-        ['commit', '-m', message, '--author', author, '--date', date],
-        `git commit ${label}`,
-        repoRoot,
-        { GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date }
-      );
-    };
-
-    await ensureFileCommit({
-      filename: 'alpha.txt',
-      content: 'alpha beta\nalpha beta\n',
-      author: 'Alice <alice@example.com>',
-      date: dateOld,
-      message: 'add alpha',
-      label: 'alpha'
-    });
-    await ensureFileCommit({
-      filename: 'beta.txt',
-      content: 'alpha gamma\nalpha delta\n',
-      author: 'Bob <bob@example.com>',
-      date: dateNew,
-      message: 'add beta',
-      label: 'beta'
-    });
-    await ensureFileCommit({
-      filename: 'CaseFile.TXT',
-      content: 'AlphaCase alpha\n',
-      author: 'Casey <casey@example.com>',
-      date: dateNew,
-      message: 'add case file',
-      label: 'CaseFile'
-    });
-    await ensureFileCommit({
-      filename: 'sample.js',
-      content: 'const equal = (a, b) => a && b;\nfunction check(a, b) {\n  return a && b;\n}\n',
-      author: 'Dana <dana@example.com>',
-      date: dateNew,
-      message: 'add sample.js',
-      label: 'sample.js'
-    });
-  }
-
-  const env = applyTestEnv({
-    cacheRoot,
-    embeddings: 'stub',
-    testConfig: {
-      indexing: {
-        embeddings: {
-          hnsw: { enabled: false },
-          lancedb: { enabled: false }
+    const env = applyTestEnv({
+      cacheRoot,
+      embeddings: 'stub',
+      testConfig: {
+        indexing: {
+          embeddings: {
+            hnsw: { enabled: false },
+            lancedb: { enabled: false }
+          }
         }
-      }
-    },
-    extraEnv: process.platform === 'win32'
-      ? {
-        PAIROFCLEATS_THREADS: '1',
-        PAIROFCLEATS_WORKER_POOL: 'auto'
-      }
-      : null
+      },
+      extraEnv: process.platform === 'win32'
+        ? {
+          PAIROFCLEATS_THREADS: '1',
+          PAIROFCLEATS_WORKER_POOL: 'auto'
+        }
+        : null
+    });
+
+    if (!hasChunkMeta(repoRoot)) {
+      buildIndex(repoRoot, env);
+    }
+
+    const branchResult = spawnSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
+      cwd: repoRoot,
+      encoding: 'utf8'
+    });
+    const branchName = branchResult.status === 0 ? branchResult.stdout.trim() : null;
+
+    return { root: ROOT, repoRoot, cacheRoot, env, branchName };
   });
-
-  if (!hasChunkMeta(repoRoot)) {
-    buildIndex(repoRoot, env);
-  }
-
-  const branchResult = spawnSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
-    cwd: repoRoot,
-    encoding: 'utf8'
-  });
-  const branchName = branchResult.status === 0 ? branchResult.stdout.trim() : null;
-
-  return { root: ROOT, repoRoot, cacheRoot, env, branchName };
 };
 
 export const runFilterSearch = ({

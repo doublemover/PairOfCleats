@@ -12,7 +12,9 @@ applyTestEnv();
 const { root, codeDir, env } = await ensureFixtureIndex({
   fixtureName: 'risk-interprocedural/js-simple',
   cacheName: 'risk-interprocedural-js-simple',
-  requireRiskTags: true
+  requireRiskTags: true,
+  cacheScope: 'shared',
+  requiredModes: ['code']
 });
 
 const flows = await loadJsonArrayArtifact(codeDir, 'risk_flows', { strict: false }).catch(() => []);

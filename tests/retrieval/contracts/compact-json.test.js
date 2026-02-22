@@ -5,7 +5,8 @@ import { ensureFixtureIndex } from '../../helpers/fixture-index.js';
 
 const { root, fixtureRoot, env } = await ensureFixtureIndex({
   fixtureName: 'sample',
-  cacheName: 'fixture-sample'
+  cacheName: 'fixture-sample',
+  cacheScope: 'shared'
 });
 
 const result = spawnSync(

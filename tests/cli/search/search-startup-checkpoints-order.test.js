@@ -1,14 +1,17 @@
 #!/usr/bin/env node
 import { applyTestEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
-import { ensureFixtureIndex, runSearch } from '../../helpers/fixture-index.js';
+import { createInProcessSearchRunner, ensureFixtureIndex } from '../../helpers/fixture-index.js';
 
 applyTestEnv();
 
-const { fixtureRoot, env } = await ensureFixtureIndex({ fixtureName: 'sample' });
-const payload = runSearch({
-  fixtureRoot,
-  env,
+const { fixtureRoot, env } = await ensureFixtureIndex({
+  fixtureName: 'sample',
+  cacheScope: 'shared',
+  requiredModes: ['code']
+});
+const runSearch = createInProcessSearchRunner({ fixtureRoot, env });
+const payload = await runSearch({
   query: 'alpha',
   args: ['--stats'],
   mode: 'code'

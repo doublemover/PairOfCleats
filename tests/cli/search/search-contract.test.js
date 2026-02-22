@@ -4,7 +4,8 @@ import path from 'node:path';
 import { createSearchLifecycle } from '../../helpers/search-lifecycle.js';
 
 const { repoRoot, runSearchPayload, buildIndex } = await createSearchLifecycle({
-  tempPrefix: 'pairofcleats-search-contract-'
+  cacheScope: 'shared',
+  cacheName: 'search-contract'
 });
 
 await fsPromises.writeFile(

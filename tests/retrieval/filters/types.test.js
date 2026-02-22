@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { ensureFixtureIndex, runSearch } from '../../helpers/fixture-index.js';
+import { createInProcessSearchRunner, ensureFixtureIndex } from '../../helpers/fixture-index.js';
 import { skipIfNativeGrammarsUnavailable } from '../../indexing/tree-sitter/native-availability.js';
 
 if (skipIfNativeGrammarsUnavailable(['javascript', 'typescript'], 'retrieval type filters')) {
@@ -16,12 +16,13 @@ const testConfig = {
 const { fixtureRoot, env } = await ensureFixtureIndex({
   fixtureName: 'languages',
   cacheName: 'language-fixture-types',
-  envOverrides: { PAIROFCLEATS_TEST_CONFIG: JSON.stringify(testConfig) }
+  envOverrides: { PAIROFCLEATS_TEST_CONFIG: JSON.stringify(testConfig) },
+  cacheScope: 'shared',
+  requiredModes: ['code']
 });
+const runSearch = createInProcessSearchRunner({ fixtureRoot, env });
 
-const inferred = runSearch({
-  fixtureRoot,
-  env,
+const inferred = await runSearch({
   query: 'makeWidget',
   mode: 'code',
   args: ['--inferred-type', 'object']
@@ -31,9 +32,7 @@ if (!(inferred.code || []).length) {
   process.exit(0);
 }
 
-const returns = runSearch({
-  fixtureRoot,
-  env,
+const returns = await runSearch({
   query: 'makeWidget',
   mode: 'code',
   args: ['--return-type', 'Widget']

@@ -31,10 +31,27 @@ import { runEmbeddingsTool } from '../embeddings.js';
 const DEFAULT_BUILD_INDEX_LOCK_WAIT_MS = 15000;
 const DEFAULT_BUILD_INDEX_LOCK_POLL_MS = 250;
 const ENV_CONFIG = getEnvConfig();
+const PHASE_FAILURE_DETAIL_MAX_CHARS = 400;
 
 const parseNonNegativeInt = (value, fallback) => {
   const parsed = Number.parseInt(String(value ?? ''), 10);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+};
+
+const toPhaseFailureDetail = (error) => {
+  if (!error) return null;
+  const code = typeof error?.code === 'string' && error.code.trim()
+    ? error.code.trim()
+    : null;
+  const message = typeof error?.message === 'string' && error.message.trim()
+    ? error.message.trim()
+    : String(error).trim();
+  const combined = code && message && !message.startsWith(`${code}:`)
+    ? `${code}: ${message}`
+    : (message || code || null);
+  if (!combined) return null;
+  if (combined.length <= PHASE_FAILURE_DETAIL_MAX_CHARS) return combined;
+  return `${combined.slice(0, PHASE_FAILURE_DETAIL_MAX_CHARS - 3)}...`;
 };
 
 const BUILD_INDEX_LOCK_WAIT_MS = parseNonNegativeInt(
@@ -428,12 +445,13 @@ export const runSqliteStage = async ({
       }
       return recordOk({ modes: sqliteModes, sqlite: sqliteResult, repo: root, stage: 'stage4' });
     } catch (err) {
+      const phaseFailureDetail = toPhaseFailureDetail(err);
       if (runtime?.buildRoot) {
         if (promoteRunning && !promoteDone) {
-          try { await markBuildPhase(runtime.buildRoot, 'promote', 'failed'); } catch {}
+          try { await markBuildPhase(runtime.buildRoot, 'promote', 'failed', phaseFailureDetail); } catch {}
         }
         if (stage4Running && !stage4Done) {
-          try { await markBuildPhase(runtime.buildRoot, 'stage4', 'failed'); } catch {}
+          try { await markBuildPhase(runtime.buildRoot, 'stage4', 'failed', phaseFailureDetail); } catch {}
         }
       }
       throw err;
@@ -700,15 +718,16 @@ export const runStage = async (stage, context, { allowSqlite = true } = {}) => {
         profile: runtime.profile || null
       };
     } catch (err) {
+      const phaseFailureDetail = toPhaseFailureDetail(err);
       if (runtime?.buildRoot) {
         if (promoteRunning && !promoteDone) {
-          try { await markBuildPhase(runtime.buildRoot, 'promote', 'failed'); } catch {}
+          try { await markBuildPhase(runtime.buildRoot, 'promote', 'failed', phaseFailureDetail); } catch {}
         }
         if (validationRunning && !validationDone) {
-          try { await markBuildPhase(runtime.buildRoot, 'validation', 'failed'); } catch {}
+          try { await markBuildPhase(runtime.buildRoot, 'validation', 'failed', phaseFailureDetail); } catch {}
         }
         if (phaseRunning && !phaseDone) {
-          try { await markBuildPhase(runtime.buildRoot, phaseStage, 'failed'); } catch {}
+          try { await markBuildPhase(runtime.buildRoot, phaseStage, 'failed', phaseFailureDetail); } catch {}
         }
       }
       throw err;

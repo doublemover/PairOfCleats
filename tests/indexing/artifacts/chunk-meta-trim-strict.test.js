@@ -7,7 +7,9 @@ import { getCurrentBuildInfo } from '../../../tools/shared/dict-utils.js';
 
 const { fixtureRoot, userConfig } = await ensureFixtureIndex({
   fixtureName: 'languages',
-  cacheName: 'language-fixture-trim-strict-v2'
+  cacheName: 'language-fixture-trim-strict-v2',
+  cacheScope: 'shared',
+  requiredModes: ['code']
 });
 
 const current = getCurrentBuildInfo(fixtureRoot, userConfig, { mode: 'code' });

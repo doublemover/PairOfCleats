@@ -340,6 +340,26 @@ export function createFileProcessor(options) {
       : path.relative(root, abs);
     const fileStructural = structuralMatches?.get(relKey) || null;
     if (seenFiles) seenFiles.add(relKey);
+    const updateCrashStage = (substage, extra = {}) => {
+      if (!crashLogger?.enabled) return;
+      const entry = {
+        phase: 'processing',
+        mode,
+        stage: buildStage || null,
+        fileIndex: Number.isFinite(fileIndex) ? fileIndex : null,
+        file: relKey,
+        substage,
+        ...extra
+      };
+      if (typeof crashLogger.traceFileStage === 'function') {
+        crashLogger.traceFileStage(entry);
+      }
+    };
+    const formatCrashErrorMeta = (err) => ({
+      errorCode: typeof err?.code === 'string' ? err.code : null,
+      errorName: typeof err?.name === 'string' ? err.name : null,
+      errorMessage: err?.message || String(err)
+    });
     const ext = typeof fileEntry === 'object' && typeof fileEntry.ext === 'string'
       ? fileEntry.ext
       : resolveExt(abs);
@@ -347,17 +367,24 @@ export function createFileProcessor(options) {
     let fileLanguageId = languageHint?.id || null;
     let fileLineCount = 0;
     let fileStat;
+    updateCrashStage('pre-cpu:lstat:start', { ext });
     try {
       fileStat = typeof fileEntry === 'object' && fileEntry.stat
         ? fileEntry.stat
         : await runIo(() => fs.lstat(abs));
+      updateCrashStage('pre-cpu:lstat:done', {
+        size: Number.isFinite(Number(fileStat?.size)) ? Number(fileStat.size) : null
+      });
     } catch {
+      updateCrashStage('pre-cpu:lstat:error');
       return null;
     }
     if (fileStat?.isSymbolicLink?.()) {
+      updateCrashStage('pre-cpu:skip:symlink');
       recordSkip(abs, 'symlink');
       return null;
     }
+    updateCrashStage('pre-cpu:resolve-pre-read-skip:start');
     const preReadSkip = await resolvePreReadSkip({
       abs,
       fileEntry,
@@ -373,8 +400,12 @@ export function createFileProcessor(options) {
       rel: relKey,
       generatedPolicy
     });
+    updateCrashStage('pre-cpu:resolve-pre-read-skip:done', {
+      skipped: Boolean(preReadSkip)
+    });
     if (preReadSkip) {
       const { reason, ...extra } = preReadSkip;
+      updateCrashStage('pre-cpu:skip:pre-read', { reason: reason || 'oversize' });
       recordSkip(abs, reason || 'oversize', extra);
       return null;
     }
@@ -423,12 +454,18 @@ export function createFileProcessor(options) {
         text = cached;
       }
     }
+    updateCrashStage('pre-cpu:load-cached-bundle:start');
     const cachedResult = await loadCachedBundleForFile({
       runIo,
       incrementalState,
       absPath: abs,
       relKey,
       fileStat
+    });
+    updateCrashStage('pre-cpu:load-cached-bundle:done', {
+      hasCachedBundle: Boolean(cachedResult?.cachedBundle),
+      hasBuffer: Buffer.isBuffer(cachedResult?.buffer),
+      hasHash: typeof cachedResult?.fileHash === 'string' && cachedResult.fileHash.length > 0
     });
     throwIfAborted();
     cachedBundle = cachedResult.cachedBundle;
@@ -469,10 +506,12 @@ export function createFileProcessor(options) {
     });
     if (cachedOutcome?.skip) {
       const { reason, ...extra } = cachedOutcome.skip;
+      updateCrashStage('pre-cpu:skip:cache-reuse', { reason: reason || 'oversize' });
       recordSkip(abs, reason || 'oversize', extra);
       return null;
     }
     if (cachedOutcome?.result) {
+      updateCrashStage('pre-cpu:cache-reuse:hit');
       if (!cachedOutcome.result.postingsPayload) {
         cachedOutcome.result.postingsPayload = buildPostingsPayloadMetadata({
           chunks: cachedOutcome.result.chunks,
@@ -486,10 +525,15 @@ export function createFileProcessor(options) {
 
     if (!fileBuffer) {
       throwIfAborted();
+      updateCrashStage('pre-cpu:read-file:start');
       try {
         fileBuffer = await runIo(() => fs.readFile(abs));
+        updateCrashStage('pre-cpu:read-file:done', {
+          bytes: Buffer.isBuffer(fileBuffer) ? fileBuffer.length : null
+        });
       } catch (err) {
         const code = err?.code || null;
+        updateCrashStage('pre-cpu:read-file:error', formatCrashErrorMeta(err));
         const reason = (code === 'EACCES' || code === 'EPERM' || code === 'EISDIR')
           ? 'unreadable'
           : 'read-failure';
@@ -501,10 +545,21 @@ export function createFileProcessor(options) {
       }
     }
     if (documentExtractionEnabled && isDocumentExt(ext)) {
+      updateCrashStage('pre-cpu:extract:start', {
+        sourceType: ext === '.pdf' ? 'pdf' : 'docx'
+      });
       const extracted = ext === '.pdf'
         ? await extractPdf({ filePath: abs, buffer: fileBuffer, policy: documentExtractionPolicy })
         : await extractDocx({ filePath: abs, buffer: fileBuffer, policy: documentExtractionPolicy });
+      updateCrashStage('pre-cpu:extract:done', {
+        ok: extracted?.ok === true,
+        sourceType: ext === '.pdf' ? 'pdf' : 'docx'
+      });
       if (!extracted?.ok) {
+        updateCrashStage('pre-cpu:skip:extract', {
+          reason: extracted?.reason || 'extract_failed',
+          sourceType: ext === '.pdf' ? 'pdf' : 'docx'
+        });
         recordSkip(abs, extracted?.reason || 'extract_failed', {
           stage: 'extract',
           sourceType: ext === '.pdf' ? 'pdf' : 'docx',
@@ -516,6 +571,9 @@ export function createFileProcessor(options) {
         ? buildPdfExtractionText(extracted.pages)
         : buildDocxExtractionText(extracted.paragraphs);
       if (!joined.text) {
+        updateCrashStage('pre-cpu:skip:unsupported-scanned', {
+          sourceType: ext === '.pdf' ? 'pdf' : 'docx'
+        });
         recordSkip(abs, 'unsupported_scanned', {
           stage: 'extract',
           sourceType: ext === '.pdf' ? 'pdf' : 'docx'
@@ -526,9 +584,14 @@ export function createFileProcessor(options) {
       let sourceHashBuffer = Buffer.isBuffer(fileBuffer) ? fileBuffer : null;
       if (!sourceHashBuffer) {
         try {
+          updateCrashStage('pre-cpu:extract:source-read:start');
           sourceHashBuffer = await runIo(() => fs.readFile(abs));
+          updateCrashStage('pre-cpu:extract:source-read:done', {
+            bytes: Buffer.isBuffer(sourceHashBuffer) ? sourceHashBuffer.length : null
+          });
           if (Buffer.isBuffer(sourceHashBuffer)) fileBuffer = sourceHashBuffer;
         } catch {
+          updateCrashStage('pre-cpu:extract:source-read:error');
           sourceHashBuffer = null;
         }
       }
@@ -560,18 +623,28 @@ export function createFileProcessor(options) {
         warnings: extracted.warnings || []
       };
     } else {
+      updateCrashStage('pre-cpu:resolve-binary-skip:start');
       const binarySkip = await resolveBinarySkip({
         abs,
         fileBuffer,
         fileScanner
       });
+      updateCrashStage('pre-cpu:resolve-binary-skip:done', {
+        skipped: Boolean(binarySkip)
+      });
       if (binarySkip) {
         const { reason, ...extra } = binarySkip;
+        updateCrashStage('pre-cpu:skip:binary', { reason: reason || 'binary' });
         recordSkip(abs, reason || 'binary', extra);
         return null;
       }
       if (!text || !fileHash) {
+        updateCrashStage('pre-cpu:decode:start');
         const decoded = await readTextFileWithHash(abs, { buffer: fileBuffer, stat: fileStat });
+        updateCrashStage('pre-cpu:decode:done', {
+          bytes: Buffer.isBuffer(fileBuffer) ? fileBuffer.length : null,
+          encoding: decoded?.encoding || null
+        });
         if (!text) text = decoded.text;
         if (!fileHash) {
           fileHash = decoded.hash;
@@ -620,6 +693,7 @@ export function createFileProcessor(options) {
     let languageLines = null;
     let languageSetKey = null;
 
+    updateCrashStage('pre-cpu:handoff-to-cpu:start');
     const cpuResult = await runCpu(() => processFileCpu({
       abs,
       root,
@@ -687,8 +761,10 @@ export function createFileProcessor(options) {
       lintCache,
       buildStage
     }));
+    updateCrashStage('pre-cpu:handoff-to-cpu:done');
     throwIfAborted();
     if (cpuResult?.defer) {
+      updateCrashStage('processing:deferred');
       return cpuResult;
     }
     fileLanguageId = cpuResult?.fileLanguageId ?? fileLanguageId;
@@ -702,6 +778,7 @@ export function createFileProcessor(options) {
     const vfsManifestRows = cpuResult?.vfsManifestRows || null;
     if (skip) {
       const { reason, ...extra } = skip;
+      updateCrashStage('processing:skip', { reason: reason || 'oversize' });
       recordSkip(abs, reason || 'oversize', extra);
       return null;
     }
@@ -724,6 +801,7 @@ export function createFileProcessor(options) {
     });
 
     throwIfAborted();
+    updateCrashStage('post-cpu:write-bundle:start');
     const manifestEntry = await writeBundleForFile({
       runIo,
       incrementalState,
@@ -736,6 +814,9 @@ export function createFileProcessor(options) {
       fileEncoding: fileEncoding || null,
       fileEncodingFallback: typeof fileEncodingFallback === 'boolean' ? fileEncodingFallback : null,
       fileEncodingConfidence: Number.isFinite(fileEncodingConfidence) ? fileEncodingConfidence : null
+    });
+    updateCrashStage('post-cpu:write-bundle:done', {
+      hasManifestEntry: Boolean(manifestEntry)
     });
     throwIfAborted();
 
@@ -759,6 +840,7 @@ export function createFileProcessor(options) {
       languageLines,
       languageSetKey
     });
+    updateCrashStage('processing:done', { durationMs: Date.now() - fileStart });
     return {
       abs,
       relKey,

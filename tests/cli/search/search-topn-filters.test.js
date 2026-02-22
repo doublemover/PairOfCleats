@@ -1,14 +1,13 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { rmDirRecursive } from '../../helpers/temp.js';
 import { runSqliteBuild } from '../../helpers/sqlite-builder.js';
 import { createSearchLifecycle } from '../../helpers/search-lifecycle.js';
 
-const tempRoot = path.join(process.cwd(), '.testCache', 'search-topn-filters');
-
-await rmDirRecursive(tempRoot, { retries: 10, delayMs: 100 });
-const lifecycle = await createSearchLifecycle({ tempRoot });
+const lifecycle = await createSearchLifecycle({
+  cacheScope: 'shared',
+  cacheName: 'search-topn-filters'
+});
 const { repoRoot, runSearchPayload, buildIndex } = lifecycle;
 
 const allowedFiles = ['allowed-1.txt', 'allowed-2.txt'];

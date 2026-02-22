@@ -6,7 +6,11 @@ import { treeSitterSchedulerRunnerInternals } from '../../../src/index/build/tre
 
 applyTestEnv({ testing: '1' });
 
-const { buildWarmPoolTasks, resolveExecutionOrder } = treeSitterSchedulerRunnerInternals;
+const {
+  buildWarmPoolTasks,
+  resolveExecutionOrder,
+  resolveSchedulerTaskTimeoutMs
+} = treeSitterSchedulerRunnerInternals;
 
 const executionOrder = [
   'cpp~b01~w01',
@@ -57,6 +61,57 @@ assert.equal(
 );
 const laneSizes = phpLargeTasks.map((entry) => entry.grammarKeys.length).sort((a, b) => a - b);
 assert.ok(laneSizes[0] >= 8 && laneSizes[laneSizes.length - 1] <= 8, 'expected balanced lane partitioning for large wave sets');
+
+const smallExecutionOrder = Array.from({ length: 7 }, (_unused, index) => `yaml~b${String(index + 1).padStart(2, '0')}~w01`);
+const smallGroupMeta = Object.fromEntries(
+  smallExecutionOrder.map((grammarKey) => [grammarKey, { baseGrammarKey: 'yaml' }])
+);
+const smallTasks = buildWarmPoolTasks({
+  executionOrder: smallExecutionOrder,
+  groupMetaByGrammarKey: smallGroupMeta,
+  schedulerConfig: {},
+  execConcurrency: 16
+});
+const yamlSmallTasks = smallTasks.filter((entry) => entry.baseGrammarKey === 'yaml');
+assert.equal(
+  yamlSmallTasks.length,
+  1,
+  'expected small grammar wave sets to avoid default lane splitting'
+);
+
+const timeoutByWorkload = resolveSchedulerTaskTimeoutMs({
+  schedulerConfig: {},
+  task: { grammarKeys: ['php~b01~w01', 'php~b02~w01', 'php~b03~w01'] },
+  groupByGrammarKey: new Map([
+    ['php~b01~w01', { jobs: 200 }],
+    ['php~b02~w01', { jobs: 150 }],
+    ['php~b03~w01', { jobs: 100 }]
+  ])
+});
+assert.ok(
+  Number.isFinite(timeoutByWorkload) && timeoutByWorkload > 0,
+  'expected scheduler task timeout resolver to return a positive timeout'
+);
+const timeoutByArrayWorkload = resolveSchedulerTaskTimeoutMs({
+  schedulerConfig: {},
+  task: { grammarKeys: ['php~b01~w01', 'php~b02~w01', 'php~b03~w01'] },
+  groupByGrammarKey: new Map([
+    ['php~b01~w01', { jobs: Array.from({ length: 200 }, () => ({})) }],
+    ['php~b02~w01', { jobs: Array.from({ length: 150 }, () => ({})) }],
+    ['php~b03~w01', { jobs: Array.from({ length: 100 }, () => ({})) }]
+  ])
+});
+assert.equal(
+  timeoutByArrayWorkload,
+  timeoutByWorkload,
+  'expected timeout resolver to count job arrays the same as numeric job counts'
+);
+const timeoutExplicit = resolveSchedulerTaskTimeoutMs({
+  schedulerConfig: { subprocessTimeoutMs: 45000 },
+  task: { grammarKeys: ['php~b01~w01'] },
+  groupByGrammarKey: new Map([['php~b01~w01', { jobs: 1 }]])
+});
+assert.equal(timeoutExplicit, 45000, 'expected explicit scheduler timeout override');
 
 assert.deepEqual(
   resolveExecutionOrder({ executionOrder: ['native:lua', 'native:yaml'] }),

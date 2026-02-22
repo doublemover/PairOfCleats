@@ -28,6 +28,7 @@ import { processChunks } from './process-chunks.js';
 import { buildVfsVirtualPath } from '../../tooling/vfs.js';
 import { resolveChunkingFileRole } from '../../chunking/limits.js';
 import { shouldSkipTreeSitterPlanningForPath } from '../tree-sitter-scheduler/policy.js';
+import { createTimeoutError, runWithTimeout } from '../../../shared/promise-timeout.js';
 import {
   resolveSegmentExt,
   resolveSegmentTokenMode,
@@ -65,6 +66,7 @@ const SCM_ANNOTATE_PYTHON_HEAVY_LINE_CUTOFF = 2500;
 const SCM_ANNOTATE_FAST_TIMEOUT_MS = 5000;
 const SCM_ANNOTATE_HEAVY_PATH_TIMEOUT_MS = 5000;
 const SCM_ANNOTATE_DEFAULT_TIMEOUT_CAP_MS = 5000;
+const SCM_TASK_QUEUE_WAIT_SLACK_MS = 250;
 const SCM_FAST_TIMEOUT_BASENAMES = new Set([
   'cmakelists.txt',
   'makefile',
@@ -171,6 +173,17 @@ const shouldForceScmTimeoutCaps = (relPath) => {
   }
   return false;
 };
+
+const resolveScmTaskDeadlineMs = (taskTimeoutMs) => {
+  const baseTimeout = Number(taskTimeoutMs);
+  if (!Number.isFinite(baseTimeout) || baseTimeout <= 0) return 0;
+  const boundedBase = Math.max(1, Math.floor(baseTimeout));
+  return boundedBase + SCM_TASK_QUEUE_WAIT_SLACK_MS;
+};
+
+const isScmTaskTimeoutError = (error) => (
+  error?.code === 'SCM_TASK_TIMEOUT'
+);
 
 const isHeavyRelationsPath = (relPath) => {
   const boundedPath = toBoundedScmPath(relPath);
@@ -595,6 +608,28 @@ export const processFileCpu = async (context) => {
     metaTimeoutMs = Math.min(metaTimeoutMs, metaCapMs);
   }
   const runScmTask = typeof runProc === 'function' ? runProc : (fn) => fn();
+  const runScmTaskWithDeadline = async ({ label, timeoutMs, task }) => {
+    const deadlineMs = resolveScmTaskDeadlineMs(timeoutMs);
+    if (!(Number.isFinite(deadlineMs) && deadlineMs > 0)) {
+      return runScmTask(() => task(null));
+    }
+    return runWithTimeout(
+      (taskSignal) => runScmTask(() => task(taskSignal)),
+      {
+        timeoutMs: deadlineMs,
+        errorFactory: () => createTimeoutError({
+          message: `SCM ${label || 'task'} timed out after ${deadlineMs}ms (${relKey})`,
+          code: 'SCM_TASK_TIMEOUT',
+          retryable: true,
+          meta: {
+            relKey,
+            deadlineMs,
+            timeoutMs: Number.isFinite(Number(timeoutMs)) ? Math.floor(Number(timeoutMs)) : null
+          }
+        })
+      }
+    );
+  };
   let scmMetaUnavailableReason = null;
   if (!skipScmForProseRoute && scmActive && filePosix) {
     const includeChurn = resolvedGitChurnEnabled
@@ -633,32 +668,47 @@ export const processFileCpu = async (context) => {
       typeof scmProviderImpl.getFileMeta === 'function'
       && (!snapshotMeta || snapshotMissingRequestedChurn)
     ) {
-      await runScmTask(async () => {
-        const fileMeta = await Promise.resolve(scmProviderImpl.getFileMeta({
-          repoRoot: scmRepoRoot,
-          filePosix,
-          timeoutMs: Math.max(0, metaTimeoutMs),
-          includeChurn
-        }));
-        if (fileMeta && fileMeta.ok !== false) {
-          fileGitCommitId = typeof fileMeta.lastCommitId === 'string'
-            ? fileMeta.lastCommitId
-            : null;
-          fileGitMeta = {
-            last_modified: fileMeta.lastModifiedAt ?? null,
-            last_author: fileMeta.lastAuthor ?? null,
-            churn: Number.isFinite(fileMeta.churn) ? fileMeta.churn : null,
-            churn_added: Number.isFinite(fileMeta.churnAdded) ? fileMeta.churnAdded : null,
-            churn_deleted: Number.isFinite(fileMeta.churnDeleted) ? fileMeta.churnDeleted : null,
-            churn_commits: Number.isFinite(fileMeta.churnCommits) ? fileMeta.churnCommits : null
-          };
-        } else {
-          const reason = String(fileMeta?.reason || '').toLowerCase();
-          if (reason === 'timeout' || reason === 'unavailable') {
-            scmMetaUnavailableReason = reason;
+      try {
+        await runScmTaskWithDeadline({
+          label: 'file-meta',
+          timeoutMs: metaTimeoutMs,
+          task: async (taskSignal) => {
+            if (taskSignal?.aborted) return;
+            const fileMeta = await Promise.resolve(scmProviderImpl.getFileMeta({
+              repoRoot: scmRepoRoot,
+              filePosix,
+              timeoutMs: Math.max(0, metaTimeoutMs),
+              includeChurn,
+              signal: taskSignal || undefined
+            }));
+            if (taskSignal?.aborted) return;
+            if (fileMeta && fileMeta.ok !== false) {
+              fileGitCommitId = typeof fileMeta.lastCommitId === 'string'
+                ? fileMeta.lastCommitId
+                : null;
+              fileGitMeta = {
+                last_modified: fileMeta.lastModifiedAt ?? null,
+                last_author: fileMeta.lastAuthor ?? null,
+                churn: Number.isFinite(fileMeta.churn) ? fileMeta.churn : null,
+                churn_added: Number.isFinite(fileMeta.churnAdded) ? fileMeta.churnAdded : null,
+                churn_deleted: Number.isFinite(fileMeta.churnDeleted) ? fileMeta.churnDeleted : null,
+                churn_commits: Number.isFinite(fileMeta.churnCommits) ? fileMeta.churnCommits : null
+              };
+              return;
+            }
+            const reason = String(fileMeta?.reason || '').toLowerCase();
+            if (reason === 'timeout' || reason === 'unavailable') {
+              scmMetaUnavailableReason = reason;
+            }
           }
+        });
+      } catch (error) {
+        if (isScmTaskTimeoutError(error)) {
+          scmMetaUnavailableReason = 'timeout';
+        } else {
+          throw error;
         }
-      });
+      }
     }
     if (
       resolvedGitBlameEnabled
@@ -668,59 +718,90 @@ export const processFileCpu = async (context) => {
       && scmMetaUnavailableReason == null
       && typeof scmProviderImpl.annotate === 'function'
     ) {
-      await runScmTask(async () => {
-        const maxAnnotateBytesRaw = Number(annotateConfig.maxFileSizeBytes);
-        const defaultAnnotateBytes = scmFastPath ? 128 * 1024 : 256 * 1024;
-        const annotateDefaultBytes = isPythonScmPath
-          ? Math.min(defaultAnnotateBytes, SCM_ANNOTATE_PYTHON_MAX_BYTES)
-          : defaultAnnotateBytes;
-        const maxAnnotateBytes = Number.isFinite(maxAnnotateBytesRaw)
-          ? Math.max(0, maxAnnotateBytesRaw)
-          : annotateDefaultBytes;
-        const annotateTimeoutRaw = Number(annotateConfig.timeoutMs);
-        const defaultTimeoutRaw = Number(scmConfig?.timeoutMs);
-        const hasExplicitAnnotateTimeout = Number.isFinite(annotateTimeoutRaw) && annotateTimeoutRaw > 0;
-        let annotateTimeoutMs = hasExplicitAnnotateTimeout
-          ? annotateTimeoutRaw
-          : (Number.isFinite(defaultTimeoutRaw) && defaultTimeoutRaw > 0 ? defaultTimeoutRaw : 10000);
-        if (enforceScmTimeoutCaps) {
-          const annotateCapMs = isHeavyRelationsPath(relKey)
-            ? SCM_ANNOTATE_HEAVY_PATH_TIMEOUT_MS
-            : (scmFastPath || SCM_ANNOTATE_FAST_TIMEOUT_EXTS.has(normalizedExt)
-              ? SCM_ANNOTATE_FAST_TIMEOUT_MS
-              : SCM_ANNOTATE_DEFAULT_TIMEOUT_CAP_MS);
-          annotateTimeoutMs = Math.min(annotateTimeoutMs, annotateCapMs);
-        }
-        const withinAnnotateCap = maxAnnotateBytes == null
-          || (fileStat?.size ?? 0) <= maxAnnotateBytes;
-        if (!withinAnnotateCap) return;
+      const maxAnnotateBytesRaw = Number(annotateConfig.maxFileSizeBytes);
+      const defaultAnnotateBytes = scmFastPath ? 128 * 1024 : 256 * 1024;
+      const annotateDefaultBytes = isPythonScmPath
+        ? Math.min(defaultAnnotateBytes, SCM_ANNOTATE_PYTHON_MAX_BYTES)
+        : defaultAnnotateBytes;
+      const maxAnnotateBytes = Number.isFinite(maxAnnotateBytesRaw)
+        ? Math.max(0, maxAnnotateBytesRaw)
+        : annotateDefaultBytes;
+      const annotateTimeoutRaw = Number(annotateConfig.timeoutMs);
+      const defaultTimeoutRaw = Number(scmConfig?.timeoutMs);
+      const hasExplicitAnnotateTimeout = Number.isFinite(annotateTimeoutRaw) && annotateTimeoutRaw > 0;
+      let annotateTimeoutMs = hasExplicitAnnotateTimeout
+        ? annotateTimeoutRaw
+        : (Number.isFinite(defaultTimeoutRaw) && defaultTimeoutRaw > 0 ? defaultTimeoutRaw : 10000);
+      if (enforceScmTimeoutCaps) {
+        const annotateCapMs = isHeavyRelationsPath(relKey)
+          ? SCM_ANNOTATE_HEAVY_PATH_TIMEOUT_MS
+          : (scmFastPath || SCM_ANNOTATE_FAST_TIMEOUT_EXTS.has(normalizedExt)
+            ? SCM_ANNOTATE_FAST_TIMEOUT_MS
+            : SCM_ANNOTATE_DEFAULT_TIMEOUT_CAP_MS);
+        annotateTimeoutMs = Math.min(annotateTimeoutMs, annotateCapMs);
+      }
+      const withinAnnotateCap = maxAnnotateBytes == null
+        || (fileStat?.size ?? 0) <= maxAnnotateBytes;
+      if (withinAnnotateCap) {
         const timeoutMs = Math.max(0, annotateTimeoutMs);
-        const controller = new AbortController();
-        let timeoutId = null;
-        if (timeoutMs > 0) {
-          timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-        }
         try {
-          const annotateResult = await Promise.resolve(scmProviderImpl.annotate({
-            repoRoot: scmRepoRoot,
-            filePosix,
+          await runScmTaskWithDeadline({
+            label: 'annotate',
             timeoutMs,
-            signal: controller.signal,
-            commitId: fileGitCommitId
-          })).catch((err) => {
-            if (controller.signal.aborted) return { ok: false, reason: 'timeout' };
-            if (err?.code === 'ABORT_ERR' || err?.name === 'AbortError') {
-              return { ok: false, reason: 'timeout' };
+            task: async (taskSignal) => {
+              if (taskSignal?.aborted) return;
+              const controller = new AbortController();
+              let timeoutId = null;
+              let detachTaskAbort = null;
+              if (timeoutMs > 0) {
+                timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+              }
+              if (taskSignal && typeof taskSignal.addEventListener === 'function') {
+                const forwardAbort = () => {
+                  if (controller.signal.aborted) return;
+                  try {
+                    controller.abort(taskSignal.reason);
+                  } catch {
+                    controller.abort();
+                  }
+                };
+                taskSignal.addEventListener('abort', forwardAbort, { once: true });
+                detachTaskAbort = () => taskSignal.removeEventListener('abort', forwardAbort);
+                if (taskSignal.aborted) forwardAbort();
+              }
+              try {
+                if (taskSignal?.aborted) return;
+                const annotateResult = await Promise.resolve(scmProviderImpl.annotate({
+                  repoRoot: scmRepoRoot,
+                  filePosix,
+                  timeoutMs,
+                  signal: controller.signal,
+                  commitId: fileGitCommitId
+                })).catch((err) => {
+                  if (controller.signal.aborted) return { ok: false, reason: 'timeout' };
+                  if (err?.code === 'ABORT_ERR' || err?.name === 'AbortError') {
+                    return { ok: false, reason: 'timeout' };
+                  }
+                  return { ok: false, reason: 'unavailable' };
+                });
+                if (taskSignal?.aborted) return;
+                lineAuthors = buildLineAuthors(
+                  controller.signal.aborted ? { ok: false, reason: 'timeout' } : annotateResult
+                );
+              } finally {
+                if (detachTaskAbort) detachTaskAbort();
+                if (timeoutId) clearTimeout(timeoutId);
+              }
             }
-            return { ok: false, reason: 'unavailable' };
           });
-          lineAuthors = buildLineAuthors(
-            controller.signal.aborted ? { ok: false, reason: 'timeout' } : annotateResult
-          );
-        } finally {
-          if (timeoutId) clearTimeout(timeoutId);
+        } catch (error) {
+          if (isScmTaskTimeoutError(error)) {
+            lineAuthors = buildLineAuthors({ ok: false, reason: 'timeout' });
+          } else {
+            throw error;
+          }
         }
-      });
+      }
     }
   }
   setGitDuration(Date.now() - scmStart);

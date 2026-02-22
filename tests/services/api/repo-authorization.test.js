@@ -12,7 +12,8 @@ await fsPromises.mkdir(emptyRepo, { recursive: true });
 
 const { fixtureRoot, env } = await ensureFixtureIndex({
   fixtureName: 'sample',
-  cacheName
+  cacheName,
+  cacheScope: 'shared'
 });
 
 const { serverInfo, requestJson, stop } = await startApiServer({

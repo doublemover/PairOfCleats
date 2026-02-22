@@ -696,7 +696,6 @@ workspace/build-pointer-unresolved-root-invalid
 shared/diffs-registry
 indexing/stage1/token-id-collision-policy
 indexing/validate/index-validate-missing-manifest
-services/indexer/indexer-service
 workspace/index-signature-sharded-variants
 indexing/workers/worker-pool
 indexing/validate/index-validate-strict

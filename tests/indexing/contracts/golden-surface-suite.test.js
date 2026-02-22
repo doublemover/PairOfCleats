@@ -19,7 +19,8 @@ applyTestEnv({ testConfig });
 const { fixtureRoot, userConfig, codeDir, proseDir } = await ensureFixtureIndex({
   fixtureName: 'public-surface',
   cacheName: 'fixture-public-surface',
-  envOverrides: { PAIROFCLEATS_TEST_CONFIG: JSON.stringify(testConfig) }
+  envOverrides: { PAIROFCLEATS_TEST_CONFIG: JSON.stringify(testConfig) },
+  cacheScope: 'shared'
 });
 
 const modes = [];

@@ -5,7 +5,8 @@ import { getCombinedOutput } from '../../helpers/stdio.js';
 import { createSearchLifecycle } from '../../helpers/search-lifecycle.js';
 
 const { repoRoot, buildIndex, runSearch } = await createSearchLifecycle({
-  tempPrefix: 'pairofcleats-explain-symbol-',
+  cacheScope: 'shared',
+  cacheName: 'search-explain-symbol',
   extraEnv: {
     PAIROFCLEATS_WORKER_POOL: 'off'
   }

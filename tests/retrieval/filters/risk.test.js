@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { ensureFixtureIndex, runSearch } from '../../helpers/fixture-index.js';
+import { createInProcessSearchRunner, ensureFixtureIndex } from '../../helpers/fixture-index.js';
 import { skipIfNativeGrammarsUnavailable } from '../../indexing/tree-sitter/native-availability.js';
 
 if (skipIfNativeGrammarsUnavailable(['javascript'], 'retrieval risk filters')) {
@@ -9,12 +9,13 @@ if (skipIfNativeGrammarsUnavailable(['javascript'], 'retrieval risk filters')) {
 const { fixtureRoot, env } = await ensureFixtureIndex({
   fixtureName: 'languages',
   cacheName: 'language-fixture',
-  requireRiskTags: true
+  requireRiskTags: true,
+  cacheScope: 'shared',
+  requiredModes: ['code']
 });
+const runSearch = createInProcessSearchRunner({ fixtureRoot, env });
 
-const riskTag = runSearch({
-  fixtureRoot,
-  env,
+const riskTag = await runSearch({
   query: 'exec',
   mode: 'code',
   args: ['--risk', 'command-exec']
@@ -24,9 +25,7 @@ if (!(riskTag.code || []).length) {
   process.exit(0);
 }
 
-const riskFlow = runSearch({
-  fixtureRoot,
-  env,
+const riskFlow = await runSearch({
   query: 'req',
   mode: 'code',
   args: ['--risk-flow', 'req.body->exec']

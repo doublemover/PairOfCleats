@@ -1,14 +1,15 @@
 #!/usr/bin/env node
-import { ensureFixtureIndex, runSearch } from '../../helpers/fixture-index.js';
+import { createInProcessSearchRunner, ensureFixtureIndex } from '../../helpers/fixture-index.js';
 
 const { fixtureRoot, env } = await ensureFixtureIndex({
   fixtureName: 'sample',
-  cacheName: 'fixture-sample'
+  cacheName: 'fixture-sample',
+  cacheScope: 'shared',
+  requiredModes: ['code']
 });
+const runSearch = createInProcessSearchRunner({ fixtureRoot, env });
 
-const typeScoped = runSearch({
-  fixtureRoot,
-  env,
+const typeScoped = await runSearch({
   query: 'sayHello',
   mode: 'code',
   args: ['--backend', 'memory', '--type', 'MethodDeclaration']
@@ -18,9 +19,7 @@ if (!(typeScoped.code || []).length) {
   process.exit(1);
 }
 
-const signatureScoped = runSearch({
-  fixtureRoot,
-  env,
+const signatureScoped = await runSearch({
   query: 'sayHello',
   mode: 'code',
   args: ['--backend', 'memory', '--signature', 'func sayHello']
@@ -30,9 +29,7 @@ if (!(signatureScoped.code || []).length) {
   process.exit(1);
 }
 
-const decoratorScoped = runSearch({
-  fixtureRoot,
-  env,
+const decoratorScoped = await runSearch({
   query: 'sayHello',
   mode: 'code',
   args: ['--backend', 'memory', '--decorator', 'available']

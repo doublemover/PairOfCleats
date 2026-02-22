@@ -1,16 +1,20 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { ensureFixtureIndex, ensureFixtureSqlite, runSearch } from '../../helpers/fixture-index.js';
+import {
+  createInProcessSearchRunner,
+  ensureFixtureIndex,
+  ensureFixtureSqlite
+} from '../../helpers/fixture-index.js';
 
 const { fixtureRoot, env, userConfig } = await ensureFixtureIndex({
   fixtureName: 'sample',
-  cacheName: 'fixture-sample'
+  cacheName: 'fixture-sample',
+  cacheScope: 'shared'
 });
 await ensureFixtureSqlite({ fixtureRoot, userConfig, env });
+const runSearch = createInProcessSearchRunner({ fixtureRoot, env });
 
-const payload = runSearch({
-  fixtureRoot,
-  env,
+const payload = await runSearch({
   query: 'message',
   mode: 'prose',
   args: ['--backend', 'sqlite-fts', '--explain']

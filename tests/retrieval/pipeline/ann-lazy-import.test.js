@@ -10,7 +10,9 @@ applyTestEnv();
 
 const { fixtureRoot, userConfig, codeDir } = await ensureFixtureIndex({
   fixtureName: 'sample',
-  cacheName: 'ann-lazy-import-merged-fallback'
+  cacheName: 'ann-lazy-import-merged-fallback',
+  cacheScope: 'shared',
+  requiredModes: ['code']
 });
 
 const baseOptions = {

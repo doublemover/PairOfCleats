@@ -3,7 +3,9 @@ import { ensureFixtureIndex, loadFixtureIndexMeta } from '../../helpers/fixture-
 
 const { fixtureRoot, userConfig } = await ensureFixtureIndex({
   fixtureName: 'languages',
-  cacheName: 'language-fixture'
+  cacheName: 'language-fixture',
+  cacheScope: 'shared',
+  requiredModes: ['code']
 });
 const { chunkMeta, resolveChunkFile } = loadFixtureIndexMeta(fixtureRoot, userConfig);
 

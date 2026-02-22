@@ -1,14 +1,11 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { rmDirRecursive } from '../../helpers/temp.js';
 import { createSearchLifecycle } from '../../helpers/search-lifecycle.js';
 
-const tempRoot = path.join(process.cwd(), '.testCache', 'windows-path-filter');
-await rmDirRecursive(tempRoot, { retries: 10, delayMs: 100 });
-
 const { repoRoot, buildIndex, runSearchPayload } = await createSearchLifecycle({
-  tempRoot,
+  cacheScope: 'shared',
+  cacheName: 'search-windows-path-filter',
   extraEnv: {
     PAIROFCLEATS_WORKER_POOL: 'off'
   }

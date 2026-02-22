@@ -23,12 +23,14 @@ const envOverrides = { PAIROFCLEATS_TEST_CONFIG: JSON.stringify(testConfig) };
 const { fixtureRoot } = await ensureFixtureIndex({
   fixtureName: 'languages',
   cacheName: 'mcp-search',
-  envOverrides
+  envOverrides,
+  cacheScope: 'shared'
 });
 await ensureFixtureIndex({
   fixtureName: 'sample',
   cacheName: 'mcp-search',
-  envOverrides
+  envOverrides,
+  cacheScope: 'shared'
 });
 
 const { send, readMessage, shutdown } = await startMcpServer({ cacheRoot });

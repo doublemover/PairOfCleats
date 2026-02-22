@@ -21,6 +21,8 @@ import {
   loadJsonArrayArtifactSync,
   readCompatibilityKey
 } from '../../src/shared/artifact-io.js';
+import { runSearchCli } from '../../src/retrieval/cli.js';
+import { buildSearchCliArgs } from '../../tools/shared/search-cli-harness.js';
 
 import { rmDirRecursive } from './temp.js';
 import { isPlainObject, mergeConfig } from '../../src/shared/config.js';
@@ -32,7 +34,20 @@ const ensureDir = async (dir) => {
   await fsPromises.mkdir(dir, { recursive: true });
 };
 
-const resolveCacheName = (baseName) => {
+const FIXTURE_MODES = new Set(['code', 'prose', 'extracted-prose', 'records']);
+const DEFAULT_REQUIRED_MODES = Object.freeze(['code', 'prose', 'extracted-prose']);
+const VALID_CACHE_SCOPES = new Set(['isolated', 'shared']);
+const FIXTURE_HEALTH_VERSION = 1;
+
+const normalizeCacheScope = (cacheScope) => {
+  const normalized = String(cacheScope || 'isolated').trim().toLowerCase();
+  if (!VALID_CACHE_SCOPES.has(normalized)) {
+    throw new Error(`Unsupported cacheScope: ${cacheScope}`);
+  }
+  return normalized;
+};
+
+const resolveCacheName = (baseName, { cacheScope = 'isolated' } = {}) => {
   const MAX_CACHE_NAME_LENGTH = 64;
   const truncateWithHash = (value) => {
     const text = String(value || '').trim();
@@ -42,12 +57,86 @@ const resolveCacheName = (baseName) => {
     const headLength = Math.max(8, MAX_CACHE_NAME_LENGTH - digest.length - 1);
     return `${text.slice(0, headLength)}-${digest}`;
   };
-  const suffixRaw = typeof process.env.PAIROFCLEATS_TEST_CACHE_SUFFIX === 'string'
-    ? process.env.PAIROFCLEATS_TEST_CACHE_SUFFIX.trim()
-    : '';
+  const suffixRaw = cacheScope === 'shared'
+    ? ''
+    : (typeof process.env.PAIROFCLEATS_TEST_CACHE_SUFFIX === 'string'
+      ? process.env.PAIROFCLEATS_TEST_CACHE_SUFFIX.trim()
+      : '');
   if (!suffixRaw) return truncateWithHash(baseName);
   if (baseName.endsWith(`-${suffixRaw}`)) return truncateWithHash(baseName);
   return truncateWithHash(`${baseName}-${suffixRaw}`);
+};
+
+const normalizeRequiredModes = (requiredModes) => {
+  if (!Array.isArray(requiredModes) || requiredModes.length === 0) {
+    return [...DEFAULT_REQUIRED_MODES];
+  }
+  const normalized = [];
+  for (const modeRaw of requiredModes) {
+    const mode = String(modeRaw || '').trim().toLowerCase();
+    if (!FIXTURE_MODES.has(mode)) {
+      throw new Error(`Unsupported fixture mode: ${modeRaw}`);
+    }
+    if (!normalized.includes(mode)) {
+      normalized.push(mode);
+    }
+  }
+  return normalized.length > 0 ? normalized : [...DEFAULT_REQUIRED_MODES];
+};
+
+const resolveBuildMode = (requiredModes) => {
+  const modeSet = new Set(requiredModes);
+  if (modeSet.size === 1) return requiredModes[0];
+  if (modeSet.size === 2 && modeSet.has('prose') && modeSet.has('extracted-prose')) {
+    return 'prose';
+  }
+  return null;
+};
+
+const sleep = (delayMs) => new Promise((resolve) => {
+  setTimeout(resolve, delayMs);
+});
+
+const isStaleLock = async (lockDir, staleMs) => {
+  try {
+    const stat = await fsPromises.stat(lockDir);
+    return Date.now() - stat.mtimeMs > staleMs;
+  } catch {
+    return false;
+  }
+};
+
+const withDirectoryLock = async (
+  lockDir,
+  callback,
+  {
+    pollMs = 120,
+    staleMs = 15 * 60 * 1000,
+    maxWaitMs = 20 * 60 * 1000
+  } = {}
+) => {
+  const start = Date.now();
+  while (true) {
+    try {
+      await fsPromises.mkdir(lockDir);
+      break;
+    } catch (error) {
+      if (error?.code !== 'EEXIST') throw error;
+      if (await isStaleLock(lockDir, staleMs)) {
+        await rmDirRecursive(lockDir, { retries: 3, delayMs: 50 });
+        continue;
+      }
+      if (Date.now() - start > maxWaitMs) {
+        throw new Error(`Timed out waiting for fixture lock at ${lockDir}`);
+      }
+      await sleep(pollMs);
+    }
+  }
+  try {
+    return await callback();
+  } finally {
+    await rmDirRecursive(lockDir, { retries: 3, delayMs: 50 });
+  }
 };
 
 const normalizeRepoSlug = (repoRoot) => String(path.basename(path.resolve(repoRoot)) || 'repo')
@@ -129,23 +218,34 @@ const readIndexCompatibilityKey = (dir) => {
   }
 };
 
-const hasCompatibleIndexes = ({ codeDir, proseDir, extractedProseDir }) => {
-  if (!hasChunkMeta(codeDir) || !hasChunkMeta(proseDir) || !hasChunkMeta(extractedProseDir)) {
-    return false;
+const getCompatibilityStatus = ({ modeDirs, requiredModes }) => {
+  if (!Array.isArray(requiredModes) || requiredModes.length === 0) {
+    return { compatible: false, keyByMode: {}, baseline: null };
   }
-  const codeKey = readIndexCompatibilityKey(codeDir);
-  const proseKey = readIndexCompatibilityKey(proseDir);
-  const extractedKey = readIndexCompatibilityKey(extractedProseDir);
-  const baseline = codeKey || proseKey || extractedKey;
+  const keyByMode = {};
+  const keys = [];
+  for (const mode of requiredModes) {
+    const dir = modeDirs?.[mode];
+    if (!dir || !hasChunkMeta(dir)) {
+      return { compatible: false, keyByMode: {}, baseline: null };
+    }
+    const key = readIndexCompatibilityKey(dir);
+    keyByMode[mode] = key || null;
+    keys.push(key);
+  }
+  const baseline = keys.find(Boolean) || null;
   if (!baseline) {
     const testing = process.env.PAIROFCLEATS_TESTING === '1' || process.env.PAIROFCLEATS_TESTING === 'true';
     const allowMissing = testing
       && process.env.PAIROFCLEATS_TEST_ALLOW_MISSING_COMPAT_KEY !== '0'
       && process.env.PAIROFCLEATS_TEST_ALLOW_MISSING_COMPAT_KEY !== 'false';
-    if (allowMissing) return true;
-    return false;
+    return { compatible: allowMissing, keyByMode, baseline };
   }
-  return [codeKey, proseKey, extractedKey].every((key) => !key || key === baseline);
+  return {
+    compatible: keys.every((key) => !key || key === baseline),
+    keyByMode,
+    baseline
+  };
 };
 
 const hasChunkUids = async (dir) => {
@@ -156,6 +256,74 @@ const hasChunkUids = async (dir) => {
   } catch {
     return false;
   }
+};
+
+const hasMissingChunkUids = async ({ modeDirs, requiredModes }) => {
+  for (const mode of requiredModes) {
+    const dir = modeDirs?.[mode];
+    if (!dir || !await hasChunkUids(dir)) {
+      return true;
+    }
+  }
+  return false;
+};
+
+const readFixtureHealthStamp = async (stampPath) => {
+  try {
+    const raw = await fsPromises.readFile(stampPath, 'utf8');
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+};
+
+const writeFixtureHealthStamp = async (
+  stampPath,
+  {
+    requiredModes,
+    compatibilityKeyByMode,
+    hasRiskTags
+  }
+) => {
+  const existing = await readFixtureHealthStamp(stampPath);
+  const existingModes = Array.isArray(existing?.modes) ? existing.modes : [];
+  const mergedModes = [...new Set([...existingModes, ...requiredModes])];
+  const mergedCompatibility = { ...(existing?.compatibilityKeyByMode || {}) };
+  for (const mode of requiredModes) {
+    mergedCompatibility[mode] = compatibilityKeyByMode?.[mode] || null;
+  }
+  const payload = {
+    version: FIXTURE_HEALTH_VERSION,
+    checkedAt: new Date().toISOString(),
+    modes: mergedModes,
+    compatibilityKeyByMode: mergedCompatibility,
+    hasRiskTags: Boolean(existing?.hasRiskTags || hasRiskTags)
+  };
+  await fsPromises.writeFile(stampPath, JSON.stringify(payload), 'utf8');
+};
+
+const canUseFixtureHealthStamp = (
+  stamp,
+  {
+    requiredModes,
+    requireRiskTags,
+    compatibilityKeyByMode
+  }
+) => {
+  if (!stamp || typeof stamp !== 'object') return false;
+  if (Number(stamp.version) !== FIXTURE_HEALTH_VERSION) return false;
+  const stampModes = new Set(Array.isArray(stamp.modes) ? stamp.modes : []);
+  if (requiredModes.some((mode) => !stampModes.has(mode))) return false;
+  if (requireRiskTags && stamp.hasRiskTags !== true) return false;
+  const stampedKeys = stamp.compatibilityKeyByMode || {};
+  for (const mode of requiredModes) {
+    if ((stampedKeys[mode] || null) !== (compatibilityKeyByMode?.[mode] || null)) {
+      return false;
+    }
+  }
+  return true;
 };
 
 const run = (args, label, options) => {
@@ -170,48 +338,127 @@ export const ensureFixtureIndex = async ({
   fixtureName,
   cacheName = `fixture-${fixtureName}`,
   envOverrides = {},
-  requireRiskTags = false
+  requireRiskTags = false,
+  cacheScope = 'isolated',
+  requiredModes
 } = {}) => {
   if (!fixtureName) throw new Error('fixtureName is required');
+  const normalizedCacheScope = normalizeCacheScope(cacheScope);
+  const normalizedRequiredModes = normalizeRequiredModes(requiredModes);
   const fixtureRootRaw = path.join(ROOT, 'tests', 'fixtures', fixtureName);
   const fixtureRoot = toRealPathSync(fixtureRootRaw);
-  const cacheRoot = path.join(ROOT, '.testCache', resolveCacheName(cacheName));
+  const cacheRoot = path.join(
+    ROOT,
+    '.testCache',
+    resolveCacheName(cacheName, { cacheScope: normalizedCacheScope })
+  );
   await ensureDir(cacheRoot);
   const env = createFixtureEnv(cacheRoot, envOverrides);
   const userConfig = loadUserConfig(fixtureRoot);
-  let codeDir = getIndexDir(fixtureRoot, 'code', userConfig);
-  let proseDir = getIndexDir(fixtureRoot, 'prose', userConfig);
-  let extractedProseDir = getIndexDir(fixtureRoot, 'extracted-prose', userConfig);
-  const recordsDir = getIndexDir(fixtureRoot, 'records', userConfig);
-  const needsRiskTags = requireRiskTags && !hasRiskTags(codeDir);
-  const missingChunkUids = !await hasChunkUids(codeDir)
-    || !await hasChunkUids(proseDir)
-    || !await hasChunkUids(extractedProseDir)
-    || (hasIndexMeta(recordsDir) && !await hasChunkUids(recordsDir));
-  if (!hasCompatibleIndexes({ codeDir, proseDir, extractedProseDir }) || needsRiskTags || missingChunkUids) {
-    const repoCacheRoot = getRepoCacheRoot(fixtureRoot, userConfig);
-    const reposRoot = path.dirname(repoCacheRoot);
-    const legacyRoots = new Set([
-      path.join(reposRoot, getLegacyPrefixedRepoId(fixtureRootRaw)),
-      path.join(reposRoot, getLegacyPrefixedRepoId(fixtureRoot))
-    ]);
-    for (const legacyRoot of legacyRoots) {
-      if (legacyRoot !== repoCacheRoot) {
-        await rmDirRecursive(legacyRoot, { retries: 8, delayMs: 150 });
-      }
+  const repoCacheRoot = getRepoCacheRoot(fixtureRoot, userConfig);
+  const healthStampPath = path.join(repoCacheRoot, '.fixture-health.json');
+  const resolveModeDirs = () => ({
+    code: getIndexDir(fixtureRoot, 'code', userConfig),
+    prose: getIndexDir(fixtureRoot, 'prose', userConfig),
+    'extracted-prose': getIndexDir(fixtureRoot, 'extracted-prose', userConfig),
+    records: getIndexDir(fixtureRoot, 'records', userConfig)
+  });
+  const evaluateFixtureState = async () => {
+    const modeDirs = resolveModeDirs();
+    const compatibility = getCompatibilityStatus({
+      modeDirs,
+      requiredModes: normalizedRequiredModes
+    });
+    const compatibleIndexes = compatibility.compatible;
+    const requireCodeRiskTags = requireRiskTags && normalizedRequiredModes.includes('code');
+    if (!compatibleIndexes) {
+      return {
+        modeDirs,
+        needsRiskTags: requireCodeRiskTags,
+        missingChunkUids: true,
+        compatibleIndexes,
+        usedHealthStamp: false
+      };
     }
-    await rmDirRecursive(repoCacheRoot, { retries: 8, delayMs: 150 });
-    await ensureDir(repoCacheRoot);
-    run(
-      [path.join(ROOT, 'build_index.js'), '--stub-embeddings', '--repo', fixtureRoot],
-      `build index (${fixtureName})`,
-      { cwd: fixtureRoot, env, stdio: 'inherit' }
-    );
-    codeDir = getIndexDir(fixtureRoot, 'code', userConfig);
-    proseDir = getIndexDir(fixtureRoot, 'prose', userConfig);
-    extractedProseDir = getIndexDir(fixtureRoot, 'extracted-prose', userConfig);
+    const healthStamp = await readFixtureHealthStamp(healthStampPath);
+    if (canUseFixtureHealthStamp(healthStamp, {
+      requiredModes: normalizedRequiredModes,
+      requireRiskTags: requireCodeRiskTags,
+      compatibilityKeyByMode: compatibility.keyByMode
+    })) {
+      return {
+        modeDirs,
+        needsRiskTags: false,
+        missingChunkUids: false,
+        compatibleIndexes,
+        usedHealthStamp: true
+      };
+    }
+    const needsRiskTags = requireCodeRiskTags && !hasRiskTags(modeDirs.code);
+    const missingChunkUids = await hasMissingChunkUids({
+      modeDirs,
+      requiredModes: normalizedRequiredModes
+    });
+    if (!needsRiskTags && !missingChunkUids) {
+      await writeFixtureHealthStamp(healthStampPath, {
+        requiredModes: normalizedRequiredModes,
+        compatibilityKeyByMode: compatibility.keyByMode,
+        hasRiskTags: requireCodeRiskTags
+      });
+    }
+    return {
+      modeDirs,
+      needsRiskTags,
+      missingChunkUids,
+      compatibleIndexes,
+      usedHealthStamp: false
+    };
+  };
+  const needsBuild = (state) => !state.compatibleIndexes || state.needsRiskTags || state.missingChunkUids;
+
+  let state = await evaluateFixtureState();
+  if (needsBuild(state)) {
+    const lockRoot = path.join(cacheRoot, '.fixture-locks');
+    await ensureDir(lockRoot);
+    const buildLockDir = path.join(lockRoot, `${getLegacyPrefixedRepoId(fixtureRoot)}.build.lock`);
+    await withDirectoryLock(buildLockDir, async () => {
+      state = await evaluateFixtureState();
+      if (!needsBuild(state)) return;
+      const reposRoot = path.dirname(repoCacheRoot);
+      const legacyRoots = new Set([
+        path.join(reposRoot, getLegacyPrefixedRepoId(fixtureRootRaw)),
+        path.join(reposRoot, getLegacyPrefixedRepoId(fixtureRoot))
+      ]);
+      for (const legacyRoot of legacyRoots) {
+        if (legacyRoot !== repoCacheRoot) {
+          await rmDirRecursive(legacyRoot, { retries: 8, delayMs: 150 });
+        }
+      }
+      await rmDirRecursive(repoCacheRoot, { retries: 8, delayMs: 150 });
+      await ensureDir(repoCacheRoot);
+      const buildMode = resolveBuildMode(normalizedRequiredModes);
+      const buildArgs = [path.join(ROOT, 'build_index.js'), '--stub-embeddings', '--repo', fixtureRoot];
+      if (buildMode) {
+        buildArgs.push('--mode', buildMode);
+      }
+      run(
+        buildArgs,
+        `build index (${fixtureName}${buildMode ? `:${buildMode}` : ''})`,
+        { cwd: fixtureRoot, env, stdio: 'inherit' }
+      );
+      state = await evaluateFixtureState();
+    });
   }
-  return { root: ROOT, fixtureRoot, cacheRoot, env, userConfig, codeDir, proseDir };
+
+  return {
+    root: ROOT,
+    fixtureRoot,
+    cacheRoot,
+    env,
+    userConfig,
+    codeDir: state.modeDirs.code,
+    proseDir: state.modeDirs.prose
+  };
 };
 
 export const ensureFixtureSqlite = async ({ fixtureRoot, userConfig, env }) => {
@@ -281,6 +528,80 @@ export const loadFixtureIndexMeta = (fixtureRoot, userConfig) => {
 
 export const loadFixtureMetricsDir = (fixtureRoot, userConfig) =>
   getMetricsDir(fixtureRoot, userConfig);
+
+const withTemporaryEnv = async (targetEnv, callback) => {
+  const restore = [];
+  if (targetEnv && typeof targetEnv === 'object') {
+    for (const [key, rawValue] of Object.entries(targetEnv)) {
+      if (rawValue === undefined) continue;
+      const nextValue = String(rawValue);
+      if (process.env[key] === nextValue) continue;
+      restore.push([key, process.env[key]]);
+      process.env[key] = nextValue;
+    }
+  }
+  try {
+    return await callback();
+  } finally {
+    for (let i = restore.length - 1; i >= 0; i -= 1) {
+      const [key, previousValue] = restore[i];
+      if (previousValue === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = previousValue;
+      }
+    }
+  }
+};
+
+export const createInProcessSearchRunner = ({
+  root = ROOT,
+  fixtureRoot,
+  env
+} = {}) => {
+  if (!fixtureRoot) throw new Error('fixtureRoot is required');
+  const indexCache = new Map();
+  const sqliteCache = new Map();
+  return async ({
+    query,
+    args = [],
+    mode = 'code',
+    annEnabled = false,
+    backend = null,
+    explain = false,
+    stats = false,
+    compact = false,
+    topN = null
+  } = {}) => {
+    const extraArgs = Array.isArray(args) ? args : [];
+    const rawArgs = buildSearchCliArgs({
+      query,
+      json: true,
+      annEnabled,
+      mode,
+      backend,
+      explain,
+      stats,
+      compact,
+      topN,
+      repo: fixtureRoot,
+      extraArgs
+    });
+    try {
+      return await withTemporaryEnv(env, async () => runSearchCli(rawArgs, {
+        emitOutput: false,
+        exitOnError: false,
+        indexCache,
+        sqliteCache,
+        root
+      }));
+    } catch (err) {
+      console.error('Failed: search');
+      if (err?.message) console.error(err.message);
+      process.exit(1);
+    }
+  };
+};
 
 export const runSearch = ({
   root = ROOT,
