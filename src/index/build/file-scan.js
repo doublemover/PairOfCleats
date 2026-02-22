@@ -58,6 +58,14 @@ const KNOWN_TEXT_EXTS = new Set([
 ]);
 
 const normalizeLimit = (value, fallback) => normalizePositiveNumber(value, fallback);
+const normalizeBoundedLimit = (value, fallback, { min = null, max = null } = {}) => {
+  const resolved = normalizeLimit(value, fallback);
+  if (!Number.isFinite(resolved) || resolved <= 0) return fallback;
+  let next = resolved;
+  if (Number.isFinite(min)) next = Math.max(Math.floor(min), next);
+  if (Number.isFinite(max)) next = Math.min(Math.floor(max), next);
+  return next;
+};
 
 /**
  * Fast-path filename heuristic for minified assets.
@@ -208,7 +216,12 @@ const isLikelyMinifiedText = (text, config) => {
  */
 export function createFileScanner(fileScanConfig = {}) {
   const config = fileScanConfig && typeof fileScanConfig === 'object' ? fileScanConfig : {};
-  const sampleSizeBytes = normalizeLimit(config.sampleBytes, 8192);
+  const tier1ProbeBytes = normalizeBoundedLimit(
+    config.tier1ProbeBytes ?? config.sampleBytes,
+    8192,
+    { min: 4096, max: 8192 }
+  );
+  const sampleSizeBytes = normalizeLimit(config.sampleBytes, tier1ProbeBytes);
   const minifiedConfig = config.minified || {};
   const binaryConfig = config.binary || {};
   const minified = {
@@ -227,9 +240,6 @@ export function createFileScanner(fileScanConfig = {}) {
       ? Number(binaryConfig.maxNonTextRatio)
       : 0.3
   };
-  const fileTypeSampleBytes = sampleSizeBytes
-    ? Math.min(sampleSizeBytes, 4100)
-    : 0;
   const shouldSampleBinary = (size) => binary.sampleMinBytes && size >= binary.sampleMinBytes;
   const shouldSampleMinified = (size, ext) => minified.sampleMinBytes
     && size >= minified.sampleMinBytes
@@ -249,7 +259,7 @@ export function createFileScanner(fileScanConfig = {}) {
     };
     if (!sampleSizeBytes || (!shouldProbeBinary && !wantsMinified && !wantsBinary)) return result;
     const sampleBytes = Math.max(
-      shouldProbeBinary ? fileTypeSampleBytes : 0,
+      shouldProbeBinary ? tier1ProbeBytes : 0,
       wantsBinary || wantsMinified ? sampleSizeBytes : 0
     );
     if (!sampleBytes) return result;
@@ -287,6 +297,7 @@ export function createFileScanner(fileScanConfig = {}) {
   const normalizeBaseName = (absPath) => path.basename(absPath);
   return {
     scanFile,
+    tier1ProbeBytes,
     sampleSizeBytes,
     minified,
     binary,

@@ -19,8 +19,13 @@ export const buildFileScanConfig = (indexingConfig) => {
   const fileScanConfig = indexingConfig.fileScan || {};
   const minifiedScanConfig = fileScanConfig.minified || {};
   const binaryScanConfig = fileScanConfig.binary || {};
+  const defaultTier1ProbeBytes = normalizeLimit(fileScanConfig.sampleBytes, 8192);
   return {
-    sampleBytes: normalizeLimit(fileScanConfig.sampleBytes, 8192),
+    tier1ProbeBytes: Math.max(4096, Math.min(
+      8192,
+      normalizeLimit(fileScanConfig.tier1ProbeBytes, defaultTier1ProbeBytes)
+    )),
+    sampleBytes: normalizeLimit(fileScanConfig.sampleBytes, defaultTier1ProbeBytes),
     minified: {
       sampleMinBytes: normalizeLimit(minifiedScanConfig.sampleMinBytes, 4096),
       minChars: normalizeLimit(minifiedScanConfig.minChars, 1024),
