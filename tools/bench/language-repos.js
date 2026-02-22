@@ -350,7 +350,8 @@ const reportFatal = (label, err) => {
     display.error(details);
     const paths = [masterLogPath];
     if (repoLogPath && repoLogPath !== masterLogPath) paths.push(repoLogPath);
-    display.error(`[bench-language] Details logged to: ${paths.join(' ')}`);
+    const names = paths.map((entry) => path.basename(entry));
+    display.error(`[bench-language] Details logged (${names.join(', ')})`);
   } catch {}
 };
 
@@ -377,7 +378,7 @@ const runUsrGuardrailBenchmarks = async () => {
   if (!USR_GUARDRAIL_BENCHMARKS.length) return [];
   const outputDir = path.join(resultsRoot, 'usr');
   const rows = [];
-  appendLog(`[usr-bench] Running ${USR_GUARDRAIL_BENCHMARKS.length} USR guardrail benchmark snapshot(s).`);
+  appendLog(`[usr-bench] running ${USR_GUARDRAIL_BENCHMARKS.length} guardrail snapshot(s).`);
   if (!dryRun) {
     await fsPromises.mkdir(outputDir, { recursive: true });
   }
@@ -590,7 +591,7 @@ await fsPromises.mkdir(reposRoot, { recursive: true });
 await fsPromises.mkdir(resultsRoot, { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 initMasterLog();
-appendLog(`Clone tool: ${cloneTool ? cloneTool.label : 'disabled'}`);
+appendLog(`[clone] tool=${cloneTool ? cloneTool.label : 'disabled'}`);
 const usrGuardrailBenchmarks = await runUsrGuardrailBenchmarks();
 
 const benchScript = path.join(scriptRoot, 'tests', 'perf', 'bench', 'run.test.js');
@@ -637,14 +638,16 @@ const cleanRepoCache = async ({ repoCacheRoot, repoLabel }) => {
     const resolvedCacheRoot = path.resolve(cacheRoot);
     const resolvedRepoCacheRoot = path.resolve(repoCacheRoot);
     if (!isInside(resolvedCacheRoot, resolvedRepoCacheRoot) || isRootPath(resolvedRepoCacheRoot)) {
-      appendLog(`[cache] Skip cleanup; repo cache path not under cache root (${resolvedRepoCacheRoot}).`, 'warn');
+      appendLog('[cache] skip cleanup; repo cache path escaped cache root.', 'warn', {
+        fileOnlyLine: `[cache] Skip cleanup; repo cache path not under cache root (${resolvedRepoCacheRoot}).`
+      });
       return;
     }
     if (!fs.existsSync(resolvedRepoCacheRoot)) return;
     await fsPromises.rm(resolvedRepoCacheRoot, { recursive: true, force: true });
-    appendLog(`[cache] Cleaned repo cache for ${repoLabel}.`);
+    appendLog(`[cache] cleaned ${repoLabel}.`);
   } catch (err) {
-    appendLog(`[cache] Failed to clean repo cache for ${repoLabel}: ${err?.message || err}`, 'warn');
+    appendLog(`[cache] cleanup failed for ${repoLabel}: ${err?.message || err}`, 'warn');
   }
 };
 
@@ -671,7 +674,9 @@ for (const task of tasks) {
       slug: task.logSlug || toSafeLogSlug(getRepoShortName(task.repo)) || 'repo'
     });
     if (!quietMode && repoLogPath) {
-      appendLog(`[logs] ${repoLabel} -> ${repoLogPath}`);
+      appendLog(`[logs] ${repoLabel}: ${path.basename(repoLogPath)}`, 'info', {
+        fileOnlyLine: `[logs] ${repoLabel} -> ${repoLogPath}`
+      });
     }
   }
 
@@ -689,7 +694,7 @@ for (const task of tasks) {
           continueOnError: true
         });
         if (!cloneResult.ok) {
-          appendLog(`[error] Clone failed for ${repoLabel}; continuing to next repo.`, 'error');
+          appendLog(`[error] clone failed for ${repoLabel}; continuing.`, 'error');
           completeBenchRepo();
           appendLog('[metrics] failed (clone)');
           results.push({
@@ -726,7 +731,7 @@ for (const task of tasks) {
     if (Number.isFinite(heapArg) && heapArg > 0) {
       heapOverride = heapArg;
       if (!heapLogged) {
-        appendLog(`[heap] Using ${formatGb(heapOverride)} (${heapOverride} MB) from --heap-mb.`);
+        appendLog(`[heap] using ${formatGb(heapOverride)} (${heapOverride} MB) from --heap-mb.`);
         heapLogged = true;
       }
     } else if (
@@ -736,7 +741,7 @@ for (const task of tasks) {
       heapOverride = heapRecommendation.recommendedMb;
       if (!heapLogged) {
         appendLog(
-          `[auto-heap] Using ${formatGb(heapOverride)} (${heapOverride} MB) for Node heap. `
+          `[auto-heap] using ${formatGb(heapOverride)} (${heapOverride} MB). `
             + 'Override with --heap-mb.'
         );
         heapLogged = true;
@@ -769,7 +774,7 @@ for (const task of tasks) {
     const buildSqliteRequested = argv.build || argv['build-sqlite'];
     if (buildSqliteRequested && !buildIndexRequested && missingIndex) {
       autoBuildIndex = true;
-      appendLog('[auto-build] sqlite build requires index artifacts; enabling build-index.');
+      appendLog('[auto-build] sqlite needs index artifacts; enabling --build-index.');
     }
     if (!argv.build && !argv['build-index'] && !argv['build-sqlite']) {
       if (missingIndex && wantsMemory) autoBuildIndex = true;
@@ -777,7 +782,7 @@ for (const task of tasks) {
       if (autoBuildSqlite && missingIndex) autoBuildIndex = true;
       if (autoBuildIndex || autoBuildSqlite) {
         appendLog(
-          `[auto-build] missing artifacts${autoBuildIndex ? ' index' : ''}${autoBuildSqlite ? ' sqlite' : ''}; enabling build.`
+          `[auto-build] missing artifacts (${autoBuildIndex ? 'index' : ''}${autoBuildIndex && autoBuildSqlite ? ', ' : ''}${autoBuildSqlite ? 'sqlite' : ''}); enabling build steps.`
         );
       }
     }
@@ -785,7 +790,7 @@ for (const task of tasks) {
     const shouldBuildIndex = argv.build || argv['build-index'] || autoBuildIndex;
     if (shouldBuildIndex && !dryRun) {
       try {
-        appendLog(`[metrics] Collecting line counts for ${repoLabel}...`);
+        appendLog(`[metrics] scanning lines for ${repoLabel}...`);
         const stats = await buildLineStats(repoPath, repoUserConfig);
         const totals = stats.totals || {};
         const parts = [
@@ -794,9 +799,9 @@ for (const task of tasks) {
           `extracted-prose=${Number(totals['extracted-prose'] || 0).toLocaleString()}`,
           `records=${Number(totals.records || 0).toLocaleString()}`
         ];
-        appendLog(`[metrics] Line totals: ${parts.join(' ')}`);
+        appendLog(`[metrics] lines ${parts.join(' ')}`);
       } catch (err) {
-        appendLog(`[metrics] Line counts unavailable: ${err?.message || err}`);
+        appendLog(`[metrics] line scan unavailable: ${err?.message || err}`);
       }
     }
 
@@ -878,9 +883,9 @@ for (const task of tasks) {
       if (!benchResult.ok) {
         const diskFull = logHistory.some((line) => isDiskFullMessage(line));
         if (diskFull) {
-          appendLog(`[error] Disk space exhausted while benchmarking ${repoLabel}; continuing.`, 'error');
+          appendLog(`[error] disk full while benchmarking ${repoLabel}; continuing.`, 'error');
         }
-        appendLog(`[error] Bench failed for ${repoLabel}; continuing to next repo.`, 'error');
+        appendLog(`[error] benchmark failed for ${repoLabel}; continuing.`, 'error');
         completeBenchRepo();
         appendLog('[metrics] failed (bench)');
         results.push({
@@ -898,7 +903,7 @@ for (const task of tasks) {
         const raw = await fsPromises.readFile(outFile, 'utf8');
         summary = JSON.parse(raw).summary || null;
       } catch (err) {
-        appendLog(`[error] Failed to read bench report for ${repoLabel}; continuing.`, 'error');
+        appendLog(`[error] failed to read bench report for ${repoLabel}; continuing.`, 'error');
         if (err && err.message) display.error(err.message);
         completeBenchRepo();
         appendLog('[metrics] failed (report)');
@@ -939,7 +944,7 @@ if (usrGuardrailBenchmarks.length) {
 }
 
 if (!quietMode) {
-  appendLog('\nGrouped summary');
+  appendLog('Grouped summary');
   for (const [language, payload] of Object.entries(output.groupedSummary)) {
     if (!payload.summary) continue;
     printSummary(payload.label, payload.summary, payload.count, quietMode, {
@@ -961,7 +966,11 @@ if (argv.json) {
   display.close();
   console.log(JSON.stringify(output, null, 2));
 } else {
-  appendLog(`\nCompleted ${results.length} benchmark runs.`);
-  if (argv.out) appendLog(`Summary written to ${path.resolve(argv.out)}`);
+  appendLog(`Completed ${results.length} benchmark runs.`);
+  if (argv.out) {
+    appendLog(`[summary] written (${path.basename(path.resolve(argv.out))})`, 'info', {
+      fileOnlyLine: `Summary written to ${path.resolve(argv.out)}`
+    });
+  }
   display.close();
 }

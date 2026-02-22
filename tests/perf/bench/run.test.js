@@ -139,11 +139,11 @@ const hasSqliteIndex = (mode) => {
 };
 if (needsMemory && !buildIndex && (!hasIndex('code') || !hasIndex('prose'))) {
   buildIndex = true;
-  logBench('[bench] Missing file-backed index; enabling build-index.');
+  logBench('[bench] Missing index artifacts; enabling --build-index.');
 }
 if (needsSqlite && !buildSqlite && (!hasSqliteIndex('code') || !hasSqliteIndex('prose'))) {
   buildSqlite = true;
-  logBench('[bench] Missing sqlite index; enabling build-sqlite.');
+  logBench('[bench] Missing sqlite artifacts; enabling --build-sqlite.');
 }
 if (buildSqlite && !buildIndex) buildIndex = true;
 const heapArgRaw = argv['heap-mb'];
@@ -182,7 +182,7 @@ if (heapOverride) {
     .trim();
   baseEnv.PAIROFCLEATS_MAX_OLD_SPACE_MB = String(heapOverride);
   logBench(
-    `[bench] heap ${formatGb(heapOverride)} (${heapOverride} MB) ` +
+    `[bench] Heap ${formatGb(heapOverride)} (${heapOverride} MB) ` +
       `(override with --heap-mb or PAIROFCLEATS_MAX_OLD_SPACE_MB)`
   );
 }
@@ -192,6 +192,12 @@ function logBench(message) {
   if (!message) return;
   if (quietMode) return;
   display.log(message);
+}
+
+function formatQueryPreview(query, maxChars = 120) {
+  const value = String(query || '').replace(/\s+/g, ' ').trim();
+  if (value.length <= maxChars) return value;
+  return `${value.slice(0, Math.max(0, maxChars - 1)).trimEnd()}...`;
 }
 
 function buildSearchArgs(query, backend) {
@@ -455,7 +461,7 @@ if (buildIndex || buildSqlite) {
     buildMs.index = runBuild(args, 'build index', buildEnv);
     if (useStageQueue) {
       runServiceQueue('index', buildEnv);
-      logBench('[bench] Stage2 enrichment complete; continuing with benchmark queries.');
+      logBench('[bench] Stage2 enrichment complete; continuing to query run.');
     }
   }
   if (buildSqlite) {
@@ -541,8 +547,8 @@ const runQueries = async (requestedConcurrency) => {
   };
 
   logBench(
-    `[bench] Running ${selectedQueries.length} queries across ${backends.length} backends ` +
-    `(${totalSearches} searches) with concurrency ${requestedConcurrency}.`
+    `[bench] Running ${selectedQueries.length} queries x ${backends.length} backends ` +
+    `(${totalSearches} searches) | concurrency ${requestedConcurrency}`
   );
   logQueryProgress(true);
   const workerPool = createSearchWorkerPool({
@@ -555,8 +561,8 @@ const runQueries = async (requestedConcurrency) => {
     if (!loggedQueries.has(task.queryIndex)) {
       loggedQueries.add(task.queryIndex);
       logBench(
-        `[bench] (concurrency ${requestedConcurrency}) Query ` +
-        `${task.queryIndex}/${selectedQueries.length}: ${task.query}`
+        `[bench] Query ${task.queryIndex}/${selectedQueries.length} | ` +
+        `c${requestedConcurrency} | ${formatQueryPreview(task.query)}`
       );
     }
     const payload = await runSearch(workerPool, task.query, task.backend);
@@ -746,6 +752,6 @@ if (argv.json) {
 if (argv['write-report']) {
   const outPath = argv.out ? path.resolve(argv.out) : path.join(root, 'docs', 'benchmarks.json');
   await fs.writeFile(outPath, JSON.stringify(output, null, 2));
-  if (!argv.json) logBench(`Report written to ${outPath}`);
+  if (!argv.json) logBench(`[bench] Report written (${path.basename(outPath)}).`);
 }
 closeDisplay();

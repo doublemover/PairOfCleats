@@ -393,7 +393,7 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
       const logDetails = [];
       const modeChunkCountHint = resolveChunkMetaTotalRecords(modeIndexDir);
       if (emitOutput) {
-        log(`${modeLabel} building index`, {
+        log(`${modeLabel} build start`, {
           fileOnlyLine: `${modeLabel} building ${mode} index -> ${outputPath}`
         });
       }
@@ -519,8 +519,8 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
         }
         if (incrementalRequested && emitOutput && !hasIncrementalBundles) {
           const skipMessage = bundleSkipReason
-            ? `[sqlite] Incremental bundles skipped for ${mode}: ${bundleSkipReason}; falling back to artifacts.`
-            : '[sqlite] Incremental bundles unavailable; falling back to artifacts.';
+            ? `[sqlite] incremental bundles skipped for ${mode}: ${bundleSkipReason}; using artifacts.`
+            : '[sqlite] incremental bundles unavailable; using artifacts.';
           if (bundleSkipReason?.includes('bundle file missing')) {
             warn(skipMessage);
           } else {
@@ -635,10 +635,10 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
             continue;
           }
           if (emitOutput && updateResult?.used === false && updateResult.reason) {
-            warn(`[sqlite] Incremental update skipped for ${mode}: ${updateResult.reason}.`);
+            warn(`[sqlite] incremental update skipped for ${mode}: ${updateResult.reason}.`);
           }
         } else if (incrementalRequested && fsSync.existsSync(outputPath) && incrementalData?.manifest && missingBundleCount > 0) {
-          warn(`[sqlite] Incremental update skipped for ${mode}: bundle file missing (${missingBundleCount}).`);
+          warn(`[sqlite] incremental update skipped for ${mode}: bundle file missing (${missingBundleCount}).`);
         }
 
         tempOutputPath = createTempPath(outputPath);
@@ -671,13 +671,13 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
           const missingDense = denseArtifactsRequired && bundleResult?.denseCount === 0;
           const bundleFailureReason = bundleResult?.reason || (missingDense ? 'bundles missing embeddings' : '');
           if (bundleFailureReason) {
-            warn(`[sqlite] Incremental bundle build failed for ${mode}: ${bundleFailureReason}; falling back to artifacts.`);
+            warn(`[sqlite] incremental bundle build failed for ${mode}: ${bundleFailureReason}; using artifacts.`);
             const embedLine = formatEmbedStats(bundleResult?.embedStats);
-            if (embedLine) log(`[sqlite] Bundle embeddings for ${mode}: ${embedLine}.`);
+            if (embedLine) log(`[sqlite] bundle embeddings ${mode}: ${embedLine}.`);
             const annLine = formatVectorAnnState(bundleResult?.vectorAnn);
-            if (annLine) log(`[sqlite] Vector extension state for ${mode}: ${annLine}.`);
+            if (annLine) log(`[sqlite] vector extension ${mode}: ${annLine}.`);
             const manifestLine = formatBundleManifest(bundleManifest);
-            if (manifestLine) log(`[sqlite] Bundle manifest for ${mode}: ${manifestLine}.`);
+            if (manifestLine) log(`[sqlite] bundle manifest ${mode}: ${manifestLine}.`);
             resolvedInput = { source: 'artifacts', indexDir: modeIndexDir };
             await buildDatabaseFromArtifacts({
               Database,
@@ -847,7 +847,7 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
     }
 
     if (emitOutput && incrementalRequested) {
-      const summary = modeList.length > 1 ? 'SQLite Indexes Updated' : 'SQLite Index Updated';
+      const summary = modeList.length > 1 ? 'indexes updated' : 'index updated';
       log(`[sqlite] ${summary}.`);
     }
     return { ok: true, mode: modeArg, outPath, outputPaths: modeOutputPaths };

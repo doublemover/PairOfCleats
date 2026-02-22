@@ -83,5 +83,7 @@ export const writePiecesManifest = async ({
     },
     atomic: true
   });
-  log(`→ Wrote pieces manifest (${normalizedEntries.length} entries) at ${manifestPath}.`);
+  log(`→ Wrote pieces manifest (${normalizedEntries.length} entries).`, {
+    fileOnlyLine: `→ Wrote pieces manifest (${normalizedEntries.length} entries) at ${manifestPath}.`
+  });
 };
