@@ -62,6 +62,7 @@ const PERL_DOC_OPTIONS = {
   blockEnd: null,
   skipLine: (line) => line.startsWith('#!')
 };
+const PERL_PACKAGE_DECL_RE = /^\s*package\s+([A-Za-z_][A-Za-z0-9_:]*)\b/m;
 
 function stripPerlComments(text) {
   return text.replace(/#.*$/gm, ' ');
@@ -102,6 +103,27 @@ function collectPerlCallsAndUsages(text) {
   return { calls: Array.from(calls), usages: Array.from(usages) };
 }
 
+function normalizePerlTreeChunks(chunks, text) {
+  if (!Array.isArray(chunks) || !chunks.length) return chunks;
+  return chunks.map((chunk) => {
+    if (!chunk || chunk.kind !== 'PackageDeclaration') return chunk;
+    if (typeof chunk.name === 'string' && chunk.name.includes('::')) return chunk;
+    const signature = typeof chunk?.meta?.signature === 'string' ? chunk.meta.signature : '';
+    const signatureMatch = signature.match(PERL_PACKAGE_DECL_RE);
+    if (signatureMatch?.[1]) {
+      return { ...chunk, name: signatureMatch[1] };
+    }
+    const start = Number.isFinite(chunk.start) ? Math.max(0, chunk.start) : 0;
+    const end = Number.isFinite(chunk.end) ? Math.max(start, chunk.end) : start;
+    const probe = text.slice(start, Math.min(text.length, end + 256));
+    const probeMatch = probe.match(PERL_PACKAGE_DECL_RE);
+    if (probeMatch?.[1]) {
+      return { ...chunk, name: probeMatch[1] };
+    }
+    return chunk;
+  });
+}
+
 /**
  * Collect use/require imports from Perl source.
  * @param {string} text
@@ -135,7 +157,7 @@ export function collectPerlImports(text) {
  */
 export function buildPerlChunks(text, options = {}) {
   const treeChunks = buildTreeSitterChunks({ text, languageId: 'perl', options });
-  if (treeChunks && treeChunks.length) return treeChunks;
+  if (treeChunks && treeChunks.length) return normalizePerlTreeChunks(treeChunks, text);
   const lineIndex = buildLineIndex(text);
   const lines = text.split('\n');
   const decls = [];
