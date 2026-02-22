@@ -26,6 +26,15 @@ Sequence-0 perf runs must emit all four artifacts under `benchmarks/index/`:
   - `chunk`
   - `parse`
   - `relation`
+- `perf-corpus-manifest.json` is deterministic:
+  - `files[]` is sorted by `path` ascending.
+  - `totals.files` equals `files.length`.
+  - `totals.bytes` equals the sum of `files[].sizeBytes`.
+- `perf-delta-report.json` is cross-linked and stage-aligned:
+  - `baselineRef` points to `benchmarks/index/perf-baseline-telemetry.json`.
+  - `afterRef` points to `benchmarks/index/perf-after-telemetry.json`.
+  - `deltaByStage` uses the same stage keys as telemetry `stageMetrics`.
+  - Each `deltaByStage[stage]` equals `after.stageMetrics[stage].wallMs - baseline.stageMetrics[stage].wallMs`.
 
 ## Validator surface
 

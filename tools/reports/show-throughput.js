@@ -7,10 +7,24 @@ import { getMetricsDir, loadUserConfig } from '../shared/dict-utils.js';
 const resultsRoot = path.join(process.cwd(), 'benchmarks', 'results');
 const refreshJson = process.argv.includes('--refresh-json');
 const deepAnalysis = process.argv.includes('--deep-analysis') || refreshJson;
+const includeUsrGuardrails = process.argv.includes('--include-usr');
+const NON_REPO_RESULTS_FOLDERS = new Set(['logs', 'usr']);
 
 const listDirs = (root) => fs.existsSync(root)
   ? fs.readdirSync(root, { withFileTypes: true }).filter((entry) => entry.isDirectory())
   : [];
+
+/**
+ * Throughput aggregates are repo/language focused, so auxiliary benchmark
+ * folders (for example USR guardrail snapshots) are excluded by default.
+ *
+ * @param {string} folderName
+ * @returns {boolean}
+ */
+const includeResultsFolder = (folderName) => {
+  if (folderName === 'usr' && includeUsrGuardrails) return true;
+  return !NON_REPO_RESULTS_FOLDERS.has(folderName);
+};
 
 const formatNumber = (value, digits = 1) => (
   Number.isFinite(value) ? value.toFixed(digits) : 'n/a'
@@ -720,7 +734,7 @@ if (!fs.existsSync(resultsRoot)) {
   process.exit(1);
 }
 
-const folders = listDirs(resultsRoot).filter((dir) => dir.name !== 'logs');
+const folders = listDirs(resultsRoot).filter((dir) => includeResultsFolder(dir.name));
 if (!folders.length) {
   console.error('No benchmark results folders found.');
   process.exit(0);
