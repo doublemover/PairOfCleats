@@ -688,6 +688,28 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     ioConcurrency: envelope.concurrency.ioConcurrency.value,
     cpuConcurrency: envelope.concurrency.cpuConcurrency.value
   };
+  const normalizedScmMaxConcurrentProcesses = Number.isFinite(Number(scmConfig?.maxConcurrentProcesses))
+    ? Math.max(1, Math.floor(Number(scmConfig.maxConcurrentProcesses)))
+    : Math.max(
+      1,
+      Math.floor(
+        fileConcurrency
+        || cpuConcurrency
+        || ioConcurrency
+        || 1
+      )
+    );
+  setScmRuntimeConfig({
+    ...scmConfig,
+    maxConcurrentProcesses: normalizedScmMaxConcurrentProcesses,
+    runtime: {
+      cpuCount,
+      maxConcurrencyCap,
+      fileConcurrency,
+      ioConcurrency,
+      cpuConcurrency
+    }
+  });
   const runtimeMemoryPolicy = resolveRuntimeMemoryPolicy({
     indexingConfig,
     cpuConcurrency
