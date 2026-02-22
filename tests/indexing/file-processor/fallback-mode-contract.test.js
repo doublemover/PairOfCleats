@@ -123,6 +123,24 @@ assert.equal(astFull.chunks[0].metaV2?.parser?.mode, 'ast-full');
 assert.ok(astFull.chunks[0].docmeta?.risk, 'ast-full should retain risk metadata');
 assert.ok(astFull.chunks[0].docmeta?.inferredTypes, 'ast-full should retain type inference metadata');
 
+const astFullWithNonCodeFallback = await processChunks({
+  ...baseContext,
+  chunkingDiagnostics: {
+    treeSitterEnabled: true,
+    schedulerRequired: true,
+    usedHeuristicChunking: true,
+    usedHeuristicCodeChunking: false,
+    fallbackSegmentCount: 2,
+    codeFallbackSegmentCount: 0,
+    schedulerMissingCount: 0
+  }
+});
+assert.equal(
+  astFullWithNonCodeFallback.chunks[0].metaV2?.parser?.mode,
+  'ast-full',
+  'non-code fallback segments should not force syntax-lite parser mode'
+);
+
 const syntaxLite = await processChunks({
   ...baseContext,
   chunkingDiagnostics: {

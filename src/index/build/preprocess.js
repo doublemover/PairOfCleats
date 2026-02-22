@@ -11,6 +11,7 @@ import { createRecordsClassifier, shouldSniffRecordContent } from './records.js'
 import { pickMinLimit } from './runtime/limits.js';
 import { isCodeEntryForPath, isProseEntryForPath } from './mode-routing.js';
 import {
+  buildGeneratedPolicyConfig,
   buildGeneratedPolicyDowngradePayload,
   resolveGeneratedPolicyDecision
 } from './generated-policy.js';
@@ -103,6 +104,9 @@ export async function preprocessFiles({
   abortSignal = null
 }) {
   throwIfAborted(abortSignal);
+  const effectiveGeneratedPolicy = generatedPolicy && typeof generatedPolicy === 'object'
+    ? generatedPolicy
+    : buildGeneratedPolicyConfig({});
   const documentExtractionEnabled = documentExtractionConfig?.enabled === true;
   const { entries, skippedCommon } = await discoverEntries({
     root,
@@ -112,7 +116,7 @@ export async function preprocessFiles({
     scmProviderImpl,
     scmRepoRoot,
     ignoreMatcher,
-    generatedPolicy,
+    generatedPolicy: effectiveGeneratedPolicy,
     maxFileBytes,
     fileCaps,
     maxDepth,
@@ -141,7 +145,7 @@ export async function preprocessFiles({
         && scanResult?.skip?.reason === 'binary'
       );
       const policyDecision = resolveGeneratedPolicyDecision({
-        generatedPolicy,
+        generatedPolicy: effectiveGeneratedPolicy,
         relPath: entry.rel,
         absPath: entry.abs,
         baseName: path.basename(entry.abs),

@@ -831,14 +831,17 @@ export const processFileCpu = async (context) => {
     schedulerRequired: mustUseTreeSitterScheduler,
     scheduledSegmentCount: 0,
     fallbackSegmentCount: 0,
+    codeFallbackSegmentCount: 0,
     schedulerMissingCount: 0,
-    usedHeuristicChunking: false
+    usedHeuristicChunking: false,
+    usedHeuristicCodeChunking: false
   };
   updateCrashStage('chunking');
   try {
     const fallbackSegments = [];
     const scheduled = [];
     let schedulerMissingCount = 0;
+    let codeFallbackSegmentCount = 0;
     const treeSitterOptions = { treeSitter: treeSitterConfigForMode || {} };
     for (const segment of segments || []) {
       if (!segment) continue;
@@ -847,6 +850,7 @@ export const processFileCpu = async (context) => {
 
       if (!mustUseTreeSitterScheduler || segmentTokenMode !== 'code') {
         fallbackSegments.push(segment);
+        if (segmentTokenMode === 'code') codeFallbackSegmentCount += 1;
         continue;
       }
 
@@ -861,12 +865,14 @@ export const processFileCpu = async (context) => {
         && isTreeSitterEnabled(treeSitterOptions, resolvedLang);
       if (!canUseTreeSitter) {
         fallbackSegments.push(segment);
+        codeFallbackSegmentCount += 1;
         continue;
       }
 
       const segmentText = text.slice(segment.start, segment.end);
       if (exceedsTreeSitterLimits({ text: segmentText, languageId: resolvedLang, treeSitterConfig: treeSitterConfigForMode })) {
         fallbackSegments.push(segment);
+        codeFallbackSegmentCount += 1;
         continue;
       }
 
@@ -926,6 +932,7 @@ export const processFileCpu = async (context) => {
           if (!treeSitterStrict && hasScheduledEntry === false) {
             fallbackSegments.push(item.segment);
             schedulerMissingCount += 1;
+            codeFallbackSegmentCount += 1;
             continue;
           }
           logLine?.(
@@ -950,6 +957,7 @@ export const processFileCpu = async (context) => {
       for (const item of scheduled) {
         if (!loadChunk) {
           fallbackSegments.push(item.segment);
+          codeFallbackSegmentCount += 1;
           continue;
         }
         const chunks = await loadChunk(item.virtualPath);
@@ -960,6 +968,7 @@ export const processFileCpu = async (context) => {
           if (!treeSitterStrict && hasScheduledEntry === false) {
             fallbackSegments.push(item.segment);
             schedulerMissingCount += 1;
+            codeFallbackSegmentCount += 1;
             continue;
           }
           logLine?.(
@@ -995,10 +1004,12 @@ export const processFileCpu = async (context) => {
     }
     chunkingDiagnostics.scheduledSegmentCount = scheduled.length;
     chunkingDiagnostics.fallbackSegmentCount = fallbackSegments.length;
+    chunkingDiagnostics.codeFallbackSegmentCount = codeFallbackSegmentCount;
     chunkingDiagnostics.schedulerMissingCount = schedulerMissingCount;
 
     if (fallbackSegments.length) {
       chunkingDiagnostics.usedHeuristicChunking = true;
+      chunkingDiagnostics.usedHeuristicCodeChunking = codeFallbackSegmentCount > 0;
       const fallbackChunks = chunkSegments({
         text,
         ext,

@@ -36,10 +36,11 @@ import { resolveMaxBytesForFile, resolveMaxDepthCap, resolveMaxFilesCap, isIndex
 import { startChokidarWatcher } from './watch/backends/chokidar.js';
 import { startParcelWatcher } from './watch/backends/parcel.js';
 import { createWatchAttemptManager } from './watch/attempts.js';
-import { MINIFIED_NAME_REGEX, normalizeRoot } from './watch/shared.js';
+import { normalizeRoot } from './watch/shared.js';
 import { isCodeEntryForPath, isProseEntryForPath } from './mode-routing.js';
 import { detectShebangLanguage } from './shebang.js';
 import {
+  buildGeneratedPolicyConfig,
   buildGeneratedPolicyDowngradePayload,
   resolveGeneratedPolicyDecision
 } from './generated-policy.js';
@@ -82,7 +83,9 @@ export async function watchIndex({
   const root = runtimeRef.root;
   const recordsRoot = resolveRecordsRoot(root, runtimeRef.recordsDir);
   const ignoreMatcher = runtimeRef.ignoreMatcher;
-  const generatedPolicy = runtimeRef.generatedPolicy || null;
+  const generatedPolicy = runtimeRef.generatedPolicy && typeof runtimeRef.generatedPolicy === 'object'
+    ? runtimeRef.generatedPolicy
+    : buildGeneratedPolicyConfig({});
   const maxFileBytes = runtimeRef.maxFileBytes;
   const fileCaps = runtimeRef.fileCaps;
   const guardrails = runtimeRef.guardrails || {};
@@ -326,9 +329,6 @@ export async function watchIndex({
           downgrade: buildGeneratedPolicyDowngradePayload(generatedPolicyDecision)
         }
       };
-    }
-    if ((!generatedPolicy || generatedPolicy.enabled === false) && MINIFIED_NAME_REGEX.test(baseName.toLowerCase())) {
-      return { skip: true, reason: 'minified', extra: { method: 'name' } };
     }
     let ext = resolveSpecialCodeExt(baseName) || fileExt(absPath);
     let stat;

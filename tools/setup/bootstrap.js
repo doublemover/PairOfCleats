@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { createStdoutGuard } from '../../src/shared/cli/stdout-guard.js';
+import { spawnSubprocess } from '../../src/shared/subprocess.js';
 import { runCommand } from '../shared/cli-utils.js';
 import { getDictionaryPaths, getDictConfig, getRepoCacheRoot, getRuntimeConfig, getToolingConfig, resolveRepoConfig, resolveRuntimeEnv, resolveToolRoot } from '../shared/dict-utils.js';
 import { getVectorExtensionConfig, resolveVectorExtensionPath } from '../sqlite/vector-extension.js';
@@ -39,6 +40,36 @@ const recordStep = (name, data) => {
   summary.steps[name] = { ...(summary.steps[name] || {}), ...data };
 };
 
+const streamChildOutputToStderr = async (cmd, args, { cwd = root, env = process.env } = {}) => {
+  if (process.platform === 'win32' && String(cmd || '').toLowerCase() === 'npm') {
+    const npmResult = runCommand(cmd, args, {
+      cwd,
+      env,
+      stdio: 'pipe',
+      encoding: 'utf8'
+    });
+    relayChildOutputToStderr(npmResult);
+    return {
+      ok: npmResult.ok,
+      status: npmResult.status ?? null
+    };
+  }
+  const result = await spawnSubprocess(cmd, args, {
+    cwd,
+    env,
+    stdio: ['inherit', 'pipe', 'pipe'],
+    captureStdout: false,
+    captureStderr: false,
+    onStdout: (chunk) => process.stderr.write(chunk),
+    onStderr: (chunk) => process.stderr.write(chunk),
+    rejectOnNonZeroExit: false
+  });
+  return {
+    ok: result.exitCode === 0,
+    status: result.exitCode ?? null
+  };
+};
+
 const relayChildOutputToStderr = (result) => {
   if (!jsonOutput || !result || typeof result !== 'object') return;
   if (typeof result.stdout === 'string' && result.stdout.length > 0) {
@@ -51,12 +82,20 @@ const relayChildOutputToStderr = (result) => {
 
 const configPath = path.join(root, '.pairofcleats.json');
 if (argv['validate-config'] && fs.existsSync(configPath)) {
-  const result = runCommand(
-    process.execPath,
-    [path.join(toolRoot, 'tools', 'config', 'validate.js'), '--config', configPath],
-    { cwd: root, stdio: jsonOutput ? 'pipe' : 'inherit', encoding: 'utf8' }
-  );
-  relayChildOutputToStderr(result);
+  const result = jsonOutput
+    ? await streamChildOutputToStderr(
+      process.execPath,
+      [path.join(toolRoot, 'tools', 'config', 'validate.js'), '--config', configPath],
+      { cwd: root, env: process.env }
+    )
+    : runCommand(
+      process.execPath,
+      [path.join(toolRoot, 'tools', 'config', 'validate.js'), '--config', configPath],
+      { cwd: root, stdio: 'inherit', encoding: 'utf8' }
+    );
+  if (!jsonOutput) {
+    relayChildOutputToStderr(result);
+  }
   if (!result.ok) {
     process.exit(result.status ?? 1);
   }
@@ -81,14 +120,18 @@ let restoredArtifacts = false;
  * @param {string[]} args
  * @param {string} label
  */
-function run(cmd, args, label) {
-  const result = runCommand(cmd, args, {
-    cwd: root,
-    stdio: jsonOutput ? 'pipe' : 'inherit',
-    encoding: 'utf8',
-    env: baseEnv
-  });
-  relayChildOutputToStderr(result);
+async function run(cmd, args, label) {
+  const result = jsonOutput
+    ? await streamChildOutputToStderr(cmd, args, { cwd: root, env: baseEnv })
+    : runCommand(cmd, args, {
+      cwd: root,
+      stdio: 'inherit',
+      encoding: 'utf8',
+      env: baseEnv
+    });
+  if (!jsonOutput) {
+    relayChildOutputToStderr(result);
+  }
   if (!result.ok) {
     console.error(`Failed: ${label || cmd}`);
     process.exit(result.status ?? 1);
@@ -98,7 +141,7 @@ function run(cmd, args, label) {
 if (!argv['skip-install']) {
   const nodeModules = path.join(root, 'node_modules');
   if (!fs.existsSync(nodeModules)) {
-    run('npm', ['install'], 'npm install');
+    await run('npm', ['install'], 'npm install');
     recordStep('install', { skipped: false, installed: true });
   } else {
     recordStep('install', { skipped: false, installed: false });
@@ -111,7 +154,7 @@ if (!argv['skip-dicts']) {
   const dictConfig = getDictConfig(root, userConfig);
   const englishPath = path.join(dictConfig.dir, 'en.txt');
   if (!fs.existsSync(englishPath)) {
-    run(process.execPath, [path.join(toolRoot, 'tools', 'download', 'dicts.js'), '--lang', 'en'], 'download English dictionary');
+    await run(process.execPath, [path.join(toolRoot, 'tools', 'download', 'dicts.js'), '--lang', 'en'], 'download English dictionary');
   }
   const dictionaryPaths = await getDictionaryPaths(root, dictConfig);
   if (dictionaryPaths.length) {
@@ -154,7 +197,7 @@ if (!argv['skip-tooling']) {
       if (toolingConfig.autoInstallOnDetect && missingTools.length) {
         const installArgs = [path.join(toolRoot, 'tools', 'tooling', 'install.js'), '--root', root, '--scope', toolingConfig.installScope];
         if (!toolingConfig.allowGlobalFallback) installArgs.push('--no-fallback');
-        run(process.execPath, installArgs, 'install tooling');
+        await run(process.execPath, installArgs, 'install tooling');
       } else if (missingTools.length) {
         console.error('[bootstrap] Optional tooling missing. Run node tools/tooling/install.js to install.');
       }
@@ -211,12 +254,20 @@ if (!argv['skip-tooling']) {
 }
 
 if (!argv['skip-artifacts'] && fs.existsSync(path.join(artifactsDir, 'manifest.json'))) {
-  const result = runCommand(
-    process.execPath,
-    [path.join(toolRoot, 'tools', 'ci', 'restore-artifacts.js'), '--from', artifactsDir],
-    { cwd: root, stdio: jsonOutput ? 'pipe' : 'inherit', encoding: 'utf8', env: baseEnv }
-  );
-  relayChildOutputToStderr(result);
+  const result = jsonOutput
+    ? await streamChildOutputToStderr(
+      process.execPath,
+      [path.join(toolRoot, 'tools', 'ci', 'restore-artifacts.js'), '--from', artifactsDir],
+      { cwd: root, env: baseEnv }
+    )
+    : runCommand(
+      process.execPath,
+      [path.join(toolRoot, 'tools', 'ci', 'restore-artifacts.js'), '--from', artifactsDir],
+      { cwd: root, stdio: 'inherit', encoding: 'utf8', env: baseEnv }
+    );
+  if (!jsonOutput) {
+    relayChildOutputToStderr(result);
+  }
   restoredArtifacts = result.ok;
 }
 summary.restoredArtifacts = restoredArtifacts;
@@ -225,7 +276,7 @@ recordStep('artifacts', { skipped: argv['skip-artifacts'] === true, restored: re
 if (!argv['skip-index'] && !restoredArtifacts) {
   const indexArgs = [path.join(toolRoot, 'build_index.js')];
   if (useIncremental) indexArgs.push('--incremental');
-  run(process.execPath, indexArgs, 'build index');
+  await run(process.execPath, indexArgs, 'build index');
   recordStep('index', { skipped: false, built: true });
 } else {
   recordStep('index', { skipped: argv['skip-index'] === true, built: false });
@@ -234,7 +285,7 @@ if (!argv['skip-index'] && !restoredArtifacts) {
 if (argv['with-sqlite']) {
   const sqliteArgs = [path.join(toolRoot, 'build_index.js'), '--stage', '4'];
   if (useIncremental) sqliteArgs.push('--incremental');
-  run(process.execPath, sqliteArgs, 'build sqlite index');
+  await run(process.execPath, sqliteArgs, 'build sqlite index');
   recordStep('sqlite', { skipped: false, built: true });
 } else {
   recordStep('sqlite', { skipped: true, built: false });

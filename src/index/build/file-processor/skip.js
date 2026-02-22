@@ -2,6 +2,7 @@ import path from 'node:path';
 import { pickMinLimit, resolveFileCaps } from './read.js';
 import { detectBinary, isMinifiedName, readFileSample } from '../file-scan.js';
 import {
+  buildGeneratedPolicyConfig,
   buildGeneratedPolicyDowngradePayload,
   resolveGeneratedPolicyDecision
 } from '../generated-policy.js';
@@ -40,6 +41,9 @@ export async function resolvePreReadSkip({
   bypassBinaryMinifiedSkip = false,
   generatedPolicy = null
 }) {
+  const effectiveGeneratedPolicy = generatedPolicy && typeof generatedPolicy === 'object'
+    ? generatedPolicy
+    : buildGeneratedPolicyConfig({});
   const shouldBypassSkipReason = (reason) => (
     bypassBinaryMinifiedSkip === true
     && (reason === 'binary' || reason === 'minified')
@@ -50,7 +54,7 @@ export async function resolvePreReadSkip({
     downgrade: buildGeneratedPolicyDowngradePayload(decision)
   });
   const resolvePolicyDecision = (scanSkip = null) => resolveGeneratedPolicyDecision({
-    generatedPolicy,
+    generatedPolicy: effectiveGeneratedPolicy,
     relPath: rel || null,
     absPath: abs,
     baseName: path.basename(abs),

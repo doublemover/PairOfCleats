@@ -15,10 +15,11 @@ import { createRecordsClassifier } from './records.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { pickMinLimit, resolveFileCaps } from './file-processor/read.js';
 import { getEnvConfig } from '../../shared/env.js';
-import { MINIFIED_NAME_REGEX, normalizeRoot } from './watch/shared.js';
+import { normalizeRoot } from './watch/shared.js';
 import { isCodeEntryForPath, isProseEntryForPath } from './mode-routing.js';
 import { detectShebangLanguage } from './shebang.js';
 import {
+  buildGeneratedPolicyConfig,
   buildGeneratedPolicyDowngradePayload,
   resolveGeneratedPolicyDecision
 } from './generated-policy.js';
@@ -140,6 +141,9 @@ export async function discoverEntries({
   abortSignal = null
 }) {
   throwIfAborted(abortSignal);
+  const effectiveGeneratedPolicy = generatedPolicy && typeof generatedPolicy === 'object'
+    ? generatedPolicy
+    : buildGeneratedPolicyConfig({});
   const maxBytes = Number.isFinite(Number(maxFileBytes)) && Number(maxFileBytes) > 0
     ? Number(maxFileBytes)
     : null;
@@ -271,12 +275,8 @@ export async function discoverEntries({
       recordSkip(absPath, 'ignored');
       return;
     }
-    if ((!generatedPolicy || generatedPolicy.enabled === false) && MINIFIED_NAME_REGEX.test(baseName.toLowerCase())) {
-      recordSkip(absPath, 'minified', { method: 'name' });
-      return;
-    }
     const generatedPolicyDecision = resolveGeneratedPolicyDecision({
-      generatedPolicy,
+      generatedPolicy: effectiveGeneratedPolicy,
       relPath: relPosix,
       absPath,
       baseName

@@ -62,4 +62,22 @@ assert.equal(generatedSkip?.downgrade?.reasonCode, GENERATED_POLICY_REASON_CODE)
 assert.equal(vendorSkip?.downgrade?.reasonCode, GENERATED_POLICY_REASON_CODE);
 assert.equal(minifiedSkip?.indexMode, 'metadata-only');
 
+const { ignoreMatcher: defaultIgnoreMatcher } = await buildIgnoreMatcher({
+  root: tempRoot,
+  userConfig: {}
+});
+const defaultSkipped = [];
+const defaultEntries = await discoverFiles({
+  root: tempRoot,
+  mode: 'code',
+  ignoreMatcher: defaultIgnoreMatcher,
+  skippedFiles: defaultSkipped,
+  maxFileBytes: null
+});
+assert.equal(defaultEntries.length, 0, 'hard cutover: default generated policy should apply without explicit wiring');
+const defaultByReason = new Map(defaultSkipped.map((entry) => [path.relative(tempRoot, entry.file).replace(/\\/g, '/'), entry]));
+assert.equal(defaultByReason.get('src/app.min.js')?.downgrade?.reasonCode, GENERATED_POLICY_REASON_CODE);
+assert.equal(defaultByReason.get('src/generated/auto.ts')?.downgrade?.reasonCode, GENERATED_POLICY_REASON_CODE);
+assert.equal(defaultByReason.get('vendor/sdk.js')?.downgrade?.reasonCode, GENERATED_POLICY_REASON_CODE);
+
 console.log('generated policy discovery test passed');

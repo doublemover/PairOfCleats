@@ -347,6 +347,8 @@ export const coalesceHeavyChunks = (chunks, maxChunks) => {
  *   heavyFileSkipTokenization:boolean,
  *   chunkingDiagnostics?:{
  *     usedHeuristicChunking?:boolean,
+ *     usedHeuristicCodeChunking?:boolean,
+ *     codeFallbackSegmentCount?:number,
  *     schedulerMissingCount?:number,
  *     fallbackSegmentCount?:number
  *   }|null
@@ -369,14 +371,15 @@ const resolveParserFallbackProfile = ({
   const schedulerMissingCount = Number.isFinite(Number(diagnostics.schedulerMissingCount))
     ? Math.max(0, Math.floor(Number(diagnostics.schedulerMissingCount)))
     : 0;
-  const fallbackSegmentCount = Number.isFinite(Number(diagnostics.fallbackSegmentCount))
-    ? Math.max(0, Math.floor(Number(diagnostics.fallbackSegmentCount)))
+  const codeFallbackSegmentCount = Number.isFinite(Number(diagnostics.codeFallbackSegmentCount))
+    ? Math.max(0, Math.floor(Number(diagnostics.codeFallbackSegmentCount)))
     : 0;
-  const usedHeuristicChunking = diagnostics.usedHeuristicChunking === true;
+  const usedHeuristicCodeChunking = diagnostics.usedHeuristicCodeChunking === true;
   const schedulerRequired = diagnostics.schedulerRequired === true;
   const treeSitterWasEnabled = diagnostics.treeSitterEnabled === true;
+  const codeFallbackIndicatesParserLoss = usedHeuristicCodeChunking || codeFallbackSegmentCount > 0;
   const fallbackIndicatesParserLoss = (schedulerRequired || treeSitterWasEnabled)
-    && (usedHeuristicChunking || schedulerMissingCount > 0 || fallbackSegmentCount > 0);
+    && (codeFallbackIndicatesParserLoss || schedulerMissingCount > 0);
   if (mode !== 'code') {
     return {
       mode: 'chunk-only',

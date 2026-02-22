@@ -4,6 +4,7 @@ import ignore from 'ignore';
 import { SKIP_DIRS, SKIP_FILES, SKIP_GLOBS } from '../constants.js';
 import { isAbsolutePathNative, toPosix } from '../../shared/files.js';
 import {
+  buildGeneratedPolicyConfig,
   GENERATED_POLICY_DEFAULT_SKIP_DIRS,
   GENERATED_POLICY_DEFAULT_SKIP_GLOBS
 } from './generated-policy.js';
@@ -15,6 +16,9 @@ import {
  */
 export async function buildIgnoreMatcher({ root, userConfig, generatedPolicy = null }) {
   const resolvedConfig = userConfig && typeof userConfig === 'object' ? userConfig : {};
+  const effectiveGeneratedPolicy = generatedPolicy && typeof generatedPolicy === 'object'
+    ? generatedPolicy
+    : buildGeneratedPolicyConfig(resolvedConfig.indexing || {});
   const config = {
     useDefaultSkips: resolvedConfig.useDefaultSkips !== false,
     useGitignore: resolvedConfig.useGitignore !== false,
@@ -24,10 +28,7 @@ export async function buildIgnoreMatcher({ root, userConfig, generatedPolicy = n
   };
 
   const ignoreMatcher = ignore();
-  // Generated-policy default-skip filtering is an explicit opt-in.
-  // Legacy callers that do not pass a policy object must retain baseline
-  // SKIP_DIRS/SKIP_GLOBS behavior.
-  const generatedPolicyEnabled = generatedPolicy?.enabled === true;
+  const generatedPolicyEnabled = effectiveGeneratedPolicy.enabled === true;
   if (config.useDefaultSkips) {
     const skipDirs = generatedPolicyEnabled
       ? Array.from(SKIP_DIRS).filter((dir) => !GENERATED_POLICY_DEFAULT_SKIP_DIRS.has(dir))
@@ -138,7 +139,7 @@ export async function buildIgnoreMatcher({ root, userConfig, generatedPolicy = n
     ignoreMatcher.add(expandExtraIgnore(config.extraIgnore));
   }
   const generatedIncludePatterns = generatedPolicyEnabled
-    ? (generatedPolicy?.includePatterns || [])
+    ? (effectiveGeneratedPolicy.includePatterns || [])
     : [];
   if (generatedIncludePatterns.length) {
     const includeUnignore = generatedIncludePatterns.map((pattern) => `!${pattern}`);
