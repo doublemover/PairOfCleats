@@ -33,6 +33,123 @@ const ABSOLUTE_SYSTEM_PATH_PREFIX_RX = /^\/(?:etc|usr|opt|var|bin|sbin|lib|lib64
 const SCHEME_RELATIVE_URL_RX = /^\/\/[A-Za-z0-9.-]+\.[A-Za-z]{2,}(?:[/:]|$)/i;
 const DEFAULT_UNRESOLVED_NOISE_PREFIXES = ['node:', '@types/', 'internal/'];
 
+const normalizeAliasRuleText = (value) => (
+  typeof value === 'string'
+    ? value.trim().replace(/\\/g, '/')
+    : ''
+);
+
+const normalizeAliasRule = (value, index = 0) => {
+  if (!value || typeof value !== 'object') return null;
+  const match = normalizeAliasRuleText(
+    value.match || value.from || value.find || value.pattern || value.alias
+  );
+  const replace = normalizeAliasRuleText(
+    value.replace || value.to || value.target || value.path
+  );
+  if (!match || !replace) return null;
+  const matchWildcard = match.endsWith('/*');
+  const replaceWildcard = replace.endsWith('/*');
+  if (matchWildcard !== replaceWildcard) return null;
+  const prefixMode = matchWildcard || match.endsWith('/');
+  const matchPrefix = matchWildcard ? match.slice(0, -1) : match;
+  const replacePrefix = replaceWildcard ? replace.slice(0, -1) : replace;
+  if (!matchPrefix || !replacePrefix) return null;
+  return {
+    id: `alias_${index}`,
+    match,
+    replace,
+    prefixMode,
+    matchPrefix,
+    replacePrefix
+  };
+};
+
+const normalizeAliasRulesFromMap = (value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
+  const rules = [];
+  let index = 0;
+  for (const [match, replace] of Object.entries(value)) {
+    const rule = normalizeAliasRule({ match, replace }, index);
+    index += 1;
+    if (rule) rules.push(rule);
+  }
+  return rules;
+};
+
+const normalizeResolverAliasRules = (resolverPlugins) => {
+  if (!resolverPlugins || typeof resolverPlugins !== 'object') return [];
+  const aliasSource = resolverPlugins.alias || resolverPlugins.aliases || null;
+  if (!aliasSource) return [];
+  const rules = [];
+  if (Array.isArray(aliasSource)) {
+    for (let i = 0; i < aliasSource.length; i += 1) {
+      const rule = normalizeAliasRule(aliasSource[i], i);
+      if (rule) rules.push(rule);
+    }
+    return rules;
+  }
+  if (aliasSource && typeof aliasSource === 'object' && Array.isArray(aliasSource.rules)) {
+    for (let i = 0; i < aliasSource.rules.length; i += 1) {
+      const rule = normalizeAliasRule(aliasSource.rules[i], i);
+      if (rule) rules.push(rule);
+    }
+    return rules;
+  }
+  return normalizeAliasRulesFromMap(aliasSource);
+};
+
+const applyAliasRuleToSpecifier = ({ spec, rule }) => {
+  if (!spec || !rule) return null;
+  if (rule.prefixMode) {
+    if (!spec.startsWith(rule.matchPrefix)) return null;
+    const suffix = spec.slice(rule.matchPrefix.length);
+    return `${rule.replacePrefix}${suffix}`;
+  }
+  if (spec === rule.match) return rule.replace;
+  const matchPrefix = `${rule.match}/`;
+  if (spec.startsWith(matchPrefix)) {
+    const suffix = spec.slice(matchPrefix.length);
+    const replaceBase = rule.replace.endsWith('/') ? rule.replace.slice(0, -1) : rule.replace;
+    return `${replaceBase}/${suffix}`;
+  }
+  return null;
+};
+
+const resolveAliasPluginImport = ({
+  spec,
+  aliasRules,
+  lookup,
+  resolvePackageDirectoryImport
+}) => {
+  if (!spec || !Array.isArray(aliasRules) || aliasRules.length === 0) return null;
+  const candidates = [];
+  const seen = new Set();
+  for (const rule of aliasRules) {
+    const rewritten = applyAliasRuleToSpecifier({ spec, rule });
+    if (!rewritten) continue;
+    const normalized = normalizeRelPath(rewritten);
+    if (!normalized || normalized.startsWith('/') || seen.has(normalized)) continue;
+    seen.add(normalized);
+    candidates.push(normalized);
+  }
+  for (const candidate of candidates) {
+    const resolved = resolveCandidate(candidate, lookup)
+      || resolvePackageDirectoryImport(candidate);
+    if (resolved) return resolved;
+  }
+  return null;
+};
+
+const buildAliasRulesFingerprint = (aliasRules) => {
+  if (!Array.isArray(aliasRules) || aliasRules.length === 0) return null;
+  const payload = aliasRules
+    .map((rule) => `${rule.match}->${rule.replace}`)
+    .sort((a, b) => a.localeCompare(b))
+    .join('|');
+  return payload ? sha1(payload) : null;
+};
+
 const insertResolutionCache = (cache, key, value) => {
   if (!cache || !key) return;
   if (cache.size >= MAX_RESOLUTION_CACHE_ENTRIES) {
@@ -54,7 +171,8 @@ export function resolveImportLinks({
   cache = null,
   fileHashes = null,
   cacheStats = null,
-  fsMeta = null
+  fsMeta = null,
+  resolverPlugins = null
 }) {
   const fsMemo = createFsMemo(fsMeta);
   const cacheState = cache && typeof cache === 'object' ? cache : null;
@@ -97,6 +215,8 @@ export function resolveImportLinks({
     ? createLookupFromSnapshot({ root, snapshot: cachedLookup })
     : null;
   const resolvedLookup = lookup || createFileLookup({ entries, root, fsMemo });
+  const aliasRules = normalizeResolverAliasRules(resolverPlugins);
+  const aliasRulesFingerprint = buildAliasRulesFingerprint(aliasRules);
   const tsConfigResolver = createTsConfigLoader({
     rootAbs: resolvedLookup.rootAbs,
     fileSet: resolvedLookup.fileSet,
@@ -121,7 +241,10 @@ export function resolveImportLinks({
       buildConfigHash: packageFingerprint || null,
       mode,
       schemaVersion: 'import-resolution-cache-v3',
-      featureFlags: graphMeta?.importScanMode ? [`scan:${graphMeta.importScanMode}`] : null,
+      featureFlags: [
+        ...(graphMeta?.importScanMode ? [`scan:${graphMeta.importScanMode}`] : []),
+        ...(aliasRulesFingerprint ? [`resolverAlias:${aliasRulesFingerprint}`] : [])
+      ],
       pathPolicy: 'posix',
       extra: { fileSetFingerprint }
     })
@@ -375,19 +498,30 @@ export function resolveImportLinks({
             tsPathPattern = tsResolved.pattern;
             tsconfigPath = tsconfig?.tsconfigPath || null;
           } else {
-            const languageResolved = resolveLanguageNonRelativeImport({
-              importerInfo,
+            const aliasResolvedPath = resolveAliasPluginImport({
               spec,
+              aliasRules,
               lookup: resolvedLookup,
-              goModulePath,
-              dartPackageName
+              resolvePackageDirectoryImport
             });
-            if (languageResolved) {
-              resolvedType = languageResolved.resolvedType;
-              resolvedPath = languageResolved.resolvedPath;
+            if (aliasResolvedPath) {
+              resolvedType = 'plugin-alias';
+              resolvedPath = aliasResolvedPath;
             } else {
-              resolvedType = 'external';
-              packageName = parsePackageName(spec);
+              const languageResolved = resolveLanguageNonRelativeImport({
+                importerInfo,
+                spec,
+                lookup: resolvedLookup,
+                goModulePath,
+                dartPackageName
+              });
+              if (languageResolved) {
+                resolvedType = languageResolved.resolvedType;
+                resolvedPath = languageResolved.resolvedPath;
+              } else {
+                resolvedType = 'external';
+                packageName = parsePackageName(spec);
+              }
             }
           }
         }

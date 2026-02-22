@@ -32,6 +32,27 @@ const formatUnresolvedCategoryCounts = (categories) => {
   return entries.map(([category, count]) => `${category}=${Number(count)}`).join(', ');
 };
 
+const formatUnresolvedCategoryDelta = (categories) => {
+  const entries = Object.entries(categories || {})
+    .filter(([category, count]) => category && Number.isFinite(Number(count)) && Number(count) !== 0)
+    .sort((a, b) => a[0].localeCompare(b[0]));
+  if (entries.length === 0) return 'none';
+  return entries
+    .map(([category, count]) => {
+      const numeric = Number(count);
+      const prefix = numeric > 0 ? '+' : '';
+      return `${category}=${prefix}${numeric}`;
+    })
+    .join(', ');
+};
+
+const resolveImportResolverPlugins = (runtime) => {
+  const importResolutionConfig = runtime?.indexingConfig?.importResolution;
+  if (!importResolutionConfig || typeof importResolutionConfig !== 'object') return null;
+  const plugins = importResolutionConfig.resolverPlugins || importResolutionConfig.plugins || null;
+  return plugins && typeof plugins === 'object' ? plugins : null;
+};
+
 const logUnresolvedImportSamples = ({ samples, suppressed, unresolvedTotal, taxonomy }) => {
   const normalized = normalizeUnresolvedSamples(samples);
   const summary = taxonomy && typeof taxonomy === 'object'
@@ -726,6 +747,7 @@ export const postScanImports = async ({
       }
     }
   }
+  const resolverPlugins = resolveImportResolverPlugins(runtime);
   const resolution = resolveImportLinks({
     root: runtime.root,
     entries,
@@ -741,7 +763,8 @@ export const postScanImports = async ({
     cache,
     fileHashes,
     cacheStats,
-    fsMeta
+    fsMeta,
+    resolverPlugins
   });
   const unresolvedSamples = normalizeUnresolvedSamples(resolution?.unresolvedSamples);
   const unresolvedTaxonomy = summarizeUnresolvedImportTaxonomy(unresolvedSamples);
@@ -781,6 +804,14 @@ export const postScanImports = async ({
   if (resolvedResult?.stats) {
     const { resolved, external, unresolved } = resolvedResult.stats;
     log(`→ Imports: resolved=${resolved}, external=${external}, unresolved=${unresolved}`);
+    const deltaTotal = Number(resolvedResult?.cacheDiagnostics?.unresolvedTrend?.deltaTotal);
+    if (Number.isFinite(deltaTotal)) {
+      const sign = deltaTotal > 0 ? '+' : '';
+      const deltaByCategory = formatUnresolvedCategoryDelta(
+        resolvedResult?.cacheDiagnostics?.unresolvedTrend?.deltaByCategory
+      );
+      log(`[imports] unresolved delta vs previous run: ${sign}${deltaTotal} (byCategory: ${deltaByCategory})`);
+    }
     if (unresolved > 0) {
       logUnresolvedImportSamples({
         samples: resolvedResult.unresolvedSamples,

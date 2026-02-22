@@ -448,7 +448,7 @@ Primary targets:
 - Touchpoints: `src/index/chunk-id.js`, `tools/build/embeddings/runner.js`, `tests/indexing/chunk-id/chunk-mapping-hint-key.test.js`, `tests/indexing/incremental/incremental-bundle-mapping-reasons.test.js`, `tests/indexing/extracted-prose/extraction-report.test.js`, `tests/indexing/chunking/document-anchor-stability.test.js`
 
 ### UB-043: Import resolution quality improvements
-- Status: [ ]
+- Status: [x]
 - Problem:
   - Unresolved imports present in pandoc and rspec logs.
 - Tasks:
@@ -462,7 +462,7 @@ Primary targets:
 - Improvement Intent (What): import graph completeness
 - Improvement Method (How): resolver plugins, alias handling, and unresolved class reduction.
 - Integrated Betterments: add unresolved import class taxonomy in output (fixture, optional, missing dep, parse error); add repo-local path alias support in resolver plugins; add import resolution precision/recall score in reports.
-- Touchpoints: `src/index/build/import-resolution-cache.js`, `src/index/build/indexer/steps/relations.js`, `src/index/build/imports.js`, `tests/indexing/imports/import-resolution.test.js`, `tests/indexing/imports/import-graph-unresolved-refresh.test.js`, `tests/indexing/imports/import-resolution-language-coverage.test.js`
+- Touchpoints: `src/index/build/import-resolution/engine.js`, `src/index/build/indexer/steps/relations.js`, `src/index/build/imports.js`, `src/index/build/import-resolution-cache.js`, `tests/indexing/imports/import-resolution.test.js`, `tests/indexing/imports/import-graph-unresolved-refresh.test.js`, `tests/indexing/imports/import-resolution-language-coverage.test.js`
 
 ## Phase 5: Logging, Diagnostics, and Operator UX
 

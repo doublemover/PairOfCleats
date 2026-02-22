@@ -84,6 +84,8 @@ await write('src/main/scala/com/acme/util/ScalaHelper.scala', 'package com.acme.
 
 await write('src/main/groovy/com/acme/GMain.groovy', 'import com.acme.util.GHelper\n');
 await write('src/main/groovy/com/acme/util/GHelper.groovy', 'package com.acme.util\n');
+await write('src/plugin/main.js', "import '@repo/dep.js';\n");
+await write('src/repo_alias/dep.js', 'export const dep = 1;\n');
 
 await write('src/Main.jl', 'using Util.Core\n');
 await write('src/Util/Core.jl', 'module Core\nend\n');
@@ -143,6 +145,8 @@ const entries = [
   'src/main/scala/com/acme/util/ScalaHelper.scala',
   'src/main/groovy/com/acme/GMain.groovy',
   'src/main/groovy/com/acme/util/GHelper.groovy',
+  'src/plugin/main.js',
+  'src/repo_alias/dep.js',
   'src/Main.jl',
   'src/Util/Core.jl',
   'src/main.cpp',
@@ -172,6 +176,7 @@ const importsByFile = {
   'lib/main.dart': ['package:benchapp/src/util.dart', 'src/local.dart', 'package:flutter/material.dart'],
   'src/main/scala/com/acme/ScalaMain.scala': ['com.acme.util.ScalaHelper'],
   'src/main/groovy/com/acme/GMain.groovy': ['com.acme.util.GHelper'],
+  'src/plugin/main.js': ['@repo/dep.js'],
   'src/Main.jl': ['Util.Core'],
   'src/main.cpp': ['myproj/foo.hpp', 'vector'],
   'unittests/runtime/CompatibilityOverrideRuntime.cpp': [
@@ -186,7 +191,14 @@ const resolution = resolveImportLinks({
   entries,
   importsByFile,
   fileRelations: relations,
-  enableGraph: false
+  enableGraph: false,
+  resolverPlugins: {
+    alias: {
+      rules: [
+        { match: '@repo/*', replace: 'src/repo_alias/*' }
+      ]
+    }
+  }
 });
 
 const assertLinks = (file, expected) => {
@@ -231,6 +243,7 @@ assertLinks('lib/main.dart', ['lib/src/local.dart', 'lib/src/util.dart']);
 assertExternal('lib/main.dart', ['package:flutter/material.dart']);
 assertLinks('src/main/scala/com/acme/ScalaMain.scala', ['src/main/scala/com/acme/util/ScalaHelper.scala']);
 assertLinks('src/main/groovy/com/acme/GMain.groovy', ['src/main/groovy/com/acme/util/GHelper.groovy']);
+assertLinks('src/plugin/main.js', ['src/repo_alias/dep.js']);
 assertLinks('src/Main.jl', ['src/Util/Core.jl']);
 assertLinks('src/main.cpp', ['include/myproj/foo.hpp']);
 assertExternal('src/main.cpp', ['vector']);
