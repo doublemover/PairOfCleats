@@ -20,6 +20,7 @@ const loggedParseTimeouts = new Set();
 const loggedSizeSkips = new Set();
 const loggedUnavailable = new Set();
 const loggedTraversalBudget = new Set();
+const loggedPlatformGuards = new Set();
 const MAX_TIMEOUTS_PER_RUN = 3;
 
 const bumpMetric = (key, amount = 1) => {
@@ -465,6 +466,14 @@ function resolveParseTimeoutMs(options, resolvedId) {
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : null;
 }
 
+const shouldGuardNativeParser = (resolvedId, options = {}) => {
+  if (resolvedId !== 'perl') return false;
+  const configured = options?.treeSitter?.nativeParserGuards?.perl;
+  if (configured === false) return false;
+  if (configured === true) return true;
+  return process.platform === 'win32';
+};
+
 function extractSignature(text, start, end) {
   const limit = Math.min(end, start + 2000);
   const slice = text.slice(start, limit);
@@ -776,6 +785,23 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
     kind: 'File',
     meta: { treeSitter: true, wholeFile: true }
   }]);
+  if (shouldGuardNativeParser(resolvedId, options)) {
+    bumpMetric('fallbacks', 1);
+    const guardKey = `${resolvedId}:native-crash-guard`;
+    if (options?.log && !loggedPlatformGuards.has(guardKey)) {
+      options.log(
+        `[tree-sitter] Native parser guarded for ${resolvedId} on ${process.platform}; ` +
+        'skipping in-process parse due known native crash path.'
+      );
+      loggedPlatformGuards.add(guardKey);
+    }
+    if (strict) {
+      // In strict mode, avoid process-terminating parser paths but still return
+      // a deterministic tree-sitter-backed chunk envelope.
+      return buildWholeFileChunk();
+    }
+    return null;
+  }
   if (treeSitterState.disabledLanguages?.has(resolvedId)) {
     bumpMetric('fallbacks', 1);
     return failStrict(
