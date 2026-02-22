@@ -695,7 +695,7 @@ export const processFiles = async ({
             });
             try {
               return await runWithTimeout(
-                () => processFile(entry, stableFileIndex),
+                (signal) => processFile(entry, stableFileIndex, { signal }),
                 {
                   timeoutMs: fileHardTimeoutMs,
                   errorFactory: () => createTimeoutError({

@@ -51,37 +51,45 @@ await writeModeIndex('extracted-prose', 'compat-cohort-b', {
   chunkMeta: [{ id: 1, file: 'docs/a.md', start: 0, end: 4 }]
 });
 
-const loaded = await loadSearchIndexes({
-  rootDir,
-  userConfig: {},
-  searchMode: 'code',
-  runProse: false,
-  runExtractedProse: false,
-  loadExtractedProse: true,
-  runCode: true,
-  runRecords: false,
-  useSqlite: false,
-  useLmdb: false,
-  emitOutput: false,
-  exitOnError: false,
-  annActive: false,
-  filtersActive: false,
-  contextExpansionEnabled: false,
-  graphRankingEnabled: false,
-  sqliteFtsRequested: false,
-  backendLabel: 'memory',
-  backendForcedTantivy: false,
-  indexCache: null,
-  modelIdDefault: null,
-  fileChargramN: null,
-  hnswConfig: { enabled: false },
-  lancedbConfig: { enabled: true },
-  tantivyConfig: { enabled: false },
-  strict: true,
-  loadIndexFromSqlite: () => ({}),
-  loadIndexFromLmdb: () => ({}),
-  resolvedDenseVectorMode: 'merged'
-});
+const warnings = [];
+const originalWarn = console.warn;
+let loaded;
+try {
+  console.warn = (message) => warnings.push(String(message || ''));
+  loaded = await loadSearchIndexes({
+    rootDir,
+    userConfig: {},
+    searchMode: 'code',
+    runProse: false,
+    runExtractedProse: false,
+    loadExtractedProse: true,
+    runCode: true,
+    runRecords: false,
+    useSqlite: false,
+    useLmdb: false,
+    emitOutput: false,
+    exitOnError: false,
+    annActive: false,
+    filtersActive: false,
+    contextExpansionEnabled: false,
+    graphRankingEnabled: false,
+    sqliteFtsRequested: false,
+    backendLabel: 'memory',
+    backendForcedTantivy: false,
+    indexCache: null,
+    modelIdDefault: null,
+    fileChargramN: null,
+    hnswConfig: { enabled: false },
+    lancedbConfig: { enabled: true },
+    tantivyConfig: { enabled: false },
+    strict: true,
+    loadIndexFromSqlite: () => ({}),
+    loadIndexFromLmdb: () => ({}),
+    resolvedDenseVectorMode: 'merged'
+  });
+} finally {
+  console.warn = originalWarn;
+}
 
 assert.equal(loaded.runExtractedProse, false, 'optional extracted-prose run flag should remain disabled');
 assert.equal(
@@ -95,5 +103,6 @@ assert.deepEqual(
   [],
   'expected optional extracted-prose index to remain empty when disabled'
 );
+assert.equal(warnings.length, 0, 'did not expect optional extracted-prose warnings when emitOutput=false');
 
 console.log('optional extracted-prose strict compatibility mismatch test passed');

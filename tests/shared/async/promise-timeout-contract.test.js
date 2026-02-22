@@ -30,5 +30,25 @@ assert.ok(customErr instanceof Error, 'expected custom timeout rejection');
 assert.equal(customErr.code, 'CUSTOM_TIMEOUT');
 assert.equal(customErr.retryable, false);
 
-console.log('promise timeout contract test passed');
+let observedAbortReason = null;
+const abortingTimeoutErr = await runWithTimeout(
+  (signal) => new Promise((resolve) => {
+    signal?.addEventListener('abort', () => {
+      observedAbortReason = signal.reason || null;
+      resolve('aborted');
+    }, { once: true });
+  }),
+  {
+    timeoutMs: 10,
+    errorFactory: () => createTimeoutError({
+      message: 'abort timeout',
+      code: 'ABORT_TIMEOUT'
+    })
+  }
+).then(() => null, (err) => err);
+assert.ok(abortingTimeoutErr instanceof Error, 'expected timeout rejection when operation aborts');
+assert.equal(abortingTimeoutErr.code, 'ABORT_TIMEOUT');
+assert.ok(observedAbortReason instanceof Error, 'expected abort reason to be propagated to operation signal');
+assert.equal(observedAbortReason.code, 'ABORT_TIMEOUT');
 
+console.log('promise timeout contract test passed');

@@ -257,7 +257,7 @@ export async function loadSearchIndexes({
   let resolvedLoadExtractedProse = runExtractedProse || loadExtractedProse;
   const disableOptionalExtractedProse = (reason = null) => {
     if (!resolvedLoadExtractedProse || resolvedRunExtractedProse) return false;
-    if (reason) {
+    if (reason && emitOutput) {
       console.warn(`[search] ${reason}; skipping extracted-prose comment joins.`);
     }
     resolvedLoadExtractedProse = false;
