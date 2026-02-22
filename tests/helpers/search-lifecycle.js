@@ -10,18 +10,34 @@ const DEFAULT_SEARCH_TEST_CONFIG = {
     scm: { provider: 'none' }
   }
 };
+const VALID_CACHE_SCOPES = new Set(['isolated', 'shared']);
+
+const normalizeCacheScope = (cacheScope) => {
+  const normalized = String(cacheScope || 'isolated').trim().toLowerCase();
+  if (!VALID_CACHE_SCOPES.has(normalized)) {
+    throw new Error(`Unsupported cacheScope: ${cacheScope}`);
+  }
+  return normalized;
+};
 
 export const createSearchLifecycle = async ({
   root = process.cwd(),
   tempPrefix = 'pairofcleats-search-',
   tempRoot,
+  cacheScope = 'isolated',
+  cacheName = 'search',
   repoDir = 'repo',
   cacheDir = 'cache',
   embeddings = 'stub',
   testConfig = DEFAULT_SEARCH_TEST_CONFIG,
   extraEnv
 } = {}) => {
-  const workspaceRoot = tempRoot || await makeTempDir(tempPrefix);
+  const normalizedCacheScope = normalizeCacheScope(cacheScope);
+  const workspaceRoot = tempRoot || (
+    normalizedCacheScope === 'shared'
+      ? path.join(root, '.testCache', 'search-lifecycle', String(cacheName || 'search').trim() || 'search')
+      : await makeTempDir(tempPrefix)
+  );
   const repoRoot = path.join(workspaceRoot, repoDir);
   const cacheRoot = path.join(workspaceRoot, cacheDir);
 

@@ -1,13 +1,12 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { rmDirRecursive } from '../../helpers/temp.js';
 import { createSearchLifecycle } from '../../helpers/search-lifecycle.js';
 
-const tempRoot = path.join(process.cwd(), '.testCache', 'search-determinism');
-await rmDirRecursive(tempRoot, { retries: 10, delayMs: 100 });
-
-const { repoRoot, buildIndex, runSearchPayload } = await createSearchLifecycle({ tempRoot });
+const { repoRoot, buildIndex, runSearchPayload } = await createSearchLifecycle({
+  cacheScope: 'shared',
+  cacheName: 'search-determinism'
+});
 
 const content = 'export function alphaBetaGamma() { return "alpha beta gamma"; }\n';
 const files = ['alpha-1.js'];
