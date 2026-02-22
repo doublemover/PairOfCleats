@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-22T13:14:34.515Z",
+  "generatedAt": "2026-02-22T13:47:01.999Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -151,6 +151,7 @@
       "PAIROFCLEATS_TEST_TANTIVY",
       "PAIROFCLEATS_TEST_THREADS",
       "PAIROFCLEATS_TEST_TIMEOUT_MS",
+      "PAIROFCLEATS_TEST_TREE_SITTER_SCHEDULER_CRASH",
       "PAIROFCLEATS_TEST_WATCHDOG_MS",
       "PAIROFCLEATS_THREADS",
       "PAIROFCLEATS_TRACE_ARTIFACT_IO",
@@ -3046,6 +3047,12 @@
         "tests/indexer/metav2/metav2-finalization-after-inference.test.js",
         "tests/indexing/type-inference/crossfile/crossfile-output.integration.test.js",
         "tests/run.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TEST_TREE_SITTER_SCHEDULER_CRASH",
+      "files": [
         "tools/config/inventory.js"
       ]
     },
