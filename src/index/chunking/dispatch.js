@@ -166,6 +166,16 @@ const chunkMakefile = (text, context = null) => {
   return [{ start: 0, end: text.length, name: 'Makefile', kind: 'ConfigSection', meta: { format: 'makefile' } }];
 };
 
+/**
+ * Heuristic Proto splitter for declaration boundaries.
+ *
+ * This is used when tree-sitter chunks are unavailable and must remain stable
+ * across runs for scheduler fallback parity.
+ *
+ * @param {string} text
+ * @param {object|null} [context]
+ * @returns {Array<object>}
+ */
 const chunkProto = (text, context = null) => {
   const { lines, lineIndex } = splitLinesWithIndex(text, context);
   const headings = [];
@@ -258,6 +268,16 @@ const chunkProto = (text, context = null) => {
   return [{ start: 0, end: text.length, name: 'proto', kind: 'Section', meta: { format: 'proto' } }];
 };
 
+/**
+ * Heuristic GraphQL splitter for schema/type/operation boundaries.
+ *
+ * This fallback intentionally tracks `extend` and operation declarations to
+ * preserve deterministic chunk identity when parser-backed chunking is absent.
+ *
+ * @param {string} text
+ * @param {object|null} [context]
+ * @returns {Array<object>}
+ */
 const chunkGraphql = (text, context = null) => {
   const { lines, lineIndex } = splitLinesWithIndex(text, context);
   const headings = [];

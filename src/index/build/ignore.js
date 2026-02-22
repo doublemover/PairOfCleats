@@ -28,14 +28,9 @@ export async function buildIgnoreMatcher({ root, userConfig, generatedPolicy = n
   };
 
   const ignoreMatcher = ignore();
-  const generatedPolicyEnabled = effectiveGeneratedPolicy.enabled === true;
   if (config.useDefaultSkips) {
-    const skipDirs = generatedPolicyEnabled
-      ? Array.from(SKIP_DIRS).filter((dir) => !GENERATED_POLICY_DEFAULT_SKIP_DIRS.has(dir))
-      : Array.from(SKIP_DIRS);
-    const skipGlobs = generatedPolicyEnabled
-      ? Array.from(SKIP_GLOBS).filter((glob) => !GENERATED_POLICY_DEFAULT_SKIP_GLOBS.has(glob))
-      : Array.from(SKIP_GLOBS);
+    const skipDirs = Array.from(SKIP_DIRS).filter((dir) => !GENERATED_POLICY_DEFAULT_SKIP_DIRS.has(dir));
+    const skipGlobs = Array.from(SKIP_GLOBS).filter((glob) => !GENERATED_POLICY_DEFAULT_SKIP_GLOBS.has(glob));
     const defaultIgnorePatterns = [
       ...Array.from(skipDirs, (dir) => `${dir}/`),
       ...Array.from(SKIP_FILES),
@@ -138,9 +133,7 @@ export async function buildIgnoreMatcher({ root, userConfig, generatedPolicy = n
   if (config.extraIgnore.length) {
     ignoreMatcher.add(expandExtraIgnore(config.extraIgnore));
   }
-  const generatedIncludePatterns = generatedPolicyEnabled
-    ? (effectiveGeneratedPolicy.includePatterns || [])
-    : [];
+  const generatedIncludePatterns = effectiveGeneratedPolicy.includePatterns || [];
   if (generatedIncludePatterns.length) {
     const includeUnignore = generatedIncludePatterns.map((pattern) => `!${pattern}`);
     ignoreMatcher.add(expandExtraIgnore(includeUnignore));

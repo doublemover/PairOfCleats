@@ -15,7 +15,6 @@ const GENERATED_POLICY_SOURCES = new Set([
 ]);
 const EMPTY_PATTERNS = Object.freeze([]);
 const DEFAULT_GENERATED_POLICY_CONFIG = Object.freeze({
-  enabled: true,
   includePatterns: EMPTY_PATTERNS,
   excludePatterns: EMPTY_PATTERNS,
   includeCompiled: EMPTY_PATTERNS,
@@ -186,7 +185,7 @@ const buildGeneratedPolicyBaseDecision = ({ relPath, baseName, scanSkip }) => {
  * Build normalized generated/minified/vendor policy runtime configuration.
  *
  * @param {object} [indexingConfig]
- * @returns {{enabled:boolean,includePatterns:string[],excludePatterns:string[],includeCompiled:Array<object>,excludeCompiled:Array<object>}}
+ * @returns {{includePatterns:string[],excludePatterns:string[],includeCompiled:Array<object>,excludeCompiled:Array<object>}}
  */
 export const buildGeneratedPolicyConfig = (indexingConfig = {}) => {
   const generatedPolicy = indexingConfig?.generatedPolicy;
@@ -194,7 +193,6 @@ export const buildGeneratedPolicyConfig = (indexingConfig = {}) => {
   const includePatterns = normalizePatternList(rawPolicy.include);
   const excludePatterns = normalizePatternList(rawPolicy.exclude);
   return {
-    enabled: true,
     includePatterns,
     excludePatterns,
     includeCompiled: compilePatternMatchers(includePatterns),

@@ -40,6 +40,17 @@ const recordStep = (name, data) => {
   summary.steps[name] = { ...(summary.steps[name] || {}), ...data };
 };
 
+/**
+ * Execute a child process while keeping JSON mode stdout clean.
+ *
+ * In `--json` mode we must reserve stdout for the final JSON payload, so
+ * all child stdout/stderr is redirected to stderr.
+ *
+ * @param {string} cmd
+ * @param {string[]} args
+ * @param {{cwd?:string,env?:NodeJS.ProcessEnv}} [options]
+ * @returns {Promise<{ok:boolean,status:number|null}>}
+ */
 const streamChildOutputToStderr = async (cmd, args, { cwd = root, env = process.env } = {}) => {
   if (process.platform === 'win32' && String(cmd || '').toLowerCase() === 'npm') {
     const npmResult = runCommand(cmd, args, {
@@ -70,6 +81,11 @@ const streamChildOutputToStderr = async (cmd, args, { cwd = root, env = process.
   };
 };
 
+/**
+ * Mirror captured child output to stderr in JSON mode only.
+ *
+ * @param {{stdout?:string,stderr?:string}|null|undefined} result
+ */
 const relayChildOutputToStderr = (result) => {
   if (!jsonOutput || !result || typeof result !== 'object') return;
   if (typeof result.stdout === 'string' && result.stdout.length > 0) {
