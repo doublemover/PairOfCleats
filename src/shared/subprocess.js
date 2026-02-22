@@ -4,6 +4,11 @@ import { killChildProcessTree } from './kill-tree.js';
 const DEFAULT_MAX_OUTPUT_BYTES = 1_000_000;
 const DEFAULT_KILL_GRACE_MS = 5000;
 const TRACKED_SUBPROCESS_FORCE_GRACE_MS = 0;
+const TRACKED_SUBPROCESS_TERMINATION_SIGNALS = Object.freeze(['SIGINT', 'SIGTERM']);
+const TRACKED_SUBPROCESS_SIGNAL_EXIT_CODES = Object.freeze({
+  SIGINT: 130,
+  SIGTERM: 143
+});
 
 const SHELL_MODE_DISABLED_ERROR = (
   'spawnSubprocess shell mode is disabled for security; pass an executable and args with shell=false.'
@@ -12,6 +17,7 @@ const SHELL_MODE_DISABLED_ERROR = (
 const trackedSubprocesses = new Map();
 let trackedSubprocessHooksInstalled = false;
 let trackedSubprocessShutdownTriggered = false;
+let trackedSubprocessShutdownPromise = null;
 
 export class SubprocessError extends Error {
   constructor(message, result, cause) {
@@ -182,9 +188,21 @@ export const terminateTrackedSubprocesses = async ({
 };
 
 const triggerTrackedSubprocessShutdown = (reason) => {
-  if (trackedSubprocessShutdownTriggered) return;
+  if (trackedSubprocessShutdownTriggered) return trackedSubprocessShutdownPromise;
   trackedSubprocessShutdownTriggered = true;
-  void terminateTrackedSubprocesses({ reason, force: true }).catch(() => {});
+  trackedSubprocessShutdownPromise = terminateTrackedSubprocesses({ reason, force: true })
+    .catch(() => null);
+  return trackedSubprocessShutdownPromise;
+};
+
+const exitForTrackedSubprocessSignal = (signal) => {
+  const exitCode = Number.isFinite(Number(TRACKED_SUBPROCESS_SIGNAL_EXIT_CODES[signal]))
+    ? Number(TRACKED_SUBPROCESS_SIGNAL_EXIT_CODES[signal])
+    : 1;
+  process.exitCode = exitCode;
+  try {
+    process.exit(exitCode);
+  } catch {}
 };
 
 const installTrackedSubprocessHooks = () => {
@@ -196,6 +214,16 @@ const installTrackedSubprocessHooks = () => {
   process.on('uncaughtExceptionMonitor', () => {
     triggerTrackedSubprocessShutdown('uncaught_exception');
   });
+  for (const signal of TRACKED_SUBPROCESS_TERMINATION_SIGNALS) {
+    try {
+      process.once(signal, () => {
+        void triggerTrackedSubprocessShutdown(`signal_${String(signal || '').toLowerCase()}`)
+          .finally(() => {
+            exitForTrackedSubprocessSignal(signal);
+          });
+      });
+    } catch {}
+  }
 };
 
 export const registerChildProcessForCleanup = (child, options = {}) => {
