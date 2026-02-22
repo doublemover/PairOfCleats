@@ -30,6 +30,7 @@ const TREE_SITTER_PERL_PATCH_MARKERS = [
 ];
 
 const root = process.cwd();
+const npmCommand = process.platform === 'win32' ? (process.env.ComSpec || 'cmd.exe') : 'npm';
 const verifyOnly = process.argv.includes('--verify');
 const repairOnly = process.argv.includes('--repair');
 
@@ -79,22 +80,55 @@ const verifyPerlScannerPatch = () => {
   return { ok: true, message: null };
 };
 
+const buildNpmEnv = () => {
+  const env = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (!key) continue;
+    const normalizedKey = key.toLowerCase();
+    if (normalizedKey === 'npm_config_build-from-source' || normalizedKey === 'npm_config_build_from_source') {
+      continue;
+    }
+    if (value == null) continue;
+    env[key] = typeof value === 'string' ? value : String(value);
+  }
+  env.npm_config_ignore_scripts = 'false';
+  return env;
+};
+
+const buildNpmCommandArgs = (args) => {
+  if (process.platform === 'win32') {
+    return ['/d', '/s', '/c', 'npm', ...args];
+  }
+  return args;
+};
+
 const rebuildPackage = (pkgName, { buildFromSource = false } = {}) => {
-  const args = ['rebuild', pkgName];
-  const env = {
-    ...process.env,
-    npm_config_ignore_scripts: 'false'
-  };
-  if (buildFromSource) {
-    env.npm_config_build_from_source = 'true';
+  const normalizedPkgName = typeof pkgName === 'string' ? pkgName.trim() : '';
+  if (!normalizedPkgName) {
+    return {
+      ok: false,
+      message: `invalid package name: ${String(pkgName)}`
+    };
   }
 
-  const result = spawnSync('npm', args, {
-    cwd: root,
-    stdio: 'inherit',
-    shell: process.platform === 'win32',
-    env
-  });
+  const args = ['rebuild', normalizedPkgName];
+  const env = buildNpmEnv();
+  void buildFromSource;
+
+  const commandArgs = buildNpmCommandArgs(args);
+  let result;
+  try {
+    result = spawnSync(npmCommand, commandArgs, {
+      cwd: root,
+      stdio: 'inherit',
+      env
+    });
+  } catch (err) {
+    return {
+      ok: false,
+      message: err?.message || String(err)
+    };
+  }
 
   if (result.error) {
     return {
@@ -110,20 +144,32 @@ const rebuildPackage = (pkgName, { buildFromSource = false } = {}) => {
 };
 
 const runPackageInstallScript = (pkgName, { buildFromSource = false } = {}) => {
-  const env = {
-    ...process.env,
-    npm_config_ignore_scripts: 'false'
-  };
-  if (buildFromSource) {
-    env.npm_config_build_from_source = 'true';
+  const normalizedPkgName = typeof pkgName === 'string' ? pkgName.trim() : '';
+  if (!normalizedPkgName) {
+    return {
+      ok: false,
+      message: `invalid package name: ${String(pkgName)}`
+    };
   }
 
-  const result = spawnSync('npm', ['run', 'install', '--if-present'], {
-    cwd: resolveNodeModulesPath(pkgName),
-    stdio: 'inherit',
-    shell: process.platform === 'win32',
-    env
-  });
+  const env = buildNpmEnv();
+  const args = ['run', 'install', '--if-present'];
+  void buildFromSource;
+
+  const commandArgs = buildNpmCommandArgs(args);
+  let result;
+  try {
+    result = spawnSync(npmCommand, commandArgs, {
+      cwd: resolveNodeModulesPath(normalizedPkgName),
+      stdio: 'inherit',
+      env
+    });
+  } catch (err) {
+    return {
+      ok: false,
+      message: err?.message || String(err)
+    };
+  }
 
   if (result.error) {
     return {
