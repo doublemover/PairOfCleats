@@ -431,7 +431,7 @@ Primary targets:
 - Touchpoints: `src/retrieval/pipeline/ann-stage.js`, `src/retrieval/scoring/ann-candidate-policy.js`, `src/retrieval/ann/providers/hnsw.js`, `src/retrieval/ann/providers/lancedb.js`, `src/retrieval/ann/providers/sqlite-vec.js`, `tests/retrieval/ann-candidate-policy.test.js`, `tests/retrieval/ann/hnsw-ann.test.js`
 
 ### UB-042: Extracted-prose mapping coverage uplift
-- Status: [ ]
+- Status: [x]
 - Problem:
   - High `skipped noMapping` in extracted-prose on several repos reduces usable embedding population.
 - Tasks:
@@ -445,7 +445,7 @@ Primary targets:
 - Improvement Intent (What): extracted-prose embedding coverage
 - Improvement Method (How): improved span mapping with reason-coded fallbacks.
 - Integrated Betterments: store mapping failure reason codes for every skipped extracted chunk; add nearest-anchor fallback with confidence threshold; add mapping replay tool to validate improvements without full reindex.
-- Touchpoints: `src/index/chunking/formats/document-common.js`, `src/index/chunk-id.js`, `src/index/identity/chunk-uid.js`, `tools/build/embeddings/runner.js`, `tests/indexing/extracted-prose/extraction-report.test.js`, `tests/indexing/chunking/document-anchor-stability.test.js`
+- Touchpoints: `src/index/chunk-id.js`, `tools/build/embeddings/runner.js`, `tests/indexing/chunk-id/chunk-mapping-hint-key.test.js`, `tests/indexing/incremental/incremental-bundle-mapping-reasons.test.js`, `tests/indexing/extracted-prose/extraction-report.test.js`, `tests/indexing/chunking/document-anchor-stability.test.js`
 
 ### UB-043: Import resolution quality improvements
 - Status: [ ]
