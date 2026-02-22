@@ -1,5 +1,5 @@
 {
-  "schemaHash": "743de4a66a822570a42bfaa28bb012d914446979",
+  "schemaHash": "2bf3c9b438c8c2b94f0fe2970b897e25ba4e9c64",
   "artifacts": [
     {
       "artifact": "api_contracts",
@@ -491,6 +491,7 @@
         "files",
         "generatedAt",
         "mode",
+        "quality",
         "schemaVersion"
       ],
       "optionalFields": []
