@@ -156,6 +156,51 @@ const resolveChangedFileSet = async ({
   return fileSet;
 };
 
+const normalizeBatchDiagnostics = (value) => {
+  const timeoutCount = Number.isFinite(Number(value?.timeoutCount))
+    ? Math.max(0, Math.floor(Number(value.timeoutCount)))
+    : 0;
+  const timeoutRetries = Number.isFinite(Number(value?.timeoutRetries))
+    ? Math.max(0, Math.floor(Number(value.timeoutRetries)))
+    : 0;
+  const cooldownSkips = Number.isFinite(Number(value?.cooldownSkips))
+    ? Math.max(0, Math.floor(Number(value.cooldownSkips)))
+    : 0;
+  const unavailableChunks = Number.isFinite(Number(value?.unavailableChunks))
+    ? Math.max(0, Math.floor(Number(value.unavailableChunks)))
+    : 0;
+  const timeoutHeatmap = Array.isArray(value?.timeoutHeatmap)
+    ? value.timeoutHeatmap
+      .map((entry) => {
+        const file = normalizeFileKey(entry?.file);
+        if (!file) return null;
+        return {
+          file,
+          timeouts: Number.isFinite(Number(entry?.timeouts))
+            ? Math.max(0, Math.floor(Number(entry.timeouts)))
+            : 0,
+          retries: Number.isFinite(Number(entry?.retries))
+            ? Math.max(0, Math.floor(Number(entry.retries)))
+            : 0,
+          cooldownSkips: Number.isFinite(Number(entry?.cooldownSkips))
+            ? Math.max(0, Math.floor(Number(entry.cooldownSkips)))
+            : 0,
+          lastTimeoutMs: Number.isFinite(Number(entry?.lastTimeoutMs))
+            ? Math.max(0, Math.floor(Number(entry.lastTimeoutMs)))
+            : null
+        };
+      })
+      .filter(Boolean)
+    : [];
+  return {
+    timeoutCount,
+    timeoutRetries,
+    cooldownSkips,
+    unavailableChunks,
+    timeoutHeatmap
+  };
+};
+
 const runBatchFetch = async ({
   providerImpl,
   repoRoot,
@@ -179,7 +224,8 @@ const runBatchFetch = async ({
   }
   return {
     ok: true,
-    fileMetaByPath: normalizeFileMetaMap(result.fileMetaByPath)
+    fileMetaByPath: normalizeFileMetaMap(result.fileMetaByPath),
+    diagnostics: normalizeBatchDiagnostics(result?.diagnostics || null)
   };
 };
 
@@ -317,6 +363,7 @@ export const prepareScmFileMetaSnapshot = async ({
     : 15000;
 
   let fetchedMap = Object.create(null);
+  let batchDiagnostics = normalizeBatchDiagnostics(null);
   let source = reused > 0 ? 'mixed' : 'fresh';
   if (missing.length > 0) {
     const batch = await runBatchFetch({
@@ -329,6 +376,7 @@ export const prepareScmFileMetaSnapshot = async ({
     });
     if (batch.ok) {
       fetchedMap = batch.fileMetaByPath;
+      batchDiagnostics = batch.diagnostics || normalizeBatchDiagnostics(null);
     } else {
       fetchedMap = await runPerFileFetch({
         providerImpl,
@@ -384,8 +432,26 @@ export const prepareScmFileMetaSnapshot = async ({
   });
   const fetched = Object.keys(fetchedMap).length;
   if (logFn) {
+    const timeoutHeatmapLabel = Array.isArray(batchDiagnostics.timeoutHeatmap) && batchDiagnostics.timeoutHeatmap.length
+      ? batchDiagnostics.timeoutHeatmap
+        .slice(0, 3)
+        .map((entry) => `${entry.file}:${entry.timeouts}t/${entry.cooldownSkips}c`)
+        .join(',')
+      : null;
+    const diagnosticsSuffix = (
+      batchDiagnostics.timeoutCount > 0
+      || batchDiagnostics.cooldownSkips > 0
+      || batchDiagnostics.timeoutRetries > 0
+      || batchDiagnostics.unavailableChunks > 0
+    )
+      ? ` timeoutCount=${batchDiagnostics.timeoutCount}` +
+        ` timeoutRetries=${batchDiagnostics.timeoutRetries}` +
+        ` cooldownSkips=${batchDiagnostics.cooldownSkips}` +
+        ` unavailableChunks=${batchDiagnostics.unavailableChunks}` +
+        (timeoutHeatmapLabel ? ` timeoutHeatmap=${timeoutHeatmapLabel}` : '')
+      : '';
     logFn(
-      `[scm] file-meta snapshot: source=${source} requested=${targetFiles.length} reused=${reused} fetched=${fetched}.`
+      `[scm] file-meta snapshot: source=${source} requested=${targetFiles.length} reused=${reused} fetched=${fetched}.${diagnosticsSuffix}`
     );
   }
   return {
@@ -395,7 +461,12 @@ export const prepareScmFileMetaSnapshot = async ({
       source,
       requested: targetFiles.length,
       reused,
-      fetched
+      fetched,
+      timeoutCount: batchDiagnostics.timeoutCount,
+      timeoutRetries: batchDiagnostics.timeoutRetries,
+      cooldownSkips: batchDiagnostics.cooldownSkips,
+      unavailableChunks: batchDiagnostics.unavailableChunks,
+      timeoutHeatmap: batchDiagnostics.timeoutHeatmap
     }
   };
 };

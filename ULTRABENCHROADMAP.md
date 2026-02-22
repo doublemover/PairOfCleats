@@ -1001,7 +1001,7 @@ Last revised: 2026-02-22T05:44:04.8332760-05:00
 - Touchpoints: `src/index/build/indexer/steps/relations.js`, `src/index/build/import-resolution-cache.js`, `src/index/build/imports.js`, `tests/indexing/imports/import-graph-unresolved-refresh.test.js`, `tests/indexing/imports/import-resolution-language-coverage.test.js`
 
 ### UB-090: SCM timeout adaptive policy by file cost
-- Status: [ ]
+- Status: [x]
 - Observation:
   - Blame timeouts still appear on selected files despite 5000ms cap.
 - Tasks:
@@ -1009,6 +1009,12 @@ Last revised: 2026-02-22T05:44:04.8332760-05:00
   - Add path-level cooldown list for repeat offenders during run.
 - Exit criteria:
   - Fewer SCM timeout warnings and better overall run stability.
+- Completion: 2026-02-22T10:06:18.6832348-05:00
+- Validation:
+  - `node tests/indexing/git/git-meta-timeout-backoff.test.js`
+  - `node tests/indexing/git/git-meta-warning-details.test.js`
+  - `node tests/indexing/scm/git-provider-meta-batch-parallel.test.js`
+  - `node tests/indexing/scm/file-meta-snapshot-reuse.test.js`
 - Improvement Intent (What): SCM timeout rate
 - Improvement Method (How): file-cost-adaptive timeout/retry policy with cooldown paths.
 - Integrated Betterments: adapt SCM timeout from historical file/repo behavior; use progressive fallback from blame->commit metadata->stub; emit per-path timeout heatmap for tuning.
