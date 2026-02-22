@@ -266,3 +266,16 @@ export function getEmbeddingAdapter(options) {
   pruneCache(adapterCache, { maxEntries: ADAPTER_CACHE_MAX_ENTRIES, now });
   return adapter;
 }
+
+export const warmEmbeddingAdapter = async (options = {}) => {
+  const adapter = getEmbeddingAdapter(options);
+  if (!adapter) return null;
+  if (options?.preloadModel === false) return adapter;
+  try {
+    const preloadPromise = adapter?.embedderPromise;
+    if (preloadPromise && typeof preloadPromise.then === 'function') {
+      await preloadPromise;
+    }
+  } catch {}
+  return adapter;
+};
