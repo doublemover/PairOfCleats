@@ -57,6 +57,10 @@ const NATIVE_GRAMMAR_MODULES = Object.freeze({
   java: { moduleName: 'tree-sitter-java' },
   css: { moduleName: 'tree-sitter-css', prebuildBinary: 'tree-sitter-css.node' },
   html: { moduleName: 'tree-sitter-html' },
+  lua: {
+    moduleName: 'tree-sitter-lua',
+    fallbackExportKeys: ['lua', 'language', 'default']
+  },
   swift: { moduleName: 'tree-sitter-swift' }
 });
 

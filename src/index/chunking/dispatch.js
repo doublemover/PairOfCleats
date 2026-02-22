@@ -529,7 +529,7 @@ const CODE_CHUNKERS = [
   { id: 'php', match: (ext) => isPhp(ext), chunk: ({ text, context }) =>
     context?.phpChunks || buildPhpChunks(text) },
   { id: 'lua', match: (ext) => isLua(ext), chunk: ({ text, context }) =>
-    context?.luaChunks || buildLuaChunks(text) },
+    context?.luaChunks || buildLuaChunks(text, getTreeSitterOptions(context)) },
   { id: 'sql', match: (ext) => isSql(ext), chunk: ({ text, context }) =>
     context?.sqlChunks || buildSqlChunks(text, getTreeSitterOptions(context)) },
   { id: 'proto', match: (ext) => ext === '.proto', chunk: ({ text, context }) =>

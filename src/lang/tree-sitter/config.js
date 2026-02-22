@@ -21,7 +21,8 @@ const LANGUAGE_GRAMMAR_KEYS = {
   rust: 'native:rust',
   java: 'native:java',
   css: 'native:css',
-  html: 'native:html'
+  html: 'native:html',
+  lua: 'native:lua'
 };
 
 export const TREE_SITTER_LANGUAGE_IDS = Object.freeze(
@@ -457,6 +458,21 @@ const LANG_CONFIG = {
       style_element: 'StyleElement'
     },
     nameTypes: new Set(['tag_name'])
+  },
+  lua: {
+    typeNodes: new Set([
+      'function_declaration',
+      'local_function'
+    ]),
+    memberNodes: new Set([
+      'function_declaration',
+      'local_function'
+    ]),
+    kindMap: {
+      function_declaration: 'FunctionDeclaration',
+      local_function: 'FunctionDeclaration'
+    },
+    nameFields: ['name']
   }
 };
 

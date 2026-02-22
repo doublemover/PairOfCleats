@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 
 /**
  * Resolve incremental cache paths for a repo/mode.
@@ -31,5 +32,21 @@ export function loadIncrementalManifest(repoCacheRoot, mode) {
     return { manifest, ...paths };
   } catch {
     return null;
+  }
+}
+
+/**
+ * Persist an incremental manifest atomically.
+ * @param {string} manifestPath
+ * @param {object} manifest
+ * @returns {Promise<boolean>}
+ */
+export async function writeIncrementalManifest(manifestPath, manifest) {
+  if (!manifestPath || !manifest || typeof manifest !== 'object') return false;
+  try {
+    await atomicWriteJson(manifestPath, manifest, { spaces: 2 });
+    return true;
+  } catch {
+    return false;
   }
 }

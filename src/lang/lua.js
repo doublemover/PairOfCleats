@@ -1,6 +1,9 @@
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
 import { extractDocComment } from './shared.js';
 import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
+import { getNamedChild, getNamedChildCount } from './tree-sitter/ast.js';
+import { getNativeTreeSitterParser } from './tree-sitter/native-runtime.js';
+import { isTreeSitterEnabled } from './tree-sitter/options.js';
 
 /**
  * Lua language chunking and relations.
@@ -45,6 +48,13 @@ const LUA_DOC_OPTIONS = {
   blockStarts: [],
   blockEnd: null
 };
+
+const LUA_TREE_SITTER_NODE_TYPES = new Set([
+  'function_declaration',
+  'local_function'
+]);
+
+const LUA_TREE_SITTER_LOGGED = new Set();
 
 function stripLuaComments(text) {
   return text.replace(/--\[\[[\s\S]*?\]\]/g, ' ').replace(/--.*$/gm, ' ');
@@ -119,6 +129,138 @@ function normalizeLuaName(name) {
   return name.replace(/:/g, '.');
 }
 
+const resolveLuaParseTimeoutMs = (options) => {
+  const config = options?.treeSitter || {};
+  const perLanguage = config.byLanguage?.lua || {};
+  const raw = perLanguage.maxParseMs ?? config.maxParseMs;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : null;
+};
+
+const logLuaTreeSitterOnce = (options, key, message) => {
+  if (!options?.log || !message || LUA_TREE_SITTER_LOGGED.has(key)) return;
+  options.log(message);
+  LUA_TREE_SITTER_LOGGED.add(key);
+};
+
+const extractLuaTreeSitterName = (node, text) => {
+  if (!node || typeof text !== 'string') return null;
+  const nameNode = typeof node.childForFieldName === 'function'
+    ? node.childForFieldName('name')
+    : null;
+  if (nameNode) {
+    const raw = text.slice(nameNode.startIndex, nameNode.endIndex).trim();
+    if (raw) return normalizeLuaName(raw);
+  }
+  const limit = Math.min(text.length, node.startIndex + 240);
+  const snippet = text.slice(node.startIndex, limit);
+  const signature = (snippet.split('\n', 1)[0] || '').trim();
+  if (!signature) return null;
+  const parsed = parseLuaFunctionName(signature);
+  if (parsed) return normalizeLuaName(parsed);
+  return null;
+};
+
+const gatherLuaTreeSitterNodes = (root) => {
+  if (!root) return null;
+  const stack = [root];
+  const nodes = [];
+  let visited = 0;
+  const maxNodes = 200_000;
+  while (stack.length) {
+    const node = stack.pop();
+    if (!node) continue;
+    visited += 1;
+    if (visited > maxNodes) return null;
+    if (LUA_TREE_SITTER_NODE_TYPES.has(node.type)) {
+      nodes.push(node);
+    }
+    const childCount = getNamedChildCount(node);
+    for (let i = childCount - 1; i >= 0; i -= 1) {
+      stack.push(getNamedChild(node, i));
+    }
+  }
+  return nodes;
+};
+
+const buildLuaTreeSitterChunks = (text, options = {}) => {
+  if (options?.treeSitter && !isTreeSitterEnabled(options, 'lua')) {
+    return null;
+  }
+  const parser = getNativeTreeSitterParser('lua', options);
+  if (!parser) {
+    logLuaTreeSitterOnce(
+      options,
+      'lua:parser-unavailable',
+      'Tree-sitter unavailable for lua; falling back to heuristic chunking.'
+    );
+    return null;
+  }
+
+  let tree = null;
+  try {
+    try {
+      const parseTimeoutMs = resolveLuaParseTimeoutMs(options);
+      if (typeof parser.setTimeoutMicros === 'function') {
+        parser.setTimeoutMicros(parseTimeoutMs ? parseTimeoutMs * 1000 : 0);
+      }
+      tree = parser.parse(text);
+    } catch (err) {
+      const message = err?.message || String(err);
+      if (/timeout/i.test(message)) {
+        logLuaTreeSitterOnce(
+          options,
+          'lua:parse-timeout',
+          'Tree-sitter parse timed out for lua; falling back to heuristic chunking.'
+        );
+      }
+      return null;
+    }
+
+    const rootNode = tree?.rootNode || null;
+    const nodes = gatherLuaTreeSitterNodes(rootNode);
+    if (!Array.isArray(nodes) || !nodes.length) return null;
+
+    const lineIndex = buildLineIndex(text);
+    const lines = text.split('\n');
+    const chunks = [];
+    for (const node of nodes) {
+      const start = Number(node?.startIndex);
+      const end = Number(node?.endIndex);
+      if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
+      const name = extractLuaTreeSitterName(node, text);
+      if (!name) continue;
+      const kind = name.includes('.') ? 'MethodDeclaration' : 'FunctionDeclaration';
+      const signature = (text.slice(start, Math.min(end, start + 240)).split('\n', 1)[0] || '').trim();
+      const startLine = offsetToLine(lineIndex, start);
+      const docstring = extractDocComment(lines, Math.max(0, startLine - 1), LUA_DOC_OPTIONS);
+      chunks.push({
+        start,
+        end,
+        name,
+        kind,
+        meta: {
+          startLine,
+          endLine: offsetToLine(lineIndex, Math.max(start, end - 1)),
+          signature,
+          params: parseLuaParams(signature),
+          docstring
+        }
+      });
+    }
+    if (!chunks.length) return null;
+    chunks.sort((a, b) => a.start - b.start);
+    return chunks;
+  } finally {
+    try {
+      if (tree && typeof tree.delete === 'function') tree.delete();
+    } catch {}
+    try {
+      if (parser && typeof parser.reset === 'function') parser.reset();
+    } catch {}
+  }
+};
+
 /**
  * Collect require imports from Lua source.
  * @param {string} text
@@ -141,9 +283,14 @@ export function collectLuaImports(text) {
  * Build chunk metadata for Lua declarations.
  * Returns null when no declarations are found.
  * @param {string} text
+ * @param {object} [options]
  * @returns {Array<{start:number,end:number,name:string,kind:string,meta:Object}>|null}
  */
-export function buildLuaChunks(text) {
+export function buildLuaChunks(text, options = {}) {
+  const treeSitterChunks = buildLuaTreeSitterChunks(text, options);
+  if (Array.isArray(treeSitterChunks) && treeSitterChunks.length) {
+    return treeSitterChunks;
+  }
   const lineIndex = buildLineIndex(text);
   const lines = text.split('\n');
   const decls = [];

@@ -32,6 +32,12 @@ assert.equal(jsxTarget.grammarKey, 'native:javascript');
 assert.equal(jsxTarget.runtimeKind, 'native');
 assert.equal(jsxTarget.languageId, 'jsx');
 
+const luaTarget = resolveNativeTreeSitterTarget('lua', '.lua');
+assert.ok(luaTarget, 'expected native target for lua');
+assert.equal(luaTarget.grammarKey, 'native:lua');
+assert.equal(luaTarget.runtimeKind, 'native');
+assert.equal(luaTarget.languageId, 'lua');
+
 const missingTarget = resolveNativeTreeSitterTarget('this-language-does-not-exist', '.xyz');
 assert.equal(missingTarget, null, 'expected null target for unsupported language');
 

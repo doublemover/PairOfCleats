@@ -7,7 +7,7 @@ import { validateIndexArtifacts } from '../../../src/index/validate.js';
 import { markBuildPhase, resolveBuildStatePath, startBuildHeartbeat } from '../../../src/index/build/build-state.js';
 import { createStageCheckpointRecorder } from '../../../src/index/build/stage-checkpoints.js';
 import { SCHEDULER_QUEUE_NAMES } from '../../../src/index/build/runtime/scheduler.js';
-import { loadIncrementalManifest } from '../../../src/storage/sqlite/incremental.js';
+import { loadIncrementalManifest, writeIncrementalManifest } from '../../../src/storage/sqlite/incremental.js';
 import { dequantizeUint8ToFloat32 } from '../../../src/storage/sqlite/vector.js';
 import { resolveQuantizationParams } from '../../../src/storage/sqlite/quantization.js';
 import {
@@ -31,6 +31,13 @@ import { resolveOnnxModelPath } from '../../../src/shared/onnx-embeddings.js';
 import { fromPosix, toPosix } from '../../../src/shared/files.js';
 import { getEnvConfig, isTestingEnv } from '../../../src/shared/env.js';
 import { spawnSubprocess } from '../../../src/shared/subprocess.js';
+import {
+  normalizeBundleFormat,
+  readBundleFile,
+  resolveBundleFilename,
+  resolveBundleFormatFromName,
+  writeBundleFile
+} from '../../../src/shared/bundle-io.js';
 import {
   getCurrentBuildInfo,
   getIndexDir,
@@ -91,6 +98,185 @@ let Database = null;
 try {
   ({ default: Database } = await import('better-sqlite3'));
 } catch {}
+
+const toChunkIndex = (value) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return null;
+  const index = Math.floor(numeric);
+  return index >= 0 ? index : null;
+};
+
+const toUint8Vector = (value) => {
+  if (!value || typeof value !== 'object') return null;
+  if (value instanceof Uint8Array) return value;
+  if (ArrayBuffer.isView(value) && value.BYTES_PER_ELEMENT === 1 && !(value instanceof DataView)) {
+    return new Uint8Array(value);
+  }
+  if (Array.isArray(value)) {
+    const out = new Uint8Array(value.length);
+    for (let i = 0; i < value.length; i += 1) {
+      const numeric = Number(value[i]);
+      out[i] = Number.isFinite(numeric)
+        ? Math.max(0, Math.min(255, Math.floor(numeric)))
+        : 0;
+    }
+    return out;
+  }
+  return null;
+};
+
+const hasVectorPayload = (value) => (
+  (Array.isArray(value) && value.length > 0)
+  || (ArrayBuffer.isView(value) && !(value instanceof DataView) && value.length > 0)
+);
+
+const vectorsEqual = (left, right) => {
+  const a = toUint8Vector(left);
+  const b = toUint8Vector(right);
+  if (!a || !b) return false;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+};
+
+const refreshIncrementalBundlesWithEmbeddings = async ({
+  mode,
+  incremental,
+  chunksByFile,
+  mergedVectors,
+  embeddingMode,
+  embeddingIdentityKey,
+  scheduleIo,
+  log,
+  warn
+}) => {
+  if (!incremental?.manifest || !incremental?.bundleDir || !incremental?.manifestPath) {
+    return { attempted: 0, rewritten: 0, manifestWritten: false, completeCoverage: false };
+  }
+  const manifest = incremental.manifest;
+  const manifestFiles = manifest.files && typeof manifest.files === 'object'
+    ? manifest.files
+    : {};
+  const manifestEntries = Object.entries(manifestFiles);
+  if (!manifestEntries.length) {
+    return { attempted: 0, rewritten: 0, manifestWritten: false, completeCoverage: false };
+  }
+
+  const chunkIndexByFile = new Map();
+  for (const [filePath, items] of chunksByFile.entries()) {
+    const normalized = toPosix(filePath);
+    if (!normalized) continue;
+    const chunkMap = new Map();
+    const fallbackIndices = [];
+    for (const item of items || []) {
+      const resolvedIndex = toChunkIndex(item?.index ?? item?.chunk?.id);
+      if (resolvedIndex == null) continue;
+      const chunkId = toChunkIndex(item?.chunk?.id);
+      if (chunkId != null && !chunkMap.has(chunkId)) {
+        chunkMap.set(chunkId, resolvedIndex);
+      }
+      fallbackIndices.push(resolvedIndex);
+    }
+    chunkIndexByFile.set(normalized, { chunkMap, fallbackIndices });
+  }
+
+  const resolvedBundleFormat = normalizeBundleFormat(manifest.bundleFormat);
+  let attempted = 0;
+  let rewritten = 0;
+  let covered = 0;
+
+  for (const [filePath, entry] of manifestEntries) {
+    attempted += 1;
+    const normalizedFile = toPosix(filePath);
+    const chunkMapping = chunkIndexByFile.get(normalizedFile) || null;
+    if (!chunkMapping) continue;
+    const bundleName = entry?.bundle || resolveBundleFilename(filePath, resolvedBundleFormat);
+    const bundlePath = path.join(incremental.bundleDir, bundleName);
+    const bundleFormat = resolveBundleFormatFromName(bundleName, resolvedBundleFormat);
+    let existing = null;
+    try {
+      existing = await scheduleIo(() => readBundleFile(bundlePath, { format: bundleFormat }));
+    } catch {
+      existing = null;
+    }
+    if (!existing?.ok || !Array.isArray(existing.bundle?.chunks)) continue;
+
+    const bundle = existing.bundle;
+    let fallbackCursor = 0;
+    let changed = false;
+    let fileCovered = true;
+
+    for (const chunk of bundle.chunks) {
+      if (!chunk || typeof chunk !== 'object') continue;
+      const chunkId = toChunkIndex(chunk.id);
+      let vectorIndex = null;
+      if (chunkId != null && chunkMapping.chunkMap.has(chunkId)) {
+        vectorIndex = chunkMapping.chunkMap.get(chunkId);
+      } else if (fallbackCursor < chunkMapping.fallbackIndices.length) {
+        vectorIndex = chunkMapping.fallbackIndices[fallbackCursor];
+        fallbackCursor += 1;
+      } else if (chunkId != null) {
+        vectorIndex = chunkId;
+      }
+      const vector = vectorIndex != null ? mergedVectors[vectorIndex] : null;
+      if (hasVectorPayload(vector)) {
+        const quantized = toUint8Vector(vector);
+        if (quantized && !vectorsEqual(chunk.embedding_u8, quantized)) {
+          chunk.embedding_u8 = quantized;
+          changed = true;
+        }
+      }
+      if (chunk.embedding !== undefined) {
+        delete chunk.embedding;
+        changed = true;
+      }
+      if (!hasVectorPayload(chunk.embedding_u8) && !hasVectorPayload(chunk.embedding)) {
+        fileCovered = false;
+      }
+    }
+
+    if (!changed) {
+      if (fileCovered) covered += 1;
+      continue;
+    }
+    try {
+      await scheduleIo(() => writeBundleFile({
+        bundlePath,
+        bundle,
+        format: bundleFormat
+      }));
+      rewritten += 1;
+      if (fileCovered) covered += 1;
+    } catch (err) {
+      warn(`[embeddings] ${mode}: failed to refresh bundle ${filePath}: ${err?.message || err}`);
+    }
+  }
+
+  const completeCoverage = attempted > 0 && covered === attempted;
+  let manifestWritten = false;
+  if (completeCoverage) {
+    manifest.bundleEmbeddings = true;
+    manifest.bundleEmbeddingMode = embeddingMode || manifest.bundleEmbeddingMode || null;
+    manifest.bundleEmbeddingIdentityKey = embeddingIdentityKey || manifest.bundleEmbeddingIdentityKey || null;
+    manifest.bundleEmbeddingStage = 'stage3';
+    manifestWritten = await scheduleIo(
+      () => writeIncrementalManifest(incremental.manifestPath, manifest)
+    );
+    if (!manifestWritten) {
+      warn(`[embeddings] ${mode}: failed to persist incremental manifest embedding metadata.`);
+    }
+  }
+
+  if (attempted > 0) {
+    log(
+      `[embeddings] ${mode}: refreshed ${rewritten}/${attempted} incremental bundles; ` +
+      `embedding coverage ${covered}/${attempted}.`
+    );
+  }
+  return { attempted, rewritten, manifestWritten, completeCoverage };
+};
 
 /**
  * Kick off the `pairofcleats build embeddings` workflow using normalized runtime config.
@@ -1536,6 +1722,24 @@ export async function runBuildEmbeddingsWithConfig(config) {
         clampQuantizedVectorsInPlace(codeVectors);
         clampQuantizedVectorsInPlace(docVectors);
         clampQuantizedVectorsInPlace(mergedVectors);
+
+        const refreshedBundles = await refreshIncrementalBundlesWithEmbeddings({
+          mode,
+          incremental,
+          chunksByFile,
+          mergedVectors,
+          embeddingMode: resolvedEmbeddingMode,
+          embeddingIdentityKey: cacheIdentityKey,
+          scheduleIo,
+          log,
+          warn
+        });
+        if (refreshedBundles.attempted > 0 && !refreshedBundles.completeCoverage) {
+          warn(
+            `[embeddings] ${mode}: incremental bundle embedding coverage incomplete; ` +
+            'sqlite incremental builds may fall back to artifacts.'
+          );
+        }
 
         const mergedVectorsPath = path.join(indexDir, 'dense_vectors_uint8.json');
         const docVectorsPath = path.join(indexDir, 'dense_vectors_doc_uint8.json');
