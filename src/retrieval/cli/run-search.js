@@ -126,6 +126,28 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
 
   const jsonOutput = argv.json === true;
   const jsonCompact = argv.compact === true;
+  const positionalQuery = Array.isArray(argv?._)
+    ? argv._
+      .map((value) => String(value || '').trim())
+      .filter(Boolean)
+      .join(' ')
+      .trim()
+    : '';
+  if (!positionalQuery) {
+    recordSearchMetrics('error');
+    const message = getSearchUsage();
+    if (emitOutput) {
+      if (jsonOutput) {
+        console.log(JSON.stringify({ ok: false, code: ERROR_CODES.INVALID_REQUEST, message }));
+      } else {
+        console.error(message);
+      }
+    }
+    if (exitOnError) process.exit(1);
+    const error = createError(ERROR_CODES.INVALID_REQUEST, message);
+    error.emitted = true;
+    throw error;
+  }
   const workspacePath = typeof argv.workspace === 'string' ? argv.workspace.trim() : '';
   if (workspacePath) {
     try {

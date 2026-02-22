@@ -125,19 +125,26 @@ const parseMaxOldSpaceMb = () => {
     ? nodeOptionsRaw.split(/\s+/).filter(Boolean)
     : [];
   const args = [...execArgv, ...nodeOptionsArgv];
+  let resolved = null;
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i];
     if (typeof arg !== 'string') continue;
     if (arg.startsWith('--max-old-space-size=')) {
       const value = Number(arg.split('=')[1]);
-      if (Number.isFinite(value) && value > 0) return Math.floor(value);
+      if (Number.isFinite(value) && value > 0) {
+        const mb = Math.floor(value);
+        resolved = resolved == null ? mb : Math.min(resolved, mb);
+      }
     }
     if (arg === '--max-old-space-size') {
       const value = Number(args[i + 1]);
-      if (Number.isFinite(value) && value > 0) return Math.floor(value);
+      if (Number.isFinite(value) && value > 0) {
+        const mb = Math.floor(value);
+        resolved = resolved == null ? mb : Math.min(resolved, mb);
+      }
     }
   }
-  return null;
+  return resolved;
 };
 
 /**

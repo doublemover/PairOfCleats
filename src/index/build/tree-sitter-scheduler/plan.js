@@ -350,7 +350,13 @@ const buildContinuousWaveExecutionOrder = (groups) => {
       if (waveA !== waveB) return waveA - waveB;
       return compareStrings(a?.grammarKey || '', b?.grammarKey || '');
     });
-    const waveCount = list.reduce((max, item) => Math.max(max, Number(item?.wave?.waveCount || 1)), 1);
+    const waveCount = list.reduce((max, item) => (
+      Math.max(
+        max,
+        Number(item?.wave?.waveIndex || 1),
+        Number(item?.wave?.waveCount || 1)
+      )
+    ), 1);
     maxWaveCount = Math.max(maxWaveCount, waveCount);
   }
   const order = [];
