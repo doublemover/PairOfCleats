@@ -1,5 +1,5 @@
-import { runCommand } from '../../shared/cli-utils.js';
 import { spawnSubprocess } from '../../../src/shared/subprocess.js';
+import { killProcessTree as killPidTree } from '../../../src/shared/kill-tree.js';
 import { createProgressLineDecoder } from '../../../src/shared/cli/progress-stream.js';
 import { parseProgressEventLine } from '../../../src/shared/cli/progress-events.js';
 
@@ -21,8 +21,14 @@ export const createProcessRunner = ({
     activeLabel = label;
   };
 
-  const clearActiveChild = (child) => {
-    if (activeChild === child) {
+  const clearActiveChild = (childOrPid = null) => {
+    if (!activeChild) return;
+    const targetPid = Number(
+      typeof childOrPid === 'number'
+        ? childOrPid
+        : childOrPid?.pid
+    );
+    if (!Number.isFinite(targetPid) || Number(activeChild.pid) === targetPid || activeChild === childOrPid) {
       activeChild = null;
       activeLabel = '';
     }
@@ -30,13 +36,11 @@ export const createProcessRunner = ({
 
   const killProcessTree = (pid) => {
     if (!Number.isFinite(pid)) return;
-    try {
-      if (process.platform === 'win32') {
-        runCommand('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' });
-        return;
-      }
-      process.kill(pid, 'SIGTERM');
-    } catch {}
+    void killPidTree(pid, {
+      killTree: true,
+      detached: process.platform !== 'win32',
+      graceMs: 0
+    }).catch(() => {});
   };
 
   const logExit = (reason, code) => {
@@ -117,7 +121,7 @@ export const createProcessRunner = ({
       stderrDecoder.flush();
       const code = result.exitCode;
       writeLog(`[finish] ${label} code=${code}`);
-      clearActiveChild({ pid: result.pid });
+      clearActiveChild(result.pid);
       if (code === 0) {
         return { ok: true };
       }
@@ -141,7 +145,7 @@ export const createProcessRunner = ({
     } catch (err) {
       const message = err?.message || err;
       writeLog(`[error] ${label} spawn failed: ${message}`);
-      clearActiveChild({ pid: err?.result?.pid ?? null });
+      clearActiveChild(err?.result?.pid ?? null);
       appendLog(`Failed: ${label}`);
       emitLogPaths('[error]');
       if (logHistory.length) {
