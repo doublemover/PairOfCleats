@@ -667,6 +667,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     enabled: daemonEnabled,
     sessionKey: daemonSessionKeyFromArg || daemonConfig.sessionKey || process.env.PAIROFCLEATS_INDEX_DAEMON_SESSION || null,
     cacheRoot,
+    repoRoot: root,
     deterministic: daemonDeterministic,
     profile: profile.id,
     health: daemonHealthConfig

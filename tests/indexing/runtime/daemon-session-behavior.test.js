@@ -82,4 +82,25 @@ const sameSession = acquireRuntimeDaemonSession({
 });
 assert.equal(sameSession, session, 'acquire should return existing session for same key');
 
+const scopedA = acquireRuntimeDaemonSession({
+  enabled: true,
+  cacheRoot: 'C:\\tmp\\poc-daemon-tests',
+  profile: 'default',
+  repoRoot: 'C:\\tmp\\repo-a'
+});
+const scopedARepeat = acquireRuntimeDaemonSession({
+  enabled: true,
+  cacheRoot: 'C:\\tmp\\poc-daemon-tests',
+  profile: 'default',
+  repoRoot: 'C:\\tmp\\repo-a'
+});
+const scopedB = acquireRuntimeDaemonSession({
+  enabled: true,
+  cacheRoot: 'C:\\tmp\\poc-daemon-tests',
+  profile: 'default',
+  repoRoot: 'C:\\tmp\\repo-b'
+});
+assert.equal(scopedARepeat, scopedA, 'same repo root should reuse default daemon session key');
+assert.notEqual(scopedA?.key, scopedB?.key, 'different repo roots should isolate default daemon sessions');
+
 console.log('daemon session behavior test passed');

@@ -1,3 +1,6 @@
+import crypto from 'node:crypto';
+import path from 'node:path';
+
 const DAEMON_SESSION_MAX_ENTRIES = 8;
 const DAEMON_DICT_CACHE_MAX_ENTRIES = 32;
 const DAEMON_TREE_SITTER_CACHE_MAX_ENTRIES = 32;
@@ -43,12 +46,28 @@ const safeHeapUsedBytes = () => {
   }
 };
 
-const normalizeSessionKey = ({ sessionKey, cacheRoot, profile = 'default' } = {}) => {
+const normalizeRepoRoot = (value) => {
+  if (typeof value !== 'string') return '';
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  const resolved = path.resolve(trimmed);
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+};
+
+const resolveRepoScopeToken = (repoRoot) => {
+  const normalizedRoot = normalizeRepoRoot(repoRoot);
+  if (!normalizedRoot) return 'repo-default';
+  const digest = crypto.createHash('sha1').update(normalizedRoot).digest('hex').slice(0, 12);
+  return `repo-${digest}`;
+};
+
+const normalizeSessionKey = ({ sessionKey, cacheRoot, profile = 'default', repoRoot = null } = {}) => {
   const explicit = typeof sessionKey === 'string' ? sessionKey.trim() : '';
   if (explicit) return explicit;
   const cache = typeof cacheRoot === 'string' ? cacheRoot.trim() : '';
   const safeCache = cache || 'default-cache-root';
-  return `${safeCache}::${profile}`;
+  const repoScope = resolveRepoScopeToken(repoRoot);
+  return `${safeCache}::${profile}::${repoScope}`;
 };
 
 const trimDaemonSessions = () => {
@@ -211,12 +230,13 @@ export const acquireRuntimeDaemonSession = ({
   enabled = false,
   sessionKey = null,
   cacheRoot = null,
+  repoRoot = null,
   deterministic = true,
   profile = 'default',
   health = null
 } = {}) => {
   if (!enabled) return null;
-  const key = normalizeSessionKey({ sessionKey, cacheRoot, profile });
+  const key = normalizeSessionKey({ sessionKey, cacheRoot, profile, repoRoot });
   const existing = daemonSessions.get(key);
   if (existing) {
     existing.health = normalizeDaemonHealthConfig(health, ensureHealthConfig(existing));
