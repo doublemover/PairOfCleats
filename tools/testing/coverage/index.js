@@ -110,8 +110,13 @@ export const mergeCoverageEntries = (coverageArtifacts) => {
       const key = toPosix(entry?.path || '');
       if (!key) continue;
       const existing = byPath.get(key) || { coveredRanges: 0, totalRanges: 0 };
-      existing.coveredRanges = Math.max(existing.coveredRanges, Number(entry?.coveredRanges || 0));
-      existing.totalRanges = Math.max(existing.totalRanges, Number(entry?.totalRanges || 0));
+      const totalRanges = Math.max(0, Number(entry?.totalRanges || 0));
+      const coveredRangesRaw = Math.max(0, Number(entry?.coveredRanges || 0));
+      const coveredRanges = totalRanges > 0
+        ? Math.min(coveredRangesRaw, totalRanges)
+        : coveredRangesRaw;
+      existing.coveredRanges += coveredRanges;
+      existing.totalRanges += totalRanges;
       byPath.set(key, existing);
     }
   }
