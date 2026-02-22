@@ -35,13 +35,35 @@ const probeSignatureStat = async (
   return { statPath: targetPath, stat: null };
 };
 
+const normalizeLegacyMtimeFromNs = (mtimeNs) => {
+  const wholeMs = mtimeNs / 1000000n;
+  const fractionalNs = mtimeNs % 1000000n;
+  return Number(wholeMs) + Number(fractionalNs) / 1_000_000;
+};
+
+const resolveLegacyMtimeMs = async (stat, statPath) => {
+  if (typeof stat?.mtimeNs === 'bigint') {
+    return normalizeLegacyMtimeFromNs(stat.mtimeNs);
+  }
+  if (typeof stat?.mtimeMs !== 'bigint') {
+    return Number(stat?.mtimeMs);
+  }
+  if (typeof statPath === 'string' && statPath) {
+    const preciseStat = await safeStat(statPath, false);
+    if (preciseStat && typeof preciseStat.mtimeMs !== 'bigint') {
+      return Number(preciseStat.mtimeMs);
+    }
+  }
+  return Number(stat.mtimeMs);
+};
+
 export const probeFileSignature = async (
   filePath,
   { compressedSiblings = 'always', format = 'detailed' } = {}
 ) => {
   try {
     if (!filePath) return null;
-    let { stat } = await probeSignatureStat(filePath, {
+    let { statPath, stat } = await probeSignatureStat(filePath, {
       compressedSiblings,
       useBigInt: true
     });
@@ -52,14 +74,13 @@ export const probeFileSignature = async (
         compressedSiblings,
         useBigInt: false
       });
+      statPath = fallback.statPath;
       stat = fallback.stat;
     }
     if (!stat) return null;
     if (format === 'legacy') {
       const size = typeof stat.size === 'bigint' ? stat.size.toString() : String(stat.size);
-      const mtimeMs = typeof stat.mtimeMs === 'bigint'
-        ? Number(stat.mtimeMs)
-        : Number(stat.mtimeMs);
+      const mtimeMs = await resolveLegacyMtimeMs(stat, statPath);
       return `${size}:${mtimeMs}`;
     }
     const size = typeof stat.size === 'bigint' ? stat.size : BigInt(stat.size);
