@@ -164,6 +164,33 @@ try {
     maxInFlight <= 16,
     `expected SCM default concurrency to cap at cpu threads 16; observed ${maxInFlight}`
   );
+
+  inFlight = 0;
+  maxInFlight = 0;
+  logCallCount = 0;
+  setScmRuntimeConfig({
+    maxConcurrentProcesses: 1,
+    runtime: {
+      fileConcurrency: 32,
+      cpuConcurrency: 16
+    }
+  });
+  const explicitCapFiles = Array.from(
+    { length: 96 * 12 },
+    (_unused, index) => `src/explicit-cap-${index}.js`
+  );
+  const explicitCapResult = await gitProvider.getFileMetaBatch({
+    repoRoot,
+    filesPosix: explicitCapFiles,
+    timeoutMs: 5000
+  });
+  assert.ok(explicitCapResult?.fileMetaByPath);
+  assert.equal(Object.keys(explicitCapResult.fileMetaByPath).length, explicitCapFiles.length);
+  assert.equal(
+    maxInFlight,
+    1,
+    `expected explicit maxConcurrentProcesses=1 to hard-cap SCM fanout; observed ${maxInFlight}`
+  );
 } finally {
   restoreProgressHandlers();
   setScmCommandRunner(defaultRunner);

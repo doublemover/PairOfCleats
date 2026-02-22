@@ -129,9 +129,9 @@ const resolveGitConfig = () => {
   const runtimeThreadFloor = toPositiveIntOrNull(runtimeConfig.cpuConcurrency)
     || toPositiveIntOrNull(runtimeConfig.fileConcurrency)
     || 1;
-  const maxConcurrentProcesses = Number.isFinite(Number(config.maxConcurrentProcesses))
-    ? Math.max(1, Math.floor(Number(config.maxConcurrentProcesses)))
-    : (runtimeThreadFloor > 1 ? runtimeThreadFloor : 8);
+  const explicitMaxConcurrentProcesses = toPositiveIntOrNull(config.maxConcurrentProcesses);
+  const maxConcurrentProcesses = explicitMaxConcurrentProcesses
+    || (runtimeThreadFloor > 1 ? runtimeThreadFloor : 8);
   const gitMetaBatchConfig = config.gitMetaBatch && typeof config.gitMetaBatch === 'object'
     ? config.gitMetaBatch
     : {};
@@ -142,6 +142,7 @@ const resolveGitConfig = () => {
     ? Math.max(1, Math.floor(Number(gitMetaBatchConfig.minParallelChunks)))
     : runtimeThreadFloor;
   return {
+    explicitMaxConcurrentProcesses,
     maxConcurrentProcesses,
     smallRepoChunkMax,
     minParallelChunks
@@ -263,13 +264,16 @@ export const gitProvider = {
       ? Math.max(5000, Math.floor(Number(timeoutMs)))
       : 15000;
     const forceSequential = chunks.length <= config.smallRepoChunkMax;
+    const batchConcurrencyCap = config.explicitMaxConcurrentProcesses
+      ? config.maxConcurrentProcesses
+      : Math.max(config.maxConcurrentProcesses, config.minParallelChunks);
     const batchConcurrency = forceSequential
       ? 1
       : Math.max(
         1,
         Math.min(
           chunks.length,
-          Math.max(config.maxConcurrentProcesses, config.minParallelChunks)
+          batchConcurrencyCap
         )
       );
     const shouldEmitProgress = chunks.length > 1;
