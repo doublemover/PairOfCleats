@@ -297,6 +297,7 @@ function runSearch(query, env) {
       mode: modeArg && modeArg !== 'both' ? modeArg : null,
       env,
       now: Date.now,
+      maxOutputBytes: 64 * 1024 * 1024,
       jsonFallback: '{}'
     });
   } catch (err) {

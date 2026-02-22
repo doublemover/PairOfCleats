@@ -198,6 +198,7 @@ const runNode = (args, env, label) => {
 const runJsonNode = (args, env, label) => {
   const result = spawnSubprocessSync(process.execPath, args, {
     cwd: root,
+    maxOutputBytes: 64 * 1024 * 1024,
     env,
     stdio: ['ignore', 'pipe', 'pipe'],
     captureStdout: true,

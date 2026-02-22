@@ -963,6 +963,7 @@ export function spawnSubprocessSync(command, args, options = {}) {
   const encoding = options.outputEncoding || 'utf8';
   const outputMode = coerceOutputMode(options.outputMode);
   const maxOutputBytes = resolveMaxOutputBytes(options.maxOutputBytes);
+  const maxBufferBytes = Math.max(maxOutputBytes, DEFAULT_MAX_OUTPUT_BYTES);
   const captureStdout = shouldCapture(stdio, options.captureStdout, 1);
   const captureStderr = shouldCapture(stdio, options.captureStderr, 2);
   const rejectOnNonZeroExit = options.rejectOnNonZeroExit !== false;
@@ -984,6 +985,7 @@ export function spawnSubprocessSync(command, args, options = {}) {
     stdio,
     shell: false,
     input: options.input,
+    maxBuffer: maxBufferBytes,
     encoding: captureStdout || captureStderr ? 'buffer' : undefined
   });
   const stdout = captureStdout

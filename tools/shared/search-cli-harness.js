@@ -209,6 +209,7 @@ export function runSearchCliWithSpawnSync(options) {
  *   extraArgs?:unknown[],
  *   env?:NodeJS.ProcessEnv,
  *   cwd?:string,
+ *   maxOutputBytes?:number,
  *   parseJson?:boolean,
  *   jsonFallback?:string,
  *   now?:()=>number
@@ -223,6 +224,9 @@ export function runSearchCliWithSubprocessSync(options) {
   const result = spawnSubprocessSync(process.execPath, args, {
     cwd: options?.cwd,
     env: options?.env,
+    maxOutputBytes: Number.isFinite(Number(options?.maxOutputBytes))
+      ? Number(options.maxOutputBytes)
+      : undefined,
     captureStdout: true,
     captureStderr: true,
     outputMode: 'string',
