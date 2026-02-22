@@ -825,7 +825,7 @@ export async function writeIndexArtifacts(input) {
     : 'auto';
   const jsonArraySerializeShardThresholdMs = Number.isFinite(Number(artifactConfig.jsonArraySerializeShardThresholdMs))
     ? Math.max(0, Math.floor(Number(artifactConfig.jsonArraySerializeShardThresholdMs)))
-    : 1500;
+    : 10;
   const jsonArraySerializeShardMaxBytes = Number.isFinite(Number(artifactConfig.jsonArraySerializeShardMaxBytes))
     ? Math.max(1024 * 1024, Math.floor(Number(artifactConfig.jsonArraySerializeShardMaxBytes)))
     : (64 * 1024 * 1024);
@@ -867,7 +867,7 @@ export async function writeIndexArtifacts(input) {
     Number(artifactConfig.tokenPostingsPackedAutoThresholdBytes)
   )
     ? Math.max(0, Math.floor(Number(artifactConfig.tokenPostingsPackedAutoThresholdBytes)))
-    : (8 * 1024 * 1024);
+    : (1 * 1024 * 1024);
   let tokenPostingsShardSize = Number.isFinite(Number(artifactConfig.tokenPostingsShardSize))
     ? Math.max(1000, Math.floor(Number(artifactConfig.tokenPostingsShardSize)))
     : 50000;
@@ -922,7 +922,7 @@ export async function writeIndexArtifacts(input) {
     : 6;
   const minhashJsonLargeThreshold = Number.isFinite(Number(artifactConfig.minhashJsonLargeThreshold))
     ? Math.max(0, Math.floor(Number(artifactConfig.minhashJsonLargeThreshold)))
-    : 20000;
+    : 5000;
   const writeProgressHeartbeatMs = Number.isFinite(Number(artifactConfig.writeProgressHeartbeatMs))
     ? Math.max(0, Math.floor(Number(artifactConfig.writeProgressHeartbeatMs)))
     : 15000;
@@ -977,7 +977,7 @@ export async function writeIndexArtifacts(input) {
     : fileMetaMaxBytes;
   const fileMetaJsonlThreshold = Number.isFinite(Number(artifactConfig.fileMetaJsonlThresholdBytes))
     ? Math.max(0, Math.floor(Number(artifactConfig.fileMetaJsonlThresholdBytes)))
-    : Math.min(fileMetaMaxBytes, 8 * 1024 * 1024);
+    : Math.min(fileMetaMaxBytes, 1 * 1024 * 1024);
   const fileMetaShardedMaxBytes = Number.isFinite(Number(artifactConfig.fileMetaShardedMaxBytes))
     ? Math.max(0, Math.floor(Number(artifactConfig.fileMetaShardedMaxBytes)))
     : Math.min(fileMetaMaxBytes, 8 * 1024 * 1024);

@@ -179,6 +179,13 @@ export const createArtifactWriter = ({
       offsets = null
     } = {}
   ) => {
+    /**
+     * Predict full-array stringify cost from a bounded sample.
+     * This is a fast heuristic used only to decide when to force shard sizing
+     * for callers that did not provide an explicit max-bytes policy.
+     * @param {Array<object>} rows
+     * @returns {number}
+     */
     const estimateArraySerializationMs = (rows) => {
       if (!Array.isArray(rows) || !rows.length) return 0;
       const sampleSize = Math.min(rows.length, 128);
