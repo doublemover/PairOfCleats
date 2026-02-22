@@ -12,8 +12,8 @@ const config = normalizeWorkerPoolConfig({
   maxWorkers: 12
 }, { cpuLimit: 12 });
 
-assert.equal(config.memoryPressure.watermarkSoft, 0.97, 'expected throughput-first soft watermark default');
-assert.equal(config.memoryPressure.watermarkHard, 0.992, 'expected throughput-first hard watermark default');
+assert.equal(config.memoryPressure.watermarkSoft, 0.985, 'expected throughput-first soft watermark default');
+assert.equal(config.memoryPressure.watermarkHard, 0.995, 'expected throughput-first hard watermark default');
 assert.equal(config.memoryPressure.cacheMaxEntries, 2048, 'expected larger pressure cache default');
 assert.equal(
   config.memoryPressure.languageThrottle.blockHeavyOnHardPressure,
@@ -22,33 +22,33 @@ assert.equal(
 );
 
 const softState = resolveMemoryPressureState({
-  pressureRatio: 0.971,
-  watermarkSoft: 0.97,
-  watermarkHard: 0.992,
+  pressureRatio: 0.986,
+  watermarkSoft: 0.985,
+  watermarkHard: 0.995,
   currentState: 'normal'
 });
 assert.equal(softState, 'soft-pressure', 'expected ratio over soft watermark to enter soft-pressure state');
 
 const hardState = resolveMemoryPressureState({
-  pressureRatio: 0.995,
-  watermarkSoft: 0.97,
-  watermarkHard: 0.992,
+  pressureRatio: 0.997,
+  watermarkSoft: 0.985,
+  watermarkHard: 0.995,
   currentState: softState
 });
 assert.equal(hardState, 'hard-pressure', 'expected ratio over hard watermark to enter hard-pressure state');
 
 const hardRecovery = resolveMemoryPressureState({
-  pressureRatio: 0.965,
-  watermarkSoft: 0.97,
-  watermarkHard: 0.992,
+  pressureRatio: 0.97,
+  watermarkSoft: 0.985,
+  watermarkHard: 0.995,
   currentState: hardState
 });
 assert.equal(hardRecovery, 'soft-pressure', 'expected hard-pressure to recover through soft-pressure hysteresis');
 
 const normalRecovery = resolveMemoryPressureState({
-  pressureRatio: 0.93,
-  watermarkSoft: 0.97,
-  watermarkHard: 0.992,
+  pressureRatio: 0.95,
+  watermarkSoft: 0.985,
+  watermarkHard: 0.995,
   currentState: hardRecovery
 });
 assert.equal(normalRecovery, 'normal', 'expected low ratio to recover to normal state');

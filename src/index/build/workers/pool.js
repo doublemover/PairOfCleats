@@ -48,8 +48,8 @@ const toFiniteTimestamp = (value, fallback = 0) => {
 
 export const resolveMemoryPressureState = ({
   pressureRatio,
-  watermarkSoft = 0.94,
-  watermarkHard = 0.985,
+  watermarkSoft = 0.985,
+  watermarkHard = 0.995,
   currentState = PRESSURE_STATE_NORMAL
 }) => {
   const ratio = clampRatio(pressureRatio);
@@ -91,10 +91,10 @@ export const resolveLanguageThrottleLimit = ({
     );
   const softMax = Number.isFinite(Number(throttleConfig?.softMaxPerLanguage))
     ? Math.max(1, Math.floor(Number(throttleConfig.softMaxPerLanguage)))
-    : 4;
+    : 6;
   const hardMax = Number.isFinite(Number(throttleConfig?.hardMaxPerLanguage))
     ? Math.max(0, Math.floor(Number(throttleConfig.hardMaxPerLanguage)))
-    : 2;
+    : 3;
   const normalizedHardMax = Math.min(softMax, Math.max(0, hardMax));
   const isHeavyLanguage = heavyLanguages.has(normalizedLanguageId);
   const blockHeavyOnHardPressure = throttleConfig?.blockHeavyOnHardPressure !== false;
@@ -387,10 +387,10 @@ export async function createIndexerWorkerPool(input = {}) {
       : Math.max(1, Math.floor(configuredMaxWorkers * 0.5));
     const downscaleRssThreshold = Number.isFinite(poolConfig?.downscaleRssThreshold)
       ? Math.max(0.5, Math.min(0.99, Number(poolConfig.downscaleRssThreshold)))
-      : 0.9;
+      : 0.95;
     const downscaleGcThreshold = Number.isFinite(poolConfig?.downscaleGcThreshold)
       ? Math.max(0.5, Math.min(0.99, Number(poolConfig.downscaleGcThreshold)))
-      : 0.85;
+      : 0.92;
     const downscaleCooldownMs = Number.isFinite(poolConfig?.downscaleCooldownMs)
       ? Math.max(1000, Math.floor(Number(poolConfig.downscaleCooldownMs)))
       : 15000;
@@ -409,10 +409,10 @@ export async function createIndexerWorkerPool(input = {}) {
       : {};
     const pressureWatermarkSoft = Number.isFinite(Number(memoryPressureConfig?.watermarkSoft))
       ? clampRatio(memoryPressureConfig.watermarkSoft)
-      : 0.97;
+      : 0.985;
     const pressureWatermarkHard = Number.isFinite(Number(memoryPressureConfig?.watermarkHard))
       ? Math.max(pressureWatermarkSoft, clampRatio(memoryPressureConfig.watermarkHard))
-      : Math.max(pressureWatermarkSoft, 0.992);
+      : Math.max(pressureWatermarkSoft, 0.995);
     const pressureCacheMaxEntries = Number.isFinite(Number(memoryPressureConfig?.cacheMaxEntries))
       ? Math.max(1, Math.floor(Number(memoryPressureConfig.cacheMaxEntries)))
       : 2048;
@@ -427,10 +427,10 @@ export async function createIndexerWorkerPool(input = {}) {
     );
     const languageThrottleSoftMax = Number.isFinite(Number(rawLanguageThrottle?.softMaxPerLanguage))
       ? Math.max(1, Math.floor(Number(rawLanguageThrottle.softMaxPerLanguage)))
-      : Math.max(2, Math.min(configuredMaxWorkers, Math.max(4, Math.floor(configuredMaxWorkers * 0.85))));
+      : Math.max(3, Math.min(configuredMaxWorkers, Math.max(6, Math.floor(configuredMaxWorkers * 0.9))));
     const languageThrottleHardMax = Number.isFinite(Number(rawLanguageThrottle?.hardMaxPerLanguage))
       ? Math.max(0, Math.floor(Number(rawLanguageThrottle.hardMaxPerLanguage)))
-      : Math.max(1, Math.floor(languageThrottleSoftMax * 0.5));
+      : Math.max(2, Math.floor(languageThrottleSoftMax * 0.5));
     const languageThrottleConfig = {
       enabled: rawLanguageThrottle?.enabled !== false,
       heavyLanguages: throttleHeavyLanguageSet,

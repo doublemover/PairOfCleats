@@ -38,7 +38,7 @@ const FILE_HARD_TIMEOUT_SLOW_MULTIPLIER = 3;
 const FILE_PROCESS_CLEANUP_TIMEOUT_DEFAULT_MS = 30000;
 const DEFAULT_POSTINGS_ROWS_PER_PENDING = 300;
 const DEFAULT_POSTINGS_BYTES_PER_PENDING = 12 * 1024 * 1024;
-const DEFAULT_POSTINGS_PENDING_SCALE = 3;
+const DEFAULT_POSTINGS_PENDING_SCALE = 4;
 const LEXICON_FILTER_LOG_LIMIT = 5;
 const MB = 1024 * 1024;
 
@@ -280,7 +280,7 @@ const resolvePostingsQueueConfig = (runtime) => {
     ?? (Number.isFinite(cpuPending)
       ? Math.max(1, Math.floor(cpuPending * DEFAULT_POSTINGS_PENDING_SCALE))
       : null)
-    ?? Math.max(32, cpuConcurrency * 8);
+    ?? Math.max(64, cpuConcurrency * 12);
   const perWorkerWriteBufferMb = Number(runtime?.memoryPolicy?.perWorkerWriteBufferMb);
   const projectedWriteBufferBytes = Number.isFinite(perWorkerWriteBufferMb) && perWorkerWriteBufferMb > 0
     ? Math.floor(perWorkerWriteBufferMb * MB * Math.max(1, cpuConcurrency))
@@ -322,7 +322,7 @@ const resolveOrderedAppenderConfig = (runtime) => {
     : 1;
   const maxPendingBeforeBackpressure = coercePositiveInt(config.maxPending)
     ?? cpuPending
-    ?? Math.max(64, fileConcurrency * 12);
+    ?? Math.max(128, fileConcurrency * 20);
   const maxPendingEmergencyFactor = Number(config.maxPendingEmergencyFactor);
   return {
     maxPendingBeforeBackpressure,
@@ -669,7 +669,7 @@ export const processFiles = async ({
         expectedIndices: expectedOrderIndices,
         startIndex: startOrderIndex,
         bucketSize: coercePositiveInt(runtime?.stage1Queues?.ordered?.bucketSize)
-        ?? Math.max(128, runtime.fileConcurrency * 32),
+        ?? Math.max(256, runtime.fileConcurrency * 48),
         maxPendingBeforeBackpressure: orderedAppenderConfig.maxPendingBeforeBackpressure,
         maxPendingEmergencyFactor: orderedAppenderConfig.maxPendingEmergencyFactor,
         log: (message, meta = {}) => logLine(message, { ...meta, mode, stage: 'processing' }),

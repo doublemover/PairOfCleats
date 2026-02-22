@@ -9,11 +9,11 @@ const defaults = normalizeWorkerPoolConfig({
 }, { cpuLimit: 10 });
 
 assert.equal(defaults.autoDownscaleOnPressure, true, 'expected auto pressure downscale to default on');
-assert.equal(defaults.downscaleRssThreshold, 0.9, 'expected default RSS downscale threshold');
-assert.equal(defaults.downscaleGcThreshold, 0.85, 'expected default GC downscale threshold');
+assert.equal(defaults.downscaleRssThreshold, 0.95, 'expected default RSS downscale threshold');
+assert.equal(defaults.downscaleGcThreshold, 0.92, 'expected default GC downscale threshold');
 assert.equal(defaults.downscaleMinWorkers, 5, 'expected default minimum workers to track half of maxWorkers');
-assert.equal(defaults.memoryPressure.watermarkSoft, 0.97, 'expected default soft pressure watermark');
-assert.equal(defaults.memoryPressure.watermarkHard, 0.992, 'expected default hard pressure watermark');
+assert.equal(defaults.memoryPressure.watermarkSoft, 0.985, 'expected default soft pressure watermark');
+assert.equal(defaults.memoryPressure.watermarkHard, 0.995, 'expected default hard pressure watermark');
 
 const custom = normalizeWorkerPoolConfig({
   enabled: true,
