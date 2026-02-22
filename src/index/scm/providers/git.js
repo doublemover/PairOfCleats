@@ -156,7 +156,7 @@ const runWithBoundedConcurrency = async (items, concurrency, worker) => {
  * Parse batched `git log --name-only` output into per-file metadata.
  *
  * @param {{stdout:string,repoRoot:string}} input
- * @returns {Record<string,{lastModifiedAt:string|null,lastAuthor:string|null,churn:null,churnAdded:null,churnDeleted:null,churnCommits:null}>}
+ * @returns {Record<string,{lastCommitId:string|null,lastModifiedAt:string|null,lastAuthor:string|null,churn:null,churnAdded:null,churnDeleted:null,churnCommits:null}>}
  */
 const parseGitMetaBatchOutput = ({ stdout, repoRoot }) => {
   const fileMetaByPath = Object.create(null);
@@ -166,16 +166,22 @@ const parseGitMetaBatchOutput = ({ stdout, repoRoot }) => {
     if (!line) continue;
     if (line.startsWith(GIT_META_BATCH_FORMAT_PREFIX)) {
       const payload = line.slice(GIT_META_BATCH_FORMAT_PREFIX.length);
-      const [lastModifiedAtRaw, ...authorParts] = payload.split('\0');
+      const parts = payload.split('\0');
+      const hasCommitPrefix = parts.length >= 3 && /^[0-9a-f]{7,64}$/i.test(String(parts[0] || '').trim());
+      const lastCommitIdRaw = hasCommitPrefix ? parts[0] : null;
+      const lastModifiedAtRaw = hasCommitPrefix ? parts[1] : parts[0];
+      const authorParts = hasCommitPrefix ? parts.slice(2) : parts.slice(1);
+      const lastCommitId = String(lastCommitIdRaw || '').trim().toLowerCase() || null;
       const lastModifiedAt = String(lastModifiedAtRaw || '').trim() || null;
       const lastAuthor = authorParts.join('\0').trim() || null;
-      currentMeta = { lastModifiedAt, lastAuthor };
+      currentMeta = { lastCommitId, lastModifiedAt, lastAuthor };
       continue;
     }
     if (!currentMeta) continue;
     const fileKey = toRepoPosixPath(line, repoRoot);
     if (!fileKey || fileMetaByPath[fileKey]) continue;
     fileMetaByPath[fileKey] = {
+      lastCommitId: currentMeta.lastCommitId,
       lastModifiedAt: currentMeta.lastModifiedAt,
       lastAuthor: currentMeta.lastAuthor,
       churn: null,
@@ -317,6 +323,7 @@ export const gitProvider = {
       return { ok: false, reason: 'unavailable' };
     }
     return {
+      lastCommitId: typeof meta.last_commit === 'string' ? meta.last_commit : null,
       lastModifiedAt: meta.last_modified || null,
       lastAuthor: meta.last_author || null,
       churn: Number.isFinite(meta.churn) ? meta.churn : null,
@@ -371,7 +378,7 @@ export const gitProvider = {
         repoRoot,
         'log',
         '--date=iso-strict',
-        `--format=${GIT_META_BATCH_FORMAT_PREFIX}%aI%x00%an`,
+        `--format=${GIT_META_BATCH_FORMAT_PREFIX}%H%x00%aI%x00%an`,
         '--name-only'
       ];
       if (batchCommitLimit > 0) {
@@ -396,6 +403,7 @@ export const gitProvider = {
       for (const filePosix of chunk) {
         if (chunkMetaByPath[filePosix]) continue;
         chunkMetaByPath[filePosix] = {
+          lastCommitId: null,
           lastModifiedAt: null,
           lastAuthor: null,
           churn: null,
@@ -421,12 +429,13 @@ export const gitProvider = {
     }
     return { fileMetaByPath };
   },
-  async annotate({ repoRoot, filePosix, timeoutMs, signal }) {
+  async annotate({ repoRoot, filePosix, timeoutMs, signal, commitId = null }) {
     const absPath = path.join(repoRoot, filePosix);
     const lineAuthors = await runGitTask(() => getGitLineAuthorsForFile(absPath, {
       baseDir: repoRoot,
       timeoutMs,
-      signal
+      signal,
+      commitId
     }));
     if (!Array.isArray(lineAuthors)) {
       return { ok: false, reason: 'unavailable' };

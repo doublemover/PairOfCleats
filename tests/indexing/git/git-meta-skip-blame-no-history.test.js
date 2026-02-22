@@ -21,7 +21,7 @@ let blameCalls = 0;
 
 setScmCommandRunner(async (_command, args) => {
   const argv = Array.isArray(args) ? args : [];
-  if (argv.includes('--format=%aI%x00%an')) {
+  if (argv.includes('--format=%H%x00%aI%x00%an') || argv.includes('--format=%aI%x00%an')) {
     logCalls += 1;
     return {
       exitCode: 0,

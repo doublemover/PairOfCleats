@@ -556,6 +556,7 @@ export const processFileCpu = async (context) => {
   const scmStart = Date.now();
   let lineAuthors = null;
   let fileGitMeta = {};
+  let fileGitCommitId = null;
   const scmActive = scmProviderImpl && scmProvider && scmProvider !== 'none';
   const filePosix = scmActive && scmRepoRoot
     ? toRepoPosixPath(abs, scmRepoRoot)
@@ -614,6 +615,9 @@ export const processFileCpu = async (context) => {
       && !Number.isFinite(snapshotMeta.churnDeleted)
     );
     if (snapshotHasIdentity && !snapshotMissingRequestedChurn) {
+      fileGitCommitId = typeof snapshotMeta.lastCommitId === 'string'
+        ? snapshotMeta.lastCommitId
+        : null;
       fileGitMeta = {
         last_modified: snapshotMeta.lastModifiedAt ?? null,
         last_author: snapshotMeta.lastAuthor ?? null,
@@ -636,6 +640,9 @@ export const processFileCpu = async (context) => {
           includeChurn
         }));
         if (fileMeta && fileMeta.ok !== false) {
+          fileGitCommitId = typeof fileMeta.lastCommitId === 'string'
+            ? fileMeta.lastCommitId
+            : null;
           fileGitMeta = {
             last_modified: fileMeta.lastModifiedAt ?? null,
             last_author: fileMeta.lastAuthor ?? null,
@@ -697,7 +704,8 @@ export const processFileCpu = async (context) => {
             repoRoot: scmRepoRoot,
             filePosix,
             timeoutMs,
-            signal: controller.signal
+            signal: controller.signal,
+            commitId: fileGitCommitId
           })).catch((err) => {
             if (controller.signal.aborted) return { ok: false, reason: 'timeout' };
             if (err?.code === 'ABORT_ERR' || err?.name === 'AbortError') {

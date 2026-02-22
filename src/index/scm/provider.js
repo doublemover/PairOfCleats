@@ -59,6 +59,7 @@ export const assertScmProvider = (provider) => {
   const normalizeFileMetaValue = (meta) => {
     const value = meta && typeof meta === 'object' ? meta : {};
     return {
+      lastCommitId: typeof value.lastCommitId === 'string' ? value.lastCommitId : null,
       lastModifiedAt: typeof value.lastModifiedAt === 'string' ? value.lastModifiedAt : null,
       lastAuthor: typeof value.lastAuthor === 'string' ? value.lastAuthor : null,
       churn: Number.isFinite(value.churn) ? Number(value.churn) : null,

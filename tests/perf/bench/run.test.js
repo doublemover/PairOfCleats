@@ -187,6 +187,7 @@ if (heapOverride) {
   );
 }
 const benchEnv = baseEnv;
+benchEnv.PAIROFCLEATS_BENCH_RUN = '1';
 
 function logBench(message) {
   if (!message) return;

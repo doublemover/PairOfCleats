@@ -104,6 +104,7 @@ export function getEnvConfig(env = process.env) {
     debugCrash: normalizeBoolean(env.PAIROFCLEATS_DEBUG_CRASH),
     crashLogAnnounce: normalizeOptionalDisableFlag(env.PAIROFCLEATS_CRASH_LOG_ANNOUNCE),
     debugPerfEvents: normalizeBoolean(env.PAIROFCLEATS_DEBUG_PERF_EVENTS),
+    benchRun: normalizeBoolean(env.PAIROFCLEATS_BENCH_RUN),
     benchAntivirusState: normalizeString(env.PAIROFCLEATS_BENCH_ANTIVIRUS_STATE),
     benchCpuGovernor: normalizeString(env.PAIROFCLEATS_BENCH_CPU_GOVERNOR),
     fileCacheMax: normalizeNumber(env.PAIROFCLEATS_FILE_CACHE_MAX),

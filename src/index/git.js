@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import simpleGit from 'simple-git';
 import { runScmCommand } from './scm/runner.js';
+import { getScmRuntimeConfig } from './scm/runtime.js';
 import {
   createLruCache,
   DEFAULT_CACHE_MB,
@@ -57,6 +58,8 @@ const formatGitUnavailableMessage = ({
   scope = 'meta',
   fileArg = null,
   timeoutMs = null,
+  timeoutLadderMs = null,
+  commitId = null,
   err = null
 } = {}) => {
   const code = sanitizeFailureText(String(err?.code || err?.cause?.code || ''), 48);
@@ -64,12 +67,89 @@ const formatGitUnavailableMessage = ({
   const parts = ['Git metadata unavailable'];
   parts.push(`scope=${scope || 'meta'}`);
   if (fileArg) parts.push(`file=${sanitizeFailureText(fileArg, 96)}`);
+  const ladderValues = Array.isArray(timeoutLadderMs)
+    ? timeoutLadderMs
+      .map((value) => Number(value))
+      .filter((value) => Number.isFinite(value) && value > 0)
+      .map((value) => Math.max(1, Math.floor(value)))
+    : [];
+  if (ladderValues.length > 1) {
+    parts.push(`timeoutLadderMs=${ladderValues.join('>')}`);
+  }
   if (Number.isFinite(Number(timeoutMs)) && Number(timeoutMs) > 0) {
     parts.push(`timeoutMs=${Math.floor(Number(timeoutMs))}`);
+  }
+  if (commitId) {
+    parts.push(`commit=${sanitizeFailureText(commitId, 64)}`);
   }
   if (code) parts.push(`code=${code}`);
   if (reason) parts.push(`reason=${reason}`);
   return `${parts.join('; ')}.`;
+};
+
+const normalizePositiveTimeout = (value) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return null;
+  return Math.max(1, Math.floor(numeric));
+};
+
+const normalizeCommitId = (value) => {
+  const trimmed = String(value || '').trim().toLowerCase();
+  return /^[0-9a-f]{7,64}$/i.test(trimmed) ? trimmed : null;
+};
+
+const normalizeTimeoutLadder = (values, fallbackTimeout = null) => {
+  const seen = new Set();
+  const out = [];
+  const addValue = (raw) => {
+    const normalized = normalizePositiveTimeout(raw);
+    if (!normalized || seen.has(normalized)) return;
+    seen.add(normalized);
+    out.push(normalized);
+  };
+  for (const value of Array.isArray(values) ? values : []) {
+    addValue(value);
+  }
+  if (fallbackTimeout) addValue(fallbackTimeout);
+  out.sort((a, b) => a - b);
+  return out;
+};
+
+const buildTimeoutLadderFromBase = (timeoutMs) => {
+  const base = normalizePositiveTimeout(timeoutMs);
+  if (!base) return [];
+  if (base <= 2) return [base];
+  if (base <= 8) {
+    return normalizeTimeoutLadder([Math.max(1, Math.floor(base / 2)), base], base);
+  }
+  return normalizeTimeoutLadder([
+    Math.max(1, Math.floor(base / 4)),
+    Math.max(1, Math.floor(base / 2)),
+    base
+  ], base);
+};
+
+const resolveBlameTimeoutLadder = (timeoutMs) => {
+  const baseTimeoutMs = normalizePositiveTimeout(timeoutMs);
+  const runtimeConfig = getScmRuntimeConfig() || {};
+  const annotateConfig = runtimeConfig.annotate && typeof runtimeConfig.annotate === 'object'
+    ? runtimeConfig.annotate
+    : {};
+  const configuredLadder = normalizeTimeoutLadder(annotateConfig.timeoutLadderMs);
+  const fallbackLadder = buildTimeoutLadderFromBase(baseTimeoutMs);
+  const ladder = configuredLadder.length
+    ? normalizeTimeoutLadder(configuredLadder, baseTimeoutMs)
+    : fallbackLadder;
+  const maxAttempts = normalizePositiveTimeout(annotateConfig.timeoutAttempts);
+  const bounded = maxAttempts ? ladder.slice(0, maxAttempts) : ladder;
+  if (bounded.length) return bounded;
+  return [baseTimeoutMs];
+};
+
+const isTimeoutLikeError = (err) => {
+  const code = String(err?.code || err?.cause?.code || '').toUpperCase();
+  const name = String(err?.name || err?.cause?.name || '').toLowerCase();
+  return code === 'SUBPROCESS_TIMEOUT' || code === 'ABORT_ERR' || name === 'aborterror';
 };
 
 const resolveBlameMaxOutputBytes = (absFile) => {
@@ -118,7 +198,7 @@ export function configureGitMetaCache(cacheConfig, reporter = null) {
  * running file-level churn/log metadata commands.
  *
  * @param {string} file
- * @param {{baseDir?:string,timeoutMs?:number,signal?:AbortSignal|null}} [options]
+ * @param {{baseDir?:string,timeoutMs?:number,signal?:AbortSignal|null,commitId?:string|null}} [options]
  * @returns {Promise<string[]|null>}
  */
 export async function getGitLineAuthorsForFile(file, options = {}) {
@@ -128,13 +208,16 @@ export async function getGitLineAuthorsForFile(file, options = {}) {
   const relFile = isAbsolutePathNative(file) ? path.relative(baseDir, file) : file;
   const absFile = isAbsolutePathNative(file) ? file : path.resolve(baseDir, file);
   const fileArg = toPosix(relFile);
-  const timeoutMs = Number.isFinite(Number(options.timeoutMs)) ? Number(options.timeoutMs) : null;
+  const timeoutMs = normalizePositiveTimeout(options.timeoutMs);
+  const timeoutLadderMs = resolveBlameTimeoutLadder(timeoutMs);
   const signal = options.signal || null;
+  const commitId = normalizeCommitId(options.commitId);
   const blameKey = buildLocalCacheKey({
     namespace: 'git-blame',
     payload: {
       baseDir,
-      file: fileArg
+      file: fileArg,
+      ...(commitId ? { commitId } : {})
     }
   }).key;
 
@@ -144,26 +227,40 @@ export async function getGitLineAuthorsForFile(file, options = {}) {
   if (cached) return cached;
 
   try {
-    let blame = null;
-    if (timeoutMs || signal) {
-      const result = await runScmCommand('git', ['-C', baseDir, 'blame', '--line-porcelain', '--', fileArg], {
-        outputMode: 'string',
-        captureStdout: true,
-        captureStderr: true,
-        rejectOnNonZeroExit: false,
-        maxOutputBytes: resolveBlameMaxOutputBytes(absFile),
-        timeoutMs,
-        signal
-      });
-      if (result.exitCode !== 0) {
-        throw createGitNonZeroExitError('git blame', result);
+    let lineAuthors = null;
+    for (let i = 0; i < timeoutLadderMs.length; i += 1) {
+      const attemptTimeoutMs = normalizePositiveTimeout(timeoutLadderMs[i]);
+      try {
+        let blame = null;
+        if (attemptTimeoutMs || signal) {
+          const result = await runScmCommand('git', ['-C', baseDir, 'blame', '--line-porcelain', '--', fileArg], {
+            outputMode: 'string',
+            captureStdout: true,
+            captureStderr: true,
+            rejectOnNonZeroExit: false,
+            maxOutputBytes: resolveBlameMaxOutputBytes(absFile),
+            timeoutMs: attemptTimeoutMs,
+            signal
+          });
+          if (result.exitCode !== 0) {
+            throw createGitNonZeroExitError('git blame', result);
+          }
+          blame = result.stdout;
+        } else {
+          const git = simpleGit({ baseDir });
+          blame = await git.raw(['blame', '--line-porcelain', '--', fileArg]);
+        }
+        lineAuthors = parseLineAuthors(blame);
+        break;
+      } catch (err) {
+        const canRetry = i < timeoutLadderMs.length - 1
+          && isTimeoutLikeError(err)
+          && !signal?.aborted;
+        if (!canRetry) {
+          throw err;
+        }
       }
-      blame = result.stdout;
-    } else {
-      const git = simpleGit({ baseDir });
-      blame = await git.raw(['blame', '--line-porcelain', '--', fileArg]);
     }
-    const lineAuthors = parseLineAuthors(blame);
     if (lineAuthors) gitBlameCache.set(blameKey, lineAuthors);
     clearGitFailureState(baseDir, GIT_FAILURE_SCOPE.BLAME);
     return lineAuthors || null;
@@ -173,6 +270,8 @@ export async function getGitLineAuthorsForFile(file, options = {}) {
       scope: GIT_FAILURE_SCOPE.BLAME,
       fileArg,
       timeoutMs,
+      timeoutLadderMs,
+      commitId,
       err
     }));
     return null;
@@ -195,7 +294,7 @@ export async function getGitLineAuthorsForFile(file, options = {}) {
  *   signal?:AbortSignal|null,
  *   baseDir?:string
  * }} [options]
- * @returns {Promise<{last_modified?:string,last_author?:string,churn?:number,churn_added?:number,churn_deleted?:number,churn_commits?:number,lineAuthors?:string[]}|{}>}
+ * @returns {Promise<{last_commit?:string,last_modified?:string,last_author?:string,churn?:number,churn_added?:number,churn_deleted?:number,churn_commits?:number,lineAuthors?:string[]}|{}>}
  */
 export async function getGitMetaForFile(file, options = {}) {
   const blameEnabled = options.blame !== false;
@@ -216,7 +315,7 @@ export async function getGitMetaForFile(file, options = {}) {
       churnWindowCommits
     }
   }).key;
-  const timeoutMs = Number.isFinite(Number(options.timeoutMs)) ? Number(options.timeoutMs) : null;
+  const timeoutMs = normalizePositiveTimeout(options.timeoutMs);
   const signal = options.signal || null;
 
   if (isGitTemporarilyDisabled(baseDir, GIT_FAILURE_SCOPE.META)) {
@@ -245,6 +344,7 @@ export async function getGitMetaForFile(file, options = {}) {
           ? await computeNumstatChurn(git, fileArg, log.all.length || churnWindowCommits)
           : null;
         meta = {
+          last_commit: normalizeCommitId(log.latest?.hash || null),
           last_modified: log.latest?.date || null,
           last_author: log.latest?.author_name || null,
           churn: churn ? churn.added + churn.deleted : null,
@@ -265,7 +365,8 @@ export async function getGitMetaForFile(file, options = {}) {
     const lineAuthors = await getGitLineAuthorsForFile(absFile, {
       baseDir,
       timeoutMs,
-      signal
+      signal,
+      commitId: meta.last_commit || null
     });
     return lineAuthors ? { ...meta, lineAuthors } : meta;
   } catch (err) {
@@ -287,7 +388,7 @@ export async function getGitMetaForFile(file, options = {}) {
  * @param {number} [startLine]
  * @param {number} [endLine]
  * @param {{blame?:boolean,baseDir?:string}} [options]
- * @returns {Promise<{last_modified?:string,last_author?:string,churn?:number,chunk_authors?:string[]}|{}>}
+ * @returns {Promise<{last_commit?:string,last_modified?:string,last_author?:string,churn?:number,chunk_authors?:string[]}|{}>}
  */
 export async function getGitMeta(file, startLine = 1, endLine = 1, options = {}) {
   const fileMeta = await getGitMetaForFile(file, options);
@@ -444,11 +545,16 @@ const recordGitFailure = (baseDir, err, scope = GIT_FAILURE_SCOPE.META) => {
 
 const parseLogHead = (stdout) => {
   const raw = String(stdout || '').trim();
-  if (!raw) return { lastModifiedAt: null, lastAuthor: null };
-  const [lastModifiedAtRaw, ...authorParts] = raw.split('\0');
+  if (!raw) return { lastCommitId: null, lastModifiedAt: null, lastAuthor: null };
+  const parts = raw.split('\0');
+  const hasCommitPrefix = parts.length >= 3;
+  const lastCommitRaw = hasCommitPrefix ? parts[0] : null;
+  const lastModifiedAtRaw = hasCommitPrefix ? parts[1] : parts[0];
+  const authorParts = hasCommitPrefix ? parts.slice(2) : parts.slice(1);
+  const lastCommitId = normalizeCommitId(lastCommitRaw);
   const lastModifiedAt = String(lastModifiedAtRaw || '').trim() || null;
   const lastAuthor = authorParts.join('\0').trim() || null;
-  return { lastModifiedAt, lastAuthor };
+  return { lastCommitId, lastModifiedAt, lastAuthor };
 };
 
 const parseNumstatChurnText = (stdout) => {
@@ -494,7 +600,7 @@ const computeMetaWithFastCommands = async ({
     '-n',
     '1',
     '--date=iso-strict',
-    '--format=%aI%x00%an',
+    '--format=%H%x00%aI%x00%an',
     '--',
     fileArg
   ], {
@@ -506,9 +612,10 @@ const computeMetaWithFastCommands = async ({
     signal
   });
   if (headResult.exitCode !== 0) throw createGitNonZeroExitError('git log', headResult);
-  const { lastModifiedAt, lastAuthor } = parseLogHead(headResult.stdout);
+  const { lastCommitId, lastModifiedAt, lastAuthor } = parseLogHead(headResult.stdout);
   if (!includeChurn) {
     return {
+      last_commit: lastCommitId,
       last_modified: lastModifiedAt,
       last_author: lastAuthor,
       churn: null,
@@ -542,6 +649,7 @@ const computeMetaWithFastCommands = async ({
     // Non-zero/timeout fast-path churn is treated as unknown (null), not zero.
     // This avoids silently undercounting churn on slow repositories.
     return {
+      last_commit: lastCommitId,
       last_modified: lastModifiedAt,
       last_author: lastAuthor,
       churn: churn ? (churn.added + churn.deleted) : null,
@@ -551,6 +659,7 @@ const computeMetaWithFastCommands = async ({
     };
   } catch {
     return {
+      last_commit: lastCommitId,
       last_modified: lastModifiedAt,
       last_author: lastAuthor,
       churn: null,

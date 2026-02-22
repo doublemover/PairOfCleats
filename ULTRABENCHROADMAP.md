@@ -109,7 +109,7 @@ Primary targets:
 ## Phase 1: Indexing Throughput (Largest Wall-clock Wins)
 
 ### UB-010: Stage timing profiler with machine-readable output
-- Status: [ ]
+- Status: [x]
 - Problem:
   - Build index dominates time but stage-level attribution is incomplete.
 - Tasks:
@@ -120,13 +120,20 @@ Primary targets:
   - Contract test for schema keys and non-negative durations.
 - Exit criteria:
   - We can rank exact contributors instead of inferring from aggregate runtime.
+- Completion: 2026-02-22T06:48:10-05:00
+- Validation:
+  - `node tests/tooling/reports/bench-language-stage-timing-report.test.js`
+  - `node tests/tooling/reports/metrics-dashboard.test.js`
+  - `node tests/tooling/reports/bench-language-metrics-extracted-prose-lines.test.js`
+  - `node tests/tooling/reports/show-throughput-language-normalization.test.js`
+  - `node tests/tooling/reports/show-throughput-ignore-usr.test.js`
 - Improvement Intent (What): bottleneck attribution accuracy
 - Improvement Method (How): stage-level timing schema with variance and critical-path outputs.
 - Integrated Betterments: include monotonic-clock stamps to avoid wall-clock skew artifacts; add per-stage variance and p95/p99 breakdown instead of averages only; emit stage critical-path graph so optimization target ordering is data-driven.
 - Touchpoints: `src/index/build/indexer/steps/process-files.js`, `src/index/build/indexer/steps/relations.js`, `src/index/build/runtime/runtime.js`, `tools/bench/language/metrics.js`, `tools/bench/language/report.js`, `tests/tooling/reports/summary/summary-report.test.js`, `tests/tooling/reports/metrics-dashboard.test.js`
 
 ### UB-011: Queue-wait vs active-work watchdog semantics
-- Status: [ ]
+- Status: [x]
 - Problem:
   - Most watchdog slow-file events are near 10s and likely include queue waiting.
 - Tasks:
@@ -137,6 +144,10 @@ Primary targets:
   - Synthetic contention test ensures queue delay does not trigger slow-file warning.
 - Exit criteria:
   - Slow-file warnings represent real slow processing, not scheduler delay.
+- Completion: 2026-02-22T06:48:10-05:00
+- Validation:
+  - `node tests/indexing/stage1/file-watchdog-hard-timeout.test.js`
+  - `node tests/indexing/stage1/process-files-progress-heartbeat.test.js`
 - Improvement Intent (What): watchdog signal quality
 - Improvement Method (How): split queue-wait vs active-work timing and threshold tuning.
 - Integrated Betterments: split watchdog into queue-delay, parse-time, and write-time channels with separate thresholds; auto-tune thresholds by repo size percentile and language mix; add false-positive budget SLO and fail diagnostics when exceeded.
@@ -160,7 +171,7 @@ Primary targets:
 - Touchpoints: `src/index/build/runtime/runtime.js`, `src/index/build/tree-sitter-scheduler/adaptive-profile.js`, `src/index/build/tree-sitter-scheduler/plan.js`, `src/index/build/artifacts-write.js`, `tools/build/embeddings/runner.js`, `tests/indexing/runtime/scheduler-autotune-profile.test.js`, `tests/indexing/artifacts/artifact-write-adaptive-concurrency-controller.test.js`
 
 ### UB-013: Ruby-heavy scheduler lane rebalance
-- Status: [ ]
+- Status: [x]
 - Problem:
   - Large Ruby repos can still run with low lane parallelism while file counts are high.
 - Tasks:
@@ -171,6 +182,12 @@ Primary targets:
   - Scheduler test for ruby-heavy fixtures validates lane count > 1 and lower p95 file latency.
 - Exit criteria:
   - Reduced tail latency and lower watchdog events on ruby-heavy repos.
+- Completion: 2026-02-22T06:44:50-05:00
+- Validation:
+  - `node tests/indexing/tree-sitter/tree-sitter-scheduler-adaptive-planner.test.js`
+  - `node tests/indexing/tree-sitter/tree-sitter-scheduler-adaptive-profile.test.js`
+  - `node tests/indexing/tree-sitter/tree-sitter-scheduler-warm-pool-tasks.test.js`
+  - `node tests/perf/scheduler-fairness.test.js`
 - Improvement Intent (What): scheduler tail-latency reduction
 - Improvement Method (How): weighted lane splitting, lane stealing, and fairness checks.
 - Integrated Betterments: rebalance using estimated AST node count not just file bytes/lines; add periodic lane stealing for long-running lanes; validate fairness with starvation regression tests on synthetic skewed corpora.
@@ -267,7 +284,7 @@ Primary targets:
 ## Phase 3: SCM Metadata Cost and Robustness
 
 ### UB-030: Opt-in blame policy hardening
-- Status: [ ]
+- Status: [x]
 - Problem:
   - Blame calls can timeout and add variance; value may be low by default.
 - Tasks:
@@ -278,6 +295,18 @@ Primary targets:
   - SCM policy tests verifying defaults and caps.
 - Exit criteria:
   - Near-zero blame timeout warnings in default bench runs.
+- Completion: 2026-02-22T06:49:58.6031483-05:00
+- Validation:
+  - `node tests/indexing/scm/scm-config-bench-annotate-default.test.js`
+  - `node tests/indexing/git/git-blame-commit-cache-scope.test.js`
+  - `node tests/indexing/git/git-blame-timeout-ladder-backoff.test.js`
+  - `node tests/indexing/git/git-meta-timeout-backoff.test.js`
+  - `node tests/indexing/git/git-meta-warning-details.test.js`
+  - `node tests/indexing/git/git-meta-blame-failure-scope.test.js`
+  - `node tests/indexing/git/git-meta-skip-blame-no-history.test.js`
+  - `node tests/indexing/scm/git-provider-meta-batch-parallel.test.js`
+  - `node tests/indexing/scm/index-build-git-provider.test.js`
+  - `node tests/indexing/file-processor/scm-annotate-fast-timeout.test.js`
 - Improvement Intent (What): SCM overhead reduction
 - Improvement Method (How): opt-in blame policy with explicit value-vs-cost controls.
 - Integrated Betterments: include per-repo SCM metadata policy summary at run start for transparency; add denylist/allowlist controls per language or repo tier; add an explicit "metadata value vs cost" score to justify blame usage.
@@ -752,7 +781,7 @@ Last revised: 2026-02-22T05:44:04.8332760-05:00
 - Touchpoints: `src/storage/sqlite/build/runner.js`, `src/storage/sqlite/build/index.js`, `src/index/validate/sqlite-report.js`, `tests/storage/sqlite/sqlite-skip-empty-code-rebuild.test.js`, `tests/storage/sqlite/sqlite-skip-empty-records-rebuild.test.js`
 
 ### UB-085: Generic high-cardinality grammar lane fanout
-- Status: [ ]
+- Status: [x]
 - Observation:
   - Large single-language batches still appear as one lane (for example ruby/php heavy waves).
 - Tasks:
@@ -760,6 +789,12 @@ Last revised: 2026-02-22T05:44:04.8332760-05:00
   - Use weighted partitioning by estimated AST complexity and file size.
 - Exit criteria:
   - Lower tail latency and fewer near-10s watchdog events on large mono-language waves.
+- Completion: 2026-02-22T06:44:50-05:00
+- Validation:
+  - `node tests/indexing/tree-sitter/tree-sitter-scheduler-adaptive-planner.test.js`
+  - `node tests/indexing/tree-sitter/tree-sitter-scheduler-adaptive-profile.test.js`
+  - `node tests/indexing/tree-sitter/tree-sitter-scheduler-warm-pool-tasks.test.js`
+  - `node tests/perf/scheduler-fairness.test.js`
 - Improvement Intent (What): mono-language batch latency
 - Improvement Method (How): universal high-cardinality grammar lane fanout.
 - Integrated Betterments: implement universal lane-splitting threshold by predicted parser cost; add dynamic lane merge when workload shrinks; capture lane imbalance metrics to guide future tuning.

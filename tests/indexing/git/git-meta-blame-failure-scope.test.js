@@ -30,11 +30,11 @@ setScmCommandRunner(async (_command, args) => {
       stderr: 'fatal: forced blame failure'
     };
   }
-  if (argv.includes('--format=%aI%x00%an')) {
+  if (argv.includes('--format=%H%x00%aI%x00%an') || argv.includes('--format=%aI%x00%an')) {
     logCalls += 1;
     return {
       exitCode: 0,
-      stdout: '2024-01-01T00:00:00+00:00\0Test Author',
+      stdout: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00002024-01-01T00:00:00+00:00\u0000Test Author',
       stderr: ''
     };
   }

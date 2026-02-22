@@ -419,7 +419,8 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   }
   const scmConfig = resolveScmConfig({
     indexingConfig,
-    analysisPolicy: userConfig.analysisPolicy || null
+    analysisPolicy: userConfig.analysisPolicy || null,
+    benchRun: envConfig.benchRun === true
   });
   setScmRuntimeConfig(scmConfig);
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
@@ -652,10 +653,29 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   const riskInterproceduralEnabled = riskAnalysisEnabled && riskInterproceduralConfig.enabled;
   const scmAnnotateEnabled = scmConfig?.annotate?.enabled !== false;
   const effectiveScmAnnotateEnabled = scmAnnotateEnabled && scmSelection.provider !== 'none';
+  const scmAnnotateTimeoutMs = Number.isFinite(Number(scmConfig?.annotate?.timeoutMs))
+    ? Math.max(0, Math.floor(Number(scmConfig.annotate.timeoutMs)))
+    : null;
+  const scmAnnotateTimeoutLadder = Array.isArray(scmConfig?.annotate?.timeoutLadderMs)
+    ? scmConfig.annotate.timeoutLadderMs
+      .map((value) => Number(value))
+      .filter((value) => Number.isFinite(value) && value > 0)
+      .map((value) => Math.max(1, Math.floor(value)))
+    : [];
   if (scmAnnotateEnabled && scmSelection.provider === 'none') {
     log('[scm] annotate disabled: provider=none.');
   }
   const gitBlameEnabled = effectiveScmAnnotateEnabled;
+  const scmTimeoutMs = Number.isFinite(Number(scmConfig?.timeoutMs))
+    ? Math.max(0, Math.floor(Number(scmConfig.timeoutMs)))
+    : null;
+  log(
+    `[scm] policy provider=${scmSelection.provider} annotate=${gitBlameEnabled ? 'on' : 'off'} ` +
+      `benchRun=${envConfig.benchRun === true ? '1' : '0'} ` +
+      `metaTimeoutMs=${scmTimeoutMs ?? 'default'} ` +
+      `annotateTimeoutMs=${scmAnnotateTimeoutMs ?? 'default'} ` +
+      `annotateLadder=${scmAnnotateTimeoutLadder.length ? scmAnnotateTimeoutLadder.join('>') : 'default'}`
+  );
   const lintEnabled = indexingConfig.lint !== false;
   const complexityEnabled = indexingConfig.complexity !== false;
   const analysisPolicy = buildAnalysisPolicy({

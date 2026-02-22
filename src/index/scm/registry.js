@@ -30,7 +30,7 @@ const detectProviderRoot = (providerImpl, startPath) => {
   return null;
 };
 
-export const resolveScmConfig = ({ indexingConfig = {}, analysisPolicy = null } = {}) => {
+export const resolveScmConfig = ({ indexingConfig = {}, analysisPolicy = null, benchRun = false } = {}) => {
   const scmConfig = indexingConfig.scm || {};
   const annotateConfig = scmConfig.annotate || {};
   let annotateEnabled = typeof annotateConfig.enabled === 'boolean' ? annotateConfig.enabled : null;
@@ -42,6 +42,8 @@ export const resolveScmConfig = ({ indexingConfig = {}, analysisPolicy = null } 
       annotateEnabled = policyBlame;
     } else if (typeof indexingConfig.gitBlame === 'boolean') {
       annotateEnabled = indexingConfig.gitBlame;
+    } else if (benchRun) {
+      annotateEnabled = false;
     } else {
       annotateEnabled = true;
     }

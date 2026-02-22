@@ -23,7 +23,7 @@ let restoreProgressHandlers = () => {};
 const buildBatchStdout = (files) => {
   const rows = [];
   for (const file of files) {
-    rows.push('__POC_GIT_META__2026-02-22T00:00:00Z\u0000Batch Author');
+    rows.push('__POC_GIT_META__aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00002026-02-22T00:00:00Z\u0000Batch Author');
     rows.push(file);
   }
   return rows.join('\n');

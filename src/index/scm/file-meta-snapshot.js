@@ -21,6 +21,7 @@ const normalizeFileKey = (value) => {
 };
 
 const normalizeMeta = (value) => ({
+  lastCommitId: typeof value?.lastCommitId === 'string' ? value.lastCommitId : null,
   lastModifiedAt: typeof value?.lastModifiedAt === 'string' ? value.lastModifiedAt : null,
   lastAuthor: typeof value?.lastAuthor === 'string' ? value.lastAuthor : null,
   churn: Number.isFinite(Number(value?.churn)) ? Number(value.churn) : null,

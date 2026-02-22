@@ -52,6 +52,7 @@
 
 /**
  * @typedef {{
+ *  lastCommitId?: string|null,
  *  lastModifiedAt?: string|null,
  *  lastAuthor?: string|null,
  *  churn?: number|null,
@@ -89,7 +90,12 @@
  *    timeoutMs?: number,
  *    includeChurn?: boolean
  *  }) => Promise<ScmFileMeta|ScmUnavailable> | ScmFileMeta|ScmUnavailable,
- *  annotate?: (input: { repoRoot: string, filePosix: string, timeoutMs: number }) => Promise<ScmAnnotateResult|ScmUnavailable> | ScmAnnotateResult|ScmUnavailable
+ *  annotate?: (input: {
+ *    repoRoot: string,
+ *    filePosix: string,
+ *    timeoutMs: number,
+ *    commitId?: string|null
+ *  }) => Promise<ScmAnnotateResult|ScmUnavailable> | ScmAnnotateResult|ScmUnavailable
  * }} ScmProvider
  */
 
