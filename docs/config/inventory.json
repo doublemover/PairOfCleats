@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-21T13:51:24.882Z",
+  "generatedAt": "2026-02-22T03:10:36.794Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2098,7 +2098,6 @@
         "tests/indexing/determinism/chunkuid-determinism.test.js",
         "tests/indexing/embeddings/build/args-parsing.test.js",
         "tests/indexing/embeddings/build/runtime-defaults.test.js",
-        "tests/indexing/embeddings/embedding-batch-autotune.test.js",
         "tests/indexing/embeddings/embeddings-cache-identity.test.js",
         "tests/indexing/embeddings/embeddings-validate.test.js",
         "tests/indexing/embeddings/manifest-embeddings-pieces.test.js",
@@ -2186,6 +2185,14 @@
       "files": [
         "src/shared/env.js",
         "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_CRASH_LOG_ANNOUNCE",
+      "files": [
+        "src/index/build/crash-log.js",
+        "tests/indexing/crash-log-announcement.test.js",
+        "tools/bench/language-repos.js"
       ]
     },
     {
@@ -2368,6 +2375,7 @@
       "name": "PAIROFCLEATS_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY",
       "files": [
         "src/shared/env.js",
+        "tests/indexing/incremental/incremental-crossfile-bundle-metav2-rewrite.test.js",
         "tests/indexing/incremental/incremental-crossfile-bundle-patch-write.test.js",
         "tests/indexing/incremental/incremental-crossfile-bundle-reuse.test.js",
         "tests/indexing/incremental/incremental-crossfile-hot-cold-priority.test.js",
@@ -3271,7 +3279,9 @@
   "envVarsPublic": [
     "PAIROFCLEATS_API_TOKEN"
   ],
-  "envVarsUnknown": [],
+  "envVarsUnknown": [
+    "PAIROFCLEATS_CRASH_LOG_ANNOUNCE"
+  ],
   "cliFlags": {
     "totalFlags": 320,
     "publicFlags": [
@@ -6547,6 +6557,7 @@
       "src/index/build/file-processor/cpu/analyze.js",
       "src/index/build/file-processor/process-chunks/enrichment.js",
       "src/index/build/tree-sitter-scheduler/executor.js",
+      "src/index/chunking/dispatch.js",
       "src/index/chunking/formats/ini-toml.js",
       "src/index/chunking/formats/json.js",
       "src/index/chunking/formats/markdown.js",
