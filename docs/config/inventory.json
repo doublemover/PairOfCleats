@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-22T03:26:07.441Z",
+  "generatedAt": "2026-02-22T04:17:50.218Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2191,7 +2191,7 @@
     {
       "name": "PAIROFCLEATS_CRASH_LOG_ANNOUNCE",
       "files": [
-        "src/index/build/crash-log.js",
+        "src/shared/env.js",
         "tests/indexing/crash-log-announcement.test.js",
         "tools/bench/language-repos.js",
         "tools/config/inventory.js"
