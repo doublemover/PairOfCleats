@@ -9,7 +9,9 @@ import { validateArtifact } from '../../../src/shared/artifact-schemas.js';
 
 const { fixtureRoot, userConfig } = await ensureFixtureIndex({
   fixtureName: 'languages',
-  cacheName: 'language-fixture-determinism-report'
+  cacheName: 'language-fixture-determinism-report',
+  cacheScope: 'shared',
+  requiredModes: ['code']
 });
 
 const current = getCurrentBuildInfo(fixtureRoot, userConfig, { mode: 'code' });

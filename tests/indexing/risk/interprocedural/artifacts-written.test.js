@@ -10,7 +10,9 @@ applyTestEnv();
 const { codeDir } = await ensureFixtureIndex({
   fixtureName: 'risk-interprocedural/js-simple',
   cacheName: 'risk-interprocedural-js-simple',
-  requireRiskTags: true
+  requireRiskTags: true,
+  cacheScope: 'shared',
+  requiredModes: ['code']
 });
 
 const hasJsonl = (base) => {

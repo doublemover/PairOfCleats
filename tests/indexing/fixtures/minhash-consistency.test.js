@@ -6,7 +6,8 @@ import { rankMinhash } from '../../../src/retrieval/rankers.js';
 
 const { fixtureRoot, codeDir, proseDir } = await ensureFixtureIndex({
   fixtureName: 'sample',
-  cacheName: 'fixture-sample'
+  cacheName: 'fixture-sample',
+  cacheScope: 'shared'
 });
 
 const assertMinhashConsistency = (label, chunkMetaPath, minhashPath) => {

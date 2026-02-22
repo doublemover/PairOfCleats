@@ -6,7 +6,11 @@ import { loadIndex } from '../../../src/retrieval/cli-index.js';
 
 applyTestEnv();
 
-const { codeDir } = await ensureFixtureIndex({ fixtureName: 'sample' });
+const { codeDir } = await ensureFixtureIndex({
+  fixtureName: 'sample',
+  cacheScope: 'shared',
+  requiredModes: ['code']
+});
 
 const idx = await loadIndex(codeDir, {
   includeFileRelations: false,

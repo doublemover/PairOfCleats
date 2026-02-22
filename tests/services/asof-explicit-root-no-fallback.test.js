@@ -17,7 +17,8 @@ await fs.rm(cacheRoot, { recursive: true, force: true });
 
 const { fixtureRoot } = await ensureFixtureIndex({
   fixtureName: 'sample',
-  cacheName
+  cacheName,
+  cacheScope: 'shared'
 });
 const userConfig = loadUserConfig(fixtureRoot);
 const repoCacheRoot = getRepoCacheRoot(fixtureRoot, userConfig);

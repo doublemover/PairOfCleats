@@ -16,7 +16,8 @@ try {
 
 const { fixtureRoot, env, userConfig } = await ensureFixtureIndex({
   fixtureName: 'sample',
-  cacheName: 'cli-sqlite-sparse-preflight-missing-fts-fallback'
+  cacheName: 'cli-sqlite-sparse-preflight-missing-fts-fallback',
+  cacheScope: 'shared'
 });
 const sqlitePaths = await ensureFixtureSqlite({ fixtureRoot, userConfig, env });
 

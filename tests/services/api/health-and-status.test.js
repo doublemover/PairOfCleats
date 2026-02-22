@@ -10,7 +10,8 @@ await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 
 const { fixtureRoot, env } = await ensureFixtureIndex({
   fixtureName: 'sample',
-  cacheName
+  cacheName,
+  cacheScope: 'shared'
 });
 
 const { serverInfo, requestJson, stop } = await startApiServer({
