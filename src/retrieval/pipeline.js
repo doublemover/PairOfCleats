@@ -132,6 +132,12 @@ export const resolveAdaptiveRerankBudget = ({
   };
 };
 
+const normalizeMinOneIntOrNull = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return null;
+  return Math.max(1, Math.floor(parsed));
+};
+
 /**
  * Create a search pipeline runner bound to a shared context.
  * @param {object} context
@@ -236,9 +242,9 @@ export function createSearchPipeline(context) {
     caseFile: filters?.caseFile === true
   };
   const annCandidatePolicyConfig = {
-    cap: normalizePositiveInt(annCandidateCap),
-    minDocCount: normalizePositiveInt(annCandidateMinDocCount),
-    maxDocCount: normalizePositiveInt(annCandidateMaxDocCount)
+    cap: normalizeMinOneIntOrNull(annCandidateCap),
+    minDocCount: normalizeMinOneIntOrNull(annCandidateMinDocCount),
+    maxDocCount: normalizeMinOneIntOrNull(annCandidateMaxDocCount)
   };
   const rrfEnabled = rrf?.enabled !== false;
   const rrfK = Number.isFinite(Number(rrf?.k))
