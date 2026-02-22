@@ -14,6 +14,7 @@ const argv = createCli({
     dataset: { type: 'string' },
     backend: { type: 'string', default: 'auto' },
     top: { type: 'number', default: 10 },
+    limit: { type: 'number', default: 0 },
     ann: { type: 'boolean' },
     out: { type: 'string' },
     pretty: { type: 'boolean', default: false },
@@ -43,6 +44,7 @@ const datasetPath = argv.dataset
   : path.join(root, 'tests', 'fixtures', 'sample', 'eval.json');
 const backend = argv.backend ? String(argv.backend) : 'auto';
 const topN = Math.max(1, parseInt(argv.top, 10) || 10);
+const limit = Math.max(0, parseInt(argv.limit, 10) || 0);
 const annFlag = typeof argv.ann === 'boolean' ? argv.ann : null;
 const ks = [1, 3, 5, 10].filter((k) => k <= Math.max(10, topN));
 const matchMode = (() => {
@@ -111,7 +113,8 @@ const evalCaches = {
   sqliteCache: createSqliteDbCache()
 };
 
-const cases = loadDataset();
+const allCases = loadDataset();
+const cases = limit > 0 ? allCases.slice(0, limit) : allCases;
 if (!cases.length) {
   fail(`No eval cases found at ${datasetPath}`);
 }
@@ -192,6 +195,7 @@ const output = {
   generatedAt: new Date().toISOString(),
   repo: repoRoot,
   dataset: datasetPath,
+  limit,
   backend,
   topN,
   ann: annFlag,

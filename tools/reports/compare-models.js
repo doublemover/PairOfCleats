@@ -5,6 +5,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { createCli } from '../../src/shared/cli.js';
 import { getEnvConfig } from '../../src/shared/env.js';
+import { resolveEmbeddingInputFormatting } from '../../src/shared/embedding-input-format.js';
 import { normalizeEmbeddingProvider, normalizeOnnxConfig, resolveOnnxModelPath } from '../../src/shared/onnx-embeddings.js';
 import { isAbsolutePathNative } from '../../src/shared/files.js';
 import { resolveVersionedCacheRoot } from '../../src/shared/cache-roots.js';
@@ -119,11 +120,6 @@ const compareProse = modeArg !== 'code';
 const { annEnabled } = resolveAnnSetting({ rawArgs, argv, userConfig });
 const annArg = annEnabled ? '--ann' : '--no-ann';
 
-if (sqliteBackend && models.length > 1 && !buildSqlite) {
-  console.error('SQLite backend with multiple models requires --build-sqlite to rebuild per model.');
-  process.exit(1);
-}
-
 if (!buildIndex && models.length > 1 && configCacheRoot) {
   console.error('cache.root is set; use --build to rebuild per model or clear cache.root to isolate caches.');
   process.exit(1);
@@ -169,12 +165,13 @@ function buildEnv(modelId, modelCacheRoot) {
 }
 
 /**
- * Check if an index exists for a mode.
+ * Resolve the active build root for a model/mode from current.json metadata.
+ * Falls back to repo cache root when build metadata is unavailable.
  * @param {string} modelCacheRoot
  * @param {'code'|'prose'} mode
- * @returns {boolean}
+ * @returns {string}
  */
-function indexExists(modelCacheRoot, mode) {
+function resolveModelIndexRoot(modelCacheRoot, mode) {
   const resolvedCacheRoot = resolveVersionedCacheRoot(modelCacheRoot);
   const repoCacheRoot = path.join(resolvedCacheRoot, 'repos', repoId);
   let indexRoot = repoCacheRoot;
@@ -216,10 +213,39 @@ function indexExists(modelCacheRoot, mode) {
       }
     } catch {}
   }
+  return indexRoot;
+}
+
+/**
+ * Check if an index exists for a mode.
+ * @param {string} modelCacheRoot
+ * @param {'code'|'prose'} mode
+ * @returns {boolean}
+ */
+function indexExists(modelCacheRoot, mode) {
+  const indexRoot = resolveModelIndexRoot(modelCacheRoot, mode);
   const manifestPath = path.join(indexRoot, `index-${mode}`, 'pieces', 'manifest.json');
   if (fs.existsSync(manifestPath)) return true;
   const metaPath = path.join(indexRoot, `index-${mode}`, 'chunk_meta.json');
   return fs.existsSync(metaPath);
+}
+
+/**
+ * Check whether sqlite artifacts exist for required compare mode(s).
+ * @param {string} modelCacheRoot
+ * @returns {boolean}
+ */
+function ensureSqliteIndex(modelCacheRoot) {
+  const sqlitePathForMode = (mode) => {
+    const indexRoot = resolveModelIndexRoot(modelCacheRoot, mode);
+    const filename = mode === 'code' ? 'index-code.db' : 'index-prose.db';
+    return path.join(indexRoot, 'index-sqlite', filename);
+  };
+  const needsCode = modeArg !== 'prose';
+  const needsProse = modeArg !== 'code';
+  if (needsCode && !fs.existsSync(sqlitePathForMode('code'))) return false;
+  if (needsProse && !fs.existsSync(sqlitePathForMode('prose'))) return false;
+  return true;
 }
 
 /**
@@ -334,9 +360,8 @@ for (const modelId of models) {
     if (buildIncremental) args.push('--incremental');
     runCommand(args, env, `build sqlite (${modelId})`);
   } else if (sqliteBackend) {
-    const sqlitePaths = resolveSqlitePaths(root, userConfig);
-    if (!fs.existsSync(sqlitePaths.codePath) && !fs.existsSync(sqlitePaths.prosePath)) {
-      console.error('SQLite index missing. Run with --build-sqlite or build it first.');
+    if (!ensureSqliteIndex(modelCacheRoot)) {
+      console.error(`SQLite index missing for model ${modelId}. Run with --build-sqlite or build it first.`);
       process.exit(1);
     }
   }
@@ -457,6 +482,7 @@ for (const modelId of models) {
       provider: embeddingProvider,
       mode: embeddingsConfig.mode || 'auto',
       stub: stubEmbeddings,
+      inputFormatting: resolveEmbeddingInputFormatting(modelId),
       onnx: embeddingProvider === 'onnx'
         ? {
           modelPath: embeddingOnnx.modelPath || null,

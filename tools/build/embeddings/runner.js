@@ -27,6 +27,7 @@ import {
   clampQuantizedVectorsInPlace,
   normalizeEmbeddingVectorInPlace
 } from '../../../src/shared/embedding-utils.js';
+import { resolveEmbeddingInputFormatting } from '../../../src/shared/embedding-input-format.js';
 import { resolveOnnxModelPath } from '../../../src/shared/onnx-embeddings.js';
 import { fromPosix, toPosix } from '../../../src/shared/files.js';
 import { getEnvConfig, isTestingEnv } from '../../../src/shared/env.js';
@@ -596,6 +597,51 @@ const resolveBundleChunkVectorIndex = ({
   return { vectorIndex: null, reason: 'parserOmission' };
 };
 
+const toPositiveIntOrNull = (value) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return null;
+  return Math.max(1, Math.floor(numeric));
+};
+
+/**
+ * Resolve deterministic embeddings sampling config.
+ *
+ * Sampling is opt-in and intended for smoke/benchmark workflows where we need
+ * representative model behavior without embedding every file.
+ *
+ * @param {{embeddingsConfig?:object,env?:NodeJS.ProcessEnv}} [input]
+ * @returns {{maxFiles:number|null,seed:string}}
+ */
+const resolveEmbeddingSamplingConfig = ({ embeddingsConfig, env = process.env } = {}) => {
+  const configRaw = Number(embeddingsConfig?.sampleFiles);
+  const envRaw = Number(env?.PAIROFCLEATS_EMBEDDINGS_SAMPLE_FILES);
+  const maxFiles = toPositiveIntOrNull(Number.isFinite(envRaw) ? envRaw : configRaw);
+  const configSeed = typeof embeddingsConfig?.sampleSeed === 'string'
+    ? embeddingsConfig.sampleSeed.trim()
+    : '';
+  const envSeed = typeof env?.PAIROFCLEATS_EMBEDDINGS_SAMPLE_SEED === 'string'
+    ? env.PAIROFCLEATS_EMBEDDINGS_SAMPLE_SEED.trim()
+    : '';
+  const seed = envSeed || configSeed || 'default';
+  return { maxFiles, seed };
+};
+
+const selectDeterministicFileSample = ({ fileEntries, mode, maxFiles, seed }) => {
+  if (!Array.isArray(fileEntries) || fileEntries.length <= maxFiles) return fileEntries;
+  const scored = fileEntries.map(([filePath, items]) => {
+    const normalized = toPosix(filePath);
+    const score = sha1(`${seed}:${mode}:${normalized}`);
+    return { filePath, items, normalized, score };
+  });
+  scored.sort((a, b) => (
+    a.score.localeCompare(b.score)
+    || a.normalized.localeCompare(b.normalized)
+  ));
+  const selected = scored.slice(0, maxFiles);
+  selected.sort((a, b) => a.normalized.localeCompare(b.normalized));
+  return selected.map((entry) => [entry.filePath, entry.items]);
+};
+
 const refreshIncrementalBundlesWithEmbeddings = async ({
   mode,
   incremental,
@@ -901,6 +947,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
   const extractedProseLowYieldBailout = normalizeExtractedProseLowYieldBailoutConfig(
     indexingConfig?.extractedProse?.lowYieldBailout
   );
+  const embeddingSampling = resolveEmbeddingSamplingConfig({ embeddingsConfig, env: process.env });
   const isVectorLike = (value) => {
     if (Array.isArray(value)) return true;
     return ArrayBuffer.isView(value) && !(value instanceof DataView);
@@ -1122,6 +1169,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
     ? quantRange / (quantLevels - 1)
     : 2 / 255;
   const cacheDims = useStubEmbeddings ? resolveStubDims(configuredDims) : configuredDims;
+  const embeddingInputFormatting = resolveEmbeddingInputFormatting(modelId);
   const resolvedOnnxModelPath = embeddingProvider === 'onnx'
     ? resolveOnnxModelPath({
       rootDir: root,
@@ -1141,6 +1189,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
     normalize: embeddingNormalize,
     truncation: 'truncate',
     maxLength: null,
+    inputFormatting: embeddingInputFormatting,
     quantization: {
       version: 1,
       minVal: quantization.minVal,
@@ -1595,6 +1644,27 @@ export async function runBuildEmbeddingsWithConfig(config) {
           if (!Array.isArray(list) || list.length < 2) continue;
           list.sort((a, b) => (a?.index ?? 0) - (b?.index ?? 0));
         }
+        const fileEntries = Array.from(chunksByFile.entries())
+          .sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+        let sampledFileEntries = fileEntries;
+        let sampledChunkCount = totalChunks;
+        if (embeddingSampling.maxFiles && embeddingSampling.maxFiles < fileEntries.length) {
+          sampledFileEntries = selectDeterministicFileSample({
+            fileEntries,
+            mode,
+            maxFiles: embeddingSampling.maxFiles,
+            seed: embeddingSampling.seed
+          });
+          sampledChunkCount = sampledFileEntries.reduce(
+            (sum, entry) => sum + (Array.isArray(entry?.[1]) ? entry[1].length : 0),
+            0
+          );
+          log(
+            `[embeddings] ${mode}: sampling ${sampledFileEntries.length}/${fileEntries.length} files ` +
+            `(${sampledChunkCount}/${totalChunks} chunks, seed=${embeddingSampling.seed}).`
+          );
+        }
+        const sampledChunksByFile = new Map(sampledFileEntries);
 
         stageCheckpoints = createStageCheckpointRecorder({
           buildRoot: modeIndexRoot,
@@ -1606,8 +1676,11 @@ export async function runBuildEmbeddingsWithConfig(config) {
           stage: 'stage3',
           step: 'chunks',
           extra: {
-            files: chunksByFile.size,
-            totalChunks
+            files: sampledFileEntries.length,
+            totalFiles: fileEntries.length,
+            sampledFiles: fileEntries.length - sampledFileEntries.length,
+            totalChunks,
+            sampledChunks: sampledChunkCount
           }
         });
 
@@ -1743,13 +1816,11 @@ export async function runBuildEmbeddingsWithConfig(config) {
         let processedFiles = 0;
         const fileTask = display.task('Files', {
           taskId: `embeddings:${mode}:files`,
-          total: chunksByFile.size,
+          total: sampledFileEntries.length,
           stage: 'embeddings',
           mode,
           ephemeral: true
         });
-        const fileEntries = Array.from(chunksByFile.entries())
-          .sort((a, b) => String(a[0]).localeCompare(String(b[0])));
 
         // Cache shard writes are serialized via cache.lock but can still be queued.
         // Keep a bounded in-process queue so compute does not outrun IO and retain
@@ -1820,10 +1891,12 @@ export async function runBuildEmbeddingsWithConfig(config) {
           processedFiles += 1;
           filesSinceCacheIndexFlush += 1;
           await flushCacheIndexMaybe();
-          if (processedFiles % 8 === 0 || processedFiles === chunksByFile.size) {
-            fileTask.set(processedFiles, chunksByFile.size, { message: `${processedFiles}/${chunksByFile.size} files` });
+          if (processedFiles % 8 === 0 || processedFiles === sampledFileEntries.length) {
+            fileTask.set(processedFiles, sampledFileEntries.length, {
+              message: `${processedFiles}/${sampledFileEntries.length} files`
+            });
             if (traceArtifactIo) {
-              log(`[embeddings] ${mode}: processed ${processedFiles}/${chunksByFile.size} files`);
+              log(`[embeddings] ${mode}: processed ${processedFiles}/${sampledFileEntries.length} files`);
             }
           }
         };
@@ -1967,7 +2040,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
           parallelDispatch: parallelBatchDispatch
         });
         try {
-          for (const [relPath, items] of fileEntries) {
+          for (const [relPath, items] of sampledFileEntries) {
             const normalizedRel = toPosix(relPath);
             const chunkSignature = buildChunkSignature(items);
             const manifestEntry = manifestFiles[normalizedRel] || null;
@@ -2331,7 +2404,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
         const refreshedBundles = await refreshIncrementalBundlesWithEmbeddings({
           mode,
           incremental,
-          chunksByFile,
+          chunksByFile: sampledChunksByFile,
           mergedVectors,
           embeddingMode: resolvedEmbeddingMode,
           embeddingIdentityKey: cacheIdentityKey,
