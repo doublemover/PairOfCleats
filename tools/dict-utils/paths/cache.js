@@ -199,7 +199,7 @@ export function getExtensionsDir(repoRoot, userConfig = null) {
   // Extensions are shared assets and should not live under repo-scoped cache data.
   const cacheRoot = isTestingEnv()
     ? getDefaultCacheRoot()
-    : (envConfig.cacheRoot || envConfig.homeRoot || getDefaultCacheRoot());
+    : (envConfig.homeRoot || getDefaultCacheRoot());
   return path.join(cacheRoot, 'extensions');
 }
 
