@@ -283,15 +283,33 @@ const prioritizePendingCrossFileBundleUpdates = (pendingUpdates, { nowMs = Date.
   return hot.concat(cold);
 };
 
+const buildBundleMetaReuseSignature = (metaV2) => {
+  if (!metaV2 || typeof metaV2 !== 'object') return '';
+  const selected = {
+    chunkId: metaV2.chunkId ?? null,
+    file: metaV2.file ?? null,
+    range: metaV2.range ?? null,
+    lang: metaV2.lang ?? null,
+    ext: metaV2.ext ?? null,
+    types: metaV2.types ?? null,
+    relations: metaV2.relations ?? null,
+    segment: metaV2.segment ?? null
+  };
+  const payload = buildStableJsonSignature(selected);
+  return payload ? sha1(payload) : '';
+};
+
 const buildChunkReuseSignature = (chunks) => (
   Array.isArray(chunks)
     ? chunks.map((chunk) => {
       const chunkId = chunk?.chunkId || chunk?.chunkUid || '';
+      const docId = Number.isFinite(chunk?.id) ? Math.floor(chunk.id) : '';
       const start = Number(chunk?.start) || 0;
       const end = Number(chunk?.end) || 0;
       const hash = typeof chunk?.hash === 'string' ? chunk.hash : '';
       const textLength = typeof chunk?.text === 'string' ? chunk.text.length : 0;
-      return `${chunkId}:${start}:${end}:${hash}:${textLength}`;
+      const metaSignature = buildBundleMetaReuseSignature(chunk?.metaV2);
+      return `${chunkId}:${docId}:${start}:${end}:${hash}:${textLength}:${metaSignature}`;
     }).join('|')
     : ''
 );
