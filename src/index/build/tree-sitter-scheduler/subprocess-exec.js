@@ -14,6 +14,33 @@ const emitLine = (message, stream = process.stderr) => {
 const emitInfo = (message) => emitLine(message, process.stdout);
 const emitWarn = (message) => emitLine(message, process.stderr);
 const emitError = (message) => emitLine(message, process.stderr);
+const INJECTED_CRASH_PREFIX = '[tree-sitter:schedule] injected-crash ';
+const CRASH_EVENT_PREFIX = '[tree-sitter:schedule] crash-event ';
+
+const parseCrashInjectionTokens = () => {
+  const raw = process.env.PAIROFCLEATS_TEST_TREE_SITTER_SCHEDULER_CRASH;
+  if (typeof raw !== 'string' || !raw.trim()) return new Set();
+  return new Set(
+    raw
+      .split(',')
+      .map((part) => String(part || '').trim().toLowerCase())
+      .filter(Boolean)
+  );
+};
+
+const shouldInjectCrashForGroup = (group, injectionTokens) => {
+  if (!(injectionTokens instanceof Set) || injectionTokens.size === 0) return false;
+  if (injectionTokens.has('*') || injectionTokens.has('1') || injectionTokens.has('true')) return true;
+  const grammarKey = typeof group?.grammarKey === 'string' ? group.grammarKey.trim().toLowerCase() : '';
+  if (grammarKey && injectionTokens.has(grammarKey)) return true;
+  const languages = Array.isArray(group?.languages) ? group.languages : [];
+  for (const languageId of languages) {
+    const normalized = typeof languageId === 'string' ? languageId.trim().toLowerCase() : '';
+    if (!normalized) continue;
+    if (injectionTokens.has(normalized) || injectionTokens.has(`language:${normalized}`)) return true;
+  }
+  return false;
+};
 
 const parseArgs = (argv) => {
   const out = { grammarKeys: [] };
@@ -187,7 +214,21 @@ const main = async () => {
   }
 
   const profileRows = [];
+  const crashInjectionTokens = parseCrashInjectionTokens();
   for (const group of groups) {
+    if (shouldInjectCrashForGroup(group, crashInjectionTokens)) {
+      const injectedEvent = {
+        schemaVersion: '1.0.0',
+        stage: 'scheduler-subprocess',
+        mode,
+        grammarKey: group?.grammarKey || null,
+        languages: Array.isArray(group?.languages) ? group.languages : [],
+        reason: 'test-injected'
+      };
+      emitError(`${INJECTED_CRASH_PREFIX}${JSON.stringify(injectedEvent)}`);
+      // Simulate abrupt parser worker termination for failure-injection tests.
+      process.exit(86);
+    }
     const startedAt = Date.now();
     await executeTreeSitterSchedulerPlan({
       mode,
@@ -220,6 +261,16 @@ const main = async () => {
 
 main().catch((err) => {
   const message = err?.message || String(err);
+  const crashEvent = {
+    schemaVersion: '1.0.0',
+    stage: err?.stage || 'scheduler-subprocess',
+    code: err?.code || null,
+    message,
+    meta: err?.treeSitterSchedulerMeta || null
+  };
+  try {
+    emitError(`${CRASH_EVENT_PREFIX}${JSON.stringify(crashEvent)}`);
+  } catch {}
   emitError(`[tree-sitter:schedule] exec failed: ${message}`);
   process.exit(1);
 });

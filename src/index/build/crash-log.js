@@ -4,6 +4,7 @@ import path from 'node:path';
 import { getRecentLogEvents } from '../../shared/progress.js';
 import { createTempPath } from '../../shared/json-stream/atomic.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
+import { sha1 } from '../../shared/hash.js';
 import { normalizeFailureEvent, validateFailureEvent } from './failure-taxonomy.js';
 
 const formatTimestamp = () => new Date().toISOString();
@@ -14,6 +15,22 @@ const safeStringify = (value) => {
     return JSON.stringify(value);
   } catch {
     return '"[unserializable]"';
+  }
+};
+
+const sanitizePathToken = (value, fallback = 'unknown') => {
+  const raw = value == null ? '' : String(value);
+  const trimmed = raw.trim();
+  if (!trimmed) return fallback;
+  const cleaned = trimmed.replace(/[^a-zA-Z0-9._-]+/g, '_');
+  return cleaned || fallback;
+};
+
+const computeForensicSignature = (payload) => {
+  try {
+    return sha1(JSON.stringify(payload || null)).slice(0, 20);
+  } catch {
+    return sha1(String(payload || '')).slice(0, 20);
   }
 };
 
@@ -44,13 +61,18 @@ export async function createCrashLogger({ repoCacheRoot, enabled }) {
       enabled: false,
       updatePhase: () => {},
       updateFile: () => {},
-      logError: () => {}
+      logError: () => {},
+      persistForensicBundle: async () => null
     };
   }
   const logsDir = path.join(repoCacheRoot, 'logs');
   const statePath = path.join(logsDir, 'index-crash-state.json');
   const logPath = path.join(logsDir, 'index-crash.log');
   const eventsPath = path.join(logsDir, 'index-crash-events.json');
+  const forensicsDir = path.join(logsDir, 'forensics');
+  const forensicsIndexPath = path.join(logsDir, 'index-crash-forensics-index.json');
+  const forensicSignatures = new Set();
+  const forensicBundleIndex = new Map();
   let currentPhase = null;
   let currentFile = null;
   try {
@@ -86,6 +108,61 @@ export async function createCrashLogger({ repoCacheRoot, enabled }) {
     } catch {}
   };
 
+  const persistForensicBundle = async ({
+    kind = 'forensic',
+    signature = null,
+    bundle = null,
+    meta = null
+  } = {}) => {
+    if (!bundle || typeof bundle !== 'object') return null;
+    const resolvedKind = sanitizePathToken(kind, 'forensic');
+    const resolvedSignature = sanitizePathToken(
+      signature || bundle?.signature || computeForensicSignature({ kind: resolvedKind, bundle }),
+      'bundle'
+    );
+    if (forensicSignatures.has(resolvedSignature)) {
+      return forensicBundleIndex.get(resolvedSignature)?.path || null;
+    }
+    const fileName = `${resolvedKind}-${resolvedSignature}.json`;
+    const filePath = path.join(forensicsDir, fileName);
+    const payload = {
+      ts: formatTimestamp(),
+      kind: resolvedKind,
+      signature: resolvedSignature,
+      phase: currentPhase || null,
+      file: currentFile?.file || null,
+      meta: meta || null,
+      bundle
+    };
+    try {
+      await fs.mkdir(forensicsDir, { recursive: true });
+      await atomicWriteJson(filePath, payload, { spaces: 2 });
+      forensicSignatures.add(resolvedSignature);
+      forensicBundleIndex.set(resolvedSignature, {
+        ts: payload.ts,
+        kind: resolvedKind,
+        signature: resolvedSignature,
+        path: filePath
+      });
+      await atomicWriteJson(
+        forensicsIndexPath,
+        {
+          ts: formatTimestamp(),
+          entries: Array.from(forensicBundleIndex.values())
+            .sort((a, b) => String(a.signature).localeCompare(String(b.signature)))
+        },
+        { spaces: 2 }
+      );
+      await appendLine(`forensic bundle persisted (${resolvedKind})`, {
+        signature: resolvedSignature,
+        path: filePath
+      });
+      return filePath;
+    } catch {
+      return null;
+    }
+  };
+
   void appendLine('crash-logger initialized', { path: logPath }).catch(() => {});
 
   return {
@@ -118,6 +195,7 @@ export async function createCrashLogger({ repoCacheRoot, enabled }) {
           writeJsonAtomicSync(eventsPath, { ts: formatTimestamp(), events: recentEvents });
         } catch {}
       }
-    }
+    },
+    persistForensicBundle
   };
 }

@@ -1,11 +1,14 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { throwIfAborted } from '../../../shared/abort.js';
 import { runWithConcurrency } from '../../../shared/concurrency.js';
 import { resolveRuntimeEnv } from '../../../shared/runtime-envelope.js';
 import { spawnSubprocess } from '../../../shared/subprocess.js';
+import { sha1 } from '../../../shared/hash.js';
+import { NATIVE_GRAMMAR_MODULES } from '../../../lang/tree-sitter/native-runtime.js';
 import { buildTreeSitterSchedulerPlan } from './plan.js';
 import { createTreeSitterSchedulerLookup } from './lookup.js';
 import {
@@ -17,8 +20,334 @@ import {
 const SCHEDULER_EXEC_PATH = fileURLToPath(new URL('./subprocess-exec.js', import.meta.url));
 const INDEX_LOAD_RETRY_ATTEMPTS = 8;
 const INDEX_LOAD_RETRY_BASE_DELAY_MS = 25;
+const TREE_SITTER_RUNTIME_PACKAGE = 'tree-sitter';
+const SUBPROCESS_CRASH_PREFIX = '[tree-sitter:schedule] crash-event ';
+const SUBPROCESS_INJECTED_CRASH_PREFIX = '[tree-sitter:schedule] injected-crash ';
+const CRASH_BUNDLE_SCHEMA_VERSION = '1.0.0';
+const CRASH_BUNDLE_FILE = 'crash-forensics.json';
+const DEFAULT_DURABLE_DIR = '_crash-forensics';
+const require = createRequire(import.meta.url);
+const packageVersionCache = new Map();
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const sanitizePathToken = (value, fallback = 'unknown') => {
+  const raw = value == null ? '' : String(value);
+  const trimmed = raw.trim();
+  if (!trimmed) return fallback;
+  const cleaned = trimmed.replace(/[^a-zA-Z0-9._-]+/g, '_');
+  return cleaned || fallback;
+};
+
+const readPackageVersion = (packageName) => {
+  if (typeof packageName !== 'string' || !packageName.trim()) return null;
+  const normalized = packageName.trim();
+  if (packageVersionCache.has(normalized)) {
+    return packageVersionCache.get(normalized);
+  }
+  let version = null;
+  try {
+    const pkgPath = require.resolve(`${normalized}/package.json`);
+    const pkg = require(pkgPath);
+    const parsed = typeof pkg?.version === 'string' ? pkg.version.trim() : '';
+    version = parsed || null;
+  } catch {
+    version = null;
+  }
+  packageVersionCache.set(normalized, version);
+  return version;
+};
+
+const parseSubprocessCrashEvents = (error) => {
+  const stderr = String(error?.result?.stderr || '');
+  if (!stderr.trim()) return [];
+  const out = [];
+  const lines = stderr.split(/\r?\n/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const prefixes = [SUBPROCESS_CRASH_PREFIX, SUBPROCESS_INJECTED_CRASH_PREFIX];
+    let payload = null;
+    for (const prefix of prefixes) {
+      if (!trimmed.startsWith(prefix)) continue;
+      payload = trimmed.slice(prefix.length).trim();
+      break;
+    }
+    if (!payload) continue;
+    try {
+      const parsed = JSON.parse(payload);
+      if (parsed && typeof parsed === 'object') out.push(parsed);
+    } catch {}
+  }
+  return out;
+};
+
+const resolveParserMetadata = (languageId) => {
+  const normalizedLanguage = typeof languageId === 'string' && languageId
+    ? languageId
+    : null;
+  const grammarSpec = normalizedLanguage ? NATIVE_GRAMMAR_MODULES?.[normalizedLanguage] : null;
+  const grammarModule = typeof grammarSpec?.moduleName === 'string' ? grammarSpec.moduleName : null;
+  return {
+    provider: 'tree-sitter-native',
+    languageId: normalizedLanguage,
+    grammarModule,
+    grammarVersion: grammarModule ? readPackageVersion(grammarModule) : null,
+    parserRuntime: TREE_SITTER_RUNTIME_PACKAGE,
+    parserRuntimeVersion: readPackageVersion(TREE_SITTER_RUNTIME_PACKAGE),
+    parserAbi: process.versions?.modules || null,
+    parserNapi: process.versions?.napi || null
+  };
+};
+
+const resolveFirstFailedJob = (group) => {
+  const jobs = Array.isArray(group?.jobs) ? group.jobs : [];
+  if (!jobs.length) return null;
+  return jobs[0];
+};
+
+const resolveFileFingerprint = (job) => {
+  const signature = job?.fileVersionSignature && typeof job.fileVersionSignature === 'object'
+    ? job.fileVersionSignature
+    : null;
+  const hash = typeof signature?.hash === 'string' ? signature.hash : null;
+  const size = Number(signature?.size);
+  const mtimeMs = Number(signature?.mtimeMs);
+  return {
+    hash,
+    size: Number.isFinite(size) ? size : null,
+    mtimeMs: Number.isFinite(mtimeMs) ? mtimeMs : null
+  };
+};
+
+const buildCrashSignature = ({
+  parserMetadata,
+  grammarKey,
+  fileFingerprint,
+  stage,
+  exitCode,
+  signal
+}) => {
+  const payload = [
+    parserMetadata?.provider || '',
+    parserMetadata?.languageId || '',
+    parserMetadata?.parserAbi || '',
+    parserMetadata?.grammarModule || '',
+    parserMetadata?.grammarVersion || '',
+    parserMetadata?.parserRuntimeVersion || '',
+    grammarKey || '',
+    fileFingerprint?.hash || '',
+    fileFingerprint?.size ?? '',
+    stage || '',
+    Number.isFinite(exitCode) ? String(exitCode) : '',
+    signal || ''
+  ].join('|');
+  return `tscrash:${sha1(payload).slice(0, 20)}`;
+};
+
+const resolveDurableCrashBundlePath = ({ runtime, outDir }) => {
+  const repoCacheRoot = typeof runtime?.repoCacheRoot === 'string' && runtime.repoCacheRoot
+    ? path.resolve(runtime.repoCacheRoot)
+    : null;
+  const baseDir = repoCacheRoot ? path.dirname(repoCacheRoot) : null;
+  if (!baseDir) return null;
+  const buildToken = sanitizePathToken(runtime?.buildId || path.basename(outDir || ''), 'build');
+  const repoToken = sanitizePathToken(path.basename(repoCacheRoot), 'repo');
+  const durableDir = path.join(baseDir, DEFAULT_DURABLE_DIR);
+  return path.join(durableDir, `${repoToken}-${buildToken}-${CRASH_BUNDLE_FILE}`);
+};
+
+const makeBundleSnapshot = ({
+  runtime,
+  outDir,
+  eventsBySignature,
+  failedGrammarKeys,
+  degradedVirtualPaths
+}) => ({
+  schemaVersion: CRASH_BUNDLE_SCHEMA_VERSION,
+  generatedAt: new Date().toISOString(),
+  repoRoot: runtime?.root || null,
+  repoCacheRoot: runtime?.repoCacheRoot || null,
+  buildRoot: runtime?.buildRoot || null,
+  outDir: path.resolve(outDir),
+  failedGrammarKeys: Array.from(failedGrammarKeys).sort(),
+  degradedVirtualPaths: Array.from(degradedVirtualPaths).sort(),
+  events: Array.from(eventsBySignature.values())
+    .sort((a, b) => String(a.signature).localeCompare(String(b.signature)))
+});
+
+const createSchedulerCrashTracker = ({
+  runtime,
+  outDir,
+  paths,
+  groupByGrammarKey,
+  crashLogger = null,
+  log = null
+}) => {
+  const eventsBySignature = new Map();
+  const failedGrammarKeys = new Set();
+  const degradedVirtualPaths = new Set();
+  const localBundlePath = path.join(paths.baseDir, CRASH_BUNDLE_FILE);
+  const durableBundlePath = resolveDurableCrashBundlePath({ runtime, outDir });
+  let persistSerial = Promise.resolve();
+
+  const enqueuePersist = (bundle) => {
+    persistSerial = persistSerial.then(async () => {
+      await fs.mkdir(path.dirname(localBundlePath), { recursive: true });
+      await fs.writeFile(localBundlePath, JSON.stringify(bundle, null, 2), 'utf8');
+      if (durableBundlePath) {
+        await fs.mkdir(path.dirname(durableBundlePath), { recursive: true });
+        await fs.writeFile(durableBundlePath, JSON.stringify(bundle, null, 2), 'utf8');
+      }
+      if (typeof crashLogger?.persistForensicBundle === 'function') {
+        const bundleSignature = `scheduler-${sha1(JSON.stringify({
+          failedGrammarKeys: bundle?.failedGrammarKeys || [],
+          degradedVirtualPaths: bundle?.degradedVirtualPaths || [],
+          signatures: Array.isArray(bundle?.events)
+            ? bundle.events.map((event) => event?.signature || '').filter(Boolean).sort()
+            : []
+        })).slice(0, 20)}`;
+        await crashLogger.persistForensicBundle({
+          kind: 'tree-sitter-scheduler-crash',
+          signature: bundleSignature,
+          bundle
+        });
+      }
+    }).catch(() => {});
+    return persistSerial;
+  };
+
+  const addFailedGrammarVirtualPaths = (grammarKey) => {
+    const group = groupByGrammarKey.get(grammarKey);
+    const jobs = Array.isArray(group?.jobs) ? group.jobs : [];
+    for (const job of jobs) {
+      const virtualPath = typeof job?.virtualPath === 'string' ? job.virtualPath : null;
+      if (virtualPath) degradedVirtualPaths.add(virtualPath);
+    }
+  };
+
+  const recordFailure = async ({
+    grammarKey,
+    stage,
+    error,
+    taskId = null,
+    markFailed = true
+  }) => {
+    if (!grammarKey) return;
+    if (markFailed) {
+      failedGrammarKeys.add(grammarKey);
+      addFailedGrammarVirtualPaths(grammarKey);
+    }
+    const group = groupByGrammarKey.get(grammarKey) || null;
+    const firstJob = resolveFirstFailedJob(group);
+    const languageId = typeof firstJob?.languageId === 'string' && firstJob.languageId
+      ? firstJob.languageId
+      : (Array.isArray(group?.languages) ? group.languages[0] : null);
+    const parserMetadata = resolveParserMetadata(languageId);
+    const fileFingerprint = resolveFileFingerprint(firstJob);
+    const subprocessCrashEvents = parseSubprocessCrashEvents(error);
+    const firstSubprocessEvent = subprocessCrashEvents[0] || null;
+    const exitCode = Number(error?.result?.exitCode);
+    const signal = typeof error?.result?.signal === 'string' ? error.result.signal : null;
+    const resolvedStage = typeof stage === 'string' && stage
+      ? stage
+      : (typeof firstSubprocessEvent?.stage === 'string' ? firstSubprocessEvent.stage : 'scheduler-subprocess');
+    const signature = buildCrashSignature({
+      parserMetadata,
+      grammarKey,
+      fileFingerprint,
+      stage: resolvedStage,
+      exitCode,
+      signal
+    });
+    const existing = eventsBySignature.get(signature);
+    if (existing) {
+      existing.occurrences += 1;
+      existing.lastSeenAt = new Date().toISOString();
+      if (taskId) existing.taskIds = Array.from(new Set([...(existing.taskIds || []), taskId]));
+    } else {
+      const event = {
+        schemaVersion: CRASH_BUNDLE_SCHEMA_VERSION,
+        signature,
+        occurrences: 1,
+        firstSeenAt: new Date().toISOString(),
+        lastSeenAt: new Date().toISOString(),
+        stage: resolvedStage,
+        grammarKey,
+        parser: parserMetadata,
+        file: {
+          containerPath: firstJob?.containerPath || null,
+          virtualPath: firstJob?.virtualPath || null,
+          size: fileFingerprint.size,
+          mtimeMs: fileFingerprint.mtimeMs,
+          fingerprintHash: fileFingerprint.hash
+        },
+        subprocess: {
+          exitCode: Number.isFinite(exitCode) ? exitCode : null,
+          signal,
+          durationMs: Number.isFinite(Number(error?.result?.durationMs))
+            ? Number(error.result.durationMs)
+            : null
+        },
+        taskIds: taskId ? [taskId] : [],
+        errorMessage: error?.message || String(error),
+        subprocessEvents: subprocessCrashEvents
+      };
+      eventsBySignature.set(signature, event);
+      if (typeof log === 'function') {
+        log(
+          `[tree-sitter:schedule] parser crash contained (${grammarKey}); signature=${signature} ` +
+          `stage=${resolvedStage} lang=${parserMetadata.languageId || 'unknown'}`
+        );
+      }
+      if (crashLogger?.enabled) {
+        crashLogger.logError({
+          category: 'parse',
+          phase: 'tree-sitter-scheduler',
+          stage: resolvedStage,
+          file: firstJob?.containerPath || null,
+          languageId: parserMetadata.languageId || null,
+          grammarKey,
+          signature,
+          message: error?.message || String(error),
+          parser: parserMetadata,
+          subprocess: {
+            exitCode: Number.isFinite(exitCode) ? exitCode : null,
+            signal
+          }
+        });
+      }
+    }
+    const bundle = makeBundleSnapshot({
+      runtime,
+      outDir,
+      eventsBySignature,
+      failedGrammarKeys,
+      degradedVirtualPaths
+    });
+    await enqueuePersist(bundle);
+  };
+
+  return {
+    recordFailure,
+    getFailedGrammarKeys: () => new Set(failedGrammarKeys),
+    getDegradedVirtualPaths: () => new Set(degradedVirtualPaths),
+    getBundlePath: () => localBundlePath,
+    getDurableBundlePath: () => durableBundlePath,
+    summarize: () => ({
+      parserCrashSignatures: eventsBySignature.size,
+      parserCrashEvents: Array.from(eventsBySignature.values())
+        .sort((a, b) => String(a.signature).localeCompare(String(b.signature))),
+      failedGrammarKeys: Array.from(failedGrammarKeys).sort(),
+      degradedVirtualPaths: Array.from(degradedVirtualPaths).sort()
+    }),
+    waitForPersistence: async () => {
+      try {
+        await persistSerial;
+      } catch {}
+    }
+  };
+};
 
 const resolveExecConcurrency = ({ schedulerConfig, grammarCount }) => {
   if (!Number.isFinite(grammarCount) || grammarCount <= 1) return 1;
@@ -355,6 +684,7 @@ const loadIndexEntries = async ({ grammarKeys, paths, abortSignal = null }) => {
  * @param {object|null} [input.fileTextCache]
  * @param {AbortSignal|null} [input.abortSignal]
  * @param {(line:string)=>void|null} [input.log]
+ * @param {object|null} [input.crashLogger]
  * @returns {Promise<object|null>}
  */
 export const runTreeSitterScheduler = async ({
@@ -364,7 +694,8 @@ export const runTreeSitterScheduler = async ({
   outDir,
   fileTextCache = null,
   abortSignal = null,
-  log = null
+  log = null,
+  crashLogger = null
 }) => {
   throwIfAborted(abortSignal);
   const schedulerConfig = runtime?.languageOptions?.treeSitter?.scheduler || {};
@@ -402,6 +733,19 @@ export const runTreeSitterScheduler = async ({
   const groupMetaByGrammarKey = planResult.plan?.groupMeta && typeof planResult.plan.groupMeta === 'object'
     ? planResult.plan.groupMeta
     : {};
+  const groupByGrammarKey = new Map();
+  for (const group of planResult.groups || []) {
+    if (!group?.grammarKey) continue;
+    groupByGrammarKey.set(group.grammarKey, group);
+  }
+  const crashTracker = createSchedulerCrashTracker({
+    runtime,
+    outDir,
+    paths: planResult.paths,
+    groupByGrammarKey,
+    crashLogger,
+    log
+  });
   const idleGapStats = {
     samples: 0,
     totalMs: 0,
@@ -484,6 +828,25 @@ export const runTreeSitterScheduler = async ({
           for (const row of profileRows) {
             adaptiveSamples.push(row);
           }
+        } catch (err) {
+          if (abortSignal?.aborted) throw err;
+          const subprocessCrashEvents = parseSubprocessCrashEvents(err);
+          const exitCode = Number(err?.result?.exitCode);
+          const containsCrashEvent = subprocessCrashEvents.length > 0 || exitCode === 86;
+          if (!containsCrashEvent) throw err;
+          const crashStage = typeof subprocessCrashEvents[0]?.stage === 'string'
+            ? subprocessCrashEvents[0].stage
+            : 'scheduler-subprocess';
+          for (const grammarKey of grammarKeysForTask) {
+            await crashTracker.recordFailure({
+              grammarKey,
+              stage: crashStage,
+              error: err,
+              taskId: task.taskId,
+              markFailed: true
+            });
+          }
+          return;
         } finally {
           stdoutBuffer?.flush();
           stderrBuffer?.flush();
@@ -508,10 +871,23 @@ export const runTreeSitterScheduler = async ({
     }
     throwIfAborted(abortSignal);
   }
+  await crashTracker.waitForPersistence();
+  const crashSummary = crashTracker.summarize();
+  const failedGrammarKeySet = new Set(crashSummary.failedGrammarKeys);
+  const successfulGrammarKeys = grammarKeys.filter((grammarKey) => !failedGrammarKeySet.has(grammarKey));
+  const degradedVirtualPathSet = new Set(crashSummary.degradedVirtualPaths);
+  if (crashSummary.parserCrashSignatures > 0 && log) {
+    log(
+      `[tree-sitter:schedule] degraded parser mode enabled: ` +
+      `signatures=${crashSummary.parserCrashSignatures} ` +
+      `failedGrammarKeys=${crashSummary.failedGrammarKeys.length} ` +
+      `degradedVirtualPaths=${crashSummary.degradedVirtualPaths.length}`
+    );
+  }
 
   throwIfAborted(abortSignal);
   const index = await loadIndexEntries({
-    grammarKeys,
+    grammarKeys: successfulGrammarKeys,
     paths: planResult.paths,
     abortSignal
   });
@@ -522,29 +898,54 @@ export const runTreeSitterScheduler = async ({
   });
   const plannedSegmentsByContainer = buildPlannedSegmentsByContainer(planResult.groups);
   const scheduledLanguageIds = buildScheduledLanguageSet(planResult.groups);
+  const baseLookupStats = typeof lookup.stats === 'function' ? lookup.stats.bind(lookup) : null;
+  const scheduleStats = planResult.plan
+    ? {
+      grammarKeys: grammarKeys.length,
+      successfulGrammarKeys: successfulGrammarKeys.length,
+      failedGrammarKeys: crashSummary.failedGrammarKeys.length,
+      jobs: planResult.plan.jobs || 0,
+      parserQueueIdleGaps: {
+        samples: idleGapStats.samples,
+        totalMs: idleGapStats.totalMs,
+        maxMs: idleGapStats.maxMs,
+        avgMs: idleGapStats.samples > 0 ? Math.round(idleGapStats.totalMs / idleGapStats.samples) : 0
+      },
+      parserCrashSignatures: crashSummary.parserCrashSignatures,
+      degradedVirtualPaths: crashSummary.degradedVirtualPaths.length
+    }
+    : null;
 
   return {
     ...lookup,
     plan: planResult.plan,
     scheduledLanguageIds,
+    failedGrammarKeys: crashSummary.failedGrammarKeys,
+    degradedVirtualPaths: crashSummary.degradedVirtualPaths,
+    parserCrashEvents: crashSummary.parserCrashEvents,
+    parserCrashSignatures: crashSummary.parserCrashSignatures,
+    crashForensicsBundlePath: crashTracker.getBundlePath(),
+    durableCrashForensicsBundlePath: crashTracker.getDurableBundlePath(),
+    getCrashSummary: () => ({
+      parserCrashSignatures: crashSummary.parserCrashSignatures,
+      parserCrashEvents: crashSummary.parserCrashEvents.map((event) => ({ ...event })),
+      failedGrammarKeys: crashSummary.failedGrammarKeys.slice(),
+      degradedVirtualPaths: crashSummary.degradedVirtualPaths.slice()
+    }),
+    isDegradedVirtualPath: (virtualPath) => degradedVirtualPathSet.has(virtualPath),
     plannedSegmentsByContainer,
     loadPlannedSegments: (containerPath) => {
       if (!containerPath || !plannedSegmentsByContainer.has(containerPath)) return null;
       const segments = plannedSegmentsByContainer.get(containerPath);
       return Array.isArray(segments) ? segments.map((segment) => ({ ...segment })) : null;
     },
-    schedulerStats: planResult.plan
-      ? {
-        grammarKeys: grammarKeys.length,
-        jobs: planResult.plan.jobs || 0,
-        parserQueueIdleGaps: {
-          samples: idleGapStats.samples,
-          totalMs: idleGapStats.totalMs,
-          maxMs: idleGapStats.maxMs,
-          avgMs: idleGapStats.samples > 0 ? Math.round(idleGapStats.totalMs / idleGapStats.samples) : 0
-        }
-      }
-      : null
+    schedulerStats: scheduleStats,
+    stats: () => ({
+      ...(baseLookupStats ? baseLookupStats() : {}),
+      parserCrashSignatures: crashSummary.parserCrashSignatures,
+      failedGrammarKeys: crashSummary.failedGrammarKeys.length,
+      degradedVirtualPaths: crashSummary.degradedVirtualPaths.length
+    })
   };
 };
 

@@ -424,12 +424,32 @@ export const executeTreeSitterSchedulerPlan = async ({
           segmentText,
           expectedSignature
         });
-        const chunks = buildTreeSitterChunks({
-          text: segmentText,
-          languageId,
-          ext: segmentExt,
-          options: optionsForJob
-        });
+        let chunks = null;
+        try {
+          chunks = buildTreeSitterChunks({
+            text: segmentText,
+            languageId,
+            ext: segmentExt,
+            options: optionsForJob
+          });
+        } catch (err) {
+          const schedulerMeta = {
+            schemaVersion: '1.0.0',
+            stage: 'scheduler-build-tree-sitter-chunks',
+            grammarKey,
+            languageId,
+            containerPath,
+            virtualPath,
+            segmentStart,
+            segmentEnd,
+            fileSize: currentText?.length || null
+          };
+          try {
+            err.stage = 'scheduler-build-tree-sitter-chunks';
+            err.treeSitterSchedulerMeta = schedulerMeta;
+          } catch {}
+          throw err;
+        }
         if (!Array.isArray(chunks) || !chunks.length) {
           // In strict mode buildTreeSitterChunks should throw on failures. If it
           // returned empty/null, treat it as a hard error to avoid silent fallback.

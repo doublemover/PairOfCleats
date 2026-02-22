@@ -575,7 +575,8 @@ export const processFiles = async ({
       outDir,
       fileTextCache,
       abortSignal: effectiveAbortSignal,
-      log
+      log,
+      crashLogger
     });
     const schedStats = treeSitterScheduler?.stats ? treeSitterScheduler.stats() : null;
     if (schedStats) {
@@ -583,6 +584,28 @@ export const processFiles = async ({
         `[tree-sitter:schedule] plan ready: grammars=${schedStats.grammarKeys} ` +
         `entries=${schedStats.indexEntries} cache=${schedStats.cacheEntries}`
       );
+      if ((Number(schedStats.parserCrashSignatures) || 0) > 0) {
+        const degradedSummary = {
+          parserCrashSignatures: Number(schedStats.parserCrashSignatures) || 0,
+          failedGrammarKeys: Number(schedStats.failedGrammarKeys) || 0,
+          degradedVirtualPaths: Number(schedStats.degradedVirtualPaths) || 0
+        };
+        if (state && typeof state === 'object') {
+          state.treeSitterDegraded = degradedSummary;
+        }
+        logLine(
+          `[tree-sitter:schedule] degraded parser mode active: signatures=${degradedSummary.parserCrashSignatures} ` +
+          `failedGrammars=${degradedSummary.failedGrammarKeys} ` +
+          `degradedVirtualPaths=${degradedSummary.degradedVirtualPaths}`,
+          {
+            kind: 'warning',
+            mode,
+            stage: 'processing',
+            substage: 'tree-sitter-scheduler',
+            treeSitterDegraded: degradedSummary
+          }
+        );
+      }
     }
   }
 

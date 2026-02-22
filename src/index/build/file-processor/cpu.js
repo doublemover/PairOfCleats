@@ -831,6 +831,7 @@ export const processFileCpu = async (context) => {
     fallbackSegmentCount: 0,
     codeFallbackSegmentCount: 0,
     schedulerMissingCount: 0,
+    schedulerDegradedCount: 0,
     usedHeuristicChunking: false,
     usedHeuristicCodeChunking: false
   };
@@ -839,6 +840,7 @@ export const processFileCpu = async (context) => {
     const fallbackSegments = [];
     const scheduled = [];
     let schedulerMissingCount = 0;
+    let schedulerDegradedCount = 0;
     let codeFallbackSegmentCount = 0;
     const treeSitterOptions = { treeSitter: treeSitterConfigForMode || {} };
     for (const segment of segments || []) {
@@ -912,16 +914,30 @@ export const processFileCpu = async (context) => {
       && typeof treeSitterScheduler.loadChunks === 'function'
       ? treeSitterScheduler.loadChunks.bind(treeSitterScheduler)
       : null;
-    const batchChunks = scheduled.length > 0
+    const schedulerDegradedCheck = treeSitterScheduler
+      && typeof treeSitterScheduler.isDegradedVirtualPath === 'function'
+      ? treeSitterScheduler.isDegradedVirtualPath.bind(treeSitterScheduler)
+      : () => false;
+    const schedulerLookupItems = [];
+    for (const item of scheduled) {
+      if (schedulerDegradedCheck(item.virtualPath)) {
+        fallbackSegments.push(item.segment);
+        schedulerDegradedCount += 1;
+        codeFallbackSegmentCount += 1;
+        continue;
+      }
+      schedulerLookupItems.push(item);
+    }
+    const batchChunks = schedulerLookupItems.length > 0
       && schedulerLoadChunksBatch
       ? await schedulerLoadChunksBatch(
-        scheduled.map((item) => item.virtualPath),
+        schedulerLookupItems.map((item) => item.virtualPath),
         schedulerLoadOptions
       )
       : null;
-    if (Array.isArray(batchChunks) && batchChunks.length === scheduled.length) {
-      for (let i = 0; i < scheduled.length; i += 1) {
-        const item = scheduled[i];
+    if (Array.isArray(batchChunks) && batchChunks.length === schedulerLookupItems.length) {
+      for (let i = 0; i < schedulerLookupItems.length; i += 1) {
+        const item = schedulerLookupItems[i];
         const chunks = batchChunks[i];
         if (!Array.isArray(chunks) || !chunks.length) {
           const hasScheduledEntry = treeSitterScheduler?.index instanceof Map
@@ -952,7 +968,7 @@ export const processFileCpu = async (context) => {
       const loadChunk = schedulerLoadChunk
         ? (virtualPath) => schedulerLoadChunk(virtualPath, schedulerLoadOptions)
         : null;
-      for (const item of scheduled) {
+      for (const item of schedulerLookupItems) {
         if (!loadChunk) {
           fallbackSegments.push(item.segment);
           codeFallbackSegmentCount += 1;
@@ -1000,10 +1016,25 @@ export const processFileCpu = async (context) => {
         }
       );
     }
+    if (schedulerDegradedCount > 0) {
+      logLine?.(
+        `[tree-sitter:schedule] parser crash degraded ${schedulerDegradedCount} scheduled segment(s); using fallback chunking.`,
+        {
+          kind: 'warning',
+          mode,
+          stage: 'processing',
+          file: relKey,
+          substage: 'chunking',
+          fileOnlyLine:
+            `[tree-sitter:schedule] parser degraded ${schedulerDegradedCount} segment(s); using fallback chunking for ${relKey}`
+        }
+      );
+    }
     chunkingDiagnostics.scheduledSegmentCount = scheduled.length;
     chunkingDiagnostics.fallbackSegmentCount = fallbackSegments.length;
     chunkingDiagnostics.codeFallbackSegmentCount = codeFallbackSegmentCount;
     chunkingDiagnostics.schedulerMissingCount = schedulerMissingCount;
+    chunkingDiagnostics.schedulerDegradedCount = schedulerDegradedCount;
 
     if (fallbackSegments.length) {
       chunkingDiagnostics.usedHeuristicChunking = true;
