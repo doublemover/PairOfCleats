@@ -15,6 +15,7 @@ applyTestEnv({
   cacheRoot: tempRoot,
   embeddings: 'stub',
   testConfig: {
+    quality: 'max',
     indexing: {
       embeddings: {
         enabled: true,
