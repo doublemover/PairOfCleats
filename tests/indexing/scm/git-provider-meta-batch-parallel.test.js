@@ -15,7 +15,9 @@ let inFlight = 0;
 let maxInFlight = 0;
 let logCallCount = 0;
 let observedChunkSizes = [];
+let observedCommitLimits = [];
 let progressEvents = [];
+let partialBatchMeta = false;
 let restoreProgressHandlers = () => {};
 
 const buildBatchStdout = (files) => {
@@ -52,10 +54,13 @@ try {
       await sleep(20);
       const separatorIndex = args.indexOf('--');
       const files = separatorIndex >= 0 ? args.slice(separatorIndex + 1) : [];
+      const limitIndex = args.indexOf('-n');
+      observedCommitLimits.push(limitIndex >= 0 ? Number(args[limitIndex + 1]) : null);
       observedChunkSizes.push(files.length);
+      const reportedFiles = partialBatchMeta ? files.slice(0, 1) : files;
       return {
         exitCode: 0,
-        stdout: buildBatchStdout(files),
+        stdout: buildBatchStdout(reportedFiles),
         stderr: ''
       };
     } finally {
@@ -90,11 +95,16 @@ try {
   assert.equal(firstProgress?.meta?.message, undefined);
   assert.equal(lastProgress?.current, lastProgress?.total);
   assert.equal(Math.max(...observedChunkSizes), 96, 'expected default chunk size 96 for non-huge file sets');
+  assert(
+    observedCommitLimits.every((value) => Number.isFinite(value) && value > 0),
+    'expected default per-chunk commit cap for non-large repos'
+  );
 
   inFlight = 0;
   maxInFlight = 0;
   logCallCount = 0;
   observedChunkSizes = [];
+  observedCommitLimits = [];
   progressEvents = [];
 
   const smallFiles = Array.from({ length: 96 * 2 }, (_unused, index) => `src/small-${index}.js`);
@@ -116,6 +126,7 @@ try {
   maxInFlight = 0;
   logCallCount = 0;
   observedChunkSizes = [];
+  observedCommitLimits = [];
   setScmRuntimeConfig({
     runtime: {
       fileConcurrency: 3,
@@ -146,6 +157,7 @@ try {
   maxInFlight = 0;
   logCallCount = 0;
   observedChunkSizes = [];
+  observedCommitLimits = [];
   setScmRuntimeConfig({
     runtime: {
       fileConcurrency: 32,
@@ -176,6 +188,7 @@ try {
   maxInFlight = 0;
   logCallCount = 0;
   observedChunkSizes = [];
+  observedCommitLimits = [];
   setScmRuntimeConfig({
     maxConcurrentProcesses: 1,
     runtime: {
@@ -204,6 +217,7 @@ try {
   maxInFlight = 0;
   logCallCount = 0;
   observedChunkSizes = [];
+  observedCommitLimits = [];
   setScmRuntimeConfig({
     runtime: {
       fileConcurrency: 32,
@@ -229,7 +243,62 @@ try {
     maxInFlight <= 16,
     `expected huge-repo batching to respect cpu thread cap 16; observed ${maxInFlight}`
   );
+  assert(
+    observedCommitLimits.every((value) => Number.isFinite(value) && value > 0),
+    'expected huge-repo batches to apply a default per-chunk commit limit'
+  );
+
+  inFlight = 0;
+  maxInFlight = 0;
+  logCallCount = 0;
+  observedChunkSizes = [];
+  observedCommitLimits = [];
+  setScmRuntimeConfig({
+    gitMetaBatch: {
+      maxCommitsPerChunk: 0
+    },
+    runtime: {
+      fileConcurrency: 32,
+      cpuConcurrency: 16
+    }
+  });
+  const hugeRepoNoCapResult = await gitProvider.getFileMetaBatch({
+    repoRoot,
+    filesPosix: hugeRepoFiles,
+    timeoutMs: 5000
+  });
+  assert.ok(hugeRepoNoCapResult?.fileMetaByPath);
+  assert.equal(Object.keys(hugeRepoNoCapResult.fileMetaByPath).length, hugeRepoFiles.length);
+  assert(
+    observedCommitLimits.every((value) => value == null),
+    'expected maxCommitsPerChunk=0 to disable default per-chunk commit cap'
+  );
+
+  inFlight = 0;
+  maxInFlight = 0;
+  logCallCount = 0;
+  observedChunkSizes = [];
+  observedCommitLimits = [];
+  partialBatchMeta = true;
+  setScmRuntimeConfig({
+    runtime: {
+      fileConcurrency: 4,
+      cpuConcurrency: 4
+    }
+  });
+  const partialFiles = ['src/partial-a.js', 'src/partial-b.js', 'src/partial-c.js'];
+  const partialResult = await gitProvider.getFileMetaBatch({
+    repoRoot,
+    filesPosix: partialFiles,
+    timeoutMs: 5000
+  });
+  assert.ok(partialResult?.fileMetaByPath);
+  assert.equal(Object.keys(partialResult.fileMetaByPath).length, partialFiles.length);
+  assert.equal(partialResult.fileMetaByPath['src/partial-a.js']?.lastAuthor, 'Batch Author');
+  assert.equal(partialResult.fileMetaByPath['src/partial-b.js']?.lastAuthor, null);
+  assert.equal(partialResult.fileMetaByPath['src/partial-b.js']?.lastModifiedAt, null);
 } finally {
+  partialBatchMeta = false;
   restoreProgressHandlers();
   setScmCommandRunner(defaultRunner);
   setScmRuntimeConfig(defaultScmConfig);

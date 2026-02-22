@@ -6,7 +6,7 @@ import { treeSitterSchedulerRunnerInternals } from '../../../src/index/build/tre
 
 applyTestEnv({ testing: '1' });
 
-const { buildWarmPoolTasks } = treeSitterSchedulerRunnerInternals;
+const { buildWarmPoolTasks, resolveExecutionOrder } = treeSitterSchedulerRunnerInternals;
 
 const executionOrder = [
   'cpp~b01~w01',
@@ -38,5 +38,35 @@ assert.ok(
 );
 const javaTasks = tasks.filter((entry) => entry.baseGrammarKey === 'java');
 assert.equal(javaTasks.length, 1, 'expected single lane for grammar with single key');
+
+const largeExecutionOrder = Array.from({ length: 64 }, (_unused, index) => `ruby~b${String(index + 1).padStart(2, '0')}~w01`);
+const largeGroupMeta = Object.fromEntries(
+  largeExecutionOrder.map((grammarKey) => [grammarKey, { baseGrammarKey: 'ruby' }])
+);
+const largeTasks = buildWarmPoolTasks({
+  executionOrder: largeExecutionOrder,
+  groupMetaByGrammarKey: largeGroupMeta,
+  schedulerConfig: {},
+  execConcurrency: 16
+});
+const rubyLargeTasks = largeTasks.filter((entry) => entry.baseGrammarKey === 'ruby');
+assert.equal(
+  rubyLargeTasks.length,
+  8,
+  'expected large single-language waves to split into higher lane count under available concurrency'
+);
+const laneSizes = rubyLargeTasks.map((entry) => entry.grammarKeys.length).sort((a, b) => a - b);
+assert.ok(laneSizes[0] >= 8 && laneSizes[laneSizes.length - 1] <= 8, 'expected balanced lane partitioning for large wave sets');
+
+assert.deepEqual(
+  resolveExecutionOrder({ executionOrder: ['native:lua', 'native:yaml'] }),
+  ['native:lua', 'native:yaml'],
+  'expected executionOrder to be returned unchanged when provided'
+);
+assert.throws(
+  () => resolveExecutionOrder({ grammarKeys: ['native:lua'] }),
+  /missing executionOrder/i,
+  'expected runner to fail closed when executionOrder is missing'
+);
 
 console.log('tree-sitter scheduler warm-pool task planner test passed');

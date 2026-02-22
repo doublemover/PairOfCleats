@@ -187,7 +187,7 @@ await processFileCpu(createContext({
   fileHash: 'scm-annotate-fast-timeout-js'
 }));
 assert.equal(jsAnnotateCalls, 1, 'expected annotate to run for .js files');
-assert.equal(jsTimeoutMs, 2000, 'expected non-metadata annotate timeout to clamp to 2000ms');
+assert.equal(jsTimeoutMs, 5000, 'expected non-metadata annotate timeout to clamp to 5000ms');
 assert.equal(jsMetaTimeoutMs, 750, 'expected non-metadata meta timeout to clamp to 750ms');
 assert.equal(jsIncludeChurn, true, 'expected non-fast-path churn metadata enabled by default');
 

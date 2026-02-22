@@ -40,18 +40,20 @@ const resolveExecConcurrency = ({ schedulerConfig, grammarCount }) => {
 /**
  * Resolve deterministic execution order for scheduler tasks.
  *
- * Newer plans provide `executionOrder`; older plans only include `grammarKeys`.
- * We preserve backward compatibility by falling back to `grammarKeys` and
- * always returning a copy so callers can mutate safely.
+ * `executionOrder` is the canonical scheduler plan contract. Missing or empty
+ * execution order indicates stale/corrupt plan artifacts and must fail closed.
  *
- * @param {{executionOrder?:string[],grammarKeys?:string[]}} [plan]
+ * @param {{executionOrder?:string[]}} [plan]
  * @returns {string[]}
  */
 const resolveExecutionOrder = (plan = {}) => {
   const executionOrder = Array.isArray(plan?.executionOrder) ? plan.executionOrder : [];
-  if (executionOrder.length) return executionOrder.slice();
-  const grammarKeys = Array.isArray(plan?.grammarKeys) ? plan.grammarKeys : [];
-  return grammarKeys.slice();
+  if (!executionOrder.length) {
+    throw new Error(
+      '[tree-sitter:schedule] scheduler plan missing executionOrder; rebuild scheduler artifacts.'
+    );
+  }
+  return executionOrder.slice();
 };
 
 const resolveWarmPoolLaneCount = ({
@@ -73,7 +75,16 @@ const resolveWarmPoolLaneCount = ({
   const byConcurrency = Number.isFinite(execConcurrency) && execConcurrency > 0
     ? Math.max(1, Math.floor(execConcurrency / 2))
     : 1;
-  const heuristic = keyCount >= 12 ? 3 : 2;
+  let heuristic = 2;
+  if (keyCount >= 64) {
+    heuristic = 8;
+  } else if (keyCount >= 32) {
+    heuristic = 6;
+  } else if (keyCount >= 16) {
+    heuristic = 4;
+  } else if (keyCount >= 8) {
+    heuristic = 3;
+  }
   return Math.max(1, Math.min(keyCount, byConcurrency, heuristic));
 };
 
@@ -378,9 +389,7 @@ export const runTreeSitterScheduler = async ({
     ? resolveRuntimeEnv(runtime.envelope, process.env)
     : process.env;
   const executionOrder = resolveExecutionOrder(planResult.plan);
-  const grammarKeys = Array.isArray(planResult.plan?.grammarKeys) && planResult.plan.grammarKeys.length
-    ? planResult.plan.grammarKeys
-    : executionOrder.slice();
+  const grammarKeys = Array.from(new Set(executionOrder));
   const groupMetaByGrammarKey = planResult.plan?.groupMeta && typeof planResult.plan.groupMeta === 'object'
     ? planResult.plan.groupMeta
     : {};
@@ -517,7 +526,7 @@ export const runTreeSitterScheduler = async ({
     },
     schedulerStats: planResult.plan
       ? {
-        grammarKeys: (planResult.plan.grammarKeys || []).length,
+        grammarKeys: grammarKeys.length,
         jobs: planResult.plan.jobs || 0,
         parserQueueIdleGaps: {
           samples: idleGapStats.samples,

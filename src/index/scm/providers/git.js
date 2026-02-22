@@ -4,7 +4,7 @@ import PQueue from 'p-queue';
 import {
   getGitLineAuthorsForFile,
   getGitMetaForFile,
-  getRepoProvenance as getLegacyRepoProvenance
+  getRepoProvenance
 } from '../../git.js';
 import { toPosix } from '../../../shared/files.js';
 import { findUpwards } from '../../../shared/fs/find-upwards.js';
@@ -40,6 +40,8 @@ const GIT_META_BATCH_CHUNK_SIZE_HUGE = 16;
 const GIT_META_BATCH_FILESET_LARGE_MIN = 4000;
 const GIT_META_BATCH_FILESET_HUGE_MIN = 8000;
 const GIT_META_BATCH_SMALL_REPO_CHUNK_MAX = 2;
+const GIT_META_BATCH_COMMIT_LIMIT_DEFAULT = 2000;
+const GIT_META_BATCH_COMMIT_LIMIT_HUGE_DEFAULT = 1000;
 
 const toPositiveIntOrNull = (value) => {
   const numeric = Number(value);
@@ -72,6 +74,15 @@ const chunkList = (items, size) => {
   return chunks;
 };
 
+/**
+ * Pick a git-log file batch size based on repository scale.
+ *
+ * Larger repositories use smaller chunks to reduce tail latency variance
+ * between chunks with very different history depth.
+ *
+ * @param {number} fileCount
+ * @returns {number}
+ */
 const resolveGitMetaBatchChunkSize = (fileCount) => {
   const totalFiles = Number.isFinite(Number(fileCount))
     ? Math.max(0, Math.floor(Number(fileCount)))
@@ -85,6 +96,41 @@ const resolveGitMetaBatchChunkSize = (fileCount) => {
   return GIT_META_BATCH_CHUNK_SIZE;
 };
 
+/**
+ * Resolve per-chunk git history depth cap for file-meta batches.
+ *
+ * Unbounded `git log --name-only` scans can dominate stage1 startup time.
+ * We cap scanned commits per chunk by default for all repository sizes and
+ * treat unresolved files as "metadata unavailable" (null fields).
+ *
+ * @param {number} fileCount
+ * @param {number|null} configuredLimit
+ * @returns {number}
+ */
+const resolveGitMetaBatchCommitLimit = (fileCount, configuredLimit = null) => {
+  const hasConfiguredLimit = configuredLimit !== null && configuredLimit !== undefined;
+  if (hasConfiguredLimit && Number.isFinite(Number(configuredLimit))) {
+    return Math.max(0, Math.floor(Number(configuredLimit)));
+  }
+  const totalFiles = Number.isFinite(Number(fileCount))
+    ? Math.max(0, Math.floor(Number(fileCount)))
+    : 0;
+  if (totalFiles >= GIT_META_BATCH_FILESET_HUGE_MIN) {
+    return GIT_META_BATCH_COMMIT_LIMIT_HUGE_DEFAULT;
+  }
+  return GIT_META_BATCH_COMMIT_LIMIT_DEFAULT;
+};
+
+/**
+ * Execute indexed work items with a strict upper concurrency bound.
+ *
+ * @template TItem
+ * @template TResult
+ * @param {TItem[]} items
+ * @param {number} concurrency
+ * @param {(item:TItem,index:number)=>Promise<TResult>} worker
+ * @returns {Promise<TResult[]>}
+ */
 const runWithBoundedConcurrency = async (items, concurrency, worker) => {
   const list = Array.isArray(items) ? items : [];
   if (!list.length) return [];
@@ -106,6 +152,12 @@ const runWithBoundedConcurrency = async (items, concurrency, worker) => {
   return out;
 };
 
+/**
+ * Parse batched `git log --name-only` output into per-file metadata.
+ *
+ * @param {{stdout:string,repoRoot:string}} input
+ * @returns {Record<string,{lastModifiedAt:string|null,lastAuthor:string|null,churn:null,churnAdded:null,churnDeleted:null,churnCommits:null}>}
+ */
 const parseGitMetaBatchOutput = ({ stdout, repoRoot }) => {
   const fileMetaByPath = Object.create(null);
   let currentMeta = null;
@@ -158,11 +210,15 @@ const resolveGitConfig = () => {
   const minParallelChunks = Number.isFinite(Number(gitMetaBatchConfig.minParallelChunks))
     ? Math.max(1, Math.floor(Number(gitMetaBatchConfig.minParallelChunks)))
     : runtimeThreadFloor;
+  const maxCommitsPerChunk = Number.isFinite(Number(gitMetaBatchConfig.maxCommitsPerChunk))
+    ? Math.max(0, Math.floor(Number(gitMetaBatchConfig.maxCommitsPerChunk)))
+    : null;
   return {
     explicitMaxConcurrentProcesses,
     maxConcurrentProcesses,
     smallRepoChunkMax,
-    minParallelChunks
+    minParallelChunks,
+    maxCommitsPerChunk
   };
 };
 
@@ -206,9 +262,9 @@ export const gitProvider = {
     return { filesPosix: entries };
   },
   async getRepoProvenance({ repoRoot }) {
-    const legacy = await getLegacyRepoProvenance(repoRoot);
-    const commitId = legacy?.commit || null;
-    const branch = legacy?.branch || null;
+    const repoProvenance = await getRepoProvenance(repoRoot);
+    const commitId = repoProvenance?.commit || null;
+    const branch = repoProvenance?.branch || null;
     return {
       provider: 'git',
       root: repoRoot,
@@ -216,11 +272,11 @@ export const gitProvider = {
         commitId,
         branch
       },
-      dirty: legacy?.dirty ?? null,
+      dirty: repoProvenance?.dirty ?? null,
       detectedBy: 'git-root',
       commit: commitId,
       branch,
-      isRepo: legacy?.isRepo ?? null
+      isRepo: repoProvenance?.isRepo ?? null
     };
   },
   async getChangedFiles({ repoRoot, fromRef = null, toRef = null, subdir = null }) {
@@ -277,6 +333,10 @@ export const gitProvider = {
     }
     const fileMetaByPath = Object.create(null);
     const batchChunkSize = resolveGitMetaBatchChunkSize(normalizedFiles.length);
+    const batchCommitLimit = resolveGitMetaBatchCommitLimit(
+      normalizedFiles.length,
+      config.maxCommitsPerChunk
+    );
     const chunks = chunkList(normalizedFiles, batchChunkSize);
     const resolvedTimeoutMs = Number.isFinite(Number(timeoutMs)) && Number(timeoutMs) > 0
       ? Math.max(5000, Math.floor(Number(timeoutMs)))
@@ -312,10 +372,12 @@ export const gitProvider = {
         'log',
         '--date=iso-strict',
         `--format=${GIT_META_BATCH_FORMAT_PREFIX}%aI%x00%an`,
-        '--name-only',
-        '--',
-        ...chunk
+        '--name-only'
       ];
+      if (batchCommitLimit > 0) {
+        args.push('-n', String(batchCommitLimit));
+      }
+      args.push('--', ...chunk);
       const result = await runGitTask(() => runScmCommand('git', args, {
         outputMode: 'string',
         captureStdout: true,
@@ -330,9 +392,21 @@ export const gitProvider = {
       if (shouldEmitProgress) {
         showProgress('SCM Meta', completedChunks, chunks.length, baseProgressMeta);
       }
+      const chunkMetaByPath = parseGitMetaBatchOutput({ stdout: result.stdout, repoRoot });
+      for (const filePosix of chunk) {
+        if (chunkMetaByPath[filePosix]) continue;
+        chunkMetaByPath[filePosix] = {
+          lastModifiedAt: null,
+          lastAuthor: null,
+          churn: null,
+          churnAdded: null,
+          churnDeleted: null,
+          churnCommits: null
+        };
+      }
       return {
         ok: true,
-        fileMetaByPath: parseGitMetaBatchOutput({ stdout: result.stdout, repoRoot })
+        fileMetaByPath: chunkMetaByPath
       };
     });
     for (const chunkResult of chunkResults) {
