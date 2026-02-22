@@ -883,9 +883,9 @@ Touchpoints:
 - [x] Add work-stealing between workers with heavy-job backpressure to avoid one-worker long-tail stalls.
 - [x] Enforce deterministic writer commit order for chunks/relations/artifacts independent of worker completion timing.
 - [x] Add memory-pressure controls:
-  - [ ] worker-level memory watermark and soft/hard pressure states
-  - [ ] per-language concurrency throttles under pressure
-  - [ ] deterministic cache eviction order (largest-first + oldest-first tie-break)
+  - [x] worker-level memory watermark and soft/hard pressure states
+  - [x] per-language concurrency throttles under pressure
+  - [x] deterministic cache eviction order (largest-first + oldest-first tie-break)
 - [x] Introduce symbol/string interning for relation graph construction to reduce duplicate allocations.
 - [x] Normalize cross-language symbol identity and edge typing before compression so graph consumers see one stable relation schema.
 - [x] Store relation edges in compact typed-array-backed buffers with delta-encoded positions instead of object-heavy maps.

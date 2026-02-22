@@ -11,10 +11,26 @@ const normalizeEnabled = (raw) => {
   return 'auto';
 };
 
+const coerceNonNegativeInt = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return null;
+  return Math.floor(parsed);
+};
+
 const WORKER_HEAP_TARGET_MIN_MB = 1024;
 const WORKER_HEAP_TARGET_DEFAULT_MB = 1536;
 const WORKER_HEAP_TARGET_MAX_MB = 2048;
 const NUMA_PINNING_STRATEGIES = new Set(['interleave', 'compact']);
+const DEFAULT_PRESSURE_THROTTLE_HEAVY_LANGUAGES = Object.freeze([
+  'clike',
+  'cpp',
+  'swift',
+  'rust',
+  'java',
+  'kotlin',
+  'typescript',
+  'tsx'
+]);
 
 /**
  * Downscale worker count only when both signals indicate sustained pressure.
@@ -329,6 +345,41 @@ export function normalizeWorkerPoolConfig(raw = {}, options = {}) {
   const downscaleMinWorkers = downscaleMinWorkersRaw != null
     ? Math.max(1, Math.min(maxWorkers, downscaleMinWorkersRaw))
     : Math.max(1, Math.floor(maxWorkers * 0.5));
+  const memoryWatermarkSoft = coerceClampedFraction(
+    raw.memoryWatermarkSoft,
+    { min: 0.7, max: 0.995, allowZero: false }
+  ) ?? 0.97;
+  const configuredMemoryWatermarkHard = coerceClampedFraction(
+    raw.memoryWatermarkHard,
+    { min: 0.75, max: 0.999, allowZero: false }
+  ) ?? 0.992;
+  const memoryWatermarkHard = Math.min(
+    0.999,
+    Math.max(memoryWatermarkSoft + 0.01, configuredMemoryWatermarkHard)
+  );
+  const pressureThrottleConfig = raw.pressureLanguageThrottle
+    && typeof raw.pressureLanguageThrottle === 'object'
+    ? raw.pressureLanguageThrottle
+    : {};
+  const heavyLanguages = Array.from(new Set(
+    (Array.isArray(pressureThrottleConfig.heavyLanguages)
+      ? pressureThrottleConfig.heavyLanguages
+      : DEFAULT_PRESSURE_THROTTLE_HEAVY_LANGUAGES)
+      .filter((entry) => typeof entry === 'string' && entry.trim())
+      .map((entry) => entry.trim().toLowerCase())
+  ));
+  const softMaxPerLanguage = coercePositiveIntMinOne(
+    pressureThrottleConfig.softMaxPerLanguage
+  ) ?? Math.max(2, Math.min(maxWorkers, Math.max(4, Math.floor(maxWorkers * 0.85))));
+  const hardMaxPerLanguageRaw = coerceNonNegativeInt(
+    pressureThrottleConfig.hardMaxPerLanguage
+  );
+  const hardMaxPerLanguage = Math.min(
+    softMaxPerLanguage,
+    hardMaxPerLanguageRaw ?? Math.max(1, Math.floor(softMaxPerLanguage * 0.5))
+  );
+  const pressureCacheMaxEntries = coercePositiveIntMinOne(raw.pressureCacheMaxEntries) ?? 2048;
+  const blockHeavyOnHardPressure = pressureThrottleConfig.blockHeavyOnHardPressure !== false;
   const numaConfig = raw?.numaPinning && typeof raw.numaPinning === 'object'
     ? raw.numaPinning
     : {};
@@ -359,6 +410,18 @@ export function normalizeWorkerPoolConfig(raw = {}, options = {}) {
     downscaleGcThreshold,
     downscaleCooldownMs,
     downscaleMinWorkers,
+    memoryPressure: {
+      watermarkSoft: memoryWatermarkSoft,
+      watermarkHard: memoryWatermarkHard,
+      cacheMaxEntries: pressureCacheMaxEntries,
+      languageThrottle: {
+        enabled: pressureThrottleConfig.enabled !== false,
+        heavyLanguages,
+        softMaxPerLanguage,
+        hardMaxPerLanguage,
+        blockHeavyOnHardPressure
+      }
+    },
     numaPinning: {
       enabled: numaEnabled,
       strategy: numaStrategy,
