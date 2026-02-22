@@ -943,8 +943,15 @@ const buildExtractedProseLowYieldBailoutState = ({ mode, runtime, entries }) => 
     if (!Number.isFinite(orderIndex)) continue;
     sampledOrderIndices.add(Math.floor(orderIndex));
   }
+  const hasSufficientWarmupPopulation = sortedEntries.length >= Math.max(
+    2,
+    Math.floor(config.warmupSampleSize),
+    Math.floor(config.minYieldedFiles)
+  );
   return {
-    enabled: config.enabled !== false && sampledOrderIndices.size > 0,
+    enabled: config.enabled !== false
+      && sampledOrderIndices.size > 0
+      && hasSufficientWarmupPopulation,
     config,
     warmupWindowSize,
     warmupSampleSize,
