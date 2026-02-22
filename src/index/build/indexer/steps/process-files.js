@@ -760,6 +760,156 @@ export const sortEntriesByOrderIndex = (entries) => {
     .map((item) => item.entry);
 };
 
+export const resolveShardSubsetId = (workItem) => {
+  const shardId = normalizeOwnershipSegment(
+    String(workItem?.shard?.id || workItem?.shard?.label || 'unknown'),
+    'unknown'
+  );
+  const partIndex = Number.isFinite(workItem?.partIndex)
+    ? Math.max(1, Math.floor(workItem.partIndex))
+    : 1;
+  const partTotal = Number.isFinite(workItem?.partTotal)
+    ? Math.max(partIndex, Math.floor(workItem.partTotal))
+    : partIndex;
+  return `${shardId}#${String(partIndex).padStart(4, '0')}/${String(partTotal).padStart(4, '0')}`;
+};
+
+export const resolveShardSubsetMinOrderIndex = (workItem) => {
+  const list = Array.isArray(workItem?.entries) ? workItem.entries : [];
+  let minIndex = null;
+  for (let i = 0; i < list.length; i += 1) {
+    const value = resolveEntryOrderIndex(list[i], i);
+    if (!Number.isFinite(value)) continue;
+    minIndex = minIndex == null ? value : Math.min(minIndex, value);
+  }
+  return Number.isFinite(minIndex) ? Math.floor(minIndex) : null;
+};
+
+export const buildDeterministicShardMergePlan = (workItems = []) => {
+  const list = Array.isArray(workItems)
+    ? workItems.filter((workItem) => workItem && typeof workItem === 'object')
+    : [];
+  return [...list]
+    .sort((a, b) => {
+      const aMin = resolveShardSubsetMinOrderIndex(a);
+      const bMin = resolveShardSubsetMinOrderIndex(b);
+      const aOrder = Number.isFinite(aMin) ? aMin : Number.MAX_SAFE_INTEGER;
+      const bOrder = Number.isFinite(bMin) ? bMin : Number.MAX_SAFE_INTEGER;
+      if (aOrder !== bOrder) return aOrder - bOrder;
+      const aShard = String(a?.shard?.id || a?.shard?.label || '');
+      const bShard = String(b?.shard?.id || b?.shard?.label || '');
+      const shardCmp = compareStrings(aShard, bShard);
+      if (shardCmp !== 0) return shardCmp;
+      const aPartIndex = Number.isFinite(a?.partIndex) ? Math.floor(a.partIndex) : 1;
+      const bPartIndex = Number.isFinite(b?.partIndex) ? Math.floor(b.partIndex) : 1;
+      if (aPartIndex !== bPartIndex) return aPartIndex - bPartIndex;
+      const aPartTotal = Number.isFinite(a?.partTotal) ? Math.floor(a.partTotal) : 1;
+      const bPartTotal = Number.isFinite(b?.partTotal) ? Math.floor(b.partTotal) : 1;
+      return aPartTotal - bPartTotal;
+    })
+    .map((workItem, index) => ({
+      mergeIndex: index + 1,
+      subsetId: resolveShardSubsetId(workItem),
+      shardId: workItem?.shard?.id || null,
+      partIndex: Number.isFinite(workItem?.partIndex) ? Math.floor(workItem.partIndex) : 1,
+      partTotal: Number.isFinite(workItem?.partTotal) ? Math.floor(workItem.partTotal) : 1,
+      firstOrderIndex: resolveShardSubsetMinOrderIndex(workItem),
+      fileCount: Array.isArray(workItem?.entries) ? workItem.entries.length : 0
+    }));
+};
+
+export const resolveClusterSubsetRetryConfig = (runtime) => {
+  const clusterConfig = runtime?.shards?.cluster && typeof runtime.shards.cluster === 'object'
+    ? runtime.shards.cluster
+    : {};
+  const maxSubsetRetries = Number.isFinite(Number(clusterConfig.maxSubsetRetries))
+    ? Math.max(0, Math.floor(Number(clusterConfig.maxSubsetRetries)))
+    : (clusterConfig.enabled === true ? 1 : 0);
+  const retryDelayMs = Number.isFinite(Number(clusterConfig.retryDelayMs))
+    ? Math.max(0, Math.floor(Number(clusterConfig.retryDelayMs)))
+    : 250;
+  return {
+    enabled: maxSubsetRetries > 0,
+    maxSubsetRetries,
+    retryDelayMs
+  };
+};
+
+export const runShardSubsetsWithRetry = async ({
+  workItems,
+  executeWorkItem,
+  maxSubsetRetries = 0,
+  retryDelayMs = 0,
+  onRetry = null,
+  isRetryableError = null
+} = {}) => {
+  const list = Array.isArray(workItems)
+    ? workItems.filter((workItem) => workItem && typeof workItem === 'object')
+    : [];
+  if (typeof executeWorkItem !== 'function') {
+    throw new TypeError('executeWorkItem must be a function');
+  }
+  const normalizedMaxRetries = Number.isFinite(Number(maxSubsetRetries))
+    ? Math.max(0, Math.floor(Number(maxSubsetRetries)))
+    : 0;
+  const normalizedRetryDelayMs = Number.isFinite(Number(retryDelayMs))
+    ? Math.max(0, Math.floor(Number(retryDelayMs)))
+    : 0;
+  const maxAttempts = normalizedMaxRetries + 1;
+  const attemptsBySubset = new Map();
+  const retriedSubsetIds = new Set();
+  const recoveredSubsetIds = new Set();
+  for (const workItem of list) {
+    const subsetId = resolveShardSubsetId(workItem);
+    let attempt = 0;
+    while (true) {
+      attempt += 1;
+      attemptsBySubset.set(subsetId, attempt);
+      try {
+        await executeWorkItem(workItem, {
+          subsetId,
+          attempt,
+          maxAttempts,
+          isRetry: attempt > 1
+        });
+        if (attempt > 1) recoveredSubsetIds.add(subsetId);
+        break;
+      } catch (err) {
+        const retryable = typeof isRetryableError === 'function'
+          ? isRetryableError(err)
+          : err?.retryable !== false;
+        const hasAttemptsLeft = attempt < maxAttempts;
+        if (!retryable || !hasAttemptsLeft) {
+          if (err && typeof err === 'object') {
+            if (!('shardSubsetId' in err)) err.shardSubsetId = subsetId;
+            err.shardSubsetAttempt = attempt;
+            err.shardSubsetMaxAttempts = maxAttempts;
+          }
+          throw err;
+        }
+        retriedSubsetIds.add(subsetId);
+        if (typeof onRetry === 'function') {
+          await onRetry({
+            workItem,
+            subsetId,
+            attempt,
+            maxAttempts,
+            error: err
+          });
+        }
+        if (normalizedRetryDelayMs > 0) {
+          await new Promise((resolve) => setTimeout(resolve, normalizedRetryDelayMs));
+        }
+      }
+    }
+  }
+  return {
+    attemptsBySubset: Object.fromEntries(attemptsBySubset.entries()),
+    retriedSubsetIds: Array.from(retriedSubsetIds),
+    recoveredSubsetIds: Array.from(recoveredSubsetIds)
+  };
+};
+
 const resolveExtractedProseLowYieldBailoutConfig = (runtime) => {
   const extractedProseConfig = runtime?.indexingConfig?.extractedProse
     && typeof runtime.indexingConfig.extractedProse === 'object'
@@ -1128,6 +1278,7 @@ export const processFiles = async ({
       tokenizationStats: null,
       shardSummary: null,
       shardPlan: [],
+      shardExecution: null,
       postingsQueueStats: null,
       stageElided: true
     };
@@ -1507,6 +1658,21 @@ export const processFiles = async ({
       : (fn) => fn();
     let checkpoint = null;
     let progress = null;
+    const completedOrderIndexes = new Set();
+    const markOrderedEntryComplete = (orderIndex, shardProgress = null) => {
+      if (!progress || typeof progress.tick !== 'function') return false;
+      if (Number.isFinite(orderIndex)) {
+        const normalizedOrderIndex = Math.floor(orderIndex);
+        if (completedOrderIndexes.has(normalizedOrderIndex)) return false;
+        completedOrderIndexes.add(normalizedOrderIndex);
+      }
+      progress.tick();
+      if (shardProgress) {
+        shardProgress.count += 1;
+        showProgress('Shard', shardProgress.count, shardProgress.total, shardProgress.meta);
+      }
+      return true;
+    };
     const startOrderIndex = (() => {
       let minIndex = null;
       for (const entry of entries || []) {
@@ -2485,11 +2651,7 @@ export const processFiles = async ({
                     }
                   );
                 }
-                progress.tick();
-                if (shardProgress) {
-                  shardProgress.count += 1;
-                  showProgress('Shard', shardProgress.count, shardProgress.total, shardProgress.meta);
-                }
+                markOrderedEntryComplete(orderIndex, shardProgress);
                 if (!result) {
                   if (entry?.rel) lifecycleByRelKey.delete(entry.rel);
                   if (Number.isFinite(orderIndex)) {
@@ -2582,6 +2744,7 @@ export const processFiles = async ({
                     shardId: shardMeta?.id || null
                   }
                 );
+                markOrderedEntryComplete(orderIndex, shardProgress);
                 if (entry?.rel) lifecycleByRelKey.delete(entry.rel);
                 if (Number.isFinite(orderIndex)) {
                   lifecycleByOrderIndex.delete(Math.floor(orderIndex));
@@ -2602,15 +2765,20 @@ export const processFiles = async ({
       try {
         await runEntryBatch(shardEntries);
       } catch (err) {
-      // If the shard processing fails before a contiguous `orderIndex` is
-      // enqueued, later tasks may be blocked waiting for an ordered flush.
-      // Abort rejects any waiting promises to prevent hangs/leaks.
-        orderedAppender.abort(err);
+        const retryEnabled = shardMeta?.allowRetry === true;
+        if (!retryEnabled) {
+          // If the shard processing fails before a contiguous `orderIndex` is
+          // enqueued, later tasks may be blocked waiting for an ordered flush.
+          // Abort rejects any waiting promises to prevent hangs/leaks.
+          orderedAppender.abort(err);
+        }
         throw err;
       }
     };
 
     const discoveryLineCounts = discovery?.lineCounts instanceof Map ? discovery.lineCounts : null;
+    const clusterModeEnabled = runtime.shards?.cluster?.enabled === true;
+    const clusterDeterministicMerge = runtime.shards?.cluster?.deterministicMerge !== false;
     let lineCounts = discoveryLineCounts;
     if (runtime.shards?.enabled && !lineCounts) {
       const hasEntryLines = entries.some((entry) => Number.isFinite(entry?.lines) && entry.lines > 0);
@@ -2644,7 +2812,7 @@ export const processFiles = async ({
         maxShardLines: runtime.shards.maxShardLines
       })
       : null;
-    const shardSummary = shardPlan
+    let shardSummary = shardPlan
       ? shardPlan.map((shard) => ({
         id: shard.id,
         label: shard.label || shard.id,
@@ -2656,12 +2824,31 @@ export const processFiles = async ({
         costMs: shard.costMs || 0
       }))
       : [];
-    if (incrementalState?.manifest) {
-      const updatedAt = new Date().toISOString();
-      incrementalState.manifest.shards = runtime.shards?.enabled
-        ? { enabled: true, updatedAt, plan: shardSummary }
-        : { enabled: false, updatedAt };
-    }
+    const clusterRetryConfig = resolveClusterSubsetRetryConfig(runtime);
+    let shardExecutionMeta = runtime.shards?.enabled
+      ? {
+        enabled: true,
+        mode: clusterModeEnabled ? 'cluster' : 'local',
+        mergeOrder: clusterDeterministicMerge ? 'stable' : 'adaptive',
+        deterministicMerge: clusterDeterministicMerge,
+        shardCount: Array.isArray(shardPlan) ? shardPlan.length : 0,
+        subsetCount: 0,
+        workerCount: 1,
+        workers: [],
+        mergeOrderCount: 0,
+        mergeOrderPreview: [],
+        mergeOrderTail: [],
+        retry: {
+          enabled: false,
+          maxSubsetRetries: 0,
+          retryDelayMs: 0,
+          attemptedSubsets: 0,
+          retriedSubsets: 0,
+          recoveredSubsets: 0,
+          failedSubsets: 0
+        }
+      }
+      : { enabled: false };
     const checkpointBatchSize = resolveCheckpointBatchSize(entries.length, shardPlan);
     checkpoint = createBuildCheckpoint({
       buildRoot: runtime.buildRoot,
@@ -2693,6 +2880,9 @@ export const processFiles = async ({
     }
     if (shardPlan && shardPlan.length > 1) {
       const shardExecutionPlan = [...shardPlan].sort((a, b) => {
+        if (clusterModeEnabled && clusterDeterministicMerge) {
+          return compareStrings(a.id, b.id);
+        }
         const costDelta = (b.costMs || 0) - (a.costMs || 0);
         if (costDelta !== 0) return costDelta;
         const lineDelta = (b.lineCount || 0) - (a.lineCount || 0);
@@ -2702,6 +2892,9 @@ export const processFiles = async ({
         return compareStrings(a.label || a.id, b.label || b.id);
       });
       const shardIndexById = new Map(
+        shardExecutionPlan.map((shard, index) => [shard.id, index + 1])
+      );
+      const shardExecutionOrderById = new Map(
         shardExecutionPlan.map((shard, index) => [shard.id, index + 1])
       );
       const totalFiles = shardPlan.reduce((sum, shard) => sum + shard.entries.length, 0);
@@ -2782,14 +2975,37 @@ export const processFiles = async ({
         }
         return work;
       };
-      const shardWorkPlan = buildShardWorkPlan();
+      const shardWorkPlan = buildShardWorkPlan().map((workItem) => ({
+        ...workItem,
+        subsetId: resolveShardSubsetId(workItem)
+      }));
+      const shardMergePlan = buildDeterministicShardMergePlan(shardWorkPlan);
+      const mergeOrderBySubsetId = new Map(
+        shardMergePlan.map((entry) => [entry.subsetId, entry.mergeIndex])
+      );
+      const mergeOrderByShardId = new Map();
+      for (const entry of shardMergePlan) {
+        const shardId = entry?.shardId;
+        if (!shardId || mergeOrderByShardId.has(shardId)) continue;
+        mergeOrderByShardId.set(shardId, entry.mergeIndex);
+      }
+      for (const workItem of shardWorkPlan) {
+        workItem.mergeIndex = mergeOrderBySubsetId.get(workItem.subsetId) || null;
+      }
+      shardSummary = shardSummary.map((summary) => ({
+        ...summary,
+        executionOrder: shardExecutionOrderById.get(summary.id) || null,
+        mergeOrder: mergeOrderByShardId.get(summary.id) || null
+      }));
       let defaultShardConcurrency = Math.max(
         1,
         Math.min(32, runtime.fileConcurrency, runtime.cpuConcurrency)
       );
-      let shardConcurrency = Number.isFinite(runtime.shards.maxWorkers)
-        ? Math.max(1, Math.floor(runtime.shards.maxWorkers))
-        : defaultShardConcurrency;
+      let shardConcurrency = Number.isFinite(runtime.shards?.cluster?.workerCount)
+        ? Math.max(1, Math.floor(runtime.shards.cluster.workerCount))
+        : (Number.isFinite(runtime.shards.maxWorkers)
+          ? Math.max(1, Math.floor(runtime.shards.maxWorkers))
+          : defaultShardConcurrency);
       shardConcurrency = Math.min(shardConcurrency, runtime.fileConcurrency);
       let shardBatches = planShardBatches(shardWorkPlan, shardConcurrency, {
         resolveWeight: (workItem) => Number.isFinite(workItem.predictedCostMs)
@@ -2801,21 +3017,16 @@ export const processFiles = async ({
           return `${shardId}:${part}`;
         }
       });
-      const resolveWorkItemMinOrderIndex = (workItem) => {
-        const list = Array.isArray(workItem?.entries) ? workItem.entries : [];
-        let minIndex = null;
-        for (let i = 0; i < list.length; i += 1) {
-          const value = resolveEntryOrderIndex(list[i], null);
-          if (!Number.isFinite(value)) continue;
-          minIndex = minIndex == null ? value : Math.min(minIndex, value);
-        }
-        return Number.isFinite(minIndex) ? minIndex : Number.MAX_SAFE_INTEGER;
-      };
       if (shardBatches.length) {
         shardBatches = shardBatches.map((batch) => [...batch].sort((a, b) => {
-          const aMin = resolveWorkItemMinOrderIndex(a);
-          const bMin = resolveWorkItemMinOrderIndex(b);
-          if (aMin !== bMin) return aMin - bMin;
+          const aMin = resolveShardSubsetMinOrderIndex(a);
+          const bMin = resolveShardSubsetMinOrderIndex(b);
+          const aOrder = Number.isFinite(aMin) ? aMin : Number.MAX_SAFE_INTEGER;
+          const bOrder = Number.isFinite(bMin) ? bMin : Number.MAX_SAFE_INTEGER;
+          if (aOrder !== bOrder) return aOrder - bOrder;
+          const aMerge = Number.isFinite(a?.mergeIndex) ? a.mergeIndex : Number.MAX_SAFE_INTEGER;
+          const bMerge = Number.isFinite(b?.mergeIndex) ? b.mergeIndex : Number.MAX_SAFE_INTEGER;
+          if (aMerge !== bMerge) return aMerge - bMerge;
           const aShard = a?.shard?.id || a?.shard?.label || '';
           const bShard = b?.shard?.id || b?.shard?.label || '';
           return compareStrings(aShard, bShard);
@@ -2837,64 +3048,250 @@ export const processFiles = async ({
         1,
         Math.min(perShardFileConcurrency, Math.floor(baseEmbedConcurrency / shardConcurrency))
       );
-      log(`→ Sharding enabled: ${shardPlan.length} shards (concurrency=${shardConcurrency}, per-shard files=${perShardFileConcurrency}).`);
-      const runShardWorker = async (batch) => {
+      const shardModeLabel = clusterModeEnabled ? 'cluster' : 'local';
+      const mergeModeLabel = clusterDeterministicMerge ? 'stable' : 'adaptive';
+      const clusterRetryEnabled = clusterModeEnabled && clusterRetryConfig.enabled;
+      const retryStats = {
+        retriedSubsetIds: new Set(),
+        recoveredSubsetIds: new Set(),
+        failedSubsetIds: new Set()
+      };
+      log(
+        `→ Sharding enabled: ${shardPlan.length} shards ` +
+        `(mode=${shardModeLabel}, merge=${mergeModeLabel}, concurrency=${shardConcurrency}, ` +
+        `per-shard files=${perShardFileConcurrency}, subset-retry=${clusterRetryEnabled
+          ? `${clusterRetryConfig.maxSubsetRetries}x@${clusterRetryConfig.retryDelayMs}ms`
+          : 'off'}).`
+      );
+      const mergeOrderIds = shardMergePlan.map((entry) => entry.subsetId);
+      if (clusterModeEnabled) {
+        const preview = mergeOrderIds.slice(0, 12).join(', ');
+        const overflow = mergeOrderIds.length > 12
+          ? ` … (+${mergeOrderIds.length - 12} more)`
+          : '';
+        log(`[shards] deterministic merge order (${mergeModeLabel}): ${preview || 'none'}${overflow}`);
+      }
+      const workerContexts = shardBatches.map((batch, workerIndex) => ({
+        workerId: `${shardModeLabel}-worker-${String(workerIndex + 1).padStart(2, '0')}`,
+        workerIndex: workerIndex + 1,
+        batch,
+        subsetCount: batch.length
+      }));
+      const runShardWorker = async (workerContext) => {
+        const { workerId, workerIndex, batch } = workerContext;
         const shardRuntime = createShardRuntime(runtime, {
           fileConcurrency: perShardFileConcurrency,
           importConcurrency: perShardImportConcurrency,
           embeddingConcurrency: perShardEmbeddingConcurrency
         });
-        try {
-          for (const workItem of batch) {
-            const {
-              shard,
-              entries: shardEntries,
-              partIndex,
-              partTotal,
-              shardIndex,
-              shardTotal
-            } = workItem;
-            const shardLabel = shard.label || shard.id;
-            let shardBracket = shardLabel === shard.id ? null : shard.id;
-            if (partTotal > 1) {
-              const partLabel = `part ${partIndex}/${partTotal}`;
-              shardBracket = shardBracket ? `${shardBracket} ${partLabel}` : partLabel;
-            }
-            const shardDisplay = shardLabel + (shardBracket ? ` [${shardBracket}]` : '');
-            log(
-              `→ Shard ${shardIndex}/${shardTotal}: ${shardDisplay} (${shardEntries.length} files)`,
-              {
-                shardId: shard.id,
-                shardIndex,
-                shardTotal,
-                partIndex,
-                partTotal,
-                fileCount: shardEntries.length
-              }
-            );
-            await processEntries({
-              entries: shardEntries,
-              runtime: shardRuntime,
-              shardMeta: {
-                ...shard,
-                partIndex,
-                partTotal,
-                shardIndex,
-                shardTotal,
-                display: shardDisplay
-              },
-              stateRef: state
-            });
+        shardRuntime.clusterWorker = {
+          id: workerId,
+          index: workerIndex,
+          mode: shardModeLabel
+        };
+        logLine(
+          `[shards] worker ${workerId} starting (${batch.length} subset${batch.length === 1 ? '' : 's'})`,
+          {
+            kind: 'status',
+            mode,
+            stage: 'processing',
+            shardWorkerId: workerId,
+            shardWorkerIndex: workerIndex,
+            shardWorkerSubsetCount: batch.length
           }
+        );
+        try {
+          const retryResult = await runShardSubsetsWithRetry({
+            workItems: batch,
+            executeWorkItem: async (workItem, retryContext) => {
+              const {
+                shard,
+                entries: shardEntries,
+                partIndex,
+                partTotal,
+                shardIndex,
+                shardTotal,
+                subsetId,
+                mergeIndex
+              } = workItem;
+              const shardLabel = shard.label || shard.id;
+              let shardBracket = shardLabel === shard.id ? null : shard.id;
+              if (partTotal > 1) {
+                const partLabel = `part ${partIndex}/${partTotal}`;
+                shardBracket = shardBracket ? `${shardBracket} ${partLabel}` : partLabel;
+              }
+              const shardDisplay = shardLabel + (shardBracket ? ` [${shardBracket}]` : '');
+              log(
+                `→ Shard ${shardIndex}/${shardTotal}: ${shardDisplay} (${shardEntries.length} files)` +
+                ` [worker=${workerId} subset=${subsetId} merge=${mergeIndex ?? '?'} ` +
+                `attempt=${retryContext.attempt}/${retryContext.maxAttempts}]`,
+                {
+                  shardId: shard.id,
+                  shardIndex,
+                  shardTotal,
+                  partIndex,
+                  partTotal,
+                  fileCount: shardEntries.length,
+                  shardWorkerId: workerId,
+                  shardSubsetId: subsetId,
+                  shardSubsetMergeOrder: mergeIndex ?? null,
+                  shardSubsetAttempt: retryContext.attempt,
+                  shardSubsetMaxAttempts: retryContext.maxAttempts
+                }
+              );
+              await processEntries({
+                entries: shardEntries,
+                runtime: shardRuntime,
+                shardMeta: {
+                  ...shard,
+                  partIndex,
+                  partTotal,
+                  shardIndex,
+                  shardTotal,
+                  display: shardDisplay,
+                  subsetId,
+                  workerId,
+                  mergeIndex,
+                  attempt: retryContext.attempt,
+                  maxAttempts: retryContext.maxAttempts,
+                  allowRetry: clusterRetryEnabled
+                },
+                stateRef: state
+              });
+            },
+            maxSubsetRetries: clusterRetryEnabled ? clusterRetryConfig.maxSubsetRetries : 0,
+            retryDelayMs: clusterRetryEnabled ? clusterRetryConfig.retryDelayMs : 0,
+            onRetry: ({ subsetId, attempt, maxAttempts, error }) => {
+              logLine(
+                `[shards] retrying subset ${subsetId} ` +
+                `(attempt ${attempt + 1}/${maxAttempts}): ${error?.message || error}`,
+                {
+                  kind: 'warning',
+                  mode,
+                  stage: 'processing',
+                  shardWorkerId: workerId,
+                  shardSubsetId: subsetId,
+                  shardSubsetAttempt: attempt,
+                  shardSubsetMaxAttempts: maxAttempts,
+                  shardSubsetRetrying: true
+                }
+              );
+            }
+          });
+          for (const subsetId of retryResult.retriedSubsetIds || []) {
+            retryStats.retriedSubsetIds.add(subsetId);
+          }
+          for (const subsetId of retryResult.recoveredSubsetIds || []) {
+            retryStats.recoveredSubsetIds.add(subsetId);
+          }
+          logLine(
+            `[shards] worker ${workerId} complete (${batch.length} subset${batch.length === 1 ? '' : 's'})`,
+            {
+              kind: 'status',
+              mode,
+              stage: 'processing',
+              shardWorkerId: workerId,
+              shardWorkerIndex: workerIndex,
+              shardWorkerSubsetCount: batch.length
+            }
+          );
         } finally {
           await shardRuntime.destroy?.();
         }
       };
-      await Promise.all(
-        shardBatches.map((batch) => runShardWorker(batch))
+      const workerResults = await Promise.allSettled(
+        workerContexts.map((workerContext) => runShardWorker(workerContext))
       );
+      const workerFailures = workerResults
+        .filter((result) => result.status === 'rejected')
+        .map((result) => result.reason);
+      for (const failure of workerFailures) {
+        const subsetId = failure?.shardSubsetId;
+        if (subsetId) retryStats.failedSubsetIds.add(subsetId);
+      }
+      if (workerFailures.length) {
+        const firstFailure = workerFailures[0] || new Error('shard worker failed');
+        orderedAppender.abort(firstFailure);
+        throw firstFailure;
+      }
+      shardExecutionMeta = {
+        enabled: true,
+        mode: shardModeLabel,
+        mergeOrder: mergeModeLabel,
+        deterministicMerge: clusterDeterministicMerge,
+        shardCount: shardPlan.length,
+        subsetCount: shardWorkPlan.length,
+        workerCount: workerContexts.length,
+        workers: workerContexts.map((workerContext) => ({
+          workerId: workerContext.workerId,
+          subsetCount: workerContext.subsetCount,
+          subsetIds: workerContext.batch.map((workItem) => workItem.subsetId)
+        })),
+        mergeOrderCount: mergeOrderIds.length,
+        mergeOrderPreview: mergeOrderIds.slice(0, 64),
+        mergeOrderTail: mergeOrderIds.length > 64
+          ? mergeOrderIds.slice(-8)
+          : [],
+        retry: {
+          enabled: clusterRetryEnabled,
+          maxSubsetRetries: clusterRetryEnabled ? clusterRetryConfig.maxSubsetRetries : 0,
+          retryDelayMs: clusterRetryEnabled ? clusterRetryConfig.retryDelayMs : 0,
+          attemptedSubsets: shardWorkPlan.length,
+          retriedSubsets: retryStats.retriedSubsetIds.size,
+          recoveredSubsets: retryStats.recoveredSubsetIds.size,
+          failedSubsets: retryStats.failedSubsetIds.size
+        }
+      };
     } else {
       await processEntries({ entries, runtime, stateRef: state });
+      if (runtime.shards?.enabled) {
+        shardSummary = shardSummary.map((summary, index) => ({
+          ...summary,
+          executionOrder: index + 1,
+          mergeOrder: index + 1
+        }));
+        const defaultSubsetId = shardSummary[0]?.id
+          ? `${normalizeOwnershipSegment(shardSummary[0].id, 'unknown')}#0001/0001`
+          : null;
+        shardExecutionMeta = {
+          ...shardExecutionMeta,
+          shardCount: shardSummary.length,
+          subsetCount: shardSummary.length,
+          workerCount: 1,
+          workers: [{
+            workerId: `${clusterModeEnabled ? 'cluster' : 'local'}-worker-01`,
+            subsetCount: shardSummary.length,
+            subsetIds: defaultSubsetId ? [defaultSubsetId] : []
+          }],
+          mergeOrderCount: defaultSubsetId ? 1 : 0,
+          mergeOrderPreview: defaultSubsetId ? [defaultSubsetId] : [],
+          mergeOrderTail: [],
+          retry: {
+            enabled: false,
+            maxSubsetRetries: 0,
+            retryDelayMs: 0,
+            attemptedSubsets: shardSummary.length,
+            retriedSubsets: 0,
+            recoveredSubsets: 0,
+            failedSubsets: 0
+          }
+        };
+      }
+    }
+    if (incrementalState?.manifest) {
+      const updatedAt = new Date().toISOString();
+      incrementalState.manifest.shards = runtime.shards?.enabled
+        ? {
+          enabled: true,
+          updatedAt,
+          mode: shardExecutionMeta?.mode || null,
+          mergeOrder: shardExecutionMeta?.mergeOrder || null,
+          deterministicMerge: shardExecutionMeta?.deterministicMerge ?? null,
+          workerCount: shardExecutionMeta?.workerCount ?? null,
+          retry: shardExecutionMeta?.retry || null,
+          plan: shardSummary
+        }
+        : { enabled: false, updatedAt };
     }
     showProgress('Files', progress.total, progress.total, { stage: 'processing', mode });
     checkpoint.finish();
@@ -2927,6 +3324,7 @@ export const processFiles = async ({
     if (timing && typeof timing === 'object') {
       timing.stageTimingBreakdown = stageTimingBreakdownPayload;
       timing.extractedProseLowYieldBailout = extractedProseLowYieldSummary;
+      timing.shards = shardExecutionMeta;
       timing.watchdog = {
         ...(timing.watchdog && typeof timing.watchdog === 'object' ? timing.watchdog : {}),
         queueDelayMs: stageTimingBreakdownPayload?.watchdog?.queueDelayMs || null,
@@ -2943,6 +3341,7 @@ export const processFiles = async ({
     }
     if (state && typeof state === 'object') {
       state.extractedProseLowYieldBailout = extractedProseLowYieldSummary;
+      state.shardExecution = shardExecutionMeta;
     }
     const parseSkipCount = state.skippedFiles.filter((entry) => entry?.reason === 'parse-error').length;
     const relationSkipCount = state.skippedFiles.filter((entry) => entry?.reason === 'relation-error').length;
@@ -2965,6 +3364,7 @@ export const processFiles = async ({
       tokenizationStats,
       shardSummary,
       shardPlan,
+      shardExecution: shardExecutionMeta,
       postingsQueueStats,
       extractedProseLowYieldBailout: extractedProseLowYieldSummary
     };

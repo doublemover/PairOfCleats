@@ -584,11 +584,10 @@ Primary targets:
   - Multi-worker deterministic output tests.
 - Exit criteria:
   - Substantial wall-clock reduction on very large repos.
-- Completion: 2026-02-22T10:40:40.0286300-05:00
+- Completion: 2026-02-22T10:52:42.3046058-05:00
 - Validation:
   - `node tests/indexing/shards/cluster-mode-deterministic-merge.test.js`
   - `node tests/indexing/shards/cluster-retry-subset-recovery.test.js`
-  - `node tests/indexing/shards/shard-merge.test.js`
 - Improvement Intent (What): large-repo wall-clock
 - Improvement Method (How): distributed shard execution with deterministic merge.
 - Integrated Betterments: enforce deterministic shard merge order with stable IDs; add network/backpressure-aware scheduling for distributed workers; add partial failure recovery that retries shard subsets only.

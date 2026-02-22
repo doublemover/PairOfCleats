@@ -43,14 +43,46 @@ export const buildFileScanConfig = (indexingConfig) => {
 
 export const buildShardConfig = (indexingConfig) => {
   const shardsConfig = indexingConfig.shards || {};
+  const shardsClusterConfig = shardsConfig.cluster && typeof shardsConfig.cluster === 'object'
+    ? shardsConfig.cluster
+    : {};
+  const topLevelClusterConfig = indexingConfig.clusterMode && typeof indexingConfig.clusterMode === 'object'
+    ? indexingConfig.clusterMode
+    : {};
+  const clusterConfig = {
+    ...shardsClusterConfig,
+    ...topLevelClusterConfig
+  };
+  const normalizeNonNegativeInt = (value, fallback) => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed < 0) return fallback;
+    return Math.floor(parsed);
+  };
+  const clusterEnabled = clusterConfig.enabled === true;
+  const clusterWorkerCount = normalizeLimit(clusterConfig.workerCount, null);
+  const clusterDeterministicMerge = clusterConfig.deterministicMerge !== false;
+  const clusterMaxSubsetRetries = normalizeNonNegativeInt(
+    clusterConfig.maxSubsetRetries,
+    clusterEnabled ? 1 : 0
+  );
+  const clusterRetryDelayMs = normalizeNonNegativeInt(clusterConfig.retryDelayMs, 250);
+  const enabled = shardsConfig.enabled === true || clusterEnabled;
   return {
-    enabled: shardsConfig.enabled === true,
+    enabled,
     maxWorkers: normalizeLimit(shardsConfig.maxWorkers, null),
     maxShards: normalizeLimit(shardsConfig.maxShards, null),
     minFiles: normalizeLimit(shardsConfig.minFiles, null),
     dirDepth: normalizeDepth(shardsConfig.dirDepth, 0),
     maxShardBytes: normalizeLimit(shardsConfig.maxShardBytes, 64 * 1024 * 1024),
-    maxShardLines: normalizeLimit(shardsConfig.maxShardLines, 200000)
+    maxShardLines: normalizeLimit(shardsConfig.maxShardLines, 200000),
+    cluster: {
+      enabled: clusterEnabled,
+      workerCount: clusterWorkerCount,
+      deterministicMerge: clusterDeterministicMerge,
+      mergeOrder: clusterDeterministicMerge ? 'stable' : 'adaptive',
+      maxSubsetRetries: clusterMaxSubsetRetries,
+      retryDelayMs: clusterRetryDelayMs
+    }
   };
 };
 
