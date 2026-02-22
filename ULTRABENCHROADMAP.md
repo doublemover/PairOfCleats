@@ -514,7 +514,7 @@ Primary targets:
 - Touchpoints: `src/index/build/indexer/steps/process-files.js`, `src/shared/subprocess.js`, `tools/tui/supervisor.js`, `tests/indexing/stage1/process-files-progress-heartbeat.test.js`, `tests/runner/harness/watchdog-kills-tree.test.js`, `tests/shared/subprocess/abort-kills-child.test.js`
 
 ### UB-052: Run report synthesis tool
-- Status: [ ]
+- Status: [x]
 - Problem:
   - Manual log triage is too expensive.
 - Tasks:
@@ -528,10 +528,16 @@ Primary targets:
   - CLI snapshot tests on fixture run-logs.
 - Exit criteria:
   - One command yields comprehensive triage.
+- Completion: 2026-02-22T09:01:20.7833972-05:00
+- Validation:
+  - `node tests/tooling/reports/bench-language-summarize.test.js`
+  - `node tests/tooling/reports/show-throughput-ignore-usr.test.js`
+  - `node tests/tooling/reports/show-throughput-language-normalization.test.js`
+  - `node tests/tooling/reports/summary/summary-report.test.js`
 - Improvement Intent (What): triage velocity
 - Improvement Method (How): one-command run synthesis with prioritized regressions.
 - Integrated Betterments: support baseline-vs-current diff mode with significance thresholds; include auto-prioritized remediation candidates in summary output; add machine-readable output for CI gating and trend dashboards.
-- Touchpoints: `tools/bench/language/report.js`, `tools/bench/language/metrics.js`, `tools/bench/language/process.js`, `tools/reports/show-throughput.js`, `tests/tooling/reports/summary/summary-report.test.js`, `tests/tooling/reports/show-throughput-ignore-usr.test.js`
+- Touchpoints: `tools/bench/language-summarize.js`, `tools/bench/language/report.js`, `tools/reports/show-throughput.js`, `package.json`, `tests/tooling/reports/bench-language-summarize.test.js`, `tests/tooling/reports/summary/summary-report.test.js`, `tests/tooling/reports/show-throughput-ignore-usr.test.js`, `tests/tooling/reports/show-throughput-language-normalization.test.js`
 
 ## Phase 6: Large, Sweeping Improvements (High Leverage)
 

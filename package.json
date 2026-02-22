@@ -72,6 +72,7 @@
     "bench-micro": "node tools/bench/micro/run.js",
     "bench-micro:tiny": "node tools/bench/micro/tinybench.js",
     "bench-language": "node tools/bench/language-repos.js",
+    "bench-language:summarize": "node tools/bench/language-summarize.js",
     "bench-language:matrix": "node tools/bench/language-matrix.js",
     "bench-queries": "node tools/bench/query-generator.js",
     "show-throughput": "node tools/reports/show-throughput.js",
