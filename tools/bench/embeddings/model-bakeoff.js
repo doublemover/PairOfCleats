@@ -360,7 +360,7 @@ const datasetPath = argv.dataset
   ? path.resolve(normalizeWrappedCliValue(argv.dataset))
   : (positionalDatasetArg
     ? path.resolve(positionalDatasetArg)
-    : path.join(root, 'tests', 'fixtures', 'sample', 'eval.json'));
+    : path.join(root, 'tests', 'fixtures', 'eval', 'triplecleat-bakeoff.json'));
 const queriesPath = argv.queries ? path.resolve(argv.queries) : null;
 
 const assertScriptExists = (scriptPath, label) => {

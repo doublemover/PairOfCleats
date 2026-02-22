@@ -33,7 +33,7 @@ Default behavior is tuned for smoke runs:
 - `--incremental` defaults to `true`
 - `--skip-compare` defaults to `true`
 - `--json` defaults to `true`
-- eval dataset defaults to `tests/fixtures/sample/eval.json` when `--dataset` is omitted
+- eval dataset defaults to `tests/fixtures/eval/triplecleat-bakeoff.json` when `--dataset` is omitted
 - `--limit` defaults to `20` (applies to eval dataset and compare query set)
 - `--heap-mb` defaults to `8192` for child build processes
 - `--embedding-sample-files` defaults to `50` per mode (deterministic sampling; unsampled chunks use zero-vector fallback)

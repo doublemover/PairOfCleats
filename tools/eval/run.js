@@ -88,6 +88,16 @@ const computeNDCG = (ranks, totalRelevant, k) => {
   return idcg ? dcg / idcg : 0;
 };
 
+const collectExpectedRanks = (hits, expectedItems, isMatchFn) => {
+  if (!Array.isArray(hits) || !Array.isArray(expectedItems) || !expectedItems.length) return [];
+  const ranks = [];
+  for (const expected of expectedItems) {
+    const index = hits.findIndex((hit) => isMatchFn(hit, expected));
+    if (index >= 0) ranks.push(index + 1);
+  }
+  return ranks;
+};
+
 const runSearch = async (query, mode) => {
   const args = ['--json', '--repo', repoRoot, '-n', String(topN)];
   if (mode && mode !== 'both') args.push('--mode', mode);
@@ -132,13 +142,8 @@ for (const entry of cases) {
   const gold = Array.isArray(entry.gold) ? entry.gold : [];
 
   const hits = await runSearch(query, mode);
-  const ranks = [];
-  const goldRanks = [];
-  hits.forEach((hit, index) => {
-    const rank = index + 1;
-    if (silver.some((exp) => isMatch(hit, exp))) ranks.push(rank);
-    if (gold.some((exp) => isMatch(hit, exp))) goldRanks.push(rank);
-  });
+  const ranks = collectExpectedRanks(hits, silver, isMatch);
+  const goldRanks = collectExpectedRanks(hits, gold, isMatch);
 
   const metrics = {
     recallAtK: Object.fromEntries(ks.map((k) => [k, computeRecallAtK(ranks, silver.length, k)])),
