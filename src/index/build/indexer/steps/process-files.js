@@ -44,6 +44,8 @@ const FILE_HARD_TIMEOUT_SLOW_MULTIPLIER = 3;
 const FILE_PROCESS_CLEANUP_TIMEOUT_DEFAULT_MS = 30000;
 const FILE_PROGRESS_HEARTBEAT_DEFAULT_MS = 30000;
 const FILE_STALL_SNAPSHOT_DEFAULT_MS = 30000;
+const FILE_STALL_ABORT_DEFAULT_MS = 10 * 60 * 1000;
+const FILE_STALL_ABORT_MIN_MS = 60 * 1000;
 const DEFAULT_POSTINGS_ROWS_PER_PENDING = 300;
 const DEFAULT_POSTINGS_BYTES_PER_PENDING = 12 * 1024 * 1024;
 const DEFAULT_POSTINGS_PENDING_SCALE = 4;
@@ -75,7 +77,8 @@ export const resolveChunkProcessingFeatureFlags = (runtime) => {
  * @returns {{
  *   track:(completion:Promise<unknown>|unknown,onSettled?:(()=>void)|null)=>Promise<unknown>|unknown,
  *   throwIfFailed:()=>void,
- *   wait:()=>Promise<void>
+ *   wait:()=>Promise<void>,
+ *   snapshot:()=>{pending:number,failed:boolean}
  * }}
  */
 export const createOrderedCompletionTracker = () => {
@@ -108,7 +111,12 @@ export const createOrderedCompletionTracker = () => {
     throwIfFailed();
   };
 
-  return { track, throwIfFailed, wait };
+  const snapshot = () => ({
+    pending: pending.size,
+    failed: Boolean(firstError)
+  });
+
+  return { track, throwIfFailed, wait, snapshot };
 };
 
 export const resolveFileWatchdogConfig = (runtime, { repoFileCount = 0 } = {}) => {
@@ -173,6 +181,20 @@ export const resolveProcessCleanupTimeoutMs = (runtime) => {
   const configured = coerceOptionalNonNegativeInt(config.cleanupTimeoutMs);
   if (configured === 0) return 0;
   return configured ?? FILE_PROCESS_CLEANUP_TIMEOUT_DEFAULT_MS;
+};
+
+export const resolveStage1StallAbortTimeoutMs = (runtime, watchdogConfig = null) => {
+  const config = runtime?.stage1Queues?.watchdog || {};
+  const configured = coerceOptionalNonNegativeInt(
+    config.stallAbortMs ?? config.stallTimeoutMs
+  );
+  if (configured === 0) return 0;
+  if (configured != null) return Math.max(FILE_STALL_ABORT_MIN_MS, configured);
+  const hardTimeoutMs = Number(watchdogConfig?.hardTimeoutMs);
+  if (Number.isFinite(hardTimeoutMs) && hardTimeoutMs > 0) {
+    return Math.max(FILE_STALL_ABORT_MIN_MS, Math.floor(hardTimeoutMs * 2));
+  }
+  return FILE_STALL_ABORT_DEFAULT_MS;
 };
 
 export const buildFileProgressHeartbeatText = ({
@@ -475,7 +497,36 @@ export const processFiles = async ({
   fileTextCache,
   abortSignal = null
 }) => {
-  throwIfAborted(abortSignal);
+  const stageAbortController = typeof AbortController === 'function'
+    ? new AbortController()
+    : null;
+  const effectiveAbortSignal = stageAbortController?.signal || abortSignal || null;
+  let detachExternalAbort = null;
+  if (stageAbortController && abortSignal && typeof abortSignal.addEventListener === 'function') {
+    const forwardAbort = () => {
+      if (effectiveAbortSignal?.aborted) return;
+      try {
+        stageAbortController.abort(abortSignal.reason);
+      } catch {
+        stageAbortController.abort();
+      }
+    };
+    abortSignal.addEventListener('abort', forwardAbort, { once: true });
+    detachExternalAbort = () => {
+      abortSignal.removeEventListener('abort', forwardAbort);
+    };
+    if (abortSignal.aborted) forwardAbort();
+  }
+  const abortProcessing = (reason = null) => {
+    if (!stageAbortController || effectiveAbortSignal?.aborted) return;
+    try {
+      stageAbortController.abort(reason || undefined);
+    } catch {
+      stageAbortController.abort();
+    }
+  };
+
+  throwIfAborted(effectiveAbortSignal);
   log('Processing and indexing files...');
   crashLogger.updatePhase('processing');
   const processStart = Date.now();
@@ -523,7 +574,7 @@ export const processFiles = async ({
       entries: plannerInput.entries,
       outDir,
       fileTextCache,
-      abortSignal,
+      abortSignal: effectiveAbortSignal,
       log
     });
     const schedStats = treeSitterScheduler?.stats ? treeSitterScheduler.stats() : null;
@@ -541,6 +592,7 @@ export const processFiles = async ({
   };
   let stallSnapshotTimer = null;
   let progressHeartbeatTimer = null;
+  let stallAbortTimer = null;
   const cleanupTimeoutMs = resolveProcessCleanupTimeoutMs(runtime);
 
   try {
@@ -739,9 +791,26 @@ export const processFiles = async ({
       ?? FILE_STALL_SNAPSHOT_DEFAULT_MS;
     const progressHeartbeatMs = coerceOptionalNonNegativeInt(stallSnapshotConfig.progressHeartbeatMs)
       ?? FILE_PROGRESS_HEARTBEAT_DEFAULT_MS;
+    let stage1StallAbortMs = 0;
+    let stage1StallAbortTriggered = false;
+    let activeOrderedCompletionTracker = null;
     let lastProgressAt = Date.now();
     let lastStallSnapshotAt = 0;
     let watchdogAdaptiveLogged = false;
+    const collectStalledFiles = (limit = 6) => (
+      Array.from(inFlightFiles.values())
+        .map((value) => toStallFileSummary(value))
+        .filter(Boolean)
+        .sort((a, b) => (b.elapsedMs || 0) - (a.elapsedMs || 0))
+        .slice(0, limit)
+    );
+    const getOrderedPendingCount = () => {
+      if (!activeOrderedCompletionTracker || typeof activeOrderedCompletionTracker.snapshot !== 'function') {
+        return 0;
+      }
+      const snapshot = activeOrderedCompletionTracker.snapshot();
+      return Number(snapshot?.pending) || 0;
+    };
     const toStallFileSummary = (entry) => {
       if (!entry || typeof entry !== 'object') return null;
       const startedAt = Number(entry.startedAt) || Date.now();
@@ -755,7 +824,8 @@ export const processFiles = async ({
     };
     const emitProcessingStallSnapshot = () => {
       if (stallSnapshotMs <= 0 || !progress) return;
-      if (progress.count >= progress.total) return;
+      const orderedPending = getOrderedPendingCount();
+      if (progress.count >= progress.total && inFlightFiles.size === 0 && orderedPending === 0) return;
       const now = Date.now();
       const idleMs = Math.max(0, now - lastProgressAt);
       if (idleMs < stallSnapshotMs) return;
@@ -767,16 +837,13 @@ export const processFiles = async ({
       const postingsSnapshot = typeof postingsQueue?.stats === 'function'
         ? postingsQueue.stats()
         : null;
-      const stalledFiles = Array.from(inFlightFiles.values())
-        .map((value) => toStallFileSummary(value))
-        .filter(Boolean)
-        .sort((a, b) => (b.elapsedMs || 0) - (a.elapsedMs || 0))
-        .slice(0, 6);
+      const stalledFiles = collectStalledFiles(6);
       const trackedSubprocesses = getTrackedSubprocessCount();
       logLine(
         `[watchdog] stall snapshot idle=${Math.round(idleMs / 1000)}s progress=${progress.count}/${progress.total} `
           + `next=${orderedSnapshot?.nextIndex ?? '?'} pending=${orderedSnapshot?.pendingCount ?? '?'} `
-          + `inFlight=${inFlightFiles.size} trackedSubprocesses=${trackedSubprocesses}`,
+          + `orderedPending=${orderedPending} inFlight=${inFlightFiles.size} `
+          + `trackedSubprocesses=${trackedSubprocesses}`,
         {
           kind: 'warning',
           mode,
@@ -785,6 +852,7 @@ export const processFiles = async ({
           progressTotal: progress.total,
           idleMs,
           orderedSnapshot,
+          orderedPending,
           postingsPending: postingsSnapshot?.pending || null,
           stalledFiles,
           trackedSubprocesses
@@ -800,17 +868,15 @@ export const processFiles = async ({
           stage: 'processing'
         });
       }
+      maybeAbortStalledProcessing();
     };
     const emitProcessingProgressHeartbeat = () => {
       if (progressHeartbeatMs <= 0 || !progress) return;
-      if (progress.count >= progress.total) return;
+      const orderedPending = getOrderedPendingCount();
+      if (progress.count >= progress.total && inFlightFiles.size === 0 && orderedPending === 0) return;
       const now = Date.now();
       const trackedSubprocesses = getTrackedSubprocessCount();
-      const oldestInFlight = Array.from(inFlightFiles.values())
-        .map((value) => toStallFileSummary(value))
-        .filter(Boolean)
-        .sort((a, b) => (b.elapsedMs || 0) - (a.elapsedMs || 0))
-        .slice(0, 3)
+      const oldestInFlight = collectStalledFiles(3)
         .map((entry) => `${entry.file || 'unknown'}@${Math.round((entry.elapsedMs || 0) / 1000)}s`);
       const oldestText = oldestInFlight.length ? ` oldest=${oldestInFlight.join(',')}` : '';
       logLine(
@@ -821,7 +887,7 @@ export const processFiles = async ({
           nowMs: now,
           inFlight: inFlightFiles.size,
           trackedSubprocesses
-        })}${oldestText}`,
+        })} orderedPending=${orderedPending}${oldestText}`,
         {
           kind: 'status',
           mode,
@@ -829,10 +895,83 @@ export const processFiles = async ({
           progressDone: progress.count,
           progressTotal: progress.total,
           inFlight: inFlightFiles.size,
+          orderedPending,
           trackedSubprocesses,
           oldestInFlight
         }
       );
+      maybeAbortStalledProcessing();
+    };
+    const maybeAbortStalledProcessing = () => {
+      if (stage1StallAbortMs <= 0 || !progress || stage1StallAbortTriggered) return;
+      const orderedPending = getOrderedPendingCount();
+      if (progress.count >= progress.total && inFlightFiles.size === 0 && orderedPending === 0) return;
+      const now = Date.now();
+      const idleMs = Math.max(0, now - lastProgressAt);
+      if (idleMs < stage1StallAbortMs) return;
+      stage1StallAbortTriggered = true;
+      const orderedSnapshot = typeof orderedAppender.snapshot === 'function'
+        ? orderedAppender.snapshot()
+        : null;
+      const stalledFiles = collectStalledFiles(6);
+      const trackedSubprocesses = getTrackedSubprocessCount();
+      const err = createTimeoutError({
+        message: `Stage1 processing stalled for ${idleMs}ms at ${progress.count}/${progress.total}`,
+        code: 'FILE_PROCESS_STALL_TIMEOUT',
+        retryable: false,
+        meta: {
+          idleMs,
+          progressDone: progress.count,
+          progressTotal: progress.total,
+          inFlight: inFlightFiles.size,
+          orderedPending,
+          trackedSubprocesses
+        }
+      });
+      logLine(
+        `[watchdog] stall-timeout idle=${Math.round(idleMs / 1000)}s progress=${progress.count}/${progress.total}; aborting stage1.`,
+        {
+          kind: 'error',
+          mode,
+          stage: 'processing',
+          code: err.code,
+          idleMs,
+          progressDone: progress.count,
+          progressTotal: progress.total,
+          inFlight: inFlightFiles.size,
+          orderedPending,
+          orderedSnapshot,
+          stalledFiles,
+          trackedSubprocesses
+        }
+      );
+      if (stalledFiles.length) {
+        const fileText = stalledFiles
+          .map((entry) => `${entry.file || 'unknown'}#${entry.orderIndex ?? '?'}@${Math.round((entry.elapsedMs || 0) / 1000)}s`)
+          .join(', ');
+        logLine(`[watchdog] stalled files: ${fileText}`, {
+          kind: 'error',
+          mode,
+          stage: 'processing'
+        });
+      }
+      orderedAppender.abort(err);
+      abortProcessing(err);
+      void terminateTrackedSubprocesses({
+        reason: 'stage1_processing_stall_timeout',
+        force: false
+      }).then((cleanup) => {
+        if (!cleanup || cleanup.attempted <= 0) return;
+        logLine(
+          `[watchdog] cleaned ${cleanup.attempted} tracked subprocess(es) after stage1 stall-timeout.`,
+          {
+            kind: 'warning',
+            mode,
+            stage: 'processing',
+            cleanup
+          }
+        );
+      }).catch(() => {});
     };
     const processEntries = async ({ entries: shardEntries, runtime: runtimeRef, shardMeta = null, stateRef }) => {
       const shardLabel = shardMeta?.label || shardMeta?.id || null;
@@ -907,9 +1046,19 @@ export const processFiles = async ({
         featureMetrics: runtimeRef.featureMetrics,
         perfEventLogger,
         buildStage: runtimeRef.stage,
-        abortSignal
+        abortSignal: effectiveAbortSignal
       });
       const fileWatchdogConfig = resolveFileWatchdogConfig(runtimeRef, { repoFileCount });
+      if (stage1StallAbortMs <= 0) {
+        stage1StallAbortMs = resolveStage1StallAbortTimeoutMs(runtimeRef, fileWatchdogConfig);
+        if (stage1StallAbortMs > 0 && !stallAbortTimer) {
+          const pollMs = Math.max(2000, Math.min(10000, Math.floor(stage1StallAbortMs / 6)));
+          stallAbortTimer = setInterval(() => {
+            maybeAbortStalledProcessing();
+          }, pollMs);
+          stallAbortTimer.unref?.();
+        }
+      }
       if (!watchdogAdaptiveLogged && Number(fileWatchdogConfig.adaptiveSlowFloorMs) > 0) {
         watchdogAdaptiveLogged = true;
         log(
@@ -920,132 +1069,67 @@ export const processFiles = async ({
       const runEntryBatch = async (batchEntries) => {
         const orderedCompletionTracker = createOrderedCompletionTracker();
         const orderedBatchEntries = sortEntriesByOrderIndex(batchEntries);
-        await runWithQueue(
-          runtimeRef.queues.cpu,
-          orderedBatchEntries,
-          async (entry, ctx) => {
-            const queueIndex = Number.isFinite(ctx?.index) ? ctx.index : null;
-            const orderIndex = resolveEntryOrderIndex(entry, queueIndex);
-            const stableFileIndex = Number.isFinite(entry?.fileIndex)
-              ? entry.fileIndex
-              : (Number.isFinite(queueIndex) ? queueIndex + 1 : null);
-            const rel = entry.rel || toPosix(path.relative(runtimeRef.root, entry.abs));
-            const watchdogStart = Date.now();
-            const fileWatchdogMs = resolveFileWatchdogMs(fileWatchdogConfig, entry);
-            const fileHardTimeoutMs = resolveFileHardTimeoutMs(fileWatchdogConfig, entry, fileWatchdogMs);
-            let watchdog = null;
-            if (Number.isFinite(orderIndex)) {
-              inFlightFiles.set(orderIndex, {
-                orderIndex,
-                file: rel,
-                fileIndex: stableFileIndex,
-                shardId: shardMeta?.id || null,
-                startedAt: Date.now()
-              });
-            }
-            if (fileWatchdogMs > 0) {
-              watchdog = setTimeout(() => {
-                const elapsedMs = Date.now() - watchdogStart;
-                const lineText = Number.isFinite(entry.lines) ? ` lines ${entry.lines}` : '';
-                logLine(`[watchdog] slow file ${stableFileIndex ?? '?'} ${rel} (${elapsedMs}ms)${lineText}`, {
-                  kind: 'file-watchdog',
-                  mode,
-                  stage: 'processing',
+        activeOrderedCompletionTracker = orderedCompletionTracker;
+        try {
+          await runWithQueue(
+            runtimeRef.queues.cpu,
+            orderedBatchEntries,
+            async (entry, ctx) => {
+              const queueIndex = Number.isFinite(ctx?.index) ? ctx.index : null;
+              const orderIndex = resolveEntryOrderIndex(entry, queueIndex);
+              const stableFileIndex = Number.isFinite(entry?.fileIndex)
+                ? entry.fileIndex
+                : (Number.isFinite(queueIndex) ? queueIndex + 1 : null);
+              const rel = entry.rel || toPosix(path.relative(runtimeRef.root, entry.abs));
+              const watchdogStart = Date.now();
+              const fileWatchdogMs = resolveFileWatchdogMs(fileWatchdogConfig, entry);
+              const fileHardTimeoutMs = resolveFileHardTimeoutMs(fileWatchdogConfig, entry, fileWatchdogMs);
+              let watchdog = null;
+              if (Number.isFinite(orderIndex)) {
+                inFlightFiles.set(orderIndex, {
+                  orderIndex,
                   file: rel,
                   fileIndex: stableFileIndex,
-                  total: progress.total,
-                  lines: entry.lines || null,
-                  durationMs: elapsedMs,
-                  thresholdMs: fileWatchdogMs
+                  shardId: shardMeta?.id || null,
+                  startedAt: Date.now()
                 });
-              }, fileWatchdogMs);
-              watchdog.unref?.();
-            }
-            if (showFileProgress) {
-              const shardText = shardLabel ? `shard ${shardLabel}` : 'shard';
-              const shardPrefix = `[${shardText}]`;
-              const countText = `${stableFileIndex ?? '?'}/${progress.total}`;
-              const lineText = Number.isFinite(entry.lines) ? `lines ${entry.lines}` : null;
-              const parts = [shardPrefix, countText, lineText, rel].filter(Boolean);
-              logLine(parts.join(' '), {
-                kind: 'file-progress',
-                mode,
-                stage: 'processing',
-                shardId: shardMeta?.id || null,
-                file: rel,
-                fileIndex: stableFileIndex,
-                total: progress.total,
-                lines: entry.lines || null
-              });
-            }
-            crashLogger.updateFile({
-              phase: 'processing',
-              mode,
-              stage: runtimeRef.stage,
-              fileIndex: stableFileIndex,
-              total: progress.total,
-              file: entry.rel,
-              size: entry.stat?.size || null,
-              shardId: shardMeta?.id || null
-            });
-            const fileCleanupScope = `stage1:file:${mode}:${stableFileIndex ?? '?'}:${rel}`;
-            try {
-              return await runWithTimeout(
-                (signal) => withTrackedSubprocessSignalScope(
-                  signal,
-                  fileCleanupScope,
-                  () => processFile(entry, stableFileIndex, { signal })
-                ),
-                {
-                  timeoutMs: fileHardTimeoutMs,
-                  errorFactory: () => createTimeoutError({
-                    message: `File processing timed out after ${fileHardTimeoutMs}ms (${rel})`,
-                    code: 'FILE_PROCESS_TIMEOUT',
-                    retryable: false,
-                    meta: {
-                      file: rel,
-                      fileIndex: stableFileIndex,
-                      timeoutMs: fileHardTimeoutMs
-                    }
-                  })
-                }
-              );
-            } catch (err) {
-              if (err?.code === 'FILE_PROCESS_TIMEOUT') {
-                logLine(
-                  `[watchdog] hard-timeout file ${stableFileIndex ?? '?'} ${rel} (${fileHardTimeoutMs}ms)`,
-                  {
-                    kind: 'warning',
+              }
+              if (fileWatchdogMs > 0) {
+                watchdog = setTimeout(() => {
+                  const elapsedMs = Date.now() - watchdogStart;
+                  const lineText = Number.isFinite(entry.lines) ? ` lines ${entry.lines}` : '';
+                  logLine(`[watchdog] slow file ${stableFileIndex ?? '?'} ${rel} (${elapsedMs}ms)${lineText}`, {
+                    kind: 'file-watchdog',
                     mode,
                     stage: 'processing',
                     file: rel,
                     fileIndex: stableFileIndex,
-                    timeoutMs: fileHardTimeoutMs,
-                    shardId: shardMeta?.id || null
-                  }
-                );
-                const cleanup = await terminateTrackedSubprocesses({
-                  reason: `stage1_file_timeout:${rel}`,
-                  force: false,
-                  scope: fileCleanupScope
-                });
-                if (cleanup?.attempted > 0) {
-                  logLine(
-                    `[watchdog] cleaned ${cleanup.attempted} tracked subprocess(es) after timeout (scoped)`,
-                    {
-                      kind: 'warning',
-                      mode,
-                      stage: 'processing',
-                      file: rel,
-                      fileIndex: stableFileIndex,
-                      timeoutMs: fileHardTimeoutMs,
-                      cleanupScope: fileCleanupScope,
-                      cleanup
-                    }
-                  );
-                }
+                    total: progress.total,
+                    lines: entry.lines || null,
+                    durationMs: elapsedMs,
+                    thresholdMs: fileWatchdogMs
+                  });
+                }, fileWatchdogMs);
+                watchdog.unref?.();
               }
-              crashLogger.logError({
+              if (showFileProgress) {
+                const shardText = shardLabel ? `shard ${shardLabel}` : 'shard';
+                const shardPrefix = `[${shardText}]`;
+                const countText = `${stableFileIndex ?? '?'}/${progress.total}`;
+                const lineText = Number.isFinite(entry.lines) ? `lines ${entry.lines}` : null;
+                const parts = [shardPrefix, countText, lineText, rel].filter(Boolean);
+                logLine(parts.join(' '), {
+                  kind: 'file-progress',
+                  mode,
+                  stage: 'processing',
+                  shardId: shardMeta?.id || null,
+                  file: rel,
+                  fileIndex: stableFileIndex,
+                  total: progress.total,
+                  lines: entry.lines || null
+                });
+              }
+              crashLogger.updateFile({
                 phase: 'processing',
                 mode,
                 stage: runtimeRef.stage,
@@ -1053,96 +1137,169 @@ export const processFiles = async ({
                 total: progress.total,
                 file: entry.rel,
                 size: entry.stat?.size || null,
-                shardId: shardMeta?.id || null,
-                message: err?.message || String(err),
-                stack: err?.stack || null
+                shardId: shardMeta?.id || null
               });
-              throw err;
-            } finally {
-              if (watchdog) {
-                clearTimeout(watchdog);
+              const fileCleanupScope = `stage1:file:${mode}:${stableFileIndex ?? '?'}:${rel}`;
+              try {
+                return await runWithTimeout(
+                  (signal) => withTrackedSubprocessSignalScope(
+                    signal,
+                    fileCleanupScope,
+                    () => processFile(entry, stableFileIndex, { signal })
+                  ),
+                  {
+                    timeoutMs: fileHardTimeoutMs,
+                    signal: effectiveAbortSignal,
+                    errorFactory: () => createTimeoutError({
+                      message: `File processing timed out after ${fileHardTimeoutMs}ms (${rel})`,
+                      code: 'FILE_PROCESS_TIMEOUT',
+                      retryable: false,
+                      meta: {
+                        file: rel,
+                        fileIndex: stableFileIndex,
+                        timeoutMs: fileHardTimeoutMs
+                      }
+                    })
+                  }
+                );
+              } catch (err) {
+                if (err?.code === 'FILE_PROCESS_TIMEOUT') {
+                  logLine(
+                    `[watchdog] hard-timeout file ${stableFileIndex ?? '?'} ${rel} (${fileHardTimeoutMs}ms)`,
+                    {
+                      kind: 'warning',
+                      mode,
+                      stage: 'processing',
+                      file: rel,
+                      fileIndex: stableFileIndex,
+                      timeoutMs: fileHardTimeoutMs,
+                      shardId: shardMeta?.id || null
+                    }
+                  );
+                  const cleanup = await terminateTrackedSubprocesses({
+                    reason: `stage1_file_timeout:${rel}`,
+                    force: false,
+                    scope: fileCleanupScope
+                  });
+                  if (cleanup?.attempted > 0) {
+                    logLine(
+                      `[watchdog] cleaned ${cleanup.attempted} tracked subprocess(es) after timeout (scoped)`,
+                      {
+                        kind: 'warning',
+                        mode,
+                        stage: 'processing',
+                        file: rel,
+                        fileIndex: stableFileIndex,
+                        timeoutMs: fileHardTimeoutMs,
+                        cleanupScope: fileCleanupScope,
+                        cleanup
+                      }
+                    );
+                  }
+                }
+                crashLogger.logError({
+                  phase: 'processing',
+                  mode,
+                  stage: runtimeRef.stage,
+                  fileIndex: stableFileIndex,
+                  total: progress.total,
+                  file: entry.rel,
+                  size: entry.stat?.size || null,
+                  shardId: shardMeta?.id || null,
+                  message: err?.message || String(err),
+                  stack: err?.stack || null
+                });
+                throw err;
+              } finally {
+                if (watchdog) {
+                  clearTimeout(watchdog);
+                }
+                if (Number.isFinite(orderIndex)) {
+                  inFlightFiles.delete(orderIndex);
+                }
               }
-              if (Number.isFinite(orderIndex)) {
-                inFlightFiles.delete(orderIndex);
-              }
-            }
-          },
-          {
-            collectResults: false,
-            signal: abortSignal,
-            onBeforeDispatch: async (ctx) => {
-              if (typeof orderedAppender.waitForCapacity === 'function') {
+            },
+            {
+              collectResults: false,
+              signal: effectiveAbortSignal,
+              onBeforeDispatch: async (ctx) => {
+                if (typeof orderedAppender.waitForCapacity === 'function') {
+                  const entryIndex = Number.isFinite(ctx?.index) ? ctx.index : 0;
+                  const entry = orderedBatchEntries[entryIndex];
+                  const orderIndex = resolveEntryOrderIndex(entry, entryIndex);
+                  const dispatchBypassWindow = Math.max(1, Math.floor(runtimeRef.fileConcurrency || 1));
+                  await orderedAppender.waitForCapacity({
+                    orderIndex,
+                    bypassWindow: dispatchBypassWindow
+                  });
+                }
+                orderedCompletionTracker.throwIfFailed();
+              },
+              onResult: async (result, ctx) => {
                 const entryIndex = Number.isFinite(ctx?.index) ? ctx.index : 0;
                 const entry = orderedBatchEntries[entryIndex];
                 const orderIndex = resolveEntryOrderIndex(entry, entryIndex);
-                const dispatchBypassWindow = Math.max(1, Math.floor(runtimeRef.fileConcurrency || 1));
-                await orderedAppender.waitForCapacity({
-                  orderIndex,
-                  bypassWindow: dispatchBypassWindow
-                });
-              }
-              orderedCompletionTracker.throwIfFailed();
-            },
-            onResult: async (result, ctx) => {
-              const entryIndex = Number.isFinite(ctx?.index) ? ctx.index : 0;
-              const entry = orderedBatchEntries[entryIndex];
-              const orderIndex = resolveEntryOrderIndex(entry, entryIndex);
-              progress.tick();
-              if (shardProgress) {
-                shardProgress.count += 1;
-                showProgress('Shard', shardProgress.count, shardProgress.total, shardProgress.meta);
-              }
-              if (!result) {
-                return orderedAppender.skip(orderIndex);
-              }
-              const reservation = sparsePostingsEnabled && postingsQueue
-                ? await (() => {
-                  const payload = estimatePostingsPayload(result);
-                  const nextOrderedIndex = typeof orderedAppender.peekNextIndex === 'function'
-                    ? orderedAppender.peekNextIndex()
-                    : null;
-                  const bypassBackpressure = shouldBypassPostingsBackpressure({
-                    orderIndex,
-                    nextOrderedIndex,
-                    bypassWindow: orderedAppenderConfig.maxPendingBeforeBackpressure
-                  });
-                  return postingsQueue.reserve({
-                    ...payload,
-                    bypass: bypassBackpressure
-                  });
-                })()
-                : { release: () => {} };
-              const completion = orderedAppender.enqueue(orderIndex, result, shardMeta);
-              orderedCompletionTracker.track(completion, () => {
-                reservation.release();
-              });
-            },
-            onError: async (err, ctx) => {
-              const entryIndex = Number.isFinite(ctx?.index) ? ctx.index : 0;
-              const entry = orderedBatchEntries[entryIndex];
-              const orderIndex = resolveEntryOrderIndex(entry, entryIndex);
-              const rel = entry?.rel || toPosix(path.relative(runtimeRef.root, entry?.abs || ''));
-              const timeoutText = err?.code === 'FILE_PROCESS_TIMEOUT' && Number.isFinite(err?.meta?.timeoutMs)
-                ? ` timeout=${err.meta.timeoutMs}ms`
-                : '';
-              logLine(
-                `[ordered] skipping failed file ${orderIndex} ${rel}${timeoutText} (${err?.message || err})`,
-                {
-                  kind: 'warning',
-                  mode,
-                  stage: 'processing',
-                  file: rel,
-                  fileIndex: entry?.fileIndex || null,
-                  shardId: shardMeta?.id || null
+                progress.tick();
+                if (shardProgress) {
+                  shardProgress.count += 1;
+                  showProgress('Shard', shardProgress.count, shardProgress.total, shardProgress.meta);
                 }
-              );
-              await orderedAppender.skip(orderIndex);
-            },
-            retries: 2,
-            retryDelayMs: 200
+                if (!result) {
+                  return orderedAppender.skip(orderIndex);
+                }
+                const reservation = sparsePostingsEnabled && postingsQueue
+                  ? await (() => {
+                    const payload = estimatePostingsPayload(result);
+                    const nextOrderedIndex = typeof orderedAppender.peekNextIndex === 'function'
+                      ? orderedAppender.peekNextIndex()
+                      : null;
+                    const bypassBackpressure = shouldBypassPostingsBackpressure({
+                      orderIndex,
+                      nextOrderedIndex,
+                      bypassWindow: orderedAppenderConfig.maxPendingBeforeBackpressure
+                    });
+                    return postingsQueue.reserve({
+                      ...payload,
+                      bypass: bypassBackpressure
+                    });
+                  })()
+                  : { release: () => {} };
+                const completion = orderedAppender.enqueue(orderIndex, result, shardMeta);
+                orderedCompletionTracker.track(completion, () => {
+                  reservation.release();
+                });
+              },
+              onError: async (err, ctx) => {
+                const entryIndex = Number.isFinite(ctx?.index) ? ctx.index : 0;
+                const entry = orderedBatchEntries[entryIndex];
+                const orderIndex = resolveEntryOrderIndex(entry, entryIndex);
+                const rel = entry?.rel || toPosix(path.relative(runtimeRef.root, entry?.abs || ''));
+                const timeoutText = err?.code === 'FILE_PROCESS_TIMEOUT' && Number.isFinite(err?.meta?.timeoutMs)
+                  ? ` timeout=${err.meta.timeoutMs}ms`
+                  : '';
+                logLine(
+                  `[ordered] skipping failed file ${orderIndex} ${rel}${timeoutText} (${err?.message || err})`,
+                  {
+                    kind: 'warning',
+                    mode,
+                    stage: 'processing',
+                    file: rel,
+                    fileIndex: entry?.fileIndex || null,
+                    shardId: shardMeta?.id || null
+                  }
+                );
+                await orderedAppender.skip(orderIndex);
+              },
+              retries: 2,
+              retryDelayMs: 200
+            }
+          );
+          await orderedCompletionTracker.wait();
+        } finally {
+          if (activeOrderedCompletionTracker === orderedCompletionTracker) {
+            activeOrderedCompletionTracker = null;
           }
-        );
-        await orderedCompletionTracker.wait();
+        }
       };
       try {
         await runEntryBatch(shardEntries);
@@ -1468,6 +1625,12 @@ export const processFiles = async ({
     }
     if (typeof progressHeartbeatTimer === 'object' && progressHeartbeatTimer) {
       clearInterval(progressHeartbeatTimer);
+    }
+    if (typeof stallAbortTimer === 'object' && stallAbortTimer) {
+      clearInterval(stallAbortTimer);
+    }
+    if (typeof detachExternalAbort === 'function') {
+      detachExternalAbort();
     }
     runtime?.telemetry?.clearInFlightBytes?.('stage1.postings-queue');
     await runCleanupWithTimeout({

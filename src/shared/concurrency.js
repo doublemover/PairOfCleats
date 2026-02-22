@@ -259,12 +259,33 @@ export async function runWithQueue(queue, items, worker, options = {}) {
     });
     void cleanup.catch(() => {});
   };
+  const waitForPendingDrainOrAbort = async () => {
+    if (!pendingSignals.size) return;
+    const pendingDrain = Promise.all(Array.from(pendingSignals));
+    if (!signal) {
+      await pendingDrain;
+      return;
+    }
+    if (signal.aborted) {
+      throw abortError;
+    }
+    let onAbort = null;
+    const aborted = new Promise((_, reject) => {
+      onAbort = () => reject(abortError);
+      signal.addEventListener('abort', onAbort, { once: true });
+    });
+    try {
+      await Promise.race([pendingDrain, aborted]);
+    } finally {
+      if (onAbort) signal.removeEventListener('abort', onAbort);
+    }
+  };
   try {
     for (let index = 0; index < list.length; index += 1) {
       await enqueue(list[index], index);
       if (aborted && !bestEffort) break;
     }
-    await Promise.all(pendingSignals);
+    await waitForPendingDrainOrAbort();
     if (signal?.aborted) throw abortError;
     if (firstError) throw firstError;
     if (bestEffort && errors.length) {
