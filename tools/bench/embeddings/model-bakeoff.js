@@ -177,6 +177,10 @@ const modelCacheRoot = (modelId) => (
 const toFixedMs = (value) => Math.round(Number(value) || 0);
 
 const shouldCapture = argv.json === true;
+const waitMs = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const isIndexLockContentionMessage = (value) => (
+  /index lock (held|unavailable)/i.test(String(value || ''))
+);
 const runNode = (args, env, label) => {
   const result = spawnSubprocessSync(process.execPath, args, {
     cwd: root,
@@ -193,6 +197,31 @@ const runNode = (args, env, label) => {
     throw new Error(`${label} failed (exit=${result.exitCode ?? 'unknown'})${suffix}`);
   }
   return result;
+};
+
+const runNodeWithLockRetry = async (
+  args,
+  env,
+  label,
+  { maxAttempts = 5, baseDelayMs = 5000 } = {}
+) => {
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return runNode(args, env, label);
+    } catch (err) {
+      const message = err?.message || String(err);
+      const retryable = isIndexLockContentionMessage(message);
+      if (!retryable || attempt >= maxAttempts) throw err;
+      const delayMs = baseDelayMs * attempt;
+      if (!argv.json) {
+        console.error(
+          `[bakeoff] ${label}: index lock contention, retrying (${attempt}/${maxAttempts}) in ${delayMs}ms`
+        );
+      }
+      await waitMs(delayMs);
+    }
+  }
+  throw new Error(`${label} failed after retries.`);
 };
 
 const runJsonNode = (args, env, label) => {
@@ -341,13 +370,13 @@ const sqliteArtifactsExist = (modelCacheRootPath, resolvedMode) => {
  * @param {{modelId:string,env:NodeJS.ProcessEnv,resolvedMode:string}} input
  * @returns {number}
  */
-const runIsolatedStage4 = ({ modelId, env, resolvedMode }) => {
+const runIsolatedStage4 = async ({ modelId, env, resolvedMode }) => {
   const stage4Modes = resolveBakeoffStage4Modes(resolvedMode);
   const startedAt = Date.now();
   for (const stageMode of stage4Modes) {
     const args = [buildIndexScript, '--stage', '4', '--repo', root, '--mode', stageMode];
     if (incremental) args.push('--incremental');
-    runNode(args, env, `build sqlite (${modelId}:${stageMode})`);
+    await runNodeWithLockRetry(args, env, `build sqlite (${modelId}:${stageMode})`);
   }
   return Date.now() - startedAt;
 };
@@ -507,19 +536,19 @@ for (const modelId of models) {
       const startedAt = Date.now();
       const stage2Args = [buildIndexScript, '--stage', '2', '--repo', root, '--mode', mode];
       if (incremental) stage2Args.push('--incremental');
-      runNode(stage2Args, env, `build stage2 (${modelId})`);
+      await runNodeWithLockRetry(stage2Args, env, `build stage2 (${modelId})`);
 
       const args = [buildIndexScript, '--stage', '3', '--repo', root, '--mode', mode];
       if (incremental) args.push('--incremental');
       if (useStubEmbeddings) args.push('--stub-embeddings');
-      runNode(args, env, `build embeddings (${modelId})`);
+      await runNodeWithLockRetry(args, env, `build embeddings (${modelId})`);
       timings.buildIndexMs = Date.now() - startedAt;
     } else if (timings.strategy === 'stage3') {
       const args = [buildIndexScript, '--stage', '3', '--repo', root, '--mode', mode];
       if (incremental) args.push('--incremental');
       if (useStubEmbeddings) args.push('--stub-embeddings');
       const startedAt = Date.now();
-      runNode(args, env, `build embeddings (${modelId})`);
+      await runNodeWithLockRetry(args, env, `build embeddings (${modelId})`);
       timings.buildIndexMs = Date.now() - startedAt;
     }
 
@@ -528,7 +557,7 @@ for (const modelId of models) {
       const hasSqliteArtifacts = sqliteArtifactsExist(env.PAIROFCLEATS_CACHE_ROOT, mode);
       const shouldRunStage4 = runStage4OnlyBuild || timings.strategy === 'full' || !hasSqliteArtifacts;
       if (shouldRunStage4) {
-        timings.buildSqliteMs = runIsolatedStage4({ modelId, env, resolvedMode: mode });
+        timings.buildSqliteMs = await runIsolatedStage4({ modelId, env, resolvedMode: mode });
       }
     }
     timings.totalBuildMs = timings.buildIndexMs + timings.buildSqliteMs;
