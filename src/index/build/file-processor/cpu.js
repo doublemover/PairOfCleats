@@ -61,6 +61,7 @@ const SCM_META_FAST_TIMEOUT_EXTS = new Set([
 const SCM_PYTHON_EXTS = new Set(['.py', '.pyi']);
 const SCM_ANNOTATE_PYTHON_MAX_BYTES = 64 * 1024;
 const SCM_ANNOTATE_PYTHON_HEAVY_LINE_CUTOFF = 2500;
+const SCM_ANNOTATE_HEAVY_PATH_TIMEOUT_MS = 5000;
 const SCM_FAST_TIMEOUT_BASENAMES = new Set([
   'cmakelists.txt',
   'makefile',
@@ -676,7 +677,9 @@ export const processFileCpu = async (context) => {
           ? annotateTimeoutRaw
           : (Number.isFinite(defaultTimeoutRaw) && defaultTimeoutRaw > 0 ? defaultTimeoutRaw : 10000);
         if (enforceScmTimeoutCaps) {
-          const annotateCapMs = scmFastPath || SCM_ANNOTATE_FAST_TIMEOUT_EXTS.has(normalizedExt) ? 750 : 2000;
+          const annotateCapMs = isHeavyRelationsPath(relKey)
+            ? SCM_ANNOTATE_HEAVY_PATH_TIMEOUT_MS
+            : (scmFastPath || SCM_ANNOTATE_FAST_TIMEOUT_EXTS.has(normalizedExt) ? 750 : 2000);
           annotateTimeoutMs = Math.min(annotateTimeoutMs, annotateCapMs);
         }
         const withinAnnotateCap = maxAnnotateBytes == null

@@ -20,6 +20,16 @@ const normalizeOptionalBoolean = (value) => {
   return normalizeBoolean(text);
 };
 
+const normalizeOptionalDisableFlag = (value) => {
+  if (value == null) return null;
+  const text = String(value).trim().toLowerCase();
+  if (!text) return null;
+  if (text === '0' || text === 'false' || text === 'off' || text === 'no') {
+    return false;
+  }
+  return true;
+};
+
 const normalizeProgressContext = (value) => {
   const text = normalizeString(value);
   if (!text) return null;
@@ -92,6 +102,7 @@ export function getEnvConfig(env = process.env) {
     xxhashBackend: normalizeString(env.PAIROFCLEATS_XXHASH_BACKEND),
     debugOrdered: normalizeBoolean(env.PAIROFCLEATS_DEBUG_ORDERED),
     debugCrash: normalizeBoolean(env.PAIROFCLEATS_DEBUG_CRASH),
+    crashLogAnnounce: normalizeOptionalDisableFlag(env.PAIROFCLEATS_CRASH_LOG_ANNOUNCE),
     debugPerfEvents: normalizeBoolean(env.PAIROFCLEATS_DEBUG_PERF_EVENTS),
     benchAntivirusState: normalizeString(env.PAIROFCLEATS_BENCH_ANTIVIRUS_STATE),
     benchCpuGovernor: normalizeString(env.PAIROFCLEATS_BENCH_CPU_GOVERNOR),

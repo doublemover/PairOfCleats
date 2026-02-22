@@ -227,6 +227,42 @@ assert.equal(javaTimeoutMs, 750, 'expected .java annotate timeout to clamp for l
 assert.equal(javaMetaTimeoutMs, 250, 'expected .java meta timeout to clamp for large Java files');
 assert.equal(javaIncludeChurn, false, 'expected fast-path large .java churn metadata to be disabled');
 
+const heavyRelKey = 'include/fmt/base.h';
+const heavyText = `${Array.from({ length: 500 }, (_, i) => `int heavy_path_timeout_${i};`).join('\n')}\n`;
+const heavyStat = { size: Buffer.byteLength(heavyText, 'utf8') };
+const heavyLanguageHint = getLanguageForFile('.h', heavyRelKey);
+let heavyAnnotateCalls = 0;
+let heavyTimeoutMs = null;
+let heavyMetaTimeoutMs = null;
+let heavyIncludeChurn = null;
+const heavyScmProvider = {
+  async getFileMeta(args) {
+    heavyMetaTimeoutMs = args?.timeoutMs ?? null;
+    heavyIncludeChurn = args?.includeChurn ?? null;
+    return { ok: false };
+  },
+  async annotate(args) {
+    heavyAnnotateCalls += 1;
+    heavyTimeoutMs = args?.timeoutMs ?? null;
+    return { ok: false, reason: 'timeout' };
+  }
+};
+await processFileCpu(createContext({
+  abs: jsAbs,
+  ext: '.h',
+  rel: heavyRelKey,
+  relKey: heavyRelKey,
+  text: heavyText,
+  fileStat: heavyStat,
+  languageHint: heavyLanguageHint,
+  scmProviderImpl: heavyScmProvider,
+  fileHash: 'scm-annotate-fast-timeout-heavy-path'
+}));
+assert.equal(heavyAnnotateCalls, 1, 'expected annotate to run for heavy include paths');
+assert.equal(heavyTimeoutMs, 5000, 'expected heavy include paths to use 5s annotate timeout cap');
+assert.equal(heavyMetaTimeoutMs, 250, 'expected heavy include paths to keep fast metadata timeout cap');
+assert.equal(heavyIncludeChurn, false, 'expected heavy include paths to keep churn disabled on fast path');
+
 const swiftAbs = path.join(root, 'tests', 'fixtures', 'tree-sitter', 'swift.swift');
 const swiftRel = path.relative(root, swiftAbs);
 const swiftRelKey = swiftRel.split(path.sep).join('/');
