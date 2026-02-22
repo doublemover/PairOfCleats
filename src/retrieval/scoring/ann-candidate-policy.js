@@ -162,7 +162,7 @@ const resolveOrderHeuristic = ({
       ]
     };
   }
-  if (candidateSize > 0 && candidateSize <= 128) {
+  if (candidateSize >= 16 && candidateSize <= 128) {
     return {
       reason: ANN_ADAPTIVE_ORDER_REASONS.SMALL_CANDIDATE_SET,
       order: [
@@ -320,12 +320,17 @@ export const resolveAnnAdaptiveStrategy = ({
   const baseOrder = Array.isArray(providerOrder)
     ? providerOrder.filter((backend, index, arr) => arr.indexOf(backend) === index)
     : [];
-  const orderHeuristic = resolveOrderHeuristic({
-    mode,
-    candidateSize,
-    docCount,
-    queryClass
-  });
+  const orderHeuristic = adaptiveProvidersEnabled
+    ? resolveOrderHeuristic({
+      mode,
+      candidateSize,
+      docCount,
+      queryClass
+    })
+    : {
+      reason: ANN_ADAPTIVE_ORDER_REASONS.UNCHANGED,
+      order: []
+    };
   const reordered = orderHeuristic.reason === ANN_ADAPTIVE_ORDER_REASONS.UNCHANGED
     ? baseOrder
     : reorderWithPreference(baseOrder, orderHeuristic.order);

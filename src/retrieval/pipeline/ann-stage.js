@@ -60,6 +60,7 @@ export const runAnnStage = async ({
   let annSource = null;
   let warned = false;
   let annAdaptiveStrategy = null;
+  let effectiveRoute = ANN_ADAPTIVE_ROUTE.VECTOR;
 
   if (!annEnabledForMode) {
     if (vectorOnlyProfile) {
@@ -221,8 +222,10 @@ export const runAnnStage = async ({
     );
     annMetrics.providerOrder = orderedBackends;
     annMetrics.providerAdaptive = adaptiveProvidersEnabled;
-    const bypassToSparse = annAdaptiveStrategy.route === ANN_ADAPTIVE_ROUTE.SPARSE
+    const sparseRouteRequested = annAdaptiveStrategy.route === ANN_ADAPTIVE_ROUTE.SPARSE
       && !vectorOnlyProfile;
+    const bypassToSparse = sparseRouteRequested && orderedBackends.length <= 1;
+    effectiveRoute = bypassToSparse ? ANN_ADAPTIVE_ROUTE.SPARSE : ANN_ADAPTIVE_ROUTE.VECTOR;
     if (!bypassToSparse) {
       for (const backend of orderedBackends) {
         const provider = providers.get(backend);
@@ -278,8 +281,7 @@ export const runAnnStage = async ({
     }
   }
 
-  const bypassedToSparse = annAdaptiveStrategy?.route === ANN_ADAPTIVE_ROUTE.SPARSE
-    && !vectorOnlyProfile;
+  const bypassedToSparse = effectiveRoute === ANN_ADAPTIVE_ROUTE.SPARSE;
 
   if (annEnabledForMode && !annHits.length && !bypassedToSparse) {
     const adaptiveTopN = Number.isFinite(Number(annAdaptiveStrategy?.budget?.topN))
@@ -342,7 +344,7 @@ export const runAnnStage = async ({
   annMetrics.vectorOnlyProfile = vectorOnlyProfile;
   annMetrics.candidatePolicyConfig = annCandidatePolicyConfig;
   annMetrics.candidatePolicy = annCandidatePolicy.explain;
-  annMetrics.route = annAdaptiveStrategy?.route || ANN_ADAPTIVE_ROUTE.VECTOR;
+  annMetrics.route = effectiveRoute;
   annMetrics.routeReason = annAdaptiveStrategy?.routeReason || null;
   annMetrics.orderReason = annAdaptiveStrategy?.orderReason || null;
   annMetrics.budget = annAdaptiveStrategy?.budget || null;
