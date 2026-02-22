@@ -48,6 +48,11 @@ export async function resolvePreReadSkip({
     bypassBinaryMinifiedSkip === true
     && (reason === 'binary' || reason === 'minified')
   );
+  const shouldBypassPolicyDecision = (decision) => (
+    bypassBinaryMinifiedSkip === true
+    && decision?.classification === 'minified'
+    && decision?.policy !== 'exclude'
+  );
   const toGeneratedPolicySkip = (decision) => ({
     reason: decision?.classification || 'generated',
     indexMode: decision?.indexMode || 'metadata-only',
@@ -74,6 +79,9 @@ export async function resolvePreReadSkip({
   const scanState = fileEntry && typeof fileEntry === 'object' ? fileEntry.scan : null;
   const baselinePolicyDecision = resolvePolicyDecision(scanState?.skip || null);
   if (baselinePolicyDecision?.downgrade) {
+    if (shouldBypassPolicyDecision(baselinePolicyDecision)) {
+      return null;
+    }
     return toGeneratedPolicySkip(baselinePolicyDecision);
   }
   const allowMinifiedByPolicyInclude = baselinePolicyDecision?.policy === 'include'
@@ -121,6 +129,9 @@ export async function resolvePreReadSkip({
     if (scanResult?.skip) {
       const scanDecision = resolvePolicyDecision(scanResult.skip);
       if (scanDecision?.downgrade) {
+        if (shouldBypassPolicyDecision(scanDecision)) {
+          return null;
+        }
         return toGeneratedPolicySkip(scanDecision);
       }
       const { reason, ...extra } = scanResult.skip;
