@@ -397,7 +397,7 @@ Primary targets:
 ## Phase 4: Query Performance + Quality (Hit-rate program)
 
 ### UB-040: Low-hit repo triage and targeted retrieval tuning
-- Status: [ ]
+- Status: [x]
 - Problem:
   - Some repos have materially low hit rates (`z`, `inspect.lua`, `luasocket`, `pandoc`, `fastlane`).
 - Tasks:
@@ -411,7 +411,7 @@ Primary targets:
 - Improvement Intent (What): retrieval hit-rate lift
 - Improvement Method (How): miss taxonomy + language-aware token/rank tuning.
 - Integrated Betterments: build per-query failure labels (tokenization, ranking, filtering, missing chunk) and persist them; add language-specific stemming/splitting pipelines with override hooks; add targeted re-ranking experiments for symbol-heavy queries.
-- Touchpoints: `src/retrieval/query-parse.js`, `src/retrieval/query-intent.js`, `src/retrieval/rankers.js`, `src/retrieval/routing-policy.js`, `src/retrieval/pipeline/rank-stage.js`, `tests/retrieval/query/golden-query-corpus.test.js`, `tests/retrieval/query/query-intent.test.js`
+- Touchpoints: `src/retrieval/query-parse.js`, `src/retrieval/query-intent.js`, `src/retrieval/cli/query-plan.js`, `tests/retrieval/query/golden-query-corpus.test.js`, `tests/retrieval/query/query-intent.test.js`, `tests/retrieval/query/query-parse-language-profile.test.js`
 
 ### UB-041: ANN candidate strategy optimization
 - Status: [ ]

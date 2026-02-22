@@ -37,4 +37,24 @@ if (vectorMode !== 'doc') {
   process.exit(1);
 }
 
+const cjkIntent = classifyQuery({
+  query: '検索 機能',
+  tokens: ['検索', '機能'],
+  phrases: []
+});
+if (!cjkIntent?.missTaxonomy?.labels?.includes('lexical_language_segmentation')) {
+  console.error('Expected CJK intent to include lexical_language_segmentation miss taxonomy label.');
+  process.exit(1);
+}
+
+const symbolHeavyIntent = classifyQuery({
+  query: 'foo::bar && baz',
+  tokens: ['foo', '::', 'bar', '&&', 'baz'],
+  phrases: []
+});
+if (!symbolHeavyIntent?.missTaxonomy?.labels?.includes('rank_symbol_heavy_query')) {
+  console.error('Expected symbol-heavy intent to include rank_symbol_heavy_query miss taxonomy label.');
+  process.exit(1);
+}
+
 console.log('query intent test passed');

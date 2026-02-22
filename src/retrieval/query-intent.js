@@ -6,6 +6,7 @@ const TRAILING_PATH_EXTENSION_PATTERN = /\.[A-Za-z0-9]{1,12}$/;
 const CODE_TOKEN_PATTERN = /[{}()[\];:<>.=]|=>|->|::|\+\+|--|\|\||&&/;
 const CAMEL_PATTERN = /[a-z][A-Z]/;
 const SNAKE_PATTERN = /_/;
+const CJK_PATTERN = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uac00-\ud7af]/;
 const INTENT_TYPES = ['code', 'prose', 'path', 'url', 'mixed'];
 /**
  * Confidence cutoffs used by both intent classification and trust-surface
@@ -124,10 +125,26 @@ const isPathLikeToken = (token) => {
   return hasPrefix || hasExtension || segments.length >= 3;
 };
 
+const hasActiveFilterSignals = (filters) => {
+  if (!filters || typeof filters !== 'object') return false;
+  return Object.entries(filters).some(([key, value]) => {
+    if (value == null) return false;
+    if (key === 'caseFile' || key === 'caseTokens') return false;
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'number') return Number.isFinite(value);
+    if (typeof value === 'string') return value.trim().length > 0;
+    if (Array.isArray(value)) return value.length > 0;
+    if (value instanceof Set) return value.size > 0;
+    if (typeof value === 'object') return Object.keys(value).length > 0;
+    return false;
+  });
+};
+
 const detectSignals = (query, tokens) => {
   const normalized = String(query || '');
   const words = tokens.filter((token) => /^[a-z0-9_]+$/i.test(token));
   const symbolTokens = tokens.filter((token) => /[^a-z0-9_]/i.test(token));
+  const tokenCount = Array.isArray(tokens) ? tokens.length : 0;
   const tokenCandidates = normalized
     .split(/\s+/)
     .map(normalizeTokenCandidate)
@@ -145,6 +162,11 @@ const detectSignals = (query, tokens) => {
   const hasCamel = CAMEL_PATTERN.test(normalized);
   const hasSnake = SNAKE_PATTERN.test(normalized);
   const wordCount = words.length;
+  const hasCjk = CJK_PATTERN.test(normalized)
+    || tokenCandidates.some((token) => CJK_PATTERN.test(token));
+  const languageProfile = hasCjk ? 'cjk' : 'latin';
+  const symbolRatio = tokenCount > 0 ? symbolTokens.length / tokenCount : 0;
+  const symbolHeavy = symbolTokens.length >= 2 && (symbolRatio >= 0.35 || symbolTokens.length >= wordCount);
   return {
     hasPath,
     pathLikeCount,
@@ -153,7 +175,44 @@ const detectSignals = (query, tokens) => {
     hasCamel,
     hasSnake,
     wordCount,
-    symbolCount: symbolTokens.length
+    symbolCount: symbolTokens.length,
+    symbolRatio,
+    symbolHeavy,
+    languageProfile
+  };
+};
+
+const buildMissTaxonomy = ({
+  signals,
+  parseStrategy,
+  parseFallbackReason,
+  filters,
+  confidenceBucket,
+  confidenceMargin,
+  abstain
+}) => {
+  const labels = [];
+  if (parseStrategy === 'heuristic-fallback') labels.push('lexical_parse_fallback');
+  if (signals.languageProfile === 'cjk') labels.push('lexical_language_segmentation');
+  if (signals.symbolHeavy && !signals.hasPath && !signals.hasUrl) {
+    labels.push('rank_symbol_heavy_query');
+  }
+  if (hasActiveFilterSignals(filters)) labels.push('filter_constrained');
+  if (abstain || confidenceBucket === 'low') labels.push('rank_low_confidence');
+  if (!labels.length) labels.push('none');
+  return {
+    primary: labels[0],
+    labels,
+    context: {
+      languageProfile: signals.languageProfile,
+      symbolHeavy: signals.symbolHeavy,
+      parseStrategy,
+      parseFallbackReason: parseStrategy === 'heuristic-fallback'
+        ? (parseFallbackReason || 'query_parser_failed')
+        : null,
+      confidenceBucket,
+      confidenceMargin
+    }
   };
 };
 
@@ -178,6 +237,14 @@ export const classifyQuery = ({
   if (signals.wordCount >= 3) scores.prose += 2;
   if (phrases.length >= 2) scores.prose += 1;
   if (signals.symbolCount >= 2) scores.code += 1;
+  if (
+    signals.languageProfile === 'cjk'
+    && !signals.hasCodePunctuation
+    && !signals.hasPath
+    && !signals.hasUrl
+  ) {
+    scores.prose += 2;
+  }
 
   const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
   const [topType, topScore] = sorted[0];
@@ -219,6 +286,15 @@ export const classifyQuery = ({
   const reason = fallbackReason
     ? `${baseReason}; fallback=${fallbackReason}`
     : baseReason;
+  const missTaxonomy = buildMissTaxonomy({
+    signals,
+    parseStrategy: strategy,
+    parseFallbackReason: fallbackReason,
+    filters,
+    confidenceBucket,
+    confidenceMargin,
+    abstain
+  });
 
   return {
     type,
@@ -236,6 +312,7 @@ export const classifyQuery = ({
     abstain,
     state: abstain ? 'uncertain' : 'certain',
     abstainReason: abstain ? 'low_confidence' : null,
+    missTaxonomy,
     calibrationVersion: 1
   };
 };

@@ -63,20 +63,28 @@ export function buildQueryPlan({
   extImpossible,
   langImpossible
 }) {
+  const requestedLanguage = Array.isArray(langFilter)
+    ? (langFilter[0] || null)
+    : (typeof langFilter === 'string' ? langFilter : null);
+  const tokenizationOptions = {
+    ...dictConfig,
+    caseSensitive: caseTokens,
+    ...(requestedLanguage ? { language: requestedLanguage } : {})
+  };
   const parseResult = parseQueryWithFallback(query);
   const parsedQuery = parseResult.parsed;
-  const queryAst = annotateQueryAst(parsedQuery.ast, dict, { ...dictConfig, caseSensitive: caseTokens }, postingsConfig);
-  const includeTokens = tokenizeQueryTerms(parsedQuery.includeTerms, dict, { ...dictConfig, caseSensitive: caseTokens });
+  const queryAst = annotateQueryAst(parsedQuery.ast, dict, tokenizationOptions, postingsConfig);
+  const includeTokens = tokenizeQueryTerms(parsedQuery.includeTerms, dict, tokenizationOptions);
   const phraseTokens = parsedQuery.phrases
-    .map((phrase) => tokenizePhrase(phrase, dict, { ...dictConfig, caseSensitive: caseTokens }))
+    .map((phrase) => tokenizePhrase(phrase, dict, tokenizationOptions))
     .filter((tokens) => tokens.length);
   const phraseInfo = buildPhraseNgrams(phraseTokens, postingsConfig);
   const phraseNgrams = phraseInfo.ngrams;
   const phraseNgramSet = phraseNgrams.length ? new Set(phraseNgrams) : null;
   const phraseRange = { min: phraseInfo.minLen, max: phraseInfo.maxLen };
-  const excludeTokens = tokenizeQueryTerms(parsedQuery.excludeTerms, dict, { ...dictConfig, caseSensitive: caseTokens });
+  const excludeTokens = tokenizeQueryTerms(parsedQuery.excludeTerms, dict, tokenizationOptions);
   const excludePhraseTokens = parsedQuery.excludePhrases
-    .map((phrase) => tokenizePhrase(phrase, dict, { ...dictConfig, caseSensitive: caseTokens }))
+    .map((phrase) => tokenizePhrase(phrase, dict, tokenizationOptions))
     .filter((tokens) => tokens.length);
   const excludePhraseInfo = buildPhraseNgrams(excludePhraseTokens, postingsConfig);
   const excludePhraseNgrams = excludePhraseInfo.ngrams;
