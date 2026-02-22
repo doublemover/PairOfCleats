@@ -153,3 +153,13 @@ When a provider cannot perform an operation:
 - All file lists are sorted ascending before return.
 - All SCM-derived metadata must be stable for the same repo state.
 - Providers must not include local-only paths or machine-specific values in outputs.
+
+## 7) Runtime contract enforcement
+
+`src/index/scm/provider.js` is the runtime enforcement layer for this contract.
+
+- Providers are wrapped by `assertScmProvider(...)`.
+- Returned file lists are normalized to repo-relative POSIX paths and sorted deterministically.
+- Throwing provider methods are normalized to deterministic unavailable payloads:
+  - `{ ok:false, reason:'unavailable' }` for operational failures.
+- Provenance payloads are normalized to a stable shape so downstream build-state serialization is strict.

@@ -49,7 +49,7 @@ pool.run = async () => {
   throw new Error('synthetic worker failure');
 };
 
-await workerPool.runTokenize({ text: 'hello', mode: 'code', ext: '.js' });
+await workerPool.tokenizeChunk({ text: 'hello', mode: 'code', ext: '.js' });
 
 const waitFor = async (predicate, label) => {
   const started = Date.now();

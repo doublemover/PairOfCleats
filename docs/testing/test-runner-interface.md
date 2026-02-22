@@ -90,10 +90,13 @@ pairofcleats test [selectors...] [options] [-- <pass-through args>]
   - Hard timeout per test process.
   - Default: 30000, with lane overrides:
     - `ci-lite`: 15000
-    - `ci`: 90000
+    - `ci`: 60000
     - `ci-long`: 240000
   - When multiple lanes are requested, the runner picks the longest matching default.
   - On timeout, the runner terminates the entire process tree (SIGTERM then SIGKILL, or `taskkill` on Windows).
+- `--watchdog-ms <n>`
+  - Global inactivity watchdog for the run.
+  - When no child-test activity is observed for the configured duration, the runner kills active test process trees and marks watchdog telemetry in emitted artifacts.
 - `--allow-timeouts`
   - Do not fail the run when a test times out.
 - `--node-options "<flags>"`
@@ -129,7 +132,16 @@ pairofcleats test [selectors...] [options] [-- <pass-through args>]
   - When multiple lanes are selected, the default filename uses `multi`.
 
 - `--timings-file <path>`
-  - Write a JSON summary of per-test durations for later analysis (`runId`, `totalMs`, `tests`).
+  - Write a versioned JSON timings ledger for later analysis (`schemaVersion`, `generatedAt`, `runId`, `watchdog`, `tests`).
+  - Timings output is schema-validated before write (`src/contracts/schemas/test-artifacts.js` → `testTimings`).
+- `--coverage[=<path>]`
+  - Enable V8 coverage capture and emit a normalized coverage artifact.
+- `--coverage-merge <file-or-dir>`
+  - Merge existing coverage artifacts before writing coverage output.
+- `--coverage-changed`
+  - Keep only coverage entries for files changed vs `HEAD`.
+- `--profile[=<path>]`
+  - Emit a versioned profile artifact summarizing per-test durations and run totals.
 
 ### Environment normalization (runner responsibility)
 
@@ -241,6 +253,13 @@ Current tags (in addition to lane names):
 - `storage`, `indexing`, `retrieval`, `lang`, `tooling`, `harness`, `smoke`
 - `sqlite`, `lmdb`, `jj`, `watch`, `embeddings`
 - `long`, `destructive`, `DelayedUntilPhase7_8`
+
+Additional active lanes:
+- `gate`
+- `backcompat`
+- `diagnostics-summary`
+- `iq`
+- `decomposed-drift`
 
 Refer to `tests/run.rules.jsonc` for the exact match rules.
 

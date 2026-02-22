@@ -1,5 +1,32 @@
 import { normalizeCapNullOnZero } from '../../../shared/limits.js';
 import { pickMinLimit } from './limits.js';
+import { LANGUAGE_CAPS_BASELINES } from './caps-calibration.js';
+
+const CLIKE_CAPS_BASELINE = LANGUAGE_CAPS_BASELINES.clike || {};
+const DEFAULT_OBJECTIVEC_CAPS_BY_EXT = Object.freeze({
+  '.m': Object.freeze({
+    maxBytes: normalizeCapNullOnZero(CLIKE_CAPS_BASELINE.maxBytes, null),
+    maxLines: normalizeCapNullOnZero(CLIKE_CAPS_BASELINE.maxLines, null)
+  }),
+  '.mm': Object.freeze({
+    maxBytes: normalizeCapNullOnZero(CLIKE_CAPS_BASELINE.maxBytes, null),
+    maxLines: normalizeCapNullOnZero(CLIKE_CAPS_BASELINE.maxLines, null)
+  })
+});
+
+const DEFAULT_EXTENSION_CAPS = Object.freeze({
+  '.js': Object.freeze({ maxBytes: 320 * 1024, maxLines: 5200 }),
+  '.mjs': Object.freeze({ maxBytes: 320 * 1024, maxLines: 5200 }),
+  '.cjs': Object.freeze({ maxBytes: 320 * 1024, maxLines: 5200 }),
+  '.ts': Object.freeze({ maxBytes: 384 * 1024, maxLines: 6500 }),
+  '.mts': Object.freeze({ maxBytes: 384 * 1024, maxLines: 6500 }),
+  '.cts': Object.freeze({ maxBytes: 384 * 1024, maxLines: 6500 }),
+  '.jsx': Object.freeze({ maxBytes: 256 * 1024, maxLines: 3600 }),
+  '.tsx': Object.freeze({ maxBytes: 288 * 1024, maxLines: 4200 }),
+  '.vue': Object.freeze({ maxBytes: 256 * 1024, maxLines: 3500 }),
+  '.svelte': Object.freeze({ maxBytes: 224 * 1024, maxLines: 3200 }),
+  '.astro': Object.freeze({ maxBytes: 256 * 1024, maxLines: 3600 })
+});
 
 /**
  * Normalize a numeric cap value to a non-negative integer.
@@ -145,12 +172,33 @@ export const normalizeTreeSitterByLanguage = (raw) => {
 export const resolveFileCapsAndGuardrails = (indexingConfig) => {
   const maxFileBytes = normalizeLimit(indexingConfig.maxFileBytes, 5 * 1024 * 1024);
   const fileCapsConfig = indexingConfig.fileCaps || {};
+  const defaultByLanguageCaps = {};
+  for (const [languageId, entry] of Object.entries(LANGUAGE_CAPS_BASELINES)) {
+    defaultByLanguageCaps[languageId] = normalizeCapEntry(entry);
+  }
+  const byLanguageOverrides = normalizeCapsByLanguage(fileCapsConfig.byLanguage || {});
+  const mergedByLanguageCaps = { ...defaultByLanguageCaps };
+  for (const [languageId, override] of Object.entries(byLanguageOverrides)) {
+    const baseline = mergedByLanguageCaps[languageId] || { maxBytes: null, maxLines: null };
+    mergedByLanguageCaps[languageId] = {
+      maxBytes: override.maxBytes != null ? override.maxBytes : baseline.maxBytes,
+      maxLines: override.maxLines != null ? override.maxLines : baseline.maxLines
+    };
+  }
   const fileCaps = {
     default: normalizeCapEntry(fileCapsConfig.default || {}),
     byExt: normalizeCapsByExt(fileCapsConfig.byExt || {}),
-    byLanguage: normalizeCapsByLanguage(fileCapsConfig.byLanguage || {}),
+    byLanguage: mergedByLanguageCaps,
     byMode: normalizeCapsByMode(fileCapsConfig.byMode || {})
   };
+  for (const [ext, entry] of Object.entries(DEFAULT_OBJECTIVEC_CAPS_BY_EXT)) {
+    if (fileCaps.byExt[ext]) continue;
+    fileCaps.byExt[ext] = { ...entry };
+  }
+  for (const [ext, entry] of Object.entries(DEFAULT_EXTENSION_CAPS)) {
+    if (fileCaps.byExt[ext]) continue;
+    fileCaps.byExt[ext] = { ...entry };
+  }
   const untrustedConfig = indexingConfig.untrusted || {};
   const untrustedEnabled = untrustedConfig.enabled === true;
   const untrustedDefaults = {

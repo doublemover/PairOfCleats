@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import path from 'node:path';
 import { spawnSubprocessSync } from '../../src/shared/subprocess.js';
-import { getRuntimeConfig, loadUserConfig, resolveRepoRootArg, resolveRuntimeEnv } from '../shared/dict-utils.js';
+import { getRuntimeConfig, loadUserConfig, resolveRepoRootArg, resolveRuntimeEnv, resolveToolRoot } from '../shared/dict-utils.js';
 
-const root = process.cwd();
+const root = resolveToolRoot();
 const repoRoot = resolveRepoRootArg(null, root);
 const userConfig = loadUserConfig(repoRoot);
 const runtimeEnv = resolveRuntimeEnv(getRuntimeConfig(repoRoot, userConfig), process.env);
@@ -17,6 +17,7 @@ for (const test of tests) {
   const result = spawnSubprocessSync(process.execPath, [test.file], {
     stdio: 'inherit',
     rejectOnNonZeroExit: false,
+    cwd: repoRoot,
     env: runtimeEnv
   });
   if (result.exitCode !== 0) {

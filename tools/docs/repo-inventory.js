@@ -39,29 +39,68 @@ const collectDocs = async (root) => {
     .sort();
 };
 
-const extractDocRefs = (contents) => {
+const extractDocRefs = (contents, { source = '' } = {}) => {
   const refs = new Set();
-  const regex = /docs\/[A-Za-z0-9._/-]+\.md/g;
+  const regex = /docs\/[A-Za-z0-9._/-]+\.md/gi;
   let match;
   while ((match = regex.exec(contents))) {
-    refs.add(match[0]);
+    refs.add(toPosix(match[0]).toLowerCase());
+  }
+
+  const markdownLinkRegex = /\[[^\]]*]\(([^)]+\.md(?:#[^)]+)?)\)/gi;
+  let linkMatch;
+  while ((linkMatch = markdownLinkRegex.exec(contents))) {
+    const rawTarget = String(linkMatch[1] || '')
+      .trim()
+      .replace(/^<|>$/g, '')
+      .split('#')[0]
+      .trim();
+    if (!rawTarget || /^[a-z]+:\/\//i.test(rawTarget)) continue;
+    let resolved = rawTarget;
+    if (resolved.startsWith('/')) {
+      resolved = resolved.slice(1);
+    } else if (source.startsWith('docs/')) {
+      resolved = toPosix(path.join(path.dirname(source), resolved));
+    }
+    resolved = toPosix(resolved).toLowerCase();
+    if (resolved.startsWith('docs/') && resolved.endsWith('.md')) {
+      refs.add(resolved);
+    }
   }
   return refs;
 };
 
 const collectDocReferences = async (root) => {
-  const sources = ['README.md', 'AGENTS.md'];
+  const sources = [];
+  const docsFiles = await collectDocs(root);
+  sources.push(...docsFiles);
+  for (const rootDoc of ['README.md', 'AGENTS.md']) {
+    const absolute = path.join(root, rootDoc);
+    try {
+      const stat = await fsPromises.stat(absolute);
+      if (stat.isFile()) sources.push(rootDoc);
+    } catch {}
+  }
+  for (const dir of ['bin', 'src', 'tools']) {
+    try {
+      const files = await listFiles(path.join(root, dir));
+      sources.push(...files
+        .filter((file) => file.endsWith('.js'))
+        .map((file) => toPosix(path.relative(root, file))));
+    } catch {}
+  }
+  const uniqueSources = Array.from(new Set(sources)).sort((a, b) => a.localeCompare(b));
   const referenced = new Set();
-  for (const source of sources) {
+  for (const source of uniqueSources) {
     const targetPath = path.join(root, source);
     try {
       const contents = await fsPromises.readFile(targetPath, 'utf8');
-      for (const ref of extractDocRefs(contents)) {
+      for (const ref of extractDocRefs(contents, { source })) {
         referenced.add(ref);
       }
     } catch {}
   }
-  return { sources, referenced };
+  return { sources: uniqueSources, referenced };
 };
 
 const isEntrypoint = async (filePath) => {
@@ -147,6 +186,37 @@ const extractScriptRefs = (contents) => {
   if (/npm\s+test\b/i.test(contents)) {
     names.add('test');
   }
+  const mapCliInvocationToScript = (cmd, sub) => {
+    const first = String(cmd || '').toLowerCase();
+    const second = String(sub || '').toLowerCase();
+    if (first === 'search') return 'search';
+    if (first === 'setup') return 'setup';
+    if (first === 'bootstrap') return 'bootstrap';
+    if (first === 'cache' && second === 'gc') return 'cache-gc';
+    if (first === 'index' && second === 'build') return 'build-index';
+    if (first === 'index' && second === 'watch') return 'watch-index';
+    if (first === 'index' && second === 'validate') return 'index-validate';
+    if (first === 'service' && second === 'api') return 'api-server';
+    if (first === 'service' && second === 'indexer') return 'indexer-service';
+    if (first === 'ingest' && second === 'ctags') return 'ctags-ingest';
+    if (first === 'ingest' && second === 'gtags') return 'gtags-ingest';
+    if (first === 'ingest' && second === 'lsif') return 'lsif-ingest';
+    if (first === 'ingest' && second === 'scip') return 'scip-ingest';
+    if (first === 'tui' && second === 'build') return 'tui:build';
+    if (first === 'tui' && second === 'install') return 'tui:install';
+    if (first === 'tui' && second === 'supervisor') return 'tui:supervisor';
+    if (first === 'report' && second === 'metrics') return 'metrics-dashboard';
+    if (first === 'report' && second === 'map') return 'map-iso';
+    if (first === 'report' && second === 'eval') return 'eval-run';
+    if (first === 'report' && second === 'compare-models') return 'compare-models';
+    return null;
+  };
+  const cliRegex = /\bpairofcleats\s+([a-z0-9_-]+)(?:\s+([a-z0-9:_-]+))?(?:\s+([a-z0-9:_-]+))?/gi;
+  let cliMatch;
+  while ((cliMatch = cliRegex.exec(contents)) !== null) {
+    const script = mapCliInvocationToScript(cliMatch[1], cliMatch[2]);
+    if (script) names.add(script);
+  }
   return names;
 };
 
@@ -226,8 +296,8 @@ const main = async () => {
       orphans: orphanScripts
     },
     notes: [
-      'Docs references are collected only from README.md and AGENTS.md.',
-      'Script references are collected from docs (excluding docs/guides/commands.md), .github workflows, and tests.',
+      'Docs references are collected from docs markdown plus key source/docs entrypoints.',
+      'Script references are collected from docs (excluding docs/guides/commands.md), .github workflows, tests, and pairofcleats CLI invocations.',
       'Tool entrypoints are detected by a node shebang; only those are considered for orphan tool reporting.'
     ]
   };

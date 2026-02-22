@@ -1,17 +1,50 @@
 # Path Handling
 
-This project uses a consistent path policy to avoid cross-platform edge cases.
+This project enforces a strict, cross-platform path policy for release-critical and artifact-writing flows.
 
-Principles:
-- Use Node `path` with platform-specific variants (`path.posix` on POSIX, `path.win32` on Windows).
-- Keep paths opaque for display/logging; normalize only when comparing or storing.
-- For security checks, use platform-specific absolute detection plus `path.relative`.
-- Store internal paths in POSIX form and convert at IO boundaries.
-- Use `toPosix()` and `fromPosix()` from `src/shared/files.js` for canonical conversions.
-- Use `normalizeRepoRelativePath()` and `normalizePathForRepo()` from `src/shared/path-normalize.js` when accepting repo-rooted inputs.
-- Use `normalizeFilePath()` from `src/shared/path-normalize.js` for stable comparisons.
-- Prefer `isAbsolutePathNative()` for native checks and reserve `isAbsolutePathAny()` for explicit cross-platform validation.
+## Core rules
 
-Examples:
-- `isAbsolutePathNative('C:/foo')` is false on POSIX, true on Windows.
-- Manifest paths are validated with native absolute checks and `..` segment checks.
+- Never build paths via string concatenation.
+- Normalize paths at module boundaries (CLI input, config load, artifact write).
+- Preserve interior spaces and treat them as valid path content.
+- Normalize separators before comparisons.
+- Normalize Windows drive letters to uppercase (`c:` -> `C:`).
+- Preserve UNC roots on Windows (`\\server\share\...`) and validate them explicitly.
+- Reject boundary escapes using `path.relative(...)` + absolute-path checks.
+
+## Canonical helpers
+
+Use these helpers from `src/shared/path-normalize.js`:
+
+- `normalizePathForPlatform(value, { platform })`
+- `normalizeWindowsDriveLetter(value)`
+- `normalizeRepoRelativePath(value, repoRoot)`
+- `normalizePathForRepo(value, repoRoot)`
+- `joinPathSafe(baseDir, segments)`
+
+Use these helpers from `src/shared/files.js`:
+
+- `toPosix()` / `fromPosix()` for canonical storage and IO conversion
+- `isAbsolutePathNative()` for platform-native absolute checks
+- `isAbsolutePathAny()` only when dual-platform interpretation is required
+- `isUncPath()` for UNC detection in Windows-sensitive flows
+
+## Atomic write policy
+
+`src/shared/io/atomic-write.js` now normalizes and validates target paths before temp-write/rename. The write target must remain inside its resolved parent boundary.
+
+## Required edge-case coverage
+
+Tooling/release path tests must cover:
+
+- paths with spaces
+- drive-letter normalization
+- UNC paths
+- mixed separators
+- traversal/escape rejection
+
+## Examples
+
+- `normalizePathForPlatform('C:/Repo\\src\\app.js', { platform: 'win32' })` -> `C:\Repo\src\app.js`
+- `normalizePathForPlatform('\\\\srv/share//project\\file.txt', { platform: 'win32' })` preserves UNC root and normalizes separators
+- `joinPathSafe('C:\\repo', ['..', 'outside'])` returns `null`

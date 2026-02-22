@@ -17342,3 +17342,2492 @@ For each language/framework pack, execute this order:
 5. Complete semantics/risk/fixture/readiness packs before rollout authorization.
 
 ---
+
+# AINTKNOWMAP
+
+Canonical roadmap generated from a full audit of `FUTUREROADMAP.md`, rewritten for hard cutovers.
+
+## Hard Cutover Policy
+
+- One active behavior per surface. No compatibility shims, no dual-write/dual-read windows, no legacy mode.
+- Optimization controls use one canonical profile selector with a default profile; temporary per-feature debug overrides are removed within the same phase that introduces them.
+- Contract/schema changes are allowed to be breaking. When changed, update all producers/consumers in the same phase.
+- CLI/API flag changes are allowed to be breaking. Remove retired flags/paths immediately.
+- Toolchain requirements are strict. If a required toolchain is missing, fail fast with a clear error.
+- Test and spec updates are mandatory in the same change as behavior changes.
+
+## Spec and Test Rewrite Rules
+
+- When functionality changes or improves:
+  - update existing tests to assert new behavior
+  - delete obsolete tests that only validate retired behavior
+  - update existing specs/docs to match current behavior
+- Do not preserve legacy wording or legacy contracts “for reference” in active docs.
+- Superseded specs are moved to `docs/archived/` with a deprecation header (replacement, reason, date, commit/PR).
+
+## Touchpoint Path Conventions
+
+- Touchpoints list both existing files and planned-new files created in-phase.
+- If a touchpoint path does not exist yet, treat it as planned creation work for that subphase.
+- Wildcard touchpoints denote a bounded file family under the listed directory.
+
+## Canonical source consolidation
+
+This roadmap consolidates all duplicated sections in `FUTUREROADMAP.md` into one sequence:
+
+- Release/platform work: merged from Phase 16 and Phase 18.
+- TUI/supervisor work: merged from all three Phase 20 variants (first block, Appendix B/HAWKTUI, second block).
+- Deferred async FS work is promoted to a required prerequisite before TUI/supervisor production rollout.
+- NIKE phases 1-6 remain the core product hardening track and run before TUI/native cutovers.
+
+## Canonical implementation order
+
+### Phase 0 - Decision closure and canonicalization
+
+Intent: remove ambiguity before code changes.
+
+- [x] Resolve all open decisions in `FUTUREROADMAP.md` decision registers.
+- [x] Declare canonical command/file names where duplicates exist:
+  - [x] keep `tools/release/check.js` as canonical release runner
+  - [x] keep one canonical test path per concern
+- [x] Remove duplicate roadmap fragments from active planning docs and keep one authoritative sequence.
+- [x] Enforce hard cutover policy in `AGENTS.md` roadmap process notes.
+
+Verification:
+
+- [x] `tests/tooling/docs/spec-links-valid.test.js`
+- [x] `tests/tooling/docs/config-inventory-sync.test.js`
+
+---
+
+### Phase 0.5 - Language/framework indexing completeness and performance hardening
+
+Intent: hard cutover to fully language-aware indexing, with no blind spots in extension routing, build/package manifests, or language-specific limits.
+
+#### 0.5.0 Phase prelude: shared baselines and execution discipline
+
+- [x] Execute Phase 0.5 in this order: `0.5.40` (descriptor + manifest canon) -> `0.5.41` (caps telemetry/calibration) -> `0.5.1..0.5.39e` (language/framework implementation passes) -> `0.5.42` (performance optimization program).
+- [x] Enforce shared-file workstreams to reduce thrash: one routing/descriptor workstream, one caps workstream, one fixture/test workstream; each shared file is patched once per workstream, not repeatedly per language.
+- [x] Enforce a concrete per-subphase implementation contract for every `0.5.x` language/framework section:
+  - [ ] deliverable A: descriptor/spec patch (extensions, special filenames, parser route, adapter ID, caps profile)
+  - [ ] deliverable B: code-path patch (routing + chunking + relations/flow/docmeta in listed touchpoints)
+  - [ ] deliverable C: fixture/test patch (routing + collector/chunker/relation/flow + caps regression coverage)
+- [x] Require each subphase commit series to include explicit artifact outputs (`descriptor diff`, `caps profile diff`, `fixture/test diff`) so validation work is always tied to concrete code changes.
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/build/discover.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/language-registry/registry.js`
+- `src/index/build/runtime/caps.js`
+- `tests/indexing/language-registry/*`
+- `tests/indexing/chunking/*`
+
+Execution contract reference: `docs/guides/phase-0.5-execution-contract.md`.
+
+#### 0.5.1 JavaScript
+
+- [x] Implement and enforce canonical JS source extension routing (`.js`, `.mjs`, `.cjs`) and remove any conflicting heuristics.
+- [x] Implement and verify JS index build wiring end-to-end: collect imports, chunking, relations, control/data flow, doc metadata extraction.
+- [x] Calibrate and commit JS `fileCaps` and tree-sitter thresholds from repo telemetry (token density, average LOC/file, p95 file size) and set strict defaults.
+
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/language-registry/registry.js`
+- `src/index/build/discover.js`
+- `src/lang/javascript.js`
+- `src/index/segments/jsx.js`
+- `src/index/build/runtime/caps.js`
+#### 0.5.2 TypeScript
+
+- [x] Implement and enforce TS extension routing (`.ts`, `.mts`, `.cts`, declaration files where intentionally included/excluded).
+- [x] Implement and verify TS index build wiring end-to-end, including type-centric relation extraction paths.
+- [x] Calibrate and commit TS `fileCaps` and parse limits separately from JS based on TS verbosity and declaration-heavy files.
+
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/language-registry/registry.js`
+- `src/index/build/discover.js`
+- `src/lang/typescript.js`
+- `src/index/segments/jsx.js`
+- `src/index/build/runtime/caps.js`
+#### 0.5.3 JSX and TSX
+
+- [x] Implement and verify `.jsx`/`.tsx` segmentation and parser routing as first-class code paths.
+- [x] Enforce deterministic mixed-markup/chunk boundaries and relation extraction behavior.
+- [x] Add strict caps tuned to high token density in component files.
+
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/language-registry/registry.js`
+- `src/index/build/discover.js`
+- `src/index/segments/jsx.js`
+- `src/lang/javascript.js`
+- `src/lang/typescript.js`
+- `src/index/chunking/dispatch.js`
+- `src/index/build/runtime/caps.js`
+#### 0.5.4 Vue
+
+- [x] Implement and verify `.vue` segmentation across template/script/style blocks and ensure complete indexing of each embedded language segment.
+- [x] Ensure relation/flow coverage includes both script setup and classic script blocks.
+- [x] Calibrate and commit `.vue` caps to prevent under-indexing of large SFCs while guarding parse cost.
+
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/language-registry/registry.js`
+- `src/index/build/discover.js`
+- `src/index/segments/vue.js`
+- `src/index/segments/frontmatter.js`
+- `src/index/chunking/dispatch.js`
+- `src/index/build/runtime/caps.js`
+#### 0.5.5 Svelte
+
+- [x] Implement and verify `.svelte` segmentation and routing for script/context/style/template sections.
+- [x] Ensure import/relation extraction covers both module and instance script contexts.
+- [x] Calibrate and commit `.svelte` caps for component-heavy repos with large templating blocks.
+
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/language-registry/registry.js`
+- `src/index/build/discover.js`
+- `src/index/segments/vue.js`
+- `src/index/segments/frontmatter.js`
+- `src/index/chunking/dispatch.js`
+- `src/index/build/runtime/caps.js`
+#### 0.5.6 Astro
+
+- [x] Implement and verify `.astro` segmentation and embedded-language indexing fidelity.
+- [x] Ensure imports/relations from frontmatter and embedded scripts are deterministic.
+- [x] Calibrate and commit `.astro` caps for mixed markup/script payloads.
+
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/language-registry/registry.js`
+- `src/index/build/discover.js`
+- `src/index/segments/vue.js`
+- `src/index/segments/frontmatter.js`
+- `src/index/chunking/dispatch.js`
+- `src/index/build/runtime/caps.js`
+#### 0.5.7 Python
+
+- [x] Implement `.py` coverage plus package/module boundary handling for import graph extraction.
+- [x] Implement and verify Python collector/chunker/relation/flow wiring and doc metadata extraction.
+- [x] Calibrate and commit Python caps for high-LOC modules and verbose docstring-heavy files.
+
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/language-registry/registry.js`
+- `src/index/build/discover.js`
+- `src/lang/python.js`
+- `src/index/build/runtime/caps.js`
+#### 0.5.8 Ruby
+
+- [x] Implement `.rb` routing and module/class extraction behavior.
+- [x] Implement and verify Ruby imports (`require`/`require_relative`) and relation modeling.
+- [x] Calibrate and commit Ruby caps for DSL-heavy files and metaprogramming-heavy codebases.
+
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/language-registry/registry.js`
+- `src/index/build/discover.js`
+- `src/lang/ruby.js`
+- `src/index/build/runtime/caps.js`
+#### 0.5.9 PHP
+
+- [x] Implement `.php` routing and namespace/class/function extraction behavior.
+- [x] Implement and verify import/usage extraction (`use`, include/require patterns) and relation wiring.
+- [x] Calibrate and commit PHP caps for mixed HTML/PHP and framework-style monolith files.
+
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/language-registry/registry.js`
+- `src/index/build/discover.js`
+- `src/lang/php.js`
+- `src/index/build/runtime/caps.js`
+#### 0.5.10 Lua
+
+- [x] Implement `.lua` routing and module import extraction behavior.
+- [x] Implement and verify chunk/relation extraction quality for table-heavy and script-style code.
+- [x] Calibrate and commit Lua caps for plugin-style repos with large script bundles.
+
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/language-registry/registry.js`
+- `src/index/build/discover.js`
+- `src/lang/lua.js`
+- `src/index/build/runtime/caps.js`
+#### 0.5.11 Perl
+
+- [x] Implement `.pl`/`.pm` routing and package/module extraction coverage.
+- [x] Implement and verify Perl import/require relation extraction.
+- [x] Calibrate and commit Perl caps for legacy monolithic script styles.
+
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/language-registry/registry.js`
+- `src/index/build/discover.js`
+- `src/lang/perl.js`
+- `src/index/build/runtime/caps.js`
+#### 0.5.12 Shell
+
+- [x] Implement `.sh`, `.bash`, `.zsh` routing and shebang-aware indexing behavior.
+- [x] Implement and verify shell include/source extraction and command relation heuristics.
+- [x] Calibrate and commit shell caps for large deployment/CI scripts.
+
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/language-registry/registry.js`
+- `src/index/build/discover.js`
+- `src/lang/shell.js`
+- `src/index/build/runtime/caps.js`
+#### 0.5.13 C and C++
+
+- [x] Expand and enforce C/C++ extension coverage, including headers/modules (`.h`, `.hh`, `.hpp`, `.hxx`, `.c`, `.cc`, `.cpp`, `.cxx`, `.ipp`, `.ixx`, `.cppm`, `.tpp`, `.inl`, `.modulemap`).
+- [x] Implement and verify include graph extraction and relation modeling for headers, sources, and module units.
+- [x] Calibrate and commit C/C++ caps for large translation units and header-heavy repos.
+
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/language-registry/registry.js`
+- `src/index/build/discover.js`
+- `src/lang/clike.js`
+- `src/index/build/runtime/caps.js`
+#### 0.5.14 Objective-C
+
+- [x] Implement Objective-C coverage (`.m`, `.mm`, Objective-C headers) and routing through C-like pipelines.
+- [x] Implement and verify import/include extraction across ObjC and ObjC++ files.
+- [x] Calibrate and commit Objective-C caps for mixed UIKit/macOS codebases.
+
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/language-registry/registry.js`
+- `src/index/build/discover.js`
+- `src/lang/clike.js`
+- `src/index/build/runtime/caps.js`
+#### 0.5.15 Go
+
+- [x] Implement `.go` routing and package/import extraction behavior.
+- [x] Implement and verify Go chunking/relations/flow extraction for multi-package repos.
+- [x] Calibrate and commit Go caps for generated code and large monorepo package layouts.
+
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/language-registry/registry.js`
+- `src/index/build/discover.js`
+- `src/lang/go.js`
+- `src/index/build/runtime/caps.js`
+#### 0.5.16 Java
+
+- [x] Implement `.java` routing and class/interface/annotation extraction behavior.
+- [x] Implement and verify package/import and relation extraction across deep package trees.
+- [x] Calibrate and commit Java caps for verbose enterprise classes and generated sources.
+
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/language-registry/registry.js`
+- `src/index/build/discover.js`
+- `src/lang/java.js`
+- `src/index/build/runtime/caps.js`
+#### 0.5.17 CSharp
+
+- [x] Implement `.cs` routing and namespace/class/interface extraction behavior.
+- [x] Implement and verify using/import relation extraction and partial-class handling.
+- [x] Calibrate and commit C# caps for large solution codebases.
+
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/language-registry/registry.js`
+- `src/index/build/discover.js`
+- `src/lang/csharp.js`
+- `src/index/build/runtime/caps.js`
+#### 0.5.18 Kotlin
+
+- [x] Implement `.kt` and `.kts` routing and class/object/function extraction behavior.
+- [x] Implement and verify import and relation extraction for multiplatform and Gradle Kotlin DSL usage.
+- [x] Calibrate and commit Kotlin caps for coroutine-heavy and DSL-heavy files.
+
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/language-registry/registry.js`
+- `src/index/build/discover.js`
+- `src/lang/kotlin.js`
+- `src/index/build/runtime/caps.js`
+#### 0.5.19 Rust
+
+- [x] Implement `.rs` routing and module/use extraction behavior.
+- [x] Implement and verify relation extraction across module trees and macro-heavy files.
+- [x] Calibrate and commit Rust caps for macro-expanded and generated code patterns.
+
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/language-registry/registry.js`
+- `src/index/build/discover.js`
+- `src/lang/rust.js`
+- `src/index/build/runtime/caps.js`
+#### 0.5.20 Swift
+
+- [x] Implement `.swift` routing and type/function extraction behavior.
+- [x] Implement and verify import and relation extraction for package and Xcode-style layouts.
+- [x] Calibrate and commit Swift caps for protocol-heavy and extension-heavy files.
+
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/language-registry/registry.js`
+- `src/index/build/discover.js`
+- `src/lang/swift.js`
+- `src/index/build/runtime/caps.js`
+#### 0.5.21 HTML
+
+- [x] Implement `.html`/`.htm` routing and deterministic chunking behavior.
+- [x] Implement and verify link/script/style reference extraction as relations where supported.
+- [x] Calibrate and commit HTML caps for large template bundles.
+
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/language-registry/registry.js`
+- `src/index/build/discover.js`
+- `src/lang/html.js`
+- `src/index/chunking/dispatch.js`
+- `src/index/build/runtime/caps.js`
+#### 0.5.22 CSS
+
+- [x] Implement `.css` routing and selector/token chunking behavior.
+- [x] Implement and verify import and dependency relation extraction (`@import`, asset references).
+- [x] Calibrate and commit CSS caps for large design-system stylesheets.
+
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/language-registry/registry.js`
+- `src/index/build/discover.js`
+- `src/lang/css.js`
+- `src/index/build/runtime/caps.js`
+#### 0.5.23 Handlebars
+
+- [x] Implement `.hbs`/`.handlebars` routing and template relation extraction behavior.
+- [x] Implement and verify mixed template/code chunk boundaries.
+- [x] Calibrate and commit Handlebars caps for server-rendered template repositories.
+
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/language-registry/registry.js`
+- `src/index/build/discover.js`
+- `src/index/language-registry/import-collectors/handlebars.js`
+- `src/index/language-registry/simple-relations.js`
+- `src/index/build/runtime/caps.js`
+#### 0.5.24 Mustache
+
+- [x] Implement `.mustache` routing and template parse/chunk behavior.
+- [x] Implement and verify section/partial relation extraction behavior.
+- [x] Calibrate and commit Mustache caps for large template inventories.
+
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/language-registry/registry.js`
+- `src/index/build/discover.js`
+- `src/index/language-registry/import-collectors/mustache.js`
+- `src/index/language-registry/simple-relations.js`
+- `src/index/build/runtime/caps.js`
+#### 0.5.25 Jinja
+
+- [x] Implement `.j2`/`.jinja`/`.jinja2` routing and template relation extraction behavior.
+- [x] Implement and verify include/extend/import template relation modeling.
+- [x] Calibrate and commit Jinja caps for backend template-heavy repos.
+
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/language-registry/registry.js`
+- `src/index/build/discover.js`
+- `src/index/language-registry/import-collectors/jinja.js`
+- `src/index/language-registry/simple-relations.js`
+- `src/index/build/runtime/caps.js`
+#### 0.5.26 Razor
+
+- [x] Implement `.cshtml`/`.razor` routing and template-code segmentation behavior.
+- [x] Implement and verify relation extraction from mixed Razor/C# surfaces.
+- [x] Calibrate and commit Razor caps for componentized UI repositories.
+
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/language-registry/registry.js`
+- `src/index/build/discover.js`
+- `src/index/language-registry/import-collectors/razor.js`
+- `src/index/language-registry/simple-relations.js`
+- `src/index/build/runtime/caps.js`
+#### 0.5.27 SQL
+
+- [x] Implement `.sql` routing and dialect-aware chunking behavior.
+- [x] Implement and verify relation extraction for schema/table/function references where supported.
+- [x] Calibrate and commit SQL caps for migration-heavy and warehouse-scale schema files.
+
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/language-registry/registry.js`
+- `src/index/build/discover.js`
+- `src/lang/sql.js`
+- `src/index/chunking/dispatch.js`
+- `src/index/build/runtime/caps.js`
+#### 0.5.28 GraphQL
+
+- [x] Implement `.graphql`/`.gql` routing and operation/schema chunking behavior.
+- [x] Implement and verify relation extraction for fragments, operations, and schema references.
+- [x] Calibrate and commit GraphQL caps for large federated schemas.
+
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/language-registry/registry.js`
+- `src/index/build/discover.js`
+- `src/index/language-registry/import-collectors/graphql.js`
+- `src/index/chunking/dispatch.js`
+- `src/index/build/runtime/caps.js`
+#### 0.5.29 Proto
+
+- [x] Implement `.proto` routing and message/service/import extraction behavior.
+- [x] Implement and verify relation extraction across multi-file proto packages.
+- [x] Calibrate and commit Proto caps for large generated-interface repos.
+
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/language-registry/registry.js`
+- `src/index/build/discover.js`
+- `src/index/language-registry/import-collectors/proto.js`
+- `src/index/chunking/dispatch.js`
+- `src/index/build/runtime/caps.js`
+#### 0.5.30 CMake
+
+- [x] Implement `.cmake` and `CMakeLists.txt` routing.
+- [x] Implement and verify target/dependency relation extraction for build graphs.
+- [x] Calibrate and commit CMake caps for large multi-project build configurations.
+
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/language-registry/registry.js`
+- `src/index/build/discover.js`
+- `src/index/language-registry/import-collectors/cmake.js`
+- `src/index/build/runtime/caps.js`
+#### 0.5.31 Starlark/Bazel
+
+- [x] Implement `.bzl`, `BUILD`, `WORKSPACE`, and related Bazel file routing.
+- [x] Implement and verify load/target relation extraction across Bazel module graphs.
+- [x] Calibrate and commit Starlark/Bazel caps for monorepo-scale build definitions.
+
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/language-registry/registry.js`
+- `src/index/build/discover.js`
+- `src/index/language-registry/import-collectors/starlark.js`
+- `src/index/build/runtime/caps.js`
+#### 0.5.32 Nix
+
+- [x] Implement `.nix` routing and import/attribute extraction behavior.
+- [x] Implement and verify relation extraction across flake/module boundaries.
+- [x] Calibrate and commit Nix caps for large flake-based infra repositories.
+
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/language-registry/registry.js`
+- `src/index/build/discover.js`
+- `src/index/language-registry/import-collectors/nix.js`
+- `src/index/build/runtime/caps.js`
+#### 0.5.33 Makefile
+
+- [x] Implement `Makefile`/`makefile`/`GNUmakefile` routing and deterministic chunking.
+- [x] Implement and verify target/include relation extraction for layered builds.
+- [x] Calibrate and commit Makefile caps for generated and aggregate build files.
+
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/language-registry/registry.js`
+- `src/index/build/discover.js`
+- `src/index/language-registry/import-collectors/makefile.js`
+- `src/index/chunking/dispatch.js`
+- `src/index/build/runtime/caps.js`
+#### 0.5.34 Dockerfile
+
+- [x] Implement `Dockerfile` and prefixed Dockerfile naming patterns routing.
+- [x] Implement and verify stage/instruction chunking and dependency relation extraction.
+- [x] Calibrate and commit Dockerfile caps for multi-stage enterprise images.
+
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/language-registry/registry.js`
+- `src/index/build/discover.js`
+- `src/index/language-registry/import-collectors/dockerfile.js`
+- `src/index/chunking/dispatch.js`
+- `src/index/build/runtime/caps.js`
+#### 0.5.35 Dart
+
+- [x] Implement `.dart` routing and import/type relation extraction behavior.
+- [x] Implement and verify chunking and relation extraction for Flutter and server Dart code.
+- [x] Calibrate and commit Dart caps for generated model-heavy repositories.
+
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/language-registry/registry.js`
+- `src/index/build/discover.js`
+- `src/index/language-registry/import-collectors/dart.js`
+- `src/index/build/runtime/caps.js`
+#### 0.5.36 Scala
+
+- [x] Implement `.scala` routing and package/import/type extraction behavior.
+- [x] Implement and verify relation extraction for trait/object/class-heavy code.
+- [x] Calibrate and commit Scala caps for large Spark and backend codebases.
+
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/language-registry/registry.js`
+- `src/index/build/discover.js`
+- `src/index/language-registry/import-collectors/scala.js`
+- `src/index/build/runtime/caps.js`
+#### 0.5.37 Groovy
+
+- [x] Implement `.groovy` routing and import/class extraction behavior.
+- [x] Implement and verify relation extraction for Gradle and runtime Groovy scripts.
+- [x] Calibrate and commit Groovy caps for DSL and script-heavy build repos.
+
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/language-registry/registry.js`
+- `src/index/build/discover.js`
+- `src/index/language-registry/import-collectors/groovy.js`
+- `src/index/build/runtime/caps.js`
+#### 0.5.38 R
+
+- [x] Implement `.r` routing and function/source extraction behavior.
+- [x] Implement and verify relation extraction for sourced scripts and package-style layouts.
+- [x] Calibrate and commit R caps for analysis notebooks/scripts with long procedural files.
+
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/language-registry/registry.js`
+- `src/index/build/discover.js`
+- `src/index/language-registry/import-collectors/r.js`
+- `src/index/build/runtime/caps.js`
+#### 0.5.39 Julia
+
+- [x] Implement `.jl` routing and module/include extraction behavior.
+- [x] Implement and verify relation extraction across package/module boundaries.
+- [x] Calibrate and commit Julia caps for scientific code with long numeric kernels.
+
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/language-registry/registry.js`
+- `src/index/build/discover.js`
+- `src/index/language-registry/import-collectors/julia.js`
+- `src/index/build/runtime/caps.js`
+#### 0.5.39a YAML
+
+- [x] Implement `.yaml`/`.yml` routing and top-level/document-aware chunking behavior.
+- [x] Implement and verify anchor/alias/include-style reference extraction behavior where supported.
+- [x] Calibrate and commit YAML caps for large CI/deployment/config monoliths.
+
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/build/discover.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/chunking/formats/yaml.js`
+- `src/index/chunking/dispatch.js`
+- `src/index/build/file-processor/tree-sitter.js`
+- `src/lang/tree-sitter/config.js`
+- `src/lang/tree-sitter/native-runtime.js`
+- `src/index/build/runtime/caps.js`
+#### 0.5.39b JSON
+
+- [x] Implement `.json` routing and deterministic structural chunking behavior.
+- [x] Implement and verify key-path and reference-style relation extraction behavior where supported.
+- [x] Calibrate and commit JSON caps for large generated manifests and lockfiles.
+
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/build/discover.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/chunking/formats/json.js`
+- `src/index/chunking/dispatch.js`
+- `src/index/build/file-processor/tree-sitter.js`
+- `src/lang/tree-sitter/config.js`
+- `src/lang/tree-sitter/native-runtime.js`
+- `src/index/build/runtime/caps.js`
+#### 0.5.39c TOML
+
+- [x] Implement `.toml` routing and table/array-of-table chunking behavior.
+- [x] Implement and verify dependency/config reference extraction behavior where supported.
+- [x] Calibrate and commit TOML caps for large toolchain and package configuration files.
+
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/build/discover.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/chunking/formats/ini-toml.js`
+- `src/index/chunking/dispatch.js`
+- `src/index/build/file-processor/tree-sitter.js`
+- `src/lang/tree-sitter/config.js`
+- `src/lang/tree-sitter/native-runtime.js`
+- `src/index/build/runtime/caps.js`
+#### 0.5.39d INI
+
+- [x] Implement `.ini`/`.cfg` routing and section/key chunking behavior.
+- [x] Implement and verify include/reference extraction behavior where supported.
+- [x] Calibrate and commit INI caps for legacy and infra configuration repositories.
+
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/build/discover.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/chunking/formats/ini-toml.js`
+- `src/index/chunking/dispatch.js`
+- `src/index/build/file-processor/tree-sitter.js`
+- `src/lang/tree-sitter/config.js`
+- `src/lang/tree-sitter/native-runtime.js`
+- `src/index/build/runtime/caps.js`
+#### 0.5.39e XML
+
+- [x] Implement `.xml` routing and element/namespace-aware chunking behavior.
+- [x] Implement and verify schema/import/include relation extraction behavior where supported.
+- [x] Calibrate and commit XML caps for verbose build/config/schema files.
+
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/build/discover.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/chunking/formats/xml.js`
+- `src/index/chunking/dispatch.js`
+- `src/index/build/file-processor/tree-sitter.js`
+- `src/lang/tree-sitter/config.js`
+- `src/lang/tree-sitter/native-runtime.js`
+- `src/lang/workers/tree-sitter-worker.js`
+- `src/index/build/runtime/caps.js`
+#### 0.5.40 Build/package manifest and special-file catalog
+
+- [x] Expand `MANIFEST_FILES` / `LOCK_FILES` to full supported ecosystem coverage; current detection is still partial.
+  - [x] JS/TS: `package.json`, lockfiles
+  - [x] Python: `requirements.txt`, `pyproject.toml`, `Pipfile`, locks
+  - [x] Ruby: `Gemfile`, `Gemfile.lock`
+  - [x] PHP: `composer.json`, `composer.lock`
+  - [x] Go: `go.mod`, `go.sum`
+  - [x] Rust: `Cargo.toml`, `Cargo.lock`
+  - [x] Java/Kotlin/Groovy/Scala: `pom.xml`, `build.gradle`, `build.gradle.kts`, `settings.gradle`, `settings.gradle.kts`
+  - [x] C#: `.sln`, `.csproj`, `.props`, `.targets`, `Directory.Build.props`
+  - [x] Swift: `Package.swift`, `Package.resolved`
+  - [x] Dart: `pubspec.yaml`, `pubspec.lock`
+  - [x] R: `DESCRIPTION`
+  - [x] Julia: `Project.toml`, `Manifest.toml`
+  - [x] C/C++/ObjC and infra: `CMakeLists.txt`, `Makefile`, `BUILD`, `WORKSPACE`, `Dockerfile`, `buf.yaml`, `buf.gen.yaml`, `flake.nix`
+- [x] Define one canonical language descriptor contract (extensions, special filenames, parser route, adapter ID, caps profile) and treat it as the only editable source for language routing.
+- [x] Generate extension/special-file tables and registry dispatch maps from the canonical language descriptor to eliminate manual drift across constants, discovery, and language registry modules.
+- [x] Keep manifest/special-file logic singular across discovery, tooling helpers, and language catalog specs.
+- [x] Add strict parity tests that assert manifest/special-file detection coverage for every supported ecosystem and special filename.
+
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/language-registry/registry.js`
+- `src/index/build/discover.js`
+- `tools/usr/generate-usr-matrix-baselines.mjs`
+- `tools/tooling/utils.js`
+- `docs/specs/usr-language-descriptor-contract.md` (new)
+- `docs/specs/usr-core-language-framework-catalog.md`
+- `docs/specs/import-resolution.md`
+#### 0.5.41 Language-specific limits calibration program
+
+- [x] Build a language-by-language telemetry baseline (p50/p95/p99 bytes, lines, tokens, chunk counts, parse times).
+- [x] Set strict per-language `maxBytes`/`maxLines`/tree-sitter thresholds from measured distributions instead of one global default.
+- [x] Add per-language cap regression fixtures covering common real-world files and edge-case oversized files.
+- [x] Emit deterministic calibration artifacts (`caps-calibration-inputs.json`, `caps-calibration-results.json`) and keep them versioned so cap updates are reproducible and reviewable.
+- [x] Update `docs/specs/large-file-caps-strategy.md` and related contracts to reflect active language-aware behavior only.
+
+
+Touchpoints:
+
+- `src/index/build/runtime/caps.js`
+- `src/index/build/file-processor/read.js`
+- `src/index/build/file-processor/skip.js`
+- `src/index/build/discover.js`
+- `src/index/build/watch/guardrails.js`
+- `benchmarks/index/caps-calibration-inputs.json` (new)
+- `benchmarks/index/caps-calibration-results.json` (new)
+- `docs/specs/large-file-caps-strategy.md`
+#### 0.5.42 Index-build performance and optimization program (expert-level)
+
+- [x] Execute 0.5.42 in strict sequence:
+  - [ ] sequence 0: instrumentation baseline, fixed fixture corpus lock, and reproducible benchmark harness
+  - [ ] sequence 1: dispatch/scan/read hot-path acceleration and generated/vendor classification
+  - [ ] sequence 2: parser lifecycle + fallback semantics
+  - [ ] sequence 3: cache architecture + invalidation correctness
+  - [ ] sequence 4: scheduler + memory-layout optimization
+  - [ ] sequence 5: relation recomputation and memory-layout consolidation
+  - [ ] sequence 6: profile consolidation and cleanup of temporary overrides
+- [x] Treat current early language resolution and current scan fastpath as baseline; harden and extend rather than re-implement.
+- [x] Capture baseline and post-change hot-path metrics from the identical fixture corpus so each optimization has attributable before/after impact.
+- [x] Implement hot-path timing probes first (scan/read/chunk/parse/relation) and freeze their event schema before optimization changes.
+- [x] Materialize phase artifacts for sequence 0 and reuse them unchanged for all later optimization sequences:
+  - [x] `benchmarks/index/perf-corpus-manifest.json`
+  - [x] `benchmarks/index/perf-baseline-telemetry.json`
+  - [x] `benchmarks/index/perf-after-telemetry.json`
+  - [x] `benchmarks/index/perf-delta-report.json`
+- [x] Replace per-file linear language registry lookup with a frozen extension/path-kind dispatch map built once at runtime init.
+- [x] Harden the existing two-tier scanner in `src/index/build/file-scan.js`:
+  - [ ] tier 1: 4-8 KiB probe for binary/minified/generated heuristics
+  - [ ] tier 2: bounded extended sample only when tier 1 is inconclusive
+- [x] Cache scan outcomes by `(path, size, mtimeMs)` for watch/rebuild runs to avoid re-scanning unchanged files.
+- [x] Implement generated-file classifier coverage (bundle/minified/vendor patterns) and route these files to low-cost metadata-only indexing by default.
+- [x] Define and enforce generated/vendor policy defaults:
+  - [ ] default to metadata-only indexing for generated/minified/vendor files
+  - [ ] allow explicit opt-in patterns for full indexing in repo config
+  - [ ] emit deterministic reason metadata whenever downgraded indexing is applied
+- [x] Consolidate import-resolution manifest/package probes so discovery and import resolution consume one normalized manifest graph.
+- [x] Upgrade `readTextFileWithStreamingCap` to fixed-size chunk streaming with deterministic UTF-8 boundary handling and early cutover at cap.
+- [x] Reuse one shared line index and UTF-8 byte-prefix table per file across chunking, trimming, and relation span normalization.
+- [x] Replace repeated `Buffer.byteLength` scans in hot chunk splitting paths with cached prefix lookups.
+- [x] Add per-language chunk splitter specializations:
+  - [ ] JS/TS/JSX/TSX: split by top-level declarations + export boundaries
+  - [ ] C/C++/ObjC/Java/C#/Kotlin/Swift: split by type/function boundaries
+  - [ ] SQL/GraphQL/Proto: split by statement/definition boundaries
+- [x] Add parser pools keyed by grammar in runtime workers with bounded pool size and eviction policy.
+- [x] Preload heavy grammars (JS/TS/C++/Rust/Java) during runtime bootstrap to eliminate first-file cold parse spikes.
+- [x] Add language-aware parse timeout scaling (size + line count + historical parse cost) instead of one static timeout.
+- [x] Add parse fallback modes:
+  - [ ] tree-sitter AST mode (full)
+  - [ ] syntax-lite mode (reduced extraction)
+  - [ ] chunk-only mode for extreme files
+- [x] Align fallback behavior with a strict contract so downstream relation/explain/output behavior is deterministic in each fallback mode.
+- [x] Persist AST/chunk cache entries keyed by `(contentHash, languageId, runtimeKind, parserRuntimeVersion, parserVersion, grammarHash, nodeMajor, abiVersion, chunkingConfigVersion, fileCapsVersion, segmentationVersion, optionsHash)`.
+- [x] Define strict cache invalidation contract and apply it uniformly across warm memory cache and persistent cache stores.
+- [x] Enforce deterministic cache serialization ordering and checksum verification before cache reuse.
+- [x] Add block-level segment cache for Vue/Svelte/Astro so unchanged template/script/style blocks skip reparse.
+- [x] Add identical-content dedup across paths/worktrees to parse once and fan out reused chunk/AST artifacts.
+- [x] Add adaptive worker scheduler that prioritizes short files first, limits concurrent heavy-language parses, and preserves deterministic tie-break ordering (`priority bucket -> relPath -> contentHash`).
+- [x] Add work-stealing between workers with heavy-job backpressure to avoid one-worker long-tail stalls.
+- [x] Enforce deterministic writer commit order for chunks/relations/artifacts independent of worker completion timing.
+- [x] Add memory-pressure controls:
+  - [ ] worker-level memory watermark and soft/hard pressure states
+  - [ ] per-language concurrency throttles under pressure
+  - [ ] deterministic cache eviction order (largest-first + oldest-first tie-break)
+- [x] Introduce symbol/string interning for relation graph construction to reduce duplicate allocations.
+- [x] Normalize cross-language symbol identity and edge typing before compression so graph consumers see one stable relation schema.
+- [x] Store relation edges in compact typed-array-backed buffers with delta-encoded positions instead of object-heavy maps.
+- [x] Add memory arena allocation strategy for transient chunk/relation objects to reduce GC churn in large builds.
+- [x] Add incremental relation recomputation for unchanged files by reusing prior stable relation snapshots.
+- [x] Add chunk-span lazy materialization path: carry `(start,end)` spans through processing and materialize raw substrings only at sinks that require concrete text.
+- [x] Fuse tokenization, minhash generation, and phrase/chargram extraction into a single streaming pass to reduce duplicate scans and transient allocations.
+- [x] Add deterministic chunk-embedding cache keyed by `(chunkHash, modelId, embeddingConfigVersion)` and skip recomputation for unchanged chunks.
+- [x] Add resumable index-build checkpoints (file cursor, artifact flush watermark, checkpoint checksum) so interrupted builds resume without replaying completed work.
+- [x] Add write-combining for postings/artifact writers with deterministic batched flush order to reduce small-write overhead.
+- [x] Add persistent tree-sitter query precompile cache keyed by `(languageId, grammarHash, querySetVersion)` to avoid repeat compile costs across runs.
+- [x] Add adaptive I/O concurrency controller (walk/read/stat lanes) driven by observed latency and memory pressure.
+- [x] Add path-string and chunk-name interning in artifact writers to reduce memory footprint and artifact size.
+- [x] Replace per-feature optimization toggles with one canonical `indexOptimizationProfile` selector (`default`, `throughput`, `memory-saver`) and keep `default` as the primary production path.
+- [x] Remove temporary experiment-only override knobs once profile behavior is stabilized in this phase.
+- [x] Enforce explicit profile semantics in contract validators so profile changes are schema-validated rather than doc-only.
+
+Touchpoints:
+
+- `src/index/constants.js`
+- `src/index/language-registry/registry-data.js`
+- `src/index/language-registry/registry.js`
+- `src/index/build/discover.js`
+- `src/index/build/file-scan.js`
+- `src/index/build/file-processor/*`
+- `src/index/chunking/*`
+- `src/index/build/import-resolution/*`
+- `src/index/build/runtime/tree-sitter.js`
+- `src/index/build/tree-sitter-scheduler/*`
+- `src/index/build/indexer/steps/process-files/tree-sitter.js`
+- `src/index/build/file-processor/process-chunks/index.js`
+- `src/lang/tree-sitter/native-runtime.js`
+- `src/lang/workers/tree-sitter-worker.js`
+- `src/index/build/runtime/caps.js`
+- `src/index/build/tokenization.js`
+- `src/index/build/postings/*`
+- `src/index/build/indexer/steps/postings.js`
+- `src/index/build/artifacts/write-concurrency.js`
+- `src/index/build/state.js`
+- `src/shared/packed-postings.js`
+- `tools/tooling/utils.js`
+- `benchmarks/index/perf-corpus-manifest.json` (new)
+- `benchmarks/index/perf-baseline-telemetry.json` (new)
+- `benchmarks/index/perf-after-telemetry.json` (new)
+- `benchmarks/index/perf-delta-report.json` (new)
+- `docs/specs/large-file-caps-strategy.md`
+- `docs/specs/generated-vendor-indexing-policy.md`
+- `docs/specs/indexing-fallback-semantics.md`
+- `docs/specs/indexing-memory-pressure-policy.md`
+- `docs/specs/index-optimization-profiles.md` (new)
+- `docs/specs/index-checkpoint-resume.md` (new)
+- `docs/specs/index-embedding-cache.md` (new)
+- `docs/contracts/index-perf-contract.md` (new)
+- `src/contracts/schemas/index-perf.js` (new)
+- `src/contracts/validators/index-perf.js` (new)
+- `docs/specs/import-resolution.md`
+- `docs/specs/usr/languages/*`
+
+Tests:
+
+- [x] Add/update language routing coverage tests that cover every supported language/framework and special filenames.
+- [x] Add/update per-language collector/chunker/relation/flow fixture tests for each registry entry.
+- [x] Add/update framework segmentation tests for Vue/Svelte/Astro/JSX/TSX with deterministic snapshots.
+- [x] Add/update manifest/build-file detection coverage tests across all supported ecosystems.
+- [x] Add/update per-language caps regression tests (`maxBytes`, `maxLines`, parser thresholds) driven by fixtures.
+- [x] Add/update fallback-mode behavior tests that assert deterministic downstream outputs for AST/syntax-lite/chunk-only modes.
+- [x] Add/update cache invalidation tests that assert stale cache rejection on parser/grammar/caps/segmentation changes.
+- [x] Add/update generated/vendor policy tests for metadata-only default and explicit opt-in full indexing.
+- [x] Add/update memory-pressure tests for watermark throttling and deterministic eviction order.
+- [x] Add/update indexing performance microbench suites (scan/read/chunk/parse/relation) with before/after measurements.
+- [x] Add/update performance artifact schema validation tests for `perf-*` outputs and `indexOptimizationProfile` contract enforcement.
+- [x] Add/update fused tokenization/minhash/chargram determinism and throughput tests.
+- [x] Add/update chunk-embedding cache reuse and invalidation tests.
+- [x] Add/update checkpoint-resume correctness and determinism tests.
+- [x] Add/update writer flush-order determinism tests.
+- [x] Add/update persistent query-precompile cache tests.
+- [x] Add/update adaptive I/O concurrency stability tests under mixed file-size workloads.
+
+Exit criteria:
+
+- [x] Every supported language/framework has explicit, tested routing and index-build behavior.
+- [x] Header/class/source/build/package file coverage is complete and validated.
+- [x] Language-specific size/line/parse limits are calibrated from telemetry and enforced.
+- [x] Performance improvements are implemented with measurable before/after results.
+- [x] One canonical `indexOptimizationProfile` selector remains, with no temporary per-feature override flags left active.
+
+---
+
+### Phase 1 - Foundations and contract hygiene (NIKE Phase 1)
+
+Intent: strict deterministic contracts and guardrails.
+
+#### 1.1 Contract versioning and strict schema enforcement
+
+- [x] Align active contract-versioning rules with existing release discipline and schema-version helpers.
+- [x] Require strict schema validation for active versions.
+- [x] Remove stale fields/spec clauses during the cutover, do not keep compatibility aliases.
+
+Touchpoints:
+
+- `docs/contracts/*`
+- `docs/guides/release-discipline.md`
+- `src/contracts/versioning.js`
+- `src/contracts/schemas/*`
+- `src/contracts/validators/*`
+
+Tests:
+
+- [x] Update contract parser tests to strict active-schema expectations.
+
+#### 1.2 Path normalization policy (storage vs IO)
+
+- [x] Enforce one canonical stored path format (`/` separators).
+- [x] Enforce explicit normalization boundaries at IO edges.
+- [x] Remove conflicting path-handling behaviors.
+
+Touchpoints:
+
+- `src/shared/files.js`
+- `src/shared/path-normalize.js`
+- `docs/guides/path-handling.md`
+- `docs/contracts/*`
+
+Tests:
+
+- [x] Drive-letter, UNC, and POSIX normalization tests with strict expected outputs.
+
+#### 1.3 Deterministic serialization and hashing
+
+- [x] Enforce stable JSON ordering for all hashed artifacts.
+- [x] Define canonical hash inputs and remove ambiguous fields.
+
+Touchpoints:
+
+- `src/shared/stable-json.js`
+- `docs/contracts/*`
+
+Tests:
+
+- [x] Repeated-run hash stability tests.
+
+#### 1.4 Spec contract consolidation
+
+- [x] Harden the existing unified guardrail entrypoint (`tools/ci/run-suite.js`) and keep all contract checks registered through it.
+- [x] Require each guardrail to define scope and remediation command.
+- [x] Remove duplicated/overlapping guardrail checks.
+
+Touchpoints:
+
+- `tools/ci/run-suite.js`
+- `tools/docs/contract-drift.js`
+- `docs/tooling/script-inventory.json`
+- `docs/guides/commands.md`
+
+Tests:
+
+- [x] Guardrail registry coverage test.
+
+Exit criteria:
+
+- [x] Active contracts are strict, deterministic, and fully tested.
+- [x] Path and serialization policy is singular and enforced.
+- [x] Guardrails are unified.
+
+---
+
+### Phase 2 - Release and platform baseline (merged Phase 16 + Phase 18)
+
+Intent: deterministic releases, reproducible packaging, and strict platform behavior.
+
+#### 2.1 Deterministic release-check
+
+- [x] Keep `tools/release/check.js` canonical (current baseline: changelog + essential blockers), then extend it into full deterministic release validation.
+- [x] Add `npm run release-check`.
+- [x] Enforce fixed smoke sequence:
+  - [x] `pairofcleats --version`
+  - [x] fixture index build
+  - [x] fixture index validate (`--strict`)
+  - [x] fixture search
+  - [x] editor package smoke checks
+  - [x] service-mode smoke checks
+- [x] Emit `release_check_report.json` with stable schema and ISO timestamps.
+- [x] Emit `release-manifest.json` with checksums and artifact inventory.
+- [x] Run contract/spec drift checks as part of release-check flow before smoke steps.
+- [x] Remove permissive modes that skip required checks.
+
+Tests:
+
+- [x] `tests/tooling/release-check/smoke.test.js`
+- [x] `tests/tooling/release-check/report-schema.test.js`
+- [x] `tests/tooling/release-check/exit-codes.test.js`
+- [x] `tests/tooling/release-check/deterministic-order.test.js`
+
+
+Touchpoints:
+
+- `tools/release/check.js`
+- `tools/docs/contract-drift.js`
+- `package.json`
+- `docs/guides/release-discipline.md`
+#### 2.2 Cross-platform path safety
+
+- [x] Audit release-critical path joins and normalization.
+- [x] Replace brittle concatenation with path-safe helpers.
+- [x] Enforce path behavior for spaces, drive letters, mixed separators, UNC.
+
+Tests:
+
+- [x] `tests/tooling/paths/paths-with-spaces.test.js`
+- [x] `tests/tooling/paths/windows-paths-smoke.test.js`
+- [x] `tests/tooling/paths/path-edge-cases.test.js`
+- [x] `tests/tooling/paths/windows-drive-letter-normalization.test.js`
+- [x] `tests/tooling/paths/mixed-separators-cli.test.js`
+
+
+Touchpoints:
+
+- `src/shared/files.js`
+- `src/shared/path-normalize.js`
+- `src/shared/io/atomic-write.js`
+- `docs/guides/path-handling.md`
+#### 2.3 Reproducible editor packaging
+
+- [x] Implement deterministic Sublime packaging (`tools/package-sublime.js`).
+- [x] Implement deterministic VS Code packaging (`tools/package-vscode.js`).
+- [x] Enforce deterministic archive layout rules (stable entry ordering, normalized root prefix, normalized path separators).
+- [x] Normalize archive metadata (`mtime`, `uid/gid`, mode bits) and enforce fixed compression method/level for reproducible outputs across hosts.
+- [x] Emit and verify per-archive checksum manifests during packaging runs.
+- [x] Enforce pinned packaging toolchains.
+- [x] Fail packaging jobs when required toolchains are unavailable.
+- [x] Update editor integration docs to reflect active packaging flow.
+
+Tests:
+
+- [x] `tests/tooling/sublime/package-structure.test.js`
+- [x] `tests/tooling/sublime/package-determinism.test.js`
+- [x] `tests/tooling/vscode/extension-packaging.test.js`
+- [x] `tests/tooling/vscode/vscode-extension.test.js` (updated)
+- [x] Create `tests/tooling/vscode/toolchain-missing-policy.test.js` with strict missing-toolchain failure expectations.
+- [x] `tests/tooling/sublime/package-archive-metadata.test.js` (new)
+- [x] `tests/tooling/vscode/package-archive-metadata.test.js` (new)
+
+
+Touchpoints:
+
+- `tools/package-sublime.js` (new)
+- `tools/package-vscode.js` (new)
+- `tools/tooling/archive-determinism.js` (new)
+- `docs/specs/editor-packaging-determinism.md` (new)
+- `docs/guides/editor-integration.md`
+- `extensions/`
+- `sublime/`
+#### 2.4 Python toolchain policy
+
+- [x] Decide and document whether Python is a required runtime dependency for local tooling flows.
+- [x] If required, enforce preflight failure when missing.
+- [x] Remove skip-based semantics from core tooling paths.
+- [x] Keep optional best-effort behavior only in explicitly optional commands.
+
+Tests:
+
+- [x] Update `tests/tooling/sublime/sublime-pycompile.test.js` for strict policy.
+- [x] Update Python tooling tests to reflect required-toolchain behavior.
+
+
+Touchpoints:
+
+- `docs/guides/release-discipline.md`
+- `docs/guides/commands.md`
+- `tests/tooling/sublime/sublime-pycompile.test.js`
+- `package.json`
+#### 2.5 Service-mode bundle and enforcement
+
+- [x] Define canonical one-command service-mode run path.
+- [x] Document required env, queue paths, and security defaults.
+- [x] Make service-mode smoke part of standard release validation flow.
+
+Tests:
+
+- [x] `tests/services/service-mode-smoke.test.js`
+
+
+Touchpoints:
+
+- `tools/service/indexer-service.js`
+- `tools/service/config.js`
+- `docs/guides/service-mode.md`
+- `tests/services/service-mode-smoke.test.js` (new)
+
+Exit criteria:
+
+- [x] Release-check and platform safety behaviors are deterministic and enforced.
+- [x] Packaging and service-mode checks are mandatory in standard release validation.
+
+---
+
+### Phase 3 - Index artifact robustness (NIKE Phase 2)
+
+Intent: deterministic artifact writing with strict validators.
+
+#### 3.1 Deterministic trimming policy
+
+- [x] Add a shared trimming helper and use it across writers.
+- [x] Define one deterministic trim order.
+- [x] Emit trim counters in stats.
+- [x] Emit trim policy metadata required by contract (`trimPolicyVersion`, `trimReasonCounts`, deterministic reason taxonomy).
+- [x] Align writer outputs with `docs/contracts/artifact-trimming-policy.md` and schema index references.
+
+Touchpoints:
+
+- `src/index/build/artifacts/writers/call-sites.js`
+- `src/index/build/artifacts/writers/*`
+- `src/index/build/artifacts/reporting.js`
+- `src/index/build/artifacts-write.js`
+- `src/contracts/schemas/artifacts.js`
+- `docs/contracts/artifact-trimming-policy.md`
+- `docs/contracts/artifact-schema-index.json`
+
+Tests:
+
+- [x] Oversized-row trim determinism tests per writer.
+- [x] Required-field invariants after trim.
+- [x] Trim counter emission tests.
+
+#### 3.2 Determinism report
+
+- [x] Emit `determinism_report.json` with source reasons.
+- [x] Update validators to require this artifact where configured.
+- [x] Remove ambiguous nondeterministic-field handling.
+
+Touchpoints:
+
+- `src/index/build/state.js`
+- `src/index/validate/*`
+- `docs/testing/index-state-nondeterministic-fields.md`
+- `docs/specs/build-state-integrity.md`
+
+Tests:
+
+- [x] Determinism report schema and emission tests.
+
+Exit criteria:
+
+- [x] Trim and determinism behaviors are strict and validator-enforced.
+
+---
+
+### Phase 4 - Search/graph UX and explain contract (NIKE Phase 3)
+
+Intent: deterministic output contracts and strict behavior.
+
+#### 4.1 Search startup performance
+
+- [x] Harden existing startup checkpoint reporting (`startup.backend`, `startup.search`) and freeze deterministic stage schema.
+- [x] Remove slow init paths from `search --help` and search fast paths.
+
+Touchpoints:
+
+- `src/retrieval/cli/run-search.js`
+- `src/retrieval/cli/search-execution.js`
+- `src/retrieval/pipeline/stage-checkpoints.js`
+- `docs/guides/search.md`
+
+Tests:
+
+- [x] Startup checkpoint ordering test.
+- [x] Search help fastpath test.
+
+#### 4.2 Explain schema normalization
+
+- [x] Define strict explain schema with explicit version.
+- [x] Enforce deterministic field ordering.
+- [x] Remove stale explain fields and docs.
+
+Touchpoints:
+
+- `src/retrieval/output/explain.js`
+- `src/retrieval/pipeline/graph-ranking.js`
+- `docs/contracts/retrieval-ranking.md`
+- `docs/contracts/search-contract.md`
+
+Tests:
+
+- [x] Explain schema validation tests.
+- [x] Explain snapshot updates.
+
+#### 4.3 Graph ranking controls
+
+- [x] Keep one `--graph-ranking` behavior.
+- [x] Enforce membership invariant strictly.
+
+Touchpoints:
+
+- `src/retrieval/cli-args.js`
+- `src/retrieval/cli/normalize-options.js`
+- `src/retrieval/pipeline/graph-ranking.js`
+- `docs/contracts/search-cli.md`
+
+Tests:
+
+- [x] Graph ranking toggle tests.
+- [x] Membership invariant tests.
+
+#### 4.4 Search output overhaul
+
+- [x] Implement deterministic human output modes.
+- [x] Implement strict JSON output contract with version field.
+- [x] Gate heavy fields explicitly and remove ambiguous defaults.
+
+Touchpoints:
+
+- `src/retrieval/output/format.js`
+- `src/retrieval/output/summary.js`
+- `src/retrieval/output/context.js`
+- `docs/guides/search.md`
+
+Tests:
+
+- [x] Human and JSON snapshot updates.
+- [x] Deterministic ordering tests.
+
+#### 4.5 Impact analysis strictness
+
+- [x] Enforce strict empty-input behavior with stable error code.
+- [x] Remove permissive empty-input behavior.
+
+Touchpoints:
+
+- `src/graph/impact.js`
+- `src/integrations/tooling/impact.js`
+- `docs/contracts/graph-tools-cli.md`
+
+Tests:
+
+- [x] Strict empty-input error tests.
+
+Exit criteria:
+
+- [x] Search/graph behaviors are strict, deterministic, and reflected in updated specs/tests.
+
+---
+
+### Phase 5 - SCM contract and workspace scaffolding (NIKE Phase 4)
+
+Intent: strict SCM/workspace contracts and deterministic manifests.
+
+#### 5.1 SCM provider contract
+
+- [x] Define strict provider return contracts for git/jj.
+- [x] Enforce deterministic failure behavior for unavailable SCM.
+- [x] Remove inconsistent provider edge behavior.
+
+Touchpoints:
+
+- `src/index/scm/providers/git.js`
+- `src/index/scm/providers/jj.js`
+- `docs/specs/scm-provider-contract.md`
+- `docs/specs/scm-provider-config-and-state-schema.md`
+
+Tests:
+
+- [x] Provider shape tests.
+- [x] Unavailable-SCM deterministic failure tests.
+
+#### 5.2 Workspace manifest/config
+
+- [x] Enforce strict schema validation for workspace config/manifest.
+- [x] Emit deterministic `workspace_manifest.json`.
+- [x] Document one canonical emission flow.
+
+Touchpoints:
+
+- `docs/specs/workspace-config.md`
+- `docs/specs/workspace-manifest.md`
+- `src/contracts/schemas/*`
+- `src/shared/workspace/*`
+
+Tests:
+
+- [x] Workspace schema validation tests.
+- [x] Manifest determinism tests.
+
+Exit criteria:
+
+- [x] SCM/workspace contracts are strict and deterministic.
+
+---
+
+### Phase 6 - Test runner, coverage, profiling (NIKE Phase 5)
+
+Intent: strict test telemetry and profiling contracts.
+
+#### 6.1 Timings ledger and watchdog
+
+- [x] Harden existing `--log-times` / `--timings-file` output into a versioned schema with strict field guarantees.
+- [x] Add hung-test watchdog with enforced behavior.
+
+Touchpoints:
+
+- `tests/run.js`
+- `tests/runner/*`
+- `.testLogs/*`
+- `docs/testing/test-runner-interface.md`
+- `docs/testing/ci-capability-policy.md`
+
+Tests:
+
+- [x] Runner format/path tests.
+- [x] Watchdog behavior tests.
+
+#### 6.2 Coverage integration
+
+- [x] Implement `--coverage`, `--coverage-merge`, and `--coverage-changed` in `tests/run.js`.
+- [x] Define a versioned coverage artifact schema and deterministic merge ordering (normalized repo-relative `/` paths + stable file ordering).
+- [x] Enforce coverage artifact schema validation in contract validators (not docs only).
+- [x] Enforce documented output locations and schema.
+- [x] Normalize all coverage paths before write/merge to eliminate platform-dependent path drift.
+
+Touchpoints:
+
+- `tests/run.js`
+- `tools/testing/coverage/*` (new)
+- `src/shared/path-normalize.js`
+- `docs/contracts/test-coverage-contract.md` (new)
+- `src/contracts/schemas/test-artifacts.js` (new)
+- `src/contracts/validators/test-artifacts.js` (new)
+- `.c8/` (new)
+
+Tests:
+
+- [x] Coverage flag parsing tests.
+- [x] Coverage merge tests.
+- [x] Coverage path-normalization determinism tests.
+- [x] Coverage artifact schema validation tests.
+
+#### 6.3 Profiling hooks
+
+- [x] Implement and enforce `--profile` output contract in the test runner.
+- [x] Emit deterministic `profile.json` schema with explicit version, normalized path fields, fixed time units, and stable key ordering.
+- [x] Enforce profile artifact schema validation in contract validators (not docs only).
+- [x] Enforce deterministic numeric formatting/rounding for timing fields to avoid host-dependent serialization drift.
+
+Touchpoints:
+
+- `tests/run.js`
+- `src/index/build/runtime/runtime.js`
+- `src/retrieval/pipeline.js`
+- `src/retrieval/output/summary.js`
+- `src/shared/path-normalize.js`
+- `docs/contracts/test-profile-contract.md` (new)
+- `src/contracts/schemas/test-artifacts.js` (new)
+- `src/contracts/validators/test-artifacts.js` (new)
+- `docs/perf/*`
+
+Tests:
+
+- [x] Profile artifact contract tests.
+- [x] Profile path/time normalization determinism tests.
+- [x] Profile artifact schema validation tests.
+
+Exit criteria:
+
+- [x] Runner/coverage/profile outputs are stable and documented.
+
+---
+
+### Phase 7 - CLI ingest wrappers and error telemetry (NIKE Phase 6)
+
+Intent: strict CLI routing and error-code consistency.
+
+#### 7.1 Ingest CLI wrappers
+
+- [x] Add and enforce `pairofcleats ingest <ctags|gtags|lsif|scip>` routes in `bin/pairofcleats.js` (current ingest scripts are separate commands).
+- [x] Update ingest docs and command inventory.
+
+Touchpoints:
+
+- `bin/pairofcleats.js`
+- `tools/ingest/ctags.js`
+- `tools/ingest/gtags.js`
+- `tools/ingest/lsif.js`
+- `tools/ingest/scip.js`
+- `docs/tooling/ctags.md`
+- `docs/tooling/gtags.md`
+- `docs/tooling/lsif.md`
+- `docs/tooling/scip.md`
+- `docs/guides/commands.md`
+
+Tests:
+
+- [x] CLI routing tests per ingest tool.
+
+#### 7.2 Error telemetry consistency
+
+- [x] Enforce one error code registry and namespace strategy.
+- [x] Attach `code + hint` consistently across CLI/API/MCP error payloads.
+
+Touchpoints:
+
+- `src/shared/error-codes.js`
+- `tools/api/router/*`
+- `src/integrations/mcp/*`
+- `src/retrieval/output/*`
+
+Tests:
+
+- [x] API/MCP/CLI error contract tests.
+
+Exit criteria:
+
+- [x] Ingest and error telemetry surfaces are strict and uniform.
+
+---
+
+### Phase 8 - Async request-path FS completion (promoted from Deferred)
+
+Intent: eliminate sync FS from request-time paths with one strict signature flow.
+
+- [x] Keep the now-async signature path as baseline and remove remaining sync request-time artifact reads.
+- [x] Replace sync loaders in request path (`loadJsonArrayArtifactSync`, sync file existence probes) with async equivalents.
+- [x] Ensure one signature strategy keyed by `index_state.json` + deterministic cache policy.
+- [x] Remove redundant signature/read branches across retrieval/tooling entrypoints.
+
+Tests:
+
+- [x] No-sync-FS request-path tests (including async artifact loader usage in retrieval startup path).
+- [x] Signature invalidation tests.
+
+Touchpoints:
+
+- `src/retrieval/index-cache.js`
+- `src/retrieval/cli/index-loader.js`
+- `src/retrieval/cli/load-indexes.js`
+- `src/retrieval/cli/run-search-session.js`
+- `src/shared/artifact-io/loaders/core.js`
+- `src/integrations/tooling/*`
+- `docs/specs/signature.md`
+
+Exit criteria:
+
+- [x] Request-time signature and artifact-read path is async-only and deterministic.
+
+---
+
+### Phase 9 - Unified terminal-owned TUI and Node supervisor (merged all Phase 20 variants)
+
+Intent: strict protocol boundary and deterministic orchestration.
+
+#### 9.0 Preparation: tool contract and kill-tree unification
+
+- [x] Reconcile and freeze `docs/specs/tui-tool-contract.md` against actual supervisor/tool behavior.
+- [x] Bootstrap missing TUI/supervisor scaffolding directories (`tools/tui/`, `tests/tui/`) and command wrapper entrypoints.
+- [x] Enforce stdout/stderr contracts for all supervisor-driven tools.
+- [x] Add shared kill-tree helper (`src/shared/kill-tree.js`) and replace fragmented implementations.
+- [x] Add stdout guard (`src/shared/cli/stdout-guard.js`).
+
+Tests:
+
+- [x] `tests/shared/kill-tree.posix.test.js`
+- [x] `tests/shared/kill-tree.windows.test.js`
+- [x] `tests/tooling/install/setup-json-output.test.js`
+- [x] `tests/tooling/install/bootstrap-json-output.test.js`
+
+
+Touchpoints:
+
+- `docs/specs/tui-tool-contract.md`
+- `src/shared/kill-tree.js` (new)
+- `src/shared/cli/stdout-guard.js` (new)
+- `src/shared/cli/progress-events.js`
+- `src/shared/subprocess.js`
+#### 9.1 Protocol v2, context propagation, shared decoder
+
+- [x] Reconcile `docs/specs/progress-protocol-v2.md` with runtime implementation and enforce it strictly in code.
+- [x] Enforce strict `proto: "poc.progress@2"` event parsing.
+- [x] Add `PAIROFCLEATS_PROGRESS_CONTEXT` propagation.
+- [x] Implement `src/shared/cli/progress-stream.js` with strict line framing and size cap.
+
+Touchpoints:
+
+- `src/shared/cli/progress-events.js`
+- `src/shared/progress.js`
+- `src/shared/cli/display.js`
+- `src/shared/env.js`
+- `src/integrations/mcp/protocol.js`
+- `src/integrations/mcp/defs.js`
+
+Tests:
+
+- [x] `tests/tui/protocol-v2-schema.test.js`
+- [x] `tests/tui/protocol-v2-ordering.test.js`
+- [x] parser/decoder/context propagation tests
+
+#### 9.2 Node supervisor lifecycle model
+
+- [x] Use `docs/specs/node-supervisor-protocol.md` as canonical target and implement the missing supervisor runtime.
+- [x] Implement `tools/tui/supervisor.js` with strict lifecycle states.
+- [x] Enforce deterministic cancellation and child cleanup.
+- [x] Emit structured lifecycle events.
+
+Tests:
+
+- [x] `tests/tui/supervisor-lifecycle-state-machine.test.js`
+- [x] `tests/tui/supervisor-retry-policy.test.js`
+- [x] supervisor stream discipline and cancellation integration tests
+
+
+Touchpoints:
+
+- `docs/specs/node-supervisor-protocol.md`
+- `tools/tui/supervisor.js` (new)
+- `src/shared/subprocess.js`
+- `src/shared/progress.js`
+#### 9.3 Dispatch reconciliation and artifact indexing pass
+
+- [x] Implement dispatcher rewrite per `docs/specs/dispatcher-rewrite-and-search-reconciliation.md`.
+- [x] Remove brittle search allowlists; keep one strict search argument surface.
+- [x] Implement shared dispatch modules:
+  - `src/shared/dispatch/registry.js`
+  - `src/shared/dispatch/manifest.js`
+  - `src/shared/dispatch/resolve.js`
+  - `src/shared/dispatch/env.js`
+- [x] Implement artifact pass per `docs/specs/supervisor-artifacts-indexing-pass.md` and emit `job:artifacts`.
+
+Tests:
+
+- [x] `tests/dispatch/manifest-list.test.js`
+- [x] `tests/dispatch/manifest-describe-search.test.js`
+- [x] artifact indexing and search passthrough tests
+
+
+Touchpoints:
+
+- `docs/specs/dispatcher-rewrite-and-search-reconciliation.md`
+- `docs/specs/supervisor-artifacts-indexing-pass.md`
+- `bin/pairofcleats.js`
+- `src/shared/dispatch/registry.js` (new)
+- `src/shared/dispatch/manifest.js` (new)
+- `src/shared/dispatch/resolve.js` (new)
+- `src/shared/dispatch/env.js` (new)
+#### 9.4 Rust Ratatui TUI MVP
+
+- [x] Create `crates/pairofcleats-tui/` skeleton.
+- [x] Implement supervisor handshake/run/cancel/shutdown integration.
+- [x] Implement deterministic jobs/tasks/logs UI model.
+- [x] Guarantee terminal restoration on normal and error exits.
+- [x] Pin Rust toolchain + crate dependency versions and enforce lockfile-based reproducible builds.
+- [x] Define deterministic target-triple to artifact-name mapping used by build, install, and wrapper resolution paths.
+- [x] Integrate cross-platform TUI build flow in release tooling so produced artifacts/checksums are generated from one canonical pipeline.
+- [x] Wire Node-side command and release integration for TUI build/install flows (command registry, package scripts, release-check inclusion).
+
+Tests:
+
+- [x] Rust protocol decode tests
+- [x] headless smoke test
+- [x] cancel path integration
+- [x] rendering responsiveness tests
+- [x] target-triple artifact naming tests
+- [x] toolchain pin/lockfile enforcement tests
+
+
+Touchpoints:
+
+- `crates/pairofcleats-tui/` (new)
+- `crates/pairofcleats-tui/Cargo.toml` (new)
+- `crates/pairofcleats-tui/rust-toolchain.toml` (new)
+- `docs/specs/node-supervisor-protocol.md`
+- `docs/specs/progress-protocol-v2.md`
+- `docs/specs/tui-build-and-release.md` (new)
+- `tools/tui/build.js` (new)
+- `tools/release/check.js`
+- `package.json`
+- `docs/guides/commands.md`
+- `bin/pairofcleats.js`
+- `bin/pairofcleats-tui.js` (new)
+#### 9.5 Cancellation and never-hang guarantees
+
+- [x] Propagate cancellation/deadlines through all stages.
+- [x] Enforce bounded shutdown and watchdog behavior.
+- [x] Eliminate orphan process scenarios.
+
+Tests:
+
+- [x] ignore-SIGTERM fixture
+- [x] UI termination mid-job fixture
+- [x] `tests/tui/cancel-propagation.test.js`
+
+
+Touchpoints:
+
+- `tools/tui/supervisor.js` (new)
+- `src/shared/subprocess.js`
+- `src/shared/abort.js`
+- `src/shared/progress.js`
+#### 9.6 Install/distribution and observability
+
+- [x] Implement deterministic TUI install and wrapper flow:
+  - `bin/pairofcleats-tui.js`
+  - `tools/tui/install.js`
+- [x] Define one canonical target manifest consumed by build, installer, and wrapper resolution.
+- [x] Publish deterministic binaries and checksums for supported targets.
+- [x] Implement and verify checksum and executable metadata before wrapper launch.
+- [x] Fail wrapper with actionable error when binary is missing/invalid.
+- [x] Enforce deterministic install layout/cache policy (stable directories, file naming, cleanup semantics).
+- [x] Add replayable event logs and run correlation.
+- [x] Add/update TUI docs:
+  - `docs/specs/tui-installation.md`
+  - `docs/guides/tui.md`
+
+Tests:
+
+- [x] installer unit tests
+- [x] wrapper behavior tests
+- [x] `tests/tui/observability/session-correlation.test.js`
+- [x] `tests/tui/observability/replay-determinism.test.js`
+
+Touchpoints:
+
+- `bin/pairofcleats-tui.js` (new)
+- `tools/tui/install.js` (new)
+- `tools/tui/targets.json` (new)
+- `docs/specs/tui-installation.md`
+- `docs/guides/tui.md`
+- `tests/tui/observability/` (new)
+
+#### 9.7 TUI runtime throughput and interaction latency hardening
+
+- [x] Implement supervisor-to-TUI credit-based backpressure with bounded queues and deterministic coalesce/drop policy under overload.
+- [x] Implement viewport virtualization for jobs/tasks/log panes with ring-buffer retention and deterministic truncation semantics.
+- [x] Implement frame scheduler with fixed render budget and dirty-region diff rendering to cap CPU under high event volume.
+- [x] Implement oversized event/log payload chunking with deterministic reassembly and overflow behavior.
+- [x] Implement persistent session snapshot/recovery (`last-state.json`) so TUI restores prior view state after restart.
+- [x] Implement terminal capability negotiation (color/unicode/mouse/alt-screen) with deterministic degraded rendering modes.
+- [x] Implement input throttling/debouncing for high key-repeat scenarios with deterministic command dispatch ordering.
+- [x] Add in-TUI performance telemetry (event lag, render time, queue depth) and emit structured runtime metrics.
+
+Tests:
+
+- [x] `tests/tui/backpressure-credit-protocol.test.js` (new)
+- [x] `tests/tui/list-virtualization-determinism.test.js` (new)
+- [x] `tests/tui/frame-budget-under-load.test.js` (new)
+- [x] `tests/tui/oversized-event-chunking.test.js` (new)
+- [x] `tests/tui/session-snapshot-recovery.test.js` (new)
+- [x] `tests/tui/terminal-capability-fallback.test.js` (new)
+- [x] `tests/tui/input-throttle-ordering.test.js` (new)
+
+Touchpoints:
+
+- `tools/tui/supervisor.js` (new)
+- `src/shared/cli/progress-stream.js` (new)
+- `src/shared/progress.js`
+- `crates/pairofcleats-tui/src/*` (new)
+- `crates/pairofcleats-tui/Cargo.toml` (new)
+- `docs/specs/progress-protocol-v2.md`
+- `docs/specs/node-supervisor-protocol.md`
+- `docs/specs/tui-performance-and-backpressure.md` (new)
+- `docs/guides/tui.md`
+- `tests/tui/*`
+
+Exit criteria:
+
+- [x] TUI/supervisor protocol, lifecycle, cancellation, install, and observability are strict and fully validated.
+- [x] TUI event throughput, frame latency, and backpressure behavior remain stable under sustained high-volume runs.
+
+---
+
+### Phase 10 - Native/WASM acceleration decision phase
+
+Intent: evaluate acceleration and, if adopted, cut over cleanly without dual runtime paths.
+#### 10.1 Feasibility and decision
+
+- [x] Define ABI strategy and parity harness.
+- [x] Define explicit ABI/runtime boundary contract: ownership model, allocation/free responsibility, panic/error isolation, cancellation semantics.
+- [x] Define versioned runtime negotiation handshake (`abiVersion`, runtime kind, feature bits) and deterministic failure modes for mismatches.
+- [x] Define deterministic fallback semantics when native runtime is unavailable/invalid so retrieval behavior remains contract-stable.
+- [x] Reconcile existing native-accel specs with executable harness and measurable acceptance criteria.
+- [x] Decide go/no-go with explicit acceptance criteria.
+
+Touchpoints:
+
+- `src/shared/native-accel.js` (new)
+- `src/shared/capabilities.js`
+- `tools/setup/rebuild-native.js`
+- `tools/build-native.js` (new)
+- `src/retrieval/native/*`
+- `docs/specs/native-accel.md`
+- `docs/perf/native-accel.md`
+
+Tests:
+
+- [x] `tests/retrieval/native/feasibility-parity-harness.test.js` (new)
+- [x] `tests/retrieval/native/abi-handshake-version-mismatch.test.js` (new)
+- [x] `tests/retrieval/native/fallback-contract.test.js` (new)
+
+#### 10.1b If no-go: closure and cleanup
+
+- [x] Remove or archive experimental native acceleration scaffolding introduced during feasibility work.
+- [x] Freeze the no-go decision in active specs/docs and update capability surfaces so runtime selection remains single-path.
+- [x] Keep parity harness artifacts for auditability, but mark acceleration implementation tasks as closed-not-adopted.
+
+Touchpoints:
+
+- `src/shared/native-accel.js` (new)
+- `src/shared/capabilities.js`
+- `tools/build-native.js` (new)
+- `docs/specs/native-accel.md`
+- `docs/perf/native-accel.md`
+- `docs/archived/native-accel-*.md` (new)
+
+Tests:
+
+- [x] No-go capability surface tests (native runtime disabled/absent still matches canonical behavior).
+- [x] No-go docs/spec consistency tests.
+
+#### 10.2 If go: hard cutover plan
+
+- [x] Implement bitmap/top-k/ANN/worker acceleration with deterministic contracts. (N/A: no-go decision)
+- [x] Enforce ABI boundary wrappers with explicit ownership/lifetime rules and deterministic panic/error mapping. (N/A: no-go decision)
+- [x] Enforce canonical native-result serialization ordering before parity comparison/output handoff. (N/A: no-go decision)
+- [x] Enforce deterministic cancellation and shutdown resource cleanup in native worker paths. (N/A: no-go decision)
+- [x] Remove superseded codepaths in the same cutover. (N/A: no-go decision)
+- [x] Update retrieval specs/tests to active behavior only. (N/A: no-go decision)
+
+Tests:
+
+- [x] `tests/retrieval/native/bitmap-equivalence.test.js` (new) (N/A: no-go decision)
+- [x] `tests/retrieval/native/topk-equivalence.test.js` (new) (N/A: no-go decision)
+- [x] `tests/retrieval/native/topk-adversarial-tie-parity.test.js` (new) (N/A: no-go decision)
+- [x] `tests/retrieval/native/ann-equivalence.test.js` (new) (N/A: no-go decision)
+- [x] `tests/retrieval/native/ann-preflight-error-taxonomy.test.js` (new) (N/A: no-go decision)
+- [x] `tests/retrieval/native/worker-offload-equivalence.test.js` (new) (N/A: no-go decision)
+- [x] `tests/retrieval/native/worker-cancel.test.js` (new) (N/A: no-go decision)
+- [x] `tests/retrieval/native/panic-isolation.test.js` (new) (N/A: no-go decision)
+- [x] `tests/retrieval/native/resource-cleanup-determinism.test.js` (new) (N/A: no-go decision)
+
+Touchpoints:
+
+- `src/shared/native-accel.js` (new)
+- `src/shared/capabilities.js`
+- `src/retrieval/native/*`
+- `tools/build-native.js` (new)
+- `docs/specs/native-accel.md`
+- `docs/perf/native-accel.md`
+
+Exit criteria:
+
+- [x] Decision made and implemented as a single active path.
+
+---
+
+## Final definition of done
+
+- [x] Active contracts/specs/tests reflect current behavior only.
+- [x] No compatibility shims or dual-runtime behavior remain.
+- [x] Release, packaging, and platform behavior are deterministic.
+- [x] Core indexing/retrieval/workspace behavior is deterministic and validated.
+- [x] TUI/supervisor stack is production-stable and fully tested.
+
+---
+
+# Findings
+
+## Scope
+Branch-wide bug sweep across retrieval/CLI/cache, indexing runtime/build, language routing/import collectors, and tooling/docs contract surfaces.
+
+## Findings
+1. **[P3] Query-plan cache silently disables when both cache directories are unset**  
+   Evidence: `src/retrieval/cli/cache-paths.js`, `src/retrieval/cli/run-search.js:191`  
+   Impact: plan cache reuse is skipped with no explicit warning in this edge configuration, increasing query startup cost.  
+   Fix: enforce/derive a fallback cache path (or emit a hard warning/error when cache is enabled but no path exists).[x] 
+
+2. **[P3] Query-result disk cache silently disables when both cache directories are unset**  
+   Evidence: `src/retrieval/cli/run-search-session.js:281`  
+   Impact: query cache persistence/lookup can be disabled unintentionally, degrading repeated-query performance.  
+   Fix: require a resolved cache path when query caching is enabled, or define an explicit fallback path.[x] 
+
+3. **[P3] Memory-first hot-cache path can be effectively disabled when cachePath is falsy**  
+   Evidence: `src/retrieval/query-cache.js:75`, `src/retrieval/cli/run-search-session.js:376`  
+   Impact: memory-first mode can degrade into uncached behavior if path keying is unavailable.  
+   Fix: use a stable synthetic key when no disk cache path exists.[x] 
+
+4. **[P3] Empty-string cache dir behaves like "no cache"**  
+   Evidence: `src/retrieval/cli/cache-paths.js`  
+   Impact: an empty-string configuration value can accidentally disable both plan/result caches.  
+   Fix: normalize empty-string cache dirs to a concrete fallback path or reject explicitly.[x] 
+
+5. **[P3] Compatibility-key checks are serialized across modes**  
+   Evidence: `src/retrieval/cli/load-indexes.js:314-321`  
+   Impact: unnecessary startup latency from sequential `hasIndexMetaAsync` checks.  
+   Fix: run compatibility target probes in parallel with `Promise.all`.[x] 
+
+6. **[P3] Tantivy attach/build path runs serially by mode**  
+   Evidence: `src/retrieval/cli/load-indexes.js:868-883`  
+   Impact: avoidable latency in mixed-mode loads where attaches are independent.  
+   Fix: parallelize independent attach operations.[x] 
+
+7. **[P3] File-relations/repo-map mode loads are serialized**  
+   Evidence: `src/retrieval/cli/load-indexes.js:520-556`  
+   Impact: added startup latency for multi-mode searches.  
+   Fix: overlap independent artifact loads with bounded parallelism.[x] 
+
+8. **[P3] Optional extracted-prose disablement can be silent when output is suppressed**  
+   Evidence: `src/retrieval/cli/load-indexes.js:244-253`  
+   Impact: feature drop (comment joins disabled) may be invisible in non-emitting flows.  
+   Fix: always emit telemetry/status metadata even when `emitOutput=false`.[x] 
+
+9. **[P3] Cache persistence flag can remain active even when no path is writable**  
+   Evidence: `src/retrieval/cli/run-search-session.js:733-761`  
+   Impact: repeated prune/persist path checks with no possible write target.  
+   Fix: tie persist flag to a validated writable cache path.
+[x] 
+10. **[P2] Prewarm does not clear stale hot-cache entries before upsert**  
+    Evidence: `src/retrieval/query-cache.js:140-158`  
+    Impact: removed disk entries can remain in process-hot cache and be served unexpectedly in memory-first paths.  
+   Fix: clear/replace hot-cache map on prewarm before inserting fresh entries.
+[x] 
+11. **[P2] Disk cache miss/invalid file path does not evict hot cache state**  
+    Evidence: `src/retrieval/query-cache.js:167-197`  
+    Impact: stale in-memory entries may survive disk invalidation/removal events.  
+   Fix: evict hot-cache state for that path on invalid signature/read failure.
+[x] 
+12. **[P2] Scheduler memory tokens are tied to CPU tokens by default**  
+    Evidence: `src/index/build/runtime/scheduler.js:121-123`  
+    Impact: memory-heavy phases can be underutilized on hosts with ample RAM but lower CPU token settings.  
+    Fix: derive memory tokens from memory headroom policy, not CPU concurrency.
+[x] 
+13. **[P2] Effective embedding concurrency clamp is bypassed in non-scheduler fallback path**  
+    Evidence: `src/index/build/runtime/workers.js:58-135`  
+    Impact: embeddings can overcommit concurrency when scheduler is disabled.  
+    Fix: pass clamped `effectiveEmbeddingConcurrency` into fallback queue creation.
+[x] 
+14. **[P2] Quantize worker payload path skips payload sanitization/DataCloneError hardening**  
+    Evidence: `src/index/build/workers/pool.js:223-300`  
+    Impact: clone failures can repeat and degrade quantization reliability without robust fallback behavior.  
+    Fix: sanitize quantize payloads and reuse clone-failure disable/restart handling.
+[x] 
+15. **[P3] Planner I/O concurrency hard cap can underutilize high-core hosts**  
+    Evidence: `src/index/build/tree-sitter-scheduler/plan.js:180-210`  
+    Impact: plan phase leaves throughput on the table for very large repos.  
+    Fix: scale cap from host capacity and workload size.
+[x] 
+16. **[P3] Tree-sitter lookup meta/page caches risk stale reuse across rebuilds in reused process contexts**  
+    Evidence: `src/index/build/tree-sitter-scheduler/lookup.js:46-165`  
+    Impact: stale manifest/page metadata can leak between iterations if cache lifetime outlives artifact refreshes.  
+    Fix: bind cache entries to artifact version/mtime or clear between runs.
+[x] 
+17. **[P2] Filter-index reuse path can leave manifest bookkeeping inconsistent**  
+    Evidence: `src/index/build/artifacts-write.js:250-330`  
+    Impact: consumers may follow stale manifest references after fallback reuse.  
+    Fix: ensure reused artifact path is written back into manifest/piece entries.
+[x] 
+18. **[P2] Presence validation fallback coverage is incomplete for variant artifact forms**  
+    Evidence: `src/index/validate/presence.js:40-76`  
+    Impact: false missing-artifact reports possible when only non-JSON primary variants exist.  
+    Fix: normalize checks across JSON/JSONL/columnar/compressed variants consistently.
+[x] 
+19. **[P3] Embedding runtime keeps non-zero concurrency semantics even when embeddings are disabled**  
+    Evidence: `src/index/build/runtime/embeddings.js:20-70`, `src/index/build/runtime/workers.js:60-125`  
+    Impact: unnecessary queue/resource footprint under disabled embedding modes.  
+    Fix: propagate zero-concurrency semantics when embedding is disabled.
+[x] 
+20. **[P2] Worker restart state can stick in pending-restart failure edge cases**  
+    Evidence: `src/index/build/workers/pool.js:90-170`  
+    Impact: pool can remain disabled after transient restart errors.  
+    Fix: harden restart state transitions and ensure pending flags reset on all outcomes.
+[x] 
+21. **[P2] `proto/buf.yaml` and `proto/buf.gen.yaml` are not routed to proto adapter**  
+    Evidence: `src/index/language-registry/descriptors.js:241-245`, `tests/indexing/language-registry/registry-wiring.test.js`  
+    Impact: proto config files miss adapter/import logic.  
+    Fix: add explicit special filename routing for Buf configs.
+[x] 
+22. **[P2] `.jsonc` files remain unclassified in language routing**  
+    Evidence: `src/index/language-registry/descriptors.js:280-283`  
+    Impact: common config files (e.g. `deno.jsonc`) skip JSON import extraction/chunk handling.  
+    Fix: include `.jsonc` in JSON descriptor extensions.
+[x] 
+23. **[P2] `.resolved` package lock files remain unclassified**  
+    Evidence: `src/index/language-registry/descriptors.js:280-283`  
+    Impact: JSON-structured lock metadata is skipped by JSON tooling.  
+    Fix: include `.resolved` where JSON parsing is intended.
+[x] 
+24. **[P2] `Pipfile` manifest is listed in special files but not TOML-routed**  
+    Evidence: `src/index/language-registry/special-files.js:22`, `src/index/language-registry/descriptors.js:287-290`  
+    Impact: TOML import extraction/parsing misses a key ecosystem file.  
+    Fix: add TOML `specialFilenames` routing for `Pipfile`.
+[x] 
+25. **[P2] XML descriptor misses `.props`/`.targets` (MSBuild)**  
+    Evidence: `src/index/language-registry/descriptors.js:294-297`  
+    Impact: build graph dependencies in these files are not indexed via XML collector.  
+    Fix: add XML extensions/special files for MSBuild formats.
+[x] 
+26. **[P2] XML descriptor misses `.config` (e.g. `packages.config`)**  
+    Evidence: `src/index/language-registry/descriptors.js:294-297`  
+    Impact: NuGet-style dependency files bypass XML collector logic.  
+    Fix: include `.config` when filename pattern matches XML-config artifacts.
+[x] 
+27. **[P2] XML descriptor misses `.csproj`**  
+    Evidence: `src/index/language-registry/descriptors.js:294-297`  
+    Impact: C# project dependency metadata is skipped from import graphing.  
+    Fix: include `.csproj` in XML routing.
+[x] 
+28. **[P2] `go.mod` is not routed through Go adapter**  
+    Evidence: `src/index/language-registry/descriptors.js:48-51`  
+    Impact: module-level dependencies are absent from relations/imports.  
+    Fix: add `.mod`/`go.mod` route support.
+[x] 
+29. **[P3] Dockerfile FROM parser can mis-handle spaced option value forms**  
+    Evidence: `src/shared/dockerfile.js:41-49`  
+    Impact: image extraction can be wrong for FROM option forms using separate option/value tokens.  
+    Fix: parse known FROM flags with explicit arity handling.
+[x] 
+30. **[P3] JSON import collector can over-report non-dependency metadata as imports (`url` keys)**  
+    Evidence: `src/index/language-registry/import-collectors/json.js:1-16`, `:54-63`  
+    Impact: external URL metadata can pollute dependency graph/import links.  
+    Fix: narrow key heuristics (or classify URL tokens separately from file imports).
+[x] 
+31. **[P2] Public flag inventory currently omits `watch` from public CLI allowlist view**  
+    Evidence: `docs/config/inventory.md:12-24`  
+    Impact: documentation-driven policy/gating can misclassify supported public flags.  
+    Fix: regenerate inventory after restoring allowlist classification for `watch`.
+[x] 
+32. **[P2] Search CLI doc contract drift: missing flag coverage vs implementation**  
+    Evidence: `docs/tooling/doc-contract-drift.md:5-16`, `src/retrieval/cli-args.js`  
+    Impact: docs-driven automation and users rely on stale contract surface.  
+    Fix: sync `docs/contracts/search-cli.md` and `docs/contracts/search-contract.md` to current CLI options.
+[x] 
+33. **[P2] Artifact schema docs missing schema entries present in code contracts**  
+    Evidence: `docs/tooling/doc-contract-drift.md:18-22`, `src/contracts/schemas/artifacts.js`  
+    Impact: artifact consumers may miss real emitted schema families.  
+    Fix: update `docs/contracts/artifact-schemas.md` with missing schemas.
+[x] 
+34. **[P3] `scoreBreakdown` documented contract no longer matches pipeline outputs**  
+    Evidence: `docs/tooling/doc-contract-drift.md:24-28`, `src/retrieval/pipeline.js`  
+    Impact: downstream parsers may expect fields no longer emitted.  
+    Fix: remove stale contract section or restore output and tests.
+[x] 
+35. **[P2] Test-runner interface docs missing active lanes**  
+    Evidence: `docs/tooling/doc-contract-drift.md:30-39`, `tests/run.rules.jsonc`  
+    Impact: orchestration docs are incomplete for CI/lane tooling.  
+    Fix: sync docs (`docs/testing/test-runner-interface.md`, `docs/testing/test-decomposition-regrouping.md`) to active lane set.
+[x] 
+36. **[P3] Inventory duplicate-flag reporting undercounts service flag exposures**  
+    Evidence: `docs/config/inventory.json:5978-5983`, `tools/service/indexer-service.js:445-447`  
+    Impact: flag governance analytics are incomplete for service surfaces.  
+    Fix: include dynamic service CLI participation in duplicate-flag accounting.
+[x] 
+37. **[P3] `readJsonLinesSyncSafe` drops valid falsy JSON lines (`0`, `false`, `""`)**  
+    Evidence: `src/shared/files.js:167-182`  
+    Impact: generic NDJSON consumers can lose legitimate entries.  
+    Fix: filter only parse failures (`null` sentinel), not all falsy values.
+[x] 
+38. **[P3] Script inventory CLI command section is manual/static and can drift from launcher surface**  
+    Evidence: `tools/docs/script-inventory.js` (hardcoded `CLI_ENTRYPOINTS`) vs `bin/pairofcleats.js` command tree  
+    Impact: generated command docs can become stale without code-level coupling.  
+    Fix: derive CLI entrypoints from a shared command manifest used by both launcher and inventory generator.
+[x] 
+39. **[P2] Strict manifest readers fail when `compression.keepRaw` writes dual artifacts**  
+    Evidence: `src/index/build/artifacts/writer.js`, `src/shared/artifact-io/manifest.js`  
+    Impact: strict loaders reject duplicate artifact names in the manifest (`ERR_MANIFEST_INVALID`) even when both compressed and raw files were intentionally emitted.  
+    Fix: make manifest source resolution deterministic for multi-format entries (or emit one canonical manifest source per artifact name).
+[x] 
+40. **[P3] Query-result cache loader does not enforce cache schema version**  
+    Evidence: `src/retrieval/query-cache.js`  
+    Impact: stale/incompatible cache payloads from older schema revisions can be reused silently when `entries` exists.  
+    Fix: require `version === QUERY_CACHE_VERSION` before trusting on-disk payloads.
+[x] 
+41. **[P3] Query-plan disk cache misses dirtying on TTL/LRU evictions**  
+    Evidence: `src/retrieval/query-plan-cache.js`  
+    Impact: evicted/expired entries can remain in `query-plan-cache.json` and be reloaded on next process start.  
+    Fix: mark disk cache dirty on cache-handle eviction callbacks.
+[x] 
+42. **[P3] Query-plan signature-invalid entries can be deleted in memory but persist on disk**  
+    Evidence: `src/retrieval/query-plan-cache.js`  
+    Impact: invalid entries removed by `get()` may reappear after restart because persistence is skipped when dirty flag was never set.  
+    Fix: mark dirty when `get()` invalidates/deletes an entry.
+[x] 
+43. **[P3] Federated query cache does not self-heal corrupt JSON files**  
+    Evidence: `src/retrieval/federation/query-cache.js`  
+    Impact: corrupted cache files repeatedly parse-fail and keep caching disabled until manual cleanup.  
+    Fix: rotate/delete corrupt cache files on parse failure and rebuild fresh cache content.
+[x] 
+44. **[P3] Relative `cache.root` stays unresolved and depends on invocation cwd**  
+    Evidence: `tools/dict-utils/config.js`, `tools/dict-utils/paths/repo.js`  
+    Impact: cache paths can drift across invocations for the same repo/config when launched from different directories.  
+    Fix: resolve `cache.root` to an absolute path during config normalization.
+[x] 
+45. **[P3] Index cache identity uses raw path string instead of canonicalized path**  
+    Evidence: `src/retrieval/index-cache.js`  
+    Impact: equivalent directories addressed via different strings can split cache identity and cause stale/missed reuse behavior.  
+    Fix: canonicalize cache key paths (`path.resolve`/realpath) before key construction.
+[x] 
+46. **[P3] Query-cache disk signature relies only on size + mtime**  
+    Evidence: `src/retrieval/query-cache.js`  
+    Impact: fast same-size rewrites can be missed, allowing stale disk-cache payload reuse.  
+    Fix: include stronger change signals (e.g. `ctime`, inode, or content hash).
+[x] 
+47. **[P3] Hot-hit timestamp refresh is not persisted when disk cache load fails**  
+    Evidence: `src/retrieval/cli/run-search-session.js`  
+    Impact: memory hits can refresh `entry.ts` but fail to update disk state, causing avoidable misses after memory freshness windows expire.  
+    Fix: always create/update a writable cache object before deciding persistence.
+[x] 
+48. **[P2] `timeoutMs: 0` causes immediate subprocess timeout instead of disabling timeout**  
+    Evidence: `src/shared/subprocess.js`  
+    Impact: callers using `0` as “no timeout” can see instant cancellation.  
+    Fix: only arm timeout when `timeoutMs > 0`.
+[x] 
+49. **[P2] TUI supervisor `resultPolicy.captureStdout` is effectively unreachable**  
+    Evidence: `tools/tui/supervisor.js`  
+    Impact: requested text/JSON result capture remains null because subprocess stdout capture mode is never enabled.  
+    Fix: pass capture settings (`captureStdout`, `maxOutputBytes`, etc.) through to `spawnSubprocess`.
+[x] 
+50. **[P3] Artifact indexing failures can incorrectly mark successful jobs as failed/retried**  
+    Evidence: `tools/tui/supervisor.js`  
+    Impact: observer-side artifact-stat errors can trigger failure handling despite command success.  
+    Fix: isolate artifact collection errors from primary job success/failure state transitions.
+[x] 
+51. **[P3] TUI supervisor job map retains completed jobs indefinitely**  
+    Evidence: `tools/tui/supervisor.js`  
+    Impact: long-running supervisor sessions leak job state and grow memory unbounded.  
+    Fix: delete finalized jobs from `state.jobs`.
+[x] 
+52. **[P3] Completed job IDs cannot be reused in a supervisor session**  
+    Evidence: `tools/tui/supervisor.js`  
+    Impact: clients reusing stable job IDs get `job already exists` after first run.  
+    Fix: remove finalized jobs (or support idempotent replacement semantics).
+[x] 
+53. **[P3] `job:artifacts` omits `extracted-prose` index mode**  
+    Evidence: `tools/tui/supervisor.js`  
+    Impact: artifact telemetry under-reports mode outputs and can hide extracted-prose index state.  
+    Fix: include `extracted-prose` in indexed mode artifact probes.
+[x] 
+54. **[P2] Search history artifact path mismatch between retrieval writer and supervisor**  
+    Evidence: `src/retrieval/cli/persist.js`, `tools/tui/supervisor.js`  
+    Impact: supervisor reports missing `search-history.jsonl` while retrieval appends to `searchHistory`, producing false artifact visibility.  
+    Fix: align on one canonical filename/path for search-history output.
+[x] 
+55. **[P3] Non-strict validator misses compressed JSONL/parts artifacts for relation families**  
+    Evidence: `src/index/validate/presence.js`  
+    Impact: valid compressed outputs (e.g. `.jsonl.gz`/`.jsonl.zst`) can be reported missing in non-strict validation.  
+    Fix: extend legacy artifact probes to include compressed shard variants.
+[x] 
+56. **[P3] Non-strict chunk-meta legacy presence checks do not recognize compressed primary files**  
+    Evidence: `src/index/validate/presence.js`  
+    Impact: compressed-only `chunk_meta` outputs can trigger false missing warnings/errors.  
+    Fix: include `.gz`/`.zst` checks for chunk-meta primary candidates.
+[x] 
+57. **[P3] Non-strict dense-vector presence checks ignore `.zst` variants**  
+    Evidence: `src/index/validate/presence.js`  
+    Impact: valid compressed dense-vector artifacts can be treated as absent.  
+    Fix: mirror compression-aware detection used by other artifact probes.
+[x] 
+58. **[P3] Non-strict ANN metadata fallbacks only probe uncompressed JSON meta files**  
+    Evidence: `src/index/validate.js`  
+    Impact: compressed `hnsw`/`lancedb`/`sqlite-vec` metadata can be skipped, causing false validation drift.  
+    Fix: read these metadata artifacts via compression-aware artifact loaders in all modes.
+[x] 
+59. **[P2] YAML collector emits anchor/alias pseudo tokens as imports**  
+    Evidence: `src/index/language-registry/import-collectors/yaml.js`  
+    Impact: intra-document YAML syntax markers pollute cross-file import graphs as fake dependencies.  
+    Fix: treat anchors/aliases as metadata, not import specifiers.
+[x] 
+60. **[P2] YAML collector over-collects generic `path`/`file` keys as imports**  
+    Evidence: `src/index/language-registry/import-collectors/yaml.js`  
+    Impact: ordinary config metadata is misclassified as dependencies, inflating unresolved/import noise.  
+    Fix: tighten key heuristics or require path-like import semantics.
+[x] 
+61. **[P2] INI collector over-collects generic `path`/`file` keys**  
+    Evidence: `src/index/language-registry/import-collectors/ini.js`  
+    Impact: non-dependency values become external imports and degrade relation accuracy.  
+    Fix: scope to explicit include/import directives.
+[x] 
+62. **[P2] INI collector treats entire `[paths]`/`[files]` sections as import sources**  
+    Evidence: `src/index/language-registry/import-collectors/ini.js`  
+    Impact: broad section-level false positives swamp real dependency signals.  
+    Fix: narrow section-trigger behavior to include/import-specific sections only.
+[x] 
+63. **[P2] TOML collector emits `dependency:<name>` pseudo tokens as imports**  
+    Evidence: `src/index/language-registry/import-collectors/toml.js`  
+    Impact: package metadata identifiers appear as unresolved external dependencies.  
+    Fix: record dependency names as metadata/usages, not file-import specifiers.
+[x] 
+64. **[P2] TOML collector over-collects generic `path`/`file` keys**  
+    Evidence: `src/index/language-registry/import-collectors/toml.js`  
+    Impact: many non-import config paths are misrouted into dependency graphs.  
+    Fix: restrict collection to explicit import/include/path dependency contexts.
+[x] 
+65. **[P2] XML collector emits `xmlns:*` namespace declarations as imports**  
+    Evidence: `src/index/language-registry/import-collectors/xml.js`  
+    Impact: namespace declarations produce fake dependency edges.  
+    Fix: exclude namespace declarations from import specifiers (retain as metadata if needed).
+[x] 
+66. **[P2] GraphQL collector misses single-quoted `#import` directives**  
+    Evidence: `src/index/language-registry/import-collectors/graphql.js`  
+    Impact: valid include directives can be dropped from import graphs.  
+    Fix: support both single- and double-quoted import syntax.
+[x] 
+67. **[P2] R collector parses commented-out `library/require/source` as active imports**  
+    Evidence: `src/index/language-registry/import-collectors/r.js`  
+    Impact: commented statements create false dependencies.  
+    Fix: strip/ignore `#` comments before import matching.
+[x] 
+68. **[P2] Julia collector parses commented-out `using/import/include` statements**  
+    Evidence: `src/index/language-registry/import-collectors/julia.js`  
+    Impact: commented examples become false import edges.  
+    Fix: ignore comment lines before regex extraction.
+[x] 
+69. **[P2] Makefile dependency parsing misclassifies target-specific assignments as dependencies**  
+    Evidence: `src/index/language-registry/import-collectors/makefile.js`  
+    Impact: rules like `target: VAR = value` can emit non-path tokens as dependencies.  
+    Fix: skip assignment-style right-hand sides when parsing dependency lists.
+[x] 
+70. **[P2] JVM-style collectors treat `package ...` declarations as imports**  
+    Evidence: `src/index/language-registry/import-collectors/utils.js`  
+    Impact: declaration metadata becomes bogus dependency edges.  
+    Fix: separate package declarations from import extraction.
+[x] 
+71. **[P3] Template partial collector captures at most one `{{> ...}}` reference per line**  
+    Evidence: `src/index/language-registry/import-collectors/utils.js`  
+    Impact: additional partial references on same line are silently dropped.  
+    Fix: use global matching (`matchAll`) to capture all partial references.
+[x] 
+72. **[P3] Template partial collector does not support slash-delimited partial names**  
+    Evidence: `src/index/language-registry/import-collectors/utils.js`  
+    Impact: common partial paths like `partials/header` are missed.  
+    Fix: expand token regex to include path separators.
+[x] 
+73. **[P2] Config-key allowlist enforcement is effectively disabled**  
+    Evidence: `tools/config/inventory.js`  
+    Impact: unknown config keys never trigger `--check` failures because known-config set defaults to full schema leaves.  
+    Fix: maintain a real known-config allowlist (or derive and pin one) for drift checks.
+[x] 
+74. **[P2] Top-level CLI blocks valid `service api` security/runtime flags**  
+    Evidence: `bin/pairofcleats.js`, `tools/api/server.js`  
+    Impact: auth/CORS/body-limit and related server flags are rejected by launcher validation.  
+    Fix: align launcher allowlist with API server option surface.
+[x] 
+75. **[P2] `tui build --verify-manifest` does not verify targets-manifest checksum binding**  
+    Evidence: `tools/tui/build.js`  
+    Impact: verification can pass even if `targets.json` changed after build-manifest generation.  
+    Fix: recompute and compare `targetsManifest.sha256` during verify mode.
+[x] 
+76. **[P3] Repo-inventory doc reference scan is scoped to only two source files**  
+    Evidence: `tools/docs/repo-inventory.js`  
+    Impact: many genuinely referenced docs are misreported as orphaned.  
+    Fix: scan broader doc/reference sources (or parse intra-doc links recursively).
+[x] 
+77. **[P3] Repo-inventory script-reference scan misses CLI command invocations**  
+    Evidence: `tools/docs/repo-inventory.js`  
+    Impact: scripts used via `pairofcleats ...` appear orphaned.  
+    Fix: include CLI invocation patterns in script reference extraction.
+[x] 
+78. **[P3] Config budget check compares CLI allowlist size, not detected public usage**  
+    Evidence: `tools/config/inventory.js`  
+    Impact: budget gate can pass/fail for wrong reasons and miss real public-flag growth.  
+    Fix: budget against detected public flags from scan output.
+[x] 
+79. **[P3] Public-flag detection scans only two files**  
+    Evidence: `tools/config/inventory.js`  
+    Impact: public flags introduced in other entrypoints can bypass allowlist checks.  
+    Fix: expand public-flag source coverage (or centralize command schema intake).
+[x] 
+80. **[P3] Script inventory hard-codes Phase 3 spec path**  
+    Evidence: `tools/docs/script-inventory.js`  
+    Impact: generated docs can point to stale phase specs as roadmap phases move.  
+    Fix: parameterize/discover active phase spec directory.
+[x] 
+81. **[P3] Test timings contract doc omits emitted provenance fields**  
+    Evidence: `docs/contracts/test-timings-contract.md`, `tests/runner/run-reporting.js`  
+    Impact: doc consumers can implement incomplete parsers and drop `generatedAt`/`runId`/`totalMs`.  
+    Fix: update contract doc to match emitted schema.
+[x] 
+82. **[P3] Test coverage contract doc omits emitted provenance fields**  
+    Evidence: `docs/contracts/test-coverage-contract.md`, `tools/testing/coverage/index.js`  
+    Impact: contract/documentation drift can break downstream validators.  
+    Fix: document `generatedAt` and `runId` in coverage contract.
+[x] 
+83. **[P3] Test profile contract doc omits emitted provenance fields**  
+    Evidence: `docs/contracts/test-profile-contract.md`, `tests/run.js`  
+    Impact: consumers relying on docs may reject valid profile outputs or miss run identity.  
+    Fix: sync profile contract doc with runtime output.
+[x] 
+84. **[P3] Test-runner interface doc timeout default drift for CI lane**  
+    Evidence: `docs/testing/test-runner-interface.md`, `tests/run.js`  
+    Impact: operators plan against incorrect timeout expectations.  
+    Fix: update docs to the actual lane timeout resolution behavior.
+[x] 
+85. **[P3] Release-discipline guide omits doc-contract-drift artifacts produced by release checks**  
+    Evidence: `docs/guides/release-discipline.md`, `tools/release/check.js`  
+    Impact: release artifact expectations/documentation diverge from generated manifest contents.  
+    Fix: include doc-contract-drift outputs in the documented release artifact list.
+[x] 
+86. **[P2] API body parser does not terminate oversized request streams**  
+    Evidence: `tools/api/router/body.js`  
+    Impact: on `ERR_BODY_TOO_LARGE`, the promise rejects but the request stream is left flowing, which can retain socket/memory pressure until the client finishes sending.  
+    Fix: destroy or explicitly drain/ignore the request stream after size-limit rejection.
+[x] 
+87. **[P2] API bearer-token comparison is not constant-time**  
+    Evidence: `tools/api/router/auth.js`  
+    Impact: direct string equality can leak token prefix match timing and weakens auth hardening for exposed API servers.  
+    Fix: compare normalized token buffers with `crypto.timingSafeEqual`.
+[x] 
+88. **[P2] Federated allowlist can exclude workspace cache root when explicit repo roots are configured**  
+    Evidence: `tools/api/router.js`  
+    Impact: `/search/federated` can fail with forbidden workspace-cache errors even for valid workspaces when `--allowed-repo-roots` is used.  
+    Fix: always include resolved federation cache root(s) in the effective allowlist.
+[x] 
+89. **[P2] Federated allowlist checks workspace config path against repo-root allowlist**  
+    Evidence: `tools/api/router.js`  
+    Impact: workspace files outside repo trees are rejected even when all referenced repos are valid, breaking common centralized workspace-file layouts.  
+    Fix: validate workspace file paths with a dedicated policy separate from repo-root containment.
+[x] 
+90. **[P2] GET `/search` does not support `meta` filters**  
+    Evidence: `tools/api/router/search.js`  
+    Impact: GET requests cannot express metadata filters that POST and CLI paths support, causing API surface drift and missing filters in automation.  
+    Fix: parse and forward `meta` query input into payload validation/build.
+[x] 
+91. **[P2] GET `/search` does not support `metaJson` filters**  
+    Evidence: `tools/api/router/search.js`  
+    Impact: query-string clients cannot provide JSON metadata constraints, forcing POST-only behavior for equivalent filtering logic.  
+    Fix: parse `metaJson` in GET path and run it through the same normalization used by POST/CLI.
+[x] 
+92. **[P3] `/index/diffs` route ignores `mode` query parameter**  
+    Evidence: `tools/api/router/index-diffs.js`  
+    Impact: API callers cannot match CLI `--mode` behavior and may receive unfiltered diffs unexpectedly.  
+    Fix: accept both `mode` and `modes` aliases and normalize them consistently.
+[x] 
+93. **[P3] `/index/diffs` route drops other diff-shaping knobs**  
+    Evidence: `tools/api/router/index-diffs.js`, `src/index/diff/list.js`  
+    Impact: API cannot reproduce CLI-limited diff output (`max-*` controls), creating behavior divergence for tooling clients.  
+    Fix: pass supported `maxChangedFiles`/`maxEvents`/`maxBytes`-style parameters through route handling.
+[x] 
+94. **[P3] Environment boolean parsing is case-sensitive**  
+    Evidence: `src/shared/env.js`  
+    Impact: values like `TRUE`/`True` are treated as falsey defaults, producing surprising config behavior across environments.  
+    Fix: lowercase/normalize boolean env strings before comparison.
+[x] 
+95. **[P3] `workspace status` mutates manifests during read-only inspection**  
+    Evidence: `tools/workspace/status.js`  
+    Impact: status polling rewrites manifest timestamp/hash-adjacent metadata and can trigger downstream invalidation churn.  
+    Fix: load/read manifest without `write: true` in status path.
+[x] 
+96. **[P3] `workspace catalog` mutates manifests during read-only inspection**  
+    Evidence: `tools/workspace/catalog.js`  
+    Impact: repeated catalog calls rewrite manifest artifacts and create unnecessary cache/watcher churn.  
+    Fix: use non-writing manifest generation/read path for catalog commands.
+[x] 
+97. **[P3] Repo-root normalization rejects repository root path values**  
+    Evidence: `src/shared/path-normalize.js`  
+    Impact: callers cannot represent repo root (`.` or absolute root) as repo-relative, causing inconsistent path identity behavior at root boundary.  
+    Fix: handle `path.relative(...) === ''` as valid root-relative output instead of returning `null`.
+[x] 
+98. **[P3] Repo path normalization leaves root path absolute**  
+    Evidence: `src/shared/path-normalize.js`  
+    Impact: root paths are returned absolute while sibling paths are relative, breaking canonical-path consistency for cache keys/identity comparisons.  
+    Fix: normalize root to `''`/`.` under same strip-dot policy as other relative paths.
+[x] 
+99. **[P3] Drive-letter normalization misses long-path prefixes**  
+    Evidence: `src/shared/path-normalize.js`  
+    Impact: `\\\\?\\c:\\...` style paths keep lowercase drive letters while normal paths are uppercased, causing inconsistent canonicalization on Windows.  
+    Fix: support drive-letter normalization after `\\\\?\\` and related long-path prefixes.
+
+[x] 100. **[P3] POSIX path normalization collapses implementation-defined leading `//` roots**  
+     Evidence: `src/shared/path-normalize.js`  
+     Impact: `//host/path` can be collapsed to `/host/path`, losing semantics on systems that treat double-slash prefixes specially.  
+     Fix: preserve leading `//` and only collapse additional redundant separators beyond the root form.
+
+[x] 101. **[P2] Atomic write fallback temp directory may not exist**  
+     Evidence: `src/shared/json-stream/atomic.js`, `src/shared/io/atomic-write.js`  
+     Impact: fallback temp-path writes can fail with `ENOENT` before first write when fallback directory has not been created.  
+     Fix: `mkdir` the selected temp path parent before opening temp file.
+
+[x] 102. **[P3] `atomicWriteText` newline option is ignored for Buffer payloads**  
+     Evidence: `src/shared/io/atomic-write.js`  
+     Impact: callers requesting trailing newline with binary/text buffers do not get newline-normalized output.  
+     Fix: append newline for Buffer input when `newline === true`, matching string behavior.
+
+[x] 103. **[P2] Cache-root resolver double-appends `cache-v1` for already-versioned overrides**  
+     Evidence: `src/shared/cache-roots.js`  
+     Impact: passing an explicit `.../cache-v1` root resolves to `.../cache-v1/cache-v1`, silently redirecting all cache operations.  
+     Fix: detect version-suffixed overrides and avoid appending layout version twice.
+
+[x] 104. **[P2] Cache clear operation targets wrong directory for already-versioned overrides**  
+     Evidence: `src/shared/cache-roots.js`  
+     Impact: `clearCacheRoot` can report success while leaving actual cache data untouched when override already ends with `cache-v1`.  
+     Fix: reuse suffix-aware cache-root resolution in clear path.
+
+[x] 105. **[P2] Directory containment helper is symlink-blind**  
+     Evidence: `src/shared/path-normalize.js:isPathUnderDir`  
+     Impact: resolve-based checks can be bypassed via symlinked paths where lexical containment differs from real filesystem containment.  
+     Fix: compare canonical realpaths (or nearest-existing-ancestor realpaths) before boundary checks.
+
+[x] 106. **[P2] Manifest loader errors are frequently untyped (`err.code` missing)**  
+     Evidence: `src/shared/artifact-io/loaders/core.js`, `src/shared/artifact-io/loaders/chunk-meta.js`  
+     Impact: downstream code relying on `err.code` falls back to brittle message matching and misses intended recovery paths.  
+     Fix: attach stable `ERR_MANIFEST_*`/`ERR_ARTIFACT_*` codes for all manifest-path failure cases.
+
+[x] 107. **[P3] Artifact presence resolver ignores legacy fallback paths**  
+     Evidence: `src/shared/artifact-io/manifest.js`  
+     Impact: presence checks report missing artifacts even when fallback legacy files are available and loaders can still recover.  
+     Fix: include fallback-path probes in presence resolution when strict mode is off.
+
+[x] 108. **[P3] Non-strict array/object loaders still fail on multi-entry manifest ambiguity**  
+     Evidence: `src/shared/artifact-io/loaders/core.js`  
+     Impact: dual-write raw/compressed artifact states in compatibility mode still fail reads despite non-strict intent.  
+     Fix: in non-strict mode, select deterministic candidate instead of throwing ambiguity errors.
+
+[x] 109. **[P2] Packed token-postings load path lacks checksum validation parity**  
+     Evidence: `src/shared/artifact-io/loaders/token-postings.js`  
+     Impact: corrupted packed postings can be consumed without early checksum mismatch detection, unlike other packed artifact loaders.  
+     Fix: enforce checksum validation during packed token-postings read/decode.
+
+[x] 110. **[P3] `existsOrBak` positive checks can still fail reads when only `.bak` exists**  
+     Evidence: `src/shared/artifact-io/loaders/*.js`, `src/shared/artifact-io/fs.js`  
+     Impact: loaders may treat artifacts as present and then throw `ENOENT` because they read only canonical path, not `.bak`.  
+     Fix: read canonical-or-bak path consistently after `existsOrBak` checks.
+
+[x] 111. **[P3] Manifest cache freshness key is weak (size + mtime only)**  
+     Evidence: `src/shared/artifact-io/cache.js`  
+     Impact: same-size rewrites within coarse mtime resolution can return stale manifest data for the lifetime of process cache.  
+     Fix: include stronger freshness attributes (ctime/ino/hash) in cache key.
+
+[x] 112. **[P1] Per-file artifact metadata paths are not constrained to index root**  
+     Evidence: `src/shared/artifact-io/loaders/per-file.js`  
+     Impact: malicious or malformed metadata can point loaders outside index root and read unintended files.  
+     Fix: validate/resolve metadata-provided paths with same root-safe logic as manifest paths.
+
+[x] 113. **[P2] Chunk-meta loader can prefer stale binary-columnar artifacts not declared by manifest**  
+     Evidence: `src/shared/artifact-io/loaders/chunk-meta.js`  
+     Impact: stale binary artifacts left on disk can shadow updated manifest-declared formats and return inconsistent chunk metadata.  
+     Fix: gate binary-columnar fast path on explicit manifest declaration for active artifact format.
+
+[x] 114. **[P2] Optional index artifact loaders swallow corruption errors even in strict flows**  
+     Evidence: `src/retrieval/cli-index.js`  
+     Impact: malformed optional artifacts degrade silently into null behavior, masking real index corruption and complicating diagnosis.  
+     Fix: rethrow non-optional/non-size-limit errors (especially in strict mode) instead of blanket `catch -> null`.
+
+[x] 115. **[P3] Optional-row loader fallback detection depends on message text prefix**  
+     Evidence: `src/retrieval/cli-index.js`  
+     Impact: behavior depends on exact error wording, so message changes break optional fallback handling.  
+     Fix: branch on stable error codes, not error-message prefixes.
+
+[x] 116. **[P2] Scheduler low-resource mode bypasses scheduling caps entirely**  
+     Evidence: `src/shared/concurrency.js:createBuildScheduler`  
+     Impact: `lowResourceMode` currently executes tasks directly instead of token-scheduling, which can increase concurrent load instead of reducing it.  
+     Fix: keep scheduler active in low-resource mode and reduce token limits rather than bypassing queue control.
+
+[x] 117. **[P2] JSONL iterator can deadlock on early consumer cancellation with bounded in-flight queue**  
+     Evidence: `src/shared/artifact-io/json.js:createRowQueue`, `readJsonLinesIteratorSingle`  
+     Impact: when `maxInFlight` backpressure is enabled and consumer exits early, producer can block forever waiting for drain, hanging iterator finalization.  
+     Fix: propagate cancellation to queue producer and unblock pending `push` waits when consumer stops.
+
+[x] 118. **[P3] TOML import collector strips inline comments inside quoted values**  
+     Evidence: `src/index/language-registry/import-collectors/toml.js`  
+     Impact: paths/URLs containing `#` in quoted strings are truncated, producing incorrect/missing dependency edges.  
+     Fix: parse comments with quote awareness instead of regex-stripping everything after `#`.
+
+[x] 119. **[P3] INI import collector strips comment markers inside quoted values**  
+     Evidence: `src/index/language-registry/import-collectors/ini.js`  
+     Impact: valid quoted values containing `;`/`#` are truncated and imported incorrectly.  
+     Fix: comment stripping should respect quoted string boundaries.
+
+[x] 120. **[P3] YAML import collector strips `#` from quoted scalar values**  
+     Evidence: `src/index/language-registry/import-collectors/yaml.js`  
+     Impact: quoted references with fragment/hash characters are truncated, causing false/missing import edges.  
+     Fix: apply quote-aware comment handling before scalar normalization.
+
+[x] 121. **[P3] Changed-only coverage filtering omits untracked files**  
+     Evidence: `tools/testing/coverage/index.js`  
+     Impact: new files can be exercised but excluded from changed-only coverage output, under-reporting real coverage for fresh code.  
+     Fix: include untracked file set in changed-file resolution.
+
+[x] 122. **[P2] Malformed V8 coverage JSON can abort entire coverage aggregation**  
+     Evidence: `tools/testing/coverage/index.js`  
+     Impact: one partial/corrupt coverage file can fail whole run post-processing instead of best-effort aggregation.  
+     Fix: skip malformed coverage artifacts with warning and continue aggregation.
+
+[x] 123. **[P3] Coverage merge summation over-counts total ranges across artifacts**  
+     Evidence: `tools/testing/coverage/index.js`  
+     Impact: merged totals inflate with each artifact merge, making coverage summary numerically misleading.  
+     Fix: merge by path/range identity (or max/union semantics), not additive totals per artifact.
+
+[x] 124. **[P3] Last-failure utility does not scan the active test log root**  
+     Evidence: `tools/ci/get-last-failure.js`, `.testLogs` layout from `tests/runner`  
+     Impact: tool can miss the newest failure entirely and report no logs found despite available runner logs.  
+     Fix: include `.testLogs` in search roots (prefer latest run directory first).
+
+[x] 125. **[P2] Phase-22 gate script resolves test paths from invocation CWD, not repo root**  
+     Evidence: `tools/ci/run-phase22-gates.js`  
+     Impact: invoking from non-root working directories breaks path resolution and falsely fails gate execution.  
+     Fix: resolve tests from detected repo root and set subprocess cwd consistently.
+
+[x] 126. **[P2] API test helper `requestRaw` still force-parses JSON**  
+     Evidence: `tests/helpers/api-server.js`  
+     Impact: non-JSON endpoint testing fails with parse errors, making helper unusable for raw text/status-body assertions.  
+     Fix: return raw body text (or parse conditionally) in `requestRaw`.
+
+[x] 127. **[P3] Last-failure utility ignores `.testLogs/latest` fast path**  
+     Evidence: `tools/ci/get-last-failure.js`, `tests/runner/run-reporting.js`  
+     Impact: unnecessary recursive scans of historical logs increase latency on large log histories.  
+     Fix: resolve and inspect `.testLogs/latest` first, then fall back to broad scan.

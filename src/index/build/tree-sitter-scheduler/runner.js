@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { throwIfAborted } from '../../../shared/abort.js';
 import { runWithConcurrency } from '../../../shared/concurrency.js';
@@ -7,6 +8,11 @@ import { resolveRuntimeEnv } from '../../../shared/runtime-envelope.js';
 import { spawnSubprocess } from '../../../shared/subprocess.js';
 import { buildTreeSitterSchedulerPlan } from './plan.js';
 import { createTreeSitterSchedulerLookup } from './lookup.js';
+import {
+  loadTreeSitterSchedulerAdaptiveProfile,
+  mergeTreeSitterSchedulerAdaptiveProfile,
+  saveTreeSitterSchedulerAdaptiveProfile
+} from './adaptive-profile.js';
 
 const SCHEDULER_EXEC_PATH = fileURLToPath(new URL('./subprocess-exec.js', import.meta.url));
 const INDEX_LOAD_RETRY_ATTEMPTS = 8;
@@ -29,6 +35,128 @@ const resolveExecConcurrency = ({ schedulerConfig, grammarCount }) => {
     : 4;
   const auto = Math.max(1, Math.min(8, Math.floor((available || 1) / 2)));
   return Math.max(1, Math.min(grammarCount, auto));
+};
+
+/**
+ * Resolve deterministic execution order for scheduler tasks.
+ *
+ * `executionOrder` is the canonical scheduler plan contract. Missing or empty
+ * execution order indicates stale/corrupt plan artifacts and must fail closed.
+ *
+ * @param {{executionOrder?:string[]}} [plan]
+ * @returns {string[]}
+ */
+const resolveExecutionOrder = (plan = {}) => {
+  const executionOrder = Array.isArray(plan?.executionOrder) ? plan.executionOrder : [];
+  if (!executionOrder.length) {
+    throw new Error(
+      '[tree-sitter:schedule] scheduler plan missing executionOrder; rebuild scheduler artifacts.'
+    );
+  }
+  return executionOrder.slice();
+};
+
+const resolveWarmPoolLaneCount = ({
+  schedulerConfig,
+  baseGrammarKey,
+  keyCount,
+  execConcurrency
+}) => {
+  if (!Number.isFinite(keyCount) || keyCount <= 1) return 1;
+  const perGrammarRaw = Number(
+    schedulerConfig?.warmPoolPerGrammar
+      ?? schedulerConfig?.parserWarmPoolPerGrammar
+      ?? schedulerConfig?.warmPools?.[baseGrammarKey]
+  );
+  if (Number.isFinite(perGrammarRaw) && perGrammarRaw > 0) {
+    return Math.max(1, Math.min(keyCount, Math.floor(perGrammarRaw)));
+  }
+  if (keyCount < 4) return 1;
+  const byConcurrency = Number.isFinite(execConcurrency) && execConcurrency > 0
+    ? Math.max(1, Math.floor(execConcurrency / 2))
+    : 1;
+  let heuristic = 2;
+  if (keyCount >= 64) {
+    heuristic = 8;
+  } else if (keyCount >= 32) {
+    heuristic = 6;
+  } else if (keyCount >= 16) {
+    heuristic = 4;
+  } else if (keyCount >= 8) {
+    heuristic = 3;
+  }
+  return Math.max(1, Math.min(keyCount, byConcurrency, heuristic));
+};
+
+/**
+ * Build per-grammar warm-pool tasks by partitioning ordered wave keys into a
+ * small number of long-lived subprocess lanes.
+ *
+ * @param {object} input
+ * @returns {Array<{taskId:string,baseGrammarKey:string,laneIndex:number,laneCount:number,grammarKeys:Array<string>,firstOrder:number}>}
+ */
+const buildWarmPoolTasks = ({
+  executionOrder,
+  groupMetaByGrammarKey,
+  schedulerConfig,
+  execConcurrency
+}) => {
+  const byBaseGrammar = new Map();
+  const order = Array.isArray(executionOrder) ? executionOrder : [];
+  for (let i = 0; i < order.length; i += 1) {
+    const grammarKey = order[i];
+    if (typeof grammarKey !== 'string' || !grammarKey) continue;
+    const groupMeta = groupMetaByGrammarKey?.[grammarKey] || {};
+    const baseGrammarKey = typeof groupMeta?.baseGrammarKey === 'string' && groupMeta.baseGrammarKey
+      ? groupMeta.baseGrammarKey
+      : grammarKey;
+    if (!byBaseGrammar.has(baseGrammarKey)) byBaseGrammar.set(baseGrammarKey, []);
+    byBaseGrammar.get(baseGrammarKey).push({ grammarKey, orderIndex: i });
+  }
+  const tasks = [];
+  for (const [baseGrammarKey, keyed] of byBaseGrammar.entries()) {
+    const laneCount = resolveWarmPoolLaneCount({
+      schedulerConfig,
+      baseGrammarKey,
+      keyCount: keyed.length,
+      execConcurrency
+    });
+    const lanes = Array.from({ length: laneCount }, () => []);
+    for (let i = 0; i < keyed.length; i += 1) {
+      lanes[i % laneCount].push(keyed[i]);
+    }
+    for (let laneIndex = 0; laneIndex < lanes.length; laneIndex += 1) {
+      const lane = lanes[laneIndex];
+      if (!lane.length) continue;
+      tasks.push({
+        taskId: `${baseGrammarKey}#pool${laneIndex + 1}`,
+        baseGrammarKey,
+        laneIndex: laneIndex + 1,
+        laneCount,
+        grammarKeys: lane.map((entry) => entry.grammarKey),
+        firstOrder: lane.reduce((min, entry) => Math.min(min, entry.orderIndex), Number.POSITIVE_INFINITY)
+      });
+    }
+  }
+  tasks.sort((a, b) => {
+    if (a.firstOrder !== b.firstOrder) return a.firstOrder - b.firstOrder;
+    return String(a.taskId).localeCompare(String(b.taskId));
+  });
+  return tasks;
+};
+
+const loadSubprocessProfile = async (profilePath) => {
+  if (!profilePath) return [];
+  try {
+    const raw = JSON.parse(await fs.readFile(profilePath, 'utf8'));
+    const fields = raw?.fields && typeof raw.fields === 'object' ? raw.fields : raw;
+    const rows = Array.isArray(fields?.rows) ? fields.rows : [];
+    return rows.filter((row) => row && typeof row === 'object');
+  } catch {
+    return [];
+  } finally {
+    try { await fs.rm(profilePath, { force: true }); } catch {}
+  }
 };
 
 /**
@@ -92,6 +220,19 @@ const buildPlannedSegmentsByContainer = (groups) => {
     segments.sort((a, b) => (a.start - b.start) || (a.end - b.end));
   }
   return byContainer;
+};
+
+const buildScheduledLanguageSet = (groups) => {
+  const scheduled = new Set();
+  const entries = Array.isArray(groups) ? groups : [];
+  for (const group of entries) {
+    const languages = Array.isArray(group?.languages) ? group.languages : [];
+    for (const languageId of languages) {
+      if (typeof languageId !== 'string' || !languageId) continue;
+      scheduled.add(languageId);
+    }
+  }
+  return scheduled;
 };
 
 const parseIndexRows = (text, indexPath) => {
@@ -247,39 +388,81 @@ export const runTreeSitterScheduler = async ({
   const runtimeEnv = runtime?.envelope
     ? resolveRuntimeEnv(runtime.envelope, process.env)
     : process.env;
-  const grammarKeys = Array.isArray(planResult.plan?.grammarKeys) ? planResult.plan.grammarKeys : [];
-  if (grammarKeys.length) {
-    const streamLogs = typeof log === 'function';
+  const executionOrder = resolveExecutionOrder(planResult.plan);
+  const grammarKeys = Array.from(new Set(executionOrder));
+  const groupMetaByGrammarKey = planResult.plan?.groupMeta && typeof planResult.plan.groupMeta === 'object'
+    ? planResult.plan.groupMeta
+    : {};
+  const idleGapStats = {
+    samples: 0,
+    totalMs: 0,
+    maxMs: 0,
+    thresholdMs: 25
+  };
+  let lastTaskCompletedAt = 0;
+  if (executionOrder.length) {
+    const streamLogs = typeof log === 'function'
+      && (runtime?.argv?.verbose === true || runtime?.languageOptions?.treeSitter?.debugScheduler === true);
     const execConcurrency = resolveExecConcurrency({
       schedulerConfig,
-      grammarCount: grammarKeys.length
+      grammarCount: executionOrder.length
     });
+    const warmPoolTasks = buildWarmPoolTasks({
+      executionOrder,
+      groupMetaByGrammarKey,
+      schedulerConfig,
+      execConcurrency
+    });
+    const adaptiveSamples = [];
     await runWithConcurrency(
-      grammarKeys,
+      warmPoolTasks,
       execConcurrency,
-      async (grammarKey, ctx) => {
+      async (task, ctx) => {
         throwIfAborted(abortSignal);
-        if (log) {
-          log(`[tree-sitter:schedule] exec ${ctx.index + 1}/${grammarKeys.length}: ${grammarKey}`);
+        const now = Date.now();
+        if (lastTaskCompletedAt > 0) {
+          const idleGapMs = Math.max(0, now - lastTaskCompletedAt);
+          if (idleGapMs >= idleGapStats.thresholdMs) {
+            idleGapStats.samples += 1;
+            idleGapStats.totalMs += idleGapMs;
+            idleGapStats.maxMs = Math.max(idleGapStats.maxMs, idleGapMs);
+          }
         }
-        const linePrefix = `[tree-sitter:schedule:${grammarKey}]`;
+        const grammarKeysForTask = Array.isArray(task?.grammarKeys) ? task.grammarKeys : [];
+        if (!grammarKeysForTask.length) return;
+        if (log) {
+          log(
+            `[tree-sitter:schedule] batch ${ctx.index + 1}/${warmPoolTasks.length}: ${task.taskId} `
+            + `(waves=${grammarKeysForTask.length}, lane=${task.laneIndex}/${task.laneCount})`
+          );
+        }
+        const linePrefix = `[tree-sitter:schedule:${task.taskId}]`;
         const stdoutBuffer = streamLogs
           ? createLineBuffer((line) => log(`${linePrefix} ${line}`))
           : null;
         const stderrBuffer = streamLogs
           ? createLineBuffer((line) => log(`${linePrefix} ${line}`))
           : null;
+        const profileOut = path.join(
+          outDir,
+          `.tree-sitter-scheduler-profile-${process.pid}-${ctx.index + 1}.json`
+        );
         try {
           // Avoid stdio='inherit' when we have a logger. Direct child writes bypass
           // the display/progress handlers and render underneath interactive bars.
           // Piping and relaying lines keeps all output on the parent render path.
           await spawnSubprocess(
             process.execPath,
-            [SCHEDULER_EXEC_PATH, '--outDir', outDir, '--grammarKey', grammarKey],
+            [
+              SCHEDULER_EXEC_PATH,
+              '--outDir', outDir,
+              '--grammarKeys', grammarKeysForTask.join(','),
+              '--profileOut', profileOut
+            ],
             {
               cwd: runtime?.root || undefined,
               env: runtimeEnv,
-              stdio: streamLogs ? ['ignore', 'pipe', 'pipe'] : 'inherit',
+              stdio: ['ignore', 'pipe', 'pipe'],
               shell: false,
               signal: abortSignal,
               killTree: true,
@@ -288,14 +471,32 @@ export const runTreeSitterScheduler = async ({
               onStderr: streamLogs ? (chunk) => stderrBuffer.push(chunk) : null
             }
           );
+          const profileRows = await loadSubprocessProfile(profileOut);
+          for (const row of profileRows) {
+            adaptiveSamples.push(row);
+          }
         } finally {
           stdoutBuffer?.flush();
           stderrBuffer?.flush();
+          lastTaskCompletedAt = Date.now();
         }
         throwIfAborted(abortSignal);
       },
       { collectResults: false, signal: abortSignal }
     );
+    if (adaptiveSamples.length) {
+      const loaded = await loadTreeSitterSchedulerAdaptiveProfile({
+        runtime,
+        treeSitterConfig: runtime?.languageOptions?.treeSitter || null,
+        log
+      });
+      const merged = mergeTreeSitterSchedulerAdaptiveProfile(loaded.entriesByGrammarKey, adaptiveSamples);
+      await saveTreeSitterSchedulerAdaptiveProfile({
+        profilePath: loaded.profilePath,
+        entriesByGrammarKey: merged,
+        log
+      });
+    }
     throwIfAborted(abortSignal);
   }
 
@@ -311,10 +512,12 @@ export const runTreeSitterScheduler = async ({
     log
   });
   const plannedSegmentsByContainer = buildPlannedSegmentsByContainer(planResult.groups);
+  const scheduledLanguageIds = buildScheduledLanguageSet(planResult.groups);
 
   return {
     ...lookup,
     plan: planResult.plan,
+    scheduledLanguageIds,
     plannedSegmentsByContainer,
     loadPlannedSegments: (containerPath) => {
       if (!containerPath || !plannedSegmentsByContainer.has(containerPath)) return null;
@@ -322,7 +525,21 @@ export const runTreeSitterScheduler = async ({
       return Array.isArray(segments) ? segments.map((segment) => ({ ...segment })) : null;
     },
     schedulerStats: planResult.plan
-      ? { grammarKeys: (planResult.plan.grammarKeys || []).length, jobs: planResult.plan.jobs || 0 }
+      ? {
+        grammarKeys: grammarKeys.length,
+        jobs: planResult.plan.jobs || 0,
+        parserQueueIdleGaps: {
+          samples: idleGapStats.samples,
+          totalMs: idleGapStats.totalMs,
+          maxMs: idleGapStats.maxMs,
+          avgMs: idleGapStats.samples > 0 ? Math.round(idleGapStats.totalMs / idleGapStats.samples) : 0
+        }
+      }
       : null
   };
 };
+
+export const treeSitterSchedulerRunnerInternals = Object.freeze({
+  resolveExecutionOrder,
+  buildWarmPoolTasks
+});

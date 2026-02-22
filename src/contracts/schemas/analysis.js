@@ -146,7 +146,12 @@ export const METADATA_V2_SCHEMA = {
       type: ['object', 'null'],
       properties: {
         name: nullableString,
-        version: nullableString
+        version: nullableString,
+        mode: nullableString,
+        fallbackMode: nullableString,
+        reasonCode: nullableString,
+        reason: nullableString,
+        deterministic: { type: ['boolean', 'null'] }
       },
       additionalProperties: true
     },

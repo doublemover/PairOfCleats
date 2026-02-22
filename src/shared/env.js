@@ -5,13 +5,46 @@ const normalizeString = (value) => {
   return value.trim();
 };
 
-const normalizeBoolean = (value) => value === '1' || value === 'true';
+const normalizeBoolean = (value) => {
+  const normalized = String(value ?? '').trim().toLowerCase();
+  return normalized === '1'
+    || normalized === 'true'
+    || normalized === 'yes'
+    || normalized === 'on';
+};
 
 const normalizeOptionalBoolean = (value) => {
   if (value == null) return null;
   const text = String(value).trim();
   if (!text) return null;
   return normalizeBoolean(text);
+};
+
+const normalizeOptionalDisableFlag = (value) => {
+  if (value == null) return null;
+  const text = String(value).trim().toLowerCase();
+  if (!text) return null;
+  if (text === '0' || text === 'false' || text === 'off' || text === 'no') {
+    return false;
+  }
+  return true;
+};
+
+const normalizeProgressContext = (value) => {
+  const text = normalizeString(value);
+  if (!text) return null;
+  try {
+    const parsed = JSON.parse(text);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+    const runId = normalizeString(parsed.runId);
+    const jobId = normalizeString(parsed.jobId);
+    const out = {};
+    if (runId) out.runId = runId;
+    if (jobId) out.jobId = jobId;
+    return Object.keys(out).length ? out : null;
+  } catch {
+    return null;
+  }
 };
 
 const normalizeNumber = (value) => {
@@ -69,7 +102,10 @@ export function getEnvConfig(env = process.env) {
     xxhashBackend: normalizeString(env.PAIROFCLEATS_XXHASH_BACKEND),
     debugOrdered: normalizeBoolean(env.PAIROFCLEATS_DEBUG_ORDERED),
     debugCrash: normalizeBoolean(env.PAIROFCLEATS_DEBUG_CRASH),
+    crashLogAnnounce: normalizeOptionalDisableFlag(env.PAIROFCLEATS_CRASH_LOG_ANNOUNCE),
     debugPerfEvents: normalizeBoolean(env.PAIROFCLEATS_DEBUG_PERF_EVENTS),
+    benchAntivirusState: normalizeString(env.PAIROFCLEATS_BENCH_ANTIVIRUS_STATE),
+    benchCpuGovernor: normalizeString(env.PAIROFCLEATS_BENCH_CPU_GOVERNOR),
     fileCacheMax: normalizeNumber(env.PAIROFCLEATS_FILE_CACHE_MAX),
     summaryCacheMax: normalizeNumber(env.PAIROFCLEATS_SUMMARY_CACHE_MAX),
     importGraph: normalizeOptionalBoolean(env.PAIROFCLEATS_IMPORT_GRAPH),
@@ -96,6 +132,8 @@ export function getEnvConfig(env = process.env) {
     mcpTransport: normalizeString(env.PAIROFCLEATS_MCP_TRANSPORT),
     traceArtifactIo: normalizeBoolean(env.PAIROFCLEATS_TRACE_ARTIFACT_IO),
     incrementalBundleUpdateConcurrency: normalizeNumber(env.PAIROFCLEATS_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY),
+    crossfilePropagationParallel: normalizeOptionalBoolean(env.PAIROFCLEATS_CROSSFILE_PROPAGATION_PARALLEL),
+    crossfilePropagationParallelMinBundle: normalizeNumber(env.PAIROFCLEATS_CROSSFILE_PROPAGATION_PARALLEL_MIN_BUNDLE),
     buildIndexLockWaitMs: normalizeNumber(env.PAIROFCLEATS_BUILD_INDEX_LOCK_WAIT_MS),
     buildIndexLockPollMs: normalizeNumber(env.PAIROFCLEATS_BUILD_INDEX_LOCK_POLL_MS),
     storageTier: normalizeString(env.PAIROFCLEATS_STORAGE_TIER),
@@ -113,7 +151,20 @@ export function getEnvConfig(env = process.env) {
     extensionsDir: normalizeString(env.PAIROFCLEATS_EXTENSIONS_DIR),
     mcpQueueMax: normalizeNumber(env.PAIROFCLEATS_MCP_QUEUE_MAX),
     mcpMaxBufferBytes: normalizeNumber(env.PAIROFCLEATS_MCP_MAX_BUFFER_BYTES),
-    mcpToolTimeoutMs: normalizeNumber(env.PAIROFCLEATS_MCP_TOOL_TIMEOUT_MS)
+    mcpToolTimeoutMs: normalizeNumber(env.PAIROFCLEATS_MCP_TOOL_TIMEOUT_MS),
+    progressContext: normalizeProgressContext(env.PAIROFCLEATS_PROGRESS_CONTEXT)
+  };
+}
+
+export function getProgressContext(env = process.env) {
+  return normalizeProgressContext(env.PAIROFCLEATS_PROGRESS_CONTEXT);
+}
+
+export function getTuiEnvConfig(env = process.env) {
+  return {
+    runId: normalizeString(env.PAIROFCLEATS_TUI_RUN_ID),
+    eventLogDir: normalizeString(env.PAIROFCLEATS_TUI_EVENT_LOG_DIR),
+    installRoot: normalizeString(env.PAIROFCLEATS_TUI_INSTALL_ROOT)
   };
 }
 

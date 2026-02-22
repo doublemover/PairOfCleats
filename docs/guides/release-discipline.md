@@ -1,41 +1,68 @@
-# Release discipline
+# Release Discipline
 
-This document defines release rules for schema changes, flag removals, and changelog enforcement.
+This guide defines the canonical release validation contract.
 
-## Output schema versioning
-- Backward-compatible additions (new fields, optional metadata) require a minor version bump.
-- Breaking changes (field removals, semantic changes, renamed fields) require a major version bump.
-- Update `docs/contracts/search-contract.md` and any API/MCP contracts alongside output changes.
+## Canonical command
 
-## Artifact schema versioning
-- Any change that makes existing artifacts unreadable requires a major version bump.
-- Increment artifact schema versions in `docs/contracts/artifact-contract.md` and the corresponding writers/readers.
-- Changes that only add optional fields may ship as a minor version bump, but must document the new fields.
+Run release validation with:
 
-## CLI flag removals/renames
-- Deprecate flags first (warn on use) for at least one minor release.
-- Removals or renames are breaking changes and require a major version bump.
-- Update `docs/config/deprecations.md` and CLI help text when changing flags.
+```bash
+npm run release-check
+```
 
-## Changelog enforcement
-- Maintain `CHANGELOG.md` with entries per release.
-- Breaking changes must be listed under `### Breaking` for the release section.
-- Run `node tools/release/check.js --breaking` for breaking releases to enforce the changelog entry.
+The command executes `tools/release/check.js` and always writes:
 
-## Essential reliability blockers
+- `release_check_report.json`
+- `release-manifest.json`
+- `docs/tooling/doc-contract-drift.json`
+- `docs/tooling/doc-contract-drift.md`
 
-Release checks include a small set of essential operational blockers:
-- `ops-health-contract` (owner: `ops-runtime`) runs `tests/ops/health-check-contract.test.js`.
-- `ops-failure-injection-contract` (owner: `ops-runtime`) runs `tests/ops/failure-injection/retrieval-hotpath.test.js`.
-- `ops-config-guardrails-contract` (owner: `ops-runtime`) runs `tests/ops/config/guardrails.test.js`.
+Both artifacts use ISO-8601 timestamps and stable schema/order.
 
-Blockers are enforced by:
-- `node tools/release/check.js --blockers-only`
+## Required release-check flow
 
-Override path (audit-visible, explicit marker required):
-- add `--allow-blocker-override`
-- add `--override-id <blocker-id>` for each override
-- add `--override-marker <ticket-or-incident-id>`
+Release-check is strict and deterministic. Required checks cannot be skipped.
 
-Each override emits an audit line with `[release-override]` and JSON payload (blocker ID, owner, marker, timestamp).
+Execution order:
 
+1. changelog validation for the current package version
+2. contract/spec drift gate (`tools/docs/contract-drift.js --fail`)
+3. Python toolchain policy gate (`tools/tooling/python-check.js`)
+4. smoke sequence in fixed order:
+   - `pairofcleats --version`
+   - fixture index build
+   - fixture index validate (`--strict`)
+   - fixture search
+   - editor package smoke checks (Sublime then VS Code)
+   - TUI artifact manifest smoke check
+   - service-mode smoke check
+
+## Breaking release mode
+
+For breaking releases:
+
+```bash
+npm run release-check:breaking
+```
+
+This requires a non-empty `### Breaking` section for the current version in `CHANGELOG.md`.
+
+## Removed permissive modes
+
+Blocker-related flags are unsupported (`--blockers-only`, `--no-blockers`, `--allow-blocker-override`, `--override-id`, `--override-marker`).
+
+## Python policy
+
+Python is a required runtime dependency for active tooling flows that package or validate Sublime integrations. Enforce availability with:
+
+```bash
+npm run python:check
+```
+
+Core release tooling fails fast when Python is unavailable.
+
+## Versioning policy
+
+- Breaking output/schema behavior requires a major version bump.
+- Contract and spec updates ship in the same change as behavior updates.
+- Artifact readers/writers and contract docs must stay aligned.

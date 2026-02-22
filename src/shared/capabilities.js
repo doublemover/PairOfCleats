@@ -1,4 +1,5 @@
 import { tryRequire } from './optional-deps.js';
+import { getNativeAccelCapabilities } from './native-accel.js';
 
 let cached = null;
 
@@ -34,6 +35,12 @@ export const CAPABILITY_DEFAULTS = Object.freeze({
   externalBackends: Object.freeze({
     tantivy: false,
     lancedb: false
+  }),
+  nativeAccel: Object.freeze({
+    enabled: false,
+    runtimeKind: 'js',
+    abiVersion: 1,
+    featureBits: 0
   })
 });
 
@@ -102,6 +109,12 @@ export function getCapabilities(options = {}) {
     externalBackends: {
       tantivy: defaults.externalBackends.tantivy,
       lancedb: defaults.externalBackends.lancedb
+    },
+    nativeAccel: {
+      enabled: defaults.nativeAccel.enabled,
+      runtimeKind: defaults.nativeAccel.runtimeKind,
+      abiVersion: defaults.nativeAccel.abiVersion,
+      featureBits: defaults.nativeAccel.featureBits
     }
   };
   cached.watcher.chokidar = check('chokidar', opts);
@@ -132,5 +145,14 @@ export function getCapabilities(options = {}) {
   cached.mcp.sdk = check('@modelcontextprotocol/sdk', opts, { allowEsm: true });
   cached.externalBackends.tantivy = check('tantivy', opts);
   cached.externalBackends.lancedb = check('@lancedb/lancedb', opts, { allowEsm: true });
+  const nativeAccel = getNativeAccelCapabilities();
+  cached.nativeAccel.enabled = nativeAccel.enabled === true;
+  cached.nativeAccel.runtimeKind = String(nativeAccel.runtimeKind || 'js');
+  cached.nativeAccel.abiVersion = Number.isFinite(nativeAccel.abiVersion)
+    ? nativeAccel.abiVersion
+    : defaults.nativeAccel.abiVersion;
+  cached.nativeAccel.featureBits = Number.isFinite(nativeAccel.featureBits)
+    ? nativeAccel.featureBits
+    : defaults.nativeAccel.featureBits;
   return cached;
 }

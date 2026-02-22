@@ -1,51 +1,36 @@
 # Native Acceleration Spec
 
-Status: Draft v1.0  
-Last updated: 2026-02-20T00:00:00Z
+Status: Final (No-Go) v1.0  
+Last updated: 2026-02-21T00:00:00Z
 
-## Goal
+## Decision
 
-Define native acceleration scope, correctness boundaries, and hard-cutover behavior when enabled.
+Native acceleration is **not adopted** for the active retrieval runtime. The single active runtime remains JS.
 
-## Scope
+## Active contract
 
-- Bitmap operations used by retrieval/filter stages.
-- Top-k selection and ANN primitives.
-- Worker offload integration for native compute tasks.
+1. Runtime negotiation is still versioned and deterministic through `src/shared/native-accel.js`.
+2. ABI mismatches must return `NATIVE_ACCEL_ABI_MISMATCH`.
+3. Non-mismatch requests must deterministically return `NATIVE_ACCEL_DISABLED_NO_GO`.
+4. Fallback runtime is always `js` and is deterministic.
 
-Out of scope:
+## Scope after no-go
 
-- Dual runtime support for legacy accelerated paths.
-- Partial compatibility wrappers for retired implementations.
+- Keep one runtime path in production (`js`).
+- Keep feasibility parity artifacts and deterministic handshake behavior for auditability.
+- Do not ship dual runtime paths, conditional native fast paths, or compatibility shims.
 
-## Correctness contract
+## Feasibility evidence retained
 
-1. Native output must be semantically equivalent to active JS baseline for supported inputs.
-2. Tie handling must be deterministic.
-3. Error taxonomy must be stable and shared across CLI/API/MCP surfaces.
-
-## Runtime contract
-
-- Capability detection must be explicit and deterministic.
-- Missing required native dependency in required mode is a hard failure.
-- Cancellation must propagate through worker/native boundaries.
-
-## Cutover policy
-
-If native acceleration is adopted for a surface:
-
-1. Native path becomes the single active implementation.
-2. Superseded paths are removed in the same phase.
-3. Specs/tests are updated to active behavior only.
-
-## Required evidence
-
-- Equivalence tests for bitmap/top-k/ANN/worker-offload behavior.
-- Adversarial tie and cancellation coverage.
-- Deterministic error-code coverage.
+- `tests/retrieval/native/feasibility-parity-harness.test.js`
+- `tests/retrieval/native/abi-handshake-version-mismatch.test.js`
+- `tests/retrieval/native/fallback-contract.test.js`
+- `tests/retrieval/native/no-go-capability-surface.test.js`
+- `tests/retrieval/native/no-go-docs-spec-consistency.test.js`
 
 ## Related docs
 
 - `docs/perf/native-accel.md`
+- `docs/archived/native-accel-adoption-go-path.md`
 - `src/shared/native-accel.js`
 - `src/shared/capabilities.js`

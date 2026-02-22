@@ -11,8 +11,19 @@ const repoRoot = path.join(tempRoot, 'repo');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(repoRoot, { recursive: true });
-applyTestEnv();
-process.env.PAIROFCLEATS_CACHE_ROOT = tempRoot;
+applyTestEnv({
+  cacheRoot: tempRoot,
+  embeddings: 'stub',
+  testConfig: {
+    quality: 'max',
+    indexing: {
+      embeddings: {
+        enabled: true,
+        mode: 'stub'
+      }
+    }
+  }
+});
 
 const defaults = parseBuildArgs([]).argv;
 const argv = { ...defaults, 'stub-embeddings': true };

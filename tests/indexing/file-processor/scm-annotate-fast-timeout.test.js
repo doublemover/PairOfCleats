@@ -148,7 +148,7 @@ await processFileCpu(createContext({
   fileHash: 'scm-annotate-fast-timeout-yml'
 }));
 assert.equal(yamlAnnotateCalls, 1, 'expected annotate to run for .yml files');
-assert.equal(yamlTimeoutMs, 750, 'expected .yml annotate timeout to clamp to 750ms by default');
+assert.equal(yamlTimeoutMs, 5000, 'expected .yml annotate timeout to clamp to 5000ms by default');
 assert.equal(yamlMetaTimeoutMs, 250, 'expected .yml meta timeout to clamp to 250ms by default');
 assert.equal(yamlIncludeChurn, false, 'expected fast-path .yml churn metadata to be disabled');
 
@@ -187,7 +187,7 @@ await processFileCpu(createContext({
   fileHash: 'scm-annotate-fast-timeout-js'
 }));
 assert.equal(jsAnnotateCalls, 1, 'expected annotate to run for .js files');
-assert.equal(jsTimeoutMs, 2000, 'expected non-metadata annotate timeout to clamp to 2000ms');
+assert.equal(jsTimeoutMs, 5000, 'expected non-metadata annotate timeout to clamp to 5000ms');
 assert.equal(jsMetaTimeoutMs, 750, 'expected non-metadata meta timeout to clamp to 750ms');
 assert.equal(jsIncludeChurn, true, 'expected non-fast-path churn metadata enabled by default');
 
@@ -223,9 +223,45 @@ await processFileCpu(createContext({
   fileHash: 'scm-annotate-fast-timeout-java'
 }));
 assert.equal(javaAnnotateCalls, 1, 'expected annotate to run for .java files');
-assert.equal(javaTimeoutMs, 750, 'expected .java annotate timeout to clamp for large Java files');
+assert.equal(javaTimeoutMs, 5000, 'expected .java annotate timeout to clamp for large Java files');
 assert.equal(javaMetaTimeoutMs, 250, 'expected .java meta timeout to clamp for large Java files');
 assert.equal(javaIncludeChurn, false, 'expected fast-path large .java churn metadata to be disabled');
+
+const heavyRelKey = 'include/fmt/base.h';
+const heavyText = `${Array.from({ length: 500 }, (_, i) => `int heavy_path_timeout_${i};`).join('\n')}\n`;
+const heavyStat = { size: Buffer.byteLength(heavyText, 'utf8') };
+const heavyLanguageHint = getLanguageForFile('.h', heavyRelKey);
+let heavyAnnotateCalls = 0;
+let heavyTimeoutMs = null;
+let heavyMetaTimeoutMs = null;
+let heavyIncludeChurn = null;
+const heavyScmProvider = {
+  async getFileMeta(args) {
+    heavyMetaTimeoutMs = args?.timeoutMs ?? null;
+    heavyIncludeChurn = args?.includeChurn ?? null;
+    return { ok: false };
+  },
+  async annotate(args) {
+    heavyAnnotateCalls += 1;
+    heavyTimeoutMs = args?.timeoutMs ?? null;
+    return { ok: false, reason: 'timeout' };
+  }
+};
+await processFileCpu(createContext({
+  abs: jsAbs,
+  ext: '.h',
+  rel: heavyRelKey,
+  relKey: heavyRelKey,
+  text: heavyText,
+  fileStat: heavyStat,
+  languageHint: heavyLanguageHint,
+  scmProviderImpl: heavyScmProvider,
+  fileHash: 'scm-annotate-fast-timeout-heavy-path'
+}));
+assert.equal(heavyAnnotateCalls, 1, 'expected annotate to run for heavy include paths');
+assert.equal(heavyTimeoutMs, 5000, 'expected heavy include paths to use 5s annotate timeout cap');
+assert.equal(heavyMetaTimeoutMs, 250, 'expected heavy include paths to keep fast metadata timeout cap');
+assert.equal(heavyIncludeChurn, false, 'expected heavy include paths to keep churn disabled on fast path');
 
 const swiftAbs = path.join(root, 'tests', 'fixtures', 'tree-sitter', 'swift.swift');
 const swiftRel = path.relative(root, swiftAbs);
@@ -259,7 +295,7 @@ await processFileCpu(createContext({
   fileHash: 'scm-annotate-fast-timeout-swift'
 }));
 assert.equal(swiftAnnotateCalls, 1, 'expected annotate to run for .swift files');
-assert.equal(swiftTimeoutMs, 750, 'expected .swift annotate timeout to clamp to 750ms');
+assert.equal(swiftTimeoutMs, 5000, 'expected .swift annotate timeout to clamp to 5000ms');
 assert.equal(swiftMetaTimeoutMs, 250, 'expected .swift meta timeout to clamp to 250ms');
 
 const pyAbs = path.join(root, 'tests', 'fixtures', 'sample', 'src', 'sample.py');
@@ -296,7 +332,7 @@ await processFileCpu(createContext({
   fileHash: 'scm-annotate-fast-timeout-py'
 }));
 assert.equal(pyAnnotateCalls, 1, 'expected annotate to run for .py files');
-assert.equal(pyTimeoutMs, 750, 'expected .py annotate timeout to clamp to 750ms');
+assert.equal(pyTimeoutMs, 5000, 'expected .py annotate timeout to clamp to 5000ms');
 assert.equal(pyMetaTimeoutMs, 250, 'expected .py meta timeout to clamp to 250ms');
 assert.equal(pyIncludeChurn, false, 'expected fast-path .py churn metadata to be disabled');
 
@@ -327,10 +363,10 @@ await processFileCpu(createContext({
 assert.equal(pyGeneratedMetaCalls, 1, 'expected generated python files to keep SCM file metadata');
 assert.equal(pyGeneratedAnnotateCalls, 0, 'expected generated python files to skip SCM annotate');
 
-let legacyIncludeChurn = null;
-const legacyScmProvider = {
+let legacyMetaIgnoredIncludeChurn = null;
+const legacyMetaIgnoredScmProvider = {
   async getFileMeta(args) {
-    legacyIncludeChurn = args?.includeChurn ?? null;
+    legacyMetaIgnoredIncludeChurn = args?.includeChurn ?? null;
     return { ok: false };
   },
   async annotate() {
@@ -345,16 +381,20 @@ await processFileCpu(createContext({
   text: jsText,
   fileStat: jsStat,
   languageHint: jsLanguageHint,
-  scmProviderImpl: legacyScmProvider,
-  fileHash: 'scm-annotate-fast-timeout-legacy-churn-off',
+  scmProviderImpl: legacyMetaIgnoredScmProvider,
+  fileHash: 'scm-annotate-fast-timeout-ignore-legacy-meta',
   scmConfig: { annotate: {}, meta: { includeChurn: false } }
 }));
-assert.equal(legacyIncludeChurn, false, 'expected legacy scm meta.includeChurn=false to disable churn metadata');
+assert.equal(
+  legacyMetaIgnoredIncludeChurn,
+  true,
+  'expected legacy scm meta.includeChurn to be ignored under hard-cut SCM churn policy'
+);
 
-let legacyWithPolicyIncludeChurn = null;
-const legacyWithPolicyScmProvider = {
+let policyOverrideIncludeChurn = null;
+const policyOverrideScmProvider = {
   async getFileMeta(args) {
-    legacyWithPolicyIncludeChurn = args?.includeChurn ?? null;
+    policyOverrideIncludeChurn = args?.includeChurn ?? null;
     return { ok: false };
   },
   async annotate() {
@@ -369,15 +409,15 @@ await processFileCpu(createContext({
   text: jsText,
   fileStat: jsStat,
   languageHint: jsLanguageHint,
-  scmProviderImpl: legacyWithPolicyScmProvider,
-  fileHash: 'scm-annotate-fast-timeout-legacy-churn-policy-override',
+  scmProviderImpl: policyOverrideScmProvider,
+  fileHash: 'scm-annotate-fast-timeout-policy-override',
   scmConfig: { annotate: {}, meta: { includeChurn: false } },
   analysisPolicy: { git: { churn: true } }
 }));
 assert.equal(
-  legacyWithPolicyIncludeChurn,
+  policyOverrideIncludeChurn,
   true,
-  'expected analysis policy git.churn to override legacy scm meta.includeChurn'
+  'expected analysis policy git.churn=true to enable churn metadata'
 );
 
 let explicitTimeoutMs = null;
@@ -407,7 +447,7 @@ await processFileCpu(createContext({
   scmConfig: { timeoutMs: 333, annotate: { timeoutMs: 4321 } },
   analysisPolicy: { git: { churn: false } }
 }));
-assert.equal(explicitTimeoutMs, 750, 'expected explicit annotate timeout to still respect fast-path clamp');
+assert.equal(explicitTimeoutMs, 4321, 'expected explicit annotate timeout to respect 5000ms fast-path cap');
 assert.equal(explicitMetaTimeoutMs, 250, 'expected explicit meta timeout to still respect fast-path clamp');
 assert.equal(explicitIncludeChurn, false, 'expected churn flag to respect analysis policy');
 
@@ -473,7 +513,7 @@ await processFileCpu(createContext({
 }));
 assert.equal(
   forcedCapAnnotateTimeoutMs,
-  750,
+  5000,
   'expected benchmark hotspot paths to keep fast annotate timeout caps even with allowSlowTimeouts'
 );
 assert.equal(

@@ -38,7 +38,7 @@ const writeJsonAtomicSync = (filePath, value) => {
   }
 };
 
-export async function createCrashLogger({ repoCacheRoot, enabled, log }) {
+export async function createCrashLogger({ repoCacheRoot, enabled }) {
   if (!enabled || !repoCacheRoot) {
     return {
       enabled: false,
@@ -86,9 +86,7 @@ export async function createCrashLogger({ repoCacheRoot, enabled, log }) {
     } catch {}
   };
 
-  if (log) {
-    log(`Crash logging enabled: ${logPath}`);
-  }
+  void appendLine('crash-logger initialized', { path: logPath }).catch(() => {});
 
   return {
     enabled: true,

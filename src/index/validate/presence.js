@@ -122,16 +122,21 @@ export const createArtifactPresenceHelpers = ({
   };
 
   const hasLegacyArtifact = (name) => {
+    const existsAny = (basePath) => (
+      fs.existsSync(basePath)
+      || fs.existsSync(`${basePath}.gz`)
+      || fs.existsSync(`${basePath}.zst`)
+    );
     if (name === 'chunk_meta') {
       const json = path.join(dir, 'chunk_meta.json');
       const jsonl = path.join(dir, 'chunk_meta.jsonl');
       const columnar = path.join(dir, 'chunk_meta.columnar.json');
       const meta = path.join(dir, 'chunk_meta.meta.json');
       const partsDir = path.join(dir, 'chunk_meta.parts');
-      return fs.existsSync(json)
-        || fs.existsSync(jsonl)
-        || fs.existsSync(columnar)
-        || fs.existsSync(meta)
+      return existsAny(json)
+        || existsAny(jsonl)
+        || existsAny(columnar)
+        || existsAny(meta)
         || fs.existsSync(partsDir);
     }
     const hasJsonlArtifact = (baseName) => {
@@ -140,9 +145,9 @@ export const createArtifactPresenceHelpers = ({
       const columnar = path.join(dir, `${baseName}.columnar.json`);
       const meta = path.join(dir, `${baseName}.meta.json`);
       const partsDir = path.join(dir, `${baseName}.parts`);
-      if (fs.existsSync(json) || fs.existsSync(`${json}.gz`)) return true;
-      if (fs.existsSync(columnar)) return true;
-      return fs.existsSync(jsonl) || fs.existsSync(meta) || fs.existsSync(partsDir);
+      if (existsAny(json)) return true;
+      if (existsAny(columnar)) return true;
+      return existsAny(jsonl) || existsAny(meta) || fs.existsSync(partsDir);
     };
     if (name === 'file_relations') return hasJsonlArtifact('file_relations');
     if (name === 'call_sites') return hasJsonlArtifact('call_sites');
@@ -167,28 +172,27 @@ export const createArtifactPresenceHelpers = ({
     }
     if (name === 'dense_vectors') {
       const json = path.join(dir, 'dense_vectors_uint8.json');
-      return fs.existsSync(json) || fs.existsSync(`${json}.gz`);
+      return existsAny(json);
     }
     if (name === 'dense_vectors_doc') {
       const json = path.join(dir, 'dense_vectors_doc_uint8.json');
-      return fs.existsSync(json) || fs.existsSync(`${json}.gz`);
+      return existsAny(json);
     }
     if (name === 'dense_vectors_code') {
       const json = path.join(dir, 'dense_vectors_code_uint8.json');
-      return fs.existsSync(json) || fs.existsSync(`${json}.gz`);
+      return existsAny(json);
     }
     if (name === 'index_state') {
       return fs.existsSync(path.join(dir, 'index_state.json'));
+    }
+    if (name === 'determinism_report') {
+      return fs.existsSync(path.join(dir, 'determinism_report.json'));
     }
     if (name === 'filelists') {
       return fs.existsSync(path.join(dir, '.filelists.json'));
     }
     const filePath = path.join(dir, `${name}.json`);
-    if (fs.existsSync(filePath)) return true;
-    const gzPath = `${filePath}.gz`;
-    const zstPath = `${filePath}.zst`;
-    if (fs.existsSync(zstPath) || fs.existsSync(gzPath)) return true;
-    return false;
+    return existsAny(filePath);
   };
 
   return {

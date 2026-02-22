@@ -1,0 +1,71 @@
+{
+  "formatVersion": 1,
+  "languageId": "lua",
+  "keywords": [
+    "and",
+    "break",
+    "do",
+    "else",
+    "elseif",
+    "end",
+    "for",
+    "function",
+    "goto",
+    "if",
+    "in",
+    "local",
+    "not",
+    "or",
+    "repeat",
+    "return",
+    "then",
+    "until",
+    "while"
+  ],
+  "literals": [
+    "false",
+    "nil",
+    "true"
+  ],
+  "types": [],
+  "builtins": [
+    "assert",
+    "collectgarbage",
+    "dofile",
+    "error",
+    "getmetatable",
+    "ipairs",
+    "load",
+    "loadfile",
+    "next",
+    "pairs",
+    "pcall",
+    "print",
+    "rawequal",
+    "rawget",
+    "rawlen",
+    "rawset",
+    "require",
+    "select",
+    "setmetatable",
+    "tonumber",
+    "tostring",
+    "type",
+    "warn",
+    "xpcall"
+  ],
+  "modules": [
+    "coroutine",
+    "debug",
+    "io",
+    "math",
+    "os",
+    "package",
+    "string",
+    "table",
+    "utf8"
+  ],
+  "notes": [
+    "Lua 5.x reserved words and standard globals/modules."
+  ]
+}

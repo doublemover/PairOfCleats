@@ -56,7 +56,7 @@ Introduce a small set of top-level test groups (these map to folder structure an
 
 These eight groups are few enough to be learnable and broad enough to cover the repo.
 
-**Current lanes (runner):** `smoke`, `unit`, `ci-lite`, `ci-long`, `integration`, `services`, `api`, `storage`, `perf`, `mcp`, `ci`.  
+**Current lanes (runner):** `smoke`, `unit`, `ci-lite`, `ci-long`, `integration`, `services`, `api`, `storage`, `perf`, `mcp`, `ci`, `gate`, `backcompat`, `diagnostics-summary`, `iq`, `decomposed-drift`.  
 **Note:** `indexing/`, `retrieval/`, `tooling/`, `lang/`, and `runner/harness/` are path groups/tags (see `tests/run.rules.jsonc`), not lanes.
 
 ## Inventory: largest multi-responsibility suites (and what to do about them)

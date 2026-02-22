@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
+import { readJsonFileSyncSafe, readJsonLinesSyncSafe } from '../../src/shared/files.js';
 import { getMetricsDir, resolveRepoConfig } from '../shared/dict-utils.js';
 
 const argv = createCli({
@@ -19,50 +19,14 @@ const { repoRoot: root, userConfig } = resolveRepoConfig(argv.repo);
 const metricsDir = getMetricsDir(root, userConfig);
 const topN = Math.max(1, parseInt(argv.top, 10) || 5);
 
-/**
- * Read JSON from disk if present.
- * @param {string} filePath
- * @returns {any|null}
- */
-function readJson(filePath) {
-  if (!fs.existsSync(filePath)) return null;
-  try {
-    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Read newline-delimited JSON entries from a file.
- * @param {string} filePath
- * @returns {any[]}
- */
-function readJsonLines(filePath) {
-  if (!fs.existsSync(filePath)) return [];
-  const raw = fs.readFileSync(filePath, 'utf8');
-  return raw
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      try {
-        return JSON.parse(line);
-      } catch {
-        return null;
-      }
-    })
-    .filter(Boolean);
-}
-
 const indexMetrics = {
-  code: readJson(path.join(metricsDir, 'index-code.json')),
-  prose: readJson(path.join(metricsDir, 'index-prose.json'))
+  code: readJsonFileSyncSafe(path.join(metricsDir, 'index-code.json')),
+  prose: readJsonFileSyncSafe(path.join(metricsDir, 'index-prose.json'))
 };
 
-const fileMetrics = readJson(path.join(metricsDir, 'metrics.json')) || {};
-const history = readJsonLines(path.join(metricsDir, 'searchHistory'));
-const noResults = readJsonLines(path.join(metricsDir, 'noResultQueries'));
+const fileMetrics = readJsonFileSyncSafe(path.join(metricsDir, 'metrics.json'), { fallback: {} }) || {};
+const history = readJsonLinesSyncSafe(path.join(metricsDir, 'searchHistory'));
+const noResults = readJsonLinesSyncSafe(path.join(metricsDir, 'noResultQueries'));
 
 const fileRows = Object.entries(fileMetrics).map(([file, entry]) => {
   const md = entry?.md || 0;

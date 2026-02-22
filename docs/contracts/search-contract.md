@@ -71,31 +71,29 @@ Grouping + ordering contract:
 
 ## Explain schema
 
-`--explain` emits a stable `scoreBreakdown` object for each hit:
-- `selected`: `{ type, score }` final score selection
-- `sparse`: BM25/FTS score + weighting metadata (when available)
-- `ann`: `{ score, source }` dense similarity (when available)
-- `rrf`: rank fusion details when enabled
-- `blend`: normalized blend details when enabled
-- `symbol`: definition/export boost metadata
-- `phrase`: phrase/chargram boost metadata
+`--explain` emits score and intent diagnostics, but field-level payloads are
+intentionally backend- and profile-dependent. Consumers must treat explain
+objects as extensible and ignore unknown keys.
 
-Backends must emit this schema consistently so that parity checks are meaningful.
+Canonical stability requirements:
+- explain payloads must remain valid JSON and deterministic for identical inputs.
+- consumers must not assume a fixed `scoreBreakdown` key set.
+- parser compatibility is forward-only: unknown fields are non-breaking.
 
 ### Track IQ: Intent confidence semantics
 For explain output, `stats.intent` now carries a calibrated confidence surface:
-- `type` remains the dominant class from intent classification.
-- `effectiveType` is the class applied to retrieval knobs; when confidence is low (`confidenceBucket=low`), implementations MUST abstain and set `effectiveType=mixed`.
-- `confidenceByType` is a deterministic, normalized per-class map over `code|prose|path|url|mixed`.
-- `confidence`, `confidenceMargin`, and `confidenceBucket` summarize the selected class confidence.
-- `abstain=true` and `state=uncertain` indicate a low-confidence intent decision.
+- type remains the dominant class from intent classification.
+- effectiveType is the class applied to retrieval knobs; when confidence is low (`confidenceBucket=low`), implementations MUST abstain and set `effectiveType=mixed`.
+- confidenceByType is a deterministic, normalized per-class map over `code|prose|path|url|mixed`.
+- confidence, confidenceMargin, and confidenceBucket summarize the selected class confidence.
+- abstain=true and state=uncertain indicate a low-confidence intent decision.
 
 ### Track IQ: Trust surface contract
 Explain output MUST include `stats.trust` with `schemaVersion=1` and:
-- `confidence.value`, `confidence.margin`, `confidence.bucket`
-- explicit `confidence.buckets` definitions for `low|medium|high`
-- `signals` booleans for trust-relevant degradations
-- `reasonCodes` for machine-readable trust diagnostics
+- confidence.value, confidence.margin, confidence.bucket
+- explicit confidence.buckets definitions for low|medium|high
+- signals booleans for trust-relevant degradations
+- reasonCodes for machine-readable trust diagnostics
 
 Reader compatibility rule:
 - Consumers MUST ignore unknown forward fields in `stats.trust` and continue parsing known fields.
@@ -103,13 +101,13 @@ Reader compatibility rule:
 ### Phase 11: Graph ranking explain additions (optional)
 When graph-aware ranking is enabled, explain SHOULD include:
 
-- `scoreBreakdown.graph`:
-  - `score` (number): additive score applied for graph-aware reordering
-  - `degree` (number)
-  - `proximity` (number)
-  - `weights` (object; `degree`, `proximity`)
-  - `seedSelection` (`top1|topK|none`)
-  - `seedK` (number|null)
+- scoreBreakdown.graph:
+  - score (number): additive score applied for graph-aware reordering
+  - degree (number)
+  - proximity (number)
+  - weights (object; degree, proximity)
+  - seedSelection (top1|topK|none)
+  - seedK (number|null)
 
 ## Phase 11: Graph-aware ranking (membership invariant)
 

@@ -3,6 +3,7 @@ import { findCLikeBodyBounds } from './clike.js';
 import { collectAttributes, extractDocComment, sliceSignature } from './shared.js';
 import { readSignatureLines } from './shared/signature-lines.js';
 import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
+import { buildTreeSitterChunks } from './tree-sitter.js';
 
 /**
  * PHP language chunking and relations.
@@ -191,21 +192,33 @@ function extractVisibility(modifiers) {
  * @returns {string[]}
  */
 export function collectPhpImports(text) {
-  if (!text || !text.includes('use ')) return [];
+  if (!text) return [];
+  const lowered = text.toLowerCase();
+  const hasUse = lowered.includes('use ');
+  const hasInclude = lowered.includes('include');
+  const hasRequire = lowered.includes('require');
+  if (!hasUse && !hasInclude && !hasRequire) return [];
   const imports = new Set();
   const lines = text.split('\n');
   for (const line of lines) {
     const trimmed = line.trim();
-    if (!trimmed.startsWith('use ')) continue;
-    const match = trimmed.match(/^use\s+([^;]+);/);
-    if (!match) continue;
-    const raw = match[1].trim();
-    raw.split(',').forEach((part) => {
-      const seg = part.trim();
-      if (!seg) return;
-      const name = seg.split(/\s+as\s+/i)[0].trim();
-      if (name) imports.add(name);
-    });
+    if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('#')) continue;
+    if (/^use\s+/i.test(trimmed)) {
+      const match = trimmed.match(/^use\s+([^;]+);/i);
+      if (!match) continue;
+      const raw = match[1].trim();
+      raw.split(',').forEach((part) => {
+        const seg = part.trim();
+        if (!seg) return;
+        const name = seg.split(/\s+as\s+/i)[0].trim();
+        if (name) imports.add(name);
+      });
+      continue;
+    }
+    const includeMatch = trimmed.match(/^(?:include|include_once|require|require_once)\s*(?:\(\s*)?['"]([^'"]+)['"]/i);
+    if (includeMatch?.[1]) {
+      imports.add(includeMatch[1].trim());
+    }
   }
   return Array.from(imports);
 }
@@ -216,7 +229,9 @@ export function collectPhpImports(text) {
  * @param {string} text
  * @returns {Array<{start:number,end:number,name:string,kind:string,meta:Object}>|null}
  */
-export function buildPhpChunks(text) {
+export function buildPhpChunks(text, options = {}) {
+  const treeChunks = buildTreeSitterChunks({ text, languageId: 'php', options });
+  if (treeChunks && treeChunks.length) return treeChunks;
   const lineIndex = buildLineIndex(text);
   const lines = text.split('\n');
   const decls = [];
@@ -228,12 +243,29 @@ export function buildPhpChunks(text) {
 
   const typeRe = /^\s*(?:#[^\n]*\s*)?(?:(?:abstract|final|public|protected|private)\s+)*(class|interface|trait)\s+([A-Za-z_][A-Za-z0-9_]*)/;
   const funcRe = /^\s*(?:#[^\n]*\s*)?(?:(?:public|protected|private|static)\s+)*function\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/;
+  const namespaceRe = /^\s*namespace\s+([A-Za-z_][A-Za-z0-9_\\]*)\s*(?:[;{])/;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('*') || trimmed.startsWith('#')) continue;
-    let match = trimmed.match(typeRe);
+    let match = trimmed.match(namespaceRe);
+    if (match) {
+      const start = lineIndex[i] + line.indexOf(match[0]);
+      const end = lineIndex[i] + line.length;
+      const meta = {
+        startLine: i + 1,
+        endLine: offsetToLine(lineIndex, end),
+        signature: trimmed,
+        docstring: extractDocComment(lines, i),
+        attributes: collectAttributes(lines, i, trimmed),
+        visibility: 'public',
+        modifiers: []
+      };
+      decls.push({ start, end, name: match[1], kind: 'NamespaceDeclaration', meta });
+      continue;
+    }
+    match = trimmed.match(typeRe);
     if (match) {
       const start = lineIndex[i] + line.indexOf(match[0]);
       const bounds = findCLikeBodyBounds(text, start);
@@ -350,8 +382,15 @@ export function buildPhpRelations(text, phpChunks) {
   if (Array.isArray(phpChunks)) {
     for (const chunk of phpChunks) {
       if (!chunk || !chunk.name || chunk.start == null || chunk.end == null) continue;
+      if (chunk.kind === 'NamespaceDeclaration'
+        || chunk.kind === 'ClassDeclaration'
+        || chunk.kind === 'InterfaceDeclaration'
+        || chunk.kind === 'TraitDeclaration'
+        || chunk.kind === 'FunctionDeclaration') {
+        exports.add(chunk.name);
+      }
       const mods = Array.isArray(chunk.meta?.modifiers) ? chunk.meta.modifiers : [];
-      if (mods.includes('public')) exports.add(chunk.name);
+      if (chunk.kind === 'MethodDeclaration' && mods.includes('public')) exports.add(chunk.name);
       if (!['MethodDeclaration', 'FunctionDeclaration'].includes(chunk.kind)) continue;
       const bounds = findCLikeBodyBounds(text, chunk.start);
       const scanStart = bounds.bodyStart > -1 && bounds.bodyStart < chunk.end ? bounds.bodyStart + 1 : chunk.start;

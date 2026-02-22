@@ -283,6 +283,8 @@ export const scanSourceFiles = async (root, sourceFiles) => {
   const cliFlagMap = new Map();
   const cliFlagsByFile = new Map();
   const dynamicOptionFiles = new Set();
+  const importedOptionSetRefs = new Map();
+  const cliEntrypointFiles = new Set();
 
   for (const filePath of sourceFiles) {
     const relPath = toPosix(path.relative(root, filePath));
@@ -292,6 +294,9 @@ export const scanSourceFiles = async (root, sourceFiles) => {
     } catch (err) {
       if (err?.code === 'ENOENT') continue;
       throw err;
+    }
+    if (source.startsWith('#!/usr/bin/env node')) {
+      cliEntrypointFiles.add(relPath);
     }
 
     const envMatches = source.match(/PAIROFCLEATS_[A-Z0-9_]+/g) || [];
@@ -323,12 +328,25 @@ export const scanSourceFiles = async (root, sourceFiles) => {
         cliFlagMap.get(flag).add(relPath);
       }
     }
+
+    const optionSetRefs = new Set();
+    const optionSetRegex = /\bresolveCliOptionFlagSets\s*\(\s*([A-Za-z_$][A-Za-z0-9_$]*)\s*\)/g;
+    let optionSetMatch;
+    while ((optionSetMatch = optionSetRegex.exec(source)) !== null) {
+      const symbol = String(optionSetMatch[1] || '').trim();
+      if (symbol) optionSetRefs.add(symbol);
+    }
+    if (optionSetRefs.size) {
+      importedOptionSetRefs.set(relPath, Array.from(optionSetRefs).sort((a, b) => a.localeCompare(b)));
+    }
   }
 
   return {
     envVarMap,
     cliFlagMap,
     cliFlagsByFile,
-    dynamicOptionFiles
+    dynamicOptionFiles,
+    importedOptionSetRefs,
+    cliEntrypointFiles
   };
 };

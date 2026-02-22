@@ -253,6 +253,18 @@ export const runCrossFileInference = async ({
   const useTooling = typeof policy?.typeInference?.tooling?.enabled === 'boolean'
     ? policy.typeInference.tooling.enabled
     : (typeInferenceEnabled && typeInferenceCrossFileEnabled && runtime.toolingEnabled);
+  const hugeRepoInferenceLiteConfig = runtime.indexingConfig?.hugeRepoInferenceLite
+    && typeof runtime.indexingConfig.hugeRepoInferenceLite === 'object'
+    ? runtime.indexingConfig.hugeRepoInferenceLite
+    : {};
+  const inferenceLiteEnabled = mode === 'code' && (
+    hugeRepoInferenceLiteConfig.enabled === true
+    || (
+      runtime.hugeRepoProfileEnabled === true
+      && hugeRepoInferenceLiteConfig.enabled !== false
+    )
+  );
+  const inferenceLiteHighSignalOnly = hugeRepoInferenceLiteConfig.highSignalOnly !== false;
   const enableCrossFileTypeInference = typeInferenceEnabled && typeInferenceCrossFileEnabled;
   const crossFileEnabled = typeInferenceCrossFileEnabled
     || riskAnalysisCrossFileEnabled
@@ -270,7 +282,9 @@ export const runCrossFileInference = async ({
       useTooling,
       enableTypeInference: enableCrossFileTypeInference,
       enableRiskCorrelation: riskAnalysisEnabled && riskAnalysisCrossFileEnabled,
-      fileRelations: state.fileRelations
+      fileRelations: state.fileRelations,
+      inferenceLite: inferenceLiteEnabled,
+      inferenceLiteHighSignalOnly
     });
     const crossFileDurationMs = Date.now() - crossFileStart;
     if (featureMetrics?.recordSettingByLanguageShare) {
@@ -300,6 +314,9 @@ export const runCrossFileInference = async ({
       );
       if (crossFileStats.cacheHit) {
         log('[perf] cross-file output cache reused.');
+      }
+      if (crossFileStats.inferenceLiteEnabled === true) {
+        log('[perf] cross-file inference lite profile active (high-signal links only).');
       }
     }
   }

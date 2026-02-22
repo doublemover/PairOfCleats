@@ -24,6 +24,9 @@ export const noneProvider = {
   getFileMeta() {
     return unsupported;
   },
+  getFileMetaBatch() {
+    return unsupported;
+  },
   annotate() {
     return { ok: false, reason: 'disabled' };
   }

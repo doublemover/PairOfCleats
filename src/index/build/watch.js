@@ -36,8 +36,14 @@ import { resolveMaxBytesForFile, resolveMaxDepthCap, resolveMaxFilesCap, isIndex
 import { startChokidarWatcher } from './watch/backends/chokidar.js';
 import { startParcelWatcher } from './watch/backends/parcel.js';
 import { createWatchAttemptManager } from './watch/attempts.js';
-import { MINIFIED_NAME_REGEX, normalizeRoot } from './watch/shared.js';
+import { normalizeRoot } from './watch/shared.js';
 import { isCodeEntryForPath, isProseEntryForPath } from './mode-routing.js';
+import { detectShebangLanguage } from './shebang.js';
+import {
+  buildGeneratedPolicyConfig,
+  buildGeneratedPolicyDowngradePayload,
+  resolveGeneratedPolicyDecision
+} from './generated-policy.js';
 
 export { createDebouncedScheduler, acquireIndexLockWithBackoff };
 
@@ -76,7 +82,11 @@ export async function watchIndex({
   };
   const root = runtimeRef.root;
   const recordsRoot = resolveRecordsRoot(root, runtimeRef.recordsDir);
+  const normalizedRecordsRoot = recordsRoot ? normalizeRoot(recordsRoot) : null;
   const ignoreMatcher = runtimeRef.ignoreMatcher;
+  const generatedPolicy = runtimeRef.generatedPolicy && typeof runtimeRef.generatedPolicy === 'object'
+    ? runtimeRef.generatedPolicy
+    : buildGeneratedPolicyConfig({});
   const maxFileBytes = runtimeRef.maxFileBytes;
   const fileCaps = runtimeRef.fileCaps;
   const guardrails = runtimeRef.guardrails || {};
@@ -295,6 +305,10 @@ export async function watchIndex({
     if (!relPosix || relPosix === '.' || relPosix.startsWith('..')) {
       return { skip: true, reason: 'outside-root' };
     }
+    const normalizedAbs = normalizeRoot(absPath);
+    const inRecordsRoot = normalizedRecordsRoot
+      ? normalizedAbs.startsWith(`${normalizedRecordsRoot}${path.sep}`)
+      : false;
     if (maxDepthCap != null) {
       const depth = relPosix.split('/').length - 1;
       if (depth > maxDepthCap) {
@@ -305,10 +319,7 @@ export async function watchIndex({
       return { skip: true, reason: 'ignored' };
     }
     const baseName = path.basename(absPath);
-    if (MINIFIED_NAME_REGEX.test(baseName.toLowerCase())) {
-      return { skip: true, reason: 'minified', extra: { method: 'name' } };
-    }
-    const ext = resolveSpecialCodeExt(baseName) || fileExt(absPath);
+    let ext = resolveSpecialCodeExt(baseName) || fileExt(absPath);
     let stat;
     try {
       stat = await fs.lstat(absPath);
@@ -318,7 +329,14 @@ export async function watchIndex({
     if (stat.isSymbolicLink()) {
       return { skip: true, reason: 'symlink' };
     }
-    const language = getLanguageForFile(ext, relPosix);
+    let language = getLanguageForFile(ext, relPosix);
+    if (!ext && !language && stat.isFile()) {
+      const shebang = await detectShebangLanguage(absPath);
+      if (shebang?.languageId) {
+        ext = shebang.ext || ext;
+        language = getLanguageForFile(ext, relPosix);
+      }
+    }
     const maxBytesForFile = resolveMaxBytesForFile(ext, language?.id || null, maxFileBytes, fileCaps);
     if (maxBytesForFile && stat.size > maxBytesForFile) {
       return {
@@ -335,18 +353,33 @@ export async function watchIndex({
     const isSpecialLanguage = !!language && !EXTS_CODE.has(ext) && !EXTS_PROSE.has(ext);
     const isSpecial = isSpecialCodeFile(baseName) || isManifestFile(baseName) || isLockFile(baseName) || isSpecialLanguage;
     let record = null;
-    const normalizedRecordsRoot = recordsRoot ? normalizeRoot(recordsRoot) : null;
-    if (normalizedRecordsRoot) {
-      const normalizedAbs = normalizeRoot(absPath);
-      if (normalizedAbs.startsWith(`${normalizedRecordsRoot}${path.sep}`)) {
-        record = { source: 'triage', recordType: 'record', reason: 'records-dir' };
-      }
+    if (inRecordsRoot) {
+      record = { source: 'triage', recordType: 'record', reason: 'records-dir' };
     }
     if (!record && recordsClassifier) {
       const sampleText = shouldSniffRecordContent(ext)
         ? await readRecordSample(absPath, recordsClassifier.config?.sniffBytes)
         : '';
       record = recordsClassifier.classify({ absPath, relPath: relPosix, ext, sampleText });
+    }
+    // Preserve records routing even when generated-policy heuristics match.
+    if (!record) {
+      const generatedPolicyDecision = resolveGeneratedPolicyDecision({
+        generatedPolicy,
+        relPath: relPosix,
+        absPath,
+        baseName
+      });
+      if (generatedPolicyDecision?.downgrade) {
+        return {
+          skip: true,
+          reason: generatedPolicyDecision.classification || 'generated',
+          extra: {
+            indexMode: generatedPolicyDecision.indexMode,
+            downgrade: buildGeneratedPolicyDowngradePayload(generatedPolicyDecision)
+          }
+        };
+      }
     }
     return {
       skip: false,
@@ -384,7 +417,8 @@ export async function watchIndex({
     const baseEntry = {
       abs: absPath,
       rel: classification.relPosix,
-      stat: classification.stat
+      stat: classification.stat,
+      ext: classification.ext
     };
     for (const mode of modes) {
       if (classification.record) {
@@ -666,6 +700,7 @@ export async function watchIndex({
     scmProviderImpl: runtimeRef.scmProviderImpl,
     scmRepoRoot: runtimeRef.scmRepoRoot,
     ignoreMatcher,
+    generatedPolicy,
     skippedByMode,
     maxFileBytes,
     fileCaps,

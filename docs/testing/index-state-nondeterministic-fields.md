@@ -7,6 +7,16 @@ comparisons (for example, shard-merge tests) unless a test is explicitly validat
 Each item below references the code paths that set the field so it is clear why the value is
 not stable across runs.
 
+## Determinism report contract
+
+Writers now emit `determinism_report.json` with:
+
+- `sourceReasons`: explicit field-level nondeterminism reasons and owning source paths
+- `stableHashExclusions`: the exact field paths excluded from `index_state` stable-hash checks
+- `normalizedStateHash`: hash of `index_state` after applying those exclusions
+
+This removes ad hoc nondeterminism filtering in tests and keeps exclusions explicit.
+
 ## Time-derived fields (always non-deterministic)
 - `generatedAt` (top-level). Written with `new Date().toISOString()` in:
   - `src/index/build/indexer/steps/write.js` (build index artifacts)

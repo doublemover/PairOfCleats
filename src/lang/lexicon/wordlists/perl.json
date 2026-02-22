@@ -1,0 +1,49 @@
+{
+  "formatVersion": 1,
+  "languageId": "perl",
+  "keywords": [
+    "begin",
+    "check",
+    "continue",
+    "default",
+    "die",
+    "do",
+    "else",
+    "elsif",
+    "end",
+    "for",
+    "foreach",
+    "given",
+    "goto",
+    "if",
+    "init",
+    "last",
+    "my",
+    "next",
+    "our",
+    "package",
+    "print",
+    "redo",
+    "return",
+    "say",
+    "sub",
+    "unitcheck",
+    "unless",
+    "until",
+    "use",
+    "warn",
+    "when",
+    "while"
+  ],
+  "literals": [
+    "false",
+    "true",
+    "undef"
+  ],
+  "types": [],
+  "builtins": [],
+  "modules": [],
+  "notes": [
+    "Language-specific lexicon for keyword/literal stopword filtering."
+  ]
+}

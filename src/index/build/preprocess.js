@@ -10,6 +10,11 @@ import { discoverEntries } from './discover.js';
 import { createRecordsClassifier, shouldSniffRecordContent } from './records.js';
 import { pickMinLimit } from './runtime/limits.js';
 import { isCodeEntryForPath, isProseEntryForPath } from './mode-routing.js';
+import {
+  buildGeneratedPolicyConfig,
+  buildGeneratedPolicyDowngradePayload,
+  resolveGeneratedPolicyDecision
+} from './generated-policy.js';
 
 const DOCUMENT_EXTS = new Set(['.pdf', '.docx']);
 const isDocumentExt = (ext) => DOCUMENT_EXTS.has(String(ext || '').toLowerCase());
@@ -87,6 +92,7 @@ export async function preprocessFiles({
   scmProviderImpl = null,
   scmRepoRoot = null,
   ignoreMatcher,
+  generatedPolicy = null,
   maxFileBytes = null,
   fileCaps = null,
   maxDepth = null,
@@ -98,6 +104,9 @@ export async function preprocessFiles({
   abortSignal = null
 }) {
   throwIfAborted(abortSignal);
+  const effectiveGeneratedPolicy = generatedPolicy && typeof generatedPolicy === 'object'
+    ? generatedPolicy
+    : buildGeneratedPolicyConfig({});
   const documentExtractionEnabled = documentExtractionConfig?.enabled === true;
   const { entries, skippedCommon } = await discoverEntries({
     root,
@@ -107,6 +116,7 @@ export async function preprocessFiles({
     scmProviderImpl,
     scmRepoRoot,
     ignoreMatcher,
+    generatedPolicy: effectiveGeneratedPolicy,
     maxFileBytes,
     fileCaps,
     maxDepth,
@@ -134,13 +144,6 @@ export async function preprocessFiles({
         && isDocumentExt(entry.ext)
         && scanResult?.skip?.reason === 'binary'
       );
-      if (scanResult?.skip) {
-        if (!bypassBinarySkip) {
-          entry.skip = scanResult.skip;
-          scanSkips.push({ file: entry.abs, reason: scanResult.skip.reason, ...scanResult.skip });
-          return;
-        }
-      }
       if (recordsClassifier && !entry.record) {
         let sampleText = null;
         let sampleBuffer = scanResult?.sampleBuffer || null;
@@ -165,6 +168,37 @@ export async function preprocessFiles({
           sampleText
         });
         if (record) entry.record = record;
+      }
+      // Records entries are already routed by discover/records classification;
+      // do not re-downgrade them via generated/minified/vendor policy.
+      const policyDecision = entry.record
+        ? null
+        : resolveGeneratedPolicyDecision({
+          generatedPolicy: effectiveGeneratedPolicy,
+          relPath: entry.rel,
+          absPath: entry.abs,
+          baseName: path.basename(entry.abs),
+          scanSkip: scanResult?.skip || null
+        });
+      if (policyDecision?.downgrade) {
+        entry.skip = {
+          reason: policyDecision.classification || 'generated',
+          indexMode: policyDecision.indexMode,
+          downgrade: buildGeneratedPolicyDowngradePayload(policyDecision)
+        };
+        scanSkips.push({ file: entry.abs, ...entry.skip });
+        return;
+      }
+      if (scanResult?.skip) {
+        const scanReason = scanResult.skip.reason || 'oversize';
+        const allowMinifiedByInclude = scanReason === 'minified'
+          && policyDecision?.policy === 'include'
+          && policyDecision?.indexMode === 'full';
+        if (!bypassBinarySkip && !allowMinifiedByInclude) {
+          entry.skip = scanResult.skip;
+          scanSkips.push({ file: entry.abs, reason: scanResult.skip.reason, ...scanResult.skip });
+          return;
+        }
       }
       entry.scan = {
         checkedBinary: scanResult?.checkedBinary === true,

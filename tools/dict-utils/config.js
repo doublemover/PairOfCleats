@@ -54,7 +54,7 @@ export function loadUserConfig(repoRoot) {
     if (!testEnv.testing || !testEnv.config) return baseConfig;
     return mergeConfig(baseConfig, testEnv.config);
   };
-  if (!fs.existsSync(configPath)) return applyTestOverrides(normalizeUserConfig({}));
+  if (!fs.existsSync(configPath)) return applyTestOverrides(normalizeUserConfig({}, repoRoot));
   const base = readJsoncFile(configPath);
   if (!isPlainObject(base)) {
     throw new Error('Config root must be a JSON object.');
@@ -67,7 +67,7 @@ export function loadUserConfig(repoRoot) {
     const details = result.errors.map((err) => `- ${err}`).join('\n');
     throw new Error(`Config errors in ${configPath}:\n${details}`);
   }
-  return applyTestOverrides(normalizeUserConfig(base));
+  return applyTestOverrides(normalizeUserConfig(base, repoRoot));
 }
 
 /**
@@ -88,12 +88,17 @@ export async function getAutoPolicy(repoRoot, userConfig = null, options = {}) {
   return buildAutoPolicy({ repoRoot, config: cfg, scanLimits: options.scanLimits });
 }
 
-function normalizeUserConfig(baseConfig) {
+function normalizeUserConfig(baseConfig, repoRoot = null) {
   if (!isPlainObject(baseConfig)) return {};
   const normalized = {};
   if (isPlainObject(baseConfig.cache)) {
-    const root = typeof baseConfig.cache.root === 'string' && baseConfig.cache.root.trim()
+    const rootRaw = typeof baseConfig.cache.root === 'string' && baseConfig.cache.root.trim()
       ? baseConfig.cache.root.trim()
+      : undefined;
+    const root = rootRaw
+      ? (path.isAbsolute(rootRaw)
+        ? path.resolve(rootRaw)
+        : path.resolve(repoRoot || process.cwd(), rootRaw))
       : undefined;
     const runtime = isPlainObject(baseConfig.cache.runtime) ? baseConfig.cache.runtime : undefined;
     const cache = {};

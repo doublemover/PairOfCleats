@@ -1,5 +1,5 @@
 import fs from 'node:fs/promises';
-import { availableParallelism } from 'node:os';
+import { availableParallelism, cpus } from 'node:os';
 import path from 'node:path';
 import { sha1 } from '../../shared/hash.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
@@ -9,7 +9,8 @@ import {
   readBundleFile,
   resolveBundleFilename,
   resolveBundleFormatFromName,
-  writeBundleFile
+  writeBundleFile,
+  writeBundlePatch
 } from '../../shared/bundle-io.js';
 import { normalizeFilePath } from '../../shared/path-normalize.js';
 import { getEnvConfig } from '../../shared/env.js';
@@ -60,11 +61,17 @@ const shouldVerifyHash = (fileStat, cachedEntry) => (
 );
 
 const MAX_SHARED_HASH_READ_ENTRIES = 256;
-const DEFAULT_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY = 8;
-const MAX_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY = 32;
+const DEFAULT_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY = 12;
+const MAX_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY = 64;
+const HIGH_VOLUME_INCREMENTAL_BUNDLE_UPDATE_THRESHOLD = 16384;
+const MAX_HIGH_VOLUME_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY = 96;
+const HOT_CROSS_FILE_BUNDLE_UPDATE_WINDOW_MS = 10 * 60 * 1000;
 const ENV_CONFIG = getEnvConfig();
 
-const resolveIncrementalBundleUpdateConcurrency = (totalUpdates) => {
+const resolveIncrementalBundleUpdateConcurrency = ({
+  totalUpdates,
+  cpuIdleRatio = null
+}) => {
   const updates = Number.isFinite(Number(totalUpdates)) && totalUpdates > 0
     ? Math.floor(Number(totalUpdates))
     : 1;
@@ -75,11 +82,61 @@ const resolveIncrementalBundleUpdateConcurrency = (totalUpdates) => {
   const cpuCount = typeof availableParallelism === 'function'
     ? Math.max(1, Math.floor(availableParallelism()))
     : DEFAULT_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY;
-  const derived = Math.max(
+  const baseline = Math.max(
     DEFAULT_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY,
-    Math.min(MAX_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY, cpuCount * 2)
+    Math.min(MAX_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY, cpuCount * 3)
   );
-  return Math.min(updates, derived);
+  let resolved = baseline;
+  if (updates >= HIGH_VOLUME_INCREMENTAL_BUNDLE_UPDATE_THRESHOLD) {
+    const highVolume = Math.max(
+      baseline,
+      Math.min(MAX_HIGH_VOLUME_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY, cpuCount * 4)
+    );
+    resolved = highVolume;
+  }
+  if (Number.isFinite(cpuIdleRatio)) {
+    const idle = Math.max(0, Math.min(1, Number(cpuIdleRatio)));
+    if (idle >= 0.5) {
+      resolved = Math.min(MAX_HIGH_VOLUME_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY, Math.ceil(resolved * 1.25));
+    } else if (idle <= 0.15) {
+      resolved = Math.max(DEFAULT_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY, Math.floor(resolved * 0.75));
+    }
+  }
+  return Math.min(updates, resolved);
+};
+
+/**
+ * Sample system CPU idle ratio over a short interval.
+ *
+ * @param {number} [sampleMs=40]
+ * @returns {Promise<number|null>}
+ */
+const sampleCpuIdleRatio = async (sampleMs = 40) => {
+  try {
+    const start = cpus();
+    if (!Array.isArray(start) || !start.length) return null;
+    await new Promise((resolve) => setTimeout(resolve, Math.max(10, Math.floor(Number(sampleMs) || 40))));
+    const end = cpus();
+    if (!Array.isArray(end) || end.length !== start.length) return null;
+    let idleDelta = 0;
+    let totalDelta = 0;
+    for (let i = 0; i < start.length; i += 1) {
+      const a = start[i]?.times || {};
+      const b = end[i]?.times || {};
+      const idle = Math.max(0, Number(b.idle || 0) - Number(a.idle || 0));
+      const user = Math.max(0, Number(b.user || 0) - Number(a.user || 0));
+      const nice = Math.max(0, Number(b.nice || 0) - Number(a.nice || 0));
+      const sys = Math.max(0, Number(b.sys || 0) - Number(a.sys || 0));
+      const irq = Math.max(0, Number(b.irq || 0) - Number(a.irq || 0));
+      const total = idle + user + nice + sys + irq;
+      idleDelta += idle;
+      totalDelta += total;
+    }
+    if (!Number.isFinite(totalDelta) || totalDelta <= 0) return null;
+    return Math.max(0, Math.min(1, idleDelta / totalDelta));
+  } catch {
+    return null;
+  }
 };
 
 const resolveSharedReadCache = (sharedReadState) => (
@@ -173,6 +230,116 @@ const readFileBufferAndHash = async ({
 const normalizeIncrementalRelPath = (value) => {
   const normalized = normalizeFilePath(value, { lower: process.platform === 'win32' });
   return normalized.startsWith('./') ? normalized.slice(2) : normalized;
+};
+
+const resolvePrefetchedVfsRows = (store, normalizedFile, rawFile) => {
+  if (store && typeof store.get === 'function') {
+    if (store.has(normalizedFile)) {
+      return { hit: true, rows: store.get(normalizedFile) || null };
+    }
+    if (store.has(rawFile)) {
+      return { hit: true, rows: store.get(rawFile) || null };
+    }
+    return { hit: false, rows: null };
+  }
+  if (store && typeof store === 'object') {
+    if (Object.prototype.hasOwnProperty.call(store, normalizedFile)) {
+      return { hit: true, rows: store[normalizedFile] || null };
+    }
+    if (Object.prototype.hasOwnProperty.call(store, rawFile)) {
+      return { hit: true, rows: store[rawFile] || null };
+    }
+  }
+  return { hit: false, rows: null };
+};
+
+const comparePendingCrossFileBundleUpdates = (a, b) => {
+  const aMtime = Number(a?.entry?.mtimeMs) || 0;
+  const bMtime = Number(b?.entry?.mtimeMs) || 0;
+  if (aMtime !== bMtime) return bMtime - aMtime;
+  const aChunks = Array.isArray(a?.fileChunks) ? a.fileChunks.length : 0;
+  const bChunks = Array.isArray(b?.fileChunks) ? b.fileChunks.length : 0;
+  if (aChunks !== bChunks) return bChunks - aChunks;
+  return String(a?.normalizedFile || a?.file || '').localeCompare(String(b?.normalizedFile || b?.file || ''));
+};
+
+const isHotPendingCrossFileBundleUpdate = (pendingUpdate, nowMs = Date.now()) => {
+  const mtimeMs = Number(pendingUpdate?.entry?.mtimeMs) || 0;
+  return mtimeMs > 0 && (nowMs - mtimeMs) <= HOT_CROSS_FILE_BUNDLE_UPDATE_WINDOW_MS;
+};
+
+const prioritizePendingCrossFileBundleUpdates = (pendingUpdates, { nowMs = Date.now() } = {}) => {
+  const hot = [];
+  const cold = [];
+  for (const pendingUpdate of pendingUpdates) {
+    if (isHotPendingCrossFileBundleUpdate(pendingUpdate, nowMs)) {
+      hot.push(pendingUpdate);
+    } else {
+      cold.push(pendingUpdate);
+    }
+  }
+  hot.sort(comparePendingCrossFileBundleUpdates);
+  cold.sort(comparePendingCrossFileBundleUpdates);
+  return hot.concat(cold);
+};
+
+const buildBundleMetaReuseSignature = (metaV2) => {
+  if (!metaV2 || typeof metaV2 !== 'object') return '';
+  const selected = {
+    chunkId: metaV2.chunkId ?? null,
+    file: metaV2.file ?? null,
+    range: metaV2.range ?? null,
+    lang: metaV2.lang ?? null,
+    ext: metaV2.ext ?? null,
+    types: metaV2.types ?? null,
+    relations: metaV2.relations ?? null,
+    segment: metaV2.segment ?? null
+  };
+  const payload = buildStableJsonSignature(selected);
+  return payload ? sha1(payload) : '';
+};
+
+const buildChunkReuseSignature = (chunks) => (
+  Array.isArray(chunks)
+    ? chunks.map((chunk) => {
+      const chunkId = chunk?.chunkId || chunk?.chunkUid || '';
+      const docId = Number.isFinite(chunk?.id) ? Math.floor(chunk.id) : '';
+      const start = Number(chunk?.start) || 0;
+      const end = Number(chunk?.end) || 0;
+      const hash = typeof chunk?.hash === 'string' ? chunk.hash : '';
+      const textLength = typeof chunk?.text === 'string' ? chunk.text.length : 0;
+      const metaSignature = buildBundleMetaReuseSignature(chunk?.metaV2);
+      return `${chunkId}:${docId}:${start}:${end}:${hash}:${textLength}:${metaSignature}`;
+    }).join('|')
+    : ''
+);
+
+const buildStableJsonSignature = (value) => {
+  try {
+    return JSON.stringify(value ?? null);
+  } catch {
+    return '';
+  }
+};
+
+const shouldReuseExistingBundle = (existingBundle, nextBundle) => {
+  if (!existingBundle || !nextBundle) return false;
+  if (existingBundle.hash !== nextBundle.hash) return false;
+  if (existingBundle.mtimeMs !== nextBundle.mtimeMs) return false;
+  if (existingBundle.size !== nextBundle.size) return false;
+  if (buildChunkReuseSignature(existingBundle.chunks) !== buildChunkReuseSignature(nextBundle.chunks)) {
+    return false;
+  }
+  if (buildStableJsonSignature(existingBundle.fileRelations) !== buildStableJsonSignature(nextBundle.fileRelations)) {
+    return false;
+  }
+  if (buildStableJsonSignature(existingBundle.vfsManifestRows) !== buildStableJsonSignature(nextBundle.vfsManifestRows)) {
+    return false;
+  }
+  if ((existingBundle.encoding || null) !== (nextBundle.encoding || null)) return false;
+  if ((existingBundle.encodingFallback || null) !== (nextBundle.encodingFallback || null)) return false;
+  if ((existingBundle.encodingConfidence || null) !== (nextBundle.encodingConfidence || null)) return false;
+  return true;
 };
 
 /**
@@ -717,27 +884,75 @@ export async function updateBundlesWithChunks({
     const bundleName = entry?.bundle || resolveBundleFilename(file, resolvedBundleFormat);
     const fileChunks = chunkMap.get(normalizedFile);
     if (!bundleName || !fileChunks) continue;
-    pendingUpdates.push({ file, normalizedFile, entry, bundleName, fileChunks });
+    pendingUpdates.push({
+      file,
+      normalizedFile,
+      entry,
+      bundleName,
+      bundleFormat: resolveBundleFormatFromName(bundleName, resolvedBundleFormat),
+      fileChunks
+    });
   }
   if (!pendingUpdates.length) return;
+  const prioritizedPendingUpdates = prioritizePendingCrossFileBundleUpdates(pendingUpdates, { nowMs: startedAt });
+  const hasPrefetchedRowsStore = !!(
+    existingVfsManifestRowsByFile
+    && (
+      typeof existingVfsManifestRowsByFile.get === 'function'
+      || typeof existingVfsManifestRowsByFile === 'object'
+    )
+  );
+  let prefetchHits = 0;
+  if (hasPrefetchedRowsStore) {
+    for (const pending of prioritizedPendingUpdates) {
+      if (resolvePrefetchedVfsRows(
+        existingVfsManifestRowsByFile,
+        pending.normalizedFile,
+        pending.file
+      ).hit) {
+        prefetchHits += 1;
+      }
+    }
+  }
+  const prefetchCoverage = prioritizedPendingUpdates.length
+    ? (prefetchHits / prioritizedPendingUpdates.length)
+    : 0;
+  const skipFallbackReadForPrefetchMisses = hasPrefetchedRowsStore && prefetchCoverage >= 0.95;
+  if (
+    hasPrefetchedRowsStore
+    && !skipFallbackReadForPrefetchMisses
+    && typeof log === 'function'
+  ) {
+    log(
+      `[incremental] bundle VFS prefetch coverage ${(prefetchCoverage * 100).toFixed(1)}%; ` +
+      'reading misses from existing bundles.'
+    );
+  }
   let bundleUpdates = 0;
+  let bundlePatched = 0;
+  let bundleSkipped = 0;
   let bundleFailures = 0;
   let nextProgressUpdate = 500;
-  const updateTotal = pendingUpdates.length;
-  const workerCount = resolveIncrementalBundleUpdateConcurrency(updateTotal);
+  const updateTotal = prioritizedPendingUpdates.length;
+  const cpuIdleRatio = await sampleCpuIdleRatio();
+  const workerCount = resolveIncrementalBundleUpdateConcurrency({
+    totalUpdates: updateTotal,
+    cpuIdleRatio
+  });
   let cursor = 0;
   const workers = Array.from({ length: workerCount }, async () => {
     for (;;) {
       const index = cursor;
       cursor += 1;
-      if (index >= pendingUpdates.length) break;
+      if (index >= prioritizedPendingUpdates.length) break;
       const {
         file,
         normalizedFile,
         entry,
         bundleName,
+        bundleFormat,
         fileChunks
-      } = pendingUpdates[index];
+      } = prioritizedPendingUpdates[index];
       let relations = null;
       if (fileRelations) {
         relations = typeof fileRelations.get === 'function'
@@ -746,32 +961,26 @@ export async function updateBundlesWithChunks({
       }
       const bundlePath = path.join(bundleDir, bundleName);
       let vfsManifestRows = null;
-      let hasPrefetchedVfsRows = false;
-      if (existingVfsManifestRowsByFile && typeof existingVfsManifestRowsByFile.get === 'function') {
-        if (existingVfsManifestRowsByFile.has(normalizedFile)) {
-          vfsManifestRows = existingVfsManifestRowsByFile.get(normalizedFile) || null;
-          hasPrefetchedVfsRows = true;
-        } else if (existingVfsManifestRowsByFile.has(file)) {
-          vfsManifestRows = existingVfsManifestRowsByFile.get(file) || null;
-          hasPrefetchedVfsRows = true;
-        }
-      } else if (existingVfsManifestRowsByFile && typeof existingVfsManifestRowsByFile === 'object') {
-        if (Object.prototype.hasOwnProperty.call(existingVfsManifestRowsByFile, normalizedFile)) {
-          vfsManifestRows = existingVfsManifestRowsByFile[normalizedFile] || null;
-          hasPrefetchedVfsRows = true;
-        } else if (Object.prototype.hasOwnProperty.call(existingVfsManifestRowsByFile, file)) {
-          vfsManifestRows = existingVfsManifestRowsByFile[file] || null;
-          hasPrefetchedVfsRows = true;
-        }
+      let existingBundle = null;
+      const prefetched = resolvePrefetchedVfsRows(
+        existingVfsManifestRowsByFile,
+        normalizedFile,
+        file
+      );
+      if (prefetched.hit) {
+        vfsManifestRows = prefetched.rows;
       }
-      if (!hasPrefetchedVfsRows) {
+      if (!prefetched.hit || !skipFallbackReadForPrefetchMisses || bundleFormat === 'json') {
         try {
           const existing = await readBundleFile(bundlePath, {
-            format: resolveBundleFormatFromName(bundleName, resolvedBundleFormat)
+            format: bundleFormat
           });
-          vfsManifestRows = Array.isArray(existing?.bundle?.vfsManifestRows)
-            ? existing.bundle.vfsManifestRows
-            : null;
+          existingBundle = existing?.bundle || null;
+          if (!prefetched.hit) {
+            vfsManifestRows = Array.isArray(existing?.bundle?.vfsManifestRows)
+              ? existing.bundle.vfsManifestRows
+              : null;
+          }
         } catch {}
       }
       const bundle = {
@@ -786,11 +995,34 @@ export async function updateBundlesWithChunks({
         encodingFallback: typeof entry.encodingFallback === 'boolean' ? entry.encodingFallback : null,
         encodingConfidence: Number.isFinite(entry.encodingConfidence) ? entry.encodingConfidence : null
       };
+      if (shouldReuseExistingBundle(existingBundle, bundle)) {
+        bundleSkipped += 1;
+        continue;
+      }
+      if (existingBundle && bundleFormat === 'json') {
+        try {
+          const patchResult = await writeBundlePatch({
+            bundlePath,
+            previousBundle: existingBundle,
+            nextBundle: bundle,
+            format: bundleFormat
+          });
+          if (patchResult?.applied) {
+            bundleUpdates += 1;
+            bundlePatched += 1;
+            continue;
+          }
+          if (patchResult?.reason === 'no-changes') {
+            bundleSkipped += 1;
+            continue;
+          }
+        } catch {}
+      }
       try {
         await writeBundleFile({
           bundlePath,
           bundle,
-          format: resolveBundleFormatFromName(bundleName, resolvedBundleFormat)
+          format: bundleFormat
         });
         bundleUpdates += 1;
       } catch {
@@ -804,11 +1036,13 @@ export async function updateBundlesWithChunks({
     }
   });
   await Promise.all(workers);
-  if (bundleUpdates || bundleFailures) {
+  if (bundleUpdates || bundleSkipped || bundleFailures) {
     const durationMs = Math.max(0, Date.now() - startedAt);
-    const failureText = bundleFailures > 0 ? `, ${bundleFailures} failed` : '';
+    const failureText = bundleFailures > 0 ? `, failed ${bundleFailures}` : '';
+    const patchedText = bundlePatched > 0 ? `, patched ${bundlePatched}` : '';
+    const skippedText = bundleSkipped > 0 ? `, reused ${bundleSkipped}` : '';
     log(
-      `Cross-file inference updated ${bundleUpdates} incremental bundle(s)${failureText} `
+      `Cross-file inference updated ${bundleUpdates} incremental bundle(s)${patchedText}${skippedText}${failureText} `
       + `in ${durationMs}ms (workers=${workerCount}).`
     );
   }

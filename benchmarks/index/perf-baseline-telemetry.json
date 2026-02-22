@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-02-21T00:00:00Z",
+  "phase": "baseline",
+  "indexOptimizationProfile": "default",
+  "stageMetrics": {
+    "scan": {
+      "wallMs": 48.1,
+      "cpuBusyPct": 41.5,
+      "queueDepth": 3,
+      "inFlightBytes": 16384,
+      "workerUtilizationPct": 34.2
+    },
+    "read": {
+      "wallMs": 92.4,
+      "cpuBusyPct": 45.2,
+      "queueDepth": 5,
+      "inFlightBytes": 524288,
+      "workerUtilizationPct": 39.1
+    },
+    "chunk": {
+      "wallMs": 118.7,
+      "cpuBusyPct": 57.8,
+      "queueDepth": 7,
+      "inFlightBytes": 786432,
+      "workerUtilizationPct": 44.6
+    },
+    "parse": {
+      "wallMs": 204.3,
+      "cpuBusyPct": 62.4,
+      "queueDepth": 9,
+      "inFlightBytes": 1048576,
+      "workerUtilizationPct": 48.8
+    },
+    "relation": {
+      "wallMs": 79.6,
+      "cpuBusyPct": 51.1,
+      "queueDepth": 4,
+      "inFlightBytes": 262144,
+      "workerUtilizationPct": 41.3
+    }
+  }
+}

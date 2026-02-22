@@ -7,6 +7,21 @@ import { readCache, writeCache } from '../cache.js';
 const warnedMaterializeFallback = new Set();
 
 /**
+ * Create a loader error with a stable `err.code` for downstream recovery paths.
+ *
+ * @param {string} code
+ * @param {string} message
+ * @param {Error|null} [cause]
+ * @returns {Error}
+ */
+const createLoaderError = (code, message, cause = null) => {
+  const err = new Error(message);
+  err.code = code;
+  if (cause) err.cause = cause;
+  return err;
+};
+
+/**
  * Emit a one-time warning when a streaming caller must materialize payloads.
  *
  * @param {string} dir
@@ -169,6 +184,7 @@ const iterateColumnarRows = (payload) => {
 };
 
 export {
+  createLoaderError,
   warnMaterializeFallback,
   readJsonFileCached,
   assertNoShardIndexGaps,

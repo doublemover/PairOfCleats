@@ -1,0 +1,16 @@
+{
+  "formatVersion": 1,
+  "languageId": "json",
+  "keywords": [],
+  "literals": [
+    "false",
+    "null",
+    "true"
+  ],
+  "types": [],
+  "builtins": [],
+  "modules": [],
+  "notes": [
+    "Language-specific lexicon for keyword/literal stopword filtering."
+  ]
+}

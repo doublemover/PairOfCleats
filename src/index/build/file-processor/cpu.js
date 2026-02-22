@@ -61,6 +61,9 @@ const SCM_META_FAST_TIMEOUT_EXTS = new Set([
 const SCM_PYTHON_EXTS = new Set(['.py', '.pyi']);
 const SCM_ANNOTATE_PYTHON_MAX_BYTES = 64 * 1024;
 const SCM_ANNOTATE_PYTHON_HEAVY_LINE_CUTOFF = 2500;
+const SCM_ANNOTATE_FAST_TIMEOUT_MS = 5000;
+const SCM_ANNOTATE_HEAVY_PATH_TIMEOUT_MS = 5000;
+const SCM_ANNOTATE_DEFAULT_TIMEOUT_CAP_MS = 5000;
 const SCM_FAST_TIMEOUT_BASENAMES = new Set([
   'cmakelists.txt',
   'makefile',
@@ -270,6 +273,7 @@ export const processFileCpu = async (context) => {
     scmProviderImpl,
     scmRepoRoot,
     scmConfig,
+    scmFileMetaByPath,
     languageOptions,
     astDataflowEnabled,
     controlFlowEnabled,
@@ -545,12 +549,9 @@ export const processFileCpu = async (context) => {
   const resolvedGitBlameEnabled = typeof analysisPolicy?.git?.blame === 'boolean'
     ? analysisPolicy.git.blame
     : gitBlameEnabled;
-  const legacyScmIncludeChurn = typeof scmConfig?.includeChurn === 'boolean'
-    ? scmConfig.includeChurn
-    : (typeof scmConfig?.meta?.includeChurn === 'boolean' ? scmConfig.meta.includeChurn : null);
   const resolvedGitChurnEnabled = typeof analysisPolicy?.git?.churn === 'boolean'
     ? analysisPolicy.git.churn
-    : (legacyScmIncludeChurn ?? true);
+    : true;
   updateCrashStage('scm-meta', { blame: resolvedGitBlameEnabled });
   const scmStart = Date.now();
   let lineAuthors = null;
@@ -594,11 +595,40 @@ export const processFileCpu = async (context) => {
   const runScmTask = typeof runProc === 'function' ? runProc : (fn) => fn();
   let scmMetaUnavailableReason = null;
   if (!skipScmForProseRoute && scmActive && filePosix) {
-    if (typeof scmProviderImpl.getFileMeta === 'function') {
+    const includeChurn = resolvedGitChurnEnabled
+      && !scmFastPath
+      && (fileStat?.size ?? 0) <= SCM_CHURN_MAX_BYTES;
+    const snapshotMeta = (() => {
+      if (!scmFileMetaByPath) return null;
+      if (typeof scmFileMetaByPath.get === 'function') {
+        return scmFileMetaByPath.get(filePosix) || null;
+      }
+      return scmFileMetaByPath[filePosix] || null;
+    })();
+    const snapshotHasIdentity = Boolean(snapshotMeta && (snapshotMeta.lastModifiedAt || snapshotMeta.lastAuthor));
+    const snapshotMissingRequestedChurn = Boolean(
+      snapshotHasIdentity
+      && includeChurn
+      && !Number.isFinite(snapshotMeta.churn)
+      && !Number.isFinite(snapshotMeta.churnAdded)
+      && !Number.isFinite(snapshotMeta.churnDeleted)
+    );
+    if (snapshotHasIdentity && !snapshotMissingRequestedChurn) {
+      fileGitMeta = {
+        last_modified: snapshotMeta.lastModifiedAt ?? null,
+        last_author: snapshotMeta.lastAuthor ?? null,
+        churn: Number.isFinite(snapshotMeta.churn) ? snapshotMeta.churn : null,
+        churn_added: Number.isFinite(snapshotMeta.churnAdded) ? snapshotMeta.churnAdded : null,
+        churn_deleted: Number.isFinite(snapshotMeta.churnDeleted) ? snapshotMeta.churnDeleted : null,
+        churn_commits: Number.isFinite(snapshotMeta.churnCommits) ? snapshotMeta.churnCommits : null
+      };
+    } else if (snapshotMeta && !snapshotHasIdentity) {
+      scmMetaUnavailableReason = 'unavailable';
+    } else if (
+      typeof scmProviderImpl.getFileMeta === 'function'
+      && (!snapshotMeta || snapshotMissingRequestedChurn)
+    ) {
       await runScmTask(async () => {
-        const includeChurn = resolvedGitChurnEnabled
-          && !scmFastPath
-          && (fileStat?.size ?? 0) <= SCM_CHURN_MAX_BYTES;
         const fileMeta = await Promise.resolve(scmProviderImpl.getFileMeta({
           repoRoot: scmRepoRoot,
           filePosix,
@@ -646,7 +676,11 @@ export const processFileCpu = async (context) => {
           ? annotateTimeoutRaw
           : (Number.isFinite(defaultTimeoutRaw) && defaultTimeoutRaw > 0 ? defaultTimeoutRaw : 10000);
         if (enforceScmTimeoutCaps) {
-          const annotateCapMs = scmFastPath || SCM_ANNOTATE_FAST_TIMEOUT_EXTS.has(normalizedExt) ? 750 : 2000;
+          const annotateCapMs = isHeavyRelationsPath(relKey)
+            ? SCM_ANNOTATE_HEAVY_PATH_TIMEOUT_MS
+            : (scmFastPath || SCM_ANNOTATE_FAST_TIMEOUT_EXTS.has(normalizedExt)
+              ? SCM_ANNOTATE_FAST_TIMEOUT_MS
+              : SCM_ANNOTATE_DEFAULT_TIMEOUT_CAP_MS);
           annotateTimeoutMs = Math.min(annotateTimeoutMs, annotateCapMs);
         }
         const withinAnnotateCap = maxAnnotateBytes == null
@@ -707,6 +741,12 @@ export const processFileCpu = async (context) => {
     && treeSitterScheduler
     && typeof treeSitterScheduler.loadChunks === 'function';
   const treeSitterStrict = treeSitterConfigForMode?.strict === true;
+  const schedulerLanguageIds = treeSitterScheduler?.scheduledLanguageIds;
+  const schedulerLanguageSet = schedulerLanguageIds instanceof Set
+    ? schedulerLanguageIds
+    : (Array.isArray(schedulerLanguageIds)
+      ? new Set(schedulerLanguageIds.filter((languageId) => typeof languageId === 'string' && languageId))
+      : null);
   let segments;
   let segmentsFromSchedulerPlan = false;
   updateCrashStage('segments');
@@ -771,16 +811,35 @@ export const processFileCpu = async (context) => {
   };
   if (treeSitterEnabled && !mustUseTreeSitterScheduler) {
     logLine?.(
-      `[tree-sitter:schedule] scheduler missing for ${relKey} with tree-sitter enabled`,
-      { kind: 'error', mode, stage: 'processing', file: relKey, substage: 'chunking' }
+      '[tree-sitter:schedule] scheduler missing while tree-sitter is enabled',
+      {
+        kind: 'error',
+        mode,
+        stage: 'processing',
+        file: relKey,
+        substage: 'chunking',
+        fileOnlyLine: `[tree-sitter:schedule] scheduler missing for ${relKey} with tree-sitter enabled`
+      }
     );
     throw new Error(`[tree-sitter:schedule] Tree-sitter enabled but scheduler is missing for ${relKey}.`);
   }
   let sc = [];
+  const chunkingDiagnostics = {
+    treeSitterEnabled,
+    schedulerRequired: mustUseTreeSitterScheduler,
+    scheduledSegmentCount: 0,
+    fallbackSegmentCount: 0,
+    codeFallbackSegmentCount: 0,
+    schedulerMissingCount: 0,
+    usedHeuristicChunking: false,
+    usedHeuristicCodeChunking: false
+  };
   updateCrashStage('chunking');
   try {
     const fallbackSegments = [];
     const scheduled = [];
+    let schedulerMissingCount = 0;
+    let codeFallbackSegmentCount = 0;
     const treeSitterOptions = { treeSitter: treeSitterConfigForMode || {} };
     for (const segment of segments || []) {
       if (!segment) continue;
@@ -789,24 +848,29 @@ export const processFileCpu = async (context) => {
 
       if (!mustUseTreeSitterScheduler || segmentTokenMode !== 'code') {
         fallbackSegments.push(segment);
+        if (segmentTokenMode === 'code') codeFallbackSegmentCount += 1;
         continue;
       }
 
       const segmentExt = resolveSegmentExt(ext, segment);
       const rawLanguageId = segment.languageId || lang?.id || null;
       const resolvedLang = resolveTreeSitterLanguageForSegment(rawLanguageId, segmentExt);
+      const schedulerSupportsLanguage = !schedulerLanguageSet || schedulerLanguageSet.has(resolvedLang);
       const canUseTreeSitter = resolvedLang
         && TREE_SITTER_LANG_IDS.has(resolvedLang)
         && isTreeSitterSchedulerLanguage(resolvedLang)
+        && schedulerSupportsLanguage
         && isTreeSitterEnabled(treeSitterOptions, resolvedLang);
       if (!canUseTreeSitter) {
         fallbackSegments.push(segment);
+        codeFallbackSegmentCount += 1;
         continue;
       }
 
       const segmentText = text.slice(segment.start, segment.end);
       if (exceedsTreeSitterLimits({ text: segmentText, languageId: resolvedLang, treeSitterConfig: treeSitterConfigForMode })) {
         fallbackSegments.push(segment);
+        codeFallbackSegmentCount += 1;
         continue;
       }
 
@@ -814,8 +878,16 @@ export const processFileCpu = async (context) => {
       const isFullFile = segment.start === 0 && segment.end === text.length;
       if (!isFullFile && !segmentUid) {
         logLine?.(
-          `[tree-sitter:schedule] missing segmentUid for ${relKey} (${segment.start}-${segment.end})`,
-          { kind: 'error', mode, stage: 'processing', file: relKey, substage: 'chunking' }
+          '[tree-sitter:schedule] missing segmentUid for scheduled segment',
+          {
+            kind: 'error',
+            mode,
+            stage: 'processing',
+            file: relKey,
+            substage: 'chunking',
+            fileOnlyLine:
+              `[tree-sitter:schedule] missing segmentUid for ${relKey} (${segment.start}-${segment.end})`
+          }
         );
         throw new Error(`[tree-sitter:schedule] Missing segmentUid for ${relKey} (${segment.start}-${segment.end}).`);
       }
@@ -857,15 +929,20 @@ export const processFileCpu = async (context) => {
             : null;
           if (!treeSitterStrict && hasScheduledEntry === false) {
             fallbackSegments.push(item.segment);
-            logLine?.(
-              `[tree-sitter:schedule] scheduler missing ${item.label}; using fallback chunking for ${relKey}`,
-              { kind: 'warn', mode, stage: 'processing', file: relKey, substage: 'chunking' }
-            );
+            schedulerMissingCount += 1;
+            codeFallbackSegmentCount += 1;
             continue;
           }
           logLine?.(
-            `[tree-sitter:schedule] missing scheduled chunks for ${relKey}: ${item.label}`,
-            { kind: 'error', mode, stage: 'processing', file: relKey, substage: 'chunking' }
+            '[tree-sitter:schedule] missing scheduled chunks',
+            {
+              kind: 'error',
+              mode,
+              stage: 'processing',
+              file: relKey,
+              substage: 'chunking',
+              fileOnlyLine: `[tree-sitter:schedule] missing scheduled chunks for ${relKey}: ${item.label}`
+            }
           );
           throw new Error(`[tree-sitter:schedule] Missing scheduled chunks for ${relKey}: ${item.label}`);
         }
@@ -878,6 +955,7 @@ export const processFileCpu = async (context) => {
       for (const item of scheduled) {
         if (!loadChunk) {
           fallbackSegments.push(item.segment);
+          codeFallbackSegmentCount += 1;
           continue;
         }
         const chunks = await loadChunk(item.virtualPath);
@@ -887,15 +965,20 @@ export const processFileCpu = async (context) => {
             : null;
           if (!treeSitterStrict && hasScheduledEntry === false) {
             fallbackSegments.push(item.segment);
-            logLine?.(
-              `[tree-sitter:schedule] scheduler missing ${item.label}; using fallback chunking for ${relKey}`,
-              { kind: 'warn', mode, stage: 'processing', file: relKey, substage: 'chunking' }
-            );
+            schedulerMissingCount += 1;
+            codeFallbackSegmentCount += 1;
             continue;
           }
           logLine?.(
-            `[tree-sitter:schedule] missing scheduled chunks for ${relKey}: ${item.label}`,
-            { kind: 'error', mode, stage: 'processing', file: relKey, substage: 'chunking' }
+            '[tree-sitter:schedule] missing scheduled chunks',
+            {
+              kind: 'error',
+              mode,
+              stage: 'processing',
+              file: relKey,
+              substage: 'chunking',
+              fileOnlyLine: `[tree-sitter:schedule] missing scheduled chunks for ${relKey}: ${item.label}`
+            }
           );
           throw new Error(`[tree-sitter:schedule] Missing scheduled chunks for ${relKey}: ${item.label}`);
         }
@@ -903,7 +986,28 @@ export const processFileCpu = async (context) => {
       }
     }
 
+    if (schedulerMissingCount > 0) {
+      logLine?.(
+        `[tree-sitter:schedule] scheduler missed ${schedulerMissingCount} segment(s); using fallback chunking.`,
+        {
+          kind: 'warn',
+          mode,
+          stage: 'processing',
+          file: relKey,
+          substage: 'chunking',
+          fileOnlyLine:
+            `[tree-sitter:schedule] scheduler missing ${schedulerMissingCount} segment(s); using fallback chunking for ${relKey}`
+        }
+      );
+    }
+    chunkingDiagnostics.scheduledSegmentCount = scheduled.length;
+    chunkingDiagnostics.fallbackSegmentCount = fallbackSegments.length;
+    chunkingDiagnostics.codeFallbackSegmentCount = codeFallbackSegmentCount;
+    chunkingDiagnostics.schedulerMissingCount = schedulerMissingCount;
+
     if (fallbackSegments.length) {
+      chunkingDiagnostics.usedHeuristicChunking = true;
+      chunkingDiagnostics.usedHeuristicCodeChunking = codeFallbackSegmentCount > 0;
       const fallbackChunks = chunkSegments({
         text,
         ext,
@@ -1021,6 +1125,7 @@ export const processFileCpu = async (context) => {
     addEmbeddingDuration,
     showLineProgress,
     totalLines,
+    chunkingDiagnostics,
     failFile,
     buildStage
   });

@@ -13,6 +13,133 @@ const DOCUMENT_SOURCE_EXT_TO_TYPE = new Map([
 const DOCUMENT_EXTRACTION_REASON_SET = new Set(DOCUMENT_EXTRACTION_REASON_CODES);
 
 const sha256Hex = (value) => createHash('sha256').update(String(value || ''), 'utf8').digest('hex');
+const INDEX_STATE_NONDETERMINISTIC_FIELDS = Object.freeze([
+  {
+    path: 'generatedAt',
+    category: 'time',
+    reason: 'generatedAt is stamped per run and expected to drift.',
+    source: 'src/index/build/indexer/steps/write.js',
+    excludeFromStableHash: true
+  },
+  {
+    path: 'updatedAt',
+    category: 'time',
+    reason: 'updatedAt is refreshed by post-build stages and tools.',
+    source: 'tools/build/sqlite/index-state.js',
+    excludeFromStableHash: true
+  },
+  {
+    path: 'embeddings.updatedAt',
+    category: 'time',
+    reason: 'embeddings updatedAt reflects stage3 execution timing per run.',
+    source: 'tools/build/embeddings/runner.js',
+    excludeFromStableHash: true
+  },
+  {
+    path: 'buildId',
+    category: 'run_identity',
+    reason: 'buildId includes timestamp and invocation identity.',
+    source: 'src/index/build/runtime/runtime.js',
+    excludeFromStableHash: true
+  },
+  {
+    path: 'stage',
+    category: 'run_identity',
+    reason: 'stage reflects current lifecycle and may vary by run mode.',
+    source: 'src/index/build/indexer/steps/write.js',
+    excludeFromStableHash: false
+  },
+  {
+    path: 'enrichment.pending',
+    category: 'run_outcome',
+    reason: 'enrichment pending status depends on asynchronous stage completion.',
+    source: 'src/index/build/indexer/steps/write.js',
+    excludeFromStableHash: false
+  },
+  {
+    path: 'enrichment.stage',
+    category: 'run_outcome',
+    reason: 'enrichment stage is updated by downstream build tools.',
+    source: 'tools/build/embeddings/runner.js',
+    excludeFromStableHash: false
+  },
+  {
+    path: 'repoId',
+    category: 'environment',
+    reason: 'repoId is derived from absolute path context.',
+    source: 'tools/dict-utils/paths/repo.js',
+    excludeFromStableHash: false
+  },
+  {
+    path: 'sqlite',
+    category: 'runtime_capacity',
+    reason: 'sqlite state contains run-local timing, capacity, and machine-specific paths.',
+    source: 'tools/build/sqlite/index-state.js',
+    excludeFromStableHash: true
+  },
+  {
+    path: 'lmdb',
+    category: 'runtime_capacity',
+    reason: 'lmdb state includes machine-local sizing and execution status.',
+    source: 'tools/build/lmdb-index.js',
+    excludeFromStableHash: true
+  },
+  {
+    path: 'sqlite.threadLimits',
+    category: 'runtime_capacity',
+    reason: 'sqlite thread limits derive from host/runtime envelope.',
+    source: 'tools/build/sqlite/runner.js',
+    excludeFromStableHash: true
+  },
+  {
+    path: 'shards.enabled',
+    category: 'runtime_capacity',
+    reason: 'shard mode toggles execution strategy, not indexed corpus content.',
+    source: 'src/index/build/shards.js',
+    excludeFromStableHash: true
+  },
+  {
+    path: 'shards.plan',
+    category: 'runtime_capacity',
+    reason: 'shard planning includes perf-derived cost estimates.',
+    source: 'src/index/build/shards.js',
+    excludeFromStableHash: true
+  }
+]);
+
+const cloneJsonValue = (value) => {
+  if (value == null) return value;
+  if (typeof structuredClone === 'function') {
+    try {
+      return structuredClone(value);
+    } catch {}
+  }
+  return JSON.parse(JSON.stringify(value));
+};
+
+/**
+ * Delete a nested dot-path from an object clone.
+ *
+ * Missing intermediate segments are ignored without throwing.
+ *
+ * @param {object} target
+ * @param {string} pathValue
+ */
+const deletePath = (target, pathValue) => {
+  if (!target || typeof target !== 'object') return;
+  const segments = String(pathValue || '').split('.').filter(Boolean);
+  if (!segments.length) return;
+  let cursor = target;
+  for (let i = 0; i < segments.length - 1; i += 1) {
+    const key = segments[i];
+    if (!cursor || typeof cursor !== 'object') return;
+    if (!Object.prototype.hasOwnProperty.call(cursor, key)) return;
+    cursor = cursor[key];
+  }
+  if (cursor && typeof cursor === 'object') {
+    delete cursor[segments[segments.length - 1]];
+  }
+};
 
 const normalizeExtractionFilePath = (file, root) => {
   const raw = String(file || '');
@@ -164,6 +291,64 @@ export const buildExtractionReport = ({
     },
     extractors: Array.from(extractorMap.values()),
     files
+  };
+};
+
+/**
+ * Return a copy of the nondeterministic index-state field registry.
+ *
+ * @returns {Array<{path:string,category:string,reason:string,source:string,excludeFromStableHash:boolean}>}
+ */
+export const getIndexStateNondeterministicFields = () => (
+  INDEX_STATE_NONDETERMINISTIC_FIELDS.map((entry) => ({ ...entry }))
+);
+
+/**
+ * Remove known nondeterministic index-state fields for stable reporting/hash
+ * generation.
+ *
+ * @param {object} indexState
+ * @param {{forStableHash?:boolean}} [options]
+ * @returns {object}
+ */
+export const stripIndexStateNondeterministicFields = (indexState, { forStableHash = true } = {}) => {
+  if (!indexState || typeof indexState !== 'object') return indexState;
+  const next = cloneJsonValue(indexState);
+  const applicable = INDEX_STATE_NONDETERMINISTIC_FIELDS.filter((entry) => (
+    forStableHash ? entry.excludeFromStableHash : true
+  ));
+  for (const entry of applicable) {
+    deletePath(next, entry.path);
+  }
+  return next;
+};
+
+/**
+ * Build a determinism report that records excluded volatile fields and the
+ * stable hash of the normalized state payload.
+ *
+ * @param {{mode?:string|null,indexState?:object}} [input]
+ * @returns {{schemaVersion:number,generatedAt:string,mode:string|null,stableHashExclusions:string[],sourceReasons:Array<{path:string,category:string,reason:string,source:string}>,normalizedStateHash:string|null}}
+ */
+export const buildDeterminismReport = ({ mode, indexState } = {}) => {
+  const stripped = stripIndexStateNondeterministicFields(indexState, { forStableHash: true });
+  const normalizedStateHash = stripped && typeof stripped === 'object'
+    ? sha256Hex(stableStringifyForSignature(stripped))
+    : null;
+  return {
+    schemaVersion: 1,
+    generatedAt: new Date().toISOString(),
+    mode: mode || null,
+    stableHashExclusions: INDEX_STATE_NONDETERMINISTIC_FIELDS
+      .filter((entry) => entry.excludeFromStableHash)
+      .map((entry) => entry.path),
+    sourceReasons: INDEX_STATE_NONDETERMINISTIC_FIELDS.map((entry) => ({
+      path: entry.path,
+      category: entry.category,
+      reason: entry.reason,
+      source: entry.source
+    })),
+    normalizedStateHash
   };
 };
 

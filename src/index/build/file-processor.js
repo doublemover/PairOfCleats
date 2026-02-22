@@ -128,6 +128,7 @@ export function createFileProcessor(options) {
     scmProviderImpl = null,
     scmRepoRoot = null,
     scmConfig = null,
+    scmFileMetaByPath = null,
     languageOptions,
     postingsConfig,
     segmentsConfig,
@@ -156,6 +157,7 @@ export function createFileProcessor(options) {
     fileCaps = null,
     maxFileBytes = null,
     fileScan = null,
+    generatedPolicy = null,
     skippedFiles = null,
     embeddingEnabled = true,
     embeddingNormalize = true,
@@ -300,7 +302,19 @@ export function createFileProcessor(options) {
    * @param {number} fileIndex
    * @returns {Promise<object|null>}
    */
-  async function processFile(fileEntry, fileIndex) {
+  async function processFile(fileEntry, fileIndex, options = {}) {
+    const signal = options?.signal && typeof options.signal === 'object'
+      ? options.signal
+      : null;
+    const throwIfAborted = () => {
+      if (!signal?.aborted) return;
+      const reason = signal.reason;
+      if (reason instanceof Error) throw reason;
+      const err = new Error('File processing aborted');
+      err.code = 'FILE_PROCESS_ABORTED';
+      throw err;
+    };
+    throwIfAborted();
     const abs = typeof fileEntry === 'string' ? fileEntry : fileEntry.abs;      
     const fileStart = Date.now();
     const timing = createFileTimingTracker({ mode, featureMetrics });
@@ -318,7 +332,9 @@ export function createFileProcessor(options) {
       : path.relative(root, abs);
     const fileStructural = structuralMatches?.get(relKey) || null;
     if (seenFiles) seenFiles.add(relKey);
-    const ext = resolveExt(abs);
+    const ext = typeof fileEntry === 'object' && typeof fileEntry.ext === 'string'
+      ? fileEntry.ext
+      : resolveExt(abs);
     const languageHint = getLanguageForFile(ext, relKey);
     let fileLanguageId = languageHint?.id || null;
     let fileLineCount = 0;
@@ -345,7 +361,9 @@ export function createFileProcessor(options) {
       languageId: fileLanguageId,
       mode,
       maxFileBytes,
-      bypassBinaryMinifiedSkip: documentExtractionEnabled && isDocumentExt(ext)
+      bypassBinaryMinifiedSkip: documentExtractionEnabled && isDocumentExt(ext),
+      rel: relKey,
+      generatedPolicy
     });
     if (preReadSkip) {
       const { reason, ...extra } = preReadSkip;
@@ -404,6 +422,7 @@ export function createFileProcessor(options) {
       relKey,
       fileStat
     });
+    throwIfAborted();
     cachedBundle = cachedResult.cachedBundle;
     fileHash = cachedResult.fileHash;
     if (fileHash) fileHashAlgo = 'sha1';
@@ -458,6 +477,7 @@ export function createFileProcessor(options) {
     }
 
     if (!fileBuffer) {
+      throwIfAborted();
       try {
         fileBuffer = await runIo(() => fs.readFile(abs));
       } catch (err) {
@@ -612,6 +632,7 @@ export function createFileProcessor(options) {
       scmProviderImpl,
       scmRepoRoot,
       scmConfig,
+      scmFileMetaByPath,
       languageOptions: resolvedLanguageOptions,
       astDataflowEnabled,
       controlFlowEnabled,
@@ -658,6 +679,7 @@ export function createFileProcessor(options) {
       lintCache,
       buildStage
     }));
+    throwIfAborted();
     if (cpuResult?.defer) {
       return cpuResult;
     }
@@ -692,6 +714,7 @@ export function createFileProcessor(options) {
       languageSetKey
     });
 
+    throwIfAborted();
     const manifestEntry = await writeBundleForFile({
       runIo,
       incrementalState,
@@ -705,6 +728,7 @@ export function createFileProcessor(options) {
       fileEncodingFallback: typeof fileEncodingFallback === 'boolean' ? fileEncodingFallback : null,
       fileEncodingConfidence: Number.isFinite(fileEncodingConfidence) ? fileEncodingConfidence : null
     });
+    throwIfAborted();
 
     const fileDurationMs = Date.now() - fileStart;
     const fileMetrics = buildFileMetrics({

@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createTempPath } from '../json-stream/atomic.js';
+import { joinPathSafe, normalizePathForPlatform } from '../path-normalize.js';
 
 const RENAME_RETRY_CODES = new Set(['EEXIST', 'EPERM', 'ENOTEMPTY', 'EACCES', 'EXDEV']);
 const DIR_SYNC_UNSUPPORTED_CODES = new Set(['EINVAL', 'ENOTSUP', 'EPERM', 'EISDIR', 'EBADF', 'EMFILE', 'ENFILE']);
@@ -106,11 +107,23 @@ const writeAtomicPayload = async (targetPath, payload, {
   encoding = 'utf8'
 } = {}) => {
   if (!targetPath) return null;
-  const parent = path.dirname(targetPath);
+  const normalizedTargetPath = normalizePathForPlatform(targetPath);
+  if (!normalizedTargetPath) {
+    throw createAtomicWriteError('normalize target path', String(targetPath || ''), new Error('Invalid target path.'));
+  }
+  const targetAbsolutePath = path.resolve(normalizedTargetPath);
+  const parent = path.dirname(targetAbsolutePath);
+  const safeTargetPath = joinPathSafe(parent, [path.basename(targetAbsolutePath)]);
+  if (!safeTargetPath) {
+    throw createAtomicWriteError('validate target path', targetAbsolutePath, new Error('Target path escaped parent boundary.'));
+  }
   if (mkdir) {
     await fs.mkdir(parent, { recursive: true });
   }
-  const tempPath = createTempPath(targetPath);
+  const tempPath = createTempPath(safeTargetPath);
+  if (mkdir && tempPath) {
+    await fs.mkdir(path.dirname(tempPath), { recursive: true });
+  }
   let handle = null;
   try {
     handle = await openWithRetry(tempPath, 'wx', mode);
@@ -122,15 +135,15 @@ const writeAtomicPayload = async (targetPath, payload, {
     await handle.sync();
     await handle.close();
     handle = null;
-    await renameTempFile(tempPath, targetPath);
-    await syncParentDirectory(targetPath);
-    return targetPath;
+    await renameTempFile(tempPath, safeTargetPath);
+    await syncParentDirectory(safeTargetPath);
+    return safeTargetPath;
   } catch (err) {
     if (handle) {
       try { await handle.close(); } catch {}
     }
     await removeTempPath(tempPath);
-    throw createAtomicWriteError('write file atomically', targetPath, err);
+    throw createAtomicWriteError('write file atomically', safeTargetPath, err);
   }
 };
 
@@ -147,7 +160,11 @@ export const atomicWriteText = async (targetPath, text, options = {}) => {
     encoding = 'utf8'
   } = options;
   const payload = Buffer.isBuffer(text)
-    ? text
+    ? (() => {
+      if (!newline) return text;
+      if (text.length > 0 && text[text.length - 1] === 0x0a) return text;
+      return Buffer.concat([text, Buffer.from('\n')]);
+    })()
     : (() => {
       const source = text == null ? '' : String(text);
       if (!newline) return source;

@@ -1,0 +1,53 @@
+{
+  "formatVersion": 1,
+  "languageId": "ruby",
+  "keywords": [
+    "__encoding__",
+    "__file__",
+    "__line__",
+    "alias",
+    "and",
+    "begin",
+    "break",
+    "case",
+    "class",
+    "def",
+    "defined?",
+    "do",
+    "else",
+    "elsif",
+    "end",
+    "ensure",
+    "for",
+    "if",
+    "in",
+    "module",
+    "next",
+    "not",
+    "or",
+    "redo",
+    "rescue",
+    "retry",
+    "return",
+    "self",
+    "super",
+    "then",
+    "undef",
+    "unless",
+    "until",
+    "when",
+    "while",
+    "yield"
+  ],
+  "literals": [
+    "false",
+    "nil",
+    "true"
+  ],
+  "types": [],
+  "builtins": [],
+  "modules": [],
+  "notes": [
+    "Language-specific lexicon for keyword/literal stopword filtering."
+  ]
+}

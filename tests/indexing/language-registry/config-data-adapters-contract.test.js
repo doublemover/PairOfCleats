@@ -6,11 +6,36 @@ import { LANGUAGE_REGISTRY } from '../../../src/index/language-registry/registry
 applyTestEnv();
 
 const CASES = [
-  { id: 'ini', ext: '.ini', text: '[server]\nport=8080\n' },
-  { id: 'json', ext: '.json', text: '{"server":{"port":8080}}\n' },
-  { id: 'toml', ext: '.toml', text: '[server]\nport=8080\n' },
-  { id: 'xml', ext: '.xml', text: '<config><server port="8080"/></config>\n' },
-  { id: 'yaml', ext: '.yaml', text: 'server:\n  port: 8080\n' }
+  {
+    id: 'ini',
+    ext: '.ini',
+    text: '[includes]\nfiles=./base.ini,./feature.cfg\n',
+    expectedImports: ['./base.ini', './feature.cfg']
+  },
+  {
+    id: 'json',
+    ext: '.json',
+    text: '{"schema":"./schema.json","server":{"configPath":"./server.json"}}\n',
+    expectedImports: ['./schema.json']
+  },
+  {
+    id: 'toml',
+    ext: '.toml',
+    text: '[dependencies]\nserde = "1.0"\nlocal = { path = "../local" }\n',
+    expectedImports: ['../local']
+  },
+  {
+    id: 'xml',
+    ext: '.xml',
+    text: '<root xmlns:cfg="urn:cfg"><xsd:import schemaLocation="./cfg.xsd"/></root>\n',
+    expectedImports: ['./cfg.xsd']
+  },
+  {
+    id: 'yaml',
+    ext: '.yaml',
+    text: 'defaults: &base\nservice:\n  <<: *base\ninclude:\n- ./base.yml\n',
+    expectedImports: ['./base.yml']
+  }
 ];
 
 for (const testCase of CASES) {
@@ -22,6 +47,13 @@ for (const testCase of CASES) {
   assert.ok(Array.isArray(relations.exports), `${testCase.id} buildRelations should return exports array`);
   assert.ok(Array.isArray(relations.calls), `${testCase.id} buildRelations should return calls array`);
   assert.ok(Array.isArray(relations.usages), `${testCase.id} buildRelations should return usages array`);
+  if (Array.isArray(testCase.expectedImports)) {
+    assert.deepEqual(
+      new Set(relations.imports),
+      new Set(testCase.expectedImports),
+      `${testCase.id} buildRelations imports mismatch`
+    );
+  }
 
   const docmeta = adapter.extractDocMeta({
     chunk: {

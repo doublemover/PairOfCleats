@@ -61,17 +61,16 @@ export const createApiRouter = ({
   const canonicalConfiguredAllowedRoots = [defaultRepo, ...allowedRepoRoots]
     .filter((entry) => typeof entry === 'string' && entry.trim())
     .map((entry) => toRealPathSync(path.resolve(entry)));
-  const canonicalExplicitAllowedRoots = allowedRepoRoots
-    .filter((entry) => typeof entry === 'string' && entry.trim())
-    .map((entry) => toRealPathSync(path.resolve(entry)));
-  const canonicalAllowedRoots = Array.from(new Set([
+  const canonicalWorkspacePolicyRoots = Array.from(new Set([
     ...canonicalConfiguredAllowedRoots,
-    ...(canonicalExplicitAllowedRoots.length ? [] : [resolveFederationCacheRoot(null)])
+    // Always include the default federation cache root so explicit repo-root
+    // allowlists do not accidentally block workspace-path/cache-root workflows.
+    resolveFederationCacheRoot(null)
   ]));
   const isAllowedWorkspacePath = (workspacePath) => {
-    if (!canonicalAllowedRoots.length) return true;
+    if (!canonicalWorkspacePolicyRoots.length) return true;
     const workspaceCanonical = toRealPathSync(workspacePath);
-    return canonicalAllowedRoots.some((root) => isWithinRoot(workspaceCanonical, root));
+    return canonicalWorkspacePolicyRoots.some((root) => isWithinRoot(workspaceCanonical, root));
   };
 
   const resolveWorkspacePath = (payload) => {

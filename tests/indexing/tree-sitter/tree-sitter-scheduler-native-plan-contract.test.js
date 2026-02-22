@@ -5,6 +5,7 @@ import path from 'node:path';
 
 import { buildTreeSitterSchedulerPlan } from '../../../src/index/build/tree-sitter-scheduler/plan.js';
 import {
+  getNativeTreeSitterParser,
   preflightNativeTreeSitterGrammars,
   resolveNativeTreeSitterTarget
 } from '../../../src/lang/tree-sitter/native-runtime.js';
@@ -32,6 +33,12 @@ assert.equal(jsxTarget.grammarKey, 'native:javascript');
 assert.equal(jsxTarget.runtimeKind, 'native');
 assert.equal(jsxTarget.languageId, 'jsx');
 
+const luaTarget = resolveNativeTreeSitterTarget('lua', '.lua');
+assert.ok(luaTarget, 'expected native target for lua');
+assert.equal(luaTarget.grammarKey, 'native:lua');
+assert.equal(luaTarget.runtimeKind, 'native');
+assert.equal(luaTarget.languageId, 'lua');
+
 const missingTarget = resolveNativeTreeSitterTarget('this-language-does-not-exist', '.xyz');
 assert.equal(missingTarget, null, 'expected null target for unsupported language');
 
@@ -40,6 +47,17 @@ assert.equal(preflightFail.ok, false, 'expected preflight failure');
 assert.ok(
   Array.isArray(preflightFail.missing) && preflightFail.missing.includes('this-language-does-not-exist'),
   'expected missing language reported in preflight result'
+);
+
+const luaPreflight = preflightNativeTreeSitterGrammars(['lua']);
+const luaParser = getNativeTreeSitterParser('lua', {
+  treeSitter: { enabled: true, nativeOnly: true, strict: true },
+  log: () => {}
+});
+assert.ok(luaParser, 'expected lua parser to activate in native runtime');
+assert.ok(
+  !luaPreflight.unavailable.includes('lua'),
+  'expected lua preflight to stay available when parser activation succeeds'
 );
 
 const runtime = {

@@ -1,5 +1,5 @@
 {
-  "schemaHash": "6c9fc5eb11ba5682f5c39b0242be71ff4dcdbc41",
+  "schemaHash": "743de4a66a822570a42bfaa28bb012d914446979",
   "artifacts": [
     {
       "artifact": "api_contracts",
@@ -417,6 +417,21 @@
         "scale",
         "version"
       ]
+    },
+    {
+      "artifact": "determinism_report",
+      "schemaVersion": {
+        "type": "integer"
+      },
+      "requiredFields": [
+        "generatedAt",
+        "mode",
+        "normalizedStateHash",
+        "schemaVersion",
+        "sourceReasons",
+        "stableHashExclusions"
+      ],
+      "optionalFields": []
     },
     {
       "artifact": "diff_inputs",

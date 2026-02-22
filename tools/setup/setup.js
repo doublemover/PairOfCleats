@@ -5,6 +5,7 @@ import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import readline from 'node:readline/promises';
 import { readJsoncFile } from '../../src/shared/jsonc.js';
+import { createStdoutGuard } from '../../src/shared/cli/stdout-guard.js';
 import {
   getDictionaryPaths,
   getDictConfig,
@@ -51,6 +52,7 @@ const toolRoot = resolveToolRoot();
 const jsonOutput = argv.json === true;
 const nonInteractive = argv['non-interactive'] === true;
 const rl = nonInteractive ? null : readline.createInterface({ input: process.stdin, output: process.stdout });
+const stdoutGuard = createStdoutGuard({ enabled: jsonOutput, stream: process.stdout, label: 'setup stdout' });
 
 const log = (msg) => {
   const line = `[setup] ${msg}`;
@@ -461,5 +463,5 @@ if (rl) rl.close();
 log('Setup complete.');
 log('Tip: run pairofcleats index validate to verify index artifacts.');
 if (jsonOutput) {
-  console.log(JSON.stringify(summary, null, 2));
+  stdoutGuard.writeJson(summary);
 }

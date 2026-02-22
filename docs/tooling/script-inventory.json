@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-17T10:37:55.719Z",
+  "generatedAt": "2026-02-21T13:36:26.622Z",
   "scripts": [
     {
       "name": "api-server",
@@ -75,6 +75,12 @@
     },
     {
       "name": "cache-gc",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "caps:calibrate",
       "category": "tooling",
       "ciAllowed": false,
       "replacement": null
@@ -248,6 +254,18 @@
       "replacement": null
     },
     {
+      "name": "package-sublime",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "package-vscode",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
       "name": "parity:matrix",
       "category": "tooling",
       "ciAllowed": false,
@@ -266,6 +284,12 @@
       "replacement": null
     },
     {
+      "name": "python:check",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
       "name": "rebuild:native",
       "category": "tooling",
       "ciAllowed": false,
@@ -273,12 +297,6 @@
     },
     {
       "name": "release-check",
-      "category": "release",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "release-check:blockers",
       "category": "release",
       "ciAllowed": false,
       "replacement": null
@@ -350,6 +368,24 @@
       "replacement": null
     },
     {
+      "name": "tui:build",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "tui:install",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "tui:supervisor",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
       "name": "uninstall",
       "category": "tooling",
       "ciAllowed": false,
@@ -373,5 +409,76 @@
       "ciAllowed": false,
       "replacement": null
     }
-  ]
+  ],
+  "cliCommands": [
+    {
+      "command": "pairofcleats bootstrap",
+      "summary": "Fast bootstrap flow."
+    },
+    {
+      "command": "pairofcleats index build",
+      "summary": "Build file-backed indexes."
+    },
+    {
+      "command": "pairofcleats index validate",
+      "summary": "Validate index artifacts."
+    },
+    {
+      "command": "pairofcleats index watch",
+      "summary": "Watch and rebuild indexes."
+    },
+    {
+      "command": "pairofcleats ingest ctags",
+      "summary": "Ingest ctags symbols."
+    },
+    {
+      "command": "pairofcleats ingest gtags",
+      "summary": "Ingest GTAGS symbols."
+    },
+    {
+      "command": "pairofcleats ingest lsif",
+      "summary": "Ingest LSIF dump."
+    },
+    {
+      "command": "pairofcleats ingest scip",
+      "summary": "Ingest SCIP index."
+    },
+    {
+      "command": "pairofcleats search",
+      "summary": "Query indexed data."
+    },
+    {
+      "command": "pairofcleats service api",
+      "summary": "Run local API service."
+    },
+    {
+      "command": "pairofcleats service indexer",
+      "summary": "Run indexer service."
+    },
+    {
+      "command": "pairofcleats setup",
+      "summary": "Guided setup flow."
+    },
+    {
+      "command": "pairofcleats tui supervisor",
+      "summary": "Run Node supervisor process."
+    },
+    {
+      "command": "pairofcleats workspace build",
+      "summary": "Build workspace indexes."
+    },
+    {
+      "command": "pairofcleats workspace catalog",
+      "summary": "Inspect workspace catalog."
+    },
+    {
+      "command": "pairofcleats workspace manifest",
+      "summary": "Generate workspace manifest."
+    },
+    {
+      "command": "pairofcleats workspace status",
+      "summary": "Show workspace status."
+    }
+  ],
+  "phaseSpecDir": null
 }

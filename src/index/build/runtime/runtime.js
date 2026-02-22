@@ -52,10 +52,17 @@ import {
   normalizeDictSignaturePath
 } from './normalize.js';
 import { buildAnalysisPolicy } from './policy.js';
-import { buildFileScanConfig, buildShardConfig, formatBuildNonce, formatBuildTimestamp } from './config.js';
+import {
+  buildFileScanConfig,
+  buildGeneratedIndexingPolicyConfig,
+  buildShardConfig,
+  formatBuildNonce,
+  formatBuildTimestamp
+} from './config.js';
 import { resolveEmbeddingRuntime } from './embeddings.js';
 import { createBuildScheduler } from '../../../shared/concurrency.js';
 import { resolveSchedulerConfig } from './scheduler.js';
+import { loadSchedulerAutoTuneProfile } from './scheduler-autotune-profile.js';
 import { resolveTreeSitterRuntime, preloadTreeSitterRuntimeLanguages } from './tree-sitter.js';
 import {
   createRuntimeQueues,
@@ -69,6 +76,16 @@ import {
 } from '../../../contracts/index-profile.js';
 
 const isObject = (value) => value && typeof value === 'object' && !Array.isArray(value);
+const INDEX_OPTIMIZATION_PROFILE_IDS = Object.freeze(['default', 'throughput', 'memory-saver']);
+const coerceOptionalNonNegativeInt = (value) => {
+  if (value === null || value === undefined) return null;
+  return coerceNonNegativeInt(value);
+};
+
+export const normalizeIndexOptimizationProfile = (value) => {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  return INDEX_OPTIMIZATION_PROFILE_IDS.includes(normalized) ? normalized : 'default';
+};
 
 /**
  * Shared runtime telemetry collector for cross-stage in-flight gauges.
@@ -151,11 +168,15 @@ const resolveStage1Queues = (indexingConfig = {}) => {
   });
   const orderedMaxPending = coercePositiveInt(ordered.maxPending);
   const orderedBucketSize = coercePositiveInt(ordered.bucketSize);
-  const watchdogSlowFileMs = coerceNonNegativeInt(
+  const orderedMaxPendingEmergencyFactor = Number(ordered.maxPendingEmergencyFactor);
+  const watchdogSlowFileMs = coerceOptionalNonNegativeInt(
     watchdog.slowFileMs ?? stage1.fileWatchdogMs
   );
-  const watchdogMaxSlowFileMs = coerceNonNegativeInt(
+  const watchdogMaxSlowFileMs = coerceOptionalNonNegativeInt(
     watchdog.maxSlowFileMs ?? stage1.fileWatchdogMaxMs
+  );
+  const watchdogHardTimeoutMs = coerceOptionalNonNegativeInt(
+    watchdog.hardTimeoutMs ?? stage1.fileWatchdogHardMs
   );
   const watchdogBytesPerStep = coercePositiveInt(watchdog.bytesPerStep);
   const watchdogLinesPerStep = coercePositiveInt(watchdog.linesPerStep);
@@ -174,11 +195,16 @@ const resolveStage1Queues = (indexingConfig = {}) => {
     },
     ordered: {
       maxPending: orderedMaxPending,
-      bucketSize: orderedBucketSize
+      bucketSize: orderedBucketSize,
+      maxPendingEmergencyFactor: Number.isFinite(orderedMaxPendingEmergencyFactor)
+        && orderedMaxPendingEmergencyFactor > 1
+        ? orderedMaxPendingEmergencyFactor
+        : null
     },
     watchdog: {
       slowFileMs: watchdogSlowFileMs,
       maxSlowFileMs: watchdogMaxSlowFileMs,
+      hardTimeoutMs: watchdogHardTimeoutMs,
       bytesPerStep: watchdogBytesPerStep,
       linesPerStep: watchdogLinesPerStep,
       stepMs: watchdogStepMs
@@ -285,9 +311,13 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   }
   const profileId = assertKnownIndexProfileId(indexingConfig.profile);
   const profile = buildIndexProfileState(profileId);
+  const indexOptimizationProfile = normalizeIndexOptimizationProfile(
+    indexingConfig.indexOptimizationProfile
+  );
   indexingConfig = {
     ...indexingConfig,
-    profile: profile.id
+    profile: profile.id,
+    indexOptimizationProfile
   };
   const rawArgs = Array.isArray(rawArgv) ? rawArgv : [];
   const scmAnnotateOverride = rawArgs.includes('--scm-annotate')
@@ -351,13 +381,18 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     indexingConfig,
     cpuConcurrency: envelope?.concurrency?.cpuConcurrency?.value
   });
+  const schedulerAutoTuneProfile = await loadSchedulerAutoTuneProfile({
+    repoCacheRoot,
+    log: (line) => log(line)
+  });
   const schedulerConfig = resolveSchedulerConfig({
     argv,
     rawArgv,
     envConfig,
     indexingConfig,
     runtimeConfig: userConfig.runtime || null,
-    envelope
+    envelope,
+    autoTuneProfile: schedulerAutoTuneProfile
   });
   const scheduler = createBuildScheduler({
     enabled: schedulerConfig.enabled,
@@ -377,7 +412,8 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     maxIoTokens: schedulerConfig.maxIoTokens,
     maxMemoryTokens: schedulerConfig.maxMemoryTokens,
     starvationMs: schedulerConfig.starvationMs,
-    queues: schedulerConfig.queues
+    queues: schedulerConfig.queues,
+    writeBackpressure: schedulerConfig.writeBackpressure
   });
   const stage1Queues = resolveStage1Queues(indexingConfig);
   const triageConfig = getTriageConfig(root, userConfig);
@@ -658,6 +694,28 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     ioConcurrency: envelope.concurrency.ioConcurrency.value,
     cpuConcurrency: envelope.concurrency.cpuConcurrency.value
   };
+  const normalizedScmMaxConcurrentProcesses = Number.isFinite(Number(scmConfig?.maxConcurrentProcesses))
+    ? Math.max(1, Math.floor(Number(scmConfig.maxConcurrentProcesses)))
+    : Math.max(
+      1,
+      Math.floor(
+        cpuConcurrency
+        || fileConcurrency
+        || ioConcurrency
+        || 1
+      )
+    );
+  setScmRuntimeConfig({
+    ...scmConfig,
+    maxConcurrentProcesses: normalizedScmMaxConcurrentProcesses,
+    runtime: {
+      cpuCount,
+      maxConcurrencyCap,
+      fileConcurrency,
+      ioConcurrency,
+      cpuConcurrency
+    }
+  });
   const runtimeMemoryPolicy = resolveRuntimeMemoryPolicy({
     indexingConfig,
     cpuConcurrency
@@ -845,13 +903,14 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
   const dictSharedPayload = shouldShareDict ? createSharedDictionary(dictWords) : null;
   const dictShared = dictSharedPayload ? createSharedDictionaryView(dictSharedPayload) : null;
   logInit('dictionaries', dictStartedAt);
+  const generatedPolicy = buildGeneratedIndexingPolicyConfig(indexingConfig);
 
   const {
     ignoreMatcher,
     config: ignoreConfig,
     ignoreFiles,
     warnings: ignoreWarnings
-  } = await timeInit('ignore rules', () => buildIgnoreMatcher({ root, userConfig }));
+  } = await timeInit('ignore rules', () => buildIgnoreMatcher({ root, userConfig, generatedPolicy }));
   const cacheConfig = getCacheRuntimeConfig(root, userConfig);
   const verboseCache = envConfig.verbose === true;
 
@@ -1096,6 +1155,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     buildId,
     buildRoot,
     profile,
+    indexOptimizationProfile,
     recordsDir: triageConfig.recordsDir,
     recordsConfig,
     currentIndexRoot,
@@ -1190,6 +1250,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy, indexRoo
     getChunkEmbedding,
     getChunkEmbeddings,
     languageOptions,
+    generatedPolicy,
     ignoreMatcher,
     ignoreConfig,
     ignoreFiles,

@@ -113,6 +113,16 @@ const getStringList = (searchParams, ...keys) => {
   return values.length === 1 ? values[0] : values;
 };
 
+const parseJsonQueryValue = (rawValue) => {
+  const value = typeof rawValue === 'string' ? rawValue.trim() : String(rawValue || '').trim();
+  if (!value) return null;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+};
+
 /**
  * Build a search payload from URL query params and collect parse-time errors.
  *
@@ -211,6 +221,13 @@ export const buildSearchPayloadFromQuery = (searchParams) => {
   if (fileList != null) payload.file = fileList;
   const extList = getStringList(searchParams, 'ext');
   if (extList != null) payload.ext = extList;
+  const meta = getStringList(searchParams, 'meta');
+  if (meta != null) payload.meta = meta;
+
+  const metaJsonRaw = getString(searchParams, 'metaJson', 'meta-json');
+  if (metaJsonRaw != null) {
+    payload.metaJson = parseJsonQueryValue(metaJsonRaw);
+  }
 
   return { payload, errors };
 };

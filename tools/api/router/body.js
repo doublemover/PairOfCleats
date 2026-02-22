@@ -3,39 +3,59 @@ export const createBodyParser = ({ maxBodyBytes }) => {
    * Parse a JSON request body.
    * @param {import('node:http').IncomingMessage} req
    * @returns {Promise<Buffer>}
-   */
+  */
   const parseBody = (req) => new Promise((resolve, reject) => {
     const chunks = [];
     let total = 0;
     let done = false;
-    req.on('data', (chunk) => {
+    const cleanup = () => {
+      req.off('data', onData);
+      req.off('aborted', onAborted);
+      req.off('end', onEnd);
+      req.off('error', onError);
+    };
+    const fail = (err, { terminateStream = false } = {}) => {
+      if (done) return;
+      done = true;
+      cleanup();
+      if (terminateStream && typeof req.destroy === 'function' && !req.destroyed) {
+        // Close oversized streams promptly so clients cannot continue pushing
+        // bytes after the server has rejected the request.
+        setImmediate(() => {
+          if (!req.destroyed) req.destroy(err);
+        });
+      }
+      reject(err);
+    };
+    const onData = (chunk) => {
       if (done) return;
       const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
       total += buffer.length;
       if (maxBodyBytes && total > maxBodyBytes) {
         const err = new Error('Request body too large.');
         err.code = 'ERR_BODY_TOO_LARGE';
-        done = true;
-        reject(err);
+        err.terminateStream = true;
+        fail(err, { terminateStream: true });
         return;
       }
       chunks.push(buffer);
-    });
-    req.on('aborted', () => {
+    };
+    const onAborted = () => {
+      fail(new Error('Request aborted.'));
+    };
+    const onEnd = () => {
       if (done) return;
       done = true;
-      reject(new Error('Request aborted.'));
-    });
-    req.on('end', () => {
-      if (done) return;
-      done = true;
+      cleanup();
       resolve(Buffer.concat(chunks, total));
-    });
-    req.on('error', (err) => {
-      if (done) return;
-      done = true;
-      reject(err);
-    });
+    };
+    const onError = (err) => {
+      fail(err);
+    };
+    req.on('data', onData);
+    req.on('aborted', onAborted);
+    req.on('end', onEnd);
+    req.on('error', onError);
   });
 
   const parseJsonBody = async (req) => {

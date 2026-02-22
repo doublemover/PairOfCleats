@@ -2,19 +2,39 @@
   "formatVersion": 1,
   "languageId": "shell",
   "keywords": [
+    "break",
     "case",
+    "continue",
+    "coproc",
+    "declare",
     "do",
     "done",
     "elif",
     "else",
     "esac",
+    "eval",
+    "exec",
+    "exit",
+    "export",
     "fi",
     "for",
     "function",
     "if",
     "in",
+    "local",
+    "readonly",
+    "return",
+    "select",
+    "set",
+    "shift",
+    "source",
     "then",
+    "time",
+    "trap",
+    "typeset",
+    "unset",
     "until",
+    "wait",
     "while"
   ],
   "literals": [
@@ -24,12 +44,16 @@
   ],
   "types": [],
   "builtins": [
+    "alias",
     "cd",
     "echo",
-    "export",
-    "printf",
-    "read"
+    "eval",
+    "exec",
+    "pwd",
+    "test"
   ],
   "modules": [],
-  "notes": []
+  "notes": [
+    "Language-specific lexicon for keyword/literal stopword filtering."
+  ]
 }

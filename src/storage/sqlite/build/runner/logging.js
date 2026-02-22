@@ -1,37 +1,41 @@
 /**
  * Build logger helpers that respect `emitOutput` and optional external logger.
  * @param {{emitOutput:boolean,externalLogger?:object|null}} input
- * @returns {{log:(message:string)=>void,warn:(message:string)=>void,error:(message:string)=>void}}
+ * @returns {{
+ *   log:(message:string,meta?:object|null)=>void,
+ *   warn:(message:string,meta?:object|null)=>void,
+ *   error:(message:string,meta?:object|null)=>void
+ * }}
  */
 export const createRunnerLogger = ({ emitOutput, externalLogger = null }) => {
-  const log = (message) => {
+  const log = (message, meta = null) => {
     if (!emitOutput || !message) return;
     if (typeof externalLogger?.log === 'function') {
-      externalLogger.log(message);
+      externalLogger.log(message, meta);
       return;
     }
     console.error(message);
   };
-  const warn = (message) => {
+  const warn = (message, meta = null) => {
     if (!emitOutput || !message) return;
     if (typeof externalLogger?.warn === 'function') {
-      externalLogger.warn(message);
+      externalLogger.warn(message, meta);
       return;
     }
     if (typeof externalLogger?.log === 'function') {
-      externalLogger.log(message);
+      externalLogger.log(message, meta);
       return;
     }
     console.error(message);
   };
-  const error = (message) => {
+  const error = (message, meta = null) => {
     if (!emitOutput || !message) return;
     if (typeof externalLogger?.error === 'function') {
-      externalLogger.error(message);
+      externalLogger.error(message, meta);
       return;
     }
     if (typeof externalLogger?.log === 'function') {
-      externalLogger.log(message);
+      externalLogger.log(message, meta);
       return;
     }
     console.error(message);

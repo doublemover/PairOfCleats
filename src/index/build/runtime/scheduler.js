@@ -45,26 +45,75 @@ const resolveQueueConfig = (value) => {
     const priority = coerceNonNegativeInt(config.priority);
     const maxPending = coercePositiveInt(config.maxPending);
     const weight = coercePositiveInt(config.weight);
+    const floorCpu = coerceNonNegativeInt(config.floorCpu);
+    const floorIo = coerceNonNegativeInt(config.floorIo);
+    const floorMem = coerceNonNegativeInt(config.floorMem);
     resolved[name] = {
       ...(priority != null ? { priority } : {}),
       ...(maxPending != null ? { maxPending } : {}),
-      ...(weight != null ? { weight } : {})
+      ...(weight != null ? { weight } : {}),
+      ...(floorCpu != null ? { floorCpu } : {}),
+      ...(floorIo != null ? { floorIo } : {}),
+      ...(floorMem != null ? { floorMem } : {})
     };
   }
   return resolved;
 };
 
+const DEFAULT_WRITE_BACKPRESSURE = Object.freeze({
+  enabled: true,
+  writeQueue: 'stage2.write',
+  producerQueues: Object.freeze([
+    'stage1.cpu',
+    'stage1.io',
+    'stage1.postings',
+    'stage2.relations',
+    'stage2.relations.io'
+  ]),
+  pendingThreshold: 256,
+  pendingBytesThreshold: 512 * 1024 * 1024,
+  oldestWaitMsThreshold: 15000
+});
+
+const resolveWriteBackpressureConfig = (value) => {
+  const config = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  const writeQueue = typeof config.writeQueue === 'string' && config.writeQueue.trim()
+    ? config.writeQueue.trim()
+    : DEFAULT_WRITE_BACKPRESSURE.writeQueue;
+  const producerQueues = Array.isArray(config.producerQueues)
+    ? config.producerQueues
+      .filter((entry) => typeof entry === 'string' && entry.trim())
+      .map((entry) => entry.trim())
+    : Array.from(DEFAULT_WRITE_BACKPRESSURE.producerQueues);
+  const pendingThreshold = coercePositiveInt(config.pendingThreshold)
+    ?? DEFAULT_WRITE_BACKPRESSURE.pendingThreshold;
+  const pendingBytesThreshold = coercePositiveInt(config.pendingBytesThreshold)
+    ?? DEFAULT_WRITE_BACKPRESSURE.pendingBytesThreshold;
+  const oldestWaitMsThreshold = coercePositiveInt(config.oldestWaitMsThreshold)
+    ?? DEFAULT_WRITE_BACKPRESSURE.oldestWaitMsThreshold;
+  return {
+    enabled: config.enabled !== false,
+    writeQueue,
+    producerQueues: producerQueues.length
+      ? producerQueues
+      : Array.from(DEFAULT_WRITE_BACKPRESSURE.producerQueues),
+    pendingThreshold,
+    pendingBytesThreshold,
+    oldestWaitMsThreshold
+  };
+};
+
 const SCHEDULER_DEFAULT_QUEUE_CONFIG = Object.freeze({
-  'stage1.cpu': Object.freeze({ priority: 40, weight: 3 }),
-  'stage1.io': Object.freeze({ priority: 35, weight: 2 }),
+  'stage1.cpu': Object.freeze({ priority: 45, weight: 4, floorCpu: 1 }),
+  'stage1.io': Object.freeze({ priority: 38, weight: 3, floorIo: 1 }),
   'stage1.proc': Object.freeze({ priority: 45, weight: 2 }),
-  'stage1.postings': Object.freeze({ priority: 25, weight: 4 }),
-  'stage2.write': Object.freeze({ priority: 25, weight: 4 }),
-  'stage2.relations': Object.freeze({ priority: 30, weight: 3 }),
-  'stage2.relations.io': Object.freeze({ priority: 30, weight: 2 }),
-  'stage4.sqlite': Object.freeze({ priority: 20, weight: 5 }),
-  'embeddings.compute': Object.freeze({ priority: 35, weight: 3 }),
-  'embeddings.io': Object.freeze({ priority: 30, weight: 2 })
+  'stage1.postings': Object.freeze({ priority: 30, weight: 5, floorCpu: 1 }),
+  'stage2.write': Object.freeze({ priority: 30, weight: 5, floorIo: 2 }),
+  'stage2.relations': Object.freeze({ priority: 32, weight: 4, floorCpu: 1 }),
+  'stage2.relations.io': Object.freeze({ priority: 32, weight: 3, floorIo: 1 }),
+  'stage4.sqlite': Object.freeze({ priority: 30, weight: 6, floorCpu: 1, floorIo: 2 }),
+  'embeddings.compute': Object.freeze({ priority: 38, weight: 4, floorCpu: 1 }),
+  'embeddings.io': Object.freeze({ priority: 32, weight: 3, floorIo: 1 })
 });
 
 const mergeQueueConfig = (defaults, overrides) => {
@@ -100,7 +149,15 @@ export const SCHEDULER_QUEUE_NAMES = {
   embeddingsIo: 'embeddings.io'
 };
 
-export const resolveSchedulerConfig = ({ argv, rawArgv, envConfig, indexingConfig, runtimeConfig, envelope }) => {
+export const resolveSchedulerConfig = ({
+  argv,
+  rawArgv,
+  envConfig,
+  indexingConfig,
+  runtimeConfig,
+  envelope,
+  autoTuneProfile = null
+}) => {
   const schedulerConfig = (indexingConfig && indexingConfig.scheduler)
     || (runtimeConfig && runtimeConfig.scheduler)
     || {};
@@ -120,7 +177,14 @@ export const resolveSchedulerConfig = ({ argv, rawArgv, envConfig, indexingConfi
 
   const defaultCpu = coercePositiveInt(envelope?.concurrency?.cpuConcurrency?.value) || 1;
   const defaultIo = coercePositiveInt(envelope?.concurrency?.ioConcurrency?.value) || 1;
-  const defaultMem = coercePositiveInt(envelope?.concurrency?.cpuConcurrency?.value) || 1;
+  const totalMemBytes = Number(envelope?.concurrency?.totalMemBytes);
+  const reserveBytes = 2 * 1024 * 1024 * 1024;
+  const defaultMemByHeadroom = Number.isFinite(totalMemBytes) && totalMemBytes > reserveBytes
+    ? Math.floor((totalMemBytes - reserveBytes) / (1024 * 1024 * 1024))
+    : null;
+  const defaultMem = coercePositiveInt(defaultMemByHeadroom)
+    || coercePositiveInt(envelope?.concurrency?.embeddingConcurrency?.value)
+    || 1;
 
   const enabled = resolveBoolean({
     cliValue: argv?.scheduler,
@@ -143,7 +207,7 @@ export const resolveSchedulerConfig = ({ argv, rawArgv, envConfig, indexingConfi
     cliPresent: cliCpuPresent,
     envValue: envConfig?.schedulerCpuTokens,
     configValue: schedulerConfig?.cpuTokens,
-    fallback: defaultCpu,
+    fallback: Math.max(1, Math.ceil(defaultCpu * 1.5)),
     allowZero: false
   });
 
@@ -152,7 +216,7 @@ export const resolveSchedulerConfig = ({ argv, rawArgv, envConfig, indexingConfi
     cliPresent: cliIoPresent,
     envValue: envConfig?.schedulerIoTokens,
     configValue: schedulerConfig?.ioTokens,
-    fallback: defaultIo,
+    fallback: Math.max(1, Math.ceil(defaultIo * 1.5)),
     allowZero: false
   });
 
@@ -161,7 +225,7 @@ export const resolveSchedulerConfig = ({ argv, rawArgv, envConfig, indexingConfi
     cliPresent: cliMemPresent,
     envValue: envConfig?.schedulerMemoryTokens,
     configValue: schedulerConfig?.memoryTokens,
-    fallback: defaultMem,
+    fallback: Math.max(1, Math.ceil(defaultMem * 1.25)),
     allowZero: false
   });
 
@@ -179,15 +243,27 @@ export const resolveSchedulerConfig = ({ argv, rawArgv, envConfig, indexingConfi
     cliPresent: hasCliArg(rawArgv, '--scheduler-adaptive') || hasCliArg(rawArgv, '--no-scheduler-adaptive'),
     envValue: envConfig?.schedulerAdaptive,
     configValue: schedulerConfig?.adaptive,
-    fallback: false
+    fallback: true
   });
 
+  const autoTuneProfileState = autoTuneProfile && typeof autoTuneProfile === 'object'
+    ? autoTuneProfile
+    : null;
+  const autoTuneConfig = schedulerConfig?.autoTune && typeof schedulerConfig.autoTune === 'object'
+    ? schedulerConfig.autoTune
+    : {};
+  const autoTuneEnabled = autoTuneConfig.enabled !== false;
+  const autoTuneMaxCpu = autoTuneEnabled ? coercePositiveInt(autoTuneProfileState?.recommended?.maxCpuTokens) : null;
+  const autoTuneMaxIo = autoTuneEnabled ? coercePositiveInt(autoTuneProfileState?.recommended?.maxIoTokens) : null;
+  const autoTuneMaxMem = autoTuneEnabled ? coercePositiveInt(autoTuneProfileState?.recommended?.maxMemoryTokens) : null;
   const maxCpuTokens = resolveNumber({
     cliValue: argv?.['scheduler-max-cpu'] ?? argv?.schedulerMaxCpu,
     cliPresent: hasCliArg(rawArgv, '--scheduler-max-cpu'),
     envValue: envConfig?.schedulerMaxCpuTokens,
     configValue: schedulerConfig?.maxCpuTokens,
-    fallback: Math.max(cpuTokens, defaultCpu * 3),
+    fallback: autoTuneMaxCpu != null
+      ? Math.max(cpuTokens, autoTuneMaxCpu)
+      : Math.max(cpuTokens, defaultCpu * 4),
     allowZero: false
   });
 
@@ -196,7 +272,9 @@ export const resolveSchedulerConfig = ({ argv, rawArgv, envConfig, indexingConfi
     cliPresent: hasCliArg(rawArgv, '--scheduler-max-io'),
     envValue: envConfig?.schedulerMaxIoTokens,
     configValue: schedulerConfig?.maxIoTokens,
-    fallback: Math.max(ioTokens, defaultIo * 3),
+    fallback: autoTuneMaxIo != null
+      ? Math.max(ioTokens, autoTuneMaxIo)
+      : Math.max(ioTokens, defaultIo * 4),
     allowZero: false
   });
 
@@ -205,7 +283,9 @@ export const resolveSchedulerConfig = ({ argv, rawArgv, envConfig, indexingConfi
     cliPresent: hasCliArg(rawArgv, '--scheduler-max-mem'),
     envValue: envConfig?.schedulerMaxMemoryTokens,
     configValue: schedulerConfig?.maxMemoryTokens,
-    fallback: Math.max(memoryTokens, defaultMem * 3),
+    fallback: autoTuneMaxMem != null
+      ? Math.max(memoryTokens, autoTuneMaxMem)
+      : Math.max(memoryTokens, defaultMem * 4),
     allowZero: false
   });
   const adaptiveTargetUtilization = coerceUnitFraction(
@@ -226,7 +306,7 @@ export const resolveSchedulerConfig = ({ argv, rawArgv, envConfig, indexingConfi
     cliPresent: false,
     envValue: envConfig?.schedulerMemoryReserveMb,
     configValue: schedulerConfig?.memoryReserveMb,
-    fallback: 2048,
+    fallback: 1024,
     allowZero: true
   });
   const adaptiveMemoryPerTokenMb = resolveNumber({
@@ -234,7 +314,7 @@ export const resolveSchedulerConfig = ({ argv, rawArgv, envConfig, indexingConfi
     cliPresent: false,
     envValue: envConfig?.schedulerMemoryPerTokenMb,
     configValue: schedulerConfig?.memoryPerTokenMb,
-    fallback: 1024,
+    fallback: 768,
     allowZero: false
   });
   const utilizationAlertTarget = coerceUnitFraction(
@@ -255,6 +335,9 @@ export const resolveSchedulerConfig = ({ argv, rawArgv, envConfig, indexingConfi
     SCHEDULER_DEFAULT_QUEUE_CONFIG,
     resolveQueueConfig(schedulerConfig?.queues)
   );
+  const writeBackpressure = resolveWriteBackpressureConfig(
+    schedulerConfig?.writeBackpressure
+  );
 
   return {
     enabled,
@@ -273,6 +356,13 @@ export const resolveSchedulerConfig = ({ argv, rawArgv, envConfig, indexingConfi
     maxIoTokens: Math.max(1, maxIoTokens || 1),
     maxMemoryTokens: Math.max(1, maxMemoryTokens || 1),
     starvationMs,
-    queues
+    queues,
+    writeBackpressure,
+    autoTune: {
+      enabled: autoTuneEnabled,
+      sourceBuildId: typeof autoTuneProfileState?.sourceBuildId === 'string'
+        ? autoTuneProfileState.sourceBuildId
+        : null
+    }
   };
 };

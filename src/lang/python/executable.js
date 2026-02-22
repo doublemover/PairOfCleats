@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { registerChildProcessForCleanup } from '../../shared/subprocess.js';
 
 const PYTHON_CANDIDATES = ['python', 'python3'];
 
@@ -11,12 +12,17 @@ async function checkPythonCandidate(candidate) {
     const proc = spawn(candidate, ['-c', 'import sys; sys.stdout.write("ok")'], {
       stdio: ['ignore', 'pipe', 'ignore']
     });
+    const unregisterChild = registerChildProcessForCleanup(proc, {
+      killTree: true,
+      detached: false
+    });
     let output = '';
     let settled = false;
     const finish = (ok) => {
       if (settled) return;
       settled = true;
       clearTimeout(timeout);
+      unregisterChild();
       resolve(ok);
     };
     const timeout = setTimeout(() => {

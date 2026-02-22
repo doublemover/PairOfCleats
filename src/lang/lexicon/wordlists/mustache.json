@@ -1,0 +1,31 @@
+{
+  "formatVersion": 1,
+  "languageId": "mustache",
+  "keywords": [
+    "!",
+    "/",
+    "&",
+    "#",
+    "^",
+    "=",
+    ">",
+    "else",
+    "partial",
+    "section",
+    "set-delimiter",
+    "unescaped",
+    "variable"
+  ],
+  "literals": [
+    "false",
+    "null",
+    "true",
+    "undefined"
+  ],
+  "types": [],
+  "builtins": [],
+  "modules": [],
+  "notes": [
+    "Language-specific lexicon for keyword/literal stopword filtering."
+  ]
+}

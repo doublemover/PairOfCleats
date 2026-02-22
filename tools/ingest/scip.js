@@ -6,6 +6,7 @@ import readline from 'node:readline';
 import { spawn } from 'node:child_process';
 import { createCli } from '../../src/shared/cli.js';
 import { isAbsolutePathNative, toPosix } from '../../src/shared/files.js';
+import { registerChildProcessForCleanup } from '../../src/shared/subprocess.js';
 import { getRepoCacheRoot, resolveRepoConfig } from '../shared/dict-utils.js';
 
 const argv = createCli({
@@ -195,13 +196,22 @@ const runScipCommand = async () => {
     args.push(...extra);
   }
   const child = spawn(scipCmd, args, { stdio: ['ignore', 'pipe', 'pipe'] });
-  child.stderr.on('data', (chunk) => process.stderr.write(chunk));
-  await ingestJsonLines(child.stdout);
-  const exitCode = await new Promise((resolve) => {
-    child.on('close', (code) => resolve(code ?? 0));
+  const unregisterChild = registerChildProcessForCleanup(child, {
+    killTree: true,
+    detached: false
   });
-  if (exitCode !== 0) {
-    throw new Error(`scip exited with code ${exitCode}`);
+  child.stderr.on('data', (chunk) => process.stderr.write(chunk));
+  try {
+    await ingestJsonLines(child.stdout);
+    const exitCode = await new Promise((resolve, reject) => {
+      child.once('error', reject);
+      child.once('close', (code) => resolve(code ?? 0));
+    });
+    if (exitCode !== 0) {
+      throw new Error(`scip exited with code ${exitCode}`);
+    }
+  } finally {
+    unregisterChild();
   }
 };
 

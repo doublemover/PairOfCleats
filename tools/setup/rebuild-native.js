@@ -2,28 +2,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { listNativeTreeSitterGrammarModuleNames } from '../../src/lang/tree-sitter/native-runtime.js';
 
 const REQUIRED_NATIVE_PACKAGES = [
   'tree-sitter',
-  'tree-sitter-c',
-  'tree-sitter-c-sharp',
-  'tree-sitter-cpp',
-  'tree-sitter-css',
-  'tree-sitter-go',
-  'tree-sitter-html',
-  'tree-sitter-java',
-  'tree-sitter-javascript',
-  'tree-sitter-json',
-  'tree-sitter-kotlin',
-  'tree-sitter-objc',
-  'tree-sitter-python',
-  'tree-sitter-rust',
-  'tree-sitter-swift',
-  'tree-sitter-typescript',
-  '@tree-sitter-grammars/tree-sitter-markdown',
-  '@tree-sitter-grammars/tree-sitter-toml',
-  '@tree-sitter-grammars/tree-sitter-xml',
-  '@tree-sitter-grammars/tree-sitter-yaml',
+  ...listNativeTreeSitterGrammarModuleNames(),
   'better-sqlite3',
   'hnswlib-node',
   'onnxruntime-node',
@@ -38,6 +21,13 @@ const OPTIONAL_NATIVE_PACKAGES = [
   're2',
   '@node-rs/xxhash'
 ];
+const TREE_SITTER_PERL_PACKAGE = '@ganezdragon/tree-sitter-perl';
+const TREE_SITTER_PERL_PATCH_VERSION = '1.1.1';
+const TREE_SITTER_PERL_PATCH_MARKERS = [
+  'dynamic STRING queue in C',
+  'clearStringQueue(scanner->heredoc.heredoc_identifier_queue);',
+  'clearBoolQueue(scanner->heredoc.heredoc_allows_interpolation);'
+];
 
 const root = process.cwd();
 const verifyOnly = process.argv.includes('--verify');
@@ -48,6 +38,46 @@ const resolveNodeModulesPath = (pkgName) => (
 );
 
 const isInstalled = (pkgName) => fs.existsSync(resolveNodeModulesPath(pkgName));
+
+const readInstalledPackageVersion = (pkgName) => {
+  try {
+    const packageJsonPath = path.join(resolveNodeModulesPath(pkgName), 'package.json');
+    const raw = fs.readFileSync(packageJsonPath, 'utf8');
+    const parsed = JSON.parse(raw);
+    return typeof parsed?.version === 'string' ? parsed.version : null;
+  } catch {
+    return null;
+  }
+};
+
+const verifyPerlScannerPatch = () => {
+  if (!isInstalled(TREE_SITTER_PERL_PACKAGE)) {
+    return { ok: false, message: `${TREE_SITTER_PERL_PACKAGE} is missing` };
+  }
+  const version = readInstalledPackageVersion(TREE_SITTER_PERL_PACKAGE);
+  if (version !== TREE_SITTER_PERL_PATCH_VERSION) {
+    return { ok: true, message: null };
+  }
+  const scannerPath = path.join(resolveNodeModulesPath(TREE_SITTER_PERL_PACKAGE), 'src', 'scanner.c');
+  let scannerSource = '';
+  try {
+    scannerSource = fs.readFileSync(scannerPath, 'utf8');
+  } catch (err) {
+    return {
+      ok: false,
+      message: `failed to read scanner source (${err?.message || err})`
+    };
+  }
+  for (const marker of TREE_SITTER_PERL_PATCH_MARKERS) {
+    if (!scannerSource.includes(marker)) {
+      return {
+        ok: false,
+        message: `patched scanner markers missing in ${scannerPath}`
+      };
+    }
+  }
+  return { ok: true, message: null };
+};
 
 const rebuildPackage = (pkgName, { buildFromSource = false } = {}) => {
   const args = ['rebuild', pkgName];
@@ -109,6 +139,60 @@ const runPackageInstallScript = (pkgName, { buildFromSource = false } = {}) => {
 };
 
 const probePackage = async (pkgName) => {
+  /**
+   * `npm ci --ignore-scripts` can leave tree-sitter core loadable but not
+   * actually usable with rebuilt grammars. Probe parser activation explicitly
+   * so `verify:native` / `repair:native` detect this CI-only failure mode.
+   */
+  if (pkgName === 'tree-sitter') {
+    const parserProbeScript = `
+      try {
+        const Parser = require('tree-sitter');
+        const js = require('tree-sitter-javascript');
+        const parser = new Parser();
+        const candidates = [js, js.javascript, js.language, js.default].filter(Boolean);
+        let activated = false;
+        let lastError = null;
+        for (const language of candidates) {
+          try {
+            parser.setLanguage(language);
+            const tree = parser.parse('function ok() { return 1; }');
+            if (!tree || !tree.rootNode) {
+              throw new Error('tree-sitter parser activation produced no tree');
+            }
+            activated = true;
+            break;
+          } catch (err) {
+            lastError = err;
+          }
+        }
+        if (!activated) {
+          throw lastError || new Error('tree-sitter parser activation failed');
+        }
+        process.exit(0);
+      } catch (err) {
+        const message = err && err.message ? err.message : String(err);
+        console.error(message);
+        process.exit(1);
+      }
+    `.trim();
+
+    const parserProbeResult = spawnSync(process.execPath, ['-e', parserProbeScript], {
+      cwd: root,
+      encoding: 'utf8'
+    });
+
+    if (parserProbeResult.status === 0) {
+      return { ok: true, message: null };
+    }
+
+    const message = (parserProbeResult.stderr || parserProbeResult.stdout || '').trim();
+    return {
+      ok: false,
+      message: message || 'failed to activate tree-sitter parser'
+    };
+  }
+
   const probeScript = `
     const pkg = process.argv[1];
     (async () => {
@@ -168,6 +252,19 @@ const getRequiredPackageFailures = async ({ label = 'verify:native' } = {}) => {
         missing: false,
         message: result.message || 'required package is not loadable'
       });
+      continue;
+    }
+
+    if (pkgName === TREE_SITTER_PERL_PACKAGE) {
+      const perlPatchCheck = verifyPerlScannerPatch();
+      if (!perlPatchCheck.ok) {
+        console.error(`[${label}] required perl scanner patch check failed (${pkgName}): ${perlPatchCheck.message}`);
+        failures.push({
+          pkgName,
+          missing: false,
+          message: perlPatchCheck.message || 'perl scanner patch check failed'
+        });
+      }
     }
   }
 
@@ -202,7 +299,9 @@ const repairRequiredPackages = async () => {
     }
 
     console.error(`[repair:native] rebuilding required package: ${failure.pkgName}`);
-    const rebuildResult = rebuildPackage(failure.pkgName);
+    const rebuildResult = rebuildPackage(failure.pkgName, {
+      buildFromSource: failure.pkgName === TREE_SITTER_PERL_PACKAGE
+    });
     if (!rebuildResult.ok) {
       console.error(`[repair:native] failed required package ${failure.pkgName}: ${rebuildResult.message}`);
       repairFailures += 1;
@@ -236,6 +335,13 @@ const repairRequiredPackages = async () => {
         }
       }
     }
+    if (failure.pkgName === TREE_SITTER_PERL_PACKAGE) {
+      const perlPatchCheck = verifyPerlScannerPatch();
+      if (!perlPatchCheck.ok) {
+        console.error(`[repair:native] perl scanner patch check failed (${failure.pkgName}): ${perlPatchCheck.message}`);
+        repairFailures += 1;
+      }
+    }
   }
 
   if (repairFailures > 0) {
@@ -267,10 +373,20 @@ for (const pkgName of REQUIRED_NATIVE_PACKAGES) {
   }
 
   console.error(`[rebuild:native] rebuilding required package: ${pkgName}`);
-  const result = rebuildPackage(pkgName);
+  const result = rebuildPackage(pkgName, {
+    buildFromSource: pkgName === TREE_SITTER_PERL_PACKAGE
+  });
   if (!result.ok) {
     console.error(`[rebuild:native] failed required package ${pkgName}: ${result.message}`);
     requiredFailures += 1;
+    continue;
+  }
+  if (pkgName === TREE_SITTER_PERL_PACKAGE) {
+    const perlPatchCheck = verifyPerlScannerPatch();
+    if (!perlPatchCheck.ok) {
+      console.error(`[rebuild:native] perl scanner patch check failed (${pkgName}): ${perlPatchCheck.message}`);
+      requiredFailures += 1;
+    }
   }
 }
 

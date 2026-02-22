@@ -58,6 +58,14 @@ const KNOWN_TEXT_EXTS = new Set([
 ]);
 
 const normalizeLimit = (value, fallback) => normalizePositiveNumber(value, fallback);
+const normalizeBoundedLimit = (value, fallback, { min = null, max = null } = {}) => {
+  const resolved = normalizeLimit(value, fallback);
+  if (!Number.isFinite(resolved) || resolved <= 0) return fallback;
+  let next = resolved;
+  if (Number.isFinite(min)) next = Math.max(Math.floor(min), next);
+  if (Number.isFinite(max)) next = Math.min(Math.floor(max), next);
+  return next;
+};
 
 /**
  * Fast-path filename heuristic for minified assets.
@@ -208,7 +216,12 @@ const isLikelyMinifiedText = (text, config) => {
  */
 export function createFileScanner(fileScanConfig = {}) {
   const config = fileScanConfig && typeof fileScanConfig === 'object' ? fileScanConfig : {};
-  const sampleSizeBytes = normalizeLimit(config.sampleBytes, 8192);
+  const tier1ProbeBytes = normalizeBoundedLimit(
+    config.tier1ProbeBytes ?? config.sampleBytes,
+    8192,
+    { min: 4096, max: 8192 }
+  );
+  const sampleSizeBytes = normalizeLimit(config.sampleBytes, tier1ProbeBytes);
   const minifiedConfig = config.minified || {};
   const binaryConfig = config.binary || {};
   const minified = {
@@ -227,9 +240,6 @@ export function createFileScanner(fileScanConfig = {}) {
       ? Number(binaryConfig.maxNonTextRatio)
       : 0.3
   };
-  const fileTypeSampleBytes = sampleSizeBytes
-    ? Math.min(sampleSizeBytes, 4100)
-    : 0;
   const shouldSampleBinary = (size) => binary.sampleMinBytes && size >= binary.sampleMinBytes;
   const shouldSampleMinified = (size, ext) => minified.sampleMinBytes
     && size >= minified.sampleMinBytes
@@ -248,19 +258,21 @@ export function createFileScanner(fileScanConfig = {}) {
       sampleBuffer: null
     };
     if (!sampleSizeBytes || (!shouldProbeBinary && !wantsMinified && !wantsBinary)) return result;
-    const sampleBytes = Math.max(
-      shouldProbeBinary ? fileTypeSampleBytes : 0,
-      wantsBinary || wantsMinified ? sampleSizeBytes : 0
+    const tier1Bytes = Math.max(
+      shouldProbeBinary ? Math.min(tier1ProbeBytes, sampleSizeBytes) : 0,
+      wantsBinary || wantsMinified ? Math.min(sampleSizeBytes, tier1ProbeBytes) : 0
     );
-    if (!sampleBytes) return result;
+    if (!tier1Bytes) return result;
     let sampleBuffer = null;
     try {
-      sampleBuffer = await readSample(absPath, sampleBytes);
+      sampleBuffer = await readSample(absPath, tier1Bytes);
     } catch {
       sampleBuffer = null;
     }
     if (!sampleBuffer) return result;
     result.sampleBuffer = sampleBuffer;
+    let binaryChecked = false;
+    let minifiedChecked = false;
     if (shouldProbeBinary) {
       const binarySkip = await detectBinary({
         absPath,
@@ -272,21 +284,72 @@ export function createFileScanner(fileScanConfig = {}) {
         result.skip = { ...binarySkip, bytes: size };
         return result;
       }
-      if (wantsBinary) result.checkedBinary = true;
+      binaryChecked = true;
+      if (wantsBinary && sampleBuffer.length >= sampleSizeBytes) {
+        result.checkedBinary = true;
+      }
     }
     if (wantsMinified) {
-      result.checkedMinified = true;
       const sampleText = sampleBuffer.toString('utf8');
       if (isLikelyMinifiedText(sampleText, minified)) {
+        result.checkedMinified = true;
         result.skip = { reason: 'minified', method: 'content' };
         return result;
       }
+      minifiedChecked = true;
+    }
+
+    const needsExtendedBinary = wantsBinary && !result.checkedBinary && shouldProbeBinary && binaryChecked;
+    const needsExtendedMinified = wantsMinified && !result.checkedMinified && minifiedChecked;
+    const shouldReadExtendedSample = (
+      sampleSizeBytes > sampleBuffer.length
+      && (needsExtendedBinary || needsExtendedMinified)
+    );
+    if (shouldReadExtendedSample) {
+      let extendedBuffer = null;
+      try {
+        extendedBuffer = await readSample(absPath, sampleSizeBytes);
+      } catch {
+        extendedBuffer = null;
+      }
+      if (extendedBuffer?.length && extendedBuffer.length > sampleBuffer.length) {
+        result.sampleBuffer = extendedBuffer;
+        if (needsExtendedBinary) {
+          const binarySkip = await detectBinary({
+            absPath,
+            buffer: extendedBuffer,
+            maxNonTextRatio: binary.maxNonTextRatio
+          });
+          if (binarySkip) {
+            result.checkedBinary = true;
+            result.skip = { ...binarySkip, bytes: size };
+            return result;
+          }
+          result.checkedBinary = true;
+        }
+        if (needsExtendedMinified) {
+          const sampleText = extendedBuffer.toString('utf8');
+          if (isLikelyMinifiedText(sampleText, minified)) {
+            result.checkedMinified = true;
+            result.skip = { reason: 'minified', method: 'content' };
+            return result;
+          }
+          result.checkedMinified = true;
+        }
+      } else {
+        if (needsExtendedBinary) result.checkedBinary = true;
+        if (needsExtendedMinified) result.checkedMinified = true;
+      }
+    } else {
+      if (needsExtendedBinary) result.checkedBinary = true;
+      if (needsExtendedMinified) result.checkedMinified = true;
     }
     return result;
   };
   const normalizeBaseName = (absPath) => path.basename(absPath);
   return {
     scanFile,
+    tier1ProbeBytes,
     sampleSizeBytes,
     minified,
     binary,

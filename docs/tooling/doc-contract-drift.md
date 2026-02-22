@@ -12,7 +12,7 @@ Status: OK
 - doc: docs/contracts/search-contract.md
 - source: src/retrieval/cli-args.js
 - note: non-blocking drift (informational)
-- missing in docs (58): --alias, --ann, --ann-backend, --async, --author, --awaits, --backend, --bm25-b, --bm25-k1, --branch
+- missing in docs (76): --alias, --allow-sparse-fallback, --allow-unsafe-mix, --ann, --ann-backend, --as-of, --async, --author, --awaits, --backend
 - extra in docs: none
 
 ## artifactSchemas

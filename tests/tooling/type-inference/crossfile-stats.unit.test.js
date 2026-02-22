@@ -36,7 +36,13 @@ const writeScenarioFile = async (rootDir, relPath, contents) => {
   return absPath;
 };
 
-const runStatsScenario = async (name, { files, chunks, expect, fileRelations = null }) => {
+const runStatsScenario = async (name, {
+  files,
+  chunks,
+  expect,
+  fileRelations = null,
+  expectBundleSizing = false
+}) => {
   const scenarioRoot = path.join(statsRoot, name);
   await fsPromises.rm(scenarioRoot, { recursive: true, force: true });
   await fsPromises.mkdir(scenarioRoot, { recursive: true });
@@ -64,6 +70,20 @@ const runStatsScenario = async (name, { files, chunks, expect, fileRelations = n
       console.error(
         `Cross-file inference stats mismatch (${name}): ${label}=${actual}, expected ${expected}.`
       );
+      process.exit(1);
+    }
+  }
+  if (expectBundleSizing) {
+    if (!stats?.bundleSizing || typeof stats.bundleSizing !== 'object') {
+      console.error(`Cross-file inference stats mismatch (${name}): missing bundleSizing.`);
+      process.exit(1);
+    }
+    if (!Number.isFinite(stats.bundleSizing.p95BundleMs) || stats.bundleSizing.p95BundleMs < 0) {
+      console.error(`Cross-file inference stats mismatch (${name}): invalid p95 bundle sizing metric.`);
+      process.exit(1);
+    }
+    if (!Number.isFinite(stats.bundleSizing.p95HeapDeltaBytes) || stats.bundleSizing.p95HeapDeltaBytes < 0) {
+      console.error(`Cross-file inference stats mismatch (${name}): invalid p95 heap delta metric.`);
       process.exit(1);
     }
   }
@@ -158,7 +178,8 @@ await runStatsScenario('one-each', {
     linkedUsages: 1,
     inferredReturns: 1,
     riskFlows: 1
-  }
+  },
+  expectBundleSizing: true
 });
 
 const perlCreateContent = [

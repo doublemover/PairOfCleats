@@ -1,4 +1,3 @@
-import fsSync from 'node:fs';
 import path from 'node:path';
 import { incCacheEvent } from '../../shared/metrics.js';
 import { MAX_JSON_BYTES, readJsonFile } from '../../shared/artifact-io.js';
@@ -26,6 +25,7 @@ import { resolveStubDims } from '../../shared/embedding.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import { stableStringifyForSignature } from '../../shared/stable-json.js';
 import { resolveSqliteFtsRoutingByMode } from '../routing-policy.js';
+import { resolveRetrievalCachePath } from './cache-paths.js';
 
 /**
  * Execute one retrieval session, including query cache lookup, per-mode search,
@@ -145,6 +145,14 @@ export async function runSearchSession({
   signal,
   stageTracker
 }) {
+  const readContextCacheJson = (filePath, maxBytes = MAX_JSON_BYTES) => {
+    if (!filePath) return null;
+    try {
+      return readJsonFile(filePath, { maxBytes });
+    } catch {
+      return null;
+    }
+  };
   const resolvedDenseMode = typeof resolvedDenseVectorMode === 'string'
     ? resolvedDenseVectorMode.trim().toLowerCase()
     : 'merged';
@@ -271,8 +279,11 @@ export async function runSearchSession({
       : null
   };
 
-  const cacheDir = queryCacheDir || metricsDir;
-  const queryCachePath = path.join(cacheDir, 'queryCache.json');
+  const queryCachePath = resolveRetrievalCachePath({
+    queryCacheDir,
+    metricsDir,
+    fileName: 'queryCache.json'
+  });
   if (queryCacheEnabled) {
     const signature = await getIndexSignature({
       useSqlite,
@@ -374,10 +385,10 @@ export async function runSearchSession({
       if (entry) cacheHotPathHit = true;
     }
     if (!entry) {
-      cacheData = loadQueryCache(queryCachePath, {
+      cacheData = queryCachePath ? loadQueryCache(queryCachePath, {
         prewarm: cachePrewarmEnabled,
         prewarmMaxEntries: cachePrewarmLimit
-      });
+      }) : null;
       entry = findQueryCacheEntry(cacheData, cacheKey, cacheSignature, {
         cachePath: queryCachePath,
         strategy: cacheStrategy,
@@ -399,9 +410,7 @@ export async function runSearchSession({
             entry.ts = Date.now();
             rememberQueryCacheEntry(queryCachePath, cacheKey, cacheSignature, entry, queryCacheMaxEntries);
             if (!cacheData) {
-              cacheData = loadQueryCache(queryCachePath, {
-                prewarm: false
-              });
+              cacheData = loadQueryCache(queryCachePath, { prewarm: false });
             }
             if (cacheData && Array.isArray(cacheData.entries)) {
               const existingIndex = cacheData.entries.findIndex((candidate) => (
@@ -415,7 +424,7 @@ export async function runSearchSession({
               } else {
                 cacheData.entries.push(entry);
               }
-              cacheShouldPersist = true;
+              cacheShouldPersist = Boolean(queryCachePath);
             }
           }
         }
@@ -626,22 +635,14 @@ export async function runSearchSession({
     if (!idx?.indexDir) return null;
     const metaPath = path.join(idx.indexDir, 'context_index.meta.json');
     const dataPath = path.join(idx.indexDir, 'context_index.json');
-    if (!fsSync.existsSync(metaPath) || !fsSync.existsSync(dataPath)) return null;
-    let meta = null;
-    try {
-      meta = readJsonFile(metaPath, { maxBytes: MAX_JSON_BYTES });
-    } catch {
-      return null;
-    }
+    const meta = readContextCacheJson(metaPath);
+    if (!meta) return null;
     if (!meta?.signature || meta.version !== 1) return null;
     const signature = await buildIndexSignature(idx.indexDir);
     if (signature !== meta.signature) return null;
-    try {
-      const raw = readJsonFile(dataPath, { maxBytes: MAX_JSON_BYTES });
-      return hydrateContextIndex(raw);
-    } catch {
-      return null;
-    }
+    const raw = readContextCacheJson(dataPath);
+    if (!raw) return null;
+    return hydrateContextIndex(raw);
   };
   const persistContextIndexCache = async (idx, contextIndex) => {
     if (!idx?.indexDir || !contextIndex) return;
@@ -732,9 +733,13 @@ export async function runSearchSession({
     : (lanceActive ? 'lancedb' : (hnswActive ? 'hnsw' : 'js'));
 
   if (queryCacheEnabled && cacheKey) {
-    if (!cacheData && !cacheHit) cacheData = { version: 1, entries: [] };
+    if (!cacheData && !cacheHit && queryCachePath) {
+      cacheData = { version: 1, entries: [] };
+    }
     if (!cacheHit) {
-      cacheData.entries = cacheData.entries.filter((entry) => entry.key !== cacheKey);
+      if (cacheData && Array.isArray(cacheData.entries)) {
+        cacheData.entries = cacheData.entries.filter((entry) => entry.key !== cacheKey);
+      }
       const entry = {
         key: cacheKey,
         ts: Date.now(),
@@ -751,11 +756,13 @@ export async function runSearchSession({
           records: recordHits
         }
       };
-      cacheData.entries.push(entry);
+      if (cacheData && Array.isArray(cacheData.entries)) {
+        cacheData.entries.push(entry);
+        cacheShouldPersist = Boolean(queryCachePath);
+      }
       rememberQueryCacheEntry(queryCachePath, cacheKey, cacheSignature, entry, queryCacheMaxEntries);
-      cacheShouldPersist = true;
     }
-    if (cacheShouldPersist && cacheData) {
+    if (cacheShouldPersist && cacheData && queryCachePath) {
       pruneQueryCache(cacheData, queryCacheMaxEntries);
       try {
         await atomicWriteJson(queryCachePath, cacheData, { spaces: 2 });

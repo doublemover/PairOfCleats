@@ -2,28 +2,53 @@
   "formatVersion": 1,
   "languageId": "javascript",
   "keywords": [
+    "as",
+    "async",
+    "await",
     "break",
     "case",
     "catch",
     "class",
     "const",
     "continue",
+    "debugger",
+    "default",
+    "delete",
+    "do",
     "else",
+    "enum",
     "export",
     "extends",
     "finally",
     "for",
+    "from",
     "function",
     "if",
+    "implements",
     "import",
+    "in",
+    "instanceof",
+    "interface",
     "let",
     "new",
+    "of",
+    "package",
+    "private",
+    "protected",
+    "public",
     "return",
+    "static",
+    "super",
     "switch",
+    "this",
     "throw",
     "try",
+    "typeof",
     "var",
-    "while"
+    "void",
+    "while",
+    "with",
+    "yield"
   ],
   "literals": [
     "false",
@@ -35,7 +60,11 @@
   "builtins": [
     "array",
     "console",
+    "date",
+    "error",
+    "json",
     "map",
+    "math",
     "promise",
     "set"
   ],
@@ -44,6 +73,6 @@
     "path"
   ],
   "notes": [
-    "Conservative JS set to avoid property-name over-filtering."
+    "Expanded JavaScript keyword/literal coverage for lexicon stopword filtering."
   ]
 }

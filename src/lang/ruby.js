@@ -1,6 +1,7 @@
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
 import { extractDocComment } from './shared.js';
 import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
+import { buildTreeSitterChunks } from './tree-sitter.js';
 
 /**
  * Ruby language chunking and relations.
@@ -176,7 +177,9 @@ function parseRubyDefName(trimmed) {
  * @param {string} text
  * @returns {Array<{start:number,end:number,name:string,kind:string,meta:Object}>|null}
  */
-export function buildRubyChunks(text) {
+export function buildRubyChunks(text, options = {}) {
+  const treeChunks = buildTreeSitterChunks({ text, languageId: 'ruby', options });
+  if (treeChunks && treeChunks.length) return treeChunks;
   const lineIndex = buildLineIndex(text);
   const lines = text.split('\n');
   const decls = [];

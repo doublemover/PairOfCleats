@@ -2,6 +2,7 @@ import { buildLineIndex, offsetToLine } from '../shared/lines.js';
 import { extractDocComment } from './shared.js';
 import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
 import { createRequire } from 'node:module';
+import { buildTreeSitterChunks } from './tree-sitter.js';
 
 const require = createRequire(import.meta.url);
 let sqlParserInstance = null;
@@ -644,11 +645,51 @@ function collectSqlParserUsages(text, dialect, log) {
 }
 
 /**
- * Collect imports from SQL source (none).
+ * Collect imports from SQL source.
  * @returns {string[]}
  */
-export function collectSqlImports() {
-  return [];
+export function collectSqlImports(text = '') {
+  const imports = new Set();
+  const lines = String(text || '').split('\n');
+  let inBlockComment = false;
+  for (const rawLine of lines) {
+    let cleaned = '';
+    let idx = 0;
+    while (idx < rawLine.length) {
+      if (inBlockComment) {
+        const end = rawLine.indexOf('*/', idx);
+        if (end === -1) {
+          idx = rawLine.length;
+          break;
+        }
+        idx = end + 2;
+        inBlockComment = false;
+        continue;
+      }
+      const blockStart = rawLine.indexOf('/*', idx);
+      const lineCommentStart = rawLine.indexOf('--', idx);
+      if (blockStart === -1 && lineCommentStart === -1) {
+        cleaned += rawLine.slice(idx);
+        break;
+      }
+      if (lineCommentStart !== -1 && (blockStart === -1 || lineCommentStart < blockStart)) {
+        cleaned += rawLine.slice(idx, lineCommentStart);
+        break;
+      }
+      cleaned += rawLine.slice(idx, blockStart);
+      idx = blockStart + 2;
+      inBlockComment = true;
+    }
+    const line = cleaned.trim();
+    if (!line || line.startsWith('--') || line.startsWith('/*')) continue;
+    const psqlMatch = line.match(/^\\i(?:r)?\s+([^\s;]+)/i);
+    if (psqlMatch?.[1]) imports.add(psqlMatch[1]);
+    const sourceMatch = line.match(/^source\s+([^\s;]+)/i);
+    if (sourceMatch?.[1]) imports.add(sourceMatch[1]);
+    const oracleMatch = line.match(/^@@\s*([^\s;]+)/);
+    if (oracleMatch?.[1]) imports.add(oracleMatch[1]);
+  }
+  return Array.from(imports);
 }
 
 /**
@@ -658,11 +699,28 @@ export function collectSqlImports() {
  * @returns {Array<{start:number,end:number,name:string,kind:string,meta:Object}>|null}
  */
 export function buildSqlChunks(text, options = {}) {
+  const statements = splitSqlStatements(text);
+  const treeChunks = buildTreeSitterChunks({ text, languageId: 'sql', options });
+  if (treeChunks && treeChunks.length) {
+    // SQL grammars can miss trailing/simple statements in mixed constructs
+    // (for example function bodies followed by standalone SELECT statements).
+    // When parser chunk count is lower than statement-split coverage, prefer
+    // statement splits to avoid dropping searchable SQL units.
+    if (!statements.length || treeChunks.length >= statements.length) {
+      const dialect = options.dialect || 'generic';
+      return treeChunks.map((chunk) => ({
+        ...chunk,
+        meta: {
+          ...(chunk.meta || {}),
+          dialect
+        }
+      }));
+    }
+  }
   const lineIndex = buildLineIndex(text);
   const lines = text.includes('--') || text.includes('/*')
     ? text.split('\n')
     : null;
-  const statements = splitSqlStatements(text);
   if (!statements.length) return null;
 
   const dialect = options.dialect || 'generic';
@@ -701,6 +759,7 @@ export function buildSqlChunks(text, options = {}) {
 export function buildSqlRelations(text, sqlChunks, options = {}) {
   const exports = new Set();
   const usages = new Set();
+  const imports = collectSqlImports(text);
   if (Array.isArray(sqlChunks)) {
     for (const chunk of sqlChunks) {
       if (!chunk || !chunk.name) continue;
@@ -712,11 +771,11 @@ export function buildSqlRelations(text, sqlChunks, options = {}) {
     if (entry) usages.add(entry);
   }
   return {
-    imports: [],
+    imports,
     exports: Array.from(exports),
     calls: [],
     usages: Array.from(usages),
-    importLinks: []
+    importLinks: imports.slice()
   };
 }
 

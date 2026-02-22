@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-02-21T00:00:00Z",
+  "corpusId": "sweet16-ci-lock-v1",
+  "files": [
+    {
+      "path": "fixtures/sample/src/main.js",
+      "sizeBytes": 2048,
+      "language": "javascript"
+    },
+    {
+      "path": "fixtures/sample/src/types.ts",
+      "sizeBytes": 1536,
+      "language": "typescript"
+    }
+  ],
+  "totals": {
+    "files": 2,
+    "bytes": 3584
+  }
+}

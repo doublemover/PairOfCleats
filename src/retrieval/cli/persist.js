@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { readJsonFileSafe } from '../../shared/files.js';
 
 export async function recordSearchArtifacts({
   metricsDir,
@@ -19,12 +20,7 @@ export async function recordSearchArtifacts({
     const noResultPath = path.join(metricsDir, 'noResultQueries');
     await fs.mkdir(path.dirname(metricsPath), { recursive: true });
 
-    let metrics = {};
-    try {
-      metrics = JSON.parse(await fs.readFile(metricsPath, 'utf8'));
-    } catch {
-      metrics = {};
-    }
+    const metrics = await readJsonFileSafe(metricsPath, { fallback: {} });
     const inc = (file, key) => {
       if (!metrics[file]) metrics[file] = { md: 0, extractedProse: 0, code: 0, records: 0, terms: [] };
       metrics[file][key] = (metrics[file][key] || 0) + 1;

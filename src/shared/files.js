@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 
 /**
@@ -64,6 +65,19 @@ export function isAbsolutePathAny(value) {
 }
 
 /**
+ * Detect UNC paths (e.g. `\\\\server\\share\\path`) with conservative checks.
+ * @param {string} value
+ * @returns {boolean}
+ */
+export function isUncPath(value) {
+  if (typeof value !== 'string') return false;
+  const text = value.replace(/\//g, '\\');
+  if (!text.startsWith('\\\\')) return false;
+  const parts = text.slice(2).split('\\').filter(Boolean);
+  return parts.length >= 2;
+}
+
+/**
  * Read a byte range from a file (synchronous).
  * @param {string} filePath
  * @param {number} start
@@ -83,5 +97,91 @@ export function readFileRangeSync(filePath, start, end) {
     return buffer.subarray(0, bytesRead);
   } finally {
     if (fd !== null) fs.closeSync(fd);
+  }
+}
+
+/**
+ * Async existence probe for files or directories.
+ * Returns false for not-found and true for any existing target.
+ *
+ * @param {string} targetPath
+ * @returns {Promise<boolean>}
+ */
+export async function pathExists(targetPath) {
+  if (!targetPath) return false;
+  try {
+    await fsPromises.access(targetPath, fs.constants.F_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Best-effort JSON reader for async paths.
+ *
+ * @param {string} filePath
+ * @param {{fallback?:any,maxBytes?:number|null}} [options]
+ * @returns {Promise<any>}
+ */
+export async function readJsonFileSafe(filePath, { fallback = null, maxBytes = null } = {}) {
+  if (!filePath) return fallback;
+  try {
+    if (Number.isFinite(maxBytes) && maxBytes > 0) {
+      const stat = await fsPromises.stat(filePath);
+      if (Number(stat.size) > Number(maxBytes)) return fallback;
+    }
+    const raw = await fsPromises.readFile(filePath, 'utf8');
+    return JSON.parse(raw);
+  } catch {
+    return fallback;
+  }
+}
+
+/**
+ * Best-effort JSON reader for sync tooling paths.
+ *
+ * @param {string} filePath
+ * @param {{fallback?:any,maxBytes?:number|null}} [options]
+ * @returns {any}
+ */
+export function readJsonFileSyncSafe(filePath, { fallback = null, maxBytes = null } = {}) {
+  if (!filePath || !fs.existsSync(filePath)) return fallback;
+  try {
+    if (Number.isFinite(maxBytes) && maxBytes > 0) {
+      const stat = fs.statSync(filePath);
+      if (Number(stat.size) > Number(maxBytes)) return fallback;
+    }
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch {
+    return fallback;
+  }
+}
+
+/**
+ * Read newline-delimited JSON rows from a file, skipping malformed rows.
+ *
+ * @param {string} filePath
+ * @returns {any[]}
+ */
+export function readJsonLinesSyncSafe(filePath) {
+  if (!filePath || !fs.existsSync(filePath)) return [];
+  const PARSE_FAILED = Symbol('PARSE_FAILED');
+  try {
+    const raw = fs.readFileSync(filePath, 'utf8');
+    return raw
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        try {
+          return JSON.parse(line);
+        } catch {
+          return PARSE_FAILED;
+        }
+      })
+      .filter((entry) => entry !== PARSE_FAILED);
+  } catch {
+    return [];
   }
 }

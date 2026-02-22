@@ -8,6 +8,94 @@ import { createIndexerWorkerPools, resolveWorkerPoolConfig } from '../worker-poo
 import { resolveWorkerHeapBudgetPolicy, resolveWorkerResourceLimits } from '../workers/config.js';
 import { createCrashLogger } from '../crash-log.js';
 
+const MIN_RUNTIME_CACHE_MB = 64;
+const MIN_RUNTIME_WRITE_BUFFER_MB = 64;
+const DEFAULT_HOT_DICTIONARY_MB = 192;
+const DEFAULT_HOT_SYMBOL_MAP_MB = 96;
+
+const coerceRuntimeBudgetMb = (value, min = 1) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return Math.max(min, Math.floor(parsed));
+};
+
+/**
+ * Resolve per-worker cache and write-buffer budgets.
+ *
+ * Policy math:
+ * 1. Start from heap-scaled defaults so smaller heaps stay conservative.
+ * 2. Raise cache budget to at least the dictionary/symbol "hotset" footprint.
+ * 3. Respect per-worker RSS headroom by capping non-heap memory usage.
+ * 4. Leave write buffers bounded; caches are prioritized for dictionary/symbol
+ *    lookups because those structures are repeatedly touched across tasks.
+ *
+ * @param {object} input
+ * @param {object} input.memoryConfig
+ * @param {number} input.effectiveWorkerHeapMb
+ * @param {number} input.workerCount
+ * @param {number|null} input.maxGlobalRssMb
+ * @param {number} input.reserveRssMb
+ * @returns {{perWorkerCacheMb:number,perWorkerWriteBufferMb:number,rssHeadroomMb:number|null,cacheHotsetTargetMb:number}}
+ */
+const resolvePerWorkerCacheAndWriteBudget = ({
+  memoryConfig,
+  effectiveWorkerHeapMb,
+  workerCount,
+  maxGlobalRssMb,
+  reserveRssMb
+}) => {
+  const explicitCacheMb = coerceRuntimeBudgetMb(memoryConfig?.perWorkerCacheMb, MIN_RUNTIME_CACHE_MB);
+  const explicitWriteBufferMb = coerceRuntimeBudgetMb(
+    memoryConfig?.perWorkerWriteBufferMb,
+    MIN_RUNTIME_WRITE_BUFFER_MB
+  );
+  const hotDictionaryMb = coerceRuntimeBudgetMb(memoryConfig?.hotDictionaryMb, 1)
+    || DEFAULT_HOT_DICTIONARY_MB;
+  const hotSymbolMapMb = coerceRuntimeBudgetMb(memoryConfig?.hotSymbolMapMb, 1)
+    || DEFAULT_HOT_SYMBOL_MAP_MB;
+  const cacheHotsetTargetMb = hotDictionaryMb + hotSymbolMapMb;
+  const defaultCacheMb = Math.max(192, Math.min(1024, Math.floor(effectiveWorkerHeapMb * 0.5)));
+  const defaultWriteBufferMb = Math.max(128, Math.min(640, Math.floor(effectiveWorkerHeapMb * 0.35)));
+
+  const rssHeadroomMb = Number.isFinite(maxGlobalRssMb) && maxGlobalRssMb > 0
+    ? Math.max(256, Math.floor(maxGlobalRssMb - reserveRssMb))
+    : null;
+  const perWorkerRssBudgetMb = Number.isFinite(rssHeadroomMb)
+    ? Math.max(256, Math.floor(rssHeadroomMb / Math.max(1, workerCount)))
+    : null;
+  const nonHeapBudgetMb = Number.isFinite(perWorkerRssBudgetMb)
+    ? Math.max(
+      MIN_RUNTIME_CACHE_MB + MIN_RUNTIME_WRITE_BUFFER_MB,
+      Math.floor(perWorkerRssBudgetMb - Math.max(1, effectiveWorkerHeapMb))
+    )
+    : null;
+
+  let perWorkerCacheMb = explicitCacheMb ?? Math.max(defaultCacheMb, cacheHotsetTargetMb);
+  if (Number.isFinite(nonHeapBudgetMb)) {
+    const cacheCeiling = Math.max(128, Math.floor(nonHeapBudgetMb * 0.8));
+    perWorkerCacheMb = Math.max(MIN_RUNTIME_CACHE_MB, Math.min(perWorkerCacheMb, cacheCeiling));
+  }
+
+  let perWorkerWriteBufferMb = explicitWriteBufferMb ?? defaultWriteBufferMb;
+  if (Number.isFinite(nonHeapBudgetMb)) {
+    const remaining = Math.max(
+      MIN_RUNTIME_WRITE_BUFFER_MB,
+      Math.floor(nonHeapBudgetMb - perWorkerCacheMb)
+    );
+    perWorkerWriteBufferMb = Math.max(
+      MIN_RUNTIME_WRITE_BUFFER_MB,
+      Math.min(perWorkerWriteBufferMb, remaining)
+    );
+  }
+
+  return {
+    perWorkerCacheMb,
+    perWorkerWriteBufferMb,
+    rssHeadroomMb,
+    cacheHotsetTargetMb
+  };
+};
+
 /**
  * Resolve runtime thread/concurrency limits from CLI, env, and config, and
  * emit advisory warnings when IO concurrency is likely to outpace libuv.
@@ -101,6 +189,10 @@ export const resolveThreadLimitsConfig = ({ argv, rawArgv, envConfig, indexingCo
  *   effectiveWorkerHeapMb:number,
  *   perWorkerCacheMb:number,
  *   perWorkerWriteBufferMb:number,
+  *   rssHeadroomMb:number|null,
+  *   cacheHotsetTargetMb:number,
+ *   hugeProfileWriteBufferBoosted:boolean,
+ *   writeBufferHeadroomBoostMb:number,
  *   queueHeadroomScale:number
  * }}
  */
@@ -125,22 +217,37 @@ export const resolveRuntimeMemoryPolicy = ({ indexingConfig, cpuConcurrency }) =
     : workerHeapPolicy.targetPerWorkerMb;
   const reserveRssMb = Number.isFinite(Number(memoryConfig.reserveRssMb))
     ? Math.max(512, Math.floor(Number(memoryConfig.reserveRssMb)))
-    : 2048;
+    : 1024;
   const maxGlobalRssMb = Number.isFinite(totalMemMb) && totalMemMb > 0
     ? Math.max(2048, Math.floor(totalMemMb * 0.9))
     : null;
-  const perWorkerCacheMb = Number.isFinite(Number(memoryConfig.perWorkerCacheMb))
-    ? Math.max(64, Math.floor(Number(memoryConfig.perWorkerCacheMb)))
-    : Math.max(128, Math.min(512, Math.floor(effectiveWorkerHeapMb * 0.35)));
-  const perWorkerWriteBufferMb = Number.isFinite(Number(memoryConfig.perWorkerWriteBufferMb))
-    ? Math.max(64, Math.floor(Number(memoryConfig.perWorkerWriteBufferMb)))
-    : Math.max(128, Math.min(768, Math.floor(effectiveWorkerHeapMb * 0.45)));
+  const budgetSplit = resolvePerWorkerCacheAndWriteBudget({
+    memoryConfig,
+    effectiveWorkerHeapMb,
+    workerCount,
+    maxGlobalRssMb,
+    reserveRssMb
+  });
+  const perWorkerCacheMb = budgetSplit.perWorkerCacheMb;
+  let perWorkerWriteBufferMb = budgetSplit.perWorkerWriteBufferMb;
+  const hugeRepoProfileEnabled = indexingConfig?.hugeRepoProfile?.enabled === true;
+  let writeBufferHeadroomBoostMb = 0;
+  if (hugeRepoProfileEnabled && Number.isFinite(budgetSplit.rssHeadroomMb)) {
+    const perWorkerRssHeadroomMb = Math.max(0, Math.floor(budgetSplit.rssHeadroomMb / Math.max(1, workerCount)));
+    const projectedPerWorkerMb = perWorkerCacheMb + perWorkerWriteBufferMb + effectiveWorkerHeapMb;
+    const sparePerWorkerMb = Math.max(0, perWorkerRssHeadroomMb - projectedPerWorkerMb);
+    if (sparePerWorkerMb >= 128) {
+      const configuredBoostCapMb = coerceRuntimeBudgetMb(memoryConfig.hugeWriteBufferBoostMaxMb, 64) || 512;
+      writeBufferHeadroomBoostMb = Math.min(configuredBoostCapMb, Math.floor(sparePerWorkerMb * 0.5));
+      perWorkerWriteBufferMb += writeBufferHeadroomBoostMb;
+    }
+  }
   const projectedBudgetMb = workerCount * (
     effectiveWorkerHeapMb + perWorkerCacheMb + perWorkerWriteBufferMb
   );
   const queueHeadroomScale = Number.isFinite(maxGlobalRssMb) && maxGlobalRssMb > 0
-    ? (projectedBudgetMb < Math.max(512, maxGlobalRssMb - reserveRssMb) ? 3 : 2)
-    : 2;
+    ? (projectedBudgetMb < Math.max(512, maxGlobalRssMb - reserveRssMb) ? 4 : 3)
+    : 3;
   return {
     totalMemMb,
     maxGlobalRssMb,
@@ -149,6 +256,10 @@ export const resolveRuntimeMemoryPolicy = ({ indexingConfig, cpuConcurrency }) =
     effectiveWorkerHeapMb,
     perWorkerCacheMb,
     perWorkerWriteBufferMb,
+    rssHeadroomMb: budgetSplit.rssHeadroomMb,
+    cacheHotsetTargetMb: budgetSplit.cacheHotsetTargetMb,
+    hugeProfileWriteBufferBoosted: writeBufferHeadroomBoostMb > 0,
+    writeBufferHeadroomBoostMb,
     queueHeadroomScale
   };
 };
@@ -204,28 +315,86 @@ export const createRuntimeQueues = ({
     ? Math.max(1, Math.floor(Number(memoryPolicy.queueHeadroomScale)))
     : 1;
   const pendingScale = schedulerAdaptive
-    ? Math.max(2, memoryPendingScale)
+    ? Math.max(1, Math.min(4, memoryPendingScale))
     : memoryPendingScale;
   const maxFilePending = coercePositiveInt(tokenizeConfig?.maxPending)
     ?? (Number.isFinite(pendingLimits?.cpu?.maxPending)
       ? pendingLimits.cpu.maxPending
-      : Math.max(64, effectiveCpuConcurrency * 8 * pendingScale));
+      : Math.max(128, effectiveCpuConcurrency * 12 * pendingScale));
   const maxIoPending = Number.isFinite(pendingLimits?.io?.maxPending)
     ? pendingLimits.io.maxPending
-    : Math.max(16, ioConcurrency * 4 * pendingScale);
-  const effectiveEmbeddingConcurrency = Number.isFinite(embeddingConcurrency) && embeddingConcurrency > 0
-    ? embeddingConcurrency
-    : Math.max(1, Math.min(cpuConcurrency || 1, fileConcurrency || 1));
+    : Math.max(32, ioConcurrency * 6 * pendingScale);
+  const explicitEmbeddingConcurrency = Number.isFinite(embeddingConcurrency)
+    ? Math.max(0, Math.floor(embeddingConcurrency))
+    : null;
+  const effectiveEmbeddingConcurrency = explicitEmbeddingConcurrency == null
+    ? Math.max(1, Math.min(cpuConcurrency || 1, fileConcurrency || 1))
+    : explicitEmbeddingConcurrency;
   const maxEmbeddingPending = Number.isFinite(pendingLimits?.embedding?.maxPending)
     ? pendingLimits.embedding.maxPending
-    : Math.max(64, effectiveEmbeddingConcurrency * 8 * pendingScale);
+    : (effectiveEmbeddingConcurrency > 0
+      ? Math.max(128, effectiveEmbeddingConcurrency * 12 * pendingScale)
+      : 0);
   const resolvedProcConcurrency = coercePositiveInt(procConcurrency)
     ?? (Number.isFinite(pendingLimits?.proc?.concurrency)
       ? Math.max(1, Math.floor(pendingLimits.proc.concurrency))
       : null);
   const procPendingLimit = Number.isFinite(pendingLimits?.proc?.maxPending)
     ? Math.max(1, Math.floor(pendingLimits.proc.maxPending))
-    : (resolvedProcConcurrency ? Math.max(4, resolvedProcConcurrency * 4) : null);
+    : (resolvedProcConcurrency ? Math.max(8, resolvedProcConcurrency * 6) : null);
+  const MiB = 1024 * 1024;
+  const normalizeBytesLimit = (value) => {
+    const parsed = Math.floor(Number(value));
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  };
+  const runtimeQueueBudgetBytes = Number.isFinite(Number(memoryPolicy?.maxGlobalRssMb))
+    ? Math.max(
+      64 * MiB,
+      Math.floor(
+        Math.max(
+          0,
+          (Number(memoryPolicy.maxGlobalRssMb) || 0) - (Number(memoryPolicy?.reserveRssMb) || 0)
+        ) * MiB * 0.5
+      )
+    )
+    : null;
+  const clampByRuntimeBudget = (bytes, ratio) => {
+    if (!runtimeQueueBudgetBytes) return bytes;
+    return Math.max(8 * MiB, Math.min(bytes, Math.floor(runtimeQueueBudgetBytes * ratio)));
+  };
+  const resolvePendingBytesLimit = (configured, fallback, budgetRatio) => {
+    const explicit = normalizeBytesLimit(configured);
+    if (explicit) return explicit;
+    return clampByRuntimeBudget(fallback, budgetRatio);
+  };
+  const maxFilePendingBytes = resolvePendingBytesLimit(
+    pendingLimits?.cpu?.maxPendingBytes,
+    Math.max(96 * MiB, Math.floor(maxFilePending * 2.5 * MiB)),
+    0.45
+  );
+  const maxIoPendingBytes = resolvePendingBytesLimit(
+    pendingLimits?.io?.maxPendingBytes,
+    Math.max(48 * MiB, Math.floor(maxIoPending * 1.5 * MiB)),
+    0.25
+  );
+  const maxEmbeddingPendingBytes = resolvePendingBytesLimit(
+    pendingLimits?.embedding?.maxPendingBytes,
+    Math.max(48 * MiB, Math.max(1, maxEmbeddingPending) * 768 * 1024),
+    0.2
+  );
+  const procPendingBytesLimit = resolvedProcConcurrency
+    ? resolvePendingBytesLimit(
+      pendingLimits?.proc?.maxPendingBytes,
+      Math.max(24 * MiB, procPendingLimit * 768 * 1024),
+      0.1
+    )
+    : null;
+  const maxFileInFlightBytes = Math.max(16 * MiB, Math.floor(maxFilePendingBytes * 0.75));
+  const maxIoInFlightBytes = Math.max(16 * MiB, Math.floor(maxIoPendingBytes * 0.85));
+  const maxEmbeddingInFlightBytes = Math.max(12 * MiB, Math.floor(maxEmbeddingPendingBytes * 0.75));
+  const procInFlightBytesLimit = procPendingBytesLimit
+    ? Math.max(8 * MiB, Math.floor(procPendingBytesLimit * 0.75))
+    : null;
 
   if (scheduler && scheduler.enabled && scheduler.lowResourceMode !== true && typeof scheduler.schedule === 'function') {
     const cpuQueue = createSchedulerQueueAdapter({
@@ -233,6 +402,8 @@ export const createRuntimeQueues = ({
       queueName: SCHEDULER_QUEUE_NAMES.stage1Cpu,
       tokens: { cpu: 1 },
       maxPending: maxFilePending,
+      maxPendingBytes: maxFilePendingBytes,
+      maxInFlightBytes: maxFileInFlightBytes,
       concurrency: effectiveCpuConcurrency
     });
     const ioQueue = createSchedulerQueueAdapter({
@@ -240,15 +411,21 @@ export const createRuntimeQueues = ({
       queueName: SCHEDULER_QUEUE_NAMES.stage1Io,
       tokens: { io: 1 },
       maxPending: maxIoPending,
+      maxPendingBytes: maxIoPendingBytes,
+      maxInFlightBytes: maxIoInFlightBytes,
       concurrency: ioConcurrency
     });
-    const embeddingQueue = createSchedulerQueueAdapter({
-      scheduler,
-      queueName: SCHEDULER_QUEUE_NAMES.embeddingsCompute,
-      tokens: { cpu: 1 },
-      maxPending: maxEmbeddingPending,
-      concurrency: effectiveEmbeddingConcurrency
-    });
+    const embeddingQueue = effectiveEmbeddingConcurrency > 0
+      ? createSchedulerQueueAdapter({
+        scheduler,
+        queueName: SCHEDULER_QUEUE_NAMES.embeddingsCompute,
+        tokens: { cpu: 1 },
+        maxPending: maxEmbeddingPending,
+        maxPendingBytes: maxEmbeddingPendingBytes,
+        maxInFlightBytes: maxEmbeddingInFlightBytes,
+        concurrency: effectiveEmbeddingConcurrency
+      })
+      : null;
     const procQueue = resolvedProcConcurrency
       ? createSchedulerQueueAdapter({
         scheduler,
@@ -259,6 +436,8 @@ export const createRuntimeQueues = ({
         // blocking nested scheduling.
         tokens: { mem: 1 },
         maxPending: procPendingLimit,
+        maxPendingBytes: procPendingBytesLimit,
+        maxInFlightBytes: procInFlightBytesLimit,
         concurrency: resolvedProcConcurrency
       })
       : null;
@@ -266,6 +445,7 @@ export const createRuntimeQueues = ({
       ? { io: ioQueue, cpu: cpuQueue, embedding: embeddingQueue, proc: procQueue }
       : { io: ioQueue, cpu: cpuQueue, embedding: embeddingQueue };
     for (const queue of Object.values(queues)) {
+      if (!queue || typeof queue !== 'object') continue;
       queue.inflightBytes = 0;
     }
     return { queues, maxFilePending, maxIoPending, maxEmbeddingPending };
@@ -274,14 +454,23 @@ export const createRuntimeQueues = ({
   const queues = createTaskQueues({
     ioConcurrency,
     cpuConcurrency: effectiveCpuConcurrency,
-    embeddingConcurrency,
+    embeddingConcurrency: effectiveEmbeddingConcurrency,
     procConcurrency: resolvedProcConcurrency,
     ioPendingLimit: maxIoPending,
     cpuPendingLimit: maxFilePending,
     embeddingPendingLimit: maxEmbeddingPending,
-    procPendingLimit
+    procPendingLimit,
+    ioPendingBytesLimit: maxIoPendingBytes,
+    cpuPendingBytesLimit: maxFilePendingBytes,
+    embeddingPendingBytesLimit: maxEmbeddingPendingBytes,
+    procPendingBytesLimit
   });
+  if (queues.cpu) queues.cpu.maxInFlightBytes = maxFileInFlightBytes;
+  if (queues.io) queues.io.maxInFlightBytes = maxIoInFlightBytes;
+  if (queues.embedding) queues.embedding.maxInFlightBytes = maxEmbeddingInFlightBytes;
+  if (queues.proc && procInFlightBytesLimit) queues.proc.maxInFlightBytes = procInFlightBytesLimit;
   for (const queue of Object.values(queues)) {
+    if (!queue || typeof queue !== 'object') continue;
     queue.inflightBytes = 0;
   }
   return { queues, maxFilePending, maxIoPending, maxEmbeddingPending };
@@ -314,7 +503,14 @@ export const resolveWorkerPoolRuntimeConfig = ({ indexingConfig, envConfig, cpuC
   const fileBoundTarget = Math.max(cpuTarget, Math.min(32, fileTarget));
   const workerPoolDefaultMax = Math.max(
     1,
-    Math.min(dynamicHardMaxWorkers, Math.max(oversubscribeTarget, fileBoundTarget))
+    Math.min(
+      dynamicHardMaxWorkers,
+      Math.max(
+        cpuTarget,
+        oversubscribeTarget + 4,
+        fileBoundTarget + 2
+      )
+    )
   );
   return resolveWorkerPoolConfig(
     indexingConfig.workerPool || {},
@@ -342,6 +538,8 @@ export const resolveWorkerPoolRuntimeConfig = ({ indexingConfig, envConfig, cpuC
  * @param {Set<string>|string[]|null} input.codeDictLanguages
  * @param {object} input.postingsConfig
  * @param {object} input.treeSitterConfig
+ * @param {object|null} [input.memoryPolicy]
+ * @param {string} [input.stage]
  * @param {boolean} input.debugCrash
  * @param {(line:string)=>void} input.log
  * @returns {Promise<{workerPools:object,workerPool:object|null,quantizePool:object|null}>}
@@ -357,6 +555,8 @@ export const createRuntimeWorkerPools = async ({
   codeDictLanguages,
   postingsConfig,
   treeSitterConfig,
+  memoryPolicy = null,
+  stage = 'stage1',
   debugCrash,
   log
 }) => {
@@ -380,6 +580,8 @@ export const createRuntimeWorkerPools = async ({
       codeDictLanguages,
       postingsConfig,
       treeSitterConfig,
+      memoryPolicy,
+      stage,
       crashLogger: workerCrashLogger,
       log
     });

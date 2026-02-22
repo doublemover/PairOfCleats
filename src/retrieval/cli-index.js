@@ -1,6 +1,8 @@
 import fsSync from 'node:fs';
+import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { buildLocalCacheKey } from '../shared/cache-key.js';
+import { pathExists } from '../shared/files.js';
 import { getIndexDir } from '../../tools/shared/dict-utils.js';
 import { buildFilterIndex, hydrateFilterIndex } from './filter-index.js';
 import { createError, ERROR_CODES } from '../shared/error-codes.js';
@@ -25,6 +27,12 @@ const hasFile = (targetPath) => (
   || fsSync.existsSync(`${targetPath}.zst`)
 );
 
+const hasFileAsync = async (targetPath) => (
+  await pathExists(targetPath)
+  || await pathExists(`${targetPath}.gz`)
+  || await pathExists(`${targetPath}.zst`)
+);
+
 export function hasChunkMetaArtifacts(dir) {
   if (!dir) return false;
   const legacyCandidates = [
@@ -38,6 +46,36 @@ export function hasChunkMetaArtifacts(dir) {
     if (hasFile(path.join(dir, relPath))) return true;
   }
   if (fsSync.existsSync(path.join(dir, 'chunk_meta.parts'))) return true;
+  try {
+    const manifest = loadPiecesManifest(dir, { maxBytes: MAX_JSON_BYTES, strict: true });
+    const presence = resolveArtifactPresence(dir, 'chunk_meta', {
+      manifest,
+      maxBytes: MAX_JSON_BYTES,
+      strict: false
+    });
+    if (!presence || presence.format === 'missing') return false;
+    if (presence.error) return false;
+    if (presence.missingMeta) return false;
+    if (Array.isArray(presence.missingPaths) && presence.missingPaths.length) return false;
+    return Array.isArray(presence.paths) && presence.paths.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+export async function hasChunkMetaArtifactsAsync(dir) {
+  if (!dir) return false;
+  const legacyCandidates = [
+    'chunk_meta.json',
+    'chunk_meta.jsonl',
+    'chunk_meta.meta.json',
+    'chunk_meta.columnar.json',
+    'chunk_meta.binary-columnar.meta.json'
+  ];
+  for (const relPath of legacyCandidates) {
+    if (await hasFileAsync(path.join(dir, relPath))) return true;
+  }
+  if (await pathExists(path.join(dir, 'chunk_meta.parts'))) return true;
   try {
     const manifest = loadPiecesManifest(dir, { maxBytes: MAX_JSON_BYTES, strict: true });
     const presence = resolveArtifactPresence(dir, 'chunk_meta', {
@@ -81,6 +119,17 @@ export async function loadIndex(dir, options) {
   const includeTokenIndexResolved = includeFilterIndex ? true : includeTokenIndex;
   const hnswConfig = normalizeHnswConfig(rawHnswConfig || {});
   const manifest = loadPiecesManifest(dir, { maxBytes: MAX_JSON_BYTES, strict });
+  const isOptionalArtifactMissing = (err, artifactName) => {
+    const code = typeof err?.code === 'string' ? err.code : '';
+    if (code === 'ERR_MANIFEST_ENTRY_MISSING') return true;
+    if (code === 'ERR_MANIFEST_MISSING') return true;
+    if (code === 'ERR_ARTIFACT_PARTS_MISSING') return true;
+    const message = String(err?.message || '');
+    void artifactName;
+    return message.startsWith('Missing JSON artifact:')
+      || message.startsWith('Missing JSONL artifact:')
+      || message.startsWith('Missing manifest parts for');
+  };
   const loadOptionalObject = async (name) => {
     try {
       return await loadJsonObjectArtifact(dir, name, {
@@ -93,8 +142,10 @@ export async function loadIndex(dir, options) {
         console.warn(
           `[search] Skipping ${name}: ${err.message} Use sqlite backend for large repos.`
         );
+        return null;
       }
-      return null;
+      if (isOptionalArtifactMissing(err, name)) return null;
+      throw err;
     }
   };
   const loadOptionalArray = async (baseName) => {
@@ -105,8 +156,10 @@ export async function loadIndex(dir, options) {
         console.warn(
           `[search] Skipping ${baseName}: ${err.message} Use sqlite backend for large repos.`
         );
+        return null;
       }
-      return null;
+      if (isOptionalArtifactMissing(err, baseName)) return null;
+      throw err;
     }
   };
   const loadOptionalRows = (baseName, options = {}) => (async function* () {
@@ -120,7 +173,7 @@ export async function loadIndex(dir, options) {
         yield row;
       }
     } catch (err) {
-      if (err?.message?.startsWith('Missing manifest entry for')) {
+      if (isOptionalArtifactMissing(err, baseName)) {
         return;
       }
       if (err?.code === 'ERR_JSON_TOO_LARGE') {
@@ -139,9 +192,9 @@ export async function loadIndex(dir, options) {
       ? meta.path
       : `${baseName}.bin`;
     const absPath = path.join(dir, relPath);
-    if (!fsSync.existsSync(absPath)) return null;
+    if (!await pathExists(absPath)) return null;
     try {
-      const buffer = fsSync.readFileSync(absPath);
+      const buffer = await fsPromises.readFile(absPath);
       const view = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
       const dims = Number.isFinite(Number(meta.dims))
         ? Math.max(0, Math.floor(Number(meta.dims)))
@@ -443,20 +496,30 @@ export async function getIndexSignature(options) {
     explicitRef = false,
     asOfContext = null
   } = options;
-  const fileSignature = (filePath) => {
+  const safeStat = async (targetPath) => {
+    try {
+      return await fsSync.promises.stat(targetPath);
+    } catch {
+      return null;
+    }
+  };
+  const fileSignature = async (filePath) => {
     try {
       if (!filePath) return null;
       let statPath = path.resolve(filePath);
-      if (!fsSync.existsSync(statPath) && statPath.endsWith('.json')) {
-        const zstPath = `${filePath}.zst`;
-        const gzPath = `${filePath}.gz`;
-        if (fsSync.existsSync(zstPath)) {
+      let stat = await safeStat(statPath);
+      if (!stat && statPath.endsWith('.json')) {
+        const zstPath = path.resolve(`${filePath}.zst`);
+        stat = await safeStat(zstPath);
+        if (stat) {
           statPath = zstPath;
-        } else if (fsSync.existsSync(gzPath)) {
-          statPath = gzPath;
+        } else {
+          const gzPath = path.resolve(`${filePath}.gz`);
+          stat = await safeStat(gzPath);
+          if (stat) statPath = gzPath;
         }
       }
-      const stat = fsSync.statSync(statPath);
+      if (!stat) return null;
       return `${stat.size}:${stat.mtimeMs}`;
     } catch {
       return null;
@@ -496,13 +559,18 @@ export async function getIndexSignature(options) {
     : null;
 
   if (useSqlite) {
+    const [codeSig, proseSig, extractedSig] = await Promise.all([
+      fileSignature(sqliteCodePath),
+      fileSignature(sqliteProsePath),
+      needsExtractedProse ? fileSignature(sqliteExtractedProsePath) : Promise.resolve(null)
+    ]);
     return {
       backend: backendLabel,
       asOf: asOfSignature,
       sqlite: {
-        code: fileSignature(sqliteCodePath),
-        prose: fileSignature(sqliteProsePath),
-        extractedProse: needsExtractedProse ? fileSignature(sqliteExtractedProsePath) : null
+        code: codeSig,
+        prose: proseSig,
+        extractedProse: extractedSig
       },
       modes: modeSignatures
     };

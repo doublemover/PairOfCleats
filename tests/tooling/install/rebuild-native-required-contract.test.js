@@ -28,6 +28,7 @@ const directDeps = new Set([
 
 assert.equal(required.includes('sharp'), false, 'sharp must not be required for rebuild:native');
 assert.equal(optional.includes('sharp'), true, 'sharp should be optional for rebuild:native');
+assert.equal(required.includes('tree-sitter'), true, 'tree-sitter should be required for rebuild:native');
 
 for (const dep of required) {
   assert.equal(

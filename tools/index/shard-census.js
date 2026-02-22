@@ -7,6 +7,7 @@ import { createCli } from '../../src/shared/cli.js';
 import { getTriageConfig, loadUserConfig, resolveToolRoot } from '../shared/dict-utils.js';
 import { buildIgnoreMatcher } from '../../src/index/build/ignore.js';
 import { discoverFilesForModes } from '../../src/index/build/discover.js';
+import { buildGeneratedPolicyConfig } from '../../src/index/build/generated-policy.js';
 import { planShardBatches, planShards } from '../../src/index/build/shards.js';
 import { countLinesForEntries } from '../../src/shared/file-stats.js';
 import { compareStrings } from '../../src/shared/sort.js';
@@ -157,7 +158,8 @@ const censusRepo = async (repoPath, label) => {
   const maxFileBytes = resolveMaxFileBytes(indexingConfig);
   const fileCaps = resolveFileCaps(indexingConfig);
   const shardConfig = resolveShardConfig(indexingConfig);
-  const { ignoreMatcher } = await buildIgnoreMatcher({ root: repoPath, userConfig });
+  const generatedPolicy = buildGeneratedPolicyConfig(indexingConfig);
+  const { ignoreMatcher } = await buildIgnoreMatcher({ root: repoPath, userConfig, generatedPolicy });
 
   const modes = ['code', 'prose', 'extracted-prose', 'records'];
   const skippedByMode = { code: [], prose: [], 'extracted-prose': [], records: [] };
@@ -167,6 +169,7 @@ const censusRepo = async (repoPath, label) => {
     recordsDir: triageConfig.recordsDir,
     recordsConfig,
     ignoreMatcher,
+    generatedPolicy,
     skippedByMode,
     maxFileBytes,
     fileCaps

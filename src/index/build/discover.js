@@ -15,8 +15,14 @@ import { createRecordsClassifier } from './records.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { pickMinLimit, resolveFileCaps } from './file-processor/read.js';
 import { getEnvConfig } from '../../shared/env.js';
-import { MINIFIED_NAME_REGEX, normalizeRoot } from './watch/shared.js';
+import { normalizeRoot } from './watch/shared.js';
 import { isCodeEntryForPath, isProseEntryForPath } from './mode-routing.js';
+import { detectShebangLanguage } from './shebang.js';
+import {
+  buildGeneratedPolicyConfig,
+  buildGeneratedPolicyDowngradePayload,
+  resolveGeneratedPolicyDecision
+} from './generated-policy.js';
 
 const DOCUMENT_EXTS = new Set(['.pdf', '.docx']);
 const MAX_FILES_LIMIT_REASON = 'max_files_reached';
@@ -24,7 +30,7 @@ const MAX_FILES_LIMIT_REASON = 'max_files_reached';
 /**
  * Recursively discover indexable files under a directory.
  * @param {{root:string,mode:'code'|'prose'|'extracted-prose',recordsDir?:string|null,ignoreMatcher:import('ignore').Ignore,skippedFiles:Array, maxFileBytes:number|null,fileCaps?:object,maxDepth?:number|null,maxFiles?:number|null}} input
- * @returns {Promise<Array<{abs:string,rel:string,stat:import('node:fs').Stats}>>}
+ * @returns {Promise<Array<{abs:string,rel:string,stat:import('node:fs').Stats,ext:string}>>}
  */
 export async function discoverFiles({
   root,
@@ -36,6 +42,7 @@ export async function discoverFiles({
   scmProviderImpl = null,
   scmRepoRoot = null,
   ignoreMatcher,
+  generatedPolicy = null,
   skippedFiles,
   maxFileBytes = null,
   fileCaps = null,
@@ -51,6 +58,7 @@ export async function discoverFiles({
     scmProviderImpl,
     scmRepoRoot,
     ignoreMatcher,
+    generatedPolicy,
     maxFileBytes,
     fileCaps,
     maxDepth,
@@ -64,7 +72,7 @@ export async function discoverFiles({
 /**
  * Discover files for multiple modes in a single traversal.
  * @param {{root:string,modes:Array<'code'|'prose'|'extracted-prose'>,recordsDir?:string|null,ignoreMatcher:import('ignore').Ignore,skippedByMode:Record<string,Array>,maxFileBytes:number|null,fileCaps?:object,maxDepth?:number|null,maxFiles?:number|null}} input
- * @returns {Promise<Record<string,Array<{abs:string,rel:string,stat:import('node:fs').Stats}>>>}
+ * @returns {Promise<Record<string,Array<{abs:string,rel:string,stat:import('node:fs').Stats,ext:string}>>>}
  */
 export async function discoverFilesForModes({
   root,
@@ -76,6 +84,7 @@ export async function discoverFilesForModes({
   scmProviderImpl = null,
   scmRepoRoot = null,
   ignoreMatcher,
+  generatedPolicy = null,
   skippedByMode,
   maxFileBytes = null,
   fileCaps = null,
@@ -91,6 +100,7 @@ export async function discoverFilesForModes({
     scmProviderImpl,
     scmRepoRoot,
     ignoreMatcher,
+    generatedPolicy,
     maxFileBytes,
     fileCaps,
     maxDepth,
@@ -123,6 +133,7 @@ export async function discoverEntries({
   scmProviderImpl = null,
   scmRepoRoot = null,
   ignoreMatcher,
+  generatedPolicy = null,
   maxFileBytes = null,
   fileCaps = null,
   maxDepth = null,
@@ -130,6 +141,9 @@ export async function discoverEntries({
   abortSignal = null
 }) {
   throwIfAborted(abortSignal);
+  const effectiveGeneratedPolicy = generatedPolicy && typeof generatedPolicy === 'object'
+    ? generatedPolicy
+    : buildGeneratedPolicyConfig({});
   const maxBytes = Number.isFinite(Number(maxFileBytes)) && Number(maxFileBytes) > 0
     ? Number(maxFileBytes)
     : null;
@@ -250,16 +264,14 @@ export async function discoverEntries({
     }
     throwIfAborted(abortSignal);
     const baseName = path.basename(absPath);
-    const ext = resolveSpecialCodeExt(baseName) || fileExt(absPath);
+    let ext = resolveSpecialCodeExt(baseName) || fileExt(absPath);
     const isManifest = isManifestFile(baseName);
     const isLock = isLockFile(baseName);
-    const language = getLanguageForFile(ext, relPosix);
-    const isSpecialLanguage = !!language && !EXTS_CODE.has(ext) && !EXTS_PROSE.has(ext);
-    const isSpecial = isSpecialCodeFile(baseName) || isManifest || isLock || isSpecialLanguage;
-    if (MINIFIED_NAME_REGEX.test(baseName.toLowerCase())) {
-      recordSkip(absPath, 'minified', { method: 'name' });
-      return;
-    }
+    const preclassifiedRecord = inRecordsRoot
+      ? { source: 'triage', recordType: 'record', reason: 'records-dir' }
+      : (recordsClassifier
+        ? recordsClassifier.classify({ absPath, relPath: relPosix, ext })
+        : null);
     if (path.isAbsolute(relPosix)) {
       recordSkip(absPath, 'ignored', { reason: 'absolute-rel-path' });
       return;
@@ -267,6 +279,23 @@ export async function discoverEntries({
     if (ignoreMatcher.ignores(relPosix)) {
       recordSkip(absPath, 'ignored');
       return;
+    }
+    // Record candidates (records root / include-glob / known record extensions)
+    // are routed first so generated-policy heuristics do not suppress records.
+    if (!preclassifiedRecord) {
+      const generatedPolicyDecision = resolveGeneratedPolicyDecision({
+        generatedPolicy: effectiveGeneratedPolicy,
+        relPath: relPosix,
+        absPath,
+        baseName
+      });
+      if (generatedPolicyDecision?.downgrade) {
+        recordSkip(absPath, generatedPolicyDecision.classification || 'generated', {
+          indexMode: generatedPolicyDecision.indexMode,
+          downgrade: buildGeneratedPolicyDowngradePayload(generatedPolicyDecision)
+        });
+        return;
+      }
     }
     try {
       let stat;
@@ -281,6 +310,16 @@ export async function discoverEntries({
         recordSkip(absPath, 'symlink');
         return;
       }
+      let language = getLanguageForFile(ext, relPosix);
+      if (!ext && !language && stat.isFile()) {
+        const shebang = await detectShebangLanguage(absPath);
+        if (shebang?.languageId) {
+          ext = shebang.ext || ext;
+          language = getLanguageForFile(ext, relPosix);
+        }
+      }
+      const isSpecialLanguage = !!language && !EXTS_CODE.has(ext) && !EXTS_PROSE.has(ext);
+      const isSpecial = isSpecialCodeFile(baseName) || isManifest || isLock || isSpecialLanguage;
       const maxBytesForFile = resolveMaxBytesForFile(ext, language?.id || null);
       if (maxBytesForFile && stat.size > maxBytesForFile) {
         recordSkip(absPath, 'oversize', {
@@ -294,9 +333,8 @@ export async function discoverEntries({
       if (maxFilesValue && acceptedCount >= maxFilesValue) {
         return;
       }
-      const record = inRecordsRoot
-        ? { source: 'triage', recordType: 'record', reason: 'records-dir' }
-        : (recordsClassifier
+      const record = preclassifiedRecord
+        || (recordsClassifier
           ? recordsClassifier.classify({ absPath, relPath: relPosix, ext })
           : null);
       entries.push({
@@ -415,7 +453,7 @@ function filterEntriesByMode(entries, mode, skippedFiles, documentExtractionConf
       if (skippedFiles) skippedFiles.push({ file: entry.abs, reason: 'unsupported' });
       continue;
     }
-    output.push({ abs: entry.abs, rel: entry.rel, stat: entry.stat });
+    output.push({ abs: entry.abs, rel: entry.rel, stat: entry.stat, ext: entry.ext });
   }
   return output;
 }

@@ -72,22 +72,22 @@ export async function buildDatabaseFromBundles({
   optimize,
   stats
 }) {
-  const log = (message) => {
+  const log = (message, meta = null) => {
     if (!emitOutput || !message) return;
     if (logger?.log) {
-      logger.log(message);
+      logger.log(message, meta);
       return;
     }
     console.error(message);
   };
-  const warn = (message) => {
+  const warn = (message, meta = null) => {
     if (!emitOutput || !message) return;
     if (logger?.warn) {
-      logger.warn(message);
+      logger.warn(message, meta);
       return;
     }
     if (logger?.log) {
-      logger.log(message);
+      logger.log(message, meta);
       return;
     }
     console.warn(message);
@@ -104,7 +104,9 @@ export async function buildDatabaseFromBundles({
   } = createBuildExecutionContext({ batchSize, inputBytes, statementStrategy, stats });
   const manifestFiles = incrementalData.manifest.files || {};
   const manifestLookup = normalizeManifestFiles(manifestFiles);
-  const manifestEntries = manifestLookup.entries;
+  // Preserve manifest insertion order so fallback doc-id assignment for bundles
+  // without explicit chunk ids matches chunk_meta row ordering.
+  const manifestEntries = [...manifestLookup.entries];
   if (!manifestEntries.length) {
     return { count: 0, denseCount: 0, reason: 'incremental manifest empty' };
   }
@@ -136,8 +138,9 @@ export async function buildDatabaseFromBundles({
     lastProgressLog = now;
     lastLoggedPercentBucket = Math.max(lastLoggedPercentBucket, percentBucket);
     const percent = percentValue.toFixed(1);
-    const suffix = file ? ` | ${file}` : '';
-    log(`[sqlite] bundles ${processedFiles}/${totalFiles} (${percent}%)${suffix}`);
+    const summaryLine = `[sqlite] bundles ${processedFiles}/${totalFiles} (${percent}%)`;
+    const fileOnlyLine = file ? `${summaryLine} | ${file}` : summaryLine;
+    log(summaryLine, { fileOnlyLine });
   };
   if (emitOutput) {
     log(`[sqlite] Using incremental bundles for ${mode} (${totalFiles} files).`);
@@ -190,6 +193,9 @@ export async function buildDatabaseFromBundles({
     let nextPhraseId = 0;
     let nextChargramId = 0;
     let nextDocId = 0;
+    const assignedDocIds = new Set();
+    let docIdWarnings = 0;
+    const maxDocIdWarnings = 5;
     let totalDocs = 0;
     let totalLen = 0;
     const validationStats = { chunks: 0, dense: 0, minhash: 0 };
@@ -290,13 +296,42 @@ export async function buildDatabaseFromBundles({
       flushBuffer(chargramVocabBuffer, insertChargramVocabMany, insertChargramVocab);
       flushBuffer(chargramPostingBuffer, insertChargramPostingMany, insertChargramPosting);
     };
+    const reserveFallbackDocId = () => {
+      while (assignedDocIds.has(nextDocId)) nextDocId += 1;
+      const docId = nextDocId;
+      assignedDocIds.add(docId);
+      nextDocId += 1;
+      return docId;
+    };
+    const resolveChunkDocId = (chunk, fileKey) => {
+      const rawDocId = chunk?.id;
+      const explicitDocId = Number(rawDocId);
+      const hasExplicitDocId = Number.isFinite(explicitDocId)
+        && Number.isInteger(explicitDocId)
+        && explicitDocId >= 0;
+      if (hasExplicitDocId) {
+        if (!assignedDocIds.has(explicitDocId)) {
+          assignedDocIds.add(explicitDocId);
+          return explicitDocId;
+        }
+        if (docIdWarnings < maxDocIdWarnings) {
+          warn(`[sqlite] Duplicate bundle chunk id ${explicitDocId} for ${fileKey}; assigning fallback doc id.`);
+          docIdWarnings += 1;
+        }
+        return reserveFallbackDocId();
+      }
+      if (rawDocId != null && docIdWarnings < maxDocIdWarnings) {
+        warn(`[sqlite] Invalid bundle chunk id for ${fileKey}; assigning fallback doc id.`);
+        docIdWarnings += 1;
+      }
+      return reserveFallbackDocId();
+    };
     const insertBundleBatch = db.transaction((chunks, start, end, fileKey, normalizedFile) => {
       const batchStart = performance.now();
       for (let idx = start; idx < end; idx += 1) {
         const chunk = chunks[idx];
         if (!chunk) continue;
-        const docId = nextDocId;
-        nextDocId += 1;
+        const docId = resolveChunkDocId(chunk, fileKey);
 
         const row = buildChunkRow({ ...chunk, file: chunk.file || fileKey }, mode, docId);
         insertChunk.run(row);

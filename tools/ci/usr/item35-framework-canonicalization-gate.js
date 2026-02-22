@@ -37,21 +37,34 @@ const main = async () => {
 
   const frameworkProfilesJson = await readJson(config.inputs.frameworkProfiles);
   const frameworkEdgeCasesJson = await readJson(config.inputs.frameworkEdgeCases);
+  const frameworkFixtureJson = config.inputs.frameworkFixtureBundle
+    ? await readJson(config.inputs.frameworkFixtureBundle)
+    : { rows: [] };
 
   const frameworkRows = ensureArray(frameworkProfilesJson.rows);
   const edgeCaseRows = ensureArray(frameworkEdgeCasesJson.rows);
+  const fixtureRows = ensureArray(frameworkFixtureJson.rows);
 
   const errors = [];
   const warnings = [];
 
   const profileById = new Map(frameworkRows.map((row) => [row.id, row]));
   const edgeCasesByFramework = new Map();
+  const edgeCaseIdByFramework = new Map();
+  const fixtureByFramework = new Map();
   for (const row of edgeCaseRows) {
     const frameworkId = row.frameworkProfile;
     if (!edgeCasesByFramework.has(frameworkId)) {
       edgeCasesByFramework.set(frameworkId, []);
+      edgeCaseIdByFramework.set(frameworkId, new Set());
     }
     edgeCasesByFramework.get(frameworkId).push(row);
+    edgeCaseIdByFramework.get(frameworkId).add(row.id);
+  }
+  for (const row of fixtureRows) {
+    const frameworkId = row.frameworkProfile;
+    if (!frameworkId || fixtureByFramework.has(frameworkId)) continue;
+    fixtureByFramework.set(frameworkId, row);
   }
 
   const requiredFrameworks = ensureArray(config.requiredFrameworkProfiles);
@@ -61,6 +74,9 @@ const main = async () => {
     }
     if (!edgeCasesByFramework.has(frameworkId)) {
       errors.push(`missing framework edge-case rows: ${frameworkId}`);
+    }
+    if (!fixtureByFramework.has(frameworkId)) {
+      errors.push(`missing framework canonicalization fixture row: ${frameworkId}`);
     }
   }
 
@@ -72,11 +88,38 @@ const main = async () => {
     if (!profile) continue;
 
     const edgeRows = edgeCasesByFramework.get(frameworkId) || [];
+    const edgeCaseIds = edgeCaseIdByFramework.get(frameworkId) || new Set();
+    const fixtureRow = fixtureByFramework.get(frameworkId) || {};
+    const coveredEdgeCaseIds = new Set(ensureArray(fixtureRow.coveredEdgeCaseIds));
+    const fixtureKinds = new Set(
+      ensureArray(fixtureRow.edges)
+        .map((edge) => String(edge?.kind || '').trim())
+        .filter(Boolean)
+    );
+    const expectedEdgeCaseIds = ensureArray(profile.edgeCaseCaseIds);
     const coverage = {
       route: false,
       template: false,
-      style: false
+      style: false,
+      missingFixtureEdgeCaseIds: []
     };
+
+    for (const edgeCaseId of expectedEdgeCaseIds) {
+      if (!edgeCaseIds.has(edgeCaseId)) {
+        errors.push(`framework profile ${frameworkId} references unknown edge-case id ${edgeCaseId}`);
+      }
+      if (!coveredEdgeCaseIds.has(edgeCaseId)) {
+        coverage.missingFixtureEdgeCaseIds.push(edgeCaseId);
+      }
+    }
+
+    for (const coveredEdgeCaseId of coveredEdgeCaseIds) {
+      if (!edgeCaseIds.has(coveredEdgeCaseId)) {
+        errors.push(
+          `framework canonicalization fixture ${frameworkId} references unknown edge-case id ${coveredEdgeCaseId}`
+        );
+      }
+    }
 
     for (const row of edgeRows) {
       const category = row.category;
@@ -112,6 +155,19 @@ const main = async () => {
       if (!coverage[category]) {
         errors.push(`framework ${frameworkId} missing ${category} edge-case coverage`);
       }
+      const requiredKind = categoryKinds[category];
+      if (requiredKind && !fixtureKinds.has(requiredKind)) {
+        errors.push(
+          `framework canonicalization fixture ${frameworkId} missing required edge kind ${requiredKind}`
+        );
+      }
+    }
+
+    if (coverage.missingFixtureEdgeCaseIds.length) {
+      errors.push(
+        `framework canonicalization fixture ${frameworkId} missing covered edge-case ids: `
+        + coverage.missingFixtureEdgeCaseIds.join(', ')
+      );
     }
 
     if ((edgeRows.length || 0) < 3) {
@@ -120,6 +176,8 @@ const main = async () => {
 
     coverageByFramework[frameworkId] = {
       edgeCaseCount: edgeRows.length,
+      expectedEdgeCaseIds: expectedEdgeCaseIds.length,
+      coveredEdgeCaseIds: coveredEdgeCaseIds.size,
       routeEnabled: requiresRoute,
       coverage
     };
@@ -135,6 +193,7 @@ const main = async () => {
     metrics: {
       frameworkProfiles: frameworkRows.length,
       edgeCaseRows: edgeCaseRows.length,
+      fixtureRows: fixtureRows.length,
       requiredFrameworks: requiredFrameworks.length
     },
     coverageByFramework,

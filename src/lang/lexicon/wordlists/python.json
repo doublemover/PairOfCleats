@@ -4,21 +4,29 @@
   "keywords": [
     "and",
     "as",
+    "assert",
+    "async",
+    "await",
     "break",
+    "case",
     "class",
     "continue",
     "def",
+    "del",
     "elif",
     "else",
     "except",
     "finally",
     "for",
     "from",
+    "global",
     "if",
     "import",
     "in",
     "is",
     "lambda",
+    "match",
+    "nonlocal",
     "not",
     "or",
     "pass",
@@ -34,25 +42,15 @@
     "none",
     "true"
   ],
-  "types": [
-    "bool",
+  "types": [],
+  "builtins": [
     "dict",
-    "float",
-    "int",
     "list",
     "set",
-    "str"
+    "tuple"
   ],
-  "builtins": [
-    "len",
-    "print",
-    "range"
-  ],
-  "modules": [
-    "collections",
-    "os",
-    "pathlib",
-    "sys"
-  ],
-  "notes": []
+  "modules": [],
+  "notes": [
+    "Language-specific lexicon for keyword/literal stopword filtering."
+  ]
 }

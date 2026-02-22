@@ -89,6 +89,8 @@ export function resolveTokenPostingsPlan({
     const packedThreshold = Number.isFinite(packedThresholdRaw) && packedThresholdRaw > 0
       ? Math.floor(packedThresholdRaw)
       : null;
+    // Auto mode prefers packed token postings once estimated JSON payload size
+    // crosses the configured threshold and binary-columnar support is enabled.
     if (
       tokenPostingsFormat === 'auto'
       && tokenPostingsBinaryColumnar === true

@@ -1,4 +1,4 @@
-import { ERROR_CODES, isErrorCode } from '../../shared/error-codes.js';
+import { buildErrorPayload, ERROR_CODES, isErrorCode, resolveErrorHint } from '../../shared/error-codes.js';
 import { closeJsonRpcWriter, writeFramedJsonRpc } from '../../shared/jsonrpc.js';
 
 export const MCP_PROTOCOL_VERSION = '2024-11-05';
@@ -57,50 +57,6 @@ export function closeOutput(output = process.stdout) {
   closeJsonRpcWriter(output);
 }
 
-const MAX_HINT_INPUT = 16384;
-
-const capHintInput = (value) => {
-  if (!value) return '';
-  const text = String(value);
-  if (text.length <= MAX_HINT_INPUT) return text;
-  return text.slice(0, MAX_HINT_INPUT);
-};
-
-const getRemediationHint = (error) => {
-  const parts = [error?.message, error?.stderr, error?.stdout]
-    .map(capHintInput)
-    .filter(Boolean)
-    .join('\n')
-    .toLowerCase();
-  if (!parts) return null;
-
-  if (parts.includes('sqlite backend requested but index not found')
-    || parts.includes('missing required tables')) {
-    return 'Run `pairofcleats index build --stage 4` (or `node build_index.js --stage 4`) or set sqlite.use=false / --backend memory.';
-  }
-  if (parts.includes('better-sqlite3 is required')) {
-    return 'Run `npm install` and ensure better-sqlite3 can load on this platform.';
-  }
-  if (parts.includes('chunk_meta.json')
-    || parts.includes('minhash_signatures')
-    || parts.includes('index not found')
-    || parts.includes('build-index')
-    || parts.includes('build index')) {
-    return 'Run `pairofcleats index build` (build-index) or `pairofcleats setup`/`pairofcleats bootstrap` to generate indexes.';
-  }
-  if ((parts.includes('model') || parts.includes('xenova') || parts.includes('transformers'))
-    && (parts.includes('not found') || parts.includes('failed') || parts.includes('fetch') || parts.includes('download') || parts.includes('enoent'))) {
-    return 'Run `node tools/download/models.js` or use `--stub-embeddings` / `PAIROFCLEATS_EMBEDDINGS=stub`.';
-  }
-  if (parts.includes('dictionary')
-    || parts.includes('wordlist')
-    || parts.includes('words_alpha')
-    || parts.includes('download-dicts')) {
-    return 'Run `node tools/download/dicts.js --lang en` (or configure dictionary.files/languages).';
-  }
-  return null;
-};
-
 const resolveToolErrorCode = (error) => {
   if (isErrorCode(error?.code)) return error.code;
   if (error?.code === 'ERR_ABORTED' || error?.name === 'AbortError') {
@@ -111,10 +67,10 @@ const resolveToolErrorCode = (error) => {
 
 export function formatToolError(error) {
   const code = resolveToolErrorCode(error);
-  const payload = {
+  const payload = buildErrorPayload({
     code,
     message: error?.message || String(error)
-  };
+  });
   if (!isErrorCode(error?.code) && error?.code != null) {
     const numericCode = Number(error.code);
     if (Number.isFinite(numericCode)) {
@@ -126,8 +82,13 @@ export function formatToolError(error) {
   if (error?.stderr) payload.stderr = String(error.stderr).trim();
   if (error?.stdout) payload.stdout = String(error.stdout).trim();
   if (error?.timeoutMs) payload.timeoutMs = error.timeoutMs;
-  const hint = getRemediationHint(error);
-  if (hint) payload.hint = hint;
+  payload.hint = resolveErrorHint({
+    code,
+    message: payload.message,
+    stderr: payload.stderr,
+    stdout: payload.stdout,
+    hint: error?.hint
+  });
   return payload;
 }
 

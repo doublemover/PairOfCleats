@@ -218,6 +218,40 @@ const inferEntryFormat = (entry) => {
   return 'json';
 };
 
+const stripCompressionSuffix = (value) => (
+  typeof value === 'string'
+    ? value.replace(/\.(?:gz|zst)$/i, '')
+    : ''
+);
+
+const resolveCompressionPreference = (entry) => {
+  const value = typeof entry?.path === 'string' ? entry.path.toLowerCase() : '';
+  if (value.endsWith('.zst')) return 0;
+  if (value.endsWith('.gz')) return 1;
+  return 2;
+};
+
+const canResolveSingleVariantEntry = (entries) => {
+  const basePaths = new Set(
+    entries
+      .map((entry) => stripCompressionSuffix(entry?.path || ''))
+      .filter(Boolean)
+  );
+  return basePaths.size === 1;
+};
+
+const selectCanonicalVariantEntry = (entries) => (
+  entries
+    .slice()
+    .sort((a, b) => {
+      const compressionDiff = resolveCompressionPreference(a) - resolveCompressionPreference(b);
+      if (compressionDiff !== 0) return compressionDiff;
+      const left = a?.path || '';
+      const right = b?.path || '';
+      return left < right ? -1 : (left > right ? 1 : 0);
+    })[0] || null
+);
+
 export const normalizeMetaParts = (parts) => {
   if (!Array.isArray(parts)) return [];
   return parts
@@ -299,23 +333,29 @@ export const resolveManifestArtifactSources = ({ dir, manifest, name, strict, ma
     }
   }
   if (!entries.length) return null;
-  if (entries.length > 1 && strict) {
-    const err = new Error(`Ambiguous manifest entries for ${name}`);
-    err.code = 'ERR_MANIFEST_INVALID';
-    throw err;
-  }
-  const resolvedEntries = entries.slice().sort((a, b) => {
+  let resolvedEntries = entries.slice().sort((a, b) => {
     const aPath = a?.path || '';
     const bPath = b?.path || '';
     return aPath < bPath ? -1 : (aPath > bPath ? 1 : 0);
   });
+  if (resolvedEntries.length > 1 && strict) {
+    if (canResolveSingleVariantEntry(resolvedEntries)) {
+      const selected = selectCanonicalVariantEntry(resolvedEntries);
+      resolvedEntries = selected ? [selected] : resolvedEntries;
+    } else {
+      const err = new Error(`Ambiguous manifest entries for ${name}`);
+      err.code = 'ERR_MANIFEST_INVALID';
+      throw err;
+    }
+  }
   const paths = resolvedEntries
     .map((entry) => resolveManifestPath(dir, entry?.path, strict))
     .filter(Boolean);
   if (!paths.length) return null;
   return {
     format: inferEntryFormat(resolvedEntries[0]),
-    paths
+    paths,
+    entries: resolvedEntries
   };
 };
 
@@ -325,7 +365,9 @@ export const resolveArtifactPresence = (
   {
     manifest = null,
     maxBytes = MAX_JSON_BYTES,
-    strict = true
+    strict = true,
+    fallbackPath = null,
+    fallbackDirEntry = false
   } = {}
 ) => {
   const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
@@ -343,6 +385,22 @@ export const resolveArtifactPresence = (
     error = err;
   }
   if (!sources) {
+    if (!strict) {
+      const fallback = resolveFallbackPath(fallbackPath, { dirEntry: fallbackDirEntry });
+      if (fallback) {
+        warnNonStrictFallback(dir, name);
+        return {
+          name,
+          format: fallbackDirEntry ? 'directory' : inferEntryFormat({ path: fallback }),
+          paths: [fallback],
+          metaPath: null,
+          meta: null,
+          missingPaths: [],
+          missingMeta: false,
+          error
+        };
+      }
+    }
     return {
       name,
       format: 'missing',

@@ -1,5 +1,6 @@
 import os from 'node:os';
 import { getEnvConfig } from '../../../shared/env.js';
+import { coerceClampedFraction, coercePositiveIntMinOne } from '../../../shared/number-coerce.js';
 
 const normalizeEnabled = (raw) => {
   if (raw === true || raw === false) return raw;
@@ -10,15 +11,49 @@ const normalizeEnabled = (raw) => {
   return 'auto';
 };
 
-const parsePositiveInt = (value) => {
+const coerceNonNegativeInt = (value) => {
   const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed <= 0) return null;
-  return Math.max(1, Math.floor(parsed));
+  if (!Number.isFinite(parsed) || parsed < 0) return null;
+  return Math.floor(parsed);
 };
 
 const WORKER_HEAP_TARGET_MIN_MB = 1024;
 const WORKER_HEAP_TARGET_DEFAULT_MB = 1536;
 const WORKER_HEAP_TARGET_MAX_MB = 2048;
+const NUMA_PINNING_STRATEGIES = new Set(['interleave', 'compact']);
+const DEFAULT_PRESSURE_THROTTLE_HEAVY_LANGUAGES = Object.freeze([
+  'clike',
+  'cpp',
+  'swift',
+  'rust',
+  'java',
+  'kotlin',
+  'typescript',
+  'tsx'
+]);
+
+/**
+ * Downscale worker count only when both signals indicate sustained pressure.
+ * This avoids reducing concurrency for transient RSS spikes or GC-only blips.
+ *
+ * @param {object} input
+ * @param {number} input.rssPressure
+ * @param {number} input.gcPressure
+ * @param {number} input.rssThreshold
+ * @param {number} input.gcThreshold
+ * @returns {boolean}
+ */
+export const shouldDownscaleWorkersForPressure = ({
+  rssPressure,
+  gcPressure,
+  rssThreshold,
+  gcThreshold
+}) => Number.isFinite(rssPressure)
+    && Number.isFinite(gcPressure)
+    && Number.isFinite(rssThreshold)
+    && Number.isFinite(gcThreshold)
+    && rssPressure >= rssThreshold
+    && gcPressure >= gcThreshold;
 
 /**
  * Build worker `execArgv` by removing parent heap flags so worker limits can
@@ -61,30 +96,30 @@ export const resolveWorkerHeapBudgetPolicy = (options = {}) => {
   const envConfig = options?.envConfig && typeof options.envConfig === 'object'
     ? options.envConfig
     : getEnvConfig();
-  const envTargetMb = parsePositiveInt(envConfig?.workerPoolHeapTargetMb);
-  const envMinMb = parsePositiveInt(envConfig?.workerPoolHeapMinMb);
-  const envMaxMb = parsePositiveInt(envConfig?.workerPoolHeapMaxMb);
+  const envTargetMb = coercePositiveIntMinOne(envConfig?.workerPoolHeapTargetMb);
+  const envMinMb = coercePositiveIntMinOne(envConfig?.workerPoolHeapMinMb);
+  const envMaxMb = coercePositiveIntMinOne(envConfig?.workerPoolHeapMaxMb);
   const totalMemMb = Math.floor(os.totalmem() / (1024 * 1024));
   const autoTargetMb = Number.isFinite(totalMemMb) && totalMemMb >= 65536
     ? WORKER_HEAP_TARGET_MAX_MB
     : Number.isFinite(totalMemMb) && totalMemMb >= 24576
       ? WORKER_HEAP_TARGET_DEFAULT_MB
       : WORKER_HEAP_TARGET_MIN_MB;
-  const minPerWorkerMb = parsePositiveInt(options.minPerWorkerMb)
+  const minPerWorkerMb = coercePositiveIntMinOne(options.minPerWorkerMb)
     || envMinMb
     || WORKER_HEAP_TARGET_MIN_MB;
   const maxPerWorkerMb = Math.max(
     minPerWorkerMb,
     Math.min(
       process.platform === 'win32' ? 8192 : 16384,
-      parsePositiveInt(options.maxPerWorkerMb) || envMaxMb || WORKER_HEAP_TARGET_MAX_MB
+      coercePositiveIntMinOne(options.maxPerWorkerMb) || envMaxMb || WORKER_HEAP_TARGET_MAX_MB
     )
   );
   const targetPerWorkerMb = Math.max(
     minPerWorkerMb,
     Math.min(
       maxPerWorkerMb,
-      parsePositiveInt(options.targetPerWorkerMb) || envTargetMb || autoTargetMb || WORKER_HEAP_TARGET_DEFAULT_MB
+      coercePositiveIntMinOne(options.targetPerWorkerMb) || envTargetMb || autoTargetMb || WORKER_HEAP_TARGET_DEFAULT_MB
     )
   );
   return {
@@ -106,19 +141,26 @@ const parseMaxOldSpaceMb = () => {
     ? nodeOptionsRaw.split(/\s+/).filter(Boolean)
     : [];
   const args = [...execArgv, ...nodeOptionsArgv];
+  let resolved = null;
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i];
     if (typeof arg !== 'string') continue;
     if (arg.startsWith('--max-old-space-size=')) {
       const value = Number(arg.split('=')[1]);
-      if (Number.isFinite(value) && value > 0) return Math.floor(value);
+      if (Number.isFinite(value) && value > 0) {
+        const mb = Math.floor(value);
+        resolved = resolved == null ? mb : Math.min(resolved, mb);
+      }
     }
     if (arg === '--max-old-space-size') {
       const value = Number(args[i + 1]);
-      if (Number.isFinite(value) && value > 0) return Math.floor(value);
+      if (Number.isFinite(value) && value > 0) {
+        const mb = Math.floor(value);
+        resolved = resolved == null ? mb : Math.min(resolved, mb);
+      }
     }
   }
-  return null;
+  return resolved;
 };
 
 /**
@@ -277,15 +319,79 @@ export function normalizeWorkerPoolConfig(raw = {}, options = {}) {
   const quantizeMaxWorkers = Number.isFinite(quantizeMaxWorkersRaw) && quantizeMaxWorkersRaw > 0
     ? Math.max(1, Math.floor(quantizeMaxWorkersRaw))
     : null;
-  const heapTargetMb = parsePositiveInt(raw.heapTargetMb);
-  const heapMinMb = parsePositiveInt(raw.heapMinMb);
-  const heapMaxMb = parsePositiveInt(raw.heapMaxMb);
+  const heapTargetMb = coercePositiveIntMinOne(raw.heapTargetMb);
+  const heapMinMb = coercePositiveIntMinOne(raw.heapMinMb);
+  const heapMaxMb = coercePositiveIntMinOne(raw.heapMaxMb);
   const normalizedHeapMinMb = heapMinMb != null && heapMaxMb != null
     ? Math.min(heapMinMb, heapMaxMb)
     : heapMinMb;
   const normalizedHeapMaxMb = heapMaxMb != null && normalizedHeapMinMb != null
     ? Math.max(heapMaxMb, normalizedHeapMinMb)
     : heapMaxMb;
+  const autoDownscaleOnPressure = raw.autoDownscaleOnPressure !== false;
+  const downscaleRssThreshold = coerceClampedFraction(
+    raw.downscaleRssThreshold,
+    { min: 0.5, max: 0.99, allowZero: false }
+  ) ?? 0.95;
+  const downscaleGcThreshold = coerceClampedFraction(
+    raw.downscaleGcThreshold,
+    { min: 0.5, max: 0.99, allowZero: false }
+  ) ?? 0.92;
+  const downscaleCooldownMsRaw = Number(raw.downscaleCooldownMs);
+  const downscaleCooldownMs = Number.isFinite(downscaleCooldownMsRaw) && downscaleCooldownMsRaw > 0
+    ? Math.max(1000, Math.floor(downscaleCooldownMsRaw))
+    : 15000;
+  const downscaleMinWorkersRaw = coercePositiveIntMinOne(raw.downscaleMinWorkers);
+  const downscaleMinWorkers = downscaleMinWorkersRaw != null
+    ? Math.max(1, Math.min(maxWorkers, downscaleMinWorkersRaw))
+    : Math.max(1, Math.floor(maxWorkers * 0.5));
+  const memoryWatermarkSoft = coerceClampedFraction(
+    raw.memoryWatermarkSoft,
+    { min: 0.7, max: 0.995, allowZero: false }
+  ) ?? 0.985;
+  const configuredMemoryWatermarkHard = coerceClampedFraction(
+    raw.memoryWatermarkHard,
+    { min: 0.75, max: 0.999, allowZero: false }
+  ) ?? 0.995;
+  const memoryWatermarkHard = Math.min(
+    0.999,
+    Math.max(memoryWatermarkSoft + 0.01, configuredMemoryWatermarkHard)
+  );
+  const pressureThrottleConfig = raw.pressureLanguageThrottle
+    && typeof raw.pressureLanguageThrottle === 'object'
+    ? raw.pressureLanguageThrottle
+    : {};
+  const heavyLanguages = Array.from(new Set(
+    (Array.isArray(pressureThrottleConfig.heavyLanguages)
+      ? pressureThrottleConfig.heavyLanguages
+      : DEFAULT_PRESSURE_THROTTLE_HEAVY_LANGUAGES)
+      .filter((entry) => typeof entry === 'string' && entry.trim())
+      .map((entry) => entry.trim().toLowerCase())
+  ));
+  const softMaxPerLanguage = coercePositiveIntMinOne(
+    pressureThrottleConfig.softMaxPerLanguage
+  ) ?? Math.max(3, Math.min(maxWorkers, Math.max(6, Math.floor(maxWorkers * 0.9))));
+  const hardMaxPerLanguageRaw = coerceNonNegativeInt(
+    pressureThrottleConfig.hardMaxPerLanguage
+  );
+  const hardMaxPerLanguage = Math.min(
+    softMaxPerLanguage,
+    hardMaxPerLanguageRaw ?? Math.max(2, Math.floor(softMaxPerLanguage * 0.5))
+  );
+  const pressureCacheMaxEntries = coercePositiveIntMinOne(raw.pressureCacheMaxEntries) ?? 2048;
+  const blockHeavyOnHardPressure = pressureThrottleConfig.blockHeavyOnHardPressure !== false;
+  const numaConfig = raw?.numaPinning && typeof raw.numaPinning === 'object'
+    ? raw.numaPinning
+    : {};
+  const numaStrategyRaw = typeof numaConfig.strategy === 'string'
+    ? numaConfig.strategy.trim().toLowerCase()
+    : '';
+  const numaStrategy = NUMA_PINNING_STRATEGIES.has(numaStrategyRaw)
+    ? numaStrategyRaw
+    : 'interleave';
+  const numaMinCpuCores = coercePositiveIntMinOne(numaConfig.minCpuCores) || 24;
+  const numaNodeCount = coercePositiveIntMinOne(numaConfig.nodeCount);
+  const numaEnabled = numaConfig.enabled === true;
   return {
     enabled,
     maxWorkers,
@@ -298,7 +404,30 @@ export function normalizeWorkerPoolConfig(raw = {}, options = {}) {
     quantizeMaxWorkers,
     heapTargetMb,
     heapMinMb: normalizedHeapMinMb,
-    heapMaxMb: normalizedHeapMaxMb
+    heapMaxMb: normalizedHeapMaxMb,
+    autoDownscaleOnPressure,
+    downscaleRssThreshold,
+    downscaleGcThreshold,
+    downscaleCooldownMs,
+    downscaleMinWorkers,
+    memoryPressure: {
+      watermarkSoft: memoryWatermarkSoft,
+      watermarkHard: memoryWatermarkHard,
+      cacheMaxEntries: pressureCacheMaxEntries,
+      languageThrottle: {
+        enabled: pressureThrottleConfig.enabled !== false,
+        heavyLanguages,
+        softMaxPerLanguage,
+        hardMaxPerLanguage,
+        blockHeavyOnHardPressure
+      }
+    },
+    numaPinning: {
+      enabled: numaEnabled,
+      strategy: numaStrategy,
+      minCpuCores: numaMinCpuCores,
+      nodeCount: numaNodeCount
+    }
   };
 }
 
@@ -326,15 +455,15 @@ export function resolveWorkerPoolConfig(raw = {}, envConfig = null, options = {}
       config.enabled = 'auto';
     }
   }
-  const maxWorkersOverride = parsePositiveInt(envConfig?.workerPoolMaxWorkers);
+  const maxWorkersOverride = coercePositiveIntMinOne(envConfig?.workerPoolMaxWorkers);
   if (maxWorkersOverride != null) {
     config.maxWorkers = hardMaxWorkers != null
       ? Math.min(maxWorkersOverride, hardMaxWorkers)
       : maxWorkersOverride;
   }
-  const heapTargetOverride = parsePositiveInt(envConfig?.workerPoolHeapTargetMb);
-  const heapMinOverride = parsePositiveInt(envConfig?.workerPoolHeapMinMb);
-  const heapMaxOverride = parsePositiveInt(envConfig?.workerPoolHeapMaxMb);
+  const heapTargetOverride = coercePositiveIntMinOne(envConfig?.workerPoolHeapTargetMb);
+  const heapMinOverride = coercePositiveIntMinOne(envConfig?.workerPoolHeapMinMb);
+  const heapMaxOverride = coercePositiveIntMinOne(envConfig?.workerPoolHeapMaxMb);
   if (heapTargetOverride != null) config.heapTargetMb = heapTargetOverride;
   if (heapMinOverride != null) config.heapMinMb = heapMinOverride;
   if (heapMaxOverride != null) config.heapMaxMb = heapMaxOverride;

@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { toPosix } from '../../../shared/files.js';
+import { isPathUnderDir } from '../../../shared/path-normalize.js';
 
 export const normalizeParser = (raw, fallback, allowed) => {
   const normalized = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
@@ -100,12 +101,6 @@ const toPosixRelative = (from, to) => {
   return toPosix(relative);
 };
 
-const isWithinRoot = (rootPath, targetPath) => {
-  const relative = path.relative(rootPath, targetPath);
-  if (!relative || relative === '.') return true;
-  return !relative.startsWith('..') && !path.isAbsolute(relative);
-};
-
 /**
  * Normalize dictionary file paths into stable signature keys.
  *
@@ -121,12 +116,12 @@ export const normalizeDictSignaturePath = ({ dictFile, dictDir, repoRoot }) => {
   const normalized = resolvePath(dictFile);
   if (dictDir) {
     const normalizedDictDir = resolvePath(dictDir);
-    if (isWithinRoot(normalizedDictDir, normalized)) {
+    if (isPathUnderDir(normalizedDictDir, normalized)) {
       return toPosixRelative(normalizedDictDir, normalized);
     }
   }
   const normalizedRepoRoot = resolvePath(repoRoot);
-  if (isWithinRoot(normalizedRepoRoot, normalized)) {
+  if (isPathUnderDir(normalizedRepoRoot, normalized)) {
     return toPosixRelative(normalizedRepoRoot, normalized);
   }
   return toPosix(normalizeAbsolutePathForSignature(normalized));

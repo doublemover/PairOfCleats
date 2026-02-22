@@ -1,11 +1,29 @@
 import { spawn, spawnSync } from 'node:child_process';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { killChildProcessTree } from './kill-tree.js';
 
 const DEFAULT_MAX_OUTPUT_BYTES = 1_000_000;
 const DEFAULT_KILL_GRACE_MS = 5000;
+const TRACKED_SUBPROCESS_FORCE_GRACE_MS = 0;
+const TRACKED_SUBPROCESS_TERMINATION_SIGNALS = Object.freeze(['SIGINT', 'SIGTERM']);
 
 const SHELL_MODE_DISABLED_ERROR = (
   'spawnSubprocess shell mode is disabled for security; pass an executable and args with shell=false.'
 );
+
+const trackedSubprocesses = new Map();
+let trackedSubprocessHooksInstalled = false;
+let trackedSubprocessShutdownTriggered = false;
+let trackedSubprocessShutdownPromise = null;
+const signalForwardInFlight = new Set();
+const trackedScopeByAbortSignal = new WeakMap();
+const trackedSubprocessScopeContext = new AsyncLocalStorage();
+
+const normalizeTrackedScope = (value) => {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+};
 
 export class SubprocessError extends Error {
   constructor(message, result, cause) {
@@ -107,40 +125,6 @@ const createCollector = ({ enabled, maxOutputBytes, encoding }) => {
   return { push, toOutput };
 };
 
-const killProcessTree = (child, { killTree, killSignal, killGraceMs, detached }) => {
-  if (!child || !child.pid) return;
-  if (process.platform === 'win32') {
-    if (killTree !== false) {
-      try {
-        spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
-      } catch {}
-    }
-    try {
-      child.kill();
-    } catch {}
-    return;
-  }
-  const useProcessGroup = killTree !== false && detached === true;
-  try {
-    if (useProcessGroup) {
-      process.kill(-child.pid, killSignal);
-    } else {
-      child.kill(killSignal);
-    }
-  } catch {}
-  if (killGraceMs > 0) {
-    setTimeout(() => {
-      try {
-        if (useProcessGroup) {
-          process.kill(-child.pid, 'SIGKILL');
-        } else {
-          child.kill('SIGKILL');
-        }
-      } catch {}
-    }, killGraceMs).unref?.();
-  }
-};
-
 const buildResult = ({ pid, exitCode, signal, startedAt, stdout, stderr }) => ({
   pid,
   exitCode,
@@ -168,6 +152,193 @@ const trimOutput = (value, maxBytes, encoding, mode) => {
   return lines;
 };
 
+const removeTrackedSubprocess = (entryKey) => {
+  const entry = trackedSubprocesses.get(entryKey);
+  if (!entry) return null;
+  trackedSubprocesses.delete(entryKey);
+  try {
+    entry.child?.off('close', entry.onClose);
+  } catch {}
+  return entry;
+};
+
+/**
+ * Bind a tracked-subprocess cleanup scope to an AbortSignal for the duration
+ * of an async operation.
+ *
+ * Any subprocess created via `spawnSubprocess(...)` while the binding is
+ * active will inherit this scope unless an explicit cleanup scope is provided.
+ * When a shared `AbortSignal` is passed through, we also bind the signal so
+ * out-of-context signal handlers can resolve the same scope.
+ *
+ * @template T
+ * @param {AbortSignal|null|undefined} signal
+ * @param {string|null|undefined} scope
+ * @param {() => Promise<T>|T} operation
+ * @returns {Promise<T>}
+ */
+export const withTrackedSubprocessSignalScope = async (signal, scope, operation) => {
+  if (typeof operation !== 'function') {
+    throw new TypeError('withTrackedSubprocessSignalScope requires an operation function.');
+  }
+  const normalizedScope = normalizeTrackedScope(scope);
+  if (!normalizedScope) {
+    return Promise.resolve().then(() => operation());
+  }
+  const bindSignal = signal && typeof signal === 'object';
+  const runOperation = async () => {
+    if (bindSignal) trackedScopeByAbortSignal.set(signal, normalizedScope);
+    try {
+      return await operation();
+    } finally {
+      if (bindSignal && trackedScopeByAbortSignal.get(signal) === normalizedScope) {
+        trackedScopeByAbortSignal.delete(signal);
+      }
+    }
+  };
+  return trackedSubprocessScopeContext.run({ scope: normalizedScope }, runOperation);
+};
+
+/**
+ * Terminate all currently tracked child processes.
+ *
+ * This is used by lifecycle hooks (exit/signals/uncaught exceptions) and can
+ * also be invoked by callers that need deterministic cleanup boundaries.
+ *
+ * @param {{reason?:string,force?:boolean,scope?:string|null}} [input]
+ * @returns {Promise<{reason:string,tracked:number,attempted:number,failures:number,scope:string|null}>}
+ */
+export const terminateTrackedSubprocesses = async ({
+  reason = 'shutdown',
+  force = false,
+  scope = null
+} = {}) => {
+  const normalizedScope = normalizeTrackedScope(scope);
+  const entries = [];
+  for (const [entryKey, entry] of trackedSubprocesses.entries()) {
+    if (normalizedScope && entry?.scope !== normalizedScope) continue;
+    const removed = removeTrackedSubprocess(entryKey);
+    if (removed) entries.push(removed);
+  }
+  if (!entries.length) {
+    return {
+      reason,
+      tracked: 0,
+      attempted: 0,
+      failures: 0,
+      scope: normalizedScope
+    };
+  }
+  const settled = await Promise.allSettled(entries.map((entry) => killChildProcessTree(entry.child, {
+    killTree: entry.killTree,
+    killSignal: entry.killSignal,
+    graceMs: force ? TRACKED_SUBPROCESS_FORCE_GRACE_MS : entry.killGraceMs,
+    detached: entry.detached,
+    awaitGrace: force === true
+  })));
+  const failures = settled.filter((result) => result.status === 'rejected').length;
+  return {
+    reason,
+    tracked: entries.length,
+    attempted: entries.length,
+    failures,
+    scope: normalizedScope
+  };
+};
+
+/**
+ * Trigger one-time tracked-child shutdown for process teardown paths.
+ *
+ * @param {string} reason
+ * @returns {Promise<unknown>}
+ */
+const triggerTrackedSubprocessShutdown = (reason) => {
+  if (trackedSubprocessShutdownTriggered) return trackedSubprocessShutdownPromise;
+  trackedSubprocessShutdownTriggered = true;
+  trackedSubprocessShutdownPromise = terminateTrackedSubprocesses({ reason, force: true })
+    .catch(() => null);
+  return trackedSubprocessShutdownPromise;
+};
+
+const forwardSignalToDefault = (signal) => {
+  const normalizedSignal = typeof signal === 'string' ? signal.trim() : '';
+  if (!normalizedSignal || signalForwardInFlight.has(normalizedSignal)) return;
+  signalForwardInFlight.add(normalizedSignal);
+  try {
+    process.kill(process.pid, normalizedSignal);
+  } catch {}
+  setImmediate(() => {
+    signalForwardInFlight.delete(normalizedSignal);
+  });
+};
+
+/**
+ * Install process lifecycle hooks that flush tracked subprocesses before exit.
+ *
+ * Hooks include explicit termination signals so CI/job cancellation still runs
+ * child cleanup even when Node would otherwise terminate by default handling.
+ *
+ * @returns {void}
+ */
+const installTrackedSubprocessHooks = () => {
+  if (trackedSubprocessHooksInstalled) return;
+  trackedSubprocessHooksInstalled = true;
+  process.once('exit', () => {
+    triggerTrackedSubprocessShutdown('process_exit');
+  });
+  process.on('uncaughtExceptionMonitor', () => {
+    triggerTrackedSubprocessShutdown('uncaught_exception');
+  });
+  for (const signal of TRACKED_SUBPROCESS_TERMINATION_SIGNALS) {
+    try {
+      process.once(signal, () => {
+        const hasAdditionalSignalHandlers = process.listenerCount(signal) > 0;
+        void triggerTrackedSubprocessShutdown(`signal_${String(signal || '').toLowerCase()}`)
+          .finally(() => {
+            if (!hasAdditionalSignalHandlers) {
+              forwardSignalToDefault(signal);
+            }
+          });
+      });
+    } catch {}
+  }
+};
+
+export const registerChildProcessForCleanup = (child, options = {}) => {
+  if (!child || !child.pid) {
+    return () => {};
+  }
+  installTrackedSubprocessHooks();
+  const entryKey = Symbol(`tracked-subprocess:${child.pid}`);
+  const entry = {
+    child,
+    killTree: options.killTree !== false,
+    killSignal: options.killSignal || 'SIGTERM',
+    killGraceMs: resolveKillGraceMs(options.killGraceMs),
+    detached: options.detached === true,
+    scope: normalizeTrackedScope(options.scope ?? options.cleanupScope),
+    onClose: null
+  };
+  entry.onClose = () => {
+    removeTrackedSubprocess(entryKey);
+  };
+  trackedSubprocesses.set(entryKey, entry);
+  child.once('close', entry.onClose);
+  return () => {
+    removeTrackedSubprocess(entryKey);
+  };
+};
+
+export const getTrackedSubprocessCount = (scope = null) => {
+  const normalizedScope = normalizeTrackedScope(scope);
+  if (!normalizedScope) return trackedSubprocesses.size;
+  let count = 0;
+  for (const entry of trackedSubprocesses.values()) {
+    if (entry?.scope === normalizedScope) count += 1;
+  }
+  return count;
+};
+
 export function spawnSubprocess(command, args, options = {}) {
   return new Promise((resolve, reject) => {
     const startedAt = Date.now();
@@ -185,7 +356,14 @@ export function spawnSubprocess(command, args, options = {}) {
     const killTree = options.killTree !== false;
     const killSignal = options.killSignal || 'SIGTERM';
     const killGraceMs = resolveKillGraceMs(options.killGraceMs);
+    const cleanupOnParentExit = typeof options.cleanupOnParentExit === 'boolean'
+      ? options.cleanupOnParentExit
+      : !(options.unref === true && detached === true);
     const abortSignal = options.signal || null;
+    const cleanupScope = normalizeTrackedScope(options.cleanupScope)
+      || normalizeTrackedScope(options.scope)
+      || normalizeTrackedScope(trackedScopeByAbortSignal.get(abortSignal))
+      || normalizeTrackedScope(trackedSubprocessScopeContext.getStore()?.scope);
     if (abortSignal?.aborted) {
       const result = buildResult({
         pid: null,
@@ -213,6 +391,16 @@ export function spawnSubprocess(command, args, options = {}) {
       return;
     }
     const child = spawn(command, args, { cwd: options.cwd, env: options.env, stdio, shell: false, detached });
+    let unregisterTrackedChild = () => {};
+    if (cleanupOnParentExit) {
+      unregisterTrackedChild = registerChildProcessForCleanup(child, {
+        killTree,
+        killSignal,
+        killGraceMs,
+        detached,
+        scope: cleanupScope
+      });
+    }
     if (options.input != null && child.stdin) {
       try {
         child.stdin.write(options.input);
@@ -255,6 +443,7 @@ export function spawnSubprocess(command, args, options = {}) {
       if (abortHandler && abortSignal) {
         abortSignal.removeEventListener('abort', abortHandler);
       }
+      unregisterTrackedChild();
       if (onStdoutData && child.stdout) child.stdout.off('data', onStdoutData);
       if (onStderrData && child.stderr) child.stderr.off('data', onStderrData);
     };
@@ -274,11 +463,21 @@ export function spawnSubprocess(command, args, options = {}) {
       const name = options.name ? `${options.name} ` : '';
       reject(new SubprocessError(`${name}exited with code ${exitCode ?? 'unknown'}`, result));
     };
-    if (Number.isFinite(toNumber(options.timeoutMs))) {
+    const resolvedTimeoutMs = toNumber(options.timeoutMs);
+    if (Number.isFinite(resolvedTimeoutMs) && resolvedTimeoutMs > 0) {
       timeoutId = setTimeout(() => {
         if (settled) return;
         settled = true;
-        killProcessTree(child, { killTree, killSignal, killGraceMs, detached });
+        try {
+          if (typeof child.unref === 'function') child.unref();
+        } catch {}
+        killChildProcessTree(child, {
+          killTree,
+          killSignal,
+          graceMs: killGraceMs,
+          detached,
+          awaitGrace: false
+        }).catch(() => {});
         cleanup();
         const result = buildResult({
           pid: child.pid,
@@ -289,12 +488,21 @@ export function spawnSubprocess(command, args, options = {}) {
           stderr: stderrCollector.toOutput(outputMode)
         });
         reject(new SubprocessTimeoutError('Subprocess timeout', result));
-      }, Math.max(0, toNumber(options.timeoutMs) || 0));
+      }, Math.max(1, resolvedTimeoutMs));
     }
     abortHandler = () => {
       if (settled) return;
       settled = true;
-      killProcessTree(child, { killTree, killSignal, killGraceMs, detached });
+      try {
+        if (typeof child.unref === 'function') child.unref();
+      } catch {}
+      killChildProcessTree(child, {
+        killTree,
+        killSignal,
+        graceMs: killGraceMs,
+        detached,
+        awaitGrace: false
+      }).catch(() => {});
       cleanup();
       const result = buildResult({
         pid: child.pid,

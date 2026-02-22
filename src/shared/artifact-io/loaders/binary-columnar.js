@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { MAX_JSON_BYTES } from '../constants.js';
-import { existsOrBak } from '../fs.js';
+import { existsOrBak, resolvePathOrBak } from '../fs.js';
 import { decodeBinaryRowFrameLengths, decodeU64Offsets } from '../binary-columnar.js';
 import { decodeVarint64List } from '../varint.js';
 import { readJsonFileCached } from './shared.js';
@@ -26,9 +26,12 @@ const loadBinaryColumnarRowPayloads = ({
   if (!existsOrBak(dataPath) || !existsOrBak(offsetsPath) || !existsOrBak(lengthsPath)) {
     return null;
   }
-  const dataBuffer = fs.readFileSync(dataPath);
-  const offsets = decodeU64Offsets(fs.readFileSync(offsetsPath));
-  const lengths = decodeBinaryRowFrameLengths(fs.readFileSync(lengthsPath));
+  const resolvedDataPath = resolvePathOrBak(dataPath);
+  const resolvedOffsetsPath = resolvePathOrBak(offsetsPath);
+  const resolvedLengthsPath = resolvePathOrBak(lengthsPath);
+  const dataBuffer = fs.readFileSync(resolvedDataPath);
+  const offsets = decodeU64Offsets(fs.readFileSync(resolvedOffsetsPath));
+  const lengths = decodeBinaryRowFrameLengths(fs.readFileSync(resolvedLengthsPath));
   if (!Number.isFinite(count) || count < 0) return null;
   if (offsets.length < count || lengths.length < count) {
     throw new Error('Binary-columnar frame metadata count mismatch');
@@ -62,7 +65,7 @@ const loadBinaryColumnarRowPayloads = ({
 const tryLoadChunkMetaBinaryColumnar = (dir, { maxBytes = MAX_JSON_BYTES } = {}) => {
   const metaPath = path.join(dir, 'chunk_meta.binary-columnar.meta.json');
   if (!existsOrBak(metaPath)) return null;
-  const metaRaw = readJsonFileCached(metaPath, { maxBytes });
+  const metaRaw = readJsonFileCached(resolvePathOrBak(metaPath), { maxBytes });
   const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
   const fileTable = Array.isArray(metaRaw?.arrays?.fileTable) ? metaRaw.arrays.fileTable : [];
   const count = Number.isFinite(Number(meta?.count)) ? Math.max(0, Math.floor(Number(meta.count))) : 0;
@@ -125,7 +128,7 @@ const decodePostingPairsVarint = (payload) => {
 const tryLoadTokenPostingsBinaryColumnar = (dir, { maxBytes = MAX_JSON_BYTES } = {}) => {
   const metaPath = path.join(dir, 'token_postings.binary-columnar.meta.json');
   if (!existsOrBak(metaPath)) return null;
-  const metaRaw = readJsonFileCached(metaPath, { maxBytes });
+  const metaRaw = readJsonFileCached(resolvePathOrBak(metaPath), { maxBytes });
   const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
   const arrays = metaRaw?.arrays && typeof metaRaw.arrays === 'object' ? metaRaw.arrays : {};
   const count = Number.isFinite(Number(meta?.count)) ? Math.max(0, Math.floor(Number(meta.count))) : 0;

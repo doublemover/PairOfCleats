@@ -17,6 +17,7 @@ import { enqueueEmbeddingJob } from './embedding-queue.js';
 import { getTreeSitterStats, resetTreeSitterStats } from '../../../lang/tree-sitter.js';
 import { INDEX_PROFILE_VECTOR_ONLY } from '../../../contracts/index-profile.js';
 import { SCHEDULER_QUEUE_NAMES } from '../runtime/scheduler.js';
+import { writeSchedulerAutoTuneProfile } from '../runtime/scheduler-autotune-profile.js';
 import { formatHealthFailure, runIndexingHealthChecks } from '../../../shared/ops-health.js';
 import { runWithOperationalFailurePolicy } from '../../../shared/ops-failure-injection.js';
 import {
@@ -332,6 +333,36 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   const stageTotal = stagePlan.length;
   let stageIndex = 0;
   const getSchedulerStats = () => (runtime?.scheduler?.stats ? runtime.scheduler.stats() : null);
+  const schedulerTelemetry = runtime?.scheduler
+    && typeof runtime.scheduler.setTelemetryOptions === 'function'
+    ? runtime.scheduler
+    : null;
+  const queueDepthSnapshotIntervalMs = Number.isFinite(
+    Number(runtime?.indexingConfig?.scheduler?.queueDepthSnapshotIntervalMs)
+  )
+    ? Math.max(1000, Math.floor(Number(runtime.indexingConfig.scheduler.queueDepthSnapshotIntervalMs)))
+    : 5000;
+  const queueDepthSnapshotFileThreshold = Number.isFinite(
+    Number(runtime?.indexingConfig?.scheduler?.queueDepthSnapshotFileThreshold)
+  )
+    ? Math.max(1, Math.floor(Number(runtime.indexingConfig.scheduler.queueDepthSnapshotFileThreshold)))
+    : 20000;
+  let queueDepthSnapshotsEnabled = false;
+  const setSchedulerTelemetryStage = (stageId) => {
+    if (!schedulerTelemetry || typeof stageId !== 'string') return;
+    schedulerTelemetry.setTelemetryOptions({ stage: stageId });
+  };
+  const enableQueueDepthSnapshots = () => {
+    if (!schedulerTelemetry || queueDepthSnapshotsEnabled) return;
+    queueDepthSnapshotsEnabled = true;
+    schedulerTelemetry.setTelemetryOptions({
+      queueDepthSnapshotsEnabled: true,
+      queueDepthSnapshotIntervalMs
+    });
+  };
+  if (runtime?.hugeRepoProfileEnabled === true) {
+    enableQueueDepthSnapshots();
+  }
   let lowUtilizationWarningEmitted = false;
   const utilizationTarget = coerceUnitFraction(runtime?.schedulerConfig?.utilizationAlertTarget)
     ?? 0.75;
@@ -341,6 +372,26 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   const heavyUtilizationStages = new Set(['processing', 'relations', 'postings', 'write']);
   let utilizationUnderTargetSinceMs = 0;
   let utilizationTargetWarningEmitted = false;
+  const queueUtilizationUnderTargetSinceMs = new Map();
+  const queueUtilizationWarningEmitted = new Set();
+  let lastCpuUsage = process.cpuUsage();
+  let lastCpuUsageAtMs = Date.now();
+
+  const resolveProcessBusyPct = (cpuCount) => {
+    const usage = process.cpuUsage();
+    const nowMs = Date.now();
+    const elapsedMs = Math.max(1, nowMs - lastCpuUsageAtMs);
+    const previous = lastCpuUsage;
+    lastCpuUsage = usage;
+    lastCpuUsageAtMs = nowMs;
+    if (!previous || !Number.isFinite(cpuCount) || cpuCount <= 0) return null;
+    const userDeltaUs = Math.max(0, Number(usage.user) - Number(previous.user));
+    const systemDeltaUs = Math.max(0, Number(usage.system) - Number(previous.system));
+    const consumedMs = (userDeltaUs + systemDeltaUs) / 1000;
+    const capacityMs = elapsedMs * cpuCount;
+    if (!Number.isFinite(consumedMs) || !Number.isFinite(capacityMs) || capacityMs <= 0) return null;
+    return Math.max(0, Math.min(100, (consumedMs / capacityMs) * 100));
+  };
   /**
    * Capture an operational snapshot used for stage checkpoint telemetry.
    *
@@ -378,6 +429,12 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     const normalizedCpuLoad = Number.isFinite(oneMinuteLoad) && Number.isFinite(cpuCount) && cpuCount > 0
       ? Math.max(0, Math.min(1, oneMinuteLoad / cpuCount))
       : null;
+    const processBusyPct = resolveProcessBusyPct(cpuCount);
+    const resolvedBusyPct = Number.isFinite(normalizedCpuLoad)
+      ? Math.max(0, Math.min(100, Math.round(normalizedCpuLoad * 1000) / 10))
+      : (Number.isFinite(processBusyPct)
+        ? Math.max(0, Math.min(100, Math.round(processBusyPct * 10) / 10))
+        : null);
     const totalMem = Number(os.totalmem()) || 0;
     const freeMem = Number(os.freemem()) || 0;
     const memoryUtilization = totalMem > 0
@@ -389,9 +446,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
         cores: Number.isFinite(cpuCount) ? cpuCount : null,
         loadAvg1m: oneMinuteLoad,
         normalizedLoad: normalizedCpuLoad,
-        busyPct: Number.isFinite(normalizedCpuLoad)
-          ? Math.max(0, Math.min(100, Math.round(normalizedCpuLoad * 1000) / 10))
-          : null
+        busyPct: resolvedBusyPct
       },
       memory: {
         totalBytes: totalMem > 0 ? totalMem : null,
@@ -492,6 +547,56 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       }
     });
   };
+  const maybeWarnQueueUtilizationTarget = ({ snapshot, stage, step }) => {
+    const schedulerStats = snapshot?.scheduler;
+    const queues = schedulerStats?.queues && typeof schedulerStats.queues === 'object'
+      ? schedulerStats.queues
+      : null;
+    if (!queues) return;
+    const now = Date.now();
+    for (const [queueName, queueStats] of Object.entries(queues)) {
+      const pending = Math.max(0, Number(queueStats?.pending) || 0);
+      const running = Math.max(0, Number(queueStats?.running) || 0);
+      const demand = pending + running;
+      const key = String(queueName || '');
+      const warningKey = `${stage || 'unknown'}:${key}`;
+      if (!key || demand < 4) {
+        queueUtilizationUnderTargetSinceMs.delete(key);
+        queueUtilizationWarningEmitted.delete(warningKey);
+        continue;
+      }
+      const utilization = running / Math.max(1, demand);
+      if (!Number.isFinite(utilization) || utilization >= utilizationTarget) {
+        queueUtilizationUnderTargetSinceMs.delete(key);
+        queueUtilizationWarningEmitted.delete(warningKey);
+        continue;
+      }
+      const since = queueUtilizationUnderTargetSinceMs.get(key) || now;
+      queueUtilizationUnderTargetSinceMs.set(key, since);
+      const underMs = now - since;
+      if (underMs < utilizationAlertWindowMs) continue;
+      if (queueUtilizationWarningEmitted.has(warningKey)) continue;
+      queueUtilizationWarningEmitted.add(warningKey);
+      log(
+        `[perf] sustained queue utilization below target at ${stage}${step ? `/${step}` : ''}: ` +
+        `queue=${key}, utilization=${utilization.toFixed(2)}, target=${utilizationTarget.toFixed(2)}, ` +
+        `pending=${pending}, running=${running}, durationMs=${underMs}.`
+      );
+      stageCheckpoints.record({
+        stage: 'scheduler',
+        step: 'queue-utilization-target-breach',
+        label: `${stage}${step ? `/${step}` : ''}:${key}`,
+        extra: {
+          queue: key,
+          utilization,
+          target: utilizationTarget,
+          pending,
+          running,
+          durationMs: underMs
+        }
+      });
+    }
+  };
   /**
    * Record a stage checkpoint enriched with the current runtime snapshot.
    *
@@ -528,6 +633,11 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       stage,
       step
     });
+    maybeWarnQueueUtilizationTarget({
+      snapshot: runtimeSnapshot,
+      stage,
+      step
+    });
   };
   const advanceStage = (stage) => {
     if (runtime?.overallProgress?.advance && stageIndex > 0) {
@@ -535,6 +645,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       runtime.overallProgress.advance({ message: `${mode} ${prevStage.label}` });
     }
     stageIndex += 1;
+    setSchedulerTelemetryStage(stage.id);
     showProgress('Stage', stageIndex, stageTotal, {
       taskId: `stage:${mode}`,
       stage: stage.id,
@@ -560,6 +671,9 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     })
   });
   const allEntries = discoveryResult.value;
+  if (!queueDepthSnapshotsEnabled && allEntries.length >= queueDepthSnapshotFileThreshold) {
+    enableQueueDepthSnapshots();
+  }
   recordStageCheckpoint({
     stage: 'stage1',
     step: 'discovery',
@@ -858,19 +972,6 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
       }
     }
   });
-  if (mode === 'code' && crossFileEnabled) {
-    const existingVfsManifestRowsByFile = incrementalBundleVfsRowsPromise
-      ? await incrementalBundleVfsRowsPromise
-      : null;
-    await updateIncrementalBundles({
-      runtime: runtimeRef,
-      incrementalState,
-      state,
-      existingVfsManifestRowsByFile,
-      log
-    });
-  }
-
   const envConfig = getEnvConfig();
   if (envConfig.verbose === true && tokenizationStats.chunks) {
     const avgTokens = (tokenizationStats.tokens / tokenizationStats.chunks).toFixed(1);
@@ -922,6 +1023,20 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     shardSummary,
     stageCheckpoints
   });
+  if (runtimeRef.incrementalEnabled === true) {
+    // Write incremental bundles after artifact finalization so bundle metaV2
+    // stays byte-for-byte aligned with emitted chunk_meta.
+    const existingVfsManifestRowsByFile = mode === 'code' && crossFileEnabled && incrementalBundleVfsRowsPromise
+      ? await incrementalBundleVfsRowsPromise
+      : null;
+    await updateIncrementalBundles({
+      runtime: runtimeRef,
+      incrementalState,
+      state,
+      existingVfsManifestRowsByFile,
+      log
+    });
+  }
   const vfsStats = state.vfsManifestStats || state.vfsManifestCollector?.stats || null;
   const vfsExtra = vfsStats
     ? {
@@ -964,6 +1079,13 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
     const finalStage = stagePlan[stagePlan.length - 1];
     runtimeRef.overallProgress.advance({ message: `${mode} ${finalStage.label}` });
   }
+  await writeSchedulerAutoTuneProfile({
+    repoCacheRoot: runtimeRef.repoCacheRoot,
+    schedulerStats: getSchedulerStats(),
+    schedulerConfig: runtimeRef.schedulerConfig,
+    buildId: runtimeRef.buildId,
+    log
+  });
   await enqueueEmbeddingJob({ runtime: runtimeRef, mode, indexDir: outDir, abortSignal });
   crashLogger.updatePhase('done');
   cacheReporter.report();

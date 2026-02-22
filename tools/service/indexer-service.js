@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
+import { SERVICE_INDEXER_OPTIONS } from '../../src/shared/cli-options.js';
 import { isAbsolutePathNative } from '../../src/shared/files.js';
 import { formatDurationMs } from '../../src/shared/time-format.js';
 import { spawnSubprocess } from '../../src/shared/subprocess.js';
@@ -33,18 +34,7 @@ import { runLoggedSubprocess } from './subprocess-log.js';
 
 const argv = createCli({
   scriptName: 'indexer-service',
-  options: {
-    config: { type: 'string' },
-    repo: { type: 'string' },
-    mode: { type: 'string', default: 'all' },
-    reason: { type: 'string' },
-    stage: { type: 'string' },
-    command: { type: 'string' },
-    watch: { type: 'boolean', default: false },
-    interval: { type: 'number' },
-    concurrency: { type: 'number' },
-    queue: { type: 'string', default: 'index' }
-  }
+  options: SERVICE_INDEXER_OPTIONS
 }).parse();
 
 const command = argv.command || String(argv._[0] || '');
@@ -69,6 +59,14 @@ const resolveRepoEntryForArg = (repoArg) => resolveRepoEntry(repoArg, repoEntrie
 const formatJobId = () => `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
 
 const toolRoot = resolveToolRoot();
+
+const printPayload = (payload) => {
+  if (argv.json) {
+    console.log(JSON.stringify(payload));
+    return;
+  }
+  console.log(JSON.stringify(payload, null, 2));
+};
 
 
 function logThreadpoolInfo(repoRoot, label = 'indexer') {
@@ -181,6 +179,16 @@ const formatProgressLine = ({ jobId, stage, state }) => {
   return `[indexer] job ${jobId} ${stage || state?.stage || 'stage'} ${status} | ${progressText}${phaseNote} | elapsed ${elapsedText} | eta ${etaText}`;
 };
 
+/**
+ * Poll build-state artifacts for the active job so long-running work emits
+ * periodic progress updates in service worker logs.
+ *
+ * Returns an async cleanup callback that stops timers and closes tracked
+ * lifecycle resources.
+ *
+ * @param {{job:{id:string},repoPath:string,stage?:string|null}} input
+ * @returns {() => Promise<void>}
+ */
 const startBuildProgressMonitor = ({ job, repoPath, stage }) => {
   if (!job || !repoPath) return async () => {};
   const repoCacheRoot = getRepoCacheRoot(repoPath);
@@ -282,7 +290,7 @@ const handleSync = async () => {
     const result = await ensureRepo(entry, baseDir, policy);
     results.push({ id: entry.id || entry.path, ...result });
   }
-  console.log(JSON.stringify({ ok: true, results }, null, 2));
+  printPayload({ ok: true, results });
 };
 
 const handleEnqueue = async () => {
@@ -310,14 +318,41 @@ const handleEnqueue = async () => {
     console.error(result.message || 'Failed to enqueue job.');
     process.exit(1);
   }
-  console.log(JSON.stringify({ ok: true, job: result.job }, null, 2));
+  printPayload({ ok: true, job: result.job });
 };
 
 const handleStatus = async () => {
   const summary = await queueSummary(queueDir, resolvedQueueName);
-  console.log(JSON.stringify({ ok: true, queue: summary, name: resolvedQueueName }, null, 2));
+  printPayload({ ok: true, queue: summary, name: resolvedQueueName });
 };
 
+const handleSmoke = async () => {
+  await ensureQueueDir(queueDir);
+  const summary = await queueSummary(queueDir, resolvedQueueName);
+  const canonicalCommand = `pairofcleats service indexer work --watch --config \"${configPath}\" --queue ${resolvedQueueName}`;
+  const payload = {
+    ok: true,
+    canonicalCommand,
+    configPath,
+    queueDir,
+    queueName: resolvedQueueName,
+    queueSummary: summary,
+    requiredEnv: ['PAIROFCLEATS_CACHE_ROOT'],
+    securityDefaults: {
+      allowShell: config?.security?.allowShell === true,
+      allowPathEscape: config?.security?.allowPathEscape === true
+    }
+  };
+  printPayload(payload);
+};
+
+/**
+ * Claim and process one queue job, including retries, subprocess execution,
+ * heartbeat maintenance, and final completion updates.
+ *
+ * @param {{processed:number,succeeded:number,failed:number,retried:number}} metrics
+ * @returns {Promise<boolean>} true when a job was claimed; false when queue is empty.
+ */
 const processQueueOnce = async (metrics) => {
   const queueConfig = queueName === 'embeddings'
     ? (config.embeddings?.queue || {})
@@ -440,12 +475,12 @@ const handleWork = async () => {
     });
     await Promise.all(workers);
     if (metrics.processed) {
-      console.log(JSON.stringify({
+      printPayload({
         ok: true,
         queue: resolvedQueueName,
         metrics,
         at: new Date().toISOString()
-      }, null, 2));
+      });
     }
   };
   await runBatch();
@@ -482,9 +517,11 @@ if (command === 'sync') {
   await handleWork();
 } else if (command === 'status') {
   await handleStatus();
+} else if (command === 'smoke') {
+  await handleSmoke();
 } else if (command === 'serve') {
   await handleServe();
 } else {
-  console.error('Usage: indexer-service <sync|enqueue|work|status|serve> [--queue index|embeddings] [--stage stage1|stage2|stage3|stage4]');
+  console.error('Usage: indexer-service <sync|enqueue|work|status|smoke|serve> [--queue index|embeddings] [--stage stage1|stage2|stage3|stage4]');
   process.exit(1);
 }

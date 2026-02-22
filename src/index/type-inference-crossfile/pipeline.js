@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { getRepoCacheRoot, getRepoRoot, getToolingConfig } from '../../shared/dict-utils.js';
+import { getEnvConfig } from '../../shared/env.js';
 import { uniqueTypes } from '../../integrations/tooling/providers/shared.js';
 import { readTextFile } from '../../shared/encoding.js';
 import { sha1 } from '../../shared/hash.js';
@@ -24,6 +25,16 @@ const LARGE_REPO_PARAM_TYPE_LIMIT = 3;
 const CROSS_FILE_CACHE_SCHEMA_VERSION = 1;
 const CROSS_FILE_CACHE_DIRNAME = 'cross-file-inference';
 const DYNAMIC_BUNDLE_TARGET_MS = 500;
+const SYMBOL_REF_CACHE_MAX_ENTRIES = 20000;
+const SYMBOL_REF_CACHE_TTL_MS = 5 * 60 * 1000;
+const BUNDLE_SIZING_P95_WINDOW = 32;
+const PROPAGATION_PARALLEL_MIN_BUNDLE = 96;
+
+const parsePositiveInteger = (value, fallback) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return fallback;
+  return Math.max(1, Math.floor(numeric));
+};
 
 const resolveCrossFileCacheRoot = ({ cacheRoot, rootDir }) => {
   if (typeof cacheRoot === 'string' && cacheRoot.trim()) {
@@ -203,7 +214,9 @@ export async function applyCrossFileInference({
   useTooling = false,
   enableTypeInference = true,
   enableRiskCorrelation = false,
-  fileRelations = null
+  fileRelations = null,
+  inferenceLite = false,
+  inferenceLiteHighSignalOnly = true
 }) {
   if (!enabled) {
     return { linkedCalls: 0, linkedUsages: 0, inferredReturns: 0, riskFlows: 0 };
@@ -227,6 +240,24 @@ export async function applyCrossFileInference({
   const chunkByUid = new Map();
   const fileSet = new Set();
   const symbolRefCache = new Map();
+  const pruneSymbolRefCache = (nowMs) => {
+    if (!symbolRefCache.size) return;
+    if (symbolRefCache.size > SYMBOL_REF_CACHE_MAX_ENTRIES) {
+      const toEvict = symbolRefCache.size - SYMBOL_REF_CACHE_MAX_ENTRIES;
+      const iter = symbolRefCache.keys();
+      for (let index = 0; index < toEvict; index += 1) {
+        const next = iter.next();
+        if (next.done) break;
+        symbolRefCache.delete(next.value);
+      }
+    }
+    const cutoff = nowMs - SYMBOL_REF_CACHE_TTL_MS;
+    for (const [key, entry] of symbolRefCache.entries()) {
+      if (!entry || Number(entry.ts) < cutoff) {
+        symbolRefCache.delete(key);
+      }
+    }
+  };
   const riskSeverityRank = { low: 1, medium: 2, high: 3 };
   const callSampleCounts = new Map();
   const confidenceForHop = (hops) => Math.max(0.2, FLOW_CONFIDENCE * (0.85 ** hops));
@@ -264,9 +295,16 @@ export async function applyCrossFileInference({
   }) => {
     const name = typeof targetName === 'string' ? targetName : null;
     if (!name) return null;
+    const now = Date.now();
     const cacheKey = `${fromFile || ''}\u0001${kindHint || ''}\u0001${name}`;
-    if (symbolRefCache.has(cacheKey)) {
-      return symbolRefCache.get(cacheKey);
+    const cached = symbolRefCache.get(cacheKey);
+    if (cached && Number(cached.ts) >= (now - SYMBOL_REF_CACHE_TTL_MS)) {
+      symbolRefCache.delete(cacheKey);
+      symbolRefCache.set(cacheKey, cached);
+      return cached.value;
+    }
+    if (cached) {
+      symbolRefCache.delete(cacheKey);
     }
     const resolved = resolveSymbolRef({
       targetName: name,
@@ -276,7 +314,10 @@ export async function applyCrossFileInference({
       symbolIndex: symbolResolver,
       fileSet
     });
-    symbolRefCache.set(cacheKey, resolved || null);
+    symbolRefCache.set(cacheKey, { value: resolved || null, ts: now });
+    if (symbolRefCache.size > SYMBOL_REF_CACHE_MAX_ENTRIES) {
+      pruneSymbolRefCache(now);
+    }
     return resolved || null;
   };
   const largeRepoBudget = chunks.length >= LARGE_REPO_CHUNK_THRESHOLD || fileSet.size >= LARGE_REPO_FILE_THRESHOLD
@@ -290,6 +331,9 @@ export async function applyCrossFileInference({
       paramTypeLimit: LARGE_REPO_PARAM_TYPE_LIMIT
     }
     : null;
+  const inferenceLiteEnabled = inferenceLite === true;
+  const inferenceLiteHighSignalOnlyMode = inferenceLiteEnabled
+    && inferenceLiteHighSignalOnly !== false;
   const callSampleLimit = largeRepoBudget?.callSampleLimit ?? 25;
   const paramTypeLimit = largeRepoBudget?.paramTypeLimit ?? 5;
   if (largeRepoBudget && typeof log === 'function') {
@@ -298,6 +342,12 @@ export async function applyCrossFileInference({
       + `(chunks=${chunks.length}, files=${fileSet.size}, `
       + `callPerChunk=${largeRepoBudget.maxCallLinksPerChunk}, `
       + `usagePerChunk=${largeRepoBudget.maxUsageLinksPerChunk}).`
+    );
+  }
+  if (inferenceLiteEnabled && typeof log === 'function') {
+    log(
+      `[perf] huge repo inference lite enabled `
+      + `(highSignalOnly=${inferenceLiteHighSignalOnlyMode ? 'true' : 'false'}).`
     );
   }
   const resolvedCacheRoot = cacheEnabled === false
@@ -344,6 +394,7 @@ export async function applyCrossFileInference({
             droppedCallSummaries: Number(cacheStats?.droppedCallSummaries) || 0,
             droppedUsageLinks: Number(cacheStats?.droppedUsageLinks) || 0,
             bundleSizing: cacheStats?.bundleSizing || null,
+            inferenceLiteEnabled: cacheStats?.inferenceLiteEnabled === true,
             cacheHit: true,
             fingerprint: crossFileFingerprint
           };
@@ -528,15 +579,40 @@ export async function applyCrossFileInference({
     targetBundleMs: DYNAMIC_BUNDLE_TARGET_MS,
     totalBundles: 0,
     lastBundleSize: 0,
-    avgBundleMs: 0
+    avgBundleMs: 0,
+    p95BundleMs: 0,
+    recentWindowSize: BUNDLE_SIZING_P95_WINDOW,
+    recentBundleDurationsMs: [],
+    p95HeapDeltaBytes: 0,
+    recentHeapDeltaBytes: []
   };
   let currentBundleSize = bundleSizing.initialBundleSize;
+  const envConfig = getEnvConfig(process.env);
+  const envPropagationParallel = envConfig.crossfilePropagationParallel;
+  const propagationParallelEnabled = envPropagationParallel !== false;
+  const propagationParallelMinBundle = parsePositiveInteger(
+    envConfig.crossfilePropagationParallelMinBundle,
+    PROPAGATION_PARALLEL_MIN_BUNDLE
+  );
+  let propagationParallelLogged = false;
   let chunkCursor = 0;
   while (chunkCursor < chunks.length) {
     const bundleStart = chunkCursor;
     const bundleEnd = Math.min(chunks.length, bundleStart + currentBundleSize);
     const bundle = chunks.slice(bundleStart, bundleEnd);
     const bundleStartedAt = Date.now();
+    const heapBeforeBundle = Number(process.memoryUsage?.().heapUsed) || 0;
+    const useParallelPropagation = propagationParallelEnabled
+      && enableTypeInference
+      && enableRiskCorrelation
+      && bundle.length >= propagationParallelMinBundle;
+    if (useParallelPropagation && !propagationParallelLogged && typeof log === 'function') {
+      propagationParallelLogged = true;
+      log(
+        `[perf] cross-file propagation parallel mode enabled ` +
+        `(bundleMin=${propagationParallelMinBundle}).`
+      );
+    }
     for (const chunk of bundle) {
       if (!chunk) continue;
       const relations = chunk.codeRelations || {};
@@ -549,6 +625,20 @@ export async function applyCrossFileInference({
       const callLinks = [];
       const callSummaries = [];
       const usageLinks = [];
+      const hasCallSignals = (Array.isArray(relations.calls) && relations.calls.length > 0)
+        || (Array.isArray(relations.callDetails) && relations.callDetails.length > 0);
+      const hasUsageSignals = Array.isArray(relations.usages) && relations.usages.length > 0;
+      const hasFileUsageSignals = !hasUsageSignals
+        && !inferenceLiteEnabled
+        && Array.isArray(fileRelation?.usages)
+        && fileRelation.usages.length > 0
+        && typeof chunk?.file === 'string'
+        && !fileUsageFallbackApplied.has(chunk.file);
+      if (!hasCallSignals && !hasUsageSignals && !hasFileUsageSignals) {
+        // Skip expensive cross-file matching for chunks that do not expose
+        // call/usage signals.
+        continue;
+      }
 
       if (Array.isArray(relations.calls)) {
         const maxCallLinksPerChunk = Number.isFinite(largeRepoBudget?.maxCallLinksPerChunk)
@@ -670,6 +760,7 @@ export async function applyCrossFileInference({
 
       const hasChunkUsageSource = Array.isArray(relations.usages);
       const useFileUsageFallback = !hasChunkUsageSource
+      && !inferenceLiteEnabled
       && Array.isArray(fileRelation?.usages)
       && typeof chunk?.file === 'string'
       && !fileUsageFallbackApplied.has(chunk.file);
@@ -734,81 +825,64 @@ export async function applyCrossFileInference({
       }
       chunk.codeRelations = relations;
 
-      if (enableTypeInference && callSummaries.length) {
-        for (const summary of callSummaries) {
-          const resolvedUid = summary.resolvedCalleeChunkUid || summary.targetChunkUid || null;
-          const calleeChunk = resolvedUid ? chunkByUid.get(resolvedUid) : null;
-          if (!calleeChunk) continue;
-          const sampleKey = resolvedUid || summary.name;
-          const currentSamples = callSampleCounts.get(sampleKey) || 0;
-          if (currentSamples >= callSampleLimit) continue;
-          callSampleCounts.set(sampleKey, currentSamples + 1);
-          const args = Array.isArray(summary.args) ? summary.args : [];
-          const paramNames = Array.isArray(calleeChunk.docmeta?.paramNames)
-            ? calleeChunk.docmeta.paramNames
-            : (Array.isArray(calleeChunk.docmeta?.params) ? calleeChunk.docmeta.params : []);
-          const argMap = summary.argMap || {};
-          if (!paramNames.length && !args.length && !Object.keys(argMap).length) continue;
-          if (!calleeChunk.docmeta || typeof calleeChunk.docmeta !== 'object') calleeChunk.docmeta = {};
-          const hopCount = calleeChunk.file !== chunk.file ? 1 : 0;
-          const confidence = confidenceForHop(hopCount);
-          for (let i = 0; i < paramNames.length && i < Math.max(args.length, paramNames.length); i += 1) {
-            const name = paramNames[i];
-            const argValue = argMap[name] || args[i];
-            if (!name || !argValue) continue;
-            const type = inferArgType(argValue);
-            if (!type) continue;
-            if (addInferredParam(calleeChunk.docmeta, name, type, FLOW_SOURCE, confidence, paramTypeLimit)) {
-              const entry = resolvedUid ? entryByUid.get(resolvedUid) : null;
-              if (entry) {
-                const existing = entry.paramTypes?.[name] || [];
-                entry.paramTypes = entry.paramTypes || {};
-                entry.paramTypes[name] = uniqueTypes([...(existing || []), type]);
-              }
-            }
-          }
-        }
-      }
-
-      if (enableTypeInference) {
-        const { calls: returnCalls } = await getReturnCalls(chunk);
-        if (returnCalls.size) {
-          if (!chunk.docmeta || typeof chunk.docmeta !== 'object') chunk.docmeta = {};
-          const resolvedViaSummaries = new Set();
-          if (callSummaries.length) {
-            for (const summary of callSummaries) {
-              const callName = typeof summary?.name === 'string' ? summary.name : null;
-              if (!callName || !returnCalls.has(callName)) continue;
-              const resolvedUid = summary?.resolvedCalleeChunkUid || summary?.targetChunkUid || null;
-              const resolvedChunk = resolvedUid ? chunkByUid.get(resolvedUid) : null;
-              const returnTypes = Array.isArray(summary?.returnTypes) && summary.returnTypes.length
-                ? summary.returnTypes
-                : (Array.isArray(entryByUid.get(resolvedUid)?.returnTypes)
-                  ? entryByUid.get(resolvedUid).returnTypes
-                  : []);
-              if (!returnTypes.length) continue;
-              resolvedViaSummaries.add(callName);
-              const hopCount = resolvedChunk?.file && resolvedChunk.file !== chunk.file ? 1 : 0;
-              const confidence = confidenceForHop(hopCount);
-              for (const type of returnTypes) {
-                if (addInferredReturn(chunk.docmeta, type, FLOW_SOURCE, confidence)) {
-                  inferredReturns += 1;
+      const runTypePropagation = async () => {
+        if (callSummaries.length) {
+          for (const summary of callSummaries) {
+            const resolvedUid = summary.resolvedCalleeChunkUid || summary.targetChunkUid || null;
+            const calleeChunk = resolvedUid ? chunkByUid.get(resolvedUid) : null;
+            if (!calleeChunk) continue;
+            const sampleKey = resolvedUid || summary.name;
+            const currentSamples = callSampleCounts.get(sampleKey) || 0;
+            if (currentSamples >= callSampleLimit) continue;
+            callSampleCounts.set(sampleKey, currentSamples + 1);
+            const args = Array.isArray(summary.args) ? summary.args : [];
+            const paramNames = Array.isArray(calleeChunk.docmeta?.paramNames)
+              ? calleeChunk.docmeta.paramNames
+              : (Array.isArray(calleeChunk.docmeta?.params) ? calleeChunk.docmeta.params : []);
+            const argMap = summary.argMap || {};
+            if (!paramNames.length && !args.length && !Object.keys(argMap).length) continue;
+            if (!calleeChunk.docmeta || typeof calleeChunk.docmeta !== 'object') calleeChunk.docmeta = {};
+            const hopCount = calleeChunk.file !== chunk.file ? 1 : 0;
+            const confidence = confidenceForHop(hopCount);
+            for (let i = 0; i < paramNames.length && i < Math.max(args.length, paramNames.length); i += 1) {
+              const name = paramNames[i];
+              const argValue = argMap[name] || args[i];
+              if (!name || !argValue) continue;
+              const type = inferArgType(argValue);
+              if (!type) continue;
+              if (addInferredParam(calleeChunk.docmeta, name, type, FLOW_SOURCE, confidence, paramTypeLimit)) {
+                const entry = resolvedUid ? entryByUid.get(resolvedUid) : null;
+                if (entry) {
+                  const existing = entry.paramTypes?.[name] || [];
+                  entry.paramTypes = entry.paramTypes || {};
+                  entry.paramTypes[name] = uniqueTypes([...(existing || []), type]);
                 }
               }
             }
           }
-          for (const callName of returnCalls) {
-            if (resolvedViaSummaries.has(callName)) continue;
-            const symbolRef = resolveSymbolRefCached({
-              targetName: callName,
-              kindHint: null,
-              fromFile: chunk.file
-            });
-            if (!symbolRef?.resolved?.chunkUid) continue;
-            const entry = entryByUid.get(symbolRef.resolved.chunkUid);
-            const returnTypes = entry?.returnTypes || [];
+        }
+        if (inferenceLiteEnabled && inferenceLiteHighSignalOnlyMode) {
+          return;
+        }
+
+        const { calls: returnCalls } = await getReturnCalls(chunk);
+        if (!returnCalls.size) return;
+        if (!chunk.docmeta || typeof chunk.docmeta !== 'object') chunk.docmeta = {};
+        const resolvedViaSummaries = new Set();
+        if (callSummaries.length) {
+          for (const summary of callSummaries) {
+            const callName = typeof summary?.name === 'string' ? summary.name : null;
+            if (!callName || !returnCalls.has(callName)) continue;
+            const resolvedUid = summary?.resolvedCalleeChunkUid || summary?.targetChunkUid || null;
+            const resolvedChunk = resolvedUid ? chunkByUid.get(resolvedUid) : null;
+            const returnTypes = Array.isArray(summary?.returnTypes) && summary.returnTypes.length
+              ? summary.returnTypes
+              : (Array.isArray(entryByUid.get(resolvedUid)?.returnTypes)
+                ? entryByUid.get(resolvedUid).returnTypes
+                : []);
             if (!returnTypes.length) continue;
-            const hopCount = entry?.file !== chunk.file ? 1 : 0;
+            resolvedViaSummaries.add(callName);
+            const hopCount = resolvedChunk?.file && resolvedChunk.file !== chunk.file ? 1 : 0;
             const confidence = confidenceForHop(hopCount);
             for (const type of returnTypes) {
               if (addInferredReturn(chunk.docmeta, type, FLOW_SOURCE, confidence)) {
@@ -817,52 +891,117 @@ export async function applyCrossFileInference({
             }
           }
         }
-      }
-
-      if (enableRiskCorrelation && callLinks.length) {
-        const callerRisk = chunk.docmeta?.risk;
-        const callerSources = Array.isArray(callerRisk?.sources) ? callerRisk.sources : [];
-        if (callerSources.length) {
-          for (const link of callLinks) {
-            const targetUid = link?.to?.resolved?.chunkUid || null;
-            const calleeChunk = targetUid ? chunkByUid.get(targetUid) : null;
-            const calleeRisk = calleeChunk?.docmeta?.risk;
-            const calleeSinks = Array.isArray(calleeRisk?.sinks) ? calleeRisk.sinks : [];
-            if (!calleeSinks.length) continue;
-            const risk = normalizeRisk(chunk);
-            for (const sink of calleeSinks) {
-              if (sink.category) addUnique(risk.categories, sink.category);
-              const sinkTags = Array.isArray(sink.tags) && sink.tags.length
-                ? sink.tags
-                : (Array.isArray(calleeRisk?.tags) ? calleeRisk.tags : []);
-              sinkTags.forEach((tag) => addUnique(risk.tags, tag));
-              if (sink.severity) {
-                const currentRank = riskSeverityRank[risk.severity] || 0;
-                const sinkRank = riskSeverityRank[sink.severity] || 0;
-                if (sinkRank > currentRank) risk.severity = sink.severity;
-              }
-            }
-            for (const source of callerSources) {
-              for (const sink of calleeSinks) {
-                const scope = calleeChunk?.file === chunk.file ? 'file' : 'cross-file';
-                const flow = {
-                  source: source.name,
-                  sink: sink.name,
-                  category: sink.category || null,
-                  severity: sink.severity || null,
-                  scope,
-                  via: `${chunk.name}->${link.to?.targetName || ''}`,
-                  confidence: Math.max(0.2, (source.confidence || 0.5) * 0.85),
-                  ruleIds: [source.ruleId, sink.ruleId].filter(Boolean)
-                };
-                if (addRiskFlow(chunk, risk, flow)) riskFlows += 1;
-              }
+        for (const callName of returnCalls) {
+          if (resolvedViaSummaries.has(callName)) continue;
+          const symbolRef = resolveSymbolRefCached({
+            targetName: callName,
+            kindHint: null,
+            fromFile: chunk.file
+          });
+          if (!symbolRef?.resolved?.chunkUid) continue;
+          const entry = entryByUid.get(symbolRef.resolved.chunkUid);
+          const returnTypes = entry?.returnTypes || [];
+          if (!returnTypes.length) continue;
+          const hopCount = entry?.file !== chunk.file ? 1 : 0;
+          const confidence = confidenceForHop(hopCount);
+          for (const type of returnTypes) {
+            if (addInferredReturn(chunk.docmeta, type, FLOW_SOURCE, confidence)) {
+              inferredReturns += 1;
             }
           }
         }
+      };
+
+      const runRiskPropagation = () => {
+        if (inferenceLiteEnabled && inferenceLiteHighSignalOnlyMode) return;
+        if (!callLinks.length) return;
+        const callerRisk = chunk.docmeta?.risk;
+        const callerSources = Array.isArray(callerRisk?.sources) ? callerRisk.sources : [];
+        if (!callerSources.length) return;
+        for (const link of callLinks) {
+          const targetUid = link?.to?.resolved?.chunkUid || null;
+          const calleeChunk = targetUid ? chunkByUid.get(targetUid) : null;
+          const calleeRisk = calleeChunk?.docmeta?.risk;
+          const calleeSinks = Array.isArray(calleeRisk?.sinks) ? calleeRisk.sinks : [];
+          if (!calleeSinks.length) continue;
+          const risk = normalizeRisk(chunk);
+          for (const sink of calleeSinks) {
+            if (sink.category) addUnique(risk.categories, sink.category);
+            const sinkTags = Array.isArray(sink.tags) && sink.tags.length
+              ? sink.tags
+              : (Array.isArray(calleeRisk?.tags) ? calleeRisk.tags : []);
+            sinkTags.forEach((tag) => addUnique(risk.tags, tag));
+            if (sink.severity) {
+              const currentRank = riskSeverityRank[risk.severity] || 0;
+              const sinkRank = riskSeverityRank[sink.severity] || 0;
+              if (sinkRank > currentRank) risk.severity = sink.severity;
+            }
+          }
+          for (const source of callerSources) {
+            for (const sink of calleeSinks) {
+              const scope = calleeChunk?.file === chunk.file ? 'file' : 'cross-file';
+              const flow = {
+                source: source.name,
+                sink: sink.name,
+                category: sink.category || null,
+                severity: sink.severity || null,
+                scope,
+                via: `${chunk.name}->${link.to?.targetName || ''}`,
+                confidence: Math.max(0.2, (source.confidence || 0.5) * 0.85),
+                ruleIds: [source.ruleId, sink.ruleId].filter(Boolean)
+              };
+              if (addRiskFlow(chunk, risk, flow)) riskFlows += 1;
+            }
+          }
+        }
+      };
+
+      if (enableTypeInference) {
+        if (
+          useParallelPropagation
+          && enableRiskCorrelation
+          && callLinks.length
+          && !(inferenceLiteEnabled && inferenceLiteHighSignalOnlyMode)
+        ) {
+          await Promise.all([
+            runTypePropagation(),
+            Promise.resolve().then(() => runRiskPropagation())
+          ]);
+        } else {
+          await runTypePropagation();
+          if (enableRiskCorrelation && !(inferenceLiteEnabled && inferenceLiteHighSignalOnlyMode)) {
+            runRiskPropagation();
+          }
+        }
+      } else if (enableRiskCorrelation && !(inferenceLiteEnabled && inferenceLiteHighSignalOnlyMode)) {
+        runRiskPropagation();
       }
     }
+    const heapAfterBundle = Number(process.memoryUsage?.().heapUsed) || heapBeforeBundle;
+    const heapDelta = Math.max(0, heapAfterBundle - heapBeforeBundle);
     const bundleDurationMs = Math.max(0, Date.now() - bundleStartedAt);
+    const recentDurations = bundleSizing.recentBundleDurationsMs;
+    recentDurations.push(bundleDurationMs);
+    while (recentDurations.length > bundleSizing.recentWindowSize) recentDurations.shift();
+    if (recentDurations.length) {
+      const sorted = recentDurations.slice().sort((a, b) => a - b);
+      const p95Index = Math.min(
+        sorted.length - 1,
+        Math.max(0, Math.ceil(sorted.length * 0.95) - 1)
+      );
+      bundleSizing.p95BundleMs = sorted[p95Index];
+    }
+    const recentHeapDeltas = bundleSizing.recentHeapDeltaBytes;
+    recentHeapDeltas.push(heapDelta);
+    while (recentHeapDeltas.length > bundleSizing.recentWindowSize) recentHeapDeltas.shift();
+    if (recentHeapDeltas.length) {
+      const sortedHeap = recentHeapDeltas.slice().sort((a, b) => a - b);
+      const heapP95Index = Math.min(
+        sortedHeap.length - 1,
+        Math.max(0, Math.ceil(sortedHeap.length * 0.95) - 1)
+      );
+      bundleSizing.p95HeapDeltaBytes = sortedHeap[heapP95Index];
+    }
     bundleSizing.totalBundles += 1;
     bundleSizing.lastBundleSize = bundle.length;
     bundleSizing.avgBundleMs = bundleSizing.totalBundles === 1
@@ -872,13 +1011,16 @@ export async function applyCrossFileInference({
         / bundleSizing.totalBundles
       );
     if (bundleSizing.enabled) {
-      if (bundleDurationMs > bundleSizing.targetBundleMs && currentBundleSize > bundleSizing.minBundleSize) {
+      const controlDurationMs = bundleSizing.p95BundleMs > 0
+        ? bundleSizing.p95BundleMs
+        : bundleDurationMs;
+      if (controlDurationMs > bundleSizing.targetBundleMs && currentBundleSize > bundleSizing.minBundleSize) {
         currentBundleSize = Math.max(
           bundleSizing.minBundleSize,
           Math.floor(currentBundleSize * 0.75)
         );
       } else if (
-        bundleDurationMs < (bundleSizing.targetBundleMs * 0.5)
+        controlDurationMs < (bundleSizing.targetBundleMs * 0.5)
         && currentBundleSize < bundleSizing.maxBundleSize
       ) {
         currentBundleSize = Math.min(
@@ -892,7 +1034,9 @@ export async function applyCrossFileInference({
       ) {
         log(
           `[perf] cross-file bundle ${bundleSizing.totalBundles}: ` +
-          `size=${bundle.length}, durationMs=${bundleDurationMs}, nextSize=${currentBundleSize}.`
+          `size=${bundle.length}, durationMs=${bundleDurationMs}, p95Ms=${bundleSizing.p95BundleMs}, ` +
+          `heapDeltaBytes=${heapDelta}, p95HeapDeltaBytes=${bundleSizing.p95HeapDeltaBytes}, ` +
+          `nextSize=${currentBundleSize}.`
         );
       }
     }
@@ -933,7 +1077,8 @@ export async function applyCrossFileInference({
           droppedCallLinks,
           droppedCallSummaries,
           droppedUsageLinks,
-          bundleSizing
+          bundleSizing,
+          inferenceLiteEnabled
         },
         rows
       }), 'utf8');
@@ -949,6 +1094,7 @@ export async function applyCrossFileInference({
     droppedCallSummaries,
     droppedUsageLinks,
     bundleSizing,
+    inferenceLiteEnabled,
     cacheHit: false,
     fingerprint: crossFileFingerprint
   };

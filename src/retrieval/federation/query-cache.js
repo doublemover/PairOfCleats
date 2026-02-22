@@ -200,7 +200,7 @@ const parseCacheFile = (raw, repoSetId) => {
       entries
     };
   } catch {
-    return createEmptyCache(repoSetId);
+    return null;
   }
 };
 
@@ -211,7 +211,12 @@ export const loadFederatedQueryCache = async ({
   if (!cachePath) return createEmptyCache(repoSetId);
   try {
     const raw = await fsPromises.readFile(cachePath, 'utf8');
-    return parseCacheFile(raw, repoSetId);
+    const parsed = parseCacheFile(raw, repoSetId);
+    if (parsed) return parsed;
+    try {
+      await fsPromises.rm(cachePath, { force: true });
+    } catch {}
+    return createEmptyCache(repoSetId);
   } catch {
     return createEmptyCache(repoSetId);
   }

@@ -19,6 +19,12 @@ export const resolveCompressionConfig = (indexingConfig = {}) => {
     && typeof compressionConfig.gzipOptions === 'object'
     ? { ...compressionConfig.gzipOptions }
     : null;
+  const compressionMinBytes = Number.isFinite(Number(compressionConfig.minBytes))
+    ? Math.max(0, Math.floor(Number(compressionConfig.minBytes)))
+    : (256 * 1024);
+  const compressionMaxBytes = Number.isFinite(Number(compressionConfig.maxBytes))
+    ? Math.max(0, Math.floor(Number(compressionConfig.maxBytes)))
+    : (512 * 1024 * 1024);
   const compressibleArtifacts = new Set([
     'chunk_meta',
     'chunk_uid_map',
@@ -58,6 +64,8 @@ export const resolveCompressionConfig = (indexingConfig = {}) => {
     compressionMode,
     compressionKeepRaw,
     compressionGzipOptions,
+    compressionMinBytes,
+    compressionMaxBytes,
     compressibleArtifacts,
     compressionOverrides: overrides
   };

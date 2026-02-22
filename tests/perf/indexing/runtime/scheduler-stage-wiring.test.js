@@ -25,8 +25,10 @@ applyTestEnv({
         lowResourceMode: false,
         cpuTokens: 1,
         ioTokens: 1,
-        memoryTokens: 1
+        memoryTokens: 1,
+        queueDepthSnapshotIntervalMs: 1000
       },
+      hugeRepoProfile: { enabled: true },
       scm: { provider: 'none' },
       embeddings: {
         enabled: false,
@@ -51,6 +53,22 @@ await buildIndexForMode({ mode: 'code', runtime, discovery: null, abortSignal: n
 const stats = runtime.scheduler?.stats ? runtime.scheduler.stats() : null;
 if (!stats || !stats.queues) {
   console.error('scheduler stats missing after build');
+  process.exit(1);
+}
+const telemetry = stats?.telemetry || null;
+if (!telemetry || !Array.isArray(telemetry.schedulingTrace) || telemetry.schedulingTrace.length === 0) {
+  console.error('scheduler stage wiring test failed: missing scheduling traces');
+  process.exit(1);
+}
+if (!Array.isArray(telemetry.queueDepthSnapshots) || telemetry.queueDepthSnapshots.length === 0) {
+  console.error('scheduler stage wiring test failed: missing queue-depth snapshots');
+  process.exit(1);
+}
+const hasStagedSnapshot = telemetry.queueDepthSnapshots.some((entry) => (
+  typeof entry?.stage === 'string' && entry.stage.length > 0
+));
+if (!hasStagedSnapshot) {
+  console.error('scheduler stage wiring test failed: queue-depth snapshots missing stage labels');
   process.exit(1);
 }
 const queues = stats.queues;

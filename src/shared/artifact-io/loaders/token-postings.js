@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { MAX_JSON_BYTES } from '../constants.js';
-import { existsOrBak } from '../fs.js';
+import { existsOrBak, resolvePathOrBak } from '../fs.js';
 import { readJsonFile } from '../json.js';
 import { createPackedChecksumValidator } from '../checksum.js';
 import { loadPiecesManifest, resolveManifestArtifactSources } from '../manifest.js';
@@ -47,6 +47,29 @@ export const loadTokenPostings = (
   } = {}
 ) => {
   const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
+  const resolveManifestPiece = (targetPath, expectedName = null) => {
+    if (!resolvedManifest || typeof resolvedManifest !== 'object') return null;
+    const pieces = Array.isArray(resolvedManifest.pieces) ? resolvedManifest.pieces : [];
+    if (!pieces.length) return null;
+    const resolvedPath = path.resolve(targetPath);
+    const relPath = path.relative(path.resolve(dir), resolvedPath).split(path.sep).join('/');
+    return pieces.find((entry) => {
+      if (!entry || typeof entry !== 'object') return false;
+      if (entry.path !== relPath) return false;
+      if (expectedName && entry.name !== expectedName) return false;
+      return true;
+    }) || null;
+  };
+
+  const createManifestChecksumValidator = (targetPath, expectedName, label) => {
+    const piece = resolveManifestPiece(targetPath, expectedName);
+    if (!piece || typeof piece.checksum !== 'string' || !piece.checksum.includes(':')) return null;
+    try {
+      return createPackedChecksumValidator({ checksum: piece.checksum }, { label });
+    } catch {
+      return null;
+    }
+  };
 
   /**
    * Load packed token postings with bounded decode windows to cap peak RSS.
@@ -62,7 +85,9 @@ export const loadTokenPostings = (
     if (!existsOrBak(metaPath)) {
       throw new Error('Missing token_postings packed meta');
     }
-    const metaRaw = readJsonFileCached(metaPath, { maxBytes });
+    const resolvedPackedPath = resolvePathOrBak(packedPath);
+    const resolvedMetaPath = resolvePathOrBak(metaPath);
+    const metaRaw = readJsonFileCached(resolvedMetaPath, { maxBytes });
     const fields = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
     const arrays = metaRaw?.arrays && typeof metaRaw.arrays === 'object' ? metaRaw.arrays : metaRaw;
     const vocab = Array.isArray(arrays?.vocab) ? arrays.vocab : [];
@@ -75,7 +100,17 @@ export const loadTokenPostings = (
     if (!existsOrBak(offsetsPath)) {
       throw new Error('Missing token_postings packed offsets');
     }
-    const offsetsBuffer = fs.readFileSync(offsetsPath);
+    const resolvedOffsetsPath = resolvePathOrBak(offsetsPath);
+    const offsetsBuffer = fs.readFileSync(resolvedOffsetsPath);
+    const offsetsChecksum = createManifestChecksumValidator(
+      offsetsPath,
+      'token_postings_offsets',
+      'token_postings offsets'
+    );
+    if (offsetsChecksum) {
+      offsetsChecksum.update(offsetsBuffer);
+      offsetsChecksum.verify();
+    }
     const offsets = decodePackedOffsets(offsetsBuffer);
     const blockSize = Number.isFinite(Number(fields?.blockSize))
       ? Math.max(1, Math.floor(Number(fields.blockSize)))
@@ -88,6 +123,11 @@ export const loadTokenPostings = (
     const resolvedWindowBytes = Number.isFinite(Number(packedWindowBytes))
       ? Math.max(1024, Math.floor(Number(packedWindowBytes)))
       : (16 * 1024 * 1024);
+    const packedChecksum = createManifestChecksumValidator(
+      packedPath,
+      'token_postings',
+      'token_postings packed'
+    );
     const readWindow = (fd, startToken, endToken) => {
       const byteStart = offsets[startToken] ?? 0;
       const byteEnd = offsets[endToken] ?? byteStart;
@@ -103,6 +143,9 @@ export const loadTokenPostings = (
       if (bytesRead < byteLen) {
         throw new Error('Packed token_postings truncated');
       }
+      if (packedChecksum) {
+        packedChecksum.update(windowBuffer, 0, bytesRead);
+      }
       for (let i = startToken; i < endToken; i += 1) {
         const localStart = (offsets[i] ?? 0) - byteStart;
         const localEnd = (offsets[i + 1] ?? localStart) - byteStart;
@@ -114,12 +157,21 @@ export const loadTokenPostings = (
       }
     };
     const fallbackFullRead = () => {
-      const buffer = fs.readFileSync(packedPath);
+      const buffer = fs.readFileSync(resolvedPackedPath);
+      const fallbackChecksum = createManifestChecksumValidator(
+        packedPath,
+        'token_postings',
+        'token_postings packed'
+      );
+      if (fallbackChecksum) {
+        fallbackChecksum.update(buffer);
+        fallbackChecksum.verify();
+      }
       return unpackTfPostings(buffer, offsets, { blockSize });
     };
     let fd = null;
     try {
-      fd = fs.openSync(packedPath, 'r');
+      fd = fs.openSync(resolvedPackedPath, 'r');
       let startToken = 0;
       while (startToken < totalTokens) {
         let endToken = Math.min(totalTokens, startToken + resolvedWindowTokens);
@@ -135,6 +187,7 @@ export const loadTokenPostings = (
         readWindow(fd, startToken, endToken);
         startToken = endToken;
       }
+      if (packedChecksum) packedChecksum.verify();
     } catch {
       return {
         ...fields,

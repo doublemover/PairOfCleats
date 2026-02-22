@@ -43,6 +43,35 @@ const warnGitUnavailable = (repoRoot, message = 'Git metadata unavailable.') => 
   log(`[git] ${message}${suffix}`);
 };
 
+const sanitizeFailureText = (value, maxLength = 240) => {
+  const collapsed = String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!collapsed) return '';
+  return collapsed.length > maxLength
+    ? `${collapsed.slice(0, Math.max(0, maxLength - 3))}...`
+    : collapsed;
+};
+
+const formatGitUnavailableMessage = ({
+  scope = 'meta',
+  fileArg = null,
+  timeoutMs = null,
+  err = null
+} = {}) => {
+  const code = sanitizeFailureText(String(err?.code || err?.cause?.code || ''), 48);
+  const reason = sanitizeFailureText(err?.message || err?.cause?.message || '', 200);
+  const parts = ['Git metadata unavailable'];
+  parts.push(`scope=${scope || 'meta'}`);
+  if (fileArg) parts.push(`file=${sanitizeFailureText(fileArg, 96)}`);
+  if (Number.isFinite(Number(timeoutMs)) && Number(timeoutMs) > 0) {
+    parts.push(`timeoutMs=${Math.floor(Number(timeoutMs))}`);
+  }
+  if (code) parts.push(`code=${code}`);
+  if (reason) parts.push(`reason=${reason}`);
+  return `${parts.join('; ')}.`;
+};
+
 const resolveBlameMaxOutputBytes = (absFile) => {
   const fallback = 32 * 1024 * 1024;
   try {
@@ -140,7 +169,12 @@ export async function getGitLineAuthorsForFile(file, options = {}) {
     return lineAuthors || null;
   } catch (err) {
     recordGitFailure(baseDir, err, GIT_FAILURE_SCOPE.BLAME);
-    warnGitUnavailable(baseDir);
+    warnGitUnavailable(baseDir, formatGitUnavailableMessage({
+      scope: GIT_FAILURE_SCOPE.BLAME,
+      fileArg,
+      timeoutMs,
+      err
+    }));
     return null;
   }
 }
@@ -236,7 +270,12 @@ export async function getGitMetaForFile(file, options = {}) {
     return lineAuthors ? { ...meta, lineAuthors } : meta;
   } catch (err) {
     recordGitFailure(baseDir, err, GIT_FAILURE_SCOPE.META);
-    warnGitUnavailable(baseDir);
+    warnGitUnavailable(baseDir, formatGitUnavailableMessage({
+      scope: GIT_FAILURE_SCOPE.META,
+      fileArg,
+      timeoutMs,
+      err
+    }));
     return {};
   }
 }

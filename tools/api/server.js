@@ -2,6 +2,7 @@
 import http from 'node:http';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
+import { SERVICE_API_OPTIONS } from '../../src/shared/cli-options.js';
 import { resolveRepoRootArg } from '../shared/dict-utils.js';
 import { parseCommaList } from '../shared/text-utils.js';
 import { getMetricsRegistry } from '../../src/shared/metrics.js';
@@ -11,20 +12,7 @@ import { getEnvSecrets } from '../../src/shared/env.js';
 
 const argv = createCli({
   scriptName: 'api-server',
-  options: {
-    host: { type: 'string', default: '127.0.0.1' },
-    port: { type: 'string', default: '7345' },
-    output: { type: 'string', default: 'compact' },
-    json: { type: 'boolean', default: false },
-    quiet: { type: 'boolean', default: false },
-    repo: { type: 'string' },
-    'auth-token': { type: 'string' },
-    'allow-unauthenticated': { type: 'boolean', default: false },
-    'cors-allowed-origins': { type: 'string' },
-    'cors-allow-any': { type: 'boolean', default: false },
-    'allowed-repo-roots': { type: 'string' },
-    'max-body-bytes': { type: 'number' }
-  }
+  options: SERVICE_API_OPTIONS
 }).parse();
 
 const host = argv.host || '127.0.0.1';

@@ -63,7 +63,8 @@ export const buildChunkEnrichment = ({
   startLine,
   endLine,
   totalLines,
-  fileFrameworkProfile = null
+  fileFrameworkProfile = null,
+  segmentRelationsCache = null
 }) => {
   const resolvedChunkText = typeof chunkText === 'string'
     ? chunkText
@@ -99,6 +100,50 @@ export const buildChunkEnrichment = ({
         });
       } catch (err) {
         return { skip: failFile('relation-error', 'chunk-relations', err, diagnostics) };
+      }
+    } else if (relationsEnabled && activeLang && typeof activeLang.buildRelations === 'function') {
+      try {
+        const segmentId = chunk?.segment?.segmentId || null;
+        const cacheKey = segmentId || `${chunkLanguageId || 'unknown'}:${chunk.start}:${chunk.end}`;
+        const segmentStart = Number(chunk?.segment?.start);
+        const segmentEnd = Number(chunk?.segment?.end);
+        const hasSegmentBounds = Number.isFinite(segmentStart) && Number.isFinite(segmentEnd) && segmentEnd > segmentStart;
+        const relationText = segmentId && hasSegmentBounds
+          ? text.slice(segmentStart, segmentEnd)
+          : resolvedChunkText;
+        let localRelations = segmentRelationsCache?.get(cacheKey);
+        if (!localRelations) {
+          localRelations = activeLang.buildRelations({
+            text: relationText,
+            relPath: chunk?.segment?.segmentId || null,
+            context: {},
+            options: languageOptions
+          }) || {};
+          if (segmentRelationsCache && cacheKey) {
+            segmentRelationsCache.set(cacheKey, localRelations);
+          }
+        }
+        if (Array.isArray(localRelations?.imports) && localRelations.imports.length) {
+          codeRelations.imports = localRelations.imports;
+        }
+        if (Array.isArray(localRelations?.exports) && localRelations.exports.length) {
+          codeRelations.exports = localRelations.exports;
+        }
+        if (Array.isArray(localRelations?.usages) && localRelations.usages.length) {
+          codeRelations.usages = localRelations.usages;
+        }
+        if (Array.isArray(localRelations?.calls) && localRelations.calls.length) {
+          codeRelations.calls = chunk?.name
+            ? localRelations.calls.filter(([caller]) => caller && caller === chunk.name)
+            : localRelations.calls;
+        }
+        if (Array.isArray(localRelations?.callDetails) && localRelations.callDetails.length) {
+          codeRelations.callDetails = chunk?.name
+            ? localRelations.callDetails.filter((entry) => entry?.caller === chunk.name)
+            : localRelations.callDetails;
+        }
+      } catch (err) {
+        return { skip: failFile('relation-error', 'segment-relations', err, diagnostics) };
       }
     }
     let flowMeta = null;

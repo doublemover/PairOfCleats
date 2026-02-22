@@ -1,0 +1,48 @@
+{
+  "formatVersion": 1,
+  "languageId": "jinja",
+  "keywords": [
+    "and",
+    "as",
+    "block",
+    "call",
+    "elif",
+    "else",
+    "endblock",
+    "endcall",
+    "endfilter",
+    "endfor",
+    "endif",
+    "endmacro",
+    "endraw",
+    "endset",
+    "endwith",
+    "extends",
+    "filter",
+    "for",
+    "if",
+    "import",
+    "in",
+    "include",
+    "is",
+    "macro",
+    "not",
+    "or",
+    "raw",
+    "recursive",
+    "set",
+    "with"
+  ],
+  "literals": [
+    "false",
+    "none",
+    "true",
+    "undefined"
+  ],
+  "types": [],
+  "builtins": [],
+  "modules": [],
+  "notes": [
+    "Language-specific lexicon for keyword/literal stopword filtering."
+  ]
+}

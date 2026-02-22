@@ -6,7 +6,7 @@ import { toPosix } from '../../shared/files.js';
 import { normalizeOptionalNumber } from '../../shared/limits.js';
 import { normalizeRepoRelativePath } from '../../shared/path-normalize.js';
 import { parseSeedRef } from '../../shared/seed-ref.js';
-import { buildImpactAnalysis } from '../../graph/impact.js';
+import { buildImpactAnalysis, IMPACT_EMPTY_CHANGED_SET_CODE } from '../../graph/impact.js';
 import { renderGraphImpact } from '../../retrieval/output/graph-impact.js';
 import { validateGraphImpact } from '../../contracts/validators/analysis.js';
 import { buildIndexSignature } from '../../retrieval/index-cache.js';
@@ -73,6 +73,12 @@ const mergeCaps = (baseCaps, overrides) => {
   return merged;
 };
 
+const createImpactInputError = (code, message) => {
+  const err = new Error(message);
+  err.code = code;
+  return err;
+};
+
 export async function runImpactCli(rawArgs = process.argv.slice(2)) {
   const cli = createCli({
     scriptName: 'impact',
@@ -113,14 +119,20 @@ export async function runImpactCli(rawArgs = process.argv.slice(2)) {
       throw new Error('Invalid --direction value. Use upstream|downstream.');
     }
 
+    const seed = argv.seed ? parseSeedRef(argv.seed, repoRoot) : null;
+    const changed = parseChangedInputs({ changed: argv.changed, changedFile: argv.changedFile }, repoRoot);
+    if (!seed && changed.length === 0) {
+      throw createImpactInputError(
+        IMPACT_EMPTY_CHANGED_SET_CODE,
+        'No changed paths provided. Supply --changed/--changed-file or --seed.'
+      );
+    }
+
     const userConfig = loadUserConfig(repoRoot);
     const indexDir = resolveIndexDir(repoRoot, 'code', userConfig);
     if (!hasIndexMeta(indexDir)) {
       throw new Error(`Code index not found at ${indexDir}.`);
     }
-
-    const seed = argv.seed ? parseSeedRef(argv.seed, repoRoot) : null;
-    const changed = parseChangedInputs({ changed: argv.changed, changedFile: argv.changedFile }, repoRoot);
 
     const baseCaps = userConfig?.retrieval?.graph?.caps || {};
     const capOverrides = {
@@ -206,12 +218,15 @@ export async function runImpactCli(rawArgs = process.argv.slice(2)) {
     return payload;
   } catch (err) {
     const message = err?.message || String(err);
+    const code = err?.code === IMPACT_EMPTY_CHANGED_SET_CODE
+      ? IMPACT_EMPTY_CHANGED_SET_CODE
+      : 'ERR_GRAPH_IMPACT';
     if (format === 'json') {
-      console.log(JSON.stringify({ ok: false, code: 'ERR_GRAPH_IMPACT', message }, null, 2));
+      console.log(JSON.stringify({ ok: false, code, message }, null, 2));
     } else {
       console.error(message);
     }
-    return { ok: false, code: 'ERR_GRAPH_IMPACT', message };
+    return { ok: false, code, message };
   }
 }
 

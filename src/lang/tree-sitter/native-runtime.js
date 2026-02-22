@@ -15,7 +15,7 @@ const nativeTreeSitterState = {
 const DEFAULT_PARSER_CACHE_SIZE = 4;
 const MAX_PARSER_CACHE_SIZE = 64;
 
-const NATIVE_GRAMMAR_MODULES = Object.freeze({
+export const NATIVE_GRAMMAR_MODULES = Object.freeze({
   javascript: {
     moduleName: 'tree-sitter-javascript',
     exportKey: 'javascript',
@@ -55,10 +55,65 @@ const NATIVE_GRAMMAR_MODULES = Object.freeze({
   go: { moduleName: 'tree-sitter-go' },
   rust: { moduleName: 'tree-sitter-rust' },
   java: { moduleName: 'tree-sitter-java' },
+  dart: {
+    moduleName: '@sengac/tree-sitter-dart',
+    fallbackExportKeys: ['dart', 'language', 'default']
+  },
+  scala: {
+    moduleName: 'tree-sitter-scala',
+    fallbackExportKeys: ['scala', 'language', 'default']
+  },
+  groovy: {
+    moduleName: 'tree-sitter-groovy',
+    fallbackExportKeys: ['groovy', 'language', 'default']
+  },
+  r: {
+    moduleName: '@eagleoutice/tree-sitter-r',
+    fallbackExportKeys: ['r', 'language', 'default']
+  },
+  julia: {
+    moduleName: 'tree-sitter-julia',
+    fallbackExportKeys: ['julia', 'language', 'default']
+  },
+  ruby: {
+    moduleName: 'tree-sitter-ruby',
+    fallbackExportKeys: ['ruby', 'language', 'default']
+  },
+  php: {
+    moduleName: 'tree-sitter-php',
+    exportKey: 'php',
+    fallbackExportKeys: ['php', 'php_only', 'language', 'default']
+  },
+  perl: {
+    moduleName: '@ganezdragon/tree-sitter-perl',
+    fallbackExportKeys: ['perl', 'language', 'default']
+  },
+  shell: {
+    moduleName: 'tree-sitter-bash',
+    exportKey: 'bash',
+    fallbackExportKeys: ['bash', 'language', 'default']
+  },
+  sql: {
+    moduleName: '@derekstride/tree-sitter-sql',
+    fallbackExportKeys: ['sql', 'language', 'default']
+  },
   css: { moduleName: 'tree-sitter-css', prebuildBinary: 'tree-sitter-css.node' },
   html: { moduleName: 'tree-sitter-html' },
+  lua: {
+    moduleName: '@tree-sitter-grammars/tree-sitter-lua',
+    prebuildBinary: '@tree-sitter-grammars+tree-sitter-lua.node',
+    fallbackExportKeys: ['lua', 'language', 'default']
+  },
   swift: { moduleName: 'tree-sitter-swift' }
 });
+
+export const listNativeTreeSitterGrammarModuleNames = () => (
+  Array.from(new Set(
+    Object.values(NATIVE_GRAMMAR_MODULES)
+      .map((spec) => (typeof spec?.moduleName === 'string' ? spec.moduleName : null))
+      .filter(Boolean)
+  )).sort()
+);
 
 const resolveGrammarModule = (languageId) => NATIVE_GRAMMAR_MODULES[languageId] || null;
 
@@ -113,6 +168,12 @@ const normalizeLanguageBinding = (languageValue, grammarModule) => {
     if (nested) return nested;
   }
   if (!languageValue || typeof languageValue !== 'object') return null;
+  if (
+    languageValue.nodeTypeInfo
+    && (typeof languageValue.fieldIdForName === 'function' || typeof languageValue.name === 'string')
+  ) {
+    return languageValue;
+  }
   if (languageValue.language && languageValue.nodeTypeInfo) return languageValue;
   if (grammarModule && grammarModule.nodeTypeInfo && languageValue === grammarModule.language) {
     return grammarModule;
@@ -214,19 +275,32 @@ export function preflightNativeTreeSitterGrammars(languageIds = [], { log } = {}
   const missing = [];
   const unavailable = [];
   if (!unique.length) return { ok: true, missing, unavailable };
-  const ready = initNativeTreeSitter({ log });
-  if (!ready) {
-    unavailable.push(...unique);
-    return { ok: false, missing, unavailable };
-  }
+  const supported = [];
   for (const languageId of unique) {
-    const target = resolveNativeTreeSitterTarget(languageId);
-    if (!target) {
+    if (!resolveNativeTreeSitterTarget(languageId)) {
       missing.push(languageId);
       continue;
     }
+    supported.push(languageId);
+  }
+  if (!supported.length) {
+    return { ok: false, missing, unavailable };
+  }
+  const ready = initNativeTreeSitter({ log });
+  if (!ready) {
+    unavailable.push(...supported);
+    return { ok: false, missing, unavailable };
+  }
+  for (const languageId of supported) {
     const loaded = loadNativeTreeSitterGrammar(languageId, { log });
     if (!loaded?.language) {
+      unavailable.push(languageId);
+      continue;
+    }
+    // Validate parser activation during preflight so invalid native bindings are
+    // excluded from scheduler plans before execution starts.
+    const parser = getNativeTreeSitterParser(languageId, { log });
+    if (!parser) {
       unavailable.push(languageId);
     }
   }

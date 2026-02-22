@@ -25,6 +25,10 @@ assert.deepEqual(collectJavaImports('import static java.util.Collections.*;\nimp
 
 assert.deepEqual(collectCLikeImports('int main(){return 0;}\n'), []);
 assert.deepEqual(collectCLikeImports('#include <stdio.h>\n# include "x.h"\n').sort(), ['stdio.h', 'x.h']);
+assert.deepEqual(
+  collectCLikeImports('#import <Foundation/Foundation.h>\n# import "ObjcLocal.h"\n').sort(),
+  ['Foundation/Foundation.h', 'ObjcLocal.h']
+);
 
 assert.deepEqual(collectCSharpImports('namespace A {}\n'), []);
 assert.deepEqual(collectCSharpImports('using static System.Math;\nusing IO = System.IO;\n').sort(), ['System.IO', 'System.Math']);

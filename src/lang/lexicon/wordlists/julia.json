@@ -1,0 +1,52 @@
+{
+  "formatVersion": 1,
+  "languageId": "julia",
+  "keywords": [
+    "abstract",
+    "baremodule",
+    "begin",
+    "break",
+    "catch",
+    "const",
+    "continue",
+    "do",
+    "else",
+    "elseif",
+    "end",
+    "export",
+    "finally",
+    "for",
+    "function",
+    "global",
+    "if",
+    "import",
+    "let",
+    "local",
+    "macro",
+    "module",
+    "mutable",
+    "primitive",
+    "quote",
+    "return",
+    "struct",
+    "try",
+    "type",
+    "using",
+    "where",
+    "while"
+  ],
+  "literals": [
+    "false",
+    "inf",
+    "missing",
+    "nan",
+    "nothing",
+    "true"
+  ],
+  "types": [],
+  "builtins": [],
+  "modules": [],
+  "notes": [
+    "Language-specific lexicon for keyword/literal stopword filtering."
+  ]
+}

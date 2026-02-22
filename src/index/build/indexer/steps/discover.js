@@ -50,6 +50,7 @@ export const runDiscovery = async ({
       scmProviderImpl: runtime.scmProviderImpl,
       scmRepoRoot: runtime.scmRepoRoot,
       ignoreMatcher: runtime.ignoreMatcher,
+      generatedPolicy: runtime.generatedPolicy,
       skippedFiles: state?.skippedFiles || [],
       maxFileBytes: runtime.maxFileBytes,
       fileCaps: runtime.fileCaps,

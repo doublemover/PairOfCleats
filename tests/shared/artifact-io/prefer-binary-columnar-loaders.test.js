@@ -87,7 +87,22 @@ const chunkMetaDefault = await loadChunkMeta(testRoot, { strict: true, preferBin
 assert.equal(chunkMetaDefault[0]?.file, 'json.cc', 'expected manifest JSON chunk_meta when preference is disabled');
 
 const chunkMetaPreferred = await loadChunkMeta(testRoot, { strict: true, preferBinaryColumnar: true });
-assert.equal(chunkMetaPreferred[0]?.file, 'binary.cc', 'expected binary chunk_meta when preference is enabled');
+assert.equal(
+  chunkMetaPreferred[0]?.file,
+  'json.cc',
+  'expected chunk_meta preference to honor manifest format when binary is not declared'
+);
+
+await writePiecesManifest(testRoot, [
+  { name: 'chunk_meta', path: 'chunk_meta.binary-columnar.bin', format: 'binary-columnar' },
+  { name: 'token_postings', path: 'token_postings.json', format: 'json' }
+]);
+const chunkMetaBinaryDeclared = await loadChunkMeta(testRoot, { strict: true, preferBinaryColumnar: true });
+assert.equal(
+  chunkMetaBinaryDeclared[0]?.file,
+  'binary.cc',
+  'expected binary chunk_meta when manifest explicitly declares binary-columnar format'
+);
 
 const postingsDefault = loadTokenPostings(testRoot, { strict: true, preferBinaryColumnar: false });
 assert.equal(postingsDefault?.vocab?.[0], 'json_tok', 'expected manifest JSON token_postings when preference is disabled');

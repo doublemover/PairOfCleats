@@ -38,7 +38,7 @@ export const resolveEmbeddingRuntime = async ({
   const embeddingQueueMaxRaw = Number(embeddingQueueConfig.maxQueued);
   const embeddingQueueMaxQueued = Number.isFinite(embeddingQueueMaxRaw)
     ? Math.max(0, Math.floor(embeddingQueueMaxRaw))
-    : 10;
+    : 32;
   const embeddingCacheDir = typeof embeddingCacheConfig.dir === 'string'
     ? embeddingCacheConfig.dir.trim()
     : '';
@@ -47,9 +47,7 @@ export const resolveEmbeddingRuntime = async ({
     ? Math.floor(embeddingConcurrencyRaw)
     : 0;
   if (!embeddingConcurrency) {
-    const defaultEmbedding = process.platform === 'win32'
-      ? cpuConcurrency
-      : Math.min(4, cpuConcurrency);
+    const defaultEmbedding = cpuConcurrency;
     embeddingConcurrency = Math.max(1, defaultEmbedding);
   }
   embeddingConcurrency = Math.max(1, Math.min(embeddingConcurrency, cpuConcurrency));
@@ -86,6 +84,9 @@ export const resolveEmbeddingRuntime = async ({
   const embeddingEnabled = embeddingsConfig.enabled !== false
     && resolvedEmbeddingMode !== 'off'
     && !embeddingService;
+  if (!embeddingEnabled) {
+    embeddingConcurrency = 0;
+  }
   const useStubEmbeddings = resolvedEmbeddingMode === 'stub' || baseStubEmbeddings;
   const modelConfig = getModelConfig(rootDir, userConfig);
   const modelId = argv.model || modelConfig.id || DEFAULT_MODEL_ID;

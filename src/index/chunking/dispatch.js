@@ -46,6 +46,7 @@ import { buildGoChunks } from '../../lang/go.js';
 import { buildJavaChunks } from '../../lang/java.js';
 import { buildPerlChunks } from '../../lang/perl.js';
 import { buildShellChunks } from '../../lang/shell.js';
+import { buildTreeSitterChunks } from '../../lang/tree-sitter.js';
 import { chunkIniToml } from './formats/ini-toml.js';
 import { chunkJson } from './formats/json.js';
 import { chunkDocxDocument } from './formats/docx.js';
@@ -57,6 +58,7 @@ import { chunkYaml } from './formats/yaml.js';
 import { buildChunksFromLineHeadings, buildLineIndexFromLines } from './helpers.js';
 import { applyChunkingLimits } from './limits.js';
 import { getTreeSitterOptions } from './tree-sitter.js';
+import { parseDockerfileFromClause, parseDockerfileInstruction } from '../../shared/dockerfile.js';
 
 const applyFormatMeta = (chunks, format, kind) => {
   if (!chunks) return null;
@@ -125,13 +127,18 @@ const chunkByLineRegex = (text, matcher, options = {}, context = null) => {
 const chunkDockerfile = (text, context = null) => {
   const { lines, lineIndex } = splitLinesWithIndex(text, context);
   const headings = [];
-  const rx = /^\s*([A-Z][A-Z0-9_-]+)\b/;
   for (let i = 0; i < lines.length; ++i) {
     const line = lines[i];
     if (line.length > MAX_REGEX_LINE) continue;
-    if (!line || (line[0] < 'A' || line[0] > 'Z')) continue;
-    const match = line.match(rx);
-    if (match) headings.push({ line: i, title: match[1] });
+    const parsed = parseDockerfileInstruction(line);
+    if (!parsed) continue;
+    if (parsed.instruction === 'FROM') {
+      const from = parseDockerfileFromClause(line);
+      const fromTarget = from?.stage || from?.image || 'FROM';
+      headings.push({ line: i, title: `FROM ${fromTarget}` });
+      continue;
+    }
+    headings.push({ line: i, title: parsed.instruction });
   }
   const chunks = buildChunksFromLineHeadings(text, headings, lineIndex);
   if (chunks && chunks.length) {
@@ -159,39 +166,144 @@ const chunkMakefile = (text, context = null) => {
   return [{ start: 0, end: text.length, name: 'Makefile', kind: 'ConfigSection', meta: { format: 'makefile' } }];
 };
 
+/**
+ * Heuristic Proto splitter for declaration boundaries.
+ *
+ * This is used when tree-sitter chunks are unavailable and must remain stable
+ * across runs for scheduler fallback parity.
+ *
+ * @param {string} text
+ * @param {object|null} [context]
+ * @returns {Array<object>}
+ */
 const chunkProto = (text, context = null) => {
   const { lines, lineIndex } = splitLinesWithIndex(text, context);
   const headings = [];
-  const rx = /^\s*(message|enum|service|extend|oneof)\s+([A-Za-z_][A-Za-z0-9_]*)/;
+  const blockRx = /^\s*(message|enum|service|oneof)\s+([A-Za-z_][A-Za-z0-9_]*)/;
+  // `extend` targets may be fully qualified (for example
+  // `extend google.protobuf.MessageOptions`), so allow dotted paths and an
+  // optional leading dot for package-qualified symbols.
+  const extendRx = /^\s*extend\s+(\.?[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)/;
+  const rpcRx = /^\s*rpc\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/;
+  const syntaxRx = /^\s*syntax\s*=\s*["'][^"']+["']\s*;/;
+  const packageRx = /^\s*package\s+([A-Za-z_][A-Za-z0-9_.]*)\s*;/;
+  const kindByKeyword = {
+    message: 'TypeDeclaration',
+    enum: 'EnumDeclaration',
+    service: 'ServiceDeclaration',
+    extend: 'ExtendDeclaration',
+    oneof: 'OneOfDeclaration'
+  };
   for (let i = 0; i < lines.length; ++i) {
     const line = lines[i];
     if (line.length > MAX_REGEX_LINE) continue;
+    if (line.trim().startsWith('//')) continue;
+    if (syntaxRx.test(line)) {
+      headings.push({ line: i, title: 'syntax', kind: 'ConfigDeclaration', definitionType: 'syntax' });
+      continue;
+    }
+    const packageMatch = line.match(packageRx);
+    if (packageMatch) {
+      headings.push({
+        line: i,
+        title: `package ${packageMatch[1]}`,
+        kind: 'NamespaceDeclaration',
+        definitionType: 'package'
+      });
+      continue;
+    }
     if (!(line.includes('message')
       || line.includes('enum')
       || line.includes('service')
       || line.includes('extend')
-      || line.includes('oneof'))) {
+      || line.includes('oneof')
+      || line.includes('rpc'))) {
       continue;
     }
-    const match = line.match(rx);
-    if (match) {
-      const kind = match[1];
-      const name = match[2];
-      headings.push({ line: i, title: `${kind} ${name}`.trim() });
+    const rpcMatch = line.match(rpcRx);
+    if (rpcMatch) {
+      headings.push({
+        line: i,
+        title: `rpc ${rpcMatch[1]}`,
+        kind: 'MethodDeclaration',
+        definitionType: 'rpc'
+      });
+      continue;
+    }
+    const extendMatch = line.match(extendRx);
+    if (extendMatch) {
+      const name = extendMatch[1];
+      headings.push({
+        line: i,
+        title: `extend ${name}`,
+        kind: 'ExtendDeclaration',
+        definitionType: 'extend'
+      });
+      continue;
+    }
+    const blockMatch = line.match(blockRx);
+    if (blockMatch) {
+      const keyword = blockMatch[1];
+      const name = blockMatch[2];
+      headings.push({
+        line: i,
+        title: `${keyword} ${name}`.trim(),
+        kind: kindByKeyword[keyword] || 'Section',
+        definitionType: keyword
+      });
     }
   }
   const chunks = buildChunksFromLineHeadings(text, headings, lineIndex);
-  if (chunks && chunks.length) return applyFormatMeta(chunks, 'proto', 'Section');
+  if (chunks && chunks.length) {
+    return chunks.map((chunk, index) => ({
+      ...chunk,
+      kind: headings[index]?.kind || 'Section',
+      meta: {
+        ...(chunk.meta || {}),
+        format: 'proto',
+        definitionType: headings[index]?.definitionType || null
+      }
+    }));
+  }
   return [{ start: 0, end: text.length, name: 'proto', kind: 'Section', meta: { format: 'proto' } }];
 };
 
+/**
+ * Heuristic GraphQL splitter for schema/type/operation boundaries.
+ *
+ * This fallback intentionally tracks `extend` and operation declarations to
+ * preserve deterministic chunk identity when parser-backed chunking is absent.
+ *
+ * @param {string} text
+ * @param {object|null} [context]
+ * @returns {Array<object>}
+ */
 const chunkGraphql = (text, context = null) => {
   const { lines, lineIndex } = splitLinesWithIndex(text, context);
   const headings = [];
-  const rx = /^\s*(schema|type|interface|enum|union|input|scalar|directive|fragment)\b\s*([A-Za-z_][A-Za-z0-9_]*)?/;
+  const blockRx = /^\s*(schema|type|interface|enum|union|input|scalar|directive|fragment)\b\s*([A-Za-z_][A-Za-z0-9_]*)?/;
+  const operationRx = /^\s*(query|mutation|subscription)\s+([A-Za-z_][A-Za-z0-9_]*)/;
+  // GraphQL allows both `extend type Name` and `extend schema { ... }` with
+  // no schema identifier.
+  const extendRx = /^\s*extend\s+(schema|type|interface|enum|union|input|scalar)\b(?:\s+([A-Za-z_][A-Za-z0-9_]*))?/;
+  const kindByKeyword = {
+    schema: 'SchemaDeclaration',
+    type: 'TypeDeclaration',
+    interface: 'InterfaceDeclaration',
+    enum: 'EnumDeclaration',
+    union: 'UnionDeclaration',
+    input: 'InputDeclaration',
+    scalar: 'ScalarDeclaration',
+    directive: 'DirectiveDeclaration',
+    fragment: 'FragmentDeclaration',
+    query: 'OperationDeclaration',
+    mutation: 'OperationDeclaration',
+    subscription: 'OperationDeclaration'
+  };
   for (let i = 0; i < lines.length; ++i) {
     const line = lines[i];
     if (line.length > MAX_REGEX_LINE) continue;
+    if (line.trim().startsWith('#')) continue;
     if (!(line.includes('schema')
       || line.includes('type')
       || line.includes('interface')
@@ -200,19 +312,64 @@ const chunkGraphql = (text, context = null) => {
       || line.includes('input')
       || line.includes('scalar')
       || line.includes('directive')
-      || line.includes('fragment'))) {
+      || line.includes('fragment')
+      || line.includes('query')
+      || line.includes('mutation')
+      || line.includes('subscription')
+      || line.includes('extend'))) {
       continue;
     }
-    const match = line.match(rx);
-    if (match) {
-      const kind = match[1];
-      const name = match[2] || '';
-      const title = name ? `${kind} ${name}` : kind;
-      headings.push({ line: i, title });
+    const extendMatch = line.match(extendRx);
+    if (extendMatch) {
+      const definitionType = `extend-${extendMatch[1]}`;
+      const title = extendMatch[2]
+        ? `extend ${extendMatch[1]} ${extendMatch[2]}`
+        : `extend ${extendMatch[1]}`;
+      headings.push({
+        line: i,
+        title,
+        kind: kindByKeyword[extendMatch[1]] || 'Section',
+        definitionType
+      });
+      continue;
+    }
+    const operationMatch = line.match(operationRx);
+    if (operationMatch) {
+      const definitionType = operationMatch[1];
+      const title = `${definitionType} ${operationMatch[2]}`;
+      headings.push({
+        line: i,
+        title,
+        kind: kindByKeyword[definitionType] || 'Section',
+        definitionType
+      });
+      continue;
+    }
+    const blockMatch = line.match(blockRx);
+    if (blockMatch) {
+      const definitionType = blockMatch[1];
+      const name = blockMatch[2] || '';
+      const title = name ? `${definitionType} ${name}` : definitionType;
+      headings.push({
+        line: i,
+        title,
+        kind: kindByKeyword[definitionType] || 'Section',
+        definitionType
+      });
     }
   }
   const chunks = buildChunksFromLineHeadings(text, headings, lineIndex);
-  if (chunks && chunks.length) return applyFormatMeta(chunks, 'graphql', 'Section');
+  if (chunks && chunks.length) {
+    return chunks.map((chunk, index) => ({
+      ...chunk,
+      kind: headings[index]?.kind || 'Section',
+      meta: {
+        ...(chunk.meta || {}),
+        format: 'graphql',
+        definitionType: headings[index]?.definitionType || null
+      }
+    }));
+  }
   return [{ start: 0, end: text.length, name: 'graphql', kind: 'Section', meta: { format: 'graphql' } }];
 };
 
@@ -461,6 +618,17 @@ const chunkRazor = (text, context = null) => {
   }];
 };
 
+const tryTreeSitterChunks = (text, languageId, context) => {
+  // Keep fallback deterministic: only short-circuit when tree-sitter produced
+  // concrete chunks for this language; otherwise continue with heuristics.
+  const chunks = buildTreeSitterChunks({
+    text,
+    languageId,
+    options: getTreeSitterOptions(context)
+  });
+  return (Array.isArray(chunks) && chunks.length) ? chunks : null;
+};
+
 const CODE_CHUNKERS = [
   { id: 'javascript', match: (ext) => isJsLike(ext), chunk: ({ text, ext, context }) => {
     if (context?.jsChunks) return context.jsChunks;
@@ -507,9 +675,9 @@ const CODE_CHUNKERS = [
   { id: 'java', match: (ext) => isJava(ext), chunk: ({ text, context }) =>
     context?.javaChunks || buildJavaChunks(text, getTreeSitterOptions(context)) },
   { id: 'perl', match: (ext) => isPerl(ext), chunk: ({ text, context }) =>      
-    context?.perlChunks || buildPerlChunks(text) },
+    context?.perlChunks || buildPerlChunks(text, getTreeSitterOptions(context)) },
   { id: 'shell', match: (ext) => isShell(ext), chunk: ({ text, context }) =>    
-    context?.shellChunks || buildShellChunks(text) },
+    context?.shellChunks || buildShellChunks(text, getTreeSitterOptions(context)) },
   { id: 'dockerfile', match: (ext) => ext === '.dockerfile', chunk: ({ text, context }) =>
     chunkDockerfile(text, context) },
   { id: 'makefile', match: (ext) => ext === '.makefile', chunk: ({ text, context }) =>
@@ -519,25 +687,30 @@ const CODE_CHUNKERS = [
   { id: 'kotlin', match: (ext) => isKotlin(ext), chunk: ({ text, context }) =>
     context?.kotlinChunks || buildKotlinChunks(text, getTreeSitterOptions(context)) },
   { id: 'ruby', match: (ext) => isRuby(ext), chunk: ({ text, context }) =>
-    context?.rubyChunks || buildRubyChunks(text) },
+    context?.rubyChunks || buildRubyChunks(text, getTreeSitterOptions(context)) },
   { id: 'php', match: (ext) => isPhp(ext), chunk: ({ text, context }) =>
-    context?.phpChunks || buildPhpChunks(text) },
+    context?.phpChunks || buildPhpChunks(text, getTreeSitterOptions(context)) },
   { id: 'lua', match: (ext) => isLua(ext), chunk: ({ text, context }) =>
-    context?.luaChunks || buildLuaChunks(text) },
+    context?.luaChunks || buildLuaChunks(text, getTreeSitterOptions(context)) },
   { id: 'sql', match: (ext) => isSql(ext), chunk: ({ text, context }) =>
     context?.sqlChunks || buildSqlChunks(text, getTreeSitterOptions(context)) },
   { id: 'proto', match: (ext) => ext === '.proto', chunk: ({ text, context }) =>
-    chunkProto(text, context) },
+    tryTreeSitterChunks(text, 'proto', context) || chunkProto(text, context) },
   { id: 'graphql', match: (ext) => ext === '.graphql' || ext === '.gql' || ext === '.graphqls', chunk: ({ text, context }) =>
-    chunkGraphql(text, context) },
+    tryTreeSitterChunks(text, 'graphql', context) || chunkGraphql(text, context) },
   { id: 'cmake', match: (ext) => CMAKE_EXTS.has(ext), chunk: ({ text, context }) => chunkCmake(text, context) },
   { id: 'starlark', match: (ext) => STARLARK_EXTS.has(ext), chunk: ({ text, context }) => chunkStarlark(text, context) },
   { id: 'nix', match: (ext) => NIX_EXTS.has(ext), chunk: ({ text, context }) => chunkNix(text, context) },
-  { id: 'dart', match: (ext) => DART_EXTS.has(ext), chunk: ({ text, context }) => chunkDart(text, context) },
-  { id: 'scala', match: (ext) => SCALA_EXTS.has(ext), chunk: ({ text, context }) => chunkScala(text, context) },
-  { id: 'groovy', match: (ext) => GROOVY_EXTS.has(ext), chunk: ({ text, context }) => chunkGroovy(text, context) },
-  { id: 'r', match: (ext) => R_EXTS.has(ext), chunk: ({ text, context }) => chunkR(text, context) },
-  { id: 'julia', match: (ext) => JULIA_EXTS.has(ext), chunk: ({ text, context }) => chunkJulia(text, context) },
+  { id: 'dart', match: (ext) => DART_EXTS.has(ext), chunk: ({ text, context }) =>
+    tryTreeSitterChunks(text, 'dart', context) || chunkDart(text, context) },
+  { id: 'scala', match: (ext) => SCALA_EXTS.has(ext), chunk: ({ text, context }) =>
+    tryTreeSitterChunks(text, 'scala', context) || chunkScala(text, context) },
+  { id: 'groovy', match: (ext) => GROOVY_EXTS.has(ext), chunk: ({ text, context }) =>
+    tryTreeSitterChunks(text, 'groovy', context) || chunkGroovy(text, context) },
+  { id: 'r', match: (ext) => R_EXTS.has(ext), chunk: ({ text, context }) =>
+    tryTreeSitterChunks(text, 'r', context) || chunkR(text, context) },
+  { id: 'julia', match: (ext) => JULIA_EXTS.has(ext), chunk: ({ text, context }) =>
+    tryTreeSitterChunks(text, 'julia', context) || chunkJulia(text, context) },
   { id: 'handlebars', match: (ext) => HANDLEBARS_EXTS.has(ext), chunk: ({ text, context }) => chunkHandlebars(text, context) },
   { id: 'mustache', match: (ext) => MUSTACHE_EXTS.has(ext), chunk: ({ text, context }) => chunkMustache(text, context) },
   { id: 'jinja', match: (ext) => JINJA_EXTS.has(ext), chunk: ({ text, context }) => chunkJinja(text, context) },
@@ -550,8 +723,10 @@ const CODE_FORMAT_CHUNKERS = [
     chunkIniToml(text, ext === '.toml' ? 'toml' : 'ini', context) },
   { id: 'xml', match: (ext) => ext === '.xml', chunk: ({ text, context }) => chunkXml(text, context) },
   { id: 'yaml', match: (ext) => ext === '.yaml' || ext === '.yml', chunk: ({ text, relPath, context }) => chunkYaml(text, relPath, context) },
-  { id: 'proto', match: (ext) => ext === '.proto', chunk: ({ text, context }) => chunkProto(text, context) },
-  { id: 'graphql', match: (ext) => ext === '.graphql' || ext === '.gql', chunk: ({ text, context }) => chunkGraphql(text, context) }
+  { id: 'proto', match: (ext) => ext === '.proto', chunk: ({ text, context }) =>
+    tryTreeSitterChunks(text, 'proto', context) || chunkProto(text, context) },
+  { id: 'graphql', match: (ext) => ext === '.graphql' || ext === '.gql', chunk: ({ text, context }) =>
+    tryTreeSitterChunks(text, 'graphql', context) || chunkGraphql(text, context) }
 ];
 
 const PROSE_CHUNKERS = [

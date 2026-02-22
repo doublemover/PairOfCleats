@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { once } from 'node:events';
 import { Transform } from 'node:stream';
 import { createTempPath, replaceFile } from './atomic.js';
@@ -136,9 +137,14 @@ const createExclusiveAtomicFileStream = (filePath, highWaterMark) => {
   throw lastErr || new Error(`Failed to allocate unique atomic temp file for ${filePath}`);
 };
 
-const createByteCounter = (maxBytes, highWaterMark) => {
+const createByteCounter = (maxBytes, highWaterMark, checksumAlgo = null) => {
   let bytes = 0;
   let overLimit = false;
+  const resolvedChecksumAlgo = typeof checksumAlgo === 'string' && checksumAlgo.trim()
+    ? checksumAlgo.trim().toLowerCase()
+    : null;
+  const checksumHash = resolvedChecksumAlgo ? crypto.createHash(resolvedChecksumAlgo) : null;
+  let checksumValue = null;
   const counter = new Transform({
     ...(highWaterMark ? { highWaterMark } : {}),
     transform(chunk, _encoding, callback) {
@@ -148,18 +154,35 @@ const createByteCounter = (maxBytes, highWaterMark) => {
         callback(new Error(`JSON stream exceeded maxBytes (${bytes} > ${maxBytes}).`));
         return;
       }
+      if (checksumHash) {
+        checksumHash.update(chunk);
+      }
       callback(null, chunk);
     }
   });
   return {
     counter,
     getBytes: () => bytes,
-    isOverLimit: () => overLimit
+    isOverLimit: () => overLimit,
+    checksumAlgo: resolvedChecksumAlgo,
+    getChecksum: () => {
+      if (!checksumHash) return null;
+      if (checksumValue == null) {
+        checksumValue = checksumHash.digest('hex');
+      }
+      return checksumValue;
+    }
   };
 };
 
 export const createJsonWriteStream = (filePath, options = {}) => {
-  const { compression = null, atomic = false, signal = null, maxBytes = null } = options;
+  const {
+    compression = null,
+    atomic = false,
+    signal = null,
+    maxBytes = null,
+    checksumAlgo = null
+  } = options;
   const highWaterMark = normalizeHighWaterMark(options.highWaterMark);
   if (signal?.aborted) {
     throw createAbortError();
@@ -175,7 +198,13 @@ export const createJsonWriteStream = (filePath, options = {}) => {
       targetPath,
       highWaterMark ? { highWaterMark } : undefined
     );
-  const { counter, getBytes, isOverLimit } = createByteCounter(maxBytes, highWaterMark);
+  const {
+    counter,
+    getBytes,
+    isOverLimit,
+    checksumAlgo: resolvedChecksumAlgo,
+    getChecksum
+  } = createByteCounter(maxBytes, highWaterMark, checksumAlgo);
   let writer = null;
   let committed = false;
   const streams = [];
@@ -235,6 +264,8 @@ export const createJsonWriteStream = (filePath, options = {}) => {
     return {
       stream: gzip,
       getBytesWritten: getBytes,
+      checksumAlgo: resolvedChecksumAlgo,
+      getChecksum,
       done: Promise.all([...new Set(streams)].map((entry) => (
         waitForFinish(entry, entry === fileStream)
       )))
@@ -268,6 +299,8 @@ export const createJsonWriteStream = (filePath, options = {}) => {
     return {
       stream: zstd,
       getBytesWritten: getBytes,
+      checksumAlgo: resolvedChecksumAlgo,
+      getChecksum,
       done: Promise.all([...new Set(streams)].map((entry) => (
         waitForFinish(entry, entry === fileStream)
       )))
@@ -299,6 +332,8 @@ export const createJsonWriteStream = (filePath, options = {}) => {
   return {
     stream: counter,
     getBytesWritten: getBytes,
+    checksumAlgo: resolvedChecksumAlgo,
+    getChecksum,
     done: Promise.all([...new Set(streams)].map((entry) => (
       waitForFinish(entry, entry === fileStream)
     )))

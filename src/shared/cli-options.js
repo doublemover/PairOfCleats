@@ -37,6 +37,35 @@ export const INDEX_BUILD_OPTIONS = {
   quiet: { type: 'boolean', default: false }
 };
 
+export const SERVICE_INDEXER_OPTIONS = {
+  config: { type: 'string' },
+  repo: { type: 'string' },
+  mode: { type: 'string', default: 'all' },
+  reason: { type: 'string' },
+  stage: { type: 'string' },
+  command: { type: 'string' },
+  watch: { type: 'boolean', default: false },
+  interval: { type: 'number' },
+  concurrency: { type: 'number' },
+  queue: { type: 'string', default: 'index' },
+  json: { type: 'boolean', default: false }
+};
+
+export const SERVICE_API_OPTIONS = {
+  host: { type: 'string', default: '127.0.0.1' },
+  port: { type: 'string', default: '7345' },
+  output: { type: 'string', default: 'compact' },
+  json: { type: 'boolean', default: false },
+  quiet: { type: 'boolean', default: false },
+  repo: { type: 'string' },
+  'auth-token': { type: 'string' },
+  'allow-unauthenticated': { type: 'boolean', default: false },
+  'cors-allowed-origins': { type: 'string' },
+  'cors-allow-any': { type: 'boolean', default: false },
+  'allowed-repo-roots': { type: 'string' },
+  'max-body-bytes': { type: 'number' }
+};
+
 export const BENCH_OPTIONS = {
   ann: { type: 'boolean' },
   'no-ann': { type: 'boolean' },
@@ -72,6 +101,19 @@ export function mergeCliOptions(...sets) {
     }
   }
   return merged;
+}
+
+/**
+ * Resolve canonical option names and value-bearing option names from a CLI
+ * options schema object.
+ *
+ * @param {Record<string, {type?:string}>} [options]
+ * @returns {{optionNames:string[], valueOptionNames:string[]}}
+ */
+export function resolveCliOptionFlagSets(options = {}) {
+  const optionNames = Object.keys(options);
+  const valueOptionNames = optionNames.filter((name) => options?.[name]?.type !== 'boolean');
+  return { optionNames, valueOptionNames };
 }
 
 const CLI_META_KEYS = new Set(['_', '$0', 'help', 'h']);

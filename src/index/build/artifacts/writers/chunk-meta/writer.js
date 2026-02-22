@@ -24,6 +24,7 @@ import {
   createOffsetsMeta,
   recordArtifactTelemetry
 } from '../../helpers.js';
+import { buildTrimMetadata } from '../../trim-policy.js';
 import { applyByteBudget } from '../../../byte-budget.js';
 import {
   buildJsonlVariantPaths,
@@ -314,6 +315,17 @@ export const enqueueChunkMetaArtifacts = async ({
   const trimmedFieldsPayload = trimmedFields && Object.keys(trimmedFields).length
     ? trimmedFields
     : null;
+  const trimMaxRowBytes = Math.max(jsonlScan?.maxRowBytes || 0, measured?.maxRowBytes || 0);
+  const trimMetadata = {
+    ...buildTrimMetadata(chunkMetaIterator.stats, {
+      trimmedFields: trimmedFieldsPayload,
+      trimmedRows: trimmedEntries,
+      droppedRows: 0,
+      maxRowBytes: trimMaxRowBytes
+    }),
+    trimmedEntries,
+    trimmedMetaV2
+  };
   if (resolvedUseJsonl && jsonlScan) {
     const budgetInfo = applyByteBudget({
       budget: byteBudget,
@@ -344,8 +356,7 @@ export const enqueueChunkMetaArtifacts = async ({
         adaptiveSharding: streamingAdaptiveSharding,
         hotColdSplit: enableHotColdSplit,
         coldBytes: jsonlScan.coldJsonlBytes || 0,
-        trimmedMetaV2,
-        trimmedFields: trimmedFieldsPayload,
+        trim: trimMetadata,
         order: orderInfo,
         budget: budgetInfo
       }
@@ -369,8 +380,7 @@ export const enqueueChunkMetaArtifacts = async ({
       extra: {
         format: 'json',
         hotColdSplit: false,
-        trimmedMetaV2,
-        trimmedFields: trimmedFieldsPayload,
+        trim: trimMetadata,
         budget: budgetInfo
       }
     });
@@ -464,9 +474,14 @@ export const enqueueChunkMetaArtifacts = async ({
 
   if (resolvedUseJsonl) {
     if (resolvedUseShards) {
-      log(`[chunk_meta] writing sharded JSONL -> ${path.join(outDir, 'chunk_meta.parts')}`);
+      const shardPath = path.join(outDir, 'chunk_meta.parts');
+      log('[chunk_meta] writing sharded JSONL', {
+        fileOnlyLine: `[chunk_meta] writing sharded JSONL -> ${shardPath}`
+      });
     } else {
-      log(`[chunk_meta] writing JSONL -> ${jsonlPath}`);
+      log('[chunk_meta] writing JSONL', {
+        fileOnlyLine: `[chunk_meta] writing JSONL -> ${jsonlPath}`
+      });
     }
     if (chunkMetaStreaming) {
       log('[chunk_meta] streaming mode enabled (single-pass JSONL writer).');
@@ -475,9 +490,14 @@ export const enqueueChunkMetaArtifacts = async ({
       log('[chunk_meta] hot/cold split enabled for JSONL artifacts.');
     }
   } else if (resolvedUseColumnar) {
-    log(`[chunk_meta] writing columnar -> ${columnarPath}`);
+    log('[chunk_meta] writing columnar', {
+      fileOnlyLine: `[chunk_meta] writing columnar -> ${columnarPath}`
+    });
   } else {
-    log(`[chunk_meta] writing JSON -> ${path.join(outDir, 'chunk_meta.json')}`);
+    const jsonPath = path.join(outDir, 'chunk_meta.json');
+    log('[chunk_meta] writing JSON', {
+      fileOnlyLine: `[chunk_meta] writing JSON -> ${jsonPath}`
+    });
   }
 
   if (resolvedUseJsonl) {
@@ -656,11 +676,7 @@ export const enqueueChunkMetaArtifacts = async ({
             result,
             parts,
             extensions: {
-              trim: {
-                trimmedEntries,
-                trimmedMetaV2,
-                trimmedFields: trimmedFieldsPayload
-              },
+              trim: trimMetadata,
               ...(bucketSize ? { orderBuckets: { size: bucketSize, count: buckets.length } } : {}),
               ...(offsetsMeta ? { offsets: offsetsMeta } : {})
             }
@@ -879,6 +895,9 @@ export const enqueueChunkMetaArtifacts = async ({
     });
   }
   if (chunkMetaBinaryColumnar) {
+    const binaryColumnarEstimatedBytes = Number.isFinite(Number(chunkMetaEstimatedJsonlBytes))
+      ? Math.max(0, Math.floor(Number(chunkMetaEstimatedJsonlBytes)))
+      : null;
     enqueueWrite(
       formatArtifactLabel(binaryMetaPath),
       async () => {
@@ -943,6 +962,14 @@ export const enqueueChunkMetaArtifacts = async ({
           },
           atomic: true
         });
+      },
+      {
+        // Start binary-columnar generation early so it overlaps other long
+        // artifact writes instead of becoming the final tail.
+        priority: 225,
+        estimatedBytes: binaryColumnarEstimatedBytes,
+        eagerStart: true,
+        laneHint: 'massive'
       }
     );
     addPieceFile({

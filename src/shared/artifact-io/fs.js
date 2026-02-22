@@ -3,6 +3,12 @@ import path from 'node:path';
 import { getBakPath } from './cache.js';
 
 export const existsOrBak = (filePath) => fs.existsSync(filePath) || fs.existsSync(getBakPath(filePath));
+export const resolvePathOrBak = (filePath) => {
+  if (fs.existsSync(filePath)) return filePath;
+  const bakPath = getBakPath(filePath);
+  if (fs.existsSync(bakPath)) return bakPath;
+  return filePath;
+};
 
 export const readShardFiles = (dir, prefix) => {
   try {

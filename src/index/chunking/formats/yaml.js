@@ -49,9 +49,32 @@ const parseYamlTopLevelKey = (line) => {
   return null;
 };
 
+const collectYamlDocumentBoundaries = (lines, lineIndex) => {
+  const boundaries = [0];
+  for (let i = 0; i < lines.length; ++i) {
+    if (!/^\s*---(?:\s+#.*)?\s*$/.test(lines[i])) continue;
+    const offset = Number.isFinite(lineIndex[i]) ? lineIndex[i] : 0;
+    if (offset <= 0) continue;
+    boundaries.push(offset);
+  }
+  boundaries.sort((a, b) => a - b);
+  return boundaries;
+};
+
+const resolveDocumentIndex = (offset, boundaries) => {
+  if (!Number.isFinite(offset) || !Array.isArray(boundaries) || boundaries.length === 0) return 0;
+  let index = 0;
+  for (let i = 1; i < boundaries.length; ++i) {
+    if (offset < boundaries[i]) break;
+    index = i;
+  }
+  return index;
+};
+
 const chunkYamlTopLevel = (text) => {
   const lines = text.split('\n');
   const lineIndex = buildLineIndexFromLines(lines);
+  const documentBoundaries = collectYamlDocumentBoundaries(lines, lineIndex);
   const headings = [];
   for (let i = 0; i < lines.length; ++i) {
     const line = lines[i];
@@ -68,7 +91,12 @@ const chunkYamlTopLevel = (text) => {
     ? chunks.map((chunk) => ({
       ...chunk,
       kind: 'ConfigSection',
-      meta: { ...(chunk.meta || {}), format: 'yaml', title: chunk.name }
+      meta: {
+        ...(chunk.meta || {}),
+        format: 'yaml',
+        title: chunk.name,
+        documentIndex: resolveDocumentIndex(chunk.start, documentBoundaries)
+      }
     }))
     : null;
 };

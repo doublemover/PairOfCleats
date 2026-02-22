@@ -31,7 +31,25 @@ if (!pyFiles.length) {
   process.exit(1);
 }
 
-const python = process.env.PYTHON || 'python';
+const pythonPolicy = spawnSync(
+  process.execPath,
+  [path.join(root, 'tools', 'tooling', 'python-check.js'), '--json'],
+  { encoding: 'utf8' }
+);
+if (pythonPolicy.status !== 0) {
+  console.error('sublime-pycompile: required python toolchain is missing');
+  if (pythonPolicy.stdout) console.error(pythonPolicy.stdout.trim());
+  if (pythonPolicy.stderr) console.error(pythonPolicy.stderr.trim());
+  process.exit(pythonPolicy.status ?? 1);
+}
+
+let pythonInfo = null;
+try {
+  pythonInfo = JSON.parse(pythonPolicy.stdout || '{}');
+} catch {
+  pythonInfo = null;
+}
+const python = pythonInfo?.python || process.env.PYTHON || 'python';
 const result = spawnSync(
   python,
   ['-m', 'py_compile', ...pyFiles],

@@ -3,6 +3,7 @@ import {
   normalizeOptionalLimit,
   normalizeTreeSitterByLanguage
 } from './caps.js';
+import { TREE_SITTER_CAPS_BASELINES } from './caps-calibration.js';
 
 const DEFAULT_DEFER_MISSING_MAX = 2;
 const normalizeOptionalString = (value) => {
@@ -64,29 +65,34 @@ export const resolveTreeSitterRuntime = (indexingConfig) => {
   const treeSitterConfig = indexingConfig.treeSitter || {};
   const treeSitterEnabled = treeSitterConfig.enabled !== false;
   const treeSitterLanguages = treeSitterConfig.languages || {};
-  // Keep a conservative global ceiling by default so oversized JS payloads
-  // are rejected early and do not trigger expensive parser/minified heuristics.
-  const treeSitterMaxBytes = normalizeLimit(treeSitterConfig.maxBytes, 512 * 1024);
-  const treeSitterMaxLines = normalizeLimit(treeSitterConfig.maxLines, 10000);
-  const treeSitterMaxParseMs = normalizeLimit(treeSitterConfig.maxParseMs, 1000);
+  // Throughput-first default caps: keep limits bounded, but high enough to
+  // avoid unnecessary fallback chunking on larger real-world source files.
+  const treeSitterMaxBytes = normalizeLimit(treeSitterConfig.maxBytes, 768 * 1024);
+  const treeSitterMaxLines = normalizeLimit(treeSitterConfig.maxLines, 16000);
+  const treeSitterMaxParseMs = normalizeLimit(treeSitterConfig.maxParseMs, 1600);
   const treeSitterByLanguage = normalizeTreeSitterByLanguage(
     treeSitterConfig.byLanguage || {}
   );
   const heavyGrammarDefaults = {
-    javascript: { maxBytes: 256 * 1024, maxLines: null, maxParseMs: null },
-    typescript: { maxBytes: 256 * 1024, maxLines: null, maxParseMs: null },
-    tsx: { maxBytes: 256 * 1024, maxLines: null, maxParseMs: null },
-    jsx: { maxBytes: 256 * 1024, maxLines: null, maxParseMs: null },
-    html: { maxBytes: 256 * 1024, maxLines: null, maxParseMs: null },
-    yaml: { maxBytes: 192 * 1024, maxLines: 4000, maxParseMs: 1500 },
-    clike: { maxBytes: 384 * 1024, maxLines: 6000, maxParseMs: 2000 },
-    cpp: { maxBytes: 384 * 1024, maxLines: 6000, maxParseMs: 2000 },
-    objc: { maxBytes: 384 * 1024, maxLines: 6000, maxParseMs: 2000 }
+    ...TREE_SITTER_CAPS_BASELINES,
+    tsx: { maxBytes: 288 * 1024, maxLines: 4200, maxParseMs: 1600 },
+    jsx: { maxBytes: 256 * 1024, maxLines: 3600, maxParseMs: 1400 },
+    cpp: TREE_SITTER_CAPS_BASELINES.clike || { maxBytes: 512 * 1024, maxLines: 8000, maxParseMs: 2200 },
+    objc: TREE_SITTER_CAPS_BASELINES.clike || { maxBytes: 512 * 1024, maxLines: 8000, maxParseMs: 2200 }
   };
-  const mergedTreeSitterByLanguage = {
-    ...heavyGrammarDefaults,
-    ...treeSitterByLanguage
-  };
+  const mergedTreeSitterByLanguage = { ...heavyGrammarDefaults };
+  for (const [languageId, override] of Object.entries(treeSitterByLanguage)) {
+    const baseline = mergedTreeSitterByLanguage[languageId] || {
+      maxBytes: null,
+      maxLines: null,
+      maxParseMs: null
+    };
+    mergedTreeSitterByLanguage[languageId] = {
+      maxBytes: override.maxBytes != null ? override.maxBytes : baseline.maxBytes,
+      maxLines: override.maxLines != null ? override.maxLines : baseline.maxLines,
+      maxParseMs: override.maxParseMs != null ? override.maxParseMs : baseline.maxParseMs
+    };
+  }
   const treeSitterConfigChunking = treeSitterConfig.configChunking === true;
   const treeSitterSchedulerConfig = treeSitterConfig.scheduler
     && typeof treeSitterConfig.scheduler === 'object'

@@ -27,6 +27,6 @@ const filtered = filterRawRelationsWithLexicon(rawRelations, {
 });
 
 assert.deepEqual(filtered.calls, [['fn', 'obj.default']], 'expected property name "default" to be preserved');
-assert.deepEqual(filtered.usages, ['default'], 'expected usage "default" to remain for conservative js keywords');
+assert.deepEqual(filtered.usages, [], 'expected bare usage "default" to be filtered as a javascript keyword');
 
 console.log('lexicon relations filter keyword property test passed');

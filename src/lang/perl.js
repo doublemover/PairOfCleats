@@ -3,6 +3,7 @@ import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './
 import { findCLikeBodyBounds } from './clike.js';
 import { extractDocComment, sliceSignature } from './shared.js';
 import { readSignatureLines } from './shared/signature-lines.js';
+import { buildTreeSitterChunks } from './tree-sitter.js';
 
 /**
  * Perl (lite) language chunking and relations.
@@ -132,7 +133,9 @@ export function collectPerlImports(text) {
  * @param {string} text
  * @returns {Array<{start:number,end:number,name:string,kind:string,meta:Object}>|null}
  */
-export function buildPerlChunks(text) {
+export function buildPerlChunks(text, options = {}) {
+  const treeChunks = buildTreeSitterChunks({ text, languageId: 'perl', options });
+  if (treeChunks && treeChunks.length) return treeChunks;
   const lineIndex = buildLineIndex(text);
   const lines = text.split('\n');
   const decls = [];

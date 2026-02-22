@@ -5,6 +5,7 @@ import path from 'node:path';
 
 const root = process.cwd();
 const candidates = [];
+const seenCandidatePaths = new Set();
 
 const readPrefix = async (filePath, maxBytes) => {
   try {
@@ -54,6 +55,9 @@ const addCandidate = async (filePath) => {
   try {
     const stat = await fs.stat(filePath);
     if (!stat.isFile()) return;
+    const normalized = path.resolve(filePath);
+    if (seenCandidatePaths.has(normalized)) return;
+    seenCandidatePaths.add(normalized);
     candidates.push({ path: filePath, mtimeMs: stat.mtimeMs });
   } catch {
     // ignore missing or unreadable paths
@@ -79,13 +83,18 @@ const collectLogs = async (dirPath) => {
   }
 };
 
-const searchRoots = [
-  path.join(root, 'tests', '.logs'),
-  path.join(root, 'benchmarks', 'results')
-];
+const latestTestLogPath = path.join(root, '.testLogs', 'latest');
+await collectLogs(latestTestLogPath);
 
-for (const dirPath of searchRoots) {
-  await collectLogs(dirPath);
+if (!candidates.length) {
+  const searchRoots = [
+    path.join(root, '.testLogs'),
+    path.join(root, 'tests', '.logs'),
+    path.join(root, 'benchmarks', 'results')
+  ];
+  for (const dirPath of searchRoots) {
+    await collectLogs(dirPath);
+  }
 }
 
 if (!candidates.length) {

@@ -5,6 +5,8 @@ import { createTruncationRecorder } from '../shared/truncation.js';
 import { compareGraphNodes, compareWitnessPaths, nodeKey } from './ordering.js';
 import { buildGraphNeighborhood } from './neighborhood.js';
 
+export const IMPACT_EMPTY_CHANGED_SET_CODE = 'ERR_EMPTY_CHANGED_SET';
+
 const normalizeDirection = (value) => {
   const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
   if (raw === 'upstream' || raw === 'downstream') return raw;
@@ -53,7 +55,7 @@ const buildSeedEnvelope = ({ paths, maxCandidates, recordTruncation }) => {
   };
 };
 
-const resolveSeeds = ({ seed, changed, caps, recordTruncation, warnings }) => {
+const resolveSeeds = ({ seed, changed, caps, recordTruncation }) => {
   if (seed && Array.isArray(seed)) {
     return { seedRef: seed[0], seeds: seed };
   }
@@ -77,11 +79,9 @@ const resolveSeeds = ({ seed, changed, caps, recordTruncation, warnings }) => {
   }
   const changedPaths = normalizePaths(changed);
   if (!changedPaths.length) {
-    warnings.push({
-      code: 'EMPTY_CHANGED_SET',
-      message: 'No changed paths provided; impact analysis skipped.'
-    });
-    return { seedRef: null, seeds: [] };
+    const error = new Error('No changed paths provided. Supply --changed/--changed-file or --seed.');
+    error.code = IMPACT_EMPTY_CHANGED_SET_CODE;
+    throw error;
   }
   const maxCandidates = Number.isFinite(caps?.maxCandidates) ? caps.maxCandidates : null;
   const envelope = buildSeedEnvelope({
@@ -140,8 +140,7 @@ export const buildImpactAnalysis = ({
     seed,
     changed,
     caps,
-    recordTruncation,
-    warnings: warnings.list
+    recordTruncation
   });
   if (!resolvedSeeds.seedRef) {
     return {

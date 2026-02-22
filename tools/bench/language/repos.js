@@ -84,6 +84,7 @@ export const ensureRepoBenchmarkReady = ({
   };
   if (!repoPath || !fs.existsSync(repoPath)) return summary;
   if (!canRun('git', ['--version'])) return summary;
+  const repoName = path.basename(repoPath);
 
   const gitRepo = runGitInRepo(repoPath, ['rev-parse', '--is-inside-work-tree'], {
     timeoutMs: Math.min(15000, preflightTimeoutMs)
@@ -100,7 +101,7 @@ export const ensureRepoBenchmarkReady = ({
     });
     if (!statusResult.ok) {
       log(
-        `[repo-preflight] failed to inspect submodules for ${repoPath}: ${firstOutputLine(statusResult)}`,
+        `[repo-preflight] submodule status check failed (${repoName}): ${firstOutputLine(statusResult)}`,
         'warn'
       );
     } else {
@@ -119,13 +120,13 @@ export const ensureRepoBenchmarkReady = ({
         );
         if (!updateResult.ok) {
           log(
-            `[repo-preflight] submodule init failed for ${repoPath}: ${firstOutputLine(updateResult)}`,
+            `[repo-preflight] submodule init failed (${repoName}): ${firstOutputLine(updateResult)}`,
             'warn'
           );
         } else {
           summary.submodules.updated = true;
           log(
-            `[repo-preflight] submodules ready for ${repoPath} ` +
+            `[repo-preflight] submodules ready (${repoName}) ` +
             `(missing=${summary.submodules.missing}, dirty=${summary.submodules.dirty}).`
           );
         }
@@ -144,7 +145,7 @@ export const ensureRepoBenchmarkReady = ({
         timeoutMs: preflightTimeoutMs
       });
       if (!lfsFiles.ok) {
-        log(`[repo-preflight] git-lfs scan failed for ${repoPath}: ${firstOutputLine(lfsFiles)}`, 'warn');
+        log(`[repo-preflight] git-lfs scan failed (${repoName}): ${firstOutputLine(lfsFiles)}`, 'warn');
       } else {
         const tracked = String(lfsFiles.stdout || '')
           .split(/\r?\n/)
@@ -154,10 +155,10 @@ export const ensureRepoBenchmarkReady = ({
         if (tracked.length > 0) {
           const pullResult = runGitInRepo(repoPath, ['lfs', 'pull'], { timeoutMs: preflightTimeoutMs });
           if (!pullResult.ok) {
-            log(`[repo-preflight] git-lfs pull failed for ${repoPath}: ${firstOutputLine(pullResult)}`, 'warn');
+            log(`[repo-preflight] git-lfs pull failed (${repoName}): ${firstOutputLine(pullResult)}`, 'warn');
           } else {
             summary.lfs.pulled = true;
-            log(`[repo-preflight] git-lfs ready for ${repoPath} (${tracked.length} tracked file(s)).`);
+            log(`[repo-preflight] git-lfs ready (${repoName}, ${tracked.length} tracked file(s)).`);
           }
         }
       }

@@ -1,0 +1,37 @@
+{
+  "formatVersion": 1,
+  "languageId": "makefile",
+  "keywords": [
+    "define",
+    "else",
+    "endef",
+    "endif",
+    "export",
+    "if",
+    "ifdef",
+    "ifeq",
+    "ifndef",
+    "ifneq",
+    "include",
+    "override",
+    "private",
+    "sinclude",
+    "target",
+    "undefine",
+    "unexport",
+    "vpath"
+  ],
+  "literals": [],
+  "types": [],
+  "builtins": [
+    "$?",
+    "$@",
+    "$*",
+    "$^",
+    "$<"
+  ],
+  "modules": [],
+  "notes": [
+    "Language-specific lexicon for keyword/literal stopword filtering."
+  ]
+}

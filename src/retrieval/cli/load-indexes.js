@@ -1,8 +1,8 @@
-import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSubprocessSync } from '../../shared/subprocess.js';
+import { pathExists } from '../../shared/files.js';
 import {
-  hasIndexMeta,
+  hasIndexMetaAsync,
   loadFileRelations,
   loadIndexCached,
   loadRepoMap,
@@ -53,14 +53,14 @@ const normalizeIdentityNumber = (value) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
-const loadDenseArtifactFromLegacyPath = (dir, artifactName) => {
+const loadDenseArtifactFromLegacyPath = async (dir, artifactName) => {
   const candidates = DENSE_ARTIFACT_LEGACY_FILES[artifactName];
   if (!Array.isArray(candidates) || !candidates.length) return null;
   for (const relPath of candidates) {
     const absPath = path.join(dir, relPath);
-    const exists = fs.existsSync(absPath)
-      || fs.existsSync(`${absPath}.gz`)
-      || fs.existsSync(`${absPath}.zst`);
+    const exists = await pathExists(absPath)
+      || await pathExists(`${absPath}.gz`)
+      || await pathExists(`${absPath}.zst`);
     if (!exists) continue;
     try {
       return readJsonFile(absPath, { maxBytes: MAX_JSON_BYTES });
@@ -70,6 +70,15 @@ const loadDenseArtifactFromLegacyPath = (dir, artifactName) => {
 };
 
 const numbersEqual = (left, right) => Math.abs(left - right) <= 1e-9;
+const isMissingManifestLikeError = (err) => {
+  const code = String(err?.code || '');
+  const message = String(err?.message || '');
+  return code === 'ERR_MANIFEST_MISSING'
+    || code === 'ERR_MANIFEST_INVALID'
+    || code === 'ERR_COMPATIBILITY_KEY_MISSING'
+    || /Missing pieces manifest/i.test(message)
+    || /Missing compatibilityKey/i.test(message);
+};
 
 const extractEmbeddingIdentity = (meta) => {
   if (!meta || typeof meta !== 'object') return null;
@@ -185,23 +194,23 @@ export async function loadSearchIndexes({
     }
   }
 
-  const resolveTantivyAvailability = (mode, indexDir) => {
+  const resolveTantivyAvailability = async (mode, indexDir) => {
     if (!tantivyEnabled || !indexDir) {
       return { dir: null, metaPath: null, meta: null, available: false };
     }
     const paths = resolveTantivyPaths(indexDir, mode, resolvedTantivyConfig);
     let meta = null;
-    if (paths.metaPath && fs.existsSync(paths.metaPath)) {
+    if (paths.metaPath && await pathExists(paths.metaPath)) {
       try {
         meta = readJsonFile(paths.metaPath, { maxBytes: MAX_JSON_BYTES });
       } catch {}
     }
-    const available = Boolean(meta && paths.dir && fs.existsSync(paths.dir));
+    const available = Boolean(meta && paths.dir && await pathExists(paths.dir));
     return { ...paths, meta, available };
   };
 
-  const ensureTantivyIndex = (mode, indexDir) => {
-    const availability = resolveTantivyAvailability(mode, indexDir);
+  const ensureTantivyIndex = async (mode, indexDir) => {
+    const availability = await resolveTantivyAvailability(mode, indexDir);
     if (availability.available) return availability;
     if (!tantivyRequired || !resolvedTantivyConfig.autoBuild) return availability;
     const toolRoot = resolveToolRoot();
@@ -246,6 +255,15 @@ export async function loadSearchIndexes({
   let extractedProseDir = null;
   let resolvedRunExtractedProse = runExtractedProse;
   let resolvedLoadExtractedProse = runExtractedProse || loadExtractedProse;
+  const disableOptionalExtractedProse = (reason = null) => {
+    if (!resolvedLoadExtractedProse || resolvedRunExtractedProse) return false;
+    if (reason && emitOutput) {
+      console.warn(`[search] ${reason}; skipping extracted-prose comment joins.`);
+    }
+    resolvedLoadExtractedProse = false;
+    extractedProseDir = null;
+    return true;
+  };
   if (resolvedLoadExtractedProse) {
     if (resolvedRunExtractedProse && (searchMode === 'extracted-prose' || searchMode === 'default')) {
       extractedProseDir = requireIndexDir(rootDir, 'extracted-prose', userConfig, {
@@ -264,7 +282,7 @@ export async function loadSearchIndexes({
         resolvedLoadExtractedProse = false;
         extractedProseDir = null;
       }
-      if (!hasIndexMeta(extractedProseDir)) {
+      if (!await hasIndexMetaAsync(extractedProseDir)) {
         if (resolvedRunExtractedProse && emitOutput) {
           console.warn('[search] extracted-prose index not found; skipping.');
         }
@@ -283,21 +301,37 @@ export async function loadSearchIndexes({
     if (runCode) ensureManifest(codeDir);
     if (runProse) ensureManifest(proseDir);
     if (runRecords) ensureManifest(recordsDir);
-    if (resolvedLoadExtractedProse) ensureManifest(extractedProseDir);
+    if (resolvedRunExtractedProse && resolvedLoadExtractedProse) ensureManifest(extractedProseDir);
   }
 
-  const compatibilityTargets = [
+  const includeExtractedProseInCompatibility = resolvedLoadExtractedProse;
+  const compatibilityTargetCandidates = [
     runCode ? { mode: 'code', dir: codeDir } : null,
     runProse ? { mode: 'prose', dir: proseDir } : null,
     runRecords ? { mode: 'records', dir: recordsDir } : null,
-    resolvedLoadExtractedProse ? { mode: 'extracted-prose', dir: extractedProseDir } : null
-  ].filter((entry) => entry && entry.dir && hasIndexMeta(entry.dir));
+    includeExtractedProseInCompatibility ? { mode: 'extracted-prose', dir: extractedProseDir } : null
+  ].filter((entry) => entry && entry.dir);
+  const compatibilityChecks = await Promise.all(
+    compatibilityTargetCandidates.map(async (entry) => ({
+      entry,
+      hasMeta: await hasIndexMetaAsync(entry.dir)
+    }))
+  );
+  const compatibilityTargets = compatibilityChecks
+    .filter((check) => check.hasMeta)
+    .map((check) => check.entry);
   if (compatibilityTargets.length) {
-    const keys = new Map();
-    for (const entry of compatibilityTargets) {
-      const { key } = readCompatibilityKey(entry.dir, { maxBytes: MAX_JSON_BYTES, strict });
-      keys.set(entry.mode, key);
-    }
+    const compatibilityResults = await Promise.all(
+      compatibilityTargets.map(async (entry) => {
+        const strictCompatibilityKey = strict && (entry.mode !== 'extracted-prose' || resolvedRunExtractedProse);
+        const { key } = readCompatibilityKey(entry.dir, {
+          maxBytes: MAX_JSON_BYTES,
+          strict: strictCompatibilityKey
+        });
+        return { mode: entry.mode, key };
+      })
+    );
+    const keys = new Map(compatibilityResults.map((entry) => [entry.mode, entry.key]));
     let keysToValidate = keys;
     const hasMixedCompatibilityKeys = (map) => (new Set(map.values())).size > 1;
     if (hasMixedCompatibilityKeys(keysToValidate) && !resolvedRunExtractedProse && keysToValidate.has('extracted-prose')) {
@@ -394,7 +428,7 @@ export async function loadSearchIndexes({
             if (strict) continue;
           }
           if ((!loaded || !Array.isArray(loaded.vectors) || !loaded.vectors.length) && !strict) {
-            loaded = loadDenseArtifactFromLegacyPath(dir, artifactName);
+            loaded = await loadDenseArtifactFromLegacyPath(dir, artifactName);
           }
           if (!loaded || !Array.isArray(loaded.vectors) || !loaded.vectors.length) continue;
           if (!loaded.model && modelIdDefault) loaded.model = modelIdDefault;
@@ -424,25 +458,32 @@ export async function loadSearchIndexes({
     : { ...EMPTY_INDEX };
   let idxExtractedProse = { ...EMPTY_INDEX };
   if (resolvedLoadExtractedProse) {
-    if (useSqlite) {
-      try {
-        idxExtractedProse = loadIndexFromSqlite('extracted-prose', {
-          includeDense: needsAnnArtifacts && !lazyDenseVectorsEnabled,
-          includeMinhash: needsAnnArtifacts,
-          includeChunks: sqliteContextChunks,
-          includeFilterIndex: needsFilterIndex
-        });
-      } catch {
+    try {
+      if (useSqlite) {
+        try {
+          idxExtractedProse = loadIndexFromSqlite('extracted-prose', {
+            includeDense: needsAnnArtifacts && !lazyDenseVectorsEnabled,
+            includeMinhash: needsAnnArtifacts,
+            includeChunks: sqliteContextChunks,
+            includeFilterIndex: needsFilterIndex
+          });
+        } catch {
+          idxExtractedProse = await loadIndexCachedLocal(extractedProseDir, {
+            ...loadOptions,
+            includeHnsw: annActive && resolvedRunExtractedProse
+          }, 'extracted-prose');
+        }
+      } else {
         idxExtractedProse = await loadIndexCachedLocal(extractedProseDir, {
           ...loadOptions,
           includeHnsw: annActive && resolvedRunExtractedProse
         }, 'extracted-prose');
       }
-    } else {
-      idxExtractedProse = await loadIndexCachedLocal(extractedProseDir, {
-        ...loadOptions,
-        includeHnsw: annActive && resolvedRunExtractedProse
-      }, 'extracted-prose');
+    } catch (err) {
+      if (!isMissingManifestLikeError(err) || !disableOptionalExtractedProse('optional extracted-prose artifacts unavailable')) {
+        throw err;
+      }
+      idxExtractedProse = { ...EMPTY_INDEX };
     }
   }
   const idxCode = runCode
@@ -473,6 +514,7 @@ export async function loadSearchIndexes({
   warnPendingState(idxProse, 'prose', { emitOutput, useSqlite, annActive });
   warnPendingState(idxExtractedProse, 'extracted-prose', { emitOutput, useSqlite, annActive });
 
+  const relationLoadTasks = [];
   if (runCode) {
     idxCode.denseVec = resolveDenseVector(idxCode, 'code', resolvedDenseVectorMode);
     if (!idxCode.denseVec && idxCode?.state?.embeddings?.embeddingIdentity) {
@@ -481,10 +523,20 @@ export async function loadSearchIndexes({
     attachDenseVectorLoader(idxCode, 'code', codeIndexDir);
     idxCode.indexDir = codeIndexDir;
     if ((useSqlite || useLmdb) && needsFileRelations && !idxCode.fileRelations) {
-      idxCode.fileRelations = loadFileRelations(rootDir, userConfig, 'code', { resolveOptions });
+      relationLoadTasks.push(
+        loadFileRelations(rootDir, userConfig, 'code', { resolveOptions })
+          .then((value) => {
+            idxCode.fileRelations = value;
+          })
+      );
     }
     if ((useSqlite || useLmdb) && needsRepoMap && !idxCode.repoMap) {
-      idxCode.repoMap = loadRepoMap(rootDir, userConfig, 'code', { resolveOptions });
+      relationLoadTasks.push(
+        loadRepoMap(rootDir, userConfig, 'code', { resolveOptions })
+          .then((value) => {
+            idxCode.repoMap = value;
+          })
+      );
     }
   }
   if (runProse) {
@@ -495,10 +547,20 @@ export async function loadSearchIndexes({
     attachDenseVectorLoader(idxProse, 'prose', proseIndexDir);
     idxProse.indexDir = proseIndexDir;
     if ((useSqlite || useLmdb) && needsFileRelations && !idxProse.fileRelations) {
-      idxProse.fileRelations = loadFileRelations(rootDir, userConfig, 'prose', { resolveOptions });
+      relationLoadTasks.push(
+        loadFileRelations(rootDir, userConfig, 'prose', { resolveOptions })
+          .then((value) => {
+            idxProse.fileRelations = value;
+          })
+      );
     }
     if ((useSqlite || useLmdb) && needsRepoMap && !idxProse.repoMap) {
-      idxProse.repoMap = loadRepoMap(rootDir, userConfig, 'prose', { resolveOptions });
+      relationLoadTasks.push(
+        loadRepoMap(rootDir, userConfig, 'prose', { resolveOptions })
+          .then((value) => {
+            idxProse.repoMap = value;
+          })
+      );
     }
   }
   if (resolvedLoadExtractedProse) {
@@ -513,11 +575,24 @@ export async function loadSearchIndexes({
     attachDenseVectorLoader(idxExtractedProse, 'extracted-prose', extractedProseDir);
     idxExtractedProse.indexDir = extractedProseDir;
     if (needsFileRelations && !idxExtractedProse.fileRelations) {
-      idxExtractedProse.fileRelations = loadFileRelations(rootDir, userConfig, 'extracted-prose', { resolveOptions });
+      relationLoadTasks.push(
+        loadFileRelations(rootDir, userConfig, 'extracted-prose', { resolveOptions })
+          .then((value) => {
+            idxExtractedProse.fileRelations = value;
+          })
+      );
     }
     if (needsRepoMap && !idxExtractedProse.repoMap) {
-      idxExtractedProse.repoMap = loadRepoMap(rootDir, userConfig, 'extracted-prose', { resolveOptions });
+      relationLoadTasks.push(
+        loadRepoMap(rootDir, userConfig, 'extracted-prose', { resolveOptions })
+          .then((value) => {
+            idxExtractedProse.repoMap = value;
+          })
+      );
     }
+  }
+  if (relationLoadTasks.length) {
+    await Promise.all(relationLoadTasks);
   }
 
   if (runRecords) {
@@ -592,7 +667,7 @@ export async function loadSearchIndexes({
         }
       }
     }
-    if (!meta && !strict && targetPaths.metaPath && fs.existsSync(targetPaths.metaPath)) {
+    if (!meta && !strict && targetPaths.metaPath && await pathExists(targetPaths.metaPath)) {
       try {
         meta = readJsonFile(targetPaths.metaPath, { maxBytes: MAX_JSON_BYTES });
       } catch {}
@@ -625,10 +700,10 @@ export async function loadSearchIndexes({
         }
       }
     }
-    if (!lanceDir && !strict && targetPaths.dir && fs.existsSync(targetPaths.dir)) {
+    if (!lanceDir && !strict && targetPaths.dir && await pathExists(targetPaths.dir)) {
       lanceDir = targetPaths.dir;
     }
-    const available = Boolean(meta && lanceDir && fs.existsSync(lanceDir));
+    const available = Boolean(meta && lanceDir && await pathExists(lanceDir));
     idx.lancedb = {
       target,
       dir: lanceDir || null,
@@ -684,7 +759,7 @@ export async function loadSearchIndexes({
   if (needsAnnArtifacts) {
     attachTasks.push(() => attachLanceDb(idxCode, 'code', codeIndexDir));
     attachTasks.push(() => attachLanceDb(idxProse, 'prose', proseIndexDir));
-    if (resolvedLoadExtractedProse) {
+    if (resolvedRunExtractedProse && resolvedLoadExtractedProse) {
       attachTasks.push(() => attachLanceDb(idxExtractedProse, 'extracted-prose', extractedProseDir));
     }
   }
@@ -828,9 +903,9 @@ export async function loadSearchIndexes({
     }
   }
 
-  const attachTantivy = (idx, mode, dir) => {
+  const attachTantivy = async (idx, mode, dir) => {
     if (!idx || !dir || !tantivyEnabled) return null;
-    const availability = ensureTantivyIndex(mode, dir);
+    const availability = await ensureTantivyIndex(mode, dir);
     idx.tantivy = {
       dir: availability.dir,
       metaPath: availability.metaPath,
@@ -840,10 +915,12 @@ export async function loadSearchIndexes({
     return idx.tantivy;
   };
 
-  attachTantivy(idxCode, 'code', codeIndexDir);
-  attachTantivy(idxProse, 'prose', proseIndexDir);
-  attachTantivy(idxExtractedProse, 'extracted-prose', extractedProseDir);
-  attachTantivy(idxRecords, 'records', recordsDir);
+  await Promise.all([
+    attachTantivy(idxCode, 'code', codeIndexDir),
+    attachTantivy(idxProse, 'prose', proseIndexDir),
+    attachTantivy(idxExtractedProse, 'extracted-prose', extractedProseDir),
+    attachTantivy(idxRecords, 'records', recordsDir)
+  ]);
 
   if (tantivyRequired) {
     const missingModes = [];

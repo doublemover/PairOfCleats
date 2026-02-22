@@ -19,10 +19,122 @@ const parseStringList = (value) => {
   return [];
 };
 
+const parseStringListFromSearchParams = (searchParams, keys) => {
+  const values = [];
+  for (const key of keys) {
+    const raw = searchParams.getAll(key);
+    for (const entry of raw) {
+      values.push(...parseStringList(entry));
+    }
+  }
+  return values;
+};
+
+const parsePositiveInt = (raw, label) => {
+  if (raw == null || raw === '') return null;
+  const normalized = String(raw).trim();
+  if (!/^\d+$/.test(normalized)) {
+    const err = new Error(`${label} must be a positive integer.`);
+    err.code = ERROR_CODES.INVALID_REQUEST;
+    throw err;
+  }
+  const parsed = Number(normalized);
+  if (!Number.isSafeInteger(parsed) || parsed < 1) {
+    const err = new Error(`${label} must be a positive integer.`);
+    err.code = ERROR_CODES.INVALID_REQUEST;
+    throw err;
+  }
+  return parsed;
+};
+
+const parseDiffFormat = (raw) => {
+  const normalized = String(raw || 'summary').trim().toLowerCase() || 'summary';
+  if (normalized === 'summary' || normalized === 'jsonl') return normalized;
+  const err = new Error('format must be "summary" or "jsonl".');
+  err.code = ERROR_CODES.INVALID_REQUEST;
+  throw err;
+};
+
+/**
+ * Parse diff event shaping/filter options from query parameters.
+ *
+ * Supports both kebab-case and camelCase aliases for compatibility.
+ *
+ * @param {URLSearchParams} searchParams
+ * @returns {{modes:string[],kinds:string[],maxEvents:number|null,maxBytes:number|null}}
+ */
+const parseDiffShapingOptions = (searchParams) => ({
+  modes: parseStringListFromSearchParams(searchParams, ['mode', 'modes']),
+  kinds: parseStringListFromSearchParams(searchParams, ['kind', 'kinds']),
+  maxEvents: (
+    parsePositiveInt(searchParams.get('max-events'), 'max-events')
+    ?? parsePositiveInt(searchParams.get('maxEvents'), 'maxEvents')
+    ?? parsePositiveInt(searchParams.get('limit'), 'limit')
+  ),
+  maxBytes: (
+    parsePositiveInt(searchParams.get('max-bytes'), 'max-bytes')
+    ?? parsePositiveInt(searchParams.get('maxBytes'), 'maxBytes')
+  )
+});
+
+/**
+ * Apply event-mode/kind filtering and output bounds for diff event payloads.
+ *
+ * `maxEvents` is applied first, then `maxBytes` is applied to JSONL line size.
+ *
+ * @param {Array<object>} events
+ * @param {{modes?:string[],kinds?:string[],maxEvents?:number|null,maxBytes?:number|null}} options
+ * @returns {Array<object>}
+ */
+const shapeDiffEvents = (events, options) => {
+  const list = Array.isArray(events) ? events : [];
+  const modeFilter = Array.isArray(options?.modes) && options.modes.length
+    ? new Set(options.modes.map((entry) => String(entry).trim()).filter(Boolean))
+    : null;
+  const kindFilter = Array.isArray(options?.kinds) && options.kinds.length
+    ? new Set(options.kinds.map((entry) => String(entry).trim()).filter(Boolean))
+    : null;
+  const filtered = list.filter((entry) => {
+    if (modeFilter && !modeFilter.has(String(entry?.mode || ''))) return false;
+    if (kindFilter && !kindFilter.has(String(entry?.kind || ''))) return false;
+    return true;
+  });
+  const maxEvents = Number.isFinite(Number(options?.maxEvents)) ? Number(options.maxEvents) : null;
+  const maxBytes = Number.isFinite(Number(options?.maxBytes)) ? Number(options.maxBytes) : null;
+  const limitedByEvents = maxEvents != null ? filtered.slice(0, maxEvents) : filtered;
+  if (maxBytes == null) return limitedByEvents;
+  const bounded = [];
+  let bytes = 0;
+  for (const event of limitedByEvents) {
+    const lineBytes = Buffer.byteLength(`${JSON.stringify(event)}\n`);
+    if (bytes + lineBytes > maxBytes) break;
+    bounded.push(event);
+    bytes += lineBytes;
+  }
+  return bounded;
+};
+
 const handleRepoResolveError = (res, err, corsHeaders) => {
   const code = err?.code === ERROR_CODES.FORBIDDEN ? ERROR_CODES.FORBIDDEN : ERROR_CODES.INVALID_REQUEST;
   const status = err?.code === ERROR_CODES.FORBIDDEN ? 403 : 400;
   sendError(res, status, code, err?.message || 'Invalid repo path.', {}, corsHeaders || {});
+};
+
+/**
+ * Decode diff id path segments and convert malformed URI encoding into a
+ * consistent INVALID_REQUEST error.
+ *
+ * @param {string} rawValue
+ * @returns {string}
+ */
+const decodeDiffId = (rawValue) => {
+  try {
+    return decodeURIComponent(rawValue || '');
+  } catch {
+    const err = new Error('Invalid diff id: malformed URI encoding.');
+    err.code = ERROR_CODES.INVALID_REQUEST;
+    throw err;
+  }
 };
 
 export const handleIndexDiffsRoute = async ({
@@ -47,7 +159,7 @@ export const handleIndexDiffsRoute = async ({
       const diffs = listDiffs({
         repoRoot: repoPath,
         userConfig,
-        modes: parseStringList(requestUrl.searchParams.get('modes'))
+        modes: parseStringListFromSearchParams(requestUrl.searchParams, ['mode', 'modes'])
       });
       sendJson(res, 200, {
         ok: true,
@@ -77,12 +189,19 @@ export const handleIndexDiffsRoute = async ({
   const suffix = pathname.slice(diffPrefix.length);
   if (!suffix) return false;
   const parts = suffix.split('/').filter(Boolean);
-  const diffId = decodeURIComponent(parts[0] || '');
+  let diffId = '';
+  try {
+    diffId = decodeDiffId(parts[0] || '');
+  } catch (err) {
+    sendError(res, 400, ERROR_CODES.INVALID_REQUEST, err?.message || 'Invalid diff id.', {}, corsHeaders || {});
+    return true;
+  }
   const tail = parts.slice(1);
 
   if (tail.length === 1 && tail[0] === 'events') {
     try {
       const userConfig = loadUserConfig(repoPath);
+      const shapeOptions = parseDiffShapingOptions(requestUrl.searchParams);
       const detail = showDiff({
         repoRoot: repoPath,
         userConfig,
@@ -93,7 +212,7 @@ export const handleIndexDiffsRoute = async ({
         sendError(res, 404, ERROR_CODES.NOT_FOUND, `Diff not found: ${diffId}`, {}, corsHeaders || {});
         return true;
       }
-      const events = Array.isArray(detail.events) ? detail.events : [];
+      const events = shapeDiffEvents(detail.events, shapeOptions);
       const lines = events.map((entry) => JSON.stringify(redactAbsolutePaths(entry))).join('\n');
       const body = lines ? `${lines}\n` : '';
       res.writeHead(200, {
@@ -119,19 +238,27 @@ export const handleIndexDiffsRoute = async ({
   if (tail.length === 0) {
     try {
       const userConfig = loadUserConfig(repoPath);
+      const format = parseDiffFormat(requestUrl.searchParams.get('format'));
+      const shapeOptions = format === 'jsonl' ? parseDiffShapingOptions(requestUrl.searchParams) : null;
       const detail = showDiff({
         repoRoot: repoPath,
         userConfig,
         diffId,
-        format: 'summary'
+        format
       });
       if (!detail) {
         sendError(res, 404, ERROR_CODES.NOT_FOUND, `Diff not found: ${diffId}`, {}, corsHeaders || {});
         return true;
       }
+      const payload = format === 'jsonl'
+        ? {
+          ...detail,
+          events: shapeDiffEvents(detail.events, shapeOptions)
+        }
+        : detail;
       sendJson(res, 200, {
         ok: true,
-        diff: redactAbsolutePaths(detail)
+        diff: redactAbsolutePaths(payload)
       }, corsHeaders || {});
     } catch (err) {
       const code = err?.code || ERROR_CODES.INTERNAL;

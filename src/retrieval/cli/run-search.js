@@ -1,4 +1,3 @@
-import fsSync from 'node:fs';
 import path from 'node:path';
 import {
   applyAdaptiveDictConfig,
@@ -27,7 +26,7 @@ import { configureOutputCaches } from '../output.js';
 import { createSearchTelemetry } from './telemetry.js';
 import { getMissingFlagMessages, resolveIndexedFileCount } from './options.js';
 import { evaluateAutoSqliteThresholds, resolveIndexStats } from './auto-sqlite.js';
-import { hasIndexMeta, hasLmdbStore } from './index-loader.js';
+import { hasIndexMetaAsync, hasLmdbStore } from './index-loader.js';
 import { applyBranchFilter } from './branch-filter.js';
 import { createBackendContext } from './backend-context.js';
 import { resolveBackendSelection } from './policy.js';
@@ -38,12 +37,14 @@ import { resolveRunConfig } from './resolve-run-config.js';
 import { resolveRequiredArtifacts } from './required-artifacts.js';
 import { loadSearchIndexes } from './load-indexes.js';
 import { executeSearchAndEmit } from './search-execution.js';
+import { resolveRetrievalCachePath } from './cache-paths.js';
 import { DEFAULT_CODE_DICT_LANGUAGES, normalizeCodeDictLanguages } from '../../shared/code-dictionaries.js';
 import { compileFilterPredicates } from '../output/filters.js';
 import { stableStringify } from '../../shared/stable-json.js';
 import { RETRIEVAL_SPARSE_UNAVAILABLE_CODE } from '../sparse/requirements.js';
 import { resolveSqliteFtsRoutingByMode } from '../routing-policy.js';
 import { runWithOperationalFailurePolicy } from '../../shared/ops-failure-injection.js';
+import { pathExists } from '../../shared/files.js';
 import {
   buildQueryPlanCacheKey,
   buildQueryPlanConfigSignature,
@@ -125,6 +126,28 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
 
   const jsonOutput = argv.json === true;
   const jsonCompact = argv.compact === true;
+  const positionalQuery = Array.isArray(argv?._)
+    ? argv._
+      .map((value) => String(value || '').trim())
+      .filter(Boolean)
+      .join(' ')
+      .trim()
+    : '';
+  if (!positionalQuery) {
+    recordSearchMetrics('error');
+    const message = getSearchUsage();
+    if (emitOutput) {
+      if (jsonOutput) {
+        console.log(JSON.stringify({ ok: false, code: ERROR_CODES.INVALID_REQUEST, message }));
+      } else {
+        console.error(message);
+      }
+    }
+    if (exitOnError) process.exit(1);
+    const error = createError(ERROR_CODES.INVALID_REQUEST, message);
+    error.emitted = true;
+    throw error;
+  }
   const workspacePath = typeof argv.workspace === 'string' ? argv.workspace.trim() : '';
   if (workspacePath) {
     try {
@@ -188,13 +211,16 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     const queryCacheDir = getQueryCacheDir(rootDir, userConfig);
     const policy = await getAutoPolicy(rootDir, userConfig);
     if (!queryPlanCache) {
-      const queryPlanCachePath = path.join(
-        queryCacheDir || metricsDir,
-        'queryPlanCache.json'
-      );
-      queryPlanCache = createQueryPlanDiskCache({ path: queryPlanCachePath });
-      if (typeof queryPlanCache?.load === 'function') {
-        queryPlanCache.load();
+      const queryPlanCachePath = resolveRetrievalCachePath({
+        queryCacheDir,
+        metricsDir,
+        fileName: 'queryPlanCache.json'
+      });
+      if (queryPlanCachePath) {
+        queryPlanCache = createQueryPlanDiskCache({ path: queryPlanCachePath });
+        if (typeof queryPlanCache?.load === 'function') {
+          queryPlanCache.load();
+        }
       }
     }
     let normalized;
@@ -364,7 +390,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
             err?.code || ERROR_CODES.NO_INDEX
           );
         }
-        if (!hasIndexMeta(modeDir)) {
+        if (!await hasIndexMetaAsync(modeDir)) {
           return bail(
             `[search] ${mode} index not found at ${modeDir} for --as-of ${asOfContext.ref}.`,
             1,
@@ -534,10 +560,13 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
         console.warn(`[search] ${warning}`);
       }
     }
-    const sqliteCodeAvailable = !sqliteRootsMixed && fsSync.existsSync(sqliteCodePath) && isSqliteReady(sqliteStateCode);
-    const sqliteProseAvailable = !sqliteRootsMixed && fsSync.existsSync(sqliteProsePath) && isSqliteReady(sqliteStateProse);
+    const sqliteCodePathExists = !sqliteRootsMixed && await pathExists(sqliteCodePath);
+    const sqliteProsePathExists = !sqliteRootsMixed && await pathExists(sqliteProsePath);
+    const sqliteExtractedPathExists = !sqliteRootsMixed && await pathExists(sqliteExtractedProsePath);
+    const sqliteCodeAvailable = sqliteCodePathExists && isSqliteReady(sqliteStateCode);
+    const sqliteProseAvailable = sqliteProsePathExists && isSqliteReady(sqliteStateProse);
     const sqliteExtractedProseAvailable = !sqliteRootsMixed
-      && fsSync.existsSync(sqliteExtractedProsePath)
+      && sqliteExtractedPathExists
       && isSqliteReady(sqliteStateExtractedProse);
     const sqliteAvailable = (!needsCode || sqliteCodeAvailable)
       && (!needsProse || sqliteProseAvailable)
