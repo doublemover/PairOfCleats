@@ -90,6 +90,9 @@ import {
   buildUsrOperationalReadinessValidationReport as buildUsrOperationalReadinessValidationReportCore,
   evaluateUsrOperationalReadiness as evaluateUsrOperationalReadinessCore
 } from './usr-matrix/operational-readiness.js';
+import {
+  buildUsrReleaseReadinessScorecard as buildUsrReleaseReadinessScorecardCore
+} from './usr-matrix/release-readiness-scorecard.js';
 
 const ajv = createAjv({
   dialect: '2020',
@@ -686,88 +689,23 @@ export function buildUsrReleaseReadinessScorecard({
   buildId = null,
   scope = { scopeType: 'lane', scopeId: 'ci' }
 } = {}) {
-  const evaluation = evaluateUsrOperationalReadiness({
+  return buildUsrReleaseReadinessScorecardCore({
     operationalReadinessPolicyPayload,
     qualityGatesPayload,
     languageProfilesPayload,
     conformanceLevelsPayload,
     knownLanes,
     missingArtifactSchemas,
-    failingBlockingGateIds
-  });
-
-  const conformanceRows = Object.values(evaluation.conformanceByLevel || {}).map((summary) => ({
-    rowType: 'conformance-level',
-    id: summary.level,
-    pass: summary.pass,
-    requiredProfileCount: summary.requiredProfileCount,
-    failingRequiredProfileCount: summary.failingRequiredProfileCount,
-    errorCount: summary.errorCount,
-    warningCount: summary.warningCount
-  }));
-
-  const readinessRows = [
-    {
-      rowType: 'readiness-dimension',
-      id: 'test-rollout',
-      pass: !evaluation.readiness.testRolloutBlocked,
-      blocked: evaluation.readiness.testRolloutBlocked
-    },
-    {
-      rowType: 'readiness-dimension',
-      id: 'deep-conformance',
-      pass: !evaluation.readiness.deepConformanceBlocked,
-      blocked: evaluation.readiness.deepConformanceBlocked
-    },
-    {
-      rowType: 'readiness-dimension',
-      id: 'framework-conformance',
-      pass: !evaluation.readiness.frameworkConformanceBlocked,
-      blocked: evaluation.readiness.frameworkConformanceBlocked
-    }
-  ];
-
-  const rows = [...readinessRows, ...conformanceRows];
-  const status = evaluation.errors.length > 0 || evaluation.blocked
-    ? 'fail'
-    : (evaluation.warnings.length > 0 ? 'warn' : 'pass');
-
-  const payload = {
-    schemaVersion: 'usr-1.0.0',
-    artifactId: 'usr-release-readiness-scorecard',
     generatedAt,
     producerId,
     producerVersion,
     runId,
     lane,
     buildId,
-    status,
-    scope: normalizeReportScope(scope, 'lane', lane),
-    summary: {
-      blocked: evaluation.blocked,
-      blockerCount: evaluation.blockers.length,
-      errorCount: evaluation.errors.length,
-      warningCount: evaluation.warnings.length,
-      readiness: evaluation.readiness,
-      conformanceByLevel: evaluation.conformanceByLevel
-    },
-    blockingFindings: [
-      ...evaluation.blockers.map((message) => ({ class: 'release-readiness', message })),
-      ...evaluation.errors.map((message) => ({ class: 'release-readiness', message }))
-    ],
-    advisoryFindings: evaluation.warnings.map((message) => ({ class: 'release-readiness', message })),
-    rows
-  };
-
-  return {
-    ok: evaluation.ok,
-    blocked: evaluation.blocked,
-    blockers: evaluation.blockers,
-    errors: evaluation.errors,
-    warnings: evaluation.warnings,
-    rows,
-    payload
-  };
+    scope,
+    evaluateOperationalReadiness: evaluateUsrOperationalReadiness,
+    normalizeScope: normalizeReportScope
+  });
 }
 
 export function validateUsrBackcompatMatrixCoverage(options = {}) {

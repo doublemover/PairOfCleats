@@ -69,6 +69,8 @@ Note:
 - 23 scoped files are still over 800 lines. Those are mostly already-refactored surfaces that still have follow-up split opportunities; they are not untouched scope items.
 
 ## Follow-up split log (current pass)
+- 2026-02-23T09:13:16.7558796-05:00
+  Extracted release-readiness scorecard assembly from `src/contracts/validators/usr-matrix.js` into `src/contracts/validators/usr-matrix/release-readiness-scorecard.js`, preserving facade behavior with injected operational-readiness and scope normalization callbacks while isolating row/payload synthesis; added focused coverage in `tests/indexing/contracts/usr-release-readiness-scorecard.test.js`.
 - 2026-02-23T09:10:17.8026074-05:00
   Extracted piece-manifest tracking from `src/index/build/artifacts-write.js` into `src/index/build/artifacts/piece-manifest-registry.js`, centralizing tier/layout normalization and metadata patching callbacks used across writer dispatch, while reducing map lookup churn on repeated path registrations; added focused coverage in `tests/indexing/artifacts/piece-manifest-registry.test.js`.
 - 2026-02-23T09:01:53.1787669-05:00
